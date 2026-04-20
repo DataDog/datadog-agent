@@ -129,20 +129,24 @@ func (is *ddotInstallSuite) ConfigureAndRunAgentService(VMclient *common.TestCli
 		} else {
 			ExecuteWithoutError(t, VMclient, "sudo systemctl restart datadog-agent.service")
 		}
-
-		// Reset systemd failure state and start ddot service
-		ExecuteWithoutError(t, VMclient, "sudo systemctl reset-failed datadog-agent-ddot.service")
-		ExecuteWithoutError(t, VMclient, "sudo systemctl start datadog-agent-ddot.service")
 	})
 
-	is.T().Run("check ddot systemd units are running", func(t *testing.T) {
+	is.T().Run("check ddot managed by procmgrd", func(t *testing.T) {
+		// The procmgr YAML should exist, which causes the DDOT systemd unit's
+		// ConditionPathExists=! to skip, handing management to dd-procmgrd.
+		_, err := VMclient.FileManager.FileExists("/opt/datadog-agent/processes.d/datadog-agent-ddot.yaml")
+		require.NoError(t, err, "procmgr YAML should be present after DDOT installation")
+
+		// The procmgrd service should be active
+		procmgrdUnit := is.host.State().Units["datadog-agent-procmgrd.service"]
+		require.NotNil(t, procmgrdUnit, "procmgrd unit should be present")
+		require.Equal(t, "active", procmgrdUnit.Active, "procmgrd should be active")
+
+		// The DDOT systemd unit should be inactive because ConditionPathExists=!
+		// is not satisfied (the procmgr YAML exists).
 		ddotUnit := is.host.State().Units["datadog-agent-ddot.service"]
 		require.NotNil(t, ddotUnit, "DDOT unit should be present after installation")
-		require.Equal(t, "datadog-agent-ddot.service", ddotUnit.Name, "DDOT unit name should be datadog-agent-ddot.service")
-		require.Equal(t, "active", ddotUnit.Active, "DDOT unit should be active because of dependency on datadog-agent")
-		require.Equal(t, "enabled", ddotUnit.Enabled, "DDOT unit should be enabled when running")
-		require.Equal(t, host.Loaded, ddotUnit.LoadState, "DDOT unit should be loaded")
-		require.Equal(t, host.Running, ddotUnit.SubState, "DDOT unit should be started when datadog-agent is started")
+		require.Equal(t, "inactive", ddotUnit.Active, "DDOT systemd unit should be inactive when managed by procmgrd")
 	})
 }
 
