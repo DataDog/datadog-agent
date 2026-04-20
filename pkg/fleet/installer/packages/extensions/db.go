@@ -144,21 +144,20 @@ func (p *extensionsDB) SetPackageVersion(pkg string, version string, isExperimen
 		}
 		if existing := b.Get(getKey(pkg, isExperiment)); len(existing) > 0 {
 			var existingPkg dbPackage
-			if err := json.Unmarshal(existing, &existingPkg); err == nil && existingPkg.Version == version {
+			unmarshalErr := json.Unmarshal(existing, &existingPkg)
+			if unmarshalErr != nil {
+				// Apply the same legacy tolerance as GetPackage: an UnmarshalTypeError
+				// from the old map[string]struct{} schema still populates Name/Version.
+				var typeErr *json.UnmarshalTypeError
+				if errors.As(unmarshalErr, &typeErr) && existingPkg.Name != "" {
+					unmarshalErr = nil
+				}
+			}
+			if unmarshalErr == nil && existingPkg.Version == version {
 				return nil
 			}
 		}
-		dbPkg := dbPackage{
-			Name:    pkg,
-			Version: version,
-		}
-		if existing := b.Get(getKey(pkg, isExperiment)); len(existing) > 0 {
-			var existingPkg dbPackage
-			if err := json.Unmarshal(existing, &existingPkg); err == nil && existingPkg.Version == version {
-				return nil
-			}
-		}
-		rawPkg, err := json.Marshal(&dbPkg)
+		rawPkg, err := json.Marshal(&dbPackage{Name: pkg, Version: version})
 		if err != nil {
 			return fmt.Errorf("could not marshal package: %w", err)
 		}

@@ -7,6 +7,7 @@ package extensions
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"path/filepath"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.etcd.io/bbolt"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
@@ -108,6 +110,40 @@ func TestSetPackageVersionIdempotent(t *testing.T) {
 	got, err := db.GetPackage("datadog-agent", false)
 	require.NoError(t, err)
 	assert.Equal(t, map[string]string{"python": "sha256:abc", "ruby": "sha256:def"}, got.Extensions, "extensions should be preserved after idempotent SetPackageVersion")
+}
+
+// TestSetPackageVersionIdempotentWithLegacyFormat verifies that SetPackageVersion is a no-op
+// when the stored entry uses the old map[string]struct{} schema and the version matches,
+// preserving the legacy data so GetPackage can later migrate it to trigger reinstalls.
+func TestSetPackageVersionIdempotentWithLegacyFormat(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Write a legacy-format entry directly via bbolt.
+	db, err := newExtensionsDB(filepath.Join(tmpDir, "extensions.db"))
+	require.NoError(t, err)
+	require.NoError(t, db.db.Update(func(tx *bbolt.Tx) error {
+		b := tx.Bucket(bucketExtensions)
+		type legacyPkg struct {
+			Name       string              `json:"pkg"`
+			Version    string              `json:"version"`
+			Extensions map[string]struct{} `json:"extensions"`
+		}
+		data, err := json.Marshal(legacyPkg{Name: "datadog-agent", Version: "7.50.0", Extensions: map[string]struct{}{"python": {}}})
+		if err != nil {
+			return err
+		}
+		return b.Put(getKey("datadog-agent", false), data)
+	}))
+
+	err = db.SetPackageVersion("datadog-agent", "7.50.0", false)
+	require.NoError(t, err)
+
+	// The legacy entry must still be readable via GetPackage (not wiped to empty).
+	got, err := db.GetPackage("datadog-agent", false)
+	require.NoError(t, err)
+	assert.Equal(t, "7.50.0", got.Version)
+	assert.Contains(t, got.Extensions, "python", "legacy extension key must survive SetPackageVersion no-op")
+	db.Close()
 }
 
 // TestSetPackageVersionWipesExtensionsOnVersionChange verifies that calling SetPackageVersion
