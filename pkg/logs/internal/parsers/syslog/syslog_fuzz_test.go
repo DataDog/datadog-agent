@@ -28,6 +28,10 @@ func FuzzParse(f *testing.F) {
 	f.Add([]byte(`<999>1 - - - - - - test`))
 	f.Add([]byte(`<0>1 - - - - - - test`))
 	f.Add([]byte(``))
+
+	// CEF/LEEF envelope seeds
+	f.Add([]byte(`<14>1 2026-03-30T12:00:00Z host app - - - CEF:0|Security|FW|1.0|100|Attack|10|src=10.0.0.1`))
+	f.Add([]byte(`<14>1 2026-03-30T12:00:00Z host app - - - LEEF:1.0|Vendor|Product|1.0|100|src=10.0.0.1`))
 	f.Add([]byte(`not syslog`))
 	f.Add([]byte("\x00\x01\x02"))
 	f.Add([]byte("\xff\xfe\xfd"))
@@ -68,6 +72,33 @@ func FuzzParseBSDLine(f *testing.F) {
 
 		if msg.Pri != -1 {
 			t.Errorf("ParseBSDLine should always return Pri=-1, got %d", msg.Pri)
+		}
+	})
+}
+
+func FuzzParseCEFLEEF(f *testing.F) {
+	f.Add([]byte("CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10|src=10.0.0.1 dst=2.1.2.2"))
+	f.Add([]byte("LEEF:1.0|Microsoft|MSExchange|2013 SP1|15345|src=10.0.1.7\tdst=10.0.0.5"))
+	f.Add([]byte("LEEF:2.0|Vendor|Product|1.0|100|^|src=10.0.1.8^dst=10.0.0.5"))
+	f.Add([]byte(`CEF:0|Vendor\|Inc|Product|1.0|100|Name|5|act=blocked a \= dst=1.1.1.1`))
+	f.Add([]byte("not CEF or LEEF"))
+	f.Add([]byte("CEF:"))
+	f.Add([]byte("LEEF:"))
+	f.Add([]byte(""))
+	f.Add([]byte("\x00\x01\x02"))
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		header, ext, _, ok := ParseCEFLEEF(data)
+		if !ok {
+			return
+		}
+		if header.Format != "CEF" && header.Format != "LEEF" {
+			t.Errorf("unexpected format %q", header.Format)
+		}
+		// Walk extension map to ensure no nil keys or panics.
+		for k, v := range ext {
+			_ = k
+			_ = v
 		}
 	})
 }
