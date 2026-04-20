@@ -20,9 +20,13 @@ import (
 	"time"
 )
 
-const spanKey = spanContextKey("span_context")
-
 type spanContextKey string
+
+const (
+	spanIDsKey          = spanContextKey("span_ids")
+	serviceKey          = spanContextKey("span_service")
+	samplingPriorityKey = spanContextKey("span_sampling_priority")
+)
 
 // Span represents a span.
 type Span struct {
@@ -31,12 +35,22 @@ type Span struct {
 	finished atomic.Bool
 }
 
-func newSpan(name string, parentID, traceID uint64) *Span {
+func newSpan(
+	name string,
+	parentID uint64,
+	traceID uint64,
+	service string,
+	samplingPriority *int,
+) *Span {
 	if traceID == 0 {
 		traceID = rand.Uint64()
-		if !headSamplingKeep(name, traceID) {
+		// Head sampling only applies when no explicit priority was propagated via ctx.
+		if samplingPriority == nil && !headSamplingKeep(name, traceID) {
 			traceID = dropTraceID
 		}
+	}
+	if samplingPriority != nil && *samplingPriority <= 0 {
+		traceID = dropTraceID
 	}
 	s := &Span{
 		span: span{
@@ -45,10 +59,14 @@ func newSpan(name string, parentID, traceID uint64) *Span {
 			SpanID:   rand.Uint64(),
 			Name:     name,
 			Resource: name,
+			Service:  service,
 			Start:    time.Now().UnixNano(),
 			Meta:     make(map[string]string),
 			Metrics:  make(map[string]float64),
 		},
+	}
+	if samplingPriority != nil {
+		s.span.Metrics["_sampling_priority_v1"] = float64(*samplingPriority)
 	}
 	if parentID == 0 {
 		s.SetTopLevel()
@@ -152,7 +170,7 @@ type spanIDs struct {
 }
 
 func getSpanIDsFromContext(ctx context.Context) (spanIDs, bool) {
-	sIDs, ok := ctx.Value(spanKey).(spanIDs)
+	sIDs, ok := ctx.Value(spanIDsKey).(spanIDs)
 	if !ok {
 		return spanIDs{}, false
 	}
@@ -160,7 +178,7 @@ func getSpanIDsFromContext(ctx context.Context) (spanIDs, bool) {
 }
 
 func setSpanIDsInContext(ctx context.Context, span *Span) context.Context {
-	return context.WithValue(ctx, spanKey, spanIDs{traceID: span.span.TraceID, spanID: span.span.SpanID})
+	return context.WithValue(ctx, spanIDsKey, spanIDs{traceID: span.span.TraceID, spanID: span.span.SpanID})
 }
 
 func getRootErrorType(err error) string {
