@@ -470,6 +470,34 @@ When running, it listens for network traffic according to configured
 listeners and aggregates traffic data to send to the backend.
 It does not expose any public methods.
 
+## [comp/network](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/network) (Component Bundle)
+
+*Datadog Team*: cloud-network-monitoring
+
+Package network implements the "network" bundle, providing network monitoring components.
+
+### [comp/networkdeviceconfig](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkdeviceconfig)
+
+*Datadog Team*: ndm-integrations
+
+Package networkdeviceconfig provides the component for retrieving network device configurations.
+
+### [comp/networktracer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networktracer)
+
+Package networktracer defines the component interface for network connection tracing.
+
+### [comp/networkpath/npcollector](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkpath/npcollector)
+
+*Datadog Team*: network-path
+
+Package npcollector used to manage network paths
+
+### [comp/networkpath/traceroute](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkpath/traceroute)
+
+*Datadog Team*: network-path
+
+Package traceroute provides the traceroute component
+
 ## [comp/networkpath](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkpath) (Component Bundle)
 
 *Datadog Team*: network-path
@@ -812,12 +840,6 @@ Package client implements a component to send process metadata to the Cluster-Ag
 *Datadog Team*: windows-products
 
 Package logonduration provides a component that monitors the duration of a user logon after boot and forwards them to the Datadog Event Management v2 API.
-
-### [comp/networkdeviceconfig](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkdeviceconfig)
-
-*Datadog Team*: ndm-integrations
-
-Package networkdeviceconfig provides the component for retrieving network device configurations.
 
 ### [comp/notableevents](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/notableevents)
 

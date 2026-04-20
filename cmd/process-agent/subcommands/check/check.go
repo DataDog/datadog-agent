@@ -25,10 +25,8 @@ import (
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl"
-	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
+	"github.com/DataDog/datadog-agent/comp/network"
 	processComponent "github.com/DataDog/datadog-agent/comp/process"
-	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
 	"github.com/DataDog/datadog-agent/pkg/cli/subcommands/processchecks"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 )
@@ -45,10 +43,8 @@ func getProcessAgentFxOptions(cliParams *processchecks.CliParams, bundleParams c
 		// Provide eventplatformimpl module
 		eventplatformreceiverimpl.Module(),
 		eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
-		// Provide rdnsquerier module
-		rdnsquerierfx.Module(),
-		// Provide npcollector module
-		npcollectorimpl.Module(),
+		// Provide network monitoring bundle (rdnsquerier, traceroute, npcollector)
+		network.Bundle(),
 		// Provide the corresponding workloadmeta Params to configure the catalog
 		wmcatalogremote.GetCatalog(),
 		// Provide workloadmeta module
@@ -72,7 +68,6 @@ func getProcessAgentFxOptions(cliParams *processchecks.CliParams, bundleParams c
 			return &statsd.NoOpClient{}
 		}),
 		ipcfx.ModuleReadOnly(),
-		remotetraceroute.Module(),
 	}
 }
 
