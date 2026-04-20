@@ -204,6 +204,7 @@ def omnibus_compute_cache_key(ctx, env: dict[str, str]) -> str:
             'omnibus/python-scripts',
             'omnibus/resources',
             'omnibus/omnibus.rb',
+            'tasks/agent.py',
             'deps',
             'bazel',
         ],

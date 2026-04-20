@@ -21,6 +21,8 @@ func main() {
 	var lookbackSeconds int64
 	var outputFile string
 
+	exitCode := 0
+
 	flag.StringVar(&site, "site", "", "Datadog site")
 	flag.Int64Var(&lookbackSeconds, "lookback-seconds", 3600, "Metrics lookback window in seconds")
 	flag.StringVar(&outputFile, "output-file", "", "Write JSON results to the given file instead of stdout")
@@ -38,12 +40,16 @@ func main() {
 
 	results, err := computeValidation(apiKey, appKey, site, lookbackSeconds)
 	if err != nil {
-		log.Fatalf("gpu metrics validation failed: %v", err)
+		log.Printf("gpu metrics validation failed: %v", err)
+		exitCode = 1
 	}
 
 	if err := writeResults(results, outputFile); err != nil {
-		log.Fatalf("gpu metrics validation failed: %v", err)
+		log.Printf("gpu metrics validation failed: %v", err)
+		exitCode = 1
 	}
+
+	os.Exit(exitCode)
 }
 
 func writeResults(results orgValidationResults, outputFile string) error {

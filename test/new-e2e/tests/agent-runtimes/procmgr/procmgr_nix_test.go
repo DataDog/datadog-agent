@@ -60,9 +60,9 @@ func TestProcmgrSmokeLinuxSuite(t *testing.T) {
 		awshost.ProvisionerNoFakeIntake(
 			awshost.WithRunOptions(
 				scenec2.WithAgentOptions(
-					agentparams.WithFile("/etc/datadog-agent/processes.d/test-sleep.yaml", testProcessConfig, true),
-					agentparams.WithFile("/etc/datadog-agent/processes.d/datadog-agent-ddot.yaml", embedded.DDOTProcessConfig, true),
-					agentparams.WithFile("/etc/datadog-agent/processes.d/missing-binary.yaml", missingBinaryConfig, true),
+					agentparams.WithFile("/opt/datadog-agent/processes.d/test-sleep.yaml", testProcessConfig, true),
+					agentparams.WithFile("/opt/datadog-agent/processes.d/datadog-agent-ddot.yaml", embedded.DDOTProcessConfig, true),
+					agentparams.WithFile("/opt/datadog-agent/processes.d/missing-binary.yaml", missingBinaryConfig, true),
 				),
 			),
 		),
