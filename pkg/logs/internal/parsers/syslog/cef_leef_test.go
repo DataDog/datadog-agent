@@ -6,7 +6,7 @@
 package syslog
 
 import (
-	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -29,12 +29,19 @@ func TestParseCEFLEEF_CEF_Basic(t *testing.T) {
 	assert.Equal(t, "1.0", header.DeviceVersion)
 	assert.Equal(t, "100", header.EventID)
 	assert.Equal(t, "worm successfully stopped", header.Name)
-	assert.Equal(t, 10, header.Severity)
+	assert.Equal(t, "10", header.Severity)
 
 	assert.Equal(t, "src=10.0.0.1 dst=2.1.2.2 spt=1232", string(rawExt))
 	assert.Equal(t, "10.0.0.1", ext["src"])
 	assert.Equal(t, "2.1.2.2", ext["dst"])
 	assert.Equal(t, "1232", ext["spt"])
+}
+
+func TestParseCEFLEEF_CEF_StringSeverity(t *testing.T) {
+	msg := []byte("CEF:0|Vendor|Product|1.0|100|Name|High|src=1.2.3.4")
+	header, _, _, ok := ParseCEFLEEF(msg)
+	require.True(t, ok)
+	assert.Equal(t, "High", header.Severity)
 }
 
 func TestParseCEFLEEF_CEF_Version1(t *testing.T) {
@@ -153,6 +160,21 @@ func TestParseCEFLEEF_LEEF20_LowercaseHex(t *testing.T) {
 	assert.Equal(t, "b", ext["key2"])
 }
 
+func TestParseCEFLEEF_LEEF_EscapedPipeInHeader(t *testing.T) {
+	msg := []byte("LEEF:1.0|Vendor\\|Inc|Product|1.0|100|src=10.0.0.1")
+	header, ext, _, ok := ParseCEFLEEF(msg)
+	require.True(t, ok)
+	assert.Equal(t, "Vendor|Inc", header.DeviceVendor)
+	assert.Equal(t, "10.0.0.1", ext["src"])
+}
+
+func TestParseCEFLEEF_LEEF_EscapedBackslashInHeader(t *testing.T) {
+	msg := []byte("LEEF:1.0|Vendor\\\\Corp|Product|1.0|100|src=10.0.0.1")
+	header, _, _, ok := ParseCEFLEEF(msg)
+	require.True(t, ok)
+	assert.Equal(t, "Vendor\\Corp", header.DeviceVendor)
+}
+
 func TestParseCEFLEEF_LEEF_EmptyExtension(t *testing.T) {
 	msg := []byte("LEEF:1.0|Vendor|Product|1.0|100|")
 	header, ext, _, ok := ParseCEFLEEF(msg)
@@ -177,12 +199,22 @@ func TestParseCEFLEEF_LEEF20_TooFewPipes(t *testing.T) {
 }
 
 func TestParseCEFLEEF_LEEF_VersionNoDot(t *testing.T) {
-	// LEEF:2 (no dot) falls through to LEEF-1 (5-pipe) behavior.
-	// This documents the current behavior: version "2" is not treated as 2.x.
-	msg := []byte("LEEF:2|Vendor|Product|1.0|100|src=10.0.0.1\tdst=10.0.0.2")
+	// Bare "2" is treated as LEEF-2 (6-pipe + custom delimiter).
+	msg := []byte("LEEF:2|Vendor|Product|1.0|100|^|src=10.0.0.1^dst=10.0.0.2")
 	header, ext, _, ok := ParseCEFLEEF(msg)
 	require.True(t, ok)
 	assert.Equal(t, "2", header.Version)
+	assert.Equal(t, "Vendor", header.DeviceVendor)
+	assert.Equal(t, "10.0.0.1", ext["src"])
+	assert.Equal(t, "10.0.0.2", ext["dst"])
+}
+
+func TestParseCEFLEEF_LEEF_VersionJunk(t *testing.T) {
+	// "2a" is not recognized as v2; routed to LEEF-1 (5-pipe).
+	msg := []byte("LEEF:2a|Vendor|Product|1.0|100|src=10.0.0.1\tdst=10.0.0.2")
+	header, ext, _, ok := ParseCEFLEEF(msg)
+	require.True(t, ok)
+	assert.Equal(t, "2a", header.Version)
 	assert.Equal(t, "10.0.0.1", ext["src"])
 	assert.Equal(t, "10.0.0.2", ext["dst"])
 }
@@ -420,33 +452,6 @@ func TestUnescapeCEFValue(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// parseCEFSeverity
-// ---------------------------------------------------------------------------
-
-func TestParseCEFSeverity_NumericInRange(t *testing.T) {
-	for i := 0; i <= 10; i++ {
-		result := parseCEFSeverity(strconv.Itoa(i))
-		assert.Equal(t, i, result)
-	}
-}
-
-func TestParseCEFSeverity_NumericOutOfRange(t *testing.T) {
-	assert.Equal(t, "11", parseCEFSeverity("11"))
-	assert.Equal(t, "-1", parseCEFSeverity("-1"))
-	assert.Equal(t, "999", parseCEFSeverity("999"))
-}
-
-func TestParseCEFSeverity_StringLabel(t *testing.T) {
-	assert.Equal(t, "Low", parseCEFSeverity("Low"))
-	assert.Equal(t, "High", parseCEFSeverity("High"))
-	assert.Equal(t, "Unknown", parseCEFSeverity("Unknown"))
-}
-
-func TestParseCEFSeverity_Empty(t *testing.T) {
-	assert.Nil(t, parseCEFSeverity(""))
-}
-
-// ---------------------------------------------------------------------------
 // BuildSIEMFields
 // ---------------------------------------------------------------------------
 
@@ -459,7 +464,7 @@ func TestBuildSIEMFields_CEF(t *testing.T) {
 		DeviceVersion: "1.0",
 		EventID:       "100",
 		Name:          "Attack",
-		Severity:      10,
+		Severity:      "10",
 	}
 	ext := map[string]string{"src": "1.2.3.4"}
 	fields := BuildSIEMFields(header, ext)
@@ -471,7 +476,7 @@ func TestBuildSIEMFields_CEF(t *testing.T) {
 	assert.Equal(t, "1.0", fields["device_version"])
 	assert.Equal(t, "100", fields["event_id"])
 	assert.Equal(t, "Attack", fields["name"])
-	assert.Equal(t, 10, fields["severity"])
+	assert.Equal(t, "10", fields["severity"])
 	assert.Equal(t, map[string]string{"src": "1.2.3.4"}, fields["extension"])
 }
 
@@ -510,6 +515,25 @@ func BenchmarkParseCEFLEEF_CEF(b *testing.B) {
 
 func BenchmarkParseCEFLEEF_LEEF(b *testing.B) {
 	input := []byte("LEEF:1.0|Microsoft|MSExchange|2013 SP1|15345|src=10.0.1.7\tdst=10.0.0.5\tsev=5")
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ParseCEFLEEF(input)
+	}
+}
+
+func BenchmarkParseCEFLEEF_Malformed(b *testing.B) {
+	input := []byte("CEF:0|only|three|pipes")
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ParseCEFLEEF(input)
+	}
+}
+
+func BenchmarkParseCEFLEEF_LargeExtension(b *testing.B) {
+	ext := strings.Repeat("key0=value0 ", 64)
+	input := []byte("CEF:0|V|P|1.0|100|N|5|" + ext)
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
