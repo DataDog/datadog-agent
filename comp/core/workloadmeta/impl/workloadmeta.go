@@ -8,7 +8,6 @@ package workloadmetaimpl
 import (
 	"context"
 	"net/http"
-	"slices"
 	"sync"
 	"time"
 
@@ -18,7 +17,6 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -59,14 +57,7 @@ type workloadmeta struct {
 	pullsMut sync.Mutex
 	pulls    map[string]*pullInfo
 
-	// expectedSources maps entity kinds to the sources that are expected to
-	// report data for them. This is used to determine if an entity is
-	// "complete" (all expected collectors have reported).
-	//
-	// TODO: For now, this map is static and not updated when a collector
-	// permanently fails. A permanent failure means entities waiting on that
-	// source will never be considered complete.
-	expectedSources map[wmdef.Kind][]wmdef.Source
+	completeness *completenessTracker
 }
 
 // Dependencies defines the dependencies of the workloadmeta component.
@@ -106,7 +97,7 @@ func NewWorkloadMeta(deps Dependencies) Provider {
 		eventCh:               make(chan []wmdef.CollectorEvent, eventChBufferSize),
 		pulls:                 make(map[string]*pullInfo),
 		collectorsInitialized: wmdef.CollectorsNotStarted,
-		expectedSources:       initExpectedSources(deps.Params.AgentType, deps.Config),
+		completeness:          newCompletenessTracker(deps.Params.AgentType, deps.Config),
 	}
 
 	deps.Lc.Append(compdef.Hook{OnStart: func(_ context.Context) error {
@@ -155,70 +146,4 @@ func (w *workloadmeta) writeResponse(writer http.ResponseWriter, r *http.Request
 
 	writer.Header().Set("Content-Type", "application/json")
 	writer.Write(jsonDump)
-}
-
-// initExpectedSources initializes the expected sources map based on the
-// detected environment features. This determines which collectors are expected
-// to report data for each entity kind.
-//
-// Note: Kubernetes Deployments are also reported by multiple collectors
-// (kubeapiserver and language detection), but completeness tracking is not
-// needed for them.
-func initExpectedSources(agentType wmdef.AgentType, cfg config.Component) map[wmdef.Kind][]wmdef.Source {
-	expectedSources := make(map[wmdef.Kind][]wmdef.Source)
-
-	// Only the Node Agent runs multiple collectors that need to report
-	// for an entity to be complete
-	if agentType != wmdef.NodeAgent {
-		return expectedSources
-	}
-
-	if env.IsFeaturePresent(env.Kubernetes) {
-		initExpectedSourcesKubernetes(expectedSources)
-	}
-
-	// In ECS EC2 and ECS Managed (no sidecar), containers are reported by two
-	// collectors (ECS + container runtime). In sidecar mode (Fargate, or
-	// Managed Instances configured as sidecar), there's a single collector, so
-	// entities are always complete.
-	if env.IsFeaturePresent(env.ECSEC2) || (env.IsFeaturePresent(env.ECSManagedInstances) && !env.IsECSSidecarMode(cfg)) {
-		initExpectedSourcesECS(expectedSources)
-	}
-
-	return expectedSources
-}
-
-func initExpectedSourcesKubernetes(expectedSources map[wmdef.Kind][]wmdef.Source) {
-	// In Kubernetes, pods are reported by:
-	// - kubelet collector (SourceNodeOrchestrator)
-	// - kubemetadata collector (SourceClusterOrchestrator)
-	expectedSources[wmdef.KindKubernetesPod] = []wmdef.Source{
-		wmdef.SourceNodeOrchestrator,
-		wmdef.SourceClusterOrchestrator,
-	}
-
-	// In Kubernetes, containers are reported by:
-	// - kubelet collector (SourceNodeOrchestrator)
-	// - container runtime collector if accessible (SourceRuntime)
-	containerSources := []wmdef.Source{wmdef.SourceNodeOrchestrator}
-	if containerRuntimeIsAccessible() {
-		containerSources = append(containerSources, wmdef.SourceRuntime)
-	}
-	expectedSources[wmdef.KindContainer] = containerSources
-}
-
-func initExpectedSourcesECS(expectedSources map[wmdef.Kind][]wmdef.Source) {
-	// In ECS EC2 and ECS Managed (no sidecar), containers are reported by:
-	// - ECS collector (SourceNodeOrchestrator)
-	// - container runtime collector (SourceRuntime)
-	containerSources := []wmdef.Source{wmdef.SourceNodeOrchestrator}
-	if containerRuntimeIsAccessible() {
-		containerSources = append(containerSources, wmdef.SourceRuntime)
-	}
-	expectedSources[wmdef.KindContainer] = containerSources
-}
-
-func containerRuntimeIsAccessible() bool {
-	runtimes := []env.Feature{env.Docker, env.Containerd, env.Crio, env.Podman}
-	return slices.ContainsFunc(runtimes, env.IsFeaturePresent)
 }
