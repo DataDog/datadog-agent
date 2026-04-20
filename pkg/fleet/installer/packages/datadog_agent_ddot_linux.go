@@ -356,6 +356,15 @@ func writeDDOTProcessConfig(ctx HookContext) error {
 		return fmt.Errorf("failed to get DDOT process config: %w", err)
 	}
 
+	// The embedded YAML uses extension-layout paths (e.g. .../ext/ddot/...).
+	// The standalone DDOT package installs the binary at a different path,
+	// so apply the same rewrites as modifyDDOTUnitFileForBackwardsCompatibility.
+	content = strings.ReplaceAll(content, "/ext/ddot", "")
+	if ctx.PackageType == PackageTypeOCI {
+		content = strings.ReplaceAll(content, "/opt/datadog-packages/datadog-agent/stable", "/opt/datadog-packages/datadog-agent-ddot/stable")
+		content = strings.ReplaceAll(content, "/opt/datadog-packages/datadog-agent/experiment", "/opt/datadog-packages/datadog-agent-ddot/experiment")
+	}
+
 	dest := filepath.Join(agentProcessesDir(ctx.PackageType), ddotProcessConfigName)
 	if err := os.WriteFile(dest, []byte(content), 0644); err != nil {
 		return fmt.Errorf("failed to write DDOT process config to %s: %w", dest, err)
