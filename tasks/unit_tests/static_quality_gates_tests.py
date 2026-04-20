@@ -397,6 +397,14 @@ class TestDockerArtifactMeasurer(unittest.TestCase):
                 "static_quality_gate_docker_agent_jmx_amd64",
                 "registry.ddbuild.io/ci/datadog-agent/agent:v71580015-668844-7-jmx-amd64",
             ),
+            (
+                "static_quality_gate_docker_host_profiler_amd64",
+                "registry.ddbuild.io/ci/datadog-agent/ddot-ebpf:v71580015-668844-7-amd64",
+            ),
+            (
+                "static_quality_gate_docker_host_profiler_arm64",
+                "registry.ddbuild.io/ci/datadog-agent/ddot-ebpf:v71580015-668844-7-arm64",
+            ),
         ]
 
         for gate_name, expected_url in test_cases:
@@ -419,6 +427,10 @@ class TestDockerArtifactMeasurer(unittest.TestCase):
             (
                 "static_quality_gate_docker_cluster_amd64",
                 "registry.ddbuild.io/ci/datadog-agent/cluster-agent-nightly:v71580015-668844-amd64",
+            ),
+            (
+                "static_quality_gate_docker_host_profiler_amd64",
+                "registry.ddbuild.io/ci/datadog-agent/ddot-ebpf-nightly:v71580015-668844-7-amd64",
             ),
         ]
 
