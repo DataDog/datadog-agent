@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Requires defines the fx dependencies for the networktracer component.
@@ -42,13 +43,26 @@ type tracerImpl struct {
 	t *tracer.Tracer
 }
 
+// unavailableTracer is returned when the Windows NPM driver cannot be started. It
+// satisfies the networktracer.Component interface with IsSupported() == false so that
+// the module factory can detect the failure and skip module registration gracefully,
+// allowing system-probe to continue starting normally.
+type unavailableTracer struct {
+	reason error
+}
+
 // NewComponent creates a new networktracer component backed by the Windows NPM tracer.
+// If the NPM driver fails to start (e.g. it is not installed or is currently unavailable),
+// a no-op component is returned instead of propagating the error, so the fx graph can
+// still start; the module factory detects the unsupported condition via IsSupported() and
+// skips module registration gracefully.
 func NewComponent(reqs Requires) (Provides, error) {
 	ncfg := networkconfig.New()
 
 	t, err := tracer.NewTracer(ncfg, reqs.Telemetry, reqs.Statsd)
 	if err != nil {
-		return Provides{}, fmt.Errorf("could not create network tracer: %w", err)
+		log.Warnf("could not create Windows network tracer, NPM will be disabled: %v", err)
+		return Provides{Comp: &unavailableTracer{reason: err}}, nil
 	}
 
 	impl := &tracerImpl{t: t}
@@ -63,6 +77,50 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	return Provides{Comp: impl}, nil
 }
+
+func (u *unavailableTracer) GetActiveConnections(_ string) (*network.Connections, func(), error) {
+	return nil, nil, fmt.Errorf("network tracer unavailable: %w", u.reason)
+}
+
+func (u *unavailableTracer) RegisterClient(_ string) error {
+	return fmt.Errorf("network tracer unavailable: %w", u.reason)
+}
+
+func (u *unavailableTracer) GetStats() map[string]interface{} { return nil }
+
+func (u *unavailableTracer) Pause() error {
+	return fmt.Errorf("network tracer unavailable: %w", u.reason)
+}
+
+func (u *unavailableTracer) Resume() error {
+	return fmt.Errorf("network tracer unavailable: %w", u.reason)
+}
+
+func (u *unavailableTracer) DebugNetworkMaps() (*network.Connections, error) {
+	return nil, fmt.Errorf("network tracer unavailable: %w", u.reason)
+}
+
+func (u *unavailableTracer) DebugNetworkState(_ string) (interface{}, error) {
+	return nil, fmt.Errorf("network tracer unavailable: %w", u.reason)
+}
+
+func (u *unavailableTracer) DebugEBPFMaps(_ io.Writer, _ ...string) error {
+	return fmt.Errorf("network tracer unavailable: %w", u.reason)
+}
+
+func (u *unavailableTracer) DebugCachedConntrack(_ context.Context, _ io.Writer, _ int) error {
+	return fmt.Errorf("network tracer unavailable: %w", u.reason)
+}
+
+func (u *unavailableTracer) DebugHostConntrack(_ context.Context, _ io.Writer, _ int) error {
+	return fmt.Errorf("network tracer unavailable: %w", u.reason)
+}
+
+func (u *unavailableTracer) DebugDumpProcessCache(_ context.Context) (interface{}, error) {
+	return nil, fmt.Errorf("network tracer unavailable: %w", u.reason)
+}
+
+func (u *unavailableTracer) IsSupported() bool { return false }
 
 // GetActiveConnections returns active network connections for the given clientID.
 func (ti *tracerImpl) GetActiveConnections(clientID string) (*network.Connections, func(), error) {
