@@ -53,12 +53,20 @@ type FakePodAutoscalerInternal struct {
 	VerticalLastLimitReason            error
 	VerticalActionErrorCount           uint
 	VerticalActionSuccessCount         uint
+	InPlacePatchSuccessCount           uint
+	InPlacePatchErrorCount             uint
+	InPlaceEvictionSuccessCount        uint
+	InPlaceEvictionErrorCount          uint
+	InPlaceRolloutFallbackCount        uint
+	InPlacePDBBlockedCount             uint
+	InPlaceResizeCompletedCount        uint
 	CurrentReplicas                    *int32
 	ScaledReplicas                     *int32
 	EvictedReplicas                    *int32
 	Error                              error
 	Deleted                            bool
 	ProfileName                        string
+	PreviewAnnotationKey               string
 	DesiredProfileTemplateHash         string
 	AppliedProfileHash                 string
 	TargetGVK                          schema.GroupVersionKind
@@ -76,6 +84,23 @@ func (f FakePodAutoscalerInternal) Build() PodAutoscalerInternal {
 			},
 			Spec: *f.Spec,
 		}
+	}
+
+	// Mirror what setPreviewAnnotation does in production: keep upstreamCR.Annotations in sync
+	// with PreviewAnnotationKey so that PreviewAnnotation() returns the expected value.
+	if f.PreviewAnnotationKey != "" {
+		if upstreamCR == nil {
+			upstreamCR = &datadoghq.DatadogPodAutoscaler{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: f.Namespace,
+					Name:      f.Name,
+				},
+			}
+		}
+		if upstreamCR.Annotations == nil {
+			upstreamCR.Annotations = make(map[string]string)
+		}
+		upstreamCR.Annotations[PreviewAnnotationKey] = f.PreviewAnnotationKey
 	}
 
 	return PodAutoscalerInternal{
@@ -102,12 +127,20 @@ func (f FakePodAutoscalerInternal) Build() PodAutoscalerInternal {
 		verticalLastLimitReason:            f.VerticalLastLimitReason,
 		verticalActionErrorCount:           f.VerticalActionErrorCount,
 		verticalActionSuccessCount:         f.VerticalActionSuccessCount,
+		inPlacePatchSuccessCount:           f.InPlacePatchSuccessCount,
+		inPlacePatchErrorCount:             f.InPlacePatchErrorCount,
+		inPlaceEvictionSuccessCount:        f.InPlaceEvictionSuccessCount,
+		inPlaceEvictionErrorCount:          f.InPlaceEvictionErrorCount,
+		inPlaceRolloutFallbackCount:        f.InPlaceRolloutFallbackCount,
+		inPlacePDBBlockedCount:             f.InPlacePDBBlockedCount,
+		inPlaceResizeCompletedCount:        f.InPlaceResizeCompletedCount,
 		currentReplicas:                    f.CurrentReplicas,
 		scaledReplicas:                     f.ScaledReplicas,
 		evictedReplicas:                    f.EvictedReplicas,
 		error:                              f.Error,
 		deleted:                            f.Deleted,
 		profileName:                        f.ProfileName,
+		previewOptions:                     parsePreviewAnnotationString(f.PreviewAnnotationKey),
 		desiredProfileTemplateHash:         f.DesiredProfileTemplateHash,
 		appliedProfileHash:                 f.AppliedProfileHash,
 		targetGVK:                          f.TargetGVK,

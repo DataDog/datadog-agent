@@ -7,6 +7,7 @@
 package flare
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"sync"
@@ -32,7 +33,7 @@ func NewFlareController() *FlareController {
 
 // FillFlare is the callback function for the flare where information in the
 // FlareController can be printed.
-func (fc *FlareController) FillFlare(fb flaretypes.FlareBuilder) error {
+func (fc *FlareController) FillFlare(_ context.Context, fb flaretypes.FlareBuilder) error {
 	fc.mu.Lock()
 	defer fc.mu.Unlock()
 

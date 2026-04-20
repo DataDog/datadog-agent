@@ -23,12 +23,12 @@
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 380
+            "lineNumber": 386
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 50
+            "lineNumber": 52
           },
           {
             "function": "runtime.main",
@@ -67,20 +67,24 @@
           },
           "return": {
             "locals": {
-              "~r0": {
-                "type": "interface {}",
-                "isNull": true
-              },
-              "~r1": {
-                "type": "error",
+              "@return": {
                 "fields": {
-                  "data": {
-                    "type": "*errors.errorString",
-                    "address": "[addr]",
+                  "r0": {
+                    "type": "interface {}",
+                    "isNull": true
+                  },
+                  "r1": {
+                    "type": "error",
                     "fields": {
-                      "s": {
-                        "type": "string",
-                        "value": "error"
+                      "data": {
+                        "type": "*errors.errorString",
+                        "address": "[addr]",
+                        "fields": {
+                          "s": {
+                            "type": "string",
+                            "value": "error"
+                          }
+                        }
                       }
                     }
                   }
@@ -121,12 +125,12 @@
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 381
+            "lineNumber": 387
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 50
+            "lineNumber": 52
           },
           {
             "function": "runtime.main",
@@ -165,18 +169,22 @@
           },
           "return": {
             "locals": {
-              "~r0": {
-                "type": "interface {}",
+              "@return": {
                 "fields": {
-                  "data": {
-                    "type": "int",
-                    "value": "1042"
+                  "r0": {
+                    "type": "interface {}",
+                    "fields": {
+                      "data": {
+                        "type": "int",
+                        "value": "1042"
+                      }
+                    }
+                  },
+                  "r1": {
+                    "type": "error",
+                    "isNull": true
                   }
                 }
-              },
-              "~r1": {
-                "type": "error",
-                "isNull": true
               }
             }
           }

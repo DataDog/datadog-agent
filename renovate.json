@@ -4,9 +4,13 @@
     "minimumReleaseAge": "7 days",
     "labels": ["dependencies", "changelog/no-changelog", "qa/no-code-change"],
     "stopUpdatingLabel": "stop-updating",
-    "gitIgnoredAuthors": ["41898282+github-actions[bot]@users.noreply.github.com"],
+    "gitIgnoredAuthors": ["41898282+github-actions[bot]@users.noreply.github.com", "200755185+dd-octo-sts[bot]@users.noreply.github.com"],
     "platformCommit": "enabled",
     "packageRules": [
+      {
+        "matchDepNames": ["*"],
+        "prPriority": -1
+      },
       {
         "matchDepNames": ["integrations-core"],
         "changelogUrl": "https://github.com/DataDog/integrations-core/compare/{{currentDigest}}..{{newDigest}}",
@@ -37,11 +41,8 @@
       },
       {
         "matchManagers": ["custom.regex"],
-        "minimumReleaseAge": null
-      },
-      {
-        "matchDepNames": ["protocolbuffers/protobuf"],
-        "minimumReleaseAge": "7 days"
+        "minimumReleaseAge": null,
+        "prPriority": 10
       },
       {
         "matchManagers": ["github-actions"],
@@ -67,7 +68,40 @@
       },
       {
         "matchManagers": ["gomod"],
+        "labels": ["dependencies", "dependencies-go", "changelog/no-changelog", "qa/no-code-change"]
+      },
+      {
+        "matchManagers": ["gomod"],
+        "matchDepNames": [
+          "github.com/DataDog/datadog-agent/**",
+          "golang.org/x/**",
+          "go.opentelemetry.io/**",
+          "github.com/open-telemetry/opentelemetry-collector-contrib/**",
+          "github.com/spf13/cast",
+          "github.com/mailru/easyjson"
+        ],
         "enabled": false
+      },
+      {
+        "matchManagers": ["gomod"],
+        "matchDepNames": ["github.com/twmb/franz-go{,/**}"],
+        "groupName": "franz-go"
+      },
+      {
+        "matchManagers": ["gomod"],
+        "matchDepNames": ["github.com/uptrace/bun{,/**}"],
+        "groupName": "bun"
+      },
+      {
+        "matchManagers": ["gomod"],
+        "matchDepNames": ["github.com/aws/aws-sdk-go-v2{,/**}"],
+        "groupName": "aws-sdk-go-v2"
+      },
+      {
+        "matchManagers": ["gomod"],
+        "matchDepNames": ["k8s.io/**"],
+        "matchUpdateTypes": ["patch"],
+        "groupName": "k8s-io"
       },
       {
         "matchManagers": ["pyenv"],
@@ -97,6 +131,11 @@
         "matchManagers": ["bazel-module"],
         "matchDepTypes": ["git_override"],
         "enabled": false
+      },
+      {
+        "matchManagers": ["bundler"],
+        "matchDepNames": ["omnibus"],
+        "enabled": false
       }
     ],
     "customManagers" : [
@@ -120,15 +159,6 @@
         "versioningTemplate": "regex:^(ltsc2022-)?v(?<major>\\d+)-.*$",
         "datasourceTemplate": "custom.windows-images",
         "extractVersionTemplate": "^(ltsc2022-)?(?<version>.*)$"
-      },
-      {
-        "customType": "regex",
-        "managerFilePatterns": [".protoc-version"],
-        "matchStrings": [
-          "(?<currentValue>[0-9]+.[0-9]+)"
-        ],
-        "depNameTemplate": "protocolbuffers/protobuf",
-        "datasourceTemplate": "github-releases"
       },
       {
         "customType": "regex",

@@ -1862,6 +1862,188 @@ probes:
           ref: "i"
         dsl: "i"
     captureSnapshot: true
+  - id: testConflictingReturn
+    type: LOG_PROBE
+    where:
+      methodName: main.testConflictingReturn
+    template: "{i}"
+    segments:
+      - json:
+          ref: "i"
+        dsl: "i"
+    captureSnapshot: true
+  - id: testReturnTemplate
+    type: LOG_PROBE
+    where:
+      methodName: main.testReturnsInt
+    template: "result={@return}"
+    segments:
+      - str: "result="
+      - json:
+          ref: "@return"
+        dsl: "@return"
+    captureSnapshot: true
+  - id: testReturnMultiTemplate
+    type: LOG_PROBE
+    where:
+      methodName: main.testSomeNamedReturn
+    template: "r0={@return.r0}"
+    segments:
+      - str: "r0="
+      - json:
+          getmember:
+            - ref: "@return"
+            - "r0"
+        dsl: "@return.r0"
+    captureSnapshot: true
+  - id: testReturnCaptureExpr
+    type: LOG_PROBE
+    where:
+      methodName: main.testReturnsInt
+    captureSnapshot: false
+    captureExpressions:
+      - name: "retval"
+        expr:
+          dsl: "@return"
+          json:
+            ref: "@return"
+  - id: testReturnMultiCaptureExpr
+    type: LOG_PROBE
+    where:
+      methodName: main.testSomeNamedReturn
+    captureSnapshot: false
+    captureExpressions:
+      - name: "first"
+        expr:
+          dsl: "@return.r0"
+          json:
+            getmember:
+              - ref: "@return"
+              - "r0"
+  - id: testNamedReturnByNameTemplate
+    type: LOG_PROBE
+    where:
+      methodName: main.testMultipleNamedReturn
+    template: "r1={result} r2={result2}"
+    segments:
+      - str: "r1="
+      - json:
+          ref: "result"
+        dsl: "result"
+      - str: " r2="
+      - json:
+          ref: "result2"
+        dsl: "result2"
+    captureSnapshot: true
+  - id: testNamedReturnByNameCaptureExpr
+    type: LOG_PROBE
+    where:
+      methodName: main.testNamedReturn
+    captureSnapshot: false
+    captureExpressions:
+      - name: "result"
+        expr:
+          dsl: "result"
+          json:
+            ref: "result"
+  - id: testNamedReturnByNameMultiCaptureExpr
+    type: LOG_PROBE
+    where:
+      methodName: main.testMultipleNamedReturn
+    captureSnapshot: false
+    captureExpressions:
+      - name: "result"
+        expr:
+          dsl: "result"
+          json:
+            ref: "result"
+      - name: "result2"
+        expr:
+          dsl: "result2"
+          json:
+            ref: "result2"
+  - id: testReturnCondSingle
+    type: LOG_PROBE
+    where:
+      methodName: main.testReturnsInt
+    captureSnapshot: true
+    template: "ret={@return}"
+    segments:
+      - str: "ret="
+      - json:
+          ref: "@return"
+        dsl: "@return"
+    when:
+      dsl: "@return == 142"
+      json: {eq: [{"ref": "@return"}, 142]}
+  - id: testReturnCondMulti
+    type: LOG_PROBE
+    where:
+      methodName: main.testSomeNamedReturn
+    captureSnapshot: true
+    template: "r0={@return.r0}"
+    segments:
+      - str: "r0="
+      - json:
+          getmember:
+            - ref: "@return"
+            - "r0"
+        dsl: "@return.r0"
+    when:
+      dsl: "@return.r0 == 420"
+      json: {eq: [{"getmember": [{"ref": "@return"}, "r0"]}, 420]}
+  - id: testReturnCondMultiFloat
+    type: LOG_PROBE
+    where:
+      methodName: main.testReturnsIntAndFloat
+    captureSnapshot: true
+    template: "r0={@return.r0}"
+    segments:
+      - str: "r0="
+      - json:
+          getmember:
+            - ref: "@return"
+            - "r0"
+        dsl: "@return.r0"
+    when:
+      dsl: "@return.r0 == 142"
+      json: {eq: [{"getmember": [{"ref": "@return"}, "r0"]}, 142]}
+  - id: testReturnCondUnavailableFloat
+    type: LOG_PROBE
+    where:
+      methodName: main.testReturnsIntAndFloat
+    captureSnapshot: true
+    template: "r1={@return.r1}"
+    segments:
+      - str: "r1="
+      - json:
+          getmember:
+            - ref: "@return"
+            - "r1"
+        dsl: "@return.r1"
+    when:
+      dsl: "@return.r1 == 42.5"
+      json: {eq: [{"getmember": [{"ref": "@return"}, "r1"]}, 42.5]}
+  - id: testReturnCondBadField
+    tags:
+      - "issue:ConditionVariableUnavailable"
+    type: LOG_PROBE
+    where:
+      methodName: main.testSomeNamedReturn
+    captureSnapshot: true
+    when:
+      dsl: "@return.nonexistent == 1"
+      json: {eq: [{"getmember": [{"ref": "@return"}, "nonexistent"]}, 1]}
+  - id: testReturnCondBareMulti
+    tags:
+      - "issue:ConditionVariableUnavailable"
+    type: LOG_PROBE
+    where:
+      methodName: main.testSomeNamedReturn
+    captureSnapshot: true
+    when:
+      dsl: "@return == 1"
+      json: {eq: [{"ref": "@return"}, 1]}
   - id: testInlinedPrintLine
     type: LOG_PROBE
     where:
@@ -2342,6 +2524,8 @@ probes:
     segments:
       - str: "testWhollyInlinedSubroutine"
     captureSnapshot: true
+    sampling:
+      snapshotsPerSecond: 100
   # Capture expression probes
   - id: testCaptureExprSimple
     type: LOG_PROBE
@@ -2491,5 +2675,203 @@ probes:
           ref: "err"
         dsl: "err"
     captureSnapshot: true
+    sampling:
+      snapshotsPerSecond: 100
+
+  # Generic method on generic type (matches all shape instantiations)
+  - id: testGenericMethodGuess
+    type: LOG_PROBE
+    where:
+      methodName: "main.typeWithGenerics[...].Guess"
+    captureSnapshot: true
+    template: "value={value}"
+    segments:
+      - str: "value="
+      - json:
+          ref: "value"
+        dsl: "value"
+    sampling:
+      snapshotsPerSecond: 100
+
+  # Generic free function (matches all shape instantiations)
+  - id: testGenericFuncContains
+    type: LOG_PROBE
+    where:
+      methodName: "main.genericContains[...]"
+    captureSnapshot: true
+    template: "needle={needle}"
+    segments:
+      - str: "needle="
+      - json:
+          ref: "needle"
+        dsl: "needle"
+    sampling:
+      snapshotsPerSecond: 100
+
+  # Line probe inside generic free function
+  - id: testGenericFuncContainsLine
+    type: LOG_PROBE
+    where:
+      methodName: "main.genericContains[...]"
+      sourceFile: "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go"
+      lines:
+        - "80"
+    captureSnapshot: true
+    template: "v={v}"
+    segments:
+      - str: "v="
+      - json:
+          ref: "v"
+        dsl: "v"
+    sampling:
+      snapshotsPerSecond: 100
+
+  # Generic free function with unconstrained (any) type param — pointer shapes
+  - id: testGenericDeref
+    type: LOG_PROBE
+    where:
+      methodName: "main.genericDeref[...]"
+    captureSnapshot: true
+    template: "p={p}"
+    segments:
+      - str: "p="
+      - json:
+          ref: "p"
+        dsl: "p"
+    sampling:
+      snapshotsPerSecond: 100
+
+  # Generic function with non-basic interface constraint
+  - id: testGenericDo
+    type: LOG_PROBE
+    where:
+      methodName: "main.genericDo[...]"
+    captureSnapshot: true
+    template: "val={val}"
+    segments:
+      - str: "val="
+      - json:
+          ref: "val"
+        dsl: "val"
+    sampling:
+      snapshotsPerSecond: 100
+
+  # Generic function with two type params
+  - id: testGenericSwap
+    type: LOG_PROBE
+    where:
+      methodName: "main.genericSwap[...]"
+    captureSnapshot: true
+    template: "a={a}"
+    segments:
+      - str: "a="
+      - json:
+          ref: "a"
+        dsl: "a"
+    sampling:
+      snapshotsPerSecond: 100
+
+  # Pointer-receiver method on generic type with two type params
+  - id: testGenericPairSetValue
+    type: LOG_PROBE
+    where:
+      methodName: "main.(*Pair[...]).SetValue"
+    captureSnapshot: true
+    template: "k={k}"
+    segments:
+      - str: "k="
+      - json:
+          ref: "k"
+        dsl: "k"
+    sampling:
+      snapshotsPerSecond: 100
+
+  # Large value-receiver method — receiver too large for register assignment, passed on stack
+  - id: testGenericLargeGet
+    type: LOG_PROBE
+    where:
+      methodName: "main.largeGenericType[...].LargeGet"
+    captureSnapshot: true
+    template: "x={x}"
+    segments:
+      - str: "x="
+      - json:
+          ref: "x"
+        dsl: "x"
+    sampling:
+      snapshotsPerSecond: 100
+
+  # Pointer collapsing: different pointee types share *uint8 shape
+  - id: testGenericPtrIdentity
+    type: LOG_PROBE
+    where:
+      methodName: "main.genericPtrIdentity[...]"
+    captureSnapshot: true
+    template: "p={p}"
+    segments:
+      - str: "p="
+      - json:
+          ref: "p"
+        dsl: "p"
+    sampling:
+      snapshotsPerSecond: 100
+
+  # Cross-package generic function (lib.Filter called from outerFilter)
+  - id: testGenericLibFilter
+    type: LOG_PROBE
+    where:
+      methodName: "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Filter[...]"
+    captureSnapshot: true
+    template: "items={items}"
+    segments:
+      - str: "items="
+      - json:
+          ref: "items"
+        dsl: "items"
+    sampling:
+      snapshotsPerSecond: 100
+
+  # Cross-package generic function (lib.Map)
+  - id: testGenericLibMap
+    type: LOG_PROBE
+    where:
+      methodName: "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Map[...]"
+    captureSnapshot: true
+    template: "box={box}"
+    segments:
+      - str: "box="
+      - json:
+          ref: "box"
+        dsl: "box"
+    sampling:
+      snapshotsPerSecond: 100
+
+  # Nested generic: generic type as type parameter
+  - id: testGenericNested
+    type: LOG_PROBE
+    where:
+      methodName: "main.nestedGeneric[...]"
+    captureSnapshot: true
+    template: "box={box}"
+    segments:
+      - str: "box="
+      - json:
+          ref: "box"
+        dsl: "box"
+    sampling:
+      snapshotsPerSecond: 100
+
+  # Cross-package generic type wrapping
+  - id: testGenericWrapBox
+    type: LOG_PROBE
+    where:
+      methodName: "main.wrapBox[...]"
+    captureSnapshot: true
+    template: "val={val}"
+    segments:
+      - str: "val="
+      - json:
+          ref: "val"
+        dsl: "val"
     sampling:
       snapshotsPerSecond: 100

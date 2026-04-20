@@ -23,6 +23,7 @@ const (
 
 // Execution status constants
 const (
+	StatusClaimed = "claimed"
 	StatusSuccess = "success"
 	StatusFailed  = "failed"
 	StatusSkipped = "skipped"

@@ -15,6 +15,8 @@ import (
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/databasemonitoring/aws"
+	awsaws "github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -42,7 +44,7 @@ func TestDBMAuroraListener(t *testing.T) {
 			numDiscoveryIntervals: 0,
 			rdsClientConfigurer: func(k *aws.MockRdsClient) {
 				k.EXPECT().GetAuroraClustersFromTags(contextWithTimeout(1*time.Second), []string{defaultADTag}).DoAndReturn(
-					func(ctx context.Context, _ []string) ([]string, error) {
+					func(ctx context.Context, _ []string) ([]types.DBCluster, error) {
 						<-ctx.Done()
 						return nil, ctx.Err()
 					}).AnyTimes()
@@ -62,15 +64,15 @@ func TestDBMAuroraListener(t *testing.T) {
 			numDiscoveryIntervals: 0,
 			rdsClientConfigurer: func(k *aws.MockRdsClient) {
 				gomock.InOrder(
-					k.EXPECT().GetAuroraClustersFromTags(gomock.Any(), []string{defaultADTag}).Return([]string{"my-cluster-1"}, nil).AnyTimes(),
-					k.EXPECT().GetAuroraClusterEndpoints(contextWithTimeout(1*time.Second), []string{"my-cluster-1"}, aws.Config{
+					k.EXPECT().GetAuroraClustersFromTags(gomock.Any(), []string{defaultADTag}).Return([]types.DBCluster{{DBClusterIdentifier: awsaws.String("my-cluster-1")}}, nil).AnyTimes(),
+					k.EXPECT().GetAuroraClusterEndpoints(contextWithTimeout(1*time.Second), []types.DBCluster{{DBClusterIdentifier: awsaws.String("my-cluster-1")}}, aws.Config{
 						DiscoveryInterval: 1,
 						QueryTimeout:      1,
 						Region:            "us-east-1",
 						Tags:              []string{defaultADTag},
 						DbmTag:            defaultDbmTag,
 					}).DoAndReturn(
-						func(ctx context.Context, _ []string, _ aws.Config) (map[string]*aws.AuroraCluster, error) {
+						func(ctx context.Context, _ []types.DBCluster, _ aws.Config) ([]aws.Instance, error) {
 							<-ctx.Done()
 							return nil, ctx.Err()
 						}).AnyTimes(),
@@ -106,8 +108,8 @@ func TestDBMAuroraListener(t *testing.T) {
 			numDiscoveryIntervals: 0,
 			rdsClientConfigurer: func(k *aws.MockRdsClient) {
 				gomock.InOrder(
-					k.EXPECT().GetAuroraClustersFromTags(gomock.Any(), []string{defaultADTag}).Return([]string{"my-cluster-1"}, nil).AnyTimes(),
-					k.EXPECT().GetAuroraClusterEndpoints(gomock.Any(), []string{"my-cluster-1"}, aws.Config{
+					k.EXPECT().GetAuroraClustersFromTags(gomock.Any(), []string{defaultADTag}).Return([]types.DBCluster{{DBClusterIdentifier: awsaws.String("my-cluster-1")}}, nil).AnyTimes(),
+					k.EXPECT().GetAuroraClusterEndpoints(gomock.Any(), []types.DBCluster{{DBClusterIdentifier: awsaws.String("my-cluster-1")}}, aws.Config{
 						DiscoveryInterval: 1,
 						Region:            "us-east-1",
 						Tags:              []string{defaultADTag},
@@ -128,36 +130,34 @@ func TestDBMAuroraListener(t *testing.T) {
 			},
 			numDiscoveryIntervals: 1,
 			rdsClientConfigurer: func(k *aws.MockRdsClient) {
-				k.EXPECT().GetAuroraClustersFromTags(gomock.Any(), []string{defaultADTag}).Return([]string{"my-cluster-1"}, nil).AnyTimes()
-				k.EXPECT().GetAuroraClusterEndpoints(gomock.Any(), []string{"my-cluster-1"}, aws.Config{
+				k.EXPECT().GetAuroraClustersFromTags(gomock.Any(), []string{defaultADTag}).Return([]types.DBCluster{{DBClusterIdentifier: awsaws.String("my-cluster-1")}}, nil).AnyTimes()
+				k.EXPECT().GetAuroraClusterEndpoints(gomock.Any(), []types.DBCluster{{DBClusterIdentifier: awsaws.String("my-cluster-1")}}, aws.Config{
 					DiscoveryInterval: 1,
 					Region:            "us-east-1",
 					Tags:              []string{defaultADTag},
 					DbmTag:            defaultDbmTag,
 				}).Return(
-					map[string]*aws.AuroraCluster{
-						"my-cluster-1": {
-							Instances: []*aws.Instance{
-								{
-									Endpoint:   "my-endpoint",
-									Port:       5432,
-									IamEnabled: true,
-									Engine:     "aurora-postgresql",
-									DbmEnabled: true,
-								},
-							},
+					[]aws.Instance{
+						{
+							ClusterID:  "my-cluster-1",
+							Endpoint:   "my-endpoint",
+							Port:       5432,
+							IamEnabled: true,
+							Engine:     "aurora-postgresql",
+							DbmEnabled: true,
 						},
 					}, nil).AnyTimes()
 			},
 			expectedServices: []*DBMAuroraService{
 				{
 					adIdentifier: dbmPostgresAuroraADIdentifier,
-					entityID:     "f7fee36c58e3da8a",
+					entityID:     "d3aed5855856081b",
 					checkName:    "postgres",
 					clusterID:    "my-cluster-1",
 					region:       "us-east-1",
 					instance: &aws.Instance{
 						ID:         "",
+						ClusterID:  "my-cluster-1",
 						Endpoint:   "my-endpoint",
 						Port:       5432,
 						IamEnabled: true,
@@ -179,38 +179,36 @@ func TestDBMAuroraListener(t *testing.T) {
 			},
 			numDiscoveryIntervals: 1,
 			rdsClientConfigurer: func(k *aws.MockRdsClient) {
-				k.EXPECT().GetAuroraClustersFromTags(gomock.Any(), []string{defaultADTag}).Return([]string{"my-cluster-1"}, nil).AnyTimes()
-				k.EXPECT().GetAuroraClusterEndpoints(gomock.Any(), []string{"my-cluster-1"}, aws.Config{
+				k.EXPECT().GetAuroraClustersFromTags(gomock.Any(), []string{defaultADTag}).Return([]types.DBCluster{{DBClusterIdentifier: awsaws.String("my-cluster-1")}}, nil).AnyTimes()
+				k.EXPECT().GetAuroraClusterEndpoints(gomock.Any(), []types.DBCluster{{DBClusterIdentifier: awsaws.String("my-cluster-1")}}, aws.Config{
 					DiscoveryInterval: 1,
 					Region:            "us-east-1",
 					Tags:              []string{defaultADTag},
 					DbmTag:            defaultDbmTag,
 					GlobalViewDbTag:   "datadoghq.com/globalview",
 				}).Return(
-					map[string]*aws.AuroraCluster{
-						"my-cluster-1": {
-							Instances: []*aws.Instance{
-								{
-									Endpoint:     "my-endpoint",
-									Port:         5432,
-									IamEnabled:   true,
-									Engine:       "aurora-postgresql",
-									DbmEnabled:   true,
-									GlobalViewDb: "mydb",
-								},
-							},
+					[]aws.Instance{
+						{
+							ClusterID:    "my-cluster-1",
+							Endpoint:     "my-endpoint",
+							Port:         5432,
+							IamEnabled:   true,
+							Engine:       "aurora-postgresql",
+							DbmEnabled:   true,
+							GlobalViewDb: "mydb",
 						},
 					}, nil).AnyTimes()
 			},
 			expectedServices: []*DBMAuroraService{
 				{
 					adIdentifier: dbmPostgresAuroraADIdentifier,
-					entityID:     "f7fee36c58e3da8a",
+					entityID:     "d3aed5855856081b",
 					checkName:    "postgres",
 					clusterID:    "my-cluster-1",
 					region:       "us-east-1",
 					instance: &aws.Instance{
 						ID:           "",
+						ClusterID:    "my-cluster-1",
 						Endpoint:     "my-endpoint",
 						Port:         5432,
 						IamEnabled:   true,
@@ -232,47 +230,47 @@ func TestDBMAuroraListener(t *testing.T) {
 			},
 			numDiscoveryIntervals: 1,
 			rdsClientConfigurer: func(k *aws.MockRdsClient) {
-				k.EXPECT().GetAuroraClustersFromTags(gomock.Any(), []string{defaultADTag}).Return([]string{"my-cluster-1"}, nil).AnyTimes()
-				k.EXPECT().GetAuroraClusterEndpoints(gomock.Any(), []string{"my-cluster-1"}, aws.Config{
+				k.EXPECT().GetAuroraClustersFromTags(gomock.Any(), []string{defaultADTag}).Return([]types.DBCluster{{DBClusterIdentifier: awsaws.String("my-cluster-1")}}, nil).AnyTimes()
+				k.EXPECT().GetAuroraClusterEndpoints(gomock.Any(), []types.DBCluster{{DBClusterIdentifier: awsaws.String("my-cluster-1")}}, aws.Config{
 					DiscoveryInterval: 1,
 					Region:            "us-east-1",
 					Tags:              []string{defaultADTag},
 					DbmTag:            defaultDbmTag,
 				}).Return(
-					map[string]*aws.AuroraCluster{
-						"my-cluster-1": {
-							Instances: []*aws.Instance{
-								{
-									Endpoint:   "my-endpoint",
-									Port:       5432,
-									IamEnabled: true,
-									Engine:     "aurora-postgresql",
-								},
-								{
-									Endpoint:   "foo-endpoint",
-									Port:       5432,
-									IamEnabled: true,
-									Engine:     "aurora-postgresql",
-								},
-								{
-									Endpoint:   "bar-endpoint",
-									Port:       5444,
-									IamEnabled: false,
-									Engine:     "aurora-postgresql",
-								},
-							},
+					[]aws.Instance{
+						{
+							ClusterID:  "my-cluster-1",
+							Endpoint:   "my-endpoint",
+							Port:       5432,
+							IamEnabled: true,
+							Engine:     "aurora-postgresql",
+						},
+						{
+							ClusterID:  "my-cluster-1",
+							Endpoint:   "foo-endpoint",
+							Port:       5432,
+							IamEnabled: true,
+							Engine:     "aurora-postgresql",
+						},
+						{
+							ClusterID:  "my-cluster-1",
+							Endpoint:   "bar-endpoint",
+							Port:       5444,
+							IamEnabled: false,
+							Engine:     "aurora-postgresql",
 						},
 					}, nil).AnyTimes()
 			},
 			expectedServices: []*DBMAuroraService{
 				{
 					adIdentifier: dbmPostgresAuroraADIdentifier,
-					entityID:     "f7fee36c58e3da8a",
+					entityID:     "d3aed5855856081b",
 					checkName:    "postgres",
 					clusterID:    "my-cluster-1",
 					region:       "us-east-1",
 					instance: &aws.Instance{
 						ID:         "",
+						ClusterID:  "my-cluster-1",
 						Endpoint:   "my-endpoint",
 						Port:       5432,
 						IamEnabled: true,
@@ -281,12 +279,13 @@ func TestDBMAuroraListener(t *testing.T) {
 				},
 				{
 					adIdentifier: dbmPostgresAuroraADIdentifier,
-					entityID:     "509dbfd2cc1ae2be",
+					entityID:     "c1a598726abccafd",
 					checkName:    "postgres",
 					clusterID:    "my-cluster-1",
 					region:       "us-east-1",
 					instance: &aws.Instance{
 						ID:         "",
+						ClusterID:  "my-cluster-1",
 						Endpoint:   "foo-endpoint",
 						Port:       5432,
 						IamEnabled: true,
@@ -295,12 +294,13 @@ func TestDBMAuroraListener(t *testing.T) {
 				},
 				{
 					adIdentifier: dbmPostgresAuroraADIdentifier,
-					entityID:     "cc92e57c9b7b7531",
+					entityID:     "dacd2f810de26cd4",
 					checkName:    "postgres",
 					clusterID:    "my-cluster-1",
 					region:       "us-east-1",
 					instance: &aws.Instance{
 						ID:         "",
+						ClusterID:  "my-cluster-1",
 						Endpoint:   "bar-endpoint",
 						Port:       5444,
 						IamEnabled: false,
@@ -336,8 +336,8 @@ func TestDBMAuroraListener(t *testing.T) {
 				},
 			},
 			rdsClientConfigurer: func(k *aws.MockRdsClient) {
-				k.EXPECT().GetAuroraClustersFromTags(gomock.Any(), []string{defaultADTag}).Return([]string{}, nil).AnyTimes()
-				k.EXPECT().GetAuroraClusterEndpoints(gomock.Any(), []string{}, gomock.Any()).Return(nil, nil).AnyTimes()
+				k.EXPECT().GetAuroraClustersFromTags(gomock.Any(), []string{defaultADTag}).Return([]types.DBCluster{}, nil).AnyTimes()
+				k.EXPECT().GetAuroraClusterEndpoints(gomock.Any(), []types.DBCluster{}, gomock.Any()).Return(nil, nil).AnyTimes()
 			},
 			expectedServices: []*DBMAuroraService{},
 			expectedDelServices: []*DBMAuroraService{
@@ -353,6 +353,95 @@ func TestDBMAuroraListener(t *testing.T) {
 						IamEnabled: true,
 						Engine:     "aurora-postgresql",
 						DbmEnabled: true,
+					},
+				},
+			},
+		},
+		{
+			// When an instance's non-hashed fields change (DbmEnabled, DbName,
+			// GlobalViewDb), the listener should detect the change and emit a
+			// delete + re-create so autodiscovery picks up the new configuration.
+			name: "changed non-hashed instance fields are picked up on rediscovery",
+			config: aws.Config{
+				DiscoveryInterval: 1,
+				Region:            "us-east-1",
+				Tags:              []string{defaultADTag},
+				DbmTag:            defaultDbmTag,
+			},
+			numDiscoveryIntervals: 0,
+			initialServices: map[string]Service{
+				"f7fee36c58e3da8a": &DBMAuroraService{
+					adIdentifier: dbmPostgresAuroraADIdentifier,
+					entityID:     "f7fee36c58e3da8a",
+					checkName:    "postgres",
+					clusterID:    "my-cluster-1",
+					region:       "us-east-1",
+					instance: &aws.Instance{
+						Endpoint:   "my-endpoint",
+						ClusterID:  "my-cluster-1",
+						Port:       5432,
+						IamEnabled: true,
+						Engine:     "aurora-postgresql",
+						DbmEnabled: true,
+						DbName:     "",
+					},
+				},
+			},
+			rdsClientConfigurer: func(k *aws.MockRdsClient) {
+				k.EXPECT().GetAuroraClustersFromTags(gomock.Any(), []string{defaultADTag}).Return([]types.DBCluster{{DBClusterIdentifier: awsaws.String("my-cluster-1")}}, nil).AnyTimes()
+				k.EXPECT().GetAuroraClusterEndpoints(gomock.Any(), []types.DBCluster{{DBClusterIdentifier: awsaws.String("my-cluster-1")}}, aws.Config{
+					DiscoveryInterval: 1,
+					Region:            "us-east-1",
+					Tags:              []string{defaultADTag},
+					DbmTag:            defaultDbmTag,
+				}).Return(
+					[]aws.Instance{
+						{
+							Endpoint:   "my-endpoint",
+							ClusterID:  "my-cluster-1",
+							Port:       5432,
+							IamEnabled: true,
+							Engine:     "aurora-postgresql",
+							DbmEnabled: false,
+							DbName:     "mydb",
+						},
+					}, nil).AnyTimes()
+			},
+			// Only the updated service should be emitted as new
+			expectedServices: []*DBMAuroraService{
+				{
+					adIdentifier: dbmPostgresAuroraADIdentifier,
+					entityID:     "d3aed5855856081b",
+					checkName:    "postgres",
+					clusterID:    "my-cluster-1",
+					region:       "us-east-1",
+					instance: &aws.Instance{
+						Endpoint:   "my-endpoint",
+						ClusterID:  "my-cluster-1",
+						Port:       5432,
+						IamEnabled: true,
+						Engine:     "aurora-postgresql",
+						DbmEnabled: false,
+						DbName:     "mydb",
+					},
+				},
+			},
+			// The original service should be deleted
+			expectedDelServices: []*DBMAuroraService{
+				{
+					adIdentifier: dbmPostgresAuroraADIdentifier,
+					entityID:     "f7fee36c58e3da8a",
+					checkName:    "postgres",
+					clusterID:    "my-cluster-1",
+					region:       "us-east-1",
+					instance: &aws.Instance{
+						Endpoint:   "my-endpoint",
+						ClusterID:  "my-cluster-1",
+						Port:       5432,
+						IamEnabled: true,
+						Engine:     "aurora-postgresql",
+						DbmEnabled: true,
+						DbName:     "",
 					},
 				},
 			},

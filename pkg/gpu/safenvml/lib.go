@@ -70,6 +70,7 @@ func getNonCriticalAPIs() []string {
 		toNativeName("GetFanSpeed"),
 		toNativeName("GetFanSpeed_v2"),
 		toNativeName("GetFieldValues"),
+		"nvmlDeviceReadWritePRM_v1",
 		toNativeName("GetGpuInstanceId"),
 		toNativeName("GetGpuInstanceProfileInfo"),
 		toNativeName("GetMaxClockInfo"),
@@ -85,6 +86,7 @@ func getNonCriticalAPIs() []string {
 		toNativeName("GetPowerManagementLimit"),
 		toNativeName("GetPowerUsage"),
 		toNativeName("GetProcessUtilization"),
+		toNativeName("GetRepairStatus"),
 		toNativeName("GetRemappedRows"),
 		toNativeName("GetSamples"),
 		toNativeName("GetTemperature"),
@@ -158,13 +160,22 @@ func (s *safeNvml) SystemGetDriverVersion() (string, error) {
 	return driverVersion, NewNvmlAPIErrorOrNil("SystemGetDriverVersion", ret)
 }
 
-// Shutdown shuts down the NVML library
+// Shutdown shuts down the NVML library. Not thread safe (the underlying shutdown call is not thread safe either).
+// The caller must ensure that no other threads are using the library.
+// Should only be used for testing purposes/clean up before re-creating the library.
 func (s *safeNvml) Shutdown() error {
 	if err := s.lookup("nvmlShutdown"); err != nil {
 		return err
 	}
 	ret := s.lib.Shutdown()
-	return NewNvmlAPIErrorOrNil("Shutdown", ret)
+	if err := NewNvmlAPIErrorOrNil("Shutdown", ret); err != nil {
+		return err
+	}
+
+	// After shutdown the wrapper must reinitialize NVML before reuse.
+	s.lib = nil
+	s.capabilities = nil
+	return nil
 }
 
 // DeviceGetCount returns the number of NVIDIA devices in the system

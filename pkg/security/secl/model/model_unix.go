@@ -208,12 +208,43 @@ func (e *Event) GetContainerID() string {
 	return string(e.ProcessContext.Process.ContainerContext.ContainerID)
 }
 
+// CGroupSource indicates the origin of a cgroup entry
+type CGroupSource uint64
+
+const (
+	// CGroupSourceUnknown defines a cgroup entry from an unknown source
+	CGroupSourceUnknown CGroupSource = iota
+	// CGroupSourceEvent defines a cgroup entry populated from a kernel event
+	CGroupSourceEvent
+	// CGroupSourceProcFS defines a cgroup entry populated from the procfs fallback
+	CGroupSourceProcFS
+)
+
+// String returns a string representation of the cgroup source
+func (s CGroupSource) String() string {
+	switch s {
+	case CGroupSourceEvent:
+		return "event"
+	case CGroupSourceProcFS:
+		return "procfs"
+	default:
+		return "unknown"
+	}
+}
+
 // CGroupContext holds the cgroup context of an event
 type CGroupContext struct {
 	*Releasable
 	CGroupID      containerutils.CGroupID `field:"id"` // SECLDoc[id] Definition:`ID of the cgroup`
 	CGroupPathKey PathKey                 `field:"file"`
 	CGroupVersion int                     `field:"version,handler:ResolveCGroupVersion"` // SECLDoc[version] Definition:`[Experimental] Version of the cgroup API`
+	CGroupSource  CGroupSource            `field:"-"`
+	CreatedAt     uint64                  `field:"created_at,opts:gen_getters"` // SECLDoc[created_at] Definition:`Timestamp of the creation of the cgroup`
+}
+
+// UnixCreatedAt returns the creation time of the cgroup
+func (cg *CGroupContext) UnixCreatedAt() time.Time {
+	return time.Unix(0, int64(cg.CreatedAt))
 }
 
 // IsNull returns true if the cgroup context is null
@@ -640,7 +671,7 @@ type PIDContext struct {
 	Tid           uint32 `field:"tid"`        // SECLDoc[tid] Definition:`Thread ID of the thread`
 	NetNS         uint32 `field:"netns"`      // SECLDoc[netns] Definition:`NetNS ID of the process`
 	MntNS         uint32 `field:"mntns"`      // SECLDoc[mntns] Definition:`MNTNS ID of the process`
-	IsKworker     bool   `field:"is_kworker"` // SECLDoc[is_kworker] Definition:`Indicates whether the process is a kworker`
+	IsKworker     bool   `field:"is_kworker"` // SECLDoc[is_kworker] Definition:`Indicates whether the process is a kworker/kthread`
 	PPid          uint32 `field:"ppid"`       // SECLDoc[ppid] Definition:`Parent process ID`
 	ExecInode     uint64 `field:"-"`          // used to track exec and event loss
 	UserSessionID uint64 `field:"-"`          // used to track user sessions from kernel space

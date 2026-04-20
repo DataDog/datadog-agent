@@ -743,7 +743,7 @@ probes:
     methodName: main.condLine
     sourceFile: main.go
     lines:
-      - "381"
+      - "494"
   when:
     dsl: "n == 7"
     json: {eq: [{ref: "n"}, 7]}
@@ -768,7 +768,7 @@ probes:
     methodName: main.condLine
     sourceFile: main.go
     lines:
-      - "381"
+      - "494"
   sampling:
     snapshotsPerSecond: 10
 
@@ -1626,5 +1626,984 @@ probes:
       expr:
         dsl: "x == \"hello\""
         json: {eq: [{ref: "x"}, "hello"]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- Index expression tests ---
+
+# Capture expression: int slice index
+- id: indexIntSlice_capture
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.intSliceArg
+  captureExpressions:
+    - name: "s_1"
+      expr:
+        dsl: "s[1]"
+        json: {index: [{ref: "s"}, 1]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# Capture expression: int array index
+- id: indexIntArray_capture
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.intArrayArg
+  captureExpressions:
+    - name: "s_1"
+      expr:
+        dsl: "s[1]"
+        json: {index: [{ref: "s"}, 1]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# Capture expression: string slice index
+- id: indexStringSlice_capture
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.stringSliceArg
+  captureExpressions:
+    - name: "s_0"
+      expr:
+        dsl: "s[0]"
+        json: {index: [{ref: "s"}, 0]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# Capture expression: string array index
+- id: indexStringArray_capture
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.stringArrayArg
+  captureExpressions:
+    - name: "s_1"
+      expr:
+        dsl: "s[1]"
+        json: {index: [{ref: "s"}, 1]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# Template with index expression
+- id: indexIntSlice_template
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.intSliceArg
+  template: "s[1]: {s[1]}"
+  segments:
+    - str: "s[1]: "
+    - json: {index: [{ref: "s"}, 1]}
+      dsl: "s[1]"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Condition on slice element
+- id: indexIntSlice_cond
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.intSliceArg
+  when:
+    dsl: "s[1] == 2"
+    json: {eq: [{index: [{ref: "s"}, 1]}, 2]}
+  template: "matched"
+  segments:
+    - str: "matched"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Condition on array element
+- id: indexIntArray_cond
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.intArrayArg
+  when:
+    dsl: "s[1] == 2"
+    json: {eq: [{index: [{ref: "s"}, 1]}, 2]}
+  template: "matched"
+  segments:
+    - str: "matched"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Big array: first element — proves index only reads 8 bytes, not 1MiB
+- id: indexBigArray_first
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.bigArrayArg
+  captureExpressions:
+    - name: "s_0"
+      expr:
+        dsl: "s[0]"
+        json: {index: [{ref: "s"}, 0]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# Big array: last element — offset 131071*8 = 1048568 bytes into array
+- id: indexBigArray_last
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.bigArrayArg
+  captureExpressions:
+    - name: "s_131071"
+      expr:
+        dsl: "s[131071]"
+        json: {index: [{ref: "s"}, 131071]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# Big array behind pointer+struct: s.data[131071]
+- id: indexBigArrayStruct_last
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.bigArrayStructArg
+  captureExpressions:
+    - name: "data_last"
+      expr:
+        dsl: "s.data[131071]"
+        json: {index: [{getmember: [{ref: "s"}, "data"]}, 131071]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# Index into slice field of a struct (struct → slice → index):
+# x.Items is []int{1,2,3}, so x.Items[2] should be 3
+- id: indexStructSliceField_capture
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenStructFields
+  captureExpressions:
+    - name: "items_2"
+      expr:
+        dsl: "x.Items[2]"
+        json: {index: [{getmember: [{ref: "x"}, "Items"]}, 2]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# Index into slice field of a pointer-to-struct (*struct → slice → index):
+# x.Items is []int{1,2,3}, so x.Items[0] should be 1
+- id: indexPtrStructSliceField_capture
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenPtrStructFields
+  captureExpressions:
+    - name: "items_0"
+      expr:
+        dsl: "x.Items[0]"
+        json: {index: [{getmember: [{ref: "x"}, "Items"]}, 0]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- Index expression error cases ---
+
+# Out-of-bounds index on array: s[3] on [3]int.
+# The probe should compile successfully. At runtime, the eBPF reads past the
+# array, which will either read garbage or fail the probe_read. The evaluation
+# error surfaces in the snapshot output, not at IR generation time.
+- id: indexErr_array_oob_capture
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.intArrayArg
+  captureExpressions:
+    - name: "s_3"
+      expr:
+        dsl: "s[3]"
+        json: {index: [{ref: "s"}, 3]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# Out-of-bounds index on array in template
+- id: indexErr_array_oob_template
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.intArrayArg
+  template: "s[3]: {s[3]}"
+  segments:
+    - str: "s[3]: "
+    - json: {index: [{ref: "s"}, 3]}
+      dsl: "s[3]"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Out-of-bounds index on array in condition: currently fails the probe at
+# IR generation because condition resolution errors are fatal. This matches
+# the existing behavior for all condition expression failures. A future
+# refactor should make this a runtime eval error (Java behavior: condition
+# returns false + conditionErrors).
+- id: indexErr_array_oob_cond
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.intArrayArg
+  when:
+    dsl: "s[3] == 42"
+    json: {eq: [{index: [{ref: "s"}, 3]}, 42]}
+  template: "matched"
+  segments:
+    - str: "matched"
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionExpressionUnresolvable"
+
+# Out-of-bounds index on slice: s[5] on []int{1, 2, 3}.
+# The bounds check happens at BPF runtime. The expression status should be OOB.
+- id: indexErr_slice_oob_capture
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.intSliceArg
+  captureExpressions:
+    - name: "s_5"
+      expr:
+        dsl: "s[5]"
+        json: {index: [{ref: "s"}, 5]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# Out-of-bounds index on slice in template
+- id: indexErr_slice_oob_template
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.intSliceArg
+  template: "s[5]: {s[5]}"
+  segments:
+    - str: "s[5]: "
+    - json: {index: [{ref: "s"}, 5]}
+      dsl: "s[5]"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Out-of-bounds index on slice in condition: s[5] == 42 on []int{1, 2, 3}.
+# The bounds check fires at BPF runtime, aborting the condition expression.
+# ConditionBegin sets condition_eval_error=true; the abort prevents
+# ConditionCheck from clearing it, so the probe fires with a condition
+# evaluation error (same as nil-deref in a condition).
+- id: indexErr_slice_oob_cond
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.intSliceArg
+  when:
+    dsl: "s[5] == 42"
+    json: {eq: [{index: [{ref: "s"}, 5]}, 42]}
+  template: "matched"
+  segments:
+    - str: "matched"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Nil pointer + index: x.Items[0] where x is *lenFields.
+# Called twice: once with valid pointer, once nil.
+# Capture expression with nil ptr should emit event with eval error.
+- id: indexNilPtr_capture
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.indexNilPtrSlice
+  captureExpressions:
+    - name: "items_0"
+      expr:
+        dsl: "x.Items[0]"
+        json: {index: [{getmember: [{ref: "x"}, "Items"]}, 0]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# Nil pointer + index in template
+- id: indexNilPtr_template
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.indexNilPtrSlice
+  template: "items[0]: {x.Items[0]}"
+  segments:
+    - str: "items[0]: "
+    - json: {index: [{getmember: [{ref: "x"}, "Items"]}, 0]}
+      dsl: "x.Items[0]"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Nil pointer + index in condition
+- id: indexNilPtr_cond
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.indexNilPtrSlice
+  when:
+    dsl: "x.Items[0] == 10"
+    json: {eq: [{index: [{getmember: [{ref: "x"}, "Items"]}, 0]}, 10]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- Map index expression tests ---
+# Map index expressions require swisstable maps (Go 1.24+). On Go 1.23 and
+# earlier, maps use the old hmap implementation and index lookups are not
+# supported. Integration tests are skipped for those versions; the condition
+# probe (mapIndex_stringKey_cond) additionally has an issue tag because
+# irgen rejects the condition outright.
+
+# Capture expression: map[int]string index with int key
+- id: mapIndex_intKey_capture
+  tags:
+    - "skip_integration:arch=amd64,toolchain=go1.23.11"
+    - "skip_integration:arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.mapIndexIntKey
+  captureExpressions:
+    - name: "m_2"
+      expr:
+        dsl: "m[2]"
+        json: {index: [{ref: "m"}, 2]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# Capture expression: map[string]int index with string key
+- id: mapIndex_stringKey_capture
+  tags:
+    - "skip_integration:arch=amd64,toolchain=go1.23.11"
+    - "skip_integration:arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.mapIndexStringKey
+  captureExpressions:
+    - name: "m_beta"
+      expr:
+        dsl: "m[\"beta\"]"
+        json: {index: [{ref: "m"}, "beta"]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# Capture expression: large map (>8 entries, uses directory) with string key
+- id: mapIndex_largeMap_capture
+  tags:
+    - "skip_integration:arch=amd64,toolchain=go1.23.11"
+    - "skip_integration:arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.mapIndexLargeMap
+  captureExpressions:
+    - name: "m_key42"
+      expr:
+        dsl: "m[\"key42\"]"
+        json: {index: [{ref: "m"}, "key42"]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# Map index key not found: "missing" is not in the map.
+# The expression status should be OOB.
+- id: mapIndex_missing_capture
+  tags:
+    - "skip_integration:arch=amd64,toolchain=go1.23.11"
+    - "skip_integration:arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.mapIndexMissing
+  captureExpressions:
+    - name: "m_missing"
+      expr:
+        dsl: "m[\"missing\"]"
+        json: {index: [{ref: "m"}, "missing"]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# Template with map index expression
+- id: mapIndex_stringKey_template
+  tags:
+    - "skip_integration:arch=amd64,toolchain=go1.23.11"
+    - "skip_integration:arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.mapIndexStringKey
+  template: "beta={m[\"beta\"]}"
+  segments:
+    - str: "beta="
+    - json: {index: [{ref: "m"}, "beta"]}
+      dsl: "m[\"beta\"]"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Condition on map value: m["alpha"] == 100
+- id: mapIndex_stringKey_cond
+  tags:
+    # Map index in condition requires swisstable maps; not supported on
+    # old-style hmap (Go 1.23 and earlier).
+    - "issue:ConditionExpressionUnresolvable@arch=amd64,toolchain=go1.23.11"
+    - "issue:ConditionExpressionUnresolvable@arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.mapIndexStringKey
+  when:
+    dsl: "m[\"alpha\"] == 100"
+    json: {eq: [{index: [{ref: "m"}, "alpha"]}, 100]}
+  template: "matched"
+  segments:
+    - str: "matched"
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- Map index key length tier tests ---
+# Each tests a different AES hash lane count on a large map (1000 entries).
+# Keys are zero-padded hex strings generated by makeKey(keyLen, 42).
+# Expected value for key 42 is 42*7 = 294.
+
+- id: mapIndex_keyLen8
+  tags:
+    - "skip_integration:arch=amd64,toolchain=go1.23.11"
+    - "skip_integration:arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.mapIndexKeyLen8
+  captureExpressions:
+    - name: "val"
+      expr:
+        dsl: "m[\"0000002a\"]"
+        json: {index: [{ref: "m"}, "0000002a"]}
+  sampling:
+    snapshotsPerSecond: 5000
+
+- id: mapIndex_keyLen24
+  tags:
+    - "skip_integration:arch=amd64,toolchain=go1.23.11"
+    - "skip_integration:arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.mapIndexKeyLen24
+  captureExpressions:
+    - name: "val"
+      expr:
+        dsl: "m[\"00000000000000000000002a\"]"
+        json: {index: [{ref: "m"}, "00000000000000000000002a"]}
+  sampling:
+    snapshotsPerSecond: 5000
+
+- id: mapIndex_keyLen48
+  tags:
+    - "skip_integration:arch=amd64,toolchain=go1.23.11"
+    - "skip_integration:arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.mapIndexKeyLen48
+  captureExpressions:
+    - name: "val"
+      expr:
+        dsl: "m[\"00000000000000000000000000000000000000000000002a\"]"
+        json: {index: [{ref: "m"}, "00000000000000000000000000000000000000000000002a"]}
+  sampling:
+    snapshotsPerSecond: 5000
+
+- id: mapIndex_keyLen96
+  tags:
+    - "skip_integration:arch=amd64,toolchain=go1.23.11"
+    - "skip_integration:arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.mapIndexKeyLen96
+  captureExpressions:
+    - name: "val"
+      expr:
+        dsl: "m[\"00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002a\"]"
+        json: {index: [{ref: "m"}, "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002a"]}
+  sampling:
+    snapshotsPerSecond: 5000
+
+- id: mapIndex_keyLen200
+  tags:
+    - "skip_integration:arch=amd64,toolchain=go1.23.11"
+    - "skip_integration:arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.mapIndexKeyLen200
+  captureExpressions:
+    - name: "val"
+      expr:
+        dsl: "m[\"0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002a\"]"
+        json: {index: [{ref: "m"}, "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002a"]}
+  sampling:
+    snapshotsPerSecond: 5000
+
+# --- Generic function probe ---
+# Exercises two things:
+# 1. Runtime dictionary ops: genericIdentity is called with int and string,
+#    which have different GC shapes. The probe matches both shape functions
+#    via the [...] wildcard, and the eBPF must read the dictionary pointer
+#    to resolve each shape's concrete type at probe time.
+# 2. Shared throttling: both shape instantiations are grouped under a single
+#    Probe with one throttler. With default sampling (snapshotsPerSecond: 1),
+#    only one of the two calls should fire, confirming that the throttle
+#    budget is shared across instances.
+- id: genericIdentity
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: "main.genericIdentity[...]"
+
+# --- Inlined method inside trampoline ---
+# Exercises probing an inlined function whose only concrete instance lives
+# inside a compiler-generated trampoline (-fm wrapper). When a method value
+# is taken (e.g. obj.Method), Go emits a trampoline with DW_AT_trampoline.
+# If the method is small enough to be inlined, the trampoline is the sole
+# container of the inlined subroutine. We must still discover and probe it.
+- id: inlinedMethod
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: "main.(*methodValueReceiver).inlinedMethod"
+
+# --- Index-then-getmember: value-element collections ---
+
+# Slice of structs, capture int32 field: s[0].Val == 100
+- id: indexMember_sliceStruct_capture_int
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.structSliceArg
+  captureExpressions:
+    - name: "s0_Val"
+      expr:
+        dsl: "s[0].Val"
+        json: {getmember: [{index: [{ref: "s"}, 0]}, "Val"]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# Slice of structs, capture string field: s[1].Txt == "second"
+- id: indexMember_sliceStruct_capture_string
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.structSliceArg
+  captureExpressions:
+    - name: "s1_Txt"
+      expr:
+        dsl: "s[1].Txt"
+        json: {getmember: [{index: [{ref: "s"}, 1]}, "Txt"]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# Array of structs, capture int32 field: s[0].Val == 300
+- id: indexMember_arrayStruct_capture_int
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.structArrayArg
+  captureExpressions:
+    - name: "s0_Val"
+      expr:
+        dsl: "s[0].Val"
+        json: {getmember: [{index: [{ref: "s"}, 0]}, "Val"]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# Array of structs, capture string field: s[1].Txt == "fourth"
+- id: indexMember_arrayStruct_capture_string
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.structArrayArg
+  captureExpressions:
+    - name: "s1_Txt"
+      expr:
+        dsl: "s[1].Txt"
+        json: {getmember: [{index: [{ref: "s"}, 1]}, "Txt"]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# Slice of structs, template: s[0].Val in log message
+- id: indexMember_sliceStruct_template
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.structSliceArg
+  template: "s[0].Val={s[0].Val}"
+  segments:
+    - str: "s[0].Val="
+    - json: {getmember: [{index: [{ref: "s"}, 0]}, "Val"]}
+      dsl: "s[0].Val"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Slice of structs, condition: s[0].Val == 100
+- id: indexMember_sliceStruct_cond
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.structSliceArg
+  when:
+    dsl: "s[0].Val == 100"
+    json: {eq: [{getmember: [{index: [{ref: "s"}, 0]}, "Val"]}, 100]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- Index-then-getmember: pointer-element collections ---
+
+# Slice of pointers to structs, capture int32 field: s[0].Val == 500
+- id: indexMember_ptrSliceStruct_capture_int
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.ptrStructSliceArg
+  captureExpressions:
+    - name: "s0_Val"
+      expr:
+        dsl: "s[0].Val"
+        json: {getmember: [{index: [{ref: "s"}, 0]}, "Val"]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# Slice of pointers to structs, capture string field: s[1].Txt == "sixth"
+- id: indexMember_ptrSliceStruct_capture_string
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.ptrStructSliceArg
+  captureExpressions:
+    - name: "s1_Txt"
+      expr:
+        dsl: "s[1].Txt"
+        json: {getmember: [{index: [{ref: "s"}, 1]}, "Txt"]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# Array of pointers to structs, capture int32 field: s[0].Val == 700
+- id: indexMember_ptrArrayStruct_capture_int
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.ptrStructArrayArg
+  captureExpressions:
+    - name: "s0_Val"
+      expr:
+        dsl: "s[0].Val"
+        json: {getmember: [{index: [{ref: "s"}, 0]}, "Val"]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# Array of pointers to structs, capture string field: s[1].Txt == "eighth"
+- id: indexMember_ptrArrayStruct_capture_string
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.ptrStructArrayArg
+  captureExpressions:
+    - name: "s1_Txt"
+      expr:
+        dsl: "s[1].Txt"
+        json: {getmember: [{index: [{ref: "s"}, 1]}, "Txt"]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- Index-then-getmember: pointer-to-array-of-structs ---
+# Struct field is *[2]indexMemberStruct — requires ptr deref, then array index,
+# then field access.
+
+# s.Arr[0].Val == 900
+- id: indexMember_wrapper_arr_capture
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.indexMemberWrapperArg
+  captureExpressions:
+    - name: "arr0_Val"
+      expr:
+        dsl: "s.Arr[0].Val"
+        json: {getmember: [{index: [{getmember: [{ref: "s"}, "Arr"]}, 0]}, "Val"]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# s.Arr[1].Txt == "tenth"
+- id: indexMember_wrapper_arr_capture_1
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.indexMemberWrapperArg
+  captureExpressions:
+    - name: "arr1_Txt"
+      expr:
+        dsl: "s.Arr[1].Txt"
+        json: {getmember: [{index: [{getmember: [{ref: "s"}, "Arr"]}, 1]}, "Txt"]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- Index-then-getmember: pointer-to-array-of-pointers-to-structs ---
+# Struct field is *[2]*indexMemberStruct — requires ptr deref, then array index,
+# then another ptr deref, then field access.
+
+# s.PtrArr[0].Val == 900
+- id: indexMember_wrapper_ptrArr_capture
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.indexMemberWrapperArg
+  captureExpressions:
+    - name: "ptrArr0_Val"
+      expr:
+        dsl: "s.PtrArr[0].Val"
+        json: {getmember: [{index: [{getmember: [{ref: "s"}, "PtrArr"]}, 0]}, "Val"]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# s.PtrArr[1].Txt == "tenth"
+- id: indexMember_wrapper_ptrArr_capture_1
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.indexMemberWrapperArg
+  captureExpressions:
+    - name: "ptrArr1_Txt"
+      expr:
+        dsl: "s.PtrArr[1].Txt"
+        json: {getmember: [{index: [{getmember: [{ref: "s"}, "PtrArr"]}, 1]}, "Txt"]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- Map index then getmember: struct values ---
+# Map value is indexMemberStruct; access field after lookup.
+
+# m["a"].Val == 111
+- id: mapIndex_structVal_capture_int
+  tags:
+    - "skip_integration:arch=amd64,toolchain=go1.23.11"
+    - "skip_integration:arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.mapIndexStructVal
+  captureExpressions:
+    - name: "a_Val"
+      expr:
+        dsl: "m[\"a\"].Val"
+        json: {getmember: [{index: [{ref: "m"}, "a"]}, "Val"]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# m["b"].Txt == "bbb"
+- id: mapIndex_structVal_capture_string
+  tags:
+    - "skip_integration:arch=amd64,toolchain=go1.23.11"
+    - "skip_integration:arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.mapIndexStructVal
+  captureExpressions:
+    - name: "b_Txt"
+      expr:
+        dsl: "m[\"b\"].Txt"
+        json: {getmember: [{index: [{ref: "m"}, "b"]}, "Txt"]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- Map index then getmember: pointer-to-struct values ---
+# Map value is *indexMemberStruct; lookup yields pointer, deref, then field.
+
+# m["x"].Val == 333
+- id: mapIndex_ptrStructVal_capture_int
+  tags:
+    - "skip_integration:arch=amd64,toolchain=go1.23.11"
+    - "skip_integration:arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.mapIndexPtrStructVal
+  captureExpressions:
+    - name: "x_Val"
+      expr:
+        dsl: "m[\"x\"].Val"
+        json: {getmember: [{index: [{ref: "m"}, "x"]}, "Val"]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# m["y"].Txt == "yyy"
+- id: mapIndex_ptrStructVal_capture_string
+  tags:
+    - "skip_integration:arch=amd64,toolchain=go1.23.11"
+    - "skip_integration:arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.mapIndexPtrStructVal
+  captureExpressions:
+    - name: "y_Txt"
+      expr:
+        dsl: "m[\"y\"].Txt"
+        json: {getmember: [{index: [{ref: "m"}, "y"]}, "Txt"]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- Map index with empty string key ---
+
+# m[""] == 999
+- id: mapIndex_emptyKey_capture
+  tags:
+    - "skip_integration:arch=amd64,toolchain=go1.23.11"
+    - "skip_integration:arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.mapIndexEmptyKey
+  captureExpressions:
+    - name: "empty_val"
+      expr:
+        dsl: "m[\"\"]"
+        json: {index: [{ref: "m"}, ""]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- Boundary key-length tests ---
+# Key length 16: last key in the 1-16 byte AES hash tier.
+# makeKey(16, 42) = "000000000000002a"
+- id: mapIndex_keyLen16
+  tags:
+    - "skip_integration:arch=amd64,toolchain=go1.23.11"
+    - "skip_integration:arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.mapIndexKeyLen16
+  captureExpressions:
+    - name: "val"
+      expr:
+        dsl: "m[\"000000000000002a\"]"
+        json: {index: [{ref: "m"}, "000000000000002a"]}
+  sampling:
+    snapshotsPerSecond: 5000
+
+# Key length 17: first key in the 17-32 byte AES hash tier.
+# makeKey(17, 42) = "0000000000000002a"
+- id: mapIndex_keyLen17
+  tags:
+    - "skip_integration:arch=amd64,toolchain=go1.23.11"
+    - "skip_integration:arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.mapIndexKeyLen17
+  captureExpressions:
+    - name: "val"
+      expr:
+        dsl: "m[\"0000000000000002a\"]"
+        json: {index: [{ref: "m"}, "0000000000000002a"]}
+  sampling:
+    snapshotsPerSecond: 5000
+
+# --- Bool key test ---
+- id: mapIndex_boolKey_true
+  tags:
+    - "skip_integration:arch=amd64,toolchain=go1.23.11"
+    - "skip_integration:arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.mapIndexBoolKey
+  captureExpressions:
+    - name: "true_val"
+      expr:
+        dsl: "m[true]"
+        json: {index: [{ref: "m"}, true]}
+  sampling:
+    snapshotsPerSecond: 10
+
+- id: mapIndex_boolKey_false
+  tags:
+    - "skip_integration:arch=amd64,toolchain=go1.23.11"
+    - "skip_integration:arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.mapIndexBoolKey
+  captureExpressions:
+    - name: "false_val"
+      expr:
+        dsl: "m[false]"
+        json: {index: [{ref: "m"}, false]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- Zero-value key test ---
+# Key "zero" exists and maps to 0; should succeed (not OOB).
+- id: mapIndex_zeroValue_capture
+  tags:
+    - "skip_integration:arch=amd64,toolchain=go1.23.11"
+    - "skip_integration:arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.mapIndexZeroValue
+  captureExpressions:
+    - name: "zero_val"
+      expr:
+        dsl: "m[\"zero\"]"
+        json: {index: [{ref: "m"}, "zero"]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- Nil pointer value test ---
+# Key "nil_key" maps to nil *indexMemberStruct. Accessing .Val should
+# produce ExprStatusNilDeref.
+- id: mapIndex_nilPtrVal_capture
+  tags:
+    - "skip_integration:arch=amd64,toolchain=go1.23.11"
+    - "skip_integration:arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.mapIndexNilPtrVal
+  captureExpressions:
+    - name: "nil_field"
+      expr:
+        dsl: "m[\"nil_key\"].Val"
+        json: {getmember: [{index: [{ref: "m"}, "nil_key"]}, "Val"]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- Large value struct test ---
+# Value struct has a [256]byte Pad followed by Val int at offset 256.
+# Exercises uint16 ValInSlotOffset (would overflow uint8).
+- id: mapIndex_largeValue_capture
+  tags:
+    - "skip_integration:arch=amd64,toolchain=go1.23.11"
+    - "skip_integration:arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.mapIndexLargeValue
+  captureExpressions:
+    - name: "k_Val"
+      expr:
+        dsl: "m[\"k\"].Val"
+        json: {getmember: [{index: [{ref: "m"}, "k"]}, "Val"]}
   sampling:
     snapshotsPerSecond: 10

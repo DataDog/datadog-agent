@@ -22,7 +22,7 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
-	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
+	"github.com/DataDog/dd-trace-go/v2/profiler"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -149,7 +149,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/networkpath"
 	"github.com/DataDog/datadog-agent/comp/otelcol"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
-	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
+	logsagentpipeline "github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/def"
 	otelagentStatusfx "github.com/DataDog/datadog-agent/comp/otelcol/status/fx"
 	parStatusImpl "github.com/DataDog/datadog-agent/comp/privateactionrunner/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/process"
@@ -157,7 +157,8 @@ import (
 	processagentStatusImpl "github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
 	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
 	remoteconfig "github.com/DataDog/datadog-agent/comp/remote-config"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
+	rcprotocoltestfx "github.com/DataDog/datadog-agent/comp/remote-config/rcprotocoltest/fx"
 	rcservicefx "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/fx"
 	rcservicemrffx "github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf/fx"
 	rctelemetryreporterfx "github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/fx"
@@ -165,7 +166,7 @@ import (
 	snmpscanmanager "github.com/DataDog/datadog-agent/comp/snmpscanmanager/def"
 	syntheticsTestsfx "github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/fx"
 	tracetelemetryfx "github.com/DataDog/datadog-agent/comp/trace-telemetry/fx"
-	traceagentStatusImpl "github.com/DataDog/datadog-agent/comp/trace/status/statusimpl"
+	traceagentStatusImpl "github.com/DataDog/datadog-agent/comp/trace/status/fx"
 	daemoncheckerfx "github.com/DataDog/datadog-agent/comp/updater/daemonchecker/fx"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -472,6 +473,7 @@ func getSharedFxOption() fx.Option {
 		otelcol.Bundle(),
 		hostProfilerFlareFx.Module(),
 		rctelemetryreporterfx.Module(),
+		rcprotocoltestfx.Module(),
 		rcservicefx.Module(),
 		rcservicemrffx.Module(),
 		remoteconfig.Bundle(),

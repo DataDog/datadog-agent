@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	// Import issue modules to trigger their init() registration
+	_ "github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues/admisconfig"
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues/checkfailure"
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues/dockerpermissions"
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues/rofspermissions"
@@ -710,7 +711,7 @@ func (h *healthPlatformImpl) writeJSONResponse(w http.ResponseWriter, statusCode
 // ============================================================================
 
 // fillFlare adds health platform issues to the flare archive
-func (h *healthPlatformImpl) fillFlare(fb flaretypes.FlareBuilder) error {
+func (h *healthPlatformImpl) fillFlare(_ context.Context, fb flaretypes.FlareBuilder) error {
 	count, issues := h.GetAllIssues()
 
 	// Only create the file if there are issues
