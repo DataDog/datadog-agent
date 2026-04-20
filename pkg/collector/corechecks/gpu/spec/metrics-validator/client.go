@@ -150,7 +150,7 @@ func (c *metricsClient) queryDeviceCount(config gpuspec.GPUConfig, fromTS, toTS 
 	return len(columns), nil
 }
 
-func (c *metricsClient) queryExpectedMetricPresenceForGPUConfig(metricName string, expectedTags map[string]struct{}, queryFilter string, fromTS, toTS int64, queryMinMax bool) ([]gpuspec.MetricObservation, error) {
+func (c *metricsClient) queryExpectedMetricPresenceForGPUConfig(metricName string, expectedTags map[string]gpuspec.TagSpec, queryFilter string, fromTS, toTS int64, queryMinMax bool) ([]gpuspec.MetricObservation, error) {
 	baseQuery := fmt.Sprintf("%s{%s}", metricName, queryFilter)
 
 	if len(expectedTags) > 0 {
@@ -228,6 +228,44 @@ func (c *metricsClient) listObservedGPUMetricsForGPUConfig(config gpuspec.GPUCon
 	}
 
 	return metrics, nil
+}
+
+func (c *metricsClient) fetchMetricAllTags(metricName string, wantedTagPrefixes map[string]gpuspec.TagSpec, windowSeconds int64, metricScopeFilter string) ([]string, error) {
+	var allTags []string
+
+	for tagPrefix := range wantedTagPrefixes {
+		options := datadogV2.NewListTagsByMetricNameOptionalParameters().
+			WithFilterMatch(tagPrefix).
+			WithFilterIncludeTagValues(true).
+			WithPageLimit(1000).
+			WithWindowSeconds(windowSeconds).
+			WithFilterAllowPartial(true)
+		if metricScopeFilter != "" {
+			options.WithFilterTags(metricScopeFilter)
+		}
+
+		response, httpResp, err := c.api.ListTagsByMetricName(c.ctx, metricName, *options)
+		if httpResp != nil && httpResp.Body != nil {
+			_ = httpResp.Body.Close()
+		}
+		if err != nil {
+			return nil, fmt.Errorf("fetch tag %s for %s: %w", tagPrefix, metricName, err)
+		}
+		if response.Data == nil || response.Data.Attributes == nil {
+			continue
+		}
+
+		for _, tag := range response.Data.Attributes.GetTags() {
+			// The tag endpoint returns all tags that contain the FilterMatch
+			// value, but we're only interested in tags that start with the
+			// prefix.
+			if strings.HasPrefix(tag, tagPrefix) {
+				allTags = append(allTags, tag)
+			}
+		}
+	}
+
+	return allTags, nil
 }
 
 func isNullishGroupValue(value string) bool {

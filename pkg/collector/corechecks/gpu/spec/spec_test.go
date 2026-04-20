@@ -15,40 +15,64 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.yaml.in/yaml/v2"
 
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
-	"go.yaml.in/yaml/v2"
 )
 
 func TestLoadSpecNotEmpty(t *testing.T) {
-	metricsSpec, err := LoadMetricsSpec()
+	specs, err := LoadSpecs()
 	require.NoError(t, err)
 
-	require.NotEmpty(t, metricsSpec.MetricPrefix, "metric_prefix should not be empty")
-	require.NotEmpty(t, metricsSpec.Tagsets, "tagsets should not be empty")
-	require.NotEmpty(t, metricsSpec.Metrics, "metrics should not be empty")
-	for name := range metricsSpec.Metrics {
+	require.NotEmpty(t, specs.Metrics.MetricPrefix, "metric_prefix should not be empty")
+	require.NotEmpty(t, specs.Metrics.Metrics, "metrics should not be empty")
+	for name := range specs.Metrics.Metrics {
 		require.NotEmpty(t, name, "metric name should not be empty")
 	}
-
-	for metricName, metricSpec := range metricsSpec.Metrics {
+	for metricName, metricSpec := range specs.Metrics.Metrics {
 		for deviceMode := range metricSpec.Support.DeviceModes {
 			require.Containsf(t, []string{"physical", "mig", "vgpu"}, string(deviceMode), "metric %s has invalid device mode key %q", metricName, deviceMode)
 		}
 	}
-}
 
-func TestLoadArchitecturesNotEmpty(t *testing.T) {
-	archSpecFile, err := LoadArchitecturesSpec()
-	require.NoError(t, err)
+	require.NotEmpty(t, specs.Tags.Tags, "tags should not be empty")
+	require.NotEmpty(t, specs.Tags.Tagsets, "tagsets should not be empty")
+	for tagsetName, tagsetSpec := range specs.Tags.Tagsets {
+		for _, tagName := range tagsetSpec.Tags {
+			_, ok := specs.Tags.Tags[tagName]
+			require.Truef(t, ok, "tagset %s references unknown tag %s", tagsetName, tagName)
+		}
+	}
 
-	require.NotEmpty(t, archSpecFile.Architectures, "architectures should not be empty")
-	for name, archSpec := range archSpecFile.Architectures {
+	require.NotEmpty(t, specs.Architectures.Architectures, "architectures should not be empty")
+	for name, archSpec := range specs.Architectures.Architectures {
 		t.Run(name, func(t *testing.T) {
 			require.NotNil(t, archSpec.UnsupportedDeviceModes, "unsupported_device_modes should be present")
 		})
 	}
+}
+
+func TestTagSpecUnmarshalYAML(t *testing.T) {
+	t.Run("compiles regex", func(t *testing.T) {
+		var spec TagSpec
+
+		err := yaml.Unmarshal([]byte(`regex: "^foo$"`), &spec)
+
+		require.NoError(t, err)
+		require.NotNil(t, spec.Regex)
+		require.True(t, spec.Regex.MatchString("foo"))
+		require.False(t, spec.Regex.MatchString("bar"))
+	})
+
+	t.Run("rejects invalid regex", func(t *testing.T) {
+		var spec TagSpec
+
+		err := yaml.Unmarshal([]byte(`regex: "["`), &spec)
+
+		require.Error(t, err)
+		require.ErrorContains(t, err, `compile tag regex "["`)
+	})
 }
 
 func TestMetricValidatorValidate(t *testing.T) {
@@ -141,14 +165,14 @@ func TestMetricValidatorUnmarshalRejectsNonFiniteValues(t *testing.T) {
 // the NVML mock configured from architectures.yaml returns API behavior that matches the capability flags
 // (gpm, unsupported_fields_by_device_mode). This validates that the mock actually applies the spec.
 func TestMockCapabilitiesMatchArchitectureSpec(t *testing.T) {
-	archSpecFile, err := LoadArchitecturesSpec()
+	specs, err := LoadSpecs()
 	require.NoError(t, err)
 
-	configs := KnownGPUConfigs(archSpecFile)
+	configs := KnownGPUConfigs(specs)
 	for _, config := range configs {
 		subtestName := fmt.Sprintf("arch=%s/mode=%s", config.Architecture, config.DeviceMode)
 		t.Run(subtestName, func(t *testing.T) {
-			archSpec := archSpecFile.Architectures[config.Architecture]
+			archSpec := specs.Architectures.Architectures[config.Architecture]
 			opts := BuildMockOptionsForConfig(t, config, archSpec)
 
 			ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(opts...))

@@ -32,6 +32,7 @@ class TagSummary:
     missing: int = 0
     unknown: int = 0
     invalid_value: int = 0
+    invalid_value_samples: list[str] = field(default_factory=list)
 
     @property
     def has_failures(self) -> bool:
@@ -81,6 +82,12 @@ class MetricStatus:
             current.missing += other_tag_result.missing
             current.unknown += other_tag_result.unknown
             current.invalid_value += other_tag_result.invalid_value
+            for sample in other_tag_result.invalid_value_samples:
+                if sample in current.invalid_value_samples:
+                    continue
+                if len(current.invalid_value_samples) >= 5:
+                    break
+                current.invalid_value_samples.append(sample)
 
 
 @dataclass(slots=True)
@@ -195,6 +202,7 @@ def validation_results_from_dict(payload: dict, *, site: str) -> ValidationResul
                                 missing=int(tag_result.get("missing", 0)),
                                 unknown=int(tag_result.get("unknown", 0)),
                                 invalid_value=int(tag_result.get("invalid_value", 0)),
+                                invalid_value_samples=(tag_result.get("invalid_value_samples") or []),
                             )
                             for tag, tag_result in (metric_status.get("tag_results") or {}).items()
                         },

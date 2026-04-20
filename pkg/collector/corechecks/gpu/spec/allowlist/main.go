@@ -82,10 +82,11 @@ func updateAllowlistFile(allowlistPath string) error {
 }
 
 func updateAllowlistEntries(entries []allowlistEntry) ([]allowlistEntry, error) {
-	metricsSpec, err := gpuspec.LoadMetricsSpec()
+	specs, err := gpuspec.LoadSpecs()
 	if err != nil {
 		return nil, fmt.Errorf("load metrics spec: %w", err)
 	}
+	metricsSpec := specs.Metrics
 
 	updatedEntries := make([]allowlistEntry, 0, len(entries)+len(metricsSpec.Metrics))
 	existingPrefixes := make(map[string]struct{}, len(entries))
@@ -98,7 +99,7 @@ func updateAllowlistEntries(entries []allowlistEntry) ([]allowlistEntry, error) 
 
 	missingPrefixes := make([]string, 0, len(metricsSpec.Metrics))
 	for metricName := range metricsSpec.Metrics {
-		prefix := gpuspec.PrefixedMetricName(metricsSpec, metricName)
+		prefix := gpuspec.PrefixedMetricName(specs, metricName)
 		if _, found := existingPrefixes[prefix]; found {
 			continue
 		}
