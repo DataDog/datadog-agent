@@ -10,14 +10,19 @@ from invoke.tasks import task
 
 from tasks.libs.common.auth import dd_auth_api_app_keys
 
-VALIDATOR_PACKAGE = "./pkg/collector/corechecks/gpu/spec/metrics-validator"
+SPEC_PACKAGE = "./pkg/collector/corechecks/gpu/spec"
+ALLOWLIST_PACKAGE = f"{SPEC_PACKAGE}/allowlist"
+ALLOWLIST_BINARY = f"{ALLOWLIST_PACKAGE}/gpu-metrics-allowlist"
+DEFAULT_ALLOWLIST_PATH = "../dd-analytics/luigiscripts/billing/usage/standard_metric_allowlist.json"
+VALIDATOR_PACKAGE = f"{SPEC_PACKAGE}/metrics-validator"
 VALIDATOR_BINARY = f"{VALIDATOR_PACKAGE}/gpu-metrics-validator"
 VALIDATOR_SITE = "datadoghq.com"
 
 
-def build_validator_binary(ctx) -> str:
-    ctx.run(f"go build -o {shlex.quote(VALIDATOR_BINARY)} {VALIDATOR_PACKAGE}")
-    return VALIDATOR_BINARY
+def build_binary(ctx, package: str, output_path: str, label: str) -> str:
+    print(f"== Building {label} binary ==")
+    ctx.run(f"go build -o {shlex.quote(output_path)} {package}")
+    return output_path
 
 
 @task(
@@ -44,8 +49,7 @@ def validate_metrics(ctx, lookback_seconds=3600, org: str | None = None):
     else:
         orgs = list(orgs_by_name.values())
 
-    print("== Building validator binary ==")
-    binary_path = build_validator_binary(ctx)
+    binary_path = build_binary(ctx, VALIDATOR_PACKAGE, VALIDATOR_BINARY, "validator")
     results: ValidationResults | None = None
     org_errors: list[str] = []
     for org_name, dd_auth_domain in orgs:
@@ -87,3 +91,19 @@ def validate_metrics(ctx, lookback_seconds=3600, org: str | None = None):
 
     if results and results.failing_count > 0:
         raise Exit(code=1)
+
+
+@task(
+    name="update-metrics-allowlist",
+    help={
+        "allowlist_path": f"Path to standard_metric_allowlist.json (default: {DEFAULT_ALLOWLIST_PATH})",
+    },
+)
+def update_metrics_allowlist(ctx, allowlist_path: str = DEFAULT_ALLOWLIST_PATH):
+    """
+    Update the GPU metrics entries in the standard metric allowlist.
+    """
+    binary_path = build_binary(ctx, ALLOWLIST_PACKAGE, ALLOWLIST_BINARY, "allowlist updater")
+    command = f"{shlex.quote(binary_path)} " f"--allowlist-path {shlex.quote(allowlist_path)}"
+    print(f"== Updating GPU metric allowlist at {allowlist_path} ==")
+    ctx.run(command)

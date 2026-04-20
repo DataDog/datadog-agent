@@ -140,9 +140,12 @@ type TracerPayload struct {
 	Hostname string `protobuf:"bytes,9,opt,name=hostname,proto3" json:"hostname" msg:"hostname"`
 	// version specifies `version` tag that set with the tracer.
 	// @gotags: json:"app_version" msg:"app_version"
-	AppVersion    string `protobuf:"bytes,10,opt,name=appVersion,proto3" json:"app_version" msg:"app_version"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	AppVersion string `protobuf:"bytes,10,opt,name=appVersion,proto3" json:"app_version" msg:"app_version"`
+	// containerDebug holds debug information about the container tags resolution.
+	// @gotags: json:"container_debug,omitempty" msg:"container_debug,omitempty"
+	ContainerDebug *ContainerDebug `protobuf:"bytes,11,opt,name=containerDebug,proto3" json:"container_debug,omitempty" msg:"container_debug,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *TracerPayload) Reset() {
@@ -245,6 +248,100 @@ func (x *TracerPayload) GetAppVersion() string {
 	return ""
 }
 
+func (x *TracerPayload) GetContainerDebug() *ContainerDebug {
+	if x != nil {
+		return x.ContainerDebug
+	}
+	return nil
+}
+
+// ContainerDebug holds debug information about the container tags resolution process.
+type ContainerDebug struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// error specifies any error that occurred during container tag resolution.
+	// @gotags: json:"error,omitempty" msg:"error,omitempty"
+	Error string `protobuf:"bytes,1,opt,name=error,proto3" json:"error,omitempty" msg:"error,omitempty"`
+	// latencyMs specifies the latency in milliseconds of the container tag resolution.
+	// @gotags: json:"latency_ms,omitempty" msg:"latency_ms,omitempty"
+	LatencyMs int64 `protobuf:"varint,2,opt,name=latencyMs,proto3" json:"latency_ms,omitempty" msg:"latency_ms,omitempty"`
+	// wasBuffered specifies whether the payload was buffered while waiting for container tags.
+	// @gotags: json:"was_buffered,omitempty" msg:"was_buffered,omitempty"
+	WasBuffered bool `protobuf:"varint,3,opt,name=wasBuffered,proto3" json:"was_buffered,omitempty" msg:"was_buffered,omitempty"`
+	// bufferMs specifies how long the payload was buffered in milliseconds.
+	// @gotags: json:"buffer_ms,omitempty" msg:"buffer_ms,omitempty"
+	BufferMs int64 `protobuf:"varint,4,opt,name=bufferMs,proto3" json:"buffer_ms,omitempty" msg:"buffer_ms,omitempty"`
+	// bufferEvictionReason specifies why the payload was evicted from the buffer.
+	// @gotags: json:"buffer_eviction_reason,omitempty" msg:"buffer_eviction_reason,omitempty"
+	BufferEvictionReason string `protobuf:"bytes,5,opt,name=bufferEvictionReason,proto3" json:"buffer_eviction_reason,omitempty" msg:"buffer_eviction_reason,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *ContainerDebug) Reset() {
+	*x = ContainerDebug{}
+	mi := &file_datadog_trace_tracer_payload_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ContainerDebug) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ContainerDebug) ProtoMessage() {}
+
+func (x *ContainerDebug) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_trace_tracer_payload_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ContainerDebug.ProtoReflect.Descriptor instead.
+func (*ContainerDebug) Descriptor() ([]byte, []int) {
+	return file_datadog_trace_tracer_payload_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *ContainerDebug) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+func (x *ContainerDebug) GetLatencyMs() int64 {
+	if x != nil {
+		return x.LatencyMs
+	}
+	return 0
+}
+
+func (x *ContainerDebug) GetWasBuffered() bool {
+	if x != nil {
+		return x.WasBuffered
+	}
+	return false
+}
+
+func (x *ContainerDebug) GetBufferMs() int64 {
+	if x != nil {
+		return x.BufferMs
+	}
+	return 0
+}
+
+func (x *ContainerDebug) GetBufferEvictionReason() string {
+	if x != nil {
+		return x.BufferEvictionReason
+	}
+	return ""
+}
+
 var File_datadog_trace_tracer_payload_proto protoreflect.FileDescriptor
 
 const file_datadog_trace_tracer_payload_proto_rawDesc = "" +
@@ -259,7 +356,7 @@ const file_datadog_trace_tracer_payload_proto_rawDesc = "" +
 	"\fdroppedTrace\x18\x05 \x01(\bR\fdroppedTrace\x1a7\n" +
 	"\tTagsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xb9\x03\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x80\x04\n" +
 	"\rTracerPayload\x12 \n" +
 	"\vcontainerID\x18\x01 \x01(\tR\vcontainerID\x12\"\n" +
 	"\flanguageName\x18\x02 \x01(\tR\flanguageName\x12(\n" +
@@ -273,10 +370,17 @@ const file_datadog_trace_tracer_payload_proto_rawDesc = "" +
 	"\n" +
 	"appVersion\x18\n" +
 	" \x01(\tR\n" +
-	"appVersion\x1a7\n" +
+	"appVersion\x12E\n" +
+	"\x0econtainerDebug\x18\v \x01(\v2\x1d.datadog.trace.ContainerDebugR\x0econtainerDebug\x1a7\n" +
 	"\tTagsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\x16Z\x14pkg/proto/pbgo/traceb\x06proto3"
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xb6\x01\n" +
+	"\x0eContainerDebug\x12\x14\n" +
+	"\x05error\x18\x01 \x01(\tR\x05error\x12\x1c\n" +
+	"\tlatencyMs\x18\x02 \x01(\x03R\tlatencyMs\x12 \n" +
+	"\vwasBuffered\x18\x03 \x01(\bR\vwasBuffered\x12\x1a\n" +
+	"\bbufferMs\x18\x04 \x01(\x03R\bbufferMs\x122\n" +
+	"\x14bufferEvictionReason\x18\x05 \x01(\tR\x14bufferEvictionReasonB\x16Z\x14pkg/proto/pbgo/traceb\x06proto3"
 
 var (
 	file_datadog_trace_tracer_payload_proto_rawDescOnce sync.Once
@@ -290,24 +394,26 @@ func file_datadog_trace_tracer_payload_proto_rawDescGZIP() []byte {
 	return file_datadog_trace_tracer_payload_proto_rawDescData
 }
 
-var file_datadog_trace_tracer_payload_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_datadog_trace_tracer_payload_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_datadog_trace_tracer_payload_proto_goTypes = []any{
-	(*TraceChunk)(nil),    // 0: datadog.trace.TraceChunk
-	(*TracerPayload)(nil), // 1: datadog.trace.TracerPayload
-	nil,                   // 2: datadog.trace.TraceChunk.TagsEntry
-	nil,                   // 3: datadog.trace.TracerPayload.TagsEntry
-	(*Span)(nil),          // 4: datadog.trace.Span
+	(*TraceChunk)(nil),     // 0: datadog.trace.TraceChunk
+	(*TracerPayload)(nil),  // 1: datadog.trace.TracerPayload
+	(*ContainerDebug)(nil), // 2: datadog.trace.ContainerDebug
+	nil,                    // 3: datadog.trace.TraceChunk.TagsEntry
+	nil,                    // 4: datadog.trace.TracerPayload.TagsEntry
+	(*Span)(nil),           // 5: datadog.trace.Span
 }
 var file_datadog_trace_tracer_payload_proto_depIdxs = []int32{
-	4, // 0: datadog.trace.TraceChunk.spans:type_name -> datadog.trace.Span
-	2, // 1: datadog.trace.TraceChunk.tags:type_name -> datadog.trace.TraceChunk.TagsEntry
+	5, // 0: datadog.trace.TraceChunk.spans:type_name -> datadog.trace.Span
+	3, // 1: datadog.trace.TraceChunk.tags:type_name -> datadog.trace.TraceChunk.TagsEntry
 	0, // 2: datadog.trace.TracerPayload.chunks:type_name -> datadog.trace.TraceChunk
-	3, // 3: datadog.trace.TracerPayload.tags:type_name -> datadog.trace.TracerPayload.TagsEntry
-	4, // [4:4] is the sub-list for method output_type
-	4, // [4:4] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	4, // 3: datadog.trace.TracerPayload.tags:type_name -> datadog.trace.TracerPayload.TagsEntry
+	2, // 4: datadog.trace.TracerPayload.containerDebug:type_name -> datadog.trace.ContainerDebug
+	5, // [5:5] is the sub-list for method output_type
+	5, // [5:5] is the sub-list for method input_type
+	5, // [5:5] is the sub-list for extension type_name
+	5, // [5:5] is the sub-list for extension extendee
+	0, // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_datadog_trace_tracer_payload_proto_init() }
@@ -322,7 +428,7 @@ func file_datadog_trace_tracer_payload_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_datadog_trace_tracer_payload_proto_rawDesc), len(file_datadog_trace_tracer_payload_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
