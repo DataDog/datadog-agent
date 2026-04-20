@@ -400,16 +400,20 @@ func removeDDOTProcessConfig(packageType PackageType) {
 	}
 }
 
-// restoreDDOTProcessConfig re-creates the DDOT procmgr YAML if the DDOT
-// package is still installed. This is needed for OCI agent upgrades where the
-// versioned directory (and its processes.d/) is recreated from scratch.
-// For DEB/RPM the install path is stable, so this is a harmless no-op.
+// restoreDDOTProcessConfig re-creates the DDOT procmgr YAML if the standalone
+// DDOT OCI package is still installed. This is needed for OCI agent upgrades
+// where the versioned directory (and its processes.d/) is recreated from scratch.
+//
+// This intentionally skips DEB/RPM: the install path is stable across upgrades
+// and extension-based DDOT installs use different paths that would be broken
+// by the standalone path rewriting in writeDDOTProcessConfig.
 func restoreDDOTProcessConfig(ctx HookContext) error {
-	if ctx.PackageType == PackageTypeOCI {
-		ddotPkgPath := filepath.Join(paths.PackagesPath, "datadog-agent-ddot", "stable")
-		if _, err := os.Stat(ddotPkgPath); os.IsNotExist(err) {
-			return nil
-		}
+	if ctx.PackageType != PackageTypeOCI {
+		return nil
+	}
+	ddotPkgPath := filepath.Join(paths.PackagesPath, "datadog-agent-ddot", "stable")
+	if _, err := os.Stat(ddotPkgPath); os.IsNotExist(err) {
+		return nil
 	}
 	return writeDDOTProcessConfig(ctx)
 }
