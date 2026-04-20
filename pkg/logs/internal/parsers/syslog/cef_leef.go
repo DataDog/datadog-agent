@@ -46,7 +46,7 @@ func ParseCEFLEEF(msg []byte) (header SIEMHeader, extension map[string]string, r
 func parseCEF(msg []byte) (SIEMHeader, map[string]string, []byte, bool) {
 	rest := msg[len(prefixCEF):]
 
-	fields, ext, ok := splitHeaderPipes(rest, 7)
+	fields, ext, ok := splitHeaderPipes(rest, 7, true)
 	if !ok {
 		return SIEMHeader{}, nil, nil, false
 	}
@@ -91,7 +91,7 @@ func parseLEEF(msg []byte) (SIEMHeader, map[string]string, []byte, bool) {
 	switch {
 	case isV2:
 		// LEEF 2.x: 6 pipe-delimited fields (version + vendor + product + devVersion + eventID + delimiter)
-		fields, ext, ok = splitHeaderPipes(rest, 6)
+		fields, ext, ok = splitHeaderPipes(rest, 6, false)
 		if !ok {
 			return SIEMHeader{}, nil, nil, false
 		}
@@ -103,7 +103,7 @@ func parseLEEF(msg []byte) (SIEMHeader, map[string]string, []byte, bool) {
 	default:
 		// LEEF 1.x: 5 pipe-delimited fields. Unrecognized versions (e.g. "2a")
 		// are routed here rather than silently assumed to be v2.
-		fields, ext, ok = splitHeaderPipes(rest, 5)
+		fields, ext, ok = splitHeaderPipes(rest, 5, false)
 		if !ok {
 			return SIEMHeader{}, nil, nil, false
 		}
@@ -111,11 +111,11 @@ func parseLEEF(msg []byte) (SIEMHeader, map[string]string, []byte, bool) {
 
 	header := SIEMHeader{
 		Format:        "LEEF",
-		Version:       unescapeCEFHeader(fields[0]),
-		DeviceVendor:  unescapeCEFHeader(fields[1]),
-		DeviceProduct: unescapeCEFHeader(fields[2]),
-		DeviceVersion: unescapeCEFHeader(fields[3]),
-		EventID:       unescapeCEFHeader(fields[4]),
+		Version:       fields[0],
+		DeviceVendor:  fields[1],
+		DeviceProduct: fields[2],
+		DeviceVersion: fields[3],
+		EventID:       fields[4],
 	}
 
 	extension := parseLEEFExtension(ext, delimiter)
@@ -124,12 +124,14 @@ func parseLEEF(msg []byte) (SIEMHeader, map[string]string, []byte, bool) {
 
 // splitHeaderPipes splits b into exactly n pipe-delimited header fields.
 // The content after the last pipe is returned as the extension.
-// Escaped pipes (\|) inside field values are handled correctly.
-func splitHeaderPipes(b []byte, n int) (fields []string, extension []byte, ok bool) {
+// When escapeAware is true (CEF), \| is treated as an escaped pipe inside
+// a field value. When false (LEEF), every pipe is a literal separator —
+// the LEEF spec does not define header-level escape sequences.
+func splitHeaderPipes(b []byte, n int, escapeAware bool) (fields []string, extension []byte, ok bool) {
 	fields = make([]string, 0, n)
 	start := 0
 	for i := 0; i < len(b); i++ {
-		if b[i] == '\\' {
+		if escapeAware && b[i] == '\\' {
 			i++ // skip escaped character
 			continue
 		}

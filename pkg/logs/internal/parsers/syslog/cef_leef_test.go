@@ -161,19 +161,37 @@ func TestParseCEFLEEF_LEEF20_LowercaseHex(t *testing.T) {
 	assert.Equal(t, "b", ext["key2"])
 }
 
-func TestParseCEFLEEF_LEEF_EscapedPipeInHeader(t *testing.T) {
-	msg := []byte("LEEF:1.0|Vendor\\|Inc|Product|1.0|100|src=10.0.0.1")
+func TestParseCEFLEEF_LEEF20_BackslashDelimiter(t *testing.T) {
+	// Backslash as the literal LEEF 2.0 delimiter. Previously this failed
+	// because splitHeaderPipes treated \ as an escape and swallowed the
+	// subsequent pipe, preventing the splitter from finding all 6 fields.
+	msg := []byte("LEEF:2.0|Vendor|Product|1.0|100|\\|key1=val1\\key2=val2")
 	header, ext, _, ok := ParseCEFLEEF(msg)
 	require.True(t, ok)
-	assert.Equal(t, "Vendor|Inc", header.DeviceVendor)
-	assert.Equal(t, "10.0.0.1", ext["src"])
+	assert.Equal(t, "LEEF", header.Format)
+	assert.Equal(t, "Vendor", header.DeviceVendor)
+	assert.Equal(t, "val1", ext["key1"])
+	assert.Equal(t, "val2", ext["key2"])
 }
 
-func TestParseCEFLEEF_LEEF_EscapedBackslashInHeader(t *testing.T) {
+func TestParseCEFLEEF_LEEF_PipeInHeaderIsLiteral(t *testing.T) {
+	// LEEF does not define header-level escape sequences. A \| in a LEEF
+	// header is a literal backslash ending one field and a pipe starting
+	// the next, which shifts all subsequent fields.
+	msg := []byte("LEEF:1.0|Vendor\\|Inc|Product|1.0|100|src=10.0.0.1")
+	header, _, _, ok := ParseCEFLEEF(msg)
+	require.True(t, ok)
+	assert.Equal(t, "Vendor\\", header.DeviceVendor)
+	assert.Equal(t, "Inc", header.DeviceProduct)
+}
+
+func TestParseCEFLEEF_LEEF_BackslashInHeaderIsLiteral(t *testing.T) {
+	// Double backslash in LEEF is two literal backslash characters, not
+	// an escape sequence. The field value retains both backslashes.
 	msg := []byte("LEEF:1.0|Vendor\\\\Corp|Product|1.0|100|src=10.0.0.1")
 	header, _, _, ok := ParseCEFLEEF(msg)
 	require.True(t, ok)
-	assert.Equal(t, "Vendor\\Corp", header.DeviceVendor)
+	assert.Equal(t, "Vendor\\\\Corp", header.DeviceVendor)
 }
 
 func TestParseCEFLEEF_LEEF_EmptyExtension(t *testing.T) {
