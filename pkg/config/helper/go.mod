@@ -3,19 +3,19 @@ module github.com/DataDog/datadog-agent/pkg/config/helper
 go 1.25.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/model v0.78.0
-	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.78.0
+	github.com/DataDog/datadog-agent/pkg/config/model v0.78.1-rc.1
+	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.78.1-rc.1
 	github.com/stretchr/testify v1.11.1
 )
 
 require gopkg.in/yaml.v3 v3.0.1 // indirect
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/basic v0.78.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/template v0.78.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log v0.78.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.78.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.78.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/basic v0.78.1-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.78.1-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log v0.78.1-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.78.1-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.78.1-rc.1 // indirect
 	github.com/DataDog/viper v1.15.1 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
