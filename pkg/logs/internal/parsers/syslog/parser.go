@@ -10,9 +10,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
+var _ message.StructuredContent = (*SyslogStructuredContent)(nil)
+
 // parser implements parsers.Parser for syslog-formatted input.
 // It converts each newline-framed line into a StateStructured message,
-// preserving all syslog metadata in a BasicStructuredContent.
+// preserving all syslog metadata in a SyslogStructuredContent.
 //
 // PRI detection is automatic: if a line starts with '<', it is parsed as a
 // network-format syslog message (RFC 5424 or BSD with PRI). Otherwise it is
@@ -34,9 +36,10 @@ func NewParser(siemParsing bool) parsers.Parser {
 // Parse implements parsers.Parser. It parses the unstructured line content
 // and returns a new StateStructured message with syslog metadata.
 //
-// On parse failure, the original message is returned unmodified so the raw
-// content passes through the pipeline as-is. No partial syslog metadata or
-// CEF/LEEF extraction is attempted on potentially truncated fragments.
+// Unlike most parsers, Parse always returns a valid *message.Message even when
+// err != nil. On error, the structured message contains the raw content as its
+// "message" field and best-effort syslog metadata. Callers MUST NOT discard
+// the result on error — the message is intentionally usable.
 func (p *parser) Parse(msg *message.Message) (*message.Message, error) {
 	var parsed SyslogMessage
 	var err error
@@ -48,23 +51,14 @@ func (p *parser) Parse(msg *message.Message) (*message.Message, error) {
 		parsed, err = ParseBSDLine(content)
 	}
 
+	// On error, always preserve the full original content so malformed lines
+	// are reconstructable from output. parsed.Msg may be a truncated fragment
+	// (e.g. line[pos:] after a PRI header) which would silently drop the prefix.
 	if err != nil {
-		return msg, err
+		parsed.Msg = content
 	}
 
-	sc := &message.BasicStructuredContent{
-		Data: map[string]interface{}{
-			"message": string(parsed.Msg),
-			"syslog":  BuildSyslogFields(&parsed),
-		},
-	}
-
-	if p.siemParsing {
-		if header, ext, _, ok := ParseCEFLEEF(parsed.Msg); ok {
-			sc.Data["siem"] = BuildSIEMFields(header, ext)
-			sc.Data["message"] = ""
-		}
-	}
+	sc := NewSyslogStructuredContent(parsed, p.siemParsing)
 
 	structured := message.NewStructuredMessage(
 		sc,
@@ -81,7 +75,7 @@ func (p *parser) Parse(msg *message.Message) (*message.Message, error) {
 		structured.ParsingExtra.ServiceOverride = parsed.AppName
 	}
 
-	return structured, nil
+	return structured, err
 }
 
 // SupportsPartialLine implements parsers.Parser. Syslog lines are always
