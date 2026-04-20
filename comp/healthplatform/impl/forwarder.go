@@ -27,7 +27,7 @@ import (
 
 const (
 	// intakeEndpointPrefix is the URL prefix for the Datadog intake endpoint
-	intakeEndpointPrefix = "https://event-platform-intake."
+	intakeEndpointPrefix = "https://agenthealth-intake."
 
 	// intakeEndpointPath is the API path for agent health reports
 	intakeEndpointPath = "/api/v2/agenthealth"
