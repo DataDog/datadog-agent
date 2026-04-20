@@ -23,6 +23,7 @@ pkg_filegroup(
         "@platforms//os:linux": [
             # dependency curl
             "@systemd//:all_files",
+            "//deps/gstatus:all_files",
             ":collected_libs",
         ],
         "//conditions:default": [],
@@ -34,9 +35,11 @@ pkg_filegroup(
             # dependency datadog_agent_data_plane
             # This is really part of system-probe
             "@libpcap//:all_files",
+            "//deps/nfsiostat:all_files",
         ],
         "//packages/agent:linux_fips": [
             "//deps/compile_policy:all_files",
+            "//deps/nfsiostat:all_files",
             "//deps/security_agent_policies:all_files",
             "@libpcap//:all_files",
         ],

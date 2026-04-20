@@ -452,7 +452,9 @@ func generateIR(
 		MaxTypeID:        typeCatalog.idAlloc.alloc,
 		Issues:           issues,
 		GoModuledataInfo: processed.goModuledataInfo,
+		GoMapHashInfo:    processed.goMapHashInfo,
 		CommonTypes:      commonTypes,
+		IsARM64:          arch == "arm64",
 	}, nil
 }
 
@@ -517,6 +519,131 @@ type analyzedProbe struct {
 
 	// Whether this is a snapshot probe (affects exploration strategy).
 	isSnapshot bool
+}
+
+// cleanReturnNames computes display names for return variables used as field
+// names under @return in multi-return snapshots. For single returns, it returns
+// nil (the caller should use "@return" directly). For multiple returns, it
+// strips the leading ~ from compiler-generated names and resolves conflicts
+// with underscore prefixing.
+func cleanReturnNames(vars []*ir.Variable) map[*ir.Variable]string {
+	if len(vars) <= 1 {
+		return nil
+	}
+	// First pass: strip ~ prefix from each name, track which are compiler-generated.
+	type entry struct {
+		cleaned   string
+		generated bool // true if original name had ~ prefix
+	}
+	entries := make([]entry, len(vars))
+	for i, v := range vars {
+		if strings.HasPrefix(v.Name, "~") {
+			entries[i] = entry{cleaned: v.Name[1:], generated: true}
+		} else {
+			entries[i] = entry{cleaned: v.Name, generated: false}
+		}
+	}
+	// Collect all names that are taken (user-chosen names always win).
+	taken := make(map[string]bool, len(vars))
+	for _, e := range entries {
+		if !e.generated {
+			taken[e.cleaned] = true
+		}
+	}
+	// Second pass: resolve conflicts for generated names.
+	result := make(map[*ir.Variable]string, len(vars))
+	for i, v := range vars {
+		e := entries[i]
+		if e.generated {
+			name := e.cleaned
+			for taken[name] {
+				name = "_" + name
+			}
+			taken[name] = true
+			result[v] = name
+		} else {
+			taken[e.cleaned] = true
+			result[v] = e.cleaned
+		}
+	}
+	return result
+}
+
+// resolveReturnExpr resolves an expression referencing @return to the
+// corresponding return variable and rewrites the expression to target that
+// variable directly.
+//
+// For single returns, ref("@return") is rewritten to ref(varName).
+// For multiple returns, getmember(ref("@return"), "field") is matched against
+// displayNames and rewritten to ref(varName). A bare @return is rejected
+// since multi-value returns require a field selector, and referencing more
+// than one distinct field in the same expression is rejected since the
+// result must resolve to a single root variable.
+//
+// Returns the resolved variable, the rewritten expression, and an error
+// message if resolution fails.
+func resolveReturnExpr(
+	expr exprlang.Expr,
+	returnVars []*ir.Variable,
+	displayNames map[*ir.Variable]string,
+) (rootVar *ir.Variable, rewritten exprlang.Expr, errMsg string) {
+	if len(returnVars) == 1 {
+		v := returnVars[0]
+		rewritten = exprlang.Rewrite(expr, func(e exprlang.Expr) exprlang.Expr {
+			if ref, ok := e.(*exprlang.RefExpr); ok && ref.Ref == "@return" {
+				return &exprlang.RefExpr{Ref: v.Name}
+			}
+			return nil
+		})
+		return v, rewritten, ""
+	}
+
+	var matched *ir.Variable
+	for node := range exprlang.Children(expr) {
+		gme, ok := node.(*exprlang.GetMemberExpr)
+		if !ok {
+			continue
+		}
+		ref, ok := gme.Base.(*exprlang.RefExpr)
+		if !ok || ref.Ref != "@return" {
+			continue
+		}
+		var v *ir.Variable
+		for _, rv := range returnVars {
+			if displayNames[rv] == gme.Member {
+				v = rv
+				break
+			}
+		}
+		if v == nil {
+			errMsg = fmt.Sprintf(
+				"@return field %q does not match any return variable", gme.Member)
+			break
+		}
+		if matched != nil && matched != v {
+			errMsg = "expression references multiple @return fields"
+			break
+		}
+		matched = v
+	}
+	switch {
+	case errMsg != "":
+		return nil, nil, errMsg
+	case matched == nil:
+		return nil, nil, "return value selector (e.g., @return.r0) must be used for multi-value returns"
+	}
+	rewritten = exprlang.Rewrite(expr, func(e exprlang.Expr) exprlang.Expr {
+		gme, ok := e.(*exprlang.GetMemberExpr)
+		if !ok {
+			return nil
+		}
+		ref, ok := gme.Base.(*exprlang.RefExpr)
+		if !ok || ref.Ref != "@return" {
+			return nil
+		}
+		return &exprlang.RefExpr{Ref: matched.Name}
+	})
+	return matched, rewritten, ""
 }
 
 // extractRootVariableName extracts the root variable name from an expression.
@@ -664,6 +791,17 @@ func analyzeAllProbes(
 				}
 			}
 
+			// Pre-scan: collect return variables and compute display names.
+			var returnVars []*ir.Variable
+			if haveReturn {
+				for _, v := range inst.Subprogram.Variables {
+					if v.Role == ir.VariableRoleReturn {
+						returnVars = append(returnVars, v)
+					}
+				}
+			}
+			returnDisplayNames := cleanReturnNames(returnVars) // nil for 0 or 1 returns
+
 			// Process each variable.
 			for _, v := range inst.Subprogram.Variables {
 				var evKind ir.EventKind
@@ -685,7 +823,7 @@ func analyzeAllProbes(
 					// which would just require extending the next case to also be
 					// triggered for return variables.
 					evKind = ir.EventKindReturn
-					exprKind = ir.RootExpressionKindLocal
+					exprKind = ir.RootExpressionKindReturn
 
 				case len(inst.Events) == 1 &&
 					inst.Events[0].Kind == ir.EventKindLine:
@@ -709,9 +847,18 @@ func analyzeAllProbes(
 				// Capture expression probes only capture explicitly listed
 				// expressions (handled below), not all variables.
 				if isSnapshot && !isCaptureExpression {
+					// Compute the display name for this expression.
+					name := v.Name
+					if v.Role == ir.VariableRoleReturn {
+						if returnDisplayNames == nil {
+							name = "@return"
+						} else {
+							name = returnDisplayNames[v]
+						}
+					}
 					ap.expressions = append(ap.expressions, analyzedExpression{
 						expr:         &exprlang.RefExpr{Ref: v.Name},
-						dsl:          v.Name,
+						dsl:          name,
 						rootVariable: v,
 						eventKind:    evKind,
 						exprKind:     exprKind,
@@ -721,7 +868,8 @@ func analyzeAllProbes(
 					addRoot(v.Type.GetID(), budget)
 				}
 
-				// Match template segments to this variable.
+				// Match template segments to this variable by its original name.
+				// Named returns (e.g., "result") remain accessible by name.
 				//
 				// Note: there's no risk of picking the wrong variable due to
 				// shadowing, but there should be! In materializePending we ensure
@@ -754,6 +902,33 @@ func analyzeAllProbes(
 				delete(segmentRefs, v.Name)
 			}
 
+			// Handle @return references in template segments.
+			if segs, ok := segmentRefs["@return"]; ok && len(returnVars) > 0 {
+				for _, seg := range segs {
+					rv, rewritten, errMsg := resolveReturnExpr(
+						seg.segment.JSON, returnVars, returnDisplayNames,
+					)
+					if rv != nil {
+						ap.expressions = append(ap.expressions, analyzedExpression{
+							expr:         rewritten,
+							dsl:          seg.segment.DSL,
+							rootVariable: rv,
+							eventKind:    ir.EventKindReturn,
+							exprKind:     ir.RootExpressionKindTemplateSegment,
+							segment:      seg.segment,
+							segmentIdx:   seg.index,
+						})
+						addRoot(rv.Type.GetID(), budget)
+					} else {
+						ap.template.Segments[seg.index] = ir.InvalidSegment{
+							Error: errMsg,
+							DSL:   seg.segment.DSL,
+						}
+					}
+				}
+				delete(segmentRefs, "@return")
+			}
+
 			// Process capture expressions.
 			for _, ce := range probe.ProbeDefinition.GetCaptureExpressions() {
 				parsedExpr, err := exprlang.Parse(ce.GetJSON())
@@ -764,7 +939,15 @@ func analyzeAllProbes(
 				if !ok {
 					continue
 				}
-				rootVar := varByName[rootVarName]
+				// Handle @return references in capture expressions.
+				var rootVar *ir.Variable
+				if rootVarName == "@return" && len(returnVars) > 0 {
+					rootVar, parsedExpr, _ = resolveReturnExpr(
+						parsedExpr, returnVars, returnDisplayNames,
+					)
+				} else {
+					rootVar = varByName[rootVarName]
+				}
 				if rootVar == nil {
 					continue
 				}
@@ -863,7 +1046,21 @@ func analyzeAllProbes(
 						Message: "failed to extract root variable from condition",
 					}
 				}
-				rootVar := varByName[rootVarName]
+				var rootVar *ir.Variable
+				if rootVarName == "@return" && len(returnVars) > 0 {
+					var errMsg string
+					rootVar, condExpr, errMsg = resolveReturnExpr(
+						condExpr, returnVars, returnDisplayNames,
+					)
+					if rootVar == nil {
+						return nil, ir.Issue{
+							Kind:    ir.IssueKindConditionVariableUnavailable,
+							Message: errMsg,
+						}
+					}
+				} else {
+					rootVar = varByName[rootVarName]
+				}
 				if rootVar == nil {
 					return nil, ir.Issue{
 						Kind:    ir.IssueKindConditionVariableUnavailable,
@@ -1923,6 +2120,7 @@ func finalizeTypes(tc *typeCatalog, subprograms []*ir.Subprogram) error {
 type processedDwarf struct {
 	pendingSubprograms []*pendingSubprogram
 	goModuledataInfo   ir.GoModuledataInfo
+	goMapHashInfo      ir.GoMapHashInfo
 	interestingTypes   []dwarf.Offset
 }
 
@@ -1969,6 +2167,7 @@ func processDwarf(
 	return processedDwarf{
 		pendingSubprograms: append(v.subprograms, inlinedSubprograms...),
 		goModuledataInfo:   v.goRuntimeInformation,
+		goMapHashInfo:      v.goMapHashInfo,
 		interestingTypes:   v.interestingTypes,
 	}, nil
 }
@@ -2014,6 +2213,7 @@ type rootVisitor struct {
 	typeIndexBuilder goTypeToOffsetIndexBuilder
 
 	goRuntimeInformation ir.GoModuledataInfo
+	goMapHashInfo        ir.GoMapHashInfo
 
 	// This is used to avoid allocations of unitChildVisitor for each
 	// compile unit.
@@ -2231,38 +2431,56 @@ func (v *unitChildVisitor) push(
 		if err != nil {
 			return nil, err
 		}
-		if !ok || name != "runtime.firstmoduledata" {
+		if !ok {
 			return nil, nil
 		}
 
-		typeOffset, err := getAttr[dwarf.Offset](entry, dwarf.AttrType)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get type for runtime.firstmoduledata: %w", err)
-		}
+		switch name {
+		case "runtime.firstmoduledata":
+			typeOffset, err := getAttr[dwarf.Offset](entry, dwarf.AttrType)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get type for runtime.firstmoduledata: %w", err)
+			}
 
-		// See https://github.com/golang/go/blob/5a56d884/src/runtime/symtab.go#L414
-		byteSize, memberOffset, err := findStructSizeAndMemberOffset(v.root.dwarf, typeOffset, "types")
-		if err != nil {
-			return nil, fmt.Errorf("failed to find struct size and member offset: %w", err)
-		}
-		location, err := getAttr[[]byte](entry, dwarf.AttrLocation)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get location for runtime.firstmoduledata: %w", err)
-		}
-		instructions, err := loclist.ParseInstructions(location, v.root.pointerSize, byteSize)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse location for runtime.firstmoduledata: %w", err)
-		}
-		if len(instructions) != 1 {
-			return nil, fmt.Errorf("runtime.firstmoduledata has %d instructions, expected 1", len(instructions))
-		}
-		addr, ok := instructions[0].Op.(ir.Addr)
-		if !ok {
-			return nil, fmt.Errorf("runtime.firstmoduledata is not an address, got %T", instructions[0].Op)
-		}
-		v.root.goRuntimeInformation = ir.GoModuledataInfo{
-			FirstModuledataAddr: addr.Addr,
-			TypesOffset:         memberOffset,
+			// See https://github.com/golang/go/blob/5a56d884/src/runtime/symtab.go#L414
+			byteSize, memberOffset, err := findStructSizeAndMemberOffset(v.root.dwarf, typeOffset, "types")
+			if err != nil {
+				return nil, fmt.Errorf("failed to find struct size and member offset: %w", err)
+			}
+			location, err := getAttr[[]byte](entry, dwarf.AttrLocation)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get location for runtime.firstmoduledata: %w", err)
+			}
+			instructions, err := loclist.ParseInstructions(location, v.root.pointerSize, byteSize)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse location for runtime.firstmoduledata: %w", err)
+			}
+			if len(instructions) != 1 {
+				return nil, fmt.Errorf("runtime.firstmoduledata has %d instructions, expected 1", len(instructions))
+			}
+			addr, ok := instructions[0].Op.(ir.Addr)
+			if !ok {
+				return nil, fmt.Errorf("runtime.firstmoduledata is not an address, got %T", instructions[0].Op)
+			}
+			v.root.goRuntimeInformation = ir.GoModuledataInfo{
+				FirstModuledataAddr: addr.Addr,
+				TypesOffset:         memberOffset,
+			}
+
+		case "runtime.useAeshash", "runtime.aeskeysched":
+			// Extract addresses of hash-related globals needed for swiss
+			// table map lookups. See go_swiss_maps.md for details.
+			addr, err := extractGlobalVarAddr(entry, name, v.root.pointerSize)
+			if err != nil {
+				// Non-fatal: map index expressions will be unsupported.
+				return nil, nil
+			}
+			switch name {
+			case "runtime.useAeshash":
+				v.root.goMapHashInfo.UseAeshashAddr = addr
+			case "runtime.aeskeysched":
+				v.root.goMapHashInfo.AeskeyschedAddr = addr
+			}
 		}
 		return nil, nil
 
@@ -2278,6 +2496,33 @@ func (v *unitChildVisitor) push(
 // It doesn't match anything with a package or any of the odd internal types
 // used by the runtime like sudog<T>.
 var primitiveTypeNameRegexp = regexp.MustCompile(`^[a-z]+[0-9]*$`)
+
+// extractGlobalVarAddr extracts the DW_OP_addr from a DW_TAG_variable entry.
+// This is used for simple global variables where we only need the address.
+func extractGlobalVarAddr(
+	entry *dwarf.Entry,
+	name string,
+	pointerSize uint8,
+) (uint64, error) {
+	location, err := getAttr[[]byte](entry, dwarf.AttrLocation)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get location for %s: %w", name, err)
+	}
+	// Use pointer size as the byte size — we only need the address, not the
+	// data. The loclist parser requires a size but it doesn't affect DW_OP_addr.
+	instructions, err := loclist.ParseInstructions(location, pointerSize, uint32(pointerSize))
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse location for %s: %w", name, err)
+	}
+	if len(instructions) != 1 {
+		return 0, fmt.Errorf("%s has %d location instructions, expected 1", name, len(instructions))
+	}
+	addr, ok := instructions[0].Op.(ir.Addr)
+	if !ok {
+		return 0, fmt.Errorf("%s location is not an address, got %T", name, instructions[0].Op)
+	}
+	return addr.Addr, nil
+}
 
 // findStructMemberOffset finds the offset of a member in a struct type.
 func findStructSizeAndMemberOffset(
@@ -3580,23 +3825,23 @@ func exploreIndexExprTypes(
 		return nil, err
 	}
 
-	// Validate the index is a literal integer >= 0.
+	// The index must always be a literal.
 	litExpr, ok := e.Index.(*exprlang.LiteralExpr)
 	if !ok {
 		return nil, fmt.Errorf("index must be a literal, got %T", e.Index)
-	}
-	idx, ok := litExpr.Value.(int64)
-	if !ok {
-		return nil, fmt.Errorf("index must be an integer literal, got %T", litExpr.Value)
-	}
-	if idx < 0 {
-		return nil, fmt.Errorf("index must be non-negative, got %d", idx)
 	}
 
 	// Resolve the collection type to get the element type.
 	canonical := tc.typesByID[resolvedType.GetID()]
 	switch t := canonical.(type) {
 	case *ir.ArrayType:
+		idx, ok := litExpr.Value.(int64)
+		if !ok {
+			return nil, fmt.Errorf("array index must be an integer literal, got %T", litExpr.Value)
+		}
+		if idx < 0 {
+			return nil, fmt.Errorf("array index must be non-negative, got %d", idx)
+		}
 		if uint32(idx) >= t.Count {
 			return nil, fmt.Errorf("index %d out of bounds for array of length %d", idx, t.Count)
 		}
@@ -3606,14 +3851,135 @@ func exploreIndexExprTypes(
 		}
 		return elemType, nil
 	case *ir.GoSliceHeaderType:
+		idx, ok := litExpr.Value.(int64)
+		if !ok {
+			return nil, fmt.Errorf("slice index must be an integer literal, got %T", litExpr.Value)
+		}
+		if idx < 0 {
+			return nil, fmt.Errorf("slice index must be non-negative, got %d", idx)
+		}
 		elemType := t.Data.Element
 		if err := ensureTypeExplored(tc, elemType); err != nil {
 			return nil, err
 		}
 		return elemType, nil
+	case *ir.GoMapType:
+		return exploreSwissMapIndexTypes(t, litExpr, tc)
 	default:
 		return nil, fmt.Errorf("index not supported on type %T (%q)", canonical, canonical.GetName())
 	}
+}
+
+// exploreSwissMapIndexTypes validates the key literal and returns the map's
+// value element type for a swiss map index expression.
+func exploreSwissMapIndexTypes(
+	mapType *ir.GoMapType,
+	litExpr *exprlang.LiteralExpr,
+	tc *typeCatalog,
+) (ir.Type, error) {
+	// Unwrap GoMapType → header type.
+	headerType := tc.typesByID[mapType.HeaderType.GetID()]
+	swissHeader, ok := headerType.(*ir.GoSwissMapHeaderType)
+	if !ok {
+		if _, isHMap := headerType.(*ir.GoHMapHeaderType); isHMap {
+			return nil, errors.New("index not supported on old-style hmap; only swiss maps (Go 1.24+) are supported")
+		}
+		return nil, fmt.Errorf("index not supported on map header type %T", headerType)
+	}
+
+	// Navigate to key/value types via the group structure:
+	// GroupType → "slots" field → ArrayType → Element (slot struct) → "key"/"elem" fields
+	keyType, valType, err := swissMapKeyValueTypes(swissHeader, tc)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve map key/value types: %w", err)
+	}
+
+	// Validate the literal key matches the map's key type.
+	keyType = tc.typesByID[keyType.GetID()]
+	if err := validateSwissMapKeyLiteral(litExpr, keyType); err != nil {
+		return nil, err
+	}
+
+	// Ensure the value type is explored.
+	valType = tc.typesByID[valType.GetID()]
+	if err := ensureTypeExplored(tc, valType); err != nil {
+		return nil, err
+	}
+	return valType, nil
+}
+
+// swissMapKeyValueTypes extracts the key and value types from a swiss map's
+// group structure.
+func swissMapKeyValueTypes(
+	swissHeader *ir.GoSwissMapHeaderType,
+	tc *typeCatalog,
+) (keyType, valType ir.Type, err error) {
+	slotsField, err := field(tc, swissHeader.GroupType, "slots")
+	if err != nil {
+		return nil, nil, fmt.Errorf("group has no slots field: %w", err)
+	}
+	slotsFieldType := tc.typesByID[slotsField.Type.GetID()]
+	entryArray, ok := slotsFieldType.(*ir.ArrayType)
+	if !ok {
+		return nil, nil, fmt.Errorf("slots field is not an array type: %T", slotsFieldType)
+	}
+	slotStruct, ok := entryArray.Element.(*ir.StructureType)
+	if !ok {
+		return nil, nil, fmt.Errorf("slot array element is not a struct: %T", entryArray.Element)
+	}
+	keyField, err := field(tc, slotStruct, "key")
+	if err != nil {
+		return nil, nil, fmt.Errorf("slot struct has no key field: %w", err)
+	}
+	elemField, err := field(tc, slotStruct, "elem")
+	if err != nil {
+		return nil, nil, fmt.Errorf("slot struct has no elem field: %w", err)
+	}
+	return keyField.Type, elemField.Type, nil
+}
+
+// validateSwissMapKeyLiteral checks that the literal value is compatible with
+// the map's key type.
+func validateSwissMapKeyLiteral(
+	litExpr *exprlang.LiteralExpr,
+	keyType ir.Type,
+) error {
+	switch keyType.(type) {
+	case *ir.BaseType:
+		// Base type keys accept integer, float, bool, and string literals
+		// (validated further during coerceLiteral in resolveSwissMapIndex).
+		switch litExpr.Value.(type) {
+		case int64, float64, bool, string:
+			// int64 and float64 from JSON; bool for true/false keys;
+			// string for hex/octal notation.
+			// coerceLiteral handles the full validation and range checking.
+		default:
+			return fmt.Errorf(
+				"map index: base type key requires integer or bool literal, got %T",
+				litExpr.Value,
+			)
+		}
+	case *ir.GoStringHeaderType:
+		litStr, ok := litExpr.Value.(string)
+		if !ok {
+			return fmt.Errorf(
+				"map index: string key requires string literal, got %T",
+				litExpr.Value,
+			)
+		}
+		if len(litStr) > ir.MaxMapStringKeyLength {
+			return fmt.Errorf(
+				"map index: string key too long (%d bytes, max %d)",
+				len(litStr), ir.MaxMapStringKeyLength,
+			)
+		}
+	default:
+		return fmt.Errorf(
+			"map index: unsupported key type %T (%q); only base types and strings are supported",
+			keyType, keyType.GetName(),
+		)
+	}
+	return nil
 }
 
 // exploreLenExprTypes explores types for a len/isEmpty operand, resolving
@@ -3764,10 +4130,12 @@ func resolveExpression(
 		lastDerefOpIdx := -1
 
 		// Detect if the base expression already ends with a DereferenceOp
-		// (e.g., from slice index resolution). If so, initialize state so
-		// the member loop updates the correct op.
+		// or SwissMapLookupOp (e.g., from slice index or map index
+		// resolution). If so, initialize state so the member loop updates
+		// the correct op.
 		if len(operations) > 0 {
-			if _, ok := operations[len(operations)-1].(*ir.DereferenceOp); ok {
+			switch operations[len(operations)-1].(type) {
+			case *ir.DereferenceOp, *ir.SwissMapLookupOp:
 				hasDereferenced = true
 				lastDerefOpIdx = len(operations) - 1
 			}
@@ -3843,15 +4211,17 @@ func resolveExpression(
 					}
 				}
 			} else {
-				// After dereference: update the DereferenceOp that corresponds to
-				// the current pointer being dereferenced (tracked by lastDerefOpIdx).
+				// After dereference or map lookup: update the operation that
+				// corresponds to the current data read (tracked by lastDerefOpIdx).
 				if lastDerefOpIdx >= 0 && lastDerefOpIdx < len(operations) {
-					if derefOp, ok := operations[lastDerefOpIdx].(*ir.DereferenceOp); ok {
-						// Update the DereferenceOp's bias to include this field offset.
-						derefOp.Bias += field.Offset
-						// Update the byte size to match the field size.
-						derefOp.ByteSize = field.Type.GetByteSize()
-					} else {
+					switch op := operations[lastDerefOpIdx].(type) {
+					case *ir.DereferenceOp:
+						op.Bias += field.Offset
+						op.ByteSize = field.Type.GetByteSize()
+					case *ir.SwissMapLookupOp:
+						op.ValInSlotOffset += uint16(field.Offset)
+						op.ValByteSize = field.Type.GetByteSize()
+					default:
 						// Should not happen, but accumulate bias for safety.
 						bias += field.Offset
 					}
@@ -3935,7 +4305,7 @@ func resolveExpression(
 }
 
 // indexElementType returns the element type for an indexable collection type
-// (array or slice).
+// (array, slice, or map).
 func indexElementType(tc *typeCatalog, baseType ir.Type) (ir.Type, error) {
 	canonical := tc.typesByID[baseType.GetID()]
 	// Dereference pointer if needed (e.g., *[N]T or *[]T).
@@ -3947,6 +4317,17 @@ func indexElementType(tc *typeCatalog, baseType ir.Type) (ir.Type, error) {
 		return t.Element, nil
 	case *ir.GoSliceHeaderType:
 		return t.Data.Element, nil
+	case *ir.GoMapType:
+		headerType := tc.typesByID[t.HeaderType.GetID()]
+		swissHeader, ok := headerType.(*ir.GoSwissMapHeaderType)
+		if !ok {
+			return nil, fmt.Errorf("index not supported on non-swiss map type %T", headerType)
+		}
+		_, valType, err := swissMapKeyValueTypes(swissHeader, tc)
+		if err != nil {
+			return nil, err
+		}
+		return valType, nil
 	default:
 		return nil, fmt.Errorf("index not supported on type %T (%q)", canonical, canonical.GetName())
 	}
@@ -3956,6 +4337,7 @@ func indexElementType(tc *typeCatalog, baseType ir.Type) (ir.Type, error) {
 // read only the single element at the given index. For arrays, this adjusts
 // the offset on the existing LocationOp/DereferenceOp. For slices, this
 // narrows to the data pointer and adds a DereferenceOp with element offset.
+// For maps, this emits a SwissMapLookupOp that performs an O(1) hash lookup.
 func resolveIndexExpression(
 	e *exprlang.IndexExpr,
 	rootVar *ir.Variable,
@@ -3966,17 +4348,6 @@ func resolveIndexExpression(
 	if !ok {
 		return ir.Expression{}, fmt.Errorf("index must be a literal, got %T", e.Index)
 	}
-	idx, ok := litExpr.Value.(int64)
-	if !ok {
-		return ir.Expression{}, fmt.Errorf("index must be an integer literal, got %T", litExpr.Value)
-	}
-	if idx < 0 {
-		return ir.Expression{}, fmt.Errorf("index must be non-negative, got %d", idx)
-	}
-	if idx > math.MaxUint32 {
-		return ir.Expression{}, fmt.Errorf("index %d exceeds maximum (%d)", idx, math.MaxUint32)
-	}
-
 	// Resolve the base expression.
 	baseExpr, err := resolveExpression(e.Base, rootVar, tc)
 	if err != nil {
@@ -3987,9 +4358,25 @@ func resolveIndexExpression(
 	canonical := tc.typesByID[baseExpr.Type.GetID()]
 	switch t := canonical.(type) {
 	case *ir.ArrayType:
+		idx, ok := litExpr.Value.(int64)
+		if !ok || idx < 0 {
+			return ir.Expression{}, errors.New("array index must be a non-negative integer literal")
+		}
+		if idx > math.MaxUint32 {
+			return ir.Expression{}, fmt.Errorf("index %d exceeds maximum (%d)", idx, math.MaxUint32)
+		}
 		return resolveArrayIndex(baseExpr, t, idx)
 	case *ir.GoSliceHeaderType:
+		idx, ok := litExpr.Value.(int64)
+		if !ok || idx < 0 {
+			return ir.Expression{}, errors.New("slice index must be a non-negative integer literal")
+		}
+		if idx > math.MaxUint32 {
+			return ir.Expression{}, fmt.Errorf("index %d exceeds maximum (%d)", idx, math.MaxUint32)
+		}
 		return resolveSliceIndex(baseExpr, t, idx, tc)
+	case *ir.GoMapType:
+		return resolveSwissMapIndex(baseExpr, t, litExpr, tc)
 	default:
 		return ir.Expression{}, fmt.Errorf(
 			"index not supported on type %T (%q)", canonical, canonical.GetName(),
@@ -4090,6 +4477,165 @@ func resolveSliceIndex(
 
 	return ir.Expression{
 		Type:       elemType,
+		Operations: operations,
+	}, nil
+}
+
+// resolveSwissMapIndex resolves a map index expression into IR operations
+// that perform an O(1) hash lookup. The base expression evaluates to a map
+// pointer. We dereference it to read the map header, then emit a
+// SwissMapLookupOp that encodes all structural offsets and the literal key.
+func resolveSwissMapIndex(
+	baseExpr ir.Expression,
+	mapType *ir.GoMapType,
+	litExpr *exprlang.LiteralExpr,
+	tc *typeCatalog,
+) (ir.Expression, error) {
+	// Unwrap GoMapType → header type.
+	headerType := tc.typesByID[mapType.HeaderType.GetID()]
+	swissHeader, ok := headerType.(*ir.GoSwissMapHeaderType)
+	if !ok {
+		return ir.Expression{}, fmt.Errorf(
+			"map index: expected GoSwissMapHeaderType, got %T", headerType,
+		)
+	}
+
+	// The base expression gives us a map pointer (*Map). Dereference to read
+	// the full map header.
+	headerSize := swissHeader.StructureType.GetByteSize()
+	operations := baseExpr.Operations
+	operations = append(operations, &ir.DereferenceOp{
+		Bias:     0,
+		ByteSize: headerSize,
+	})
+
+	// Extract map header field offsets from DWARF.
+	seedField, err := field(tc, swissHeader.StructureType, "seed")
+	if err != nil {
+		return ir.Expression{}, fmt.Errorf("map header missing seed field: %w", err)
+	}
+	dirPtrField, err := field(tc, swissHeader.StructureType, "dirPtr")
+	if err != nil {
+		return ir.Expression{}, fmt.Errorf("map header missing dirPtr field: %w", err)
+	}
+	dirLenField, err := field(tc, swissHeader.StructureType, "dirLen")
+	if err != nil {
+		return ir.Expression{}, fmt.Errorf("map header missing dirLen field: %w", err)
+	}
+	globalShiftField, err := field(tc, swissHeader.StructureType, "globalShift")
+	if err != nil {
+		return ir.Expression{}, fmt.Errorf("map header missing globalShift field: %w", err)
+	}
+
+	// Navigate to the group structure for slot layout:
+	// GroupType → "ctrl" field, "slots" field → ArrayType → Element (slot struct)
+	ctrlField, err := field(tc, swissHeader.GroupType, "ctrl")
+	if err != nil {
+		return ir.Expression{}, fmt.Errorf("group type missing ctrl field: %w", err)
+	}
+	slotsField, err := field(tc, swissHeader.GroupType, "slots")
+	if err != nil {
+		return ir.Expression{}, fmt.Errorf("group type missing slots field: %w", err)
+	}
+	slotsFieldType := tc.typesByID[slotsField.Type.GetID()]
+	entryArray, ok := slotsFieldType.(*ir.ArrayType)
+	if !ok {
+		return ir.Expression{}, fmt.Errorf("slots field is not an array: %T", slotsFieldType)
+	}
+	slotStruct, ok := entryArray.Element.(*ir.StructureType)
+	if !ok {
+		return ir.Expression{}, fmt.Errorf("slot element is not a struct: %T", entryArray.Element)
+	}
+	keyField, err := field(tc, slotStruct, "key")
+	if err != nil {
+		return ir.Expression{}, fmt.Errorf("slot struct missing key field: %w", err)
+	}
+	elemField, err := field(tc, slotStruct, "elem")
+	if err != nil {
+		return ir.Expression{}, fmt.Errorf("slot struct missing elem field: %w", err)
+	}
+
+	// Navigate to table struct → groupsReference for data/lengthMask offsets.
+	tablePtrType, ok := swissHeader.TablePtrSliceType.Element.(*ir.PointerType)
+	if !ok {
+		return ir.Expression{}, fmt.Errorf("table ptr slice element is not a pointer: %T", swissHeader.TablePtrSliceType.Element)
+	}
+	tableType, ok := tc.typesByID[tablePtrType.Pointee.GetID()].(*ir.StructureType)
+	if !ok {
+		return ir.Expression{}, fmt.Errorf("table pointee is not a struct: %T", tc.typesByID[tablePtrType.Pointee.GetID()])
+	}
+	groupsField, err := field(tc, tableType, "groups")
+	if err != nil {
+		return ir.Expression{}, fmt.Errorf("table type missing groups field: %w", err)
+	}
+	groupsType, ok := groupsField.Type.(*ir.GoSwissMapGroupsType)
+	if !ok {
+		return ir.Expression{}, fmt.Errorf("groups field is not GoSwissMapGroupsType: %T", groupsField.Type)
+	}
+	dataField, err := field(tc, groupsType.StructureType, "data")
+	if err != nil {
+		return ir.Expression{}, fmt.Errorf("groupsReference missing data field: %w", err)
+	}
+	lengthMaskField, err := field(tc, groupsType.StructureType, "lengthMask")
+	if err != nil {
+		return ir.Expression{}, fmt.Errorf("groupsReference missing lengthMask field: %w", err)
+	}
+
+	// Encode the literal key.
+	keyType := tc.typesByID[keyField.Type.GetID()]
+	valType := tc.typesByID[elemField.Type.GetID()]
+
+	var keyData []byte
+	var isStringKey bool
+	var keyByteSize uint8
+
+	switch kt := keyType.(type) {
+	case *ir.BaseType:
+		keyByteSize = uint8(kt.GetByteSize())
+		goKind, _ := kt.GetGoKind()
+		keyData, err = coerceLiteral(litExpr.Value, goKind, uint32(keyByteSize))
+		if err != nil {
+			return ir.Expression{}, fmt.Errorf("map index: %w", err)
+		}
+	case *ir.GoStringHeaderType:
+		isStringKey = true
+		keyByteSize = uint8(kt.StructureType.GetByteSize()) // 16 on amd64
+		litStr := litExpr.Value.(string)                    // validated in explore phase
+		keyData = make([]byte, 4+len(litStr))
+		binary.LittleEndian.PutUint32(keyData[:4], uint32(len(litStr)))
+		copy(keyData[4:], litStr)
+	default:
+		return ir.Expression{}, fmt.Errorf("map index: unsupported key type %T", keyType)
+	}
+
+	operations = append(operations, &ir.SwissMapLookupOp{
+		KeyData:     keyData,
+		IsStringKey: isStringKey,
+		KeyByteSize: keyByteSize,
+		ValByteSize: valType.GetByteSize(),
+
+		SeedOffset:        uint8(seedField.Offset),
+		DirPtrOffset:      uint8(dirPtrField.Offset),
+		DirLenOffset:      uint8(dirLenField.Offset),
+		GlobalShiftOffset: uint8(globalShiftField.Offset),
+
+		CtrlOffset:      uint8(ctrlField.Offset),
+		SlotsOffset:     uint8(slotsField.Offset),
+		SlotSize:        uint16(slotStruct.GetByteSize()),
+		KeyInSlotOffset: uint8(keyField.Offset),
+		ValInSlotOffset: uint16(elemField.Offset),
+
+		TableGroupsFieldOffset:   uint8(groupsField.Offset),
+		GroupsDataFieldOffset:    uint8(dataField.Offset),
+		GroupsLenMaskFieldOffset: uint8(lengthMaskField.Offset),
+
+		GroupByteSize: uint16(swissHeader.GroupType.GetByteSize()),
+
+		HeaderByteSize: headerSize,
+	})
+
+	return ir.Expression{
+		Type:       valType,
 		Operations: operations,
 	}, nil
 }

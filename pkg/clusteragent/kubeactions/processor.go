@@ -16,16 +16,16 @@ import (
 	"time"
 
 	kubeactions "github.com/DataDog/agent-payload/v5/kubeactions"
+	"google.golang.org/protobuf/encoding/protojson"
+
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/hashicorp/go-multierror"
-	"google.golang.org/protobuf/encoding/protojson"
 )
 
 // ActionStoreInterface defines the interface for action stores
 type ActionStoreInterface interface {
-	WasExecuted(key ActionKey) bool
+	Claim(key ActionKey) bool
 	MarkExecuted(key ActionKey, status, message string, executedAt int64, receivedAt int64, actionCreatedAt int64)
 	GetRecord(key ActionKey) (ActionRecord, bool)
 }
@@ -94,12 +94,13 @@ func (p *ActionProcessor) Process(configKey string, rawConfig state.RawConfig) e
 		ID:      rawConfig.Metadata.ID,
 		Version: rawConfig.Metadata.Version,
 	}
+	action := actionsList.Actions[0]
 
 	// Record when we received this action
 	receivedAt := time.Now().Unix()
 
-	// Check if this action was already executed
-	if p.store.WasExecuted(actionKey) {
+	// Check if we can claim the action
+	if !p.store.Claim(actionKey) {
 		record, _ := p.store.GetRecord(actionKey)
 		log.Infof("[KubeActions] Action %s was already executed with status: %s", actionKey.String(), record.Status)
 		if record.Status == StatusFailed || record.Status == StatusExpired {
@@ -108,33 +109,27 @@ func (p *ActionProcessor) Process(configKey string, rawConfig state.RawConfig) e
 		return nil
 	}
 
-	log.Infof("[KubeActions] Action %s not yet executed, proceeding with processing", actionKey.String())
+	log.Infof("[KubeActions] Action %s claimed successfully, proceeding with processing", actionKey.String())
 
 	// Extract org ID from the config key path
 	orgID := parseOrgIDFromConfigKey(configKey)
 
-	// Process all actions in the list
-	var processingErrors error
-	for i, action := range actionsList.Actions {
-		log.Infof("[KubeActions] Processing action %d/%d", i+1, len(actionsList.Actions))
-		if err := p.processAction(action, i, actionKey, orgID, receivedAt); err != nil {
-			processingErrors = multierror.Append(processingErrors, err)
-		}
-	}
+	// Process the action
+	processingErr := p.processAction(action, actionKey, orgID, receivedAt)
 
-	if processingErrors != nil {
-		log.Errorf("[KubeActions] Finished processing with errors: %v", processingErrors)
+	if processingErr != nil {
+		log.Errorf("[KubeActions] Finished processing with error: %v", processingErr)
 	} else {
 		log.Infof("[KubeActions] Finished processing all actions successfully")
 	}
 
-	return processingErrors
+	return processingErr
 }
 
 // processAction processes a single action
-func (p *ActionProcessor) processAction(action *kubeactions.KubeAction, index int, actionKey ActionKey, orgID int64, receivedAt int64) error {
+func (p *ActionProcessor) processAction(action *kubeactions.KubeAction, actionKey ActionKey, orgID int64, receivedAt int64) error {
 	actionType := GetActionType(action)
-	log.Infof("[KubeActions] === Processing action %d ===", index)
+	log.Infof("[KubeActions] === Processing action %s ===", actionKey.String())
 	log.Infof("[KubeActions]   ActionType: %s", actionType)
 	if action.Resource != nil {
 		log.Infof("[KubeActions]   Resource: %s/%s in %s", action.Resource.Kind, action.Resource.Name, action.Resource.Namespace)

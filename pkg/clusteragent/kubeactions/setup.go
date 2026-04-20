@@ -11,10 +11,11 @@ import (
 	"context"
 
 	kubeactions "github.com/DataDog/agent-payload/v5/kubeactions"
+	"k8s.io/client-go/kubernetes"
+
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/kubeactions/executors"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"k8s.io/client-go/kubernetes"
 )
 
 // Setup initializes the kubeactions subsystem with all executors registered
