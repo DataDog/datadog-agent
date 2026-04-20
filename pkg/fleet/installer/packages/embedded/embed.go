@@ -30,7 +30,14 @@ var ScriptDDHostInstall []byte
 //go:embed tmpl/gen/debrpm/*.service
 var systemdUnits embed.FS
 
-// DDOTProcessConfig is the rendered process manager config for DDOT (deb/rpm layout).
+//go:embed tmpl/gen/oci/datadog-agent-ddot.yaml
+//go:embed tmpl/gen/oci/datadog-agent-ddot-exp.yaml
+//go:embed tmpl/gen/debrpm/datadog-agent-ddot.yaml
+//go:embed tmpl/gen/debrpm/datadog-agent-ddot-exp.yaml
+var processConfigs embed.FS
+
+// DDOTProcessConfig is the rendered process manager config for DDOT (deb/rpm stable layout).
+// Kept for backward compatibility; prefer GetDDOTProcessConfig for new code.
 //
 //go:embed tmpl/gen/debrpm/datadog-agent-ddot.yaml
 var DDOTProcessConfig string
@@ -52,4 +59,19 @@ func GetSystemdUnit(name string, unitType SystemdUnitType, ambiantCapabilitiesSu
 		dir += "-nocap"
 	}
 	return systemdUnits.ReadFile(filepath.Join("tmpl/gen", dir, name))
+}
+
+// GetDDOTProcessConfig returns the process manager YAML config for DDOT.
+// The nocap distinction does not apply to process configs (only systemd units
+// use ambient capabilities), so the same file serves both cases.
+func GetDDOTProcessConfig(unitType SystemdUnitType, stable bool) (string, error) {
+	name := "datadog-agent-ddot.yaml"
+	if !stable {
+		name = "datadog-agent-ddot-exp.yaml"
+	}
+	data, err := processConfigs.ReadFile(filepath.Join("tmpl/gen", string(unitType), name))
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
 }
