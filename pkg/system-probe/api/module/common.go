@@ -25,6 +25,7 @@ import (
 	connectionsforwarder "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/def"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
+	networktracer "github.com/DataDog/datadog-agent/comp/networktracer/def"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 )
 
@@ -57,5 +58,6 @@ type FactoryDependencies struct {
 	Ipc                  ipc.Component
 	Traceroute           traceroute.Component
 	ConnectionsForwarder connectionsforwarder.Component
+	NetworkTracer        networktracer.Component
 	NPCollector          npcollector.Component
 }
