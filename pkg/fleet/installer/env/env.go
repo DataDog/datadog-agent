@@ -86,8 +86,6 @@ const (
 
 func newDefaultEnv() Env {
 	return Env{
-		Site: "datadoghq.com",
-
 		RegistryOverrideByImage:     map[string]string{},
 		RegistryAuthOverrideByImage: map[string]string{},
 		RegistryUsernameByImage:     map[string]string{},

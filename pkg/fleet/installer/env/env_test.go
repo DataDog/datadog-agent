@@ -236,7 +236,6 @@ installer:
 				envApmLibraries: "java  dotnet:latest, ruby:1.2   ,python:1.2.3",
 			},
 			expected: &Env{
-				Site:                           "datadoghq.com",
 				RegistryOverrideByImage:        map[string]string{},
 				RegistryAuthOverrideByImage:    map[string]string{},
 				RegistryUsernameByImage:        map[string]string{},
@@ -265,7 +264,6 @@ installer:
 			},
 			expected: &Env{
 				APIKey: "123456",
-				Site:   "datadoghq.com",
 				ApmLibraries: map[ApmLibLanguage]ApmLibVersion{
 					"java":   "",
 					"dotnet": "",
@@ -295,7 +293,6 @@ api_key: yaml-api-key
 `,
 			expected: &Env{
 				APIKey:                         "env-api-key",
-				Site:                           "datadoghq.com",
 				RegistryOverrideByImage:        map[string]string{},
 				RegistryAuthOverrideByImage:    map[string]string{},
 				RegistryUsernameByImage:        map[string]string{},
@@ -319,7 +316,6 @@ installer:
     auth: yaml-auth
 `,
 			expected: &Env{
-				Site:                           "datadoghq.com",
 				RegistryAuthOverride:           "yaml-auth",
 				RegistryOverrideByImage:        map[string]string{},
 				RegistryAuthOverrideByImage:    map[string]string{},
@@ -345,7 +341,6 @@ installer:
 			expected: &Env{
 				RegistryOverride:               "yaml-registry.example.com",
 				RegistryAuthOverride:           "",
-				Site:                           "datadoghq.com",
 				RegistryOverrideByImage:        map[string]string{},
 				RegistryAuthOverrideByImage:    map[string]string{},
 				RegistryUsernameByImage:        map[string]string{},
@@ -414,7 +409,6 @@ site: custom-site.example.com
 				MsiParams: MsiParamsEnv{
 					AgentUserName: "customuser",
 				},
-				Site:                           "datadoghq.com",
 				RegistryOverrideByImage:        map[string]string{},
 				RegistryAuthOverrideByImage:    map[string]string{},
 				RegistryUsernameByImage:        map[string]string{},
@@ -438,7 +432,6 @@ site: custom-site.example.com
 				MsiParams: MsiParamsEnv{
 					AgentUserName: "customuser",
 				},
-				Site:                           "datadoghq.com",
 				RegistryOverrideByImage:        map[string]string{},
 				RegistryAuthOverrideByImage:    map[string]string{},
 				RegistryUsernameByImage:        map[string]string{},
@@ -463,7 +456,6 @@ site: custom-site.example.com
 				MsiParams: MsiParamsEnv{
 					AgentUserName: "customuser",
 				},
-				Site:                           "datadoghq.com",
 				RegistryOverrideByImage:        map[string]string{},
 				RegistryAuthOverrideByImage:    map[string]string{},
 				RegistryUsernameByImage:        map[string]string{},

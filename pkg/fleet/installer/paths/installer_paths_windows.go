@@ -90,17 +90,18 @@ func init() {
 	// The daemon should expect to only read the paths from the registry, but there's no way to
 	// differentiate the two runtime environments here.
 
-	// Register the resolved config dir so subsequent env.Get() calls pick it up.
-	env.SetDefaultConfigDir(AgentConfigDir)
-
-	env := env.Get()
+	// AgentConfigDir is not yet populated here, so we can't register it with env
+	// before the first env.Get() call. This is fine: the only env fields we need
+	// at this point are MsiParams, which come from environment variables, not
+	// datadog.yaml.
+	e := env.Get()
 
 	// OS paths
 	DefaultUserConfigsDir, _ = windows.KnownFolderPath(windows.FOLDERID_ProgramData, 0)
 
 	// Data directory
-	if env.MsiParams.ApplicationDataDirectory != "" {
-		DatadogDataDir = env.MsiParams.ApplicationDataDirectory
+	if e.MsiParams.ApplicationDataDirectory != "" {
+		DatadogDataDir = e.MsiParams.ApplicationDataDirectory
 	} else {
 		DatadogDataDir, _ = getProgramDataDirForProduct("Datadog Agent")
 	}
@@ -114,12 +115,16 @@ func init() {
 	RunPath = filepath.Join(PackagesPath, "run")
 
 	// Install directory
-	if env.MsiParams.ProjectLocation != "" {
-		DatadogProgramFilesDir = env.MsiParams.ProjectLocation
+	if e.MsiParams.ProjectLocation != "" {
+		DatadogProgramFilesDir = e.MsiParams.ProjectLocation
 	} else {
 		DatadogProgramFilesDir, _ = getProgramFilesDirForProduct("Datadog Agent")
 	}
 	StableInstallerPath = filepath.Join(DatadogProgramFilesDir, "bin", "datadog-installer.exe")
+
+	// Now that AgentConfigDir is resolved, register it so subsequent env.Get()
+	// calls pick up datadog.yaml.
+	env.SetDefaultConfigDir(AgentConfigDir)
 }
 
 // createDirIfNotExists creates a directory if it doesn't exist.
