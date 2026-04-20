@@ -6,6 +6,10 @@
 package sender
 
 import (
+	"bytes"
+	"fmt"
+	"io"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -15,6 +19,51 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 )
+
+// trackingStreamCompressor wraps a bytes.Buffer to satisfy StreamCompressor
+// and counts how many times Close was called.
+type trackingStreamCompressor struct {
+	*bytes.Buffer
+	closeCount *atomic.Int32
+}
+
+func (t *trackingStreamCompressor) Close() error {
+	t.closeCount.Add(1)
+	return nil
+}
+
+func (t *trackingStreamCompressor) wasClosed() bool {
+	return t.closeCount.Load() > 0
+}
+
+func (t *trackingStreamCompressor) Flush() error { return nil }
+
+// trackingCompressor is a compression.Compressor that produces
+// trackingStreamCompressor instances so tests can observe Close calls.
+type trackingCompressor struct {
+	lastCompressor *trackingStreamCompressor
+}
+
+func (tc *trackingCompressor) Compress(src []byte) ([]byte, error)   { return src, nil }
+func (tc *trackingCompressor) Decompress(src []byte) ([]byte, error) { return src, nil }
+func (tc *trackingCompressor) CompressBound(sourceLen int) int       { return sourceLen }
+func (tc *trackingCompressor) ContentEncoding() string               { return "identity" }
+func (tc *trackingCompressor) NewStreamCompressor(buf *bytes.Buffer) compression.StreamCompressor {
+	sc := &trackingStreamCompressor{Buffer: buf, closeCount: &atomic.Int32{}}
+	tc.lastCompressor = sc
+	return sc
+}
+
+// errorSerializer always returns an error, used to trigger error-path resets.
+type errorSerializer struct{}
+
+func (e *errorSerializer) Serialize(_ *message.Message, _ io.Writer) error {
+	return fmt.Errorf("synthetic serialization error")
+}
+func (e *errorSerializer) Finish(_ io.Writer) error {
+	return fmt.Errorf("synthetic finish error")
+}
+func (e *errorSerializer) Reset() {}
 
 func createTestBatch() *batch {
 	return makeBatch(
@@ -212,4 +261,116 @@ func TestBatchSendMessages(t *testing.T) {
 	payload := <-output
 	assert.Equal(t, metadata, payload.MessageMetas)
 	assert.Equal(t, "identity", payload.Encoding)
+}
+
+func makeTrackingBatch() (*batch, *trackingCompressor) {
+	tc := &trackingCompressor{}
+	var encodedPayload bytes.Buffer
+	compressor := tc.NewStreamCompressor(&encodedPayload)
+	wc := newWriterWithCounter(compressor)
+
+	b := &batch{
+		buffer:          NewMessageBuffer(2, 10),
+		serializer:      NewArraySerializer(),
+		compression:     tc,
+		compressor:      compressor,
+		writeCounter:    wc,
+		encodedPayload:  &encodedPayload,
+		pipelineName:    "test",
+		pipelineMonitor: metrics.NewNoopPipelineMonitor(""),
+		instanceID:      "test",
+		utilization:     metrics.NewNoopPipelineMonitor("").MakeUtilizationMonitor("test", "test"),
+		serverlessMeta:  NewMockServerlessMeta(false),
+	}
+	return b, tc
+}
+
+func TestResetBatchClosesCompressorOnSerializeError(t *testing.T) {
+	b, tc := makeTrackingBatch()
+	originalCompressor := tc.lastCompressor
+
+	b.serializer = &errorSerializer{}
+	output := make(chan *message.Payload, 10)
+
+	msg := message.NewMessage([]byte("test"), nil, "", 0)
+	b.processMessage(msg, output)
+
+	assert.True(t, originalCompressor.wasClosed(),
+		"resetBatch must Close the old compressor when processMessage hits a serialize error")
+	assert.NotEqual(t, originalCompressor, b.compressor,
+		"resetBatch must replace the compressor with a new instance")
+}
+
+func TestResetBatchClosesCompressorOnFinishError(t *testing.T) {
+	b, tc := makeTrackingBatch()
+
+	msg := message.NewMessage([]byte("a"), nil, "", 0)
+	b.addMessage(msg)
+
+	compressorBeforeFlush := tc.lastCompressor
+
+	b.serializer = &errorSerializer{}
+	output := make(chan *message.Payload, 10)
+
+	b.flushBuffer(output, "timer")
+
+	assert.True(t, compressorBeforeFlush.wasClosed(),
+		"resetBatch must Close the old compressor when flushBuffer hits a finish error")
+
+	select {
+	case <-output:
+		t.Fatal("no payload should be sent when Finish fails")
+	default:
+	}
+}
+
+func TestResetBatchClosesCompressorOnRetryError(t *testing.T) {
+	tc := &trackingCompressor{}
+	var encodedPayload bytes.Buffer
+	compressor := tc.NewStreamCompressor(&encodedPayload)
+	wc := newWriterWithCounter(compressor)
+
+	b := &batch{
+		buffer:          NewMessageBuffer(1, 100),
+		serializer:      NewArraySerializer(),
+		compression:     tc,
+		compressor:      compressor,
+		writeCounter:    wc,
+		encodedPayload:  &encodedPayload,
+		pipelineName:    "test",
+		pipelineMonitor: metrics.NewNoopPipelineMonitor(""),
+		instanceID:      "test",
+		utilization:     metrics.NewNoopPipelineMonitor("").MakeUtilizationMonitor("test", "test"),
+		serverlessMeta:  NewMockServerlessMeta(false),
+	}
+
+	msg1 := message.NewMessage([]byte("a"), nil, "", 0)
+	b.addMessage(msg1)
+
+	b.serializer = &errorSerializer{}
+
+	msg2 := message.NewMessage([]byte("b"), nil, "", 0)
+	output := make(chan *message.Payload, 10)
+
+	compressorBeforeProcess := tc.lastCompressor
+	b.processMessage(msg2, output)
+
+	assert.True(t, compressorBeforeProcess.wasClosed(),
+		"resetBatch must Close the old compressor when the retry path hits an error")
+}
+
+func TestSendMessagesDoesNotDoubleClose(t *testing.T) {
+	b, tc := makeTrackingBatch()
+
+	msg := message.NewMessage([]byte("a"), nil, "", 0)
+	b.addMessage(msg)
+	b.serializer.Finish(b.writeCounter)
+
+	compressorUsed := tc.lastCompressor
+	output := make(chan *message.Payload, 10)
+
+	b.sendMessages(b.buffer.GetMessages(), output, "timer")
+
+	assert.Equal(t, int32(1), compressorUsed.closeCount.Load(),
+		"compressor must be closed exactly once; sendMessages closes it and defer resetBatch must skip it")
 }
