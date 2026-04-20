@@ -5,14 +5,8 @@
 
 package logsagentpipeline
 
-import (
-	def "github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/def"
-)
-
-// Component is the component type.
-// Deprecated: use github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/def.Component instead.
-type Component = def.Component
+import logsagentpipelinedef "github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/def"
 
 // LogsAgent is a compat version of component for non fx usage.
 // Deprecated: use github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/def.LogsAgent instead.
-type LogsAgent = def.LogsAgent
+type LogsAgent = logsagentpipelinedef.LogsAgent

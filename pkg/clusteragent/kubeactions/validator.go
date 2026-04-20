@@ -132,6 +132,13 @@ func (v *ActionValidator) ValidateAction(action *kubeactions.KubeAction) error {
 				Message: "patch is required for patch_deployment action",
 			}
 		}
+	case ActionTypeRollbackDeployment:
+		if action.Resource.Kind != "Deployment" {
+			return &ValidationError{
+				Action:  action,
+				Message: "resource.kind must be 'Deployment' for rollback_deployment action",
+			}
+		}
 	}
 
 	// Block actions on protected system namespaces
