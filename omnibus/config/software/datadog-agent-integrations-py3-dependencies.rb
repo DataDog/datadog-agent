@@ -42,8 +42,5 @@ if linux_target?
         + " '#{install_dir}/embedded/msodbcsql/lib64/libmsodbcsql-18.3.so.3.1'"
     end
 
-    # gstatus binary used by the glusterfs integration
-    command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- //deps/gstatus:install --destdir='#{install_dir}'"
-    command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- //deps/nfsiostat:install --destdir='#{install_dir}'"
   end
 end

@@ -271,13 +271,13 @@ func TestBuildIntakeURL(t *testing.T) {
 			name:     "default site",
 			site:     "",
 			ddURL:    "",
-			expected: "https://event-platform-intake.datadoghq.com./api/v2/agenthealth", // FQDN with trailing dot
+			expected: "https://agenthealth-intake.datadoghq.com./api/v2/agenthealth", // FQDN with trailing dot
 		},
 		{
 			name:     "eu site",
 			site:     "datadoghq.eu",
 			ddURL:    "",
-			expected: "https://event-platform-intake.datadoghq.eu./api/v2/agenthealth", // FQDN with trailing dot
+			expected: "https://agenthealth-intake.datadoghq.eu./api/v2/agenthealth", // FQDN with trailing dot
 		},
 		{
 			name:     "custom dd_url overrides",
