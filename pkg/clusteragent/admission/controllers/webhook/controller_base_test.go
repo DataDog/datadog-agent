@@ -24,6 +24,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	noopTelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
+	workloadfiltermock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -31,6 +34,17 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
+
+// newFilterStoreFromConfig creates a workloadfilter mock initialized with the given config.
+// This is needed for test cases that enable CWS instrumentation, which reads include/exclude from the filter store.
+func newFilterStoreFromConfig(t testing.TB, cfg config.Component) workloadfiltermock.Mock {
+	return fxutil.Test[workloadfiltermock.Mock](t, fx.Options(
+		fx.Provide(func() config.Component { return cfg }),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		noopTelemetry.Module(),
+		workloadfilterfxmock.MockModule(),
+	))
+}
 
 func TestNewController(t *testing.T) {
 	client := fake.NewSimpleClientset()
@@ -52,6 +66,7 @@ func TestNewController(t *testing.T) {
 		nil,
 		datadogConfig,
 		nil,
+		newFilterStoreFromConfig(t, datadogConfig),
 	)
 
 	assert.IsType(t, &ControllerV1{}, controller)
@@ -70,6 +85,7 @@ func TestNewController(t *testing.T) {
 		nil,
 		datadogConfig,
 		nil,
+		newFilterStoreFromConfig(t, datadogConfig),
 	)
 
 	assert.IsType(t, &ControllerV1beta1{}, controller)

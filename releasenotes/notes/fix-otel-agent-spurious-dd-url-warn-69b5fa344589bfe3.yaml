@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix spurious warn log on otel-agent startup about conflicting ``dd_url`` and ``logs_no_ssl`` settings.
