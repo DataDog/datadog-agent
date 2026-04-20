@@ -258,23 +258,32 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 		return true
 	}
 
-	content := msg.GetContent()
+	var content []byte
+	contentFetched := false
 	contentModified := false
+
+	getContent := func() []byte {
+		if !contentFetched {
+			content = msg.GetContent()
+			contentFetched = true
+		}
+		return content
+	}
 
 	for _, rule := range rules {
 		switch rule.Type {
 		case config.ExcludeAtMatch:
-			if rule.Regex.Match(content) {
+			if rule.Regex.Match(getContent()) {
 				msg.RecordProcessingRule(rule.Type, rule.Name)
 				return false
 			}
 		case config.IncludeAtMatch:
-			if !rule.Regex.Match(content) {
+			if !rule.Regex.Match(getContent()) {
 				return false
 			}
 			msg.RecordProcessingRule(rule.Type, rule.Name)
 		case config.MaskSequences:
-			if isMatchingLiteralPrefix(rule.Regex, content) {
+			if isMatchingLiteralPrefix(rule.Regex, getContent()) {
 				originalContent := content
 				content = rule.Regex.ReplaceAll(content, rule.Placeholder)
 				if !bytes.Equal(originalContent, content) {
