@@ -56,7 +56,7 @@ type ssiSuite struct {
 // TestSSISuite is the single entry point: one cluster is provisioned once with the base config,
 // then UpdateEnv is called at the start of each test group.
 func TestSSISuite(t *testing.T) {
-	if os.Getenv("E2E_PROVISIONER") == "aks" {
+	if getProvisionerType() == ProvisionerAKS {
 		flake.Mark(t)
 	}
 
