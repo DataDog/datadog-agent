@@ -25,7 +25,7 @@ import (
 	processdiscoverycheckfx "github.com/DataDog/datadog-agent/comp/process/processdiscoverycheck/fx"
 	profilerimpl "github.com/DataDog/datadog-agent/comp/process/profiler/fx"
 	rtcontainercheckfx "github.com/DataDog/datadog-agent/comp/process/rtcontainercheck/fx"
-	"github.com/DataDog/datadog-agent/comp/process/runner/runnerimpl"
+	runnerfx "github.com/DataDog/datadog-agent/comp/process/runner/fx"
 	submitterfx "github.com/DataDog/datadog-agent/comp/process/submitter/fx"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -38,7 +38,7 @@ import (
 // See: https://uber-go.github.io/fx/modules.html#don-t-provide-what-you-don-t-own
 func Bundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
-		runnerimpl.Module(),
+		runnerfx.Module(),
 		submitterfx.Module(),
 		profilerimpl.Module(),
 

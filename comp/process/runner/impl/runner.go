@@ -9,40 +9,32 @@ package runnerimpl
 import (
 	"context"
 
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/process/agent"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo/def"
-	"github.com/DataDog/datadog-agent/comp/process/runner"
+	runner "github.com/DataDog/datadog-agent/comp/process/runner/def"
 	submitter "github.com/DataDog/datadog-agent/comp/process/submitter/def"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	processRunner "github.com/DataDog/datadog-agent/pkg/process/runner"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // for testing
 var agentEnabled = agent.Enabled
 
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newRunner))
-}
-
-// runner implements the Component.
+// runnerImpl implements the Component.
 type runnerImpl struct {
 	checkRunner    *processRunner.CheckRunner
 	providedChecks []types.CheckComponent
 }
 
 type dependencies struct {
-	fx.In
-	Lc  fx.Lifecycle
+	compdef.In
+	Lc  compdef.Lifecycle
 	Log log.Component
 
 	Submitter  submitter.Component
@@ -55,8 +47,9 @@ type dependencies struct {
 	Tagger   tagger.Component
 }
 
-func newRunner(deps dependencies) (runner.Component, error) {
-	checks := fxutil.GetAndFilterGroup(deps.Checks)
+// NewComponent creates a new runner component.
+func NewComponent(deps dependencies) (runner.Component, error) {
+	checks := filterNilChecks(deps.Checks)
 	c, err := processRunner.NewRunner(deps.Config, deps.SysCfg.SysProbeObject(), deps.HostInfo.Object(), filterEnabledChecks(checks), deps.RTNotifier)
 	if err != nil {
 		return nil, err
@@ -69,7 +62,7 @@ func newRunner(deps dependencies) (runner.Component, error) {
 	}
 
 	if agentEnabled(deps.Config, deps.Checks, deps.Log) {
-		deps.Lc.Append(fx.Hook{
+		deps.Lc.Append(compdef.Hook{
 			OnStart: runnerComponent.Run,
 			OnStop:  runnerComponent.stop,
 		})
@@ -85,6 +78,17 @@ func (r *runnerImpl) Run(context.Context) error {
 func (r *runnerImpl) stop(context.Context) error {
 	r.checkRunner.Stop()
 	return nil
+}
+
+// filterNilChecks removes nil values from an fx group of CheckComponent.
+func filterNilChecks(group []types.CheckComponent) []types.CheckComponent {
+	result := make([]types.CheckComponent, 0, len(group))
+	for _, item := range group {
+		if item != nil {
+			result = append(result, item)
+		}
+	}
+	return result
 }
 
 func filterEnabledChecks(providedChecks []types.CheckComponent) []checks.Check {
