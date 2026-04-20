@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -57,6 +58,16 @@ type unavailableTracer struct {
 // still start; the module factory detects the unsupported condition via IsSupported() and
 // skips module registration gracefully.
 func NewComponent(reqs Requires) (Provides, error) {
+	// driver.Init must be called before tracer.NewTracer so that the driver
+	// reference counter is ready before driver.Start() is invoked inside NewTracer.
+	// In the legacy module-factory path this was done by loader_windows.go's
+	// preRegister hook; the component constructor runs earlier (during fx
+	// dependency resolution), so we must initialize the driver here instead.
+	if err := driver.Init(); err != nil {
+		log.Warnf("could not initialize Windows NPM driver subsystem, NPM will be disabled: %v", err)
+		return Provides{Comp: &unavailableTracer{reason: err}}, nil
+	}
+
 	ncfg := networkconfig.New()
 
 	t, err := tracer.NewTracer(ncfg, reqs.Telemetry, reqs.Statsd)
