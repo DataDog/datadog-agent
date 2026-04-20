@@ -1,0 +1,9 @@
+---
+deprecations:
+  - |
+    The ``Install-Datadog.ps1`` PowerShell script is deprecated and will be removed in a future version. Please use ``datadog-installer.exe`` or the MSI installer instead.
+    Visit the [in-app installation guide](https://app.datadoghq.com/fleet/install-agent/latest?platform=windows) for complete up-to-date installation instructions.
+fixes:
+  - |
+    The signature check in ``Install-Datadog.ps1`` is now more accomodating to formatting variations in the CN field.
+    Refer to the [Agent Data Security](https://docs.datadoghq.com/data_security/agent/#windows-msi) page for more information on validating signatures.
