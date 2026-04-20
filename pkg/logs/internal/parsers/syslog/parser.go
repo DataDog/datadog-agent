@@ -34,15 +34,9 @@ func NewParser(siemParsing bool) parsers.Parser {
 // Parse implements parsers.Parser. It parses the unstructured line content
 // and returns a new StateStructured message with syslog metadata.
 //
-// Unlike most parsers, Parse always returns a valid *message.Message even when
-// err != nil. On error, the structured message contains the raw content as its
-// "message" field and best-effort syslog metadata. Callers MUST NOT discard
-// the result on error — the message is intentionally usable.
-//
-// TODO(syslog-v7): On parse failure, return the original message unmodified
-// instead of wrapping partial metadata in a StateStructured message. This
-// avoids misleading syslog fields and prevents CEF/LEEF extraction on
-// potentially truncated fragments.
+// On parse failure, the original message is returned unmodified so the raw
+// content passes through the pipeline as-is. No partial syslog metadata or
+// CEF/LEEF extraction is attempted on potentially truncated fragments.
 func (p *parser) Parse(msg *message.Message) (*message.Message, error) {
 	var parsed SyslogMessage
 	var err error
@@ -54,26 +48,18 @@ func (p *parser) Parse(msg *message.Message) (*message.Message, error) {
 		parsed, err = ParseBSDLine(content)
 	}
 
-	// On error, always preserve the full original content so malformed lines
-	// are reconstructable from output. parsed.Msg may be a truncated fragment
-	// (e.g. line[pos:] after a PRI header) which would silently drop the prefix.
-	msgBody := string(parsed.Msg)
 	if err != nil {
-		msgBody = string(content)
+		return msg, err
 	}
 
 	sc := &message.BasicStructuredContent{
 		Data: map[string]interface{}{
-			"message": msgBody,
+			"message": string(parsed.Msg),
 			"syslog":  BuildSyslogFields(&parsed),
 		},
 	}
 
-	// Detect and parse CEF/LEEF headers embedded in the syslog message body.
-	// Only attempt on the success path — when syslog parsing errored, msgBody
-	// holds the full raw content for lossless reconstruction and must not be
-	// replaced by a partial CEF/LEEF parse of a fragment.
-	if p.siemParsing && err == nil {
+	if p.siemParsing {
 		if header, ext, _, ok := ParseCEFLEEF(parsed.Msg); ok {
 			sc.Data["siem"] = BuildSIEMFields(header, ext)
 			sc.Data["message"] = ""
@@ -95,7 +81,7 @@ func (p *parser) Parse(msg *message.Message) (*message.Message, error) {
 		structured.ParsingExtra.ServiceOverride = parsed.AppName
 	}
 
-	return structured, err
+	return structured, nil
 }
 
 // SupportsPartialLine implements parsers.Parser. Syslog lines are always

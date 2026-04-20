@@ -105,10 +105,9 @@ func TestSyslogParser_Malformed(t *testing.T) {
 	input := newTestMessage([]byte(`<14>`))
 	result, err := parser.Parse(input)
 
-	// Should return error but still produce a message with raw content preserved
+	// On parse failure, the original message is returned unmodified.
 	assert.Error(t, err)
-	assert.NotNil(t, result)
-	assert.Equal(t, message.StateStructured, result.State)
+	assert.Same(t, input, result)
 	assert.Equal(t, "<14>", string(result.GetContent()))
 }
 
@@ -160,25 +159,10 @@ func TestSyslogParser_NonSyslogText(t *testing.T) {
 			input := newTestMessage([]byte(line))
 			result, err := parser.Parse(input)
 
-			// Parser returns an error but still produces a usable message.
+			// On parse failure, the original message is returned unmodified.
 			assert.Error(t, err)
-			assert.NotNil(t, result)
-			assert.Equal(t, message.StateStructured, result.State)
-
-			// Status falls back to info (Pri=-1 → no severity).
-			assert.Equal(t, message.StatusInfo, result.Status)
-
-			// The entire input is preserved as the structured message body.
+			assert.Same(t, input, result)
 			assert.Equal(t, line, string(result.GetContent()))
-
-			rendered, rerr := result.Render()
-			require.NoError(t, rerr)
-			assert.Contains(t, string(rendered), `"message"`)
-			assert.Contains(t, string(rendered), `"syslog"`)
-
-			// Syslog metadata is sparse — no source/service override.
-			assert.Empty(t, result.ParsingExtra.SourceOverride)
-			assert.Empty(t, result.ParsingExtra.ServiceOverride)
 		})
 	}
 }
