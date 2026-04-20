@@ -2,19 +2,15 @@
 .rtloader_tests:
   stage: source_test
   extends: .unit_test_base
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   rules:
     - !reference [.except_disable_unit_tests]
     - !reference [.fast_on_dev_branch_only]
   script:
-    - source /root/.bashrc && conda activate $CONDA_ENV
     - dda inv -- -e rtloader.make --install-prefix=$CI_PROJECT_DIR/dev
     - dda inv -- -e rtloader.install
     - dda inv -- -e rtloader.format --raise-if-changed
     - dda inv -- -e rtloader.test
-  after_script:
-    - !reference [.upload_junit_source]
-    - !reference [.upload_coverage]
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
 
 .linux_tests:
   stage: source_test
