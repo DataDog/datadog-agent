@@ -56,7 +56,7 @@ func TestPackageKeyDifferentiation(t *testing.T) {
 	stablePkg := dbPackage{
 		Name:       packageName,
 		Version:    "7.50.0",
-		Extensions: map[string]struct{}{"python": {}},
+		Extensions: map[string]string{"python": "sha256:stable"},
 	}
 	err = db.SetPackage(stablePkg, false) // isExperiment=false
 	require.NoError(t, err)
@@ -65,7 +65,7 @@ func TestPackageKeyDifferentiation(t *testing.T) {
 	expPkg := dbPackage{
 		Name:       packageName,
 		Version:    "7.51.0",
-		Extensions: map[string]struct{}{"ruby": {}},
+		Extensions: map[string]string{"ruby": "sha256:experiment"},
 	}
 	err = db.SetPackage(expPkg, true) // isExperiment=true
 	require.NoError(t, err)
@@ -97,7 +97,7 @@ func TestSetPackageVersionIdempotent(t *testing.T) {
 	pkg := dbPackage{
 		Name:       "datadog-agent",
 		Version:    "7.50.0",
-		Extensions: map[string]struct{}{"python": {}, "ruby": {}},
+		Extensions: map[string]string{"python": "sha256:abc", "ruby": "sha256:def"},
 	}
 	err = db.SetPackage(pkg, false)
 	require.NoError(t, err)
@@ -107,7 +107,7 @@ func TestSetPackageVersionIdempotent(t *testing.T) {
 
 	got, err := db.GetPackage("datadog-agent", false)
 	require.NoError(t, err)
-	assert.Equal(t, map[string]struct{}{"python": {}, "ruby": {}}, got.Extensions, "extensions should be preserved after idempotent SetPackageVersion")
+	assert.Equal(t, map[string]string{"python": "sha256:abc", "ruby": "sha256:def"}, got.Extensions, "extensions should be preserved after idempotent SetPackageVersion")
 }
 
 // TestSetPackageVersionWipesExtensionsOnVersionChange verifies that calling SetPackageVersion
@@ -121,7 +121,7 @@ func TestSetPackageVersionWipesExtensionsOnVersionChange(t *testing.T) {
 	pkg := dbPackage{
 		Name:       "datadog-agent",
 		Version:    "7.50.0",
-		Extensions: map[string]struct{}{"python": {}},
+		Extensions: map[string]string{"python": "sha256:abc"},
 	}
 	err = db.SetPackage(pkg, false)
 	require.NoError(t, err)
@@ -150,7 +150,7 @@ func TestInstallGroupsByRegistry(t *testing.T) {
 	pkg := dbPackage{
 		Name:       "datadog-agent",
 		Version:    "7.50.0-1",
-		Extensions: map[string]struct{}{},
+		Extensions: map[string]string{},
 	}
 	err = db.SetPackage(pkg, false)
 	require.NoError(t, err)
@@ -190,7 +190,7 @@ func TestInstallNilOverridesBackwardsCompat(t *testing.T) {
 	pkg := dbPackage{
 		Name:       "datadog-agent",
 		Version:    "7.50.0-1",
-		Extensions: map[string]struct{}{},
+		Extensions: map[string]string{},
 	}
 	err = db.SetPackage(pkg, false)
 	require.NoError(t, err)

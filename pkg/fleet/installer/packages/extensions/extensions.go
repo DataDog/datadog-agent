@@ -157,13 +157,19 @@ func Install(ctx context.Context, downloader *oci.Downloader, url string, extens
 			return fmt.Errorf("package %s is installed at version %s, requested version is %s", pkg.Name, dbPkg.Version, pkg.Version)
 		}
 		if dbPkg.Extensions == nil {
-			dbPkg.Extensions = make(map[string]struct{})
+			dbPkg.Extensions = make(map[string]string)
 		}
+
+		newDigest, err := pkg.Image.Digest()
+		if err != nil {
+			return fmt.Errorf("could not get digest for package %s: %w", pkg.Name, err)
+		}
+		newDigestStr := newDigest.String()
 
 		// Process each extension in this group
 		for _, extension := range group.extensions {
-			if _, exists := dbPkg.Extensions[extension]; exists {
-				log.Debugf("Extension %s already installed, skipping", extension)
+			if stored, exists := dbPkg.Extensions[extension]; exists && stored == newDigestStr {
+				log.Debugf("Extension %s already installed at digest %s, skipping", extension, stored)
 				continue
 			}
 
@@ -173,7 +179,7 @@ func Install(ctx context.Context, downloader *oci.Downloader, url string, extens
 				continue
 			}
 
-			dbPkg.Extensions[extension] = struct{}{}
+			dbPkg.Extensions[extension] = newDigestStr
 		}
 
 		// Update DB with successfully installed extensions
@@ -489,8 +495,8 @@ func getExtensionsPath(pkg, version string) string {
 	return filepath.Join(basePath, "ext")
 }
 
-// keys returns the keys of a map[string]struct{}.
-func keys(m map[string]struct{}) []string {
+// keys returns the keys of a map[string]string.
+func keys(m map[string]string) []string {
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)

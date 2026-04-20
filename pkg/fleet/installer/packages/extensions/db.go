@@ -19,9 +19,9 @@ var (
 )
 
 type dbPackage struct {
-	Name       string              `json:"pkg"`
-	Version    string              `json:"version"`
-	Extensions map[string]struct{} `json:"extensions"`
+	Name       string            `json:"pkg"`
+	Version    string            `json:"version"`
+	Extensions map[string]string `json:"extensions"` // extension name → OCI image digest
 }
 
 // extensionsDB is a database that stores information about extensions.
@@ -66,9 +66,16 @@ func (p *extensionsDB) GetPackage(pkg string, isExperiment bool) (dbPackage, err
 		if len(v) == 0 {
 			return errPackageNotFound
 		}
-		err := json.Unmarshal(v, &dbPkg)
-		if err != nil {
-			return fmt.Errorf("could not unmarshal package: %w", err)
+		if err := json.Unmarshal(v, &dbPkg); err != nil {
+			// The old schema stored Extensions as map[string]struct{}, whose JSON
+			// values are {}. json.Unmarshal returns an UnmarshalTypeError but still
+			// fills Name/Version and sets each extension key to "" in the map.
+			// Treat this as a successful partial decode: empty digest strings will
+			// cause Install to reinstall every extension, self-healing the migration.
+			var typeErr *json.UnmarshalTypeError
+			if !errors.As(err, &typeErr) || dbPkg.Name == "" {
+				return fmt.Errorf("could not unmarshal package: %w", err)
+			}
 		}
 		return nil
 	})
