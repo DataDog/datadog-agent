@@ -40,8 +40,9 @@ func RunTransportTests(ctx context.Context, httpClient *api.HTTPClient, runCount
 	}
 
 	var wg sync.WaitGroup
-	wg.Add(3)
+	wg.Add(4)
 	go func() { defer wg.Done(); runWebSocketTest(ctx, httpClient, runCount) }()
+	go func() { defer wg.Done(); runWebSocketTestWithALPN(ctx, httpClient, runCount) }()
 	go func() { defer wg.Done(); runGrpcTest(ctx, httpClient, runCount) }()
 	go func() { defer wg.Done(); runTCPTest(ctx, httpClient) }()
 	wg.Wait()
@@ -99,6 +100,21 @@ func runWebSocketTest(ctx context.Context, httpClient *api.HTTPClient, runCount 
 		return
 	}
 	log.Debugf("websocket echo test complete (%d data frames exchanged)", n)
+}
+
+func runWebSocketTestWithALPN(ctx context.Context, httpClient *api.HTTPClient, runCount uint64) {
+	defer func() {
+		if err := recover(); err != nil {
+			log.Warnf("unexpected websocket echo with ALPN connectivity test failure: %s", err)
+		}
+	}()
+
+	n, err := runEchoLoopWithALPN(ctx, httpClient, runCount)
+	if err != nil {
+		log.Debugf("websocket echo test with ALPN failed: %s (%d data frames exchanged)", err, n)
+		return
+	}
+	log.Debugf("websocket echo test with ALPN complete (%d data frames exchanged)", n)
 }
 
 func runGrpcTest(ctx context.Context, httpClient *api.HTTPClient, runCount uint64) {
