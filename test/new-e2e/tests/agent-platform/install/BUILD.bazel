@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "install",
+    srcs = ["install.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/install",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/new-e2e/tests/agent-platform/install/installparams",
+        "@com_github_stretchr_testify//require",
+    ],
+)

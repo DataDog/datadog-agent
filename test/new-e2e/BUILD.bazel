@@ -37,7 +37,6 @@
 # gazelle:exclude tests/agent-metric-pipelines/jmxfetch
 # gazelle:exclude tests/agent-metric-pipelines/jmxfetch/testdata
 # gazelle:exclude tests/agent-metric-pipelines/metric-filterlist
-# gazelle:exclude tests/agent-platform
 # gazelle:exclude tests/agent-platform/common
 # gazelle:exclude tests/agent-platform/common/bound-port
 # gazelle:exclude tests/agent-platform/common/file-manager
