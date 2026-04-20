@@ -9,58 +9,170 @@ package spec
 
 import (
 	"fmt"
+	"math"
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.yaml.in/yaml/v2"
 
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 )
 
 func TestLoadSpecNotEmpty(t *testing.T) {
-	metricsSpec, err := LoadMetricsSpec()
+	specs, err := LoadSpecs()
 	require.NoError(t, err)
 
-	require.NotEmpty(t, metricsSpec.MetricPrefix, "metric_prefix should not be empty")
-	require.NotEmpty(t, metricsSpec.Tagsets, "tagsets should not be empty")
-	require.NotEmpty(t, metricsSpec.Metrics, "metrics should not be empty")
-	for name := range metricsSpec.Metrics {
+	require.NotEmpty(t, specs.Metrics.MetricPrefix, "metric_prefix should not be empty")
+	require.NotEmpty(t, specs.Metrics.Metrics, "metrics should not be empty")
+	for name := range specs.Metrics.Metrics {
 		require.NotEmpty(t, name, "metric name should not be empty")
 	}
-
-	for metricName, metricSpec := range metricsSpec.Metrics {
+	for metricName, metricSpec := range specs.Metrics.Metrics {
 		for deviceMode := range metricSpec.Support.DeviceModes {
 			require.Containsf(t, []string{"physical", "mig", "vgpu"}, string(deviceMode), "metric %s has invalid device mode key %q", metricName, deviceMode)
 		}
 	}
-}
 
-func TestLoadArchitecturesNotEmpty(t *testing.T) {
-	archSpecFile, err := LoadArchitecturesSpec()
-	require.NoError(t, err)
+	require.NotEmpty(t, specs.Tags.Tags, "tags should not be empty")
+	require.NotEmpty(t, specs.Tags.Tagsets, "tagsets should not be empty")
+	for tagsetName, tagsetSpec := range specs.Tags.Tagsets {
+		for _, tagName := range tagsetSpec.Tags {
+			_, ok := specs.Tags.Tags[tagName]
+			require.Truef(t, ok, "tagset %s references unknown tag %s", tagsetName, tagName)
+		}
+	}
 
-	require.NotEmpty(t, archSpecFile.Architectures, "architectures should not be empty")
-	for name, archSpec := range archSpecFile.Architectures {
+	require.NotEmpty(t, specs.Architectures.Architectures, "architectures should not be empty")
+	for name, archSpec := range specs.Architectures.Architectures {
 		t.Run(name, func(t *testing.T) {
 			require.NotNil(t, archSpec.UnsupportedDeviceModes, "unsupported_device_modes should be present")
 		})
 	}
 }
 
+func TestTagSpecUnmarshalYAML(t *testing.T) {
+	t.Run("compiles regex", func(t *testing.T) {
+		var spec TagSpec
+
+		err := yaml.Unmarshal([]byte(`regex: "^foo$"`), &spec)
+
+		require.NoError(t, err)
+		require.NotNil(t, spec.Regex)
+		require.True(t, spec.Regex.MatchString("foo"))
+		require.False(t, spec.Regex.MatchString("bar"))
+	})
+
+	t.Run("rejects invalid regex", func(t *testing.T) {
+		var spec TagSpec
+
+		err := yaml.Unmarshal([]byte(`regex: "["`), &spec)
+
+		require.Error(t, err)
+		require.ErrorContains(t, err, `compile tag regex "["`)
+	})
+}
+
+func TestMetricValidatorValidate(t *testing.T) {
+	t.Run("range", func(t *testing.T) {
+		min := 0.0
+		max := 100.0
+		validator := &MetricValidator{
+			Range: &MetricValidatorRange{Min: &min, Max: &max},
+		}
+
+		require.NoError(t, validator.validateDefinition())
+		require.NoError(t, validator.Validate(0))
+		require.NoError(t, validator.Validate(100))
+		require.Error(t, validator.Validate(-1))
+		require.Error(t, validator.Validate(101))
+	})
+
+	t.Run("values", func(t *testing.T) {
+		validator := &MetricValidator{
+			Values: []float64{0, 1},
+		}
+
+		require.NoError(t, validator.validateDefinition())
+		require.NoError(t, validator.Validate(0))
+		require.NoError(t, validator.Validate(1))
+		require.Error(t, validator.Validate(2))
+	})
+}
+
+func TestMetricValidatorValidateDefinition(t *testing.T) {
+	rangeMinZero := 0.0
+	rangeMaxOne := 1.0
+	rangeMinInvalid := 10.0
+	rangeMaxInvalid := 5.0
+	nonFinite := math.NaN()
+
+	tests := []struct {
+		name      string
+		validator *MetricValidator
+	}{
+		{
+			name: "range min greater than max",
+			validator: &MetricValidator{
+				Range: &MetricValidatorRange{Min: &rangeMinInvalid, Max: &rangeMaxInvalid},
+			},
+		},
+		{
+			name:      "empty validator",
+			validator: &MetricValidator{},
+		},
+		{
+			name: "both range and values",
+			validator: &MetricValidator{
+				Range:  &MetricValidatorRange{Min: &rangeMinZero, Max: &rangeMaxOne},
+				Values: []float64{0, 1},
+			},
+		},
+		{
+			name: "non finite values",
+			validator: &MetricValidator{
+				Values: []float64{nonFinite},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Error(t, tt.validator.validateDefinition())
+		})
+	}
+}
+
+func TestMetricValidatorUnmarshalRejectsInvalidRange(t *testing.T) {
+	var validator MetricValidator
+
+	err := yaml.Unmarshal([]byte("range:\n  min: 10\n  max: 5\n"), &validator)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "metric validator range min 10 must be less than or equal to max 5")
+}
+
+func TestMetricValidatorUnmarshalRejectsNonFiniteValues(t *testing.T) {
+	var validator MetricValidator
+
+	err := yaml.Unmarshal([]byte("values: [.nan]\n"), &validator)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "metric validator values must be finite")
+}
+
 // TestMockCapabilitiesMatchArchitectureSpec ensures that for each architecture and supported device mode,
 // the NVML mock configured from architectures.yaml returns API behavior that matches the capability flags
 // (gpm, unsupported_fields_by_device_mode). This validates that the mock actually applies the spec.
 func TestMockCapabilitiesMatchArchitectureSpec(t *testing.T) {
-	archSpecFile, err := LoadArchitecturesSpec()
+	specs, err := LoadSpecs()
 	require.NoError(t, err)
 
-	configs := KnownGPUConfigs(archSpecFile)
+	configs := KnownGPUConfigs(specs)
 	for _, config := range configs {
 		subtestName := fmt.Sprintf("arch=%s/mode=%s", config.Architecture, config.DeviceMode)
 		t.Run(subtestName, func(t *testing.T) {
-			archSpec := archSpecFile.Architectures[config.Architecture]
+			archSpec := specs.Architectures.Architectures[config.Architecture]
 			opts := BuildMockOptionsForConfig(t, config, archSpec)
 
 			ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(opts...))

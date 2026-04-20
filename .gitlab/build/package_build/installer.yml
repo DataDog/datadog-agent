@@ -3,7 +3,9 @@
 # Datadog installer payloads
 #
 .common_build_oci:
-  extends: .bazel:defs:cache:omnibus-transition
+  extends:
+    - .bazel:defs:cache:omnibus-transition
+    - .rust_internal_registry
   script:
     - AGENT_VERSION="$(dda inv agent.version -u)-1" || exit $?
     - export INSTALL_DIR=/opt/datadog-packages/datadog-agent/"$AGENT_VERSION"

@@ -1,0 +1,64 @@
+# GPU tag specification for the GPU corecheck.
+# Schema:
+# - tags.<tag_name>: reusable tag definition and validation metadata
+#   - regex (optional): regex that all observed values for that tag must match
+# - tagsets.<tagset_name>: reusable sets of tag names
+#   - tags: list of tag names declared under root tags
+tags:
+  gpu_uuid:
+    regex: "^(gpu|mig)-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+  gpu_device:
+    regex: "^[a-z0-9_.-]+$"
+  gpu_vendor:
+    regex: "^[a-z0-9_]+$"
+  gpu_driver_version:
+    regex: "^[0-9._-]+$"
+  gpu_virtualization_mode:
+    regex: "^(none|vgpu|passthrough)$"
+  gpu_architecture:
+    regex: "^[a-z0-9_-]+$"
+  gpu_slicing_mode:
+    regex: "^(none|mig|mig-parent)$"
+  gpu_type:
+    regex: "^[a-z0-9_-]+$"
+  gpu_parent_uuid:
+    regex: "^(gpu|mig)-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+  gpu_host:
+    regex: "^true$"
+  pid:
+    regex: "^\\d+(,\\d+)*$" # multiple PIDs are supported and should be split by commas
+  nspid:
+    regex: "^\\d+(,\\d+)*$" # multiple PIDs are supported and should be split by commas
+  origin:
+    regex: "^(driver|hardware)$"
+  type:
+    regex: "^\\d+$"
+  kube_container_name: {}
+  memory_location:
+    regex: "^(l1_cache|l2_cache|device_memory|register_file|texture_memory|texture_\
+      shm|cbu|sram)$"
+  nvlink_port:
+    regex: "^\\d+$"
+
+tagsets:
+  container:
+    workload_only: true
+    tags:
+      - kube_container_name
+  device:
+    tags:
+      - gpu_uuid
+      - gpu_device
+      - gpu_vendor
+      - gpu_driver_version
+      - gpu_virtualization_mode
+      - gpu_architecture
+      - gpu_slicing_mode
+      - gpu_type
+      - gpu_parent_uuid
+      - gpu_host
+  process:
+    workload_only: true
+    tags:
+      - pid
+      - nspid

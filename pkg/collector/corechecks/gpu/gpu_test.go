@@ -837,20 +837,22 @@ func TestMetricsFollowSpec(t *testing.T) {
 	// - KubernetesDevicePlugins required for gpu.device.unhealthy metric
 	// - NVML required to ensure the NVML workloadmeta collector starts up
 	env.SetFeatures(t, env.KubernetesDevicePlugins, env.NVML)
+	nvidia.WithDeviceEventsSetWaitTimeoutForTest(t, time.Millisecond)
 
-	metricsSpec, err := gpuspec.LoadMetricsSpec()
-	require.NoError(t, err)
-	archFile, err := gpuspec.LoadArchitecturesSpec()
+	specs, err := gpuspec.LoadSpecs()
 	require.NoError(t, err)
 
-	configs := gpuspec.KnownGPUConfigs(archFile)
+	configs := gpuspec.KnownGPUConfigs(specs)
 
 	for _, config := range configs {
 		testName := fmt.Sprintf("arch=%s/mode=%s", config.Architecture, config.DeviceMode)
 		t.Run(testName, func(t *testing.T) {
-			archSpec := archFile.Architectures[config.Architecture]
+			archSpec := specs.Architectures.Architectures[config.Architecture]
 			emittedMetrics, knownTagValues := collectMetricSamples(t, config, archSpec)
-			ValidateEmittedMetricsAgainstSpec(t, metricsSpec, config, emittedMetrics, knownTagValues)
+			validationOptions := gpuspec.ValidationOptions{
+				WorkloadActive: true,
+			}
+			ValidateEmittedMetricsAgainstSpec(t, specs, config, emittedMetrics, knownTagValues, validationOptions)
 		})
 	}
 }
