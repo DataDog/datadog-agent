@@ -4,6 +4,9 @@
 # Get claude from the buildimages /root/.local/bin
 cp /root/.local/bin/claude /home/bits/.local/bin/claude
 
+# Add bits user to the docker group. This should probably be handled by the base feature. But not working for now.
+usermod -aG docker bits
+
 # Configure PATH for interactive shells.
 # File name convention *-workspace-env.sh is important:
 # /etc/zsh/zshenv sources these files.
