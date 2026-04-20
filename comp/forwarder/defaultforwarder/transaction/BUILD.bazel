@@ -30,6 +30,7 @@ go_test(
     embed = [":transaction"],
     gotags = ["test"],  # keep
     deps = [
+        "//comp/core/log/def",
         "//comp/core/log/mock",
         "//comp/core/secrets/mock",
         "//pkg/config/mock",
