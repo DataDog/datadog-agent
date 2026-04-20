@@ -18,8 +18,8 @@ var allowlistCaller = []string{
 	"comp/core/autodiscovery/listeners/snmp_test.go",
 
 	// TestNewConfig has an expectedConfig, which has embedded structs pathteststore.Config and connfilter.Config
-	"comp/networkpath/npcollector/npcollectorimpl/config_test.go",
-	"comp/networkpath/npcollector/npcollectorimpl/npcollector_testutils.go",
+	"comp/networkpath/npcollector/impl/config_test.go",
+	"comp/networkpath/npcollector/impl/npcollector_testutils.go",
 
 	// TestFullConfig assigns an object usersV3, which is a list of structs
 	"comp/snmptraps/config/def/config_test.go",
