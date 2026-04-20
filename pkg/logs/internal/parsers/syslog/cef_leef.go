@@ -7,7 +7,6 @@ package syslog
 
 import (
 	"bytes"
-	"strconv"
 	"strings"
 )
 
@@ -18,9 +17,9 @@ type SIEMHeader struct {
 	DeviceVendor  string
 	DeviceProduct string
 	DeviceVersion string
-	EventID       string      // Signature ID (CEF) or Event ID (LEEF)
-	Name          string      // CEF only; empty for LEEF
-	Severity      interface{} // CEF header severity: int (0-10) or string label; nil for LEEF
+	EventID       string // Signature ID (CEF) or Event ID (LEEF)
+	Name          string // CEF only; empty for LEEF
+	Severity      string // CEF header severity (raw string, e.g. "10" or "High"); empty for LEEF
 }
 
 var (
@@ -60,7 +59,7 @@ func parseCEF(msg []byte) (SIEMHeader, map[string]string, []byte, bool) {
 		DeviceVersion: unescapeCEFHeader(fields[3]),
 		EventID:       unescapeCEFHeader(fields[4]),
 		Name:          unescapeCEFHeader(fields[5]),
-		Severity:      parseCEFSeverity(fields[6]),
+		Severity:      unescapeCEFHeader(fields[6]),
 	}
 
 	extension := parseCEFExtension(ext)
@@ -74,6 +73,9 @@ func parseCEF(msg []byte) (SIEMHeader, map[string]string, []byte, bool) {
 func parseLEEF(msg []byte) (SIEMHeader, map[string]string, []byte, bool) {
 	rest := msg[len(prefixLEEF):]
 
+	// Fast scan for the first pipe to extract the version token. This does
+	// not honor escaped pipes (\|), which is acceptable because LEEF version
+	// strings never contain pipe characters.
 	pipeIdx := bytes.IndexByte(rest, '|')
 	if pipeIdx < 0 {
 		return SIEMHeader{}, nil, nil, false
@@ -85,9 +87,10 @@ func parseLEEF(msg []byte) (SIEMHeader, map[string]string, []byte, bool) {
 	var ext []byte
 	var ok bool
 
+	isV2 := version == "2" || strings.HasPrefix(version, "2.")
 	switch {
-	case strings.HasPrefix(version, "2."):
-		// LEEF 2.0: 6 pipe-delimited fields (version + vendor + product + devVersion + eventID + delimiter)
+	case isV2:
+		// LEEF 2.x: 6 pipe-delimited fields (version + vendor + product + devVersion + eventID + delimiter)
 		fields, ext, ok = splitHeaderPipes(rest, 6)
 		if !ok {
 			return SIEMHeader{}, nil, nil, false
@@ -96,7 +99,8 @@ func parseLEEF(msg []byte) (SIEMHeader, map[string]string, []byte, bool) {
 			delimiter = d
 		}
 	default:
-		// LEEF 1.0 (or unknown): 5 pipe-delimited fields
+		// LEEF 1.x: 5 pipe-delimited fields. Unrecognized versions (e.g. "2a")
+		// are routed here rather than silently assumed to be v2.
 		fields, ext, ok = splitHeaderPipes(rest, 5)
 		if !ok {
 			return SIEMHeader{}, nil, nil, false
@@ -106,10 +110,10 @@ func parseLEEF(msg []byte) (SIEMHeader, map[string]string, []byte, bool) {
 	header := SIEMHeader{
 		Format:        "LEEF",
 		Version:       fields[0],
-		DeviceVendor:  fields[1],
-		DeviceProduct: fields[2],
-		DeviceVersion: fields[3],
-		EventID:       fields[4],
+		DeviceVendor:  unescapeCEFHeader(fields[1]),
+		DeviceProduct: unescapeCEFHeader(fields[2]),
+		DeviceVersion: unescapeCEFHeader(fields[3]),
+		EventID:       unescapeCEFHeader(fields[4]),
 	}
 
 	extension := parseLEEFExtension(ext, delimiter)
@@ -238,8 +242,7 @@ func parseLEEFExtension(ext []byte, delimiter byte) map[string]string {
 }
 
 // splitOnByte splits s on every occurrence of sep, returning all substrings
-// including empty ones. Uses IndexByte for the inner loop rather than the
-// multi-byte path in strings.Split.
+// including empty ones. Preallocates the result slice based on separator count.
 func splitOnByte(s string, sep byte) []string {
 	n := strings.Count(s, string(sep)) + 1
 	parts := make([]string, 0, n)
@@ -295,20 +298,6 @@ func parseLEEFDelimiter(field string) (byte, bool) {
 		return field[0], true
 	}
 	return 0, false
-}
-
-// parseCEFSeverity parses the CEF severity field per the ArcSight spec.
-// Valid integer values are 0-10; string labels (e.g. "Low", "High") are
-// preserved as-is. Returns nil for empty input.
-func parseCEFSeverity(raw string) interface{} {
-	raw = unescapeCEFHeader(raw)
-	if raw == "" {
-		return nil
-	}
-	if n, err := strconv.Atoi(raw); err == nil && n >= 0 && n <= 10 {
-		return n
-	}
-	return raw
 }
 
 // unescapeCEFHeader unescapes \\  and \| in CEF header field values.
@@ -392,7 +381,7 @@ func BuildSIEMFields(header SIEMHeader, extension map[string]string) map[string]
 	if header.Name != "" {
 		fields["name"] = header.Name
 	}
-	if header.Severity != nil {
+	if header.Severity != "" {
 		fields["severity"] = header.Severity
 	}
 	if len(extension) > 0 {

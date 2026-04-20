@@ -252,7 +252,7 @@ func TestSyslogParser_CEF_RFC5424(t *testing.T) {
 	assert.Equal(t, "1.0", siem["device_version"])
 	assert.Equal(t, "100", siem["event_id"])
 	assert.Equal(t, "worm successfully stopped", siem["name"])
-	assert.Equal(t, float64(10), siem["severity"])
+	assert.Equal(t, "10", siem["severity"])
 
 	ext, ok := siem["extension"].(map[string]interface{})
 	require.True(t, ok, "extension missing")
