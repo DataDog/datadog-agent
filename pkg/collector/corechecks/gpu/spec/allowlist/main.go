@@ -82,7 +82,7 @@ func updateAllowlistFile(allowlistPath string) error {
 }
 
 func updateAllowlistEntries(entries []allowlistEntry) ([]allowlistEntry, error) {
-	specs, err := loadSpecs()
+	specs, err := gpuspec.LoadSpecs()
 	if err != nil {
 		return nil, fmt.Errorf("load metrics spec: %w", err)
 	}
