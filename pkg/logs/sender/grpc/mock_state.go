@@ -12,13 +12,13 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"github.com/DataDog/agent-payload/v5/statefulpb"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering"
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/tags"
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/token"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -67,7 +67,6 @@ type dvTypeBackings struct {
 type tagCacheEntry struct {
 	origin         *message.Origin
 	hostname       string
-	service        string
 	source         string
 	status         string
 	processingTags string // joined ProcessingTags; part of cache key
@@ -210,11 +209,15 @@ func (mt *MessageTranslator) processBatch(batch []batchEntry, outputChan chan *m
 	for _, entry := range batch {
 		if entry.isRawJSON {
 			ts := getMessageTimestamp(entry.msg)
+			service, serviceDictID, serviceIsNew := mt.buildServiceField(entry.msg)
+			if serviceIsNew {
+				mt.sendDictEntryDefine(outputChan, entry.msg, serviceDictID, entry.msg.Origin.Service())
+			}
 			tagSet, allTagsStr, dictID, isNew := mt.buildTagSet(entry.msg)
 			if isNew {
 				mt.sendDictEntryDefine(outputChan, entry.msg, dictID, allTagsStr)
 			}
-			mt.sendRawLog(outputChan, entry.msg, entry.content, ts, tagSet)
+			mt.sendRawLog(outputChan, entry.msg, entry.content, ts, tagSet, service)
 		} else {
 			tokenBatch = append(tokenBatch, entry)
 		}
@@ -258,11 +261,15 @@ func (mt *MessageTranslator) processMessage(msg *message.Message, outputChan cha
 	}
 	if mt.jsonLogsAsRaw && len(content) > 0 && content[0] == '{' {
 		ts := getMessageTimestamp(msg)
+		service, serviceDictID, serviceIsNew := mt.buildServiceField(msg)
+		if serviceIsNew {
+			mt.sendDictEntryDefine(outputChan, msg, serviceDictID, msg.Origin.Service())
+		}
 		tagSet, allTagsStr, dictID, isNew := mt.buildTagSet(msg)
 		if isNew {
 			mt.sendDictEntryDefine(outputChan, msg, dictID, allTagsStr)
 		}
-		mt.sendRawLog(outputChan, msg, string(content), ts, tagSet)
+		mt.sendRawLog(outputChan, msg, string(content), ts, tagSet, service)
 		return
 	}
 	contentStr := string(content)
@@ -295,11 +302,15 @@ func (mt *MessageTranslator) processPreTokenized(msg *message.Message, tokenList
 
 	// Log exceeds max_template_bytes — send as RawLog, don't store any pattern state.
 	if changeType == clustering.PatternTooLarge {
+		service, serviceDictID, serviceIsNew := mt.buildServiceField(msg)
+		if serviceIsNew {
+			mt.sendDictEntryDefine(outputChan, msg, serviceDictID, msg.Origin.Service())
+		}
 		tagSet, allTagsStr, dictID, isNew := mt.buildTagSet(msg)
 		if isNew {
 			mt.sendDictEntryDefine(outputChan, msg, dictID, allTagsStr)
 		}
-		mt.sendRawLog(outputChan, msg, string(getTranslatorContent(msg)), ts, tagSet)
+		mt.sendRawLog(outputChan, msg, string(getTranslatorContent(msg)), ts, tagSet, service)
 		return
 	}
 
@@ -408,6 +419,11 @@ func (mt *MessageTranslator) processPreTokenized(msg *message.Message, tokenList
 		}
 	}
 
+	service, serviceDictID, serviceIsNew := mt.buildServiceField(msg)
+	if serviceIsNew {
+		mt.sendDictEntryDefine(outputChan, msg, serviceDictID, msg.Origin.Service())
+	}
+
 	// Build complete tag list and encode as TagSet
 	tagSet, allTagsString, dictID, isNew := mt.buildTagSet(msg)
 	if isNew {
@@ -416,14 +432,14 @@ func (mt *MessageTranslator) processPreTokenized(msg *message.Message, tokenList
 
 	// Send StructuredLog with all fields
 	tsMillis := ts.UnixNano() / nanoToMillis
-	mt.sendStructuredLog(outputChan, msg, tsMillis, patternID, dynamicValues, tagSet, messageKeyDV, jsonContextSchemaID, jsonContextValuesDV)
+	mt.sendStructuredLog(outputChan, msg, tsMillis, patternID, dynamicValues, tagSet, service, messageKeyDV, jsonContextSchemaID, jsonContextValuesDV)
 }
 
 // buildTagSet constructs the complete tag list for a message and encodes it as a TagSet.
-// This includes log-level fields (hostname, service, ddsource, status) as tags,
+// This includes log-level fields (hostname, ddsource, status) as tags,
 // plus all other tags from the message metadata (container tags, source config tags, processing tags).
 // All tags are joined as a single string, encoded as a single dictionary entry in the TagSet.
-// A single-entry cache keyed on (origin ptr, hostname, service, source, status) avoids all
+// A single-entry cache keyed on (origin ptr, hostname, source, status) avoids all
 // allocations in the common case where these inputs are constant across messages (single-source pipeline).
 func (mt *MessageTranslator) clearTagCache() {
 	mt.tagCache = tagCacheEntry{}
@@ -439,7 +455,6 @@ func (mt *MessageTranslator) buildTagSet(msg *message.Message) (*statefulpb.TagS
 	// Read current inputs
 	currentOrigin := msg.Origin
 	currentHostname := msg.MessageMetadata.Hostname
-	currentService := msg.Origin.Service()
 	currentSource := msg.Origin.Source()
 	currentStatus := msg.MessageMetadata.GetStatus()
 	currentProcessingTags := strings.Join(msg.MessageMetadata.ProcessingTags, ",")
@@ -448,7 +463,6 @@ func (mt *MessageTranslator) buildTagSet(msg *message.Message) (*statefulpb.TagS
 	if mt.tagCache.tagSet != nil &&
 		mt.tagCache.origin == currentOrigin &&
 		mt.tagCache.hostname == currentHostname &&
-		mt.tagCache.service == currentService &&
 		mt.tagCache.source == currentSource &&
 		mt.tagCache.status == currentStatus &&
 		mt.tagCache.processingTags == currentProcessingTags {
@@ -465,16 +479,11 @@ func (mt *MessageTranslator) buildTagSet(msg *message.Message) (*statefulpb.TagS
 	tagStrings := make([]string, len(baseTags), len(baseTags)+4)
 	copy(tagStrings, baseTags)
 
-	// Add log-level fields as tags (these are separate JSON fields in HTTP pipeline)
-	// Required tags per proto: hostname, service
-	// Other tags per proto: status, source (ddsource)
+	// Add log-level fields as tags (these are separate JSON fields in HTTP pipeline).
+	// Service is now encoded in the dedicated top-level proto field instead of the joined tagset.
 
 	if currentHostname != "" {
 		tagStrings = append(tagStrings, "hostname:"+currentHostname)
-	}
-
-	if currentService != "" {
-		tagStrings = append(tagStrings, "service:"+currentService)
 	}
 
 	if currentSource != "" {
@@ -503,7 +512,6 @@ func (mt *MessageTranslator) buildTagSet(msg *message.Message) (*statefulpb.TagS
 	// Populate cache for next call
 	mt.tagCache.origin = currentOrigin
 	mt.tagCache.hostname = currentHostname
-	mt.tagCache.service = currentService
 	mt.tagCache.source = currentSource
 	mt.tagCache.status = currentStatus
 	mt.tagCache.processingTags = currentProcessingTags
@@ -512,6 +520,22 @@ func (mt *MessageTranslator) buildTagSet(msg *message.Message) (*statefulpb.TagS
 	mt.tagCache.tagStr = allTagsString
 
 	return tagSet, allTagsString, dictID, isNew
+}
+
+func (mt *MessageTranslator) buildServiceField(msg *message.Message) (*statefulpb.DynamicValue, uint64, bool) {
+	if msg.Origin == nil {
+		return nil, 0, false
+	}
+	service := msg.Origin.Service()
+	if service == "" {
+		return nil, 0, false
+	}
+	dictID, isNew := mt.tagManager.AddString(service)
+	return &statefulpb.DynamicValue{
+		Value: &statefulpb.DynamicValue_DictIndex{
+			DictIndex: dictID,
+		},
+	}, dictID, isNew
 }
 
 // getMessageTimestamp returns the timestamp for the message, preferring the HTTP
@@ -594,8 +618,8 @@ func (mt *MessageTranslator) sendDictEntryDelete(outputChan chan *message.Statef
 }
 
 // sendRawLog creates and sends a raw log datum (currently unused)
-func (mt *MessageTranslator) sendRawLog(outputChan chan *message.StatefulMessage, msg *message.Message, contentStr string, ts time.Time, tagSet *statefulpb.TagSet) {
-	logDatum := buildRawLog(contentStr, ts, tagSet, msg.MessageMetadata.DualSendUUID)
+func (mt *MessageTranslator) sendRawLog(outputChan chan *message.StatefulMessage, msg *message.Message, contentStr string, ts time.Time, tagSet *statefulpb.TagSet, service *statefulpb.DynamicValue) {
+	logDatum := buildRawLog(contentStr, ts, tagSet, msg.MessageMetadata.DualSendUUID, service)
 
 	tlmPipelineRawLogsProcessed.Inc(mt.pipelineName)
 	tlmPipelineRawLogsProcessedBytes.Add(float64(proto.Size(logDatum)), mt.pipelineName)
@@ -607,8 +631,8 @@ func (mt *MessageTranslator) sendRawLog(outputChan chan *message.StatefulMessage
 }
 
 // sendStructuredLog creates and sends a StructuredLog datum
-func (mt *MessageTranslator) sendStructuredLog(outputChan chan *message.StatefulMessage, msg *message.Message, timestamp int64, patternID uint64, dynamicValues []*statefulpb.DynamicValue, tagSet *statefulpb.TagSet, messageKey *statefulpb.DynamicValue, jsonContextSchemaID uint64, jsonContextValues []*statefulpb.DynamicValue) {
-	logDatum := buildStructuredLog(timestamp, patternID, dynamicValues, tagSet, msg.MessageMetadata.DualSendUUID, messageKey, jsonContextSchemaID, jsonContextValues)
+func (mt *MessageTranslator) sendStructuredLog(outputChan chan *message.StatefulMessage, msg *message.Message, timestamp int64, patternID uint64, dynamicValues []*statefulpb.DynamicValue, tagSet *statefulpb.TagSet, service *statefulpb.DynamicValue, messageKey *statefulpb.DynamicValue, jsonContextSchemaID uint64, jsonContextValues []*statefulpb.DynamicValue) {
+	logDatum := buildStructuredLog(timestamp, patternID, dynamicValues, tagSet, msg.MessageMetadata.DualSendUUID, service, messageKey, jsonContextSchemaID, jsonContextValues)
 
 	tlmPipelinePatternLogsProcessed.Inc(mt.pipelineName)
 	tlmPipelinePatternLogsProcessedBytes.Add(float64(proto.Size(logDatum)), mt.pipelineName)
@@ -716,7 +740,7 @@ func (mt *MessageTranslator) fillDynamicValue(
 }
 
 // buildStructuredLog creates a Datum containing a StructuredLog
-func buildStructuredLog(timestamp int64, patternID uint64, dynamicValues []*statefulpb.DynamicValue, tagSet *statefulpb.TagSet, uuid string, messageKey *statefulpb.DynamicValue, jsonContextSchemaID uint64, jsonContextValues []*statefulpb.DynamicValue) *statefulpb.Datum {
+func buildStructuredLog(timestamp int64, patternID uint64, dynamicValues []*statefulpb.DynamicValue, tagSet *statefulpb.TagSet, uuid string, service *statefulpb.DynamicValue, messageKey *statefulpb.DynamicValue, jsonContextSchemaID uint64, jsonContextValues []*statefulpb.DynamicValue) *statefulpb.Datum {
 	log := &statefulpb.Log{
 		Timestamp: timestamp,
 		Content: &statefulpb.Log_Structured{
@@ -728,7 +752,8 @@ func buildStructuredLog(timestamp int64, patternID uint64, dynamicValues []*stat
 				JsonContextValues:   jsonContextValues,
 			},
 		},
-		Tags: tagSet,
+		Tags:    tagSet,
+		Service: service,
 	}
 	if uuid != "" {
 		log.Uuid = &uuid
@@ -741,13 +766,14 @@ func buildStructuredLog(timestamp int64, patternID uint64, dynamicValues []*stat
 }
 
 // buildRawLog creates a Datum containing a raw log (no pattern)
-func buildRawLog(content string, ts time.Time, tagSet *statefulpb.TagSet, uuid string) *statefulpb.Datum {
+func buildRawLog(content string, ts time.Time, tagSet *statefulpb.TagSet, uuid string, service *statefulpb.DynamicValue) *statefulpb.Datum {
 	log := &statefulpb.Log{
 		Timestamp: ts.UnixNano() / nanoToMillis,
 		Content: &statefulpb.Log_Raw{
 			Raw: content,
 		},
-		Tags: tagSet,
+		Tags:    tagSet,
+		Service: service,
 	}
 	if uuid != "" {
 		log.Uuid = &uuid
