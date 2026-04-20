@@ -87,7 +87,7 @@ func getKnownErrors() []knownError {
 			maxRetry:     stackUpMaxRetry,
 		},
 		{
-			errorMessage: `Failed to get route table object .+ from resource group`,
+			errorMessage: `Failed to get route table object`,
 			retryType:    ReCreate,
 			maxRetry:     stackUpMaxRetry,
 		},
