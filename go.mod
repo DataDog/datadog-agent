@@ -1257,6 +1257,12 @@ replace github.com/google/gopacket v1.1.19 => github.com/DataDog/gopacket v0.0.0
 // Remove once https://github.com/kubernetes/kube-state-metrics/pull/2928 is merged
 replace k8s.io/kube-state-metrics/v2 v2.18.0 => github.com/L3n41c/kube-state-metrics/v2 v2.18.1-0.20260415185427-29e500020566
 
+// kube-state-metrics v2.18 transitively pulls ugorji/go/codec v1.3.0 via its
+// gomplate doc-generation tool. The new version ships ~4x more generated code
+// (fastpath encoders/decoders) which bloats system-probe by ~5 MiB. No runtime
+// code in datadog-agent needs v1.3.0, so pin it to v1.2.12 (same as main).
+replace github.com/ugorji/go/codec => github.com/ugorji/go/codec v1.2.12
+
 // Remove once https://github.com/Iceber/iouring-go/pull/31 or equivalent is merged,
 // among with the Connect, Bind and Accept requests
 replace github.com/iceber/iouring-go => github.com/lebauce/iouring-go v0.0.0-20250513121434-2d4fb49003b5
