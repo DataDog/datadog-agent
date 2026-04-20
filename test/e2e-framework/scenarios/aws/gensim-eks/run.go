@@ -32,6 +32,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"text/template"
 
@@ -112,6 +113,14 @@ func Run(ctx *pulumi.Context) error {
 	if mode == "" {
 		mode = "record-parquet"
 	}
+
+	disableLogsAgent := false
+	if v := strings.TrimSpace(cfg.Get("disableLogsAgent")); v != "" {
+		if b, err := strconv.ParseBool(v); err == nil {
+			disableLogsAgent = b
+		}
+	}
+	logsEnabled := !disableLogsAgent
 
 	// If no episodes are specified, stop here — cluster-only mode.
 	if episodes == "" {
@@ -195,6 +204,7 @@ func Run(ctx *pulumi.Context) error {
 	if err := deployOrchestratorJob(
 		ctx, &awsEnv, kubeProvider, sa, ddSecret,
 		episodes, agentImage, gensimSha, namespace, s3Bucket, imageRegistry, episodeDataDir, mode,
+		logsEnabled,
 	); err != nil {
 		return err
 	}
@@ -285,6 +295,7 @@ func deployOrchestratorJob(
 	imageRegistry string,
 	episodeDataDir string,
 	mode string,
+	logsEnabled bool,
 ) error {
 	kubeOpts := []pulumi.ResourceOption{pulumi.Provider(kubeProvider)}
 
@@ -411,7 +422,7 @@ func deployOrchestratorJob(
 	}
 
 	// ── Agent values ConfigMap ───────────────────────────────────────────────
-	renderedValues, err := renderAgentValues(agentImage, mode)
+	renderedValues, err := renderAgentValues(agentImage, mode, logsEnabled)
 	if err != nil {
 		return err
 	}
@@ -529,7 +540,7 @@ var agentValuesTmpl string
 
 // renderAgentValues renders the agent Helm values template with the given image and mode.
 // mode is one of "record-parquet" or "live-anomaly-detection".
-func renderAgentValues(agentImage, mode string) (string, error) {
+func renderAgentValues(agentImage, mode string, logsEnabled bool) (string, error) {
 	idx := strings.LastIndex(agentImage, ":")
 	if idx < 0 {
 		return "", fmt.Errorf("invalid image reference %q: expected format repo:tag (e.g. docker.io/datadog/agent-dev:latest)", agentImage)
@@ -543,7 +554,10 @@ func renderAgentValues(agentImage, mode string) (string, error) {
 	}
 
 	var buf bytes.Buffer
-	err = tmpl.Execute(&buf, struct{ ImageRepo, ImageTag, Mode string }{repo, tag, mode})
+	err = tmpl.Execute(&buf, struct {
+		ImageRepo, ImageTag, Mode string
+		LogsEnabled               bool
+	}{repo, tag, mode, logsEnabled})
 	if err != nil {
 		return "", fmt.Errorf("rendering agent-values template: %w", err)
 	}
