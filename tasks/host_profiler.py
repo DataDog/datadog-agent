@@ -17,6 +17,8 @@ from tasks.libs.releasing.version import query_version
 
 EBPF_PROFILER_MODULE = "go.opentelemetry.io/ebpf-profiler"
 CILIUM_EBPF_MODULE = "github.com/cilium/ebpf"
+PPROFILE_MODULE = "go.opentelemetry.io/collector/pdata/pprofile"
+PPROFILE_MAX_VERSION = "v0.150.0"
 
 BIN_NAME = "host-profiler"
 BIN_DIR = os.path.join(".", "bin", "host-profiler")
@@ -118,62 +120,127 @@ def update_golden_tests(ctx):
     print("Golden test files updated successfully!")
 
 
+def _get_profiler_requires(ctx: Context) -> dict[str, str]:
+    """Download the ebpf-profiler fork and return its go.mod Require entries as {path: version}."""
+    res = ctx.run(f"go mod download -json {EBPF_PROFILER_MODULE}", hide=True, warn=True)
+    if not res or not res.ok:
+        raise Exit(f"Could not download {EBPF_PROFILER_MODULE}.", code=1)
+    go_mod_path = json.loads(res.stdout).get("GoMod")
+    if not go_mod_path:
+        raise Exit(f"Could not locate go.mod for {EBPF_PROFILER_MODULE}.", code=1)
+    res = ctx.run(f"go mod edit -json {go_mod_path}", hide=True, warn=True)
+    if not res or not res.ok:
+        raise Exit(f"Could not parse {EBPF_PROFILER_MODULE} go.mod.", code=1)
+    return {req["Path"]: req["Version"] for req in json.loads(res.stdout).get("Require", [])}
+
+
+def _get_agent_module_version(ctx: Context, module: str) -> str:
+    """Return the version of a module as resolved by the agent's go.mod."""
+    res = ctx.run(f"go list -m -json {module}", hide=True, warn=True)
+    if not res or not res.ok:
+        raise Exit(f"Could not resolve {module} in agent go.mod.", code=1)
+    version = json.loads(res.stdout).get("Version")
+    if not version:
+        raise Exit(f"No version found for {module} in agent go.mod.", code=1)
+    return version
+
+
+def _parse_semver(version: str) -> tuple[int, ...]:
+    """Parse a release semver string (e.g. 'v0.150.0') into a tuple of ints.
+
+    Only handles clean major.minor.patch tags — pseudo-versions or pre-release
+    suffixes will raise Exit with a clear message.
+    """
+    v = version.lstrip("v")
+    parts = v.split(".")
+    try:
+        return tuple(int(p) for p in parts)
+    except ValueError as e:
+        raise Exit(f"Cannot parse version {version!r} as semver (expected vX.Y.Z).", code=1) from e
+
+
 @task
 def validate_deps(ctx: Context):
-    """Check that the agent's cilium/ebpf version is compatible with the
-    opentelemetry-ebpf-profiler.
+    """Check that shared transitive dependencies between the agent and the
+    opentelemetry-ebpf-profiler remain compatible.
 
-    cilium/ebpf introduces breaking API changes across minor versions. Bumping
-    it in the agent without first updating the profiler fork can silently break
-    eBPF unwinding at runtime.
+    Currently validates:
+      - cilium/ebpf: major.minor must match between agent and profiler fork.
+      - pdata/pprofile: must be at most PPROFILE_MAX_VERSION or match the
+        profiler fork's version.
 
     TODO: This is a short-term guardrail. The long-term solution is to mirror
     the profiler's coredump test data to Datadog-owned blob storage and run
     the profiler's unwinding e2e tests directly from the agent CI whenever a
     common transitive dependency changes.
     """
-    # Download the profiler module (extracts it from the cache if needed) and
-    # get the path to its go.mod directly from the download output.
-    res = ctx.run(f"go mod download -json {EBPF_PROFILER_MODULE}", hide=True, warn=True)
-    if not res or not res.ok:
-        raise Exit(f"Could not download {EBPF_PROFILER_MODULE}.", code=1)
+    profiler_requires = _get_profiler_requires(ctx)
+    ok = True
 
-    go_mod_path = json.loads(res.stdout).get("GoMod")
-    if not go_mod_path:
-        raise Exit(f"Could not locate go.mod for {EBPF_PROFILER_MODULE}.", code=1)
+    # --- cilium/ebpf: major.minor must match ---
+    profiler_cilium = profiler_requires.get(CILIUM_EBPF_MODULE)
+    if profiler_cilium is None:
+        print(color_message(f"{CILIUM_EBPF_MODULE} not found in {EBPF_PROFILER_MODULE} go.mod.", "red"))
+        ok = False
+    else:
+        agent_cilium = _get_agent_module_version(ctx, CILIUM_EBPF_MODULE)
+        if agent_cilium.split(".")[:2] == profiler_cilium.split(".")[:2]:
+            print(
+                color_message(
+                    f"OK: {CILIUM_EBPF_MODULE} {agent_cilium} (agent) is compatible with {profiler_cilium} ({EBPF_PROFILER_MODULE})",
+                    "green",
+                )
+            )
+        else:
+            print(
+                color_message(
+                    f"MISMATCH: {CILIUM_EBPF_MODULE} version is incompatible with {EBPF_PROFILER_MODULE}!\n"
+                    f"  Agent uses:     {agent_cilium}\n"
+                    f"  Profiler needs: {profiler_cilium}\n"
+                    f"  Please reach out to #profiling-full-host-project to update the profiler fork and validate its e2e tests before bumping cilium/ebpf here.",
+                    "red",
+                )
+            )
+            ok = False
 
-    # Parse the profiler's go.mod to find its required cilium/ebpf version.
-    res = ctx.run(f"go mod edit -json {go_mod_path}", hide=True, warn=True)
-    if not res or not res.ok:
-        raise Exit(f"Could not parse {EBPF_PROFILER_MODULE} go.mod.", code=1)
-    profiler_requires = {req["Path"]: req["Version"] for req in json.loads(res.stdout).get("Require", [])}
+    # --- pdata/pprofile: at most PPROFILE_MAX_VERSION or matching profiler fork ---
+    # pprofile is experimental upstream and has constant breaking changes,
+    # so we cap the version to avoid silent incompatibilities with the profiler fork.
+    agent_pprofile = _get_agent_module_version(ctx, PPROFILE_MODULE)
+    profiler_pprofile = profiler_requires.get(PPROFILE_MODULE)
 
-    profiler_version = profiler_requires.get(CILIUM_EBPF_MODULE)
-    if profiler_version is None:
-        raise Exit(f"{CILIUM_EBPF_MODULE} not found in {EBPF_PROFILER_MODULE} go.mod.", code=1)
-
-    # Get the version the agent resolved.
-    res = ctx.run(f"go list -m -json {CILIUM_EBPF_MODULE}", hide=True, warn=True)
-    if not res or not res.ok:
-        raise Exit(f"Could not resolve {CILIUM_EBPF_MODULE} in agent go.mod.", code=1)
-    agent_version = json.loads(res.stdout).get("Version", "")
-
-    # Patch-level differences are fine; major.minor must match.
-    if agent_version.split(".")[:2] == profiler_version.split(".")[:2]:
+    if profiler_pprofile and agent_pprofile == profiler_pprofile:
         print(
             color_message(
-                f"OK: {CILIUM_EBPF_MODULE} {agent_version} (agent) is compatible with {profiler_version} ({EBPF_PROFILER_MODULE})",
+                f"OK: {PPROFILE_MODULE} {agent_pprofile} (agent) matches {profiler_pprofile} ({EBPF_PROFILER_MODULE})",
+                "green",
+            )
+        )
+    elif _parse_semver(agent_pprofile) <= _parse_semver(PPROFILE_MAX_VERSION):
+        print(
+            color_message(
+                f"OK: {PPROFILE_MODULE} {agent_pprofile} (agent) is within allowed ceiling {PPROFILE_MAX_VERSION}",
                 "green",
             )
         )
     else:
+        profiler_hint = (
+            f" or update the profiler fork to support it (currently requires {profiler_pprofile})"
+            if profiler_pprofile
+            else ""
+        )
         print(
             color_message(
-                f"MISMATCH: {CILIUM_EBPF_MODULE} version is incompatible with {EBPF_PROFILER_MODULE}!\n"
-                f"  Agent uses:     {agent_version}\n"
-                f"  Profiler needs: {profiler_version}\n"
-                f"  Please reach out to #profiling-full-host-project to update the profiler fork and validate its e2e tests before bumping cilium/ebpf here.",
+                f"MISMATCH: {PPROFILE_MODULE} version exceeds allowed bounds!\n"
+                f"  Agent uses:      {agent_pprofile}\n"
+                f"  Max allowed:     {PPROFILE_MAX_VERSION}\n"
+                f"  Profiler uses:   {profiler_pprofile or 'not found'}\n"
+                f"  Please either pin {PPROFILE_MODULE} to at most {PPROFILE_MAX_VERSION}{profiler_hint}.\n"
+                f"  Reach out to #profiling-full-host-project for guidance.",
                 "red",
             )
         )
+        ok = False
+
+    if not ok:
         raise Exit(code=1)

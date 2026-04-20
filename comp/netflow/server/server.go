@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder"
+	forwarder "github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/def"
 	nfconfig "github.com/DataDog/datadog-agent/comp/netflow/config/def"
 	"github.com/DataDog/datadog-agent/comp/netflow/flowaggregator"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"

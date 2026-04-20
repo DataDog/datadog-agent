@@ -105,8 +105,6 @@ OS_SPECIFIC_ENV_PASSTHROUGH = {
         'NOTARIZATION_PWD': 'App-specific password for notarization',
         'NOTARIZATION_TIMEOUT': 'Timeout for xcrun notarytool wait',
         'TEAM_ID': 'Apple developer team ID used for notarization',
-        'KEYCHAIN_NAME': 'Name of the ephemeral keychain holding signing certificates',
-        'KEYCHAIN_PWD': 'Password for the ephemeral signing keychain',
     },
 }
 
@@ -129,8 +127,6 @@ def _get_environment_for_cache(env: dict[str, str]) -> dict:
         'GOPROXY',
         'HOME',
         'JARSIGN_JAR',
-        'KEYCHAIN_NAME',
-        'KEYCHAIN_PWD',
         'LD_PRELOAD',
         'LOCALAPPDATA',
         'MY_RUBY_HOME',
@@ -208,6 +204,7 @@ def omnibus_compute_cache_key(ctx, env: dict[str, str]) -> str:
             'omnibus/python-scripts',
             'omnibus/resources',
             'omnibus/omnibus.rb',
+            'tasks/agent.py',
             'deps',
             'bazel',
         ],
