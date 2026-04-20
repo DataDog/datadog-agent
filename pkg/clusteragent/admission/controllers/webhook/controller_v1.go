@@ -26,6 +26,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	clusterspot "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/spot"
@@ -61,6 +62,7 @@ func NewControllerV1(
 	sh clusterspot.PodHandler,
 	datadogConfig config.Component,
 	demultiplexer demultiplexer.Component,
+	filterStore workloadfilter.Component,
 ) *ControllerV1 {
 	controller := &ControllerV1{}
 	controller.clientSet = client
@@ -78,7 +80,7 @@ func NewControllerV1(
 	)
 	controller.isLeaderFunc = isLeaderFunc
 	controller.leadershipStateNotif = leadershipStateNotif
-	controller.webhooks = controller.generateWebhooks(datadogConfig, wmeta, demultiplexer, pp, sh)
+	controller.webhooks = controller.generateWebhooks(datadogConfig, wmeta, demultiplexer, pp, sh, filterStore)
 	controller.generateTemplates()
 
 	if _, err := secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{

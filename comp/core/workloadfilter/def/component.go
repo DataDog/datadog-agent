@@ -45,6 +45,8 @@ type Component interface {
 	GetContainerRuntimeSecurityFilters() FilterBundle
 	// GetContainerComplianceFilters retrieves the container Compliance FilterBundle
 	GetContainerComplianceFilters() FilterBundle
+	// GetContainerCWSAdmissionFilters retrieves the container CWS admission webhook FilterBundle
+	GetContainerCWSAdmissionFilters() FilterBundle
 
 	// String returns a string representation of the workloadfilter configuration
 	// If useColor is true, the output will include ANSI color codes.

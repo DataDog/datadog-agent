@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "testdns",
+    srcs = ["test_dns_server.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/testdns",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_hashicorp_go_multierror//:go-multierror",
+        "@com_github_miekg_dns//:dns",
+        "@com_github_stretchr_testify//require",
+    ],
+)
