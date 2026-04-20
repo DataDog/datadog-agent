@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/test/new-e2e
 go 1.25.6
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.189
+	github.com/DataDog/agent-payload/v5 v5.0.193
 	github.com/DataDog/datadog-agent/pkg/util/option v0.79.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.79.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.79.0-rc.1 // indirect

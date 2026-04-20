@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/lo
 go 1.25.0
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.189
+	github.com/DataDog/agent-payload/v5 v5.0.193
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.79.0-rc.1
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.79.0-rc.1
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.79.0-rc.1
