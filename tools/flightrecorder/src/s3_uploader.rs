@@ -71,9 +71,16 @@ pub fn new_s3_uploader(
     key_prefix: String,
     tracker: Arc<DiskTracker>,
 ) -> Result<(S3Uploader, S3UploadHandle)> {
-    let store = AmazonS3Builder::from_env()
+    let mut builder = AmazonS3Builder::from_env()
         .with_bucket_name(&bucket)
-        .with_region(&region)
+        .with_region(&region);
+
+    // Use emissary IMDS proxy if configured (e.g. in Datadog staging/prod clusters).
+    if let Ok(endpoint) = std::env::var("AWS_EC2_METADATA_SERVICE_ENDPOINT") {
+        builder = builder.with_metadata_endpoint(endpoint);
+    }
+
+    let store = builder
         .build()
         .map_err(|e| anyhow::anyhow!("failed to create S3 client: {e}"))?;
 
