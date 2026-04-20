@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !darwin
+//go:build test && !darwin
 
 package connectionscheckimpl
 
@@ -16,7 +16,7 @@ import (
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl"
+	npcollectormock "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/mock"
 	connectionscheck "github.com/DataDog/datadog-agent/comp/process/connectionscheck/def"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -74,7 +74,7 @@ func TestConnectionsCheckIsEnabled(t *testing.T) {
 				core.MockBundle(),
 				fx.Replace(sysprobeconfigimpl.MockParams{Overrides: tc.sysprobeConfigs}),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-				npcollectorimpl.MockModule(),
+				npcollectormock.MockModule(),
 				fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 				fxutil.ProvideComponentConstructor(NewCheck),
 			))
