@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "metrics",
+    srcs = ["metrics.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/telemetry"],
+)
