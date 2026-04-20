@@ -28,9 +28,9 @@ target:
     DD_SECURITY_AGENT_INTERNAL_PROFILING_UNIX_SOCKET: /smp-host/apm.socket
     DD_SYSTEM_PROBE_CONFIG_INTERNAL_PROFILING_UNIX_SOCKET: /smp-host/apm.socket
     # tags
-    DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:quality_gate_security_base
-    DD_SECURITY_AGENT_INTERNAL_PROFILING_EXTRA_TAGS: experiment:quality_gate_security_base
-    DD_SYSTEM_PROBE_CONFIG_INTERNAL_PROFILING_EXTRA_TAGS: experiment:quality_gate_security_base
+    DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:quality_gate_security_mean_fs_load
+    DD_SECURITY_AGENT_INTERNAL_PROFILING_EXTRA_TAGS: experiment:quality_gate_security_mean_fs_load
+    DD_SYSTEM_PROBE_CONFIG_INTERNAL_PROFILING_EXTRA_TAGS: experiment:quality_gate_security_mean_fs_load
 
     DD_INTERNAL_PROFILING_BLOCK_PROFILE_RATE: 10000
     DD_INTERNAL_PROFILING_DELTA_PROFILES: true

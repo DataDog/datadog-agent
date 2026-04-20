@@ -2,9 +2,10 @@
 
 ## Overview
 
-This quality gate experiment measures the Datadog Agent's idle resource
-consumption with Workload Protection enabled but no active filesystem workload.
-It establishes the baseline cost of running CWS with default settings.
+This quality gate experiment measures the Datadog Agent's resource consumption
+with Workload Protection just turned on — no custom policy, no lading-generated
+filesystem workload. It establishes the floor that every CWS customer pays
+before any tuning.
 
 **The only enabled functionality is [workload protection](https://docs.datadoghq.com/security/workload_protection/setup/agent/linux/).**
 
@@ -15,11 +16,19 @@ It establishes the baseline cost of running CWS with default settings.
 
 ## Scenario
 
-Models a host with CWS enabled but experiencing zero application-generated filesystem
-events. The only events observed are background noise from the default activity on the
-host.
+Models a host that has just enabled CWS with no further configuration:
 
-This represents the minimum cost any CWS customer pays.
+- No `runtime-security.d/default.policy` override — the agent runs with whatever
+  policies ship by default.
+- `generator: []` in lading — no application-generated filesystem events.
+
+The only events observed are background noise from default activity on the
+host, filtered through the shipped approvers.
+
+This is the baseline "turn it on and leave it alone" measurement. The sibling
+gates `quality_gate_security_no_fs_load` and `quality_gate_security_mean_fs_load`
+both layer the experiment's `default.policy` on top and isolate the effect of
+lading-generated filesystem load.
 
 ## Enforcements
 

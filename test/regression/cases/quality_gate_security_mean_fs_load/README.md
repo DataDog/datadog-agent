@@ -1,11 +1,11 @@
-# Quality Gate CWS - Base
+# Quality Gate CWS - Mean FS Load
 
 ## Overview
 
 This quality gate experiment tests the Datadog Agent's performance and resource
-consumption with Workload Protection enabled under a basic filesystem
-workload. It validates that the agent can handle continuous file tree operations
-while staying within defined memory bounds.
+consumption with Workload Protection enabled under a production-representative
+mean filesystem load. It validates that the agent can handle continuous file
+tree operations while staying within defined memory bounds.
 
 **The only enabled functionality is [workload protection](https://docs.datadoghq.com/security/workload_protection/setup/agent/linux/).**
 
@@ -18,6 +18,10 @@ while staying within defined memory bounds.
 
 Models the per-host average filesystem event rate as observed in org2 (internal data).
 The load generated produces file opens and renames with no explicit CWS rules triggering.
+
+A sibling gate, `quality_gate_security_no_fs_load`, uses the same `default.policy`
+but `generator: []` — it measures the same configuration with zero lading-generated
+filesystem events.
 
 ## Enforcements
 
@@ -41,7 +45,7 @@ The emitted metric from SMP should have a similar value to the production data w
 To check whether the lading config accurately models production, run:
 
 ```
-/analyze-quality-gate-security-base-experiment
+/analyze-quality-gate-security-mean-fs-load-experiment
 ```
 
 This compares three values: the lading-configured event rate, the SMP-captured metric, and the production per-host average for `perf_buffer.events.write`.

@@ -1,0 +1,13 @@
+generator: []
+
+blackhole:
+  # Used to capture target telemetry
+  - datadog:
+      v2:
+        binding_addr: "127.0.0.1:9091"
+
+target_metrics:
+  - prometheus:
+      uri: "http://127.0.0.1:5011/telemetry"
+      tags:
+        sub_agent: "security-agent"

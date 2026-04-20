@@ -28,9 +28,9 @@ target:
     DD_SECURITY_AGENT_INTERNAL_PROFILING_UNIX_SOCKET: /smp-host/apm.socket
     DD_SYSTEM_PROBE_CONFIG_INTERNAL_PROFILING_UNIX_SOCKET: /smp-host/apm.socket
     # tags
-    DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:quality_gate_security_idle
-    DD_SECURITY_AGENT_INTERNAL_PROFILING_EXTRA_TAGS: experiment:quality_gate_security_idle
-    DD_SYSTEM_PROBE_CONFIG_INTERNAL_PROFILING_EXTRA_TAGS: experiment:quality_gate_security_idle
+    DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:quality_gate_security_no_fs_load
+    DD_SECURITY_AGENT_INTERNAL_PROFILING_EXTRA_TAGS: experiment:quality_gate_security_no_fs_load
+    DD_SYSTEM_PROBE_CONFIG_INTERNAL_PROFILING_EXTRA_TAGS: experiment:quality_gate_security_no_fs_load
 
     DD_INTERNAL_PROFILING_BLOCK_PROFILE_RATE: 10000
     DD_INTERNAL_PROFILING_DELTA_PROFILES: true
@@ -44,7 +44,7 @@ target:
 
 checks:
   - name: memory_usage
-    description: "Memory usage quality gate. This puts a bound on the total memory usage for CWS with no custom policy and no lading-generated filesystem load."
+    description: "Memory usage quality gate. This puts a bound on the total memory usage for CWS with the default.policy in effect but no lading-generated filesystem load."
     bounds:
       series: total_pss_bytes
       # When updating this, update the memory_allotment in the target section to 20% higher.

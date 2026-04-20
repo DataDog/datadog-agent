@@ -876,7 +876,7 @@
 /test/benchmarks/apm_scripts/                 @DataDog/agent-apm
 /test/regression/                             @DataDog/single-machine-performance
 /test/regression/cases/docker_containers*     @DataDog/single-machine-performance @DataDog/container-integrations
-/test/regression/cases/quality_gate_security_base* @DataDog/single-machine-performance @DataDog/agent-security
+/test/regression/cases/quality_gate_security_* @DataDog/single-machine-performance @DataDog/agent-security
 
 /tools/                                 @DataDog/agent-devx
 /tools/host-profiler/                   @DataDog/profiling-full-host
