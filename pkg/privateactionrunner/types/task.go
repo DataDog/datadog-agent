@@ -32,10 +32,10 @@ type Attributes struct {
 	Client                actionsclientpb.Client                          `json:"client"`
 	OrgId                 int64                                           `json:"org_id"`
 	JobId                 string                                          `json:"job_id"`
-	TraceId               string                                          `json:"trace_id"`
-	SpanId                string                                          `json:"span_id"`
 	SignedEnvelope        *privateactionspb.RemoteConfigSignatureEnvelope `json:"signed_envelope"`
 	ConnectionInfo        *privateactionspb.ConnectionInfo                `json:"connection_info"`
+	TraceId               uint64                                          `json:"trace_id,omitempty"`
+	SpanId                uint64                                          `json:"span_id,omitempty"`
 }
 
 // TimeoutSeconds returns the timeout from the task inputs if present, positive, and within int32
