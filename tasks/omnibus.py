@@ -100,6 +100,7 @@ def get_omnibus_env(
     hardened_runtime=False,
     system_probe_bin=None,
     with_sd_agent=False,  # No-op; kept for backward compatibility
+    with_dd_procmgrd=False,  # No-op; kept for backward compatibility
     go_mod_cache=None,
     flavor=AgentFlavor.base,
     pip_config_file="pip.conf",
@@ -217,6 +218,7 @@ def build(
     hardened_runtime=False,
     system_probe_bin=None,
     with_sd_agent=False,  # No-op; kept for backward compatibility
+    with_dd_procmgrd=False,  # No-op; kept for backward compatibility
     go_mod_cache=None,
     python_mirror=None,
     pip_config_file="pip.conf",
@@ -246,6 +248,7 @@ def build(
         hardened_runtime=hardened_runtime,
         system_probe_bin=system_probe_bin,
         with_sd_agent=with_sd_agent,
+        with_dd_procmgrd=with_dd_procmgrd,
         go_mod_cache=go_mod_cache,
         flavor=flavor,
         pip_config_file=pip_config_file,
@@ -392,6 +395,7 @@ def manifest(
     hardened_runtime=False,
     system_probe_bin=None,
     with_sd_agent=False,
+    with_dd_procmgrd=False,
     go_mod_cache=None,
 ):
     flavor = AgentFlavor[flavor]
@@ -405,6 +409,7 @@ def manifest(
         hardened_runtime=hardened_runtime,
         system_probe_bin=system_probe_bin,
         with_sd_agent=with_sd_agent,
+        with_dd_procmgrd=with_dd_procmgrd,
         go_mod_cache=go_mod_cache,
         flavor=flavor,
     )
