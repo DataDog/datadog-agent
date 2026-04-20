@@ -23,9 +23,18 @@ import (
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
-// logPatternRateWindowSec is the window (seconds) for averaging log pattern
-// rates shown in reports and event messages.
-const logPatternRateWindowSec = 60
+const (
+	// logPatternRateWindowSec is the current-rate averaging window (seconds).
+	logPatternRateWindowSec = 60
+	// logPatternPrevRateWindowSec is the baseline window length: [-6min, -1min].
+	logPatternPrevRateWindowSec = 5 * logPatternRateWindowSec
+
+	// Thresholds for surfacing a rate-change annotation.
+	// Both must be exceeded: relative change guards against noise at low rates,
+	// absolute change guards against large relative swings near zero.
+	logRateChangeRelThreshold = 0.3
+	logRateChangeAbsThreshold = 2
+)
 
 // eventSender formats and dispatches one Datadog event per correlation.
 // When api is nil, send prints to stdout (dry-run mode) instead of calling the API.
@@ -60,9 +69,8 @@ func newEventSender(cfg config.Component, logger log.Component, storage observer
 	}, nil
 }
 
-// logPatternRate returns the average log/s over the last logPatternRateWindowSec seconds
-// for the given anomaly. It uses SumRange on storage when a series ref is available,
-// otherwise falls back to DebugInfo.CurrentValue.
+// logPatternRate returns the avg log/s over [T-60s, T]. Falls back to
+// DebugInfo.CurrentValue when no storage ref is available.
 func logPatternRate(a observerdef.Anomaly, storage observerdef.StorageReader) (rate float64, ok bool) {
 	if a.SourceRef != nil && storage != nil {
 		total := storage.SumRange(a.SourceRef.Ref, a.Timestamp-logPatternRateWindowSec, a.Timestamp, observerdef.AggregateCount)
@@ -72,6 +80,40 @@ func logPatternRate(a observerdef.Anomaly, storage observerdef.StorageReader) (r
 		return a.DebugInfo.CurrentValue, true
 	}
 	return 0, false
+}
+
+// logPatternPrevRate returns the avg log/s over the baseline window [-6min, -1min].
+// No DebugInfo fallback: CurrentValue is always present-tense.
+func logPatternPrevRate(a observerdef.Anomaly, storage observerdef.StorageReader) (rate float64, ok bool) {
+	if a.SourceRef != nil && storage != nil {
+		start := a.Timestamp - logPatternPrevRateWindowSec - logPatternRateWindowSec
+		total := storage.SumRange(a.SourceRef.Ref, start, a.Timestamp-logPatternRateWindowSec, observerdef.AggregateCount)
+		return total / logPatternPrevRateWindowSec, true
+	}
+	return 0, false
+}
+
+// isSignificantRateChange reports whether the rate shift from prev to curr
+// exceeds both the absolute and relative thresholds.
+func isSignificantRateChange(prev, curr float64) bool {
+	diff := curr - prev
+	if diff < 0 {
+		diff = -diff
+	}
+	denom := max(prev, curr)
+	return diff >= logRateChangeAbsThreshold && denom > 0 && diff/denom >= logRateChangeRelThreshold
+}
+
+// logRatePart formats the rate annotation for a log-derived anomaly description.
+func logRatePart(a observerdef.Anomaly, storage observerdef.StorageReader) string {
+	curr, ok := logPatternRate(a, storage)
+	if !ok {
+		return ""
+	}
+	if prev, ok := logPatternPrevRate(a, storage); ok && isSignificantRateChange(prev, curr) {
+		return fmt.Sprintf("\n\trate: %.1flog/s (was %.1flog/s last minutes)", curr, prev)
+	}
+	return fmt.Sprintf("\n\trate: %.1flog/s", curr)
 }
 
 // send formats a correlation into a change event and either prints or posts it.
@@ -397,10 +439,7 @@ func logDerivedDescription(a observerdef.Anomaly, storage observerdef.StorageRea
 	if a.Context.Example != "" && strings.TrimSpace(a.Context.Example) != pattern {
 		example = "\n\texample: " + strings.TrimSpace(a.Context.Example)
 	}
-	var ratePart string
-	if rate, ok := logPatternRate(a, storage); ok {
-		ratePart = fmt.Sprintf("\n\trate: %.1flog/s", rate)
-	}
+	ratePart := logRatePart(a, storage)
 	var tagsPart string
 	if len(a.Context.SplitTags) > 0 {
 		var parts []string
@@ -425,11 +464,7 @@ func logFrequencyDerivedDescription(a observerdef.Anomaly, storage observerdef.S
 	if example == "" {
 		example = strings.TrimSpace(a.Context.Pattern)
 	}
-	var ratePart string
-	if rate, ok := logPatternRate(a, storage); ok {
-		ratePart = fmt.Sprintf("\n\trate: %.1flog/s", rate)
-	}
-	return fmt.Sprintf("Log frequency change detected:\n\texample: %s%s", example, ratePart)
+	return fmt.Sprintf("Log frequency change detected:\n\texample: %s%s", example, logRatePart(a, storage))
 }
 
 // sendCorrelationEvents sends one event per correlation.
