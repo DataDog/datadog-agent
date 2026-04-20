@@ -161,6 +161,42 @@ func TestMetricValidatorUnmarshalRejectsNonFiniteValues(t *testing.T) {
 	require.ErrorContains(t, err, "metric validator values must be finite")
 }
 
+func TestMetricMetadataSpecUnmarshalYAML(t *testing.T) {
+	var spec MetricSpec
+
+	err := yaml.Unmarshal([]byte(`
+metadata:
+  metric_type: gauge
+  unit: byte/second
+  description: Example description
+tagsets:
+  - device
+support:
+  unsupported_architectures: []
+  device_modes:
+    physical: true
+    mig: true
+    vgpu: true
+`), &spec)
+
+	require.NoError(t, err)
+	require.NotNil(t, spec.Metadata)
+	require.Equal(t, "gauge", spec.Metadata.MetricType)
+	require.Equal(t, "byte/second", spec.Metadata.Unit)
+	require.Equal(t, "Example description", spec.Metadata.Description)
+}
+
+func TestLoadedMetricsIncludeMetadata(t *testing.T) {
+	specs, err := LoadSpecs()
+	require.NoError(t, err)
+
+	for metricName, metricSpec := range specs.Metrics.Metrics {
+		require.NotNilf(t, metricSpec.Metadata, "metric %s should define metadata", metricName)
+		require.NotEmptyf(t, metricSpec.Metadata.MetricType, "metric %s should define metadata.metric_type", metricName)
+		require.NotEmptyf(t, metricSpec.Metadata.Description, "metric %s should define metadata.description", metricName)
+	}
+}
+
 // TestMockCapabilitiesMatchArchitectureSpec ensures that for each architecture and supported device mode,
 // the NVML mock configured from architectures.yaml returns API behavior that matches the capability flags
 // (gpm, unsupported_fields_by_device_mode). This validates that the mock actually applies the spec.
