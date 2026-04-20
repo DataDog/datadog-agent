@@ -8,6 +8,7 @@ package setup
 import (
 	"os"
 	"path"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -68,7 +69,11 @@ func TestPrivateActionRunnerRestrictedShellAllowedPathsEmptyEnv(t *testing.T) {
 
 	cfg := newTestConf(t)
 
-	assert.Equal(t, []string{defaultLogPath}, cfg.GetStringSlice(PARRestrictedShellAllowedPaths))
+	if runtime.GOOS == "windows" {
+		assert.Empty(t, cfg.GetStringSlice(PARRestrictedShellAllowedPaths))
+	} else {
+		assert.Equal(t, []string{defaultLogPath}, cfg.GetStringSlice(PARRestrictedShellAllowedPaths))
+	}
 }
 
 func TestPrivateActionRunnerAllowlistDefaultsEmpty(t *testing.T) {
@@ -76,10 +81,17 @@ func TestPrivateActionRunnerAllowlistDefaultsEmpty(t *testing.T) {
 
 	assert.Empty(t, cfg.GetStringSlice(PARActionsAllowlist))
 	assert.Empty(t, cfg.GetStringSlice(PARHttpAllowlist))
-	assert.Equal(t, []string{defaultLogPath}, cfg.GetStringSlice(PARRestrictedShellAllowedPaths))
+	if runtime.GOOS == "windows" {
+		assert.Empty(t, cfg.GetStringSlice(PARRestrictedShellAllowedPaths))
+	} else {
+		assert.Equal(t, []string{defaultLogPath}, cfg.GetStringSlice(PARRestrictedShellAllowedPaths))
+	}
 }
 
 func TestPrivateActionRunnerAllowedPathsBareMetal(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("default allowed paths are empty on Windows")
+	}
 	t.Setenv("DOCKER_DD_AGENT", "")
 	os.Unsetenv("DOCKER_DD_AGENT")
 
@@ -90,6 +102,9 @@ func TestPrivateActionRunnerAllowedPathsBareMetal(t *testing.T) {
 }
 
 func TestPrivateActionRunnerAllowedPathsContainerizedWithHostMounts(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("default allowed paths are empty on Windows")
+	}
 	t.Setenv("DOCKER_DD_AGENT", "true")
 	overrideParPathExists(t, mockParPathExists(map[string]bool{
 		"/host/var/log": true,
@@ -102,6 +117,9 @@ func TestPrivateActionRunnerAllowedPathsContainerizedWithHostMounts(t *testing.T
 }
 
 func TestPrivateActionRunnerAllowedPathsContainerizedWithoutHostMounts(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("default allowed paths are empty on Windows")
+	}
 	t.Setenv("DOCKER_DD_AGENT", "true")
 	overrideParPathExists(t, mockParPathExists(map[string]bool{}))
 
@@ -113,4 +131,14 @@ func TestPrivateActionRunnerAllowedPathsContainerizedWithoutHostMounts(t *testin
 	assert.Equal(t, []string{
 		path.Join(containerizedPathPrefix, defaultLogPath),
 	}, paths)
+}
+
+func TestPrivateActionRunnerAllowedPathsWindowsDefaultEmpty(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("Windows-only: default allowed paths should be empty")
+	}
+
+	cfg := newTestConf(t)
+
+	assert.Empty(t, cfg.GetStringSlice(PARRestrictedShellAllowedPaths))
 }

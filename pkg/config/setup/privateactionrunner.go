@@ -7,6 +7,7 @@ package setup
 
 import (
 	"path"
+	"runtime"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -86,11 +87,14 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	})
 	config.BindEnvAndSetDefault(PARHttpAllowImdsEndpoint, false)
 
-	defaultPaths := []string{defaultLogPath}
-	if env.IsContainerized() {
-		for i, v := range defaultPaths {
-			hostPath := path.Join(containerizedPathPrefix, v)
-			defaultPaths[i] = hostPath
+	var defaultPaths []string
+	if runtime.GOOS != "windows" {
+		defaultPaths = []string{defaultLogPath}
+		if env.IsContainerized() {
+			for i, v := range defaultPaths {
+				hostPath := path.Join(containerizedPathPrefix, v)
+				defaultPaths[i] = hostPath
+			}
 		}
 	}
 	config.BindEnvAndSetDefault(PARRestrictedShellAllowedPaths, defaultPaths)
