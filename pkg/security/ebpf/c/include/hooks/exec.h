@@ -250,6 +250,9 @@ int __attribute__((always_inline)) sched_process_fork_common(void *ctx, u32 pid,
         // ensure pid and ppid have the same credentials
         event->pid_entry.credentials = parent_pid_entry->credentials;
 
+        // inherit session id from parent
+        event->pid_entry.sid = parent_pid_entry->sid;
+
         // fetch the parent proc cache entry
         u64 on_stack_cookie = event->pid_entry.cookie;
         struct proc_cache_t *parent_pc = get_proc_from_cookie(on_stack_cookie);
