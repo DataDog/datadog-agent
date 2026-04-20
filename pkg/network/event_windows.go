@@ -117,7 +117,7 @@ func FlowToConnStat(cs *ConnectionStats, flow *driver.PerFlowData, enableMonoton
 	cs.Direction = connDirection(flow.Flags)
 	cs.SPortIsEphemeral = IsPortInEphemeralRange(cs.Family, cs.Type, cs.SPort)
 	cs.Cookie = flow.FlowCookie
-	cs.InterfaceIndex = flow.GetInterfaceIndex()
+	cs.InterfaceIndex = flow.InterfaceIndex
 
 	// cipher suite not yet supported on windows.
 	cs.TLSTags = tls.Tags{
