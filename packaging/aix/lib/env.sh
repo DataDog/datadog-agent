@@ -54,7 +54,8 @@ export BUILD_DIR STAGING EMBEDDED EMBEDDED_DESTDIR INTEGRATIONS_CORE WHEEL_CACHE
 # validates AGENT_VERSION/AGENT_BUILD. The individual stage scripts call
 #   : "${AGENT_VERSION:?AGENT_VERSION must be set}"
 # after sourcing this file; that is where the empty-variable error is reported.
-AGENT_VRMF=$(printf '%s' "${AGENT_VERSION:-}" | sed 's/\([0-9]*\.[0-9]*\.[0-9]*\).*/\1/').${AGENT_BUILD:-}
+# VRMF must be four pure integers (X.Y.Z.N) — strip any .gSHA suffix from AGENT_BUILD.
+AGENT_VRMF=$(printf '%s' "${AGENT_VERSION:-}" | sed 's/\([0-9]*\.[0-9]*\.[0-9]*\).*/\1/').$(printf '%s' "${AGENT_BUILD:-}" | sed 's/\..*//')
 
 export AGENT_VERSION AGENT_BUILD AGENT_BRANCH AGENT_VRMF
 
@@ -89,8 +90,12 @@ CGO_ENABLED=1
 CGO_CFLAGS="-I/opt/freeware/include"
 CGO_LDFLAGS="-L/opt/freeware/lib -L/opt/freeware/lib64"
 GOPROXY=https://proxy.golang.org,direct
+# Use the locally installed Go toolchain — prevents auto-download of a newer
+# toolchain version (go.mod may require a newer patch than is installed).
+# Auto-download spawns extra processes and consumes significant memory on AIX.
+GOTOOLCHAIN=local
 
-export PATH GOPATH GOROOT CGO_ENABLED CGO_CFLAGS CGO_LDFLAGS GOPROXY
+export PATH GOPATH GOROOT CGO_ENABLED CGO_CFLAGS CGO_LDFLAGS GOPROXY GOTOOLCHAIN
 
 # ── Utility functions ─────────────────────────────────────────────────────────
 

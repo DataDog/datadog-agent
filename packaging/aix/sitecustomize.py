@@ -13,6 +13,9 @@
 #
 # Fix: load libc++abi.a with RTLD_GLOBAL before any checks run so the symbol
 # is available to all subsequently loaded shared modules.
+#
+# AIX 7.2 TL5+ / AIX 7.3: /usr/lib/libc++abi.a(libc++abi.so.1) ships with the OS.
+# AIX 7.2 TL4 and earlier: this file is absent; the except clause silently continues.
 import ctypes as _ctypes
 
 try:

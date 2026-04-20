@@ -2,43 +2,53 @@
 # build.sh — top-level orchestrator for the AIX Datadog Agent BFF package build
 #
 # Usage:
-#   AGENT_VERSION=7.78.0 AGENT_BUILD=1 ./build.sh
+#   AGENT_BUILD=1 ./build.sh
 #
 # Required environment variables:
-#   AGENT_VERSION  — human-readable release version (e.g. 7.78.0)
-#   AGENT_BUILD    — build iteration / 4th VRMF digit (e.g. 1)
+#   AGENT_BUILD  — build iteration / 4th VRMF digit (e.g. 1).
+#                  Must be a positive integer; must increase with each release
+#                  so installp upgrade ordering works.  Cannot be auto-detected.
 #
-# The agent source, including the full .git history, must already be present at
-# /opt/datadog-agent before running this script. Transfer it with:
-#   tar czf /tmp/dd-agent-src.tar.gz --exclude='bin' .
-#   scp /tmp/dd-agent-src.tar.gz aix-host:/tmp/
-#   ssh aix-host 'mkdir -p /opt/datadog-agent && gunzip -c /tmp/dd-agent-src.tar.gz | tar xf - -C /opt/datadog-agent'
+# Optional environment variables:
+#   AGENT_VERSION — full version string (e.g. 7.80.0-devel.git.50.3a914cd).
+#                   When not set, auto-detected by running:
+#                     python3.12 -m invoke agent.version --url-safe --include-git
+#                   This produces the same version string embedded in the binary.
+#                   The build fails if invoke is unavailable or returns empty.
 #
+# VRMF (installp package version) is X.Y.Z.AGENT_BUILD — the pre/git suffix of
+# AGENT_VERSION is stripped by env.sh.
+# Package filename: datadog-agent-<AGENT_VERSION>-<AGENT_BUILD>.aix.ppc64.bff
+#
+# The agent source with full .git history must be at /opt/datadog-agent.
 # All intermediate artifacts go under /opt/dd-build/.
-# The final .bff package is written to /opt/dd-build/ and reported at the end.
 
 set -eu
 
-# ── Validate required inputs ──────────────────────────────────────────────────
-
-if [ -z "${AGENT_VERSION:-}" ]; then
-    printf 'ERROR: AGENT_VERSION must be set (e.g. AGENT_VERSION=7.78.0)\n' >&2
-    exit 1
-fi
-if [ -z "${AGENT_BUILD:-}" ]; then
-    printf 'ERROR: AGENT_BUILD must be set (e.g. AGENT_BUILD=1)\n' >&2
-    exit 1
-fi
-if [ ! -d /opt/datadog-agent/.git ]; then
-    printf 'ERROR: /opt/datadog-agent/.git not found\n' >&2
-    printf '       The source tree must include full git history (do not use --exclude=.git when transferring)\n' >&2
-    exit 1
-fi
-
-# ── Set PATH early so tool checks can find /opt/freeware and Go binaries ──────
-# env.sh sets PATH too, but it is sourced later (after tool checks).
 PATH=/opt/go/bin:/opt/freeware/bin:/usr/sbin:/usr/bin:/bin:$PATH
 export PATH
+
+if [ -z "${AGENT_BUILD:-}" ]; then
+    printf 'ERROR: AGENT_BUILD must be set (e.g. AGENT_BUILD=1)\n' >&2
+    printf '       This is the installp build counter and must increase with each release.\n' >&2
+    exit 1
+fi
+
+if [ ! -d /opt/datadog-agent/.git ]; then
+    printf 'ERROR: /opt/datadog-agent/.git not found\n' >&2
+    printf '       The source tree must include full git history.\n' >&2
+    exit 1
+fi
+
+if [ -z "${AGENT_VERSION:-}" ]; then
+    AGENT_VERSION=$(cd /opt/datadog-agent && \
+        python3.12 -m invoke agent.version --url-safe --include-git 2>&1)
+    if [ -z "$AGENT_VERSION" ]; then
+        printf 'ERROR: invoke agent.version returned empty output.\n' >&2
+        exit 1
+    fi
+    printf 'INFO: AGENT_VERSION: %s\n' "$AGENT_VERSION" >&2
+fi
 
 # ── Check required tools ──────────────────────────────────────────────────────
 # Fail early with a clear message if a required build tool is missing.

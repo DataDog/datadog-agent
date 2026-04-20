@@ -79,9 +79,15 @@ mkdir -p /opt/datadog-agent/rtloader/build
 
 log "Creating embedded-path symlink so rtloader embeds the installed Python path"
 mkdir -p "$EMBEDDED/lib"
-# Symlink the staging Python .so to the EMBEDDED path for the cmake build.
-# installp will overwrite the symlink with the real .so on the target system.
-ln -sf "$EMBEDDED_DESTDIR/lib/libpython${PYTHON_MAJ_MIN}.so" "$EMBEDDED/lib/libpython${PYTHON_MAJ_MIN}.so" 2>/dev/null || true
+# Only create the libpython .so symlink if $EMBEDDED is NOT already pointing at
+# $EMBEDDED_DESTDIR (which stage 02 sets up).  When the two paths resolve to the
+# same directory, ln -sf would create a self-referencing circular symlink that
+# breaks the cmake link step (stat returns ELOOP).
+_embedded_real=$(cd "$EMBEDDED" 2>/dev/null && pwd -P)
+_destdir_real=$(cd "$EMBEDDED_DESTDIR" 2>/dev/null && pwd -P)
+if [ "$_embedded_real" != "$_destdir_real" ]; then
+    ln -sf "$EMBEDDED_DESTDIR/lib/libpython${PYTHON_MAJ_MIN}.so" "$EMBEDDED/lib/libpython${PYTHON_MAJ_MIN}.so" 2>/dev/null || true
+fi
 
 log "Running cmake for rtloader"
 cd /opt/datadog-agent/rtloader/build
@@ -151,6 +157,7 @@ log "Verified: libdatadog-agent-three.so depends on libpython${PYTHON_MAJ_MIN}.a
 # so the agent binary can find them at runtime via LIBPATH.
 
 log "Copying rtloader .so files to staging"
+cd /opt/datadog-agent/rtloader/build
 mkdir -p "$STAGING/opt/datadog-agent/rtloader"
 cp rtloader/libdatadog-agent-rtloader.so \
    three/libdatadog-agent-three.so \
