@@ -99,15 +99,13 @@ func NewCentOSBackend(target *types.Target, reposDir string, logger types.Logger
 			Name:     fmt.Sprintf("C%s-base", release),
 			BaseURL:  baseURL,
 			Enabled:  true,
-			GpgCheck: true,
-			GpgKeys:  []string{gpgKey},
+			GpgCheck: false,
 		})
 		b.AppendRepository(repo.Repo{
 			Name:     fmt.Sprintf("C%s-updates", release),
 			BaseURL:  updatesURL,
 			Enabled:  true,
-			GpgCheck: true,
-			GpgKeys:  []string{gpgKey},
+			GpgCheck: false,
 		})
 	}
 
