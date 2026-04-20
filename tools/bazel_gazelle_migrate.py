@@ -313,7 +313,7 @@ def try_migrate(path: str, test_targets: list[str]) -> tuple[bool, str]:
     passed, test_output = run_tests(test_targets)
     if passed:
         add(path, new_files)
-        # commit(path, new_files)
+        commit(path, new_files)
         return True, ""
 
     # --- Full migration failed; retry with targeted excludes ---
