@@ -85,7 +85,6 @@ func NewCentOSBackend(target *types.Target, reposDir string, logger types.Logger
 			GpgKeys:  []string{gpgKey},
 		})
 	} else {
-		gpgKey := fmt.Sprintf("file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-%d", version)
 		var baseURL, updatesURL string
 		switch target.Uname.Machine {
 		case "x86_64":
