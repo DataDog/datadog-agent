@@ -80,12 +80,12 @@ func (s *packageDDOTSuite) TestInstallDDOTInstallScript() {
 	// Verify agent is installed
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
 
-	// Wait for services to be active
-	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, ddotUnit)
+	// Wait for agent and procmgrd (which manages DDOT) to be active
+	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, procmgrdUnit)
 
 	state := s.host.State()
 	s.assertCoreUnits(state, false)
-	s.assertDDOTUnits(state, false)
+	s.assertDDOTManagedByProcmgrd(state)
 
 	// Verify configuration files exist
 	state.AssertFileExists("/etc/datadog-agent/datadog.yaml", 0640, "dd-agent", "dd-agent")
@@ -109,12 +109,12 @@ func (s *packageDDOTSuite) TestInstallDDOTInstaller() {
 	// Check if datadog.yaml exists, if not return an error
 	s.host.Run("sudo test -f /etc/datadog-agent/datadog.yaml || { echo 'Error: datadog.yaml does not exist'; exit 1; }")
 
-	s.host.WaitForUnitActive(s.T(), ddotUnit)
+	s.host.WaitForUnitActive(s.T(), procmgrdUnit)
 
 	state := s.host.State()
 	// Verify running
 	s.assertCoreUnits(state, true)
-	s.assertDDOTUnits(state, false)
+	s.assertDDOTManagedByProcmgrd(state)
 
 	// Verify files exist
 	state.AssertFileExists("/etc/datadog-agent/datadog.yaml", 0640, "dd-agent", "dd-agent")
@@ -188,11 +188,11 @@ func (s *packageDDOTSuite) TestInstallDDOTWithoutDatadogYAML() {
 	// Step 8: restart the agent so it picks up the updated configuration.
 	s.Env().RemoteHost.MustExecute("sudo systemctl restart datadog-agent.service")
 
-	// Step 9: verify the agent and ddot are both running.
-	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, ddotUnit)
+	// Step 9: verify the agent is running and DDOT is managed by procmgrd.
+	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, procmgrdUnit)
 	state = s.host.State()
 	s.assertCoreUnits(state, true)
-	s.assertDDOTUnits(state, true)
+	s.assertDDOTManagedByProcmgrd(state)
 }
 
 func (s *packageDDOTSuite) TestInstallDDOTSubcommand() {
@@ -273,27 +273,12 @@ func (s *packageDDOTSuite) assertCoreUnits(state host.State, oldUnits bool) {
 	}
 }
 
-// Verify ddot service running
-func (s *packageDDOTSuite) assertDDOTUnits(state host.State, oldUnits bool) {
-	state.AssertUnitsLoaded(ddotUnit)
-	state.AssertUnitsRunning(ddotUnit)
-
-	systemdPath := "/etc/systemd/system"
-	if oldUnits {
-		pkgManager := s.host.GetPkgManager()
-		switch pkgManager {
-		case "apt":
-			if s.os.Flavor == e2eos.Ubuntu {
-				systemdPath = "/usr/lib/systemd/system"
-			} else {
-				systemdPath = "/lib/systemd/system"
-			}
-		case "yum", "zypper":
-			systemdPath = "/usr/lib/systemd/system"
-		default:
-			s.T().Fatalf("unsupported package manager: %s", pkgManager)
-		}
-	}
-
-	s.host.AssertUnitProperty(ddotUnit, "FragmentPath", filepath.Join(systemdPath, ddotUnit))
+// assertDDOTManagedByProcmgrd verifies that DDOT is managed by dd-procmgrd
+// rather than systemd. The procmgr YAML must be present, procmgrd must be
+// active, and the DDOT systemd unit should be inactive (skipped via
+// ConditionPathExists=!).
+func (s *packageDDOTSuite) assertDDOTManagedByProcmgrd(state host.State) {
+	state.AssertUnitsRunning(procmgrdUnit)
+	state.AssertUnitsDead(ddotUnit)
+	state.AssertFileExistsAnyUser("/opt/datadog-packages/datadog-agent/stable/processes.d/datadog-agent-ddot.yaml", 0644)
 }
