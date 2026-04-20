@@ -88,6 +88,9 @@ func logPatternPrevRate(a observerdef.Anomaly, storage observerdef.StorageReader
 	if a.SourceRef != nil && storage != nil {
 		start := a.Timestamp - logPatternPrevRateWindowSec - logPatternRateWindowSec
 		total := storage.SumRange(a.SourceRef.Ref, start, a.Timestamp-logPatternRateWindowSec, observerdef.AggregateCount)
+		if total == 0 {
+			return 0, false
+		}
 		return total / logPatternPrevRateWindowSec, true
 	}
 	return 0, false
