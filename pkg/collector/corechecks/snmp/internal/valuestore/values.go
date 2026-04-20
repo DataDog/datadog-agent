@@ -125,7 +125,7 @@ func (v *ResultValueStore) GetColumnValueAsFloat(oid string, index string) float
 	}
 	floatValue, err := value.ToFloat64()
 	if err != nil {
-		log.Tracef("failed to convert to string for OID %s with value %v: %s", oid, value, err)
+		log.Tracef("failed to convert to float for OID %s with value %v: %s", oid, value, err)
 		return 0
 	}
 	return floatValue
@@ -161,8 +161,8 @@ func ResultValueStoreAsString(values *ResultValueStore) string {
 	}
 	jsonPayload, err := json.Marshal(values)
 	if err != nil {
-		log.Debugf("error marshaling debugVar: %s", err)
-		return ""
+		log.Debugf("error marshaling result store: %s", err)
+		return "(marshaling error)"
 	}
 	return string(jsonPayload)
 }
