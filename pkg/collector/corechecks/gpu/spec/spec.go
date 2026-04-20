@@ -8,7 +8,11 @@ package spec
 
 import (
 	"embed"
+	"errors"
 	"fmt"
+	"math"
+
+	"regexp"
 
 	"go.yaml.in/yaml/v2"
 )
@@ -16,9 +20,10 @@ import (
 const (
 	metricsSpecFile       = "gpu_metrics.yaml"
 	architecturesSpecFile = "architectures.yaml"
+	tagsSpecFile          = "tags.yaml"
 )
 
-//go:embed gpu_metrics.yaml architectures.yaml
+//go:embed gpu_metrics.yaml architectures.yaml tags.yaml
 var embeddedSpecs embed.FS
 
 // DeviceMode identifies the GPU device operating mode in the spec.
@@ -40,20 +45,145 @@ var AllDeviceModes = []DeviceMode{
 // MetricsSpec is the YAML metric specification.
 type MetricsSpec struct {
 	MetricPrefix string                `yaml:"metric_prefix"`
-	Tagsets      map[string]TagsetSpec `yaml:"tagsets"`
 	Metrics      map[string]MetricSpec `yaml:"metrics"`
+}
+
+// TagsSpec is the YAML tags specification.
+type TagsSpec struct {
+	Tags    map[string]TagSpec    `yaml:"tags"`
+	Tagsets map[string]TagsetSpec `yaml:"tagsets"`
+}
+
+// TagSpec defines validation metadata for a reusable tag.
+type TagSpec struct {
+	Regex *regexp.Regexp `yaml:"-"`
+}
+
+// UnmarshalYAML compiles the optional regex when the tag spec is decoded.
+func (s *TagSpec) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var raw struct {
+		Regex string `yaml:"regex,omitempty"`
+	}
+
+	if err := unmarshal(&raw); err != nil {
+		return fmt.Errorf("unmarshal tag spec: %w", err)
+	}
+
+	if raw.Regex == "" {
+		s.Regex = nil
+		return nil
+	}
+
+	compiled, err := regexp.Compile(raw.Regex)
+	if err != nil {
+		return fmt.Errorf("compile tag regex %q: %w", raw.Regex, err)
+	}
+
+	s.Regex = compiled
+	return nil
 }
 
 // TagsetSpec defines a reusable tagset.
 type TagsetSpec struct {
-	Tags []string `yaml:"tags"`
+	Tags         []string `yaml:"tags"`
+	WorkloadOnly bool     `yaml:"workload_only,omitempty"`
 }
 
 // MetricSpec is a metric definition without the name (name is the map key).
 type MetricSpec struct {
-	Tagsets    []string          `yaml:"tagsets"`
-	CustomTags []string          `yaml:"custom_tags,omitempty"`
-	Support    MetricSupportSpec `yaml:"support"`
+	Tagsets      []string          `yaml:"tagsets"`
+	CustomTags   []string          `yaml:"custom_tags,omitempty"`
+	WorkloadOnly bool              `yaml:"workload_only,omitempty"`
+	Support      MetricSupportSpec `yaml:"support"`
+	Validator    *MetricValidator  `yaml:"validator,omitempty"`
+}
+
+// MetricValidatorRange defines an inclusive numeric range validator.
+type MetricValidatorRange struct {
+	Min *float64 `yaml:"min"`
+	Max *float64 `yaml:"max"`
+}
+
+// MetricValidator validates emitted metric values against the spec.
+type MetricValidator struct {
+	Range  *MetricValidatorRange `yaml:"range,omitempty"`
+	Values []float64             `yaml:"values,omitempty"`
+}
+
+// UnmarshalYAML parses the supported validator shapes while keeping the internal fields private.
+func (v *MetricValidator) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain MetricValidator
+
+	var decoded plain
+	if err := unmarshal(&decoded); err != nil {
+		return fmt.Errorf("unmarshal metric validator: %w", err)
+	}
+
+	*v = MetricValidator(decoded)
+	return v.validateDefinition()
+}
+
+// Validate checks whether the metric value matches the validator.
+func (v *MetricValidator) Validate(value float64) error {
+	if v == nil {
+		return nil
+	}
+	if math.IsNaN(value) || math.IsInf(value, 0) {
+		return fmt.Errorf("%v not finite", value)
+	}
+	if v.Range != nil {
+		if value < *v.Range.Min || value > *v.Range.Max {
+			return fmt.Errorf("%v not in range [%v, %v]", value, *v.Range.Min, *v.Range.Max)
+		}
+		return nil
+	}
+
+	for _, allowedValue := range v.Values {
+		if value == allowedValue {
+			return nil
+		}
+	}
+	return fmt.Errorf("%v not in %v", value, v.Values)
+}
+
+func (v *MetricValidator) validateDefinition() error {
+	if v == nil {
+		return nil
+	}
+
+	hasRange := v.Range != nil
+	hasValues := len(v.Values) > 0
+
+	switch {
+	case hasRange && hasValues:
+		return errors.New("metric validator must define exactly one of range or values")
+	case !hasRange && !hasValues:
+		return errors.New("metric validator must define exactly one of range or values")
+	}
+
+	if hasRange {
+		if v.Range.Min == nil || v.Range.Max == nil {
+			return errors.New("metric validator range must define both min and max")
+		}
+		if math.IsNaN(*v.Range.Min) || math.IsInf(*v.Range.Min, 0) {
+			return fmt.Errorf("metric validator range min must be finite, got %v", *v.Range.Min)
+		}
+		if math.IsNaN(*v.Range.Max) || math.IsInf(*v.Range.Max, 0) {
+			return fmt.Errorf("metric validator range max must be finite, got %v", *v.Range.Max)
+		}
+		if *v.Range.Min > *v.Range.Max {
+			return fmt.Errorf("metric validator range min %v must be less than or equal to max %v", *v.Range.Min, *v.Range.Max)
+		}
+		return nil
+	}
+
+	for _, allowedValue := range v.Values {
+		if math.IsNaN(allowedValue) || math.IsInf(allowedValue, 0) {
+			return fmt.Errorf("metric validator values must be finite, got %v", allowedValue)
+		}
+	}
+
+	return nil
 }
 
 // MetricSupportSpec defines where a metric is supported.
@@ -65,6 +195,13 @@ type MetricSupportSpec struct {
 // ArchitecturesSpec is the YAML architecture capability specification.
 type ArchitecturesSpec struct {
 	Architectures map[string]ArchitectureSpec `yaml:"architectures"`
+}
+
+// Specs bundles all GPU spec files used by validation and tests.
+type Specs struct {
+	Metrics       *MetricsSpec
+	Tags          *TagsSpec
+	Architectures *ArchitecturesSpec
 }
 
 // ArchitectureCapabilities defines capabilities and unsupported fields.
@@ -135,6 +272,21 @@ func LoadMetricsSpec() (*MetricsSpec, error) {
 	return &parsed, nil
 }
 
+// LoadTagsSpec loads the canonical GPU tags specification file.
+func LoadTagsSpec() (*TagsSpec, error) {
+	data, err := embeddedSpecs.ReadFile(tagsSpecFile)
+	if err != nil {
+		return nil, fmt.Errorf("read tags spec %q: %w", tagsSpecFile, err)
+	}
+
+	var parsed TagsSpec
+	if err := yaml.Unmarshal(data, &parsed); err != nil {
+		return nil, fmt.Errorf("unmarshal tags spec %q: %w", tagsSpecFile, err)
+	}
+
+	return &parsed, nil
+}
+
 // LoadArchitecturesSpec loads the canonical GPU architectures specification file.
 func LoadArchitecturesSpec() (*ArchitecturesSpec, error) {
 	data, err := embeddedSpecs.ReadFile(architecturesSpecFile)
@@ -148,4 +300,28 @@ func LoadArchitecturesSpec() (*ArchitecturesSpec, error) {
 	}
 
 	return &parsed, nil
+}
+
+// LoadSpecs loads all canonical GPU specification files.
+func LoadSpecs() (*Specs, error) {
+	metrics, err := LoadMetricsSpec()
+	if err != nil {
+		return nil, fmt.Errorf("load metrics spec: %w", err)
+	}
+
+	tags, err := LoadTagsSpec()
+	if err != nil {
+		return nil, fmt.Errorf("load tags spec: %w", err)
+	}
+
+	architectures, err := LoadArchitecturesSpec()
+	if err != nil {
+		return nil, fmt.Errorf("load architectures spec: %w", err)
+	}
+
+	return &Specs{
+		Metrics:       metrics,
+		Tags:          tags,
+		Architectures: architectures,
+	}, nil
 }

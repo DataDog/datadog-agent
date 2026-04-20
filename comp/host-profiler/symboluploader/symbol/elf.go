@@ -44,7 +44,7 @@ type Elf struct {
 	elfDataDump string
 }
 
-func NewElfFromMapping(m *process.Mapping, gnuBuildID, goBuildID string, fileID libpf.FileID, pr process.Process) (*Elf, error) {
+func NewElfFromMapping(m *process.RawMapping, gnuBuildID, goBuildID string, fileID libpf.FileID, pr process.Process) (*Elf, error) {
 	wrapper, err := newElfWrapperFromMapping(m, pr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create elf wrapper from mapping: %w", err)
