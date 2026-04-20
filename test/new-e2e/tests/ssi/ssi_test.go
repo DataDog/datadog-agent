@@ -11,6 +11,7 @@ package ssi
 
 import (
 	_ "embed"
+	"os"
 	"testing"
 	"time"
 
@@ -22,6 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/ssi/testutils"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/singlestep"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
@@ -54,6 +56,10 @@ type ssiSuite struct {
 // TestSSISuite is the single entry point: one cluster is provisioned once with the base config,
 // then UpdateEnv is called at the start of each test group.
 func TestSSISuite(t *testing.T) {
+	if os.Getenv("E2E_PROVISIONER") == "aks" {
+		flake.Mark(t)
+	}
+
 	opts := ProvisionerOptions{
 		AgentOptions: []kubernetesagentparams.Option{
 			kubernetesagentparams.WithHelmValues(baseHelmValues),
