@@ -1426,13 +1426,15 @@ func applyInfrastructureModeOverrides(config pkgconfigmodel.Config) {
 		}
 
 		// Append user-defined filters after the defaults so they win (last matching filter wins).
+		// On unmarshal error, skip the override entirely: the user's (malformed) config is left
+		// in place so downstream surfaces it, rather than silently replacing it with defaults.
 		var userFilters []map[string]string
 		if err := structure.UnmarshalKey(config, "network_path.collector.filters", &userFilters); err != nil {
-			log.Warnf("Failed to unmarshal network_path.collector.filters: %v", err)
+			log.Errorf("Failed to unmarshal network_path.collector.filters, skipping EUDM filter override: %v", err)
 		} else {
 			defaultNetworkPathCollectorFilters = append(defaultNetworkPathCollectorFilters, userFilters...)
+			config.Set("network_path.collector.filters", defaultNetworkPathCollectorFilters, pkgconfigmodel.SourceAgentRuntime) // Agent runtime source is required to override customer defined filters with default configuration
 		}
-		config.Set("network_path.collector.filters", defaultNetworkPathCollectorFilters, pkgconfigmodel.SourceAgentRuntime) // Agent runtime source is required to override customer defined filters with default configuration
 
 		// Enable features for end_user_device mode
 		config.Set("process_config.process_collection.enabled", true, pkgconfigmodel.SourceInfraMode)
