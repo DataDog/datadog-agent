@@ -307,8 +307,12 @@ typedef struct _userFlowData {
     } protocol_u;
 
     uint16_t tls_cipher_suite;
-    uint16_t        pad_tls_cipher_suite;
-    uint32_t        interfaceIndex;
+    // interfaceIndex is the kernel's uint32_t, but stored here as a 4-byte array so
+    // cgo godefs can generate a Go struct that preserves the driver's #pragma pack(1)
+    // layout (uint32 at offset 190 has 2-byte alignment, which Go doesn't support
+    // natively). Read via GetInterfaceIndex() in flow_windows.go.
+    uint8_t         interfaceIndex[4];
+    uint16_t        pad_interfaceIndex;
 } USER_FLOW_DATA;
 
 #define CLASSIFICATION_UNCLASSIFIED                 (0)

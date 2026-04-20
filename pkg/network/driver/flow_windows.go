@@ -6,6 +6,7 @@
 package driver
 
 import (
+	"encoding/binary"
 	"syscall"
 	"unsafe"
 )
@@ -24,4 +25,13 @@ func (f PerFlowData) UDPFlow() *UDPFlowData {
 		return (*UDPFlowData)(unsafe.Pointer(&f.Protocol_u[0]))
 	}
 	return nil
+}
+
+// GetInterfaceIndex returns the network interface index for this flow.
+// The driver USER_FLOW_DATA struct uses #pragma pack(1), which places the
+// uint32 interfaceIndex field at an unaligned offset (190). The C header
+// declares it as a uint8_t[4] so Go can represent it without alignment
+// padding; decode little-endian here.
+func (f PerFlowData) GetInterfaceIndex() uint32 {
+	return binary.LittleEndian.Uint32(f.InterfaceIndex[:])
 }

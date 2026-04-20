@@ -137,8 +137,8 @@ type PerFlowData struct {
 	Tls_alpn_chosen          uint64
 	Protocol_u               [36]byte
 	Tls_cipher_suite         uint16
-	Pad_tls_cipher_suite     uint16
-	InterfaceIndex           uint32
+	InterfaceIndex           [4]uint8
+	Pad_interfaceIndex       uint16
 }
 type TCPFlowData struct {
 	IRTT             uint64
