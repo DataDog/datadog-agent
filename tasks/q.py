@@ -406,7 +406,7 @@ def eval_combinations(
 
     if seed is not None:
         seed = int(seed)
-    if seed is None:
+    else:
         seed = random.randint(0, 2**32 - 1)
 
     force_enable_list = [c.strip() for c in force_enable.split(",") if c.strip()]
@@ -659,7 +659,7 @@ def eval_bayesian(
 
     if seed is not None:
         seed = int(seed)
-    if seed is None:
+    else:
         seed = random.randint(0, 2**32 - 1)
 
     if not _prepare_eval_output_dir(output_dir, overwrite=overwrite):
@@ -979,7 +979,7 @@ def eval_pipeline(
 
     if seed is not None:
         seed = int(seed)
-    if seed is None:
+    else:
         seed = random.randint(0, 2**32 - 1)
 
     rng = random.Random(seed)
@@ -1313,7 +1313,7 @@ def eval_component(
 
     if seed is not None:
         seed = int(seed)
-    if seed is None:
+    else:
         seed = random.randint(0, 2**32 - 1)
 
     # --- deterministic seed derivation ---
