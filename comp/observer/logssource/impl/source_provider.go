@@ -17,6 +17,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // sourceProvider translates workloadmeta container events into LogSources,
@@ -98,6 +99,7 @@ func (sp *sourceProvider) handleSet(c *workloadmeta.Container) {
 	})
 	sp.activeSources[c.EntityID.ID] = src
 	sp.logSources.AddSource(src)
+	log.Infof("[observer/logssource] added container source: %s (runtime=%s)", c.Image.ShortName, c.Runtime)
 }
 
 func (sp *sourceProvider) handleUnset(c *workloadmeta.Container) {

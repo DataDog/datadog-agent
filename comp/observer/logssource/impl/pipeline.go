@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/processor"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // observerPipeline is a pipeline.Provider that forwards log messages to the
@@ -67,7 +68,12 @@ func newObserverPipeline(
 func (p *observerPipeline) start() {
 	go func() {
 		defer close(p.drainDone)
+		first := true
 		for msg := range p.outputChan {
+			if first {
+				log.Infof("[observer/logssource] first log received, pipeline is live")
+				first = false
+			}
 			p.observerHandle.ObserveLog(msg)
 		}
 	}()

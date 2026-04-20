@@ -17,8 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
@@ -93,6 +93,7 @@ func NewComponent(deps Requires) (Provides, error) {
 
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(_ context.Context) error {
+			deps.Log.Infof("[observer/logssource] starting container log pipeline")
 			pipeline.start()
 			launchersMgr.Start()
 			sp.run(ctx)
