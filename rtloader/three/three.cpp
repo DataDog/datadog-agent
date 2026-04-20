@@ -366,8 +366,7 @@ bool Three::getCheck(RtLoaderPyObject *py_class, const char *init_config_str, co
 
     if (sub_tstate != NULL) {
         // Switch to the sub-interpreter: release main GIL, acquire sub-interp GIL.
-        main_tstate = PyEval_SaveThread();
-        PyEval_RestoreThread(sub_tstate);
+        main_tstate = PyThreadState_Swap(sub_tstate);
 
         // Re-import the check module in the sub-interpreter context.
         PyObject *sub_module = PyImport_ImportModule(module_name_str.c_str());
@@ -376,8 +375,7 @@ bool Three::getCheck(RtLoaderPyObject *py_class, const char *init_config_str, co
             // sub-interpreter support (Py_MOD_PER_INTERPRETER_GIL_SUPPORTED).
             // Fall back to main interpreter for this check.
             PyErr_Clear();
-            Py_EndInterpreter(sub_tstate);
-            PyEval_RestoreThread(main_tstate);
+            _destroySubInterpreter(sub_tstate, main_tstate);
             sub_tstate = NULL;
         } else {
             // Re-import the base class (AgentCheck) in the sub-interpreter.
@@ -387,8 +385,7 @@ bool Three::getCheck(RtLoaderPyObject *py_class, const char *init_config_str, co
             if (sub_base == NULL) {
                 PyErr_Clear();
                 Py_XDECREF(sub_module);
-                Py_EndInterpreter(sub_tstate);
-                PyEval_RestoreThread(main_tstate);
+                _destroySubInterpreter(sub_tstate, main_tstate);
                 sub_tstate = NULL;
             } else {
                 // Find the AgentCheck subclass in the re-imported module.
@@ -397,8 +394,7 @@ bool Three::getCheck(RtLoaderPyObject *py_class, const char *init_config_str, co
                 Py_DECREF(sub_module);
 
                 if (sub_klass == NULL) {
-                    Py_EndInterpreter(sub_tstate);
-                    PyEval_RestoreThread(main_tstate);
+                    _destroySubInterpreter(sub_tstate, main_tstate);
                     sub_tstate = NULL;
                 } else {
                     // Success! Replace klass with the sub-interpreter's class.
@@ -582,15 +578,10 @@ done:
                 _checkToInterp[py_check] = sub_tstate;
             }
             // Switch back to main: release sub-interp GIL, acquire main GIL.
-            PyEval_SaveThread();
-            PyEval_RestoreThread(main_tstate);
+            PyThreadState_Swap(main_tstate);
         } else {
             // Check creation failed in the sub-interpreter. Destroy it.
-            // We're still attached to the sub-interp (Py_EndInterpreter
-            // requires this). After destruction, no GIL is held — just C++.
-            // Then re-attach to main.
-            Py_EndInterpreter(sub_tstate);
-            PyEval_RestoreThread(main_tstate);
+            _destroySubInterpreter(sub_tstate, main_tstate);
         }
     }
 #endif
@@ -617,10 +608,9 @@ char *Three::runCheck(RtLoaderPyObject *check)
     PyThreadState *sub_tstate = _lookupCheckInterp(py_check);
     PyThreadState *main_tstate = NULL;
     if (sub_tstate != NULL) {
-        // Release main GIL (detach), acquire sub-interp GIL (attach).
+        // Switch to sub-interp: release main GIL, acquire sub-interp GIL.
         // All Python calls below will execute in the sub-interpreter.
-        main_tstate = PyEval_SaveThread();
-        PyEval_RestoreThread(sub_tstate);
+        main_tstate = PyThreadState_Swap(sub_tstate);
     }
 #endif
 
@@ -648,10 +638,9 @@ done:
 
 #ifdef RTLOADER_HAS_SUBINTERPRETERS
     if (sub_tstate != NULL) {
-        // Release sub-interp GIL (detach), re-acquire main GIL (attach).
+        // Switch back to main: release sub-interp GIL, re-acquire main GIL.
         // Go's stickyLock expects us to return with main GIL held.
-        PyEval_SaveThread();
-        PyEval_RestoreThread(main_tstate);
+        PyThreadState_Swap(main_tstate);
     }
 #endif
 
@@ -670,8 +659,7 @@ void Three::cancelCheck(RtLoaderPyObject *check)
     PyThreadState *sub_tstate = _lookupCheckInterp(py_check);
     PyThreadState *main_tstate = NULL;
     if (sub_tstate != NULL) {
-        main_tstate = PyEval_SaveThread();
-        PyEval_RestoreThread(sub_tstate);
+        main_tstate = PyThreadState_Swap(sub_tstate);
     }
 #endif
 
@@ -687,8 +675,7 @@ void Three::cancelCheck(RtLoaderPyObject *check)
 
 #ifdef RTLOADER_HAS_SUBINTERPRETERS
     if (sub_tstate != NULL) {
-        PyEval_SaveThread();
-        PyEval_RestoreThread(main_tstate);
+        PyThreadState_Swap(main_tstate);
     }
 #endif
 }
@@ -705,8 +692,7 @@ char **Three::getCheckWarnings(RtLoaderPyObject *check)
     PyThreadState *sub_tstate = _lookupCheckInterp(py_check);
     PyThreadState *main_tstate = NULL;
     if (sub_tstate != NULL) {
-        main_tstate = PyEval_SaveThread();
-        PyEval_RestoreThread(sub_tstate);
+        main_tstate = PyThreadState_Swap(sub_tstate);
     }
 #endif
 
@@ -757,8 +743,7 @@ done:
 
 #ifdef RTLOADER_HAS_SUBINTERPRETERS
     if (sub_tstate != NULL) {
-        PyEval_SaveThread();
-        PyEval_RestoreThread(main_tstate);
+        PyThreadState_Swap(main_tstate);
     }
 #endif
 
@@ -777,8 +762,7 @@ char *Three::getCheckDiagnoses(RtLoaderPyObject *check)
     PyThreadState *sub_tstate = _lookupCheckInterp(py_check);
     PyThreadState *main_tstate = NULL;
     if (sub_tstate != NULL) {
-        main_tstate = PyEval_SaveThread();
-        PyEval_RestoreThread(sub_tstate);
+        main_tstate = PyThreadState_Swap(sub_tstate);
     }
 #endif
 
@@ -806,8 +790,7 @@ done:
 
 #ifdef RTLOADER_HAS_SUBINTERPRETERS
     if (sub_tstate != NULL) {
-        PyEval_SaveThread();
-        PyEval_RestoreThread(main_tstate);
+        PyThreadState_Swap(main_tstate);
     }
 #endif
 
@@ -1142,14 +1125,11 @@ void Three::decref(RtLoaderPyObject *obj)
         //      no destroy on each check removal) doesn't leak.
         //   3. Destroy the sub-interpreter (1:1 policy — one interp per check)
         //   4. Switch back to main (re-acquire main GIL)
-        PyThreadState *main_tstate = PyEval_SaveThread();
-        PyEval_RestoreThread(sub_tstate);
+        PyThreadState *main_tstate = PyThreadState_Swap(sub_tstate);
 
         Py_XDECREF(pyobj);
 
-        _destroySubInterpreter(sub_tstate);
-        // Now: sub-interp destroyed, no GIL held, no tstate — just C++.
-        PyEval_RestoreThread(main_tstate);
+        _destroySubInterpreter(sub_tstate, main_tstate);
         return;
     }
 #endif
@@ -1181,14 +1161,13 @@ void Three::setModuleAttrString(char *module, char *attr, char *value)
     Py_XDECREF(py_value);
 
 #ifdef RTLOADER_HAS_SUBINTERPRETERS
-    // Store the (module, attr, value) tuple so it can be replayed into each
-    // new sub-interpreter at creation time. Without this, sub-interpreters
-    // would import fresh copies of modules (e.g., datadog_agent) that don't
+    // Store the (module, attr, value) tuple so it can be copied into each
+    // new sub-interpreter at creation time (see _copyModuleAttrs). Without
+    // this, sub-interpreters would import fresh copies of modules that don't
     // have the attributes Go set on the main interpreter's copy.
     //
-    // No mutex needed: setModuleAttrString is always called from Go with
-    // stickyLock held (main GIL), and _createSubInterpreter is also called
-    // under the main GIL, so there's no concurrent access to _moduleAttrs.
+    // Currently the only production caller is SetPythonPsutilProcPath
+    // (pkg/collector/python/helpers.go), which sets psutil.PROCFS_PATH.
     _moduleAttrs.push_back({std::string(module), std::string(attr), std::string(value)});
 #endif
 }

@@ -166,8 +166,8 @@ private:
     // Returns the new sub-interpreter's thread state, or NULL on failure.
     PyThreadState *_createSubInterpreter();
 
-    // Destroys a sub-interpreter and ends its thread state.
-    void _destroySubInterpreter(PyThreadState *tstate);
+    // Destroys a sub-interpreter and re-attaches to restore_tstate.
+    void _destroySubInterpreter(PyThreadState *tstate, PyThreadState *restore_tstate);
 
     // Looks up which sub-interpreter a check belongs to.
     // Returns the thread state, or NULL if the check runs in main interpreter.
@@ -178,8 +178,8 @@ private:
     PyThreadState *_removeCheckInterp(PyObject *check);
 
     // Stores (module, attr, value) tuples set by Go via setModuleAttrString.
-    // Replayed into each new sub-interpreter at creation time so that
-    // attributes set at startup (hostname, version, etc.) are visible in
+    // Copied into each new sub-interpreter at creation time so that
+    // attributes set at startup (e.g., psutil.PROCFS_PATH) are visible in
     // every interpreter. No mutex needed — all access happens while
     // holding the main GIL (setModuleAttrString and _createSubInterpreter
     // are both called from Go with stickyLock held).
@@ -190,9 +190,9 @@ private:
     };
     std::vector<ModuleAttr> _moduleAttrs;
 
-    // Replays all stored module attributes into the current sub-interpreter.
+    // Copies all stored module attributes into the current sub-interpreter.
     // Must be called while attached to the sub-interpreter (holding its GIL).
-    void _replayModuleAttrs();
+    void _copyModuleAttrs();
 
     // Module names that should NOT run in sub-interpreters (e.g., checks with
     // transitive C extension dependencies that don't support sub-interpreters).
