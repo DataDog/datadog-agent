@@ -119,7 +119,9 @@ func createDeps(t *testing.T, confOverrides map[string]interface{}, options ...f
 		hostinfomock.MockModule(),
 
 		// Checks
-		processcheckimpl.MockModule(),
+		fx.Provide(func(t testing.TB) types.ProvidesCheck {
+			return processcheckimpl.NewMock(t, types.MockCheckParams[*processchecks.ProcessCheck]{})
+		}),
 		fx.Provide(func(t testing.TB) types.ProvidesCheck {
 			return containercheckimpl.NewMock(t, types.MockCheckParams[*processchecks.ContainerCheck]{})
 		}),
