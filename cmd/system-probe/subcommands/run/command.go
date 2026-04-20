@@ -72,9 +72,6 @@ import (
 	eventplatformfx "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/fx"
 	eventplatformreceiverimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/impl"
 	network "github.com/DataDog/datadog-agent/comp/network"
-	npcollectorfx "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/fx"
-	localtraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-local"
-	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	rcclientfx "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/fx"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
@@ -209,8 +206,6 @@ func getSharedFxOption() fx.Option {
 		connectionsforwarderfx.Module(),
 		eventplatformreceiverimpl.Module(),
 		eventplatformfx.Module(eventplatform.NewDefaultParams()),
-		rdnsquerierfx.Module(),
-		npcollectorfx.Module(),
 	)
 }
 

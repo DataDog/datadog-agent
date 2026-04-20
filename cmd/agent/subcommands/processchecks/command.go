@@ -33,7 +33,6 @@ import (
 	npcollectorfx "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/fx"
 	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	processComponent "github.com/DataDog/datadog-agent/comp/process"
-	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
 	check "github.com/DataDog/datadog-agent/pkg/cli/subcommands/processchecks"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 )
