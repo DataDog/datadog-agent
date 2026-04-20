@@ -291,6 +291,102 @@ fn services_response_to_result(resp: ServicesResponse) -> dd_discovery_result {
 }
 
 // ---------------------------------------------------------------------------
+// Logger bridge
+// ---------------------------------------------------------------------------
+
+/// Callback type used to forward Rust log records to the Go logging subsystem.
+///
+/// Parameters:
+/// - `level`: severity — 1=Error, 2=Warn, 3=Info, 4=Debug, 5=Trace.
+/// - `msg` / `msg_len`: UTF-8 log message (NOT NUL-terminated).
+///
+/// The pointer is only valid for the duration of the call; do not retain it.
+pub type dd_log_fn = unsafe extern "C" fn(level: u32, msg: *const c_char, msg_len: usize);
+
+/// Stores the Go log callback set via `dd_discovery_init_logger`. Written once.
+static LOGGER_CALLBACK: std::sync::OnceLock<dd_log_fn> = std::sync::OnceLock::new();
+
+/// Logger backend that forwards records to the registered Go callback.
+struct GoLogger;
+
+impl log::Log for GoLogger {
+    fn enabled(&self, _metadata: &log::Metadata) -> bool {
+        true // All records pass through; Go-side filtering applies.
+    }
+
+    fn log(&self, record: &log::Record) {
+        let Some(&callback) = LOGGER_CALLBACK.get() else {
+            return;
+        };
+        let level: u32 = match record.level() {
+            log::Level::Error => 1,
+            log::Level::Warn => 2,
+            log::Level::Info => 3,
+            log::Level::Debug => 4,
+            log::Level::Trace => 5,
+        };
+        let message = record.args().to_string();
+        // SAFETY: `callback` was registered by the Go runtime and is valid for
+        // the process lifetime. `message` is live for the duration of this call.
+        unsafe { callback(level, message.as_ptr() as *const c_char, message.len()) };
+    }
+
+    fn flush(&self) {}
+}
+
+static GO_LOGGER: GoLogger = GoLogger;
+
+/// Register a Go logging callback. Idempotent: only the first call has effect;
+/// subsequent calls (e.g. from racing goroutines at start-up) are ignored.
+///
+/// All log levels are forwarded to the callback; the Go side applies its own
+/// level filter so no records are emitted above the configured level.
+///
+/// # Panic safety
+/// Wrapped in `catch_unwind` following the convention in this file: unwinding
+/// across a C ABI boundary is undefined behaviour per the Rust nomicon.
+///
+/// # Safety
+/// `callback` must be a valid function pointer that remains valid for the
+/// lifetime of the process.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn dd_discovery_init_logger(callback: dd_log_fn, max_level: u32) {
+    // SAFETY: Wrapping in catch_unwind prevents a Rust panic from unwinding
+    // across the C ABI boundary, which would be undefined behaviour.
+    let _ = panic::catch_unwind(AssertUnwindSafe(|| {
+        if LOGGER_CALLBACK.set(callback).is_err() {
+            return;
+        }
+        // `set_logger` returns Err if another logger was already registered
+        // (e.g. in a test harness). In that case LOGGER_CALLBACK is set but
+        // GoLogger is not installed, so all Rust log records would be silently
+        // dropped. Surface the conflict so it is not invisible to the caller.
+        if log::set_logger(&GO_LOGGER).is_err() {
+            // A Rust logger was already registered (e.g. in a test harness).
+            // Use the callback directly — the log facade is unavailable — so the
+            // error reaches the Go structured logger instead of being lost to stderr.
+            let msg = "[dd_discovery] a Rust logger was already registered; \
+                       log records will not be forwarded to the Go logger";
+            unsafe { callback(1, msg.as_ptr() as *const c_char, msg.len()) };
+            return;
+        }
+        // Mirror the Go log level so the Rust log facade can discard records
+        // below the configured threshold before formatting or crossing the FFI.
+        // Level mapping mirrors dd_log_fn: 1=Error, 2=Warn, 3=Info, 4=Debug, 5=Trace.
+        // Any other value (including 0) falls back to Info — a safe middle ground
+        // that preserves visibility without flooding logs if the contract is violated.
+        let filter = match max_level {
+            1 => log::LevelFilter::Error,
+            2 => log::LevelFilter::Warn,
+            4 => log::LevelFilter::Debug,
+            5 => log::LevelFilter::Trace,
+            _ => log::LevelFilter::Info,
+        };
+        log::set_max_level(filter);
+    }));
+}
+
+// ---------------------------------------------------------------------------
 // Exported C ABI functions
 // ---------------------------------------------------------------------------
 

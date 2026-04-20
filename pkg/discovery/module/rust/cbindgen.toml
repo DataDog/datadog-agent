@@ -29,6 +29,7 @@ include = [
     "dd_tracer_metadata_slice",
     "dd_service",
     "dd_discovery_result",
+    "dd_log_fn",
 ]
 
 [fn]
