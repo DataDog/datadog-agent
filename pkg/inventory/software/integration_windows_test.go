@@ -300,7 +300,7 @@ func TestIntegrationMSStoreApps(t *testing.T) {
 	}
 	if len(jsonBytes) > 0 {
 		err = json.Unmarshal(jsonBytes, &psApps)
-		require.NoError(t, err, "Failed to parse JSON output")
+		require.NoError(t, err, "Failed to parse JSON output:\nstdout:\n%s\nstderr:\n%s", string(jsonBytes), stderr.String())
 	}
 	// Build map: productCode -> []Entry
 	psInventory := []Entry{}
