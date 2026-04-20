@@ -11,7 +11,6 @@ package ssi
 
 import (
 	_ "embed"
-	"os"
 	"testing"
 	"time"
 
