@@ -38,6 +38,11 @@ func NewParser(siemParsing bool) parsers.Parser {
 // err != nil. On error, the structured message contains the raw content as its
 // "message" field and best-effort syslog metadata. Callers MUST NOT discard
 // the result on error — the message is intentionally usable.
+//
+// TODO(syslog-v7): On parse failure, return the original message unmodified
+// instead of wrapping partial metadata in a StateStructured message. This
+// avoids misleading syslog fields and prevents CEF/LEEF extraction on
+// potentially truncated fragments.
 func (p *parser) Parse(msg *message.Message) (*message.Message, error) {
 	var parsed SyslogMessage
 	var err error
