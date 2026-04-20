@@ -44,6 +44,7 @@ var validProducts = map[string]struct{}{
 	ProductSyntheticsTest:               {},
 	ProductBTFDD:                        {},
 	ProductFFEFlags:                     {},
+	ProductAgentFlags:                   {},
 	ProductDOQueryActions:               {},
 	ProductK8SActions:                   {},
 }
@@ -126,6 +127,8 @@ const (
 	ProductApmPolicies = "APM_POLICIES"
 	// ProductFFEFlags is used for feature flagging experiments remote updates
 	ProductFFEFlags = "FFE_FLAGS"
+	// ProductAgentFlags is used for remote feature flags
+	ProductAgentFlags = "AGENT_FLAGS"
 	// ProductDOQueryActions is used for executing database queries remotely for Data Observability
 	ProductDOQueryActions = "DO_QUERY_ACTIONS"
 	// ProductK8SActions receives Kubernetes actions to execute on cluster resources

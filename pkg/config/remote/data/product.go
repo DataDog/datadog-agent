@@ -44,6 +44,8 @@ const (
 	ProductDataStreamsLiveMessages = "DSM_LIVE_MESSAGES"
 	// ProductDataStreamsKafkaActions is to execute Kafka actions remotely
 	ProductDataStreamsKafkaActions = "DSM_KAFKA_ACTIONS"
+	// ProductAgentFlags is to receive remote feature flags
+	ProductAgentFlags = "AGENT_FLAGS"
 	// ProductDOQueryActions is to execute database queries remotely for Data Observability
 	ProductDOQueryActions Product = "DO_QUERY_ACTIONS"
 )
