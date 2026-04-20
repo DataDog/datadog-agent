@@ -11,12 +11,13 @@ import (
 
 // TestALPNFunctionsExist verifies that the ALPN websocket functions
 // are implemented and accessible for testing. These functions set up
-// websocket clients with ALPN protocol negotiation for dd-rc-v1.
+// websocket clients with ALPN protocol negotiation.
 //
 // The actual ALPN protocol negotiation is tested end-to-end with real
-// backend servers that support the dd-rc-v1 application protocol.
+// backend servers that support the ALPN application protocol.
 func TestALPNFunctionsExist(t *testing.T) {
-	_ = newWebSocketClientWithALPN
+	_ = newWebSocketClient
 	_ = runEchoLoopWithALPN
 	_ = runWebSocketTestWithALPN
+	_ = alpnProtocolDDRC
 }

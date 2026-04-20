@@ -35,6 +35,11 @@ const (
 	ALPN_DD_RC ALPNMode = 1
 )
 
+// alpnProtocolDDRC is the ALPN protocol identifier for Datadog Remote Config
+// WebSocket connections. This protocol enables optimized routing and handling
+// of remote config traffic at the load balancer and backend level.
+const alpnProtocolDDRC = "dd-rc-v1"
+
 func runEchoLoopWithALPN(ctx context.Context, client *api.HTTPClient, runCount uint64) (uint, error) {
 	conn, err := newWebSocketClient(ctx, "/api/v0.2/echo-test", client, runCount, ALPN_DD_RC)
 	if err != nil {
@@ -207,7 +212,7 @@ func newWebSocketClient(ctx context.Context, endpointPath string, httpClient *ap
 
 		// Clone and configure TLS for ALPN.
 		tlsConfig = tlsConfig.Clone()
-		tlsConfig.NextProtos = []string{"dd-rc-v1"}
+		tlsConfig.NextProtos = []string{alpnProtocolDDRC}
 	}
 
 	dialer := &websocket.Dialer{
@@ -235,7 +240,7 @@ func newWebSocketClient(ctx context.Context, endpointPath string, httpClient *ap
 
 	logMsg := fmt.Sprintf("connecting to websocket endpoint %s", url.String())
 	if alpnMode == ALPN_DD_RC {
-		logMsg += " with ALPN dd-rc-v1"
+		logMsg += fmt.Sprintf(" with ALPN %s", alpnProtocolDDRC)
 	}
 	log.Debug(logMsg)
 
@@ -249,7 +254,7 @@ func newWebSocketClient(ctx context.Context, endpointPath string, httpClient *ap
 
 	logMsg = "websocket connected"
 	if alpnMode == ALPN_DD_RC {
-		logMsg += " with ALPN dd-rc-v1"
+		logMsg += fmt.Sprintf(" with ALPN %s", alpnProtocolDDRC)
 	}
 	log.Debug(logMsg)
 
