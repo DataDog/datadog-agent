@@ -100,12 +100,10 @@ func buildSourceSpecificContent(entityName, errorMessage, errorSource string) is
 		return issueContent{
 			title:       title,
 			description: "Autodiscovery template resolution error: " + errorMessage,
-			summary:     "Verify that all template variables are supported by the autodiscovery listener for this service",
+			summary:     "Verify that all template variables in the integration configuration are supported for this service",
 			steps: []*healthplatform.RemediationStep{
-				{Order: 1, Text: "Check that all template variables (%%var%%) are supported by the listener type for this service"},
-				{Order: 2, Text: "Review the AD identifiers and ensure they match the correct listener (e.g., RDS vs Aurora have different supported variables)"},
-				{Order: 3, Text: "Run 'datadog-agent configcheck' to see all configuration resolution warnings"},
-				{Order: 4, Text: "See docs: https://docs.datadoghq.com/containers/guide/template_variables/"},
+				{Order: 1, Text: "Check that all template variables (%%var%%) in your integration configuration are supported for this service"},
+				{Order: 2, Text: "Run 'datadog-agent configcheck' to see all configuration resolution warnings"},
 			},
 		}
 	case containerLabelSource:

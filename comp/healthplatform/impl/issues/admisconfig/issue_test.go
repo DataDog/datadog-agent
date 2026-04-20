@@ -52,7 +52,7 @@ func TestBuildIssue(t *testing.T) {
 			},
 			expectedTitle:     "AD Misconfiguration on 'postgres (docker://abc123)'",
 			expectedDescSub:   "template resolution error",
-			expectedStepCount: 4,
+			expectedStepCount: 2,
 		},
 		{
 			name:              "empty context defaults to pod annotation remediation",
