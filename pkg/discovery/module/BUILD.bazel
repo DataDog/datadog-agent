@@ -1,0 +1,12 @@
+# gazelle:ignore
+# gazelle:exclude rust/include
+# gazelle:exclude rust/src
+# gazelle:exclude rust/testdata/ddtrace
+# gazelle:exclude rust/testdata/jee
+# gazelle:exclude rust/testdata/nodejs
+# gazelle:exclude rust/testdata/python
+# gazelle:exclude rust/testdata/ruby
+# gazelle:exclude rust/testdata/spring
+# gazelle:exclude rust/tests
+# gazelle:exclude testdata
+# gazelle:exclude testutil

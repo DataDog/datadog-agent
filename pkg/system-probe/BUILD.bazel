@@ -1,0 +1,5 @@
+# gazelle:ignore
+# gazelle:exclude api/client
+# gazelle:exclude api/module
+# gazelle:exclude api/server/testutil
+# gazelle:exclude config
