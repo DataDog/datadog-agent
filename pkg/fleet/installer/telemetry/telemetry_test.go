@@ -70,6 +70,23 @@ func TestStartSpanFromIDs(t *testing.T) {
 	require.Equal(t, span, spanFromCtx)
 }
 
+func TestStartSpanFromUint64IDs(t *testing.T) {
+	ctx := context.Background()
+
+	span, ctx := StartSpanFromUint64IDs(ctx, "ids-operation", 100, 200)
+	require.NotNil(t, span)
+	require.Equal(t, uint64(100), span.span.TraceID)
+	require.Equal(t, uint64(200), span.span.ParentID)
+
+	val, ok := span.span.Metrics["_top_level"]
+	require.True(t, ok)
+	require.Equal(t, 1.0, val)
+
+	spanFromCtx, ok := SpanFromContext(ctx)
+	require.True(t, ok)
+	require.Equal(t, span, spanFromCtx)
+}
+
 func strPtr(s string) *string {
 	return &s
 }

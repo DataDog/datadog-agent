@@ -195,11 +195,18 @@ func converIDsToUint64(traceID, parentID string) (uint64, uint64) {
 	return traceIDInt, parentIDInt
 }
 
-// StartSpanFromIDs starts a span using the trace and parent
-// IDs provided.
+// StartSpanFromIDs starts a span using the trace and parent IDs provided as
+// decimal strings. Malformed inputs yield a fresh top-level trace.
 func StartSpanFromIDs(ctx context.Context, operationName, traceID, parentID string) (*Span, context.Context) {
 	traceIDInt, parentIDInt := converIDsToUint64(traceID, parentID)
-	span, ctx := startSpanFromIDs(ctx, operationName, traceIDInt, parentIDInt)
+	return StartSpanFromUint64IDs(ctx, operationName, traceIDInt, parentIDInt)
+}
+
+// StartSpanFromUint64IDs starts a span using the trace and parent IDs provided
+// as uint64. The created span is marked top-level: it is the entry point of
+// this process's participation in the trace.
+func StartSpanFromUint64IDs(ctx context.Context, operationName string, traceID, parentID uint64) (*Span, context.Context) {
+	span, ctx := startSpanFromIDs(ctx, operationName, traceID, parentID)
 	span.SetTopLevel()
 	return span, ctx
 }
