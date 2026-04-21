@@ -337,7 +337,6 @@ func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 	c.maybeRebuild()
 
 	c.Lock()
-	defer c.Unlock()
 
 	key = strings.ToLower(key)
 	previousValue := c.leafAtPathFromNode(key, c.root).Get()
@@ -346,10 +345,12 @@ func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 	tree, err := c.getTreeBySource(source)
 	if err != nil {
 		log.Errorf("%s", err)
+		c.Unlock()
 		return
 	}
 	parentNode, childName, err := c.parentOfNode(tree, key)
 	if err != nil {
+		c.Unlock()
 		return
 	}
 	// Only remove if the setting is a leaf
@@ -358,12 +359,14 @@ func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 			parentNode.RemoveChild(childName)
 		} else {
 			log.Errorf("cannot remove setting %q, not a leaf", key)
+			c.Unlock()
 			return
 		}
 	}
 
 	// If the node in the merged tree doesn't match the source we expect, we're done
 	if c.leafAtPathFromNode(key, c.root).Source() != source {
+		c.Unlock()
 		return
 	}
 
@@ -373,12 +376,14 @@ func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 	// Get the parent node of the leaf we're unsetting
 	parentNode, childName, err = c.parentOfNode(c.root, key)
 	if err != nil {
+		c.Unlock()
 		return
 	}
 
 	// If there was no previous source with a node of this name, simply remove it from the parent
 	if findPreviousSourceError != nil {
 		parentNode.RemoveChild(childName)
+		c.Unlock()
 		return
 	}
 
@@ -389,13 +394,17 @@ func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 
 	// Value has not changed, do not notify
 	if reflect.DeepEqual(previousValue, newValue) {
+		c.Unlock()
 		return
 	}
 
 	c.sequenceID++
 	receivers := slices.Clone(c.notificationReceivers)
+	c.Unlock()
 
-	// notifying all receiver about the updated setting
+	// Notify receivers outside the lock. Subscribers commonly read the
+	// config from within their callback, and doing so while the write
+	// lock is still held deadlocks them against this goroutine.
 	for _, receiver := range receivers {
 		receiver(key, source, previousValue, newValue, c.sequenceID)
 	}
