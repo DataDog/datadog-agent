@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fixed Python check log submission to raise an error for immediate
+    Agent-side failures such as missing check context or a missing
+    integration log receiver. Manual ``agent check`` runs no longer
+    silently treat those dropped logs as successful submissions.
