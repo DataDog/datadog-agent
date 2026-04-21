@@ -58,7 +58,7 @@ Examples:
   datadog-agent otel install
 
   # Custom BYOC registry, version inferred from installed agent
-  DD_INSTALLER_REGISTRY_AUTH=gcr datadog-agent otel install --registry us-central1-docker.pkg.dev/myproject/byoc`,
+  DD_INSTALLER_REGISTRY_AUTH=gcr datadog-agent otel install --registry registry.example.com`,
 		Args: cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			url, err := resolvePackageURL(explicitURL, registry)
