@@ -167,6 +167,11 @@ func TestDemuxBucketSizeOption(t *testing.T) {
 		require.Equal(int64(1), w.sampler.interval, "time sampler %d should use configured bucket size", i)
 	}
 
+	// Options() must report the effective (canonicalized) bucket size, so
+	// that observers of demux state cannot diverge from runtime behavior.
+	require.Equal(int64(1), demux.Options().BucketSize,
+		"demux.Options().BucketSize must reflect the effective runtime value")
+
 	go demux.run()
 
 	batch := testDemuxSamples(t)
@@ -187,6 +192,27 @@ func TestDemuxBucketSizeOption(t *testing.T) {
 			require.Equal(batch[i].Value/float64(DefaultBucketSize), s.Points[0].Value,
 				"no-agg rate sample %q must be divided by DefaultBucketSize even when opts.BucketSize=1", s.Name)
 		}
+	}
+}
+
+// TestDemuxBucketSizeCanonicalization verifies that when options.BucketSize
+// is left at the zero value, Options() reports the resolved (effective)
+// value rather than the uncanonicalized input. Prevents drift between
+// observers of demux state and what the samplers actually use.
+func TestDemuxBucketSizeCanonicalization(t *testing.T) {
+	require := require.New(t)
+
+	opts := demuxTestOptions()
+	require.Equal(int64(0), opts.BucketSize, "precondition: demuxTestOptions leaves BucketSize zero")
+
+	deps := createDemultiplexerAgentTestDeps(t)
+	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
+
+	require.Equal(DefaultBucketSize, demux.Options().BucketSize,
+		"Options().BucketSize must report the effective value, not the zero input")
+	for i, w := range demux.statsd.workers {
+		require.Equal(DefaultBucketSize, w.sampler.interval,
+			"time sampler %d must use DefaultBucketSize when no override is set", i)
 	}
 }
 

@@ -194,7 +194,10 @@ func initAgentDemultiplexer(log log.Component,
 	_, statsdPipelinesCount := GetDogStatsDWorkerAndPipelineCount()
 	log.Debug("the Demultiplexer will use", statsdPipelinesCount, "pipelines")
 
-	bucketSize := resolveBucketSize(options.BucketSize)
+	// Canonicalize BucketSize so the stored options reflect the effective
+	// runtime value exposed via Options(), rather than the uncanonicalized
+	// input (which may be zero when falling back to config/default).
+	options.BucketSize = resolveBucketSize(options.BucketSize)
 
 	statsdWorkers := make([]*timeSamplerWorker, statsdPipelinesCount)
 
@@ -202,7 +205,7 @@ func initAgentDemultiplexer(log log.Component,
 		// the sampler
 		tagsStore := tags.NewStore(pkgconfigsetup.Datadog().GetBool("aggregator_use_tags_store"), fmt.Sprintf("timesampler #%d", i))
 
-		statsdSampler := NewTimeSampler(TimeSamplerID(i), bucketSize, tagsStore, tagger, agg.hostname)
+		statsdSampler := NewTimeSampler(TimeSamplerID(i), options.BucketSize, tagsStore, tagger, agg.hostname)
 
 		// its worker (process loop + flush/serialization mechanism)
 
