@@ -950,6 +950,7 @@ gazelle_binary(
         "//bazel/rules/go_build_tags:gazelle_extension",
         "//bazel/rules/go_stringer:gazelle_extension",
         "//bazel/rules/write_pb_go:gazelle_extension",
+        "//bazel/rules/collapse_selects:gazelle_extension",
     ],
 )
 
