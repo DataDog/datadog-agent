@@ -26,8 +26,8 @@ import (
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
@@ -123,7 +123,7 @@ func makeStableMetricMap(metrics []*dto.Metric) map[string]*dto.Metric {
 func makeTelMock(t *testing.T) telemetry.Component {
 	// Little hack. Telemetry component is not fully componentized, and relies on global registry so far
 	// so we need to reset it before running the test. This is not ideal and will be improved in the future.
-	tel := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
+	tel := fxutil.Test[telemetry.Mock](t, mocktelemetry.Module())
 	tel.Reset()
 	return tel
 }

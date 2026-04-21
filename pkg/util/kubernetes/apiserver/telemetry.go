@@ -7,13 +7,16 @@
 
 package apiserver
 
-import "github.com/DataDog/datadog-agent/pkg/telemetry"
+import (
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+)
 
 const subsystem = "apiserver"
 
 var (
 	// apiServerTimeouts tracks timeouts to kubernetes apiserver done by the Agent.
-	clientTimeouts = telemetry.NewCounterWithOpts(
+	clientTimeouts = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
 		subsystem,
 		"client_timeouts",
 		[]string{},
@@ -21,7 +24,7 @@ var (
 		telemetry.Options{NoDoubleUnderscoreSep: true},
 	)
 	// kube_cache_sync_timeouts tracks timeouts to kubernetes apiserver done by the Agent.
-	cacheSyncTimeouts = telemetry.NewCounterWithOpts(
+	cacheSyncTimeouts = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
 		subsystem,
 		"cache_sync_timeouts",
 		[]string{},

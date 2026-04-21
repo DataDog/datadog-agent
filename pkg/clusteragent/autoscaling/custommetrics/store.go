@@ -10,7 +10,8 @@ package custommetrics
 import (
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 )
 
@@ -20,7 +21,7 @@ const (
 )
 
 var (
-	externalTotal = telemetry.NewGaugeWithOpts("", "external_metrics",
+	externalTotal = telemetryimpl.GetCompatComponent().NewGaugeWithOpts("", "external_metrics",
 		[]string{"valid", le.JoinLeaderLabel}, "Number of external metrics tagged.",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 )

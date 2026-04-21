@@ -1,0 +1,17 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - |
+    **APM: On Linux, the trace agent process now only starts once data is sent to any of its
+    configured listeners.**
+
+    Previously, the trace agent started immediately on agent startup, it now starts lazily when needed,
+    which reduces resource usage.
+    To disable and restore the previous behavior, set ``apm_config.socket_activation.enabled: false``
+    in ``datadog.yaml``, or set the environment variable ``DD_APM_SOCKET_ACTIVATION_ENABLED=false``.

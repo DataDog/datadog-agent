@@ -13,7 +13,7 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -26,9 +26,9 @@ var (
 	schedulerQueuesCount   = expvar.Int{}
 	schedulerChecksEntered = expvar.Int{}
 
-	tlmChecksEntered = telemetry.NewGauge("scheduler", "checks_entered",
+	tlmChecksEntered = telemetryimpl.GetCompatComponent().NewGauge("scheduler", "checks_entered",
 		[]string{"check_name"}, "How many checks are currently tracked by the scheduler")
-	tlmQueuesCount = telemetry.NewCounter("scheduler", "queues_count",
+	tlmQueuesCount = telemetryimpl.GetCompatComponent().NewCounter("scheduler", "queues_count",
 		nil, "How many queues were opened")
 )
 

@@ -18,8 +18,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/pidmapimpl"
@@ -36,7 +36,7 @@ type listenerDeps struct {
 
 func fulfillDepsWithConfig(t testing.TB, overrides map[string]interface{}) listenerDeps {
 	return fxutil.Test[listenerDeps](t, fx.Options(
-		telemetryimpl.MockModule(),
+		mocktelemetry.Module(),
 		fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
 		pidmapimpl.Module(),
 	))
