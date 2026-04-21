@@ -297,6 +297,7 @@ func (b *Builder) GenerateStores(
 	expectedType interface{},
 	listWatchFunc func(kubeClient clientset.Interface, ns string, fieldSelector string) cache.ListerWatcher,
 	useAPIServerCache bool,
+	_ int64,
 ) []cache.Store {
 	return GenerateStores(b, metricFamilies, expectedType, b.kubeClient, listWatchFunc, useAPIServerCache)
 }
@@ -316,6 +317,7 @@ func (b *Builder) GenerateCustomResourceStoresFunc(
 	expectedType interface{},
 	listWatchFunc func(kubeClient interface{}, ns string, fieldSelector string) cache.ListerWatcher,
 	useAPIServerCache bool,
+	_ int64,
 ) []cache.Store {
 	return GenerateStores(b, metricFamilies,
 		expectedType,

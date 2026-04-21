@@ -1,0 +1,9 @@
+---
+enhancements:
+  - |
+    Autodiscovery template resolution failures are now logged at ERROR level
+    instead of DEBUG, making them visible without enabling debug logging.
+    Additionally, when the health platform is enabled, these failures are
+    reported as AD misconfiguration health events with actionable remediation
+    steps, providing proactive visibility when an autodiscovered check config
+    is silently skipped due to unsupported template variables.
