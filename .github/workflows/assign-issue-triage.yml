@@ -230,7 +230,7 @@ jobs:
           }
 
     - name: Install dependencies
-      run: npm install @slack/web-api
+      run: npm install @slack/web-api@7.15.1
 
     - name: Send Slack Message
       uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
