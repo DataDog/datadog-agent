@@ -20,9 +20,12 @@ Stops when total changed BUILD.bazel file count reaches --max-files.
 
 Usage:
     python3 tools/bazel_gazelle_migrate.py --todo /tmp/TODO [options]
+    python3 tools/bazel_gazelle_migrate.py --package pkg/foo/bar [pkg/baz ...] [options]
+    python3 tools/bazel_gazelle_migrate.py --todo /tmp/TODO --package pkg/extra [options]
 
 Options:
-    --todo FILE         Path to TODO file (required)
+    --todo FILE         Path to TODO file listing target package paths
+    --package PKG+      One or more package paths to migrate directly
     --max-files N       Stop when N BUILD.bazel files have changed (default: 50)
     --dry-run           Print what would happen without executing
     --no-commit         Don't commit after each success
@@ -101,6 +104,68 @@ def restore_exclude(path: str) -> None:
     else:
         lines.append(target)
     BUILD_BAZEL.write_text("".join(lines))
+
+
+# ── local BUILD.bazel exclude management ─────────────────────────────────────
+
+_EXCLUDE_PAT = re.compile(r"^# gazelle:exclude\s+(.+)$")
+
+
+def find_local_exclude(path: str) -> tuple[str, str] | None:
+    """Search ancestor directories for a local BUILD.bazel that excludes path.
+
+    Returns (ancestor_dir, relative_exclude) where ancestor_dir is the
+    repo-relative directory containing the BUILD.bazel and relative_exclude is
+    the value after '# gazelle:exclude' in that file.  Returns None if not found.
+    """
+    parts = path.split("/")
+    for depth in range(len(parts) - 1, 0, -1):
+        ancestor = "/".join(parts[:depth])
+        local_build = REPO_ROOT / ancestor / "BUILD.bazel"
+        if not local_build.exists():
+            continue
+        rel_target = "/".join(parts[depth:])
+        for line in local_build.read_text().splitlines():
+            m = _EXCLUDE_PAT.match(line.strip())
+            if m:
+                excl = m.group(1).strip()
+                if excl == rel_target or rel_target.startswith(excl + "/"):
+                    return ancestor, excl
+    return None
+
+
+def remove_local_exclude(build_dir: str, rel_excl: str) -> None:
+    """Remove a # gazelle:exclude line from a local BUILD.bazel."""
+    build_file = REPO_ROOT / build_dir / "BUILD.bazel"
+    target = f"# gazelle:exclude {rel_excl}"
+    lines = build_file.read_text().splitlines(keepends=True)
+    new_lines = [l for l in lines if l.rstrip() != target]
+    build_file.write_text("".join(new_lines))
+
+
+def restore_local_exclude(build_dir: str, rel_excl: str) -> None:
+    """Re-add a # gazelle:exclude line to a local BUILD.bazel in sorted order."""
+    build_file = REPO_ROOT / build_dir / "BUILD.bazel"
+    text = build_file.read_text()
+    # Already present?
+    if f"# gazelle:exclude {rel_excl}" in text:
+        return
+    lines = text.splitlines(keepends=True)
+    target = f"# gazelle:exclude {rel_excl}\n"
+    insert_at = last = None
+    for i, line in enumerate(lines):
+        m = _EXCLUDE_PAT.match(line.strip())
+        if m:
+            last = i
+            if m.group(1).strip() > rel_excl and insert_at is None:
+                insert_at = i
+    if insert_at is not None:
+        lines.insert(insert_at, target)
+    elif last is not None:
+        lines.insert(last + 1, target)
+    else:
+        lines.append(target)
+    build_file.write_text("".join(lines))
 
 
 # ── file tracking ─────────────────────────────────────────────────────────────
@@ -288,6 +353,38 @@ def migrate_direct(path: str, test_targets: list[str]) -> tuple[bool, str]:
     return False, "tests failed"
 
 
+def migrate_local_direct(path: str, build_dir: str, rel_excl: str, test_targets: list[str]) -> tuple[bool, str]:
+    """Remove a # gazelle:exclude from a local BUILD.bazel, run gazelle + tests."""
+    pre_mods = get_modified_tracked_build_files()
+    before = find_all_build_files()
+
+    remove_local_exclude(build_dir, rel_excl)
+    log(f"  removed # gazelle:exclude {rel_excl} from {build_dir}/BUILD.bazel")
+
+    if not run_gazelle():
+        revert_gazelle_changes(get_new_build_files(before), pre_mods)
+        restore_local_exclude(build_dir, rel_excl)
+        return False, "gazelle failed"
+
+    new_files = get_new_build_files(before)
+    log(f"  gazelle created {len(new_files)} file(s)")
+
+    passed, output = run_tests(test_targets)
+    if passed:
+        return True, ""
+
+    revert_gazelle_changes(new_files, pre_mods)
+    restore_local_exclude(build_dir, rel_excl)
+
+    if re.search(r"@@\[unknown repo|error loading package '@@", output):
+        return False, "external module conflict"
+    all_failing = failing_packages_from_output(output)
+    unrelated = [p for p in all_failing if p != path and not p.startswith(path.rstrip("/") + "/")]
+    if unrelated:
+        return False, f"blocked by: {', '.join(unrelated)}"
+    return False, "tests failed"
+
+
 def migrate_carveout(parent: str, targets: list[str], test_targets: list[str]) -> dict[str, tuple[bool, str]]:
     """Remove parent exclude from root BUILD.bazel; create local <parent>/BUILD.bazel
     with # gazelle:ignore and # gazelle:exclude <rel> for all non-target subdirs.
@@ -412,8 +509,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument("--todo", required=True, metavar="FILE",
+    parser.add_argument("--todo", metavar="FILE",
                         help="Path to TODO file listing target package paths")
+    parser.add_argument("--package", metavar="PKG", nargs="+",
+                        help="One or more package paths to migrate directly")
     parser.add_argument("--max-files", type=int, default=DEFAULT_MAX_FILES, metavar="N",
                         help=f"Stop when N BUILD.bazel files have changed (default: {DEFAULT_MAX_FILES})")
     parser.add_argument("--dry-run", action="store_true",
@@ -424,7 +523,15 @@ def main() -> int:
                         help="Bazel test targets to run after each migration")
     args = parser.parse_args()
 
-    paths = parse_todo(args.todo)
+    if not args.todo and not args.package:
+        parser.error("at least one of --todo or --package is required")
+
+    paths = []
+    if args.todo:
+        paths += parse_todo(args.todo)
+    if args.package:
+        paths += args.package
+
     excludes = current_excludes()
 
     # Classify: direct (has own exclude line) vs under a parent exclude
@@ -460,7 +567,7 @@ def main() -> int:
             break
 
         if path in excludes:
-            # ── DIRECT ──────────────────────────────────────────────────────
+            # ── DIRECT (root BUILD.bazel) ────────────────────────────────────
             log(f">>> DIRECT: {path}")
             if args.dry_run:
                 log("  [dry-run] would remove exclude and run gazelle + tests")
@@ -478,7 +585,27 @@ def main() -> int:
             log("")
 
         else:
-            # ── CARVEOUT ────────────────────────────────────────────────────
+            # Check for a local BUILD.bazel exclude first
+            local = find_local_exclude(path)
+            if local is not None:
+                build_dir, rel_excl = local
+                # ── LOCAL DIRECT (local BUILD.bazel) ─────────────────────────
+                log(f">>> LOCAL DIRECT: {path}  (from {build_dir}/BUILD.bazel: exclude {rel_excl})")
+                if args.dry_run:
+                    log(f"  [dry-run] would remove # gazelle:exclude {rel_excl} from {build_dir}/BUILD.bazel")
+                    log("")
+                    continue
+
+                before = find_all_build_files()
+                ok, reason = migrate_local_direct(path, build_dir, rel_excl, args.test_targets)
+                results[path] = (ok, reason)
+                log("  " + ("PASS" if ok else f"FAIL: {reason}"))
+                if ok and not args.no_commit:
+                    do_commit(path, get_new_build_files(before))
+                log("")
+                continue
+
+            # ── CARVEOUT (root BUILD.bazel parent) ──────────────────────────
             parts = path.split("/")
             par = next(
                 ("/".join(parts[:i]) for i in range(len(parts) - 1, 0, -1)

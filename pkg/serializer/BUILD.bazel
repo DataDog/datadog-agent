@@ -1,4 +1,2 @@
 # gazelle:ignore
 # gazelle:exclude internal
-# gazelle:exclude mocks
-# gazelle:exclude split
