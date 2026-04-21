@@ -20,7 +20,7 @@ import (
 // Helper: create initial datadog.yaml content in the test directory
 func writeInitialDatadogConfig(t *testing.T, dir string, content string) string {
 	t.Helper()
-	path := filepath.Join(dir, datadogConfFile)
+	path := filepath.Join(dir, DatadogConfFile)
 	err := os.WriteFile(path, []byte(content), 0644)
 	require.NoError(t, err)
 	return path
@@ -29,7 +29,7 @@ func writeInitialDatadogConfig(t *testing.T, dir string, content string) string 
 // Helper: read and unmarshal the resulting datadog.yaml into a generic map
 func readDatadogYAML(t *testing.T, dir string) map[string]interface{} {
 	t.Helper()
-	path := filepath.Join(dir, datadogConfFile)
+	path := filepath.Join(dir, DatadogConfFile)
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 	var m map[string]interface{}
@@ -47,7 +47,7 @@ func TestEmptyConfig(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Check datadog.yaml
-	datadogConfigPath := filepath.Join(tempDir, datadogConfFile)
+	datadogConfigPath := filepath.Join(tempDir, DatadogConfFile)
 	info, err := os.Stat(datadogConfigPath)
 	assert.NoError(t, err)
 	if runtime.GOOS != "windows" {
@@ -203,7 +203,7 @@ func TestDoubleWriteConfig(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Check datadog.yaml
-	datadogYAML, err := os.ReadFile(filepath.Join(tempDir, datadogConfFile))
+	datadogYAML, err := os.ReadFile(filepath.Join(tempDir, DatadogConfFile))
 	assert.NoError(t, err)
 	assert.True(t, strings.HasPrefix(string(datadogYAML), disclaimerGenerated+"\n\n"))
 }
@@ -521,7 +521,7 @@ func TestWriteConfigWithEOLAtEnd(t *testing.T) {
 	err := WriteConfigs(cfg, tempDir)
 	assert.NoError(t, err)
 
-	datadogPath := filepath.Join(tempDir, datadogConfFile)
+	datadogPath := filepath.Join(tempDir, DatadogConfFile)
 	content, err := os.ReadFile(datadogPath)
 	assert.NoError(t, err)
 	// Output should end with newline
@@ -549,7 +549,7 @@ func TestWriteConfigWithoutEOLAtEnd(t *testing.T) {
 	err := WriteConfigs(cfg, tempDir)
 	assert.NoError(t, err)
 
-	datadogPath := filepath.Join(tempDir, datadogConfFile)
+	datadogPath := filepath.Join(tempDir, DatadogConfFile)
 	content, err := os.ReadFile(datadogPath)
 	assert.NoError(t, err)
 	// Output should end with newline even if input lacked it

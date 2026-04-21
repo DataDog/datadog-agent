@@ -80,16 +80,16 @@ func newCmd(operation string, opts ...cmdOption) *cmd {
 	for _, o := range opts {
 		o(cfg)
 	}
-	var environnement *env.Env
+	var e *env.Env
 	if cfg.configDir != "" {
-		environnement = env.Get(env.WithConfigDir(cfg.configDir))
+		e = env.Get(env.WithConfigDir(cfg.configDir))
 	} else {
-		environnement = env.Get()
+		e = env.Get()
 	}
-	if !environnement.IsFromDaemon && !cfg.quiet {
-		setupStdoutLogger(environnement)
+	if !e.IsFromDaemon && !cfg.quiet {
+		setupStdoutLogger(e)
 	}
-	t := newTelemetry(environnement)
+	t := newTelemetry(e)
 	span, ctx := telemetry.StartSpanFromEnv(context.Background(), operation)
 	ctx, stop := context.WithCancel(ctx)
 	handleSignals(ctx, stop)
@@ -98,7 +98,7 @@ func newCmd(operation string, opts ...cmdOption) *cmd {
 		t:              t,
 		ctx:            ctx,
 		span:           span,
-		env:            environnement,
+		env:            e,
 		stopSigHandler: stop,
 	}
 }

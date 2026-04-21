@@ -23,6 +23,8 @@ import (
 
 	"go.yaml.in/yaml/v3"
 	"golang.org/x/net/http/httpproxy"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config"
 )
 
 // ApmLibLanguage is a language defined in DD_APM_INSTRUMENTATION_LIBRARIES env var
@@ -95,9 +97,11 @@ type ExtensionRegistryOverride struct {
 //	env:"<VAR>[,<VAR2>,...][,prefix]"   - environment variable(s)
 //	yaml:"<dotted.path>"                - dotted key in datadog.yaml
 //
-// For env: vars are processed in declaration order (last set wins). The
-// optional ",prefix" marker turns the field into a prefix-scan map (reads
-// env vars shaped like `<VAR>_<SUFFIX>=<value>`).
+// For env: vars are processed in declaration order — the LAST entry in the
+// list has the highest precedence. The order is load-bearing; reordering
+// entries silently changes precedence, so callers should treat the list as
+// stable. The optional ",prefix" marker turns the field into a prefix-scan
+// map (reads env vars shaped like `<VAR>_<SUFFIX>=<value>`).
 // For yaml: the tag names a dotted path into the parsed yaml tree; if that
 // path resolves to a non-zero scalar, the field is set from it.
 // Specific per-env-var behaviour that deviates from the type-driven default
@@ -160,6 +164,8 @@ type Env struct {
 
 func newDefaultEnv() Env {
 	return Env{
+		Site: "datadoghq.com",
+
 		RegistryOverrideByImage:     map[string]string{},
 		RegistryAuthOverrideByImage: map[string]string{},
 		RegistryUsernameByImage:     map[string]string{},
@@ -175,6 +181,8 @@ func newDefaultEnv() Env {
 		},
 
 		Tags: []string{},
+
+		LogLevel: "warn",
 
 		ExtensionRegistryOverrides: map[string]map[string]ExtensionRegistryOverride{},
 	}
@@ -347,12 +355,21 @@ func Get(opts ...Option) *Env {
 // readDatadogYAML reads datadog.yaml from configDir and unmarshals it into a
 // generic map. Returns nil if the file is missing or unparseable (best
 // effort — yaml is optional).
+//
+// An empty configDir is treated as "no config directory known" and skips
+// yaml loading silently. This is intentional so callers that run before the
+// paths package has registered a default config dir (e.g. Windows
+// installer_paths init reading MsiParams) don't error out. Callers that
+// care about yaml loading should pass a non-empty path via WithConfigDir.
+//
+// Reuses config.ReadConfig so the read path normalises UTF-16 BOMs and CR
+// bytes the same way the write path does to prevent read/write mismatch.
 func readDatadogYAML(configDir string) map[string]any {
 	if configDir == "" {
 		return nil
 	}
-	raw, err := os.ReadFile(filepath.Join(configDir, "datadog.yaml"))
-	if err != nil {
+	raw, err := config.ReadConfig(filepath.Join(configDir, config.DatadogConfFile))
+	if err != nil || len(raw) == 0 {
 		return nil
 	}
 	var cfg map[string]any
@@ -517,7 +534,7 @@ func (e *Env) ToEnv() []string {
 			switch envVar {
 			// Read-only env vars (never emitted)
 			case "DD_AGENT_MAJOR_VERSION", "DD_AGENT_MINOR_VERSION",
-				"DD_APP_LOGS_COLLECTION_ENABLED", "DD_EXTRA_TAGS",
+				"DD_EXTRA_TAGS",
 				"DD_APM_INSTRUMENTATION_LANGUAGES",
 				"http_proxy", "https_proxy", "no_proxy",
 				"DD_PROXY_HTTP", "DD_PROXY_HTTPS", "DD_PROXY_NO_PROXY",
@@ -645,8 +662,9 @@ func readPrefixEnvVar(field reflect.Value, envVar string) {
 }
 
 // emitPrefixEnvVar emits <envVar>_<SUFFIX>=<value> for each entry in the map.
-// For map[string]bool only true values are emitted (matches today's behaviour
-// where false entries don't appear in the child-process env).
+// Both true and false bool entries are emitted so that explicit "do not
+// install this default package" overrides (e.g. DD_INSTALLER_DEFAULT_PKG_INSTALL_X=false)
+// propagate intact to child processes.
 func emitPrefixEnvVar(out *[]string, field reflect.Value, envVar string) {
 	if field.Kind() != reflect.Map {
 		return
@@ -660,10 +678,7 @@ func emitPrefixEnvVar(out *[]string, field reflect.Value, envVar string) {
 		case reflect.String:
 			val = iter.Value().String()
 		case reflect.Bool:
-			if !iter.Value().Bool() {
-				continue
-			}
-			val = "true"
+			val = strconv.FormatBool(iter.Value().Bool())
 		default:
 			continue
 		}

@@ -125,6 +125,7 @@ func TestGet(t *testing.T) {
 				AppKey:                     "app_key_123",
 				PAREnabled:                 true,
 				PARActionsAllowlist:        "com.datadoghq.script.runPredefinedScript,com.datadoghq.script.testConnection",
+				LogLevel:                   "warn",
 				ExtensionRegistryOverrides: map[string]map[string]ExtensionRegistryOverride{},
 			},
 		},
@@ -171,7 +172,8 @@ installer:
 				InstallScript: InstallScriptEnv{
 					APMInstrumentationEnabled: APMInstrumentationNotSet,
 				},
-				Tags: []string{},
+				Tags:     []string{},
+				LogLevel: "warn",
 
 				ExtensionRegistryOverrides: map[string]map[string]ExtensionRegistryOverride{
 					"datadog-agent": {
@@ -227,6 +229,7 @@ installer:
 					APMInstrumentationEnabled: APMInstrumentationNotSet,
 				},
 				Tags:                       []string{},
+				LogLevel:                   "warn",
 				ExtensionRegistryOverrides: map[string]map[string]ExtensionRegistryOverride{},
 			},
 		},
@@ -236,6 +239,7 @@ installer:
 				"DD_APM_INSTRUMENTATION_LIBRARIES": "java  dotnet:latest, ruby:1.2   ,python:1.2.3",
 			},
 			expected: &Env{
+				Site:                           "datadoghq.com",
 				RegistryOverrideByImage:        map[string]string{},
 				RegistryAuthOverrideByImage:    map[string]string{},
 				RegistryUsernameByImage:        map[string]string{},
@@ -252,6 +256,7 @@ installer:
 					APMInstrumentationEnabled: APMInstrumentationNotSet,
 				},
 				Tags:                       []string{},
+				LogLevel:                   "warn",
 				ExtensionRegistryOverrides: map[string]map[string]ExtensionRegistryOverride{},
 			},
 		},
@@ -264,6 +269,7 @@ installer:
 			},
 			expected: &Env{
 				APIKey: "123456",
+				Site:   "datadoghq.com",
 				ApmLibraries: map[ApmLibLanguage]ApmLibVersion{
 					"java":   "",
 					"dotnet": "",
@@ -279,6 +285,7 @@ installer:
 					APMInstrumentationEnabled: APMInstrumentationEnabledAll,
 				},
 				Tags:                       []string{},
+				LogLevel:                   "warn",
 				ExtensionRegistryOverrides: map[string]map[string]ExtensionRegistryOverride{},
 			},
 		},
@@ -293,6 +300,7 @@ api_key: yaml-api-key
 `,
 			expected: &Env{
 				APIKey:                         "env-api-key",
+				Site:                           "datadoghq.com",
 				RegistryOverrideByImage:        map[string]string{},
 				RegistryAuthOverrideByImage:    map[string]string{},
 				RegistryUsernameByImage:        map[string]string{},
@@ -304,6 +312,7 @@ api_key: yaml-api-key
 					APMInstrumentationEnabled: APMInstrumentationNotSet,
 				},
 				Tags:                       []string{},
+				LogLevel:                   "warn",
 				ExtensionRegistryOverrides: map[string]map[string]ExtensionRegistryOverride{},
 			},
 		},
@@ -316,6 +325,7 @@ installer:
     auth: yaml-auth
 `,
 			expected: &Env{
+				Site:                           "datadoghq.com",
 				RegistryAuthOverride:           "yaml-auth",
 				RegistryOverrideByImage:        map[string]string{},
 				RegistryAuthOverrideByImage:    map[string]string{},
@@ -328,6 +338,7 @@ installer:
 					APMInstrumentationEnabled: APMInstrumentationNotSet,
 				},
 				Tags:                       []string{},
+				LogLevel:                   "warn",
 				ExtensionRegistryOverrides: map[string]map[string]ExtensionRegistryOverride{},
 			},
 		},
@@ -339,6 +350,7 @@ installer:
     url: yaml-registry.example.com
 `,
 			expected: &Env{
+				Site:                           "datadoghq.com",
 				RegistryOverride:               "yaml-registry.example.com",
 				RegistryAuthOverride:           "",
 				RegistryOverrideByImage:        map[string]string{},
@@ -352,6 +364,7 @@ installer:
 					APMInstrumentationEnabled: APMInstrumentationNotSet,
 				},
 				Tags:                       []string{},
+				LogLevel:                   "warn",
 				ExtensionRegistryOverrides: map[string]map[string]ExtensionRegistryOverride{},
 			},
 		},
@@ -373,6 +386,7 @@ site: custom-site.example.com
 					APMInstrumentationEnabled: APMInstrumentationNotSet,
 				},
 				Tags:                       []string{},
+				LogLevel:                   "warn",
 				ExtensionRegistryOverrides: map[string]map[string]ExtensionRegistryOverride{},
 			},
 		},
@@ -397,6 +411,7 @@ site: custom-site.example.com
 					APMInstrumentationEnabled: APMInstrumentationNotSet,
 				},
 				Tags:                       []string{},
+				LogLevel:                   "warn",
 				ExtensionRegistryOverrides: map[string]map[string]ExtensionRegistryOverride{},
 			},
 		},
@@ -406,6 +421,7 @@ site: custom-site.example.com
 				"DD_AGENT_USER_NAME": "customuser",
 			},
 			expected: &Env{
+				Site: "datadoghq.com",
 				MsiParams: MsiParamsEnv{
 					AgentUserName: "customuser",
 				},
@@ -420,6 +436,7 @@ site: custom-site.example.com
 					APMInstrumentationEnabled: APMInstrumentationNotSet,
 				},
 				Tags:                       []string{},
+				LogLevel:                   "warn",
 				ExtensionRegistryOverrides: map[string]map[string]ExtensionRegistryOverride{},
 			},
 		},
@@ -429,6 +446,7 @@ site: custom-site.example.com
 				"DDAGENTUSER_NAME": "customuser",
 			},
 			expected: &Env{
+				Site: "datadoghq.com",
 				MsiParams: MsiParamsEnv{
 					AgentUserName: "customuser",
 				},
@@ -443,6 +461,7 @@ site: custom-site.example.com
 					APMInstrumentationEnabled: APMInstrumentationNotSet,
 				},
 				Tags:                       []string{},
+				LogLevel:                   "warn",
 				ExtensionRegistryOverrides: map[string]map[string]ExtensionRegistryOverride{},
 			},
 		},
@@ -453,6 +472,7 @@ site: custom-site.example.com
 				"DDAGENTUSER_NAME":   "otheruser",
 			},
 			expected: &Env{
+				Site: "datadoghq.com",
 				MsiParams: MsiParamsEnv{
 					AgentUserName: "customuser",
 				},
@@ -467,6 +487,7 @@ site: custom-site.example.com
 					APMInstrumentationEnabled: APMInstrumentationNotSet,
 				},
 				Tags:                       []string{},
+				LogLevel:                   "warn",
 				ExtensionRegistryOverrides: map[string]map[string]ExtensionRegistryOverride{},
 			},
 		},
@@ -583,6 +604,7 @@ func TestToEnv(t *testing.T) {
 				"DD_INSTALLER_REGISTRY_PASSWORD_IMAGE=another.password",
 				"DD_INSTALLER_REGISTRY_PASSWORD_ANOTHER_IMAGE=yet.another.password",
 				"DD_INSTALLER_DEFAULT_PKG_INSTALL_PACKAGE=true",
+				"DD_INSTALLER_DEFAULT_PKG_INSTALL_ANOTHER_PACKAGE=false",
 				"DD_INSTALLER_DEFAULT_PKG_VERSION_PACKAGE=1.2.3",
 				"DD_INSTALLER_DEFAULT_PKG_VERSION_ANOTHER_PACKAGE=4.5.6",
 				"DD_TAGS=k1:v1,k2:v2",
@@ -629,4 +651,40 @@ func TestToEnv(t *testing.T) {
 			assert.ElementsMatch(t, tt.expected, result)
 		})
 	}
+}
+
+// TestGet_UTF16YAML covers the WINA-2118 regression class: datadog.yaml files
+// edited on Windows are often saved as UTF-16 with a BOM, and the yaml
+// library alone cannot decode them. readDatadogYAML must normalise them
+// through config.ReadConfig (the same path WriteConfig uses).
+func TestGet_UTF16YAML(t *testing.T) {
+	savedEnv := make(map[string]string)
+	for _, kv := range os.Environ() {
+		key, val, _ := strings.Cut(kv, "=")
+		savedEnv[key] = val
+		os.Unsetenv(key)
+	}
+	defer func() {
+		for k, v := range savedEnv {
+			os.Setenv(k, v)
+		}
+	}()
+
+	dir := t.TempDir()
+
+	// Encode a typical Windows-authored datadog.yaml as UTF-16 LE with BOM
+	// plus CRLF line endings.
+	yamlText := "api_key: yaml-api-key\r\nsite: datadoghq.eu\r\n"
+	var utf16LE []byte
+	utf16LE = append(utf16LE, 0xFF, 0xFE) // UTF-16 LE BOM
+	for _, r := range yamlText {
+		utf16LE = append(utf16LE, byte(r), 0x00)
+	}
+	err := os.WriteFile(filepath.Join(dir, "datadog.yaml"), utf16LE, 0644)
+	require.NoError(t, err)
+
+	env := Get(WithConfigDir(dir))
+
+	assert.Equal(t, "yaml-api-key", env.APIKey, "UTF-16 api_key must be read")
+	assert.Equal(t, "datadoghq.eu", env.Site, "UTF-16 site must be read (guard against WINA-2118)")
 }
