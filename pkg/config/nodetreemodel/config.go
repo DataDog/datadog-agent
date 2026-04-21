@@ -396,11 +396,10 @@ func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 		// Replace the child with the node from the previous layer
 		parentNode.InsertChildNode(childName, prevNode)
 
-		newValue := c.leafAtPathFromNode(key, c.root).Get()
+		newValue = c.leafAtPathFromNode(key, c.root).Get()
 
 		// Value has not changed, do not notify
 		if reflect.DeepEqual(previousValue, newValue) {
-			c.Unlock()
 			return false
 		}
 
