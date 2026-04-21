@@ -204,12 +204,12 @@ func (c *ClusterChecksConfigProvider) heartbeatSender(ctx context.Context) {
 			if c.heartbeat.Load().Add(expirationTimeout).Add(-postStatusTimeout).Before(currentTime) &&
 				extraHeartbeatTime.Add(expirationTimeout).Add(-postStatusTimeout).Before(currentTime) {
 				postCtx, cancel := context.WithTimeout(ctx, postStatusTimeout)
-				defer cancel()
 				if err := c.postHeartbeat(postCtx); err == nil {
 					log.Infof("Sent extra heartbeat at: %v", currentTime)
 				} else {
 					log.Warnf("Unable to send extra heartbeat to Cluster Agent, err: %v", err)
 				}
+				cancel()
 				extraHeartbeatTime = currentTime
 			}
 
