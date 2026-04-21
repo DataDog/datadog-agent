@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "preprocessor",
+    srcs = ["json.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/patterns/preprocessor",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_json_iterator_go//:go"],
+)

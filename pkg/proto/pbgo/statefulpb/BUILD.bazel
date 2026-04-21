@@ -5,10 +5,12 @@ go_library(
     srcs = [
         "stateful_encoding.pb.go",
         "stateful_encoding_grpc.pb.go",
+        "stateful_encoding_vtproto.pb.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb",
     visibility = ["//visibility:public"],
     deps = [
+        "@com_github_planetscale_vtprotobuf//protohelpers",
         "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//status",
