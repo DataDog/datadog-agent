@@ -10,7 +10,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/telemetry",
+        "//comp/core/telemetry/def",
         "//pkg/util/log",
         "@com_github_benbjohnson_clock//:clock",
         "@com_github_gorilla_mux//:mux",
@@ -28,8 +28,8 @@ go_test(
     embed = [":observability"],
     gotags = ["test"],
     deps = [
-        "//comp/core/telemetry",
-        "//comp/core/telemetry/telemetryimpl",
+        "//comp/core/telemetry/def",
+        "//comp/core/telemetry/mock",
         "//pkg/util/fxutil",
         "@com_github_benbjohnson_clock//:clock",
         "@com_github_gorilla_mux//:mux",
