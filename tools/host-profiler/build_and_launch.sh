@@ -7,7 +7,7 @@ if [ "${DO_NOT_START_PROFILER}" = "1" ]; then
     sleep infinity
 else
     mkdir -p bin/host-profiler
-    go build -ldflags="-X github.com/DataDog/datadog-agent/pkg/version.AgentVersion=docker-dev" \
+    go build -tags "remove_all_sd" -ldflags="-X github.com/DataDog/datadog-agent/pkg/version.AgentVersion=docker-dev" \
       -o bin/host-profiler/host-profiler ./cmd/host-profiler
 
     # Launch the profiler

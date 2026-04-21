@@ -11,7 +11,8 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	libtelemetry "github.com/DataDog/datadog-agent/pkg/telemetry"
+	libtelemetrydef "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	libtelemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 )
 
 var prometheusDelta deltaCalculator
@@ -39,10 +40,10 @@ func ReportPrometheus() {
 		}
 
 		switch v := pm.(type) {
-		case libtelemetry.Counter:
+		case libtelemetrydef.Counter:
 			deltaValue := deltas.ValueFor(metric)
 			v.Add(float64(deltaValue), tagVals(base)...)
-		case libtelemetry.Gauge:
+		case libtelemetrydef.Gauge:
 			v.Set(float64(base.Get()), tagVals(base)...)
 		default:
 		}
@@ -62,10 +63,10 @@ func metricToPrometheus(m metric) any {
 
 	keys := tagKeys(base)
 	if _, ok := m.(*Counter); ok {
-		return libtelemetry.NewCounter(subsystem, name, keys, "")
+		return libtelemetryimpl.GetCompatComponent().NewCounter(subsystem, name, keys, "")
 	}
 
-	return libtelemetry.NewGauge(subsystem, name, keys, "")
+	return libtelemetryimpl.GetCompatComponent().NewGauge(subsystem, name, keys, "")
 }
 
 func withTag(m *metricBase, fn func(k, v string)) {

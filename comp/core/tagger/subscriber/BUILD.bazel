@@ -23,8 +23,8 @@ go_test(
     deps = [
         "//comp/core/tagger/telemetry",
         "//comp/core/tagger/types",
-        "//comp/core/telemetry",
-        "//comp/core/telemetry/telemetryimpl",
+        "//comp/core/telemetry/def",
+        "//comp/core/telemetry/mock",
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
