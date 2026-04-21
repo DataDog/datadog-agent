@@ -125,9 +125,10 @@ func TestDemuxNoAggOptionEnabled(t *testing.T) {
 }
 
 // TestDemuxBucketSizeOption verifies that AgentDemultiplexerOptions.BucketSize
-// flows through to both the time samplers and the no-aggregation stream
-// worker, and that at bucketSize=1 rate samples are not divided by the default
-// 10s interval and Serie.Interval is stamped correctly.
+// flows through to the time samplers but deliberately does NOT affect the
+// no-aggregation stream worker: that pipeline has no client-supplied interval
+// in the DogStatsD wire protocol and must keep using DefaultBucketSize to
+// avoid silently shifting the meaning of external-client rate points.
 func TestDemuxBucketSizeOption(t *testing.T) {
 	require := require.New(t)
 
@@ -144,11 +145,10 @@ func TestDemuxBucketSizeOption(t *testing.T) {
 	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
 	demux.statsd.noAggStreamWorker.serializer = mockSerializer
 
-	// Option propagates into the time samplers and the no-agg worker.
+	// Option propagates into the time samplers.
 	for i, w := range demux.statsd.workers {
 		require.Equal(int64(1), w.sampler.interval, "time sampler %d should use configured bucket size", i)
 	}
-	require.Equal(int64(1), demux.statsd.noAggStreamWorker.bucketSize, "no-agg worker should use configured bucket size")
 
 	go demux.run()
 
@@ -159,15 +159,16 @@ func TestDemuxBucketSizeOption(t *testing.T) {
 
 	require.Len(mockSerializer.series, 3)
 
+	// The no-agg pipeline must keep using DefaultBucketSize regardless of
+	// opts.BucketSize: each series carries Interval=DefaultBucketSize and
+	// rate samples are divided by DefaultBucketSize, not by opts.BucketSize.
 	for i, s := range mockSerializer.series {
-		require.Equal(int64(1), s.Interval, "series %q should carry Interval=1", s.Name)
+		require.Equal(DefaultBucketSize, s.Interval,
+			"no-agg series %q must carry DefaultBucketSize, not opts.BucketSize", s.Name)
 		require.Len(s.Points, 1)
-		// CounterType maps to APIRateType in the no-agg pipeline, which
-		// divides the sample value by the bucket size. At bucketSize=1 the
-		// division is a no-op and the raw value must pass through.
 		if batch[i].Mtype == metrics.CounterType {
-			require.Equal(batch[i].Value, s.Points[0].Value,
-				"rate sample %q should not be downscaled at bucketSize=1", s.Name)
+			require.Equal(batch[i].Value/float64(DefaultBucketSize), s.Points[0].Value,
+				"no-agg rate sample %q must be divided by DefaultBucketSize even when opts.BucketSize=1", s.Name)
 		}
 	}
 }

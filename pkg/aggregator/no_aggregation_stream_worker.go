@@ -38,10 +38,6 @@ type noAggregationStreamWorker struct {
 	flushConfig          FlushAndSerializeInParallel
 	maxMetricsPerPayload int
 
-	// bucketSize is the aggregation bucket size in seconds. Used to normalize
-	// rate sample values and to stamp the Interval on outgoing series.
-	bucketSize int64
-
 	// pointer to the shared MetricSamplePool stored in the Demultiplexer.
 	metricSamplePool *metrics.MetricSamplePool
 
@@ -88,13 +84,12 @@ func init() {
 //nolint:revive // TODO(AML) Fix revive linter
 func newNoAggregationStreamWorker(maxMetricsPerPayload int, _ *metrics.MetricSamplePool,
 	serializer serializer.MetricSerializer, flushConfig FlushAndSerializeInParallel,
-	tagger tagger.Component, bucketSize int64,
+	tagger tagger.Component,
 ) *noAggregationStreamWorker {
 	return &noAggregationStreamWorker{
 		serializer:           serializer,
 		flushConfig:          flushConfig,
 		maxMetricsPerPayload: maxMetricsPerPayload,
-		bucketSize:           bucketSize,
 
 		seriesSink:   nil,
 		sketchesSink: nil,
@@ -212,9 +207,15 @@ func (w *noAggregationStreamWorker) run() {
 							sample.GetTags(w.taggerBuffer, w.metricBuffer, w.tagger)
 							w.metricBuffer.AppendHashlessAccumulator(w.taggerBuffer)
 
-							// if the value is a rate, we have to account for the configured bucket interval
+							// Rate normalization and Interval stamping use DefaultBucketSize
+							// rather than the configurable aggregator_bucket_size_seconds:
+							// the DogStatsD T<ts> wire format has no interval field, so this
+							// is an agent-side convention about how to interpret client-
+							// supplied counts. Changing it would silently shift the meaning
+							// of rate points sent by external clients. If client-chosen
+							// intervals are ever needed here, extend the wire protocol first.
 							if mtype == metrics.APIRateType {
-								sample.Value /= float64(w.bucketSize)
+								sample.Value /= float64(DefaultBucketSize)
 							}
 
 							// turns this metric sample into a serie
@@ -224,7 +225,7 @@ func (w *noAggregationStreamWorker) run() {
 							serie.Tags = tagset.CompositeTagsFromSlice(w.metricBuffer.Copy())
 							serie.Host = sample.Host
 							serie.MType = mtype
-							serie.Interval = w.bucketSize
+							serie.Interval = DefaultBucketSize
 							seriesSink.Append(&serie)
 
 							w.taggerBuffer.Reset()

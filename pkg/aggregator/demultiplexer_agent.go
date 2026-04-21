@@ -221,7 +221,6 @@ func initAgentDemultiplexer(log log.Component,
 			noAggSerializer,
 			agg.flushAndSerializeInParallel,
 			tagger,
-			bucketSize,
 		)
 	}
 
