@@ -14,32 +14,8 @@ import (
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	checkrunner "github.com/DataDog/datadog-agent/comp/healthplatform/checkrunner/def"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/core/def"
-	forwarder "github.com/DataDog/datadog-agent/comp/healthplatform/forwarder/def"
 )
-
-// noopCheckRunner is a no-op implementation of the check runner (used when health platform is disabled).
-// Kept for potential direct use in tests; production code uses the injected checkrunner/mock or checkrunner/impl.
-type noopCheckRunner struct{}
-
-func (n *noopCheckRunner) SetReporter(_ checkrunner.IssueReporter) {}
-func (n *noopCheckRunner) RegisterCheck(_ string, _ string, _ checkrunner.HealthCheckFunc, _ time.Duration) error {
-	return nil
-}
-func (n *noopCheckRunner) RunCheck(_ string, _ string, _ checkrunner.HealthCheckFunc) error {
-	return nil
-}
-func (n *noopCheckRunner) Start() {}
-func (n *noopCheckRunner) Stop()  {}
-
-// noopForwarder is a no-op implementation of the forwarder (used when health platform is disabled).
-// Kept for potential direct use in tests; production code uses the injected forwarder/mock or forwarder/impl.
-type noopForwarder struct{}
-
-func (n *noopForwarder) SetProvider(_ forwarder.IssueProvider) {}
-func (n *noopForwarder) Start()                                {}
-func (n *noopForwarder) Stop()                                 {}
 
 // noopHealthPlatform is a no-op implementation of the health platform component
 // Used when the health platform is disabled via configuration
