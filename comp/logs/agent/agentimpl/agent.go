@@ -96,7 +96,7 @@ type provides struct {
 	StatusProvider statusComponent.InformationProvider
 	LogsReciever   option.Option[integrations.Component]
 	APIStreamLogs  api.AgentEndpointProvider
-	LogHook        hook.Hook[hook.LogView] `group:"hook"`
+	LogHook        hook.Hook[[]hook.LogSampleSnapshot] `group:"hook"`
 }
 
 // logAgent represents the data pipeline that collects, decodes,
@@ -124,7 +124,7 @@ type logAgent struct {
 	schedulerProviders        []schedulers.Scheduler
 	integrationsLogs          integrations.Component
 	compression               logscompression.Component
-	logHook                   hook.Hook[hook.LogView]
+	logHook                   hook.Hook[[]hook.LogSampleSnapshot]
 
 	// make sure this is done only once, when we're ready
 	prepareSchedulers sync.Once
@@ -148,7 +148,7 @@ func newLogsAgent(deps dependencies) provides {
 		}
 
 		integrationsLogs := integrationsimpl.NewLogsIntegration()
-		logHook := hook.NewHook[hook.LogView]("logs-pipeline")
+		logHook := hook.NewHook[[]hook.LogSampleSnapshot]("logs-pipeline")
 
 		logsAgent := &logAgent{
 			log:                deps.Log,
@@ -191,7 +191,7 @@ func newLogsAgent(deps dependencies) provides {
 		Comp:           option.None[agent.Component](),
 		StatusProvider: statusComponent.NewInformationProvider(NewStatusProvider()),
 		LogsReciever:   option.None[integrations.Component](),
-		LogHook:        hook.NewNoopHook[hook.LogView](),
+		LogHook:        hook.NewNoopHook[[]hook.LogSampleSnapshot](),
 	}
 }
 

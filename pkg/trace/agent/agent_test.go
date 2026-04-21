@@ -54,7 +54,7 @@ import (
 )
 
 func NewTestAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector telemetry.TelemetryCollector) *Agent {
-	a := NewAgent(ctx, conf, telemetryCollector, &statsd.NoOpClient{}, gzip.NewComponent())
+	a := NewAgent(ctx, conf, telemetryCollector, &statsd.NoOpClient{}, gzip.NewComponent(), nil)
 	a.Concentrator = &mockConcentrator{}
 	a.TraceWriter = &mockTraceWriter{
 		apiKey: conf.Endpoints[0].APIKey,
@@ -740,7 +740,7 @@ func TestProcess(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
 		ctx, cancel := context.WithCancel(context.Background())
-		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent(), nil)
 		agnt.TraceWriter = &mockTraceWriter{}
 		defer cancel()
 

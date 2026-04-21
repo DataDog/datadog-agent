@@ -5,6 +5,9 @@ members = [
     "pkg/discovery/module/rust",
     "pkg/procmgr/rust",
 ]
+exclude = [
+    "tools/flightrecorder",
+]
 
 [workspace.package]
 edition = "2024"

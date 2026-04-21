@@ -118,6 +118,7 @@ import (
 	statsdFx "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/fx"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/fx"
 	fleetfx "github.com/DataDog/datadog-agent/comp/fleetstatus/fx"
+	flightrecorderfx "github.com/DataDog/datadog-agent/comp/flightrecorder/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
@@ -577,6 +578,7 @@ func getSharedFxOption() fx.Option {
 		logondurationfx.Module(),
 		healthplatformfx.Module(),
 		tracetelemetryfx.Module(),
+		flightrecorderfx.Module(),
 	)
 }
 

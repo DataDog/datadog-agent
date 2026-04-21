@@ -42,7 +42,7 @@ func NewPipeline(
 	cfg pkgconfigmodel.Reader,
 	compression logscompression.Component,
 	instanceID string,
-	logHook hook.Hook[hook.LogView],
+	logHook hook.Hook[[]hook.LogSampleSnapshot],
 ) *Pipeline {
 	strategyInput := make(chan *message.Message, cfg.GetInt("logs_config.message_channel_size"))
 	flushChan := make(chan struct{})

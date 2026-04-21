@@ -170,6 +170,13 @@ RUN --mount=from=artifacts,target=/artifacts \
  && if [ -z "$WITH_JMX" ]; then rm -rf opt/datadog-agent/bin/agent/dist/jmx; fi \
  && mkdir conf.d checks.d
 
+# Copy optional flightrecorder binary (only present in "full" builds)
+RUN --mount=from=artifacts,target=/artifacts \
+  if [ -f /artifacts/flightrecorder ]; then \
+    cp /artifacts/flightrecorder opt/datadog-agent/embedded/bin/flightrecorder && \
+    chmod 755 opt/datadog-agent/embedded/bin/flightrecorder; \
+  fi
+
 ###########################################################
 #  Release docker image construction including the Agent  #
 ###########################################################
@@ -197,8 +204,9 @@ RUN adduser --system --no-create-home --disabled-password --ingroup root dd-agen
   && addgroup --system secret-manager \
   && usermod -a -G secret-manager dd-agent \
   && rm /var/run && mkdir -p /var/run/s6 && mkdir -p /var/run/datadog && mkdir -p /opt/datadog-agent/run \
-  && chown -R dd-agent:root /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ /opt/datadog-agent/run \
-  && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ /opt/datadog-agent/run \
+  && mkdir -p /var/run/flightrecorder /data/signals \
+  && chown -R dd-agent:root /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ /opt/datadog-agent/run /var/run/flightrecorder /data/signals \
+  && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ /opt/datadog-agent/run /var/run/flightrecorder /data/signals \
   && chmod 755 /probe.sh /initlog.sh \
   && chown root:secret-manager /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh /opt/datadog-agent/embedded/bin/secret-generic-connector \
   && chmod 550 /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh /opt/datadog-agent/embedded/bin/secret-generic-connector \

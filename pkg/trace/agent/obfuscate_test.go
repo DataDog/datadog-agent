@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
+	"github.com/DataDog/datadog-agent/pkg/hook"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -30,7 +31,7 @@ func TestNewCreditCardsObfuscator(t *testing.T) {
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"
 	cfg.Obfuscation.CreditCards.Enabled = true
-	a := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+	a := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent(), nil)
 	assert.True(t, a.conf.Obfuscation.CreditCards.Enabled)
 }
 
@@ -111,7 +112,7 @@ func agentWithDefaults(features ...string) (agnt *Agent, stop func()) {
 		cfg.Features[f] = struct{}{}
 	}
 	cfg.Endpoints[0].APIKey = "test"
-	return NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent()), cancelFunc
+	return NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent(), nil), cancelFunc
 }
 
 func TestObfuscateConfig(t *testing.T) {
@@ -127,7 +128,7 @@ func TestObfuscateConfig(t *testing.T) {
 			cfg := config.New()
 			cfg.Endpoints[0].APIKey = "test"
 			cfg.Obfuscation = ocfg
-			agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+			agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent(), nil)
 			defer cancelFunc()
 			span := &pb.Span{Type: typ, Meta: map[string]string{key: val}}
 			agnt.ObfuscateSpan(span)
@@ -449,7 +450,7 @@ func BenchmarkCCObfuscation(b *testing.B) {
 	cfg.Obfuscation = &config.ObfuscationConfig{
 		CreditCards: obfuscate.CreditCardsConfig{Enabled: true},
 	}
-	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent(), nil)
 	defer cancelFunc()
 
 	b.ResetTimer()
@@ -473,7 +474,7 @@ func TestObfuscateSpanEvent(t *testing.T) {
 	cfg.Obfuscation = &config.ObfuscationConfig{
 		CreditCards: obfuscate.CreditCardsConfig{Enabled: true},
 	}
-	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent(), nil)
 	defer cancelFunc()
 	testCases := []*struct {
 		span *pb.Span
@@ -543,7 +544,7 @@ func TestLexerObfuscation(t *testing.T) {
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"
 	cfg.Features["sqllexer"] = struct{}{}
-	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent(), nil)
 	defer cancelFunc()
 	span := &pb.Span{
 		Resource: "SELECT * FROM [u].[users]",
@@ -588,7 +589,7 @@ func TestObfuscateSpanParameterized(t *testing.T) {
 			cfg.Endpoints[0].APIKey = "test"
 			cfg.Features["sqllexer"] = struct{}{}
 			cfg.Obfuscation = &ocfg
-			agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+			agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent(), hook.NewNoopHook[hook.TraceStatsView]())
 			agnt.ObfuscateSpan(&raw.Input)
 			assertSpanEqual(t, &raw.Expected, &raw.Input)
 		})

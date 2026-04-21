@@ -1,0 +1,79 @@
+// FlatBuffers schema for the flight recorder signal types.
+//
+// Generate Go:   flatc --go -o comp/flightrecorder/impl signals.fbs
+// Generate Rust: flatc --rust -o tools/flightrecorder/src/generated signals.fbs
+
+namespace signals;
+
+// A context definition: the first occurrence of a metric with a given
+// context_key. Carries the full metric name and tags for deduplication
+// in the sidecar's contexts.bin bloom filter.
+table ContextEntry {
+  context_key:ulong;
+  name:string;
+  tags:[string];
+  source:string;
+}
+
+// A compact metric data point referencing a previously-sent context.
+table PointEntry {
+  context_key:ulong;
+  value:double;
+  timestamp_ns:long;
+  sample_rate:double;
+}
+
+table MetricBatch {
+  contexts:[ContextEntry];
+  points:[PointEntry];
+}
+
+// A compact log entry referencing a previously-sent context.
+// Metadata (hostname, status, tags) is stored once in contexts.bin
+// via the shared ContextEntry table.
+table LogEntry {
+  context_key:ulong;
+  content:[ubyte];
+  timestamp_ns:long;
+}
+
+table LogBatch {
+  contexts:[ContextEntry];
+  entries:[LogEntry];
+}
+
+table TraceStatEntry {
+  service:string;
+  name:string;
+  resource:string;
+  type:string;
+  span_kind:string;
+  http_status_code:uint;
+  hits:ulong;
+  errors:ulong;
+  duration_ns:ulong;
+  top_level_hits:ulong;
+  ok_summary:[ubyte];
+  error_summary:[ubyte];
+  hostname:string;
+  env:string;
+  version:string;
+  bucket_start_ns:long;
+  bucket_duration_ns:long;
+  timestamp_ns:long;
+}
+
+table TraceStatsBatch {
+  entries:[TraceStatEntry];
+}
+
+// Single envelope table with optional batch fields (no union).
+// Per FlatBuffers efficiency guidelines: non-present fields are cheap,
+// and avoiding unions simplifies routing on the receiver side.
+table SignalEnvelope {
+  metric_batch:MetricBatch;
+  log_batch:LogBatch;
+  trace_stats_batch:TraceStatsBatch;
+}
+
+root_type SignalEnvelope;

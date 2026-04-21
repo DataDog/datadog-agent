@@ -52,7 +52,7 @@ func NewLogReporter(hostname string, sourceName, sourceType string, endpoints *c
 		compression,
 		cfg.GetBool("logs_config.disable_distributed_senders"),
 		false, // serverless
-		hook.NewNoopHook[hook.LogView](),
+		hook.NewNoopHook[[]hook.LogSampleSnapshot](),
 	)
 	pipelineProvider.Start()
 

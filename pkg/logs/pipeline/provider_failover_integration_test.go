@@ -56,7 +56,7 @@ func (suite *ProviderFailoverIntegrationSuite) SetupTest() {
 		compressionfx.NewMockCompressor(),
 		sender.NewServerlessMeta(false),
 		createMockSender(),
-		hook.NewNoopHook[hook.LogView](),
+		hook.NewNoopHook[[]hook.LogSampleSnapshot](),
 	).(*provider)
 
 	suite.provider.Start()

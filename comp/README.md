@@ -781,6 +781,12 @@ to DataDog.
 
 Package fleetstatus implements the core status component information provider interface
 
+### [comp/flightrecorder](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/flightrecorder)
+
+*Datadog Team*: agent-runtimes
+
+Package flightrecorder provides the Component interface for the flight recorder.
+
 ### [comp/haagent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/haagent)
 
 *Datadog Team*: network-device-monitoring-core

@@ -1958,6 +1958,17 @@ func kubernetes(config pkgconfigmodel.Setup) {
 	}
 
 	config.BindEnvAndSetDefault("kubernetes_kubelet_deviceplugins_cache_duration", 5*time.Second)
+
+	// Flight recorder: forwards signal data over Unix socket to the Rust sidecar
+	config.BindEnvAndSetDefault("flightrecorder.socket_path", "/var/run/flightrecorder/pipeline.sock")
+	config.BindEnvAndSetDefault("flightrecorder.flush_interval", 100*time.Millisecond)
+	config.BindEnvAndSetDefault("flightrecorder.point_buffer_capacity", 100000)     // Compact metric points (48 bytes each, double-buffered = 9.6 MB)
+	config.BindEnvAndSetDefault("flightrecorder.def_buffer_capacity", 10000)        // Context definitions (with strings, first-occurrence only)
+	config.BindEnvAndSetDefault("flightrecorder.log_buffer_capacity", 25000)        // Log entries
+	config.BindEnvAndSetDefault("flightrecorder.trace_stats_buffer_capacity", 5000) // Trace stats entries
+	config.BindEnvAndSetDefault("flightrecorder.hook_buffer_size", 16384)
+	config.BindEnvAndSetDefault("flightrecorder.context_set_capacity", 50000)
+	config.BindEnvAndSetDefault("flightrecorder.reconnect_max_interval", 30*time.Second)
 }
 
 func podman(config pkgconfigmodel.Setup) {

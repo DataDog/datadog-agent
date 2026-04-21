@@ -58,7 +58,7 @@ func TestSpanModifierDetectsCloudService(t *testing.T) {
 	defer cancel()
 
 	testOriginTags := func(withModifier bool, expectedOrigin string) {
-		agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+		agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent(), nil)
 		if withModifier {
 			agnt.SpanModifier = &spanModifier{ddOrigin: getDDOrigin()}
 		}

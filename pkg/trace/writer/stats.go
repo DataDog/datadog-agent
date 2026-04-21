@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/hook"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	containertagsbuffer "github.com/DataDog/datadog-agent/pkg/trace/containertags"
@@ -57,6 +58,9 @@ type DatadogStatsWriter struct {
 	payloads  []*pb.StatsPayload // payloads buffered for sync mode
 	flushChan chan chan struct{}
 
+	// statsHook publishes trace stats entries to the flight recorder.
+	statsHook hook.Hook[hook.TraceStatsView]
+
 	easylog *log.ThrottledLogger
 	statsd  statsd.ClientInterface
 	timing  timing.Reporter
@@ -70,6 +74,7 @@ func NewStatsWriter(
 	statsd statsd.ClientInterface,
 	timing timing.Reporter,
 	containerTagsBuffer containertagsbuffer.ContainerTagsBuffer,
+	statsHook hook.Hook[hook.TraceStatsView],
 ) *DatadogStatsWriter {
 	sw := &DatadogStatsWriter{
 		stats:               &info.StatsWriterInfo{},
@@ -82,6 +87,7 @@ func NewStatsWriter(
 		conf:                cfg,
 		statsd:              statsd,
 		timing:              timing,
+		statsHook: statsHook,
 	}
 	climit := cfg.StatsWriter.ConnectionLimit
 	if climit == 0 {
@@ -167,11 +173,56 @@ func (w *DatadogStatsWriter) Write(sp *pb.StatsPayload) {
 }
 
 func (w *DatadogStatsWriter) write(sp *pb.StatsPayload) {
+	w.publishToHook(sp)
 	w.addStats(sp)
 	if !w.syncMode {
 		w.sendPayloads()
 	}
 }
+
+// publishToHook fans out each ClientGroupedStats entry to the flight recorder hook.
+func (w *DatadogStatsWriter) publishToHook(sp *pb.StatsPayload) {
+	if w.statsHook == nil {
+		return
+	}
+	for _, csp := range sp.Stats {
+		for _, bucket := range csp.Stats {
+			for _, gs := range bucket.Stats {
+				w.statsHook.Publish("stats-writer", &traceStatsViewImpl{
+					grouped:  gs,
+					envelope: csp,
+					bucket:   bucket,
+				})
+			}
+		}
+	}
+}
+
+// traceStatsViewImpl wraps protobuf types to implement hook.TraceStatsView.
+type traceStatsViewImpl struct {
+	grouped  *pb.ClientGroupedStats
+	envelope *pb.ClientStatsPayload
+	bucket   *pb.ClientStatsBucket
+}
+
+func (v *traceStatsViewImpl) GetService() string        { return v.grouped.Service }
+func (v *traceStatsViewImpl) GetName() string           { return v.grouped.Name }
+func (v *traceStatsViewImpl) GetResource() string       { return v.grouped.Resource }
+func (v *traceStatsViewImpl) GetType() string           { return v.grouped.Type }
+func (v *traceStatsViewImpl) GetHTTPStatusCode() uint32 { return v.grouped.HTTPStatusCode }
+func (v *traceStatsViewImpl) GetSpanKind() string       { return v.grouped.SpanKind }
+func (v *traceStatsViewImpl) GetHits() uint64           { return v.grouped.Hits }
+func (v *traceStatsViewImpl) GetErrors() uint64         { return v.grouped.Errors }
+func (v *traceStatsViewImpl) GetDuration() uint64       { return v.grouped.Duration }
+func (v *traceStatsViewImpl) GetTopLevelHits() uint64   { return v.grouped.TopLevelHits }
+func (v *traceStatsViewImpl) GetOkSummary() []byte      { return v.grouped.OkSummary }
+func (v *traceStatsViewImpl) GetErrorSummary() []byte   { return v.grouped.ErrorSummary }
+func (v *traceStatsViewImpl) GetSynthetics() bool       { return v.grouped.Synthetics }
+func (v *traceStatsViewImpl) GetHostname() string       { return v.envelope.Hostname }
+func (v *traceStatsViewImpl) GetEnv() string            { return v.envelope.Env }
+func (v *traceStatsViewImpl) GetVersion() string        { return v.envelope.Version }
+func (v *traceStatsViewImpl) GetBucketStartNs() uint64  { return v.bucket.Start }
+func (v *traceStatsViewImpl) GetBucketDurationNs() uint64 { return v.bucket.Duration }
 
 // statsPayloadHasCtags verifies that at least one containerID is present
 func statsPayloadHasCtags(sp *pb.StatsPayload) bool {

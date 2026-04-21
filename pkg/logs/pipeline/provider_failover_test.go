@@ -82,7 +82,7 @@ func createTestProviderWithFailover(t *testing.T, numberOfPipelines int) *provid
 		compressionfx.NewMockCompressor(),
 		sender.NewServerlessMeta(false),
 		createMockSender(),
-		hook.NewNoopHook[hook.LogView](),
+		hook.NewNoopHook[[]hook.LogSampleSnapshot](),
 	).(*provider)
 
 	p.Start()

@@ -76,7 +76,7 @@ type provider struct {
 	currentRouterIndex *atomic.Uint32
 	forwarderWaitGroup sync.WaitGroup
 
-	logHook hook.Hook[hook.LogView]
+	logHook hook.Hook[[]hook.LogSampleSnapshot]
 }
 
 // NewProvider returns a new Provider
@@ -93,7 +93,7 @@ func NewProvider(
 	compression logscompression.Component,
 	legacyMode bool,
 	serverless bool,
-	logHook hook.Hook[hook.LogView],
+	logHook hook.Hook[[]hook.LogSampleSnapshot],
 ) Provider {
 	var senderImpl sender.PipelineComponent
 	serverlessMeta := sender.NewServerlessMeta(serverless)
@@ -222,7 +222,7 @@ func newProvider(
 	compression logscompression.Component,
 	serverlessMeta sender.ServerlessMeta,
 	senderImpl sender.PipelineComponent,
-	logHook hook.Hook[hook.LogView],
+	logHook hook.Hook[[]hook.LogSampleSnapshot],
 ) Provider {
 	return &provider{
 		numberOfPipelines:         numberOfPipelines,

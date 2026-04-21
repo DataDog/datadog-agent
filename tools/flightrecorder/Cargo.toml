@@ -1,0 +1,73 @@
+[package]
+name = "flightrecorder"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "flightrecorder"
+path = "src/lib.rs"
+
+[[bin]]
+name = "flightrecorder"
+path = "src/main.rs"
+
+[[bin]]
+name = "reader"
+path = "src/reader.rs"
+
+[[bin]]
+name = "validate"
+path = "src/validate.rs"
+
+[dependencies]
+rayon = "1"
+bytes = "1"
+flatbuffers = "25"
+tokio = { version = "1", features = ["full"] }
+clap = { version = "4", features = ["derive", "env"] }
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+futures = "0.3"
+arrow = { version = "55", default-features = false, features = ["prettyprint"] }
+parquet = { version = "55", default-features = false, features = ["snap", "zstd", "arrow"] }
+tikv-jemallocator = { version = "0.6", features = ["stats"] }
+tikv-jemalloc-ctl = "0.6"
+tokio-util = { version = "0.7", features = ["rt"] }
+cadence = "1"
+const_format = "0.2"
+bloomfilter = "1"
+rtrb = "0.3"
+atty = "0.2"
+tar = "0.4"
+zstd = "0.13"
+tempfile = "3"
+# object_store provides a lightweight S3 client without the heavy AWS SDK.
+# MSRV is much lower than aws-sdk-s3, compatible with rustc 1.90.0.
+object_store = { version = "0.13", features = ["aws"], optional = true }
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["async_tokio"] }
+
+[[bench]]
+name = "transport_bench"
+harness = false
+
+[[bench]]
+name = "framing_bench"
+harness = false
+
+[[bench]]
+name = "writer_bench"
+harness = false
+
+[features]
+# Enable jemalloc heap profiling. Build with: cargo build --features heap-prof
+# Then set _RJEM_MALLOC_CONF=prof:true,lg_prof_sample:17 at runtime.
+heap-prof = ["tikv-jemallocator/profiling"]
+# Enable S3 upload. Build with: cargo build --features s3
+s3 = ["dep:object_store"]
+archive = []
+
+[profile.release]
+# debug = 1  # Uncomment for jeprof symbolization

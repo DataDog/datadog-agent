@@ -219,7 +219,7 @@ func (a *Agent) SetupPipeline(
 		a.compression,
 		a.config.GetBool("logs_config.disable_distributed_senders"),
 		false, // serverless
-		hook.NewNoopHook[hook.LogView](),
+		hook.NewNoopHook[[]hook.LogSampleSnapshot](),
 	)
 
 	a.destinationsCtx = destinationsCtx
