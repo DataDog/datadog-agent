@@ -27,9 +27,10 @@ RUN echo "deb https://${APT_REPO}/ ${APT_DISTRIBUTION} 7 6" > /etc/apt/sources.l
  && dpkg -X ./datadog-agent-dbg*.deb / \
  && rm -f ./datadog-agent-dbg*.deb
 
-# Add GDB debug script for libpython
+# Add GDB debug script for libpython - pin to a specific CPython release tag
+ARG CPYTHON_TAG=v3.12.9
 RUN TARGET_FILE=$(find /opt/datadog-agent/.debug/opt/datadog-agent/embedded/lib/ -name 'libpython3.*0.dbg' | sed 's/.dbg/-gdb.py/') \
- && curl https://raw.githubusercontent.com/python/cpython/master/Tools/gdb/libpython.py -o ${TARGET_FILE}
+ && curl https://raw.githubusercontent.com/python/cpython/${CPYTHON_TAG}/Tools/gdb/libpython.py -o ${TARGET_FILE}
 
 RUN mkdir -p /usr/lib/debug/.build-id/$(readelf -n /opt/datadog-agent/bin/agent/agent | perl -nE 'say $1 if /Build ID: (..)(.*)/')
 
