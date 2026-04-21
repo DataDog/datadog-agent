@@ -1,5 +1,5 @@
 ---
-name: newsletter
+name: agent-supply-chain-newsletter
 description: Generate the Agent Supply Chain newsletter by researching team activity on GitHub and Confluence, then creating a Confluence draft and Gmail draft
 argument-hint: "<period e.g. 'February-March 2026'>"
 ---
@@ -40,7 +40,7 @@ Each agent should run, for every user:
 gh pr list --repo DataDog/datadog-agent --author USERNAME --state merged --search "merged:START_DATE..END_DATE" --limit 50 --json title,url,mergedAt,labels
 
 # PRs across the DataDog org (catches buildimages, k8s-ops, integrations-core, etc.)
-gh search prs --author USERNAME --owner DataDog --merged --merged-after START_DATE --merged-before END_DATE --limit 20 --json repository,title,url
+gh search prs --author USERNAME --owner DataDog --merged --limit 20 --json repository,title,url -- "merged:START_DATE..END_DATE"
 ```
 
 Each agent should return a summary per user, grouped thematically (build improvements, CI/CD, new features, bug fixes, etc.). Skip trivial PRs (version bumps, dependency updates). Focus on items that **impact teams outside Agent Supply Chain**.
