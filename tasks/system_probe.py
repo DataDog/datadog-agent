@@ -1235,7 +1235,10 @@ def build_rust_binaries(ctx: Context, arch: Arch, output_dir: Path | None = None
         "arm64": "//bazel/platforms:linux_arm64",
     }
 
-    platform_flags = []
+    # Rust SPL artifacts should be built with the repo's release Bazel config.
+    # The previous split build_rust_libs path did this, and the later refactor
+    # accidentally dropped it.
+    platform_flags = ["--config=release"]
     if arch.kmt_arch in platform_map:
         platform_flags.append(f"--platforms={platform_map[arch.kmt_arch]}")
 
