@@ -4,7 +4,7 @@ set -eo pipefail
 
 # Ensure the build keychain is destroyed on exit (normal, signal, or timeout).
 # This makes cleanup self-contained so it works from both CI and Bazel.
-trap 'security delete-keychain "$KEYCHAIN_NAME" 2>/dev/null || true' 0 1 2 3 15
+trap 'security delete-keychain "$KEYCHAIN_NAME" 2>/dev/null || true' EXIT
 
 if [ "${SIGN:-false}" = true ]; then
     echo "Signing enabled"
