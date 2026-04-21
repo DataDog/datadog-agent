@@ -26,6 +26,7 @@ PROTO_PKGS = {
     'workloadfilter': False,
     'dogstatsdhttp': False,
     'sbom': False,
+    'stateful': False,
 }
 
 CLI_EXTRAS = {
@@ -42,10 +43,12 @@ CLI_EXTRAS_GRPC = {
 PKG_PLUGINS = {
     'trace': '--go-vtproto_out=',
     'dogstatsdhttp': '--go-vtproto_out=',
+    'stateful': '--go-vtproto_out=',
 }
 
 PKG_CLI_EXTRAS = {
     'trace': '--go-vtproto_opt=features=marshal+unmarshal+size',
+    'stateful': '--go-vtproto_opt=features=marshal+unmarshal+size',
 }
 
 # protoc-go-inject-tag targets
