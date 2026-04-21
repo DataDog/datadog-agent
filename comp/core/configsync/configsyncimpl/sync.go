@@ -60,10 +60,30 @@ func (cs *configSync) updater() error {
 				cs.Config.Set(key, typedValues, pkgconfigmodel.SourceLocalConfigProcess)
 			}
 		} else {
-			helper.SetTree(cs.Config, key, value, pkgconfigmodel.SourceLocalConfigProcess)
+			helper.SetTree(cs.Config, key, coerceJSONToSchemaTypes(cs.Config, key, value), pkgconfigmodel.SourceLocalConfigProcess)
 		}
 	}
 	return nil
+}
+
+// coerceJSONToSchemaTypes recursively casts JSON-decoded leaves to the types declared in cfg's schema
+func coerceJSONToSchemaTypes(cfg pkgconfigmodel.Reader, key string, value interface{}) interface{} {
+	if m, ok := value.(map[string]interface{}); ok && !cfg.IsSetting(key) {
+		out := make(map[string]interface{}, len(m))
+		for k, v := range m {
+			out[k] = coerceJSONToSchemaTypes(cfg, key+"."+k, v)
+		}
+		return out
+	}
+	existing := cfg.Get(key)
+	if existing == nil {
+		return value
+	}
+	converted, err := pkgconfigmodel.ConvertToDefaultType(value, existing)
+	if err != nil {
+		return value
+	}
+	return converted
 }
 
 func (cs *configSync) runWithInterval(refreshInterval time.Duration) {
