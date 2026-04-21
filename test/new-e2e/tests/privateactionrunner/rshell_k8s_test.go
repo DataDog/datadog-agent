@@ -68,7 +68,7 @@ func (s *parK8sSuite) TestRshellHappyFlow() {
 	err := s.Env().FakeIntake.Client().EnqueuePARTask(taskID, runCommandAction, map[string]interface{}{
 		"command":         "cat " + testDataFile,
 		"allowedCommands": []string{"rshell:cat"},
-		"allowedPaths":    []string{testDataFile},
+		"allowedPaths":    []string{"/host/var/log"},
 	})
 	s.Require().NoError(err)
 
