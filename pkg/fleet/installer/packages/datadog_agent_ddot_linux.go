@@ -483,6 +483,14 @@ func restoreDDOTProcessConfig(ctx HookContext) error {
 	if ctx.PackageType != PackageTypeOCI {
 		return nil
 	}
+	// If the DDOT extension is installed under the agent package, the
+	// extension hook already wrote the correct config. Writing the
+	// standalone variant here would overwrite it with wrong paths.
+	extDDOT := filepath.Join(ctx.PackagePath, "ext", "ddot")
+	if _, err := os.Stat(extDDOT); err == nil {
+		log.Infof("DDOT extension detected at %s, skipping standalone restore", extDDOT)
+		return nil
+	}
 	ddotPkgPath := filepath.Join(paths.PackagesPath, "datadog-agent-ddot", "stable")
 	if _, err := os.Stat(ddotPkgPath); os.IsNotExist(err) {
 		return nil
