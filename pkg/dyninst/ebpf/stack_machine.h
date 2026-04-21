@@ -2810,6 +2810,10 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
   } break;
 
   case SM_OP_CONDITION_BEGIN: {
+    // Arm the eval-error flag. See the lifecycle comment on
+    // condition_eval_error in context.h: this is one of three ops that
+    // touch the flag (BEGIN arms, JUMP_IF_* leave untouched, CHECK
+    // clears on success).
     sm->condition_eval_error = true;
   } break;
 
@@ -2823,6 +2827,37 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
       sm->condition_failed = true;
       LOG(1, "condition check failed");
       return 1; // Abort stack machine.
+    }
+  } break;
+
+  case SM_OP_COND_NOT: {
+    if (!scratch_buf_bounds_check(&sm->offset, 1)) {
+      return 1;
+    }
+    (*buf)[sm->offset] = 1 - ((*buf)[sm->offset] & 1);
+  } break;
+
+  case SM_OP_COND_JUMP_IF_FALSE: {
+    uint32_t target_pc = sm_read_program_uint32(sm);
+    if (!scratch_buf_bounds_check(&sm->offset, 1)) {
+      return 1;
+    }
+    // Leaves of a compound may still fault after this jump (we may be
+    // falling through to a later leaf), so we do not clear
+    // condition_eval_error here. The tail CONDITION_CHECK clears it after
+    // the entire condition tree has run without aborting.
+    if ((*buf)[sm->offset] == 0) {
+      sm->pc = target_pc;
+    }
+  } break;
+
+  case SM_OP_COND_JUMP_IF_TRUE: {
+    uint32_t target_pc = sm_read_program_uint32(sm);
+    if (!scratch_buf_bounds_check(&sm->offset, 1)) {
+      return 1;
+    }
+    if ((*buf)[sm->offset] != 0) {
+      sm->pc = target_pc;
     }
   } break;
 
