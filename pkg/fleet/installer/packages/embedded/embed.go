@@ -32,12 +32,12 @@ var systemdUnits embed.FS
 
 //go:embed tmpl/gen/oci/datadog-agent-ddot.yaml
 //go:embed tmpl/gen/oci/datadog-agent-ddot-exp.yaml
-//go:embed tmpl/gen/oci/datadog-agent-ddot-standalone.yaml
-//go:embed tmpl/gen/oci/datadog-agent-ddot-standalone-exp.yaml
+//go:embed tmpl/gen/oci/datadog-agent-ddot-sa.yaml
+//go:embed tmpl/gen/oci/datadog-agent-ddot-sa-exp.yaml
 //go:embed tmpl/gen/debrpm/datadog-agent-ddot.yaml
 //go:embed tmpl/gen/debrpm/datadog-agent-ddot-exp.yaml
-//go:embed tmpl/gen/debrpm/datadog-agent-ddot-standalone.yaml
-//go:embed tmpl/gen/debrpm/datadog-agent-ddot-standalone-exp.yaml
+//go:embed tmpl/gen/debrpm/datadog-agent-ddot-sa.yaml
+//go:embed tmpl/gen/debrpm/datadog-agent-ddot-sa-exp.yaml
 var processConfigs embed.FS
 
 // DDOTProcessConfig is the rendered process manager config for DDOT (deb/rpm stable layout).
@@ -73,7 +73,7 @@ func GetSystemdUnit(name string, unitType SystemdUnitType, ambiantCapabilitiesSu
 func GetDDOTProcessConfig(unitType SystemdUnitType, stable bool, standalone bool) (string, error) {
 	name := "datadog-agent-ddot"
 	if standalone {
-		name += "-standalone"
+		name += "-sa"
 	}
 	if !stable {
 		name += "-exp"

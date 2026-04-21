@@ -149,9 +149,9 @@ func systemdUnits(stableData, expData, stableStandaloneData, expStandaloneData s
 		"datadog-agent-ddot.yaml":     mustRenderYAMLConfig("datadog-agent-ddot.yaml", stableData),
 		"datadog-agent-ddot-exp.yaml": mustRenderYAMLConfig("datadog-agent-ddot.yaml", expData),
 
-		// dd-procmgrd process configs (standalone DDOT package layout)
-		"datadog-agent-ddot-standalone.yaml":     mustRenderYAMLConfig("datadog-agent-ddot.yaml", stableStandaloneData),
-		"datadog-agent-ddot-standalone-exp.yaml": mustRenderYAMLConfig("datadog-agent-ddot.yaml", expStandaloneData),
+		// dd-procmgrd process configs (standalone DDOT package layout, "sa" = standalone)
+		"datadog-agent-ddot-sa.yaml":     mustRenderYAMLConfig("datadog-agent-ddot.yaml", stableStandaloneData),
+		"datadog-agent-ddot-sa-exp.yaml": mustRenderYAMLConfig("datadog-agent-ddot.yaml", expStandaloneData),
 	}
 	return units
 }
