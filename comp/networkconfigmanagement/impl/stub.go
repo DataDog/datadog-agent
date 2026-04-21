@@ -32,13 +32,11 @@ type Provides struct {
 	Endpoint api.EndpointProvider `group:"agent_endpoint"`
 }
 
-type stubImpl struct{}
-
 // NewComponent creates a stub networkconfigmanagement component
-func NewComponent(reqs Requires) (Provides, error) {
+func NewComponent(_ Requires) (Provides, error) {
 	provides := Provides{
 		Comp: nil,
-		Endpoint: api.NewAgentEndpointProvider(func(w http.ResponseWriter, r *http.Request) {
+		Endpoint: api.NewAgentEndpointProvider(func(w http.ResponseWriter, _ *http.Request) {
 			http.Error(w, `{"error": "ncm not enabled for agent"}`, http.StatusBadRequest)
 		}, "/agent/ncm/config", "GET").Provider,
 	}
