@@ -25,15 +25,15 @@ relative_path "openssl-#{version}"
 build do
   flavor_flag = fips_mode? ? "--//packages/agent:flavor=fips" : ""
 
-  command_on_repo_root "bazelisk run #{flavor_flag} --//:install_dir=#{install_dir} -- @openssl//:install --destdir=#{install_dir}"
+  # On macOS, build_agent_dmg.sh sets INSTALL_DIR to a temporary staging folder.
+  # Pass the actual runtime path as --//:install_dir so that OPENSSLDIR,
+  # ENGINESDIR, and MODULESDIR are baked into the binaries with the correct
+  # paths at configure time (via --runtime-openssldir and --runtime-dir).
+  real_install_dir = mac_os_x? ? "/opt/datadog-agent" : install_dir
+  command_on_repo_root "bazelisk run #{flavor_flag} --//:install_dir=#{real_install_dir} -- @openssl//:install --destdir=#{install_dir}"
 
   unless windows?
     command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- @zlib//:install --destdir=#{install_dir}"
-    # build_agent_dmg.sh sets INSTALL_DIR to some temporary folder.
-    # This messes up openssl's internal paths. So we have to use another variable
-    # so that replace_prefix and fix_openssl_paths set path correctly inside of the
-    # openssl binaries on macos
-    real_install_dir = if mac_os_x? then "/opt/datadog-agent" else install_dir end
     lib_extension = if linux_target? then ".so" else ".dylib" end
 
     files_to_patch = [
@@ -48,10 +48,6 @@ build do
     files_to_patch = files_to_patch.map { |path| "#{install_dir}/embedded/#{path}" }
 
     command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- //bazel/rules:replace_prefix --prefix #{install_dir}/embedded #{files_to_patch.join(' ')}"
-
-    command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- //deps/openssl:fix_openssl_paths --destdir #{real_install_dir}/embedded" \
-      " #{install_dir}/embedded/lib/libssl#{lib_extension}" \
-      " #{install_dir}/embedded/lib/libcrypto#{lib_extension}" \
   end
   if fips_mode?
     command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- @openssl_fips//:install --destdir=#{install_dir}"
