@@ -303,14 +303,16 @@ func TestProcessContext(t *testing.T) {
 	test.RunMultiMode(t, "args-envs", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"-al", "--password", "secret", "--custom", "secret", "gh-1234567890"}
 		envs := []string{"LD_LIBRARY_PATH=/tmp/lib", "DD_API_KEY=dd-api-key"}
+		var errCmd error
 		test.WaitSignalFromRule(t, func() error {
 			cmd := cmdFunc("ls", args, envs)
 			// we need to ignore the error because "--password" is not a valid option for ls
-			_ = cmd.Run()
+			errCmd = cmd.Run()
 			return nil
 		}, test.validateExecEvent(t, kind, func(event *model.Event, _ *rules.Rule) {
 			argv0, err := event.GetFieldValue("exec.argv0")
 			if err != nil {
+				t.Log("err from cmd run:", errCmd)
 				t.Errorf("not able to get argv0")
 			}
 			assert.Equal(t, "ls", argv0, "incorrect argv0: %s", argv0)
@@ -318,6 +320,7 @@ func TestProcessContext(t *testing.T) {
 			// args
 			args, err := event.GetFieldValue("exec.args")
 			if err != nil || len(args.(string)) == 0 {
+				t.Log("err from cmd run:", errCmd)
 				t.Error("not able to get args")
 			}
 
@@ -331,12 +334,14 @@ func TestProcessContext(t *testing.T) {
 			}
 
 			if !contains("-al") || !contains("--password") || !contains("--custom") {
+				t.Log("err from cmd run:", errCmd)
 				t.Error("arg not found")
 			}
 
 			// envs
 			envs, err := event.GetFieldValue("exec.envs")
 			if err != nil || len(envs.([]string)) == 0 {
+				t.Log("err from cmd run:", errCmd)
 				t.Error("not able to get envs")
 			}
 
@@ -350,24 +355,29 @@ func TestProcessContext(t *testing.T) {
 			}
 
 			if !contains("LD_LIBRARY_PATH") {
+				t.Log("err from cmd run:", errCmd)
 				t.Errorf("env not found: %v", event)
 			}
 
 			// trigger serialization to test scrubber
 			str, err := test.marshalEvent(event)
 			if err != nil {
+				t.Log("err from cmd run:", errCmd)
 				t.Error(err)
 			}
 
 			if !strings.Contains(str, "password") || !strings.Contains(str, "custom") {
+				t.Log("err from cmd run:", errCmd)
 				t.Error("args not serialized")
 			}
 
 			if strings.Contains(str, "secret") || strings.Contains(str, "dd-api-key") {
+				t.Log("err from cmd run:", errCmd)
 				t.Error("secret or env values exposed")
 			}
 
 			if strings.Contains(str, "gh-1234567890") {
+				t.Log("err from cmd run:", errCmd)
 				t.Error("gh-1234567890 exposed")
 			}
 		}), "test_rule_args_envs")
@@ -379,8 +389,7 @@ func TestProcessContext(t *testing.T) {
 
 		test.WaitSignalFromRule(t, func() error {
 			cmd := cmdFunc("ls", args, envs)
-			_ = cmd.Run()
-			return nil
+			return cmd.Run()
 		}, test.validateExecEvent(t, kind, func(_ *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "test_rule_envp", rule.ID, "wrong rule triggered")
 		}), "test_rule_envp")
@@ -427,6 +436,7 @@ func TestProcessContext(t *testing.T) {
 	test.RunMultiMode(t, "args-overflow-single", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"-al"}
 		envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
+		var errCmd error
 
 		// size overflow
 		long := strings.Repeat("a", 1024)
@@ -435,11 +445,12 @@ func TestProcessContext(t *testing.T) {
 		test.WaitSignalFromRule(t, func() error {
 			cmd := cmdFunc("ls", args, envs)
 			// we need to ignore the error because the string of "a" generates a "File name too long" error
-			_ = cmd.Run()
+			errCmd = cmd.Run()
 			return nil
 		}, test.validateExecEvent(t, kind, func(event *model.Event, _ *rules.Rule) {
 			args, err := event.GetFieldValue("exec.args")
 			if err != nil {
+				t.Log("err from cmd run:", errCmd)
 				t.Errorf("not able to get args")
 			}
 
@@ -451,14 +462,17 @@ func TestProcessContext(t *testing.T) {
 			// truncated is reported if a single argument is truncated or if the list is truncated
 			truncated, err := event.GetFieldValue("exec.args_truncated")
 			if err != nil {
+				t.Log("err from cmd run:", errCmd)
 				t.Errorf("not able to get args truncated")
 			}
 			if !truncated.(bool) {
+				t.Log("err from cmd run:", errCmd)
 				t.Errorf("arg not truncated: %s", args.(string))
 			}
 
 			argv0, err := event.GetFieldValue("exec.argv0")
 			if err != nil {
+				t.Log("err from cmd run:", errCmd)
 				t.Errorf("not able to get argv0")
 			}
 			assert.Equal(t, "ls", argv0, "incorrect argv0: %s", argv0)
@@ -467,21 +481,23 @@ func TestProcessContext(t *testing.T) {
 
 	test.RunMultiMode(t, "args-overflow-list-50", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
+		var errCmd error
 
 		// number of args overflow
 		nArgs, args := 1024, []string{"-al"}
 		for i := 0; i != nArgs; i++ {
 			args = append(args, utils.RandString(50))
 		}
-
+		fmt.Printf("args: %s\n", args)
 		err := test.GetSignal(t, func() error {
 			cmd := cmdFunc("ls", args, envs)
 			// we need to ignore the error because the string of "a" generates a "File name too long" error
-			_ = cmd.Run()
+			errCmd = cmd.Run()
 			return nil
 		}, func(event *model.Event, _ *rules.Rule) {
 			execArgs, err := event.GetFieldValue("exec.args")
 			if err != nil {
+				t.Log("err from cmd run:", errCmd)
 				t.Errorf("not able to get args")
 			}
 
@@ -501,19 +517,23 @@ func TestProcessContext(t *testing.T) {
 			// truncated is reported if a single argument is truncated or if the list is truncated
 			truncated, err := event.GetFieldValue("exec.args_truncated")
 			if err != nil {
+				t.Log("err from cmd run:", errCmd)
 				t.Errorf("not able to get args truncated")
 			}
 			if !truncated.(bool) {
+				t.Log("err from cmd run:", errCmd)
 				t.Errorf("arg not truncated: %s", execArgs.(string))
 			}
 		})
 		if err != nil {
+			t.Log("err from cmd run:", errCmd)
 			t.Error(err)
 		}
 	})
 
 	test.RunMultiMode(t, "args-overflow-list-500", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
+		var errCmd error
 
 		// number of args overflow
 		nArgs, args := 1024, []string{"-al"}
@@ -524,15 +544,17 @@ func TestProcessContext(t *testing.T) {
 		err := test.GetSignal(t, func() error {
 			cmd := cmdFunc("ls", args, envs)
 			// we need to ignore the error because the string of "a" generates a "File name too long" error
-			_ = cmd.Run()
+			errCmd = cmd.Run()
 			return nil
 		}, func(event *model.Event, _ *rules.Rule) {
 			execArgs, err := event.GetFieldValue("exec.args")
 			if err != nil {
+				t.Log("err from cmd run:", errCmd)
 				t.Errorf("not able to get args")
 			}
-
+			fmt.Printf("BEFORE CHECK ARGS: %s\n", execArgs.(string))
 			argv := strings.Split(execArgs.(string), " ")
+			fmt.Printf("AFTER CHECK ARGS: %s\n", argv)
 			if ebpfLessEnabled {
 				assert.Equal(t, sharedconsts.MaxArgsEnvsSize-1, len(argv), "incorrect number of args: %s", argv)
 				for i := 0; i != sharedconsts.MaxArgsEnvsSize-1; i++ {
@@ -540,7 +562,9 @@ func TestProcessContext(t *testing.T) {
 					if len(expected) > sharedconsts.MaxArgEnvSize {
 						expected = args[i][:sharedconsts.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
 					}
-					assert.Equal(t, expected, argv[i], "expected arg not found")
+					if !assert.Equal(t, expected, argv[i], "expected arg not found") {
+						fmt.Printf("got args: %s, expected args: %s\n", argv, expected)
+					}
 				}
 			} else {
 				assert.Equal(t, 457, len(argv), "incorrect number of args: %s", argv)
@@ -549,20 +573,25 @@ func TestProcessContext(t *testing.T) {
 					if len(expected) > sharedconsts.MaxArgEnvSize {
 						expected = args[i][:sharedconsts.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
 					}
-					assert.Equal(t, expected, argv[i], "expected arg not found")
+					if !assert.Equal(t, expected, argv[i], "expected arg not found") {
+						fmt.Printf("got args: %s, expected args: %s\n", argv, expected)
+					}
 				}
 			}
 
 			// truncated is reported if a single argument is truncated or if the list is truncated
 			truncated, err := event.GetFieldValue("exec.args_truncated")
 			if err != nil {
+				t.Log("err from cmd run:", errCmd)
 				t.Errorf("not able to get args truncated")
 			}
 			if !truncated.(bool) {
+				t.Log("err from cmd run:", errCmd)
 				t.Errorf("arg not truncated: %s", execArgs.(string))
 			}
 		})
 		if err != nil {
+			t.Log("err from cmd run:", errCmd)
 			t.Error(err)
 		}
 	})
@@ -644,7 +673,9 @@ func TestProcessContext(t *testing.T) {
 			if ebpfLessEnabled {
 				assert.Equal(t, sharedconsts.MaxArgsEnvsSize, len(envp), "incorrect number of envs: %s", envp)
 				for i := 0; i != sharedconsts.MaxArgsEnvsSize; i++ {
-					assert.Equal(t, envs[i], envp[i], "expected env not found")
+					if !assert.Equal(t, envs[i], envp[i], "expected env not found") {
+						fmt.Printf("got env: %s, expected env: %s\n", envp, envs)
+					}
 				}
 			} else {
 				assert.Equal(t, 704, len(envp), "incorrect number of envs: %s", envp)
@@ -707,7 +738,9 @@ func TestProcessContext(t *testing.T) {
 					if len(expected) > sharedconsts.MaxArgEnvSize {
 						expected = envs[i][:sharedconsts.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
 					}
-					assert.Equal(t, expected, envp[i], "expected env not found")
+					if !assert.Equal(t, expected, envp[i], "expected env not found") {
+						fmt.Printf("got envs : %s, expected env: %s\n", envp, envs)
+					}
 				}
 			} else {
 				assert.Equal(t, 863, len(envp), "incorrect number of envs: %s", envp)
@@ -716,7 +749,9 @@ func TestProcessContext(t *testing.T) {
 					if len(expected) > sharedconsts.MaxArgEnvSize {
 						expected = envs[i][:sharedconsts.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
 					}
-					assert.Equal(t, expected, envp[i], "expected env not found")
+					if !assert.Equal(t, expected, envp[i], "expected env not found") {
+						fmt.Printf("got envs : %s, expected env: %s\n", envp, envs)
+					}
 				}
 			}
 
