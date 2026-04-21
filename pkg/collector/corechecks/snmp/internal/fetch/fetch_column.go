@@ -128,6 +128,16 @@ func getResults(sess session.Session, requestOids []string, bulkMaxRepetitions u
 			log.Debug(fetchErr.Error())
 			return nil, fetchErr
 		}
+
+		// Some devices truncate GetBulk responses without returning an SNMP
+		// error. Treat that as a fetch failure so batching retries with a
+		// smaller request instead of silently losing metrics.
+		if len(getBulkResults.Variables) < len(requestOids) {
+			err := fmt.Errorf("response truncated: got %d varbinds for %d OIDs", len(getBulkResults.Variables), len(requestOids))
+			fetchErr := newFetchError(columnOid, requestOids, snmpGetBulk, err)
+			log.Debug(fetchErr.Error())
+			return nil, fetchErr
+		}
 		results = getBulkResults
 		if log.ShouldLog(log.DebugLvl) {
 			log.Debugf("fetch column: GetBulk results: %v", gosnmplib.PacketAsString(results))

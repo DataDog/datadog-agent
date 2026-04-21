@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    SNMP: Detect GetBulk response truncation (fewer varbinds than requested OIDs) and
+    automatically reduce the batch size, preventing silent metric loss on devices that
+    truncate large SNMP responses.
