@@ -76,8 +76,21 @@ func mockPdhAddEnglishCounter(hQuery PDH_HQUERY, szFullCounterPath string, _ uin
 	return 0
 }
 
+// mockCollectQueryDataReturn is the PDH error code that mockPdhCollectQueryData
+// returns. Defaults to success (0). Tests can override via SetMockCollectQueryDataReturn
+// to exercise error paths like PDH_NO_DATA.
+var mockCollectQueryDataReturn uint32
+
 func mockPdhCollectQueryData(_ PDH_HQUERY) uint32 {
-	return 0
+	return mockCollectQueryDataReturn
+}
+
+// SetMockCollectQueryDataReturn sets the PDH error code returned by the mocked
+// PdhCollectQueryData call. Use 0 for success, or any PDH error code (e.g.
+// PDH_NO_DATA) to simulate failure. Tests using this must call it after
+// SetupTesting, and should reset to 0 when done if sharing state with other tests.
+func SetMockCollectQueryDataReturn(pdherror uint32) {
+	mockCollectQueryDataReturn = pdherror
 }
 
 func mockPdhCloseQuery(hQuery PDH_HQUERY) uint32 {
@@ -165,6 +178,7 @@ func mockpdhMakeCounterPath(machine string, object string, instance string, coun
 // SetupTesting initializes the PDH libarary with the mock functions rather than the real thing
 func SetupTesting(_, countersfile string) {
 	activeAvailableCounters, _ = ReadCounters(countersfile)
+	mockCollectQueryDataReturn = 0
 	// For testing
 	pfnPdhOpenQuery = mockPdhOpenQuery
 	pfnPdhAddEnglishCounter = mockPdhAddEnglishCounter

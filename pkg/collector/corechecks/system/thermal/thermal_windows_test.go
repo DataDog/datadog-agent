@@ -8,9 +8,11 @@
 package thermal
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -24,112 +26,93 @@ func toCelsius(kelvin float64) float64 {
 }
 
 func TestThermalCheck(t *testing.T) {
-	pdhtest.SetupTesting("..\\testfiles\\counter_indexes_en-us.txt", "..\\testfiles\\allcounters_en-us.txt")
-	pdhtest.AddCounterInstance("Thermal Zone Information", "tz.thm0")
+	type zone struct {
+		instance  string
+		tempK     float64
+		hpTenthsK float64 // 0 = High Precision Temperature counter unavailable
+		passive   float64
+	}
+	tests := []struct {
+		name  string
+		zones []zone
+	}{
+		{
+			name: "prefers High Precision Temperature when available",
+			zones: []zone{
+				{instance: "tz.thm0", tempK: 345.0, hpTenthsK: 3452.0, passive: 100.0},
+			},
+		},
+		{
+			name: "falls back to Temperature when High Precision is unavailable",
+			zones: []zone{
+				{instance: "tz.thm0", tempK: 345.0, passive: 100.0},
+			},
+		},
+		{
+			name: "emits metrics for each zone when multiple zones exist",
+			zones: []zone{
+				{instance: "tz.thm0", tempK: 345.0, hpTenthsK: 3450.0, passive: 100.0},
+				{instance: "tz.thm1", tempK: 360.0, hpTenthsK: 3600.0, passive: 80.0},
+			},
+		},
+	}
 
-	// High Precision Temperature (3452 tenths-of-K = 345.2 K = 72.05 C) takes precedence
-	pdhtest.SetQueryReturnValue("\\\\.\\Thermal Zone Information(tz.thm0)\\Temperature", 345.0)
-	pdhtest.SetQueryReturnValue("\\\\.\\Thermal Zone Information(tz.thm0)\\High Precision Temperature", 3452.0)
-	pdhtest.SetQueryReturnValue("\\\\.\\Thermal Zone Information(tz.thm0)\\% Passive Limit", 100.0)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pdhtest.SetupTesting(`..\testfiles\counter_indexes_en-us.txt`, `..\testfiles\allcounters_en-us.txt`)
+			check := new(thermalCheck)
+			mock := mocksender.NewMockSender(check.ID())
+			require.NoError(t, check.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider"))
 
-	check := new(thermalCheck)
-	mock := mocksender.NewMockSender(check.ID())
-	check.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
+			for _, z := range tt.zones {
+				pdhtest.AddCounterInstance("Thermal Zone Information", z.instance)
+				path := func(counter string) string {
+					return fmt.Sprintf(`\\.\Thermal Zone Information(%s)\%s`, z.instance, counter)
+				}
+				pdhtest.SetQueryReturnValue(path("Temperature"), z.tempK)
+				if z.hpTenthsK > 0 {
+					pdhtest.SetQueryReturnValue(path("High Precision Temperature"), z.hpTenthsK)
+				}
+				pdhtest.SetQueryReturnValue(path("% Passive Limit"), z.passive)
 
-	mock.On("Gauge", "system.thermal.temperature", toCelsius(3452.0/10.0), "", []string{"thermal_zone:tz.thm0"}).Return().Times(1)
-	mock.On("Gauge", "system.thermal.passive_limit", 100.0, "", []string{"thermal_zone:tz.thm0"}).Return().Times(1)
-	mock.On("Commit").Return().Times(1)
-	check.Run()
-
-	mock.AssertExpectations(t)
-	mock.AssertNumberOfCalls(t, "Gauge", 2)
-	mock.AssertNumberOfCalls(t, "Commit", 1)
+				expectedK := z.tempK
+				if z.hpTenthsK > 0 {
+					expectedK = z.hpTenthsK / 10.0
+				}
+				tags := []string{"thermal_zone:" + z.instance}
+				mock.On("Gauge", "system.thermal.temperature", toCelsius(expectedK), "", tags).Return().Once()
+				mock.On("Gauge", "system.thermal.passive_limit", z.passive, "", tags).Return().Once()
+			}
+			mock.On("Commit").Return().Once()
+			require.NoError(t, check.Run())
+			mock.AssertExpectations(t)
+		})
+	}
 }
 
-func TestThermalCheckMultipleZones(t *testing.T) {
-	pdhtest.SetupTesting("..\\testfiles\\counter_indexes_en-us.txt", "..\\testfiles\\allcounters_en-us.txt")
-	pdhtest.AddCounterInstance("Thermal Zone Information", "tz.thm0")
-	pdhtest.AddCounterInstance("Thermal Zone Information", "tz.thm1")
-
-	pdhtest.SetQueryReturnValue("\\\\.\\Thermal Zone Information(tz.thm0)\\Temperature", 345.0)
-	pdhtest.SetQueryReturnValue("\\\\.\\Thermal Zone Information(tz.thm0)\\High Precision Temperature", 3450.0)
-	pdhtest.SetQueryReturnValue("\\\\.\\Thermal Zone Information(tz.thm0)\\% Passive Limit", 100.0)
-	pdhtest.SetQueryReturnValue("\\\\.\\Thermal Zone Information(tz.thm1)\\Temperature", 360.0)
-	pdhtest.SetQueryReturnValue("\\\\.\\Thermal Zone Information(tz.thm1)\\High Precision Temperature", 3600.0)
-	pdhtest.SetQueryReturnValue("\\\\.\\Thermal Zone Information(tz.thm1)\\% Passive Limit", 80.0)
+// TestThermalCheckNoInstances verifies that the check handles PDH_NO_DATA (no
+// thermal zone instances on the host, e.g. VMs) silently — no error, no
+// warning, no metrics, just a Commit.
+func TestThermalCheckNoInstances(t *testing.T) {
+	pdhtest.SetupTesting(`..\testfiles\counter_indexes_en-us.txt`, `..\testfiles\allcounters_en-us.txt`)
+	pdhtest.SetMockCollectQueryDataReturn(pdhtest.PDH_NO_DATA)
+	t.Cleanup(func() {
+		pdhtest.SetMockCollectQueryDataReturn(0)
+	})
 
 	check := new(thermalCheck)
 	mock := mocksender.NewMockSender(check.ID())
-	check.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
+	require.NoError(t, check.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider"))
 
-	// Zone 0: HP = 3450 tenths-K = 345.0 K = 71.85°C, not throttled
-	mock.On("Gauge", "system.thermal.temperature", toCelsius(3450.0/10.0), "", []string{"thermal_zone:tz.thm0"}).Return().Times(1)
-	mock.On("Gauge", "system.thermal.passive_limit", 100.0, "", []string{"thermal_zone:tz.thm0"}).Return().Times(1)
-
-	// Zone 1: HP = 3600 tenths-K = 360.0 K = 86.85°C, throttled to 80%
-	mock.On("Gauge", "system.thermal.temperature", toCelsius(3600.0/10.0), "", []string{"thermal_zone:tz.thm1"}).Return().Times(1)
-	mock.On("Gauge", "system.thermal.passive_limit", 80.0, "", []string{"thermal_zone:tz.thm1"}).Return().Times(1)
-
-	mock.On("Commit").Return().Times(1)
-	check.Run()
+	mock.On("Commit").Return().Once()
+	require.NoError(t, check.Run())
 
 	mock.AssertExpectations(t)
-	mock.AssertNumberOfCalls(t, "Gauge", 4)
-	mock.AssertNumberOfCalls(t, "Commit", 1)
-}
-
-func TestThermalCheckThrottled(t *testing.T) {
-	pdhtest.SetupTesting("..\\testfiles\\counter_indexes_en-us.txt", "..\\testfiles\\allcounters_en-us.txt")
-	pdhtest.AddCounterInstance("Thermal Zone Information", "tz.thm0")
-
-	// Precision of 0.1 K preserved via High Precision Temperature
-	pdhtest.SetQueryReturnValue("\\\\.\\Thermal Zone Information(tz.thm0)\\Temperature", 380.0)
-	pdhtest.SetQueryReturnValue("\\\\.\\Thermal Zone Information(tz.thm0)\\High Precision Temperature", 3807.0)
-	pdhtest.SetQueryReturnValue("\\\\.\\Thermal Zone Information(tz.thm0)\\% Passive Limit", 50.0)
-
-	check := new(thermalCheck)
-	mock := mocksender.NewMockSender(check.ID())
-	check.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
-
-	// HP = 3807 tenths-K = 380.7 K = 107.55°C, throttled to 50%
-	mock.On("Gauge", "system.thermal.temperature", toCelsius(3807.0/10.0), "", []string{"thermal_zone:tz.thm0"}).Return().Times(1)
-	mock.On("Gauge", "system.thermal.passive_limit", 50.0, "", []string{"thermal_zone:tz.thm0"}).Return().Times(1)
-	mock.On("Commit").Return().Times(1)
-	check.Run()
-
-	mock.AssertExpectations(t)
-	mock.AssertNumberOfCalls(t, "Gauge", 2)
-	mock.AssertNumberOfCalls(t, "Commit", 1)
-}
-
-// TestThermalCheckFallbackToTemperature verifies that when High Precision
-// Temperature is unavailable for an instance, the check falls back to the
-// lower-precision Temperature counter.
-func TestThermalCheckFallbackToTemperature(t *testing.T) {
-	pdhtest.SetupTesting("..\\testfiles\\counter_indexes_en-us.txt", "..\\testfiles\\allcounters_en-us.txt")
-	pdhtest.AddCounterInstance("Thermal Zone Information", "tz.thm0")
-
-	// Only Temperature is available, not High Precision
-	pdhtest.SetQueryReturnValue("\\\\.\\Thermal Zone Information(tz.thm0)\\Temperature", 345.0)
-	pdhtest.SetQueryReturnValue("\\\\.\\Thermal Zone Information(tz.thm0)\\% Passive Limit", 100.0)
-
-	check := new(thermalCheck)
-	mock := mocksender.NewMockSender(check.ID())
-	check.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
-
-	// Falls back to Temperature: 345 K = 71.85°C
-	mock.On("Gauge", "system.thermal.temperature", toCelsius(345.0), "", []string{"thermal_zone:tz.thm0"}).Return().Times(1)
-	mock.On("Gauge", "system.thermal.passive_limit", 100.0, "", []string{"thermal_zone:tz.thm0"}).Return().Times(1)
-	mock.On("Commit").Return().Times(1)
-	check.Run()
-
-	mock.AssertExpectations(t)
-	mock.AssertNumberOfCalls(t, "Gauge", 2)
-	mock.AssertNumberOfCalls(t, "Commit", 1)
+	mock.AssertNotCalled(t, "Gauge")
 }
 
 func TestIsNotTotal(t *testing.T) {
 	assert.True(t, isNotTotal("tz.thm0"))
-	assert.True(t, isNotTotal("tz.thm1"))
 	assert.False(t, isNotTotal("_Total"))
+	assert.False(t, isNotTotal("_total"))
 }
