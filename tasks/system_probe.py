@@ -1239,12 +1239,16 @@ def build_rust_binaries(ctx: Context, arch: Arch, output_dir: Path | None = None
     if arch.kmt_arch in platform_map:
         platform_flags.append(f"--platforms={platform_map[arch.kmt_arch]}")
 
+    release_flags = ["--config=release"]
+
     for source_path in RUST_BINARIES:
         if packages and not any(source_path.startswith(package) for package in packages):
             continue
 
         install_dest = output_dir / source_path if output_dir else Path(source_path)
-        bazel(ctx, "run", *platform_flags, "--", f"@//{source_path}:install", f"--destdir={install_dest}")
+        bazel(
+            ctx, "run", *platform_flags, *release_flags, "--", f"@//{source_path}:install", f"--destdir={install_dest}"
+        )
 
     # Install Rust static libraries that cgo needs to find at link time. These
     # always land in the source tree (alongside the Go files) rather than in
@@ -1252,7 +1256,9 @@ def build_rust_binaries(ctx: Context, arch: Arch, output_dir: Path | None = None
     for source_path, lib_dest in RUST_STATIC_LIBS.items():
         if packages and not any(source_path.startswith(package) for package in packages):
             continue
-        bazel(ctx, "run", *platform_flags, "--", f"@//{source_path}:install_libs", f"--destdir={lib_dest}")
+        bazel(
+            ctx, "run", *platform_flags, *release_flags, "--", f"@//{source_path}:install_libs", f"--destdir={lib_dest}"
+        )
 
 
 _BAZEL_CWS_BALOUM_TARGETS = {
