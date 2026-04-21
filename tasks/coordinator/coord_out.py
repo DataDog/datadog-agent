@@ -20,7 +20,7 @@ import datetime as _dt
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import slack_out
+from . import github_out
 from .db import state_dir
 
 COORD_OUT_NAME = "coord-out.md"
@@ -44,10 +44,11 @@ def emit(
     requires_ack: bool = False,
     root: Path = Path("."),
 ) -> CoordOutMessage:
-    """Append a message to coord-out.md and (if configured) post to Slack.
+    """Append a message to coord-out.md and (if configured) post a GitHub
+    PR comment on the run-log PR.
 
-    coord-out.md is the source of truth; Slack is a notification channel.
-    Slack failures never raise — they're recorded in the journal.
+    coord-out.md is the source of truth; GitHub is a notification channel.
+    GitHub failures never raise — they're recorded in the journal.
     """
     now = _dt.datetime.now().isoformat(timespec="seconds")
     msg = CoordOutMessage(ts=now, type=msg_type, content=content, requires_ack=requires_ack)
@@ -57,14 +58,14 @@ def emit(
     with p.open("a") as f:
         f.write(f"\n{header}\n\n{content.rstrip()}\n")
 
-    if slack_out.is_configured():
-        ok, detail = slack_out.post(msg_type, content, requires_ack)
+    if github_out.is_configured():
+        ok, detail = github_out.post(msg_type, content, requires_ack)
         if not ok:
             # Lazy import to avoid journal-importing-coord_out import cycle.
             from . import journal
 
             journal.append(
-                "slack_post_failed",
+                "github_post_failed",
                 {"type": msg_type, "detail": detail},
                 root,
             )

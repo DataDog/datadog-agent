@@ -23,7 +23,7 @@ import sys
 from pathlib import Path
 
 from . import budget as budget_mod
-from . import coord_out, evaluator, git_ops, journal, metrics, scheduler, workspace_validate
+from . import coord_out, evaluator, git_ops, github_in, journal, metrics, scheduler, workspace_validate
 from .config import CONFIG
 from .db import empty_db, load_db, save_db, state_dir
 from .inbox import ack_and_archive, claim_inbox
@@ -185,6 +185,15 @@ def _run_iteration_body(
         transitioned = workspace_validate.poll_pending_validations(db, root)
         if transitioned:
             print(f"[iter {iter_num}] validations landed: {transitioned}")
+
+    # 0a. Pull any new GitHub PR comments into inbox.md so they're
+    # processed in the same drain below. No-op if COORD_GITHUB_PR_NUMBER
+    # is unset.
+    if not dry_run:
+        count, detail = github_in.poll(root)
+        if count > 0:
+            journal.append("github_inbox_pulled", {"count": count}, root)
+            print(f"[iter {iter_num}] github_in: {detail}")
 
     # 1. Process inbox
     it.inbox_acks = process_inbox(db, root, dry_run)

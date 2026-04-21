@@ -21,7 +21,7 @@ Behavioural spec: `~/.claude/plans/ad-harness.allium`
                                   │     USER (you)           │
                                   └────────────┬─────────────┘
                                                │
-                          inbox.md ◄──(atomic)─┤─── slack/coord-out.md
+                          inbox.md ◄──(atomic)─┤─── github/coord-out.md
                                                │
 ┌──────────────────────────────────────────────▼──────────────────────────────────────┐
 │  COORDINATOR  (long-running loop on claude/observer-improvements branch)           │
@@ -31,7 +31,7 @@ Behavioural spec: `~/.claude/plans/ad-harness.allium`
 │  │ .jsonl   │  │ .yaml   │  │  .md      │  │  .md   │  │ out.md  │  │ dict       │ │
 │  └──────────┘  └────┬────┘  └───────────┘  └────────┘  └────┬────┘  └────────────┘ │
 │                     │                                        │                     │
-│                     │ source of truth                        │ → slack             │
+│                     │ source of truth                        │ → github PR         │
 └─────────────────────┼────────────────────────────────────────┼─────────────────────┘
                       │                                        │
             ┌─────────┴─────────┐                    ┌─────────┴──────┐
@@ -66,8 +66,9 @@ tasks/coordinator/
 ├── workspace_validate.py  post-ship async eval-component on ssh workspace
 ├── scoring.py             report → delta vs baseline → gate outcomes
 ├── git_ops.py             scratch-branch-only git plumbing
-├── coord_out.py           coordinator→user channel (file + Slack)
-├── slack_out.py           incoming webhook poster (fail-soft)
+├── coord_out.py           coordinator→user channel (file + GitHub PR comment)
+├── github_out.py          post PR comments on the run-log PR (fail-soft)
+├── github_in.py           poll PR comments → append user replies to inbox.md
 ├── inbox.py               user→coordinator channel (atomic rename)
 ├── budget.py              wall-hour tracking + milestone escalations
 ├── config.py              frozen constants (τ, plateau, retries, …)
@@ -231,8 +232,18 @@ step or an SDK subagent call.
                   iteration N+1 starts
 ```
 
-Every "emit coord-out" also posts to Slack if `COORD_SLACK_WEBHOOK_URL` is set
-(fail-soft).
+Every "emit coord-out" also posts a comment on the **run-log GitHub PR**
+if `COORD_GITHUB_PR_NUMBER` is set. GitHub is pre-authed on DD
+workspaces via the `gh` CLI — no new app, no admin approval, no token
+management. `github_in.poll` also polls the same PR at iteration start
+for user replies, routing them through `inbox.md` (same drain →
+SDK-interpret → ACK flow).
+
+The run-log PR is a long-lived draft PR from the scratch branch into
+the upstream feature branch (e.g. PR #49678: `claude/observer-improvements`
+→ `q-branch-observer`). It never merges; it's the canonical audit trail.
+
+See QUICKSTART.md for the setup one-liner.
 
 ---
 
@@ -445,8 +456,9 @@ One concurrent validation per workspace (`workspace_busy` check).
                                                             │  phase exits,
                                                             │  strict regress)
                                                             ▼
-     coord-out.md  ◄──── appends + Slack webhook post ──────┘
-     Slack DM       (COORD_SLACK_WEBHOOK_URL)
+     coord-out.md  ◄──── appends + gh pr comment ───────────┘
+     run-log PR     (COORD_GITHUB_PR_NUMBER; mobile + desktop
+                     notifications via GitHub app)
 ```
 
 **Atomic rename** (not truncate): a user writing `inbox.md` mid-drain is
@@ -488,7 +500,7 @@ Summary of the 5 bootstrap scripts:
 # 1. Install deps
 pip install claude-agent-sdk pyyaml invoke requests
 export ANTHROPIC_API_KEY=…
-export COORD_SLACK_WEBHOOK_URL=…  # optional
+export COORD_GITHUB_PR_NUMBER=49678  # optional — run-log PR number
 
 # 2. Seed baseline from a fresh q.eval-scenarios run
 PYTHONPATH=tasks python -m coordinator.import_baseline \
@@ -532,7 +544,7 @@ tail -f .coordinator/journal.jsonl | jq .
 # Reverse channel from coordinator to you
 tail -f .coordinator/coord-out.md
 
-# (if Slack configured) just watch the channel
+# if GitHub PR configured: watch PR on github.com or the GitHub mobile app
 ```
 
 ## Steering
@@ -591,4 +603,6 @@ Per rev-7 / rev-8 triage of the design plan:
 - Upstream sync conflict *resolution* (currently: abort + human takes over).
 - Multi-persona review (Skeptic + Conservative today; Duplicate Hunter,
   Algorithm Expert, Greybeard ready in `reviewer.py` once db.yaml fills up).
-- Bidirectional Slack (inbound requires bot token + slack_sdk).
+- Additional notification transports (Slack, email, etc.). GitHub PR
+  comments cover mobile + desktop + push notifications without new
+  creds; reach for anything else only if GitHub fails a specific need.

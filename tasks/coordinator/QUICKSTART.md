@@ -17,7 +17,9 @@ see [README.md](./README.md).
   dda inv workspaces.create evals-scanwelch
   ```
 - An Anthropic API key.
-- (Optional) a Slack Incoming Webhook URL for notifications.
+- (Optional but recommended) a long-lived draft PR to use as the run-log
+  (GitHub mobile + desktop notifications for free). PR #49678 is
+  already set up for this; see **GitHub run-log PR** below.
 
 ---
 
@@ -44,12 +46,55 @@ You should now be inside a tmux session on the driver workspace.
 pip install claude-agent-sdk pyyaml invoke requests
 export ANTHROPIC_API_KEY=sk-…
 
-# optional — outbound Slack notifications
-export COORD_SLACK_WEBHOOK_URL=https://hooks.slack.com/services/…
+# optional — bidirectional GitHub PR comments (recommended; see below)
+export COORD_GITHUB_PR_NUMBER=49678
 ```
 
 Persist the env vars across tmux detach by adding them to `~/.bashrc` (or
 equivalent) on the workspace.
+
+### GitHub run-log PR (recommended interaction channel)
+
+PR #49678 is the long-lived "coordinator run log" draft PR. It never
+merges. Setup is one line because `gh` is pre-authed on DD workspaces.
+
+1. Confirm `gh` works on the driver workspace:
+   ```bash
+   gh auth status
+   gh pr view 49678 --json number,title
+   ```
+2. Set the env var:
+   ```bash
+   export COORD_GITHUB_PR_NUMBER=49678
+   ```
+3. Smoke-test outbound:
+   ```bash
+   PYTHONPATH=tasks python -c "from coordinator import github_out; print(github_out.post('validation_completed','hello from coordinator'))"
+   ```
+   Expect `(True, 'ok')` and a new comment on https://github.com/DataDog/datadog-agent/pull/49678.
+4. Smoke-test inbound: drop a comment on PR #49678 from the GitHub web/mobile UI (any plain text), then:
+   ```bash
+   PYTHONPATH=tasks python -c "from pathlib import Path; from coordinator import github_in; print(github_in.poll(Path('.')))"
+   cat .coordinator/inbox.md
+   ```
+   Your comment should appear in `inbox.md`. Re-running `poll` is
+   idempotent (state file `github_state.json` tracks the last-seen
+   comment ID).
+5. Enable GitHub mobile notifications for PR #49678: on phone, open the
+   PR → tap **Watch** → **All Activity**. You now get a push for every
+   coordinator event.
+
+### Interacting while the coordinator runs
+
+- **Read**: watch PR #49678 — the **Conversation** tab shows coordinator
+  status comments intermixed with every approved candidate's commit.
+- **Steer**: drop a PR comment in plain English. Polled at iteration start,
+  routed through `inbox.md` → SDK interpretation → ACK comment back on
+  the PR. E.g.:
+  > stop tuning thresholds, try a correlator change
+- **Commits**: the **Commits** tab shows every approved candidate as a
+  separate commit (message includes iteration + candidate + score).
+- **Don't approve/merge** this PR. It's a run log, not a review target.
 
 ---
 
@@ -182,7 +227,7 @@ tail -f .coordinator/journal.jsonl | jq .
 # coordinator → user signals
 tail -f .coordinator/coord-out.md
 
-# if Slack: just watch the channel you hooked up
+# if GitHub PR configured: watch PR #49678 on github.com or the GitHub mobile app
 ```
 
 ---
@@ -273,7 +318,7 @@ Set to `""` to use SDK default.
 - Steady state: one iteration every ~8-15 min.
 - Post-ship eval-component: kicks off async on the detector workspace; typically 2-4 hours; lands on a later iteration's poll.
 - Phase exit: after 5 consecutive non-improving iterations. Emits a coord-out message and stops.
-- Slack notifications (if configured): budget milestones, phase exit, strict-regression auto-reject, validation completion, upstream conflict.
+- GitHub PR comments (if `COORD_GITHUB_PR_NUMBER` configured): budget milestones, phase exit, strict-regression auto-reject, validation completion, upstream conflict. Watch PR #49678 on your GitHub mobile app for push notifications.
 
 ---
 
@@ -286,7 +331,7 @@ Set to `""` to use SDK default.
 | `working tree dirty; aborting iteration` | stray edits or orphan from prior crash | normally auto-handled by `startup_cleanup`; if not, `git checkout -- comp/observer tasks/q.py` |
 | `upstream sync CONFIG` halts | someone pushed to `q-branch-observer` conflicting with `claude/observer-improvements` | rebase manually or reset scratch branch to new upstream tip |
 | Bayesian / eval-bayesian appearing | it shouldn't — driver never invokes it | grep `journal.jsonl` for context |
-| SDK retrying repeatedly | API rate limit or network | journal logs `slack_post_failed` or SDK transient; auto-recovers |
+| SDK retrying repeatedly | API rate limit or network | journal logs `github_post_failed` or SDK transient; auto-recovers |
 
 Full design / flow diagrams in [README.md](./README.md). Spec:
 `~/.claude/plans/ad-harness.allium`. Plan: `~/.claude/plans/ad-harness-plan.md`.
