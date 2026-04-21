@@ -117,10 +117,27 @@ func TestDemuxNoAggOptionEnabled(t *testing.T) {
 	require.Len(mockSerializer.series, 3)
 
 	for i := 0; i < len(batch); i++ {
-		require.Equal(batch[i].Name, mockSerializer.series[i].Name)
-		require.Len(mockSerializer.series[i].Points, 1)
-		require.Equal(batch[i].Timestamp, mockSerializer.series[i].Points[0].Ts)
-		require.ElementsMatch(batch[i].Tags, mockSerializer.series[i].Tags.UnsafeToReadOnlySliceString())
+		s := mockSerializer.series[i]
+		require.Equal(batch[i].Name, s.Name)
+		require.Len(s.Points, 1)
+		require.Equal(batch[i].Timestamp, s.Points[0].Ts)
+		require.ElementsMatch(batch[i].Tags, s.Tags.UnsafeToReadOnlySliceString())
+
+		// The no-aggregation pipeline has no client-supplied interval in
+		// the wire protocol, so Serie.Interval must be DefaultBucketSize
+		// and rate-typed samples (CounterType -> APIRateType) must be
+		// divided by DefaultBucketSize. Pinning both here so any future
+		// change to that convention surfaces as a test failure.
+		require.Equal(DefaultBucketSize, s.Interval,
+			"no-agg series %q must carry DefaultBucketSize as Interval", s.Name)
+		switch batch[i].Mtype {
+		case metrics.CounterType, metrics.RateType:
+			require.Equal(batch[i].Value/float64(DefaultBucketSize), s.Points[0].Value,
+				"no-agg rate sample %q must be normalized by DefaultBucketSize", s.Name)
+		case metrics.GaugeType:
+			require.Equal(batch[i].Value, s.Points[0].Value,
+				"no-agg gauge %q must pass through unchanged", s.Name)
+		}
 	}
 }
 
