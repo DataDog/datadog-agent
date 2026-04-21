@@ -295,7 +295,6 @@ exports_files(glob(
 # gazelle:exclude pkg/discovery/language
 # gazelle:exclude pkg/discovery/model
 # gazelle:exclude pkg/discovery/testdata
-# gazelle:exclude pkg/discovery/tracermetadata/language
 # gazelle:exclude pkg/discovery/usm
 # gazelle:exclude pkg/dyninst/decode
 # gazelle:exclude pkg/dyninst/dispatcher
