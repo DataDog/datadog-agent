@@ -57,7 +57,7 @@ import (
 
 // episodeSubdirs lists the subdirectories within the gensim-episodes repo
 // that may contain episode directories.
-var episodeSubdirs = []string{"postmortems", "synthetics"}
+var episodeSubdirs = []string{"agent-q-branch", "postmortems", "synthetics"}
 
 // findEpisodeDir locates an episode directory by searching known subdirectories
 // within the gensim-episodes repo root. Also supports legacy episodeDataDir
