@@ -339,6 +339,12 @@ func (m *defaultMapper) getSketchBuckets(
 
 	bucketCounts := p.BucketCounts()
 	explicitBounds := p.ExplicitBounds()
+	// Validate the OTel invariant: N bucket counts require exactly N-1 explicit bounds.
+	// Malformed senders can violate this; guard before the loop to prevent an index panic.
+	if bucketCounts.Len() > 0 && bucketCounts.Len() != explicitBounds.Len()+1 {
+		return fmt.Errorf("histogram %q has %d bucket counts but %d explicit bounds (expected counts == bounds+1)",
+			pointDims.name, bucketCounts.Len(), explicitBounds.Len())
+	}
 	// From the spec (https://github.com/open-telemetry/opentelemetry-specification/blob/v1.29.0/specification/metrics/data-model.md#histogram):
 	// > A Histogram without buckets conveys a population in terms of only the sum and count,
 	// > and may be interpreted as a histogram with single bucket covering (-Inf, +Inf).
@@ -472,6 +478,14 @@ func (m *defaultMapper) getLegacyBuckets(
 	ts := uint64(p.Timestamp())
 	// We have a single metric, 'bucket', which is tagged with the bucket bounds. See:
 	// https://github.com/DataDog/integrations-core/blob/7.30.1/datadog_checks_base/datadog_checks/base/checks/openmetrics/v2/transformers/histogram.py
+	if p.BucketCounts().Len() > 0 && p.BucketCounts().Len() != p.ExplicitBounds().Len()+1 {
+		m.logger.Warn("Dropping histogram data point: bucket counts length does not match explicit bounds length+1",
+			zap.String("metric_name", pointDims.name),
+			zap.Int("bucket_counts_len", p.BucketCounts().Len()),
+			zap.Int("explicit_bounds_len", p.ExplicitBounds().Len()),
+		)
+		return
+	}
 	baseBucketDims := pointDims.WithSuffix("bucket")
 	for idx := 0; idx < p.BucketCounts().Len(); idx++ {
 		lowerBound, upperBound := getBounds(p.ExplicitBounds(), idx)
