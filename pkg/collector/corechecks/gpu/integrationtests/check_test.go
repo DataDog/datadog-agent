@@ -58,9 +58,7 @@ func TestCheckRunMatchesSpecForPhysicalDevices(t *testing.T) {
 	testutil.RequireGPU(t)
 	env.SetFeatures(t, env.NVML)
 
-	metricsSpec, err := gpuspec.LoadMetricsSpec()
-	require.NoError(t, err)
-	architecturesSpec, err := gpuspec.LoadArchitecturesSpec()
+	specs, err := gpuspec.LoadSpecs()
 	require.NoError(t, err)
 
 	lib, err := safenvml.GetSafeNvmlLib()
@@ -129,7 +127,7 @@ func TestCheckRunMatchesSpecForPhysicalDevices(t *testing.T) {
 			continue
 		}
 
-		archSpec, ok := architecturesSpec.Architectures[archName]
+		archSpec, ok := specs.Architectures.Architectures[archName]
 		require.True(t, ok, "architecture %s missing from architectures spec", archName)
 		require.True(t, gpuspec.IsModeSupportedByArchitecture(archSpec, gpuspec.DeviceModePhysical), "physical mode should be supported for architecture %s", archName)
 
@@ -141,7 +139,7 @@ func TestCheckRunMatchesSpecForPhysicalDevices(t *testing.T) {
 			WorkloadActive: false,
 		}
 		t.Run("gpu="+deviceUUID, func(t *testing.T) {
-			gpu.ValidateEmittedMetricsAgainstSpec(t, metricsSpec, gpuConfig, deviceMetrics, nil, validationOptions)
+			gpu.ValidateEmittedMetricsAgainstSpec(t, specs, gpuConfig, deviceMetrics, nil, validationOptions)
 		})
 	}
 }

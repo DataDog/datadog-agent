@@ -15,10 +15,11 @@ import (
 
 // Action type constants
 const (
-	ActionTypeDeletePod         = "delete_pod"
-	ActionTypeRestartDeployment = "restart_deployment"
-	ActionTypePatchDeployment   = "patch_deployment"
-	ActionTypeUnknown           = "unknown"
+	ActionTypeUnknown            = "unknown"
+	ActionTypeDeletePod          = "delete_pod"
+	ActionTypeRestartDeployment  = "restart_deployment"
+	ActionTypePatchDeployment    = "patch_deployment"
+	ActionTypeRollbackDeployment = "rollback_deployment"
 )
 
 // Execution status constants
@@ -56,6 +57,8 @@ func GetActionType(action *kubeactions.KubeAction) string {
 		return ActionTypeRestartDeployment
 	case *kubeactions.KubeAction_PatchDeployment:
 		return ActionTypePatchDeployment
+	case *kubeactions.KubeAction_RollbackDeployment:
+		return ActionTypeRollbackDeployment
 	default:
 		return ActionTypeUnknown
 	}
