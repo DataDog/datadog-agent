@@ -125,6 +125,7 @@ async fn main() -> Result<()> {
 
     let cfg = config::Config::parse();
 
+    #[cfg(feature = "archive")]
     if let Some(config::Commands::Archive { input_dir, output }) = &cfg.command {
         return archive::run(
             input_dir
@@ -134,7 +135,7 @@ async fn main() -> Result<()> {
         );
     }
 
-    heap_prof::init();
+    // heap_prof::init();
 
     info!(
         socket_path = %cfg.socket_path,
@@ -157,40 +158,40 @@ async fn main() -> Result<()> {
     let janitor_handle = tokio::spawn(async move { janitor.run(janitor_cancel).await });
 
     // Periodic heap profiling (every 30s when MALLOC_CONF=prof:true).
-    let prof_cancel = cancel.clone();
-    let prof_output_dir = cfg.output_dir.clone();
-    let prof_handle = tokio::spawn(async move {
-        let mut tick = 0u64;
-        loop {
-            tokio::select! {
-                _ = prof_cancel.cancelled() => break,
-                _ = tokio::time::sleep(std::time::Duration::from_secs(30)) => {
-                    tick += 1;
-                    heap_prof::dump_heap_profile(
-                        std::path::Path::new(&prof_output_dir),
-                        &format!("heap-{tick:04}"),
-                    );
-                    // Log jemalloc memory stats via raw ctl reads.
-                    if let (Ok(allocated), Ok(resident)) = unsafe {(
-                        tikv_jemalloc_ctl::raw::read::<usize>(b"stats.allocated\0"),
-                        tikv_jemalloc_ctl::raw::read::<usize>(b"stats.resident\0"),
-                    )} {
-                        info!(
-                            allocated_mb = allocated / (1024 * 1024),
-                            resident_mb = resident / (1024 * 1024),
-                            "jemalloc stats"
-                        );
-                    }
-                }
-            }
-        }
-    });
+    // let prof_cancel = cancel.clone();
+    // let prof_output_dir = cfg.output_dir.clone();
+    // let prof_handle = tokio::spawn(async move {
+    //     let mut tick = 0u64;
+    //     loop {
+    //         tokio::select! {
+    //             _ = prof_cancel.cancelled() => break,
+    //             _ = tokio::time::sleep(std::time::Duration::from_secs(30)) => {
+    //                 tick += 1;
+    //                 heap_prof::dump_heap_profile(
+    //                     std::path::Path::new(&prof_output_dir),
+    //                     &format!("heap-{tick:04}"),
+    //                 );
+    //                 // Log jemalloc memory stats via raw ctl reads.
+    //                 if let (Ok(allocated), Ok(resident)) = unsafe {(
+    //                     tikv_jemalloc_ctl::raw::read::<usize>(b"stats.allocated\0"),
+    //                     tikv_jemalloc_ctl::raw::read::<usize>(b"stats.resident\0"),
+    //                 )} {
+    //                     info!(
+    //                         allocated_mb = allocated / (1024 * 1024),
+    //                         resident_mb = resident / (1024 * 1024),
+    //                         "jemalloc stats"
+    //                     );
+    //                 }
+    //             }
+    //         }
+    //     }
+    // });
 
     let result = run(cfg, tracker).await;
 
     cancel.cancel();
     let _ = janitor_handle.await;
-    let _ = prof_handle.await;
+    // let _ = prof_handle.await;
 
     result
 }

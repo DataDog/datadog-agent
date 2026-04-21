@@ -12,6 +12,7 @@ pub enum Commands {
     /// Reads all .parquet files from INPUT_DIR (defaulting to
     /// DD_FLIGHTRECORDER_OUTPUT_DIR / --output-dir), hydrates contexts.bin into
     /// a temporary contexts.parquet, and packs everything into a .tar.zst archive.
+    #[cfg(feature = "archive")]
     Archive {
         /// Directory containing .parquet signal files and optionally contexts.bin.
         /// Defaults to --output-dir / DD_FLIGHTRECORDER_OUTPUT_DIR.

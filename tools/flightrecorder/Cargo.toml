@@ -67,6 +67,7 @@ harness = false
 heap-prof = ["tikv-jemallocator/profiling"]
 # Enable S3 upload. Build with: cargo build --features s3
 s3 = ["dep:object_store"]
+archive = []
 
 [profile.release]
 # debug = 1  # Uncomment for jeprof symbolization
