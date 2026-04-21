@@ -83,6 +83,21 @@ agents:
       event_reporter:
         sending_enabled: true
 {{- end}}
+  # Used for the logs component
+  volumes:
+    - name: logpodpath
+      hostPath:
+        path: /var/log/pods
+    - name: logcontainerpath
+      hostPath:
+        path: /var/log/containers
+  volumeMounts:
+    - name: logpodpath
+      mountPath: /var/log/pods
+      readOnly: true
+    - name: logcontainerpath
+      mountPath: /var/log/containers
+      readOnly: true
   containers:
     agent:
       resources:
