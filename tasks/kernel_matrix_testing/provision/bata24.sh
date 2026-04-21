@@ -16,11 +16,11 @@ pip3 install crccheck==1.3.1 unicorn==2.1.4 capstone==5.0.7 ropper==1.13.13 keys
 
 echo "[+] install seccomp-tools, one_gadget"
 if [[ -z "$(which seccomp-tools)" ]]; then
-    sudo gem install seccomp-tools
+    sudo gem install seccomp-tools -v 1.6.2
 fi
 
 if [[ -z "$(which one_gadget)" ]]; then
-    sudo gem install one_gadget
+    sudo gem install one_gadget -v 1.10.0
 fi
 
 echo "[+] install rp++"
