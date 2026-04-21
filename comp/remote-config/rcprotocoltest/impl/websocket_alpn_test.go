@@ -17,7 +17,7 @@ import (
 // backend servers that support the ALPN application protocol.
 func TestALPNFunctionsExist(_ *testing.T) {
 	_ = newWebSocketClient
-	_ = runEchoLoopWithALPN
+	_ = runEchoLoop
 	_ = runWebSocketTestWithALPN
 	_ = alpnProtocolDDRC
 }

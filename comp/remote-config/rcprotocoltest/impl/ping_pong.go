@@ -95,7 +95,7 @@ func runWebSocketTest(ctx context.Context, httpClient *api.HTTPClient, runCount 
 		}
 	}()
 
-	n, err := runEchoLoop(ctx, httpClient, runCount)
+	n, err := runEchoLoop(ctx, httpClient, runCount, ALPNDefault)
 	if err != nil {
 		log.Debugf("websocket echo test failed: %s (%d data frames exchanged)", err, n)
 		return
@@ -121,7 +121,7 @@ func runWebSocketTestWithALPN(ctx context.Context, httpClient *api.HTTPClient, r
 		return
 	}
 
-	n, err := runEchoLoopWithALPN(ctx, httpClient, runCount)
+	n, err := runEchoLoop(ctx, httpClient, runCount, ALPNDDRC)
 	if err != nil {
 		log.Debugf("websocket echo test with ALPN failed: %s (%d data frames exchanged)", err, n)
 		return

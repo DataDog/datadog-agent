@@ -150,7 +150,7 @@ func TestWebSocketTest(t *testing.T) {
 
 			// Drive the test and ensure the expected number of frames were
 			// exchanged.
-			n, err := runEchoLoop(ctx, client, 1)
+			n, err := runEchoLoop(ctx, client, 1, ALPNDefault)
 			assert.NoError(err)
 			assert.Equal(uint(len(tt.frames)), n)
 		})
@@ -380,6 +380,6 @@ func TestWebSocketTest_PING_PONG(t *testing.T) {
 	assert.NoError(err)
 	defer conn.Close()
 
-	_, err = runEchoLoop(ctx, client, 1)
+	_, err = runEchoLoop(ctx, client, 1, ALPNDefault)
 	assert.NoError(err)
 }

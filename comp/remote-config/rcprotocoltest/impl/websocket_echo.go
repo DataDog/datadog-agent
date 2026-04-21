@@ -41,63 +41,8 @@ const (
 // of remote config traffic at the load balancer and backend level.
 const alpnProtocolDDRC = "dd-rc-v1"
 
-func runEchoLoopWithALPN(ctx context.Context, client *api.HTTPClient, runCount uint64) (uint, error) {
-	conn, err := newWebSocketClient(ctx, "/api/v0.2/echo-test", client, runCount, ALPNDDRC)
-	if err != nil {
-		return 0, err
-	}
-	defer conn.Close()
-
-	// Set a sensible safety limit on the amount of data a connection will
-	// consume to prevent unbounded memory consumption.
-	conn.SetReadLimit(1024 * 1024 * 50) // 50 MiB
-
-	// Decorate the default ping handler (which returns a PONG frame) with
-	// keepalive management.
-	cb := conn.PingHandler()
-	conn.SetPingHandler(
-		func(message string) error {
-			bumpReadDeadline(conn)
-			return cb(message)
-		},
-	)
-
-	// Perform the frame echo test routine.
-	n := uint(0)
-	for {
-		select {
-		case <-ctx.Done():
-			gracefulAbort(conn)
-			return n, context.Cause(ctx)
-		default:
-		}
-
-		bumpReadDeadline(conn)
-		messageType, p, err := conn.ReadMessage()
-		if err != nil {
-			return n, mapWsClose(err)
-		}
-
-		// Allow the server to set client-side configuration remotely by
-		// watching for "magic" payloads.
-		switch {
-		case bytes.Equal(p, []byte("set_compress_on")):
-			conn.EnableWriteCompression(true)
-		case bytes.Equal(p, []byte("set_compress_off")):
-			conn.EnableWriteCompression(false)
-		}
-
-		_ = conn.SetWriteDeadline(time.Now().Add(30 * time.Second))
-		if err := conn.WriteMessage(messageType, p); err != nil {
-			return n, mapWsClose(err)
-		}
-
-		n++
-	}
-}
-
-func runEchoLoop(ctx context.Context, client *api.HTTPClient, runCount uint64) (uint, error) {
-	conn, err := newWebSocketClient(ctx, "/api/v0.2/echo-test", client, runCount, ALPNDefault)
+func runEchoLoop(ctx context.Context, client *api.HTTPClient, runCount uint64, alpnMode ALPNMode) (uint, error) {
+	conn, err := newWebSocketClient(ctx, "/api/v0.2/echo-test", client, runCount, alpnMode)
 	if err != nil {
 		return 0, err
 	}
