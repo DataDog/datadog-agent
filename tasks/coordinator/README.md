@@ -7,6 +7,8 @@ takes a candidate, mutates code under `comp/observer/`, runs
 and kicks off an async workspace validation. Coordinator decides what to try
 next via a proposer subagent that reads past experiment outcomes.
 
+👉 **To get a coordinator running from scratch, see [QUICKSTART.md](./QUICKSTART.md).**
+
 Source plan: `~/.claude/plans/ad-harness-plan.md`
 Behavioural spec: `~/.claude/plans/ad-harness.allium`
 
@@ -322,6 +324,60 @@ Ban implicitly clears when:
 
 ---
 
+## Where things run
+
+Four machines total — one driver, three dedicated evaluators. The driver
+never does long-running work; all hours-scale jobs land on the evaluators.
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│  coord-driver workspace  (days of uptime, modest compute)      │
+│                                                                │
+│  ▸ driver.py iteration loop                                    │
+│  ▸ SDK calls (Opus / Sonnet)                                   │
+│  ▸ q.eval-scenarios subprocess (~6 min per iter)               │
+│  ▸ git ops on claude/observer-improvements                     │
+│  ▸ ssh dispatch to the three detector workspaces               │
+│                                                                │
+│  per-iteration wall-time: ~8-15 min                            │
+└──────────────────────────┬─────────────────────────────────────┘
+                           │ ssh + scp (ALL SHORT ops)
+     ┌─────────────────────┼─────────────────────┐
+     ▼                     ▼                     ▼
+┌─────────────┐     ┌─────────────┐       ┌─────────────┐
+│evals-bocpd  │     │evals-scanmw │       │evals-scanwelch
+│             │     │             │       │             │
+│ q.eval-     │     │ q.eval-     │       │ q.eval-     │
+│  component  │     │  component  │       │  component  │
+│ for bocpd   │     │ for scanmw  │       │ for scanwelch│
+│ candidates  │     │ candidates  │       │ candidates  │
+│             │     │             │       │             │
+│ per-run:    │     │ per-run:    │       │ per-run:    │
+│  2-4 hours  │     │  2-4 hours  │       │  2-4 hours  │
+└─────────────┘     └─────────────┘       └─────────────┘
+```
+
+**Key invariant**: the driver never waits for a detector workspace.
+Dispatch is fire-and-forget; polling at the next iteration start checks
+for completion and ports results asynchronously. Results never gate
+downstream decisions — they are purely informational, recorded on the
+experiment for audit.
+
+## Model routing
+
+Deep-thinking SDK calls use Opus; lightweight summaries use Sonnet.
+Tune in `config.py`:
+
+| Role | Model | Task |
+|---|---|---|
+| Implementation agent | `model_deep` (Opus) | writing code for a candidate |
+| Review personas | `model_deep` (Opus) | judging approve/reject |
+| Proposer | `model_deep` (Opus) | brainstorming new candidates from history |
+| Inbox interpreter | `model_light` (Sonnet) | summarizing a user message |
+
+Set `CONFIG.model_deep` / `CONFIG.model_light` to an empty string to fall
+back to the SDK default.
+
 ## Async validation (post-ship)
 
 Fire-and-forget, lagging data point only. Never gates anything.
@@ -425,13 +481,14 @@ Crash scenarios and what happens on restart:
 
 ## Setup (first run)
 
+See [QUICKSTART.md](./QUICKSTART.md) for the full workspace-based walkthrough.
+Summary of the 5 bootstrap scripts:
+
 ```bash
 # 1. Install deps
 pip install claude-agent-sdk pyyaml invoke requests
 export ANTHROPIC_API_KEY=…
-
-# optional: Slack outbound notifications
-export COORD_SLACK_WEBHOOK_URL=https://hooks.slack.com/services/…
+export COORD_SLACK_WEBHOOK_URL=…  # optional
 
 # 2. Seed baseline from a fresh q.eval-scenarios run
 PYTHONPATH=tasks python -m coordinator.import_baseline \

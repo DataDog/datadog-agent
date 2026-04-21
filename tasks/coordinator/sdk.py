@@ -106,9 +106,17 @@ def _import_sdk():
         ) from e
 
 
-def _run_query(prompt: str, **options_kwargs) -> str:
-    """Execute one SDK query with retries and return concatenated text."""
+def _run_query(prompt: str, model: str | None = None, **options_kwargs) -> str:
+    """Execute one SDK query with retries and return concatenated text.
+
+    `model` selects a Claude model ID; callers typically pass
+    CONFIG.model_deep (Opus — implement/review/propose) or
+    CONFIG.model_light (Sonnet — interpret_inbox_message). An empty
+    string or None falls back to the SDK's default model.
+    """
     query, ClaudeAgentOptions = _import_sdk()
+    if model:
+        options_kwargs["model"] = model
 
     def _once() -> str:
         return _collect_text(query(prompt=prompt, options=ClaudeAgentOptions(**options_kwargs)))
@@ -165,7 +173,8 @@ Reply in YAML with two fields:
   planned_change: <one sentence describing how the coordinator should change
                    its behaviour, OR "no action: <reason>">
 """
-    text = _run_query(prompt, allowed_tools=[])
+    # Lightweight one-shot summary: Sonnet is plenty.
+    text = _run_query(prompt, model=CONFIG.model_light, allowed_tools=[])
     data = _parse_yaml_block(text)
     return (
         str(data.get("interpretation", "[unparsed]") or "[unparsed]"),
@@ -233,6 +242,7 @@ Constraints:
 """
     text = _run_query(
         prompt,
+        model=CONFIG.model_deep,  # deep thinking — Opus
         allowed_tools=["Read", "Edit", "Write", "Bash", "Grep", "Glob"],
         cwd=str(root),
         hooks={
@@ -291,7 +301,11 @@ def review_experiment(
     decisions: list[ReviewDecision] = []
     for name, persona_prompt in personas.items():
         full_prompt = f"{persona_prompt}\n\n--- Experiment context ---\n{context}"
-        text = _run_query(full_prompt, allowed_tools=["Read", "Grep", "Glob"])
+        text = _run_query(
+            full_prompt,
+            model=CONFIG.model_deep,  # review is a judgement call — Opus
+            allowed_tools=["Read", "Grep", "Glob"],
+        )
         data = _parse_yaml_block(text)
         decisions.append(
             ReviewDecision(

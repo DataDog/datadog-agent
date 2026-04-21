@@ -21,11 +21,21 @@ def _fake_proc(returncode: int, stdout: str = "", stderr: str = ""):
 
 # --- dispatch --- -----------------------------------------------------------
 
-def test_dispatch_no_workspace_for_detector(tmp_path: Path, monkeypatch):
+def test_workspace_name_derived_by_convention():
+    # Any detector name maps to `workspace-evals-<detector>`. No hardcoded
+    # detector list: new detectors get a matching workspace for free.
+    assert wv.workspace_for_detector("scanmw") == "workspace-evals-scanmw"
+    assert wv.workspace_for_detector("brand-new-detector") == "workspace-evals-brand-new-detector"
+
+
+def test_dispatch_fails_soft_when_workspace_unreachable(tmp_path: Path, monkeypatch):
+    """An unknown detector gets a derived workspace name; the convention
+    workspace doesn't exist → ssh fails → dispatch returns None cleanly."""
     state_dir(tmp_path).mkdir(parents=True)
     db = empty_db()
+    monkeypatch.setattr(wv, "_ssh", lambda *a, **kw: _fake_proc(255, stderr="ssh: nonexistent host"))
     pv = wv.dispatch_validation(
-        experiment_id="exp-0", candidate_id="c-0", detector="unknown-detector",
+        experiment_id="exp-0", candidate_id="c-0", detector="no-such-detector",
         db=db, root=tmp_path,
     )
     assert pv is None

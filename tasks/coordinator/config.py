@@ -49,5 +49,11 @@ class Config:
     sdk_retry_max_attempts: int = 3
     sdk_retry_base_seconds: float = 2.0  # exponential backoff: 2s, 4s, 8s
 
+    # Model routing. Deep-thinking tasks (implement / review / propose) use
+    # Opus; lightweight tasks (interpret an inbox message) use Sonnet to
+    # save tokens. Set to empty string to fall back to SDK default.
+    model_deep: str = "claude-opus-4-7"
+    model_light: str = "claude-sonnet-4-6"
+
 
 CONFIG = Config()

@@ -26,12 +26,21 @@ from .config import CONFIG
 from .schema import Db, PendingValidation
 
 
-# One dedicated workspace per detector (matches existing `evals-<det>` naming).
-DETECTOR_WORKSPACE: dict[str, str] = {
-    "bocpd": "workspace-evals-bocpd",
-    "scanmw": "workspace-evals-scanmw",
-    "scanwelch": "workspace-evals-scanwelch",
-}
+# Convention: one dedicated validation workspace per detector, named
+# `workspace-evals-<detector>`. Any new detector gets a matching
+# auto-derived workspace name — no code change needed here. If the
+# derived workspace doesn't exist on ssh, dispatch fails soft
+# (journalled, returns None) and the coordinator moves on.
+WORKSPACE_PREFIX = "workspace-evals-"
+
+
+def workspace_for_detector(detector: str) -> str:
+    """Map a detector name to its validation workspace by convention.
+
+    Override this function (or monkeypatch it in tests) if a detector
+    ever needs a non-conventional workspace.
+    """
+    return f"{WORKSPACE_PREFIX}{detector}"
 
 
 def _now() -> str:
@@ -69,14 +78,7 @@ def dispatch_validation(
     network/ssh error — a dispatch failure is recorded in the journal and
     the coordinator continues.
     """
-    workspace = DETECTOR_WORKSPACE.get(detector)
-    if workspace is None:
-        journal.append(
-            "validation_skipped_no_workspace",
-            {"experiment_id": experiment_id, "detector": detector},
-            root,
-        )
-        return None
+    workspace = workspace_for_detector(detector)
     if workspace_busy(db, workspace):
         journal.append(
             "validation_skipped_busy",

@@ -188,17 +188,14 @@ def propose(
     Caller is responsible for inserting them into db and calling save_db.
     """
     from . import sdk
+    from .config import CONFIG
 
     prompt = build_proposer_prompt(db, n_candidates, banned_families or set())
-    query, ClaudeAgentOptions = sdk._import_sdk()
-    text = sdk._collect_text(
-        query(
-            prompt=prompt,
-            options=ClaudeAgentOptions(
-                allowed_tools=["Read", "Grep", "Glob"],  # read-only exploration
-                cwd=str(root),
-            ),
-        )
+    text = sdk._run_query(
+        prompt,
+        model=CONFIG.model_deep,  # brainstorming is a deep-thinking task — Opus
+        allowed_tools=["Read", "Grep", "Glob"],  # read-only exploration
+        cwd=str(root),
     )
     proposals = parse_proposer_output(text)
     return materialize_candidates(db, proposals, root)
