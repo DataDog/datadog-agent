@@ -174,3 +174,28 @@ ddot_oci:
   artifacts:
     paths:
       - ${OMNIBUS_PACKAGE_DIR}/*.oci.tar
+
+# Python runtime OCI package — ships Python interpreter + integrations for
+# the lite agent. Installable via `installer install <url>` (see
+# pkg/fleet/installer/packages/datadog_agent_python_runtime_linux.go).
+# Note: the omnibus build job for `python-runtime` (producing
+# datadog-agent-python-runtime-*.tar.xz for amd64 and arm64) is a
+# follow-up; this job is defined so the OCI packaging step is ready to
+# consume those artifacts once they exist.
+python_runtime_oci:
+  extends: .package_oci
+  rules:
+    - when: manual
+      allow_failure: true
+  needs:
+    - "go_tools_deps"
+    - job: "datadog-agent-python-runtime-oci-x64"
+      optional: true
+    - job: "datadog-agent-python-runtime-oci-arm64"
+      optional: true
+  variables:
+    OCI_PRODUCT: "datadog-agent-python-runtime"
+    INSTALL_DIR: "/opt/datadog-agent"
+  artifacts:
+    paths:
+      - ${OMNIBUS_PACKAGE_DIR}/*.oci.tar
