@@ -79,7 +79,14 @@ func NewRockyBackend(target *types.Target, reposDir string, logger types.Logger)
 				subrepo = parts[2]
 			}
 			mirrorURL.Host = "dl.rockylinux.org"
-			mirrorURL.Path = fmt.Sprintf("/vault/rocky/%s/%s/%s/%s", ver, repoName, arch, subrepo)
+			switch subrepo {
+			case "source":
+				mirrorURL.Path = fmt.Sprintf("/vault/rocky/%s/%s/%s/tree", ver, repoName, subrepo)
+			case "debug":
+				mirrorURL.Path = fmt.Sprintf("/vault/rocky/%s/%s/%s/%s/tree", ver, repoName, arch, subrepo)
+			default:
+				mirrorURL.Path = fmt.Sprintf("/vault/rocky/%s/%s/%s/%s", ver, repoName, arch, subrepo)
+			}
 			mirrorURL.RawQuery = ""
 			repo.BaseURL = mirrorURL.String()
 			repo.MirrorList = ""
