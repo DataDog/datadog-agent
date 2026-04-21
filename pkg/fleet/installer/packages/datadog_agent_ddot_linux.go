@@ -34,6 +34,12 @@ const (
 
 	ddotProcessConfigName = "datadog-agent-ddot.yaml"
 	agentInstallDirDebRpm = "/opt/datadog-agent"
+
+	// procmgrDDOTMarkerPath is written after the first successful opt-in
+	// (DD_PROCMGR_MANAGE_DDOT=true). Its presence signals that subsequent
+	// upgrades should preserve procmgrd management without requiring the
+	// env var again.
+	procmgrDDOTMarkerPath = "/etc/datadog-agent/.procmgr-ddot-enabled"
 )
 
 var (
@@ -362,16 +368,21 @@ func procmgrdBinaryPath(packageType PackageType) string {
 // If dd-procmgrd is not installed (binary not found), the write is also
 // skipped and DDOT falls back to systemd management.
 func writeDDOTProcessConfig(ctx HookContext) error {
-	if !strings.EqualFold(os.Getenv("DD_PROCMGR_MANAGE_DDOT"), "true") {
-		log.Infof("DD_PROCMGR_MANAGE_DDOT not set, skipping process config write; DDOT will be managed by systemd")
+	envSet := strings.EqualFold(os.Getenv("DD_PROCMGR_MANAGE_DDOT"), "true")
+	_, markerErr := os.Stat(procmgrDDOTMarkerPath)
+	markerExists := markerErr == nil
+
+	if !envSet && !markerExists {
+		log.Infof("DD_PROCMGR_MANAGE_DDOT not set and no prior opt-in marker, skipping process config write; DDOT will be managed by systemd")
 		return nil
 	}
 	return doWriteDDOTProcessConfig(ctx)
 }
 
-// doWriteDDOTProcessConfig is the ungated implementation. It is called
-// directly by restoreDDOTProcessConfig (which has its own eligibility
-// checks) and by writeDDOTProcessConfig (after the env-var gate).
+// doWriteDDOTProcessConfig is the implementation called by
+// writeDDOTProcessConfig after the env-var / marker gate passes.
+// On success it persists the opt-in marker so future upgrades
+// preserve procmgrd management without the env var.
 func doWriteDDOTProcessConfig(ctx HookContext) error {
 	if _, err := os.Stat(procmgrdBinaryPath(ctx.PackageType)); os.IsNotExist(err) {
 		log.Infof("dd-procmgrd not found, skipping process config write; DDOT will be managed by systemd")
@@ -403,6 +414,10 @@ func doWriteDDOTProcessConfig(ctx HookContext) error {
 	if err := os.WriteFile(dest, []byte(content), 0644); err != nil {
 		return fmt.Errorf("failed to write DDOT process config to %s: %w", dest, err)
 	}
+
+	if err := os.WriteFile(procmgrDDOTMarkerPath, []byte{}, 0644); err != nil {
+		log.Warnf("failed to write procmgr DDOT opt-in marker %s: %s", procmgrDDOTMarkerPath, err)
+	}
 	return nil
 }
 
@@ -420,9 +435,9 @@ func removeDDOTProcessConfig(packageType PackageType) {
 // DDOT OCI package is still installed. This is needed for OCI agent upgrades
 // where the versioned directory (and its processes.d/) is recreated from scratch.
 //
-// This bypasses the DD_PROCMGR_MANAGE_DDOT env-var gate: if the YAML was
-// present before the upgrade, it should be restored regardless of whether the
-// env var is set in the current hook process.
+// The DD_PROCMGR_MANAGE_DDOT env-var gate is satisfied by the persistent
+// marker file written during the original opt-in, so upgrades do not need
+// the env var re-exported.
 //
 // This intentionally skips DEB/RPM: the install path is stable across upgrades
 // and extension-based DDOT installs use different paths that would be broken
@@ -435,7 +450,7 @@ func restoreDDOTProcessConfig(ctx HookContext) error {
 	if _, err := os.Stat(ddotPkgPath); os.IsNotExist(err) {
 		return nil
 	}
-	return doWriteDDOTProcessConfig(ctx)
+	return writeDDOTProcessConfig(ctx)
 }
 
 const procmgrdUnit = "datadog-agent-procmgrd.service"
