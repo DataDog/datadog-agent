@@ -26,6 +26,7 @@ filesystem events.
 ## Enforcements
 
 - Memory usage is below a threshold
+- Average CPU usage is below a threshold
 
 ## Additional Information
 

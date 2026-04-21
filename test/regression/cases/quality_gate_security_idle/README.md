@@ -33,6 +33,7 @@ lading-generated filesystem load.
 ## Enforcements
 
 - Memory usage is below a threshold
+- Average CPU usage is below a threshold
 
 ## Other Links
 
