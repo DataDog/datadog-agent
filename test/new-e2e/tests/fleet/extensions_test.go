@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
@@ -34,6 +35,9 @@ type extensionsSuite struct {
 	suite.FleetSuite
 	fixtureServer *fixtures.Server
 	packageURL    string // Remote package URL with extension fixture
+
+	agentInstalled    bool
+	currentInstallSig string
 }
 
 func newExtensionsSuite() e2e.Suite[environments.Host] {
@@ -42,6 +46,30 @@ func newExtensionsSuite() e2e.Suite[environments.Host] {
 
 func TestFleetExtensions(t *testing.T) {
 	suite.Run(t, newExtensionsSuite, suite.Platforms())
+}
+
+// extensionsProfiles declares the install flavor and state-mutation behavior
+// of each extensions test. Tests with the same sig and no mutator in between
+// share a single agent install per platform.
+var extensionsProfiles = map[string]testInstallProfile{
+	"TestDDOTAutoInstalledWithEnvVar": {
+		sig:     "otel",
+		install: func(a *agent.Agent) { a.MustInstall(agent.WithOTelCollectorEnabled()) },
+		mutator: true,
+	},
+	"TestDDOTExtension":             {sig: "default", install: defaultInstall, mutator: false},
+	"TestExtensionInstallAndRemove": {sig: "default", install: defaultInstall, mutator: false},
+	"TestExtensionRestoredAfterExperimentRollback": {
+		sig:     "staging",
+		install: func(a *agent.Agent) { a.MustInstall(agent.WithStagingPackages(stagingAgentVersion)) },
+		mutator: true,
+	},
+	"TestExtensionSaveAndRestore": {sig: "default", install: defaultInstall, mutator: false},
+	"TestExtensionSurvivesExperiment": {
+		sig:     "staging",
+		install: func(a *agent.Agent) { a.MustInstall(agent.WithStagingPackages(stagingAgentVersion)) },
+		mutator: true,
+	},
 }
 
 func (s *extensionsSuite) SetupSuite() {
@@ -59,12 +87,46 @@ func (s *extensionsSuite) SetupSuite() {
 	s.packageURL = "file://" + remoteLayoutPath
 }
 
+// BeforeTest reuses the running agent when the next test needs the same install
+// flavor; otherwise it (un)installs to match. Saves an install/uninstall cycle
+// per shared test (~2.5 min on Windows, ~1 min on Linux).
+func (s *extensionsSuite) BeforeTest(_, testName string) {
+	p, ok := extensionsProfiles[testName]
+	require.True(s.T(), ok, "no install profile for %s", testName)
+
+	if s.agentInstalled && s.currentInstallSig == p.sig {
+		require.NoError(s.T(), s.Backend.ResetConfigExperiment())
+		return
+	}
+	if s.agentInstalled {
+		_ = s.Agent.Uninstall()
+	}
+	p.install(s.Agent)
+	s.agentInstalled = true
+	s.currentInstallSig = p.sig
+}
+
+// AfterTest uninstalls after mutator tests so the next test starts clean.
+func (s *extensionsSuite) AfterTest(_, testName string) {
+	if p, ok := extensionsProfiles[testName]; ok && p.mutator {
+		_ = s.Agent.Uninstall()
+		s.agentInstalled = false
+		s.currentInstallSig = ""
+	}
+}
+
+// TearDownSuite uninstalls the agent if a non-mutator test was the last to run.
+func (s *extensionsSuite) TearDownSuite() {
+	if s.agentInstalled {
+		_ = s.Agent.Uninstall()
+		s.agentInstalled = false
+		s.currentInstallSig = ""
+	}
+	s.FleetSuite.TearDownSuite()
+}
+
 // TestExtensionInstallAndRemove tests installing and removing an extension
 func (s *extensionsSuite) TestExtensionInstallAndRemove() {
-	// Install agent with datadog-installer
-	s.Agent.MustInstall()
-	defer s.Agent.MustUninstall()
-
 	// Install package with extension directly from file:// URL (without using catalog)
 	output, err := s.Installer.Install(s.packageURL)
 	s.Require().NoError(err, "Failed to install package: %s", output)
@@ -101,10 +163,6 @@ func (s *extensionsSuite) TestExtensionInstallAndRemove() {
 
 // TestExtensionSaveAndRestore tests saving and restoring extensions
 func (s *extensionsSuite) TestExtensionSaveAndRestore() {
-	// Install agent with datadog-installer
-	s.Agent.MustInstall()
-	defer s.Agent.MustUninstall()
-
 	// Install package with extension directly from file:// URL (without using catalog)
 	output, err := s.Installer.Install(s.packageURL)
 	s.Require().NoError(err, "Failed to install package: %s", output)
@@ -165,9 +223,6 @@ func (s *extensionsSuite) TestExtensionSaveAndRestore() {
 // TestExtensionSurvivesExperiment verifies that extensions installed on the
 // datadog-agent package survive an upgrade via the experiment (start/promote) flow.
 func (s *extensionsSuite) TestExtensionSurvivesExperiment() {
-	s.Agent.MustInstall(agent.WithStagingPackages(stagingAgentVersion))
-	defer s.Agent.MustUninstall()
-
 	s.Installer.MustInstallExtension(s.getStagingAgentPackageURL(), "ddot")
 	defer func() {
 		_, _ = s.Installer.RemoveExtension("datadog-agent", "ddot")
@@ -194,9 +249,6 @@ func (s *extensionsSuite) TestExtensionRestoredAfterExperimentRollback() {
 	if s.Env().RemoteHost.OSFamily == e2eos.WindowsFamily {
 		s.T().Skip("Skipping test on Windows -- incident-50789")
 	}
-	s.Agent.MustInstall(agent.WithStagingPackages(stagingAgentVersion))
-	defer s.Agent.MustUninstall()
-
 	s.Installer.MustInstallExtension(s.getStagingAgentPackageURL(), "ddot")
 	defer func() {
 		_, _ = s.Installer.RemoveExtension("datadog-agent", "ddot")
@@ -228,18 +280,11 @@ func (s *extensionsSuite) TestExtensionRestoredAfterExperimentRollback() {
 // during a fresh agent install, the DDOT extension is automatically installed and running
 // by the postinstall hook — without any explicit extension install call.
 func (s *extensionsSuite) TestDDOTAutoInstalledWithEnvVar() {
-	s.Agent.MustInstall(agent.WithOTelCollectorEnabled())
-	defer s.Agent.MustUninstall()
-
 	s.verifyDDOTRunning()
 }
 
 // TestDDOTExtension tests installing DDOT as an extension on all platforms
 func (s *extensionsSuite) TestDDOTExtension() {
-	// Install base agent
-	s.Agent.MustInstall()
-	defer s.Agent.MustUninstall()
-
 	s.Installer.MustInstallExtension(s.getAgentPackageURL(""), "ddot")
 	defer func() {
 		_, _ = s.Installer.RemoveExtension("datadog-agent", "ddot")

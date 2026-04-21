@@ -24,6 +24,9 @@ import (
 
 type configSuite struct {
 	suite.FleetSuite
+
+	agentInstalled    bool
+	currentInstallSig string
 }
 
 func newConfigSuite() e2e.Suite[environments.Host] {
@@ -34,10 +37,64 @@ func TestFleetConfig(t *testing.T) {
 	suite.Run(t, newConfigSuite, suite.Platforms())
 }
 
-func (s *configSuite) TestConfig() {
-	s.Agent.MustInstall()
-	defer s.Agent.MustUninstall()
+// configProfiles declares the install flavor and state-mutation behavior of
+// each config test. Tests with the same sig and no mutator in between share
+// a single agent install per platform.
+var configProfiles = map[string]testInstallProfile{
+	"TestConfig":                      {sig: "default", install: defaultInstall, mutator: true},
+	"TestConfigFailureCrash":          {sig: "default", install: defaultInstall, mutator: false},
+	"TestConfigFailureHealth":         {sig: "default", install: defaultInstall, mutator: false},
+	"TestConfigFailureTimeout":        {sig: "default", install: defaultInstall, mutator: false},
+	"TestConfigFilePermissions":       {sig: "default", install: defaultInstall, mutator: true},
+	"TestConfigRollbackDeploymentID":  {sig: "default", install: defaultInstall, mutator: false},
+	"TestConfigWithSecrets":           {sig: "default", install: defaultInstall, mutator: true},
+	"TestExperimentIntegrationLoaded": {sig: "default", install: defaultInstall, mutator: true},
+	"TestMultipleConfigs": {
+		sig:     "remote-updates",
+		install: func(a *agent.Agent) { a.MustInstall(agent.WithRemoteUpdates()) },
+		mutator: true,
+	},
+	"TestSystemProbeConfig": {sig: "default", install: defaultInstall, mutator: true},
+}
 
+// BeforeTest either reuses the running agent (clearing any RC experiment from
+// a prior test) or reinstalls when the target install flavor changes.
+func (s *configSuite) BeforeTest(_, testName string) {
+	p, ok := configProfiles[testName]
+	require.True(s.T(), ok, "no install profile for %s", testName)
+
+	if s.agentInstalled && s.currentInstallSig == p.sig {
+		require.NoError(s.T(), s.Backend.ResetConfigExperiment())
+		return
+	}
+	if s.agentInstalled {
+		_ = s.Agent.Uninstall()
+	}
+	p.install(s.Agent)
+	s.agentInstalled = true
+	s.currentInstallSig = p.sig
+}
+
+// AfterTest uninstalls after mutator tests so the next test starts clean.
+func (s *configSuite) AfterTest(_, testName string) {
+	if p, ok := configProfiles[testName]; ok && p.mutator {
+		_ = s.Agent.Uninstall()
+		s.agentInstalled = false
+		s.currentInstallSig = ""
+	}
+}
+
+// TearDownSuite uninstalls the agent if a non-mutator test was the last to run.
+func (s *configSuite) TearDownSuite() {
+	if s.agentInstalled {
+		_ = s.Agent.Uninstall()
+		s.agentInstalled = false
+		s.currentInstallSig = ""
+	}
+	s.FleetSuite.TearDownSuite()
+}
+
+func (s *configSuite) TestConfig() {
 	err := s.Backend.StartConfigExperiment(backend.ConfigOperations{
 		DeploymentID:   "123",
 		FileOperations: []backend.FileOperation{{FileOperationType: backend.FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "debug"}`)}},
@@ -55,9 +112,6 @@ func (s *configSuite) TestConfig() {
 }
 
 func (s *configSuite) TestMultipleConfigs() {
-	s.Agent.MustInstall(agent.WithRemoteUpdates())
-	defer s.Agent.MustUninstall()
-
 	for i := 0; i < 3; i++ {
 		err := s.Backend.StartConfigExperiment(backend.ConfigOperations{
 			DeploymentID: fmt.Sprintf("123-%d", i),
@@ -99,9 +153,6 @@ func (s *configSuite) TestMultipleConfigs() {
 }
 
 func (s *configSuite) TestConfigFailureCrash() {
-	s.Agent.MustInstall()
-	defer s.Agent.MustUninstall()
-
 	err := s.Backend.StartConfigExperiment(backend.ConfigOperations{
 		DeploymentID:   "123",
 		FileOperations: []backend.FileOperation{{FileOperationType: backend.FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "ENC[invalid_secret]"}`)}},
@@ -114,8 +165,6 @@ func (s *configSuite) TestConfigFailureCrash() {
 }
 
 func (s *configSuite) TestConfigFailureTimeout() {
-	s.Agent.MustInstall()
-	defer s.Agent.MustUninstall()
 	s.Agent.MustSetExperimentTimeout(60 * time.Second)
 	defer s.Agent.MustUnsetExperimentTimeout()
 
@@ -137,9 +186,6 @@ func (s *configSuite) TestConfigFailureTimeout() {
 }
 
 func (s *configSuite) TestConfigFailureHealth() {
-	s.Agent.MustInstall()
-	defer s.Agent.MustUninstall()
-
 	err := s.Backend.StartConfigExperiment(backend.ConfigOperations{
 		DeploymentID:   "123",
 		FileOperations: []backend.FileOperation{{FileOperationType: backend.FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "debug"}`)}},
@@ -161,9 +207,6 @@ func (s *configSuite) TestConfigFilePermissions() {
 	if s.Env().RemoteHost.OSFamily == e2eos.WindowsFamily {
 		s.T().Skip("Skipping file permission test on Windows (POSIX permissions not applicable)")
 	}
-
-	s.Agent.MustInstall()
-	defer s.Agent.MustUninstall()
 
 	// Configure multiple files with different permission requirements
 	nginxConfig := `{
@@ -243,9 +286,6 @@ func (s *configSuite) TestConfigFilePermissions() {
 }
 
 func (s *configSuite) TestConfigWithSecrets() {
-	s.Agent.MustInstall()
-	defer s.Agent.MustUninstall()
-
 	err := s.Backend.StartConfigExperiment(backend.ConfigOperations{
 		DeploymentID:   "123",
 		FileOperations: []backend.FileOperation{{FileOperationType: backend.FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "SEC[log_level]"}`)}},
@@ -265,9 +305,6 @@ func (s *configSuite) TestConfigWithSecrets() {
 }
 
 func (s *configSuite) TestSystemProbeConfig() {
-	s.Agent.MustInstall()
-	defer s.Agent.MustUninstall()
-
 	// Configure system-probe settings with runtime security
 	err := s.Backend.StartConfigExperiment(backend.ConfigOperations{
 		DeploymentID: "system-probe-config",
@@ -306,9 +343,6 @@ func (s *configSuite) TestExperimentIntegrationLoaded() {
 	if s.Env().RemoteHost.OSFamily == e2eos.WindowsFamily {
 		s.T().Skip("Skipping on Windows: experiment agent config paths are Linux-specific")
 	}
-
-	s.Agent.MustInstall()
-	defer s.Agent.MustUninstall()
 
 	nginxConfig := `{"init_config": {}, "instances": [{"nginx_status_url": "http://localhost:8080/nginx_status"}]}`
 	err := s.Backend.StartConfigExperiment(backend.ConfigOperations{
@@ -350,9 +384,6 @@ func (s *configSuite) TestExperimentIntegrationLoaded() {
 // correctly preserves the stable_config_version and does not overwrite it
 // with the experiment deployment ID.
 func (s *configSuite) TestConfigRollbackDeploymentID() {
-	s.Agent.MustInstall()
-	defer s.Agent.MustUninstall()
-
 	// Get initial remote config state
 	initialState, err := s.Backend.RemoteConfigStatus()
 	require.NoError(s.T(), err)

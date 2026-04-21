@@ -153,6 +153,20 @@ func (b *Backend) StopConfigExperiment() error {
 	return nil
 }
 
+// ResetConfigExperiment stops any active config experiment, returning nil if
+// there is nothing to stop. Used to guarantee a clean RC state between tests
+// that share a single agent install.
+func (b *Backend) ResetConfigExperiment() error {
+	state, err := b.RemoteConfigStatusPackage("datadog-agent")
+	if err != nil {
+		return fmt.Errorf("error reading remote config state: %w", err)
+	}
+	if state.ExperimentConfigVersion == "" {
+		return nil
+	}
+	return b.StopConfigExperiment()
+}
+
 // StartExperiment starts an update experiment for the given package.
 func (b *Backend) StartExperiment(pkg string, version string) error {
 	b.t().Logf("Starting update experiment for package %s version %s", pkg, version)
