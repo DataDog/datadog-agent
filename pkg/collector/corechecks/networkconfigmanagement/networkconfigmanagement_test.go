@@ -348,6 +348,10 @@ func TestCheck_Run_ConfigRetrievalFailure_NoProfileMatch(t *testing.T) {
 	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, baseInitConfig, "test", "provider")
 	require.NoError(t, err)
 
+	// Clear the profile so FindMatchingProfile is exercised
+	check.checkContext.ProfileCache.ProfileName = ""
+	check.checkContext.ProfileCache.Profile = nil
+
 	// Set up a mock remote client that fails config retrieval
 	mockClient := &MockRemoteClient{
 		ConfigError: errors.New("command execution failed"),
