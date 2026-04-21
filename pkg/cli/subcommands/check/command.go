@@ -215,7 +215,10 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				getPlatformModules(),
 				jmxloggerimpl.Module(jmxloggerimpl.NewCliParams("")),
 				haagentfx.Module(),
-				ipcfx.ModuleReadOnly(),
+				// ModuleReadWrite creates auth_token / ipc_cert.pem if they don't
+				// exist yet, so `agent check` works without a running daemon.
+				// The API server (needed for JMX checks) requires valid TLS certs.
+				ipcfx.ModuleReadWrite(),
 				remotetraceroute.Module(),
 			)
 		},
