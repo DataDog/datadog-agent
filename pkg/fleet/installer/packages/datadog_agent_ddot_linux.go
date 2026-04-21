@@ -354,9 +354,19 @@ func procmgrdBinaryPath(packageType PackageType) string {
 // ConditionPathExists=! causes it to skip the DDOT unit, and dd-procmgrd
 // picks up management instead.
 //
-// If dd-procmgrd is not installed (binary not found), the write is skipped
-// and DDOT falls back to systemd management.
+// Gated behind DD_PROCMGR_MANAGE_DDOT=true. When unset or false, DDOT
+// remains systemd-managed. This allows the full PR series (extension hooks,
+// upgrade handling, telemetry, E2E tests, docs) to land before enabling
+// procmgrd management by default.
+//
+// If dd-procmgrd is not installed (binary not found), the write is also
+// skipped and DDOT falls back to systemd management.
 func writeDDOTProcessConfig(ctx HookContext) error {
+	if !strings.EqualFold(os.Getenv("DD_PROCMGR_MANAGE_DDOT"), "true") {
+		log.Infof("DD_PROCMGR_MANAGE_DDOT not set, skipping process config write; DDOT will be managed by systemd")
+		return nil
+	}
+
 	if _, err := os.Stat(procmgrdBinaryPath(ctx.PackageType)); os.IsNotExist(err) {
 		log.Infof("dd-procmgrd not found, skipping process config write; DDOT will be managed by systemd")
 		return nil
