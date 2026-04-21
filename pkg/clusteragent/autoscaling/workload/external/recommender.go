@@ -114,6 +114,6 @@ func (r *Recommender) updateAutoscaler(key string, horizontalRecommendation *mod
 		unlock()
 		return
 	}
-	podAutoscalerInternal.UpdateFromMainValues(recommendation, 0)
+	podAutoscalerInternal.PartialUpdateFromMainValues(recommendation, true, false, 0)
 	r.store.UnlockSet(podAutoscalerInternal.ID(), podAutoscalerInternal, externalRecommenderID)
 }

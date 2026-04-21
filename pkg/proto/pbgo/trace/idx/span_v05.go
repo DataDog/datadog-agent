@@ -93,6 +93,7 @@ func (tp *InternalTracerPayload) UnmarshalMsgDictionary(bts []byte) error {
 			tp.Chunks[i].Spans = make([]*InternalSpan, sz)
 		}
 		convertedFields := NewSpanConvertedFields()
+		var rootSampling RootSamplingMergeState
 		for j := range tp.Chunks[i].Spans {
 			if tp.Chunks[i].Spans[j] == nil {
 				tp.Chunks[i].Spans[j] = NewInternalSpan(stringTable, &Span{})
@@ -100,6 +101,7 @@ func (tp *InternalTracerPayload) UnmarshalMsgDictionary(bts []byte) error {
 			if bts, err = tp.Chunks[i].Spans[j].UnmarshalMsgDictionaryConverted(bts, convertedFields, dictSize, newZeroRef); err != nil {
 				return err
 			}
+			rootSampling.ReconcileSamplingPriorityAfterChunkSpan(convertedFields, tp.Chunks[i].Spans[j].ParentID())
 		}
 		tp.Chunks[i].ApplyPromotedFields(convertedFields, &chunkConvertedFields)
 	}

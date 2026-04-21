@@ -23,6 +23,7 @@ var ErrNotEnabled = errors.New("private action runner is not enabled")
 const (
 	PAREnabled               = "private_action_runner.enabled"
 	PARSelfEnroll            = "private_action_runner.self_enroll"
+	PARApiKeyOnlyEnrollment  = "private_action_runner.api_key_only_enrollment"
 	PARPrivateKey            = "private_action_runner.private_key"
 	PARUrn                   = "private_action_runner.urn"
 	PARActionsAllowlist      = "private_action_runner.actions_allowlist"

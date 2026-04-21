@@ -18,6 +18,7 @@ go_test(
         "retrier_test.go",
     ],
     embed = [":retry"],
+    gotags = ["test"],
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//mock",

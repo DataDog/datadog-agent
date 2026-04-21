@@ -20,8 +20,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -92,6 +92,10 @@ var DefaultMaxClockRates = map[nvml.ClockType]uint32{
 	nvml.CLOCK_MEM:      2000,
 	nvml.CLOCK_GRAPHICS: 3000,
 	nvml.CLOCK_VIDEO:    4000,
+}
+
+var DefaultFieldValues = map[uint32]uint64{
+	nvml.FI_DEV_NVLINK_LINK_COUNT: 2,
 }
 
 // DevicesWithMIGChildren is a list of device indexes that have MIG children.
@@ -376,6 +380,15 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			}
 			return 0, 0, false, false, nvml.SUCCESS
 		},
+		GetRepairStatusFunc: func() (nvml.RepairStatus, nvml.Return) {
+			if isMIGOrVGPUUnsupported {
+				return nvml.RepairStatus{}, nvml.ERROR_NOT_SUPPORTED
+			}
+			if arch < nvml.DEVICE_ARCH_AMPERE {
+				return nvml.RepairStatus{}, nvml.ERROR_NOT_SUPPORTED
+			}
+			return nvml.RepairStatus{}, nvml.SUCCESS
+		},
 		GetNvLinkStateFunc: func(_ int) (nvml.EnableState, nvml.Return) {
 			if isMIGUnsupported {
 				return 0, nvml.ERROR_NOT_SUPPORTED
@@ -467,8 +480,13 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 				}
 				values[i].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_LONG_LONG)
 
+				value := fieldValuesCounter + uint64(i)
+				if defaultValue, ok := DefaultFieldValues[values[i].FieldId]; ok {
+					value = defaultValue
+				}
+
 				var encoded [8]byte
-				binary.LittleEndian.PutUint64(encoded[:], fieldValuesCounter+uint64(i))
+				binary.LittleEndian.PutUint64(encoded[:], value)
 				values[i].Value = encoded
 			}
 			return nvml.SUCCESS
@@ -508,6 +526,12 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 				return nvml.GpuInstanceProfileInfo{}, nvml.ERROR_INVALID_ARGUMENT
 			}
 			return getGpuInstanceProfileInfo(deviceIdx), nvml.SUCCESS
+		},
+		ReadWritePRM_v1Func: func(_ *nvml.PRMTLV_v1) nvml.Return {
+			if opts.isVGPU() || opts.isMIGMode() || opts.architecture < nvml.DEVICE_ARCH_BLACKWELL {
+				return nvml.ERROR_NOT_SUPPORTED
+			}
+			return nvml.SUCCESS
 		},
 	}
 
@@ -880,7 +904,7 @@ func GetWorkloadMetaMockWithDefaultGPUs(t testing.TB) workloadmetamock.Mock {
 
 // GetTelemetryMock returns a mock of the telemetry.Component.
 func GetTelemetryMock(t testing.TB) telemetry.Mock {
-	return fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
+	return fxutil.Test[telemetry.Mock](t, mocktelemetry.Module())
 }
 
 // GetTotalExpectedDevices calculates the total number of devices (physical + MIG)

@@ -27,6 +27,7 @@ go_test(
         "semantics_test.go",
     ],
     embed = [":semantics"],
+    gotags = ["test"],
     deps = [
         "//pkg/proto/pbgo/trace/idx",
         "@com_github_stretchr_testify//assert",

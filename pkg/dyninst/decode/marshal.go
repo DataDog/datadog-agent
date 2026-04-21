@@ -152,20 +152,20 @@ func (m *messageData) processJSONSegment(
 	}
 	expr := ev.rootType.Expressions[exprIdx]
 
-	// Check presence bit using same logic as processExpression.
-	presenceBitsetSize := ev.rootType.PresenceBitsetSize
-	if int(presenceBitsetSize) > len(ev.rootData) {
-		return errors.New("presence bitset is out of bounds")
+	// Check expression status.
+	statusArraySize := ev.rootType.ExprStatusArraySize
+	if int(statusArraySize) > len(ev.rootData) {
+		return errors.New("expression status array out of bounds")
 	}
-	presenceBitSet := bitset(ev.rootData[:presenceBitsetSize])
-	if 2*exprIdx >= int(presenceBitsetSize)*8 {
-		return errors.New("expression index out of bounds")
-	}
-	if !presenceBitSet.get(2 * exprIdx) {
-		// Expression evaluation failed. Check if it was due to nil pointer.
-		if presenceBitSet.get(2*exprIdx + 1) {
-			return errNilPointerEvaluating
-		}
+	statusArray := bitset(ev.rootData[:statusArraySize])
+	switch statusArray.getExprStatus(exprIdx) {
+	case ir.ExprStatusPresent:
+		// Success — fall through to format the value.
+	case ir.ExprStatusNilDeref:
+		return errNilPointerEvaluating
+	case ir.ExprStatusOOB:
+		return errIndexOutOfBounds
+	default: // ExprStatusAbsent
 		if !limits.canWrite(len(formatUnavailable)) {
 			return nil
 		}
@@ -375,20 +375,24 @@ func (ce *captureEvent) init(
 	ce.skippedIndices.reset(len(rootType.Expressions))
 	ce.evaluationErrors = evalErrors
 
-	// Pre-scan presence bits for nil pointer dereferences. Mark those
+	// Pre-scan expression statuses for error conditions. Mark those
 	// expressions as skipped and record evaluation errors up front so the
 	// serialization loop never needs to restart for them.
-	if rootType.PresenceBitsetSize > 0 && int(rootType.PresenceBitsetSize) <= len(rootData) {
-		presenceBits := bitset(rootData[:rootType.PresenceBitsetSize])
+	if rootType.ExprStatusArraySize > 0 && int(rootType.ExprStatusArraySize) <= len(rootData) {
+		statusArray := bitset(rootData[:rootType.ExprStatusArraySize])
 		for i, expr := range rootType.Expressions {
-			if 2*i+1 >= int(rootType.PresenceBitsetSize)*8 {
-				break
-			}
-			if !presenceBits.get(2*i) && presenceBits.get(2*i+1) {
+			switch statusArray.getExprStatus(i) {
+			case ir.ExprStatusNilDeref:
 				ce.skippedIndices.set(i)
 				*ce.evaluationErrors = append(*ce.evaluationErrors, evaluationError{
 					Expression: expr.Name,
 					Message:    errNilPointerEvaluating.Error(),
+				})
+			case ir.ExprStatusOOB:
+				ce.skippedIndices.set(i)
+				*ce.evaluationErrors = append(*ce.evaluationErrors, evaluationError{
+					Expression: expr.Name,
+					Message:    errIndexOutOfBounds.Error(),
 				})
 			}
 		}
@@ -407,12 +411,13 @@ func (ddDebuggerSource) MarshalJSONTo(enc *jsontext.Encoder) error {
 
 var errEvaluation = errors.New("evaluation error")
 var errNilPointerEvaluating = errors.New("nil pointer dereference")
+var errIndexOutOfBounds = errors.New("index out of bounds")
 
 // processExpression processes a single expression from the root type expressions
 func (ce *captureEvent) processExpression(
 	enc *jsontext.Encoder,
 	expr *ir.RootExpression,
-	presenceBitSet bitset,
+	statusArray bitset,
 	expressionIndex int,
 ) error {
 	parameterType := expr.Expression.Type
@@ -446,9 +451,9 @@ func (ce *captureEvent) processExpression(
 	if err := writeTokens(enc, jsontext.String(expr.Name)); err != nil {
 		return err
 	}
-	if !presenceBitSet.get(2*expressionIndex) && parameterSize != 0 {
-		// Nil-deref expressions are already handled in init() and marked
-		// as skipped, so we only reach here for genuinely unavailable data.
+	if statusArray.getExprStatus(expressionIndex) != ir.ExprStatusPresent && parameterSize != 0 {
+		// Nil-deref and OOB expressions are already handled in init() and
+		// marked as skipped, so we only reach here for genuinely unavailable data.
 		if err := writeTokens(enc,
 			jsontext.BeginObject,
 			jsontext.String("type"),
@@ -475,55 +480,139 @@ func (ce *captureEvent) processExpression(
 }
 
 func (ce *captureEvent) MarshalJSONTo(enc *jsontext.Encoder) error {
-	if ce.rootType.PresenceBitsetSize > uint32(len(ce.rootData)) {
-		return errors.New("presence bitset is out of bounds")
+	if ce.rootType.ExprStatusArraySize > uint32(len(ce.rootData)) {
+		return errors.New("expression status array out of bounds")
 	}
-	presenceBitSet := ce.rootData[:ce.rootType.PresenceBitsetSize]
+	statusArray := bitset(ce.rootData[:ce.rootType.ExprStatusArraySize])
 
 	if err := writeTokens(enc, jsontext.BeginObject); err != nil {
 		return err
 	}
-	for _, kind := range []struct {
-		kind  ir.RootExpressionKind
-		token jsontext.Token
-	}{
-		{kind: ir.RootExpressionKindArgument, token: jsontext.String("arguments")},
-		{kind: ir.RootExpressionKindLocal, token: jsontext.String("locals")},
-		{kind: ir.RootExpressionKindCaptureExpression, token: jsontext.String("captureExpressions")},
-	} {
-		// We iterate over the 'Expressions' of the EventRoot which contains
-		// metadata and raw bytes of the parameters of this function.
-		var haveKind bool
+	// emitGroup writes all expressions of the given kind under the given
+	// JSON key ("arguments", "captureExpressions"). Returns true if any
+	// expressions were emitted.
+	emitGroup := func(token jsontext.Token, kind ir.RootExpressionKind) (bool, error) {
+		var have bool
 		for i, expr := range ce.rootType.Expressions {
-			if expr.Kind != kind.kind {
+			if expr.Kind != kind {
 				continue
 			}
 			if ce.skippedIndices.get(i) {
 				continue
 			}
-			if !haveKind {
-				haveKind = true
-				if err := writeTokens(
-					enc, kind.token, jsontext.BeginObject,
-				); err != nil {
-					return err
+			if !have {
+				have = true
+				if err := writeTokens(enc, token, jsontext.BeginObject); err != nil {
+					return have, err
 				}
 			}
-			err := ce.processExpression(enc, expr, presenceBitSet, i)
+			err := ce.processExpression(enc, expr, statusArray, i)
 			if errors.Is(err, errEvaluation) {
-				// This expression resulted in an evaluation error, we mark it
-				// to be skipped and will try again
+				ce.skippedIndices.set(i)
+			}
+			if err != nil {
+				return have, err
+			}
+		}
+		if have {
+			if err := writeTokens(enc, jsontext.EndObject); err != nil {
+				return have, err
+			}
+		}
+		return have, nil
+	}
+
+	// Arguments.
+	if _, err := emitGroup(jsontext.String("arguments"), ir.RootExpressionKindArgument); err != nil {
+		return err
+	}
+
+	// Locals and return values share a single "locals" JSON key.
+	{
+		var haveLocals bool
+		openLocals := func() error {
+			if !haveLocals {
+				haveLocals = true
+				return writeTokens(enc, jsontext.String("locals"), jsontext.BeginObject)
+			}
+			return nil
+		}
+
+		// Emit regular locals.
+		for i, expr := range ce.rootType.Expressions {
+			if expr.Kind != ir.RootExpressionKindLocal {
+				continue
+			}
+			if ce.skippedIndices.get(i) {
+				continue
+			}
+			if err := openLocals(); err != nil {
+				return err
+			}
+			err := ce.processExpression(enc, expr, statusArray, i)
+			if errors.Is(err, errEvaluation) {
 				ce.skippedIndices.set(i)
 			}
 			if err != nil {
 				return err
 			}
 		}
-		if haveKind {
+
+		// Count return expressions to decide single vs multi wrapping.
+		returnCount := 0
+		for _, expr := range ce.rootType.Expressions {
+			if expr.Kind == ir.RootExpressionKindReturn {
+				returnCount++
+			}
+		}
+		multiReturn := returnCount > 1
+
+		// Emit return values with @return wrapping.
+		var haveReturn bool
+		for i, expr := range ce.rootType.Expressions {
+			if expr.Kind != ir.RootExpressionKindReturn {
+				continue
+			}
+			if ce.skippedIndices.get(i) {
+				continue
+			}
+			if err := openLocals(); err != nil {
+				return err
+			}
+			if !haveReturn {
+				haveReturn = true
+				if multiReturn {
+					if err := writeTokens(enc,
+						jsontext.String("@return"), jsontext.BeginObject,
+						jsontext.String("fields"), jsontext.BeginObject,
+					); err != nil {
+						return err
+					}
+				}
+			}
+			err := ce.processExpression(enc, expr, statusArray, i)
+			if errors.Is(err, errEvaluation) {
+				ce.skippedIndices.set(i)
+			}
+			if err != nil {
+				return err
+			}
+		}
+		if haveReturn && multiReturn {
+			if err := writeTokens(enc, jsontext.EndObject, jsontext.EndObject); err != nil {
+				return err
+			}
+		}
+		if haveLocals {
 			if err := writeTokens(enc, jsontext.EndObject); err != nil {
 				return err
 			}
 		}
+	}
+
+	// Capture expressions.
+	if _, err := emitGroup(jsontext.String("captureExpressions"), ir.RootExpressionKindCaptureExpression); err != nil {
+		return err
 	}
 	if err := writeTokens(enc, jsontext.EndObject); err != nil {
 		return err

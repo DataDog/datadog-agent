@@ -81,12 +81,12 @@ type EBPFResolver struct {
 	envVarsResolver     *envvars.Resolver
 	userSessionResolver *usersessions.Resolver
 
-	inodeFileMap  ebpf.Map
-	procCacheMap  ebpf.Map
-	pidCacheMap   ebpf.Map
-	pathIDMap     ebpf.Map
-	pidIgnoredMap ebpf.Map
-	opts          ResolverOpts
+	inodeFileMap        ebpf.Map
+	procCacheMap        ebpf.Map
+	pidCacheMap         ebpf.Map
+	pathIDMap           ebpf.Map
+	kernelThreadPidsMap ebpf.Map
+	opts                ResolverOpts
 
 	// stats
 	hitsStats                    map[string]*atomic.Int64
@@ -1505,7 +1505,7 @@ func (p *EBPFResolver) Start(ctx context.Context) error {
 		return err
 	}
 
-	if p.pidIgnoredMap, err = managerhelper.Map(p.manager, "pid_ignored"); err != nil {
+	if p.kernelThreadPidsMap, err = managerhelper.Map(p.manager, "kernel_thread_pids"); err != nil {
 		return err
 	}
 
@@ -1559,8 +1559,8 @@ func (p *EBPFResolver) SyncCache(proc *process.Process) {
 	// ignore kworker/kthreads
 	if IsKworker(uint32(filledProc.Ppid), uint32(filledProc.Pid)) {
 		value := uint8(1)
-		if err = p.pidIgnoredMap.Put(uint32(filledProc.Pid), value); err != nil {
-			seclog.Errorf("couldn't push pid_ignored entry to kernel space: %s", err)
+		if err = p.kernelThreadPidsMap.Put(uint32(filledProc.Pid), value); err != nil {
+			seclog.Errorf("couldn't push kernel_thread_pids entry to kernel space: %s", err)
 		}
 		return
 	}
