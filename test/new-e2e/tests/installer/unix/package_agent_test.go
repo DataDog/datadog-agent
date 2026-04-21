@@ -25,7 +25,6 @@ const (
 	agentUnitXP     = "datadog-agent-exp.service"
 	ddotUnit        = "datadog-agent-ddot.service"
 	ddotUnitXP      = "datadog-agent-ddot-exp.service"
-	procmgrdUnit    = "datadog-agent-procmgrd.service"
 	traceUnit       = "datadog-agent-trace.service"
 	traceUnitXP     = "datadog-agent-trace-exp.service"
 	processUnit     = "datadog-agent-process.service"
