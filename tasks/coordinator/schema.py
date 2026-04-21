@@ -208,12 +208,10 @@ class Db:
     # new component" step, not a per-config check.
     components_eval_dispatched: list[str] = field(default_factory=list)
 
-    # Rolling reference: per-detector per-scenario scores after the most
-    # recent ship targeting that detector. The strict-regression gate
-    # compares to THIS (not the original baseline), so a candidate is
-    # blocked only if it regresses from the immediately-prior committed
-    # state — even when several prior commits accumulated on the branch.
-    # Missing key = fall back to baseline for that detector.
+    # DEPRECATED — rolling-reference mechanism dropped (introduced a
+    # noise-driven ratchet that let candidates strictly worse than baseline
+    # ship). Field kept so old db.yaml files still load; never written.
+    # Remove after all active runs migrate.
     last_shipped_per_scenario: dict[str, dict[str, ScenarioResult]] = field(default_factory=dict)
 
 

@@ -60,7 +60,7 @@ def test_no_change_no_regressions(tmp_path: Path):
         },
         mean_f1=0.121,
     )
-    r = score_against_baseline(report, baseline, "scanmw", tau=0.05)
+    r = score_against_baseline(report, baseline, "scanmw")
     assert r.mean_df1 == 0
     assert r.total_dfps == 0
     assert r.strict_regressions == []
@@ -71,17 +71,20 @@ def test_no_change_no_regressions(tmp_path: Path):
 def test_detects_f1_regression(tmp_path: Path):
     baseline = _make_baseline()
     report = tmp_path / "r.json"
-    # 213_pagerduty drops f1 by 0.10 (> τ=0.05)
+    # 213_pagerduty drops f1 by 0.20 (well past the 0.10 catastrophe threshold).
+    # Catastrophe filter intentionally doesn't catch marginal (< 0.10) drops —
+    # the LLM reviewer is responsible for subtle regressions; this gate is
+    # for "the detector visibly broke."
     _write_report(
         report,
         {
-            "213_pagerduty": {"f1": 0.555, "precision": 0.493, "recall": 0.974, "num_baseline_fps": 1},
+            "213_pagerduty": {"f1": 0.455, "precision": 0.493, "recall": 0.974, "num_baseline_fps": 1},
             "food_delivery_redis": {"f1": 0.235, "precision": 0.143, "recall": 0.666, "num_baseline_fps": 4},
             "093_cloudflare": {"f1": 0.015, "precision": 0.008, "recall": 0.841, "num_baseline_fps": 109},
         },
-        mean_f1=0.268,
+        mean_f1=0.235,
     )
-    r = score_against_baseline(report, baseline, "scanmw", tau=0.05)
+    r = score_against_baseline(report, baseline, "scanmw")
     assert "213_pagerduty" in r.strict_regressions
 
 
@@ -98,7 +101,7 @@ def test_detects_fp_reduction(tmp_path: Path):
         },
         mean_f1=0.302,
     )
-    r = score_against_baseline(report, baseline, "scanmw", tau=0.05)
+    r = score_against_baseline(report, baseline, "scanmw")
     assert r.total_dfps == -55
     assert r.fp_reduction_pct > 0.15
 
@@ -118,6 +121,6 @@ def test_recall_floor_skipped_when_baseline_low(tmp_path: Path):
         },
         mean_f1=0.121,
     )
-    r = score_against_baseline(report, baseline, "scanmw", tau=0.05)
+    r = score_against_baseline(report, baseline, "scanmw")
     # food_delivery_redis dropped but baseline < 0.05, so not flagged
     assert "food_delivery_redis" not in r.recall_floor_violations

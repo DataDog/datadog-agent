@@ -47,13 +47,35 @@ def _now() -> str:
     return _dt.datetime.now().isoformat(timespec="seconds")
 
 
+# Timeout on every ssh invocation so a half-open TCP connection to a
+# paused/reaped workspace cannot wedge the main loop indefinitely. The
+# -o flags bound connect + liveness so a silent peer is detected in
+# ~45s rather than TCP's default 2hr.
+_SSH_OPTS = [
+    "-o", "ConnectTimeout=10",
+    "-o", "ServerAliveInterval=15",
+    "-o", "ServerAliveCountMax=3",
+    "-o", "BatchMode=yes",
+]
+_SSH_TIMEOUT_SECONDS = 60
+
+
 def _ssh(host: str, command: str, check: bool = False) -> subprocess.CompletedProcess:
-    return subprocess.run(
-        ["ssh", host, command],
-        capture_output=True,
-        text=True,
-        check=check,
-    )
+    try:
+        return subprocess.run(
+            ["ssh", *_SSH_OPTS, host, command],
+            capture_output=True,
+            text=True,
+            check=check,
+            timeout=_SSH_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as e:
+        # Synthesize a non-zero-returncode CompletedProcess so callers keep
+        # their (rc, stderr) contract. Raising would escape fail-soft paths.
+        return subprocess.CompletedProcess(
+            args=e.cmd, returncode=124,
+            stdout="", stderr=f"ssh timeout after {_SSH_TIMEOUT_SECONDS}s",
+        )
 
 
 def workspace_busy(db: Db, workspace: str) -> bool:
@@ -157,16 +179,21 @@ def _pull_report(pv: PendingValidation, root: Path) -> Path | None:
     """scp the remote output dir to local eval-results/. Returns local dir."""
     local_dir = root / "eval-results" / f"validation-{pv.id}"
     local_dir.mkdir(parents=True, exist_ok=True)
-    res = subprocess.run(
-        [
-            "scp",
-            "-r",
-            f"{pv.workspace}:{pv.remote_output_dir}/.",
-            str(local_dir) + "/",
-        ],
-        capture_output=True,
-        text=True,
-    )
+    try:
+        res = subprocess.run(
+            [
+                "scp",
+                *_SSH_OPTS,
+                "-r",
+                f"{pv.workspace}:{pv.remote_output_dir}/.",
+                str(local_dir) + "/",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=300,  # report dirs are small; 5min is generous.
+        )
+    except subprocess.TimeoutExpired:
+        return None
     if res.returncode != 0:
         return None
     return local_dir

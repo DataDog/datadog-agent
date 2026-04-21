@@ -33,16 +33,21 @@ class ScheduleDecision:
 
 
 def _family_consecutive_nonimproving(db: Db, family: str) -> int:
-    """Count consecutive recent iterations on this family without improvement.
+    """Count consecutive recent iterations on this family without a
+    meaningful improvement over the global best.
 
-    "Improvement" = experiment score strictly above db.phase_state.best_score
-    at the time the experiment was recorded. We approximate by counting
-    back-to-back experiments whose candidate is in `family` AND whose score
-    is <= best_score.
+    Effect-size aware: an experiment "improves" only if its score clears
+    `db.phase_state.best_score + ε`. The raw strict-greater comparison
+    previously used let noisy +0.001 bumps reset the counter, keeping
+    dead-end families alive indefinitely — while genuine small-effect
+    winners got banned when 5 draws happened to be flat.
+
+    Walks back from the most recent experiment; the streak ends at the
+    first experiment that clears the ε threshold OR at a family switch.
     """
-    count = 0
+    epsilon = CONFIG.plateau_epsilon
     best = db.phase_state.best_score
-    # Iterate experiments in reverse insertion order
+    count = 0
     for exp in reversed(list(db.experiments.values())):
         cand = db.candidates.get(exp.candidate_id)
         if cand is None:
@@ -50,8 +55,7 @@ def _family_consecutive_nonimproving(db: Db, family: str) -> int:
         if cand.approach_family != family:
             # Hit a different family; streak broken.
             break
-        # Same family
-        if exp.score is not None and exp.score > best:
+        if exp.score is not None and exp.score > best + epsilon:
             break
         count += 1
     return count

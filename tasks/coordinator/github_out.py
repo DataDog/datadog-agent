@@ -32,6 +32,27 @@ PR_NUMBER_ENV = "COORD_GITHUB_PR_NUMBER"
 # on the driver workspace is the same human account as the operator.
 OWN_MESSAGE_MARKER = "\u200b"
 
+# Process-lifetime counters for gh health. If auth expires on day 2 the
+# channel goes dark silently; driver reads these and escalates. Counters
+# reset on any successful call; a driver restart re-checks from zero.
+_CONSECUTIVE_ERRORS = {"post": 0, "poll": 0}
+GH_WARN_THRESHOLD = 3   # emit coord-out warning, keep going
+GH_HALT_THRESHOLD = 5   # user channel is dead, halt the loop
+
+
+def record_gh_result(channel: str, ok: bool) -> int:
+    """Update consecutive-error counter for channel ("post" or "poll")."""
+    if ok:
+        _CONSECUTIVE_ERRORS[channel] = 0
+    else:
+        _CONSECUTIVE_ERRORS[channel] = _CONSECUTIVE_ERRORS.get(channel, 0) + 1
+    return _CONSECUTIVE_ERRORS[channel]
+
+
+def gh_consecutive_errors() -> dict[str, int]:
+    return dict(_CONSECUTIVE_ERRORS)
+
+
 _EMOJI = {
     "budget_milestone": "💸",
     "phase_exit": "🏁",
@@ -80,12 +101,17 @@ def post(msg_type: str, content: str, requires_ack: bool = False) -> tuple[bool,
             timeout=15,
         )
     except FileNotFoundError:
+        record_gh_result("post", False)
         return False, "gh_cli_missing"
     except subprocess.TimeoutExpired:
+        record_gh_result("post", False)
         return False, "timeout"
     except Exception as e:
+        record_gh_result("post", False)
         return False, f"exception: {e.__class__.__name__}"
 
     if r.returncode != 0:
+        record_gh_result("post", False)
         return False, f"gh_error: {(r.stderr or r.stdout).strip()[:300]}"
+    record_gh_result("post", True)
     return True, "ok"

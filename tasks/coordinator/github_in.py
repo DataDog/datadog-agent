@@ -23,7 +23,7 @@ from pathlib import Path
 
 from . import github_out
 from .db import state_dir
-from .inbox import INBOX_NAME
+from .inbox import INBOX_NAME, inbox_lock
 
 STATE_FILENAME = "github_state.json"
 
@@ -53,16 +53,49 @@ def is_configured() -> bool:
 
 
 def _append_to_inbox(root: Path, text: str) -> None:
+    # Serialise with claim_inbox / ack_and_archive: without the lock, an
+    # append racing a rename writes into the renamed inode (inbox.md.reading)
+    # and the bytes are silently archived as orphan content.
     p = state_dir(root) / INBOX_NAME
     p.parent.mkdir(parents=True, exist_ok=True)
-    with p.open("a") as f:
-        f.write(text.rstrip() + "\n\n")
+    with inbox_lock(root):
+        with p.open("a") as f:
+            f.write(text.rstrip() + "\n\n")
+
+
+_own_login_cache: str | None = None
+
+
+def _own_login() -> str | None:
+    """Return the GitHub login of whoever `gh` is authenticated as.
+
+    Cached for the process lifetime. If auth is broken or gh is missing,
+    returns None and the caller falls back to marker-only filtering (which
+    is fragile but strictly additive — never re-ingest own comments).
+    """
+    global _own_login_cache
+    if _own_login_cache is not None:
+        return _own_login_cache
+    try:
+        r = subprocess.run(
+            ["gh", "api", "user", "--jq", ".login"],
+            capture_output=True, text=True, timeout=15,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired, Exception):
+        return None
+    if r.returncode != 0:
+        return None
+    login = r.stdout.strip()
+    _own_login_cache = login or None
+    return _own_login_cache
 
 
 def _fetch_comments(pr: str) -> tuple[list[dict] | None, str]:
     """Call `gh api` to pull all issue comments for the PR (PRs are issues).
 
-    Returns (comments, detail). comments is None on error.
+    Returns (comments, detail). comments is None on error. Each comment
+    includes `user.login` so callers can filter own comments by author,
+    not by the fragile zero-width-space marker.
     """
     try:
         r = subprocess.run(
@@ -72,21 +105,26 @@ def _fetch_comments(pr: str) -> tuple[list[dict] | None, str]:
                 "--paginate",
                 f"repos/{{owner}}/{{repo}}/issues/{pr}/comments",
                 "--jq",
-                ".[] | {id, body}",
+                ".[] | {id, body, user_login: .user.login}",
             ],
             capture_output=True,
             text=True,
             timeout=30,
         )
     except FileNotFoundError:
+        github_out.record_gh_result("poll", False)
         return None, "gh_cli_missing"
     except subprocess.TimeoutExpired:
+        github_out.record_gh_result("poll", False)
         return None, "timeout"
     except Exception as e:
+        github_out.record_gh_result("poll", False)
         return None, f"exception: {e.__class__.__name__}"
 
     if r.returncode != 0:
+        github_out.record_gh_result("poll", False)
         return None, f"gh_error: {(r.stderr or r.stdout).strip()[:300]}"
+    github_out.record_gh_result("poll", True)
 
     # --jq with --paginate emits one JSON object per line.
     out: list[dict] = []
@@ -121,6 +159,11 @@ def poll(root: Path = Path(".")) -> tuple[int, str]:
     # Process oldest-first so inbox ordering matches chronology.
     comments.sort(key=lambda c: int(c.get("id", 0)))
 
+    # Primary own-filter: author login. Marker is kept as a belt-and-
+    # suspenders check in case gh is re-authed mid-run to a different
+    # login (e.g. a human posts as themselves during a coordinator pause).
+    own_login = _own_login()
+
     appended = 0
     max_id = last_seen_id
     for c in comments:
@@ -131,7 +174,10 @@ def poll(root: Path = Path(".")) -> tuple[int, str]:
         if cid <= last_seen_id:
             continue
         body = c.get("body") or ""
-        if body.startswith(github_out.OWN_MESSAGE_MARKER):
+        author = c.get("user_login") or ""
+        is_own = (own_login is not None and author == own_login) or \
+                 body.startswith(github_out.OWN_MESSAGE_MARKER)
+        if is_own:
             # Own comment; advance the cursor so we don't reconsider next poll.
             if cid > max_id:
                 max_id = cid

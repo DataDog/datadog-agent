@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import subprocess
 import time
 from pathlib import Path
 from typing import Any, Callable
@@ -318,6 +319,12 @@ attempt is not the same.
                 HookMatcher(matcher="Bash", hooks=[_block_git_hook]),
             ],
         },
+        # Hard ceiling on tool hops for one implementation call. Realistic
+        # edits finish in 10-30 hops (read target, read neighbors, edit,
+        # maybe grep for callers, re-read). 60 is well beyond any honest
+        # budget and still catches a runaway "read the whole repo" loop
+        # before it burns a day of tokens.
+        max_turns=60,
     )
     # Extract the "DONE:" summary line.
     for line in text.splitlines():
@@ -330,77 +337,136 @@ attempt is not the same.
 # 3. Review
 # ---------------------------------------------------------------------------
 
-def _format_scoring_for_review(
-    experiment: Experiment,
-    scoring: ScoringResult,
-    prior_scores: dict | None = None,
-) -> str:
-    """Render scoring for the review prompt.
-
-    Includes per-scenario deltas VS BASELINE (cumulative progress) and,
-    when `prior_scores` is provided, VS LAST SHIPPED (this candidate's
-    marginal contribution on top of accumulated prior commits). The
-    regression gate already used `prior_scores`; showing both here lets
-    the reviewer tell "this candidate adds real signal" from "this
-    candidate is just inheriting prior gains."
-    """
+def _format_scoring_for_review(scoring: ScoringResult) -> str:
     rows = []
     for d in scoring.per_scenario_delta.values():
-        base_str = f"{d.baseline.f1:.3f} → {d.observed.f1:.3f} (Δ{d.df1:+.3f})"
-        if prior_scores and d.scenario in prior_scores:
-            prior = prior_scores[d.scenario]
-            marginal = d.observed.f1 - prior.f1
-            base_str += f"  ·  vs last-ship: {prior.f1:.3f} (Δ{marginal:+.3f})"
         rows.append(
-            f"  - {d.scenario}: F1 {base_str}, "
+            f"  - {d.scenario}: F1 {d.baseline.f1:.3f} → {d.observed.f1:.3f} "
+            f"(Δ{d.df1:+.3f}), recall Δ{d.drecall:+.3f}, "
             f"FPs {d.baseline.num_baseline_fps} → {d.observed.num_baseline_fps}"
         )
     deltas = "\n".join(rows)
-    return f"""Experiment: {experiment.id}
-Detector: {scoring.detector}
-Baseline mean F1: {scoring.baseline_mean_f1:.4f}
-Observed mean F1: {scoring.mean_f1:.4f}  (Δ{scoring.mean_df1:+.4f} vs baseline)
-Baseline total FPs: {scoring.baseline_total_fps}
-Observed total FPs: {scoring.total_fps}  (Δ{scoring.total_dfps:+d})
-FP reduction pct: {scoring.fp_reduction_pct:.2%}
-Strict F1 regressions (gated vs last-ship): {scoring.strict_regressions or '(none)'}
-Recall-floor violations (gated vs last-ship): {scoring.recall_floor_violations or '(none)'}
-Per-scenario deltas (vs baseline; vs last-ship when available):
-{deltas}
-"""
+    return (
+        f"Detector: {scoring.detector}\n"
+        f"Baseline mean F1: {scoring.baseline_mean_f1:.4f}  →  "
+        f"Observed: {scoring.mean_f1:.4f}  (Δ{scoring.mean_df1:+.4f})\n"
+        f"Baseline total FPs: {scoring.baseline_total_fps}  →  "
+        f"Observed: {scoring.total_fps}  (Δ{scoring.total_dfps:+d}, "
+        f"FP reduction {scoring.fp_reduction_pct:.1%})\n"
+        f"Catastrophe-filter regressions: {scoring.strict_regressions or '(none)'}\n"
+        f"Recall-floor violations: {scoring.recall_floor_violations or '(none)'}\n"
+        f"Per-scenario:\n{deltas}"
+    )
+
+
+def _working_tree_diff(root: Path) -> str:
+    """Snapshot the candidate's changes for reviewer context.
+
+    The implementation agent writes to the working tree; at review time
+    those edits are uncommitted. `git diff HEAD -- comp/observer tasks/q.py
+    tasks/libs/q` captures them. Truncated to a size that a reviewer can
+    actually process in `max_turns` hops.
+    """
+    try:
+        r = subprocess.run(
+            ["git", "diff", "HEAD", "--", "comp/observer", "tasks/q.py", "tasks/libs/q"],
+            cwd=root, capture_output=True, text=True, timeout=30,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        return "(diff unavailable — git subprocess failed)"
+    out = r.stdout
+    # 200KB cap — larger than any honest single-candidate diff and below
+    # anything that would dominate the prompt token cost.
+    if len(out) > 200_000:
+        out = out[:200_000] + "\n... (diff truncated at 200KB)"
+    return out or "(no working-tree diff)"
+
+
+def _check_evidence_fields(data: dict) -> bool:
+    """Structured-output enforcement: every check must have a non-empty
+    evidence string, and `approve: true` requires all checks to pass.
+
+    Returns True iff output is well-formed AND approved. Malformed output
+    is treated as reject so a reviewer that emits only `{approve: true}`
+    without filling the checks block cannot slip a candidate through.
+    """
+    checks = data.get("checks")
+    if not isinstance(checks, dict) or not checks:
+        return False
+    for name, body in checks.items():
+        if not isinstance(body, dict):
+            return False
+        status = str(body.get("status", "")).lower().strip()
+        evidence = str(body.get("evidence", "") or "").strip()
+        if status not in ("pass", "fail"):
+            return False
+        if len(evidence) < 20:
+            # A one-word or empty evidence field is a vibes approval.
+            return False
+        if status == "fail":
+            return False
+    return bool(data.get("approve", False))
 
 
 def review_experiment(
     experiment: Experiment,
     scoring: ScoringResult,
     phase: Phase,
-    prior_scores: dict | None = None,
+    train_scenarios: list[str],
+    lockbox_scenarios: list[str],
+    root: Path,
 ) -> ReviewVerdict:
-    """Invoke the Phase-1 review (single `hack_detector` persona).
+    """Invoke Phase-1 review (leakage_auditor + hack_detector).
 
-    Each persona returns YAML with {persona, approve, rationale}.
-    Unanimity required for approval (trivially true with one persona).
-    `prior_scores` is the last-shipped per-scenario state for this
-    detector; shown to the reviewer so it can distinguish "inheriting
-    prior gains" from "this candidate added real marginal signal."
+    Each persona returns YAML with per-check evidence fields; a reviewer
+    that returns only `approve: true` without filling evidence is treated
+    as reject. Unanimity required for approval.
     """
     personas = PHASE1_PERSONAS if phase == Phase.ONE else PHASE2_PERSONAS
-    context = _format_scoring_for_review(experiment, scoring, prior_scores=prior_scores)
+    scoring_summary = _format_scoring_for_review(scoring)
+    diff = _working_tree_diff(root)
+
+    prior_block = "(no prior same-family experiments)"
+    # Prior-work string is stored on the experiment; reviewer.HACK_DETECTOR_PROMPT
+    # renders it. Provided by the driver when it builds the experiment.
+    prior_rationales = getattr(experiment, "prior_rationales_summary", "") or ""
+    if prior_rationales:
+        prior_block = prior_rationales
+
+    train_s = ", ".join(train_scenarios) or "(none)"
+    lockbox_s = ", ".join(lockbox_scenarios) or "(none)"
 
     decisions: list[ReviewDecision] = []
     for name, persona_prompt in personas.items():
-        full_prompt = f"{persona_prompt}\n\n--- Experiment context ---\n{context}"
+        full_prompt = persona_prompt.format(
+            diff=diff,
+            train_scenarios=train_s,
+            lockbox_scenarios=lockbox_s,
+            scoring_summary=scoring_summary,
+            prior_block=prior_block,
+        )
+        full_prompt += f"\n\n--- Experiment context ---\n{scoring_summary}\n"
         text = _run_query(
             full_prompt,
             model=CONFIG.model_deep,  # review is a judgement call — Opus
             allowed_tools=["Read", "Grep", "Glob"],
+            cwd=str(root),
+            # Hard ceiling on tool hops. A reviewer that runs Grep across
+            # the whole repo 50 times can burn a day of budget in one call.
+            # 12 hops covers "read diff, grep for scenario names in changed
+            # files, grep for suspect constants, read 2 call sites."
+            max_turns=12,
         )
         data = _parse_yaml_block(text)
+        approved = _check_evidence_fields(data)
+        rationale = str(data.get("rationale", "") or "")
+        if not approved and "checks" not in data:
+            rationale = (rationale + " [auto-reject: structured output missing checks block]").strip()
         decisions.append(
             ReviewDecision(
                 persona=name,
-                approve=bool(data.get("approve", False)),
-                rationale=str(data.get("rationale", "") or ""),
+                approve=approved,
+                rationale=rationale,
             )
         )
 

@@ -308,22 +308,43 @@ def startup_cleanup(
 ) -> dict:
     """Reconcile scratch-branch state before entering the iteration loop.
 
-    Handles two crash-recovery scenarios:
-      1. Orphaned working-tree diffs under WATCH_PATHS (a previous
+    Handles three crash-recovery scenarios:
+      1. Stale in-progress merge/rebase/cherry-pick state (.git/MERGE_HEAD
+         etc). A prior sync_from_upstream SIGKILLed between `git merge`
+         and `git merge --abort` leaves this residue; the next commit
+         would silently create a merge commit carrying unintended content.
+         Abort all in-progress operations before anything else.
+      2. Orphaned working-tree diffs under WATCH_PATHS (a previous
          iteration crashed mid-implementation). Revert to HEAD.
-      2. Unpushed commits on claude/observer-improvements from a prior crash between
+      3. Unpushed commits on claude/observer-improvements from a prior crash between
          commit and push. Push them now.
 
     Returns a dict summary for journal logging.
     """
     paths = paths or WATCH_PATHS
     summary: dict = {
+        "aborted_stale_merge": False,
         "reverted_dirty_tree": False,
         "pushed_orphan_commits": 0,
         "push_ok": None,
     }
 
-    # 1. Dirty working tree under watched paths → revert.
+    # 1. Stale merge/rebase/cherry-pick state → abort. These files live
+    # under .git/ and persist across crashes; the next operation would
+    # inherit them. Abort order: merge, cherry-pick, rebase — each is a
+    # no-op if the corresponding state isn't present.
+    git_dir = root / ".git"
+    if (git_dir / "MERGE_HEAD").exists():
+        _run(["merge", "--abort"], root, check=False)
+        summary["aborted_stale_merge"] = True
+    if (git_dir / "CHERRY_PICK_HEAD").exists():
+        _run(["cherry-pick", "--abort"], root, check=False)
+        summary["aborted_stale_merge"] = True
+    if (git_dir / "rebase-merge").exists() or (git_dir / "rebase-apply").exists():
+        _run(["rebase", "--abort"], root, check=False)
+        summary["aborted_stale_merge"] = True
+
+    # 2. Dirty working tree under watched paths → revert.
     if not is_clean(root, paths):
         revert_working_tree(root, paths)
         summary["reverted_dirty_tree"] = True

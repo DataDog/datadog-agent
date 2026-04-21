@@ -61,7 +61,7 @@ tasks/coordinator/
 ├── scheduler.py           candidate picker + diversity policy
 ├── proposer.py            SDK subagent: brainstorms new candidates
 ├── sdk.py                 SDK wrappers + git-block hook + retry policy
-├── reviewer.py            persona prompt (hack_detector; Duplicate Hunter / Algorithm Expert / Greybeard ready for Phase 2+)
+├── reviewer.py            persona prompts (leakage_auditor + hack_detector; Duplicate Hunter / Algorithm Expert / Greybeard ready for Phase 2+)
 ├── evaluator.py           subprocess wrapper for q.eval-scenarios
 ├── workspace_validate.py  post-ship async eval-component on ssh workspace
 ├── scoring.py             report → delta vs baseline → gate outcomes
@@ -176,27 +176,27 @@ step or an SDK subagent call.
 └─────────────────────────┬───────────────────────────┘
                           ▼
 ┌─────────────────────────────────────────────────────┐
-│ 5.  score                                           │
+│ 5.  score (vs FROZEN baseline)                      │
 │     scoring.score_against_baseline                  │
 │       train-scoped: lockbox observed, NOT gated     │
-│       gate reference = last_shipped_per_scenario    │
-│         for this detector (rolling); falls back to  │
-│         baseline on first ship for the detector     │
-│       per-scenario τ = 3·σ_s when measured; else    │
-│         CONFIG.tau_default                          │
+│       catastrophe filter:                           │
+│         ΔF1 < -0.10 on any train scenario → reject  │
+│         Δrecall < -0.10 (where baseline recall>5%)  │
+│       blunt-but-honest: N=5 σ estimation was too    │
+│         noisy to support per-scenario 3σ gating.    │
 │       → strict_regressions[], recall_violations[]   │
-│         (computed vs rolling prior, not baseline)   │
 └─────────────────────────┬───────────────────────────┘
                           ▼
 ┌─────────────────────────────────────────────────────┐
-│ 5a. phase state update (score-only)                 │
-│     if mean_f1 > best: best=mean_f1; plateau=0      │
+│ 5a. phase state update (score-only, ε-gated)        │
+│     if mean_f1 > best + ε: best=mean_f1; plateau=0  │
 │     else: plateau++                                 │
+│     ε = CONFIG.plateau_epsilon (0.01); noisy +0.001 │
+│     bumps no longer reset the counter               │
 └─────────────────────────┬───────────────────────────┘
                           ▼
 ┌─────────────────────────────────────────────────────┐
-│ 5b. strict-regression gate (pre-review)             │
-│     (uses last-shipped reference per §Attribution)  │
+│ 5b. strict-regression gate (pre-review, vs baseline)│
 │     if strict_regressions or recall_violations:     │
 │       git_ops.revert_working_tree                   │
 │       candidate.status = REJECTED                   │
@@ -205,14 +205,17 @@ step or an SDK subagent call.
 └─────────────────────────┬───────────────────────────┘
                           ▼
 ┌─────────────────────────────────────────────────────┐
-│ 6.  review (SDK, single hack_detector persona)      │
+│ 6.  review (SDK, 2 personas in parallel)            │
 │     sdk.review_experiment                           │
-│       deterministic gates ran in step 5b;           │
-│       persona judges what rules can't:              │
-│       "real improvement vs metric-hack?"            │
-│       prior-experiment rationales in prompt so      │
-│         already-rejected approaches get caught      │
-│     returns YAML {approve, rationale}               │
+│       leakage_auditor: scenario/metric name leaks,  │
+│         threshold-snapping, implicit identity,      │
+│         hardcoded special cases                     │
+│       hack_detector:   gain concentration,          │
+│         complexity, proxy-gaming, prior-retread     │
+│       both get `git diff HEAD` + scenario rosters   │
+│       structured YAML output; per-check evidence    │
+│         required — stub evidence → auto-reject      │
+│       unanimity required (both must approve)        │
 └─────────────────────────┬───────────────────────────┘
                           ▼
                  ┌────────┴────────┐
@@ -220,18 +223,17 @@ step or an SDK subagent call.
                  │                        │
                  ▼                        ▼
   ┌──────────────────────────────┐  ┌──────────────────────┐
-  │ git commit on coord branch   │  │ git checkout -- .    │
-  │ db.last_shipped_per_scenario │  │ git clean -fd        │
-  │   [detector] = current run   │  │ candidate=REJECTED   │
-  │ save_db(SHIPPED)             │  │ return               │
-  │ git push -u origin           │  └──────────────────────┘
+  │ save_db(SHIPPED, sha=pending)│  │ git checkout -- .    │
+  │ git commit on coord branch   │  │ git clean -fd        │
+  │ save_db(sha=<real>)          │  └──────────────────────┘
+  │ git push -u origin           │
   │ if family plateaued AND      │
   │   component not yet in       │
   │   db.components_eval_dispatched:
   │   dispatch eval-component    │
-  │ overfit_check.maybe_run (per │
-  │   Nth ship: lockbox eval +   │
-  │   Spearman ρ, tripwire <0.5) │
+  │ overfit_check.maybe_run      │
+  │   (decorative at 2-scenario  │
+  │    lockbox; kept for audit)  │
   └──────────────────────────────┘
                  │
                  ▼
@@ -405,41 +407,52 @@ Tune in `config.py`:
 Set `CONFIG.model_deep` / `CONFIG.model_light` to an empty string to fall
 back to the SDK default.
 
-## Attribution and rolling reference
+## Gates and what they actually do
 
-The branch accumulates one commit per approved candidate — nothing is ever
-reverted when pivoting families. So by iter 10, `q.eval-scenarios` runs
-against the cumulative state of 10 prior wins. Without a rolling
-reference, this makes it impossible to tell whether a new candidate
-actually contributed, or just inherited prior gains (or worse: silently
-regressed while cumulative gains still looked positive vs the original
-baseline).
+The branch accumulates one commit per approved candidate — nothing is
+reverted when pivoting families — so by iter 10, `q.eval-scenarios` runs
+against the cumulative state of 10 prior wins. Gates must decide whether
+the *new* candidate is acceptable on top of that state.
 
-Two references in `db.yaml`:
+**Single reference:** `db.baseline` (frozen M0.1 scores). Gates always
+compare to this, never to a rolling "last-shipped" reference.
 
-- `db.baseline` — the **original M0.1 scores**. Frozen. Used for
-  "how far have we come" cumulative reporting and the phase's
-  `best_score` / plateau detection.
-- `db.last_shipped_per_scenario[detector]` — the per-scenario scores
-  from the **most-recent approved ship targeting this detector**. Updates
-  on every ship. The strict-regression and recall-floor gates compare
-  against this (not the original baseline), so a candidate that
-  regresses from the immediately-prior state is blocked even when
-  cumulative gains would mask it.
+Why no rolling reference: an earlier design compared to the immediately-
+prior committed state. A panel review identified this as a noise-driven
+ratchet — lucky ships permanently elevate the floor, and the next
+candidate only needs to not-regress from the elevated floor, so a
+candidate strictly worse than baseline can still pass. Over N ships
+E[cumulative drift from baseline] ≈ σ·√(2 ln N) of pure noise. Dropped.
 
-Review prompt shows both deltas:
+**Catastrophe filter, not statistical discrimination.** The strict-
+regression gate fires when any train scenario drops ΔF1 < -0.10 vs
+baseline; recall-floor when Δrecall < -0.10 (where baseline recall was
+non-trivial). An earlier design tried per-scenario 3·σ_s gates, but
+N=5 σ estimation has a 95% CI of [0.6σ, 2.2σ] — the σ numbers are
+themselves too noisy for 3σ to mean what it says, and F1 is bounded/
+skewed so Gaussian assumptions don't apply. The gate is intentionally
+blunt: "did the detector visibly break?" The reviewer does the nuance.
 
-```
-213_pagerduty: F1 0.655 → 0.680 (Δ+0.025)  ·  vs last-ship: 0.675 (Δ+0.005)
-```
+**Two-persona review with forced evidence.** `leakage_auditor` hunts
+for scenario-name/metric-name leakage, threshold-snapping, implicit
+identity encoding, and hardcoded special cases. `hack_detector` covers
+gain concentration, complexity-proportionality, proxy-gaming, and
+prior-rejection retread. Both get the full `git diff HEAD` and both
+train + lockbox scenario rosters in the prompt. Output is structured
+YAML with per-check `{status, evidence}` fields; stub evidence or
+missing checks block → auto-reject. Unanimity required.
 
-The reviewer (hack_detector persona) can tell "added +0.005 real marginal
-signal" from "inherited the +0.025 prior gain and added a no-op."
+**Plateau detection is effect-size aware.** An experiment only
+"improves" when score > best + ε (ε = 0.01). A raw strict-greater
+comparison let noisy +0.001 bumps keep dead-end families alive
+indefinitely while abandoning real winners whose signal happened
+to be flat for 5 draws.
 
-Per-scenario F1 σ, when measured via `measure_sigma.py`, replaces the
-scalar τ in both gates: each scenario's threshold is `3·σ_s`. This fixes
-the "scalar τ smaller than noise" problem the ML-scientist panel flagged
-— scenarios with σ ≈ 0.15 (e.g. `221_base`) stop trip-wiring on random noise.
+**End-of-run framing:** these gates don't prove shipped candidates are
+better. They're a noise filter + reviewer vote that produces a
+short-list of candidates worth investigating. Run a proper offline
+re-eval (N≥20 seeds against the frozen baseline) on the shipped set
+before claiming any improvement.
 
 ## Async component validation (plateau-gated)
 
@@ -595,11 +608,11 @@ PYTHONPATH=tasks python -m coordinator.import_baseline \
     --detector scanwelch=eval-results/scanwelch/report.json \
     --sha $(git rev-parse --short HEAD)
 
-# 3. (STRONGLY RECOMMENDED) Measure per-scenario σ so regression gates
-# use 3·σ_s per scenario instead of the scalar τ. Eval-component data
-# already shows per-scenario σ swings 0.02 → 0.15 across scenarios;
-# scalar τ=0.05 is smaller than the noise on some scenarios. Takes
-# ~30 min per detector (5 baseline repeats × 6 min).
+# 3. (optional) Populate per-scenario σ in db.yaml for post-run
+# diagnostics. The live gate is now a catastrophe filter (ΔF1 < -0.10)
+# which doesn't use σ — N=5 σ estimation was too noisy to support
+# statistical gating. The σ data is still useful when auditing shipped
+# candidates offline. Takes ~30 min per detector (5 baseline × 6 min).
 PYTHONPATH=tasks python -m coordinator.measure_sigma --seeds 5
 
 # 4. Seed the train/lockbox split
@@ -687,7 +700,7 @@ Per rev-7 / rev-8 triage of the design plan:
 
 **Explicitly deferred** (not implemented, may never be):
 
-- Per-scenario σ-calibrated τ — `M0.1` was once-per-combo by user policy, no σ to compute. Scalar `CONFIG.tau_default` (0.05) is used instead.
+- Per-scenario σ-calibrated τ — tried and dropped. N=5 σ estimation is itself too noisy (95% CI on σ spans [0.6σ, 2.2σ]) to support 3σ gating, and F1 is bounded/skewed so Gaussian assumptions don't apply. Replaced by a flat ΔF1 < -0.10 catastrophe filter.
 - T3 async Bayesian tuning (the rev-6 "divert while workspace runs 7+h" design) — cost premise didn't survive reality; `q.eval-bayesian` on scan detectors was taking 24+h and was abandoned. `q.eval-component` on workspace is fine because it's fire-and-forget post-ship (see workspace_validate).
 - Rebaseline automation — manual `import_baseline` is fine for now.
 - Fixed Phase 3 / Phase 4 milestones — per-signal-class routing and
@@ -697,8 +710,9 @@ Per rev-7 / rev-8 triage of the design plan:
 **In scope if the data shows need**:
 
 - Upstream sync conflict *resolution* (currently: abort + human takes over).
-- Multi-persona review (single hack_detector today; Duplicate Hunter,
-  Algorithm Expert, Greybeard ready in `reviewer.py` once db.yaml fills up).
+- Phase-2 review personas (leakage_auditor + hack_detector ship today;
+  Duplicate Hunter, Algorithm Expert, Greybeard ready in `reviewer.py`
+  to add once db.yaml fills up).
 - Additional notification transports (Slack, email, etc.). GitHub PR
   comments cover mobile + desktop + push notifications without new
   creds; reach for anything else only if GitHub fails a specific need.

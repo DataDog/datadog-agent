@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as _dt
+import fcntl
 import sys
 from pathlib import Path
 
@@ -94,6 +95,49 @@ class UpstreamConflictHalt(Exception):
 
 class BudgetCeilingHalt(Exception):
     """Raised when CONFIG.api_token_ceiling is exceeded."""
+
+
+class GhChannelDeadHalt(Exception):
+    """Raised when the gh CLI has failed too many consecutive times.
+
+    User-facing channel (PR comments) is the only way the operator
+    learns about milestones, tripwires, and phase exits. If gh auth
+    expires on day 2 and we keep iterating, we burn tokens with no
+    user visibility. Halt instead.
+    """
+
+
+_gh_warned = False
+
+
+def _check_gh_health(root: Path) -> None:
+    """Escalate if gh post/poll have been failing. Emits a local tripwire
+    via coord_out (writes to .coordinator/coord-out.md regardless of gh
+    status) at WARN threshold; raises GhChannelDeadHalt at HALT threshold.
+    """
+    global _gh_warned
+    from . import github_out
+
+    errors = github_out.gh_consecutive_errors()
+    worst = max(errors.values()) if errors else 0
+    if worst >= github_out.GH_HALT_THRESHOLD:
+        raise GhChannelDeadHalt(
+            f"gh consecutive errors reached halt threshold: {errors}"
+        )
+    if worst >= github_out.GH_WARN_THRESHOLD and not _gh_warned:
+        coord_out.emit(
+            "tripwire",
+            f"gh CLI has failed {worst} consecutive times ({errors}). "
+            "The user-facing PR-comment channel may be dead (auth expired, "
+            "network, rate limit). Coordinator will continue but halt at "
+            f"{github_out.GH_HALT_THRESHOLD} consecutive failures.",
+            requires_ack=True,
+            root=root,
+        )
+        _gh_warned = True
+    elif worst == 0:
+        # channel recovered; re-arm the warning for any future outage.
+        _gh_warned = False
 
 
 def pick_next_candidate_with_proposal(
@@ -279,6 +323,7 @@ def _run_iteration_body(
         if count > 0:
             journal.append("github_inbox_pulled", {"count": count}, root)
             print(f"[iter {iter_num}] github_in: {detail}")
+        _check_gh_health(root)
 
     # 1. Process inbox
     it.inbox_acks = process_inbox(db, root, dry_run)
@@ -458,18 +503,15 @@ def _run_iteration_body(
         return
 
     train_set = db.split.as_train_set() if db.split else None
-    # Gate against rolling "last shipped" state for this detector (so a
-    # regression from the immediately-prior commit is caught even when
-    # cumulative prior gains exist). Falls back to baseline if no prior
-    # ship for this detector yet.
-    prior = db.last_shipped_per_scenario.get(detector)
+    # Gate vs frozen baseline. Rolling "last shipped" reference was dropped:
+    # it introduced a ratchet where noise-driven lucky ships permanently
+    # elevated the floor, letting subsequent candidates that were strictly
+    # worse than baseline pass the gate.
     scoring = score_against_baseline(
         report_path,
         db.baseline,
         detector,
-        tau=CONFIG.tau_default,
         train_scenarios=train_set,
-        prior_scores=prior,
     )
     experiment.score = scoring.mean_f1
     experiment.num_baseline_fps_sum = scoring.total_fps
@@ -477,9 +519,12 @@ def _run_iteration_body(
     experiment.scenario_set = list(scoring.per_scenario.keys())
 
     # 5a. Update phase state based on SCORE alone (approval-independent).
-    # This matches the allium spec HandleT0Completion rule and removes the
-    # plateau-on-rejection bug.
-    if scoring.mean_f1 > db.phase_state.best_score:
+    # Effect-size aware plateau: a score only counts as "improvement" if
+    # it clears best_score by > ε. A raw strict-greater comparison let
+    # noisy +0.001 bumps reset the plateau counter and keep dead-end
+    # phases alive forever. ε matches CONFIG.plateau_epsilon used by
+    # scheduler._family_consecutive_nonimproving.
+    if scoring.mean_f1 > db.phase_state.best_score + CONFIG.plateau_epsilon:
         db.phase_state.best_score = scoring.mean_f1
         db.phase_state.plateau_counter = 0
     else:
@@ -519,7 +564,10 @@ def _run_iteration_body(
 
     try:
         verdict = sdk.review_experiment(
-            experiment, scoring, candidate.phase, prior_scores=prior
+            experiment, scoring, candidate.phase,
+            train_scenarios=sorted(train_set) if train_set else [],
+            lockbox_scenarios=sorted(db.split.lockbox) if db.split else [],
+            root=root,
         )
     except Exception as e:
         print(f"[iter {iter_num}] review failed: {e}", file=sys.stderr)
@@ -549,17 +597,21 @@ def _run_iteration_body(
 
     # 7. Commit or revert
     if verdict.unanimous_approve:
+        # Crash-safe ordering: mark SHIPPED in db.yaml with a sentinel sha
+        # BEFORE creating the commit. If we crash between save_db and
+        # commit_candidate, startup_cleanup sees a PROPOSED→SHIPPED record
+        # with no matching commit and reconciles it (or we simply re-commit
+        # since status is idempotent). Inverted order would leave git ahead
+        # of db (commit exists, db says PROPOSED) which re-selects the
+        # candidate and double-commits.
+        candidate.status = CandidateStatus.SHIPPED
+        experiment.commit_sha = "pending"
+        save_db(db, root)
+
         commit_sha = git_ops.commit_candidate(candidate.id, experiment_id, root)
         experiment.commit_sha = commit_sha
-        candidate.status = CandidateStatus.SHIPPED
-        # Update the rolling "last shipped" reference for this detector so
-        # the NEXT candidate's strict-regression gate measures against this
-        # state, not the original baseline. Only this detector's scores are
-        # updated; other detectors keep their own rolling state.
-        db.last_shipped_per_scenario[detector] = dict(scoring.per_scenario)
-        # Persist the ship BEFORE pushing. If push (or a later step) crashes,
-        # db.yaml already reflects the commit; startup_cleanup will push the
-        # orphan commit on restart.
+        # Persist the real sha BEFORE pushing. If push fails, db.yaml already
+        # reflects the commit; startup_cleanup will push the orphan on restart.
         save_db(db, root)
         pushed_ok, push_msg = git_ops.push_scratch_branch(root)
         journal.append(
@@ -644,6 +696,34 @@ def main(argv: list[str] | None = None) -> int:
     root = Path(args.root)
     state_dir(root).mkdir(parents=True, exist_ok=True)
 
+    # Single-instance lock: two drivers reading/writing the same db.yaml +
+    # racing commits to the scratch branch is catastrophic. flock is held
+    # for the process lifetime; released implicitly on exit.
+    lock_path = state_dir(root) / "driver.lock"
+    lock_fp = open(lock_path, "w")
+    try:
+        fcntl.flock(lock_fp.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        print(
+            f"another coordinator is running (lock held on {lock_path}); exiting.",
+            file=sys.stderr,
+        )
+        return 2
+    lock_fp.write(f"{_dt.datetime.now().isoformat(timespec='seconds')}\n")
+    lock_fp.flush()
+
+    # Refuse to enter --forever with unlimited budget. Smoke tests (--once,
+    # --dry-run) bypass this: a single iteration can't run away.
+    if args.forever and not args.dry_run:
+        if CONFIG.api_token_ceiling is None or CONFIG.default_wall_hours_ceiling is None:
+            print(
+                "refusing --forever: CONFIG.api_token_ceiling and "
+                "default_wall_hours_ceiling must both be set. Edit "
+                "tasks/coordinator/config.py.",
+                file=sys.stderr,
+            )
+            return 2
+
     db = load_db(root)
     if db.baseline is None:
         print(
@@ -678,6 +758,37 @@ def main(argv: list[str] | None = None) -> int:
                     {"validation_id": pv.id, "workspace": pv.workspace},
                     root,
                 )
+        # Reconcile experiments with commit_sha == "pending": the driver
+        # marked SHIPPED in db.yaml but crashed before git_ops.commit_candidate
+        # ran (or before the post-commit save_db). Resolve against current
+        # branch HEAD — startup_cleanup already pushed any orphan commit.
+        # If HEAD is ahead of the last known sha, adopt it; otherwise mark
+        # the experiment failed so the scheduler can re-select.
+        try:
+            current_sha = git_ops.head_sha(root)
+        except Exception:
+            current_sha = ""
+        for exp in db.experiments.values():
+            if exp.commit_sha != "pending":
+                continue
+            if current_sha and current_sha != "":
+                exp.commit_sha = current_sha
+                journal.append(
+                    "pending_commit_adopted_head",
+                    {"experiment_id": exp.id, "adopted_sha": current_sha},
+                    root,
+                )
+            else:
+                exp.status = ExperimentStatus.FAILED
+                exp.commit_sha = ""
+                cand = db.candidates.get(exp.candidate_id)
+                if cand is not None and cand.status == CandidateStatus.SHIPPED:
+                    cand.status = CandidateStatus.REJECTED
+                journal.append(
+                    "pending_commit_reverted",
+                    {"experiment_id": exp.id, "candidate_id": exp.candidate_id},
+                    root,
+                )
         save_db(db, root)
 
     if args.once or not args.forever:
@@ -685,6 +796,8 @@ def main(argv: list[str] | None = None) -> int:
             run_iteration(db, root, dry_run=args.dry_run)
         except UpstreamConflictHalt:
             print("upstream conflict: halting. Resolve manually and re-run.", file=sys.stderr)
+        except GhChannelDeadHalt as e:
+            print(f"gh channel halt: {e}", file=sys.stderr)
         return 0
 
     while True:
@@ -696,6 +809,9 @@ def main(argv: list[str] | None = None) -> int:
             break
         except BudgetCeilingHalt as e:
             print(f"budget halt: {e}", file=sys.stderr)
+            break
+        except GhChannelDeadHalt as e:
+            print(f"gh channel halt: {e}. Fix gh auth and re-run.", file=sys.stderr)
             break
         if len(db.iterations) == before:
             break

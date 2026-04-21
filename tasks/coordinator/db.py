@@ -6,6 +6,7 @@ from pathlib import Path
 
 import yaml
 
+from .config import CONFIG
 from .schema import (
     Baseline,
     BudgetState,
@@ -41,9 +42,9 @@ def empty_db() -> Db:
         ),
         budget=BudgetState(
             wall_hours_used=0.0,
-            wall_hours_ceiling=None,
+            wall_hours_ceiling=CONFIG.default_wall_hours_ceiling,
             api_tokens_used=0,
-            api_token_ceiling=None,
+            api_token_ceiling=CONFIG.api_token_ceiling,
         ),
         iterations=[],
         # Empty on startup: every component gets one eval-component dispatch

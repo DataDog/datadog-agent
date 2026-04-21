@@ -159,11 +159,11 @@ PYTHONPATH=tasks python -m coordinator.import_baseline \
     --detector scanwelch=eval-results/scanwelch/report.json \
     --sha $(git rev-parse --short HEAD)
 
-# 6b. (STRONGLY RECOMMENDED) Measure per-scenario F1 σ so regression
-# gates use 3·σ_s per scenario instead of the scalar τ=0.05. Per-scenario
-# variance in eval-component data spans 0.02 → 0.15 across scenarios;
-# a scalar τ either ships noise or rejects real gains. Takes ~30 min
-# per detector (5 baseline repeats × 6 min).
+# 6b. (optional) Populate per-scenario σ in db.yaml for post-run
+# diagnostics. The live gate is a catastrophe filter (ΔF1 < -0.10 vs
+# frozen baseline) — σ is no longer used at gate time because N=5 σ
+# estimation is too noisy to support per-scenario 3σ gating. σ data
+# is still useful for offline audits of shipped candidates.
 PYTHONPATH=tasks python -m coordinator.measure_sigma --seeds 5
 
 # 6c. Seed the 6/4 train/lockbox split.
@@ -340,17 +340,29 @@ Set to `""` to use SDK default.
 
 - First iteration: 6–15 min (eval + review + any post-ship dispatch).
 - Steady state: one iteration every ~8–15 min.
-- **Regression gates** compare to `db.last_shipped_per_scenario[detector]`
-  (rolling reference) — so a candidate that adds on top of prior gains
-  must improve from the LAST ship, not from the original baseline.
+- **Regression gate** is a catastrophe filter vs the **frozen baseline**:
+  any train scenario dropping ΔF1 < -0.10 or Δrecall < -0.10 auto-rejects.
+  Blunt by design — statistically-valid per-scenario gating would need
+  N=20+ σ runs, and the LLM reviewers are responsible for subtle
+  regressions.
+- **Review** is 2 personas in parallel, unanimity required:
+  `leakage_auditor` (scenario/metric name leakage, threshold-snapping,
+  implicit identity) + `hack_detector` (gain concentration, complexity,
+  proxy-gaming, prior-retread). Both get `git diff HEAD` and must cite
+  evidence for each check — vibe approvals auto-reject.
+- **Plateau** is effect-size aware: a score only counts as improvement
+  when it clears best + ε (ε = 0.01). Noisy +0.001 bumps no longer
+  reset the counter.
 - **Eval-component** runs once per new component, only when the family
   iterating on that component plateaus (K=5 consecutive non-improving).
   Takes 2–4h on the detector workspace; result is lagging audit, never
   gates.
-- **Overfit tripwire** fires every 5 ships: evaluates all shipped
-  candidates on the lockbox, computes Spearman ρ between train-rank and
-  lockbox-rank. ρ<0.5 → `tripwire` coord-out warning. Lockbox scores
-  never appear in agent prompts.
+- **Overfit tripwire** (kept for audit, but *decorative* at 2-scenario
+  lockbox — Spearman ρ's CI at N<10 ships is too wide to fire reliably).
+  Lockbox scores never appear in agent prompts.
+- **Claims require offline re-eval.** Mid-run "shipped" ≠ "better."
+  After the run, re-eval every shipped candidate at N≥20 seeds against
+  the frozen baseline before claiming any improvement.
 - **Halt events** (exit the `--forever` loop):
   - Phase plateau (5 consecutive non-improving iterations)
   - Upstream sync conflict (manual rebase required)
@@ -371,7 +383,8 @@ Set to `""` to use SDK default.
 | Coordinator exits with "upstream conflict: halting" | someone pushed to `q-branch-observer` conflicting with the scratch branch | rebase `claude/observer-improvements` onto new upstream tip manually, re-run |
 | Coordinator exits with "budget halt" | token ceiling reached | inspect spend (journal `tokens_used` entries), raise `CONFIG.api_token_ceiling`, re-run |
 | `overfit tripwire` posted on PR | Spearman ρ between train and lockbox rankings < 0.5 across shipped candidates | investigate most-recently-shipped candidates — coordinator may be overfitting to train noise |
-| Every candidate auto-rejected with strict_regression | per-scenario σ not measured; scalar τ=0.05 rejecting real gains on noisy scenarios | run `measure_sigma.py --seeds 5` |
+| Every candidate auto-rejected with strict_regression | the detector actually regressed (ΔF1 < -0.10 on a train scenario) — the catastrophe filter doesn't fire on noise | inspect scoring in journal; if the drop is real, revise candidate; if the baseline itself was wrong, re-run `import_baseline` |
+| Reviewer auto-rejects with "structured output missing checks block" | the model emitted `approve: true` without filling evidence fields | inspect review rationale in journal — reviewer may be taking shortcuts; if persistent, check prompt or model config |
 | `metrics.md` shows ⚠ LIVENESS banner | no journal event in > 30 min; coordinator stuck | `ssh workspace-coord-driver "tmux attach -t coord-driver"` to see what it's doing |
 | `working tree dirty; aborting iteration` | stray edits or orphan from prior crash | normally auto-handled by `startup_cleanup`; if not, `git checkout -- comp/observer tasks/q.py` |
 | `upstream sync CONFIG` halts | someone pushed to `q-branch-observer` conflicting with `claude/observer-improvements` | rebase manually or reset scratch branch to new upstream tip |

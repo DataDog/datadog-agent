@@ -22,13 +22,20 @@ from coordinator.seed_split import compute_sealed_hash, make_split
 # --- config --- -------------------------------------------------------------
 
 def test_config_values():
-    assert CONFIG.tau_default == 0.05
     assert CONFIG.plateau_patience == 5
     # Raised from 3 per panel feedback — "competent humans grind 5-10
     # iterations before giving up." K=3 cut off deep exploration.
     assert CONFIG.stuck_threshold == 5
-    # Collapsed from 2 (Skeptic + Conservative) to 1 (hack_detector).
-    assert CONFIG.review_personas_phase1 == 1
+    # Two personas: leakage_auditor + hack_detector, unanimity required.
+    # Re-expanded from 1 after panel flagged single-persona structural
+    # blind spots (leakage detection isn't in hack_detector's mandate).
+    assert CONFIG.review_personas_phase1 == 2
+    # Effect-size aware plateau: raw strict-greater let noisy +0.001 bumps
+    # reset the counter. ε chosen to be below real wins, above typical noise.
+    assert CONFIG.plateau_epsilon == 0.01
+    # Catastrophe filter replaced the statistically-dubious 3σ per-scenario
+    # gate. N=5 σ was too noisy; ΔF1 < -0.10 is a blunt but honest cliff.
+    assert CONFIG.catastrophe_f1_drop == 0.10
     assert 0.5 in CONFIG.budget_milestones
     assert 0.8 in CONFIG.budget_milestones
 
@@ -185,10 +192,10 @@ def test_scoring_gates_only_train_scenarios(tmp_path: Path):
         report,
         _baseline_two_buckets(),
         "scanmw",
-        tau=0.05,
         train_scenarios={"train_a", "train_b"},
     )
-    # train_a regressed — flagged. lockbox_c regressed too, but NOT gated.
+    # train_a regressed by 0.30 (> 0.10 catastrophe threshold) — flagged.
+    # lockbox_c regressed too, but NOT gated.
     assert "train_a" in r.strict_regressions
     assert "lockbox_c" not in r.strict_regressions
 
@@ -212,7 +219,6 @@ def test_scoring_train_only_deltas_still_include_lockbox_view(tmp_path: Path):
         report,
         _baseline_two_buckets(),
         "scanmw",
-        tau=0.05,
         train_scenarios={"train_a"},
     )
     # Both scenarios have deltas for inspection, neither regressed.

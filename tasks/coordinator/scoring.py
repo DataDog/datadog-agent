@@ -65,25 +65,29 @@ def score_against_baseline(
     report_path: Path,
     baseline: Baseline,
     detector: str,
-    tau: float = CONFIG.tau_default,
-    recall_floor_min_baseline: float = CONFIG.recall_floor_baseline_min,
+    catastrophe_f1_drop: float = CONFIG.catastrophe_f1_drop,
+    catastrophe_recall_drop: float = CONFIG.catastrophe_recall_drop,
     train_scenarios: set[str] | None = None,
-    prior_scores: dict[str, ScenarioResult] | None = None,
 ) -> ScoringResult:
-    """Score a q.eval-scenarios report.
+    """Score a q.eval-scenarios report against the FROZEN baseline.
 
-    Delta-reporting fields (mean_df1, total_dfps, per_scenario_delta) are
-    computed vs the ORIGINAL `baseline` so cumulative progress is always
-    visible. But the STRICT-REGRESSION and RECALL-FLOOR gates compare
-    against `prior_scores` (the rolling "last shipped" reference) when
-    provided, so a new candidate is blocked only if it regresses from the
-    immediately-prior committed state — not from the original baseline
-    (against which several accumulated commits may already have gained).
+    Gate semantics (intentionally coarse):
+      - strict_regressions: scenarios where ΔF1 < -catastrophe_f1_drop
+        vs baseline. This is a "did the detector break" catastrophe filter,
+        not a statistical discrimination test. At N=5 baseline runs the σ
+        estimate's own CI is too wide to make per-scenario 3σ gating
+        meaningful, and F1 is bounded/skewed so "3σ Gaussian" doesn't apply.
+        Keep the numeric gate blunt and honest; let the LLM reviewer do
+        the nuanced work.
+      - recall_floor_violations: scenarios where baseline recall was
+        non-trivial AND observed recall dropped by > catastrophe_recall_drop.
 
-    When `prior_scores` is None (first ship for this detector), gates fall
-    back to comparing against `baseline`.
+    Gates always compare vs frozen baseline — no rolling reference. The
+    rolling reference allowed a ratchet where noise-driven lucky ships
+    permanently elevated the floor, letting subsequent candidates that
+    were strictly worse than baseline pass the gate. Shipping is now a
+    "no-worse-than-baseline" contract, period.
     """
-    """Compare a report's scores against baseline[detector]."""
     mean_f1, observed = load_report(report_path)
     bd = baseline.detectors[detector]
 
@@ -116,25 +120,12 @@ def score_against_baseline(
         deltas[s_name] = d
         if not in_train:
             continue
-        # Per-scenario gate threshold: prefer measured 3σ when a sigma was
-        # populated (via measure_sigma.py), else fall back to the scalar
-        # `tau` kwarg (CONFIG.tau_default by default). Gating on scalar τ
-        # ignores the fact that per-scenario F1 variance varies by ~10x
-        # across scenarios.
-        tau_here = (base.f1_sigma * 3.0) if base.f1_sigma > 0 else tau
-
-        # Gate reference: prior_scores if available (rolling "last shipped"
-        # state), else fall back to baseline. Using the rolling reference
-        # blocks candidates that regress from the previously-committed
-        # state even when accumulated prior gains obscure the regression
-        # relative to the original baseline.
-        gate_ref = (prior_scores or {}).get(s_name, base)
-        gate_df1 = obs.f1 - gate_ref.f1
-        gate_drecall = obs.recall - gate_ref.recall
-
-        if gate_df1 < -tau_here:
+        # Catastrophe filter: an absolute ΔF1 cliff vs baseline. Chosen to
+        # catch "detector broke" (−0.10 on one scenario is a real regression
+        # at any realistic σ) without pretending to discriminate noise.
+        if d.df1 < -catastrophe_f1_drop:
             strict_regressions.append(s_name)
-        if gate_ref.recall > recall_floor_min_baseline and gate_drecall < -tau_here:
+        if base.recall > CONFIG.recall_floor_baseline_min and d.drecall < -catastrophe_recall_drop:
             recall_violations.append(s_name)
     fp_reduction_pct = 0.0
     if total_baseline_fps > 0:
