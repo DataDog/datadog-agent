@@ -197,7 +197,11 @@ func newAutoConfig(deps dependencies) autodiscovery.Component {
 
 // createNewAutoConfig creates an AutoConfig instance (without starting).
 func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component, telemetryComp telemetry.Component, filterStore workloadfilter.Component, hp option.Option[healthplatform.Component]) *AutoConfig {
-	cfgMgr := newReconcilingConfigManager(secretResolver)
+	var hpComp healthplatform.Component
+	if h, ok := hp.Get(); ok {
+		hpComp = h
+	}
+	cfgMgr := newReconcilingConfigManager(secretResolver, hpComp)
 	ac := &AutoConfig{
 		configPollers:            make([]*configPoller, 0, 9),
 		listenerCandidates:       make(map[string]*listenerCandidate),
