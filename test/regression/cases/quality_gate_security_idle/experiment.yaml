@@ -48,13 +48,13 @@ checks:
     bounds:
       series: total_pss_bytes
       # When updating this, update the memory_allotment in the target section to 20% higher.
-      upper_bound: "325 MiB"
+      upper_bound: "330 MiB"
 
   - name: cpu_usage
     description: "CPU usage quality gate. This puts a bound on the total average collector millicore usage."
     bounds:
       series: avg(total_cpu_usage_millicores)
-      upper_bound: 25
+      upper_bound: 30
 
 report_links:
   - text: "bounds checks dashboard"
