@@ -38,6 +38,10 @@ type noAggregationStreamWorker struct {
 	flushConfig          FlushAndSerializeInParallel
 	maxMetricsPerPayload int
 
+	// bucketSize is the aggregation bucket size in seconds. Used to normalize
+	// rate sample values and to stamp the Interval on outgoing series.
+	bucketSize int64
+
 	// pointer to the shared MetricSamplePool stored in the Demultiplexer.
 	metricSamplePool *metrics.MetricSamplePool
 
@@ -84,12 +88,13 @@ func init() {
 //nolint:revive // TODO(AML) Fix revive linter
 func newNoAggregationStreamWorker(maxMetricsPerPayload int, _ *metrics.MetricSamplePool,
 	serializer serializer.MetricSerializer, flushConfig FlushAndSerializeInParallel,
-	tagger tagger.Component,
+	tagger tagger.Component, bucketSize int64,
 ) *noAggregationStreamWorker {
 	return &noAggregationStreamWorker{
 		serializer:           serializer,
 		flushConfig:          flushConfig,
 		maxMetricsPerPayload: maxMetricsPerPayload,
+		bucketSize:           bucketSize,
 
 		seriesSink:   nil,
 		sketchesSink: nil,
@@ -207,9 +212,9 @@ func (w *noAggregationStreamWorker) run() {
 							sample.GetTags(w.taggerBuffer, w.metricBuffer, w.tagger)
 							w.metricBuffer.AppendHashlessAccumulator(w.taggerBuffer)
 
-							// if the value is a rate, we have to account for the 10s interval
+							// if the value is a rate, we have to account for the configured bucket interval
 							if mtype == metrics.APIRateType {
-								sample.Value /= bucketSize
+								sample.Value /= float64(w.bucketSize)
 							}
 
 							// turns this metric sample into a serie
@@ -219,7 +224,7 @@ func (w *noAggregationStreamWorker) run() {
 							serie.Tags = tagset.CompositeTagsFromSlice(w.metricBuffer.Copy())
 							serie.Host = sample.Host
 							serie.MType = mtype
-							serie.Interval = bucketSize
+							serie.Interval = w.bucketSize
 							seriesSink.Append(&serie)
 
 							w.taggerBuffer.Reset()

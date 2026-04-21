@@ -50,7 +50,7 @@ type TimeSampler struct {
 // NewTimeSampler returns a newly initialized TimeSampler
 func NewTimeSampler(id TimeSamplerID, interval int64, cache *tags.Store, tagger tagger.Component, hostname string) *TimeSampler {
 	if interval == 0 {
-		interval = bucketSize
+		interval = DefaultBucketSize
 	}
 
 	idString := strconv.Itoa(int(id))

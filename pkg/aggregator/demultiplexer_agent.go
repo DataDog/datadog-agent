@@ -81,6 +81,11 @@ type AgentDemultiplexer struct {
 type AgentDemultiplexerOptions struct {
 	FlushInterval time.Duration
 
+	// BucketSize is the DogStatsD aggregation bucket size in seconds.
+	// When zero, falls back to the `aggregator_bucket_size_seconds` config key,
+	// then to DefaultBucketSize.
+	BucketSize int64
+
 	EnableNoAggregationPipeline bool
 
 	DontStartForwarders bool // unit tests don't need the forwarders to be instanciated
@@ -96,6 +101,18 @@ func DefaultAgentDemultiplexerOptions() AgentDemultiplexerOptions {
 		// the different agents/binaries enable it on a per-need basis
 		EnableNoAggregationPipeline: false,
 	}
+}
+
+// resolveBucketSize returns the effective aggregation bucket size in seconds,
+// in priority order: explicit option, config value, then DefaultBucketSize.
+func resolveBucketSize(opt int64) int64 {
+	if opt > 0 {
+		return opt
+	}
+	if v := pkgconfigsetup.Datadog().GetInt64("aggregator_bucket_size_seconds"); v > 0 {
+		return v
+	}
+	return DefaultBucketSize
 }
 
 type statsd struct {
@@ -177,6 +194,8 @@ func initAgentDemultiplexer(log log.Component,
 	_, statsdPipelinesCount := GetDogStatsDWorkerAndPipelineCount()
 	log.Debug("the Demultiplexer will use", statsdPipelinesCount, "pipelines")
 
+	bucketSize := resolveBucketSize(options.BucketSize)
+
 	statsdWorkers := make([]*timeSamplerWorker, statsdPipelinesCount)
 
 	for i := 0; i < statsdPipelinesCount; i++ {
@@ -202,6 +221,7 @@ func initAgentDemultiplexer(log log.Component,
 			noAggSerializer,
 			agg.flushAndSerializeInParallel,
 			tagger,
+			bucketSize,
 		)
 	}
 

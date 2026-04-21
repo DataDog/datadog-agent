@@ -41,7 +41,10 @@ import (
 const (
 	// DefaultFlushInterval aggregator default flush interval
 	DefaultFlushInterval = 15 * time.Second // flush interval
-	bucketSize           = 10               // fixed for now
+	// DefaultBucketSize is the default DogStatsD aggregation bucket size in seconds.
+	// Overridable via the `aggregator_bucket_size_seconds` config key or
+	// AgentDemultiplexerOptions.BucketSize.
+	DefaultBucketSize int64 = 10
 	// MetricSamplePoolBatchSize is the batch size of the metric sample pool.
 	MetricSamplePoolBatchSize = 32
 )

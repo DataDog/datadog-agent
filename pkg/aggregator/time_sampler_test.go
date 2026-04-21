@@ -82,6 +82,63 @@ func TestBucketSampling(t *testing.T) {
 	testWithTagsStore(t, testBucketSampling)
 }
 
+// TestTimeSamplerCustomInterval exercises bucket boundary math and
+// Serie.Interval propagation when the sampler is created with a non-default
+// interval (e.g. the 1s bucket size needed for per-second metrics).
+func TestTimeSamplerCustomInterval(t *testing.T) {
+	matcher := filterlist.NewNoopTagMatcher()
+
+	cases := []struct {
+		name          string
+		interval      int64
+		ts1, ts2, ts3 float64
+		cutoff        float64
+		// expected bucket-start timestamps that appear in the flushed series
+		wantBuckets []float64
+	}{
+		{
+			name:     "default 10s interval",
+			interval: 10,
+			ts1:      12345.0, ts2: 12355.0, ts3: 12365.0,
+			cutoff:      12360.0,
+			wantBuckets: []float64{12340.0, 12350.0},
+		},
+		{
+			name:     "1s interval",
+			interval: 1,
+			ts1:      12345.3, ts2: 12346.7, ts3: 12349.0,
+			cutoff:      12347.5,
+			wantBuckets: []float64{12345.0, 12346.0},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			store := tags.NewStore(true, "test")
+			sampler := NewTimeSampler(TimeSamplerID(0), tc.interval, store, nooptagger.NewComponent(), "host")
+
+			s := metrics.MetricSample{
+				Name: "my.metric", Value: 1, Mtype: metrics.GaugeType,
+				Tags: []string{"foo", "bar"}, SampleRate: 1,
+			}
+			sampler.sample(&s, tc.ts1, matcher)
+			sampler.sample(&s, tc.ts2, matcher)
+			sampler.sample(&s, tc.ts3, matcher) // still-open bucket; must not flush
+
+			series, _ := flushSerie(sampler, tc.cutoff, false)
+
+			require.Len(t, series, 1)
+			assert.Equal(t, tc.interval, series[0].Interval, "Serie.Interval must match configured bucket size")
+			// map iteration makes point order non-deterministic; compare as a set.
+			gotTs := make([]float64, len(series[0].Points))
+			for i, p := range series[0].Points {
+				gotTs[i] = p.Ts
+			}
+			assert.ElementsMatch(t, tc.wantBuckets, gotTs)
+		})
+	}
+}
+
 func testContextSampling(t *testing.T, store *tags.Store) {
 	sampler := testTimeSampler(store)
 	matcher := filterlist.NewNoopTagMatcher()
@@ -320,7 +377,7 @@ func testSketch(t *testing.T, store *tags.Store) {
 			keyGen = ckey.NewKeyGenerator()
 		)
 
-		for i := 0; i < bucketSize; i++ {
+		for i := int64(0); i < DefaultBucketSize; i++ {
 			v := float64(i)
 			insert(t, now, name, tags, host, v)
 			exp.Insert(quantile.Default(), v)
