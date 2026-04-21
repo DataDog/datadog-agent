@@ -170,36 +170,6 @@ func (r *recorderImpl) ForEachMetric(inputDir string, fn func(recorderdef.Metric
 	return nil
 }
 
-// ReadAllMetrics reads all metrics from parquet files and returns them as a slice.
-// For large datasets, prefer ForEachMetric to avoid holding all metrics in memory at once.
-func (r *recorderImpl) ReadAllMetrics(inputDir string) ([]recorderdef.MetricData, error) {
-	var metrics []recorderdef.MetricData
-	if err := r.ForEachMetric(inputDir, func(m recorderdef.MetricData) error {
-		metrics = append(metrics, m)
-		return nil
-	}); err != nil {
-		return nil, err
-	}
-	pkglog.Infof("ReadAllMetrics: loaded %d metrics from %s", len(metrics), inputDir)
-	return metrics, nil
-}
-
-// ReadAllTraces reads all traces from parquet files and returns them as a slice.
-// Traces are reconstructed from denormalized span rows grouped by trace ID.
-func (r *recorderImpl) ReadAllTraces(inputDir string) ([]recorderdef.TraceData, error) {
-	reader, err := newTraceParquetReader(inputDir)
-	if err != nil {
-		return nil, fmt.Errorf("creating trace parquet reader: %w", err)
-	}
-
-	pkglog.Infof("ReadAllTraces: loading traces from %s", inputDir)
-
-	traces := reader.ReadAll()
-
-	pkglog.Infof("ReadAllTraces: loaded %d traces", len(traces))
-	return traces, nil
-}
-
 // ReadAllProfiles reads all profiles from parquet files and returns them as a slice.
 func (r *recorderImpl) ReadAllProfiles(inputDir string) ([]recorderdef.ProfileData, error) {
 	reader, err := newProfileParquetReader(inputDir)
@@ -228,19 +198,6 @@ func (r *recorderImpl) ReadAllTraceStats(inputDir string) ([]recorderdef.TraceSt
 
 	pkglog.Infof("ReadAllTraceStats: loaded %d stat rows", len(stats))
 	return stats, nil
-}
-
-// ReadAllLogs reads all logs from parquet files and returns them as a slice.
-func (r *recorderImpl) ReadAllLogs(inputDir string) ([]recorderdef.LogData, error) {
-	var logs []recorderdef.LogData
-	if err := r.ForEachLog(inputDir, func(l recorderdef.LogData) error {
-		logs = append(logs, l)
-		return nil
-	}); err != nil {
-		return nil, err
-	}
-	pkglog.Infof("ReadAllLogs: loaded %d logs from %s", len(logs), inputDir)
-	return logs, nil
 }
 
 // ForEachLog streams log entries from parquet files without loading them all into memory.

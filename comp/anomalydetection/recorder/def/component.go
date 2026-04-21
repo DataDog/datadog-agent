@@ -26,27 +26,15 @@ type Component interface {
 	// This is called by the observer's GetHandle to create the final handle chain.
 	GetHandle(handleFunc observer.HandleFunc) observer.HandleFunc
 
-	// ReadAllMetrics reads all metrics from parquet files and returns them as a slice.
-	// For large datasets, prefer ForEachMetric to avoid loading everything into memory.
-	ReadAllMetrics(inputDir string) ([]MetricData, error)
-
 	// ForEachMetric streams metrics from parquet files one row-group at a time,
 	// calling fn for each metric. Peak memory is O(row_group_size) rather than
 	// O(total_metrics). Tags slices are shared from the context map and must not
 	// be mutated by fn.
 	ForEachMetric(inputDir string, fn func(MetricData) error) error
 
-	// ReadAllTraces reads all traces from parquet files and returns them as a slice.
-	// Traces are stored as denormalized spans (one row per span) for efficient querying.
-	ReadAllTraces(inputDir string) ([]TraceData, error)
-
 	// ReadAllProfiles reads all profile metadata from parquet files and returns them as a slice.
 	// Profile binary data is stored in separate files referenced by BinaryPath.
 	ReadAllProfiles(inputDir string) ([]ProfileData, error)
-
-	// ReadAllLogs reads all logs from parquet files and returns them as a slice.
-	// For large datasets, prefer ForEachLog to avoid loading everything into memory.
-	ReadAllLogs(inputDir string) ([]LogData, error)
 
 	// ForEachLog streams log entries from parquet files without loading them all into memory,
 	// calling fn for each entry. Peak memory is O(row_group_size) rather than O(total_logs).
@@ -59,7 +47,6 @@ type Component interface {
 }
 
 // MetricData represents a single metric read from parquet files.
-// Used by ReadAllMetrics for batch loading scenarios.
 type MetricData struct {
 	Source    string   // Source/namespace (RunID in parquet)
 	Name      string   // Metric name
