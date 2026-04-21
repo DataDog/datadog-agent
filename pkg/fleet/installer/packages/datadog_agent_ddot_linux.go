@@ -366,7 +366,13 @@ func writeDDOTProcessConfig(ctx HookContext) error {
 		log.Infof("DD_PROCMGR_MANAGE_DDOT not set, skipping process config write; DDOT will be managed by systemd")
 		return nil
 	}
+	return doWriteDDOTProcessConfig(ctx)
+}
 
+// doWriteDDOTProcessConfig is the ungated implementation. It is called
+// directly by restoreDDOTProcessConfig (which has its own eligibility
+// checks) and by writeDDOTProcessConfig (after the env-var gate).
+func doWriteDDOTProcessConfig(ctx HookContext) error {
 	if _, err := os.Stat(procmgrdBinaryPath(ctx.PackageType)); os.IsNotExist(err) {
 		log.Infof("dd-procmgrd not found, skipping process config write; DDOT will be managed by systemd")
 		return nil
@@ -414,9 +420,13 @@ func removeDDOTProcessConfig(packageType PackageType) {
 // DDOT OCI package is still installed. This is needed for OCI agent upgrades
 // where the versioned directory (and its processes.d/) is recreated from scratch.
 //
+// This bypasses the DD_PROCMGR_MANAGE_DDOT env-var gate: if the YAML was
+// present before the upgrade, it should be restored regardless of whether the
+// env var is set in the current hook process.
+//
 // This intentionally skips DEB/RPM: the install path is stable across upgrades
 // and extension-based DDOT installs use different paths that would be broken
-// by the standalone path rewriting in writeDDOTProcessConfig.
+// by the standalone path rewriting in doWriteDDOTProcessConfig.
 func restoreDDOTProcessConfig(ctx HookContext) error {
 	if ctx.PackageType != PackageTypeOCI {
 		return nil
@@ -425,7 +435,7 @@ func restoreDDOTProcessConfig(ctx HookContext) error {
 	if _, err := os.Stat(ddotPkgPath); os.IsNotExist(err) {
 		return nil
 	}
-	return writeDDOTProcessConfig(ctx)
+	return doWriteDDOTProcessConfig(ctx)
 }
 
 const procmgrdUnit = "datadog-agent-procmgrd.service"
