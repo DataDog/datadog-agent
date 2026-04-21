@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	"github.com/DataDog/datadog-agent/pkg/logs/sender/diskretry"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -43,6 +44,7 @@ type worker struct {
 	flushWg        *sync.WaitGroup
 	sink           Sink
 	workerID       string
+	retrier        diskretry.Retrier
 
 	pipelineMonitor metrics.PipelineMonitor
 	utilization     metrics.UtilizationMonitor
@@ -57,6 +59,7 @@ func newWorker(
 	serverlessMeta ServerlessMeta,
 	pipelineMonitor metrics.PipelineMonitor,
 	workerID string,
+	retrier diskretry.Retrier,
 ) *worker {
 	var senderDoneChan chan *sync.WaitGroup
 	var flushWg *sync.WaitGroup
@@ -76,6 +79,7 @@ func newWorker(
 		done:           make(chan struct{}),
 		finished:       make(chan struct{}),
 		workerID:       workerID,
+		retrier:        retrier,
 
 		// Telemetry
 		pipelineMonitor: pipelineMonitor,
@@ -117,6 +121,7 @@ func (s *worker) run() {
 			senderDoneWg := &sync.WaitGroup{}
 
 			sent := false
+			storedToDisk := false
 			for !sent {
 				for _, destSender := range reliableDestinations {
 					// Drop non-MRF payloads to MRF destinations
@@ -139,44 +144,59 @@ func (s *worker) run() {
 				}
 
 				if !sent {
-					// Throttle the poll loop while waiting for a send to succeed
-					// This will only happen when all reliable destinations
-					// are blocked so logs have no where to go.
+					// All reliable destinations are retrying (network outage).
+					// Try to save to disk instead of blocking the pipeline.
+					if err := s.retrier.Store(payload); err == nil {
+						// Update the auditor so the tailer advances past these
+						// offsets and won't re-read them on agent restart.
+						select {
+						case reliableOutputChan <- payload:
+						default:
+						}
+						sent = true
+						storedToDisk = true
+						break
+					}
+					// Disk write failed or disabled we throttle and keep waiting for a destination.
 					time.Sleep(100 * time.Millisecond)
 				}
 			}
 
-			for i, destSender := range reliableDestinations {
-				// Drop non-MRF payloads to MRF destinations
-				if destSender.destination.IsMRF() && !payload.IsMRF() {
-					log.Debugf("Dropping non-MRF payload to MRF destination: %s", destSender.destination.Target())
-					sent = true
-					continue
-				}
-				// If an endpoint is stuck in the previous step, try to buffer the payloads if we have room to mitigate
-				// loss on intermittent failures.
-				if !destSender.lastSendSucceeded {
-					if !destSender.NonBlockingSend(payload) {
-						tlmPayloadsDropped.Inc("true", strconv.Itoa(i))
-						tlmMessagesDropped.Add(float64(payload.Count()), "true", strconv.Itoa(i))
+			// Skip remaining send attempts if the payload was persisted to disk.
+			// It will be replayed later; sending it now would cause duplicates.
+			if !storedToDisk {
+				for i, destSender := range reliableDestinations {
+					// Drop non-MRF payloads to MRF destinations
+					if destSender.destination.IsMRF() && !payload.IsMRF() {
+						log.Debugf("Dropping non-MRF payload to MRF destination: %s", destSender.destination.Target())
+						sent = true
+						continue
+					}
+					// If an endpoint is stuck in the previous step, try to buffer the payloads if we have room to mitigate
+					// loss on intermittent failures.
+					if !destSender.lastSendSucceeded {
+						if !destSender.NonBlockingSend(payload) {
+							tlmPayloadsDropped.Inc("true", strconv.Itoa(i))
+							tlmMessagesDropped.Add(float64(payload.Count()), "true", strconv.Itoa(i))
+						}
 					}
 				}
-			}
 
-			// Attempt to send to unreliable destinations
-			for i, destSender := range unreliableDestinations {
-				// Drop non-MRF payloads to MRF destinations
-				if destSender.destination.IsMRF() && !payload.IsMRF() {
-					log.Debugf("Dropping non-MRF payload to MRF destination: %s", destSender.destination.Target())
-					sent = true
-					continue
-				}
-				if !destSender.NonBlockingSend(payload) {
-					tlmPayloadsDropped.Inc("false", strconv.Itoa(i))
-					tlmMessagesDropped.Add(float64(payload.Count()), "false", strconv.Itoa(i))
-					if s.senderDoneChan != nil {
-						senderDoneWg.Add(1)
-						s.senderDoneChan <- senderDoneWg
+				// Attempt to send to unreliable destinations
+				for i, destSender := range unreliableDestinations {
+					// Drop non-MRF payloads to MRF destinations
+					if destSender.destination.IsMRF() && !payload.IsMRF() {
+						log.Debugf("Dropping non-MRF payload to MRF destination: %s", destSender.destination.Target())
+						sent = true
+						continue
+					}
+					if !destSender.NonBlockingSend(payload) {
+						tlmPayloadsDropped.Inc("false", strconv.Itoa(i))
+						tlmMessagesDropped.Add(float64(payload.Count()), "false", strconv.Itoa(i))
+						if s.senderDoneChan != nil {
+							senderDoneWg.Add(1)
+							s.senderDoneChan <- senderDoneWg
+						}
 					}
 				}
 			}

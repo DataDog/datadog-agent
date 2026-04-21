@@ -1,0 +1,19 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Add opt-in disk retry for logs. During network outages, the logs sender now
+    writes payloads that would otherwise be dropped to disk and replays them in
+    FIFO order when connectivity recovers. Enable by setting
+    ``logs_config.disk_retry.max_size_bytes`` to a non-zero value in
+    ``datadog.yaml``. Additional configuration:
+    ``logs_config.disk_retry.path`` (default: ``<run_path>/logs-retry``),
+    ``logs_config.disk_retry.max_disk_ratio`` (default: ``0.80``),
+    ``logs_config.disk_retry.file_ttl_days`` (default: ``7``).
+    When disabled (default), behavior is identical to previous releases.
