@@ -285,34 +285,13 @@ PyThreadState *Three::_removeCheckInterp(PyObject *check)
 void Three::_copyModuleAttrs()
 {
     for (const auto &entry : _moduleAttrs) {
-        // Import the module in this sub-interpreter's context.
-        // PyImport_ImportModule returns a new reference on success.
-        // https://docs.python.org/3/c-api/import.html#c.PyImport_ImportModule
-        PyObject *py_module = PyImport_ImportModule(entry.module.c_str());
-        if (py_module == NULL) {
-            // Module not compatible with sub-interpreters (e.g., psutil). Clear and skip.
+        if (!_setModuleAttrString(entry.module.c_str(), entry.attr.c_str(), entry.value.c_str())) {
+            // Potential failure (e.g., module doesn't support sub-interpreters).
+            // The attribute can't be set in this sub-interpreter, but if this
+            // module is actually used by the check, getCheck will fall back to
+            // main anyways. Clear errors so this isn't reported as a failure.
             PyErr_Clear();
-            continue;
+            clearError();
         }
-
-        // Create a new Python string object in this sub-interpreter's context.
-        // Each interpreter has its own allocator (use_main_obmalloc = 0) for
-        // isolation, so objects can't be shared across interpreters. Must create a fresh one here.
-        PyObject *py_value = PyUnicode_FromString(entry.value.c_str());
-        if (py_value == NULL) {
-            // String creation failed (OOM).
-            PyErr_Clear();
-            Py_DECREF(py_module);
-            continue;
-        }
-
-        // Set the attribute on the module: module.attr = value (https://docs.python.org/3/c-api/object.html)
-        if (PyObject_SetAttrString(py_module, entry.attr.c_str(), py_value) != 0) {
-            // Failed to set attribute. Clear error and continue.
-            PyErr_Clear();
-        }
-
-        Py_DECREF(py_value);
-        Py_DECREF(py_module);
     }
 }

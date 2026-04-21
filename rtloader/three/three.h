@@ -137,23 +137,19 @@ private:
      * Sub-interpreter support (Python 3.14+)
      * =======================================
      *
-     * Each check instance runs in its own sub-interpreter for isolation.
-     * The mapping from check instance to sub-interpreter is stored in
-     * _checkToInterp. The C++ layer handles GIL swapping transparently:
-     * Go acquires the main GIL via stickyLock as before, and the C++ methods
-     * (runCheck, cancelCheck, etc.) swap to the correct sub-interpreter's
-     * GIL internally.
+     * Each check runs in its own sub-interpreter for isolation. Go acquires
+     * the main GIL via stickyLock as before; the C++ methods (runCheck,
+     * cancelCheck, etc.) swap to the correct sub-interpreter internally.
      */
 
-    // Maps check instance (PyObject *) → sub-interpreter thread state.
-    // Populated in getCheck(), consulted in runCheck()/cancelCheck()/etc.,
-    // cleaned up in decref() when the check is destroyed.
+    // Maps check -> sub-interpreter.
+    // Populated in getCheck(), consulted in runCheck/cancelCheck/getCheckWarnings/getCheckDiagnoses
+    // via _lookupCheckInterp, check instance removed in decref.
     std::unordered_map<PyObject *, PyThreadState *> _checkToInterp;
 
-    // Protects _checkToInterp from concurrent access. This is a C++ mutex
-    // for a C++ data structure — NOT related to the Python GIL. Needed
-    // because multiple goroutines can call runCheck/decref in parallel,
-    // and concurrent reads+writes to an unordered_map is undefined behavior.
+    // Protects _checkToInterp from concurrent access. C++ mutex for C++
+    // structure, not related to Python GIL. Needed because runCheck/decref
+    // can be called from different goroutines in parallel.
     std::mutex _checkToInterpMutex;
 
     // Decides which interpreter a check should run in.
@@ -162,44 +158,44 @@ private:
     PyThreadState *_assignInterpreter(const char *module_name);
 
     // Creates a new sub-interpreter with per-interpreter GIL via
-    // Py_NewInterpreterFromConfig, copies sys.path from main interpreter.
+    // Py_NewInterpreterFromConfig. Populates its sys.path from _pythonPaths
+    // (the agent's search paths: dist/, checks.d/, etc., added via addPythonPath).
     // Returns the new sub-interpreter's thread state, or NULL on failure.
     PyThreadState *_createSubInterpreter();
 
-    // Destroys a sub-interpreter and re-attaches to restore_tstate.
+    // Destroys a sub-interpreter and re-attaches the current thread to restore_tstate.
     void _destroySubInterpreter(PyThreadState *tstate, PyThreadState *restore_tstate);
 
-    // Looks up which sub-interpreter a check belongs to.
+    // Looks up which sub-interpreter a check belongs to (_checkToInterp.find(check)).
     // Returns the thread state, or NULL if the check runs in main interpreter.
     PyThreadState *_lookupCheckInterp(PyObject *check);
 
-    // Removes a check from the map and returns its sub-interpreter thread
-    // state. Returns NULL if the check was not in the map (main interpreter).
+    // Removes a check from _checkToInterp and returns the corresponding sub-interpreter thread
+    // state. Returns NULL if the check was not in the map, meaning it's running
+    // in the main interpreter (blocklisted or sub-interp creation failed).
     PyThreadState *_removeCheckInterp(PyObject *check);
 
-    // Stores (module, attr, value) tuples set by Go via setModuleAttrString.
-    // Copied into each new sub-interpreter at creation time so that
-    // attributes set at startup (e.g., psutil.PROCFS_PATH) are visible in
-    // every interpreter. No mutex needed — all access happens while
-    // holding the main GIL (setModuleAttrString and _createSubInterpreter
-    // are both called from Go with stickyLock held).
+    // Entry type stored in _moduleAttrs.
     struct ModuleAttr {
         std::string module;
         std::string attr;
         std::string value;
     };
+    // Attributes set by Go (e.g., psutil.PROCFS_PATH), copied into each
+    // sub-interpreter by _copyModuleAttrs. No mutex - accessed under the
+    // main GIL (stickyLock).
     std::vector<ModuleAttr> _moduleAttrs;
 
     // Copies all stored module attributes into the current sub-interpreter.
     // Must be called while attached to the sub-interpreter (holding its GIL).
     void _copyModuleAttrs();
 
-    // Module names that should NOT run in sub-interpreters (e.g., checks with
-    // transitive C extension dependencies that don't support sub-interpreters).
-    // Populated at startup from the "subinterpreter_blocklist" config in
-    // datadog.yaml via addSubinterpBlocklistEntry(). Checked in
-    // _assignInterpreter() — if a module is blocklisted, it returns NULL
-    // which makes the check run in the main interpreter.
+    // Module names that should NOT run in sub-interpreters (checks with
+    // transitive C extension dependencies that don't support sub-interpreters,
+    // e.g., go_expvar -> pydantic -> _pydantic_core).
+    // Populated at startup from "subinterpreter_blocklist" in datadog.yaml
+    // via addSubinterpBlocklistEntry(). Checked in _assignInterpreter() —
+    // blocklisted modules fall back to the main interpreter.
     std::unordered_set<std::string> _subinterpBlocklist;
 #endif
     //! _importFrom member.
@@ -214,6 +210,20 @@ private:
       NULL is returned with clean interpreter error flag.
     */
     PyObject *_importFrom(const char *module, const char *name);
+
+    //! _setModuleAttrString member.
+    /*!
+      \brief Shared implementation of setModuleAttrString: sets an attribute
+      on a Python module in the current interpreter.
+      \param module Module to import.
+      \param attr Attribute name.
+      \param value String value to set.
+      \return true on success, false on failure (setError is called on failure).
+
+      Used by setModuleAttrString (main interpreter, called from Go) and by
+      _copyModuleAttrs (to replay attributes into new sub-interpreters).
+    */
+    bool _setModuleAttrString(const char *module, const char *attr, const char *value);
 
     //! _findSubclassOf member.
     /*!

@@ -325,18 +325,18 @@ bool Three::getCheck(RtLoaderPyObject *py_class, const char *init_config_str, co
      * Sub-interpreter setup for this check instance.
      *
      * Goal: create a sub-interpreter, re-import the check module inside it,
-     * find the AgentCheck subclass, and replace `klass` so that all the
-     * existing getCheck logic below runs in the sub-interpreter's context.
+     * find the AgentCheck subclass, and rebind `klass` to point to the
+     * sub-interpreter's version so the existing getCheck logic below runs
+     * in the sub-interpreter's context.
      *
-     * Why re-import? PyObjects from one interpreter cannot be used in another.
-     * Each sub-interpreter has its own sys.modules, its own object allocator
-     * (use_main_obmalloc = 0), and its own GIL. Using a PyObject from main
-     * inside a sub-interpreter is undefined behavior. So we must import
-     * AgentCheck and the check module fresh in each sub-interpreter.
+     * Why re-import? Each sub-interpreter has its own sys (including
+     * sys.modules and sys.path), its own object allocator (use_main_obmalloc = 0),
+     * and its own GIL. So we must import AgentCheck and the check module fresh
+     * in each sub-interpreter.
      *
-     * If anything fails (sub-interpreter creation, module import, class
-     * lookup), we fall back to running the check in the main interpreter —
-     * the existing code path is used unchanged.
+     * If anything fails (sub-interpreter creation or module re-import),
+     * we fall back to running the check in the main interpreter - the
+     * existing code path is used unchanged.
      */
     PyThreadState *sub_tstate = NULL;
     PyThreadState *main_tstate = NULL;
@@ -348,10 +348,11 @@ bool Three::getCheck(RtLoaderPyObject *py_class, const char *init_config_str, co
     std::string module_name_str;
     {
         PyObject *mod_attr = PyObject_GetAttrString(klass, "__module__");
-        if (mod_attr != NULL && PyUnicode_Check(mod_attr)) {
-            const char *mod_name = PyUnicode_AsUTF8(mod_attr);
+        if (mod_attr != NULL) {
+            char *mod_name = as_string(mod_attr);
             if (mod_name != NULL) {
-                module_name_str = mod_name;
+                module_name_str = mod_name;  // std::string copies into its own buffer
+                ::_free(mod_name);            // release as_string's heap copy
             }
         }
         Py_XDECREF(mod_attr);
@@ -359,7 +360,7 @@ bool Three::getCheck(RtLoaderPyObject *py_class, const char *init_config_str, co
 
     // Create a sub-interpreter if we got a module name.
     // _assignInterpreter calls _createSubInterpreter which creates the
-    // sub-interp, copies sys.path, and returns with main GIL re-attached.
+    // sub-interp, populates sys.path from _pythonPaths, and returns under the main GIL.
     if (!module_name_str.empty()) {
         sub_tstate = _assignInterpreter(module_name_str.c_str());
     }
@@ -371,16 +372,16 @@ bool Three::getCheck(RtLoaderPyObject *py_class, const char *init_config_str, co
         // Re-import the check module in the sub-interpreter context.
         PyObject *sub_module = PyImport_ImportModule(module_name_str.c_str());
         if (sub_module == NULL) {
-            // Module import failed — likely a C extension that doesn't declare
-            // sub-interpreter support (Py_MOD_PER_INTERPRETER_GIL_SUPPORTED).
-            // Fall back to main interpreter for this check.
+            // Module import failed — e.g., the module or one of its C extension
+            // dependencies doesn't declare sub-interpreter support
+            // (Py_MOD_PER_INTERPRETER_GIL_SUPPORTED). Fall back to main for this check.
             PyErr_Clear();
             _destroySubInterpreter(sub_tstate, main_tstate);
             sub_tstate = NULL;
         } else {
             // Re-import the base class (AgentCheck) in the sub-interpreter.
             // We can't use _baseClass (belongs to main). Each interpreter must
-            // import independently — this is the cost of full isolation.
+            // import independently — this is the cost of isolation.
             PyObject *sub_base = _importFrom("datadog_checks.checks", "AgentCheck");
             if (sub_base == NULL) {
                 PyErr_Clear();
@@ -1143,22 +1144,38 @@ void Three::incref(RtLoaderPyObject *obj)
     Py_XINCREF(reinterpret_cast<PyObject *>(obj));
 }
 
-void Three::setModuleAttrString(char *module, char *attr, char *value)
+bool Three::_setModuleAttrString(const char *module, const char *attr, const char *value)
 {
     PyObject *py_module = PyImport_ImportModule(module);
     if (!py_module) {
         setError("error importing python '" + std::string(module) + "' module: " + _fetchPythonError());
-        return;
+        return false;
     }
 
     PyObject *py_value = PyUnicode_FromString(value);
-    if (PyObject_SetAttrString(py_module, attr, py_value) != 0) {
+    if (!py_value) {
+        setError("error creating python string '" + std::string(value) + "' for '"
+                 + std::string(module) + "." + std::string(attr) + "': " + _fetchPythonError());
+        Py_XDECREF(py_module);
+        return false;
+    }
+
+    bool ok = (PyObject_SetAttrString(py_module, attr, py_value) == 0);
+    if (!ok) {
         setError("error setting the '" + std::string(module) + "." + std::string(attr)
                  + "' attribute: " + _fetchPythonError());
     }
 
     Py_XDECREF(py_module);
     Py_XDECREF(py_value);
+    return ok;
+}
+
+void Three::setModuleAttrString(char *module, char *attr, char *value)
+{
+    if (!_setModuleAttrString(module, attr, value)) {
+        return;
+    }
 
 #ifdef RTLOADER_HAS_SUBINTERPRETERS
     // Store the (module, attr, value) tuple so it can be copied into each
