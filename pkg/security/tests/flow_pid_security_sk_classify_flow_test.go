@@ -5839,12 +5839,15 @@ func TestMultipleProtocolsFlow(t *testing.T) {
 						continue
 					}
 					commPath := filepath.Join(procDir, entry.Name(), "comm")
+					cmdlinePath := filepath.Join(procDir, entry.Name(), "cmdline")
 					data, err := os.ReadFile(commPath)
+					data2, err := os.ReadFile(cmdlinePath)
 					if err != nil {
 						continue
 					}
 					if strings.Contains(string(data), "syscall_tester") {
 						discoveredPIDs = append(discoveredPIDs, uint32(pidInt))
+						fmt.Printf("Found syscall_tester pid %d: %s\n", uint32(pidInt), data2)
 					}
 				}
 			}
