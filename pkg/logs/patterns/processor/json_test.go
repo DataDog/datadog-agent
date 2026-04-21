@@ -6,6 +6,7 @@
 package processor
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -69,7 +70,7 @@ func TestPreprocessJSON_TopLevelMessage(t *testing.T) {
 			expectedMsg:    "User login",
 			expectedKey:    "msg",
 			expectedSchema: "timestamp",
-			expectedValues: []string{"1.23456789e+09"},
+			expectedValues: []string{"1234567890"},
 		},
 		{
 			name:           "log field",
@@ -360,7 +361,7 @@ func TestExtractSchemaAndValues(t *testing.T) {
 
 func TestExtractSchemaAndValues_MixedTypes(t *testing.T) {
 	data := map[string]interface{}{
-		"count":  float64(42),
+		"count":  json.Number("42"),
 		"flag":   true,
 		"name":   "test",
 		"nested": map[string]interface{}{"key": "val"},
@@ -370,4 +371,41 @@ func TestExtractSchemaAndValues_MixedTypes(t *testing.T) {
 	schema, values := extractSchemaAndValues(data)
 	assert.Equal(t, "count,empty,flag,name,nested", schema)
 	assert.Equal(t, []string{"42", "", "true", "test", `{"key":"val"}`}, values)
+}
+
+func TestPreprocessJSON_LargeIntegerPrecision(t *testing.T) {
+	tests := []struct {
+		name           string
+		input          string
+		expectedValues []string
+	}{
+		{
+			name:           "64-bit trace ID preserved exactly",
+			input:          `{"msg":"request","trace_id":9999999999999999}`,
+			expectedValues: []string{"9999999999999999"},
+		},
+		{
+			name:           "64-bit span ID preserved exactly",
+			input:          `{"msg":"request","span_id":18446744073709551615}`,
+			expectedValues: []string{"18446744073709551615"},
+		},
+		{
+			name:           "normal float preserved",
+			input:          `{"msg":"payment","amount":159.6}`,
+			expectedValues: []string{"159.6"},
+		},
+		{
+			name:           "integer zero",
+			input:          `{"msg":"test","count":0}`,
+			expectedValues: []string{"0"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := PreprocessJSON([]byte(tt.input))
+			require.True(t, result.IsJSON)
+			assert.Equal(t, tt.expectedValues, result.JSONContextValues)
+		})
+	}
 }
