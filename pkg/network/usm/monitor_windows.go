@@ -112,14 +112,20 @@ func (m *WindowsMonitor) process(transactionBatch []http.WinHttpTransaction) {
 // GetHTTPStats returns a map of HTTP stats stored in the following format:
 // [source, dest tuple, request path] -> RequestStats object
 func (m *WindowsMonitor) GetHTTPStats() map[protocols.ProtocolType]interface{} {
-	// dbtodo  This is now going to cause any pending transactions
-	// to be read and then stuffed into the channel.  Which then I think
-	// creates a race condition that there still could be some mid-
-	// process when we come back
 	m.di.ReadAllPendingTransactions()
 
 	m.mux.Lock()
 	defer m.mux.Unlock()
+
+	// Flush any ETW HTTP transactions that accumulated since the last
+	// 3-second ReadHttpTx poll cycle into the statkeeper before reading.
+	if etwTxs, err := http.ReadHttpTx(); err == nil && len(etwTxs) > 0 {
+		for i := range etwTxs {
+			tx := http.Transaction(&etwTxs[i])
+			m.telemetry.Count(tx)
+			m.statkeeper.Process(tx)
+		}
+	}
 
 	stats := m.statkeeper.GetAndResetAllStats()
 	//removeDuplicates(stats)
