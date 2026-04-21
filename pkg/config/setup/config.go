@@ -1412,24 +1412,16 @@ func applyInfrastructureModeOverrides(config pkgconfigmodel.Config) {
 			{"match_domain": "claude.ai", "type": "include"},
 		}
 
-		// Append user-defined filters to the defaults
-		if userFilters := config.Get("network_path.collector.filters"); userFilters != nil {
-			if userFiltersList, ok := userFilters.([]interface{}); ok {
-				for _, f := range userFiltersList {
-					if filterMap, ok := f.(map[string]interface{}); ok {
-						converted := make(map[string]string)
-						for k, v := range filterMap {
-							if strVal, ok := v.(string); ok {
-								converted[k] = strVal
-							}
-						}
-						// Always append the user defined filters to the defaults at the end of the list to get the higher priority than the default configuration
-						defaultNetworkPathCollectorFilters = append(defaultNetworkPathCollectorFilters, converted)
-					}
-				}
-			}
+		// Append user-defined filters after the defaults so they win (last matching filter wins).
+		// On unmarshal error, skip the override entirely: the user's (malformed) config is left
+		// in place so downstream surfaces it, rather than silently replacing it with defaults.
+		var userFilters []map[string]string
+		if err := structure.UnmarshalKey(config, "network_path.collector.filters", &userFilters); err != nil {
+			log.Errorf("Failed to unmarshal network_path.collector.filters, skipping EUDM filter override: %v", err)
+		} else {
+			defaultNetworkPathCollectorFilters = append(defaultNetworkPathCollectorFilters, userFilters...)
+			config.Set("network_path.collector.filters", defaultNetworkPathCollectorFilters, pkgconfigmodel.SourceAgentRuntime) // Agent runtime source is required to override customer defined filters with default configuration
 		}
-		config.Set("network_path.collector.filters", defaultNetworkPathCollectorFilters, pkgconfigmodel.SourceAgentRuntime) // Agent runtime source is required to override customer defined filters with default configuration
 
 		// Enable features for end_user_device mode
 		config.Set("process_config.process_collection.enabled", true, pkgconfigmodel.SourceInfraMode)
