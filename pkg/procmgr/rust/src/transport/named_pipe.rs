@@ -16,6 +16,7 @@ use tokio::net::windows::named_pipe::{ClientOptions, NamedPipeServer, ServerOpti
 use windows_sys::Win32::Foundation::ERROR_PIPE_BUSY;
 
 const DEFAULT_PIPE_PATH: &str = r"\\.\pipe\datadog-procmgrd";
+const DEFAULT_PIPE_INSTANCES: usize = 4;
 
 /// Placeholder URI for tonic Endpoint when connecting over Named Pipes.
 /// The actual address is irrelevant because `connect_with_connector` bypasses it.
@@ -97,7 +98,11 @@ where
 
     info!("gRPC server listening on {}", path.display());
 
-    let (tx, rx) = tokio::sync::mpsc::channel::<io::Result<NamedPipeIo>>(4);
+    let max_instances = std::env::var("DD_PM_PIPE_INSTANCES")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(DEFAULT_PIPE_INSTANCES);
+    let (tx, rx) = tokio::sync::mpsc::channel::<io::Result<NamedPipeIo>>(max_instances);
 
     let accept_handle = tokio::spawn(accept_loop(pipe_name, server, tx));
 
