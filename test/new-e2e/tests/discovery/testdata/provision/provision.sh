@@ -63,7 +63,7 @@ apt-get install -y \
 
 
 # Install Python deps
-pip install ddtrace
+pip install ddtrace==4.7.1
 
 # Install Node
 if [ ! -d "${HOME}/.nvm" ]; then

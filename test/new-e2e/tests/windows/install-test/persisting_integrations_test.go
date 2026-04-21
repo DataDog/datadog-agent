@@ -24,7 +24,7 @@ import (
 
 const (
 	thirdPartyIntegration = "datadog-ping==1.0.2"
-	pipPackage            = "grpcio"
+	pipPackage            = "grpcio==1.80.0"
 )
 
 // TestPersistingIntegrations tests upgrading the agent from the current version to the upgrade-test version

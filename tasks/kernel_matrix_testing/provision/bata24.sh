@@ -12,7 +12,7 @@ sudo apt-get update
 sudo apt-get install -y gdb-multiarch binutils gcc file python3-pip ruby-dev git
 
 echo "[+] pip3"
-pip3 install crccheck unicorn capstone ropper keystone-engine tqdm
+pip3 install crccheck==1.3.1 unicorn==2.1.4 capstone==5.0.7 ropper==1.13.13 keystone-engine==0.9.2 tqdm==4.67.3
 
 echo "[+] install seccomp-tools, one_gadget"
 if [[ -z "$(which seccomp-tools)" ]]; then
@@ -35,7 +35,7 @@ fi
 
 echo "[+] install vmlinux-to-elf"
 if [[ -z "$(which vmlinux-to-elf)" ]] && [[ ! -e /usr/local/bin/vmlinux-to-elf ]]; then
-    pip3 install --upgrade lz4 zstandard git+https://github.com/clubby789/python-lzo@b4e39df
+    pip3 install lz4==4.4.5 zstandard==0.25.0 git+https://github.com/clubby789/python-lzo@b4e39df
     pip3 install vmlinux-to-elf==1.2.3
 fi
 
