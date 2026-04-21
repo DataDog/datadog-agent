@@ -12,11 +12,13 @@ import (
 	"fmt"
 	"time"
 
+	goproto "google.golang.org/protobuf/proto"
+
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/proto"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/telemetry"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	"github.com/DataDog/datadog-agent/pkg/util/grpc"
+	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -28,9 +30,10 @@ const (
 )
 
 // NewServer returns a new server with a workloadmeta instance
-func NewServer(store workloadmeta.Component) *Server {
+func NewServer(store workloadmeta.Component, maxEventSize int) *Server {
 	return &Server{
 		wmeta:             store,
+		maxEventSize:      maxEventSize,
 		streamSendTimeout: streamSendTimeout,
 		sendQueueTimeout:  sendQueueTimeout,
 	}
@@ -39,6 +42,7 @@ func NewServer(store workloadmeta.Component) *Server {
 // Server is a grpc server that streams workloadmeta entities
 type Server struct {
 	wmeta             workloadmeta.Component
+	maxEventSize      int
 	streamSendTimeout time.Duration
 	sendQueueTimeout  time.Duration
 	sendQueueSize     int
@@ -137,6 +141,14 @@ func (s *Server) sendEvents(ctx context.Context, out pb.AgentSecure_Workloadmeta
 	ticker := time.NewTicker(workloadmetaKeepAliveInterval)
 	defer ticker.Stop()
 
+	sendFunc := func(chunk []*pb.WorkloadmetaEvent) error {
+		return grpcutil.DoWithTimeout(func() error {
+			return out.Send(&pb.WorkloadmetaStreamResponse{
+				Events: chunk,
+			})
+		}, s.streamSendTimeout)
+	}
+
 	for {
 		select {
 		case events, ok := <-sendQueue:
@@ -144,13 +156,7 @@ func (s *Server) sendEvents(ctx context.Context, out pb.AgentSecure_Workloadmeta
 				return nil
 			}
 
-			err := grpc.DoWithTimeout(func() error {
-				return out.Send(&pb.WorkloadmetaStreamResponse{
-					Events: events,
-				})
-			}, s.streamSendTimeout)
-
-			if err != nil {
+			if err := grpcutil.ProcessChunksInPlace(events, s.maxEventSize, computeWorkloadmetaEventSize, sendFunc); err != nil {
 				log.Warnf("error sending workloadmeta event: %s", err)
 				telemetry.RemoteServerErrors.Inc()
 				return err
@@ -168,7 +174,7 @@ func (s *Server) sendEvents(ctx context.Context, out pb.AgentSecure_Workloadmeta
 		// goal is only to keep the connection alive without losing the
 		// protection against “half” closed connections brought by the timeout.
 		case <-ticker.C:
-			err := grpc.DoWithTimeout(func() error {
+			err := grpcutil.DoWithTimeout(func() error {
 				return out.Send(&pb.WorkloadmetaStreamResponse{
 					Events: []*pb.WorkloadmetaEvent{},
 				})
@@ -181,4 +187,9 @@ func (s *Server) sendEvents(ctx context.Context, out pb.AgentSecure_Workloadmeta
 			}
 		}
 	}
+}
+
+// computeWorkloadmetaEventSize returns the serialized size of an event in bytes.
+func computeWorkloadmetaEventSize(event *pb.WorkloadmetaEvent) int {
+	return goproto.Size(event)
 }
