@@ -49,6 +49,20 @@ class Config:
     sdk_retry_max_attempts: int = 3
     sdk_retry_base_seconds: float = 2.0  # exponential backoff: 2s, 4s, 8s
 
+    # Hard ceiling on cumulative API tokens (input + output) across the
+    # whole coordinator run. When exceeded, the loop halts with a
+    # coord-out budget message. None = no ceiling.
+    api_token_ceiling: int | None = None  # e.g. 20_000_000 ≈ $50–200 of Opus
+
+    # Overfit detector: every N shipped candidates, evaluate all shipped
+    # candidates on the lockbox (locally, not passed to any agent) and
+    # compute Spearman rank-correlation between train-rank and lockbox-rank.
+    # Drift below `overfit_spearman_threshold` → coord-out warning.
+    # Lockbox scores are never surfaced to implementation/review prompts.
+    overfit_check_every_n_ships: int = 5
+    overfit_spearman_threshold: float = 0.5
+    overfit_min_ships_required: int = 3
+
     # Model routing. Deep-thinking tasks (implement / review / propose) use
     # Opus; lightweight tasks (interpret an inbox message) use Sonnet to
     # save tokens. Set to empty string to fall back to SDK default.

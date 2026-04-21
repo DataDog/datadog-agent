@@ -59,7 +59,7 @@ def _ssh(host: str, command: str, check: bool = False) -> subprocess.CompletedPr
 def workspace_busy(db: Db, workspace: str) -> bool:
     """Already running a validation on this workspace?"""
     return any(
-        v.workspace == workspace and v.status == "pending"
+        v.workspace == workspace and v.status in {"pending", "dispatching"}
         for v in db.validations.values()
     )
 
@@ -89,16 +89,35 @@ def dispatch_validation(
 
     vid = f"val-{uuid.uuid4().hex[:8]}"
     remote_dir = f"/tmp/observer-component-eval/{experiment_id}"
-    # Detached tmux session so the ssh connection can drop without killing it.
-    # Each validation gets a unique session name so multiple can queue if we
-    # ever widen the workspace pool.
-    #
-    # Quoting discipline: construct the payload as a plain string (inputs are
-    # already enum-restricted / path-only and contain no shell metacharacters)
-    # then `shlex.quote` the ENTIRE payload once as a single tmux argument.
-    # Avoids the nested-single-quote trap where `shlex.quote(detector)`
-    # inside a larger `'...'` shell string would silently break on any
-    # future input containing a literal single quote.
+
+    # Persist the record BEFORE ssh so a crash between ssh return and
+    # db update can't lose track of the in-flight remote tmux session.
+    # Starts as `dispatching`; flips to `pending` on ssh success, `failed`
+    # on ssh failure. `workspace_busy` treats `dispatching` same as pending.
+    pv = PendingValidation(
+        id=vid,
+        experiment_id=experiment_id,
+        candidate_id=candidate_id,
+        detector=detector,
+        workspace=workspace,
+        remote_output_dir=remote_dir,
+        dispatched_at=_now(),
+        status="dispatching",
+    )
+    db.validations[vid] = pv
+    # Lazy import to avoid db → workspace_validate cycle.
+    from .db import save_db
+
+    save_db(db, root)
+    journal.append(
+        "validation_dispatching",
+        {"validation_id": vid, "experiment_id": experiment_id, "workspace": workspace, "detector": detector},
+        root,
+    )
+
+    # Quoting discipline: build the payload as a plain string then
+    # shlex.quote the entire thing as one tmux arg (avoids the nested-
+    # single-quote trap if a future input ever contains a literal quote).
     inner = (
         f"cd ~/datadog-agent && "
         f"dda inv --dep=optuna q.eval-component "
@@ -108,36 +127,21 @@ def dispatch_validation(
     cmd = f"tmux new-session -d -s {shlex.quote(vid)} {shlex.quote(inner)}"
     res = _ssh(workspace, cmd)
     if res.returncode != 0:
+        pv.status = "failed"
+        pv.completed_at = _now()
+        save_db(db, root)
         journal.append(
             "validation_dispatch_failed",
-            {
-                "experiment_id": experiment_id,
-                "workspace": workspace,
-                "stderr": res.stderr[-500:],
-            },
+            {"validation_id": vid, "workspace": workspace, "stderr": res.stderr[-500:]},
             root,
         )
         return None
 
-    pv = PendingValidation(
-        id=vid,
-        experiment_id=experiment_id,
-        candidate_id=candidate_id,
-        detector=detector,
-        workspace=workspace,
-        remote_output_dir=remote_dir,
-        dispatched_at=_now(),
-        status="pending",
-    )
-    db.validations[vid] = pv
+    pv.status = "pending"
+    save_db(db, root)
     journal.append(
         "validation_dispatched",
-        {
-            "validation_id": vid,
-            "experiment_id": experiment_id,
-            "workspace": workspace,
-            "detector": detector,
-        },
+        {"validation_id": vid, "experiment_id": experiment_id, "workspace": workspace, "detector": detector},
         root,
     )
     return pv

@@ -50,6 +50,10 @@ class ScenarioResult:
     precision: float
     recall: float
     num_baseline_fps: int
+    # Per-scenario F1 σ measured across replicate runs. 0.0 = unknown
+    # (single-seed baseline); callers fall back to CONFIG.tau_default.
+    # Populated by `measure_sigma.py` after a multi-seed rebench.
+    f1_sigma: float = 0.0
 
 
 @dataclass
@@ -199,6 +203,18 @@ class Db:
     iterations: list[Iteration]
     split: DataSplit | None = None
     validations: dict[str, PendingValidation] = field(default_factory=dict)
+    # Components for which eval-component has been dispatched at least once.
+    # Prevents re-running on every ship; eval-component is a "certify this
+    # new component" step, not a per-config check.
+    components_eval_dispatched: list[str] = field(default_factory=list)
+
+    # Rolling reference: per-detector per-scenario scores after the most
+    # recent ship targeting that detector. The strict-regression gate
+    # compares to THIS (not the original baseline), so a candidate is
+    # blocked only if it regresses from the immediately-prior committed
+    # state — even when several prior commits accumulated on the branch.
+    # Missing key = fall back to baseline for that detector.
+    last_shipped_per_scenario: dict[str, dict[str, ScenarioResult]] = field(default_factory=dict)
 
 
 def dict_to_db(d: dict[str, Any]) -> Db:
@@ -210,6 +226,7 @@ def dict_to_db(d: dict[str, Any]) -> Db:
             precision=x["precision"],
             recall=x["recall"],
             num_baseline_fps=x["num_baseline_fps"],
+            f1_sigma=float(x.get("f1_sigma", 0.0) or 0.0),
         )
 
     baseline = None
@@ -301,6 +318,12 @@ def dict_to_db(d: dict[str, Any]) -> Db:
             delta_max=v.get("delta_max"),
         )
 
+    components_eval_dispatched = list(d.get("components_eval_dispatched") or [])
+
+    last_shipped: dict[str, dict[str, ScenarioResult]] = {}
+    for det_name, scens in (d.get("last_shipped_per_scenario") or {}).items():
+        last_shipped[det_name] = {s: _scenario(sr) for s, sr in scens.items()}
+
     return Db(
         schema_version=d["schema_version"],
         baseline=baseline,
@@ -322,6 +345,8 @@ def dict_to_db(d: dict[str, Any]) -> Db:
         iterations=[Iteration(**it) for it in d.get("iterations", [])],
         split=split,
         validations=validations,
+        components_eval_dispatched=components_eval_dispatched,
+        last_shipped_per_scenario=last_shipped,
     )
 
 
@@ -332,6 +357,7 @@ def db_to_dict(db: Db) -> dict[str, Any]:
             "precision": s.precision,
             "recall": s.recall,
             "num_baseline_fps": s.num_baseline_fps,
+            "f1_sigma": s.f1_sigma,
         }
 
     baseline_d = None
@@ -430,6 +456,11 @@ def db_to_dict(db: Db) -> dict[str, Any]:
             if db.split
             else None
         ),
+        "components_eval_dispatched": db.components_eval_dispatched,
+        "last_shipped_per_scenario": {
+            det: {s: _s(sr) for s, sr in scens.items()}
+            for det, scens in db.last_shipped_per_scenario.items()
+        },
         "validations": {
             vid: {
                 "id": v.id,

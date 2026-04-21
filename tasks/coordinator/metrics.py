@@ -6,6 +6,8 @@ the user can check harness health without attaching to tmux or the SDK.
 
 from __future__ import annotations
 
+import datetime as _dt
+import json
 from pathlib import Path
 
 from .db import state_dir
@@ -18,9 +20,64 @@ def _path(root: Path) -> Path:
     return state_dir(root) / METRICS_NAME
 
 
-def render(db: Db) -> str:
+def _liveness_lines(db: Db, root: Path) -> list[str]:
+    """Read the last journal event + last iteration end to surface staleness."""
+    now = _dt.datetime.now()
+    journal_path = state_dir(root) / "journal.jsonl"
+    last_type = "—"
+    last_ts_iso = "—"
+    stale_seconds: float | None = None
+    if journal_path.exists():
+        try:
+            # Read last non-empty line without scanning the whole file.
+            with journal_path.open("rb") as f:
+                f.seek(0, 2)
+                size = f.tell()
+                chunk = min(size, 4096)
+                f.seek(size - chunk)
+                tail = f.read().decode("utf-8", errors="replace").strip().splitlines()
+            for line in reversed(tail):
+                try:
+                    rec = json.loads(line)
+                    last_type = rec.get("type", "—")
+                    last_ts_iso = rec.get("ts", "—")
+                    if last_ts_iso != "—":
+                        stale_seconds = (now - _dt.datetime.fromisoformat(last_ts_iso)).total_seconds()
+                    break
+                except (json.JSONDecodeError, ValueError):
+                    continue
+        except OSError:
+            pass
+
+    out = []
+    if stale_seconds is not None and stale_seconds > 1800:
+        hrs = stale_seconds / 3600.0
+        out.append(f"> **⚠️ LIVENESS**: stale {hrs:.1f}h (last event: `{last_type}` @ {last_ts_iso})")
+    else:
+        out.append(f"**Last event**: `{last_type}` @ {last_ts_iso}")
+
+    # Median iteration wall-time over last 10 iterations (if started+ended exist)
+    recent = [it for it in db.iterations[-10:] if it.started_at and it.ended_at]
+    if recent:
+        durations = []
+        for it in recent:
+            try:
+                s = _dt.datetime.fromisoformat(it.started_at)
+                e = _dt.datetime.fromisoformat(it.ended_at)
+                durations.append((e - s).total_seconds())
+            except ValueError:
+                continue
+        if durations:
+            durations.sort()
+            median = durations[len(durations) // 2]
+            out.append(f"**Median iter wall (last {len(durations)})**: {median:.1f}s")
+    return out
+
+
+def render(db: Db, root: Path = Path(".")) -> str:
     lines: list[str] = []
     lines.append("# Coordinator metrics\n")
+    lines.extend(_liveness_lines(db, root))
     lines.append(f"**Phase**: {db.phase_state.current_phase.value}")
     lines.append(f"**Best score (phase)**: {db.phase_state.best_score:.4f}")
     lines.append(f"**Plateau counter**: {db.phase_state.plateau_counter}")
@@ -63,7 +120,15 @@ def render(db: Db) -> str:
     lines.append(f"- wall_hours_used: {db.budget.wall_hours_used:.2f}")
     if db.budget.wall_hours_ceiling is not None:
         lines.append(f"- wall_hours_ceiling: {db.budget.wall_hours_ceiling:.2f}")
-    lines.append(f"- api_tokens_used: {db.budget.api_tokens_used}")
+    # Format token count with thousands separators + ceiling ratio if set
+    tok = db.budget.api_tokens_used
+    if db.budget.api_token_ceiling:
+        pct = 100.0 * tok / db.budget.api_token_ceiling
+        lines.append(
+            f"- api_tokens_used: {tok:,} / {db.budget.api_token_ceiling:,} ({pct:.1f}%)"
+        )
+    else:
+        lines.append(f"- api_tokens_used: {tok:,}")
     lines.append("")
 
     lines.append("## Candidates")
@@ -152,4 +217,4 @@ def _review_hit_rate(db: Db) -> tuple[int, int]:
 def regenerate(db: Db, root: Path = Path(".")) -> None:
     p = _path(root)
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(render(db))
+    p.write_text(render(db, root))

@@ -23,7 +23,8 @@ import sys
 from pathlib import Path
 
 from . import budget as budget_mod
-from . import coord_out, evaluator, git_ops, github_in, journal, metrics, scheduler, workspace_validate
+from . import coord_out, evaluator, git_ops, github_in, journal, metrics, overfit_check, scheduler, workspace_validate
+from . import sdk as sdk_mod
 from .config import CONFIG
 from .db import empty_db, load_db, save_db, state_dir
 from .inbox import ack_and_archive, claim_inbox
@@ -80,6 +81,19 @@ def process_inbox(db: Db, root: Path, dry_run: bool) -> list[str]:
 # ---------------------------------------------------------------------------
 
 MAX_PROPOSER_ATTEMPTS = 1  # per iteration; avoid infinite SDK loops
+
+
+class UpstreamConflictHalt(Exception):
+    """Raised when sync_from_upstream aborts on conflict.
+
+    Propagates out of the iteration body and the --forever loop so the
+    coordinator exits cleanly. Next invocation (after human rebase) picks
+    up from the restored state.
+    """
+
+
+class BudgetCeilingHalt(Exception):
+    """Raised when CONFIG.api_token_ceiling is exceeded."""
 
 
 def pick_next_candidate_with_proposal(
@@ -145,6 +159,42 @@ def pick_next_candidate_with_proposal(
 # multi-detector candidates (e.g. "tighten scan triple-gate" touches both
 # scanmw and scanwelch), we pick the first listed.
 
+def _recent_same_family(db: Db, candidate: Candidate, limit: int = 5) -> list[dict]:
+    """Pull up to `limit` most-recent same-family experiments as small dicts
+    for the implementation agent's prompt. Safe when db is sparse."""
+    fam = candidate.approach_family
+    out: list[dict] = []
+    for exp in reversed(list(db.experiments.values())):
+        c = db.candidates.get(exp.candidate_id)
+        if c is None or c.approach_family != fam:
+            continue
+        rationales = (
+            [d.rationale for d in exp.review.decisions] if exp.review else []
+        )
+        base_mean = (
+            db.baseline.detectors.get(
+                next(iter(candidate.target_components), ""), None
+            ).mean_f1
+            if db.baseline
+            and next(iter(candidate.target_components), "") in db.baseline.detectors
+            else None
+        )
+        score_delta = (exp.score - base_mean) if (exp.score is not None and base_mean is not None) else None
+        out.append(
+            {
+                "id": exp.id,
+                "approach_family": fam,
+                "approved": bool(exp.review and exp.review.unanimous_approve),
+                "score_delta": score_delta,
+                "rationales": rationales,
+            }
+        )
+        if len(out) >= limit:
+            break
+    out.reverse()  # oldest first for readability
+    return out
+
+
 def primary_detector(candidate: Candidate) -> str | None:
     for c in candidate.target_components:
         if c in {"bocpd", "scanmw", "scanwelch"}:
@@ -164,6 +214,16 @@ def run_iteration(db: Db, root: Path, dry_run: bool = False) -> Db:
         _run_iteration_body(db, root, dry_run, iter_num, it)
 
     if not dry_run:
+        # Accumulate SDK tokens consumed during this iteration.
+        tokens = sdk_mod.consume_token_count()
+        db.budget.api_tokens_used += tokens["input"] + tokens["output"]
+        if tokens["input"] or tokens["output"]:
+            journal.append(
+                "tokens_used",
+                {"iter": len(db.iterations), "input": tokens["input"], "output": tokens["output"]},
+                root,
+            )
+
         new_msgs = budget_mod.check_milestones(db.budget, root)
         for m in new_msgs:
             journal.append(
@@ -171,7 +231,32 @@ def run_iteration(db: Db, root: Path, dry_run: bool = False) -> Db:
                 {"type": m.type, "requires_ack": m.requires_ack},
                 root,
             )
-        # Persist updated wall-hours.
+
+        # Hard token ceiling: halt the loop when exceeded. Unlike wall-hour
+        # milestones (advisory), this one actually stops the coordinator.
+        if (
+            CONFIG.api_token_ceiling is not None
+            and db.budget.api_tokens_used >= CONFIG.api_token_ceiling
+        ):
+            coord_out.emit(
+                "budget_halt",
+                f"Token ceiling reached: {db.budget.api_tokens_used:,} ≥ "
+                f"{CONFIG.api_token_ceiling:,}. Coordinator halted. Raise "
+                f"CONFIG.api_token_ceiling and restart to continue.",
+                requires_ack=True,
+                root=root,
+            )
+            journal.append(
+                "budget_halt",
+                {"tokens_used": db.budget.api_tokens_used, "ceiling": CONFIG.api_token_ceiling},
+                root,
+            )
+            save_db(db, root)
+            raise BudgetCeilingHalt(
+                f"token ceiling {CONFIG.api_token_ceiling} exceeded"
+            )
+
+        # Persist updated wall-hours + tokens.
         save_db(db, root)
 
     return db
@@ -205,22 +290,32 @@ def _run_iteration_body(
     # resolves by hand (rebase or abandon the diverging claude/observer-improvements commit).
     if not dry_run:
         git_ops.ensure_scratch_branch(root)
+        # Dirty-tree guard MUST precede the merge — otherwise stray edits
+        # under WATCH_PATHS get silently auto-committed OR wiped by merge
+        # --abort on conflict. startup_cleanup covers coordinator-owned
+        # crashes; this catches human/untracked edits mid-run.
+        if not git_ops.is_clean(root):
+            print(f"[iter {iter_num}] working tree dirty (pre-sync); aborting", file=sys.stderr)
+            journal.append("iteration_aborted_dirty_tree", {"iter": iter_num, "phase": "pre-sync"}, root)
+            it.ended_at = now_iso()
+            db.iterations.append(it)
+            save_db(db, root)
+            return
         sync = git_ops.sync_from_upstream(root)
         if sync.get("merged") or sync.get("ahead_count"):
             journal.append("upstream_sync", sync, root)
         if sync.get("conflict"):
             print(
-                f"[iter {iter_num}] upstream sync CONFLICT; aborting iteration",
+                f"[iter {iter_num}] upstream sync CONFLICT; halting coordinator",
                 file=sys.stderr,
             )
             journal.append("upstream_sync_conflict", sync, root)
             coord_out.emit(
                 "upstream_conflict",
                 f"Sync from `origin/{git_ops.UPSTREAM_BRANCH}` conflicted with "
-                f"claude/observer-improvements. Merge was aborted; working tree restored. "
-                f"Manual resolution required — rebase claude/observer-improvements onto the new "
-                f"upstream tip, or reset and replay candidates. "
-                f"Coordinator halted.\n\n```\n{sync.get('error') or ''}\n```",
+                f"claude/observer-improvements. Merge aborted; working tree restored. "
+                f"Manual resolution required. Coordinator halted — re-run "
+                f"after rebase.\n\n```\n{sync.get('error') or ''}\n```",
                 requires_ack=True,
                 root=root,
             )
@@ -228,7 +323,9 @@ def _run_iteration_body(
             db.iterations.append(it)
             save_db(db, root)
             metrics.regenerate(db, root)
-            return
+            # Raise so the --forever outer loop exits instead of re-trying
+            # the sync every iteration (which would conflict again + spam).
+            raise UpstreamConflictHalt(sync.get("error") or "upstream conflict")
         if not sync.get("fetched"):
             # Fetch failure is recoverable (network blip); log and continue
             # with whatever upstream state we already have.
@@ -260,17 +357,9 @@ def _run_iteration_body(
     experiment_id = f"exp-{iter_num:04d}-{candidate.id}"
     print(f"[iter {iter_num}] candidate={candidate.id} detector={detector}")
 
-    # 2a. Refuse to run on a dirty tree
-    if not dry_run and not git_ops.is_clean(root):
-        print(f"[iter {iter_num}] working tree dirty; aborting iteration", file=sys.stderr)
-        journal.append("iteration_aborted_dirty_tree", {"iter": iter_num}, root)
-        it.ended_at = now_iso()
-        db.iterations.append(it)
-        save_db(db, root)
-        return
-
-    # 2b. Capture pre-SHA (scratch branch already ensured + sync'd at step 1a).
-    # Post-sync SHA is the correct baseline for the candidate's commit.
+    # 2a. Capture pre-SHA (scratch branch already ensured + sync'd + dirty-check
+    # passed at step 1a). Post-sync SHA is the correct baseline for the
+    # candidate's commit.
     pre_sha = git_ops.head_sha(root) if not dry_run else "dry-run"
 
     # 3. Implement (SDK)
@@ -279,7 +368,9 @@ def _run_iteration_body(
         from . import sdk
 
         try:
-            impl_summary = sdk.implement_candidate(candidate, root)
+            impl_summary = sdk.implement_candidate(
+                candidate, root, prior_experiments=_recent_same_family(db, candidate)
+            )
         except Exception as e:
             print(f"[iter {iter_num}] implementation failed: {e}", file=sys.stderr)
             journal.append(
@@ -367,12 +458,18 @@ def _run_iteration_body(
         return
 
     train_set = db.split.as_train_set() if db.split else None
+    # Gate against rolling "last shipped" state for this detector (so a
+    # regression from the immediately-prior commit is caught even when
+    # cumulative prior gains exist). Falls back to baseline if no prior
+    # ship for this detector yet.
+    prior = db.last_shipped_per_scenario.get(detector)
     scoring = score_against_baseline(
         report_path,
         db.baseline,
         detector,
         tau=CONFIG.tau_default,
         train_scenarios=train_set,
+        prior_scores=prior,
     )
     experiment.score = scoring.mean_f1
     experiment.num_baseline_fps_sum = scoring.total_fps
@@ -421,7 +518,9 @@ def _run_iteration_body(
     from . import sdk  # lazy
 
     try:
-        verdict = sdk.review_experiment(experiment, scoring, candidate.phase)
+        verdict = sdk.review_experiment(
+            experiment, scoring, candidate.phase, prior_scores=prior
+        )
     except Exception as e:
         print(f"[iter {iter_num}] review failed: {e}", file=sys.stderr)
         journal.append("review_failed", {"iter": iter_num, "error": str(e)}, root)
@@ -453,6 +552,11 @@ def _run_iteration_body(
         commit_sha = git_ops.commit_candidate(candidate.id, experiment_id, root)
         experiment.commit_sha = commit_sha
         candidate.status = CandidateStatus.SHIPPED
+        # Update the rolling "last shipped" reference for this detector so
+        # the NEXT candidate's strict-regression gate measures against this
+        # state, not the original baseline. Only this detector's scores are
+        # updated; other detectors keep their own rolling state.
+        db.last_shipped_per_scenario[detector] = dict(scoring.per_scenario)
         # Persist the ship BEFORE pushing. If push (or a later step) crashes,
         # db.yaml already reflects the commit; startup_cleanup will push the
         # orphan commit on restart.
@@ -468,21 +572,51 @@ def _run_iteration_body(
             f"[iter {iter_num}] APPROVED; committed {commit_sha[:10]} "
             f"({push_tag}) score {scoring.mean_f1:.4f}"
         )
-        # Fire-and-forget post-ship eval-component validation on the matching
-        # workspace. Non-blocking — result ports back at a future iteration via
-        # poll_pending_validations.
-        pv = workspace_validate.dispatch_validation(
-            experiment_id=experiment_id,
-            candidate_id=candidate.id,
-            detector=detector,
-            db=db,
-            root=root,
-        )
-        if pv:
-            # Persist immediately so a crash between dispatch and iteration-end
-            # doesn't lose track of the in-flight workspace run.
-            save_db(db, root)
-            print(f"[iter {iter_num}] validation dispatched: {pv.id} on {pv.workspace}")
+
+        # Plateau-gated eval-component dispatch: certify a NEW component
+        # ONCE, when the family iterating on it has plateaued and at least
+        # this candidate shipped. Pre-existing components (bocpd / scanmw /
+        # scanwelch) are already in db.components_eval_dispatched.
+        fam = candidate.approach_family
+        fam_streak = scheduler._family_consecutive_nonimproving(db, fam)
+        # fam_streak is computed AFTER this iteration's experiment is
+        # appended, so a plateau means fam_streak >= STUCK_THRESHOLD.
+        fam_plateaued = fam_streak >= CONFIG.stuck_threshold
+        if fam_plateaued:
+            for comp in candidate.target_components:
+                if comp in db.components_eval_dispatched:
+                    continue
+                pv = workspace_validate.dispatch_validation(
+                    experiment_id=experiment_id,
+                    candidate_id=candidate.id,
+                    detector=comp,
+                    db=db,
+                    root=root,
+                )
+                # Mark dispatched even on ssh failure (no workspace). Next
+                # plateau won't retry; the user creates the workspace if
+                # they want the validation.
+                db.components_eval_dispatched.append(comp)
+                save_db(db, root)
+                if pv:
+                    print(
+                        f"[iter {iter_num}] eval-component dispatched for new "
+                        f"component '{comp}' (family {fam} plateaued) on {pv.workspace}"
+                    )
+                else:
+                    print(
+                        f"[iter {iter_num}] eval-component dispatch skipped for "
+                        f"'{comp}' (no workspace / ssh failed); journalled"
+                    )
+
+        # Overfit telltale (periodic, best-effort): after every Nth ship,
+        # evaluate all shipped candidates on the lockbox and Spearman-check
+        # train-rank vs lockbox-rank. Warns via coord-out if drift; does
+        # NOT gate. Lockbox scores never flow into agent prompts.
+        try:
+            overfit_check.maybe_run_overfit_check(db, root)
+        except Exception as e:
+            journal.append("overfit_check_error", {"error": str(e)}, root)
     else:
         git_ops.revert_working_tree(root)
         candidate.status = CandidateStatus.REJECTED
@@ -518,20 +652,51 @@ def main(argv: list[str] | None = None) -> int:
         )
 
     # Crash-recovery: revert any orphaned working-tree diffs, push any
-    # unpushed commits on claude/observer-improvements. Safe no-op on a clean restart.
+    # unpushed commits on claude/observer-improvements, and recover any
+    # inbox.md.reading orphan from a prior mid-drain crash. Safe no-op on
+    # a clean restart.
     if not args.dry_run:
         cleanup = git_ops.startup_cleanup(root)
         if cleanup.get("reverted_dirty_tree") or cleanup.get("pushed_orphan_commits"):
             journal.append("startup_cleanup", cleanup, root)
             print(f"[startup] cleanup: {cleanup}")
+        from .inbox import recover_orphan_reading
+
+        if recover_orphan_reading(root):
+            journal.append("inbox_orphan_recovered", {}, root)
+            print("[startup] recovered orphan inbox.md.reading")
+        # Reconcile any validations stuck in 'dispatching' from a crash
+        # between ssh dispatch and db save. Safe default: mark failed; the
+        # next iteration won't dispatch a duplicate, and poll_pending
+        # ignores non-pending entries.
+        for pv in list(db.validations.values()):
+            if pv.status == "dispatching":
+                pv.status = "failed"
+                pv.completed_at = now_iso()
+                journal.append(
+                    "validation_dispatching_reaped",
+                    {"validation_id": pv.id, "workspace": pv.workspace},
+                    root,
+                )
+        save_db(db, root)
 
     if args.once or not args.forever:
-        run_iteration(db, root, dry_run=args.dry_run)
+        try:
+            run_iteration(db, root, dry_run=args.dry_run)
+        except UpstreamConflictHalt:
+            print("upstream conflict: halting. Resolve manually and re-run.", file=sys.stderr)
         return 0
 
     while True:
         before = len(db.iterations)
-        db = run_iteration(db, root, dry_run=args.dry_run)
+        try:
+            db = run_iteration(db, root, dry_run=args.dry_run)
+        except UpstreamConflictHalt:
+            print("upstream conflict: halting coordinator. Resolve manually and re-run.", file=sys.stderr)
+            break
+        except BudgetCeilingHalt as e:
+            print(f"budget halt: {e}", file=sys.stderr)
+            break
         if len(db.iterations) == before:
             break
         if db.phase_state.plateau_counter >= CONFIG.plateau_patience:

@@ -46,6 +46,12 @@ def empty_db() -> Db:
             api_token_ceiling=None,
         ),
         iterations=[],
+        # Empty on startup: every component gets one eval-component dispatch
+        # on plateau of a shipping family targeting it. Historical reports
+        # (bocpd/scanmw/scanwelch in eval-results/) validated the BASELINE
+        # versions of those components — after the coordinator modifies
+        # them, that historical data is stale. Re-run on plateau.
+        components_eval_dispatched=[],
     )
 
 

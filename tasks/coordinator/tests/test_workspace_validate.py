@@ -30,7 +30,11 @@ def test_workspace_name_derived_by_convention():
 
 def test_dispatch_fails_soft_when_workspace_unreachable(tmp_path: Path, monkeypatch):
     """An unknown detector gets a derived workspace name; the convention
-    workspace doesn't exist → ssh fails → dispatch returns None cleanly."""
+    workspace doesn't exist → ssh fails → dispatch returns None cleanly.
+
+    The PendingValidation IS recorded (with status="failed") so there's
+    an audit trail — persist-before-dispatch is the crash-safety fix.
+    """
     state_dir(tmp_path).mkdir(parents=True)
     db = empty_db()
     monkeypatch.setattr(wv, "_ssh", lambda *a, **kw: _fake_proc(255, stderr="ssh: nonexistent host"))
@@ -39,7 +43,10 @@ def test_dispatch_fails_soft_when_workspace_unreachable(tmp_path: Path, monkeypa
         db=db, root=tmp_path,
     )
     assert pv is None
-    assert len(db.validations) == 0
+    assert len(db.validations) == 1
+    recorded = next(iter(db.validations.values()))
+    assert recorded.status == "failed"
+    assert recorded.completed_at is not None
 
 
 def test_dispatch_happy_path(tmp_path: Path, monkeypatch):
@@ -96,7 +103,10 @@ def test_dispatch_ssh_failure_does_not_raise(tmp_path: Path, monkeypatch):
         db=db, root=tmp_path,
     )
     assert pv is None
-    assert len(db.validations) == 0
+    # Record persists with status=failed so a crash between ssh return
+    # and driver's post-dispatch steps can't lose the audit trail.
+    assert len(db.validations) == 1
+    assert next(iter(db.validations.values())).status == "failed"
 
 
 # --- poll --- --------------------------------------------------------------

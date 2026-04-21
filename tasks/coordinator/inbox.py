@@ -51,6 +51,23 @@ def _ack_log(root: Path) -> Path:
     return state_dir(root) / ACK_LOG
 
 
+def recover_orphan_reading(root: Path = Path(".")) -> bool:
+    """If a prior crash left `inbox.md.reading` behind, archive it so the
+    next drain isn't silently short-circuited.
+
+    Returns True if an orphan was recovered. Safe to call on every startup.
+    """
+    p = _reading_path(root)
+    if not p.exists():
+        return False
+    archive = _archive_dir(root)
+    archive.mkdir(parents=True, exist_ok=True)
+    ts = _dt.datetime.now().strftime("%Y%m%dT%H%M%S")
+    dest = archive / f"{ts}-orphan-reading.md"
+    os.rename(p, dest)
+    return True
+
+
 def claim_inbox(root: Path = Path(".")) -> InboxMessage | None:
     """Atomic-rename inbox.md → inbox.md.reading; return parsed message or None.
 

@@ -15,49 +15,43 @@ The coordinator aggregates: unanimous approve → candidate ships.
 from __future__ import annotations
 
 
-SKEPTIC_PROMPT = """\
-You are the Skeptic reviewer. Your only job is to decide whether the observed
-F1 gain clears the noise floor.
+HACK_DETECTOR_PROMPT = """\
+You are the sole reviewer for this candidate. The coordinator has already
+run deterministic gates BEFORE invoking you:
+- strict per-scenario F1 regression gate (per-scenario 3σ threshold)
+- recall floor gate (where baseline recall > 0.05)
+- build success (binaries compiled)
+- no FP increase (`num_baseline_fps` total didn't rise)
 
-Inputs you will receive:
-- The candidate description and target components.
-- The baseline scores for the affected detector(s).
-- The observed post-change scores (full q.eval-scenarios report).
-- The τ threshold calibrated from M0.1/M0.2 σ measurement.
+So by the time you see this candidate, those mechanical checks have passed.
+Your job is the judgment call those checks CAN'T make:
 
-Reject if:
-- Mean ΔF1 < 2σ (within noise).
-- A single scenario accounts for >60% of the gain (cherry-pick risk).
-- Gain is on high-parity-div scenarios only (unreliable).
+**Does this change look like a real improvement, or a hack that gamed the metric?**
 
-Approve if:
-- Mean gain is distributed across multiple scenarios at ≥ 2σ each.
-- No single scenario dominates.
+Reject (`approve: false`) if:
+- The diff avoids addressing the actual detection logic (e.g. it filters
+  out anomalies based on scenario name, metric name, or some other proxy
+  the coordinator cannot see from aggregate F1).
+- The gain concentrates suspiciously (one scenario explains >75% of the
+  lift; other scenarios lose recall in ways the scalar gate missed).
+- The code introduces complexity disproportionate to the observed gain
+  (new data structures / abstractions / special cases for marginal F1).
+- The rationale in prior review rationales (if shown) already rejected
+  this approach on a different iteration.
 
-Return YAML:
-  persona: skeptic
-  approve: <true|false>
-  rationale: <one paragraph>
-"""
+Approve (`approve: true`) if:
+- The gain looks distributed and generalizable.
+- The code change is minimal and matches established `comp/observer/`
+  patterns.
+- You'd be comfortable seeing this commit land on the real feature branch.
 
-CONSERVATIVE_PROMPT = """\
-You are the Conservative reviewer. Your only job is to ensure nothing
-regresses that shouldn't.
-
-Checks (all must pass):
-- Live-vs-replay parity unchanged (no new divergence introduced).
-- observer-testbench and observer-scorer still build.
-- No strict per-scenario F1 regression on train (> τ).
-- No recall-floor violation on any train scenario whose baseline recall > 0.05.
-- `num_baseline_fps` total does not increase.
-- Precision floor (min precision across scenarios) does not decrease.
-- Perf: `q.benchmark` does not regress >10% ns/op, >20% allocs/op, >20% B/op
-  (only applies if perf was benchmarked on this change).
+Input includes: candidate description, per-scenario deltas, diff summary,
+and up to 3 prior same-family experiment rationales. Read them.
 
 Return YAML:
-  persona: conservative
+  persona: hack_detector
   approve: <true|false>
-  rationale: <one paragraph describing which checks passed/failed and why>
+  rationale: <2-3 sentences — be specific; cite scenarios/code/prior-experiment-ids>
 """
 
 
@@ -99,8 +93,7 @@ Return YAML:
 
 
 PHASE1_PERSONAS = {
-    "skeptic": SKEPTIC_PROMPT,
-    "conservative": CONSERVATIVE_PROMPT,
+    "hack_detector": HACK_DETECTOR_PROMPT,
 }
 
 PHASE2_PERSONAS = {
