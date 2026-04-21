@@ -141,19 +141,36 @@ func (s *Server) sendEvents(ctx context.Context, out pb.AgentSecure_Workloadmeta
 	ticker := time.NewTicker(workloadmetaKeepAliveInterval)
 	defer ticker.Stop()
 
-	sendFunc := func(chunk []*pb.WorkloadmetaEvent) error {
-		return grpcutil.DoWithTimeout(func() error {
-			return out.Send(&pb.WorkloadmetaStreamResponse{
-				Events: chunk,
-			})
-		}, s.streamSendTimeout)
-	}
+	// The first batch from the subscription is always the full-state snapshot.
+	// We need to signal the client when the last chunk of that snapshot is sent
+	// so it can apply the resync atomically.
+	initialSnapshot := true
 
 	for {
 		select {
 		case events, ok := <-sendQueue:
 			if !ok {
 				return nil
+			}
+
+			isSnapshot := initialSnapshot
+			initialSnapshot = false
+
+			// Track how many chunks we'll send so we can mark the last one.
+			chunkIdx := 0
+			totalChunks := countChunks(events, s.maxEventSize, computeWorkloadmetaEventSize)
+
+			sendFunc := func(chunk []*pb.WorkloadmetaEvent) error {
+				chunkIdx++
+				resp := &pb.WorkloadmetaStreamResponse{
+					Events: chunk,
+				}
+				if isSnapshot && chunkIdx == totalChunks {
+					resp.InitialSnapshotComplete = true
+				}
+				return grpcutil.DoWithTimeout(func() error {
+					return out.Send(resp)
+				}, s.streamSendTimeout)
 			}
 
 			if err := grpcutil.ProcessChunksInPlace(events, s.maxEventSize, computeWorkloadmetaEventSize, sendFunc); err != nil {
@@ -192,4 +209,26 @@ func (s *Server) sendEvents(ctx context.Context, out pb.AgentSecure_Workloadmeta
 // computeWorkloadmetaEventSize returns the serialized size of an event in bytes.
 func computeWorkloadmetaEventSize(event *pb.WorkloadmetaEvent) int {
 	return goproto.Size(event)
+}
+
+// countChunks returns the number of chunks that ProcessChunksInPlace would
+// produce for the given slice and size limit.
+func countChunks[T any](slice []T, maxChunkSize int, computeSize func(T) int) int {
+	count := 0
+	idx := 0
+	for idx < len(slice) {
+		chunkSize := computeSize(slice[idx])
+		j := idx + 1
+		for j < len(slice) {
+			s := computeSize(slice[j])
+			if chunkSize+s > maxChunkSize {
+				break
+			}
+			chunkSize += s
+			j++
+		}
+		count++
+		idx = j
+	}
+	return count
 }
