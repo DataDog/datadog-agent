@@ -162,7 +162,7 @@ def _minimize_bazel_patterns(patterns: list[str]) -> list[str]:
     sorted_patterns = sorted(set(patterns))
     result: list[str] = []
     for pattern in sorted_patterns:
-        covered = any(kept == '//...' or pattern.startswith(kept[: -len('...')]) for kept in result)
+        covered = any(pattern.startswith(kept[: -len('...')]) for kept in result)
         if not covered:
             result.append(pattern)
     return result
