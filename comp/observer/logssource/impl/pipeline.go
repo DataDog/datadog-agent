@@ -76,7 +76,6 @@ func (p *observerPipeline) start() {
 			}
 			p.observerHandle.ObserveLog(msg)
 		}
-		log.Infof("[observer/logssource] drain goroutine exited after %d logs", count)
 	}()
 	p.proc.Start()
 }
