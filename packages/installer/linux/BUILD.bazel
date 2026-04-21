@@ -3,12 +3,15 @@
 load("@rules_pkg//pkg:deb.bzl", "pkg_deb")
 load(
     "@rules_pkg//pkg:mappings.bzl",
+    "pkg_attributes",
     "pkg_filegroup",
     "pkg_files",
+    "pkg_mkdirs",
 )
 load("@rules_pkg//pkg:rpm.bzl", "pkg_rpm")
 load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 load("//bazel/rules:compression.bzl", "get_compression_level")
+load("//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
 load("//compliance:package_licenses.bzl", "package_licenses")
 load("//packages/rules:package_naming.bzl", "package_name_variables")
 
@@ -26,10 +29,41 @@ pkg_files(
     prefix = "bin/installer",
 )
 
+# Empty dirs required at runtime by the installer.
+# Paths are relative so the pkg_filegroup prefix below resolves them correctly.
+pkg_mkdirs(
+    name = "embedded_dirs",
+    attributes = pkg_attributes(mode = "0755"),
+    dirs = [
+        "embedded/bin",
+        "embedded/lib",
+    ],
+)
+
+# Version manifest files.  The templates live in the parent package so they
+# can be shared if other platforms ever need them.
+# No prefix here — installer_components applies /opt/datadog-installer below.
+dd_agent_expand_template(
+    name = "version_manifest_json",
+    out = "version-manifest.json",
+    template = "//packages/installer:version-manifest.json.in",
+)
+
+dd_agent_expand_template(
+    name = "version_manifest_txt",
+    out = "version-manifest.txt",
+    template = "//packages/installer:version-manifest.txt.in",
+)
+
 # Everything that belongs under /opt/datadog-installer/
 pkg_filegroup(
     name = "installer_components",
-    srcs = [":installer_binary"],
+    srcs = [
+        ":embedded_dirs",
+        ":installer_binary",
+        ":version_manifest_json",
+        ":version_manifest_txt",
+    ],
     prefix = "/opt/datadog-installer",
 )
 
@@ -60,6 +94,49 @@ pkg_tar(
     owner = "0.0",
 )
 
+# README.md generation — platform-specific uninstall command substituted into the template.
+dd_agent_expand_template(
+    name = "readme_deb_gen",
+    out = "README_deb.md",
+    substitutions = {"{uninstall_command}": "sudo apt-get remove datadog-installer"},
+    template = "//packages/installer:README.md.in",
+)
+
+dd_agent_expand_template(
+    name = "readme_rpm_gen",
+    out = "README_rpm.md",
+    substitutions = {"{uninstall_command}": "sudo yum remove datadog-installer"},
+    template = "//packages/installer:README.md.in",
+)
+
+# Wrap in pkg_files so the output is renamed to README.md at the install prefix.
+pkg_files(
+    name = "readme_deb",
+    srcs = [":readme_deb_gen"],
+    prefix = "/opt/datadog-installer",
+    renames = {":readme_deb_gen": "README.md"},
+)
+
+pkg_files(
+    name = "readme_rpm",
+    srcs = [":readme_rpm_gen"],
+    prefix = "/opt/datadog-installer",
+    renames = {":readme_rpm_gen": "README.md"},
+)
+
+# Deb-specific tarball that includes README.md.
+# whole_distro_tar (without README) remains as the XZ artifact passed to packaging stage.
+pkg_tar(
+    name = "whole_distro_tar_deb",
+    srcs = [
+        ":readme_deb",
+        ":whole_distro",
+    ],
+    compression_level = get_compression_level(),
+    extension = "tar.xz",
+    owner = "0.0",
+)
+
 _DESCRIPTION = """Datadog Installer
 The Datadog Installer is a lightweight process that installs and updates
 the Datadog Agent and Tracers.
@@ -69,7 +146,7 @@ See http://www.datadoghq.com/ for more information
 
 pkg_deb(
     name = "debian",
-    data = ":whole_distro_tar",
+    data = ":whole_distro_tar_deb",
     description = _DESCRIPTION,
     homepage = "http://www.datadoghq.com",
     license = "Apache License Version 2.0",
@@ -88,7 +165,10 @@ pkg_deb(
 pkg_rpm(
     name = "rpm",
     package_name = "datadog-installer",
-    srcs = [":whole_distro"],
+    srcs = [
+        ":readme_rpm",
+        ":whole_distro",
+    ],
     description = _DESCRIPTION,
     epoch = "1",
     group = "System Environment/Daemons",

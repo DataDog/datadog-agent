@@ -43,6 +43,17 @@ build do
     command "invoke installer.build --no-cgo --run-path=/opt/datadog-packages/run --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     mkdir "#{install_dir}/bin"
     copy 'bin/installer', "#{install_dir}/bin/"
+
+    # Always build the package
+    command_on_repo_root "bazelisk build --config=release //packages/installer/linux:whole_distro_tar_deb", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+    # There are no convenience symlinks, so we need to do some path manipulations to get the absolute path.
+    command_on_repo_root "bazelisk cquery --config=release --output=files //packages/installer/linux:whole_distro_tar_deb | sed -e 's@bazel-out/@@' >/tmp/installer_linux_tar_deb_file.txt"
+    command_on_repo_root "tar tvf $(bazelisk info output_path)/$(cat /tmp/installer_linux_tar_deb_file.txt)", :live_stream => Omnibus.logger.live_stream(:info)
+    if debian_target?
+      command_on_repo_root "bazelisk build --config=release //packages/installer/linux:debian"
+    elsif redhat_target? || suse_target?
+      command_on_repo_root "bazelisk build --config=release //packages/installer/linux:rpm"
+    end
   elsif windows_target?
     command "dda inv -- -e installer.build --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     copy 'bin/installer/installer.exe', "#{install_dir}/datadog-installer.exe"
