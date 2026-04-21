@@ -20,12 +20,17 @@ class Config:
     plateau_patience: int = 5
     early_halt_iterations: int = 3  # M0.9 early-halt gate
 
-    # Diversity policy (scheduler)
-    stuck_threshold: int = 3
+    # Diversity policy (scheduler). K=5 per panel feedback — "competent
+    # humans grind the same approach for 5-10 iterations before giving
+    # up"; K=3 prevented deep exploration of promising directions.
+    stuck_threshold: int = 5
     ban_duration: int = 5
 
-    # Review
-    review_personas_phase1: int = 2
+    # Review: single hack_detector persona (collapsed from Skeptic +
+    # Conservative, which were re-deriving deterministic booleans).
+    # Phase 2+ personas staged in reviewer.py: Duplicate Hunter,
+    # Algorithm Expert, Greybeard.
+    review_personas_phase1: int = 1
     review_unanimity_required: bool = True
 
     # Perf

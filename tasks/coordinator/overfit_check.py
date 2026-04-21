@@ -1,33 +1,35 @@
-"""Overfit telltale: periodic Spearman rank-correlation between the
-coordinator's train-set ranking of shipped candidates and their true
-out-of-sample ranking on the lockbox.
+"""Overfit telltale: Spearman rank-correlation between train-set ranking
+and lockbox-set ranking of shipped candidates.
 
-Runs every CONFIG.overfit_check_every_n_ships ships (when we have enough
-data). Evaluates every shipped candidate against `split.lockbox` scenarios
-via q.eval-scenarios. Computes Spearman ρ. If ρ < threshold, emits a
-coord-out warning — the coordinator is ranking candidates by train noise,
-not by real signal.
+Reads scores from EXISTING experiment records — does NOT re-run any
+evals. This matters: a candidate's lockbox score must be measured at
+the moment it shipped (when its own commit was HEAD). Re-evaluating
+later would score the current cumulative state, not the candidate's
+contribution.
 
-Lockbox results are recorded on a dedicated Experiment (`tier=t4`,
-`scenario_set=lockbox`) so they're auditable via db.yaml. They are NEVER
-included in SDK prompts (implement / review / proposer) — doing so would
-leak lockbox info and defeat the holdout.
+The driver's ship-time eval already runs q.eval-scenarios over ALL 10
+scenarios (both train and lockbox). Train scenarios are gated;
+lockbox scenarios are observed-but-not-gated. Their F1 values are
+recorded in exp.per_scenario. We just read them here.
 
-Trade-off: this check itself consumes lockbox runs. Running it too often
-still means the lockbox influences scheduling indirectly (even if only
-through the coord-out warning). Kept rare via `every_n_ships`.
+Runs every CONFIG.overfit_check_every_n_ships ships. When Spearman ρ
+between train-rank and lockbox-rank of shipped candidates drops below
+CONFIG.overfit_spearman_threshold, emits a `tripwire` coord-out —
+the coordinator is ranking candidates by train-set noise, not real
+signal.
+
+Lockbox scores NEVER surface in agent prompts: Python consumes them
+for this telltale only.
 """
 
 from __future__ import annotations
 
-import datetime as _dt
-import statistics
 from pathlib import Path
 
-from . import coord_out, evaluator, journal
+from . import coord_out, journal
 from .config import CONFIG
-from .db import save_db, state_dir
-from .scoring import load_report
+from .db import save_db
+from .schema import CandidateStatus, ScenarioResult
 
 
 def _spearman(xs: list[float], ys: list[float]) -> float | None:
@@ -52,115 +54,69 @@ def _spearman(xs: list[float], ys: list[float]) -> float | None:
 
     rx = _rank(xs)
     ry = _rank(ys)
-    try:
-        # Pearson on ranks == Spearman
-        mx = sum(rx) / n
-        my = sum(ry) / n
-        num = sum((rx[i] - mx) * (ry[i] - my) for i in range(n))
-        dx = sum((rx[i] - mx) ** 2 for i in range(n)) ** 0.5
-        dy = sum((ry[i] - my) ** 2 for i in range(n)) ** 0.5
-        if dx == 0 or dy == 0:
-            return None
-        return num / (dx * dy)
-    except ZeroDivisionError:
+    mx = sum(rx) / n
+    my = sum(ry) / n
+    num = sum((rx[i] - mx) * (ry[i] - my) for i in range(n))
+    dx = sum((rx[i] - mx) ** 2 for i in range(n)) ** 0.5
+    dy = sum((ry[i] - my) ** 2 for i in range(n)) ** 0.5
+    if dx == 0 or dy == 0:
         return None
+    return num / (dx * dy)
+
+
+def _mean_over(per_scenario: dict[str, ScenarioResult], scope: set[str]) -> float | None:
+    vals = [sr.f1 for name, sr in per_scenario.items() if name in scope]
+    if not vals:
+        return None
+    return sum(vals) / len(vals)
 
 
 def _count_ships(db) -> int:
-    from .schema import CandidateStatus
-
     return sum(1 for c in db.candidates.values() if c.status == CandidateStatus.SHIPPED)
 
 
 def should_check(db) -> bool:
-    """Fire on every Nth ship, once we have enough shipped candidates."""
     ships = _count_ships(db)
     if ships < CONFIG.overfit_min_ships_required:
         return False
     return (ships % CONFIG.overfit_check_every_n_ships) == 0
 
 
-def run_lockbox_for_candidate(
-    candidate_id: str,
-    detector: str,
-    lockbox_scenarios: list[str],
-    root: Path,
-) -> float | None:
-    """Run q.eval-scenarios on the lockbox for one shipped candidate's commit.
-
-    Returns the mean F1 on the lockbox subset (not gated; just recorded).
-    None on eval failure. The candidate must already be committed on the
-    scratch branch; caller is responsible for checking out its SHA first
-    if comparing across multiple candidates.
-    """
-    out_dir = state_dir(root) / "reports" / f"lockbox-{candidate_id}"
-    report_path = out_dir.parent / f"lockbox-{candidate_id}.json"
-    scenarios_csv = ",".join(lockbox_scenarios)
-
-    # Build the eval command manually because evaluator.run_scenarios
-    # doesn't accept a scenario subset yet — stay minimal here.
-    import subprocess, shlex
-
-    cmd = [
-        "dda", "inv", "q.eval-scenarios",
-        "--only", detector,
-        "--no-build",
-        "--scenarios", scenarios_csv,
-        "--main-report-path", str(report_path),
-        "--scenario-output-dir", str(out_dir),
-    ]
-    out_dir.mkdir(parents=True, exist_ok=True)
-    try:
-        proc = subprocess.run(cmd, cwd=root, capture_output=True, text=True, timeout=3600)
-    except Exception as e:
-        journal.append("overfit_lockbox_eval_error", {"candidate": candidate_id, "error": str(e)}, root)
-        return None
-    if proc.returncode != 0 or not report_path.exists():
-        journal.append("overfit_lockbox_eval_failed", {"candidate": candidate_id, "rc": proc.returncode}, root)
-        return None
-    mean_f1, _ = load_report(report_path)
-    return mean_f1
-
-
 def maybe_run_overfit_check(db, root: Path) -> None:
-    """Invoked after a ship. Runs the periodic rank-corr check if due.
+    """Runs after every ship. Fires the check when cadence matches.
 
-    This function is best-effort: any failure is journalled and the
-    coordinator keeps going. The check itself is expensive (lockbox
-    evals) so it's gated by should_check().
+    Best-effort: any failure is journalled, coordinator keeps going.
     """
-    if not should_check(db):
-        return
-    if db.split is None:
+    if not should_check(db) or db.split is None:
         return
 
-    from .schema import CandidateStatus
+    train = set(db.split.train)
+    lockbox = set(db.split.lockbox)
 
-    shipped = [c for c in db.candidates.values() if c.status == CandidateStatus.SHIPPED]
-    if len(shipped) < CONFIG.overfit_min_ships_required:
-        return
-
-    # Train score per shipped candidate = its latest experiment's .score
+    # Per shipped candidate: its LATEST eval's train-mean F1 and
+    # lockbox-mean F1, both already present in exp.per_scenario from the
+    # ship-time q.eval-scenarios run (which evaluates all 10 scenarios).
     train_scores: list[float] = []
     lockbox_scores: list[float] = []
     evaluated_ids: list[str] = []
-    lockbox = db.split.lockbox
-    for c in shipped:
-        # Latest DONE experiment for this candidate
-        exps = [e for e in db.experiments.values() if e.candidate_id == c.id and e.score is not None]
+
+    for cand in db.candidates.values():
+        if cand.status != CandidateStatus.SHIPPED:
+            continue
+        exps = [
+            e for e in db.experiments.values()
+            if e.candidate_id == cand.id and e.per_scenario
+        ]
         if not exps:
             continue
         latest = max(exps, key=lambda e: e.completed_at or e.started_at or "")
-        # Use first target component as the detector.
-        detector = next((t for t in c.target_components if t in {"bocpd", "scanmw", "scanwelch"}), None)
-        if detector is None:
+        train_mean = _mean_over(latest.per_scenario, train)
+        lockbox_mean = _mean_over(latest.per_scenario, lockbox)
+        if train_mean is None or lockbox_mean is None:
             continue
-        lb = run_lockbox_for_candidate(c.id, detector, lockbox, root)
-        if lb is None:
-            continue
-        train_scores.append(float(latest.score))
-        lockbox_scores.append(lb)
-        evaluated_ids.append(c.id)
+        train_scores.append(train_mean)
+        lockbox_scores.append(lockbox_mean)
+        evaluated_ids.append(cand.id)
 
     rho = _spearman(train_scores, lockbox_scores)
     journal.append(
@@ -184,9 +140,8 @@ def maybe_run_overfit_check(db, root: Path) -> None:
             f"of {len(evaluated_ids)} shipped candidates = {rho:.2f} "
             f"(threshold {CONFIG.overfit_spearman_threshold}). Coordinator "
             f"is ranking candidates by train-set noise, not real signal. "
-            f"Consider pausing to audit shipped candidates: "
-            f"{', '.join(evaluated_ids)}",
+            f"Consider pausing to audit: {', '.join(evaluated_ids)}",
             requires_ack=True,
             root=root,
         )
-    save_db(db, root)
+        save_db(db, root)

@@ -143,7 +143,7 @@ step or an SDK subagent call.
 ┌─────────────────────────────────────────────────────┐
 │ 2.  pick next candidate                             │
 │     scheduler.pick_next_candidate                   │
-│       bans stuck approach_families (K=3 consec      │
+│       bans stuck approach_families (K=5 consec      │
 │       non-improving → ban for 5 iters)              │
 │       prefers candidates whose parents shipped      │
 │     if none ⇒ sdk.propose (new YAMLs written to     │

@@ -344,7 +344,7 @@ Set to `""` to use SDK default.
   (rolling reference) — so a candidate that adds on top of prior gains
   must improve from the LAST ship, not from the original baseline.
 - **Eval-component** runs once per new component, only when the family
-  iterating on that component plateaus (K=3 consecutive non-improving).
+  iterating on that component plateaus (K=5 consecutive non-improving).
   Takes 2–4h on the detector workspace; result is lagging audit, never
   gates.
 - **Overfit tripwire** fires every 5 ships: evaluates all shipped

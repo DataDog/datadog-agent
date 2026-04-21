@@ -65,13 +65,28 @@ def ensure_scratch_branch(
     """
     branches = _run(["branch", "--list", branch], root).stdout
     if branch not in branches:
-        # Fetch so origin/<upstream> is current, then branch from it.
+        # Fetch BOTH the upstream feature branch AND the remote copy of
+        # the scratch branch if it already exists on origin (created e.g.
+        # by a prior coordinator run or by a human opening the run-log
+        # PR). Preference order:
+        #   1. origin/<scratch>  — someone already pushed; track it so
+        #      `git push` later is a fast-forward, not a non-FF rejection.
+        #   2. origin/<upstream> — first-ever run, no remote scratch yet.
+        #   3. local <upstream>  — no remote at all (test repos).
+        #   4. current HEAD      — nothing else resolvable.
         fetch_upstream(root, remote=remote, branch=upstream)
+        _run(["fetch", remote, branch], root, check=False)
+        remote_scratch = f"{remote}/{branch}"
+        probe_remote_scratch = _run(
+            ["rev-parse", "--verify", remote_scratch], root, check=False
+        )
+        if probe_remote_scratch.returncode == 0:
+            # `-b branch remote_scratch` creates local tracking remote.
+            _run(["checkout", "-b", branch, remote_scratch], root)
+            # Ensure upstream tracking so `git push` with no args works too.
+            _run(["branch", "--set-upstream-to", remote_scratch, branch], root, check=False)
+            return
         upstream_ref = f"{remote}/{upstream}"
-        # Prefer origin/<upstream>, then local <upstream>, then current HEAD.
-        # The last fallback lets tests and fresh clones without an upstream
-        # configured still use the coordinator; in those cases `sync_from_
-        # upstream` no-ops until an upstream ref exists.
         probe_remote = _run(["rev-parse", "--verify", upstream_ref], root, check=False)
         if probe_remote.returncode == 0:
             _run(["checkout", "-b", branch, upstream_ref], root)

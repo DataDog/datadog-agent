@@ -24,8 +24,11 @@ from coordinator.seed_split import compute_sealed_hash, make_split
 def test_config_values():
     assert CONFIG.tau_default == 0.05
     assert CONFIG.plateau_patience == 5
-    assert CONFIG.stuck_threshold == 3
-    assert CONFIG.review_personas_phase1 == 2
+    # Raised from 3 per panel feedback — "competent humans grind 5-10
+    # iterations before giving up." K=3 cut off deep exploration.
+    assert CONFIG.stuck_threshold == 5
+    # Collapsed from 2 (Skeptic + Conservative) to 1 (hack_detector).
+    assert CONFIG.review_personas_phase1 == 1
     assert 0.5 in CONFIG.budget_milestones
     assert 0.8 in CONFIG.budget_milestones
 

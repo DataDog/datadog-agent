@@ -39,6 +39,22 @@ from .db import load_db, save_db
 from .schema import ScenarioResult
 
 
+def _prebuild_once() -> bool:
+    """Build testbench + scorer ONCE before the σ measurement loop.
+
+    Subsequent per-run calls skip rebuild (binaries match current code
+    state across all N runs; we're measuring variance of a fixed config,
+    not variance-of-rebuilds). Prevents the first run from using stale
+    binaries from whatever state the driver workspace was last in.
+    """
+    proc = subprocess.run(
+        ["dda", "inv", "q.build-testbench", "q.build-scorer"],
+        capture_output=True,
+        text=True,
+    )
+    return proc.returncode == 0
+
+
 def _run_baseline(detector: str, report_path: Path, scenario_output_dir: Path) -> bool:
     cmd = [
         "dda",
@@ -46,6 +62,9 @@ def _run_baseline(detector: str, report_path: Path, scenario_output_dir: Path) -
         "q.eval-scenarios",
         "--only",
         detector,
+        # --no-build is correct here: we're running the SAME binaries
+        # N times to measure output variance of a fixed config. The
+        # prebuild step above ensures those binaries match current code.
         "--no-build",
         "--main-report-path",
         str(report_path),
@@ -90,6 +109,11 @@ def main(argv: list[str] | None = None) -> int:
 
     tmp_root = Path(tempfile.mkdtemp(prefix="measure_sigma_"))
     print(f"writing intermediate reports to {tmp_root}")
+
+    print("building testbench + scorer once (subsequent runs skip rebuild)…")
+    if not _prebuild_once():
+        print("error: pre-build failed; aborting measurement", file=sys.stderr)
+        return 1
 
     for det in detectors:
         if det not in db.baseline.detectors:
