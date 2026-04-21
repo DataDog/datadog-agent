@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    Make the health platform component a required dependency in autodiscovery
+    and collector, replacing optional wrappers with a zero-dependency noop
+    module for commands that don't need health reporting.
