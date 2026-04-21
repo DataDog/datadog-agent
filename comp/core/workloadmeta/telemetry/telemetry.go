@@ -6,7 +6,10 @@
 // Package telemetry defines the telemetry for the Workloadmeta component.
 package telemetry
 
-import "github.com/DataDog/datadog-agent/pkg/telemetry"
+import (
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+)
 
 const subsystem = "workloadmeta"
 
@@ -15,97 +18,102 @@ var (
 	StatusSuccess = "success"
 	// StatusError is the value for the "status" tag that represents an error
 	StatusError = "error"
-
-	commonOpts = telemetry.Options{NoDoubleUnderscoreSep: true}
 )
 
 var (
 	// StoredEntities tracks how many entities are stored in the workloadmeta store.
-	StoredEntities = telemetry.NewGaugeWithOpts(
+	StoredEntities telemetry.Gauge
+	// Subscribers tracks the number of subscribers.
+	Subscribers telemetry.Gauge
+	// EventsReceived tracks the number of events received.
+	EventsReceived telemetry.Counter
+	// PullErrors tracks the number of errors that the workloadmeta received
+	// when pulling from the collectors.
+	PullErrors telemetry.Counter
+	// PullDuration measures the time that it takes to pull from the
+	// workloadmeta collectors.
+	PullDuration telemetry.Histogram
+	// NotificationsSent tracks the number of notifications sent from the
+	// workloadmeta store to its subscribers. Note that each notification can
+	// include multiple events.
+	NotificationsSent telemetry.Counter
+	// RemoteClientErrors tracks the number of errors on the remote workloadmeta
+	// client while receiving events.
+	RemoteClientErrors telemetry.Counter
+	// RemoteServerErrors track the number of errors on the remote workloadmeta
+	// server while streaming events.
+	RemoteServerErrors telemetry.Counter
+	// PendingEventBundles tracks the current number of event bundles pending to
+	// be handled by workloadmeta.
+	PendingEventBundles telemetry.Gauge
+)
+
+func init() {
+	comp := telemetryimpl.GetCompatComponent()
+	opts := telemetry.Options{NoDoubleUnderscoreSep: true}
+
+	StoredEntities = comp.NewGaugeWithOpts(
 		subsystem,
 		"stored_entities",
 		[]string{"kind", "source"},
 		"Number of entities in the store.",
-		commonOpts,
+		opts,
 	)
-
-	// Subscribers tracks the number of subscribers.
-	Subscribers = telemetry.NewGaugeWithOpts(
+	Subscribers = comp.NewGaugeWithOpts(
 		subsystem,
 		"subscribers",
 		[]string{},
 		"Number of subscribers.",
-		commonOpts,
+		opts,
 	)
-
-	// EventsReceived tracks the number of events received.
-	EventsReceived = telemetry.NewCounterWithOpts(
+	EventsReceived = comp.NewCounterWithOpts(
 		subsystem,
 		"events_received",
 		[]string{"kind", "source"},
 		"Number of events received by the workloadmeta store.",
-		commonOpts,
+		opts,
 	)
-
-	// PullErrors tracks the number of errors that the workloadmeta received
-	// when pulling from the collectors.
-	PullErrors = telemetry.NewCounterWithOpts(
+	PullErrors = comp.NewCounterWithOpts(
 		subsystem,
 		"pull_errors",
 		[]string{"collector_id"},
 		"Pulls by the workloadmeta to the collectors that returned an error",
-		commonOpts,
+		opts,
 	)
-
-	// PullDuration measures the time that it takes to pull from the
-	// workloadmeta collectors.
-	PullDuration = telemetry.NewHistogramWithOpts(
+	PullDuration = comp.NewHistogramWithOpts(
 		subsystem,
 		"pull_duration",
 		[]string{"collector_id"},
 		"The time it takes to pull from the collectors (in seconds)",
 		[]float64{0.25, 0.5, 0.75, 1, 2, 5, 10, 15, 30, 45, 60},
-		commonOpts,
+		opts,
 	)
-
-	// NotificationsSent tracks the number of notifications sent from the
-	// workloadmeta store to its subscribers. Note that each notification can
-	// include multiple events.
-	NotificationsSent = telemetry.NewCounterWithOpts(
+	NotificationsSent = comp.NewCounterWithOpts(
 		subsystem,
 		"notifications_sent",
 		[]string{"subscriber_name", "status"},
 		"Number of notifications sent by workloadmeta to its subscribers",
-		commonOpts,
+		opts,
 	)
-
-	// RemoteClientErrors tracks the number of errors on the remote workloadmeta
-	// client while receiving events.
-	RemoteClientErrors = telemetry.NewCounterWithOpts(
+	RemoteClientErrors = comp.NewCounterWithOpts(
 		subsystem,
 		"remote_client_errors",
 		[]string{"collector"},
 		"Number of errors on the remote workloadmeta client while receiving events",
-		commonOpts,
+		opts,
 	)
-
-	// RemoteServerErrors track the number of errors on the remote workloadmeta
-	// server while streaming events.
-	RemoteServerErrors = telemetry.NewCounterWithOpts(
+	RemoteServerErrors = comp.NewCounterWithOpts(
 		subsystem,
 		"remote_server_errors",
 		[]string{},
 		"Number of errors on the remote workloadmeta server while streaming events",
-		commonOpts,
+		opts,
 	)
-
-	// PendingEventBundles tracks the current number of event bundles pending to
-	// be handled by workloadmeta.
-	PendingEventBundles = telemetry.NewGaugeWithOpts(
+	PendingEventBundles = comp.NewGaugeWithOpts(
 		subsystem,
 		"pending_event_bundles",
 		[]string{},
 		"Number of event bundles pending to be handled by workloadmeta",
-		commonOpts,
+		opts,
 	)
-)
+}

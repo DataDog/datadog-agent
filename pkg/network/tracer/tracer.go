@@ -20,7 +20,8 @@ import (
 	"go.uber.org/atomic"
 	"go4.org/intern"
 
-	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
@@ -38,7 +39,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel/headers"
 	netnsutil "github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
@@ -64,17 +64,17 @@ const tracerModuleName = "network_tracer"
 // If we want to have a way to track the # of active TCP connections in the future we could use the procfs like here: https://github.com/DataDog/datadog-agent/pull/3728
 // to determine whether a connection is truly closed or not
 var tracerTelemetry = struct {
-	skippedConns         telemetry.Counter
-	expiredTCPConns      telemetry.Counter
-	closedConns          *telemetry.StatCounterWrapper
-	connStatsMapSize     telemetry.Gauge
-	payloadSizePerClient telemetry.Gauge
+	skippedConns         telemetryComponent.Counter
+	expiredTCPConns      telemetryComponent.Counter
+	closedConns          *telemetryComponent.StatCounterWrapper
+	connStatsMapSize     telemetryComponent.Gauge
+	payloadSizePerClient telemetryComponent.Gauge
 }{
-	telemetry.NewCounter(tracerModuleName, "skipped_conns", []string{"ip_proto"}, "Counter measuring skipped connections"),
-	telemetry.NewCounter(tracerModuleName, "expired_tcp_conns", []string{}, "Counter measuring expired TCP connections"),
-	telemetry.NewStatCounterWrapper(tracerModuleName, "closed_conns", []string{"ip_proto"}, "Counter measuring closed TCP connections"),
-	telemetry.NewGauge(tracerModuleName, "conn_stats_map_size", []string{}, "Gauge measuring the size of the active connections map"),
-	telemetry.NewGauge(tracerModuleName, "payload_conn_count", []string{"client_id", "ip_proto"}, "Gauge measuring the number of connections in the system-probe payload"),
+	telemetryimpl.GetCompatComponent().NewCounter(tracerModuleName, "skipped_conns", []string{"ip_proto"}, "Counter measuring skipped connections"),
+	telemetryimpl.GetCompatComponent().NewCounter(tracerModuleName, "expired_tcp_conns", []string{}, "Counter measuring expired TCP connections"),
+	telemetryComponent.NewStatCounterWrapper(telemetryimpl.GetCompatComponent(), tracerModuleName, "closed_conns", []string{"ip_proto"}, "Counter measuring closed TCP connections"),
+	telemetryimpl.GetCompatComponent().NewGauge(tracerModuleName, "conn_stats_map_size", []string{}, "Gauge measuring the size of the active connections map"),
+	telemetryimpl.GetCompatComponent().NewGauge(tracerModuleName, "payload_conn_count", []string{"client_id", "ip_proto"}, "Gauge measuring the number of connections in the system-probe payload"),
 }
 
 // Tracer implements the functionality of the network tracer
@@ -170,13 +170,13 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 	if err != nil {
 		return nil, err
 	}
-	telemetry.GetCompatComponent().RegisterCollector(tr.ebpfTracer)
+	telemetryimpl.GetCompatComponent().RegisterCollector(tr.ebpfTracer)
 
 	tr.conntracker, err = newConntracker(cfg, telemetryComponent)
 	if err != nil {
 		return nil, err
 	}
-	telemetry.GetCompatComponent().RegisterCollector(tr.conntracker)
+	telemetryimpl.GetCompatComponent().RegisterCollector(tr.conntracker)
 
 	if cfg.EnableGatewayLookup {
 		tr.gwLookup = network.NewGatewayLookup(cfg.GetRootNetNs, cfg.MaxTrackedConnections, telemetryComponent)
@@ -208,7 +208,7 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 		if tr.processCache, err = newProcessCache(cfg.MaxProcessesTracked); err != nil {
 			return nil, fmt.Errorf("could not create process cache; %w", err)
 		}
-		telemetry.GetCompatComponent().RegisterCollector(tr.processCache)
+		telemetryimpl.GetCompatComponent().RegisterCollector(tr.processCache)
 
 		if tr.timeResolver, err = ktime.NewResolver(); err != nil {
 			return nil, fmt.Errorf("could not create time resolver: %w", err)
@@ -412,7 +412,7 @@ func (t *Tracer) Stop() {
 	}
 	if t.ebpfTracer != nil {
 		t.ebpfTracer.Stop()
-		telemetry.GetCompatComponent().UnregisterCollector(t.ebpfTracer)
+		telemetryimpl.GetCompatComponent().UnregisterCollector(t.ebpfTracer)
 	}
 	if t.usmMonitor != nil {
 		t.usmMonitor.Stop()
@@ -422,12 +422,12 @@ func (t *Tracer) Stop() {
 	}
 	if t.conntracker != nil {
 		t.conntracker.Close()
-		telemetry.GetCompatComponent().UnregisterCollector(t.conntracker)
+		telemetryimpl.GetCompatComponent().UnregisterCollector(t.conntracker)
 	}
 	if t.processCache != nil {
 		events.UnregisterHandler(t.processCache)
 		t.processCache.Stop()
-		telemetry.GetCompatComponent().UnregisterCollector(t.processCache)
+		telemetryimpl.GetCompatComponent().UnregisterCollector(t.processCache)
 	}
 	if t.containerStore != nil {
 		events.UnregisterHandler(t.containerStore)

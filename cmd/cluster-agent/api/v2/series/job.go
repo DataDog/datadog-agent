@@ -13,8 +13,9 @@ import (
 	"time"
 
 	"github.com/DataDog/agent-payload/v5/gogen"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	loadstore "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/loadstore"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"golang.org/x/time/rate"
 	"k8s.io/client-go/util/workqueue"
@@ -29,7 +30,7 @@ const (
 var (
 	commonOpts = telemetry.Options{NoDoubleUnderscoreSep: true}
 
-	telemetryWorkloadEntities = telemetry.NewGaugeWithOpts(
+	telemetryWorkloadEntities = telemetryimpl.GetCompatComponent().NewGaugeWithOpts(
 		subsystem,
 		"store_load_entities",
 		[]string{"namespace", "deployment", "loadname"},
@@ -37,7 +38,7 @@ var (
 		commonOpts,
 	)
 
-	telemetryWorkloadJobQueueLength = telemetry.NewCounterWithOpts(
+	telemetryWorkloadJobQueueLength = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
 		subsystem,
 		"store_job_queue_length",
 		[]string{"status"},
