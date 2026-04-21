@@ -17,13 +17,14 @@ import (
 	"strconv"
 	"time"
 
+	"go.yaml.in/yaml/v2"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 	"github.com/DataDog/datadog-agent/pkg/snmp/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"go.yaml.in/yaml/v2"
 )
 
 var checkName = "network_config_management"
@@ -137,7 +138,14 @@ func NewNcmCheckContext(rawInstance integration.Data, rawInitConfig integration.
 	}
 
 	profileCache := &profile.Cache{}
-
+	if deviceInstance.Profile != "" {
+		profile, ok := profMap[deviceInstance.Profile]
+		if !ok {
+			return nil, fmt.Errorf("unknown profile for %s: %s", deviceInstance.IPAddress, deviceInstance.Profile)
+		}
+		profileCache.ProfileName = profile.Name
+		profileCache.Profile = profile
+	}
 	// Build the final context to send out
 	ncc := &NcmCheckContext{
 		Namespace:             initConfig.Namespace,

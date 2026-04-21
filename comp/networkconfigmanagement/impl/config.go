@@ -3,7 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-package networkdeviceconfigimpl
+//go:build ncm
+
+package networkconfigmanagementimpl
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
