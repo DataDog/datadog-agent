@@ -9,10 +9,14 @@ package processor
 
 import (
 	"bytes"
-	"encoding/json"
+	stdjson "encoding/json"
 	"sort"
 	"strings"
+
+	jsoniter "github.com/json-iterator/go"
 )
+
+var jsonAPI = jsoniter.Config{UseNumber: true}.Froze()
 
 // ExtractionResult contains the result of JSON preprocessing
 type ExtractionResult struct {
@@ -27,8 +31,9 @@ type ExtractionResult struct {
 	// Example: for {"level":"info","pid":1234,"service":"api"}, schema is "level,pid,service".
 	JSONContextSchema string
 	// JSONContextValues contains the leaf values corresponding to JSONContextSchema keys, in order.
-	// Nested objects/arrays are serialized as JSON strings.
-	JSONContextValues []string
+	// Primitive values preserve their JSON type. Nested objects/arrays are preserved as decoded
+	// map/slice values so the transport layer can encode them as raw JSON.
+	JSONContextValues []interface{}
 }
 
 // Common top-level message field names (Layer 0)
@@ -52,9 +57,7 @@ var nestedMessagePaths = []string{
 // Without UseNumber, integers larger than 2^53 (e.g. trace IDs, span IDs) silently
 // round-trip through float64 and lose precision.
 func unmarshalJSON(content []byte, v interface{}) error {
-	d := json.NewDecoder(bytes.NewReader(content))
-	d.UseNumber()
-	return d.Decode(v)
+	return jsonAPI.Unmarshal(content, v)
 }
 
 // PreprocessJSON attempts to extract a message field from JSON logs and serialize remaining fields.
@@ -91,7 +94,6 @@ func PreprocessJSON(content []byte) ExtractionResult {
 	}
 
 	// Schema-based encoding: extract sorted keys and leaf values.
-	// Nested objects/arrays are serialized as JSON strings in the values list.
 	schema, values := extractSchemaAndValues(data)
 
 	return ExtractionResult{
@@ -104,45 +106,38 @@ func PreprocessJSON(content []byte) ExtractionResult {
 }
 
 // extractSchemaAndValues extracts sorted keys and their corresponding values from a JSON map.
-// Primitive values (string, number, bool, null) are converted to strings.
-// Nested objects and arrays are serialized as JSON strings.
-func extractSchemaAndValues(data map[string]interface{}) (string, []string) {
+// Primitive values preserve their decoded JSON type. Nested objects and arrays are kept as decoded
+// map/slice values so later encoding can preserve them as raw JSON.
+func extractSchemaAndValues(data map[string]interface{}) (string, []interface{}) {
 	keys := make([]string, 0, len(data))
 	for k := range data {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 
-	values := make([]string, len(keys))
+	values := make([]interface{}, len(keys))
 	for i, k := range keys {
-		values[i] = valueToString(data[k])
+		values[i] = normalizeJSONValue(data[k])
 	}
 
 	return strings.Join(keys, ","), values
 }
 
-// valueToString converts a JSON value to its string representation.
-// Primitives are converted directly; objects and arrays are serialized as JSON.
-func valueToString(v interface{}) string {
+// normalizeJSONValue preserves primitive JSON types and keeps nested objects/arrays intact.
+func normalizeJSONValue(v interface{}) interface{} {
 	switch val := v.(type) {
 	case string:
 		return val
-	case json.Number:
-		return val.String()
+	case stdjson.Number:
+		return val
+	case float64:
+		return val
 	case bool:
-		if val {
-			return "true"
-		}
-		return "false"
+		return val
 	case nil:
-		return ""
+		return nil
 	default:
-		// Nested object or array — serialize as JSON
-		b, err := json.Marshal(val)
-		if err != nil {
-			return ""
-		}
-		return string(b)
+		return val
 	}
 }
 

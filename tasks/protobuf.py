@@ -11,15 +11,30 @@ from tasks.libs.common.git import get_unstaged_files, get_untracked_files
 
 PROTO_PKGS = {
     'trace': True,
+    'process': False,
+    'workloadmeta': False,
+    'kubemetadata': False,
+    'languagedetection': False,
+    'privateactionrunner': False,
+    'remoteagent': False,
+    'autodiscovery': False,
+    'trace/idx': False,
+    'workloadfilter': False,
+    'dogstatsdhttp': False,
+    'sbom': False,
+    'stateful': False,
 }
 
 # maybe put this in a separate function
 PKG_PLUGINS = {
     'trace': '--go-vtproto_out=',
+    'dogstatsdhttp': '--go-vtproto_out=',
+    'stateful': '--go-vtproto_out=',
 }
 
 PKG_CLI_EXTRAS = {
     'trace': '--go-vtproto_opt=features=marshal+unmarshal+size',
+    'stateful': '--go-vtproto_opt=features=marshal+unmarshal+size',
 }
 
 # protoc-go-inject-tag targets
