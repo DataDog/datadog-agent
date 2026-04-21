@@ -8,6 +8,7 @@ package rcprotocoltestimpl
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"path"
 	"strconv"
@@ -29,10 +30,10 @@ const messageTimeout = 5 * time.Minute
 type ALPNMode int
 
 const (
-	// ALPN_Default uses no ALPN protocol negotiation.
-	ALPN_Default ALPNMode = 0
-	// ALPN_DD_RC uses the dd-rc-v1 ALPN protocol.
-	ALPN_DD_RC ALPNMode = 1
+	// ALPNDefault uses no ALPN protocol negotiation.
+	ALPNDefault ALPNMode = 0
+	// ALPNDDRC uses the dd-rc-v1 ALPN protocol.
+	ALPNDDRC ALPNMode = 1
 )
 
 // alpnProtocolDDRC is the ALPN protocol identifier for Datadog Remote Config
@@ -41,7 +42,7 @@ const (
 const alpnProtocolDDRC = "dd-rc-v1"
 
 func runEchoLoopWithALPN(ctx context.Context, client *api.HTTPClient, runCount uint64) (uint, error) {
-	conn, err := newWebSocketClient(ctx, "/api/v0.2/echo-test", client, runCount, ALPN_DD_RC)
+	conn, err := newWebSocketClient(ctx, "/api/v0.2/echo-test", client, runCount, ALPNDDRC)
 	if err != nil {
 		return 0, err
 	}
@@ -96,7 +97,7 @@ func runEchoLoopWithALPN(ctx context.Context, client *api.HTTPClient, runCount u
 }
 
 func runEchoLoop(ctx context.Context, client *api.HTTPClient, runCount uint64) (uint, error) {
-	conn, err := newWebSocketClient(ctx, "/api/v0.2/echo-test", client, runCount, ALPN_Default)
+	conn, err := newWebSocketClient(ctx, "/api/v0.2/echo-test", client, runCount, ALPNDefault)
 	if err != nil {
 		return 0, err
 	}
@@ -186,8 +187,8 @@ func gracefulAbort(conn *websocket.Conn) {
 // The "endpointPath" specifies the resource path to connect to, which is
 // appended to the client baseURL.
 //
-// The "alpnMode" specifies the ALPN protocol mode. Use ALPN_Default for no ALPN
-// or ALPN_DD_RC for dd-rc-v1 ALPN protocol.
+// The "alpnMode" specifies the ALPN protocol mode. Use ALPNDefault for no ALPN
+// or ALPNDDRC for dd-rc-v1 ALPN protocol.
 func newWebSocketClient(ctx context.Context, endpointPath string, httpClient *api.HTTPClient, runCount uint64, alpnMode ALPNMode) (*websocket.Conn, error) {
 	// Extract the TLS & Proxy configuration from the HTTP client.
 	transport, err := httpClient.Transport()
@@ -204,10 +205,10 @@ func newWebSocketClient(ctx context.Context, endpointPath string, httpClient *ap
 	}
 
 	// Handle ALPN if requested.
-	if alpnMode == ALPN_DD_RC {
+	if alpnMode == ALPNDDRC {
 		// ALPN requires TLS, so this test cannot run with plain HTTP.
 		if strings.ToLower(url.Scheme) == "http" {
-			return nil, fmt.Errorf("ALPN websocket test requires TLS (remote_configuration.no_tls must be false)")
+			return nil, errors.New("ALPN websocket test requires TLS (remote_configuration.no_tls must be false)")
 		}
 
 		// Clone and configure TLS for ALPN.
@@ -238,9 +239,9 @@ func newWebSocketClient(ctx context.Context, endpointPath string, httpClient *ap
 		url.Scheme = "wss"
 	}
 
-	logMsg := fmt.Sprintf("connecting to websocket endpoint %s", url.String())
-	if alpnMode == ALPN_DD_RC {
-		logMsg += fmt.Sprintf(" with ALPN %s", alpnProtocolDDRC)
+	logMsg := "connecting to websocket endpoint " + url.String()
+	if alpnMode == ALPNDDRC {
+		logMsg += " with ALPN " + alpnProtocolDDRC
 	}
 	log.Debug(logMsg)
 
@@ -253,8 +254,8 @@ func newWebSocketClient(ctx context.Context, endpointPath string, httpClient *ap
 	_ = resp.Body.Close()
 
 	logMsg = "websocket connected"
-	if alpnMode == ALPN_DD_RC {
-		logMsg += fmt.Sprintf(" with ALPN %s", alpnProtocolDDRC)
+	if alpnMode == ALPNDDRC {
+		logMsg += " with ALPN " + alpnProtocolDDRC
 	}
 	log.Debug(logMsg)
 

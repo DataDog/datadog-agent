@@ -15,7 +15,7 @@ import (
 //
 // The actual ALPN protocol negotiation is tested end-to-end with real
 // backend servers that support the ALPN application protocol.
-func TestALPNFunctionsExist(t *testing.T) {
+func TestALPNFunctionsExist(_ *testing.T) {
 	_ = newWebSocketClient
 	_ = runEchoLoopWithALPN
 	_ = runWebSocketTestWithALPN

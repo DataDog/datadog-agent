@@ -294,7 +294,7 @@ func TestNewWebSocket(t *testing.T) {
 			client, err := api.NewHTTPClient(auth, agentConfig, url)
 			assert.NoError(err)
 
-			conn, err := newWebSocketClient(ctx, tt.path, client, 0, ALPN_Default)
+			conn, err := newWebSocketClient(ctx, tt.path, client, 0, ALPNDefault)
 			assert.NoError(err)
 			defer conn.Close()
 
@@ -376,7 +376,7 @@ func TestWebSocketTest_PING_PONG(t *testing.T) {
 	client, err := api.NewHTTPClient(api.Auth{}, agentConfig, url)
 	assert.NoError(err)
 
-	conn, err := newWebSocketClient(ctx, "/bananas", client, 1, ALPN_Default)
+	conn, err := newWebSocketClient(ctx, "/bananas", client, 1, ALPNDefault)
 	assert.NoError(err)
 	defer conn.Close()
 
