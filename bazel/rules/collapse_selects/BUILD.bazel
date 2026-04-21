@@ -1,0 +1,43 @@
+load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+# strip the leading _ solely meant to prevent `go mod tidy` from adding @gazelle deps to the root go.mod
+copy_file(
+    name = "gazelle_extension_src",
+    src = "_gazelle_extension.go",
+    out = "gazelle_extension.go",
+)
+
+copy_file(
+    name = "gazelle_extension_test_src",
+    src = "_gazelle_extension_test.go",
+    out = "gazelle_extension_test.go",
+)
+
+# prevent `bazel run //:gazelle` from removing @gazelle deps (reentrancy guard)
+# gazelle:ignore
+go_library(
+    name = "gazelle_extension",
+    srcs = [":gazelle_extension_src"],
+    importpath = "github.com/DataDog/datadog-agent/bazel/rules/collapse_selects",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@gazelle//language",
+        "@gazelle//rule",
+        # buildtools is a transitive dep of @gazelle//language; we need it directly
+        # for bzl.Expr types used to inspect and rewrite select() expressions.
+        # Declared in deps/go.MODULE.bazel with an alias to avoid clashing with
+        # the http_archive buildifier repository.
+        "@com_github_bazelbuild_buildtools_go//build",
+    ],
+)
+
+go_test(
+    name = "gazelle_extension_test",
+    srcs = [":gazelle_extension_test_src"],
+    embed = [":gazelle_extension"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
