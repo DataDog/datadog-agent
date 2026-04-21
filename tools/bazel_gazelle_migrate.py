@@ -1,21 +1,32 @@
 #!/usr/bin/env python3
 """
-Automates removing `# gazelle:exclude <path>` lines from BUILD.bazel one at a time,
-running gazelle + bazel tests, and committing or reverting each change.
+Automates migrating Go packages to Bazel management.
 
-When a full migration fails, falls back to a "shallow" migration: adds
-gazelle:exclude lines for all sub-directories so only the top-level
-BUILD.bazel is created, then retries. If that also fails, fully reverts.
+Reads target paths from a TODO file (one per line, optional [N] prefix).
+For each target:
+
+  DIRECT: path has its own # gazelle:exclude line in root BUILD.bazel.
+    → Remove it, run gazelle + tests. Revert on failure.
+
+  CARVEOUT: a parent path is excluded in root BUILD.bazel.
+    → Remove the parent exclude. Create <parent>/BUILD.bazel with
+      # gazelle:ignore + # gazelle:exclude <rel> for non-target subdirs
+      (minimal covering set so gazelle descends only into targets).
+      Run gazelle + tests. Revert all changes on failure.
+
+Only REMOVES lines from root BUILD.bazel — never adds new ones.
+Local BUILD.bazel files handle subdirectory excludes for carveouts.
+Stops when total changed BUILD.bazel file count reaches --max-files.
 
 Usage:
-    python3 tools/bazel_gazelle_migrate.py [options]
+    python3 tools/bazel_gazelle_migrate.py --todo /tmp/TODO [options]
 
 Options:
-    --prefix PREFIX     Only process excludes matching this prefix (default: pkg/util/)
-    --dry-run           Print what would happen without executing anything
-    --stop-on-failure   Halt on first test failure (default: continue to next path)
-    --test-targets      Space-separated bazel test targets
-                        (default: //pkg/trace/... //pkg/tagger/... //pkg/util/...)
+    --todo FILE         Path to TODO file (required)
+    --max-files N       Stop when N BUILD.bazel files have changed (default: 50)
+    --dry-run           Print what would happen without executing
+    --no-commit         Don't commit after each success
+    --test-targets T+   Bazel test targets (default: //cmd/... //comp/... //pkg/...)
 """
 
 import argparse
@@ -24,38 +35,28 @@ import subprocess
 import sys
 from pathlib import Path
 
-# REPO_ROOT = Path(__file__).resolve().parent.parent
 REPO_ROOT = Path(".")
 BUILD_BAZEL = REPO_ROOT / "BUILD.bazel"
 DEFAULT_TEST_TARGETS = ["//cmd/...", "//comp/...", "//pkg/..."]
+DEFAULT_MAX_FILES = 50
 
 
 def log(msg: str) -> None:
     print(msg, flush=True)
 
 
-def run(cmd: list[str], *, check: bool = True, capture: bool = False) -> subprocess.CompletedProcess:
-    kwargs = {"cwd": REPO_ROOT}
+def run(cmd: list[str], *, check: bool = False, capture: bool = False) -> subprocess.CompletedProcess:
+    kwargs: dict = {"cwd": REPO_ROOT}
     if capture:
         kwargs["capture_output"] = True
         kwargs["text"] = True
     return subprocess.run(cmd, check=check, **kwargs)
 
 
-def get_exclude_lines(prefix: str) -> list[tuple[int, str]]:
-    """Return list of (line_number_0based, path) for matching gazelle:exclude lines."""
-    pattern = re.compile(r"^# gazelle:exclude\s+(.+)$")
-    results = []
-    lines = BUILD_BAZEL.read_text().splitlines()
-    for i, line in enumerate(lines):
-        m = pattern.match(line.strip())
-        if m and m.group(1).startswith(prefix):
-            results.append((i, m.group(1).strip()))
-    return results
-
+# ── root BUILD.bazel management ───────────────────────────────────────────────
 
 def current_excludes() -> set[str]:
-    """Return the set of all currently excluded paths."""
+    """Return the set of all currently excluded paths from root BUILD.bazel."""
     pattern = re.compile(r"^# gazelle:exclude\s+(.+)$")
     result = set()
     for line in BUILD_BAZEL.read_text().splitlines():
@@ -65,114 +66,142 @@ def current_excludes() -> set[str]:
     return result
 
 
-def remove_exclude_line(path: str) -> None:
-    """Remove the gazelle:exclude line for the given path from BUILD.bazel."""
+def remove_all_excludes_under(prefix: str) -> None:
+    """Remove all # gazelle:exclude lines for prefix or any path under it."""
     text = BUILD_BAZEL.read_text()
-    target_line = f"# gazelle:exclude {path}"
-    lines = text.splitlines(keepends=True)
-    new_lines = [line for line in lines if line.rstrip() != target_line]
-    if len(new_lines) == len(lines):
-        raise ValueError(f"Line not found in BUILD.bazel: {target_line!r}")
-    BUILD_BAZEL.write_text("".join(new_lines))
-
-
-def add_exclude_line(path: str) -> None:
-    """Insert a gazelle:exclude line for the given path, keeping the block sorted."""
-    if path in current_excludes():
-        return  # already present
-    lines = BUILD_BAZEL.read_text().splitlines(keepends=True)
-    target_line = f"# gazelle:exclude {path}\n"
-    pattern = re.compile(r"^# gazelle:exclude\s+(.+)$")
-
-    insert_at = None
-    last_exclude = None
-    for i, line in enumerate(lines):
-        m = pattern.match(line.strip())
-        if m:
-            last_exclude = i
-            if m.group(1).strip() > path and insert_at is None:
-                insert_at = i
-
-    if insert_at is not None:
-        lines.insert(insert_at, target_line)
-    elif last_exclude is not None:
-        lines.insert(last_exclude + 1, target_line)
-    else:
-        lines.append(target_line)
-
+    lines = []
+    for line in text.splitlines(keepends=True):
+        s = line.strip()
+        if s.startswith("# gazelle:exclude "):
+            excluded = s.removeprefix("# gazelle:exclude ").strip()
+            if excluded == prefix or excluded.startswith(prefix + "/"):
+                continue
+        lines.append(line)
     BUILD_BAZEL.write_text("".join(lines))
 
 
-def restore_exclude_line(path: str) -> None:
-    """Re-insert the gazelle:exclude line for the given path, keeping the list sorted."""
-    add_exclude_line(path)
+def restore_exclude(path: str) -> None:
+    """Re-add a # gazelle:exclude line in sorted order."""
+    if path in current_excludes():
+        return
+    lines = BUILD_BAZEL.read_text().splitlines(keepends=True)
+    target = f"# gazelle:exclude {path}\n"
+    pat = re.compile(r"^# gazelle:exclude\s+(.+)$")
+    insert_at = last = None
+    for i, line in enumerate(lines):
+        m = pat.match(line.strip())
+        if m:
+            last = i
+            if m.group(1).strip() > path and insert_at is None:
+                insert_at = i
+    if insert_at is not None:
+        lines.insert(insert_at, target)
+    elif last is not None:
+        lines.insert(last + 1, target)
+    else:
+        lines.append(target)
+    BUILD_BAZEL.write_text("".join(lines))
 
 
-def remove_added_exclude_lines(paths: list[str]) -> None:
-    """Remove a set of previously-added exclude lines from BUILD.bazel."""
-    text = BUILD_BAZEL.read_text()
-    target_lines = {f"# gazelle:exclude {p}" for p in paths}
-    lines = text.splitlines(keepends=True)
-    BUILD_BAZEL.write_text("".join(line for line in lines if line.rstrip() not in target_lines))
-
-
-def get_subdirs(path: str) -> list[str]:
-    """Return relative paths of sub-directories under path that contain .go files.
-
-    We only need a gazelle:exclude for a sub-directory when gazelle would actually
-    generate a BUILD.bazel there — and gazelle only does that when .go files are
-    present. Excluding dirs without .go files is unnecessary noise.
-    """
-    abs_path = REPO_ROOT / path
-    if not abs_path.is_dir():
-        return []
-    result = []
-    for entry in sorted(abs_path.rglob("*")):
-        if entry.is_dir() and any(entry.glob("*.go")):
-            result.append(str(entry.relative_to(REPO_ROOT)))
-    return result
-
+# ── file tracking ─────────────────────────────────────────────────────────────
 
 def find_all_build_files() -> set[Path]:
-    """Return the set of all BUILD.bazel files currently on disk under REPO_ROOT."""
+    """Return the set of all BUILD.bazel files currently on disk."""
     return set(REPO_ROOT.rglob("BUILD.bazel"))
 
 
 def get_new_build_files(before: set[Path]) -> list[Path]:
-    """Return BUILD.bazel files that exist now but were not in `before`.
-
-    Using find-based diffing rather than git-status so that gitignored files
-    (e.g. those matched by personal ~/.gitignore patterns) are not missed.
-    """
+    """BUILD.bazel files that appeared since the `before` snapshot."""
     after = find_all_build_files()
     return sorted(after - before)
 
 
-def revert_gazelle_changes(new_files: list[Path]) -> None:
-    """Delete newly created BUILD.bazel files and revert any modifications gazelle
-    made to existing tracked files (e.g. updating deps in a sibling BUILD.bazel)."""
+def get_modified_tracked_build_files() -> set[str]:
+    """Repo-relative paths of tracked BUILD.bazel files with uncommitted changes."""
+    result = run(["git", "diff", "--name-only"], capture=True)
+    return {p.strip() for p in result.stdout.splitlines() if p.strip().endswith("BUILD.bazel")}
+
+
+def changed_build_file_count() -> int:
+    """Count BUILD.bazel files that differ from HEAD (new or modified)."""
+    result = run(["git", "status", "--porcelain"], capture=True)
+    count = 0
+    for line in result.stdout.splitlines():
+        parts = line.strip().split(None, 1)
+        if len(parts) == 2 and parts[1].endswith("BUILD.bazel"):
+            count += 1
+    return count
+
+
+def revert_gazelle_changes(
+    new_files: list[Path],
+    pre_existing_mods: set[str],
+) -> None:
+    """Delete newly created BUILD.bazel files and revert modifications to tracked
+    BUILD.bazel files introduced by this operation only.
+
+    pre_existing_mods: set of repo-relative BUILD.bazel paths that were already
+    modified before this operation started — those are NOT reverted here (they
+    belong to prior successful migrations and must be preserved).
+
+    Root BUILD.bazel is never touched here; callers manage it explicitly via
+    restore_exclude().
+    """
     for f in new_files:
         if f.exists():
             f.unlink()
             log(f"  deleted {f.relative_to(REPO_ROOT)}")
-    # Revert modifications to any tracked BUILD.bazel files
+
     result = run(["git", "diff", "--name-only"], capture=True)
-    modified = [p.strip() for p in result.stdout.splitlines() if p.strip().endswith("BUILD.bazel")]
-    if modified:
-        run(["git", "checkout", "--"] + modified)
-        for p in modified:
+    to_revert = [
+        p.strip() for p in result.stdout.splitlines()
+        if (p.strip().endswith("BUILD.bazel")
+            and p.strip() != "BUILD.bazel"          # root managed by caller
+            and p.strip() not in pre_existing_mods)  # skip prior successful ops
+    ]
+    if to_revert:
+        run(["git", "checkout", "--"] + to_revert)
+        for p in to_revert:
             log(f"  reverted {p}")
 
 
-# Keep a simple alias used by older call sites
-def delete_files(files: list[Path]) -> None:
-    revert_gazelle_changes(files)
+# ── minimal covering set ──────────────────────────────────────────────────────
 
+def _collect_excludes(prefix: str, abs_dir: Path, targets_rel: set[str], result: list[str]) -> None:
+    """Recursively collect the minimal set of relative paths to exclude.
+
+    Descends into directories that are targets or ancestors of targets;
+    appends everything else as a single exclude entry (one line covers the
+    whole subtree).
+    """
+    try:
+        entries = sorted(abs_dir.iterdir())
+    except PermissionError:
+        return
+    for entry in entries:
+        if not entry.is_dir():
+            continue
+        rel = f"{prefix}/{entry.name}" if prefix else entry.name
+        needed = any(t == rel or t.startswith(rel + "/") for t in targets_rel)
+        if needed:
+            _collect_excludes(rel, entry, targets_rel, result)
+        else:
+            result.append(rel)
+
+
+def get_minimal_excludes(parent_abs: Path, targets_rel: set[str]) -> list[str]:
+    """Return the minimal sorted list of relative-to-parent dirs to exclude."""
+    result: list[str] = []
+    _collect_excludes("", parent_abs, targets_rel, result)
+    return sorted(result)
+
+
+# ── gazelle + tests ───────────────────────────────────────────────────────────
 
 def run_gazelle() -> bool:
     """Run gazelle; return True on success."""
     log("  running: bazel run //:gazelle")
-    result = run(["bazel", "run", "//:gazelle"], check=False)
+    result = run(["bazel", "run", "//:gazelle"])
     if result.returncode != 0:
         log(f"  FAIL: gazelle exited with code {result.returncode}")
         return False
@@ -189,7 +218,6 @@ def run_tests(targets: list[str]) -> tuple[bool, str]:
         text=True,
     )
     output = result.stdout + result.stderr
-    # Echo output so the log file stays useful
     print(output, end="", flush=True)
     if result.returncode != 0:
         log(f"  FAIL: tests exited with code {result.returncode}")
@@ -198,63 +226,166 @@ def run_tests(targets: list[str]) -> tuple[bool, str]:
     return True, output
 
 
-def failing_packages_from_output(output: str, under_path: str | None = None) -> list[str]:
-    """Parse bazel test/build output and return failing package paths.
+_REPO_TOP_DIRS = {"pkg", "comp", "cmd", "tasks", "test", "tools", "bazel", "internal"}
 
-    If *under_path* is given, only packages that are children of (or equal to)
-    that path are returned — i.e. packages whose failures we might be able to
-    address by adding sub-directory excludes.
 
-    Pass ``None`` (the default) to return *all* failing packages regardless of
-    location; this is useful for detecting failures caused by packages outside
-    the subtree currently being migrated.
+def failing_packages_from_output(output: str) -> list[str]:
+    """Parse bazel output; return repo-relative failing package paths.
+
+    Filters to paths whose first component is a known top-level repo directory
+    to avoid false positives from absolute OS paths in error messages.
     """
-    under_prefix = (under_path.rstrip("/") + "/") if under_path else None
-    found: set[str] = set()
-
-    # Patterns that name a specific failing package path.
-    # All repo-relative package paths start with a lowercase letter (never '/'),
-    # so we use [a-z] as the first-character anchor instead of hard-coding 'pkg/'
-    # — this lets us catch failures in comp/, cmd/, tasks/, etc. as well.
-    #
-    # The BUILD-file path pattern uses a negative lookbehind (?<![/\w]) to
-    # prevent it from anchoring mid-string inside an absolute OS path like
-    # /Users/tony/ws/repo/pkg/foo/BUILD.bazel (which would otherwise match
-    # from 'sers/...' because .*? is non-greedy).
-    #
-    #   ERROR: pkg/util/foo/BUILD.bazel:3:11: ...
-    #   ERROR: no such package 'comp/core/log/impl': ...
-    #   GoCompilePkg comp/core/log/fx/foo.a failed
-    #   //comp/core/log/fx:fx_test  FAILED TO BUILD
     patterns = [
-        re.compile(r"ERROR:.*?(?<![/\w])([a-z][^\s'\":]+/BUILD\.bazel)"),  # path to a BUILD file
-        re.compile(r"no such package '([a-z][^']+)'"),  # missing package
-        re.compile(r"GoCompilePkg\s+([a-z][^\s]+)\.a\s+failed"),  # compile failure
-        re.compile(r"//([^:]+):[^\s]+\s+FAILED"),  # bazel target
+        re.compile(r"ERROR:.*?(?<![/\w])([a-z][^\s'\":]+/BUILD\.bazel)"),
+        re.compile(r"no such package '([a-z][^']+)'"),
+        re.compile(r"GoCompilePkg\s+([a-z][^\s]+)\.a\s+failed"),
+        re.compile(r"//([^:]+):[^\s]+\s+FAILED"),
     ]
-
+    found: set[str] = set()
     for line in output.splitlines():
         for pat in patterns:
             m = pat.search(line)
             if m:
                 raw = m.group(1)
-                # Normalise: strip trailing /BUILD.bazel
-                pkg_path = raw.removesuffix("/BUILD.bazel").removesuffix("BUILD.bazel").rstrip("/")
-                if under_prefix is None or pkg_path.startswith(under_prefix) or pkg_path == under_path:
-                    found.add(pkg_path)
-
+                pkg = raw.removesuffix("/BUILD.bazel").removesuffix("BUILD.bazel").rstrip("/")
+                top = pkg.split("/")[0]
+                if top in _REPO_TOP_DIRS:
+                    found.add(pkg)
     return sorted(found)
 
 
-def add(path: str, new_files: list[Path]) -> None:
-    for f in new_files:
-        run(["git", "add", str(f)])
+# ── per-entry migration ───────────────────────────────────────────────────────
+
+def migrate_direct(path: str, test_targets: list[str]) -> tuple[bool, str]:
+    """Remove the exact exclude line from root BUILD.bazel, run gazelle + tests."""
+    pre_mods = get_modified_tracked_build_files()
+    before = find_all_build_files()
+
+    remove_all_excludes_under(path)
+    log(f"  removed # gazelle:exclude {path} from BUILD.bazel")
+
+    if not run_gazelle():
+        revert_gazelle_changes(get_new_build_files(before), pre_mods)
+        restore_exclude(path)
+        return False, "gazelle failed"
+
+    new_files = get_new_build_files(before)
+    log(f"  gazelle created {len(new_files)} file(s)")
+
+    passed, output = run_tests(test_targets)
+    if passed:
+        return True, ""
+
+    revert_gazelle_changes(new_files, pre_mods)
+    restore_exclude(path)
+
+    if re.search(r"@@\[unknown repo|error loading package '@@", output):
+        return False, "external module conflict"
+    all_failing = failing_packages_from_output(output)
+    unrelated = [p for p in all_failing if p != path and not p.startswith(path.rstrip("/") + "/")]
+    if unrelated:
+        return False, f"blocked by: {', '.join(unrelated)}"
+    return False, "tests failed"
 
 
-def commit(path: str, new_files: list[Path]) -> None:
-    msg = f"migrate gazelle: {path}\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
-    # Retry once on index.lock races (can occur when a worktree in another
-    # directory holds the lock briefly).
+def migrate_carveout(parent: str, targets: list[str], test_targets: list[str]) -> dict[str, tuple[bool, str]]:
+    """Remove parent exclude from root BUILD.bazel; create local <parent>/BUILD.bazel
+    with # gazelle:ignore and # gazelle:exclude <rel> for all non-target subdirs.
+
+    On failure, all changes are reverted (root exclude restored, local BUILD.bazel
+    restored to its pre-operation state or deleted if it was newly created).
+    """
+    parent_abs = REPO_ROOT / parent
+    targets_rel = {t[len(parent) + 1:] for t in targets}
+
+    min_excludes = get_minimal_excludes(parent_abs, targets_rel)
+
+    local_build = parent_abs / "BUILD.bazel"
+    local_existed_before = local_build.exists()
+    old_local_content = local_build.read_text() if local_existed_before else None
+
+    # Snapshot state before we touch anything
+    pre_mods = get_modified_tracked_build_files()
+    before = find_all_build_files()
+
+    # Remove parent (and any child entries) from root BUILD.bazel
+    remove_all_excludes_under(parent)
+    log(f"  removed # gazelle:exclude {parent} (and children) from BUILD.bazel")
+
+    # Write the local BUILD.bazel with gazelle:ignore + minimal excludes
+    local_content = "# gazelle:ignore\n"
+    for rel in min_excludes:
+        local_content += f"# gazelle:exclude {rel}\n"
+    local_build.write_text(local_content)
+    log(f"  wrote {local_build.relative_to(REPO_ROOT)} ({len(min_excludes)} sub-dir excludes)")
+
+    def _undo() -> None:
+        """Revert all changes made by this carveout attempt."""
+        revert_gazelle_changes(get_new_build_files(before), pre_mods)
+        # Restore the local BUILD.bazel explicitly, because revert_gazelle_changes
+        # skips files that were already modified before this operation (pre_mods).
+        if local_existed_before:
+            local_build.write_text(old_local_content)
+            log(f"  restored {local_build.relative_to(REPO_ROOT)}")
+        elif local_build.exists():
+            local_build.unlink()
+            log(f"  deleted {local_build.relative_to(REPO_ROOT)}")
+        restore_exclude(parent)
+
+    if not run_gazelle():
+        _undo()
+        return {t: (False, "gazelle failed") for t in targets}
+
+    new_files = get_new_build_files(before)
+    log(f"  gazelle created {len(new_files)} file(s)")
+
+    passed, output = run_tests(test_targets)
+    if passed:
+        results = {}
+        for t in targets:
+            t_build = REPO_ROOT / t / "BUILD.bazel"
+            results[t] = (True, "") if t_build.exists() else (False, "no BUILD.bazel generated")
+        return results
+
+    _undo()
+
+    if re.search(r"@@\[unknown repo|error loading package '@@", output):
+        return {t: (False, "external module conflict") for t in targets}
+    all_failing = failing_packages_from_output(output)
+    unrelated = [
+        p for p in all_failing
+        if not any(p == t or p.startswith(t + "/") for t in targets)
+        and not p.startswith(parent + "/")
+    ]
+    if unrelated:
+        return {t: (False, f"blocked by: {', '.join(unrelated)}") for t in targets}
+    return {t: (False, "tests failed") for t in targets}
+
+
+# ── TODO file parsing ─────────────────────────────────────────────────────────
+
+def parse_todo(todo_file: str) -> list[str]:
+    """Parse TODO file; each non-empty line's last whitespace-delimited token is the path.
+
+    Handles both plain paths and lines with an optional [N] prefix like:
+        [  0]  pkg/some/path
+        pkg/other/path
+    """
+    paths = []
+    for line in open(todo_file):
+        line = line.strip()
+        if line:
+            paths.append(line.split()[-1])
+    return paths
+
+
+# ── commit ────────────────────────────────────────────────────────────────────
+
+def do_commit(description: str, new_files: list[Path]) -> None:
+    """Stage new BUILD.bazel files and commit all BUILD.bazel changes."""
+    if new_files:
+        run(["git", "add"] + [str(f) for f in new_files], check=True)
+    msg = f"migrate gazelle: {description}\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
     for attempt in range(3):
         result = subprocess.run(
             ["git", "commit", "-a", "-m", msg],
@@ -263,207 +394,141 @@ def commit(path: str, new_files: list[Path]) -> None:
             text=True,
         )
         if result.returncode == 0:
-            break
+            log(f"  committed: {description}")
+            return
         if "index.lock" in result.stderr and attempt < 2:
             import time
-
-            log("  git index.lock conflict, retrying in 3s...")
+            log("  git index.lock conflict, retrying in 3s…")
             time.sleep(3)
         else:
-            raise subprocess.CalledProcessError(result.returncode, ["git", "commit"], result.stdout, result.stderr)
-    log(f"  committed: migrate gazelle: {path}")
+            raise subprocess.CalledProcessError(
+                result.returncode, ["git", "commit"], result.stdout, result.stderr
+            )
 
 
-def try_migrate(path: str, test_targets: list[str]) -> tuple[bool, str]:
-    """
-    Attempt to migrate a single gazelle:exclude path.
-
-    Strategy:
-      1. Full migration: remove the exclude, run gazelle (creates BUILD files for
-         the whole subtree), run tests.
-      2. If that fails, shallow migration: add excludes for all sub-directories,
-         re-run gazelle (creates only the top-level BUILD.bazel), run tests.
-      3. If that also fails, fully revert everything.
-
-    Returns (success, reason_string).
-    """
-    existing_excludes = current_excludes()
-    build_files_before = find_all_build_files()
-
-    # --- Step 1: remove the exclude line ---
-    remove_exclude_line(path)
-    log("  removed line from BUILD.bazel")
-
-    # --- Step 2: run gazelle ---
-    if not run_gazelle():
-        new_files = get_new_build_files(build_files_before)
-        delete_files(new_files)
-        restore_exclude_line(path)
-        return False, "gazelle failed"
-
-    new_files = get_new_build_files(build_files_before)
-    if new_files:
-        log(f"  gazelle created {len(new_files)} file(s):")
-        for f in new_files:
-            log(f"    {f.relative_to(REPO_ROOT)}")
-    else:
-        log("  gazelle created no new BUILD.bazel files")
-
-    # --- Step 3: run tests ---
-    passed, test_output = run_tests(test_targets)
-    if passed:
-        add(path, new_files)
-        commit(path, new_files)
-        return True, ""
-
-    # --- Full migration failed; retry with targeted excludes ---
-    # Parse the output to find which specific sub-packages caused failures,
-    # then exclude only those rather than the entire subtree.
-    log("  full migration failed; identifying failing sub-packages to exclude")
-    delete_files(new_files)
-
-    # Check for stale external Bazel module errors (@@gazelle++go_deps+... repos
-    # that reference an unknown @rules_go).  These are not fixable by adding
-    # more gazelle:exclude lines — they require `bazel sync` or MODULE.bazel
-    # updates.  Detect them early so we don't emit a misleading BLOCKED message.
-    if re.search(r"@@\[unknown repo|error loading package '@@", test_output):
-        restore_exclude_line(path)
-        log("  BLOCKED: stale external Bazel module (@@gazelle++go_deps+ repo conflict)")
-        log("  This requires 'bazel sync' or MODULE.bazel updates — not a local package issue.")
-        return False, "external module conflict (stale gazelle dep repo)"
-
-    # Before attempting partial migration, check whether the failure is caused
-    # by packages *outside* the subtree we're migrating.  Those packages have
-    # no BUILD.bazel yet (still gazelle-excluded) and adding sub-dir excludes
-    # inside our package cannot fix that.  Fail fast with a clear message.
-    all_failing = failing_packages_from_output(test_output)
-    unrelated = [p for p in all_failing if p != path and not p.startswith(path.rstrip("/") + "/")]
-    if unrelated:
-        restore_exclude_line(path)
-        log("  BLOCKED: migration requires package(s) outside this subtree that have no BUILD.bazel yet:")
-        for p in unrelated:
-            log(f"    {p}")
-        log("  Migrate those packages first, then retry.")
-        return False, f"blocked by unmigrated dependency: {', '.join(unrelated)}"
-
-    targeted = failing_packages_from_output(test_output, path)
-    all_subdirs_with_go = get_subdirs(path)  # only dirs that have .go files
-
-    # Fall back to all subdirs if we couldn't identify specific failures
-    # (e.g. the failure is at the top-level package itself or a parse miss).
-    if not targeted:
-        targeted = all_subdirs_with_go
-        log("  could not identify specific failing packages; excluding all subdirs with .go files")
-    else:
-        log(f"  identified {len(targeted)} failing sub-package(s):")
-        for t in targeted:
-            log(f"    {t}")
-
-    newly_added_excludes = [d for d in targeted if d not in existing_excludes]
-
-    if not newly_added_excludes:
-        log("  no new sub-directories to exclude; reverting")
-        restore_exclude_line(path)
-        return False, "tests failed, nothing to exclude"
-
-    for d in newly_added_excludes:
-        add_exclude_line(d)
-
-    # Re-run gazelle with the targeted excludes in place
-    build_files_before_retry = find_all_build_files()
-    if not run_gazelle():
-        remove_added_exclude_lines(newly_added_excludes)
-        restore_exclude_line(path)
-        return False, "gazelle failed on targeted retry"
-
-    new_files = get_new_build_files(build_files_before_retry)
-    if new_files:
-        log(f"  gazelle created {len(new_files)} file(s) (targeted):")
-        for f in new_files:
-            log(f"    {f.relative_to(REPO_ROOT)}")
-    else:
-        log("  gazelle created no new BUILD.bazel files (targeted)")
-
-    passed, _ = run_tests(test_targets)
-    if passed:
-        commit(path, new_files)
-        return True, f"partial ({len(newly_added_excludes)} sub-dir(s) still excluded)"
-
-    # --- Targeted retry also failed; full revert ---
-    log("  targeted retry also failed; reverting everything")
-    delete_files(new_files)
-    remove_added_exclude_lines(newly_added_excludes)
-    restore_exclude_line(path)
-    return False, "tests failed even after targeted sub-dir excludes"
-
+# ── main ──────────────────────────────────────────────────────────────────────
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--prefix", default="pkg/util/", help="Path prefix to filter excludes (default: pkg/util/)")
-    parser.add_argument("--dry-run", action="store_true", help="Print actions without executing them")
-    parser.add_argument("--stop-on-failure", action="store_true", help="Stop on first test failure")
-    parser.add_argument(
-        "--test-targets",
-        nargs="+",
-        default=DEFAULT_TEST_TARGETS,
-        metavar="TARGET",
-        help="Bazel test targets to run after each migration",
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
+    parser.add_argument("--todo", required=True, metavar="FILE",
+                        help="Path to TODO file listing target package paths")
+    parser.add_argument("--max-files", type=int, default=DEFAULT_MAX_FILES, metavar="N",
+                        help=f"Stop when N BUILD.bazel files have changed (default: {DEFAULT_MAX_FILES})")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="Print what would happen without executing")
+    parser.add_argument("--no-commit", action="store_true",
+                        help="Don't commit after each successful migration")
+    parser.add_argument("--test-targets", nargs="+", default=DEFAULT_TEST_TARGETS, metavar="TARGET",
+                        help="Bazel test targets to run after each migration")
     args = parser.parse_args()
 
-    excludes = get_exclude_lines(args.prefix)
-    if not excludes:
-        log(f"No gazelle:exclude lines found with prefix {args.prefix!r}")
-        return 0
+    paths = parse_todo(args.todo)
+    excludes = current_excludes()
 
-    log(f"Found {len(excludes)} exclude(s) matching prefix {args.prefix!r}")
-    for _, path in excludes:
-        log(f"  {path}")
+    # Classify: direct (has own exclude line) vs under a parent exclude
+    parent_map: dict[str, list[str]] = {}
+    for p in paths:
+        if p not in excludes:
+            parts = p.split("/")
+            par = next(
+                ("/".join(parts[:i]) for i in range(len(parts) - 1, 0, -1)
+                 if "/".join(parts[:i]) in excludes),
+                None,
+            )
+            if par:
+                parent_map.setdefault(par, []).append(p)
+
+    n_direct = sum(1 for p in paths if p in excludes)
+    log(f"TODO: {len(paths)} entries  Direct: {n_direct}  Parent groups: {len(parent_map)}")
+    log(f"File limit: {args.max_files}  Current changed files: {changed_build_file_count()}")
     log("")
 
-    succeeded = []
-    failed = []
+    results: dict[str, tuple[bool, str]] = {}
+    processed_parents: set[str] = set()
 
-    for idx, (_, path) in enumerate(excludes):
-        # Re-read the list each iteration: the path may already be gone if it
-        # was a sub-directory that was added as an exclude during a previous
-        # shallow migration.
-        if path not in current_excludes():
-            log(f"[{idx + 1}/{len(excludes)}] Skipping {path} (already removed as part of a parent migration)")
+    def at_limit() -> bool:
+        count = changed_build_file_count()
+        if count >= args.max_files:
+            log(f"\n*** Reached {count} changed BUILD.bazel files — stopping. ***")
+            return True
+        return False
+
+    for path in paths:
+        if at_limit():
+            break
+
+        if path in excludes:
+            # ── DIRECT ──────────────────────────────────────────────────────
+            log(f">>> DIRECT: {path}")
+            if args.dry_run:
+                log("  [dry-run] would remove exclude and run gazelle + tests")
+                log("")
+                continue
+
+            before = find_all_build_files()
+            ok, reason = migrate_direct(path, args.test_targets)
+            results[path] = (ok, reason)
+            log("  " + ("PASS" if ok else f"FAIL: {reason}"))
+            if ok:
+                if not args.no_commit:
+                    do_commit(path, get_new_build_files(before))
+                excludes = current_excludes()
             log("")
-            continue
 
-        log(f"[{idx + 1}/{len(excludes)}] Processing: {path}")
-
-        if args.dry_run:
-            log("  [dry-run] would attempt full migration, then targeted partial migration")
-            log("")
-            continue
-
-        success, reason = try_migrate(path, args.test_targets)
-        if success:
-            succeeded.append((path, reason))
         else:
-            failed.append((path, reason))
-            if args.stop_on_failure:
-                break
+            # ── CARVEOUT ────────────────────────────────────────────────────
+            parts = path.split("/")
+            par = next(
+                ("/".join(parts[:i]) for i in range(len(parts) - 1, 0, -1)
+                 if "/".join(parts[:i]) in excludes),
+                None,
+            )
+            if par is None:
+                if path not in results:
+                    results[path] = (False, "no matching exclude found")
+                continue
+            if par in processed_parents:
+                continue
 
-        log("")
+            targets = parent_map[par]
+            log(f">>> CARVEOUT: {par}  targets={targets}")
+            if args.dry_run:
+                log(f"  [dry-run] would remove {par} exclude, create local BUILD.bazel, run gazelle + tests")
+                log("")
+                processed_parents.add(par)
+                continue
 
-    # Summary
+            before = find_all_build_files()
+            group = migrate_carveout(par, targets, args.test_targets)
+            for t, (ok, reason) in group.items():
+                results[t] = (ok, reason)
+                log(f"  {'PASS' if ok else 'FAIL: ' + reason}  {t}")
+
+            if any(ok for ok, _ in group.values()):
+                if not args.no_commit:
+                    do_commit(par, get_new_build_files(before))
+                excludes = current_excludes()
+            processed_parents.add(par)
+            log("")
+
+    # ── Summary ───────────────────────────────────────────────────────────────
     log("=" * 60)
-    log(f"SUMMARY: {len(succeeded)} succeeded, {len(failed)} failed")
-    if succeeded:
-        log("\nSucceeded:")
-        for p, note in succeeded:
-            suffix = f"  [{note}]" if note else ""
-            log(f"  + {p}{suffix}")
-    if failed:
-        log("\nFailed:")
-        for p, reason in failed:
-            log(f"  - {p}  ({reason})")
+    ok_list = [p for p, (ok, _) in results.items() if ok]
+    fail_list = [(p, r) for p, (ok, r) in results.items() if not ok]
+    log(f"SUMMARY: {len(ok_list)} succeeded, {len(fail_list)} failed")
+    if ok_list:
+        log("Succeeded:")
+        for p in ok_list:
+            log(f"  + {p}")
+    if fail_list:
+        log("Failed:")
+        for p, r in fail_list:
+            log(f"  - {p}  ({r})")
+    log(f"\nChanged BUILD.bazel files: {changed_build_file_count()}")
 
-    return 0 if not failed else 1
+    return 0 if not fail_list else 1
 
 
 if __name__ == "__main__":
