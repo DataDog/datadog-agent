@@ -217,10 +217,15 @@ build do
                 # before the parallel batch.  If securityd or the keychain is
                 # in a bad state this will fail fast (seconds) instead of
                 # burning ~90 minutes retrying hundreds of files.
+                #
+                # Uses `find ... -print -quit` (not `| head -1`): under
+                # `pipefail`, piping to `head` makes `find` exit 141 on SIGPIPE
+                # once `head` closes its stdin, which reliably fails the
+                # healthcheck even when codesign itself succeeds.
                 hardened_runtime = "-o runtime --entitlements #{entitlements_file} "
                 command <<-SH.gsub(/^ {20}/, ""), cwd: Dir.pwd
                     set -euo pipefail
-                    test_file=$(find #{install_dir} -type f -perm +111 ! -path '*/Datadog Agent.app/*' -print | head -1)
+                    test_file=$(find #{install_dir} -type f -perm +111 ! -path '*/Datadog Agent.app/*' -print -quit)
                     if [ -n "$test_file" ]; then
                         echo "Signing healthcheck: codesigning $test_file"
                         codesign #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' "$test_file"
