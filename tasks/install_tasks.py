@@ -127,4 +127,4 @@ def install_devcontainer_cli(ctx):
     """
     Install the devcontainer CLI
     """
-    ctx.run("npm install -g @devcontainers/cli")
+    ctx.run("npm install -g @devcontainers/cli@0.86.0")
