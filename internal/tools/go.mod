@@ -13,8 +13,8 @@ require (
 	github.com/uber-go/gopatch v0.4.0
 	github.com/vektra/mockery/v3 v3.6.3
 	github.com/wadey/gocovmerge v0.0.0-20160331181800-b5bfa59ec0ad
-	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
-	golang.org/x/perf v0.0.0-20210220033136-40a54f11e909
+	golang.org/x/mobile v0.0.0-20231127183840-76ac6878050a
+	golang.org/x/perf v0.0.0-20250909190841-7e13e04d9366
 	gotest.tools/gotestsum v1.12.3
 )
 
@@ -45,6 +45,7 @@ require (
 	github.com/MirrexOne/unqueryvet v1.5.3 // indirect
 	github.com/OpenPeeDeeP/depguard/v2 v2.2.1 // indirect
 	github.com/ProtonMail/go-crypto v1.3.0 // indirect
+	github.com/aclements/go-moremath v0.0.0-20210112150236-f10218a38794 // indirect
 	github.com/alecthomas/chroma/v2 v2.23.1 // indirect
 	github.com/alecthomas/go-check-sumtype v0.3.1 // indirect
 	github.com/alexkohler/nakedret/v2 v2.0.6 // indirect
@@ -206,7 +207,7 @@ require (
 	github.com/pkg/diff v0.0.0-20210226163009-20ebb0f2a09e // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	github.com/prometheus/client_golang v1.23.2 // indirect
+	github.com/prometheus/client_golang v1.23.3-0.20251103151724-a5ae20370e5e // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.67.5 // indirect
 	github.com/prometheus/procfs v0.20.1 // indirect

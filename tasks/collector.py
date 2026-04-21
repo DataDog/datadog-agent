@@ -519,10 +519,6 @@ class CollectorVersionUpdater:
 
     def update_ocb_yaml(self):
         update_versions_in_ocb_yaml(
-            "./test/otel/testdata/builder-config.yaml",
-            self.modules_version,
-        )
-        update_versions_in_ocb_yaml(
             MANIFEST_FILE,
             self.modules_version,
         )
@@ -532,7 +528,6 @@ class CollectorVersionUpdater:
             MANIFEST_FILE,
             "./comp/otelcol/collector/impl/collector.go",
             "./.gitlab/test/integration_test/otel.yml",
-            "./test/otel/testdata/ocb_build_script.sh",
         ]
         collector_version = self.core_collector.get_version()[1:]
         contrib_version = self.contrib_collector.get_version()[1:]

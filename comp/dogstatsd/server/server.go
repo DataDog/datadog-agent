@@ -557,7 +557,7 @@ func (s *server) handleMessages() {
 	}
 
 	if s.offlineReporter != nil {
-		s.offlineReporter.SendOfflineDuration("datadog.dogstatsd.offline_duration", nil)
+		s.offlineReporter.SendOfflineDuration("datadog.agent.dogstatsd.offline_duration_seconds", nil)
 	}
 
 	// create and start all the workers
