@@ -11,7 +11,7 @@ RUN tar xzvf golang.tgz
 RUN ln -s /go /goroot
 
 # Install go-delve
-RUN /go/bin/go install github.com/go-delve/delve/cmd/dlv@latest
+RUN /go/bin/go install github.com/go-delve/delve/cmd/dlv@v1.26.0
 
 # Install datadog-agent-dbg at the right version
 RUN apt-get install -o Dpkg::Options::="--force-confold" --no-install-recommends -y gnupg dirmngr ca-certificates \
