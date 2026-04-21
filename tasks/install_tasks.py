@@ -118,7 +118,7 @@ def install_rust_license_tool(ctx):
     Install dd-rust-license-tool and cargo-deny for Rust license verification.
     Required to run the lint-rust-licenses task.
     """
-    ctx.run("cargo install --git https://github.com/DataDog/rust-license-tool dd-rust-license-tool")
+    ctx.run("cargo install dd-rust-license-tool@1.0.6 --locked")
     ctx.run("cargo install cargo-deny --locked")
 
 
