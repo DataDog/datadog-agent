@@ -7,7 +7,7 @@
 package fx
 
 import (
-	healthplatformimpl "github.com/DataDog/datadog-agent/comp/healthplatform/impl"
+	healthplatformnoopimpl "github.com/DataDog/datadog-agent/comp/healthplatform/noop-impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -15,7 +15,7 @@ import (
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(
-			healthplatformimpl.NewNoopComponent,
+			healthplatformnoopimpl.NewComponent,
 		),
 	)
 }
