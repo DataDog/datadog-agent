@@ -8,7 +8,10 @@
 // Package service provides service manager utilities
 package service
 
-import "os/exec"
+import (
+	"os"
+	"os/exec"
+)
 
 // Type is the service manager type
 type Type string
@@ -22,6 +25,8 @@ const (
 	UpstartType Type = "upstart"
 	// SystemdType is returned when the service manager is systemd
 	SystemdType Type = "systemd"
+	// ContainerType is returned when running in a container without init system
+	ContainerType Type = "container"
 )
 
 var cachedServiceManagerType *Type
@@ -37,17 +42,32 @@ func GetServiceManagerType() Type {
 }
 
 func getServiceManagerType() Type {
-	_, err := exec.LookPath("systemctl")
-	if err == nil {
+	// Check if systemd is actually running (not just installed)
+	if _, err := os.Stat("/run/systemd/system"); err == nil {
 		return SystemdType
 	}
-	_, err = exec.LookPath("initctl")
+
+	// Check for upstart
+	_, err := exec.LookPath("initctl")
 	if err == nil {
 		return UpstartType
 	}
+
+	// Check for sysvinit
 	_, err = exec.LookPath("update-rc.d")
 	if err == nil {
 		return SysvinitType
 	}
+
+	// Check if running in a containerized environment without init system
+	// Check for DOCKER_DD_AGENT env var (set in official Datadog Docker images)
+	if os.Getenv("DOCKER_DD_AGENT") != "" {
+		return ContainerType
+	}
+	// Check for /.dockerenv file (typically only set by Docker)
+	if _, err := os.Stat("/.dockerenv"); err == nil {
+		return ContainerType
+	}
+
 	return UnknownType
 }
