@@ -1,0 +1,9 @@
+[tool.pytest.ini_options]
+# Scope pytest to this directory and put the parent (tasks/) on the
+# path so `coordinator` resolves as a top-level package. This skips
+# the heavyweight tasks/__init__.py that imports invoke + dda toolchain.
+pythonpath = [".."]
+testpaths = ["tests"]
+# importlib mode avoids pytest treating the test dir as a subpackage
+# of the parent `tasks` package.
+addopts = "--import-mode=importlib"
