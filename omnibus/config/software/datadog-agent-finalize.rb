@@ -203,12 +203,36 @@ build do
             command "dda inv -- omnibus.rpath-edit #{install_dir} #{install_dir} --platform=macos", cwd: Dir.pwd
 
             if code_signing_identity
+                # Re-unlock the keychain right before signing.  The keychain
+                # may have been auto-locked if the build took longer than the
+                # previous timeout, or securityd may have dropped state.  This
+                # is a no-op when the keychain is already unlocked.
+                keychain_name = ENV['KEYCHAIN_NAME']
+                keychain_pwd  = ENV['KEYCHAIN_PWD']
+                if keychain_name && keychain_pwd && !keychain_pwd.empty?
+                    command "security unlock-keychain -p \"$KEYCHAIN_PWD\" \"$KEYCHAIN_NAME\"", cwd: Dir.pwd
+                end
+
+                # Signing healthcheck: attempt a single codesign operation
+                # before the parallel batch.  If securityd or the keychain is
+                # in a bad state this will fail fast (seconds) instead of
+                # burning ~90 minutes retrying hundreds of files.
+                hardened_runtime = "-o runtime --entitlements #{entitlements_file} "
+                command <<-SH.gsub(/^ {20}/, ""), cwd: Dir.pwd
+                    set -euo pipefail
+                    test_file=$(find #{install_dir} -type f -perm +111 ! -path '*/Datadog Agent.app/*' -print | head -1)
+                    if [ -n "$test_file" ]; then
+                        echo "Signing healthcheck: codesigning $test_file"
+                        codesign #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' "$test_file"
+                        echo "Signing healthcheck passed"
+                    fi
+                SH
+
                 # Sometimes the timestamp service is not available, so we retry
                 codesign = "../tools/ci/retry.sh codesign"
                 app = "'#{install_dir}/Datadog Agent.app'"
 
                 # Codesign ~480 files (out of ~28000)
-                hardened_runtime = "-o runtime --entitlements #{entitlements_file} "
                 command <<-SH.gsub(/^ {20}/, ""), cwd: Dir.pwd
                     set -euo pipefail
                     (
