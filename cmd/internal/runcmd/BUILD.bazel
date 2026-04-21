@@ -15,6 +15,7 @@ go_test(
     name = "runcmd_test",
     srcs = ["runcmd_test.go"],
     embed = [":runcmd"],
+    gotags = ["test"],
     deps = [
         "@com_github_spf13_cobra//:cobra",
         "@com_github_stretchr_testify//require",
