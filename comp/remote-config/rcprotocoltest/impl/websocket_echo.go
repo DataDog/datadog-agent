@@ -42,7 +42,12 @@ const (
 const alpnProtocolDDRC = "dd-rc-v1"
 
 func runEchoLoop(ctx context.Context, client *api.HTTPClient, runCount uint64, alpnMode ALPNMode) (uint, error) {
-	conn, err := newWebSocketClient(ctx, "/api/v0.2/echo-test", client, runCount, alpnMode)
+	endpointPath := "/api/v0.2/echo-test"
+	if alpnMode == ALPNDDRC {
+		endpointPath = "/api/v0.2/echo-test-alpn"
+	}
+
+	conn, err := newWebSocketClient(ctx, endpointPath, client, runCount, alpnMode)
 	if err != nil {
 		return 0, err
 	}
