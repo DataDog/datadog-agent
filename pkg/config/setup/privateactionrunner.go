@@ -78,10 +78,10 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	// the backend-injected lists. When unset, the agent forwards the
 	// backend list unchanged (pass-through). When set to a non-empty list,
 	// the runtime takes the intersection. An explicit empty list blocks
-	// all access on its axis. Use IsConfigured to distinguish unset from
-	// empty, and avoid BindEnvAndSetDefault so the empty-vs-unset
-	// distinction survives.
-	config.BindEnv(PARRestrictedShellAllowedPaths) //nolint:forbidigo // intentional: no default so IsConfigured can detect unset
+	// all access on its axis. The []string{} default keeps IsConfigured
+	// false when the user has not set the key, so the pass-through vs.
+	// explicit-empty distinction is preserved.
+	config.BindEnvAndSetDefault(PARRestrictedShellAllowedPaths, []string{})
 	config.ParseEnvAsStringSlice(PARRestrictedShellAllowedPaths, func(s string) []string {
 		if s == "" {
 			return nil
@@ -89,7 +89,7 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 		return strings.Split(s, ",")
 	})
 
-	config.BindEnv(PARRestrictedShellAllowedCommands) //nolint:forbidigo // intentional: no default so IsConfigured can detect unset
+	config.BindEnvAndSetDefault(PARRestrictedShellAllowedCommands, []string{})
 	config.ParseEnvAsStringSlice(PARRestrictedShellAllowedCommands, func(s string) []string {
 		if s == "" {
 			return nil
