@@ -142,8 +142,13 @@ async fn accept_loop(
 ) -> Result<()> {
     loop {
         if let Err(e) = server.connect().await {
+            let msg = format!(
+                "named pipe accept failed on {}: {}",
+                pipe_name.to_string_lossy(),
+                e
+            );
             let _ = tx.send(Err(e)).await;
-            anyhow::bail!("named pipe accept failed");
+            anyhow::bail!(msg);
         }
 
         let connected = server;
@@ -171,7 +176,7 @@ pub async fn connect(path: &Path) -> Result<tonic::transport::Channel> {
             async move { open_pipe_with_retry(&name).await }
         }))
         .await
-        .context("failed to connect to named pipe")?;
+        .with_context(|| format!("failed to connect to named pipe {}", path.display()))?;
     Ok(channel)
 }
 
