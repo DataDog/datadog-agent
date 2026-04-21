@@ -14,15 +14,16 @@ import (
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 )
 
 var (
-	apiRequests = telemetry.NewCounterWithOpts("", "api_requests",
+	apiRequests = telemetryimpl.GetCompatComponent().NewCounterWithOpts("", "api_requests",
 		[]string{"handler", "status", "forwarded"}, "Counter of requests made to the cluster agent API.",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 
-	apiElapsed = telemetry.NewHistogramWithOpts("", "api_elapsed",
+	apiElapsed = telemetryimpl.GetCompatComponent().NewHistogramWithOpts("", "api_elapsed",
 		[]string{"handler", "status", "forwarded"}, "Poll duration distribution by config provider (in seconds).",
 		prometheus.DefBuckets,
 		telemetry.Options{NoDoubleUnderscoreSep: true})

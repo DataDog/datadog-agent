@@ -10,8 +10,8 @@ package uprobes
 import (
 	"sync"
 
-	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
-	telemetryNoop "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryNoop "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 )
 
 const uprobeAttacherTelemetrySubsystem = "uprobe_attacher"
