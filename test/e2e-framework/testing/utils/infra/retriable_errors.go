@@ -86,5 +86,15 @@ func getKnownErrors() []knownError {
 			retryType:    ReCreate,
 			maxRetry:     stackUpMaxRetry,
 		},
+		{
+			errorMessage: `azure-native:containerservice:ManagedCluster .* \*\*creating failed\*\*`,
+			retryType:    ReCreate,
+			maxRetry:     stackUpMaxRetry,
+		},
+		{
+			errorMessage: `Helm release "datadog/dda-linux" failed to initialize completely`,
+			retryType:    ReCreate,
+			maxRetry:     stackUpMaxRetry,
+		},
 	}
 }
