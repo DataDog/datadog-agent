@@ -61,12 +61,14 @@ func (s *parK8sSuite) BeforeTest(suiteName, testName string) {
 
 // TestRshellHappyFlow verifies PAR can execute a simple rshell command that reads the
 // planted test file. allowedCommands must include "rshell:cat" because rshell blocks
-// all commands unless explicitly listed.
+// all commands unless explicitly listed. allowedPaths must explicitly include the
+// target file because a nil backend allowedPaths blocks all path access.
 func (s *parK8sSuite) TestRshellHappyFlow() {
 	taskID := uuid.New().String()
 	err := s.Env().FakeIntake.Client().EnqueuePARTask(taskID, runCommandAction, map[string]interface{}{
 		"command":         "cat " + testDataFile,
 		"allowedCommands": []string{"rshell:cat"},
+		"allowedPaths":    []string{testDataFile},
 	})
 	s.Require().NoError(err)
 
