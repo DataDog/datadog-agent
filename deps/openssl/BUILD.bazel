@@ -1,1 +1,16 @@
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
+
 package(default_visibility = ["//visibility:public"])
+
+sh_test(
+    name = "check_no_sandbox_paths",
+    srcs = ["check_no_sandbox_paths.sh"],
+    data = [
+        "@openssl//:libcrypto_shared_file",
+        "@openssl//:libssl_shared_file",
+    ],
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
+)
