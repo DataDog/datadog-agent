@@ -544,7 +544,7 @@ require (
 	github.com/containerd/errdefs/pkg v0.3.0 // indirect
 	github.com/containerd/fifo v1.1.0 // indirect
 	github.com/containerd/log v0.1.0 // indirect
-	github.com/containerd/platforms v1.0.0-rc.1 // indirect
+	github.com/containerd/platforms v1.0.0-rc.2 // indirect
 	github.com/containerd/stargz-snapshotter/estargz v0.18.1 // indirect
 	github.com/containerd/ttrpc v1.2.7 // indirect
 	github.com/containernetworking/plugins v1.4.1 // indirect
@@ -770,7 +770,7 @@ require (
 	github.com/prometheus/prometheus v0.311.2-0.20260410083055-07c6232d159b // indirect
 	github.com/prometheus/sigv4 v0.4.1 // indirect
 	github.com/puzpuzpuz/xsync/v3 v3.5.1 // indirect
-	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
+	github.com/rcrowley/go-metrics v0.0.0-20250401214520-65e299d6c5c9 // indirect
 	github.com/richardartoul/molecule v1.0.1-0.20240531184615-7ca0df43c0b3 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
@@ -1044,6 +1044,7 @@ require (
 	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/ProtonMail/gopenpgp/v3 v3.2.1 // indirect
 	github.com/VictoriaMetrics/easyproto v0.1.4 // indirect
+	github.com/agnivade/levenshtein v1.2.1 // indirect
 	github.com/aliyun/alibaba-cloud-sdk-go v1.63.107 // indirect
 	github.com/armon/go-radix v1.0.0 // indirect
 	github.com/aws/aws-sdk-go v1.55.8 // indirect
@@ -1061,7 +1062,7 @@ require (
 	github.com/coreos/etcd v3.3.27+incompatible // indirect
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf // indirect
 	github.com/coreos/pkg v0.0.0-20220810130054-c7d1c02cb6cf // indirect
-	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0 // indirect
+	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0 // indirect
 	github.com/denverdino/aliyungo v0.0.0-20190125010748-a747050bb1ba // indirect
 	github.com/dgryski/go-minhash v0.0.0-20190315135803-ad340ca03076 // indirect
 	github.com/dimchansky/utfbom v1.1.1 // indirect
@@ -1153,11 +1154,16 @@ require (
 	github.com/kelseyhightower/envconfig v1.4.0 // indirect
 	github.com/kevinburke/ssh_config v1.2.0 // indirect
 	github.com/lestrrat-go/backoff/v2 v2.0.8 // indirect
-	github.com/lestrrat-go/blackmagic v1.0.2 // indirect
+	github.com/lestrrat-go/blackmagic v1.0.4 // indirect
+	github.com/lestrrat-go/dsig v1.0.0 // indirect
+	github.com/lestrrat-go/dsig-secp256k1 v1.0.0 // indirect
 	github.com/lestrrat-go/httpcc v1.0.1 // indirect
+	github.com/lestrrat-go/httprc/v3 v3.0.1 // indirect
 	github.com/lestrrat-go/iter v1.0.2 // indirect
 	github.com/lestrrat-go/jwx v1.2.29 // indirect
+	github.com/lestrrat-go/jwx/v3 v3.0.12 // indirect
 	github.com/lestrrat-go/option v1.0.1 // indirect
+	github.com/lestrrat-go/option/v2 v2.0.0 // indirect
 	github.com/linkdata/deadlock v0.5.5 // indirect
 	github.com/mattn/go-zglob v0.0.2-0.20191112051448-a8912a37f9e7 // indirect
 	github.com/minio/simdjson-go v0.4.5 // indirect
@@ -1190,7 +1196,7 @@ require (
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/ryanuber/go-glob v1.0.0 // indirect
 	github.com/sasha-s/go-deadlock v0.3.5 // indirect
-	github.com/segmentio/asm v1.2.0 // indirect
+	github.com/segmentio/asm v1.2.1 // indirect
 	github.com/segmentio/encoding v0.5.4 // indirect
 	github.com/segmentio/fasthash v1.0.3 // indirect
 	github.com/sergi/go-diff v1.4.0 // indirect
@@ -1204,6 +1210,7 @@ require (
 	github.com/tink-crypto/tink-go/v2 v2.4.0 // indirect
 	github.com/trailofbits/go-mutexasserts v0.0.0-20250514102930-c1f3d2e37561 // indirect
 	github.com/tv42/httpunix v0.0.0-20191220191345-2ba4b9c3382c // indirect
+	github.com/vektah/gqlparser/v2 v2.5.31 // indirect
 	github.com/vmware/govmomi v0.18.0 // indirect
 	github.com/vultr/govultr/v3 v3.28.1 // indirect
 	github.com/weppos/publicsuffix-go v0.50.3 // indirect
@@ -1267,7 +1274,7 @@ replace github.com/ugorji/go/codec => github.com/ugorji/go/codec v1.2.12
 replace github.com/iceber/iouring-go => github.com/lebauce/iouring-go v0.0.0-20250513121434-2d4fb49003b5
 
 // Fork to remove some text/template usage, https://github.com/DataDog/opa/tree/lightweight-1.7.1
-replace github.com/open-policy-agent/opa => github.com/DataDog/opa v0.0.0-20251126100856-d2e1e78e0816
+replace github.com/open-policy-agent/opa => github.com/DataDog/opa v0.0.0-20251208155318-982c9d326ebf
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
