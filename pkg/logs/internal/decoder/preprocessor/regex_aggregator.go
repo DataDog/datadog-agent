@@ -10,11 +10,11 @@ import (
 	"bytes"
 	"regexp"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 const regexLinesCombinedTelemetryMetricName = "datadog.logs_agent.auto_multi_line_lines_combined"

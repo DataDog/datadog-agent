@@ -20,13 +20,14 @@ import (
 	"github.com/DataDog/datadog-traceroute/result"
 	"github.com/DataDog/datadog-traceroute/traceroute"
 
-	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+
 	cloudprovidersnetwork "github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -50,11 +51,11 @@ const (
 
 // Telemetry
 var tracerouteRunnerTelemetry = struct {
-	runs       *telemetry.StatCounterWrapper
-	failedRuns *telemetry.StatCounterWrapper
+	runs       *telemetryComponent.StatCounterWrapper
+	failedRuns *telemetryComponent.StatCounterWrapper
 }{
-	telemetry.NewStatCounterWrapper(tracerouteRunnerModuleName, "runs", []string{}, "Counter measuring the number of traceroutes run"),
-	telemetry.NewStatCounterWrapper(tracerouteRunnerModuleName, "failed_runs", []string{}, "Counter measuring the number of traceroute run failures"),
+	telemetryComponent.NewStatCounterWrapper(telemetryimpl.GetCompatComponent(), tracerouteRunnerModuleName, "runs", []string{}, "Counter measuring the number of traceroutes run"),
+	telemetryComponent.NewStatCounterWrapper(telemetryimpl.GetCompatComponent(), tracerouteRunnerModuleName, "failed_runs", []string{}, "Counter measuring the number of traceroute run failures"),
 }
 
 func init() {

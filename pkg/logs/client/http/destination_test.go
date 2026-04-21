@@ -26,8 +26,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -133,7 +133,7 @@ func TestLogsDroppedMetric(t *testing.T) {
 
 func testLogsDropped(t *testing.T, statusCode int) {
 	cfg := configmock.New(t)
-	telemetryMock := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetryMock := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
 	metrics.TlmLogsDropped = telemetryMock.NewCounter("logs", "dropped", []string{"destination"}, "")
 
 	server := NewTestServer(statusCode, cfg)
@@ -760,7 +760,7 @@ func TestDestinationSourceTagBasedOnTelemetryName(t *testing.T) {
 	cfg := configmock.New(t)
 
 	// Create telemetry mock
-	telemetryMock := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetryMock := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
 	metrics.TlmBytesSent = telemetryMock.NewCounter("logs", "bytes_sent", []string{"remote_agent", "source"}, "")
 	metrics.TlmEncodedBytesSent = telemetryMock.NewCounter("logs", "encoded_bytes_sent", []string{"remote_agent", "source", "compression_kind"}, "")
 
@@ -799,7 +799,7 @@ func TestDestinationSourceTagEPForwarder(t *testing.T) {
 	cfg := configmock.New(t)
 
 	// Create telemetry mock
-	telemetryMock := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetryMock := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
 	metrics.TlmBytesSent = telemetryMock.NewCounter("logs", "bytes_sent", []string{"remote_agent", "source"}, "")
 	metrics.TlmEncodedBytesSent = telemetryMock.NewCounter("logs", "encoded_bytes_sent", []string{"remote_agent", "source", "compression_kind"}, "")
 
@@ -837,7 +837,7 @@ func TestDestinationCompression(t *testing.T) {
 	cfg := configmock.New(t)
 
 	// Create telemetry mock
-	telemetryMock := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetryMock := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
 	metrics.TlmEncodedBytesSent = telemetryMock.NewCounter("logs", "encoded_bytes_sent", []string{"remote_agent", "source", "compression_kind"}, "")
 
 	// Create a new server with compression enabled

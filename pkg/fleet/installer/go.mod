@@ -102,8 +102,6 @@ replace github.com/DataDog/datadog-agent/pkg/config/viperconfig => ../../config/
 
 replace github.com/DataDog/datadog-agent/pkg/fips => ../../fips
 
-replace github.com/DataDog/datadog-agent/pkg/telemetry => ../../telemetry
-
 replace github.com/DataDog/datadog-agent/pkg/util/executable => ../../util/executable
 
 replace github.com/DataDog/datadog-agent/pkg/util/filesystem => ../../util/filesystem
