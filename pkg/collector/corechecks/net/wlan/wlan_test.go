@@ -929,3 +929,65 @@ func TestWLANReceiveRateValid(t *testing.T) {
 	wlanCheck.Run()
 	mockSender.AssertMetric(t, "Gauge", "system.wlan.rxrate", 5.0, "", expectedTags)
 }
+
+func TestWLANGetInfoErrorReturnsError(t *testing.T) {
+	getWiFiInfo = func() (wifiInfo, error) {
+		return wifiInfo{}, errors.New("WLAN API unavailable: missing wlanapi.dll")
+	}
+	defer func() { getWiFiInfo = nil }()
+
+	wlanCheck := new(WLANCheck)
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test")
+
+	mockSender := mocksender.NewMockSenderWithSenderManager(wlanCheck.ID(), senderManager)
+	mockSender.SetupAcceptAll()
+
+	err := wlanCheck.Run()
+	assert.EqualError(t, err, "WLAN API unavailable: missing wlanapi.dll")
+	mockSender.AssertNumberOfCalls(t, "Gauge", 1)
+	mockSender.AssertNumberOfCalls(t, "Count", 1)
+	mockSender.AssertMetric(t, "Gauge", "system.wlan.status", 2.0, "", []string{"status:critical", "reason:ipc_failure"})
+	mockSender.AssertMetric(t, "Count", "system.wlan.check.errors", 1.0, "", []string{"error_type:ipc_failure"})
+}
+
+func TestWLANErrorDoesNotWarmState(t *testing.T) {
+	call := 0
+	getWiFiInfo = func() (wifiInfo, error) {
+		call++
+		if call == 1 {
+			return wifiInfo{}, errors.New("WLAN API unavailable: missing wlanapi.dll")
+		}
+		return wifiInfo{
+			rssi:         10,
+			ssid:         "ssid",
+			bssid:        "bssid",
+			channel:      11,
+			noise:        20,
+			noiseValid:   true,
+			transmitRate: 54.0,
+			macAddress:   "aa:bb:cc:dd:ee:ff",
+			phyMode:      "802.11ac",
+		}, nil
+	}
+	defer func() { getWiFiInfo = nil }()
+
+	expectedTags := []string{"ssid:ssid", "bssid:bssid", "mac_address:aa:bb:cc:dd:ee:ff", "status:ok"}
+
+	wlanCheck := new(WLANCheck)
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test")
+
+	mockSender := mocksender.NewMockSenderWithSenderManager(wlanCheck.ID(), senderManager)
+	mockSender.SetupAcceptAll()
+
+	err := wlanCheck.Run()
+	assert.Error(t, err)
+	mockSender.AssertMetric(t, "Gauge", "system.wlan.status", 2.0, "", []string{"status:critical", "reason:ipc_failure"})
+	mockSender.AssertMetric(t, "Count", "system.wlan.check.errors", 1.0, "", []string{"error_type:ipc_failure"})
+
+	err = wlanCheck.Run()
+	assert.NoError(t, err)
+	mockSender.AssertMetric(t, "Count", "system.wlan.roaming_events", 0.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "system.wlan.channel_swap_events", 0.0, "", expectedTags)
+}
