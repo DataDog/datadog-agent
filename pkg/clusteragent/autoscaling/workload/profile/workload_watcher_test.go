@@ -75,6 +75,15 @@ func deploymentGVKR() GroupVersionKindResource {
 
 var deploymentGR = schema.GroupResource{Group: "apps", Resource: "deployments"}
 
+func rolloutGVKR() GroupVersionKindResource {
+	return GroupVersionKindResource{
+		GroupVersionResource: schema.GroupVersionResource{Group: "argoproj.io", Version: "v1alpha1", Resource: "rollouts"},
+		Kind:                 "Rollout",
+	}
+}
+
+var rolloutGR = schema.GroupResource{Group: "argoproj.io", Resource: "rollouts"}
+
 func TestWorkloadWatcherScanWorkloads(t *testing.T) {
 	gvkr := deploymentGVKR()
 	noLabeledNs := map[string]string{}
@@ -211,6 +220,45 @@ func TestWorkloadWatcherScanWorkloads(t *testing.T) {
 	})
 }
 
+func TestWorkloadWatcherScanRollouts(t *testing.T) {
+	gvkr := rolloutGVKR()
+	noLabeledNs := map[string]string{}
+
+	t.Run("Labelled Rollout with existing profile", func(t *testing.T) {
+		profileStore := autoscaling.NewStore[model.PodAutoscalerProfileInternal]()
+		profileStore.Set("high-cpu", validTestProfile("high-cpu"), "test")
+		w := newTestWorkloadWatcher(profileStore)
+
+		rollout := newPartialWorkload("Rollout", "argoproj.io/v1alpha1", "prod", "web-rollout",
+			map[string]string{model.ProfileLabelKey: "high-cpu"})
+		refs := w.scanWorkloads(gvkr, newTestLister(rolloutGR, rollout), noLabeledNs)
+
+		require.Len(t, refs["high-cpu"], 1)
+		ref := refs["high-cpu"][0]
+		assert.Equal(t, "prod", ref.Namespace)
+		assert.Equal(t, "web-rollout", ref.Name)
+		assert.Equal(t, "Rollout", ref.Kind)
+		assert.Equal(t, "v1alpha1", ref.Version)
+		assert.Equal(t, "argoproj.io", ref.Group)
+	})
+
+	t.Run("Namespace-level discovers rollouts", func(t *testing.T) {
+		profileStore := autoscaling.NewStore[model.PodAutoscalerProfileInternal]()
+		profileStore.Set("high-cpu", validTestProfile("high-cpu"), "test")
+		w := newTestWorkloadWatcher(profileStore)
+
+		rollout := newPartialWorkload("Rollout", "argoproj.io/v1alpha1", "prod", "web-rollout", nil)
+		labeledNs := map[string]string{"prod": "high-cpu"}
+		refs := w.scanWorkloads(gvkr, newTestLister(rolloutGR, rollout), labeledNs)
+
+		require.Len(t, refs["high-cpu"], 1)
+		ref := refs["high-cpu"][0]
+		assert.Equal(t, "prod", ref.Namespace)
+		assert.Equal(t, "web-rollout", ref.Name)
+		assert.Equal(t, "Rollout", ref.Kind)
+	})
+}
+
 func TestWorkloadWatcherReconcile(t *testing.T) {
 	gvkr := deploymentGVKR()
 
@@ -280,6 +328,71 @@ func TestWorkloadWatcherReconcile(t *testing.T) {
 		w.reconcile()
 
 		assert.False(t, updated, "Should not trigger store update when refs unchanged")
+	})
+}
+
+func TestWorkloadWatcherReconcileMixedWorkloadTypes(t *testing.T) {
+	t.Run("Aggregates refs from deployments and rollouts into same profile", func(t *testing.T) {
+		profileStore := autoscaling.NewStore[model.PodAutoscalerProfileInternal]()
+		profileStore.Set("high-cpu", validTestProfile("high-cpu"), "test")
+		w := newTestWorkloadWatcher(profileStore)
+
+		deployment := newPartialWorkload("Deployment", "apps/v1", "prod", "web-deploy",
+			map[string]string{model.ProfileLabelKey: "high-cpu"})
+		rollout := newPartialWorkload("Rollout", "argoproj.io/v1alpha1", "prod", "web-rollout",
+			map[string]string{model.ProfileLabelKey: "high-cpu"})
+
+		w.informers = []workloadInformer{
+			{gvkr: deploymentGVKR(), lister: newTestLister(deploymentGR, deployment)},
+			{gvkr: rolloutGVKR(), lister: newTestLister(rolloutGR, rollout)},
+		}
+
+		w.reconcile()
+
+		pi, ok := profileStore.Get("high-cpu")
+		require.True(t, ok)
+		require.Len(t, pi.Workloads(), 2)
+
+		var kinds []string
+		for _, ref := range pi.Workloads() {
+			kinds = append(kinds, ref.Kind)
+		}
+		assert.ElementsMatch(t, []string{"Deployment", "Rollout"}, kinds)
+	})
+
+	t.Run("Different profiles for different workload types", func(t *testing.T) {
+		profileStore := autoscaling.NewStore[model.PodAutoscalerProfileInternal]()
+		profileStore.Set("deploy-profile", validTestProfile("deploy-profile"), "test")
+		profileStore.Set("rollout-profile", validTestProfile("rollout-profile"), "test")
+		w := newTestWorkloadWatcher(profileStore)
+
+		deployment := newPartialWorkload("Deployment", "apps/v1", "prod", "web-deploy",
+			map[string]string{model.ProfileLabelKey: "deploy-profile"})
+		rollout := newPartialWorkload("Rollout", "argoproj.io/v1alpha1", "prod", "web-rollout",
+			map[string]string{model.ProfileLabelKey: "rollout-profile"})
+
+		w.informers = []workloadInformer{
+			{gvkr: deploymentGVKR(), lister: newTestLister(deploymentGR, deployment)},
+			{gvkr: rolloutGVKR(), lister: newTestLister(rolloutGR, rollout)},
+		}
+
+		w.reconcile()
+
+		dPI, ok := profileStore.Get("deploy-profile")
+		require.True(t, ok)
+		require.Len(t, dPI.Workloads(), 1)
+		for _, ref := range dPI.Workloads() {
+			assert.Equal(t, "web-deploy", ref.Name)
+			assert.Equal(t, "Deployment", ref.Kind)
+		}
+
+		rPI, ok := profileStore.Get("rollout-profile")
+		require.True(t, ok)
+		require.Len(t, rPI.Workloads(), 1)
+		for _, ref := range rPI.Workloads() {
+			assert.Equal(t, "web-rollout", ref.Name)
+			assert.Equal(t, "Rollout", ref.Kind)
+		}
 	})
 }
 

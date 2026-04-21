@@ -32,8 +32,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/profile"
 	workloadpatcher "github.com/DataDog/datadog-agent/pkg/clusteragent/patcher"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"k8s.io/client-go/discovery"
 )
 
 // StartWorkloadAutoscaling starts the workload autoscaling controller
@@ -105,14 +108,23 @@ func StartWorkloadAutoscaling(
 		return nil, fmt.Errorf("Unable to start profile controller: %w", err)
 	}
 
+	workloadResources := []profile.GroupVersionKindResource{
+		{GroupVersionResource: schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}, Kind: "Deployment"},
+		{GroupVersionResource: schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "statefulsets"}, Kind: "StatefulSet"},
+	}
+	if isArgoRolloutsAvailable(apiCl.Cl.Discovery()) {
+		workloadResources = append(workloadResources, profile.GroupVersionKindResource{
+			GroupVersionResource: schema.GroupVersionResource{Group: "argoproj.io", Version: "v1alpha1", Resource: "rollouts"},
+			Kind:                 kubernetes.RolloutKind,
+		})
+		log.Info("Argo Rollouts CRD detected, enabling rollout support for autoscaling profiles")
+	}
+
 	workloadWatcher := profile.NewWorkloadWatcher(
 		profileStore,
 		isLeaderFunc,
 		apiCl.MetadataInformerCl,
-		[]profile.GroupVersionKindResource{
-			{GroupVersionResource: schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}, Kind: "Deployment"},
-			{GroupVersionResource: schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "statefulsets"}, Kind: "StatefulSet"},
-		},
+		workloadResources,
 		profileController.InitialSyncDone,
 	)
 
@@ -146,6 +158,19 @@ func StartWorkloadAutoscaling(
 	go externalRecommender.Run(ctx)
 
 	return podPatcher, nil
+}
+
+func isArgoRolloutsAvailable(discoveryClient discovery.DiscoveryInterface) bool {
+	resources, err := discoveryClient.ServerResourcesForGroupVersion(kubernetes.RolloutAPIVersion)
+	if err != nil {
+		return false
+	}
+	for _, r := range resources.APIResources {
+		if r.Name == "rollouts" {
+			return true
+		}
+	}
+	return false
 }
 
 func buildExternalRecommenderTLSConfig(cfg config.Component) *external.TLSFilesConfig {
