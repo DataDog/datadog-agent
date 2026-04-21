@@ -68,14 +68,15 @@ func newObserverPipeline(
 func (p *observerPipeline) start() {
 	go func() {
 		defer close(p.drainDone)
-		first := true
+		var count uint64
 		for msg := range p.outputChan {
-			if first {
-				log.Infof("[observer/logssource] first log received, pipeline is live")
-				first = false
+			count++
+			if count == 1 || count%10000 == 0 {
+				log.Infof("[observer/logssource] delivered %d logs to observer", count)
 			}
 			p.observerHandle.ObserveLog(msg)
 		}
+		log.Infof("[observer/logssource] drain goroutine exited after %d logs", count)
 	}()
 	p.proc.Start()
 }
