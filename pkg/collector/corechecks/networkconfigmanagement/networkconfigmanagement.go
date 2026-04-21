@@ -13,11 +13,13 @@ import (
 	"slices"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 	"github.com/benbjohnson/clock"
+
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -25,6 +27,7 @@ import (
 	ncmremote "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/remote"
 	ncmreport "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/report"
 	ncmsender "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/sender"
+	ncmstore "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/store"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -38,6 +41,7 @@ type Check struct {
 	checkContext  *ncmconfig.NcmCheckContext
 	sender        *ncmsender.NCMSender
 	agentConfig   config.Component
+	ncmComp       networkconfigmanagement.Component
 	remoteClient  ncmremote.Client
 	clock         clock.Clock
 	lastCheckTime time.Time
@@ -86,13 +90,20 @@ func (c *Check) Run() error {
 	if checkErr != nil {
 		return checkErr
 	}
+	store := c.ncmComp.GetConfigStore()
 
 	runningConfig, metadata, checkErr := c.checkContext.ProfileCache.Profile.ProcessCommandOutput(profile.Running, rawRunningConfig)
 	if checkErr != nil {
 		log.Warnf("unable to process rules for running config for device %s, using agent collection ts: %s", deviceID, checkErr)
 	}
 	// TODO: helper fn to take metadata that needs to be emitted as metrics + emit them
-	configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.checkContext.Device.IPAddress, ncmreport.RUNNING, metadata, deviceTags, runningConfig))
+	_, err := store.StoreConfig(deviceID, ncmstore.RUNNING, string(runningConfig))
+	if err != nil {
+		log.Warnf("unable to store running config: %v", err)
+	} else {
+		// only report config if we were able to store it
+		configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.checkContext.Device.IPAddress, ncmstore.RUNNING, metadata, deviceTags, runningConfig))
+	}
 
 	rawStartupConfig, checkErr := c.remoteClient.RetrieveStartupConfig()
 	if checkErr != nil {
@@ -104,7 +115,12 @@ func (c *Check) Run() error {
 			log.Warnf("unable to process rules for startup config for device %s, using agent collection ts: %s", deviceID, checkErr)
 		}
 		// add the startup config to the payload if it was retrieved successfully
-		configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.checkContext.Device.IPAddress, ncmreport.STARTUP, metadata, deviceTags, startupConfig))
+		_, err := store.StoreConfig(deviceID, ncmstore.STARTUP, string(startupConfig))
+		if err != nil {
+			log.Warnf("unable to store startup config: %v", err)
+		} else {
+			configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.checkContext.Device.IPAddress, ncmstore.STARTUP, metadata, deviceTags, startupConfig))
+		}
 	}
 
 	checkErr = c.sender.SendNCMConfig(ncmreport.ToNCMPayload(c.checkContext.Namespace, configs, c.clock.Now().Unix()))
@@ -162,17 +178,21 @@ func (c *Check) Interval() time.Duration {
 }
 
 // Factory creates a new check factory
-func Factory(agentConfig config.Component) option.Option[func() check.Check] {
+func Factory(agentConfig config.Component, ncmComp networkconfigmanagement.Component) option.Option[func() check.Check] {
+	if ncmComp == nil {
+		return option.None[func() check.Check]()
+	}
 	return option.New(func() check.Check {
-		return newCheck(agentConfig)
+		return newCheck(agentConfig, ncmComp)
 	})
 }
 
 // newCheck creates a new instance of the Check with the provided agent configuration
-func newCheck(agentConfig config.Component) check.Check {
+func newCheck(agentConfig config.Component, ncmComp networkconfigmanagement.Component) check.Check {
 	return &Check{
 		CheckBase:   core.NewCheckBase(CheckName),
 		agentConfig: agentConfig,
+		ncmComp:     ncmComp,
 	}
 }
 
