@@ -265,7 +265,7 @@ func (query *PdhQuery) CollectQueryData() error {
 		// before they can return a value.
 		err := PdhCollectQueryData(query.Handle)
 		if err != nil {
-			return fmt.Errorf("%v. This error indicates that the Windows performance counter database may need to be rebuilt", err)
+			return fmt.Errorf("%w. This error indicates that the Windows performance counter database may need to be rebuilt", err)
 		}
 	}
 
@@ -367,7 +367,10 @@ func PdhCollectQueryData(hQuery PDH_HQUERY) error {
 	}
 	pdherror := pfnPdhCollectQueryData(hQuery)
 	if windows.ERROR_SUCCESS != windows.Errno(pdherror) {
-		return fmt.Errorf("failed to collect query data %#x", pdherror)
+		// Wrap the windows.Errno so callers can use errors.Is to detect
+		// specific PDH error codes (e.g. PDH_NO_DATA when a multi-instance
+		// counter has zero active instances).
+		return fmt.Errorf("failed to collect query data %#x: %w", pdherror, windows.Errno(pdherror))
 	}
 	return nil
 }
