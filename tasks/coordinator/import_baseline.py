@@ -1,11 +1,23 @@
 """Import the M0.1 baseline from per-detector report JSONs into db.yaml.
 
 Usage:
-  python -m tasks.coordinator.import_baseline \\
-      --bocpd    /Users/ella.taira/.claude/plans/baseline-m0.1-371630f2dc0/bocpd.json \\
-      --scanmw   .../scanmw.json \\
-      --scanwelch .../scanwelch.json \\
-      --sha 371630f2dc0
+  # Current 3 detectors:
+  python -m coordinator.import_baseline \\
+      --detector bocpd=.../bocpd/report.json \\
+      --detector scanmw=.../scanmw/report.json \\
+      --detector scanwelch=.../scanwelch/report.json \\
+      --sha $(git rev-parse --short HEAD)
+
+  # Adding a new detector is just another --detector flag:
+  python -m coordinator.import_baseline \\
+      --detector bocpd=... \\
+      --detector scanmw=... \\
+      --detector scanwelch=... \\
+      --detector my-new-detector=/path/to/my-new-detector/report.json \\
+      --sha $(git rev-parse --short HEAD)
+
+Each `--detector NAME=PATH` imports the q.eval-scenarios main report at
+PATH into `db.baseline.detectors[NAME]`. No hardcoded detector list.
 """
 
 from __future__ import annotations
@@ -30,22 +42,43 @@ def build_baseline_detector(report_path: Path) -> BaselineDetector:
     )
 
 
+def _parse_detector_arg(raw: str) -> tuple[str, Path]:
+    if "=" not in raw:
+        raise argparse.ArgumentTypeError(
+            f"--detector must be NAME=PATH (got: {raw!r})"
+        )
+    name, _, path = raw.partition("=")
+    name = name.strip()
+    path = path.strip()
+    if not name or not path:
+        raise argparse.ArgumentTypeError(
+            f"--detector NAME=PATH requires both parts (got: {raw!r})"
+        )
+    return name, Path(path)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="import_baseline")
     parser.add_argument("--root", default=".")
-    parser.add_argument("--bocpd", required=True, type=Path)
-    parser.add_argument("--scanmw", required=True, type=Path)
-    parser.add_argument("--scanwelch", required=True, type=Path)
+    parser.add_argument(
+        "--detector",
+        action="append",
+        required=True,
+        type=_parse_detector_arg,
+        metavar="NAME=PATH",
+        help="Repeatable: detector name + path to its q.eval-scenarios report.json. "
+             "Specify once per detector; no hardcoded list.",
+    )
     parser.add_argument("--sha", required=True)
     args = parser.parse_args(argv)
 
     root = Path(args.root)
     db = load_db(root)
-    detectors = {
-        "bocpd": build_baseline_detector(args.bocpd),
-        "scanmw": build_baseline_detector(args.scanmw),
-        "scanwelch": build_baseline_detector(args.scanwelch),
-    }
+
+    detectors: dict[str, BaselineDetector] = {}
+    for name, path in args.detector:
+        detectors[name] = build_baseline_detector(path)
+
     db.baseline = Baseline(
         sha=args.sha,
         generated_at=_dt.datetime.now().isoformat(timespec="seconds"),

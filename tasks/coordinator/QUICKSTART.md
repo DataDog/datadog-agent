@@ -9,12 +9,16 @@ see [README.md](./README.md).
 
 - Repo access; you can `git push origin`.
 - AWS SSO / `dda inv workspaces.*` working locally.
-- The three detector workspaces already exist (`evals-bocpd`,
-  `evals-scanmw`, `evals-scanwelch`). If not:
+- One `workspace-evals-<detector>` workspace per detector you want
+  plateau-gated `eval-component` validation for. Currently:
+  `evals-bocpd`, `evals-scanmw`, `evals-scanwelch`. Adding a detector
+  later = provision one more workspace with the matching name; no code
+  change required (the coordinator derives the ssh alias by convention
+  from `workspace_for_detector()`).
   ```bash
+  # If a convention-named workspace is missing:
   dda inv workspaces.create evals-bocpd
-  dda inv workspaces.create evals-scanmw
-  dda inv workspaces.create evals-scanwelch
+  # ... same pattern for any new detector.
   ```
 - An Anthropic API key.
 - (Optional but recommended) a long-lived draft PR to use as the run-log
@@ -141,27 +145,47 @@ workspaces.cmd --workspace-name evals-bocpd --command "echo ok"`.
 
 ## 6. Seed state
 
-Run the four bootstrap scripts in order. Each is safe to re-run (they
+Run the bootstrap scripts in order. Each is safe to re-run (they
 `--overwrite` or skip-existing).
 
 ```bash
 cd ~/datadog-agent
 
 # 6a. Import a fresh q.eval-scenarios baseline (uses prior rebench).
+# Repeatable --detector NAME=PATH; add one flag per detector.
 PYTHONPATH=tasks python -m coordinator.import_baseline \
-    --bocpd     eval-results/bocpd/report.json   \
-    --scanmw    eval-results/scanmw/report.json  \
-    --scanwelch eval-results/scanwelch/report.json \
+    --detector bocpd=eval-results/bocpd/report.json \
+    --detector scanmw=eval-results/scanmw/report.json \
+    --detector scanwelch=eval-results/scanwelch/report.json \
     --sha $(git rev-parse --short HEAD)
 
-# 6b. Seed the 6/4 train/lockbox split.
+# 6b. (STRONGLY RECOMMENDED) Measure per-scenario F1 σ so regression
+# gates use 3·σ_s per scenario instead of the scalar τ=0.05. Per-scenario
+# variance in eval-component data spans 0.02 → 0.15 across scenarios;
+# a scalar τ either ships noise or rejects real gains. Takes ~30 min
+# per detector (5 baseline repeats × 6 min).
+PYTHONPATH=tasks python -m coordinator.measure_sigma --seeds 5
+
+# 6c. Seed the 6/4 train/lockbox split.
 PYTHONPATH=tasks python -m coordinator.seed_split
 
-# 6c. Load seed candidates A + B (tighten-gate and anomaly-rank).
+# 6d. Load seed candidates A + B (tighten-gate and anomaly-rank).
 PYTHONPATH=tasks python -m coordinator.seed_candidates
 
-# 6d. Backfill existing eval-component results as historical validations.
+# 6e. Backfill existing eval-component reports as historical audit
+# (into db.validations). Does NOT seed components_eval_dispatched —
+# the coordinator will re-run eval-component on first plateau of a
+# family targeting each component, because branch-modified code is
+# different from the baseline-measured version.
 PYTHONPATH=tasks python -m coordinator.import_validations
+
+# 6f. Before the real run, set a hard API-token ceiling. Edit
+# tasks/coordinator/config.py:
+#
+#    api_token_ceiling: int | None = 20_000_000   # ≈ $50-200 of Opus
+#
+# Prevents a runaway edge case from burning $1-5k of API spend.
+# Leave None while smoke-testing.
 ```
 
 If `eval-results/` doesn't exist on this driver workspace yet, pull it
@@ -298,7 +322,7 @@ reviewed, approved candidate with its experiment id in the message.
 
 ## Model routing (already configured)
 
-- **Opus** — implementation agent, review personas, proposer (deep thinking).
+- **Opus** — implementation agent, hack-detector reviewer, proposer (deep thinking).
 - **Sonnet** — inbox message interpretation (lightweight).
 
 Override in `tasks/coordinator/config.py`:
@@ -314,11 +338,27 @@ Set to `""` to use SDK default.
 
 ## What to expect
 
-- First iteration: 6-15 min (eval + review + any post-ship validation dispatch).
-- Steady state: one iteration every ~8-15 min.
-- Post-ship eval-component: kicks off async on the detector workspace; typically 2-4 hours; lands on a later iteration's poll.
-- Phase exit: after 5 consecutive non-improving iterations. Emits a coord-out message and stops.
-- GitHub PR comments (if `COORD_GITHUB_PR_NUMBER` configured): budget milestones, phase exit, strict-regression auto-reject, validation completion, upstream conflict. Watch PR #49678 on your GitHub mobile app for push notifications.
+- First iteration: 6–15 min (eval + review + any post-ship dispatch).
+- Steady state: one iteration every ~8–15 min.
+- **Regression gates** compare to `db.last_shipped_per_scenario[detector]`
+  (rolling reference) — so a candidate that adds on top of prior gains
+  must improve from the LAST ship, not from the original baseline.
+- **Eval-component** runs once per new component, only when the family
+  iterating on that component plateaus (K=3 consecutive non-improving).
+  Takes 2–4h on the detector workspace; result is lagging audit, never
+  gates.
+- **Overfit tripwire** fires every 5 ships: evaluates all shipped
+  candidates on the lockbox, computes Spearman ρ between train-rank and
+  lockbox-rank. ρ<0.5 → `tripwire` coord-out warning. Lockbox scores
+  never appear in agent prompts.
+- **Halt events** (exit the `--forever` loop):
+  - Phase plateau (5 consecutive non-improving iterations)
+  - Upstream sync conflict (manual rebase required)
+  - Token ceiling exceeded (raise `CONFIG.api_token_ceiling` or halt)
+- GitHub PR comments (if `COORD_GITHUB_PR_NUMBER` configured): budget
+  milestones, phase exit, strict-regression auto-reject, validation
+  completion/abandonment, overfit tripwire, upstream conflict,
+  budget halt. Watch PR #49678 on mobile for push notifications.
 
 ---
 
@@ -328,6 +368,11 @@ Set to `""` to use SDK default.
 |---|---|---|
 | `claude-agent-sdk not installed` | missing dep | `pip install claude-agent-sdk` |
 | `ssh: host unreachable` on dispatch | ssh config missing on driver | add to `~/.ssh/config` or `dda inv workspaces.cmd` |
+| Coordinator exits with "upstream conflict: halting" | someone pushed to `q-branch-observer` conflicting with the scratch branch | rebase `claude/observer-improvements` onto new upstream tip manually, re-run |
+| Coordinator exits with "budget halt" | token ceiling reached | inspect spend (journal `tokens_used` entries), raise `CONFIG.api_token_ceiling`, re-run |
+| `overfit tripwire` posted on PR | Spearman ρ between train and lockbox rankings < 0.5 across shipped candidates | investigate most-recently-shipped candidates — coordinator may be overfitting to train noise |
+| Every candidate auto-rejected with strict_regression | per-scenario σ not measured; scalar τ=0.05 rejecting real gains on noisy scenarios | run `measure_sigma.py --seeds 5` |
+| `metrics.md` shows ⚠ LIVENESS banner | no journal event in > 30 min; coordinator stuck | `ssh workspace-coord-driver "tmux attach -t coord-driver"` to see what it's doing |
 | `working tree dirty; aborting iteration` | stray edits or orphan from prior crash | normally auto-handled by `startup_cleanup`; if not, `git checkout -- comp/observer tasks/q.py` |
 | `upstream sync CONFIG` halts | someone pushed to `q-branch-observer` conflicting with `claude/observer-improvements` | rebase manually or reset scratch branch to new upstream tip |
 | Bayesian / eval-bayesian appearing | it shouldn't — driver never invokes it | grep `journal.jsonl` for context |

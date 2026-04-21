@@ -61,7 +61,7 @@ tasks/coordinator/
 ├── scheduler.py           candidate picker + diversity policy
 ├── proposer.py            SDK subagent: brainstorms new candidates
 ├── sdk.py                 SDK wrappers + git-block hook + retry policy
-├── reviewer.py            persona prompts (Skeptic, Conservative, …)
+├── reviewer.py            persona prompt (hack_detector; Duplicate Hunter / Algorithm Expert / Greybeard ready for Phase 2+)
 ├── evaluator.py           subprocess wrapper for q.eval-scenarios
 ├── workspace_validate.py  post-ship async eval-component on ssh workspace
 ├── scoring.py             report → delta vs baseline → gate outcomes
@@ -69,6 +69,8 @@ tasks/coordinator/
 ├── coord_out.py           coordinator→user channel (file + GitHub PR comment)
 ├── github_out.py          post PR comments on the run-log PR (fail-soft)
 ├── github_in.py           poll PR comments → append user replies to inbox.md
+├── measure_sigma.py       one-time: multi-seed baseline → populate per-scenario σ
+├── overfit_check.py       periodic lockbox eval + Spearman rank-corr tripwire
 ├── inbox.py               user→coordinator channel (atomic rename)
 ├── budget.py              wall-hour tracking + milestone escalations
 ├── config.py              frozen constants (τ, plateau, retries, …)
@@ -176,10 +178,14 @@ step or an SDK subagent call.
 ┌─────────────────────────────────────────────────────┐
 │ 5.  score                                           │
 │     scoring.score_against_baseline                  │
-│       train-scoped: lockbox scenarios are observed  │
-│         but not gated                               │
-│       per-scenario ΔF1, Δprecision, Δrecall, ΔFPs   │
+│       train-scoped: lockbox observed, NOT gated     │
+│       gate reference = last_shipped_per_scenario    │
+│         for this detector (rolling); falls back to  │
+│         baseline on first ship for the detector     │
+│       per-scenario τ = 3·σ_s when measured; else    │
+│         CONFIG.tau_default                          │
 │       → strict_regressions[], recall_violations[]   │
+│         (computed vs rolling prior, not baseline)   │
 └─────────────────────────┬───────────────────────────┘
                           ▼
 ┌─────────────────────────────────────────────────────┐
@@ -190,6 +196,7 @@ step or an SDK subagent call.
                           ▼
 ┌─────────────────────────────────────────────────────┐
 │ 5b. strict-regression gate (pre-review)             │
+│     (uses last-shipped reference per §Attribution)  │
 │     if strict_regressions or recall_violations:     │
 │       git_ops.revert_working_tree                   │
 │       candidate.status = REJECTED                   │
@@ -198,32 +205,41 @@ step or an SDK subagent call.
 └─────────────────────────┬───────────────────────────┘
                           ▼
 ┌─────────────────────────────────────────────────────┐
-│ 6.  review (SDK, 2 personas, unanimous required)    │
+│ 6.  review (SDK, single hack_detector persona)      │
 │     sdk.review_experiment                           │
-│       Skeptic      → gain above noise?              │
-│       Conservative → no regressions, no perf blow?  │
-│     each returns YAML {approve, rationale}          │
+│       deterministic gates ran in step 5b;           │
+│       persona judges what rules can't:              │
+│       "real improvement vs metric-hack?"            │
+│       prior-experiment rationales in prompt so      │
+│         already-rejected approaches get caught      │
+│     returns YAML {approve, rationale}               │
 └─────────────────────────┬───────────────────────────┘
                           ▼
                  ┌────────┴────────┐
          unanimous?               NOT unanimous
                  │                        │
                  ▼                        ▼
-  ┌────────────────────┐      ┌──────────────────────┐
-  │ git commit on      │      │ git checkout -- .    │
-  │   coord branch     │      │ git clean -fd        │
-  │ save_db(SHIPPED)   │      │ candidate=REJECTED   │
-  │ git push -u origin │      │ return               │
-  │ workspace_validate │      └──────────────────────┘
-  │   dispatch (async) │
-  │ save_db(validation)│
-  │ return             │
-  └────────────────────┘
+  ┌──────────────────────────────┐  ┌──────────────────────┐
+  │ git commit on coord branch   │  │ git checkout -- .    │
+  │ db.last_shipped_per_scenario │  │ git clean -fd        │
+  │   [detector] = current run   │  │ candidate=REJECTED   │
+  │ save_db(SHIPPED)             │  │ return               │
+  │ git push -u origin           │  └──────────────────────┘
+  │ if family plateaued AND      │
+  │   component not yet in       │
+  │   db.components_eval_dispatched:
+  │   dispatch eval-component    │
+  │ overfit_check.maybe_run (per │
+  │   Nth ship: lockbox eval +   │
+  │   Spearman ρ, tripwire <0.5) │
+  └──────────────────────────────┘
                  │
                  ▼
 ┌─────────────────────────────────────────────────────┐
 │ 7.  persist                                         │
 │     journal.append (every decision above)           │
+│     sdk.consume_token_count → budget.api_tokens_used│
+│     if tokens_used ≥ ceiling: BudgetCeilingHalt     │
 │     metrics.regenerate → .coordinator/metrics.md    │
 │     budget.check_milestones (50% / 80% → coord-out) │
 │     save_db                                         │
@@ -389,24 +405,71 @@ Tune in `config.py`:
 Set `CONFIG.model_deep` / `CONFIG.model_light` to an empty string to fall
 back to the SDK default.
 
-## Async validation (post-ship)
+## Attribution and rolling reference
 
-Fire-and-forget, lagging data point only. Never gates anything.
+The branch accumulates one commit per approved candidate — nothing is ever
+reverted when pivoting families. So by iter 10, `q.eval-scenarios` runs
+against the cumulative state of 10 prior wins. Without a rolling
+reference, this makes it impossible to tell whether a new candidate
+actually contributed, or just inherited prior gains (or worse: silently
+regressed while cumulative gains still looked positive vs the original
+baseline).
+
+Two references in `db.yaml`:
+
+- `db.baseline` — the **original M0.1 scores**. Frozen. Used for
+  "how far have we come" cumulative reporting and the phase's
+  `best_score` / plateau detection.
+- `db.last_shipped_per_scenario[detector]` — the per-scenario scores
+  from the **most-recent approved ship targeting this detector**. Updates
+  on every ship. The strict-regression and recall-floor gates compare
+  against this (not the original baseline), so a candidate that
+  regresses from the immediately-prior state is blocked even when
+  cumulative gains would mask it.
+
+Review prompt shows both deltas:
 
 ```
-      ship approved (iter N)
+213_pagerduty: F1 0.655 → 0.680 (Δ+0.025)  ·  vs last-ship: 0.675 (Δ+0.005)
+```
+
+The reviewer (hack_detector persona) can tell "added +0.005 real marginal
+signal" from "inherited the +0.025 prior gain and added a no-op."
+
+Per-scenario F1 σ, when measured via `measure_sigma.py`, replaces the
+scalar τ in both gates: each scenario's threshold is `3·σ_s`. This fixes
+the "scalar τ smaller than noise" problem the ML-scientist panel flagged
+— scenarios with σ ≈ 0.15 (e.g. `221_base`) stop trip-wiring on random noise.
+
+## Async component validation (plateau-gated)
+
+Fire-and-forget, once per new component. Never gates anything.
+
+```
+  ship approved (iter N, family=scan-gate-internal, components=[scanmw])
               │
               ▼
+  ┌─────────────────────────────────────────────────────┐
+  │ family_consecutive_nonimproving(scan-gate-internal) │
+  │   < stuck_threshold?  → SKIP (still iterating)      │
+  │   ≥ stuck_threshold?  → dispatch for components NOT │
+  │                          yet in                     │
+  │                          db.components_eval_dispatched │
+  └──────────────────┬──────────────────────────────────┘
+                     │ plateau hit, scanmw not yet validated on this branch
+                     ▼
   ┌─────────────────────────────┐
   │ workspace_validate.dispatch │
-  │   pick workspace-evals-<det>│
+  │   write dispatching record  │
+  │   save_db                   │
   │   ssh: tmux new-session -d  │
   │     "dda inv q.eval-        │
   │      component --component  │
-  │      <det> --output-dir     │
+  │      scanmw --output-dir    │
   │      /tmp/…/exp-N"          │
-  │   store PendingValidation   │
+  │   flip status: pending      │
   │   save_db                   │
+  │   mark scanmw "dispatched"  │
   └──────────┬──────────────────┘
              │
              ▼ (hours later, iter N+K)
@@ -418,6 +481,20 @@ Fire-and-forget, lagging data point only. Never gates anything.
   │   if age > 48h: abandon     │
   └─────────────────────────────┘
 ```
+
+**Rationale**: `eval-component` answers "does this detector pull its
+weight vs random component subsets?" — a component-value question, not
+a per-config correctness question. Running it on every ship was
+expensive and often skipped due to workspace-busy. Running it once
+per new component, after the search has exhausted improvement, matches
+its actual purpose.
+
+**`components_eval_dispatched` starts empty** — there is no pre-seed,
+because even `bocpd/scanmw/scanwelch` get modified by the coordinator
+on the branch, so their historical baseline eval-component reports
+(in `eval-results/`, imported to `db.validations`) don't reflect the
+current branch state. Each component gets exactly one dispatch on
+first plateau of a family targeting it.
 
 Workspace mapping:
 
@@ -473,14 +550,18 @@ Crash scenarios and what happens on restart:
 
 | Crash point                                  | Data at risk                | Recovery                                 |
 |----------------------------------------------|-----------------------------|------------------------------------------|
-| Between iterations                           | None                        | load_db resumes from last save           |
-| Mid-implementation (agent edited files)      | Orphan working-tree diffs   | `startup_cleanup` reverts to HEAD        |
+| Between iterations                           | None                        | `load_db` resumes from last save         |
+| Mid-implementation (agent edited files)      | Orphan working-tree diffs   | `startup_cleanup` reverts WATCH_PATHS    |
 | After commit, before push                    | Unpushed local commits      | `startup_cleanup` pushes on startup      |
-| After commit, before save_db                 | **Prevented**: save_db runs BEFORE push | N/A                            |
-| After validation dispatch, before save_db    | **Prevented**: save_db runs immediately after dispatch | N/A                |
+| After commit, before save_db                 | **Prevented**: save_db runs BEFORE push | N/A                          |
+| Mid-validation-dispatch (ssh ran, db unsaved)| **Prevented**: `dispatching` status written BEFORE ssh; startup reaps stuck `dispatching` as `failed` | N/A |
+| Mid-inbox-drain (renamed, never acked)       | **Prevented**: `recover_orphan_reading` archives `inbox.md.reading` with `orphan-recovery` tag on startup | N/A |
+| User hand-edited WATCH_PATHS between runs    | Could merge-clobber on sync | Dirty-tree guard runs BEFORE `sync_from_upstream` — iteration aborts instead of clobbering |
 | Mid-SDK call (network blip, rate limit)      | None                        | `_with_retries` (3 attempts, exp backoff) on transient errors |
 | Workspace killed with pending validation     | Orphan remote job           | `poll_pending_validations` abandons >48h |
 | User edited inbox.md mid-drain               | None                        | atomic rename preserves both writes      |
+| Upstream conflict mid-run                    | **Halt, not wedge**: `UpstreamConflictHalt` exits `--forever` loop; user rebases + restarts | N/A |
+| Token budget exceeded                        | **Halt, not wedge**: `BudgetCeilingHalt` exits `--forever`; user raises ceiling or investigates | N/A |
 
 ### db.yaml is source of truth
 
@@ -494,7 +575,7 @@ Crash scenarios and what happens on restart:
 ## Setup (first run)
 
 See [QUICKSTART.md](./QUICKSTART.md) for the full workspace-based walkthrough.
-Summary of the 5 bootstrap scripts:
+Summary of the bootstrap scripts:
 
 ```bash
 # 1. Install deps
@@ -502,20 +583,35 @@ pip install claude-agent-sdk pyyaml invoke requests
 export ANTHROPIC_API_KEY=…
 export COORD_GITHUB_PR_NUMBER=49678  # optional — run-log PR number
 
-# 2. Seed baseline from a fresh q.eval-scenarios run
+# Before running for real, edit tasks/coordinator/config.py and set:
+#   api_token_ceiling = <N>   # e.g. 20_000_000 ≈ $50–200 of Opus
+# Prevents a multi-day edge case from burning $1–5k of API spend.
+
+# 2. Seed baseline from a fresh q.eval-scenarios run.
+# --detector NAME=PATH is repeatable; add a flag per detector.
 PYTHONPATH=tasks python -m coordinator.import_baseline \
-    --bocpd     eval-results/bocpd/report.json   \
-    --scanmw    eval-results/scanmw/report.json  \
-    --scanwelch eval-results/scanwelch/report.json \
+    --detector bocpd=eval-results/bocpd/report.json \
+    --detector scanmw=eval-results/scanmw/report.json \
+    --detector scanwelch=eval-results/scanwelch/report.json \
     --sha $(git rev-parse --short HEAD)
 
-# 3. Seed the train/lockbox split (defaults match plan §4 rev-7)
+# 3. (STRONGLY RECOMMENDED) Measure per-scenario σ so regression gates
+# use 3·σ_s per scenario instead of the scalar τ. Eval-component data
+# already shows per-scenario σ swings 0.02 → 0.15 across scenarios;
+# scalar τ=0.05 is smaller than the noise on some scenarios. Takes
+# ~30 min per detector (5 baseline repeats × 6 min).
+PYTHONPATH=tasks python -m coordinator.measure_sigma --seeds 5
+
+# 4. Seed the train/lockbox split
 PYTHONPATH=tasks python -m coordinator.seed_split
 
-# 4. Seed initial candidates from YAML files
+# 5. Seed initial candidates from YAML files
 PYTHONPATH=tasks python -m coordinator.seed_candidates
 
-# 5. (optional) Backfill any existing validation reports
+# 6. (optional) Backfill any existing validation reports into
+# db.validations as historical audit. Does NOT seed
+# components_eval_dispatched — every component gets a fresh dispatch
+# on first plateau after the coordinator modifies it.
 PYTHONPATH=tasks python -m coordinator.import_validations
 ```
 
@@ -601,7 +697,7 @@ Per rev-7 / rev-8 triage of the design plan:
 **In scope if the data shows need**:
 
 - Upstream sync conflict *resolution* (currently: abort + human takes over).
-- Multi-persona review (Skeptic + Conservative today; Duplicate Hunter,
+- Multi-persona review (single hack_detector today; Duplicate Hunter,
   Algorithm Expert, Greybeard ready in `reviewer.py` once db.yaml fills up).
 - Additional notification transports (Slack, email, etc.). GitHub PR
   comments cover mobile + desktop + push notifications without new

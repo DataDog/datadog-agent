@@ -72,19 +72,21 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--seeds", type=int, default=5,
                         help="number of baseline repeats per detector (default: 5)")
     parser.add_argument("--only", default="",
-                        help="comma-sep detectors (default: bocpd,scanmw,scanwelch)")
+                        help="comma-sep detectors to measure (default: every "
+                             "detector present in db.baseline)")
     args = parser.parse_args(argv)
-
-    detectors = (
-        [d.strip() for d in args.only.split(",") if d.strip()]
-        if args.only
-        else ["bocpd", "scanmw", "scanwelch"]
-    )
 
     db = load_db(Path(args.root))
     if db.baseline is None:
         print("error: no baseline in db.yaml. Run import_baseline first.", file=sys.stderr)
         return 1
+
+    # Default to whatever was imported into db.baseline — no hardcoded list.
+    detectors = (
+        [d.strip() for d in args.only.split(",") if d.strip()]
+        if args.only
+        else list(db.baseline.detectors.keys())
+    )
 
     tmp_root = Path(tempfile.mkdtemp(prefix="measure_sigma_"))
     print(f"writing intermediate reports to {tmp_root}")
