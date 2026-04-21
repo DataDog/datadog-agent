@@ -8,8 +8,8 @@ datadog:
     instrumentation:
       enabled: true
   logs:
-    enabled: true
-    containerCollectAll: true
+    enabled: false
+    containerCollectAll: false
   processAgent:
     enabled: true
     processCollection: true
@@ -81,6 +81,20 @@ agents:
       event_reporter:
         sending_enabled: true
 {{- end}}
+  volumes:
+    - name: logpodpath
+      hostPath:
+        path: /var/log/pods
+    - name: logcontainerpath
+      hostPath:
+        path: /var/log/containers
+  volumeMounts:
+    - name: logpodpath
+      mountPath: /var/log/pods
+      readOnly: true
+    - name: logcontainerpath
+      mountPath: /var/log/containers
+      readOnly: true
   containers:
     agent:
       resources:
