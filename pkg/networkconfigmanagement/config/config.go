@@ -180,6 +180,8 @@ func GetNCMContextFromCoreCheck(client ipc.HTTPClient) (*NcmComponentContext, er
 
 	// Iterate through the instances (devices) and parse the device configs
 	var deviceInstances []DeviceInstance
+	var initConfig InitConfig
+
 	for _, c := range cr.Configs {
 		if c.Config.Name == checkName { // Check name for NCM
 			// Parse each instance / device
@@ -197,7 +199,6 @@ func GetNCMContextFromCoreCheck(client ipc.HTTPClient) (*NcmComponentContext, er
 			}
 			// Parse init config if exists
 			if c.Config.InitConfig != nil {
-				var initConfig InitConfig
 				err := yaml.Unmarshal(c.Config.InitConfig, &initConfig)
 				if err != nil {
 					return nil, fmt.Errorf("failed to unmarshal init config: %s", err)
@@ -206,6 +207,7 @@ func GetNCMContextFromCoreCheck(client ipc.HTTPClient) (*NcmComponentContext, er
 				if err != nil {
 					return nil, err
 				}
+				initConfig.applyDefaults()
 				ncc.Namespace = initConfig.Namespace
 			}
 		}
@@ -219,6 +221,10 @@ func GetNCMContextFromCoreCheck(client ipc.HTTPClient) (*NcmComponentContext, er
 			continue
 		}
 		if d.IPAddress != "" {
+			d.applyDefaults()
+			if d.Auth.SSH == nil {
+				d.Auth.SSH = initConfig.SSH
+			}
 			deviceMap[d.IPAddress] = d
 		} else {
 			log.Warnf("Device config missing IP address, skipping: %+v", d)
