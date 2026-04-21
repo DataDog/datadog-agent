@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "tracers",
+    srcs = ["from_application_monitoring.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/config/fetcher/tracers",
+    visibility = ["//visibility:public"],
+    deps = ["//comp/core/config"],
+)
