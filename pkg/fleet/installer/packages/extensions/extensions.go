@@ -22,6 +22,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// errExtensionNotInPackage is returned by installSingle when the requested extension
+// layer is absent from the package image.
+var errExtensionNotInPackage = errors.New("extension not in package")
+
 // ExtensionsDBDir is the path to the extensions database, overridden in tests
 var ExtensionsDBDir = paths.RunPath
 
@@ -175,7 +179,9 @@ func Install(ctx context.Context, downloader *oci.Downloader, url string, extens
 
 			err := installSingle(ctx, pkg, extension, isExperiment, hooks)
 			if err != nil {
-				installErrors = append(installErrors, fmt.Errorf("extension %s: %w", extension, err))
+				if !errors.Is(err, errExtensionNotInPackage) {
+					installErrors = append(installErrors, fmt.Errorf("extension %s: %w", extension, err))
+				}
 				continue
 			}
 
@@ -221,7 +227,7 @@ func installSingle(ctx context.Context, pkg *oci.DownloadedPackage, extension st
 			// The extension is not available in the package, skip it.
 			// This might be a version where the extension doesn't exist and shouldn't block other methods.
 			fmt.Printf("no layer matches the requested annotations for %s, skipping\n", extension)
-			return nil
+			return errExtensionNotInPackage
 		}
 		return fmt.Errorf("could not extract layers for %s: %w", extension, err)
 	}
