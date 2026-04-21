@@ -279,9 +279,13 @@ docker_build_fips_agent7_arm64_jmx:
 
 docker_build_base_image_amd64:
   extends: [.docker_build_base_image, .docker_build_amd64]
+  rules:
+    - when: on_success
 
 docker_build_base_image_arm64:
   extends: [.docker_build_base_image, .docker_build_arm64]
+  rules:
+    - when: on_success
 
 .docker_build_host_profiler_standalone:
   extends: .docker_build_job_definition
@@ -302,6 +306,8 @@ docker_build_base_image_arm64:
 docker_build_host_profiler_standalone_amd64:
   extends:
     [.docker_build_host_profiler_standalone, .docker_build_amd64]
+  rules:
+    - when: on_success
   needs:
     - job: docker_build_base_image_amd64
     - job: build_host_profiler_binary_x64
@@ -311,6 +317,8 @@ docker_build_host_profiler_standalone_amd64:
 docker_build_host_profiler_standalone_arm64:
   extends:
     [.docker_build_host_profiler_standalone, .docker_build_arm64]
+  rules:
+    - when: on_success
   needs:
     - job: docker_build_base_image_arm64
     - job: build_host_profiler_binary_arm64

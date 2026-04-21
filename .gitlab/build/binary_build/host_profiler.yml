@@ -20,8 +20,12 @@
 
 build_host_profiler_binary_x64:
   extends: [.build_host_profiler_binary_common]
+  rules:
+    - when: on_success
   tags: ["arch:amd64", "specific:true"]
 
 build_host_profiler_binary_arm64:
   extends: [.build_host_profiler_binary_common]
+  rules:
+    - when: on_success
   tags: ["arch:arm64", "specific:true"]
