@@ -90,7 +90,7 @@ func (c *thermalCheck) Run() error {
 			sender.Commit()
 			return nil
 		}
-		c.Warnf("thermal.Check: Could not collect performance counter data: %v", err)
+		c.Warnf("Could not collect performance counter data: %v", err)
 		sender.Commit()
 		return nil
 	}
@@ -101,7 +101,7 @@ func (c *thermalCheck) Run() error {
 	if c.highPrecisionTemp != nil {
 		vals, err := c.highPrecisionTemp.GetAllValues()
 		if err != nil {
-			log.Debugf("thermal.Check: High Precision Temperature unavailable, falling back to Temperature: %v", err)
+			log.Debugf("High Precision Temperature unavailable, falling back to Temperature: %v", err)
 		} else {
 			highPrecisionVals = vals
 		}
@@ -110,7 +110,7 @@ func (c *thermalCheck) Run() error {
 	if c.temperature != nil {
 		vals, err := c.temperature.GetAllValues()
 		if err != nil {
-			c.Warnf("thermal.Check: Error getting temperature values: %v", err)
+			c.Warnf("Error getting temperature values: %v", err)
 		} else {
 			for instance, kelvin := range vals {
 				if hpKelvinTenths, ok := highPrecisionVals[instance]; ok {
@@ -123,11 +123,10 @@ func (c *thermalCheck) Run() error {
 		}
 	}
 
-	// Collect passive limit values
 	if c.passiveLimit != nil {
 		vals, err := c.passiveLimit.GetAllValues()
 		if err != nil {
-			c.Warnf("thermal.Check: Error getting passive limit values: %v", err)
+			c.Warnf("Error getting passive limit values: %v", err)
 		} else {
 			for instance, val := range vals {
 				tags := []string{"thermal_zone:" + instance}

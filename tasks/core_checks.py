@@ -25,6 +25,7 @@ AGENT_CORECHECKS = [
     "sbom",
     "systemd",
     "tcp_queue_length",
+    "thermal",
     "uptime",
     "jetson",
     "telemetry",
