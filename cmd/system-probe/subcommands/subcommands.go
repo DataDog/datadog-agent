@@ -14,6 +14,7 @@ import (
 	cmddebug "github.com/DataDog/datadog-agent/cmd/system-probe/subcommands/debug"
 	cmdebpf "github.com/DataDog/datadog-agent/cmd/system-probe/subcommands/ebpf"
 	cmdmodrestart "github.com/DataDog/datadog-agent/cmd/system-probe/subcommands/modrestart"
+	cmdprocscan "github.com/DataDog/datadog-agent/cmd/system-probe/subcommands/procscan"
 	cmdrun "github.com/DataDog/datadog-agent/cmd/system-probe/subcommands/run"
 	cmdruntime "github.com/DataDog/datadog-agent/cmd/system-probe/subcommands/runtime"
 	cmdusm "github.com/DataDog/datadog-agent/cmd/system-probe/subcommands/usm"
@@ -28,6 +29,7 @@ func SysprobeSubcommands() []command.SubcommandFactory {
 		cmdversion.Commands,
 		cmdmodrestart.Commands,
 		cmddebug.Commands,
+		cmdprocscan.Commands,
 		cmdconfig.Commands,
 		cmdruntime.Commands,
 		cmdcompliance.Commands,
