@@ -67,12 +67,14 @@ var baseEnv = []string{
 
 // change `TEST_TIMEOUTS` in `tasks/system_probe.py` if you change them here
 var timeouts = map[*regexp.Regexp]time.Duration{
-	regexp.MustCompile("pkg/network/protocols$"):      5 * time.Minute,
-	regexp.MustCompile("pkg/network/protocols/http$"): 15 * time.Minute,
-	regexp.MustCompile("pkg/network/tracer$"):         55 * time.Minute,
-	regexp.MustCompile("pkg/network/usm$"):            55 * time.Minute,
-	regexp.MustCompile("pkg/network/usm/tests$"):      20 * time.Minute,
-	regexp.MustCompile("pkg/security.*"):              55 * time.Minute,
+	regexp.MustCompile("pkg/network/protocols$"):                            5 * time.Minute,
+	regexp.MustCompile("pkg/network/protocols/http$"):                       15 * time.Minute,
+	regexp.MustCompile("pkg/network/tracer$"):                               55 * time.Minute,
+	regexp.MustCompile("pkg/network/usm$"):                                  55 * time.Minute,
+	regexp.MustCompile("pkg/network/usm/tests$"):                            20 * time.Minute,
+	regexp.MustCompile("pkg/security.*"):                                    55 * time.Minute,
+	regexp.MustCompile("comp/host-profiler/collector/impl/receiver/cnm"):    10 * time.Minute,
+	regexp.MustCompile("comp/otelcol/otlp/components/exporter/cnmexporter"): 5 * time.Minute,
 }
 
 func getTimeout(pkg string) time.Duration {

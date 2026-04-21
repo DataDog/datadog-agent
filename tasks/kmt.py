@@ -806,7 +806,12 @@ def ninja_copy_ebpf_files(
     runtime_dir = get_ebpf_runtime_dir().absolute()
 
     # Copy to the target directory, retaining the directory structure
-    root = kmt_paths.secagent_tests if component == "security-agent" else kmt_paths.sysprobe_tests
+    if component == "security-agent":
+        root = kmt_paths.secagent_tests
+    elif component == "host-profiler":
+        root = kmt_paths.hostprofiler_tests
+    else:
+        root = kmt_paths.sysprobe_tests
     output = root / build_dir.relative_to(Path.cwd().absolute())
 
     def filter(x: Path):
@@ -943,8 +948,18 @@ def _prepare(
                 f"git config --global --add safe.directory {CONTAINER_AGENT_PATH} && dda inv -- {inv_echo} kmt.kmt-sysprobe-prepare --stack={stack} {pkgs} --arch={arch_obj.name}",
                 run_dir=CONTAINER_AGENT_PATH,
             )
+    elif component == "host-profiler":
+        if ci:
+            kmt_hostprofiler_prepare(ctx, arch_obj, ci=True)
+        else:
+            cc.exec(
+                f"git config --global --add safe.directory {CONTAINER_AGENT_PATH} && dda inv -- {inv_echo} kmt.kmt-hostprofiler-prepare --stack={stack} {pkgs} --arch={arch_obj.name}",
+                run_dir=CONTAINER_AGENT_PATH,
+            )
     else:
-        raise Exit(f"Component can only be 'system-probe' or 'security-agent'. {component} not supported.")
+        raise Exit(
+            f"Component can only be 'system-probe', 'security-agent', or 'host-profiler'. {component} not supported."
+        )
 
     info(f"[+] Preparing helper binaries for {arch_obj}")
 
@@ -1085,6 +1100,105 @@ def compute_package_dependencies(ctx: Context, packages: list[str], build_tags: 
         pkg_deps[pkg].update(dd_deps)
 
     return pkg_deps
+
+
+HOST_PROFILER_TEST_PACKAGES_LIST = [
+    "./comp/host-profiler/collector/impl/receiver/cnm/...",
+    "./comp/otelcol/otlp/components/exporter/cnmexporter/...",
+]
+
+
+@task
+def kmt_hostprofiler_prepare(
+    ctx: Context,
+    arch: str | Arch,
+    stack: str | None = None,
+    packages=None,
+    ci: bool = False,
+):
+    if ci:
+        stack = "ci"
+
+    assert stack is not None, "A stack name must be provided"
+    assert arch is not None and arch != "local", "No architecture provided"
+
+    arch = Arch.from_str(arch)
+    check_for_ninja(ctx)
+
+    filter_pkgs = []
+    if packages:
+        filter_pkgs = packages.split(",")
+
+    kmt_paths = KMTPaths(stack, arch)
+    nf_path = os.path.join(kmt_paths.arch_dir, "kmt-hostprofiler.ninja")
+
+    kmt_paths.arch_dir.mkdir(exist_ok=True, parents=True)
+    kmt_paths.dependencies.mkdir(exist_ok=True, parents=True)
+
+    go_path = "go"
+    go_root = os.getenv("GOROOT")
+    if go_root:
+        go_path = os.path.join(go_root, "bin", "go")
+
+    build_object_files(ctx, arch)
+
+    info("[+] Computing Go dependencies for host-profiler test packages...")
+    build_tags = get_sysprobe_test_buildtags(False, False)
+    target_packages = go_package_dirs(HOST_PROFILER_TEST_PACKAGES_LIST, build_tags)
+    if filter_pkgs:
+        filter_pkgs_resolved = [os.path.relpath(p) for p in go_package_dirs(filter_pkgs, build_tags)]
+        target_packages = [pkg for pkg in target_packages if os.path.relpath(pkg) in filter_pkgs_resolved]
+
+    pkg_deps = compute_package_dependencies(ctx, target_packages, build_tags)
+
+    info("[+] Generating build instructions for host-profiler tests...")
+    with open(nf_path, 'w') as ninja_file:
+        nw = NinjaWriter(ninja_file)
+
+        _, _, env = get_build_flags(ctx, arch=arch)
+        env["DD_SYSTEM_PROBE_BPF_DIR"] = EMBEDDED_SHARE_DIR
+
+        env_str = ""
+        for key, val in env.items():
+            new_val = val.replace('\n', ' ')
+            env_str += f"{key}='{new_val}' "
+        env_str = env_str.rstrip()
+
+        ninja_define_rules(nw, debug=True, ci=ci)
+        ninja_build_dependencies(ctx, nw, kmt_paths, go_path, arch)
+        ninja_copy_ebpf_files(nw, "host-profiler", kmt_paths, arch)
+
+        for pkg in target_packages:
+            pkg_name = os.path.relpath(pkg, os.getcwd())
+            target_path = os.path.join(kmt_paths.hostprofiler_tests, pkg_name)
+            output_path = os.path.join(target_path, "testsuite")
+            variables = {
+                "env": env_str,
+                "go": go_path,
+                "build_tags": build_tags,
+            }
+            timeout = get_test_timeout(os.path.relpath(pkg, os.getcwd()))
+            if timeout:
+                variables["timeout"] = f"-timeout {timeout}"
+
+            go_files = set(glob(f"{pkg}/*.go"))
+            has_test_files = any(x.lower().endswith("_test.go") for x in go_files)
+
+            if has_test_files:
+                for deps in pkg_deps[pkg_name]:
+                    go_files.update(os.path.abspath(p) for p in glob(f"{deps}/*.go"))
+
+                nw.build(
+                    inputs=[pkg],
+                    outputs=[output_path],
+                    implicit=list(go_files),
+                    rule="gotestsuite",
+                    pool="gobuild",
+                    variables=variables,
+                )
+
+    info("[+] Compiling host-profiler tests...")
+    ctx.run(f"ninja -d explain -v -f {nf_path}")
 
 
 @task

@@ -47,6 +47,10 @@ class KMTPaths:
         return self.arch_dir / "opt/security-agent-tests"
 
     @property
+    def hostprofiler_tests(self):
+        return self.arch_dir / "opt/host-profiler-tests"
+
+    @property
     def tools(self):
         return self.root / self.arch.kmt_arch / "tools"
 

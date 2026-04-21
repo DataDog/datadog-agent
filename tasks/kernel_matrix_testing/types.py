@@ -12,7 +12,7 @@ from tasks.libs.types.arch import KMTArchName
 
 KMTArchNameOrLocal = KMTArchName | Literal['local']
 PathOrStr = os.PathLike | str
-Component = Literal['system-probe', 'security-agent']
+Component = Literal['system-probe', 'security-agent', 'host-profiler']
 
 
 def component_from_str(component: str) -> Component:
