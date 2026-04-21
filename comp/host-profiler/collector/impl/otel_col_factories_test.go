@@ -42,7 +42,9 @@ func TestExtraFactoriesWithoutAgentCore_GetReceivers(t *testing.T) {
 
 func TestExtraFactoriesWithAgentCore_GetReceivers(t *testing.T) {
 	extra := extraFactoriesWithAgentCore{}
-	assert.Nil(t, extra.GetReceivers(), "agent core mode should not add extra receivers")
+	receivers := extra.GetReceivers()
+	require.Len(t, receivers, 1, "agent core mode should register the cnm receiver")
+	assert.Equal(t, "cnm", receivers[0].Type().String())
 }
 
 func TestExtraFactoriesWithoutAgentCore_GetProfilerName(t *testing.T) {

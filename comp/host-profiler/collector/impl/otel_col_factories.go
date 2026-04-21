@@ -14,12 +14,15 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	connectionsforwarder "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/def"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/converters"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/extensions/hpflareextension"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/processor/ddhostnameprocessor"
 	profilesreceiver "github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/receiver"
+	cnmreceiver "github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/receiver/cnm"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
 	ddprofilingextensionimpl "github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/cnmexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	zapAgent "github.com/DataDog/datadog-agent/pkg/util/log/zap"
@@ -36,6 +39,7 @@ import (
 	"go.uber.org/zap/zapcore"
 
 	"go.opentelemetry.io/collector/confmap"
+	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/debugexporter"
 	"go.opentelemetry.io/collector/exporter/otlphttpexporter"
 	"go.opentelemetry.io/collector/extension"
@@ -51,6 +55,7 @@ import (
 type ExtraFactories interface {
 	GetReceivers() []receiver.Factory
 	GetProcessors() []processor.Factory
+	GetExporters() []exporter.Factory
 	GetConverters() []confmap.ConverterFactory
 	GetExtensions() []extension.Factory
 	GetLoggingOptions() []zap.Option
@@ -60,12 +65,13 @@ type ExtraFactories interface {
 
 // extraFactoriesWithAgentCore is a struct that implements the ExtraFactories interface when the Agent Core is available.
 type extraFactoriesWithAgentCore struct {
-	tagger     tagger.Component
-	hostname   hostname.Component
-	ipcComp    ipc.Component
-	traceAgent traceagent.Component
-	log        log.Component
-	config     config.Component
+	tagger               tagger.Component
+	hostname             hostname.Component
+	ipcComp              ipc.Component
+	traceAgent           traceagent.Component
+	log                  log.Component
+	config               config.Component
+	connectionsForwarder connectionsforwarder.Component
 }
 
 var _ ExtraFactories = (*extraFactoriesWithAgentCore)(nil)
@@ -83,14 +89,16 @@ func NewExtraFactoriesWithAgentCore(
 	traceAgent traceagent.Component,
 	log log.Component,
 	config config.Component,
+	connectionsForwarder connectionsforwarder.Component,
 ) ExtraFactories {
 	return extraFactoriesWithAgentCore{
-		tagger:     tagger,
-		hostname:   hostname,
-		ipcComp:    ipcComp,
-		traceAgent: traceAgent,
-		log:        log,
-		config:     config,
+		tagger:               tagger,
+		hostname:             hostname,
+		ipcComp:              ipcComp,
+		traceAgent:           traceAgent,
+		log:                  log,
+		config:               config,
+		connectionsForwarder: connectionsForwarder,
 	}
 }
 
@@ -106,7 +114,16 @@ func (e extraFactoriesWithAgentCore) GetLoggingOptions() []zap.Option {
 
 // GetReceivers returns the receivers for the collector when the Agent Core is available.
 func (e extraFactoriesWithAgentCore) GetReceivers() []receiver.Factory {
-	return nil
+	return []receiver.Factory{
+		cnmreceiver.NewFactoryForAgent(e.tagger, e.hostname, e.config, e.log),
+	}
+}
+
+// GetExporters returns the exporters for the collector when the Agent Core is available.
+func (e extraFactoriesWithAgentCore) GetExporters() []exporter.Factory {
+	return []exporter.Factory{
+		cnmexporter.NewFactoryForAgent(e.connectionsForwarder, e.tagger, e.hostname, e.config, e.log),
+	}
 }
 
 // GetAgentConfig returns the Agent Core configuration when the Agent Core is available
@@ -159,6 +176,14 @@ func (e extraFactoriesWithoutAgentCore) GetLoggingOptions() []zap.Option {
 func (e extraFactoriesWithoutAgentCore) GetReceivers() []receiver.Factory {
 	return []receiver.Factory{
 		filelogreceiver.NewFactory(),
+		cnmreceiver.NewFactory(),
+	}
+}
+
+// GetExporters returns the exporters for the collector when the Agent Core is not available.
+func (e extraFactoriesWithoutAgentCore) GetExporters() []exporter.Factory {
+	return []exporter.Factory{
+		cnmexporter.NewFactory(),
 	}
 }
 
@@ -207,10 +232,9 @@ func createFactories(extraFactories ExtraFactories) func() (otelcol.Factories, e
 			return otelcol.Factories{}, err
 		}
 
-		exporters, err := otelcol.MakeFactoryMap(
-			debugexporter.NewFactory(),
-			otlphttpexporter.NewFactory(),
-		)
+		exporterFactories := []exporter.Factory{debugexporter.NewFactory(), otlphttpexporter.NewFactory()}
+		exporterFactories = append(exporterFactories, extraFactories.GetExporters()...)
+		exporters, err := otelcol.MakeFactoryMap(exporterFactories...)
 		if err != nil {
 			return otelcol.Factories{}, err
 		}

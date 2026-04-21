@@ -30,6 +30,7 @@ import (
 	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
 	statsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
 	statsdotel "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/otel"
+	connectionsforwarderfx "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/fx"
 	hostprofiler "github.com/DataDog/datadog-agent/comp/host-profiler"
 	collector "github.com/DataDog/datadog-agent/comp/host-profiler/collector/def"
 	collectorimpl "github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl"
@@ -110,6 +111,7 @@ func runHostProfilerCommand(ctx context.Context, cliParams *cliParams) error {
 		opts = append(opts, getRemoteTaggerOptions()...)
 		opts = append(opts, getTraceAgentOptions(ctx)...)
 		opts = append(opts, getConfigOptions(cliParams.GlobalParams)...)
+		opts = append(opts, getCNMOptions()...)
 	} else {
 		opts = append(opts,
 			fx.Invoke(func() {
@@ -168,5 +170,13 @@ func getTraceAgentOptions(ctx context.Context) []fx.Option {
 			config.Set("apm_config.receiver_enabled", false, pkgconfigmodel.SourceDefault) // disable HTTP receiver
 			return config
 		}),
+	}
+}
+
+func getCNMOptions() []fx.Option {
+	// secrets.Component is already provided by core.Bundle() (via secretsnoopfx.Module()),
+	// so we only need to add the connectionsforwarder here.
+	return []fx.Option{
+		connectionsforwarderfx.Module(),
 	}
 }

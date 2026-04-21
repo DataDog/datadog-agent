@@ -196,5 +196,32 @@ func buildConfig(agent configManager, p params.CollectorParams) confMap {
 	}
 	_ = converters.Set(config, "service::extensions", serviceExtensions)
 
+	buildCNMPipeline(config, agent)
+
 	return config
+}
+
+// buildCNMPipeline adds the CNM (Cloud Networking Monitoring) receiver, exporter,
+// and pipeline to the OTel config when network_config.enabled is true.
+func buildCNMPipeline(conf confMap, agent configManager) {
+	if agent.config == nil || !agent.config.GetBool("network_config.enabled") {
+		return
+	}
+
+	receivers, _ := converters.Ensure[confMap](conf, "receivers")
+	exporters, _ := converters.Ensure[confMap](conf, "exporters")
+
+	cnmReceiverConf := make(confMap)
+	cnmReceiverConf["collect_tcp_v4"] = agent.config.GetBool("network_config.collect_tcp_v4")
+	cnmReceiverConf["collect_tcp_v6"] = agent.config.GetBool("network_config.collect_tcp_v6")
+	cnmReceiverConf["collect_udp_v4"] = agent.config.GetBool("network_config.collect_udp_v4")
+	cnmReceiverConf["collect_udp_v6"] = agent.config.GetBool("network_config.collect_udp_v6")
+	receivers["cnm"] = cnmReceiverConf
+
+	exporters["datadog_cnm"] = make(confMap)
+
+	cnmPipeline, _ := converters.Ensure[confMap](conf, "service::pipelines::metrics/cnm")
+	cnmPipeline["receivers"] = []any{"cnm"}
+	cnmPipeline["processors"] = []any{"infraattributes/default"}
+	cnmPipeline["exporters"] = []any{"datadog_cnm"}
 }
