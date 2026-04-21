@@ -14,6 +14,9 @@ SPEC_PACKAGE = "./pkg/collector/corechecks/gpu/spec"
 ALLOWLIST_PACKAGE = f"{SPEC_PACKAGE}/allowlist"
 ALLOWLIST_BINARY = f"{ALLOWLIST_PACKAGE}/gpu-metrics-allowlist"
 DEFAULT_ALLOWLIST_PATH = "../dd-analytics/luigiscripts/billing/usage/standard_metric_allowlist.json"
+METADATA_PACKAGE = f"{SPEC_PACKAGE}/metadata"
+METADATA_BINARY = f"{METADATA_PACKAGE}/gpu-metrics-metadata"
+DEFAULT_METADATA_PATH = "../integrations-core/gpu/metadata.csv"
 VALIDATOR_PACKAGE = f"{SPEC_PACKAGE}/metrics-validator"
 VALIDATOR_BINARY = f"{VALIDATOR_PACKAGE}/gpu-metrics-validator"
 VALIDATOR_SITE = "datadoghq.com"
@@ -106,4 +109,29 @@ def update_metrics_allowlist(ctx, allowlist_path: str = DEFAULT_ALLOWLIST_PATH):
     binary_path = build_binary(ctx, ALLOWLIST_PACKAGE, ALLOWLIST_BINARY, "allowlist updater")
     command = f"{shlex.quote(binary_path)} " f"--allowlist-path {shlex.quote(allowlist_path)}"
     print(f"== Updating GPU metric allowlist at {allowlist_path} ==")
+    ctx.run(command)
+
+
+@task(
+    name="update-metadata",
+    help={
+        "metadata_path": f"Path to gpu/metadata.csv (default: {DEFAULT_METADATA_PATH})",
+        "default_interval": "Default interval value for metrics missing metadata.interval",
+    },
+)
+def update_metadata(
+    ctx,
+    metadata_path: str = DEFAULT_METADATA_PATH,
+    default_interval: int = 16,
+):
+    """
+    Update integrations-core GPU metadata.csv entries from the shared GPU spec.
+    """
+    binary_path = build_binary(ctx, METADATA_PACKAGE, METADATA_BINARY, "metadata updater")
+    command = (
+        f"{shlex.quote(binary_path)} "
+        f"--metadata-path {shlex.quote(metadata_path)} "
+        f"--default-interval {int(default_interval)}"
+    )
+    print(f"== Updating GPU metadata at {metadata_path} ==")
     ctx.run(command)
