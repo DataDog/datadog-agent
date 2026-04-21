@@ -58,6 +58,7 @@ def run(cmd: list[str], *, check: bool = False, capture: bool = False) -> subpro
 
 # ── root BUILD.bazel management ───────────────────────────────────────────────
 
+
 def current_excludes() -> set[str]:
     """Return the set of all currently excluded paths from root BUILD.bazel."""
     pattern = re.compile(r"^# gazelle:exclude\s+(.+)$")
@@ -139,7 +140,7 @@ def remove_local_exclude(build_dir: str, rel_excl: str) -> None:
     build_file = REPO_ROOT / build_dir / "BUILD.bazel"
     target = f"# gazelle:exclude {rel_excl}"
     lines = build_file.read_text().splitlines(keepends=True)
-    new_lines = [l for l in lines if l.rstrip() != target]
+    new_lines = [line for line in lines if line.rstrip() != target]
     build_file.write_text("".join(new_lines))
 
 
@@ -169,6 +170,7 @@ def restore_local_exclude(build_dir: str, rel_excl: str) -> None:
 
 
 # ── file tracking ─────────────────────────────────────────────────────────────
+
 
 def find_all_build_files() -> set[Path]:
     """Return the set of all BUILD.bazel files currently on disk."""
@@ -219,10 +221,13 @@ def revert_gazelle_changes(
 
     result = run(["git", "diff", "--name-only"], capture=True)
     to_revert = [
-        p.strip() for p in result.stdout.splitlines()
-        if (p.strip().endswith("BUILD.bazel")
-            and p.strip() != "BUILD.bazel"          # root managed by caller
-            and p.strip() not in pre_existing_mods)  # skip prior successful ops
+        p.strip()
+        for p in result.stdout.splitlines()
+        if (
+            p.strip().endswith("BUILD.bazel")
+            and p.strip() != "BUILD.bazel"  # root managed by caller
+            and p.strip() not in pre_existing_mods
+        )  # skip prior successful ops
     ]
     if to_revert:
         run(["git", "checkout", "--"] + to_revert)
@@ -231,6 +236,7 @@ def revert_gazelle_changes(
 
 
 # ── minimal covering set ──────────────────────────────────────────────────────
+
 
 def _collect_excludes(prefix: str, abs_dir: Path, targets_rel: set[str], result: list[str]) -> None:
     """Recursively collect the minimal set of relative paths to exclude.
@@ -262,6 +268,7 @@ def get_minimal_excludes(parent_abs: Path, targets_rel: set[str]) -> list[str]:
 
 
 # ── gazelle + tests ───────────────────────────────────────────────────────────
+
 
 def run_gazelle() -> bool:
     """Run gazelle; return True on success."""
@@ -320,6 +327,7 @@ def failing_packages_from_output(output: str) -> list[str]:
 
 
 # ── per-entry migration ───────────────────────────────────────────────────────
+
 
 def migrate_direct(path: str, test_targets: list[str]) -> tuple[bool, str]:
     """Remove the exact exclude line from root BUILD.bazel, run gazelle + tests."""
@@ -393,7 +401,7 @@ def migrate_carveout(parent: str, targets: list[str], test_targets: list[str]) -
     restored to its pre-operation state or deleted if it was newly created).
     """
     parent_abs = REPO_ROOT / parent
-    targets_rel = {t[len(parent) + 1:] for t in targets}
+    targets_rel = {t[len(parent) + 1 :] for t in targets}
 
     min_excludes = get_minimal_excludes(parent_abs, targets_rel)
 
@@ -431,7 +439,7 @@ def migrate_carveout(parent: str, targets: list[str], test_targets: list[str]) -
 
     if not run_gazelle():
         _undo()
-        return {t: (False, "gazelle failed") for t in targets}
+        return dict.fromkeys(targets, (False, "gazelle failed"))
 
     new_files = get_new_build_files(before)
     log(f"  gazelle created {len(new_files)} file(s)")
@@ -447,19 +455,20 @@ def migrate_carveout(parent: str, targets: list[str], test_targets: list[str]) -
     _undo()
 
     if re.search(r"@@\[unknown repo|error loading package '@@", output):
-        return {t: (False, "external module conflict") for t in targets}
+        return dict.fromkeys(targets, (False, "external module conflict"))
     all_failing = failing_packages_from_output(output)
     unrelated = [
-        p for p in all_failing
-        if not any(p == t or p.startswith(t + "/") for t in targets)
-        and not p.startswith(parent + "/")
+        p
+        for p in all_failing
+        if not any(p == t or p.startswith(t + "/") for t in targets) and not p.startswith(parent + "/")
     ]
     if unrelated:
         return {t: (False, f"blocked by: {', '.join(unrelated)}") for t in targets}
-    return {t: (False, "tests failed") for t in targets}
+    return dict.fromkeys(targets, (False, "tests failed"))
 
 
 # ── TODO file parsing ─────────────────────────────────────────────────────────
+
 
 def parse_todo(todo_file: str) -> list[str]:
     """Parse TODO file; each non-empty line's last whitespace-delimited token is the path.
@@ -478,6 +487,7 @@ def parse_todo(todo_file: str) -> list[str]:
 
 # ── commit ────────────────────────────────────────────────────────────────────
 
+
 def do_commit(description: str, new_files: list[Path]) -> None:
     """Stage new BUILD.bazel files and commit all BUILD.bazel changes."""
     if new_files:
@@ -495,32 +505,36 @@ def do_commit(description: str, new_files: list[Path]) -> None:
             return
         if "index.lock" in result.stderr and attempt < 2:
             import time
+
             log("  git index.lock conflict, retrying in 3s…")
             time.sleep(3)
         else:
-            raise subprocess.CalledProcessError(
-                result.returncode, ["git", "commit"], result.stdout, result.stderr
-            )
+            raise subprocess.CalledProcessError(result.returncode, ["git", "commit"], result.stdout, result.stderr)
 
 
 # ── main ──────────────────────────────────────────────────────────────────────
 
+
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--todo", metavar="FILE", help="Path to TODO file listing target package paths")
+    parser.add_argument("--package", metavar="PKG", nargs="+", help="One or more package paths to migrate directly")
+    parser.add_argument(
+        "--max-files",
+        type=int,
+        default=DEFAULT_MAX_FILES,
+        metavar="N",
+        help=f"Stop when N BUILD.bazel files have changed (default: {DEFAULT_MAX_FILES})",
     )
-    parser.add_argument("--todo", metavar="FILE",
-                        help="Path to TODO file listing target package paths")
-    parser.add_argument("--package", metavar="PKG", nargs="+",
-                        help="One or more package paths to migrate directly")
-    parser.add_argument("--max-files", type=int, default=DEFAULT_MAX_FILES, metavar="N",
-                        help=f"Stop when N BUILD.bazel files have changed (default: {DEFAULT_MAX_FILES})")
-    parser.add_argument("--dry-run", action="store_true",
-                        help="Print what would happen without executing")
-    parser.add_argument("--no-commit", action="store_true",
-                        help="Don't commit after each successful migration")
-    parser.add_argument("--test-targets", nargs="+", default=DEFAULT_TEST_TARGETS, metavar="TARGET",
-                        help="Bazel test targets to run after each migration")
+    parser.add_argument("--dry-run", action="store_true", help="Print what would happen without executing")
+    parser.add_argument("--no-commit", action="store_true", help="Don't commit after each successful migration")
+    parser.add_argument(
+        "--test-targets",
+        nargs="+",
+        default=DEFAULT_TEST_TARGETS,
+        metavar="TARGET",
+        help="Bazel test targets to run after each migration",
+    )
     args = parser.parse_args()
 
     if not args.todo and not args.package:
@@ -540,8 +554,7 @@ def main() -> int:
         if p not in excludes:
             parts = p.split("/")
             par = next(
-                ("/".join(parts[:i]) for i in range(len(parts) - 1, 0, -1)
-                 if "/".join(parts[:i]) in excludes),
+                ("/".join(parts[:i]) for i in range(len(parts) - 1, 0, -1) if "/".join(parts[:i]) in excludes),
                 None,
             )
             if par:
@@ -608,8 +621,7 @@ def main() -> int:
             # ── CARVEOUT (root BUILD.bazel parent) ──────────────────────────
             parts = path.split("/")
             par = next(
-                ("/".join(parts[:i]) for i in range(len(parts) - 1, 0, -1)
-                 if "/".join(parts[:i]) in excludes),
+                ("/".join(parts[:i]) for i in range(len(parts) - 1, 0, -1) if "/".join(parts[:i]) in excludes),
                 None,
             )
             if par is None:
