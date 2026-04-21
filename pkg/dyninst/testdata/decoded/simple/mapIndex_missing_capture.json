@@ -41,14 +41,14 @@
           "location": {
             "method": "main.mapIndexMissing"
           }
-        }
-      },
-      "evaluationErrors": [
-        {
-          "expr": "m_missing",
-          "message": "index out of bounds"
-        }
-      ]
+        },
+        "evaluationErrors": [
+          {
+            "expr": "m_missing",
+            "message": "index out of bounds"
+          }
+        ]
+      }
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
