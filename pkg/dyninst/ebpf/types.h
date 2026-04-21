@@ -115,6 +115,10 @@ typedef enum sm_opcode {
   SM_OP_SWISS_MAP_HASH_FINISH = 35,
   SM_OP_SWISS_MAP_PROBE = 36,
   SM_OP_SWISS_MAP_CHECK_SLOT = 37,
+  // Compound condition opcodes.
+  SM_OP_COND_NOT = 38,
+  SM_OP_COND_JUMP_IF_FALSE = 39,
+  SM_OP_COND_JUMP_IF_TRUE = 40,
 } sm_opcode_t;
 
 #ifdef DYNINST_DEBUG
@@ -196,6 +200,12 @@ static const char* op_code_name(sm_opcode_t op_code) {
     return "SWISS_MAP_PROBE";
   case SM_OP_SWISS_MAP_CHECK_SLOT:
     return "SWISS_MAP_CHECK_SLOT";
+  case SM_OP_COND_NOT:
+    return "COND_NOT";
+  case SM_OP_COND_JUMP_IF_FALSE:
+    return "COND_JUMP_IF_FALSE";
+  case SM_OP_COND_JUMP_IF_TRUE:
+    return "COND_JUMP_IF_TRUE";
   default:
     break;
   }
