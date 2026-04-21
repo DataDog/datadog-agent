@@ -40,6 +40,8 @@ var (
 		"Reason for transport reconnect (write_timeout, conn_refused, etc)")
 	tlmHookCallbacks = telemetry.NewCounter(subsystem, "hook_callbacks_total", nil,
 		"Total number of metric samples received via hook callback")
+	tlmRingFillPct = telemetry.NewGauge(subsystem, "ring_fill_pct", []string{"type"},
+		"Percentage of the ring buffer occupied at flush time (0-100). High values indicate backpressure.")
 )
 
 // counters holds atomic counters that back both the telemetry gauges and the
@@ -108,6 +110,13 @@ func (c *counters) incTraceStatsDroppedTransport(n uint64) {
 
 func (c *counters) setBatchSize(typ string, n int) {
 	tlmBatchSize.Set(float64(n), typ)
+}
+
+func (c *counters) setRingFillPct(typ string, activeN, cap int) {
+	if cap <= 0 {
+		return
+	}
+	tlmRingFillPct.Set(float64(activeN)*100/float64(cap), typ)
 }
 
 func (c *counters) incBytesSent(n uint64, signalType string) {

@@ -135,6 +135,16 @@ func (r *ringBuf[T]) addBatch(items []T, overflowFn func()) bool {
 	return signal
 }
 
+// fillLevel returns the current number of items and current capacity.
+// Used for telemetry — callers should not hold any lock when calling.
+func (r *ringBuf[T]) fillLevel() (activeN, cap int) {
+	r.mu.Lock()
+	activeN = r.activeN
+	cap = r.cap
+	r.mu.Unlock()
+	return
+}
+
 // swapResult holds the drain buffer state after a swap.
 type swapResult[T any] struct {
 	buf   []T
@@ -197,6 +207,10 @@ func flushChunked[T any](
 	incSent func(uint64),
 	incDropped func(uint64),
 ) int {
+	// Sample fill level before swap for telemetry (approximation: not atomic with swap).
+	activeN, cap := ring.fillLevel()
+	counters.setRingFillPct(signalType, activeN, cap)
+
 	sr, ok := ring.swap()
 	if !ok {
 		return 0

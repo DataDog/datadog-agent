@@ -19,6 +19,8 @@ pub struct WriterTelemetry {
     pub flush_bytes: AtomicU64,
     pub rows_written: AtomicU64,
     pub last_flush_duration_ns: AtomicU64,
+    /// Percentage of the rtrb frame ring occupied when the writer thread last woke up (0-100).
+    pub rtrb_ring_fill_pct: AtomicU64,
 }
 
 impl WriterTelemetry {
@@ -29,6 +31,7 @@ impl WriterTelemetry {
             flush_bytes: AtomicU64::new(0),
             rows_written: AtomicU64::new(0),
             last_flush_duration_ns: AtomicU64::new(0),
+            rtrb_ring_fill_pct: AtomicU64::new(0),
         }
     }
 
@@ -40,6 +43,10 @@ impl WriterTelemetry {
         self.rows_written.store(stats.rows_written, Ordering::Relaxed);
         self.last_flush_duration_ns
             .store(stats.last_flush_duration_ns, Ordering::Relaxed);
+    }
+
+    pub fn set_rtrb_fill_pct(&self, pct: u64) {
+        self.rtrb_ring_fill_pct.store(pct, Ordering::Relaxed);
     }
 }
 
@@ -167,7 +174,13 @@ fn writer_thread_loop<W: SignalWriter>(
     shutdown: Arc<AtomicBool>,
     pool: crate::BufferPool,
 ) {
+    let ring_capacity = consumer.buffer().capacity();
     loop {
+        // Sample rtrb ring fill % before draining (slots() = items available to pop).
+        let occupied = consumer.slots();
+        let fill_pct = if ring_capacity > 0 { (occupied as u64 * 100) / ring_capacity as u64 } else { 0 };
+        telemetry.set_rtrb_fill_pct(fill_pct);
+
         // Drain all available frames without blocking.
         let mut processed = false;
         while let Ok(buf) = consumer.pop() {

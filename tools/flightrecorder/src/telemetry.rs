@@ -228,6 +228,12 @@ impl TelemetryReporter {
         if has_eid { b = b.with_tag_value(eid); }
         let _ = b.send();
 
+        let fill_pct = telemetry.rtrb_ring_fill_pct.load(Ordering::Relaxed);
+        let mut b = self.client.gauge_with_tags("rtrb_ring_fill_pct", fill_pct)
+            .with_tag("writer", writer_tag);
+        if has_eid { b = b.with_tag_value(eid); }
+        let _ = b.send();
+
         *prev_flush_count = flush_count;
         *prev_flush_bytes = flush_bytes;
         *prev_rows = rows;
