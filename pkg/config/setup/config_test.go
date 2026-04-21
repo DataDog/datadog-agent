@@ -728,6 +728,54 @@ infrastructure_mode: end_user_device
 
 }
 
+func TestNetworkPathFiltersEndUserDeviceModeAppendsUser(t *testing.T) {
+	datadogYaml := `
+infrastructure_mode: end_user_device
+network_path:
+  collector:
+    filters:
+      - match_ip: 0.0.0.0/0
+        type: include
+`
+	config := confFromYAML(t, datadogYaml)
+	applyInfrastructureModeOverrides(config)
+	filters := config.Get("network_path.collector.filters")
+	require.NotNil(t, filters)
+
+	filtersList, ok := filters.([]map[string]string)
+	require.True(t, ok, "filters should be []map[string]string, got %T", filters)
+
+	last := filtersList[len(filtersList)-1]
+	assert.Equal(t, "0.0.0.0/0", last["match_ip"], "user filter should be appended last")
+	assert.Equal(t, "include", last["type"])
+}
+
+func TestNetworkPathFiltersEndUserDeviceModeMalformedUserFiltersSkipsOverride(t *testing.T) {
+	// Malformed filters: list of scalars instead of list of maps, so structure.UnmarshalKey fails.
+	datadogYaml := `
+infrastructure_mode: end_user_device
+network_path:
+  collector:
+    filters:
+      - "not_a_map"
+      - "still_not_a_map"
+`
+	config := confFromYAML(t, datadogYaml)
+	applyInfrastructureModeOverrides(config)
+
+	// The filter override must be skipped: the user's (malformed) value is left in place
+	// rather than being silently replaced with the EUDM defaults.
+	filters := config.Get("network_path.collector.filters")
+	_, ok := filters.([]map[string]string)
+	assert.False(t, ok, "EUDM defaults should NOT be applied when user filters fail to unmarshal, got %T", filters)
+
+	// The other EUDM overrides should still be applied — a filter parse failure must not
+	// prevent the rest of the mode from taking effect.
+	assert.True(t, config.GetBool("process_config.process_collection.enabled"))
+	assert.True(t, config.GetBool("software_inventory.enabled"))
+	assert.True(t, config.GetBool("notable_events.enabled"))
+}
+
 func TestUsePodmanLogsAndDockerPathOverride(t *testing.T) {
 	// If use_podman_logs is true and docker_path_override is set, the config should return an error
 	datadogYaml := `
