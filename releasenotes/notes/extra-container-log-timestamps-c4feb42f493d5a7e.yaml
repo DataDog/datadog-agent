@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Add `logs_config.use_container_timestamp` to optionally use the `time` field from container log files as the log timestamp instead of ingestion time, preserving container-provided per-line timestamps.
