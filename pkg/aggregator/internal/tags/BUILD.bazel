@@ -9,9 +9,10 @@ go_library(
         "@com_github_datadog_datadog_agent_pkg_aggregator_ckey//:__subpackages__",
     ],
     deps = [
+        "//comp/core/telemetry/def",
+        "//comp/core/telemetry/impl",
         "//pkg/aggregator/ckey",
         "//pkg/tagset",
-        "//pkg/telemetry",
         "//pkg/util/size",
         "@org_uber_go_atomic//:atomic",
     ],

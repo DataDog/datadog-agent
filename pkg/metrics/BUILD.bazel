@@ -31,11 +31,12 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/tagger/def",
+        "//comp/core/telemetry/def",
+        "//comp/core/telemetry/impl",
         "//pkg/aggregator/ckey",
         "//pkg/config/model",
         "//pkg/tagger/types",
         "//pkg/tagset",
-        "//pkg/telemetry",
         "//pkg/util/buf",
         "//pkg/util/log",
         "@com_github_stretchr_testify//assert",

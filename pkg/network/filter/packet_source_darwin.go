@@ -23,7 +23,8 @@ import (
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
 
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	telemetrydef "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
@@ -48,13 +49,13 @@ const (
 
 // Telemetry
 var packetSourceTelemetry = struct {
-	processed *telemetry.StatCounterWrapper
-	captured  *telemetry.StatCounterWrapper
-	dropped   *telemetry.StatCounterWrapper
+	processed *telemetrydef.StatCounterWrapper
+	captured  *telemetrydef.StatCounterWrapper
+	dropped   *telemetrydef.StatCounterWrapper
 }{
-	telemetry.NewStatCounterWrapper(telemetryModuleName, "processed_packets", []string{}, "Counter measuring the number of processed packets"),
-	telemetry.NewStatCounterWrapper(telemetryModuleName, "captured_packets", []string{}, "Counter measuring the number of captured packets"),
-	telemetry.NewStatCounterWrapper(telemetryModuleName, "dropped_packets", []string{}, "Counter measuring the number of dropped packets"),
+	telemetrydef.NewStatCounterWrapper(telemetryimpl.GetCompatComponent(), telemetryModuleName, "processed_packets", []string{}, "Counter measuring the number of processed packets"),
+	telemetrydef.NewStatCounterWrapper(telemetryimpl.GetCompatComponent(), telemetryModuleName, "captured_packets", []string{}, "Counter measuring the number of captured packets"),
+	telemetrydef.NewStatCounterWrapper(telemetryimpl.GetCompatComponent(), telemetryModuleName, "dropped_packets", []string{}, "Counter measuring the number of dropped packets"),
 }
 
 // packetWithInfo wraps copied packet data with metadata

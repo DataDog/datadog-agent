@@ -408,6 +408,10 @@
 
 /comp/core/agenttelemetry               @DataDog/agent-health
 
+# ebpf-platform also owns the stat wrappers in telemetry (previously pkg/telemetry/stat_*_wrapper.go)
+/comp/core/telemetry/def/stat_gauge_wrapper.go   @DataDog/agent-runtimes @DataDog/ebpf-platform
+/comp/core/telemetry/def/stat_counter_wrapper.go @DataDog/agent-runtimes @DataDog/ebpf-platform
+
 # trace-agent logging implementation should also notify agent-apm
 /comp/core/log/impl-trace @DataDog/agent-apm
 
@@ -447,20 +451,26 @@
 /pkg/status/health                      @DataDog/agent-runtimes
 /pkg/status/collector                   @DataDog/agent-runtimes
 /pkg/status/clusteragent                @DataDog/container-platform
-/pkg/telemetry/                         @DataDog/agent-runtimes
-/pkg/telemetry/stat_gauge_wrapper.go    @DataDog/ebpf-platform
-/pkg/telemetry/stat_counter_wrapper.go  @DataDog/ebpf-platform
 /pkg/template/                          @DataDog/agent-runtimes
 /pkg/version/                           @DataDog/agent-runtimes
 /pkg/obfuscate/                         @DataDog/agent-apm
+
 /pkg/trace/                             @DataDog/agent-apm
+
 /pkg/trace/api/otlp*.go                 @DataDog/opentelemetry
+
 /pkg/trace/api/loader/                  @DataDog/agent-runtimes
+
 /pkg/trace/api/loader/listeners.go      @DataDog/agent-apm
+
 /pkg/trace/traceutil/                   @DataDog/agent-apm
+
 /pkg/trace/stats/                       @DataDog/agent-apm
+
 /pkg/trace/otel/                        @DataDog/opentelemetry
+
 /pkg/trace/telemetry/                   @DataDog/apm-trace-storage
+
 /pkg/trace/transform/                   @DataDog/opentelemetry
 /comp/core/autodiscovery/listeners/           @DataDog/container-platform
 /comp/core/autodiscovery/listeners/cloudfoundry*.go  @DataDog/agent-integrations

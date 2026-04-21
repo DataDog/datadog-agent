@@ -25,7 +25,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sys/unix"
 
-	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/perf"
@@ -38,7 +39,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	ssluprobes "github.com/DataDog/datadog-agent/pkg/network/tracer/connection/ssl-uprobes"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
@@ -52,7 +52,7 @@ var tlsTagsMapTTL = 3 * time.Minute.Nanoseconds()
 
 // EbpfTracerTelemetryData holds telemetry from the EBPF tracer
 type EbpfTracerTelemetryData struct {
-	connections       telemetry.Gauge
+	connections       telemetryComponent.Gauge
 	tcpSentMiscounts  *prometheus.Desc
 	udpSendsProcessed *prometheus.Desc
 	udpSendsMissed    *prometheus.Desc
@@ -65,13 +65,13 @@ type EbpfTracerTelemetryData struct {
 	tcpCloseTargetFailures      *prometheus.Desc
 	tcpDoneConnectionFlush      *prometheus.Desc
 	tcpCloseConnectionFlush     *prometheus.Desc
-	tcpFailedConnections        telemetry.Counter
+	tcpFailedConnections        telemetryComponent.Counter
 	tcpSynRetransmit            *prometheus.Desc
-	ongoingConnectPidCleaned    telemetry.Counter
-	PidCollisions               *telemetry.StatCounterWrapper
-	iterationDups               telemetry.Counter
-	iterationAborts             telemetry.Counter
-	sslCertMissed               telemetry.Counter
+	ongoingConnectPidCleaned    telemetryComponent.Counter
+	PidCollisions               *telemetryComponent.StatCounterWrapper
+	iterationDups               telemetryComponent.Counter
+	iterationAborts             telemetryComponent.Counter
+	sslCertMissed               telemetryComponent.Counter
 
 	mu sync.Mutex
 
@@ -92,7 +92,7 @@ type EbpfTracerTelemetryData struct {
 
 // EbpfTracerTelemetry holds telemetry from the EBPF tracer
 var EbpfTracerTelemetry = EbpfTracerTelemetryData{
-	telemetry.NewGauge(connTracerModuleName, "connections", []string{"ip_proto", "family"}, "Gauge measuring the number of active connections in the EBPF map"),
+	telemetryimpl.GetCompatComponent().NewGauge(connTracerModuleName, "connections", []string{"ip_proto", "family"}, "Gauge measuring the number of active connections in the EBPF map"),
 	prometheus.NewDesc(connTracerModuleName+"__tcp_sent_miscounts", "Counter measuring the number of miscounted tcp sends in the EBPF map", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__udp_sends_processed", "Counter measuring the number of processed UDP sends in EBPF", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__udp_sends_missed", "Counter measuring failures to process UDP sends in EBPF", nil, nil),
@@ -104,13 +104,13 @@ var EbpfTracerTelemetry = EbpfTracerTelemetryData{
 	prometheus.NewDesc(connTracerModuleName+"__tcp_close_target_failures", "Counter measuring the number of failed TCP connections in tcp_close", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__tcp_done_connection_flush", "Counter measuring the number of connection flushes performed in tcp_done", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__tcp_close_connection_flush", "Counter measuring the number of connection flushes performed in tcp_close", nil, nil),
-	telemetry.NewCounter(connTracerModuleName, "tcp_failed_connections", []string{"errno"}, "Gauge measuring the number of unsupported failed TCP connections"),
+	telemetryimpl.GetCompatComponent().NewCounter(connTracerModuleName, "tcp_failed_connections", []string{"errno"}, "Gauge measuring the number of unsupported failed TCP connections"),
 	prometheus.NewDesc(connTracerModuleName+"__tcp_syn_retransmit", "Counter measuring the number of tcp retransmits of syn packets", nil, nil),
-	telemetry.NewCounter(connTracerModuleName, "ongoing_connect_pid_cleaned", []string{}, "Counter measuring the number of tcp_ongoing_connect_pid entries cleaned in userspace"),
-	telemetry.NewStatCounterWrapper(connTracerModuleName, "pid_collisions", []string{}, "Counter measuring number of process collisions"),
-	telemetry.NewCounter(connTracerModuleName, "iteration_dups", []string{}, "Counter measuring the number of connections iterated more than once"),
-	telemetry.NewCounter(connTracerModuleName, "iteration_aborts", []string{}, "Counter measuring how many times ebpf iteration of connection map was aborted"),
-	telemetry.NewCounter(connTracerModuleName, "__ssl_cert_missed", []string{}, "Counter measuring the number of times the agent tried to fetch a cert that was missing from the cert info map (probably because it was full)"),
+	telemetryimpl.GetCompatComponent().NewCounter(connTracerModuleName, "ongoing_connect_pid_cleaned", []string{}, "Counter measuring the number of tcp_ongoing_connect_pid entries cleaned in userspace"),
+	telemetryComponent.NewStatCounterWrapper(telemetryimpl.GetCompatComponent(), connTracerModuleName, "pid_collisions", []string{}, "Counter measuring number of process collisions"),
+	telemetryimpl.GetCompatComponent().NewCounter(connTracerModuleName, "iteration_dups", []string{}, "Counter measuring the number of connections iterated more than once"),
+	telemetryimpl.GetCompatComponent().NewCounter(connTracerModuleName, "iteration_aborts", []string{}, "Counter measuring how many times ebpf iteration of connection map was aborted"),
+	telemetryimpl.GetCompatComponent().NewCounter(connTracerModuleName, "__ssl_cert_missed", []string{}, "Counter measuring the number of times the agent tried to fetch a cert that was missing from the cert info map (probably because it was full)"),
 	sync.Mutex{},
 	0,
 	0,

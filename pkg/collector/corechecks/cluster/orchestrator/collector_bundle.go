@@ -19,6 +19,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/inventory"
@@ -27,7 +28,6 @@ import (
 	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -70,7 +70,7 @@ var (
 	skippedResourcesExpVars = expvar.NewMap("orchestrator-skipped-resources")
 	skippedResources        = map[string]*expvar.String{}
 
-	tlmSkippedResources = telemetry.NewCounter("orchestrator", "skipped_resources", []string{"name"}, "Skipped resources in orchestrator check")
+	tlmSkippedResources = telemetryimpl.GetCompatComponent().NewCounter("orchestrator", "skipped_resources", []string{"name"}, "Skipped resources in orchestrator check")
 )
 
 // CollectorBundle is a container for a group of collectors. It provides a way

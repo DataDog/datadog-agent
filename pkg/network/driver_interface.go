@@ -14,13 +14,13 @@ import (
 	"time"
 	"unsafe"
 
-	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 
 	"golang.org/x/sys/windows"
 
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -55,27 +55,27 @@ const (
 
 // Telemetry
 var driverTelemetry = struct {
-	totalFlows  telemetry.Counter
-	openFlows   telemetry.Gauge
-	closedFlows telemetry.Gauge
+	totalFlows  telemetryComp.Counter
+	openFlows   telemetryComp.Gauge
+	closedFlows telemetryComp.Gauge
 
-	closedBufferSize      telemetry.Gauge
-	closedBufferIncreases telemetry.Counter
-	closedBufferDecreases telemetry.Counter
-	openBufferSize        telemetry.Gauge
-	openBufferIncreases   telemetry.Counter
-	openBufferDecreases   telemetry.Counter
+	closedBufferSize      telemetryComp.Gauge
+	closedBufferIncreases telemetryComp.Counter
+	closedBufferDecreases telemetryComp.Counter
+	openBufferSize        telemetryComp.Gauge
+	openBufferIncreases   telemetryComp.Counter
+	openBufferDecreases   telemetryComp.Counter
 }{
-	telemetry.NewCounter(flowStats, "total_flows", []string{}, "Counter measuring the total number of flows"),
-	telemetry.NewGauge(flowStats, "open_flows", []string{}, "Gauge measuring the current number of open flows"),
-	telemetry.NewGauge(flowStats, "closed_flows", []string{}, "Gauge measuring the current number of closed flows"),
+	telemetryimpl.GetCompatComponent().NewCounter(flowStats, "total_flows", []string{}, "Counter measuring the total number of flows"),
+	telemetryimpl.GetCompatComponent().NewGauge(flowStats, "open_flows", []string{}, "Gauge measuring the current number of open flows"),
+	telemetryimpl.GetCompatComponent().NewGauge(flowStats, "closed_flows", []string{}, "Gauge measuring the current number of closed flows"),
 
-	telemetry.NewGauge(driverStats, "closed_buffer_size", []string{}, "Gauge measuring the size of the closed buffer"),
-	telemetry.NewCounter(driverStats, "closed_buffer_increases", []string{}, "Counter measuring the number of closed buffer increases"),
-	telemetry.NewCounter(driverStats, "closed_buffer_decreases", []string{}, "Counter measuring the number of closed buffer decreases"),
-	telemetry.NewGauge(driverStats, "open_buffer_size", []string{}, "Gauge measuring the size of the open buffer"),
-	telemetry.NewCounter(driverStats, "open_buffer_increases", []string{}, "Counter measuring the number of open buffer increases"),
-	telemetry.NewCounter(driverStats, "open_buffer_decreases", []string{}, "Counter measuring the number of open buffer decreases"),
+	telemetryimpl.GetCompatComponent().NewGauge(driverStats, "closed_buffer_size", []string{}, "Gauge measuring the size of the closed buffer"),
+	telemetryimpl.GetCompatComponent().NewCounter(driverStats, "closed_buffer_increases", []string{}, "Counter measuring the number of closed buffer increases"),
+	telemetryimpl.GetCompatComponent().NewCounter(driverStats, "closed_buffer_decreases", []string{}, "Counter measuring the number of closed buffer decreases"),
+	telemetryimpl.GetCompatComponent().NewGauge(driverStats, "open_buffer_size", []string{}, "Gauge measuring the size of the open buffer"),
+	telemetryimpl.GetCompatComponent().NewCounter(driverStats, "open_buffer_increases", []string{}, "Counter measuring the number of open buffer increases"),
+	telemetryimpl.GetCompatComponent().NewCounter(driverStats, "open_buffer_decreases", []string{}, "Counter measuring the number of open buffer decreases"),
 }
 
 // DriverInterface holds all necessary information for interacting with the windows driver

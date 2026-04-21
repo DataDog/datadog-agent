@@ -22,8 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -51,7 +51,7 @@ func newTestClient(t *testing.T) (*languageDetectionClientImpl, chan *pbgo.Paren
 		"cluster_agent.enabled":                      "true",
 		"language_detection.reporting.buffer_period": "50ms",
 	})
-	tel := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	tel := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
 	wm := fxutil.Test[workloadmeta.Component](t, workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		fx.Provide(func() config.Component { return cfg }),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
@@ -91,7 +91,7 @@ func TestClientEnabled(t *testing.T) {
 		{"false", "false", "false", false},
 	}
 
-	tel := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	tel := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
 	wm := fxutil.Test[workloadmeta.Component](t, workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		fx.Provide(func() log.Component { return logmock.New(t) }),

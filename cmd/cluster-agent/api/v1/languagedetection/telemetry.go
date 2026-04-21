@@ -7,7 +7,10 @@
 
 package languagedetection
 
-import "github.com/DataDog/datadog-agent/pkg/telemetry"
+import (
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+)
 
 const subsystem = "language_detection_dca_handler"
 
@@ -17,7 +20,7 @@ var (
 
 var (
 	// ProcessedRequests tracks the number requests processed by the handler
-	ProcessedRequests = telemetry.NewCounterWithOpts(
+	ProcessedRequests = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
 		subsystem,
 		"processed_requests",
 		[]string{"status"},

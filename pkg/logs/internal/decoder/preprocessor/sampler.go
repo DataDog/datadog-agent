@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"time"
 
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 // Sampler is the final stage of the Preprocessor. It receives one completed log
@@ -44,22 +44,22 @@ func (s *NoopSampler) Flush() *message.Message {
 	return nil
 }
 
-var tlmAdaptiveSamplerDropped = telemetry.NewCounter("logs_adaptive_sampler", "dropped",
+var tlmAdaptiveSamplerDropped = telemetryimpl.GetCompatComponent().NewCounter("logs_adaptive_sampler", "dropped",
 	[]string{"source"}, "Number of log messages dropped by the adaptive sampler")
 
-var tlmAdaptiveSamplerBytesDropped = telemetry.NewCounter("logs_adaptive_sampler", "bytes_dropped",
+var tlmAdaptiveSamplerBytesDropped = telemetryimpl.GetCompatComponent().NewCounter("logs_adaptive_sampler", "bytes_dropped",
 	[]string{"source"}, "Number of bytes dropped by the adaptive sampler")
 
-var tlmAdaptiveSamplerKept = telemetry.NewCounter("logs_adaptive_sampler", "kept",
+var tlmAdaptiveSamplerKept = telemetryimpl.GetCompatComponent().NewCounter("logs_adaptive_sampler", "kept",
 	[]string{"source"}, "Number of log messages emitted by the adaptive sampler")
 
-var tlmAdaptiveSamplerNewPatterns = telemetry.NewCounter("logs_adaptive_sampler", "new_patterns",
+var tlmAdaptiveSamplerNewPatterns = telemetryimpl.GetCompatComponent().NewCounter("logs_adaptive_sampler", "new_patterns",
 	[]string{"source"}, "Number of new log patterns added to the adaptive sampler pattern table")
 
-var tlmAdaptiveSamplerEvictions = telemetry.NewCounter("logs_adaptive_sampler", "evictions",
+var tlmAdaptiveSamplerEvictions = telemetryimpl.GetCompatComponent().NewCounter("logs_adaptive_sampler", "evictions",
 	[]string{"source"}, "Number of pattern table evictions performed by the adaptive sampler")
 
-var tlmAdaptiveSamplerProtected = telemetry.NewCounter("logs_adaptive_sampler", "protected",
+var tlmAdaptiveSamplerProtected = telemetryimpl.GetCompatComponent().NewCounter("logs_adaptive_sampler", "protected",
 	[]string{"source"}, "Number of important log messages that bypassed adaptive sampling")
 
 func adaptiveSamplerSampledCountTag(count int64) string {

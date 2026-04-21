@@ -22,6 +22,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -29,7 +31,6 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
@@ -52,7 +53,7 @@ const (
 )
 
 var (
-	kubeEvents = telemetry.NewCounterWithOpts(
+	kubeEvents = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
 		CheckName,
 		"kube_events",
 		[]string{"kind", "component", "type", "reason", "source"},
@@ -60,7 +61,7 @@ var (
 		telemetry.Options{NoDoubleUnderscoreSep: true},
 	)
 
-	emittedEvents = telemetry.NewCounterWithOpts(
+	emittedEvents = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
 		CheckName,
 		"emitted_events",
 		[]string{"kind", "type", "source", "is_bundled"},

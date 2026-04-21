@@ -15,12 +15,13 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -59,25 +60,25 @@ var EventPlatformNameTranslations = map[string]string{
 }
 
 var (
-	tlmRuns = telemetry.NewCounter("checks", "runs",
+	tlmRuns = telemetryimpl.GetCompatComponent().NewCounter("checks", "runs",
 		[]string{"check_name", "state"}, "Check runs")
-	tlmWarnings = telemetry.NewCounter("checks", "warnings",
+	tlmWarnings = telemetryimpl.GetCompatComponent().NewCounter("checks", "warnings",
 		[]string{"check_name"}, "Check warnings")
-	tlmMetricsSamples = telemetry.NewCounter("checks", "metrics_samples",
+	tlmMetricsSamples = telemetryimpl.GetCompatComponent().NewCounter("checks", "metrics_samples",
 		[]string{"check_name"}, "Metrics count")
-	tlmEvents = telemetry.NewCounter("checks", "events",
+	tlmEvents = telemetryimpl.GetCompatComponent().NewCounter("checks", "events",
 		[]string{"check_name"}, "Events count")
-	tlmServices = telemetry.NewCounter("checks", "services_checks",
+	tlmServices = telemetryimpl.GetCompatComponent().NewCounter("checks", "services_checks",
 		[]string{"check_name"}, "Service checks count")
-	tlmHistogramBuckets = telemetry.NewCounter("checks", "histogram_buckets",
+	tlmHistogramBuckets = telemetryimpl.GetCompatComponent().NewCounter("checks", "histogram_buckets",
 		[]string{"check_name"}, "Histogram buckets count")
-	tlmExecutionTime = telemetry.NewGauge("checks", "execution_time",
+	tlmExecutionTime = telemetryimpl.GetCompatComponent().NewGauge("checks", "execution_time",
 		[]string{"check_name", "check_loader"}, "Check execution time")
-	tlmCheckDelay = telemetry.NewGauge("checks",
+	tlmCheckDelay = telemetryimpl.GetCompatComponent().NewGauge("checks",
 		"delay",
 		[]string{"check_name"},
 		"Check start time delay relative to the previous check run")
-	tlmHaAgentIntegrationRuns = telemetry.NewCounterWithOpts(
+	tlmHaAgentIntegrationRuns = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
 		"ha_agent",
 		"integration_runs",
 		[]string{"integration", "config_id"},

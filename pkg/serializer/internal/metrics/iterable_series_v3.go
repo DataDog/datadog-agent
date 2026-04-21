@@ -15,25 +15,25 @@ import (
 	"github.com/twmb/murmur3"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/compression/selector"
 )
 
 var (
-	tlmColumnSize = telemetry.NewCounter("serializer", "v3_column_size",
+	tlmColumnSize = telemetryimpl.GetCompatComponent().NewCounter("serializer", "v3_column_size",
 		[]string{"column", "compressed"},
 		"Number of bytes occupied by each column",
 	)
-	tlmValuesCount = telemetry.NewCounter("serializer", "v3_values_count",
+	tlmValuesCount = telemetryimpl.GetCompatComponent().NewCounter("serializer", "v3_values_count",
 		[]string{"type"},
 		"Number of values encoded using a specific encoding type",
 	)
-	tlmSplitReason = telemetry.NewCounter("serializer", "v3_payload_split_reason",
+	tlmSplitReason = telemetryimpl.GetCompatComponent().NewCounter("serializer", "v3_payload_split_reason",
 		[]string{"reason"},
 		"Why payload was split",
 	)

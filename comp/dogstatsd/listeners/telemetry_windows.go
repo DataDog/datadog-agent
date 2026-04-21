@@ -10,7 +10,7 @@ import (
 	"expvar"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 )
 
 var expvarsMap = expvar.NewMap("dogstatsd-named_pipe")

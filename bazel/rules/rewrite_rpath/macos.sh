@@ -24,3 +24,7 @@ ${OTOOL} -L "$OUTPUT" | tail -n +2 | awk '{print $1}' | while read -r dep; do
         install_name_tool -add_rpath "$PREFIX" "$dep" 2>/dev/null || true
     fi
 done
+
+# Re-sign with an ad-hoc signature after modification as install_name_tool invalidates
+# any existing code signature.
+codesign --sign - --force "$OUTPUT"

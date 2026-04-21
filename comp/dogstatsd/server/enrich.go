@@ -10,12 +10,12 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/constants"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	metricsevent "github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
@@ -26,7 +26,7 @@ var (
 	CardinalityTagPrefix = constants.CardinalityTagPrefix
 	jmxCheckNamePrefix   = "dd.internal.jmx_check_name:"
 
-	tlmFilteredPoints = telemetry.NewSimpleCounter("dogstatsd", "listener_filtered_points", "How many points were filtered out")
+	tlmFilteredPoints = telemetryimpl.GetCompatComponent().NewSimpleCounter("dogstatsd", "listener_filtered_points", "How many points were filtered out")
 )
 
 // enrichConfig contains static parameters used in various enrichment

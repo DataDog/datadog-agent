@@ -10,8 +10,9 @@ import (
 
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 // The tagsetTelemetry struct handles telemetry for "large" tagsets.  For
@@ -53,9 +54,9 @@ func newTagsetTelemetry(thresholds []uint64) *tagsetTelemetry {
 
 	for i, thresh := range t.sizeThresholds {
 		t.hugeSeriesCount[i] = atomic.NewUint64(0)
-		t.tlmHugeSeries[i] = telemetry.NewCounter("aggregator", fmt.Sprintf("series_tags_above_%d", thresh), nil, fmt.Sprintf("Count of timeseries with over %d tags", thresh))
+		t.tlmHugeSeries[i] = telemetryimpl.GetCompatComponent().NewCounter("aggregator", fmt.Sprintf("series_tags_above_%d", thresh), nil, fmt.Sprintf("Count of timeseries with over %d tags", thresh))
 		t.hugeSketchesCount[i] = atomic.NewUint64(0)
-		t.tlmHugeSketches[i] = telemetry.NewCounter("aggregator", fmt.Sprintf("distributions_tags_above_%d", thresh), nil, fmt.Sprintf("Count of distributions with over %d tags", thresh))
+		t.tlmHugeSketches[i] = telemetryimpl.GetCompatComponent().NewCounter("aggregator", fmt.Sprintf("distributions_tags_above_%d", thresh), nil, fmt.Sprintf("Count of distributions with over %d tags", thresh))
 	}
 
 	return t

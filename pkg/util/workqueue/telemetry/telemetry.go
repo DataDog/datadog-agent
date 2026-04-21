@@ -12,7 +12,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"k8s.io/client-go/util/workqueue"
 
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 )
 
 var commonOpts = telemetry.Options{NoDoubleUnderscoreSep: true}
@@ -101,7 +102,7 @@ func (q *QueueMetricsProvider) NewDepthMetric(subsystem string) workqueue.GaugeM
 		"Queue depth",
 		func(subsystem, name, description string) workqueue.GaugeMetric {
 			return gaugeWrapper{
-				telemetry.NewGaugeWithOpts(
+				telemetryimpl.GetCompatComponent().NewGaugeWithOpts(
 					subsystem,
 					name,
 					[]string{},
@@ -121,7 +122,7 @@ func (q *QueueMetricsProvider) NewAddsMetric(subsystem string) workqueue.Counter
 		subsystem,
 		"Queue adds",
 		func(subsystem, name, description string) workqueue.CounterMetric {
-			return counterWrapper{telemetry.NewCounterWithOpts(
+			return counterWrapper{telemetryimpl.GetCompatComponent().NewCounterWithOpts(
 				subsystem,
 				name,
 				[]string{},
@@ -140,7 +141,7 @@ func (q *QueueMetricsProvider) NewLatencyMetric(subsystem string) workqueue.Hist
 		subsystem,
 		"Queue latency in seconds",
 		func(subsystem, name, description string) workqueue.HistogramMetric {
-			return histgramWrapper{telemetry.NewHistogramWithOpts(
+			return histgramWrapper{telemetryimpl.GetCompatComponent().NewHistogramWithOpts(
 				subsystem,
 				name,
 				[]string{},
@@ -160,7 +161,7 @@ func (q *QueueMetricsProvider) NewWorkDurationMetric(subsystem string) workqueue
 		subsystem,
 		"Queue work duration",
 		func(subsystem, name, description string) workqueue.HistogramMetric {
-			return histgramWrapper{telemetry.NewHistogramWithOpts(
+			return histgramWrapper{telemetryimpl.GetCompatComponent().NewHistogramWithOpts(
 				subsystem,
 				name,
 				[]string{},
@@ -180,7 +181,7 @@ func (q *QueueMetricsProvider) NewUnfinishedWorkSecondsMetric(subsystem string) 
 		subsystem,
 		"Queue unfinished work in seconds",
 		func(subsystem, name, description string) workqueue.SettableGaugeMetric {
-			return gaugeWrapper{telemetry.NewGaugeWithOpts(
+			return gaugeWrapper{telemetryimpl.GetCompatComponent().NewGaugeWithOpts(
 				subsystem,
 				name,
 				[]string{},
@@ -199,7 +200,7 @@ func (q *QueueMetricsProvider) NewLongestRunningProcessorSecondsMetric(subsystem
 		subsystem,
 		"Queue longest running processor in seconds",
 		func(subsystem, name, description string) workqueue.SettableGaugeMetric {
-			return gaugeWrapper{telemetry.NewGaugeWithOpts(
+			return gaugeWrapper{telemetryimpl.GetCompatComponent().NewGaugeWithOpts(
 				subsystem,
 				name,
 				[]string{},
@@ -218,7 +219,7 @@ func (q *QueueMetricsProvider) NewRetriesMetric(subsystem string) workqueue.Coun
 		subsystem,
 		"Queue retries",
 		func(subsystem, name, description string) workqueue.CounterMetric {
-			return counterWrapper{telemetry.NewCounterWithOpts(
+			return counterWrapper{telemetryimpl.GetCompatComponent().NewCounterWithOpts(
 				subsystem,
 				name,
 				[]string{},

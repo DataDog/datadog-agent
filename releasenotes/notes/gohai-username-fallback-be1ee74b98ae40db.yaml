@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fixed the gohai resource check silently dropping processes whose UID
+    does not exist in the host's ``/etc/passwd``. This commonly affects
+    containerized processes running as UIDs created inside container images.
+    The "Processes memory usage" widget on the host infrastructure page now
+    correctly includes these processes by falling back to the numeric UID
+    string when username lookup fails.

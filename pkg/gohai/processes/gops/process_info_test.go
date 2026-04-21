@@ -8,8 +8,10 @@
 package gops
 
 import (
+	"errors"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -30,6 +32,74 @@ func TestGetProcesses_RecoversFromPanic(t *testing.T) {
 		// We don't assert on the error here since it depends on system state
 		_ = err
 	})
+}
+
+type mockUsernameProvider struct {
+	username    string
+	usernameErr error
+	uids        []uint32
+	uidsErr     error
+}
+
+func (m *mockUsernameProvider) Username() (string, error) {
+	return m.username, m.usernameErr
+}
+
+func (m *mockUsernameProvider) Uids() ([]uint32, error) {
+	return m.uids, m.uidsErr
+}
+
+func TestResolveUsername(t *testing.T) {
+	tests := []struct {
+		name     string
+		provider *mockUsernameProvider
+		expected string
+	}{
+		{
+			name:     "username lookup succeeds",
+			provider: &mockUsernameProvider{username: "root"},
+			expected: "root",
+		},
+		{
+			name: "username fails, falls back to UID",
+			provider: &mockUsernameProvider{
+				usernameErr: errors.New("user: unknown userid 501"),
+				uids:        []uint32{501},
+			},
+			expected: "501",
+		},
+		{
+			name: "username fails, UID is zero",
+			provider: &mockUsernameProvider{
+				usernameErr: errors.New("user: unknown userid 0"),
+				uids:        []uint32{0},
+			},
+			expected: "0",
+		},
+		{
+			name: "both username and UIDs fail",
+			provider: &mockUsernameProvider{
+				usernameErr: errors.New("user: unknown userid 501"),
+				uidsErr:     errors.New("no uids"),
+			},
+			expected: "",
+		},
+		{
+			name: "username fails, empty UIDs",
+			provider: &mockUsernameProvider{
+				usernameErr: errors.New("user: unknown userid 501"),
+				uids:        []uint32{},
+			},
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := resolveUsername(tt.provider)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
 }
 
 // TestPanicRecoveryMechanism tests that the recovery wrapper pattern correctly catches panics.

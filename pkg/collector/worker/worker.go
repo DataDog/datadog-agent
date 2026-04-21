@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -21,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/tracker"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/utilizationtracker"
@@ -38,7 +38,7 @@ const (
 // for each worker, which is a bit inconvenient to use because the number of
 // workers might be different on every Agent. With telemetry, we can use a
 // single metric and put the worker name in a tag.
-var workerUtilization = telemetry.NewGauge(
+var workerUtilization = telemetryimpl.GetCompatComponent().NewGauge(
 	"collector",
 	"worker_utilization",
 	[]string{"worker_name"},
