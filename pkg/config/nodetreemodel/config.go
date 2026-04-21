@@ -400,13 +400,16 @@ func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 
 	c.sequenceID++
 	receivers := slices.Clone(c.notificationReceivers)
+	// Capture the sequenceID here whilst locked to send to the receivers
+	// after unlocking.
+	sequenceID := c.sequenceID
 	c.Unlock()
 
 	// Notify receivers outside the lock. Subscribers commonly read the
 	// config from within their callback, and doing so while the write
 	// lock is still held deadlocks them against this goroutine.
 	for _, receiver := range receivers {
-		receiver(key, source, previousValue, newValue, c.sequenceID)
+		receiver(key, source, previousValue, newValue, sequenceID)
 	}
 }
 
