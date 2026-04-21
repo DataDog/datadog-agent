@@ -6,7 +6,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/sbom/telemetry",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/telemetry",
+        "//comp/core/telemetry/def",
+        "//comp/core/telemetry/impl",
         "//pkg/util/workqueue/telemetry",
     ],
 )
