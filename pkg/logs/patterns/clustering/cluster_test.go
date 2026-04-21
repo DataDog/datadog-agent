@@ -349,7 +349,7 @@ func TestCluster_Size_MultiPattern(t *testing.T) {
 
 func TestCluster_Saturation_BecomeSaturatedAfterThreshold(t *testing.T) {
 	threshold := 5
-	cm := NewClusterManagerWithConfig(true, 0, threshold, 0, 0)
+	cm := NewClusterManagerWithConfig(true, 0, threshold, 0, 0, 0)
 
 	// Seed: first log creates the pattern
 	seed := token.NewTokenListWithTokens([]token.Token{
@@ -399,7 +399,7 @@ func TestCluster_Saturation_BecomeSaturatedAfterThreshold(t *testing.T) {
 
 func TestCluster_Saturation_ResetOnStructuralChange(t *testing.T) {
 	threshold := 3
-	cm := NewClusterManagerWithConfig(true, 0, threshold, 0, 0)
+	cm := NewClusterManagerWithConfig(true, 0, threshold, 0, 0, 0)
 
 	// Seed + second log to create wildcards at position 2
 	seed := token.NewTokenListWithTokens([]token.Token{
@@ -502,7 +502,7 @@ func TestCluster_Saturation_DesaturateOnUnexpectedMiss(t *testing.T) {
 }
 
 func TestCluster_Saturation_DisabledWhenThresholdZero(t *testing.T) {
-	cm := NewClusterManagerWithConfig(true, 0, 0, 0, 0) // threshold=0 disables saturation
+	cm := NewClusterManagerWithConfig(true, 0, 0, 0, 0, 0) // threshold=0 disables saturation
 
 	seed := token.NewTokenListWithTokens([]token.Token{
 		{Value: "Error", Type: token.TokenWord, Wildcard: token.NotWildcard},
@@ -537,7 +537,7 @@ func TestCluster_Saturation_DisabledWhenThresholdZero(t *testing.T) {
 
 func TestCluster_Saturation_SkipsPositionsRebuildOnIdenticalMerge(t *testing.T) {
 	threshold := 2
-	cm := NewClusterManagerWithConfig(true, 0, threshold, 0, 0)
+	cm := NewClusterManagerWithConfig(true, 0, threshold, 0, 0, 0)
 
 	// Seed + second log to create wildcard at position 2
 	seed := token.NewTokenListWithTokens([]token.Token{
@@ -578,7 +578,7 @@ func TestCluster_Saturation_SkipsPositionsRebuildOnIdenticalMerge(t *testing.T) 
 
 func TestCluster_Saturation_SaturatedPatternStillMergesCorrectly(t *testing.T) {
 	threshold := 3
-	cm := NewClusterManagerWithConfig(true, 0, threshold, 0, 0)
+	cm := NewClusterManagerWithConfig(true, 0, threshold, 0, 0, 0)
 
 	// Build and saturate a pattern
 	seed := token.NewTokenListWithTokens([]token.Token{

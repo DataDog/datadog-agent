@@ -34,6 +34,7 @@ type batchEntry struct {
 	messageKey        string   // JSON key the message was extracted from (e.g. "msg", "message")
 	jsonContextSchema string   // comma-separated sorted keys (e.g. "level,service,timestamp")
 	jsonContextValues []string // leaf values in schema key order
+	isRawJSON         bool     // true when patterns.json_as_raw=true — skip tokenization, send as RawLog
 }
 
 func getTranslatorContent(msg *message.Message) []byte {
@@ -68,7 +69,8 @@ type MessageTranslator struct {
 	patternEvictionManager *clustering.EvictionManager
 	tagManager             *tags.TagManager
 	tagEvictionManager     *tags.TagEvictionManager
-	tokenizer              token.Tokenizer
+	tokenizer     token.Tokenizer
+	jsonLogsAsRaw bool // when true, JSON logs bypass stateful encoding and are sent as RawLog
 
 	pipelineName string
 
@@ -96,11 +98,13 @@ func NewMessageTranslator(pipelineName string, tokenizer token.Tokenizer) *Messa
 			pkgconfigsetup.Datadog().GetInt("logs_config.patterns.saturation_threshold"),
 			pkgconfigsetup.Datadog().GetInt("logs_config.patterns.max_patterns_per_cluster"),
 			pkgconfigsetup.Datadog().GetInt("logs_config.patterns.pattern_scan_budget"),
+			pkgconfigsetup.Datadog().GetInt("logs_config.patterns.max_template_bytes"),
 		),
 		patternEvictionManager: clustering.NewEvictionManager(),
 		tagManager:             tags.NewTagManager(),
 		tagEvictionManager:     tags.NewTagEvictionManager(),
 		tokenizer:              tokenizer,
+		jsonLogsAsRaw:          pkgconfigsetup.Datadog().GetBool("logs_config.patterns.json_as_raw"),
 		pipelineName:           pipelineName,
 	}
 	tlmPipelineStateSize.Set(0, pipelineName)
@@ -135,7 +139,12 @@ func (mt *MessageTranslator) Start(inputChan chan *message.Message, bufferSize i
 				return // skip empty messages — no sidecar entry, no alignment break
 			}
 			entry := batchEntry{msg: msg}
-			if results := processor.PreprocessJSON(content); results.Message != "" {
+			if mt.jsonLogsAsRaw && len(content) > 0 && content[0] == '{' {
+				// json_as_raw: bypass stateful encoding for JSON logs entirely.
+				// Send as RawLog — no tokenization, no clustering, no snapshot state.
+				entry.content = string(content)
+				entry.isRawJSON = true
+			} else if results := processor.PreprocessJSON(content); results.Message != "" {
 				entry.content = results.Message
 				entry.messageKey = results.MessageKey
 				entry.jsonContextSchema = results.JSONContextSchema
@@ -184,14 +193,34 @@ func (mt *MessageTranslator) Start(inputChan chan *message.Message, bufferSize i
 // processBatch tokenizes a batch of pre-screened entries in one TokenizeBatch call,
 // then processes each sequentially through clustering and datum building.
 // All entries in the batch have non-empty content (empty messages are skipped before enqueueing).
+// Entries with isRawJSON=true bypass tokenization and are sent as RawLog datums directly.
 func (mt *MessageTranslator) processBatch(batch []batchEntry, outputChan chan *message.StatefulMessage) {
 	if len(batch) == 0 {
 		return
 	}
 
-	// Extract content strings for batch tokenization (aligned 1:1 with batch entries).
-	contents := make([]string, len(batch))
-	for i, e := range batch {
+	// Partition: send raw JSON entries immediately, collect the rest for batch tokenization.
+	tokenBatch := batch[:0:0]
+	for _, entry := range batch {
+		if entry.isRawJSON {
+			ts := getMessageTimestamp(entry.msg)
+			tagSet, allTagsStr, dictID, isNew := mt.buildTagSet(entry.msg)
+			if isNew {
+				mt.sendDictEntryDefine(outputChan, entry.msg, dictID, allTagsStr)
+			}
+			mt.sendRawLog(outputChan, entry.msg, entry.content, ts, tagSet)
+		} else {
+			tokenBatch = append(tokenBatch, entry)
+		}
+	}
+
+	if len(tokenBatch) == 0 {
+		return
+	}
+
+	// Extract content strings for batch tokenization (aligned 1:1 with tokenBatch entries).
+	contents := make([]string, len(tokenBatch))
+	for i, e := range tokenBatch {
 		contents[i] = e.content
 	}
 
@@ -201,8 +230,8 @@ func (mt *MessageTranslator) processBatch(batch []batchEntry, outputChan chan *m
 	tokenResults, _ := mt.tokenizer.TokenizeBatch(contents)
 
 	// Process each entry sequentially — clustering is stateful and must be sequential.
-	// Alignment is guaranteed: tokenResults[i] corresponds to batch[i].
-	for i, entry := range batch {
+	// Alignment is guaranteed: tokenResults[i] corresponds to tokenBatch[i].
+	for i, entry := range tokenBatch {
 		if i >= len(tokenResults) {
 			break
 		}
@@ -219,6 +248,15 @@ func (mt *MessageTranslator) processBatch(batch []batchEntry, outputChan chan *m
 func (mt *MessageTranslator) processMessage(msg *message.Message, outputChan chan *message.StatefulMessage) {
 	content := getTranslatorContent(msg)
 	if len(content) == 0 {
+		return
+	}
+	if mt.jsonLogsAsRaw && len(content) > 0 && content[0] == '{' {
+		ts := getMessageTimestamp(msg)
+		tagSet, allTagsStr, dictID, isNew := mt.buildTagSet(msg)
+		if isNew {
+			mt.sendDictEntryDefine(outputChan, msg, dictID, allTagsStr)
+		}
+		mt.sendRawLog(outputChan, msg, string(content), ts, tagSet)
 		return
 	}
 	contentStr := string(content)
@@ -248,6 +286,16 @@ func (mt *MessageTranslator) processPreTokenized(msg *message.Message, tokenList
 
 	// Process tokenized log through cluster manager to get/create pattern
 	pattern, changeType, patternCount, estimatedBytes := mt.clusterManager.Add(tokenList)
+
+	// Log exceeds max_template_bytes — send as RawLog, don't store any pattern state.
+	if changeType == clustering.PatternTooLarge {
+		tagSet, allTagsStr, dictID, isNew := mt.buildTagSet(msg)
+		if isNew {
+			mt.sendDictEntryDefine(outputChan, msg, dictID, allTagsStr)
+		}
+		mt.sendRawLog(outputChan, msg, string(getTranslatorContent(msg)), ts, tagSet)
+		return
+	}
 
 	// CRITICAL: Extract all pattern data BEFORE eviction to prevent agent panic/data corruption.
 	patternID := pattern.PatternID

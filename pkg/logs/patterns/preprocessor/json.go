@@ -3,16 +3,29 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package processor provides JSON-aware preprocessing for stateful log encoding.
+// Package preprocessor provides JSON-aware preprocessing for stateful log encoding.
 // It extracts message fields from JSON logs and serializes remaining fields into ordered json_context.
-package processor
+package preprocessor
 
 import (
 	"bytes"
 	"encoding/json"
 	"sort"
 	"strings"
+
+	jsoniter "github.com/json-iterator/go"
 )
+
+// jsonAPI is a drop-in replacement for encoding/json using jsoniter for ~3-5x faster
+// Marshal. UseNumber preserves 64-bit integer precision through the unmarshal/marshal
+// round-trip — without it, integers larger than 2^53 (e.g. trace IDs, span IDs)
+// silently lose precision via float64.
+var jsonAPI = jsoniter.Config{
+	EscapeHTML:             true,
+	SortMapKeys:            true,
+	ValidateJsonRawMessage: true,
+	UseNumber:              true,
+}.Froze()
 
 // ExtractionResult contains the result of JSON preprocessing
 type ExtractionResult struct {
@@ -48,27 +61,18 @@ var nestedMessagePaths = []string{
 	"payload.message", // Payload wrapper
 }
 
-// unmarshalJSON decodes JSON into a map using UseNumber to preserve 64-bit integer precision.
-// Without UseNumber, integers larger than 2^53 (e.g. trace IDs, span IDs) silently
-// round-trip through float64 and lose precision.
-func unmarshalJSON(content []byte, v interface{}) error {
-	d := json.NewDecoder(bytes.NewReader(content))
-	d.UseNumber()
-	return d.Decode(v)
-}
-
 // PreprocessJSON attempts to extract a message field from JSON logs and serialize remaining fields.
 func PreprocessJSON(content []byte) ExtractionResult {
 	fail := ExtractionResult{IsJSON: false}
 
 	// Check if it's a JSON object (handles leading whitespace)
-	if !isJSONObject(content) {
+	if !IsJSONObject(content) {
 		return fail
 	}
 
 	// Parse JSON
 	var data map[string]interface{}
-	if err := unmarshalJSON(content, &data); err != nil {
+	if err := jsonAPI.Unmarshal(content, &data); err != nil {
 		return fail
 	}
 
@@ -137,8 +141,7 @@ func valueToString(v interface{}) string {
 	case nil:
 		return ""
 	default:
-		// Nested object or array — serialize as JSON
-		b, err := json.Marshal(val)
+		b, err := jsonAPI.Marshal(val)
 		if err != nil {
 			return ""
 		}
@@ -228,8 +231,9 @@ func removeFieldByPath(data map[string]interface{}, path string) {
 	delete(current, parts[len(parts)-1])
 }
 
-// isJSONObject checks if content is a JSON object, handling leading whitespace
-func isJSONObject(content []byte) bool {
+// IsJSONObject checks if content is a JSON object, handling leading whitespace.
+// Exported for use by callers that need a cheap JSON detection without a full parse.
+func IsJSONObject(content []byte) bool {
 	trimmed := bytes.TrimLeft(content, " \t\n\r")
 	return len(trimmed) > 0 && trimmed[0] == '{'
 }
