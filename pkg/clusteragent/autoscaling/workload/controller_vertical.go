@@ -235,6 +235,13 @@ func (u *verticalController) syncInternal(
 	//  - any pod has been stuck in an unresolvable state longer than RolloutFallbackDelay.
 	hasInfeasible := len(podsByResizeStatus[PodResizeStatusInfeasible]) > 0
 	if shouldFallbackToRollout(toEvict, hasInfeasible, podAutoscaler, now, patchForbidden) {
+		// Wait for the in-flight rollout to converge rather than restamping the pod template.
+		lastAction := autoscalerInternal.VerticalLastAction()
+		if lastAction != nil &&
+			lastAction.Type == datadoghqcommon.DatadogPodAutoscalerRolloutTriggeredVerticalActionType &&
+			lastAction.Version == recommendationID {
+			return autoscaling.ProcessResult{Requeue: true, RequeueAfter: rolloutCheckRequeueDelay}, nil
+		}
 		switch {
 		case patchForbidden:
 			log.Infof("In-place resize fallback: pods/resize patch forbidden, triggering rollout for autoscaler %s", autoscalerInternal.ID())
