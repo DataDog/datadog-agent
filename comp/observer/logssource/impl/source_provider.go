@@ -88,6 +88,16 @@ func (sp *sourceProvider) handleSet(c *workloadmeta.Container) {
 	if sp.isPauseContainer(c) || isAgentContainer(c) {
 		return
 	}
+	// Wait for kubelet enrichment before emitting a source. The containerd
+	// collector publishes container entities before the kubelet collector
+	// attaches the KubernetesPod owner; if we emit the source now, the
+	// container launcher's tailerfactory fails with "cannot find pod for
+	// container" in getPodAndContainer and has no retry. Workloadmeta
+	// re-notifies subscribers with the merged entity once kubelet enriches
+	// it, so skipping here is safe.
+	if c.Owner == nil || c.Owner.Kind != workloadmeta.KindKubernetesPod {
+		return
+	}
 	sp.mu.Lock()
 	defer sp.mu.Unlock()
 	if _, exists := sp.activeSources[c.EntityID.ID]; exists {
