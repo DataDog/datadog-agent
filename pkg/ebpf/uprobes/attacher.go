@@ -22,7 +22,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"golang.org/x/exp/maps"
 
-	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
