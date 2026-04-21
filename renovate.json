@@ -4,6 +4,7 @@
     "constraints": {
       "go": "1.25"
     },
+    "constraintsFiltering": "strict",
     "minimumReleaseAge": "7 days",
     "labels": ["dependencies", "changelog/no-changelog", "qa/no-code-change"],
     "stopUpdatingLabel": "stop-updating",
