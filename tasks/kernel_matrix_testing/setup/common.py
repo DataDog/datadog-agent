@@ -57,7 +57,7 @@ class Pulumi(Requirement):
             if not fix:
                 return RequirementState(Status.FAIL, "pulumi is not installed.", fixable=True)
 
-            res = ctx.run("curl -fsSL https://get.pulumi.com | sh", warn=True)
+            res = ctx.run("curl -fsSL https://get.pulumi.com | PULUMI_VERSION=v3.231.0 sh", warn=True)
             if res is None or not res.ok:
                 return RequirementState(Status.FAIL, "pulumi installation failed.")
 
