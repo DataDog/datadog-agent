@@ -446,6 +446,10 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// GPU
 	config.BindEnvAndSetDefault("collect_gpu_tags", true)
 	config.BindEnvAndSetDefault("gpu.enabled", false)
+	// gpu.nvml_lib_path: when set, the agent loads NVML from this path instead
+	// of the default system locations. For local development without GPU hardware,
+	// set this to <install_dir>/embedded/dev/libnvidia-ml-fake.so.1 (built via
+	// `bazel build //pkg/gpu/fake-nvml:fake_nvml`). See pkg/gpu/fake-nvml/README.md.
 	config.BindEnvAndSetDefault("gpu.nvml_lib_path", "")
 	config.BindEnvAndSetDefault("gpu.use_sp_process_metrics", false)
 	config.BindEnvAndSetDefault("gpu.sp_process_metrics_request_timeout", 3*time.Second)

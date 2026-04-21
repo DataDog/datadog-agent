@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "comp/core/log/rust",
     "pkg/discovery/module/rust",
+    "pkg/gpu/fake-nvml",
     "pkg/procmgr/rust",
 ]
 
