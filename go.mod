@@ -1227,7 +1227,7 @@ replace github.com/containerd/cgroups/v3 => github.com/containerd/cgroups/v3 v3.
 
 replace github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be => github.com/DataDog/go-grpc-bidirectional-streaming-example v0.0.0-20221024060302-b9cf785c02fe
 
-replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20240223195320-c7a4f832a3d1
+replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20240220230603-58994826da61
 
 // use datadog fork of vault/api/auth/aws to reduce binary size for secret-generic-connector
 replace github.com/hashicorp/vault/api/auth/aws => github.com/DataDog/vault/api/auth/aws v0.0.0-20250716193101-44fb30472101
