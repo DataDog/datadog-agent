@@ -156,6 +156,8 @@ no_default:
   - orchestrator_explorer.max_per_message
   - orchestrator_explorer.orchestrator_dd_url
   - orchestrator_explorer.use_legacy_endpoint
+  - private_action_runner.restricted_shell.allowed_commands
+  - private_action_runner.restricted_shell.allowed_paths
   - process_config.orchestrator_dd_url
   - process_config.process_dd_url
   - process_config.strip_proc_arguments
@@ -365,6 +367,8 @@ no_type:
   - orchestrator_explorer.max_per_message
   - orchestrator_explorer.orchestrator_dd_url
   - orchestrator_explorer.use_legacy_endpoint
+  - private_action_runner.restricted_shell.allowed_commands
+  - private_action_runner.restricted_shell.allowed_paths
   - process_config.orchestrator_dd_url
   - process_config.process_dd_url
   - process_config.strip_proc_arguments
