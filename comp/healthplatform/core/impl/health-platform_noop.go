@@ -1,0 +1,103 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025-present Datadog, Inc.
+
+package coreimpl
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"time"
+
+	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
+
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	checkrunner "github.com/DataDog/datadog-agent/comp/healthplatform/checkrunner/def"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/core/def"
+	forwarder "github.com/DataDog/datadog-agent/comp/healthplatform/forwarder/def"
+)
+
+// noopCheckRunner is a no-op implementation of the check runner (used when health platform is disabled).
+// Kept for potential direct use in tests; production code uses the injected checkrunner/mock or checkrunner/impl.
+type noopCheckRunner struct{}
+
+func (n *noopCheckRunner) SetReporter(_ checkrunner.IssueReporter) {}
+func (n *noopCheckRunner) RegisterCheck(_ string, _ string, _ checkrunner.HealthCheckFunc, _ time.Duration) error {
+	return nil
+}
+func (n *noopCheckRunner) RunCheck(_ string, _ string, _ checkrunner.HealthCheckFunc) error {
+	return nil
+}
+func (n *noopCheckRunner) Start() {}
+func (n *noopCheckRunner) Stop()  {}
+
+// noopForwarder is a no-op implementation of the forwarder (used when health platform is disabled).
+// Kept for potential direct use in tests; production code uses the injected forwarder/mock or forwarder/impl.
+type noopForwarder struct{}
+
+func (n *noopForwarder) SetProvider(_ forwarder.IssueProvider) {}
+func (n *noopForwarder) Start()                                {}
+func (n *noopForwarder) Stop()                                 {}
+
+// noopHealthPlatform is a no-op implementation of the health platform component
+// Used when the health platform is disabled via configuration
+type noopHealthPlatform struct{}
+
+// NewNoopComponent creates a no-op health platform component (disabled state)
+// It satisfies the healthplatform.Component interface but performs no operations.
+func NewNoopComponent() healthplatform.Component {
+	return &noopHealthPlatform{}
+}
+
+// ReportIssue does nothing when the health platform is disabled
+func (n *noopHealthPlatform) ReportIssue(_ string, _ string, _ *healthplatformpayload.IssueReport) error {
+	return nil
+}
+
+// RegisterCheck does nothing when the health platform is disabled
+func (n *noopHealthPlatform) RegisterCheck(_ string, _ string, _ healthplatform.HealthCheckFunc, _ time.Duration) error {
+	return nil
+}
+
+// GetAllIssues returns empty results when the health platform is disabled
+func (n *noopHealthPlatform) GetAllIssues() (int, map[string]*healthplatformpayload.Issue) {
+	return 0, make(map[string]*healthplatformpayload.Issue)
+}
+
+// GetIssueForCheck returns nil when the health platform is disabled
+func (n *noopHealthPlatform) GetIssueForCheck(_ string) *healthplatformpayload.Issue {
+	return nil
+}
+
+// ClearIssuesForCheck does nothing when the health platform is disabled
+func (n *noopHealthPlatform) ClearIssuesForCheck(_ string) {
+}
+
+// ClearAllIssues does nothing when the health platform is disabled
+func (n *noopHealthPlatform) ClearAllIssues() {
+}
+
+// ============================================================================
+// HTTP API Handlers (noop)
+// ============================================================================
+
+// getIssuesHandler handles GET /health-platform/issues when disabled
+func (n *noopHealthPlatform) getIssuesHandler(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	response := struct {
+		Count  int                                     `json:"count"`
+		Issues map[string]*healthplatformpayload.Issue `json:"issues"`
+	}{
+		Count:  0,
+		Issues: make(map[string]*healthplatformpayload.Issue),
+	}
+	_ = json.NewEncoder(w).Encode(response)
+}
+
+// fillFlare does nothing when the health platform is disabled (no file created)
+func (n *noopHealthPlatform) fillFlare(_ context.Context, _ flaretypes.FlareBuilder) error {
+	return nil
+}
