@@ -73,10 +73,14 @@ def _cgo_godefs_impl(ctx):
         package_name = ctx.label.package.split("/")[-1]
         genpost_args = "$ROOT/{test} {pkg}".format(test = test_path_no_ext, pkg = package_name)
 
-    # TODO(ABLD-410): uses the system clang rather than a hermetic toolchain.
-    # On Windows, Go defaults to gcc (MinGW) — no CC override needed, matching
-    # the old ninja behavior.
-    cc_prefix = "CC=clang " if platform == "linux" else ""
+    # TODO(ABLD-410): CC=gcc uses the hermetic gcc_toolchain (available in
+    # the sandbox PATH via go.cc_toolchain_files) as the "separate host-CC
+    # toolchain" alternative — the llvm_bpf clang is BPF-only, and cgo
+    # -godefs only needs a host-capable C compiler whose struct layouts
+    # match the target ABI. Switching to clang would require shipping one
+    # built with LLVM_TARGETS_TO_BUILD="X86;AArch64".
+    # On Windows, Go defaults to gcc (MinGW) — no CC override needed.
+    cc_prefix = "CC=gcc " if platform == "linux" else ""
 
     cmd = (
         "set -euo pipefail && ROOT=$PWD && cd {src_dir} && " +

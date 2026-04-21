@@ -409,13 +409,9 @@ dda inv system-probe.test -p <path>
 # Generate runtime compilation files
 go generate ./pkg/collector/corechecks/ebpf/probe/<check>/<check>.go
 
-# Generate CGO types
-cd pkg/collector/corechecks/ebpf/probe/<check> && \
-  CC=clang go tool cgo -godefs -- \
-  -I ../../../../../network/ebpf/c -I ../../../../../ebpf/c \
-  -fsigned-char <check>_kern_types.go | \
-  go run /path/to/genpost.go <check>_kern_types_linux_test <package> \
-  > <check>_kern_types_linux.go
+# Generate CGO types (regenerates the committed *_linux.go / *_linux_test.go files)
+dda bzl run //pkg/collector/corechecks/ebpf/probe/<check>:<target>_godefs
+dda bzl run //pkg/collector/corechecks/ebpf/probe/<check>:<target>_godefs_test_file
 
 # Check for linter errors
 dda inv linter.go --targets=./pkg/collector/corechecks/ebpf/<check>
