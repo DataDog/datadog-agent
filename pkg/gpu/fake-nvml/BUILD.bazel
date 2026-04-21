@@ -1,0 +1,51 @@
+# Unless explicitly stated otherwise all files in this repository are licensed
+# under the Apache License Version 2.0.
+# This product includes software developed at Datadog (https://www.datadoghq.com/).
+# Copyright 2025-present Datadog, Inc.
+
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
+load("@rules_rust//rust:defs.bzl", "rust_shared_library")
+
+# Fake libnvidia-ml shared library for development and integration testing.
+#
+# This library implements the NVML C ABI and returns static data for two fake
+# NVIDIA H100 GPUs. It is built by default on Linux but is NEVER auto-loaded
+# by the agent. It only activates when `gpu.nvml_lib_path` in datadog.yaml
+# is explicitly pointed at the installed file:
+#
+#   gpu:
+#     enabled: true
+#     nvml_lib_path: "<install_dir>/embedded/dev/libnvidia-ml-fake.so.1"
+#
+# See pkg/gpu/fake-nvml/README.md for full usage instructions.
+rust_shared_library(
+    name = "fake_nvml",
+    srcs = ["src/lib.rs"],
+    crate_name = "fake_nvml",
+    edition = "2024",
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+    # No deps — pure std/core implementation
+)
+
+# Package the shared library as libnvidia-ml-fake.so.1 under embedded/dev/.
+#
+# Key safety properties:
+#   - The file is NOT named libnvidia-ml.so.1, so the agent's default
+#     NVML discovery path scan never finds it.
+#   - embedded/dev/ is not in any default library search path.
+#   - The agent only loads this file when gpu.nvml_lib_path is set explicitly.
+pkg_files(
+    name = "all_files",
+    srcs = [":fake_nvml"],
+    renames = {":fake_nvml": "libnvidia-ml-fake.so.1"},
+    attributes = pkg_attributes(mode = "0755"),
+    prefix = "embedded/dev",
+    visibility = ["//packages:__subpackages__"],
+)
+
+pkg_install(
+    name = "install",
+    srcs = [":all_files"],
+)

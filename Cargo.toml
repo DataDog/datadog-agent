@@ -4,6 +4,7 @@ members = [
     "cmd/ai_prompt_logger",
     "comp/core/log/rust",
     "pkg/discovery/module/rust",
+    "pkg/gpu/fake-nvml",
     "pkg/procmgr/rust",
 ]
 
