@@ -77,6 +77,7 @@ ALL_TAGS = {
     "zstd",
     "cel",
     "cws_instrumentation_injector_only",  # used for building cws-instrumentation with only the injector code
+    "remove_all_sd",  # remove all discovery provider from prometheusreceiver components
 }.union(COMMON_TAGS)
 
 ### Tag inclusion lists
@@ -254,7 +255,9 @@ OTEL_AGENT_TAGS = {"otlp", "zlib", "zstd", "kubelet"}
 
 LOADER_TAGS = set()
 
-HOST_PROFILER_TAGS = set()
+# We need to remove all discovery provider from prometheusreceiver components to avoid loading too many dependencies in the host-profiler binary.
+# imported by https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/f963ab53ee55aeb56d58617ed12c840e8b07cc53/receiver/prometheusreceiver/factory.go#L10
+HOST_PROFILER_TAGS = {"remove_all_sd"}
 
 PRIVATEACTIONRUNNER_TAGS = set()
 
@@ -559,7 +562,9 @@ def _compute_build_size(ctx, build_exclude=None, flavor=AgentFlavor.base):
     return statinfo.st_size
 
 
-def compute_config_build_tags(targets="all", build_include=None, build_exclude=None, flavor=AgentFlavor.base.name):
+def compute_config_build_tags(
+    targets="all", build_include=None, build_exclude=None, flavor=AgentFlavor.base.name, platform=None
+):
     flavor = AgentFlavor[flavor]
 
     if targets == "all":
@@ -574,9 +579,9 @@ def compute_config_build_tags(targets="all", build_include=None, build_exclude=N
     if build_include is None:
         build_include = []
         for target in targets:
-            build_include.extend(get_default_build_tags(build=target, flavor=flavor))
+            build_include.extend(get_default_build_tags(build=target, flavor=flavor, platform=platform))
     else:
-        build_include = filter_incompatible_tags(build_include.split(","))
+        build_include = filter_incompatible_tags(build_include.split(","), platform=platform)
 
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
     use_tags = get_build_tags(build_include, build_exclude)

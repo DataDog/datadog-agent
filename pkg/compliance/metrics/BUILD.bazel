@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "metrics",
+    srcs = [
+        "metrics.go",
+        "rego.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/compliance/metrics",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/telemetry",
+        "@com_github_open_policy_agent_opa//v1/metrics",
+        "@com_github_prometheus_client_golang//prometheus",
+        "@com_github_spf13_cast//:cast",
+    ],
+)

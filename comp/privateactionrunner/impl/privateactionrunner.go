@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"sync"
 	"time"
 
@@ -24,6 +25,8 @@ import (
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/parversion"
 	pkgrcclient "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
@@ -35,6 +38,7 @@ import (
 	taskverifier "github.com/DataDog/datadog-agent/pkg/privateactionrunner/task-verifier"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 )
 
@@ -75,6 +79,8 @@ type PrivateActionRunner struct {
 
 	workflowRunner *runners.WorkflowRunner
 	commonRunner   *runners.CommonRunner
+
+	telemetry *telemetry.Telemetry
 
 	started     bool
 	startOnce   sync.Once
@@ -193,6 +199,13 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	}
 	ctx = observability.AddCommonTagsToLogs(ctx, commonTags)
 
+	p.telemetry = telemetry.NewTelemetry(
+		&http.Client{Transport: httputils.CreateHTTPTransport(p.coreConfig)},
+		configutils.SanitizeAPIKey(p.coreConfig.GetString("api_key")),
+		cfg.DatadogSite,
+		observability.ParService,
+	)
+
 	p.logger.Info("Private action runner starting")
 	p.logger.Info("==> Version : " + parversion.RunnerVersion)
 	p.logger.Info("==> Site : " + cfg.DatadogSite)
@@ -240,6 +253,9 @@ func (p *PrivateActionRunner) Stop(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
+	}
+	if p.telemetry != nil {
+		p.telemetry.Stop()
 	}
 	return nil
 }
