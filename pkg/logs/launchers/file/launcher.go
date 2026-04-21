@@ -380,8 +380,10 @@ func (s *Launcher) removeSource(source *sources.LogSource) {
 
 // launch launches new tailers for a new source.
 func (s *Launcher) launchTailers(source *sources.LogSource) {
+	log.Infof("[observer/logssource-debug] launchTailers called for source path=%q type=%q id=%q", source.Config.Path, source.Config.Type, source.Config.Identifier)
 	// If we're at the limit already, no need to do a 'CollectFiles', just wait for the next 'scan'
 	if s.tailers.Count() >= s.tailingLimit {
+		log.Infof("[observer/logssource-debug] launchTailers hit tailingLimit=%d", s.tailingLimit)
 		return
 	}
 	files, err := s.fileProvider.CollectFiles(source)
@@ -390,6 +392,7 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 		log.Warnf("Could not collect files: %v", err)
 		return
 	}
+	log.Infof("[observer/logssource-debug] CollectFiles returned %d files for path=%q", len(files), source.Config.Path)
 
 	for _, file := range files {
 		if s.tailers.Count() >= s.tailingLimit {
@@ -397,6 +400,7 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 		}
 
 		if fileprovider.ShouldIgnore(s.validatePodContainerID, file) {
+			log.Infof("[observer/logssource-debug] ShouldIgnore=true for file=%q", file.Path)
 			continue
 		}
 		if tailer, isTailed := s.tailers.Get(file.GetScanKey()); isTailed {
@@ -413,6 +417,8 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 		if s.fingerprinter.ShouldFileFingerprint(file) {
 			fingerprint, err = s.fingerprinter.ComputeFingerprint(file)
 			if err != nil || !fingerprint.ValidFingerprint() {
+				valid := fingerprint != nil && fingerprint.ValidFingerprint()
+				log.Infof("[observer/logssource-debug] fingerprint skip for file=%q err=%v valid=%v", file.Path, err, valid)
 				continue
 			}
 		} else {
