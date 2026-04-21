@@ -126,7 +126,10 @@ go_test(
     name = "bomconvert_test",
     srcs = ["convert_test.go"],
     embed = [":bomconvert"],
-    gotags = ["test"],
+    gotags = [
+        "test",
+        "trivy",
+    ],
     deps = select({
         "@rules_go//go/platform:aix": [
             "@com_github_cyclonedx_cyclonedx_go//:cyclonedx-go",
