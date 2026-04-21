@@ -680,7 +680,7 @@ def _get_gensim_repo_path() -> Path:
 
 
 # Episode subdirectories to search within the gensim-episodes repo.
-_EPISODE_SUBDIRS = ["postmortems", "synthetics"]
+_EPISODE_SUBDIRS = ["agent-q-branch", "postmortems", "synthetics"]
 
 
 def _find_episode_dir(repo_path: Path, ep_name: str) -> Path:
