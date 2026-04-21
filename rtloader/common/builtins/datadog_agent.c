@@ -452,8 +452,8 @@ static PyObject *log_message(PyObject *self, PyObject *args)
     \return A PyObject* pointer to `None`.
 
     This function is callable as the `datadog_agent.send_log` Python method and
-    uses the `cb_send_log()` callback to retrieve the value from the agent
-    with CGO. If the callback has not been set `None` will be returned.
+    uses the `cb_send_log()` callback to retrieve the value from the agent.
+    A non-zero callback return is surfaced to Python as a RuntimeError.
 */
 static PyObject *send_log(PyObject *self, PyObject *args)
 {
@@ -473,7 +473,14 @@ static PyObject *send_log(PyObject *self, PyObject *args)
     }
 
     PyGILState_Release(gstate);
-    cb_send_log(log_line, check_id);
+
+    int rc = cb_send_log(log_line, check_id);
+    if (rc != 0) {
+        gstate = PyGILState_Ensure();
+        PyErr_SetString(PyExc_RuntimeError, "log submission failed");
+        PyGILState_Release(gstate);
+        return NULL;
+    }
 
     Py_RETURN_NONE;
 }

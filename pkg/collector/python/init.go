@@ -86,7 +86,7 @@ void GetHostTags(char **);
 void GetVersion(char **);
 void Headers(char **);
 char * ReadPersistentCache(char *);
-void SendLog(char *, char *);
+int SendLog(char *, char *);
 void SetCheckMetadata(char *, char *, char *);
 void SetExternalTags(char *, char *, char **);
 void WritePersistentCache(char *, char *);

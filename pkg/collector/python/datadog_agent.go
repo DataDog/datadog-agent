@@ -221,22 +221,24 @@ func ReadPersistentCache(key *C.char) *C.char {
 // Indirectly used by the C function `send_log` that's mapped to `datadog_agent.send_log`.
 //
 //export SendLog
-func SendLog(logLine, checkID *C.char) {
+func SendLog(logLine, checkID *C.char) C.int {
 	line := C.GoString(logLine)
 	cid := C.GoString(checkID)
 
 	cc, err := collectoraggregator.GetCheckContext()
 	if err != nil {
 		log.Errorf("Log submission failed: %s", err)
+		return C.int(1)
 	}
 
 	lr, ok := cc.GetLogReceiver()
 	if !ok {
 		log.Error("Log submission failed: no receiver")
-		return
+		return C.int(1)
 	}
 
 	lr.SendLog(line, cid)
+	return C.int(0)
 }
 
 var (
