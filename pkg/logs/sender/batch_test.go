@@ -7,7 +7,7 @@ package sender
 
 import (
 	"bytes"
-	"fmt"
+	"errors"
 	"io"
 	"sync/atomic"
 	"testing"
@@ -58,10 +58,10 @@ func (tc *trackingCompressor) NewStreamCompressor(buf *bytes.Buffer) compression
 type errorSerializer struct{}
 
 func (e *errorSerializer) Serialize(_ *message.Message, _ io.Writer) error {
-	return fmt.Errorf("synthetic serialization error")
+	return errors.New("synthetic serialization error")
 }
 func (e *errorSerializer) Finish(_ io.Writer) error {
-	return fmt.Errorf("synthetic finish error")
+	return errors.New("synthetic finish error")
 }
 func (e *errorSerializer) Reset() {}
 
