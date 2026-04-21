@@ -13,6 +13,7 @@ import (
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 )
@@ -70,4 +71,15 @@ func (n *noopHealthPlatform) getIssuesHandler(w http.ResponseWriter, _ *http.Req
 // fillFlare does nothing when the health platform is disabled (no file created)
 func (n *noopHealthPlatform) fillFlare(_ context.Context, _ flaretypes.FlareBuilder) error {
 	return nil
+}
+
+// NewNoopComponent creates a noop health platform component with zero dependencies.
+// Used by commands that don't need health reporting (analyzelogs, jmx, etc.).
+func NewNoopComponent() Provides {
+	noop := &noopHealthPlatform{}
+	return Provides{
+		Comp:          noop,
+		APIGetIssues:  api.NewAgentEndpointProvider(noop.getIssuesHandler, "/health-platform/issues", "GET"),
+		FlareProvider: flaretypes.NewProvider(noop.fillFlare),
+	}
 }

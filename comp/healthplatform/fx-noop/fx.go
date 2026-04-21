@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package fx provides the fx module for the health-platform component
+// Package fx exposes the healthplatform noop component to FX
 package fx
 
 import (
@@ -11,11 +11,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// Module defines the fx options for this component
+// Module specifies the healthplatform noop module.
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(
-			healthplatformimpl.NewComponent,
+			healthplatformimpl.NewNoopComponent,
 		),
 	)
 }
