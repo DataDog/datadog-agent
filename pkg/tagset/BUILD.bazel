@@ -31,6 +31,7 @@ go_test(
         "hashless_tags_accumulator_test.go",
     ],
     embed = [":tagset"],
+    gotags = ["test"],
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

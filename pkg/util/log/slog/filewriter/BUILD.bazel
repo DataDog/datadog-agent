@@ -11,6 +11,7 @@ go_test(
     name = "filewriter_test",
     srcs = ["file_writer_test.go"],
     embed = [":filewriter"],
+    gotags = ["test"],
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

@@ -354,16 +354,17 @@ func TestAllSettingsBySource(t *testing.T) {
 		model.SourceFile: map[string]interface{}{
 			"a": 987,
 		},
-		model.SourceEnvVar:        map[string]interface{}{},
-		model.SourceFleetPolicies: map[string]interface{}{},
+		model.SourceEnvVar:             map[string]interface{}{},
+		model.SourceFleetPolicies:      map[string]interface{}{},
+		model.SourceConfigPostInit:     map[string]interface{}{},
+		model.SourceLocalConfigProcess: map[string]interface{}{},
 		model.SourceAgentRuntime: map[string]interface{}{
 			"b": map[string]interface{}{
 				"c": 123,
 			},
 		},
-		model.SourceLocalConfigProcess: map[string]interface{}{},
-		model.SourceRC:                 map[string]interface{}{},
-		model.SourceCLI:                map[string]interface{}{},
+		model.SourceRC:  map[string]interface{}{},
+		model.SourceCLI: map[string]interface{}{},
 		model.SourceProvided: map[string]interface{}{
 			"a": 987,
 			"b": map[string]interface{}{
@@ -372,6 +373,47 @@ func TestAllSettingsBySource(t *testing.T) {
 		},
 	}
 	assert.Equal(t, expected, cfg.AllSettingsBySource())
+}
+
+func TestAllSettingsWithoutSecrets(t *testing.T) {
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg.SetDefault("a", 0)
+	cfg.SetDefault("b", 0)
+	cfg.BuildSchema()
+
+	cfg.Set("a", "file_value", model.SourceFile)
+	cfg.Set("a", "secret_value", model.SourceSecret)
+	cfg.Set("b", 42, model.SourceAgentRuntime)
+
+	// includes secrets
+	all := cfg.AllSettings()
+	assert.Equal(t, "secret_value", all["a"])
+	assert.Equal(t, 42, all["b"])
+
+	// excludes secrets layer, "a" falls back to file layer value
+	withoutSecrets := cfg.AllSettingsWithoutSecrets()
+	assert.Equal(t, "file_value", withoutSecrets["a"])
+	assert.Equal(t, 42, withoutSecrets["b"])
+}
+
+func TestAllSettingsWithoutDefaultOrSecrets(t *testing.T) {
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg.SetDefault("a", 0)
+	cfg.SetDefault("b", 0)
+	cfg.SetDefault("c", 0)
+	cfg.BuildSchema()
+
+	cfg.Set("a", "file_value", model.SourceFile)
+	cfg.Set("a", "secret_value", model.SourceSecret)
+	cfg.Set("b", 42, model.SourceAgentRuntime)
+
+	result := cfg.AllSettingsWithoutDefaultOrSecrets()
+	// "a" has a fallback file value
+	assert.Equal(t, "file_value", result["a"])
+	assert.Equal(t, 42, result["b"])
+	// "c" is only a default, excluded
+	_, found := result["c"]
+	assert.False(t, found)
 }
 
 func TestIsSet(t *testing.T) {
@@ -1858,4 +1900,45 @@ func TestEnvVarLayerConvertsToDefaultType(t *testing.T) {
 > my_int_setting
     leaf(#ptr<000002>), val:789, source:environment-variable`
 	assert.Equal(t, expect, txt)
+}
+
+// TestCheckKnownKeyConcurrentAccess verifies that concurrent getter calls with
+// unknown config keys do not crash the agent with "fatal error: concurrent map writes".
+// This reproduces the race condition where multiple goroutines call GetBool (or other
+// getters) simultaneously, each writing to the unknownKeys map under only an RLock.
+func TestCheckKnownKeyConcurrentAccess(t *testing.T) {
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg.SetDefault("known_key", true)
+	cfg.BuildSchema()
+
+	const numGoroutines = 200
+
+	// Use a barrier so all goroutines start at the same instant,
+	// maximizing the chance of concurrent map writes.
+	var ready sync.WaitGroup
+	ready.Add(1)
+
+	var done sync.WaitGroup
+	done.Add(numGoroutines)
+
+	for i := 0; i < numGoroutines; i++ {
+		go func(id int) {
+			defer done.Done()
+			ready.Wait() // all goroutines wait here until released
+
+			// Use a mix of getters with unknown keys to trigger checkKnownKey writes
+			key := fmt.Sprintf("unknown_key_%d", id)
+			cfg.GetBool(key)
+			cfg.GetString(key)
+			cfg.GetInt(key)
+		}(i)
+	}
+
+	// Release all goroutines simultaneously
+	ready.Done()
+	// Wait for all goroutines to finish (if there's a concurrent map write, the process crashes before this)
+	done.Wait()
+
+	// If we reach here without a fatal "concurrent map writes" crash, the test passed
+	assert.True(t, cfg.GetBool("known_key"))
 }

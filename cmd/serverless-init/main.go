@@ -34,6 +34,7 @@ import (
 	localTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 
@@ -58,6 +59,7 @@ import (
 	tracelog "github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const datadogConfigPath = "datadog.yaml"
@@ -74,6 +76,9 @@ func main() {
 		delegatedauthfx.Module(),
 		workloadfilterfx.Module(),
 		autodiscoveryimpl.Module(),
+		fx.Provide(func() option.Option[healthplatform.Component] {
+			return option.None[healthplatform.Component]()
+		}),
 		fx.Provide(func(config coreconfig.Component) healthprobeDef.Options {
 			return healthprobeDef.Options{
 				Port:           config.GetInt("health_port"),
@@ -109,7 +114,8 @@ func run(secretComp secrets.Component, delegatedAuthComp delegatedauth.Component
 	err := modeConf.Runner(logConfig)
 
 	// Defers are LIFO. We want to run the cloud service shutdown logic before last flush.
-	defer lastFlush(logConfig.FlushTimeout, metricAgent, tracingCtx.TraceAgent, logsAgent)
+	defer lastFlush(logConfig.FlushTimeout, metricAgent, logsAgent)
+	defer tracingCtx.TraceAgent.Stop() // synchronous: drains traces, flushes stats, sends to network
 	defer func() {
 		cloudService.Shutdown(*metricAgent, enhancedMetricsEnabled, err) // submits task.ended metric
 
@@ -327,12 +333,11 @@ func flushMetricsAgent(metricAgent *metrics.ServerlessMetricAgent) {
 	}
 }
 
-func lastFlush(flushTimeout time.Duration, metricAgent serverless.FlushableAgent, traceAgent serverless.FlushableAgent, logsAgent logsAgent.ServerlessLogsAgent) bool {
+func lastFlush(flushTimeout time.Duration, metricAgent serverless.FlushableAgent, logsAgent logsAgent.ServerlessLogsAgent) bool {
 	hasTimeout := atomic.NewInt32(0)
 	wg := &sync.WaitGroup{}
-	wg.Add(3)
+	wg.Add(2)
 	go flushAndWait(flushTimeout, wg, metricAgent, hasTimeout)
-	go flushAndWait(flushTimeout, wg, traceAgent, hasTimeout)
 	childCtx, cancel := context.WithTimeout(context.Background(), flushTimeout)
 	defer cancel()
 	go func(wg *sync.WaitGroup, ctx context.Context) {

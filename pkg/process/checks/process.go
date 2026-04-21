@@ -495,6 +495,11 @@ func fmtProcesses(
 
 		// Hide disallow-listed args if the Scrubber is enabled
 		fp.Cmdline = scrubber.ScrubProcessCommand(fp)
+		var voluntaryCtxSwitches, involuntaryCtxSwitches uint64
+		if fp.Stats.CtxSwitches != nil {
+			voluntaryCtxSwitches = uint64(fp.Stats.CtxSwitches.Voluntary)
+			involuntaryCtxSwitches = uint64(fp.Stats.CtxSwitches.Involuntary)
+		}
 		proc := &model.Process{
 			Pid:                    fp.Pid,
 			NsPid:                  fp.NsPid,
@@ -506,8 +511,8 @@ func fmtProcesses(
 			OpenFdCount:            fp.Stats.OpenFdCount,
 			State:                  model.ProcessState(model.ProcessState_value[fp.Stats.Status]),
 			IoStat:                 formatIO(fp.Stats, lastProcs[fp.Pid].Stats.IOStat, now, lastRun),
-			VoluntaryCtxSwitches:   uint64(fp.Stats.CtxSwitches.Voluntary),
-			InvoluntaryCtxSwitches: uint64(fp.Stats.CtxSwitches.Involuntary),
+			VoluntaryCtxSwitches:   voluntaryCtxSwitches,
+			InvoluntaryCtxSwitches: involuntaryCtxSwitches,
 			ContainerId:            ctrByProc[int(fp.Pid)],
 			ProcessContext:         serviceExtractor.GetServiceContext(fp.Pid),
 			// SERVICE DISCOVERY FIELDS

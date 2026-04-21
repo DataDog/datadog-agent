@@ -292,6 +292,8 @@ type EVPProxy struct {
 	MaxPayloadSize int64
 	// ReceiverTimeout indicates the maximum time an EVPProxy request can take. Value in seconds.
 	ReceiverTimeout int
+	// ReceiverTimeoutDuration overrides ReceiverTimeout when non-zero; allows sub-second values in tests.
+	ReceiverTimeoutDuration time.Duration
 }
 
 // OpenLineageProxy contains the settings for the OpenLineageProxy proxy.
@@ -394,18 +396,19 @@ type AgentConfig struct {
 	ErrorTrackingStandalone bool
 
 	// Receiver
-	ReceiverEnabled     bool // specifies whether Receiver listeners are enabled. Unless OTLPReceiver is used, this should always be true.
-	ReceiverHost        string
-	ReceiverPort        int
-	ReceiverSocket      string // if not empty, UDS will be enabled on unix://<receiver_socket>
-	ConnectionLimit     int    // for rate-limiting, how many unique connections to allow in a lease period (30s)
-	ReceiverTimeout     int
-	ReceiverIdleTimeout time.Duration // idle timeout for keepalive connections.
-	MaxRequestBytes     int64         // specifies the maximum allowed request size for incoming trace payloads
-	TraceBuffer         int           // specifies the number of traces to buffer before blocking.
-	Decoders            int           // specifies the number of traces that can be concurrently decoded.
-	MaxConnections      int           // specifies the maximum number of concurrent incoming connections allowed.
-	DecoderTimeout      int           // specifies the maximum time in milliseconds that the decoders will wait for a turn to accept a payload before returning 429
+	ReceiverEnabled         bool // specifies whether Receiver listeners are enabled. Unless OTLPReceiver is used, this should always be true.
+	ReceiverHost            string
+	ReceiverPort            int
+	ReceiverSocket          string // if not empty, UDS will be enabled on unix://<receiver_socket>
+	ConnectionLimit         int    // for rate-limiting, how many unique connections to allow in a lease period (30s)
+	ReceiverTimeout         int
+	ReceiverTimeoutDuration time.Duration // overrides ReceiverTimeout when non-zero; allows sub-second values in tests
+	ReceiverIdleTimeout     time.Duration // idle timeout for keepalive connections.
+	MaxRequestBytes         int64         // specifies the maximum allowed request size for incoming trace payloads
+	TraceBuffer             int           // specifies the number of traces to buffer before blocking.
+	Decoders                int           // specifies the number of traces that can be concurrently decoded.
+	MaxConnections          int           // specifies the maximum number of concurrent incoming connections allowed.
+	DecoderTimeout          int           // specifies the maximum time in milliseconds that the decoders will wait for a turn to accept a payload before returning 429
 
 	WindowsPipeName        string
 	PipeBufferSize         int
@@ -577,6 +580,17 @@ type AgentConfig struct {
 	// OTelGateway indicates whether the agent is configured as an OTel gateway.
 	// When true, the tag "_dd.otel.gateway" will be attached to the AgentPayload.
 	OTelGateway bool
+
+	// EnableOPMFetch controls whether the trace-agent will make a background
+	// request to the /api/v2/validate intake endpoint to derive an Org
+	// Propagation Marker (OPM) and expose it in the /info endpoint.
+	// Disabled by default so library users of pkg/trace are unaffected.
+	EnableOPMFetch bool
+
+	// OPMValidateURL is the full URL of the /api/v2/validate endpoint used by
+	// the OPM background fetch. Derived from dd_url / site via utils.GetMainEndpoint.
+	// Empty when EnableOPMFetch is false.
+	OPMValidateURL string
 
 	// SecretsRefreshFn is called when a 403 response is received to trigger
 	// API key refresh from the secrets backend. It blocks until the refresh

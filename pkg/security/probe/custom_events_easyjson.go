@@ -10,6 +10,7 @@ import (
 	events "github.com/DataDog/datadog-agent/pkg/security/events"
 	containerutils "github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	serializers "github.com/DataDog/datadog-agent/pkg/security/serializers"
+	utils "github.com/DataDog/datadog-agent/pkg/security/utils"
 	easyjson "github.com/mailru/easyjson"
 	jlexer "github.com/mailru/easyjson/jlexer"
 	jwriter "github.com/mailru/easyjson/jwriter"
@@ -140,8 +141,18 @@ func easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityEvents(in *jle
 		case "created_at":
 			if in.IsNull() {
 				in.Skip()
+				out.CreatedAt = nil
 			} else {
-				out.CreatedAt = uint64(in.Uint64())
+				if out.CreatedAt == nil {
+					out.CreatedAt = new(utils.EasyjsonTime)
+				}
+				if in.IsNull() {
+					in.Skip()
+				} else {
+					if data := in.Raw(); in.Ok() {
+						in.AddError((*out.CreatedAt).UnmarshalJSON(data))
+					}
+				}
 			}
 		default:
 			in.SkipRecursive()
@@ -163,7 +174,7 @@ func easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityEvents(out *jw
 		out.RawString(prefix[1:])
 		out.String(string(in.ContainerID))
 	}
-	{
+	if in.CreatedAt != nil {
 		const prefix string = ",\"created_at\":"
 		if first {
 			first = false
@@ -171,7 +182,7 @@ func easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityEvents(out *jw
 		} else {
 			out.RawString(prefix)
 		}
-		out.Uint64(uint64(in.CreatedAt))
+		(*in.CreatedAt).MarshalEasyJSON(out)
 	}
 	out.RawByte('}')
 }

@@ -94,8 +94,10 @@ build do
             # Create empty directories so that they're owned by the package
             # (also requires `extra_package_file` directive in project def)
             mkdir "#{output_config_dir}/etc/datadog-agent/checks.d"
-            mkdir "#{output_config_dir}/etc/datadog-agent/processes.d"
             mkdir "/var/log/datadog"
+
+            # Process manager config directory (read-only, under install dir)
+            mkdir "#{install_dir}/processes.d"
 
             # remove unused configs
             delete "#{output_config_dir}/etc/datadog-agent/conf.d/apm.yaml.default"

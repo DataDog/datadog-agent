@@ -269,6 +269,31 @@ AGENT_TEST_TAGS = AGENT_TAGS.union({"clusterchecks"})
 # List of tags to always remove when not building on Linux
 LINUX_ONLY_TAGS = {"netcgo", "systemd", "jetson", "linux_bpf", "nvml", "pcap", "podman", "trivy", "crio"}
 
+# List of tags to always remove when building on AIX
+AIX_EXCLUDE_TAGS = {
+    "cel",
+    "clusterchecks",
+    "containerd",
+    "cri",
+    "crio",
+    "docker",
+    "fargateprocess",
+    "jetson",
+    "jmx",
+    "kubeapiserver",
+    "kubelet",
+    "linux_bpf",
+    "netcgo",
+    "npm",
+    "nvml",
+    "orchestrator",
+    "pcap",
+    "podman",
+    "systemd",
+    "systemprobechecks",
+    "trivy",
+}
+
 # List of tags to always remove when building on Windows
 WINDOWS_EXCLUDE_TAGS = {
     "requirefips",
@@ -462,6 +487,9 @@ def filter_incompatible_tags(include, platform=None):
     if platform == "darwin":
         exclude = exclude.union(DARWIN_EXCLUDED_TAGS)
 
+    if platform == "aix":
+        exclude = exclude.union(AIX_EXCLUDE_TAGS)
+
     return get_build_tags(include, exclude)
 
 
@@ -531,7 +559,9 @@ def _compute_build_size(ctx, build_exclude=None, flavor=AgentFlavor.base):
     return statinfo.st_size
 
 
-def compute_config_build_tags(targets="all", build_include=None, build_exclude=None, flavor=AgentFlavor.base.name):
+def compute_config_build_tags(
+    targets="all", build_include=None, build_exclude=None, flavor=AgentFlavor.base.name, platform=None
+):
     flavor = AgentFlavor[flavor]
 
     if targets == "all":
@@ -546,9 +576,9 @@ def compute_config_build_tags(targets="all", build_include=None, build_exclude=N
     if build_include is None:
         build_include = []
         for target in targets:
-            build_include.extend(get_default_build_tags(build=target, flavor=flavor))
+            build_include.extend(get_default_build_tags(build=target, flavor=flavor, platform=platform))
     else:
-        build_include = filter_incompatible_tags(build_include.split(","))
+        build_include = filter_incompatible_tags(build_include.split(","), platform=platform)
 
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
     use_tags = get_build_tags(build_include, build_exclude)

@@ -12,6 +12,7 @@ go_test(
     name = "stat_test",
     srcs = ["stat_test.go"],
     embed = [":stat"],
+    gotags = ["test"],
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

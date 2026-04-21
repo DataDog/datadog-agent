@@ -374,10 +374,16 @@ func TestMetricPrefix(t *testing.T) {
 }
 
 func testMetricPrefixWithFeatureGates(t *testing.T, disablePrefix bool, inName string, outName string) {
-	prevVal := pkgdatadog.MetricRemappingDisabledFeatureGate.IsEnabled()
+	// Explicitly set BOTH feature gates. In OTel v0.150.0 both gates moved from
+	// StageAlpha (off by default) to StageBeta (on by default), so tests must
+	// not rely on the default value.
+	prevOld := pkgdatadog.MetricRemappingDisabledFeatureGate.IsEnabled()
+	prevNew := featuregates.DisableMetricRemappingFeatureGate.IsEnabled()
 	require.NoError(t, featuregate.GlobalRegistry().Set(pkgdatadog.MetricRemappingDisabledFeatureGate.ID(), disablePrefix))
+	require.NoError(t, featuregate.GlobalRegistry().Set(featuregates.DisableMetricRemappingFeatureGate.ID(), disablePrefix))
 	defer func() {
-		require.NoError(t, featuregate.GlobalRegistry().Set(pkgdatadog.MetricRemappingDisabledFeatureGate.ID(), prevVal))
+		require.NoError(t, featuregate.GlobalRegistry().Set(pkgdatadog.MetricRemappingDisabledFeatureGate.ID(), prevOld))
+		require.NoError(t, featuregate.GlobalRegistry().Set(featuregates.DisableMetricRemappingFeatureGate.ID(), prevNew))
 	}()
 
 	rec := &metricRecorder{}

@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -26,13 +25,20 @@ func (e mockNetError) Timeout() bool   { return e.timeout }
 func (e mockNetError) Temporary() bool { return !e.timeout }
 
 type mockListener struct {
-	mu  sync.RWMutex // guards below fields
-	err error        // returned error
+	mu    sync.RWMutex  // guards below fields
+	err   error         // returned error
+	ready chan struct{} // closed after the first Accept call; nil means no notification needed
+	once  sync.Once
 }
 
 var _ net.Listener = (*mockListener)(nil)
 
 func (ml *mockListener) Accept() (net.Conn, error) {
+	ml.once.Do(func() {
+		if ml.ready != nil {
+			close(ml.ready)
+		}
+	})
 	ml.mu.RLock()
 	defer ml.mu.RUnlock()
 	return nil, ml.err
@@ -127,7 +133,7 @@ func TestAcceptFailure(t *testing.T) {
 	assert := assert.New(t)
 	stats := &teststatsd.Client{}
 
-	var mockln mockListener
+	mockln := mockListener{ready: make(chan struct{})}
 	mockln.SetError()
 	ln := NewMeasuredListener(&mockln, "test-metric", 5, stats).(*measuredListener)
 
@@ -139,7 +145,7 @@ func TestAcceptFailure(t *testing.T) {
 
 	expectErr := errors.New("unrecoverable error")
 	go func() {
-		time.Sleep(1 * time.Second)
+		<-mockln.ready // wait until srv.Serve has entered the accept loop
 		mockln.SetArbitraryError(expectErr)
 	}()
 
