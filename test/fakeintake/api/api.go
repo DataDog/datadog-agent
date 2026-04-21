@@ -46,6 +46,15 @@ type APIFakeIntakeRouteStatsGETResponse struct {
 	Routes map[string]RouteStat `json:"routes"`
 }
 
+// PARTaskResult captures what the Private Action Runner published for a completed task.
+type PARTaskResult struct {
+	TaskID       string                 `json:"task_id"`
+	Success      bool                   `json:"success"`
+	Outputs      map[string]interface{} `json:"outputs,omitempty"`
+	ErrorCode    int                    `json:"error_code,omitempty"`
+	ErrorDetails string                 `json:"error_details,omitempty"`
+}
+
 // ResponseOverride is a hardcoded response for requests to the given endpoint
 type ResponseOverride struct {
 	Endpoint    string `json:"endpoint"`

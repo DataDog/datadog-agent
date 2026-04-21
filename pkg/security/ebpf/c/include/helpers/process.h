@@ -95,9 +95,7 @@ static struct proc_cache_t *__attribute__((always_inline)) fill_process_context_
     }
 
     u32 pid = data->pid;
-    // consider kworker a pid which is ignored
-    u32 *is_ignored = bpf_map_lookup_elem(&pid_ignored, &pid);
-    if (is_ignored) {
+    if (IS_KERNEL_THREAD(pid)) {
         data->is_kworker = 1;
     }
 

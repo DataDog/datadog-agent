@@ -158,6 +158,29 @@ func TestCreateConnection_Success(t *testing.T) {
 	assert.Contains(t, receivedBody, `"hostname:test-hostname"`)
 }
 
+func TestCreateConnection_MissingAppKey(t *testing.T) {
+	client := &ConnectionsClient{
+		httpClient: &http.Client{Timeout: 10 * time.Second},
+		baseUrl:    "http://localhost",
+		apiKey:     "test-api-key",
+		appKey:     "",
+	}
+
+	httpDef := ConnectionDefinition{
+		FQNPrefix:       "com.datadoghq.http",
+		IntegrationType: "HTTP",
+		Credentials: CredentialConfig{
+			Type:             "HTTPNoAuth",
+			AdditionalFields: nil,
+		},
+	}
+
+	err := client.CreateConnection(context.Background(), httpDef, "runner-id-123", "runner-name-abc", nil)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "app key is required")
+}
+
 func TestCreateConnection_ErrorResponses(t *testing.T) {
 	tests := []struct {
 		name          string

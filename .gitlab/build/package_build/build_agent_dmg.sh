@@ -173,6 +173,9 @@ if [ "${SIGN:-false}" = true ]; then
     }
     export -f check_notarization_status
     tools/ci/retry.sh -n "$NOTARIZATION_ATTEMPTS" check_notarization_status "$SUBMISSION_ID"
+
+    echo "Stapling notarization ticket to DMG"
+    xcrun stapler staple "$LATEST_DMG"
     printf "\033[0Ksection_end:%s:notarization\r\033[0K\n" "$(date +%s)"
 fi
 

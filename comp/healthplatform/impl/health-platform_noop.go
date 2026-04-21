@@ -6,6 +6,7 @@
 package healthplatformimpl
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"time"
@@ -67,6 +68,6 @@ func (n *noopHealthPlatform) getIssuesHandler(w http.ResponseWriter, _ *http.Req
 }
 
 // fillFlare does nothing when the health platform is disabled (no file created)
-func (n *noopHealthPlatform) fillFlare(_ flaretypes.FlareBuilder) error {
+func (n *noopHealthPlatform) fillFlare(_ context.Context, _ flaretypes.FlareBuilder) error {
 	return nil
 }

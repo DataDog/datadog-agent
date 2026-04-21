@@ -6,12 +6,13 @@
 package listener
 
 import (
+	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
-	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
@@ -46,7 +47,12 @@ func (l *Launcher) run() {
 	for {
 		select {
 		case source := <-l.tcpSources:
-			listener := NewTCPListener(l.pipelineProvider, source, l.frameSize)
+			listener, err := NewTCPListener(l.pipelineProvider, source, l.frameSize)
+			if err != nil {
+				log.Errorf("Can't create TCP listener: %v", err)
+				source.Status.Error(err)
+				continue
+			}
 			listener.Start()
 			l.listeners = append(l.listeners, listener)
 		case source := <-l.udpSources:

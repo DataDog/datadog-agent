@@ -2,6 +2,67 @@
 Release Notes
 =============
 
+.. _Release Notes_7.78.0:
+
+7.78.0
+======
+
+.. _Release Notes_7.78.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-04-15
+Pinned to datadog-agent v7.78.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7780>`_.
+
+
+.. _Release Notes_7.78.0_New Features:
+
+New Features
+------------
+
+- Added an admission controller connectivity probe that periodically verifies
+  the admission webhook is reachable from the Kubernetes API server. When a
+  connectivity issue is detected, the probe logs environment-specific guidance
+  for EKS, GKE, and AKS. Probe results are visible in the ``agent status``
+  output under the Admission Controller section. The probe is disabled by
+  default and can be enabled by setting ``admission_controller.probe.enabled``
+  to ``true``. The probe uses dry-run ConfigMap creation requests in the
+  cluster agent's namespace.
+
+- Add Remote Configuration status section to ``datadog-cluster-agent status`` output and flares.
+  This displays whether RC is enabled for the organization, whether the API key is authorized
+  for Remote Configuration, and any last errors, matching the node agent's existing behavior.
+
+
+.. _Release Notes_7.78.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Configurable support for TLS communication between the sidecar Agent 
+  and the Cluster Agent via the agent-sidecar mutation webhook. Requires 
+  elevated permissions for Cluster Agent to copy the certificate authority 
+  to the target namespace as a secret.
+
+- Single Step Instrumentation volumes are now mounted as read-only to prevent accidental writes to SSI artifacts.
+
+
+
+.. _Release Notes_7.77.3:
+
+7.77.3
+======
+
+.. _Release Notes_7.77.3_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-04-08
+Pinned to datadog-agent v7.77.3: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7773>`_.
+
+
 .. _Release Notes_7.77.2:
 
 7.77.2

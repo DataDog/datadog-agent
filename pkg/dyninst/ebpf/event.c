@@ -127,13 +127,17 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
       return;
     }
     int remaining;
-    if (!call_depths_delete(depths, header->stack_byte_depth, params->probe_id, &remaining)) {
+    uint64_t saved_dict_ptr = 0;
+    if (!call_depths_delete(depths, header->stack_byte_depth, params->probe_id, &remaining, &saved_dict_ptr)) {
       // Somewhat common case where the goroutine has open calls, but it's not
       // this one.
       LOG(4, "failed to delete in_progress_calls %lld (%lld): %d",
           header->goid, header->stack_byte_depth, params->probe_id);
       return;
     }
+    // Restore the dict pointer saved at entry time so the stack machine
+    // can resolve generic shape types on the return path.
+    global_ctx.stack_machine->saved_dict_ptr = saved_dict_ptr;
     // If we're the last call for this goid, delete the entry.
     if (remaining == 0) {
       int ret = bpf_map_delete_elem(&in_progress_calls, &header->goid);
@@ -266,6 +270,7 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
     }
     depths->depths[0].depth = header->stack_byte_depth;
     depths->depths[0].probe_id = params->probe_id;
+    depths->depths[0].dict_ptr = global_ctx.stack_machine->saved_dict_ptr;
     int ret = bpf_map_update_elem(&in_progress_calls, &header->goid, depths, BPF_NOEXIST);
     if (ret != 0) {
       if (ret == -E2BIG) {
@@ -276,7 +281,8 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
           LOG(1, "failed to lookup in_progress_calls for goid %lld after failing to insert", header->goid);
           return;
         }
-        if (!call_depths_insert(depths, header->stack_byte_depth, params->probe_id)) {
+        if (!call_depths_insert(depths, header->stack_byte_depth, params->probe_id,
+                                global_ctx.stack_machine->saved_dict_ptr)) {
           header->event_pairing_expectation = EVENT_PAIRING_EXPECTATION_CALL_COUNT_EXCEEDED;
         }
       }

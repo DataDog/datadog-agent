@@ -1,0 +1,37 @@
+[
+  {
+    "service": "simple",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.intSliceArg",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "probe": {
+          "id": "indexErr_slice_oob_cond",
+          "location": {
+            "method": "main.intSliceArg"
+          }
+        }
+      },
+      "type": "snapshot",
+      "evaluationErrors": [
+        {
+          "expr": "s[5] == 42",
+          "message": "error evaluating condition"
+        }
+      ]
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "message": "matched",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  }
+]

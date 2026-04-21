@@ -108,6 +108,11 @@
           "property_doc_link": "common-process-caps_used-doc"
         },
         {
+          "name": "process.ancestors.cgroup.created_at",
+          "definition": "Timestamp of the creation of the cgroup",
+          "property_doc_link": "common-cgroupcontext-created_at-doc"
+        },
+        {
           "name": "process.ancestors.cgroup.file.inode",
           "definition": "Inode of the file",
           "property_doc_link": "common-pathkey-inode-doc"
@@ -494,7 +499,7 @@
         },
         {
           "name": "process.ancestors.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -661,6 +666,11 @@
           "name": "process.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "process.cgroup.created_at",
+          "definition": "Timestamp of the creation of the cgroup",
+          "property_doc_link": "common-cgroupcontext-created_at-doc"
         },
         {
           "name": "process.cgroup.file.inode",
@@ -1049,7 +1059,7 @@
         },
         {
           "name": "process.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -1121,6 +1131,11 @@
           "name": "process.parent.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "process.parent.cgroup.created_at",
+          "definition": "Timestamp of the creation of the cgroup",
+          "property_doc_link": "common-cgroupcontext-created_at-doc"
         },
         {
           "name": "process.parent.cgroup.file.inode",
@@ -1509,7 +1524,7 @@
         },
         {
           "name": "process.parent.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -2781,6 +2796,11 @@
           "property_doc_link": "common-process-caps_used-doc"
         },
         {
+          "name": "exec.cgroup.created_at",
+          "definition": "Timestamp of the creation of the cgroup",
+          "property_doc_link": "common-cgroupcontext-created_at-doc"
+        },
+        {
           "name": "exec.cgroup.file.inode",
           "definition": "Inode of the file",
           "property_doc_link": "common-pathkey-inode-doc"
@@ -3207,7 +3227,7 @@
         },
         {
           "name": "exec.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -3388,6 +3408,11 @@
           "name": "exit.cause",
           "definition": "Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED)",
           "property_doc_link": "exit-cause-doc"
+        },
+        {
+          "name": "exit.cgroup.created_at",
+          "definition": "Timestamp of the creation of the cgroup",
+          "property_doc_link": "common-cgroupcontext-created_at-doc"
         },
         {
           "name": "exit.cgroup.file.inode",
@@ -3781,7 +3806,7 @@
         },
         {
           "name": "exit.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -5393,6 +5418,11 @@
           "property_doc_link": "common-process-caps_used-doc"
         },
         {
+          "name": "ptrace.tracee.ancestors.cgroup.created_at",
+          "definition": "Timestamp of the creation of the cgroup",
+          "property_doc_link": "common-cgroupcontext-created_at-doc"
+        },
+        {
           "name": "ptrace.tracee.ancestors.cgroup.file.inode",
           "definition": "Inode of the file",
           "property_doc_link": "common-pathkey-inode-doc"
@@ -5779,7 +5809,7 @@
         },
         {
           "name": "ptrace.tracee.ancestors.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -5946,6 +5976,11 @@
           "name": "ptrace.tracee.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "ptrace.tracee.cgroup.created_at",
+          "definition": "Timestamp of the creation of the cgroup",
+          "property_doc_link": "common-cgroupcontext-created_at-doc"
         },
         {
           "name": "ptrace.tracee.cgroup.file.inode",
@@ -6334,7 +6369,7 @@
         },
         {
           "name": "ptrace.tracee.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -6406,6 +6441,11 @@
           "name": "ptrace.tracee.parent.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.cgroup.created_at",
+          "definition": "Timestamp of the creation of the cgroup",
+          "property_doc_link": "common-cgroupcontext-created_at-doc"
         },
         {
           "name": "ptrace.tracee.parent.cgroup.file.inode",
@@ -6794,7 +6834,7 @@
         },
         {
           "name": "ptrace.tracee.parent.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -7752,6 +7792,11 @@
           "property_doc_link": "common-process-caps_used-doc"
         },
         {
+          "name": "setrlimit.target.ancestors.cgroup.created_at",
+          "definition": "Timestamp of the creation of the cgroup",
+          "property_doc_link": "common-cgroupcontext-created_at-doc"
+        },
+        {
           "name": "setrlimit.target.ancestors.cgroup.file.inode",
           "definition": "Inode of the file",
           "property_doc_link": "common-pathkey-inode-doc"
@@ -8138,7 +8183,7 @@
         },
         {
           "name": "setrlimit.target.ancestors.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -8305,6 +8350,11 @@
           "name": "setrlimit.target.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "setrlimit.target.cgroup.created_at",
+          "definition": "Timestamp of the creation of the cgroup",
+          "property_doc_link": "common-cgroupcontext-created_at-doc"
         },
         {
           "name": "setrlimit.target.cgroup.file.inode",
@@ -8693,7 +8743,7 @@
         },
         {
           "name": "setrlimit.target.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -8765,6 +8815,11 @@
           "name": "setrlimit.target.parent.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.cgroup.created_at",
+          "definition": "Timestamp of the creation of the cgroup",
+          "property_doc_link": "common-cgroupcontext-created_at-doc"
         },
         {
           "name": "setrlimit.target.parent.cgroup.file.inode",
@@ -9153,7 +9208,7 @@
         },
         {
           "name": "setrlimit.target.parent.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -9688,6 +9743,11 @@
           "property_doc_link": "common-process-caps_used-doc"
         },
         {
+          "name": "signal.target.ancestors.cgroup.created_at",
+          "definition": "Timestamp of the creation of the cgroup",
+          "property_doc_link": "common-cgroupcontext-created_at-doc"
+        },
+        {
           "name": "signal.target.ancestors.cgroup.file.inode",
           "definition": "Inode of the file",
           "property_doc_link": "common-pathkey-inode-doc"
@@ -10074,7 +10134,7 @@
         },
         {
           "name": "signal.target.ancestors.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -10241,6 +10301,11 @@
           "name": "signal.target.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "signal.target.cgroup.created_at",
+          "definition": "Timestamp of the creation of the cgroup",
+          "property_doc_link": "common-cgroupcontext-created_at-doc"
         },
         {
           "name": "signal.target.cgroup.file.inode",
@@ -10629,7 +10694,7 @@
         },
         {
           "name": "signal.target.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -10701,6 +10766,11 @@
           "name": "signal.target.parent.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "signal.target.parent.cgroup.created_at",
+          "definition": "Timestamp of the creation of the cgroup",
+          "property_doc_link": "common-cgroupcontext-created_at-doc"
         },
         {
           "name": "signal.target.parent.cgroup.file.inode",
@@ -11089,7 +11159,7 @@
         },
         {
           "name": "signal.target.parent.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -12229,6 +12299,31 @@
     },
     {
       "name": "*.created_at",
+      "link": "common-cgroupcontext-created_at-doc",
+      "type": "int",
+      "definition": "Timestamp of the creation of the cgroup",
+      "prefixes": [
+        "exec.cgroup",
+        "exit.cgroup",
+        "process.ancestors.cgroup",
+        "process.cgroup",
+        "process.parent.cgroup",
+        "ptrace.tracee.ancestors.cgroup",
+        "ptrace.tracee.cgroup",
+        "ptrace.tracee.parent.cgroup",
+        "setrlimit.target.ancestors.cgroup",
+        "setrlimit.target.cgroup",
+        "setrlimit.target.parent.cgroup",
+        "signal.target.ancestors.cgroup",
+        "signal.target.cgroup",
+        "signal.target.parent.cgroup"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.created_at",
       "link": "common-containercontext-created_at-doc",
       "type": "int",
       "definition": "Timestamp of the creation of the container",
@@ -13217,7 +13312,7 @@
       "name": "*.is_kworker",
       "link": "common-pidcontext-is_kworker-doc",
       "type": "bool",
-      "definition": "Indicates whether the process is a kworker",
+      "definition": "Indicates whether the process is a kworker/kthread",
       "prefixes": [
         "exec",
         "exit",

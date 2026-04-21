@@ -7,6 +7,7 @@ package scrubber
 
 import (
 	"fmt"
+	"math/bits"
 	"regexp"
 	"slices"
 	"strings"
@@ -215,9 +216,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 				if apiKey == "" {
 					return ""
 				}
-				if len(apiKey) == 32 {
-					return HideKeyExceptLastFourChars(apiKey)
-				}
+				return HideKeyExceptLastChars(apiKey)
 			}
 			return defaultReplacement
 		},
@@ -232,9 +231,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 				if appKey == "" {
 					return ""
 				}
-				if len(appKey) == 40 {
-					return HideKeyExceptLastFourChars(appKey)
-				}
+				return HideKeyExceptLastChars(appKey)
 			}
 			return defaultReplacement
 		},
@@ -487,14 +484,39 @@ func ScrubDataObj(data *interface{}) {
 	DefaultScrubber.ScrubDataObj(data)
 }
 
-// HideKeyExceptLastFourChars replaces all characters in the key with "*", except
-// for the last 4 characters. If the key is an unrecognized length, replace
-// all of it with the default string of "*"s instead.
-func HideKeyExceptLastFourChars(key string) string {
-	if len(key) != 32 && len(key) != 40 {
+// HideKeyExceptLastChars replaces all characters in the key with "*", except
+// for the last N characters, where N scales logarithmically with key length:
+//   - ≤ 4 chars: fully replaced with defaultReplacement
+//   - 5–7 chars: show last 1 char
+//   - 8–15 chars: show last 2 chars
+//   - 16–31 chars: show last 3 chars
+//   - 32+ chars: show last 4 chars
+//
+// This avoids exposing a disproportionate share of shorter keys (e.g. 8–10 char
+// third-party keys) while preserving enough suffix for identification on longer ones.
+func HideKeyExceptLastChars(key string) string {
+	n := visibleKeyChars(len(key))
+	if n == 0 {
 		return defaultReplacement
 	}
-	return strings.Repeat("*", len(key)-4) + key[len(key)-4:]
+	return strings.Repeat("*", len(key)-n) + key[len(key)-n:]
+}
+
+// visibleKeyChars returns how many trailing characters of a key of the given
+// length should remain visible, clamped to [1, 4].
+func visibleKeyChars(keyLen int) int {
+	if keyLen <= 4 {
+		return 0
+	}
+	// bits.Len(n) == floor(log2(n)) + 1 for n > 0
+	n := bits.Len(uint(keyLen)) - 2
+	if n < 1 {
+		return 1
+	}
+	if n > 4 {
+		return 4
+	}
+	return n
 }
 
 // AddStrippedKeys adds to the set of YAML keys that will be recognized and have their values stripped. This modifies

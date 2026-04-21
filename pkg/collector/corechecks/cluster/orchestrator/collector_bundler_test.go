@@ -400,6 +400,7 @@ func TestNewBuiltinCRDConfigs(t *testing.T) {
 	expectedConfigs := []string{
 		// Datadog resources
 		"datadoghq.com/v1alpha2/datadogpodautoscalers",
+		"datadoghq.com/v1alpha2/datadogpodautoscalerclusterprofiles",
 		"datadoghq.com/v2alpha1/datadogagents",
 		"datadoghq.com/v1alpha1/datadogslos",
 		"datadoghq.com/v1alpha1/datadogdashboards",
@@ -428,6 +429,40 @@ func TestNewBuiltinCRDConfigs(t *testing.T) {
 
 		// EKS Auto Mode NodeClass resource
 		"eks.amazonaws.com/v1/nodeclasses",
+
+		// Gateway API
+		"gateway.networking.k8s.io/v1/gateways",
+		"gateway.networking.k8s.io/v1/httproutes",
+		"gateway.networking.k8s.io/v1/grpcroutes",
+		"gateway.networking.k8s.io/v1alpha2/tlsroutes",
+		"gateway.networking.k8s.io/v1alpha1/listenersets",
+
+		// Service mesh — Istio
+		"networking.istio.io/v1/virtualservices",
+		"networking.istio.io/v1/gateways",
+		"networking.istio.io/v1/destinationrules",
+		"networking.istio.io/v1/serviceentries",
+		"networking.istio.io/v1/sidecars",
+
+		// Service mesh — other vendors (group-level)
+		"gateway.envoyproxy.io/v1alpha1/",
+		"traefik.containo.us/v1alpha1/",
+		"policy.linkerd.io/v1beta3/",
+		"consul.hashicorp.com/v1alpha1/",
+		"mesh.consul.hashicorp.com/v2beta1/",
+		"kuma.io/v1alpha1/",
+
+		// Ingress controllers — NGINX
+		"k8s.nginx.org/v1/virtualservers",
+		"k8s.nginx.org/v1/virtualserverroutes",
+
+		// Ingress controllers — Traefik
+		"traefik.io/v1alpha1/ingressroutes",
+
+		// Ingress controllers — other vendors (group-level)
+		"configuration.konghq.com/v1/",
+		"core.haproxy.org/v1alpha2/",
+		"ingress.v1.haproxy.org/v1/",
 	}
 
 	// Verify all expected configs are present
@@ -442,6 +477,110 @@ func TestNewBuiltinCRDConfigs(t *testing.T) {
 	}
 
 	require.ElementsMatch(t, expectedConfigs, foundConfigs)
+}
+
+func TestNewBuiltinCRDConfigsPerFamilyFlags(t *testing.T) {
+	for _, testCase := range []struct {
+		name                string
+		ootbEnabled         bool
+		gatewayAPI          bool
+		serviceMesh         bool
+		ingressControllers  bool
+		expectedGatewayAPI  int // 5 entries
+		expectedServiceMesh int // 11 entries (5 Istio + 6 group-level)
+		expectedIngress     int // 6 entries (2 NGINX + 1 Traefik + 3 group-level)
+	}{
+		{
+			name:                "all families enabled",
+			ootbEnabled:         true,
+			gatewayAPI:          true,
+			serviceMesh:         true,
+			ingressControllers:  true,
+			expectedGatewayAPI:  5,
+			expectedServiceMesh: 11,
+			expectedIngress:     6,
+		},
+		{
+			name:                "gateway_api disabled",
+			ootbEnabled:         true,
+			gatewayAPI:          false,
+			serviceMesh:         true,
+			ingressControllers:  true,
+			expectedGatewayAPI:  0,
+			expectedServiceMesh: 11,
+			expectedIngress:     6,
+		},
+		{
+			name:                "service_mesh disabled",
+			ootbEnabled:         true,
+			gatewayAPI:          true,
+			serviceMesh:         false,
+			ingressControllers:  true,
+			expectedGatewayAPI:  5,
+			expectedServiceMesh: 0,
+			expectedIngress:     6,
+		},
+		{
+			name:                "ingress_controllers disabled",
+			ootbEnabled:         true,
+			gatewayAPI:          true,
+			serviceMesh:         true,
+			ingressControllers:  false,
+			expectedGatewayAPI:  5,
+			expectedServiceMesh: 11,
+			expectedIngress:     0,
+		},
+		{
+			name:                "global ootb disabled overrides all",
+			ootbEnabled:         false,
+			gatewayAPI:          true,
+			serviceMesh:         true,
+			ingressControllers:  true,
+			expectedGatewayAPI:  0,
+			expectedServiceMesh: 0,
+			expectedIngress:     0,
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			cfg := mockconfig.New(t)
+			cfg.SetWithoutSource("orchestrator_explorer.custom_resources.ootb.enabled", testCase.ootbEnabled)
+			cfg.SetWithoutSource("orchestrator_explorer.custom_resources.ootb.gateway_api", testCase.gatewayAPI)
+			cfg.SetWithoutSource("orchestrator_explorer.custom_resources.ootb.service_mesh", testCase.serviceMesh)
+			cfg.SetWithoutSource("orchestrator_explorer.custom_resources.ootb.ingress_controllers", testCase.ingressControllers)
+
+			configs := newBuiltinCRDConfigs()
+
+			gatewayAPIGroups := map[string]bool{GatewayAPIGroup: true}
+			serviceMeshGroups := map[string]bool{
+				IstioNetworkingAPIGroup: true, EnvoyGatewayAPIGroup: true,
+				TraefikLegacyAPIGroup: true, LinkerdPolicyAPIGroup: true,
+				ConsulAPIGroup: true, ConsulMeshAPIGroup: true, KumaAPIGroup: true,
+			}
+			ingressGroups := map[string]bool{
+				NginxAPIGroup: true, TraefikAPIGroup: true, KongAPIGroup: true,
+				HAProxyCoreAPIGroup: true, HAProxyIngressV1APIGroup: true,
+			}
+
+			var gatewayCount, meshCount, ingressCount int
+			for _, c := range configs {
+				if !c.enabled {
+					continue
+				}
+				switch {
+				case gatewayAPIGroups[c.group]:
+					gatewayCount++
+				case serviceMeshGroups[c.group]:
+					meshCount++
+				case ingressGroups[c.group]:
+					ingressCount++
+				}
+			}
+
+			require.Equal(t, testCase.expectedGatewayAPI, gatewayCount, "gateway API count mismatch")
+			require.Equal(t, testCase.expectedServiceMesh, meshCount, "service mesh count mismatch")
+			require.Equal(t, testCase.expectedIngress, ingressCount, "ingress controllers count mismatch")
+		})
+	}
 }
 
 func TestFilterCRCollectorsByPermission(t *testing.T) {

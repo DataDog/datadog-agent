@@ -8,6 +8,7 @@ package statusimpl
 
 import (
 	"bytes"
+	"context"
 	"embed"
 	"encoding/json"
 	"errors"
@@ -419,7 +420,7 @@ func (s *statusImplementation) GetSections() []string {
 }
 
 // fillFlare add the status.log to flares.
-func (s *statusImplementation) fillFlare(fb flaretypes.FlareBuilder) error {
+func (s *statusImplementation) fillFlare(_ context.Context, fb flaretypes.FlareBuilder) error {
 	fb.AddFileFromFunc("status.log", func() ([]byte, error) { return s.GetStatus("text", true) }) //nolint:errcheck
 	return nil
 }

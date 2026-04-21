@@ -36,9 +36,7 @@ from tasks.libs.common.utils import (
     get_embedded_path,
     parse_kernel_version,
 )
-from tasks.libs.releasing.version import get_version_numeric_only
 from tasks.libs.types.arch import ALL_ARCHS, Arch
-from tasks.windows_resources import MESSAGESTRINGS_MC_PATH
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe"))
@@ -105,20 +103,6 @@ def get_ebpf_runtime_dir() -> Path:
     return Path("pkg/ebpf/bytecode/build/runtime")
 
 
-def ninja_define_windows_resources(ctx, nw: NinjaWriter):
-    maj_ver, min_ver, patch_ver = get_version_numeric_only(ctx).split(".")
-    nw.variable("maj_ver", maj_ver)
-    nw.variable("min_ver", min_ver)
-    nw.variable("patch_ver", patch_ver)
-    nw.variable("windrestarget", "pe-x86-64")
-    nw.rule(name="windmc", command="windmc --target $windrestarget -r $rcdir -h $rcdir $in")
-    nw.rule(
-        name="windres",
-        command="windres --define MAJ_VER=$maj_ver --define MIN_VER=$min_ver --define PATCH_VER=$patch_ver "
-        + "-i $in --target $windrestarget -O coff -o $out",
-    )
-
-
 def ninja_define_ebpf_compiler(
     nw: NinjaWriter,
     strip_object_files=False,
@@ -157,40 +141,6 @@ def ninja_define_exe_compiler(nw: NinjaWriter, compiler='clang'):
         command=f"{compiler} -MD -MF $out.d $exeflags $flags $in -o $out $exelibs",
         depfile="$out.d",
     )
-
-
-def ninja_generate(
-    ctx: Context,
-    ninja_path,
-    arch: str | Arch = CURRENT_ARCH,
-):
-    arch = Arch.from_str(arch)
-
-    with open(ninja_path, 'w') as ninja_file:
-        nw = NinjaWriter(ninja_file, width=120)
-
-        if is_windows:
-            ninja_define_windows_resources(ctx, nw)
-            # messagestrings
-            in_path = MESSAGESTRINGS_MC_PATH
-            in_name = os.path.splitext(os.path.basename(in_path))[0]
-            in_dir = os.path.dirname(in_path)
-            rcout = os.path.join(in_dir, f"{in_name}.rc")
-            hout = os.path.join(in_dir, f'{in_name}.h')
-            msgout = os.path.join(in_dir, 'MSG00409.bin')
-            nw.build(
-                inputs=[in_path],
-                outputs=[rcout],
-                implicit_outputs=[hout, msgout],
-                rule="windmc",
-                variables={"rcdir": in_dir},
-            )
-            nw.build(inputs=[rcout], outputs=[os.path.join(in_dir, "rsrc.syso")], rule="windres")
-            # system-probe
-            rcin = "cmd/system-probe/windows_resources/system-probe.rc"
-            nw.build(inputs=[rcin], outputs=["cmd/system-probe/rsrc.syso"], rule="windres")
-        else:
-            pass  # Runtime compilation is fully handled by Bazel (bazel_build_ebpf)
 
 
 @task
@@ -238,11 +188,7 @@ def build(
     go_mod="readonly",
     arch: str = CURRENT_ARCH,
     bundle_ebpf=False,
-    kernel_release=None,
-    debug=False,
-    strip_object_files=False,
     strip_binary=False,
-    with_unit_test=False,
     static=False,
     fips_mode=False,
     glibc=True,
@@ -251,14 +197,7 @@ def build(
     Build the system-probe
     """
     if not is_macos:
-        build_object_files(
-            ctx,
-            kernel_release=kernel_release,
-            debug=debug,
-            strip_object_files=strip_object_files,
-            with_unit_test=with_unit_test,
-            bundle_ebpf=bundle_ebpf,
-        )
+        build_object_files(ctx)
 
     build_sysprobe_binary(
         ctx,
@@ -383,7 +322,6 @@ def test(
     skip_object_files=False,
     run=None,
     failfast=False,
-    kernel_release=None,
     timeout=None,
     extra_arguments="",
 ):
@@ -401,10 +339,7 @@ def test(
         )
 
     if not skip_object_files:
-        build_object_files(
-            ctx,
-            kernel_release=kernel_release,
-        )
+        build_object_files(ctx)
 
     build_tags = get_sysprobe_test_buildtags(is_windows, bundle_ebpf)
 
@@ -455,7 +390,6 @@ def test_debug(
     bundle_ebpf=False,
     skip_object_files=False,
     failfast=False,
-    kernel_release=None,
 ):
     """
     Run delve on a specific system-probe test.
@@ -469,10 +403,7 @@ def test_debug(
         )
 
     if not skip_object_files:
-        build_object_files(
-            ctx,
-            kernel_release=kernel_release,
-        )
+        build_object_files(ctx)
 
     build_tags = [NPM_TAG]
     build_tags.extend(UNIT_TEST_TAGS)
@@ -568,7 +499,7 @@ def full_pkg_path(name):
 
 
 @task
-def e2e_prepare(ctx, kernel_release=None, ci=False, packages=""):
+def e2e_prepare(ctx, ci=False, packages=""):
     """
     Compile test suite for e2e tests
     """
@@ -619,7 +550,6 @@ def e2e_prepare(ctx, kernel_release=None, ci=False, packages=""):
             skip_object_files=(i != 0),
             bundle_ebpf=False,
             output_path=os.path.join(target_path, target_bin),
-            kernel_release=kernel_release,
         )
 
         # copy ancillary data, if applicable
@@ -869,28 +799,6 @@ def check_for_inline(ctx):
         raise Exit(code=1)
 
 
-def run_ninja(
-    ctx: Context,
-    task="",
-    target="",
-    explain=False,
-    arch: str | Arch = CURRENT_ARCH,
-) -> None:
-    check_for_ninja(ctx)
-    nf_path = os.path.join(ctx.cwd, 'system-probe.ninja')
-    ninja_generate(ctx, nf_path, arch)
-
-    # generate full compilation database for easy clangd integration
-    with open("compile_commands.json", "w") as compiledb:
-        ctx.run(f"ninja -f {nf_path} -t compdb", out_stream=compiledb)
-
-    explain_opt = "-d explain" if explain else ""
-    if task:
-        ctx.run(f"ninja {explain_opt} -f {nf_path} -t {task}")
-    else:
-        ctx.run(f"ninja {explain_opt} -f {nf_path} {target}")
-
-
 def get_clang_version_and_build_version() -> tuple[str, str]:
     gitlab_ci_file = Path(__file__).parent.parent / ".gitlab-ci.yml"
     yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
@@ -1092,6 +1000,13 @@ def _ebpf_strip_targets(targets, strip):
     return [t + ".stripped" if t not in _NON_EBPF_TARGETS else t for t in targets]
 
 
+def ebpf_bazel_flags(arch: Arch) -> list[str]:
+    """Return extra Bazel flags needed for eBPF cross-compilation."""
+    if arch.is_cross_compiling():
+        return [f"--//bazel/rules/ebpf:target_arch={arch.gcc_arch}"]
+    return []
+
+
 def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, runtime_dir: str, strip: bool = True) -> None:
     """Build all eBPF artifacts via a single ``bazel build``.
 
@@ -1113,8 +1028,11 @@ def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, runtime_dir: str,
 
     ebpf_targets = prebuilt + core + list(inplace.keys())
     all_build_targets = ebpf_targets + list(_BAZEL_RUNTIME_FLAT_TARGETS) + list(_BAZEL_RUNTIME_GEN_TARGETS)
+
+    extra_flags = ebpf_bazel_flags(arch)
+
     print(f"Building {len(all_build_targets)} eBPF + runtime targets via Bazel...")
-    bazel(ctx, "build", *all_build_targets)
+    bazel(ctx, "build", *extra_flags, *all_build_targets)
     bazel_bin = bazel(ctx, "info", "bazel-bin", capture_output=True).strip()
 
     co_re_dir = os.path.join(build_dir, "co-re")
@@ -1200,19 +1118,49 @@ def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, runtime_dir: str,
     print(f"Copied runtime hash files to {go_dest}")
 
 
+# Paths under bazel-bin -> repo-relative destinations (also removed by clean_object_files).
+_BAZEL_WINDOWS_RESOURCE_COPIES = (
+    ("pkg/util/winutil/messagestrings/rsrc.syso", "pkg/util/winutil/messagestrings/rsrc.syso"),
+    ("pkg/util/winutil/messagestrings/messagestrings.h", "pkg/util/winutil/messagestrings/messagestrings.h"),
+    ("cmd/system-probe/windows_resources/rsrc.syso", "cmd/system-probe/rsrc.syso"),
+)
+
+
+def bazel_build_windows_resources(ctx: Context) -> None:
+    """Build Windows resource files (.syso) via Bazel and copy to the source tree.
+
+    Replaces the ninja-based windmc/windres pipeline for system-probe.
+    Produces:
+      - pkg/util/winutil/messagestrings/rsrc.syso + messagestrings.h  (shared message table)
+      - cmd/system-probe/rsrc.syso                                    (system-probe versioninfo)
+    """
+    import shutil
+
+    targets = [
+        "//pkg/util/winutil/messagestrings:messagetable",
+        "//cmd/system-probe/windows_resources:rsrc",
+    ]
+    bazel(ctx, "build", *targets)
+    bazel_bin = bazel(ctx, "info", "bazel-bin", capture_output=True).strip()
+
+    copies = [(os.path.join(bazel_bin, bazel_rel), dst) for bazel_rel, dst in _BAZEL_WINDOWS_RESOURCE_COPIES]
+    for src, dst in copies:
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        shutil.copyfile(src, dst)
+
+    print("Copied Windows resource files to source tree")
+
+
 @task(aliases=["object-files"])
 def build_object_files(
     ctx,
     arch: str = CURRENT_ARCH,
-    kernel_release=None,
-    debug=False,
-    strip_object_files=False,
-    with_unit_test=False,
-    bundle_ebpf=False,
 ) -> None:
     arch_obj = Arch.from_str(arch)
     build_dir = get_ebpf_build_dir(arch_obj)
     runtime_dir = get_ebpf_runtime_dir()
+
+    arch_flags = ebpf_bazel_flags(arch_obj)
 
     if not is_windows:
         check_for_inline(ctx)
@@ -1222,16 +1170,17 @@ def build_object_files(
         # Install Bazel-managed LLVM BPF tools (needed for stripping and runtime compilation).
         sudo = "" if is_root() else "sudo"
         ctx.run(f"{sudo} mkdir -p /opt/datadog-agent/embedded/bin")
-        bazel(ctx, "run", "--", "@llvm_bpf//:install", "--destdir=/opt/datadog-agent", sudo=not is_root())
+        bazel(ctx, "run", *arch_flags, "--", "@llvm_bpf//:install", "--destdir=/opt/datadog-agent", sudo=not is_root())
 
         # Build eBPF .o files via Bazel
         bazel_build_ebpf(ctx, arch_obj, build_dir, runtime_dir)
 
+    if is_windows:
+        bazel_build_windows_resources(ctx)
+
     # Verify all committed cgo godefs files are up to date.
     # The test_suite skips platform-incompatible tests via target_compatible_with.
-    bazel(ctx, "test", "//pkg/ebpf:verify_generated_files")
-
-    run_ninja(ctx, explain=True, arch=arch)
+    bazel(ctx, "test", *arch_flags, "//pkg/ebpf:verify_generated_files")
 
     validate_object_file_metadata(ctx, build_dir, verbose=False)
 
@@ -1302,23 +1251,20 @@ _BAZEL_CWS_BALOUM_TARGETS = {
 def build_cws_object_files(
     ctx,
     arch: str | Arch = CURRENT_ARCH,
-    kernel_release=None,
-    debug=False,
-    strip_object_files=False,
     with_unit_test=False,
-    bundle_ebpf=False,
 ):
     import shutil
 
     arch_obj = Arch.from_str(arch)
+    arch_flags = ebpf_bazel_flags(arch_obj)
     build_dir = get_ebpf_build_dir(arch_obj)
     runtime_dir = get_ebpf_runtime_dir()
     bazel_build_ebpf(ctx, arch_obj, str(build_dir), str(runtime_dir))
-    bazel(ctx, "test", "//pkg/ebpf:verify_generated_files")
+    bazel(ctx, "test", *arch_flags, "//pkg/ebpf:verify_generated_files")
 
     if with_unit_test:
         targets = list(_BAZEL_CWS_BALOUM_TARGETS.keys())
-        bazel(ctx, "build", *targets)
+        bazel(ctx, "build", *arch_flags, *targets)
         bazel_bin = bazel(ctx, "info", "bazel-bin", capture_output=True).strip()
 
         for target, dest_name in _BAZEL_CWS_BALOUM_TARGETS.items():
@@ -1330,9 +1276,6 @@ def build_cws_object_files(
 
 
 def clean_object_files(ctx):
-    run_ninja(ctx, task="clean")
-
-    # Remove Bazel-copied eBPF .o files that ninja no longer tracks.
     build_root = Path("pkg/ebpf/bytecode/build")
     if build_root.exists():
         shutil.rmtree(build_root)
@@ -1342,6 +1285,19 @@ def clean_object_files(ctx):
         for candidate in [Path(dest_dir) / f"{name}.o", Path(dest_dir) / name]:
             if candidate.exists():
                 candidate.unlink()
+
+    go_runtime = Path("pkg/ebpf/bytecode/runtime")
+    for target in _BAZEL_RUNTIME_GEN_TARGETS:
+        name = target.rsplit(":", 1)[1]
+        bundle_name = name.removesuffix("_gen")
+        candidate = go_runtime / f"{bundle_name}.go"
+        if candidate.exists():
+            candidate.unlink()
+
+    for _, dst in _BAZEL_WINDOWS_RESOURCE_COPIES:
+        p = Path(dst)
+        if p.exists():
+            p.unlink()
 
 
 @task
@@ -1679,9 +1635,6 @@ def _test_docker_image_list():
 
 @task
 def save_build_outputs(ctx, destfile):
-    ignored_extensions = {".bc"}
-    ignored_files = {"cws", "integrity", "include_headers"}
-
     if not destfile.endswith(".tar.xz"):
         raise Exit(message="destfile must be a .tar.xz file")
 
@@ -1689,24 +1642,6 @@ def save_build_outputs(ctx, destfile):
     count = 0
     outfiles = []
     with tempfile.TemporaryDirectory() as stagedir:
-        with open("compile_commands.json") as compiledb:
-            for outputitem in json.load(compiledb):
-                if "output" not in outputitem:
-                    continue
-
-                filedir, file = os.path.split(outputitem["output"])
-                _, ext = os.path.splitext(file)
-                if ext in ignored_extensions or file in ignored_files:
-                    continue
-
-                outdir = os.path.join(stagedir, filedir)
-                ctx.run(f"mkdir -p {outdir}")
-                ctx.run(f"cp {outputitem['output']} {outdir}/")
-                outfiles.append(outputitem['output'])
-                count += 1
-
-        # Include Bazel-produced eBPF .o files (prebuilt + CO-RE) which are
-        # no longer tracked by the ninja compile database.
         arch = Arch.local()
         build_dir = get_ebpf_build_dir(arch)
         for subdir in ["", "co-re"]:

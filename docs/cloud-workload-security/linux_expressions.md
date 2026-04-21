@@ -200,6 +200,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`process.ancestors.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
 | [`process.ancestors.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`process.ancestors.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`process.ancestors.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`process.ancestors.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`process.ancestors.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
@@ -277,7 +278,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`process.ancestors.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`process.ancestors.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
-| [`process.ancestors.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`process.ancestors.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker/kthread |
 | [`process.ancestors.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`process.ancestors.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`process.ancestors.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
@@ -311,6 +312,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`process.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
 | [`process.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`process.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`process.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`process.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`process.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
@@ -388,7 +390,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`process.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`process.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
-| [`process.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`process.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker/kthread |
 | [`process.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`process.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`process.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
@@ -403,6 +405,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`process.parent.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
 | [`process.parent.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`process.parent.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`process.parent.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`process.parent.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`process.parent.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
@@ -480,7 +483,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`process.parent.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`process.parent.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
-| [`process.parent.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`process.parent.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker/kthread |
 | [`process.parent.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`process.parent.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`process.parent.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
@@ -801,6 +804,7 @@ A process was executed (does not trigger on fork syscalls).
 | [`exec.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`exec.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
 | [`exec.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`exec.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`exec.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`exec.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`exec.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
@@ -886,7 +890,7 @@ A process was executed (does not trigger on fork syscalls).
 | [`exec.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`exec.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`exec.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
-| [`exec.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`exec.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker/kthread |
 | [`exec.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`exec.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`exec.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
@@ -928,6 +932,7 @@ A process was terminated
 | [`exit.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
 | [`exit.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
 | [`exit.cause`](#exit-cause-doc) | Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED) |
+| [`exit.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`exit.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`exit.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`exit.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
@@ -1006,7 +1011,7 @@ A process was terminated
 | [`exit.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`exit.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`exit.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
-| [`exit.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`exit.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker/kthread |
 | [`exit.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`exit.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`exit.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
@@ -1393,6 +1398,7 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`ptrace.tracee.ancestors.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
 | [`ptrace.tracee.ancestors.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`ptrace.tracee.ancestors.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`ptrace.tracee.ancestors.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`ptrace.tracee.ancestors.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`ptrace.tracee.ancestors.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
@@ -1470,7 +1476,7 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`ptrace.tracee.ancestors.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`ptrace.tracee.ancestors.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
-| [`ptrace.tracee.ancestors.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`ptrace.tracee.ancestors.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker/kthread |
 | [`ptrace.tracee.ancestors.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`ptrace.tracee.ancestors.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`ptrace.tracee.ancestors.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
@@ -1504,6 +1510,7 @@ A ptrace command was executed
 | [`ptrace.tracee.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`ptrace.tracee.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
 | [`ptrace.tracee.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`ptrace.tracee.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`ptrace.tracee.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`ptrace.tracee.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`ptrace.tracee.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
@@ -1581,7 +1588,7 @@ A ptrace command was executed
 | [`ptrace.tracee.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`ptrace.tracee.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`ptrace.tracee.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
-| [`ptrace.tracee.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`ptrace.tracee.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker/kthread |
 | [`ptrace.tracee.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`ptrace.tracee.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`ptrace.tracee.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
@@ -1596,6 +1603,7 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`ptrace.tracee.parent.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
 | [`ptrace.tracee.parent.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`ptrace.tracee.parent.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`ptrace.tracee.parent.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`ptrace.tracee.parent.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`ptrace.tracee.parent.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
@@ -1673,7 +1681,7 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`ptrace.tracee.parent.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`ptrace.tracee.parent.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
-| [`ptrace.tracee.parent.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`ptrace.tracee.parent.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker/kthread |
 | [`ptrace.tracee.parent.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`ptrace.tracee.parent.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`ptrace.tracee.parent.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
@@ -1896,6 +1904,7 @@ A setrlimit command was executed
 | [`setrlimit.target.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`setrlimit.target.ancestors.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
 | [`setrlimit.target.ancestors.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`setrlimit.target.ancestors.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`setrlimit.target.ancestors.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`setrlimit.target.ancestors.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`setrlimit.target.ancestors.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
@@ -1973,7 +1982,7 @@ A setrlimit command was executed
 | [`setrlimit.target.ancestors.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`setrlimit.target.ancestors.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`setrlimit.target.ancestors.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
-| [`setrlimit.target.ancestors.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`setrlimit.target.ancestors.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker/kthread |
 | [`setrlimit.target.ancestors.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`setrlimit.target.ancestors.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`setrlimit.target.ancestors.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
@@ -2007,6 +2016,7 @@ A setrlimit command was executed
 | [`setrlimit.target.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`setrlimit.target.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
 | [`setrlimit.target.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`setrlimit.target.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`setrlimit.target.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`setrlimit.target.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`setrlimit.target.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
@@ -2084,7 +2094,7 @@ A setrlimit command was executed
 | [`setrlimit.target.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`setrlimit.target.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`setrlimit.target.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
-| [`setrlimit.target.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`setrlimit.target.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker/kthread |
 | [`setrlimit.target.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`setrlimit.target.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`setrlimit.target.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
@@ -2099,6 +2109,7 @@ A setrlimit command was executed
 | [`setrlimit.target.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`setrlimit.target.parent.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
 | [`setrlimit.target.parent.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`setrlimit.target.parent.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`setrlimit.target.parent.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`setrlimit.target.parent.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`setrlimit.target.parent.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
@@ -2176,7 +2187,7 @@ A setrlimit command was executed
 | [`setrlimit.target.parent.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`setrlimit.target.parent.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`setrlimit.target.parent.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
-| [`setrlimit.target.parent.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`setrlimit.target.parent.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker/kthread |
 | [`setrlimit.target.parent.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`setrlimit.target.parent.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`setrlimit.target.parent.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
@@ -2304,6 +2315,7 @@ A signal was sent
 | [`signal.target.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`signal.target.ancestors.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
 | [`signal.target.ancestors.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`signal.target.ancestors.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`signal.target.ancestors.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`signal.target.ancestors.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`signal.target.ancestors.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
@@ -2381,7 +2393,7 @@ A signal was sent
 | [`signal.target.ancestors.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`signal.target.ancestors.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`signal.target.ancestors.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
-| [`signal.target.ancestors.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`signal.target.ancestors.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker/kthread |
 | [`signal.target.ancestors.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`signal.target.ancestors.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`signal.target.ancestors.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
@@ -2415,6 +2427,7 @@ A signal was sent
 | [`signal.target.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`signal.target.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
 | [`signal.target.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`signal.target.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`signal.target.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`signal.target.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`signal.target.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
@@ -2492,7 +2505,7 @@ A signal was sent
 | [`signal.target.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`signal.target.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`signal.target.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
-| [`signal.target.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`signal.target.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker/kthread |
 | [`signal.target.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`signal.target.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`signal.target.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
@@ -2507,6 +2520,7 @@ A signal was sent
 | [`signal.target.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`signal.target.parent.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
 | [`signal.target.parent.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`signal.target.parent.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`signal.target.parent.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`signal.target.parent.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`signal.target.parent.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
@@ -2584,7 +2598,7 @@ A signal was sent
 | [`signal.target.parent.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`signal.target.parent.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`signal.target.parent.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
-| [`signal.target.parent.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`signal.target.parent.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker/kthread |
 | [`signal.target.parent.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`signal.target.parent.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`signal.target.parent.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
@@ -2939,6 +2953,15 @@ Definition: Comm attribute of the process
 `exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
+### `*.created_at` {#common-cgroupcontext-created_at-doc}
+Type: int
+
+Definition: Timestamp of the creation of the cgroup
+
+`*.created_at` has 14 possible prefixes:
+`exec.cgroup` `exit.cgroup` `process.ancestors.cgroup` `process.cgroup` `process.parent.cgroup` `ptrace.tracee.ancestors.cgroup` `ptrace.tracee.cgroup` `ptrace.tracee.parent.cgroup` `setrlimit.target.ancestors.cgroup` `setrlimit.target.cgroup` `setrlimit.target.parent.cgroup` `signal.target.ancestors.cgroup` `signal.target.cgroup` `signal.target.parent.cgroup`
+
+
 ### `*.created_at` {#common-containercontext-created_at-doc}
 Type: int
 
@@ -3230,7 +3253,7 @@ Definition: Indicates whether the process entry is from a new binary execution
 ### `*.is_kworker` {#common-pidcontext-is_kworker-doc}
 Type: bool
 
-Definition: Indicates whether the process is a kworker
+Definition: Indicates whether the process is a kworker/kthread
 
 `*.is_kworker` has 14 possible prefixes:
 `exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`

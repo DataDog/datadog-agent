@@ -1,0 +1,2 @@
+# gazelle:ignore
+# Stub: parent has .go files; only namespace/ is a separate go.work module.

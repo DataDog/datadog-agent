@@ -8,20 +8,21 @@ Probes:
       template: ""
       segments: []
       captureSnapshot: true
-      subprogram: {subprogram: 1}
-      events:
-        - Kind: Entry
-          Type: 209 EventRootType Probe[main.HandleHTTP]
-          InjectionPoints: [{PC: "0x82b110", Frameless: false}]
-          Condition: null
-        - Kind: Return
-          Type: 210 EventRootType Probe[main.HandleHTTP]Return
-          InjectionPoints:
-            - PC: "0x82b2d8"
-              Frameless: false
-            - PC: "0x82b2f0"
-              Frameless: false
-          Condition: null
+      instances:
+        - subprogram: {subprogram: 1}
+          events:
+            - Kind: Entry
+              Type: 209 EventRootType Probe[main.HandleHTTP]
+              InjectionPoints: [{PC: "0x82b110", Frameless: false}]
+              Condition: null
+            - Kind: Return
+              Type: 210 EventRootType Probe[main.HandleHTTP]Return
+              InjectionPoints:
+                - PC: "0x82b2d8"
+                  Frameless: false
+                - PC: "0x82b2f0"
+                  Frameless: false
+              Condition: null
     - id: look_at_the_request
       version: 0
       type: LOG_PROBE
@@ -30,16 +31,17 @@ Probes:
       template: ""
       segments: []
       captureSnapshot: true
-      subprogram: {subprogram: 2}
-      events:
-        - Kind: Entry
-          Type: 211 EventRootType Probe[main.LookAtTheRequest]
-          InjectionPoints: [{PC: "0x82b408", Frameless: false}]
-          Condition: null
-        - Kind: Return
-          Type: 212 EventRootType Probe[main.LookAtTheRequest]Return
-          InjectionPoints: [{PC: "0x82b470", Frameless: false}]
-          Condition: null
+      instances:
+        - subprogram: {subprogram: 2}
+          events:
+            - Kind: Entry
+              Type: 211 EventRootType Probe[main.LookAtTheRequest]
+              InjectionPoints: [{PC: "0x82b408", Frameless: false}]
+              Condition: null
+            - Kind: Return
+              Type: 212 EventRootType Probe[main.LookAtTheRequest]Return
+              InjectionPoints: [{PC: "0x82b470", Frameless: false}]
+              Condition: null
 Subprograms:
     - ID: 1
       Name: main.HandleHTTP
@@ -68,6 +70,7 @@ Subprograms:
                 - Size: 8
                   Op: {CfaOffset: 16}
           Role: Parameter
+          DictIndex: -1
         - Name: r
           Type: 110 PointerType *net/http.Request
           Locations:
@@ -76,6 +79,7 @@ Subprograms:
             - Range: 0x82b150..0x82b320
               Pieces: [{Size: 8, Op: {CfaOffset: 24}}]
           Role: Parameter
+          DictIndex: -1
         - Name: '&buf'
           Type: 112 PointerType *bytes.Buffer
           Locations:
@@ -84,6 +88,7 @@ Subprograms:
             - Range: 0x82b258..0x82b320
               Pieces: [{Size: 8, Op: {CfaOffset: -128}}]
           Role: Local
+          DictIndex: -1
         - Name: span
           Type: 114 GoInterfaceType gopkg.in/DataDog/dd-trace-go.v1/ddtrace.Span
           Locations:
@@ -100,6 +105,8 @@ Subprograms:
                 - Size: 8
                   Op: {RegNo: 1, Shift: 0}
           Role: Local
+          DictIndex: -1
+      DictRegister: null
     - ID: 2
       Name: main.LookAtTheRequest
       OutOfLinePCRanges: [0x82b3f0..0x82b490]
@@ -115,6 +122,8 @@ Subprograms:
                 - Size: 8
                   Op: {RegNo: 1, Shift: 0}
           Role: Parameter
+          DictIndex: -1
+      DictRegister: null
 Types:
     - __kind: PointerType
       ID: 63
@@ -567,7 +576,7 @@ Types:
       ID: 209
       Name: Probe[main.HandleHTTP]
       ByteSize: 25
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: w
           Offset: 1
@@ -579,6 +588,7 @@ Types:
                   Variable: {subprogram: 1, index: 0, name: w}
                   Offset: 0
                   ByteSize: 16
+          DictIndex: -1
         - Name: r
           Offset: 17
           Kind: argument
@@ -589,6 +599,7 @@ Types:
                   Variable: {subprogram: 1, index: 1, name: r}
                   Offset: 0
                   ByteSize: 8
+          DictIndex: -1
     - __kind: EventRootType
       ID: 210
       Name: Probe[main.HandleHTTP]Return
@@ -596,7 +607,7 @@ Types:
       ID: 211
       Name: Probe[main.LookAtTheRequest]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: path
           Offset: 1
@@ -608,6 +619,7 @@ Types:
                   Variable: {subprogram: 2, index: 0, name: path}
                   Offset: 0
                   ByteSize: 16
+          DictIndex: -1
     - __kind: EventRootType
       ID: 212
       Name: Probe[main.LookAtTheRequest]Return
@@ -2566,6 +2578,10 @@ Types:
 MaxTypeID: 212
 Issues: []
 GoModuledataInfo: {FirstModuledataAddr: "0x130d980", TypesOffset: 296}
+GoMapHashInfo:
+    UseAeshashAddr: "0x1404334"
+    AeskeyschedAddr: "0x14053c0"
 CommonTypes:
     G: 22 StructureType runtime.g
     M: 29 StructureType runtime.m
+IsARM64: true

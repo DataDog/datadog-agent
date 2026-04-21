@@ -59,6 +59,7 @@ custom_env_parsers = {
     "service_monitoring_config.http.replace_rules": "JSON object of string to string",
     "service_monitoring_config.http_replace_rules": "JSON object of string to string",
     "network_config.http_replace_rules": "JSON object of string to string",
+    "private_action_runner.actions_allowlist": "comma separated list of strings",
 }
 
 # Settings declared with BindEnv() don't have a type or a default but some are still listed in the config example.
@@ -67,9 +68,8 @@ type_exception = {
     "api_key": ("string", "string", ""),
     "site": ("string", "string", "datadoghq.com"),
     "dd_url": ("string", "string", "https://app.datadoghq.com"),
-    "procfs_path": ("string", "string", None),
     "logs_config.logs_dd_url": ("string", "string", ""),
-    "logs_config.processing_rules": ("list of custom objects", "list of custom objects", ""),
+    "logs_config.processing_rules": ("list of custom objects", "list of custom objects", []),
     "apm_config.env": ("string", "string", "none"),
     "apm_config.apm_non_local_traffic": ("boolean", "boolean", False),
     "apm_config.apm_dd_url": ("string", "string", None),
@@ -91,46 +91,10 @@ type_exception = {
     "apm_config.probabilistic_sampler.hash_seed": ("integer", "integer", 0),
     "apm_config.profiling_receiver_timeout": ("integer", "integer", 5),
     "apm_config.internal_profiling.enabled": ("boolean", "boolean", False),
-    "process_config.enabled": ("boolean", "boolean", False),
-    "process_config.intervals.container": ("integer", "integer", 10),
-    "process_config.intervals.container_realtime": ("integer", "integer", 2),
-    "process_config.intervals.process": ("integer", "integer", 10),
-    "process_config.intervals.process_realtime": ("integer", "integer", 2),
-    "process_config.blacklist_patterns": ("list of strings", "space-separated list of strings", []),
-    "process_config.dd_agent_env": ("string", "string", ""),
-    "process_config.scrub_args": ("boolean", "boolean", True),
-    "process_config.custom_sensitive_words": ("list of strings", "space-separated list of strings", []),
-    "network_path.collector.filters": ("list of custom objects", "list of custom objects", None),
     "bind_host": ("string", "string", "localhost"),
     "dogstatsd_mapper_profiles": ("list of custom object", "list of custom object", None),
-    "metadata_providers": ("list of custom object", "list of custom object", None),
-    "config_providers": ("list of custom object", "list of custom object", None),
-    "container_cgroup_root": ("string", "string", "/host/sys/fs/cgroup/"),
-    "container_proc_root": ("string", "string", "/host/proc"),
     "listeners": ("list of key:value elements", "list of key:value elements", None),
-    "admission_controller.pod_owners_cache_validity": ("integer", "integer", 10),
-    "admission_controller.auto_instrumentation.init_resources.cpu": ("string", "string", None),
-    "admission_controller.auto_instrumentation.init_resources.memory": ("string", "string", None),
-    "admission_controller.auto_instrumentation.init_security_context": ("json", "json", None),
-    "cluster_name": ("string", "string", None),
-    "prometheus_scrape.checks": ("custom object", "custom object", None),
     "network_config.enabled": ("boolean", "boolean", False),
-    "network_devices.autodiscovery.workers": ("integer", "integer", 2),
-    "network_devices.autodiscovery.discovery_interval": ("integer", "integer", 3600),
-    "network_devices.autodiscovery.discovery_allowed_failures": ("integer", "integer", 3),
-    "network_devices.autodiscovery.loader": ("string", "string", "python"),
-    "network_devices.autodiscovery.min_collection_interval": ("integer", "integer", 15),
-    "network_devices.autodiscovery.use_device_id_as_hostname": ("boolean", "boolean", False),
-    "network_devices.autodiscovery.collect_topology": ("boolean", "boolean", True),
-    "network_devices.autodiscovery.collect_vpn": ("boolean", "boolean", None),
-    "network_devices.autodiscovery.ping.enabled": ("boolean", "boolean", None),
-    "network_devices.autodiscovery.ping.timeout": ("integer", "integer", None),
-    "network_devices.autodiscovery.ping.count": ("integer", "integer", None),
-    "network_devices.autodiscovery.ping.interval": ("integer", "integer", None),
-    "network_devices.autodiscovery.ping.linux.use_raw_socket": ("boolean", "boolean", None),
-    "network_devices.autodiscovery.use_deduplication": ("boolean", "boolean", None),
-    "network_devices.autodiscovery.configs": ("list", "string", None),
-    "network_devices.snmp_traps.users": ("list of custom objects", "list of custom objects", None),
     "network_devices.netflow.listeners": ("custom object", "custom object", None),
     "network_devices.netflow.stop_timeout": ("integer", "integer", 5),
     "reverse_dns_enrichment.workers": ("integer", "integer", 10),
@@ -140,20 +104,6 @@ type_exception = {
     "reverse_dns_enrichment.rate_limiter.limit_throttled_per_sec": ("integer", "integer", 1),
     "reverse_dns_enrichment.rate_limiter.throttle_error_threshold": ("integer", "integer", 10),
     "reverse_dns_enrichment.rate_limiter.recovery_intervals": ("integer", "integer", 5),
-    "otlp_config.receiver.protocols.grpc.endpoint": ("string", "string", "0.0.0.0:4317"),
-    "otlp_config.receiver.protocols.grpc.transport": ("string", "string", "tcp"),
-    "otlp_config.receiver.protocols.grpc.max_recv_msg_size_mib": ("integer", "integer", 4),
-    "otlp_config.receiver.protocols.http.endpoint": ("string", "string", "0.0.0.0:4318"),
-    "otlp_config.metrics.resource_attributes_as_tags": ("boolean", "boolean", False),
-    "otlp_config.metrics.tag_cardinality": ("string", "string", "low"),
-    "otlp_config.metrics.delta_ttl": ("integer", "integer", 3600),
-    "otlp_config.metrics.histograms.mode": ("string", "string", "distributions"),
-    "otlp_config.metrics.histograms.send_count_sum_metrics": ("boolean", "boolean", False),
-    "otlp_config.metrics.histograms.send_aggregation_metrics": ("boolean", "boolean", False),
-    "otlp_config.metrics.sums.cumulative_monotonic_mode": ("string", "string", "to_delta"),
-    "otlp_config.metrics.sums.initial_cumulative_monotonic_value": ("string", "string", "auto"),
-    "otlp_config.metrics.summaries.mode": ("string", "string", "gauges"),
-    "otlp_config.debug.verbosity": ("string", "string", "normal"),
 }
 
 build_type_to_section = {
@@ -172,6 +122,7 @@ build_type_to_section = {
         "TraceAgent",
         "Kubelet",
         "KubeApiServer",
+        "PrivateActionRunner",
     ],
     "iot-agent": [
         "Common",
@@ -202,6 +153,7 @@ build_type_to_section = {
         "KubeApiServer",
         "ClusterChecks",
         "AdmissionController",
+        "PrivateActionRunner",
     ],
     "dcacf": [
         "ClusterAgent",
@@ -209,9 +161,6 @@ build_type_to_section = {
         "Logging",
         "ClusterChecks",
         "CloudFoundry",
-    ],
-    "security-agent": [
-        "SecurityAgent",
     ],
 }
 
@@ -251,23 +200,6 @@ def _filter_hidden_nodes(nodes, os_target):
         del nodes[name]
 
     return nodes
-
-
-def _order_items(nodes):
-    res = []
-    for name, node in nodes.items():
-        tags = node.get("tags", [])
-        for tag in tags:
-            if tag.startswith("template_section_order:"):
-                template_order = tag.split(":")[1]
-                break
-        else:
-            print(f"error: {name} is public but has no template order")
-            continue
-
-        res.append((int(template_order), (name, node)))
-
-    return [x[1] for x in sorted(res, key=lambda x: x[0])]
 
 
 def _get_platform_version(data, os_target):
@@ -355,7 +287,7 @@ def _print_default(default, one_liner, env_var):
 
         if one_liner:
             if env_var:
-                default = "'" + " ".join([str(x) for x in default]) + "'"
+                default = "\"" + " ".join([str(x) for x in default]) + "\""
             else:
                 if isinstance(default[0], int):
                     default = "[" + ", ".join([f"{x}" for x in default]) + "]"
@@ -403,8 +335,13 @@ def _get_env_lines(node, full_name, node_type, default):
 
 def _get_example(node, indent_level, name, default):
     line = f"{name}:"
+
     if not _is_node_section(node):
-        line += " " + node.get("example", _print_default(default, False, False))
+        if name == "api_key" and indent_level == 0:
+            # the API key is an exception to the format, we don't show the default
+            pass
+        else:
+            line += " " + node.get("example", _print_default(default, False, False))
 
     if indent_level == 0:
         line = textwrap.indent(line, " ", lambda line: True)
@@ -458,7 +395,7 @@ def _render(build_type, os_target, previous_path, name, node, indent_level):
     template = _render_node(full_name, name, node, indent_level, os_target)
 
     child_nodes = _filter_hidden_nodes(node.get("properties", {}), os_target)
-    for child_name, child in _order_items(child_nodes):
+    for child_name, child in child_nodes.items():
         template += _render(build_type, os_target, full_name, child_name, child, indent_level + 1)
 
     header = _get_header(node)
@@ -471,13 +408,12 @@ def generate_template(schema_file, dest, build_type, os_target):
 
     config_template = ""
     child_nodes = _filter_hidden_nodes(schema.get("properties", {}), os_target)
-    for child_name, child in _order_items(child_nodes):
+    for child_name, child in child_nodes.items():
         config_template += _render(build_type, os_target, "", child_name, child, 0)
 
+    final_render = [line.strip() for line in config_template.strip().split("\n")]
     with open(dest, "w") as f:
-        for line in config_template.split("\n"):
-            f.write(line.strip())
-            f.write("\n")
+        f.write("\n".join(final_render))
 
 
 @task(

@@ -21,7 +21,7 @@ type FlareProvider struct {
 }
 
 // ProvideFlare generates a host SBOM and adds it to the flare.
-func (p *FlareProvider) ProvideFlare(fb flaretypes.FlareBuilder) error {
+func (p *FlareProvider) ProvideFlare(_ context.Context, fb flaretypes.FlareBuilder) error {
 	if !p.Config.GetBool("sbom.host.enabled") {
 		return nil
 	}

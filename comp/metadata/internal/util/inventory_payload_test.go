@@ -112,12 +112,12 @@ func TestFillFlare(t *testing.T) {
 	flareFiller := i.FlareProvider().FlareFiller.Callback
 
 	i.Enabled = false
-	flareFiller(f)
+	flareFiller(context.Background(), f)
 	f.AssertFileExists("metadata", "inventory", "test.json")
 	f.AssertFileContent("inventory metadata is disabled", "metadata", "inventory", "test.json")
 
 	i.Enabled = true
-	flareFiller(f)
+	flareFiller(context.Background(), f)
 	f.AssertFileExists("metadata", "inventory", "test.json")
 	f.AssertFileContent("{\n  \"test\": true\n}", "metadata", "inventory", "test.json")
 }

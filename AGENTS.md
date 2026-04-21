@@ -37,7 +37,32 @@ The Datadog Agent is a comprehensive monitoring and observability agent written 
 
 - `/rtloader/` - Runtime loader for Python checks
 
+- `/packages/` - The declarations of what goes into each package we build for distribution.
+
+- `/omnibus/` - The legacy build system. Still in used, but we are trying not to add to it.
+
+
 ## Development Workflow
+
+### Critical: Always use `dda inv`, never raw `go` commands
+
+This project uses extensive custom Go build tags. Most source files are ignored
+by the standard Go toolchain unless the correct tags are passed. The `dda inv`
+wrapper tasks (defined in `tasks/`) compute the right build tags automatically.
+
+**Never run these commands directly:**
+
+| Instead of | Use |
+|---|---|
+| `go build …` | `dda inv agent.build`, `dda inv cluster-agent.build`, etc. |
+| `go test …` | `dda inv test --targets=./pkg/…` |
+| `go mod tidy` | `dda inv tidy` |
+| `go vet …` | `dda inv linter.go` |
+| `golangci-lint run …` | `dda inv linter.go` |
+
+This also applies to indirect usage — do not shell out to `go build` or
+`go test` for compilation checks. If you need to verify that code compiles,
+build the relevant component with `dda inv *.build`.
 
 ### Common Commands
 
@@ -57,6 +82,12 @@ dda inv agent.build --build-exclude=systemd
 dda inv dogstatsd.build
 dda inv trace-agent.build
 dda inv system-probe.build
+
+# Build specific packages
+bazel build //packages/agent/linux:debian
+
+# Keep BUILD.bazel files in sync with go dependencies
+dda inv tidy
 ```
 
 #### Testing
@@ -66,6 +97,7 @@ dda inv test
 
 # Test specific package
 dda inv test --targets=./pkg/aggregator
+bazel test //pkg/aggregator/...
 
 # Run Go linters
 dda inv linter.go
@@ -144,7 +176,7 @@ Key Bazel macros:
 ## Testing Strategy
 
 ### Unit Tests
-- Go tests using standard `go test`
+- Go tests run via `dda inv test` (not raw `go test`)
 - Python tests using pytest
 - Run with `dda inv test --targets=<package>`
 
@@ -239,12 +271,12 @@ tasks.
 - **Linux**: Full support (amd64, arm64)
 - **Windows**: Full support (Server 2016+, Windows 10+)
 - **macOS**: Supported
-- **AIX**: No support in this codebase
+- **AIX**: No support in this codebase yet, but we are working towards it.
 - **Container**: Docker, Kubernetes, ECS, containerd, and more
 
 ## Best Practices
 1. **Always run linters before committing**: `dda inv linter.go`
-2. **Always test your changes**: `dda inv test --targets=<your_package>`
+2. **Always test your changes**: `dda inv test --targets=<your_package>` `bazel test //pkg/... //comp/...`
 3. **Follow Go conventions**: Use gofmt, follow project structure
 4. **Update documentation**: Keep docs in sync with code changes
 6. **Check for security implications**: Review security-sensitive changes carefully
@@ -315,6 +347,7 @@ mistakes across sessions.
 
 ```
 AGENTS.md                          ← repo-wide: architecture, workflow, review guidelines
+├── bazel/AGENTS.md                ← Bazel build system: conventions, pitfalls, rule writing
 ├── test/e2e-framework/AGENTS.md   ← E2E framework: environments, provisioners, agentparams
 ├── test/fakeintake/AGENTS.md      ← fakeintake: endpoints, client API, extension guide
 ├── pkg/.../AGENTS.md              ← package-level: structure, patterns, pitfalls

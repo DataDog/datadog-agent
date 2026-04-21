@@ -16,6 +16,7 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
@@ -181,7 +182,7 @@ func newOnDiskRetryQueueTest(t *testing.T, a *assert.Assertions) *onDiskRetryQue
 		}}
 	diskUsageLimit := NewDiskUsageLimit("", disk, 1000, 1)
 	log := logmock.New(t)
-	r, err := resolver.NewSingleDomainResolver("", nil)
+	r, err := resolver.NewSingleDomainResolver("", []utils.APIKeys{utils.NewAPIKeys("path", "api-key-1")})
 	require.NoError(t, err)
 	q, err := newOnDiskRetryQueue(
 		log,

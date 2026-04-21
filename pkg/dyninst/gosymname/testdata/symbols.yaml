@@ -1,0 +1,719 @@
+  - name: simple function
+    input:
+      symbol: encoding/json.Marshal
+      source: pclntab
+    output:
+      pkg: encoding/json
+      local: Marshal
+      class: function
+      interps:
+        - qualified_name: Marshal
+          function: Marshal
+  - name: pointer receiver method
+    input:
+      symbol: github.com/cockroachdb/cockroach/pkg/kv/kvserver.(*raftSchedulerShard).worker
+    output:
+      pkg: github.com/cockroachdb/cockroach/pkg/kv/kvserver
+      local: (*raftSchedulerShard).worker
+      class: function
+      interps:
+        - qualified_name: (*raftSchedulerShard).worker
+          receiver: "*raftSchedulerShard"
+          function: worker
+  - name: ambiguous value receiver
+    input:
+      symbol: github.com/cockroachdb/cockroach/pkg/ccl/changefeedccl/kvfeed.rangefeedFactory.Run
+    output:
+      pkg: github.com/cockroachdb/cockroach/pkg/ccl/changefeedccl/kvfeed
+      local: rangefeedFactory.Run
+      class: function
+      interps:
+        - qualified_name: rangefeedFactory
+          function: rangefeedFactory
+          inlined:
+            - Run
+        - qualified_name: rangefeedFactory.Run
+          receiver: rangefeedFactory
+          function: Run
+  - name: simple closure
+    input:
+      symbol: github.com/getsentry/sentry-go.NewClient.func1
+    output:
+      pkg: github.com/getsentry/sentry-go
+      local: NewClient.func1
+      class: closure
+      interps:
+        - qualified_name: NewClient
+          function: NewClient
+          closure: func1
+          depth: 1
+  - name: escaped import path
+    input:
+      symbol: gopkg.in/square/go-jose%2ev2.newBuffer
+    output:
+      pkg: gopkg.in/square/go-jose.v2
+      local: newBuffer
+      class: function
+      interps:
+        - qualified_name: newBuffer
+          function: newBuffer
+  - name: init function
+    input:
+      symbol: github.com/klauspost/compress/flate.init.0
+    output:
+      pkg: github.com/klauspost/compress/flate
+      local: init.0
+      class: init
+      interps:
+        - qualified_name: init.0
+          function: init.0
+  - name: plain init
+    input:
+      symbol: internal/bytealg.init
+    output:
+      pkg: internal/bytealg
+      local: init
+      class: init
+      interps:
+        - qualified_name: init
+          function: init
+  - name: map init
+    input:
+      symbol: time.map.init.0
+      source: pclntab
+    output:
+      pkg: time
+      local: map.init.0
+      class: map_init
+      interps:
+        - qualified_name: map.init.0
+          function: map.init.0
+  - name: global closure
+    input:
+      symbol: glob.func1
+      source: pclntab
+    output:
+      pkg: glob
+      local: func1
+      class: global_closure
+      interps:
+        - qualified_name: func1
+          function: func1
+  - name: method expression wrapper
+    input:
+      symbol: encoding/json.arrayEncoder.encode-fm
+      source: pclntab
+    output:
+      pkg: encoding/json
+      local: arrayEncoder.encode-fm
+      class: function
+      interps:
+        - qualified_name: arrayEncoder.encode
+          receiver: arrayEncoder
+          function: encode
+          wrapper: method_expr
+  - name: bare name
+    input:
+      symbol: indexbytebody
+      source: nm
+    output:
+      local: indexbytebody
+      class: bare_name
+      interps:
+        - qualified_name: indexbytebody
+          function: indexbytebody
+  - name: c function
+    input:
+      symbol: ZSTD_DCtx_trace_end.part.13
+      source: nm
+    output:
+      local: ZSTD_DCtx_trace_end.part.13
+      class: c_function
+      interps:
+        - qualified_name: ZSTD_DCtx_trace_end.part.13
+          function: ZSTD_DCtx_trace_end.part.13
+  - name: deep inlining chain with closure
+    input:
+      symbol: crypto/tls.keysFromMasterSecret.prfForVersion.prfAndHashForVersion.prf12.func2
+      source: pclntab
+    output:
+      pkg: crypto/tls
+      local: keysFromMasterSecret.prfForVersion.prfAndHashForVersion.prf12.func2
+      class: closure
+      interps:
+        - qualified_name: keysFromMasterSecret
+          function: keysFromMasterSecret
+          inlined:
+            - prfForVersion
+            - prfAndHashForVersion
+            - prf12
+          closure: func2
+          depth: 1
+        - qualified_name: keysFromMasterSecret.prfForVersion
+          receiver: keysFromMasterSecret
+          function: prfForVersion
+          inlined:
+            - prfAndHashForVersion
+            - prf12
+          closure: func2
+          depth: 1
+  - name: closure nesting with mid-chain ptr receiver
+    input:
+      symbol: crypto/x509.marshalCertificatePolicies.func1.2.(*Builder).AddASN1ObjectIdentifier.1
+      source: pclntab
+    output:
+      pkg: crypto/x509
+      local: marshalCertificatePolicies.func1.2.(*Builder).AddASN1ObjectIdentifier.1
+      class: closure
+      interps:
+        - qualified_name: marshalCertificatePolicies
+          function: marshalCertificatePolicies
+          inlined:
+            - "*Builder.AddASN1ObjectIdentifier"
+          closure: func1.2.1
+          depth: 3
+  - name: repeated ptr receiver with closures and deferwrap
+    input:
+      symbol: github.com/cockroachdb/cockroach/pkg/ccl/changefeedccl.(*AggMetrics).getOrCreateScope.(*AggMetrics).getOrCreateScope.func1.func4.deferwrap
+      source: pclntab
+    output:
+      pkg: github.com/cockroachdb/cockroach/pkg/ccl/changefeedccl
+      local: (*AggMetrics).getOrCreateScope.(*AggMetrics).getOrCreateScope.func1.func4.deferwrap
+      class: closure
+      interps:
+        - qualified_name: (*AggMetrics).getOrCreateScope
+          receiver: "*AggMetrics"
+          function: getOrCreateScope
+          inlined:
+            - "*AggMetrics.getOrCreateScope"
+          closure: func1.func4.deferwrap
+          depth: 2
+          wrapper: deferwrap
+  - name: ptr receiver chain with range iterator
+    input:
+      symbol: github.com/cockroachdb/cockroach/pkg/ccl/changefeedccl/resolvedspan.(*AggregatorFrontier).All.(*resolvedSpanFrontier).All.func1-range1
+      source: pclntab
+    output:
+      pkg: github.com/cockroachdb/cockroach/pkg/ccl/changefeedccl/resolvedspan
+      local: (*AggregatorFrontier).All.(*resolvedSpanFrontier).All.func1-range1
+      class: closure
+      interps:
+        - qualified_name: (*AggregatorFrontier).All
+          receiver: "*AggregatorFrontier"
+          function: All
+          inlined:
+            - "*resolvedSpanFrontier.All"
+          closure: func1-range1
+          depth: 1
+  - name: function with inlined ptr receiver method and closure
+    input:
+      symbol: github.com/cockroachdb/cockroach/pkg/ccl/changefeedccl.reconcileJobStateWithLocalState.(*cachedState).AggregatorFrontierSpans.func3
+      source: pclntab
+    output:
+      pkg: github.com/cockroachdb/cockroach/pkg/ccl/changefeedccl
+      local: reconcileJobStateWithLocalState.(*cachedState).AggregatorFrontierSpans.func3
+      class: closure
+      interps:
+        - qualified_name: reconcileJobStateWithLocalState
+          function: reconcileJobStateWithLocalState
+          inlined:
+            - "*cachedState.AggregatorFrontierSpans"
+          closure: func3
+          depth: 1
+  - name: generic method with complex type params
+    input:
+      symbol: "github.com/cockroachdb/cockroach/pkg/jobs/jobspb.(*TimestampSpansMap).MinTimestamp.Keys[go.shape.struct { WallTime int64 \"protobuf:\\\"varint,1,opt,name=wall_time,json=wallTime,proto3\\\" json:\\\"wall_time,omitempty\\\"\"; Logical int32 \"protobuf:\\\"varint,2,opt,name=logical,proto3\\\" json:\\\"logical,omitempty\\\"\" },go.shape.[]github.com/cockroachdb/cockroach/pkg/roachpb.Span].func2-range1"
+      source: pclntab
+    output:
+      pkg: github.com/cockroachdb/cockroach/pkg/jobs/jobspb
+      local: "(*TimestampSpansMap).MinTimestamp.Keys[go.shape.struct { WallTime int64 \"protobuf:\\\"varint,1,opt,name=wall_time,json=wallTime,proto3\\\" json:\\\"wall_time,omitempty\\\"\"; Logical int32 \"protobuf:\\\"varint,2,opt,name=logical,proto3\\\" json:\\\"logical,omitempty\\\"\" },go.shape.[]github.com/cockroachdb/cockroach/pkg/roachpb.Span].func2-range1"
+      class: closure
+      interps:
+        - qualified_name: (*TimestampSpansMap).MinTimestamp
+          receiver: "*TimestampSpansMap"
+          function: MinTimestamp
+          inlined:
+            - "Keys[go.shape.struct { WallTime int64 \"protobuf:\\\"varint,1,opt,name=wall_time,json=wallTime,proto3\\\" json:\\\"wall_time,omitempty\\\"\"; Logical int32 \"protobuf:\\\"varint,2,opt,name=logical,proto3\\\" json:\\\"logical,omitempty\\\"\" },go.shape.[]github.com/cockroachdb/cockroach/pkg/roachpb.Span]"
+          closure: func2-range1
+          depth: 1
+  - name: generic ptr receiver inlined method
+    input:
+      symbol: github.com/cockroachdb/cockroach/pkg/kv/kvclient/kvcoord.(*rangeFeedRegistry).ForEachPartialRangefeed.(*Set[go.shape.*github.com/cockroachdb/cockroach/pkg/kv/kvclient/kvcoord.activeRangeFeed]).Range.func3
+      source: pclntab
+    output:
+      pkg: github.com/cockroachdb/cockroach/pkg/kv/kvclient/kvcoord
+      local: (*rangeFeedRegistry).ForEachPartialRangefeed.(*Set[go.shape.*github.com/cockroachdb/cockroach/pkg/kv/kvclient/kvcoord.activeRangeFeed]).Range.func3
+      class: closure
+      interps:
+        - qualified_name: (*rangeFeedRegistry).ForEachPartialRangefeed
+          receiver: "*rangeFeedRegistry"
+          function: ForEachPartialRangefeed
+          inlined:
+            - "*Set[go.shape.*github.com/cockroachdb/cockroach/pkg/kv/kvclient/kvcoord.activeRangeFeed].Range"
+          closure: func3
+          depth: 1
+  - name: inlined ptr receiver method with closure
+    input:
+      symbol: github.com/cockroachdb/cockroach/pkg/kv/kvclient/kvstreamer.(*workerCoordinator).getMaxNumRequestsToIssue.(*IntPool).ApproximateQuota.func2
+      source: pclntab
+    output:
+      pkg: github.com/cockroachdb/cockroach/pkg/kv/kvclient/kvstreamer
+      local: (*workerCoordinator).getMaxNumRequestsToIssue.(*IntPool).ApproximateQuota.func2
+      class: closure
+      interps:
+        - qualified_name: (*workerCoordinator).getMaxNumRequestsToIssue
+          receiver: "*workerCoordinator"
+          function: getMaxNumRequestsToIssue
+          inlined:
+            - "*IntPool.ApproximateQuota"
+          closure: func2
+          depth: 1
+  - name: deep function inlining chain with closure
+    input:
+      symbol: github.com/cockroachdb/cockroach/pkg/kv/kvserver.newConsistencyQueue.makeRateLimitedTimeoutFunc.makeRateLimitedTimeoutFuncByPermittedSlowdown.func2
+      source: pclntab
+    output:
+      pkg: github.com/cockroachdb/cockroach/pkg/kv/kvserver
+      local: newConsistencyQueue.makeRateLimitedTimeoutFunc.makeRateLimitedTimeoutFuncByPermittedSlowdown.func2
+      class: closure
+      interps:
+        - qualified_name: newConsistencyQueue
+          function: newConsistencyQueue
+          inlined:
+            - makeRateLimitedTimeoutFunc
+            - makeRateLimitedTimeoutFuncByPermittedSlowdown
+          closure: func2
+          depth: 1
+        - qualified_name: newConsistencyQueue.makeRateLimitedTimeoutFunc
+          receiver: newConsistencyQueue
+          function: makeRateLimitedTimeoutFunc
+          inlined:
+            - makeRateLimitedTimeoutFuncByPermittedSlowdown
+          closure: func2
+          depth: 1
+  - name: ambiguous first segment with inlined ptr receiver
+    input:
+      symbol: github.com/cockroachdb/cockroach/pkg/kv/kvserver.raftLogQueue.MaybeAddAsync.(*baseQueue).MaybeAddAsync.func1
+      source: pclntab
+    output:
+      pkg: github.com/cockroachdb/cockroach/pkg/kv/kvserver
+      local: raftLogQueue.MaybeAddAsync.(*baseQueue).MaybeAddAsync.func1
+      class: closure
+      interps:
+        - qualified_name: raftLogQueue
+          function: raftLogQueue
+          inlined:
+            - MaybeAddAsync
+            - "*baseQueue.MaybeAddAsync"
+          closure: func1
+          depth: 1
+        - qualified_name: raftLogQueue.MaybeAddAsync
+          receiver: raftLogQueue
+          function: MaybeAddAsync
+          inlined:
+            - "*baseQueue.MaybeAddAsync"
+          closure: func1
+          depth: 1
+  - name: compiler generated itab
+    input:
+      symbol: go:itab.*cloud.google.com/go/iam/apiv1/iampb.TestIamPermissionsResponse,google.golang.org/protobuf/reflect/protoreflect.ProtoMessage
+      source: nm
+    output:
+      local: itab.*cloud.google.com/go/iam/apiv1/iampb.TestIamPermissionsResponse,google.golang.org/protobuf/reflect/protoreflect.ProtoMessage
+      class: compiler_generated
+      interps:
+        - qualified_name: go:itab.*cloud.google.com/go/iam/apiv1/iampb.TestIamPermissionsResponse,google.golang.org/protobuf/reflect/protoreflect.ProtoMessage
+          function: go:itab.*cloud.google.com/go/iam/apiv1/iampb.TestIamPermissionsResponse,google.golang.org/protobuf/reflect/protoreflect.ProtoMessage
+  - name: compiler generated struct
+    input:
+      symbol: go:struct { github.com/AzureAD/microsoft-authentication-library-for-go/apps/public.AcquireInteractiveOption; github.com/AzureAD/microsoft-authentication-library-for-go/apps/internal/options.CallOption }.Do
+      source: nm
+    output:
+      local: struct { github.com/AzureAD/microsoft-authentication-library-for-go/apps/public.AcquireInteractiveOption; github.com/AzureAD/microsoft-authentication-library-for-go/apps/internal/options.CallOption }.Do
+      class: compiler_generated
+      interps:
+        - qualified_name: go:struct { github.com/AzureAD/microsoft-authentication-library-for-go/apps/public.AcquireInteractiveOption; github.com/AzureAD/microsoft-authentication-library-for-go/apps/internal/options.CallOption }.Do
+          function: go:struct { github.com/AzureAD/microsoft-authentication-library-for-go/apps/public.AcquireInteractiveOption; github.com/AzureAD/microsoft-authentication-library-for-go/apps/internal/options.CallOption }.Do
+  - name: deeply nested function
+    input:
+      symbol: github.com/cockroachdb/cockroach/pkg/server.(*apiV2Server).execSQL.func8.1.3.2
+      source: pclntab
+    output:
+      pkg: github.com/cockroachdb/cockroach/pkg/server
+      local: (*apiV2Server).execSQL.func8.1.3.2
+      class: closure
+      interps:
+        - qualified_name: (*apiV2Server).execSQL
+          receiver: "*apiV2Server"
+          function: execSQL
+          closure: func8.1.3.2
+          depth: 4
+  - name: deeply nested deferwrap
+    input:
+      symbol: github.com/foo/logical.(*logicalReplicationWriterProcessor).flushBuffer.Group.GoCtx.func7.1.deferwrap1
+      source: pclntab
+    output:
+      pkg: github.com/foo/logical
+      local: (*logicalReplicationWriterProcessor).flushBuffer.Group.GoCtx.func7.1.deferwrap1
+      class: closure
+      interps:
+        - qualified_name: (*logicalReplicationWriterProcessor).flushBuffer
+          receiver: "*logicalReplicationWriterProcessor"
+          function: flushBuffer
+          inlined:
+            - Group
+            - GoCtx
+          closure: func7.1.deferwrap1
+          depth: 2
+          wrapper: deferwrap
+  - name: funky method called by inlined function
+    input:
+      symbol: github.com/cockroachdb/cockroach/pkg/server.(*topLevelServer).startPersistingHLCUpperBound.func1.(*Node).SetHLCUpperBound.1
+      source: pclntab
+    output:
+      pkg: github.com/cockroachdb/cockroach/pkg/server
+      local: (*topLevelServer).startPersistingHLCUpperBound.func1.(*Node).SetHLCUpperBound.1
+      class: closure
+      interps:
+        - qualified_name: (*topLevelServer).startPersistingHLCUpperBound
+          receiver: "*topLevelServer"
+          function: startPersistingHLCUpperBound
+          inlined:
+            - "*Node.SetHLCUpperBound"
+          closure: func1.1
+          depth: 2
+  - name: repeated ptr receiver inlined method
+    input:
+      symbol: github.com/cockroachdb/cockroach/pkg/crosscluster/producer.(*spanConfigEventStream).startStreamProcessor.(*spanConfigEventStream).startStreamProcessor.func1.func6
+      source: pclntab
+    output:
+      pkg: github.com/cockroachdb/cockroach/pkg/crosscluster/producer
+      local: (*spanConfigEventStream).startStreamProcessor.(*spanConfigEventStream).startStreamProcessor.func1.func6
+      class: closure
+      interps:
+        - qualified_name: (*spanConfigEventStream).startStreamProcessor
+          receiver: "*spanConfigEventStream"
+          function: startStreamProcessor
+          inlined:
+            - "*spanConfigEventStream.startStreamProcessor"
+          closure: func1.func6
+          depth: 2
+  - name: range iterator function
+    input:
+      symbol: github.com/redis/rueidis/internal/cmds.HmsetFieldValue.FieldValueIter-range1
+      source: pclntab
+    output:
+      pkg: github.com/redis/rueidis/internal/cmds
+      local: HmsetFieldValue.FieldValueIter-range1
+      class: closure
+      interps:
+        - qualified_name: HmsetFieldValue
+          function: HmsetFieldValue
+          inlined:
+            - FieldValueIter
+          closure: range1
+        - qualified_name: HmsetFieldValue.FieldValueIter
+          receiver: HmsetFieldValue
+          function: FieldValueIter
+          closure: range1
+  - name: abi0 suffix
+    input:
+      symbol: runtime.goexit.abi0
+      source: nm
+    output:
+      pkg: runtime
+      local: goexit
+      class: function
+      interps:
+        - qualified_name: goexit
+          function: goexit
+          abi: abi0
+  - name: abiinternal suffix
+    input:
+      symbol: runtime.morestack.abiinternal
+      source: nm
+    output:
+      pkg: runtime
+      local: morestack
+      class: function
+      interps:
+        - qualified_name: morestack
+          function: morestack
+          abi: abiinternal
+  - name: malformed escape truncated
+    input:
+      symbol: example%2.Function
+    output:
+      pkg: example%2
+      local: Function
+      class: function
+      interps:
+        - qualified_name: Function
+          function: Function
+  - name: malformed escape bad hex
+    input:
+      symbol: example%ZZ.Function
+    output:
+      pkg: example%ZZ
+      local: Function
+      class: function
+      interps:
+        - qualified_name: Function
+          function: Function
+  - name: type dot dot prefix
+    input:
+      symbol: type..hash.runtime.hmap
+      source: nm
+    output:
+      local: type..hash.runtime.hmap
+      class: compiler_generated
+      interps:
+        - qualified_name: type..hash.runtime.hmap
+          function: type..hash.runtime.hmap
+  - name: compiler generated inittask
+    input:
+      symbol: runtime..inittask
+      source: nm
+    output:
+      local: runtime..inittask
+      class: compiler_generated
+      interps:
+        - qualified_name: runtime..inittask
+          function: runtime..inittask
+  - name: compiler generated stmp
+    input:
+      symbol: go:string..stmp_42
+      source: nm
+    output:
+      local: string..stmp_42
+      class: compiler_generated
+      interps:
+        - qualified_name: go:string..stmp_42
+          function: go:string..stmp_42
+  - name: compiler generated dict
+    input:
+      symbol: pkg/foo.bar..dict.baz
+      source: pclntab
+    output:
+      local: pkg/foo.bar..dict.baz
+      class: compiler_generated
+      interps:
+        - qualified_name: pkg/foo.bar..dict.baz
+          function: pkg/foo.bar..dict.baz
+  - name: unmatched bracket in name
+    input:
+      symbol: mypackage.Function[int
+      source: pclntab
+    output:
+      pkg: mypackage
+      local: Function[int
+      class: function
+      interps:
+        - qualified_name: Function[int
+          function: Function[int
+  - name: standalone range closure
+    input:
+      symbol: mypackage.MyFunc-range1
+      source: pclntab
+    output:
+      pkg: mypackage
+      local: MyFunc-range1
+      class: closure
+      interps:
+        - qualified_name: MyFunc
+          function: MyFunc
+          closure: range1
+  - name: gowrap without number
+    input:
+      symbol: mypackage.MyFunc.gowrap
+      source: pclntab
+    output:
+      pkg: mypackage
+      local: MyFunc.gowrap
+      class: closure
+      interps:
+        - qualified_name: MyFunc
+          function: MyFunc
+          closure: gowrap
+          wrapper: gowrap
+  - name: deferwrap without number
+    input:
+      symbol: mypackage.MyFunc.deferwrap
+      source: pclntab
+    output:
+      pkg: mypackage
+      local: MyFunc.deferwrap
+      class: closure
+      interps:
+        - qualified_name: MyFunc
+          function: MyFunc
+          closure: deferwrap
+          wrapper: deferwrap
+  - name: ptr receiver method expression wrapper
+    input:
+      symbol: encoding/json.(*Encoder).Encode-fm
+      source: pclntab
+    output:
+      pkg: encoding/json
+      local: (*Encoder).Encode-fm
+      class: function
+      interps:
+        - qualified_name: (*Encoder).Encode
+          receiver: "*Encoder"
+          function: Encode
+          wrapper: method_expr
+  - name: c function isra
+    input:
+      symbol: memcpy.isra.0
+      source: nm
+    output:
+      local: memcpy.isra.0
+      class: c_function
+      interps:
+        - qualified_name: memcpy.isra.0
+          function: memcpy.isra.0
+  - name: c function constprop
+    input:
+      symbol: do_something.constprop.5
+      source: nm
+    output:
+      local: do_something.constprop.5
+      class: c_function
+      interps:
+        - qualified_name: do_something.constprop.5
+          function: do_something.constprop.5
+  - name: no package no dot
+    input:
+      symbol: runtime_throw
+      source: nm
+    output:
+      local: runtime_throw
+      class: bare_name
+      interps:
+        - qualified_name: runtime_throw
+          function: runtime_throw
+  - name: unmatched bracket in ptr receiver
+    input:
+      symbol: mypackage.(*MyType[int).Method
+      source: pclntab
+    output:
+      pkg: mypackage
+      local: (*MyType[int).Method
+      class: function
+      interps:
+        - qualified_name: (*MyType[int).Method
+          function: (*MyType[int).Method
+  - name: generic value receiver inlined
+    input:
+      symbol: mypackage.MyType[go.shape.int].Method.func1
+      source: pclntab
+    output:
+      pkg: mypackage
+      local: MyType[go.shape.int].Method.func1
+      class: closure
+      interps:
+        - qualified_name: MyType[go.shape.int]
+          function: MyType[go.shape.int]
+          inlined:
+            - Method
+          closure: func1
+          depth: 1
+        - qualified_name: MyType[go.shape.int].Method
+          receiver: MyType[go.shape.int]
+          function: Method
+          closure: func1
+          depth: 1
+  - name: init dot non-digit
+    input:
+      symbol: mypackage.init.stuff
+    output:
+      pkg: mypackage
+      local: init.stuff
+      class: function
+      interps:
+        - qualified_name: init
+          function: init
+          inlined:
+            - stuff
+        - qualified_name: init.stuff
+          receiver: init
+          function: stuff
+  - name: malformed ptr receiver missing close paren
+    input:
+      symbol: mypackage.(*Broken.Method
+      source: pclntab
+    output:
+      pkg: mypackage
+      local: (*Broken.Method
+      class: function
+      interps:
+        - qualified_name: (*Broken
+          function: (*Broken
+          inlined:
+            - Method
+        - qualified_name: (*Broken.Method
+          receiver: (*Broken
+          function: Method
+  - name: malformed ptr receiver missing dot after paren
+    input:
+      symbol: mypackage.(*Broken)
+      source: pclntab
+    output:
+      pkg: mypackage
+      local: (*Broken)
+      class: function
+      interps:
+        - qualified_name: (*Broken)
+          function: (*Broken)
+  - name: uppercase ambiguous first segment
+    input:
+      symbol: mypackage.Router.Handle
+      source: pclntab
+    output:
+      pkg: mypackage
+      local: Router.Handle
+      class: function
+      interps:
+        - qualified_name: Router
+          function: Router
+          inlined:
+            - Handle
+        - qualified_name: Router.Handle
+          receiver: Router
+          function: Handle
+  - name: ambiguous generic value receiver
+    input:
+      symbol: mypackage.MyType[go.shape.int].Method
+      source: pclntab
+    output:
+      pkg: mypackage
+      local: MyType[go.shape.int].Method
+      class: function
+      interps:
+        - qualified_name: MyType[go.shape.int]
+          function: MyType[go.shape.int]
+          inlined:
+            - Method
+        - qualified_name: MyType[go.shape.int].Method
+          receiver: MyType[go.shape.int]
+          function: Method
+  - name: uppercase ambiguous best method wins
+    input:
+      symbol: mypackage.Router.Handle.func1
+      source: pclntab
+    output:
+      pkg: mypackage
+      local: Router.Handle.func1
+      class: closure
+      interps:
+        - qualified_name: Router
+          function: Router
+          inlined:
+            - Handle
+          closure: func1
+          depth: 1
+        - qualified_name: Router.Handle
+          receiver: Router
+          function: Handle
+          closure: func1
+          depth: 1

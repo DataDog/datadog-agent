@@ -17,6 +17,13 @@ doctest = false
 name = "dd-procmgrd"
 path = "src/bins/dd-procmgrd.rs"
 
+# Windows service binary — functionally identical to dd-procmgrd, different
+# name for the Windows installer. Both always compile; packaging picks per
+# platform.
+[[bin]]
+name = "dd-procmgr-service"
+path = "src/bins/dd-procmgr-service.rs"
+
 [[bin]]
 name = "dd-procmgr"
 path = "src/bins/dd-procmgr.rs"
@@ -35,6 +42,7 @@ dd-agent-log.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal", "process", "fs", "time", "sync"] }
 tokio-stream = { workspace = true, features = ["net"] }
 tonic = { workspace = true, features = ["transport"] }
+tonic-prost.workspace = true
 tonic-reflection.workspace = true
 tower.workspace = true
 uuid.workspace = true
@@ -65,3 +73,4 @@ required-features = ["test-helpers"]
 protoc-gen-prost.workspace = true
 protoc-gen-tonic.workspace = true
 tonic-build.workspace = true
+tonic-prost-build.workspace = true

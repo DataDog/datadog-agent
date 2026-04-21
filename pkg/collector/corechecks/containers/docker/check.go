@@ -16,7 +16,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/docker/docker/api/types/container"
+	"github.com/moby/moby/api/types/container"
+	dockerclient "github.com/moby/moby/client"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -171,7 +172,7 @@ func (d *DockerCheck) Run() error {
 		d.collectContainerSizeCounter = (d.collectContainerSizeCounter + 1) % d.instance.CollectContainerSizeFreq
 	}
 
-	rawContainerList, err := du.RawContainerList(context.TODO(), container.ListOptions{All: true, Size: collectContainerSize})
+	rawContainerList, err := du.RawContainerList(context.TODO(), dockerclient.ContainerListOptions{All: true, Size: collectContainerSize})
 	if err != nil {
 		sender.ServiceCheck(DockerServiceUp, servicecheck.ServiceCheckCritical, "", nil, err.Error())
 		_ = d.Warnf("Error collecting containers: %s", err)
@@ -207,7 +208,7 @@ func (d *DockerCheck) runDockerCustom(sender sender.Sender, du docker.Client, ra
 	}
 
 	for _, rawContainer := range rawContainerList {
-		if rawContainer.State == string(workloadmeta.ContainerStatusRunning) {
+		if string(rawContainer.State) == string(workloadmeta.ContainerStatusRunning) {
 			containersRunning++
 		} else {
 			containersStopped++
@@ -238,7 +239,7 @@ func (d *DockerCheck) runDockerCustom(sender sender.Sender, du docker.Client, ra
 		}
 
 		isContainerExcluded := d.containerFilter.IsExcluded(filterableContainer)
-		isContainerRunning := rawContainer.State == string(workloadmeta.ContainerStatusRunning)
+		isContainerRunning := string(rawContainer.State) == string(workloadmeta.ContainerStatusRunning)
 		taggerEntityID := types.NewEntityID(types.ContainerID, rawContainer.ID)
 		tags, err := d.getImageTagsFromContainer(taggerEntityID, resolvedImageName, isContainerExcluded || !isContainerRunning)
 		if err != nil {
@@ -337,8 +338,7 @@ func (d *DockerCheck) collectImageMetrics(sender sender.Sender, du docker.Client
 				continue
 			}
 
-			//nolint:staticcheck // TODO(CINT) Fix staticcheck linter
-			sender.Gauge("docker.image.virtual_size", float64(image.VirtualSize), "", imageTags)
+			sender.Gauge("docker.image.virtual_size", float64(image.Size), "", imageTags)
 			sender.Gauge("docker.image.size", float64(image.Size), "", imageTags)
 		}
 	}

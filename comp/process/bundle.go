@@ -18,15 +18,15 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/connectionscheck/connectionscheckimpl"
 	"github.com/DataDog/datadog-agent/comp/process/containercheck/containercheckimpl"
 	expvarsfx "github.com/DataDog/datadog-agent/comp/process/expvars/fx"
-	"github.com/DataDog/datadog-agent/comp/process/forwarders/forwardersimpl"
+	forwardersfx "github.com/DataDog/datadog-agent/comp/process/forwarders/fx"
 	gpusubscriber "github.com/DataDog/datadog-agent/comp/process/gpusubscriber/fx"
 	hostinfofx "github.com/DataDog/datadog-agent/comp/process/hostinfo/fx"
-	"github.com/DataDog/datadog-agent/comp/process/processcheck/processcheckimpl"
+	processcheckfx "github.com/DataDog/datadog-agent/comp/process/processcheck/fx"
 	"github.com/DataDog/datadog-agent/comp/process/processdiscoverycheck/processdiscoverycheckimpl"
 	profilerimpl "github.com/DataDog/datadog-agent/comp/process/profiler/fx"
 	"github.com/DataDog/datadog-agent/comp/process/rtcontainercheck/rtcontainercheckimpl"
 	"github.com/DataDog/datadog-agent/comp/process/runner/runnerimpl"
-	"github.com/DataDog/datadog-agent/comp/process/submitter/submitterimpl"
+	submitterfx "github.com/DataDog/datadog-agent/comp/process/submitter/fx"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -39,13 +39,13 @@ import (
 func Bundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
 		runnerimpl.Module(),
-		submitterimpl.Module(),
+		submitterfx.Module(),
 		profilerimpl.Module(),
 
 		// Checks
 		connectionscheckimpl.Module(),
 		containercheckimpl.Module(),
-		processcheckimpl.Module(),
+		processcheckfx.Module(),
 		rtcontainercheckimpl.Module(),
 		processdiscoverycheckimpl.Module(),
 
@@ -56,7 +56,7 @@ func Bundle() fxutil.BundleOptions {
 
 		apiserver.Module(),
 		connectionsforwarderfx.Module(),
-		forwardersimpl.Module(),
+		forwardersfx.Module(),
 		logscompression.Module(),
 
 		gpusubscriber.Module(),

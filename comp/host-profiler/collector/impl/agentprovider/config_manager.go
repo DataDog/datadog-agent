@@ -11,10 +11,30 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// healthMetricsConfig holds configuration for the internal health metrics pipeline.
+type healthMetricsConfig struct {
+	Enabled bool
+	Target  string
+}
+
+// ddProfilingConfig holds configuration for the ddprofiling self-profiling extension.
+type ddProfilingConfig struct {
+	Enabled bool
+	Period  int
+}
+
+// hpFlareConfig holds configuration for the hpflare diagnostics extension.
+type hpFlareConfig struct {
+	Port int
+}
+
 // hostProfilerConfig holds host-profiler settings extracted from the Agent config.
 type hostProfilerConfig struct {
 	DebugVerbosity        string
 	AdditionalHTTPHeaders map[string]string
+	DDProfiling           ddProfilingConfig
+	HealthMetrics         healthMetricsConfig
+	HPFlare               hpFlareConfig
 }
 
 type endpoint struct {
@@ -88,6 +108,17 @@ func newConfigManager(config config.Component) configManager {
 	hostProfilerConfig := hostProfilerConfig{
 		DebugVerbosity:        config.GetString("hostprofiler.debug.verbosity"),
 		AdditionalHTTPHeaders: config.GetStringMapString("hostprofiler.additional_http_headers"),
+		DDProfiling: ddProfilingConfig{
+			Enabled: config.GetBool("hostprofiler.ddprofiling.enabled"),
+			Period:  config.GetInt("hostprofiler.ddprofiling.period"),
+		},
+		HealthMetrics: healthMetricsConfig{
+			Enabled: config.GetBool("hostprofiler.health_metrics.enabled"),
+			Target:  config.GetString("hostprofiler.health_metrics.target"),
+		},
+		HPFlare: hpFlareConfig{
+			Port: config.GetInt("hostprofiler.hpflare.port"),
+		},
 	}
 
 	return configManager{
