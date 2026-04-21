@@ -25,23 +25,17 @@ import (
 
 	"github.com/Microsoft/go-winio"
 	"github.com/alecthomas/units"
-	"go.uber.org/fx"
 	"golang.org/x/sys/windows"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/etw"
-	"github.com/DataDog/datadog-agent/comp/trace/etwtracer"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-)
-
-// Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newEtwTracerImpl),
+	etwtracer "github.com/DataDog/datadog-agent/comp/trace/etwtracer/def"
 )
 
 type dependencies struct {
-	fx.In
-	Lc  fx.Lifecycle
+	compdef.In
+	Lc  compdef.Lifecycle
 	Log log.Component
 	Etw etw.Component
 }
@@ -53,7 +47,8 @@ type pidContext struct {
 
 type pidMap = map[uint32]pidContext
 
-func newEtwTracerImpl(deps dependencies) (etwtracer.Component, error) {
+// NewComponent creates a new etwtracer component.
+func NewComponent(deps dependencies) (etwtracer.Component, error) {
 	// Microsoft-Windows-DotNETRuntime
 	guid, _ := windows.GUIDFromString("{E13C0D23-CCBC-4E12-931B-D9CC2EEE27E4}")
 
@@ -69,7 +64,7 @@ func newEtwTracerImpl(deps dependencies) (etwtracer.Component, error) {
 		apmEtwTracer.magic[idx] = magicHeaderString[idx]
 	}
 
-	deps.Lc.Append(fx.Hook{OnStart: apmEtwTracer.start, OnStop: apmEtwTracer.stop})
+	deps.Lc.Append(compdef.Hook{OnStart: apmEtwTracer.start, OnStop: apmEtwTracer.stop})
 	return apmEtwTracer, nil
 }
 
