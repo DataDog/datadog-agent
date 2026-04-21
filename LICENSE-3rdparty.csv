@@ -338,6 +338,7 @@ core,github.com/DataDog/rshell/builtins/uname,Apache-2.0,"Copyright 2026-present
 core,github.com/DataDog/rshell/builtins/uniq,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/wc,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/internal/interpoption,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/internal/version,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/interp,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/sketches-go/ddsketch,Apache-2.0,"Copyright 2021 Datadog, Inc"
 core,github.com/DataDog/sketches-go/ddsketch/encoding,Apache-2.0,"Copyright 2021 Datadog, Inc"

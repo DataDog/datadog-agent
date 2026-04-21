@@ -15,6 +15,7 @@ import (
 	"io"
 	"math/rand"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 	"unsafe"
@@ -614,6 +615,16 @@ func (k *Probe) readSingleMap(mapid ebpf.MapID) (*model.EBPFMapStats, error) {
 		baseMapStats.MaxSize, baseMapStats.RSS = arrayMemoryUsage(mp, uint64(k.nrcpus))
 	case ebpf.LPMTrie:
 		baseMapStats.MaxSize, baseMapStats.RSS = trieMemoryUsage(mp, uint64(k.nrcpus))
+	case ebpf.TaskStorage, ebpf.SkStorage, ebpf.InodeStorage, ebpf.CgroupStorage:
+		if !preciseMapMemUsageSupported() {
+			return nil, fmt.Errorf("unsupported map %s(%d) type %s", name, mapid, mp.Type())
+		}
+		baseMapStats.RSS, err = localStorageMemoryUsage(mp)
+		if err != nil {
+			return nil, fmt.Errorf("read local storage usage %s(%d) type %s: %s", name, mapid, mp.Type(), err)
+		}
+		baseMapStats.MaxSize = baseMapStats.RSS
+
 	// TODO other map types
 	//case ebpf.Stack:
 	//case ebpf.ReusePortSockArray:
@@ -621,8 +632,6 @@ func (k *Probe) readSingleMap(mapid ebpf.MapID) (*model.EBPFMapStats, error) {
 	//case ebpf.DevMap, ebpf.DevMapHash:
 	//case ebpf.Queue:
 	//case ebpf.StructOpsMap:
-	//case ebpf.CGroupStorage:
-	//case ebpf.TaskStorage, ebpf.SkStorage, ebpf.InodeStorage:
 	default:
 		return nil, fmt.Errorf("unsupported map %s(%d) type %s", name, mapid, mp.Type())
 	}
@@ -828,6 +837,10 @@ func ringBufferMemoryUsage(mapStats *model.EBPFMapStats, mapid ebpf.MapID, mp *e
 	mapStats.MaxSize += ringInfo.Consumer.Len + ringInfo.Data.Len
 	mapStats.RSS = mapStats.MaxSize
 	return nil
+}
+
+func localStorageMemoryUsage(mp *ebpf.Map) (uint64, error) {
+	return mapMemlock(uint32(mp.FD()))
 }
 
 // entryCountBuffers is a struct that contains buffers used to get the number of entries
@@ -1207,11 +1220,10 @@ func hashMapNumberOfEntriesWithHelper(mp *ebpf.Map, mapid ebpf.MapID, mphCache *
 
 // https://lwn.net/ml/linux-mm/20230202014158.19616-6-laoar.shao@gmail.com/
 // https://github.com/torvalds/linux/commit/304849a27b341cf22d5c15096144cc8c1b69e0c0
-func preciseMapMemUsageSupported() bool {
+var preciseMapMemUsageSupported = sync.OnceValue(func() bool {
 	kv, err := kernel.HostVersion()
 	if err != nil {
 		return false
 	}
-
 	return kv >= kernel.VersionCode(6, 4, 0)
-}
+})
