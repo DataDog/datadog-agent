@@ -313,6 +313,13 @@ func postInstallDDOTExtension(ctx HookContext) (err error) {
 		return fmt.Errorf("failed to set DDOT config ownerships: %v", err)
 	}
 
+	if err = writeExtensionDDOTProcessConfig(ctx); err != nil {
+		return fmt.Errorf("failed to write DDOT extension process config: %v", err)
+	}
+	if err := restartProcmgrd(ctx); err != nil {
+		log.Warnf("failed to restart procmgrd after extension install: %s", err)
+	}
+
 	return nil
 }
 
@@ -320,6 +327,11 @@ func postInstallDDOTExtension(ctx HookContext) (err error) {
 func preRemoveDDOTExtension(ctx HookContext) error {
 	span, _ := ctx.StartSpan("pre_remove_extension_ddot")
 	defer span.Finish(nil)
+
+	removeDDOTProcessConfig(ctx.PackageType)
+	if err := restartProcmgrd(ctx); err != nil {
+		log.Warnf("failed to restart procmgrd after extension removal: %s", err)
+	}
 
 	// Disable the DDOT IPC server in datadog.yaml.
 	// During an upgrade, this will be re-enabled by the post-install hook. This gives us flexibility to change the config during upgrade.
@@ -367,23 +379,46 @@ func procmgrdBinaryPath(packageType PackageType) string {
 //
 // If dd-procmgrd is not installed (binary not found), the write is also
 // skipped and DDOT falls back to systemd management.
-func writeDDOTProcessConfig(ctx HookContext) error {
-	envSet := strings.EqualFold(os.Getenv("DD_PROCMGR_MANAGE_DDOT"), "true")
-	_, markerErr := os.Stat(procmgrDDOTMarkerPath)
-	markerExists := markerErr == nil
+// procmgrDDOTGateOpen returns true when the procmgr DDOT opt-in gate is
+// satisfied: either DD_PROCMGR_MANAGE_DDOT=true is set or a persistent
+// marker file exists from a previous opt-in.
+func procmgrDDOTGateOpen() bool {
+	if strings.EqualFold(os.Getenv("DD_PROCMGR_MANAGE_DDOT"), "true") {
+		return true
+	}
+	_, err := os.Stat(procmgrDDOTMarkerPath)
+	return err == nil
+}
 
-	if !envSet && !markerExists {
+// writeDDOTProcessConfig writes the DDOT procmgr YAML for standalone
+// DDOT packages (paths rewritten to remove /ext/ddot).
+func writeDDOTProcessConfig(ctx HookContext) error {
+	if !procmgrDDOTGateOpen() {
 		log.Infof("DD_PROCMGR_MANAGE_DDOT not set and no prior opt-in marker, skipping process config write; DDOT will be managed by systemd")
 		return nil
 	}
-	return doWriteDDOTProcessConfig(ctx)
+	return doWriteDDOTProcessConfig(ctx, true)
 }
 
-// doWriteDDOTProcessConfig is the implementation called by
-// writeDDOTProcessConfig after the env-var / marker gate passes.
+// writeExtensionDDOTProcessConfig writes the DDOT procmgr YAML for
+// extension-based DDOT installs (embedded YAML used as-is since the
+// extension-layout paths already match).
+func writeExtensionDDOTProcessConfig(ctx HookContext) error {
+	if !procmgrDDOTGateOpen() {
+		log.Infof("DD_PROCMGR_MANAGE_DDOT not set and no prior opt-in marker, skipping extension process config write; DDOT will be managed by systemd")
+		return nil
+	}
+	return doWriteDDOTProcessConfig(ctx, false)
+}
+
+// doWriteDDOTProcessConfig is the implementation behind
+// writeDDOTProcessConfig and writeExtensionDDOTProcessConfig.
+// When standalone is true, the pre-generated standalone YAML is used
+// (binary paths in the standalone DDOT package); when false, the
+// extension-layout YAML is used (binary under /ext/ddot).
 // On success it persists the opt-in marker so future upgrades
 // preserve procmgrd management without the env var.
-func doWriteDDOTProcessConfig(ctx HookContext) error {
+func doWriteDDOTProcessConfig(ctx HookContext, standalone bool) error {
 	if _, err := os.Stat(procmgrdBinaryPath(ctx.PackageType)); os.IsNotExist(err) {
 		log.Infof("dd-procmgrd not found, skipping process config write; DDOT will be managed by systemd")
 		return nil
@@ -396,18 +431,9 @@ func doWriteDDOTProcessConfig(ctx HookContext) error {
 		unitType = embedded.SystemdUnitTypeDebRpm
 	}
 
-	content, err := embedded.GetDDOTProcessConfig(unitType, true)
+	content, err := embedded.GetDDOTProcessConfig(unitType, true, standalone)
 	if err != nil {
 		return fmt.Errorf("failed to get DDOT process config: %w", err)
-	}
-
-	// The embedded YAML uses extension-layout paths (e.g. .../ext/ddot/...).
-	// The standalone DDOT package installs the binary at a different path,
-	// so apply the same rewrites as modifyDDOTUnitFileForBackwardsCompatibility.
-	content = strings.ReplaceAll(content, "/ext/ddot", "")
-	if ctx.PackageType == PackageTypeOCI {
-		content = strings.ReplaceAll(content, "/opt/datadog-packages/datadog-agent/stable", "/opt/datadog-packages/datadog-agent-ddot/stable")
-		content = strings.ReplaceAll(content, "/opt/datadog-packages/datadog-agent/experiment", "/opt/datadog-packages/datadog-agent-ddot/experiment")
 	}
 
 	dest := filepath.Join(agentProcessesDir(ctx.PackageType), ddotProcessConfigName)
