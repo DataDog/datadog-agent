@@ -34,6 +34,16 @@ jobs:
           features: legacy-tasks
       - name: Go mod tidy
         run: dda inv -- -e tidy
+      - name: Fail if root go directive was bumped
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          base_directive="$(git show "origin/$BASE_REF:go.mod" | grep -E '^go [0-9]' | head -1)"
+          current_directive="$(grep -E '^go [0-9]' go.mod | head -1)"
+          if [ "$base_directive" != "$current_directive" ]; then
+            echo "::error::Root go.mod 'go' directive changed from '$base_directive' to '$current_directive'. A dependency likely requires a newer Go version than the repo. Hold the update until we bump Go."
+            exit 1
+          fi
       - name: Update LICENSE-3rdparty.csv
         if: ${{ !contains(github.event.pull_request.labels.*.name, 'dependencies-go-tools') }}
         run: |
