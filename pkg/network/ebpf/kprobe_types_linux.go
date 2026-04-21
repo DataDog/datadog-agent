@@ -38,14 +38,15 @@ type ConnStats struct {
 	Recv_bytes     uint64
 	Sent_packets   uint32
 	Recv_packets   uint32
-	Timestamp_ms   NetTimeMs
-	Duration_ms    NetTimeMs
+	Timestamp      uint64
+	Duration       uint64
 	Cookie         uint32
 	Protocol_stack ProtocolStack
 	Flags          uint8
 	Direction      uint8
 	Tls_tags       TLSTags
 	Cert_id        uint32
+	Pad_cgo_0      [4]byte
 }
 type Conn struct {
 	Tup        ConnTuple
@@ -113,9 +114,6 @@ type TLSTagsWrapper struct {
 	Info      TLSTags
 	Pad_cgo_0 [2]byte
 }
-type NetTimeMs struct {
-	Timestamp [3]uint16
-}
 type CertItem struct {
 	Timestamp uint64
 	Serial    CertSerial
@@ -160,7 +158,7 @@ const (
 	Assured ConnFlags = 0x4
 )
 
-const SizeofConn = 0x98
+const SizeofConn = 0xa0
 
 type ClassificationProgram = uint32
 type ClassificationTLSProgram = uint32

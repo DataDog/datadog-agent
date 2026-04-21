@@ -17,21 +17,31 @@ proto_library(
 rust_prost_library(
     name = "process_manager_rust_proto",
     proto = ":process_manager_proto",
+    # Keep Linux-only: rust_prost_library requires a prost toolchain that
+    # is only configured for Linux. Widen when a Windows toolchain exists.
     target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
 )
 
 # rust_prost_library propagates CcInfo from proto_library, which transitively
 # includes abseil-cpp (C++). The Rust linker does not add libstdc++ by default,
-# so we provide it explicitly.
+# so we provide it explicitly. On Windows the MSVC toolchain links the C++
+# runtime automatically.
 cc_library(
     name = "cpp_stdlib",
-    linkopts = ["-lstdc++"],
+    linkopts = select({
+        "@platforms//os:windows": [],
+        "//conditions:default": ["-lstdc++"],
+    }),
 )
 
 # ============================================================================
 # Library
 # ============================================================================
+
+# The Rust source is cross-platform, but Bazel targets remain Linux-only
+# because :process_manager_rust_proto requires a prost toolchain that only
+# exists for Linux. Widen to Linux+Windows when the toolchain is ported.
 
 _LIB_SRCS = glob(
     ["src/**/*.rs"],
@@ -70,9 +80,7 @@ rust_library(
     crate_name = "dd_procmgrd",
     edition = "2024",
     rustc_flags = ["--cfg=bazel"],
-    target_compatible_with = [
-        "@platforms//os:linux",
-    ],
+    target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
     deps = _LIB_DEPS,
 )
@@ -85,9 +93,7 @@ rust_library(
     crate_name = "dd_procmgrd",
     edition = "2024",
     rustc_flags = ["--cfg=bazel"],
-    target_compatible_with = [
-        "@platforms//os:linux",
-    ],
+    target_compatible_with = ["@platforms//os:linux"],
     deps = _LIB_DEPS,
 )
 
@@ -100,9 +106,7 @@ rust_binary(
     srcs = ["src/bins/dd-procmgrd.rs"],
     edition = "2024",
     rustc_flags = ["--cfg=bazel"],
-    target_compatible_with = [
-        "@platforms//os:linux",
-    ],
+    target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
     deps = [
         ":dd-procmgrd-lib",
@@ -118,9 +122,7 @@ rust_binary(
     srcs = ["src/bins/dd-procmgr.rs"],
     edition = "2024",
     rustc_flags = ["--cfg=bazel"],
-    target_compatible_with = [
-        "@platforms//os:linux",
-    ],
+    target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
     deps = [
         ":dd-procmgrd-lib",
@@ -141,6 +143,7 @@ pkg_files(
         mode = "0755",
     ),
     prefix = "embedded/bin",
+    visibility = ["//packages:__subpackages__"],
 )
 
 pkg_install(
@@ -182,10 +185,19 @@ rust_test(
         "CARGO_BIN_EXE_dd-procmgrd": "$(rootpath :dd-procmgrd)",
         "DDOT_TEMPLATE_PATH": "$(rootpath //pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-ddot.yaml.tmpl)",
     },
+    # Keep Linux-only until transport/named_pipe.rs is implemented
+    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         ":dd-procmgrd-lib-testhelpers",
-        "@crates//:nix",
         "@crates//:serde_json",
         "@crates//:tempfile",
-    ],
+    ] + select({
+        "@platforms//os:linux": [
+            "@crates//:nix",
+        ],
+        "@platforms//os:windows": [
+            "@crates//:windows-sys",
+        ],
+        "//conditions:default": [],
+    }),
 )

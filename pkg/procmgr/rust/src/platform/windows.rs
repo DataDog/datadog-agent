@@ -5,21 +5,57 @@
 
 use anyhow::Result;
 use std::path::PathBuf;
+use windows_sys::Win32::Foundation::CloseHandle;
+use windows_sys::Win32::System::Console::{CTRL_BREAK_EVENT, GenerateConsoleCtrlEvent};
+use windows_sys::Win32::System::Threading::{
+    CREATE_NEW_PROCESS_GROUP, OpenProcess, PROCESS_TERMINATE, TerminateProcess,
+};
 
-/// Configure the child process for Windows: create a new process group
-/// and assign to a Job Object so all descendants can be managed together.
-pub fn setup_process_group(_cmd: &mut tokio::process::Command) {
-    log::warn!("setup_process_group is not yet implemented on Windows");
+/// Place the child in its own process group so `GenerateConsoleCtrlEvent`
+/// can target it without affecting the daemon.
+pub fn setup_process_group(cmd: &mut tokio::process::Command) {
+    cmd.creation_flags(CREATE_NEW_PROCESS_GROUP);
 }
 
-/// Send a graceful stop signal (CTRL_BREAK_EVENT via GenerateConsoleCtrlEvent).
-pub fn send_graceful_stop(_pid: u32) -> Result<()> {
-    anyhow::bail!("send_graceful_stop is not yet implemented on Windows")
+/// Send CTRL_BREAK to the child's process group (graceful stop).
+///
+/// `GenerateConsoleCtrlEvent` targets the process group whose ID equals the
+/// child's PID (because we created it with `CREATE_NEW_PROCESS_GROUP`).
+pub fn send_graceful_stop(pid: u32) -> Result<()> {
+    let ok = unsafe { GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, pid) };
+    if ok == 0 {
+        anyhow::bail!(
+            "GenerateConsoleCtrlEvent(CTRL_BREAK, {pid}) failed: {}",
+            std::io::Error::last_os_error()
+        );
+    }
+    Ok(())
 }
 
-/// Force-kill the process and all descendants (TerminateJobObject / TerminateProcess).
-pub fn send_force_kill(_pid: u32) -> Result<()> {
-    anyhow::bail!("send_force_kill is not yet implemented on Windows")
+/// Force-kill the process via `TerminateProcess`.
+///
+/// Unlike the Unix implementation (which sends SIGKILL to the entire process
+/// group), this only terminates the direct child. Full descendant cleanup
+/// requires Job Objects, tracked as a future improvement.
+pub fn send_force_kill(pid: u32) -> Result<()> {
+    unsafe {
+        let handle = OpenProcess(PROCESS_TERMINATE, 0, pid);
+        if handle.is_null() {
+            anyhow::bail!(
+                "OpenProcess(TERMINATE, {pid}) failed: {}",
+                std::io::Error::last_os_error()
+            );
+        }
+        let ok = TerminateProcess(handle, 1);
+        CloseHandle(handle);
+        if ok == 0 {
+            anyhow::bail!(
+                "TerminateProcess({pid}) failed: {}",
+                std::io::Error::last_os_error()
+            );
+        }
+    }
+    Ok(())
 }
 
 /// On Windows, processes don't have Unix signals.

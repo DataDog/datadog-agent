@@ -87,7 +87,7 @@ func createTestFactories(t *testing.T) otelcol.Factories {
 	// Create standalone extensions (without Agent dependencies)
 	// Note: hpflareextension is passed nil for ipc component since we're only validating config structure
 	extensionFactories := []extension.Factory{
-		ddprofilingextensionimpl.NewFactory(),
+		ddprofilingextensionimpl.NewFactoryForAgent(nil, nil),
 		hpflareextension.NewFactoryForAgent(nil),
 	}
 	extensions, err := otelcol.MakeFactoryMap(extensionFactories...)
@@ -239,6 +239,21 @@ func TestProvider(t *testing.T) {
 			name:         "ddprofiling-period",
 			agentConfig:  "provider/ddprofiling-period/agent.yaml",
 			expectedOTel: "provider/ddprofiling-period/otel.yaml",
+		},
+		{
+			name:         "health-metrics-disabled",
+			agentConfig:  "provider/health-metrics-disabled/agent.yaml",
+			expectedOTel: "provider/health-metrics-disabled/otel.yaml",
+		},
+		{
+			name:         "health-metrics-custom",
+			agentConfig:  "provider/health-metrics-custom/agent.yaml",
+			expectedOTel: "provider/health-metrics-custom/otel.yaml",
+		},
+		{
+			name:         "hpflare-custom-port",
+			agentConfig:  "provider/hpflare-custom-port/agent.yaml",
+			expectedOTel: "provider/hpflare-custom-port/otel.yaml",
 		},
 	}
 

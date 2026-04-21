@@ -81,11 +81,12 @@ type EBPFResolver struct {
 	envVarsResolver     *envvars.Resolver
 	userSessionResolver *usersessions.Resolver
 
-	inodeFileMap ebpf.Map
-	procCacheMap ebpf.Map
-	pidCacheMap  ebpf.Map
-	pathIDMap    ebpf.Map
-	opts         ResolverOpts
+	inodeFileMap        ebpf.Map
+	procCacheMap        ebpf.Map
+	pidCacheMap         ebpf.Map
+	pathIDMap           ebpf.Map
+	kernelThreadPidsMap ebpf.Map
+	opts                ResolverOpts
 
 	// stats
 	hitsStats                    map[string]*atomic.Int64
@@ -527,7 +528,7 @@ func (p *EBPFResolver) AddForkEntry(event *model.Event, cgroupContext model.CGro
 	if event.ProcessCacheEntry.Pid == 0 {
 		return errors.New("no pid")
 	}
-	if IsKThread(event.ProcessCacheEntry.PPid, event.ProcessCacheEntry.Pid) {
+	if IsKworker(event.ProcessCacheEntry.PPid, event.ProcessCacheEntry.Pid) {
 		return errors.New("process is kthread")
 	}
 
@@ -848,7 +849,7 @@ func (p *EBPFResolver) insertEntry(entry *model.ProcessCacheEntry, cgroupContext
 		}
 
 		// add the new PID in the right cgroup_resolver bucket
-		if cacheEntry := p.cgroupResolver.AddPID(entry.Pid, entry.PPid, cgroupContext); cacheEntry != nil {
+		if cacheEntry := p.cgroupResolver.AddPID(entry.Pid, cgroupContext); cacheEntry != nil {
 			entry.CGroup = cacheEntry.GetCGroupContext()
 			entry.Process.ContainerContext = cacheEntry.GetContainerContext()
 		}
@@ -1223,8 +1224,8 @@ func (p *EBPFResolver) resolveFromProcfs(pid uint32, inode uint64, maxDepth int,
 		return nil
 	}
 
-	// ignore kthreads
-	if IsKThread(uint32(filledProc.Ppid), uint32(filledProc.Pid)) {
+	// ignore kworker/kthreads
+	if IsKworker(uint32(filledProc.Ppid), uint32(filledProc.Pid)) {
 		return nil
 	}
 
@@ -1504,6 +1505,10 @@ func (p *EBPFResolver) Start(ctx context.Context) error {
 		return err
 	}
 
+	if p.kernelThreadPidsMap, err = managerhelper.Map(p.manager, "kernel_thread_pids"); err != nil {
+		return err
+	}
+
 	go p.cacheFlush(ctx)
 
 	return nil
@@ -1542,14 +1547,21 @@ func (p *EBPFResolver) cacheFlush(ctx context.Context) {
 
 // SyncCache snapshots /proc for the provided pid.
 func (p *EBPFResolver) SyncCache(proc *process.Process) {
-	// Only a R lock is necessary to check if the entry exists, but if it exists, we'll update it, so a RW lock is
-	// required.
 	p.Lock()
 	defer p.Unlock()
 
 	filledProc, err := utils.GetFilledProcess(proc)
 	if err != nil {
 		seclog.Tracef("unable to get a filled process for %d: %v", proc.Pid, err)
+		return
+	}
+
+	// ignore kworker/kthreads
+	if IsKworker(uint32(filledProc.Ppid), uint32(filledProc.Pid)) {
+		value := uint8(1)
+		if err = p.kernelThreadPidsMap.Put(uint32(filledProc.Pid), value); err != nil {
+			seclog.Errorf("couldn't push kernel_thread_pids entry to kernel space: %s", err)
+		}
 		return
 	}
 
@@ -1614,8 +1626,6 @@ func (p *EBPFResolver) newEntryFromProcfs(proc *process.Process, filledProc *uti
 			p.inodeErrStats[inodeErrTagProcfsMismatch].Inc()
 		}
 	}
-
-	entry.IsKworker = filledProc.Ppid == 0 && filledProc.Pid != 1
 
 	parent := p.entryCache[entry.PPid]
 	if parent != nil {

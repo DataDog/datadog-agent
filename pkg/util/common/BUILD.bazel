@@ -6,7 +6,6 @@ go_library(
         "common.go",
         "context.go",
         "math.go",
-        "slice.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/common",
     visibility = ["//visibility:public"],
@@ -16,5 +15,6 @@ go_test(
     name = "common_test",
     srcs = ["common_test.go"],
     embed = [":common"],
+    gotags = ["test"],
     deps = ["@com_github_stretchr_testify//assert"],
 )

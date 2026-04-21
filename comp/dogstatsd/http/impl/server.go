@@ -58,6 +58,7 @@ func (s *server) start(ctx context.Context) error {
 
 	mux := &http.ServeMux{}
 	mux.Handle("POST /series", &seriesHandler{base})
+	mux.Handle("POST /sketches", &sketchesHandler{base})
 
 	s.http2 = &http2.Server{}
 	s.http = &http.Server{
