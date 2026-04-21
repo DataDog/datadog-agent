@@ -8,43 +8,17 @@
 package cpu
 
 import (
-	"bufio"
-	"errors"
-	"fmt"
-	"os"
-	"strconv"
-	"strings"
-
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/shirou/gopsutil/v4/load"
 )
 
 // GetContextSwitches retrieves the number of context switches for the current process.
 // It returns an integer representing the count and an error if the retrieval fails.
-func GetContextSwitches() (ctxSwitches int64, err error) {
+func GetContextSwitches() (int64, error) {
 	log.Debug("collecting ctx switches")
-	procfsPath := "/proc"
-	if v := pkgconfigsetup.Datadog().GetString("procfs_path"); v != "" {
-		procfsPath = v
-	}
-	filePath := procfsPath + "/stat"
-	file, err := os.Open(filePath)
+	misc, err := load.Misc()
 	if err != nil {
 		return 0, err
 	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	for i := 0; scanner.Scan(); i++ {
-		txt := scanner.Text()
-		if strings.HasPrefix(txt, "ctxt") {
-			elemts := strings.Split(txt, " ")
-			ctxSwitches, err = strconv.ParseInt(elemts[1], 10, 64)
-			if err != nil {
-				return 0, fmt.Errorf("%s in '%s' at line %d", err, filePath, i)
-			}
-			return ctxSwitches, nil
-		}
-	}
-	return 0, errors.New("could not find the context switches in stat file")
+	return int64(misc.Ctxt), nil
 }
