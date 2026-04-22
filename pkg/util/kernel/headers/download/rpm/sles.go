@@ -41,11 +41,13 @@ func (b *SLESBackend) GetKernelHeaders(directory string) error {
 		}
 		pkg, data, err := b.dnfBackend.FetchPackage(pkgMatcher)
 		if err != nil {
-			return fmt.Errorf("fetch `%s` package: %w", pkgNevra, err)
+			b.logger.Errorf("fetch `%s` package: %w", pkgNevra, err)
+			continue
 		}
 
 		if err := dnfv2.ExtractPackage(pkg, data, directory, b.target, b.logger); err != nil {
-			return fmt.Errorf("extract `%s` package: %w", pkgNevra, err)
+			b.logger.Errorf("extract `%s` package: %w", pkgNevra, err)
+			continue
 		}
 
 		installedPackages++
