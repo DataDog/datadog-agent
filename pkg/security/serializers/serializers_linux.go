@@ -266,6 +266,8 @@ type ProcessSerializer struct {
 	Pid uint32 `json:"pid,omitempty"`
 	// Parent Process ID
 	PPid *uint32 `json:"ppid,omitempty"`
+	// Session ID
+	SID uint32 `json:"sid"`
 	// Thread ID
 	Tid uint32 `json:"tid,omitempty"`
 	// ForkFlags
@@ -962,6 +964,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			Pid:             ps.Pid,
 			Tid:             ps.Tid,
 			PPid:            createNumPointer(ps.PPid),
+			SID:             ps.SID,
 			ForkFlags:       int(ps.ForkFlags),
 			Comm:            ps.Comm,
 			TTY:             ps.TTYName,
@@ -1032,6 +1035,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 	return &ProcessSerializer{
 		Pid:             ps.Pid,
 		Tid:             ps.Tid,
+		SID:             ps.SID,
 		IsKworker:       ps.IsKworker,
 		IsExec:          ps.IsExec,
 		IsExecExec:      ps.IsExecExec,

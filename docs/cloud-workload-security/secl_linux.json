@@ -533,6 +533,11 @@
           "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
+          "name": "process.ancestors.sid",
+          "definition": "Session ID of the process",
+          "property_doc_link": "common-pidcontext-sid-doc"
+        },
+        {
           "name": "process.ancestors.tid",
           "definition": "Thread ID of the thread",
           "property_doc_link": "common-pidcontext-tid-doc"
@@ -1553,6 +1558,11 @@
           "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
+          "name": "process.parent.sid",
+          "definition": "Session ID of the process",
+          "property_doc_link": "common-pidcontext-sid-doc"
+        },
+        {
           "name": "process.parent.tid",
           "definition": "Thread ID of the thread",
           "property_doc_link": "common-pidcontext-tid-doc"
@@ -1641,6 +1651,11 @@
           "name": "process.ppid",
           "definition": "Parent process ID",
           "property_doc_link": "common-pidcontext-ppid-doc"
+        },
+        {
+          "name": "process.sid",
+          "definition": "Session ID of the process",
+          "property_doc_link": "common-pidcontext-sid-doc"
         },
         {
           "name": "process.tid",
@@ -3256,6 +3271,11 @@
           "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
+          "name": "exec.sid",
+          "definition": "Session ID of the process",
+          "property_doc_link": "common-pidcontext-sid-doc"
+        },
+        {
           "name": "exec.syscall.path",
           "definition": "path argument of the syscall",
           "property_doc_link": "exec-syscall-path-doc"
@@ -3833,6 +3853,11 @@
           "name": "exit.ppid",
           "definition": "Parent process ID",
           "property_doc_link": "common-pidcontext-ppid-doc"
+        },
+        {
+          "name": "exit.sid",
+          "definition": "Session ID of the process",
+          "property_doc_link": "common-pidcontext-sid-doc"
         },
         {
           "name": "exit.tid",
@@ -5843,6 +5868,11 @@
           "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
+          "name": "ptrace.tracee.ancestors.sid",
+          "definition": "Session ID of the process",
+          "property_doc_link": "common-pidcontext-sid-doc"
+        },
+        {
           "name": "ptrace.tracee.ancestors.tid",
           "definition": "Thread ID of the thread",
           "property_doc_link": "common-pidcontext-tid-doc"
@@ -6863,6 +6893,11 @@
           "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
+          "name": "ptrace.tracee.parent.sid",
+          "definition": "Session ID of the process",
+          "property_doc_link": "common-pidcontext-sid-doc"
+        },
+        {
           "name": "ptrace.tracee.parent.tid",
           "definition": "Thread ID of the thread",
           "property_doc_link": "common-pidcontext-tid-doc"
@@ -6951,6 +6986,11 @@
           "name": "ptrace.tracee.ppid",
           "definition": "Parent process ID",
           "property_doc_link": "common-pidcontext-ppid-doc"
+        },
+        {
+          "name": "ptrace.tracee.sid",
+          "definition": "Session ID of the process",
+          "property_doc_link": "common-pidcontext-sid-doc"
         },
         {
           "name": "ptrace.tracee.tid",
@@ -8217,6 +8257,11 @@
           "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
+          "name": "setrlimit.target.ancestors.sid",
+          "definition": "Session ID of the process",
+          "property_doc_link": "common-pidcontext-sid-doc"
+        },
+        {
           "name": "setrlimit.target.ancestors.tid",
           "definition": "Thread ID of the thread",
           "property_doc_link": "common-pidcontext-tid-doc"
@@ -9237,6 +9282,11 @@
           "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
+          "name": "setrlimit.target.parent.sid",
+          "definition": "Session ID of the process",
+          "property_doc_link": "common-pidcontext-sid-doc"
+        },
+        {
           "name": "setrlimit.target.parent.tid",
           "definition": "Thread ID of the thread",
           "property_doc_link": "common-pidcontext-tid-doc"
@@ -9325,6 +9375,11 @@
           "name": "setrlimit.target.ppid",
           "definition": "Parent process ID",
           "property_doc_link": "common-pidcontext-ppid-doc"
+        },
+        {
+          "name": "setrlimit.target.sid",
+          "definition": "Session ID of the process",
+          "property_doc_link": "common-pidcontext-sid-doc"
         },
         {
           "name": "setrlimit.target.tid",
@@ -10166,6 +10221,11 @@
           "name": "signal.target.ancestors.ppid",
           "definition": "Parent process ID",
           "property_doc_link": "common-pidcontext-ppid-doc"
+        },
+        {
+          "name": "signal.target.ancestors.sid",
+          "definition": "Session ID of the process",
+          "property_doc_link": "common-pidcontext-sid-doc"
         },
         {
           "name": "signal.target.ancestors.tid",
@@ -11188,6 +11248,11 @@
           "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
+          "name": "signal.target.parent.sid",
+          "definition": "Session ID of the process",
+          "property_doc_link": "common-pidcontext-sid-doc"
+        },
+        {
           "name": "signal.target.parent.tid",
           "definition": "Thread ID of the thread",
           "property_doc_link": "common-pidcontext-tid-doc"
@@ -11276,6 +11341,11 @@
           "name": "signal.target.ppid",
           "definition": "Parent process ID",
           "property_doc_link": "common-pidcontext-ppid-doc"
+        },
+        {
+          "name": "signal.target.sid",
+          "definition": "Session ID of the process",
+          "property_doc_link": "common-pidcontext-sid-doc"
         },
         {
           "name": "signal.target.tid",
@@ -14730,6 +14800,31 @@
         "signal.target.ancestors.user_session",
         "signal.target.parent.user_session",
         "signal.target.user_session"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.sid",
+      "link": "common-pidcontext-sid-doc",
+      "type": "int",
+      "definition": "Session ID of the process",
+      "prefixes": [
+        "exec",
+        "exit",
+        "process",
+        "process.ancestors",
+        "process.parent",
+        "ptrace.tracee",
+        "ptrace.tracee.ancestors",
+        "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
+        "signal.target",
+        "signal.target.ancestors",
+        "signal.target.parent"
       ],
       "constants": "",
       "constants_link": "",
