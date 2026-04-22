@@ -16,8 +16,6 @@ import (
 type mockForwarder struct{}
 
 func (m *mockForwarder) SetProvider(_ forwarder.IssueProvider) {}
-func (m *mockForwarder) Start()                                {}
-func (m *mockForwarder) Stop()                                 {}
 
 // New returns a no-op mock forwarder for testing.
 func New() forwarder.Component {

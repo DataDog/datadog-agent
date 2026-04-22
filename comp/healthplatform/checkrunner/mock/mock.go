@@ -24,8 +24,6 @@ func (m *mockCheckRunner) RegisterCheck(_ string, _ string, _ checkrunner.Health
 func (m *mockCheckRunner) RunCheck(_ string, _ string, _ checkrunner.HealthCheckFunc) error {
 	return nil
 }
-func (m *mockCheckRunner) Start() {}
-func (m *mockCheckRunner) Stop()  {}
 
 // New returns a no-op mock check runner for testing.
 func New() checkrunner.Component {
