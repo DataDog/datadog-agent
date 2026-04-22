@@ -487,11 +487,12 @@ type ClientGroupedStats struct {
 	HTTPEndpoint   string   `protobuf:"bytes,20,opt,name=HTTP_endpoint,json=HTTPEndpoint,proto3" json:"HTTP_endpoint,omitempty"`    // Http route or quantized/simplified URL path
 	ServiceSource  string   `protobuf:"bytes,21,opt,name=service_source,json=serviceSource,proto3" json:"service_source,omitempty" msg:"srv_src"` // @inject_tag: msg:"srv_src"
 	// used to identify service override origin
-	// span_derived_primary_tags are user-configured tags that are extracted from spans and used for stats aggregation
-	// E.g., `aws.s3.bucket`, `http.url`, or any custom tag
+	// Deprecated: use additional_metric_tags (field 23) instead.
 	SpanDerivedPrimaryTags []string `protobuf:"bytes,22,rep,name=span_derived_primary_tags,json=spanDerivedPrimaryTags,proto3" json:"span_derived_primary_tags,omitempty"`
-	unknownFields          protoimpl.UnknownFields
-	sizeCache              protoimpl.SizeCache
+	// additional_metric_tags are tags sent by tracers to be used as additional dimensions for stats aggregation
+	AdditionalMetricTags []string `protobuf:"bytes,23,rep,name=additional_metric_tags,json=additionalMetricTags,proto3" json:"additional_metric_tags,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *ClientGroupedStats) Reset() {
@@ -671,6 +672,13 @@ func (x *ClientGroupedStats) GetSpanDerivedPrimaryTags() []string {
 	return nil
 }
 
+func (x *ClientGroupedStats) GetAdditionalMetricTags() []string {
+	if x != nil {
+		return x.AdditionalMetricTags
+	}
+	return nil
+}
+
 var File_datadog_trace_stats_proto protoreflect.FileDescriptor
 
 const file_datadog_trace_stats_proto_rawDesc = "" +
@@ -705,7 +713,7 @@ const file_datadog_trace_stats_proto_rawDesc = "" +
 	"\x05start\x18\x01 \x01(\x04R\x05start\x12\x1a\n" +
 	"\bduration\x18\x02 \x01(\x04R\bduration\x127\n" +
 	"\x05stats\x18\x03 \x03(\v2!.datadog.trace.ClientGroupedStatsR\x05stats\x12&\n" +
-	"\x0eagentTimeShift\x18\x04 \x01(\x03R\x0eagentTimeShift\"\xd1\x05\n" +
+	"\x0eagentTimeShift\x18\x04 \x01(\x03R\x0eagentTimeShift\"\x87\x06\n" +
 	"\x12ClientGroupedStats\x12\x18\n" +
 	"\aservice\x18\x01 \x01(\tR\aservice\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1a\n" +
@@ -731,7 +739,8 @@ const file_datadog_trace_stats_proto_rawDesc = "" +
 	"HTTPMethod\x12#\n" +
 	"\rHTTP_endpoint\x18\x14 \x01(\tR\fHTTPEndpoint\x12%\n" +
 	"\x0eservice_source\x18\x15 \x01(\tR\rserviceSource\x129\n" +
-	"\x19span_derived_primary_tags\x18\x16 \x03(\tR\x16spanDerivedPrimaryTagsJ\x04\b\x0e\x10\x0f*+\n" +
+	"\x19span_derived_primary_tags\x18\x16 \x03(\tR\x16spanDerivedPrimaryTags\x124\n" +
+	"\x16additional_metric_tags\x18\x17 \x03(\tR\x14additionalMetricTagsJ\x04\b\x0e\x10\x0f*+\n" +
 	"\aTrilean\x12\v\n" +
 	"\aNOT_SET\x10\x00\x12\b\n" +
 	"\x04TRUE\x10\x01\x12\t\n" +
