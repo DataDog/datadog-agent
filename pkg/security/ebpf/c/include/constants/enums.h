@@ -75,6 +75,7 @@ enum event_type
     EVENT_TRACER_MEMFD_CREATE,
     EVENT_TRACER_MEMFD_SEAL,
     EVENT_PIVOT_ROOT,
+    EVENT_SETSID,
     EVENT_NOP,
     EVENT_MAX, // has to be the last one
 

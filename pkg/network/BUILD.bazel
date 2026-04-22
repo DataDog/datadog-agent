@@ -1,2 +1,31 @@
-# Stub: intermediate package not yet migrated to Bazel.
 # gazelle:ignore
+
+# gazelle:exclude tracer
+# gazelle:exclude types
+# Xazelle:exclude go
+# gazelle:exclude go/goid
+# gazelle:exclude go/goid/internal
+# gazelle:exclude go/goid/internal/testprogram
+# gazelle:exclude go/goversion
+# gazelle:exclude go/asmscan
+# gazelle:exclude go/dwarfutils
+# gazelle:exclude go/dwarfutils/locexpr
+# gazelle:exclude go/bininspect
+# gazelle:exclude go/rungo
+# gazelle:exclude go/rungo/matrix
+# gazelle:exclude config
+# gazelle:exclude driver
+# gazelle:exclude indexedset
+# gazelle:exclude slice
+# gazelle:exclude sender
+# gazelle:exclude payload
+# gazelle:exclude netlink
+# gazelle:exclude encoding
+# gazelle:exclude usm
+# gazelle:exclude containers
+# gazelle:exclude filter
+# gazelle:exclude ebpf
+# gazelle:exclude events
+# gazelle:exclude dns
+# gazelle:exclude testutil
+# gazelle:exclude protocols

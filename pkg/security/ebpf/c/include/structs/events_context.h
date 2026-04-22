@@ -31,6 +31,8 @@ struct process_context_t {
     u32 mntns;
     u32 is_kworker;
     u32 ppid;
+    u32 sid;
+    u32 padding_sid;
     u64 inode;
     u64 user_session_id;
 };

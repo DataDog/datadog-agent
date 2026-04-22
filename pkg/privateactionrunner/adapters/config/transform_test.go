@@ -304,7 +304,17 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 	})
 }
 
-func TestFromDDConfigPARRestrictedShellAllowedPaths(t *testing.T) {
+func TestFromDDConfigPARRestrictedShellAllowedPathsUnset(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
+	mockConfig.SetWithoutSource(setup.PARUrn, "")
+
+	cfg, err := FromDDConfig(mockConfig)
+	require.NoError(t, err)
+	assert.Nil(t, cfg.RShellAllowedPaths)
+}
+
+func TestFromDDConfigPARRestrictedShellAllowedPathsSet(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
 	mockConfig.SetWithoutSource(setup.PARUrn, "")
@@ -313,4 +323,54 @@ func TestFromDDConfigPARRestrictedShellAllowedPaths(t *testing.T) {
 	cfg, err := FromDDConfig(mockConfig)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"/var/log", "/tmp"}, cfg.RShellAllowedPaths)
+}
+
+func TestFromDDConfigPARRestrictedShellAllowedPathsEmpty(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
+	mockConfig.SetWithoutSource(setup.PARUrn, "")
+	mockConfig.SetWithoutSource(setup.PARRestrictedShellAllowedPaths, []string{})
+
+	cfg, err := FromDDConfig(mockConfig)
+	require.NoError(t, err)
+	// Explicit empty: operator opts in to blocking everything.
+	assert.NotNil(t, cfg.RShellAllowedPaths)
+	assert.Empty(t, cfg.RShellAllowedPaths)
+}
+
+func TestFromDDConfigPARRestrictedShellAllowedCommandsUnset(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
+	mockConfig.SetWithoutSource(setup.PARUrn, "")
+
+	cfg, err := FromDDConfig(mockConfig)
+	require.NoError(t, err)
+	// Unset: operator opts out of filtering, handler will pass through the
+	// backend list unchanged.
+	assert.Nil(t, cfg.RShellAllowedCommands)
+}
+
+func TestFromDDConfigPARRestrictedShellAllowedCommandsSet(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
+	mockConfig.SetWithoutSource(setup.PARUrn, "")
+	mockConfig.SetWithoutSource(setup.PARRestrictedShellAllowedCommands, []string{"cat", "ls"})
+
+	cfg, err := FromDDConfig(mockConfig)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"cat", "ls"}, cfg.RShellAllowedCommands)
+}
+
+func TestFromDDConfigPARRestrictedShellAllowedCommandsEmpty(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
+	mockConfig.SetWithoutSource(setup.PARUrn, "")
+	mockConfig.SetWithoutSource(setup.PARRestrictedShellAllowedCommands, []string{})
+
+	cfg, err := FromDDConfig(mockConfig)
+	require.NoError(t, err)
+	// Explicit empty list: operator opts in to blocking every command.
+	// Distinct from the unset case above.
+	assert.NotNil(t, cfg.RShellAllowedCommands)
+	assert.Empty(t, cfg.RShellAllowedCommands)
 }

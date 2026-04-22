@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix a deadlock that could make the Agent become unresponsive after a
+    remote configuration value was cleared.

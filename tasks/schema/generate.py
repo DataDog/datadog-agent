@@ -18,6 +18,15 @@ SYSPROBE_TEMPLATE = os.path.join("pkg", "config", "system-probe_template.yaml")
 _SCRIPTS_DIR = os.path.dirname(__file__)
 
 
+def str_presenter(dumper, data):
+    if "\n" in data:
+        return dumper.represent_scalar('tag:yaml.org,2002:str', data, style='|')
+    return dumper.represent_scalar('tag:yaml.org,2002:str', data)
+
+
+yaml.add_representer(str, str_presenter)
+
+
 @task
 def generate(ctx, agent_bin, output_dir=SCHEMA_DIR):
     """
@@ -75,9 +84,9 @@ def generate(ctx, agent_bin, output_dir=SCHEMA_DIR):
     sysprobe_schema["description"] = "The schema to validate the system-probe.yaml configuration for the DataDog Agent"
 
     with open(core, "w") as f:
-        yaml.safe_dump(core_schema, f, sort_keys=False)
+        yaml.dump(core_schema, f, sort_keys=False)
     with open(sysprobe, "w") as f:
-        yaml.safe_dump(sysprobe_schema, f, sort_keys=False)
+        yaml.dump(sysprobe_schema, f, sort_keys=False)
 
     print("Schema generation complete. Output files:")
     print(f"  {core}")
