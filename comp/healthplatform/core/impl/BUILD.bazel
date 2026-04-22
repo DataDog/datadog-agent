@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "impl",
@@ -27,28 +27,5 @@ go_library(
         "//pkg/version",
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@org_golang_google_protobuf//proto",
-    ],
-)
-
-go_test(
-    name = "impl_test",
-    srcs = ["health-platform_test.go"],
-    embed = [":impl"],
-    gotags = ["test"],
-    deps = [
-        "//comp/core/config",
-        "//comp/core/hostname/hostnameinterface",
-        "//comp/core/log/mock",
-        "//comp/def",
-        "//comp/healthplatform/checkrunner/mock",
-        "//comp/healthplatform/core/def",
-        "//comp/healthplatform/forwarder/mock",
-        "//comp/healthplatform/issues/checkfailure",
-        "//comp/healthplatform/issues/dockerpermissions",
-        "//comp/healthplatform/issues/rofspermissions",
-        "@com_github_datadog_agent_payload_v5//healthplatform",
-        "//comp/core/telemetry/noopsimpl",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
     ],
 )
