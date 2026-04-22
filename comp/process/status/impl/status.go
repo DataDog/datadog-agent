@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	processStatus "github.com/DataDog/datadog-agent/pkg/process/util/status"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
@@ -97,7 +98,7 @@ func (s statusProvider) populateStatus() map[string]interface{} {
 
 		port := s.config.GetInt("process_config.expvar_port")
 		if port <= 0 {
-			port = 6062 // DefaultProcessExpVarPort
+			port = pkgconfigsetup.DefaultProcessExpVarPort
 		}
 		url = fmt.Sprintf("http://%s:%d/debug/vars", ipcAddr, port)
 	}
