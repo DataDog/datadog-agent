@@ -7,28 +7,17 @@ package docker
 
 import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/namer"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	remoteComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-// InstallECRCredentialsHelper installs the Amazon ECR credential helper and jq on the host,
-// then merges credsStore=ecr-login into ~/.docker/config.json (preserving existing keys).
-// This enables automatic authentication against ECR registries (including pull-through caches).
-func InstallECRCredentialsHelper(n namer.Namer, host *remoteComp.Host, opts ...pulumi.ResourceOption) (command.Command, error) {
-	ecrCredsHelperInstall, err := host.OS.PackageManager().Ensure("amazon-ecr-credential-helper", nil, "docker-credential-ecr-login", os.WithPulumiResourceOptions(opts...))
-	if err != nil {
-		return nil, err
-	}
-
-	jqInstall, err := host.OS.PackageManager().Ensure("jq", nil, "jq", os.WithPulumiResourceOptions(opts...))
-	if err != nil {
-		return nil, err
-	}
-
+// SetupECRDockerAuth merges credsStore=ecr-login into ~/.docker/config.json (preserving existing
+// keys). docker-credential-ecr-login and jq must already be present on the host (pre-baked in
+// AWS e2e AMIs). This enables automatic authentication against ECR registries (including
+// pull-through caches).
+func SetupECRDockerAuth(n namer.Namer, host *remoteComp.Host, opts ...pulumi.ResourceOption) (command.Command, error) {
 	// Merge credsStore into existing ~/.docker/config.json so we do not wipe auths, credHelpers, proxies, etc.
 	mergeDockerConfig := `mkdir -p "${HOME}/.docker" && ` +
 		`([ -s "${HOME}/.docker/config.json" ] || echo '{}' > "${HOME}/.docker/config.json") && ` +
@@ -41,7 +30,7 @@ func InstallECRCredentialsHelper(n namer.Namer, host *remoteComp.Host, opts ...p
 			Create: pulumi.String(mergeDockerConfig),
 			Sudo:   false,
 		},
-		utils.MergeOptions(opts, utils.PulumiDependsOn(ecrCredsHelperInstall, jqInstall))...,
+		opts...,
 	)
 	if err != nil {
 		return nil, err

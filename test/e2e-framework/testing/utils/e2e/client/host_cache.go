@@ -39,9 +39,6 @@ func hostArtifactsClientFactory(sshExecutor *sshExecutor, osFlavor oscomp.Flavor
 				cli: &unixAWSCLI{
 					sshExecutor: sshExecutor,
 					archString:  archString,
-					pkgManager: &aptPkgManager{
-						sshExecutor: sshExecutor,
-					},
 				},
 			}
 		case oscomp.AmazonLinux, oscomp.CentOS, oscomp.RedHat, oscomp.RockyLinux, oscomp.Fedora:
@@ -49,9 +46,6 @@ func hostArtifactsClientFactory(sshExecutor *sshExecutor, osFlavor oscomp.Flavor
 				cli: &unixAWSCLI{
 					sshExecutor: sshExecutor,
 					archString:  archString,
-					pkgManager: &yumPkgManager{
-						sshExecutor: sshExecutor,
-					},
 				},
 			}
 		case oscomp.Suse:
@@ -59,9 +53,6 @@ func hostArtifactsClientFactory(sshExecutor *sshExecutor, osFlavor oscomp.Flavor
 				cli: &unixAWSCLI{
 					sshExecutor: sshExecutor,
 					archString:  archString,
-					pkgManager: &zypperPkgManager{
-						sshExecutor: sshExecutor,
-					},
 				},
 			}
 		case oscomp.WindowsServer:
@@ -79,8 +70,6 @@ func hostArtifactsClientFactory(sshExecutor *sshExecutor, osFlavor oscomp.Flavor
 }
 
 type cli interface {
-	install() error
-	check() bool
 	download(path string, destPath string) error
 }
 
@@ -88,22 +77,8 @@ type hostArtifactsClient struct {
 	cli cli
 }
 
-type pkgManager interface {
-	install(pkgName string) error
-}
-
 type windowsAWSCLI struct {
 	sshExecutor *sshExecutor
-}
-
-func (c *windowsAWSCLI) install() error {
-	_, err := c.sshExecutor.Execute("Start-Process msiexec.exe -Wait -ArgumentList \"/i https://awscli.amazonaws.com/AWSCLIV2.msi /qn /norestart /L*V ./awscli-install.log\" ")
-	return err
-}
-
-func (c *windowsAWSCLI) check() bool {
-	_, err := c.sshExecutor.Execute("& \"c:\\Program Files\\Amazon\\AWSCLIV2\\aws.exe\" --version")
-	return err == nil
 }
 
 func (c *windowsAWSCLI) download(path string, destPath string) error {
@@ -114,32 +89,6 @@ func (c *windowsAWSCLI) download(path string, destPath string) error {
 type unixAWSCLI struct {
 	sshExecutor *sshExecutor
 	archString  string
-	pkgManager  pkgManager
-}
-
-func (c *unixAWSCLI) install() error {
-	_, err := c.sshExecutor.Execute(fmt.Sprintf("curl \"https://awscli.amazonaws.com/awscli-exe-linux-%s.zip\" -o \"awscliv2.zip\"", c.archString))
-	if err != nil {
-		return err
-	}
-	err = c.pkgManager.install("unzip")
-	if err != nil {
-		return err
-	}
-	_, err = c.sshExecutor.Execute("unzip awscliv2.zip")
-	if err != nil {
-		return err
-	}
-	_, err = c.sshExecutor.Execute("sudo ./aws/install")
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (c *unixAWSCLI) check() bool {
-	_, err := c.sshExecutor.Execute("aws --version")
-	return err == nil
 }
 
 func (c *unixAWSCLI) download(path string, destPath string) error {
@@ -148,37 +97,5 @@ func (c *unixAWSCLI) download(path string, destPath string) error {
 }
 
 func (c *hostArtifactsClient) Get(path string, destPath string) error {
-	if !c.cli.check() {
-		if err := c.cli.install(); err != nil {
-			return err
-		}
-	}
 	return c.cli.download(fmt.Sprintf("%s/%s", cacheBucketURL, path), destPath)
-}
-
-type aptPkgManager struct {
-	sshExecutor *sshExecutor
-}
-
-func (c *aptPkgManager) install(pkgName string) error {
-	_, err := c.sshExecutor.Execute("sudo apt-get install -y " + pkgName)
-	return err
-}
-
-type yumPkgManager struct {
-	sshExecutor *sshExecutor
-}
-
-func (c *yumPkgManager) install(pkgName string) error {
-	_, err := c.sshExecutor.Execute("sudo yum install -y " + pkgName)
-	return err
-}
-
-type zypperPkgManager struct {
-	sshExecutor *sshExecutor
-}
-
-func (c *zypperPkgManager) install(pkgName string) error {
-	_, err := c.sshExecutor.Execute("sudo zypper install -y " + pkgName)
-	return err
 }

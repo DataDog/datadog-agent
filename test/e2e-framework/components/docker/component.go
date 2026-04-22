@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	remoteComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -76,7 +75,7 @@ func NewManager(e config.Env, host *remoteComp.Host, opts ...pulumi.ResourceOpti
 // ECR pull-through cache for Docker Hub images. Callers may still override DD_REGISTRY by
 // passing it explicitly in their envVars map.
 func NewAWSManager(e config.Env, host *remoteComp.Host, opts ...pulumi.ResourceOption) (*Manager, error) {
-	ecrCreds, err := InstallECRCredentialsHelper(e.CommonNamer().WithPrefix("docker"), host, opts...)
+	ecrCreds, err := SetupECRDockerAuth(e.CommonNamer().WithPrefix("docker"), host, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -182,17 +181,13 @@ func (d *Manager) ComposeStrUp(name string, composeManifests []ComposeInlineMani
 func (d *Manager) install() (command.Command, error) {
 	opts := []pulumi.ResourceOption{pulumi.Parent(d)}
 	opts = utils.MergeOptions(d.opts, opts...)
-	dockerInstall, err := d.Host.OS.PackageManager().Ensure("docker", nil, "docker", os.WithPulumiResourceOptions(opts...))
-	if err != nil {
-		return nil, err
-	}
 
 	// Patch ip range that docker uses to create its bridge networks
 	// This is to avoid conflicts with other IP ranges used internally
 	daemonPatch, err := d.Host.OS.Runner().Command(d.namer.ResourceName("daemon-patch"), &command.Args{
 		Create: pulumi.Sprintf("sudo mkdir -p /etc/docker && echo '{\"bip\": \"192.168.16.1/24\", \"default-address-pools\":[{\"base\":\"192.168.32.0/24\", \"size\":24}], \"max-download-attempts\": 10}' | sudo tee /etc/docker/daemon.json"),
 		Sudo:   true,
-	}, utils.MergeOptions(opts, utils.PulumiDependsOn(dockerInstall))...)
+	}, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -231,12 +226,12 @@ func (d *Manager) install() (command.Command, error) {
 
 func (d *Manager) installCompose() (command.Command, error) {
 	opts := append(d.opts, pulumi.Parent(d))
-	installCompose := pulumi.Sprintf("bash -c '(docker-compose version | grep %s) || (curl --retry 10 -fsSLo /usr/local/bin/docker-compose https://github.com/docker/compose/releases/download/%s/docker-compose-linux-$(uname -p) && sudo chmod 755 /usr/local/bin/docker-compose)'", composeVersion, composeVersion)
+	checkCompose := pulumi.Sprintf("docker-compose version | grep %s", composeVersion)
 	return d.Host.OS.Runner().Command(
 		d.namer.ResourceName("install-compose"),
 		&command.Args{
-			Create: installCompose,
-			Sudo:   true,
+			Create: checkCompose,
+			Sudo:   false,
 		},
 		opts...)
 }
