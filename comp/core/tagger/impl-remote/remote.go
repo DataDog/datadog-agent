@@ -591,12 +591,15 @@ func (t *remoteTagger) processResponse(response *pb.StreamTagsResponse) error {
 		})
 	}
 
+	replaceStoreContents := false
+
 	if !t.ready {
 		// Accumulate events across chunked snapshot messages until the
 		// server signals that the initial snapshot is complete.
 		t.resyncEvents = append(t.resyncEvents, events...)
 		if response.GetInitialSnapshotComplete() {
-			err := t.store.processEvents(t.resyncEvents, true)
+			replaceStoreContents = true
+			err := t.store.processEvents(t.resyncEvents, replaceStoreContents)
 			t.resyncEvents = nil
 			if err != nil {
 				return err
@@ -606,7 +609,7 @@ func (t *remoteTagger) processResponse(response *pb.StreamTagsResponse) error {
 		return nil
 	}
 
-	return t.store.processEvents(events, false)
+	return t.store.processEvents(events, replaceStoreContents)
 }
 
 // startTaggerStream tries to establish a stream with the remote gRPC endpoint.
