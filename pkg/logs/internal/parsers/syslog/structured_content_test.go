@@ -660,10 +660,10 @@ func TestGetStructuredAttribute_UsesSyslogStructuredContent(t *testing.T) {
 
 func TestSplitFirst_EscapedDots(t *testing.T) {
 	tests := []struct {
-		input   string
-		first   string
-		rest    string
-		hasDot  bool
+		input  string
+		first  string
+		rest   string
+		hasDot bool
 	}{
 		{"simple.path", "simple", "path", true},
 		{`escaped\.dot.rest`, "escaped.dot", "rest", true},

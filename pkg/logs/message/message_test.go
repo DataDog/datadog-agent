@@ -315,6 +315,8 @@ func TestGetStructuredAttribute_EscapedDotInKey(t *testing.T) {
 		val, ok := msg.GetStructuredAttribute(`back\\slash`)
 		assert.True(t, ok)
 		assert.Equal(t, "found", val)
+	})
+}
 
 // ---------------------------------------------------------------------------
 // EnsureRendered
