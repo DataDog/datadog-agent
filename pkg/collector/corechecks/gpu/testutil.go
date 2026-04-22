@@ -48,10 +48,10 @@ func GetEmittedGPUMetrics(mockSender *mocksender.MockSender) map[string][]gpuspe
 			metricType = "gauge"
 		case "CountWithTimestamp":
 			metricType = "counter"
-		default: 
+		default:
 			continue
 		}
-		
+
 		if len(call.Arguments) == 0 {
 			continue
 		}
