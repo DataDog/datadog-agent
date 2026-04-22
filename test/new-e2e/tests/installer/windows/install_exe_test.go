@@ -12,6 +12,8 @@ import (
 	"os"
 	"testing"
 
+	"go.yaml.in/yaml/v2"
+
 	infraos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
@@ -129,6 +131,66 @@ func (s *testInstallExeSuite) TestInstallAgentFails() {
 	s.Require().Equal(wincommon.GetIdentityForSID(wincommon.AdministratorsSID).GetSID(), security.Group.GetSID(), "config dir should be grouped by Administrators group")
 	// Agent is not installed so we can't grab paths from the registry keys, must provide them manually
 	wincommonagent.TestHasNoWorldWritablePaths(s.T(), s.Env().RemoteHost, []string{configDir})
+}
+
+// TestConfigValuesNotOverwrittenByDefaults is a regression guard for WINA-2118.
+//
+// Architecture note: the installer package no longer reads datadog.yaml. The
+// CLI fx-bootstrap (cmd/installer/command/fxconfig) translates yaml values
+// into DD_* env vars before any subcommand runs, and the installer consumes
+// only env vars from there on. The end-to-end invariant this test enforces
+// — an upgrade must not clobber yaml-set api_key/site with defaults — spans
+// that chain: yaml → fxconfig → env vars → env.Get → setup.go → merged yaml.
+// A silent failure anywhere along the path would surface here as the
+// user-set site being replaced by "datadoghq.com".
+//
+// NOTE: the yaml is written as UTF-8 because viper's yaml parser (the fx
+// config.Component's backend) does not strip UTF-16 BOMs. UTF-16 coverage
+// is a separate follow-up in fxconfig.
+func (s *testInstallExeSuite) TestConfigValuesNotOverwrittenByDefaults() {
+	// Arrange
+	host := s.Env().RemoteHost
+	configDir := `C:\ProgramData\Datadog`
+	configPath := `C:\ProgramData\Datadog\datadog.yaml`
+
+	const userAPIKey = "user-api-key-0123456789abcdef01"
+	const userSite = "datadoghq.eu" // deliberately not the default datadoghq.com
+
+	yamlContent := "api_key: " + userAPIKey + "\nsite: " + userSite + "\n"
+
+	err := host.MkdirAll(configDir)
+	s.Require().NoError(err, "failed to create config directory")
+	_, err = host.WriteFile(configPath, []byte(yamlContent))
+	s.Require().NoError(err, "failed to seed datadog.yaml")
+
+	// Act
+	// Run the installer without any config options so the only source of
+	// api_key / site is the pre-seeded yaml file (picked up by the CLI
+	// fx-bootstrap and exported as DD_API_KEY / DD_SITE).
+	output, err := s.InstallScript().Run(
+		// explicitly unset any DD_* that this helper method sets by default
+		WithExtraEnvVars(map[string]string{
+			"DD_API_KEY":        "",
+			"DD_SITE":           "",
+			"DD_REMOTE_UPDATES": "",
+		}),
+	)
+
+	// Assert
+	s.Require().NoErrorf(err, "failed to run installer: %s", output)
+	s.Require().NoError(s.WaitForInstallerService("Running"))
+
+	contentAfter, err := host.ReadFile(configPath)
+	s.Require().NoError(err, "failed to read datadog.yaml after install")
+
+	var configValues map[string]interface{}
+	err = yaml.Unmarshal(contentAfter, &configValues)
+	s.Require().NoError(err, "failed to parse datadog.yaml as YAML")
+
+	s.Assert().Equal(userAPIKey, configValues["api_key"],
+		"user-set api_key must be preserved after install (WINA-2118)")
+	s.Assert().Equal(userSite, configValues["site"],
+		"user-set site must be preserved and must not be clobbered by the default datadoghq.com (WINA-2118)")
 }
 
 // proxyEnv provisions a Windows VM (for the installer) and a Linux VM (hosting a Squid proxy)
