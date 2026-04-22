@@ -2257,9 +2257,11 @@ func TestMalformedHistogramNoPanic(t *testing.T) {
 			p.SetTimestamp(seconds(0))
 
 			consumer := &mockTimeSeriesConsumer{}
+			var legacyErr error
 			assert.NotPanics(t, func() {
-				mapper.getLegacyBuckets(ctx, consumer, dims, p, true)
+				legacyErr = mapper.getLegacyBuckets(ctx, consumer, dims, p, true)
 			})
+			assert.Error(t, legacyErr)
 			assert.Empty(t, consumer.metrics)
 
 			fullConsumer := &mockFullConsumer{}

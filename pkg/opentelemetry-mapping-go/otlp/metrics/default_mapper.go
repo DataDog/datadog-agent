@@ -145,10 +145,11 @@ func (m *defaultMapper) MapHistogramMetrics(
 
 		switch m.cfg.HistMode {
 		case HistogramModeCounters:
-			m.getLegacyBuckets(ctx, consumer, pointDims, p, delta)
+			if err := m.getLegacyBuckets(ctx, consumer, pointDims, p, delta); err != nil {
+				return err
+			}
 		case HistogramModeDistributions:
-			err := m.getSketchBuckets(ctx, consumer, pointDims, p, histInfo, delta)
-			if err != nil {
+			if err := m.getSketchBuckets(ctx, consumer, pointDims, p, histInfo, delta); err != nil {
 				return err
 			}
 		}
@@ -473,18 +474,14 @@ func (m *defaultMapper) getLegacyBuckets(
 	pointDims *Dimensions,
 	p pmetric.HistogramDataPoint,
 	delta bool,
-) {
+) error {
 	startTs := uint64(p.StartTimestamp())
 	ts := uint64(p.Timestamp())
 	// We have a single metric, 'bucket', which is tagged with the bucket bounds. See:
 	// https://github.com/DataDog/integrations-core/blob/7.30.1/datadog_checks_base/datadog_checks/base/checks/openmetrics/v2/transformers/histogram.py
 	if p.BucketCounts().Len() > 0 && p.BucketCounts().Len() != p.ExplicitBounds().Len()+1 {
-		m.logger.Warn("Dropping histogram data point: bucket counts length does not match explicit bounds length+1",
-			zap.String("metric_name", pointDims.name),
-			zap.Int("bucket_counts_len", p.BucketCounts().Len()),
-			zap.Int("explicit_bounds_len", p.ExplicitBounds().Len()),
-		)
-		return
+		return fmt.Errorf("histogram %q has %d bucket counts but %d explicit bounds (expected counts == bounds+1)",
+			pointDims.name, p.BucketCounts().Len(), p.ExplicitBounds().Len())
 	}
 	baseBucketDims := pointDims.WithSuffix("bucket")
 	for idx := 0; idx < p.BucketCounts().Len(); idx++ {
@@ -501,6 +498,7 @@ func (m *defaultMapper) getLegacyBuckets(
 			consumer.ConsumeTimeSeries(ctx, bucketDims, Count, ts, 0, dx)
 		}
 	}
+	return nil
 }
 
 // exponentialHistogramToDDSketch converts an exponential histogram to a DDSketch
