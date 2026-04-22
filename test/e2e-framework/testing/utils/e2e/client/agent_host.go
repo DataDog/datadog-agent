@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclientparams"
-	wincommand "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/command"
+	wincommand "github.com/DataDog/datadog-agent/test/e2e-framework/components/windows/command"
 )
 
 type agentHostExecutor struct {
@@ -51,6 +51,18 @@ func (ae agentHostExecutor) execute(arguments []string) (string, error) {
 	}
 
 	return ae.host.Execute(ae.baseCommand + " " + parameters)
+}
+
+func (ae agentHostExecutor) restart() error {
+	var cmd string
+	switch ae.host.osFamily {
+	case os.WindowsFamily:
+		cmd = "Restart-Service -Name datadogagent"
+	default:
+		cmd = "sudo systemctl restart datadog-agent"
+	}
+	_, err := ae.host.Execute(cmd)
+	return err
 }
 
 // DefaultWindowsAgentInstallPath returns a reasonable default for the AgentInstallPath.

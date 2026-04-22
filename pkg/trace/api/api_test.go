@@ -6,6 +6,7 @@
 package api
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -75,6 +76,10 @@ func newTestReceiverConfig() *config.AgentConfig {
 	conf.DecoderTimeout = 10000
 	conf.ReceiverTimeout = 1
 	conf.ReceiverPort = 8326 // use non-default port to avoid conflict with a running agent
+	// Reset IdleTimeout so the server uses ReadTimeout (1s) instead of the production
+	// default (60s). Without this, tests that call io.ReadAll(resp.Body) on a real server
+	// block for 60 seconds waiting for the connection to close.
+	conf.ReceiverIdleTimeout = 0
 	// Enable convert-traces by default for tests since most tests expect V1 behavior
 	if conf.Features == nil {
 		conf.Features = make(map[string]struct{})
@@ -643,7 +648,6 @@ func TestReceiverV1MsgpackDecoder(t *testing.T) {
 
 	resp.Body.Close()
 	server.Close()
-
 }
 
 // Test the response message when decoding with a mismatched type somewhere
@@ -673,7 +677,6 @@ func TestReceiverV1MsgpackDecoderError(t *testing.T) {
 
 	resp.Body.Close()
 	server.Close()
-
 }
 
 func TestReceiverV1DecodingError(t *testing.T) {
@@ -804,6 +807,30 @@ func TestReceiverUnexpectedEOF(t *testing.T) {
 	assert.Equal(400, resp.StatusCode)
 	assert.EqualValues(traceCount, r.Stats.GetTagStats(info.Tags{EndpointVersion: "v0.5"}).TracesDropped.MSGPShortBytes.Load())
 	assert.Contains(respBody, "too few bytes left to read")
+}
+
+func TestHandleTracesV05RejectsInvalidDictionaryIndex(t *testing.T) {
+	assert := assert.New(t)
+	conf := newTestReceiverConfig()
+	r := newTestReceiverFromConfig(conf)
+	server := httptest.NewServer(r.handleWithVersion(v05, r.handleTraces))
+	defer server.Close()
+
+	data := []byte("\x91\x90\x91\x91\x9c\x0000000000\x80\x800")
+	var decoded pb.Traces
+	decodeErr := decoded.UnmarshalMsgDictionary(data)
+	assert.ErrorContains(decodeErr, "dictionary index 0 out of range")
+
+	var client http.Client
+	req, err := http.NewRequest("POST", server.URL, bytes.NewBuffer(data))
+	assert.NoError(err)
+	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(header.TraceCount, "1")
+
+	resp, err := client.Do(req)
+	assert.NoError(err)
+	resp.Body.Close()
+	assert.Equal(http.StatusBadRequest, resp.StatusCode)
 }
 
 func TestTraceCount(t *testing.T) {
@@ -1062,8 +1089,9 @@ func TestHandleStats(t *testing.T) {
 	})
 	t.Run("timeout", func(t *testing.T) {
 		cfg := newTestReceiverConfig()
+		cfg.ReceiverTimeoutDuration = 50 * time.Millisecond
 		rcv := newTestReceiverFromConfig(cfg)
-		mockProcessor := &mockStatsProcessor{processingLantency: 1100 * time.Millisecond}
+		mockProcessor := &mockStatsProcessor{processingLantency: 500 * time.Millisecond}
 		rcv.statsProcessor = mockProcessor
 		mux := rcv.buildMux()
 		server := httptest.NewServer(mux)
@@ -1083,7 +1111,81 @@ func TestHandleStats(t *testing.T) {
 		}
 		defer resp.Body.Close()
 
-		assert.Equal(t, resp.StatusCode, http.StatusRequestTimeout)
+		assert.Equal(t, http.StatusRequestTimeout, resp.StatusCode)
+	})
+}
+
+func TestStatsKeepaliveIdleTimeout(t *testing.T) {
+	// When IdleTimeout is unset, Go falls back to ReadTimeout for keepalive connections.
+	// Tracers reuse connections across their ~10s stats flush interval, so IdleTimeout
+	// must be set independently to avoid "connection reset by peer" errors.
+	runTest := func(t *testing.T, idleTimeout time.Duration) (firstErr, secondErr error) {
+		cfg := newTestReceiverConfig()
+		cfg.ReceiverTimeoutDuration = 50 * time.Millisecond
+		cfg.ReceiverIdleTimeout = idleTimeout
+		readTimeout := cfg.ReceiverTimeoutDuration
+
+		rcv := newTestReceiverFromConfig(cfg)
+		rcv.Start()
+		defer rcv.Stop()
+
+		addr := fmt.Sprintf("%s:%v", cfg.ReceiverHost, cfg.ReceiverPort)
+		require.Eventually(t, func() bool {
+			c, err := net.DialTimeout("tcp", addr, 100*time.Millisecond)
+			if err != nil {
+				return false
+			}
+			c.Close()
+			return true
+		}, 2*time.Second, 10*time.Millisecond)
+
+		p := testutil.StatsPayloadSample()
+		var buf bytes.Buffer
+		require.NoError(t, msgp.Encode(&buf, p))
+		payload := buf.Bytes()
+
+		// doRequest bypasses http.Client's reconnect logic.
+		doRequest := func(conn net.Conn) error {
+			req, err := http.NewRequest(http.MethodPost, "http://"+addr+"/v0.6/stats", bytes.NewReader(payload))
+			if err != nil {
+				return err
+			}
+			req.Header.Set("Content-Type", "application/msgpack")
+			if err := req.Write(conn); err != nil {
+				return err
+			}
+			resp, err := http.ReadResponse(bufio.NewReader(conn), req)
+			if err != nil {
+				return err
+			}
+			io.Copy(io.Discard, resp.Body) //nolint:errcheck
+			resp.Body.Close()
+			return nil
+		}
+
+		conn, err := net.Dial("tcp", addr)
+		require.NoError(t, err)
+		defer conn.Close()
+
+		firstErr = doRequest(conn)
+		time.Sleep(2 * readTimeout) // sleep past ReadTimeout
+		secondErr = doRequest(conn)
+		return firstErr, secondErr
+	}
+
+	t.Run("without idle timeout", func(t *testing.T) {
+		// With no IdleTimeout, Go falls back to ReadTimeout (50ms). The second request on the
+		// same connection after 2×ReadTimeout must fail with a connection reset.
+		firstErr, secondErr := runTest(t, 0)
+		require.NoError(t, firstErr)
+		require.Error(t, secondErr, "expected connection reset when IdleTimeout falls back to ReadTimeout")
+	})
+
+	t.Run("with idle timeout", func(t *testing.T) {
+		// With IdleTimeout > ReadTimeout, the connection stays alive and both requests succeed.
+		firstErr, secondErr := runTest(t, 500*time.Millisecond)
+		require.NoError(t, firstErr)
+		require.NoError(t, secondErr, "keepalive connection must survive past ReadTimeout")
 	})
 }
 
@@ -1230,7 +1332,7 @@ func TestHandleTraces(t *testing.T) {
 		rawTraceChan := make(chan *Payload)
 		rawTraceChanV1 := make(chan *PayloadV1)
 		receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, rawTraceChanV1, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
-		receiver.recvsem = make(chan struct{}) //overwrite recvsem to ALWAYS block and ensure we look overwhelmed
+		receiver.recvsem = make(chan struct{}) // overwrite recvsem to ALWAYS block and ensure we look overwhelmed
 		// response recorder
 		handler := receiver.handleWithVersion(v04, receiver.handleTraces)
 		rr := httptest.NewRecorder()

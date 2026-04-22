@@ -22,7 +22,7 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
-	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
+	"github.com/DataDog/dd-trace-go/v2/profiler"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -34,11 +34,13 @@ import (
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/datastreams"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
+	logondurationfx "github.com/DataDog/datadog-agent/comp/logonduration/fx"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	ssistatusfx "github.com/DataDog/datadog-agent/comp/updater/ssistatus/fx"
 	workloadselectionfx "github.com/DataDog/datadog-agent/comp/workloadselection/fx"
 
+	doqueryactionsfx "github.com/DataDog/datadog-agent/comp/dataobs/queryactions/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	snmpscanfx "github.com/DataDog/datadog-agent/comp/snmpscan/fx"
 	snmpscanmanagerfx "github.com/DataDog/datadog-agent/comp/snmpscanmanager/fx"
@@ -51,9 +53,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/agent"
 	// core components
-	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
-	"github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer"
-	"github.com/DataDog/datadog-agent/comp/agent/expvarserver"
+	autoexit "github.com/DataDog/datadog-agent/comp/agent/autoexit/def"
+	cloudfoundrycontainer "github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer/def"
+	expvarserver "github.com/DataDog/datadog-agent/comp/agent/expvarserver/def"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger/jmxloggerimpl"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
@@ -86,12 +88,11 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	lsof "github.com/DataDog/datadog-agent/comp/core/lsof/fx"
-	"github.com/DataDog/datadog-agent/comp/core/pid"
-	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
+	pid "github.com/DataDog/datadog-agent/comp/core/pid/def"
+	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
 	flareprofiler "github.com/DataDog/datadog-agent/comp/core/profiler/fx"
 	remoteagentregistryfx "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/fx"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -100,7 +101,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-core"
@@ -108,10 +109,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
+	dogstatsdhttp "github.com/DataDog/datadog-agent/comp/dogstatsd/http/def"
+	dogstatsdhttpfx "github.com/DataDog/datadog-agent/comp/dogstatsd/http/fx"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	statsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
+	statsdFx "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/fx"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/fx"
 	fleetfx "github.com/DataDog/datadog-agent/comp/fleetstatus/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
@@ -123,10 +127,10 @@ import (
 	healthplatformfx "github.com/DataDog/datadog-agent/comp/healthplatform/fx"
 	healthplatformimpl "github.com/DataDog/datadog-agent/comp/healthplatform/impl"
 	hostProfilerFlareFx "github.com/DataDog/datadog-agent/comp/host-profiler/flare/fx"
-	langDetectionCl "github.com/DataDog/datadog-agent/comp/languagedetection/client"
-	langDetectionClimpl "github.com/DataDog/datadog-agent/comp/languagedetection/client/clientimpl"
+	langDetectionCl "github.com/DataDog/datadog-agent/comp/languagedetection/client/def"
+	langDetectionClimpl "github.com/DataDog/datadog-agent/comp/languagedetection/client/fx"
 	"github.com/DataDog/datadog-agent/comp/logs"
-	"github.com/DataDog/datadog-agent/comp/logs/adscheduler/adschedulerimpl"
+	adschedulerfx "github.com/DataDog/datadog-agent/comp/logs/adscheduler/fx"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/comp/metadata"
@@ -145,24 +149,24 @@ import (
 	"github.com/DataDog/datadog-agent/comp/networkpath"
 	"github.com/DataDog/datadog-agent/comp/otelcol"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
-	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
+	logsagentpipeline "github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/def"
 	otelagentStatusfx "github.com/DataDog/datadog-agent/comp/otelcol/status/fx"
+	parStatusImpl "github.com/DataDog/datadog-agent/comp/privateactionrunner/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/process"
 	processAgent "github.com/DataDog/datadog-agent/comp/process/agent"
 	processagentStatusImpl "github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
 	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
 	remoteconfig "github.com/DataDog/datadog-agent/comp/remote-config"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf/rcservicemrfimpl"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
+	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
+	rcprotocoltestfx "github.com/DataDog/datadog-agent/comp/remote-config/rcprotocoltest/fx"
+	rcservicefx "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/fx"
+	rcservicemrffx "github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf/fx"
+	rctelemetryreporterfx "github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/fx"
 	metricscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	snmpscanmanager "github.com/DataDog/datadog-agent/comp/snmpscanmanager/def"
-	"github.com/DataDog/datadog-agent/comp/snmptraps"
-	snmptrapsServer "github.com/DataDog/datadog-agent/comp/snmptraps/server"
 	syntheticsTestsfx "github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/fx"
 	tracetelemetryfx "github.com/DataDog/datadog-agent/comp/trace-telemetry/fx"
-	traceagentStatusImpl "github.com/DataDog/datadog-agent/comp/trace/status/statusimpl"
+	traceagentStatusImpl "github.com/DataDog/datadog-agent/comp/trace/status/fx"
 	daemoncheckerfx "github.com/DataDog/datadog-agent/comp/updater/daemonchecker/fx"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -183,7 +187,6 @@ import (
 	httpproxyStatus "github.com/DataDog/datadog-agent/pkg/status/httpproxy"
 	jmxStatus "github.com/DataDog/datadog-agent/pkg/status/jmx"
 	systemprobeStatus "github.com/DataDog/datadog-agent/pkg/status/systemprobe"
-	pkgTelemetry "github.com/DataDog/datadog-agent/pkg/telemetry"
 	pkgcommon "github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/coredump"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
@@ -215,16 +218,22 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	runE := func(*cobra.Command, []string) error {
 		// TODO: once the agent is represented as a component, and not a function (run),
 		// this will use `fxutil.Run` instead of `fxutil.OneShot`.
+		configOpts := []func(*config.Params){
+			config.WithExtraConfFiles(cliParams.ExtraConfFilePath),
+			config.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath),
+		}
+		if globalParams.CommonRoot != "" {
+			configOpts = append(configOpts, config.WithCLIOverride("common_root", globalParams.CommonRoot))
+		}
 		return fxutil.OneShot(run,
 			fx.Invoke(func(_ log.Component) {
 				ddruntime.SetMaxProcs()
 			}),
 			fx.Supply(core.BundleParams{
-				ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(cliParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath)),
+				ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath, configOpts...),
 				SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath)),
 				LogParams:            log.ForDaemon(command.LoggerName, "log_file", defaultpaths.LogFile),
 			}),
-			secretsfx.Module(),
 			fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
 			logging.EnableFxLoggingOnDebug[log.Component](),
 			fxinstrumentation.Module(),
@@ -255,9 +264,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 func run(log log.Component,
 	cfg config.Component,
 	flare flare.Component,
-	telemetry telemetry.Component,
+	tlm telemetry.Component,
 	sysprobeConf sysprobeconfig.Component,
 	server dogstatsdServer.Component,
+	_ dogstatsdhttp.Component,
 	_ replay.Component,
 	_ defaultforwarder.Component,
 	wmeta workloadmeta.Component,
@@ -280,8 +290,7 @@ func run(log log.Component,
 	invChecks inventorychecks.Component,
 	logReceiver option.Option[integrations.Component],
 	_ netflowServer.Component,
-	_ snmptrapsServer.Component,
-	_ langDetectionCl.Component,
+	_ option.Option[langDetectionCl.Component],
 	_ internalAPI.Component,
 	_ packagesigning.Component,
 	_ systemprobemetadata.Component,
@@ -345,7 +354,7 @@ func run(log log.Component,
 	if err := startAgent(
 		log,
 		flare,
-		telemetry,
+		tlm,
 		server,
 		wmeta,
 		filterStore,
@@ -370,13 +379,13 @@ func run(log log.Component,
 		return err
 	}
 
-	agentStarted := telemetry.NewCounter(
+	agentStarted := tlm.NewCounter(
 		"runtime",
 		"started",
 		[]string{},
 		"Establish if the agent has started",
 	)
-	agentRunning := telemetry.NewGauge(
+	agentRunning := tlm.NewGauge(
 		"runtime",
 		"running",
 		[]string{},
@@ -401,7 +410,7 @@ func getSharedFxOption() fx.Option {
 			defaultpaths.DogstatsDLogFile,
 			defaultpaths.StreamlogsLogFile,
 		)),
-		core.Bundle(),
+		core.Bundle(core.WithSecrets()),
 		hostnameimpl.Module(),
 		flareprofiler.Module(),
 		fx.Provide(func(cfg config.Component) flaretypes.Provider {
@@ -443,7 +452,8 @@ func getSharedFxOption() fx.Option {
 		otelagentStatusfx.Module(),
 		traceagentStatusImpl.Module(),
 		processagentStatusImpl.Module(),
-		statsd.Module(),
+		parStatusImpl.Module(),
+		statsdFx.Module(),
 		statusimpl.Module(),
 		apiimpl.Module(),
 		grpcAgentfx.Module(),
@@ -452,6 +462,7 @@ func getSharedFxOption() fx.Option {
 		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(demultiplexerimpl.WithDogstatsdNoAggregationPipelineConfig())),
 		demultiplexerendpointfx.Module(),
 		dogstatsd.Bundle(dogstatsdServer.Params{Serverless: false}),
+		dogstatsdhttpfx.Module(),
 		fx.Provide(func(logsagent option.Option[logsAgent.Component]) option.Option[logsagentpipeline.Component] {
 			if la, ok := logsagent.Get(); ok {
 				return option.New[logsagentpipeline.Component](la)
@@ -460,9 +471,10 @@ func getSharedFxOption() fx.Option {
 		}),
 		otelcol.Bundle(),
 		hostProfilerFlareFx.Module(),
-		rctelemetryreporterimpl.Module(),
-		rcserviceimpl.Module(),
-		rcservicemrfimpl.Module(),
+		rctelemetryreporterfx.Module(),
+		rcprotocoltestfx.Module(),
+		rcservicefx.Module(),
+		rcservicemrffx.Module(),
 		remoteconfig.Bundle(),
 		daemoncheckerfx.Module(),
 		fleetfx.Module(),
@@ -509,7 +521,7 @@ func getSharedFxOption() fx.Option {
 		ndmtmp.Bundle(),
 		netflow.Bundle(),
 		rdnsquerierfx.Module(),
-		snmptraps.Bundle(),
+		getSnmptrapsOptions(),
 		snmpscanfx.Module(),
 		snmpscanmanagerfx.Module(),
 		collectorimpl.Module(),
@@ -526,7 +538,7 @@ func getSharedFxOption() fx.Option {
 			}
 		}),
 		healthprobefx.Module(),
-		adschedulerimpl.Module(),
+		adschedulerfx.Module(),
 		fx.Provide(func(serverDebug dogstatsddebug.Component, config config.Component) settings.Params {
 			return settings.Params{
 				Settings: map[string]settings.RuntimeSetting{
@@ -554,6 +566,7 @@ func getSharedFxOption() fx.Option {
 		syntheticsTestsfx.Module(),
 		remoteagentregistryfx.Module(),
 		haagentfx.Module(),
+		doqueryactionsfx.Module(),
 		metricscompressorfx.Module(),
 		diagnosefx.Module(),
 		ipcfx.ModuleReadWrite(),
@@ -562,6 +575,7 @@ func getSharedFxOption() fx.Option {
 		workloadfilterfx.Module(),
 		connectivitycheckerfx.Module(),
 		configstreamfx.Module(),
+		logondurationfx.Module(),
 		healthplatformfx.Module(),
 		tracetelemetryfx.Module(),
 	)
@@ -571,7 +585,7 @@ func getSharedFxOption() fx.Option {
 func startAgent(
 	log log.Component,
 	flare flare.Component,
-	telemetry telemetry.Component,
+	tlm telemetry.Component,
 	server dogstatsdServer.Component,
 	wmeta workloadmeta.Component,
 	filterStore workloadfilter.Component,
@@ -621,7 +635,7 @@ func startAgent(
 	ctx, _ := pkgcommon.GetMainCtxCancel()
 
 	// Setup expvar server
-	telemetryHandler := telemetry.Handler()
+	telemetryHandler := tlm.Handler()
 
 	http.Handle("/telemetry", telemetryHandler)
 
@@ -667,7 +681,7 @@ func startAgent(
 	// Setup stats telemetry handler
 	if sender, err := demultiplexer.GetDefaultSender(); err == nil {
 		// TODO: to be removed when default telemetry is enabled.
-		pkgTelemetry.RegisterStatsSender(sender)
+		telemetry.RegisterStatsSender(sender)
 	}
 
 	// Append version and timestamp to version history log file if this Agent is different than the last run version
@@ -681,7 +695,7 @@ func startAgent(
 	jmxfetch.RegisterWith(ac)
 
 	// Set up check collector
-	commonchecks.RegisterChecks(wmeta, filterStore, tagger, cfg, telemetry, rcclient, flare, snmpScanManager, traceroute)
+	commonchecks.RegisterChecks(wmeta, filterStore, tagger, cfg, tlm, rcclient, flare, snmpScanManager, traceroute)
 	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(option.New(collectorComponent), demultiplexer, logReceiver, tagger, filterStore), true)
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)

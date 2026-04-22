@@ -23,6 +23,12 @@ modules:
   comp/core/config:
     used_by_otel: true
   comp/core/configsync: default
+  comp/core/delegatedauth:
+    independent: false
+    used_by_otel: true
+  comp/core/delegatedauth/api/cloudauth/aws:
+    independent: false
+    used_by_otel: true
   comp/core/flare/builder:
     used_by_otel: true
   comp/core/flare/types:
@@ -156,10 +162,6 @@ modules:
     independent: false
     should_tag: false
     should_test_condition: never
-  internal/tools/modparser/testdata/badformat: ignored
-  internal/tools/modparser/testdata/match: ignored
-  internal/tools/modparser/testdata/nomatch: ignored
-  internal/tools/modparser/testdata/patchgoversion: ignored
   internal/tools/proto:
     independent: false
     should_tag: false
@@ -176,6 +178,8 @@ modules:
     used_by_otel: true
   pkg/config/basic:
     used_by_otel: true
+  pkg/config/buildschema:
+    used_by_otel: true
   pkg/config/create:
     used_by_otel: true
   pkg/config/env:
@@ -189,6 +193,9 @@ modules:
   pkg/config/nodetreemodel:
     used_by_otel: true
   pkg/config/remote: default
+  pkg/config/render_config:
+    should_tag: false
+    should_test_condition: never
   pkg/config/setup:
     used_by_otel: true
   pkg/config/structure:
@@ -199,6 +206,7 @@ modules:
     used_by_otel: true
   pkg/config/viperconfig:
     used_by_otel: true
+  pkg/discovery/tracermetadata/model: default
   pkg/dyninst/testprogs/progs: ignored
   pkg/errors: default
   pkg/fips:
@@ -215,8 +223,6 @@ modules:
   pkg/logs/message:
     used_by_otel: true
   pkg/logs/metrics:
-    used_by_otel: true
-  pkg/logs/pipeline:
     used_by_otel: true
   pkg/logs/processor:
     used_by_otel: true
@@ -276,8 +282,6 @@ modules:
     used_by_otel: true
   pkg/tagset:
     used_by_otel: true
-  pkg/telemetry:
-    used_by_otel: true
   pkg/template:
     should_replace_internal_modules: false
     should_test_condition: never
@@ -291,6 +295,8 @@ modules:
   pkg/trace/stats:
     used_by_otel: true
   pkg/trace/traceutil:
+    used_by_otel: true
+  pkg/util/aws/creds:
     used_by_otel: true
   pkg/util/backoff:
     used_by_otel: true
@@ -382,6 +388,10 @@ modules:
     - ./system-probe/
   test/otel:
     used_by_otel: true
+  tools/build-ddot-byoc:
+    independent: false
+    should_tag: false
+    should_test_condition: never
   tools/retry_file_dump:
     independent: false
     should_tag: false

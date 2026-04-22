@@ -1,21 +1,18 @@
-load("@//bazel/rules:so_symlink.bzl", "so_symlink")
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
-load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
+load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
-load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 package(
-    default_applicable_licenses = [":license"],
+    default_package_metadata = [":license"],
     default_visibility = ["//visibility:private"],
 )
 
-VERSION = "3.50.4"
+VERSION = "3.53.0"
 
 license(
     name = "license",
     license_kinds = ["@rules_license//licenses/spdx:blessing"],
-    license_text = "LICENSE.md",
+    license_text = "@sqlite3_license//file",
     visibility = ["//visibility:public"],
 )
 
@@ -45,23 +42,9 @@ cc_shared_library(
     visibility = ["//visibility:public"],
 )
 
-so_symlink(
-    name = "lib_files",
-    src = ":sqlite3",
-    libname = "libsqlite3",
+dd_cc_packaged(
+    name = "sqlite3_pkg",
+    input = ":sqlite3",
     version = VERSION,
-)
-
-pkg_filegroup(
-    name = "all_files",
-    srcs = [
-        ":lib_files",
-    ],
-)
-
-pkg_install(
-    name = "install",
-    srcs = [
-        ":all_files",
-    ],
+    visibility = ["//visibility:public"],
 )

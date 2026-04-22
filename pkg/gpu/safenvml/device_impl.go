@@ -7,9 +7,7 @@
 
 package safenvml
 
-import (
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
-)
+import "github.com/NVIDIA/go-nvml/pkg/nvml"
 
 // safeDeviceImpl implements the SafeDevice interface
 type safeDeviceImpl struct {
@@ -98,12 +96,30 @@ func (d *safeDeviceImpl) GetFanSpeed() (uint32, error) {
 	return speed, NewNvmlAPIErrorOrNil("GetFanSpeed", ret)
 }
 
+//nolint:revive // Maintaining consistency with go-nvml API naming
+func (d *safeDeviceImpl) GetFanSpeed_v2(fanIndex int) (uint32, error) {
+	if err := d.lib.lookup(toNativeName("GetFanSpeed_v2")); err != nil {
+		return 0, err
+	}
+	speed, ret := d.nvmlDevice.GetFanSpeed_v2(fanIndex)
+	return speed, NewNvmlAPIErrorOrNil("GetFanSpeed_v2", ret)
+}
+
 func (d *safeDeviceImpl) GetFieldValues(values []nvml.FieldValue) error {
 	if err := d.lib.lookup(toNativeName("GetFieldValues")); err != nil {
 		return err
 	}
 	ret := d.nvmlDevice.GetFieldValues(values)
 	return NewNvmlAPIErrorOrNil("GetFieldValues", ret)
+}
+
+//nolint:revive // Maintaining consistency with go-nvml API naming
+func (d *safeDeviceImpl) ReadWritePRM_v1(buffer *nvml.PRMTLV_v1) error {
+	if err := d.lib.lookup("nvmlDeviceReadWritePRM_v1"); err != nil {
+		return err
+	}
+	ret := d.nvmlDevice.ReadWritePRM_v1(buffer)
+	return NewNvmlAPIErrorOrNil("ReadWritePRM_v1", ret)
 }
 
 //nolint:revive // Maintaining consistency with go-nvml API naming
@@ -212,6 +228,14 @@ func (d *safeDeviceImpl) GetNumGpuCores() (int, error) {
 	return cores, NewNvmlAPIErrorOrNil("GetNumGpuCores", ret)
 }
 
+func (d *safeDeviceImpl) GetNumFans() (int, error) {
+	if err := d.lib.lookup(toNativeName("GetNumFans")); err != nil {
+		return 0, err
+	}
+	fans, ret := d.nvmlDevice.GetNumFans()
+	return fans, NewNvmlAPIErrorOrNil("GetNumFans", ret)
+}
+
 func (d *safeDeviceImpl) GetNvLinkState(link int) (nvml.EnableState, error) {
 	if err := d.lib.lookup(toNativeName("GetNvLinkState")); err != nil {
 		return 0, err
@@ -267,6 +291,14 @@ func (d *safeDeviceImpl) GetRemappedRows() (int, int, bool, bool, error) {
 	}
 	corrRows, uncorrRows, isPending, failureOccurred, ret := d.nvmlDevice.GetRemappedRows()
 	return corrRows, uncorrRows, isPending, failureOccurred, NewNvmlAPIErrorOrNil("GetRemappedRows", ret)
+}
+
+func (d *safeDeviceImpl) GetRepairStatus() (nvml.RepairStatus, error) {
+	if err := d.lib.lookup(toNativeName("GetRepairStatus")); err != nil {
+		return nvml.RepairStatus{}, err
+	}
+	repairStatus, ret := d.nvmlDevice.GetRepairStatus()
+	return repairStatus, NewNvmlAPIErrorOrNil("GetRepairStatus", ret)
 }
 
 func (d *safeDeviceImpl) GetSamples(samplingType nvml.SamplingType, lastSeenTimestamp uint64) (nvml.ValueType, []nvml.Sample, error) {

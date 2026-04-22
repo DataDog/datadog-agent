@@ -13,10 +13,9 @@ import (
 
 	"go.uber.org/fx"
 
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
+	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
 	"github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
-	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -27,8 +26,7 @@ import (
 func MockModule() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newMock),
-		fx.Provide(func(m agent.Mock) agent.Component { return m }),
-		fx.Supply(option.None[healthplatform.Component]()))
+		fx.Provide(func(m agent.Mock) agent.Component { return m }))
 }
 
 type mockLogsAgent struct {

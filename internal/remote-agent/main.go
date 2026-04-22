@@ -120,10 +120,10 @@ func newRemoteAgentServer() *remoteAgentServer {
 }
 
 // registerWithAgent handles the registration logic with the Core Agent
-func registerWithAgent(agentIpcAddress, agentAuthToken, agentFlavor, displayName, listenAddr string, refreshTicker *time.Ticker) (string, pbcore.AgentSecureClient, error) {
+func registerWithAgent(agentIpcAddress, agentAuthToken, agentFlavor, displayName, listenAddr string, refreshTicker *time.Ticker, cert tls.Certificate) (string, pbcore.AgentSecureClient, error) {
 	log.Println("Session ID is empty, entering registration loop")
 
-	agentClient, err := newAgentSecureClient(agentIpcAddress, agentAuthToken)
+	agentClient, err := newAgentSecureClient(agentIpcAddress, agentAuthToken, cert)
 	if err != nil {
 		log.Printf("failed to create agent client: %v", err)
 		return "", nil, err
@@ -213,11 +213,11 @@ func main() {
 	log.Printf("Spawned remote agent gRPC server on %s.", listenAddr)
 
 	// Wait forever, periodically refreshing our registration.
-	refreshTicker := time.NewTicker(500 * time.Millisecond)
+	refreshTicker := time.NewTicker(1 * time.Second)
 	for range refreshTicker.C {
 		if sessionID == "" {
 			var err error
-			sessionID, agentClient, err = registerWithAgent(agentIpcAddress, agentAuthToken, agentFlavor, displayName, listenAddr, refreshTicker)
+			sessionID, agentClient, err = registerWithAgent(agentIpcAddress, agentAuthToken, agentFlavor, displayName, listenAddr, refreshTicker, tlsCert)
 			if err != nil {
 				continue
 			}
@@ -299,8 +299,10 @@ func buildAndSpawnGrpcServer(listenAddr string, server *remoteAgentServer, authT
 	return nil
 }
 
-func newAgentSecureClient(ipcAddress string, agentAuthToken string) (pbcore.AgentSecureClient, error) {
+func newAgentSecureClient(ipcAddress string, agentAuthToken string, cert tls.Certificate) (pbcore.AgentSecureClient, error) {
 	tlsCreds := credentials.NewTLS(&tls.Config{
+		Certificates: []tls.Certificate{cert},
+		// We don't need to verify the certificate for this test client
 		InsecureSkipVerify: true,
 	})
 

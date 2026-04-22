@@ -8,6 +8,7 @@ package autoconnections
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -80,6 +81,10 @@ func buildConnectionRequest(definition ConnectionDefinition, runnerID, runnerNam
 }
 
 func (c *ConnectionsClient) CreateConnection(ctx context.Context, definition ConnectionDefinition, runnerID, runnerName string, tags []string) error {
+	if c.appKey == "" {
+		return errors.New("app key is required to create connections")
+	}
+
 	reqBody := buildConnectionRequest(definition, runnerID, runnerName, tags)
 
 	body, err := jsonapi.Marshal(reqBody, jsonapi.MarshalClientMode())

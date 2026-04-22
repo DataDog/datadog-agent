@@ -14,6 +14,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cenkalti/backoff/v5"
+
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -33,6 +35,9 @@ var (
 const (
 	hostnameStyleSetting      = "azure_hostname_style"
 	metadataAPIVersionSetting = "azure_metadata_api_version"
+
+	hostnameFetchInitialInterval = 500 * time.Millisecond
+	hostnameFetchMaxElapsedTime  = 3 * time.Second
 )
 
 // GetMetadataAPIVersion returns the Azure metadata API version query parameter used by the agent
@@ -79,16 +84,21 @@ var resourceGroupNameFetcher = cachedfetch.Fetcher{
 }
 
 // GetClusterName returns the name of the cluster containing the current VM by parsing the resource group name.
-// It expects the resource group name to have the format (MC|mc)_resource-group_cluster-name_zone
+
 func GetClusterName(ctx context.Context) (string, error) {
 	all, err := resourceGroupNameFetcher.FetchString(ctx)
 	if err != nil {
 		return "", err
 	}
 
-	splitAll := strings.Split(all, "_")
+	return ParseClusterNameFromResourceGroup(all)
+}
+
+// ParseClusterNameFromResouceGroup expects the rg name to have the format (MC|mc)_resource-group_cluster-name_zone
+func ParseClusterNameFromResourceGroup(rg string) (string, error) {
+	splitAll := strings.Split(rg, "_")
 	if len(splitAll) < 4 || strings.ToLower(splitAll[0]) != "mc" {
-		return "", fmt.Errorf("cannot parse the clustername from resource group name: %s", all)
+		return "", fmt.Errorf("cannot parse the clustername from resource group name: %s", rg)
 	}
 
 	return splitAll[len(splitAll)-2], nil
@@ -158,6 +168,19 @@ var instanceMetaFetcher = cachedfetch.Fetcher{
 	},
 }
 
+func fetchInstanceMetadataWithRetry(ctx context.Context) (string, error) {
+	if !configutils.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
+		return instanceMetaFetcher.FetchString(ctx)
+	}
+
+	expBackoff := backoff.NewExponentialBackOff()
+	expBackoff.InitialInterval = hostnameFetchInitialInterval
+
+	return backoff.Retry(ctx, func() (string, error) {
+		return instanceMetaFetcher.FetchString(ctx)
+	}, backoff.WithBackOff(expBackoff), backoff.WithMaxElapsedTime(hostnameFetchMaxElapsedTime))
+}
+
 func getHostnameWithConfig(ctx context.Context, config model.Config) (string, error) {
 	style := config.GetString(hostnameStyleSetting)
 
@@ -165,7 +188,7 @@ func getHostnameWithConfig(ctx context.Context, config model.Config) (string, er
 		return "", errors.New("azure_hostname_style is set to 'os'")
 	}
 
-	metadataJSON, err := instanceMetaFetcher.FetchString(ctx)
+	metadataJSON, err := fetchInstanceMetadataWithRetry(ctx)
 	if err != nil {
 		return "", err
 	}

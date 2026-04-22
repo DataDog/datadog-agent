@@ -13,9 +13,9 @@ import (
 	"strings"
 	"sync"
 
+	yaml "go.yaml.in/yaml/v2"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
-	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -105,6 +105,9 @@ func (s *CheckScheduler) Schedule(configs []integration.Config) {
 
 // Unschedule unschedules checks matching configs
 func (s *CheckScheduler) Unschedule(configs []integration.Config) {
+	s.m.Lock()
+	defer s.m.Unlock()
+
 	for _, config := range configs {
 		if !config.IsCheckConfig() {
 			// skip non check

@@ -26,12 +26,13 @@ func (server *apiServer) startCMDServer(
 	tmf observability.TelemetryMiddlewareFactory,
 ) (err error) {
 	// get the transport we're going to use under HTTP
-	server.cmdListener, err = listener.GetListener(cmdAddr)
+	cmdListener, err := listener.GetListener(cmdAddr)
 	if err != nil {
 		// we use the listener to handle commands for the Agent, there's
 		// no way we can recover from this error
 		return fmt.Errorf("unable to listen to address %s: %v", cmdAddr, err)
 	}
+	server.cmdAddr = cmdListener.Addr()
 
 	// gRPC server
 	grpcServer := server.grpcComponent.BuildServer()
@@ -42,6 +43,9 @@ func (server *apiServer) startCMDServer(
 
 	// Validate token for every request
 	agentMux.Use(server.ipc.HTTPMiddleware)
+	// Fill route template captures for the telemetry middleware (reduces metric cardinality).
+	// Pass "/agent" to preserve the full path since agentMux is mounted via http.StripPrefix("/agent", ...).
+	agentMux.Use(observability.CaptureRouteTemplateMiddlewareWithPrefix("/agent"))
 
 	cmdMux := http.NewServeMux()
 	cmdMux.Handle(
@@ -68,7 +72,8 @@ func (server *apiServer) startCMDServer(
 		srv = helpers.NewMuxedGRPCServer(cmdAddr, tlsConfig, grpcServer, cmdMuxHandler, time.Duration(server.cfg.GetInt64("server_timeout"))*time.Second)
 	}
 
-	startServer(server.cmdListener, srv, cmdServerName)
+	server.cmdServer = srv
+	startServer(cmdListener, srv, cmdServerName)
 
 	return nil
 }

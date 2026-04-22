@@ -8,7 +8,6 @@
 package com_datadoghq_script
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -79,30 +78,28 @@ func (h *RunPredefinedScriptHandler) Run(
 	if err != nil {
 		return nil, fmt.Errorf("invalid command arguments: %w", err)
 	}
-	var stdoutBuffer bytes.Buffer
-	cmd.Stdout = &stdoutBuffer
-	var stderrBuffer bytes.Buffer
-	cmd.Stderr = &stderrBuffer
+	stdoutWriter, stderrWriter := newLimitedStdoutStderrWritersPair(defaultMaxOutputSize)
+	cmd.Stdout = stdoutWriter
+	cmd.Stderr = stderrWriter
 	start := time.Now()
 	err = cmd.Run()
 
-	const maxOutputSize = 10 * 1024 * 1024 // 10MB
-	if stdoutBuffer.Len()+stderrBuffer.Len() > maxOutputSize {
-		return nil, errors.New("script output exceeded 10MB limit")
+	if stdoutWriter.LimitReached() || stderrWriter.LimitReached() {
+		return nil, newOutputLimitError(defaultMaxOutputSize)
 	}
 
 	if err != nil && !inputs.NoFailOnError {
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			return nil, fmt.Errorf("script execution timed out after %d seconds", inputs.Timeout)
 		}
-		return nil, fmt.Errorf("failed to execute command: %w, stderr %s", err, stderrBuffer.String())
+		return nil, fmt.Errorf("failed to execute command: %w, stderr %s", err, stderrWriter.String())
 	}
 
 	return &RunPredefinedScriptOutputs{
 		ExecutedCommand: cmd.String(),
 		ExitCode:        cmd.ProcessState.ExitCode(),
-		Stdout:          formatOutput(stdoutBuffer.String(), inputs.NoStripTrailingNewline),
-		Stderr:          formatOutput(stderrBuffer.String(), inputs.NoStripTrailingNewline),
+		Stdout:          formatOutput(stdoutWriter.String(), inputs.NoStripTrailingNewline),
+		Stderr:          formatOutput(stderrWriter.String(), inputs.NoStripTrailingNewline),
 		DurationMillis:  int(time.Since(start).Milliseconds()),
 	}, nil
 }

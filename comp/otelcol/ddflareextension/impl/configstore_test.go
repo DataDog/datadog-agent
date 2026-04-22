@@ -41,7 +41,7 @@ import (
 	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
 	"go.opentelemetry.io/collector/otelcol"
 	"go.opentelemetry.io/collector/service/telemetry/otelconftelemetry"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 )
 
 var datadogConnectorType = component.MustNewType("datadog")

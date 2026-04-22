@@ -35,7 +35,6 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	secretfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -45,6 +44,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
+	healthplatformnoopfx "github.com/DataDog/datadog-agent/comp/healthplatform/fx-noop"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/cli/standalone"
@@ -117,8 +117,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		return fxutil.OneShot(callback,
 			fx.Supply(cliParams),
 			fx.Supply(params),
-			core.Bundle(),
-			secretfx.Module(),
+			core.Bundle(core.WithSecrets()),
 			// workloadmeta setup
 			wmcatalog.GetCatalog(),
 			workloadmetafx.Module(defaults.DefaultParams()),
@@ -127,6 +126,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			workloadfilterfx.Module(),
 			dualTaggerfx.Module(common.DualTaggerParams()),
 			autodiscoveryimpl.Module(),
+			healthplatformnoopfx.Module(),
 			agent.Bundle(jmxloggerimpl.NewCliParams(cliParams.logFile)),
 			// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
 			// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.

@@ -17,6 +17,7 @@ import (
 
 	"github.com/cenkalti/backoff/v5"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	publishermetadatacache "github.com/DataDog/datadog-agent/comp/publishermetadatacache/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
@@ -24,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/util/windowsevent"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 	winevtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api/windows"
@@ -116,7 +116,7 @@ func (t *Tailer) toMessage(m *windowsevent.Map) (*message.Message, error) {
 }
 
 // Start starts tailing the event log.
-func (t *Tailer) Start(bookmark string) {
+func (t *Tailer) Start() {
 	log.Infof("Starting windows event log tailing for channel %s query %s", t.config.ChannelPath, t.config.Query)
 	t.doneTail = make(chan struct{})
 	t.done = make(chan struct{})
@@ -125,6 +125,8 @@ func (t *Tailer) Start(bookmark string) {
 	t.registry.SetTailed(t.Identifier(), true)
 	go t.forwardMessages()
 	t.decoder.Start()
+	// Load initial bookmark from registry; the subscription start loop will handle initialization and retries.
+	bookmark := t.registry.GetOffset(t.Identifier())
 	go t.tail(ctx, bookmark)
 }
 
@@ -149,6 +151,12 @@ func (t *Tailer) forwardMessages() {
 	}()
 
 	for decodedMessage := range t.decoder.OutputChan() {
+		// This tailer produces StateStructured messages where "message" is
+		// populated from the rendered Windows Event text. Currently, events
+		// with empty rendered text are silently dropped here -- the structured
+		// metadata (Event XML attributes, channel, provider, etc.) is discarded
+		// along with it. If that becomes a real concern, replace this check
+		// with decodedMessage.HasContent() (see stream_tailer.go).
 		if len(decodedMessage.GetContent()) > 0 {
 			// Leverage the existing message instead of creating a new one
 			// This preserves all bookmark information and is more efficient

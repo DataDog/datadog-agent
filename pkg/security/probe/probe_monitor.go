@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/cgroups"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/discarder"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/dns"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/eventsample"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/syscalls"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -34,6 +35,7 @@ type EBPFMonitors struct {
 	approverMonitor    *approver.Monitor
 	syscallsMonitor    *syscalls.Monitor
 	dnsMonitor         *dns.Monitor
+	eventSampleMonitor *eventsample.Monitor
 }
 
 // NewEBPFMonitors returns a new instance of a ProbeMonitor
@@ -77,6 +79,11 @@ func (m *EBPFMonitors) Init() error {
 		if err != nil {
 			return fmt.Errorf("couldn't create the DNS monitor: %w", err)
 		}
+	}
+
+	m.eventSampleMonitor, err = eventsample.NewEventSampleMonitor(p.Manager, p.statsdClient)
+	if err != nil {
+		return fmt.Errorf("couldn't create the event sample monitor: %w", err)
 	}
 
 	return nil
@@ -159,6 +166,10 @@ func (m *EBPFMonitors) SendStats() error {
 		if err := m.syscallsMonitor.SendStats(); err != nil {
 			return fmt.Errorf("failed to send evaluation set stats: %w", err)
 		}
+	}
+
+	if err := m.eventSampleMonitor.SendStats(); err != nil {
+		return fmt.Errorf("failed to send event sample stats: %w", err)
 	}
 
 	return nil

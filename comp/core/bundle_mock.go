@@ -21,10 +21,11 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -38,7 +39,8 @@ func makeMockBundle(logParams, logger fx.Option) fxutil.BundleOptions {
 		logger,
 		fx.Provide(func(params BundleParams) sysprobeconfigimpl.Params { return params.SysprobeConfigParams }),
 		sysprobeconfigimpl.MockModule(),
-		telemetryimpl.MockModule(),
+		mocktelemetry.Module(),
+		fx.Provide(delegatedauthmock.New),
 	)
 }
 

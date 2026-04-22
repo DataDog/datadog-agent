@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux
-
 // Package converters implements OTEL collector configuration converters for the host profiler.
 //
 // Converters normalize user-provided OTEL collector configs by adding required Datadog-specific
@@ -17,23 +15,15 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"go.opentelemetry.io/collector/confmap"
+	"go.opentelemetry.io/collector/confmap/xconfmap"
 )
 
 // NewFactoryWithoutAgent returns a new converterWithoutAgent factory.
 func NewFactoryWithoutAgent() confmap.ConverterFactory {
 	return confmap.NewConverterFactory(newConverterWithoutAgent)
-}
-
-// NewFactoryWithAgent returns a new converterWithAgent factory.
-func NewFactoryWithAgent(c config.Component) confmap.ConverterFactory {
-	newConverterWithAgentWrapper := func(settings confmap.ConverterSettings) confmap.Converter {
-		return newConverterWithAgent(settings, c)
-	}
-
-	return confmap.NewConverterFactory(newConverterWithAgentWrapper)
 }
 
 type confMap = map[string]any
@@ -42,7 +32,7 @@ type confMap = map[string]any
 const (
 	componentTypeInfraAttributes   = "infraattributes"
 	componentTypeResourceDetection = "resourcedetection"
-	componentTypeHostProfiler      = "hostprofiler"
+	componentTypeProfiling         = "profiling"
 	componentTypeOtlpHTTP          = "otlphttp"
 	componentTypeDDProfiling       = "ddprofiling"
 	componentTypeHPFlare           = "hpflare"
@@ -52,7 +42,15 @@ const (
 const (
 	defaultInfraAttributesName   = "infraattributes/default"
 	defaultResourceDetectionName = "resourcedetection/default"
-	defaultHostProfilerName      = "hostprofiler"
+	defaultProfilingName         = "profiling"
+)
+
+// Reserved component names for internal metrics pipeline
+const (
+	reservedPrometheusReceiver         = "prometheus/dd-hp-internal"
+	reservedFilterProcessor            = "filter/dd-hp-drop-internal"
+	reservedCumulativeToDeltaProcessor = "cumulativetodelta/dd-hp-internal"
+	internalHealthMetricsPipelineName  = "metrics/profiler-internal-health"
 )
 
 // Configuration paths used multiple times across converters
@@ -63,10 +61,11 @@ const (
 
 // Configuration field names used multiple times
 const (
-	fieldAllowHostnameOverride = "allow_hostname_override"
-	fieldDDAPIKey              = "dd-api-key"
-	fieldAPIKey                = "api_key"
-	fieldAppKey                = "app_key"
+	fieldDDAPIKey           = "dd-api-key"
+	fieldDDEVPOrigin        = "dd-evp-origin"
+	fieldDDEVPOriginVersion = "dd-evp-origin-version"
+	fieldAPIKey             = "api_key"
+	fieldAppKey             = "app_key"
 )
 
 // OTEL config path prefixes
@@ -78,7 +77,7 @@ const (
 
 // isComponentType checks if a component name matches a specific type.
 // OTEL components follow the naming convention: "type" or "type/id"
-// Examples: "otlphttp", "otlphttp/prod", "hostprofiler/custom"
+// Examples: "otlphttp", "otlphttp/prod", "profiling/custom"
 func isComponentType(name, componentType string) bool {
 	return name == componentType || strings.HasPrefix(name, componentType+"/")
 }
@@ -222,6 +221,9 @@ func ensureKeyStringValue(config confMap, key string) bool {
 		slog.Debug("converting value to string", slog.String("key", key), slog.String("type", fmt.Sprintf("%T", val)))
 		config[key] = fmt.Sprintf("%v", v)
 		return true
+	case xconfmap.ExpandedValue:
+		// ExpandedValues should not be altered at conversion stage
+		return true
 	default:
 		slog.Warn("API key has unexpected type, cannot convert", slog.String("key", key), slog.String("type", fmt.Sprintf("%T", val)))
 		return false
@@ -273,4 +275,67 @@ func addProfilerMetadataTags(conf confMap, profilesProcessors []any) ([]any, err
 	}
 
 	return append(profilesProcessors, resourceProcessorName), nil
+}
+
+// inferMetricsEndpoint derives OTLP metrics endpoint from profiles endpoint.
+// Transforms profile intake URLs to OTLP metrics endpoints by extracting the site.
+//
+// Examples:
+//   - "https://intake.profile.us3.datadoghq.com/v1development/profiles" -> "https://otlp.us3.datadoghq.com/v1/metrics"
+//   - "https://intake.profile.datadoghq.com/v1development/profiles" -> "https://otlp.datadoghq.com/v1/metrics"
+//
+// Returns an error if the URL cannot be parsed or if the site cannot be extracted.
+func inferMetricsEndpoint(profilesEndpoint string) (string, error) {
+	site := configutils.ExtractSiteFromURL(profilesEndpoint)
+	if site == "" {
+		return "", fmt.Errorf("cannot extract site from URL: %s", profilesEndpoint)
+	}
+
+	return fmt.Sprintf("https://otlp.%s/v1/metrics", site), nil
+}
+
+// PrometheusReceiverConfig returns the default configuration for the internal prometheus receiver
+// that scrapes OTel collector's internal telemetry metrics from 127.0.0.1:8889.
+func PrometheusReceiverConfig() map[string]any {
+	return PrometheusReceiverConfigWithTarget("127.0.0.1:8889")
+}
+
+// PrometheusReceiverConfigWithTarget returns a prometheus receiver config that scrapes the given target.
+func PrometheusReceiverConfigWithTarget(target string) map[string]any {
+	return confMap{
+		"config": confMap{
+			"scrape_configs": []any{
+				confMap{
+					"job_name":                      "host-profiler-internal",
+					"metric_name_validation_scheme": "legacy",
+					"metric_name_escaping_scheme":   "underscores",
+					"scrape_interval":               "60s",
+					"scrape_protocols":              []any{"PrometheusText0.0.4"},
+					"fallback_scrape_protocol":      "PrometheusText0.0.4",
+					"static_configs": []any{
+						confMap{
+							"targets": []any{target},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+// FilterProcessorConfig returns the default configuration for the filter processor
+// that drops internal prometheus scrape metrics from being exported.
+func FilterProcessorConfig() map[string]any {
+	return confMap{
+		"metrics": confMap{
+			"exclude": confMap{
+				"match_type": "regexp",
+				"metric_names": []any{
+					"^scrape_.*$",                            // Prometheus scraper timing metrics
+					"^up$",                                   // Scraper up/down status
+					"^promhttp_metric_handler_errors_total$", // Prometheus HTTP handler errors
+				},
+			},
+		},
+	}
 }

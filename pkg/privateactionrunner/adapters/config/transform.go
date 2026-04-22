@@ -13,16 +13,20 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 func FromDDConfig(config config.Component) (*Config, error) {
-	ddSite := config.GetString("site")
+	mainEndpoint := configutils.GetMainEndpoint(config, "https://api.", "dd_url")
+	ddHost := getDatadogHost(mainEndpoint)
+	ddSite := configutils.ExtractSiteFromURL(mainEndpoint)
 	encodedPrivateKey := config.GetString(setup.PARPrivateKey)
 	urn := config.GetString(setup.PARUrn)
 
@@ -81,8 +85,10 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		ActionsAllowlist:          makeActionsAllowlist(config),
 		Allowlist:                 config.GetStringSlice(setup.PARHttpAllowlist),
 		AllowIMDSEndpoint:         config.GetBool(setup.PARHttpAllowImdsEndpoint),
-		DDHost:                    strings.Join([]string{"api", ddSite}, "."),
-		DDApiHost:                 strings.Join([]string{"api", ddSite}, "."),
+		RShellAllowedPaths:        rshellAllowedPaths(config),
+		RShellAllowedCommands:     rshellAllowedCommands(config),
+		DDHost:                    ddHost,
+		DDApiHost:                 "api." + ddSite,
 		Modes:                     []modes.Mode{modes.ModePull},
 		OrgId:                     orgID,
 		PrivateKey:                privateKey,
@@ -95,6 +101,15 @@ func FromDDConfig(config config.Component) (*Config, error) {
 func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 	allowlist := make(map[string]sets.Set[string])
 	actionFqns := config.GetStringSlice(setup.PARActionsAllowlist)
+
+	if config.GetBool(setup.PARDefaultActionsEnabled) {
+		if flavor.GetFlavor() == flavor.ClusterAgent {
+			actionFqns = append(actionFqns, DefaultClusterAgentActionFQNs...)
+		} else {
+			actionFqns = append(actionFqns, DefaultActionFQNs...)
+		}
+	}
+
 	for _, fqn := range actionFqns {
 		bundleName, actionName := actions.SplitFQN(fqn)
 		previous, ok := allowlist[bundleName]
@@ -112,22 +127,58 @@ func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 	return allowlist
 }
 
+// rshellAllowedCommands returns the operator-configured rshell command
+// allowlist, or nil when the operator did not configure one. Nil signals
+// "pass-through" so the handler forwards the backend list unchanged.
+func rshellAllowedCommands(config config.Component) []string {
+	if !config.IsConfigured(setup.PARRestrictedShellAllowedCommands) {
+		return nil
+	}
+	return config.GetStringSlice(setup.PARRestrictedShellAllowedCommands)
+}
+
+// rshellAllowedPaths mirrors rshellAllowedCommands for the filesystem
+// allowlist. Nil means "operator unset" — the handler will pass the backend
+// list through unchanged rather than tightening to an empty intersection.
+func rshellAllowedPaths(config config.Component) []string {
+	if !config.IsConfigured(setup.PARRestrictedShellAllowedPaths) {
+		return nil
+	}
+	return config.GetStringSlice(setup.PARRestrictedShellAllowedPaths)
+}
+
+// getDatadogHost extracts and normalizes the Datadog host from the main endpoint.
+// It removes the "https://" prefix and any trailing "." from the endpoint URL.
+func getDatadogHost(endpoint string) string {
+	host := strings.TrimSuffix(endpoint, ".")
+	host = strings.TrimPrefix(host, "https://")
+	return host
+}
+
 func GetBundleInheritedAllowedActions(actionsAllowlist map[string]sets.Set[string]) map[string]sets.Set[string] {
 	result := make(map[string]sets.Set[string])
 
-	for _, specialAction := range BundleInheritedAllowedActions {
-		specialBundleID, specialActionName := actions.SplitFQN(specialAction)
-		specialBundleID = strings.ToLower(specialBundleID)
+	for _, inheritedAction := range BundleInheritedAllowedActions {
+		actionBundleID, actionName := actions.SplitFQN(inheritedAction.ActionFQN)
+		actionBundleID = strings.ToLower(actionBundleID)
+		prefix := strings.ToLower(inheritedAction.ExpectedPrefix)
 
-		actionsSet, ok := actionsAllowlist[specialBundleID]
-		if !ok || actionsSet.Len() == 0 {
+		matched := false
+		for bundleID, actionsSet := range actionsAllowlist {
+			if actionsSet.Len() > 0 && strings.HasPrefix(bundleID, prefix) {
+				matched = true
+				break
+			}
+		}
+
+		if !matched {
 			continue
 		}
 
-		if _, exists := result[specialBundleID]; !exists {
-			result[specialBundleID] = sets.New[string]()
+		if _, exists := result[actionBundleID]; !exists {
+			result[actionBundleID] = sets.New[string]()
 		}
-		result[specialBundleID].Insert(specialActionName)
+		result[actionBundleID].Insert(actionName)
 	}
 
 	return result

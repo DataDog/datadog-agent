@@ -23,7 +23,7 @@ import (
 	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
-	"github.com/DataDog/gopsutil/host"
+	"github.com/shirou/gopsutil/v4/host"
 	"golang.org/x/sys/unix"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"

@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/fields"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
@@ -189,14 +190,57 @@ func (s *cspmTestSuite) TestFindings() {
 	})
 	require.NoError(s.T(), err)
 	require.Len(s.T(), res.Items, 1)
-	agentPod := res.Items[0]
-	_, _, err = s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agentPod.Name, "security-agent", []string{"security-agent", "compliance", "check", "--dump-reports", "/tmp/reports", "--report"})
+	agentPodName := s.waitForSecurityAgentPodReady("datadog", res.Items[0].Name)
+	_, _, err = s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agentPodName, "security-agent", []string{"security-agent", "compliance", "check", "--dump-reports", "/tmp/reports", "--report"})
 	require.NoError(s.T(), err)
-	dumpContent, _, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agentPod.Name, "security-agent", []string{"cat", "/tmp/reports"})
+	dumpContent, _, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agentPodName, "security-agent", []string{"cat", "/tmp/reports"})
 	require.NoError(s.T(), err)
 	findings, err := parseFindingOutput(dumpContent)
 	require.NoError(s.T(), err)
 	s.checkFindings(findings, mergeFindings(expectedFindingsMasterEtcdNode, expectedFindingsWorkerNode))
+}
+
+func (s *cspmTestSuite) waitForSecurityAgentPodReady(namespace, podName string) string {
+	s.T().Helper()
+
+	var selectedPodName string
+	require.Eventuallyf(s.T(), func() bool {
+		pod, err := s.Env().KubernetesCluster.Client().CoreV1().Pods(namespace).Get(context.Background(), podName, metav1.GetOptions{})
+		if err != nil {
+			s.T().Logf("unable to get pod %s: %v", podName, err)
+			return false
+		}
+		if !podHasContainer(pod, "security-agent") {
+			s.T().Logf("pod %s does not contain security-agent yet", pod.Name)
+			return false
+		}
+		if !isContainerReady(pod, "security-agent") {
+			s.T().Logf("security-agent container is not ready yet in pod %s", pod.Name)
+			return false
+		}
+		selectedPodName = pod.Name
+		return true
+	}, 3*time.Minute, 5*time.Second, "security-agent container was not ready in pod %s", podName)
+
+	return selectedPodName
+}
+
+func podHasContainer(pod *corev1.Pod, containerName string) bool {
+	for _, container := range pod.Spec.Containers {
+		if container.Name == containerName {
+			return true
+		}
+	}
+	return false
+}
+
+func isContainerReady(pod *corev1.Pod, containerName string) bool {
+	for _, status := range pod.Status.ContainerStatuses {
+		if status.Name == containerName {
+			return status.Ready
+		}
+	}
+	return false
 }
 
 func (s *cspmTestSuite) TestMetrics() {
@@ -204,9 +248,7 @@ func (s *cspmTestSuite) TestMetrics() {
 	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 
 		metrics, err := s.Env().FakeIntake.Client().FilterMetrics("datadog.security_agent.compliance.running")
-		if !assert.NoError(c, err) {
-			return
-		}
+		require.NoError(c, err)
 		if assert.NotEmpty(c, metrics) {
 			s.T().Log("Metrics found: datadog.security_agent.compliance.running")
 		}
@@ -215,9 +257,7 @@ func (s *cspmTestSuite) TestMetrics() {
 	s.T().Log("Waiting for datadog.security_agent.compliance.containers_running metrics")
 	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		metrics, err := s.Env().FakeIntake.Client().FilterMetrics("datadog.security_agent.compliance.containers_running")
-		if !assert.NoError(c, err) {
-			return
-		}
+		require.NoError(c, err)
 		if assert.NotEmpty(c, metrics) {
 			s.T().Log("Metrics found: datadog.security_agent.compliance.containers_running")
 		}

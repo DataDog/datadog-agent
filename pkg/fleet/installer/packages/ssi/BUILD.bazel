@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "ssi",
+    srcs = [
+        "status.go",
+        "status_unix.go",
+        "status_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/ssi",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/winutil",
+            "@org_golang_x_sys//windows",
+            "@org_golang_x_sys//windows/registry",
+        ],
+        "//conditions:default": [],
+    }),
+)

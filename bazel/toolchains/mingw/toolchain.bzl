@@ -11,7 +11,7 @@ load(
     "tool_path",
 )
 load("@rules_cc//cc:action_names.bzl", "ACTION_NAMES")
-load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
+load("@rules_cc//cc:defs.bzl", "CcToolchainConfigInfo", "cc_common")
 
 def _impl(ctx):
     tools = [

@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Add ``X-Datadog-Additional-Tags`` header with hostname and agent version to data-streams-message HTTP requests.

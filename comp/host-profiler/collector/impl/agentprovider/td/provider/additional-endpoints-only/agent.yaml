@@ -1,0 +1,4 @@
+apm_config:
+  profiling_additional_endpoints:
+    https://intake.profile.datadoghq.eu/api/v2/profile:
+      - eu_key_1

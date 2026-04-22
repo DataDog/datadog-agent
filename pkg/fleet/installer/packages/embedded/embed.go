@@ -30,6 +30,11 @@ var ScriptDDHostInstall []byte
 //go:embed tmpl/gen/debrpm/*.service
 var systemdUnits embed.FS
 
+// DDOTProcessConfig is the rendered process manager config for DDOT (deb/rpm layout).
+//
+//go:embed tmpl/gen/debrpm/datadog-agent-ddot.yaml
+var DDOTProcessConfig string
+
 // SystemdUnitType is the type of systemd unit.
 type SystemdUnitType string
 

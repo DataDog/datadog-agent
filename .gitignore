@@ -10,6 +10,7 @@ bin/
 __pycache__
 .pytest_cache
 venv*/
+target
 
 **/*.tmp
 **/debug.test
@@ -87,7 +88,7 @@ auth_token
 /test/e2e/scripts/setup-instance/ignition.json
 /test/e2e/containers/fake_datadog/venv/
 /e2e-output
-/pkg/logs/pipeline/registry.json
+/comp/logs-library/pipeline/registry.json
 
 # local copy of device signing cert
 platform.pk8
@@ -97,6 +98,9 @@ pkg/trace/info/git_version.go
 
 # process agent test artifacts
 pkg/process/config/logs
+
+# sd-agent
+/pkg/discovery/module/rust/sd-agent
 
 # sysprobe artifacts
 **/.ninja_log
@@ -134,6 +138,7 @@ pkg/ebpf/bytecode/build/
 
 # CGo generated object files
 **/_obj/*.o
+**/_cgo_*.o
 
 # windows container build output
 build.out/
@@ -151,10 +156,10 @@ packer.json
 devenv/iso
 devenv/output-virtualbox-iso/
 devenv/packer_cache
-test_output.json
+test_output*.json
 module_test_output.json
 e2e_test_output.json
-e2e_test_output.json.*.part
+e2e_test_output*.json.*.part
 junit-out-AgentFlavor.base-*.xml
 
 # doxygen doc & error log
@@ -185,8 +190,10 @@ pkg/network/netlink/testdata/message_dump*
 cscope.out
 
 tools/windows/DatadogAgentInstaller/.vs/
+tools/windows/DatadogAgentInstaller/obj/
 tools/windows/DatadogAgentInstaller/packages/
 tools/windows/DatadogAgentInstaller/WixSetup/cabcache/
+
 *.wixobj
 *.obj
 *.g.wxs
@@ -208,7 +215,7 @@ test/new-e2e/system-probe/test-runner/test-runner
 test/new-e2e/start-microvms
 
 # trace-agent generates install.json files during tests
-pkg/serverless/trace/install.json
+pkg/serverless/trace/**/install.json
 
 # Files used for eBPF complexity analysis
 ebpf-calculator
@@ -232,6 +239,13 @@ CLAUDE_PERSONAL.md
 # Claude local settings and overrides
 **/.claude/settings.local.json
 **/CLAUDE.local.md
+
+# Claude Code auto-jira work tracking (local only, never commit)
+AUTO_JIRA.md
+.claude/skills/auto-jira/SKILL.notes.md
+
+# Claude Code worktrees (local development, not for repo)
+.claude/worktrees/
 
 # Zed config
 .zed

@@ -13,7 +13,7 @@ import (
 
 	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"

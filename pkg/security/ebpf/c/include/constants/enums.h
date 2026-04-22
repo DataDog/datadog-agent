@@ -74,6 +74,8 @@ enum event_type
     FAILED_DNS,
     EVENT_TRACER_MEMFD_CREATE,
     EVENT_TRACER_MEMFD_SEAL,
+    EVENT_PIVOT_ROOT,
+    EVENT_SETSID,
     EVENT_NOP,
     EVENT_MAX, // has to be the last one
 
@@ -128,6 +130,8 @@ enum SYSCALL_STATE
     ACCEPTED = 0,    // approved and can't be discarded later
     APPROVED,        // approved but can be discarded later
     DISCARDED,       // discarded
+    SAMPLED,         // sampled
+    INTERNAL,        // internal event
 };
 
 enum MONITOR_KEYS
@@ -135,7 +139,8 @@ enum MONITOR_KEYS
     ERPC_MONITOR_KEY = 1,
     DISCARDER_MONITOR_KEY,
     APPROVER_MONITOR_KEY,
-    DNS_FILTERED_KEY
+    DNS_FILTERED_KEY,
+    EVENT_SAMPLE_MONITOR_KEY
 };
 
 enum tls_format
@@ -226,6 +231,7 @@ enum erpc_op
     GET_RINGBUF_USAGE,
     USER_SESSION_CONTEXT_OP,
     PRCTL_DISCARDER,
+    AUID_DISCARDER,
     NOP_EVENT_OP,
 };
 
@@ -258,6 +264,7 @@ enum mount_source_t
     SOURCE_FSMOUNT,
     SOURCE_OPEN_TREE,
     SOURCE_MOVE_MOUNT,
+    SOURCE_PIVOT_ROOT,
 };
 
 #endif

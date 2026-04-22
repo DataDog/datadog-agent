@@ -9,7 +9,6 @@ package logging
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	ddlog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -43,6 +42,17 @@ type Logger interface {
 // loggerAdapter adapts datadog-agent logging to the original logging interface
 type loggerAdapter struct {
 	contextFields []Field
+}
+
+// fieldsToContext converts Field slices into the alternating key-value []interface{}
+// expected by ddlog.*c functions.
+func fieldsToContext(contextFields []Field, fields []Field) []interface{} {
+	all := append(contextFields, fields...)
+	ctx := make([]interface{}, 0, len(all)*2)
+	for _, f := range all {
+		ctx = append(ctx, f.Key, f.Value)
+	}
+	return ctx
 }
 
 // FromContext returns the logger from ctx, or a new logger if none exists.
@@ -101,48 +111,14 @@ func Any(key string, value interface{}) Field {
 	return Field{Key: key, Value: value}
 }
 
+// Duration creates a duration field
 func Duration(key string, value time.Duration) Field {
 	return Field{Key: key, Value: value}
 }
 
-// formatMessage combines message with fields into a formatted string
-func (l *loggerAdapter) formatMessage(msg string, fields ...Field) string {
-	allFields := append(l.contextFields, fields...)
-	if len(allFields) == 0 {
-		return msg
-	}
-
-	var parts []string
-	var err error
-	hasError := false
-
-	for _, field := range allFields {
-		if field.Key == "error" {
-			if e, ok := field.Value.(error); ok {
-				err = e
-				hasError = true
-				continue
-			}
-		}
-		parts = append(parts, fmt.Sprintf("%s=%v", field.Key, field.Value))
-	}
-
-	if hasError && err != nil {
-		if len(parts) > 0 {
-			return fmt.Sprintf("%s: %v (%s)", msg, err, strings.Join(parts, " "))
-		}
-		return fmt.Sprintf("%s: %v", msg, err)
-	}
-
-	if len(parts) > 0 {
-		return fmt.Sprintf("%s (%s)", msg, strings.Join(parts, " "))
-	}
-	return msg
-}
-
 // Debug logs at debug level
 func (l *loggerAdapter) Debug(msg string, fields ...Field) {
-	ddlog.Debug(l.formatMessage(msg, fields...))
+	ddlog.Debugc(msg, fieldsToContext(l.contextFields, fields)...)
 }
 
 // Debugf logs at debug level with format
@@ -152,7 +128,7 @@ func (l *loggerAdapter) Debugf(format string, args ...interface{}) {
 
 // Info logs at info level
 func (l *loggerAdapter) Info(msg string, fields ...Field) {
-	ddlog.Info(l.formatMessage(msg, fields...))
+	ddlog.Infoc(msg, fieldsToContext(l.contextFields, fields)...)
 }
 
 // Infof logs at info level with format
@@ -162,7 +138,7 @@ func (l *loggerAdapter) Infof(format string, args ...interface{}) {
 
 // Warn logs at warn level
 func (l *loggerAdapter) Warn(msg string, fields ...Field) {
-	ddlog.Warn(l.formatMessage(msg, fields...))
+	_ = ddlog.Warnc(msg, fieldsToContext(l.contextFields, fields)...)
 }
 
 // Warnf logs at warn level with format
@@ -172,7 +148,7 @@ func (l *loggerAdapter) Warnf(format string, args ...interface{}) {
 
 // Error logs at error level
 func (l *loggerAdapter) Error(msg string, fields ...Field) {
-	ddlog.Error(l.formatMessage(msg, fields...))
+	_ = ddlog.Errorc(msg, fieldsToContext(l.contextFields, fields)...)
 }
 
 // Errorf logs at error level with format
@@ -231,9 +207,9 @@ func Errorf(format string, args ...interface{}) {
 	ddlog.Errorf(format, args...)
 }
 
-// Critical logs at critical level (maps to datadog-agent Critical)
+// Critical logs at critical level
 func Critical(msg string, fields ...Field) {
-	ddlog.Critical(defaultLogger.formatMessage(msg, fields...))
+	_ = ddlog.Criticalc(msg, fieldsToContext(nil, fields)...)
 }
 
 // Criticalf logs at critical level with format
@@ -241,30 +217,26 @@ func Criticalf(format string, args ...interface{}) {
 	ddlog.Criticalf(format, args...)
 }
 
-// Fatal logs at fatal level then exits (maps to Critical + exit)
+// Fatal logs at fatal level (maps to Critical; agent Critical does not exit)
 func Fatal(msg string, fields ...Field) {
-	ddlog.Critical(defaultLogger.formatMessage(msg, fields...))
-	// Note: datadog-agent's Critical doesn't exit, so this behavior differs
-	// The sync process or usage sites may need to handle this
+	_ = ddlog.Criticalc(msg, fieldsToContext(nil, fields)...)
 }
 
-// Fatalf logs at fatal level with format then exits
+// Fatalf logs at fatal level with format
 func Fatalf(format string, args ...interface{}) {
 	ddlog.Criticalf(format, args...)
-	// Note: datadog-agent's Criticalf doesn't exit, so this behavior differs
 }
 
 // Panic logs at panic level then panics
 func Panic(msg string, fields ...Field) {
-	message := defaultLogger.formatMessage(msg, fields...)
-	ddlog.Critical(message)
-	panic(message)
+	_ = ddlog.Criticalc(msg, fieldsToContext(nil, fields)...)
+	panic(msg)
 }
 
 // Panicf logs at panic level with format then panics
 func Panicf(format string, args ...interface{}) {
 	message := fmt.Sprintf(format, args...)
-	ddlog.Critical(message)
+	ddlog.Criticalf(format, args...)
 	panic(message)
 }
 

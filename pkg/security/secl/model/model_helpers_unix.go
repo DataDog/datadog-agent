@@ -262,6 +262,7 @@ const (
 	MountOriginOpenTree                     // MountOriginOpenTree mount point created from the open_tree syscall
 	MountOriginListmount                    // MountOriginListmount mount point obtained by calling `listmount`
 	MountOriginMoveMount
+	MountOriginPivotRoot // MountOriginPivotRoot mount point info from the pivot_root syscall
 )
 
 // MountSource source of the mount
@@ -288,7 +289,8 @@ const (
 	MountEventSourceMountSyscall                             // MountEventSourceMountSyscall the source of the mount event is the `mount` syscall
 	MountEventSourceFsmountSyscall                           // MountEventSourceFsmountSyscall the source of the mount event is the `fsmount` syscall
 	MountEventSourceOpenTreeSyscall                          // MountEventSourceOpenTreeSyscall the source of the mount event is the `open_tree` syscall
-	MountEventSourceMoveMountSyscall                         // MountEventSourceOpenTreeSyscall the source of the mount event is the `open_tree` syscall
+	MountEventSourceMoveMountSyscall                         // MountEventSourceMoveMountSyscall the source of the mount event is the `move_mount` syscall
+	MountEventSourcePivotRootSyscall                         // MountEventSourcePivotRootSyscall the source of the mount event is the `pivot_root` syscall
 )
 
 // MountSourceToString returns the string corresponding to a mount source
@@ -306,6 +308,7 @@ var MountOrigins = [...]string{
 	"open_tree",
 	"listmount",
 	"move_mount",
+	"pivot_root",
 }
 
 // MountOriginToString returns the string corresponding to a mount origin

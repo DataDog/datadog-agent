@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "extensions",
+    srcs = [
+        "db.go",
+        "extensions.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/extensions",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/fleet/installer/errors",
+        "//pkg/fleet/installer/oci",
+        "//pkg/fleet/installer/paths",
+        "//pkg/fleet/installer/telemetry",
+        "//pkg/util/log",
+        "@io_etcd_go_bbolt//:bbolt",
+    ],
+)
+
+go_test(
+    name = "extensions_test",
+    srcs = ["extensions_test.go"],
+    embed = [":extensions"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/fleet/installer/env",
+        "//pkg/fleet/installer/oci",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -22,14 +22,16 @@ import (
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	statsdFx "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/fx"
+	statsdimpl "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/impl"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	traceagentimpl "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
 	zstdfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-zstd"
-	"github.com/DataDog/datadog-agent/comp/trace/config"
+	traceconfigdef "github.com/DataDog/datadog-agent/comp/trace/config/def"
+	traceconfigimpl "github.com/DataDog/datadog-agent/comp/trace/config/impl"
 	payloadmodifierfx "github.com/DataDog/datadog-agent/comp/trace/payload-modifier/fx"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -43,14 +45,15 @@ func TestBundleDependencies(t *testing.T) {
 		fx.Supply(core.BundleParams{}),
 		core.Bundle(),
 		workloadmetafx.Module(workloadmeta.NewParams()),
-		statsd.Module(),
-		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),
+		statsdFx.Module(),
+		fx.Provide(func(cfg traceconfigdef.Component) telemetry.TelemetryCollector {
+			return telemetry.NewCollector(cfg.Object())
+		}),
 		zstdfx.Module(),
 		taggerfx.Module(),
 		fx.Supply(&traceagentimpl.Params{}),
 		payloadmodifierfx.NilModule(),
 		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
-		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 	)
 }
 
@@ -62,20 +65,22 @@ func TestMockBundleDependencies(t *testing.T) {
 	defer func() { os.Unsetenv("DD_DD_URL") }()
 
 	// Only for test purposes to avoid setting a different default value.
-	os.Setenv("DDTEST_DEFAULT_LOG_FILE_PATH", config.DefaultLogFilePath)
+	os.Setenv("DDTEST_DEFAULT_LOG_FILE_PATH", traceconfigimpl.DefaultLogFilePath)
 	defer func() { os.Unsetenv("DDTEST_DEFAULT_LOG_FILE_PATH") }()
 
-	cfg := fxutil.Test[config.Component](t, fx.Options(
+	cfg := fxutil.Test[traceconfigdef.Component](t, fx.Options(
 		fx.Provide(func() context.Context { return context.TODO() }), // fx.Supply(ctx) fails with a missing type error.
 		fx.Supply(core.BundleParams{}),
 		fx.Provide(func() coreconfig.Component { return coreconfig.NewMock(t) }),
 		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
-		telemetryimpl.MockModule(),
+		mocktelemetry.Module(),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		workloadmetafx.Module(workloadmeta.NewParams()),
-		fx.Invoke(func(_ config.Component) {}),
-		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),
-		statsd.MockModule(),
+		fx.Invoke(func(_ traceconfigdef.Component) {}),
+		fx.Provide(func(cfg traceconfigdef.Component) telemetry.TelemetryCollector {
+			return telemetry.NewCollector(cfg.Object())
+		}),
+		statsdimpl.MockModule(),
 		zstdfx.Module(),
 		fx.Supply(&traceagentimpl.Params{}),
 		payloadmodifierfx.NilModule(),

@@ -28,14 +28,17 @@ import (
 	agentgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
 
-func (r *RemoteFlareProvider) exportRemoteConfig(fb flaretypes.FlareBuilder) error {
+func (r *RemoteFlareProvider) exportRemoteConfig(parent context.Context, fb flaretypes.FlareBuilder) error {
 	// Dump the DB
 	if err := getRemoteConfigDB(fb); err != nil {
 		return err
 	}
 
 	// Dump the state
-	ctx, cancel := context.WithCancel(context.Background())
+	if parent == nil {
+		parent = context.Background()
+	}
+	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
 	md := metadata.MD{
 		"authorization": []string{"Bearer " + r.IPC.GetAuthToken()}, // TODO IPC: Implement a GRPC secure client

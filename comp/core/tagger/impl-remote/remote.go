@@ -10,6 +10,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -20,7 +21,6 @@ import (
 	"github.com/cenkalti/backoff/v5"
 	"github.com/google/uuid"
 	"github.com/mdlayher/vsock"
-	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/grpclog"
@@ -38,7 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
-	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
@@ -232,7 +232,7 @@ func start(remoteTagger *remoteTagger) error {
 					return nil, err
 				}
 
-				port, err := strconv.Atoi(sPort)
+				port, err := strconv.ParseUint(sPort, 10, 16)
 				if err != nil {
 					return nil, fmt.Errorf("invalid port for vsock listener: %v", err)
 				}

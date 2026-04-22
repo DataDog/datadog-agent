@@ -9,8 +9,6 @@ package agentimpl
 import (
 	"net/http"
 
-	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
-
 	grpc "github.com/DataDog/datadog-agent/comp/api/grpcserver/def"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
@@ -23,7 +21,7 @@ import (
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadfilterServer "github.com/DataDog/datadog-agent/comp/core/workloadfilter/server"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -32,8 +30,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
+	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
+	rcservicemrf "github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -86,16 +84,16 @@ type server struct {
 }
 
 func (s *server) BuildServer() http.Handler {
-	authInterceptor := grpcutil.StaticAuthInterceptor(s.IPC.GetAuthToken())
-
 	maxMessageSize := s.configComp.GetInt("cluster_agent.cluster_tagger.grpc_max_message_size")
 
 	// Use the convenience function that combines metrics and auth interceptors
 	var opts []googleGrpc.ServerOption
 	if vsockAddr := s.configComp.GetString("vsock_addr"); vsockAddr == "" {
 		opts = append(opts,
-			googleGrpc.UnaryInterceptor(grpcutil.CombinedUnaryServerInterceptor(grpc_auth.UnaryServerInterceptor(authInterceptor))),
-			googleGrpc.StreamInterceptor(grpcutil.CombinedStreamServerInterceptor(grpc_auth.StreamServerInterceptor(authInterceptor))),
+			grpcutil.ServerOptionsWithMetricsAndAuth(
+				grpcutil.RequireClientCert,
+				grpcutil.RequireClientCertStream,
+			)...,
 		)
 	}
 

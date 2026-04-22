@@ -66,6 +66,7 @@ func (d *desktopAppCollector) Collect() ([]*Entry, []*Warning, error) {
 		if regEntry, ok := regMap[msiEntry.GetID()]; !ok {
 			// Software is present in MSI but not in registry
 			msiEntry.Status = "broken"
+			msiEntry.BrokenReason = "MSI record not found in registry"
 			regEntries = append(regEntries, msiEntry)
 		} else {
 			if regEntry.InstallDate == "" {

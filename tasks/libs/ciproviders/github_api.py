@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import base64
 import os
 import re
 from collections.abc import Iterable
@@ -20,7 +19,6 @@ try:
         Auth,
         Github,
         GithubException,
-        GithubIntegration,
         GithubObject,
         InputGitTreeElement,
         PullRequest,
@@ -391,12 +389,6 @@ class GithubAPI:
             if RELEASE_BRANCH_PATTERN.match(branch.name):
                 yield branch
 
-    def get_rate_limit_info(self):
-        """
-        Gets the current rate limit info.
-        """
-        return self._github.rate_limiting
-
     def publish_comment(self, pr, comment):
         """
         Publish a comment on a given PR.
@@ -529,42 +521,10 @@ class GithubAPI:
         if public_repo:
             return Auth.Login("user", "password")
 
-        if "GITHUB_APP_ID" not in os.environ or "GITHUB_KEY_B64" not in os.environ:
-            raise Exit(
-                message="For private repositories on CI, you need to set the GITHUB_APP_ID and GITHUB_KEY_B64 environment variables",
-                code=1,
-            )
-
-        appAuth = Auth.AppAuth(
-            os.environ['GITHUB_APP_ID'], base64.b64decode(os.environ['GITHUB_KEY_B64']).decode('ascii')
+        raise Exit(
+            message="No authentication found, you must pass a GITHUB_TOKEN in the CI, Github App authentication is no longer supported in the CI, use dd-octo-sts instead",
+            code=1,
         )
-        installation_id = os.environ.get('GITHUB_INSTALLATION_ID', None)
-        if installation_id is None:
-            # Even if we don't know the installation id, there's an API endpoint to
-            # retrieve it, given the other credentials (app id + key).
-            integration = GithubIntegration(auth=appAuth)
-            installations = integration.get_installations()
-            if installations.totalCount == 0:
-                raise Exit(message='No usable installation found', code=1)
-            installation_id = installations[0].id
-        return appAuth.get_installation_auth(int(installation_id))
-
-    @staticmethod
-    def get_token_from_app(app_id_env='GITHUB_APP_ID', pkey_env='GITHUB_KEY_B64'):
-        app_id = os.environ.get(app_id_env)
-        app_key_b64 = os.environ.get(pkey_env)
-        if app_id is None or app_key_b64 is None:
-            raise RuntimeError(f"Missing {app_id_env} or {pkey_env}")
-        app_key = base64.b64decode(app_key_b64).decode("ascii")
-
-        auth = Auth.AppAuth(app_id, app_key)
-        integration = GithubIntegration(auth=auth)
-        installations = integration.get_installations()
-        if installations.totalCount == 0:
-            raise RuntimeError("Failed to list app installations")
-        install_id = installations[0].id
-        auth_token = integration.get_access_token(install_id)
-        print(auth_token.token)
 
     def create_label(self, name, color, description="", exist_ok=False):
         """
@@ -611,27 +571,13 @@ class GithubAPI:
         Get the complexity of the code review for a given PR, taking into account the number of files, lines and comments.
         """
         pr = self._repository.get_pull(pr_id)
-        # Criteria are defined with the average of PR attributes (files, lines, comments) so that:
-        # - easy PRs are merged in less than 1 day
-        # - hard PRs are merged in more than 1 week
-        # More details about criteria definition: https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4271079846/Code+Review+Experience+Improvement#Complexity-label
-        criteria = {
-            'easy': {'files': 4, 'lines': 150, 'comments': 2},
-            'hard': {'files': 12, 'lines': 650, 'comments': 9},
+        size = get_pr_size(pr)
+        size_to_label = {
+            'small': 'short review',
+            'medium': 'medium review',
+            'large': 'long review',
         }
-        if (
-            pr.changed_files < criteria['easy']['files']
-            and pr.additions + pr.deletions < criteria['easy']['lines']
-            and pr.review_comments < criteria['easy']['comments']
-        ):
-            return 'short review'
-        elif (
-            pr.changed_files > criteria['hard']['files']
-            or pr.additions + pr.deletions > criteria['hard']['lines']
-            or pr.review_comments > criteria['hard']['comments']
-        ):
-            return 'long review'
-        return 'medium review'
+        return size_to_label[size]
 
     def find_teams(self, obj, exclude_teams=None, exclude_permissions=None, depth=None):
         """Get teams from a Github object (repository or team)"""
@@ -778,3 +724,29 @@ def generate_local_github_token(ctx):
         token = ctx.run('ddtool auth github token', hide=True).stdout.strip()
 
         return token
+
+
+def get_pr_size(pr) -> str:
+    """Return 'small', 'medium', or 'large' based on PR stats."""
+    # Criteria are defined with the average of PR attributes (files, lines, comments) so that:
+    # - easy PRs are merged in less than 1 day
+    # - hard PRs are merged in more than 1 week
+    # More details: https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4271079846/Code+Review+Experience+Improvement#Complexity-label
+    _SIZE_CRITERIA = {
+        'easy': {'files': 4, 'lines': 150, 'comments': 2},
+        'hard': {'files': 12, 'lines': 650, 'comments': 9},
+    }
+
+    if (
+        pr.changed_files < _SIZE_CRITERIA['easy']['files']
+        and pr.additions + pr.deletions < _SIZE_CRITERIA['easy']['lines']
+        and pr.review_comments < _SIZE_CRITERIA['easy']['comments']
+    ):
+        return 'small'
+    if (
+        pr.changed_files > _SIZE_CRITERIA['hard']['files']
+        or pr.additions + pr.deletions > _SIZE_CRITERIA['hard']['lines']
+        or pr.review_comments > _SIZE_CRITERIA['hard']['comments']
+    ):
+        return 'large'
+    return 'medium'

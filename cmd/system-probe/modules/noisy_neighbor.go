@@ -26,8 +26,7 @@ func init() { registerModule(NoisyNeighbor) }
 
 // NoisyNeighbor Factory
 var NoisyNeighbor = &module.Factory{
-	Name:             config.NoisyNeighborModule,
-	ConfigNamespaces: []string{"noisy_neighbor"},
+	Name: config.NoisyNeighborModule,
 	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
 		log.Infof("Starting the noisy neighbor module")
 		p, err := noisyneighbor.NewProbe(ebpf.NewConfig())
@@ -64,7 +63,7 @@ func (n noisyNeighborModule) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(1, func(w http.ResponseWriter, req *http.Request) {
 		n.lastCheck.Store(time.Now().Unix())
 		stats := n.Probe.GetAndFlush()
-		utils.WriteAsJSON(w, stats, utils.GetPrettyPrintFromQueryParams(req))
+		utils.WriteAsJSON(req, w, stats, utils.GetPrettyPrintFromQueryParams(req))
 	}))
 
 	return nil

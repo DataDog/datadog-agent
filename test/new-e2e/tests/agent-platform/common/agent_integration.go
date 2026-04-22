@@ -14,14 +14,12 @@ import (
 	"github.com/cenkalti/backoff/v5"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 )
 
 // CheckIntegrationInstall run test to test installation of integrations
 func CheckIntegrationInstall(t *testing.T, client *TestClient) {
 	t.Run("integration", func(tt *testing.T) {
-		flake.Mark(tt)
 		requirementIntegrationPath := client.Helper.GetInstallFolder() + "requirements-agent-release.txt"
 
 		ciliumRegex := regexp.MustCompile(`datadog-cilium==.*`)
@@ -84,7 +82,7 @@ func installIntegration(t *testing.T, client *TestClient, integration string) {
 	// Their release pipeline runs at least once a day at 5AM CET and can run during working hours if they need to release something.
 
 	interval := 30 * time.Second
-	maxRetries := 6
+	maxRetries := 30
 
 	_, err := backoff.Retry(context.Background(), func() (any, error) {
 		_, err := client.AgentClient.IntegrationWithError(agentclient.WithArgs([]string{"install", "--unsafe-disable-verification", "-r", integration}))

@@ -13,6 +13,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 )
 
+// ThrottleMode controls when throttling is applied relative to condition evaluation.
+// Must be kept in sync with throttle_mode_t in ebpf/types.h.
+type ThrottleMode int8
+
+const (
+	// ThrottleAtStart throttles before probe_run (default for unconditional non-return probes).
+	ThrottleAtStart ThrottleMode = 0
+	// ThrottleAfterCondCheck throttles after condition evaluates to true.
+	ThrottleAfterCondCheck ThrottleMode = 1
+	// ThrottleNone never throttles (unconditional returns, entries with conditional returns).
+	ThrottleNone ThrottleMode = 2
+)
+
 // FunctionID is the identifier of a logical function.
 // Implementations must be usable as a hash map key.
 type FunctionID interface {
@@ -53,6 +66,7 @@ type ProcessEvent struct {
 	NoReturnReason      ir.NoReturnReason
 	EventKind           ir.EventKind
 	TopPCOffset         int8
+	ThrottleMode        ThrottleMode
 	EventRootType       *ir.EventRootType
 }
 
@@ -74,6 +88,19 @@ type ProcessExpression struct {
 // String returns a human-readable identifier for the function.
 func (e ProcessExpression) String() string {
 	return fmt.Sprintf("ProcessExpression[%s@0x%x.expr[%d]]", e.EventRootType.GetName(), e.InjectionPC, e.ExprIdx)
+}
+
+// ProcessCondition is a function that evaluates a condition expression and
+// sets the condition_failed flag if the condition is not met.
+type ProcessCondition struct {
+	baseFunctionID
+	EventRootType *ir.EventRootType
+	InjectionPC   uint64
+}
+
+// String returns a human-readable identifier for the function.
+func (e ProcessCondition) String() string {
+	return fmt.Sprintf("ProcessCondition[%s@0x%x]", e.EventRootType.GetName(), e.InjectionPC)
 }
 
 // ProcessType is a function that processes user data of a specific type, chasing

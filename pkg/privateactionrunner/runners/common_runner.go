@@ -12,11 +12,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
+	ddlog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type CommonRunner struct {
 	opmsClient opms.Client
 	config     *config.Config
+	cancel     context.CancelFunc
 }
 
 func NewCommonRunner(
@@ -30,13 +32,19 @@ func NewCommonRunner(
 
 func (n *CommonRunner) Start(ctx context.Context) error {
 	log.FromContext(ctx).Info("Starting Common runner")
-	go n.healthCheckLoop(ctx)
+	// Detach from the parent context's deadline so the health check loop
+	// isn't bounded by the startup timeout. Values (e.g. logger) are preserved.
+	loopCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
+	n.cancel = cancel
+	go n.healthCheckLoop(loopCtx)
 	return nil
 }
 
 func (n *CommonRunner) Stop(ctx context.Context) error {
 	log.FromContext(ctx).Info("Stopping Common runner")
-	// Common runner does not have any resource to clean up
+	if n.cancel != nil {
+		n.cancel()
+	}
 	return nil
 }
 
@@ -44,9 +52,12 @@ func (n *CommonRunner) healthCheckLoop(ctx context.Context) {
 	ticker := time.NewTicker(time.Millisecond * time.Duration(n.config.HealthCheckInterval))
 	defer ticker.Stop()
 
+	healthCheckLogLimit := ddlog.NewLogLimit(1, 10*time.Minute)
+
 	for {
 		select {
 		case <-ctx.Done():
+			log.FromContext(ctx).Info("Stopping health check loop")
 			return
 		case <-ticker.C:
 			logger := log.FromContext(ctx)
@@ -56,8 +67,10 @@ func (n *CommonRunner) healthCheckLoop(ctx context.Context) {
 			}
 			if err != nil {
 				logger.Error("health check failed", log.ErrorField(err))
-			} else {
+			} else if healthCheckLogLimit.ShouldLog() {
 				logger.Info("health check succeeded")
+			} else {
+				logger.Debug("health check succeeded")
 			}
 		}
 	}

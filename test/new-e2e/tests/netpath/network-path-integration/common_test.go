@@ -58,7 +58,7 @@ func assertMetrics(fakeIntake *components.FakeIntake, c *assert.CollectT, metric
 	}
 }
 
-func (s *baseNetworkPathIntegrationTestSuite) findNetpath(isMatch func(*aggregator.Netpath) bool) (*aggregator.Netpath, error) {
+func (s *baseNetworkPathIntegrationTestSuite) findNetpath(agentHostname string, isMatch func(*aggregator.Netpath) bool) (*aggregator.Netpath, error) {
 	nps, err := s.Env().FakeIntake.Client().GetLatestNetpathEvents()
 	if err != nil {
 		return nil, err
@@ -69,14 +69,14 @@ func (s *baseNetworkPathIntegrationTestSuite) findNetpath(isMatch func(*aggregat
 
 	var match *aggregator.Netpath
 	for _, np := range nps {
-		if isMatch(np) {
+		if np.Source.Hostname == agentHostname && isMatch(np) {
 			match = np
 		}
 	}
 	return match, nil
 }
-func (s *baseNetworkPathIntegrationTestSuite) expectNetpath(c *assert.CollectT, isMatch func(*aggregator.Netpath) bool) *aggregator.Netpath {
-	np, err := s.findNetpath(isMatch)
+func (s *baseNetworkPathIntegrationTestSuite) expectNetpath(c *assert.CollectT, agentHostname string, isMatch func(*aggregator.Netpath) bool) *aggregator.Netpath {
+	np, err := s.findNetpath(agentHostname, isMatch)
 	require.NoError(c, err)
 
 	require.NotNil(c, np, "could not find matching netpath")
@@ -104,7 +104,7 @@ func assertPayloadBase(c *assert.CollectT, np *aggregator.Netpath, hostname stri
 }
 
 func (s *baseNetworkPathIntegrationTestSuite) checkDatadogEUTCP(c *assert.CollectT, agentHostname string) {
-	np := s.expectNetpath(c, func(np *aggregator.Netpath) bool {
+	np := s.expectNetpath(c, agentHostname, func(np *aggregator.Netpath) bool {
 		return np.Destination.Hostname == "api.datadoghq.eu" && np.Protocol == "TCP"
 	})
 	assert.Equal(c, uint16(443), np.Destination.Port)
@@ -116,7 +116,7 @@ func (s *baseNetworkPathIntegrationTestSuite) checkDatadogEUTCP(c *assert.Collec
 }
 
 func (s *baseNetworkPathIntegrationTestSuite) checkGoogleDNSUDP(c *assert.CollectT, agentHostname string) {
-	np := s.expectNetpath(c, func(np *aggregator.Netpath) bool {
+	np := s.expectNetpath(c, agentHostname, func(np *aggregator.Netpath) bool {
 		return np.Destination.Hostname == "8.8.8.8" && np.Protocol == "UDP"
 	})
 	assertPayloadBase(c, np, agentHostname)
@@ -126,7 +126,7 @@ func (s *baseNetworkPathIntegrationTestSuite) checkGoogleDNSUDP(c *assert.Collec
 }
 
 func (s *baseNetworkPathIntegrationTestSuite) checkGoogleTCPSocket(c *assert.CollectT, agentHostname string) {
-	np := s.expectNetpath(c, func(np *aggregator.Netpath) bool {
+	np := s.expectNetpath(c, agentHostname, func(np *aggregator.Netpath) bool {
 		return np.Destination.Hostname == "8.8.8.8" && np.Protocol == "TCP"
 	})
 
@@ -149,7 +149,7 @@ func (s *baseNetworkPathIntegrationTestSuite) checkGoogleTCPSocket(c *assert.Col
 }
 
 func (s *baseNetworkPathIntegrationTestSuite) checkGoogleTCPDisableWindowsDriver(c *assert.CollectT, agentHostname string) {
-	np := s.expectNetpath(c, func(np *aggregator.Netpath) bool {
+	np := s.expectNetpath(c, agentHostname, func(np *aggregator.Netpath) bool {
 		return np.Destination.Hostname == "1.1.1.1" && np.Protocol == "TCP"
 	})
 

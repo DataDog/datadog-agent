@@ -149,7 +149,7 @@ func (p *autoscalingSettingsProcessor) reconcile(isLeader bool) {
 	// Handle the potentially new PodAutoscalers, note that there is a chance they have been created since the `Update` call above
 	for paID, item := range p.state {
 		if _, found := inStore[paID]; !found {
-			podAutoscaler, podAutoscalerFound := p.store.LockRead(paID, true)
+			podAutoscaler, podAutoscalerFound, _ := p.store.LockRead(paID, true)
 			if podAutoscalerFound {
 				podAutoscaler.UpdateFromSettings(item.spec, item.receivedTimestamp)
 			} else {

@@ -78,6 +78,10 @@ func (c *Check) Run() error {
 	deviceTags := c.getDeviceTags()
 	c.sender.SetDeviceTags(deviceTags)
 
+	if err := c.sender.SendDeviceMetadata(deviceID, c.checkContext.Device.IPAddress); err != nil {
+		log.Warnf("failed to send device metadata for %s: %s", deviceID, err)
+	}
+
 	rawRunningConfig, checkErr := c.remoteClient.RetrieveRunningConfig()
 	if checkErr != nil {
 		return checkErr
@@ -116,7 +120,7 @@ func (c *Check) Run() error {
 }
 
 // Configure sets up the check with the provided configuration and sender manager
-func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
+func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, rawInstance integration.Data, rawInitConfig integration.Data, source string, provider string) error {
 	var err error
 
 	// Load/parse the configuration for the device instance
@@ -127,7 +131,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 
 	// Must be called before v.CommonConfigure
 	c.BuildID(integrationConfigDigest, rawInstance, rawInitConfig)
-	err = c.CommonConfigure(senderManager, rawInitConfig, rawInstance, source)
+	err = c.CommonConfigure(senderManager, rawInitConfig, rawInstance, source, provider)
 	if err != nil {
 		return fmt.Errorf("common configure failed: %w", err)
 	}

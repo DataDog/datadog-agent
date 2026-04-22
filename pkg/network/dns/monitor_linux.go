@@ -15,7 +15,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/vishvananda/netns"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
@@ -87,10 +87,11 @@ func NewReverseDNS(cfg *config.Config, _ telemetry.Component) (ReverseDNS, error
 		}
 	}
 
-	snoop, err := newSocketFilterSnooper(cfg, packetSrc)
+	snoop, err := newSocketFilterSnooper(cfg, packetSrc, nil)
 	if err != nil {
 		return nil, err
 	}
+	snoop.startPolling()
 
 	return &dnsMonitor{
 		snoop,

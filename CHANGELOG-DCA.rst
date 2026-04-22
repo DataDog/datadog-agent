@@ -2,6 +2,175 @@
 Release Notes
 =============
 
+.. _Release Notes_7.78.0:
+
+7.78.0
+======
+
+.. _Release Notes_7.78.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-04-15
+Pinned to datadog-agent v7.78.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7780>`_.
+
+
+.. _Release Notes_7.78.0_New Features:
+
+New Features
+------------
+
+- Added an admission controller connectivity probe that periodically verifies
+  the admission webhook is reachable from the Kubernetes API server. When a
+  connectivity issue is detected, the probe logs environment-specific guidance
+  for EKS, GKE, and AKS. Probe results are visible in the ``agent status``
+  output under the Admission Controller section. The probe is disabled by
+  default and can be enabled by setting ``admission_controller.probe.enabled``
+  to ``true``. The probe uses dry-run ConfigMap creation requests in the
+  cluster agent's namespace.
+
+- Add Remote Configuration status section to ``datadog-cluster-agent status`` output and flares.
+  This displays whether RC is enabled for the organization, whether the API key is authorized
+  for Remote Configuration, and any last errors, matching the node agent's existing behavior.
+
+
+.. _Release Notes_7.78.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Configurable support for TLS communication between the sidecar Agent 
+  and the Cluster Agent via the agent-sidecar mutation webhook. Requires 
+  elevated permissions for Cluster Agent to copy the certificate authority 
+  to the target namespace as a secret.
+
+- Single Step Instrumentation volumes are now mounted as read-only to prevent accidental writes to SSI artifacts.
+
+
+
+.. _Release Notes_7.77.3:
+
+7.77.3
+======
+
+.. _Release Notes_7.77.3_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-04-08
+Pinned to datadog-agent v7.77.3: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7773>`_.
+
+
+.. _Release Notes_7.77.2:
+
+7.77.2
+======
+
+.. _Release Notes_7.77.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-04-01
+Pinned to datadog-agent v7.77.2: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7772>`_.
+
+
+.. _Release Notes_7.77.1:
+
+7.77.1
+======
+
+.. _Release Notes_7.77.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-03-24
+Pinned to datadog-agent v7.77.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7771>`_.
+
+
+.. _Release Notes_7.77.0:
+
+7.77.0
+======
+
+.. _Release Notes_7.77.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-03-18
+Pinned to datadog-agent v7.77.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7770>`_.
+
+
+.. _Release Notes_7.77.0_New Features:
+
+New Features
+------------
+
+- Add APM tracing instrumentation to the Datadog Cluster Agent for improved observability
+  and debugging in production environments. When enabled, the Cluster Agent emits APM traces
+  for cluster check dispatching and rebalancing operations, surfacing patch failures and
+  rebalancing decisions as span tags. 
+
+
+.. _Release Notes_7.77.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Reduce admission controller downtime during certificate rotation.
+
+- Add the ability to collect NodeClasses EKS Auto Mode custom resources (``eks.amazonaws.com`` API group) by default.
+
+- Experimental: Adds support for collecting force-deleted pods in the orchestrator check using
+  ``orchestrator_explorer.terminated_pods_improved.enabled``.
+
+
+.. _Release Notes_7.76.3:
+
+7.76.3
+======
+
+.. _Release Notes_7.76.3_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-03-09
+Pinned to datadog-agent v7.76.3: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7763>`_.
+
+
+.. _Release Notes_7.76.2:
+
+7.76.2
+======
+
+.. _Release Notes_7.76.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-03-05
+Pinned to datadog-agent v7.76.2: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7762>`_.
+
+
+.. _Release Notes_7.76.1:
+
+7.76.1
+======
+
+.. _Release Notes_7.76.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-02-26
+Pinned to datadog-agent v7.76.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7761>`_.
+
+
 .. _Release Notes_7.76.0:
 
 7.76.0

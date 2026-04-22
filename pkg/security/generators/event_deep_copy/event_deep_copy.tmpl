@@ -14,7 +14,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
 	"github.com/google/gopacket"
 	{{end}}
-	
+
+	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	{{if ne $.SourcePkg $.TargetPkg}}"{{.SourcePkg}}"{{end}}
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
@@ -74,7 +75,7 @@ func (e *Event) DeepCopy() *Event {
 {{- $generated := .Generated}}
 	{{- if $node.Field}}
 		{{- $baseName := BaseName $node.Field.OrigType}}
-		
+
 		{{- /* For arrays/maps, check element/value properties; otherwise check field properties */}}
 		{{- $isPtr := false}}
 		{{- $isArray := $node.Field.IsArray}}
@@ -86,7 +87,7 @@ func (e *Event) DeepCopy() *Event {
 		{{- else}}
 			{{- $isPtr = $node.Field.IsOrigTypePtr}}
 		{{- end}}
-		
+
 		{{- /* Generate unique key for this function */ -}}
 		{{- $key := $baseName}}
 		{{- if $isPtr}}{{$key = printf "%sPtr" $key}}{{end}}
@@ -96,11 +97,11 @@ func (e *Event) DeepCopy() *Event {
 			{{- if $node.Field.MapValue.IsArray}}{{$key = printf "%sArr" $key}}{{end}}
 			{{- $key = printf "%sMap" $key}}
 		{{- end}}
-		
+
 		{{- /* Only generate if not already generated */ -}}
 		{{- if not (hasKey $generated $key)}}
 		{{- $_ := set $generated $key true}}
-		
+
 		{{- /* Build function name */ -}}
 		{{- $funcName := printf "deepCopy%s" $baseName}}
 		{{- if $isPtr}}{{$funcName = printf "%sPtr" $funcName}}{{end}}
@@ -110,7 +111,7 @@ func (e *Event) DeepCopy() *Event {
 			{{- if $node.Field.MapValue.IsArray}}{{$funcName = printf "%sArr" $funcName}}{{end}}
 			{{- $funcName = printf "%sMap" $funcName}}
 		{{- end}}
-		
+
 		{{- /* Build type signature */ -}}
 		{{- $typePrefix := ""}}
 		{{- if $isArray}}{{$typePrefix = "[]"}}{{end}}
@@ -120,10 +121,10 @@ func (e *Event) DeepCopy() *Event {
 		{{- end}}
 		{{- if $isPtr}}{{$typePrefix = printf "%s*" $typePrefix}}{{end}}
 		{{- $fullType := printf "%s%s" $typePrefix $node.Field.OrigType}}
-		
+
 func {{$funcName}}(fieldToCopy {{$fullType}}) {{$fullType}} {
 		{{- $strategy := GetFieldCopyStrategy $node.Field}}
-		
+
 		{{- if eq $strategy "pointer"}}
 	if fieldToCopy == nil {
 		return nil
@@ -159,7 +160,7 @@ func {{$funcName}}(fieldToCopy {{$fullType}}) {{$fullType}} {
 			{{- end}}
 			{{- end}}
 	return copied
-		
+
 		{{- else if eq $strategy "array"}}
 	if fieldToCopy == nil {
 		return nil
@@ -179,7 +180,7 @@ func {{$funcName}}(fieldToCopy {{$fullType}}) {{$fullType}} {
 	}
 			{{- end}}
 	return copied
-		
+
 		{{- else if eq $strategy "map"}}
 	if fieldToCopy == nil {
 		return nil
@@ -203,7 +204,7 @@ func {{$funcName}}(fieldToCopy {{$fullType}}) {{$fullType}} {
 	}
 			{{- end}}
 	return copied
-		
+
 		{{- else if eq $strategy "struct"}}
 	copied := {{$node.Field.OrigType}}{}
 			{{- range $node.Children}}
@@ -226,7 +227,7 @@ func {{$funcName}}(fieldToCopy {{$fullType}}) {{$fullType}} {
 			{{- end}}
 			{{- $childMapSuffix := ""}}
 			{{- if .Field.IsMap}}{{$childMapSuffix = "Map"}}{{end}}
-			
+
 			{{- /* Fixed-size arrays are value types, copy by assignment; slices and maps always need functions; scalars can be direct assigned */}}
 			{{- if and .Field.IsArray .Field.IsFixedArray}}
 	copied.{{.Name}} = fieldToCopy.{{.Name}}
@@ -237,7 +238,7 @@ func {{$funcName}}(fieldToCopy {{$fullType}}) {{$fullType}} {
 			{{- end}}
 			{{- end}}
 	return copied
-		
+
 		{{- else}}
 	return fieldToCopy
 		{{- end}}

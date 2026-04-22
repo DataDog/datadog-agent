@@ -1,17 +1,8 @@
 name "python3"
 
-default_version "3.13.12"
+default_version "3.13.13"
 
-unless windows?
-  dependency "zlib"
-  dependency "bzip2"
-  dependency "libsqlite3"
-  dependency "liblzma"
-end
 dependency "openssl3"
-
-source :url => "https://python.org/ftp/python/#{version}/Python-#{version}.tgz",
-       :sha256 => "12e7cb170ad2d1a69aee96a1cc7fc8de5b1e97a2bdac51683a3db016ec9a2996"
 
 relative_path "Python-#{version}"
 
@@ -23,14 +14,21 @@ build do
 
   if !windows_target?
     env = with_standard_compiler_flags(with_embedded_path)
-    command_on_repo_root "bazelisk run -- @cpython//:install --destdir='#{install_dir}/embedded'"
+    command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- @cpython//:install --destdir='#{install_dir}'"
     sh_ext = if linux_target? then "so" else "dylib" end
-    command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+    command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
       " #{install_dir}/embedded/lib/libpython3.*#{sh_ext}" \
-      " #{install_dir}/embedded/lib/python3.13/lib-dynload/*.so" \
-      " #{install_dir}/embedded/bin/python3*"
+      " #{install_dir}/embedded/lib/python3.*/lib-dynload/*.so" \
+      " #{install_dir}/embedded/bin/python3*" \
+      " #{install_dir}/embedded/lib/python3.*/_sysconfigdata__*.py"
+    python = "#{install_dir}/embedded/bin/python3"
   else
-    command_on_repo_root "bazelisk run #{flavor_flag} -- @cpython//:install --destdir=#{python_3_embedded}"
+    command_on_repo_root "bazelisk run #{flavor_flag} --//:install_dir=#{install_dir} -- @cpython//:install --destdir=#{install_dir}"
+    python = "#{windows_safe_path(python_3_embedded)}\\python.exe"
   end
-end
 
+  # Upgrade pip to 26.0.1 to address CVE-2026-1703 (path traversal in pip < 26.0
+  # when installing malicious wheel archives). Python 3.13 ships with pip 25.3 via
+  # ensurepip, which is vulnerable.
+  command "#{python} -m pip install pip==26.0.1"
+end

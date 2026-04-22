@@ -30,11 +30,27 @@ const (
 	OpcodeProcessString
 	OpcodeProcessGoEmptyInterface
 	OpcodeProcessGoInterface
+	OpcodeProcessGoDictType
 	OpcodeProcessGoHmap
 	OpcodeProcessGoSwissMap
 	OpcodeProcessGoSwissMapGroups
 	OpcodeChasePointers
 	OpcodePrepareEventRoot
+	// Condition expression ops.
+	OpcodeExprPushOffset
+	OpcodeExprLoadLiteral
+	OpcodeExprReadString
+	OpcodeExprCmpEqBase
+	OpcodeExprCmpEqString
+	OpcodeConditionCheck
+	OpcodeConditionBegin
+	OpcodeCallDictResolved
+	OpcodeExprSliceBoundsCheck
+	OpcodeSwissMapSetup
+	OpcodeSwissMapAesenc
+	OpcodeSwissMapHashFinish
+	OpcodeSwissMapProbe
+	OpcodeSwissMapCheckSlot
 )
 
 //revive:enable:exported

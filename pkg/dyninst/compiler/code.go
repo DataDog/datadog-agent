@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/pkg/errors"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 )
 
 // CodeMetadata contains metadata about the generated code.
@@ -41,7 +41,7 @@ func GenerateCode(program Program, out CodeSerializer) (CodeMetadata, error) {
 
 	var fs []codeFragment
 	pc := uint32(0)
-	maxOpLen := uint32(0)
+	var maxOpLen uint32
 	appendFragment := func(f codeFragment) {
 		fs = append(fs, f)
 		pc += f.codeByteLen()
@@ -58,8 +58,14 @@ func GenerateCode(program Program, out CodeSerializer) (CodeMetadata, error) {
 		}
 	}
 
+	// We're going to need to pad out the code so that bounds checks in the
+	// implementation can statically succeed. By padding out to the maximum
+	// size of a literal op, we know that the ops bounds check and also the
+	// literal data bounds check will succeed.
 	appendFragment(blockComment{"Extra illegal ops to simplify code bound checks"})
-	for range maxOpLen {
+	const maxDataOpLen = 1 + ir.MaxStringLiteralLength + 4
+	padLen := max(maxOpLen, maxDataOpLen)
+	for range padLen {
 		appendFragment(makeInstruction(IllegalOp{}))
 	}
 
@@ -229,7 +235,31 @@ func (i callInstruction) encode(t codeTracker, out CodeSerializer) error {
 		comment: i.target.String(),
 	}
 	if i.codeByteLen() != si.codeByteLen() {
-		return errors.Errorf("internal: callInstruction codeByteLen mismatch: %d != %d", i.codeByteLen(), si.codeByteLen())
+		return fmt.Errorf("internal: callInstruction codeByteLen mismatch: %d != %d", i.codeByteLen(), si.codeByteLen())
+	}
+	return si.encode(t, out)
+}
+
+// callDictResolvedInstruction dispatches to a concrete type's ProcessType
+// based on a dict-resolved runtime type, falling back to the shape type's
+// ProcessType if resolution fails.
+type callDictResolvedInstruction struct {
+	outputOffset uint32
+	fallback     FunctionID
+}
+
+func (i callDictResolvedInstruction) codeByteLen() uint32 {
+	return 1 + 4 + 4 // opcode + outputOffset + fallbackPC
+}
+
+func (i callDictResolvedInstruction) encode(t codeTracker, out CodeSerializer) error {
+	bytes := make([]byte, 0, 8)
+	bytes = binary.LittleEndian.AppendUint32(bytes, i.outputOffset)
+	bytes = binary.LittleEndian.AppendUint32(bytes, t.functionLoc[i.fallback])
+	si := staticInstruction{
+		opcode:  OpcodeCallDictResolved,
+		bytes:   bytes,
+		comment: fmt.Sprintf("dict_offset=%d fallback=%s", i.outputOffset, i.fallback),
 	}
 	return si.encode(t, out)
 }

@@ -213,7 +213,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				},
 			{{- else}}
 				{{- $ReturnType := $Field.ReturnType}}
-				EvalFnc: func(ctx *eval.Context) {{- if not $Field.IsIterator}}{{$Field.GetArrayPrefix}}{{end}}{{$ReturnType}} {
+				EvalFnc: func(ctx *eval.Context) {{- if not (or $Field.IsIterator $Field.IsLength)}}{{$Field.GetArrayPrefix}}{{end}}{{$ReturnType}} {
 					ctx.AppendResolvedField(field)
 					{{- if not (and $Field.IsIterator (or $Field.IsLength $Field.IsRootDomain))}}
 						ev := ctx.Event.(*Event)
@@ -272,7 +272,11 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 						{{else}}
 							{{if $Field.IsRootDomain}}
 								{{- if not $Field.IsIterator}}
+									{{- if $Field.IsArray}}
+									return eval.GetPublicTLDs({{".root_domain" | TrimSuffix $Return}})
+									{{- else}}
 									return eval.GetPublicTLD({{".root_domain" | TrimSuffix $Return}})
+									{{- end}}
 								{{end}}
 							{{else}}
 								return {{$Return}}
@@ -340,7 +344,7 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	{{end}}
 
 	case "{{$Name}}":
-		return "{{$Field.Event}}", {{$Field | GetFieldReflectType}}, "{{$Field.BasicType}}", {{$Field.IsArray}}, nil
+		return "{{$Field.Event}}", {{$Field | GetFieldReflectType}}, "{{$Field.BasicType}}", {{and $Field.IsArray (not $Field.IsLength)}}, nil
 	{{end}}
 	}
 

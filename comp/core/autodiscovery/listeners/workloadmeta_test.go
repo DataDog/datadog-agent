@@ -12,12 +12,16 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"go.uber.org/fx"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -120,4 +124,93 @@ func newTestWorkloadmetaListener(t *testing.T) *testWorkloadmetaListener {
 		store:    w,
 		services: make(map[string]wlmListenerSvc),
 	}
+}
+
+func TestProcessSetEntity(t *testing.T) {
+	pod := &workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesPod,
+			ID:   "pod1",
+		},
+	}
+	svcID := "kubernetes_pod://pod1"
+
+	tests := []struct {
+		name            string
+		isReadyFn       func(workloadmeta.Entity) bool
+		maxWait         time.Duration
+		expectProcessed bool
+	}{
+		{
+			name:            "no readiness function",
+			isReadyFn:       nil,
+			expectProcessed: true,
+		},
+		{
+			name:            "ready",
+			isReadyFn:       func(workloadmeta.Entity) bool { return true },
+			expectProcessed: true,
+		},
+		{
+			name:            "not ready within max wait",
+			isReadyFn:       func(workloadmeta.Entity) bool { return false },
+			maxWait:         10 * time.Second,
+			expectProcessed: false,
+		},
+		{
+			name:            "readiness function set but feature disabled (max wait zero)",
+			isReadyFn:       func(workloadmeta.Entity) bool { return false },
+			maxWait:         0,
+			expectProcessed: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			processed := false
+			listener := newTestListenerWithWait(t,
+				func(workloadmeta.Entity) { processed = true },
+				test.isReadyFn,
+				test.maxWait,
+			)
+
+			listener.processSetEntity(pod)
+
+			assert.Equal(t, test.expectProcessed, processed)
+			if !test.expectProcessed {
+				assert.Contains(t, listener.pendingEntities, svcID)
+			} else if listener.pendingEntities != nil {
+				assert.NotContains(t, listener.pendingEntities, svcID)
+			}
+		})
+	}
+}
+
+func newTestListenerWithWait(
+	t *testing.T,
+	processFn func(workloadmeta.Entity),
+	isReadyFn func(workloadmeta.Entity) bool,
+	maxWait time.Duration,
+) *workloadmetaListenerImpl {
+	wmetaMock := fxutil.Test[workloadmetamock.Mock](
+		t,
+		fx.Options(
+			core.MockBundle(),
+			fx.Supply(context.TODO()),
+			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		),
+	)
+
+	listener, err := newWorkloadmetaListenerWithTagWait(
+		"test-listener",
+		nil,
+		processFn,
+		wmetaMock,
+		nil,
+		isReadyFn,
+		maxWait,
+	)
+	require.NoError(t, err)
+
+	return listener.(*workloadmetaListenerImpl)
 }

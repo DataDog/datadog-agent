@@ -7,6 +7,7 @@
 package monitor
 
 import (
+	"os"
 	"runtime"
 	"testing"
 
@@ -1252,7 +1253,18 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 	var macroFilters []rules.MacroFilter
 	var ruleFilters []rules.RuleFilter
 
-	seclRuleFilter := rules.NewSECLRuleFilter(filtermodel.NewOSOnlyFilterModel(runtime.GOOS))
+	rfmCfg := filtermodel.RuleFilterEventConfig{
+		COREEnabled: false,
+		Origin:      "ebpf",
+	}
+
+	hostname, _ := os.Hostname()
+
+	ruleFilterModel, err := filtermodel.NewRuleFilterModel(rfmCfg, hostname, runtime.GOOS)
+	if err != nil {
+		t.Fatal("failed to create rule filter:", err)
+	}
+	seclRuleFilter := rules.NewSECLRuleFilter(ruleFilterModel)
 
 	macroFilters = append(macroFilters, seclRuleFilter)
 	ruleFilters = append(ruleFilters, seclRuleFilter)
@@ -1322,6 +1334,6 @@ func (p *testPolicyProvider) Close() error {
 	return nil
 }
 
-func (p *testPolicyProvider) SetOnNewPoliciesReadyCb(_ func()) {
+func (p *testPolicyProvider) SetOnNewPoliciesReadyCb(_ func(silent bool)) {
 	// No-op for test provider
 }

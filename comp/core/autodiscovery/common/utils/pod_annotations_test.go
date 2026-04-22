@@ -515,3 +515,60 @@ func TestExtractCheckIDFromPodAnnotations(t *testing.T) {
 		})
 	}
 }
+
+func TestValidatePodChecksAnnotation(t *testing.T) {
+	tests := []struct {
+		name      string
+		json      string
+		wantErr   bool
+		errSubstr string
+	}{
+		{
+			name:    "valid minimal",
+			json:    `{"openmetrics":{"init_config":{},"instances":[{"openmetrics_endpoint":"http://%%host%%:8080/metrics"}]}}`,
+			wantErr: false,
+		},
+		{
+			name:    "valid with multiple checks",
+			json:    `{"redis":{},"nginx":{"init_config":{},"instances":[{}]}}`,
+			wantErr: false,
+		},
+		{
+			name:      "empty string",
+			json:      "",
+			wantErr:   true,
+			errSubstr: "empty",
+		},
+		{
+			name:      "invalid JSON - missing comma",
+			json:      `{"envoy":{"init_config":{}"instances":[{"stats_url":"http://%%host%%:9900/stats"}]}}`,
+			wantErr:   true,
+			errSubstr: "invalid JSON",
+		},
+		{
+			name:      "invalid JSON - trailing comma",
+			json:      `{"karpenter":{"init_config":{},"instances":[{},]}}`,
+			wantErr:   true,
+			errSubstr: "invalid JSON",
+		},
+		{
+			name:      "invalid JSON - not an object",
+			json:      `["not", "an", "object"]`,
+			wantErr:   true,
+			errSubstr: "invalid JSON",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidatePodChecksAnnotation(tt.json)
+			if tt.wantErr {
+				assert.Error(t, err)
+				if tt.errSubstr != "" {
+					assert.Contains(t, err.Error(), tt.errSubstr)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}

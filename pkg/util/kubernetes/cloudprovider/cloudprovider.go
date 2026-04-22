@@ -7,11 +7,18 @@ package cloudprovider
 
 import (
 	"context"
+	"regexp"
 
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
+)
+
+var (
+	eksRe = regexp.MustCompile(".*eks.*")
+	aksRe = regexp.MustCompile(".*azure.*")
+	gkeRe = regexp.MustCompile(".*gke.*")
 )
 
 // GetName returns the name of the kube distribution for the current node.
@@ -38,19 +45,37 @@ func GetName(ctx context.Context) (string, error) {
 	}
 
 	nl, err := dcaClient.GetNodeLabels(nodeName)
-	if err != nil {
-		return "", err
+	nsi, err1 := dcaClient.GetNodeInfo(nodeName)
+	if err != nil && err1 != nil {
+		// Return second error because NodeInfo is the primary source for detection
+		return "", err1
 	}
 
-	kubeDistro := getKubeDistributionNameFromNodeLabels(nl)
+	kubeletVersion := ""
+	kernelVersion := ""
+	if nsi != nil {
+		kubeletVersion = nsi.KubeletVersion
+		kernelVersion = nsi.KernelVersion
+	}
+
+	kubeDistro := getKubeDistributionName(nl, kubeletVersion, kernelVersion)
 
 	cache.Cache.Set(cacheKey, kubeDistro, cache.NoExpiration)
 	return kubeDistro, nil
 }
 
-// getKubeDistributionNameFromNodeLabels checks certain node labels to determine the kube cloud provider.
+// getKubeDistributionName checks kubeletVersion and certain node labels to determine the kube cloud provider.
 // Returns an empty string if no provider is determined.
-func getKubeDistributionNameFromNodeLabels(nl map[string]string) string {
+func getKubeDistributionName(nl map[string]string, kubeletVersion, kernelVersion string) string {
+	switch {
+	case aksRe.MatchString(kernelVersion):
+		return "aks"
+	case eksRe.MatchString(kubeletVersion):
+		return "eks"
+	case gkeRe.MatchString(kubeletVersion):
+		return "gke"
+	}
+
 	for labelName := range nl {
 		switch labelName {
 		case "eks.amazonaws.com/nodegroup",

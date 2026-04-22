@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	snmpscanmanager "github.com/DataDog/datadog-agent/comp/snmpscanmanager/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -126,7 +126,7 @@ func (c *Check) runCheckDevice(deviceCk *devicecheck.DeviceCheck) error {
 }
 
 // Configure configures the snmp checks
-func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
+func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, rawInstance integration.Data, rawInitConfig integration.Data, source string, provider string) error {
 	var err error
 	c.config, err = checkconfig.NewCheckConfig(rawInstance, rawInitConfig, c.rcClient)
 	if err != nil {
@@ -153,7 +153,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	// Must be called before c.CommonConfigure
 	c.BuildID(integrationConfigDigest, rawInstance, rawInitConfig)
 
-	err = c.CommonConfigure(senderManager, rawInitConfig, rawInstance, source)
+	err = c.CommonConfigure(senderManager, rawInitConfig, rawInstance, source, provider)
 	if err != nil {
 		return fmt.Errorf("common configure failed: %s", err)
 	}

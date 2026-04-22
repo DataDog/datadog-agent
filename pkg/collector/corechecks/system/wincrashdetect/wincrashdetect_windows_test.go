@@ -73,8 +73,8 @@ func TestWinCrashReporting(t *testing.T) {
 	 */
 	var p *probe.WinCrashStatus
 
-	mux.Handle("/windows_crash_detection/check", http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
-		utils.WriteAsJSON(rw, p, utils.CompactOutput)
+	mux.Handle("/windows_crash_detection/check", http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		utils.WriteAsJSON(req, rw, p, utils.CompactOutput)
 	}))
 	mux.Handle("/debug/stats", http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 	}))
@@ -91,7 +91,7 @@ func TestWinCrashReporting(t *testing.T) {
 		check := newCheck()
 		crashCheck := check.(*WinCrashDetect)
 		mock := mocksender.NewMockSender(crashCheck.ID())
-		err := crashCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "")
+		err := crashCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "", "")
 		assert.NoError(t, err)
 
 		err = crashCheck.Run()
@@ -119,7 +119,7 @@ func TestWinCrashReporting(t *testing.T) {
 		check := newCheck()
 		crashCheck := check.(*WinCrashDetect)
 		mock := mocksender.NewMockSender(crashCheck.ID())
-		err := crashCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "")
+		err := crashCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "", "")
 		assert.NoError(t, err)
 
 		// The text field describes the bugcheck information and callstack.
@@ -173,7 +173,7 @@ func TestWinCrashReporting(t *testing.T) {
 
 		check = newCheck()
 		crashCheck = check.(*WinCrashDetect)
-		err = crashCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "")
+		err = crashCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "", "")
 		assert.Nil(t, err)
 		err = crashCheck.Run()
 		assert.Nil(t, err)
@@ -235,9 +235,9 @@ func TestCrashReportingStates(t *testing.T) {
 		assert.FailNow(t, "Should not parse")
 	}
 
-	mux.Handle("/windows_crash_detection/check", http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
+	mux.Handle("/windows_crash_detection/check", http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		results := cp.Get()
-		utils.WriteAsJSON(rw, results, utils.CompactOutput)
+		utils.WriteAsJSON(req, rw, results, utils.CompactOutput)
 	}))
 	mux.Handle("/debug/stats", http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 	}))
@@ -249,7 +249,7 @@ func TestCrashReportingStates(t *testing.T) {
 		check := newCheck()
 		crashCheck := check.(*WinCrashDetect)
 		mock := mocksender.NewMockSender(crashCheck.ID())
-		err := crashCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "")
+		err := crashCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "", "")
 		assert.NoError(t, err)
 
 		crashStatus = &probe.WinCrashStatus{
@@ -312,7 +312,7 @@ func TestCrashReportingStates(t *testing.T) {
 		check := newCheck()
 		crashCheck := check.(*WinCrashDetect)
 		mock := mocksender.NewMockSender(crashCheck.ID())
-		err := crashCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "")
+		err := crashCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "", "")
 		assert.NoError(t, err)
 
 		noCrashStatus := &probe.WinCrashStatus{
@@ -337,7 +337,7 @@ func TestCrashReportingStates(t *testing.T) {
 		check := newCheck()
 		crashCheck := check.(*WinCrashDetect)
 		mock := mocksender.NewMockSender(crashCheck.ID())
-		err := crashCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "")
+		err := crashCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "", "")
 		assert.NoError(t, err)
 
 		failedStatus := &probe.WinCrashStatus{

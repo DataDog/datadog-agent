@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    When a multiline log processing rule has a pattern that never matches,
+    the logs agent now sends lines individually instead of joining all lines
+    into a single oversized message. Normal multiline aggregation begins
+    once the pattern matches for the first time.

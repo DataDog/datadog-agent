@@ -10,6 +10,7 @@ package activitytree
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // BindNode is used to store a bind node
@@ -58,7 +59,7 @@ func (sn *SocketNode) evictImageTag(imageTag string) bool {
 
 // InsertBindEvent inserts a bind even inside a socket node
 func (sn *SocketNode) InsertBindEvent(evt *model.BindEvent, event *model.Event, imageTag string, generationType NodeGenerationType, rules []*model.MatchedRule, dryRun bool) bool {
-	evtIP := evt.Addr.IPNet.IP.String()
+	evtIP := utils.GetIPStringFromIPNet(evt.Addr.IPNet)
 	for _, n := range sn.Bind {
 		if evt.Addr.Port == n.Port && evtIP == n.IP && evt.Protocol == n.Protocol {
 			if !dryRun {

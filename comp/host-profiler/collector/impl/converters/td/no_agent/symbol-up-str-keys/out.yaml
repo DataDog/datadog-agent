@@ -1,13 +1,16 @@
 exporters:
     otlphttp:
+        compression: zstd
         headers:
             dd-api-key: test-api-key
+            dd-evp-origin: host-profiler
+            dd-evp-origin-version: 7.0.0-test
 processors:
     resource/dd-profiler-internal-metadata:
         attributes:
             - action: upsert
               key: profiler_name
-              value: full-host-profiler
+              value: host-profiler
             - action: upsert
               key: profiler_version
               value: 7.0.0-test
@@ -23,7 +26,7 @@ processors:
                 os.type:
                     enabled: false
 receivers:
-    hostprofiler:
+    profiling:
         symbol_uploader:
             enabled: true
             symbol_endpoints:
@@ -40,4 +43,4 @@ service:
                 - resourcedetection/default
                 - resource/dd-profiler-internal-metadata
             receivers:
-                - hostprofiler
+                - profiling

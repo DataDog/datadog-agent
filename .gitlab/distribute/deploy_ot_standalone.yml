@@ -9,14 +9,19 @@
   before_script:
     - if [[ "$VERSION" == "" ]]; then VERSION="$(dda inv agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?; fi
     - if [[ "$OTEL_AGENT_REPOSITORY" == "" ]]; then export OTEL_AGENT_REPOSITORY="otel-agent"; fi
-    - export IMG_BASE_SRC="${SRC_OTEL_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
-    - export IMG_SOURCES="${IMG_BASE_SRC}-7-amd64,${IMG_BASE_SRC}-7-arm64"
-    - export IMG_DESTINATIONS="${OTEL_AGENT_REPOSITORY}:${VERSION}"
+    - export IMG_BASE_SRC="${SRC_OTEL_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7${FLAVOR_SUFFIX}"
+    - export IMG_SOURCES="${IMG_BASE_SRC}-amd64,${IMG_BASE_SRC}-arm64"
+    - export IMG_DESTINATIONS="${OTEL_AGENT_REPOSITORY}:${VERSION}${FLAVOR_SUFFIX}"
 
 deploy_containers-ot-standalone:
   extends: .deploy_containers-ot-standalone-base
   rules: !reference [.on_deploy_manual_auto_on_rc]
   needs: []
+  parallel:
+    matrix:
+      - FLAVOR_SUFFIX:
+          - ""
+          - "-fips"
 
 # Jobs to publish images to our internal registries.
 
@@ -24,7 +29,11 @@ deploy_containers-ot-standalone_internal-rc:
   extends: .deploy_containers-ot-standalone-base
   rules: !reference [.on_deploy_internal_rc]
   needs: []
+  variables:
+    FLAVOR_SUFFIX: ""
 
 deploy_containers-ot-standalone_internal:
   extends: .deploy_containers-ot-standalone-base
   rules: !reference [.on_deploy_internal_manual_final]
+  variables:
+    FLAVOR_SUFFIX: ""

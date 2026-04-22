@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/testdns"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
@@ -435,7 +436,7 @@ func TestParsingError(t *testing.T) {
 
 	reverseDNS := rdns.(*dnsMonitor)
 	// Pass a byte array of size 1 which should result in parsing error
-	err = reverseDNS.processPacket(make([]byte, 1), 0, time.Now())
+	err = reverseDNS.processPacket(make([]byte, 1), &filter.AFPacketInfo{}, time.Now())
 	require.NoError(t, err)
 	assert.True(t, cacheTelemetry.length.Load() == 0)
 	assert.True(t, snooperTelemetry.decodingErrors.Load() == 1)

@@ -1,0 +1,9 @@
+---
+enhancements:
+  - |
+    The ``datadog-cluster-agent clusterchecks`` CLI command now displays
+    check execution status for checks running on Cluster Level Check (CLC)
+    runners, matching the node agent ``agent status collector`` output format.
+    This includes OK/ERROR status, total runs, metric samples, events,
+    service checks, average execution time, last execution date, last
+    successful execution date, and last error message.

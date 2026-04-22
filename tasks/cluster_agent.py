@@ -12,17 +12,17 @@ import tempfile
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks import secret_generic_connector
+from tasks import doc, secret_generic_connector
 from tasks.build_tags import compute_build_tags_for_flavor
 from tasks.cluster_agent_helpers import build_common, clean_common, refresh_assets_common, version_common
 from tasks.cws_instrumentation import BIN_PATH as CWS_INSTRUMENTATION_BIN_PATH
+from tasks.libs.common.constants import CONTAINER_PLATFORM_MAPPING
 from tasks.libs.dependencies import get_effective_dependencies_env
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "datadog-cluster-agent")
 AGENT_TAG = "datadog/cluster_agent:master"
 POLICIES_REPO = "https://github.com/DataDog/security-agent-policies.git"
-CONTAINER_PLATFORM_MAPPING = {"aarch64": "arm64", "amd64": "amd64", "x86_64": "amd64"}
 
 
 @task
@@ -165,7 +165,17 @@ def image_build(ctx, arch=None, tag=AGENT_TAG, push=False):
         ctx.run(f"docker push {tag}")
 
 
-@task
+@task(
+    help={
+        "base_image": doc.base_image,
+        "target_image": doc.target_image,
+        "push": doc.push,
+        "race": doc.race,
+        "signed_pull": doc.signed_pull,
+        "arch": doc.arch,
+        "development": doc.development,
+    }
+)
 def hacky_dev_image_build(
     ctx,
     base_image=None,
@@ -174,8 +184,10 @@ def hacky_dev_image_build(
     race=False,
     signed_pull=False,
     arch=None,
+    development=True,
 ):
-    os.environ["DELVE"] = "1"
+    if development:
+        os.environ["DELVE"] = "1"
     build(ctx, race=race, force_policies_clone=False)
 
     if arch is None:
@@ -191,7 +203,7 @@ def hacky_dev_image_build(
 
         # Try to guess what is the latest release of the cluster-agent
         latest_release = semver.VersionInfo(0)
-        tags = requests.get("https://registry.datadoghq.com/v2/cluster-agent/tags/list")
+        tags = requests.get("https://gcr.io/v2/datadoghq/cluster-agent/tags/list")
         for tag in tags.json()['tags']:
             if not semver.VersionInfo.isvalid(tag):
                 continue
@@ -200,7 +212,7 @@ def hacky_dev_image_build(
                 continue
             if ver > latest_release:
                 latest_release = ver
-        base_image = f"registry.datadoghq.com/cluster-agent:{latest_release}"
+        base_image = f"gcr.io/datadoghq/cluster-agent:{latest_release}"
 
     with tempfile.NamedTemporaryFile(mode='w') as dockerfile:
         dockerfile.write(

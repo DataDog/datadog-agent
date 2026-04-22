@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
-	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
@@ -67,6 +66,7 @@ func (hr *horizontalController) sync(ctx context.Context, podAutoscaler *datadog
 	if scaleErr != nil {
 		scaleErr = autoscaling.NewConditionError(autoscaling.ConditionReasonScaleFailed, fmt.Errorf("failed to get scale subresource for autoscaler %s, err: %w", autoscalerInternal.ID(), scaleErr))
 		autoscalerInternal.UpdateFromHorizontalAction(nil, scaleErr)
+		autoscalerInternal.HorizontalActionErrorInc()
 		return autoscaling.Requeue, scaleErr
 	}
 
@@ -112,28 +112,25 @@ func (hr *horizontalController) performScaling(ctx context.Context, podAutoscale
 		return autoscaling.NoRequeue, nil
 	}
 
+	// Final gate: check if the apply mode allows this action
+	if allowed, reason := isApplyModeAllowed(autoscalerSpec, scalingValues.Horizontal.Source); !allowed {
+		autoscalerInternal.UpdateFromHorizontalAction(nil, autoscaling.NewConditionErrorf(autoscaling.ConditionReasonPolicyRestricted, "%s", reason))
+		return autoscaling.NoRequeue, nil
+	}
+
 	scale.Spec.Replicas = horizontalAction.ToReplicas
 	_, err = hr.scaler.update(ctx, gr, scale)
 	if err != nil {
 		err = autoscaling.NewConditionError(autoscaling.ConditionReasonScaleFailed, fmt.Errorf("failed to scale target: %s/%s to %d replicas, err: %w", scale.Namespace, scale.Name, horizontalAction.ToReplicas, err))
 		hr.eventRecorder.Event(podAutoscaler, corev1.EventTypeWarning, model.FailedScaleEventReason, err.Error())
 		autoscalerInternal.UpdateFromHorizontalAction(nil, err)
-
-		telemetryHorizontalScaleActions.Inc(scale.Namespace, scale.Name, podAutoscaler.Name, string(scalingValues.Horizontal.Source), "error", le.JoinLeaderValue)
+		autoscalerInternal.HorizontalActionErrorInc()
 		return autoscaling.Requeue, err
 	}
 
-	telemetryHorizontalScaleActions.Inc(scale.Namespace, scale.Name, podAutoscaler.Name, string(scalingValues.Horizontal.Source), "ok", le.JoinLeaderValue)
-	setHorizontalScaleAppliedRecommendations(
-		float64(horizontalAction.ToReplicas),
-		scale.Namespace,
-		scale.Name,
-		podAutoscaler.Name,
-		string(scalingValues.Horizontal.Source),
-	)
-
 	log.Debugf("Scaled target: %s/%s from %d replicas to %d replicas", scale.Namespace, scale.Name, horizontalAction.FromReplicas, horizontalAction.ToReplicas)
 	autoscalerInternal.UpdateFromHorizontalAction(horizontalAction, nil)
+	autoscalerInternal.HorizontalActionSuccessInc()
 	hr.eventRecorder.Eventf(podAutoscaler, corev1.EventTypeNormal, model.SuccessfulScaleEventReason, "Scaled target: %s/%s from %d replicas to %d replicas", scale.Namespace, scale.Name, horizontalAction.FromReplicas, horizontalAction.ToReplicas)
 	if nextEvalAfter > 0 {
 		return autoscaling.Requeue.After(nextEvalAfter), nil
@@ -225,6 +222,20 @@ func (hr *horizontalController) computeScaleAction(
 		}
 	}
 
+	// Check if the scaling direction is explicitly disabled by strategy
+	if scaleDirection != common.NoScale && autoscalerSpec.ApplyPolicy != nil {
+		if scaleDirection == common.ScaleUp && autoscalerSpec.ApplyPolicy.ScaleUp != nil && autoscalerSpec.ApplyPolicy.ScaleUp.Strategy != nil {
+			if *autoscalerSpec.ApplyPolicy.ScaleUp.Strategy == datadoghqcommon.DatadogPodAutoscalerDisabledStrategySelect {
+				return nil, 0, autoscaling.NewConditionErrorf(autoscaling.ConditionReasonPolicyRestricted, "upscaling disabled by strategy")
+			}
+		}
+		if scaleDirection == common.ScaleDown && autoscalerSpec.ApplyPolicy.ScaleDown != nil && autoscalerSpec.ApplyPolicy.ScaleDown.Strategy != nil {
+			if *autoscalerSpec.ApplyPolicy.ScaleDown.Strategy == datadoghqcommon.DatadogPodAutoscalerDisabledStrategySelect {
+				return nil, 0, autoscaling.NewConditionErrorf(autoscaling.ConditionReasonPolicyRestricted, "downscaling disabled by strategy")
+			}
+		}
+	}
+
 	// If we need to scale, we apply scaling rules if any
 	if scaleDirection != common.NoScale {
 		// Applying scaling rules if any
@@ -257,13 +268,6 @@ func (hr *horizontalController) computeScaleAction(
 		horizontalAction.LimitedReason = pointer.Ptr(limitReason)
 	}
 
-	// Finally checking if scaling is allowed
-	allowed, reason := isScalingAllowed(autoscalerSpec, source, scaleDirection)
-	if !allowed {
-		log.Debugf("Scaling not allowed for autoscaler id: %s, scale direction: %s, scale reason: %s (would have scaled to %d replicas)", autoscalerInternal.ID(), scaleDirection, reason, horizontalAction.ToReplicas)
-		return nil, 0, autoscaling.NewConditionErrorf(autoscaling.ConditionReasonPolicyRestricted, "%s", reason)
-	}
-
 	return horizontalAction, evalAfter, nil
 }
 
@@ -285,41 +289,27 @@ func isFallbackScalingDirectionEnabled(fallbackEnabledDirection datadoghq.Datado
 	return false
 }
 
-func isScalingAllowed(autoscalerSpec *datadoghq.DatadogPodAutoscalerSpec, source datadoghqcommon.DatadogPodAutoscalerValueSource, direction common.ScaleDirection) (bool, string) {
-	// If we don't have spec, we cannot take decisions, should not happen.
+// isApplyModeAllowed checks if the apply mode allows scaling actions.
+// This is the final gate applied after the action has been computed,
+// ensuring modes like Preview can never be bypassed regardless of the code path.
+func isApplyModeAllowed(autoscalerSpec *datadoghq.DatadogPodAutoscalerSpec, source datadoghqcommon.DatadogPodAutoscalerValueSource) (bool, string) {
 	if autoscalerSpec == nil {
 		return false, "pod autoscaling hasn't been initialized yet"
 	}
 
-	// By default, policy is to allow all
 	if autoscalerSpec.ApplyPolicy == nil {
 		return true, ""
 	}
 
-	// Default apply mode to All if not set
 	applyMode := autoscalerSpec.ApplyPolicy.Mode
 	if applyMode == "" {
 		applyMode = datadoghq.DatadogPodAutoscalerApplyModeApply
 	}
 
-	// We do have policies, checking if they allow this source
 	if !model.ApplyModeAllowSource(applyMode, source) {
 		return false, fmt.Sprintf("horizontal scaling disabled due to applyMode: %s not allowing recommendations from source: %s", autoscalerSpec.ApplyPolicy.Mode, source)
 	}
 
-	// Check if scaling direction is allowed
-	if direction == common.ScaleUp && autoscalerSpec.ApplyPolicy.ScaleUp != nil && autoscalerSpec.ApplyPolicy.ScaleUp.Strategy != nil {
-		if *autoscalerSpec.ApplyPolicy.ScaleUp.Strategy == datadoghqcommon.DatadogPodAutoscalerDisabledStrategySelect {
-			return false, "upscaling disabled by strategy"
-		}
-	}
-	if direction == common.ScaleDown && autoscalerSpec.ApplyPolicy.ScaleDown != nil && autoscalerSpec.ApplyPolicy.ScaleDown.Strategy != nil {
-		if *autoscalerSpec.ApplyPolicy.ScaleDown.Strategy == datadoghqcommon.DatadogPodAutoscalerDisabledStrategySelect {
-			return false, "downscaling disabled by strategy"
-		}
-	}
-
-	// No specific policy defined, defaulting to allow
 	return true, ""
 }
 
@@ -397,9 +387,10 @@ func applyScaleUpPolicy(
 		// For that we consider the current number and apply the opposite of the events that happened in the period.
 		periodStartReplicas := currentDesiredReplicas - replicasAdded + replicasRemoved
 		var ruleMax int32
-		if rule.Type == datadoghqcommon.DatadogPodAutoscalerPodsScalingRuleType {
+		switch rule.Type {
+		case datadoghqcommon.DatadogPodAutoscalerPodsScalingRuleType:
 			ruleMax = periodStartReplicas + rule.Value
-		} else if rule.Type == datadoghqcommon.DatadogPodAutoscalerPercentScalingRuleType {
+		case datadoghqcommon.DatadogPodAutoscalerPercentScalingRuleType:
 			// 1.x * start may yield the same number of replicas as periodStartReplicas, ceiling up to always always allow at least 1 replica
 			// otherwise it would block scaling up forever.
 			ruleMax = int32(math.Ceil(float64(periodStartReplicas) * (1 + float64(rule.Value)/100)))
@@ -461,10 +452,10 @@ func applyScaleDownPolicy(
 		// For that we consider the current number and apply the opposite of the events that happened in the period.
 		periodStartReplicas := currentDesiredReplicas - replicasAdded + replicasRemoved
 		var ruleMin int32
-		if rule.Type == datadoghqcommon.DatadogPodAutoscalerPodsScalingRuleType {
+		switch rule.Type {
+		case datadoghqcommon.DatadogPodAutoscalerPodsScalingRuleType:
 			ruleMin = periodStartReplicas - rule.Value
-		} else if rule.Type == datadoghqcommon.DatadogPodAutoscalerPercentScalingRuleType {
-			// When casting, the decimal is truncated, so we always have at least 1 replica allowed
+		case datadoghqcommon.DatadogPodAutoscalerPercentScalingRuleType:
 			ruleMin = int32(float64(periodStartReplicas) * (1 - float64(rule.Value)/100))
 		}
 		minReplicasFromRules = selectPolicyFn(minReplicasFromRules, ruleMin)

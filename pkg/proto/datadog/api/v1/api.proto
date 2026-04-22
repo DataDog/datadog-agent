@@ -8,6 +8,7 @@ import "datadog/remoteconfig/remoteconfig.proto";
 import "datadog/workloadmeta/workloadmeta.proto";
 import "datadog/workloadfilter/workloadfilter.proto";
 import "datadog/autodiscovery/autodiscovery.proto";
+import "datadog/kubemetadata/kubemetadata.proto";
 import "google/protobuf/empty.proto";
 
 option go_package = "pkg/proto/pbgo/core"; // golang
@@ -68,5 +69,8 @@ service AgentSecure {
     rpc StreamConfigEvents(datadog.model.v1.ConfigStreamRequest) returns (stream datadog.model.v1.ConfigEvent);
 
     // Evaluates a workloadfilter rule on behalf of remote agents.
-    rpc WorkloadFilterEvaluate(datadog.workloadfilter.WorkloadFilterEvaluateRequest) returns (datadog.workloadfilter.WorkloadFilterEvaluateResponse); 
+    rpc WorkloadFilterEvaluate(datadog.workloadfilter.WorkloadFilterEvaluateRequest) returns (datadog.workloadfilter.WorkloadFilterEvaluateResponse);
+
+    // Streams pod-to-service metadata for a specific node.
+    rpc StreamKubeMetadata(datadog.kubemetadata.KubeMetadataStreamRequest) returns (stream datadog.kubemetadata.KubeMetadataStreamResponse);
 }

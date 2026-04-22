@@ -95,7 +95,7 @@ func getAgentV1ContainerURLs(ctx context.Context) ([]string, error) {
 
 	for _, network := range ecsConfig.NetworkSettings.Networks {
 		ip := network.IPAddress
-		if ip != "" {
+		if ip.IsValid() {
 			urls = append(urls, fmt.Sprintf("http://%s:%d/", ip, v1.DefaultAgentPort))
 		}
 	}

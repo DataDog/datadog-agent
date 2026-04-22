@@ -7,15 +7,20 @@
 package logs
 
 import (
+	"context"
 	"errors"
 	"io"
 	stdslog "log/slog"
+	"os"
 	"strings"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	seelogCfg "github.com/DataDog/datadog-agent/pkg/util/log/setup/internal/seelog"
 	"github.com/DataDog/datadog-agent/pkg/util/log/slog"
+	"github.com/DataDog/datadog-agent/pkg/util/log/slog/filewriter"
+	"github.com/DataDog/datadog-agent/pkg/util/log/slog/handlers"
+	"github.com/DataDog/datadog-agent/pkg/util/log/syslog"
+	"github.com/DataDog/datadog-agent/pkg/util/log/types"
 )
 
 // LoggerName specifies the name of an instantiated logger.
@@ -32,18 +37,18 @@ const (
 // if a non empty logFile is provided, it will also log to the file
 // a non empty syslogURI will enable syslog, and format them following RFC 5424 if specified
 // you can also specify to log to the console and in JSON format
-func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool, cfg pkgconfigmodel.Reader) error {
-	seelogLogLevel, err := log.ValidateLogLevel(logLevel)
+func SetupLogger(loggerName LoggerName, strLogLevel, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool, cfg pkgconfigmodel.Reader) error {
+	logLevel, err := log.ValidateLogLevel(strLogLevel)
 	if err != nil {
 		return err
 	}
-	loggerInterface, err := buildLogger(loggerName, seelogLogLevel, logFile, syslogURI, syslogRFC, logToConsole, jsonFormat, cfg)
+	loggerInterface, levelVar, err := buildLogger(loggerName, logLevel, logFile, syslogURI, syslogRFC, logToConsole, jsonFormat, cfg)
 	if err != nil {
 		return err
 	}
 	handler := loggerInterface.(*slog.Wrapper).Handler()
 	stdslog.SetDefault(stdslog.New(handler))
-	log.SetupLogger(loggerInterface, seelogLogLevel.String())
+	log.SetupLoggerWithLevelVar(loggerInterface, levelVar)
 
 	// Registering a callback in case of "log_level" update
 	cfg.OnUpdate(func(setting string, _ pkgconfigmodel.Source, oldValue, newValue any, _ uint64) {
@@ -52,19 +57,14 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 		}
 		level := newValue.(string)
 
-		seelogLogLevel, err := log.ValidateLogLevel(level)
+		logLevel, err := log.ValidateLogLevel(level)
 		if err != nil {
 			log.Warnf("Unable to set new log level: %v", err)
 			return
 		}
-		loggerInterface, err := buildLogger(loggerName, seelogLogLevel, logFile, syslogURI, syslogRFC, logToConsole, jsonFormat, cfg)
-		if err != nil {
-			return
+		if err := log.ChangeLogLevel(logLevel); err != nil {
+			log.Warnf("Unable to change log level: %v", err)
 		}
-		handler := loggerInterface.(*slog.Wrapper).Handler()
-		stdslog.SetDefault(stdslog.New(handler))
-		// We wire the new logger with the Datadog logic
-		log.ChangeLogLevel(loggerInterface, seelogLogLevel)
 	})
 	return nil
 }
@@ -75,9 +75,9 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 // you can also specify to log to the console and in JSON format
 func BuildJMXLogger(logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool, cfg pkgconfigmodel.Reader) (log.LoggerInterface, error) {
 	// The JMX logger always logs at level "info", because JMXFetch does its
-	// own level filtering on and provides all messages to seelog at the info
+	// own level filtering and provides all messages to the logger at the info
 	// or error levels, via log.JMXInfo and log.JMXError.
-	logger, err := buildLogger(JMXLoggerName, log.InfoLvl, logFile, syslogURI, syslogRFC, logToConsole, jsonFormat, cfg)
+	logger, _, err := buildLogger(JMXLoggerName, log.InfoLvl, logFile, syslogURI, syslogRFC, logToConsole, jsonFormat, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -87,52 +87,123 @@ func BuildJMXLogger(logFile, syslogURI string, syslogRFC, logToConsole, jsonForm
 // SetupDogstatsdLogger returns a logger with dogstatsd logger name and log level
 // if a non empty logFile is provided, it will also log to the file
 func SetupDogstatsdLogger(logFile string, cfg pkgconfigmodel.Reader) (log.LoggerInterface, error) {
-	logger, err := buildDogstatsdLogger(DogstatsDLoggerName, log.InfoLvl, logFile, cfg)
+	logger, _, err := buildDogstatsdLogger(DogstatsDLoggerName, log.InfoLvl, logFile, cfg)
 	if err != nil {
 		return nil, err
 	}
 	return logger, nil
 }
 
-func buildDogstatsdLogger(loggerName LoggerName, seelogLogLevel log.LogLevel, logFile string, cfg pkgconfigmodel.Reader) (log.LoggerInterface, error) {
-	config := seelogCfg.NewSeelogConfig(string(loggerName), seelogLogLevel.String(), "common", false, nil, commonFormatter(loggerName, cfg))
-
-	// Configuring max roll for log file, if dogstatsd_log_file_max_rolls env var is not set (or set improperly ) within datadog.yaml then default value is 3
+func buildDogstatsdLogger(loggerName LoggerName, logLevel log.LogLevel, logFile string, cfg pkgconfigmodel.Reader) (log.LoggerInterface, *stdslog.LevelVar, error) {
 	dogstatsdLogFileMaxRolls := cfg.GetInt("dogstatsd_log_file_max_rolls")
 	if dogstatsdLogFileMaxRolls < 0 {
 		dogstatsdLogFileMaxRolls = 3
 		log.Warnf("Invalid value for dogstatsd_log_file_max_rolls, please make sure the value is equal or higher than 0")
 	}
 
-	// Configure log file, log file max size, log file roll up
-	config.EnableFileLogging(logFile, cfg.GetSizeInBytes("dogstatsd_log_file_max_size"), uint(dogstatsdLogFileMaxRolls))
-
-	return generateLoggerInterface(config, cfg)
+	return buildSlogLogger(
+		logLevel,
+		false,
+		logFile, cfg.GetSizeInBytes("dogstatsd_log_file_max_size"), uint(dogstatsdLogFileMaxRolls),
+		"",
+		commonFormatter(loggerName, cfg), nil,
+	)
 }
 
-func buildLogger(loggerName LoggerName, seelogLogLevel log.LogLevel, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool, cfg pkgconfigmodel.Reader) (log.LoggerInterface, error) {
-	formatID := "common"
+func buildLogger(loggerName LoggerName, logLevel log.LogLevel, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool, cfg pkgconfigmodel.Reader) (log.LoggerInterface, *stdslog.LevelVar, error) {
+	var formatter func(context.Context, stdslog.Record) string
 	if jsonFormat {
-		formatID = "json"
+		formatter = jsonFormatter(loggerName, cfg)
+	} else {
+		formatter = commonFormatter(loggerName, cfg)
 	}
 
-	config := seelogCfg.NewSeelogConfig(string(loggerName), seelogLogLevel.String(), formatID, syslogRFC, jsonFormatter(loggerName, cfg), commonFormatter(loggerName, cfg))
-	config.EnableConsoleLog(logToConsole)
-	config.EnableFileLogging(logFile, cfg.GetSizeInBytes("log_file_max_size"), uint(cfg.GetInt("log_file_max_rolls")))
-
-	if syslogURI != "" { // non-blank uri enables syslog
-		config.ConfigureSyslog(syslogURI)
+	var syslogFmt func(context.Context, stdslog.Record) string
+	if syslogURI != "" {
+		if jsonFormat {
+			syslogFmt = jsonSyslogFormatter(string(loggerName), syslogRFC)
+		} else {
+			syslogFmt = commonSyslogFormatter(string(loggerName), syslogRFC)
+		}
 	}
 
-	return generateLoggerInterface(config, cfg)
+	return buildSlogLogger(
+		logLevel,
+		logToConsole,
+		logFile, cfg.GetSizeInBytes("log_file_max_size"), uint(cfg.GetInt("log_file_max_rolls")),
+		syslogURI,
+		formatter, syslogFmt,
+	)
 }
 
-// generateLoggerInterface return a logger Interface from a log config
-func generateLoggerInterface(logConfig *seelogCfg.Config, _ pkgconfigmodel.Reader) (log.LoggerInterface, error) {
-	return logConfig.SlogLogger()
+// buildSlogLogger builds a slog logger writing to console, file, and/or syslog outputs.
+// formatter is used for console and file output; syslogFormatter is used for syslog output
+// and may be nil when syslogURI is empty.
+func buildSlogLogger(
+	logLevel log.LogLevel,
+	logToConsole bool,
+	logFile string,
+	maxsize uint,
+	maxrolls uint,
+	syslogURI string,
+	formatter func(context.Context, stdslog.Record) string,
+	syslogFormatter func(context.Context, stdslog.Record) string,
+) (log.LoggerInterface, *stdslog.LevelVar, error) {
+	if !logToConsole && logFile == "" && syslogURI == "" {
+		return nil, nil, errors.New("no logging configuration provided")
+	}
+
+	var closeFuncs []func()
+
+	var writers []io.Writer
+	if logToConsole {
+		writers = append(writers, os.Stdout)
+	}
+
+	if logFile != "" {
+		fw, err := filewriter.NewRollingFileWriterSize(logFile, int64(maxsize), int(maxrolls), filewriter.RollingNameModePostfix)
+		if err != nil {
+			return nil, nil, err
+		}
+		writers = append(writers, fw)
+		closeFuncs = append(closeFuncs, func() { fw.Close() })
+	}
+
+	var handlerList []stdslog.Handler
+	if len(writers) > 0 {
+		handlerList = append(handlerList, handlers.NewFormat(formatter, newSplitWriter(writers...)))
+	}
+
+	if syslogURI != "" {
+		syslogReceiver, err := syslog.NewReceiver(syslogURI)
+		if err != nil {
+			return nil, nil, err
+		}
+		handlerList = append(handlerList, handlers.NewFormat(syslogFormatter, syslogReceiver))
+		closeFuncs = append(closeFuncs, func() { syslogReceiver.Close() })
+	}
+
+	multiHandler := handlers.NewMulti(handlerList...)
+	asyncHandler := handlers.NewAsync(multiHandler)
+
+	levelVar := new(stdslog.LevelVar)
+	levelVar.Set(types.ToSlogLevel(logLevel))
+	levelHandler := handlers.NewLevel(levelVar, asyncHandler)
+
+	// Close async handler first so it drains and stops writing, then close writers.
+	// Otherwise the async goroutine can still call Write() while the file writer is closed (data race).
+	closeFunc := func() {
+		asyncHandler.Close()
+		for _, cf := range closeFuncs {
+			cf()
+		}
+	}
+
+	logger := slog.NewWrapperWithCloseAndFlush(levelHandler, asyncHandler.Flush, closeFunc)
+	return logger, levelVar, nil
 }
 
-// logWriter is a Writer that logs all written messages with the global seelog logger
+// logWriter is a Writer that logs all written messages with the global logger
 type logWriter struct {
 	additionalDepth int
 	logFunc         func(int, ...interface{})

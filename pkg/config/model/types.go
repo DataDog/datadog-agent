@@ -40,13 +40,17 @@ const (
 	SourceFile Source = "file"
 	// SourceEnvVar are the values loaded from the environment variables.
 	SourceEnvVar Source = "environment-variable"
-	// SourceAgentRuntime are the values configured by the agent itself. The agent can dynamically compute the best
-	// value for some settings when not set by the user.
-	SourceAgentRuntime Source = "agent-runtime"
+	// SourceConfigPostInit are values computed by the agent during initial config setup.
+	SourceConfigPostInit Source = "config-post-init"
+	// SourceSecret are values resolved from secrets (ENC[...] placeholders).
+	SourceSecret Source = "secret"
 	// SourceLocalConfigProcess are the values mirrored from the config process. The config process is the
 	// core-agent. This is used when side process like security-agent or trace-agent pull their configuration from
 	// the core-agent.
 	SourceLocalConfigProcess Source = "local-config-process"
+	// SourceAgentRuntime are the values configured by the agent itself. The agent can dynamically compute the best
+	// value for some settings when not set by the user.
+	SourceAgentRuntime Source = "agent-runtime"
 	// SourceRC are the values loaded from remote-config (aka Datadog backend)
 	SourceRC Source = "remote-config"
 	// SourceFleetPolicies are the values loaded from remote-config file
@@ -65,8 +69,10 @@ var Sources = []Source{
 	SourceFile,
 	SourceEnvVar,
 	SourceFleetPolicies,
-	SourceAgentRuntime,
+	SourceConfigPostInit,
+	SourceSecret,
 	SourceLocalConfigProcess,
+	SourceAgentRuntime,
 	SourceRC,
 	SourceCLI,
 }
@@ -81,10 +87,12 @@ var sourcesPriority = map[Source]int{
 	SourceFile:               3,
 	SourceEnvVar:             4,
 	SourceFleetPolicies:      5,
-	SourceAgentRuntime:       6,
-	SourceLocalConfigProcess: 7,
-	SourceRC:                 8,
-	SourceCLI:                9,
+	SourceConfigPostInit:     6,
+	SourceSecret:             7,
+	SourceLocalConfigProcess: 8,
+	SourceAgentRuntime:       9,
+	SourceRC:                 10,
+	SourceCLI:                11,
 }
 
 // ValueWithSource is a tuple for a source and a value, not necessarily the applied value in the main config
@@ -159,12 +167,17 @@ type Reader interface {
 
 	AllSettings() map[string]interface{}
 	AllSettingsWithoutDefault() map[string]interface{}
+	// AllSettingsWithoutSecrets returns all settings excluding the secrets layer.
+	AllSettingsWithoutSecrets() map[string]interface{}
+	// AllSettingsWithoutDefaultOrSecrets returns settings excluding both defaults and the secrets layer.
+	AllSettingsWithoutDefaultOrSecrets() map[string]interface{}
 	AllSettingsBySource() map[Source]interface{}
 	// AllKeysLowercased returns all config keys in the config, no matter how they are set.
 	// Note that it returns the keys lowercased.
 	AllKeysLowercased() []string
-	// AllFlattenedSettingsWithSequenceID returns all settings as a flattened map (e.g., "logs_config.enabled"
-	// instead of nested {"logs_config": {"enabled": ...}}) along with the current sequence ID.
+	// AllFlattenedSettingsWithSequenceID returns all settings as a flattened map of schema leaf keys
+	// (for example, "logs_config.enabled" instead of nested {"logs_config": {"enabled": ...}})
+	// along with the current sequence ID.
 	// This provides atomic access to flattened keys, values, and sequence ID under a single lock.
 	AllFlattenedSettingsWithSequenceID() (map[string]interface{}, uint64)
 
@@ -188,6 +201,8 @@ type Reader interface {
 
 	// IsKnown returns whether this key is known
 	IsKnown(key string) bool
+	// IsSetting returns whether the key identifies a setting (and not a section)
+	IsSetting(key string) bool
 
 	// GetKnownKeysLowercased returns all the keys that meet at least one of these criteria:
 	// 1) have a default, 2) have an environment variable binded, 3) are an alias or 4) have been SetKnown()

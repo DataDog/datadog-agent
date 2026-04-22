@@ -8,9 +8,9 @@ package ecs
 import (
 	"fmt"
 
-	classicECS "github.com/pulumi/pulumi-aws/sdk/v6/go/aws/ecs"
-	"github.com/pulumi/pulumi-awsx/sdk/v2/go/awsx/awsx"
-	"github.com/pulumi/pulumi-awsx/sdk/v2/go/awsx/ecs"
+	classicECS "github.com/pulumi/pulumi-aws/sdk/v7/go/aws/ecs"
+	"github.com/pulumi/pulumi-awsx/sdk/v3/go/awsx/awsx"
+	"github.com/pulumi/pulumi-awsx/sdk/v3/go/awsx/ecs"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
@@ -125,9 +125,10 @@ func FargateTaskDefinitionWithAgent(
 
 func FargateFirelensContainerDefinition() *ecs.TaskDefinitionContainerDefinitionArgs {
 	return &ecs.TaskDefinitionContainerDefinitionArgs{
-		Cpu:       pulumi.IntPtr(0),
-		User:      pulumi.StringPtr("0"),
-		Name:      pulumi.String("log_router"),
+		Cpu:  pulumi.IntPtr(0),
+		User: pulumi.StringPtr("0"),
+		Name: pulumi.String("log_router"),
+		// Can't use the pull-through cache for this because it gets pulled as part of the Fargate service def, and so no opportunity to docker login.
 		Image:     pulumi.String("public.ecr.aws/aws-observability/aws-for-fluent-bit:stable"),
 		Essential: pulumi.BoolPtr(true),
 		FirelensConfiguration: ecs.TaskDefinitionFirelensConfigurationArgs{

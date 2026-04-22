@@ -41,13 +41,13 @@ func getInstanceIDFromDMI() (string, error) {
 	}
 
 	if !isBoardVendorEC2() {
-		isEC2UUID()
+		isEC2UUID() // called for side effect: sets MetadataSourceUUID if UUID identifies this host as EC2
 		return "", errors.New("board vendor is not AWS")
 	}
 
 	boardAssetTag := dmi.GetBoardAssetTag()
 	if !strings.HasPrefix(boardAssetTag, "i-") {
-		isEC2UUID()
+		isEC2UUID() // called for side effect: sets MetadataSourceUUID if UUID identifies this host as EC2
 		return "", fmt.Errorf("invalid board_asset_tag: '%s'", boardAssetTag)
 	}
 	ec2internal.SetCloudProviderSource(ec2internal.MetadataSourceDMI)

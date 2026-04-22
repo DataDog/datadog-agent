@@ -1,10 +1,10 @@
-load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 VERSION = "2.14.5"
 
@@ -24,6 +24,7 @@ copy_file(
         "@@//:linux_arm64": "config-linux-arm64.h",
     }),
     out = "config.h",
+    target_compatible_with = ["@platforms//os:linux"],
 )
 
 expand_template(
@@ -71,7 +72,7 @@ expand_template(
 cc_library(
     name = "xml2_config_h",
     hdrs = [
-        ":copy_config_h"
+        ":copy_config_h",
     ],
 )
 
@@ -123,7 +124,7 @@ cc_library(
     ] + glob(["include/private/*.h"]),
     hdrs = PUBLIC_HEADERS,
     implementation_deps = [
-        ":xml2_config_h"
+        ":xml2_config_h",
     ],
     deps = [
         "@zlib//:zlib",
@@ -150,16 +151,9 @@ cc_shared_library(
     deps = [":libxml2"],
     visibility = ["//visibility:public"],
     dynamic_deps = [
-        "@zlib//:z",
-        "@xz//:lzma",
-    ]
-)
-
-so_symlink(
-    name = "lib_files",
-    src = ":xml2",
-    libname = "libxml2",
-    version = "16.0.5",
+        "@zlib//:z_pkg",
+        "@xz//:lzma_pkg",
+    ],
 )
 
 pkg_files(
@@ -168,10 +162,25 @@ pkg_files(
     prefix = "include/libxml2/libxml",
 )
 
+dd_cc_packaged(
+    name = "xml2_pkg",
+    input = ":xml2",
+    version = "16.0.5",
+    installed_files = [":headers"],
+    visibility = ["//visibility:public"],
+)
+
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        ":headers",
+    ],
+    prefix = "embedded",
+)
+
 pkg_install(
     name = "install",
     srcs = [
-        ":headers",
-        ":lib_files",
+        ":all_files",
     ],
 )

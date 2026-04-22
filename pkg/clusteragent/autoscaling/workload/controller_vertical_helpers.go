@@ -14,12 +14,16 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
+	workloadpatcher "github.com/DataDog/datadog-agent/pkg/clusteragent/patcher"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -28,7 +32,75 @@ const (
 	// for StatefulSets and DaemonSets. This is managed by Kubernetes itself and changes whenever
 	// any part of the pod template changes.
 	controllerRevisionHashLabel = "controller-revision-hash"
+
+	// defaultResizePendingPeriod is the default delay for the resize pending period in seconds
+	defaultResizePendingPeriod int32 = 600
+
+	// defaultRolloutFallbackDelay is the default delay for the rollout fallback in seconds
+	defaultRolloutFallbackDelay int32 = 1200
 )
+
+const inPlaceResizeSupportedCacheTTL = 15 * time.Minute
+
+// removeLimitSentinel is stored in a container Limits map by applyVerticalConstraints (burstable
+// mode) to signal "delete this limit from the pod instead of setting it to this value".
+// Negative quantities are never valid as real Kubernetes resource values, making the intent
+// unambiguous and easy to identify with quantity.Sign() < 0.
+var removeLimitSentinel = resource.MustParse("-1")
+
+// isInPlaceResizeSupported checks whether the API server exposes the pods/resize
+// subresource, which requires InPlacePodVerticalScaling to be enabled. The result
+// is cached for 15 minutes.
+func (u *verticalController) isInPlaceResizeSupported() bool {
+	if u.inPlaceResizeSupported != nil && u.clock.Since(u.inPlaceResizeSupportedTime) < inPlaceResizeSupportedCacheTTL {
+		return *u.inPlaceResizeSupported
+	}
+	if u.client == nil {
+		return false
+	}
+	resources, err := u.client.Discovery().ServerResourcesForGroupVersion("v1")
+	supported := err == nil && func() bool {
+		for _, r := range resources.APIResources {
+			if r.Name == "pods/resize" {
+				return true
+			}
+		}
+		return false
+	}()
+	u.inPlaceResizeSupported = &supported
+	u.inPlaceResizeSupportedTime = u.clock.Now()
+	return supported
+}
+
+// Pod resize condition types and reasons sourced directly from k8s.io/api/core/v1.
+// See https://kubernetes.io/docs/tasks/configure-pod-container/resize-container-resources/#pod-resize-status
+const (
+	kubePodConditionResizePending                 = string(corev1.PodResizePending)
+	kubePodConditionResizePendingReasonInfeasible = corev1.PodReasonInfeasible
+	kubePodConditionResizePendingReasonDeferred   = corev1.PodReasonDeferred
+
+	kubePodConditionResizeInProgress            = string(corev1.PodResizeInProgress)
+	kubePodConditionResizeInProgressReasonError = corev1.PodReasonError
+)
+
+type PodResizeStatus int
+
+const (
+	PodResizeStatusNeedsPatch PodResizeStatus = iota
+	PodResizeStatusCompleted
+	PodResizeStatusInProgress
+	PodResizeStatusError
+	PodResizeStatusInfeasible
+	PodResizeStatusDeferred
+)
+
+// classifiedPod pairs a pod with the LastTransitionTime of the condition that
+// determined its resize status. For statuses with no relevant condition
+// (NeedsPatch, Completed), LastTransitionTime is the zero value.
+type classifiedPod struct {
+	pod                *workloadmeta.KubernetesPod
+	lastTransitionTime time.Time
+}
 
 // getVerticalPatchingStrategy applied policies to determine effective patching strategy.
 // Return (strategy, reason). Reason is only returned when chosen strategy disables vertical patching.
@@ -137,7 +209,7 @@ func shouldTriggerRollout(
 	}
 
 	// Step 2: Check if we already triggered a rollout for THIS recommendation
-	if lastAction != nil && lastAction.Version == recommendationID {
+	if lastAction != nil && lastAction.Type == datadoghqcommon.DatadogPodAutoscalerRolloutTriggeredVerticalActionType && lastAction.Version == recommendationID {
 		log.Debugf("Rollout already triggered for recommendation %s on autoscaler %s, waiting for completion",
 			recommendationID, autoscalerID)
 		return rolloutDecisionWait
@@ -179,6 +251,9 @@ func shouldTriggerRollout(
 // - The new limit is higher than the current limit
 // - The pod has a limit but the recommendation removes it (no limit = unlimited)
 //
+// opts must reflect the current autoscaler state so that apply-time transformations (e.g. burstable
+// CPU limit removal) are accounted for before comparing against pod limits.
+//
 // Performance: Uses early exit - returns as soon as any pod with lower limits is found.
 // Only processes pods with old recommendations (not already on current recommendation).
 func hasLimitIncrease(
@@ -194,17 +269,18 @@ func hasLimitIncrease(
 	type recommendationLimits struct {
 		cpuLimit    float64 // Percentage (100 = 1 core), 0 if not set
 		memoryLimit uint64  // Bytes, 0 if not set
-		hasCPU      bool    // true if recommendation specifies a CPU limit
+		hasCPU      bool    // true if recommendation specifies a non-zero CPU limit
 		hasMemory   bool    // true if recommendation specifies a memory limit
 	}
 
-	// Pre-compute recommendation limits once
-	// We store ALL containers from the recommendation, even those without limits,
-	// so we can detect when a limit is being removed (pod has limit, reco doesn't)
+	// Pre-compute recommendation limits once.
+	// In burstable mode applyVerticalConstraints sets the CPU limit to removeLimitSentinel (-1),
+	// so cpuLimit.Sign() < 0 and hasCPU stays false.
+	// Case 2 below then detects the transition (pod has CPU limit, reco removes it).
 	recoLimits := make(map[string]recommendationLimits, len(recommendation.ContainerResources))
 	for _, recoContainer := range recommendation.ContainerResources {
 		limits := recommendationLimits{}
-		if cpuLimit := recoContainer.Limits.Cpu(); cpuLimit != nil && !cpuLimit.IsZero() {
+		if cpuLimit := recoContainer.Limits.Cpu(); cpuLimit != nil && cpuLimit.Sign() > 0 {
 			limits.cpuLimit = cpuLimit.AsApproximateFloat64() * 100 // Convert to percentage
 			limits.hasCPU = true
 		}
@@ -257,27 +333,38 @@ func hasLimitIncrease(
 	return false
 }
 
-// applyVerticalConstraints applies the container constraints from the PodAutoscaler spec to the recommendations
-func applyVerticalConstraints(verticalRecs *model.VerticalScalingValues, constraints *datadoghqcommon.DatadogPodAutoscalerConstraints) (limitErr, err error) {
-	if constraints == nil || len(constraints.Containers) == 0 || verticalRecs == nil {
+// applyVerticalConstraints applies the container constraints from the PodAutoscaler spec to the
+// recommendations, and in burstable mode stores removeLimitSentinel (-1) on the CPU limit of every
+// container so that:
+//   - the ResourcesHash changes when burstable mode is toggled (triggering pod re-patches)
+//   - hasLimitIncrease sees cpuLimit.Sign() <= 0 and correctly identifies the transition as a limit increase
+//   - patchContainerResources removes the CPU limit from the pod when it encounters the sentinel
+func applyVerticalConstraints(verticalRecs *model.VerticalScalingValues, constraints *datadoghqcommon.DatadogPodAutoscalerConstraints, burstable bool) (limitErr, err error) {
+	if verticalRecs == nil {
+		return nil, nil
+	}
+	hasConstraints := constraints != nil && len(constraints.Containers) > 0
+	if !hasConstraints && !burstable {
 		return nil, nil
 	}
 
-	// Build constraint lookup and validate uniqueness
-	constraintsByName := make(map[string]*datadoghqcommon.DatadogPodAutoscalerContainerConstraints, len(constraints.Containers))
+	// Build constraint lookup and validate uniqueness (may be empty when constraints == nil).
+	constraintsByName := make(map[string]*datadoghqcommon.DatadogPodAutoscalerContainerConstraints)
 	var wildcardConstraint *datadoghqcommon.DatadogPodAutoscalerContainerConstraints
-	for i := range constraints.Containers {
-		c := &constraints.Containers[i]
-		if c.Name == "*" {
-			if wildcardConstraint != nil {
-				return nil, autoscaling.NewConditionErrorf(autoscaling.ConditionReasonInvalidSpec, "duplicate wildcard (*) constraint in containers list")
+	if constraints != nil {
+		for i := range constraints.Containers {
+			c := &constraints.Containers[i]
+			if c.Name == "*" {
+				if wildcardConstraint != nil {
+					return nil, autoscaling.NewConditionErrorf(autoscaling.ConditionReasonInvalidSpec, "duplicate wildcard (*) constraint in containers list")
+				}
+				wildcardConstraint = c
+			} else {
+				if _, exists := constraintsByName[c.Name]; exists {
+					return nil, autoscaling.NewConditionErrorf(autoscaling.ConditionReasonInvalidSpec, "duplicate constraint for container %q", c.Name)
+				}
+				constraintsByName[c.Name] = c
 			}
-			wildcardConstraint = c
-		} else {
-			if _, exists := constraintsByName[c.Name]; exists {
-				return nil, autoscaling.NewConditionErrorf(autoscaling.ConditionReasonInvalidSpec, "duplicate constraint for container %q", c.Name)
-			}
-			constraintsByName[c.Name] = c
 		}
 	}
 
@@ -360,6 +447,23 @@ func applyVerticalConstraints(verticalRecs *model.VerticalScalingValues, constra
 		kept = append(kept, cr)
 	}
 
+	// In burstable mode, stamp the CPU limit to removeLimitSentinel (-1) on every container.
+	// This has three effects:
+	//   1. The ResourcesHash changes when burstable is toggled (pods get re-patched).
+	//   2. hasLimitIncrease sees cpuLimit.Sign() <= 0, correctly identifying non-burstable →
+	//      burstable as a limit increase (unlimited > any finite limit).
+	//   3. patchContainerResources sees Sign() < 0 and removes the CPU limit from the running
+	//      pod instead of setting it.
+	if burstable {
+		for i := range kept {
+			if kept[i].Limits == nil {
+				kept[i].Limits = corev1.ResourceList{}
+			}
+			kept[i].Limits[corev1.ResourceCPU] = removeLimitSentinel.DeepCopy()
+			modified = true
+		}
+	}
+
 	verticalRecs.ContainerResources = kept
 
 	if modified {
@@ -422,4 +526,134 @@ func clampResourceList(rl corev1.ResourceList, minAllowed, maxAllowed corev1.Res
 		}
 	}
 	return modified
+}
+
+// shouldEvictDeferred returns true if the time since the last action is greater than the resize pending period, false otherwise
+func shouldEvictDeferred(podAutoscaler *datadoghq.DatadogPodAutoscaler, now time.Time) bool {
+	period := defaultResizePendingPeriod
+	// If the DPA has a configured resize pending period, use that instead of the default
+	if podAutoscaler.Spec.ApplyPolicy != nil && podAutoscaler.Spec.ApplyPolicy.Update != nil && podAutoscaler.Spec.ApplyPolicy.Update.ResizePendingPeriod > 0 {
+		period = podAutoscaler.Spec.ApplyPolicy.Update.ResizePendingPeriod
+	}
+
+	if podAutoscaler.Status.Vertical == nil || podAutoscaler.Status.Vertical.LastAction == nil {
+		return false
+	}
+
+	return now.Sub(podAutoscaler.Status.Vertical.LastAction.Time.Time) > time.Duration(period)*time.Second
+}
+
+// shouldFallbackToRollout returns true if a rollout should be triggered instead
+// of continuing to attempt in-place resizing
+func shouldFallbackToRollout(toEvict []classifiedPod, podAutoscaler *datadoghq.DatadogPodAutoscaler, now time.Time, patchForbidden bool) bool {
+	if patchForbidden {
+		return true
+	}
+
+	delay := defaultRolloutFallbackDelay
+	// If the DPA has a configured rollout fallback delay, use that instead of the default
+	if podAutoscaler.Spec.ApplyPolicy != nil && podAutoscaler.Spec.ApplyPolicy.Update != nil && podAutoscaler.Spec.ApplyPolicy.Update.RolloutFallbackDelay > 0 {
+		delay = podAutoscaler.Spec.ApplyPolicy.Update.RolloutFallbackDelay
+	}
+
+	threshold := time.Duration(delay) * time.Second
+	for _, cp := range toEvict {
+		if !cp.lastTransitionTime.IsZero() && now.Sub(cp.lastTransitionTime) > threshold {
+			return true
+		}
+	}
+	return false
+}
+
+// isRolloutRequired checks if a rollout is required for the podAutoscaler.
+// A rollout is required when:
+//
+//	a) The global config flag (autoscaling.workload.in_place_vertical_scaling.enabled) is disabled, or
+//	b) The DPA explicitly sets Strategy: TriggerRollout
+func isRolloutRequired(autoscalerInternal *model.PodAutoscalerInternal) bool {
+	if !pkgconfigsetup.Datadog().GetBool("autoscaling.workload.in_place_vertical_scaling.enabled") {
+		return true
+	}
+	spec := autoscalerInternal.Spec()
+	if spec == nil || spec.ApplyPolicy == nil || spec.ApplyPolicy.Update == nil {
+		return false
+	}
+	return spec.ApplyPolicy.Update.Strategy == datadoghqcommon.DatadogPodAutoscalerTriggerRolloutUpdateStrategy
+}
+
+// getPodResizeStatus returns the resize status of pod and the LastTransitionTime
+// of the condition that produced that status (zero if not condition-based).
+func getPodResizeStatus(pod *workloadmeta.KubernetesPod, recommendationID string) (PodResizeStatus, time.Time) {
+	if pod.Annotations[model.RecommendationIDAnnotation] != recommendationID {
+		return PodResizeStatusNeedsPatch, time.Time{}
+	}
+
+	// A pod having the conditions PodResizePending and PodResizeInProgress are not mutually exclusive,
+	// but usually a condition of PodResizeInProgress without an error reason means the pod is actively being resized.
+	// Therefore we check for the PodResizeInProgress condition first, and if it's not present, we check for the PodResizePending condition.
+	for _, condition := range pod.Conditions {
+		if condition.Type == kubePodConditionResizeInProgress {
+			if condition.Reason == kubePodConditionResizeInProgressReasonError {
+				return PodResizeStatusError, condition.LastTransitionTime
+			}
+			return PodResizeStatusInProgress, condition.LastTransitionTime
+		}
+	}
+
+	for _, condition := range pod.Conditions {
+		if condition.Type == kubePodConditionResizePending {
+			if condition.Reason == kubePodConditionResizePendingReasonInfeasible {
+				return PodResizeStatusInfeasible, condition.LastTransitionTime
+			}
+			// If the reason is not Infeasible, it must be Deferred (ref: https://github.com/kubernetes/kubernetes/blob/42eb93b12fa6e9fd0e0da852cc01f13850ac5258/pkg/kubelet/status/status_manager.go#L289-L291)
+			return PodResizeStatusDeferred, condition.LastTransitionTime
+		}
+	}
+
+	return PodResizeStatusCompleted, time.Time{}
+}
+
+func fromAutoscalerToContainerResourcePatches(autoscalerInternal *model.PodAutoscalerInternal, pod *workloadmeta.KubernetesPod) []workloadpatcher.ContainerResourcePatch {
+	containersResources := autoscalerInternal.ScalingValues().Vertical.ContainerResources
+
+	// Build a map from container name to container resources.
+	recoByName := make(map[string]datadoghqcommon.DatadogPodAutoscalerContainerResources, len(containersResources))
+	for _, cr := range containersResources {
+		recoByName[cr.Name] = cr
+	}
+
+	burstable := autoscalerInternal.IsBurstable()
+
+	// Build the list of patches ordered to API server pod container order.
+	patches := make([]workloadpatcher.ContainerResourcePatch, 0, len(containersResources))
+	for _, c := range pod.Containers {
+		cr, ok := recoByName[c.Name]
+		if !ok {
+			continue
+		}
+		patch := workloadpatcher.ContainerResourcePatch{
+			Name:     cr.Name,
+			Requests: resourceListToStringMap(cr.Requests),
+			Limits:   resourceListToStringMap(cr.Limits),
+		}
+		if burstable {
+			delete(patch.Limits, string(corev1.ResourceCPU)) // don't re-set CPU limit
+			patch.LimitsToDelete = []string{string(corev1.ResourceCPU)}
+		}
+		patches = append(patches, patch)
+	}
+	return patches
+}
+
+// resourceListToStringMap converts a corev1.ResourceList to the string map expected by
+// ContainerResourcePatch, including only resources that are actually set.
+func resourceListToStringMap(rl corev1.ResourceList) map[string]string {
+	if len(rl) == 0 {
+		return nil
+	}
+	m := make(map[string]string, len(rl))
+	for name, qty := range rl {
+		m[string(name)] = qty.String()
+	}
+	return m
 }

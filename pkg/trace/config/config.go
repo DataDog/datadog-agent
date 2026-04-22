@@ -152,6 +152,13 @@ func obfuscationMode(conf *AgentConfig, sqllexerEnabled bool) obfuscate.Obfuscat
 	return ""
 }
 
+// EffectiveSQLObfuscationMode returns the SQL obfuscation mode the agent
+// actually uses at runtime. When SQLObfuscationMode is not explicitly set,
+// the mode is derived from feature flags (e.g. sqllexer → obfuscate_only).
+func (c *AgentConfig) EffectiveSQLObfuscationMode() obfuscate.ObfuscationMode {
+	return obfuscationMode(c, c.HasFeature("sqllexer"))
+}
+
 // Export returns an obfuscate.Config matching o.
 func (o *ObfuscationConfig) Export(conf *AgentConfig) obfuscate.Config {
 	return obfuscate.Config{
@@ -160,7 +167,7 @@ func (o *ObfuscationConfig) Export(conf *AgentConfig) obfuscate.Config {
 			ReplaceDigits:    conf.HasFeature("quantize_sql_tables") || conf.HasFeature("replace_sql_digits"),
 			KeepSQLAlias:     conf.HasFeature("keep_sql_alias"),
 			DollarQuotedFunc: conf.HasFeature("dollar_quoted_func"),
-			ObfuscationMode:  obfuscationMode(conf, conf.HasFeature("sqllexer")),
+			ObfuscationMode:  conf.EffectiveSQLObfuscationMode(),
 		},
 		ES:                   o.ES,
 		OpenSearch:           o.OpenSearch,
@@ -285,6 +292,8 @@ type EVPProxy struct {
 	MaxPayloadSize int64
 	// ReceiverTimeout indicates the maximum time an EVPProxy request can take. Value in seconds.
 	ReceiverTimeout int
+	// ReceiverTimeoutDuration overrides ReceiverTimeout when non-zero; allows sub-second values in tests.
+	ReceiverTimeoutDuration time.Duration
 }
 
 // OpenLineageProxy contains the settings for the OpenLineageProxy proxy.
@@ -387,17 +396,19 @@ type AgentConfig struct {
 	ErrorTrackingStandalone bool
 
 	// Receiver
-	ReceiverEnabled bool // specifies whether Receiver listeners are enabled. Unless OTLPReceiver is used, this should always be true.
-	ReceiverHost    string
-	ReceiverPort    int
-	ReceiverSocket  string // if not empty, UDS will be enabled on unix://<receiver_socket>
-	ConnectionLimit int    // for rate-limiting, how many unique connections to allow in a lease period (30s)
-	ReceiverTimeout int
-	MaxRequestBytes int64 // specifies the maximum allowed request size for incoming trace payloads
-	TraceBuffer     int   // specifies the number of traces to buffer before blocking.
-	Decoders        int   // specifies the number of traces that can be concurrently decoded.
-	MaxConnections  int   // specifies the maximum number of concurrent incoming connections allowed.
-	DecoderTimeout  int   // specifies the maximum time in milliseconds that the decoders will wait for a turn to accept a payload before returning 429
+	ReceiverEnabled         bool // specifies whether Receiver listeners are enabled. Unless OTLPReceiver is used, this should always be true.
+	ReceiverHost            string
+	ReceiverPort            int
+	ReceiverSocket          string // if not empty, UDS will be enabled on unix://<receiver_socket>
+	ConnectionLimit         int    // for rate-limiting, how many unique connections to allow in a lease period (30s)
+	ReceiverTimeout         int
+	ReceiverTimeoutDuration time.Duration // overrides ReceiverTimeout when non-zero; allows sub-second values in tests
+	ReceiverIdleTimeout     time.Duration // idle timeout for keepalive connections.
+	MaxRequestBytes         int64         // specifies the maximum allowed request size for incoming trace payloads
+	TraceBuffer             int           // specifies the number of traces to buffer before blocking.
+	Decoders                int           // specifies the number of traces that can be concurrently decoded.
+	MaxConnections          int           // specifies the maximum number of concurrent incoming connections allowed.
+	DecoderTimeout          int           // specifies the maximum time in milliseconds that the decoders will wait for a turn to accept a payload before returning 429
 
 	WindowsPipeName        string
 	PipeBufferSize         int
@@ -416,6 +427,8 @@ type AgentConfig struct {
 	// case, the sender will drop failed payloads when it is unable to enqueue
 	// them for another retry.
 	MaxSenderRetries int
+	// APIKeyRefreshThrottleInterval is the minimum time between API key refresh attempts.
+	APIKeyRefreshThrottleInterval time.Duration
 	// HTTP Transport used in writer connections. If nil, default transport values will be used.
 	HTTPTransportFunc func() *http.Transport `json:"-"`
 	// ClientStatsFlushInterval specifies the frequency at which the client stats aggregator will flush its buffer.
@@ -517,11 +530,19 @@ type AgentConfig struct {
 
 	// ContainerTags ...
 	ContainerTags func(cid string) ([]string, error) `json:"-"`
+	// ContainerTagsWithCompleteness returns the tags for a given container ID
+	// along with a completeness flag indicating whether all expected tag
+	// sources have reported data for this container.
+	ContainerTagsWithCompleteness func(cid string) ([]string, bool, error) `json:"-"`
 	// ContainerTagsBuffer enables buffering of payloads until full container tags extraction
 	ContainerTagsBuffer bool
 
 	// ContainerIDFromOriginInfo ...
 	ContainerIDFromOriginInfo func(originInfo origindetection.OriginInfo) (string, error) `json:"-"`
+
+	// HasContainerFeatures indicates whether any container feature is present in the environment.
+	// When false, the trace API uses a noop IDProvider that does not read HTTP headers or call ContainerIDFromOriginInfo.
+	HasContainerFeatures bool
 
 	// ContainerProcRoot is the root dir for `proc` info
 	ContainerProcRoot string
@@ -555,6 +576,26 @@ type AgentConfig struct {
 
 	// APMMode specifies whether using "edge" APM mode. May support other modes in the future. If unset, it has no impact.
 	APMMode string
+
+	// OTelGateway indicates whether the agent is configured as an OTel gateway.
+	// When true, the tag "_dd.otel.gateway" will be attached to the AgentPayload.
+	OTelGateway bool
+
+	// EnableOPMFetch controls whether the trace-agent will make a background
+	// request to the /api/v2/validate intake endpoint to derive an Org
+	// Propagation Marker (OPM) and expose it in the /info endpoint.
+	// Disabled by default so library users of pkg/trace are unaffected.
+	EnableOPMFetch bool
+
+	// OPMValidateURL is the full URL of the /api/v2/validate endpoint used by
+	// the OPM background fetch. Derived from dd_url / site via utils.GetMainEndpoint.
+	// Empty when EnableOPMFetch is false.
+	OPMValidateURL string
+
+	// SecretsRefreshFn is called when a 403 response is received to trigger
+	// API key refresh from the secrets backend. It blocks until the refresh
+	// completes and returns a message and any error encountered.
+	SecretsRefreshFn func() (string, error) `json:"-"`
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.
@@ -605,16 +646,18 @@ func New() *AgentConfig {
 		ReceiverEnabled:        true,
 		ReceiverHost:           "localhost",
 		ReceiverPort:           8126,
+		ReceiverIdleTimeout:    60 * time.Second,
 		MaxRequestBytes:        25 * 1024 * 1024, // 25MB
 		PipeBufferSize:         1_000_000,
 		PipeSecurityDescriptor: "D:AI(A;;GA;;;WD)",
 		GUIPort:                "5002",
 
-		StatsWriter:              new(WriterConfig),
-		TraceWriter:              new(WriterConfig),
-		ConnectionResetInterval:  0, // disabled
-		MaxSenderRetries:         4,
-		ClientStatsFlushInterval: 2 * time.Second, // bucket duration (2s)
+		StatsWriter:                   new(WriterConfig),
+		TraceWriter:                   new(WriterConfig),
+		ConnectionResetInterval:       0, // disabled
+		MaxSenderRetries:              4,
+		APIKeyRefreshThrottleInterval: 2 * time.Minute,
+		ClientStatsFlushInterval:      2 * time.Second, // bucket duration (2s)
 
 		StatsdHost:    "localhost",
 		StatsdPort:    8125,
@@ -633,11 +676,14 @@ func New() *AgentConfig {
 
 		GlobalTags: computeGlobalTags(),
 
-		Proxy:                     http.ProxyFromEnvironment,
-		OTLPReceiver:              &OTLP{},
-		ContainerTags:             noopContainerTagsFunc,
-		ContainerTagsBuffer:       false, // disabled here for otlp collector exporter, enabled in comp/trace-agent
-		ContainerIDFromOriginInfo: NoopContainerIDFromOriginInfoFunc,
+		Proxy:                         http.ProxyFromEnvironment,
+		OTLPReceiver:                  &OTLP{},
+		ContainerTags:                 noopContainerTagsFunc,
+		ContainerTagsWithCompleteness: noopContainerTagsWithCompletenessFunc,
+		ContainerTagsBuffer:           false, // disabled here for otlp collector exporter, enabled in comp/trace-agent
+		ContainerIDFromOriginInfo:     NoopContainerIDFromOriginInfoFunc,
+		HasContainerFeatures:          true, // default so remote/standalone trace-agent keeps full container ID resolution until setup sets it from env
+
 		TelemetryConfig: &TelemetryConfig{
 			Endpoints: []*Endpoint{{Host: TelemetryEndpointPrefix + "datadoghq.com"}},
 		},
@@ -673,6 +719,10 @@ var ErrContainerTagsFuncNotDefined = errors.New("containerTags function not defi
 
 func noopContainerTagsFunc(_ string) ([]string, error) {
 	return nil, ErrContainerTagsFuncNotDefined
+}
+
+func noopContainerTagsWithCompletenessFunc(_ string) ([]string, bool, error) {
+	return nil, false, ErrContainerTagsFuncNotDefined
 }
 
 // ErrContainerIDFromOriginInfoFuncNotDefined is returned when the ContainerIDFromOriginInfo function is not defined.

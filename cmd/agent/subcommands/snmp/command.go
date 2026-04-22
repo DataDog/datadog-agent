@@ -14,6 +14,7 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/gosnmp/gosnmp"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
@@ -24,7 +25,6 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
@@ -95,9 +95,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
-				core.Bundle(),
+				core.Bundle(core.WithSecrets()),
 				hostnameimpl.Module(),
-				secretsfx.Module(),
 				snmpscanfx.Module(),
 				orchestratorimpl.Module(orchestratorimpl.NewDisabledParams()),
 				eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
@@ -159,9 +158,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:    log.ForOneShot(command.LoggerName, logLevelDefaultOff.Value(), true)}),
-				core.Bundle(),
+				core.Bundle(core.WithSecrets()),
 				hostnameimpl.Module(),
-				secretsfx.Module(),
 				orchestratorimpl.Module(orchestratorimpl.NewDisabledParams()),
 				eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
 				eventplatformreceiverimpl.Module(),
@@ -330,6 +328,20 @@ func snmpWalk(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snmps
 		// newSNMP only returns config errors, so any problem is a usage error
 		return configErr{err}
 	}
+
+	// Print progress to stderr so it doesn't pollute walk output when piped
+	_, _ = fmt.Fprintf(os.Stderr, "Connecting to %s:%d (timeout: %ds, retries: %d)\n", snmp.Target, snmp.Port, connParams.Timeout, snmp.Retries)
+	// Notify the user on each retry so they know the tool is still running.
+	// gosnmp calls OnRetry once more on the iteration that exits the retry
+	// loop, so cap output at snmp.Retries to avoid a spurious message.
+	retryNum := 0
+	snmp.OnRetry = func(_ *gosnmp.GoSNMP) {
+		retryNum++
+		if retryNum <= snmp.Retries {
+			_, _ = fmt.Fprintf(os.Stderr, "  Connection failed, retrying (%d/%d)...\n", retryNum, snmp.Retries)
+		}
+	}
+
 	if err := snmp.Connect(); err != nil {
 		return fmt.Errorf("unable to connect to SNMP agent on %s:%d: %w", snmp.LocalAddr, snmp.Port, err)
 	}

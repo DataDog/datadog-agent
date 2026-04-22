@@ -467,6 +467,8 @@ var (
 )
 
 var (
+	// tcpStateMetricsSuffixMapping combines multiple TCP states into broader categories
+	// (the default behavior, matching combine_connection_states: true).
 	tcpStateMetricsSuffixMapping = map[string]map[string]string{
 		"ss": {
 			"ESTAB":      "established",
@@ -493,6 +495,39 @@ var (
 			"CLOSE_WAIT":  "closing",
 			"LAST_ACK":    "closing",
 			"LISTEN":      "listening",
+			"CLOSING":     "closing",
+			"NONE":        "connections", // sole UDP mapping
+		},
+	}
+
+	// tcpStateMetricsSuffixMappingUncombined maps each TCP state to its own individual
+	// metric suffix (matching combine_connection_states: false, mirroring the Python check).
+	tcpStateMetricsSuffixMappingUncombined = map[string]map[string]string{
+		"ss": {
+			"ESTAB":      "estab",
+			"SYN-SENT":   "syn_sent",
+			"SYN-RECV":   "syn_recv",
+			"FIN-WAIT-1": "fin_wait_1",
+			"FIN-WAIT-2": "fin_wait_2",
+			"TIME-WAIT":  "time_wait",
+			"CLOSE-WAIT": "close_wait",
+			"LAST-ACK":   "time_wait", // matches Python: last_ack is folded into time_wait
+			"LISTEN":     "listen",
+			"CLOSING":    "closing",
+			"UNCONN":     "unconn",
+			"NONE":       "connections", // sole UDP mapping
+		},
+		"netstat": {
+			"ESTABLISHED": "estab",
+			"SYN_SENT":    "syn_sent",
+			"SYN_RECV":    "syn_recv",
+			"FIN_WAIT1":   "fin_wait_1",
+			"FIN_WAIT2":   "fin_wait_2",
+			"TIME_WAIT":   "time_wait",
+			"CLOSE":       "close",
+			"CLOSE_WAIT":  "close_wait",
+			"LAST_ACK":    "time_wait", // matches Python: last_ack is folded into time_wait
+			"LISTEN":      "listen",
 			"CLOSING":     "closing",
 			"NONE":        "connections", // sole UDP mapping
 		},

@@ -47,10 +47,10 @@ checks:
       series: "connection.current"
       upper_bound: 6
 
-  - name: lost_bytes
+  - name: missed_bytes
     description: "Allowable bytes not processed by Agent"
     bounds:
-      series: lost_bytes
+      series: missed_bytes
       upper_bound: 0KiB
 
 report_links:

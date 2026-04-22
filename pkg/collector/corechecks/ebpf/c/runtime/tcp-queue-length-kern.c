@@ -38,15 +38,17 @@ static __always_inline void check_sock(struct sock *sk) {
         .write_buffer_max_usage = 0
     };
 
-    struct stats_key k;
+    struct stats_key k = { 0 };
     if (!get_cgroup_name(k.cgroup, sizeof(k.cgroup))) {
         return;
     }
 
-    bpf_map_update_elem(&tcp_queue_stats, &k, &zero, BPF_NOEXIST);
     struct stats_value *v = bpf_map_lookup_elem(&tcp_queue_stats, &k);
     if (!v) {
-        return;
+        bpf_map_update_elem(&tcp_queue_stats, &k, &zero, BPF_NOEXIST);
+        v = bpf_map_lookup_elem(&tcp_queue_stats, &k);
+        if (!v)
+            return;
     }
 
     int rqueue_size = BPF_CORE_READ(sk, sk_rcvbuf);
@@ -74,6 +76,30 @@ static __always_inline void check_sock(struct sock *sk) {
         v->write_buffer_max_usage = wqueue_usage;
     }
     log_debug("check_sock: name=%s read_max=%d write_max=%d", k.cgroup, v->read_buffer_max_usage, v->write_buffer_max_usage);
+}
+
+SEC("fentry/tcp_recvmsg")
+int BPF_PROG(tcp_recvmsg_entry, struct sock *sk) {
+    check_sock(sk);
+    return 0;
+}
+
+SEC("fexit/tcp_recvmsg")
+int BPF_PROG(tcp_recvmsg_exit, struct sock *sk) {
+    check_sock(sk);
+    return 0;
+}
+
+SEC("fentry/tcp_sendmsg")
+int BPF_PROG(tcp_sendmsg_entry, struct sock *sk) {
+    check_sock(sk);
+    return 0;
+}
+
+SEC("fexit/tcp_sendmsg")
+int BPF_PROG(tcp_sendmsg_exit, struct sock *sk) {
+    check_sock(sk);
+    return 0;
 }
 
 SEC("kprobe/tcp_recvmsg")

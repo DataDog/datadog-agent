@@ -142,9 +142,15 @@ func (f *horizontalControllerFixture) testScalingDecision(args horizontalScaling
 
 		args.fakePai.AddHorizontalAction(action.Time.Time, action)
 		args.fakePai.HorizontalLastActionError = nil
+		args.fakePai.HorizontalActionSuccessCount++
 	} else if args.scaleError != nil {
 		args.fakePai.HorizontalLastActionError = args.scaleError
+		// Counter is only incremented when the scale update itself fails (not for internal errors like policy restrictions)
+		if scaleActionExpected {
+			args.fakePai.HorizontalActionErrorCount++
+		}
 	}
+	// No scale action needed (fromReplicas == toReplicas): no counter increment
 
 	args.fakePai.HorizontalLastLimitReason = args.scaleLimitReason
 
@@ -229,12 +235,13 @@ func TestHorizontalControllerSyncPrerequisites(t *testing.T) {
 	assert.Equal(t, result, autoscaling.Requeue)
 	assert.EqualError(t, err, "failed to get scale subresource for autoscaler default/test, err: some k8s error")
 	model.AssertPodAutoscalersEqual(t, model.FakePodAutoscalerInternal{
-		Namespace:                 autoscalerNamespace,
-		Name:                      autoscalerName,
-		Spec:                      fakePai.Spec,
-		CurrentReplicas:           pointer.Ptr[int32](5),
-		TargetGVK:                 expectedGVK,
-		HorizontalLastActionError: testutil.NewErrorString("failed to get scale subresource for autoscaler default/test, err: some k8s error"),
+		Namespace:                  autoscalerNamespace,
+		Name:                       autoscalerName,
+		Spec:                       fakePai.Spec,
+		CurrentReplicas:            pointer.Ptr[int32](5),
+		TargetGVK:                  expectedGVK,
+		HorizontalLastActionError:  testutil.NewErrorString("failed to get scale subresource for autoscaler default/test, err: some k8s error"),
+		HorizontalActionErrorCount: 1,
 	}, autoscaler)
 
 	// Test case: Any scaling disabled by policy
@@ -248,6 +255,26 @@ func TestHorizontalControllerSyncPrerequisites(t *testing.T) {
 		statusReplicas:  5,
 		recReplicas:     10,
 		scaleReplicas:   5,
+		scaleError:      testutil.NewErrorString("horizontal scaling disabled due to applyMode: Preview not allowing recommendations from source: Autoscaling"),
+	})
+	assert.Equal(t, autoscaling.NoRequeue, result)
+	assert.NoError(t, err)
+
+	// Test case: Preview mode blocks scaling even when current replicas are outside boundaries
+	fakePai.Spec.ApplyPolicy = &datadoghq.DatadogPodAutoscalerApplyPolicy{
+		Mode: datadoghq.DatadogPodAutoscalerApplyModePreview,
+	}
+	fakePai.Spec.Constraints = &datadoghqcommon.DatadogPodAutoscalerConstraints{
+		MinReplicas: pointer.Ptr[int32](2),
+		MaxReplicas: pointer.Ptr[int32](8),
+	}
+	result, err = f.testScalingDecision(horizontalScalingTestArgs{
+		fakePai:         fakePai,
+		dataSource:      datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+		currentReplicas: 10,
+		statusReplicas:  10,
+		recReplicas:     7,
+		scaleReplicas:   10,
 		scaleError:      testutil.NewErrorString("horizontal scaling disabled due to applyMode: Preview not allowing recommendations from source: Autoscaling"),
 	})
 	assert.Equal(t, autoscaling.NoRequeue, result)

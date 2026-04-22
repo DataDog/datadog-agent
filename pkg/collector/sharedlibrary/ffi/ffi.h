@@ -25,7 +25,7 @@ typedef void (run_function_t)(char *, char *, char *, const aggregator_t *, cons
 
 // shared library check version function
 // (error)
-typedef const char *(version_function_t)(const char **);
+typedef const char *(version_function_t)();
 
 // library_t contains handle of the shared library and pointers to its symbols
 typedef struct library_s {

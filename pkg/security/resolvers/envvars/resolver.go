@@ -26,12 +26,8 @@ func NewEnvVarsResolver(cfg *config.Config) *Resolver {
 		envsWithValue = cfg.EnvsWithValue
 	}
 
-	pe := make([]string, 0, len(envsWithValue)+1)
-	pe = append(pe, "DD_SERVICE")
-	pe = append(pe, envsWithValue...)
-
 	return &Resolver{
-		priorityEnvs: pe,
+		priorityEnvs: envsWithValue,
 	}
 }
 

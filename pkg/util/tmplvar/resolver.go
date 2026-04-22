@@ -23,7 +23,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 )
 
 type Resolvable interface {

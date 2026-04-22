@@ -17,6 +17,7 @@ import (
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type vmSuiteEx6 struct {
@@ -41,9 +42,7 @@ func (v *vmSuiteEx6) Test1_FakeIntakeNPM() {
 		v.Env().RemoteHost.MustExecute("curl http://www.datadoghq.com")
 
 		hostnameNetID, err := v.Env().FakeIntake.Client().GetConnectionsNames()
-		if !assert.NoError(c, err, "fakeintake GetConnectionsNames() error") {
-			return
-		}
+		require.NoError(c, err, "fakeintake GetConnectionsNames() error")
 
 		if assert.NotZero(c, len(hostnameNetID), "no connections yet") {
 			t.Logf("hostname+networkID %v seen connections", hostnameNetID)

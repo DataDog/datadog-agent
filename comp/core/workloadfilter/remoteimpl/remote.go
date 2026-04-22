@@ -22,7 +22,7 @@ import (
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	baseimpl "github.com/DataDog/datadog-agent/comp/core/workloadfilter/baseimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/catalog"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -148,7 +148,7 @@ func (r *remoteFilterStore) start(_ context.Context) error {
 					return nil, err
 				}
 
-				port, err := strconv.Atoi(sPort)
+				port, err := strconv.ParseUint(sPort, 10, 16)
 				if err != nil {
 					return nil, fmt.Errorf("invalid port for vsock listener: %v", err)
 				}

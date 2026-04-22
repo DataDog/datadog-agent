@@ -51,6 +51,17 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 
 	opts = append(opts, utils.PulumiDependsOn(ns))
 
+	var imagePullSecrets corev1.LocalObjectReferenceArray
+	if e.ImagePullRegistry() != "" {
+		imgPullSecret, err := utils.NewImagePullSecret(e, namespace, opts...)
+		if err != nil {
+			return nil, err
+		}
+		imagePullSecrets = append(imagePullSecrets, corev1.LocalObjectReferenceArgs{
+			Name: imgPullSecret.Metadata.Name(),
+		})
+	}
+
 	if _, err := appsv1.NewDeployment(e.Ctx(), "redis", &appsv1.DeploymentArgs{
 		Metadata: &metav1.ObjectMetaArgs{
 			Name:      pulumi.String("redis"),
@@ -73,6 +84,7 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 					},
 				},
 				Spec: &corev1.PodSpecArgs{
+					ImagePullSecrets: imagePullSecrets,
 					Containers: corev1.ContainerArray{
 						&corev1.ContainerArgs{
 							Name:  pulumi.String("redis"),
@@ -304,6 +316,22 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 			Labels: pulumi.StringMap{
 				"app": pulumi.String("redis"),
 			},
+			Annotations: pulumi.StringMap{
+				"ad.datadoghq.com/endpoints.checks": pulumi.String(utils.JSONMustMarshal(
+					map[string]interface{}{
+						"http_check": map[string]interface{}{
+							"init_config": map[string]interface{}{},
+							"instances": []map[string]interface{}{
+								{
+									"name":    "My Redis",
+									"url":     "http://%%host%%:%%port%%",
+									"timeout": 1,
+								},
+							},
+						},
+					},
+				)),
+			},
 		},
 		Spec: &corev1.ServiceSpecArgs{
 			Selector: pulumi.StringMap{
@@ -344,6 +372,7 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 					},
 				},
 				Spec: &corev1.PodSpecArgs{
+					ImagePullSecrets: imagePullSecrets,
 					Containers: corev1.ContainerArray{
 						&corev1.ContainerArgs{
 							Name:  pulumi.String("query"),

@@ -94,7 +94,7 @@ func (suite *k8sSuite) Test00UpAndRunning() {
 // Inside a testify test suite, tests are executed in alphabetical order.
 // The ZZ in TestZZUpAndRunning is here to guarantee that this test, is run last.
 func (suite *k8sSuite) TestZZUpAndRunning() {
-	suite.testUpAndRunning(1 * time.Minute)
+	suite.testUpAndRunning(2 * time.Minute)
 }
 
 func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
@@ -186,7 +186,7 @@ func (suite *k8sSuite) TestSBOM() {
 
 	images := []scanResult{
 		{
-			app:     "ghcr.io/datadog/apps-nginx-server",
+			app:     "datadog/apps-nginx-server",
 			version: apps.Version,
 			expectedTags: []*regexp.Regexp{
 				regexp.MustCompile(`^git\.commit\.sha:[[:xdigit:]]{40}$`),
@@ -194,7 +194,7 @@ func (suite *k8sSuite) TestSBOM() {
 			},
 		},
 		{
-			app:     "ghcr.io/datadog/redis",
+			app:     "datadog/redis",
 			version: apps.Version,
 			expectedTags: []*regexp.Regexp{
 				regexp.MustCompile(`^git\.commit\.sha:[[:xdigit:]]{40}$`),
@@ -202,7 +202,7 @@ func (suite *k8sSuite) TestSBOM() {
 			},
 		},
 		{
-			app:     "quay.io/coreos/etcd",
+			app:     "coreos/etcd",
 			version: "v3.5.1",
 		},
 	}
@@ -259,7 +259,7 @@ func (suite *k8sSuite) TestSBOM() {
 					suite.UpdateEnv(provisioner)
 
 					// Wait for agent pods to restart and stabilize before checking SBOMs
-					suite.testUpAndRunning(1 * time.Minute)
+					suite.testUpAndRunning(2 * time.Minute)
 				}
 
 				suite.EventuallyWithTf(func(collect *assert.CollectT) {
@@ -282,7 +282,7 @@ func (suite *k8sSuite) TestSBOM() {
 					require.NoErrorf(c, err, "Failed to query fake intake")
 
 					sbomIDs = lo.Filter(sbomIDs, func(id string, _ int) bool {
-						return strings.HasPrefix(id, appImage)
+						return strings.Contains(id, appImage)
 					})
 
 					require.NotEmptyf(c, sbomIDs, "No SBOM for %s yet", appImage)
@@ -316,10 +316,12 @@ func (suite *k8sSuite) TestSBOM() {
 							continue
 						}
 
+						// image_id and image_name may include a registry prefix that differs
+						// when images are pulled from a mirror, so we allow an arbitrary prefix
 						expectedTags := []*regexp.Regexp{
 							regexp.MustCompile(`^architecture:(amd|arm)64$`),
-							regexp.MustCompile(fmt.Sprintf(`^image_id:%s@sha256:`, regexp.QuoteMeta(appImage))),
-							regexp.MustCompile(fmt.Sprintf(`^image_name:%s$`, regexp.QuoteMeta(appImage))),
+							regexp.MustCompile(fmt.Sprintf(`^image_id:.*%s@sha256:`, regexp.QuoteMeta(appImage))),
+							regexp.MustCompile(fmt.Sprintf(`^image_name:.*%s$`, regexp.QuoteMeta(appImage))),
 							regexp.MustCompile(`^image_tag:` + regexp.QuoteMeta(appVersion) + `$`),
 							regexp.MustCompile(`^os_name:linux$`),
 							regexp.MustCompile(fmt.Sprintf(`^short_image:%s$`, appShortImage)),
@@ -338,7 +340,7 @@ func (suite *k8sSuite) TestSBOM() {
 						})
 
 						if assert.Contains(c, properties, "aquasecurity:trivy:RepoTag") {
-							assert.Equal(c, appImage+":"+appVersion, properties["aquasecurity:trivy:RepoTag"])
+							assert.Contains(c, properties["aquasecurity:trivy:RepoTag"], appImage+":"+appVersion)
 						}
 
 						if assert.Contains(c, properties, "aquasecurity:trivy:RepoDigest") {

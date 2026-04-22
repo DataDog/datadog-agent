@@ -14,8 +14,8 @@ import (
 	"sort"
 	"time"
 
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
-	"gopkg.in/yaml.v2"
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
+	"go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
@@ -174,15 +174,8 @@ func (d *dispatcher) moveCheck(src, dest, checkID string) error {
 }
 
 func (d *dispatcher) rebalance(force bool) []types.RebalanceResponse {
-	if !d.tracingEnabled {
-		if pkgconfigsetup.Datadog().GetBool("cluster_checks.rebalance_with_utilization") {
-			return d.rebalanceUsingUtilization(force)
-		}
-		return d.rebalanceUsingBusyness()
-	}
-
 	span := tracer.StartSpan("cluster_checks.dispatcher.rebalance",
-		tracer.ResourceName("rebalance_checks"),
+		tracer.ResourceName("rebalanceChecks"),
 		tracer.SpanType("worker"))
 	span.SetTag("force", force)
 	defer span.Finish()

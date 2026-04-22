@@ -11,47 +11,98 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
 func TestGetStatusCode(t *testing.T) {
 	for _, tt := range []struct {
-		in  *pb.Span
-		out uint32
+		name string
+		in   *pb.Span
+		out  uint32
 	}{
-		{
-			&pb.Span{},
-			0,
-		},
-		{
-			&pb.Span{
-				Meta: map[string]string{"http.status_code": "200"},
-			},
-			200,
-		},
-		{
-			&pb.Span{
-				Metrics: map[string]float64{"http.status_code": 302},
-			},
-			302,
-		},
-		{
-			&pb.Span{
-				Meta:    map[string]string{"http.status_code": "200"},
-				Metrics: map[string]float64{"http.status_code": 302},
-			},
-			302,
-		},
-		{
-			&pb.Span{
-				Meta: map[string]string{"http.status_code": "x"},
-			},
-			0,
-		},
+		// Empty span.
+		{"empty", &pb.Span{}, 0},
+		// Status code in Meta only (older agents, string-typed).
+		{"meta only", &pb.Span{Meta: map[string]string{"http.status_code": "200"}}, 200},
+		// Status code in Metrics only (agents 7.39.0+, float64-typed).
+		{"metrics only", &pb.Span{Metrics: map[string]float64{"http.status_code": 302}}, 302},
+		// Metrics takes precedence over Meta when both are present.
+		{"metrics wins", &pb.Span{
+			Meta:    map[string]string{"http.status_code": "200"},
+			Metrics: map[string]float64{"http.status_code": 302},
+		}, 302},
+		// Unparseable string returns 0.
+		{"invalid string", &pb.Span{Meta: map[string]string{"http.status_code": "x"}}, 0},
+		// Negative value returns 0.
+		{"negative", &pb.Span{Meta: map[string]string{"http.status_code": "-1"}}, 0},
+		// OTel 1.21+ key in Meta (fallback via semantics registry).
+		{"otel key in meta", &pb.Span{Meta: map[string]string{"http.response.status_code": "404"}}, 404},
+		// OTel 1.21+ key in Metrics (fallback via semantics registry).
+		{"otel key in metrics", &pb.Span{Metrics: map[string]float64{"http.response.status_code": 503}}, 503},
+		// DD key takes precedence over OTel key when both present.
+		{"dd key wins over otel", &pb.Span{
+			Meta: map[string]string{"http.status_code": "200", "http.response.status_code": "503"},
+		}, 200},
 	} {
-		if got := getStatusCode(tt.in.Meta, tt.in.Metrics); got != tt.out {
-			t.Fatalf("Expected %d, got %d", tt.out, got)
-		}
+		got := getStatusCode(tt.in.Meta, tt.in.Metrics)
+		assert.Equal(t, tt.out, got, tt.name)
+	}
+}
+
+func newTestInternalSpanV1() *idx.InternalSpan {
+	st := idx.NewStringTable()
+	return idx.NewInternalSpan(st, &idx.Span{Attributes: make(map[uint32]*idx.AnyValue)})
+}
+
+func TestGetStatusCodeV1(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		in   *idx.InternalSpan
+		out  uint32
+	}{
+		// Empty span.
+		{"empty", newTestInternalSpanV1(), 0},
+		// Status code stored as IntValue (SetAttributeFromString uses IntValue for integer strings).
+		{"int value", func() *idx.InternalSpan {
+			s := newTestInternalSpanV1()
+			s.SetAttributeFromString(traceutil.TagStatusCode, "200")
+			return s
+		}(), 200},
+		// Status code stored as DoubleValue (SetFloat64Attribute).
+		{"double value", func() *idx.InternalSpan {
+			s := newTestInternalSpanV1()
+			s.SetFloat64Attribute(traceutil.TagStatusCode, 302)
+			return s
+		}(), 302},
+		// String value stored as StringValueRef.
+		{"string value", func() *idx.InternalSpan {
+			s := newTestInternalSpanV1()
+			s.SetStringAttribute(traceutil.TagStatusCode, "404")
+			return s
+		}(), 404},
+		// OTel 1.21+ key (fallback via semantics registry).
+		{"otel key int value", func() *idx.InternalSpan {
+			s := newTestInternalSpanV1()
+			s.SetAttributeFromString("http.response.status_code", "503")
+			return s
+		}(), 503},
+		// DD key takes precedence over OTel key when both are present.
+		{"dd key wins over otel", func() *idx.InternalSpan {
+			s := newTestInternalSpanV1()
+			s.SetAttributeFromString(traceutil.TagStatusCode, "200")
+			s.SetAttributeFromString("http.response.status_code", "503")
+			return s
+		}(), 200},
+		// Negative IntValue returns 0.
+		{"negative int value", func() *idx.InternalSpan {
+			s := newTestInternalSpanV1()
+			s.SetAttributeFromString(traceutil.TagStatusCode, "-1")
+			return s
+		}(), 0},
+	} {
+		got := getStatusCodeV1(tt.in)
+		assert.Equal(t, tt.out, got, tt.name)
 	}
 }
 
@@ -119,8 +170,80 @@ func TestGetGRPCStatusCode(t *testing.T) {
 			},
 			"3",
 		},
+		// Earlier key wins regardless of whether the value comes from meta or metrics.
+		{
+			&pb.Span{
+				Meta:    map[string]string{"grpc.code": "7"},
+				Metrics: map[string]float64{"rpc.grpc.status_code": 10},
+			},
+			"10",
+		},
 	} {
 		assert.Equal(t, tt.out, getGRPCStatusCode(tt.in.Meta, tt.in.Metrics))
+	}
+}
+
+func TestGetGRPCStatusCodeV1(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		in   *idx.InternalSpan
+		out  string
+	}{
+		{"empty", newTestInternalSpanV1(), ""},
+		{"int value", func() *idx.InternalSpan {
+			s := newTestInternalSpanV1()
+			s.SetAttributeFromString("rpc.grpc.status_code", "10")
+			return s
+		}(), "10"},
+		{"numeric string value", func() *idx.InternalSpan {
+			s := newTestInternalSpanV1()
+			s.SetStringAttribute("rpc.grpc.status.code", "15")
+			return s
+		}(), "15"},
+		{"enum name", func() *idx.InternalSpan {
+			s := newTestInternalSpanV1()
+			s.SetStringAttribute("rpc.grpc.status_code", "aborted")
+			return s
+		}(), "10"},
+		{"StatusCode prefix", func() *idx.InternalSpan {
+			s := newTestInternalSpanV1()
+			s.SetStringAttribute("grpc.status.code", "StatusCode.ABORTED")
+			return s
+		}(), "10"},
+		{"CANCELLED", func() *idx.InternalSpan {
+			s := newTestInternalSpanV1()
+			s.SetStringAttribute("rpc.grpc.status.code", "CANCELLED")
+			return s
+		}(), "1"},
+		{"Canceled", func() *idx.InternalSpan {
+			s := newTestInternalSpanV1()
+			s.SetStringAttribute("rpc.grpc.status.code", "Canceled")
+			return s
+		}(), "1"},
+		{"InvalidArgument", func() *idx.InternalSpan {
+			s := newTestInternalSpanV1()
+			s.SetStringAttribute("rpc.grpc.status_code", "InvalidArgument")
+			return s
+		}(), "3"},
+		{"invalid unrecognized string", func() *idx.InternalSpan {
+			s := newTestInternalSpanV1()
+			s.SetStringAttribute("grpc.status.code", "StatusCodee.ABORTED")
+			return s
+		}(), ""},
+		{"fallback key", func() *idx.InternalSpan {
+			s := newTestInternalSpanV1()
+			s.SetAttributeFromString("grpc.code", "7")
+			return s
+		}(), "7"},
+		// Earlier key wins regardless of attribute storage type.
+		{"earlier key beats later key regardless of type", func() *idx.InternalSpan {
+			s := newTestInternalSpanV1()
+			s.SetAttributeFromString("rpc.grpc.status_code", "10")
+			s.SetStringAttribute("grpc.code", "7")
+			return s
+		}(), "10"},
+	} {
+		assert.Equal(t, tt.out, getGRPCStatusCodeV1(tt.in), tt.name)
 	}
 }
 
