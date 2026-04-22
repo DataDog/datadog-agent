@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package processdiscoverycheckimpl
 
 import (
@@ -13,7 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
-	"github.com/DataDog/datadog-agent/comp/process/processdiscoverycheck"
+	processdiscoverycheck "github.com/DataDog/datadog-agent/comp/process/processdiscoverycheck/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -69,7 +71,7 @@ func TestProcessDiscoveryIsEnabled(t *testing.T) {
 				fx.Provide(func(t testing.TB) config.Component { return config.NewMockWithOverrides(t, tc.configs) }),
 				sysprobeconfigimpl.MockModule(),
 				fx.Replace(sysprobeconfigimpl.MockParams{Overrides: tc.sysProbeConfigs}),
-				Module(),
+				fxutil.ProvideComponentConstructor(NewCheck),
 			))
 			assert.Equal(t, tc.enabled, c.Object().IsEnabled())
 		})
