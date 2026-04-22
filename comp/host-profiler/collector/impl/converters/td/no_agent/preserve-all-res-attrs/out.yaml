@@ -14,6 +14,9 @@ processors:
             - action: upsert
               key: profiler_version
               value: 7.0.0-test
+            - action: upsert
+              key: datadog.hostprofiler.mode
+              value: standalone
     resourcedetection:
         detectors:
             - system

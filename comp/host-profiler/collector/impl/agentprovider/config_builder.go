@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/converters"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/extensions/hpflareextension"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/params"
-	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
+	"github.com/DataDog/datadog-agent/comp/host-profiler/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -60,8 +60,8 @@ func buildExporters(conf confMap, agent configManager) []any {
 		}
 		// Required headers set after additional headers to prevent overrides
 		headers["dd-api-key"] = key
-		headers["dd-evp-origin"] = version.ProfilerName
-		headers["dd-evp-origin-version"] = version.ProfilerVersion
+		headers["dd-evp-origin"] = metadata.ProfilerName
+		headers["dd-evp-origin-version"] = metadata.ProfilerVersion
 		return confMap{
 			"profiles_endpoint": fmt.Sprintf(profilesEndpointFormat, site),
 			"metrics_endpoint":  fmt.Sprintf(metricsEndpointFormat, site),
@@ -108,21 +108,26 @@ func buildProcessors(conf confMap) []any {
 	}
 	_ = converters.Set(processors, "infraattributes/default", infraattributes)
 
-	metadata := confMap{
+	metadataProc := confMap{
 		"attributes": []any{
 			confMap{
-				"key":    "profiler_name",
-				"value":  version.ProfilerName,
+				"key":    metadata.ProfilerNameKey,
+				"value":  metadata.ProfilerName,
 				"action": "upsert",
 			},
 			confMap{
-				"key":    "profiler_version",
-				"value":  version.ProfilerVersion,
+				"key":    metadata.ProfilerVersionKey,
+				"value":  metadata.ProfilerVersion,
+				"action": "upsert",
+			},
+			confMap{
+				"key":    metadata.ProfilerModeKey,
+				"value":  metadata.ProfilerModeBundled,
 				"action": "upsert",
 			},
 		},
 	}
-	_ = converters.Set(processors, "resource/dd-profiler-internal-metadata", metadata)
+	_ = converters.Set(processors, "resource/dd-profiler-internal-metadata", metadataProc)
 
 	conf["processors"] = processors
 	return []any{"infraattributes/default", "resource/dd-profiler-internal-metadata"}

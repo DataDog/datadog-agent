@@ -340,6 +340,36 @@ func TestConverterWithoutAgentLogsHostArchWarning(t *testing.T) {
 	assert.True(t, found, "expected warning about host.arch being disabled, got logs: %v", logs.All())
 }
 
+func TestConverterWithoutAgentAddsHostProfilerModeMarker(t *testing.T) {
+	conv := newConverterWithoutAgent(confmap.ConverterSettings{Logger: zap.NewNop()})
+	conf := confmap.NewFromStringMap(loadTestData(t, "no_agent/create-default-prof/in.yaml"))
+
+	require.NoError(t, conv.Convert(context.Background(), conf))
+
+	convertedMap := conf.ToStringMap()
+	processors, ok := Get[confMap](convertedMap, "processors")
+	require.True(t, ok)
+	metadata, ok := processors["resource/dd-profiler-internal-metadata"].(confMap)
+	require.True(t, ok)
+	attributes, ok := metadata["attributes"].([]any)
+	require.True(t, ok)
+
+	var modeAttr confMap
+	for _, a := range attributes {
+		entry, ok := a.(confMap)
+		if !ok {
+			continue
+		}
+		if entry["key"] == "datadog.hostprofiler.mode" {
+			modeAttr = entry
+			break
+		}
+	}
+	require.NotNil(t, modeAttr, "datadog.hostprofiler.mode attribute must be present")
+	assert.Equal(t, "standalone", modeAttr["value"])
+	assert.Equal(t, "upsert", modeAttr["action"])
+}
+
 func TestConverterWithoutAgentPreservesExpandedValues(t *testing.T) {
 	// Verify that ToStringMapRaw preserves ExpandedValue types in standalone mode
 	configData := confMap{

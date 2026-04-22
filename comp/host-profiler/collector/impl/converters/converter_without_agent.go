@@ -14,7 +14,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
+	"github.com/DataDog/datadog-agent/comp/host-profiler/metadata"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/xconfmap"
 	"go.uber.org/zap/exp/zapslog"
@@ -353,10 +353,10 @@ func (c *converterWithoutAgent) ensureOtlpHTTPExporterConfig(conf confMap, expor
 			if !ensureKeyStringValue(headers, fieldDDAPIKey) {
 				return fmt.Errorf("%s exporter missing required dd-api-key header", name)
 			}
-			if _, err := SetDefault(headers, fieldDDEVPOrigin, version.ProfilerName); err != nil {
+			if _, err := SetDefault(headers, fieldDDEVPOrigin, metadata.ProfilerName); err != nil {
 				return err
 			}
-			if _, err := SetDefault(headers, fieldDDEVPOriginVersion, version.ProfilerVersion); err != nil {
+			if _, err := SetDefault(headers, fieldDDEVPOriginVersion, metadata.ProfilerVersion); err != nil {
 				return err
 			}
 		}

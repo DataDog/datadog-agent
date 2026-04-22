@@ -14,7 +14,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
+	"github.com/DataDog/datadog-agent/comp/host-profiler/metadata"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/confmap"
 	"go.uber.org/zap"
@@ -27,7 +27,7 @@ const testVersion = "7.0.0-test"
 
 func init() {
 	// Override version for tests to ensure golden files are version-independent
-	version.ProfilerVersion = testVersion
+	metadata.ProfilerVersion = testVersion
 }
 
 // converter is an interface that both converterWithAgent and converterWithoutAgent implement

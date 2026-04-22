@@ -100,7 +100,7 @@ exports_files(glob(
 # gazelle:exclude comp/host-profiler/symboluploader/pipeline
 # gazelle:exclude comp/host-profiler/symboluploader/symbol
 # gazelle:exclude comp/host-profiler/symboluploader/symbolcopier
-# gazelle:exclude comp/host-profiler/version
+# gazelle:exclude comp/host-profiler/metadata
 # gazelle:exclude comp/languagedetection/client/fx
 # gazelle:exclude comp/languagedetection/client/impl
 # gazelle:exclude comp/languagedetection/client/mock

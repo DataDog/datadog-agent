@@ -180,6 +180,30 @@ func TestBuildConfigHPFlareDefaultPort(t *testing.T) {
 	assert.Equal(t, "localhost:7778", hpflare["endpoint"])
 }
 
+func TestBuildProcessorsHostProfilerModeMarker(t *testing.T) {
+	conf := make(confMap)
+	buildProcessors(conf)
+
+	processors, ok := conf["processors"].(confMap)
+	require.True(t, ok)
+	metadata, ok := processors["resource/dd-profiler-internal-metadata"].(confMap)
+	require.True(t, ok)
+	attributes, ok := metadata["attributes"].([]any)
+	require.True(t, ok)
+
+	var modeAttr confMap
+	for _, a := range attributes {
+		entry := a.(confMap)
+		if entry["key"] == "datadog.hostprofiler.mode" {
+			modeAttr = entry
+			break
+		}
+	}
+	require.NotNil(t, modeAttr, "datadog.hostprofiler.mode attribute must be present")
+	assert.Equal(t, "bundled", modeAttr["value"])
+	assert.Equal(t, "upsert", modeAttr["action"])
+}
+
 func TestBuildExportersAdditionalHTTPHeadersDoNotOverrideRequired(t *testing.T) {
 	agent := configManager{
 		endpoints: []endpoint{{

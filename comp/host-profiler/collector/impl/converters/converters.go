@@ -15,7 +15,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
+	"github.com/DataDog/datadog-agent/comp/host-profiler/metadata"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/xconfmap"
@@ -258,18 +258,22 @@ func addProfilerMetadataTags(conf confMap, profilesProcessors []any) ([]any, err
 	}
 
 	profilerNameElement := confMap{
-		"key":    "profiler_name",
-		"value":  version.ProfilerName,
+		"key":    metadata.ProfilerNameKey,
+		"value":  metadata.ProfilerName,
 		"action": "upsert",
 	}
 	profilerVersionElement := confMap{
-		"key":    "profiler_version",
-		"value":  version.ProfilerVersion,
+		"key":    metadata.ProfilerVersionKey,
+		"value":  metadata.ProfilerVersion,
+		"action": "upsert",
+	}
+	hostProfilerModeElement := confMap{
+		"key":    metadata.ProfilerModeKey,
+		"value":  metadata.ProfilerModeStandalone,
 		"action": "upsert",
 	}
 
-	attributes = append(attributes, profilerNameElement)
-	attributes = append(attributes, profilerVersionElement)
+	attributes = append(attributes, profilerNameElement, profilerVersionElement, hostProfilerModeElement)
 	if err := Set(resourceProcessor, "attributes", attributes); err != nil {
 		return nil, err
 	}

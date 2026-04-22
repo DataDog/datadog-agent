@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/extensions/hpflareextension"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/receiver"
-	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
+	"github.com/DataDog/datadog-agent/comp/host-profiler/metadata"
 	ddprofilingextensionimpl "github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor"
@@ -53,7 +53,7 @@ func init() {
 	_ = featuregate.GlobalRegistry().Set("service.profilesSupport", true)
 
 	// Override version for tests to ensure golden files are version-independent
-	version.ProfilerVersion = testVersion
+	metadata.ProfilerVersion = testVersion
 }
 
 // createTestFactories creates the OTEL factories needed for validation
