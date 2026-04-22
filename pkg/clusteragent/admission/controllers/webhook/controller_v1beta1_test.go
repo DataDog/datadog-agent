@@ -1082,7 +1082,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 			c := &ControllerV1beta1{}
 			c.config = tt.configFunc(mockConfig)
 			filterStore := newFilterStoreFromConfig(t, mockConfig)
-			c.webhooks = c.generateWebhooks(mockConfig, wmeta, nil, nil, nil, filterStore, nil, nil, nil)
+			c.webhooks = c.generateWebhooks(mockConfig, wmeta, nil, nil, nil, nil, filterStore, nil, nil, nil)
 			c.generateTemplates()
 
 			assert.EqualValues(t, tt.want(), c.mutatingWebhookTemplates)

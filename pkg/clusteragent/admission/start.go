@@ -17,6 +17,7 @@ import (
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
+	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/secret"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/webhook"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
@@ -43,6 +44,7 @@ type ControllerContext struct {
 	MutatingInformers            informers.SharedInformerFactory
 	DynamicInformer              dynamicinformer.DynamicSharedInformerFactory
 	Client                       kubernetes.Interface
+	RcClient                     *rcclient.Client
 	StopCh                       chan struct{}
 	ValidatingStopCh             chan struct{}
 	Demultiplexer                demultiplexer.Component
@@ -109,6 +111,7 @@ func StartControllers(ctx ControllerContext, datadogConfig config.Component, wme
 		pp,
 		sh,
 		datadogConfig,
+		ctx.RcClient,
 		ctx.Demultiplexer,
 		ctx.FilterStore,
 		ctx.InstrumentationHandlers,
