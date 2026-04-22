@@ -286,11 +286,11 @@ rust.repository_set(
     name = "rust_windows_gnu_x86_64",
     edition = "2024",
     exec_triple = "x86_64-pc-windows-gnu",
-    target_triple = "x86_64-pc-windows-gnu",
     target_compatible_with = [
         "@platforms//os:windows",
         "@platforms//cpu:x86_64",
     ],
+    target_triple = "x86_64-pc-windows-gnu",
     versions = ["1.92.0"],
 )
 rust.toolchain(
