@@ -1332,6 +1332,10 @@
           "type": "integer",
           "description": "Parent Process ID"
         },
+        "sid": {
+          "type": "integer",
+          "description": "Session ID"
+        },
         "tid": {
           "type": "integer",
           "description": "Thread ID"
@@ -1494,6 +1498,7 @@
       "additionalProperties": false,
       "type": "object",
       "required": [
+        "sid",
         "fork_flags",
         "uid",
         "gid"
@@ -1509,6 +1514,10 @@
         "ppid": {
           "type": "integer",
           "description": "Parent Process ID"
+        },
+        "sid": {
+          "type": "integer",
+          "description": "Session ID"
         },
         "tid": {
           "type": "integer",
@@ -1687,6 +1696,7 @@
       "additionalProperties": false,
       "type": "object",
       "required": [
+        "sid",
         "fork_flags",
         "uid",
         "gid"
