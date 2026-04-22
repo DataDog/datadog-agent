@@ -138,6 +138,5 @@ func (sp *sourceProvider) isPauseContainer(c *workloadmeta.Container) bool {
 }
 
 func isAgentContainer(c *workloadmeta.Container) bool {
-	name := strings.ToLower(c.Image.ShortName)
-	return strings.Contains(name, "datadog-agent") || strings.Contains(name, "dd-agent")
+	return strings.Contains(strings.ToLower(c.Image.ShortName), "agent")
 }

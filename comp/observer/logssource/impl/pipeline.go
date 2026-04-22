@@ -71,7 +71,7 @@ func (p *observerPipeline) start() {
 		var count uint64
 		for msg := range p.outputChan {
 			count++
-			if count == 1 || count%10000 == 0 {
+			if count == 1 || count%1000 == 0 {
 				log.Infof("[observer/logssource] delivered %d logs to observer", count)
 			}
 			p.observerHandle.ObserveLog(msg)
