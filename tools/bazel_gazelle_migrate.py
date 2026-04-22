@@ -40,7 +40,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(".")
 BUILD_BAZEL = REPO_ROOT / "BUILD.bazel"
-DEFAULT_TEST_TARGETS = ["//cmd/...", "//comp/...", "//pkg/..."]
+DEFAULT_TEST_TARGETS = ["//cmd/...", "//comp/...", "//pkg/...", "//test/..."]
 DEFAULT_MAX_FILES = 50
 
 
