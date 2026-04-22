@@ -274,10 +274,6 @@ func (a *Agent) FlushSync() {
 		log.Errorf("Error flushing traces: %s", err.Error())
 		return
 	}
-	if err := a.TraceWriterV1.FlushSync(); err != nil {
-		log.Errorf("Error flushing traces v1: %s", err.Error())
-		return
-	}
 }
 
 // WaitForStopped blocks until the agent's Run() method has fully returned,
@@ -853,7 +849,7 @@ func (a *Agent) runSamplersV1(now time.Time, ts *info.TagStats, pt traceutil.Pro
 		if a.ProbabilisticSampler.SampleV1(pt.TraceChunk.TraceID, pt.Root) {
 			pt.TraceChunk.SetSamplingMechanism(probabilitySamplingV1)
 			probKeep = true
-		} else if traceContainsErrorV1(pt.TraceChunk.Spans, false) {
+		} else if !rare && traceContainsErrorV1(pt.TraceChunk.Spans, false) {
 			samplerName = sampler.NameError
 			probKeep = a.ErrorsSampler.SampleV1(now, pt.TraceChunk, pt.Root, pt.TracerEnv)
 		}
