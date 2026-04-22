@@ -1,0 +1,244 @@
+-- allium: 3
+-- syslog_framing.allium
+
+-- Scope: Syslog frame detection and extraction from byte streams.
+-- Includes: Octet-counted framing (RFC 6587 §3.4.1), non-transparent
+--   framing (RFC 6587 §3.4.2), per-frame auto-detection, malformed byte
+--   recovery, flush-on-close semantics, per-datagram framing for UDP,
+--   per-line framing for file sources.
+-- Excludes:
+--   - Syslog message parsing (see syslog_parsing.allium)
+--   - CEF/LEEF extraction (see siem_extraction.allium)
+--   - Byte-stream I/O (read loops, connection management, file tailing)
+--   - Listener configuration (ports, TLS, source tags)
+--   - Agent telemetry infrastructure (counter wiring)
+
+------------------------------------------------------------
+-- Value Types
+------------------------------------------------------------
+
+value Frame {
+    content: String
+    raw_bytes_consumed: Integer
+    was_truncated: Boolean
+}
+
+value FrameStart {
+    -- Classification of the leading byte(s) of the buffer.
+    kind: octet_counted | non_transparent | inter_frame_whitespace | malformed
+}
+
+------------------------------------------------------------
+-- Enumerations
+------------------------------------------------------------
+
+enum Transport { tcp | udp | file }
+
+------------------------------------------------------------
+-- Config
+------------------------------------------------------------
+
+config {
+    max_frame_bytes: Integer
+}
+
+------------------------------------------------------------
+-- Contracts
+------------------------------------------------------------
+
+contract SyslogFrameDetection {
+    find_frame: (buffer: String, previously_seen: Integer) -> Frame?
+    flush: (buffer: String) -> Frame?
+
+    @invariant LeadingByteDispatch
+        -- The leading byte(s) determine the framing method per frame:
+        --   Digit 1-9 → octet counting (MSG-LEN SP SYSLOG-MSG)
+        --   '<' → non-transparent framing (scan for LF or NUL)
+        --   LF, CR, NUL → inter-frame whitespace (consumed silently)
+        --   Anything else → malformed recovery
+
+    @invariant OctetCountedIntegrity
+        -- An octet-counted frame with declared length N yields exactly
+        -- min(N, max_frame_bytes) bytes of content. The length prefix
+        -- and separator space are not part of the content.
+
+    @invariant NonTransparentDelimiters
+        -- Non-transparent frames are terminated by LF or NUL.
+        -- Trailing CR+LF and NUL are stripped from content.
+
+    @invariant FlushOnlyNonTransparent
+        -- flush emits a frame only when the buffer starts with a PRI
+        -- header (non-transparent frame whose delimiter was never sent).
+        -- Partial octet-counted frames are discarded.
+
+    @invariant MalformedRecovery
+        -- Bytes that do not start a valid frame are scanned forward
+        -- for the next sync point:
+        --   1. Bare digit 1-9 (potential octet-counted length prefix)
+        --   2. Angle-bracket followed by digit (PRI header start);
+        --      the two-byte check avoids false positives on stray
+        --      angle brackets in text
+        --   3. LF or NUL (delimiter boundary)
+        -- Everything before the sync point is emitted as a single
+        -- malformed frame so the downstream parser can log it
+        -- coherently. Discarded byte counters are incremented.
+
+    @invariant NoSilentByteLoss
+        -- Every byte is either part of a frame, a consumed delimiter
+        -- or prefix, or recorded as discarded. No bytes vanish.
+
+    @invariant FrameOrdering
+        -- Frames are emitted in stream order. The framer never reorders.
+
+    @guidance
+        -- The syslog framer tracks discarded bytes via both a global
+        -- telemetry counter and a per-tailer status counter. These
+        -- counters are observable through the agent status page.
+}
+
+------------------------------------------------------------
+-- Rules
+------------------------------------------------------------
+
+rule ExtractOctetCountedFrame {
+    when: FrameArrival(buffer, transport)
+    requires: transport = tcp
+    let start = FrameStart(buffer)
+    requires: start.kind = octet_counted
+
+    ensures: FrameExtracted(frame)
+
+    @guidance
+        -- Parses an ASCII decimal length prefix (at most 10 digits),
+        -- expects a space separator, then extracts exactly that many
+        -- bytes as the frame content. If the buffer is shorter than
+        -- prefix + space + declared length, returns nothing (waiting
+        -- for more data). Length prefix "0 " is invalid and skipped.
+        -- More than 10 digits or a non-digit before the space
+        -- discards 1 byte and re-enters detection.
+}
+
+rule ExtractNonTransparentFrame {
+    when: FrameArrival(buffer, transport)
+    requires: transport = tcp
+    let start = FrameStart(buffer)
+    requires: start.kind = non_transparent
+
+    ensures: FrameExtracted(frame)
+
+    @guidance
+        -- Scans from the previously_seen offset for LF or NUL.
+        -- Trailing CR before LF is stripped. If no delimiter is
+        -- found, returns nothing to wait for more data.
+}
+
+rule RecoverMalformedBytes {
+    when: FrameArrival(buffer, transport)
+    requires: transport = tcp
+    let start = FrameStart(buffer)
+    requires: start.kind = malformed
+
+    ensures: MalformedFrameEmitted(frame)
+
+    @guidance
+        -- Scans forward for three kinds of sync point:
+        --   1. Bare digit 1-9 (potential octet-counted frame start)
+        --   2. Angle-bracket followed by digit (PRI header start);
+        --      the two-byte check avoids false positives on stray
+        --      angle brackets
+        --   3. LF or NUL (delimiter boundary)
+        -- Everything before the sync point becomes one frame.
+        -- Discarded byte counters are incremented.
+        -- If no sync point exists in the buffer, waits for more data.
+}
+
+rule ConsumeInterFrameWhitespace {
+    when: FrameArrival(buffer, transport)
+    requires: transport = tcp
+    let start = FrameStart(buffer)
+    requires: start.kind = inter_frame_whitespace
+
+    ensures: ByteConsumed(1)
+
+    @guidance
+        -- Stray LF, CR, or NUL bytes between frames are consumed
+        -- one byte at a time. The framer emits a zero-length frame
+        -- to advance the buffer cursor (the nil-vs-empty-slice
+        -- protocol: nil means "wait for more data", empty non-nil
+        -- means "advance past this byte"). The zero-length message
+        -- propagates through the decoder but is filtered by the
+        -- tailer's HasContent guard before reaching the pipeline.
+        -- The net observable effect is silent consumption.
+        --
+        -- RFC 6587 does not define inter-frame whitespace; this is
+        -- a pragmatic extension for real-world streams.
+}
+
+rule FlushOnClose {
+    when: StreamClosed(buffer)
+    requires: buffer.length > 0
+    let start = FrameStart(buffer)
+    requires: start.kind = non_transparent
+
+    ensures: FrameExtracted(frame)
+
+    @guidance
+        -- Handles senders that write a single non-transparent message
+        -- and close the connection without appending a trailing LF
+        -- or NUL. Partial octet-counted frames are discarded because
+        -- the message body is genuinely incomplete.
+}
+
+rule DatagramFrame {
+    when: FrameArrival(buffer, transport)
+    requires: transport = udp
+
+    ensures: FrameExtracted(frame)
+
+    @guidance
+        -- UDP framing is implicit: each read from the socket yields
+        -- exactly one datagram which is one syslog message. No LF/NUL
+        -- delimiters are required. If an embedded newline is present
+        -- the framer splits on it (stripping the LF), but well-formed
+        -- RFC 5426 datagrams never contain embedded newlines. Any
+        -- remaining buffer is flushed after each datagram.
+}
+
+rule FileLineFrame {
+    when: FrameArrival(buffer, transport)
+    requires: transport = file
+
+    ensures: FrameExtracted(frame)
+
+    @guidance
+        -- File sources use standard newline framing: the byte stream
+        -- is split at newline boundaries. This is the generic framer,
+        -- not the syslog-specific framer. Each resulting line is then
+        -- fed to the syslog parser for envelope extraction.
+}
+
+------------------------------------------------------------
+-- Invariants
+------------------------------------------------------------
+
+invariant MixedFramingOnSameStream {
+    -- A single TCP stream may contain a mix of octet-counted and
+    -- non-transparent frames. Detection is per-frame (based on the
+    -- leading byte after consuming the previous frame), not per-stream.
+}
+
+invariant TruncationPreservesProgress {
+    -- When a frame exceeds max_frame_bytes, the content is truncated
+    -- but the full raw_bytes_consumed (including the truncated portion)
+    -- is reported so the next frame starts at the correct offset.
+}
+
+------------------------------------------------------------
+-- Open Questions
+------------------------------------------------------------
+
+open question "ERR1: plain text with no PRI on a TCP syslog listener enters malformed recovery and scans for a PRI header that may never appear. If the entire connection is non-syslog, content accumulates until close, then FlushOnClose discards it (buffer does not start with PRI). Should the framer impose a maximum scan distance and force-emit after N bytes?"
+
+open question "ERR3: JSON sent to a syslog listener has no PRI header, so the framer enters malformed recovery. If the JSON happens to contain a digit preceded by an angle bracket, the framer may interpret that as a sync point and fragment the JSON at an arbitrary position. Should the sync heuristic require a stronger pattern?"
+
+open question "PY3: Python SysLogHandler.emit() prepends its own PRI to the formatter output, producing double-PRI data. The framer accepts this as a valid non-transparent frame (the outer PRI is well-formed). The parser then encounters the inner PRI as the message body. Should the framer or parser detect and handle double-PRI as a known real-world pattern?"
