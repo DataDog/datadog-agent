@@ -70,7 +70,7 @@ func BenchmarkRender(b *testing.B) {
 		sc := &message.BasicStructuredContent{
 			Data: map[string]interface{}{
 				"message": string(parsed.Msg),
-				"syslog":  syslogparser.BuildSyslogFields(parsed),
+				"syslog":  syslogparser.BuildSyslogFields(&parsed),
 			},
 		}
 		source := sources.NewLogSource("bench", &config.LogsConfig{})

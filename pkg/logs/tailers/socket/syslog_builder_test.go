@@ -34,7 +34,7 @@ func TestStructuredContent_Render_RFC5424(t *testing.T) {
 	sc := &message.BasicStructuredContent{
 		Data: map[string]interface{}{
 			"message": string(parsed.Msg),
-			"syslog":  syslogparser.BuildSyslogFields(parsed),
+			"syslog":  syslogparser.BuildSyslogFields(&parsed),
 		},
 	}
 
@@ -80,7 +80,7 @@ func TestStructuredContent_Render_BSD(t *testing.T) {
 	sc := &message.BasicStructuredContent{
 		Data: map[string]interface{}{
 			"message": string(parsed.Msg),
-			"syslog":  syslogparser.BuildSyslogFields(parsed),
+			"syslog":  syslogparser.BuildSyslogFields(&parsed),
 		},
 	}
 
@@ -116,7 +116,7 @@ func TestStructuredContent_Render_NoPri(t *testing.T) {
 	sc := &message.BasicStructuredContent{
 		Data: map[string]interface{}{
 			"message": string(parsed.Msg),
-			"syslog":  syslogparser.BuildSyslogFields(parsed),
+			"syslog":  syslogparser.BuildSyslogFields(&parsed),
 		},
 	}
 
@@ -177,7 +177,7 @@ func TestStructuredContent_NILVALUEPreserved(t *testing.T) {
 	sc := &message.BasicStructuredContent{
 		Data: map[string]interface{}{
 			"message": string(parsed.Msg),
-			"syslog":  syslogparser.BuildSyslogFields(parsed),
+			"syslog":  syslogparser.BuildSyslogFields(&parsed),
 		},
 	}
 
