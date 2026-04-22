@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    Add ``k8sobjectsreceiver`` to the DDOT (Datadog OpenTelemetry) default manifest,
+    enabling collection of Kubernetes object events and resource states via the
+    OpenTelemetry Collector pipeline.
