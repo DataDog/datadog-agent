@@ -25,25 +25,24 @@ def bazel(
     *args: str,
     capture_output: bool = False,
     sudo: bool = False,
-    hide_stderr: bool = False,
     capture_stderr: bool = False,
 ) -> None | str:
-    """Execute a bazel command. Returns captured output as a string if capture_output=True.
+    """Execute a bazel command.
 
+    capture_output: capture stdout.
     capture_stderr: also capture stderr and append it to the returned string.
-        Implies hide_stderr. Use this when Bazel writes important output (e.g.
-        test results) to stderr and the caller needs to process it.
-    hide_stderr: suppress Bazel's progress/info lines written to stderr without
-        capturing them. Only meaningful when capture_output=True and
-        capture_stderr=False.
+        Use this when Bazel writes important output (e.g.  test results) to stderr
+        and the caller needs to process it.
     """
 
     if not (resolved_bazel := shutil.which("bazel")):
         raise Exit(bazel_not_found_message("red"))
     cmd = ("sudo", resolved_bazel) if sudo else ("bazel",)
     kwargs = {}
+    # hide really means capture.
+    # https://docs.pyinvoke.org/en/stable/api/runners.html#invoke.runners.Runner.run
     if capture_output:
-        kwargs["hide"] = True if (hide_stderr or capture_stderr) else "out"
+        kwargs["hide"] = "both" if capture_stderr else "out"
     elif not sudo and sys.stdout.isatty() and sys.platform != "win32":
         kwargs["pty"] = True
     result = ctx.run(

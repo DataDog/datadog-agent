@@ -208,7 +208,7 @@ def get_bazel_test_targets(ctx, modules: list[GoModule]) -> dict[str, str]:
         return {}
 
     scope = ' + '.join(bazel_patterns)
-    output = bazel(ctx, "cquery", f"kind(go_test, {scope})", capture_output=True, hide_stderr=True)
+    output = bazel(ctx, "cquery", f"kind(go_test, {scope})", capture_output=True, capture_stderr=True)
     if not output:
         return {}
 
