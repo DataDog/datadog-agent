@@ -156,12 +156,15 @@ func (b *Backend) StopConfigExperiment() error {
 // ResetConfigExperiment best-effort cleans up any active config experiment so
 // the next test starts with a clean RC state. Used between shared-install tests.
 //
-// It is intentionally forgiving: a previous failure-path test (e.g. a crash or
-// timeout) may have already rolled back the experiment at the agent level while
-// the RC status still reports an experiment version. Calling `stop-config-experiment`
-// in that case succeeds but does not trigger a daemon restart, which makes the
-// `runDaemonCommandWithRestart` helper time out. We swallow that error because
-// the RC state becomes clean again once the next `start-config-experiment` runs.
+// It deliberately uses `runDaemonCommand` instead of `StopConfigExperiment`'s
+// `runDaemonCommandWithRestart`: a previous failure-path test (crash or
+// timeout) may have already rolled back the experiment at the agent level
+// while the RC status still reports an experiment version. Calling the full
+// stop helper in that case blocks for 450s (30 retries × 15s) waiting for the
+// installer daemon PID to change — but it does not change, because there is
+// nothing concrete for the daemon to stop. The fire-and-forget stop sends the
+// command and returns immediately; the RC state becomes clean once the next
+// `start-config-experiment` runs.
 func (b *Backend) ResetConfigExperiment() error {
 	state, err := b.RemoteConfigStatusPackage("datadog-agent")
 	if err != nil {
@@ -170,7 +173,8 @@ func (b *Backend) ResetConfigExperiment() error {
 	if state.ExperimentConfigVersion == "" {
 		return nil
 	}
-	if err := b.StopConfigExperiment(); err != nil {
+	b.t().Logf("Resetting config experiment (fire-and-forget stop)")
+	if _, err := b.runDaemonCommand("stop-config-experiment", "datadog-agent"); err != nil {
 		b.t().Logf("ResetConfigExperiment: best-effort stop returned %v (ignored)", err)
 	}
 	return nil
