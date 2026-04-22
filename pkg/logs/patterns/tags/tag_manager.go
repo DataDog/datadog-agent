@@ -180,6 +180,14 @@ func (tm *TagManager) Count() int {
 	return len(tm.stringToEntry)
 }
 
+// HasDictID reports whether id is still present in the dictionary (not evicted).
+func (tm *TagManager) HasDictID(id uint64) bool {
+	tm.mu.RLock()
+	defer tm.mu.RUnlock()
+	_, ok := tm.idToEntry[id]
+	return ok
+}
+
 // dictIndexValue converts a dictionary ID to a DynamicValue proto message
 func dictIndexValue(id uint64) *statefulpb.DynamicValue {
 	return &statefulpb.DynamicValue{

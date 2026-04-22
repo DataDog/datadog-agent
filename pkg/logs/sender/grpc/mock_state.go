@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"google.golang.org/protobuf/proto"
 
@@ -46,6 +47,17 @@ func getTranslatorContent(msg *message.Message) []byte {
 		return msg.PreEncodedContent
 	}
 	return msg.GetContent()
+}
+
+// toValidUTF8 returns s unchanged if it is already valid UTF-8 (zero allocation).
+// Otherwise replaces each maximal run of invalid bytes with U+FFFD.
+// Required before writing to proto3 string fields, which must be valid UTF-8 —
+// invalid bytes would corrupt or drop the datum entirely.
+func toValidUTF8(s string) string {
+	if utf8.ValidString(s) {
+		return s
+	}
+	return strings.ToValidUTF8(s, "\uFFFD")
 }
 
 const (
@@ -465,13 +477,14 @@ func (mt *MessageTranslator) buildTagSet(msg *message.Message) (*statefulpb.TagS
 	currentStatus := msg.MessageMetadata.GetStatus()
 	currentProcessingTags := strings.Join(msg.MessageMetadata.ProcessingTags, ",")
 
-	// Cache hit: all inputs identical → return cached result (zero allocations)
+	// Cache hit: all inputs identical and cached dict index still live (not evicted).
 	if mt.tagCache.tagSet != nil &&
 		mt.tagCache.origin == currentOrigin &&
 		mt.tagCache.hostname == currentHostname &&
 		mt.tagCache.source == currentSource &&
 		mt.tagCache.status == currentStatus &&
-		mt.tagCache.processingTags == currentProcessingTags {
+		mt.tagCache.processingTags == currentProcessingTags &&
+		mt.tagManager.HasDictID(mt.tagCache.dictID) {
 		return mt.tagCache.tagSet, mt.tagCache.tagStr, mt.tagCache.dictID, false
 	}
 
@@ -523,6 +536,17 @@ func (mt *MessageTranslator) buildTagSet(msg *message.Message) (*statefulpb.TagS
 	mt.tagCache.tagStr = allTagsString
 
 	return tagSet, allTagsString, dictID, isNew
+}
+
+// invalidateTagCache clears the in-memory tag cache when it references dictID.
+// Used when dictionary entries are removed out-of-band (e.g. TTL eviction).
+func (mt *MessageTranslator) invalidateTagCache(dictID uint64) {
+	if mt.tagCache.dictID != dictID {
+		return
+	}
+	mt.tagCache.tagSet = nil
+	mt.tagCache.dictID = 0
+	mt.tagCache.tagStr = ""
 }
 
 func (mt *MessageTranslator) buildServiceField(msg *message.Message) (*statefulpb.DynamicValue, uint64, bool) {
@@ -622,7 +646,8 @@ func (mt *MessageTranslator) sendDictEntryDelete(outputChan chan *message.Statef
 
 // sendRawLog creates and sends a raw log datum (currently unused)
 func (mt *MessageTranslator) sendRawLog(outputChan chan *message.StatefulMessage, msg *message.Message, contentStr string, ts time.Time, tagSet *statefulpb.TagSet, service *statefulpb.DynamicValue) {
-	logDatum := buildRawLog(contentStr, ts, tagSet, msg.MessageMetadata.DualSendUUID, service)
+	// Proto3 string fields require valid UTF-8; replace invalid sequences to avoid corrupt datums.
+	logDatum := buildRawLog(toValidUTF8(contentStr), ts, tagSet, msg.MessageMetadata.DualSendUUID, service)
 
 	tlmPipelineRawLogsProcessed.Inc(mt.pipelineName)
 	tlmPipelineRawLogsProcessedBytes.Add(float64(proto.Size(logDatum)), mt.pipelineName)
@@ -878,7 +903,8 @@ func (mt *MessageTranslator) fillWildcardDynamicValue(
 	// New value: send inline as string_value — no dict entry created.
 	// High-cardinality values (UUIDs, IPs, request IDs) never repeat,
 	// so dict encoding provides zero compression benefit for them.
-	oneofStr.StringValue = value
+	// Proto3 requires valid UTF-8; replace invalid sequences to avoid corrupt datums.
+	oneofStr.StringValue = toValidUTF8(value)
 	dv.Value = oneofStr
 }
 

@@ -430,3 +430,195 @@ func TestPattern_IntegrationScenario(t *testing.T) {
 	values := pattern.GetWildcardValues(log2)
 	assert.Equal(t, []string{"Network", "timeout", "reached"}, values)
 }
+
+// --- sanitizeForTemplate tab tests ---
+
+func TestSanitizeForTemplate_TabPreserved(t *testing.T) {
+	// Tabs appear in journald messages and must be preserved
+	assert.Equal(t, "Worker\ttask\t123", sanitizeForTemplate("Worker\ttask\t123"))
+}
+
+func TestSanitizeForTemplate_TabOnlyToken(t *testing.T) {
+	assert.Equal(t, "\t", sanitizeForTemplate("\t"))
+}
+
+func TestSanitizeForTemplate_MixedTabAndControl(t *testing.T) {
+	// Tab preserved, null byte stripped
+	assert.Equal(t, "key\tvalue", sanitizeForTemplate("key\t\x00value"))
+}
+
+func TestSanitizeForTemplate_NewlinePreserved(t *testing.T) {
+	// \n in message fields (e.g. xDS ADS pretty-printed request bodies) must survive.
+	// Server confirmed it can handle \n in template strings.
+	input := "ADS request sent: {\n  \"versionInfo\": \"9\"\n}"
+	assert.Equal(t, input, sanitizeForTemplate(input))
+}
+
+func TestSanitizeForTemplate_CarriageReturnPreserved(t *testing.T) {
+	// \r seen in curl output: "\r100   396  100   396"
+	assert.Equal(t, "\r100   396", sanitizeForTemplate("\r100   396"))
+}
+
+func TestSanitizeForTemplate_NullStillStripped(t *testing.T) {
+	// NUL (0x00) must still be stripped — panics C.CString in Rust tokenizer
+	assert.Equal(t, "nonulhere", sanitizeForTemplate("no\x00nul\x00here"))
+}
+
+// --- GetPatternString trailing whitespace tests ---
+
+func TestGetPatternString_TrailingWhitespacePreserved(t *testing.T) {
+	// Template: "config: " [wildcard] — trailing space before wildcard must survive
+	tl := token.NewTokenList()
+	tl.Add(token.NewToken(token.TokenWord, "config:", token.NotWildcard))
+	tl.Add(token.NewToken(token.TokenWhitespace, " ", token.NotWildcard))
+	tl.Add(token.NewToken(token.TokenWord, "abc123", token.IsWildcard))
+	p := newPattern(tl, 1)
+	p.Template = tl
+	p.Positions = []int{2}
+	assert.Equal(t, "config: ", p.GetPatternString())
+}
+
+func TestGetWildcardCharPositions_UnicodeArrow(t *testing.T) {
+	// "→" is 3 UTF-8 bytes but 1 rune/Java char. Positions after it must use rune count.
+	// Template: "state: " [wild1] " → " [wild2]
+	// "state: " = 7 runes → wild1 at 7
+	// " → " = 3 runes (space + arrow + space) → wild2 at 10
+	tl := token.NewTokenList()
+	tl.Add(token.NewToken(token.TokenWord, "state:", token.NotWildcard))
+	tl.Add(token.NewToken(token.TokenWhitespace, " ", token.NotWildcard))
+	tl.Add(token.NewToken(token.TokenWord, "open", token.IsWildcard))
+	tl.Add(token.NewToken(token.TokenWhitespace, " → ", token.NotWildcard))
+	tl.Add(token.NewToken(token.TokenWord, "closed", token.IsWildcard))
+	p := newPattern(tl, 1)
+	p.Template = tl
+	p.Positions = []int{2, 4}
+	positions := p.GetWildcardCharPositions()
+	assert.Equal(t, []int{7, 10}, positions)
+}
+
+func TestGetPatternString_MultipleSpacesPreserved(t *testing.T) {
+	// "err=<  rpc error" — double-space whitespace token must survive intact
+	tl := token.NewTokenList()
+	tl.Add(token.NewToken(token.TokenWord, "err=<", token.NotWildcard))
+	tl.Add(token.NewToken(token.TokenWhitespace, "  ", token.NotWildcard))
+	tl.Add(token.NewToken(token.TokenWord, "rpc", token.IsWildcard))
+	p := newPattern(tl, 1)
+	p.Template = tl
+	p.Positions = []int{2}
+	assert.Equal(t, "err=<  ", p.GetPatternString())
+}
+
+// --- sanitizeForTemplateRuneLen direct tests ---
+
+func TestSanitizeForTemplateRuneLen_ASCII(t *testing.T) {
+	// Pure ASCII: rune count == byte count
+	assert.Equal(t, 11, sanitizeForTemplateRuneLen("hello world"))
+	assert.Equal(t, 0, sanitizeForTemplateRuneLen(""))
+}
+
+func TestSanitizeForTemplateRuneLen_MultiByteBMP(t *testing.T) {
+	// BMP characters: each counts as 1 (matches Java String.length())
+	// → is U+2192, 3 UTF-8 bytes but 1 Java char
+	assert.Equal(t, 1, sanitizeForTemplateRuneLen("→"))
+	// "state: → " = 9 runes (7 ASCII + arrow + space)
+	assert.Equal(t, 9, sanitizeForTemplateRuneLen("state: → "))
+}
+
+func TestSanitizeForTemplateRuneLen_TabNewlinePreserved(t *testing.T) {
+	// \t, \n, \r each count as 1
+	assert.Equal(t, 3, sanitizeForTemplateRuneLen("\t\n\r"))
+}
+
+func TestSanitizeForTemplateRuneLen_NullStripped(t *testing.T) {
+	// NUL is stripped → only the 3 non-NUL chars count
+	assert.Equal(t, 3, sanitizeForTemplateRuneLen("a\x00b\x00c"))
+}
+
+// --- GetWildcardCharPositions additional tests ---
+
+func TestGetWildcardCharPositions_PureASCII_Unchanged(t *testing.T) {
+	// For ASCII-only templates byte count == rune count, so positions must be identical.
+	tl := token.NewTokenList()
+	tl.Add(token.NewToken(token.TokenWord, "err=<", token.NotWildcard))
+	tl.Add(token.NewToken(token.TokenWhitespace, " ", token.NotWildcard))
+	tl.Add(token.NewToken(token.TokenWord, "rpc", token.IsWildcard))
+	tl.Add(token.NewToken(token.TokenWhitespace, " ", token.NotWildcard))
+	tl.Add(token.NewToken(token.TokenWord, "failed", token.IsWildcard))
+	p := newPattern(tl, 1)
+	p.Template = tl
+	p.Positions = []int{2, 4}
+	positions := p.GetWildcardCharPositions()
+	// "err=< " = 6 chars → wild1 at 6; " " = 1 char → wild2 at 7
+	assert.Equal(t, []int{6, 7}, positions)
+}
+
+// --- GetPatternString newline/CR tests ---
+
+func TestGetPatternString_NewlinePreserved(t *testing.T) {
+	// \n inside a token value must survive in the template string
+	tl := token.NewTokenList()
+	tl.Add(token.NewToken(token.TokenWord, "hint_type: DELETE\nlimit: 5000\n", token.NotWildcard))
+	tl.Add(token.NewToken(token.TokenWord, "query", token.IsWildcard))
+	p := newPattern(tl, 1)
+	p.Template = tl
+	p.Positions = []int{1}
+	assert.Equal(t, "hint_type: DELETE\nlimit: 5000\n", p.GetPatternString())
+}
+
+// --- Production mismatch regression tests (from staging flink-intakeshadow-metrics) ---
+
+func TestSanitizeForTemplate_StagingMismatch_CtrProgress(t *testing.T) {
+	// Real mismatch observed in staging:
+	// HTTP:  "Importing\telapsed: 0.4 s\ttotal:   0.0 B\t(0.0 B/s)"
+	// gRPC:  "Importingelapsed: 0.4 stotal:   0.0 B(0.0 B/s)"   ← tabs stripped
+	// The message field of a journald/ctr log uses \t as field separator.
+	input := "Importing\telapsed: 0.4 s\ttotal:   0.0 B\t(0.0 B/s)"
+	assert.Equal(t, input, sanitizeForTemplate(input),
+		"tabs in ctr progress output must be preserved in template")
+}
+
+func TestSanitizeForTemplate_StagingMismatch_EcrPull(t *testing.T) {
+	// Real mismatch observed in staging:
+	// HTTP:  "486234852809.dkr.ecr.us east 1.amazonaws\tsaved"
+	// gRPC:  "486234852809.dkr.ecr.us east 1.amazonawssaved"   ← tab stripped
+	input := "486234852809.dkr.ecr.us east 1.amazonaws\tsaved"
+	assert.Equal(t, input, sanitizeForTemplate(input),
+		"tab separator in ECR pull log must be preserved")
+}
+
+func TestSanitizeForTemplate_StagingMismatch_DnsRecord(t *testing.T) {
+	// Real mismatch observed in staging:
+	// HTTP:  "vault.us1.staging.dog.\t29\tIN\tA\t10.128.150.56"
+	// gRPC:  "vault.us1.staging.dog.29INA10.128.150.56"   ← all tabs stripped
+	input := "vault.us1.staging.dog.\t29\tIN\tA\t10.128.150.56"
+	assert.Equal(t, input, sanitizeForTemplate(input),
+		"tab-separated DNS record fields must be preserved")
+}
+
+func TestSanitizeForTemplate_StagingMismatch_NewlineInMessage(t *testing.T) {
+	// Real mismatch (2026-04-22 staging):
+	// HTTP:  "Listing hints...: hint_type: DELETE\nlimit: 5000\nmasked_only: true\n"
+	// gRPC:  "Listing hints...: hint_type: DELETElimit: 5000masked_only: true"
+	// \n between proto fields was stripped — they all run together.
+	input := "Listing hints for cell temporal-8a67: hint_type: DELETE\nlimit: 5000\nmasked_only: true\n"
+	assert.Equal(t, input, sanitizeForTemplate(input),
+		"\\n separating proto fields in message must be preserved")
+}
+
+func TestGetPatternString_StagingMismatch_TrailingSpace(t *testing.T) {
+	// Real mismatch (2026-04-22 staging):
+	// HTTP message: "Checking error " (trailing space)
+	// gRPC message: "Checking error"  (trailing space dropped)
+	// The trailing whitespace token before the wildcard must survive in the template.
+	tl := token.NewTokenList()
+	tl.Add(token.NewToken(token.TokenWord, "Checking", token.NotWildcard))
+	tl.Add(token.NewToken(token.TokenWhitespace, " ", token.NotWildcard))
+	tl.Add(token.NewToken(token.TokenWord, "error", token.NotWildcard))
+	tl.Add(token.NewToken(token.TokenWhitespace, " ", token.NotWildcard)) // trailing space
+	tl.Add(token.NewToken(token.TokenWord, "detail", token.IsWildcard))
+	p := newPattern(tl, 1)
+	p.Template = tl
+	p.Positions = []int{4}
+	assert.Equal(t, "Checking error ", p.GetPatternString(),
+		"trailing space whitespace token must appear in template")
+}
