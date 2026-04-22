@@ -127,7 +127,13 @@ if [ -f "$INSTALL_ENV_FILE" ]; then
         sed -i '' "s/^#* *site:.*/site: $dd_site/" "$CONF_DIR/datadog.yaml"
     fi
     if [ -n "$dd_infra_mode" ]; then
-        sed -i '' "s/^#* *infrastructure_mode:.*/infrastructure_mode: $dd_infra_mode/" "$CONF_DIR/datadog.yaml"
+        if grep -Eq '^#* *infrastructure_mode:' "$CONF_DIR/datadog.yaml"; then
+            sed -i '' "s/^#* *infrastructure_mode:.*/infrastructure_mode: $dd_infra_mode/" "$CONF_DIR/datadog.yaml"
+        else
+            # The restored datadog.yaml predates the infrastructure_mode entry
+            # (older Agent versions had no example line to replace).
+            printf '\ninfrastructure_mode: %s\n' "$dd_infra_mode" >> "$CONF_DIR/datadog.yaml"
+        fi
     fi
     if [ -n "$dd_install_method" ]; then
         install_method="$dd_install_method"
