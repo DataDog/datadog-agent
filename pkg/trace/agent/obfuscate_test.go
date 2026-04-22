@@ -535,7 +535,7 @@ func BenchmarkCCObfuscation(b *testing.B) {
 	}
 }
 
-func TestObfuscateSpanEvent(t *testing.T) {
+func TestObfuscateSpanEventV1(t *testing.T) {
 	assert := assert.New(t)
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	cfg := config.New()
@@ -546,64 +546,60 @@ func TestObfuscateSpanEvent(t *testing.T) {
 	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 	defer cancelFunc()
 
-	spanEvent := &pb.SpanEvent{
-		Name: "evt",
-		Attributes: map[string]*pb.AttributeAnyValue{
-			"str": {
-				Type:        pb.AttributeAnyValue_STRING_VALUE,
-				StringValue: "5105-1051-0510-5100",
-			},
-			"int": {
-				Type:     pb.AttributeAnyValue_INT_VALUE,
-				IntValue: 5105105105105100,
-			},
-			"dbl": {
-				Type:        pb.AttributeAnyValue_DOUBLE_VALUE,
-				DoubleValue: 5105105105105100,
-			},
-			"arr": {
-				Type: pb.AttributeAnyValue_ARRAY_VALUE,
-				ArrayValue: &pb.AttributeArray{
-					Values: []*pb.AttributeArrayValue{
-						{
-							Type:        pb.AttributeArrayValue_STRING_VALUE,
-							StringValue: "5105-1051-0510-5100",
-						},
-						{
-							Type:     pb.AttributeArrayValue_INT_VALUE,
-							IntValue: 5105105105105100,
-						},
-						{
-							Type:        pb.AttributeArrayValue_DOUBLE_VALUE,
-							DoubleValue: 5105105105105100,
-						},
-					},
+	st := idx.NewStringTable()
+
+	strKey := st.Add("credit_card.str")
+	intKey := st.Add("credit_card.int")
+	dblKey := st.Add("credit_card.dbl")
+	arrKey := st.Add("credit_card.arr")
+	safeKey := st.Add("not.cc")
+
+	event := &idx.SpanEvent{
+		NameRef: st.Add("evt"),
+		Time:    1,
+		Attributes: map[uint32]*idx.AnyValue{
+			strKey: {Value: &idx.AnyValue_StringValueRef{StringValueRef: st.Add("5105-1051-0510-5100")}},
+			intKey: {Value: &idx.AnyValue_IntValue{IntValue: 5105105105105100}},
+			dblKey: {Value: &idx.AnyValue_DoubleValue{DoubleValue: 5105105105105100}},
+			arrKey: {Value: &idx.AnyValue_ArrayValue{ArrayValue: &idx.ArrayValue{
+				Values: []*idx.AnyValue{
+					{Value: &idx.AnyValue_StringValueRef{StringValueRef: st.Add("5105-1051-0510-5100")}},
 				},
-			},
+			}}},
+			safeKey: {Value: &idx.AnyValue_StringValueRef{StringValueRef: st.Add("hello")}},
 		},
 	}
 
-	// Initialize the obfuscator (it's lazily initialized, so we need to trigger it first)
-	// We can do this by creating a dummy span and calling obfuscateSpanInternal
-	st := idx.NewStringTable()
-	dummySpan := idx.NewInternalSpan(st, &idx.Span{
+	span := idx.NewInternalSpan(st, &idx.Span{
 		TypeRef:    st.Add("dummy"),
 		Attributes: make(map[uint32]*idx.AnyValue),
+		Events:     []*idx.SpanEvent{event},
 	})
-	agnt.obfuscateSpanInternal(dummySpan)
 
-	// Now test obfuscateSpanEvent
-	agnt.obfuscateSpanEvent(spanEvent)
+	agnt.obfuscateSpanInternal(span)
 
-	for _, v := range spanEvent.Attributes {
-		if v.Type == pb.AttributeAnyValue_ARRAY_VALUE {
-			for _, arrayValue := range v.ArrayValue.Values {
-				assert.Equal("?", arrayValue.StringValue)
-			}
-		} else {
-			assert.Equal("?", v.StringValue)
-		}
+	assertStr := func(key uint32, want string) {
+		av, ok := event.Attributes[key]
+		assert.True(ok, "attribute %d missing", key)
+		ref, ok := av.Value.(*idx.AnyValue_StringValueRef)
+		assert.True(ok, "attribute %d not string after obfuscation", key)
+		assert.Equal(want, st.Get(ref.StringValueRef))
 	}
+	assertStr(strKey, "?")
+	assertStr(intKey, "?")
+	assertStr(dblKey, "?")
+	// Array values are obfuscated per-element.
+	arr, ok := event.Attributes[arrKey].Value.(*idx.AnyValue_ArrayValue)
+	assert.True(ok, "arrKey should remain an ArrayValue")
+	for i, elem := range arr.ArrayValue.Values {
+		ref, ok := elem.Value.(*idx.AnyValue_StringValueRef)
+		assert.True(ok, "array element %d not string after obfuscation", i)
+		assert.Equal("?", st.Get(ref.StringValueRef))
+	}
+	// Non-CC key should be untouched.
+	safeVal, ok := event.Attributes[safeKey].Value.(*idx.AnyValue_StringValueRef)
+	assert.True(ok)
+	assert.Equal("hello", st.Get(safeVal.StringValueRef))
 }
 
 func TestLexerObfuscation(t *testing.T) {

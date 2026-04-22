@@ -11,6 +11,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	stdlog "log"
@@ -797,15 +798,16 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	}(err)
 	if err != nil {
 		httpDecodingError(err, []string{"handler:traces", fmt.Sprintf("v:%s", v)}, w, r.statsd)
-		switch err {
-		case apiutil.ErrLimitedReaderLimitReached:
+		switch {
+		case errors.Is(err, apiutil.ErrLimitedReaderLimitReached):
 			ts.TracesDropped.PayloadTooLarge.Add(tracen)
-		case io.EOF, io.ErrUnexpectedEOF:
+		case errors.Is(err, io.EOF), errors.Is(err, io.ErrUnexpectedEOF):
 			ts.TracesDropped.EOF.Add(tracen)
-		case msgp.ErrShortBytes:
+		case errors.Is(err, msgp.ErrShortBytes):
 			ts.TracesDropped.MSGPShortBytes.Add(tracen)
 		default:
-			if err, ok := err.(net.Error); ok && err.Timeout() {
+			var ne net.Error
+			if errors.As(err, &ne) && ne.Timeout() {
 				ts.TracesDropped.Timeout.Add(tracen)
 			} else {
 				ts.TracesDropped.DecodingError.Add(tracen)

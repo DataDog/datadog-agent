@@ -1009,6 +1009,82 @@ func TestLangInStats(t *testing.T) {
 	})
 }
 
+func TestLangInStatsV1(t *testing.T) {
+	alignedNowFunc := func(c *Concentrator, now time.Time) int64 {
+		alignedNow := alignTs(now.UnixNano(), c.bsize)
+		c.spanConcentrator.oldestTs = alignedNow - int64(c.spanConcentrator.bufferLen)*c.bsize
+		return alignedNow
+	}
+	mkTraceV1 := func(alignedNow int64, spanID uint64, lang string) *traceutil.ProcessedTraceV1 {
+		strings := idx.NewStringTable()
+		attrs := map[uint32]*idx.AnyValue{
+			strings.Add("_top_level"): {Value: &idx.AnyValue_DoubleValue{DoubleValue: 1}},
+		}
+		span := idx.NewInternalSpan(strings, &idx.Span{
+			SpanID:      spanID,
+			ParentID:    0,
+			ServiceRef:  strings.Add("A1"),
+			NameRef:     strings.Add("query"),
+			ResourceRef: strings.Add("resource1"),
+			TypeRef:     strings.Add("db"),
+			Start:       uint64(getTsInBucket(alignedNow, testBucketInterval, 0) - 50),
+			Duration:    50,
+			Attributes:  attrs,
+		})
+		chunk := idx.NewInternalTraceChunk(strings, 0, "", nil, []*idx.InternalSpan{span}, false, nil, 0)
+		return &traceutil.ProcessedTraceV1{
+			TraceChunk: chunk,
+			Root:       span,
+			TracerEnv:  "none",
+			Lang:       lang,
+		}
+	}
+
+	t.Run("lang_propagated", func(t *testing.T) {
+		now := time.Now()
+		c := NewTestConcentrator(now)
+		alignedNow := alignedNowFunc(c, now)
+
+		c.addNowV1(mkTraceV1(alignedNow, 1, "python"), infraTags{})
+
+		stats := c.flushNow(now.UnixNano()+int64(c.spanConcentrator.bufferLen)*testBucketInterval, false)
+		require.Len(t, stats.Stats, 1)
+		assert.Equal(t, "python", stats.Stats[0].Lang)
+	})
+
+	t.Run("different_lang_separate_payloads", func(t *testing.T) {
+		now := time.Now()
+		c := NewTestConcentrator(now)
+		alignedNow := alignedNowFunc(c, now)
+
+		c.addNowV1(mkTraceV1(alignedNow, 1, "go"), infraTags{})
+		c.addNowV1(mkTraceV1(alignedNow, 2, "python"), infraTags{})
+
+		stats := c.flushNow(now.UnixNano()+int64(c.spanConcentrator.bufferLen)*testBucketInterval, false)
+		require.Len(t, stats.Stats, 2) // Different languages create separate payloads
+
+		languages := make(map[string]bool)
+		for _, stat := range stats.Stats {
+			languages[stat.Lang] = true
+		}
+		assert.True(t, languages["go"])
+		assert.True(t, languages["python"])
+	})
+
+	t.Run("same_lang_same_payload", func(t *testing.T) {
+		now := time.Now()
+		c := NewTestConcentrator(now)
+		alignedNow := alignedNowFunc(c, now)
+
+		c.addNowV1(mkTraceV1(alignedNow, 1, "go"), infraTags{})
+		c.addNowV1(mkTraceV1(alignedNow, 2, "go"), infraTags{})
+
+		stats := c.flushNow(now.UnixNano()+int64(c.spanConcentrator.bufferLen)*testBucketInterval, false)
+		require.Len(t, stats.Stats, 1) // Same language uses same payload
+		assert.Equal(t, "go", stats.Stats[0].Lang)
+	})
+}
+
 func TestBaseServiceInStats(t *testing.T) {
 	t.Run("base_service_propagated", func(t *testing.T) {
 		now := time.Now()

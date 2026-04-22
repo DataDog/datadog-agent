@@ -625,6 +625,7 @@ func processedTraceV1(p *api.PayloadV1, chunk *idx.InternalTraceChunk, root *idx
 		TracerHostname:         p.TracerPayload.Hostname(),
 		ClientDroppedP0sWeight: float64(p.ClientDroppedP0s) / float64(len(p.TracerPayload.Chunks)),
 		GitCommitSha:           gitCommitSha,
+		Lang:                   p.TracerPayload.LanguageName(),
 	}
 	pt.ImageTag = imageTag
 	// Prefer payload-level _dd.git.commit.sha when present so we skip scanning spans (common after

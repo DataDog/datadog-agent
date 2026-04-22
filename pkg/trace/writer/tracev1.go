@@ -77,8 +77,7 @@ type TraceWriterV1 struct {
 	bufferedSizeV1     int // accurate buffer size (using compacted sizes)
 
 	// syncMode reports whether the writer should flush on its own or only when FlushSync is called
-	syncMode  bool
-	flushChan chan chan struct{}
+	syncMode bool
 
 	telemetryCollector telemetry.TelemetryCollector
 
@@ -114,7 +113,6 @@ func NewTraceWriterV1(
 		stats:              &info.TraceWriterInfo{},
 		statsLastMinute:    &info.TraceWriterInfo{},
 		stop:               make(chan struct{}),
-		flushChan:          make(chan chan struct{}),
 		syncMode:           cfg.SynchronousFlushing,
 		tick:               5 * time.Second,
 		agentVersion:       cfg.AgentVersion,
@@ -141,7 +139,7 @@ func NewTraceWriterV1(
 	tw.flushTicker = time.NewTicker(tw.tick)
 
 	qsize := 1
-	log.Infof("Trace writer initialized (climt=%d qsize=%d compression=%s)", climit, qsize, compressor.Encoding())
+	log.Infof("Trace writer initialized (climit=%d qsize=%d compression=%s)", climit, qsize, compressor.Encoding())
 	tw.senders = newSenders(cfg, tw, pathTraces, climit, qsize, telemetryCollector, statsd)
 	tw.wg.Add(1)
 	go tw.timeFlush()
@@ -390,7 +388,7 @@ func (w *TraceWriterV1) recordEvent(t eventType, data *eventData) {
 		w.stats.Retries.Inc()
 
 	case eventTypeSent:
-		log.Debugf("Flushed traces to the API; time: %s, bytes: %d", data.duration, data.bytes) // TODO: Undo when done
+		log.Debugf("Flushed traces to the API; time: %s, bytes: %d", data.duration, data.bytes)
 		w.timing.Since("datadog.trace_agent.trace_writer.flush_duration", time.Now().Add(-data.duration))
 		w.stats.Bytes.Add(int64(data.bytes))
 		w.stats.Payloads.Inc()

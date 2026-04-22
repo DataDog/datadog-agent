@@ -50,11 +50,12 @@ const (
 
 // CloudRunJobs has helper functions for getting Google Cloud Run data
 type CloudRunJobs struct {
-	startTime  time.Time
-	jobChunk   *idx.InternalTraceChunk
-	jobSpan    *idx.InternalSpan
-	traceAgent TraceAgent
-	spanTags   map[string]string // tags used for span creation (unified service tags + configured tags + cloud provider metadata)
+	startTime    time.Time
+	jobChunk     *idx.InternalTraceChunk
+	jobSpan      *idx.InternalSpan
+	traceAgent   TraceAgent
+	spanTags     map[string]string // tags used for span creation (unified service tags + configured tags + cloud provider metadata)
+	spanModifier *serverlessInitTrace.CloudRunJobsSpanModifier
 }
 
 // GetTags returns a map of gcp-related tags for Cloud Run Jobs.
@@ -225,6 +226,7 @@ func (c *CloudRunJobs) setSpanModifier() {
 	}
 
 	modifier := serverlessInitTrace.NewCloudRunJobsSpanModifier(c.jobChunk)
+	c.spanModifier = modifier
 	if ta, ok := c.traceAgent.(serverlessInitTrace.SpanModifierSetter); ok {
 		ta.SetSpanModifier(modifier)
 	}
@@ -246,6 +248,13 @@ func (c *CloudRunJobs) completeAndSubmitJobSpan(runErr error) {
 		c.jobSpan.SetStringAttribute("error.msg", runErr.Error())
 		exitCode := exitcode.From(runErr)
 		c.jobSpan.SetStringAttribute("exit_code", strconv.Itoa(exitCode))
+	}
+
+	// Shut down the span modifier before submitting: any in-flight user-span ModifySpan calls
+	// drain through the modifier's mutex, and subsequent calls become no-ops, so the trace
+	// pipeline can safely read jobChunk fields (e.g. TraceID) without racing the writer.
+	if c.spanModifier != nil {
+		c.spanModifier.Shutdown()
 	}
 
 	serverlessInitTrace.SubmitSpan(c.jobChunk, CloudRunJobsOrigin, c.traceAgent)

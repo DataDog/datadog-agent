@@ -403,6 +403,96 @@ func TestCloudRunJobsSpanModifier_MixedTraceIDBitWidths_64BitFirst(t *testing.T)
 	assert.Equal(t, rootSpan.SpanID(), childSpan.ParentID(), "Child span should keep its original parent")
 }
 
+func TestCloudRunJobsSpanModifier_ShutdownBlocksFurtherMutation(t *testing.T) {
+	// Shutdown is called before the jobChunk is handed to the trace pipeline. Once the
+	// modifier is stopped, ModifySpan must not mutate jobChunk (TraceID, etc.), because a
+	// pipeline worker may be concurrently reading those fields.
+
+	jobChunk := InitChunk("gcp.run.job", "gcp.run.job.task", "my-job", "serverless", time.Now().UnixNano(), map[string]string{})
+	initialTraceID := make([]byte, len(jobChunk.TraceID))
+	copy(initialTraceID, jobChunk.TraceID)
+
+	modifier := NewCloudRunJobsSpanModifier(jobChunk)
+	modifier.Shutdown()
+
+	// A user span arriving after Shutdown should NOT mutate jobChunk.
+	userChunk, userSpan := createTestSpan("user-service", "user.operation", "user-resource", 0)
+	modifier.ModifySpan(userChunk, userSpan)
+
+	assert.True(t, bytes.Equal(initialTraceID, jobChunk.TraceID), "jobChunk.TraceID must not change after Shutdown")
+	assert.Equal(t, uint64(0), userSpan.ParentID(), "user span must not be reparented after Shutdown")
+}
+
+func TestCloudRunJobsSpanModifier_ShutdownRace(_ *testing.T) {
+	// Concurrent ModifySpan callers and a shutdown-time Shutdown+read of jobChunk.TraceID
+	// must be race-free when run with `go test -race`.
+
+	jobChunk := InitChunk("gcp.run.job", "gcp.run.job.task", "my-job", "serverless", time.Now().UnixNano(), map[string]string{})
+	modifier := NewCloudRunJobsSpanModifier(jobChunk)
+
+	const numWriters = 50
+	chunks := make([]*idx.InternalTraceChunk, numWriters)
+	spans := make([]*idx.InternalSpan, numWriters)
+	for i := range chunks {
+		chunks[i], spans[i] = createTestSpan("user-service", "operation", "resource", 0)
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(numWriters)
+	for i := 0; i < numWriters; i++ {
+		go func(chunk *idx.InternalTraceChunk, span *idx.InternalSpan) {
+			defer wg.Done()
+			modifier.ModifySpan(chunk, span)
+		}(chunks[i], spans[i])
+	}
+
+	// Simulate shutdown racing with in-flight user spans: stop the modifier, then read
+	// jobChunk.TraceID the way the trace pipeline would once the chunk is submitted.
+	modifier.Shutdown()
+	_ = append([]byte(nil), jobChunk.TraceID...)
+
+	wg.Wait()
+}
+
+func TestCloudRunJobsSpanModifier_UpgradesShortTraceIDToFull128Bit(t *testing.T) {
+	// Simulate the arrival ordering where a tracer emits a truly 64-bit TraceID
+	// (wire length 8) first, and a later span from the same logical trace arrives
+	// with a full 128-bit TraceID (wire length 16, high bits set). The modifier
+	// should treat them as the same trace (low-64 bits match) and upgrade the
+	// adopted TraceID to the full 128-bit value so downstream correlation sees
+	// the complete ID.
+
+	jobChunk := InitChunk("gcp.run.job", "gcp.run.job.task", "my-job", "serverless", time.Now().UnixNano(), map[string]string{})
+	modifier := NewCloudRunJobsSpanModifier(jobChunk)
+
+	lowBits := rand.Uint64()
+
+	// First span: wire-length-8 TraceID (no high bits at all).
+	shortID := make([]byte, 8)
+	binary.BigEndian.PutUint64(shortID, lowBits)
+	rootChunk, rootSpan := createTestSpanWithTraceID("user-service", "root.operation", "root-resource", 0, shortID)
+
+	// Second span: full 16-byte TraceID with non-zero high bits, same low 64 bits.
+	fullID := make([]byte, 16)
+	binary.BigEndian.PutUint64(fullID[:8], 0x6958127700000000)
+	binary.BigEndian.PutUint64(fullID[8:], lowBits)
+	// Second span is a root span from the same trace (arrives after the 64-bit span).
+	laterChunk, laterSpan := createTestSpanWithTraceID("user-service", "later.operation", "later-resource", 0, fullID)
+	laterChunk.SetStringAttribute("_dd.p.tid", "6958127700000000")
+
+	modifier.ModifySpan(rootChunk, rootSpan)
+	assert.Len(t, jobChunk.TraceID, 8, "Job span should adopt the 64-bit TraceID verbatim on first sight")
+
+	modifier.ModifySpan(laterChunk, laterSpan)
+
+	assert.Len(t, jobChunk.TraceID, 16, "Job span TraceID should be upgraded to full 128-bit")
+	assert.True(t, bytes.Equal(fullID, jobChunk.TraceID), "Job span should carry the full 128-bit TraceID after upgrade")
+
+	// Both root spans share the same logical trace, so both should be reparented.
+	assert.Equal(t, jobChunk.Spans[0].SpanID(), rootSpan.ParentID(), "First 64-bit root should be reparented under job span")
+	assert.Equal(t, jobChunk.Spans[0].SpanID(), laterSpan.ParentID(), "Later 128-bit root should be reparented under job span")
+}
+
 func TestCloudRunJobsSpanModifier_NoUpgradeFromDifferentTrace(t *testing.T) {
 	// Test that we don't accidentally upgrade the job span's trace ID with high bits
 	// from a completely different trace.
