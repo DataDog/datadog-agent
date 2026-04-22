@@ -9,6 +9,7 @@ package apt
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -54,6 +55,9 @@ func parseAPTListLine(line string) *repository {
 func parseAPTListFile(configPath string) (repositoryList, error) {
 	rdr, err := os.Open(configPath)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
 		return nil, fmt.Errorf("read %s: %s", configPath, err)
 	}
 	defer rdr.Close()
@@ -77,6 +81,9 @@ func parseAPTListFile(configPath string) (repositoryList, error) {
 func parseAPTSourcesFile(configPath string) (repositoryList, error) {
 	rdr, err := os.Open(configPath)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
 		return nil, fmt.Errorf("read %s: %s", configPath, err)
 	}
 	defer rdr.Close()
