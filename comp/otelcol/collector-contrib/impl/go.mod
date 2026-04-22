@@ -31,6 +31,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/fluentforwardreceiver v0.150.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver v0.150.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.150.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sobjectsreceiver v0.150.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver v0.150.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/receivercreator v0.150.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver v0.150.0
@@ -333,6 +334,7 @@ require (
 	github.com/oklog/ulid/v2 v2.1.1 // indirect
 	github.com/onsi/ginkgo/v2 v2.28.0 // indirect
 	github.com/onsi/gomega v1.39.1 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/extension/k8sleaderelector v0.150.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer v0.150.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/aws/ecsutil v0.150.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.150.0 // indirect
@@ -344,6 +346,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/gopsutilenv v0.150.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/healthcheck v0.150.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/k8sconfig v0.150.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/k8sinventory v0.150.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/metadataproviders v0.150.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/pdatautil v0.150.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/sharedcomponent v0.150.0 // indirect

@@ -33,6 +33,7 @@ import (
 	fluentforwardreceiver "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/fluentforwardreceiver"
 	hostmetricsreceiver "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver"
 	jaegerreceiver "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver"
+	k8sobjectsreceiver "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sobjectsreceiver"
 	prometheusreceiver "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver"
 	receivercreator "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/receivercreator"
 	zipkinreceiver "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver"
@@ -108,6 +109,7 @@ func components() (otelcol.Factories, error) {
 		fluentforwardreceiver.NewFactory(),
 		hostmetricsreceiver.NewFactory(),
 		jaegerreceiver.NewFactory(),
+		k8sobjectsreceiver.NewFactory(),
 		prometheusreceiver.NewFactory(),
 		receivercreator.NewFactory(),
 		zipkinreceiver.NewFactory(),
@@ -122,6 +124,7 @@ func components() (otelcol.Factories, error) {
 		fluentforwardreceiver.NewFactory().Type(): "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/fluentforwardreceiver v0.150.0",
 		hostmetricsreceiver.NewFactory().Type():   "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver v0.150.0",
 		jaegerreceiver.NewFactory().Type():        "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.150.0",
+		k8sobjectsreceiver.NewFactory().Type():    "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sobjectsreceiver v0.150.0",
 		prometheusreceiver.NewFactory().Type():    "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver v0.150.0",
 		receivercreator.NewFactory().Type():       "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/receivercreator v0.150.0",
 		zipkinreceiver.NewFactory().Type():        "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver v0.150.0",
