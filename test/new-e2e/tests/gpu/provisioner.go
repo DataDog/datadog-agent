@@ -251,9 +251,9 @@ func gpuK8sProvisioner(params *provisionerParams) provisioners.Provisioner {
 			return fmt.Errorf("ec2.NewVM: %w", err)
 		}
 
-		installEcrCredsHelperCmd, err := docker.InstallECRCredentialsHelper(awsEnv.Namer, host)
+		installEcrCredsHelperCmd, err := docker.SetupECRDockerAuth(awsEnv.Namer, host)
 		if err != nil {
-			return fmt.Errorf("docker.InstallECRCredentialsHelper %w", err)
+			return fmt.Errorf("docker.SetupECRDockerAuth %w", err)
 		}
 
 		validateDevices, err := validateGPUDevices(&awsEnv, host, params.systemData.cudaVersion)

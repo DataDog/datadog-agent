@@ -103,7 +103,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 		return err
 	}
 
-	installEcrCredsHelperCmd, err := docker.InstallECRCredentialsHelper(awsEnv.Namer, host)
+	installEcrCredsHelperCmd, err := docker.SetupECRDockerAuth(awsEnv.Namer, host)
 	if err != nil {
 		return err
 	}
