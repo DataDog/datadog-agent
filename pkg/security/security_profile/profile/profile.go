@@ -266,7 +266,7 @@ func (p *Profile) InsertAndGetSize(event *model.Event, insertMissingProcesses bo
 	p.Lock()
 	defer p.Unlock()
 
-	ok, err := p.ActivityTree.Insert(event, insertMissingProcesses, imageTag, generationType, resolvers)
+	ok, _, err := p.ActivityTree.Insert(event, insertMissingProcesses, imageTag, generationType, resolvers)
 	if !ok || err != nil {
 		return ok, 0, err
 	}
@@ -274,8 +274,8 @@ func (p *Profile) InsertAndGetSize(event *model.Event, insertMissingProcesses bo
 	return ok, p.ActivityTree.Stats.ApproximateSize(), nil
 }
 
-// Insert inserts an event in the profile
-func (p *Profile) Insert(event *model.Event, insertMissingProcesses bool, imageTag string, generationType activity_tree.NodeGenerationType, resolvers *resolvers.EBPFResolvers) (bool, error) {
+// Insert inserts an event in the profile and returns the matched/created process node
+func (p *Profile) Insert(event *model.Event, insertMissingProcesses bool, imageTag string, generationType activity_tree.NodeGenerationType, resolvers *resolvers.EBPFResolvers) (bool, *activity_tree.ProcessNode, error) {
 	p.Lock()
 	defer p.Unlock()
 

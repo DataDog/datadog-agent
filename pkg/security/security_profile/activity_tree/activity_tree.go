@@ -339,44 +339,44 @@ func (at *ActivityTree) isEventValid(event *model.Event, dryRun bool) (bool, err
 }
 
 // Insert inserts the event in the activity tree
-func (at *ActivityTree) Insert(event *model.Event, insertMissingProcesses bool, imageTag string, generationType NodeGenerationType, resolvers *resolvers.EBPFResolvers) (bool, error) {
-	newEntry, err := at.insertEvent(event, false /* !dryRun */, insertMissingProcesses, imageTag, generationType, resolvers)
+func (at *ActivityTree) Insert(event *model.Event, insertMissingProcesses bool, imageTag string, generationType NodeGenerationType, resolvers *resolvers.EBPFResolvers) (bool, *ProcessNode, error) {
+	newEntry, node, err := at.insertEvent(event, false /* !dryRun */, insertMissingProcesses, imageTag, generationType, resolvers)
 	if newEntry {
 		// this doesn't count the exec events which are counted separately
 		at.Stats.counts[event.GetEventType()].addedCount[generationType].Inc()
 	}
-	return newEntry, err
+	return newEntry, node, err
 }
 
 // Contains looks up the event in the activity tree
 func (at *ActivityTree) Contains(event *model.Event, insertMissingProcesses bool, imageTag string, generationType NodeGenerationType, resolvers *resolvers.EBPFResolvers) (bool, error) {
-	newEntry, err := at.insertEvent(event, true /* dryRun */, insertMissingProcesses, imageTag, generationType, resolvers)
+	newEntry, _, err := at.insertEvent(event, true /* dryRun */, insertMissingProcesses, imageTag, generationType, resolvers)
 	return !newEntry, err
 }
 
 // insert inserts the event in the activity tree, returns true if the event generated a new entry in the tree
-func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissingProcesses bool, imageTag string, generationType NodeGenerationType, resolvers *resolvers.EBPFResolvers) (bool, error) {
+func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissingProcesses bool, imageTag string, generationType NodeGenerationType, resolvers *resolvers.EBPFResolvers) (bool, *ProcessNode, error) {
 	// sanity check
 	if generationType == Unknown || generationType > MaxNodeGenerationType {
-		return false, fmt.Errorf("invalid generation type: %v", generationType)
+		return false, nil, fmt.Errorf("invalid generation type: %v", generationType)
 	}
 
 	// check if this event type is traced
 	if valid, err := at.isEventValid(event, dryRun); !valid || err != nil {
-		return false, err
+		return false, nil, err
 	}
 
 	// Next we'll call CreateProcessNode, which will retrieve the process node if already present, or create a new one (with all its lineage if needed).
 	node, newProcessNode, err := at.CreateProcessNode(event.ProcessCacheEntry, imageTag, generationType, !insertMissingProcesses /*dryRun*/, resolvers)
 	if err != nil {
-		return false, err
+		return false, nil, err
 	}
 	if newProcessNode && !insertMissingProcesses {
 		// the event insertion can't be done because there was missing process nodes for the related event we want to insert
-		return true, nil
+		return true, nil, nil
 	} else if node == nil {
 		// a process node couldn't be found or created for this event, ignore it
-		return false, fmt.Errorf("a process node couldn't be found or created for this event: %w", err)
+		return false, nil, fmt.Errorf("a process node couldn't be found or created for this event: %w", err)
 	}
 
 	// resolve fields
@@ -385,7 +385,7 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 	// ignore events with an error
 	if event.Error != nil {
 		at.Stats.counts[event.GetEventType()].droppedCount[brokenEventReason].Inc()
-		return false, event.Error
+		return false, nil, event.Error
 	}
 
 	// the count of processed events is the count of events that matched the activity dump selector = the events for
@@ -397,28 +397,28 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 	case model.ExecEventType:
 		// tag the matched rules if any
 		node.MatchedRules = model.AppendMatchedRule(node.MatchedRules, event.Rules)
-		return newProcessNode, nil
+		return newProcessNode, node, nil
 	case model.FileOpenEventType:
-		return node.InsertFileEvent(&event.Open.File, event, imageTag, generationType, at.Stats, dryRun, at.pathsReducer, resolvers), nil
+		return node.InsertFileEvent(&event.Open.File, event, imageTag, generationType, at.Stats, dryRun, at.pathsReducer, resolvers), node, nil
 	case model.DNSEventType:
-		return node.InsertDNSEvent(event, imageTag, generationType, at.Stats, at.DNSNames, dryRun, at.DNSMatchMaxDepth), nil
+		return node.InsertDNSEvent(event, imageTag, generationType, at.Stats, at.DNSNames, dryRun, at.DNSMatchMaxDepth), node, nil
 	case model.IMDSEventType:
-		return node.InsertIMDSEvent(event, imageTag, generationType, at.Stats, dryRun), nil
+		return node.InsertIMDSEvent(event, imageTag, generationType, at.Stats, dryRun), node, nil
 	case model.BindEventType:
-		return node.InsertBindEvent(event, imageTag, generationType, at.Stats, dryRun), nil
+		return node.InsertBindEvent(event, imageTag, generationType, at.Stats, dryRun), node, nil
 	case model.SyscallsEventType:
-		return node.InsertSyscalls(event, imageTag, at.SyscallsMask, at.Stats, dryRun), nil
+		return node.InsertSyscalls(event, imageTag, at.SyscallsMask, at.Stats, dryRun), node, nil
 	case model.NetworkFlowMonitorEventType:
-		return node.InsertNetworkFlowMonitorEvent(event, imageTag, generationType, at.Stats, dryRun), nil
+		return node.InsertNetworkFlowMonitorEvent(event, imageTag, generationType, at.Stats, dryRun), node, nil
 	case model.CapabilitiesEventType:
-		return node.InsertCapabilitiesUsageEvent(event, imageTag, at.Stats, dryRun), nil
+		return node.InsertCapabilitiesUsageEvent(event, imageTag, at.Stats, dryRun), node, nil
 	case model.ExitEventType:
 		// Update the exit time of the process (this is purely informative, do not rely on timestamps to detect
 		// execed children)
 		node.Process.ExitTime = event.Timestamp
 	}
 
-	return false, nil
+	return false, node, nil
 }
 
 func isContainerRuntimePrefix(basename string) bool {
