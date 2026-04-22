@@ -41,14 +41,16 @@ func TestFleetConfig(t *testing.T) {
 // each config test. Tests with the same sig and no mutator in between share
 // a single agent install per platform.
 var configProfiles = map[string]testInstallProfile{
-	"TestConfig":                      {sig: "default", install: defaultInstall, mutator: true},
-	"TestConfigFailureCrash":          {sig: "default", install: defaultInstall, mutator: false},
-	"TestConfigFailureHealth":         {sig: "default", install: defaultInstall, mutator: false},
-	"TestConfigFailureTimeout":        {sig: "default", install: defaultInstall, mutator: false},
-	"TestConfigFilePermissions":       {sig: "default", install: defaultInstall, mutator: true},
-	"TestConfigRollbackDeploymentID":  {sig: "default", install: defaultInstall, mutator: false},
-	"TestConfigWithSecrets":           {sig: "default", install: defaultInstall, mutator: true},
-	"TestExperimentIntegrationLoaded": {sig: "default", install: defaultInstall, mutator: true},
+	"TestConfig":                     {sig: "default", install: defaultInstall, mutator: true},
+	"TestConfigFailureCrash":         {sig: "default", install: defaultInstall, mutator: false},
+	"TestConfigFailureHealth":        {sig: "default", install: defaultInstall, mutator: false},
+	"TestConfigFailureTimeout":       {sig: "default", install: defaultInstall, mutator: false},
+	"TestConfigFilePermissions":      {sig: "default", install: defaultInstall, mutator: true, skipOn: skipOnWindows},
+	"TestConfigRollbackDeploymentID": {sig: "default", install: defaultInstall, mutator: false},
+	"TestConfigWithSecrets":          {sig: "default", install: defaultInstall, mutator: true},
+	"TestExperimentIntegrationLoaded": {
+		sig: "default", install: defaultInstall, mutator: true, skipOn: skipOnWindows,
+	},
 	"TestMultipleConfigs": {
 		sig:     "remote-updates",
 		install: func(a *agent.Agent) { a.MustInstall(agent.WithRemoteUpdates()) },
@@ -59,9 +61,15 @@ var configProfiles = map[string]testInstallProfile{
 
 // BeforeTest either reuses the running agent (clearing any RC experiment from
 // a prior test) or reinstalls when the target install flavor changes.
+// When the test will self-skip on this platform (skipOn), the hook is a no-op
+// so we don't pay install cycles for a test that won't run.
 func (s *configSuite) BeforeTest(_, testName string) {
 	p, ok := configProfiles[testName]
 	require.True(s.T(), ok, "no install profile for %s", testName)
+
+	if p.skipOn != nil && p.skipOn(s.Env()) {
+		return
+	}
 
 	if s.agentInstalled && s.currentInstallSig == p.sig {
 		require.NoError(s.T(), s.Backend.ResetConfigExperiment())
@@ -76,8 +84,17 @@ func (s *configSuite) BeforeTest(_, testName string) {
 }
 
 // AfterTest uninstalls after mutator tests so the next test starts clean.
+// Skipped-on-this-platform tests are no-ops here too, so a skipped mutator
+// doesn't trigger an uninstall and break a shared-install chain.
 func (s *configSuite) AfterTest(_, testName string) {
-	if p, ok := configProfiles[testName]; ok && p.mutator {
+	p, ok := configProfiles[testName]
+	if !ok {
+		return
+	}
+	if p.skipOn != nil && p.skipOn(s.Env()) {
+		return
+	}
+	if p.mutator {
 		_ = s.Agent.Uninstall()
 		s.agentInstalled = false
 		s.currentInstallSig = ""

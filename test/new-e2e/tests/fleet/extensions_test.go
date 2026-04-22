@@ -63,6 +63,7 @@ var extensionsProfiles = map[string]testInstallProfile{
 		sig:     "staging",
 		install: func(a *agent.Agent) { a.MustInstall(agent.WithStagingPackages(stagingAgentVersion)) },
 		mutator: true,
+		skipOn:  skipOnWindows,
 	},
 	"TestExtensionSaveAndRestore": {sig: "default", install: defaultInstall, mutator: false},
 	"TestExtensionSurvivesExperiment": {
@@ -90,9 +91,15 @@ func (s *extensionsSuite) SetupSuite() {
 // BeforeTest reuses the running agent when the next test needs the same install
 // flavor; otherwise it (un)installs to match. Saves an install/uninstall cycle
 // per shared test (~2.5 min on Windows, ~1 min on Linux).
+// When the test will self-skip on this platform (skipOn), the hook is a no-op
+// so we don't pay install cycles for a test that won't run.
 func (s *extensionsSuite) BeforeTest(_, testName string) {
 	p, ok := extensionsProfiles[testName]
 	require.True(s.T(), ok, "no install profile for %s", testName)
+
+	if p.skipOn != nil && p.skipOn(s.Env()) {
+		return
+	}
 
 	if s.agentInstalled && s.currentInstallSig == p.sig {
 		require.NoError(s.T(), s.Backend.ResetConfigExperiment())
@@ -107,8 +114,17 @@ func (s *extensionsSuite) BeforeTest(_, testName string) {
 }
 
 // AfterTest uninstalls after mutator tests so the next test starts clean.
+// Skipped-on-this-platform tests are no-ops here too, so a skipped mutator
+// doesn't trigger an uninstall and break a shared-install chain.
 func (s *extensionsSuite) AfterTest(_, testName string) {
-	if p, ok := extensionsProfiles[testName]; ok && p.mutator {
+	p, ok := extensionsProfiles[testName]
+	if !ok {
+		return
+	}
+	if p.skipOn != nil && p.skipOn(s.Env()) {
+		return
+	}
+	if p.mutator {
 		_ = s.Agent.Uninstall()
 		s.agentInstalled = false
 		s.currentInstallSig = ""

@@ -6,6 +6,8 @@
 package fleet
 
 import (
+	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/agent"
 )
 
@@ -26,11 +28,22 @@ import (
 //   - mutator: true when the test leaves stable agent state dirty (e.g. promoted
 //     a config experiment, or used install options that cannot be reset without
 //     reinstalling). The next test will get a fresh install.
+//   - skipOn: optional predicate returning true when the test body will
+//     self-`Skip()` on this platform (e.g. POSIX-permission tests on Windows).
+//     When set and truthy, `BeforeTest`/`AfterTest` do nothing so we don't pay
+//     install/uninstall cycles for a test that will no-op. The agent-installed
+//     state is left untouched so the next test can keep sharing.
 type testInstallProfile struct {
 	sig     string
 	install func(*agent.Agent)
 	mutator bool
+	skipOn  func(*environments.Host) bool
 }
 
 // defaultInstall installs the agent with no options. Used by most tests.
 func defaultInstall(a *agent.Agent) { a.MustInstall() }
+
+// skipOnWindows is a skipOn predicate for tests that self-Skip on Windows.
+func skipOnWindows(h *environments.Host) bool {
+	return h.RemoteHost.OSFamily == e2eos.WindowsFamily
+}
