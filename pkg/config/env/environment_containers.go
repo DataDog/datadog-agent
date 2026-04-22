@@ -54,6 +54,7 @@ func init() {
 	registerFeature(KubernetesDevicePlugins)
 	registerFeature(NVML)
 	registerFeature(NonstandardCRIRuntime)
+	registerFeature(KataContainers)
 }
 
 // IsAnyContainerFeaturePresent checks if any of known container features is present
@@ -82,6 +83,7 @@ func detectContainerFeatures(features FeatureMap, cfg model.Reader) {
 	detectPodResources(features, cfg)
 	detectDevicePlugins(features, cfg)
 	detectNVML(features, cfg)
+	detectKata(features)
 }
 
 func detectKubernetes(features FeatureMap, cfg model.Reader) {
@@ -342,6 +344,16 @@ func detectNVML(features FeatureMap, cfg model.Reader) {
 	log.Debugf("Agent did not find NVML library in any of the default paths: %v", defaultPaths)
 }
 
+func detectKata(features FeatureMap) {
+	for _, basePath := range getDefaultKataPaths() {
+		if _, err := os.Stat(basePath); err == nil {
+			features[KataContainers] = struct{}{}
+			log.Infof("Agent found Kata Containers sandbox path at: %s", basePath)
+			return
+		}
+	}
+}
+
 func getHostMountPrefixes() []string {
 	if IsContainerized() {
 		return []string{"", defaultHostMountPrefix}
@@ -419,6 +431,18 @@ func getDefaultNvmlPaths() []string {
 	paths := make([]string, 0, len(systemPaths))
 	for _, p := range systemPaths {
 		paths = append(paths, path.Join(hostRoot, p))
+	}
+	return paths
+}
+
+func getDefaultKataPaths() []string {
+	var defaultKataSandboxPaths = []string{"/host/run/vc/sbs", "/host/run/kata"}
+
+	paths := make([]string, 0, len(getHostMountPrefixes())*len(defaultKataSandboxPaths))
+	for _, prefix := range getHostMountPrefixes() {
+		for _, p := range defaultKataSandboxPaths {
+			paths = append(paths, path.Join(prefix, p))
+		}
 	}
 	return paths
 }

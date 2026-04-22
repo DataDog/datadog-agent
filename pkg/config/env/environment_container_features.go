@@ -44,4 +44,6 @@ const (
 	// NonstandardCRIRuntime is a fallback value for when customers supply a CRI compliant runtime via the
 	// cri_socket_path configuration field
 	NonstandardCRIRuntime = "nonstandard-cri-runtime"
+	// KataContainers sandbox storage paths present
+	KataContainers Feature = "kata_containers"
 )
