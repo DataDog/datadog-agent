@@ -261,17 +261,6 @@ func NewComponent(reqs Requires) (Provides, error) {
 		persistence:     persistence,
 	}
 
-	// Register built-in health checks from issue modules
-	for _, check := range issueRegistry.GetBuiltInChecks() {
-		if check.Once {
-			continue
-		}
-
-		if err := comp.RegisterCheck(check.ID, check.Name, check.CheckFn, check.Interval); err != nil {
-			reqs.Log.Warn("Failed to register health check " + check.ID + ": " + err.Error())
-		}
-	}
-
 	// Register lifecycle hooks for component start/stop
 	reqs.Lifecycle.Append(compdef.Hook{
 		OnStart: comp.start,
@@ -313,13 +302,24 @@ func (h *healthPlatformImpl) start(_ context.Context) error {
 		h.log.Warn("Failed to load persisted issues: " + err.Error())
 	}
 
-	// Wire the reporter/provider now that the core component is fully constructed.
-	// This deferred wiring breaks the circular fx dependency between core and its sub-components.
-	// checkrunner and forwarder manage their own goroutine lifecycle via fx lifecycle hooks,
-	// which run before this hook in dependency order — so SetReporter/SetProvider are called
-	// before the first check or send can fire.
+	// Wire the reporter/provider first so that checks started below have a valid
+	// reporter from their first execution. checkrunner and forwarder already have
+	// their goroutine lifecycle registered via fx, but periodic checks are registered
+	// here (after SetReporter) so they start their goroutines with reporter set.
 	h.checkRunner.SetReporter(h)
 	h.forwarder.SetProvider(h)
+
+	// Register periodic built-in checks now that the reporter is wired.
+	// Registering here (rather than in New) ensures checkrunner's goroutines
+	// start only after SetReporter, so the first immediate execution is not skipped.
+	for _, check := range h.issueRegistry.GetBuiltInChecks() {
+		if check.Once {
+			continue
+		}
+		if err := h.RegisterCheck(check.ID, check.Name, check.CheckFn, check.Interval); err != nil {
+			h.log.Warn("Failed to register health check " + check.ID + ": " + err.Error())
+		}
+	}
 
 	h.startupChecks()
 
