@@ -13,6 +13,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
+	"github.com/DataDog/datadog-agent/cmd/installer/command/fxconfig"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/commands"
 )
@@ -96,9 +97,19 @@ Datadog Installer installs datadog-packages based on your commands.`,
 	// the value is true.
 	var noColorFlag bool
 	agentCmd.PersistentFlags().BoolVarP(&noColorFlag, "no-color", "n", false, "disable color output")
-	agentCmd.PersistentPreRun = func(*cobra.Command, []string) {
+	agentCmd.PersistentPreRun = func(cmd *cobra.Command, _ []string) {
 		if globalParams.NoColor {
 			color.NoColor = true
+		}
+		// Translate datadog.yaml into DD_* env vars before any subcommand
+		// reaches the installer logic. The installer itself never reads
+		// yaml; the daemon path already owns this translation, and this
+		// call plays the same role for interactive CLI invocations.
+		// The daemon subcommand opens its own fx app and would clash with
+		// an outer one, so skip there; daemon run.go still forwards all
+		// needed env vars when it spawns the installer.
+		if cmd == nil || cmd.Parent() == nil || cmd.Parent().Name() != "daemon" {
+			fxconfig.LoadAndExportEnv(globalParams.ConfFilePath)
 		}
 	}
 
