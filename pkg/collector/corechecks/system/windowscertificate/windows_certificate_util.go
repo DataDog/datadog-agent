@@ -250,7 +250,7 @@ func appendOptionalTags(tags []string, cert *x509.Certificate, friendlyName stri
 		tags = append(tags, getIssuerTags(cert)...)
 	}
 	if cfg.SignatureAlgorithmTag {
-		tags = append(tags, getSignatureHashTags(cert)...)
+		tags = append(tags, getSignatureAlgorithmTags(cert)...)
 	}
 	return tags
 }
@@ -365,16 +365,16 @@ func ekuName(oid string) string {
 func getSANTags(cert *x509.Certificate) []string {
 	tags := []string{}
 	for _, dns := range cert.DNSNames {
-		tags = append(tags, "san_dns:"+dns)
+		tags = append(tags, "subject_alt_name_dns:"+dns)
 	}
 	for _, ip := range cert.IPAddresses {
-		tags = append(tags, "san_ip:"+ip.String())
+		tags = append(tags, "subject_alt_name_ip:"+ip.String())
 	}
 	for _, email := range cert.EmailAddresses {
-		tags = append(tags, "san_email:"+email)
+		tags = append(tags, "subject_alt_name_email:"+email)
 	}
 	for _, uri := range cert.URIs {
-		tags = append(tags, "san_uri:"+uri.String())
+		tags = append(tags, "subject_alt_name_uri:"+uri.String())
 	}
 	return tags
 }
@@ -388,18 +388,10 @@ func getIssuerTags(cert *x509.Certificate) []string {
 	return tags
 }
 
-// getSignatureHashTags splits a SignatureAlgorithm string like "SHA256-RSA"
-// into separate algorithm and hash tags. Falls back to a single tag on
-// unexpected formats.
-func getSignatureHashTags(cert *x509.Certificate) []string {
-	sig := cert.SignatureAlgorithm.String()
-	if before, after, ok := strings.Cut(sig, "-"); ok && before != "" && after != "" {
-		return []string{
-			"signature_algorithm:" + after,
-			"signature_hash_algorithm:" + before,
-		}
-	}
-	return []string{"signature_algorithm:" + sig}
+// getSignatureAlgorithmTags returns the certificate's signature algorithm as a
+// single tag, e.g. "signature_algorithm:SHA256-RSA".
+func getSignatureAlgorithmTags(cert *x509.Certificate) []string {
+	return []string{"signature_algorithm:" + cert.SignatureAlgorithm.String()}
 }
 
 // getFriendlyName reads the friendly name property from a certificate context.

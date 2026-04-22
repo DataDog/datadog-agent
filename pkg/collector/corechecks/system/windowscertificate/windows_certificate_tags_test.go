@@ -216,12 +216,12 @@ func TestGetSANTags(t *testing.T) {
 		URIs:           []*url.URL{uri},
 	}
 	tags := getSANTags(cert)
-	require.Contains(t, tags, "san_dns:example.com")
-	require.Contains(t, tags, "san_dns:www.example.com")
-	require.Contains(t, tags, "san_ip:192.0.2.1")
-	require.Contains(t, tags, "san_ip:2001:db8::1")
-	require.Contains(t, tags, "san_email:admin@example.com")
-	require.Contains(t, tags, "san_uri:https://example.com/path")
+	require.Contains(t, tags, "subject_alt_name_dns:example.com")
+	require.Contains(t, tags, "subject_alt_name_dns:www.example.com")
+	require.Contains(t, tags, "subject_alt_name_ip:192.0.2.1")
+	require.Contains(t, tags, "subject_alt_name_ip:2001:db8::1")
+	require.Contains(t, tags, "subject_alt_name_email:admin@example.com")
+	require.Contains(t, tags, "subject_alt_name_uri:https://example.com/path")
 }
 
 func TestGetSANTagsEmpty(t *testing.T) {
@@ -258,19 +258,16 @@ func TestGetIssuerTagsEmpty(t *testing.T) {
 	require.Empty(t, getIssuerTags(&x509.Certificate{}))
 }
 
-func TestGetSignatureHashTags(t *testing.T) {
+func TestGetSignatureAlgorithmTags(t *testing.T) {
 	cert := &x509.Certificate{SignatureAlgorithm: x509.SHA256WithRSA}
-	tags := getSignatureHashTags(cert)
+	tags := getSignatureAlgorithmTags(cert)
 	// x509.SHA256WithRSA.String() == "SHA256-RSA"
-	require.ElementsMatch(t, []string{
-		"signature_algorithm:RSA",
-		"signature_hash_algorithm:SHA256",
-	}, tags)
+	require.Equal(t, []string{"signature_algorithm:SHA256-RSA"}, tags)
 }
 
-func TestGetSignatureHashTagsUnknown(t *testing.T) {
+func TestGetSignatureAlgorithmTagsUnknown(t *testing.T) {
 	cert := &x509.Certificate{SignatureAlgorithm: x509.UnknownSignatureAlgorithm}
-	tags := getSignatureHashTags(cert)
+	tags := getSignatureAlgorithmTags(cert)
 	require.Equal(t, []string{"signature_algorithm:" + x509.UnknownSignatureAlgorithm.String()}, tags)
 }
 
@@ -305,10 +302,9 @@ func TestAppendOptionalTagsAllOn(t *testing.T) {
 	}
 	tags := appendOptionalTags(nil, cert, "My Cert", cfg)
 	require.Contains(t, tags, "friendly_name:My Cert")
-	require.Contains(t, tags, "san_dns:example.com")
+	require.Contains(t, tags, "subject_alt_name_dns:example.com")
 	require.Contains(t, tags, "issuer_CN:Issuer")
-	require.Contains(t, tags, "signature_algorithm:RSA")
-	require.Contains(t, tags, "signature_hash_algorithm:SHA256")
+	require.Contains(t, tags, "signature_algorithm:SHA256-RSA")
 }
 
 func TestAppendOptionalTagsFriendlyNameSkippedWhenEmpty(t *testing.T) {

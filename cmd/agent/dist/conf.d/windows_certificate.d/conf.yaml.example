@@ -146,8 +146,9 @@ instances:
     # friendly_name_tag: false
 
     ## @param subject_alternative_names_tag - boolean - optional - default: false
-    ## Set to `true` to attach `san_dns`, `san_ip`, `san_email`, and `san_uri` tags for
-    ## each entry in the certificate's Subject Alternative Names extension.
+    ## Set to `true` to attach `subject_alt_name_dns`, `subject_alt_name_ip`,
+    ## `subject_alt_name_email`, and `subject_alt_name_uri` tags for each entry in
+    ## the certificate's Subject Alternative Names extension.
     #
     # subject_alternative_names_tag: false
 
@@ -158,9 +159,8 @@ instances:
     # issuer_tag: false
 
     ## @param signature_algorithm_tag - boolean - optional - default: false
-    ## Set to `true` to attach `signature_algorithm` and `signature_hash_algorithm` tags
-    ## describing the certificate's signature (e.g. `signature_algorithm:RSA`,
-    ## `signature_hash_algorithm:SHA256`).
+    ## Set to `true` to attach a `signature_algorithm` tag describing the
+    ## certificate's signature algorithm (e.g. `signature_algorithm:SHA256-RSA`).
     #
     # signature_algorithm_tag: false
 
