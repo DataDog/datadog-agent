@@ -8,6 +8,7 @@
 package checkrunnerimpl
 
 import (
+	"context"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -125,8 +126,8 @@ func TestCheckRunnerRunsChecks(t *testing.T) {
 	require.NoError(t, err)
 
 	// Start the runner
-	runner.Start()
-	defer runner.Stop()
+	runner.start(context.Background()) //nolint:errcheck
+	defer runner.stop(context.Background()) //nolint:errcheck
 
 	// Wait for at least 2 executions
 	assert.Eventually(t, func() bool {
@@ -146,14 +147,14 @@ func TestCheckRunnerStartStop(t *testing.T) {
 	require.NoError(t, err)
 
 	// Start and stop should complete gracefully
-	runner.Start()
+	runner.start(context.Background()) //nolint:errcheck
 
 	// Wait for at least one execution
 	assert.Eventually(t, func() bool {
 		return atomic.LoadInt32(&reporter.reportCount) >= 1
 	}, 100*time.Millisecond, 5*time.Millisecond)
 
-	runner.Stop() // Stop blocks until all goroutines finish
+	runner.stop(context.Background()) //nolint:errcheck // Stop blocks until all goroutines finish
 
 	// Verify runner is no longer running
 	runner.checkMux.RLock()
