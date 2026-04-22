@@ -15,12 +15,9 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/process/agent"
-	"github.com/DataDog/datadog-agent/comp/process/hostinfo/def"
+	hostinfo "github.com/DataDog/datadog-agent/comp/process/hostinfo/def"
 	runner "github.com/DataDog/datadog-agent/comp/process/runner/def"
 	submitter "github.com/DataDog/datadog-agent/comp/process/submitter/def"
-	"reflect"
-	"slices"
-
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	processRunner "github.com/DataDog/datadog-agent/pkg/process/runner"
@@ -35,15 +32,17 @@ type runnerImpl struct {
 	providedChecks []types.CheckComponent
 }
 
-type dependencies struct {
-	compdef.In
+// Requires defines the dependencies for the runner component.
+// Checks must be pre-filtered (nil and typed-nil values removed) by the caller —
+// typically the fx/ layer using fxutil.GetAndFilterGroup.
+type Requires struct {
 	Lc  compdef.Lifecycle
 	Log log.Component
 
 	Submitter  submitter.Component
-	RTNotifier <-chan types.RTResponse `optional:"true"`
+	RTNotifier <-chan types.RTResponse
 
-	Checks   []types.CheckComponent `group:"check"`
+	Checks   []types.CheckComponent
 	HostInfo hostinfo.Component
 	SysCfg   sysprobeconfig.Component
 	Config   config.Component
@@ -51,21 +50,20 @@ type dependencies struct {
 }
 
 // NewComponent creates a new runner component.
-func NewComponent(deps dependencies) (runner.Component, error) {
-	checks := filterNilChecks(deps.Checks)
-	c, err := processRunner.NewRunner(deps.Config, deps.SysCfg.SysProbeObject(), deps.HostInfo.Object(), filterEnabledChecks(checks), deps.RTNotifier)
+func NewComponent(reqs Requires) (runner.Component, error) {
+	c, err := processRunner.NewRunner(reqs.Config, reqs.SysCfg.SysProbeObject(), reqs.HostInfo.Object(), filterEnabledChecks(reqs.Checks), reqs.RTNotifier)
 	if err != nil {
 		return nil, err
 	}
-	c.Submitter = deps.Submitter
+	c.Submitter = reqs.Submitter
 
 	runnerComponent := &runnerImpl{
 		checkRunner:    c,
-		providedChecks: checks,
+		providedChecks: reqs.Checks,
 	}
 
-	if agentEnabled(deps.Config, deps.Checks, deps.Log) {
-		deps.Lc.Append(compdef.Hook{
+	if agentEnabled(reqs.Config, reqs.Checks, reqs.Log) {
+		reqs.Lc.Append(compdef.Hook{
 			OnStart: runnerComponent.Run,
 			OnStop:  runnerComponent.stop,
 		})
@@ -81,23 +79,6 @@ func (r *runnerImpl) Run(context.Context) error {
 func (r *runnerImpl) stop(context.Context) error {
 	r.checkRunner.Stop()
 	return nil
-}
-
-// filterNilChecks removes both untyped and typed-nil values from an fx group of CheckComponent.
-// A typed nil (e.g. (*concreteCheck)(nil) stored as CheckComponent) is common for disabled components
-// and must be handled via reflection since a plain nil comparison misses it.
-func filterNilChecks(group []types.CheckComponent) []types.CheckComponent {
-	return slices.DeleteFunc(group, func(item types.CheckComponent) bool {
-		t := reflect.TypeOf(item)
-		if t == nil {
-			return true
-		}
-		switch t.Kind() {
-		case reflect.Pointer, reflect.Map, reflect.Array, reflect.Chan, reflect.Slice, reflect.Func, reflect.Interface:
-			return reflect.ValueOf(item).IsNil()
-		}
-		return false
-	})
 }
 
 func filterEnabledChecks(providedChecks []types.CheckComponent) []checks.Check {
