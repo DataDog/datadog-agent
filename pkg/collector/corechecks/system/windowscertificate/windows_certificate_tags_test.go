@@ -177,9 +177,9 @@ func TestGetEnhancedKeyUsageTags(t *testing.T) {
 			{
 				Id: oidExtKeyUsage,
 				Value: encodeEKUExtension(
-					asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 3, 1},     // serverAuth
-					asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 3, 2},     // clientAuth
-					asn1.ObjectIdentifier{1, 2, 3, 4, 5},                 // unknown
+					asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 3, 1},       // serverAuth
+					asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 3, 2},       // clientAuth
+					asn1.ObjectIdentifier{1, 2, 3, 4, 5},                   // unknown
 					asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 311, 20, 2, 2}, // microsoftSmartcardLogon
 				),
 			},
