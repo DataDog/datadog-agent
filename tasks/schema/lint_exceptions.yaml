@@ -10,25 +10,6 @@ no_default:
   - agent_telemetry.dd_url
   - agent_telemetry.logs_dd_url
   - api_key
-  - apm_config.additional_endpoints
-  - apm_config.debugger_additional_endpoints
-  - apm_config.debugger_api_key
-  - apm_config.debugger_dd_url
-  - apm_config.debugger_diagnostics_additional_endpoints
-  - apm_config.debugger_diagnostics_api_key
-  - apm_config.debugger_diagnostics_dd_url
-  - apm_config.install_id
-  - apm_config.install_time
-  - apm_config.install_type
-  - apm_config.internal_profiling.enabled
-  - apm_config.peer_tags
-  - apm_config.replace_tags
-  - apm_config.symdb_additional_endpoints
-  - apm_config.symdb_api_key
-  - apm_config.symdb_dd_url
-  - apm_config.telemetry.additional_endpoints
-  - apm_config.telemetry.dd_url
-  - apm_config.windows_pipe_name
   - bind_host
   - compliance_config.endpoints.additional_endpoints
   - compliance_config.endpoints.dd_url
@@ -178,25 +159,6 @@ no_type:
   - agent_telemetry.dd_url
   - agent_telemetry.logs_dd_url
   - api_key
-  - apm_config.additional_endpoints
-  - apm_config.debugger_additional_endpoints
-  - apm_config.debugger_api_key
-  - apm_config.debugger_dd_url
-  - apm_config.debugger_diagnostics_additional_endpoints
-  - apm_config.debugger_diagnostics_api_key
-  - apm_config.debugger_diagnostics_dd_url
-  - apm_config.install_id
-  - apm_config.install_time
-  - apm_config.install_type
-  - apm_config.internal_profiling.enabled
-  - apm_config.peer_tags
-  - apm_config.replace_tags
-  - apm_config.symdb_additional_endpoints
-  - apm_config.symdb_api_key
-  - apm_config.symdb_dd_url
-  - apm_config.telemetry.additional_endpoints
-  - apm_config.telemetry.dd_url
-  - apm_config.windows_pipe_name
   - bind_host
   - compliance_config.endpoints.additional_endpoints
   - compliance_config.endpoints.dd_url
@@ -341,6 +303,7 @@ no_type:
 
 # Array settings without an 'items' field.
 array_no_items:
+  - apm_config.instrumentation.targets
   - cel_workload_exclude
   - external_metrics_provider.endpoints
   - metric_tag_filterlist
