@@ -276,10 +276,14 @@ func (c *componentCatalog) Instantiate(settings ComponentSettings) (
 
 		switch entry.kind {
 		case componentDetector:
-			if d, ok := instance.(observerdef.Detector); ok {
-				detectors = append(detectors, d)
+			var d observerdef.Detector
+			if det, ok := instance.(observerdef.Detector); ok {
+				d = det
 			} else if sd, ok := instance.(observerdef.SeriesDetector); ok {
-				detectors = append(detectors, newSeriesDetectorAdapter(sd, defaultAggregations))
+				d = newSeriesDetectorAdapter(sd, defaultAggregations)
+			}
+			if d != nil {
+				detectors = append(detectors, newRateLimitedDetector(d))
 			}
 		case componentCorrelator:
 			if cor, ok := instance.(observerdef.Correlator); ok {
@@ -337,10 +341,14 @@ func catalogEnabledDetectors(components map[string]*componentInstance, catalog *
 		if !ok || !ci.enabled || ci.entry.kind != componentDetector {
 			continue
 		}
-		if d, ok := ci.instance.(observerdef.Detector); ok {
-			result = append(result, d)
+		var d observerdef.Detector
+		if det, ok := ci.instance.(observerdef.Detector); ok {
+			d = det
 		} else if sd, ok := ci.instance.(observerdef.SeriesDetector); ok {
-			result = append(result, newSeriesDetectorAdapter(sd, defaultAggregations))
+			d = newSeriesDetectorAdapter(sd, defaultAggregations)
+		}
+		if d != nil {
+			result = append(result, newRateLimitedDetector(d))
 		}
 	}
 	return result
