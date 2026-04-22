@@ -94,20 +94,24 @@ func New(reqs Requires) forwarderdef.Component {
 	}
 
 	reqs.Lifecycle.Append(compdef.Hook{
-		OnStart: func(_ context.Context) error {
-			f.log.Info(fmt.Sprintf("Starting health platform forwarder with %v interval to %s", f.interval, f.intakeURL))
-			go f.run()
-			return nil
-		},
-		OnStop: func(_ context.Context) error {
-			f.log.Info("Stopping health platform forwarder")
-			close(f.stopCh)
-			<-f.doneCh
-			return nil
-		},
+		OnStart: f.start,
+		OnStop:  f.stop,
 	})
 
 	return f
+}
+
+func (f *forwarder) start(_ context.Context) error {
+	f.log.Info(fmt.Sprintf("Starting health platform forwarder with %v interval to %s", f.interval, f.intakeURL))
+	go f.run()
+	return nil
+}
+
+func (f *forwarder) stop(_ context.Context) error {
+	f.log.Info("Stopping health platform forwarder")
+	close(f.stopCh)
+	<-f.doneCh
+	return nil
 }
 
 // SetProvider wires the issue provider. Must be called before the first send fires.

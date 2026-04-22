@@ -24,7 +24,7 @@ import (
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	checkrunnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/checkrunner/def"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/core/def"
