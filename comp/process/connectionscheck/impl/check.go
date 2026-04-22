@@ -7,24 +7,17 @@
 package connectionscheckimpl
 
 import (
-	"go.uber.org/fx"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
-	"github.com/DataDog/datadog-agent/comp/process/connectionscheck"
+	connectionscheck "github.com/DataDog/datadog-agent/comp/process/connectionscheck/def"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
-
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newCheck))
-}
 
 var _ types.CheckComponent = (*check)(nil)
 
@@ -33,7 +26,7 @@ type check struct {
 }
 
 type dependencies struct {
-	fx.In
+	compdef.In
 
 	Sysconfig   sysprobeconfig.Component
 	Config      config.Component
@@ -42,18 +35,20 @@ type dependencies struct {
 	Tagger      tagger.Component
 }
 
-type result struct {
-	fx.Out
+// Provides defines the output of the connectionscheck component.
+type Provides struct {
+	compdef.Out
 
 	Check     types.ProvidesCheck
 	Component connectionscheck.Component
 }
 
-func newCheck(deps dependencies) result {
+// NewCheck creates a new connectionscheck component.
+func NewCheck(deps dependencies) Provides {
 	c := &check{
 		connectionsCheck: checks.NewConnectionsCheck(deps.Config, deps.Sysconfig, deps.Sysconfig.SysProbeObject(), deps.WMeta, deps.NpCollector, deps.Tagger),
 	}
-	return result{
+	return Provides{
 		Check: types.ProvidesCheck{
 			CheckComponent: c,
 		},
