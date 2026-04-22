@@ -246,6 +246,37 @@ type UnsupportedFieldsByDeviceModeSpec struct {
 type ArchitectureSpec struct {
 	Capabilities           ArchitectureCapabilities `yaml:"capabilities"`
 	UnsupportedDeviceModes []DeviceMode             `yaml:"unsupported_device_modes"`
+	// Defaults provides representative device identity values for this architecture.
+	// Consumed by out-of-process tools (e.g. the fake NVML shared library) that
+	// need to synthesize a plausible device for the architecture. Not used by
+	// the agent's runtime metric collection.
+	Defaults ArchitectureDefaults `yaml:"defaults"`
+}
+
+// ArchitectureDefaults describes representative hardware values for an architecture.
+// These are used to materialize a fake device for this architecture — e.g. the
+// fake NVML shared library reads this block to decide what values to return for
+// device name, memory, core count, and CUDA compute capability. Values are
+// intentionally approximate: they should be plausible for the architecture, not
+// model a specific SKU.
+type ArchitectureDefaults struct {
+	// NvmlArchitecture is the NVML_DEVICE_ARCH_* integer constant reported by
+	// nvmlDeviceGetArchitecture() (see nvml.h). 2=KEPLER, 3=MAXWELL, 4=PASCAL,
+	// 5=VOLTA, 6=TURING, 7=AMPERE, 8=ADA, 9=HOPPER, 10=BLACKWELL.
+	NvmlArchitecture uint32 `yaml:"nvml_architecture"`
+	// DeviceName is a representative product name for this architecture
+	// (e.g. "NVIDIA H100 80GB HBM3").
+	DeviceName string `yaml:"device_name"`
+	// CudaComputeMajor / CudaComputeMinor are the CUDA compute capability
+	// reported by nvmlDeviceGetCudaComputeCapability() (e.g. 9.0 for H100).
+	CudaComputeMajor int32 `yaml:"cuda_compute_major"`
+	CudaComputeMinor int32 `yaml:"cuda_compute_minor"`
+	// NumGpuCores is the number of CUDA cores reported by
+	// nvmlDeviceGetNumGpuCores().
+	NumGpuCores uint32 `yaml:"num_gpu_cores"`
+	// TotalMemoryMib is the total device memory, in MiB, reported by
+	// nvmlDeviceGetMemoryInfo().
+	TotalMemoryMib uint64 `yaml:"total_memory_mib"`
 }
 
 // SupportsArchitecture returns true if the metric is supported on this architecture.
