@@ -1,0 +1,343 @@
+-- allium: 3
+-- syslog_parsing.allium
+
+-- Scope: Parsing syslog envelope fields from framed input lines.
+-- Includes: PRI decoding (facility and severity), RFC 5424 header
+--   extraction (version, timestamp, hostname, appname, procid, msgid),
+--   RFC 3164 (BSD) header extraction, structured data parsing (single
+--   and multiple SD-IDs with escaped param values), severity-to-status
+--   mapping, best-effort partial parsing on malformed input,
+--   parse-failure pass-through, format auto-detection, UTF-8
+--   preservation, source/service override from appname.
+-- Excludes:
+--   - CEF/LEEF extraction from message body (see siem_extraction.allium)
+--   - Frame detection and byte-stream handling (see syslog_framing.allium)
+--   - Source remapping (see source_remapping.allium)
+--   - Telemetry counter wiring and agent status page integration
+--   - Transport-level concerns (TCP/UDP/file connection handling)
+
+------------------------------------------------------------
+-- Value Types
+------------------------------------------------------------
+
+value PRI {
+    -- Priority value from the syslog PRI header.
+    -- Range 0-191 for well-formed messages. Values > 191 are accepted
+    -- best-effort (parsed but flagged as partial). -1 when PRI is
+    -- absent (BSD file input without PRI header).
+    raw: Integer
+    facility: Integer   -- raw / 8
+    severity: Integer   -- raw mod 8
+}
+
+value SyslogMessage {
+    pri: PRI
+    version: String         -- RFC 5424 only; empty for BSD
+    timestamp: String
+    hostname: String
+    appname: String
+    procid: String
+    msgid: String
+    structured_data: StructuredData?
+    msg: String
+    partial: Boolean
+}
+
+value StructuredData {
+    -- Outer key: SD-ID (e.g. "exampleSDID@32473")
+    -- Inner map: PARAM-NAME → PARAM-VALUE (unescaped)
+    elements: Map<String, Map<String, String>>
+}
+
+------------------------------------------------------------
+-- Enumerations
+------------------------------------------------------------
+
+enum SyslogFormat { rfc5424 | bsd }
+
+enum AgentStatus {
+    emergency | alert | critical | error | warn | notice | info | debug
+}
+
+------------------------------------------------------------
+-- Config
+------------------------------------------------------------
+
+config {
+    siem_parsing_enabled: Boolean = true
+}
+
+------------------------------------------------------------
+-- Contracts
+------------------------------------------------------------
+
+contract SyslogEnvelopeParser {
+    -- Parse a network-format syslog line (with PRI header).
+    -- Auto-detects RFC 5424 vs BSD based on the byte after '>'.
+    parse: (line: String) -> SyslogMessage
+
+    -- Parse a file-format BSD line (no PRI header).
+    parse_bsd_line: (line: String) -> SyslogMessage
+
+    @invariant PRIDecoding
+        -- Facility = PRI / 8, Severity = PRI mod 8.
+        -- This holds for all PRI values including those > 191.
+
+    @invariant FormatAutoDetection
+        -- After extracting PRI, the first byte determines the format:
+        --   Digit → RFC 5424 (VERSION field)
+        --   Letter → BSD (timestamp month abbreviation)
+        -- The same TCP stream may contain both formats; detection is
+        -- per-message, not per-connection.
+
+    @invariant BestEffortPartialParsing
+        -- On malformed input, the core parser extracts as many fields
+        -- as possible, sets partial = true, and returns the error
+        -- alongside the partial result. The adapter layer (parser.Parse)
+        -- discards the partial result in favor of pass-through semantics
+        -- (see ParseFailurePassThrough); direct callers of Parse() or
+        -- ParseBSDLine() receive the partial and may use it.
+
+    @invariant ParseFailurePassThrough
+        -- When parsing fails at the adapter layer (parser.Parse),
+        -- the original message is returned completely unmodified.
+        -- No structured syslog metadata is generated, no partial
+        -- fields are emitted, and no CEF/LEEF extraction is attempted.
+        -- The raw bytes pass through the pipeline as-is.
+
+    @invariant UTF8Preservation
+        -- All byte sequences (including multi-byte UTF-8 characters,
+        -- CJK, accented Latin, and emoji) pass through the parser
+        -- without modification. The parser operates on bytes, not
+        -- Unicode code points.
+
+    @invariant Determinism
+        -- parse and parse_bsd_line are pure functions: the same input
+        -- always produces the same SyslogMessage.
+
+    @invariant EmptyInputHandling
+        -- An empty input returns PRI = -1 and an error. No fields
+        -- are populated.
+
+    @guidance
+        -- The parser is allocation-light: SyslogMessage is returned
+        -- by value (no heap escape), string fields are independent
+        -- copies, and the Msg field aliases the input buffer for
+        -- zero-copy performance.
+}
+
+contract StructuredDataParser {
+    parse_sd: (input: String) -> StructuredData?
+
+    @invariant NilvalueHandling
+        -- The NILVALUE "-" produces nil structured data (no elements).
+
+    @invariant SDIDCharacterSet
+        -- SD-ID characters must be PRINTUSASCII (33-126) excluding
+        -- '=', SP, ']', '"'. Maximum length 32 bytes.
+
+    @invariant ParamValueEscaping
+        -- Within SD-PARAM values (quoted strings), the escape sequences
+        -- \", \\, and \] are recognized. The backslash is removed and
+        -- the following character is taken literally. Invalid escapes
+        -- (backslash followed by any other character) also remove the
+        -- backslash.
+
+    @invariant PartialSDOnError
+        -- When parsing multiple SD-ELEMENTs and an error occurs in
+        -- the second or subsequent element, successfully-parsed prior
+        -- elements are preserved in the result.
+
+    @invariant DuplicateParamNames
+        -- Duplicate PARAM-NAMEs within the same SD-ELEMENT use
+        -- last-write-wins semantics (the later value overwrites).
+}
+
+------------------------------------------------------------
+-- Rules
+------------------------------------------------------------
+
+-- Severity-to-status mapping: a single parameterised rule covering
+-- all 8 severity levels.
+
+rule MapSeverityToStatus {
+    when: SeverityResolved(pri)
+    ensures:
+        if pri.severity = 0: StatusAssigned(emergency)
+        else if pri.severity = 1: StatusAssigned(alert)
+        else if pri.severity = 2: StatusAssigned(critical)
+        else if pri.severity = 3: StatusAssigned(error)
+        else if pri.severity = 4: StatusAssigned(warn)
+        else if pri.severity = 5: StatusAssigned(notice)
+        else if pri.severity = 6: StatusAssigned(info)
+        else if pri.severity = 7: StatusAssigned(debug)
+        else: StatusAssigned(info)
+
+    @guidance
+        -- When PRI is absent (pri.raw = -1), the default status is
+        -- "info". The mapping uses the agent's internal status names
+        -- which differ from RFC 5424 severity keywords:
+        --   RFC "warning" → agent "warn"
+        --   RFC "emerg" → agent "emergency"
+}
+
+-- Parse a network-format syslog line (with PRI).
+
+rule ParseNetworkSyslog {
+    when: LineReceived(line, has_pri)
+    requires: has_pri = true
+
+    ensures: SyslogParsed(message)
+
+    @guidance
+        -- PRI extraction: scan first 5 bytes for '>'. PRI digits
+        -- between '<' and '>' are parsed as decimal. PRI > 191 is
+        -- accepted best-effort (partial = true, error joined).
+        --
+        -- After PRI, if the next byte is a digit, dispatch to RFC 5424.
+        -- If it is a letter, dispatch to BSD. Any other byte returns
+        -- errUnknownFormat with the raw content in msg.
+}
+
+-- Parse a BSD line from a log file (no PRI header).
+
+rule ParseFileBSD {
+    when: LineReceived(line, has_pri)
+    requires: has_pri = false
+
+    ensures: SyslogParsed(message)
+
+    @guidance
+        -- PRI detection is automatic at the adapter layer: if the
+        -- line starts with '<', parse is called (network format).
+        -- Otherwise parse_bsd_line is called (file format, no PRI,
+        -- pri = -1). The BSD parser extracts a 15-byte timestamp
+        -- (Mmm dd hh:mm:ss or Mmm  d hh:mm:ss for single-digit day),
+        -- hostname, and TAG (appname + optional procid).
+}
+
+-- BSD TAG extraction patterns.
+
+rule ExtractBSDTag {
+    when: BSDHeaderParsed(rest)
+
+    ensures:
+        if rest.starts_with_alphanumeric:
+            if rest.contains_bracket_before_colon:
+                TagExtracted(appname, procid, content)
+            else if rest.contains_colon:
+                TagExtracted(appname, nilvalue, content)
+            else:
+                TagExtracted(appname, nilvalue, content)
+        else:
+            TagExtracted(nilvalue, nilvalue, rest)
+
+    @guidance
+        -- TAG patterns:
+        --   appname[pid]: content  → appname, pid, content
+        --   appname: content       → appname, "-", content
+        --   appname content        → appname, "-", content
+        --   non-alpha start        → "-", "-", entire rest as msg
+        --
+        -- RFC 3164 limits TAG to 32 alphanumeric characters, but
+        -- real-world emitters regularly exceed this. The parser
+        -- accepts unbounded TAG lengths for compatibility.
+}
+
+-- RFC 5424 structured data parsing.
+
+rule ParseStructuredData {
+    when: RFC5424HeaderParsed(rest)
+
+    ensures:
+        if rest.starts_with_nilvalue:
+            SDParsed(nil)
+        else if rest.starts_with_open_bracket:
+            SDParsed(elements)
+        else:
+            SDParseError(rest)
+
+    @guidance
+        -- Multiple SD-ELEMENTs are supported: [sdid1 k="v"][sdid2 k="v"]
+        -- Each SD-ELEMENT is parsed independently. On error in a
+        -- later element, previously parsed elements are preserved.
+        --
+        -- After structured data, an optional SP followed by MSG.
+        -- For RFC 5424, a UTF-8 BOM at the start of MSG is stripped.
+}
+
+-- Adapter-level parse: wraps the core parser for pipeline integration.
+
+rule AdapterParse {
+    when: MessageReceived(msg)
+
+    ensures:
+        if parse_succeeds:
+            StructuredMessageEmitted(syslog_fields, status, msg_body)
+        else:
+            OriginalMessagePassedThrough(msg)
+
+    @guidance
+        -- On success, the adapter constructs a StateStructured message
+        -- with "message" (the syslog MSG body) and "syslog" (metadata
+        -- map) keys. If SIEM parsing is enabled and the MSG body starts
+        -- with "CEF:" or "LEEF:", a "siem" key is added (see
+        -- siem_extraction.allium).
+        --
+        -- On parse failure, the original *message.Message is returned
+        -- unmodified. No StateStructured wrapper is created, no partial
+        -- syslog metadata appears, and no CEF/LEEF extraction runs.
+        -- This is the v7 pass-through behavior.
+        --
+        -- AppName (when non-empty and not "-") overrides both the
+        -- source and service fields on the message's Origin, allowing
+        -- the syslog appname to appear as the Datadog source tag.
+}
+
+------------------------------------------------------------
+-- Invariants
+------------------------------------------------------------
+
+invariant FacilitySeverityDecomposition {
+    -- For all parsed messages with PRI >= 0:
+    --   facility = pri / 8
+    --   severity = pri mod 8
+    -- This decomposition is the canonical definition from RFC 5424 §6.2.1.
+}
+
+invariant SeverityStatusCoverage {
+    -- All 8 severity values (0-7) map to exactly one agent status.
+    -- No severity value is unmapped. The mapping is total and deterministic.
+}
+
+invariant BSDTimestampStructuralValidation {
+    -- The BSD timestamp validator checks structural positions:
+    --   Position 3: space
+    --   Position 6: space
+    --   Position 9: colon
+    --   Position 12: colon
+    -- Plus a valid three-letter month abbreviation at positions 0-2.
+    -- This prevents false-positive matches on lines that coincidentally
+    -- start with a month abbreviation (e.g. "December sales report").
+}
+
+invariant NoMessageLoss {
+    -- The parser never drops a message. Every input line produces
+    -- exactly one output message, whether structured (on success)
+    -- or the original unmodified message (on failure).
+}
+
+invariant MalformedPRIBestEffort {
+    -- PRI values > 191 are parsed and the facility/severity are
+    -- extracted using the standard formulas. The message is flagged
+    -- as partial. This is intentional best-effort behavior, not a
+    -- bug: real-world devices occasionally emit out-of-range PRI.
+}
+
+------------------------------------------------------------
+-- Open Questions
+------------------------------------------------------------
+
+open question "BSD timestamp validation accepts any bytes at non-structural positions (e.g. non-digit characters where day/hour/minute/second should be). Should the validator also check that digit positions contain actual digits? The current structural-only check was a deliberate performance trade-off."
+
+open question "RFC 5424 header parsing uses a space-counting heuristic (find 5 spaces after VERSION). This works because header fields are single tokens without embedded spaces, but it will mis-parse non-conformant TIMESTAMP values containing extra spaces. Is this acceptable for a best-effort parser, or should field-by-field parsing be used?"

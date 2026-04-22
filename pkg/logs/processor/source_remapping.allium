@@ -1,0 +1,234 @@
+-- allium: 3
+-- source_remapping.allium
+
+-- Scope: The remap_attribute_to_source processing rule, which dynamically
+--   overrides a log message's source tag based on values found in its
+--   structured content.
+-- Includes: Ordered mappings list evaluation, first-match-wins semantics,
+--   dot-delimited attribute path traversal (siem.*, syslog.*, nested
+--   structured_data paths), numeric-to-string coercion for matching,
+--   source priority chain, fallback behavior when no mapping matches.
+-- Excludes:
+--   - Other processing rule types (exclude_at_match, include_at_match,
+--     mask_sequences, multi_line, exclude_truncated)
+--   - Syslog envelope parsing (see syslog_parsing.allium)
+--   - CEF/LEEF extraction (see siem_extraction.allium)
+--   - Frame detection (see syslog_framing.allium)
+--   - Processing rule configuration YAML syntax
+--   - Agent config file structure and validation
+
+use "../internal/parsers/syslog/syslog_parsing.allium" as syslog
+use "../internal/parsers/syslog/siem_extraction.allium" as siem
+
+------------------------------------------------------------
+-- Value Types
+------------------------------------------------------------
+
+value RemapRule {
+    name: String
+    mappings: List<SourceMapping>
+}
+
+value SourceMapping {
+    attribute: String       -- dot-delimited path into structured content
+    value: String           -- string to match against the resolved attribute
+    remap_source_to: String -- the source tag to apply on match
+}
+
+value SourcePriority {
+    -- The source tag used for the log message, resolved by priority:
+    --   1. mapped_source (set by remap_attribute_to_source)
+    --   2. config_source (user-configured source on the log source)
+    --   3. parser_source (derived from syslog AppName or similar)
+    resolved: String
+}
+
+------------------------------------------------------------
+-- Contracts
+------------------------------------------------------------
+
+contract AttributeResolver {
+    -- Walk a dot-delimited path through the structured content map.
+    -- Returns the leaf value as a string if found, nothing otherwise.
+    resolve: (message: String, path: String) -> String?
+
+    @invariant DotDelimitedTraversal
+        -- The path is split on "." and each segment is used as a map
+        -- key to descend into nested maps. For example:
+        --   "syslog.severity" → Data["syslog"]["severity"]
+        --   "siem.device_vendor" → Data["siem"]["device_vendor"]
+        --   "syslog.structured_data.meta.mykey" →
+        --     Data["syslog"]["structured_data"]["meta"]["mykey"]
+
+    @invariant NumericCoercion
+        -- Integer and float64 leaf values are coerced to their string
+        -- representation for comparison. For example, syslog.severity
+        -- is stored as int (e.g. 6) but is matched against the mapping
+        -- value "6" (a string). Similarly, syslog.facility (e.g. 1)
+        -- matches against "1".
+
+    @invariant BooleanCoercion
+        -- Boolean leaf values are coerced to "true" or "false" strings.
+
+    @invariant NonLeafReturnsNothing
+        -- If the path resolves to a map (non-leaf), the resolver
+        -- returns nothing. Only string, integer, float, and boolean
+        -- leaf values produce a result.
+
+    @invariant RequiresStructuredState
+        -- The resolver only operates on messages in StateStructured.
+        -- Unstructured messages always return nothing for any path.
+}
+
+contract SourceRemapper {
+    -- Evaluate the remap_attribute_to_source rule against a message.
+    apply: (message: String, rule: RemapRule) -> SourcePriority
+
+    @invariant FirstMatchWins
+        -- Mappings are evaluated in list order. The first mapping
+        -- whose attribute resolves to a value matching mapping.value
+        -- is applied. No further mappings are evaluated after a match.
+
+    @invariant MappedSourceOverridesAll
+        -- The source set by a matching remap rule takes the highest
+        -- priority in the source resolution chain, overriding both
+        -- the user-configured source and the parser-derived source.
+
+    @invariant NoMatchPreservesSource
+        -- When no mapping matches, the source is unchanged. The
+        -- existing priority chain (config > parser > default) remains
+        -- in effect.
+
+    @invariant RuleRecording
+        -- When a mapping matches, the rule type and name are recorded
+        -- on the message for debugging and audit purposes.
+}
+
+------------------------------------------------------------
+-- Rules
+------------------------------------------------------------
+
+rule EvaluateRemapRule {
+    when: ProcessingRuleApplied(message, rule)
+    requires: rule.type = "remap_attribute_to_source"
+
+    ensures: RemapEvaluated(message, result)
+
+    @guidance
+        -- The rule iterates over rule.mappings in order. For each
+        -- mapping:
+        --   1. Resolve mapping.attribute through the structured content
+        --   2. Compare the resolved string value to mapping.value
+        --   3. On match: set message.origin.mapped_source to
+        --      mapping.remap_source_to, record the rule, and stop
+        --   4. On no match: continue to the next mapping
+        -- If no mapping matches, the message passes through unchanged.
+}
+
+rule ResolveSIEMAttribute {
+    when: AttributeResolutionRequested(path)
+    requires: path.starts_with("siem.")
+
+    ensures: AttributeResolved(value)
+
+    @guidance
+        -- SIEM attributes traverse into the "siem" sub-map of the
+        -- structured content. Common paths include:
+        --   siem.device_vendor → the CEF/LEEF device vendor
+        --   siem.device_product → the CEF/LEEF device product
+        --   siem.format → "CEF" or "LEEF"
+        --   siem.severity → CEF severity string
+        --   siem.extension → resolves to a map (non-leaf, returns nothing)
+}
+
+rule ResolveSyslogAttribute {
+    when: AttributeResolutionRequested(path)
+    requires: path.starts_with("syslog.")
+
+    ensures: AttributeResolved(value)
+
+    @guidance
+        -- Syslog attributes traverse into the "syslog" sub-map:
+        --   syslog.severity → integer coerced to string (e.g. "6")
+        --   syslog.facility → integer coerced to string (e.g. "1")
+        --   syslog.hostname → string
+        --   syslog.appname → string
+        --   syslog.structured_data.<sdid>.<param> → nested traversal
+        --     e.g. syslog.structured_data.meta.mykey
+}
+
+rule ResolveTopLevelAttribute {
+    when: AttributeResolutionRequested(path)
+    requires: not path.contains(".")
+
+    ensures: AttributeResolved(value)
+
+    @guidance
+        -- Top-level attributes access Data[path] directly. The most
+        -- common top-level attribute is "message" (the log body).
+}
+
+rule SourcePriorityResolution {
+    when: SourceRequested(origin)
+
+    ensures:
+        if origin.mapped_source.is_set:
+            SourceResolved(origin.mapped_source)
+        else if origin.config_source.is_set:
+            SourceResolved(origin.config_source)
+        else:
+            SourceResolved(origin.parser_source)
+
+    @guidance
+        -- The three-tier priority chain ensures that:
+        --   1. Remap rules have the final say on source
+        --   2. User-configured source is the default
+        --   3. Parser-derived source (e.g. syslog AppName) is the fallback
+        -- This priority is enforced at the Origin level, not in the
+        -- remapping rule itself.
+}
+
+------------------------------------------------------------
+-- Invariants
+------------------------------------------------------------
+
+invariant MappingValidation {
+    -- Each mapping must have a non-empty attribute, value, and
+    -- remap_source_to. Empty fields are rejected at config validation
+    -- time, before any messages are processed.
+}
+
+invariant RuleNameRequired {
+    -- Every processing rule must have a non-empty name. This is
+    -- validated at config load time.
+}
+
+invariant NoSideEffectsOnUnmatched {
+    -- When no mapping matches, the processing rule makes no changes
+    -- to the message. The message content, origin, and metadata
+    -- are completely unmodified.
+}
+
+invariant MessageAlwaysPassesThrough {
+    -- The remap_attribute_to_source rule never drops a message.
+    -- Unlike exclude_at_match which can filter messages, remapping
+    -- only modifies the source tag. The message is always forwarded
+    -- to the next pipeline stage.
+}
+
+invariant MultipleRemapRulesStack {
+    -- If multiple remap_attribute_to_source rules exist in the
+    -- processing rules list, they are evaluated in order. A later
+    -- rule can override the mapped_source set by an earlier rule
+    -- (last-write-wins at the Origin level).
+}
+
+------------------------------------------------------------
+-- Open Questions
+------------------------------------------------------------
+
+open question "The current remap rule uses strict string equality for matching. Should it support regex or glob patterns in the 'value' field? Real-world use cases include matching a family of device vendors (e.g. 'Cisco*') or severity ranges. The strict equality was a deliberate simplicity choice."
+
+open question "The remap rule only affects the 'source' tag, not the 'service' tag. The parser separately overrides service from syslog AppName. If a remap rule changes the source, should the service also be updated for consistency? Currently they can diverge (e.g. source='firewall' from remap, service='sshd' from AppName)."
+
+open question "When the attribute path points to a nested map (e.g. 'syslog.structured_data' without specifying the SD-ID), the resolver returns nothing. Should this be an error or a warning in telemetry to help operators debug misconfigured remap rules?"
