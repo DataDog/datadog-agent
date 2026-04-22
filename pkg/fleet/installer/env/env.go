@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path/filepath"
 	"reflect"
 	"slices"
 	"strconv"
@@ -21,10 +20,7 @@ import (
 	"sync"
 	"time"
 
-	"go.yaml.in/yaml/v3"
 	"golang.org/x/net/http/httpproxy"
-
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config"
 )
 
 // ApmLibLanguage is a language defined in DD_APM_INSTRUMENTATION_LIBRARIES env var
@@ -89,37 +85,38 @@ type ExtensionRegistryOverride struct {
 
 // Env contains the configuration for the installer.
 //
-// Priority order:
-// Environment variables > Config (datadog.yaml) > Defaults
+// The installer is configured exclusively from environment variables (plus
+// CLI flags where they already exist). Any yaml-sourced value must be
+// translated to a `DD_*` env var by the caller before invoking the
+// installer — this is the daemon's responsibility (via its fx
+// config.Component) and the CLI's fx bootstrap.
 //
-// Fields can declare where they are read from using struct tags:
+// Fields declare the env vars they listen to via the `env:` struct tag:
 //
-//	env:"<VAR>[,<VAR2>,...][,prefix]"   - environment variable(s)
-//	yaml:"<dotted.path>"                - dotted key in datadog.yaml
+//	env:"<VAR>[,<VAR2>,...][,prefix]"
 //
-// For env: vars are processed in declaration order — the LAST entry in the
-// list has the highest precedence. The order is load-bearing; reordering
-// entries silently changes precedence, so callers should treat the list as
-// stable. The optional ",prefix" marker turns the field into a prefix-scan
-// map (reads env vars shaped like `<VAR>_<SUFFIX>=<value>`).
-// For yaml: the tag names a dotted path into the parsed yaml tree; if that
-// path resolves to a non-zero scalar, the field is set from it.
-// Specific per-env-var behaviour that deviates from the type-driven default
-// lives as a named case in the switch inside applyEnvTags / ToEnv. The
-// ExtensionRegistryOverrides nested map is populated by a bespoke branch in
-// applyConfig because its shape doesn't fit the scalar walker.
+// Vars are processed in declaration order — the LAST entry in the list
+// has the highest precedence. The order is load-bearing; reordering
+// entries silently changes precedence, so callers should treat the list
+// as stable. The optional ",prefix" marker turns the field into a
+// prefix-scan map (reads env vars shaped like `<VAR>_<SUFFIX>=<value>`).
+// Specific per-env-var behaviour that deviates from the type-driven
+// default lives as a named case in the switch inside applyEnvTags /
+// ToEnv. `ExtensionRegistryOverrides` has no single tag because its
+// shape requires a dedicated prefix scheme; see
+// parseExtensionRegistryEnv / emitExtensionRegistryEnv.
 type Env struct {
-	APIKey               string `env:"DD_API_KEY" yaml:"api_key"`
-	Site                 string `env:"DD_SITE" yaml:"site"`
+	APIKey               string `env:"DD_API_KEY"`
+	Site                 string `env:"DD_SITE"`
 	RemoteUpdates        bool   `env:"DD_REMOTE_UPDATES"`
 	OTelCollectorEnabled bool   `env:"DD_OTELCOLLECTOR_ENABLED"`
 	ConfigID             string
 
 	Mirror                      string            `env:"DD_INSTALLER_MIRROR"`
-	RegistryOverride            string            `env:"DD_INSTALLER_REGISTRY_URL" yaml:"installer.registry.url"`
-	RegistryAuthOverride        string            `env:"DD_INSTALLER_REGISTRY_AUTH" yaml:"installer.registry.auth"`
-	RegistryUsername            string            `env:"DD_INSTALLER_REGISTRY_USERNAME" yaml:"installer.registry.username"`
-	RegistryPassword            string            `env:"DD_INSTALLER_REGISTRY_PASSWORD" yaml:"installer.registry.password"`
+	RegistryOverride            string            `env:"DD_INSTALLER_REGISTRY_URL"`
+	RegistryAuthOverride        string            `env:"DD_INSTALLER_REGISTRY_AUTH"`
+	RegistryUsername            string            `env:"DD_INSTALLER_REGISTRY_USERNAME"`
+	RegistryPassword            string            `env:"DD_INSTALLER_REGISTRY_PASSWORD"`
 	RegistryOverrideByImage     map[string]string `env:"DD_INSTALLER_REGISTRY_URL,prefix"`
 	RegistryAuthOverrideByImage map[string]string `env:"DD_INSTALLER_REGISTRY_AUTH,prefix"`
 	RegistryUsernameByImage     map[string]string `env:"DD_INSTALLER_REGISTRY_USERNAME,prefix"`
@@ -157,9 +154,13 @@ type Env struct {
 	LogLevel string `env:"DD_LOG_LEVEL"`
 
 	// ExtensionRegistryOverrides holds per-package, per-extension registry
-	// overrides parsed from installer.registry.extensions in datadog.yaml.
-	// Outer key is package name, inner key is extension name.
-	ExtensionRegistryOverrides map[string]map[string]ExtensionRegistryOverride `yaml:"installer.registry.extensions"`
+	// overrides. Sourced from env vars matching
+	// DD_INSTALLER_REGISTRY_EXT_{URL,AUTH,USERNAME,PASSWORD}_<PKG>__<EXT>.
+	// Outer key is package name, inner key is extension name (both lowercased
+	// with `_`→`-`). Populated by parseExtensionRegistryEnv; the daemon
+	// translates the matching yaml section to these env vars before spawning
+	// the installer.
+	ExtensionRegistryOverrides map[string]map[string]ExtensionRegistryOverride
 }
 
 func newDefaultEnv() Env {
@@ -298,186 +299,16 @@ func (e *Env) HTTPClient() *http.Client {
 	return client
 }
 
-type Option func(*options)
-type options struct {
-	configDir string
-}
-
-// defaultConfigDir is the directory where datadog.yaml is read from by default.
-// It is populated by paths.init() via SetDefaultConfigDir to avoid an import
-// cycle between env and paths.
-var defaultConfigDir string
-
-// SetDefaultConfigDir registers the default directory where datadog.yaml is
-// looked up when WithConfigDir is not supplied. It is intended to be called by
-// the paths package at init time.
-func SetDefaultConfigDir(dir string) {
-	defaultConfigDir = dir
-}
-
-// WithConfigDir overrides the directory where datadog.yaml is read from.
-func WithConfigDir(dir string) Option {
-	return func(o *options) {
-		o.configDir = dir
-	}
-}
-
-// Get returns an Env struct with values resolved using the priority chain:
-//
-//	defaults < config (datadog.yaml) < environment variables
-//
-// By default, datadog.yaml is read from the directory registered via
-// SetDefaultConfigDir (populated by the paths package).
-// Use WithConfigDir to override the config directory (e.g. in tests).
-func Get(opts ...Option) *Env {
-	o := &options{configDir: defaultConfigDir}
-	for _, opt := range opts {
-		opt(o)
-	}
-
-	// 1. Start from defaults
+// Get returns an Env struct resolved from defaults overridden by environment
+// variables. The installer never reads datadog.yaml; callers that need
+// yaml-sourced values translate them into `DD_*` env vars first (the daemon
+// via its fx config.Component, the CLI via its fx config bootstrap).
+func Get() *Env {
 	env := newDefaultEnv()
-
-	// 2. Config layer
-	if cfg := readDatadogYAML(o.configDir); cfg != nil {
-		applyConfig(&env, cfg)
-	}
-
-	// 3. Environment variables layer
 	applyEnvTags(&env)
-
-	// 4. Centos 6 detection
+	parseExtensionRegistryEnv(&env)
 	env.IsCentos6 = DetectCentos6()
-
 	return &env
-}
-
-// readDatadogYAML reads datadog.yaml from configDir and unmarshals it into a
-// generic map. Returns nil if the file is missing or unparseable (best
-// effort — yaml is optional).
-//
-// An empty configDir is treated as "no config directory known" and skips
-// yaml loading silently. This is intentional so callers that run before the
-// paths package has registered a default config dir (e.g. Windows
-// installer_paths init reading MsiParams) don't error out. Callers that
-// care about yaml loading should pass a non-empty path via WithConfigDir.
-//
-// Reuses config.ReadConfig so the read path normalises UTF-16 BOMs and CR
-// bytes the same way the write path does to prevent read/write mismatch.
-func readDatadogYAML(configDir string) map[string]any {
-	if configDir == "" {
-		return nil
-	}
-	raw, err := config.ReadConfig(filepath.Join(configDir, config.DatadogConfFile))
-	if err != nil || len(raw) == 0 {
-		return nil
-	}
-	var cfg map[string]any
-	if err := yaml.Unmarshal(raw, &cfg); err != nil {
-		return nil
-	}
-	return cfg
-}
-
-// applyConfig walks Env fields and, for every field declaring a `yaml` tag,
-// looks the tag's dotted path up in cfg. Non-zero scalar values overwrite the
-// default. ExtensionRegistryOverrides is handled by a bespoke branch because
-// its shape (map-of-maps-of-structs) doesn't fit the scalar walker.
-func applyConfig(env *Env, cfg map[string]any) {
-	walkYAMLConfig(reflect.ValueOf(env).Elem(), cfg)
-}
-
-func walkYAMLConfig(v reflect.Value, cfg map[string]any) {
-	t := v.Type()
-	for i := 0; i < t.NumField(); i++ {
-		f := t.Field(i)
-		yamlPath := f.Tag.Get("yaml")
-		if yamlPath == "" {
-			if f.Type.Kind() == reflect.Struct {
-				walkYAMLConfig(v.Field(i), cfg)
-			}
-			continue
-		}
-		raw := lookupYAMLPath(cfg, yamlPath)
-		if raw == nil {
-			continue
-		}
-		setFieldFromYAML(v.Field(i), raw)
-	}
-}
-
-func lookupYAMLPath(cfg map[string]any, path string) any {
-	var cur any = cfg
-	for _, seg := range strings.Split(path, ".") {
-		m, ok := cur.(map[string]any)
-		if !ok {
-			return nil
-		}
-		cur, ok = m[seg]
-		if !ok {
-			return nil
-		}
-	}
-	return cur
-}
-
-func setFieldFromYAML(field reflect.Value, raw any) {
-	switch field.Kind() {
-	case reflect.String:
-		if s, ok := raw.(string); ok && s != "" {
-			field.SetString(s)
-		}
-	case reflect.Bool:
-		if b, ok := raw.(bool); ok {
-			field.SetBool(b)
-		}
-	case reflect.Map:
-		if field.Type() == reflect.TypeOf((map[string]map[string]ExtensionRegistryOverride)(nil)) {
-			applyExtensionOverrides(field, raw)
-		}
-	}
-}
-
-// applyExtensionOverrides copies installer.registry.extensions.<pkg>.<ext>.*
-// entries from the yaml tree into the target map field.
-func applyExtensionOverrides(field reflect.Value, raw any) {
-	exts, ok := raw.(map[string]any)
-	if !ok || len(exts) == 0 {
-		return
-	}
-	if field.IsNil() {
-		field.Set(reflect.MakeMap(field.Type()))
-	}
-	overrides := field.Interface().(map[string]map[string]ExtensionRegistryOverride)
-	for pkg, extMapAny := range exts {
-		extMap, ok := extMapAny.(map[string]any)
-		if !ok || len(extMap) == 0 {
-			continue
-		}
-		if overrides[pkg] == nil {
-			overrides[pkg] = make(map[string]ExtensionRegistryOverride, len(extMap))
-		}
-		for extName, extCfgAny := range extMap {
-			extCfg, ok := extCfgAny.(map[string]any)
-			if !ok {
-				continue
-			}
-			o := overrides[pkg][extName]
-			if s, ok := extCfg["url"].(string); ok && s != "" {
-				o.URL = s
-			}
-			if s, ok := extCfg["auth"].(string); ok && s != "" {
-				o.Auth = s
-			}
-			if s, ok := extCfg["username"].(string); ok && s != "" {
-				o.Username = s
-			}
-			if s, ok := extCfg["password"].(string); ok && s != "" {
-				o.Password = s
-			}
-			overrides[pkg][extName] = o
-		}
-	}
 }
 
 // applyEnvTags iterates every tagged field on Env (and its sub-structs) and
@@ -524,6 +355,7 @@ func applyEnvTags(env *Env) {
 func (e *Env) ToEnv() []string {
 	var out []string
 	envValue := reflect.ValueOf(e).Elem()
+	emitExtensionRegistryEnv(&out, e.ExtensionRegistryOverrides)
 	for _, f := range envFields() {
 		field := envValue.FieldByIndex(f.indexPath)
 		if f.prefix {
@@ -684,6 +516,89 @@ func emitPrefixEnvVar(out *[]string, field reflect.Value, envVar string) {
 		}
 		suffix = strings.ToUpper(strings.ReplaceAll(suffix, "-", "_"))
 		*out = append(*out, envVar+"_"+suffix+"="+val)
+	}
+}
+
+// Extension-registry env-var scheme. The suffix is the package name and
+// extension name separated by a double underscore; single underscores in
+// either half map to `-` on read (and back to `_` on write), matching the
+// convention of the other prefix scanners.
+//
+//	DD_INSTALLER_REGISTRY_EXT_URL_<PKG>__<EXT>=<url>
+//	DD_INSTALLER_REGISTRY_EXT_AUTH_<PKG>__<EXT>=<auth>
+//	DD_INSTALLER_REGISTRY_EXT_USERNAME_<PKG>__<EXT>=<user>
+//	DD_INSTALLER_REGISTRY_EXT_PASSWORD_<PKG>__<EXT>=<password>
+const (
+	extRegPrefixURL      = "DD_INSTALLER_REGISTRY_EXT_URL_"
+	extRegPrefixAuth     = "DD_INSTALLER_REGISTRY_EXT_AUTH_"
+	extRegPrefixUsername = "DD_INSTALLER_REGISTRY_EXT_USERNAME_"
+	extRegPrefixPassword = "DD_INSTALLER_REGISTRY_EXT_PASSWORD_"
+)
+
+// parseExtensionRegistryEnv scans os.Environ() for extension-registry env
+// vars and populates env.ExtensionRegistryOverrides. Env vars that don't
+// carry the `<PKG>__<EXT>` split are skipped silently.
+func parseExtensionRegistryEnv(env *Env) {
+	setters := []struct {
+		prefix string
+		set    func(*ExtensionRegistryOverride, string)
+	}{
+		{extRegPrefixURL, func(o *ExtensionRegistryOverride, v string) { o.URL = v }},
+		{extRegPrefixAuth, func(o *ExtensionRegistryOverride, v string) { o.Auth = v }},
+		{extRegPrefixUsername, func(o *ExtensionRegistryOverride, v string) { o.Username = v }},
+		{extRegPrefixPassword, func(o *ExtensionRegistryOverride, v string) { o.Password = v }},
+	}
+	for _, kv := range os.Environ() {
+		key, val, ok := strings.Cut(kv, "=")
+		if !ok {
+			continue
+		}
+		for _, s := range setters {
+			suffix, found := strings.CutPrefix(key, s.prefix)
+			if !found {
+				continue
+			}
+			pkg, ext, ok := strings.Cut(suffix, "__")
+			if !ok || pkg == "" || ext == "" {
+				break
+			}
+			pkg = strings.ToLower(strings.ReplaceAll(pkg, "_", "-"))
+			ext = strings.ToLower(strings.ReplaceAll(ext, "_", "-"))
+			if env.ExtensionRegistryOverrides == nil {
+				env.ExtensionRegistryOverrides = map[string]map[string]ExtensionRegistryOverride{}
+			}
+			if env.ExtensionRegistryOverrides[pkg] == nil {
+				env.ExtensionRegistryOverrides[pkg] = map[string]ExtensionRegistryOverride{}
+			}
+			o := env.ExtensionRegistryOverrides[pkg][ext]
+			s.set(&o, val)
+			env.ExtensionRegistryOverrides[pkg][ext] = o
+			break
+		}
+	}
+}
+
+// emitExtensionRegistryEnv emits one env var per non-empty field of each
+// (pkg, ext) entry, symmetric with parseExtensionRegistryEnv.
+func emitExtensionRegistryEnv(out *[]string, overrides map[string]map[string]ExtensionRegistryOverride) {
+	for pkg, extMap := range overrides {
+		pkgKey := strings.ToUpper(strings.ReplaceAll(pkg, "-", "_"))
+		for ext, o := range extMap {
+			extKey := strings.ToUpper(strings.ReplaceAll(ext, "-", "_"))
+			suffix := pkgKey + "__" + extKey
+			if o.URL != "" {
+				*out = append(*out, extRegPrefixURL+suffix+"="+o.URL)
+			}
+			if o.Auth != "" {
+				*out = append(*out, extRegPrefixAuth+suffix+"="+o.Auth)
+			}
+			if o.Username != "" {
+				*out = append(*out, extRegPrefixUsername+suffix+"="+o.Username)
+			}
+			if o.Password != "" {
+				*out = append(*out, extRegPrefixPassword+suffix+"="+o.Password)
+			}
+		}
 	}
 }
 

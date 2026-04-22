@@ -12,8 +12,6 @@ import (
 	"os"
 	"testing"
 
-	"go.yaml.in/yaml/v2"
-
 	infraos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
@@ -131,73 +129,6 @@ func (s *testInstallExeSuite) TestInstallAgentFails() {
 	s.Require().Equal(wincommon.GetIdentityForSID(wincommon.AdministratorsSID).GetSID(), security.Group.GetSID(), "config dir should be grouped by Administrators group")
 	// Agent is not installed so we can't grab paths from the registry keys, must provide them manually
 	wincommonagent.TestHasNoWorldWritablePaths(s.T(), s.Env().RemoteHost, []string{configDir})
-}
-
-// TestConfigValuesNotOverwrittenByDefaults is a regression test for WINA-2118.
-//
-// We pre-seed datadog.yaml with non-default api_key and site values, encoded
-// as UTF-16 LE with a BOM and CRLF line endings — the exact on-disk format
-// produced by Windows editors (e.g. Notepad) that used to trip up the env
-// package's yaml reader while the write path's reader handled it just fine.
-// That asymmetry was the root cause of WINA-2118: env.Get silently fell back
-// to the default site, and the merged write then clobbered the user's real
-// value.
-//
-// After install, the user-set values must be preserved verbatim. Defaults
-// may still appear for keys the user did not set (e.g. log_level); that is
-// intentional and covered by the env package's unit tests. The contract
-// this test enforces is narrower and sharper: yaml-declared keys win over
-// defaults, regardless of the file's encoding.
-func (s *testInstallExeSuite) TestConfigValuesNotOverwrittenByDefaults() {
-	// Arrange
-	host := s.Env().RemoteHost
-	configDir := `C:\ProgramData\Datadog`
-	configPath := `C:\ProgramData\Datadog\datadog.yaml`
-
-	const userAPIKey = "user-api-key-0123456789abcdef01"
-	const userSite = "datadoghq.eu" // deliberately not the default datadoghq.com
-
-	// Serialise the yaml as UTF-16 LE with BOM and CRLF line endings. These
-	// are ASCII-only characters so a plain byte interleave is sufficient.
-	yamlText := "api_key: " + userAPIKey + "\r\nsite: " + userSite + "\r\n"
-	utf16LE := []byte{0xFF, 0xFE} // UTF-16 LE BOM
-	for _, r := range yamlText {
-		utf16LE = append(utf16LE, byte(r), 0x00)
-	}
-
-	err := host.MkdirAll(configDir)
-	s.Require().NoError(err, "failed to create config directory")
-	_, err = host.WriteFile(configPath, utf16LE)
-	s.Require().NoError(err, "failed to seed UTF-16 datadog.yaml")
-
-	// Act
-	// Run the installer without any config options so the only source of
-	// api_key / site is the pre-seeded yaml file.
-	output, err := s.InstallScript().Run(
-		// explicitly unset some values that are always set by this Run helper method
-		WithExtraEnvVars(map[string]string{
-			"DD_API_KEY":        "",
-			"DD_SITE":           "",
-			"DD_REMOTE_UPDATES": "",
-		}),
-	)
-
-	// Assert
-	s.Require().NoErrorf(err, "failed to run installer: %s", output)
-	s.Require().NoError(s.WaitForInstallerService("Running"))
-
-	// WriteConfig emits UTF-8, so a straight yaml.Unmarshal is enough.
-	contentAfter, err := host.ReadFile(configPath)
-	s.Require().NoError(err, "failed to read datadog.yaml after install")
-
-	var configValues map[string]interface{}
-	err = yaml.Unmarshal(contentAfter, &configValues)
-	s.Require().NoError(err, "failed to parse datadog.yaml as YAML")
-
-	s.Assert().Equal(userAPIKey, configValues["api_key"],
-		"user-set api_key must be preserved after install (WINA-2118)")
-	s.Assert().Equal(userSite, configValues["site"],
-		"user-set site must be preserved and must not be clobbered by the default datadoghq.com (WINA-2118)")
 }
 
 // proxyEnv provisions a Windows VM (for the installer) and a Linux VM (hosting a Squid proxy)

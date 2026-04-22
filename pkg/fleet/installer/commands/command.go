@@ -43,18 +43,12 @@ const (
 
 type cmdOption func(*cmdConfig)
 type cmdConfig struct {
-	quiet     bool
-	configDir string
+	quiet bool
 }
 
 // withQuiet suppresses stdout logging for the command (e.g. when outputting structured JSON).
 func withQuiet() cmdOption {
 	return func(c *cmdConfig) { c.quiet = true }
-}
-
-// withConfigDir overrides the directory containing datadog.yaml. Overridable in tests.
-func withConfigDir(dir string) cmdOption {
-	return func(c *cmdConfig) { c.configDir = dir }
 }
 
 type cmd struct {
@@ -80,12 +74,7 @@ func newCmd(operation string, opts ...cmdOption) *cmd {
 	for _, o := range opts {
 		o(cfg)
 	}
-	var e *env.Env
-	if cfg.configDir != "" {
-		e = env.Get(env.WithConfigDir(cfg.configDir))
-	} else {
-		e = env.Get()
-	}
+	e := env.Get()
 	if !e.IsFromDaemon && !cfg.quiet {
 		setupStdoutLogger(e)
 	}

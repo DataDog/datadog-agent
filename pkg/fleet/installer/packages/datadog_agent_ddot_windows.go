@@ -15,8 +15,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"go.yaml.in/yaml/v2"
-
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	windowssvc "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/windows"
 	windowsuser "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user/windows"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
@@ -75,12 +74,7 @@ func postInstallDatadogAgentDdot(ctx HookContext) (err error) {
 			return nil
 		}
 	}
-	ak, err := readAPIKeyFromDatadogYAML()
-	if err != nil {
-		log.Warnf("DDOT: skipping service start: %v", err)
-		return nil
-	}
-	if ak == "" {
+	if env.Get().APIKey == "" {
 		log.Warnf("DDOT: skipping service start (no API key configured)")
 		return nil
 	}
@@ -101,23 +95,6 @@ func postInstallDatadogAgentDdot(ctx HookContext) (err error) {
 		return nil
 	}
 	return nil
-}
-
-// readAPIKeyFromDatadogYAML reads the api_key from ProgramData datadog.yaml, returns empty string if unset/unknown
-func readAPIKeyFromDatadogYAML() (string, error) {
-	ddYaml := filepath.Join(paths.DatadogDataDir, "datadog.yaml")
-	data, err := os.ReadFile(ddYaml)
-	if err != nil {
-		return "", fmt.Errorf("failed to read datadog.yaml from %s: %w", ddYaml, err)
-	}
-	var cfg map[string]any
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return "", fmt.Errorf("failed to parse datadog.yaml: %w", err)
-	}
-	if v, ok := cfg["api_key"].(string); ok && v != "" {
-		return v, nil
-	}
-	return "", errors.New("api_key not found or empty in datadog.yaml")
 }
 
 // preRemoveDatadogAgentDdot performs pre-removal steps for the DDOT package on Windows

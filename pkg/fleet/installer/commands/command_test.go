@@ -9,7 +9,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"reflect"
 	"testing"
 
@@ -144,20 +143,23 @@ type testCmd struct {
 }
 
 // newTestingCmd creates a cmd via newCmd and exposes its env through Test.GetEnv.
-func newTestingCmd(configDir string) *testCmd {
-	c := newCmd("unit_test", withQuiet(), withConfigDir(configDir))
+func newTestingCmd() *testCmd {
+	c := newCmd("unit_test", withQuiet())
 	return &testCmd{cmd: c, Test: testEnvAccessor{e: c.env}}
 }
 
+// TestNewCmd asserts that env-var settings flow through newCmd into the
+// resolved *env.Env. The installer is env-var-only; any yaml-sourced
+// configuration is the caller's responsibility to translate into DD_* env
+// vars before invoking the installer.
 func TestNewCmd(t *testing.T) {
 	tests := []struct {
 		name    string
-		yaml    string            // written to temp dir as datadog.yaml; empty means no file
-		envVars map[string]string // set via t.Setenv before creating the cmd
-		checks  map[string]string // env.Env field name -> expected value
+		envVars map[string]string
+		checks  map[string]string
 	}{
 		{
-			name: "no config no env vars",
+			name: "no env vars",
 			checks: map[string]string{
 				"RegistryAuthOverride": "",
 				"RegistryOverride":     "",
@@ -180,74 +182,15 @@ func TestNewCmd(t *testing.T) {
 				"RegistryPassword":     "env-pass",
 			},
 		},
-		{
-			name: "datadog.yaml only",
-			yaml: `
-installer:
-  registry:
-    url:      yaml-registry.example.com
-    auth:     gcr
-    username: yaml-user
-    password: yaml-pass
-`,
-			checks: map[string]string{
-				"RegistryAuthOverride": "gcr",
-				"RegistryOverride":     "yaml-registry.example.com",
-				"RegistryUsername":     "yaml-user",
-				"RegistryPassword":     "yaml-pass",
-			},
-		},
-		{
-			name: "env vars take precedence over datadog.yaml",
-			yaml: `
-installer:
-  registry:
-    url:      yaml-registry.example.com
-    auth:     yaml-auth
-    username: yaml-user
-    password: yaml-pass
-`,
-			envVars: map[string]string{
-				"DD_INSTALLER_REGISTRY_AUTH": "env-auth",
-				"DD_INSTALLER_REGISTRY_URL":  "env-registry.example.com",
-			},
-			checks: map[string]string{
-				"RegistryAuthOverride": "env-auth",
-				"RegistryOverride":     "env-registry.example.com",
-				// remaining fields not set by env var are filled from YAML
-				"RegistryUsername": "yaml-user",
-				"RegistryPassword": "yaml-pass",
-			},
-		},
-		{
-			name: "partial yaml fills only provided fields",
-			yaml: `
-installer:
-  registry:
-    auth: gcr
-`,
-			checks: map[string]string{
-				"RegistryAuthOverride": "gcr",
-				"RegistryOverride":     "",
-				"RegistryUsername":     "",
-				"RegistryPassword":     "",
-			},
-		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			dir := t.TempDir()
-
-			if tc.yaml != "" {
-				err := os.WriteFile(filepath.Join(dir, "datadog.yaml"), []byte(tc.yaml), 0644)
-				assert.NoError(t, err)
-			}
 			for k, v := range tc.envVars {
 				t.Setenv(k, v)
 			}
 
-			cmd := newTestingCmd(dir)
+			cmd := newTestingCmd()
 			defer cmd.stop(nil)
 
 			for field, want := range tc.checks {

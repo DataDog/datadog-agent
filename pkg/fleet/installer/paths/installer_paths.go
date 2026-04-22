@@ -10,13 +10,7 @@ package paths
 
 import (
 	"os"
-
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 )
-
-func init() {
-	env.SetDefaultConfigDir(AgentConfigDir)
-}
 
 const (
 	// PackagesPath is the path to the packages directory.

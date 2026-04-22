@@ -72,10 +72,15 @@ func disableOtelCollectorConfigCommon(datadogYamlPath string) error {
 	return os.WriteFile(datadogYamlPath, updated, 0o600)
 }
 
-// writeOTelConfigCommon creates otel-config.yaml from a template by substituting api_key and site found in datadog.yaml
-// If preserveIfExists is true and outPath already exists, the function returns without writing.
+// writeOTelConfigCommon creates otel-config.yaml from a template by
+// substituting the api_key and site sourced from environment variables
+// (DD_API_KEY and DD_SITE). The installer never reads datadog.yaml; callers
+// (daemon / CLI fx bootstrap) are expected to have translated yaml values
+// into env vars before reaching this hook.
+// If preserveIfExists is true and outPath already exists, the function
+// returns without writing.
 // nolint:unused // Called only from platform-specific code/contexts
-func writeOTelConfigCommon(ctx HookContext, datadogYamlPath, templatePath, outPath string, preserveIfExists bool, mode os.FileMode) (err error) {
+func writeOTelConfigCommon(ctx HookContext, _, templatePath, outPath string, preserveIfExists bool, mode os.FileMode) (err error) {
 	span, _ := ctx.StartSpan("write_otel_config_common")
 	defer func() { span.Finish(err) }()
 
@@ -85,26 +90,8 @@ func writeOTelConfigCommon(ctx HookContext, datadogYamlPath, templatePath, outPa
 		}
 	}
 
-	var apiKey, site string
-	data, err := os.ReadFile(datadogYamlPath)
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("failed to read datadog.yaml: %w", err)
-	}
-	if err == nil {
-		span.SetTag("datadog.yaml_found", true)
-		var cfg map[string]any
-		if err := yaml.Unmarshal(data, &cfg); err != nil {
-			return fmt.Errorf("failed to parse datadog.yaml: %w", err)
-		}
-		apiKey, _ = cfg["api_key"].(string)
-		site, _ = cfg["site"].(string)
-	} else {
-		// datadog.yaml not yet written (fresh install); fall back to environment variables
-		span.SetTag("datadog.yaml_found", false)
-		e := env.Get()
-		apiKey = e.APIKey
-		site = e.Site
-	}
+	e := env.Get()
+	apiKey, site := e.APIKey, e.Site
 
 	templateData, err := os.ReadFile(templatePath)
 	if err != nil {

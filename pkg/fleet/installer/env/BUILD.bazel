@@ -5,11 +5,7 @@ go_library(
     srcs = ["env.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/env",
     visibility = ["//visibility:public"],
-    deps = [
-        "//pkg/fleet/installer/setup/config",
-        "@in_yaml_go_yaml_v3//:yaml",
-        "@org_golang_x_net//http/httpproxy",
-    ],
+    deps = ["@org_golang_x_net//http/httpproxy"],
 )
 
 go_test(
@@ -17,8 +13,5 @@ go_test(
     srcs = ["env_test.go"],
     embed = [":env"],
     gotags = ["test"],
-    deps = [
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
-    ],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

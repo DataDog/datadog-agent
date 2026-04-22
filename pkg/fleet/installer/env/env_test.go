@@ -6,29 +6,25 @@ package env
 
 import (
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
-func writeDatadogYAML(t *testing.T, dir string, content string) {
-	t.Helper()
-	err := os.WriteFile(filepath.Join(dir, "datadog.yaml"), []byte(content), 0644)
-	require.NoError(t, err)
-}
+// The installer env package is env-var only. Any yaml-sourced configuration
+// is the caller's responsibility to translate into DD_* env vars before
+// invoking the installer (the daemon does it via its fx config.Component,
+// the CLI via its fx bootstrap).
 
 func TestGet(t *testing.T) {
 	tests := []struct {
 		name     string
-		yaml     string
 		envVars  map[string]string
 		expected *Env
 	}{
 		{
-			name:    "empty environment variables and config",
+			name:    "empty environment variables",
 			envVars: map[string]string{},
 			expected: func() *Env {
 				e := newDefaultEnv()
@@ -130,110 +126,6 @@ func TestGet(t *testing.T) {
 			},
 		},
 		{
-			name:    "config only",
-			envVars: map[string]string{},
-			yaml: `
-api_key: yaml-api-key
-site: yaml-site.example.com
-installer:
-  registry:
-    url: yaml-registry.example.com
-    auth: yaml-auth
-    username: yaml-user
-    password: yaml-pass
-    extensions:
-      datadog-agent:
-        ddot:
-          url: yaml-ddot-registry.example.com
-          auth: yaml-ddot-auth
-          username: yaml-ddot-user
-          password: yaml-ddot-pass
-        other-ext:
-          url: yaml-other-ext-registry.example.com
-          auth: yaml-other-ext-auth
-          username: yaml-other-ext-user
-          password: yaml-other-ext-pass
-`,
-			expected: &Env{
-				APIKey:               "yaml-api-key",
-				Site:                 "yaml-site.example.com",
-				RegistryOverride:     "yaml-registry.example.com",
-				RegistryAuthOverride: "yaml-auth",
-				RegistryUsername:     "yaml-user",
-				RegistryPassword:     "yaml-pass",
-
-				RegistryOverrideByImage:        map[string]string{},
-				RegistryAuthOverrideByImage:    map[string]string{},
-				RegistryUsernameByImage:        map[string]string{},
-				RegistryPasswordByImage:        map[string]string{},
-				DefaultPackagesInstallOverride: map[string]bool{},
-				DefaultPackagesVersionOverride: map[string]string{},
-				ApmLibraries:                   map[ApmLibLanguage]ApmLibVersion{},
-				InstallScript: InstallScriptEnv{
-					APMInstrumentationEnabled: APMInstrumentationNotSet,
-				},
-				Tags:     []string{},
-				LogLevel: "warn",
-
-				ExtensionRegistryOverrides: map[string]map[string]ExtensionRegistryOverride{
-					"datadog-agent": {
-						"ddot": {
-							URL:      "yaml-ddot-registry.example.com",
-							Auth:     "yaml-ddot-auth",
-							Username: "yaml-ddot-user",
-							Password: "yaml-ddot-pass",
-						},
-						"other-ext": {
-							URL:      "yaml-other-ext-registry.example.com",
-							Auth:     "yaml-other-ext-auth",
-							Username: "yaml-other-ext-user",
-							Password: "yaml-other-ext-pass",
-						},
-					},
-				},
-			},
-		},
-		{
-			name: "env vars take precedence over config",
-			yaml: `
-api_key: yaml-api-key
-site: yaml-site.example.com
-installer:
-  registry:
-    url: yaml-registry.example.com
-    auth: yaml-auth
-    username: yaml-user
-    password: yaml-pass
-`,
-			envVars: map[string]string{
-				"DD_API_KEY":                 "env-api-key",
-				"DD_SITE":                    "env-site.example.com",
-				"DD_INSTALLER_REGISTRY_URL":  "env-registry.example.com",
-				"DD_INSTALLER_REGISTRY_AUTH": "env-auth",
-			},
-			expected: &Env{
-				APIKey:                         "env-api-key",
-				Site:                           "env-site.example.com",
-				RegistryOverride:               "env-registry.example.com",
-				RegistryAuthOverride:           "env-auth",
-				RegistryUsername:               "yaml-user",
-				RegistryPassword:               "yaml-pass",
-				RegistryOverrideByImage:        map[string]string{},
-				RegistryAuthOverrideByImage:    map[string]string{},
-				RegistryUsernameByImage:        map[string]string{},
-				RegistryPasswordByImage:        map[string]string{},
-				DefaultPackagesInstallOverride: map[string]bool{},
-				DefaultPackagesVersionOverride: map[string]string{},
-				ApmLibraries:                   map[ApmLibLanguage]ApmLibVersion{},
-				InstallScript: InstallScriptEnv{
-					APMInstrumentationEnabled: APMInstrumentationNotSet,
-				},
-				Tags:                       []string{},
-				LogLevel:                   "warn",
-				ExtensionRegistryOverrides: map[string]map[string]ExtensionRegistryOverride{},
-			},
-		},
-		{
 			name: "APM libraries parsing",
 			envVars: map[string]string{
 				"DD_APM_INSTRUMENTATION_LIBRARIES": "java  dotnet:latest, ruby:1.2   ,python:1.2.3",
@@ -283,132 +175,6 @@ installer:
 				DefaultPackagesVersionOverride: map[string]string{},
 				InstallScript: InstallScriptEnv{
 					APMInstrumentationEnabled: APMInstrumentationEnabledAll,
-				},
-				Tags:                       []string{},
-				LogLevel:                   "warn",
-				ExtensionRegistryOverrides: map[string]map[string]ExtensionRegistryOverride{},
-			},
-		},
-		{
-			name: "invalid yaml",
-			envVars: map[string]string{
-				"DD_API_KEY": "env-api-key",
-			},
-			yaml: `
-{{invalid yaml
-api_key: yaml-api-key
-`,
-			expected: &Env{
-				APIKey:                         "env-api-key",
-				Site:                           "datadoghq.com",
-				RegistryOverrideByImage:        map[string]string{},
-				RegistryAuthOverrideByImage:    map[string]string{},
-				RegistryUsernameByImage:        map[string]string{},
-				RegistryPasswordByImage:        map[string]string{},
-				DefaultPackagesInstallOverride: map[string]bool{},
-				DefaultPackagesVersionOverride: map[string]string{},
-				ApmLibraries:                   map[ApmLibLanguage]ApmLibVersion{},
-				InstallScript: InstallScriptEnv{
-					APMInstrumentationEnabled: APMInstrumentationNotSet,
-				},
-				Tags:                       []string{},
-				LogLevel:                   "warn",
-				ExtensionRegistryOverrides: map[string]map[string]ExtensionRegistryOverride{},
-			},
-		},
-		{
-			name:    "partial config fills only provided fields",
-			envVars: map[string]string{},
-			yaml: `
-installer:
-  registry:
-    auth: yaml-auth
-`,
-			expected: &Env{
-				Site:                           "datadoghq.com",
-				RegistryAuthOverride:           "yaml-auth",
-				RegistryOverrideByImage:        map[string]string{},
-				RegistryAuthOverrideByImage:    map[string]string{},
-				RegistryUsernameByImage:        map[string]string{},
-				RegistryPasswordByImage:        map[string]string{},
-				DefaultPackagesInstallOverride: map[string]bool{},
-				DefaultPackagesVersionOverride: map[string]string{},
-				ApmLibraries:                   map[ApmLibLanguage]ApmLibVersion{},
-				InstallScript: InstallScriptEnv{
-					APMInstrumentationEnabled: APMInstrumentationNotSet,
-				},
-				Tags:                       []string{},
-				LogLevel:                   "warn",
-				ExtensionRegistryOverrides: map[string]map[string]ExtensionRegistryOverride{},
-			},
-		},
-		{
-			name: "registry URL from YAML applied without auth (bug fix)",
-			yaml: `
-installer:
-  registry:
-    url: yaml-registry.example.com
-`,
-			expected: &Env{
-				Site:                           "datadoghq.com",
-				RegistryOverride:               "yaml-registry.example.com",
-				RegistryAuthOverride:           "",
-				RegistryOverrideByImage:        map[string]string{},
-				RegistryAuthOverrideByImage:    map[string]string{},
-				RegistryUsernameByImage:        map[string]string{},
-				RegistryPasswordByImage:        map[string]string{},
-				DefaultPackagesInstallOverride: map[string]bool{},
-				DefaultPackagesVersionOverride: map[string]string{},
-				ApmLibraries:                   map[ApmLibLanguage]ApmLibVersion{},
-				InstallScript: InstallScriptEnv{
-					APMInstrumentationEnabled: APMInstrumentationNotSet,
-				},
-				Tags:                       []string{},
-				LogLevel:                   "warn",
-				ExtensionRegistryOverrides: map[string]map[string]ExtensionRegistryOverride{},
-			},
-		},
-		{
-			name: "config site overrides default when DD_SITE not set",
-			yaml: `
-site: custom-site.example.com
-`,
-			expected: &Env{
-				Site:                           "custom-site.example.com",
-				RegistryOverrideByImage:        map[string]string{},
-				RegistryAuthOverrideByImage:    map[string]string{},
-				RegistryUsernameByImage:        map[string]string{},
-				RegistryPasswordByImage:        map[string]string{},
-				DefaultPackagesInstallOverride: map[string]bool{},
-				DefaultPackagesVersionOverride: map[string]string{},
-				ApmLibraries:                   map[ApmLibLanguage]ApmLibVersion{},
-				InstallScript: InstallScriptEnv{
-					APMInstrumentationEnabled: APMInstrumentationNotSet,
-				},
-				Tags:                       []string{},
-				LogLevel:                   "warn",
-				ExtensionRegistryOverrides: map[string]map[string]ExtensionRegistryOverride{},
-			},
-		},
-		{
-			name: "DD_SITE explicitly set to default value beats config",
-			yaml: `
-site: custom-site.example.com
-`,
-			envVars: map[string]string{
-				"DD_SITE": "datadoghq.com",
-			},
-			expected: &Env{
-				Site:                           "datadoghq.com",
-				RegistryOverrideByImage:        map[string]string{},
-				RegistryAuthOverrideByImage:    map[string]string{},
-				RegistryUsernameByImage:        map[string]string{},
-				RegistryPasswordByImage:        map[string]string{},
-				DefaultPackagesInstallOverride: map[string]bool{},
-				DefaultPackagesVersionOverride: map[string]string{},
-				ApmLibraries:                   map[ApmLibLanguage]ApmLibVersion{},
-				InstallScript: InstallScriptEnv{
-					APMInstrumentationEnabled: APMInstrumentationNotSet,
 				},
 				Tags:                       []string{},
 				LogLevel:                   "warn",
@@ -508,20 +274,55 @@ site: custom-site.example.com
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			dir := t.TempDir()
-
-			if tc.yaml != "" {
-				writeDatadogYAML(t, dir, tc.yaml)
-			}
 			for k, v := range tc.envVars {
 				t.Setenv(k, v)
 			}
 
-			env := Get(WithConfigDir(dir))
+			env := Get()
 
 			assert.Equal(t, tc.expected, env)
 		})
 	}
+}
+
+// TestGet_extensionRegistryOverridesFromEnv exercises the
+// DD_INSTALLER_REGISTRY_EXT_*_<PKG>__<EXT> prefix pattern that the daemon
+// / CLI uses to forward per-extension registry overrides to the installer.
+func TestGet_extensionRegistryOverridesFromEnv(t *testing.T) {
+	savedEnv := make(map[string]string)
+	for _, kv := range os.Environ() {
+		key, val, _ := strings.Cut(kv, "=")
+		savedEnv[key] = val
+		os.Unsetenv(key)
+	}
+	defer func() {
+		for k, v := range savedEnv {
+			os.Setenv(k, v)
+		}
+	}()
+
+	t.Setenv("DD_INSTALLER_REGISTRY_EXT_URL_DATADOG_AGENT__DDOT", "custom.example.com")
+	t.Setenv("DD_INSTALLER_REGISTRY_EXT_AUTH_DATADOG_AGENT__DDOT", "basic")
+	t.Setenv("DD_INSTALLER_REGISTRY_EXT_USERNAME_DATADOG_AGENT__DDOT", "u")
+	t.Setenv("DD_INSTALLER_REGISTRY_EXT_PASSWORD_DATADOG_AGENT__DDOT", "p")
+	t.Setenv("DD_INSTALLER_REGISTRY_EXT_URL_DATADOG_AGENT__OTHER_EXT", "other.example.com")
+
+	env := Get()
+
+	expected := map[string]map[string]ExtensionRegistryOverride{
+		"datadog-agent": {
+			"ddot": {
+				URL:      "custom.example.com",
+				Auth:     "basic",
+				Username: "u",
+				Password: "p",
+			},
+			"other-ext": {
+				URL: "other.example.com",
+			},
+		},
+	}
+	assert.Equal(t, expected, env.ExtensionRegistryOverrides)
 }
 
 func TestToEnv(t *testing.T) {
@@ -653,38 +454,33 @@ func TestToEnv(t *testing.T) {
 	}
 }
 
-// TestGet_UTF16YAML covers the WINA-2118 regression class: datadog.yaml files
-// edited on Windows are often saved as UTF-16 with a BOM, and the yaml
-// library alone cannot decode them. readDatadogYAML must normalise them
-// through config.ReadConfig (the same path WriteConfig uses).
-func TestGet_UTF16YAML(t *testing.T) {
-	savedEnv := make(map[string]string)
-	for _, kv := range os.Environ() {
-		key, val, _ := strings.Cut(kv, "=")
-		savedEnv[key] = val
-		os.Unsetenv(key)
+// TestToEnv_emitsExtensionRegistryOverrides covers the round-trip
+// encoding of ExtensionRegistryOverrides onto the
+// DD_INSTALLER_REGISTRY_EXT_*_<PKG>__<EXT> prefix scheme.
+func TestToEnv_emitsExtensionRegistryOverrides(t *testing.T) {
+	e := &Env{
+		APIKey: "123456",
+		ExtensionRegistryOverrides: map[string]map[string]ExtensionRegistryOverride{
+			"datadog-agent": {
+				"ddot": {
+					URL:      "custom.example.com",
+					Auth:     "basic",
+					Username: "u",
+					Password: "p",
+				},
+				"other-ext": {URL: "other.example.com"},
+			},
+		},
 	}
-	defer func() {
-		for k, v := range savedEnv {
-			os.Setenv(k, v)
-		}
-	}()
 
-	dir := t.TempDir()
+	result := e.ToEnv()
 
-	// Encode a typical Windows-authored datadog.yaml as UTF-16 LE with BOM
-	// plus CRLF line endings.
-	yamlText := "api_key: yaml-api-key\r\nsite: datadoghq.eu\r\n"
-	var utf16LE []byte
-	utf16LE = append(utf16LE, 0xFF, 0xFE) // UTF-16 LE BOM
-	for _, r := range yamlText {
-		utf16LE = append(utf16LE, byte(r), 0x00)
-	}
-	err := os.WriteFile(filepath.Join(dir, "datadog.yaml"), utf16LE, 0644)
-	require.NoError(t, err)
-
-	env := Get(WithConfigDir(dir))
-
-	assert.Equal(t, "yaml-api-key", env.APIKey, "UTF-16 api_key must be read")
-	assert.Equal(t, "datadoghq.eu", env.Site, "UTF-16 site must be read (guard against WINA-2118)")
+	assert.ElementsMatch(t, []string{
+		"DD_API_KEY=123456",
+		"DD_INSTALLER_REGISTRY_EXT_URL_DATADOG_AGENT__DDOT=custom.example.com",
+		"DD_INSTALLER_REGISTRY_EXT_AUTH_DATADOG_AGENT__DDOT=basic",
+		"DD_INSTALLER_REGISTRY_EXT_USERNAME_DATADOG_AGENT__DDOT=u",
+		"DD_INSTALLER_REGISTRY_EXT_PASSWORD_DATADOG_AGENT__DDOT=p",
+		"DD_INSTALLER_REGISTRY_EXT_URL_DATADOG_AGENT__OTHER_EXT=other.example.com",
+	}, result)
 }

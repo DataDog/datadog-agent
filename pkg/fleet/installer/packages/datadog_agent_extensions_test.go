@@ -7,8 +7,6 @@ package packages
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -18,28 +16,24 @@ import (
 	extensionsPkg "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/extensions"
 )
 
+// TestParseRegistryConfigExtensionOverrides checks that registry overrides
+// flow through env vars — both the flat registry fields and the
+// per-extension ones. The daemon/CLI is expected to translate yaml values
+// to these env vars before invoking the installer.
 func TestParseRegistryConfigExtensionOverrides(t *testing.T) {
-	configContent := `
-installer:
-  registry:
-    url: default.registry.com
-    auth: password
-    username: defaultuser
-    password: defaultpass
-    extensions:
-      datadog-agent:
-        ddot:
-          url: custom.registry.com
-          auth: password
-          username: customuser
-          password: custompass
-        other-ext:
-          url: other.registry.com
-`
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "datadog.yaml"), []byte(configContent), 0644))
+	t.Setenv("DD_INSTALLER_REGISTRY_URL", "default.registry.com")
+	t.Setenv("DD_INSTALLER_REGISTRY_AUTH", "password")
+	t.Setenv("DD_INSTALLER_REGISTRY_USERNAME", "defaultuser")
+	t.Setenv("DD_INSTALLER_REGISTRY_PASSWORD", "defaultpass")
 
-	e := env.Get(env.WithConfigDir(dir))
+	t.Setenv("DD_INSTALLER_REGISTRY_EXT_URL_DATADOG_AGENT__DDOT", "custom.registry.com")
+	t.Setenv("DD_INSTALLER_REGISTRY_EXT_AUTH_DATADOG_AGENT__DDOT", "password")
+	t.Setenv("DD_INSTALLER_REGISTRY_EXT_USERNAME_DATADOG_AGENT__DDOT", "customuser")
+	t.Setenv("DD_INSTALLER_REGISTRY_EXT_PASSWORD_DATADOG_AGENT__DDOT", "custompass")
+
+	t.Setenv("DD_INSTALLER_REGISTRY_EXT_URL_DATADOG_AGENT__OTHER_EXT", "other.registry.com")
+
+	e := env.Get()
 
 	assert.Equal(t, "default.registry.com", e.RegistryOverride)
 	assert.Equal(t, "password", e.RegistryAuthOverride)
@@ -61,16 +55,12 @@ installer:
 	assert.Empty(t, other.Auth)
 }
 
+// TestParseRegistryConfigNoExtensions checks that without the
+// per-extension env vars, ExtensionRegistryOverrides stays empty.
 func TestParseRegistryConfigNoExtensions(t *testing.T) {
-	configContent := `
-installer:
-  registry:
-    url: default.registry.com
-`
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "datadog.yaml"), []byte(configContent), 0644))
+	t.Setenv("DD_INSTALLER_REGISTRY_URL", "default.registry.com")
 
-	e := env.Get(env.WithConfigDir(dir))
+	e := env.Get()
 
 	assert.Equal(t, "default.registry.com", e.RegistryOverride)
 	assert.Empty(t, e.ExtensionRegistryOverrides)
