@@ -8,6 +8,7 @@
 package forwarderimpl
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -207,13 +208,13 @@ func TestReporterStartStop(t *testing.T) {
 	rptr := newTestForwarder(t, cfg, provider, "test-host")
 
 	// Start the forwarder
-	rptr.Start()
+	rptr.start(context.Background()) //nolint:errcheck
 
 	// Give it a moment to start the goroutine
 	time.Sleep(50 * time.Millisecond)
 
 	// Stop the forwarder - should complete gracefully
-	rptr.Stop()
+	rptr.stop(context.Background()) //nolint:errcheck
 }
 
 // TestForwarderSendWithoutAPIKey tests that send fails gracefully without API key
