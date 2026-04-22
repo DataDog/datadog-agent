@@ -11,7 +11,7 @@ package names
 const (
 	// Consul discovers check configurations stored in a Consul KV store.
 	Consul = "consul"
-	// Container discovers checks from running containers via Docker labels or environment variables.
+	// Container discovers checks from running containers via Docker labels or pod annotations.
 	Container = "container"
 	// CloudFoundryBBS discovers checks from Cloud Foundry apps via the BBS API.
 	CloudFoundryBBS = "cloudfoundry-bbs"
@@ -31,15 +31,15 @@ const (
 	KubeServices = "kubernetes-services"
 	// KubeServicesFile loads Kubernetes service check configurations from YAML files.
 	KubeServicesFile = "kubernetes-services-file"
-	// KubeEndpoints discovers checks from Kubernetes endpoint annotations.
+	// KubeEndpoints discovers checks from Kubernetes endpoint from service annotations.
 	KubeEndpoints = "kubernetes-endpoints"
-	// KubeEndpointSlices discovers checks from Kubernetes EndpointSlice annotations.
+	// KubeEndpointSlices discovers checks from Kubernetes EndpointSlice from service annotations.
 	KubeEndpointSlices = "kubernetes-endpointslices"
 	// KubeEndpointsFile loads Kubernetes endpoint check configurations from YAML files.
 	KubeEndpointsFile = "kubernetes-endpoints-file"
 	// KubeEndpointSlicesFile loads Kubernetes EndpointSlice check configurations from YAML files.
 	KubeEndpointSlicesFile = "kubernetes-endpointslices-file"
-	// KubeCRD discovers checks from Kubernetes Custom Resource Definition (DatadogMetric) objects.
+	// KubeCRD discovers check configurations from YAML files that target Kubernetes CRDs via advanced AD identifiers.
 	KubeCRD = "kubernetes-crd"
 	// ProcessLog autodiscovers log collection configurations from running processes.
 	ProcessLog = "process_log"
