@@ -113,7 +113,7 @@ func resolvePackageURL(explicitURL, registry string) (string, error) {
 		return fmt.Sprintf("oci://%s/agent-package:%s", base, version), nil
 	}
 
-	return oci.PackageURL(env.FromEnv(), "datadog-agent", version), nil
+	return oci.PackageURL(env.Get(), "datadog-agent", version), nil
 }
 
 // currentAgentVersion returns the agent version in the format expected by OCI
@@ -134,7 +134,7 @@ func newInstallerExec() (*exec.InstallerExec, error) {
 	if err != nil {
 		return nil, err
 	}
-	return exec.NewInstallerExec(env.FromEnv(), binPath), nil
+	return exec.NewInstallerExec(env.Get(), binPath), nil
 }
 
 // resolveInstallerBinPath finds the installer binary co-located with the agent.
