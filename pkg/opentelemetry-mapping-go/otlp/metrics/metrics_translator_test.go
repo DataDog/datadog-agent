@@ -2222,35 +2222,55 @@ func TestLegacyBucketsTags(t *testing.T) {
 	assert.ElementsMatch(t, seriesTwo[0].tags, []string{"lower_bound:-inf", "upper_bound:1.0"})
 }
 
-// TestMalformedHistogramNoPanic verifies that a histogram where bucket counts
-// outnumber explicit bounds (violating the OTel invariant) is dropped without
-// panicking, for both legacy-bucket and sketch code paths.
+// TestMalformedHistogramNoPanic verifies that histograms violating the OTel
+// invariant (counts == bounds+1) are rejected without panicking, covering both
+// the counts > bounds+1 case (which would panic in getBounds) and the
+// counts < bounds+1 case.
 func TestMalformedHistogramNoPanic(t *testing.T) {
 	ctx := context.Background()
 	tr := newTranslator(t, zap.NewNop())
 	mapper := tr.getMapper().(*defaultMapper)
-
-	// 2 bucket counts but 0 explicit bounds — violates counts == bounds+1
-	p := pmetric.NewHistogramDataPoint()
-	p.BucketCounts().FromRaw([]uint64{1, 2})
-	p.SetTimestamp(seconds(0))
 	dims := &Dimensions{name: "test.malformed"}
 
-	// getLegacyBuckets must not panic
-	consumer := &mockTimeSeriesConsumer{}
-	assert.NotPanics(t, func() {
-		mapper.getLegacyBuckets(ctx, consumer, dims, p, true)
-	})
-	assert.Empty(t, consumer.metrics)
+	tests := []struct {
+		name         string
+		bucketCounts []uint64
+		bounds       []float64
+	}{
+		{
+			name:         "counts > bounds+1",
+			bucketCounts: []uint64{1, 2},
+			bounds:       []float64{},
+		},
+		{
+			name:         "counts < bounds+1",
+			bucketCounts: []uint64{1},
+			bounds:       []float64{0.5, 1.0},
+		},
+	}
 
-	// getSketchBuckets must not panic and must return an error
-	fullConsumer := &mockFullConsumer{}
-	var sketchErr error
-	assert.NotPanics(t, func() {
-		sketchErr = mapper.getSketchBuckets(ctx, fullConsumer, dims, p, histogramInfo{ok: false}, true)
-	})
-	assert.Error(t, sketchErr)
-	assert.Empty(t, fullConsumer.sketches)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			p := pmetric.NewHistogramDataPoint()
+			p.BucketCounts().FromRaw(tc.bucketCounts)
+			p.ExplicitBounds().FromRaw(tc.bounds)
+			p.SetTimestamp(seconds(0))
+
+			consumer := &mockTimeSeriesConsumer{}
+			assert.NotPanics(t, func() {
+				mapper.getLegacyBuckets(ctx, consumer, dims, p, true)
+			})
+			assert.Empty(t, consumer.metrics)
+
+			fullConsumer := &mockFullConsumer{}
+			var sketchErr error
+			assert.NotPanics(t, func() {
+				sketchErr = mapper.getSketchBuckets(ctx, fullConsumer, dims, p, histogramInfo{ok: false}, true)
+			})
+			assert.Error(t, sketchErr)
+			assert.Empty(t, fullConsumer.sketches)
+		})
+	}
 }
 
 func TestFormatFloat(t *testing.T) {
