@@ -94,14 +94,23 @@ func New(reqs Requires) forwarderdef.Component {
 	}
 
 	reqs.Lifecycle.Append(compdef.Hook{
-		OnStart: f.start,
-		OnStop:  f.stop,
+		OnStart: func(_ context.Context) error {
+			f.log.Info(fmt.Sprintf("Starting health platform forwarder with %v interval to %s", f.interval, f.intakeURL))
+			go f.run()
+			return nil
+		},
+		OnStop: func(_ context.Context) error {
+			f.log.Info("Stopping health platform forwarder")
+			close(f.stopCh)
+			<-f.doneCh
+			return nil
+		},
 	})
 
 	return f
 }
 
-// SetProvider wires the issue provider. Must be called before Start().
+// SetProvider wires the issue provider. Must be called before the first send fires.
 func (r *forwarder) SetProvider(provider forwarderdef.IssueProvider) {
 	r.provider = provider
 }
@@ -118,21 +127,6 @@ func buildHTTPClient(cfg pkgconfigmodel.Reader) *http.Client {
 		Timeout:   httpTimeout,
 		Transport: httputils.CreateHTTPTransport(cfg),
 	}
-}
-
-// start begins the periodic forwarding of health reports.
-func (r *forwarder) start(_ context.Context) error {
-	r.log.Info(fmt.Sprintf("Starting health platform forwarder with %v interval to %s", r.interval, r.intakeURL))
-	go r.run()
-	return nil
-}
-
-// stop stops the forwarder and waits for graceful shutdown.
-func (r *forwarder) stop(_ context.Context) error {
-	r.log.Info("Stopping health platform forwarder")
-	close(r.stopCh)
-	<-r.doneCh
-	return nil
 }
 
 // run is the main loop that sends health reports periodically

@@ -7,7 +7,6 @@
 package checkrunnerimpl
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"sync"
@@ -60,8 +59,27 @@ func New(reqs Requires) checkrunnerdef.Component {
 		checks: make(map[string]*registeredCheck),
 	}
 	reqs.Lifecycle.Append(compdef.Hook{
-		OnStart: r.start,
-		OnStop:  r.stop,
+		OnStart: func(_ context.Context) error {
+			r.log.Info("Starting health platform check runner")
+			r.checkMux.Lock()
+			defer r.checkMux.Unlock()
+			r.started = true
+			for _, check := range r.checks {
+				r.startCheck(check)
+			}
+			return nil
+		},
+		OnStop: func(_ context.Context) error {
+			r.log.Info("Stopping health platform check runner")
+			r.checkMux.Lock()
+			r.started = false
+			for _, check := range r.checks {
+				close(check.stopCh)
+			}
+			r.checkMux.Unlock()
+			r.wg.Wait()
+			return nil
+		},
 	})
 	return r
 }
@@ -69,37 +87,6 @@ func New(reqs Requires) checkrunnerdef.Component {
 // SetReporter wires the issue reporter. Must be called before the first check fires.
 func (r *checkRunner) SetReporter(reporter checkrunnerdef.IssueReporter) {
 	r.reporter = reporter
-}
-
-// start begins running all registered checks in background goroutines.
-func (r *checkRunner) start(_ context.Context) error {
-	r.log.Info("Starting health platform check runner")
-
-	r.checkMux.Lock()
-	defer r.checkMux.Unlock()
-
-	r.started = true
-
-	// Start goroutines for all already-registered checks
-	for _, check := range r.checks {
-		r.startCheck(check)
-	}
-	return nil
-}
-
-// stop stops all running checks and waits for graceful shutdown.
-func (r *checkRunner) stop(_ context.Context) error {
-	r.log.Info("Stopping health platform check runner")
-
-	r.checkMux.Lock()
-	r.started = false
-	for _, check := range r.checks {
-		close(check.stopCh)
-	}
-	r.checkMux.Unlock()
-
-	r.wg.Wait()
-	return nil
 }
 
 // RegisterCheck registers a new periodic health check
