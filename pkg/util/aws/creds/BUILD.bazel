@@ -19,6 +19,7 @@ go_test(
         "credentials_test.go",
         "detection_test.go",
     ],
+    data = ["tags/payloads/security_cred.json"],
     embed = [":creds"],
     gotags = [
         "test",
