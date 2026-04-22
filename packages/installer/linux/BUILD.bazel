@@ -1,6 +1,7 @@
 """Installer package components specific to Linux."""
 
 load("@rules_pkg//pkg:deb.bzl", "pkg_deb")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load(
     "@rules_pkg//pkg:mappings.bzl",
     "pkg_attributes",
@@ -191,4 +192,18 @@ pkg_rpm(
     summary = "Datadog Installer",
     url = "http://www.datadoghq.com",
     version = "7",  # TODO: pick up from pipeline
+)
+
+# Temporary for omnibus script to copy the built packages out to the artifact dir
+pkg_files(
+    name = "all_packages",
+    srcs = [
+        ":debian",
+        ":rpm",
+    ],
+)
+
+pkg_install(
+    name = "copy_out",
+    srcs = [":all_packages"],
 )
