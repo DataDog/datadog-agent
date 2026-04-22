@@ -22,6 +22,7 @@ AGENT_CORECHECKS = [
     "oom_kill",
     "oracle",
     "oracle-dbm",
+    "pressure",
     "sbom",
     "systemd",
     "tcp_queue_length",
