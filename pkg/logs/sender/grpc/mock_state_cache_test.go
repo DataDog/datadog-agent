@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -192,4 +193,52 @@ func TestBuildTagSet_CacheHitSelfHealsAfterSilentDictEviction(t *testing.T) {
 	assert.Equal(t, tagStr1, tagStr2)
 	assert.NotEqual(t, dictID1, dictID2, "rebuilt tagset must get a new dict id after eviction")
 	assert.NotEqual(t, tagSet1, tagSet2, "rebuilt tagset must not reuse stale cached pointer")
+}
+
+// --- toValidUTF8 tests ---
+
+func TestToValidUTF8_ValidString(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{"empty", ""},
+		{"ascii", "hello world"},
+		{"multibyte", "caf\xc3\xa9"},                          // café
+		{"emoji", "\xf0\x9f\x98\x80 smile"},                   // U+1F600
+		{"nul is valid utf8", "hello\x00world"},                // NUL is valid UTF-8 (U+0000)
+		{"mixed scripts", "\xe4\xb8\xad\xe6\x96\x87 Chinese"}, // 中文
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.True(t, utf8.ValidString(tt.input), "test precondition: input must be valid UTF-8")
+			result := toValidUTF8(tt.input)
+			assert.Equal(t, tt.input, result)
+		})
+	}
+}
+
+func TestToValidUTF8_InvalidBytes(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"lone continuation byte", "hello\x80world", "hello\uFFFDworld"},
+		{"truncated sequence", "hello\xc3", "hello\uFFFD"},
+		{"invalid lead byte 0xFE", "a\xFEb", "a\uFFFDb"},
+		// strings.ToValidUTF8 replaces each maximal *run* of invalid bytes with one
+		// replacement character, not one per byte. \x80\x81\x82 are three consecutive
+		// lone continuation bytes — treated as one run → one U+FFFD.
+		{"multiple invalid bytes", "\x80\x81\x82", "\uFFFD"},
+		{"mixed valid and invalid", "ok\xc3\xa9\x80ok", "ok\xc3\xa9\uFFFDok"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.False(t, utf8.ValidString(tt.input), "test precondition: input must contain invalid UTF-8")
+			result := toValidUTF8(tt.input)
+			assert.Equal(t, tt.expected, result)
+			assert.True(t, utf8.ValidString(result), "result must be valid UTF-8")
+		})
+	}
 }

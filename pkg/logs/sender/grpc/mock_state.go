@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"google.golang.org/protobuf/proto"
 
@@ -46,6 +47,17 @@ func getTranslatorContent(msg *message.Message) []byte {
 		return msg.PreEncodedContent
 	}
 	return msg.GetContent()
+}
+
+// toValidUTF8 returns s unchanged if it is already valid UTF-8 (zero allocation).
+// Otherwise replaces each maximal run of invalid bytes with U+FFFD.
+// Required before writing to proto3 string fields, which must be valid UTF-8 —
+// invalid bytes would corrupt or drop the datum entirely.
+func toValidUTF8(s string) string {
+	if utf8.ValidString(s) {
+		return s
+	}
+	return strings.ToValidUTF8(s, "\uFFFD")
 }
 
 const (
@@ -627,7 +639,8 @@ func (mt *MessageTranslator) sendDictEntryDelete(outputChan chan *message.Statef
 
 // sendRawLog creates and sends a raw log datum (currently unused)
 func (mt *MessageTranslator) sendRawLog(outputChan chan *message.StatefulMessage, msg *message.Message, contentStr string, ts time.Time, tagSet *statefulpb.TagSet, service *statefulpb.DynamicValue) {
-	logDatum := buildRawLog(contentStr, ts, tagSet, msg.MessageMetadata.DualSendUUID, service)
+	// Proto3 string fields require valid UTF-8; replace invalid sequences to avoid corrupt datums.
+	logDatum := buildRawLog(toValidUTF8(contentStr), ts, tagSet, msg.MessageMetadata.DualSendUUID, service)
 
 	tlmPipelineRawLogsProcessed.Inc(mt.pipelineName)
 	tlmPipelineRawLogsProcessedBytes.Add(float64(proto.Size(logDatum)), mt.pipelineName)
@@ -883,7 +896,8 @@ func (mt *MessageTranslator) fillWildcardDynamicValue(
 	// New value: send inline as string_value — no dict entry created.
 	// High-cardinality values (UUIDs, IPs, request IDs) never repeat,
 	// so dict encoding provides zero compression benefit for them.
-	oneofStr.StringValue = value
+	// Proto3 requires valid UTF-8; replace invalid sequences to avoid corrupt datums.
+	oneofStr.StringValue = toValidUTF8(value)
 	dv.Value = oneofStr
 }
 
