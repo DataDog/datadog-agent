@@ -433,9 +433,12 @@ func TestParseLEEFDelimiter(t *testing.T) {
 		{"0X09", '\t', true},
 		{"X5E", '^', true},
 		{"", 0, false},
-		{"ab", 0, false},   // two literal chars, not hex
-		{"0xZZ", 0, false}, // invalid hex
-		{"0x", 0, false},   // hex prefix with no digits
+		{"ab", 0, false},    // two literal chars, not hex
+		{"0xZZ", 0, false},  // invalid hex
+		{"0x", 0, false},    // hex prefix with no digits
+		{"0x109", 0, false}, // more than 2 hex digits
+		{"x5EF", 0, false},  // more than 2 hex digits (x prefix)
+		{"0x9", '\t', true}, // single hex digit is valid
 	}
 	for _, tc := range tests {
 		got, ok := parseLEEFDelimiter(tc.input)

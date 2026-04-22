@@ -281,6 +281,9 @@ func parseLEEFDelimiter(field string) (byte, bool) {
 	}
 
 	if hexStr != "" {
+		if len(hexStr) == 0 || len(hexStr) > 2 {
+			return 0, false
+		}
 		var val byte
 		for _, c := range []byte(hexStr) {
 			var nibble byte
