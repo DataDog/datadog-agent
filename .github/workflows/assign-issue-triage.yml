@@ -35,6 +35,7 @@ jobs:
       with:
         anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
         claude_args : --allowedTools "Read(issue_details.json),Edit(claude.txt)"
+        github_token: ${{ github.token }}
         prompt: |
           # Datadog Agent - Intelligent Issue Triage System
 
