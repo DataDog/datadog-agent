@@ -3,7 +3,7 @@
    Downloads and installs Datadog on the machine.
 #>
 [CmdletBinding(DefaultParameterSetName = 'Default')]
-$SCRIPT_VERSION = "1.2.1"
+$SCRIPT_VERSION = "1.2.2"
 $GENERAL_ERROR_CODE = 1
 
 $ddInstallerUrl = $env:DD_INSTALLER_URL
@@ -75,8 +75,10 @@ function Test-InstallerIntegrity($installer) {
    if ($signature.Status -ne "Valid") {
       throw "Installer signature is not valid: $($signature.StatusMessage)"
    }
-   if (-Not ($signature.SignerCertificate.Subject.Contains('CN="Datadog, Inc"'))) {
-      throw "Installer is not signed by CN=`"Datadog, Inc`": $($signature.SignerCertificate.Subject)"
+   # CN may vary by authority so we can't check for a specific value
+   # refer to the docs for valid fingerprints: https://docs.datadoghq.com/data_security/agent/
+   if (-Not ($signature.SignerCertificate.Subject.Contains('Datadog'))) {
+      throw "Installer is not signed by Datadog: $($signature.SignerCertificate.Subject)"
    }
    return $true
 }
@@ -178,6 +180,11 @@ if ($env:SCRIPT_IMPORT_ONLY) {
 
 try {
    Write-Host "Welcome to the Datadog Install Script"
+   Write-Host -ForegroundColor Yellow "WARNING: This script is deprecated and will be removed in a future version. Please use datadog-installer.exe or the MSI installer instead."
+   Write-Host -ForegroundColor Yellow "datadog-installer.exe is a direct replacement for Install-Datadog.ps1, download and run as you would Install-Datadog.ps1:"
+   Write-Host -ForegroundColor Yellow "  1. Download: (New-Object System.Net.WebClient).DownloadFile('https://install.datadoghq.com/datadog-installer-x86_64.exe', 'C:\Windows\SystemTemp\datadog-installer-x86_64.exe');"
+   Write-Host -ForegroundColor Yellow "  2. Run: C:\Windows\SystemTemp\datadog-installer-x86_64.exe"
+   Write-Host -ForegroundColor Yellow "Visit the in-app installation guide for complete up-to-date installation instructions: https://app.datadoghq.com/fleet/install-agent/latest?platform=windows"
    if (-not [Environment]::Is64BitProcess) {
       throw "This command must be run in a 64-bit environment."
    }
