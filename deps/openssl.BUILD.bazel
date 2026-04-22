@@ -201,9 +201,13 @@ dd_cc_packaged(
     installed_files = [
         ":openssl_files",
     ],
-    installed_executables = {
-        ":openssl_binary": "bin",
-    },
+    installed_executables = select({
+        "@//packages/agent:fips_flavor": {
+            ":openssl_binary": "bin",
+            ":_engines": "lib/engines-3",
+        },
+        "//conditions:default": {":openssl_binary": "bin"},
+    }),
 )
 
 # The dynamic library built with configure/make. Even though the name
@@ -252,6 +256,12 @@ filegroup(
     }),
 )
 
+filegroup(
+    name = "_engines",
+    srcs = [":openssl"],
+    output_group = "engines-3",
+)
+
 pkg_files(
     name = "openssl_files",
     srcs = [":openssl"],
@@ -259,12 +269,14 @@ pkg_files(
     excludes = [
         # Binaries require custom attributes
         ":openssl_binary",
-        # Dynamic require separate symlink post-processing
+        # Dynamic libs require separate symlink post-processing
         ":libssl_shared_file",
         ":libcrypto_shared_file",
         # We don't need static libraries in the package
         ":libssl_static",
         ":libcrypto_static",
+        # Engines are rpath-patched separately via installed_executables
+        ":_engines",
     ],
 )
 
