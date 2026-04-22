@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    Add automatic discovery of Kata Containers environments. The Agent now detects
+    the presence of Kata sandbox paths (``/host/run/vc/sbs``, ``/host/run/kata``) at startup
+    and automatically enables the ``kata_containers`` check without manual
+    configuration.
