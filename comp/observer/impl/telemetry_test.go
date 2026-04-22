@@ -18,7 +18,7 @@ func TestTelemetryHandler_CounterAdd(_t *testing.T) {
 	h := newTelemetryHandler(tel)
 
 	const counterName = "observer.telemetry.test_counter"
-	h.telemetryCounters[counterName] = tel.NewCounter(
+	h.counters[counterName] = tel.NewCounter(
 		"observer",
 		counterName,
 		[]string{"detector"},
@@ -46,7 +46,7 @@ func TestTelemetryHandler_IsMetricRegistered(t *testing.T) {
 	h := newTelemetryHandler(tel)
 
 	const counterName = "observer.telemetry.test_counter2"
-	h.telemetryCounters[counterName] = tel.NewCounter(
+	h.counters[counterName] = tel.NewCounter(
 		"observer",
 		counterName,
 		[]string{"detector"},

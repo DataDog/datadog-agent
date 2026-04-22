@@ -6,7 +6,6 @@
 package observerimpl
 
 import (
-	"sync"
 	"time"
 
 	lru "github.com/hashicorp/golang-lru/v2"
@@ -26,11 +25,11 @@ const (
 // The key set is LRU-evicted at maxRateLimiterKeys.
 type rateLimitedDetector struct {
 	inner    observerdef.Detector
-	mu       sync.RWMutex
 	limiters *lru.Cache[string, *rate.Limiter]
 }
 
 func newRateLimitedDetector(inner observerdef.Detector) *rateLimitedDetector {
+	// lru.New only errors when size <= 0; maxRateLimiterKeys is a positive constant.
 	cache, _ := lru.New[string, *rate.Limiter](maxRateLimiterKeys)
 	return &rateLimitedDetector{inner: inner, limiters: cache}
 }
@@ -39,7 +38,7 @@ func (d *rateLimitedDetector) Name() string { return d.inner.Name() }
 
 func (d *rateLimitedDetector) Detect(storage observerdef.StorageReader, dataTime int64) observerdef.DetectionResult {
 	result := d.inner.Detect(storage, dataTime)
-	filtered := result.Anomalies[:0:0]
+	filtered := make([]observerdef.Anomaly, 0, len(result.Anomalies))
 	var dropped int
 	for _, a := range result.Anomalies {
 		if d.allow(a.Source.Key()) {
@@ -63,16 +62,6 @@ func (d *rateLimitedDetector) Detect(storage observerdef.StorageReader, dataTime
 }
 
 func (d *rateLimitedDetector) allow(key string) bool {
-	d.mu.RLock()
-	if l, ok := d.limiters.Get(key); ok {
-		allowed := l.Allow()
-		d.mu.RUnlock()
-		return allowed
-	}
-	d.mu.RUnlock()
-
-	d.mu.Lock()
-	defer d.mu.Unlock()
 	if l, ok := d.limiters.Get(key); ok {
 		return l.Allow()
 	}

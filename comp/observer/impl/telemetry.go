@@ -1,12 +1,14 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2026-present Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package observerimpl
 
 import (
-	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"strings"
+
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -38,8 +40,8 @@ const (
 // 1. Enumerate all the telemetry metrics that are emitted by the observer
 // 2. Send them to the backend if we are running in observer mode (not testbench)
 type telemetryHandler struct {
-	telemetryGauges   map[string]telemetry.Gauge
-	telemetryCounters map[string]telemetry.Counter
+	gauges   map[string]telemetry.Gauge
+	counters map[string]telemetry.Counter
 }
 
 func newTelemetryHandler(telemetryComp telemetry.Component) *telemetryHandler {
@@ -105,8 +107,8 @@ func newTelemetryHandler(telemetryComp telemetry.Component) *telemetryHandler {
 	)
 
 	return &telemetryHandler{
-		telemetryGauges:   gauges,
-		telemetryCounters: counters,
+		gauges:   gauges,
+		counters: counters,
 	}
 }
 
@@ -125,14 +127,14 @@ func (h *telemetryHandler) handleTelemetry(events []observerdef.ObserverTelemetr
 
 		switch event.Kind {
 		case observerdef.MetricKindCounter:
-			counter, ok := h.telemetryCounters[name]
+			counter, ok := h.counters[name]
 			if ok {
 				counter.Add(value, tags...)
 				continue
 			}
 			pkglog.Warnf("[observer] telemetry counter not found: %s", name)
 		default:
-			gauge, ok := h.telemetryGauges[name]
+			gauge, ok := h.gauges[name]
 			if ok {
 				gauge.Set(value, tags...)
 				continue
@@ -144,10 +146,10 @@ func (h *telemetryHandler) handleTelemetry(events []observerdef.ObserverTelemetr
 
 // isMetricRegistered checks if a metric is registered in the telemetry handler
 func (h *telemetryHandler) isMetricRegistered(metricName string) bool {
-	if _, ok := h.telemetryGauges[metricName]; ok {
+	if _, ok := h.gauges[metricName]; ok {
 		return true
 	}
-	_, ok := h.telemetryCounters[metricName]
+	_, ok := h.counters[metricName]
 	return ok
 }
 
@@ -156,16 +158,15 @@ func (h *telemetryHandler) isCounterMetric(name string) bool {
 	if h == nil {
 		return false
 	}
-	_, ok := h.telemetryCounters[name]
+	_, ok := h.counters[name]
 	return ok
 }
 
 // detectorNameFromTags returns the value of the first "detector:" tag, for ObserverTelemetry.DetectorName.
 func detectorNameFromTags(tags []string) string {
-	const prefix = "detector:"
 	for _, t := range tags {
-		if len(t) > len(prefix) && t[:len(prefix)] == prefix {
-			return t[len(prefix):]
+		if name, ok := strings.CutPrefix(t, "detector:"); ok {
+			return name
 		}
 	}
 	return ""

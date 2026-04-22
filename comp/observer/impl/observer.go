@@ -238,7 +238,7 @@ func NewComponent(deps Requires) Provides {
 		engine:             eng,
 		obsCh:              make(chan observation, 1000),
 		telemetryHandler:   th,
-		dropCounter:        th.telemetryCounters[telemetryObsChannelDropped],
+		dropCounter:        th.counters[telemetryObsChannelDropped],
 		hfContainerEnabled: hfContainerEnabled,
 		hfFilterSources:    hfFilterSources,
 	}

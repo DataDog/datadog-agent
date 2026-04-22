@@ -7,6 +7,8 @@ package observerimpl
 
 import (
 	"encoding/json"
+	"fmt"
+	"slices"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 )
@@ -131,7 +133,7 @@ func defaultCatalog() *componentCatalog {
 				parseJSON: func(defaults any, raw []byte) (any, error) {
 					cfg := defaults.(LogPatternExtractorConfig)
 					if err := json.Unmarshal(raw, &cfg); err != nil {
-						return nil, err
+						return nil, fmt.Errorf("parse log_pattern_extractor config: %w", err)
 					}
 					return cfg, nil
 				},
@@ -147,7 +149,7 @@ func defaultCatalog() *componentCatalog {
 				parseJSON: func(defaults any, raw []byte) (any, error) {
 					cfg := defaults.(CUSUMConfig)
 					if err := json.Unmarshal(raw, &cfg); err != nil {
-						return nil, err
+						return nil, fmt.Errorf("parse cusum config: %w", err)
 					}
 					return cfg, nil
 				},
@@ -162,7 +164,7 @@ func defaultCatalog() *componentCatalog {
 				parseJSON: func(defaults any, raw []byte) (any, error) {
 					cfg := defaults.(BOCPDConfig)
 					if err := json.Unmarshal(raw, &cfg); err != nil {
-						return nil, err
+						return nil, fmt.Errorf("parse bocpd config: %w", err)
 					}
 					return cfg, nil
 				},
@@ -177,7 +179,7 @@ func defaultCatalog() *componentCatalog {
 				parseJSON: func(defaults any, raw []byte) (any, error) {
 					cfg := defaults.(RRCFConfig)
 					if err := json.Unmarshal(raw, &cfg); err != nil {
-						return nil, err
+						return nil, fmt.Errorf("parse rrcf config: %w", err)
 					}
 					return cfg, nil
 				},
@@ -207,7 +209,7 @@ func defaultCatalog() *componentCatalog {
 				parseJSON: func(defaults any, raw []byte) (any, error) {
 					cfg := defaults.(CorrelatorConfig)
 					if err := json.Unmarshal(raw, &cfg); err != nil {
-						return nil, err
+						return nil, fmt.Errorf("parse cross_signal config: %w", err)
 					}
 					return cfg, nil
 				},
@@ -223,7 +225,7 @@ func defaultCatalog() *componentCatalog {
 				parseJSON: func(defaults any, raw []byte) (any, error) {
 					cfg := defaults.(TimeClusterConfig)
 					if err := json.Unmarshal(raw, &cfg); err != nil {
-						return nil, err
+						return nil, fmt.Errorf("parse time_cluster config: %w", err)
 					}
 					return cfg, nil
 				},
@@ -276,14 +278,8 @@ func (c *componentCatalog) Instantiate(settings ComponentSettings) (
 
 		switch entry.kind {
 		case componentDetector:
-			var d observerdef.Detector
-			if det, ok := instance.(observerdef.Detector); ok {
-				d = det
-			} else if sd, ok := instance.(observerdef.SeriesDetector); ok {
-				d = newSeriesDetectorAdapter(sd, defaultAggregations)
-			}
-			if d != nil {
-				detectors = append(detectors, newRateLimitedDetector(d))
+			if d := detectorFromInstance(instance); d != nil {
+				detectors = append(detectors, d)
 			}
 		case componentCorrelator:
 			if cor, ok := instance.(observerdef.Correlator); ok {
@@ -326,9 +322,22 @@ func TestbenchCatalogEntries() []CatalogEntry {
 
 // Entries returns a copy of all catalog entries (for UI/API use).
 func (c *componentCatalog) Entries() []componentEntry {
-	result := make([]componentEntry, len(c.entries))
-	copy(result, c.entries)
-	return result
+	return slices.Clone(c.entries)
+}
+
+// detectorFromInstance wraps a component instance as a rate-limited Detector.
+// Returns nil if the instance implements neither Detector nor SeriesDetector.
+func detectorFromInstance(instance any) observerdef.Detector {
+	var d observerdef.Detector
+	if det, ok := instance.(observerdef.Detector); ok {
+		d = det
+	} else if sd, ok := instance.(observerdef.SeriesDetector); ok {
+		d = newSeriesDetectorAdapter(sd, defaultAggregations)
+	}
+	if d == nil {
+		return nil
+	}
+	return newRateLimitedDetector(d)
 }
 
 // catalogEnabledDetectors returns the enabled Detector instances from a components map.
@@ -341,14 +350,8 @@ func catalogEnabledDetectors(components map[string]*componentInstance, catalog *
 		if !ok || !ci.enabled || ci.entry.kind != componentDetector {
 			continue
 		}
-		var d observerdef.Detector
-		if det, ok := ci.instance.(observerdef.Detector); ok {
-			d = det
-		} else if sd, ok := ci.instance.(observerdef.SeriesDetector); ok {
-			d = newSeriesDetectorAdapter(sd, defaultAggregations)
-		}
-		if d != nil {
-			result = append(result, newRateLimitedDetector(d))
+		if d := detectorFromInstance(ci.instance); d != nil {
+			result = append(result, d)
 		}
 	}
 	return result
