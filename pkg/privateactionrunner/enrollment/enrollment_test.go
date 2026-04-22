@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
-func TestShouldReenroll_NodeAgent(t *testing.T) {
+func TestNeedsReenrollment_NodeAgent(t *testing.T) {
 	flavor.SetFlavor(flavor.DefaultAgent)
 
 	tests := []struct {
@@ -46,12 +46,12 @@ func TestShouldReenroll_NodeAgent(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			agentID := &AgentIdentifier{Hostname: tc.agentHostname}
 			identity := &PersistedIdentity{Hostname: tc.persistedHostname}
-			assert.Equal(t, tc.want, ShouldReenroll(agentID, identity))
+			assert.Equal(t, tc.want, needsReenrollment(agentID, identity))
 		})
 	}
 }
 
-func TestShouldReenroll_ClusterAgent(t *testing.T) {
+func TestNeedsReenrollment_ClusterAgent(t *testing.T) {
 	flavor.SetFlavor(flavor.ClusterAgent)
 	defer flavor.SetFlavor(flavor.DefaultAgent)
 
@@ -85,7 +85,7 @@ func TestShouldReenroll_ClusterAgent(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			agentID := &AgentIdentifier{OrchClusterID: tc.agentClusterID}
 			identity := &PersistedIdentity{OrchClusterID: tc.persistedClusterID}
-			assert.Equal(t, tc.want, ShouldReenroll(agentID, identity))
+			assert.Equal(t, tc.want, needsReenrollment(agentID, identity))
 		})
 	}
 }

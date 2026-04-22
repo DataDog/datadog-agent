@@ -62,10 +62,10 @@ func GetAgentIdentifier(ctx context.Context, hostnameGetter hostnameinterface.Co
 	return agentIdentifier, nil
 }
 
-// ShouldReenroll returns true when the saved identity belongs to a different host or cluster
+// needsReenrollment returns true when the saved identity belongs to a different host or cluster
 // than the current agent. An empty persisted discriminator means the identity predates this
 // feature and must be kept as-is for backward compatibility.
-func ShouldReenroll(agentIdentifier *AgentIdentifier, identity *PersistedIdentity) bool {
+func needsReenrollment(agentIdentifier *AgentIdentifier, identity *PersistedIdentity) bool {
 	if flavor.GetFlavor() == flavor.ClusterAgent {
 		if identity.OrchClusterID != "" && identity.OrchClusterID != agentIdentifier.OrchClusterID {
 			log.Infof("Saved identity orch_cluster_id does not match current cluster ID, re-enrolling")
