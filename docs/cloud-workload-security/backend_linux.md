@@ -1343,6 +1343,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "type": "integer",
                     "description": "Parent Process ID"
                 },
+                "sid": {
+                    "type": "integer",
+                    "description": "Session ID"
+                },
                 "tid": {
                     "type": "integer",
                     "description": "Thread ID"
@@ -1505,6 +1509,7 @@ Workload Protection events for Linux systems have the following JSON schema:
             "additionalProperties": false,
             "type": "object",
             "required": [
+                "sid",
                 "fork_flags",
                 "uid",
                 "gid"
@@ -1520,6 +1525,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "ppid": {
                     "type": "integer",
                     "description": "Parent Process ID"
+                },
+                "sid": {
+                    "type": "integer",
+                    "description": "Session ID"
                 },
                 "tid": {
                     "type": "integer",
@@ -1698,6 +1707,7 @@ Workload Protection events for Linux systems have the following JSON schema:
             "additionalProperties": false,
             "type": "object",
             "required": [
+                "sid",
                 "fork_flags",
                 "uid",
                 "gid"
@@ -4554,6 +4564,10 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "integer",
             "description": "Parent Process ID"
         },
+        "sid": {
+            "type": "integer",
+            "description": "Session ID"
+        },
         "tid": {
             "type": "integer",
             "description": "Thread ID"
@@ -4716,6 +4730,7 @@ Workload Protection events for Linux systems have the following JSON schema:
     "additionalProperties": false,
     "type": "object",
     "required": [
+        "sid",
         "fork_flags",
         "uid",
         "gid"
@@ -4729,6 +4744,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | ----- | ----------- |
 | `pid` | Process ID |
 | `ppid` | Parent Process ID |
+| `sid` | Session ID |
 | `tid` | Thread ID |
 | `fork_flags` | ForkFlags |
 | `uid` | User ID |
@@ -4789,6 +4805,10 @@ Workload Protection events for Linux systems have the following JSON schema:
         "ppid": {
             "type": "integer",
             "description": "Parent Process ID"
+        },
+        "sid": {
+            "type": "integer",
+            "description": "Session ID"
         },
         "tid": {
             "type": "integer",
@@ -4967,6 +4987,7 @@ Workload Protection events for Linux systems have the following JSON schema:
     "additionalProperties": false,
     "type": "object",
     "required": [
+        "sid",
         "fork_flags",
         "uid",
         "gid"
@@ -4980,6 +5001,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | ----- | ----------- |
 | `pid` | Process ID |
 | `ppid` | Parent Process ID |
+| `sid` | Session ID |
 | `tid` | Thread ID |
 | `fork_flags` | ForkFlags |
 | `uid` | User ID |

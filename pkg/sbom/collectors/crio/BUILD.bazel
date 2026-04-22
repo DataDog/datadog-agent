@@ -1,5 +1,7 @@
 load("@rules_go//go:def.bzl", "go_library")
 
+# gazelle:ignore
+
 go_library(
     name = "crio",
     srcs = ["doc.go"],

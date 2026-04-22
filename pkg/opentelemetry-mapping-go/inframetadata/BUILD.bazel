@@ -1,0 +1,4 @@
+# gazelle:ignore
+# gazelle:exclude gohai/internal
+# gazelle:exclude internal/hostmap
+# gazelle:exclude payload

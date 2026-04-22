@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "syscallctx",
+    srcs = ["resolver.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/resolvers/syscallctx",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/security/probe/managerhelper",
+            "//pkg/security/secl/model",
+            "@com_github_cilium_ebpf//:ebpf",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/security/probe/managerhelper",
+            "//pkg/security/secl/model",
+            "@com_github_cilium_ebpf//:ebpf",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
+        ],
+        "//conditions:default": [],
+    }),
+)
