@@ -9,7 +9,14 @@ def _is_os(ctx, constraint):
     return ctx.target_platform_has_constraint(constraint[platform_common.ConstraintValueInfo])
 
 def patchelf_file_action(ctx, input_file, output_file, rpath):
-    """Registers a patchelf action to rewrite the rpath of a single file."""
+    """Registers a patchelf action to rewrite the rpath of a single file.
+
+    Args:
+      ctx: the rule context.
+      input_file: the source File to patch.
+      output_file: the output File to write.
+      rpath: the rpath string to set.
+    """
     toolchain = ctx.toolchains["@@//bazel/toolchains/patchelf:patchelf_toolchain_type"].patchelf
     args = ctx.actions.args()
     args.add("--set-rpath", rpath)
@@ -24,7 +31,14 @@ def patchelf_file_action(ctx, input_file, output_file, rpath):
     )
 
 def otool_file_action(ctx, input_file, output_file, rpath):
-    """Registers an install_name_tool action to rewrite the rpath of a single file."""
+    """Registers an install_name_tool action to rewrite the rpath of a single file.
+
+    Args:
+      ctx: the rule context.
+      input_file: the source File to patch.
+      output_file: the output File to write.
+      rpath: the rpath string to set.
+    """
     toolchain = ctx.toolchains["@@//bazel/toolchains/otool:otool_toolchain_type"].otool
     args = ctx.actions.args()
     args.add(toolchain.path)
@@ -36,6 +50,49 @@ def otool_file_action(ctx, input_file, output_file, rpath):
         outputs = [output_file],
         executable = ctx.file._script,
         arguments = [args],
+    )
+
+def patchelf_dir_action(ctx, input_dir, output_dir, rpath):
+    """Registers a patchelf action to rewrite the rpath of all shared libraries inside a directory."""
+    toolchain = ctx.toolchains["@@//bazel/toolchains/patchelf:patchelf_toolchain_type"].patchelf
+    ctx.actions.run_shell(
+        inputs = [input_dir],
+        outputs = [output_dir],
+        command = (
+            'cp -rL "{input}" "{output}" && ' +
+            'find "{output}" -type f \\( -name "*.so" -o -name "*.so.*" \\) ' +
+            '-exec "{patchelf}" --set-rpath "{rpath}" --force-rpath {{}} \\;'
+        ).format(
+            input = input_dir.path,
+            output = output_dir.path,
+            patchelf = toolchain.path,
+            rpath = rpath,
+        ),
+    )
+
+def otool_dir_action(ctx, input_dir, output_dir, rpath):
+    """Registers install_name_tool actions to rewrite the rpath of all dylibs inside a directory."""
+    toolchain = ctx.toolchains["@@//bazel/toolchains/otool:otool_toolchain_type"].otool
+    ctx.actions.run_shell(
+        inputs = [input_dir],
+        outputs = [output_dir],
+        command = (
+            'cp -rL "{input}" "{output}" && ' +
+            'find "{output}" -type f -name "*.dylib" | while read -r f; do ' +
+            '  install_name_tool -add_rpath "{rpath}" "$f" 2>/dev/null || true; ' +
+            '  install_name_tool -id "{rpath}/$(basename "$f")" "$f"; ' +
+            '  "{otool}" -L "$f" | tail -n +2 | awk \'{{print $1}}\' | while read -r dep; do ' +
+            '    case "$dep" in *sandbox*|*bazel-out*) ' +
+            '      install_name_tool -change "$dep" "{rpath}/$(basename "$dep")" "$f" 2>/dev/null || true ;; ' +
+            "    esac; " +
+            "  done; " +
+            "done"
+        ).format(
+            otool = toolchain.path,
+            input = input_dir.path,
+            output = output_dir.path,
+            rpath = rpath,
+        ),
     )
 
 def _rewrite_rpath_impl(ctx):
