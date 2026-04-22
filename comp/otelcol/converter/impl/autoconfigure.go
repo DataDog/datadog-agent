@@ -29,7 +29,7 @@ type component struct {
 }
 
 // Applies selected feature changes
-func (c *ddConverter) enhanceConfig(ctx context.Context, conf *confmap.Conf) {
+func (c *ddConverter) enhanceConfig(ctx context.Context, conf *confmap.Conf) error {
 	var enabledFeatures []string
 	// If not specified, assume all features are enabled (ocb tests will not have coreConfig)
 	if c.coreConfig != nil {
@@ -95,7 +95,11 @@ func (c *ddConverter) enhanceConfig(ctx context.Context, conf *confmap.Conf) {
 	}
 	// prometheus receiver
 	if slices.Contains(enabledFeatures, "prometheus") {
-		addPrometheusReceiver(conf, findInternalMetricsAddress(conf))
+		addr, err := findInternalMetricsAddress(conf)
+		if err != nil {
+			return err
+		}
+		addPrometheusReceiver(conf, addr)
 	}
 
 	// add datadog agent sourced config
@@ -103,6 +107,7 @@ func (c *ddConverter) enhanceConfig(ctx context.Context, conf *confmap.Conf) {
 
 	// warn about problematic receiver configurations
 	c.warnIfHostmetricsInConnectedMode(conf)
+	return nil
 }
 
 // warnIfHostmetricsInConnectedMode logs a warning when the hostmetrics receiver

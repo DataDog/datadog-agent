@@ -67,6 +67,5 @@ func NewConverterForAgent(reqs Requires) (converter.Component, error) {
 
 // Convert autoconfigures conf and stores both the provided and enhanced conf.
 func (c *ddConverter) Convert(ctx context.Context, conf *confmap.Conf) error {
-	c.enhanceConfig(ctx, conf)
-	return nil
+	return c.enhanceConfig(ctx, conf)
 }
