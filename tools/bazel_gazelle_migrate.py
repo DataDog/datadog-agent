@@ -15,7 +15,7 @@ Options:
     --dry-run           Print what would happen without executing anything
     --stop-on-failure   Halt on first test failure (default: continue to next path)
     --test-targets      Space-separated bazel test targets
-                        (default: //pkg/trace/... //pkg/tagger/... //pkg/util/...)
+                        (default: //cmd/... //comp/... //pkg/...  //test/...)
 """
 
 import argparse
@@ -27,7 +27,7 @@ from pathlib import Path
 # REPO_ROOT = Path(__file__).resolve().parent.parent
 REPO_ROOT = Path(".")
 BUILD_BAZEL = REPO_ROOT / "BUILD.bazel"
-DEFAULT_TEST_TARGETS = ["//cmd/...", "//comp/...", "//pkg/..."]
+DEFAULT_TEST_TARGETS = ["//cmd/...", "//comp/...", "//pkg/...", "//test/..."]
 
 
 def log(msg: str) -> None:
