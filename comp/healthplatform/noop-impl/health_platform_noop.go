@@ -16,11 +16,13 @@ import (
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 )
 
 // Provides defines the output of the noop health-platform component
 type Provides struct {
+	compdef.Out
 	Comp          healthplatformdef.Component
 	APIGetIssues  api.AgentEndpointProvider
 	FlareProvider flaretypes.Provider

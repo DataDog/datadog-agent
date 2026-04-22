@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "noop-impl",
@@ -8,7 +8,20 @@ go_library(
     deps = [
         "//comp/api/api/def",
         "//comp/core/flare/types",
+        "//comp/def",
         "//comp/healthplatform/def",
         "@com_github_datadog_agent_payload_v5//healthplatform",
+    ],
+)
+
+go_test(
+    name = "noop-impl_test",
+    srcs = ["health_platform_noop_test.go"],
+    embed = [":noop-impl"],
+    gotags = ["test"],
+    deps = [
+        "@com_github_datadog_agent_payload_v5//healthplatform",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )
