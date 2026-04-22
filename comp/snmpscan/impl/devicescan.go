@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	snmpscan "github.com/DataDog/datadog-agent/comp/snmpscan/def"
@@ -97,6 +98,10 @@ func (s snmpScannerImpl) ScanDeviceAndSendData(ctx context.Context, connParams *
 	return nil
 }
 
+// comparisonModeEnabled enables running both scan methods for comparison testing.
+// Set to true for testing, false for production.
+const comparisonModeEnabled = true
+
 func (s snmpScannerImpl) runDeviceScan(
 	ctx context.Context,
 	snmpConnection *gosnmp.GoSNMP,
@@ -105,6 +110,10 @@ func (s snmpScannerImpl) runDeviceScan(
 	callInterval time.Duration,
 	maxCallCount int,
 ) error {
+	if comparisonModeEnabled {
+		return s.runDeviceScanComparison(ctx, snmpConnection, callInterval, maxCallCount)
+	}
+
 	// Execute the scan using GetBulk-based walk.
 	// This approach never sends fabricated OIDs to devices, which:
 	// - Prevents infinite loops on devices that respond incorrectly to non-existent OIDs
@@ -132,6 +141,99 @@ func (s snmpScannerImpl) runDeviceScan(
 		}
 	}
 
+	return nil
+}
+
+// scanResult holds the results of a scan method for comparison
+type scanResult struct {
+	name     string
+	duration time.Duration
+	oidCount int
+	err      error
+}
+
+// runDeviceScanComparison runs both scan methods and prints comparison results.
+// This is for testing purposes only - it does not send data to the backend.
+func (s snmpScannerImpl) runDeviceScanComparison(
+	ctx context.Context,
+	snmpConnection *gosnmp.GoSNMP,
+	callInterval time.Duration,
+	maxCallCount int,
+) error {
+	fmt.Println("\n" + strings.Repeat("=", 60))
+	fmt.Println("SCAN COMPARISON MODE (testing only - no data sent)")
+	fmt.Println(strings.Repeat("=", 60))
+
+	var results []scanResult
+
+	// Run GetBulk-based scan FIRST (safer - won't crash devices)
+	fmt.Println("\n[1/2] Running GetBulk-based scan (new, safe approach)...")
+	bulkStart := time.Now()
+	bulkPDUs, bulkErr := gatherPDUsWithBulk(ctx, snmpConnection, callInterval, maxCallCount)
+	bulkDuration := time.Since(bulkStart)
+
+	bulkResult := scanResult{
+		name:     "GetBulk (new)",
+		duration: bulkDuration,
+		oidCount: len(bulkPDUs),
+		err:      bulkErr,
+	}
+	results = append(results, bulkResult)
+
+	if bulkErr != nil {
+		fmt.Printf("      ERROR: %v\n", bulkErr)
+	} else {
+		fmt.Printf("      Completed: %d OIDs in %v\n", len(bulkPDUs), bulkDuration)
+	}
+
+	// Run old SkipOIDRowsNaive-based scan SECOND (may crash device or loop)
+	fmt.Println("\n[2/2] Running SkipOIDRowsNaive-based scan (old approach)...")
+	fmt.Println("      WARNING: This may crash the device or cause infinite loops!")
+	oldStart := time.Now()
+	oldPDUs, oldErr := gatherPDUs(ctx, snmpConnection, callInterval, maxCallCount)
+	oldDuration := time.Since(oldStart)
+
+	oldResult := scanResult{
+		name:     "SkipOIDRowsNaive (old)",
+		duration: oldDuration,
+		oidCount: len(oldPDUs),
+		err:      oldErr,
+	}
+	results = append(results, oldResult)
+
+	if oldErr != nil {
+		fmt.Printf("      ERROR: %v\n", oldErr)
+	} else {
+		fmt.Printf("      Completed: %d OIDs in %v\n", len(oldPDUs), oldDuration)
+	}
+
+	// Print comparison summary
+	fmt.Println("\n" + strings.Repeat("-", 60))
+	fmt.Println("COMPARISON SUMMARY")
+	fmt.Println(strings.Repeat("-", 60))
+	fmt.Printf("%-25s | %-10s | %-15s | %s\n", "Method", "OIDs", "Duration", "Status")
+	fmt.Println(strings.Repeat("-", 60))
+
+	for _, r := range results {
+		status := "OK"
+		if r.err != nil {
+			status = "FAILED"
+		}
+		fmt.Printf("%-25s | %-10d | %-15v | %s\n", r.name, r.oidCount, r.duration.Round(time.Millisecond), status)
+	}
+	fmt.Println(strings.Repeat("-", 60))
+
+	// Print detailed error info if any scan failed
+	for _, r := range results {
+		if r.err != nil {
+			fmt.Printf("\n%s error details:\n  %v\n", r.name, r.err)
+		}
+	}
+
+	fmt.Println("\nNote: No scan data was sent to the backend (comparison mode).")
+	fmt.Println(strings.Repeat("=", 60) + "\n")
+
+	// Return nil even if scans failed - we want to see the comparison output
 	return nil
 }
 
