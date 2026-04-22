@@ -2687,7 +2687,7 @@ func TestAutoinstrumentation(t *testing.T) {
 				mockMeta.(workloadmetamock.Mock).Set(&ns)
 			}
 
-			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil)
+			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, nil)
 			require.NoError(t, err)
 
 			// Mutate pod.
@@ -2918,7 +2918,7 @@ func TestEnvVarsAlreadySet(t *testing.T) {
 			}
 
 			// Setup webhook.
-			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil)
+			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, nil)
 			require.NoError(t, err)
 
 			// Mutate pod.
@@ -3117,7 +3117,7 @@ func TestSkippedDueToResources(t *testing.T) {
 			}
 
 			// Setup webhook.
-			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil)
+			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, nil)
 			require.NoError(t, err)
 
 			// Mutate pod.
