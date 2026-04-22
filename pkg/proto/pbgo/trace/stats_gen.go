@@ -180,6 +180,25 @@ func (z *ClientGroupedStats) DecodeMsg(dc *msgp.Reader) (err error) {
 					return
 				}
 			}
+		case "AdditionalMetricTags":
+			var zb0005 uint32
+			zb0005, err = dc.ReadArrayHeader()
+			if err != nil {
+				err = msgp.WrapError(err, "AdditionalMetricTags")
+				return
+			}
+			if cap(z.AdditionalMetricTags) >= int(zb0005) {
+				z.AdditionalMetricTags = (z.AdditionalMetricTags)[:zb0005]
+			} else {
+				z.AdditionalMetricTags = make([]string, zb0005)
+			}
+			for za0003 := range z.AdditionalMetricTags {
+				z.AdditionalMetricTags[za0003], err = dc.ReadString()
+				if err != nil {
+					err = msgp.WrapError(err, "AdditionalMetricTags", za0003)
+					return
+				}
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -193,9 +212,9 @@ func (z *ClientGroupedStats) DecodeMsg(dc *msgp.Reader) (err error) {
 
 // EncodeMsg implements msgp.Encodable
 func (z *ClientGroupedStats) EncodeMsg(en *msgp.Writer) (err error) {
-	// map header, size 21
+	// map header, size 22
 	// write "Service"
-	err = en.Append(0xde, 0x0, 0x15, 0xa7, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65)
+	err = en.Append(0xde, 0x0, 0x16, 0xa7, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65)
 	if err != nil {
 		return
 	}
@@ -418,15 +437,32 @@ func (z *ClientGroupedStats) EncodeMsg(en *msgp.Writer) (err error) {
 			return
 		}
 	}
+	// write "AdditionalMetricTags"
+	err = en.Append(0xb4, 0x41, 0x64, 0x64, 0x69, 0x74, 0x69, 0x6f, 0x6e, 0x61, 0x6c, 0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x54, 0x61, 0x67, 0x73)
+	if err != nil {
+		return
+	}
+	err = en.WriteArrayHeader(uint32(len(z.AdditionalMetricTags)))
+	if err != nil {
+		err = msgp.WrapError(err, "AdditionalMetricTags")
+		return
+	}
+	for za0003 := range z.AdditionalMetricTags {
+		err = en.WriteString(z.AdditionalMetricTags[za0003])
+		if err != nil {
+			err = msgp.WrapError(err, "AdditionalMetricTags", za0003)
+			return
+		}
+	}
 	return
 }
 
 // MarshalMsg implements msgp.Marshaler
 func (z *ClientGroupedStats) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 21
+	// map header, size 22
 	// string "Service"
-	o = append(o, 0xde, 0x0, 0x15, 0xa7, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65)
+	o = append(o, 0xde, 0x0, 0x16, 0xa7, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65)
 	o = msgp.AppendString(o, z.Service)
 	// string "Name"
 	o = append(o, 0xa4, 0x4e, 0x61, 0x6d, 0x65)
@@ -493,6 +529,12 @@ func (z *ClientGroupedStats) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.AppendArrayHeader(o, uint32(len(z.SpanDerivedPrimaryTags)))
 	for za0002 := range z.SpanDerivedPrimaryTags {
 		o = msgp.AppendString(o, z.SpanDerivedPrimaryTags[za0002])
+	}
+	// string "AdditionalMetricTags"
+	o = append(o, 0xb4, 0x41, 0x64, 0x64, 0x69, 0x74, 0x69, 0x6f, 0x6e, 0x61, 0x6c, 0x4d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x54, 0x61, 0x67, 0x73)
+	o = msgp.AppendArrayHeader(o, uint32(len(z.AdditionalMetricTags)))
+	for za0003 := range z.AdditionalMetricTags {
+		o = msgp.AppendString(o, z.AdditionalMetricTags[za0003])
 	}
 	return
 }
@@ -671,6 +713,25 @@ func (z *ClientGroupedStats) UnmarshalMsg(bts []byte) (o []byte, err error) {
 					return
 				}
 			}
+		case "AdditionalMetricTags":
+			var zb0005 uint32
+			zb0005, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "AdditionalMetricTags")
+				return
+			}
+			if cap(z.AdditionalMetricTags) >= int(zb0005) {
+				z.AdditionalMetricTags = (z.AdditionalMetricTags)[:zb0005]
+			} else {
+				z.AdditionalMetricTags = make([]string, zb0005)
+			}
+			for za0003 := range z.AdditionalMetricTags {
+				z.AdditionalMetricTags[za0003], bts, err = msgp.ReadStringBytes(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "AdditionalMetricTags", za0003)
+					return
+				}
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -692,6 +753,10 @@ func (z *ClientGroupedStats) Msgsize() (s int) {
 	s += 12 + msgp.Int32Size + 15 + msgp.StringPrefixSize + len(z.GRPCStatusCode) + 11 + msgp.StringPrefixSize + len(z.HTTPMethod) + 13 + msgp.StringPrefixSize + len(z.HTTPEndpoint) + 8 + msgp.StringPrefixSize + len(z.ServiceSource) + 23 + msgp.ArrayHeaderSize
 	for za0002 := range z.SpanDerivedPrimaryTags {
 		s += msgp.StringPrefixSize + len(z.SpanDerivedPrimaryTags[za0002])
+	}
+	s += 21 + msgp.ArrayHeaderSize
+	for za0003 := range z.AdditionalMetricTags {
+		s += msgp.StringPrefixSize + len(z.AdditionalMetricTags[za0003])
 	}
 	return
 }

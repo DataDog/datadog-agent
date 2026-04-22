@@ -2,6 +2,28 @@
 Release Notes
 =============
 
+.. _Release Notes_7.78.1:
+
+7.78.1
+======
+
+.. _Release Notes_7.78.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-04-23
+Pinned to datadog-agent v7.78.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7781>`_.
+
+
+.. _Release Notes_7.78.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixed a Cluster Agent issue where container-targeted APM library injection could mount a tracing library into all application containers in a pod instead of only the annotated container.
+
+
 .. _Release Notes_7.78.0:
 
 7.78.0

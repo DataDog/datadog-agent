@@ -2,6 +2,50 @@
 Release Notes
 =============
 
+.. _Release Notes_7.78.1:
+
+7.78.1
+======
+
+.. _Release Notes_7.78.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-04-23
+
+- Please refer to the `7.78.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7781>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.78.1_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- The Agent's embedded Python has been upgraded from 3.13.12 to 3.13.13
+
+- Agents are now built with Go ``1.25.9``.
+
+
+.. _Release Notes_7.78.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix missing signature on macOS Agent packages
+
+- Fix the system-probe SELinux policy module failing to load on RHEL 7
+  with ``policydb module version 21 does not match my version range 4-19``.
+  The module is now compiled against modular policy version 19, which is
+  the highest version supported by RHEL 7 and is backward-compatible with
+  newer RHEL releases.
+
+- Add logic to include integrations that do not have a manifest.json file in the Agent.
+
+- Adds the tasks/agent.py file to the list of files used to
+  compute the global omnibus cache.
+
+
 .. _Release Notes_7.78.0:
 
 7.78.0
