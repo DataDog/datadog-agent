@@ -255,30 +255,51 @@ func appendOptionalTags(tags []string, cert *x509.Certificate, friendlyName stri
 	return tags
 }
 
-// getTemplateTags extracts the Microsoft certificate-template extension. V1
-// (OID 1.3.6.1.4.1.311.20.2) is preferred when both are present because it
-// carries the human-readable template name; V2 carries the template OID and
-// version numbers.
+// resolveTemplateOIDName resolves a V2 template OID to its display name via
+// the local CryptoAPI OID cache.
+var resolveTemplateOIDName = func(oid string) string {
+	name, err := winutil.CryptFindOIDInfo(winutil.CryptOIDInfoOIDKey, oid, winutil.CryptTemplateOIDGroupID)
+	if err != nil {
+		log.Debugf("CryptFindOIDInfo failed for template OID %s: %v", oid, err)
+		return ""
+	}
+	return name
+}
+
+// getTemplateTags extracts the Microsoft certificate-template extensions and
+// emits them under a split namespace so V1 and V2 never collide on the same
+// tag key:
+//
+//   - certificate_template_name:<name>         V1 in-band name when present;
+//     for V2-only certs, best-effort resolved via the local CryptoAPI OID
+//     cache. Absent when V2's OID is not locally known (non-domain-joined
+//     hosts, cross-forest certs, etc.).
+//   - certificate_template_oid:<oid>           V2 only. Stable identifier
+//     that does not change if a template is renamed in AD.
+//   - certificate_template_major_version:<n>   V2 only.
+//   - certificate_template_minor_version:<n>   V2 only.
 func getTemplateTags(cert *x509.Certificate) []string {
+	var tags []string
+	var name string // value for certificate_template_name
 	var v2Value []byte
+
 	for i := range cert.Extensions {
 		ext := &cert.Extensions[i]
-		if ext.Id.Equal(oidCertTemplateV1) {
-			var name asn1.RawValue
-			if _, err := asn1.Unmarshal(ext.Value, &name); err != nil {
+		switch {
+		case ext.Id.Equal(oidCertTemplateV1):
+			var raw asn1.RawValue
+			if _, err := asn1.Unmarshal(ext.Value, &raw); err != nil {
 				log.Debugf("Error parsing certificate template V1 extension: %v", err)
 				continue
 			}
-			decoded := decodeBMPString(name.Bytes)
-			if decoded == "" {
-				continue
+			if decoded := decodeBMPString(raw.Bytes); decoded != "" {
+				name = decoded
 			}
-			return []string{"certificate_template:" + decoded}
-		}
-		if ext.Id.Equal(oidCertTemplateV2) {
+		case ext.Id.Equal(oidCertTemplateV2):
 			v2Value = ext.Value
 		}
 	}
+
 	if v2Value != nil {
 		var t struct {
 			TemplateID   asn1.ObjectIdentifier
@@ -287,28 +308,48 @@ func getTemplateTags(cert *x509.Certificate) []string {
 		}
 		if _, err := asn1.Unmarshal(v2Value, &t); err != nil {
 			log.Debugf("Error parsing certificate template V2 extension: %v", err)
-			return []string{}
-		}
-		return []string{
-			"certificate_template:" + t.TemplateID.String(),
-			fmt.Sprintf("certificate_template_major_version:%d", t.MajorVersion),
-			fmt.Sprintf("certificate_template_minor_version:%d", t.MinorVersion),
+		} else {
+			oid := t.TemplateID.String()
+			tags = append(tags,
+				"certificate_template_oid:"+oid,
+				fmt.Sprintf("certificate_template_major_version:%d", t.MajorVersion),
+				fmt.Sprintf("certificate_template_minor_version:%d", t.MinorVersion),
+			)
+			// Best-effort V2 name resolution; V1's in-band name takes
+			// precedence when both extensions are present.
+			if name == "" {
+				if resolved := resolveTemplateOIDName(oid); resolved != "" {
+					name = resolved
+				}
+			}
 		}
 	}
-	return []string{}
+
+	if name != "" {
+		tags = append(tags, "certificate_template_name:"+name)
+	}
+	return tags
 }
 
-// getEnhancedKeyUsageTags returns tags for each OID in the EKU extension. Known
-// OIDs are rendered with their short names, unknown OIDs as dotted strings.
+// getEnhancedKeyUsageTags walks the Extended Key Usage extension (OID
+// 2.5.29.37) and emits one tag per OID. Known OIDs are rendered with short
+// names from extKeyUsageOIDToName; unknown OIDs are emitted as dotted strings.
 func getEnhancedKeyUsageTags(cert *x509.Certificate) []string {
 	tags := []string{}
-	for _, oid := range cert.UnknownExtKeyUsage {
-		tags = append(tags, "enhanced_key_usage:"+ekuName(oid.String()))
-	}
-	for _, eku := range cert.ExtKeyUsage {
-		if oid, ok := ekuOIDFromStdlib(eku); ok {
-			tags = append(tags, "enhanced_key_usage:"+ekuName(oid))
+	for i := range cert.Extensions {
+		ext := &cert.Extensions[i]
+		if !ext.Id.Equal(oidExtKeyUsage) {
+			continue
 		}
+		var oids []asn1.ObjectIdentifier
+		if _, err := asn1.Unmarshal(ext.Value, &oids); err != nil {
+			log.Debugf("Error parsing Extended Key Usage extension: %v", err)
+			return tags
+		}
+		for _, oid := range oids {
+			tags = append(tags, "enhanced_key_usage:"+ekuName(oid.String()))
+		}
+		return tags
 	}
 	return tags
 }
@@ -318,43 +359,6 @@ func ekuName(oid string) string {
 		return name
 	}
 	return oid
-}
-
-// ekuOIDFromStdlib maps x509.ExtKeyUsage constants back to OID strings. Keep
-// in sync with Go's unexported extKeyUsageOIDs table.
-// https://cs.opensource.google/go/go/+/refs/tags/go1.24.0:src/crypto/x509/x509.go;l=565
-func ekuOIDFromStdlib(eku x509.ExtKeyUsage) (string, bool) {
-	switch eku {
-	case x509.ExtKeyUsageAny:
-		return "2.5.29.37.0", true
-	case x509.ExtKeyUsageServerAuth:
-		return "1.3.6.1.5.5.7.3.1", true
-	case x509.ExtKeyUsageClientAuth:
-		return "1.3.6.1.5.5.7.3.2", true
-	case x509.ExtKeyUsageCodeSigning:
-		return "1.3.6.1.5.5.7.3.3", true
-	case x509.ExtKeyUsageEmailProtection:
-		return "1.3.6.1.5.5.7.3.4", true
-	case x509.ExtKeyUsageIPSECEndSystem:
-		return "1.3.6.1.5.5.7.3.5", true
-	case x509.ExtKeyUsageIPSECTunnel:
-		return "1.3.6.1.5.5.7.3.6", true
-	case x509.ExtKeyUsageIPSECUser:
-		return "1.3.6.1.5.5.7.3.7", true
-	case x509.ExtKeyUsageTimeStamping:
-		return "1.3.6.1.5.5.7.3.8", true
-	case x509.ExtKeyUsageOCSPSigning:
-		return "1.3.6.1.5.5.7.3.9", true
-	case x509.ExtKeyUsageMicrosoftServerGatedCrypto:
-		return "1.3.6.1.4.1.311.10.3.3", true
-	case x509.ExtKeyUsageNetscapeServerGatedCrypto:
-		return "2.16.840.1.113730.4.1", true
-	case x509.ExtKeyUsageMicrosoftCommercialCodeSigning:
-		return "1.3.6.1.4.1.311.2.1.22", true
-	case x509.ExtKeyUsageMicrosoftKernelCodeSigning:
-		return "1.3.6.1.4.1.311.61.1.1", true
-	}
-	return "", false
 }
 
 // getSANTags returns tags for each Subject Alternative Name entry.

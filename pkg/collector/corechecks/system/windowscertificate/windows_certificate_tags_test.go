@@ -19,6 +19,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// encodeEKUExtension ASN.1-marshals a SEQUENCE OF OID as the Extended Key Usage
+// extension carries (RFC 5280 §4.2.1.12).
+func encodeEKUExtension(oids ...asn1.ObjectIdentifier) []byte {
+	b, err := asn1.Marshal(oids)
+	if err != nil {
+		panic(err)
+	}
+	return b
+}
+
 func TestDecodeBMPString(t *testing.T) {
 	// "Hi" encoded as BMPString (UTF-16BE, UCS-2): 0x00 'H' 0x00 'i'
 	b := []byte{0x00, 'H', 0x00, 'i'}
@@ -73,16 +83,27 @@ func encodeTemplateV2(oid asn1.ObjectIdentifier, major, minor int) []byte {
 	return bytes
 }
 
+// stubTemplateOIDResolver swaps resolveTemplateOIDName for the duration of a
+// test. Returns a restore func the test should defer.
+func stubTemplateOIDResolver(fn func(oid string) string) func() {
+	original := resolveTemplateOIDName
+	resolveTemplateOIDName = fn
+	return func() { resolveTemplateOIDName = original }
+}
+
 func TestGetTemplateTagsV1(t *testing.T) {
+	defer stubTemplateOIDResolver(func(string) string { return "" })()
 	cert := &x509.Certificate{
 		Extensions: []pkix.Extension{
 			{Id: oidCertTemplateV1, Value: encodeBMPString("WebServer")},
 		},
 	}
-	require.Equal(t, []string{"certificate_template:WebServer"}, getTemplateTags(cert))
+	require.Equal(t, []string{"certificate_template_name:WebServer"}, getTemplateTags(cert))
 }
 
 func TestGetTemplateTagsV2(t *testing.T) {
+	// Resolver miss: V2 emits OID + versions but no name tag.
+	defer stubTemplateOIDResolver(func(string) string { return "" })()
 	templateID := asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 311, 21, 8, 1, 2, 3}
 	cert := &x509.Certificate{
 		Extensions: []pkix.Extension{
@@ -90,12 +111,44 @@ func TestGetTemplateTagsV2(t *testing.T) {
 		},
 	}
 	tags := getTemplateTags(cert)
-	require.Contains(t, tags, "certificate_template:"+templateID.String())
-	require.Contains(t, tags, "certificate_template_major_version:100")
-	require.Contains(t, tags, "certificate_template_minor_version:0")
+	require.ElementsMatch(t, []string{
+		"certificate_template_oid:" + templateID.String(),
+		"certificate_template_major_version:100",
+		"certificate_template_minor_version:0",
+	}, tags)
 }
 
-func TestGetTemplateTagsV1PreferredWhenBothPresent(t *testing.T) {
+func TestGetTemplateTagsV2WithResolverHit(t *testing.T) {
+	templateID := asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 311, 21, 8, 1, 2, 3}
+	var resolverCalledWith string
+	defer stubTemplateOIDResolver(func(oid string) string {
+		resolverCalledWith = oid
+		return "DatadogTestTemplate"
+	})()
+	cert := &x509.Certificate{
+		Extensions: []pkix.Extension{
+			{Id: oidCertTemplateV2, Value: encodeTemplateV2(templateID, 100, 0)},
+		},
+	}
+	tags := getTemplateTags(cert)
+	require.Equal(t, templateID.String(), resolverCalledWith)
+	require.ElementsMatch(t, []string{
+		"certificate_template_oid:" + templateID.String(),
+		"certificate_template_major_version:100",
+		"certificate_template_minor_version:0",
+		"certificate_template_name:DatadogTestTemplate",
+	}, tags)
+}
+
+func TestGetTemplateTagsBothExtensionsV1NameWins(t *testing.T) {
+	// When both V1 and V2 are present, V1's in-band name is authoritative
+	// for the name tag; V2 still contributes OID and versions. The resolver
+	// is not consulted because the name is already known.
+	resolverCalled := false
+	defer stubTemplateOIDResolver(func(string) string {
+		resolverCalled = true
+		return "ResolverShouldNotRun"
+	})()
 	templateID := asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 311, 21, 8, 1, 2, 3}
 	cert := &x509.Certificate{
 		Extensions: []pkix.Extension{
@@ -103,33 +156,55 @@ func TestGetTemplateTagsV1PreferredWhenBothPresent(t *testing.T) {
 			{Id: oidCertTemplateV1, Value: encodeBMPString("WebServer")},
 		},
 	}
-	require.Equal(t, []string{"certificate_template:WebServer"}, getTemplateTags(cert))
+	tags := getTemplateTags(cert)
+	require.False(t, resolverCalled, "resolver must not be called when V1 name is present")
+	require.ElementsMatch(t, []string{
+		"certificate_template_oid:" + templateID.String(),
+		"certificate_template_major_version:1",
+		"certificate_template_minor_version:0",
+		"certificate_template_name:WebServer",
+	}, tags)
 }
 
 func TestGetTemplateTagsAbsent(t *testing.T) {
+	defer stubTemplateOIDResolver(func(string) string { return "" })()
 	require.Empty(t, getTemplateTags(&x509.Certificate{}))
 }
 
 func TestGetEnhancedKeyUsageTags(t *testing.T) {
 	cert := &x509.Certificate{
-		ExtKeyUsage: []x509.ExtKeyUsage{
-			x509.ExtKeyUsageServerAuth,
-			x509.ExtKeyUsageClientAuth,
-		},
-		UnknownExtKeyUsage: []asn1.ObjectIdentifier{
-			{1, 2, 3, 4, 5}, // unknown — should emit as dotted string
-			{1, 3, 6, 1, 4, 1, 311, 20, 2, 2}, // microsoftSmartcardLogon
+		Extensions: []pkix.Extension{
+			{
+				Id: oidExtKeyUsage,
+				Value: encodeEKUExtension(
+					asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 3, 1},     // serverAuth
+					asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 3, 2},     // clientAuth
+					asn1.ObjectIdentifier{1, 2, 3, 4, 5},                 // unknown
+					asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 311, 20, 2, 2}, // microsoftSmartcardLogon
+				),
+			},
 		},
 	}
 	tags := getEnhancedKeyUsageTags(cert)
-	require.Contains(t, tags, "enhanced_key_usage:serverAuth")
-	require.Contains(t, tags, "enhanced_key_usage:clientAuth")
-	require.Contains(t, tags, "enhanced_key_usage:1.2.3.4.5")
-	require.Contains(t, tags, "enhanced_key_usage:microsoftSmartcardLogon")
+	require.ElementsMatch(t, []string{
+		"enhanced_key_usage:serverAuth",
+		"enhanced_key_usage:clientAuth",
+		"enhanced_key_usage:1.2.3.4.5",
+		"enhanced_key_usage:microsoftSmartcardLogon",
+	}, tags)
 }
 
 func TestGetEnhancedKeyUsageTagsAbsent(t *testing.T) {
 	require.Empty(t, getEnhancedKeyUsageTags(&x509.Certificate{}))
+}
+
+func TestGetEnhancedKeyUsageTagsMalformed(t *testing.T) {
+	cert := &x509.Certificate{
+		Extensions: []pkix.Extension{
+			{Id: oidExtKeyUsage, Value: []byte{0xff, 0xff}},
+		},
+	}
+	require.Empty(t, getEnhancedKeyUsageTags(cert))
 }
 
 func TestGetSANTags(t *testing.T) {

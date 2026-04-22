@@ -9,6 +9,7 @@
 package windowscertificate
 
 import (
+	"bytes"
 	"crypto/x509"
 	"encoding/asn1"
 	"encoding/json"
@@ -88,11 +89,13 @@ const (
 	certFriendlyNamePropID = 11
 )
 
-// Microsoft certificate-template OIDs. V1 is a BMPString holding the template
-// display name; V2 is a SEQUENCE { templateOID, majorVersion, minorVersion }.
 var (
+	// Microsoft certificate-template OIDs. V1 is a BMPString holding the template
+	// display name; V2 is a SEQUENCE { templateOID, majorVersion, minorVersion }.
 	oidCertTemplateV1 = asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 311, 20, 2}
 	oidCertTemplateV2 = asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 311, 21, 7}
+	// id-ce-extKeyUsage — RFC 5280 §4.2.1.12.
+	oidExtKeyUsage = asn1.ObjectIdentifier{2, 5, 29, 37}
 )
 
 type certChainValidation struct {
@@ -518,7 +521,8 @@ func closeCertificateStore(storeHandle windows.Handle, store string) {
 func buildCertInfo(certContext *windows.CertContext, storeHandle windows.Handle,
 	chainValidation certChainValidation, collectFriendlyName bool) (certInfo, error) {
 
-	encodedCert := unsafe.Slice(certContext.EncodedCert, certContext.Length)
+	// Clone the encoded certificate to avoid dangling reads during tag extraction.
+	encodedCert := bytes.Clone(unsafe.Slice(certContext.EncodedCert, certContext.Length))
 	cert, err := parseCertificate(encodedCert)
 	if err != nil {
 		return certInfo{}, fmt.Errorf("parsing certificate: %w", err)
