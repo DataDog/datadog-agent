@@ -1,6 +1,7 @@
 .agent_build_script:
   - !reference [.retrieve_linux_go_deps]
   - !reference [.cache_omnibus_ruby_deps, setup]
+  - export INSTALL_DIR=/usr/opt/datadog-agent
   # remove artifacts from previous pipelines that may come from the cache
   - rm -rf $OMNIBUS_PACKAGE_DIR/*
   # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
