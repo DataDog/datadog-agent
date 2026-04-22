@@ -266,6 +266,97 @@ service:
 
 ---
 
+## Module Extraction (Upstreaming Prerequisite)
+
+To upstream the CNM receiver to OTel Collector contrib, `pkg/network/` and `pkg/ebpf/`
+must become independently importable Go modules. Today both are part of the root module,
+which means importing them pulls in the entire 250MB+ agent. This section documents the
+dependency analysis and extraction plan.
+
+### Current State
+
+The repo has 192 Go modules (managed via `modules.yml`), but the network monitoring
+code is entirely in the root module:
+
+| Package | Own Module? | Notes |
+|---|---|---|
+| `pkg/network/` | No | 594 files, 20+ subdirs, root module |
+| `pkg/ebpf/` | No | ~200 files, eBPF loading + C code, root module |
+| `pkg/process/util/` | No | Address types used by network, root module |
+| `pkg/system-probe/config/` | No | System-probe config, root module |
+| `pkg/network/driver/` | Yes | Windows NPM driver (already extracted) |
+| `pkg/network/payload/` | Yes | Data structures only (already extracted) |
+
+### Critical Blockers
+
+**1. Circular dependency: `pkg/ebpf/uprobes` <-> `pkg/network`**
+
+`pkg/ebpf/uprobes/` imports `pkg/network/{go/bininspect, usm/sharedlibraries, usm/utils}`,
+while `pkg/network/` imports `pkg/ebpf/` from 77 files. This circular dependency must be
+broken before either can become a module.
+
+Solution: Move `uprobes/` into `pkg/network/` or decouple via interface.
+
+**2. `pkg/process/util.Address` -- deepest integration (41 files)**
+
+The `Address` type from `pkg/process/util` is embedded in every connection tuple
+throughout `pkg/network/`. Functions like `AddressFromNetIP()`, `FromLowHigh()`,
+`ToLowHigh()` are used in 41 files.
+
+Solution: Extract `pkg/process/util` as its own module (small, clean deps).
+
+**3. Root-module deps of `pkg/ebpf/` (after circular dep fix)**
+
+| Dependency | Has go.mod? | Usage |
+|---|---|---|
+| `pkg/util/{log,kernel,funcs,archive}` | Most yes | Core utilities |
+| `pkg/telemetry` | Yes | Metrics |
+| `pkg/version` | Yes | Version info |
+| `comp/core/telemetry` | Yes | DI telemetry |
+| `pkg/remoteconfig/state` | **No** | RC-enabled BTF fetching |
+| `pkg/config/setup` | Yes | Install paths for clang |
+
+**4. Root-module deps of `pkg/network/` (after `pkg/ebpf/` extraction)**
+
+| Dependency | Has go.mod? | Files importing |
+|---|---|---|
+| `pkg/process/util` | **No** | 41 files (Address type) |
+| `pkg/eventmonitor` | **No** | 5 files |
+| `pkg/process/monitor` | **No** | 6 files |
+| `pkg/security/secl/model` | **No** | 6 files |
+| `comp/core/sysprobeconfig` | **No** | 5 files |
+| `pkg/system-probe/config` | **No** | 3 files |
+| `pkg/config/setup` globals | Yes (but globals) | ~11 files (already bypassed by `toNetworkConfig()`) |
+
+### Extraction Order (Bottom-Up)
+
+| Phase | Extract | Key Work | Size |
+|---|---|---|---|
+| 1 | `pkg/process/util` | Small package (Address type, IP buffers). Clean deps. | Small |
+| 2 | Break `pkg/ebpf/uprobes` circular dep | Move uprobes into `pkg/network/` or behind interface | Medium |
+| 3 | `pkg/ebpf/` as module | Resolve `pkg/remoteconfig/state` dep | Large |
+| 4 | Remaining blockers | `pkg/eventmonitor`, `pkg/process/monitor`, `pkg/security/secl/model`, `comp/core/sysprobeconfig`, `pkg/system-probe/config` | Medium each |
+| 5 | `pkg/network/` as module | All blockers resolved, add `used_by_otel: true` to modules.yml | Large |
+
+### Mechanical Work per Module (Mostly Automated)
+
+For each new module:
+1. Create `go.mod` + add entry to `modules.yml` (manual)
+2. `dda inv modules.add-all-replace` -- generates ~180 replace directives (automated)
+3. `dda inv tidy` -- fixes all dependent modules (automated)
+4. `dda inv modules.go-work` -- updates go.work (automated)
+
+The repo already has 192 modules and mature tooling for managing them. The manual work
+is resolving dependency graph issues, not the mechanical go.mod management.
+
+### Relationship to Phase 1
+
+Phase 1 (OTLP Metrics MVP) does NOT require module extraction. The CNM receiver lives
+in `comp/host-profiler/` and imports `pkg/network/tracer` directly within the root
+module. Module extraction is a parallel workstream that enables upstreaming later.
+
+---
+
 ## Verification
 
 1. `dda env dev run -- dda inv host-profiler.build` -- binary compiles

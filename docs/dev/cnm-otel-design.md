@@ -523,7 +523,60 @@ The DD exporter consumes `pmetric.Metrics` and rebuilds the native format:
 
 ---
 
-## 7. Verification Plan
+## 7. Module Extraction Plan (Upstreaming Prerequisite)
+
+To upstream the CNM receiver to the OTel Collector contrib repo, `pkg/network/` and
+`pkg/ebpf/` must be independently importable Go modules. Today both are part of the
+root module, making them impossible to import without pulling in the entire agent.
+
+### Current Blockers
+
+**Circular dependency:** `pkg/ebpf/uprobes/` imports `pkg/network/{go/bininspect,usm/sharedlibraries,usm/utils}`, while `pkg/network/` imports `pkg/ebpf/` (77 files). This must be broken before either can become a module.
+
+**Root-module dependencies of `pkg/ebpf/`:**
+- `pkg/remoteconfig/state` (no go.mod)
+- `pkg/util/{log,kernel,funcs,archive}` (most already have go.mod)
+- `pkg/telemetry`, `pkg/version`, `comp/core/telemetry` (all have go.mod)
+
+**Root-module dependencies of `pkg/network/` (after `pkg/ebpf/` extraction):**
+- `pkg/process/util` (no go.mod) -- **hardest blocker**, `Address` type used in 41 files
+- `pkg/eventmonitor` (no go.mod) -- 5 files
+- `pkg/process/monitor` (no go.mod) -- 6 files
+- `pkg/security/secl/model` (no go.mod) -- 6 files
+- `comp/core/sysprobeconfig` (no go.mod) -- 5 files
+- `pkg/system-probe/config` (no go.mod) -- 3 files
+- `pkg/config/setup` global functions (`SystemProbe()`) -- already bypassed by `toNetworkConfig()`
+
+### Extraction Order (Bottom-Up)
+
+| Phase | Extract | Key Work | Size |
+|-------|---------|----------|------|
+| 1 | `pkg/process/util` | Small package (Address type, IP buffers). Clean deps. | Small |
+| 2 | Break `pkg/ebpf/uprobes` circular dep | Move uprobes into `pkg/network/` or behind interface | Medium |
+| 3 | `pkg/ebpf/` | Resolve `pkg/remoteconfig/state` dep (extract or interface) | Large |
+| 4 | Remaining blockers | `pkg/eventmonitor`, `pkg/process/monitor`, `pkg/security/secl/model`, `comp/core/sysprobeconfig`, `pkg/system-probe/config` | Medium each |
+| 5 | `pkg/network/` | All blockers resolved, create module with `used_by_otel: true` | Large |
+
+### Mechanical Work per Module (Mostly Automated)
+
+For each new module:
+1. Create `go.mod` + add entry to `modules.yml` (manual)
+2. `dda inv modules.add-all-replace` -- generates ~180 replace directives (automated)
+3. `dda inv tidy` -- fixes all dependent modules (automated)
+4. `dda inv modules.go-work` -- updates go.work (automated)
+
+The repo already has 192 modules and mature tooling for managing them. The manual work
+is resolving dependency graph issues, not the mechanical go.mod management.
+
+### Relationship to Phase 1
+
+Phase 1 (OTLP Metrics MVP) does NOT require module extraction. The CNM receiver lives
+in `comp/host-profiler/` and imports `pkg/network/tracer` directly within the root
+module. Module extraction is a parallel workstream that enables upstreaming later.
+
+---
+
+## 8. Verification Plan
 
 1. **Build**: `dda inv agent.build` targeting host-profiler binary
 2. **Unit tests**: `dda inv test --targets=./comp/host-profiler/collector/impl/receiver/cnm/...`
