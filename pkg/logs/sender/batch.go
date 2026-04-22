@@ -71,6 +71,11 @@ func makeBatch(
 }
 
 func (b *batch) resetBatch() {
+	// Free C-side resources (e.g. ZSTD_CCtx) before replacing the compressor;
+	// error paths skip sendMessages so Close() would never be called otherwise.
+	if b.compressor != nil {
+		b.compressor.Close()
+	}
 	b.buffer.Clear()
 	b.serializer.Reset()
 	var encodedPayload bytes.Buffer
@@ -158,7 +163,9 @@ func (b *batch) flushBuffer(outputChan chan *message.Payload, reason string) {
 func (b *batch) sendMessages(messagesMetadata []*message.MessageMetadata, outputChan chan *message.Payload, reason string) {
 	defer b.resetBatch()
 
-	if err := b.compressor.Close(); err != nil {
+	err := b.compressor.Close()
+	b.compressor = nil // prevent double-free from defer resetBatch
+	if err != nil {
 		log.Warn("Encoding failed - dropping payload", err)
 		b.utilization.Stop()
 		return
