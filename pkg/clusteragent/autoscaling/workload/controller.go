@@ -24,12 +24,14 @@ import (
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	k8sclient "k8s.io/client-go/kubernetes"
 	scaleclient "k8s.io/client-go/scale"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/utils/clock"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/podcollectiongate"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/metrics"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/metricsstore"
@@ -103,6 +105,7 @@ func NewController(
 	localSender sender.Sender,
 	limitHeap *limitHeap,
 	globalTagsFunc func() []string,
+	podCollectionGate *podcollectiongate.Gate,
 ) (*Controller, error) {
 	c := &Controller{
 		clusterID:         clusterID,
@@ -123,6 +126,17 @@ func NewController(
 	baseController, err := autoscaling.NewController(controllerID, c, dynamicClient, dynamicInformer, podAutoscalerGVR, isLeader, store, autoscalingWorkqueue)
 	if err != nil {
 		return nil, err
+	}
+
+	if podCollectionGate != nil {
+		_, err := dynamicInformer.ForResource(podAutoscalerGVR).Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+			AddFunc: func(_ any) {
+				podCollectionGate.Enable()
+			},
+		})
+		if err != nil {
+			return nil, fmt.Errorf("cannot add pod-collection gate handler to DPA informer: %w", err)
+		}
 	}
 
 	c.Controller = baseController
