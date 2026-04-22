@@ -64,6 +64,9 @@ common:windows --shell_executable=C:/tools/msys64/usr/bin/bash.exe
 # Force the x86_64-pc-windows-gnu Rust toolchain (compact name for rust_windows_gnu_x86_64)
 # to take priority over the default MSVC toolchain, since the CI cc_toolchain is MinGW/GCC.
 common:windows --extra_toolchains=@rust_toolchains//:rw-2070622084
+# The GNU Rust toolchain needs dlltool (from MinGW binutils) to create import libraries.
+# Bazel's default action PATH omits mingw64/bin, so pass through the host PATH.
+common:windows --action_env=PATH
 
 # Remote cache config --------------------------------------------------------------------------------------------------
 # datadog-agent virtually isolates caching instance from its parent (which is remote-caching).
