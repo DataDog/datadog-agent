@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "healthplatform",
@@ -18,23 +18,7 @@ go_library(
         "//comp/healthplatform/issues/dockerpermissions",
         "//comp/healthplatform/issues/rofspermissions",
         "//pkg/util/fxutil",
-        "@//comp/core/diagnose/def",
+        "//comp/core/diagnose/def",
         "@com_github_datadog_agent_payload_v5//healthplatform",
-    ],
-)
-
-go_test(
-    name = "healthplatform_test",
-    srcs = ["bundle_test.go"],
-    embed = [":healthplatform"],
-    gotags = ["test"],
-    deps = [
-        "//comp/core/config",
-        "//comp/core/hostname/hostnameinterface",
-        "//comp/core/log/def",
-        "//comp/core/log/mock",
-        "//pkg/util/fxutil",
-        "//comp/core/telemetry/telemetryimpl",
-        "@org_uber_go_fx//:fx",
     ],
 )

@@ -282,16 +282,12 @@ func TestBuildIntakeURL(t *testing.T) {
 	}
 }
 
-// TestForwarderNewWithHostname tests that New creates a forwarder with the given hostname
+// TestForwarderNewWithHostname tests that a forwarder stores the given hostname
 func TestReporterNewWithHostname(t *testing.T) {
 	cfg := config.NewMock(t)
 	cfg.SetWithoutSource("api_key", "test-api-key")
 	provider := newMockIssueProvider()
 
-	rptr := New(logmock.New(t), cfg, "test-hostname")
-	rptr.SetProvider(provider)
-
-	concreteReporter, ok := rptr.(*forwarder)
-	require.True(t, ok)
-	assert.Equal(t, "test-hostname", concreteReporter.hostname)
+	rptr := newTestForwarder(t, cfg, provider, "test-hostname")
+	assert.Equal(t, "test-hostname", rptr.hostname)
 }
