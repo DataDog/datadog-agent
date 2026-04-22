@@ -85,7 +85,8 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		ActionsAllowlist:          makeActionsAllowlist(config),
 		Allowlist:                 config.GetStringSlice(setup.PARHttpAllowlist),
 		AllowIMDSEndpoint:         config.GetBool(setup.PARHttpAllowImdsEndpoint),
-		RShellAllowedPaths:        config.GetStringSlice(setup.PARRestrictedShellAllowedPaths),
+		RShellAllowedPaths:        rshellAllowedPaths(config),
+		RShellAllowedCommands:     rshellAllowedCommands(config),
 		DDHost:                    ddHost,
 		DDApiHost:                 "api." + ddSite,
 		Modes:                     []modes.Mode{modes.ModePull},
@@ -124,6 +125,26 @@ func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 	}
 
 	return allowlist
+}
+
+// rshellAllowedCommands returns the operator-configured rshell command
+// allowlist, or nil when the operator did not configure one. Nil signals
+// "pass-through" so the handler forwards the backend list unchanged.
+func rshellAllowedCommands(config config.Component) []string {
+	if !config.IsConfigured(setup.PARRestrictedShellAllowedCommands) {
+		return nil
+	}
+	return config.GetStringSlice(setup.PARRestrictedShellAllowedCommands)
+}
+
+// rshellAllowedPaths mirrors rshellAllowedCommands for the filesystem
+// allowlist. Nil means "operator unset" — the handler will pass the backend
+// list through unchanged rather than tightening to an empty intersection.
+func rshellAllowedPaths(config config.Component) []string {
+	if !config.IsConfigured(setup.PARRestrictedShellAllowedPaths) {
+		return nil
+	}
+	return config.GetStringSlice(setup.PARRestrictedShellAllowedPaths)
 }
 
 // getDatadogHost extracts and normalizes the Datadog host from the main endpoint.
