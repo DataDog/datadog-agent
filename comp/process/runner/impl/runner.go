@@ -18,10 +18,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo/def"
 	runner "github.com/DataDog/datadog-agent/comp/process/runner/def"
 	submitter "github.com/DataDog/datadog-agent/comp/process/submitter/def"
+	"reflect"
+	"slices"
+
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	processRunner "github.com/DataDog/datadog-agent/pkg/process/runner"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // for testing
@@ -50,7 +52,7 @@ type dependencies struct {
 
 // NewComponent creates a new runner component.
 func NewComponent(deps dependencies) (runner.Component, error) {
-	checks := fxutil.GetAndFilterGroup(deps.Checks)
+	checks := filterNilChecks(deps.Checks)
 	c, err := processRunner.NewRunner(deps.Config, deps.SysCfg.SysProbeObject(), deps.HostInfo.Object(), filterEnabledChecks(checks), deps.RTNotifier)
 	if err != nil {
 		return nil, err
@@ -79,6 +81,23 @@ func (r *runnerImpl) Run(context.Context) error {
 func (r *runnerImpl) stop(context.Context) error {
 	r.checkRunner.Stop()
 	return nil
+}
+
+// filterNilChecks removes both untyped and typed-nil values from an fx group of CheckComponent.
+// A typed nil (e.g. (*concreteCheck)(nil) stored as CheckComponent) is common for disabled components
+// and must be handled via reflection since a plain nil comparison misses it.
+func filterNilChecks(group []types.CheckComponent) []types.CheckComponent {
+	return slices.DeleteFunc(group, func(item types.CheckComponent) bool {
+		t := reflect.TypeOf(item)
+		if t == nil {
+			return true
+		}
+		switch t.Kind() {
+		case reflect.Pointer, reflect.Map, reflect.Array, reflect.Chan, reflect.Slice, reflect.Func, reflect.Interface:
+			return reflect.ValueOf(item).IsNil()
+		}
+		return false
+	})
 }
 
 func filterEnabledChecks(providedChecks []types.CheckComponent) []checks.Check {
