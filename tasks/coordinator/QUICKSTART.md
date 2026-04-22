@@ -102,7 +102,32 @@ merges. Setup is one line because `gh` is pre-authed on DD workspaces.
 
 ---
 
-## 3. Check out the harness branch
+## 3. Check out the harness branch (and understand the branch model)
+
+Four branches are involved. Two you maintain, two the coordinator manages:
+
+```
+main                                upstream agent default (never touched)
+│
+├─ q-branch-observer                upstream observer feature branch
+│   │                               (others' observer work lands here; the
+│   │                                coordinator MERGES from it, never pushes)
+│   │
+│   └─ claude/observer-improvements SCRATCH: coordinator commits here
+│                                   (draft PR #49678; force-push allowed;
+│                                    not mergeable as-is — audit log only)
+│
+└─ ella/claude-coordinator-harness  the coordinator's own code
+                                    (you edit tasks/coordinator/ here)
+```
+
+**Key invariant:** `claude/observer-improvements` MUST contain the
+coordinator's own `tasks/coordinator/` code. Otherwise the driver checks
+itself out mid-iteration and its own Python modules disappear, breaking
+lazy imports (e.g. `proposer`). The scratch branch is therefore seeded
+from `ella/claude-coordinator-harness`, NOT from `q-branch-observer` —
+upstream observer work arrives via `sync_from_upstream` merges every
+iteration, but harness code is always present.
 
 ```bash
 # inside the driver workspace
@@ -111,10 +136,39 @@ git fetch origin
 git checkout ella/claude-coordinator-harness
 ```
 
-Note: first coordinator run will automatically create the scratch branch
-`claude/observer-improvements` off `origin/q-branch-observer`. You don't
-need to pre-create it. This checkout is just so the coordinator code itself
-is available.
+**First-time scratch-branch setup** (only if `claude/observer-improvements`
+doesn't already track `ella/claude-coordinator-harness`):
+
+```bash
+git branch -f claude/observer-improvements ella/claude-coordinator-harness
+git push --force-with-lease --no-verify origin claude/observer-improvements
+```
+
+**When you edit coordinator code during a run:**
+
+```bash
+# 1. Commit your edits to ella/claude-coordinator-harness
+git checkout ella/claude-coordinator-harness
+# edit tasks/coordinator/..., commit, push
+git push origin ella/claude-coordinator-harness
+
+# 2. Fast-forward the scratch branch so the RUNNING coordinator picks it up
+git branch -f claude/observer-improvements ella/claude-coordinator-harness
+git push --force-with-lease --no-verify origin claude/observer-improvements
+
+# 3. Restart the driver (Python caches module imports; only a new process
+#    sees the new code). startup_cleanup reconciles in-flight state safely.
+tmux attach -t coord
+# Ctrl-C, then re-run `python -u -m coordinator.driver --forever ...`
+```
+
+**If you don't do step 2**, the coordinator keeps running the OLD code —
+its Python modules were loaded from whatever `claude/observer-improvements`
+was at process start.
+
+**Why force-push is safe on the scratch branch:** PR #49678 is a draft
+audit log, never merged. Real merge workflow (at end of run) cherry-picks
+surviving ships onto a fresh clean branch — see section 11.
 
 ---
 
@@ -321,6 +375,42 @@ scp workspace-coord-driver:~/datadog-agent/.coordinator/db.yaml ./db-snapshot.ya
 Or view the branch directly on GitHub:
 `origin/claude/observer-improvements` — every commit there is a
 reviewed, approved candidate with its experiment id in the message.
+
+---
+
+## End-of-run merge workflow
+
+`claude/observer-improvements` is NOT a merge candidate. It's a draft
+audit log of every shipped candidate — mid-run "shipped" means "passed
+gates + 3-persona review", not "proved to be better." The real merge
+flow identifies survivors via offline re-eval and cherry-picks them onto
+a clean branch.
+
+```bash
+# 1. Offline N=20 re-eval: per shipped candidate, checkout ship sha AND
+#    parent sha, run q.eval-scenarios at 20 seeds on each, report marginal
+#    ΔF1 with 95% CIs, flag which generalize to lockbox scenarios.
+cd ~/datadog-agent
+PYTHONPATH=tasks python -m coordinator.reeval_ships \
+    --seeds 20 --out ./reeval-ships.json
+
+# 2. Read reeval-ships.json — the `per_candidate` list shows per-scenario
+#    CI_low. Success criterion: ≥3 shipped candidates with ANY lockbox
+#    scenario's ci_low > 0 = real generalization.
+
+# 3. Start a REAL branch for the merge PR
+git fetch origin q-branch-observer
+git checkout -b observer-ad-improvements origin/q-branch-observer
+
+# 4. Cherry-pick ONLY the survivors
+git cherry-pick <sha-1> <sha-2> <sha-3>  # etc
+
+# 5. Open a real PR against q-branch-observer
+gh pr create --base q-branch-observer --head observer-ad-improvements \
+    --title "Observer AD: shipped <N> candidates validated at N=20 seeds"
+```
+
+The audit PR #49678 stays open as an archive of the full run.
 
 ---
 
