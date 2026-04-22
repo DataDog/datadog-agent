@@ -661,7 +661,7 @@ func (r *Resolver) getSBOM(containerID containerutils.ContainerID) *SBOM {
 
 	sbom := r.hostSBOM
 	if containerID != "" {
-		sbom, _ = r.sboms.Get(containerID)
+		sbom, _ = r.sboms.Peek(containerID)
 	}
 	return sbom
 }
@@ -898,7 +898,7 @@ func (r *Resolver) Delete(id containerutils.ContainerID) {
 	r.sbomsLock.Lock()
 	defer r.sbomsLock.Unlock()
 
-	sbom, ok := r.sboms.Get(id)
+	sbom, ok := r.sboms.Peek(id)
 	if !ok {
 		return
 	}
