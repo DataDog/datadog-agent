@@ -82,6 +82,12 @@ if [ "$DD_GUI_APP_MENU_ENABLED" = "true" ]; then
     gui_app_menu_enabled=true
 fi
 
+# Optional: Chrome extension ID for AI usage native messaging host (postinst writes NativeMessagingHosts manifest).
+ai_usage_chrome_extension_id=
+if [ -n "$DD_AI_USAGE_CHROME_EXTENSION_ID" ]; then
+    ai_usage_chrome_extension_id=$DD_AI_USAGE_CHROME_EXTENSION_ID
+fi
+
 if [ -n "$DD_AGENT_MINOR_VERSION" ]; then
   # Examples:
   #  - 20        = defaults to highest patch version x.20.2
@@ -211,6 +217,7 @@ $sudo_cmd chmod 700 "$install_staging_dir"
     [ -n "$apikey" ] && echo "DD_API_KEY=$apikey"
     [ -n "$site" ] && echo "DD_SITE=$site"
     [ "$gui_app_menu_enabled" = true ] && echo "DD_GUI_APP_MENU_ENABLED=true"
+    [ -n "$ai_usage_chrome_extension_id" ] && echo "DD_AI_USAGE_CHROME_EXTENSION_ID=$ai_usage_chrome_extension_id"
     echo "DD_INSTALL_METHOD=install_script_mac"
     echo "DD_INSTALL_SCRIPT_VERSION=$install_script_version"
 } | $sudo_cmd tee "$install_env_file" > /dev/null
