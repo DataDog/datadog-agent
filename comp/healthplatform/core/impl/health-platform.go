@@ -315,14 +315,11 @@ func (h *healthPlatformImpl) start(_ context.Context) error {
 
 	// Wire the reporter/provider now that the core component is fully constructed.
 	// This deferred wiring breaks the circular fx dependency between core and its sub-components.
+	// checkrunner and forwarder manage their own goroutine lifecycle via fx lifecycle hooks,
+	// which run before this hook in dependency order — so SetReporter/SetProvider are called
+	// before the first check or send can fire.
 	h.checkRunner.SetReporter(h)
 	h.forwarder.SetProvider(h)
-
-	// Start the check runner for periodic health checks
-	h.checkRunner.Start()
-
-	// Start the forwarder for sending reports to intake
-	h.forwarder.Start()
 
 	h.startupChecks()
 
@@ -332,13 +329,6 @@ func (h *healthPlatformImpl) start(_ context.Context) error {
 // stop stops the health platform component
 func (h *healthPlatformImpl) stop(_ context.Context) error {
 	h.log.Info("Stopping health platform component")
-
-	// Stop the check runner first to prevent new issues being reported
-	h.checkRunner.Stop()
-
-	// Stop the forwarder
-	h.forwarder.Stop()
-
 	return nil
 }
 

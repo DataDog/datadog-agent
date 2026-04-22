@@ -26,10 +26,15 @@ type IssueReporter interface {
 type Component interface {
 	// SetReporter wires the issue reporter after construction, breaking the
 	// circular fx dependency between core and checkrunner.
-	// Must be called before Start().
+	// Must be called before the first check fires (i.e. from the core lifecycle start hook).
 	SetReporter(reporter IssueReporter)
+
+	// RegisterCheck registers a periodic health check that runs at the given interval.
+	// The check is identified by checkID (must be unique) and checkName (human-readable label).
+	// If interval is zero or negative, a default interval is used.
 	RegisterCheck(checkID string, checkName string, fn HealthCheckFunc, interval time.Duration) error
+
+	// RunCheck executes a health check immediately, outside the periodic schedule.
+	// Results are reported to the registered IssueReporter.
 	RunCheck(checkID string, checkName string, fn HealthCheckFunc) error
-	Start()
-	Stop()
 }

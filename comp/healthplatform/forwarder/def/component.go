@@ -21,8 +21,6 @@ type IssueProvider interface {
 type Component interface {
 	// SetProvider wires the issue provider after construction, breaking the
 	// circular fx dependency between core and forwarder.
-	// Must be called before Start().
+	// Must be called before the first send fires (i.e. from the core lifecycle start hook).
 	SetProvider(provider IssueProvider)
-	Start()
-	Stop()
 }

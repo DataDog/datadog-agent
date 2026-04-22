@@ -17,7 +17,10 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	forwarderdef "github.com/DataDog/datadog-agent/comp/healthplatform/forwarder/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -58,28 +61,44 @@ type forwarder struct {
 	doneCh chan struct{}
 }
 
-// New creates a new forwarder instance with an explicit hostname.
-// Call SetProvider before Start() to wire the issue provider.
-func New(
-	logger log.Component,
-	cfg pkgconfigmodel.Reader,
-	hostname string,
-) forwarderdef.Component {
-	interval := cfg.GetDuration("health_platform.forwarder.interval")
+// Requires defines the dependencies for the forwarder.
+type Requires struct {
+	Log       log.Component
+	Config    config.Component
+	Hostname  hostnameinterface.Component
+	Lifecycle compdef.Lifecycle
+}
+
+// New creates a new forwarder instance and registers its lifecycle hooks.
+func New(reqs Requires) forwarderdef.Component {
+	hostname, err := reqs.Hostname.Get(context.Background())
+	if err != nil {
+		reqs.Log.Warn("Health platform forwarder: failed to get hostname, will use empty string: " + err.Error())
+		hostname = ""
+	}
+
+	interval := reqs.Config.GetDuration("health_platform.forwarder.interval")
 	if interval <= 0 {
 		interval = defaultReporterInterval
 	}
 
-	return &forwarder{
-		cfg:        cfg,
-		intakeURL:  buildIntakeURL(cfg),
+	f := &forwarder{
+		cfg:        reqs.Config,
+		intakeURL:  buildIntakeURL(reqs.Config),
 		interval:   interval,
 		hostname:   hostname,
-		httpClient: buildHTTPClient(cfg),
-		log:        logger,
+		httpClient: buildHTTPClient(reqs.Config),
+		log:        reqs.Log,
 		stopCh:     make(chan struct{}),
 		doneCh:     make(chan struct{}),
 	}
+
+	reqs.Lifecycle.Append(compdef.Hook{
+		OnStart: f.start,
+		OnStop:  f.stop,
+	})
+
+	return f
 }
 
 // SetProvider wires the issue provider. Must be called before Start().
@@ -101,18 +120,19 @@ func buildHTTPClient(cfg pkgconfigmodel.Reader) *http.Client {
 	}
 }
 
-// Start begins the periodic forwarding of health reports
-func (r *forwarder) Start() {
+// start begins the periodic forwarding of health reports.
+func (r *forwarder) start(_ context.Context) error {
 	r.log.Info(fmt.Sprintf("Starting health platform forwarder with %v interval to %s", r.interval, r.intakeURL))
-
 	go r.run()
+	return nil
 }
 
-// Stop stops the forwarder and waits for graceful shutdown
-func (r *forwarder) Stop() {
+// stop stops the forwarder and waits for graceful shutdown.
+func (r *forwarder) stop(_ context.Context) error {
 	r.log.Info("Stopping health platform forwarder")
 	close(r.stopCh)
 	<-r.doneCh
+	return nil
 }
 
 // run is the main loop that sends health reports periodically

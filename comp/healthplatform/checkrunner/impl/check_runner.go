@@ -7,11 +7,13 @@
 package checkrunnerimpl
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sync"
 	"time"
 
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	checkrunnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/checkrunner/def"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -47,25 +49,30 @@ type checkRunner struct {
 
 // Requires defines the dependencies for the check runner.
 type Requires struct {
-	Log log.Component
+	Log       log.Component
+	Lifecycle compdef.Lifecycle
 }
 
-// New creates a new check runner instance.
-// Call SetReporter before Start() to wire the issue reporter.
+// New creates a new check runner instance and registers its lifecycle hooks.
 func New(reqs Requires) checkrunnerdef.Component {
-	return &checkRunner{
+	r := &checkRunner{
 		log:    reqs.Log,
 		checks: make(map[string]*registeredCheck),
 	}
+	reqs.Lifecycle.Append(compdef.Hook{
+		OnStart: r.start,
+		OnStop:  r.stop,
+	})
+	return r
 }
 
-// SetReporter wires the issue reporter. Must be called before Start().
+// SetReporter wires the issue reporter. Must be called before the first check fires.
 func (r *checkRunner) SetReporter(reporter checkrunnerdef.IssueReporter) {
 	r.reporter = reporter
 }
 
-// Start begins running all registered checks in background goroutines
-func (r *checkRunner) Start() {
+// start begins running all registered checks in background goroutines.
+func (r *checkRunner) start(_ context.Context) error {
 	r.log.Info("Starting health platform check runner")
 
 	r.checkMux.Lock()
@@ -77,22 +84,22 @@ func (r *checkRunner) Start() {
 	for _, check := range r.checks {
 		r.startCheck(check)
 	}
+	return nil
 }
 
-// Stop stops all running checks and waits for graceful shutdown
-func (r *checkRunner) Stop() {
+// stop stops all running checks and waits for graceful shutdown.
+func (r *checkRunner) stop(_ context.Context) error {
 	r.log.Info("Stopping health platform check runner")
 
 	r.checkMux.Lock()
 	r.started = false
-	// Signal all checks to stop
 	for _, check := range r.checks {
 		close(check.stopCh)
 	}
 	r.checkMux.Unlock()
 
-	// Wait for all goroutines to finish
 	r.wg.Wait()
+	return nil
 }
 
 // RegisterCheck registers a new periodic health check
