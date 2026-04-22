@@ -32,8 +32,12 @@ var systemdUnits embed.FS
 
 //go:embed tmpl/gen/oci/datadog-agent-ddot.yaml
 //go:embed tmpl/gen/oci/datadog-agent-ddot-exp.yaml
+//go:embed tmpl/gen/oci/datadog-agent-ddot-sa.yaml
+//go:embed tmpl/gen/oci/datadog-agent-ddot-sa-exp.yaml
 //go:embed tmpl/gen/debrpm/datadog-agent-ddot.yaml
 //go:embed tmpl/gen/debrpm/datadog-agent-ddot-exp.yaml
+//go:embed tmpl/gen/debrpm/datadog-agent-ddot-sa.yaml
+//go:embed tmpl/gen/debrpm/datadog-agent-ddot-sa-exp.yaml
 var processConfigs embed.FS
 
 // DDOTProcessConfig is the rendered process manager config for DDOT (deb/rpm stable layout).
@@ -62,13 +66,19 @@ func GetSystemdUnit(name string, unitType SystemdUnitType, ambiantCapabilitiesSu
 }
 
 // GetDDOTProcessConfig returns the process manager YAML config for DDOT.
+// When standalone is true, the returned config uses standalone DDOT package
+// paths; when false, it uses the extension layout (binary under /ext/ddot).
 // The nocap distinction does not apply to process configs (only systemd units
 // use ambient capabilities), so the same file serves both cases.
-func GetDDOTProcessConfig(unitType SystemdUnitType, stable bool) (string, error) {
-	name := "datadog-agent-ddot.yaml"
-	if !stable {
-		name = "datadog-agent-ddot-exp.yaml"
+func GetDDOTProcessConfig(unitType SystemdUnitType, stable bool, standalone bool) (string, error) {
+	name := "datadog-agent-ddot"
+	if standalone {
+		name += "-sa"
 	}
+	if !stable {
+		name += "-exp"
+	}
+	name += ".yaml"
 	data, err := processConfigs.ReadFile(filepath.Join("tmpl/gen", string(unitType), name))
 	if err != nil {
 		return "", err

@@ -230,7 +230,7 @@ func postInstallDatadogAgentDDOTDEBRPM(ctx HookContext) (err error) {
 // preRemoveDatadogAgentDDOT performs pre-removal steps for the DDOT package
 // All the steps are allowed to fail
 func preRemoveDatadogAgentDDOT(ctx HookContext) error {
-	removeDDOTProcessConfig(ctx.PackageType)
+	removeDDOTProcessConfig(ctx, true)
 	// Restart procmgrd so it detects the removed config and stops the DDOT
 	// process. Without this, procmgrd would keep supervising otel-agent
 	// from its in-memory state until the agent service is restarted.
@@ -313,6 +313,13 @@ func postInstallDDOTExtension(ctx HookContext) (err error) {
 		return fmt.Errorf("failed to set DDOT config ownerships: %v", err)
 	}
 
+	if err = writeExtensionDDOTProcessConfig(ctx); err != nil {
+		return fmt.Errorf("failed to write DDOT extension process config: %v", err)
+	}
+	if err := restartProcmgrd(ctx); err != nil {
+		log.Warnf("failed to restart procmgrd after extension install: %s", err)
+	}
+
 	return nil
 }
 
@@ -320,6 +327,11 @@ func postInstallDDOTExtension(ctx HookContext) (err error) {
 func preRemoveDDOTExtension(ctx HookContext) error {
 	span, _ := ctx.StartSpan("pre_remove_extension_ddot")
 	defer span.Finish(nil)
+
+	removeDDOTProcessConfig(ctx, false)
+	if err := restartProcmgrd(ctx); err != nil {
+		log.Warnf("failed to restart procmgrd after extension removal: %s", err)
+	}
 
 	// Disable the DDOT IPC server in datadog.yaml.
 	// During an upgrade, this will be re-enabled by the post-install hook. This gives us flexibility to change the config during upgrade.
@@ -339,9 +351,15 @@ func copyFile(src, dst string, perm os.FileMode) error {
 	return os.WriteFile(dst, data, perm)
 }
 
-// agentProcessesDir returns the agent's processes.d directory based on the package type.
-func agentProcessesDir(packageType PackageType) string {
-	if packageType == PackageTypeOCI {
+// processesDir returns the processes.d directory for the current hook.
+// For OCI extension installs (standalone=false) it derives the path from
+// ctx.PackagePath so experiment installs target the experiment tree.
+// For standalone DDOT and DEB/RPM the agent's fixed path is used.
+func processesDir(ctx HookContext, standalone bool) string {
+	if !standalone && ctx.PackageType == PackageTypeOCI {
+		return filepath.Join(ctx.PackagePath, "processes.d")
+	}
+	if ctx.PackageType == PackageTypeOCI {
 		return filepath.Join(paths.PackagesPath, "datadog-agent", "stable", "processes.d")
 	}
 	return filepath.Join(agentInstallDirDebRpm, "processes.d")
@@ -367,23 +385,50 @@ func procmgrdBinaryPath(packageType PackageType) string {
 //
 // If dd-procmgrd is not installed (binary not found), the write is also
 // skipped and DDOT falls back to systemd management.
-func writeDDOTProcessConfig(ctx HookContext) error {
-	envSet := strings.EqualFold(os.Getenv("DD_PROCMGR_MANAGE_DDOT"), "true")
-	_, markerErr := os.Stat(procmgrDDOTMarkerPath)
-	markerExists := markerErr == nil
+// procmgrDDOTGateOpen returns true when the procmgr DDOT opt-in gate is
+// satisfied: either DD_PROCMGR_MANAGE_DDOT=true is set or a persistent
+// marker file exists from a previous opt-in.
+func procmgrDDOTGateOpen() bool {
+	if strings.EqualFold(os.Getenv("DD_PROCMGR_MANAGE_DDOT"), "true") {
+		return true
+	}
+	_, err := os.Stat(procmgrDDOTMarkerPath)
+	return err == nil
+}
 
-	if !envSet && !markerExists {
+// writeDDOTProcessConfig writes the DDOT procmgr YAML for standalone
+// DDOT packages (paths rewritten to remove /ext/ddot).
+func writeDDOTProcessConfig(ctx HookContext) error {
+	if !procmgrDDOTGateOpen() {
 		log.Infof("DD_PROCMGR_MANAGE_DDOT not set and no prior opt-in marker, skipping process config write; DDOT will be managed by systemd")
 		return nil
 	}
-	return doWriteDDOTProcessConfig(ctx)
+	return doWriteDDOTProcessConfig(ctx, true, true)
 }
 
-// doWriteDDOTProcessConfig is the implementation called by
-// writeDDOTProcessConfig after the env-var / marker gate passes.
+// writeExtensionDDOTProcessConfig writes the DDOT procmgr YAML for
+// extension-based DDOT installs. For OCI packages the stable/experiment
+// distinction is derived from ctx.PackagePath so the correct YAML variant
+// and processes.d directory are used.
+func writeExtensionDDOTProcessConfig(ctx HookContext) error {
+	if !procmgrDDOTGateOpen() {
+		log.Infof("DD_PROCMGR_MANAGE_DDOT not set and no prior opt-in marker, skipping extension process config write; DDOT will be managed by systemd")
+		return nil
+	}
+	stable := filepath.Base(ctx.PackagePath) != "experiment"
+	return doWriteDDOTProcessConfig(ctx, false, stable)
+}
+
+// doWriteDDOTProcessConfig is the implementation behind
+// writeDDOTProcessConfig and writeExtensionDDOTProcessConfig.
+// When standalone is true, the pre-generated standalone YAML is used
+// (binary paths in the standalone DDOT package); when false, the
+// extension-layout YAML is used (binary under /ext/ddot).
+// stable selects the stable vs experiment YAML variant and, for OCI
+// extensions, the corresponding processes.d directory.
 // On success it persists the opt-in marker so future upgrades
 // preserve procmgrd management without the env var.
-func doWriteDDOTProcessConfig(ctx HookContext) error {
+func doWriteDDOTProcessConfig(ctx HookContext, standalone bool, stable bool) error {
 	if _, err := os.Stat(procmgrdBinaryPath(ctx.PackageType)); os.IsNotExist(err) {
 		log.Infof("dd-procmgrd not found, skipping process config write; DDOT will be managed by systemd")
 		return nil
@@ -396,21 +441,13 @@ func doWriteDDOTProcessConfig(ctx HookContext) error {
 		unitType = embedded.SystemdUnitTypeDebRpm
 	}
 
-	content, err := embedded.GetDDOTProcessConfig(unitType, true)
+	content, err := embedded.GetDDOTProcessConfig(unitType, stable, standalone)
 	if err != nil {
 		return fmt.Errorf("failed to get DDOT process config: %w", err)
 	}
 
-	// The embedded YAML uses extension-layout paths (e.g. .../ext/ddot/...).
-	// The standalone DDOT package installs the binary at a different path,
-	// so apply the same rewrites as modifyDDOTUnitFileForBackwardsCompatibility.
-	content = strings.ReplaceAll(content, "/ext/ddot", "")
-	if ctx.PackageType == PackageTypeOCI {
-		content = strings.ReplaceAll(content, "/opt/datadog-packages/datadog-agent/stable", "/opt/datadog-packages/datadog-agent-ddot/stable")
-		content = strings.ReplaceAll(content, "/opt/datadog-packages/datadog-agent/experiment", "/opt/datadog-packages/datadog-agent-ddot/experiment")
-	}
-
-	dest := filepath.Join(agentProcessesDir(ctx.PackageType), ddotProcessConfigName)
+	dir := processesDir(ctx, standalone)
+	dest := filepath.Join(dir, ddotProcessConfigName)
 	if err := os.WriteFile(dest, []byte(content), 0644); err != nil {
 		return fmt.Errorf("failed to write DDOT process config to %s: %w", dest, err)
 	}
@@ -422,10 +459,10 @@ func doWriteDDOTProcessConfig(ctx HookContext) error {
 }
 
 // removeDDOTProcessConfig removes the process manager YAML config for DDOT
-// from the agent's processes.d directory. After removal, systemd's
+// from the agent's stable processes.d directory. After removal, systemd's
 // ConditionPathExists=! is satisfied and the DDOT unit can start again.
-func removeDDOTProcessConfig(packageType PackageType) {
-	dest := filepath.Join(agentProcessesDir(packageType), ddotProcessConfigName)
+func removeDDOTProcessConfig(ctx HookContext, standalone bool) {
+	dest := filepath.Join(processesDir(ctx, standalone), ddotProcessConfigName)
 	if err := os.Remove(dest); err != nil && !os.IsNotExist(err) {
 		log.Warnf("failed to remove DDOT process config %s: %s", dest, err)
 	}
@@ -444,6 +481,14 @@ func removeDDOTProcessConfig(packageType PackageType) {
 // by the standalone path rewriting in doWriteDDOTProcessConfig.
 func restoreDDOTProcessConfig(ctx HookContext) error {
 	if ctx.PackageType != PackageTypeOCI {
+		return nil
+	}
+	// If the DDOT extension is installed under the agent package, the
+	// extension hook already wrote the correct config. Writing the
+	// standalone variant here would overwrite it with wrong paths.
+	extDDOT := filepath.Join(ctx.PackagePath, "ext", "ddot")
+	if _, err := os.Stat(extDDOT); err == nil {
+		log.Infof("DDOT extension detected at %s, skipping standalone restore", extDDOT)
 		return nil
 	}
 	ddotPkgPath := filepath.Join(paths.PackagesPath, "datadog-agent-ddot", "stable")

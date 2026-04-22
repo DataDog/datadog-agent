@@ -1,5 +1,5 @@
 description: Datadog Distribution of OpenTelemetry Collector
-command: {{.InstallDir}}/ext/ddot/embedded/bin/otel-agent
+command: {{.DDOTBinDir}}/embedded/bin/otel-agent
 args:
   - run
   - --config
@@ -9,7 +9,7 @@ args:
   - --pidfile
   - {{.PIDDir}}/run/otel-agent.pid
 auto_start: true
-condition_path_exists: {{.InstallDir}}/ext/ddot/embedded/bin/otel-agent
+condition_path_exists: {{.DDOTBinDir}}/embedded/bin/otel-agent
 restart: on-failure
 restart_sec: 2
 start_limit_interval_sec: 10
