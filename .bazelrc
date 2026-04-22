@@ -66,7 +66,9 @@ common:windows --shell_executable=C:/tools/msys64/usr/bin/bash.exe
 common:windows --extra_toolchains=@rust_toolchains//:rw-2070622084
 # The GNU Rust toolchain needs dlltool (from MinGW binutils) to create import libraries.
 # Bazel's default action PATH omits mingw64/bin, so pass through the host PATH.
+# --action_env covers target-config actions; --host_action_env covers exec-config (tool) actions.
 common:windows --action_env=PATH
+common:windows --host_action_env=PATH
 
 # Remote cache config --------------------------------------------------------------------------------------------------
 # datadog-agent virtually isolates caching instance from its parent (which is remote-caching).
