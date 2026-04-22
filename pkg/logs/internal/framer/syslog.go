@@ -10,14 +10,9 @@ import (
 
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
-)
-
-var tlmSyslogDiscardedBytes = telemetry.NewCounter(
-	"logs_syslog_framer", "discarded_bytes",
-	nil, "Bytes discarded by the syslog framer due to non-conformant leading bytes",
 )
 
 // syslogFrameMatcher implements FrameMatcher for syslog TCP streams per
@@ -209,7 +204,7 @@ func (m *syslogFrameMatcher) FlushFrame(buf []byte) ([]byte, int) {
 // recordDiscarded increments both the global telemetry counter and the
 // per-tailer status counter for discarded bytes.
 func (m *syslogFrameMatcher) recordDiscarded(n int64) {
-	tlmSyslogDiscardedBytes.Add(float64(n))
+	telemetry.GetStatsTelemetryProvider().Count("logs_syslog_framer.discarded_bytes", float64(n), nil)
 	if m.discardedBytes != nil {
 		m.discardedBytes.Add(n)
 	}
