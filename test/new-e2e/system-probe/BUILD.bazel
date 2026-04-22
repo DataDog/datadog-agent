@@ -1,0 +1,4 @@
+# gazelle:ignore
+
+# gazelle:exclude test-json-review
+# gazelle:exclude vm-metrics
