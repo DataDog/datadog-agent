@@ -320,6 +320,7 @@ class TestRpathEdit(unittest.TestCase):
         self.mock_ctx.set_result_for(
             'run', 'install_name_tool -change some/path/somelib.dylib some/path/somelib.dylib some/file', Result()
         )
+        self.mock_ctx.set_result_for('run', 'codesign --sign - --force some/file', Result())
         omnibus.rpath_edit(self.mock_ctx, "some/path", "some/other/path", "macos")
         call_list = self.mock_ctx.run.mock_calls
         assert mock.call('find some/path -type f -exec file --mime-type \\{\\} \\+', hide=True) in call_list
@@ -336,8 +337,9 @@ class TestRpathEdit(unittest.TestCase):
             )
             in call_list
         )
+        assert mock.call('codesign --sign - --force some/file') in call_list
         # We can't assert regex based temporary name in calls, hence we're checking that we get the correct total number of calls
-        assert len(call_list) == 8
+        assert len(call_list) == 9
 
 
 class TestBuildRepackagedAgent(unittest.TestCase):

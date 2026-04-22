@@ -122,6 +122,26 @@ func TestPodPatcher_AddVolumeMount_Replaces(t *testing.T) {
 	assert.True(t, pod.Spec.Containers[0].VolumeMounts[0].ReadOnly)
 }
 
+func TestPodPatcher_AddVolumeMountWithTarget(t *testing.T) {
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-pod"},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				{Name: "app"},
+				{Name: "app2"},
+			},
+		},
+	}
+
+	patcher := libraryinjection.NewPodPatcher(pod, nil)
+	mount := corev1.VolumeMount{Name: "vol1", MountPath: "/path1", ReadOnly: true}
+	patcher.AddVolumeMountWithTarget(mount, "app")
+
+	assert.Len(t, pod.Spec.Containers[0].VolumeMounts, 1)
+	assert.Equal(t, mount, pod.Spec.Containers[0].VolumeMounts[0])
+	assert.Empty(t, pod.Spec.Containers[1].VolumeMounts)
+}
+
 func TestPodPatcher_AddEnvVar_DoesNotOverwrite(t *testing.T) {
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{Name: "test-pod"},

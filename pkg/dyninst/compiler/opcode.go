@@ -46,6 +46,11 @@ const (
 	OpcodeConditionBegin
 	OpcodeCallDictResolved
 	OpcodeExprSliceBoundsCheck
+	OpcodeSwissMapSetup
+	OpcodeSwissMapAesenc
+	OpcodeSwissMapHashFinish
+	OpcodeSwissMapProbe
+	OpcodeSwissMapCheckSlot
 )
 
 //revive:enable:exported

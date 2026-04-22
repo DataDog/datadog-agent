@@ -48,11 +48,15 @@ func (u *UsageConsumer) ID() string {
 
 // Start starts the usage consumer
 func (u *UsageConsumer) Start() error {
+	if err := u.CommandServer.Start(); err != nil {
+		return err
+	}
 	seclog.Infof("usage consumer started")
 	return nil
 }
 
 // Stop stops the usage consumer
 func (u *UsageConsumer) Stop() {
+	u.CommandServer.Stop()
 	seclog.Infof("usage consumer stopped")
 }

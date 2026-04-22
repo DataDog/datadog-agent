@@ -17,6 +17,13 @@ doctest = false
 name = "dd-procmgrd"
 path = "src/bins/dd-procmgrd.rs"
 
+# Windows service binary — functionally identical to dd-procmgrd, different
+# name for the Windows installer. Both always compile; packaging picks per
+# platform.
+[[bin]]
+name = "dd-procmgr-service"
+path = "src/bins/dd-procmgr-service.rs"
+
 [[bin]]
 name = "dd-procmgr"
 path = "src/bins/dd-procmgr.rs"

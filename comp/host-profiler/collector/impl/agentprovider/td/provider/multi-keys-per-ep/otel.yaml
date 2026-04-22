@@ -32,7 +32,8 @@ exporters:
         metrics_endpoint: https://otlp.datadoghq.eu/v1/metrics
         profiles_endpoint: https://intake.profile.datadoghq.eu/v1development/profiles
 extensions:
-    hpflare/default: {}
+    hpflare/default:
+        endpoint: localhost:7778
 processors:
     cumulativetodelta: {}
     filter:

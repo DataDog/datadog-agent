@@ -25,14 +25,8 @@ TOOL_LIST = [
     'github.com/aarzilli/whydeadcode',
 ]
 
-# TODO(agent-build): replace `//go:generate mockgen` by `//go:generate go run github.com/golang/mock/mockgen` to remove:
-TOOL_LIST_PROTO = [
-    'github.com/golang/mock/mockgen',
-]
-
 TOOLS = {
     'internal/tools': TOOL_LIST,
-    'internal/tools/proto': TOOL_LIST_PROTO,
 }
 
 
