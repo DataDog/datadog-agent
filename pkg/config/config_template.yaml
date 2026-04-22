@@ -40,7 +40,7 @@ api_key:
 ##   - end_user_device: tuned for end-user-device (EUDM) laptops and desktops.
 ##   - none: disables infrastructure checks.
 #
-# infrastructure_mode: full
+# infrastructure_mode: "full"
 
 ## @param dd_url - string - optional - default: "https://app.datadoghq.com"
 ## @env DD_DD_URL - string - optional - default: "https://app.datadoghq.com"
