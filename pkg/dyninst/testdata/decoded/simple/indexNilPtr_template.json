@@ -48,15 +48,15 @@
           "location": {
             "method": "main.indexNilPtrSlice"
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "x.Items[0]",
+            "message": "nil pointer dereference"
+          }
+        ]
       },
-      "type": "snapshot",
-      "evaluationErrors": [
-        {
-          "expr": "x.Items[0]",
-          "message": "nil pointer dereference"
-        }
-      ]
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "duration": "[duration]",

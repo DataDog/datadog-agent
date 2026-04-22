@@ -100,14 +100,14 @@
           "location": {
             "method": "main.lenMap"
           }
-        }
-      },
-      "evaluationErrors": [
-        {
-          "expr": "m_len",
-          "message": "nil pointer dereference"
-        }
-      ]
+        },
+        "evaluationErrors": [
+          {
+            "expr": "m_len",
+            "message": "nil pointer dereference"
+          }
+        ]
+      }
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
