@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	containerLauncher "github.com/DataDog/datadog-agent/pkg/logs/launchers/container"
 	filelauncher "github.com/DataDog/datadog-agent/pkg/logs/launchers/file"
+	journaldlauncher "github.com/DataDog/datadog-agent/pkg/logs/launchers/journald"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	fileTailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
@@ -113,6 +114,15 @@ func NewComponent(deps Requires) (Provides, error) {
 	launchersMgr := launchers.NewLaunchers(logSources, pipeline, deps.Auditor, tracker)
 	launchersMgr.AddLauncher(fileLauncher)
 	launchersMgr.AddLauncher(launcher)
+	launchersMgr.AddLauncher(journaldlauncher.NewLauncher(flare.NewFlareController(), deps.Tagger))
+
+	kubeletSource := sources.NewLogSource("kubelet", &logsconfig.LogsConfig{
+		Type:               logsconfig.JournaldType,
+		IncludeSystemUnits: logsconfig.StringSliceField{"kubelet.service"},
+		Tags:               logsconfig.StringSliceField{"source:kubelet"},
+	})
+	logSources.AddSource(kubeletSource)
+
 	sp := newSourceProvider(wmeta, logSources, pauseFilter)
 
 	ctx, cancel := context.WithCancel(context.Background())
