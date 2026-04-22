@@ -158,7 +158,7 @@ func (s *Server) sendEvents(ctx context.Context, out pb.AgentSecure_Workloadmeta
 
 			// Track how many chunks we'll send so we can mark the last one.
 			chunkIdx := 0
-			totalChunks := countChunks(events, s.maxEventSize, computeWorkloadmetaEventSize)
+			totalChunks := grpcutil.CountChunks(events, s.maxEventSize, computeWorkloadmetaEventSize)
 
 			sendFunc := func(chunk []*pb.WorkloadmetaEvent) error {
 				chunkIdx++
@@ -209,26 +209,4 @@ func (s *Server) sendEvents(ctx context.Context, out pb.AgentSecure_Workloadmeta
 // computeWorkloadmetaEventSize returns the serialized size of an event in bytes.
 func computeWorkloadmetaEventSize(event *pb.WorkloadmetaEvent) int {
 	return goproto.Size(event)
-}
-
-// countChunks returns the number of chunks that ProcessChunksInPlace would
-// produce for the given slice and size limit.
-func countChunks[T any](slice []T, maxChunkSize int, computeSize func(T) int) int {
-	count := 0
-	idx := 0
-	for idx < len(slice) {
-		chunkSize := computeSize(slice[idx])
-		j := idx + 1
-		for j < len(slice) {
-			s := computeSize(slice[j])
-			if chunkSize+s > maxChunkSize {
-				break
-			}
-			chunkSize += s
-			j++
-		}
-		count++
-		idx = j
-	}
-	return count
 }

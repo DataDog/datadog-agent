@@ -124,14 +124,6 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 
 	defer subscription.Unsubscribe()
 
-	sendFunc := func(chunk []*pb.StreamTagsEvent) error {
-		return grpc.DoWithTimeout(func() error {
-			return out.Send(&pb.StreamTagsResponse{
-				Events: chunk,
-			})
-		}, taggerStreamSendTimeout)
-	}
-
 	for {
 		select {
 		case events, ok := <-subscription.EventsChan():
@@ -151,6 +143,23 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 				}
 
 				responseEvents = append(responseEvents, e)
+			}
+
+			isInitBurst := initBurst
+			chunkIdx := 0
+			totalChunks := grpc.CountChunks(responseEvents, s.maxEventSize, computeTagsEventInBytes)
+
+			sendFunc := func(chunk []*pb.StreamTagsEvent) error {
+				chunkIdx++
+				resp := &pb.StreamTagsResponse{
+					Events: chunk,
+				}
+				if isInitBurst && chunkIdx == totalChunks {
+					resp.InitialSnapshotComplete = true
+				}
+				return grpc.DoWithTimeout(func() error {
+					return out.Send(resp)
+				}, taggerStreamSendTimeout)
 			}
 
 			if err := grpc.ProcessChunksInPlace(responseEvents, s.maxEventSize, computeTagsEventInBytes, sendFunc); err != nil {

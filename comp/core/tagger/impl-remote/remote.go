@@ -97,6 +97,7 @@ type remoteTagger struct {
 
 	telemetryTicker *time.Ticker
 	telemetryStore  *telemetry.Store
+	resyncEvents    []types.EntityEvent
 
 	checksCardinality    types.TagCardinality
 	dogstatsdCardinality types.TagCardinality
@@ -529,6 +530,7 @@ func (t *remoteTagger) run() {
 			// must be re-established.
 			t.ready = false
 			t.stream = nil
+			t.resyncEvents = nil
 
 			t.log.Warnf("error received from remote tagger: %s", err)
 
@@ -589,19 +591,22 @@ func (t *remoteTagger) processResponse(response *pb.StreamTagsResponse) error {
 		})
 	}
 
-	// if the tagger was not ready by this point, it means an error
-	// occurred and the contents of the store are no longer valid and need
-	// to be replaced by the batch coming from the current response
-	replaceStoreContents := !t.ready
-
-	err := t.store.processEvents(events, replaceStoreContents)
-	if err != nil {
-		return err
+	if !t.ready {
+		// Accumulate events across chunked snapshot messages until the
+		// server signals that the initial snapshot is complete.
+		t.resyncEvents = append(t.resyncEvents, events...)
+		if response.GetInitialSnapshotComplete() {
+			err := t.store.processEvents(t.resyncEvents, true)
+			t.resyncEvents = nil
+			if err != nil {
+				return err
+			}
+			t.ready = true
+		}
+		return nil
 	}
 
-	t.ready = true
-
-	return nil
+	return t.store.processEvents(events, false)
 }
 
 // startTaggerStream tries to establish a stream with the remote gRPC endpoint.
