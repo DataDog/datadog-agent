@@ -176,15 +176,29 @@ step or an SDK subagent call.
 └─────────────────────────┬───────────────────────────┘
                           ▼
 ┌─────────────────────────────────────────────────────┐
-│ 5.  score (vs FROZEN baseline)                      │
-│     scoring.score_against_baseline                  │
-│       train-scoped: lockbox observed, NOT gated     │
-│       catastrophe filter:                           │
-│         ΔF1 < -0.10 on any train scenario → reject  │
-│         Δrecall < -0.10 (where baseline recall>5%)  │
-│       blunt-but-honest: N=5 σ estimation was too    │
-│         noisy to support per-scenario 3σ gating.    │
-│       → strict_regressions[], recall_violations[]   │
+│ 4*. eval runs ONCE PER RELEVANT DETECTOR            │
+│     relevant_detectors(candidate) = candidate's     │
+│       target_components ∩ {bocpd,scanmw,scanwelch}  │
+│       (if empty, ALL 3 — exploratory candidate)     │
+│     per-detector q.eval-scenarios → report.json     │
+└─────────────────────────┬───────────────────────────┘
+                          ▼
+┌─────────────────────────────────────────────────────┐
+│ 5.  score (vs FROZEN baseline, gate-on-worst)       │
+│     scoring.score_against_baseline per detector;    │
+│     _merge_scorings aggregates with key             │
+│       "<detector>/<scenario>"                       │
+│     train-scoped: lockbox observed, NOT gated       │
+│     catastrophe filters (all vs frozen baseline):   │
+│       • ΔF1 < -0.10 absolute on any train scenario  │
+│       • obs.f1 < 0.5 × base.f1 (when base ≥ 0.05)   │
+│         — relative cliff; catches low-baseline drop │
+│       • Δrecall < -0.10 (where base.recall > 0.05)  │
+│       • total_fps > 1.5 × baseline_total_fps        │
+│         — stops "emit-everything" reward-hacking    │
+│     blunt-but-honest: N=5 σ too noisy for 3σ gates. │
+│     → strict_regressions[], recall_violations[],    │
+│       fp_ceiling_breached                           │
 └─────────────────────────┬───────────────────────────┘
                           ▼
 ┌─────────────────────────────────────────────────────┐
@@ -197,7 +211,8 @@ step or an SDK subagent call.
                           ▼
 ┌─────────────────────────────────────────────────────┐
 │ 5b. strict-regression gate (pre-review, vs baseline)│
-│     if strict_regressions or recall_violations:     │
+│     if any of: strict_regressions, recall_violations│
+│     or fp_ceiling_breached:                         │
 │       git_ops.revert_working_tree                   │
 │       candidate.status = REJECTED                   │
 │       emit coord-out (type=strict_regression)       │
@@ -205,17 +220,21 @@ step or an SDK subagent call.
 └─────────────────────────┬───────────────────────────┘
                           ▼
 ┌─────────────────────────────────────────────────────┐
-│ 6.  review (SDK, 2 personas in parallel)            │
-│     sdk.review_experiment                           │
-│       leakage_auditor: scenario/metric name leaks,  │
-│         threshold-snapping, implicit identity,      │
-│         hardcoded special cases                     │
-│       hack_detector:   gain concentration,          │
+│ 6.  review (SDK, 3 personas in parallel)            │
+│     sdk.review_experiment (all get full diff + full │
+│     scenario list; lockbox membership not revealed) │
+│       leakage_auditor:  scenario/metric name leaks, │
+│         threshold-snapping, implicit identity       │
+│       hack_detector:    gain concentration,         │
 │         complexity, proxy-gaming, prior-retread     │
-│       both get `git diff HEAD` + scenario rosters   │
-│       structured YAML output; per-check evidence    │
-│         required — stub evidence → auto-reject      │
-│       unanimity required (both must approve)        │
+│       algorithm_expert: interface compliance,       │
+│         non-blocking Detect, state-key pattern,     │
+│         filename+header, test coverage, helper reuse│
+│       structured YAML output w/ per-check evidence; │
+│         scenario names REDACTED from rationales     │
+│         before persistence (stops leakage chain to  │
+│         future-iteration implementation prompts)    │
+│       unanimity required (all three must approve)   │
 └─────────────────────────┬───────────────────────────┘
                           ▼
                  ┌────────┴────────┐
@@ -424,23 +443,63 @@ candidate only needs to not-regress from the elevated floor, so a
 candidate strictly worse than baseline can still pass. Over N ships
 E[cumulative drift from baseline] ≈ σ·√(2 ln N) of pure noise. Dropped.
 
-**Catastrophe filter, not statistical discrimination.** The strict-
-regression gate fires when any train scenario drops ΔF1 < -0.10 vs
-baseline; recall-floor when Δrecall < -0.10 (where baseline recall was
-non-trivial). An earlier design tried per-scenario 3·σ_s gates, but
-N=5 σ estimation has a 95% CI of [0.6σ, 2.2σ] — the σ numbers are
-themselves too noisy for 3σ to mean what it says, and F1 is bounded/
-skewed so Gaussian assumptions don't apply. The gate is intentionally
-blunt: "did the detector visibly break?" The reviewer does the nuance.
+**Catastrophe filters, not statistical discrimination.** Four
+deterministic gates fire vs the **frozen baseline** (union across all
+relevant detectors — see "multi-detector evaluation" below):
+- Absolute F1 cliff: `ΔF1 < -0.10` on any train scenario.
+- Relative F1 cliff: `obs.f1 < 0.5 × base.f1` on a scenario with
+  `base.f1 ≥ 0.05`. Catches scenarios with low baseline F1 that the
+  absolute filter can't (a scenario with baseline 0.08 can drop to zero
+  and never trip a 0.10 absolute gate).
+- Recall floor: `Δrecall < -0.10` where baseline recall > 0.05.
+- FP ceiling: `total_fps > 1.5 × baseline_total_fps`. Stops the
+  "emit-everything" reward-hack where rewriting a detector to fire on
+  every tick boosts recall while precision crashes; F1 per-scenario can
+  look fine while total FPs triple.
 
-**Two-persona review with forced evidence.** `leakage_auditor` hunts
-for scenario-name/metric-name leakage, threshold-snapping, implicit
-identity encoding, and hardcoded special cases. `hack_detector` covers
-gain concentration, complexity-proportionality, proxy-gaming, and
-prior-rejection retread. Both get the full `git diff HEAD` and both
-train + lockbox scenario rosters in the prompt. Output is structured
-YAML with per-check `{status, evidence}` fields; stub evidence or
-missing checks block → auto-reject. Unanimity required.
+An earlier design tried per-scenario 3·σ_s gates, but N=5 σ estimation
+has a 95% CI of [0.6σ, 2.2σ] — σ itself is too noisy for 3σ to mean
+what it says, and F1 is bounded/skewed so Gaussian assumptions don't
+apply. The gates are intentionally blunt: "did the detector visibly
+break?" The reviewer does the nuance.
+
+**Multi-detector evaluation.** A candidate can modify any file under
+`comp/observer/`. Scoring runs per-detector, so `relevant_detectors(c)`
+= `c.target_components ∩ {bocpd, scanmw, scanwelch}` or all three if
+empty. The coordinator runs `q.eval-scenarios --only <detector>` for
+each, scores against the frozen baseline, and gates on the **worst**
+ΔF1 / FP ratio across detectors. Without this, a candidate modifying a
+shared correlator could help one detector +0.02 while silently tanking
+another — a panel-flagged BLOCK that's now closed.
+
+**Three-persona review with forced evidence.** `leakage_auditor` hunts
+scenario/metric-name leakage, threshold-snapping, implicit identity,
+hardcoded special cases. `hack_detector` covers gain concentration,
+complexity-proportionality, proxy-gaming, prior-rejection retread.
+`algorithm_expert` enforces house style: interface compliance (must
+implement `SeriesDetector` or `Detector` from `comp/observer/def/`),
+non-blocking `Detect`, per-series state-key pattern, file naming +
+license header, companion-test updates, helper reuse. All get the full
+`git diff HEAD -- comp/observer` plus the **full** scenario list (no
+train/lockbox split revealed, per panel recommendation — lockbox names
+were leaking into review rationales and then into future-iteration
+prompts). Output is structured YAML with per-check `{status, evidence}`;
+stub evidence or missing checks block → auto-reject. Scenario names are
+redacted from rationales before persistence. Unanimity required across
+all three.
+
+**Ground truth is sealed.** `comp/observer/scenarios/` holds the
+scoring labels (`ground_truth.json`, per-scenario `episode.json` with
+disruption windows). Those files are (a) excluded from every
+`commit_candidate` `git add`, (b) content-hashed at coordinator startup
+and re-verified at every iteration boundary — any change halts with a
+`ProtectedPathTamperHalt`. The Edit/Write hook additionally blocks the
+implementation agent from modifying `comp/observer/scenarios/`,
+`tasks/q.py`, `tasks/libs/q/`, `.coordinator/`, `.git/`, or anything
+outside `comp/observer/`. Panel found this was the single biggest
+reward-hack surface: modifying the labels to widen TP windows or
+relabel FPs as TPs is the cleanest possible "F1 = 1.0" exploit. Now
+closed both technically (hook) and verifiably (hash snapshot).
 
 **Plateau detection is effect-size aware.** An experiment only
 "improves" when score > best + ε (ε = 0.01). A raw strict-greater

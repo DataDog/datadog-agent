@@ -18,7 +18,21 @@ class Config:
     # and let the LLM reviewer do the nuanced work.
     catastrophe_f1_drop: float = 0.10      # scenario ΔF1 < -0.10 vs baseline → reject
     catastrophe_recall_drop: float = 0.10  # scenario Δrecall < -0.10 vs baseline → reject
+    # RELATIVE catastrophe: a scenario with baseline F1=0.08 can only drop
+    # 0.08 absolute — the absolute 0.10 filter never fires, yet dropping to
+    # zero is still a real regression. Also reject if any scenario whose
+    # baseline F1 ≥ catastrophe_relative_min drops to ≤ 50% of baseline F1.
+    catastrophe_relative_min: float = 0.05   # only enforce when baseline had non-trivial F1
+    catastrophe_relative_ratio: float = 0.5  # obs < 0.5 * base → reject
     recall_floor_baseline_min: float = 0.05  # only enforce recall floor when baseline had real recall
+
+    # Total-FP ceiling: if observed total FPs across train scenarios is
+    # more than fp_ceiling_ratio × baseline total, reject. The emit-
+    # everything attack (rewrite detector to fire on every tick) boosts
+    # recall at the cost of massive precision loss — F1 can look fine on
+    # individual scenarios while total FPs 3x. The reviewer sees the
+    # number but the deterministic gate should too.
+    fp_ceiling_ratio: float = 1.5
 
     # Legacy scalar — kept for tests that still reference it; unused by the
     # live scoring path. Remove after next cleanup.
@@ -39,15 +53,19 @@ class Config:
     stuck_threshold: int = 5
     ban_duration: int = 5
 
-    # Review: two personas running in parallel, unanimity required.
-    #   leakage_auditor — narrow mandate, catches scenario/metric name
-    #     leakage, threshold-snapping, implicit identity, special cases.
-    #   hack_detector   — gain concentration, complexity, proxy-gaming,
-    #     prior-rejection retread.
-    # Both required to enforce evidence-cited approvals rather than vibes.
-    # Phase 2+ personas staged in reviewer.py: Duplicate Hunter,
-    # Algorithm Expert, Greybeard.
-    review_personas_phase1: int = 2
+    # Review: three personas running in parallel, unanimity required.
+    #   leakage_auditor  — scenario/metric name leakage, threshold-snapping,
+    #     implicit identity encoding, hardcoded special cases.
+    #   hack_detector    — gain concentration, complexity-proportionality,
+    #     proxy-gaming, prior-rejection retread.
+    #   algorithm_expert — house-style enforcement (interface compliance,
+    #     non-blocking ingestion, state-key pattern, license header +
+    #     filename, companion test updates, helper reuse).
+    # All three required because they catch orthogonal failure modes
+    # (leakage / metric-gaming / convention-drift) and each has
+    # evidence-cited structured output.
+    # Phase 2+ personas staged in reviewer.py: Duplicate Hunter, Greybeard.
+    review_personas_phase1: int = 3
     review_unanimity_required: bool = True
 
     # Perf

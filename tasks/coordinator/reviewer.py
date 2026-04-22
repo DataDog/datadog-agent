@@ -45,11 +45,13 @@ the baseline report numbers shown in the experiment context.
 {diff}
 ```
 
-## Train scenarios (gated by coordinator)
-{train_scenarios}
+## Full scenario set
 
-## Lockbox scenarios (held out, invisible to candidate)
-{lockbox_scenarios}
+{all_scenarios}
+
+A subset is held out from gate-time scoring (the "lockbox"); you are not
+told which. Flag any literal scenario-name in the diff as leakage regardless
+of split. Don't ask which scenarios are held out — that's intentional.
 
 Return YAML with this EXACT structure. Missing or empty evidence = reject:
 
@@ -153,15 +155,85 @@ Return YAML:
 """
 
 ALGORITHM_EXPERT_PROMPT = """\
-You are the Algorithm Expert. Judge whether the change matches established
-patterns (watchdog feature-gate patterns, BOCPD/ScanMW invariants,
-comp/observer conventions). Reject bandaids, hacks, or changes that break
-invariants documented in comp/observer/AGENTS.md or the M1 strategy doc.
+You are the algorithm expert / house-style reviewer. The leakage_auditor
+looks for data leakage; the hack_detector looks for metric-gaming. Your
+mandate is orthogonal: does this code match `comp/observer/` conventions
+and preserve the existing detector contracts?
 
-Return YAML:
-  persona: algorithm_expert
-  approve: <true|false>
-  rationale: <one paragraph>
+Concrete house-style concerns to verify:
+  1. **Interface compliance**: detectors implement `SeriesDetector` or
+     `Detector` from `comp/observer/def/component.go`. Any change that
+     swaps an algorithm must keep the SAME interface, the SAME factory
+     signature pattern (`NewXxxDetector(cfg)`), and the SAME registration
+     in `comp/observer/impl/component_catalog.go`.
+  2. **Non-blocking ingestion**: `Detect` must not block. No new
+     goroutines, no I/O, no channel sends that could deadlock the single
+     dispatch goroutine. Per comp/observer/AGENTS.md pitfall #3, "detectors
+     must not mutate storage."
+  3. **Per-series state key pattern**: stateful detectors track state via
+     (metric-key → struct) maps in a specific shape — see any existing
+     `metrics_detector_*.go` for the convention. Do NOT introduce a new
+     global mutable or a pkg-level map.
+  4. **License header + file naming**: new files need the Apache license
+     header; filenames follow `metrics_detector_<algo>.go`. If the change
+     swaps BOCPD's algorithm while keeping the `bocpd` name, the filename
+     `metrics_detector_bocpd.go` is now misleading — flag the mismatch.
+  5. **Companion test updates**: if a detector's internals changed, its
+     `*_test.go` sibling must be updated to lock in the new contract.
+     Weakening an existing assertion without explicit justification in
+     the DONE: summary is not acceptable.
+  6. **No duplicate helpers**: statistical utilities already exist in
+     `metrics_detector_util.go` and `rrcf.go`. A new FFT/rank/quantile
+     helper should reuse those rather than re-implementing.
+
+You HAVE tool access. Read the diff and one sibling detector to compare.
+
+## Candidate diff
+
+```diff
+{diff}
+```
+
+## Full scenario set
+
+{all_scenarios}
+
+## Per-scenario breakdown (for context)
+
+{scoring_summary}
+
+## Prior same-family experiments
+
+{prior_block}
+
+Return YAML with this EXACT structure. Missing or empty evidence = reject:
+
+```yaml
+persona: algorithm_expert
+checks:
+  interface_compliance:
+    status: pass | fail
+    evidence: "<which interface, which factory signature, any divergence>"
+  non_blocking_ingestion:
+    status: pass | fail
+    evidence: "<did the diff add goroutines, I/O, or blocking calls in Detect?>"
+  state_key_pattern:
+    status: pass | fail
+    evidence: "<does the state layout match a sibling detector; cite file>"
+  file_naming_and_header:
+    status: pass | fail
+    evidence: "<license header present on new files; filename matches algorithm>"
+  test_coverage:
+    status: pass | fail
+    evidence: "<companion _test.go updated to reflect new contract?>"
+  helper_reuse:
+    status: pass | fail
+    evidence: "<any stat helpers duplicated that exist in _util.go/rrcf.go?>"
+approve: true | false
+rationale: "<2-3 sentences tying the check results to the decision>"
+```
+
+Stub evidence or a missing checks block → auto-reject.
 """
 
 GREYBEARD_PROMPT = """\
@@ -179,11 +251,16 @@ Return YAML:
 PHASE1_PERSONAS = {
     "leakage_auditor": LEAKAGE_AUDITOR_PROMPT,
     "hack_detector": HACK_DETECTOR_PROMPT,
+    # Panel-flagged: neither of the above enforces house style. Algorithm
+    # Expert is the only persona whose mandate is convention alignment
+    # (interfaces, filename/header, state-key pattern, test coverage,
+    # helper reuse). Without it, the agent can produce code that passes
+    # leakage + metric-gaming checks while being architecturally bad.
+    "algorithm_expert": ALGORITHM_EXPERT_PROMPT,
 }
 
 PHASE2_PERSONAS = {
     **PHASE1_PERSONAS,
     "duplicate_hunter": DUPLICATE_HUNTER_PROMPT,
-    "algorithm_expert": ALGORITHM_EXPERT_PROMPT,
     "greybeard": GREYBEARD_PROMPT,
 }

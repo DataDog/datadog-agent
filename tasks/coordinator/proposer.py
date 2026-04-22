@@ -78,9 +78,48 @@ def build_proposer_prompt(
         )
 
     return f"""You are the proposer subagent for an anomaly-detection
-improvement harness. Your job is to brainstorm {n_candidates} new candidate
-changes that could reduce false positives or improve F1 on the observer
-pipeline, based on the prior experiment history below.
+research harness. Your job is to brainstorm {n_candidates} **genuinely
+novel** candidate changes that might improve anomaly detection on the
+observer pipeline.
+
+This harness is explicitly for exploration. Threshold-tuning on the three
+existing detectors (bocpd / scanmw / scanwelch) is the LEAST interesting
+thing you can do here — it finds small local wins and saturates fast.
+
+What's actually interesting:
+
+- **New algorithms from the literature.** You have Read/Grep/Glob access.
+  Look at recent AD literature (change-point detection beyond BOCPD,
+  robust statistics, density ratio estimation, spectral methods, contrastive
+  anomaly scoring, ensemble methods, conformal prediction, etc.). Pick
+  ideas that fit the edge constraint (bounded memory, streaming, per-series
+  state). Name the paper / algorithm in the description.
+
+- **Cross-cutting infrastructure.** New correlators that combine detector
+  outputs differently, new emitter logic, new feature-engineering stages,
+  seasonality-aware baseline windows, per-signal-class routing.
+
+- **Replace an existing detector's internals.** bocpd/scanmw/scanwelch
+  are starting points, not sacred. Keep the detector's registration and
+  whichever interface from `comp/observer/def/component.go` it already
+  implements (`SeriesDetector` or `Detector`), but swap the guts for a
+  different algorithm entirely (e.g. replace BOCPD with a density-ratio
+  detector while keeping the `bocpd` name). This is how you integrate a
+  novel algorithm cleanly.
+
+The eval framework is OFF LIMITS. Do NOT modify `tasks/q.py`,
+`tasks/libs/q`, `q.eval-scenarios` orchestration, or the testbench
+registry. The three detector names and scenario list are fixed
+evaluation boundaries. All innovation happens INSIDE `comp/observer/`,
+behind the three existing detector names.
+
+- **Adapted research from related systems.** Datadog's watchdog uses
+  AnomalyRank. Netflix's SURUS does robust PCA on streams. NAB has a battery
+  of algorithms. Cross-pollinate.
+
+Conservative, incremental threshold tweaks are allowed but should be rare —
+only propose one of those if the prior-work list suggests a specific small
+win is untapped. Bias the pool toward structurally-different approaches.
 
 ## Current baseline
 {yaml.safe_dump(baseline, sort_keys=False) if baseline else '(no baseline loaded)'}
@@ -92,23 +131,31 @@ pipeline, based on the prior experiment history below.
 {existing_families or '(none)'}
 {ban_clause}
 ## Guidelines
-- Each candidate must target `comp/observer/` code; no infrastructure.
-- Prefer approaches informed by what PRIOR experiments revealed (cite the
-  experiment id in the description if you're building on a past result).
-- Assign a short `approach_family` tag (e.g. "threshold-tune",
-  "anomaly-rank-filter", "correlator-new", "detector-swap",
-  "scan-gate-internal", "signal-class-routing", "baseline-window-tune",
-  "new-feature-gate", etc.).
-- Diversity: do NOT all fall in the same family. Spread across at least
-  {min(n_candidates, 3)} distinct families.
-- `target_components` MUST be a single-element list: exactly one of
-  `bocpd`, `scanmw`, `scanwelch`, or a correlator name. One candidate
-  = one component = one commit. Candidates that touch multiple
-  components cannot be independently evaluated post-run (each commit
-  modifies the code of the prior) and will be rejected at materialize
-  time.
+- Each candidate modifies `comp/observer/` code (and potentially
+  `tasks/q.py` / `tasks/libs/q` if it needs to plumb a new detector into
+  the eval framework). No other paths.
+- Prefer approaches informed by prior experiments (cite the experiment id
+  if building on a result) — but don't let prior work trap you in local
+  minima. The proposer is explicitly allowed to *pivot*: if 3 iterations
+  failed to move the needle on threshold-tune, propose something
+  structurally different.
+- `approach_family` is a short tag. Use concrete descriptive names
+  ("bocpd-robust-median", "spectral-residual-detector",
+  "density-ratio-detector", "conformal-prediction-gate",
+  "anomaly-rank-postfilter", "cross-series-correlator", etc.). Avoid
+  generic "tune-X" labels.
+- Diversity: at least {min(n_candidates, 3)} distinct families.
+  Ideally all {n_candidates} are different.
+- `target_components` is a list of components this candidate modifies.
+  Typically one, but multi-component changes (e.g. a new feature used
+  by both scan detectors) are allowed — the post-run attribution will
+  flag conflicts but won't block.
 - Include explicit success criteria (F1 / FP / recall targets) and
-  fallback behavior where relevant.
+  fallback behavior.
+- For new-detector proposals: describe the algorithm precisely enough
+  that the implementation agent can code it in a single iteration
+  (~60 tool hops). If the idea is too big to implement in that budget,
+  break it into phases and propose phase 1 here.
 
 ## Output
 Return a YAML document with a top-level key `candidates` containing a list.
@@ -154,14 +201,16 @@ def materialize_candidates(
         if cid in db.candidates:
             cid = f"{cid}-{uuid.uuid4().hex[:6]}"
         target_components = list(prop.get("target_components", []))
-        # Enforce one-component-per-candidate. Multi-component commits
-        # can't be independently re-evaluated post-run: each commit
-        # modifies the code of the prior, so marginal attribution
-        # requires a linear history where each ship touches one thing.
-        if len(target_components) != 1:
+        # Require at least one target_component. Multi-component candidates
+        # are allowed — this is an exploratory harness; novel approaches
+        # (new correlators, literature-inspired gates, cross-cutting
+        # features) often span multiple detectors. The post-run
+        # reeval_ships attribution is best-effort: multi-component ships
+        # may produce cherry-pick conflicts, in which case we report them
+        # rather than block the candidate up front.
+        if len(target_components) == 0:
             print(
-                f"skip {cid}: expected exactly 1 target_component, got "
-                f"{target_components!r}",
+                f"skip {cid}: target_components must be non-empty",
                 file=sys.stderr,
             )
             continue

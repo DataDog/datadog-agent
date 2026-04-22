@@ -46,6 +46,48 @@ def now_iso() -> str:
     return _dt.datetime.now().isoformat(timespec="seconds")
 
 
+class ProtectedPathTamperHalt(Exception):
+    """Raised when ground-truth fixtures changed between iterations."""
+
+
+def _snapshot_protected_paths(db: Db, root: Path) -> None:
+    """Record current content hashes of scoring labels into db.yaml."""
+    db.protected_path_hashes = {
+        p: git_ops.tree_hash(root, p) for p in git_ops.PROTECTED_PATHS
+    }
+
+
+def _verify_protected_paths(db: Db, root: Path) -> None:
+    """Abort iteration if any PROTECTED_PATH content hash changed.
+
+    First-run bootstrap: no recorded hashes → take a snapshot and proceed.
+    Subsequent runs compare and halt on mismatch.
+    """
+    if not db.protected_path_hashes:
+        _snapshot_protected_paths(db, root)
+        save_db(db, root)
+        return
+    for p in git_ops.PROTECTED_PATHS:
+        current = git_ops.tree_hash(root, p)
+        recorded = db.protected_path_hashes.get(p, "")
+        if recorded and current != recorded:
+            msg = (
+                f"Protected path '{p}' changed between iterations "
+                f"(recorded {recorded[:12]} vs current {current[:12]}). "
+                "This is the scoring label set; any change invalidates "
+                "mid-run F1 measurements. Halting. If the change is a "
+                "legitimate upstream merge, delete db.protected_path_hashes "
+                "and restart to re-baseline."
+            )
+            coord_out.emit("tripwire", msg, requires_ack=True, root=root)
+            journal.append(
+                "protected_path_tamper",
+                {"path": p, "recorded": recorded, "current": current},
+                root,
+            )
+            raise ProtectedPathTamperHalt(msg)
+
+
 # ---------------------------------------------------------------------------
 # Inbox handling (TODO #1)
 # ---------------------------------------------------------------------------
@@ -239,11 +281,103 @@ def _recent_same_family(db: Db, candidate: Candidate, limit: int = 5) -> list[di
     return out
 
 
-def primary_detector(candidate: Candidate) -> str | None:
-    for c in candidate.target_components:
-        if c in {"bocpd", "scanmw", "scanwelch"}:
-            return c
-    return None
+KNOWN_DETECTORS = ("bocpd", "scanmw", "scanwelch")
+
+
+def relevant_detectors(candidate: Candidate) -> list[str]:
+    """Which detectors' F1 do we measure to decide if this candidate shipped?
+
+    A candidate can modify any file under comp/observer/. But scoring runs
+    per-detector, and the panel review caught this: silently defaulting to
+    ONE detector (previously scanmw) meant candidates modifying e.g. bocpd
+    internals got scored against scanmw's unaffected output — ΔF1≈0 by
+    construction, "improvement" or "regression" both invisible.
+
+    Policy:
+      - Intersect target_components with the 3 known detectors. If the
+        intersection is non-empty, eval each one in it and gate on the
+        WORST ΔF1 across them.
+      - If the intersection is empty (correlator changes, new features,
+        pipeline-level work), eval ALL 3 detectors — we can't tell in
+        advance which one the change affects, so measure them all.
+
+    Always returns a non-empty list.
+    """
+    named = [c for c in candidate.target_components if c in KNOWN_DETECTORS]
+    if named:
+        return named
+    return list(KNOWN_DETECTORS)
+
+
+def primary_detector(candidate: Candidate) -> str:
+    """Deprecated single-detector view. Kept for callers that print a
+    single string (metrics, log lines). Returns the first relevant detector.
+    """
+    return relevant_detectors(candidate)[0]
+
+
+def _merge_scorings(scorings: dict, detectors: list[str]):
+    """Combine per-detector ScoringResults into one gate-on-worst view.
+
+    - `mean_f1` = simple average of detector means.
+    - `strict_regressions` / `recall_floor_violations` = union across
+      detectors, prefixed with `<detector>/` so the reviewer can see which
+      detector is suffering.
+    - `per_scenario` / `per_scenario_delta` keyed by `<detector>/<scenario>`
+      so downstream (review prompts, reeval_ships) sees the full surface.
+    - `total_fps` / `baseline_total_fps` = sum across detectors.
+    """
+    from .scoring import ScoringResult
+
+    if not scorings:
+        # No usable detector scores — construct an empty no-op result so the
+        # caller treats this as eval failure rather than crashing.
+        return ScoringResult(
+            detector="|".join(detectors) or "unknown",
+            mean_f1=0.0, total_fps=0, per_scenario={},
+            baseline_mean_f1=0.0, baseline_total_fps=0,
+            mean_df1=0.0, total_dfps=0, per_scenario_delta={},
+            strict_regressions=[], recall_floor_violations=[],
+            fp_reduction_pct=0.0,
+        )
+
+    means = [s.mean_f1 for s in scorings.values()]
+    base_means = [s.baseline_mean_f1 for s in scorings.values()]
+    mean_f1 = sum(means) / len(means)
+    base_mean_f1 = sum(base_means) / len(base_means)
+    total_fps = sum(s.total_fps for s in scorings.values())
+    base_total_fps = sum(s.baseline_total_fps for s in scorings.values())
+
+    merged_per_scenario = {}
+    merged_deltas = {}
+    strict = []
+    recall_v = []
+    for det, s in scorings.items():
+        for scen, sr in s.per_scenario.items():
+            merged_per_scenario[f"{det}/{scen}"] = sr
+        for scen, sd in s.per_scenario_delta.items():
+            merged_deltas[f"{det}/{scen}"] = sd
+        strict.extend(f"{det}/{n}" for n in s.strict_regressions)
+        recall_v.extend(f"{det}/{n}" for n in s.recall_floor_violations)
+
+    fp_reduction_pct = 0.0
+    if base_total_fps > 0:
+        fp_reduction_pct = (base_total_fps - total_fps) / base_total_fps
+
+    return ScoringResult(
+        detector="+".join(detectors),
+        mean_f1=mean_f1,
+        total_fps=total_fps,
+        per_scenario=merged_per_scenario,
+        baseline_mean_f1=base_mean_f1,
+        baseline_total_fps=base_total_fps,
+        mean_df1=mean_f1 - base_mean_f1,
+        total_dfps=total_fps - base_total_fps,
+        per_scenario_delta=merged_deltas,
+        strict_regressions=strict,
+        recall_floor_violations=recall_v,
+        fp_reduction_pct=fp_reduction_pct,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -254,8 +388,24 @@ def run_iteration(db: Db, root: Path, dry_run: bool = False) -> Db:
     iter_num = len(db.iterations)
     it = Iteration(number=iter_num, started_at=now_iso())
 
+    # Protected-path integrity check: verify ground-truth fixtures haven't
+    # been tampered with since the last iteration. Upstream merges may
+    # legitimately change them (infrequent) — the coordinator halts on
+    # detection and a human decides whether to re-snapshot.
+    if not dry_run:
+        _verify_protected_paths(db, root)
+
     with budget_mod.WallTimer(db.budget):
         _run_iteration_body(db, root, dry_run, iter_num, it)
+
+    # Re-snapshot protected-path hashes AFTER the iteration so the NEXT
+    # iteration's verify sees whatever upstream merges or human edits
+    # happened during this iteration as the new baseline. Agent edits were
+    # made impossible by the Edit/Write deny-list hook; if somehow one
+    # snuck through, it's caught on the next iteration's pre-check.
+    if not dry_run:
+        _snapshot_protected_paths(db, root)
+        save_db(db, root)
 
     if not dry_run:
         # Accumulate SDK tokens consumed during this iteration.
@@ -388,19 +538,16 @@ def _run_iteration_body(
         return
 
     it.candidate_id = candidate.id
-    detector = primary_detector(candidate)
-    if detector is None:
-        print(f"[iter {iter_num}] candidate {candidate.id} has no target detector; skipping")
-        candidate.status = CandidateStatus.REJECTED
-        it.ended_at = now_iso()
-        db.iterations.append(it)
-        if not dry_run:
-            save_db(db, root)
-            metrics.regenerate(db, root)
-        return
+    detectors = relevant_detectors(candidate)
+    # Why a list, not a single detector: a candidate modifying correlator
+    # code or a shared feature affects MULTIPLE detectors. Gating on a
+    # single "primary" detector was a panel-reviewed BLOCK — silent
+    # regressions on other detectors could ship. Policy now: eval every
+    # detector whose output the candidate plausibly changes, and gate on
+    # the worst ΔF1 across them.
 
     experiment_id = f"exp-{iter_num:04d}-{candidate.id}"
-    print(f"[iter {iter_num}] candidate={candidate.id} detector={detector}")
+    print(f"[iter {iter_num}] candidate={candidate.id} detectors={detectors}")
 
     # 2a. Capture pre-SHA (scratch branch already ensured + sync'd + dirty-check
     # passed at step 1a). Post-sync SHA is the correct baseline for the
@@ -433,34 +580,49 @@ def _run_iteration_body(
         root,
     )
 
-    # 4. Eval
-    report_path = state_dir(root) / "reports" / f"{experiment_id}.json"
-    scenario_out = state_dir(root) / "reports" / experiment_id
+    # 4. Eval — one run per relevant detector. Reports go to per-detector
+    # subdirs so we keep full visibility across the set.
+    reports_by_detector: dict[str, Path] = {}
+    eval_ok = True
+    eval_msg = "ok"
 
     if dry_run:
-        eval_ok = True
         eval_msg = "[dry-run]"
     else:
-        run = evaluator.run_scenarios(
-            detector=detector,
-            report_path=report_path,
-            scenario_output_dir=scenario_out,
-            root=root,
-        )
-        eval_ok = run.ok
-        eval_msg = run.stderr[-500:] if run.stderr else "ok"
-        journal.append(
-            "eval_done",
-            {
-                "iter": iter_num,
-                "candidate": candidate.id,
-                "detector": detector,
-                "ok": run.ok,
-                "report_path": str(report_path),
-                "rc": run.returncode,
-            },
-            root,
-        )
+        for det in detectors:
+            rp = state_dir(root) / "reports" / f"{experiment_id}-{det}.json"
+            sd = state_dir(root) / "reports" / f"{experiment_id}-{det}"
+            run = evaluator.run_scenarios(
+                detector=det,
+                report_path=rp,
+                scenario_output_dir=sd,
+                root=root,
+            )
+            journal.append(
+                "eval_done",
+                {
+                    "iter": iter_num,
+                    "candidate": candidate.id,
+                    "detector": det,
+                    "ok": run.ok,
+                    "report_path": str(rp),
+                    "rc": run.returncode,
+                },
+                root,
+            )
+            if not run.ok:
+                eval_ok = False
+                eval_msg = f"{det}: {(run.stderr or 'failed')[-500:]}"
+                break
+            reports_by_detector[det] = rp
+
+    # The Experiment record keeps one canonical report_path for UI/metrics
+    # continuity — use the first detector's report, but remember all are
+    # available via reports_by_detector for scoring.
+    report_path = next(iter(reports_by_detector.values()), None) or (
+        state_dir(root) / "reports" / f"{experiment_id}-{detectors[0]}.json"
+    )
+    scenario_out = state_dir(root) / "reports" / f"{experiment_id}-{detectors[0]}"
 
     experiment = Experiment(
         id=experiment_id,
@@ -503,16 +665,26 @@ def _run_iteration_body(
         return
 
     train_set = db.split.as_train_set() if db.split else None
-    # Gate vs frozen baseline. Rolling "last shipped" reference was dropped:
-    # it introduced a ratchet where noise-driven lucky ships permanently
-    # elevated the floor, letting subsequent candidates that were strictly
-    # worse than baseline pass the gate.
-    scoring = score_against_baseline(
-        report_path,
-        db.baseline,
-        detector,
-        train_scenarios=train_set,
-    )
+    # Gate vs FROZEN baseline, across ALL relevant detectors. Aggregate
+    # policy: gate-on-worst (any detector with a catastrophe regression
+    # or recall-floor violation rejects the candidate); combined
+    # per_scenario uses keys "<detector>/<scenario>" to preserve full
+    # visibility; combined mean_f1 is the simple mean of per-detector
+    # means. Rolling "last shipped" reference was dropped earlier (it
+    # introduced a noise ratchet).
+    scorings: dict[str, "object"] = {}
+    for det in detectors:
+        rp = reports_by_detector.get(det)
+        if rp is None:
+            continue
+        scorings[det] = score_against_baseline(
+            rp,
+            db.baseline,
+            det,
+            train_scenarios=train_set,
+        )
+
+    scoring = _merge_scorings(scorings, detectors)
     experiment.score = scoring.mean_f1
     experiment.num_baseline_fps_sum = scoring.total_fps
     experiment.per_scenario = scoring.per_scenario
@@ -530,13 +702,35 @@ def _run_iteration_body(
     else:
         db.phase_state.plateau_counter += 1
 
-    # 5b. Hard strict-regression gate — reject without review if any train
-    # scenario regressed > tau or any defended recall floor was violated.
-    # Keeps the gate deterministic instead of relying on LLM personas to catch it.
-    if scoring.strict_regressions or scoring.recall_floor_violations:
+    # 5b. Hard auto-reject gates — reject without review if:
+    #   (a) any train scenario catastrophe-regressed (absolute or relative)
+    #   (b) any defended recall floor was violated
+    #   (c) total FPs exploded past fp_ceiling_ratio × baseline FPs
+    # Keeps the gate deterministic instead of relying on LLM personas.
+    # (c) catches the "emit-everything" attack: rewriting a detector to
+    # fire aggressively boosts recall while F1 per-scenario can stay
+    # within catastrophe bounds — total FPs is the honest signal.
+    fp_ceiling = int(scoring.baseline_total_fps * CONFIG.fp_ceiling_ratio)
+    fp_ceiling_breached = (
+        scoring.baseline_total_fps > 0
+        and scoring.total_fps > fp_ceiling
+    )
+    if (
+        scoring.strict_regressions
+        or scoring.recall_floor_violations
+        or fp_ceiling_breached
+    ):
+        fp_reason = ""
+        if fp_ceiling_breached:
+            fp_reason = (
+                f" fp_ceiling_breached={scoring.total_fps} > "
+                f"{fp_ceiling} (ratio {CONFIG.fp_ceiling_ratio}× baseline "
+                f"{scoring.baseline_total_fps})"
+            )
         reason = (
             f"strict_regressions={scoring.strict_regressions} "
             f"recall_violations={scoring.recall_floor_violations}"
+            f"{fp_reason}"
         )
         print(f"[iter {iter_num}] AUTO-REJECTED ({reason})")
         journal.append(
@@ -565,8 +759,10 @@ def _run_iteration_body(
     try:
         verdict = sdk.review_experiment(
             experiment, scoring, candidate.phase,
-            train_scenarios=sorted(train_set) if train_set else [],
-            lockbox_scenarios=sorted(db.split.lockbox) if db.split else [],
+            all_scenarios=sorted(
+                (list(train_set) if train_set else [])
+                + (list(db.split.lockbox) if db.split else [])
+            ),
             root=root,
         )
     except Exception as e:
@@ -798,6 +994,8 @@ def main(argv: list[str] | None = None) -> int:
             print("upstream conflict: halting. Resolve manually and re-run.", file=sys.stderr)
         except GhChannelDeadHalt as e:
             print(f"gh channel halt: {e}", file=sys.stderr)
+        except ProtectedPathTamperHalt as e:
+            print(f"protected-path tamper: {e}", file=sys.stderr)
         return 0
 
     while True:
@@ -812,6 +1010,9 @@ def main(argv: list[str] | None = None) -> int:
             break
         except GhChannelDeadHalt as e:
             print(f"gh channel halt: {e}. Fix gh auth and re-run.", file=sys.stderr)
+            break
+        except ProtectedPathTamperHalt as e:
+            print(f"protected-path tamper: {e}", file=sys.stderr)
             break
         if len(db.iterations) == before:
             break

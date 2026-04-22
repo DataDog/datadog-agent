@@ -214,6 +214,11 @@ class Db:
     # Remove after all active runs migrate.
     last_shipped_per_scenario: dict[str, dict[str, ScenarioResult]] = field(default_factory=dict)
 
+    # Content-hash snapshot of PROTECTED_PATHS (scoring labels). Verified at
+    # every iteration start; halt on mismatch (agent or human tampered with
+    # ground truth). Empty dict on first run = bootstrap, take snapshot.
+    protected_path_hashes: dict[str, str] = field(default_factory=dict)
+
 
 def dict_to_db(d: dict[str, Any]) -> Db:
     """Reconstruct Db from a dict (loaded from YAML)."""
@@ -345,6 +350,7 @@ def dict_to_db(d: dict[str, Any]) -> Db:
         validations=validations,
         components_eval_dispatched=components_eval_dispatched,
         last_shipped_per_scenario=last_shipped,
+        protected_path_hashes=dict(d.get("protected_path_hashes") or {}),
     )
 
 
@@ -459,6 +465,7 @@ def db_to_dict(db: Db) -> dict[str, Any]:
             det: {s: _s(sr) for s, sr in scens.items()}
             for det, scens in db.last_shipped_per_scenario.items()
         },
+        "protected_path_hashes": dict(db.protected_path_hashes),
         "validations": {
             vid: {
                 "id": v.id,

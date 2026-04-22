@@ -344,16 +344,31 @@ Set to `""` to use SDK default.
 
 - First iteration: 6–15 min (eval + review + any post-ship dispatch).
 - Steady state: one iteration every ~8–15 min.
-- **Regression gate** is a catastrophe filter vs the **frozen baseline**:
-  any train scenario dropping ΔF1 < -0.10 or Δrecall < -0.10 auto-rejects.
+- **Regression gates** — four catastrophe filters vs the **frozen
+  baseline**, applied union across all relevant detectors (a candidate
+  that modifies shared code is scored against every detector it could
+  affect; gate on worst):
+  - ΔF1 < -0.10 absolute on any train scenario
+  - obs.f1 < 0.5 × base.f1 where base.f1 ≥ 0.05 (relative cliff)
+  - Δrecall < -0.10 where baseline recall > 0.05
+  - total_fps > 1.5 × baseline FPs (stops emit-everything reward-hack)
   Blunt by design — statistically-valid per-scenario gating would need
-  N=20+ σ runs, and the LLM reviewers are responsible for subtle
-  regressions.
-- **Review** is 2 personas in parallel, unanimity required:
-  `leakage_auditor` (scenario/metric name leakage, threshold-snapping,
-  implicit identity) + `hack_detector` (gain concentration, complexity,
-  proxy-gaming, prior-retread). Both get `git diff HEAD` and must cite
-  evidence for each check — vibe approvals auto-reject.
+  N=20+ σ runs; LLM reviewers handle subtle regressions.
+- **Review** is 3 personas in parallel, unanimity required:
+  `leakage_auditor` (name/metric/ID leakage), `hack_detector` (gain
+  concentration, complexity, proxy-gaming, prior-retread),
+  `algorithm_expert` (interface compliance, non-blocking Detect,
+  state-key pattern, filename+header, test coverage, helper reuse).
+  All get `git diff HEAD -- comp/observer`. Scenario names in the
+  review rationale are redacted before persistence to prevent
+  lockbox-membership leakage into future-iteration prompts. Every check
+  needs cited evidence — vibe approvals auto-reject.
+- **Ground truth is sealed.** `comp/observer/scenarios/` (labels +
+  disruption windows) is excluded from commits, hash-verified every
+  iteration, AND blocked from modification by the agent's write hook.
+  The eval framework (`tasks/q.py`, `tasks/libs/q/`), coordinator
+  state (`.coordinator/`), and git internals (`.git/`) are likewise
+  off-limits.
 - **Plateau** is effect-size aware: a score only counts as improvement
   when it clears best + ε (ε = 0.01). Noisy +0.001 bumps no longer
   reset the counter.

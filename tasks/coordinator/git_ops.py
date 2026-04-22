@@ -19,7 +19,17 @@ from pathlib import Path
 
 SCRATCH_BRANCH = "claude/observer-improvements"
 UPSTREAM_BRANCH = "q-branch-observer"
-WATCH_PATHS = ["comp/observer", "tasks/q.py", "tasks/libs/q"]
+# Only comp/observer/ is committable by the coordinator, with the
+# critical EXCEPTION of comp/observer/scenarios/ — that directory holds
+# ground-truth labels (ground_truth.json) and episode windows
+# (episode.json), which define what "improvement" even means. If the
+# agent could edit those, it would trivially reward-hack by relabeling
+# FPs as TPs or widening disruption windows. The scenarios dir is
+# snapshot-hashed at coordinator startup and verified unchanged at
+# every iteration boundary.
+WATCH_PATHS = ["comp/observer"]
+EXCLUDE_PATHS = ["comp/observer/scenarios"]
+PROTECTED_PATHS = ["comp/observer/scenarios"]  # integrity-checked at iteration start
 
 
 def _run(args: list[str], root: Path, check: bool = True) -> subprocess.CompletedProcess:
@@ -121,14 +131,55 @@ def commit_candidate(
     """Commit working-tree changes on the scratch branch. Returns new HEAD SHA.
 
     Refuses to run if HEAD is not on SCRATCH_BRANCH — protects the user's main
-    branch from accidental coordinator commits.
+    branch from accidental coordinator commits. Ground-truth fixtures under
+    EXCLUDE_PATHS are never staged: the agent is not permitted to modify
+    scoring labels, so any drift there is ignored rather than frozen into a
+    commit. (Integrity-hash verify runs separately at iteration start.)
     """
     assert_on_scratch_branch(root)
     paths = paths or WATCH_PATHS
-    _run(["add", "--", *paths], root)
+    # Pathspec `:(exclude)<p>` tells git to skip files under <p> even when
+    # their parent is in the include list. Without this, `git add comp/observer`
+    # would stage any edits to comp/observer/scenarios/ ground-truth files.
+    pathspec = list(paths) + [f":(exclude){p}" for p in EXCLUDE_PATHS]
+    _run(["add", "--", *pathspec], root)
     msg = f"coord: {candidate_id} ({experiment_id})"
     _run(["commit", "-m", msg, "--allow-empty"], root)
     return head_sha(root)
+
+
+def tree_hash(root: Path, path: str) -> str:
+    """Recursive content hash of `<root>/<path>`. Returns empty string if path
+    doesn't exist. Used to detect agent tampering with ground-truth fixtures
+    between iterations.
+    """
+    p = root / path
+    if not p.exists():
+        return ""
+    # git ls-tree -r HEAD <path> gives (mode, type, sha, name) lines for
+    # committed state — but we want CURRENT disk state (agent edits to
+    # ground-truth are uncommitted). Use hash-object on each file for a
+    # stable content-addressed snapshot.
+    import hashlib
+    h = hashlib.sha256()
+    for f in sorted(p.rglob("*")):
+        if not f.is_file():
+            continue
+        rel = str(f.relative_to(root))
+        h.update(rel.encode())
+        h.update(b"\0")
+        h.update(f.read_bytes())
+        h.update(b"\0")
+    return h.hexdigest()
+
+
+class ProtectedPathTamperError(RuntimeError):
+    """Raised when a PROTECTED_PATH tree hash changes between snapshots.
+
+    Ground-truth files (scenarios/) are the scoring labels. Any change there
+    is either a benign upstream merge OR an agent reward-hack. The coordinator
+    halts on detection and a human decides which.
+    """
 
 
 def revert_working_tree(root: Path = Path("."), paths: list[str] | None = None) -> None:

@@ -228,6 +228,128 @@ async def _block_git_hook(input_data, tool_use_id, context):
     return {}
 
 
+# Files the implementation agent may NEVER modify (ground truth, scoring
+# labels, eval framework, coordinator state, git internals). These are
+# either scoring labels (reward-hack surface) or cross-iteration state
+# (persistent compromise surface).
+_FORBIDDEN_WRITE_PREFIXES = (
+    "comp/observer/scenarios/",     # ground truth JSON + episode windows
+    "tasks/q.py",                   # eval orchestration
+    "tasks/libs/q/",                # eval helpers + scoring code
+    ".coordinator/",                # coordinator state (db, inbox, journal)
+    ".git/",                        # git internals (hooks, refs, config)
+    "q_branch/",                    # scenario manifest
+)
+# Only this prefix is writable. Everything else is locked out.
+_ALLOWED_WRITE_PREFIX = "comp/observer/"
+
+
+def _path_in_forbidden(path_str: str, root: Path) -> str | None:
+    """If `path_str` resolves to a forbidden location, return the matching
+    forbidden prefix. Otherwise None. Paths are canonicalised to guard
+    against '..' traversal.
+    """
+    try:
+        p = Path(path_str)
+        if not p.is_absolute():
+            p = root / p
+        p = p.resolve()
+        try:
+            rel = str(p.relative_to(root.resolve()))
+        except ValueError:
+            # Outside the repo entirely — block.
+            return "<outside repo>"
+    except (OSError, ValueError):
+        return "<invalid path>"
+    rel = rel.replace("\\", "/")
+    for bad in _FORBIDDEN_WRITE_PREFIXES:
+        if rel == bad.rstrip("/") or rel.startswith(bad):
+            return bad
+    # Positive allowlist: writes must be under comp/observer/ (minus
+    # the scenarios/ exception already caught above).
+    if not rel.startswith(_ALLOWED_WRITE_PREFIX) and rel != _ALLOWED_WRITE_PREFIX.rstrip("/"):
+        return f"<outside {_ALLOWED_WRITE_PREFIX}>"
+    return None
+
+
+def _make_write_guard(root: Path):
+    """Build a PreToolUse hook that blocks Edit/Write to forbidden paths."""
+    async def _guard(input_data, tool_use_id, context):
+        tool_input = input_data.get("tool_input") or {}
+        file_path = tool_input.get("file_path") or ""
+        if not file_path:
+            return {}
+        bad = _path_in_forbidden(file_path, root)
+        if bad:
+            return {
+                "decision": "block",
+                "reason": (
+                    f"Path '{file_path}' is not writable: matches forbidden "
+                    f"prefix '{bad}'. The agent may only modify files under "
+                    f"comp/observer/ (excluding comp/observer/scenarios/, "
+                    "which contains scoring labels). The eval framework "
+                    "(tasks/q.py, tasks/libs/q/), coordinator state "
+                    "(.coordinator/), git internals (.git/), and scenario "
+                    "manifests (q_branch/) are intentional evaluation "
+                    "boundaries — changing them would invalidate the run's "
+                    "F1 measurements."
+                ),
+            }
+        return {}
+    return _guard
+
+
+def _make_bash_guard(root: Path):
+    """PreToolUse hook for Bash: block git + any command that writes to a
+    forbidden path via common shell mechanisms (redirect, cp, mv, tee, sed
+    -i, rm). This is a heuristic; the Edit/Write guard is the primary line
+    of defense. Bash-as-write-vector is the secondary concern.
+    """
+    import re
+
+    # Rough patterns for "shell tries to write somewhere." Not airtight; a
+    # determined agent can evade with eval/printf tricks. The goal is to
+    # catch casual attempts, not a nation-state.
+    _WRITE_TOKENS = re.compile(
+        r"(>\s*|>>\s*|\btee\s+|\bcp\s+|\bmv\s+|\bsed\s+-i|\brm\s+|\btouch\s+|\bmkdir\s+)"
+    )
+
+    async def _guard(input_data, tool_use_id, context):
+        cmd = (input_data.get("tool_input") or {}).get("command", "") or ""
+        if is_git_command(cmd):
+            return {
+                "decision": "block",
+                "reason": (
+                    "git commands are forbidden for the implementation agent."
+                ),
+            }
+        if not _WRITE_TOKENS.search(cmd):
+            return {}
+        # Command looks like it writes something. Check each word that looks
+        # like a path against the forbidden list. This is imprecise —
+        # err on the side of blocking when in doubt.
+        for tok in cmd.split():
+            # Strip quoting, redirection syntax, leading dashes
+            cleaned = tok.strip("\"'`").lstrip(">").lstrip()
+            if not cleaned or cleaned.startswith("-"):
+                continue
+            if "/" not in cleaned and "." not in cleaned:
+                continue
+            bad = _path_in_forbidden(cleaned, root)
+            if bad:
+                return {
+                    "decision": "block",
+                    "reason": (
+                        f"Bash command appears to write to '{cleaned}', "
+                        f"which matches forbidden prefix '{bad}'. Use Edit/"
+                        "Write tools for comp/observer/ files; no other "
+                        "paths are modifiable."
+                    ),
+                }
+        return {}
+    return _guard
+
+
 def _format_prior_work(prior_experiments: list[dict]) -> str:
     """Render up to 5 prior-experiment summaries into an agent prompt block.
 
@@ -300,15 +422,48 @@ attempt is not the same.
 
 ## Constraints
 
-- Only modify files under comp/observer/. Do not touch tests outside that path,
-  do not edit CLAUDE.md / AGENTS.md, do not add new top-level dependencies.
-- Keep the change minimal — no refactors unrelated to the candidate.
+- Only modify files under comp/observer/. Do not touch tests outside that
+  path, do not edit CLAUDE.md / AGENTS.md, do not add new top-level
+  dependencies, and **do NOT modify the eval framework** (tasks/q.py,
+  tasks/libs/q, testbench_registry.go orchestration, or q.eval-scenarios
+  itself). The three detector names (bocpd, scanmw, scanwelch) and the
+  scenario list are fixed evaluation boundaries; innovation happens
+  INSIDE those detector implementations, not by changing what's being
+  evaluated.
+- You CAN replace an existing detector's internals wholesale — keep the
+  registration (see `comp/observer/impl/component_catalog.go`) and
+  whichever interface from `comp/observer/def/component.go` it already
+  implements (`SeriesDetector` or `Detector`). Swap the algorithm behind
+  the same name. E.g. replace BOCPD's core with a density-ratio or
+  spectral-residual algorithm while keeping the `bocpd` registration.
+  That's the right way to integrate a literature-inspired method.
+
+- BEFORE editing, spend tool hops on discovery:
+  1. Read `comp/observer/AGENTS.md` if it exists — house rules live there.
+  2. Read `comp/observer/def/component.go` to confirm which interface
+     the detector implements (SeriesDetector vs Detector) and what its
+     contract is (especially: non-blocking Detect, no mutating storage,
+     single dispatch goroutine).
+  3. Read ONE sibling detector implementation under
+     `comp/observer/impl/metrics_detector_*.go` to match the factory
+     signature, per-series state-key pattern, logger calls, and
+     Apache license header.
+  4. Read the `*_test.go` companion for the detector you're changing —
+     if you swap the algorithm, you must update the test file to lock
+     in the new contract. Do not weaken assertions silently.
+  Skip this discovery and your PR will be convention-drift'd to death
+  by the Algorithm Expert reviewer.
+- Keep the change minimal for the candidate's stated goal — but don't
+  avoid meaningful structural work out of caution. "The candidate says to
+  try X; do X." Not "the candidate says to try X; I'll tweak a threshold."
 - DO NOT run any git command. The coordinator manages all git state;
   attempting `git` will be blocked. Just make file edits.
 - When done, print a 1-3 sentence summary starting with "DONE:" describing
   exactly which files you changed and how, and what distinguishes this
   attempt from the prior-work list above if applicable.
 """
+    write_guard = _make_write_guard(root)
+    bash_guard = _make_bash_guard(root)
     text = _run_query(
         prompt,
         model=CONFIG.model_deep,  # deep thinking — Opus
@@ -316,7 +471,17 @@ attempt is not the same.
         cwd=str(root),
         hooks={
             "PreToolUse": [
-                HookMatcher(matcher="Bash", hooks=[_block_git_hook]),
+                # Path whitelist on Edit/Write: agent may only modify
+                # comp/observer/ (minus scenarios/). Without this guard,
+                # the agent could edit tasks/q.py, .git/hooks/, etc. — and
+                # revert_working_tree only undoes comp/observer/ changes,
+                # so out-of-scope edits persist silently across iterations.
+                HookMatcher(matcher="Edit", hooks=[write_guard]),
+                HookMatcher(matcher="Write", hooks=[write_guard]),
+                # Bash: git already blocked; now also block shell redirects
+                # / cp / mv / sed -i targeting forbidden paths. Heuristic,
+                # not airtight.
+                HookMatcher(matcher="Bash", hooks=[bash_guard]),
             ],
         },
         # Hard ceiling on tool hops for one implementation call. Realistic
@@ -363,13 +528,13 @@ def _working_tree_diff(root: Path) -> str:
     """Snapshot the candidate's changes for reviewer context.
 
     The implementation agent writes to the working tree; at review time
-    those edits are uncommitted. `git diff HEAD -- comp/observer tasks/q.py
-    tasks/libs/q` captures them. Truncated to a size that a reviewer can
-    actually process in `max_turns` hops.
+    those edits are uncommitted. `git diff HEAD -- comp/observer` captures
+    them (matches git_ops.WATCH_PATHS — only paths the coordinator actually
+    commits are relevant to the review).
     """
     try:
         r = subprocess.run(
-            ["git", "diff", "HEAD", "--", "comp/observer", "tasks/q.py", "tasks/libs/q"],
+            ["git", "diff", "HEAD", "--", "comp/observer"],
             cwd=root, capture_output=True, text=True, timeout=30,
         )
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
@@ -380,6 +545,31 @@ def _working_tree_diff(root: Path) -> str:
     if len(out) > 200_000:
         out = out[:200_000] + "\n... (diff truncated at 200KB)"
     return out or "(no working-tree diff)"
+
+
+def _redact_scenario_names(text: str, scenarios: list[str]) -> str:
+    """Replace literal scenario names in reviewer rationales with a token.
+
+    Panel-flagged leakage chain: reviewer rationale names specific
+    scenarios → rationale is persisted as ReviewDecision.rationale →
+    re-rendered into the implementation agent's prompt on future
+    iterations via _format_prior_work. The future-iteration agent then
+    "learns" which scenarios matter, biasing its work toward preserving
+    them — a form of lockbox leakage through the prompt chain.
+
+    We replace exact matches of scenario names with "<scenario>" so the
+    rationale still communicates what happened ("one scenario lost
+    recall") without naming which.
+    """
+    if not scenarios or not text:
+        return text
+    # Replace longest names first so "food_delivery_redis" isn't partly
+    # clobbered by "redis" if both were in the list.
+    redacted = text
+    for s in sorted(scenarios, key=len, reverse=True):
+        if s:
+            redacted = redacted.replace(s, "<scenario>")
+    return redacted
 
 
 def _check_evidence_fields(data: dict) -> bool:
@@ -412,8 +602,7 @@ def review_experiment(
     experiment: Experiment,
     scoring: ScoringResult,
     phase: Phase,
-    train_scenarios: list[str],
-    lockbox_scenarios: list[str],
+    all_scenarios: list[str],
     root: Path,
 ) -> ReviewVerdict:
     """Invoke Phase-1 review (leakage_auditor + hack_detector).
@@ -431,17 +620,17 @@ def review_experiment(
     # renders it. Provided by the driver when it builds the experiment.
     prior_rationales = getattr(experiment, "prior_rationales_summary", "") or ""
     if prior_rationales:
-        prior_block = prior_rationales
+        # Double-redaction in case an older rationale from before we
+        # started redacting at write time still contains scenario names.
+        prior_block = _redact_scenario_names(prior_rationales, all_scenarios)
 
-    train_s = ", ".join(train_scenarios) or "(none)"
-    lockbox_s = ", ".join(lockbox_scenarios) or "(none)"
+    all_s = ", ".join(all_scenarios) or "(none)"
 
     decisions: list[ReviewDecision] = []
     for name, persona_prompt in personas.items():
         full_prompt = persona_prompt.format(
             diff=diff,
-            train_scenarios=train_s,
-            lockbox_scenarios=lockbox_s,
+            all_scenarios=all_s,
             scoring_summary=scoring_summary,
             prior_block=prior_block,
         )
@@ -462,6 +651,11 @@ def review_experiment(
         rationale = str(data.get("rationale", "") or "")
         if not approved and "checks" not in data:
             rationale = (rationale + " [auto-reject: structured output missing checks block]").strip()
+        # Redact scenario names before persisting — stops the leakage
+        # chain where a rationale naming specific scenarios trains future
+        # implementation agents on the train/lockbox partition via
+        # _format_prior_work.
+        rationale = _redact_scenario_names(rationale, all_scenarios)
         decisions.append(
             ReviewDecision(
                 persona=name,

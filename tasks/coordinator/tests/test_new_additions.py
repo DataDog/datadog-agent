@@ -26,10 +26,11 @@ def test_config_values():
     # Raised from 3 per panel feedback — "competent humans grind 5-10
     # iterations before giving up." K=3 cut off deep exploration.
     assert CONFIG.stuck_threshold == 5
-    # Two personas: leakage_auditor + hack_detector, unanimity required.
-    # Re-expanded from 1 after panel flagged single-persona structural
-    # blind spots (leakage detection isn't in hack_detector's mandate).
-    assert CONFIG.review_personas_phase1 == 2
+    # Three personas: leakage_auditor + hack_detector + algorithm_expert,
+    # unanimity required. Panel flagged that the first two don't enforce
+    # house style (interfaces, file naming, test coverage); algorithm_expert
+    # is the only persona whose mandate is convention alignment.
+    assert CONFIG.review_personas_phase1 == 3
     # Effect-size aware plateau: raw strict-greater let noisy +0.001 bumps
     # reset the counter. ε chosen to be below real wins, above typical noise.
     assert CONFIG.plateau_epsilon == 0.01

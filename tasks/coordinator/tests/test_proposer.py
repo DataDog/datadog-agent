@@ -97,11 +97,12 @@ def test_materialize_deduplicates_ids(tmp_path: Path):
     assert len(files) == 2
 
 
-def test_materialize_rejects_multi_component(tmp_path: Path):
-    """One-component-per-candidate policy: multi-component proposals are
-    silently dropped at materialization time. Without this, post-run
-    independent attribution of each ship against its parent sha would be
-    unsound (later commits would modify code introduced by earlier commits).
+def test_materialize_requires_nonempty_components(tmp_path: Path):
+    """target_components must be non-empty (so the candidate can be eval'd
+    against SOME detector). Multi-component proposals ARE allowed — this
+    is an exploratory harness, and novel approaches (new correlators,
+    literature-inspired gates) often span multiple detectors. The post-run
+    attribution (reeval_ships) handles multi-component ships best-effort.
     """
     state_dir(tmp_path).mkdir(parents=True)
     db = empty_db()
@@ -116,8 +117,8 @@ def test_materialize_rejects_multi_component(tmp_path: Path):
     out = materialize_candidates(db, proposals, tmp_path)
     ids = [c.id for c in out]
     assert "good" in ids
-    assert "multi" not in ids
-    assert "zero" not in ids
+    assert "multi" in ids      # multi-component now allowed
+    assert "zero" not in ids   # empty still rejected
 
 
 def test_prompt_includes_baseline_and_bans(tmp_path: Path):

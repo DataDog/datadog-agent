@@ -120,11 +120,19 @@ def score_against_baseline(
         deltas[s_name] = d
         if not in_train:
             continue
-        # Catastrophe filter: an absolute ΔF1 cliff vs baseline. Chosen to
-        # catch "detector broke" (−0.10 on one scenario is a real regression
-        # at any realistic σ) without pretending to discriminate noise.
+        # Catastrophe filter — absolute cliff. Catches "detector broke" on
+        # scenarios with non-trivial baseline F1.
         if d.df1 < -catastrophe_f1_drop:
             strict_regressions.append(s_name)
+        # Catastrophe filter — relative cliff. Panel-flagged: a scenario
+        # with baseline F1=0.08 can only drop 0.08 absolute, so the
+        # absolute filter never fires, yet dropping to zero is a real
+        # regression. Only enforced on scenarios where baseline had
+        # meaningful F1 (else tiny numbers create false positives).
+        if (base.f1 >= CONFIG.catastrophe_relative_min
+                and obs.f1 < CONFIG.catastrophe_relative_ratio * base.f1):
+            if s_name not in strict_regressions:
+                strict_regressions.append(s_name)
         if base.recall > CONFIG.recall_floor_baseline_min and d.drecall < -catastrophe_recall_drop:
             recall_violations.append(s_name)
     fp_reduction_pct = 0.0
