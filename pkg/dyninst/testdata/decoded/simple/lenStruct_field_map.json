@@ -48,15 +48,15 @@
           "location": {
             "method": "main.lenStructFields"
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "len(x.Dict)",
+            "message": "nil pointer dereference"
+          }
+        ]
       },
-      "type": "snapshot",
-      "evaluationErrors": [
-        {
-          "expr": "len(x.Dict)",
-          "message": "nil pointer dereference"
-        }
-      ]
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "duration": "[duration]",

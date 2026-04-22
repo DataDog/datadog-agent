@@ -38,6 +38,7 @@
 #include "on_demand.h"
 #include "chdir.h"
 #include "setrlimit.h"
+#include "setsid.h"
 #include "caps.h"
 #include "prctl.h"
 #include "memfd.h"

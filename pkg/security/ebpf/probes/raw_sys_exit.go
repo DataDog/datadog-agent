@@ -233,5 +233,12 @@ func getSysExitTailCallRoutes() []manager.TailCallRoute {
 				EBPFFuncName: tailCallTracepointFnc("handle_sys_pivot_root_exit"),
 			},
 		},
+		{
+			ProgArrayName: "sys_exit_progs",
+			Key:           uint32(model.SetSidEventType),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tailCallTracepointFnc("handle_sys_setsid_exit"),
+			},
+		},
 	}
 }

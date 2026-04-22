@@ -16,7 +16,7 @@ import tasks.libs.cws.secl_doc_gen as secl_doc_gen
 from tasks.build_tags import get_default_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.go import run_golangci_lint
-from tasks.libs.build.bazel import BazelTools
+from tasks.libs.build.bazel import BazelTools, bazel
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.common.git import get_commit_sha, get_common_ancestor, get_current_branch
 from tasks.libs.common.go import go_build
@@ -549,7 +549,8 @@ def cws_go_generate(ctx, verbose=False):
     ctx.run("go generate -tags=linux_bpf,cws_go_generate ./pkg/security/...")
 
     # synchronize the seclwin package from the secl package
-    sync_secl_win_pkg(ctx)
+    bazel(ctx, "run", "//pkg/security/seclwin:sync")
+    bazel(ctx, "run", "//pkg/security/seclwin/model:sync")
 
     # generate documentation
     generate_cws_documentation(ctx)
@@ -776,46 +777,3 @@ def print_fentry_stats(ctx):
 
     for kind in ["kprobe", "kretprobe", "fentry", "fexit"]:
         ctx.run(f"readelf -W -S {fentry_o_path} 2> /dev/null | grep PROGBITS | grep {kind} | wc -l")
-
-
-@task
-def sync_secl_win_pkg(ctx):
-    files_to_copy = [
-        ("model.go", None),
-        ("events.go", None),
-        ("args_envs.go", None),
-        ("consts_common.go", None),
-        ("consts_windows.go", "consts_win.go"),
-        ("model_windows.go", "model_win.go"),
-        ("field_handlers_windows.go", "field_handlers_win.go"),
-        ("accessors_helpers.go", None),
-        ("accessors_windows.go", "accessors_win.go"),
-        ("legacy_secl.go", None),
-        ("security_profile.go", None),
-        ("iterator.go", None),
-    ]
-
-    seclwin_model = "pkg/security/seclwin/model"
-    build_bazel = os.path.join(seclwin_model, "BUILD.bazel")
-    preserve_build = os.path.exists(build_bazel)
-    if preserve_build:
-        build_bazel_content = open(build_bazel).read()
-
-    ctx.run(f"rm -r {seclwin_model}")
-    ctx.run(f"mkdir -p {seclwin_model}")
-    ctx.run("cp pkg/security/secl/doc.go pkg/security/seclwin/doc.go")
-
-    if preserve_build:
-        with open(build_bazel, "w") as f:
-            f.write(build_bazel_content)
-
-    for ffrom, fto in files_to_copy:
-        if not fto:
-            fto = ffrom
-
-        ctx.run(f"cp pkg/security/secl/model/{ffrom} pkg/security/seclwin/model/{fto}")
-        if sys.platform == "darwin":
-            ctx.run(f"sed -i '' '/^\\/\\/go:build/d' pkg/security/seclwin/model/{fto}")
-        else:
-            ctx.run(f"sed -i '/^\\/\\/go:build/d' pkg/security/seclwin/model/{fto}")
-        ctx.run(f"gofmt -s -w pkg/security/seclwin/model/{fto}")
