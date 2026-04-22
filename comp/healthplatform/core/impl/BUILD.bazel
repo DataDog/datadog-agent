@@ -47,7 +47,7 @@ go_test(
         "//comp/healthplatform/issues/dockerpermissions",
         "//comp/healthplatform/issues/rofspermissions",
         "@com_github_datadog_agent_payload_v5//healthplatform",
-        "@com_github_datadog_datadog_agent_comp_core_telemetry//impl/noops",
+        "//comp/core/telemetry/impl/noops",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
