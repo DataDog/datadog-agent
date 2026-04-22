@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
-func TestNeedsReenrollment_NodeAgent(t *testing.T) {
+func TestShouldReenroll_NodeAgent(t *testing.T) {
 	flavor.SetFlavor(flavor.DefaultAgent)
 
 	tests := []struct {
@@ -46,46 +46,17 @@ func TestNeedsReenrollment_NodeAgent(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			agentID := &AgentIdentifier{Hostname: tc.agentHostname}
 			identity := &PersistedIdentity{Hostname: tc.persistedHostname}
-			assert.Equal(t, tc.want, needsReenrollment(agentID, identity))
+			assert.Equal(t, tc.want, ShouldReenroll(agentID, identity))
 		})
 	}
 }
 
-func TestNeedsReenrollment_ClusterAgent(t *testing.T) {
+func TestShouldReenroll_ClusterAgent_NeverReenrolls(t *testing.T) {
 	flavor.SetFlavor(flavor.ClusterAgent)
 	defer flavor.SetFlavor(flavor.DefaultAgent)
 
-	tests := []struct {
-		name               string
-		agentClusterID     string
-		persistedClusterID string
-		want               bool
-	}{
-		{
-			name:               "same cluster ID - no reenroll",
-			agentClusterID:     "cluster-abc",
-			persistedClusterID: "cluster-abc",
-			want:               false,
-		},
-		{
-			name:               "different cluster ID - reenroll",
-			agentClusterID:     "cluster-new",
-			persistedClusterID: "cluster-old",
-			want:               true,
-		},
-		{
-			name:               "empty persisted cluster ID - no reenroll (backward compat)",
-			agentClusterID:     "cluster-abc",
-			persistedClusterID: "",
-			want:               false,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			agentID := &AgentIdentifier{OrchClusterID: tc.agentClusterID}
-			identity := &PersistedIdentity{OrchClusterID: tc.persistedClusterID}
-			assert.Equal(t, tc.want, needsReenrollment(agentID, identity))
-		})
-	}
+	// Cluster agent re-enrollment is disabled; even a mismatch should return false.
+	agentID := &AgentIdentifier{OrchClusterID: "cluster-new"}
+	identity := &PersistedIdentity{OrchClusterID: "cluster-old"}
+	assert.False(t, ShouldReenroll(agentID, identity))
 }

@@ -29,22 +29,6 @@ func GetIdentityFromPreviousEnrollment(ctx context.Context, cfg configModel.Read
 	return getIdentityFromFile(cfg)
 }
 
-// ShouldReenroll checks whether the persisted identity needs refreshing and, if so, coordinates
-// re-enrollment following the same dispatch pattern as GetIdentityFromPreviousEnrollment.
-// Returns the original identity when no mismatch is detected.
-// Returns nil when this replica should self-enroll (leader on K8s path, or file-based path).
-// Returns an updated identity when a follower receives the leader's freshly persisted enrollment.
-func ShouldReenroll(ctx context.Context, cfg configModel.Reader, agentIdentifier *AgentIdentifier, identity *PersistedIdentity) (*PersistedIdentity, error) {
-	if identity == nil || !needsReenrollment(agentIdentifier, identity) {
-		return identity, nil
-	}
-	if cfg.GetBool(setup.PARIdentityUseK8sSecret) && flavor.GetFlavor() == flavor.ClusterAgent {
-		return coordinateK8sReenrollment(ctx, cfg, agentIdentifier)
-	}
-	// File path: single replica, re-enroll directly.
-	return nil, nil
-}
-
 // PersistIdentity persists identity to either K8s secret or file based on configuration
 func PersistIdentity(ctx context.Context, cfg configModel.Reader, result *Result) error {
 	if cfg.GetBool(setup.PARIdentityUseK8sSecret) && flavor.GetFlavor() == flavor.ClusterAgent {

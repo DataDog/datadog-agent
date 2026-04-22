@@ -24,8 +24,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes/fake"
 	k8stesting "k8s.io/client-go/testing"
-
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 const testPollInterval = 10 * time.Millisecond
@@ -41,16 +39,6 @@ func makeTestSecret(ns, name string) *corev1.Secret {
 			urnField:        []byte("urn:test"),
 		},
 	}
-}
-
-func makeTestSecretWithClusterID(ns, name, clusterID string) *corev1.Secret {
-	s := makeTestSecret(ns, name)
-	s.Data[orchClusterIDField] = []byte(clusterID)
-	return s
-}
-
-func makeClusterAgentIdentifier(orchClusterID string) *AgentIdentifier {
-	return &AgentIdentifier{Hostname: "dca-host", OrchClusterID: orchClusterID}
 }
 
 func newServerTimeoutError() *k8serrors.StatusError {
@@ -210,170 +198,6 @@ func TestWaitForLeaderAndSecret_FailsImmediatelyOnNonTransientError(t *testing.T
 	require.Error(t, err)
 	require.Nil(t, result)
 	assert.True(t, k8serrors.IsForbidden(errors.Unwrap(err)))
-}
-
-func TestWaitForLeaderToUpdateSecret_LeaderUpdatesSecret(t *testing.T) {
-	flavor.SetFlavor(flavor.ClusterAgent)
-	defer flavor.SetFlavor(flavor.DefaultAgent)
-
-	const (
-		ns         = "default"
-		secretName = "par-identity"
-		staleID    = "stale-cluster-id"
-		freshID    = "fresh-cluster-id"
-	)
-
-	staleSecret := makeTestSecretWithClusterID(ns, secretName, staleID)
-	freshSecret := makeTestSecretWithClusterID(ns, secretName, freshID)
-
-	client := fake.NewSimpleClientset()
-	var callCount atomic.Int32
-	client.PrependReactor("get", "secrets", func(action k8stesting.Action) (bool, runtime.Object, error) {
-		if callCount.Add(1) <= 3 {
-			return true, staleSecret, nil // still stale for the first few polls
-		}
-		return true, freshSecret, nil // leader updated the secret
-	})
-
-	leadershipChange := make(chan struct{})
-	isLeader := func() bool { return false }
-	agentID := makeClusterAgentIdentifier(freshID)
-
-	result, err := waitForLeaderToUpdateSecret(
-		context.Background(), leadershipChange, isLeader,
-		client, ns, secretName, agentID, testPollInterval,
-	)
-
-	require.NoError(t, err)
-	require.NotNil(t, result)
-	assert.Equal(t, freshID, result.OrchClusterID)
-}
-
-func TestWaitForLeaderToUpdateSecret_BecomesLeader(t *testing.T) {
-	flavor.SetFlavor(flavor.ClusterAgent)
-	defer flavor.SetFlavor(flavor.DefaultAgent)
-
-	const (
-		ns         = "default"
-		secretName = "par-identity"
-		staleID    = "stale-cluster-id"
-		freshID    = "fresh-cluster-id"
-	)
-
-	staleSecret := makeTestSecretWithClusterID(ns, secretName, staleID)
-	client := fake.NewSimpleClientset()
-	client.PrependReactor("get", "secrets", func(action k8stesting.Action) (bool, runtime.Object, error) {
-		return true, staleSecret, nil // secret never gets updated
-	})
-
-	leadershipChange := make(chan struct{}, 1)
-	var leader atomic.Bool
-	isLeader := func() bool { return leader.Load() }
-
-	go func() {
-		time.Sleep(30 * time.Millisecond)
-		leader.Store(true)
-		leadershipChange <- struct{}{}
-	}()
-
-	result, err := waitForLeaderToUpdateSecret(
-		context.Background(), leadershipChange, isLeader,
-		client, ns, secretName, makeClusterAgentIdentifier(freshID), testPollInterval,
-	)
-
-	require.NoError(t, err)
-	require.Nil(t, result) // nil signals: "I'm now leader, re-enroll"
-}
-
-func TestWaitForLeaderToUpdateSecret_ExitsOnContextCancel(t *testing.T) {
-	flavor.SetFlavor(flavor.ClusterAgent)
-	defer flavor.SetFlavor(flavor.DefaultAgent)
-
-	const staleID = "stale-cluster-id"
-
-	client := fake.NewSimpleClientset()
-	client.PrependReactor("get", "secrets", func(action k8stesting.Action) (bool, runtime.Object, error) {
-		return true, makeTestSecretWithClusterID("default", "par-identity", staleID), nil
-	})
-
-	leadershipChange := make(chan struct{})
-	isLeader := func() bool { return false }
-
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() {
-		time.Sleep(50 * time.Millisecond)
-		cancel()
-	}()
-
-	result, err := waitForLeaderToUpdateSecret(
-		ctx, leadershipChange, isLeader,
-		client, "default", "par-identity", makeClusterAgentIdentifier("fresh-id"), testPollInterval,
-	)
-
-	require.Error(t, err)
-	require.Nil(t, result)
-	assert.ErrorIs(t, err, context.Canceled)
-}
-
-func TestWaitForLeaderToUpdateSecret_NonTransientError(t *testing.T) {
-	flavor.SetFlavor(flavor.ClusterAgent)
-	defer flavor.SetFlavor(flavor.DefaultAgent)
-
-	client := fake.NewSimpleClientset()
-	client.PrependReactor("get", "secrets", func(action k8stesting.Action) (bool, runtime.Object, error) {
-		return true, nil, k8serrors.NewForbidden(
-			schema.GroupResource{Resource: "secrets"}, "par-identity", errors.New("RBAC denied"))
-	})
-
-	leadershipChange := make(chan struct{})
-	isLeader := func() bool { return false }
-
-	result, err := waitForLeaderToUpdateSecret(
-		context.Background(), leadershipChange, isLeader,
-		client, "default", "par-identity", makeClusterAgentIdentifier("fresh-id"), testPollInterval,
-	)
-
-	require.Error(t, err)
-	require.Nil(t, result)
-	assert.True(t, k8serrors.IsForbidden(errors.Unwrap(err)))
-}
-
-func TestWaitForLeaderToUpdateSecret_TransientThenUpdated(t *testing.T) {
-	flavor.SetFlavor(flavor.ClusterAgent)
-	defer flavor.SetFlavor(flavor.DefaultAgent)
-
-	const (
-		ns         = "default"
-		secretName = "par-identity"
-		staleID    = "stale-cluster-id"
-		freshID    = "fresh-cluster-id"
-	)
-
-	freshSecret := makeTestSecretWithClusterID(ns, secretName, freshID)
-	client := fake.NewSimpleClientset()
-	var callCount atomic.Int32
-	client.PrependReactor("get", "secrets", func(action k8stesting.Action) (bool, runtime.Object, error) {
-		switch callCount.Add(1) {
-		case 1, 2:
-			return true, nil, newServerTimeoutError()
-		case 3:
-			return true, nil, k8serrors.NewTooManyRequests("slow down", 1)
-		default:
-			return true, freshSecret, nil
-		}
-	})
-
-	leadershipChange := make(chan struct{})
-	isLeader := func() bool { return false }
-
-	result, err := waitForLeaderToUpdateSecret(
-		context.Background(), leadershipChange, isLeader,
-		client, ns, secretName, makeClusterAgentIdentifier(freshID), testPollInterval,
-	)
-
-	require.NoError(t, err)
-	require.NotNil(t, result)
-	assert.Equal(t, freshID, result.OrchClusterID)
 }
 
 func TestIsNonTransientK8sError(t *testing.T) {

@@ -18,10 +18,6 @@ func getIdentityFromK8sSecret(_ context.Context, _ configModel.Reader) (*Persist
 	return nil, errors.New("Kubernetes secret storage is not available in this build")
 }
 
-func coordinateK8sReenrollment(_ context.Context, _ configModel.Reader, _ *AgentIdentifier) (*PersistedIdentity, error) {
-	return nil, errors.New("Kubernetes secret storage is not available in this build")
-}
-
 func persistIdentityToK8sSecret(_ context.Context, _ configModel.Reader, _ *Result) error {
 	return errors.New("Kubernetes secret storage is not available in this build")
 }

@@ -76,32 +76,6 @@ func getIdentityFromK8sSecret(ctx context.Context, cfg configModel.Reader) (*Per
 	return parseSecretData(secret, ns, secretName)
 }
 
-// coordinateK8sReenrollment handles leader coordination when a cluster ID mismatch is detected.
-// The leader returns nil to trigger self-enrollment; followers wait for the leader to update
-// the secret with a matching cluster ID (or wait until they themselves become leader).
-func coordinateK8sReenrollment(ctx context.Context, cfg configModel.Reader, agentIdentifier *AgentIdentifier) (*PersistedIdentity, error) {
-	le, err := leaderelection.GetLeaderEngine()
-	if err != nil {
-		return nil, err
-	}
-	client, err := getKubeClient()
-	if err != nil {
-		return nil, err
-	}
-	ns := namespace.GetResourcesNamespace()
-	secretName := getSecretName(cfg)
-
-	// Subscribe before checking IsLeader to avoid missing a leadership transition
-	// that could occur between the check and the subscribe call.
-	leadershipChange, isLeader := le.Subscribe()
-	if isLeader() {
-		log.Info("Leader: PAR identity mismatch detected, will re-enroll")
-		return nil, nil
-	}
-	log.Info("Follower: PAR identity mismatch detected, waiting for leader to re-enroll")
-	return waitForLeaderToUpdateSecret(ctx, leadershipChange, isLeader, client, ns, secretName, agentIdentifier, secretPollInterval)
-}
-
 // waitForLeaderAndSecret waits until either:
 // - We become leader (then returns nil to trigger enrollment)
 // - The secret appears (created by current or previous leader)
@@ -149,56 +123,6 @@ func waitForLeaderAndSecret(
 			}
 			if !k8serrors.IsNotFound(err) {
 				log.Warnf("Transient error checking for secret %s/%s (will retry): %v", ns, secretName, err)
-			}
-		}
-	}
-}
-
-// waitForLeaderToUpdateSecret is called by follower replicas when the K8s secret
-// exists but contains a stale cluster ID. It blocks until either:
-//   - this replica becomes leader (returns nil to trigger self-enrollment), or
-//   - the leader updates the secret with a matching cluster ID (returns new identity).
-//
-// Transient K8s API errors are retried indefinitely; non-transient errors are returned
-// immediately. Context cancellation exits the loop.
-func waitForLeaderToUpdateSecret(
-	ctx context.Context,
-	leadershipChange <-chan struct{},
-	isLeader func() bool,
-	client kubernetes.Interface,
-	ns, secretName string,
-	agentIdentifier *AgentIdentifier,
-	pollInterval time.Duration,
-) (*PersistedIdentity, error) {
-	ticker := time.NewTicker(pollInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-
-		case <-leadershipChange:
-			if isLeader() {
-				log.Info("Became leader, will re-enroll PAR identity")
-				return nil, nil
-			}
-
-		case <-ticker.C:
-			secret, err := client.CoreV1().Secrets(ns).Get(ctx, secretName, metav1.GetOptions{})
-			if err != nil {
-				if isNonTransientK8sError(err) {
-					return nil, fmt.Errorf("non-transient error polling PAR identity secret %s/%s: %w", ns, secretName, err)
-				}
-				continue // transient — retry on next tick
-			}
-			identity, err := parseSecretData(secret, ns, secretName)
-			if err != nil {
-				return nil, err
-			}
-			if !needsReenrollment(agentIdentifier, identity) {
-				log.Infof("Follower: leader updated PAR identity secret %s/%s, using new identity", ns, secretName)
-				return identity, nil
 			}
 		}
 	}

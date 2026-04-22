@@ -140,9 +140,8 @@ func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.C
 	if err != nil {
 		return nil, fmt.Errorf("failed to get identity: %w", err)
 	}
-	persistedIdentity, err = enrollment.ShouldReenroll(ctx, p.coreConfig, agentIdentifier, persistedIdentity)
-	if err != nil {
-		return nil, fmt.Errorf("failed to check reenrollment status: %w", err)
+	if enrollment.ShouldReenroll(agentIdentifier, persistedIdentity) {
+		persistedIdentity = nil
 	}
 	if persistedIdentity != nil {
 		p.coreConfig.Set(privateactionrunner.PARPrivateKey, persistedIdentity.PrivateKey, model.SourceAgentRuntime)
