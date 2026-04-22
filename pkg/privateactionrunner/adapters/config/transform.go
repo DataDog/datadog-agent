@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -188,6 +189,7 @@ func GetBundleInheritedAllowedActions(actionsAllowlist map[string]sets.Set[strin
 func newMetricsClient(statsdComp statsdcomp.Component) statsd.ClientInterface {
 	client, err := statsdComp.Get()
 	if err != nil {
+		log.Warnf("Failed to get statsd client: %v", err)
 		return &statsd.NoOpClient{}
 	}
 	return client
