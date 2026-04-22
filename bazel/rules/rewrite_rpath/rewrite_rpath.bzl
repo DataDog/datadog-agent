@@ -8,6 +8,36 @@ load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 def _is_os(ctx, constraint):
     return ctx.target_platform_has_constraint(constraint[platform_common.ConstraintValueInfo])
 
+def patchelf_file_action(ctx, input_file, output_file, rpath):
+    """Registers a patchelf action to rewrite the rpath of a single file."""
+    toolchain = ctx.toolchains["@@//bazel/toolchains/patchelf:patchelf_toolchain_type"].patchelf
+    args = ctx.actions.args()
+    args.add("--set-rpath", rpath)
+    args.add("--force-rpath")
+    args.add(input_file.path)
+    args.add("--output", output_file.path)
+    ctx.actions.run(
+        inputs = [input_file],
+        outputs = [output_file],
+        arguments = [args],
+        executable = toolchain.path,
+    )
+
+def otool_file_action(ctx, input_file, output_file, rpath):
+    """Registers an install_name_tool action to rewrite the rpath of a single file."""
+    toolchain = ctx.toolchains["@@//bazel/toolchains/otool:otool_toolchain_type"].otool
+    args = ctx.actions.args()
+    args.add(toolchain.path)
+    args.add(rpath)
+    args.add(input_file.path)
+    args.add(output_file.path)
+    ctx.actions.run(
+        inputs = [input_file],
+        outputs = [output_file],
+        executable = ctx.file._script,
+        arguments = [args],
+    )
+
 def _rewrite_rpath_impl(ctx):
     is_linux = _is_os(ctx, ctx.attr._linux_constraint)
     is_macos = _is_os(ctx, ctx.attr._macos_constraint)
@@ -20,31 +50,9 @@ def _rewrite_rpath_impl(ctx):
     for input in ctx.files.inputs:
         processed_file = ctx.actions.declare_file("patched/" + input.basename)
         if is_linux:
-            toolchain = ctx.toolchains["@@//bazel/toolchains/patchelf:patchelf_toolchain_type"].patchelf
-            args = ctx.actions.args()
-            args.add("--set-rpath", rpath)
-            args.add("--force-rpath")
-            args.add(input.path)
-            args.add("--output", processed_file.path)
-            ctx.actions.run(
-                inputs = [input],
-                outputs = [processed_file],
-                arguments = [args],
-                executable = toolchain.path,
-            )
+            patchelf_file_action(ctx, input, processed_file, rpath)
         else:
-            toolchain = ctx.toolchains["@@//bazel/toolchains/otool:otool_toolchain_type"].otool
-            args = ctx.actions.args()
-            args.add(toolchain.path)
-            args.add(rpath)
-            args.add(input.path)
-            args.add(processed_file.path)
-            ctx.actions.run(
-                inputs = [input],
-                outputs = [processed_file],
-                executable = ctx.file._script,
-                arguments = [args],
-            )
+            otool_file_action(ctx, input, processed_file, rpath)
         processed_files.append(processed_file)
 
     return DefaultInfo(files = depset(processed_files))
