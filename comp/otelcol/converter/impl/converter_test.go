@@ -532,6 +532,25 @@ func TestConvert_APIKeyFromEnvVar(t *testing.T) {
 	assert.Equal(t, confResult.ToStringMap(), conf.ToStringMap())
 }
 
+func TestConvert_UnsetEnvVarInPrometheusHost(t *testing.T) {
+	// OTAGENT-575: empty/unset env var → nil in confmap → bare h.(string) panics.
+	t.Setenv("OTAGENT575_PROMETHEUS_HOST_TEST", "")
+
+	resolver, err := newResolver(uriFromFile("prometheus/unset-env-var/config.yaml"))
+	require.NoError(t, err)
+	conf, err := resolver.Resolve(context.Background())
+	require.NoError(t, err)
+
+	converter, err := NewConverterForAgent(Requires{})
+	require.NoError(t, err)
+
+	var convertErr error
+	require.NotPanics(t, func() {
+		convertErr = converter.Convert(context.Background(), conf)
+	})
+	require.Error(t, convertErr)
+}
+
 func TestHostmetricsWarning(t *testing.T) {
 	tests := []struct {
 		name        string

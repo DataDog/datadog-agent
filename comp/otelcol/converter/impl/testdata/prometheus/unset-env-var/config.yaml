@@ -1,0 +1,21 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+exporters:
+  datadog:
+    api:
+      key: test-key
+service:
+  telemetry:
+    metrics:
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: ${env:OTAGENT575_PROMETHEUS_HOST_TEST}
+                port: 8888
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [datadog]

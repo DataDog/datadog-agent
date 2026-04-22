@@ -25,10 +25,7 @@ go_library(
 
 go_test(
     name = "impl_test",
-    srcs = [
-        "converter_test.go",
-        "prometheus_test.go",
-    ],
+    srcs = ["converter_test.go"],
     data = glob(["testdata/**"]),
     embed = [":impl"],
     gotags = ["test"],
