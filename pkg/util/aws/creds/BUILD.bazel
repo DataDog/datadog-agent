@@ -20,7 +20,10 @@ go_test(
         "detection_test.go",
     ],
     embed = [":creds"],
-    gotags = ["test"],
+    gotags = [
+        "test",
+        "ec2",
+    ],
     deps = [
         "//pkg/util/aws/creds/internal",
         "@com_github_stretchr_testify//assert",
