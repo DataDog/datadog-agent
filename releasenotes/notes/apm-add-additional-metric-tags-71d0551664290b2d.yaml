@@ -12,6 +12,6 @@ enhancements:
     customer configured span derived primary tags.
 deprecations:
   - |
-    The ``DD_APM_SPAN_DERIVED_PRIMARY_TAGS`` configuration option has been
+    The beta feature configuration option ``DD_APM_SPAN_DERIVED_PRIMARY_TAGS`` has been
     removed. The agent no longer supports customer configurable span derived
     primary tags. This feature is only available on tracers.
