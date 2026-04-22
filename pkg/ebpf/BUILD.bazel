@@ -8,7 +8,6 @@
 # gazelle:exclude maps
 # gazelle:exclude names
 # gazelle:exclude perf
-# gazelle:exclude prebuilt
 # gazelle:exclude uprobes
 # gazelle:exclude verifier
 

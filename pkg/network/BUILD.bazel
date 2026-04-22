@@ -28,4 +28,3 @@
 # gazelle:exclude events
 # gazelle:exclude dns
 # gazelle:exclude testutil
-# gazelle:exclude protocols

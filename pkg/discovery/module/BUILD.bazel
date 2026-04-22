@@ -3,5 +3,4 @@
 # gazelle:exclude rust/include
 # gazelle:exclude rust/sd-agent
 # gazelle:exclude rust/src
-# gazelle:exclude rust/testdata
 # gazelle:exclude rust/tests
