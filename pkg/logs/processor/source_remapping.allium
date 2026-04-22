@@ -6,8 +6,10 @@
 --   structured content.
 -- Includes: Ordered mappings list evaluation, first-match-wins semantics,
 --   dot-delimited attribute path traversal (siem.*, syslog.*, nested
---   structured_data paths), numeric-to-string coercion for matching,
---   source priority chain, fallback behavior when no mapping matches.
+--   structured_data paths) with backslash escape convention (\. for literal
+--   dots, \\ for literal backslashes), numeric-to-string coercion for
+--   matching, source priority chain, fallback behavior when no mapping
+--   matches.
 -- Excludes:
 --   - Other processing rule types (exclude_at_match, include_at_match,
 --     mask_sequences, multi_line, exclude_truncated)
@@ -30,7 +32,9 @@ value RemapRule {
 }
 
 value SourceMapping {
-    attribute: String       -- dot-delimited path into structured content
+    attribute: String       -- dot-delimited path into structured content;
+                            -- supports backslash escapes: \. for literal dot,
+                            -- \\ for literal backslash
     value: String           -- string to match against the resolved attribute
     remap_source_to: String -- the source tag to apply on match
 }
@@ -53,12 +57,24 @@ contract AttributeResolver {
     resolve: (message: String, path: String) -> String?
 
     @invariant DotDelimitedTraversal
-        -- The path is split on "." and each segment is used as a map
-        -- key to descend into nested maps. For example:
+        -- The path is split on unescaped "." characters and each segment
+        -- is used as a map key to descend into nested maps. Backslash
+        -- escapes are supported: \. represents a literal dot in a segment,
+        -- \\ represents a literal backslash. Segments are unescaped after
+        -- splitting, so the map key lookup uses the literal value.
+        --
+        -- Examples:
         --   "syslog.severity" → Data["syslog"]["severity"]
         --   "siem.device_vendor" → Data["siem"]["device_vendor"]
         --   "syslog.structured_data.meta.mykey" →
         --     Data["syslog"]["structured_data"]["meta"]["mykey"]
+        --   "syslog.structured_data.my\.org@99999.status" →
+        --     Data["syslog"]["structured_data"]["my.org@99999"]["status"]
+        --
+        -- The escape convention allows referencing SD-IDs, SD param names,
+        -- and CEF/LEEF extension keys that contain literal dots. RFC 5424
+        -- permits dots in SD-IDs and param names; CEF/LEEF extension keys
+        -- are unconstrained.
 
     @invariant NumericCoercion
         -- Integer and float64 leaf values are coerced to their string
@@ -138,7 +154,12 @@ rule ResolveSIEMAttribute {
         --   siem.device_product → the CEF/LEEF device product
         --   siem.format → "CEF" or "LEEF"
         --   siem.severity → CEF severity string
+        --   siem.extension.<key> → extension value by key
         --   siem.extension → resolves to a map (non-leaf, returns nothing)
+        -- Extension keys are terminal: everything after "siem.extension."
+        -- is the literal key name. Dots in extension keys work both with
+        -- and without escaping (e.g. siem.extension.dotted.key and
+        -- siem.extension.dotted\.key both reach extension["dotted.key"]).
 }
 
 rule ResolveSyslogAttribute {
@@ -155,6 +176,8 @@ rule ResolveSyslogAttribute {
         --   syslog.appname → string
         --   syslog.structured_data.<sdid>.<param> → nested traversal
         --     e.g. syslog.structured_data.meta.mykey
+        -- If an SD-ID or param name contains a literal dot, escape it:
+        --   syslog.structured_data.my\.org@99999.status
 }
 
 rule ResolveTopLevelAttribute {
