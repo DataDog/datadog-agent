@@ -743,7 +743,7 @@ probes:
     methodName: main.condLine
     sourceFile: main.go
     lines:
-      - "501"
+      - "519"
   when:
     dsl: "n == 7"
     json: {eq: [{ref: "n"}, 7]}
@@ -768,7 +768,7 @@ probes:
     methodName: main.condLine
     sourceFile: main.go
     lines:
-      - "501"
+      - "519"
   sampling:
     snapshotsPerSecond: 10
 
@@ -2964,7 +2964,7 @@ probes:
     methodName: main.condLine
     sourceFile: main.go
     lines:
-      - "501"
+      - "519"
   when:
     dsl: "n == 7 && tag == \"match\""
     json:
@@ -2982,3 +2982,124 @@ probes:
     - str: "]"
   sampling:
     snapshotsPerSecond: 10
+
+# ==========================================================================
+# Null-equality probes. One per nullable Go type; each target is called with
+# nil (probe fires) and non-nil (probe does not fire).
+# ==========================================================================
+
+- id: condNull_ptr
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condNullPtr
+  when:
+    dsl: "p == nil"
+    json: {eq: [{ref: "p"}, null]}
+  template: "p == nil [tag={tag}]"
+  segments:
+    - str: "p == nil [tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+- id: condNull_slice
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condNullSlice
+  when:
+    dsl: "s == nil"
+    json: {eq: [{ref: "s"}, null]}
+  template: "s == nil [tag={tag}]"
+  segments:
+    - str: "s == nil [tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+- id: condNull_map
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condNullMap
+  when:
+    dsl: "m == nil"
+    json: {eq: [{ref: "m"}, null]}
+  template: "m == nil [tag={tag}]"
+  segments:
+    - str: "m == nil [tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+- id: condNull_iface
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condNullIface
+  when:
+    dsl: "i == nil"
+    json: {eq: [{ref: "i"}, null]}
+  template: "i == nil [tag={tag}]"
+  segments:
+    - str: "i == nil [tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+- id: condNull_unsafeptr
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condNullUnsafePtr
+  when:
+    dsl: "p == nil"
+    json: {eq: [{ref: "p"}, null]}
+  template: "p == nil [tag={tag}]"
+  segments:
+    - str: "p == nil [tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Negative case: nullable LHS compared to a non-null literal. Must fail with
+# ConditionExpressionUnresolvable (covers the "can only be compared to null"
+# path added alongside null-equality support).
+- id: condNull_slice_vs_int
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condNullSlice
+  when:
+    dsl: "s == 1"
+    json: {eq: [{ref: "s"}, 1]}
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionExpressionUnresolvable"
+
+# Negative case: non-nullable LHS compared to null. Must fail with
+# ConditionExpressionUnresolvable.
+- id: condNull_int_vs_null
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condInt32
+  when:
+    dsl: "x == nil"
+    json: {eq: [{ref: "x"}, null]}
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionExpressionUnresolvable"
