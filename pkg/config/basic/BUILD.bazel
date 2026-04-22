@@ -11,5 +11,6 @@ go_test(
     name = "basic_test",
     srcs = ["validate_basic_test.go"],
     embed = [":basic"],
+    gotags = ["test"],
     deps = ["@com_github_stretchr_testify//assert"],
 )

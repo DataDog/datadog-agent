@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "procfilestats",
+    srcs = [
+        "process_file_stats.go",
+        "process_file_stats_linux.go",
+        "process_file_stats_others.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/procfilestats",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/util/log",
+            "@com_github_shirou_gopsutil_v4//process",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/util/log",
+            "@com_github_shirou_gopsutil_v4//process",
+        ],
+        "//conditions:default": [],
+    }),
+)

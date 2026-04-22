@@ -19,7 +19,7 @@ const DEFAULT_TIMEOUT: Duration = Duration::from_secs(10);
 // DaemonHandle
 // ---------------------------------------------------------------------------
 
-/// Handle to a running dd-procmgrd daemon process.
+/// Handle to a running dd-procmgrd (Unix) / dd-procmgr-service (Windows) daemon.
 pub struct DaemonHandle {
     child: Child,
     log_lines: Arc<Mutex<Vec<String>>>,
@@ -31,14 +31,23 @@ impl DaemonHandle {
     /// Start the daemon with the given config directory and socket path.
     /// Sets `DD_PM_CONFIG_DIR` and `DD_PM_SOCKET_PATH` environment variables.
     pub fn start(config_dir: &Path, socket_path: &Path) -> Self {
+        #[cfg(unix)]
         let bin = env!("CARGO_BIN_EXE_dd-procmgrd");
-        let mut child = Command::new(bin)
-            .env("DD_PM_CONFIG_DIR", config_dir)
+        #[cfg(windows)]
+        let bin = env!("CARGO_BIN_EXE_dd-procmgr-service");
+
+        let mut cmd = Command::new(bin);
+        cmd.env("DD_PM_CONFIG_DIR", config_dir)
             .env("DD_PM_SOCKET_PATH", socket_path)
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .expect("failed to start dd-procmgrd");
+            .stderr(Stdio::piped());
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt as _;
+            use windows_sys::Win32::System::Threading::CREATE_NEW_PROCESS_GROUP;
+            cmd.creation_flags(CREATE_NEW_PROCESS_GROUP);
+        }
+        let mut child = cmd.spawn().expect("failed to start daemon");
 
         let stdout = child.stdout.take().expect("failed to capture stdout");
         let stderr = child.stderr.take().expect("failed to capture stderr");
@@ -117,7 +126,16 @@ impl DaemonHandle {
         // module implements proper signal delivery.
         #[cfg(windows)]
         {
-            let _ = self.child.kill();
+            use windows_sys::Win32::System::Console::{CTRL_BREAK_EVENT, GenerateConsoleCtrlEvent};
+            let pid = self.child.id();
+            let ok = unsafe { GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, pid) };
+            if ok == 0 {
+                eprintln!(
+                    "GenerateConsoleCtrlEvent(CTRL_BREAK, {pid}) failed: {}, falling back to kill",
+                    std::io::Error::last_os_error()
+                );
+                let _ = self.child.kill();
+            }
         }
         self.wait_with_timeout(DEFAULT_TIMEOUT)
     }

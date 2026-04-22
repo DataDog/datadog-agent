@@ -461,6 +461,92 @@ func (s *discoveryTestSuite) TestServicesTracerMetadataWithoutPorts() {
 	assert.Equal(t, string(language.Python), svc.Language)
 }
 
+// TestServicesMultipleTracerMetadata checks that when a process has multiple
+// tracer metadata memfds, only the newest valid one is reported.  It also
+// verifies that when mtimes tie, the largest runtime_id wins as a
+// deterministic tie-breaker, and that corrupt memfds are skipped even when
+// they have the newest mtime.
+func (s *discoveryTestSuite) TestServicesMultipleTracerMetadata() {
+	t := s.T()
+	discovery := s.discovery
+
+	oldTime := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
+	newTime := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	newestTime := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	// 1. Old mtime, largest runtime_id — should lose to newer mtime.
+	metaOld := tracermetadata.TracerMetadata{
+		SchemaVersion:  1,
+		RuntimeID:      "zzz-runtime-id",
+		TracerLanguage: "go",
+		ServiceName:    "service-old",
+	}
+	// 2. New mtime, medium runtime_id — should be selected (wins tie
+	//    with #3 by runtime_id, beats #1 by mtime, #4 is corrupt).
+	metaNewMedium := tracermetadata.TracerMetadata{
+		SchemaVersion:  1,
+		RuntimeID:      "mmm-runtime-id",
+		TracerLanguage: "java",
+		ServiceName:    "service-new-medium",
+	}
+	// 3. New mtime (same as #2), small runtime_id — should lose tie.
+	metaNewSmall := tracermetadata.TracerMetadata{
+		SchemaVersion:  1,
+		RuntimeID:      "aaa-runtime-id",
+		TracerLanguage: "python",
+		ServiceName:    "service-new-small",
+	}
+
+	dataOld, err := metaOld.MarshalMsg(nil)
+	require.NoError(t, err)
+	dataNewMedium, err := metaNewMedium.MarshalMsg(nil)
+	require.NoError(t, err)
+	dataNewSmall, err := metaNewSmall.MarshalMsg(nil)
+	require.NoError(t, err)
+
+	fdOld := createTracerMemfd(t, dataOld)
+	fdNewMedium := createTracerMemfd(t, dataNewMedium)
+	fdNewSmall := createTracerMemfd(t, dataNewSmall)
+	// 4. Newest mtime, corrupt data — should be skipped.
+	fdCorrupt := createTracerMemfd(t, []byte("invalid msgpack data"))
+
+	setMemfdMtime(t, fdOld, oldTime)
+	setMemfdMtime(t, fdNewMedium, newTime)
+	setMemfdMtime(t, fdNewSmall, newTime)
+	setMemfdMtime(t, fdCorrupt, newestTime)
+
+	listener, err := net.Listen("tcp", "")
+	require.NoError(t, err)
+	f, err := listener.(*net.TCPListener).File()
+	listener.Close()
+	require.NoError(t, err)
+	t.Cleanup(func() { f.Close() })
+	disableCloseOnExec(t, f)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
+	cmd := exec.CommandContext(ctx, "sleep", "1000")
+	cmd.Dir = "/tmp/"
+	err = cmd.Start()
+	require.NoError(t, err)
+	f.Close()
+
+	pid := cmd.Process.Pid
+	var svc *model.Service
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		resp := getServices(collect, discovery)
+		svc = findService(pid, resp.Services)
+		require.NotNilf(collect, svc, "could not find service for pid %v", pid)
+	}, 30*time.Second, 100*time.Millisecond)
+
+	// #2 wins: corrupt #4 is skipped, old #1 loses by mtime, tied #3
+	// loses by runtime_id.
+	require.Len(t, svc.TracerMetadata, 1)
+	assert.Equal(t, "mmm-runtime-id", svc.TracerMetadata[0].RuntimeID)
+	assert.Equal(t, "service-new-medium", svc.TracerMetadata[0].ServiceName)
+}
+
 // TestServicesLogsWithoutPorts checks that processes with open log files
 // are discovered even when they have no listening ports or tracer metadata.
 func (s *discoveryTestSuite) TestServicesLogsWithoutPorts() {

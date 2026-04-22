@@ -62,13 +62,17 @@
           },
           "return": {
             "locals": {
-              "~r0": {
-                "type": "string",
-                "value": "hello"
-              },
-              "~r1": {
-                "type": "int",
-                "value": "42"
+              "@return": {
+                "fields": {
+                  "r0": {
+                    "type": "string",
+                    "value": "hello"
+                  },
+                  "r1": {
+                    "type": "int",
+                    "value": "42"
+                  }
+                }
               }
             }
           }
@@ -144,13 +148,17 @@
           },
           "return": {
             "locals": {
-              "~r0": {
-                "type": "bool",
-                "value": "true"
-              },
-              "~r1": {
-                "type": "string",
-                "value": "world"
+              "@return": {
+                "fields": {
+                  "r0": {
+                    "type": "bool",
+                    "value": "true"
+                  },
+                  "r1": {
+                    "type": "string",
+                    "value": "world"
+                  }
+                }
               }
             }
           }

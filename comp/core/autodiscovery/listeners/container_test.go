@@ -16,6 +16,7 @@ import (
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -511,6 +512,75 @@ func TestComputeContainerServiceIDs(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equal(t, tt.want, computeContainerServiceIDs(tt.args.entity, tt.args.image, tt.args.labels))
+		})
+	}
+}
+
+func TestContainerAreTagsComplete(t *testing.T) {
+	containerEntityID := types.NewEntityID(types.ContainerID, containerID)
+
+	tests := []struct {
+		name      string
+		container *workloadmeta.Container
+		tagInfos  []*types.TagInfo
+		expected  bool
+	}{
+		{
+			name: "container complete",
+			container: &workloadmeta.Container{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindContainer,
+					ID:   containerID,
+				},
+			},
+			tagInfos: []*types.TagInfo{
+				{
+					Source:      "source",
+					EntityID:    containerEntityID,
+					LowCardTags: []string{"container_name:agent"},
+					IsComplete:  true,
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "container incomplete",
+			container: &workloadmeta.Container{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindContainer,
+					ID:   containerID,
+				},
+			},
+			tagInfos: []*types.TagInfo{
+				{
+					Source:      "source",
+					EntityID:    containerEntityID,
+					LowCardTags: []string{"container_name:agent"},
+					IsComplete:  false,
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "container not in tagger",
+			container: &workloadmeta.Container{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindContainer,
+					ID:   "unknown-container",
+				},
+			},
+			tagInfos: []*types.TagInfo{},
+			expected: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			taggerMock := taggerfxmock.SetupFakeTagger(t)
+			taggerMock.GetTagStore().ProcessTagInfo(test.tagInfos)
+			listener, _ := newContainerListener(t, taggerMock)
+
+			assert.Equal(t, test.expected, listener.areTagsComplete(test.container))
 		})
 	}
 }

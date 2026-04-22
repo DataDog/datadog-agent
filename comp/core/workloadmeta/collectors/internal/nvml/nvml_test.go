@@ -73,23 +73,6 @@ func TestPull(t *testing.T) {
 	}
 }
 
-func TestGpuArchToString(t *testing.T) {
-	tests := []struct {
-		arch     nvml.DeviceArchitecture
-		expected string
-	}{
-		{nvml.DEVICE_ARCH_KEPLER, "kepler"},
-		{nvml.DEVICE_ARCH_UNKNOWN, "unknown"},
-		{nvml.DeviceArchitecture(3751), "invalid"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.expected, func(t *testing.T) {
-			require.Equal(t, tt.expected, gpuArchToString(tt.arch))
-		})
-	}
-}
-
 func TestExtractGPUType(t *testing.T) {
 	tests := []struct {
 		deviceName string
