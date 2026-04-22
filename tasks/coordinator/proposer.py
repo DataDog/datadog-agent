@@ -9,6 +9,7 @@ produce K fresh candidates in YAML form (same shape the seed loader expects).
 from __future__ import annotations
 
 import datetime as _dt
+import sys
 import uuid
 from pathlib import Path
 from typing import Any
@@ -100,8 +101,12 @@ pipeline, based on the prior experiment history below.
   "new-feature-gate", etc.).
 - Diversity: do NOT all fall in the same family. Spread across at least
   {min(n_candidates, 3)} distinct families.
-- Mention the primary target_components: one of `bocpd`, `scanmw`,
-  `scanwelch`, or a correlator name.
+- `target_components` MUST be a single-element list: exactly one of
+  `bocpd`, `scanmw`, `scanwelch`, or a correlator name. One candidate
+  = one component = one commit. Candidates that touch multiple
+  components cannot be independently evaluated post-run (each commit
+  modifies the code of the prior) and will be rejected at materialize
+  time.
 - Include explicit success criteria (F1 / FP / recall targets) and
   fallback behavior where relevant.
 
@@ -148,11 +153,23 @@ def materialize_candidates(
         cid = prop.get("id") or f"proposed-{uuid.uuid4().hex[:8]}"
         if cid in db.candidates:
             cid = f"{cid}-{uuid.uuid4().hex[:6]}"
+        target_components = list(prop.get("target_components", []))
+        # Enforce one-component-per-candidate. Multi-component commits
+        # can't be independently re-evaluated post-run: each commit
+        # modifies the code of the prior, so marginal attribution
+        # requires a linear history where each ship touches one thing.
+        if len(target_components) != 1:
+            print(
+                f"skip {cid}: expected exactly 1 target_component, got "
+                f"{target_components!r}",
+                file=sys.stderr,
+            )
+            continue
         cand = Candidate(
             id=cid,
             description=str(prop.get("description", "")).strip(),
             source="coordinator-proposed",
-            target_components=list(prop.get("target_components", [])),
+            target_components=target_components,
             phase=Phase(str(prop.get("phase", db.phase_state.current_phase.value))),
             status=CandidateStatus.PROPOSED,
             proposed_at=now,

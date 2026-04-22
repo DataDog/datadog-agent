@@ -276,13 +276,17 @@ id: C-my-idea
 description: |
   What to try, why, expected outcome.
 source: seed
-target_components: [scanmw]
+target_components: [scanmw]   # must be exactly one component
 phase: "1"
 approach_family: my-approach-family
 EOF
 
 PYTHONPATH=tasks python -m coordinator.seed_candidates
 ```
+
+One-component invariant: `seed_candidates` rejects 0 or 2+ components with
+`ValueError`. Makes every ship a single-component commit on a linear
+branch, so `reeval_ships` can attribute marginal ΔF1 to each candidate.
 
 Coordinator picks it up when its turn arrives (diversity policy may
 prefer it if you've been stuck on one family).
@@ -361,8 +365,16 @@ Set to `""` to use SDK default.
   lockbox — Spearman ρ's CI at N<10 ships is too wide to fire reliably).
   Lockbox scores never appear in agent prompts.
 - **Claims require offline re-eval.** Mid-run "shipped" ≠ "better."
-  After the run, re-eval every shipped candidate at N≥20 seeds against
-  the frozen baseline before claiming any improvement.
+  After the run, run:
+  ```bash
+  PYTHONPATH=tasks python -m coordinator.reeval_ships --seeds 20 \
+      --out ./reeval-ships.json
+  ```
+  Checks out each ship's sha + its parent sha, runs q.eval-scenarios at
+  N seeds on each, reports per-scenario marginal ΔF1 with 95% CIs.
+  Success criterion: ≥3 shipped candidates with *any* lockbox scenario's
+  `ci_low > 0` (real generalization). Below that, the harness produced
+  noise — don't claim improvements.
 - **Halt events** (exit the `--forever` loop):
   - Phase plateau (5 consecutive non-improving iterations)
   - Upstream sync conflict (manual rebase required)

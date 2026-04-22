@@ -97,6 +97,29 @@ def test_materialize_deduplicates_ids(tmp_path: Path):
     assert len(files) == 2
 
 
+def test_materialize_rejects_multi_component(tmp_path: Path):
+    """One-component-per-candidate policy: multi-component proposals are
+    silently dropped at materialization time. Without this, post-run
+    independent attribution of each ship against its parent sha would be
+    unsound (later commits would modify code introduced by earlier commits).
+    """
+    state_dir(tmp_path).mkdir(parents=True)
+    db = empty_db()
+    proposals = [
+        {"id": "multi", "description": "touches both", "approach_family": "f",
+         "target_components": ["scanmw", "bocpd"], "phase": "1"},
+        {"id": "zero", "description": "touches none", "approach_family": "f",
+         "target_components": [], "phase": "1"},
+        {"id": "good", "description": "touches one", "approach_family": "f",
+         "target_components": ["scanmw"], "phase": "1"},
+    ]
+    out = materialize_candidates(db, proposals, tmp_path)
+    ids = [c.id for c in out]
+    assert "good" in ids
+    assert "multi" not in ids
+    assert "zero" not in ids
+
+
 def test_prompt_includes_baseline_and_bans(tmp_path: Path):
     db = empty_db()
     db.baseline = Baseline(

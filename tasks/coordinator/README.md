@@ -669,12 +669,54 @@ id: C-my-idea
 description: |
   …
 source: seed
-target_components: [scanmw]
+target_components: [scanmw]  # MUST be exactly one component
 phase: "1"
 approach_family: my-family
 EOF
 PYTHONPATH=tasks python -m coordinator.seed_candidates
 ```
+
+> **One-component policy:** every candidate modifies exactly one component.
+> Hand-authored seeds with 0 or 2+ components fail loudly at load
+> (`seed_candidates._load_one`); proposer output with multi-component
+> candidates is silently skipped at `materialize_candidates`. This is what
+> makes post-run marginal attribution sound — each ship becomes a single
+> git commit on one component, evaluable in isolation.
+
+---
+
+## Post-run audit: marginal re-evaluation
+
+Mid-run "shipped" means "passed catastrophe gate + 2-persona review" — not
+"proved to be better." The `reeval_ships.py` module is the real answer to
+"did this harness produce value."
+
+```bash
+# For every shipped candidate: checkout its sha and its parent sha,
+# run q.eval-scenarios at N seeds on each, report per-scenario
+# marginal ΔF1 with 95% CIs. JSON output.
+PYTHONPATH=tasks python -m coordinator.reeval_ships \
+    --seeds 20 --out ./reeval-ships.json
+
+# Dry-run first to see the plan (ship list, cost estimate).
+PYTHONPATH=tasks python -m coordinator.reeval_ships --dry-run
+
+# Restrict to a subset of shipped IDs (parallelise across workspaces).
+PYTHONPATH=tasks python -m coordinator.reeval_ships \
+    --only A-tighten,B-anomaly-rank --seeds 20
+```
+
+**Cost:** `n_ships × seeds × 2 shas × ~6min`. For 5 ships × 20 seeds ≈ 20h
+on a single workspace; split via `--only` for parallelism.
+
+**Success criterion:** at least 3 shipped candidates with *any* lockbox
+scenario's `ci_low > 0` (real marginal generalization on held-out data).
+Below 3 and the harness produced noise; claim no improvement until a
+second run or a different design.
+
+Output fields per candidate: `candidate_id`, `sha`, `parent_sha`,
+`detector`, and `scenario_deltas[scenario] = {mean_df1, ci_low, ci_high,
+n_parent, n_ship, split}` where `split ∈ {train, lockbox, unknown}`.
 
 ---
 

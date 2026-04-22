@@ -28,11 +28,20 @@ CANDIDATES_DIR = "candidates"
 def _load_one(path: Path) -> Candidate:
     with path.open() as f:
         data = yaml.safe_load(f)
+    target_components = list(data.get("target_components", []))
+    # Enforce one-component-per-candidate — see proposer.materialize_candidates
+    # for rationale (marginal attribution requires linear, non-interfering
+    # commits, and a multi-component commit overrides the prior ship's code).
+    if len(target_components) != 1:
+        raise ValueError(
+            f"{path}: candidate '{data.get('id')}' must have exactly 1 "
+            f"target_component, got {target_components!r}"
+        )
     return Candidate(
         id=data["id"],
         description=str(data["description"]).strip(),
         source=data.get("source", "seed"),
-        target_components=list(data.get("target_components", [])),
+        target_components=target_components,
         phase=Phase(str(data["phase"])),
         status=CandidateStatus(data.get("status", "proposed")),
         proposed_at=data.get("proposed_at") or _dt.datetime.now().isoformat(timespec="seconds"),
