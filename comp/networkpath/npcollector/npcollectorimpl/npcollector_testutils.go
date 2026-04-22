@@ -27,11 +27,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
-	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/forwarderimpl"
+	forwardermock "github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/mock"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
 	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
@@ -50,14 +50,14 @@ var MockTimeNow = func() time.Time {
 // testOptions is a fx collection of common dependencies for all tests
 var testOptions = fx.Options(
 	Module(),
-	forwarderimpl.MockModule(),
+	forwardermock.MockModule(),
 	demultiplexerimpl.MockModule(),
 	defaultforwarder.MockModule(),
 	eventplatformimpl.MockModule(),
 	eventplatformreceiverimpl.Module(),
 	rdnsqueriermock.MockModule(),
 	logscompression.MockModule(),
-	telemetryimpl.MockModule(),
+	mocktelemetry.Module(),
 	hostnameimpl.MockModule(),
 	fx.Provide(delegatedauthmock.New),
 )

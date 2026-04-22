@@ -48,6 +48,9 @@ echo "/p:TclVersion=%TCL_VERSION%" >> %response_file%
 :: We disable copying around of the OpenSSL libraries (as defined in openssl.props)
 :: This simplifies the requirements on the input files and their names and gives us more control
 echo "/p:SkipCopySSLDLL=1" >> %response_file%
+:: but _hashlib.pyd needs OPENSSL_DIR registered as a DLL search directory for PGO tests.
+echo import os; os.add_dll_directory(r'%OPENSSL_DIR%') >sitecustomize.py
+set "PYTHONPATH=%cd%;%PYTHONPATH%"
 
 :: -e flag would normally also fetch external dependencies, but we have a patch inhibiting that;
 :: the flag is still needed because otherwise modules depending on some of those external dependencies

@@ -434,12 +434,18 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners provisioners.Provision
 					diagnoseResult, diagnoseErr := diagnosableProvisioner.Diagnose(ctx, stackName)
 					if diagnoseErr != nil {
 						utils.Logf(bs.T(), "WARNING: Diagnose failed: %v", diagnoseErr)
-					} else if diagnoseResult != "" {
+					}
+
+					// some diagnose calls/commands could fail, we still need any previous output that succeeded.
+					if diagnoseResult != "" {
 						utils.Logf(bs.T(), "Diagnose result: %s", diagnoseResult)
 					}
 				}
 
 			}
+
+			// set the env here so the tearDown can call diagnose too if it fails
+			bs.env = newEnv
 			return fmt.Errorf("your stack '%s' provisioning failed, check logs above. Provisioner was %s, failed with err: %v", bs.params.stackName, id, err)
 		}
 
@@ -757,7 +763,10 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 			diagnoseResult, diagnoseErr := diagnosableProvisioner.Diagnose(ctx, stackName)
 			if diagnoseErr != nil {
 				utils.Logf(bs.T(), "WARNING: Diagnose failed: %v", diagnoseErr)
-			} else if diagnoseResult != "" {
+			}
+
+			// some diagnose calls/commands could fail, we still need any previous output that succeeded.
+			if diagnoseResult != "" {
 				utils.Logf(bs.T(), "Diagnose result: %s", diagnoseResult)
 			}
 		}

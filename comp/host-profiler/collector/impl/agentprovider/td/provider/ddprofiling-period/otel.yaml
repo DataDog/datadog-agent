@@ -11,7 +11,8 @@ extensions:
     ddprofiling/default:
         profiler_options:
             period: 30
-    hpflare/default: {}
+    hpflare/default:
+        endpoint: localhost:7778
 processors:
     cumulativetodelta: {}
     filter:

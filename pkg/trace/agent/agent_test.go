@@ -146,8 +146,8 @@ func (m *mockContainerTagsBuffer) IsEnabled() bool {
 	return m.enabled
 }
 
-func (m *mockContainerTagsBuffer) AsyncEnrichment(_ string, cb func([]string, error), _ int64) bool {
-	cb(m.returnTags, m.returnErr)
+func (m *mockContainerTagsBuffer) AsyncEnrichment(_ string, cb func([]string, error, *containertagsbuffer.DebugInfo), _ int64) bool {
+	cb(m.returnTags, m.returnErr, nil)
 	return m.pending
 }
 
@@ -4660,4 +4660,116 @@ func TestWaitForStoppedTimeout(t *testing.T) {
 	defer waitCancel()
 	err := agnt.WaitForStopped(waitCtx)
 	assert.ErrorIs(t, err, context.DeadlineExceeded)
+}
+
+func TestEnrichTracesWithCtags(t *testing.T) {
+	t.Run("sets_container_debug_when_debug_has_data", func(t *testing.T) {
+		p := &writer.SampledChunks{
+			TracerPayload: &pb.TracerPayload{ContainerID: "abc123"},
+		}
+		debug := &containertagsbuffer.DebugInfo{
+			Error:                "timed out",
+			LatencyMs:            150,
+			WasBuffered:          true,
+			BufferMs:             200,
+			BufferEvictionReason: "timeout",
+		}
+		enrichTracesWithCtags(p, []string{"env:prod"}, nil, debug)
+		require.NotNil(t, p.TracerPayload.ContainerDebug)
+		assert.Equal(t, "timed out", p.TracerPayload.ContainerDebug.Error)
+		assert.Equal(t, int64(150), p.TracerPayload.ContainerDebug.LatencyMs)
+		assert.True(t, p.TracerPayload.ContainerDebug.WasBuffered)
+		assert.Equal(t, int64(200), p.TracerPayload.ContainerDebug.BufferMs)
+		assert.Equal(t, "timeout", p.TracerPayload.ContainerDebug.BufferEvictionReason)
+		assert.Equal(t, "env:prod", p.TracerPayload.Tags[tagContainersTags])
+	})
+
+	t.Run("no_debug_when_nil", func(t *testing.T) {
+		p := &writer.SampledChunks{
+			TracerPayload: &pb.TracerPayload{ContainerID: "abc123"},
+		}
+		enrichTracesWithCtags(p, []string{"env:prod"}, nil, nil)
+		assert.Nil(t, p.TracerPayload.ContainerDebug)
+		assert.Equal(t, "env:prod", p.TracerPayload.Tags[tagContainersTags])
+	})
+
+	t.Run("no_debug_when_empty", func(t *testing.T) {
+		p := &writer.SampledChunks{
+			TracerPayload: &pb.TracerPayload{ContainerID: "abc123"},
+		}
+		enrichTracesWithCtags(p, []string{"env:prod"}, nil, &containertagsbuffer.DebugInfo{})
+		assert.Nil(t, p.TracerPayload.ContainerDebug)
+	})
+
+	t.Run("debug_set_even_on_error", func(t *testing.T) {
+		p := &writer.SampledChunks{
+			TracerPayload: &pb.TracerPayload{ContainerID: "abc123"},
+		}
+		debug := &containertagsbuffer.DebugInfo{
+			Error:       "resolution failed",
+			WasBuffered: true,
+		}
+		enrichTracesWithCtags(p, nil, errors.New("resolution failed"), debug)
+		require.NotNil(t, p.TracerPayload.ContainerDebug)
+		assert.Equal(t, "resolution failed", p.TracerPayload.ContainerDebug.Error)
+		// tags should not be set on error
+		assert.Empty(t, p.TracerPayload.Tags)
+	})
+}
+
+func TestEnrichTracesWithCtagsV1(t *testing.T) {
+	t.Run("sets_container_debug_when_debug_has_data", func(t *testing.T) {
+		strings := idx.NewStringTable()
+		tp := &idx.InternalTracerPayload{Strings: strings}
+		p := &writer.SampledChunksV1{TracerPayload: tp}
+		debug := &containertagsbuffer.DebugInfo{
+			Error:                "timed out",
+			LatencyMs:            150,
+			WasBuffered:          true,
+			BufferMs:             200,
+			BufferEvictionReason: "timeout",
+		}
+		enrichTracesWithCtagsV1(p, []string{"env:prod"}, nil, debug)
+		require.NotNil(t, p.TracerPayload.ContainerDebug)
+		assert.Equal(t, "timed out", p.TracerPayload.ContainerDebug.Error)
+		assert.Equal(t, int64(150), p.TracerPayload.ContainerDebug.LatencyMs)
+		assert.True(t, p.TracerPayload.ContainerDebug.WasBuffered)
+		assert.Equal(t, int64(200), p.TracerPayload.ContainerDebug.BufferMs)
+		assert.Equal(t, "timeout", p.TracerPayload.ContainerDebug.BufferEvictionReason)
+		val, ok := p.TracerPayload.GetAttributeAsString(tagContainersTags)
+		require.True(t, ok)
+		assert.Equal(t, "env:prod", val)
+	})
+
+	t.Run("no_debug_when_nil", func(t *testing.T) {
+		strings := idx.NewStringTable()
+		tp := &idx.InternalTracerPayload{Strings: strings}
+		p := &writer.SampledChunksV1{TracerPayload: tp}
+		enrichTracesWithCtagsV1(p, []string{"env:prod"}, nil, nil)
+		assert.Nil(t, p.TracerPayload.ContainerDebug)
+	})
+
+	t.Run("no_debug_when_empty", func(t *testing.T) {
+		strings := idx.NewStringTable()
+		tp := &idx.InternalTracerPayload{Strings: strings}
+		p := &writer.SampledChunksV1{TracerPayload: tp}
+		enrichTracesWithCtagsV1(p, []string{"env:prod"}, nil, &containertagsbuffer.DebugInfo{})
+		assert.Nil(t, p.TracerPayload.ContainerDebug)
+	})
+
+	t.Run("debug_set_even_on_error", func(t *testing.T) {
+		strings := idx.NewStringTable()
+		tp := &idx.InternalTracerPayload{Strings: strings}
+		p := &writer.SampledChunksV1{TracerPayload: tp}
+		debug := &containertagsbuffer.DebugInfo{
+			Error:       "resolution failed",
+			WasBuffered: true,
+		}
+		enrichTracesWithCtagsV1(p, nil, errors.New("resolution failed"), debug)
+		require.NotNil(t, p.TracerPayload.ContainerDebug)
+		assert.Equal(t, "resolution failed", p.TracerPayload.ContainerDebug.Error)
+		// tags should not be set on error
+		_, ok := p.TracerPayload.GetAttributeAsString(tagContainersTags)
+		assert.False(t, ok)
+	})
 }

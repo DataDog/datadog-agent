@@ -34,8 +34,10 @@ var sources = []model.Source{
 	model.SourceFile,
 	model.SourceEnvVar,
 	model.SourceFleetPolicies,
-	model.SourceAgentRuntime,
+	model.SourceConfigPostInit,
+	model.SourceSecret,
 	model.SourceLocalConfigProcess,
+	model.SourceAgentRuntime,
 	model.SourceRC,
 	model.SourceCLI,
 }
@@ -77,11 +79,15 @@ type ntmConfig struct {
 	file *nodeImpl
 	// envs contains config settings created by environment variables
 	envs *nodeImpl
-	// runtime contains the settings set from the agent code itself at runtime (self configured values).
-	runtime *nodeImpl
+	// configPostInit contains values computed during initial config setup.
+	configPostInit *nodeImpl
+	// secrets contains values resolved from secrets (ENC[...] placeholders).
+	secrets *nodeImpl
 	// localConfigProcess contains the settings pulled from the config process (process owning the source of truth
 	// for the coniguration and mirrored by other processes).
 	localConfigProcess *nodeImpl
+	// runtime contains the settings set from the agent code itself at runtime (self configured values).
+	runtime *nodeImpl
 	// remoteConfig contains the settings pulled from Remote Config.
 	remoteConfig *nodeImpl
 	// fleetPolicies contains the settings pulled from fleetPolicies.
@@ -123,6 +129,10 @@ type ntmConfig struct {
 	// only hold an RLock, so a plain map would cause concurrent map writes.
 	unknownKeys sync.Map
 
+	// All the keys for which we emitted a warnings upon calling `Set`. We don't want to flood the logs with the same
+	// message. This map is used to keep track of already emitted errors
+	setWarnings map[string]bool
+
 	// extraConfigFilePaths represents additional configuration file paths that will be merged into the main configuration when ReadInConfig() is called.
 	extraConfigFilePaths []string
 
@@ -160,10 +170,14 @@ func (c *ntmConfig) getTreeBySource(source model.Source) (*nodeImpl, error) {
 		return c.file, nil
 	case model.SourceEnvVar:
 		return c.envs, nil
-	case model.SourceAgentRuntime:
-		return c.runtime, nil
+	case model.SourceConfigPostInit:
+		return c.configPostInit, nil
+	case model.SourceSecret:
+		return c.secrets, nil
 	case model.SourceLocalConfigProcess:
 		return c.localConfigProcess, nil
+	case model.SourceAgentRuntime:
+		return c.runtime, nil
 	case model.SourceRC:
 		return c.remoteConfig, nil
 	case model.SourceFleetPolicies:
@@ -216,8 +230,11 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	// convert the value to the type of the default
 	if declaredNode.IsLeafNode() {
 		if converted, err := convertToDefaultType(newValue, declaredNode.Get()); err == nil {
-			if reflect.TypeOf(converted) != reflect.TypeOf(newValue) {
-				log.Warnf("Set('%s'): converting value from %T to %T to match default type", key, newValue, converted)
+			if ok := c.setWarnings[key]; !ok {
+				if reflect.TypeOf(converted) != reflect.TypeOf(newValue) {
+					log.Warnf("Set('%s'): converting value from %T to %T to match default type", key, newValue, converted)
+					c.setWarnings[key] = true
+				}
 			}
 			newValue = converted
 		}
@@ -247,11 +264,14 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	}
 
 	c.sequenceID++
+	// Capture the sequenceID here whilst locked to send to the receivers
+	// after unlocking.
+	sequenceID := c.sequenceID
 	c.Unlock()
 
 	// notifying all receiver about the updated setting
 	for _, receiver := range receivers {
-		receiver(key, source, previousValue, newValue, c.sequenceID)
+		receiver(key, source, previousValue, newValue, sequenceID)
 	}
 }
 
@@ -319,68 +339,87 @@ func (c *ntmConfig) findPreviousSourceNode(key string, source model.Source) (*no
 func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 	c.maybeRebuild()
 
-	c.Lock()
-	defer c.Unlock()
+	var (
+		previousValue interface{}
+		newValue      interface{}
+		receivers     []model.NotificationReceiver
+		sequenceID    uint64
+	)
 
-	key = strings.ToLower(key)
-	previousValue := c.leafAtPathFromNode(key, c.root).Get()
+	ok := func() bool {
+		c.Lock()
+		defer c.Unlock()
 
-	// Remove it from the original source tree
-	tree, err := c.getTreeBySource(source)
-	if err != nil {
-		log.Errorf("%s", err)
-		return
-	}
-	parentNode, childName, err := c.parentOfNode(tree, key)
-	if err != nil {
-		return
-	}
-	// Only remove if the setting is a leaf
-	if child, err := parentNode.GetChild(childName); err == nil {
-		if child.IsLeafNode() {
-			parentNode.RemoveChild(childName)
-		} else {
-			log.Errorf("cannot remove setting %q, not a leaf", key)
-			return
+		key = strings.ToLower(key)
+		previousValue = c.leafAtPathFromNode(key, c.root).Get()
+
+		// Remove it from the original source tree
+		tree, err := c.getTreeBySource(source)
+		if err != nil {
+			log.Errorf("%s", err)
+			return false
 		}
-	}
+		parentNode, childName, err := c.parentOfNode(tree, key)
+		if err != nil {
+			return false
+		}
+		// Only remove if the setting is a leaf
+		if child, err := parentNode.GetChild(childName); err == nil {
+			if child.IsLeafNode() {
+				parentNode.RemoveChild(childName)
+			} else {
+				log.Errorf("cannot remove setting %q, not a leaf", key)
+				return false
+			}
+		}
 
-	// If the node in the merged tree doesn't match the source we expect, we're done
-	if c.leafAtPathFromNode(key, c.root).Source() != source {
+		// If the node in the merged tree doesn't match the source we expect, we're done
+		if c.leafAtPathFromNode(key, c.root).Source() != source {
+			return false
+		}
+
+		// Find what the previous value used to be, based upon the previous source
+		prevNode, findPreviousSourceError := c.findPreviousSourceNode(key, source)
+
+		// Get the parent node of the leaf we're unsetting
+		parentNode, childName, err = c.parentOfNode(c.root, key)
+		if err != nil {
+			return false
+		}
+
+		// If there was no previous source with a node of this name, simply remove it from the parent
+		if findPreviousSourceError != nil {
+			parentNode.RemoveChild(childName)
+			return false
+		}
+
+		// Replace the child with the node from the previous layer
+		parentNode.InsertChildNode(childName, prevNode)
+
+		newValue = c.leafAtPathFromNode(key, c.root).Get()
+
+		// Value has not changed, do not notify
+		if reflect.DeepEqual(previousValue, newValue) {
+			return false
+		}
+
+		c.sequenceID++
+		receivers = slices.Clone(c.notificationReceivers)
+		// Capture the sequenceID here whilst locked to send to the receivers
+		// after unlocking.
+		sequenceID = c.sequenceID
+		return true
+	}()
+
+	if !ok {
 		return
 	}
 
-	// Find what the previous value used to be, based upon the previous source
-	prevNode, findPreviousSourceError := c.findPreviousSourceNode(key, source)
-
-	// Get the parent node of the leaf we're unsetting
-	parentNode, childName, err = c.parentOfNode(c.root, key)
-	if err != nil {
-		return
-	}
-
-	// If there was no previous source with a node of this name, simply remove it from the parent
-	if findPreviousSourceError != nil {
-		parentNode.RemoveChild(childName)
-		return
-	}
-
-	// Replace the child with the node from the previous layer
-	parentNode.InsertChildNode(childName, prevNode)
-
-	newValue := c.leafAtPathFromNode(key, c.root).Get()
-
-	// Value has not changed, do not notify
-	if reflect.DeepEqual(previousValue, newValue) {
-		return
-	}
-
-	c.sequenceID++
-	receivers := slices.Clone(c.notificationReceivers)
-
-	// notifying all receiver about the updated setting
+	// Notify receivers outside the lock. Subscribers commonly read the
+	// config from within their callback, and doing so while the write
+	// lock is still held deadlocks them against this goroutine.
 	for _, receiver := range receivers {
-		receiver(key, source, previousValue, newValue, c.sequenceID)
+		receiver(key, source, previousValue, newValue, sequenceID)
 	}
 }
 
@@ -493,28 +532,48 @@ func (c *ntmConfig) checkKnownKey(key string) {
 	}
 }
 
-func (c *ntmConfig) mergeAllLayers() error {
-	treeList := []*nodeImpl{
+// layerList returns all config layers in ascending priority order.
+func (c *ntmConfig) layerList() []*nodeImpl {
+	return []*nodeImpl{
 		c.defaults,
 		c.unknown,
 		c.file,
 		c.envs,
 		c.fleetPolicies,
-		c.runtime,
+		c.configPostInit,
+		c.secrets,
 		c.localConfigProcess,
+		c.runtime,
 		c.remoteConfig,
 		c.cli,
 	}
+}
 
+// mergeLayers merges all layers except those in exclude.
+func (c *ntmConfig) mergeLayers(exclude ...*nodeImpl) (*nodeImpl, error) {
+	excludeSet := make(map[*nodeImpl]struct{}, len(exclude))
+	for _, e := range exclude {
+		excludeSet[e] = struct{}{}
+	}
 	merged := newInnerNode(nil)
-	for _, tree := range treeList {
+	for _, tree := range c.layerList() {
+		if _, skip := excludeSet[tree]; skip {
+			continue
+		}
 		next, err := merged.Merge(tree)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		merged = next
 	}
+	return merged, nil
+}
 
+func (c *ntmConfig) mergeAllLayers() error {
+	merged, err := c.mergeLayers()
+	if err != nil {
+		return err
+	}
 	c.root = merged
 	return nil
 }
@@ -939,6 +998,34 @@ func (c *ntmConfig) AllSettingsWithoutDefault() map[string]interface{} {
 	return c.root.dumpSettings(false)
 }
 
+// AllSettingsWithoutSecrets returns all settings excluding the secrets layer
+func (c *ntmConfig) AllSettingsWithoutSecrets() map[string]interface{} {
+	c.maybeRebuild()
+	c.RLock()
+	defer c.RUnlock()
+
+	merged, err := c.mergeLayers(c.secrets)
+	if err != nil {
+		log.Errorf("error merging config layers without secrets: %v", err)
+		return map[string]interface{}{}
+	}
+	return merged.dumpSettings(true)
+}
+
+// AllSettingsWithoutDefaultOrSecrets returns settings excluding both defaults and secrets
+func (c *ntmConfig) AllSettingsWithoutDefaultOrSecrets() map[string]interface{} {
+	c.maybeRebuild()
+	c.RLock()
+	defer c.RUnlock()
+
+	merged, err := c.mergeLayers(c.defaults, c.secrets)
+	if err != nil {
+		log.Errorf("error merging config layers without defaults or secrets: %v", err)
+		return map[string]interface{}{}
+	}
+	return merged.dumpSettings(false)
+}
+
 // AllSettingsBySource returns the settings from each source (file, env vars, ...)
 func (c *ntmConfig) AllSettingsBySource() map[model.Source]interface{} {
 	c.maybeRebuild()
@@ -946,7 +1033,13 @@ func (c *ntmConfig) AllSettingsBySource() map[model.Source]interface{} {
 	c.RLock()
 	defer c.RUnlock()
 
-	// We don't return include unknown settings
+	// SourceProvided excludes secrets so resolved values don't leak in metadata payloads.
+	providedWithoutSecrets, err := c.mergeLayers(c.defaults, c.secrets)
+	if err != nil {
+		log.Errorf("error building provided configuration without secrets: %v", err)
+		providedWithoutSecrets = newInnerNode(nil)
+	}
+
 	return map[model.Source]interface{}{
 		model.SourceDefault:            c.defaults.dumpSettings(true),
 		model.SourceUnknown:            c.unknown.dumpSettings(true),
@@ -954,11 +1047,12 @@ func (c *ntmConfig) AllSettingsBySource() map[model.Source]interface{} {
 		model.SourceFile:               c.file.dumpSettings(true),
 		model.SourceEnvVar:             c.envs.dumpSettings(true),
 		model.SourceFleetPolicies:      c.fleetPolicies.dumpSettings(true),
-		model.SourceAgentRuntime:       c.runtime.dumpSettings(true),
+		model.SourceConfigPostInit:     c.configPostInit.dumpSettings(true),
 		model.SourceLocalConfigProcess: c.localConfigProcess.dumpSettings(true),
+		model.SourceAgentRuntime:       c.runtime.dumpSettings(true),
 		model.SourceRC:                 c.remoteConfig.dumpSettings(true),
 		model.SourceCLI:                c.cli.dumpSettings(true),
-		model.SourceProvided:           c.root.dumpSettings(false),
+		model.SourceProvided:           providedWithoutSecrets.dumpSettings(false),
 	}
 }
 
@@ -1104,13 +1198,16 @@ func NewNodeTreeConfig(name string, envPrefix string, envKeyReplacer *strings.Re
 		sequenceID:         0,
 		configEnvVars:      map[string][]string{},
 		knownKeys:          map[string]bool{},
+		setWarnings:        map[string]bool{},
 		defaults:           newInnerNode(nil),
 		file:               newInnerNode(nil),
 		unknown:            newInnerNode(nil),
 		infraMode:          newInnerNode(nil),
 		envs:               newInnerNode(nil),
-		runtime:            newInnerNode(nil),
+		configPostInit:     newInnerNode(nil),
+		secrets:            newInnerNode(nil),
 		localConfigProcess: newInnerNode(nil),
+		runtime:            newInnerNode(nil),
 		remoteConfig:       newInnerNode(nil),
 		fleetPolicies:      newInnerNode(nil),
 		cli:                newInnerNode(nil),

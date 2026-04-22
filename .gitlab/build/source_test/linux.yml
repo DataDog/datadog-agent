@@ -1,16 +1,16 @@
 ---
 .rtloader_tests:
   stage: source_test
-  needs: ["go_deps"]
-  before_script:
-    - source /root/.bashrc && conda activate $CONDA_ENV
-    - !reference [.retrieve_linux_go_deps]
+  extends: .unit_test_base
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  rules:
+    - !reference [.except_disable_unit_tests]
+    - !reference [.fast_on_dev_branch_only]
+  script:
     - dda inv -- -e rtloader.make --install-prefix=$CI_PROJECT_DIR/dev
     - dda inv -- -e rtloader.install
     - dda inv -- -e rtloader.format --raise-if-changed
     - dda inv -- -e rtloader.test
-  # Placeholder script, overridden by .linux_tests when running all go tests
-  script: ["# Skipping go tests"]
 
 .linux_tests:
   stage: source_test
@@ -27,6 +27,7 @@
     TEST_OUTPUT_FILE: test_output
     EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
   before_script:
+    - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
   script:
     - dda inv -- -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
@@ -53,23 +54,23 @@
 
 tests_linux-x64-py3:
   extends:
-    - .rtloader_tests
     - .linux_tests
     - .linux_x64
   after_script:
     - !reference [.upload_junit_source]
     - !reference [.upload_coverage]
+    - !reference [.upload_coverage_datadog]
   variables:
     CONDA_ENV: ddpy3
 
 tests_nodetreemodel:
   extends:
-    - .rtloader_tests
     - .linux_tests
     - .linux_x64
   after_script:
     - !reference [.upload_junit_source]
     - !reference [.upload_coverage]
+    - !reference [.upload_coverage_datadog]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   rules:
     - !reference [.except_mergequeue]
@@ -82,7 +83,6 @@ tests_nodetreemodel:
 
 tests_flavor_iot_linux-x64:
   extends:
-    - .rtloader_tests
     - .linux_tests
     - .linux_x64
   after_script:
@@ -93,7 +93,6 @@ tests_flavor_iot_linux-x64:
 
 tests_flavor_dogstatsd_linux-x64:
   extends:
-    - .rtloader_tests
     - .linux_tests
     - .linux_x64
   after_script:
@@ -104,7 +103,6 @@ tests_flavor_dogstatsd_linux-x64:
 
 tests_flavor_heroku_linux-x64:
   extends:
-    - .rtloader_tests
     - .linux_tests
     - .linux_x64
   after_script:
@@ -115,18 +113,35 @@ tests_flavor_heroku_linux-x64:
 
 tests_linux-arm64-py3:
   extends:
-    - .rtloader_tests
     - .linux_tests
   needs: ["go_deps", "go_tools_deps_arm64"]
   before_script:
+    - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps_arm64]
   after_script:
     - !reference [.upload_junit_source]
     - !reference [.upload_coverage]
+    - !reference [.upload_coverage_datadog]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:arm64", "specific:true"]
   variables:
     CONDA_ENV: ddpy3
+
+tests_rtloader-x64:
+  extends: .rtloader_tests
+  needs: ["go_deps", "go_tools_deps"]
+  before_script:
+    - !reference [.retrieve_linux_go_deps]
+    - !reference [.retrieve_linux_go_tools_deps]
+  tags: ["arch:amd64", "specific:true"]
+
+tests_rtloader-arm64:
+  extends: .rtloader_tests
+  needs: ["go_deps", "go_tools_deps_arm64"]
+  before_script:
+    - !reference [.retrieve_linux_go_deps]
+    - !reference [.retrieve_linux_go_tools_deps_arm64]
+  tags: ["arch:arm64", "specific:true"]
 
 
 tests_serverless-init:
@@ -210,9 +225,11 @@ tests_gpu:
   allow_failure: true
   before_script:
     - !reference [.retrieve_linux_go_deps]
+    - !reference [.retrieve_linux_go_tools_deps]
   after_script:
     - !reference [.upload_junit_source]
     - !reference [.upload_coverage]
+    - !reference [.upload_coverage_datadog]
   variables:
     FLAVORS: ''
     EXTRA_OPTS: '--targets=./pkg/gpu/integrationtests,./pkg/collector/corechecks/gpu/integrationtests'
