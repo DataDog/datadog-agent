@@ -8,7 +8,7 @@
   extends: .windows_docker_default
   before_script:
     - $tmpfile = [System.IO.Path]::GetTempFileName()
-    - (& "$CI_PROJECT_DIR\tools\ci\fetch_secret.ps1" -parameterName "$Env:VCPKG_BLOB_SAS_URL" -tempFile "$tmpfile")
+    - (& "$CI_PROJECT_DIR\tools\ci\fetch_secret.ps1" -parameterName "$Env:VCPKG_BLOB_SAS_URL" -parameterField url -tempFile "$tmpfile")
     - If ($lastExitCode -ne "0") { exit "$lastExitCode" }
     - $vcpkgBlobSaSUrl=$(cat "$tmpfile")
     - Remove-Item "$tmpfile"
