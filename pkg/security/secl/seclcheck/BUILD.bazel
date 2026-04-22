@@ -4,6 +4,7 @@ go_library(
     name = "seclcheck_lib",
     srcs = ["secl_check.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/secl/seclcheck",
+    target_compatible_with = ["@platforms//os:linux"],  # keep
     visibility = ["//visibility:private"],
     deps = select({
         "@rules_go//go/platform:aix": [
@@ -68,6 +69,7 @@ go_library(
 go_binary(
     name = "seclcheck",
     embed = [":seclcheck_lib"],
+    target_compatible_with = ["@platforms//os:linux"],  # keep
     visibility = ["//visibility:public"],
 )
 
@@ -76,6 +78,7 @@ go_test(
     srcs = ["secl_check_test.go"],
     embed = [":seclcheck_lib"],
     gotags = ["test"],
+    target_compatible_with = ["@platforms//os:linux"],  # keep
     deps = select({
         "@rules_go//go/platform:aix": [
             "@com_github_stretchr_testify//assert",
