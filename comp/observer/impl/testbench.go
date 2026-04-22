@@ -699,12 +699,13 @@ func (tb *TestBench) rerunDetectorsLocked() {
 		tb.handleTelemetry([]observerdef.ObserverTelemetry{t}, detName, dataTime)
 	}
 
-	// Populate tb.logAnomalies from AnomalyTypeLog anomalies produced by detectors.
-	// These are distinct from metric anomalies and are served via /api/log-anomalies.
+	// Populate tb.logAnomalies: direct log anomalies (AnomalyTypeLog) and
+	// metric detector anomalies on log-derived series (isLogDerivedAnomaly),
+	// mirroring the live observer's notify.go classification logic.
 	tb.logAnomalies = []observerdef.Anomaly{}
 	tb.logAnomaliesByDetector = make(map[string][]observerdef.Anomaly)
 	for _, a := range result.anomalies {
-		if a.Type == observerdef.AnomalyTypeLog {
+		if a.Type == observerdef.AnomalyTypeLog || isLogDerivedAnomaly(a) {
 			tb.logAnomalies = append(tb.logAnomalies, a)
 			tb.logAnomaliesByDetector[a.DetectorName] = append(tb.logAnomaliesByDetector[a.DetectorName], a)
 		}
