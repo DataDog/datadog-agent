@@ -673,6 +673,7 @@ type PIDContext struct {
 	MntNS         uint32 `field:"mntns"`      // SECLDoc[mntns] Definition:`MNTNS ID of the process`
 	IsKworker     bool   `field:"is_kworker"` // SECLDoc[is_kworker] Definition:`Indicates whether the process is a kworker/kthread`
 	PPid          uint32 `field:"ppid"`       // SECLDoc[ppid] Definition:`Parent process ID`
+	SID           uint32 `field:"sid"`        // SECLDoc[sid] Definition:`Session ID of the process`
 	ExecInode     uint64 `field:"-"`          // used to track exec and event loss
 	UserSessionID uint64 `field:"-"`          // used to track user sessions from kernel space
 	// used for ebpfless

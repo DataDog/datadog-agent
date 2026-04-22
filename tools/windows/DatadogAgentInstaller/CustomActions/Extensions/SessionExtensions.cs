@@ -73,8 +73,10 @@ namespace Datadog.CustomActions.Extensions
             return new List<string>
             {
                 Path.Combine(configRoot, "auth_token"),
+                Path.Combine(configRoot, "auth_token.lock"),
                 Path.Combine(configRoot, "python-cache"),
                 Path.Combine(configRoot, "ipc_cert.pem"),
+                Path.Combine(configRoot, "ipc_cert.pem.lock"),
             };
         }
 

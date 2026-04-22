@@ -657,6 +657,7 @@ func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, pro
 	entry.ForkTime = entry.ExecTime
 	entry.Comm = filledProc.Name
 	entry.PPid = uint32(filledProc.Ppid)
+	entry.SID = utils.PidSID(uint32(filledProc.Pid))
 	entry.TTYName = utils.PidTTY(uint32(filledProc.Pid))
 	entry.ProcessContext.Pid = pid
 	entry.ProcessContext.Tid = pid
