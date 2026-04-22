@@ -29,6 +29,9 @@ const (
 
 	// Log pattern extractor — counter: delta (new clusters) per processed log
 	telemetryLogPatternExtractorPatternCount = "observer.log_pattern_extractor.pattern_count"
+
+	// Rate limiter — emitted by rateLimitedDetector only when anomalies are dropped.
+	telemetryRateLimitDropped = "observer.rate_limit.dropped"
 )
 
 // This is used to:
@@ -61,6 +64,12 @@ func newTelemetryHandler(telemetryComp telemetry.Component) *telemetryHandler {
 		telemetryRRCFThreshold,
 		[]string{"detector"},
 		"RRCF dynamic anomaly detection threshold (post-warmup)",
+	)
+	gauges[telemetryRateLimitDropped] = telemetryComp.NewGauge(
+		"observer",
+		telemetryRateLimitDropped,
+		[]string{"detector"},
+		"Anomalies dropped by per-series rate limiter, tagged by detector",
 	)
 
 	// Counters

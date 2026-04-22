@@ -40,12 +40,25 @@ func (d *rateLimitedDetector) Name() string { return d.inner.Name() }
 func (d *rateLimitedDetector) Detect(storage observerdef.StorageReader, dataTime int64) observerdef.DetectionResult {
 	result := d.inner.Detect(storage, dataTime)
 	filtered := result.Anomalies[:0:0]
+	var dropped int
 	for _, a := range result.Anomalies {
 		if d.allow(a.Source.Key()) {
 			filtered = append(filtered, a)
+		} else {
+			dropped++
 		}
 	}
 	result.Anomalies = filtered
+	if dropped > 0 {
+		result.Telemetry = append(result.Telemetry,
+			newTelemetryGauge(
+				[]string{"detector:" + d.inner.Name()},
+				telemetryRateLimitDropped,
+				float64(dropped),
+				dataTime,
+			),
+		)
+	}
 	return result
 }
 
