@@ -1443,6 +1443,8 @@ func applyInfrastructureModeOverrides(config pkgconfigmodel.Config) {
 	} else if infraMode == "none" {
 		// Disable integrations (no host metrics collection)
 		config.Set("integration.enabled", false, pkgconfigmodel.SourceInfraMode)
+		// Avoid detailed ECS task metadata collection when not collecting infrastructure.
+		config.Set("ecs_task_collection_enabled", false, pkgconfigmodel.SourceInfraMode)
 	}
 }
 

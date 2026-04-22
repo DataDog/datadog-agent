@@ -1,0 +1,3 @@
+enhancements:
+  - |
+    When ``infrastructure_mode`` is set to ``none``, ECS task metadata collection is now disabled by default (see ``ecs_task_collection_enabled``). Set ``DD_ECS_TASK_COLLECTION_ENABLED`` to ``true`` to override.

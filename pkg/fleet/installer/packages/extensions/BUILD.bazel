@@ -20,13 +20,18 @@ go_library(
 
 go_test(
     name = "extensions_test",
-    srcs = ["extensions_test.go"],
+    srcs = [
+        "extensions_digest_test.go",
+        "extensions_test.go",
+    ],
     embed = [":extensions"],
     gotags = ["test"],
     deps = [
         "//pkg/fleet/installer/env",
+        "//pkg/fleet/installer/fixtures",
         "//pkg/fleet/installer/oci",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@io_etcd_go_bbolt//:bbolt",
     ],
 )
