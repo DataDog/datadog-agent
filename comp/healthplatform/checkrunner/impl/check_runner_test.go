@@ -126,7 +126,7 @@ func TestCheckRunnerRunsChecks(t *testing.T) {
 	require.NoError(t, err)
 
 	// Start the runner
-	runner.start(context.Background()) //nolint:errcheck
+	runner.start(context.Background())      //nolint:errcheck
 	defer runner.stop(context.Background()) //nolint:errcheck
 
 	// Wait for at least 2 executions

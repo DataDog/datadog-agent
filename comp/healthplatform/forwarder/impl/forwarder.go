@@ -115,8 +115,8 @@ func (f *forwarder) stop(_ context.Context) error {
 }
 
 // SetProvider wires the issue provider. Must be called before the first send fires.
-func (r *forwarder) SetProvider(provider forwarderdef.IssueProvider) {
-	r.provider = provider
+func (f *forwarder) SetProvider(provider forwarderdef.IssueProvider) {
+	f.provider = provider
 }
 
 // buildIntakeURL constructs the intake URL based on site configuration
@@ -134,43 +134,43 @@ func buildHTTPClient(cfg pkgconfigmodel.Reader) *http.Client {
 }
 
 // run is the main loop that sends health reports periodically
-func (r *forwarder) run() {
-	defer close(r.doneCh)
+func (f *forwarder) run() {
+	defer close(f.doneCh)
 
-	ticker := time.NewTicker(r.interval)
+	ticker := time.NewTicker(f.interval)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ticker.C:
-			r.sendHealthReport()
-		case <-r.stopCh:
+			f.sendHealthReport()
+		case <-f.stopCh:
 			return
 		}
 	}
 }
 
 // sendHealthReport collects issues and sends them to the intake endpoint
-func (r *forwarder) sendHealthReport() {
-	if r.provider == nil {
-		r.log.Warn("Health platform forwarder has no provider set, skipping report")
+func (f *forwarder) sendHealthReport() {
+	if f.provider == nil {
+		f.log.Warn("Health platform forwarder has no provider set, skipping report")
 		return
 	}
-	count, issues := r.provider.GetAllIssues()
+	count, issues := f.provider.GetAllIssues()
 
 	if count == 0 {
-		r.log.Info("No health issues to report")
+		f.log.Info("No health issues to report")
 		return
 	}
 
-	report := r.buildReport(issues)
+	report := f.buildReport(issues)
 
-	if err := r.send(report); err != nil {
-		r.log.Warn(fmt.Sprintf("Failed to send health report: %v", err))
+	if err := f.send(report); err != nil {
+		f.log.Warn(fmt.Sprintf("Failed to send health report: %v", err))
 		return
 	}
 
-	r.log.Info(fmt.Sprintf("Successfully sent health report with %d issues", count))
+	f.log.Info(fmt.Sprintf("Successfully sent health report with %d issues", count))
 }
 
 // safeGetFlavor returns the current agent flavor, falling back to the default
@@ -185,13 +185,13 @@ func safeGetFlavor() (f string) {
 }
 
 // buildReport creates a HealthReport from the current issues
-func (r *forwarder) buildReport(issues map[string]*healthplatform.Issue) *healthplatform.HealthReport {
+func (f *forwarder) buildReport(issues map[string]*healthplatform.Issue) *healthplatform.HealthReport {
 	return &healthplatform.HealthReport{
 		EventType: eventType,
 		EmittedAt: time.Now().UTC().Format(time.RFC3339),
 		Service:   safeGetFlavor(),
 		Host: &healthplatform.HostInfo{
-			Hostname:     r.hostname,
+			Hostname:     f.hostname,
 			AgentVersion: pointer.Ptr(version.AgentVersion),
 		},
 		Issues: issues,
@@ -199,9 +199,9 @@ func (r *forwarder) buildReport(issues map[string]*healthplatform.Issue) *health
 }
 
 // send marshals and sends the report to the intake endpoint
-func (r *forwarder) send(report *healthplatform.HealthReport) error {
+func (f *forwarder) send(report *healthplatform.HealthReport) error {
 	// Fetch API key once and check if configured
-	apiKey := r.cfg.GetString("api_key")
+	apiKey := f.cfg.GetString("api_key")
 	if apiKey == "" {
 		return errors.New("API key not configured")
 	}
@@ -214,7 +214,7 @@ func (r *forwarder) send(report *healthplatform.HealthReport) error {
 	ctx, cancel := context.WithTimeout(context.Background(), httpTimeout)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, r.intakeURL, bytes.NewReader(payload))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, f.intakeURL, bytes.NewReader(payload))
 	if err != nil {
 		return fmt.Errorf("create request: %w", err)
 	}
@@ -224,7 +224,7 @@ func (r *forwarder) send(report *healthplatform.HealthReport) error {
 	req.Header.Set("DD-Agent-Version", version.AgentVersion)
 	req.Header.Set("User-Agent", "datadog-agent/"+version.AgentVersion)
 
-	resp, err := r.httpClient.Do(req)
+	resp, err := f.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("send request: %w", err)
 	}
