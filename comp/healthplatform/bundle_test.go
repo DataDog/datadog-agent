@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -26,7 +26,7 @@ func TestBundleDependencies(t *testing.T) {
 	fxutil.TestBundle(t, Bundle(),
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		fx.Provide(func(t testing.TB) config.Component { return config.NewMock(t) }),
-		telemetryimpl.MockModule(),
+		telemetrymock.Module(),
 		hostnameinterface.MockModule(),
 	)
 }
