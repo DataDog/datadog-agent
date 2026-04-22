@@ -40,6 +40,10 @@ func normalizeProfiles(pConfig ProfileConfigMap, defaultProfiles ProfileConfigMa
 		err := recursivelyExpandBaseProfiles(name, &newProfileConfig.Definition, newProfileConfig.Definition.Extends, []string{}, pConfig, defaultProfiles)
 		if err != nil {
 			log.Warnf("failed to expand profile %q: %v", name, err)
+			errMsg := err.Error()
+			profileExpVar.Set(name, expvar.Func(func() interface{} {
+				return errMsg
+			}))
 			continue
 		}
 		profiledefinition.NormalizeMetrics(newProfileConfig.Definition.Metrics)

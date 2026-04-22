@@ -362,8 +362,8 @@ func TestNewAggregation(t *testing.T) {
 	}
 }
 
-func TestSpanDerivedPrimaryTags(t *testing.T) {
-	spanDerivedPrimaryTagsHash := tagsFnvHash([]string{"customer_tier:premium", "datacenter:us-east-1"})
+func TestAdditionalMetricTags(t *testing.T) {
+	additionalMetricTagsHash := tagsFnvHash([]string{"customer_tier:premium", "datacenter:us-east-1"})
 	sc := &SpanConcentrator{}
 
 	span := &pb.Span{
@@ -379,13 +379,13 @@ func TestSpanDerivedPrimaryTags(t *testing.T) {
 	}
 	traceutil.SetMeasured(span, true)
 
-	spanDerivedPrimaryTags := []string{"datacenter", "customer_tier"}
-	statSpan, ok := sc.NewStatSpanFromPB(span, nil, spanDerivedPrimaryTags)
+	additionalMetricTagKeys := []string{"datacenter", "customer_tier"}
+	statSpan, ok := sc.NewStatSpanFromPB(span, nil, additionalMetricTagKeys)
 	assert.True(t, ok)
-	assert.Equal(t, []string{"datacenter:us-east-1", "customer_tier:premium"}, statSpan.matchingSpanDerivedPrimaryTags)
+	assert.Equal(t, []string{"datacenter:us-east-1", "customer_tier:premium"}, statSpan.matchingAdditionalMetricTags)
 
 	agg := NewAggregationFromSpan(statSpan, "", PayloadAggregationKey{})
-	assert.Equal(t, spanDerivedPrimaryTagsHash, agg.SpanDerivedPrimaryTagsHash)
+	assert.Equal(t, additionalMetricTagsHash, agg.AdditionalMetricTagsHash)
 }
 
 func TestPeerTagsToAggregateForSpan(t *testing.T) {

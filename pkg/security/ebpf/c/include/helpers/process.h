@@ -41,6 +41,7 @@ void __attribute__((always_inline)) copy_pid_cache_except_exit_ts(struct pid_cac
     dst->user_session_id = src->user_session_id;
     dst->fork_timestamp = src->fork_timestamp;
     dst->fork_flags = src->fork_flags;
+    dst->sid = src->sid;
     dst->credentials = src->credentials;
 }
 
@@ -95,9 +96,7 @@ static struct proc_cache_t *__attribute__((always_inline)) fill_process_context_
     }
 
     u32 pid = data->pid;
-    // consider kworker a pid which is ignored
-    void *is_ignored = bpf_map_lookup_elem(&pid_ignored, &pid);
-    if (is_ignored) {
+    if (IS_KERNEL_THREAD(pid)) {
         data->is_kworker = 1;
     }
 
@@ -112,8 +111,9 @@ static struct proc_cache_t *__attribute__((always_inline)) fill_process_context_
         return NULL;
     }
 
-    // copy user session id
+    // copy user session id and sid
     data->user_session_id = pid_entry->user_session_id;
+    data->sid = pid_entry->sid;
 
     struct proc_cache_t *pc = get_proc_from_cookie(pid_entry->cookie);
     if (pc) {

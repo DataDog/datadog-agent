@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "tmpl",
+    srcs = ["simple.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/tmpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_aymerick_raymond//lexer",
+        "@org_golang_x_text//cases",
+        "@org_golang_x_text//language",
+    ],
+)

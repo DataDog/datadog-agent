@@ -69,6 +69,9 @@ func (c *CommandServer) Start() error {
 
 // Stop stops the command server
 func (c *CommandServer) Stop() {
+	if !c.started {
+		return
+	}
 	c.grpcCmdServer.Stop()
 	c.started = false
 }

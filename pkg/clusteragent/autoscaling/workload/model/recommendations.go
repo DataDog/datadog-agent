@@ -30,6 +30,16 @@ type ScalingValues struct {
 	Error error `json:"-"`
 }
 
+// HasHorizontalValues returns true if the scaling values have horizontal values
+func (s ScalingValues) HasHorizontalValues() bool {
+	return s.Horizontal != nil || s.HorizontalError != nil
+}
+
+// HasVerticalValues returns true if the scaling values have vertical values
+func (s ScalingValues) HasVerticalValues() bool {
+	return s.Vertical != nil || s.VerticalError != nil
+}
+
 // HorizontalScalingValues holds the horizontal scaling values for a target
 type HorizontalScalingValues struct {
 	// Source is the source of the value

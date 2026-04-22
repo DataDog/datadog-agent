@@ -5,7 +5,7 @@
 
 package server
 
-import "github.com/DataDog/datadog-agent/comp/core/telemetry"
+import "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 
 type stringInternerTelemetry struct {
 	enabled bool

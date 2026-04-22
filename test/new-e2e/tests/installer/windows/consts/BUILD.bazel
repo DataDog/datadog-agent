@@ -1,0 +1,8 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "consts",
+    srcs = ["consts.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts",
+    visibility = ["//visibility:public"],
+)
