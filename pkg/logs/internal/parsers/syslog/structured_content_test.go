@@ -657,3 +657,146 @@ func TestGetStructuredAttribute_UsesSyslogStructuredContent(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, "hello", val)
 }
+
+func TestSplitFirst_EscapedDots(t *testing.T) {
+	tests := []struct {
+		input   string
+		first   string
+		rest    string
+		hasDot  bool
+	}{
+		{"simple.path", "simple", "path", true},
+		{`escaped\.dot.rest`, "escaped.dot", "rest", true},
+		{`no_dots`, "no_dots", "", false},
+		{`a\\.b`, `a\`, "b", true},
+		{`a\.b\.c.d`, "a.b.c", "d", true},
+		{`trailing\`, `trailing\`, "", false},
+		{`\.`, ".", "", false},
+		{`\\`, `\`, "", false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.input, func(t *testing.T) {
+			first, rest, hasDot := splitFirst(tc.input)
+			assert.Equal(t, tc.first, first)
+			assert.Equal(t, tc.rest, rest)
+			assert.Equal(t, tc.hasDot, hasDot)
+		})
+	}
+}
+
+func TestUnescapeSegment(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{`plain`, "plain"},
+		{`dotted\.key`, "dotted.key"},
+		{`back\\slash`, `back\slash`},
+		{`no_escapes`, "no_escapes"},
+		{`trailing\`, `trailing\`},
+		{`a\.b\.c`, "a.b.c"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.input, func(t *testing.T) {
+			assert.Equal(t, tc.want, unescapeSegment(tc.input))
+		})
+	}
+}
+
+func TestGetAttribute_EscapedDotSDID(t *testing.T) {
+	sc := NewSyslogStructuredContent(SyslogMessage{
+		Pri:       165,
+		Version:   "1",
+		Timestamp: "-",
+		Hostname:  "-",
+		AppName:   "-",
+		ProcID:    "-",
+		MsgID:     "-",
+		StructuredData: map[string]map[string]string{
+			"my.org@99999": {"status": "ok"},
+		},
+		Msg: []byte("test"),
+	}, true)
+
+	t.Run("escaped dot reaches dotted SD-ID", func(t *testing.T) {
+		val, ok := sc.GetAttribute(`syslog.structured_data.my\.org@99999.status`)
+		assert.True(t, ok)
+		assert.Equal(t, "ok", val)
+	})
+
+	t.Run("unescaped dot in dotted SD-ID fails", func(t *testing.T) {
+		_, ok := sc.GetAttribute("syslog.structured_data.my.org@99999.status")
+		assert.False(t, ok)
+	})
+
+	t.Run("escaped dot in param name", func(t *testing.T) {
+		sc2 := NewSyslogStructuredContent(SyslogMessage{
+			Pri:       165,
+			Version:   "1",
+			Timestamp: "-",
+			Hostname:  "-",
+			AppName:   "-",
+			ProcID:    "-",
+			MsgID:     "-",
+			StructuredData: map[string]map[string]string{
+				"myid": {"param.name": "value"},
+			},
+			Msg: []byte("test"),
+		}, true)
+		val, ok := sc2.GetAttribute(`syslog.structured_data.myid.param\.name`)
+		assert.True(t, ok)
+		assert.Equal(t, "value", val)
+	})
+}
+
+func TestGetAttribute_EscapedDotSIEMExtension(t *testing.T) {
+	parsed := SyslogMessage{
+		Pri:       14,
+		Version:   "1",
+		Timestamp: "-",
+		Hostname:  "-",
+		AppName:   "-",
+		ProcID:    "-",
+		MsgID:     "-",
+		Msg:       []byte(`CEF:0|Security|Firewall|1.0|100|Attack|10|src=1.2.3.4`),
+	}
+	sc := NewSyslogStructuredContent(parsed, true)
+
+	t.Run("plain extension key works", func(t *testing.T) {
+		val, ok := sc.GetAttribute("siem.extension.src")
+		assert.True(t, ok)
+		assert.Equal(t, "1.2.3.4", val)
+	})
+
+	t.Run("escaped dot in extension key", func(t *testing.T) {
+		sc2 := &SyslogStructuredContent{
+			siem: &SIEMFields{
+				Format:  "CEF",
+				Version: "0",
+				Extension: map[string]string{
+					"dotted.key": "found",
+				},
+			},
+		}
+		val, ok := sc2.GetAttribute(`siem.extension.dotted\.key`)
+		assert.True(t, ok)
+		assert.Equal(t, "found", val)
+	})
+
+	t.Run("unescaped dot in extension key also works", func(t *testing.T) {
+		// Extension keys are terminal — the entire rest after "extension."
+		// is the map key, so dots are always literal. Escaping is optional.
+		sc2 := &SyslogStructuredContent{
+			siem: &SIEMFields{
+				Format:  "CEF",
+				Version: "0",
+				Extension: map[string]string{
+					"dotted.key": "found",
+				},
+			},
+		}
+		val, ok := sc2.GetAttribute("siem.extension.dotted.key")
+		assert.True(t, ok)
+		assert.Equal(t, "found", val)
+	})
+}

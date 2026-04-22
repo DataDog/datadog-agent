@@ -7,7 +7,6 @@ package syslog
 
 import (
 	"strconv"
-	"strings"
 	"sync"
 	"unicode/utf8"
 
@@ -352,7 +351,7 @@ func (f *SyslogFields) getAttribute(field string) (string, bool) {
 		if !ok {
 			return "", false
 		}
-		val, ok := params[paramName]
+		val, ok := params[unescapeSegment(paramName)]
 		return val, ok
 	default:
 		return "", false
@@ -391,19 +390,60 @@ func (f *SIEMFields) getAttribute(field string) (string, bool) {
 		if !hasDot {
 			return "", false
 		}
-		val, ok := f.Extension[rest]
+		val, ok := f.Extension[unescapeSegment(rest)]
 		return val, ok
 	default:
 		return "", false
 	}
 }
 
+// splitFirst splits s at the first unescaped dot. Backslash escapes are
+// supported: \. is a literal dot, \\ is a literal backslash. The first
+// segment is returned unescaped; rest is left in escaped form for
+// downstream splitFirst calls.
 func splitFirst(s string) (first, rest string, hasDot bool) {
-	i := strings.IndexByte(s, '.')
-	if i < 0 {
-		return s, "", false
+	var seg []byte
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\\' && i+1 < len(s) {
+			switch s[i+1] {
+			case '.':
+				seg = append(seg, '.')
+			case '\\':
+				seg = append(seg, '\\')
+			default:
+				seg = append(seg, '\\', s[i+1])
+			}
+			i++
+			continue
+		}
+		if s[i] == '.' {
+			return string(seg), s[i+1:], true
+		}
+		seg = append(seg, s[i])
 	}
-	return s[:i], s[i+1:], true
+	return string(seg), "", false
+}
+
+// unescapeSegment resolves \. and \\ in a terminal path segment that will
+// be used directly as a map key (not passed back through splitFirst).
+func unescapeSegment(s string) string {
+	var b []byte
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\\' && i+1 < len(s) {
+			switch s[i+1] {
+			case '.':
+				b = append(b, '.')
+			case '\\':
+				b = append(b, '\\')
+			default:
+				b = append(b, '\\', s[i+1])
+			}
+			i++
+			continue
+		}
+		b = append(b, s[i])
+	}
+	return string(b)
 }
 
 // writeTo writes the syslog fields as a JSON object to the stream.
