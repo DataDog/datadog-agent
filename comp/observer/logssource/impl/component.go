@@ -119,6 +119,7 @@ func NewComponent(deps Requires) (Provides, error) {
 	kubeletSource := sources.NewLogSource("kubelet", &logsconfig.LogsConfig{
 		Type:               logsconfig.JournaldType,
 		IncludeSystemUnits: logsconfig.StringSliceField{"kubelet.service"},
+		Tags:               logsconfig.StringSliceField{"source:kubelet"},
 	})
 	logSources.AddSource(kubeletSource)
 
