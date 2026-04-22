@@ -10,6 +10,7 @@ import (
 	"expvar"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
@@ -17,7 +18,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -26,13 +29,18 @@ import (
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
+	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/mock"
 	logsBundle "github.com/DataDog/datadog-agent/comp/logs"
 	logagent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	checkstats "github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
@@ -272,6 +280,174 @@ func TestFlareProviderFilename(t *testing.T) {
 		t, option.None[collector.Component](), option.Option[logagent.Component]{}, nil,
 	)
 	assert.Equal(t, "checks.json", ic.FlareFileName)
+}
+
+// mockCheck implements check.Check for testing with configurable ID/Name
+type mockCheck struct {
+	name string
+	id   checkid.ID
+}
+
+func (m *mockCheck) String() string                              { return m.name }
+func (m *mockCheck) ID() checkid.ID                              { return m.id }
+func (m *mockCheck) Version() string                             { return "" }
+func (m *mockCheck) ConfigSource() string                        { return "" }
+func (m *mockCheck) ConfigProvider() string                      { return "" }
+func (m *mockCheck) Loader() string                              { return "test" }
+func (m *mockCheck) Interval() time.Duration                     { return time.Second }
+func (m *mockCheck) Stop()                                       {}
+func (m *mockCheck) Cancel()                                     {}
+func (m *mockCheck) Run() error                                  { return nil }
+func (m *mockCheck) GetWarnings() []error                        { return nil }
+func (m *mockCheck) IsTelemetryEnabled() bool                    { return false }
+func (m *mockCheck) InitConfig() string                          { return "" }
+func (m *mockCheck) InstanceConfig() string                      { return "" }
+func (m *mockCheck) IsHASupported() bool                         { return false }
+func (m *mockCheck) GetDiagnoses() ([]diagnose.Diagnosis, error) { return nil, nil }
+func (m *mockCheck) GetSenderStats() (checkstats.SenderStats, error) {
+	return checkstats.NewSenderStats(), nil
+}
+func (m *mockCheck) Configure(sender.SenderManager, uint64, integration.Data, integration.Data, string, string) error {
+	return nil
+}
+
+func TestGetPayloadCheckState(t *testing.T) {
+	tests := []struct {
+		name           string
+		runErr         error
+		runWarnings    []error
+		expectedStatus string
+		expectedError  string
+	}{
+		{
+			name:           "ok status when no error or warnings",
+			runErr:         nil,
+			runWarnings:    nil,
+			expectedStatus: "ok",
+			expectedError:  "",
+		},
+		{
+			name:           "error status when check has error",
+			runErr:         errors.New("JMX connection refused"),
+			runWarnings:    nil,
+			expectedStatus: "error",
+			expectedError:  "JMX connection refused",
+		},
+		{
+			name:           "warning status when check has warnings",
+			runErr:         nil,
+			runWarnings:    []error{errors.New("some warning")},
+			expectedStatus: "warning",
+			expectedError:  "",
+		},
+		{
+			name:           "error takes precedence over warnings",
+			runErr:         errors.New("fatal error"),
+			runWarnings:    []error{errors.New("some warning")},
+			expectedStatus: "error",
+			expectedError:  "fatal error",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			expvars.Reset()
+
+			cInfo := []check.Info{
+				check.MockInfo{
+					Name:         "check1",
+					CheckID:      checkid.ID("check1_instance1"),
+					Source:       "provider1:/etc/datadog-agent/conf.d/check1.yaml[0]",
+					InitConf:     "",
+					InstanceConf: "{}",
+				},
+			}
+
+			mockColl := fxutil.Test[collector.Component](t,
+				fx.Replace(collectorimpl.MockParams{
+					ChecksInfo: cInfo,
+				}),
+				collectorimpl.MockModule(),
+				core.MockBundle(),
+				hostnameimpl.MockModule(),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			)
+
+			ic := getTestInventoryChecks(t,
+				option.New[collector.Component](mockColl),
+				option.Option[logagent.Component]{},
+				map[string]any{
+					"inventories_configuration_enabled":        true,
+					"inventories_checks_configuration_enabled": true,
+				},
+			)
+
+			// Populate check stats via expvars
+			mc := &mockCheck{name: "check1", id: checkid.ID("check1_instance1")}
+			expvars.AddCheckStats(
+				mc,
+				time.Second,
+				tt.runErr,
+				tt.runWarnings,
+				checkstats.NewSenderStats(),
+				haagentmock.NewMockHaAgent(),
+				healthplatformmock.Mock(t),
+			)
+
+			p := ic.getPayload(true).(*Payload)
+
+			assert.Len(t, p.Metadata["check1"], 1)
+			checkMeta := p.Metadata["check1"][0]
+
+			state, hasState := checkMeta["state"]
+			assert.True(t, hasState, "check metadata should have 'state' field")
+
+			stateMap := state.(map[string]interface{})
+			assert.Equal(t, tt.expectedStatus, stateMap["status"])
+			assert.Equal(t, tt.expectedError, stateMap["error"])
+		})
+	}
+}
+
+func TestGetPayloadCheckStateNoStats(t *testing.T) {
+	expvars.Reset()
+
+	cInfo := []check.Info{
+		check.MockInfo{
+			Name:         "check1",
+			CheckID:      checkid.ID("check1_instance1"),
+			Source:       "provider1:/etc/datadog-agent/conf.d/check1.yaml[0]",
+			InitConf:     "",
+			InstanceConf: "{}",
+		},
+	}
+
+	mockColl := fxutil.Test[collector.Component](t,
+		fx.Replace(collectorimpl.MockParams{
+			ChecksInfo: cInfo,
+		}),
+		collectorimpl.MockModule(),
+		core.MockBundle(),
+		hostnameimpl.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	)
+
+	ic := getTestInventoryChecks(t,
+		option.New[collector.Component](mockColl),
+		option.Option[logagent.Component]{},
+		map[string]any{
+			"inventories_configuration_enabled":        true,
+			"inventories_checks_configuration_enabled": true,
+		},
+	)
+
+	p := ic.getPayload(true).(*Payload)
+
+	assert.Len(t, p.Metadata["check1"], 1)
+	checkMeta := p.Metadata["check1"][0]
+
+	_, hasState := checkMeta["state"]
+	assert.False(t, hasState, "check metadata should not have 'state' field when no stats exist")
 }
 
 // TODO (Component): This test will be removed when the inventorychecks component will be move into the collector component
