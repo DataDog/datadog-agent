@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
-	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/catalog"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/program"
@@ -104,6 +104,7 @@ func NewBaseFilterStore(cfg config.Component, logger logcomp.Component, telemetr
 	baseFilter.RegisterFactory(workloadfilter.ContainerLegacySBOM, catalog.LegacyContainerSBOMProgram)
 	baseFilter.RegisterFactory(workloadfilter.ContainerLegacyRuntimeSecurity, catalog.ContainerLegacyRuntimeSecurityProgram)
 	baseFilter.RegisterFactory(workloadfilter.ContainerLegacyCompliance, catalog.ContainerLegacyComplianceProgram)
+	baseFilter.RegisterFactory(workloadfilter.ContainerLegacyCWSAdmission, catalog.ContainerLegacyCWSAdmissionProgram)
 
 	baseFilter.RegisterFactory(workloadfilter.ContainerADAnnotations, genericADProgramFactory)
 	baseFilter.RegisterFactory(workloadfilter.ContainerADAnnotationsMetrics, genericADMetricsProgramFactory)
@@ -212,6 +213,11 @@ func (f *BaseFilterStore) GetContainerRuntimeSecurityFilters() workloadfilter.Fi
 // GetContainerComplianceFilters returns the pre-computed container compliance filters
 func (f *BaseFilterStore) GetContainerComplianceFilters() workloadfilter.FilterBundle {
 	return f.GetContainerFilters(f.selection.containerCompliance)
+}
+
+// GetContainerCWSAdmissionFilters returns the pre-computed container CWS admission webhook filters
+func (f *BaseFilterStore) GetContainerCWSAdmissionFilters() workloadfilter.FilterBundle {
+	return f.GetContainerFilters(f.selection.containerCWSAdmission)
 }
 
 // GetContainerFilters returns the filter bundle for the given container filters

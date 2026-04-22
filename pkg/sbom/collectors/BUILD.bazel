@@ -1,1 +1,5 @@
 # gazelle:ignore
+
+# gazelle:exclude docker
+# gazelle:exclude host
+# gazelle:exclude procfs

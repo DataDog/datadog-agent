@@ -7,6 +7,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"maps"
@@ -21,13 +22,9 @@ import (
 const metricQueryConcurrency = 4
 
 func computeValidation(apiKey, appKey, site string, lookbackSeconds int64) (orgValidationResults, error) {
-	metricsSpec, err := gpuspec.LoadMetricsSpec()
+	specs, err := gpuspec.LoadSpecs()
 	if err != nil {
-		return orgValidationResults{}, fmt.Errorf("load metrics spec: %w", err)
-	}
-	architecturesSpec, err := gpuspec.LoadArchitecturesSpec()
-	if err != nil {
-		return orgValidationResults{}, fmt.Errorf("load architectures spec: %w", err)
+		return orgValidationResults{}, fmt.Errorf("load specs: %w", err)
 	}
 	client, err := newMetricsClient(apiKey, appKey, site)
 	if err != nil {
@@ -37,35 +34,36 @@ func computeValidation(apiKey, appKey, site string, lookbackSeconds int64) (orgV
 	now := time.Now().Unix()
 	fromTS := now - lookbackSeconds
 
-	configs := gpuspec.KnownGPUConfigs(architecturesSpec)
+	configs := gpuspec.KnownGPUConfigs(specs)
 	results := make([]gpuConfigValidationResult, 0, len(configs))
 
+	var allErrors error
 	for _, config := range configs {
 		log.Printf("validating gpu config %s/%s", config.Architecture, config.DeviceMode)
-		result, err := validateGPUConfig(client, metricsSpec, config, fromTS, now)
+		result, err := validateGPUConfig(client, specs, config, fromTS, now)
 		if err != nil {
-			return orgValidationResults{}, fmt.Errorf("validate gpu config %s/%s: %w", config.Architecture, config.DeviceMode, err)
+			allErrors = errors.Join(allErrors, fmt.Errorf("validate gpu config %+v: %w", config, err))
 		}
-
 		results = append(results, result)
 	}
 
 	return orgValidationResults{
 		Results:            results,
-		MetricsCount:       len(metricsSpec.Metrics),
-		ArchitecturesCount: len(architecturesSpec.Architectures),
-	}, nil
+		MetricsCount:       len(specs.Metrics.Metrics),
+		ArchitecturesCount: len(specs.Architectures.Architectures),
+	}, allErrors
 }
 
-func validateGPUConfig(client *metricsClient, metricsSpec *gpuspec.MetricsSpec, config gpuspec.GPUConfig, fromTS, toTS int64) (gpuConfigValidationResult, error) {
+func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpuspec.GPUConfig, fromTS, toTS int64) (gpuConfigValidationResult, error) {
 	result := gpuConfigValidationResult{
 		Config: config,
+		State:  validationStateMissing,
 	}
 
 	// We still query all tags and metrics, even if they're workload only and some live hosts won't have them.
 	// The relaxation happens in the render phase, where metrics/tags that are sometimes missing will not be reported
 	// as errors if they're workload-only.
-	expectedMetricsMap := gpuspec.ExpectedMetricsForConfig(metricsSpec, config, gpuspec.ValidationOptions{
+	expectedMetricsMap := gpuspec.ExpectedMetricsForConfig(specs, config, gpuspec.ValidationOptions{
 		WorkloadActive: true,
 	})
 
@@ -79,25 +77,32 @@ func validateGPUConfig(client *metricsClient, metricsSpec *gpuspec.MetricsSpec, 
 		result.State = validationStateMissing
 		return result, nil
 	}
-	observations := make(map[string][]gpuspec.MetricObservation, len(expectedMetricsMap))
 
 	var mu sync.Mutex
 	var group errgroup.Group
+	observations := make(map[string][]gpuspec.MetricObservation, len(expectedMetricsMap))
+	tagObservations := make(map[string][]gpuspec.MetricObservation, len(expectedMetricsMap))
 	group.SetLimit(metricQueryConcurrency)
 
 	for metricName, metricSpec := range expectedMetricsMap {
-		group.Go(func() error {
-			prefixedMetricName := gpuspec.PrefixedMetricName(metricsSpec, metricName)
-			validatesValues := metricSpec.Validator != nil
-			requiredTags, workloadOnlyTags, err := gpuspec.RequiredTagsForMetric(metricsSpec, metricSpec)
-			if err != nil {
-				return fmt.Errorf("derive required tags for %+v: %w", config, err)
-			}
+		prefixedMetricName := gpuspec.PrefixedMetricName(specs, metricName)
+		validatesValues := metricSpec.Validator != nil
+		requiredTags, workloadOnlyTags, err := gpuspec.RequiredTagsForMetric(specs.Tags, metricSpec)
+		if err != nil {
+			return result, fmt.Errorf("derive required tags for %s: %w", metricName, err)
+		}
 
-			maps.Copy(requiredTags, workloadOnlyTags) // include workload tags as required for the tag validation
+		maps.Copy(requiredTags, workloadOnlyTags) // include workload tags as required for the tag validation
+
+		// Get the metric values
+		group.Go(func() error {
 			metricObservations, err := client.queryExpectedMetricPresenceForGPUConfig(prefixedMetricName, requiredTags, config.TagFilter(), fromTS, toTS, validatesValues)
 			if err != nil {
 				return fmt.Errorf("query expected metric presence for %s: %w", metricName, err)
+			}
+
+			if len(metricObservations) == 0 {
+				return nil
 			}
 
 			mu.Lock()
@@ -106,32 +111,84 @@ func validateGPUConfig(client *metricsClient, metricsSpec *gpuspec.MetricsSpec, 
 
 			return nil
 		})
+
+		tagLookbackSeconds := max(14400, toTS-fromTS) // 4 hours is the minimum lookback for the API
+
+		// Also get tag values for the metric
+		group.Go(func() error {
+			metricTags, err := client.fetchMetricAllTags(prefixedMetricName, requiredTags, tagLookbackSeconds, config.TagFilter())
+			if err != nil {
+				return fmt.Errorf("fetch metric tags for %s: %w", metricName, err)
+			}
+
+			mu.Lock()
+			tagObservations[metricName] = append(tagObservations[metricName], gpuspec.MetricObservation{
+				Name: metricName,
+				Tags: metricTags,
+			})
+			mu.Unlock()
+			return nil
+		})
+
+		// Finally, get all possible tag values that start with the gpu_ prefix, so that we can check that we aren't missing
+		// any tags. This might be redundant with the previous call, but it's better to be redundant than to miss a tag.
+		group.Go(func() error {
+			wantedTags := map[string]gpuspec.TagSpec{
+				"gpu_": {},
+			}
+
+			allGpuTags, err := client.fetchMetricAllTags(prefixedMetricName, wantedTags, tagLookbackSeconds, config.TagFilter())
+			if err != nil {
+				return fmt.Errorf("fetch metric tags for %s: %w", metricName, err)
+			}
+
+			mu.Lock()
+			tagObservations[metricName] = append(tagObservations[metricName], gpuspec.MetricObservation{
+				Name: metricName,
+				Tags: allGpuTags,
+			})
+			mu.Unlock()
+			return nil
+		})
 	}
 
+	// Do not return early on errors, just try doing everything we can
+	var allErrors error
 	if err := group.Wait(); err != nil {
-		return result, fmt.Errorf("validate expected metrics for %+v: %w", config, err)
+		allErrors = errors.Join(allErrors, fmt.Errorf("error retrieving observations: %w", err))
 	}
 
-	// Get any other metrics that were emitted with the GPU prefix but aren't in the expected metrics.
-	liveMetrics, err := client.listObservedGPUMetricsForGPUConfig(config, max(toTS-fromTS, int64(0)), metricsSpec.MetricPrefix)
-	if err != nil {
-		return result, fmt.Errorf("list observed metrics for %+v: %w", config, err)
+	for metricName, obs := range observations {
+		// Only add tag observations if  the metric was found for this specific config.
+		// the metric APIs will return empty tag lists for metrics that are emitted in the org but not with the given GPU config.
+		// If we added those observations, we would have false negatives for missing tags.
+		if len(obs) == 0 {
+			continue
+		}
+		observations[metricName] = append(observations[metricName], tagObservations[metricName]...)
 	}
+
+	// Get any other metrics that were emitted with the GPU prefix but aren't in the expected metrics
+	liveMetrics, err := client.listObservedGPUMetricsForGPUConfig(config, max(toTS-fromTS, int64(0)), specs.Metrics.MetricPrefix)
+	if err != nil {
+		allErrors = errors.Join(allErrors, fmt.Errorf("error listing observed gpu metrics: %w", err))
+	}
+
 	for metricName := range liveMetrics {
 		if _, found := observations[metricName]; !found {
-			// Create an empty slice (no actual values retrieved) but we know it's there, so it will be checked against the spec
+			// Create an empty slice (no actual values retrieved) but we know it's there, so it will be checked against the spec.
 			observations[metricName] = []gpuspec.MetricObservation{}
 		}
 	}
 
-	result.DetailedResult, err = gpuspec.ValidateEmittedMetricsAgainstSpec(metricsSpec, config, observations, nil, gpuspec.ValidationOptions{
+	result.DetailedResult, err = gpuspec.ValidateEmittedMetricsAgainstSpec(specs, config, observations, nil, gpuspec.ValidationOptions{
 		WorkloadActive: true,
 	})
 	if err != nil {
-		return result, fmt.Errorf("validate observations for %+v: %w", config, err)
+		allErrors = errors.Join(allErrors, fmt.Errorf("error validating emitted metrics against spec: %w", err))
 	}
 
 	result.State = determineResultState(result)
 
-	return result, nil
+	return result, allErrors
 }

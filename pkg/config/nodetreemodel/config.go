@@ -129,6 +129,10 @@ type ntmConfig struct {
 	// only hold an RLock, so a plain map would cause concurrent map writes.
 	unknownKeys sync.Map
 
+	// All the keys for which we emitted a warnings upon calling `Set`. We don't want to flood the logs with the same
+	// message. This map is used to keep track of already emitted errors
+	setWarnings map[string]bool
+
 	// extraConfigFilePaths represents additional configuration file paths that will be merged into the main configuration when ReadInConfig() is called.
 	extraConfigFilePaths []string
 
@@ -226,8 +230,11 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	// convert the value to the type of the default
 	if declaredNode.IsLeafNode() {
 		if converted, err := convertToDefaultType(newValue, declaredNode.Get()); err == nil {
-			if reflect.TypeOf(converted) != reflect.TypeOf(newValue) {
-				log.Warnf("Set('%s'): converting value from %T to %T to match default type", key, newValue, converted)
+			if ok := c.setWarnings[key]; !ok {
+				if reflect.TypeOf(converted) != reflect.TypeOf(newValue) {
+					log.Warnf("Set('%s'): converting value from %T to %T to match default type", key, newValue, converted)
+					c.setWarnings[key] = true
+				}
 			}
 			newValue = converted
 		}
@@ -257,11 +264,14 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	}
 
 	c.sequenceID++
+	// Capture the sequenceID here whilst locked to send to the receivers
+	// after unlocking.
+	sequenceID := c.sequenceID
 	c.Unlock()
 
 	// notifying all receiver about the updated setting
 	for _, receiver := range receivers {
-		receiver(key, source, previousValue, newValue, c.sequenceID)
+		receiver(key, source, previousValue, newValue, sequenceID)
 	}
 }
 
@@ -329,68 +339,87 @@ func (c *ntmConfig) findPreviousSourceNode(key string, source model.Source) (*no
 func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 	c.maybeRebuild()
 
-	c.Lock()
-	defer c.Unlock()
+	var (
+		previousValue interface{}
+		newValue      interface{}
+		receivers     []model.NotificationReceiver
+		sequenceID    uint64
+	)
 
-	key = strings.ToLower(key)
-	previousValue := c.leafAtPathFromNode(key, c.root).Get()
+	ok := func() bool {
+		c.Lock()
+		defer c.Unlock()
 
-	// Remove it from the original source tree
-	tree, err := c.getTreeBySource(source)
-	if err != nil {
-		log.Errorf("%s", err)
-		return
-	}
-	parentNode, childName, err := c.parentOfNode(tree, key)
-	if err != nil {
-		return
-	}
-	// Only remove if the setting is a leaf
-	if child, err := parentNode.GetChild(childName); err == nil {
-		if child.IsLeafNode() {
-			parentNode.RemoveChild(childName)
-		} else {
-			log.Errorf("cannot remove setting %q, not a leaf", key)
-			return
+		key = strings.ToLower(key)
+		previousValue = c.leafAtPathFromNode(key, c.root).Get()
+
+		// Remove it from the original source tree
+		tree, err := c.getTreeBySource(source)
+		if err != nil {
+			log.Errorf("%s", err)
+			return false
 		}
-	}
+		parentNode, childName, err := c.parentOfNode(tree, key)
+		if err != nil {
+			return false
+		}
+		// Only remove if the setting is a leaf
+		if child, err := parentNode.GetChild(childName); err == nil {
+			if child.IsLeafNode() {
+				parentNode.RemoveChild(childName)
+			} else {
+				log.Errorf("cannot remove setting %q, not a leaf", key)
+				return false
+			}
+		}
 
-	// If the node in the merged tree doesn't match the source we expect, we're done
-	if c.leafAtPathFromNode(key, c.root).Source() != source {
+		// If the node in the merged tree doesn't match the source we expect, we're done
+		if c.leafAtPathFromNode(key, c.root).Source() != source {
+			return false
+		}
+
+		// Find what the previous value used to be, based upon the previous source
+		prevNode, findPreviousSourceError := c.findPreviousSourceNode(key, source)
+
+		// Get the parent node of the leaf we're unsetting
+		parentNode, childName, err = c.parentOfNode(c.root, key)
+		if err != nil {
+			return false
+		}
+
+		// If there was no previous source with a node of this name, simply remove it from the parent
+		if findPreviousSourceError != nil {
+			parentNode.RemoveChild(childName)
+			return false
+		}
+
+		// Replace the child with the node from the previous layer
+		parentNode.InsertChildNode(childName, prevNode)
+
+		newValue = c.leafAtPathFromNode(key, c.root).Get()
+
+		// Value has not changed, do not notify
+		if reflect.DeepEqual(previousValue, newValue) {
+			return false
+		}
+
+		c.sequenceID++
+		receivers = slices.Clone(c.notificationReceivers)
+		// Capture the sequenceID here whilst locked to send to the receivers
+		// after unlocking.
+		sequenceID = c.sequenceID
+		return true
+	}()
+
+	if !ok {
 		return
 	}
 
-	// Find what the previous value used to be, based upon the previous source
-	prevNode, findPreviousSourceError := c.findPreviousSourceNode(key, source)
-
-	// Get the parent node of the leaf we're unsetting
-	parentNode, childName, err = c.parentOfNode(c.root, key)
-	if err != nil {
-		return
-	}
-
-	// If there was no previous source with a node of this name, simply remove it from the parent
-	if findPreviousSourceError != nil {
-		parentNode.RemoveChild(childName)
-		return
-	}
-
-	// Replace the child with the node from the previous layer
-	parentNode.InsertChildNode(childName, prevNode)
-
-	newValue := c.leafAtPathFromNode(key, c.root).Get()
-
-	// Value has not changed, do not notify
-	if reflect.DeepEqual(previousValue, newValue) {
-		return
-	}
-
-	c.sequenceID++
-	receivers := slices.Clone(c.notificationReceivers)
-
-	// notifying all receiver about the updated setting
+	// Notify receivers outside the lock. Subscribers commonly read the
+	// config from within their callback, and doing so while the write
+	// lock is still held deadlocks them against this goroutine.
 	for _, receiver := range receivers {
-		receiver(key, source, previousValue, newValue, c.sequenceID)
+		receiver(key, source, previousValue, newValue, sequenceID)
 	}
 }
 
@@ -1169,6 +1198,7 @@ func NewNodeTreeConfig(name string, envPrefix string, envKeyReplacer *strings.Re
 		sequenceID:         0,
 		configEnvVars:      map[string][]string{},
 		knownKeys:          map[string]bool{},
+		setWarnings:        map[string]bool{},
 		defaults:           newInnerNode(nil),
 		file:               newInnerNode(nil),
 		unknown:            newInnerNode(nil),

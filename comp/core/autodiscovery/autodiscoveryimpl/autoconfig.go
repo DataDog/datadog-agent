@@ -40,7 +40,7 @@ import (
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
@@ -69,7 +69,7 @@ type dependencies struct {
 	WMeta          option.Option[workloadmeta.Component]
 	FilterStore    workloadfilter.Component
 	Telemetry      telemetry.Component
-	HealthPlatform option.Option[healthplatform.Component]
+	HealthPlatform healthplatform.Component
 }
 
 // AutoConfig implements the agent's autodiscovery mechanism.  It is
@@ -96,7 +96,7 @@ type AutoConfig struct {
 	logs                     logComp.Component
 	filterStore              workloadfilter.Component
 	telemetryStore           *acTelemetry.Store
-	healthPlatform           option.Option[healthplatform.Component]
+	healthPlatform           healthplatform.Component
 
 	// m covers the `configPollers`, `listenerCandidates`, `listeners`, and `listenerRetryStop`, but
 	// not the values they point to.
@@ -196,8 +196,8 @@ func newAutoConfig(deps dependencies) autodiscovery.Component {
 }
 
 // createNewAutoConfig creates an AutoConfig instance (without starting).
-func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component, telemetryComp telemetry.Component, filterStore workloadfilter.Component, hp option.Option[healthplatform.Component]) *AutoConfig {
-	cfgMgr := newReconcilingConfigManager(secretResolver)
+func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component, telemetryComp telemetry.Component, filterStore workloadfilter.Component, hp healthplatform.Component) *AutoConfig {
+	cfgMgr := newReconcilingConfigManager(secretResolver, hp)
 	ac := &AutoConfig{
 		configPollers:            make([]*configPoller, 0, 9),
 		listenerCandidates:       make(map[string]*listenerCandidate),
@@ -461,13 +461,9 @@ func (ac *AutoConfig) GetTelemetryStore() *acTelemetry.Store {
 	return ac.telemetryStore
 }
 
-// GetHealthPlatform returns health platform or nil if not available
+// GetHealthPlatform returns the health platform component
 func (ac *AutoConfig) GetHealthPlatform() healthplatform.Component {
-	hp, found := ac.healthPlatform.Get()
-	if !found {
-		return nil
-	}
-	return hp
+	return ac.healthPlatform
 }
 
 func (ac *AutoConfig) initializeConfiguration(config *integration.Config) error {
