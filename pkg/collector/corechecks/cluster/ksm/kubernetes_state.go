@@ -404,7 +404,7 @@ func (k *KSMCheck) buildStores() error {
 
 		// Enable the KSM default collectors if the config collectors list is empty.
 		if len(collectors) == 0 {
-			collectors = options.DefaultResources.AsSlice()
+			collectors = defaultCollectors()
 		}
 
 		builder.WithKubeClient(apiServerClient.InformerCl)
@@ -1274,6 +1274,17 @@ func (k *KSMCheck) isKnownMetric(name string) bool {
 		return true
 	}
 	return false
+}
+
+// defaultCollectors returns the KSM default resource collectors with
+// "endpoints" added back for backward compatibility (upstream KSM v2.18
+// replaced "endpoints" with "endpointslices" in its defaults).
+func defaultCollectors() []string {
+	collectors := options.DefaultResources.AsSlice()
+	if _, found := options.DefaultResources["endpoints"]; !found {
+		collectors = append(collectors, "endpoints")
+	}
+	return collectors
 }
 
 // buildDeniedMetricsSet adds *_created metrics to the default denied metric rules.

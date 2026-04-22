@@ -50,7 +50,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	telemetryfx "github.com/DataDog/datadog-agent/comp/core/telemetry/fx"
 	remoteWorkloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-remote"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -137,7 +137,7 @@ func getSharedFxOption() fx.Option {
 		delegatedauthnoopfx.Module(),
 		sysprobeconfigimpl.Module(),
 		systemprobeloggerfx.Module(),
-		telemetryimpl.Module(),
+		telemetryfx.Module(),
 		pidfx.Module(),
 		fx.Supply(rcclient.Params{AgentName: "system-probe", AgentVersion: version.AgentVersion, IsSystemProbe: true}),
 		secretsnoopfx.Module(),
@@ -179,7 +179,10 @@ func getSharedFxOption() fx.Option {
 		fx.Provide(func(config config.Component, statsd statsd.Component) (ddgostatsd.ClientInterface, error) {
 			return statsd.CreateForHostPort(configutils.GetBindHost(config), config.GetInt("dogstatsd_port"))
 		}),
-		remotehostnameimpl.Module(),
+		remotehostnameimpl.Module(
+			remotehostnameimpl.WithMaxAttempts(10),
+			remotehostnameimpl.WithMaxRetryDelay(15*time.Second),
+		),
 		configsyncimpl.Module(configsyncimpl.NewParams(configSyncTimeout, true, configSyncTimeout)),
 		remoteagentfx.Module(),
 		fxinstrumentation.Module(),

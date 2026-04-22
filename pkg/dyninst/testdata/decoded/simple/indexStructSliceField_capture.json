@@ -18,12 +18,12 @@
           {
             "function": "main.lenStructFields",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 515
+            "lineNumber": 568
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 135
+            "lineNumber": 136
           },
           {
             "function": "runtime.main",
@@ -77,12 +77,12 @@
           {
             "function": "main.lenStructFields",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 512
+            "lineNumber": 565
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 139
+            "lineNumber": 140
           },
           {
             "function": "runtime.main",
@@ -100,18 +100,18 @@
           "location": {
             "method": "main.lenStructFields"
           }
-        }
-      },
-      "evaluationErrors": [
-        {
-          "expr": "items_2",
-          "message": "index out of bounds"
         },
-        {
-          "expr": "@duration",
-          "message": "not available: maximum call count exceeded"
-        }
-      ]
+        "evaluationErrors": [
+          {
+            "expr": "items_2",
+            "message": "index out of bounds"
+          },
+          {
+            "expr": "@duration",
+            "message": "not available: maximum call count exceeded"
+          }
+        ]
+      }
     },
     "timestamp": "[ts]",
     "process_tags": "entrypoint.name:sample,svc.user:sample"

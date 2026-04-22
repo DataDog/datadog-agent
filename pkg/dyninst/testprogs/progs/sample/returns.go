@@ -105,6 +105,12 @@ func testSomeNamedReturn(i int) (_ int, result2 int, _ int) {
 	return i * 10, i * 20, i * 30
 }
 
+//go:noinline
+func testConflictingReturn(i int) (_ int, r0 string) {
+	fmt.Println("testConflictingReturn", i)
+	return i * 10, fmt.Sprintf("s%d", i)
+}
+
 // Primitive types - exercise all basic types.
 //
 //go:noinline
@@ -393,6 +399,7 @@ func executeReturns() {
 	testNamedReturn(40)
 	testMultipleNamedReturn(41)
 	testSomeNamedReturn(42)
+	testConflictingReturn(42)
 
 	// New ABI test cases - return values only.
 	testReturnsPrimitives()

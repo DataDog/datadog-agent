@@ -1862,6 +1862,188 @@ probes:
           ref: "i"
         dsl: "i"
     captureSnapshot: true
+  - id: testConflictingReturn
+    type: LOG_PROBE
+    where:
+      methodName: main.testConflictingReturn
+    template: "{i}"
+    segments:
+      - json:
+          ref: "i"
+        dsl: "i"
+    captureSnapshot: true
+  - id: testReturnTemplate
+    type: LOG_PROBE
+    where:
+      methodName: main.testReturnsInt
+    template: "result={@return}"
+    segments:
+      - str: "result="
+      - json:
+          ref: "@return"
+        dsl: "@return"
+    captureSnapshot: true
+  - id: testReturnMultiTemplate
+    type: LOG_PROBE
+    where:
+      methodName: main.testSomeNamedReturn
+    template: "r0={@return.r0}"
+    segments:
+      - str: "r0="
+      - json:
+          getmember:
+            - ref: "@return"
+            - "r0"
+        dsl: "@return.r0"
+    captureSnapshot: true
+  - id: testReturnCaptureExpr
+    type: LOG_PROBE
+    where:
+      methodName: main.testReturnsInt
+    captureSnapshot: false
+    captureExpressions:
+      - name: "retval"
+        expr:
+          dsl: "@return"
+          json:
+            ref: "@return"
+  - id: testReturnMultiCaptureExpr
+    type: LOG_PROBE
+    where:
+      methodName: main.testSomeNamedReturn
+    captureSnapshot: false
+    captureExpressions:
+      - name: "first"
+        expr:
+          dsl: "@return.r0"
+          json:
+            getmember:
+              - ref: "@return"
+              - "r0"
+  - id: testNamedReturnByNameTemplate
+    type: LOG_PROBE
+    where:
+      methodName: main.testMultipleNamedReturn
+    template: "r1={result} r2={result2}"
+    segments:
+      - str: "r1="
+      - json:
+          ref: "result"
+        dsl: "result"
+      - str: " r2="
+      - json:
+          ref: "result2"
+        dsl: "result2"
+    captureSnapshot: true
+  - id: testNamedReturnByNameCaptureExpr
+    type: LOG_PROBE
+    where:
+      methodName: main.testNamedReturn
+    captureSnapshot: false
+    captureExpressions:
+      - name: "result"
+        expr:
+          dsl: "result"
+          json:
+            ref: "result"
+  - id: testNamedReturnByNameMultiCaptureExpr
+    type: LOG_PROBE
+    where:
+      methodName: main.testMultipleNamedReturn
+    captureSnapshot: false
+    captureExpressions:
+      - name: "result"
+        expr:
+          dsl: "result"
+          json:
+            ref: "result"
+      - name: "result2"
+        expr:
+          dsl: "result2"
+          json:
+            ref: "result2"
+  - id: testReturnCondSingle
+    type: LOG_PROBE
+    where:
+      methodName: main.testReturnsInt
+    captureSnapshot: true
+    template: "ret={@return}"
+    segments:
+      - str: "ret="
+      - json:
+          ref: "@return"
+        dsl: "@return"
+    when:
+      dsl: "@return == 142"
+      json: {eq: [{"ref": "@return"}, 142]}
+  - id: testReturnCondMulti
+    type: LOG_PROBE
+    where:
+      methodName: main.testSomeNamedReturn
+    captureSnapshot: true
+    template: "r0={@return.r0}"
+    segments:
+      - str: "r0="
+      - json:
+          getmember:
+            - ref: "@return"
+            - "r0"
+        dsl: "@return.r0"
+    when:
+      dsl: "@return.r0 == 420"
+      json: {eq: [{"getmember": [{"ref": "@return"}, "r0"]}, 420]}
+  - id: testReturnCondMultiFloat
+    type: LOG_PROBE
+    where:
+      methodName: main.testReturnsIntAndFloat
+    captureSnapshot: true
+    template: "r0={@return.r0}"
+    segments:
+      - str: "r0="
+      - json:
+          getmember:
+            - ref: "@return"
+            - "r0"
+        dsl: "@return.r0"
+    when:
+      dsl: "@return.r0 == 142"
+      json: {eq: [{"getmember": [{"ref": "@return"}, "r0"]}, 142]}
+  - id: testReturnCondUnavailableFloat
+    type: LOG_PROBE
+    where:
+      methodName: main.testReturnsIntAndFloat
+    captureSnapshot: true
+    template: "r1={@return.r1}"
+    segments:
+      - str: "r1="
+      - json:
+          getmember:
+            - ref: "@return"
+            - "r1"
+        dsl: "@return.r1"
+    when:
+      dsl: "@return.r1 == 42.5"
+      json: {eq: [{"getmember": [{"ref": "@return"}, "r1"]}, 42.5]}
+  - id: testReturnCondBadField
+    tags:
+      - "issue:ConditionVariableUnavailable"
+    type: LOG_PROBE
+    where:
+      methodName: main.testSomeNamedReturn
+    captureSnapshot: true
+    when:
+      dsl: "@return.nonexistent == 1"
+      json: {eq: [{"getmember": [{"ref": "@return"}, "nonexistent"]}, 1]}
+  - id: testReturnCondBareMulti
+    tags:
+      - "issue:ConditionVariableUnavailable"
+    type: LOG_PROBE
+    where:
+      methodName: main.testSomeNamedReturn
+    captureSnapshot: true
+    when:
+      dsl: "@return == 1"
+      json: {eq: [{"ref": "@return"}, 1]}
   - id: testInlinedPrintLine
     type: LOG_PROBE
     where:

@@ -17,6 +17,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/spf13/cast"
 	"github.com/stretchr/testify/assert"
@@ -354,16 +355,17 @@ func TestAllSettingsBySource(t *testing.T) {
 		model.SourceFile: map[string]interface{}{
 			"a": 987,
 		},
-		model.SourceEnvVar:        map[string]interface{}{},
-		model.SourceFleetPolicies: map[string]interface{}{},
+		model.SourceEnvVar:             map[string]interface{}{},
+		model.SourceFleetPolicies:      map[string]interface{}{},
+		model.SourceConfigPostInit:     map[string]interface{}{},
+		model.SourceLocalConfigProcess: map[string]interface{}{},
 		model.SourceAgentRuntime: map[string]interface{}{
 			"b": map[string]interface{}{
 				"c": 123,
 			},
 		},
-		model.SourceLocalConfigProcess: map[string]interface{}{},
-		model.SourceRC:                 map[string]interface{}{},
-		model.SourceCLI:                map[string]interface{}{},
+		model.SourceRC:  map[string]interface{}{},
+		model.SourceCLI: map[string]interface{}{},
 		model.SourceProvided: map[string]interface{}{
 			"a": 987,
 			"b": map[string]interface{}{
@@ -372,6 +374,47 @@ func TestAllSettingsBySource(t *testing.T) {
 		},
 	}
 	assert.Equal(t, expected, cfg.AllSettingsBySource())
+}
+
+func TestAllSettingsWithoutSecrets(t *testing.T) {
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg.SetDefault("a", 0)
+	cfg.SetDefault("b", 0)
+	cfg.BuildSchema()
+
+	cfg.Set("a", "file_value", model.SourceFile)
+	cfg.Set("a", "secret_value", model.SourceSecret)
+	cfg.Set("b", 42, model.SourceAgentRuntime)
+
+	// includes secrets
+	all := cfg.AllSettings()
+	assert.Equal(t, "secret_value", all["a"])
+	assert.Equal(t, 42, all["b"])
+
+	// excludes secrets layer, "a" falls back to file layer value
+	withoutSecrets := cfg.AllSettingsWithoutSecrets()
+	assert.Equal(t, "file_value", withoutSecrets["a"])
+	assert.Equal(t, 42, withoutSecrets["b"])
+}
+
+func TestAllSettingsWithoutDefaultOrSecrets(t *testing.T) {
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg.SetDefault("a", 0)
+	cfg.SetDefault("b", 0)
+	cfg.SetDefault("c", 0)
+	cfg.BuildSchema()
+
+	cfg.Set("a", "file_value", model.SourceFile)
+	cfg.Set("a", "secret_value", model.SourceSecret)
+	cfg.Set("b", 42, model.SourceAgentRuntime)
+
+	result := cfg.AllSettingsWithoutDefaultOrSecrets()
+	// "a" has a fallback file value
+	assert.Equal(t, "file_value", result["a"])
+	assert.Equal(t, 42, result["b"])
+	// "c" is only a default, excluded
+	_, found := result["c"]
+	assert.False(t, found)
 }
 
 func TestIsSet(t *testing.T) {
@@ -1463,6 +1506,40 @@ func TestOnUpdate(t *testing.T) {
 	assert.Equal(t, "a", gotSetting)
 	assert.Equal(t, 1, gotOldValue)
 	assert.Equal(t, 2, gotNewValue)
+}
+
+// TestUnsetForSourceListenerCanReadConfig reproduces a deadlock where
+// UnsetForSource notified OnUpdate subscribers while still holding the
+// write lock. Any subscriber that read the config (via the read side of
+// the RWMutex) would block against the held write lock forever.
+func TestUnsetForSourceListenerCanReadConfig(t *testing.T) {
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg.SetDefault("log_level", "info")
+	cfg.BuildSchema()
+
+	observed := []string{}
+	cfg.OnUpdate(func(_ string, _ model.Source, _, _ any, _ uint64) {
+		// A realistic listener reads the current config. Before the fix
+		// this call deadlocked because UnsetForSource still held the
+		// config write lock.
+		observed = append(observed, cfg.GetString("log_level"))
+	})
+
+	cfg.Set("log_level", "debug", model.SourceRC)
+
+	done := make(chan struct{})
+	go func() {
+		cfg.UnsetForSource("log_level", model.SourceRC)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("UnsetForSource deadlocked while notifying listeners")
+	}
+
+	assert.Equal(t, []string{"debug", "info"}, observed)
 }
 
 func TestSetInvalidSource(t *testing.T) {

@@ -19,9 +19,9 @@ import (
 	"github.com/vishvananda/netns"
 	"golang.org/x/sys/unix"
 
-	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	netnsutil "github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -60,35 +60,35 @@ const (
 )
 
 var routeCacheTelemetry = struct {
-	size    telemetry.Gauge
-	misses  telemetry.Counter
-	lookups telemetry.Counter
-	expires telemetry.Counter
-	evicts  telemetry.Counter
+	size    telemetryComponent.Gauge
+	misses  telemetryComponent.Counter
+	lookups telemetryComponent.Counter
+	expires telemetryComponent.Counter
+	evicts  telemetryComponent.Counter
 
-	netlinkLookups telemetry.Counter
-	netlinkErrors  telemetry.Counter
-	netlinkMisses  telemetry.Counter
+	netlinkLookups telemetryComponent.Counter
+	netlinkErrors  telemetryComponent.Counter
+	netlinkMisses  telemetryComponent.Counter
 
-	ifCacheLookups telemetry.Counter
-	ifCacheMisses  telemetry.Counter
-	ifCacheSize    telemetry.Counter
-	ifCacheErrors  telemetry.Counter
+	ifCacheLookups telemetryComponent.Counter
+	ifCacheMisses  telemetryComponent.Counter
+	ifCacheSize    telemetryComponent.Counter
+	ifCacheErrors  telemetryComponent.Counter
 }{
-	telemetry.NewGauge(routeCacheTelemetryModuleName, "size", []string{}, "Gauge measuring the size of the route cache"),
-	telemetry.NewCounter(routeCacheTelemetryModuleName, "misses", []string{}, "Counter measuring the number of route cache misses"),
-	telemetry.NewCounter(routeCacheTelemetryModuleName, "lookups", []string{}, "Counter measuring the number of route cache lookups"),
-	telemetry.NewCounter(routeCacheTelemetryModuleName, "expires", []string{}, "Counter measuring the number of route cache expirations"),
-	telemetry.NewCounter(routeCacheTelemetryModuleName, "evicts", []string{}, "Counter measuring the number of route cache evicts"),
+	telemetryimpl.GetCompatComponent().NewGauge(routeCacheTelemetryModuleName, "size", []string{}, "Gauge measuring the size of the route cache"),
+	telemetryimpl.GetCompatComponent().NewCounter(routeCacheTelemetryModuleName, "misses", []string{}, "Counter measuring the number of route cache misses"),
+	telemetryimpl.GetCompatComponent().NewCounter(routeCacheTelemetryModuleName, "lookups", []string{}, "Counter measuring the number of route cache lookups"),
+	telemetryimpl.GetCompatComponent().NewCounter(routeCacheTelemetryModuleName, "expires", []string{}, "Counter measuring the number of route cache expirations"),
+	telemetryimpl.GetCompatComponent().NewCounter(routeCacheTelemetryModuleName, "evicts", []string{}, "Counter measuring the number of route cache evicts"),
 
-	telemetry.NewCounter(routerTelemetryModuleName, "netlink_lookups", []string{}, "Counter measuring the number of netlink lookups"),
-	telemetry.NewCounter(routerTelemetryModuleName, "netlink_errors", []string{"error"}, "Counter measuring the number of netlink errors"),
-	telemetry.NewCounter(routerTelemetryModuleName, "netlink_misses", []string{}, "Counter measuring the number of netlink misses"),
+	telemetryimpl.GetCompatComponent().NewCounter(routerTelemetryModuleName, "netlink_lookups", []string{}, "Counter measuring the number of netlink lookups"),
+	telemetryimpl.GetCompatComponent().NewCounter(routerTelemetryModuleName, "netlink_errors", []string{"error"}, "Counter measuring the number of netlink errors"),
+	telemetryimpl.GetCompatComponent().NewCounter(routerTelemetryModuleName, "netlink_misses", []string{}, "Counter measuring the number of netlink misses"),
 
-	telemetry.NewCounter(routerTelemetryModuleName, "if_cache_lookups", []string{}, "Counter measuring the number of interface cache lookups"),
-	telemetry.NewCounter(routerTelemetryModuleName, "if_cache_misses", []string{}, "Counter measuring the number of interface cache misses"),
-	telemetry.NewCounter(routerTelemetryModuleName, "if_cache_size", []string{}, "Counter measuring the size of the interface cache"),
-	telemetry.NewCounter(routerTelemetryModuleName, "if_cache_errors", []string{"error"}, "Counter measuring the number of interface cache errors"),
+	telemetryimpl.GetCompatComponent().NewCounter(routerTelemetryModuleName, "if_cache_lookups", []string{}, "Counter measuring the number of interface cache lookups"),
+	telemetryimpl.GetCompatComponent().NewCounter(routerTelemetryModuleName, "if_cache_misses", []string{}, "Counter measuring the number of interface cache misses"),
+	telemetryimpl.GetCompatComponent().NewCounter(routerTelemetryModuleName, "if_cache_size", []string{}, "Counter measuring the size of the interface cache"),
+	telemetryimpl.GetCompatComponent().NewCounter(routerTelemetryModuleName, "if_cache_errors", []string{"error"}, "Counter measuring the number of interface cache errors"),
 }
 
 // RouteCache is the interface to a cache that stores routes for a given (source, destination, net ns) tuple
@@ -363,7 +363,7 @@ func (n *netlinkRouter) getInterface(srcAddress util.Address, srcIP net.IP, netn
 	return iff
 }
 
-func counterIncWithTag(counter telemetry.Counter, err error) (errno syscall.Errno, ok bool) {
+func counterIncWithTag(counter telemetryComponent.Counter, err error) (errno syscall.Errno, ok bool) {
 	if errno, ok = err.(syscall.Errno); ok {
 		if tag := unix.ErrnoName(errno); tag != "" {
 			counter.Inc(tag)

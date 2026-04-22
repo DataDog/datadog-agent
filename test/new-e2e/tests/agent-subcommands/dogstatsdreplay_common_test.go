@@ -17,6 +17,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
+	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 )
 
 //go:embed dogstatsdreplay/fixtures/metrics_capture.zstd
@@ -44,20 +46,24 @@ func (v *baseDogstatsdReplaySuite) TestReplayWithTagEnrichment() {
 	assert.Contains(v.T(), output, "replay done")
 	assert.NotContains(v.T(), output, "Unable to load state API error")
 
-	// Wait for metrics with tags to arrive at fakeintake
+	// Wait for metrics with tags to arrive at fakeintake. Filter by the
+	// statsd-metrics entity so unrelated series captured in the fixture cannot
+	// race into metrics[0].
 	require.EventuallyWithT(v.T(), func(t *assert.CollectT) {
-		metrics, err := v.Env().FakeIntake.Client().FilterMetrics("custom.metric")
+		metrics, err := v.Env().FakeIntake.Client().FilterMetrics(
+			"custom.metric",
+			fakeintakeclient.WithTags[*aggregator.MetricSeries]([]string{
+				"container_name:statsd-metrics",
+			}),
+		)
 		assert.NoError(t, err)
-		assert.NotEmpty(t, metrics, "Expected custom.metric metric to be received")
-		foundMetric := metrics[0]
-		tagString := strings.Join(foundMetric.Tags, ",")
+		if !assert.NotEmpty(t, metrics, "Expected custom.metric from statsd-metrics to be received") {
+			return
+		}
 
-		assert.Contains(t, tagString, "container_name:statsd-metrics",
-			"Expected  container_name tag from replay state")
-
+		tagString := strings.Join(metrics[0].Tags, ",")
 		assert.Contains(t, tagString, "image_name:ghcr.io/datadog/apps-dogstatsd",
 			"Expected image_name tag from replay state")
-
 		assert.Contains(t, tagString, "pod_name:statsd-metrics-5d5c7bdc4d-rk88h",
 			"Expected pod_name tag from replay state")
 	}, 30*time.Second, 1*time.Second, "Intake should have received a fully enriched replay metric.")

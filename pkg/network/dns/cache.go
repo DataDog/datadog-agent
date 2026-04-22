@@ -11,8 +11,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -27,12 +29,12 @@ var cacheTelemetry = struct {
 	expired   *telemetry.StatCounterWrapper
 	oversized *telemetry.StatCounterWrapper
 }{
-	telemetry.NewStatGaugeWrapper(dnsCacheModuleName, "size", []string{}, "Gauge measuring the current size of the DNS cache"),
-	telemetry.NewStatCounterWrapper(dnsCacheModuleName, "lookups", []string{}, "Counter measuring the number of lookups to the DNS cache"),
-	telemetry.NewStatCounterWrapper(dnsCacheModuleName, "hits", []string{}, "Counter measuring the number of successful lookups to the DNS cache"),
-	telemetry.NewStatCounterWrapper(dnsCacheModuleName, "added", []string{}, "Counter measuring the number of additions to the DNS cache"),
-	telemetry.NewStatCounterWrapper(dnsCacheModuleName, "expired", []string{}, "Counter measuring the number of failed lookups to the DNS cache"),
-	telemetry.NewStatCounterWrapper(dnsCacheModuleName, "oversized", []string{}, "Counter measuring the number of lookups to the DNS cache that reached the max domains per IP limit"),
+	telemetry.NewStatGaugeWrapper(telemetryimpl.GetCompatComponent(), dnsCacheModuleName, "size", []string{}, "Gauge measuring the current size of the DNS cache"),
+	telemetry.NewStatCounterWrapper(telemetryimpl.GetCompatComponent(), dnsCacheModuleName, "lookups", []string{}, "Counter measuring the number of lookups to the DNS cache"),
+	telemetry.NewStatCounterWrapper(telemetryimpl.GetCompatComponent(), dnsCacheModuleName, "hits", []string{}, "Counter measuring the number of successful lookups to the DNS cache"),
+	telemetry.NewStatCounterWrapper(telemetryimpl.GetCompatComponent(), dnsCacheModuleName, "added", []string{}, "Counter measuring the number of additions to the DNS cache"),
+	telemetry.NewStatCounterWrapper(telemetryimpl.GetCompatComponent(), dnsCacheModuleName, "expired", []string{}, "Counter measuring the number of failed lookups to the DNS cache"),
+	telemetry.NewStatCounterWrapper(telemetryimpl.GetCompatComponent(), dnsCacheModuleName, "oversized", []string{}, "Counter measuring the number of lookups to the DNS cache that reached the max domains per IP limit"),
 }
 
 type reverseDNSCache struct {

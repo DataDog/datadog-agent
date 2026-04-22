@@ -22,7 +22,7 @@ import (
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	baseimpl "github.com/DataDog/datadog-agent/comp/core/workloadfilter/baseimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/catalog"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"

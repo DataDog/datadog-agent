@@ -1,0 +1,21 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "scap",
+    srcs = [
+        "document.go",
+        "syschar.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/compliance/scap",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_gocomply_scap//pkg/scap/constants",
+        "@com_github_gocomply_scap//pkg/scap/models/cdf",
+        "@com_github_gocomply_scap//pkg/scap/models/cpe_dict",
+        "@com_github_gocomply_scap//pkg/scap/models/ds",
+        "@com_github_gocomply_scap//pkg/scap/models/inter",
+        "@com_github_gocomply_scap//pkg/scap/models/oval_def",
+        "@com_github_gocomply_scap//pkg/scap/models/oval_res",
+        "@com_github_gocomply_scap//pkg/scap/models/oval_sc",
+    ],
+)

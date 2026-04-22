@@ -20,8 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
@@ -33,6 +33,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	filterlistmock "github.com/DataDog/datadog-agent/comp/filterlist/fx-mock"
+	offlinereporter "github.com/DataDog/datadog-agent/comp/offlinereporter/def"
+	offlinereportermock "github.com/DataDog/datadog-agent/comp/offlinereporter/mock"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -82,7 +84,7 @@ func fulfillDepsWithConfigOverride(t testing.TB, overrides map[string]interface{
 	return fxutil.Test[serverDeps](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() configComponent.Component { return configComponent.NewMockWithOverrides(t, overrides) }),
-		telemetryimpl.MockModule(),
+		mocktelemetry.Module(),
 		hostnameimpl.MockModule(),
 		serverdebugimpl.MockModule(),
 		replaymock.MockModule(),
@@ -92,6 +94,7 @@ func fulfillDepsWithConfigOverride(t testing.TB, overrides map[string]interface{
 		logscompression.MockModule(),
 		metricscompression.MockModule(),
 		filterlistmock.MockModule(),
+		fx.Provide(func() offlinereporter.Component { return offlinereportermock.Mock(t) }),
 
 		Module(Params{Serverless: false}),
 	))
@@ -101,7 +104,7 @@ func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 	return fxutil.Test[serverDeps](t, fx.Options(
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		fx.Provide(func(t testing.TB) configComponent.Component { return configComponent.NewMockFromYAML(t, yaml) }),
-		telemetryimpl.MockModule(),
+		mocktelemetry.Module(),
 		hostnameimpl.MockModule(),
 		serverdebugimpl.MockModule(),
 		replaymock.MockModule(),
@@ -111,6 +114,7 @@ func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 		demultiplexerimpl.FakeSamplerMockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		filterlistmock.MockModule(),
+		fx.Provide(func() offlinereporter.Component { return offlinereportermock.Mock(t) }),
 
 		Module(Params{Serverless: false}),
 	))
@@ -122,7 +126,7 @@ func fulfillDepsWithInactiveServer(t *testing.T, cfg map[string]interface{}) (de
 	deps := fxutil.Test[depsWithoutServer](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() configComponent.Component { return configComponent.NewMockWithOverrides(t, cfg) }),
-		telemetryimpl.MockModule(),
+		mocktelemetry.Module(),
 		hostnameimpl.MockModule(),
 		serverdebugimpl.MockModule(),
 		fx.Supply(Params{Serverless: false}),
@@ -133,6 +137,7 @@ func fulfillDepsWithInactiveServer(t *testing.T, cfg map[string]interface{}) (de
 		metricscompression.MockModule(),
 		logscompression.MockModule(),
 		filterlistmock.MockModule(),
+		fx.Provide(func() offlinereporter.Component { return offlinereportermock.Mock(t) }),
 	))
 
 	s := newServerCompat(deps.Config, deps.Log, deps.Hostname, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry, deps.FilterList)

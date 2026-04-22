@@ -507,6 +507,22 @@ func (t *teeConfig) AllSettingsWithoutDefault() map[string]interface{} {
 
 }
 
+// AllSettingsWithoutSecrets returns all settings excluding the secrets layer.
+func (t *teeConfig) AllSettingsWithoutSecrets() map[string]interface{} {
+	base := t.baseline.AllSettingsWithoutSecrets()
+	compare := t.compare.AllSettingsWithoutSecrets()
+	t.compareResult("", "AllSettingsWithoutSecrets", base, compare)
+	return base
+}
+
+// AllSettingsWithoutDefaultOrSecrets returns settings excluding both defaults and the secrets layer.
+func (t *teeConfig) AllSettingsWithoutDefaultOrSecrets() map[string]interface{} {
+	base := t.baseline.AllSettingsWithoutDefaultOrSecrets()
+	compare := t.compare.AllSettingsWithoutDefaultOrSecrets()
+	t.compareResult("", "AllSettingsWithoutDefaultOrSecrets", base, compare)
+	return base
+}
+
 // AllSettingsBySource returns the settings from each source (file, env vars, ...)
 func (t *teeConfig) AllSettingsBySource() map[model.Source]interface{} {
 	base := t.baseline.AllSettingsBySource()

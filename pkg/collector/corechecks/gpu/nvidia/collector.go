@@ -16,7 +16,7 @@ import (
 	"errors"
 	"slices"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
@@ -37,6 +37,7 @@ const (
 	gpm          CollectorName = "gpm"
 	ebpf         CollectorName = "ebpf"
 	deviceEvents CollectorName = "device_events"
+	nvlink       CollectorName = "nvlink"
 )
 
 // subsystemBuilder is a function that creates a new subsystem Collector. device the device it should collect metrics from. It also receives
@@ -51,6 +52,7 @@ var factory = map[CollectorName]subsystemBuilder{
 
 	// Specialized collectors that remain unchanged (complex or unique logic)
 	field:        newFieldsCollector,
+	nvlink:       newNVLinkCollector,
 	gpm:          newGPMCollector,
 	deviceEvents: newDeviceEventsCollector,
 }

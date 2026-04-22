@@ -14,7 +14,7 @@ import (
 
 const (
 	// PidCacheEntrySize is the size of the pid_cache_t
-	PidCacheEntrySize = 88
+	PidCacheEntrySize = 96
 )
 
 // BinaryMarshaler interface implemented by every event type
@@ -147,7 +147,9 @@ func (e *Process) MarshalPidCache(data []byte, bootTime time.Time) (int, error) 
 	marshalTime(data[16:24], e.ExitTime.Sub(bootTime))
 	binary.NativeEndian.PutUint64(data[24:32], e.UserSession.K8SSessionID)
 	binary.NativeEndian.PutUint64(data[32:40], e.ForkFlags)
-	written := 40
+	binary.NativeEndian.PutUint32(data[40:44], e.PIDContext.SID)
+	binary.NativeEndian.PutUint32(data[44:48], 0) // padding
+	written := 48
 
 	n, err := MarshalBinary(data[written:], &e.Credentials)
 	if err != nil {
