@@ -236,6 +236,7 @@ func GetBundleInheritedAllowedActions(actionsAllowlist map[string]sets.Set[strin
 func newMetricsClient(statsdComp statsdcomp.Component) statsd.ClientInterface {
 	client, err := statsdComp.Get()
 	if err != nil {
+		log.Warnf("Failed to get statsd client: %v", err)
 		return &statsd.NoOpClient{}
 	}
 	return client
