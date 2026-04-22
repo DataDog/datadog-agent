@@ -134,28 +134,45 @@ func (s *testInstallExeSuite) TestInstallAgentFails() {
 }
 
 // TestConfigValuesNotOverwrittenByDefaults is a regression test for WINA-2118.
-// It verifies that when an empty datadog.yaml file exists before installation,
-// the installer does not overwrite it with default values from unset environment variables.
+//
+// We pre-seed datadog.yaml with non-default api_key and site values, encoded
+// as UTF-16 LE with a BOM and CRLF line endings — the exact on-disk format
+// produced by Windows editors (e.g. Notepad) that used to trip up the env
+// package's yaml reader while the write path's reader handled it just fine.
+// That asymmetry was the root cause of WINA-2118: env.Get silently fell back
+// to the default site, and the merged write then clobbered the user's real
+// value.
+//
+// After install, the user-set values must be preserved verbatim. Defaults
+// may still appear for keys the user did not set (e.g. log_level); that is
+// intentional and covered by the env package's unit tests. The contract
+// this test enforces is narrower and sharper: yaml-declared keys win over
+// defaults, regardless of the file's encoding.
 func (s *testInstallExeSuite) TestConfigValuesNotOverwrittenByDefaults() {
 	// Arrange
 	host := s.Env().RemoteHost
 	configDir := `C:\ProgramData\Datadog`
 	configPath := `C:\ProgramData\Datadog\datadog.yaml`
 
-	// Create config directory and empty datadog.yaml
+	const userAPIKey = "user-api-key-0123456789abcdef01"
+	const userSite = "datadoghq.eu" // deliberately not the default datadoghq.com
+
+	// Serialise the yaml as UTF-16 LE with BOM and CRLF line endings. These
+	// are ASCII-only characters so a plain byte interleave is sufficient.
+	yamlText := "api_key: " + userAPIKey + "\r\nsite: " + userSite + "\r\n"
+	utf16LE := []byte{0xFF, 0xFE} // UTF-16 LE BOM
+	for _, r := range yamlText {
+		utf16LE = append(utf16LE, byte(r), 0x00)
+	}
+
 	err := host.MkdirAll(configDir)
 	s.Require().NoError(err, "failed to create config directory")
-	_, err = host.WriteFile(configPath, []byte{})
-	s.Require().NoError(err, "failed to create empty datadog.yaml")
-
-	// Verify the file is empty before install
-	contentBefore, err := host.ReadFile(configPath)
-	s.Require().NoError(err, "failed to read datadog.yaml before install")
-	s.Require().Empty(contentBefore, "datadog.yaml should be empty before install")
+	_, err = host.WriteFile(configPath, utf16LE)
+	s.Require().NoError(err, "failed to seed UTF-16 datadog.yaml")
 
 	// Act
-	// Run the installer without any config options to test that default env.Env values
-	// do not overwrite config values (WINA-2118).
+	// Run the installer without any config options so the only source of
+	// api_key / site is the pre-seeded yaml file.
 	output, err := s.InstallScript().Run(
 		// explicitly unset some values that are always set by this Run helper method
 		WithExtraEnvVars(map[string]string{
@@ -169,20 +186,18 @@ func (s *testInstallExeSuite) TestConfigValuesNotOverwrittenByDefaults() {
 	s.Require().NoErrorf(err, "failed to run installer: %s", output)
 	s.Require().NoError(s.WaitForInstallerService("Running"))
 
-	// Verify the datadog.yaml file has no configuration values set.
-	// The installer may add comments or an empty YAML object ({}), but should not
-	// write any actual configuration keys when no options are provided.
-	// We use an empty config file to ensure we catch any/all options that may be written to the config
-	// if they are not provided to the installer, so the test should continue working as we add new options.
-	// If later we want to write defaults to the config we can update this test, but we must ensure that
-	// if the option exists in datadog.yaml that it takes precedence over the default value.
+	// WriteConfig emits UTF-8, so a straight yaml.Unmarshal is enough.
 	contentAfter, err := host.ReadFile(configPath)
 	s.Require().NoError(err, "failed to read datadog.yaml after install")
 
 	var configValues map[string]interface{}
 	err = yaml.Unmarshal(contentAfter, &configValues)
 	s.Require().NoError(err, "failed to parse datadog.yaml as YAML")
-	s.Require().Empty(configValues, "datadog.yaml should have no configuration values set - default env values should not overwrite config. Got: %v", configValues)
+
+	s.Assert().Equal(userAPIKey, configValues["api_key"],
+		"user-set api_key must be preserved after install (WINA-2118)")
+	s.Assert().Equal(userSite, configValues["site"],
+		"user-set site must be preserved and must not be clobbered by the default datadoghq.com (WINA-2118)")
 }
 
 // proxyEnv provisions a Windows VM (for the installer) and a Linux VM (hosting a Squid proxy)
