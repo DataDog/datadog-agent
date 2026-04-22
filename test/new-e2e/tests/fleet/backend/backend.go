@@ -153,9 +153,15 @@ func (b *Backend) StopConfigExperiment() error {
 	return nil
 }
 
-// ResetConfigExperiment stops any active config experiment, returning nil if
-// there is nothing to stop. Used to guarantee a clean RC state between tests
-// that share a single agent install.
+// ResetConfigExperiment best-effort cleans up any active config experiment so
+// the next test starts with a clean RC state. Used between shared-install tests.
+//
+// It is intentionally forgiving: a previous failure-path test (e.g. a crash or
+// timeout) may have already rolled back the experiment at the agent level while
+// the RC status still reports an experiment version. Calling `stop-config-experiment`
+// in that case succeeds but does not trigger a daemon restart, which makes the
+// `runDaemonCommandWithRestart` helper time out. We swallow that error because
+// the RC state becomes clean again once the next `start-config-experiment` runs.
 func (b *Backend) ResetConfigExperiment() error {
 	state, err := b.RemoteConfigStatusPackage("datadog-agent")
 	if err != nil {
@@ -164,7 +170,10 @@ func (b *Backend) ResetConfigExperiment() error {
 	if state.ExperimentConfigVersion == "" {
 		return nil
 	}
-	return b.StopConfigExperiment()
+	if err := b.StopConfigExperiment(); err != nil {
+		b.t().Logf("ResetConfigExperiment: best-effort stop returned %v (ignored)", err)
+	}
+	return nil
 }
 
 // StartExperiment starts an update experiment for the given package.
