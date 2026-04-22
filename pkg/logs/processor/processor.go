@@ -193,19 +193,24 @@ func (p *Processor) processMessage(msg *message.Message) {
 		metrics.LogsProcessed.Add(1)
 		metrics.TlmLogsProcessed.Inc()
 
-		// render the message
-		rendered, err := msg.Render()
-		if err != nil {
-			log.Error("can't render the msg", err)
-			return
+		// report to diagnostic receivers (e.g. `stream-logs`) only when active
+		if p.diagnosticMessageReceiver.IsEnabled() {
+			rendered, err := msg.Render()
+			if err != nil {
+				log.Error("can't render the msg", err)
+				return
+			}
+			p.diagnosticMessageReceiver.HandleMessage(msg, rendered, "")
 		}
-		msg.SetRendered(rendered)
-
-		// report this message to diagnostic receivers (e.g. `stream-logs` command)
-		p.diagnosticMessageReceiver.HandleMessage(msg, rendered, "")
 
 		if p.failoverConfig.isFailoverActive {
 			p.filterMRFMessages(msg)
+		}
+
+		// prepare the message for encoding (no-op for FullEncoder messages)
+		if err := msg.EnsureRendered(); err != nil {
+			log.Error("can't render the msg", err)
+			return
 		}
 
 		// encode the message to its final format, it is done in-place
@@ -243,36 +248,47 @@ func (p *Processor) filterMRFMessages(msg *message.Message) {
 // applyRedactingRules returns given a message if we should process it or not,
 // it applies the change directly on the Message content.
 func (p *Processor) applyRedactingRules(msg *message.Message) bool {
-	var content = msg.GetContent()
-
-	// Use the internal scrubbing implementation of the Agent
-	// ---------------------------
-
 	var extraRules []*config.ProcessingRule
 	if msg.Origin != nil && msg.Origin.LogSource != nil {
 		extraRules = msg.Origin.LogSource.Config.ProcessingRules
 	}
 	rules := append(p.processingRules, extraRules...)
+
+	if len(rules) == 0 {
+		return true
+	}
+
+	var content []byte
+	contentFetched := false
+	contentModified := false
+
+	getContent := func() []byte {
+		if !contentFetched {
+			content = msg.GetContent()
+			contentFetched = true
+		}
+		return content
+	}
+
 	for _, rule := range rules {
 		switch rule.Type {
 		case config.ExcludeAtMatch:
-			// if this message matches, we ignore it
-			if rule.Regex.Match(content) {
+			if rule.Regex.Match(getContent()) {
 				msg.RecordProcessingRule(rule.Type, rule.Name)
 				return false
 			}
 		case config.IncludeAtMatch:
-			// if this message doesn't match, we ignore it
-			if !rule.Regex.Match(content) {
+			if !rule.Regex.Match(getContent()) {
 				return false
 			}
 			msg.RecordProcessingRule(rule.Type, rule.Name)
 		case config.MaskSequences:
-			if isMatchingLiteralPrefix(rule.Regex, content) {
+			if isMatchingLiteralPrefix(rule.Regex, getContent()) {
 				originalContent := content
 				content = rule.Regex.ReplaceAll(content, rule.Placeholder)
 				if !bytes.Equal(originalContent, content) {
 					msg.RecordProcessingRule(rule.Type, rule.Name)
+					contentModified = true
 				}
 			}
 		case config.ExcludeTruncated:
@@ -280,12 +296,23 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 				msg.RecordProcessingRule(rule.Type, rule.Name)
 				return false
 			}
-
+		case config.RemapAttributeToSource:
+			for _, mapping := range rule.Mappings {
+				if val, ok := msg.GetStructuredAttribute(mapping.Attribute); ok && val == mapping.Value {
+					if msg.Origin != nil {
+						msg.Origin.SetMappedSource(mapping.RemapSourceTo)
+					}
+					msg.RecordProcessingRule(rule.Type, rule.Name)
+					break
+				}
+			}
 		}
 	}
 
-	msg.SetContent(content)
-	return true // we want to send this message
+	if contentModified {
+		msg.SetContent(content)
+	}
+	return true
 }
 
 // isMatchingLiteralPrefix uses a potential literal prefix from the given regex
