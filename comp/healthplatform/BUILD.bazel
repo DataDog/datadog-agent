@@ -34,7 +34,7 @@ go_test(
         "//comp/core/log/def",
         "//comp/core/log/mock",
         "//pkg/util/fxutil",
-        "@com_github_datadog_datadog_agent_comp_core_telemetry//mock",
+        "//comp/core/telemetry/mock",
         "@org_uber_go_fx//:fx",
     ],
 )
