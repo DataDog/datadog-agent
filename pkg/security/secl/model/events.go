@@ -145,6 +145,8 @@ const (
 	TracerMemfdSealEventType
 	// PivotRootEventType is sent when pivot_root completes successfully
 	PivotRootEventType
+	// SetSidEventType is sent when setsid completes successfully
+	SetSidEventType
 	// NopEventType nop event
 	NopEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
@@ -342,6 +344,8 @@ func (t EventType) String() string {
 		return "tracer_memfd_seal"
 	case PivotRootEventType:
 		return "pivot_root"
+	case SetSidEventType:
+		return "setsid"
 	case NopEventType:
 		return "nop"
 	default:

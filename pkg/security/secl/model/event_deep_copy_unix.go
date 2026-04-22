@@ -192,6 +192,7 @@ func deepCopyPIDContext(fieldToCopy PIDContext) PIDContext {
 	copied.NetNS = fieldToCopy.NetNS
 	copied.PPid = fieldToCopy.PPid
 	copied.Pid = fieldToCopy.Pid
+	copied.SID = fieldToCopy.SID
 	copied.Tid = fieldToCopy.Tid
 	copied.UserSessionID = fieldToCopy.UserSessionID
 	return copied
