@@ -1,5 +1,14 @@
 ad_identifiers:
   - _end_user_device
 init_config:
+
+  ## @param request_location_permission - boolean - optional - default: false
+  ## On macOS, controls whether the Agent GUI prompts the user for Location
+  ## Services permission so the WLAN check can collect WiFi SSID/BSSID
+  ## metadata. Default is false (no prompt). Set to true to re-enable the
+  ## prompt.
+  #
+  # request_location_permission: false
+
 instances:
   - {}

@@ -59,8 +59,8 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
     /// Default when agent configcheck wlan fails (e.g. agent not running). Case 2: do not show prompt.
     private static let defaultRequestLocationPermissionWhenFetchFails = false
 
-    /// Default when configcheck succeeds but request_location_permission is missing or unparseable in WLAN config. Case 1: show prompt.
-    private static let defaultRequestLocationPermissionWhenMissing = true
+    /// Default when configcheck succeeds but request_location_permission is missing or unparseable in WLAN config. Case 1: do not show prompt (opt-in via WLAN conf.yaml).
+    private static let defaultRequestLocationPermissionWhenMissing = false
 
     /// Returns the path to the agent binary (uses DD_INSTALL_PATH from LaunchAgent plist or default).
     private static func agentBinaryPath() -> String {
