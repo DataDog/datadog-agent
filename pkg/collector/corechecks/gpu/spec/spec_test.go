@@ -75,6 +75,27 @@ func TestTagSpecUnmarshalYAML(t *testing.T) {
 	})
 }
 
+// TestArchitectureDefaultsPopulated guarantees every architecture in the spec
+// declares a defaults block. Downstream tools (in particular the fake NVML
+// shared library in pkg/gpu/fake-nvml) rely on this block to synthesize a
+// plausible device for the architecture — missing defaults would cause them
+// to emit obviously-wrong values or fail to start.
+func TestArchitectureDefaultsPopulated(t *testing.T) {
+	archSpecFile, err := LoadArchitecturesSpec()
+	require.NoError(t, err)
+
+	for name, archSpec := range archSpecFile.Architectures {
+		t.Run(name, func(t *testing.T) {
+			d := archSpec.Defaults
+			assert.NotZero(t, d.NvmlArchitecture, "nvml_architecture must be set (non-zero NVML_DEVICE_ARCH_* constant)")
+			assert.NotEmpty(t, d.DeviceName, "device_name must be set")
+			assert.NotZero(t, d.CudaComputeMajor, "cuda_compute_major must be set")
+			assert.NotZero(t, d.NumGpuCores, "num_gpu_cores must be set")
+			assert.NotZero(t, d.TotalMemoryMib, "total_memory_mib must be set")
+			// cuda_compute_minor is allowed to be zero (e.g. 9.0 for Hopper)
+		})
+	}
+}
 func TestMetricValidatorValidate(t *testing.T) {
 	t.Run("range", func(t *testing.T) {
 		min := 0.0

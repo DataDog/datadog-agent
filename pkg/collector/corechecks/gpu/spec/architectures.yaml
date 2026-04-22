@@ -6,6 +6,12 @@
 #   - capabilities.unsupported_fields_by_device_mode (list of conditional exclusions for the GetFields API)
 #       - device_modes: [physical|mig|vgpu, ...]  (in which modes the fields are unsupported, for example some fields are not supported in vGPU mode. If not included, the fields are unsupported in all modes.)
 #       - fields: [<field_id>, ...] (the list of field IDs that are unsupported in the given modes. Check nvmlFieldNameToFieldID in spec_test.go for the mapping.)
+#   - defaults (representative device identity values for this architecture, consumed by out-of-process tools such as the fake NVML shared library; not used by the agent's runtime metric collection):
+#       - nvml_architecture: the NVML_DEVICE_ARCH_* integer constant reported by nvmlDeviceGetArchitecture() (see nvml.h)
+#       - device_name: representative product name (e.g. "NVIDIA H100 80GB HBM3")
+#       - cuda_compute_major / cuda_compute_minor: CUDA compute capability
+#       - num_gpu_cores: CUDA core count reported by nvmlDeviceGetNumGpuCores()
+#       - total_memory_mib: device memory in MiB reported by nvmlDeviceGetMemoryInfo()
 #   - unsupported_device_modes: [mig|physical|vgpu, ...] (the list of device modes that are unsupported on the architecture. For example, MIG is not supported on the Pascal architecture.)
 architectures:
   pascal:
@@ -54,6 +60,14 @@ architectures:
             - FI_DEV_C2C_LINK_ERROR_INTR
             - FI_DEV_C2C_LINK_ERROR_REPLAY
             - FI_DEV_C2C_LINK_ERROR_REPLAY_B2B
+    defaults:
+      # Representative: NVIDIA Tesla P40
+      nvml_architecture: 4  # NVML_DEVICE_ARCH_PASCAL
+      device_name: "NVIDIA Tesla P40 (fake)"
+      cuda_compute_major: 6
+      cuda_compute_minor: 1
+      num_gpu_cores: 3840
+      total_memory_mib: 24576  # 24 GiB
     unsupported_device_modes:
       - mig
   volta:
@@ -102,6 +116,14 @@ architectures:
             - FI_DEV_C2C_LINK_ERROR_INTR
             - FI_DEV_C2C_LINK_ERROR_REPLAY
             - FI_DEV_C2C_LINK_ERROR_REPLAY_B2B
+    defaults:
+      # Representative: NVIDIA Tesla V100 SXM2 32GB
+      nvml_architecture: 5  # NVML_DEVICE_ARCH_VOLTA
+      device_name: "NVIDIA Tesla V100-SXM2-32GB (fake)"
+      cuda_compute_major: 7
+      cuda_compute_minor: 0
+      num_gpu_cores: 5120
+      total_memory_mib: 32768  # 32 GiB
     unsupported_device_modes:
       - mig
   turing:
@@ -150,6 +172,14 @@ architectures:
             - FI_DEV_C2C_LINK_ERROR_INTR
             - FI_DEV_C2C_LINK_ERROR_REPLAY
             - FI_DEV_C2C_LINK_ERROR_REPLAY_B2B
+    defaults:
+      # Representative: NVIDIA Tesla T4
+      nvml_architecture: 6  # NVML_DEVICE_ARCH_TURING
+      device_name: "NVIDIA Tesla T4 (fake)"
+      cuda_compute_major: 7
+      cuda_compute_minor: 5
+      num_gpu_cores: 2560
+      total_memory_mib: 15360  # 15 GiB (T4 reports 15109 MiB)
     unsupported_device_modes:
       - mig
   ampere:
@@ -198,6 +228,14 @@ architectures:
             - FI_DEV_C2C_LINK_ERROR_INTR
             - FI_DEV_C2C_LINK_ERROR_REPLAY
             - FI_DEV_C2C_LINK_ERROR_REPLAY_B2B
+    defaults:
+      # Representative: NVIDIA A100-SXM4-80GB
+      nvml_architecture: 7  # NVML_DEVICE_ARCH_AMPERE
+      device_name: "NVIDIA A100-SXM4-80GB (fake)"
+      cuda_compute_major: 8
+      cuda_compute_minor: 0
+      num_gpu_cores: 6912
+      total_memory_mib: 81920  # 80 GiB
     unsupported_device_modes: []
   hopper:
     capabilities:
@@ -243,6 +281,14 @@ architectures:
             - FI_DEV_C2C_LINK_ERROR_INTR
             - FI_DEV_C2C_LINK_ERROR_REPLAY
             - FI_DEV_C2C_LINK_ERROR_REPLAY_B2B
+    defaults:
+      # Representative: NVIDIA H100 80GB HBM3
+      nvml_architecture: 9  # NVML_DEVICE_ARCH_HOPPER
+      device_name: "NVIDIA H100 80GB HBM3 (fake)"
+      cuda_compute_major: 9
+      cuda_compute_minor: 0
+      num_gpu_cores: 16384
+      total_memory_mib: 81920  # 80 GiB
     unsupported_device_modes: []
   ada:
     capabilities:
@@ -291,6 +337,14 @@ architectures:
             - FI_DEV_C2C_LINK_ERROR_INTR
             - FI_DEV_C2C_LINK_ERROR_REPLAY
             - FI_DEV_C2C_LINK_ERROR_REPLAY_B2B
+    defaults:
+      # Representative: NVIDIA L40S
+      nvml_architecture: 8  # NVML_DEVICE_ARCH_ADA
+      device_name: "NVIDIA L40S (fake)"
+      cuda_compute_major: 8
+      cuda_compute_minor: 9
+      num_gpu_cores: 18176
+      total_memory_mib: 46080  # 45 GiB (L40S reports ~45584 MiB)
     unsupported_device_modes:
       - mig
   blackwell:
@@ -334,4 +388,12 @@ architectures:
             - FI_DEV_NVLINK_COUNT_EFFECTIVE_BER
             - FI_DEV_NVLINK_COUNT_SYMBOL_ERRORS
             - FI_DEV_NVLINK_COUNT_SYMBOL_BER
+    defaults:
+      # Representative: NVIDIA B200 (Blackwell data-center GPU)
+      nvml_architecture: 10  # NVML_DEVICE_ARCH_BLACKWELL
+      device_name: "NVIDIA B200 (fake)"
+      cuda_compute_major: 10
+      cuda_compute_minor: 0
+      num_gpu_cores: 16896
+      total_memory_mib: 196608  # 192 GiB HBM3e
     unsupported_device_modes: []
