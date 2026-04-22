@@ -566,3 +566,65 @@ func TestRemapAttributeToSource(t *testing.T) {
 		assert.Equal("cef_source", msg.Origin.Source())
 	})
 }
+
+func TestRemapAttributeToSource_EscapedDotPath(t *testing.T) {
+	assert := assert.New(t)
+
+	t.Run("escaped dot matches dotted SD-ID key", func(_ *testing.T) {
+		source := sources.NewLogSource("", &config.LogsConfig{
+			Source: "fallback",
+			ProcessingRules: []*config.ProcessingRule{{
+				Type: config.RemapAttributeToSource,
+				Name: "sd_remap",
+				Mappings: []*config.SourceMappingEntry{
+					{Attribute: `syslog.structured_data.my\.org@99999.status`, Value: "ok", RemapSourceTo: "matched_sd"},
+				},
+			}},
+		})
+		sc := &message.BasicStructuredContent{Data: map[string]interface{}{
+			"message": "test",
+			"syslog": map[string]interface{}{
+				"structured_data": map[string]interface{}{
+					"my.org@99999": map[string]interface{}{
+						"status": "ok",
+					},
+				},
+			},
+		}}
+		msg := message.NewStructuredMessage(sc, message.NewOrigin(source), "", 0)
+
+		p := &Processor{}
+		shouldProcess := p.applyRedactingRules(msg)
+		assert.True(shouldProcess)
+		assert.Equal("matched_sd", msg.Origin.Source())
+	})
+
+	t.Run("unescaped dot in dotted key does not match", func(_ *testing.T) {
+		source := sources.NewLogSource("", &config.LogsConfig{
+			Source: "fallback",
+			ProcessingRules: []*config.ProcessingRule{{
+				Type: config.RemapAttributeToSource,
+				Name: "sd_remap",
+				Mappings: []*config.SourceMappingEntry{
+					{Attribute: "syslog.structured_data.my.org@99999.status", Value: "ok", RemapSourceTo: "should_not_match"},
+				},
+			}},
+		})
+		sc := &message.BasicStructuredContent{Data: map[string]interface{}{
+			"message": "test",
+			"syslog": map[string]interface{}{
+				"structured_data": map[string]interface{}{
+					"my.org@99999": map[string]interface{}{
+						"status": "ok",
+					},
+				},
+			},
+		}}
+		msg := message.NewStructuredMessage(sc, message.NewOrigin(source), "", 0)
+
+		p := &Processor{}
+		shouldProcess := p.applyRedactingRules(msg)
+		assert.True(shouldProcess)
+		assert.Equal("fallback", msg.Origin.Source())
+	})
+}
