@@ -8,6 +8,8 @@ package runnerimpl
 
 import (
 	"context"
+	"reflect"
+	"slices"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -33,16 +35,16 @@ type runnerImpl struct {
 }
 
 // Requires defines the dependencies for the runner component.
-// Checks must be pre-filtered (nil and typed-nil values removed) by the caller —
-// typically the fx/ layer using fxutil.GetAndFilterGroup.
 type Requires struct {
+	compdef.In
+
 	Lc  compdef.Lifecycle
 	Log log.Component
 
 	Submitter  submitter.Component
-	RTNotifier <-chan types.RTResponse
+	RTNotifier <-chan types.RTResponse `optional:"true"`
 
-	Checks   []types.CheckComponent
+	Checks   []types.CheckComponent `group:"check"`
 	HostInfo hostinfo.Component
 	SysCfg   sysprobeconfig.Component
 	Config   config.Component
@@ -51,7 +53,8 @@ type Requires struct {
 
 // NewComponent creates a new runner component.
 func NewComponent(reqs Requires) (runner.Component, error) {
-	c, err := processRunner.NewRunner(reqs.Config, reqs.SysCfg.SysProbeObject(), reqs.HostInfo.Object(), filterEnabledChecks(reqs.Checks), reqs.RTNotifier)
+	filteredChecks := filterNilChecks(reqs.Checks)
+	c, err := processRunner.NewRunner(reqs.Config, reqs.SysCfg.SysProbeObject(), reqs.HostInfo.Object(), filterEnabledChecks(filteredChecks), reqs.RTNotifier)
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +62,7 @@ func NewComponent(reqs Requires) (runner.Component, error) {
 
 	runnerComponent := &runnerImpl{
 		checkRunner:    c,
-		providedChecks: reqs.Checks,
+		providedChecks: filteredChecks,
 	}
 
 	if agentEnabled(reqs.Config, reqs.Checks, reqs.Log) {
@@ -79,6 +82,23 @@ func (r *runnerImpl) Run(context.Context) error {
 func (r *runnerImpl) stop(context.Context) error {
 	r.checkRunner.Stop()
 	return nil
+}
+
+// filterNilChecks removes both untyped and typed-nil values from an fx group of CheckComponent.
+// A typed nil (e.g. (*concreteCheck)(nil) stored as CheckComponent) is common for disabled
+// components and must be caught via reflection since a plain nil comparison misses it.
+func filterNilChecks(group []types.CheckComponent) []types.CheckComponent {
+	return slices.DeleteFunc(group, func(item types.CheckComponent) bool {
+		t := reflect.TypeOf(item)
+		if t == nil {
+			return true
+		}
+		switch t.Kind() {
+		case reflect.Pointer, reflect.Map, reflect.Array, reflect.Chan, reflect.Slice, reflect.Func, reflect.Interface:
+			return reflect.ValueOf(item).IsNil()
+		}
+		return false
+	})
 }
 
 func filterEnabledChecks(providedChecks []types.CheckComponent) []checks.Check {

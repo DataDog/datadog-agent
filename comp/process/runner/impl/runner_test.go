@@ -18,55 +18,21 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
-	compdef "github.com/DataDog/datadog-agent/comp/def"
 	containercheckimpl "github.com/DataDog/datadog-agent/comp/process/containercheck/impl"
-	hostinfo "github.com/DataDog/datadog-agent/comp/process/hostinfo/def"
 	hostinfomock "github.com/DataDog/datadog-agent/comp/process/hostinfo/mock"
 	processcheckimpl "github.com/DataDog/datadog-agent/comp/process/processcheck/impl"
 	runner "github.com/DataDog/datadog-agent/comp/process/runner/def"
-	submitter "github.com/DataDog/datadog-agent/comp/process/submitter/def"
 	submittermock "github.com/DataDog/datadog-agent/comp/process/submitter/mock"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	processchecks "github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
-
-// testDeps is a test-only fx bridge that collects the check group and filters nils
-// before forwarding to NewComponent (which has no fx.In and no group tag).
-type testDeps struct {
-	fx.In
-
-	Lc         compdef.Lifecycle
-	Log        log.Component
-	Submitter  submitter.Component
-	RTNotifier <-chan types.RTResponse `optional:"true"`
-	Checks     []types.CheckComponent  `group:"check"`
-	HostInfo   hostinfo.Component
-	SysCfg     sysprobeconfig.Component
-	Config     config.Component
-	Tagger     tagger.Component
-}
-
-func newForTest(deps testDeps) (runner.Component, error) {
-	return NewComponent(Requires{
-		Lc:         deps.Lc,
-		Log:        deps.Log,
-		Submitter:  deps.Submitter,
-		RTNotifier: deps.RTNotifier,
-		Checks:     fxutil.GetAndFilterGroup(deps.Checks),
-		HostInfo:   deps.HostInfo,
-		SysCfg:     deps.SysCfg,
-		Config:     deps.Config,
-		Tagger:     deps.Tagger,
-	})
-}
 
 func TestRunnerLifecycle(t *testing.T) {
 	_ = createDeps(t, nil)
@@ -148,7 +114,7 @@ type Deps struct {
 
 func createDeps(t *testing.T, confOverrides map[string]interface{}, options ...fx.Option) Deps {
 	return fxutil.Test[Deps](t, fx.Options(
-		fx.Provide(newForTest),
+		fxutil.ProvideComponentConstructor(NewComponent),
 		submittermock.MockModule(),
 		hostinfomock.MockModule(),
 
