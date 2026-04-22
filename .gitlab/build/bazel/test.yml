@@ -27,6 +27,9 @@ bazel:test:windows-amd64:
   extends: [ .bazel:test, .bazel:runner:windows-amd64 ]
   variables:
     POWERSHELL_SCRIPT: >-
-      bazel test --keep_going //... --
+      bazel test --keep_going
+      "--action_env=PATH=C:/tools/msys64/mingw64/bin;C:/tools/msys64/usr/bin;C:/Windows/system32;C:/Windows"
+      "--host_action_env=PATH=C:/tools/msys64/mingw64/bin;C:/tools/msys64/usr/bin;C:/Windows/system32;C:/Windows"
+      //... --
       -//bazel/rules/dd_packaging/...
       -//packages/agent/linux/...
