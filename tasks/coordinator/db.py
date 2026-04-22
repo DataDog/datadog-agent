@@ -35,7 +35,11 @@ def empty_db() -> Db:
         experiments={},
         candidates={},
         phase_state=PhaseState(
-            current_phase=Phase.ZERO,
+            # Start at Phase.ONE — Phase.ZERO existed as a setup state but
+            # every candidate the proposer generates is phase="1", and the
+            # scheduler filters by phase. Having the default be ZERO meant
+            # freshly-proposed candidates couldn't be picked.
+            current_phase=Phase.ONE,
             best_score=0.0,
             plateau_counter=0,
             phase_start_iter=0,
