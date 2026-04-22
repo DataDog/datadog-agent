@@ -1205,6 +1205,7 @@ func agent(config pkgconfigmodel.Setup) {
 		"memory",
 		"network",
 		"ntp",
+		"pressure",
 		"process",
 		"service_discovery",
 		"snmp",

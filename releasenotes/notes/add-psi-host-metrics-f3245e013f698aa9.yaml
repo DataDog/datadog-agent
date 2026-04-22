@@ -1,0 +1,29 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Add a new ``pressure`` core check that collects host-level Linux
+    Pressure Stall Information (PSI) from ``/proc/pressure/{cpu,memory,io}``.
+    New metrics, all cumulative microseconds of stall time reported as
+    monotonic counts:
+    ``system.pressure.cpu.some.total``,
+    ``system.pressure.memory.some.total``, ``system.pressure.memory.full.total``,
+    ``system.pressure.io.some.total``, ``system.pressure.io.full.total``.
+
+    The check is shipped enabled by default on Linux via an empty
+    ``pressure.d/conf.yaml`` instance, so upgraded agents start emitting
+    these metrics automatically without requiring a configuration change.
+    On kernels older than 4.20 or with PSI disabled (``psi=0`` boot
+    parameter), the check disables its instance at startup without
+    running on each schedule tick. It is also included in the
+    ``infrastructure_mode: basic`` allowlist alongside cpu/memory/uptime.
+other:
+  - |
+    Register a metric origin for the ``pressure`` core check so its
+    ``system.pressure.*`` samples are attributable via sender origin.
