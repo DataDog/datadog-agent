@@ -23,6 +23,97 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
+func TestSramEccErrorStatusSample(t *testing.T) {
+	mockDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
+		testutil.WithMockAllDeviceFunctions()(device)
+		device.GetArchitectureFunc = func() (nvml.DeviceArchitecture, nvml.Return) {
+			return nvml.DEVICE_ARCH_AMPERE, nvml.SUCCESS
+		}
+		device.GetSramEccErrorStatusFunc = func() (nvml.EccSramErrorStatus, nvml.Return) {
+			return nvml.EccSramErrorStatus{
+				AggregateCor:            11,
+				AggregateUncParity:      13,
+				AggregateUncSecDed:      17,
+				AggregateUncBucketL2:    19,
+				AggregateUncBucketSm:    23,
+				AggregateUncBucketPcie:  29,
+				AggregateUncBucketMcu:   31,
+				AggregateUncBucketOther: 37,
+				BThresholdExceeded:      1,
+			}, nvml.SUCCESS
+		}
+		return device
+	})
+
+	metricsOut, _, err := sramEccErrorStatusSample(mockDevice)
+	require.NoError(t, err)
+	require.Len(t, metricsOut, 9)
+
+	assertMetric := func(name string, value float64, tags ...string) {
+		t.Helper()
+		for _, metric := range metricsOut {
+			if metric.Name == name && slices.Equal(metric.Tags, tags) {
+				require.Equal(t, value, metric.Value)
+				require.Equal(t, metrics.GaugeType, metric.Type)
+				return
+			}
+		}
+		require.Failf(t, "metric not found", "expected metric %s with tags %v", name, tags)
+	}
+
+	assertMetric("errors.ecc.corrected.total", 11, "memory_location:sram")
+	assertMetric("errors.ecc.sram.uncorrected_by_subtype.total", 13, "memory_location:sram", "error_subtype:parity")
+	assertMetric("errors.ecc.sram.uncorrected_by_subtype.total", 17, "memory_location:sram", "error_subtype:secded")
+	assertMetric("errors.ecc.uncorrected.total", 19, "memory_location:l2_cache")
+	assertMetric("errors.ecc.uncorrected.total", 23, "memory_location:sm")
+	assertMetric("errors.ecc.uncorrected.total", 29, "memory_location:pcie")
+	assertMetric("errors.ecc.uncorrected.total", 31, "memory_location:microcontroller")
+	assertMetric("errors.ecc.uncorrected.total", 37, "memory_location:other")
+	assertMetric("errors.ecc.sram.threshold_exceeded", 1)
+}
+
+func TestSramEccErrorStatusSampleArchitectureSupport(t *testing.T) {
+	device := setupMockDevice(t, func(device *mock.Device) *mock.Device {
+		testutil.WithMockAllDeviceFunctions()(device)
+		device.GetArchitectureFunc = func() (nvml.DeviceArchitecture, nvml.Return) {
+			return nvml.DEVICE_ARCH_TURING, nvml.SUCCESS
+		}
+		return device
+	})
+
+	metricsOut, _, err := sramEccErrorStatusSample(device)
+	require.Error(t, err)
+	require.Empty(t, metricsOut)
+	require.True(t, safenvml.IsUnsupported(err))
+}
+
+func TestLegacyEccMetricOverlapRules(t *testing.T) {
+	ampereDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
+		testutil.WithMockAllDeviceFunctions()(device)
+		device.GetArchitectureFunc = func() (nvml.DeviceArchitecture, nvml.Return) {
+			return nvml.DEVICE_ARCH_AMPERE, nvml.SUCCESS
+		}
+		return device
+	})
+
+	require.True(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_CORRECTED, nvml.MEMORY_LOCATION_SRAM))
+	require.True(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_UNCORRECTED, nvml.MEMORY_LOCATION_SRAM))
+	require.True(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_UNCORRECTED, nvml.MEMORY_LOCATION_L2_CACHE))
+	require.False(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_CORRECTED, nvml.MEMORY_LOCATION_L2_CACHE))
+	require.False(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_UNCORRECTED, nvml.MEMORY_LOCATION_DEVICE_MEMORY))
+
+	preAmpereDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
+		testutil.WithMockAllDeviceFunctions()(device)
+		device.GetArchitectureFunc = func() (nvml.DeviceArchitecture, nvml.Return) {
+			return nvml.DEVICE_ARCH_TURING, nvml.SUCCESS
+		}
+		return device
+	})
+
+	require.False(t, shouldSkipLegacyEccMetric(preAmpereDevice, nvml.MEMORY_ERROR_TYPE_CORRECTED, nvml.MEMORY_LOCATION_SRAM))
+	require.False(t, shouldSkipLegacyEccMetric(preAmpereDevice, nvml.MEMORY_ERROR_TYPE_UNCORRECTED, nvml.MEMORY_LOCATION_L2_CACHE))
+}
+
 // TestNewStatelessCollector tests stateless collector-specific initialization with dynamic API creation
 func TestNewStatelessCollector(t *testing.T) {
 	device := setupMockDevice(t, nil)
