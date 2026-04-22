@@ -280,27 +280,9 @@ core,github.com/DataDog/gohai/platform,MIT,"Copyright (c) 2014-2015, Datadog <in
 core,github.com/DataDog/gohai/processes,MIT,"Copyright (c) 2014-2015, Datadog <info@datadoghq.com> | Copyright © 2015 Kentaro Kuribayashi <kentarok@gmail.com>"
 core,github.com/DataDog/gohai/processes/gops,MIT,"Copyright (c) 2014-2015, Datadog <info@datadoghq.com> | Copyright © 2015 Kentaro Kuribayashi <kentarok@gmail.com>"
 core,github.com/DataDog/gohai/utils,MIT,"Copyright (c) 2014-2015, Datadog <info@datadoghq.com> | Copyright © 2015 Kentaro Kuribayashi <kentarok@gmail.com>"
-core,github.com/DataDog/gopsutil/cpu,BSD-3-Clause,"Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2014, WAKAYAMA Shirou"
-core,github.com/DataDog/gopsutil/host,BSD-3-Clause,"Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2014, WAKAYAMA Shirou"
-core,github.com/DataDog/gopsutil/internal/common,BSD-3-Clause,"Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2014, WAKAYAMA Shirou"
-core,github.com/DataDog/gopsutil/mem,BSD-3-Clause,"Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2014, WAKAYAMA Shirou"
-core,github.com/DataDog/gopsutil/net,BSD-3-Clause,"Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2014, WAKAYAMA Shirou"
-core,github.com/DataDog/gopsutil/process,BSD-3-Clause,"Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2014, WAKAYAMA Shirou"
 core,github.com/DataDog/gostackparse,Apache-2.0,"Copyright (c) 2021-Present, Datadog <info@datadoghq.com> | Copyright 2021 Datadog, Inc"
 core,github.com/DataDog/jsonapi,Apache-2.0,"Copyright [2022-Present] Datadog, Inc"
 core,github.com/DataDog/mmh3,MIT,"Copyright (c) 2017 Datadog, Inc."
-core,github.com/DataDog/nikos/apt,MIT,"Copyright (c) 2020-present Datadog, Inc"
-core,github.com/DataDog/nikos/cos,MIT,"Copyright (c) 2020-present Datadog, Inc"
-core,github.com/DataDog/nikos/extract,MIT,"Copyright (c) 2020-present Datadog, Inc"
-core,github.com/DataDog/nikos/rpm,MIT,"Copyright (c) 2020-present Datadog, Inc"
-core,github.com/DataDog/nikos/rpm/dnfv2,MIT,"Copyright (c) 2020-present Datadog, Inc"
-core,github.com/DataDog/nikos/rpm/dnfv2/backend,MIT,"Copyright (c) 2020-present Datadog, Inc"
-core,github.com/DataDog/nikos/rpm/dnfv2/internal/utils,MIT,"Copyright (c) 2020-present Datadog, Inc"
-core,github.com/DataDog/nikos/rpm/dnfv2/repo,MIT,"Copyright (c) 2020-present Datadog, Inc"
-core,github.com/DataDog/nikos/rpm/dnfv2/types,MIT,"Copyright (c) 2020-present Datadog, Inc"
-core,github.com/DataDog/nikos/types,MIT,"Copyright (c) 2020-present Datadog, Inc"
-core,github.com/DataDog/nikos/wsl,MIT,"Copyright (c) 2020-present Datadog, Inc"
-core,github.com/DataDog/nikos/xmlite,MIT,"Copyright (c) 2020-present Datadog, Inc"
 core,github.com/DataDog/rshell/allowedpaths,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/break,Apache-2.0,"Copyright 2026-present Datadog, Inc"
@@ -424,7 +406,6 @@ core,github.com/ProtonMail/go-crypto/openpgp/s2k,BSD-3-Clause,Copyright (c) 2009
 core,github.com/ProtonMail/go-crypto/openpgp/x25519,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,github.com/ProtonMail/go-crypto/openpgp/x448,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,github.com/Showmax/go-fqdn,Apache-2.0,Copyright since 2015 Showmax s.r.o
-core,github.com/StackExchange/wmi,MIT,Copyright (c) 2013 Stack Exchange
 core,github.com/VictoriaMetrics/easyproto,Apache-2.0,"Copyright 2023-2024 VictoriaMetrics, Inc"
 core,github.com/acobaugh/osrelease,BSD-3-Clause,Copyright 2017 Andrew Cobaugh
 core,github.com/alecthomas/participle,MIT,Copyright (C) 2017 Alec Thomas
