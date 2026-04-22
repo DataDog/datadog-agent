@@ -65,7 +65,7 @@ func GetAgentIdentifier(ctx context.Context, hostnameGetter hostnameinterface.Co
 // ShouldReenroll checks whether the persisted identity needs refreshing.
 // Re-enrollment is only supported for the node agent.
 func ShouldReenroll(agentIdentifier *AgentIdentifier, identity *PersistedIdentity) bool {
-	if flavor.GetFlavor() == flavor.ClusterAgent {
+	if identity == nil || flavor.GetFlavor() == flavor.ClusterAgent {
 		return false
 	}
 	if identity.Hostname != "" && identity.Hostname != agentIdentifier.Hostname {
