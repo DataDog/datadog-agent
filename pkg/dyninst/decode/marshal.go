@@ -41,9 +41,8 @@ const (
 )
 
 type debuggerData struct {
-	Snapshot         snapshotData      `json:"snapshot,omitempty"`
-	Type             payloadType       `json:"type,omitempty"`
-	EvaluationErrors []evaluationError `json:"evaluationErrors,omitempty"`
+	Snapshot snapshotData `json:"snapshot,omitempty"`
+	Type     payloadType  `json:"type,omitempty"`
 }
 
 type messageData struct {
@@ -213,9 +212,10 @@ type snapshotData struct {
 	Language  string    `json:"language"`
 
 	// dynamic fields:
-	Stack    *stackData   `json:"stack,omitempty"`
-	Probe    probeData    `json:"probe"`
-	Captures *captureData `json:"captures,omitempty"`
+	Stack            *stackData        `json:"stack,omitempty"`
+	Probe            probeData         `json:"probe"`
+	Captures         *captureData      `json:"captures,omitempty"`
+	EvaluationErrors []evaluationError `json:"evaluationErrors,omitempty"`
 
 	stack    stackData
 	captures captureData

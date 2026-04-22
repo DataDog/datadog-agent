@@ -41,14 +41,14 @@
           "location": {
             "method": "main.mapIndexNilPtrVal"
           }
-        }
-      },
-      "evaluationErrors": [
-        {
-          "expr": "nil_field",
-          "message": "nil pointer dereference"
-        }
-      ]
+        },
+        "evaluationErrors": [
+          {
+            "expr": "nil_field",
+            "message": "nil pointer dereference"
+          }
+        ]
+      }
     },
     "timestamp": "[ts]",
     "duration": "[duration]",

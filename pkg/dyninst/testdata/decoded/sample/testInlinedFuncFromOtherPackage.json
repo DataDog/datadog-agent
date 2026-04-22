@@ -46,15 +46,15 @@
           "location": {
             "method": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.InlinedFunc"
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "@duration",
+            "message": "not available: function was inlined"
+          }
+        ]
       },
-      "type": "snapshot",
-      "evaluationErrors": [
-        {
-          "expr": "@duration",
-          "message": "not available: function was inlined"
-        }
-      ]
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "message": "testInlinedFuncFromOtherPackage",

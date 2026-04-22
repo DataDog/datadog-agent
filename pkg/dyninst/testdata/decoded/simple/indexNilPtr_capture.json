@@ -100,14 +100,14 @@
           "location": {
             "method": "main.indexNilPtrSlice"
           }
-        }
-      },
-      "evaluationErrors": [
-        {
-          "expr": "items_0",
-          "message": "nil pointer dereference"
-        }
-      ]
+        },
+        "evaluationErrors": [
+          {
+            "expr": "items_0",
+            "message": "nil pointer dereference"
+          }
+        ]
+      }
     },
     "timestamp": "[ts]",
     "duration": "[duration]",

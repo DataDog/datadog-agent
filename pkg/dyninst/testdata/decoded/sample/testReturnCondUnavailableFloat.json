@@ -72,15 +72,15 @@
               }
             }
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "@return.r1 == 42.5",
+            "message": "error evaluating condition"
+          }
+        ]
       },
-      "type": "snapshot",
-      "evaluationErrors": [
-        {
-          "expr": "@return.r1 == 42.5",
-          "message": "error evaluating condition"
-        }
-      ]
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "duration": "[duration]",

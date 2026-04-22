@@ -100,14 +100,14 @@
           "location": {
             "method": "main.lenPtrStructFields"
           }
-        }
-      },
-      "evaluationErrors": [
-        {
-          "expr": "items_0",
-          "message": "index out of bounds"
-        }
-      ]
+        },
+        "evaluationErrors": [
+          {
+            "expr": "items_0",
+            "message": "index out of bounds"
+          }
+        ]
+      }
     },
     "timestamp": "[ts]",
     "duration": "[duration]",

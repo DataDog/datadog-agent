@@ -70,15 +70,15 @@
               }
             }
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "@duration",
+            "message": "not available: function has no body"
+          }
+        ]
       },
-      "type": "snapshot",
-      "evaluationErrors": [
-        {
-          "expr": "@duration",
-          "message": "not available: function has no body"
-        }
-      ]
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "message": "[abc, xyz, 123]",

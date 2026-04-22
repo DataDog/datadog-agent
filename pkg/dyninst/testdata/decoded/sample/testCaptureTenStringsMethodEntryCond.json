@@ -19,15 +19,15 @@
           "location": {
             "method": "main.testTenStrings"
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "@duration",
+            "message": "not available: function has no body"
+          }
+        ]
       },
-      "type": "snapshot",
-      "evaluationErrors": [
-        {
-          "expr": "@duration",
-          "message": "not available: function has no body"
-        }
-      ]
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "message": "x={first: one, second: two, third: three, fourth: four, fifth: five, ...}}",

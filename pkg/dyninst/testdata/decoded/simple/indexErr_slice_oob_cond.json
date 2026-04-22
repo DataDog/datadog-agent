@@ -19,15 +19,15 @@
           "location": {
             "method": "main.intSliceArg"
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "s[5] == 42",
+            "message": "error evaluating condition"
+          }
+        ]
       },
-      "type": "snapshot",
-      "evaluationErrors": [
-        {
-          "expr": "s[5] == 42",
-          "message": "error evaluating condition"
-        }
-      ]
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
