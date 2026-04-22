@@ -75,14 +75,14 @@ func deploymentGVKR() GroupVersionKindResource {
 
 var deploymentGR = schema.GroupResource{Group: "apps", Resource: "deployments"}
 
-func rolloutGVKR() GroupVersionKindResource {
+func argoRolloutGVKR() GroupVersionKindResource {
 	return GroupVersionKindResource{
 		GroupVersionResource: schema.GroupVersionResource{Group: "argoproj.io", Version: "v1alpha1", Resource: "rollouts"},
 		Kind:                 "Rollout",
 	}
 }
 
-var rolloutGR = schema.GroupResource{Group: "argoproj.io", Resource: "rollouts"}
+var argoRolloutGR = schema.GroupResource{Group: "argoproj.io", Resource: "rollouts"}
 
 func TestWorkloadWatcherScanWorkloads(t *testing.T) {
 	gvkr := deploymentGVKR()
@@ -221,7 +221,7 @@ func TestWorkloadWatcherScanWorkloads(t *testing.T) {
 }
 
 func TestWorkloadWatcherScanRollouts(t *testing.T) {
-	gvkr := rolloutGVKR()
+	gvkr := argoRolloutGVKR()
 	noLabeledNs := map[string]string{}
 
 	t.Run("Labelled Rollout with existing profile", func(t *testing.T) {
@@ -231,7 +231,7 @@ func TestWorkloadWatcherScanRollouts(t *testing.T) {
 
 		rollout := newPartialWorkload("Rollout", "argoproj.io/v1alpha1", "prod", "web-rollout",
 			map[string]string{model.ProfileLabelKey: "high-cpu"})
-		refs := w.scanWorkloads(gvkr, newTestLister(rolloutGR, rollout), noLabeledNs)
+		refs := w.scanWorkloads(gvkr, newTestLister(argoRolloutGR, rollout), noLabeledNs)
 
 		require.Len(t, refs["high-cpu"], 1)
 		ref := refs["high-cpu"][0]
@@ -249,7 +249,7 @@ func TestWorkloadWatcherScanRollouts(t *testing.T) {
 
 		rollout := newPartialWorkload("Rollout", "argoproj.io/v1alpha1", "prod", "web-rollout", nil)
 		labeledNs := map[string]string{"prod": "high-cpu"}
-		refs := w.scanWorkloads(gvkr, newTestLister(rolloutGR, rollout), labeledNs)
+		refs := w.scanWorkloads(gvkr, newTestLister(argoRolloutGR, rollout), labeledNs)
 
 		require.Len(t, refs["high-cpu"], 1)
 		ref := refs["high-cpu"][0]
@@ -344,7 +344,7 @@ func TestWorkloadWatcherReconcileMixedWorkloadTypes(t *testing.T) {
 
 		w.informers = []workloadInformer{
 			{gvkr: deploymentGVKR(), lister: newTestLister(deploymentGR, deployment)},
-			{gvkr: rolloutGVKR(), lister: newTestLister(rolloutGR, rollout)},
+			{gvkr: argoRolloutGVKR(), lister: newTestLister(argoRolloutGR, rollout)},
 		}
 
 		w.reconcile()
@@ -373,7 +373,7 @@ func TestWorkloadWatcherReconcileMixedWorkloadTypes(t *testing.T) {
 
 		w.informers = []workloadInformer{
 			{gvkr: deploymentGVKR(), lister: newTestLister(deploymentGR, deployment)},
-			{gvkr: rolloutGVKR(), lister: newTestLister(rolloutGR, rollout)},
+			{gvkr: argoRolloutGVKR(), lister: newTestLister(argoRolloutGR, rollout)},
 		}
 
 		w.reconcile()
