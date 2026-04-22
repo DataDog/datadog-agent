@@ -48,7 +48,6 @@ func (s *linuxTestSuite) SetupSuite() {
 	defer s.CleanupOnSetupFailure()
 
 	// Start a process and keep it running
-	s.Env().RemoteHost.MustExecute("sudo apt-get -y install stress")
 	s.Env().RemoteHost.MustExecute("nohup stress -d 1 >myscript.log 2>&1 </dev/null &")
 }
 
