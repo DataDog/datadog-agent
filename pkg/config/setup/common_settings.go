@@ -7,18 +7,16 @@
 package setup
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func initCoreAgentFull(config pkgconfigmodel.Setup) {
@@ -829,12 +827,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("otelcollector.converter.enabled", true)
 	config.BindEnvAndSetDefault("otelcollector.flare.timeout", 60)
 	config.BindEnvAndSetDefault("otelcollector.converter.features", []string{"infraattributes", "prometheus", "pprof", "zpages", "health_check", "ddflare", "datadog"})
-	config.ParseEnvAsStringSlice("otelcollector.converter.features", func(s string) []string {
-		// Support both comma and space separators
-		return strings.FieldsFunc(s, func(r rune) bool {
-			return r == ',' || r == ' '
-		})
-	})
+	pkgconfighelper.ParseEnvSplitCommaAndSpace("otelcollector.converter.features", config)
 	config.BindEnvAndSetDefault("otelcollector.gateway.mode", false)
 	config.BindEnvAndSetDefault("otelcollector.installation_method", "")
 	// otel_standalone controls whether otel-agent runs in standalone mode (with full secrets, tagger server)
@@ -1659,13 +1652,7 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.soft_limit_freeos_check.factor", 1.5)
 
 	config.BindEnv("dogstatsd_mapper_profiles") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.ParseEnvAsSlice("dogstatsd_mapper_profiles", func(in string) []interface{} {
-		var mappings []interface{}
-		if err := json.Unmarshal([]byte(in), &mappings); err != nil {
-			log.Errorf(`"dogstatsd_mapper_profiles" can not be parsed: %v`, err)
-		}
-		return mappings
-	})
+	config.ParseEnvJSON("dogstatsd_mapper_profiles", []interface{}{})
 
 	config.BindEnvAndSetDefault("statsd_forward_host", "")
 	config.BindEnvAndSetDefault("statsd_forward_port", 0)

@@ -6,10 +6,7 @@
 package setup
 
 import (
-	"encoding/json"
-
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func initUSMSystemProbeConfig(cfg pkgconfigmodel.Setup) {
@@ -81,22 +78,13 @@ func initUSMSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("service_monitoring_config.http_replace_rules", nil)
 	cfg.BindEnvAndSetDefault("network_config.http_replace_rules", nil, "DD_SYSTEM_PROBE_NETWORK_HTTP_REPLACE_RULES")
 
-	httpRulesTransformer := func(key string) transformerFunction {
-		return func(in string) []map[string]string {
-			var out []map[string]string
-			if err := json.Unmarshal([]byte(in), &out); err != nil {
-				log.Warnf(`%q can not be parsed: %v`, key, err)
-			}
-			return out
-		}
-	}
 	replaceRules := []string{
 		"service_monitoring_config.http.replace_rules",
 		"service_monitoring_config.http_replace_rules",
 		"network_config.http_replace_rules",
 	}
 	for _, rule := range replaceRules {
-		cfg.ParseEnvAsSliceMapString(rule, httpRulesTransformer(rule))
+		cfg.ParseEnvJSON(rule, []map[string]string{})
 	}
 
 	// ========================================

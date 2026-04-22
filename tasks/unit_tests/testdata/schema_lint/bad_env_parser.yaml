@@ -1,0 +1,37 @@
+properties:
+  bad_value:
+    node_type: setting
+    type: array
+    items:
+      type: string
+    default: []
+    env_parser: invalid_parser
+  env_parser_on_section:
+    node_type: section
+    env_parser: comma_separated
+    properties:
+      child:
+        node_type: setting
+        type: string
+        default: hello
+  valid_comma_separated:
+    node_type: setting
+    type: array
+    items:
+      type: string
+    default: []
+    env_parser: comma_separated
+  valid_space_separated:
+    node_type: setting
+    type: array
+    items:
+      type: string
+    default: []
+    env_parser: space_separated
+  valid_json:
+    node_type: setting
+    type: array
+    items:
+      type: string
+    default: []
+    env_parser: json

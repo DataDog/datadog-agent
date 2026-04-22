@@ -16,8 +16,6 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-type transformerFunction func(string) []map[string]string
-
 const (
 	defaultConnsMessageBatchSize = 600
 
