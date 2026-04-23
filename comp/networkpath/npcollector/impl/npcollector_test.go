@@ -31,9 +31,9 @@ import (
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/common"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/connfilter"
 	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/common"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/connfilter"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -1800,16 +1800,17 @@ network_path:
 				err := structure.UnmarshalKey(cfg, "network_path.collector.filters", &configs)
 				require.NoError(t, err)
 			}
-			// Ensure we have an empty slice (not nil) to override global defaults
-			if configs == nil {
-				configs = []connfilter.Config{}
-			}
+			// Convert configs to []map[string]any for viper compatibility (viper can't handle struct slices)
+			var filtersAny []map[string]any
+			b, err := json.Marshal(configs)
+			require.NoError(t, err)
+			require.NoError(t, json.Unmarshal(b, &filtersAny))
 			agentConfigs := map[string]any{
 				"network_path.connections_monitoring.enabled":         true,
 				"network_path.collector.disable_intra_vpc_collection": true,
 				"network_path.collector.source_excludes":              tt.sourceExcludes,
 				"network_path.collector.dest_excludes":                tt.destExcludes,
-				"network_path.collector.filters":                      configs,
+				"network_path.collector.filters":                      filtersAny,
 				"network_path.collector.monitor_ip_without_domain":    tt.monitorIPWithoutDomain,
 			}
 			stats := &teststatsd.Client{}
