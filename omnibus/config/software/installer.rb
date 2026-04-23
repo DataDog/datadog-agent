@@ -57,6 +57,11 @@ build do
     # When the diffs go away, we delete the package job and just use this one.
     if ENV["OMNIBUS_PACKAGE_DIR"]
       omnibus_package_dir = ENV["OMNIBUS_PACKAGE_DIR"]
+    elsif ENV["CI_PROJECT_DIR"]
+      ci_project_dir = ENV["CI_PROJECT_DIR"]
+      omnibus_package_dir = "#{ci_project_dir}/omnibus/pkg"
+    end
+    if omnibus_package_dir
       command_on_repo_root "bazelisk run #{bazel_flags} -- //packages/installer/linux:copy_out --destdir=#{omnibus_package_dir}"
     end
   elsif windows_target?
