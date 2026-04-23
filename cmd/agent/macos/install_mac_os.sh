@@ -280,6 +280,10 @@ WLAN_EOF
     # Restart the Agent so the new configuration takes effect
     printf "${BLUE}\n    - Restarting the Agent ...\n${NC}"
     $sudo_cmd launchctl kickstart -k -s system/com.datadoghq.agent 2>/dev/null || true
+
+    # Restart System Probe
+    printf "${BLUE}\n    - Restarting System Probe ...\n${NC}"
+    $sudo_cmd launchctl kickstart -k -s system/com.datadoghq.sysprobe 2>/dev/null || true
 fi
 
 if $sudo_cmd launchctl print system/com.datadoghq.agent 2>/dev/null | grep -q "pid ="; then
