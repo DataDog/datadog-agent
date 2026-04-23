@@ -1,0 +1,71 @@
+kind = "requirements"
+category = "architecture"
+
+[[requirements]]
+id = "ARC-001"
+short = "OCI-based package distribution"
+long = '''
+Packages are distributed as OCI container images and pulled from OCI-compliant registries
+using the go-containerregistry library.
+
+This architecture decision enables:
+- Leveraging existing container registry infrastructure for package hosting.
+- Supporting multiple authentication methods (Docker config, GCR, username/password).
+- Using standard OCI annotations for package metadata.
+- Efficient layer-based caching and transfer.
+'''
+tags = ["oci", "distribution"]
+
+[[requirements]]
+id = "ARC-002"
+short = "Dual-state repository with symlinks"
+long = '''
+Each installed package maintains two symlinks on disk: `stable` and `experiment`,
+pointing to versioned directories.
+
+This architecture decision enables:
+- Atomic version switching by updating a single symlink.
+- Safe rollback by keeping both versions on disk simultaneously.
+- No in-memory state that could diverge from the filesystem.
+- Tolerance of process crashes mid-operation (the symlink is either updated or not).
+'''
+tags = ["repository"]
+ref = ["DEF-002"]
+
+[[requirements]]
+id = "ARC-003"
+short = "Hook-based package lifecycle"
+long = '''
+Package-specific behavior during install, remove, and upgrade operations is implemented
+via a Hooks interface.
+
+Each package type (datadog-agent, datadog-apm-inject, etc.) provides its own hook
+implementations that handle platform-specific tasks such as service management,
+file permissions, and SELinux context setup.
+
+The hook interface includes:
+- `PreInstall` / `PostInstall`
+- `PreRemove`
+- `PreStartExperiment` / `PostStartExperiment`
+- `PreStopExperiment` / `PostStopExperiment`
+- `PrePromoteExperiment` / `PostPromoteExperiment`
+- `PostStartConfigExperiment` / `PreStopConfigExperiment` / `PostPromoteConfigExperiment`
+- `PreInstallExtension` / `PostInstallExtension` / `PreRemoveExtension`
+'''
+tags = ["lifecycle", "hooks"]
+
+[[requirements]]
+id = "ARC-004"
+short = "Cross-platform support"
+long = '''
+The installer supports Linux, Windows, and macOS with platform-specific implementations
+behind shared interfaces.
+
+Platform-specific concerns include:
+- Install paths (e.g. `/opt/datadog-packages` on Linux, `ProgramData` on Windows).
+- Service management (systemd, sysvinit, upstart on Linux; Windows services on Windows).
+- Symlink handling (POSIX symlinks vs Windows junctions).
+- Package hooks (platform-specific pre/post install steps).
+- User/group management (Unix UIDs vs Windows SIDs and ACLs).
+'''
+tags = ["platform"]

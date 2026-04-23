@@ -1,0 +1,199 @@
+kind = "requirements"
+category = "functional"
+
+[[requirements]]
+id = "FUN-019"
+short = "Repair damaged installation"
+client_statement = '''
+If the Agent installation is damaged, running the installer shall repair it.
+'''
+long = '''
+The operator shall be able to repair a damaged Agent installation by re-running the installer.
+
+If the Agent service user account has a password, the operator should provide it
+to ensure the services can be repaired.
+
+After a successful repair, the Agent shall be in a working state with all services running.
+'''
+tags = ["windows", "msi", "repair"]
+properties = { source = "https://datadoghq.atlassian.net/wiki/spaces/AW/pages/2962820711" }
+
+[[requirements]]
+id = "FUN-020"
+short = "Rollback on failed upgrade"
+client_statement = '''
+When the installer fails to upgrade the Agent to a newer version, the previous version
+of the Agent shall be restored to a working state.
+'''
+long = '''
+When the Windows installer fails during an upgrade, the previous version of the Agent
+shall be restored to a working state.
+
+If the failure occurs after the service user configuration step and the user account
+has a password, the rollback may not be able to restore the services automatically.
+In that case, the operator can fix the install by running a repair and providing the password.
+'''
+tags = ["windows", "msi", "upgrade", "rollback"]
+properties = { source = "https://datadoghq.atlassian.net/wiki/spaces/AW/pages/2962820711" }
+
+[[requirements]]
+id = "FUN-021"
+short = "Accept MSI configuration parameters"
+client_statement = '''
+The installer shall accept the following parameters to configure the Agent:
+APIKEY, SITE, TAGS, HOSTNAME, LOGS_ENABLED, APM_ENABLED, PROCESS_ENABLED,
+HOSTNAME_FQDN_ENABLED, CMD_PORT, PROXY_HOST, PROXY_USER, PROXY_PASSWORD, PROXY_PORT,
+DDAGENTUSER_NAME, DDAGENTUSER_PASSWORD, APPLICATIONDATADIRECTORY, PROJECTLOCATION,
+ADDLOCAL, EC2_USE_WINDOWS_PREFIX_DETECTION, ALLOW_CLOSED_SOURCE.
+'''
+long = '''
+The Windows installer shall accept MSI parameters to configure the Agent at install time.
+
+The following parameters shall be supported:
+- `APIKEY`: The Datadog API key.
+- `SITE`: The Datadog site.
+- `TAGS`: Comma-separated tags.
+- `HOSTNAME`: The hostname override.
+- `LOGS_ENABLED`: Enable log collection (true/false).
+- `APM_ENABLED`: Enable the Trace Agent (true/false).
+- `PROCESS_ENABLED`: Enable the Process Agent (true/false).
+- `HOSTNAME_FQDN_ENABLED`: Use the FQDN as hostname (true/false).
+- `CMD_PORT`: The command port for the Agent GUI.
+- `PROXY_HOST`, `PROXY_USER`, `PROXY_PASSWORD`, `PROXY_PORT`: Proxy configuration.
+- `DDAGENTUSER_NAME`: The user account for Agent services.
+- `DDAGENTUSER_PASSWORD`: The password for the Agent user account.
+- `APPLICATIONDATADIRECTORY`: Custom path for Agent configuration files.
+- `PROJECTLOCATION`: Custom path for Agent binaries.
+- `ADDLOCAL`: Comma-separated list of optional components to install.
+- `EC2_USE_WINDOWS_PREFIX_DETECTION`: Enable EC2 Windows prefix detection.
+- `ALLOW_CLOSED_SOURCE`: Control availability of closed-source components.
+
+Parameter values provided at install time shall be reflected in the Agent's
+configuration file (`datadog.yaml`).
+'''
+tags = ["windows", "msi", "config"]
+properties = { source = "https://datadoghq.atlassian.net/wiki/spaces/AW/pages/2962820711" }
+
+[[requirements]]
+id = "FUN-022"
+short = "Custom install directories"
+client_statement = '''
+The installer shall let the user chose a different directory for the Agent configuration and binaries.
+'''
+long = '''
+The Windows installer shall allow the operator to specify custom directories for:
+- Agent configuration files (via `APPLICATIONDATADIRECTORY`).
+- Agent binary files (via `PROJECTLOCATION`).
+
+When custom directories are specified, the Agent shall use those directories
+instead of the default locations.
+'''
+tags = ["windows", "msi", "config"]
+ref = ["FUN-021"]
+properties = { source = "https://datadoghq.atlassian.net/wiki/spaces/AW/pages/2962820711" }
+
+[[requirements]]
+id = "FUN-023"
+short = "Major and minor version upgrades"
+client_statement = '''
+The installer shall be able to upgrade an Agent to a new major version.
+The installer shall be able to upgrade an Agent with the same major version but with a lower minor version.
+'''
+long = '''
+The Windows installer shall support the following upgrade paths:
+- Agent 5 to Agent 6.
+- Agent 5 to Agent 7.
+- Agent 6 to Agent 7.
+- Agent 6.x to a newer Agent 6.y (where y > x).
+- Agent 7.x to a newer Agent 7.y (where y > x).
+
+After a successful upgrade, the Agent shall be in a working state running the new version.
+'''
+tags = ["windows", "msi", "upgrade"]
+properties = { source = "https://datadoghq.atlassian.net/wiki/spaces/AW/pages/2962820711" }
+
+[[requirements]]
+id = "FUN-024"
+short = "Prevent downgrades"
+client_statement = '''
+The installer shall not allow downgrading the Agent installation.
+'''
+long = '''
+The Windows installer shall reject attempts to install an older version of the Agent
+over a newer one (e.g. Agent 7 to Agent 6, or Agent 7.55 to Agent 7.50).
+
+The installer shall display an error message indicating that downgrades are not supported.
+'''
+tags = ["windows", "msi", "upgrade"]
+properties = { source = "https://datadoghq.atlassian.net/wiki/spaces/AW/pages/2962820711" }
+
+[[requirements]]
+id = "FUN-025"
+short = "User account management"
+client_statement = '''
+The installer shall support the following user account formats:
+user, .\user, netbiosname\user, verylonghostname\user, hostname.fqdn\user,
+domain\user, domain.fqdn\user, LocalSystem, SYSTEM, NT AUTHORITY\SYSTEM.
+'''
+long = '''
+The Windows installer shall support multiple user account formats for the Agent service user:
+- `user` and `.\user`: Local account on workgroup hosts; domain account on domain controllers.
+- `netbiosname\user`, `hostname.fqdn\user`: Explicit local accounts (error on domain controllers).
+- `domain\user`, `domain.fqdn\user`: Domain accounts.
+- `LocalSystem`, `SYSTEM`, `NT AUTHORITY\SYSTEM`: Built-in system accounts.
+
+On domain controllers, ambiguous formats (`user`, `.\user`) shall refer to domain accounts,
+and machine-local formats shall produce an error.
+
+The installer shall create local accounts that do not exist (on workgroup hosts and domain clients).
+The installer shall not create domain accounts; it shall error if the specified domain account
+does not exist.
+
+When a password is not provided for an existing local account, the installer shall reset the
+password to a random value. The installer shall not change domain account passwords.
+
+The installer shall never delete the `ddagentuser` account.
+'''
+tags = ["windows", "msi", "user_account"]
+properties = { source = "https://datadoghq.atlassian.net/wiki/spaces/AW/pages/2962820711" }
+
+[[requirements]]
+id = "FUN-026"
+short = "Change ddagentuser on existing install"
+client_statement = '''
+The installer shall be able to change the ddagentuser of an already installed Agent.
+'''
+long = '''
+The operator shall be able to change the user account under which the Agent services run
+by specifying a new `DDAGENTUSER_NAME` (and optionally `DDAGENTUSER_PASSWORD`)
+when running the installer on an existing installation.
+
+After the change, the Agent services shall run under the new account with the correct
+file and registry permissions.
+'''
+tags = ["windows", "msi", "user_account"]
+ref = ["FUN-025"]
+properties = { source = "https://datadoghq.atlassian.net/wiki/spaces/AW/pages/2962820711" }
+
+[[requirements]]
+id = "FUN-027"
+short = "Create install_info file"
+client_statement = '''
+The installer shall create the install_info file, describing how the Agent was installed.
+'''
+long = '''
+The installer shall create an `install_info` file in the Agent configuration directory
+that describes how the Agent was installed.
+
+For GUI installs, the file shall contain:
+- `tool`: `windows_msi_gui`
+- `tool_version`: `windows_msi_next_gen`
+- `installer_version`: the installer version string.
+
+For CLI (quiet) installs, the file shall contain:
+- `tool`: `windows_msi_quiet`
+- `tool_version`: `windows_msi_next_gen`
+- `installer_version`: the installer version string.
+'''
+tags = ["windows", "msi", "telemetry"]
+properties = { source = "https://datadoghq.atlassian.net/wiki/spaces/AW/pages/2962820711" }

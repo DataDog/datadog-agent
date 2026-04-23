@@ -1,0 +1,36 @@
+kind = "requirements"
+category = "functional"
+
+[[requirements]]
+id = "FUN-016"
+short = "Remote-triggered operations"
+long = '''
+The fleet daemon shall listen for remote configuration updates from the Datadog backend
+and execute package management operations accordingly.
+
+Supported remote operations:
+- Install a new package.
+- Start, stop, or promote a package experiment.
+- Start, stop, or promote a configuration experiment.
+
+The daemon shall authenticate with the Datadog backend using the configured API key
+and only accept operations from authorized sources.
+'''
+tags = ["daemon", "remote"]
+
+[[requirements]]
+id = "FUN-017"
+short = "Local HTTP API"
+long = '''
+The fleet daemon shall expose a local HTTP API for the CLI and other local clients
+to trigger installer operations.
+
+The API shall support:
+- Installing a package by URL.
+- Removing a package by name.
+- Querying the state of installed packages.
+- Starting, stopping, and promoting experiments.
+
+The API shall only accept connections from the local machine.
+'''
+tags = ["daemon", "api"]

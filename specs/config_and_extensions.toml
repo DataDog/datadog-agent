@@ -1,0 +1,69 @@
+kind = "requirements"
+category = "functional"
+
+[[requirements]]
+id = "FUN-008"
+short = "Install config experiment"
+long = '''
+The operator shall be able to apply a configuration experiment to an installed package.
+
+A configuration experiment modifies the package's configuration files using JSON Patch
+(RFC 6902) or JSON Merge Patch (RFC 7396) operations, without altering the package binaries.
+
+The installer shall:
+1. Save the current configuration state.
+2. Apply the patch operations to produce a new configuration.
+3. Execute the package's PostStartConfigExperiment hook (e.g. to restart the service).
+
+If the patch operations are invalid or fail to apply, the configuration shall remain unchanged.
+'''
+tags = ["config", "experiment"]
+
+[[requirements]]
+id = "FUN-009"
+short = "Promote or rollback config experiment"
+long = '''
+The operator shall be able to promote a config experiment, making the patched configuration
+permanent, or remove the config experiment, reverting to the previous configuration.
+
+When promoting:
+1. The patched configuration becomes the new base configuration.
+2. The package's PostPromoteConfigExperiment hook is executed.
+
+When reverting:
+1. The previous configuration is restored.
+2. The package's PreStopConfigExperiment hook is executed.
+'''
+tags = ["config", "experiment"]
+
+[[requirements]]
+id = "FUN-010"
+short = "Install and remove extensions"
+long = '''
+The operator shall be able to install or remove extensions for an installed package.
+
+When installing an extension:
+1. The package's PreInstallExtension hook is executed.
+2. The extension files are written to disk.
+3. The package's PostInstallExtension hook is executed.
+
+When removing an extension:
+1. The package's PreRemoveExtension hook is executed.
+2. The extension files are removed from disk.
+'''
+tags = ["extension"]
+
+[[requirements]]
+id = "FUN-011"
+short = "Persist extensions across upgrades"
+long = '''
+Extensions shall be preserved across package upgrades.
+
+When a package is upgraded, the installer shall:
+1. Save the list of installed extensions and their state before the upgrade.
+2. Perform the package upgrade.
+3. Restore the previously installed extensions on the new package version.
+
+The operator shall not need to manually reinstall extensions after upgrading a package.
+'''
+tags = ["extension", "lifecycle"]

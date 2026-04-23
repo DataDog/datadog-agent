@@ -1,0 +1,76 @@
+kind = "requirements"
+category = "definition"
+
+[[requirements]]
+id = "DEF-001"
+short = "OCI Package"
+long = '''
+An OCI Package is a Datadog software package distributed as an OCI (Open Container Initiative)
+container image from a registry.
+
+Each OCI image carries annotations that identify the package:
+- `com.datadoghq.package.name`: The package name (e.g. `datadog-agent`).
+- `com.datadoghq.package.version`: The package version.
+- `com.datadoghq.package.size`: The package size.
+
+The image contains a single layer in `application/vnd.datadog.package.layer.v1.tar+zstd`
+media type, which is a zstd-compressed tar archive of the package contents.
+'''
+tags = ["oci"]
+
+[[requirements]]
+id = "DEF-002"
+short = "Package Repository"
+long = '''
+A Package Repository is an on-disk directory structure that stores installed versions
+of a single package.
+
+The repository is structured as follows:
+```
+<package-name>/
+  <version-1>/
+  <version-2>/
+  stable -> <version-1>   (symlink)
+  experiment -> <version-2> (symlink)
+```
+
+The `stable` symlink points to the currently active version. The `experiment` symlink,
+when present, points to a version being tested before promotion.
+
+The repository never loads state into memory; all operations read directly from disk
+to avoid divergence between in-memory and on-disk state.
+'''
+tags = ["repository"]
+
+[[requirements]]
+id = "DEF-003"
+short = "Experiment"
+long = '''
+An Experiment is a staged upgrade mechanism for OCI packages.
+
+An experiment installs a new version of a package alongside the current stable version,
+without removing the stable version's files. This allows the operator to test the new version
+and either promote it to stable or roll back to the previous version.
+
+The experiment lifecycle consists of three phases:
+1. **Start**: The new version is installed and the experiment symlink is set.
+2. **Promote**: The experiment becomes the new stable; the old stable is removed.
+3. **Stop**: The experiment is discarded; the old stable remains unchanged.
+'''
+tags = ["experiment"]
+ref = ["FUN-003", "FUN-004", "FUN-005"]
+
+[[requirements]]
+id = "DEF-004"
+short = "Extension"
+long = '''
+An Extension is a pluggable add-on that is attached to an installed package.
+
+Extensions have their own install/remove lifecycle hooks but are tied to the parent
+package's version. When the parent package is upgraded, extensions are saved before
+the upgrade and restored after.
+
+There is no concept of upgrading an extension independently of its parent package.
+'''
+tags = ["extension"]
+ref = ["FUN-010", "FUN-011"]

@@ -1,0 +1,93 @@
+kind = "requirements"
+category = "functional"
+
+[[requirements]]
+id = "FUN-012"
+short = "Configure via environment variables"
+long = '''
+The installer shall read its configuration from environment variables.
+
+The following environment variables shall be supported:
+- `DD_API_KEY`: The Datadog API key.
+- `DD_SITE`: The Datadog site (default: datadoghq.com).
+- `DD_REMOTE_UPDATES`: Enable remote update support (boolean).
+- `DD_INSTALLER_REGISTRY_URL`: Override the OCI registry URL.
+- `DD_INSTALLER_REGISTRY_AUTH`: Registry authentication method (docker, gcr, password).
+- `DD_INSTALLER_MIRROR`: Package mirror URL.
+- `DD_PROXY_HTTP`, `DD_PROXY_HTTPS`, `DD_PROXY_NO_PROXY`: Proxy configuration.
+- `DD_APM_INSTRUMENTATION_ENABLED`: Enable APM instrumentation.
+- `DD_APM_INSTRUMENTATION_LIBRARIES`: APM library selection.
+
+When an environment variable is not set, a sensible default shall be used.
+'''
+tags = ["config", "environment"]
+
+[[requirements]]
+id = "FUN-013"
+short = "Default package resolution"
+long = '''
+The installer shall resolve which packages to install by default based on the environment.
+
+The resolution shall consider:
+- Whether each package is marked as released (generally available).
+- Whether the package is released for the configured site.
+- Whether remote updates are enabled (some packages require this).
+- Package-specific conditions (e.g. APM injection requires APM to be enabled).
+- Explicit overrides via `DD_INSTALLER_DEFAULT_PKG_INSTALL`.
+
+The operator shall be able to override the default resolution to force-include or
+force-exclude specific packages.
+'''
+tags = ["config", "packages"]
+
+[[requirements]]
+id = "FUN-014"
+short = "Custom OCI registry and authentication"
+long = '''
+The operator shall be able to override the default OCI registry URL and choose an
+authentication method for downloading packages.
+
+Supported authentication methods:
+- "docker": Use the Docker credential configuration (default).
+- "gcr": Use Google Container Registry authentication.
+- "password": Use explicit username/password credentials.
+
+Registry and authentication overrides shall be configurable both globally and per-image,
+allowing different packages to be pulled from different registries.
+'''
+tags = ["config", "oci", "registry"]
+
+[[requirements]]
+id = "FUN-015"
+short = "Bootstrap installation"
+long = '''
+The installer shall be able to bootstrap itself from a minimal initial state.
+
+The bootstrap process shall:
+1. Download the installer package from the OCI registry.
+2. Install the downloaded installer to the local repository.
+3. Use the newly installed installer binary to install the remaining default packages.
+
+This enables a single bootstrap command to go from no Datadog software installed
+to a fully configured agent setup.
+'''
+tags = ["bootstrap"]
+
+[[requirements]]
+id = "FUN-018"
+short = "Setup flavors"
+long = '''
+The installer shall support multiple setup flavors, each defining a specific combination
+of packages and configuration for a particular use case.
+
+The following flavors shall be supported:
+- "default": Standard Datadog Agent installation.
+- "APM SSI": Standalone APM Single Step Instrumentation setup.
+- "databricks": Data job management for Databricks.
+- "emr": Data job management for Amazon EMR.
+- "dataproc": Data job management for Google Dataproc.
+
+Each flavor determines which packages are installed and what configuration is applied.
+Specifying an unknown flavor shall result in an error.
+'''
+tags = ["setup"]

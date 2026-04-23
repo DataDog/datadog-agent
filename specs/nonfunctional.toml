@@ -1,0 +1,77 @@
+kind = "requirements"
+category = "non-functional"
+
+[[requirements]]
+id = "NFR-001"
+short = "Installer signing"
+client_statement = '''
+The installer shall be signed. A user only installs trusted, signed software on their machines.
+'''
+long = '''
+The Windows installer MSI package shall be cryptographically signed using a valid
+code-signing certificate.
+
+The signature shall be verifiable by the Windows operating system, so that users
+and enterprise policies can confirm the installer's authenticity before execution.
+'''
+tags = ["windows", "security"]
+properties = { source = "https://datadoghq.atlassian.net/wiki/spaces/AW/pages/2962820711" }
+
+[[requirements]]
+id = "NFR-002"
+short = "Least privilege"
+client_statement = '''
+The Agent services shall run with the minimum amount of privileges necessary.
+'''
+long = '''
+The Agent services shall run under a user account with the minimum privileges
+necessary for their operation.
+
+The service account shall not have administrative privileges unless explicitly required.
+File, directory, and registry permissions shall be restricted to only what the Agent needs.
+'''
+tags = ["windows", "security"]
+properties = { source = "https://datadoghq.atlassian.net/wiki/spaces/AW/pages/2962820711" }
+
+[[requirements]]
+id = "NFR-003"
+short = "Clean state on failure"
+client_statement = '''
+When the installer fails to install, it shall leave the target system in a clean state.
+'''
+long = '''
+When the installer fails during a fresh installation, it shall leave the target system
+in a clean state with no partial installation artifacts.
+
+Specifically:
+- The Agent binary directory shall not exist.
+- The Agent configuration directory shall be empty (except for any pre-existing YAML files).
+- No orphan services shall be registered.
+- No orphan user accounts shall be created.
+'''
+tags = ["windows", "resilience"]
+properties = { source = "https://datadoghq.atlassian.net/wiki/spaces/AW/pages/2962820711" }
+
+[[requirements]]
+id = "NFR-004"
+short = "Atomic repository operations"
+long = '''
+All repository operations (install, upgrade, experiment start/stop/promote) shall be atomic.
+
+The on-disk repository state shall never be left in an invalid intermediate state,
+even if an error occurs mid-operation. Garbage (unreferenced version directories)
+may be left behind, but it shall be cleaned up by the next operation or by an
+explicit garbage collection.
+'''
+tags = ["resilience", "repository"]
+
+[[requirements]]
+id = "NFR-005"
+short = "Telemetry"
+long = '''
+The installer shall emit OpenTelemetry traces for all operations.
+
+Each installer operation (install, remove, experiment start/stop/promote, config experiment,
+bootstrap, setup) shall produce a trace span that can be used for monitoring and debugging.
+'''
+tags = ["observability"]

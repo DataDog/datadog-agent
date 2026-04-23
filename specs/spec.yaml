@@ -1,0 +1,15 @@
+kind: project
+name: fleet-installer
+root_directory: ..
+files:
+  - specs/*.toml
+code_sources:
+  - pkg/fleet/installer/**/*.go
+  - pkg/fleet/daemon/**/*.go
+  - cmd/installer/**/*.go
+source_links:
+  url: auto
+  branch: auto
+coverage_categories:
+  - functional
+  - non-functional

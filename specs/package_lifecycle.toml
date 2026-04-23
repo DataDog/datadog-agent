@@ -1,0 +1,117 @@
+kind = "requirements"
+category = "functional"
+
+[[requirements]]
+id = "FUN-001"
+short = "Install a package from OCI registry"
+long = '''
+The operator shall be able to install a package by providing its OCI registry URL.
+
+The installer shall:
+1. Download the OCI image from the specified registry, authenticating as configured.
+2. Extract the package contents to a versioned directory in the local package repository.
+3. Set the "stable" symlink to point to the newly installed version.
+4. Execute the package's PostInstall hook.
+
+After a successful install, the package shall appear as installed when querying package state,
+and the stable version shall match the version that was just installed.
+
+If the download or extraction fails, no changes shall be made to the repository state.
+'''
+tags = ["lifecycle", "oci"]
+
+[[requirements]]
+id = "FUN-002"
+short = "Remove an installed package"
+long = '''
+The operator shall be able to remove a previously installed package by specifying its name.
+
+The installer shall:
+1. Execute the package's PreRemove hook.
+2. Remove the package files from disk.
+3. Remove the package entry from the repository state.
+
+After removal, querying the package state shall indicate it is no longer installed.
+'''
+tags = ["lifecycle"]
+
+[[requirements]]
+id = "FUN-003"
+short = "Start an experiment upgrade"
+long = '''
+The operator shall be able to start an experiment that installs a new version of a package
+alongside the current stable version.
+
+The installer shall:
+1. Execute the current stable version's PreStartExperiment hook.
+2. Download and extract the new version to a versioned directory. The stable version's files
+   are kept intact.
+3. Set the "experiment" symlink to point to the new version.
+4. Execute the new version's PostStartExperiment hook.
+
+After starting an experiment, the package state shall show both a stable and an experiment version.
+'''
+tags = ["lifecycle", "experiment"]
+
+[[requirements]]
+id = "FUN-004"
+short = "Promote an experiment to stable"
+long = '''
+The operator shall be able to promote a running experiment, making the experiment version
+the new stable version.
+
+The installer shall:
+1. Execute the experiment version's PrePromoteExperiment hook.
+2. Remove the old stable version's files from disk.
+3. Move the "stable" symlink to point to the experiment version.
+4. Remove the "experiment" symlink.
+5. Execute the old stable version's PostPromoteExperiment hook.
+
+After promotion, the package state shall show the promoted version as stable
+with no active experiment.
+'''
+tags = ["lifecycle", "experiment"]
+
+[[requirements]]
+id = "FUN-005"
+short = "Stop an experiment (rollback)"
+long = '''
+The operator shall be able to stop a running experiment, discarding the experiment version
+and keeping the current stable version.
+
+The installer shall:
+1. Execute the experiment version's PreStopExperiment hook.
+2. Remove the experiment version's files from disk.
+3. Remove the "experiment" symlink.
+4. Execute the stable version's PostStopExperiment hook.
+
+After stopping, the package state shall show only the stable version with no active experiment.
+'''
+tags = ["lifecycle", "experiment"]
+
+[[requirements]]
+id = "FUN-006"
+short = "Query package state"
+long = '''
+The operator shall be able to query the current state of any installed package.
+
+The response shall include:
+- Whether the package is installed.
+- The stable version identifier (if installed).
+- The experiment version identifier (if an experiment is active).
+
+The operator shall also be able to query the state of all installed packages at once.
+'''
+tags = ["lifecycle", "query"]
+
+[[requirements]]
+id = "FUN-007"
+short = "Garbage collect unused versions"
+long = '''
+The installer shall be able to garbage-collect package versions that are no longer referenced
+by either the stable or experiment symlinks.
+
+After garbage collection, only the directories pointed to by the stable and experiment symlinks
+(if any) shall remain on disk for each package.
+'''
+tags = ["lifecycle", "maintenance"]
