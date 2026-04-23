@@ -7,6 +7,6 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/flare/types",
-        "@//comp/core/flare/helpers",
+        "//comp/core/flare/helpers",
     ],
 )

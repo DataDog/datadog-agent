@@ -8,6 +8,6 @@ go_library(
     deps = [
         "//comp/core/flare/def",
         "//pkg/util/fxutil",
-        "@//comp/core/flare",
+        "//comp/core/flare",
     ],
 )
