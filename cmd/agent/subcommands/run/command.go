@@ -137,7 +137,7 @@ import (
 	haagentmetadata "github.com/DataDog/datadog-agent/comp/metadata/haagent/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
+	inventorychecks "github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	packagesigning "github.com/DataDog/datadog-agent/comp/metadata/packagesigning/def"
 	runner "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
