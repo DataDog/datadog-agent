@@ -2582,8 +2582,6 @@ github.com/DataDog/gohai v0.0.0-20230524154621-4316413895ee h1:tXibLZk3G6HncIFJK
 github.com/DataDog/gohai v0.0.0-20230524154621-4316413895ee/go.mod h1:nTot/Iy0kW16bXgXr6blEc8gFeAS7vTqYlhAxh+dbc0=
 github.com/DataDog/gopacket v0.0.0-20251104174046-ae42df68210e h1:kWyz88c8oMYcA/26/mG3lmsbHF9MTdmukzK4vWRbwMw=
 github.com/DataDog/gopacket v0.0.0-20251104174046-ae42df68210e/go.mod h1:riddUzxTSBpJXk3qBHtYr4qOhFhT6k/1c0E3qkQjQpA=
-github.com/DataDog/gopsutil v1.2.3 h1:TMztny26uKS4jjq/tdO2PYS67F9I50A3JQeayZzH67Y=
-github.com/DataDog/gopsutil v1.2.3/go.mod h1:F4ZaL3U3VONjc+dpyNmNq8U7hcx118KrJzLq6HlElCw=
 github.com/DataDog/gostackparse v0.7.0 h1:i7dLkXHvYzHV308hnkvVGDL3BR4FWl7IsXNPz/IGQh4=
 github.com/DataDog/gostackparse v0.7.0/go.mod h1:lTfqcJKqS9KnXQGnyQMCugq3u1FP6UZMfWR0aitKFMM=
 github.com/DataDog/jsonapi v0.12.0 h1:N4e9RpmUflcV5hzceltSz8XUpM3PMtQr5C9Bhv0g87s=
@@ -2592,8 +2590,6 @@ github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 h1:EbzDX8HPk5uE2FsJYx
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49/go.mod h1:SvsjzyJlSg0rKsqYgdcFxeEVflx3ZNAyFfkUHP0TxXg=
 github.com/DataDog/netlink v1.0.1-0.20240223195320-c7a4f832a3d1 h1:HnvrdC79xJ+RPxTQdhDDwxblTNWhJUKeyTPsuyaOnxQ=
 github.com/DataDog/netlink v1.0.1-0.20240223195320-c7a4f832a3d1/go.mod h1:whJevzBpTrid75eZy99s3DqCmy05NfibNaF2Ol5Ox5A=
-github.com/DataDog/nikos v1.12.12 h1:72YrdzMeQT3wcXIDgiS1ClU53SzUdR7uAbp5FSSpo5k=
-github.com/DataDog/nikos v1.12.12/go.mod h1:kZGOhfE76+nXS7V5PAlIw3MRxWKM70ynET4VeuZ4U4k=
 github.com/DataDog/opa v0.0.0-20251126100856-d2e1e78e0816 h1:8diKw2aLYE6LsjWfYxDEqx0ZmcyMMmqB+qapRJrGtys=
 github.com/DataDog/opa v0.0.0-20251126100856-d2e1e78e0816/go.mod h1:7cPuErOAt7k/oVWAVJnxqAC6mwArrAazkvk0RXiih2A=
 github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20260416144717-96f8924d6e18 h1:VbUS1B3mpSjponiKDWHXtofoNBp99Nckf5uZaBeQyPo=
@@ -2671,8 +2667,6 @@ github.com/SAP/go-hdb v1.10.1 h1:c9dGT5xHZNDwPL3NQcRpnNISn3MchwYaGoMZpCAllUs=
 github.com/SAP/go-hdb v1.10.1/go.mod h1:vxYDca44L2eRudZv5JAI6T+IygOfxb7vOCFh/Kj0pug=
 github.com/Showmax/go-fqdn v1.0.0 h1:0rG5IbmVliNT5O19Mfuvna9LL7zlHyRfsSvBPZmF9tM=
 github.com/Showmax/go-fqdn v1.0.0/go.mod h1:SfrFBzmDCtCGrnHhoDjuvFnKsWjEQX/Q9ARZvOrJAko=
-github.com/StackExchange/wmi v1.2.1 h1:VIkavFPXSjcnS+O8yTq7NI32k0R5Aj+v39y29VYDOSA=
-github.com/StackExchange/wmi v1.2.1/go.mod h1:rcmrprowKIVzvc+NUiLncP2uuArMWLCbu9SBzvHz7e8=
 github.com/UNO-SOFT/zlog v0.8.1 h1:TEFkGJHtUfTRgMkLZiAjLSHALjwSBdw6/zByMC5GJt4=
 github.com/UNO-SOFT/zlog v0.8.1/go.mod h1:yqFOjn3OhvJ4j7ArJqQNA+9V+u6t9zSAyIZdWdMweWc=
 github.com/VictoriaMetrics/easyproto v0.1.4 h1:r8cNvo8o6sR4QShBXQd1bKw/VVLSQma/V2KhTBPf+Sc=
@@ -3257,6 +3251,7 @@ github.com/facette/natsort v0.0.0-20181210072756-2cd4dd1e2dcb h1:IT4JYU7k4ikYg1S
 github.com/facette/natsort v0.0.0-20181210072756-2cd4dd1e2dcb/go.mod h1:bH6Xx7IW64qjjJq8M2u4dxNaBiDfKK+z/3eGDpXEQhc=
 github.com/fatih/camelcase v1.0.0/go.mod h1:yN2Sb0lFhZJUdVvtELVWefmrXpuZESvPmqwoZc+/fpc=
 github.com/fatih/color v1.7.0/go.mod h1:Zm6kSWBoL9eyXnKyktHP6abPY2pDugNf5KwzbycvMj4=
+github.com/fatih/color v1.9.0/go.mod h1:eQcE1qtQxscV5RaZvpXrrb8Drkc3/DdQ+uUYCNjL+zU=
 github.com/fatih/color v1.10.0/go.mod h1:ELkj/draVOlAH/xkhN6mQ50Qd0MPOk5AAr3maGEBuJM=
 github.com/fatih/color v1.13.0/go.mod h1:kLAiJbzzSOZDVNGyDpeOxJ47H46qBXwg5ILebYFFOfk=
 github.com/fatih/color v1.15.0/go.mod h1:0h5ZqXfHYED7Bhv2ZJamyIOUej9KtShiJESRwBDUSsw=
@@ -3373,7 +3368,6 @@ github.com/go-logr/zapr v1.3.0 h1:XGdV8XW8zdwFiwOA2Dryh1gj2KRQyOOoNmBy4EplIcQ=
 github.com/go-logr/zapr v1.3.0/go.mod h1:YKepepNBd1u/oyhd/yQmtjVXmm9uML4IXUgMOwR8/Gg=
 github.com/go-martini/martini v0.0.0-20170121215854-22fa46961aab h1:xveKWz2iaueeTaUgdetzel+U7exyigDYBryyVfV/rZk=
 github.com/go-martini/martini v0.0.0-20170121215854-22fa46961aab/go.mod h1:/P9AEU963A2AYjv4d1V5eVL1CQbEJq6aCNHDDjibzu8=
-github.com/go-ole/go-ole v1.2.5/go.mod h1:pprOEPIfldk/42T2oK7lQ4v4JSDwmV0As9GaiUsvbm0=
 github.com/go-ole/go-ole v1.2.6/go.mod h1:pprOEPIfldk/42T2oK7lQ4v4JSDwmV0As9GaiUsvbm0=
 github.com/go-ole/go-ole v1.3.0 h1:Dt6ye7+vXGIKZ7Xtk4s6/xVdGDQynvom7xCFEdWr6uE=
 github.com/go-ole/go-ole v1.3.0/go.mod h1:5LS6F96DhAwUc7C+1HLexzMXY1xGRSryjyPPKW6zv78=
@@ -4283,6 +4277,7 @@ github.com/masahiro331/go-mvn-version v0.0.0-20250131095131-f4974fa13b8a/go.mod 
 github.com/masahiro331/go-xfs-filesystem v0.0.0-20231205045356-1b22259a6c44 h1:VmSjn0UCyfXUNdePDr7uM/uZTnGSp+mKD5+cYkEoLx4=
 github.com/masahiro331/go-xfs-filesystem v0.0.0-20231205045356-1b22259a6c44/go.mod h1:QKBZqdn6teT0LK3QhAf3K6xakItd1LonOShOEC44idQ=
 github.com/mattn/go-colorable v0.1.1/go.mod h1:FuOcm+DKB9mbwrcAfNl7/TZVBZ6rcnceauSikq3lYCQ=
+github.com/mattn/go-colorable v0.1.4/go.mod h1:U0ppj6V5qS13XJ6of8GYAs25YV2eR4EVcfRqFIhoBtE=
 github.com/mattn/go-colorable v0.1.6/go.mod h1:u6P/XSegPjTcexA+o6vUJrdnUu04hMope9wVRipJSqc=
 github.com/mattn/go-colorable v0.1.8/go.mod h1:u6P/XSegPjTcexA+o6vUJrdnUu04hMope9wVRipJSqc=
 github.com/mattn/go-colorable v0.1.9/go.mod h1:u6P/XSegPjTcexA+o6vUJrdnUu04hMope9wVRipJSqc=
@@ -4294,6 +4289,7 @@ github.com/mattn/go-ieproxy v0.0.1/go.mod h1:pYabZ6IHcRpFh7vIaLfK7rdcWgFEb3SFJ6/
 github.com/mattn/go-isatty v0.0.5/go.mod h1:Iq45c/XA43vh69/j3iqttzPXn0bhXyGjM0Hdxcsrc5s=
 github.com/mattn/go-isatty v0.0.7/go.mod h1:Iq45c/XA43vh69/j3iqttzPXn0bhXyGjM0Hdxcsrc5s=
 github.com/mattn/go-isatty v0.0.8/go.mod h1:Iq45c/XA43vh69/j3iqttzPXn0bhXyGjM0Hdxcsrc5s=
+github.com/mattn/go-isatty v0.0.11/go.mod h1:PhnuNfih5lzO57/f3n+odYbM4JtupLOxQOAqxQCu2WE=
 github.com/mattn/go-isatty v0.0.12/go.mod h1:cbi8OIDigv2wuxKPP5vlRcQ1OAZbq2CE4Kysco4FUpU=
 github.com/mattn/go-isatty v0.0.14/go.mod h1:7GGIvUiUoEMVVmxf/4nioHXj79iQHKdU27kJ6hsGG94=
 github.com/mattn/go-isatty v0.0.16/go.mod h1:kYGgaQfpe5nmfYZH+SKPsOc2e4SrIfOl2e/yFXSvRLM=
@@ -4303,6 +4299,7 @@ github.com/mattn/go-isatty v0.0.20 h1:xfD0iDuEKnDkl03q4limB+vH+GxLEtL/jb4xVJSWWE
 github.com/mattn/go-isatty v0.0.20/go.mod h1:W+V8PltTTMOvKvAeJH7IuucS94S2C6jfK/D7dTCTo3Y=
 github.com/mattn/go-runewidth v0.0.2/go.mod h1:LwmH8dsx7+W8Uxz3IHJYH5QSwggIsqBzpuz5H//U1FU=
 github.com/mattn/go-runewidth v0.0.3/go.mod h1:LwmH8dsx7+W8Uxz3IHJYH5QSwggIsqBzpuz5H//U1FU=
+github.com/mattn/go-runewidth v0.0.4/go.mod h1:LwmH8dsx7+W8Uxz3IHJYH5QSwggIsqBzpuz5H//U1FU=
 github.com/mattn/go-runewidth v0.0.17 h1:78v8ZlW0bP43XfmAfPsdXcoNCelfMHsDmd/pkENfrjQ=
 github.com/mattn/go-runewidth v0.0.17/go.mod h1:Jdepj2loyihRzMpdS35Xk/zdY8IAYHsh153qUoGf23w=
 github.com/mattn/go-shellwords v1.0.2/go.mod h1:3xCvwCdWdlDJUrvuMn7Wuy9eWs4pE8vqg+NOMyg4B2o=
