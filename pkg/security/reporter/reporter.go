@@ -60,7 +60,6 @@ func newReporter(hostname string, stopper startstop.Stopper, sourceName, sourceT
 		compression,
 		cfg.GetBool("logs_config.disable_distributed_senders"),
 		false, // serverless
-		nil,   // observer handle (not integrated with security-agent yet)
 	)
 	pipelineProvider.Start()
 	stopper.Add(pipelineProvider)
