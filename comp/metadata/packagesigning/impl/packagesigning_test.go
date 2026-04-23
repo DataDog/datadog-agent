@@ -88,8 +88,8 @@ func getYUMKeysMock(_ string, _ *http.Client, _ log.Component) []signingKey {
 }
 
 func getTestPackageSigning(t *testing.T) *pkgSigning {
-	p := newPackageSigningProvider(
-		fxutil.Test[dependencies](
+	p := NewComponent(
+		fxutil.Test[Requires](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMock(t) }),

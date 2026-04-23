@@ -5,30 +5,33 @@
 
 //go:build test
 
-package packagesigningimpl
+// Package mock provides a mock for the packagesigning component
+package mock
 
 import (
-	"go.uber.org/fx"
-
-	psinterface "github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
+	packagesigning "github.com/DataDog/datadog-agent/comp/metadata/packagesigning/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// MockModule defines the fx options for the mocked component
-func MockModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newMock))
+// Mock implements mock-specific methods for the packagesigning component.
+type Mock interface {
+	packagesigning.Component
 }
 
 // MockProvides is the mock component output
 type MockProvides struct {
-	fx.Out
-
-	Comp psinterface.Component
+	Comp packagesigning.Component
 }
 
 // MockPkgSigning is the mocked struct that implements the packagesigning component interface
 type MockPkgSigning struct{}
+
+// MockModule defines the fx options for the mocked component
+func MockModule() fxutil.Module {
+	return fxutil.Component(
+		fxutil.ProvideComponentConstructor(newMock),
+	)
+}
 
 // newMock returns the mocked packagesigning struct
 func newMock() MockProvides {
