@@ -425,8 +425,9 @@ def migrate_carveout(parent: str, targets: list[str], test_targets: list[str]) -
     directive_header = "# gazelle:ignore\n" + "".join(f"# gazelle:exclude {r}\n" for r in min_excludes)
     if local_existed_before and old_local_content:
         non_directive_lines = [
-            l for l in old_local_content.splitlines(keepends=True)
-            if not re.match(r"\s*#\s*gazelle:(ignore|exclude)\b", l)
+            line
+            for line in old_local_content.splitlines(keepends=True)
+            if not re.match(r"\s*#\s*gazelle:(ignore|exclude)\b", line)
         ]
         local_content = directive_header + "".join(non_directive_lines)
     else:
