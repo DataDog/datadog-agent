@@ -85,6 +85,9 @@ func (l *UDPListener) startNewTailer() error {
 	}
 	outputChan, capacityMonitor := l.pipelineProvider.NextPipelineChanWithMonitor()
 	l.tailer = tailer.NewDatagramTailer(l.source, conn, outputChan, true, l.frameSize, capacityMonitor)
+	if l.ipFilter != nil {
+		l.tailer.SetIPFilter(l.ipFilter, l.denialInfo)
+	}
 	l.tailer.SetOnError(func() { l.resetTailer() })
 	l.tailer.Start()
 	return nil

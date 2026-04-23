@@ -10,6 +10,7 @@ import (
 	"net"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/utils/ipfilter"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -42,6 +43,8 @@ type DatagramTailer struct {
 	stop            chan struct{}
 	done            chan struct{}
 	onError         func() // called when tail() exits due to a transient read error; used by listeners to reset the connection
+	ipFilter        *ipfilter.Filter
+	denialInfo      *ipfilter.DenialInfo
 }
 
 // NewDatagramTailer returns a new DatagramTailer.
@@ -95,6 +98,14 @@ func (t *DatagramTailer) Identifier() string {
 // Must be called before Start.
 func (t *DatagramTailer) SetOnError(fn func()) {
 	t.onError = fn
+}
+
+// SetIPFilter configures IP-based filtering for incoming datagrams.
+// Denied datagrams are silently dropped before reaching the decoder.
+// Must be called before Start.
+func (t *DatagramTailer) SetIPFilter(f *ipfilter.Filter, info *ipfilter.DenialInfo) {
+	t.ipFilter = f
+	t.denialInfo = info
 }
 
 // forwardMessages reads decoded messages from the decoder and forwards
@@ -151,6 +162,16 @@ func (t *DatagramTailer) tail() {
 			}
 			if n == 0 {
 				continue
+			}
+
+			if t.ipFilter != nil {
+				if d := t.ipFilter.Check(addr); !d.Allowed() {
+					metrics.TlmListenerIPDenied.Inc("udp")
+					if t.denialInfo != nil {
+						t.denialInfo.Record(d.Reason())
+					}
+					continue
+				}
 			}
 
 			// Truncate to frameSize if configured, matching legacy UDP behavior

@@ -64,7 +64,7 @@ func TestUDPAllowedIPsAcceptsMatchingDatagram(t *testing.T) {
 	require.NoError(t, err)
 	listener.Start()
 
-	conn, err := net.Dial("udp", listener.tailer.Conn.LocalAddr().String())
+	conn, err := net.Dial("udp", listener.Conn.LocalAddr().String())
 	require.NoError(t, err)
 
 	fmt.Fprint(conn, "allowed\n")
@@ -84,7 +84,7 @@ func TestUDPDeniedIPsDropsMatchingDatagram(t *testing.T) {
 	require.NoError(t, err)
 	listener.Start()
 
-	conn, err := net.Dial("udp", listener.tailer.Conn.LocalAddr().String())
+	conn, err := net.Dial("udp", listener.Conn.LocalAddr().String())
 	require.NoError(t, err)
 	defer conn.Close()
 
@@ -110,7 +110,7 @@ func TestUDPDenyTakesPrecedenceOverAllow(t *testing.T) {
 	require.NoError(t, err)
 	listener.Start()
 
-	conn, err := net.Dial("udp", listener.tailer.Conn.LocalAddr().String())
+	conn, err := net.Dial("udp", listener.Conn.LocalAddr().String())
 	require.NoError(t, err)
 	defer conn.Close()
 
