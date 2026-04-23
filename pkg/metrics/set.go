@@ -34,7 +34,10 @@ func (s *Set) flush(timestamp float64) ([]*Serie, error) {
 		},
 	}
 
-	s.values = make(map[string]bool)
+	// Clear map by deleting keys instead of reallocating
+	for k := range s.values {
+		delete(s.values, k)
+	}
 	return res, nil
 }
 
