@@ -370,7 +370,6 @@ exports_files(glob(
 # gazelle:exclude pkg/network/go/goversion
 # gazelle:exclude pkg/network/indexedset
 # gazelle:exclude pkg/network/netlink
-# gazelle:exclude pkg/network/protocols
 # gazelle:exclude pkg/network/sender
 # gazelle:exclude pkg/network/slice
 # gazelle:exclude pkg/network/testdata
