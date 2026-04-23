@@ -133,8 +133,8 @@ func setupHostMetadataErrorMock(t *testing.T) {
 }
 
 func getTestInventoryHost(t *testing.T) *invHost {
-	p := newInventoryHostProvider(
-		fxutil.Test[dependencies](
+	p := NewComponent(
+		fxutil.Test[Requires](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMock(t) }),
