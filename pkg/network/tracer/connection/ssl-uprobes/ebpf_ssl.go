@@ -19,6 +19,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/kernelbugs"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
@@ -27,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -204,7 +204,7 @@ func NewSSLCertsProgram(mgr *manager.Manager, cfg *config.Config) (*SSLCertsProg
 	program.attacher, err = uprobes.NewUprobeAttacher(CNMModuleName, CNMTLSAttacherName, attacherConfig, mgr, uprobes.NopOnAttachCallback, uprobes.AttacherDependencies{
 		Inspector:      &uprobes.NativeBinaryInspector{},
 		ProcessMonitor: monitor.GetProcessMonitor(),
-		Telemetry:      telemetry.GetCompatComponent(),
+		Telemetry:      telemetryimpl.GetCompatComponent(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("error initializing uprobes attacher: %w", err)

@@ -212,14 +212,6 @@ func computeContainerServiceIDs(entity string, image string, labels map[string]s
 	return ids
 }
 
-// areTagsComplete checks if the tags for a container are complete.
-// TODO: Completeness works by checking that all expected collectors have
-// reported tags for the container and its parent entity (Kubernetes pod, ECS
-// task). However, it does not account for collectors themselves reporting
-// partial data. This has been observed as with the ECS collector, where some
-// fields like "ecs_service" can be missing on the first pull. This happens
-// rarely. This is probably something that needs to be fixed in the collector
-// itself.
 func (l *ContainerListener) areTagsComplete(entity workloadmeta.Entity) bool {
 	container, ok := entity.(*workloadmeta.Container)
 	if !ok {
