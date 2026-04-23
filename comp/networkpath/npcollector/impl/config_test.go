@@ -11,13 +11,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/connfilter"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/connfilter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/pathteststore"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/pathteststore"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 

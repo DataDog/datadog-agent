@@ -1,0 +1,172 @@
+#!/bin/sh
+set -eu
+
+# Source shared environment (defines STAGING, EMBEDDED, EMBEDDED_DESTDIR, etc.)
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+# shellcheck source=/dev/null
+. "$SCRIPT_DIR/../lib/env.sh"
+
+STAGE_NAME="04-agent"
+SENTINEL="$BUILD_DIR/.done/$STAGE_NAME"
+LOG="$BUILD_DIR/logs/$STAGE_NAME.log"
+
+# Redirect all output to log file (follow with: tail -f "$LOG")
+mkdir -p "$BUILD_DIR/logs"
+exec > "$LOG" 2>&1
+
+log "=== Stage: $STAGE_NAME ==="
+
+# --- Idempotency check ---
+if [ -f "$SENTINEL" ]; then
+    log "Already complete (sentinel: $SENTINEL) — skipping."
+    exit 0
+fi
+
+# --- Input validation ---
+: "${AGENT_VERSION:?AGENT_VERSION must be set}"
+: "${STAGING:?STAGING must be set}"
+: "${EMBEDDED:?EMBEDDED must be set}"
+: "${EMBEDDED_DESTDIR:?EMBEDDED_DESTDIR must be set}"
+: "${BUILD_DIR:?BUILD_DIR must be set}"
+: "${NPROC:?NPROC must be set}"
+: "${CC:?CC must be set}"
+: "${GOPATH:?GOPATH must be set}"
+: "${GOROOT:?GOROOT must be set}"
+: "${CGO_ENABLED:?CGO_ENABLED must be set}"
+
+# --- Pre-flight: confirm Stage 03 completed ---
+if [ ! -f "$STAGING/opt/datadog-agent/rtloader/libdatadog-agent-rtloader.so" ]; then
+    log "ERROR: libdatadog-agent-rtloader.so not found at $STAGING/opt/datadog-agent/rtloader — did Stage 03 (03-rtloader) complete successfully?"
+    exit 1
+fi
+
+# --- Cleanup on failure ---
+cleanup() {
+    if [ $? -ne 0 ]; then
+        log "ERROR: $STAGE_NAME failed. Removing partial outputs."
+        rm -f "$STAGING/opt/datadog-agent/bin/agent"
+        rm -f "$STAGING/opt/datadog-agent/bin/trace-agent"
+    fi
+}
+trap cleanup EXIT
+
+# ─── Step 1: Create output directory ──────────────────────────────────────────
+
+log "Creating staging bin directory"
+mkdir -p "$STAGING/opt/datadog-agent/bin"
+
+# ─── Step 2: Set rtloader CGO flags ───────────────────────────────────────────
+#
+# The global CGO_CFLAGS/CGO_LDFLAGS from env.sh point to /opt/freeware headers
+# and libs. We extend them here with rtloader-specific paths so that the Go
+# packages that import rtloader (pkg/collector/python/) can find its C headers
+# and link against the .so files we built in Stage 03.
+#
+# Note: we point -L at the BUILD paths (rtloader/build/rtloader and
+# rtloader/build/three), not the staging paths. The .so files are in the build
+# tree; the staging copies are for the final package only.
+
+log "Setting rtloader CGO flags"
+export CGO_CFLAGS="$CGO_CFLAGS -I/opt/datadog-agent/rtloader/include"
+#
+# -lpython3 (via libpython3.a symlink) causes libpython3.a(shr_64.o) to appear in the agent binary's
+# XCOFF startup-load chain. This is necessary but not sufficient: the binary
+# must also EXPORT Python API symbols so that extension modules with IMPid="."
+# (which means "look in the main program's export table") can find them.
+#
+# -Wl,-bE:python.exp adds ~2762 Python API symbols to the agent binary's own
+# EXP (export) table. Go's CGO security filter rejects -bE in #cgo LDFLAGS,
+# so it must be passed here via CGO_LDFLAGS instead. The python_aix.go file
+# handles the Py_IsInitialized() call that creates the live Go→CGO reference
+# needed to trigger the //go:cgo_import_dynamic for the Python shared library.
+#
+# The libpython3.a -> libpython3.X.a symlink is created by Stage 02.
+PYTHON_EXP="$EMBEDDED_DESTDIR/lib/python${PYTHON_MAJ_MIN}/config-${PYTHON_MAJ_MIN}/python.exp"
+if [ ! -f "$PYTHON_EXP" ]; then
+    log "ERROR: $PYTHON_EXP not found — did Stage 02 (02-python) complete?"
+    exit 1
+fi
+log "Using Python export file: $PYTHON_EXP"
+export CGO_LDFLAGS="$CGO_LDFLAGS \
+  -L/opt/datadog-agent/rtloader/build/rtloader \
+  -L/opt/datadog-agent/rtloader/build/three \
+  -L$EMBEDDED_DESTDIR/lib \
+  -lpython3 \
+  -Wl,-bE:$PYTHON_EXP \
+  -Wl,-blibpath:/opt/datadog-agent/rtloader:/opt/datadog-agent/embedded/lib:/opt/freeware/lib64:/opt/freeware/lib:/usr/lib:/lib"
+
+# ─── Step 3: Get commit hash ──────────────────────────────────────────────────
+
+COMMIT=$(git -C /opt/datadog-agent rev-parse --short HEAD)
+log "Building agent version $AGENT_VERSION at commit $COMMIT"
+
+# ─── Step 4: Build the agent binary ───────────────────────────────────────────
+#
+# Build tags come from tasks/build_tags.py AIX_AGENT_TAGS + COMMON_TAGS:
+#   python, otlp, osusergo, datadog.no_waf, zstd
+#   + grpcnotrace, retrynotrace, no_dynamic_plugins, trivy_no_javadb (COMMON_TAGS)
+#
+# Note: pythonHome3 must be set explicitly here.
+# The agent binary computes Python home as filepath.Join(executableFolder, "../../embedded").
+# On Linux (standard omnibus), the binary lives at bin/agent/agent so "../../embedded"
+# correctly resolves to /opt/datadog-agent/embedded.
+# On AIX we place the binary at bin/agent (one level shallower) so the relative path
+# would resolve to /opt/embedded — which does not exist.
+# Setting pythonHome3 via -ldflags overrides the relative calculation.
+
+log "Building agent binary via inv agent.build"
+cd /opt/datadog-agent
+rm -f "$STAGING/opt/datadog-agent/bin/agent"
+python3.12 -m invoke agent.build \
+    --rebuild \
+    --skip-assets \
+    --exclude-rtloader \
+    --rtloader-root=/opt/datadog-agent/rtloader \
+    --embedded-path="$EMBEDDED_DESTDIR" \
+    --python-home-3="$EMBEDDED" \
+    --agent-bin="$STAGING/opt/datadog-agent/bin/agent"
+
+strip -X64 "$STAGING/opt/datadog-agent/bin/agent"
+log "agent binary build complete: $STAGING/opt/datadog-agent/bin/agent"
+
+# ─── Step 5: Build the trace-agent binary ─────────────────────────────────────
+#
+# Build tags come from tasks/build_tags.py AGENT_TAGS minus AIX_EXCLUDE_TAGS, plus COMMON_TAGS.
+
+log "Building trace-agent binary via inv trace-agent.build"
+cd /opt/datadog-agent
+python3.12 -m invoke trace-agent.build --rebuild
+rm -f "$STAGING/opt/datadog-agent/bin/trace-agent"
+cp /opt/datadog-agent/bin/trace-agent/trace-agent "$STAGING/opt/datadog-agent/bin/trace-agent"
+strip -X64 "$STAGING/opt/datadog-agent/bin/trace-agent"
+log "trace-agent binary build complete: $STAGING/opt/datadog-agent/bin/trace-agent"
+
+# ─── Step 6: Verify XCOFF64 magic bytes ───────────────────────────────────────
+#
+# Both binaries must be XCOFF64 (magic bytes 01 f7). A non-XCOFF64 result
+# would indicate a cross-compile or wrong-format build.
+
+log "Verifying agent binary is XCOFF64"
+MAGIC=$(od -A x -t x1 "$STAGING/opt/datadog-agent/bin/agent" | head -1 | awk '{print $2 $3}')
+if [ "$MAGIC" != "01f7" ]; then
+    log "ERROR: agent binary is not XCOFF64 (got: $MAGIC)"
+    log "       Expected magic bytes: 01 f7"
+    log "       Ensure CGO_ENABLED=1 and that GOROOT points to the AIX Go toolchain."
+    exit 1
+fi
+log "XCOFF64 magic verified for agent binary (magic: $MAGIC)"
+
+log "Verifying trace-agent binary is XCOFF64"
+MAGIC=$(od -A x -t x1 "$STAGING/opt/datadog-agent/bin/trace-agent" | head -1 | awk '{print $2 $3}')
+if [ "$MAGIC" != "01f7" ]; then
+    log "ERROR: trace-agent binary is not XCOFF64 (got: $MAGIC)"
+    log "       Expected magic bytes: 01 f7"
+    log "       Ensure CGO_ENABLED=1 and that GOROOT points to the AIX Go toolchain."
+    exit 1
+fi
+log "XCOFF64 magic verified for trace-agent binary (magic: $MAGIC)"
+
+# --- Mark complete ---
+mkdir -p "$(dirname "$SENTINEL")"
+touch "$SENTINEL"
+log "=== $STAGE_NAME complete ==="

@@ -9,21 +9,20 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
+	npcollector "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	nooprdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/impl-none"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 type dependencies struct {
-	fx.In
-	Lc          fx.Lifecycle
+	compdef.In
+	Lc          compdef.Lifecycle
 	EpForwarder eventplatform.Component
 	Traceroute  traceroute.Component
 	Logger      log.Component
@@ -34,19 +33,13 @@ type dependencies struct {
 
 // Provides defines the output of the npcollector component
 type Provides struct {
-	fx.Out
+	compdef.Out
 
 	Comp npcollector.Component
 }
 
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newNpCollector),
-	)
-}
-
-func newNpCollector(deps dependencies) Provides {
+// NewNpCollector creates a new npcollector component.
+func NewNpCollector(deps dependencies) Provides {
 	var collector *npCollectorImpl
 
 	configs := newConfig(deps.AgentConfig, deps.Logger)
@@ -71,7 +64,7 @@ func newNpCollector(deps dependencies) Provides {
 			collector = newNoopNpCollectorImpl()
 		} else {
 			collector = newNpCollectorImpl(epForwarder, configs, deps.Traceroute, deps.Logger, rdnsQuerier, deps.Statsd)
-			deps.Lc.Append(fx.Hook{
+			deps.Lc.Append(compdef.Hook{
 				// No need for OnStart hook since NpCollector.Init() will be called by clients when needed.
 				OnStart: func(context.Context) error {
 					return collector.start()
