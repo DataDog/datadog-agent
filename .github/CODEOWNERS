@@ -640,6 +640,7 @@
 /pkg/logs/message                       @DataDog/agent-log-pipelines
 /pkg/logs/processor                     @DataDog/agent-log-pipelines
 /pkg/logs/sender                        @DataDog/agent-log-pipelines
+/.llm/logs-agent/                       @DataDog/agent-log-pipelines
 /pkg/process/                           @DataDog/container-experiences
 /pkg/process/util/address*.go           @DataDog/cloud-network-monitoring
 /pkg/process/checks/net*.go             @DataDog/cloud-network-monitoring
@@ -878,6 +879,7 @@
 /test/regression/cases/docker_containers*     @DataDog/single-machine-performance @DataDog/container-integrations
 
 /tools/                                 @DataDog/agent-devx
+/tools/logs_agent_ai/                   @DataDog/agent-log-pipelines
 /tools/host-profiler/                   @DataDog/profiling-full-host
 /tools/bazel*                           @DataDog/agent-build
 /tools/ci                               @DataDog/agent-devx
