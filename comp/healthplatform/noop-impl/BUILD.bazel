@@ -7,10 +7,10 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/api/api/def",
+        "//comp/core/flare/types",
         "//comp/def",
         "//comp/healthplatform/def",
         "@com_github_datadog_agent_payload_v5//healthplatform",
-        "@com_github_datadog_datadog_agent_comp_core_flare_types//:types",
     ],
 )
 
