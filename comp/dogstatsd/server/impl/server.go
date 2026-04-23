@@ -17,20 +17,20 @@ import (
 	"sync"
 	"time"
 
-	"go.uber.org/fx"
-
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	dsdconfig "github.com/DataDog/datadog-agent/comp/dogstatsd/config"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/mapper"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
+	serverdef "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	offlinereporter "github.com/DataDog/datadog-agent/comp/offlinereporter/def"
@@ -71,9 +71,9 @@ var (
 )
 
 type dependencies struct {
-	fx.In
+	compdef.In
 
-	Lc fx.Lifecycle
+	Lc compdef.Lifecycle
 
 	Demultiplexer aggregator.Demultiplexer
 
@@ -82,7 +82,7 @@ type dependencies struct {
 	Debug           serverdebug.Component
 	Replay          replay.Component
 	PidMap          pidmap.Component
-	Params          Params
+	Params          serverdef.Params
 	WMeta           option.Option[workloadmeta.Component]
 	Telemetry       telemetry.Component
 	Hostname        hostnameinterface.Component
@@ -90,10 +90,11 @@ type dependencies struct {
 	OfflineReporter offlinereporter.Component
 }
 
-type provides struct {
-	fx.Out
+// Provides defines the output of the dogstatsd server component.
+type Provides struct {
+	compdef.Out
 
-	Comp          Component
+	Comp          serverdef.Component
 	StatsEndpoint api.AgentEndpointProvider
 }
 
@@ -202,19 +203,20 @@ func initTelemetry() {
 }
 
 // TODO: (components) - merge with newServerCompat once NewServerlessServer is removed
-func newServer(deps dependencies) provides {
+// NewComponent creates a new dogstatsd server component.
+func NewComponent(deps dependencies) Provides {
 	s := newServerCompat(deps.Config, deps.Log, deps.Hostname, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry, deps.FilterList)
 	s.offlineReporter = deps.OfflineReporter
 
 	dsdConfig := dsdconfig.NewConfig(s.config)
 	if dsdConfig.EnabledInternal() {
-		deps.Lc.Append(fx.Hook{
+		deps.Lc.Append(compdef.Hook{
 			OnStart: s.startHook,
 			OnStop:  s.stop,
 		})
 	}
 
-	return provides{
+	return Provides{
 		Comp:          s,
 		StatsEndpoint: api.NewAgentEndpointProvider(s.writeStats, "/dogstatsd-stats", "GET"),
 	}

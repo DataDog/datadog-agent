@@ -8,9 +8,6 @@ package server
 
 import (
 	"time"
-
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 )
 
 // team: agent-metric-pipelines
@@ -30,17 +27,4 @@ type Component interface {
 // Mock implements mock-specific methods.
 type Mock interface {
 	Component
-}
-
-// Module defines the fx options for this component.
-func Module(params Params) fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newServer),
-		fx.Supply(params))
-}
-
-// MockModule defines the fx options for the mock component.
-func MockModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newMock))
 }

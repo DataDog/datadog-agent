@@ -29,7 +29,7 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
-	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
 	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
 	rcservicemrf "github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"

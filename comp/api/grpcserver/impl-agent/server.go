@@ -29,7 +29,7 @@ import (
 	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	dsdReplay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
-	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
 	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
 	rcservicemrf "github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf/def"

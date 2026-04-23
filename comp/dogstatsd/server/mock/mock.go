@@ -3,7 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package server
+//go:build test
+
+// Package mock provides a mock dogstatsd server component.
+package mock
 
 import (
 	"time"
@@ -11,8 +14,15 @@ import (
 	"go.uber.org/fx"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
+	server "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
+
+// MockModule defines the fx options for the mock component.
+func MockModule() fxutil.Module {
+	return fxutil.Component(fx.Provide(newMock))
+}
 
 type serverMock struct {
 	isRunning  bool
@@ -23,7 +33,7 @@ type serverMock struct {
 type MockProvides struct {
 	fx.Out
 
-	Comp     Component
+	Comp     server.Component
 	Endpoint api.AgentEndpointProvider
 }
 

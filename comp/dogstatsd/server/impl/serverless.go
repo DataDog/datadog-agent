@@ -15,6 +15,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/pidmapimpl"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/impl-noop"
+	serverdef "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
 	filterlistimpl "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -26,7 +27,7 @@ import (
 
 // ServerlessDogstatsd is the interface for the serverless dogstatsd server.
 type ServerlessDogstatsd interface {
-	Component
+	serverdef.Component
 	Stop()
 }
 

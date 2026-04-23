@@ -112,7 +112,7 @@ import (
 	dogstatsdhttp "github.com/DataDog/datadog-agent/comp/dogstatsd/http/def"
 	dogstatsdhttpfx "github.com/DataDog/datadog-agent/comp/dogstatsd/http/fx"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
-	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	statsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
 	statsdFx "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/fx"
