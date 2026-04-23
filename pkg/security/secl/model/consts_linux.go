@@ -1136,7 +1136,7 @@ var (
 	// PrCtlOptionConstants is the list of available options for prctl events
 	// generate_constants:PrCtl Options,PrCtl Options are the supported options for the prctl event
 	PrCtlOptionConstants = map[string]int{
-		"PR_CAP_AMBIENT":                unix.PR_CAPBSET_READ,
+		"PR_CAP_AMBIENT":                unix.PR_CAP_AMBIENT,
 		"PR_CAPBSET_READ":               unix.PR_CAPBSET_READ,
 		"PR_CAPBSET_DROP":               unix.PR_CAPBSET_DROP,
 		"PR_SET_CHILD_SUBREAPER":        unix.PR_SET_CHILD_SUBREAPER,
