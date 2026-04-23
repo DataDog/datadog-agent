@@ -46,22 +46,22 @@ func (q *queue) flush() []*model.EventsPayload {
 
 // add enqueues a new event.
 // add is thread-safe.
-func (q *queue) add(ev event) error {
+func (q *queue) add(le LifecycleEvent) error {
 	q.Lock()
 	defer q.Unlock()
 
 	if q.isEmpty() || q.isLastPayloadFull() {
-		return q.addPayload(ev)
+		return q.addPayload(le)
 	}
 
-	return q.addEvent(ev)
+	return q.addEvent(le)
 }
 
 // addPayload enqueues the event in a new payload entry in the queue.
 // To be used if the queue is empty or if the last payload entry in the queue is full.
 // addPayload is not thread-safe, the caller must lock the queue.
-func (q *queue) addPayload(ev event) error {
-	payload, err := ev.toPayloadModel()
+func (q *queue) addPayload(le LifecycleEvent) error {
+	payload, err := newPayload(le)
 	if err != nil {
 		return err
 	}
@@ -74,18 +74,13 @@ func (q *queue) addPayload(ev event) error {
 // addEvent enqueues the event in last payload entry.
 // To be used if the queue is not empty and the last payload entry is not full.
 // addEvent is not thread-safe, the caller must lock the queue.
-func (q *queue) addEvent(ev event) error {
+func (q *queue) addEvent(le LifecycleEvent) error {
 	if q.isEmpty() {
 		return errors.New("cannot add event to an empty queue")
 	}
 
-	event, err := ev.toEventModel()
-	if err != nil {
-		return err
-	}
-
 	lenQueue := len(q.data)
-	q.data[lenQueue-1].Events = append(q.data[lenQueue-1].Events, event)
+	q.data[lenQueue-1].Events = append(q.data[lenQueue-1].Events, le.ProtoEvent)
 
 	return nil
 }

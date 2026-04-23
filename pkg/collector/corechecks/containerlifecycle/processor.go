@@ -96,23 +96,22 @@ func (p *processor) processEvents(evBundle workloadmeta.EventBundle) {
 
 // processContainer enqueue container events
 func (p *processor) processContainer(container *workloadmeta.Container, sources []workloadmeta.Source) error {
-	event := newEvent()
-	event.withObjectKind(types.ObjectKindContainer)
-	event.withEventType(types.EventNameDelete)
-	event.withObjectID(container.ID)
+	ctr := &contlcycle.ContainerEvent{
+		ContainerID: container.ID,
+	}
 
 	if len(sources) > 0 {
-		event.withSource(string(sources[0]))
+		ctr.Source = string(sources[0])
 	}
 
 	if !container.State.FinishedAt.IsZero() {
 		ts := container.State.FinishedAt.Unix()
-		event.withContainerExitTimestamp(&ts)
+		ctr.OptionalExitTimestamp = &contlcycle.ContainerEvent_ExitTimestamp{ExitTimestamp: ts}
 	}
 
 	if container.State.ExitCode != nil {
 		code := int32(*container.State.ExitCode)
-		event.withContainerExitCode(&code)
+		ctr.OptionalExitCode = &contlcycle.ContainerEvent_ExitCode{ExitCode: code}
 	}
 
 	// Because the container processor is triggered off of runtime events, and the
@@ -120,51 +119,75 @@ func (p *processor) processContainer(container *workloadmeta.Container, sources 
 	// we need to query the workloadmeta store to get this information.
 	if c, err := p.store.GetContainer(container.ID); err == nil {
 		if c.Owner != nil {
-			event.withOwnerID(c.Owner.ID)
 			switch c.Owner.Kind {
 			case workloadmeta.KindKubernetesPod:
-				event.withOwnerType(types.ObjectKindPod)
+				if ownerKind, err := kindToModel(types.ObjectKindPod); err == nil {
+					ctr.Owner = &contlcycle.ContainerEvent_Owner{OwnerType: ownerKind, OwnerUID: c.Owner.ID}
+				}
 			case workloadmeta.KindECSTask:
-				event.withOwnerType(types.ObjectKindTask)
+				if ownerKind, err := kindToModel(types.ObjectKindTask); err == nil {
+					ctr.Owner = &contlcycle.ContainerEvent_Owner{OwnerType: ownerKind, OwnerUID: c.Owner.ID}
+				}
 			default:
 				log.Tracef("Cannot handle owner for container %q with type %q", container.ID, c.Owner.Kind)
 			}
 		}
 	}
 
-	return p.containersQueue.add(event)
+	le := LifecycleEvent{
+		ObjectKind: types.ObjectKindContainer,
+		ProtoEvent: &contlcycle.Event{
+			EventType:  contlcycle.Event_Delete,
+			TypedEvent: &contlcycle.Event_Container{Container: ctr},
+		},
+	}
+	return p.containersQueue.add(le)
 }
 
 // processPod enqueue pod events
 func (p *processor) processPod(pod *workloadmeta.KubernetesPod) error {
-	event := newEvent()
-	event.withObjectKind(types.ObjectKindPod)
-	event.withEventType(types.EventNameDelete)
-	event.withObjectID(pod.GetID().ID)
-	event.withSource(string(workloadmeta.SourceNodeOrchestrator))
+	podEvent := &contlcycle.PodEvent{
+		PodUID: pod.GetID().ID,
+		Source: string(workloadmeta.SourceNodeOrchestrator),
+	}
 
 	if !pod.FinishedAt.IsZero() {
 		ts := pod.FinishedAt.Unix()
-		event.withPodExitTimestamp(&ts)
+		podEvent.ExitTimestamp = &ts
 	}
 
-	return p.podsQueue.add(event)
+	le := LifecycleEvent{
+		ObjectKind: types.ObjectKindPod,
+		ProtoEvent: &contlcycle.Event{
+			EventType:  contlcycle.Event_Delete,
+			TypedEvent: &contlcycle.Event_Pod{Pod: podEvent},
+		},
+	}
+	return p.podsQueue.add(le)
 }
 
 func (p *processor) processTask(task *workloadmeta.ECSTask) error {
-	event := newEvent()
-	event.withObjectKind(types.ObjectKindTask)
-	event.withEventType(types.EventNameDelete)
-	event.withObjectID(task.GetID().ID)
-	event.withSource(string(workloadmeta.SourceNodeOrchestrator))
+	source := string(workloadmeta.SourceNodeOrchestrator)
 	if task.LaunchType == workloadmeta.ECSLaunchTypeFargate {
-		event.withSource(string(workloadmeta.SourceRuntime))
+		source = string(workloadmeta.SourceRuntime)
 	}
+
 	// we don't have exit timestamp for tasks in the response of metadata v1 api, so we use the current timestamp
 	ts := time.Now().Unix()
-	event.withTaskExitTimestamp(&ts)
+	taskEvent := &contlcycle.TaskEvent{
+		TaskARN:       task.GetID().ID,
+		Source:        source,
+		ExitTimestamp: &ts,
+	}
 
-	return p.tasksQueue.add(event)
+	le := LifecycleEvent{
+		ObjectKind: types.ObjectKindTask,
+		ProtoEvent: &contlcycle.Event{
+			EventType:  contlcycle.Event_Delete,
+			TypedEvent: &contlcycle.Event_Task{Task: taskEvent},
+		},
+	}
+	return p.tasksQueue.add(le)
 }
 
 // processQueues consumes the data available in the queues
