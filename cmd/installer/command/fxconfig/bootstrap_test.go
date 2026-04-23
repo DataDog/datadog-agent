@@ -16,7 +16,18 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
+
+// TestLoadAndExportEnvFxDependencies validates that the fxutil.OneShot call
+// in LoadAndExportEnv has every required dependency wired up. This pairs
+// with the production call at cmd/installer/command/fxconfig/bootstrap.go
+// and is enforced by the CI fxutil-coverage check.
+func TestLoadAndExportEnvFxDependencies(t *testing.T) {
+	fxutil.TestOneShot(t, func() {
+		LoadAndExportEnv("")
+	})
+}
 
 func clearDDEnvForTest(t *testing.T, extra ...string) {
 	t.Helper()
