@@ -236,14 +236,16 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.users", []map[string]string{})
 
 	// NetFlow
-	config.SetKnown("network_devices.netflow.listeners")                                  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.netflow.stop_timeout")                               //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.netflow.aggregator_buffer_size")                     //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.netflow.aggregator_flush_interval")                  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.netflow.aggregator_flow_context_ttl")                //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.netflow.aggregator_port_rollup_threshold")           //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.netflow.aggregator_rollup_tracker_refresh_interval") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.BindEnvAndSetDefault("network_devices.netflow.enabled", false)
+	config.BindEnvAndSetDefault("network_devices.netflow.listeners", []map[string]interface{}{})
+	config.BindEnvAndSetDefault("network_devices.netflow.stop_timeout", 5)
+	config.BindEnvAndSetDefault("network_devices.netflow.aggregator_buffer_size", 10_000)
+	config.BindEnvAndSetDefault("network_devices.netflow.aggregator_flush_interval", 300)
+	// The default behavior for this value is to copy the "aggregator_flush_interval" when absent/zero. This is to avoid
+	// expiring flows too early when the flush interval is increased, while still allowing to set a custom TTL when needed.
+	config.BindEnvAndSetDefault("network_devices.netflow.aggregator_flow_context_ttl", 0)
+	config.BindEnvAndSetDefault("network_devices.netflow.aggregator_port_rollup_threshold", 10)
+	config.BindEnvAndSetDefault("network_devices.netflow.aggregator_rollup_tracker_refresh_interval", 300)
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.netflow.forwarder.")
 	config.BindEnvAndSetDefault("network_devices.netflow.reverse_dns_enrichment_enabled", false)
 
@@ -1000,19 +1002,18 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	bindEnvAndSetLogsConfigKeys(config, "data_observability.forwarder.")
 
 	// Reverse DNS Enrichment
-	config.SetKnown("reverse_dns_enrichment.workers")   //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("reverse_dns_enrichment.chan_size") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("reverse_dns_enrichment.workers", 10)
+	config.BindEnvAndSetDefault("reverse_dns_enrichment.chan_size", 5000)
 	config.BindEnvAndSetDefault("reverse_dns_enrichment.rate_limiter.enabled", true)
 	config.BindEnvAndSetDefault("reverse_dns_enrichment.cache.enabled", true)
 	config.BindEnvAndSetDefault("reverse_dns_enrichment.cache.entry_ttl", 24*time.Hour)
 	config.BindEnvAndSetDefault("reverse_dns_enrichment.cache.clean_interval", 2*time.Hour)
 	config.BindEnvAndSetDefault("reverse_dns_enrichment.cache.persist_interval", 2*time.Hour)
 	config.BindEnvAndSetDefault("reverse_dns_enrichment.cache.max_retries", 10)
-	config.SetKnown("reverse_dns_enrichment.cache.max_size")                        //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("reverse_dns_enrichment.rate_limiter.limit_per_sec")            //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("reverse_dns_enrichment.rate_limiter.limit_throttled_per_sec")  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("reverse_dns_enrichment.rate_limiter.throttle_error_threshold") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("reverse_dns_enrichment.rate_limiter.recovery_intervals")       //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("reverse_dns_enrichment.cache.max_size", 1_000_000)
+	config.BindEnvAndSetDefault("reverse_dns_enrichment.rate_limiter.limit_per_sec", 1000)
+	config.BindEnvAndSetDefault("reverse_dns_enrichment.rate_limiter.limit_throttled_per_sec", 1)
+	config.BindEnvAndSetDefault("reverse_dns_enrichment.rate_limiter.throttle_error_threshold", 10)
 	config.BindEnvAndSetDefault("reverse_dns_enrichment.rate_limiter.recovery_interval", 5*time.Second)
 
 	// Remote agents
