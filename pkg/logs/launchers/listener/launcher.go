@@ -56,7 +56,12 @@ func (l *Launcher) run() {
 			listener.Start()
 			l.listeners = append(l.listeners, listener)
 		case source := <-l.udpSources:
-			listener := NewUDPListener(l.pipelineProvider, source, l.frameSize)
+			listener, err := NewUDPListener(l.pipelineProvider, source, l.frameSize)
+			if err != nil {
+				log.Errorf("Can't create UDP listener: %v", err)
+				source.Status.Error(err)
+				continue
+			}
 			listener.Start()
 			l.listeners = append(l.listeners, listener)
 		case <-l.stop:

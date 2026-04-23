@@ -36,10 +36,10 @@ a. To build the containerized Agent from a Nano Windows base image:
 ```
 # Build nano image
 docker build -t mycustomagent \
-  --build-arg BASE_IMAGE=mcr.microsoft.com/powershell:lts-nanoserver-1809 \
+  --build-arg BASE_IMAGE=mcr.microsoft.com/dotnet/sdk:9.0-nanoserver-ltsc2025 \
   --build-arg BASE_IMAGE_OS="windows nanoserver" \
   --build-arg WITH_JMX=false \
-  --build-arg VARIANT=1809 \
+  --build-arg VARIANT=ltsc2025 \
   -f .\windows\amd64\Dockerfile .
 ```
 
@@ -47,10 +47,10 @@ a. To build the containerized Agent from a Core Windows base image:
 ```
 # Build core image
 docker build -t mycustomagent \
-  --build-arg BASE_IMAGE=mcr.microsoft.com/powershell:windowsservercore-1809 \
+  --build-arg BASE_IMAGE=mcr.microsoft.com/dotnet/sdk:9.0-windowsservercore-ltsc2025 \
   --build-arg BASE_IMAGE_OS="windows server core" \
   --build-arg WITH_JMX=false \
-  --build-arg VARIANT=1809 \
+  --build-arg VARIANT=ltsc2025 \
   -f .\windows\amd64\Dockerfile .
 ```
 

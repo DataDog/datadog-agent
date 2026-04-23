@@ -725,6 +725,7 @@ class TestQualityGatesIntegration(unittest.TestCase):
     @patch("tasks.static_quality_gates.gates.GateMetricHandler.generate_metric_reports", new=MagicMock())
     @patch("tasks.quality_gates.get_ancestor", return_value="ancestor-sha")
     @patch("tasks.quality_gates.get_commit_sha", return_value="current-sha")
+    @patch("tasks.quality_gates.get_pr_for_branch", new=MagicMock(return_value=None))
     @patch("tasks.quality_gates.identify_gates_exceeding_pr_threshold")
     def test_per_pr_threshold_skipped_on_merge_queue(self, mock_identify, _mock_commit, _mock_ancestor, *_):
         """Per-PR threshold check is not applied on merge queue branches."""
