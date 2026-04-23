@@ -119,14 +119,13 @@ func NewComponent(deps Requires) (Provides, error) {
 	kubeletSource := sources.NewLogSource("kubelet", &logsconfig.LogsConfig{
 		Type:               logsconfig.JournaldType,
 		ConfigID:           "kubelet",
-		TailingMode:        "forceBeginning",
 		IncludeSystemUnits: logsconfig.StringSliceField{"kubelet.service"},
 		Tags:               logsconfig.StringSliceField{"source:kubelet"},
 	})
 	logSources.AddSource(kubeletSource)
-	deps.Log.Infof("[observer/logssource] registered kubelet journald source: config_id=%q tailing_mode=%q include_units=%v tags=%v (expected tailer id=journald:%s)",
-		kubeletSource.Config.ConfigID, kubeletSource.Config.TailingMode,
-		kubeletSource.Config.IncludeSystemUnits, kubeletSource.Config.Tags, kubeletSource.Config.ConfigID)
+	deps.Log.Infof("[observer/logssource] registered kubelet journald source: config_id=%q include_units=%v tags=%v (expected tailer id=journald:%s)",
+		kubeletSource.Config.ConfigID, kubeletSource.Config.IncludeSystemUnits,
+		kubeletSource.Config.Tags, kubeletSource.Config.ConfigID)
 
 	sp := newSourceProvider(wmeta, logSources, pauseFilter)
 

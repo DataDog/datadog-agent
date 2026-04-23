@@ -71,20 +71,14 @@ func (p *observerPipeline) start() {
 		var count, kubeletCount uint64
 		for msg := range p.outputChan {
 			count++
-			isKubelet := false
 			for _, t := range msg.GetTags() {
 				if t == "source:kubelet" {
-					isKubelet = true
 					kubeletCount++
 					break
 				}
 			}
-			if count == 1 || count%100 == 0 {
+			if count == 1 || count%1000 == 0 {
 				log.Infof("[observer/logssource] delivered %d logs to observer (source:kubelet=%d)", count, kubeletCount)
-			}
-			if isKubelet && kubeletCount <= 5 {
-				log.Infof("[observer/logssource] kubelet journal log #%d: tags=%v content=%q",
-					kubeletCount, msg.GetTags(), string(msg.GetContent()))
 			}
 			p.observerHandle.ObserveLog(msg)
 		}
