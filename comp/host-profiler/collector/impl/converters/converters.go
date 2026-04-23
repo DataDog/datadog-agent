@@ -258,12 +258,12 @@ func addProfilerMetadataTags(conf confMap, profilesProcessors []any) ([]any, err
 	}
 
 	profilerNameElement := confMap{
-		"key":    "profiler_name",
-		"value":  version.ProfilerName,
+		"key":    version.OTelProfilerNameKey,
+		"value":  version.StandaloneProfilerName,
 		"action": "upsert",
 	}
 	profilerVersionElement := confMap{
-		"key":    "profiler_version",
+		"key":    version.OTelProfilerVersionKey,
 		"value":  version.ProfilerVersion,
 		"action": "upsert",
 	}

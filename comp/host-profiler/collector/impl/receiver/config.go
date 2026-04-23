@@ -83,7 +83,7 @@ func (c *Config) Validate() error {
 }
 
 // This is the default config for the profiles receiver
-func defaultConfig() component.Config {
+func defaultConfig(profilerName string) component.Config {
 	cfg := ebpfcollector.NewFactory().CreateDefaultConfig().(*ebpfconfig.Config)
 	cfg.Tracers = getDefaultTracersString()
 	// 60s batches more samples per report, improving compression and reducing upload bandwidth
@@ -92,7 +92,7 @@ func defaultConfig() component.Config {
 	// With 60s intervals, 20% would mean ~12s variation, so we reduce to 5% (~3s).
 	cfg.ReporterJitter = 0.05
 
-	symbolUploaderConfig := symboluploader.DefaultSymbolUploaderConfig()
+	symbolUploaderConfig := symboluploader.DefaultSymbolUploaderConfig(profilerName)
 	return Config{
 		EbpfCollectorConfig: cfg,
 		SymbolUploader:      symbolUploaderConfig,
