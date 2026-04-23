@@ -1,6 +1,10 @@
 {
     "$schema": "https://docs.renovatebot.com/renovate-schema.json",
     "extends": ["config:recommended", ":enablePreCommit"],
+    "constraints": {
+      "go": "1.25.9"
+    },
+    "constraintsFiltering": "strict",
     "minimumReleaseAge": "7 days",
     "labels": ["dependencies", "changelog/no-changelog", "qa/no-code-change"],
     "stopUpdatingLabel": "stop-updating",
@@ -80,6 +84,11 @@
           "github.com/spf13/cast",
           "github.com/mailru/easyjson"
         ],
+        "enabled": false
+      },
+      {
+        "matchManagers": ["gomod"],
+        "matchDepTypes": ["replace"],
         "enabled": false
       },
       {

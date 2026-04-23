@@ -89,8 +89,24 @@ git_override(
 # Temporary until rules_pkg > 1.2.0 is in BCR
 git_override(
     module_name = "rules_pkg",
-    commit = "14c78b8e9347a60919999f13177f1aa3fb850ea3",  # main as of Mar 17, 2026
+    commit = "401969d4367c42dcbb45d33a637eae87788d025e",  # main as of April 22, 2026
     remote = "https://github.com/bazelbuild/rules_pkg.git",
+)
+
+# Temporary until rules_rust > 0.69.0 ships with Windows GNU ABI support (PR #3940).
+# The CI runner uses MinGW as its cc_toolchain; rules_rust 0.69.0 defaults to
+# x86_64-pc-windows-msvc whose linker flags are incompatible with MinGW's g++.
+git_override(
+    module_name = "rules_rust",
+    commit = "82506df3f31240f97194b2e9453022125eaa07f4",  # main as of April 21, 2026
+    remote = "https://github.com/bazelbuild/rules_rust.git",
+)
+
+git_override(
+    module_name = "rules_rust_prost",
+    commit = "82506df3f31240f97194b2e9453022125eaa07f4",
+    remote = "https://github.com/bazelbuild/rules_rust.git",
+    strip_prefix = "extensions/prost",
 )
 
 #########################
@@ -260,6 +276,31 @@ register_toolchains("@pythons_hub//:all")
 #######################
 
 rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
+
+# Register a GNU-ABI Rust toolchain for Windows so that rustc generates
+# GNU-style linker flags (-lkernel32, -o, etc.) compatible with the MinGW
+# cc_toolchain used on the Windows CI runner.  Processed before the default
+# toolchains, so Bazel's toolchain resolution picks it over the auto-registered
+# x86_64-pc-windows-msvc toolchain.
+rust.repository_set(
+    name = "rust_windows_gnu_x86_64",
+    edition = "2024",
+    exec_triple = "x86_64-pc-windows-gnu",
+    extra_exec_rustc_flags = [
+        "-Clinker=C:/tools/msys64/mingw64/bin/gcc.exe",
+        "-Cdlltool=C:/tools/msys64/mingw64/bin/dlltool.exe",
+    ],
+    extra_rustc_flags = [
+        "-Clinker=C:/tools/msys64/mingw64/bin/gcc.exe",
+        "-Cdlltool=C:/tools/msys64/mingw64/bin/dlltool.exe",
+    ],
+    target_compatible_with = [
+        "@platforms//os:windows",
+        "@platforms//cpu:x86_64",
+    ],
+    target_triple = "x86_64-pc-windows-gnu",
+    versions = ["1.92.0"],
+)
 rust.toolchain(
     edition = "2024",
     versions = ["1.92.0"],

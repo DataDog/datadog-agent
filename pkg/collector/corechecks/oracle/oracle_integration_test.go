@@ -282,7 +282,8 @@ func TestBindingSimple(t *testing.T) {
 	result := 3
 
 	driver := "oracle"
-	db, _ := connectToDB(driver)
+	db, err := connectToDB(driver)
+	require.NoError(t, err)
 	stmt, err := db.Prepare(fmt.Sprintf("SELECT %d FROM dual WHERE rownum = :1", result))
 	if err != nil {
 		fmt.Printf("preparing statement %s", err)

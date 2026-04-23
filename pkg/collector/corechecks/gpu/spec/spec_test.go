@@ -186,6 +186,28 @@ support:
 	require.Equal(t, "Example description", spec.Metadata.Description)
 }
 
+func TestMetricMetadataSpecUnmarshalYAMLRejectsInvalidMetricType(t *testing.T) {
+	var spec MetricSpec
+
+	err := yaml.Unmarshal([]byte(`
+metadata:
+  metric_type: histogram
+  unit: byte/second
+  description: Example description
+tagsets:
+  - device
+support:
+  unsupported_architectures: []
+  device_modes:
+    physical: true
+    mig: true
+    vgpu: true
+`), &spec)
+
+	require.Error(t, err)
+	require.ErrorContains(t, err, `invalid metric_type "histogram": must be one of [gauge, counter]`)
+}
+
 func TestLoadedMetricsIncludeMetadata(t *testing.T) {
 	specs, err := LoadSpecs()
 	require.NoError(t, err)
