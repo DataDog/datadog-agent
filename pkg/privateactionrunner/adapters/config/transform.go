@@ -18,10 +18,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"k8s.io/apimachinery/pkg/util/sets"
 )
+
+// rshellCommandNamespace is the prefix the backend stamps onto every command
+// in its allow-list. Operator entries in datadog.yaml must use the same form
+// to intersect; otherwise they silently fail to match.
+const rshellCommandNamespace = "rshell:"
 
 func FromDDConfig(config config.Component) (*Config, error) {
 	mainEndpoint := configutils.GetMainEndpoint(config, "https://api.", "dd_url")
@@ -129,22 +135,57 @@ func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 
 // rshellAllowedCommands returns the operator-configured rshell command
 // allowlist, or nil when the operator did not configure one. Nil signals
-// "pass-through" so the handler forwards the backend list unchanged.
+// "pass-through" so the handler forwards the backend list unchanged; a
+// non-nil empty slice is the explicit "block everything" kill-switch.
+//
+// Entries are expected to be in the backend's namespaced form
+// ("rshell:<name>"). Operators spelling commands without the prefix are
+// warned at load time so the silent no-match failure mode is observable.
 func rshellAllowedCommands(config config.Component) []string {
-	if !config.IsConfigured(setup.PARRestrictedShellAllowedCommands) {
-		return nil
+	commands := configuredStringSliceOrNil(config, setup.PARRestrictedShellAllowedCommands)
+	warnUnnamespacedCommands(commands)
+	return commands
+}
+
+// warnUnnamespacedCommands emits a log warning for each entry missing the
+// "rshell:" prefix. These entries will never match a backend command, so an
+// operator who writes `allowed_commands: [cat]` instead of
+// `allowed_commands: [rshell:cat]` would otherwise get silent kill-switch
+// behavior with no feedback.
+func warnUnnamespacedCommands(commands []string) {
+	for _, c := range commands {
+		if !strings.HasPrefix(c, rshellCommandNamespace) {
+			log.Warnf("%s entry %q is missing the %q prefix and will never match a backend command; use %q instead",
+				setup.PARRestrictedShellAllowedCommands, c, rshellCommandNamespace, rshellCommandNamespace+c)
+		}
 	}
-	return config.GetStringSlice(setup.PARRestrictedShellAllowedCommands)
 }
 
 // rshellAllowedPaths mirrors rshellAllowedCommands for the filesystem
 // allowlist. Nil means "operator unset" — the handler will pass the backend
 // list through unchanged rather than tightening to an empty intersection.
 func rshellAllowedPaths(config config.Component) []string {
-	if !config.IsConfigured(setup.PARRestrictedShellAllowedPaths) {
+	return configuredStringSliceOrNil(config, setup.PARRestrictedShellAllowedPaths)
+}
+
+// configuredStringSliceOrNil returns the configured value only when the key
+// was explicitly set by the user (YAML file, env, or SetWithoutSource); it
+// returns nil when the key is still at its default.
+//
+// GetStringSlice returns a nil slice for an explicit YAML empty list
+// (`key: []`), which is indistinguishable at the slice level from "unset".
+// IsConfigured is the authoritative signal for "user touched this key", so we
+// gate on that and then normalize nil → non-nil empty to preserve the
+// "operator explicitly allowed nothing" semantics downstream.
+func configuredStringSliceOrNil(config config.Component, key string) []string {
+	if !config.IsConfigured(key) {
 		return nil
 	}
-	return config.GetStringSlice(setup.PARRestrictedShellAllowedPaths)
+	v := config.GetStringSlice(key)
+	if v == nil {
+		return []string{}
+	}
+	return v
 }
 
 // getDatadogHost extracts and normalizes the Datadog host from the main endpoint.

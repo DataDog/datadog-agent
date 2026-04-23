@@ -268,8 +268,9 @@ func TestFilterAllowedCommandsMatrix(t *testing.T) {
 }
 
 // TestFilterAllowedPathsMatrix is the paths analogue of
-// TestFilterAllowedCommandsMatrix. Twelve scenarios with the same shape:
-// path intersection is plain string equality, identical to commands.
+// TestFilterAllowedCommandsMatrix. Path intersection is containment-aware
+// ("narrower wins") rather than plain set equality, so the non-empty x
+// non-empty cell has extra sub-cases for sub-path interplay.
 func TestFilterAllowedPathsMatrix(t *testing.T) {
 	cases := []struct {
 		name     string
@@ -304,6 +305,24 @@ func TestFilterAllowedPathsMatrix(t *testing.T) {
 			[]string{"/var/log"}},
 		{"backend set, operator disjoint",
 			[]string{"/etc"}, []string{"/var/log"}, nil},
+
+		// Containment / "narrower wins" cases.
+		{"operator narrower than backend (sub-path wins)",
+			[]string{"/var/log"}, []string{"/var/log/nginx"},
+			[]string{"/var/log/nginx"}},
+		{"backend narrower than operator (backend wins)",
+			[]string{"/var/log/nginx"}, []string{"/var/log"},
+			[]string{"/var/log/nginx"}},
+		{"operator selects two siblings under one backend parent",
+			[]string{"/var/log"}, []string{"/var/log/nginx", "/var/log/apache"},
+			[]string{"/var/log/nginx", "/var/log/apache"}},
+		{"trailing slash on operator entry is normalized",
+			[]string{"/var/log"}, []string{"/var/log/"},
+			[]string{"/var/log/"}},
+		{"prefix sibling is not a sub-path (/var/logger vs /var/log)",
+			[]string{"/var/log"}, []string{"/var/logger"}, nil},
+		{"backend prefix sibling is not a sub-path",
+			[]string{"/var/logger"}, []string{"/var/log"}, nil},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -320,12 +339,23 @@ func TestFilterAllowedPathsMatrix(t *testing.T) {
 	}
 }
 
+func TestFilterAllowedCommandsRequiresNamespacedForm(t *testing.T) {
+	// The intersection is plain string equality: operator entries must be
+	// spelled in the backend's namespaced "rshell:<name>" form. A bare
+	// name like "cat" is silently ignored.
+	handler := NewRunCommandHandler(nil, []string{"cat", "rshell:echo"})
+
+	got := handler.filterAllowedCommands([]string{"rshell:cat", "rshell:echo", "rshell:ls"})
+
+	assert.Equal(t, []string{"rshell:echo"}, got)
+}
+
 func TestNewRunCommandHandlerStoresAllowedPaths(t *testing.T) {
 	paths := []string{"/var/log", "/tmp"}
 
 	handler := NewRunCommandHandler(paths, nil)
 
-	assert.Equal(t, map[string]struct{}{"/var/log": {}, "/tmp": {}}, handler.operatorAllowedPaths)
+	assert.Equal(t, []string{"/var/log", "/tmp"}, handler.operatorAllowedPaths)
 	assert.True(t, handler.operatorPathsFilterEnabled)
 }
 
@@ -337,7 +367,7 @@ func TestNewRshellBundleUsesConfiguredAllowedPaths(t *testing.T) {
 
 	handler, ok := action.(*RunCommandHandler)
 	require.True(t, ok)
-	assert.Equal(t, map[string]struct{}{"/var/log": {}, "/tmp": {}}, handler.operatorAllowedPaths)
+	assert.Equal(t, []string{"/var/log", "/tmp"}, handler.operatorAllowedPaths)
 }
 
 func mockStatFn(existing map[string]bool) func(string) (os.FileInfo, error) {

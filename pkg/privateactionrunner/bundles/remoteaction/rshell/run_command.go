@@ -37,21 +37,29 @@ var statFn = os.Stat
 
 // RunCommandHandler implements the runCommand action.
 //
-// Both allow-lists follow the same pattern: the operator list is stored as a
-// set for O(1) lookup, and the filter functions do plain string-equality
-// intersection with the backend list. Nil means the operator did not
-// configure the axis (backend list passes through); an empty list means the
-// operator explicitly restricts to nothing.
+// Both allow-lists are stored as dedup-preserving slices of operator entries
+// plus a boolean that distinguishes "unset" from "empty". The filter
+// functions intersect with the backend list under two different notions of
+// equivalence:
+//
+//   - commands compare by exact string equality. The backend stamps every
+//     entry with the "rshell:" namespace (e.g. "rshell:cat"); operators must
+//     spell entries the same way in datadog.yaml for them to match;
+//   - paths compare by containment, with the narrower side winning, so that
+//     an operator entry of "/var/log/nginx" is admitted even when the
+//     backend only lists "/var/log". Prefix siblings like "/var/logger" do
+//     not match "/var/log" — boundary is a path separator.
 type RunCommandHandler struct {
 	// operatorAllowedPaths is the operator's filesystem allowlist from
 	// datadog.yaml. Populated only when filtering is enabled.
-	operatorAllowedPaths map[string]struct{}
-	// operatorPathsFilterEnabled distinguishes "unset" (nil map, no
+	operatorAllowedPaths []string
+	// operatorPathsFilterEnabled distinguishes "unset" (nil slice, no
 	// filtering) from "empty list" (operator explicitly allowed nothing).
 	operatorPathsFilterEnabled bool
-	// operatorAllowedCommands is the set of bare command names the
-	// operator has allow-listed. Populated only when filtering is enabled.
-	operatorAllowedCommands map[string]struct{}
+	// operatorAllowedCommands is the operator allow-list, stored verbatim.
+	// Entries are expected to be namespaced ("rshell:<name>") to match the
+	// backend form; anything else silently fails to intersect.
+	operatorAllowedCommands []string
 	// operatorCommandsFilterEnabled distinguishes "unset" from "empty".
 	operatorCommandsFilterEnabled bool
 }
@@ -63,25 +71,31 @@ func NewRunCommandHandler(operatorAllowedPaths []string, operatorAllowedCommands
 	h := &RunCommandHandler{}
 	if operatorAllowedPaths != nil {
 		h.operatorPathsFilterEnabled = true
-		h.operatorAllowedPaths = make(map[string]struct{}, len(operatorAllowedPaths))
-		for _, p := range operatorAllowedPaths {
-			if p == "" {
-				continue
-			}
-			h.operatorAllowedPaths[p] = struct{}{}
-		}
+		h.operatorAllowedPaths = dedupeNonEmpty(operatorAllowedPaths)
 	}
 	if operatorAllowedCommands != nil {
 		h.operatorCommandsFilterEnabled = true
-		h.operatorAllowedCommands = make(map[string]struct{}, len(operatorAllowedCommands))
-		for _, c := range operatorAllowedCommands {
-			if c == "" {
-				continue
-			}
-			h.operatorAllowedCommands[c] = struct{}{}
-		}
+		h.operatorAllowedCommands = dedupeNonEmpty(operatorAllowedCommands)
 	}
 	return h
+}
+
+// dedupeNonEmpty returns the input slice with empties removed and duplicates
+// dropped, preserving first-seen order.
+func dedupeNonEmpty(in []string) []string {
+	out := make([]string, 0, len(in))
+	seen := make(map[string]struct{}, len(in))
+	for _, s := range in {
+		if s == "" {
+			continue
+		}
+		if _, dup := seen[s]; dup {
+			continue
+		}
+		seen[s] = struct{}{}
+		out = append(out, s)
+	}
+	return out
 }
 
 // filterAllowedCommands returns the effective command allowlist given the
@@ -90,7 +104,9 @@ func NewRunCommandHandler(operatorAllowedPaths []string, operatorAllowedCommands
 // The backend is the authoritative gate. A nil backend list (field absent)
 // produces an empty result — rshell then blocks every command. The operator
 // config can only tighten further; it cannot grant commands the backend did
-// not.
+// not. Comparison is plain string equality: operator entries in datadog.yaml
+// must be spelled in the backend's namespaced form ("rshell:<name>") to
+// match.
 func (h *RunCommandHandler) filterAllowedCommands(backendAllowed []string) []string {
 	if backendAllowed == nil {
 		return nil
@@ -98,18 +114,25 @@ func (h *RunCommandHandler) filterAllowedCommands(backendAllowed []string) []str
 	if !h.operatorCommandsFilterEnabled {
 		return backendAllowed
 	}
+	operatorSet := make(map[string]struct{}, len(h.operatorAllowedCommands))
+	for _, c := range h.operatorAllowedCommands {
+		operatorSet[c] = struct{}{}
+	}
 	filtered := make([]string, 0, len(backendAllowed))
 	for _, c := range backendAllowed {
-		if _, ok := h.operatorAllowedCommands[c]; ok {
+		if _, ok := operatorSet[c]; ok {
 			filtered = append(filtered, c)
 		}
 	}
 	return filtered
 }
 
-// filterAllowedPaths is the paths analogue of filterAllowedCommands. Both
-// do plain string-equality intersection — paths must be spelled identically
-// on the backend and in datadog.yaml to be admitted.
+// filterAllowedPaths is the paths analogue of filterAllowedCommands, but
+// with containment-aware intersection: the narrower of each matching
+// (backend, operator) pair wins. This admits an operator sub-path when the
+// backend entry is a parent directory, and vice versa. Disjoint pairs are
+// skipped. Prefix siblings do not match (boundary is a path separator), so
+// "/var/logger" does not satisfy a "/var/log" rule.
 func (h *RunCommandHandler) filterAllowedPaths(backendAllowed []string) []string {
 	if backendAllowed == nil {
 		return nil
@@ -118,12 +141,47 @@ func (h *RunCommandHandler) filterAllowedPaths(backendAllowed []string) []string
 		return backendAllowed
 	}
 	filtered := make([]string, 0, len(backendAllowed))
-	for _, p := range backendAllowed {
-		if _, ok := h.operatorAllowedPaths[p]; ok {
-			filtered = append(filtered, p)
+	seen := make(map[string]struct{})
+	admit := func(p string) {
+		if _, dup := seen[p]; dup {
+			return
+		}
+		seen[p] = struct{}{}
+		filtered = append(filtered, p)
+	}
+	for _, b := range backendAllowed {
+		for _, o := range h.operatorAllowedPaths {
+			switch {
+			case pathContains(b, o):
+				// operator entry is equal or narrower — admit it.
+				admit(o)
+			case pathContains(o, b):
+				// backend entry is strictly narrower — admit it.
+				admit(b)
+			}
 		}
 	}
 	return filtered
+}
+
+// pathContains reports whether parent is an ancestor of (or equal to) child,
+// using the path separator as the boundary. Leading and trailing slashes
+// are normalized via path.Clean so "/var/log/" and "/var/log" compare equal.
+// Prefix-sibling strings like "/var/logger" do not count as contained in
+// "/var/log".
+func pathContains(parent, child string) bool {
+	parent = path.Clean(parent)
+	child = path.Clean(child)
+	if parent == child {
+		return true
+	}
+	// Ensure parent ends with exactly one separator before the prefix
+	// check, so "/var/log" tests as a prefix of "/var/log/nginx" but not
+	// of "/var/logger".
+	if !strings.HasSuffix(parent, "/") {
+		parent += "/"
+	}
+	return strings.HasPrefix(child, parent)
 }
 
 // RunCommandInputs defines the inputs for the runCommand action.
