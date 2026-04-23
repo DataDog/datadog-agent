@@ -1,0 +1,58 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+// Package containercheckimpl implements a component to handle Container data collection in the Process Agent.
+package containercheckimpl
+
+import (
+	"github.com/DataDog/datadog-go/v5/statsd"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
+	containercheck "github.com/DataDog/datadog-agent/comp/process/containercheck/def"
+	"github.com/DataDog/datadog-agent/comp/process/types"
+	"github.com/DataDog/datadog-agent/pkg/process/checks"
+)
+
+var _ types.CheckComponent = (*check)(nil)
+
+type check struct {
+	containerCheck *checks.ContainerCheck
+}
+
+type dependencies struct {
+	compdef.In
+
+	Config    config.Component
+	Sysconfig sysprobeconfig.Component
+	WMmeta    workloadmeta.Component
+	Statsd    statsd.ClientInterface
+}
+
+type Provides struct {
+	compdef.Out
+
+	Check     types.ProvidesCheck
+	Component containercheck.Component
+}
+
+// NewCheck creates a new containercheck component.
+func NewCheck(deps dependencies) Provides {
+	c := &check{
+		containerCheck: checks.NewContainerCheck(deps.Config, deps.Sysconfig, deps.WMmeta, deps.Statsd),
+	}
+	return Provides{
+		Check: types.ProvidesCheck{
+			CheckComponent: c,
+		},
+		Component: c,
+	}
+}
+
+func (c *check) Object() checks.Check {
+	return c.containerCheck
+}
