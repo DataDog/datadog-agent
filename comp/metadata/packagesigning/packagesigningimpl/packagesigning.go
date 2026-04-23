@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	pkgUtils "github.com/DataDog/datadog-agent/comp/metadata/packagesigning/utils"
-	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
+	runnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/impl"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"

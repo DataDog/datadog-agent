@@ -22,7 +22,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	clusteragent "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
-	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
+	runnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/impl"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
