@@ -154,7 +154,7 @@ Package healthprobe implements the health check server
 
 ### [comp/core/hostname](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/hostname)
 
-Package hostname exposes hostname.Get() as a component.
+Package hostname exposes the hostname component interface.
 
 ### [comp/core/hostname/hostnameinterface](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface)
 
