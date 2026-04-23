@@ -68,11 +68,23 @@ func newObserverPipeline(
 func (p *observerPipeline) start() {
 	go func() {
 		defer close(p.drainDone)
-		var count uint64
+		var count, kubeletCount uint64
 		for msg := range p.outputChan {
 			count++
-			if count == 1 || count%1000 == 0 {
-				log.Infof("[observer/logssource] delivered %d logs to observer", count)
+			isKubelet := false
+			for _, t := range msg.GetTags() {
+				if t == "source:kubelet" {
+					isKubelet = true
+					kubeletCount++
+					break
+				}
+			}
+			if count == 1 || count%100 == 0 {
+				log.Infof("[observer/logssource] delivered %d logs to observer (source:kubelet=%d)", count, kubeletCount)
+			}
+			if isKubelet && kubeletCount <= 5 {
+				log.Infof("[observer/logssource] kubelet journal log #%d: tags=%v content=%q",
+					kubeletCount, msg.GetTags(), string(msg.GetContent()))
 			}
 			p.observerHandle.ObserveLog(msg)
 		}

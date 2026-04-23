@@ -122,6 +122,8 @@ func NewComponent(deps Requires) (Provides, error) {
 		Tags:               logsconfig.StringSliceField{"source:kubelet"},
 	})
 	logSources.AddSource(kubeletSource)
+	deps.Log.Infof("[observer/logssource] registered kubelet journald source: type=%s include_units=%v tags=%v",
+		kubeletSource.Config.Type, kubeletSource.Config.IncludeSystemUnits, kubeletSource.Config.Tags)
 
 	sp := newSourceProvider(wmeta, logSources, pauseFilter)
 
