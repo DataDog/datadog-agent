@@ -15,21 +15,6 @@ cloud_provider_metadata: []
 telemetry.enabled: true
 telemetry.checks: '*'
 
-# Disable the Docker autoconfig feature. SMP mounts the host's docker socket
-# into the agent container, so `env.IsFeaturePresent(env.Docker)` otherwise
-# returns true and the workloadmeta docker collector starts streaming events.
-# That collector panics when decoding some ContainerInspect responses via
-# moby/client (pre-existing reflect: Field index out of range in go-json),
-# but it only surfaces in experiments like this one where `gpu.enabled: true`
-# also activates the process workloadmeta collector's container-provider path.
-# Opting out of Docker autoconfig keeps the experiment focused on GPU-check
-# memory behaviour and sidesteps the unrelated panic.
-autoconfig_exclude_features:
-  - docker
-  - containerd
-  - cri
-  - kubernetes
-
 # GPU check.
 #
 # The fake library is packaged into the Linux agent by //pkg/gpu/fake-nvml
