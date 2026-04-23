@@ -137,18 +137,10 @@ class PhaseState:
 class BudgetState:
     wall_hours_used: float
     wall_hours_ceiling: float | None   # set after M0.2
-    api_tokens_used: int
+    api_tokens_used: int                # cached total; authoritative source
+                                        # is .coordinator/tokens.jsonl
     api_token_ceiling: int | None
     milestones_notified: list[float] = field(default_factory=list)
-    # Per-model token breakdown. api_tokens_used is the aggregate (all
-    # models, input+output); these let us estimate cost honestly because
-    # Opus is ~5× Sonnet per token.
-    opus_in: int = 0
-    opus_out: int = 0
-    sonnet_in: int = 0
-    sonnet_out: int = 0
-    unknown_in: int = 0
-    unknown_out: int = 0
 
 
 @dataclass
@@ -360,12 +352,6 @@ def dict_to_db(d: dict[str, Any]) -> Db:
             api_tokens_used=bs["api_tokens_used"],
             api_token_ceiling=bs.get("api_token_ceiling"),
             milestones_notified=bs.get("milestones_notified", []),
-            opus_in=int(bs.get("opus_in", 0) or 0),
-            opus_out=int(bs.get("opus_out", 0) or 0),
-            sonnet_in=int(bs.get("sonnet_in", 0) or 0),
-            sonnet_out=int(bs.get("sonnet_out", 0) or 0),
-            unknown_in=int(bs.get("unknown_in", 0) or 0),
-            unknown_out=int(bs.get("unknown_out", 0) or 0),
         ),
         iterations=[Iteration(**it) for it in d.get("iterations", [])],
         split=split,
@@ -463,12 +449,6 @@ def db_to_dict(db: Db) -> dict[str, Any]:
             "api_tokens_used": db.budget.api_tokens_used,
             "api_token_ceiling": db.budget.api_token_ceiling,
             "milestones_notified": db.budget.milestones_notified,
-            "opus_in": db.budget.opus_in,
-            "opus_out": db.budget.opus_out,
-            "sonnet_in": db.budget.sonnet_in,
-            "sonnet_out": db.budget.sonnet_out,
-            "unknown_in": db.budget.unknown_in,
-            "unknown_out": db.budget.unknown_out,
         },
         "iterations": [
             {

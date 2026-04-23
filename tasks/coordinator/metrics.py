@@ -128,23 +128,24 @@ def render(db: Db, root: Path = Path(".")) -> str:
         )
     else:
         lines.append(f"- api_tokens_used: {tok:,}")
-    # Per-model breakdown + list-price cost estimate. Real bill runs higher
-    # due to prompt-cache write tokens and SDK retries.
+    # Per-model breakdown + list-price cost estimate. Sourced from
+    # .coordinator/tokens.jsonl which is durable per SDK call — survives
+    # crashes/kills. Real bill runs higher due to prompt-cache write
+    # tokens under-reported by the SDK's ResultMessage.usage.
     try:
-        from . import sdk as _sdk
-        counter = {
-            "opus_in": db.budget.opus_in, "opus_out": db.budget.opus_out,
-            "sonnet_in": db.budget.sonnet_in, "sonnet_out": db.budget.sonnet_out,
-            "unknown_in": db.budget.unknown_in, "unknown_out": db.budget.unknown_out,
-        }
-        cost = _sdk.estimate_cost(counter)
-        lines.append(f"- estimated_cost_usd: ${cost:.2f} (list-price)")
-        lines.append(
-            f"- opus: {db.budget.opus_in:,} in / {db.budget.opus_out:,} out"
-        )
-        lines.append(
-            f"- sonnet: {db.budget.sonnet_in:,} in / {db.budget.sonnet_out:,} out"
-        )
+        from . import token_log as _tl
+        from pathlib import Path as _Path
+        records = _tl.read(_Path("."))
+        if records:
+            by_fam = _tl.sum_by_family(records)
+            cost = _tl.cost_estimate(records)
+            lines.append(f"- estimated_cost_usd: ${cost:.2f} (list-price)")
+            lines.append(
+                f"- opus: {by_fam['opus']['in']:,} in / {by_fam['opus']['out']:,} out"
+            )
+            lines.append(
+                f"- sonnet: {by_fam['sonnet']['in']:,} in / {by_fam['sonnet']['out']:,} out"
+            )
     except Exception:
         pass
     lines.append("")

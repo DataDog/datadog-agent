@@ -24,6 +24,7 @@ from typing import Any, Callable
 
 import yaml
 
+from . import token_log
 from .config import CONFIG
 from .reviewer import PHASE1_PERSONAS, PHASE2_PERSONAS
 from .schema import (
@@ -107,123 +108,153 @@ def _import_sdk():
         ) from e
 
 
-def _run_query(prompt: str, model: str | None = None, **options_kwargs) -> str:
+# Where to write per-call SDK error artifacts (full exception context
+# including any claude-CLI stderr we can pry loose). One file per failed
+# call. Referenced from the `iter_impl_failed` PR comment so a human can
+# actually see why it crashed.
+_SDK_ERRORS_DIR = "sdk-errors"
+
+
+def _dump_sdk_error(root: Path, exc: BaseException, purpose: str, model: str) -> Path:
+    """Serialise every scrap of context we can get from a failed SDK call
+    to a file under .coordinator/sdk-errors/. Return the path so callers
+    can reference it in journal / PR comments."""
+    import datetime as _dt
+    import traceback
+
+    errdir = Path(root) / ".coordinator" / _SDK_ERRORS_DIR
+    errdir.mkdir(parents=True, exist_ok=True)
+    ts = _dt.datetime.now().strftime("%Y%m%dT%H%M%S")
+    p = errdir / f"{ts}-{purpose}.txt"
+
+    lines: list[str] = []
+    lines.append(f"timestamp: {_dt.datetime.now().isoformat(timespec='seconds')}")
+    lines.append(f"purpose:   {purpose}")
+    lines.append(f"model:     {model}")
+    lines.append(f"exception type: {type(exc).__name__}")
+    lines.append(f"exception repr: {exc!r}")
+    lines.append(f"exception str:  {str(exc)[:2000]}")
+    # Common subprocess-error attributes: cmd, returncode, stdout, stderr.
+    for attr in ("cmd", "args", "returncode", "output", "stdout", "stderr"):
+        v = getattr(exc, attr, None)
+        if v is not None:
+            if isinstance(v, (bytes, bytearray)):
+                try:
+                    v = v.decode("utf-8", errors="replace")
+                except Exception:
+                    v = repr(v)
+            lines.append(f"\n--- exc.{attr} ---")
+            lines.append(str(v)[:8000])
+    # Walk the cause/context chain — claude-agent-sdk often wraps a
+    # subprocess.CalledProcessError inside its own exception.
+    cause = exc.__cause__ or exc.__context__
+    depth = 0
+    while cause is not None and depth < 5:
+        depth += 1
+        lines.append(f"\n--- cause chain depth={depth} ({type(cause).__name__}) ---")
+        lines.append(f"repr: {cause!r}")
+        for attr in ("cmd", "args", "returncode", "stdout", "stderr"):
+            v = getattr(cause, attr, None)
+            if v is not None:
+                if isinstance(v, (bytes, bytearray)):
+                    try:
+                        v = v.decode("utf-8", errors="replace")
+                    except Exception:
+                        v = repr(v)
+                lines.append(f"  {attr}: {str(v)[:4000]}")
+        cause = cause.__cause__ or cause.__context__
+    lines.append("\n--- traceback ---")
+    lines.append("".join(traceback.format_exception(type(exc), exc, exc.__traceback__))[:8000])
+    p.write_text("\n".join(lines))
+    return p
+
+
+def _run_query(
+    prompt: str,
+    model: str | None = None,
+    *,
+    purpose: str = "unknown",
+    root: Path | None = None,
+    iter_num: int | None = None,
+    **options_kwargs,
+) -> str:
     """Execute one SDK query with retries and return concatenated text.
 
     `model` selects a Claude model ID; callers typically pass
     CONFIG.model_deep (Opus — implement/review/propose) or
-    CONFIG.model_light (Sonnet — interpret_inbox_message). An empty
-    string or None falls back to the SDK's default model.
+    CONFIG.model_light (Sonnet — interpret_inbox_message).
+
+    `purpose` tags token-log records for post-run cost attribution:
+    "implement" | "review" | "propose" | "inbox".
+
+    `root` is the coordinator root (used to locate the token log +
+    sdk-errors dir). Defaults to CWD if omitted — the driver always
+    passes the right value.
     """
     query, ClaudeAgentOptions = _import_sdk()
     if model:
         options_kwargs["model"] = model
-    family = _model_family(model)
+    family = token_log.model_family(model)
+    root_path = Path(root) if root else Path(".")
 
     def _once() -> str:
         return _collect_text(
             query(prompt=prompt, options=ClaudeAgentOptions(**options_kwargs)),
-            model_family_for_call=family,
+            root=root_path,
+            model=model or "",
+            family=family,
+            purpose=purpose,
+            iter_num=iter_num,
         )
 
-    return _with_retries(_once)
+    try:
+        return _with_retries(_once)
+    except Exception as exc:
+        # Capture full context to an sdk-errors file; then re-raise with a
+        # breadcrumb so the driver's iter_impl_failed handler can include
+        # the path in the PR comment.
+        err_path = _dump_sdk_error(root_path, exc, purpose, model or "")
+        raise RuntimeError(
+            f"SDK call failed (purpose={purpose}, model={model}). "
+            f"Full context: {err_path}"
+        ) from exc
 
 
-# Process-wide token counter. Reset per iteration by the driver via
-# `consume_token_count()`. Tracks tokens by (model_family, input/output)
-# so the driver can report per-model usage and cost.
-# model_family ∈ {"opus", "sonnet", "unknown"}.
-_TOKEN_COUNTER: dict[str, int] = {
-    "opus_in": 0, "opus_out": 0,
-    "sonnet_in": 0, "sonnet_out": 0,
-    "unknown_in": 0, "unknown_out": 0,
-}
-
-# Per-million-token prices used for dollar estimates in PR comments /
-# journal. Opus = model_deep; Sonnet = model_light. Public list prices
-# as of April 2026; update when Anthropic pricing changes. The real
-# bill runs higher due to prompt-cache write tokens + retries.
-_PRICING = {
-    "opus":   {"in": 15.00, "out": 75.00},   # $/1M tokens
-    "sonnet": {"in":  3.00, "out": 15.00},
-    "unknown": {"in": 3.00, "out": 15.00},   # assume Sonnet-ish as a floor
-}
-
-
-def _model_family(model: str | None) -> str:
-    """Classify an SDK model ID into one of {opus, sonnet, unknown} for
-    cost attribution. Robust to future model-version renames — we look for
-    the substring, not exact match."""
-    if not model:
-        return "unknown"
-    m = model.lower()
-    if "opus" in m:
-        return "opus"
-    if "sonnet" in m:
-        return "sonnet"
-    if "haiku" in m:
-        # Haiku cheap, currently unused; lump into sonnet bucket as an
-        # approximation — underestimates cost slightly.
-        return "sonnet"
-    return "unknown"
-
-
-def estimate_cost(counter: dict[str, int]) -> float:
-    """Rough $ estimate from a per-model token counter dict."""
-    cost = 0.0
-    for fam in ("opus", "sonnet", "unknown"):
-        in_k = counter.get(f"{fam}_in", 0) / 1_000_000
-        out_k = counter.get(f"{fam}_out", 0) / 1_000_000
-        cost += in_k * _PRICING[fam]["in"]
-        cost += out_k * _PRICING[fam]["out"]
-    return cost
-
-
-def peek_token_count() -> dict[str, int]:
-    """Return the accumulated per-model token counts WITHOUT resetting.
-
-    Lets the driver include this-iteration token usage in end-of-iter PR
-    comments without losing the count for the end-of-iteration
-    consume_token_count() + budget-state update path.
-    """
-    ret = dict(_TOKEN_COUNTER)
-    ret["input"] = ret["opus_in"] + ret["sonnet_in"] + ret["unknown_in"]
-    ret["output"] = ret["opus_out"] + ret["sonnet_out"] + ret["unknown_out"]
-    return ret
-
-
-def consume_token_count() -> dict[str, int]:
-    """Return and reset the accumulated per-model token counts.
-
-    Returned dict has keys `opus_in`, `opus_out`, `sonnet_in`, `sonnet_out`,
-    `unknown_in`, `unknown_out` plus the legacy aggregate `input`/`output`
-    so existing callers keep working.
-    """
-    ret = dict(_TOKEN_COUNTER)
-    ret["input"] = ret["opus_in"] + ret["sonnet_in"] + ret["unknown_in"]
-    ret["output"] = ret["opus_out"] + ret["sonnet_out"] + ret["unknown_out"]
-    for k in _TOKEN_COUNTER:
-        _TOKEN_COUNTER[k] = 0
-    return ret
-
-
-def _collect_text(async_iter, model_family_for_call: str = "unknown") -> str:
+def _collect_text(
+    async_iter,
+    *,
+    root: Path,
+    model: str,
+    family: str,
+    purpose: str,
+    iter_num: int | None,
+) -> str:
     """Drain an SDK query's async iterator into a single text string.
 
-    `model_family_for_call` tags any observed token usage with the model
-    family that produced them — used by consume_token_count + estimate_cost
-    for per-model billing breakdown.
+    On every message that carries `.usage`, write one line to the token
+    log immediately — tokens are durable from the instant they're billed,
+    not from the end of the iteration. This means a mid-iter crash/kill
+    cannot lose them.
     """
     chunks: list[str] = []
-    in_key = f"{model_family_for_call}_in"
-    out_key = f"{model_family_for_call}_out"
 
     async def _go():
         async for msg in async_iter:
             usage = getattr(msg, "usage", None)
             if usage is not None:
-                _TOKEN_COUNTER[in_key] += int(getattr(usage, "input_tokens", 0) or 0)
-                _TOKEN_COUNTER[out_key] += int(getattr(usage, "output_tokens", 0) or 0)
+                in_tok = int(getattr(usage, "input_tokens", 0) or 0)
+                out_tok = int(getattr(usage, "output_tokens", 0) or 0)
+                if in_tok or out_tok:
+                    token_log.append(
+                        root=root,
+                        model=model,
+                        family=family,
+                        purpose=purpose,
+                        input_tok=in_tok,
+                        output_tok=out_tok,
+                        iter_num=iter_num,
+                        success=True,
+                    )
             if hasattr(msg, "result") and msg.result is not None:
                 chunks.append(str(msg.result))
         return "".join(chunks)
@@ -247,7 +278,7 @@ def _parse_yaml_block(text: str) -> dict[str, Any]:
 # 1. Inbox interpretation
 # ---------------------------------------------------------------------------
 
-def interpret_inbox_message(content: str) -> tuple[str, str]:
+def interpret_inbox_message(content: str, root: Path = Path(".")) -> tuple[str, str]:
     """Ask Claude to interpret a user inbox message.
 
     Returns (interpretation, planned_change). On parse failure returns
@@ -267,7 +298,10 @@ Reply in YAML with two fields:
                    its behaviour, OR "no action: <reason>">
 """
     # Lightweight one-shot summary: Sonnet is plenty.
-    text = _run_query(prompt, model=CONFIG.model_light, allowed_tools=[])
+    text = _run_query(
+        prompt, model=CONFIG.model_light, allowed_tools=[],
+        purpose="inbox", root=root,
+    )
     data = _parse_yaml_block(text)
     return (
         str(data.get("interpretation", "[unparsed]") or "[unparsed]"),
@@ -449,6 +483,7 @@ def implement_candidate(
     candidate: Candidate,
     root: Path,
     prior_experiments: list[dict] | None = None,
+    iter_num: int | None = None,
 ) -> str:
     """Spawn the implementation agent on the current working tree.
 
@@ -557,6 +592,9 @@ attempt is not the same.
     text = _run_query(
         prompt,
         model=CONFIG.model_deep,  # deep thinking — Opus
+        purpose="implement",
+        root=root,
+        iter_num=iter_num,
         allowed_tools=["Read", "Edit", "Write", "Bash", "Grep", "Glob"],
         cwd=str(root),
         hooks={
@@ -694,6 +732,7 @@ def review_experiment(
     phase: Phase,
     all_scenarios: list[str],
     root: Path,
+    iter_num: int | None = None,
 ) -> ReviewVerdict:
     """Invoke Phase-1 review (leakage_auditor + hack_detector).
 
@@ -728,6 +767,9 @@ def review_experiment(
         text = _run_query(
             full_prompt,
             model=CONFIG.model_deep,  # review is a judgement call — Opus
+            purpose=f"review:{name}",
+            root=root,
+            iter_num=iter_num,
             allowed_tools=["Read", "Grep", "Glob"],
             cwd=str(root),
             # Hard ceiling on tool hops. A reviewer that runs Grep across

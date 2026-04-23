@@ -24,7 +24,7 @@ import sys
 from pathlib import Path
 
 from . import budget as budget_mod
-from . import coord_out, evaluator, git_ops, github_in, journal, metrics, overfit_check, scheduler, workspace_validate
+from . import coord_out, evaluator, git_ops, github_in, journal, metrics, overfit_check, scheduler, token_log, workspace_validate
 from . import sdk as sdk_mod
 from .config import CONFIG
 from .db import empty_db, load_db, save_db, state_dir
@@ -50,21 +50,20 @@ class ProtectedPathTamperHalt(Exception):
     """Raised when ground-truth fixtures changed between iterations."""
 
 
-def _budget_footer(db: Db, iter_tokens: dict | None = None) -> str:
-    """Compact one-line-ish token/cost summary for PR comments.
-
-    Shows this-iteration usage + cumulative + ceiling %age. Costs are
-    list-price estimates; real bill runs higher due to prompt-cache
-    write tokens and retries.
+def _budget_footer(root: Path, iter_num: int | None = None) -> str:
+    """Compact token/cost summary for PR comments, sourced from the
+    durable token log (`.coordinator/tokens.jsonl`). Decoupled from
+    db.budget — tokens are authoritative from the instant they're
+    appended, not from the end-of-iteration save_db.
     """
-    b = db.budget
-    cum = {
-        "opus_in": b.opus_in, "opus_out": b.opus_out,
-        "sonnet_in": b.sonnet_in, "sonnet_out": b.sonnet_out,
-        "unknown_in": b.unknown_in, "unknown_out": b.unknown_out,
-    }
-    cum_cost = sdk_mod.estimate_cost(cum)
-    total_toks = b.api_tokens_used
+    records = token_log.read(root)
+    iter_records = (
+        token_log.filter_by_iter(records, iter_num) if iter_num is not None else []
+    )
+
+    total_in, total_out = token_log.sum_total(records)
+    total_toks = total_in + total_out
+    cum_cost = token_log.cost_estimate(records)
 
     pct = ""
     if CONFIG.api_token_ceiling:
@@ -74,24 +73,24 @@ def _budget_footer(db: Db, iter_tokens: dict | None = None) -> str:
         )
 
     iter_line = ""
-    if iter_tokens:
-        iter_in = iter_tokens.get("input", 0) or 0
-        iter_out = iter_tokens.get("output", 0) or 0
-        iter_cost = sdk_mod.estimate_cost(iter_tokens)
-        if iter_in or iter_out:
+    if iter_num is not None:
+        i_in, i_out = token_log.sum_total(iter_records)
+        if i_in or i_out:
+            i_cost = token_log.cost_estimate(iter_records)
             iter_line = (
-                f"This iter: {iter_in:,} in / {iter_out:,} out "
-                f"(~${iter_cost:.2f}). "
+                f"This iter: {i_in:,} in / {i_out:,} out (~${i_cost:.2f}). "
             )
         else:
             iter_line = "This iter: 0 tokens (SDK call failed before API). "
 
-    # Model mix line: skip the divide-by-zero when we have no data yet.
-    opus_toks = b.opus_in + b.opus_out
-    sonnet_toks = b.sonnet_in + b.sonnet_out
+    # Model mix line: from the log, using current tokens of each family.
+    by_fam = token_log.sum_by_family(records)
+    opus_toks = by_fam["opus"]["in"] + by_fam["opus"]["out"]
+    sonnet_toks = by_fam["sonnet"]["in"] + by_fam["sonnet"]["out"]
     if total_toks > 0:
         opus_pct = 100 * opus_toks / total_toks
-        mix_line = f" Model mix: Opus {opus_pct:.0f}%, Sonnet {100 - opus_pct:.0f}%."
+        sonnet_pct = 100 * sonnet_toks / total_toks
+        mix_line = f" Model mix: Opus {opus_pct:.0f}%, Sonnet {sonnet_pct:.0f}%."
     else:
         mix_line = ""
 
@@ -157,7 +156,7 @@ def process_inbox(db: Db, root: Path, dry_run: bool) -> list[str]:
         else:
             from . import sdk
 
-            interpretation, planned_change = sdk.interpret_inbox_message(msg.content)
+            interpretation, planned_change = sdk.interpret_inbox_message(msg.content, root=root)
         ack_id = ack_and_archive(msg, interpretation, planned_change, root)
         journal.append(
             "inbox_ack",
@@ -461,44 +460,33 @@ def run_iteration(db: Db, root: Path, dry_run: bool = False) -> Db:
         save_db(db, root)
 
     if not dry_run:
-        # Accumulate SDK tokens consumed during this iteration. Per-model
-        # breakdown (opus vs sonnet) enables honest $ attribution — Opus
-        # is ~5× Sonnet per input token.
-        tokens = sdk_mod.consume_token_count()
-        db.budget.api_tokens_used += tokens["input"] + tokens["output"]
-        cost_iter = sdk_mod.estimate_cost(tokens)
-        cumulative_cost = sdk_mod.estimate_cost({
-            "opus_in": 0, "opus_out": 0,           # budget state tracks aggregate;
-            "sonnet_in": 0, "sonnet_out": 0,       # accurate cumulative requires
-            "unknown_in": 0, "unknown_out": 0,     # per-model accumulation in db.
-        })
-        # Store the cumulative breakdown on budget so future iterations
-        # can render "we've spent $X on Opus, $Y on Sonnet".
-        for k, v in tokens.items():
-            if k in ("input", "output"):
-                continue
-            setattr(
-                db.budget,
-                k,
-                getattr(db.budget, k, 0) + v,
-            )
-        if tokens["input"] or tokens["output"]:
+        # Tokens are durably appended to .coordinator/tokens.jsonl by the
+        # SDK on every API call — we just re-read them here to update the
+        # db.yaml cached total (for metrics.md + milestone check) and
+        # emit the ceiling-halt if we've crossed it. Source of truth is
+        # the log file, not db.budget.
+        records = token_log.read(root)
+        iter_in, iter_out = token_log.sum_total(
+            token_log.filter_by_iter(records, len(db.iterations))
+        )
+        total_in, total_out = token_log.sum_total(records)
+        db.budget.api_tokens_used = total_in + total_out
+        if iter_in or iter_out:
             journal.append(
                 "tokens_used",
                 {
                     "iter": len(db.iterations),
-                    "input": tokens["input"],
-                    "output": tokens["output"],
-                    "opus_in": tokens.get("opus_in", 0),
-                    "opus_out": tokens.get("opus_out", 0),
-                    "sonnet_in": tokens.get("sonnet_in", 0),
-                    "sonnet_out": tokens.get("sonnet_out", 0),
-                    "cost_iter_usd": round(cost_iter, 4),
-                    "cumulative_cost_usd": round(sdk_mod.estimate_cost({
-                        f"{fam}_{d}": getattr(db.budget, f"{fam}_{d}", 0)
-                        for fam in ("opus", "sonnet", "unknown")
-                        for d in ("in", "out")
-                    }), 4),
+                    "iter_input": iter_in,
+                    "iter_output": iter_out,
+                    "iter_cost_usd": round(
+                        token_log.cost_estimate(
+                            token_log.filter_by_iter(records, len(db.iterations))
+                        ),
+                        4,
+                    ),
+                    "cumulative_input": total_in,
+                    "cumulative_output": total_out,
+                    "cumulative_cost_usd": round(token_log.cost_estimate(records), 4),
                 },
                 root,
             )
@@ -511,8 +499,7 @@ def run_iteration(db: Db, root: Path, dry_run: bool = False) -> Db:
                 root,
             )
 
-        # Hard token ceiling: halt the loop when exceeded. Unlike wall-hour
-        # milestones (advisory), this one actually stops the coordinator.
+        # Hard token ceiling: halt when cumulative log sum exceeds.
         if (
             CONFIG.api_token_ceiling is not None
             and db.budget.api_tokens_used >= CONFIG.api_token_ceiling
@@ -648,7 +635,7 @@ def _run_iteration_body(
                 f"> {cand_desc}"
                 # Cumulative-only footer (no "this iter" since no SDK call has
                 # fired yet) — lets observers see run-to-date spend at a glance.
-                + _budget_footer(db, iter_tokens=None)
+                + _budget_footer(root, iter_num=None)
             ),
             requires_ack=False,
             root=root,
@@ -666,7 +653,9 @@ def _run_iteration_body(
 
         try:
             impl_summary = sdk.implement_candidate(
-                candidate, root, prior_experiments=_recent_same_family(db, candidate)
+                candidate, root,
+                prior_experiments=_recent_same_family(db, candidate),
+                iter_num=iter_num,
             )
         except Exception as e:
             print(f"[iter {iter_num}] implementation failed: {e}", file=sys.stderr)
@@ -690,7 +679,7 @@ def _run_iteration_body(
                     f"REJECTED to prevent loop.\n\n"
                     f"Error: `{str(e)[:400]}`\n\n"
                     f"Working tree reverted; moving on."
-                    + _budget_footer(db, sdk_mod.peek_token_count())
+                    + _budget_footer(root, iter_num)
                 ),
                 requires_ack=False,
                 root=root,
@@ -778,7 +767,7 @@ def _run_iteration_body(
                     f"**iter {iter_num}** · `{candidate.id}` — eval failed.\n\n"
                     f"Stderr tail: `{eval_msg[:400]}`\n\n"
                     f"Working tree reverted; moving on."
-                    + _budget_footer(db, sdk_mod.peek_token_count())
+                    + _budget_footer(root, iter_num)
                 ),
                 requires_ack=False,
                 root=root,
@@ -906,7 +895,7 @@ def _run_iteration_body(
                 f"Total FPs {scoring.baseline_total_fps} → {scoring.total_fps} "
                 f"(Δ{scoring.total_dfps:+d}).\n\n"
                 f"Working tree reverted; no commit."
-                + _budget_footer(db, sdk_mod.peek_token_count())
+                + _budget_footer(root, iter_num)
             ),
             requires_ack=False,
             root=root,
@@ -930,6 +919,7 @@ def _run_iteration_body(
                 + (list(db.split.lockbox) if db.split else [])
             ),
             root=root,
+            iter_num=iter_num,
         )
     except Exception as e:
         print(f"[iter {iter_num}] review failed: {e}", file=sys.stderr)
@@ -1013,7 +1003,7 @@ def _run_iteration_body(
                 f"(Δ{scoring.total_dfps:+d}).\n\n"
                 f"**Top 5 scenario wins**:\n{win_lines}\n\n"
                 f"**Reviewer verdicts**:\n{rationale_lines}"
-                + _budget_footer(db, sdk_mod.peek_token_count())
+                + _budget_footer(root, iter_num)
             ),
             requires_ack=False,
             root=root,
@@ -1084,7 +1074,7 @@ def _run_iteration_body(
                 f"(Δ{scoring.mean_df1:+.4f}).\n\n"
                 f"**Reviewer verdicts**:\n{rationale_lines}\n\n"
                 f"Working tree reverted; no commit."
-                + _budget_footer(db, sdk_mod.peek_token_count())
+                + _budget_footer(root, iter_num)
             ),
             requires_ack=False,
             root=root,

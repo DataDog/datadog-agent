@@ -361,6 +361,8 @@ def propose(
     text = sdk._run_query(
         prompt,
         model=CONFIG.model_deep,  # brainstorming is a deep-thinking task — Opus
+        purpose="propose",
+        root=root,
         allowed_tools=["Read", "Grep", "Glob"],  # read-only exploration
         cwd=str(root),
     )
