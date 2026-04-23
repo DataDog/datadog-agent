@@ -8,22 +8,33 @@
 package resourcesimpl
 
 import (
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/metadata/resources"
-	"go.uber.org/fx"
+	resources "github.com/DataDog/datadog-agent/comp/metadata/resources/def"
 )
 
 type resourcesImpl struct{}
 
-type provides struct {
+// Requires defines the dependencies for the resources metadata component (non-supported platforms).
+type Requires struct {
+	fx.In
+
+	Log    log.Component
+	Config config.Component
+}
+
+// Provides defines the output of the resources metadata component (non-supported platforms).
+type Provides struct {
 	fx.Out
 
 	Comp resources.Component
 }
 
-func newResourcesProvider(_ log.Component, _ config.Component) provides {
-	return provides{
+// NewComponent creates a new resources metadata component for non-supported platforms.
+func NewComponent(_ Requires) Provides {
+	return Provides{
 		// We return a dummy Component
 		Comp: &resourcesImpl{},
 	}
