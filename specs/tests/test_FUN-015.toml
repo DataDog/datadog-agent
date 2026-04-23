@@ -2,6 +2,46 @@ kind = "tests"
 category = "functional"
 
 [[tests]]
+id = "T000"
+short = "Install script bootstraps the installer on a virgin system"
+long = '''
+Validates the end-to-end entry point: on a host with no Datadog software at all,
+the install script downloads the datadog-installer binary, verifies its integrity,
+runs `setup --flavor default`, which bootstraps the installer into the local
+repository and installs the default packages.
+'''
+ref = ["FUN-015"]
+initial = """
+- A Linux host (amd64 or arm64) with no Datadog software installed.
+- `curl` and `sha256sum` are available.
+- `DD_API_KEY` is set to a valid API key.
+"""
+
+[[tests.steps]]
+action = "Run the install script."
+run = "DD_API_KEY=$DD_API_KEY bash -c \"$(curl -L https://install.datadoghq.com/scripts/install_script_agent7.sh)\""
+
+[[tests.steps]]
+action = "Verify the installer binary is installed in the repository."
+run = "test -x /opt/datadog-packages/datadog-installer/stable/bin/installer/installer; echo $?"
+expected = "0"
+
+[[tests.steps]]
+action = "Verify the installer reports itself as installed."
+run = "datadog-installer is-installed datadog-installer; echo $?"
+expected = "0"
+
+[[tests.steps]]
+action = "Verify the agent was installed as a default package."
+run = "datadog-installer is-installed datadog-agent; echo $?"
+expected = "0"
+
+[[tests.steps]]
+action = "Verify the temporary bootstrap binary was cleaned up."
+run = "test -f /opt/datadog-packages/tmp/installer; echo $?"
+expected = "1"
+
+[[tests]]
 id = "T001"
 short = "Bootstrap from initial state installs the installer and default packages"
 long = '''
@@ -11,13 +51,7 @@ downloads the installer OCI package, installs it to the local repository, then
 uses the installed copy to install the default packages.
 '''
 ref = ["FUN-015"]
-initial = """
-- The `datadog-installer` binary is present on the host (e.g. at `/usr/bin/datadog-installer`).
-- No packages are installed in `/opt/datadog-packages/`.
-- `DD_API_KEY` is set to a valid API key.
-- `DD_SITE` is set (or defaults to datadoghq.com).
-- The OCI registry is reachable.
-"""
+prereq = ["T000"]
 
 [[tests.steps]]
 action = "Run the bootstrap command."
@@ -45,10 +79,8 @@ Validates that the bootstrap process respects `DD_INSTALLER_REGISTRY_URL`
 to pull the installer OCI package from a custom registry instead of the default one.
 '''
 ref = ["FUN-015", "FUN-014"]
+prereq = ["T000"]
 initial = """
-- The `datadog-installer` binary is present on the host.
-- No packages are installed in `/opt/datadog-packages/`.
-- `DD_API_KEY` is set.
 - `DD_INSTALLER_REGISTRY_URL` is set to a custom registry URL.
 - The custom registry hosts the installer and agent images.
 """
@@ -70,10 +102,8 @@ Validates that the bootstrap process fails cleanly when the OCI registry
 cannot be reached, leaving no partial state on disk.
 '''
 ref = ["FUN-015"]
+prereq = ["T000"]
 initial = """
-- The `datadog-installer` binary is present on the host.
-- No packages are installed in `/opt/datadog-packages/`.
-- `DD_API_KEY` is set.
 - `DD_INSTALLER_REGISTRY_URL` points to an unreachable host.
 """
 

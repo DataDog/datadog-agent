@@ -9,10 +9,8 @@ Validates the minimal happy path: install a package by URL,
 verify it appears as installed with the correct stable version.
 '''
 ref = ["FUN-001"]
+prereq = ["T001"]
 initial = """
-- The installer is bootstrapped and functional.
-- `DD_API_KEY` is set.
-- The OCI registry is reachable.
 - The target package is not yet installed.
 """
 
@@ -53,9 +51,7 @@ Validates that providing a malformed or non-existent OCI URL
 results in an error and does not leave partial state.
 '''
 ref = ["FUN-001"]
-initial = """
-- The installer is bootstrapped and functional.
-"""
+prereq = ["T001"]
 
 [[tests.steps]]
 action = "Attempt to install from an invalid OCI URL."

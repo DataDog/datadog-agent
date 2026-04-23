@@ -29,8 +29,8 @@ Validates behavior when attempting to remove a package that was never installed.
 The command should fail with a non-zero exit code.
 '''
 ref = ["FUN-002"]
+prereq = ["T001"]
 initial = """
-- The installer is bootstrapped and functional.
 - The target package is not installed.
 """
 
