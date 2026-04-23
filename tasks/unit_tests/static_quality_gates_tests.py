@@ -2212,7 +2212,7 @@ class TestIdentifyGatesWithSizeIncrease(unittest.TestCase):
 class TestFetchPrMetrics(unittest.TestCase):
     """Test the fetch_pr_metrics function."""
 
-    @patch("tasks.quality_gates.query_metrics")
+    @patch("tasks.static_quality_gates.metrics.query_metrics")
     def test_fetches_and_parses_metrics(self, mock_query):
         """Should fetch metrics and parse them correctly with single API call."""
         # Single API call returns all 4 metrics
@@ -2251,7 +2251,7 @@ class TestFetchPrMetrics(unittest.TestCase):
         self.assertEqual(gate.max_on_disk_size, 150 * 1024 * 1024)
         self.assertEqual(gate.max_on_wire_size, 75 * 1024 * 1024)
 
-    @patch("tasks.quality_gates.query_metrics")
+    @patch("tasks.static_quality_gates.metrics.query_metrics")
     def test_returns_empty_when_no_metrics(self, mock_query):
         """Should return empty dict when no metrics found."""
         mock_query.return_value = []
@@ -2260,7 +2260,7 @@ class TestFetchPrMetrics(unittest.TestCase):
 
         self.assertEqual(len(result), 0)
 
-    @patch("tasks.quality_gates.query_metrics")
+    @patch("tasks.static_quality_gates.metrics.query_metrics")
     def test_handles_multiple_gates(self, mock_query):
         """Should handle metrics for multiple gates in single API call."""
         # Single API call returns metrics for multiple gates
@@ -2295,7 +2295,7 @@ class TestFetchPrMetrics(unittest.TestCase):
         self.assertIn("static_quality_gate_agent_deb_amd64", result)
         self.assertIn("static_quality_gate_docker_agent_amd64", result)
 
-    @patch("tasks.quality_gates.query_metrics")
+    @patch("tasks.static_quality_gates.metrics.query_metrics")
     def test_fetches_relative_size_metrics(self, mock_query):
         """Should fetch and parse relative_on_disk_size and relative_on_wire_size."""
         # API call includes all 6 metrics including relative sizes
@@ -2347,7 +2347,7 @@ class TestFetchPrMetrics(unittest.TestCase):
 class TestFetchMainHeadroom(unittest.TestCase):
     """Test the fetch_main_headroom function."""
 
-    @patch("tasks.quality_gates.query_metrics")
+    @patch("tasks.static_quality_gates.metrics.query_metrics")
     def test_calculates_headroom_correctly(self, mock_query):
         """Should calculate headroom as max - current."""
         # Single API call returns all 4 metrics for the gate
@@ -2384,7 +2384,7 @@ class TestFetchMainHeadroom(unittest.TestCase):
         # wire_headroom = 75 - 50 = 25 MiB
         self.assertEqual(headroom["wire_headroom"], 25 * 1024 * 1024)
 
-    @patch("tasks.quality_gates.query_metrics")
+    @patch("tasks.static_quality_gates.metrics.query_metrics")
     def test_headroom_never_negative(self, mock_query):
         """Headroom should never be negative (clamped to 0)."""
         # Single API call with current > max
