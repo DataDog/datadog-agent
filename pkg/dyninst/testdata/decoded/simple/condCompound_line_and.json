@@ -19,7 +19,7 @@
           "location": {
             "method": "main.condLine",
             "file": "main.go",
-            "line": 519
+            "line": 535
           }
         }
       },

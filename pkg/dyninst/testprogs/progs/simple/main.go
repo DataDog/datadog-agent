@@ -137,6 +137,22 @@ func main() {
 	u := 42
 	condNullUnsafePtr(unsafe.Pointer(&u), "miss")
 
+	// contains(map, key) condition targets. Called three times:
+	// "present" — key is in the map and contains(...) is true.
+	// "absent"  — key is not in the map; contains(...) is false.
+	// "nil"     — map is nil; contains(...) is false.
+	condContainsMap(
+		map[string]int{"existing_key": 1},
+		map[int]int{42: 1},
+		"present",
+	)
+	condContainsMap(
+		map[string]int{"other": 2},
+		map[int]int{7: 1},
+		"absent",
+	)
+	condContainsMap(nil, nil, "nil")
+
 	// Error case targets: called once each (conditions will fail at analysis).
 	condSliceArg([]int{1, 2, 3}, "err")
 	condMapArg(map[string]int{"a": 1}, "err")
@@ -580,6 +596,16 @@ func condNullIface(i error, tag string) {
 func condNullUnsafePtr(p unsafe.Pointer, tag string) {
 	sink(p, tag)
 	fmt.Println(p, tag)
+}
+
+// condContainsMap is a target for contains(m, key) conditions. Takes both a
+// string-keyed and int-keyed map so a single test function can exercise both
+// key-type flavors.
+//
+//go:noinline
+func condContainsMap(m map[string]int, mi map[int]int, tag string) {
+	sink(m, mi, tag)
+	fmt.Println(m, mi, tag)
 }
 
 // --- len/isEmpty test functions ---

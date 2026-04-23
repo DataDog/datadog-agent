@@ -146,6 +146,14 @@ var testCases = []struct {
 	{name: "and arity 1", input: `{"and": [{"eq": [{"ref": "x"}, 1]}]}`},
 	{name: "and arity 3", input: `{"and": [{"eq": [{"ref": "x"}, 1]}, {"eq": [{"ref": "y"}, 2]}, {"eq": [{"ref": "z"}, 3]}]}`},
 	{name: "or arity 0", input: `{"or": []}`},
+	// contains: map key-presence check.
+	{name: "contains int key", input: `{"contains": [{"ref": "m"}, 42]}`},
+	{name: "contains nested getmember", input: `{"contains": [{"getmember": [{"ref": "self"}, "m"]}, "k"]}`},
+	{name: "contains under not", input: `{"not": {"contains": [{"ref": "m"}, "k"]}}`},
+	{name: "contains in and", input: `{"and": [{"contains": [{"ref": "m"}, "k"]}, {"eq": [{"ref": "x"}, 1]}]}`},
+	{name: "contains arity 0", input: `{"contains": []}`},
+	{name: "contains arity 1", input: `{"contains": [{"ref": "m"}]}`},
+	{name: "contains arity 3", input: `{"contains": [{"ref": "m"}, "k", 1]}`},
 }
 
 // exprResult represents the result of parsing an expression for storage in JSON.
@@ -187,6 +195,10 @@ func exprToResult(expr Expr, err error) exprResult {
 		base := exprToResult(e.Base, nil)
 		index := exprToResult(e.Index, nil)
 		return exprResult{Type: "index", Left: &base, Right: &index}
+	case *ContainsExpr:
+		base := exprToResult(e.Base, nil)
+		key := exprToResult(e.Key, nil)
+		return exprResult{Type: "contains", Left: &base, Right: &key}
 	case *AndExpr:
 		left := exprToResult(e.Left, nil)
 		right := exprToResult(e.Right, nil)

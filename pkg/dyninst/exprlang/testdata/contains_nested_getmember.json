@@ -1,0 +1,22 @@
+{
+  "type": "contains",
+  "operation": "",
+  "left": {
+    "type": "unsupported",
+    "operation": "getmember",
+    "argument": [
+      {
+        "Ref": "self"
+      },
+      "m"
+    ],
+    "error": ""
+  },
+  "right": {
+    "type": "literal",
+    "operation": "",
+    "value": "k",
+    "error": ""
+  },
+  "error": ""
+}
