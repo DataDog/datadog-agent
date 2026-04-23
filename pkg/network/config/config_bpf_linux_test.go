@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-package config
+package config_test
 
 import (
 	"strconv"

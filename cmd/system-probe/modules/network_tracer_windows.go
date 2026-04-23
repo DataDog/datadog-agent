@@ -26,7 +26,7 @@ var NetworkTracer = &module.Factory{
 	Fn:   createNetworkTracerModule,
 }
 
-func (nt *networkTracer) platformRegister(httpMux *module.Router) error {
+func (nt *networkTracerModule) platformRegister(httpMux *module.Router) error {
 	if !nt.cfg.DirectSend {
 		nt.restartTimer = time.AfterFunc(inactivityRestartDuration, func() {
 			log.Criticalf("%v since the process-agent last queried for data. It may not be configured correctly and/or running. Exiting system-probe to save system resources.", inactivityRestartDuration)

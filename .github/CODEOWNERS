@@ -341,6 +341,7 @@
 /comp/metadata @DataDog/agent-configuration
 /comp/ndmtmp @DataDog/network-device-monitoring-core
 /comp/netflow @DataDog/ndm-integrations
+/comp/network @DataDog/cloud-network-monitoring
 /comp/networkpath @DataDog/network-path
 /comp/otelcol @DataDog/opentelemetry-agent
 /comp/process @DataDog/container-experiences
@@ -378,6 +379,9 @@
 /comp/metadata/hostgpu @DataDog/ebpf-platform
 /comp/metadata/hostsysteminfo @DataDog/windows-products
 /comp/metadata/packagesigning @DataDog/agent-delivery
+/comp/networkdeviceconfig @DataDog/ndm-integrations
+/comp/networkpath/npcollector @DataDog/network-path
+/comp/networkpath/traceroute @DataDog/network-path
 /comp/process/connectionscheck @DataDog/cloud-network-monitoring @DataDog/universal-service-monitoring
 /comp/trace/etwtracer @DataDog/windows-products
 /comp/trace-telemetry @DataDog/agent-runtimes
@@ -393,7 +397,6 @@
 /comp/healthplatform @DataDog/agent-health
 /comp/languagedetection/client @DataDog/container-platform
 /comp/logonduration @DataDog/windows-products
-/comp/networkdeviceconfig @DataDog/ndm-integrations
 /comp/notableevents @DataDog/windows-products
 /comp/offlinereporter @DataDog/agent-metric-pipelines
 /comp/privateactionrunner @DataDog/action-platform
