@@ -132,7 +132,7 @@ configure_make(
         # ssl/ is empty on Windows because --openssldir above points outside the sandbox; rules_python 1.9.0 skips
         # empty dirs when copying runfiles to a temp dir for `bazel run`, causing FileNotFoundError in pkg_install.
         ":fips_windows": ["lib/ossl-modules", "lib/engines-3"],  #TODO(agent-build): remove special case
-        "@//packages/agent:fips_flavor": ["ssl", "lib/ossl-modules", "lib/engines-3"],
+        "@@//packages/agent:fips_flavor": ["ssl", "lib/ossl-modules", "lib/engines-3"],
         "@platforms//os:windows": [],
         "//conditions:default": ["lib/ossl-modules", "lib/engines-3"],
     }),
@@ -225,15 +225,20 @@ dd_cc_packaged(
     version = OPENSSL_VERSION,
     libname = "libcrypto",
     installed_files = [":openssl_files"] + select({
-        "@//packages/agent:fips_flavor": [":_fips_extra_files"],
+        "@@//packages/agent:fips_flavor": [":_fips_extra_files"],
         "//conditions:default": [],
     }),
     installed_executables = {
         ":openssl_binary": "bin",
-        ":_engines": "lib",
-        ":_ossl_modules": "lib",
     } | select({
-        "@//packages/agent:fips_flavor": {"@openssl_fips//:fips_provider": "lib/ossl-modules"},
+        # Engines, modules, and fips provider are only installed for FIPS builds.
+        # Non-FIPS Windows has out_data_dirs = [] so the engines/modules output groups
+        # do not exist there; non-FIPS non-Windows builds don't need them either.
+        "@@//packages/agent:fips_flavor": {
+            ":_engines": "lib",
+            ":_ossl_modules": "lib",
+            "@openssl_fips//:fips_provider": "lib/ossl-modules",
+        },
         "//conditions:default": {},
     }),
 )
