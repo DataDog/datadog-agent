@@ -64,6 +64,11 @@ _EMOJI = {
     "coordinator_startup": "👋",
     "upstream_conflict": "🚨",
     "inbox_ack": "📥",
+    "iter_start": "▶️",
+    "iter_shipped": "✅",
+    "iter_rejected": "❌",
+    "iter_eval_failed": "💥",
+    "iter_impl_failed": "💥",
 }
 
 
@@ -77,12 +82,40 @@ def is_configured() -> bool:
     return pr_number() is not None
 
 
+def _signature() -> str:
+    """Build a compact signature line appended to every coord-out comment.
+
+    Makes clear the comment is from the coordinator (not a human) and
+    gives the reader enough breadcrumbs to find the context: git sha of
+    the harness code that posted it, and timestamp.
+    """
+    import datetime as _dt
+    import subprocess
+    sha = ""
+    try:
+        r = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if r.returncode == 0:
+            sha = r.stdout.strip()
+    except (FileNotFoundError, subprocess.TimeoutExpired, Exception):
+        pass
+    ts = _dt.datetime.now().isoformat(timespec="seconds")
+    parts = ["— Claude (coordinator harness)"]
+    if sha:
+        parts.append(f"`{sha}`")
+    parts.append(ts)
+    return " · ".join(parts)
+
+
 def format_message(msg_type: str, content: str, requires_ack: bool) -> str:
     emoji = _EMOJI.get(msg_type, "🔔")
     ack_tag = "  **[requires ack]**" if requires_ack else ""
     return (
         f"{OWN_MESSAGE_MARKER}{emoji}  `{msg_type}`{ack_tag}\n\n"
-        f"{content.rstrip()}"
+        f"{content.rstrip()}\n\n"
+        f"<sub>{_signature()}</sub>"
     )
 
 

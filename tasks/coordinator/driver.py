@@ -549,6 +549,23 @@ def _run_iteration_body(
     experiment_id = f"exp-{iter_num:04d}-{candidate.id}"
     print(f"[iter {iter_num}] candidate={candidate.id} detectors={detectors}")
 
+    if not dry_run:
+        # Announce iteration start on the run-log PR. Gives observers on
+        # mobile a real-time breadcrumb trail so a days-long run isn't
+        # just "silence → verdict at the end".
+        cand_desc = (candidate.description or "").strip().split("\n")[0][:200]
+        coord_out.emit(
+            "iter_start",
+            (
+                f"**iter {iter_num}** · `{candidate.id}` "
+                f"(family `{candidate.approach_family}`)\n\n"
+                f"Evaluating against detectors: `{', '.join(detectors)}`.\n\n"
+                f"> {cand_desc}"
+            ),
+            requires_ack=False,
+            root=root,
+        )
+
     # 2a. Capture pre-SHA (scratch branch already ensured + sync'd + dirty-check
     # passed at step 1a). Post-sync SHA is the correct baseline for the
     # candidate's commit.
@@ -569,6 +586,17 @@ def _run_iteration_body(
                 "implementation_failed", {"iter": iter_num, "error": str(e)}, root
             )
             git_ops.revert_working_tree(root)
+            coord_out.emit(
+                "iter_impl_failed",
+                (
+                    f"**iter {iter_num}** · `{candidate.id}` — "
+                    f"implementation agent crashed.\n\n"
+                    f"Error: `{str(e)[:400]}`\n\n"
+                    f"Working tree reverted; moving on."
+                ),
+                requires_ack=False,
+                root=root,
+            )
             it.ended_at = now_iso()
             db.iterations.append(it)
             save_db(db, root)
@@ -646,6 +674,16 @@ def _run_iteration_body(
         candidate.status = CandidateStatus.REJECTED
         if not dry_run:
             git_ops.revert_working_tree(root)
+            coord_out.emit(
+                "iter_eval_failed",
+                (
+                    f"**iter {iter_num}** · `{candidate.id}` — eval failed.\n\n"
+                    f"Stderr tail: `{eval_msg[:400]}`\n\n"
+                    f"Working tree reverted; moving on."
+                ),
+                requires_ack=False,
+                root=root,
+            )
         it.ended_at = now_iso()
         db.iterations.append(it)
         if not dry_run:
@@ -744,10 +782,32 @@ def _run_iteration_body(
             {"iter": iter_num, "candidate": candidate.id, "reason": reason},
             root,
         )
+        # Build a compact per-scenario delta summary — the biggest 5
+        # |ΔF1| swings, both helpful and harmful, so the reader sees
+        # WHY it was rejected at a glance.
+        top = sorted(
+            scoring.per_scenario_delta.values(),
+            key=lambda d: abs(d.df1),
+            reverse=True,
+        )[:5]
+        delta_lines = "\n".join(
+            f"- `{d.scenario}`: F1 {d.baseline.f1:.3f} → {d.observed.f1:.3f} "
+            f"(Δ{d.df1:+.3f}), recall Δ{d.drecall:+.3f}"
+            for d in top
+        )
         coord_out.emit(
             "strict_regression",
-            f"Candidate `{candidate.id}` auto-rejected at iter {iter_num}: {reason}. "
-            f"Working tree reverted; no commit.",
+            (
+                f"**iter {iter_num}** · `{candidate.id}` — "
+                f"auto-rejected on catastrophe filter.\n\n"
+                f"**Gate failures**: {reason}\n\n"
+                f"**Top 5 |ΔF1| scenarios**:\n{delta_lines}\n\n"
+                f"Observed mean F1 {scoring.mean_f1:.4f} vs baseline "
+                f"{scoring.baseline_mean_f1:.4f} (Δ{scoring.mean_df1:+.4f}). "
+                f"Total FPs {scoring.baseline_total_fps} → {scoring.total_fps} "
+                f"(Δ{scoring.total_dfps:+d}).\n\n"
+                f"Working tree reverted; no commit."
+            ),
             requires_ack=False,
             root=root,
         )
@@ -827,6 +887,37 @@ def _run_iteration_body(
             f"({push_tag}) score {scoring.mean_f1:.4f}"
         )
 
+        # Ship announcement with the key numbers + top scenario wins.
+        top_wins = sorted(
+            scoring.per_scenario_delta.values(),
+            key=lambda d: d.df1,
+            reverse=True,
+        )[:5]
+        win_lines = "\n".join(
+            f"- `{d.scenario}`: F1 {d.baseline.f1:.3f} → {d.observed.f1:.3f} "
+            f"(Δ{d.df1:+.3f})"
+            for d in top_wins
+        )
+        rationale_lines = "\n".join(
+            f"- **{dec.persona}**: {dec.rationale[:300]}"
+            for dec in verdict.decisions
+        )
+        coord_out.emit(
+            "iter_shipped",
+            (
+                f"**iter {iter_num}** · `{candidate.id}` — **SHIPPED** "
+                f"(commit `{commit_sha[:10]}`, {push_tag}).\n\n"
+                f"Mean F1 {scoring.baseline_mean_f1:.4f} → {scoring.mean_f1:.4f} "
+                f"(Δ{scoring.mean_df1:+.4f}). FPs "
+                f"{scoring.baseline_total_fps} → {scoring.total_fps} "
+                f"(Δ{scoring.total_dfps:+d}).\n\n"
+                f"**Top 5 scenario wins**:\n{win_lines}\n\n"
+                f"**Reviewer verdicts**:\n{rationale_lines}"
+            ),
+            requires_ack=False,
+            root=root,
+        )
+
         # Plateau-gated eval-component dispatch: certify a NEW component
         # ONCE, when the family iterating on it has plateaued and at least
         # this candidate shipped. Pre-existing components (bocpd / scanmw /
@@ -875,6 +966,27 @@ def _run_iteration_body(
         git_ops.revert_working_tree(root)
         candidate.status = CandidateStatus.REJECTED
         print(f"[iter {iter_num}] REJECTED; reverted (score {scoring.mean_f1:.4f})")
+
+        # Review-level reject (the catastrophe filter didn't fire, but the
+        # panel said no). Show each persona's verdict for transparency.
+        rationale_lines = "\n".join(
+            f"- **{dec.persona}** ({'approve' if dec.approve else 'reject'}): "
+            f"{dec.rationale[:400]}"
+            for dec in verdict.decisions
+        )
+        coord_out.emit(
+            "iter_rejected",
+            (
+                f"**iter {iter_num}** · `{candidate.id}` — rejected by review "
+                f"(passed deterministic gates, failed unanimity).\n\n"
+                f"Mean F1 {scoring.baseline_mean_f1:.4f} → {scoring.mean_f1:.4f} "
+                f"(Δ{scoring.mean_df1:+.4f}).\n\n"
+                f"**Reviewer verdicts**:\n{rationale_lines}\n\n"
+                f"Working tree reverted; no commit."
+            ),
+            requires_ack=False,
+            root=root,
+        )
 
     it.ended_at = now_iso()
     db.iterations.append(it)
