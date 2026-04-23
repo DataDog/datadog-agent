@@ -37,7 +37,10 @@ exports_files(glob(
 # gazelle:exclude comp/core/diagnose
 # gazelle:exclude comp/core/flare/flareimpl
 # gazelle:exclude comp/core/flare/helpers
-# gazelle:exclude comp/core/gui
+# gazelle:exclude comp/core/gui/def
+# gazelle:exclude comp/core/gui/fx
+# gazelle:exclude comp/core/gui/impl
+# gazelle:exclude comp/core/gui/mock
 # gazelle:exclude comp/core/healthprobe
 # gazelle:exclude comp/core/hostname/hostnameimpl
 # gazelle:exclude comp/core/hostname/remotehostnameimpl
