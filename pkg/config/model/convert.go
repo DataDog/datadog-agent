@@ -11,8 +11,8 @@ import (
 	"github.com/spf13/cast"
 )
 
-// ConvertToDefaultType casts value to the type of defaultValue
-func ConvertToDefaultType(value interface{}, defaultValue interface{}) (interface{}, error) {
+// ConvertToDefaultType casts value to the type of defaultValue. Map types are reshaped only when coerceMaps is true (used for JSON-decoded inputs).
+func ConvertToDefaultType(value, defaultValue interface{}, coerceMaps bool) (interface{}, error) {
 	if defaultValue == nil {
 		return value, nil
 	}
@@ -39,6 +39,18 @@ func ConvertToDefaultType(value interface{}, defaultValue interface{}) (interfac
 		return cast.ToStringSliceE(value)
 	case []float64:
 		return toFloat64SliceE(value)
+	case map[string]interface{}:
+		if coerceMaps {
+			return cast.ToStringMapE(value)
+		}
+	case map[string]string:
+		if coerceMaps {
+			return cast.ToStringMapStringE(value)
+		}
+	case map[string][]string:
+		if coerceMaps {
+			return cast.ToStringMapStringSliceE(value)
+		}
 	}
 	return value, nil
 }
