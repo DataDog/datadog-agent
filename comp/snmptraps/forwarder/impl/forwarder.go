@@ -10,26 +10,17 @@ import (
 	"context"
 	"time"
 
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	config "github.com/DataDog/datadog-agent/comp/snmptraps/config/def"
 	formatter "github.com/DataDog/datadog-agent/comp/snmptraps/formatter/def"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/forwarder"
+	forwarder "github.com/DataDog/datadog-agent/comp/snmptraps/forwarder/def"
 	listener "github.com/DataDog/datadog-agent/comp/snmptraps/listener/def"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
-
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newTrapForwarder),
-	)
-}
 
 // trapForwarder consumes SNMP packets, formats traps and send them as EventPlatformEvents
 // The trapForwarder is an intermediate step between the listener and the epforwarder in order to limit the processing of the listener
@@ -43,8 +34,10 @@ type trapForwarder struct {
 	logger    log.Component
 }
 
-type dependencies struct {
-	fx.In
+// Requires defines the dependencies for the forwarder component.
+type Requires struct {
+	compdef.In
+	Lc        compdef.Lifecycle
 	Config    config.Component
 	Formatter formatter.Component
 	Demux     demultiplexer.Component
@@ -52,11 +45,17 @@ type dependencies struct {
 	Logger    log.Component
 }
 
-// newTrapForwarder creates a simple TrapForwarder instance
-func newTrapForwarder(lc fx.Lifecycle, dep dependencies) (forwarder.Component, error) {
+// Provides defines the output of the forwarder component.
+type Provides struct {
+	compdef.Out
+	Comp forwarder.Component
+}
+
+// NewComponent creates a simple TrapForwarder instance
+func NewComponent(dep Requires) (Provides, error) {
 	sender, err := dep.Demux.GetDefaultSender()
 	if err != nil {
-		return nil, err
+		return Provides{}, err
 	}
 	tf := &trapForwarder{
 		trapsIn:   dep.Listener.Packets(),
@@ -67,7 +66,7 @@ func newTrapForwarder(lc fx.Lifecycle, dep dependencies) (forwarder.Component, e
 	}
 	conf := dep.Config.Get()
 	if conf.Enabled {
-		lc.Append(fx.Hook{
+		dep.Lc.Append(compdef.Hook{
 			OnStart: func(_ context.Context) error {
 				tf.Start()
 				return nil
@@ -79,7 +78,7 @@ func newTrapForwarder(lc fx.Lifecycle, dep dependencies) (forwarder.Component, e
 		})
 	}
 
-	return tf, nil
+	return Provides{Comp: tf}, nil
 }
 
 // Start the TrapForwarder instance. Need to Stop it manually.
