@@ -25,6 +25,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/podcollectiongate"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/external"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/local"
@@ -47,6 +48,7 @@ func StartWorkloadAutoscaling(
 	wlm workloadmeta.Component,
 	taggerComp tagger.Component,
 	senderManager sender.SenderManager,
+	podCollectionGate *podcollectiongate.Gate,
 ) (workload.PodPatcher, error) {
 	if apiCl == nil {
 		return nil, errors.New("Impossible to start workload autoscaling without valid APIClient")
@@ -88,7 +90,7 @@ func StartWorkloadAutoscaling(
 	maxDatadogPodAutoscalerObjects := pkgconfigsetup.Datadog().GetInt("autoscaling.workload.limit")
 	limitHeap := autoscaling.NewHashHeap(maxDatadogPodAutoscalerObjects, store, (*model.PodAutoscalerInternal).CreationTimestamp)
 
-	controller, err := workload.NewController(clock, clusterID, eventRecorder, apiCl.RESTMapper, apiCl.ScaleCl, apiCl.Cl, apiCl.DynamicInformerCl, apiCl.DynamicInformerFactory, isLeaderFunc, store, podWatcher, sender, limitHeap, globalTagsFunc)
+	controller, err := workload.NewController(clock, clusterID, eventRecorder, apiCl.RESTMapper, apiCl.ScaleCl, apiCl.Cl, apiCl.DynamicInformerCl, apiCl.DynamicInformerFactory, isLeaderFunc, store, podWatcher, sender, limitHeap, globalTagsFunc, podCollectionGate)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to start workload autoscaling controller: %w", err)
 	}

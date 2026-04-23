@@ -8,16 +8,27 @@
 package kubeapiserver
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	fakediscovery "k8s.io/client-go/discovery/fake"
 	fakeclientset "k8s.io/client-go/kubernetes/fake"
 
+	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/podcollectiongate"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestStoreGenerators(t *testing.T) {
@@ -25,6 +36,7 @@ func TestStoreGenerators(t *testing.T) {
 	tests := []struct {
 		name                    string
 		cfg                     map[string]interface{}
+		gateWired               bool
 		expectedStoresGenerator []storeGenerator
 	}{
 		{
@@ -81,6 +93,22 @@ func TestStoreGenerators(t *testing.T) {
 			},
 			expectedStoresGenerator: []storeGenerator{newPodStore, newDeploymentStore},
 		},
+		{
+			name: "Workload autoscaling enabled with gate wired does not force pod store",
+			cfg: map[string]interface{}{
+				"autoscaling.workload.enabled": true,
+			},
+			gateWired:               true,
+			expectedStoresGenerator: []storeGenerator{},
+		},
+		{
+			name: "Workload autoscaling enabled without gate wired forces eager pod store",
+			cfg: map[string]interface{}{
+				"autoscaling.workload.enabled": true,
+			},
+			gateWired:               false,
+			expectedStoresGenerator: []storeGenerator{newPodStore},
+		},
 	}
 
 	// Run test for each testcase
@@ -88,7 +116,7 @@ func TestStoreGenerators(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := config.NewMockWithOverrides(t, tt.cfg)
 			expectedStores := collectResultStoreGenerator(tt.expectedStoresGenerator, cfg)
-			stores := collectResultStoreGenerator(storeGenerators(cfg), cfg)
+			stores := collectResultStoreGenerator(storeGenerators(cfg, tt.gateWired), cfg)
 
 			assert.Equal(t, expectedStores, stores)
 		})
@@ -566,4 +594,60 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 			assert.ElementsMatch(t, test.expectedResources, resourcesWithMetadataCollectionEnabled(cfg))
 		})
 	}
+}
+
+func TestStartPodStoreOnGate(t *testing.T) {
+	testPodUID := "test-pod-uid"
+
+	client := fakeclientset.NewClientset(&corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-pod",
+			Namespace: "default",
+			UID:       types.UID(testPodUID),
+		},
+	})
+
+	gate := podcollectiongate.New()
+
+	wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	testCollector := &collector{
+		id:      collectorID,
+		catalog: workloadmeta.ClusterAgent,
+		config:  wmeta.GetConfig(),
+		gate:    gate,
+	}
+
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() {
+		testCollector.startPodStoreOnGate(ctx, wmeta, client, newPodStoreWithTypedClient)
+		close(done)
+	}()
+
+	// Before enabling the gate, no pod should appear in workloadmeta.
+	assert.Never(t, func() bool {
+		_, err := wmeta.GetKubernetesPod(testPodUID)
+		return err == nil
+	}, 100*time.Millisecond, 20*time.Millisecond)
+
+	gate.Enable()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("startPodStoreOnGate did not return after gate enabled")
+	}
+
+	// The pod reflector should eventually populate workloadmeta after enabling
+	// the gate.
+	require.Eventually(t, func() bool {
+		_, err := wmeta.GetKubernetesPod(testPodUID)
+		return err == nil
+	}, 10*time.Second, 100*time.Millisecond)
 }

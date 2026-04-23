@@ -90,6 +90,7 @@ import (
 	apidca "github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster"
 	clusterspot "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/spot"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/podcollectiongate"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/provider"
 	pkgclusterchecks "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
@@ -155,11 +156,17 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Short: "Start the Cluster Agent",
 		Long:  `Runs Datadog Cluster agent in the foreground`,
 		RunE: func(_ *cobra.Command, _ []string) error {
+			// Shared gate: enabled by the workload autoscaling controller on the
+			// first DatadogPodAutoscaler observation, waited on by the kubeapiserver
+			// workloadmeta collector to lazily start its pod reflector.
+			podCollectionGate := podcollectiongate.New()
+
 			// TODO: once the cluster-agent is represented as a component, and
 			// not a function (start), this will use `fxutil.Run` instead of
 			// `fxutil.OneShot`.
 			return fxutil.OneShot(start,
 				fx.Supply(globalParams),
+				fx.Supply(podCollectionGate),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath)),
 					LogParams:    log.ForDaemon(command.LoggerName, "log_file", defaultpaths.DCALogFile),
@@ -287,6 +294,7 @@ func start(log log.Component,
 	_ metadatarunner.Component,
 	tracerouteComp traceroute.Component,
 	eventPlatform eventplatform.Component,
+	podCollectionGate *podcollectiongate.Gate,
 ) error {
 	stopCh := make(chan struct{})
 	validatingStopCh := make(chan struct{})
@@ -546,7 +554,7 @@ func start(log log.Component,
 			log.Error("Admission controller is disabled, vertical autoscaling requires the admission controller to be enabled. Vertical scaling will be disabled.")
 		}
 
-		if patcher, err := provider.StartWorkloadAutoscaling(mainCtx, clusterID, clusterName, le.IsLeader, apiCl, rcClient, wmeta, taggerComp, demultiplexer); err == nil {
+		if patcher, err := provider.StartWorkloadAutoscaling(mainCtx, clusterID, clusterName, le.IsLeader, apiCl, rcClient, wmeta, taggerComp, demultiplexer, podCollectionGate); err == nil {
 			pp = patcher
 		} else {
 			return fmt.Errorf("Error while starting workload autoscaling: %v", err)

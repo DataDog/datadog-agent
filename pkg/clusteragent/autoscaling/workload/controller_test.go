@@ -8,6 +8,7 @@
 package workload
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"testing"
@@ -27,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/dynamic/fake"
+	kscheme "k8s.io/client-go/kubernetes/scheme"
 	k8stesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/record"
 	clock "k8s.io/utils/clock/testing"
@@ -36,6 +38,7 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/podcollectiongate"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
@@ -66,7 +69,7 @@ func newFixture(t *testing.T, testTime time.Time) *fixture {
 		ControllerFixture: autoscaling.NewFixture(
 			t, podAutoscalerGVR,
 			func(fakeClient *fake.FakeDynamicClient, informer dynamicinformer.DynamicSharedInformerFactory, isLeader func() bool) (*autoscaling.Controller, error) {
-				c, err := NewController(clock, "cluster-id1", recorder, nil, nil, nil, fakeClient, informer, isLeader, store, podWatcher, nil, hashHeap, nil)
+				c, err := NewController(clock, "cluster-id1", recorder, nil, nil, nil, fakeClient, informer, isLeader, store, podWatcher, nil, hashHeap, nil, nil)
 				if err != nil {
 					return nil, err
 				}
@@ -1645,6 +1648,54 @@ func TestProfileManagedDPA(t *testing.T) {
 		f.ExpectUpdateAction(mustUnstructured(t, expectedUpdate))
 		f.RunControllerSync(true, "prod/web-app-a1b2c3d4")
 	})
+}
+
+func TestPodCollectionGateEnabledOnFirstDPA(t *testing.T) {
+	testScheme := kscheme.Scheme
+	require.NoError(t, datadoghq.AddToScheme(testScheme))
+
+	spec := datadoghq.DatadogPodAutoscalerSpec{
+		TargetRef: autoscalingv2.CrossVersionObjectReference{
+			Kind:       "Deployment",
+			Name:       "app-0",
+			APIVersion: "apps/v1",
+		},
+		Owner: datadoghqcommon.DatadogPodAutoscalerLocalOwner,
+	}
+	dpa, _ := newFakePodAutoscaler("default", "dpa-0", 1, time.Time{}, spec, datadoghqcommon.DatadogPodAutoscalerStatus{})
+
+	fakeClient := fake.NewSimpleDynamicClient(testScheme, dpa)
+	informer := dynamicinformer.NewDynamicSharedInformerFactory(fakeClient, 0)
+
+	gate := podcollectiongate.New()
+	testStore := autoscaling.NewStore[model.PodAutoscalerInternal]()
+
+	_, err := NewController(
+		clock.NewFakeClock(time.Now()),
+		"cluster-id1",
+		record.NewFakeRecorder(100),
+		nil,
+		nil,
+		nil,
+		fakeClient,
+		informer,
+		func() bool { return true },
+		testStore,
+		newFakePodWatcher(),
+		nil,
+		autoscaling.NewHashHeap(testMaxAutoscalerObjects, testStore, (*model.PodAutoscalerInternal).CreationTimestamp),
+		nil,
+		gate,
+	)
+	require.NoError(t, err)
+
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	informer.Start(stopCh)
+
+	waitCtx, waitCancel := context.WithTimeout(context.TODO(), 5*time.Second)
+	defer waitCancel()
+	assert.True(t, gate.WaitForEnable(waitCtx))
 }
 
 func mustUnstructured(t *testing.T, structIn any) *unstructured.Unstructured {
