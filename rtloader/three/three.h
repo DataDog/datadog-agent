@@ -166,6 +166,11 @@ private:
     // Destroys a sub-interpreter and re-attaches the current thread to restore_tstate.
     void _destroySubInterpreter(PyThreadState *tstate, PyThreadState *restore_tstate);
 
+    // Re-imports the check module and AgentCheck in the current sub-interpreter,
+    // then finds the AgentCheck subclass. Sets sub_klass on success.
+    // Caller must be attached to the sub-interpreter.
+    bool _setupSubInterpClass(const std::string &module_name, PyObject *&sub_klass);
+
     // Looks up which sub-interpreter a check belongs to (_checkToInterp.find(check)).
     // Returns the thread state, or NULL if the check runs in main interpreter.
     PyThreadState *_lookupCheckInterp(PyObject *check);
@@ -174,6 +179,14 @@ private:
     // state. Returns NULL if the check was not in the map, meaning it's running
     // in the main interpreter (blocklisted or sub-interp creation failed).
     PyThreadState *_removeCheckInterp(PyObject *check);
+
+    // Switch into the sub-interpreter that owns this check (if any). Returns
+    // the main interpreter's thread state for later restoration, or NULL
+    // if the check runs in main (blocklisted or sub-interp creation failed).
+    PyThreadState *_enterCheckInterp(PyObject *py_check);
+
+    // Restore the main interpreter's thread state. No-op if main_tstate is NULL
+    void _exitCheckInterp(PyThreadState *main_tstate);
 
     // Entry type stored in _moduleAttrs.
     struct ModuleAttr {

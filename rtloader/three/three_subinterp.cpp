@@ -182,6 +182,46 @@ void Three::_destroySubInterpreter(PyThreadState *tstate, PyThreadState *restore
 }
 
 /*
+ * _setupSubInterpClass
+ * --------------------
+ * Prepares a sub-interpreter to host an AgentCheck instance: re-imports the
+ * check's module and the AgentCheck base class, then locates the AgentCheck
+ * subclass inside the module. Called only from getCheck.
+ *
+ * PRECONDITION: Caller must be attached to the sub-interpreter.
+ *
+ * Returns:
+ *   true on success, with sub_klass set to the class in the sub-interp's context.
+ *   false on any failure (sub_klass unchanged).
+ */
+bool Three::_setupSubInterpClass(const std::string &module_name, PyObject *&sub_klass)
+{
+    // Re-import the check module in the sub-interpreter context.
+    PyObject *sub_module = PyImport_ImportModule(module_name.c_str());
+    if (sub_module == NULL) {
+        // Module import failed — e.g., the module or one of its C extension
+        // dependencies doesn't declare sub-interpreter support
+        // (Py_MOD_PER_INTERPRETER_GIL_SUPPORTED).
+        return false;
+    }
+
+    // Re-import the base class (AgentCheck) in the sub-interpreter.
+    // We can't use _baseClass (belongs to main). Each interpreter must
+    // import independently — this is the cost of isolation.
+    PyObject *sub_base = _importFrom("datadog_checks.checks", "AgentCheck");
+    if (sub_base == NULL) {
+        Py_DECREF(sub_module);
+        return false;
+    }
+
+    // Find the AgentCheck subclass in the re-imported module.
+    sub_klass = _findSubclassOf(sub_base, sub_module);
+    Py_DECREF(sub_base);
+    Py_DECREF(sub_module);
+    return sub_klass != NULL;
+}
+
+/*
  * _assignInterpreter
  * ------------------
  * Policy function: decides which sub-interpreter a check should run in.
@@ -266,6 +306,35 @@ PyThreadState *Three::_removeCheckInterp(PyObject *check)
         return tstate;
     }
     return NULL;
+}
+
+/*
+ * _enterCheckInterp / _exitCheckInterp
+ * ------------------------------------
+ * _enterCheckInterp looks up the sub-interpreter that owns py_check and swaps
+ * into it; returns the main interpreter's thread state, or NULL if the check
+ * runs in main. _exitCheckInterp swaps back to the main interpreter using the
+ * thread state returned by _enterCheckInterp.
+ *
+ * Usage:
+ *   PyThreadState *main_tstate = _enterCheckInterp(py_check);
+ *   // ... operate on py_check ...
+ *   _exitCheckInterp(main_tstate);
+ */
+PyThreadState *Three::_enterCheckInterp(PyObject *py_check)
+{
+    PyThreadState *sub_tstate = _lookupCheckInterp(py_check);
+    if (sub_tstate != NULL) {
+        return PyThreadState_Swap(sub_tstate);
+    }
+    return NULL;
+}
+
+void Three::_exitCheckInterp(PyThreadState *main_tstate)
+{
+    if (main_tstate != NULL) {
+        PyThreadState_Swap(main_tstate);
+    }
 }
 
 /*
