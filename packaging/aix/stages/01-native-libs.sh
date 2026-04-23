@@ -65,9 +65,15 @@ mkdir -p "$EMBEDDED_DESTDIR/share"
 ZLIB_VERSION="1.3.1"
 ZLIB_SHA256="9a93b2b7dfdac77ceba5a558a580e74667dd6fede4585b91eefb60f03b72df23"
 BZIP2_VERSION="1.0.8"
+BZIP2_SHA256="ab5a03176ee106d3f0fa90e381da478ddae405918153cca248e682cd0c4a2269"
 OPENSSL_VERSION="3.5.5"
+OPENSSL_SHA256="b28c91532a8b65a1f983b4c28b7488174e4a01008e29ce8e69bd789f28bc2a89"
 XZ_VERSION="5.8.1"
+# xz releases are signed with GPG; no SHA-256 is published by the project.
+# Key: Lasse Collin <lasse.collin@tukaani.org> — see keys/lasse_collin.asc
+XZ_GPG_KEY="$SCRIPT_DIR/../keys/lasse_collin.asc"
 LIBXML2_VERSION="2.14.5"    # built from source (AIX Toolbox also available but we build)
+LIBXML2_SHA256="03d006f3537616833c16c53addcdc32a0eb20e55443cba4038307e3fa7d8d44b"
 LIBXSLT_VERSION="1.1.45"   # from AIX Toolbox (yum install libxslt-devel; source build fails on AIX)
 
 # These are sourced from AIX Toolbox (build from source fails on AIX)
@@ -87,31 +93,6 @@ extract_gz() {
 
 extract_xz() {
     xz -dc "$1" | tar xf - -C "$2"
-}
-
-sha256_file() {
-    _sf_file=$1
-    if command -v sha256sum >/dev/null 2>&1; then
-        sha256sum "$_sf_file" | awk '{print $1}'
-    elif command -v shasum >/dev/null 2>&1; then
-        shasum -a 256 "$_sf_file" | awk '{print $1}'
-    else
-        log "ERROR: neither sha256sum nor shasum is available for checksum verification"
-        exit 1
-    fi
-}
-
-verify_sha256() {
-    _vs_file=$1
-    _vs_expected=$2
-    _vs_name=$3
-    _vs_actual=$(sha256_file "$_vs_file")
-    if [ "$_vs_actual" != "$_vs_expected" ]; then
-        log "ERROR: checksum mismatch for $_vs_name"
-        log "       expected: $_vs_expected"
-        log "       actual:   $_vs_actual"
-        exit 1
-    fi
 }
 
 # lib_done NAME VERSION — true if library is already installed to staging
@@ -252,6 +233,7 @@ else
     log "Building bzip2 ${BZIP2_VERSION}"
     TARBALL="$BUILD_DIR/sources/bzip2-${BZIP2_VERSION}.tar.gz"
     [ -f "$TARBALL" ] || curl -fSL -o "$TARBALL" "https://sourceware.org/pub/bzip2/bzip2-${BZIP2_VERSION}.tar.gz"
+    verify_sha256 "$TARBALL" "$BZIP2_SHA256" "bzip2-${BZIP2_VERSION}.tar.gz"
     # Touch pre-timestamp before compile so install files are strictly newer (AIX has 1s mtime)
     _pre="$BUILD_DIR/.lib-pre-bzip2"
     touch "$_pre"
@@ -283,6 +265,7 @@ else
     [ -f "$TARBALL" ] || curl -fSL -o "$TARBALL" \
         "https://github.com/openssl/openssl/releases/download/openssl-${OPENSSL_VERSION}/openssl-${OPENSSL_VERSION}.tar.gz" || \
         curl -fSL -o "$TARBALL" "https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz"
+    verify_sha256 "$TARBALL" "$OPENSSL_SHA256" "openssl-${OPENSSL_VERSION}.tar.gz"
     # Touch pre-timestamp before compile so install files are strictly newer (AIX has 1s mtime)
     _pre="$BUILD_DIR/.lib-pre-openssl"
     touch "$_pre"
@@ -317,6 +300,9 @@ else
     [ -f "$TARBALL" ] || curl -fSL -o "$TARBALL" \
         "https://github.com/tukaani-project/xz/releases/download/v${XZ_VERSION}/xz-${XZ_VERSION}.tar.gz" || \
         curl -fSL -o "$TARBALL" "https://tukaani.org/xz/xz-${XZ_VERSION}.tar.gz"
+    [ -f "$TARBALL.sig" ] || curl -fSL -o "$TARBALL.sig" \
+        "https://github.com/tukaani-project/xz/releases/download/v${XZ_VERSION}/xz-${XZ_VERSION}.tar.gz.sig"
+    verify_gpg "$TARBALL" "$TARBALL.sig" "$XZ_GPG_KEY" "xz-${XZ_VERSION}.tar.gz"
     # Touch pre-timestamp before compile so install files are strictly newer (AIX has 1s mtime)
     _pre="$BUILD_DIR/.lib-pre-xz"
     touch "$_pre"
@@ -446,6 +432,7 @@ else
     LIBXML2_MINOR=$(echo "$LIBXML2_VERSION" | sed 's/\.[0-9]*$//')
     [ -f "$TARBALL" ] || curl -fSL -o "$TARBALL" \
         "https://download.gnome.org/sources/libxml2/${LIBXML2_MINOR}/libxml2-${LIBXML2_VERSION}.tar.xz"
+    verify_sha256 "$TARBALL" "$LIBXML2_SHA256" "libxml2-${LIBXML2_VERSION}.tar.xz"
     # Touch pre-timestamp before compile so install files are strictly newer (AIX has 1s mtime)
     _pre="$BUILD_DIR/.lib-pre-libxml2"
     touch "$_pre"

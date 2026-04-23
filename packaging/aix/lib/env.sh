@@ -105,6 +105,65 @@ log() {
     printf '[%s] %s\n' "$(date '+%Y-%m-%dT%H:%M:%S')" "$*"
 }
 
+# sha256_file FILE
+#   Print the SHA-256 hex digest of FILE to stdout.
+sha256_file() {
+    _sf_file=$1
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$_sf_file" | awk '{print $1}'
+    elif command -v shasum >/dev/null 2>&1; then
+        shasum -a 256 "$_sf_file" | awk '{print $1}'
+    else
+        log "ERROR: neither sha256sum nor shasum is available for checksum verification"
+        exit 1
+    fi
+}
+
+# verify_sha256 FILE EXPECTED_HEX NAME
+#   Abort with an error if FILE's SHA-256 digest does not match EXPECTED_HEX.
+verify_sha256() {
+    _vs_file=$1
+    _vs_expected=$2
+    _vs_name=$3
+    _vs_actual=$(sha256_file "$_vs_file")
+    if [ "$_vs_actual" != "$_vs_expected" ]; then
+        log "ERROR: checksum mismatch for $_vs_name"
+        log "       expected: $_vs_expected"
+        log "       actual:   $_vs_actual"
+        exit 1
+    fi
+}
+
+# verify_gpg FILE SIG_FILE KEY_FILE NAME
+#   Verify FILE against the detached GPG signature SIG_FILE using the armored
+#   public key in KEY_FILE.  A temporary GPG homedir is used so the system
+#   keyring is never touched.  If neither gpg2 nor gpg is installed the check
+#   is skipped with a warning; install gnupg2 (yum install gnupg2) for full
+#   supply-chain verification.
+verify_gpg() {
+    _vg_file=$1
+    _vg_sig=$2
+    _vg_key=$3
+    _vg_name=$4
+    if ! command -v gpg2 >/dev/null 2>&1 && ! command -v gpg >/dev/null 2>&1; then
+        log "WARNING: gpg/gpg2 not found — skipping signature verification for $_vg_name"
+        log "         Install gnupg2 (yum install gnupg2) for full supply-chain verification."
+        return 0
+    fi
+    _gpg=$(command -v gpg2 2>/dev/null || command -v gpg 2>/dev/null)
+    _vg_home=$(mktemp -d)
+    "$_gpg" --homedir "$_vg_home" --batch --quiet --import "$_vg_key"
+    if "$_gpg" --homedir "$_vg_home" --batch --trust-model direct \
+               --verify "$_vg_sig" "$_vg_file" 2>/dev/null; then
+        log "GPG signature OK for $_vg_name"
+    else
+        log "ERROR: GPG signature verification failed for $_vg_name"
+        rm -rf "$_vg_home"
+        exit 1
+    fi
+    rm -rf "$_vg_home"
+}
+
 # sentinel_done STAGE_NAME
 #   Returns 0 (true) if the stage sentinel file exists, 1 (false) otherwise.
 sentinel_done() {
