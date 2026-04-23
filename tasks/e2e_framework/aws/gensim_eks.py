@@ -635,6 +635,37 @@ def update_manifest_shas_gensim_eks(ctx: Context) -> None:
     tool.info(f"\nUpdated {updated} SHA(s) in {_EVAL_MANIFEST_PATH}. Review and commit the changes.")
 
 
+@task(
+    help={
+        "match": "Only show episode:scenario pairs whose full id contains this substring (case-insensitive)",
+    }
+)
+def list_episodes_gensim_eks(_ctx: Context, match: str = "") -> None:
+    """
+    List all episode:scenario pairs discoverable in the local gensim-episodes checkout.
+
+    Each line is suitable for --episodes (e.g. authcore-pgbouncer:pool-saturation).
+
+    Examples:
+        inv aws.eks.gensim.list-episodes
+        inv aws.eks.gensim.list-episodes --match=pgbouncer
+    """
+    repo_path = _get_gensim_repo_path()
+    pairs = _discover_episode_scenario_pairs(repo_path)
+    needle = match.strip().lower()
+    shown = 0
+    for ep_name, scen_name in pairs:
+        line = f"{ep_name}:{scen_name}"
+        if needle and needle not in line.lower():
+            continue
+        tool.info(line)
+        shown += 1
+    if not pairs:
+        tool.warn(f"No episodes found under {repo_path}.")
+    elif shown == 0 and needle:
+        tool.warn(f"No episode:scenario pairs matched {match!r}.")
+
+
 # -- Helpers -------------------------------------------------------------------
 
 
@@ -681,6 +712,35 @@ def _get_gensim_repo_path() -> Path:
 
 # Episode subdirectories to search within the gensim-episodes repo.
 _EPISODE_SUBDIRS = ["agent-q-branch", "postmortems", "synthetics"]
+_EPISODE_SUBDIR_SET = frozenset(_EPISODE_SUBDIRS)
+
+
+def _discover_episode_scenario_pairs(repo_path: Path) -> list[tuple[str, str]]:
+    """Return sorted unique (episode_name, scenario_stem) pairs from episodes/*.yaml."""
+    pairs: set[tuple[str, str]] = set()
+
+    def add_from_episode_dir(ep_dir: Path) -> None:
+        scen_dir = ep_dir / "episodes"
+        if not scen_dir.is_dir():
+            return
+        for pattern in ("*.yaml", "*.yml"):
+            for yml in scen_dir.glob(pattern):
+                pairs.add((ep_dir.name, yml.stem))
+
+    try:
+        for child in sorted(repo_path.iterdir()):
+            if not child.is_dir() or child.name.startswith("."):
+                continue
+            if child.name in _EPISODE_SUBDIR_SET:
+                for ep_dir in sorted(child.iterdir()):
+                    if ep_dir.is_dir() and not ep_dir.name.startswith("."):
+                        add_from_episode_dir(ep_dir)
+            else:
+                add_from_episode_dir(child)
+    except OSError as e:
+        raise Exit(f"Could not scan gensim-episodes repo {repo_path}: {e}") from e
+
+    return sorted(pairs)
 
 
 def _find_episode_dir(repo_path: Path, ep_name: str) -> Path:
