@@ -60,16 +60,16 @@ func (p *processor) processEvents(evBundle workloadmeta.EventBundle) {
 			if h.CanHandle(event) {
 				les, err := h.Handle(event)
 				if err != nil {
-					log.Errorf("Handler '%s' failed to handle event %q: %v", h.String(), event.Entity.GetID().ID, err)
+					log.Debugf("Handler '%s' failed to handle event %q: %v", h.String(), event.Entity.GetID().ID, err)
 					continue
 				}
 
 				for _, le := range les {
-					err := p.enqueue(le)
-					if err != nil {
-						log.Errorf("Couldn't enqueue lifecycle event: %+v: %v", le, err)
+					if err := p.enqueue(le); err != nil {
+						log.Debugf("Couldn't enqueue lifecycle event: %+v: %v", le, err)
 					}
 				}
+				// Handlers don't need to be mutually exclusive, so we don't break here
 			}
 		}
 	}
