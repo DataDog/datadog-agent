@@ -55,7 +55,7 @@ def _topological_sort_requirements(requirements: list[Requirement]) -> list[Requ
         for dep in r.dependencies or []:
             adj[req_by_class[dep]].append(r)
 
-    in_degree = {r: 0 for r in requirements}
+    in_degree = dict.fromkeys(requirements, 0)
     for r in requirements:
         for dep in adj[r]:
             in_degree[dep] += 1
