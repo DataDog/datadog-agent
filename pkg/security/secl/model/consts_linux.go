@@ -185,7 +185,9 @@ var (
 		"O_NOCTTY":   syscall.O_NOCTTY,
 		"O_NOFOLLOW": syscall.O_NOFOLLOW,
 		"O_NONBLOCK": syscall.O_NONBLOCK,
+		"O_PATH":     unix.O_PATH,
 		"O_RSYNC":    syscall.O_RSYNC,
+		"O_TMPFILE":  unix.O_TMPFILE,
 	}
 
 	// fileModeConstants contains the constants describing file permissions as well as the set-user-ID, set-group-ID, and sticky bits.
@@ -302,21 +304,27 @@ var (
 		"PTRACE_DETACH":     unix.PTRACE_DETACH,
 		"PTRACE_SYSCALL":    unix.PTRACE_SYSCALL,
 
-		"PTRACE_SETOPTIONS":           unix.PTRACE_SETOPTIONS,
-		"PTRACE_GETEVENTMSG":          unix.PTRACE_GETEVENTMSG,
-		"PTRACE_GETSIGINFO":           unix.PTRACE_GETSIGINFO,
-		"PTRACE_SETSIGINFO":           unix.PTRACE_SETSIGINFO,
-		"PTRACE_GETREGSET":            unix.PTRACE_GETREGSET,
-		"PTRACE_SETREGSET":            unix.PTRACE_SETREGSET,
-		"PTRACE_SEIZE":                unix.PTRACE_SEIZE,
-		"PTRACE_INTERRUPT":            unix.PTRACE_INTERRUPT,
-		"PTRACE_LISTEN":               unix.PTRACE_LISTEN,
-		"PTRACE_PEEKSIGINFO":          unix.PTRACE_PEEKSIGINFO,
-		"PTRACE_GETSIGMASK":           unix.PTRACE_GETSIGMASK,
-		"PTRACE_SETSIGMASK":           unix.PTRACE_SETSIGMASK,
-		"PTRACE_SECCOMP_GET_FILTER":   unix.PTRACE_SECCOMP_GET_FILTER,
-		"PTRACE_SECCOMP_GET_METADATA": unix.PTRACE_SECCOMP_GET_METADATA,
-		"PTRACE_GET_SYSCALL_INFO":     unix.PTRACE_GET_SYSCALL_INFO,
+		"PTRACE_GETREGS":                          unix.PTRACE_GETREGS,
+		"PTRACE_SETREGS":                          unix.PTRACE_SETREGS,
+		"PTRACE_SETOPTIONS":                       unix.PTRACE_SETOPTIONS,
+		"PTRACE_GETEVENTMSG":                      unix.PTRACE_GETEVENTMSG,
+		"PTRACE_GETSIGINFO":                       unix.PTRACE_GETSIGINFO,
+		"PTRACE_SETSIGINFO":                       unix.PTRACE_SETSIGINFO,
+		"PTRACE_GETREGSET":                        unix.PTRACE_GETREGSET,
+		"PTRACE_SETREGSET":                        unix.PTRACE_SETREGSET,
+		"PTRACE_SEIZE":                            unix.PTRACE_SEIZE,
+		"PTRACE_INTERRUPT":                        unix.PTRACE_INTERRUPT,
+		"PTRACE_LISTEN":                           unix.PTRACE_LISTEN,
+		"PTRACE_PEEKSIGINFO":                      unix.PTRACE_PEEKSIGINFO,
+		"PTRACE_GETSIGMASK":                       unix.PTRACE_GETSIGMASK,
+		"PTRACE_SETSIGMASK":                       unix.PTRACE_SETSIGMASK,
+		"PTRACE_SECCOMP_GET_FILTER":               unix.PTRACE_SECCOMP_GET_FILTER,
+		"PTRACE_SECCOMP_GET_METADATA":             unix.PTRACE_SECCOMP_GET_METADATA,
+		"PTRACE_GET_SYSCALL_INFO":                 unix.PTRACE_GET_SYSCALL_INFO,
+		"PTRACE_SET_SYSCALL_INFO":                 unix.PTRACE_SET_SYSCALL_INFO,
+		"PTRACE_GET_RSEQ_CONFIGURATION":           unix.PTRACE_GET_RSEQ_CONFIGURATION,
+		"PTRACE_GET_SYSCALL_USER_DISPATCH_CONFIG": unix.PTRACE_GET_SYSCALL_USER_DISPATCH_CONFIG,
+		"PTRACE_SET_SYSCALL_USER_DISPATCH_CONFIG": unix.PTRACE_SET_SYSCALL_USER_DISPATCH_CONFIG,
 	}
 
 	// protConstants are the supported protections for the mmap syscall
@@ -339,7 +347,9 @@ var (
 		"MAP_ANON":            unix.MAP_ANON,
 		"MAP_ANONYMOUS":       unix.MAP_ANONYMOUS,       /* don't use a file */
 		"MAP_DENYWRITE":       unix.MAP_DENYWRITE,       /* ETXTBSY */
+		"MAP_DROPPABLE":       unix.MAP_DROPPABLE,       /* pages can be dropped under memory pressure */
 		"MAP_EXECUTABLE":      unix.MAP_EXECUTABLE,      /* mark it as an executable */
+		"MAP_FILE":            unix.MAP_FILE,            /* compatibility flag, mapped to 0 */
 		"MAP_FIXED":           unix.MAP_FIXED,           /* Interpret addr exactly */
 		"MAP_FIXED_NOREPLACE": unix.MAP_FIXED_NOREPLACE, /* MAP_FIXED which doesn't unmap underlying mapping */
 		"MAP_GROWSDOWN":       unix.MAP_GROWSDOWN,       /* stack-like segment */
@@ -461,6 +471,7 @@ var (
 		"AF_QIPCRTR":    unix.AF_QIPCRTR,
 		"AF_SMC":        unix.AF_SMC,
 		"AF_XDP":        unix.AF_XDP,
+		"AF_MCTP":       unix.AF_MCTP,
 		"AF_MAX":        unix.AF_MAX,
 	}
 
@@ -1166,6 +1177,8 @@ var (
 		"PR_SET_NO_NEW_PRIVS":           unix.PR_SET_NO_NEW_PRIVS,
 		"PR_GET_NO_NEW_PRIVS":           unix.PR_GET_NO_NEW_PRIVS,
 		"PR_PAC_RESET_KEYS":             unix.PR_PAC_RESET_KEYS,
+		"PR_PAC_GET_ENABLED_KEYS":       unix.PR_PAC_GET_ENABLED_KEYS,
+		"PR_PAC_SET_ENABLED_KEYS":       unix.PR_PAC_SET_ENABLED_KEYS,
 		"PR_SET_PDEATHSIG":              unix.PR_SET_PDEATHSIG,
 		"PR_GET_PDEATHSIG":              unix.PR_GET_PDEATHSIG,
 		"PR_SET_PTRACER":                unix.PR_SET_PTRACER,
@@ -1173,10 +1186,13 @@ var (
 		"PR_GET_SECCOMP":                unix.PR_GET_SECCOMP,
 		"PR_SET_SECUREBITS":             unix.PR_SET_SECUREBITS,
 		"PR_GET_SECUREBITS":             unix.PR_GET_SECUREBITS,
+		"PR_SCHED_CORE":                 unix.PR_SCHED_CORE,
 		"PR_GET_SPECULATION_CTRL":       unix.PR_GET_SPECULATION_CTRL,
 		"PR_SET_SPECULATION_CTRL":       unix.PR_SET_SPECULATION_CTRL,
 		"PR_SVE_SET_VL":                 unix.PR_SVE_SET_VL,
 		"PR_SVE_GET_VL":                 unix.PR_SVE_GET_VL,
+		"PR_SME_SET_VL":                 unix.PR_SME_SET_VL,
+		"PR_SME_GET_VL":                 unix.PR_SME_GET_VL,
 		"PR_SET_SYSCALL_USER_DISPATCH":  unix.PR_SET_SYSCALL_USER_DISPATCH,
 		"PR_SET_TAGGED_ADDR_CTRL":       unix.PR_SET_TAGGED_ADDR_CTRL,
 		"PR_GET_TAGGED_ADDR_CTRL":       unix.PR_GET_TAGGED_ADDR_CTRL,
@@ -1189,6 +1205,7 @@ var (
 		"PR_GET_TIMERSLACK":             unix.PR_GET_TIMERSLACK,
 		"PR_SET_TIMING":                 unix.PR_SET_TIMING,
 		"PR_GET_TIMING":                 unix.PR_GET_TIMING,
+		"PR_TIMER_CREATE_RESTORE_IDS":   unix.PR_TIMER_CREATE_RESTORE_IDS,
 		"PR_SET_TSC":                    unix.PR_SET_TSC,
 		"PR_GET_TSC":                    unix.PR_GET_TSC,
 		"PR_SET_UNALIGN":                unix.PR_SET_UNALIGN,
@@ -1196,6 +1213,16 @@ var (
 		"PR_GET_AUXV":                   unix.PR_GET_AUXV,
 		"PR_SET_MDWE":                   unix.PR_SET_MDWE,
 		"PR_GET_MDWE":                   unix.PR_GET_MDWE,
+		"PR_SET_MEMORY_MERGE":           unix.PR_SET_MEMORY_MERGE,
+		"PR_GET_MEMORY_MERGE":           unix.PR_GET_MEMORY_MERGE,
+		"PR_SET_SHADOW_STACK_STATUS":    unix.PR_SET_SHADOW_STACK_STATUS,
+		"PR_GET_SHADOW_STACK_STATUS":    unix.PR_GET_SHADOW_STACK_STATUS,
+		"PR_LOCK_SHADOW_STACK_STATUS":   unix.PR_LOCK_SHADOW_STACK_STATUS,
+		"PR_FUTEX_HASH":                 unix.PR_FUTEX_HASH,
+		"PR_PPC_GET_DEXCR":              unix.PR_PPC_GET_DEXCR,
+		"PR_PPC_SET_DEXCR":              unix.PR_PPC_SET_DEXCR,
+		"PR_RISCV_V_GET_CONTROL":        unix.PR_RISCV_V_GET_CONTROL,
+		"PR_RISCV_V_SET_CONTROL":        unix.PR_RISCV_V_SET_CONTROL,
 		"PR_RISCV_SET_ICACHE_FLUSH_CTX": unix.PR_RISCV_SET_ICACHE_FLUSH_CTX,
 	}
 )
