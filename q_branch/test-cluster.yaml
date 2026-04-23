@@ -8,8 +8,12 @@ spec:
     kubelet:
       tlsVerify: false
     credentials:
-      apiKey: '00000000000000000000000000000000'
-      appKey: '00000000000000000000000000000000'
+      apiSecret:
+        secretName: datadog-secret
+        keyName: api-key
+      appSecret:
+        secretName: datadog-secret
+        keyName: app-key
   override:
     nodeAgent:
       image:
