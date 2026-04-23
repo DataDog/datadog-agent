@@ -20,7 +20,10 @@ def test_empty_db_roundtrip(tmp_path: Path):
     assert reloaded.schema_version == 1
     assert reloaded.baseline is None
     assert reloaded.experiments == {}
-    assert reloaded.phase_state.current_phase == Phase.ZERO
+    # Default phase is ONE (not ZERO) because the proposer generates
+    # candidates with phase="1" and the scheduler filters by phase; a
+    # fresh db starting at ZERO couldn't pick any proposed candidates.
+    assert reloaded.phase_state.current_phase == Phase.ONE
 
 
 def test_baseline_roundtrip(tmp_path: Path):

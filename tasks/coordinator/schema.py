@@ -118,6 +118,11 @@ class Experiment:
     num_baseline_fps_sum: int | None = None
     per_scenario: dict[str, ScenarioResult] = field(default_factory=dict)
     review: ReviewVerdict | None = None
+    # Signal for the proposer's "research memory" on future iterations —
+    # without these, iter N+1's proposer only sees aggregate score_delta
+    # and redacted rationales, losing the per-scenario failure pattern.
+    impl_summary: str = ""           # the DONE: line from the impl agent
+    auto_reject_reason: str = ""     # populated when gate rejected pre-review
 
 
 @dataclass
@@ -276,6 +281,8 @@ def dict_to_db(d: dict[str, Any]) -> Db:
             num_baseline_fps_sum=e.get("num_baseline_fps_sum"),
             per_scenario=per_scen,
             review=rev,
+            impl_summary=e.get("impl_summary", "") or "",
+            auto_reject_reason=e.get("auto_reject_reason", "") or "",
         )
 
     candidates = {
@@ -410,6 +417,8 @@ def db_to_dict(db: Db) -> dict[str, Any]:
                     if e.review
                     else None
                 ),
+                "impl_summary": e.impl_summary,
+                "auto_reject_reason": e.auto_reject_reason,
             }
             for eid, e in db.experiments.items()
         },

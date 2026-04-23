@@ -23,8 +23,62 @@ from .schema import Candidate, CandidateStatus, Db, Phase
 CANDIDATES_DIR = "candidates"
 
 
+def _top_scenario_deltas(exp, baseline, k: int = 5) -> list[dict[str, Any]]:
+    """Biggest absolute per-scenario F1 swings vs baseline for this experiment.
+
+    Keys in per_scenario are "<detector>/<scenario>" (from _merge_scorings).
+    We extract the detector-appropriate baseline scenario to compute delta.
+    Surfaces the top-K by |ΔF1| so the proposer sees which scenarios
+    the candidate helped or broke, not just the aggregate score_delta.
+    """
+    if baseline is None or not exp.per_scenario:
+        return []
+    rows: list[tuple[float, dict[str, Any]]] = []
+    for key, sr in exp.per_scenario.items():
+        # key format: "<detector>/<scenario>"; pre-multi-detector runs
+        # just stored "<scenario>" — handle both.
+        if "/" in key:
+            det, scen = key.split("/", 1)
+        else:
+            det, scen = "", key
+        base_det = baseline.detectors.get(det) if det else None
+        if base_det is None:
+            # Fall back to any detector that has this scenario (legacy rows).
+            for cand_det in baseline.detectors.values():
+                if scen in cand_det.scenarios:
+                    base_det = cand_det
+                    break
+        if base_det is None or scen not in base_det.scenarios:
+            continue
+        base = base_det.scenarios[scen]
+        delta = sr.f1 - base.f1
+        rows.append((
+            abs(delta),
+            {
+                "key": key,
+                "base_f1": round(base.f1, 3),
+                "obs_f1": round(sr.f1, 3),
+                "df1": round(delta, 3),
+                "drecall": round(sr.recall - base.recall, 3),
+            },
+        ))
+    rows.sort(key=lambda r: r[0], reverse=True)
+    return [r[1] for r in rows[:k]]
+
+
 def _recent_experiments(db: Db, n: int = 10) -> list[dict[str, Any]]:
-    """Compact summary of the last N experiments for the proposer prompt."""
+    """Compact summary of the last N experiments for the proposer prompt.
+
+    This is the proposer's "research memory" — what it sees on iter N+1 to
+    decide where to go next. Beyond aggregate score/approval, we include:
+      - impl_summary: the implementation agent's DONE: line, so the proposer
+        can see WHAT was tried (not just the family tag).
+      - auto_reject_reason: which specific gates fired, so the proposer
+        knows which scenarios a candidate broke.
+      - top_scenario_deltas: the 5 biggest |ΔF1| swings vs baseline, so
+        the proposer can see patterns like "RuLSIF helps low-baseline
+        scenarios but kills 703_shopify" and adapt accordingly.
+    """
     summaries: list[dict[str, Any]] = []
     for exp in list(db.experiments.values())[-n:]:
         cand = db.candidates.get(exp.candidate_id)
@@ -38,6 +92,9 @@ def _recent_experiments(db: Db, n: int = 10) -> list[dict[str, Any]]:
                 "score": exp.score,
                 "num_baseline_fps_sum": exp.num_baseline_fps_sum,
                 "approved": bool(review and review.unanimous_approve),
+                "impl_summary": exp.impl_summary,
+                "auto_reject_reason": exp.auto_reject_reason,
+                "top_scenario_deltas": _top_scenario_deltas(exp, db.baseline),
                 "review_rationales": (
                     [d.rationale for d in review.decisions] if review else []
                 ),
@@ -104,8 +161,22 @@ What's actually interesting:
   whichever interface from `comp/observer/def/component.go` it already
   implements (`SeriesDetector` or `Detector`), but swap the guts for a
   different algorithm entirely (e.g. replace BOCPD with a density-ratio
-  detector while keeping the `bocpd` name). This is how you integrate a
-  novel algorithm cleanly.
+  detector while keeping the `bocpd` name).
+
+- **Prefer additive over replace when the original has visible wins.**
+  A replacement changes the detector everywhere and can catastrophically
+  regress scenarios the original already nailed (see the `recent
+  experiments` block — wholesale replacements tend to show big +ΔF1 on
+  scenarios the original missed and big -ΔF1 on scenarios it aced). If
+  the per-scenario data shows the original detector is strong on even
+  one scenario, consider a parallel/ensemble pattern instead:
+  * Run the novel algorithm alongside the original inside the same
+    detector, combine outputs with OR (union of detections) or a
+    confidence gate, so wins stack and losses don't concentrate.
+  * Or: use the novel algorithm as a POST-FILTER on the original's
+    output (reduces FPs without hurting recall).
+  Only full-replace a detector if the recent experiments show the
+  original is broadly weak across the scenario set.
 
 The eval framework is OFF LIMITS. Do NOT modify `tasks/q.py`,
 `tasks/libs/q`, `q.eval-scenarios` orchestration, or the testbench
@@ -124,7 +195,18 @@ win is untapped. Bias the pool toward structurally-different approaches.
 ## Current baseline
 {yaml.safe_dump(baseline, sort_keys=False) if baseline else '(no baseline loaded)'}
 
-## Recent experiments (chronological, oldest first)
+## Recent experiments — your research memory
+
+Read these carefully. Each entry shows what was tried (`impl_summary` =
+the implementation agent's DONE: line), the outcome (`approved` /
+`auto_reject_reason`), and the **biggest per-scenario F1 swings**
+(`top_scenario_deltas`). Look for patterns: which scenarios does a
+given algorithmic family reliably help or hurt? If the prior work shows
+an attempt that catastrophically broke a specific scenario the baseline
+aced, the next candidate should PRESERVE that scenario (via an additive
+pattern; see Guidelines). If it broadly failed across the set, pivot to
+a genuinely different family.
+
 {yaml.safe_dump(recent, sort_keys=False) if recent else '(no experiments yet)'}
 
 ## Existing approach families

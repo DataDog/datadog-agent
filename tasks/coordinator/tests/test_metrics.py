@@ -21,7 +21,7 @@ def test_render_empty():
     db = empty_db()
     md = render(db)
     assert "# Coordinator metrics" in md
-    assert "**Phase**: 0" in md
+    assert "**Phase**: 1" in md
     assert "**Iterations completed**: 0" in md
 
 

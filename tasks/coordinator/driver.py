@@ -631,6 +631,7 @@ def _run_iteration_body(
         tier=Tier.T0,
         commit_sha=pre_sha,
         config_path="",
+        impl_summary=impl_summary,
         scenario_set=[],  # filled from report below
         status=ExperimentStatus.DONE if eval_ok else ExperimentStatus.FAILED,
         started_at=it.started_at,
@@ -732,6 +733,11 @@ def _run_iteration_body(
             f"recall_violations={scoring.recall_floor_violations}"
             f"{fp_reason}"
         )
+        # Persist on the experiment so the proposer can see WHY this was
+        # rejected on the next iteration's research-memory context.
+        # Without this, the proposer only gets aggregate score_delta and
+        # doesn't know which specific scenarios broke.
+        experiment.auto_reject_reason = reason
         print(f"[iter {iter_num}] AUTO-REJECTED ({reason})")
         journal.append(
             "auto_rejected_strict_regression",
