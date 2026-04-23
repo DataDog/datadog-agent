@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
+	"github.com/DataDog/datadog-agent/pkg/network/go/binversion"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls/lookup"
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
@@ -106,6 +107,9 @@ func (p *goTLSBinaryInspector) Inspect(fpath utils.FilePath, requestSets map[int
 	if err != nil {
 		if errors.Is(err, safeelf.ErrNoSymbols) {
 			p.binNoSymbolsMetric.Add(1)
+		}
+		if errors.Is(err, binversion.ErrNotGoExe) {
+			return map[int]*uprobes.InspectionResult{0: {Error: err}}, nil
 		}
 		return nil, fmt.Errorf("error extracting inspection data from %s: %w", path, err)
 	}
