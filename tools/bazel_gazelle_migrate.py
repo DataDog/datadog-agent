@@ -148,8 +148,9 @@ def restore_local_exclude(build_dir: str, rel_excl: str) -> None:
     """Re-add a # gazelle:exclude line to a local BUILD.bazel in sorted order."""
     build_file = REPO_ROOT / build_dir / "BUILD.bazel"
     text = build_file.read_text()
-    # Already present?
-    if f"# gazelle:exclude {rel_excl}" in text:
+    # Already present? Match whole lines to avoid false positives where
+    # rel_excl is a prefix of a longer excluded path (e.g. "foo" vs "foo/bar").
+    if any(line.strip() == f"# gazelle:exclude {rel_excl}" for line in text.splitlines()):
         return
     lines = text.splitlines(keepends=True)
     target = f"# gazelle:exclude {rel_excl}\n"
@@ -417,10 +418,19 @@ def migrate_carveout(parent: str, targets: list[str], test_targets: list[str]) -
     remove_all_excludes_under(parent)
     log(f"  removed # gazelle:exclude {parent} (and children) from BUILD.bazel")
 
-    # Write the local BUILD.bazel with gazelle:ignore + minimal excludes
-    local_content = "# gazelle:ignore\n"
-    for rel in min_excludes:
-        local_content += f"# gazelle:exclude {rel}\n"
+    # Write the local BUILD.bazel with gazelle:ignore + minimal excludes.
+    # If a BUILD.bazel already existed with real Bazel rules (not just directives),
+    # preserve those rules rather than clobbering them — only replace the directive
+    # header so that existing targets survive a successful carveout.
+    directive_header = "# gazelle:ignore\n" + "".join(f"# gazelle:exclude {r}\n" for r in min_excludes)
+    if local_existed_before and old_local_content:
+        non_directive_lines = [
+            l for l in old_local_content.splitlines(keepends=True)
+            if not re.match(r"\s*#\s*gazelle:(ignore|exclude)\b", l)
+        ]
+        local_content = directive_header + "".join(non_directive_lines)
+    else:
+        local_content = directive_header
     local_build.write_text(local_content)
     log(f"  wrote {local_build.relative_to(REPO_ROOT)} ({len(min_excludes)} sub-dir excludes)")
 
