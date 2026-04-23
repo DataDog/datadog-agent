@@ -235,7 +235,7 @@ func (f *flare) create(flareArgs types.FlareArgs, providerTimeout time.Duration,
 		providerTimeout = f.config.GetDuration("flare_provider_timeout")
 	}
 
-	fb, err := fbFactory(f.params.local, flareArgs)
+	fb, err := fbFactory(f.params.Local, flareArgs)
 	if err != nil {
 		return "", err
 	}

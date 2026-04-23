@@ -5,51 +5,18 @@
 
 package flare
 
+import flaredef "github.com/DataDog/datadog-agent/comp/core/flare/def"
+
 // Params defines the parameters for the flare component.
-type Params struct {
-	// local is set to true when we could not contact a running Agent and the flare is created directly from the
-	// CLI.
-	local bool
+type Params = flaredef.Params
 
-	// KeepArchiveAfterSend when true keeps the local flare archive file after a successful upload (e.g. for CLI --keep-archive).
-	KeepArchiveAfterSend bool
-
-	// distPath is the fully qualified path to the 'dist' directory
-	distPath string
-
-	// pythonChecksPath is the path to the python checks shipped with the agent
-	pythonChecksPath string
-
-	// defaultLogFile the path to the default log file
-	defaultLogFile string
-
-	// defaultJMXLogFile the path to the default JMX log file
-	defaultJMXLogFile string
-
-	// defaultDogstatsdLogFile the path to the default JMX log file
-	defaultDogstatsdLogFile string
-
-	// defaultStreamlogsLogFile the path to the default Streamlogs log file
-	defaultStreamlogsLogFile string
-}
-
-// NewLocalParams returns parameters for to initialize a local flare component. Local flares are meant to be created by
+// NewLocalParams returns parameters to initialize a local flare component. Local flares are meant to be created by
 // the CLI process instead of the main Agent one.
 func NewLocalParams(distPath string, pythonChecksPath string, defaultLogFile string, defaultJMXLogFile string, defaultDogstatsdLogFile string, defaultStreamlogsLogFile string) Params {
-	p := NewParams(distPath, pythonChecksPath, defaultLogFile, defaultJMXLogFile, defaultDogstatsdLogFile, defaultStreamlogsLogFile)
-	p.local = true
-	return p
+	return flaredef.NewLocalParams(distPath, pythonChecksPath, defaultLogFile, defaultJMXLogFile, defaultDogstatsdLogFile, defaultStreamlogsLogFile)
 }
 
-// NewParams returns parameters for to initialize a non local flare component
+// NewParams returns parameters to initialize a non local flare component.
 func NewParams(distPath string, pythonChecksPath string, defaultLogFile string, defaultJMXLogFile string, defaultDogstatsdLogFile string, defaultStreamlogsLogFile string) Params {
-	return Params{
-		local:                    false,
-		distPath:                 distPath,
-		pythonChecksPath:         pythonChecksPath,
-		defaultLogFile:           defaultLogFile,
-		defaultJMXLogFile:        defaultJMXLogFile,
-		defaultDogstatsdLogFile:  defaultDogstatsdLogFile,
-		defaultStreamlogsLogFile: defaultStreamlogsLogFile,
-	}
+	return flaredef.NewParams(distPath, pythonChecksPath, defaultLogFile, defaultJMXLogFile, defaultDogstatsdLogFile, defaultStreamlogsLogFile)
 }
