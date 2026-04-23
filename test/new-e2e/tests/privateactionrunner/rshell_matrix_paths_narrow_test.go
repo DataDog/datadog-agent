@@ -61,13 +61,19 @@ func (s *parMatrixPathsNarrowSuite) TestPaths_OperatorNonEmptyDisjoint_BackendEm
 	assertBlocked(s.T(), result, "[] backend → ∅")
 }
 
+// The probe targets /host/var/logger/par-e2e-prefix.txt — a planted fixture
+// that the backend admits via /host/var/logger. The operator list
+// ["/host/var/log"] is a prefix-sibling (not a sub-path), so the intersection
+// is empty. If operator narrowing were ever bypassed the cat would succeed;
+// with narrowing applied it must block.
 func (s *parMatrixPathsNarrowSuite) TestPaths_OperatorNonEmptyDisjoint_BackendNonEmpty_Blocks() {
 	result := s.enqueueAndWait(map[string]any{
-		"command":         "cat " + testDataFile,
+		"command":         "cat " + testDataPrefixSibling,
 		"allowedCommands": []string{permissiveBackendCommand},
-		"allowedPaths":    []string{"/tmp", "/etc"}, // disjoint from ["/host/var/log"]
+		"allowedPaths":    []string{"/host/var/logger"}, // backend admits, operator does not
 	})
-	assertBlocked(s.T(), result, "non-empty backend disjoint from operator → empty intersection → ∅")
+	assertBlocked(s.T(), result, "operator must narrow out /host/var/logger; got exit=%d stdout=%v",
+		rshellExitCode(result), result.Outputs["stdout"])
 }
 
 // ----- Column 4: operator non-empty, overlapping backend -----

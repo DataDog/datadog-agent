@@ -150,16 +150,13 @@ func parK8sProvisioner(runnerURN, privateKeyB64 string, rshellCfg rshellOperator
 			}
 
 			// 4. Plant test fixtures on the Kind node (accessible to PAR at /host/...):
-			//   - /var/log/par-e2e-testdata.txt       — inside a backend-allowed dir
-			//   - /var/log/par-e2e-sibling.txt        — second file in the same dir, used
-			//     to exercise operator sub-path narrowing (Confluence: "narrower wins")
-			//   - /var/logger/par-e2e-prefix.txt      — prefix-sibling to /var/log, used
-			//     to confirm that a backend entry for /var/log does NOT admit /var/logger
+			//   - /var/log/par-e2e-testdata.txt  — inside a backend-allowed dir
+			//   - /var/logger/par-e2e-prefix.txt — prefix-sibling to /var/log, used by
+			//     the paths narrow disjoint test to exercise operator narrowing
 			plantScript := fmt.Sprintf(
 				`kind get nodes --name %%s | xargs -I{} docker exec {} bash -c '%s'`,
 				strings.Join([]string{
 					`echo "PAR_E2E_VALUE=hello_from_rshell" > /var/log/par-e2e-testdata.txt`,
-					`echo "PAR_E2E_SIBLING=file_in_same_dir" > /var/log/par-e2e-sibling.txt`,
 					`mkdir -p /var/logger && echo "PAR_E2E_PREFIX=sibling_dir" > /var/logger/par-e2e-prefix.txt`,
 				}, " && "),
 			)
@@ -212,10 +209,10 @@ func buildPARHelmValues(clusterName, runnerURN, privateKeyB64 string, rshellCfg 
 		// useConfigMap: true tells the chart to materialise customAgentConfig as a
 		// mounted datadog.yaml rather than translating it to env vars (which would
 		// lose the []/unset distinction we need to test).
-		customCfg = fmt.Sprintf(`  useConfigMap: true
-  customAgentConfig:
-    private_action_runner:
-%s`, sub)
+		customCfg = "  useConfigMap: true\n" +
+			"  customAgentConfig:\n" +
+			"    private_action_runner:\n" +
+			sub
 	}
 
 	return fmt.Sprintf(`datadog:

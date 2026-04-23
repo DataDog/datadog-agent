@@ -69,13 +69,18 @@ func (s *parMatrixCommandsNarrowSuite) TestCommands_OperatorNonEmptyDisjoint_Bac
 }
 
 // Backend non-empty AND disjoint from operator ["rshell:cat"]: intersection empty.
+//
+// The probe runs `ls`, which the backend admits — so if operator narrowing were
+// ever bypassed, this test would pass unexpectedly. With narrowing applied,
+// ls is not in {"rshell:cat"} and the intersection is empty → blocked.
 func (s *parMatrixCommandsNarrowSuite) TestCommands_OperatorNonEmptyDisjoint_BackendNonEmpty_Blocks() {
 	result := s.enqueueAndWait(map[string]any{
-		"command":         "cat " + testDataFile,
-		"allowedCommands": []string{"rshell:ls", "rshell:find"}, // no rshell:cat
+		"command":         "ls " + permissiveBackendPath,
+		"allowedCommands": []string{"rshell:ls", "rshell:find"}, // backend admits ls
 		"allowedPaths":    []string{permissiveBackendPath},
 	})
-	assertBlocked(s.T(), result, "non-empty backend disjoint from operator → empty intersection → ∅")
+	assertBlocked(s.T(), result, "operator must narrow out ls; got exit=%d stdout=%v",
+		rshellExitCode(result), result.Outputs["stdout"])
 }
 
 // ----- Column 4: operator non-empty, overlapping backend -----

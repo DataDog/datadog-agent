@@ -32,15 +32,10 @@ const (
 	testDataFile    = "/host/var/log/par-e2e-testdata.txt"
 	testDataContent = "PAR_E2E_VALUE=hello_from_rshell"
 
-	// testDataSibling is a second file planted alongside testDataFile. Used by the
-	// operator-narrowing matrix (Suite C) to tell "whole dir admitted" from "single
-	// file admitted" apart.
-	testDataSibling        = "/host/var/log/par-e2e-sibling.txt"
-	testDataSiblingContent = "PAR_E2E_SIBLING=file_in_same_dir"
-
 	// testDataPrefixSibling is planted at /var/logger/ — a prefix-sibling of /var/log.
-	// Used to confirm that a backend entry for /var/log does NOT admit /var/logger
-	// (see Confluence: "prefix siblings like /var/logger do not match /var/log").
+	// Used by the paths narrow disjoint test to exercise operator narrowing: the
+	// backend admits /host/var/logger (the parent of this file), but the operator
+	// list ["/host/var/log"] does not, so the intersection is empty.
 	testDataPrefixSibling = "/host/var/logger/par-e2e-prefix.txt"
 )
 
