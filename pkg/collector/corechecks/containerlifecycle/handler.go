@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	model "github.com/DataDog/agent-payload/v5/contlcycle"
+
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	types "github.com/DataDog/datadog-agent/pkg/containerlifecycle"
 )
