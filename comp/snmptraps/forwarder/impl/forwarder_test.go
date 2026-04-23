@@ -19,7 +19,6 @@ import (
 	formatter "github.com/DataDog/datadog-agent/comp/snmptraps/formatter/def"
 	formatterfx "github.com/DataDog/datadog-agent/comp/snmptraps/formatter/fx"
 	forwarder "github.com/DataDog/datadog-agent/comp/snmptraps/forwarder/def"
-	forwarderfx "github.com/DataDog/datadog-agent/comp/snmptraps/forwarder/fx"
 	listener "github.com/DataDog/datadog-agent/comp/snmptraps/listener/def"
 	listenerfx "github.com/DataDog/datadog-agent/comp/snmptraps/listener/fx"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
@@ -45,7 +44,8 @@ func setUp(t *testing.T) *services {
 		senderhelper.Opts,
 		formatterfx.MockModule(),
 		listenerfx.MockModule(),
-		forwarderfx.Module(),
+		fxutil.ProvideComponentConstructor(NewComponent),
+		fxutil.FxLifecycleAdapter(),
 	)
 	return &s
 }
