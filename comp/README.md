@@ -113,8 +113,7 @@ Package autodiscovery provides the autodiscovery component for the Datadog Agent
 
 *Datadog Team*: agent-configuration
 
-Package config implements a component to handle agent configuration.  This
-component temporarily wraps pkg/config.
+Package config provides the config component interface for the Datadog Agent.
 
 ### [comp/core/configstream](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/configstream)
 
