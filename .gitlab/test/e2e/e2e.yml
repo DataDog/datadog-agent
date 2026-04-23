@@ -1094,6 +1094,10 @@ new-e2e-ssi-gradual-rollout:
   extends: .new_e2e_template
   rules:
     - !reference [.on_ssi_or_e2e_changes]
+    - changes:
+        paths:
+          - test/new-e2e/tests/ssi-gradual-rollout/**/*
+        compare_to: $COMPARE_TO_BRANCH
     - !reference [.manual]
   needs:
     - !reference [.needs_new_e2e_template]
