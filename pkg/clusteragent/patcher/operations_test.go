@@ -190,6 +190,33 @@ func TestSetContainerResources(t *testing.T) {
 		require.Len(t, containers, 1)
 		assert.Equal(t, "", containers[0].(map[string]interface{})["name"])
 	})
+
+	t.Run("LimitsToDelete sets deleted keys to null", func(t *testing.T) {
+		op := SetContainerResources([]ContainerResourcePatch{
+			{Name: "app", LimitsToDelete: []string{"cpu"}},
+		})
+		result := op.build()
+		spec := result["spec"].(map[string]interface{})
+		containers := spec["containers"].([]interface{})
+		resources := containers[0].(map[string]interface{})["resources"].(map[string]interface{})
+		limits := resources["limits"].(map[string]interface{})
+		assert.Nil(t, limits["cpu"], "deleted limit key must be null for merge-patch removal")
+		_, exists := limits["cpu"]
+		assert.True(t, exists, "key must be present (as null) to trigger removal")
+	})
+
+	t.Run("LimitsToDelete with remaining memory limit", func(t *testing.T) {
+		op := SetContainerResources([]ContainerResourcePatch{
+			{Name: "app", Limits: map[string]string{"memory": "512Mi"}, LimitsToDelete: []string{"cpu"}},
+		})
+		result := op.build()
+		spec := result["spec"].(map[string]interface{})
+		containers := spec["containers"].([]interface{})
+		resources := containers[0].(map[string]interface{})["resources"].(map[string]interface{})
+		limits := resources["limits"].(map[string]interface{})
+		assert.Nil(t, limits["cpu"], "deleted cpu limit must be null")
+		assert.Equal(t, "512Mi", limits["memory"], "memory limit must still be set")
+	})
 }
 
 func TestEmptyOperations(t *testing.T) {

@@ -31,6 +31,7 @@ GO_VERSION_REFERENCES: list[tuple[str, str, str, bool]] = [
     ("./pkg/logs/launchers/windowsevent/README.md", "install go ", "+,", False),
     ("./tools/host-profiler/Dockerfile", "FROM golang:", "-trixie", True),
     ("./.wwhrd.yml", "raw.githubusercontent.com/golang/go/go", "/LICENSE", True),
+    ("./renovate.json", '"go": "', '"', True),
     ("./go.work", "go ", "", True),
 ]
 

@@ -140,6 +140,12 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component, ipc ipc.Com
 	cfg.HTTPTransportFunc = func() *http.Transport {
 		return httputils.CreateHTTPTransport(coreConfigObject)
 	}
+	cfg.EnableOPMFetch = true
+	cfg.OPMValidateURL = utils.GetMainEndpoint(
+		pkgconfigsetup.Datadog(),
+		"https://api.",
+		"dd_url",
+	) + "/api/v2/validate"
 
 	return cfg, nil
 }
@@ -288,11 +294,6 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 
 	if core.IsSet("apm_config.peer_tags") {
 		c.PeerTags = core.GetStringSlice("apm_config.peer_tags")
-	}
-
-	if core.IsConfigured("apm_config.span_derived_primary_tags") {
-		c.SpanDerivedPrimaryTagKeys = core.GetStringSlice("apm_config.span_derived_primary_tags")
-		log.Infof("span_derived_primary_tags configured: %v", c.SpanDerivedPrimaryTagKeys)
 	}
 
 	if core.IsConfigured("apm_config.extra_sample_rate") {

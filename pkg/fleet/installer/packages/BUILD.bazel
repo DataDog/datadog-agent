@@ -89,6 +89,7 @@ go_test(
         "otel_config_common_test.go",
     ],
     embed = [":packages"],
+    gotags = ["test"],
     deps = [
         "//pkg/fleet/installer/packages/extensions",
         "@com_github_stretchr_testify//assert",

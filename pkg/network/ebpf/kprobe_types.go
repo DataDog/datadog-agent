@@ -34,7 +34,6 @@ type ProtocolStack C.protocol_stack_t
 type ProtocolStackWrapper C.protocol_stack_wrapper_t
 type TLSTags C.tls_info_t
 type TLSTagsWrapper C.tls_info_wrapper_t
-type NetTimeMs C.time_ms_t
 type CertItem C.cert_item_t
 type CertSerial C.cert_serial_t
 type CertDomain C.cert_domain_t

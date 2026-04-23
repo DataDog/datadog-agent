@@ -11,9 +11,15 @@ jobs:
   mod_tidy_and_generate_licenses:
     if: ${{ github.repository == 'DataDog/datadog-agent' && (github.event.pull_request.user.login == 'dependabot[bot]' || github.event.pull_request.user.login == 'renovate[bot]') && contains(github.event.pull_request.labels.*.name, 'dependencies-go') }}
     permissions:
-      contents: write
+      id-token: write # Required for dd-octo-sts OIDC token
+      pull-requests: write # Required to auto-close PRs that bump the root go directive
     runs-on: ubuntu-latest
     steps:
+      - uses: DataDog/dd-octo-sts-action@96a25462dbcb10ebf0bfd6e2ccc917d2ab235b9a # v1.0.4
+        id: octo-sts
+        with:
+          scope: DataDog/datadog-agent
+          policy: self.go-mod-tidy.push-branch
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: ${{ github.head_ref }}
@@ -29,6 +35,20 @@ jobs:
           features: legacy-tasks
       - name: Go mod tidy
         run: dda inv -- -e tidy
+      - name: Close PR if root go directive was bumped
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          base_directive="$(git show "origin/$BASE_REF:go.mod" | grep -E '^go [0-9]' | head -1)"
+          current_directive="$(grep -E '^go [0-9]' go.mod | head -1)"
+          if [ "$base_directive" != "$current_directive" ]; then
+            echo "::warning::Root go.mod 'go' directive changed from '$base_directive' to '$current_directive'. Auto-closing this PR — a dependency requires a newer Go version than the repo."
+            gh pr comment "$PR_NUMBER" --body "Auto-closing: this update bumps the root \`go.mod\` \`go\` directive from \`$base_directive\` to \`$current_directive\`. Hold this dependency update until we bump the repository's Go version."
+            gh pr close "$PR_NUMBER"
+            exit 1
+          fi
       - name: Update LICENSE-3rdparty.csv
         if: ${{ !contains(github.event.pull_request.labels.*.name, 'dependencies-go-tools') }}
         run: |
@@ -53,7 +73,7 @@ jobs:
         if: steps.commit.outputs.has_changes == 'true'
         uses: chouetz/push-signed-commits@9b123e8898e6176af65b9427b434e07aebe7f72f
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ steps.octo-sts.outputs.token }}
           local_branch_name: ${{ github.head_ref }}
           remote_name: "origin"
           remote_branch_name: ${{ github.head_ref }}

@@ -19,6 +19,7 @@ go_test(
     name = "installinfo_test",
     srcs = ["installinfo_test.go"],
     embed = [":installinfo"],
+    gotags = ["test"],
     deps = [
         "//pkg/version",
         "@com_github_google_uuid//:uuid",

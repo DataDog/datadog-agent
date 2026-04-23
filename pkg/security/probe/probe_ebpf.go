@@ -1122,7 +1122,7 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 
 	event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
 
-	if process.IsKThread(event.ProcessContext.PPid, event.ProcessContext.Pid) {
+	if process.IsKworker(event.ProcessContext.PPid, event.ProcessContext.Pid) {
 		return false
 	}
 
@@ -1135,6 +1135,12 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 			// the cache tree immediately using the authoritative kernel value.
 			if event.PIDContext.PPid != 0 {
 				p.Resolvers.ProcessResolver.TryReparentFromKernelPPid(entry, event.PIDContext.PPid, newEntryCb)
+			}
+
+			// If the kernel reports a different SID than the one in our
+			// cache, the process called setsid(). Update the cache entry.
+			if event.PIDContext.SID != 0 {
+				entry.SID = event.PIDContext.SID
 			}
 
 			// Attempt to repair the lineage of processes that were orphaned
@@ -1733,7 +1739,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 			CreatedAt:     uint64(event.GetTimestamp().UnixNano()),
 		}
 
-		if cacheEntry := p.Resolvers.CGroupResolver.AddPID(pce.Pid, pce.PPid, cgroupContext); cacheEntry == nil {
+		if cacheEntry := p.Resolvers.CGroupResolver.AddPID(pce.Pid, cgroupContext); cacheEntry == nil {
 			seclog.Debugf("Failed to resolve cgroup for pid %d: %+v", pid, event.CgroupWrite.File.PathKey)
 		} else {
 			p.Resolvers.ProcessResolver.UpdateProcessContexts(pce, cacheEntry.GetCGroupContext(), cacheEntry.GetContainerContext())
@@ -2128,7 +2134,7 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 	// event types enabled either by event handlers or by rules
 	requestedEventTypes := append([]eval.EventType{}, defaultEventTypes...)
 	requestedEventTypes = append(requestedEventTypes, ruleSetEventTypes...)
-	for eventType, handlers := range p.probe.eventHandlers {
+	for eventType, handlers := range p.probe.eventConsumers {
 		if len(handlers) == 0 {
 			continue
 		}
@@ -2443,7 +2449,7 @@ func (p *EBPFProbe) applyDefaultFilterPolicies() {
 
 		if !p.config.Probe.EnableKernelFilters {
 			mode = kfilters.PolicyModeNoFilter
-		} else if len(p.probe.eventHandlers[eventType]) > 0 {
+		} else if len(p.probe.eventConsumers[eventType]) > 0 {
 			mode = kfilters.PolicyModeAccept
 		} else {
 			mode = kfilters.PolicyModeDeny

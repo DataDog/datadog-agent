@@ -45,6 +45,9 @@ const (
 
 	// ProxyTypeIstioGateway represents the Istio native Gateway (networking.istio.io/v1) proxy type for appsec injection mode
 	ProxyTypeIstioGateway ProxyType = "istio-gateway"
+
+	// ProxyTypeIngressNginx represents the ingress-nginx proxy type for appsec injection mode
+	ProxyTypeIngressNginx ProxyType = "ingress-nginx"
 )
 
 // AllProxyTypes is the list of all supported proxy types for appsec injection mode
@@ -52,6 +55,7 @@ var AllProxyTypes = []ProxyType{
 	ProxyTypeEnvoyGateway,
 	ProxyTypeIstio,
 	ProxyTypeIstioGateway,
+	ProxyTypeIngressNginx,
 }
 
 // Processor represents the configuration of the AppSec processor service that was deployed in the cluster
@@ -94,6 +98,16 @@ type Sidecar struct {
 	BodyParsingSizeLimit string // Default: "10000000" (10MB)
 }
 
+// Nginx contains configuration specific to ingress-nginx injection
+type Nginx struct {
+	// InitImage is the container image for the init container that copies the nginx-datadog module
+	// e.g., "datadog/ingress-nginx-injection"
+	InitImage string
+	// ModuleMountPath is where the .so module is mounted in the controller container
+	// Default: "/modules_mount"
+	ModuleMountPath string
+}
+
 func (p Processor) String() string {
 	address := p.Address
 	if address == "" {
@@ -120,12 +134,15 @@ type Product struct {
 	// Sidecar contains configuration for SIDECAR mode
 	Sidecar Sidecar
 
+	// Nginx contains configuration for ingress-nginx injection
+	Nginx Nginx
+
 	// Processor contains configuration for the EXTERNAL mode
 	Processor Processor
 }
 
-// Injection represent kubernetes specific configuration available for users to customize
-// the resources created for the AppSec Injection Proxy feature
+// Injection represents Kubernetes-specific configuration available for users to customize
+// the resources created for the AppSec Injection Proxy feature.
 type Injection struct {
 	Enabled           bool
 	CommonLabels      map[string]string
@@ -141,6 +158,31 @@ type Injection struct {
 type Config struct {
 	Injection
 	Product
+}
+
+// validateNginxConfig validates that required nginx configuration fields are set
+// and that paths do not contain characters that could lead to nginx directive injection.
+func validateNginxConfig(config Nginx) error {
+	var errs []error
+
+	if config.InitImage == "" {
+		errs = append(errs, errors.New("nginx.init_image is required"))
+	} else if strings.ContainsAny(config.InitImage, ";\n\r\t{}") {
+		errs = append(errs, fmt.Errorf("nginx.init_image contains invalid characters: %q", config.InitImage))
+	}
+
+	if config.ModuleMountPath == "" {
+		errs = append(errs, errors.New("nginx.module_mount_path is required"))
+	} else {
+		if !strings.HasPrefix(config.ModuleMountPath, "/") {
+			errs = append(errs, fmt.Errorf("nginx.module_mount_path must be an absolute path, got: %q", config.ModuleMountPath))
+		}
+		if strings.ContainsAny(config.ModuleMountPath, ";\n\r \t{}") {
+			errs = append(errs, fmt.Errorf("nginx.module_mount_path contains invalid characters: %q", config.ModuleMountPath))
+		}
+	}
+
+	return errors.Join(errs...)
 }
 
 // validateSidecarConfig validates that required sidecar configuration fields are set
@@ -163,11 +205,7 @@ func validateSidecarConfig(config Sidecar) error {
 		errs = append(errs, fmt.Errorf("sidecar.port and sidecar.health_port cannot be the same: %d", config.Port))
 	}
 
-	if len(errs) > 0 {
-		return errors.Join(errs...)
-	}
-
-	return nil
+	return errors.Join(errs...)
 }
 
 // FromComponent uses the datadog config.Component and returns a Config using default values when not set
@@ -210,6 +248,11 @@ func FromComponent(cfg config.Component, logger log.Component) Config {
 		BodyParsingSizeLimit: cfg.GetString("admission_controller.appsec.sidecar.body_parsing_size_limit"),
 	}
 
+	nginxConfig := Nginx{
+		InitImage:       cfg.GetString("admission_controller.appsec.nginx.init_image"),
+		ModuleMountPath: cfg.GetString("admission_controller.appsec.nginx.module_mount_path"),
+	}
+
 	staticLabels := map[string]string{
 		kubernetes.KubeAppComponentLabelKey: "datadog-appsec-injector",
 		kubernetes.KubeAppPartOfLabelKey:    "datadog",
@@ -227,9 +270,11 @@ func FromComponent(cfg config.Component, logger log.Component) Config {
 		fallthrough
 	case InjectionModeSidecar:
 		staticAnnotations[AppsecProcessorResourceAnnotation] = "localhost"
-		// Validate required sidecar configuration
 		if err := validateSidecarConfig(sidecarConfig); err != nil {
 			logger.Errorf("Invalid sidecar configuration: %v", err)
+		}
+		if err := validateNginxConfig(nginxConfig); err != nil {
+			logger.Errorf("Invalid nginx configuration: %v", err)
 		}
 	case InjectionModeExternal:
 		staticAnnotations[AppsecProcessorResourceAnnotation] = processor.String()
@@ -250,6 +295,7 @@ func FromComponent(cfg config.Component, logger log.Component) Config {
 			Processor:  processor,
 			Mode:       mode,
 			Sidecar:    sidecarConfig,
+			Nginx:      nginxConfig,
 		},
 		Injection: Injection{
 			Enabled:           cfg.GetBool("cluster_agent.appsec.injector.enabled"),

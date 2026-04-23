@@ -76,7 +76,7 @@
           },
           "return": {
             "locals": {
-              "~r0": {
+              "@return": {
                 "type": "[]float64",
                 "size": "2",
                 "elements": [
@@ -191,7 +191,7 @@
           },
           "return": {
             "locals": {
-              "~r0": {
+              "@return": {
                 "type": "[]int",
                 "size": "3",
                 "elements": [

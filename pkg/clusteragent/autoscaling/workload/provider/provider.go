@@ -88,7 +88,7 @@ func StartWorkloadAutoscaling(
 	maxDatadogPodAutoscalerObjects := pkgconfigsetup.Datadog().GetInt("autoscaling.workload.limit")
 	limitHeap := autoscaling.NewHashHeap(maxDatadogPodAutoscalerObjects, store, (*model.PodAutoscalerInternal).CreationTimestamp)
 
-	controller, err := workload.NewController(clock, clusterID, eventRecorder, apiCl.RESTMapper, apiCl.ScaleCl, apiCl.Cl, apiCl.DynamicInformerCl, apiCl.DynamicInformerFactory, isLeaderFunc, store, podWatcher, sender, limitHeap, globalTagsFunc)
+	controller, err := workload.NewController(clock, clusterID, eventRecorder, apiCl.RESTMapper, apiCl.ScaleCl, apiCl.Cl, apiCl.DynamicCl, apiCl.DynamicInformerFactory, isLeaderFunc, store, podWatcher, sender, limitHeap, globalTagsFunc)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to start workload autoscaling controller: %w", err)
 	}
@@ -96,7 +96,7 @@ func StartWorkloadAutoscaling(
 	profileStore := autoscaling.NewStore[model.PodAutoscalerProfileInternal]()
 	profileController, err := profile.NewController(
 		clock,
-		apiCl.DynamicInformerCl,
+		apiCl.DynamicCl,
 		apiCl.DynamicInformerFactory,
 		isLeaderFunc,
 		profileStore,
@@ -108,11 +108,12 @@ func StartWorkloadAutoscaling(
 	workloadWatcher := profile.NewWorkloadWatcher(
 		profileStore,
 		isLeaderFunc,
-		apiCl.DynamicInformerCl,
+		apiCl.MetadataInformerCl,
 		[]profile.GroupVersionKindResource{
 			{GroupVersionResource: schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}, Kind: "Deployment"},
 			{GroupVersionResource: schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "statefulsets"}, Kind: "StatefulSet"},
 		},
+		profileController.InitialSyncDone,
 	)
 
 	autoscalerSyncer := profile.NewAutoscalerSyncer(profileStore, store, isLeaderFunc, profileController.InitialSyncDone, workloadWatcher.HasSynced)

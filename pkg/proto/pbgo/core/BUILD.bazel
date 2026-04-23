@@ -6,6 +6,8 @@ go_library(
         "api.pb.go",
         "api_grpc.pb.go",
         "autodiscovery.pb.go",
+        "echo.pb.go",
+        "echo_grpc.pb.go",
         "flare.pb.go",
         "flare_grpc.pb.go",
         "kubemetadata.pb.go",
@@ -39,5 +41,6 @@ go_test(
     name = "core_test",
     srcs = ["remoteconfig_gen_test.go"],
     embed = [":core"],
+    gotags = ["test"],
     deps = ["@com_github_tinylib_msgp//msgp"],
 )

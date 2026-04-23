@@ -76,6 +76,21 @@ const (
 	Zone // Represents a timezone
 	T    // t (often `T`) denotes a time separator in many timestamp formats
 
+	// Critical severity keywords — logs containing these bypass adaptive sampling.
+	Warn      // WARN, WARNING
+	Fatal     // FATAL
+	Error     // ERROR
+	Panic     // PANIC
+	Alert     // ALERT
+	Severe    // SEVERE
+	Critical  // CRIT, CRITICAL
+	Emergency // EMERG, EMERGENCY
+	Exception // EXCEPTION
+	Crash     // CRASH, CRASHED
+	Failure   // FAILED, FAILURE
+	Deadlock  // DEADLOCK
+	Timeout   // TIMEOUT
+
 	End // Not a valid token. Used to mark the end of the token list or as a terminator.
 )
 

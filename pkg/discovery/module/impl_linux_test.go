@@ -13,6 +13,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -407,6 +408,24 @@ func BenchmarkGetNSInfoOld(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		getNsInfoOld(os.Getpid())
 	}
+}
+
+func setMemfdMtime(t *testing.T, fd int, mtime time.Time) {
+	t.Helper()
+	path := fmt.Sprintf("/proc/self/fd/%d", fd)
+	ts := []unix.Timespec{
+		unix.NsecToTimespec(mtime.UnixNano()),
+		unix.NsecToTimespec(mtime.UnixNano()),
+	}
+	err := unix.UtimesNanoAt(unix.AT_FDCWD, path, ts, 0)
+	require.NoError(t, err)
+
+	// Read back and verify the timestamp was applied.
+	var stat unix.Stat_t
+	err = unix.Stat(path, &stat)
+	require.NoError(t, err)
+	got := time.Unix(stat.Mtim.Sec, stat.Mtim.Nsec)
+	require.Equalf(t, mtime.UnixNano(), got.UnixNano(), "memfd mtime was not set correctly: want %v (%d), got %v (%d)", mtime, mtime.UnixNano(), got, got.UnixNano())
 }
 
 func createTracerMemfd(t *testing.T, data []byte) int {
