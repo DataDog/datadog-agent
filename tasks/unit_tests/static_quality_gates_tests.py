@@ -1701,7 +1701,7 @@ class TestGetWireChangeMetrics(unittest.TestCase):
 class TestGetPrForBranch(unittest.TestCase):
     """Test the get_pr_for_branch helper function."""
 
-    @patch("tasks.quality_gates.GithubAPI")
+    @patch("tasks.static_quality_gates.github.GithubAPI")
     def test_returns_pr_when_found(self, mock_github_class):
         """Should return PR object when a PR exists for the branch."""
         from tasks.quality_gates import get_pr_for_branch
@@ -1719,7 +1719,7 @@ class TestGetPrForBranch(unittest.TestCase):
         self.assertEqual(result.number, 12345)
         mock_github.get_pr_for_branch.assert_called_once_with("test-branch")
 
-    @patch("tasks.quality_gates.GithubAPI")
+    @patch("tasks.static_quality_gates.github.GithubAPI")
     def test_returns_none_when_no_pr(self, mock_github_class):
         """Should return None when no PR exists for the branch."""
         from tasks.quality_gates import get_pr_for_branch
@@ -1732,7 +1732,7 @@ class TestGetPrForBranch(unittest.TestCase):
 
         self.assertIsNone(result)
 
-    @patch("tasks.quality_gates.GithubAPI")
+    @patch("tasks.static_quality_gates.github.GithubAPI")
     def test_returns_none_on_exception(self, mock_github_class):
         """Should return None and not raise when GitHub API fails."""
         from tasks.quality_gates import get_pr_for_branch
@@ -1743,7 +1743,7 @@ class TestGetPrForBranch(unittest.TestCase):
 
         self.assertIsNone(result)
 
-    @patch("tasks.quality_gates.GithubAPI")
+    @patch("tasks.static_quality_gates.github.GithubAPI")
     def test_returns_first_pr_when_multiple(self, mock_github_class):
         """Should return first PR when multiple PRs exist for branch."""
         from tasks.quality_gates import get_pr_for_branch
@@ -1857,7 +1857,7 @@ class TestGetPrNumberFromCommit(unittest.TestCase):
 class TestGetPrAuthor(unittest.TestCase):
     """Test the get_pr_author helper function."""
 
-    @patch("tasks.quality_gates.GithubAPI")
+    @patch("tasks.static_quality_gates.github.GithubAPI")
     def test_returns_author_when_found(self, mock_github_class):
         """Should return PR author login when a PR exists."""
         mock_pr = MagicMock()
@@ -1872,7 +1872,7 @@ class TestGetPrAuthor(unittest.TestCase):
         self.assertEqual(result, "octocat")
         mock_github.get_pr.assert_called_once_with(12345)
 
-    @patch("tasks.quality_gates.GithubAPI")
+    @patch("tasks.static_quality_gates.github.GithubAPI")
     def test_returns_none_when_pr_not_found(self, mock_github_class):
         """Should return None when PR is not found."""
         mock_github = MagicMock()
@@ -1883,7 +1883,7 @@ class TestGetPrAuthor(unittest.TestCase):
 
         self.assertIsNone(result)
 
-    @patch("tasks.quality_gates.GithubAPI")
+    @patch("tasks.static_quality_gates.github.GithubAPI")
     def test_returns_none_when_user_is_none(self, mock_github_class):
         """Should return None when PR exists but user is None."""
         mock_pr = MagicMock()
@@ -1896,7 +1896,7 @@ class TestGetPrAuthor(unittest.TestCase):
 
         self.assertIsNone(result)
 
-    @patch("tasks.quality_gates.GithubAPI")
+    @patch("tasks.static_quality_gates.github.GithubAPI")
     def test_returns_none_on_exception(self, mock_github_class):
         """Should return None and not raise when GitHub API fails."""
         mock_github_class.side_effect = Exception("API error")
@@ -1905,7 +1905,7 @@ class TestGetPrAuthor(unittest.TestCase):
 
         self.assertIsNone(result)
 
-    @patch("tasks.quality_gates.GithubAPI")
+    @patch("tasks.static_quality_gates.github.GithubAPI")
     def test_handles_string_pr_number(self, mock_github_class):
         """Should correctly convert string PR number to int."""
         mock_pr = MagicMock()

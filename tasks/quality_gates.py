@@ -1,6 +1,5 @@
 import os
 import random
-import re
 import traceback
 import typing
 from collections.abc import Callable
@@ -12,6 +11,14 @@ from invoke.exceptions import Exit
 from tasks.git import get_ancestor
 from tasks.github_tasks import pr_commenter
 from tasks.libs.ciproviders.github_api import GithubAPI, create_datadog_agent_pr
+from tasks.static_quality_gates.decisions import (
+    EXCEPTION_APPROVERS,
+    PER_PR_THRESHOLD,
+    ExceptionApprovalChecker,
+    identify_gates_exceeding_pr_threshold,
+    should_bypass_failure,
+)
+from tasks.static_quality_gates.github import get_pr_author, get_pr_for_branch, get_pr_number_from_commit
 from tasks.libs.common.color import color_message
 from tasks.static_quality_gates.metrics import (
     GateMetricsData,
@@ -46,9 +53,6 @@ FAIL_CHAR = "❌"
 SUCCESS_CHAR = "✅"
 WARNING_CHAR = "⚠️"
 GATE_CONFIG_PATH = "test/static/static_quality_gates.yml"
-PER_PR_THRESHOLD = 600 * 1024
-EXCEPTION_APPROVERS = {"cmourot", "dd-ddamien"}
-
 
 
 
@@ -104,116 +108,6 @@ def identify_gates_with_size_increase(pr_metrics: dict[str, GateMetricsData]) ->
     return gates_to_bump
 
 
-def identify_gates_exceeding_pr_threshold(metric_handler: GateMetricHandler) -> list[str]:
-    """
-    Identify gates where the on-disk size increase exceeds PER_PR_THRESHOLD.
-
-    Returns gate names where relative_on_disk_size > PER_PR_THRESHOLD.
-    """
-    exceeding = []
-    for gate_name, gate_metrics in metric_handler.metrics.items():
-        delta = gate_metrics.get("relative_on_disk_size")
-        if delta is not None and delta > PER_PR_THRESHOLD:
-            exceeding.append(gate_name)
-    return exceeding
-
-
-def get_pr_for_branch(branch: str):
-    """
-    Get PR info for a branch. Returns the PR object or None.
-
-    This function is used to cache PR lookup results for reuse across:
-    - Adding PR number as a metric tag
-    - Displaying PR comments
-
-    Args:
-        branch: The branch name to look up
-
-    Returns:
-        The PR object if found, None otherwise
-    """
-    try:
-        github = GithubAPI()
-        prs = list(github.get_pr_for_branch(branch))
-        return prs[0] if prs else None
-    except Exception as e:
-        print(color_message(f"[WARN] Failed to get PR for branch {branch}: {type(e).__name__}: {e}", "orange"))
-        return None
-
-
-def get_pr_number_from_commit(ctx) -> str | None:
-    """
-    Extract PR number from the HEAD commit message.
-
-    On main branch, merged commits typically end with (#XXXXX).
-    Example: "Fix bug in quality gates (#44462)"
-
-    Args:
-        ctx: Invoke context for running git commands
-
-    Returns:
-        The PR number as a string, or None if not found.
-    """
-    try:
-        # Get the first line of the HEAD commit message
-        result = ctx.run("git log -1 --pretty=%s HEAD", hide=True)
-        commit_message = result.stdout.strip()
-
-        # Match pattern like "(#12345)" at the end of the message
-        match = re.search(r'\(#(\d+)\)\s*$', commit_message)
-        if match:
-            return match.group(1)
-        return None
-    except Exception as e:
-        print(color_message(f"[WARN] Failed to extract PR number from commit: {e}", "orange"))
-        return None
-
-
-def get_pr_author(pr_number: str) -> str | None:
-    """
-    Get the author (login) of a PR by its number.
-
-    Args:
-        pr_number: The PR number as a string
-
-    Returns:
-        The PR author's GitHub login, or None if not found.
-    """
-    try:
-        github = GithubAPI()
-        pr = github.get_pr(int(pr_number))
-        return pr.user.login if pr and pr.user else None
-    except Exception as e:
-        print(color_message(f"[WARN] Failed to get PR author for PR #{pr_number}: {e}", "orange"))
-        return None
-
-
-class ExceptionApprovalChecker:
-    """Lazily fetches and caches per-PR threshold exception approval."""
-
-    def __init__(self, pr):
-        self._pr = pr
-        self._checked = False
-        self._result: str | None = None
-
-    def _fetch(self) -> str | None:
-        if self._pr is None:
-            return None
-        try:
-            for review in self._pr.get_reviews():
-                if review.state == "APPROVED" and review.user and review.user.login in EXCEPTION_APPROVERS:
-                    return review.user.login
-        except Exception as e:
-            print(color_message(f"[WARN] Failed to check exception approvals: {e}", "orange"))
-        return None
-
-    def get(self) -> str | None:
-        if not self._checked:
-            self._checked = True
-            self._result = self._fetch()
-            if self._result:
-                print(color_message(f"Exception granted by @{self._result}", "orange"))
-        return self._result
 
 
 # Main table pattern for on-disk metrics (primary view)
@@ -334,36 +228,6 @@ def get_change_metrics(
 
     return change_str, limit_bounds_str, is_neutral
 
-
-def should_bypass_failure(gate_name: str, metric_handler: GateMetricHandler) -> bool:
-    """
-    Check if a gate failure should be non-blocking because on-disk size delta is 0 or negative.
-
-    A failure is considered non-blocking if the on-disk size hasn't increased from the ancestor,
-    meaning the issue existed before this PR and wasn't introduced by the current changes.
-
-    Note: Only on-disk size is checked because it's the primary metric for package size impact.
-
-    Args:
-        gate_name: The name of the quality gate to check
-        metric_handler: The metric handler containing relative size metrics
-
-    Returns:
-        True if on-disk size delta is effectively <= 0 (bypass eligible), False otherwise
-    """
-    gate_metrics = metric_handler.metrics.get(gate_name, {})
-    disk_delta = gate_metrics.get("relative_on_disk_size")
-
-    # If we don't have delta data (e.g., no ancestor report), can't bypass
-    if disk_delta is None:
-        return False
-
-    # Threshold: values smaller than 2 KiB are treated as 0
-    # Small variations due to build non-determinism should not block PRs
-    delta_threshold_bytes = 2 * 1024  # 2 KiB
-
-    # Bypass if on-disk size hasn't meaningfully increased from ancestor
-    return disk_delta <= delta_threshold_bytes
 
 
 def display_pr_comment(
