@@ -15,16 +15,16 @@ import (
 	connectionsforwarderfx "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/fx"
 	"github.com/DataDog/datadog-agent/comp/process/agent/agentimpl"
 	"github.com/DataDog/datadog-agent/comp/process/apiserver"
-	"github.com/DataDog/datadog-agent/comp/process/connectionscheck/connectionscheckimpl"
-	"github.com/DataDog/datadog-agent/comp/process/containercheck/containercheckimpl"
+	connectionscheckfx "github.com/DataDog/datadog-agent/comp/process/connectionscheck/fx"
+	containercheckfx "github.com/DataDog/datadog-agent/comp/process/containercheck/fx"
 	expvarsfx "github.com/DataDog/datadog-agent/comp/process/expvars/fx"
 	forwardersfx "github.com/DataDog/datadog-agent/comp/process/forwarders/fx"
 	gpusubscriber "github.com/DataDog/datadog-agent/comp/process/gpusubscriber/fx"
 	hostinfofx "github.com/DataDog/datadog-agent/comp/process/hostinfo/fx"
 	processcheckfx "github.com/DataDog/datadog-agent/comp/process/processcheck/fx"
-	"github.com/DataDog/datadog-agent/comp/process/processdiscoverycheck/processdiscoverycheckimpl"
+	processdiscoverycheckfx "github.com/DataDog/datadog-agent/comp/process/processdiscoverycheck/fx"
 	profilerimpl "github.com/DataDog/datadog-agent/comp/process/profiler/fx"
-	"github.com/DataDog/datadog-agent/comp/process/rtcontainercheck/rtcontainercheckimpl"
+	rtcontainercheckfx "github.com/DataDog/datadog-agent/comp/process/rtcontainercheck/fx"
 	"github.com/DataDog/datadog-agent/comp/process/runner/runnerimpl"
 	submitterfx "github.com/DataDog/datadog-agent/comp/process/submitter/fx"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
@@ -43,11 +43,11 @@ func Bundle() fxutil.BundleOptions {
 		profilerimpl.Module(),
 
 		// Checks
-		connectionscheckimpl.Module(),
-		containercheckimpl.Module(),
+		connectionscheckfx.Module(),
+		containercheckfx.Module(),
 		processcheckfx.Module(),
-		rtcontainercheckimpl.Module(),
-		processdiscoverycheckimpl.Module(),
+		rtcontainercheckfx.Module(),
+		processdiscoverycheckfx.Module(),
 
 		agentimpl.Module(),
 

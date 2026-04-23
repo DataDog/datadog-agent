@@ -303,16 +303,16 @@ func (s *message) init(
 	s.ProcessTags = event.ProcessTags
 	s.Debugger = debuggerData{
 		Snapshot: snapshotData{
-			ID:       uuid.New(),
-			Language: "go",
+			ID:               uuid.New(),
+			Language:         "go",
+			EvaluationErrors: []evaluationError{},
 		},
-		EvaluationErrors: []evaluationError{},
 	}
 	if event.EntryOrLine == nil {
 		return nil, errors.New("entry event is nil")
 	}
 	if err := decoder.entryOrLine.init(
-		event.EntryOrLine, decoder.program.Types, &s.Debugger.EvaluationErrors,
+		event.EntryOrLine, decoder.program.Types, &s.Debugger.Snapshot.EvaluationErrors,
 	); err != nil {
 		return nil, err
 	}
@@ -337,8 +337,8 @@ func (s *message) init(
 		if header.Condition_eval_error == 2 {
 			msg = errNilPointerEvaluating.Error()
 		}
-		s.Debugger.EvaluationErrors = append(
-			s.Debugger.EvaluationErrors,
+		s.Debugger.Snapshot.EvaluationErrors = append(
+			s.Debugger.Snapshot.EvaluationErrors,
 			evaluationError{
 				Expression: whenDSL,
 				Message:    msg,
@@ -357,7 +357,7 @@ func (s *message) init(
 	var durationMissingReason *string
 	if event.Return != nil {
 		if err := decoder._return.init(
-			event.Return, decoder.program.Types, &s.Debugger.EvaluationErrors,
+			event.Return, decoder.program.Types, &s.Debugger.Snapshot.EvaluationErrors,
 		); err != nil {
 			return nil, fmt.Errorf("error initializing return event: %w", err)
 		}
@@ -378,8 +378,8 @@ func (s *message) init(
 			if returnHeader.Condition_eval_error == 2 {
 				msg = errNilPointerEvaluating.Error()
 			}
-			s.Debugger.EvaluationErrors = append(
-				s.Debugger.EvaluationErrors,
+			s.Debugger.Snapshot.EvaluationErrors = append(
+				s.Debugger.Snapshot.EvaluationErrors,
 				evaluationError{
 					Expression: whenDSL,
 					Message:    msg,
@@ -416,8 +416,8 @@ func (s *message) init(
 		const missingReturnReasonExpression = "@duration"
 		if reason != "" {
 			message := "not available: " + reason
-			s.Debugger.EvaluationErrors = append(
-				s.Debugger.EvaluationErrors,
+			s.Debugger.Snapshot.EvaluationErrors = append(
+				s.Debugger.Snapshot.EvaluationErrors,
 				evaluationError{
 					Expression: missingReturnReasonExpression,
 					Message:    message,
@@ -449,7 +449,7 @@ func (s *message) init(
 		}
 		stackPCs, ok := decoder.stackPCs[stackHeader.Stack_hash]
 		if !ok {
-			s.Debugger.EvaluationErrors = append(s.Debugger.EvaluationErrors,
+			s.Debugger.Snapshot.EvaluationErrors = append(s.Debugger.Snapshot.EvaluationErrors,
 				evaluationError{
 					Expression: "Stacktrace",
 					Message:    "no stack pcs found",
@@ -464,7 +464,7 @@ func (s *message) init(
 				} else {
 					log.Tracef("error symbolicating stack for probe %s: %v", probe.GetID(), err)
 				}
-				s.Debugger.EvaluationErrors = append(s.Debugger.EvaluationErrors,
+				s.Debugger.Snapshot.EvaluationErrors = append(s.Debugger.Snapshot.EvaluationErrors,
 					evaluationError{
 						Expression: "Stacktrace",
 						Message:    err.Error(),

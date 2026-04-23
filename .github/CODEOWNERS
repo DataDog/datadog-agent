@@ -52,6 +52,7 @@
 /renovate.json                          @DataDog/agent-devx
 /pyproject.toml                         @DataDog/agent-devx
 /repository.datadog.yml                 @DataDog/agent-devx
+/code-coverage.datadog.yml              @DataDog/agent-devx
 /generate_tools.go                      @DataDog/agent-devx
 /service.datadog.yaml                   @DataDog/agent-delivery @DataDog/agent-devx
 /static-analysis.datadog.yml            @DataDog/agent-devx
@@ -204,6 +205,7 @@
 /cmd/                                   @DataDog/agent-configuration
 /cmd/trace-agent/                       @DataDog/agent-apm
 /cmd/agent/subcommands/controlsvc       @DataDog/windows-products
+/cmd/agent/subcommands/otel             @DataDog/opentelemetry-agent
 /cmd/agent/subcommands/check            @DataDog/agent-runtimes @DataDog/agent-integrations
 /cmd/agent/subcommands/dogstatsd*       @DataDog/agent-metric-pipelines
 /cmd/agent/subcommands/integrations     @DataDog/agent-integrations @DataDog/agent-runtimes
@@ -321,6 +323,9 @@
 /packages/redhat/                       @DataDog/agent-build @DataDog/fleet
 /packages/macos                         @DataDog/agent-build @DataDog/windows-products
 /packages/windows                       @DataDog/agent-build @DataDog/windows-products
+
+# AIX
+/packaging/aix/                         @DataDog/agent-build
 
 # The following is managed by `dda inv lint-components` -- DO NOT EDIT
 # BEGIN COMPONENTS
@@ -921,6 +926,7 @@
 # Each team can individually decide to update CODEOWNERS to be requested for a review on each modification of their go.mod/sum
 /**/go.mod                              # do not notify anyone
 /**/go.sum                              # do not notify anyone
+/deps/go.MODULE.bazel                   # do not notify anyone
 
 # Add here modules that need explicit review from the team owning them
 /pkg/util/scrubber/go.mod                @DataDog/agent-runtimes

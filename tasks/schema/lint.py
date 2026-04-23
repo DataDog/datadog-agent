@@ -9,6 +9,7 @@ a set of quality rules. Run with:
 
 import glob
 import os
+import re
 
 import yaml
 from invoke import task
@@ -366,6 +367,167 @@ def check_platform_default_keys(path, schema):
 
 
 # ---------------------------------------------------------------------------
+# Check 9: Every section has at least one child
+# ---------------------------------------------------------------------------
+
+
+def check_sections_have_children(path, schema):
+    """
+    Check that every section node has a non-empty 'properties' mapping.
+
+    A section with no children is structurally invalid regardless of visibility.
+
+    Returns a list of error strings.
+    """
+    errors = []
+    for node_path, node in walk_nodes(schema):
+        if node.get("node_type") != "section":
+            continue
+        props = node.get("properties")
+        if not isinstance(props, dict) or len(props) == 0:
+            errors.append(
+                f"{path}: [{node_path}] Section has no children (empty or missing 'properties'). "
+                f"Fix: add at least one child setting or sub-section, or remove the section."
+            )
+    return errors
+
+
+# ---------------------------------------------------------------------------
+# Check 10: Public sections have at least one direct public child
+# ---------------------------------------------------------------------------
+
+
+def check_public_section_has_public_child(path, schema):
+    """
+    Check that every public section has at least one direct child with
+    visibility='public'.
+
+    A public section with only private children is meaningless from a
+    documentation perspective.
+
+    Returns a list of error strings.
+    """
+    errors = []
+    for node_path, node in walk_nodes(schema):
+        if node.get("node_type") != "section":
+            continue
+        if node.get("visibility") != "public":
+            continue
+        props = node.get("properties") or {}
+        has_public_child = any(
+            isinstance(child, dict) and child.get("visibility") == "public" for child in props.values()
+        )
+        if not has_public_child:
+            errors.append(
+                f"{path}: [{node_path}] Public section has no direct public child. "
+                f"Fix: set 'visibility: public' on at least one direct child setting or "
+                f"sub-section, or remove 'visibility: public' from this section."
+            )
+    return errors
+
+
+# ---------------------------------------------------------------------------
+# Check 11: Text fields (description, example, title) must not contain
+#           literal \\n escape sequences and use scalars instead
+# ---------------------------------------------------------------------------
+
+_TEXT_LINEBREAK_RE = re.compile(r'(?m)^\s*(description|example|title):\s*"[^"]*\\n')
+
+
+def check_text_scalar_mode(path):
+    """
+    Check that 'description', 'example', and 'title' fields do not contain
+    literal \\n escape sequences in double-quoted YAML strings.
+
+    Reads the raw file (no YAML parsing) and searches for the literal two-character
+    sequence backslash-n inside double-quoted values for those fields.
+
+    Returns a list of error strings.
+    """
+    with open(path) as f:
+        raw = f.read()
+    errors = []
+    for m in _TEXT_LINEBREAK_RE.finditer(raw):
+        field = m.group(1)
+        lineno = raw[: m.start()].count("\n") + 1
+        errors.append(
+            f"{path}:{lineno}: Field '{field}' contains a literal \\n escape sequence. "
+            f"Fix: remove the embedded \\n and use a literal style scalar instead to "
+            f"improve readability of the schema (see: https://yaml.org/spec/1.2.2/#literal-style)."
+        )
+    return errors
+
+
+# ---------------------------------------------------------------------------
+# Check 12: Relative defaults use known variables
+# ---------------------------------------------------------------------------
+
+VALID_RELATIVE_DEFAULT_VARS = {"run_path", "install_path", "conf_path", "log_path"}
+
+
+def _check_relative_value(path, node_path, value):
+    """Check a single default value for well-formed and known ${var} placeholders."""
+    errors = []
+    if not isinstance(value, str) or "${" not in value:
+        return errors
+
+    pos = 0
+    while True:
+        idx = value.find("${", pos)
+        if idx == -1:
+            break
+        close = value.find("}", idx + 2)
+        if close == -1:
+            errors.append(
+                f"{path}: [{node_path}] Default value contains an unclosed '${{' "
+                f"placeholder: '{value}'. "
+                f"Fix: close the placeholder with '}}'."
+            )
+            break
+        var_name = value[idx + 2 : close]
+        if var_name not in VALID_RELATIVE_DEFAULT_VARS:
+            errors.append(
+                f"{path}: [{node_path}] Default value uses unknown variable "
+                f"'${{{var_name}}}' in '{value}'. "
+                f"Allowed variables: {sorted(VALID_RELATIVE_DEFAULT_VARS)}. "
+                f"Fix: use one of the allowed variables."
+            )
+        pos = close + 1
+
+    return errors
+
+
+def check_relative_defaults(path, schema):
+    """
+    Check that relative default values (those containing ${var} placeholders) use
+    only known variables and have well-formed syntax.
+
+    Applies to both 'default' and each value inside 'platform_default'.
+
+    Returns a list of error strings.
+    """
+    errors = []
+    for node_path, node in walk_nodes(schema):
+        if node.get("node_type") != "setting":
+            continue
+
+        errors.extend(_check_relative_value(path, node_path, node.get("default")))
+
+        platform_default = node.get("platform_default")
+        if isinstance(platform_default, dict):
+            for platform_key, platform_value in platform_default.items():
+                errors.extend(
+                    _check_relative_value(
+                        path,
+                        f"{node_path}[platform_default.{platform_key}]",
+                        platform_value,
+                    )
+                )
+
+    return errors
+
+
+# ---------------------------------------------------------------------------
 # Exception list loading
 # ---------------------------------------------------------------------------
 
@@ -424,7 +586,6 @@ def lint(ctx, schema_dir=SCHEMA_DIR, exceptions_file=EXCEPTIONS_FILE):
         with open(schema_path) as f:
             schema = yaml.safe_load(f)
 
-        # Checks 2–8
         all_errors.extend(check_json_schema_structure(schema_path, schema, exc["array_no_items"]))
         all_errors.extend(check_public_descriptions(schema_path, schema))
         all_errors.extend(check_public_parent_sections(schema_path, schema))
@@ -432,6 +593,10 @@ def lint(ctx, schema_dir=SCHEMA_DIR, exceptions_file=EXCEPTIONS_FILE):
         all_errors.extend(check_settings_have_default(schema_path, schema, exc["no_default"]))
         all_errors.extend(check_settings_have_type(schema_path, schema, exc["no_type"]))
         all_errors.extend(check_platform_default_keys(schema_path, schema))
+        all_errors.extend(check_sections_have_children(schema_path, schema))
+        all_errors.extend(check_public_section_has_public_child(schema_path, schema))
+        all_errors.extend(check_text_scalar_mode(schema_path))
+        all_errors.extend(check_relative_defaults(schema_path, schema))
 
     if all_errors:
         print(f"\nFound {len(all_errors)} schema linting error(s):\n")

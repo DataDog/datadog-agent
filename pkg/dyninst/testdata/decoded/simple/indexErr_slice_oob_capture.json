@@ -41,14 +41,14 @@
           "location": {
             "method": "main.intSliceArg"
           }
-        }
-      },
-      "evaluationErrors": [
-        {
-          "expr": "s_5",
-          "message": "index out of bounds"
-        }
-      ]
+        },
+        "evaluationErrors": [
+          {
+            "expr": "s_5",
+            "message": "index out of bounds"
+          }
+        ]
+      }
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
