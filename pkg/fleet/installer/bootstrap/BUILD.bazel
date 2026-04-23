@@ -90,4 +90,5 @@ go_test(
     name = "bootstrap_test",
     srcs = ["bootstrap_windows_test.go"],
     embed = [":bootstrap"],
+    gotags = ["test"],
 )

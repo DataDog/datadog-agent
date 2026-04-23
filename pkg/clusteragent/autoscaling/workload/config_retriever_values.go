@@ -68,6 +68,7 @@ func (p *autoscalingValuesProcessor) processItem(receivedTimestamp time.Time, co
 		return fmt.Errorf("failed to unmarshal config id:%s, version: %d, config key: %s, err: %v", rawConfig.Metadata.ID, rawConfig.Metadata.Version, configKey, err)
 	}
 
+	log.Debugf("Processing %d values from config id:%s, version: %d, config key: %s", len(valuesList.Values), rawConfig.Metadata.ID, rawConfig.Metadata.Version, configKey)
 	for _, values := range valuesList.Values {
 		processErr := p.processValues(values, rawConfig.Metadata.Version, receivedTimestamp)
 		if processErr != nil {
@@ -129,7 +130,7 @@ func (p *autoscalingValuesProcessor) reconcile(isLeader bool) {
 
 	// Update PodAutoscalers with buffered values
 	for paID, item := range p.state {
-		podAutoscaler, podAutoscalerFound, _ := p.store.LockRead(paID, false)
+		podAutoscaler, podAutoscalerFound, unlock := p.store.LockRead(paID, false)
 		// If the PodAutoscaler is not found, it must be created through the controller
 		// discarding the values received here.
 		// The store is not locked as we call LockRead with lockOnMissing = false
@@ -137,14 +138,18 @@ func (p *autoscalingValuesProcessor) reconcile(isLeader bool) {
 			continue
 		}
 
-		// Ignore values if the PodAutoscaler has a custom recommender configuration
+		// In case of custom recommender, we partially merge vertical values if available.
 		if podAutoscaler.CustomRecommenderConfiguration() != nil {
-			p.store.UnlockSet(paID, podAutoscaler, configRetrieverStoreID)
-			continue
+			if item.scalingValues.HasVerticalValues() {
+				podAutoscaler.PartialUpdateFromMainValues(item.scalingValues, false, true, item.receivedVersion)
+			} else {
+				unlock()
+				continue
+			}
+		} else {
+			// Update PodAutoscaler values with received values
+			podAutoscaler.UpdateFromMainValues(item.scalingValues, item.receivedVersion)
 		}
-
-		// Update PodAutoscaler values with received values
-		podAutoscaler.UpdateFromMainValues(item.scalingValues, item.receivedVersion)
 
 		p.store.UnlockSet(paID, podAutoscaler, configRetrieverStoreID)
 	}
@@ -153,7 +158,16 @@ func (p *autoscalingValuesProcessor) reconcile(isLeader bool) {
 	if !p.lastProcessingError {
 		p.store.Update(func(podAutoscaler model.PodAutoscalerInternal) (model.PodAutoscalerInternal, bool) {
 			if _, found := p.state[podAutoscaler.ID()]; !found {
-				log.Infof("Autoscaling not present from remote values, removing values for PodAutoscaler %s", podAutoscaler.ID())
+				if podAutoscaler.CustomRecommenderConfiguration() != nil {
+					if podAutoscaler.MainScalingValues().HasVerticalValues() {
+						podAutoscaler.PartialUpdateFromMainValues(model.ScalingValues{}, false, true, 0)
+						return podAutoscaler, true
+					}
+
+					return podAutoscaler, false
+				}
+
+				log.Infof("Autoscaling not present from remote values, removing values for PodAutoscaler %s, before: %+v", podAutoscaler.ID(), podAutoscaler.MainScalingValues())
 				podAutoscaler.RemoveMainValues()
 				return podAutoscaler, true
 			}

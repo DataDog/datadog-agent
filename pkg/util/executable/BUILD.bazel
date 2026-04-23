@@ -11,6 +11,7 @@ go_test(
     name = "executable_test",
     srcs = ["executable_test.go"],
     embed = [":executable"],
+    gotags = ["test"],
     deps = select({
         "@rules_go//go/platform:android": [
             "@com_github_stretchr_testify//assert",

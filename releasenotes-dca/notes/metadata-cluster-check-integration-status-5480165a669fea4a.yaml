@@ -1,0 +1,9 @@
+---
+enhancements:
+  - |
+    The cluster agent metadata payload now includes a
+    ``clustercheck_integration_status`` field reporting check execution
+    status (OK/ERROR) for cluster checks running on CLC runners. This enables
+    the backend to populate ``datadog_agent_integration_status`` for cluster
+    checks. The ``clustercheck_metadata`` field now also reports all instances
+    for multi-instance checks and uses precomputed instance IDs for consistency.

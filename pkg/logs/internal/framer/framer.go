@@ -43,6 +43,13 @@ const (
 	// headers are included in the log frame.  The size in those headers is not
 	// consulted.  The result does not include the trailing newlines.
 	DockerStream
+
+	// UTF8NewlineDatagram splits on newlines like UTF8Newline, but also
+	// flushes any remaining data at the end of each Process() call. This is
+	// appropriate for datagram transports (UDP, unixgram) where each
+	// Process() call represents a complete, discrete message — there is no
+	// subsequent data that could complete a partial frame.
+	UTF8NewlineDatagram
 )
 
 // Framer gets chunks of bytes (via Process(..)) and uses an
@@ -69,6 +76,16 @@ type Framer struct {
 	// Over this size, the framer will break the bytes into individual frames
 	// of this size with no delimiting.
 	contentLenLimit int
+
+	// flushAfterProcess, when true, emits any unframed remainder at the end
+	// of each Process() call. Used for datagram transports where each call
+	// is a complete, discrete message.
+	flushAfterProcess bool
+
+	// lastInput holds the most recent message passed to Process(), used by
+	// Flush() to inherit metadata (Origin, tags, etc.) when emitting a
+	// buffered remainder at end-of-stream.
+	lastInput *message.Message
 }
 
 // NewFramer initializes a Framer.
@@ -110,17 +127,20 @@ func NewFramer(
 		matcher = &dockerStreamMatcher{contentLenLimit}
 	case NoFraming:
 		matcher = &noFramingMatcher{}
+	case UTF8NewlineDatagram:
+		matcher = &oneByteNewLineMatcher{contentLenLimit}
 	default:
 		panic(fmt.Sprintf("unknown framing %d", framing))
 	}
 
 	return &Framer{
-		frames:          atomic.NewInt64(0),
-		outputFn:        outputFn,
-		matcher:         matcher,
-		buffer:          bytes.Buffer{},
-		bytesFramed:     0,
-		contentLenLimit: contentLenLimit,
+		frames:            atomic.NewInt64(0),
+		outputFn:          outputFn,
+		matcher:           matcher,
+		buffer:            bytes.Buffer{},
+		bytesFramed:       0,
+		contentLenLimit:   contentLenLimit,
+		flushAfterProcess: framing == UTF8NewlineDatagram,
 	}
 }
 
@@ -133,6 +153,8 @@ func (fr *Framer) GetFrameCount() int64 {
 // Process handles an incoming chunk of data.  It will call outputFn for any recognized frames.  Partial
 // frames are maintained between calls to Process.  The passed buffer is not used after return.
 func (fr *Framer) Process(input *message.Message) {
+	fr.lastInput = input
+
 	// we can only process unstructured message in the framer
 	if input.State != message.StateUnstructured {
 		fr.outputFn(input, len(input.GetContent()))
@@ -170,39 +192,19 @@ func (fr *Framer) Process(input *message.Message) {
 				content, rawDataLen = buf[:contentLenLimit], contentLenLimit
 				isTruncated = true
 			} else {
-				// matcher didn't find a frame, so leave the remainder in
-				// buffer
 				break
 			}
 		}
 
-		// copy the data so that we can reuse fr.buffer (`content` is a slice
-		// of `fr.buffer`)
-		owned := make([]byte, len(content))
-		copy(owned, content)
-
-		// Copy ParsingExtra and override frame-specific fields
-		parsingExtra := input.ParsingExtra
-		parsingExtra.IsTruncated = isTruncated
-
-		c := &message.Message{
-			MessageContent: message.MessageContent{
-				State: message.StateUnstructured,
-			},
-			MessageMetadata: message.MessageMetadata{
-				Origin:             input.Origin,
-				Status:             input.Status,
-				IngestionTimestamp: input.IngestionTimestamp,
-				ParsingExtra:       parsingExtra,
-				ServerlessExtra:    input.ServerlessExtra,
-			},
-		}
-		c.SetContent(owned)
-
-		fr.outputFn(c, rawDataLen)
-		fr.frames.Inc()
+		fr.emitFrame(input, content, rawDataLen, isTruncated)
 		framed += rawDataLen
 		seen = framed
+	}
+
+	if fr.flushAfterProcess && framed < end {
+		buf := fr.buffer.Bytes()[framed:]
+		fr.emitFrame(input, buf, len(buf), false)
+		framed = end
 	}
 
 	fr.bytesFramed = framed
@@ -231,6 +233,53 @@ func (fr *Framer) normalizeBuffer() {
 		fr.buffer.Truncate(len(unframed))
 		fr.bytesFramed = 0
 	}
+}
+
+// Flush emits any unframed remainder left in the buffer by delegating to the
+// matcher's FlushFrame. Called by the decoder at end-of-stream (e.g. when a
+// TCP connection closes). The matcher decides whether the remainder is a valid
+// frame worth emitting.
+func (fr *Framer) Flush() {
+	framed := fr.bytesFramed
+	end := fr.buffer.Len()
+	if framed >= end || fr.lastInput == nil {
+		return
+	}
+	buf := fr.buffer.Bytes()[framed:]
+	content, rawDataLen := fr.matcher.FlushFrame(buf)
+	if content == nil {
+		return
+	}
+	fr.emitFrame(fr.lastInput, content, rawDataLen, false)
+	fr.bytesFramed += rawDataLen
+	fr.normalizeBuffer()
+}
+
+// emitFrame copies content out of the framer buffer and sends it as a new
+// unstructured message, inheriting metadata from the original input message.
+func (fr *Framer) emitFrame(input *message.Message, content []byte, rawDataLen int, isTruncated bool) {
+	owned := make([]byte, len(content))
+	copy(owned, content)
+
+	parsingExtra := input.ParsingExtra
+	parsingExtra.IsTruncated = isTruncated
+
+	c := &message.Message{
+		MessageContent: message.MessageContent{
+			State: message.StateUnstructured,
+		},
+		MessageMetadata: message.MessageMetadata{
+			Origin:             input.Origin,
+			Status:             input.Status,
+			IngestionTimestamp: input.IngestionTimestamp,
+			ParsingExtra:       parsingExtra,
+			ServerlessExtra:    input.ServerlessExtra,
+		},
+	}
+	c.SetContent(owned)
+
+	fr.outputFn(c, rawDataLen)
+	fr.frames.Inc()
 }
 
 // reset resets the framer to begin framing a new stream, for testing.

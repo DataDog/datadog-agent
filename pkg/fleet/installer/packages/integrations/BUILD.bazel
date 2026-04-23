@@ -74,4 +74,5 @@ go_test(
     name = "integrations_test",
     srcs = ["integrations_test.go"],
     embed = [":integrations"],
+    gotags = ["test"],
 )

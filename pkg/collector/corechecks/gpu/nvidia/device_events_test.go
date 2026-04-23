@@ -55,6 +55,8 @@ func TestDeviceEventsGatherer_GetWithUnregistered(t *testing.T) {
 }
 
 func TestDeviceEventsGatherer_RefreshGetSequence(t *testing.T) {
+	WithDeviceEventsSetWaitTimeoutForTest(t, time.Millisecond)
+
 	// by controlling this, we can influence the gathered device events
 	gatheredDeviceEvents := make(chan nvml.EventData, 10)
 	t.Cleanup(func() { close(gatheredDeviceEvents) })

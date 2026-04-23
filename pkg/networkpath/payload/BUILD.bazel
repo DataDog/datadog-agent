@@ -8,12 +8,14 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/networkpath/payload",
     visibility = ["//visibility:public"],
-    deps = ["//pkg/network/payload"],
+    # gazelle keeps reverting this to @com_github_datadog_datadog_agent_pkg_network_payload
+    deps = ["//pkg/network/payload"],  # keep
 )
 
 go_test(
     name = "payload_test",
     srcs = ["payload_test.go"],
     embed = [":payload"],
+    gotags = ["test"],
     deps = ["@com_github_stretchr_testify//require"],
 )

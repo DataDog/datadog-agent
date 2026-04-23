@@ -114,11 +114,12 @@ http_archive(
     patches = [
         "//deps/openssl:0001-Set-the-install-name-to-use-rpath-instead-of-absolut.patch",
         "//deps/openssl:0002-OSSL_PARAM_BLD_push_octet_allow_NULL_buffer.patch",
+        "//deps/openssl:0003-add-a-runtime-dir-configure-parameter.patch",
     ],
     sha256 = "deae7c80cba99c4b4f940ecadb3c3338b13cb77418409238e57d7f31f2a3b736",
     strip_prefix = "openssl-3.5.6",
     urls = [
-        "https://dd-agent-omnibus.s3.amazonaws.com/bazel/openssl-3.5.6.tar.gz",
+        "https://github.com/openssl/openssl/releases/download/openssl-3.5.6/openssl-3.5.6.tar.gz",
         "https://www.openssl.org/source/openssl-3.5.6.tar.gz",
     ],
 )

@@ -74,6 +74,7 @@ go_test(
         "install_info_test.go",
     ],
     embed = [":installinfo"],
+    gotags = ["test"],
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

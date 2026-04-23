@@ -594,7 +594,7 @@ Types:
       ID: 216
       Name: Probe[main.HandleHTTP]
       ByteSize: 25
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: w
           Offset: 1
@@ -625,7 +625,7 @@ Types:
       ID: 218
       Name: Probe[main.LookAtTheRequest]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: path
           Offset: 1
@@ -2614,6 +2614,10 @@ Types:
 MaxTypeID: 219
 Issues: []
 GoModuledataInfo: {FirstModuledataAddr: "0x1909d60", TypesOffset: 296}
+GoMapHashInfo:
+    UseAeshashAddr: "0x1a0d5b4"
+    AeskeyschedAddr: "0x1a0e6a0"
 CommonTypes:
     G: 23 StructureType runtime.g
     M: 30 StructureType runtime.m
+IsARM64: false

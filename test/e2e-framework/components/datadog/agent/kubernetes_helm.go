@@ -73,6 +73,9 @@ type HelmInstallationArgs struct {
 	WindowsImage bool
 	// TimeoutSeconds is the timeout for Helm operations in seconds (default: 300)
 	TimeoutSeconds int
+	// HelmChartVersion overrides the default HelmVersion for this installation.
+	// When empty, HelmVersion is used.
+	HelmChartVersion string
 }
 
 type HelmComponent struct {
@@ -208,13 +211,17 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 		valuesYAML = append(valuesYAML, config)
 	}
 
+	chartVersion := HelmVersion
+	if args.HelmChartVersion != "" {
+		chartVersion = args.HelmChartVersion
+	}
 	linux, err := helm.NewInstallation(e, helm.InstallArgs{
 		RepoURL:        args.RepoURL,
 		ChartName:      args.ChartPath,
 		InstallName:    linuxInstallName,
 		Namespace:      args.Namespace,
 		ValuesYAML:     valuesYAML,
-		Version:        pulumi.String(HelmVersion),
+		Version:        pulumi.String(chartVersion),
 		TimeoutSeconds: args.TimeoutSeconds,
 	}, opts...)
 	if err != nil {
@@ -1002,6 +1009,30 @@ func (values HelmValues) configureFakeintake(e config.Env, fakeintake *fakeintak
 				}
 			}
 		}
+	}
+
+	// Configure the Private Action Runner sidecar to route OPMS calls through fakeintake.
+	// This is a no-op when PAR is not deployed — the Helm chart ignores unknown container configs.
+	// DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION bypasses signed-envelope validation so PAR can talk
+	// to fakeintake over plain HTTP instead of the real OPMS backend.
+	if agents, ok := values["agents"].(pulumi.Map); ok {
+		containers, ok := agents["containers"].(pulumi.Map)
+		if !ok {
+			containers = pulumi.Map{}
+			agents["containers"] = containers
+		}
+		par, ok := containers["privateActionRunner"].(pulumi.Map)
+		if !ok {
+			par = pulumi.Map{}
+			containers["privateActionRunner"] = par
+		}
+		parEnvDict, ok := par["envDict"].(pulumi.StringMap)
+		if !ok {
+			parEnvDict = pulumi.StringMap{}
+			par["envDict"] = parEnvDict
+		}
+		parEnvDict["DD_DD_URL"] = pulumi.Sprintf("%s", fakeintake.URL)
+		parEnvDict["DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION"] = pulumi.String("true")
 	}
 }
 

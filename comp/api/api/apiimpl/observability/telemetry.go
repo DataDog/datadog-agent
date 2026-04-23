@@ -13,7 +13,7 @@ import (
 	"github.com/benbjohnson/clock"
 	"github.com/gorilla/mux"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 )
 
 const (

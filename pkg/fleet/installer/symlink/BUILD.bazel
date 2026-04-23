@@ -21,5 +21,6 @@ go_test(
     name = "symlink_test",
     srcs = ["link_test.go"],
     embed = [":symlink"],
+    gotags = ["test"],
     deps = ["@com_github_stretchr_testify//assert"],
 )

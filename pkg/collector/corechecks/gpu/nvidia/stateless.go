@@ -24,21 +24,9 @@ import (
 
 // nvlinkSample handles NVLink metrics collection logic
 func nvlinkSample(device ddnvml.Device) ([]Metric, uint64, error) {
-	// Get total number of NVLinks dynamically
-	fields := []nvml.FieldValue{
-		{
-			FieldId: nvml.FI_DEV_NVLINK_LINK_COUNT,
-			ScopeId: 0,
-		},
-	}
-
-	if err := device.GetFieldValues(fields); err != nil {
+	totalNVLinks, err := getNVLinkCount(device)
+	if err != nil {
 		return nil, 0, fmt.Errorf("failed to get nvlink count: %w", err)
-	}
-
-	totalNVLinks, convErr := fieldValueToNumber[int](nvml.ValueType(fields[0].ValueType), fields[0].Value)
-	if convErr != nil {
-		return nil, 0, fmt.Errorf("failed to convert number of nvlinks to integer: %w", convErr)
 	}
 
 	// Collect NVLink states
@@ -511,6 +499,28 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 					{Name: "remapped_rows.uncorrectable", Value: float64(uncorrectable), Type: metrics.GaugeType},
 					{Name: "remapped_rows.pending", Value: boolToFloat(pending), Type: metrics.GaugeType},
 					{Name: "remapped_rows.failed", Value: boolToFloat(failed), Type: metrics.GaugeType},
+				}, 0, nil
+			},
+		},
+		{
+			Name: "repair_status",
+			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+				repairStatus, err := device.GetRepairStatus()
+				if err != nil {
+					return nil, 0, err
+				}
+
+				return []Metric{
+					{
+						Name:  "ecc.repair_pending.channel",
+						Value: float64(repairStatus.BChannelRepairPending),
+						Type:  metrics.GaugeType,
+					},
+					{
+						Name:  "ecc.repair_pending.tpc",
+						Value: float64(repairStatus.BTpcRepairPending),
+						Type:  metrics.GaugeType,
+					},
 				}, 0, nil
 			},
 		},
