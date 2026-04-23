@@ -67,7 +67,7 @@ func IsECS() bool {
 
 // IsECSFargate returns whether the Agent is running in ECS Fargate
 func IsECSFargate() bool {
-	return os.Getenv("ECS_FARGATE") != "" || os.Getenv("AWS_EXECUTION_ENV") == "AWS_ECS_FARGATE"
+	return os.Getenv("ECS_FARGATE") == "true" || os.Getenv("AWS_EXECUTION_ENV") == "AWS_ECS_FARGATE"
 }
 
 // IsECSManagedInstances returns whether the Agent is running in ECS Managed Instances
