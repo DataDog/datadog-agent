@@ -20,11 +20,11 @@ class LLMError(RuntimeError):
 
 class LLMClient:
     def __init__(self, api_key: str | None = None, base_url: str | None = None):
-        self.api_key = api_key or os.environ.get(AI_API_KEY_ENV)
-        configured_base_url = base_url or os.environ.get(AI_BASE_URL_ENV) or DEFAULT_AI_BASE_URL
+        self.api_key = _clean_env_value(api_key or os.environ.get(AI_API_KEY_ENV))
+        configured_base_url = _clean_env_value(base_url or os.environ.get(AI_BASE_URL_ENV)) or DEFAULT_AI_BASE_URL
         self.base_url = _normalize_base_url(configured_base_url)
-        self.source = os.environ.get(AI_SOURCE_ENV)
-        self.org_id = os.environ.get(AI_ORG_ID_ENV)
+        self.source = _clean_env_value(os.environ.get(AI_SOURCE_ENV))
+        self.org_id = _clean_env_value(os.environ.get(AI_ORG_ID_ENV))
         if not self.api_key:
             raise LLMError(f"Missing API key in {AI_API_KEY_ENV}")
 
@@ -79,6 +79,13 @@ def _normalize_base_url(base_url: str) -> str:
     if not normalized.endswith("/v1"):
         normalized = f"{normalized}/v1"
     return normalized
+
+
+def _clean_env_value(value: str | None) -> str | None:
+    if value is None:
+        return None
+    cleaned = value.strip()
+    return cleaned or None
 
 
 def _extract_message_content(payload: dict[str, object]) -> str:
