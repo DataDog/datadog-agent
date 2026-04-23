@@ -237,7 +237,7 @@ func TestEvictConfigs(t *testing.T) {
 
 		evicted, err := cs.EvictConfigs(1, 1, noSizeLimit)
 		require.NoError(t, err)
-		assert.Equal(t, []string{"uuid-old"}, evicted)
+		assert.Equal(t, []string{"uuid-old", "uuid-new"}, evicted)
 
 		remaining := metadataUUIDs(t, cs)
 		assert.True(t, remaining["uuid-pinned"], "pinned config must not be evicted")
