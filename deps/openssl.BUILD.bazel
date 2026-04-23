@@ -1,5 +1,6 @@
 load("@//bazel/rules:foreign_cc_shared_wrapper.bzl", "foreign_cc_shared_wrapper")
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@//deps/openssl:version.bzl", "OPENSSL_VERSION")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
@@ -173,6 +174,38 @@ foreign_cc_shared_wrapper(
     input = ":openssl",
 )
 
+foreign_cc_shared_wrapper(
+    name = "libssl_shared",
+    input = ":openssl",
+    lib_filter = "libssl",
+)
+
+foreign_cc_shared_wrapper(
+    name = "libcrypto_shared",
+    input = ":openssl",
+    lib_filter = "libcrypto",
+)
+
+dd_cc_packaged(
+    name = "libssl_shared_pkg",
+    input = ":libssl_shared",
+    version = OPENSSL_VERSION,
+    libname = "libssl",
+)
+
+dd_cc_packaged(
+    name = "libcrypto_shared_pkg",
+    input = ":libcrypto_shared",
+    version = OPENSSL_VERSION,
+    libname = "libcrypto",
+    installed_files = [
+        ":openssl_files",
+    ],
+    installed_executables = {
+        ":openssl_binary": "bin",
+    },
+)
+
 # The dynamic library built with configure/make. Even though the name
 # is libssl.so, it is not actually the same folder, so we can have our
 # own libssl.so shadow it.
@@ -248,15 +281,14 @@ pkg_filegroup(
     name = "all_files",
     srcs = [
         ":openssl_bin_files",
+        ":openssl_files",
     ] + select({
         "@//packages/agent:fips_flavor": [
-            ":openssl_files",
             ":libssl_with_symlink",
             ":libcrypto_with_symlink",
         ],
         "@platforms//os:windows": [],
         "//conditions:default": [
-            ":openssl_files",
             ":libssl_with_symlink",
             ":libcrypto_with_symlink",
         ],
