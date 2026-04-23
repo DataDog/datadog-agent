@@ -20350,7 +20350,15 @@
           "architecture": "all"
         },
         {
+          "name": "MAP_DROPPABLE",
+          "architecture": "all"
+        },
+        {
           "name": "MAP_EXECUTABLE",
+          "architecture": "all"
+        },
+        {
+          "name": "MAP_FILE",
           "architecture": "all"
         },
         {
@@ -20653,6 +20661,10 @@
           "architecture": "all"
         },
         {
+          "name": "AF_MCTP",
+          "architecture": "all"
+        },
+        {
           "name": "AF_MAX",
           "architecture": "all"
         }
@@ -20814,7 +20826,15 @@
           "architecture": "all"
         },
         {
+          "name": "O_PATH",
+          "architecture": "all"
+        },
+        {
           "name": "O_RSYNC",
+          "architecture": "all"
+        },
+        {
+          "name": "O_TMPFILE",
           "architecture": "all"
         }
       ]
@@ -20980,6 +21000,14 @@
           "architecture": "all"
         },
         {
+          "name": "PR_PAC_GET_ENABLED_KEYS",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_PAC_SET_ENABLED_KEYS",
+          "architecture": "all"
+        },
+        {
           "name": "PR_SET_PDEATHSIG",
           "architecture": "all"
         },
@@ -21008,6 +21036,10 @@
           "architecture": "all"
         },
         {
+          "name": "PR_SCHED_CORE",
+          "architecture": "all"
+        },
+        {
           "name": "PR_GET_SPECULATION_CTRL",
           "architecture": "all"
         },
@@ -21021,6 +21053,14 @@
         },
         {
           "name": "PR_SVE_GET_VL",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SME_SET_VL",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SME_GET_VL",
           "architecture": "all"
         },
         {
@@ -21072,6 +21112,10 @@
           "architecture": "all"
         },
         {
+          "name": "PR_TIMER_CREATE_RESTORE_IDS",
+          "architecture": "all"
+        },
+        {
           "name": "PR_SET_TSC",
           "architecture": "all"
         },
@@ -21097,6 +21141,46 @@
         },
         {
           "name": "PR_GET_MDWE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_MEMORY_MERGE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_MEMORY_MERGE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_SHADOW_STACK_STATUS",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_SHADOW_STACK_STATUS",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_LOCK_SHADOW_STACK_STATUS",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_FUTEX_HASH",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_PPC_GET_DEXCR",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_PPC_SET_DEXCR",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_RISCV_V_GET_CONTROL",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_RISCV_V_SET_CONTROL",
           "architecture": "all"
         },
         {
@@ -21194,6 +21278,14 @@
           "architecture": "all"
         },
         {
+          "name": "PTRACE_GETREGS",
+          "architecture": "all"
+        },
+        {
+          "name": "PTRACE_SETREGS",
+          "architecture": "all"
+        },
+        {
           "name": "PTRACE_SETOPTIONS",
           "architecture": "all"
         },
@@ -21251,6 +21343,22 @@
         },
         {
           "name": "PTRACE_GET_SYSCALL_INFO",
+          "architecture": "all"
+        },
+        {
+          "name": "PTRACE_SET_SYSCALL_INFO",
+          "architecture": "all"
+        },
+        {
+          "name": "PTRACE_GET_RSEQ_CONFIGURATION",
+          "architecture": "all"
+        },
+        {
+          "name": "PTRACE_GET_SYSCALL_USER_DISPATCH_CONFIG",
+          "architecture": "all"
+        },
+        {
+          "name": "PTRACE_SET_SYSCALL_USER_DISPATCH_CONFIG",
           "architecture": "all"
         },
         {
