@@ -163,20 +163,39 @@ What's actually interesting:
   different algorithm entirely (e.g. replace BOCPD with a density-ratio
   detector while keeping the `bocpd` name).
 
-- **Prefer additive over replace when the original has visible wins.**
-  A replacement changes the detector everywhere and can catastrophically
-  regress scenarios the original already nailed (see the `recent
-  experiments` block — wholesale replacements tend to show big +ΔF1 on
-  scenarios the original missed and big -ΔF1 on scenarios it aced). If
-  the per-scenario data shows the original detector is strong on even
-  one scenario, consider a parallel/ensemble pattern instead:
-  * Run the novel algorithm alongside the original inside the same
-    detector, combine outputs with OR (union of detections) or a
-    confidence gate, so wins stack and losses don't concentrate.
-  * Or: use the novel algorithm as a POST-FILTER on the original's
-    output (reduces FPs without hurting recall).
+- **Prefer non-doubling patterns over full replacement** when the
+  original detector has visible wins. Wholesale replacement can
+  catastrophically regress scenarios the original aced (see `recent
+  experiments` — replacements tend to show big +ΔF1 on scenarios the
+  original missed AND big -ΔF1 on scenarios it aced).
+
+  **CRITICAL PERF CONSTRAINT**: this is a streaming detector on
+  production infrastructure. Do NOT propose "run both algorithms in
+  parallel on every tick and OR the outputs" — that's 2× CPU and
+  memory on every data point, unacceptable in prod. Patterns that
+  preserve the original's wins WITHOUT doubling work:
+  * **Post-filter on the original's detections.** The original runs
+    unchanged; the novel algorithm fires ONLY when the original
+    emits, and decides whether to pass it through. On the 99%+ of
+    ticks where the original is silent, the cost is zero. Classic
+    example: watchdog's AnomalyRank filter.
+  * **Cheap pre-gate feeding a single algorithm.** A lightweight
+    signal-shape test (variance, autocorrelation, bimodality) decides
+    which algorithm to run for THIS stream. Constant per-tick
+    overhead; picks one algo per stream, not both.
+  * **Shared-feature reuse.** If both algos work from the same rolling
+    stats (mean/variance/rank sketches), compute those ONCE and run
+    two lightweight decision heads. The decision heads must be O(1)
+    to O(k) in k = sketch size, NOT O(window) each.
+
   Only full-replace a detector if the recent experiments show the
-  original is broadly weak across the scenario set.
+  original is broadly weak across the scenario set AND the new algo
+  is cheaper per-tick than the original (or the same).
+
+- **State the perf budget.** Every candidate description must estimate
+  per-tick CPU cost and memory footprint relative to the baseline
+  detector. "~1.2× CPU, same memory" or "adds O(k) per tick, k=64
+  sketch" — a concrete bound the reviewer can sanity-check.
 
 The eval framework is OFF LIMITS. Do NOT modify `tasks/q.py`,
 `tasks/libs/q`, `q.eval-scenarios` orchestration, or the testbench

@@ -436,7 +436,26 @@ attempt is not the same.
   implements (`SeriesDetector` or `Detector`). Swap the algorithm behind
   the same name. E.g. replace BOCPD's core with a density-ratio or
   spectral-residual algorithm while keeping the `bocpd` registration.
-  That's the right way to integrate a literature-inspired method.
+
+- **PERF CONSTRAINT**: this detector runs in production on streaming
+  data. Your implementation MUST be within ~1.5× the original's per-
+  tick CPU cost and ~1.5× memory footprint. DO NOT run multiple full
+  algorithms in parallel on every tick (that doubles infrastructure
+  cost). Preferred patterns for additive-style improvements:
+  * **Post-filter**: the original detector runs unchanged; your new
+    logic only fires when the original emits. Near-zero cost on silent
+    ticks (99%+).
+  * **Pre-gate selector**: a cheap O(1)-per-tick shape check (variance,
+    autocorrelation, quantile) picks ONE algorithm for this stream.
+    Runs one algorithm per tick, not both.
+  * **Shared rolling stats**: if both algorithms need the same
+    statistics, compute them once, then run O(k)-bounded decision
+    heads on the shared features (k = sketch size, not window size).
+
+- If the candidate description mentions per-tick cost or memory, treat
+  that as a HARD budget. Exceeding it is grounds for the algorithm-
+  expert reviewer to reject. State the actual cost in your DONE:
+  summary ("adds ~20 FLOPs per tick, O(32) memory per stream").
 
 - BEFORE editing, spend tool hops on discovery:
   1. Read `comp/observer/AGENTS.md` if it exists — house rules live there.

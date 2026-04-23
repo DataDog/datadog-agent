@@ -185,6 +185,14 @@ Concrete house-style concerns to verify:
   6. **No duplicate helpers**: statistical utilities already exist in
      `metrics_detector_util.go` and `rrcf.go`. A new FFT/rank/quantile
      helper should reuse those rather than re-implementing.
+  7. **Per-tick perf budget**: this runs on streaming production data.
+     The implementation must not do more than ~1.5× the per-tick work
+     of what it replaces. Red flags: a Detect() that runs TWO full
+     algorithms in parallel on every tick (doubles CPU); a sliding
+     window scan that iterates over all history instead of maintaining
+     incremental statistics; new unbounded per-stream buffers. If the
+     DONE: summary doesn't state per-tick cost, treat that as a fail
+     — the agent must quantify.
 
 You HAVE tool access. Read the diff and one sibling detector to compare.
 
@@ -229,6 +237,9 @@ checks:
   helper_reuse:
     status: pass | fail
     evidence: "<any stat helpers duplicated that exist in _util.go/rrcf.go?>"
+  per_tick_perf_budget:
+    status: pass | fail
+    evidence: "<what does DONE: summary state for per-tick cost? does the diff show >1.5× work vs what it replaces? any 'run both algos' patterns?>"
 approve: true | false
 rationale: "<2-3 sentences tying the check results to the decision>"
 ```
