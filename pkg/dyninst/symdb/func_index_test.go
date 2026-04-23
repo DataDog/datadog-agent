@@ -24,10 +24,10 @@ type indexResult struct {
 	offset dwarf.Offset
 }
 
-// builderFactory creates a genericFuncIndexBuilder for testing.
+// builderFactory creates a funcOffsetByNameIndexBuilder for testing.
 type builderFactory struct {
 	name   string
-	create func(t *testing.T) genericFuncIndexBuilder
+	create func(t *testing.T) funcOffsetByNameIndexBuilder
 }
 
 func getBuilderFactories(t *testing.T) []builderFactory {
@@ -35,13 +35,13 @@ func getBuilderFactories(t *testing.T) []builderFactory {
 	return []builderFactory{
 		{
 			name:   "in_memory",
-			create: func(_ *testing.T) genericFuncIndexBuilder { return &inMemGenericFuncIndexBuilder{} },
+			create: func(_ *testing.T) funcOffsetByNameIndexBuilder { return &inMemFuncOffsetByNameIndexBuilder{} },
 		},
 		{
 			name: "on_disk",
-			create: func(t *testing.T) genericFuncIndexBuilder {
+			create: func(t *testing.T) funcOffsetByNameIndexBuilder {
 				dc := newTestDiskCache(t)
-				b, err := newOnDiskGenericFuncIndexBuilder(dc, "test")
+				b, err := newOnDiskFuncOffsetByNameIndexBuilder(dc, "test")
 				require.NoError(t, err)
 				t.Cleanup(func() { _ = b.Close() })
 				return b
@@ -60,7 +60,7 @@ func newTestDiskCache(t *testing.T) *object.DiskCache {
 	return dc
 }
 
-func collectForPackage(idx genericFuncIndex, pkgName string) []indexResult {
+func collectForPackage(idx funcOffsetByNameIndex, pkgName string) []indexResult {
 	var results []indexResult
 	for name, offset := range idx.forPackage(pkgName) {
 		results = append(results, indexResult{name, offset})
@@ -71,7 +71,7 @@ func collectForPackage(idx genericFuncIndex, pkgName string) []indexResult {
 	return results
 }
 
-func TestGenericFuncIndex(t *testing.T) {
+func TestFuncOffsetByNameIndex(t *testing.T) {
 	for _, factory := range getBuilderFactories(t) {
 		t.Run(factory.name, func(t *testing.T) {
 			t.Run("empty", func(t *testing.T) {

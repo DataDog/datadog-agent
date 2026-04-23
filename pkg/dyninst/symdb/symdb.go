@@ -413,14 +413,14 @@ type packagesIterator struct {
 	// used for binary search to find which CU contains a given DWARF offset.
 	sortedCUOffsets []dwarf.Offset
 
-	// genericIndex maps canonicalized qualified names to DWARF offsets for
+	// genericFuncIndex maps canonicalized qualified names to DWARF offsets for
 	// generic shape functions found across all compile units. Built during a
-	// lightweight pre-pass in buildGenericIndex().
-	genericIndex genericFuncIndex
+	// lightweight pre-pass in buildGenericIndexes().
+	genericFuncIndex funcOffsetByNameIndex
 	// genericTypeIndex maps canonicalized qualified type names to DWARF offsets
 	// for generic struct type instantiations. Used to populate fields on
 	// displaced generic types.
-	genericTypeIndex genericFuncIndex
+	genericTypeIndex funcOffsetByNameIndex
 	// cuContextCache caches CU context (file table, etc.) for foreign compile
 	// units accessed when processing displaced generic functions.
 	cuContextCache map[dwarf.Offset]*cachedCUContext
@@ -476,7 +476,7 @@ func (b *packagesIterator) addFunctionToPackage(function Function) {
 	// Function belongs to a different package. If it's a canonicalized
 	// generic (contains "[...]"), the generic index will handle it via
 	// augmentWithDisplacedGenerics — skip accumulating it here.
-	if b.genericIndex != nil && strings.Contains(function.QualifiedName, "[...]") {
+	if b.genericFuncIndex != nil && strings.Contains(function.QualifiedName, "[...]") {
 		return
 	}
 
@@ -959,15 +959,15 @@ func (b *packagesIterator) innerIterator() iter.Seq2[Package, error] {
 		// Build generic indexes via a lightweight pre-scan of all DWARF
 		// compile units. These indexes let us find displaced generic shape
 		// functions and struct types regardless of CU ordering.
-		b.genericIndex, b.genericTypeIndex, err = b.buildGenericIndexes()
+		b.genericFuncIndex, b.genericTypeIndex, err = b.buildGenericIndexes()
 		if err != nil {
 			yield(Package{}, fmt.Errorf("failed to build generic indexes: %w", err))
 			return
 		}
 		defer func() {
-			if b.genericIndex != nil {
-				_ = b.genericIndex.Close()
-				b.genericIndex = nil
+			if b.genericFuncIndex != nil {
+				_ = b.genericFuncIndex.Close()
+				b.genericFuncIndex = nil
 			}
 			if b.genericTypeIndex != nil {
 				_ = b.genericTypeIndex.Close()
@@ -1140,12 +1140,12 @@ func (b *packagesIterator) getCUContext(cuOffset dwarf.Offset) (*cachedCUContext
 // units, recording the canonicalized qualified name and DWARF offset of every
 // generic shape function and struct type. Returns sorted indexes for
 // prefix-based package lookup.
-func (b *packagesIterator) buildGenericIndexes() (funcIdx genericFuncIndex, typeIdx genericFuncIndex, retErr error) {
-	newBuilder := func(suffix string) (genericFuncIndexBuilder, error) {
+func (b *packagesIterator) buildGenericIndexes() (funcIdx funcOffsetByNameIndex, typeIdx funcOffsetByNameIndex, retErr error) {
+	newBuilder := func(suffix string) (funcOffsetByNameIndexBuilder, error) {
 		if b.options.DiskCache != nil {
-			return newOnDiskGenericFuncIndexBuilder(b.options.DiskCache, suffix)
+			return newOnDiskFuncOffsetByNameIndexBuilder(b.options.DiskCache, suffix)
 		}
-		return &inMemGenericFuncIndexBuilder{}, nil
+		return &inMemFuncOffsetByNameIndexBuilder{}, nil
 	}
 
 	funcBuilder, err := newBuilder("funcs")
@@ -1256,13 +1256,13 @@ func (b *packagesIterator) buildGenericIndexes() (funcIdx genericFuncIndex, type
 // functions belonging to pkg and processes any that weren't already found in
 // the compile unit identified by cuOffset/cuLength.
 func (b *packagesIterator) augmentWithDisplacedGenerics(pkg *Package, cuOffset dwarf.Offset, cuLength uint64) error {
-	if b.genericIndex == nil {
+	if b.genericFuncIndex == nil {
 		return nil
 	}
 
 	cuEnd := uint64(cuOffset) + cuLength
 
-	for name, funcOffset := range b.genericIndex.forPackage(pkg.Name) {
+	for name, funcOffset := range b.genericFuncIndex.forPackage(pkg.Name) {
 		// Skip functions that are within the current CU — they were already
 		// processed during normal exploration.
 		if uint64(funcOffset) >= uint64(cuOffset) && uint64(funcOffset) < cuEnd {
@@ -1430,7 +1430,7 @@ func (b *packagesIterator) addAbstractFunctions(targetPackage *Package) {
 		} else if af.pkg != targetPackage.Name {
 			// Freestanding function from a different package. If it's a
 			// canonicalized generic, the generic index handles it — skip.
-			if b.genericIndex != nil && strings.Contains(f.QualifiedName, "[...]") {
+			if b.genericFuncIndex != nil && strings.Contains(f.QualifiedName, "[...]") {
 				continue
 			}
 			// Non-generic displaced function: route to displacedFunctions.
@@ -1781,7 +1781,7 @@ func (b *packagesIterator) exploreSubprogram(
 		// package and will be processed by augmentWithDisplacedGenerics
 		// when that package is yielded. This prevents creating a foreign
 		// type (e.g. lib.Box[...]) under the wrong package (e.g. main).
-		if b.genericIndex != nil &&
+		if b.genericFuncIndex != nil &&
 			funcName.Package != b.currentCompileUnit.outputPkg.Name &&
 			strings.Contains(typeQualifiedName, "[...]") {
 			return Function{}, nil

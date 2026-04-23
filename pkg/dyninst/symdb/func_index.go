@@ -24,73 +24,75 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 )
 
-// genericFuncIndex maps canonicalized qualified names to DWARF offsets for
-// generic shape functions found across all compile units. Used to find
-// displaced generics that belong to a package but appear in a different CU.
-type genericFuncIndex interface {
+// funcOffsetByNameIndex maps canonicalized qualified names to DWARF offsets.
+// The name keys are treated as package-prefixed identifiers; forPackage
+// returns entries whose name starts with pkgName + ".". Used to find
+// functions that belong to a package but appear in a different CU (e.g.
+// generic shape instantiations placed in a foreign CU by the compiler).
+type funcOffsetByNameIndex interface {
 	// forPackage returns an iterator over all (canonicalName, funcOffset)
 	// pairs where the function's qualified name starts with pkgName + ".".
 	forPackage(pkgName string) iter.Seq2[string, dwarf.Offset]
 	io.Closer
 }
 
-// genericFuncIndexBuilder accumulates generic shape function entries and
-// produces a sorted genericFuncIndex.
-type genericFuncIndexBuilder interface {
-	// add records a generic shape function. name is the full canonicalized
-	// qualified name (e.g. "lib.Filter[...]").
+// funcOffsetByNameIndexBuilder accumulates name → offset entries and
+// produces a sorted funcOffsetByNameIndex.
+type funcOffsetByNameIndexBuilder interface {
+	// add records an entry. name is the full canonicalized qualified name
+	// (e.g. "lib.Filter[...]").
 	add(name string, funcOffset dwarf.Offset) error
-	build() (genericFuncIndex, error)
+	build() (funcOffsetByNameIndex, error)
 	io.Closer
 }
 
-// inMemGenericFuncEntry is a single entry in the in-memory generic function index.
-type inMemGenericFuncEntry struct {
+// inMemFuncOffsetByNameEntry is a single entry in the in-memory index.
+type inMemFuncOffsetByNameEntry struct {
 	name       string
 	funcOffset dwarf.Offset
 }
 
-// inMemGenericFuncIndexBuilder builds an in-memory generic function index.
-type inMemGenericFuncIndexBuilder struct {
-	entries []inMemGenericFuncEntry
+// inMemFuncOffsetByNameIndexBuilder builds an in-memory name-keyed index.
+type inMemFuncOffsetByNameIndexBuilder struct {
+	entries []inMemFuncOffsetByNameEntry
 }
 
-var _ genericFuncIndexBuilder = (*inMemGenericFuncIndexBuilder)(nil)
+var _ funcOffsetByNameIndexBuilder = (*inMemFuncOffsetByNameIndexBuilder)(nil)
 
-func (b *inMemGenericFuncIndexBuilder) add(name string, funcOffset dwarf.Offset) error {
-	b.entries = append(b.entries, inMemGenericFuncEntry{
+func (b *inMemFuncOffsetByNameIndexBuilder) add(name string, funcOffset dwarf.Offset) error {
+	b.entries = append(b.entries, inMemFuncOffsetByNameEntry{
 		name:       name,
 		funcOffset: funcOffset,
 	})
 	return nil
 }
 
-func (b *inMemGenericFuncIndexBuilder) build() (genericFuncIndex, error) {
-	slices.SortFunc(b.entries, func(a, c inMemGenericFuncEntry) int {
+func (b *inMemFuncOffsetByNameIndexBuilder) build() (funcOffsetByNameIndex, error) {
+	slices.SortFunc(b.entries, func(a, c inMemFuncOffsetByNameEntry) int {
 		return cmp.Or(
 			cmp.Compare(a.name, c.name),
 			cmp.Compare(a.funcOffset, c.funcOffset),
 		)
 	})
-	idx := &inMemGenericFuncIndex{entries: b.entries}
+	idx := &inMemFuncOffsetByNameIndex{entries: b.entries}
 	b.entries = nil
 	return idx, nil
 }
 
-func (b *inMemGenericFuncIndexBuilder) Close() error { return nil }
+func (b *inMemFuncOffsetByNameIndexBuilder) Close() error { return nil }
 
-// inMemGenericFuncIndex is the in-memory implementation of genericFuncIndex.
-type inMemGenericFuncIndex struct {
-	entries []inMemGenericFuncEntry // sorted by name
+// inMemFuncOffsetByNameIndex is the in-memory implementation.
+type inMemFuncOffsetByNameIndex struct {
+	entries []inMemFuncOffsetByNameEntry // sorted by name
 }
 
-var _ genericFuncIndex = (*inMemGenericFuncIndex)(nil)
+var _ funcOffsetByNameIndex = (*inMemFuncOffsetByNameIndex)(nil)
 
-func (idx *inMemGenericFuncIndex) forPackage(pkgName string) iter.Seq2[string, dwarf.Offset] {
+func (idx *inMemFuncOffsetByNameIndex) forPackage(pkgName string) iter.Seq2[string, dwarf.Offset] {
 	prefix := pkgName + "."
 	return func(yield func(string, dwarf.Offset) bool) {
 		// Binary search for the first entry whose name >= prefix.
-		i, _ := slices.BinarySearchFunc(idx.entries, prefix, func(e inMemGenericFuncEntry, target string) int {
+		i, _ := slices.BinarySearchFunc(idx.entries, prefix, func(e inMemFuncOffsetByNameEntry, target string) int {
 			return strings.Compare(e.name, target)
 		})
 		for ; i < len(idx.entries); i++ {
@@ -105,64 +107,64 @@ func (idx *inMemGenericFuncIndex) forPackage(pkgName string) iter.Seq2[string, d
 	}
 }
 
-func (idx *inMemGenericFuncIndex) Close() error { return nil }
+func (idx *inMemFuncOffsetByNameIndex) Close() error { return nil }
 
-// emptyGenericFuncIndex is a no-op index that returns no results.
-type emptyGenericFuncIndex struct{}
+// emptyFuncOffsetByNameIndex is a no-op index that returns no results.
+type emptyFuncOffsetByNameIndex struct{}
 
-var _ genericFuncIndex = emptyGenericFuncIndex{}
+var _ funcOffsetByNameIndex = emptyFuncOffsetByNameIndex{}
 
-func (emptyGenericFuncIndex) forPackage(string) iter.Seq2[string, dwarf.Offset] {
+func (emptyFuncOffsetByNameIndex) forPackage(string) iter.Seq2[string, dwarf.Offset] {
 	return func(func(string, dwarf.Offset) bool) {}
 }
 
-func (emptyGenericFuncIndex) Close() error { return nil }
+func (emptyFuncOffsetByNameIndex) Close() error { return nil }
 
 // ─── On-disk implementation ────────────────────────────────────────────────
 
-// onDiskGenericFuncIndexEntry is the fixed-size entry stored in the index file.
+// onDiskFuncOffsetByNameEntry is the fixed-size entry stored in the index file.
 // The strOffset field points into the string table file.
-type onDiskGenericFuncIndexEntry struct {
+type onDiskFuncOffsetByNameEntry struct {
 	strOffset  uint32
 	funcOffset uint32
 }
 
-// onDiskGenericFuncIndexBuilder writes entries to two disk files (string table
-// + index) and produces a sorted, mmap-backed index on build().
-type onDiskGenericFuncIndexBuilder struct {
+// onDiskFuncOffsetByNameIndexBuilder writes entries to two disk files (string
+// table + index) and produces a sorted, mmap-backed index on build().
+type onDiskFuncOffsetByNameIndexBuilder struct {
 	strFile  *object.DiskFile
 	strW     *bufio.Writer
 	idxFile  *object.DiskFile
 	idxW     *bufio.Writer
 	strPos   uint32 // current write position in string table
-	entryBuf onDiskGenericFuncIndexEntry
+	entryBuf onDiskFuncOffsetByNameEntry
 	lenBuf   [4]byte
 }
 
-var _ genericFuncIndexBuilder = (*onDiskGenericFuncIndexBuilder)(nil)
+var _ funcOffsetByNameIndexBuilder = (*onDiskFuncOffsetByNameIndexBuilder)(nil)
 
-const onDiskGenericIndexMaxSize = 256 << 20 // 256 MiB per file
-const onDiskGenericIndexInitialSize = 1 << 20
+const onDiskFuncOffsetByNameIndexMaxSize = 256 << 20 // 256 MiB per file
+const onDiskFuncOffsetByNameIndexInitialSize = 1 << 20
 
-func newOnDiskGenericFuncIndexBuilder(dc *object.DiskCache, suffix string) (*onDiskGenericFuncIndexBuilder, error) {
+func newOnDiskFuncOffsetByNameIndexBuilder(dc *object.DiskCache, suffix string) (*onDiskFuncOffsetByNameIndexBuilder, error) {
 	strFile, err := dc.NewFile(
-		"genericIndex."+suffix+".strings",
-		onDiskGenericIndexMaxSize,
-		onDiskGenericIndexInitialSize,
+		"funcOffsetByNameIndex."+suffix+".strings",
+		onDiskFuncOffsetByNameIndexMaxSize,
+		onDiskFuncOffsetByNameIndexInitialSize,
 	)
 	if err != nil {
 		return nil, err
 	}
 	idxFile, err := dc.NewFile(
-		"genericIndex."+suffix+".entries",
-		onDiskGenericIndexMaxSize,
-		onDiskGenericIndexInitialSize,
+		"funcOffsetByNameIndex."+suffix+".entries",
+		onDiskFuncOffsetByNameIndexMaxSize,
+		onDiskFuncOffsetByNameIndexInitialSize,
 	)
 	if err != nil {
 		_ = strFile.Close()
 		return nil, err
 	}
-	return &onDiskGenericFuncIndexBuilder{
+	return &onDiskFuncOffsetByNameIndexBuilder{
 		strFile: strFile,
 		strW:    bufio.NewWriter(strFile),
 		idxFile: idxFile,
@@ -170,7 +172,7 @@ func newOnDiskGenericFuncIndexBuilder(dc *object.DiskCache, suffix string) (*onD
 	}, nil
 }
 
-func (b *onDiskGenericFuncIndexBuilder) add(name string, funcOffset dwarf.Offset) error {
+func (b *onDiskFuncOffsetByNameIndexBuilder) add(name string, funcOffset dwarf.Offset) error {
 	if b.strW == nil {
 		return errors.New("builder is closed")
 	}
@@ -187,7 +189,7 @@ func (b *onDiskGenericFuncIndexBuilder) add(name string, funcOffset dwarf.Offset
 	b.strPos += 4 + uint32(len(name))
 
 	// Write index entry.
-	b.entryBuf = onDiskGenericFuncIndexEntry{
+	b.entryBuf = onDiskFuncOffsetByNameEntry{
 		strOffset:  nameOffset,
 		funcOffset: uint32(funcOffset),
 	}
@@ -198,7 +200,7 @@ func (b *onDiskGenericFuncIndexBuilder) add(name string, funcOffset dwarf.Offset
 	return nil
 }
 
-func (b *onDiskGenericFuncIndexBuilder) build() (_ genericFuncIndex, retErr error) {
+func (b *onDiskFuncOffsetByNameIndexBuilder) build() (_ funcOffsetByNameIndex, retErr error) {
 	if b.strW == nil {
 		return nil, errors.New("builder is closed")
 	}
@@ -217,7 +219,7 @@ func (b *onDiskGenericFuncIndexBuilder) build() (_ genericFuncIndex, retErr erro
 	// Handle empty index.
 	if b.strPos == 0 {
 		b.cleanup()
-		return emptyGenericFuncIndex{}, nil
+		return emptyFuncOffsetByNameIndex{}, nil
 	}
 
 	strMM, err := b.strFile.IntoMMap(syscall.PROT_READ)
@@ -250,8 +252,8 @@ func (b *onDiskGenericFuncIndexBuilder) build() (_ genericFuncIndex, retErr erro
 	idxData := idxMM.Data()
 
 	entries := unsafe.Slice(
-		(*onDiskGenericFuncIndexEntry)(unsafe.Pointer(unsafe.SliceData(idxData))),
-		uintptr(len(idxData))/unsafe.Sizeof(onDiskGenericFuncIndexEntry{}),
+		(*onDiskFuncOffsetByNameEntry)(unsafe.Pointer(unsafe.SliceData(idxData))),
+		uintptr(len(idxData))/unsafe.Sizeof(onDiskFuncOffsetByNameEntry{}),
 	)
 
 	// readName extracts the string from the string table at the given offset.
@@ -261,14 +263,14 @@ func (b *onDiskGenericFuncIndexBuilder) build() (_ genericFuncIndex, retErr erro
 	}
 
 	// Sort index entries by their string table names, then by funcOffset.
-	slices.SortFunc(entries, func(a, c onDiskGenericFuncIndexEntry) int {
+	slices.SortFunc(entries, func(a, c onDiskFuncOffsetByNameEntry) int {
 		return cmp.Or(
 			strings.Compare(readName(a.strOffset), readName(c.strOffset)),
 			cmp.Compare(a.funcOffset, c.funcOffset),
 		)
 	})
 
-	return &onDiskGenericFuncIndex{
+	return &onDiskFuncOffsetByNameIndex{
 		strMM:   strMM,
 		idxMM:   idxMM,
 		strData: strData,
@@ -276,7 +278,7 @@ func (b *onDiskGenericFuncIndexBuilder) build() (_ genericFuncIndex, retErr erro
 	}, nil
 }
 
-func (b *onDiskGenericFuncIndexBuilder) cleanup() {
+func (b *onDiskFuncOffsetByNameIndexBuilder) cleanup() {
 	if b.strFile != nil {
 		_ = b.strFile.Close()
 		b.strFile = nil
@@ -289,31 +291,31 @@ func (b *onDiskGenericFuncIndexBuilder) cleanup() {
 	b.idxW = nil
 }
 
-func (b *onDiskGenericFuncIndexBuilder) Close() error {
+func (b *onDiskFuncOffsetByNameIndexBuilder) Close() error {
 	b.cleanup()
 	return nil
 }
 
-// onDiskGenericFuncIndex is the mmap-backed implementation of genericFuncIndex.
-type onDiskGenericFuncIndex struct {
+// onDiskFuncOffsetByNameIndex is the mmap-backed implementation.
+type onDiskFuncOffsetByNameIndex struct {
 	strMM   object.SectionData
 	idxMM   object.SectionData
 	strData []byte
-	entries []onDiskGenericFuncIndexEntry // sorted by name
+	entries []onDiskFuncOffsetByNameEntry // sorted by name
 }
 
-var _ genericFuncIndex = (*onDiskGenericFuncIndex)(nil)
+var _ funcOffsetByNameIndex = (*onDiskFuncOffsetByNameIndex)(nil)
 
-func (idx *onDiskGenericFuncIndex) readName(offset uint32) string {
+func (idx *onDiskFuncOffsetByNameIndex) readName(offset uint32) string {
 	nameLen := binary.NativeEndian.Uint32(idx.strData[offset:])
 	return string(idx.strData[offset+4 : offset+4+nameLen])
 }
 
-func (idx *onDiskGenericFuncIndex) forPackage(pkgName string) iter.Seq2[string, dwarf.Offset] {
+func (idx *onDiskFuncOffsetByNameIndex) forPackage(pkgName string) iter.Seq2[string, dwarf.Offset] {
 	prefix := pkgName + "."
 	return func(yield func(string, dwarf.Offset) bool) {
 		// Binary search for the first entry whose name >= prefix.
-		i, _ := slices.BinarySearchFunc(idx.entries, prefix, func(e onDiskGenericFuncIndexEntry, target string) int {
+		i, _ := slices.BinarySearchFunc(idx.entries, prefix, func(e onDiskFuncOffsetByNameEntry, target string) int {
 			return strings.Compare(idx.readName(e.strOffset), target)
 		})
 		for ; i < len(idx.entries); i++ {
@@ -330,10 +332,10 @@ func (idx *onDiskGenericFuncIndex) forPackage(pkgName string) iter.Seq2[string, 
 	}
 }
 
-func (idx *onDiskGenericFuncIndex) Close() error {
+func (idx *onDiskFuncOffsetByNameIndex) Close() error {
 	if idx.strMM == nil {
 		return nil
 	}
-	defer func() { *idx = onDiskGenericFuncIndex{} }()
+	defer func() { *idx = onDiskFuncOffsetByNameIndex{} }()
 	return errors.Join(idx.strMM.Close(), idx.idxMM.Close())
 }
