@@ -179,6 +179,21 @@ func (s *Server) sendEvents(ctx context.Context, out pb.AgentSecure_Workloadmeta
 				return err
 			}
 
+			// If the initial snapshot is empty, ProcessChunksInPlace won't call
+			// sendFunc, so we need to send the snapshot-complete signal explicitly.
+			if isSnapshot && totalChunks == 0 {
+				err := grpcutil.DoWithTimeout(func() error {
+					return out.Send(&pb.WorkloadmetaStreamResponse{
+						InitialSnapshotComplete: true,
+					})
+				}, s.streamSendTimeout)
+				if err != nil {
+					log.Warnf("error sending workloadmeta initial snapshot complete: %s", err)
+					telemetry.RemoteServerErrors.Inc()
+					return err
+				}
+			}
+
 			ticker.Reset(workloadmetaKeepAliveInterval)
 
 		case <-ctx.Done():

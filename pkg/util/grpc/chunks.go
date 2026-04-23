@@ -5,12 +5,6 @@
 
 package grpc
 
-// ProcessChunksInPlace splits the slice into contiguous chunks whose total size
-// is at most maxChunkSize and calls consume on each chunk. If a single item
-// exceeds maxChunkSize it is sent alone in a singleton chunk.
-//
-// The size of each item is computed with computeSize. No extra memory is
-// allocated — consume receives sub-slices of the original slice.
 // CountChunks returns the number of chunks that ProcessChunksInPlace would
 // produce for the given slice and size limit.
 func CountChunks[T any](slice []T, maxChunkSize int, computeSize func(T) int) int {
@@ -33,6 +27,12 @@ func CountChunks[T any](slice []T, maxChunkSize int, computeSize func(T) int) in
 	return count
 }
 
+// ProcessChunksInPlace splits the slice into contiguous chunks whose total size
+// is at most maxChunkSize and calls consume on each chunk. If a single item
+// exceeds maxChunkSize it is sent alone in a singleton chunk.
+//
+// The size of each item is computed with computeSize. No extra memory is
+// allocated — consume receives sub-slices of the original slice.
 func ProcessChunksInPlace[T any](slice []T, maxChunkSize int, computeSize func(T) int, consume func([]T) error) error {
 	idx := 0
 	for idx < len(slice) {

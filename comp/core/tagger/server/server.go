@@ -168,6 +168,21 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 				return err
 			}
 
+			// If the initial burst is empty, ProcessChunksInPlace won't call
+			// sendFunc, so we need to send the snapshot-complete signal explicitly.
+			if isInitBurst && totalChunks == 0 {
+				err = grpc.DoWithTimeout(func() error {
+					return out.Send(&pb.StreamTagsResponse{
+						InitialSnapshotComplete: true,
+					})
+				}, taggerStreamSendTimeout)
+				if err != nil {
+					log.Warnf("error sending tagger initial snapshot complete: %s", err)
+					s.telemetry.ServerStreamErrors.Inc()
+					return err
+				}
+			}
+
 			if initBurst {
 				initBurst = false
 				s.throttler.Release(tk)

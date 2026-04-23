@@ -565,7 +565,9 @@ func (t *remoteTagger) processResponse(response *pb.StreamTagsResponse) error {
 	// returning early when there are no events prevents a keep-alive sent
 	// from the core agent from wiping the store clean in case the remote
 	// tagger was previously in an unready (but filled) state.
-	if len(response.Events) == 0 {
+	// However, during resync we must still check InitialSnapshotComplete
+	// to handle empty initial bursts.
+	if len(response.Events) == 0 && t.ready {
 		return nil
 	}
 
