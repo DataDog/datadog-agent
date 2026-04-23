@@ -11,10 +11,8 @@ import (
 	"maps"
 	"sync"
 
-	"go.uber.org/fx"
-
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
+	pidmap "github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/def"
 )
 
 type pidContainerMap map[int32]string
@@ -24,11 +22,16 @@ var (
 	errContainerUnavailable = errors.New("specified pid is not associated to any container")
 )
 
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newPidMap),
-	)
+// Requires defines the dependencies for the pidmap component.
+type Requires struct {
+	compdef.In
+}
+
+// Provides defines the output of the pidmap component.
+type Provides struct {
+	compdef.Out
+
+	Comp pidmap.Component
 }
 
 type state struct {
@@ -60,14 +63,14 @@ func (s *state) ContainerIDForPID(pid int32) (string, error) {
 	}
 
 	return cID, nil
-
 }
 
-func newPidMap() pidmap.Component {
-	return &state{}
+// NewComponent creates a new pidmap component.
+func NewComponent(_ Requires) Provides {
+	return Provides{Comp: &state{}}
 }
 
-// NewServerlessPidMap creates a new instance of pidmap.Component
+// NewServerlessPidMap creates a new instance of pidmap.Component for serverless use.
 func NewServerlessPidMap() pidmap.Component {
-	return newPidMap()
+	return &state{}
 }
