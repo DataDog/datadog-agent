@@ -13,6 +13,7 @@ LOG="$BUILD_DIR/logs/$STAGE_NAME.log"
 PYTHON_TARBALL="Python-${PYTHON_VERSION}.tgz"
 PYTHON_URL="https://www.python.org/ftp/python/${PYTHON_VERSION}/${PYTHON_TARBALL}"
 PYTHON_SRC="$BUILD_DIR/build/Python-${PYTHON_VERSION}"
+PYTHON_TARBALL_SHA256="12e7cb170ad2d1a69aee96a1cc7fc8de5b1e97a2bdac51683a3db016ec9a2996"
 
 # Redirect all output to log file (follow with: tail -f "$LOG")
 mkdir -p "$BUILD_DIR/logs"
@@ -67,6 +68,31 @@ trap cleanup EXIT
 mkdir -p "$BUILD_DIR/sources"
 mkdir -p "$BUILD_DIR/build"
 
+sha256_file() {
+    _sf_file=$1
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$_sf_file" | awk '{print $1}'
+    elif command -v shasum >/dev/null 2>&1; then
+        shasum -a 256 "$_sf_file" | awk '{print $1}'
+    else
+        log "ERROR: neither sha256sum nor shasum is available for checksum verification"
+        exit 1
+    fi
+}
+
+verify_sha256() {
+    _vs_file=$1
+    _vs_expected=$2
+    _vs_name=$3
+    _vs_actual=$(sha256_file "$_vs_file")
+    if [ "$_vs_actual" != "$_vs_expected" ]; then
+        log "ERROR: checksum mismatch for $_vs_name"
+        log "       expected: $_vs_expected"
+        log "       actual:   $_vs_actual"
+        exit 1
+    fi
+}
+
 # ─── Step 1: Download tarball ─────────────────────────────────────────────────
 
 TARBALL="$BUILD_DIR/sources/$PYTHON_TARBALL"
@@ -77,6 +103,7 @@ else
     curl -fSL -o "$TARBALL" "$PYTHON_URL"
     log "Download complete: $TARBALL"
 fi
+verify_sha256 "$TARBALL" "$PYTHON_TARBALL_SHA256" "$PYTHON_TARBALL"
 
 # ─── Step 2: Extract source ───────────────────────────────────────────────────
 

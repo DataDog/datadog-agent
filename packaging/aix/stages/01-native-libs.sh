@@ -63,6 +63,7 @@ mkdir -p "$EMBEDDED_DESTDIR/share"
 # version is provided by the toolbox.
 #
 ZLIB_VERSION="1.3.1"
+ZLIB_SHA256="9a93b2b7dfdac77ceba5a558a580e74667dd6fede4585b91eefb60f03b72df23"
 BZIP2_VERSION="1.0.8"
 OPENSSL_VERSION="3.5.5"
 XZ_VERSION="5.8.1"
@@ -86,6 +87,31 @@ extract_gz() {
 
 extract_xz() {
     xz -dc "$1" | tar xf - -C "$2"
+}
+
+sha256_file() {
+    _sf_file=$1
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$_sf_file" | awk '{print $1}'
+    elif command -v shasum >/dev/null 2>&1; then
+        shasum -a 256 "$_sf_file" | awk '{print $1}'
+    else
+        log "ERROR: neither sha256sum nor shasum is available for checksum verification"
+        exit 1
+    fi
+}
+
+verify_sha256() {
+    _vs_file=$1
+    _vs_expected=$2
+    _vs_name=$3
+    _vs_actual=$(sha256_file "$_vs_file")
+    if [ "$_vs_actual" != "$_vs_expected" ]; then
+        log "ERROR: checksum mismatch for $_vs_name"
+        log "       expected: $_vs_expected"
+        log "       actual:   $_vs_actual"
+        exit 1
+    fi
 }
 
 # lib_done NAME VERSION — true if library is already installed to staging
@@ -198,6 +224,7 @@ else
         "https://github.com/madler/zlib/releases/download/v${ZLIB_VERSION}/zlib-${ZLIB_VERSION}.tar.gz" || \
         curl -fSL -o "$TARBALL" "https://zlib.net/fossils/zlib-${ZLIB_VERSION}.tar.gz" || \
         curl -fSL -o "$TARBALL" "https://zlib.net/zlib-${ZLIB_VERSION}.tar.gz"
+    verify_sha256 "$TARBALL" "$ZLIB_SHA256" "zlib-${ZLIB_VERSION}.tar.gz"
     # Touch pre-timestamp before compile so install files are strictly newer (AIX has 1s mtime)
     _pre="$BUILD_DIR/.lib-pre-zlib"
     touch "$_pre"
