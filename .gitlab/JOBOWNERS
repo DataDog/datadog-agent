@@ -19,8 +19,7 @@ fetch_openjdk                        @DataDog/agent-metric-pipelines
 
 # Source test
 # Notifications are handled separately for more fine-grained control on go tests
-# tests_* defaults to agent-devx (owner of the `dda inv test` framework and
-# CI runners). Platform-, flavor- and feature-specific jobs override below.
+# tests_* defaults to agent-devx, with overrides below
 tests_*                                 @DataDog/agent-devx
 tests_ebpf*                             @DataDog/ebpf-platform
 tests_gpu                               @DataDog/ebpf-platform
@@ -192,10 +191,10 @@ k8s-e2e-cspm-*                    @DataDog/agent-security
 
 # New E2E
 e2e_pre_test*                     @DataDog/agent-devx
-# new-e2e* defaults to @DataDog/multiple; subcategory patterns below override
-# it. Order matters — last-matching pattern wins, so shared-ownership rules
-# at the bottom take precedence over single-owner rules earlier.
-new-e2e*                          @DataDog/multiple
+# new-e2e* defaults to @DataDog/agent-devx
+# More detailed rules are following for precise team match
+# latest match wins
+new-e2e*                          @DataDog/agent-devx
 # --- E2E framework / infra ---
 new-e2e-base*                           @DataDog/agent-devx
 new-e2e-unit-tests                      @DataDog/agent-devx
