@@ -14,8 +14,8 @@ import (
 	"sync"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
 	collectoraggregator "github.com/DataDog/datadog-agent/pkg/collector/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -31,7 +31,8 @@ import (
 )
 
 /*
-#cgo !windows LDFLAGS: -ldatadog-agent-rtloader -ldl
+#cgo !aix,!windows LDFLAGS: -ldatadog-agent-rtloader -ldl
+#cgo aix LDFLAGS: -ldl
 #cgo windows LDFLAGS: -ldatadog-agent-rtloader -lstdc++ -static
 
 #include "datadog_agent_rtloader.h"

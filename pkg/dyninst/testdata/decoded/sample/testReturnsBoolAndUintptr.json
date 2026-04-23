@@ -18,17 +18,17 @@
           {
             "function": "main.testReturnsBoolAndUintptr",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 255
+            "lineNumber": 261
           },
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 412
+            "lineNumber": 419
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 50
+            "lineNumber": 52
           },
           {
             "function": "runtime.main",
@@ -50,13 +50,17 @@
         "captures": {
           "return": {
             "locals": {
-              "~r0": {
-                "type": "bool",
-                "value": "true"
-              },
-              "~r1": {
-                "type": "uintptr",
-                "value": "0x1234"
+              "@return": {
+                "fields": {
+                  "r0": {
+                    "type": "bool",
+                    "value": "true"
+                  },
+                  "r1": {
+                    "type": "uintptr",
+                    "value": "0x1234"
+                  }
+                }
               }
             }
           }

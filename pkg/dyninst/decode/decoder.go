@@ -33,8 +33,9 @@ import (
 var symbolicateErrorLogLimiter = rate.NewLimiter(rate.Every(1*time.Minute), 10)
 
 type probeEvent struct {
-	event *ir.Event
-	probe *ir.Probe
+	event    *ir.Event
+	probe    *ir.Probe
+	instance *ir.ProbeInstance
 }
 
 // TypeNameResolver resolves type names from type IDs as communicated by the
@@ -125,10 +126,14 @@ func NewDecoder(
 		message: message{},
 	}
 	for _, probe := range program.Probes {
-		for _, event := range probe.Events {
-			decoder.probeEvents[event.Type.ID] = probeEvent{
-				event: event,
-				probe: probe,
+		for i := range probe.Instances {
+			inst := &probe.Instances[i]
+			for _, event := range inst.Events {
+				decoder.probeEvents[event.Type.ID] = probeEvent{
+					event:    event,
+					probe:    probe,
+					instance: inst,
+				}
 			}
 		}
 	}
@@ -298,21 +303,22 @@ func (s *message) init(
 	s.ProcessTags = event.ProcessTags
 	s.Debugger = debuggerData{
 		Snapshot: snapshotData{
-			ID:       uuid.New(),
-			Language: "go",
+			ID:               uuid.New(),
+			Language:         "go",
+			EvaluationErrors: []evaluationError{},
 		},
-		EvaluationErrors: []evaluationError{},
 	}
 	if event.EntryOrLine == nil {
 		return nil, errors.New("entry event is nil")
 	}
 	if err := decoder.entryOrLine.init(
-		event.EntryOrLine, decoder.program.Types, &s.Debugger.EvaluationErrors,
+		event.EntryOrLine, decoder.program.Types, &s.Debugger.Snapshot.EvaluationErrors,
 	); err != nil {
 		return nil, err
 	}
 	probeEvent := decoder.probeEvents[decoder.entryOrLine.rootType.ID]
 	probe := probeEvent.probe
+	instance := probeEvent.instance
 
 	if probe.GetKind() == ir.ProbeKindSnapshot || probe.GetKind() == ir.ProbeKindLog {
 		s.Debugger.Type = payloadTypeSnapshot
@@ -331,8 +337,8 @@ func (s *message) init(
 		if header.Condition_eval_error == 2 {
 			msg = errNilPointerEvaluating.Error()
 		}
-		s.Debugger.EvaluationErrors = append(
-			s.Debugger.EvaluationErrors,
+		s.Debugger.Snapshot.EvaluationErrors = append(
+			s.Debugger.Snapshot.EvaluationErrors,
 			evaluationError{
 				Expression: whenDSL,
 				Message:    msg,
@@ -351,13 +357,13 @@ func (s *message) init(
 	var durationMissingReason *string
 	if event.Return != nil {
 		if err := decoder._return.init(
-			event.Return, decoder.program.Types, &s.Debugger.EvaluationErrors,
+			event.Return, decoder.program.Types, &s.Debugger.Snapshot.EvaluationErrors,
 		); err != nil {
 			return nil, fmt.Errorf("error initializing return event: %w", err)
 		}
 		returnProbeEvent := decoder.probeEvents[decoder._return.rootType.ID]
-		if returnProbeEvent.probe != probe {
-			return nil, errors.New("return probe event has different probe than entry probe")
+		if returnProbeEvent.instance != instance {
+			return nil, errors.New("return probe event has different instance than entry probe")
 		}
 		returnHeader, err = event.Return.Header()
 		if err != nil {
@@ -372,8 +378,8 @@ func (s *message) init(
 			if returnHeader.Condition_eval_error == 2 {
 				msg = errNilPointerEvaluating.Error()
 			}
-			s.Debugger.EvaluationErrors = append(
-				s.Debugger.EvaluationErrors,
+			s.Debugger.Snapshot.EvaluationErrors = append(
+				s.Debugger.Snapshot.EvaluationErrors,
 				evaluationError{
 					Expression: whenDSL,
 					Message:    msg,
@@ -410,8 +416,8 @@ func (s *message) init(
 		const missingReturnReasonExpression = "@duration"
 		if reason != "" {
 			message := "not available: " + reason
-			s.Debugger.EvaluationErrors = append(
-				s.Debugger.EvaluationErrors,
+			s.Debugger.Snapshot.EvaluationErrors = append(
+				s.Debugger.Snapshot.EvaluationErrors,
 				evaluationError{
 					Expression: missingReturnReasonExpression,
 					Message:    message,
@@ -443,7 +449,7 @@ func (s *message) init(
 		}
 		stackPCs, ok := decoder.stackPCs[stackHeader.Stack_hash]
 		if !ok {
-			s.Debugger.EvaluationErrors = append(s.Debugger.EvaluationErrors,
+			s.Debugger.Snapshot.EvaluationErrors = append(s.Debugger.Snapshot.EvaluationErrors,
 				evaluationError{
 					Expression: "Stacktrace",
 					Message:    "no stack pcs found",
@@ -458,7 +464,7 @@ func (s *message) init(
 				} else {
 					log.Tracef("error symbolicating stack for probe %s: %v", probe.GetID(), err)
 				}
-				s.Debugger.EvaluationErrors = append(s.Debugger.EvaluationErrors,
+				s.Debugger.Snapshot.EvaluationErrors = append(s.Debugger.Snapshot.EvaluationErrors,
 					evaluationError{
 						Expression: "Stacktrace",
 						Message:    err.Error(),
@@ -497,11 +503,11 @@ func (s *message) init(
 	s.Logger.ThreadID = int(header.Goid)
 	s.Debugger.Snapshot.Probe.ID = probe.GetID()
 
-	if probe.Template != nil {
+	if instance.Template != nil {
 		decoder.messageData = messageData{
 			entryOrLine: &decoder.entryOrLine,
 			_return:     &decoder._return,
-			template:    probe.Template,
+			template:    instance.Template,
 		}
 		s.Message = &decoder.messageData
 		if s.Duration != 0 {

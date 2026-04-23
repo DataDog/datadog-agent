@@ -29,6 +29,7 @@ generate_config_schema-linux:
   script:
     - dda inv -- -e agent.build
     - dda inv -- schema.generate --agent-bin=./bin/agent/agent
+    - bash $CI_PROJECT_DIR/tasks/schema/check_config_templates.sh $CI_PROJECT_DIR
   artifacts:
     when: always
     expire_in: 2 weeks
@@ -51,12 +52,24 @@ generate_config_schema-macos:
   script:
     - dda inv -- -e agent.build
     - dda inv -- schema.generate --agent-bin=./bin/agent/agent
+    - bash $CI_PROJECT_DIR/tasks/schema/check_config_templates.sh $CI_PROJECT_DIR
   artifacts:
     when: always
     expire_in: 2 weeks
     paths:
       - $CI_PROJECT_DIR/pkg/config/schema/core_schema.yaml
       - $CI_PROJECT_DIR/pkg/config/schema/system-probe_schema.yaml
+
+lint_config_schema:
+  stage: binary_build
+  extends: .generate_config_schema
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  needs:
+    - job: "generate_config_schema-linux"
+  script:
+    - dda inv -- schema.lint --schema-dir $CI_PROJECT_DIR/pkg/config/schema/
+  allow_failure: false
 
 generate_config_schema-windows:
   extends:

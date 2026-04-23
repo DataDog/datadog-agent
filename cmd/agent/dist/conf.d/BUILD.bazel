@@ -1,0 +1,60 @@
+"""core checks and some configuration files"""
+
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files", "strip_prefix")
+load("//cmd/agent/dist:core_checks.bzl", "AGENT_CORECHECKS", "IOT_AGENT_CORECHECKS", "WINDOWS_CORECHECKS")
+load("//packages/agent:defs.bzl", "CONF_DIR_SELECTOR")
+
+pkg_files(
+    name = "base_checks_files",
+    srcs = glob(
+        ["%s.d/**" % check for check in AGENT_CORECHECKS],
+        exclude = ["BUILD.bazel"],
+    ),
+    attributes = pkg_attributes(mode = "0644"),
+    strip_prefix = strip_prefix.from_pkg(),
+)
+
+pkg_files(
+    name = "iot_checks_files",
+    srcs = glob(
+        ["%s.d/**" % check for check in IOT_AGENT_CORECHECKS],
+        exclude = ["BUILD.bazel"],
+    ),
+    attributes = pkg_attributes(mode = "0644"),
+    strip_prefix = strip_prefix.from_pkg(),
+)
+
+# Additional window checks. You also need the code checks.
+pkg_files(
+    name = "windows_checks_files",
+    srcs = glob(
+        ["%s.d/**" % check for check in WINDOWS_CORECHECKS],
+        exclude = ["BUILD.bazel"],
+    ),
+    attributes = pkg_attributes(mode = "0644"),
+    strip_prefix = strip_prefix.from_pkg(),
+)
+
+pkg_files(
+    name = "macos_files",
+    srcs = [
+        "apm.yaml.default",
+        "process_agent.yaml.default",
+    ],
+    attributes = pkg_attributes(mode = "0644"),
+    strip_prefix = strip_prefix.from_pkg(),
+)
+
+pkg_filegroup(
+    name = "all_files",
+    srcs = select({
+        "//packages/agent:iot_flavor": [":iot_checks_files"],
+        "//conditions:default": [":base_checks_files"],
+    }) + select({
+        "@platforms//os:macos": [":macos_files"],
+        "@platforms//os:windows": [":windows_checks_files"],
+        "//conditions:default": [],
+    }),
+    prefix = select(CONF_DIR_SELECTOR),
+    visibility = ["//cmd/agent/dist:__pkg__"],
+)

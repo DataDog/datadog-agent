@@ -42,6 +42,7 @@ _PREBUILT_FLAGS = [
 _CORE_FLAGS = [
     "-DCOMPILE_CORE",
     "-g",
+    "-fdebug-compilation-dir=.",
 ]
 
 def _get_arch_flags(target_arch):

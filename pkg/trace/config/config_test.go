@@ -68,26 +68,6 @@ func TestPeerTagsAggregation(t *testing.T) {
 	})
 }
 
-func TestSpanDerivedPrimaryTagKeys(t *testing.T) {
-	t.Run("empty", func(t *testing.T) {
-		cfg := New()
-		assert.Empty(t, cfg.SpanDerivedPrimaryTagKeys)
-		assert.Empty(t, cfg.ConfiguredSpanDerivedPrimaryTagKeys())
-	})
-
-	t.Run("configured", func(t *testing.T) {
-		cfg := New()
-		cfg.SpanDerivedPrimaryTagKeys = []string{"datacenter", "customer_tier", "availability_zone"}
-		assert.Equal(t, []string{"availability_zone", "customer_tier", "datacenter"}, cfg.ConfiguredSpanDerivedPrimaryTagKeys())
-	})
-
-	t.Run("dedup", func(t *testing.T) {
-		cfg := New()
-		cfg.SpanDerivedPrimaryTagKeys = []string{"datacenter", "customer_tier", "datacenter"}
-		assert.Equal(t, []string{"customer_tier", "datacenter"}, cfg.ConfiguredSpanDerivedPrimaryTagKeys())
-	})
-}
-
 func TestMRFFailoverAPM(t *testing.T) {
 	t.Run("undefined", func(t *testing.T) {
 		cfg := New()
@@ -155,6 +135,25 @@ func TestSQLObfuscationMode(t *testing.T) {
 	})
 }
 
+func TestEffectiveSQLObfuscationMode(t *testing.T) {
+	t.Run("sqllexer_enabled_no_explicit_mode", func(t *testing.T) {
+		cfg := New()
+		cfg.Features = map[string]struct{}{"sqllexer": {}}
+		// SQLObfuscationMode is empty; effective mode must be obfuscate_only
+		assert.Equal(t, obfuscate.ObfuscateOnly, cfg.EffectiveSQLObfuscationMode())
+	})
+	t.Run("explicit_mode_takes_precedence", func(t *testing.T) {
+		cfg := New()
+		cfg.Features = map[string]struct{}{"sqllexer": {}}
+		cfg.SQLObfuscationMode = string(obfuscate.ObfuscateAndNormalize)
+		assert.Equal(t, obfuscate.ObfuscateAndNormalize, cfg.EffectiveSQLObfuscationMode())
+	})
+	t.Run("no_sqllexer_no_explicit_mode", func(t *testing.T) {
+		cfg := New()
+		assert.Equal(t, obfuscate.ObfuscationMode(""), cfg.EffectiveSQLObfuscationMode())
+	})
+}
+
 func TestInECSManagedInstancesSidecar(t *testing.T) {
 	t.Setenv("DD_ECS_DEPLOYMENT_MODE", "sidecar")
 	t.Setenv("AWS_EXECUTION_ENV", "AWS_ECS_MANAGED_INSTANCES")
@@ -168,4 +167,10 @@ func TestDefaultAPMMode(t *testing.T) {
 		cfg := New()
 		assert.Empty(t, cfg.APMMode)
 	})
+}
+
+func TestEnableOPMFetchDefault(t *testing.T) {
+	cfg := New()
+	assert.False(t, cfg.EnableOPMFetch, "EnableOPMFetch must default to false so library users of pkg/trace are unaffected")
+	assert.Empty(t, cfg.OPMValidateURL, "OPMValidateURL must default to empty when EnableOPMFetch is false")
 }

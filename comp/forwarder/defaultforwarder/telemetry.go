@@ -9,10 +9,10 @@ import (
 	"expvar"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	pkgorchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 var (
@@ -28,17 +28,17 @@ var (
 	transactionsRetryQueueSize       = expvar.Int{}
 	transactionsOrchestratorManifest = expvar.Int{}
 
-	tlmTxInputBytes = telemetry.NewCounter("transactions", "input_bytes",
+	tlmTxInputBytes = telemetryimpl.GetCompatComponent().NewCounter("transactions", "input_bytes",
 		[]string{"domain", "endpoint"}, "Incoming transaction sizes in bytes")
-	tlmTxInputCount = telemetry.NewCounter("transactions", "input_count",
+	tlmTxInputCount = telemetryimpl.GetCompatComponent().NewCounter("transactions", "input_count",
 		[]string{"domain", "endpoint"}, "Incoming transaction count")
-	tlmTxHighPriorityQueueFull = telemetry.NewCounter("transactions", "high_priority_queue_full",
+	tlmTxHighPriorityQueueFull = telemetryimpl.GetCompatComponent().NewCounter("transactions", "high_priority_queue_full",
 		[]string{"domain", "endpoint"}, "Count of transactions added to the retry queue because the high priority queue is full")
-	tlmTxRequeued = telemetry.NewCounter("transactions", "requeued",
+	tlmTxRequeued = telemetryimpl.GetCompatComponent().NewCounter("transactions", "requeued",
 		[]string{"domain", "endpoint"}, "Transaction requeue count")
-	tlmTxRetried = telemetry.NewCounter("transactions", "retries",
+	tlmTxRetried = telemetryimpl.GetCompatComponent().NewCounter("transactions", "retries",
 		[]string{"domain", "endpoint"}, "Transaction retry count")
-	tlmTxRetryQueueSize = telemetry.NewGauge("transactions", "retry_queue_size",
+	tlmTxRetryQueueSize = telemetryimpl.GetCompatComponent().NewGauge("transactions", "retry_queue_size",
 		[]string{"domain"}, "Retry queue size")
 )
 

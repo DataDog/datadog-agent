@@ -11,5 +11,6 @@ go_test(
     name = "util_test",
     srcs = ["chunking_test.go"],
     embed = [":util"],
+    gotags = ["test"],
     deps = ["@com_github_stretchr_testify//assert"],
 )

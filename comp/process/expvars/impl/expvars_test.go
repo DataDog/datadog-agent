@@ -19,7 +19,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	expvars "github.com/DataDog/datadog-agent/comp/process/expvars/def"
 	expvarsfx "github.com/DataDog/datadog-agent/comp/process/expvars/fx"
 	hostinfomock "github.com/DataDog/datadog-agent/comp/process/hostinfo/mock"
@@ -39,7 +39,7 @@ func TestExpvarServer(t *testing.T) {
 				"process_config.expvar_port": 43423,
 			})
 		}),
-		telemetryimpl.MockModule(),
+		mocktelemetry.Module(),
 		sysprobeconfigimpl.MockModule(),
 		hostinfomock.MockModule(),
 		expvarsfx.Module(),
@@ -71,7 +71,7 @@ func TestTelemetry(t *testing.T) {
 		}),
 		expvarsfx.Module(),
 		hostinfomock.MockModule(),
-		telemetryimpl.MockModule(),
+		mocktelemetry.Module(),
 		sysprobeconfigimpl.MockModule(),
 	))
 

@@ -496,6 +496,9 @@ var defaultProfiles = `
             - kind
         - name: cluster_checks.configs_dispatched
         - name: cluster_checks.configs_dangling
+        - name: cluster_checks.configs_info
+          aggregate_tags:
+            - check_name
         - name: cluster_checks.unscheduled_check
           aggregate_tags:
             - config_source

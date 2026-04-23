@@ -91,7 +91,7 @@ func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.
 	// Without this, clamped values would persist and the VerticalScalingLimited condition would be
 	// cleared on the next sync since constraints re-applied to already-clamped values are no-ops.
 	constrainedVertical := scalingValues.Vertical.DeepCopy()
-	limitErr, err := applyVerticalConstraints(constrainedVertical, autoscalerInternal.Spec().Constraints)
+	limitErr, err := applyVerticalConstraints(constrainedVertical, autoscalerInternal.Spec().Constraints, autoscalerInternal.IsBurstable())
 	if err != nil {
 		autoscalerInternal.SetConstrainedVerticalScaling(nil, nil)
 		autoscalerInternal.UpdateFromVerticalAction(nil, err)
@@ -99,6 +99,9 @@ func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.
 	}
 	autoscalerInternal.SetConstrainedVerticalScaling(constrainedVertical, limitErr)
 
+	// recommendationID is the constrained hash; in burstable mode applyVerticalConstraints
+	// already stamped a CPU-limit zero sentinel on each container, so the hash naturally
+	// differs from non-burstable — no extra suffix required.
 	recommendationID := constrainedVertical.ResourcesHash
 
 	// Get the pods for the pod owner
@@ -205,7 +208,10 @@ func (u *verticalController) syncInternal(
 					patchForbidden = true
 				}
 				log.Warnf("failed to patch pod %s/%s in place: %v", cp.pod.Namespace, cp.pod.Name, err)
+				autoscalerInternal.InPlacePatchErrorInc()
 				toEvictOnPatchFailure = append(toEvictOnPatchFailure, cp)
+			} else {
+				autoscalerInternal.InPlacePatchSuccessInc()
 			}
 		}
 	}
@@ -232,6 +238,7 @@ func (u *verticalController) syncInternal(
 		} else {
 			log.Infof("In-place resize fallback: pods stuck too long, triggering rollout for autoscaler %s", autoscalerInternal.ID())
 		}
+		autoscalerInternal.InPlaceRolloutFallbackInc()
 		return u.triggerRollout(ctx, podAutoscaler, autoscalerInternal, target, targetGVK, recommendationID)
 	}
 
@@ -247,6 +254,7 @@ func (u *verticalController) syncInternal(
 			} else {
 				log.Warnf("error while evicting pod %s/%s: %v", cp.pod.Namespace, cp.pod.Name, err)
 				failedEvictions++
+				autoscalerInternal.InPlaceEvictionErrorInc()
 				autoscalerInternal.UpdateFromVerticalAction(nil,
 					autoscaling.NewConditionError(autoscaling.ConditionReasonFailedToEvict,
 						fmt.Errorf("error while evicting pod %s/%s: %w", cp.pod.Namespace, cp.pod.Name, err)))
@@ -255,9 +263,11 @@ func (u *verticalController) syncInternal(
 		}
 		if result == evictor.Evicted {
 			evictedThisSync++
+			autoscalerInternal.InPlaceEvictionSuccessInc()
 		}
 		if result == evictor.PDBLockedOrThrottle || result == evictor.Skipped {
 			pdbBlocked = true
+			autoscalerInternal.InPlacePDBBlockedInc()
 			break
 		}
 	}
@@ -296,6 +306,7 @@ func (u *verticalController) syncInternal(
 			lastAction.Type == datadoghqcommon.DatadogPodAutoscalerResizeTriggeredVerticalActionType {
 			u.eventRecorder.Eventf(podAutoscaler, corev1.EventTypeNormal, model.ResizeSuccessfulEventReason,
 				"All %d pods resized successfully for autoscaler %s/%s", totalActive, podAutoscaler.Namespace, podAutoscaler.Name)
+			autoscalerInternal.InPlaceResizeCompletedInc()
 			autoscalerInternal.UpdateFromVerticalAction(&datadoghqcommon.DatadogPodAutoscalerVerticalAction{
 				Time:    metav1.NewTime(u.clock.Now()),
 				Version: recommendationID,

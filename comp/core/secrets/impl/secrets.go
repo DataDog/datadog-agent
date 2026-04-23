@@ -35,7 +35,7 @@ import (
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/utils"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
@@ -151,6 +151,14 @@ func newEnabledSecretResolver(telemetry telemetry.Component) *secretResolver {
 		unresolvedSecrets:       make(map[string]struct{}),
 		refreshTrigger:          make(chan struct{}, 1),
 	}
+}
+
+// NewEnabledResolver creates a new secrets resolver that uses the real secrets
+// backend without the FX dependency graph. The telemetry component is used only
+// for internal metrics; pass noopsimpl.GetCompatComponent() when Prometheus
+// metrics are not needed (e.g. for one-shot config resolution before FX starts).
+func NewEnabledResolver(t telemetry.Component) secrets.Component {
+	return newEnabledSecretResolver(t)
 }
 
 // NewComponent returns the implementation for the secrets component

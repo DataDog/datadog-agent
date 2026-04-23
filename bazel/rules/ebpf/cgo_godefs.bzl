@@ -79,7 +79,7 @@ def _cgo_godefs_impl(ctx):
     cc_prefix = "CC=clang " if platform == "linux" else ""
 
     cmd = (
-        "ROOT=$PWD && cd {src_dir} && " +
+        "set -euo pipefail && ROOT=$PWD && cd {src_dir} && " +
         "GOROOT=$ROOT/{goroot} {cc_prefix}$ROOT/{go} tool cgo -godefs -- {includes} -fsigned-char {src_file} | " +
         "$ROOT/{genpost} {genpost_args} > $ROOT/{out}"
     ).format(

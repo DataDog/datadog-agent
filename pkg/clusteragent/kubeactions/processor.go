@@ -11,19 +11,21 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	kubeactions "github.com/DataDog/agent-payload/v5/kubeactions"
+	"google.golang.org/protobuf/encoding/protojson"
+
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/hashicorp/go-multierror"
-	"google.golang.org/protobuf/encoding/protojson"
 )
 
 // ActionStoreInterface defines the interface for action stores
 type ActionStoreInterface interface {
-	WasExecuted(key ActionKey) bool
+	Claim(key ActionKey) bool
 	MarkExecuted(key ActionKey, status, message string, executedAt int64, receivedAt int64, actionCreatedAt int64)
 	GetRecord(key ActionKey) (ActionRecord, bool)
 }
@@ -92,12 +94,13 @@ func (p *ActionProcessor) Process(configKey string, rawConfig state.RawConfig) e
 		ID:      rawConfig.Metadata.ID,
 		Version: rawConfig.Metadata.Version,
 	}
+	action := actionsList.Actions[0]
 
 	// Record when we received this action
 	receivedAt := time.Now().Unix()
 
-	// Check if this action was already executed
-	if p.store.WasExecuted(actionKey) {
+	// Check if we can claim the action
+	if !p.store.Claim(actionKey) {
 		record, _ := p.store.GetRecord(actionKey)
 		log.Infof("[KubeActions] Action %s was already executed with status: %s", actionKey.String(), record.Status)
 		if record.Status == StatusFailed || record.Status == StatusExpired {
@@ -106,34 +109,34 @@ func (p *ActionProcessor) Process(configKey string, rawConfig state.RawConfig) e
 		return nil
 	}
 
-	log.Infof("[KubeActions] Action %s not yet executed, proceeding with processing", actionKey.String())
+	log.Infof("[KubeActions] Action %s claimed successfully, proceeding with processing", actionKey.String())
 
-	// Process all actions in the list
-	var processingErrors error
-	for i, action := range actionsList.Actions {
-		log.Infof("[KubeActions] Processing action %d/%d", i+1, len(actionsList.Actions))
-		if err := p.processAction(action, i, actionKey, receivedAt); err != nil {
-			processingErrors = multierror.Append(processingErrors, err)
-		}
-	}
+	// Extract org ID from the config key path
+	orgID := parseOrgIDFromConfigKey(configKey)
 
-	if processingErrors != nil {
-		log.Errorf("[KubeActions] Finished processing with errors: %v", processingErrors)
+	// Process the action
+	processingErr := p.processAction(action, actionKey, orgID, receivedAt)
+
+	if processingErr != nil {
+		log.Errorf("[KubeActions] Finished processing with error: %v", processingErr)
 	} else {
 		log.Infof("[KubeActions] Finished processing all actions successfully")
 	}
 
-	return processingErrors
+	return processingErr
 }
 
 // processAction processes a single action
-func (p *ActionProcessor) processAction(action *kubeactions.KubeAction, index int, actionKey ActionKey, receivedAt int64) error {
+func (p *ActionProcessor) processAction(action *kubeactions.KubeAction, actionKey ActionKey, orgID int64, receivedAt int64) error {
 	actionType := GetActionType(action)
-	log.Infof("[KubeActions] === Processing action %d ===", index)
+	log.Infof("[KubeActions] === Processing action %s ===", actionKey.String())
 	log.Infof("[KubeActions]   ActionType: %s", actionType)
 	if action.Resource != nil {
 		log.Infof("[KubeActions]   Resource: %s/%s in %s", action.Resource.Kind, action.Resource.Name, action.Resource.Namespace)
 	}
+
+	// Report that we received the action
+	p.reporter.ReportReceived(actionKey, action, orgID)
 
 	// Extract action timestamp
 	var actionCreatedAt int64
@@ -144,14 +147,18 @@ func (p *ActionProcessor) processAction(action *kubeactions.KubeAction, index in
 		// Validate the timestamp
 		log.Infof("[KubeActions] Validating timestamp...")
 		if err := ValidateTimestamp(action.Timestamp.AsTime()); err != nil {
-			log.Errorf("[KubeActions] Timestamp validation failed: %v", err)
-			p.store.MarkExecuted(actionKey, StatusExpired, fmt.Sprintf("timestamp validation failed: %v", err), time.Now().Unix(), receivedAt, actionCreatedAt)
+			log.Errorf("[KubeActions] Timestamp validation failed for %s: received timestamp %s: %v", actionKey.String(), action.Timestamp.AsTime().String(), err)
+			result := ExecutionResult{Status: StatusExpired, Message: fmt.Sprintf("timestamp validation failed: %v", err)}
+			p.store.MarkExecuted(actionKey, result.Status, result.Message, time.Now().Unix(), receivedAt, actionCreatedAt)
+			p.reporter.ReportResult(actionKey, action, result, orgID, time.Now())
 			return err
 		}
 		log.Infof("[KubeActions] Timestamp validation passed")
 	} else {
 		log.Errorf("[KubeActions] Action timestamp is missing")
-		p.store.MarkExecuted(actionKey, StatusFailed, "timestamp is missing", time.Now().Unix(), receivedAt, 0)
+		result := ExecutionResult{Status: StatusFailed, Message: "timestamp is missing"}
+		p.store.MarkExecuted(actionKey, result.Status, result.Message, time.Now().Unix(), receivedAt, 0)
+		p.reporter.ReportResult(actionKey, action, result, orgID, time.Now())
 		return errors.New("action timestamp is missing")
 	}
 
@@ -159,7 +166,9 @@ func (p *ActionProcessor) processAction(action *kubeactions.KubeAction, index in
 	log.Infof("[KubeActions] Validating action...")
 	if err := p.validator.ValidateAction(action); err != nil {
 		log.Errorf("[KubeActions] Action validation failed: %v", err)
-		p.store.MarkExecuted(actionKey, StatusFailed, fmt.Sprintf("validation failed: %v", err), time.Now().Unix(), receivedAt, actionCreatedAt)
+		result := ExecutionResult{Status: StatusFailed, Message: fmt.Sprintf("validation failed: %v", err)}
+		p.store.MarkExecuted(actionKey, result.Status, result.Message, time.Now().Unix(), receivedAt, actionCreatedAt)
+		p.reporter.ReportResult(actionKey, action, result, orgID, time.Now())
 		return err
 	}
 	log.Infof("[KubeActions] Action validation passed")
@@ -174,14 +183,14 @@ func (p *ActionProcessor) processAction(action *kubeactions.KubeAction, index in
 	p.store.MarkExecuted(actionKey, result.Status, result.Message, executedAt.Unix(), receivedAt, actionCreatedAt)
 	log.Infof("[KubeActions] Result stored in action store")
 
-	// TODO: Report the result to backend via Event Platform once the intake is configured
-	// p.reporter.ReportResult(actionKey, action, result, executedAt)
+	// Report the execution result to backend via Event Platform
+	p.reporter.ReportResult(actionKey, action, result, orgID, executedAt)
 
 	// Log the result
 	if result.Status == StatusSuccess {
-		log.Infof("[KubeActions] ✓ Action executed successfully: %s", result.Message)
+		log.Infof("[KubeActions] Action executed successfully: %s", result.Message)
 	} else {
-		log.Errorf("[KubeActions] ✗ Action execution failed: %s", result.Message)
+		log.Errorf("[KubeActions] Action execution failed: %s", result.Message)
 		return fmt.Errorf("action execution failed: %s", result.Message)
 	}
 
@@ -191,4 +200,18 @@ func (p *ActionProcessor) processAction(action *kubeactions.KubeAction, index in
 // GetStore returns the action store for inspection
 func (p *ActionProcessor) GetStore() ActionStoreInterface {
 	return p.store
+}
+
+// parseOrgIDFromConfigKey extracts the org ID from an RC config key path.
+// Config keys have the format: datadog/<org_id>/<product>/<config_id>/<file>
+func parseOrgIDFromConfigKey(configKey string) int64 {
+	parts := strings.SplitN(configKey, "/", 4)
+	if len(parts) < 2 || parts[1] == "" {
+		return 0
+	}
+	orgID, err := strconv.ParseInt(parts[1], 10, 64)
+	if err != nil {
+		return 0
+	}
+	return orgID
 }

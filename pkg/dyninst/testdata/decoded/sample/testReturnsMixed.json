@@ -18,17 +18,17 @@
           {
             "function": "main.testReturnsMixed",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 218
+            "lineNumber": 224
           },
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 408
+            "lineNumber": 415
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 50
+            "lineNumber": 52
           },
           {
             "function": "runtime.main",
@@ -50,25 +50,29 @@
         "captures": {
           "return": {
             "locals": {
-              "~r0": {
-                "type": "int",
-                "value": "1"
-              },
-              "~r1": {
-                "type": "float64",
-                "notCapturedReason": "unavailable"
-              },
-              "~r2": {
-                "type": "int",
-                "value": "3"
-              },
-              "~r3": {
-                "type": "float64",
-                "notCapturedReason": "unavailable"
-              },
-              "~r4": {
-                "type": "string",
-                "value": "test"
+              "@return": {
+                "fields": {
+                  "r0": {
+                    "type": "int",
+                    "value": "1"
+                  },
+                  "r1": {
+                    "type": "float64",
+                    "notCapturedReason": "unavailable"
+                  },
+                  "r2": {
+                    "type": "int",
+                    "value": "3"
+                  },
+                  "r3": {
+                    "type": "float64",
+                    "notCapturedReason": "unavailable"
+                  },
+                  "r4": {
+                    "type": "string",
+                    "value": "test"
+                  }
+                }
               }
             }
           }

@@ -378,6 +378,7 @@ func (l *Loader) loadData(
 		// be set to zero.
 		grts.goRuntimeTypes = []uint64{0}
 		grts.typeIDs = []uint64{0}
+		grts.directTypeIDs = []uint64{0}
 	}
 	goRuntimeTypeIDsMapSpec, goRuntimeTypeIDsMap, err := makeArrayMap(
 		goRuntimeTypeIDsMapName, grts.typeIDs, allowMultipleMapEntries,
@@ -403,6 +404,19 @@ func (l *Loader) loadData(
 			goRuntimeTypesMap.Close()
 		}
 	}()
+	const goRuntimeTypeDirectIDsMapName = "go_runtime_type_direct_ids"
+	goRuntimeTypeDirectIDsMapSpec, goRuntimeTypeDirectIDsMap, err := makeArrayMap(
+		goRuntimeTypeDirectIDsMapName, grts.directTypeIDs, allowMultipleMapEntries,
+	)
+	spec.Maps[goRuntimeTypeDirectIDsMapName] = goRuntimeTypeDirectIDsMapSpec
+	if err != nil {
+		return nil, fmt.Errorf("failed to create go_runtime_type_direct_ids map: %w", err)
+	}
+	defer func() {
+		if goRuntimeTypeDirectIDsMap != nil {
+			goRuntimeTypeDirectIDsMap.Close()
+		}
+	}()
 	if err := setVariable(
 		spec, "num_go_runtime_types", numGoRuntimeTypes,
 	); err != nil {
@@ -418,6 +432,15 @@ func (l *Loader) loadData(
 	if serialized.commonTypes != (ir.CommonTypes{}) {
 		if err := setCommonConstants(spec, serialized); err != nil {
 			return nil, fmt.Errorf("failed to set common constants: %w", err)
+		}
+	}
+
+	if err := setMapHashConstants(spec, serialized); err != nil {
+		return nil, fmt.Errorf("failed to set map hash constants: %w", err)
+	}
+	if serialized.isARM64 {
+		if err := setVariable(spec, "is_arm64", uint32(1)); err != nil {
+			return nil, fmt.Errorf("failed to set is_arm64: %w", err)
 		}
 	}
 
@@ -470,13 +493,14 @@ func (l *Loader) loadData(
 	}
 
 	m := map[string]*ebpf.Map{
-		codeMapName:             codeMap,
-		typeIDsMapName:          typeIDsMap,
-		typeInfoMapName:         typeInfoMap,
-		throttlerMapName:        throttlerMap,
-		probeParamsMapName:      probeParamsMap,
-		goRuntimeTypeIDsMapName: goRuntimeTypeIDsMap,
-		goRuntimeTypesMapName:   goRuntimeTypesMap,
+		codeMapName:                   codeMap,
+		typeIDsMapName:                typeIDsMap,
+		typeInfoMapName:               typeInfoMap,
+		throttlerMapName:              throttlerMap,
+		probeParamsMapName:            probeParamsMap,
+		goRuntimeTypeIDsMapName:       goRuntimeTypeIDsMap,
+		goRuntimeTypesMapName:         goRuntimeTypesMap,
+		goRuntimeTypeDirectIDsMapName: goRuntimeTypeDirectIDsMap,
 	}
 	codeMap = nil
 	typeIDsMap = nil
@@ -485,6 +509,7 @@ func (l *Loader) loadData(
 	probeParamsMap = nil
 	goRuntimeTypeIDsMap = nil
 	goRuntimeTypesMap = nil
+	goRuntimeTypeDirectIDsMap = nil
 	return m, nil
 }
 
@@ -540,6 +565,24 @@ func setCommonConstants(spec *ebpf.CollectionSpec, serialized *serializedProgram
 				"failed to set %s for %s in %s: %w",
 				f.variableName, f.fieldName, f.s.Name, err,
 			)
+		}
+	}
+	return nil
+}
+
+func setMapHashConstants(spec *ebpf.CollectionSpec, serialized *serializedProgram) error {
+	info := serialized.goMapHashInfo
+	// These are optional — only set if the addresses were found in DWARF.
+	// If not found (zero), the BPF code will not be able to compute hashes
+	// and map index expressions will fail gracefully at runtime.
+	if info.UseAeshashAddr != 0 {
+		if err := setVariable(spec, "VARIABLE_runtime_dot_useAeshash", info.UseAeshashAddr); err != nil {
+			return err
+		}
+	}
+	if info.AeskeyschedAddr != 0 {
+		if err := setVariable(spec, "VARIABLE_runtime_dot_aeskeysched", info.AeskeyschedAddr); err != nil {
+			return err
 		}
 	}
 	return nil

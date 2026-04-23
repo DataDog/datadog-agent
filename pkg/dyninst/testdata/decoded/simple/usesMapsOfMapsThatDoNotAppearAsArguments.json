@@ -18,12 +18,12 @@
           {
             "function": "main.usesMapsOfMapsThatDoNotAppearAsArguments",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 497
+            "lineNumber": 620
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 40
+            "lineNumber": 41
           },
           {
             "function": "runtime.main",
@@ -45,7 +45,7 @@
         "captures": {
           "return": {
             "locals": {
-              "~r0": {
+              "@return": {
                 "type": "map[uint8]map[int]main.aStructNotUsedAsAnArgument",
                 "size": "1",
                 "entries": [

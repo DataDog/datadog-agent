@@ -7,7 +7,6 @@
 package fx
 
 import (
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	healthplatformimpl "github.com/DataDog/datadog-agent/comp/healthplatform/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -18,6 +17,5 @@ func Module() fxutil.Module {
 		fxutil.ProvideComponentConstructor(
 			healthplatformimpl.NewComponent,
 		),
-		fxutil.ProvideOptional[healthplatform.Component](),
 	)
 }
