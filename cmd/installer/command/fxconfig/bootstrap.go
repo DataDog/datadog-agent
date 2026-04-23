@@ -46,10 +46,18 @@ import (
 // confFilePath is the path to the directory containing datadog.yaml (the
 // installer CLI's --cfgpath flag). Empty means "use the fx default".
 //
+// No-op when DD_INSTALLER_FROM_DAEMON=true: the daemon already emitted
+// every relevant DD_* env var from its own config.Component via
+// Env.ToEnv() when spawning this subprocess, so re-reading yaml here
+// would be redundant work.
+//
 // This is a best-effort bootstrap: any failure (missing file, parse error,
 // permission denied) is logged and swallowed so the installer CLI can
 // still proceed using the inherited process environment.
 func LoadAndExportEnv(confFilePath string) {
+	if os.Getenv("DD_INSTALLER_FROM_DAEMON") == "true" {
+		return
+	}
 	err := fxutil.OneShot(
 		applyConfigToEnv,
 		fx.Supply(core.BundleParams{
