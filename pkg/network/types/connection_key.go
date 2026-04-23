@@ -23,12 +23,15 @@ type ConnectionKey struct {
 	// ports separated for alignment/size optimization
 	SrcPort uint16
 	DstPort uint16
+
+	Pid uint32
 }
 
 // String returns a string representation of the ConnectionKey
 func (c ConnectionKey) String() string {
 	return fmt.Sprintf(
-		"[%v:%d ⇄ %v:%d]",
+		"pid %d [%v:%d ⇄ %v:%d]",
+		c.Pid,
 		util.FromLowHigh(c.SrcIPLow, c.SrcIPHigh),
 		c.SrcPort,
 		util.FromLowHigh(c.DstIPLow, c.DstIPHigh),
