@@ -119,7 +119,7 @@ def install_rust_license_tool(ctx):
     Required to run the lint-rust-licenses task.
     """
     ctx.run("cargo install dd-rust-license-tool@1.0.6 --locked")
-    ctx.run("cargo install cargo-deny --locked")
+    ctx.run("cargo install cargo-deny@0.19.4 --locked")
 
 
 @task
