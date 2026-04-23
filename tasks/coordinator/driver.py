@@ -53,6 +53,95 @@ class ProtectedPathTamperHalt(Exception):
 PAUSE_FILE = "pause"
 
 
+def _pivot_on_plateau(db: Db, root: Path) -> bool:
+    """Autopilot response to phase plateau: ban recent approach_families
+    and tell the proposer to pivot structurally. Returns True if this was
+    the Nth consecutive plateau without a ship and we should hard-halt.
+
+    The coordinator is autonomous by design — when it plateaus, it
+    redirects itself rather than waiting for human input. inbox.md is
+    optional steering, not a prerequisite.
+    """
+    # Collect families seen in the last N iterations (the ones that just
+    # ran out of steam). Add them to the persistent ban list.
+    recent = []
+    for it in db.iterations[-CONFIG.plateau_pivot_lookback:]:
+        cand_id = it.candidate_id
+        if not cand_id:
+            continue
+        cand = db.candidates.get(cand_id)
+        if cand is None or not cand.approach_family:
+            continue
+        if cand.approach_family == "unspecified":
+            continue
+        recent.append(cand.approach_family)
+
+    newly_banned = sorted(set(recent) - set(db.pivot_banned_families))
+    for fam in newly_banned:
+        db.pivot_banned_families.append(fam)
+
+    # Reset plateau counter; don't reset best_score (want to keep the
+    # bar high for the proposer to beat).
+    db.phase_state.plateau_counter = 0
+    db.pivot_count += 1
+
+    # Check if there's been any ship across the whole run; if not AND
+    # we've pivoted max_pivots_before_halt times, the problem is
+    # structurally un-improvable with this setup → stop asking Opus.
+    any_shipped = any(
+        c.status == CandidateStatus.SHIPPED for c in db.candidates.values()
+    )
+    hard_halt = (
+        db.pivot_count >= CONFIG.max_pivots_before_halt and not any_shipped
+    )
+
+    body = (
+        f"Phase {db.phase_state.current_phase.value} plateaued after "
+        f"{CONFIG.plateau_patience} consecutive non-improving iterations. "
+        f"Best score so far: {db.phase_state.best_score:.4f}. "
+        f"Pivot #{db.pivot_count}.\n\n"
+        f"**Banned (newly added)**: {newly_banned or '(nothing new)'}\n"
+        f"**Banned (cumulative)**: {db.pivot_banned_families}\n\n"
+    )
+    if hard_halt:
+        body += (
+            f"⚠️ `max_pivots_before_halt={CONFIG.max_pivots_before_halt}` "
+            f"reached with zero ships across the run. The proposer has "
+            f"exhausted {db.pivot_count} structurally-different families "
+            f"and the gates have rejected all of them. This is a signal "
+            f"that either: (a) the baseline is genuinely hard to improve "
+            f"on the current scenario set, (b) the gates are too strict, "
+            f"or (c) the candidate directions need human-level redirection. "
+            f"Writing `.coordinator/inbox.md` with a specific steer will "
+            f"be used by the proposer on the next run."
+        )
+    else:
+        body += (
+            f"Coordinator auto-pivoting: the proposer will generate new "
+            f"candidates with the banned families filtered out. "
+            f"(Write `.coordinator/inbox.md` to add a specific steer; "
+            f"optional — the loop continues autonomously either way.)"
+        )
+
+    coord_out.emit(
+        "phase_pivot" if not hard_halt else "phase_exit",
+        body,
+        requires_ack=hard_halt,
+        root=root,
+    )
+    journal.append(
+        "phase_pivot" if not hard_halt else "phase_exit",
+        {
+            "pivot_count": db.pivot_count,
+            "newly_banned": newly_banned,
+            "cumulative_banned": db.pivot_banned_families,
+            "hard_halt": hard_halt,
+        },
+        root,
+    )
+    return hard_halt
+
+
 def _wait_while_paused(root: Path) -> None:
     """Cooperative pause: if `.coordinator/pause` exists, sleep until
     the user removes it. Checked at iteration boundary, so nothing
@@ -1411,18 +1500,20 @@ def main(argv: list[str] | None = None) -> int:
         if len(db.iterations) == before:
             break
         if db.phase_state.plateau_counter >= CONFIG.plateau_patience:
-            print(f"phase {db.phase_state.current_phase.value} plateaued; exiting")
+            # Autopilot pivot: ban every family seen in the last N iters,
+            # reset the plateau counter, let the proposer generate fresh
+            # structurally-different candidates on the next iteration.
+            # No user input required. If this is the Nth consecutive
+            # plateau-without-a-ship, hard-halt (something's wrong with
+            # the problem framing, not just the family pool).
             if not args.dry_run:
-                coord_out.emit(
-                    "phase_exit",
-                    f"Phase {db.phase_state.current_phase.value} plateaued after "
-                    f"{CONFIG.plateau_patience} consecutive non-improving iterations. "
-                    f"Best score: {db.phase_state.best_score:.4f}. "
-                    "Coordinator exiting; write `.coordinator/inbox.md` to redirect.",
-                    requires_ack=True,
-                    root=root,
-                )
-            break
+                halted = _pivot_on_plateau(db, root)
+                save_db(db, root)
+                if halted:
+                    break
+            else:
+                # Dry-run: still break, no SDK calls.
+                break
     return 0
 
 

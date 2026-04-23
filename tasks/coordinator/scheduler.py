@@ -62,14 +62,23 @@ def _family_consecutive_nonimproving(db: Db, family: str) -> int:
 
 
 def stuck_families(db: Db) -> set[str]:
-    """Return the set of approach families currently banned due to being stuck."""
-    # Gather all families seen in recent experiments
+    """Return the set of approach families currently banned from scheduling.
+
+    Union of two sources:
+      - Per-family "stuck" detection (K consecutive non-improving iters).
+      - Persistent `db.pivot_banned_families` — families banned by an
+        autopilot phase-plateau pivot. Never re-tried for the rest of
+        the run.
+    """
+    # Persistent bans from prior plateau pivots.
+    banned: set[str] = set(db.pivot_banned_families)
+
+    # Gather families seen in recent experiments
     recent_families: list[str] = []
     for exp in list(db.experiments.values())[-BAN_DURATION - STUCK_THRESHOLD :]:
         cand = db.candidates.get(exp.candidate_id)
         if cand is not None:
             recent_families.append(cand.approach_family)
-    banned: set[str] = set()
     for fam in set(recent_families):
         if fam == "unspecified":
             continue

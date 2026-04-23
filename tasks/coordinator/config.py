@@ -38,13 +38,24 @@ class Config:
     # live scoring path. Remove after next cleanup.
     tau_default: float = 0.05
 
-    # Plateau / phase exit. Effect-size aware: plateau fires when the
+    # Plateau / phase pivot. Effect-size aware: plateau fires when the
     # best score in a trailing window hasn't advanced by > plateau_epsilon
     # above its reference. A raw strict-greater comparison let noisy
     # +0.001 bumps keep dead-end phases alive forever while abandoning
     # real winners whose signal happened to be flat for 5 draws.
+    #
+    # On plateau: the driver AUTOPILOT-pivots. It bans every approach
+    # family seen in the last `plateau_pivot_lookback` iterations,
+    # resets the plateau_counter, and invokes the proposer with the
+    # banned set so fresh candidates come from structurally different
+    # directions. No user input required; inbox.md is optional steering.
     plateau_patience: int = 5
-    plateau_epsilon: float = 0.01  # 1% F1 — below real wins, above typical noise
+    plateau_epsilon: float = 0.01
+    plateau_pivot_lookback: int = 5      # iterations back to harvest families from
+    # Hard runaway stop: if we've pivoted this many times and STILL
+    # haven't shipped, something is fundamentally wrong with the approach
+    # surface for this problem. Halt and request human attention.
+    max_pivots_before_halt: int = 4
     early_halt_iterations: int = 3  # M0.9 early-halt gate
 
     # Diversity policy (scheduler). K=5 per panel feedback — "competent

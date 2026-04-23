@@ -127,11 +127,28 @@ def build_proposer_prompt(
     )
 
     ban_clause = ""
+    pivot_clause = ""
     if banned_families:
         ban_clause = (
             f"\n**Forbidden approach_family values**: {sorted(banned_families)}. "
-            "These families have run multiple consecutive non-improving "
-            "iterations. Pick a genuinely different family.\n"
+            "These families have been tried and either ran multiple "
+            "consecutive non-improving iterations OR were exhausted by a "
+            "phase-plateau pivot. Do NOT propose anything in these families.\n"
+        )
+    pivot_ban = getattr(db, "pivot_banned_families", []) or []
+    if pivot_ban:
+        pivot_clause = (
+            f"\n**Phase-plateau pivots so far**: "
+            f"{getattr(db, 'pivot_count', 0)}. "
+            f"Cumulative banned: {pivot_ban}.\n"
+            "The harness has ALREADY plateaued on the above direction(s). "
+            "This call is a PIVOT — the previous families saturated the "
+            "gain available from them. Do not propose minor variations "
+            "on rejected approaches. Look at the recent-experiments block "
+            "below for what the reviewers rejected and why, and propose "
+            "STRUCTURALLY different mechanisms (different problem framing, "
+            "different stage in the pipeline, different mathematical "
+            "formulation). Lean hard on breadth over depth this round.\n"
         )
 
     return f"""You are the proposer subagent for an anomaly-detection
@@ -230,7 +247,7 @@ a genuinely different family.
 
 ## Existing approach families
 {existing_families or '(none)'}
-{ban_clause}
+{ban_clause}{pivot_clause}
 ## Guidelines
 - Each candidate modifies `comp/observer/` code (and potentially
   `tasks/q.py` / `tasks/libs/q` if it needs to plumb a new detector into

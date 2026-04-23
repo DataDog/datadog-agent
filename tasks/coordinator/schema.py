@@ -218,6 +218,15 @@ class Db:
     # new component" step, not a per-config check.
     components_eval_dispatched: list[str] = field(default_factory=list)
 
+    # Approach_families permanently banned after a phase-plateau pivot
+    # cleared them out. Persistent across restarts. Proposer reads this
+    # and treats these as "don't revisit" for the rest of the run.
+    # Fully autonomous self-redirection: no user input required.
+    pivot_banned_families: list[str] = field(default_factory=list)
+    # Number of times the coordinator has auto-pivoted (for bookkeeping
+    # + the hard-runaway exit check at `max_pivots_before_halt`).
+    pivot_count: int = 0
+
     # DEPRECATED — rolling-reference mechanism dropped (introduced a
     # noise-driven ratchet that let candidates strictly worse than baseline
     # ship). Field kept so old db.yaml files still load; never written.
@@ -364,6 +373,8 @@ def dict_to_db(d: dict[str, Any]) -> Db:
         components_eval_dispatched=components_eval_dispatched,
         last_shipped_per_scenario=last_shipped,
         protected_path_hashes=dict(d.get("protected_path_hashes") or {}),
+        pivot_banned_families=list(d.get("pivot_banned_families") or []),
+        pivot_count=int(d.get("pivot_count", 0) or 0),
     )
 
 
@@ -477,6 +488,8 @@ def db_to_dict(db: Db) -> dict[str, Any]:
             else None
         ),
         "components_eval_dispatched": db.components_eval_dispatched,
+        "pivot_banned_families": list(db.pivot_banned_families),
+        "pivot_count": db.pivot_count,
         "last_shipped_per_scenario": {
             det: {s: _s(sr) for s, sr in scens.items()}
             for det, scens in db.last_shipped_per_scenario.items()
