@@ -48,6 +48,7 @@ github.com/rs/zerolog: "Copyright (c) 2017 Olivier Poitrey"
 github.com/ryanuber/go-glob: "Copyright (c) 2014 Ryan Uber"
 github.com/sirupsen/logrus: "Copyright (c) 2014 Simon Eskildsen"
 github.com/open-telemetry/*: Copyright The OpenTelemetry Authors
+github.com/pb33f/*: Copyright pb33f - Princess Beef Heavy Industries
 go.etcd.io/*: Copyright 2016 The etcd Authors
 google.golang.org/appengine: Copyright 2011 Google Inc. All rights reserved.
 google.golang.org/appengine/*: Copyright 2011 Google Inc. All rights reserved.
@@ -185,6 +186,7 @@ github.com/dgraph-io/ristretto:
  - "Copyright (c) 2019 Ewan Chou"
 github.com/go-logr/logr: ["Copyright 2019 The logr Authors.", "Copyright 2020 The logr Authors."]
 github.com/go-logr/stdr: "Copyright 2019 The logr Authors."
+github.com/go-logr/zapr: ["Copyright 2019 The logr Authors.", "Copyright 2018 Solly Ross"]
 github.com/go-openapi/analysis: Copyright 2015 go-swagger maintainers
 github.com/go-openapi/errors: Copyright 2015 go-swagger maintainers
 github.com/go-openapi/jsonpointer: "Copyright 2013 sigu-399 ( https://github.com/sigu-399 )"

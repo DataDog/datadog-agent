@@ -40,9 +40,10 @@ import (
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -60,14 +61,15 @@ var listenerCandidateIntl = 30 * time.Second
 // dependencies is the set of dependencies for the AutoConfig component.
 type dependencies struct {
 	fx.In
-	Lc          fx.Lifecycle
-	Config      configComponent.Component
-	Log         logComp.Component
-	TaggerComp  tagger.Component
-	Secrets     secrets.Component
-	WMeta       option.Option[workloadmeta.Component]
-	FilterStore workloadfilter.Component
-	Telemetry   telemetry.Component
+	Lc             fx.Lifecycle
+	Config         configComponent.Component
+	Log            logComp.Component
+	TaggerComp     tagger.Component
+	Secrets        secrets.Component
+	WMeta          option.Option[workloadmeta.Component]
+	FilterStore    workloadfilter.Component
+	Telemetry      telemetry.Component
+	HealthPlatform healthplatform.Component
 }
 
 // AutoConfig implements the agent's autodiscovery mechanism.  It is
@@ -94,6 +96,7 @@ type AutoConfig struct {
 	logs                     logComp.Component
 	filterStore              workloadfilter.Component
 	telemetryStore           *acTelemetry.Store
+	healthPlatform           healthplatform.Component
 
 	// m covers the `configPollers`, `listenerCandidates`, `listeners`, and `listenerRetryStop`, but
 	// not the values they point to.
@@ -178,7 +181,7 @@ func newAutoConfig(deps dependencies) autodiscovery.Component {
 		}
 	}()
 
-	ac := createNewAutoConfig(schController, deps.Secrets, deps.WMeta, deps.TaggerComp, deps.Log, deps.Telemetry, deps.FilterStore)
+	ac := createNewAutoConfig(schController, deps.Secrets, deps.WMeta, deps.TaggerComp, deps.Log, deps.Telemetry, deps.FilterStore, deps.HealthPlatform)
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(_ context.Context) error {
 			ac.start()
@@ -193,8 +196,8 @@ func newAutoConfig(deps dependencies) autodiscovery.Component {
 }
 
 // createNewAutoConfig creates an AutoConfig instance (without starting).
-func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component, telemetryComp telemetry.Component, filterStore workloadfilter.Component) *AutoConfig {
-	cfgMgr := newReconcilingConfigManager(secretResolver)
+func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component, telemetryComp telemetry.Component, filterStore workloadfilter.Component, hp healthplatform.Component) *AutoConfig {
+	cfgMgr := newReconcilingConfigManager(secretResolver, hp)
 	ac := &AutoConfig{
 		configPollers:            make([]*configPoller, 0, 9),
 		listenerCandidates:       make(map[string]*listenerCandidate),
@@ -214,6 +217,7 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 		logs:                     logs,
 		filterStore:              filterStore,
 		telemetryStore:           acTelemetry.NewStore(telemetryComp),
+		healthPlatform:           hp,
 	}
 
 	secretResolver.SubscribeToChanges(func(_, origin string, _ []string, oldValue, _ any) {
@@ -455,6 +459,11 @@ func (ac *AutoConfig) GetUnresolvedConfigs() []integration.Config {
 // GetTelemetryStore returns autodiscovery telemetry store.
 func (ac *AutoConfig) GetTelemetryStore() *acTelemetry.Store {
 	return ac.telemetryStore
+}
+
+// GetHealthPlatform returns the health platform component
+func (ac *AutoConfig) GetHealthPlatform() healthplatform.Component {
+	return ac.healthPlatform
 }
 
 func (ac *AutoConfig) initializeConfiguration(config *integration.Config) error {

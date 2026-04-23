@@ -396,12 +396,13 @@ type EventRootType struct {
 
 	// EventKind is the kind of the event.
 	EventKind EventKind
-	// Bitset tracking successful expression evaluation (one bit per
-	// expression).
-	PresenceBitsetSize uint32
+	// ExprStatusArraySize is the size in bytes of the packed expression
+	// status array at the start of the event root data. Each expression
+	// occupies ExprStatusBits bits.
+	ExprStatusArraySize uint32
 	// DictEntries describes runtime dictionary entries to resolve at probe
 	// time. Each entry occupies 8 bytes in the event output (after the
-	// presence bitset, before expressions). Empty for non-generic probes.
+	// expression status array, before expressions). Empty for non-generic probes.
 	DictEntries []DictEntry
 	// Expressions is the list of expressions that are used to evaluate the
 	// value of the event.
@@ -441,6 +442,8 @@ const (
 	RootExpressionKindArgument
 	// RootExpressionKindLocal corresponds to a local variable of the event.
 	RootExpressionKindLocal
+	// RootExpressionKindReturn corresponds to a return value of the event.
+	RootExpressionKindReturn
 	// RootExpressionKindTemplateSegment means that this expression is part of a
 	// template segment.
 	RootExpressionKindTemplateSegment
@@ -455,6 +458,8 @@ func (k RootExpressionKind) String() string {
 		return "argument"
 	case RootExpressionKindLocal:
 		return "local"
+	case RootExpressionKindReturn:
+		return "return"
 	case RootExpressionKindTemplateSegment:
 		return "template_segment"
 	case RootExpressionKindCaptureExpression:

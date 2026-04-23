@@ -29,6 +29,7 @@ go_test(
         "trace_test.go",
     ],
     embed = [":traceutil"],
+    gotags = ["test"],
     deps = [
         "//pkg/proto/pbgo/trace",
         "@com_github_stretchr_testify//assert",

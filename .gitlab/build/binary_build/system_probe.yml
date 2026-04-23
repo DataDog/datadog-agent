@@ -1,6 +1,7 @@
 ---
 .system-probe_build_common:
   extends: .bazel:defs:cache:progressive
+  timeout: 40m
   rules:
     - when: on_success
   before_script:

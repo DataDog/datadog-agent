@@ -76,6 +76,10 @@ func newTestReceiverConfig() *config.AgentConfig {
 	conf.DecoderTimeout = 10000
 	conf.ReceiverTimeout = 1
 	conf.ReceiverPort = 8326 // use non-default port to avoid conflict with a running agent
+	// Reset IdleTimeout so the server uses ReadTimeout (1s) instead of the production
+	// default (60s). Without this, tests that call io.ReadAll(resp.Body) on a real server
+	// block for 60 seconds waiting for the connection to close.
+	conf.ReceiverIdleTimeout = 0
 	// Enable convert-traces by default for tests since most tests expect V1 behavior
 	if conf.Features == nil {
 		conf.Features = make(map[string]struct{})
@@ -1085,8 +1089,9 @@ func TestHandleStats(t *testing.T) {
 	})
 	t.Run("timeout", func(t *testing.T) {
 		cfg := newTestReceiverConfig()
+		cfg.ReceiverTimeoutDuration = 50 * time.Millisecond
 		rcv := newTestReceiverFromConfig(cfg)
-		mockProcessor := &mockStatsProcessor{processingLantency: 1100 * time.Millisecond}
+		mockProcessor := &mockStatsProcessor{processingLantency: 500 * time.Millisecond}
 		rcv.statsProcessor = mockProcessor
 		mux := rcv.buildMux()
 		server := httptest.NewServer(mux)
@@ -1106,7 +1111,7 @@ func TestHandleStats(t *testing.T) {
 		}
 		defer resp.Body.Close()
 
-		assert.Equal(t, resp.StatusCode, http.StatusRequestTimeout)
+		assert.Equal(t, http.StatusRequestTimeout, resp.StatusCode)
 	})
 }
 
@@ -1116,8 +1121,9 @@ func TestStatsKeepaliveIdleTimeout(t *testing.T) {
 	// must be set independently to avoid "connection reset by peer" errors.
 	runTest := func(t *testing.T, idleTimeout time.Duration) (firstErr, secondErr error) {
 		cfg := newTestReceiverConfig()
+		cfg.ReceiverTimeoutDuration = 50 * time.Millisecond
 		cfg.ReceiverIdleTimeout = idleTimeout
-		readTimeout := time.Duration(cfg.ReceiverTimeout) * time.Second
+		readTimeout := cfg.ReceiverTimeoutDuration
 
 		rcv := newTestReceiverFromConfig(cfg)
 		rcv.Start()
@@ -1168,8 +1174,8 @@ func TestStatsKeepaliveIdleTimeout(t *testing.T) {
 	}
 
 	t.Run("without idle timeout", func(t *testing.T) {
-		// With no IdleTimeout, Go falls back to ReadTimeout (1s). The second request on the
-		// same connection after 2s must fail with a connection reset.
+		// With no IdleTimeout, Go falls back to ReadTimeout (50ms). The second request on the
+		// same connection after 2×ReadTimeout must fail with a connection reset.
 		firstErr, secondErr := runTest(t, 0)
 		require.NoError(t, firstErr)
 		require.Error(t, secondErr, "expected connection reset when IdleTimeout falls back to ReadTimeout")
@@ -1177,7 +1183,7 @@ func TestStatsKeepaliveIdleTimeout(t *testing.T) {
 
 	t.Run("with idle timeout", func(t *testing.T) {
 		// With IdleTimeout > ReadTimeout, the connection stays alive and both requests succeed.
-		firstErr, secondErr := runTest(t, 5*time.Second)
+		firstErr, secondErr := runTest(t, 500*time.Millisecond)
 		require.NoError(t, firstErr)
 		require.NoError(t, secondErr, "keepalive connection must survive past ReadTimeout")
 	})

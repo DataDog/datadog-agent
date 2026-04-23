@@ -42,18 +42,47 @@ func (d *dispatcher) getState(scrub bool) (types.StateResponse, error) {
 	}
 
 	for _, node := range d.store.nodes {
-		configs := makeConfigArray(node.digestToConfig)
-		if scrub {
-			scrubbedConf := make([]integration.Config, 0, len(configs))
-			for _, config := range configs {
-				scrubbedConf = append(scrubbedConf, integration.ScrubCheckConfig(config, log.NewWrapper(1)))
+		rawConfigs := makeConfigArray(node.digestToConfig)
+
+		// Build config responses with instance IDs computed from unscrubbed configs.
+		// IDs must be computed before scrubbing because ScrubYaml re-serializes
+		// YAML bytes which changes the digest used in check ID computation.
+		configsWithIDs := make([]types.ConfigWithInstanceIDs, 0, len(rawConfigs))
+		for _, config := range rawConfigs {
+			digest := config.FastDigest()
+			instanceIDs := make([]string, 0, len(config.Instances))
+			for _, inst := range config.Instances {
+				instanceIDs = append(instanceIDs, string(checkid.BuildID(config.Name, digest, inst, config.InitConfig)))
 			}
-			configs = scrubbedConf
+
+			if scrub {
+				config = integration.ScrubCheckConfig(config, log.NewWrapper(1))
+			}
+
+			configsWithIDs = append(configsWithIDs, types.ConfigWithInstanceIDs{
+				InstanceIDs: instanceIDs,
+				Config:      config,
+			})
 		}
+
+		// Copy runner stats for this node. Stats are populated by the periodic
+		// rebalance cycle when advanced dispatching is enabled. Without advanced
+		// dispatching or when the runner is unreachable, stats will be empty.
+		// Take node read lock to avoid concurrent map read/write with updateRunnersStats.
+		var stats types.CLCRunnersStats
+		node.RLock()
+		if len(node.clcRunnerStats) > 0 {
+			stats = make(types.CLCRunnersStats, len(node.clcRunnerStats))
+			for k, v := range node.clcRunnerStats {
+				stats[k] = v
+			}
+		}
+		node.RUnlock()
 
 		n := types.StateNodeResponse{
 			Name:    node.name,
-			Configs: configs,
+			Configs: configsWithIDs,
+			Stats:   stats,
 		}
 		response.Nodes = append(response.Nodes, n)
 	}

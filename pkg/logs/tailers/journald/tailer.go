@@ -17,6 +17,7 @@ import (
 	"github.com/coreos/go-systemd/v22/sdjournal"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
@@ -24,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -206,6 +206,12 @@ func (t *Tailer) forwardMessages() {
 	}()
 
 	for decodedMessage := range t.decoder.OutputChan() {
+		// This tailer produces StateStructured messages where "message" is
+		// populated from the journal MESSAGE field. Currently, entries without
+		// a MESSAGE field result in an empty "message" and are silently dropped
+		// here -- the structured metadata (unit name, priority, etc.) is
+		// discarded along with it. If that becomes a real concern, replace this
+		// check with decodedMessage.HasContent() (see stream_tailer.go).
 		if len(decodedMessage.GetContent()) > 0 {
 			// Preserve the original message structure and ParsingExtra information (including IsTruncated)
 			// The decodedMessage already has the proper origin with tags set

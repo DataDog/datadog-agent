@@ -108,6 +108,10 @@ func (c *collector) parseTaskContainers(
 				EntityMeta: workloadmeta.EntityMeta{
 					Name: container.DockerName,
 				},
+				Owner: &workloadmeta.EntityID{
+					Kind: workloadmeta.KindECSTask,
+					ID:   task.Arn,
+				},
 				State: workloadmeta.ContainerState{
 					Status: workloadmeta.ContainerStatusUnknown,
 					Health: workloadmeta.ContainerHealthUnknown,
