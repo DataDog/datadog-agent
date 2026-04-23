@@ -483,7 +483,6 @@ func (c *LogsConfig) Validate() error {
 		return err
 	}
 
-<<<<<<< HEAD
 	if err := c.validateIPFilter(); err != nil {
 		return err
 	}
@@ -492,12 +491,6 @@ func (c *LogsConfig) Validate() error {
 		return fmt.Errorf("unsupported format %q (supported: %q or empty)", c.Format, SyslogFormat)
 	}
 
-=======
-	if c.Format != "" && c.Format != SyslogFormat {
-		return fmt.Errorf("unsupported format %q (supported: %q or empty)", c.Format, SyslogFormat)
-	}
-
->>>>>>> 6635cf233f2 (Fix format string and gofmt in integration_config.go)
 	err := ValidateFingerprintConfig(c.FingerprintConfig)
 	if err != nil {
 		return err
