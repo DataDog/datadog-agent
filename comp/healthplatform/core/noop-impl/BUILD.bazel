@@ -6,7 +6,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/core/noop-impl",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/flare/types",
         "//comp/healthplatform/core/def",
-        "//comp/healthplatform/core/impl",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
     ],
 )

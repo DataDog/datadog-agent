@@ -4,7 +4,6 @@ go_library(
     name = "impl",
     srcs = [
         "health-platform.go",
-        "health-platform_noop.go",
         "persistence.go",
         "persistence_noop.go",
     ],
@@ -20,6 +19,7 @@ go_library(
         "//comp/def",
         "//comp/healthplatform/checkrunner/def",
         "//comp/healthplatform/core/def",
+        "//comp/healthplatform/core/noop-impl",
         "//comp/healthplatform/forwarder/def",
         "//comp/healthplatform/issues",
         "//pkg/config/env",
