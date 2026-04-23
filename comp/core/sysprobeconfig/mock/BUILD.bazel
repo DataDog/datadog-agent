@@ -1,13 +1,1 @@
-load("@rules_go//go:def.bzl", "go_library")
-
-go_library(
-    name = "mock",
-    srcs = ["mock.go"],
-    gotags = ["test"],
-    importpath = "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock",
-    visibility = ["//visibility:public"],
-    deps = [
-        "//comp/core/sysprobeconfig/sysprobeconfigimpl",
-        "//pkg/util/fxutil",
-    ],
-)
+# gazelle:ignore
