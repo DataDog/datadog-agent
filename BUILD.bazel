@@ -15,8 +15,6 @@ exports_files(glob(
     allow_empty = True,
 ))
 
-# gazelle:proto disable
-
 # TODO(agent-build): remove below `gazelle:exclude` directives (automatically updates @bazelify_go_work//:go.work)
 # gazelle:exclude comp/agent
 # gazelle:exclude comp/aggregator
@@ -590,6 +588,7 @@ gazelle_binary(
     languages = DEFAULT_LANGUAGES + [
         "//bazel/rules/go_build_tags:gazelle_extension",
         "//bazel/rules/go_stringer:gazelle_extension",
+        "//bazel/rules/write_pb_go:gazelle_extension",
     ],
 )
 
