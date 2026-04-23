@@ -8,7 +8,6 @@
 package tracer
 
 import (
-	"fmt"
 	"sync"
 	"time"
 	"unicode/utf16"
@@ -19,42 +18,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/iphelper"
 )
 
-// IANA ifType constants
-// https://www.iana.org/assignments/ianaiftype-mib/ianaiftype-mib
-const (
-	ifTypeOther          = 1   // IF_TYPE_OTHER
-	ifTypeEthernetCSMACD = 6   // IF_TYPE_ETHERNET_CSMACD
-	ifTypePPP            = 23  // IF_TYPE_PPP
-	ifTypeSoftwareLoop   = 24  // IF_TYPE_SOFTWARE_LOOPBACK
-	ifTypePropVirtual    = 53  // IF_TYPE_PROP_VIRTUAL
-	ifTypeWifi           = 71  // IF_TYPE_IEEE80211
-	ifTypeTunnel         = 131 // IF_TYPE_TUNNEL
-)
-
-// ifTypeToString maps IANA ifType values to human-readable names
-var ifTypeToString = map[uint32]string{
-	ifTypeOther:          "other",
-	ifTypeEthernetCSMACD: "ethernet",
-	ifTypePPP:            "ppp",
-	ifTypeSoftwareLoop:   "loopback",
-	ifTypePropVirtual:    "prop_virtual",
-	ifTypeWifi:           "wifi",
-	ifTypeTunnel:         "tunnel",
-}
-
-// ifTypeName returns a human-readable string for an IANA ifType value
-func ifTypeName(ifType uint32) string {
-	if name, ok := ifTypeToString[ifType]; ok {
-		return name
-	}
-	return fmt.Sprintf("other_%d", ifType)
-}
-
 // InterfaceClassification holds interface metadata looked up by interface index.
-// VPN identification is performed downstream (in the backend) from these tags.
+// InterfaceType is the raw IANA ifType value
+// (https://www.iana.org/assignments/ianaiftype-mib/ianaiftype-mib); mapping to a
+// human-readable name (and any VPN identification) is performed downstream.
 type InterfaceClassification struct {
-	InterfaceName string // friendly name, e.g. "Intel Wi-Fi 6 AX201", "WireGuard Tunnel"
-	InterfaceType string // human-readable ifType, e.g. "ethernet", "wifi", "prop_virtual"
+	InterfaceName string
+	InterfaceType uint32
 }
 
 // cachedInterface stores minimal info about a network interface
@@ -131,8 +101,8 @@ func (c *InterfaceClassifier) refreshCache() {
 
 	for idx, ci := range newCache {
 		if _, existed := old[idx]; !existed {
-			log.Debugf("interface_classifier: cached new interface idx=%d type=%s name=%q descr=%q",
-				idx, ifTypeName(ci.ifType), ci.name, ci.descr)
+			log.Debugf("interface_classifier: cached new interface idx=%d type=%d name=%q descr=%q",
+				idx, ci.ifType, ci.name, ci.descr)
 		}
 	}
 }
@@ -149,7 +119,7 @@ func (c *InterfaceClassifier) Classify(interfaceIndex uint32) InterfaceClassific
 	}
 	return InterfaceClassification{
 		InterfaceName: iface.friendlyName(),
-		InterfaceType: ifTypeName(iface.ifType),
+		InterfaceType: iface.ifType,
 	}
 }
 

@@ -389,8 +389,8 @@ func (t *Tracer) addInterfaceInfo(c *network.ConnectionStats) {
 	}
 	c.Tags = append(c.Tags,
 		intern.GetByString("interface_name:"+result.InterfaceName),
-		intern.GetByString("interface_type:"+result.InterfaceType),
+		intern.GetByString(fmt.Sprintf("interface_type:%d", result.InterfaceType)),
 	)
-	log.Debugf("interface_classifier: pid=%d ifIndex=%d tagged interface_name=%q interface_type=%q",
+	log.Debugf("interface_classifier: pid=%d ifIndex=%d tagged interface_name=%q interface_type=%d",
 		c.Pid, c.InterfaceIndex, result.InterfaceName, result.InterfaceType)
 }
