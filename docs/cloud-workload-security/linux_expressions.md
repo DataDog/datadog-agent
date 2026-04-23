@@ -5879,7 +5879,9 @@ MMap flags are the supported flags for the mmap syscall.
 | `MAP_ANON` | all |
 | `MAP_ANONYMOUS` | all |
 | `MAP_DENYWRITE` | all |
+| `MAP_DROPPABLE` | all |
 | `MAP_EXECUTABLE` | all |
+| `MAP_FILE` | all |
 | `MAP_FIXED` | all |
 | `MAP_FIXED_NOREPLACE` | all |
 | `MAP_GROWSDOWN` | all |
@@ -5959,6 +5961,7 @@ Network Address Family constants are the supported network address families.
 | `AF_QIPCRTR` | all |
 | `AF_SMC` | all |
 | `AF_XDP` | all |
+| `AF_MCTP` | all |
 | `AF_MAX` | all |
 
 ### `Network Protocol Types` {#network-protocol-types}
@@ -6012,7 +6015,9 @@ Open flags are the supported flags for the open syscall.
 | `O_NOCTTY` | all |
 | `O_NOFOLLOW` | all |
 | `O_NONBLOCK` | all |
+| `O_PATH` | all |
 | `O_RSYNC` | all |
+| `O_TMPFILE` | all |
 
 ### `Pipe buffer flags` {#pipe-buffer-flags}
 Pipe buffer flags are the supported flags for a pipe buffer.
@@ -6062,6 +6067,8 @@ PrCtl Options are the supported options for the prctl event
 | `PR_SET_NO_NEW_PRIVS` | all |
 | `PR_GET_NO_NEW_PRIVS` | all |
 | `PR_PAC_RESET_KEYS` | all |
+| `PR_PAC_GET_ENABLED_KEYS` | all |
+| `PR_PAC_SET_ENABLED_KEYS` | all |
 | `PR_SET_PDEATHSIG` | all |
 | `PR_GET_PDEATHSIG` | all |
 | `PR_SET_PTRACER` | all |
@@ -6069,10 +6076,13 @@ PrCtl Options are the supported options for the prctl event
 | `PR_GET_SECCOMP` | all |
 | `PR_SET_SECUREBITS` | all |
 | `PR_GET_SECUREBITS` | all |
+| `PR_SCHED_CORE` | all |
 | `PR_GET_SPECULATION_CTRL` | all |
 | `PR_SET_SPECULATION_CTRL` | all |
 | `PR_SVE_SET_VL` | all |
 | `PR_SVE_GET_VL` | all |
+| `PR_SME_SET_VL` | all |
+| `PR_SME_GET_VL` | all |
 | `PR_SET_SYSCALL_USER_DISPATCH` | all |
 | `PR_SET_TAGGED_ADDR_CTRL` | all |
 | `PR_GET_TAGGED_ADDR_CTRL` | all |
@@ -6085,6 +6095,7 @@ PrCtl Options are the supported options for the prctl event
 | `PR_GET_TIMERSLACK` | all |
 | `PR_SET_TIMING` | all |
 | `PR_GET_TIMING` | all |
+| `PR_TIMER_CREATE_RESTORE_IDS` | all |
 | `PR_SET_TSC` | all |
 | `PR_GET_TSC` | all |
 | `PR_SET_UNALIGN` | all |
@@ -6092,6 +6103,16 @@ PrCtl Options are the supported options for the prctl event
 | `PR_GET_AUXV` | all |
 | `PR_SET_MDWE` | all |
 | `PR_GET_MDWE` | all |
+| `PR_SET_MEMORY_MERGE` | all |
+| `PR_GET_MEMORY_MERGE` | all |
+| `PR_SET_SHADOW_STACK_STATUS` | all |
+| `PR_GET_SHADOW_STACK_STATUS` | all |
+| `PR_LOCK_SHADOW_STACK_STATUS` | all |
+| `PR_FUTEX_HASH` | all |
+| `PR_PPC_GET_DEXCR` | all |
+| `PR_PPC_SET_DEXCR` | all |
+| `PR_RISCV_V_GET_CONTROL` | all |
+| `PR_RISCV_V_SET_CONTROL` | all |
 | `PR_RISCV_SET_ICACHE_FLUSH_CTX` | all |
 
 ### `Protection constants` {#protection-constants}
@@ -6124,6 +6145,8 @@ Ptrace constants are the supported ptrace commands for the ptrace syscall.
 | `PTRACE_ATTACH` | all |
 | `PTRACE_DETACH` | all |
 | `PTRACE_SYSCALL` | all |
+| `PTRACE_GETREGS` | all |
+| `PTRACE_SETREGS` | all |
 | `PTRACE_SETOPTIONS` | all |
 | `PTRACE_GETEVENTMSG` | all |
 | `PTRACE_GETSIGINFO` | all |
@@ -6139,6 +6162,10 @@ Ptrace constants are the supported ptrace commands for the ptrace syscall.
 | `PTRACE_SECCOMP_GET_FILTER` | all |
 | `PTRACE_SECCOMP_GET_METADATA` | all |
 | `PTRACE_GET_SYSCALL_INFO` | all |
+| `PTRACE_SET_SYSCALL_INFO` | all |
+| `PTRACE_GET_RSEQ_CONFIGURATION` | all |
+| `PTRACE_GET_SYSCALL_USER_DISPATCH_CONFIG` | all |
+| `PTRACE_SET_SYSCALL_USER_DISPATCH_CONFIG` | all |
 | `PTRACE_GETFPREGS` | amd64, arm |
 | `PTRACE_SETFPREGS` | amd64, arm |
 | `PTRACE_GETFPXREGS` | amd64 |

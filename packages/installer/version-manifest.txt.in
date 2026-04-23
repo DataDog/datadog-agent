@@ -1,0 +1,6 @@
+datadog-installer {build_version}
+
+Component        Installed Version    Version GUID
+--------------------------------------------------
+installer
+preparation

@@ -1,0 +1,41 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "config",
+    srcs = [
+        "config_adapter.go",
+        "constants.go",
+        "transform.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//pkg/config/setup",
+        "//pkg/config/utils",
+        "//pkg/privateactionrunner/observability",
+        "//pkg/privateactionrunner/util",
+        "//pkg/util/flavor",
+        "//pkg/version",
+        "@//pkg/privateactionrunner/adapters/actions",
+        "@//pkg/privateactionrunner/adapters/modes",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@com_github_gobwas_glob//:glob",
+        "@io_k8s_apimachinery//pkg/util/sets",
+    ],
+)
+
+go_test(
+    name = "config_test",
+    srcs = ["transform_test.go"],
+    embed = [":config"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/config/mock",
+        "//pkg/config/setup",
+        "//pkg/util/flavor",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_apimachinery//pkg/util/sets",
+    ],
+)

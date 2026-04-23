@@ -2,78 +2,203 @@
 
 ## Goal
 
-Produce Bazel `pkg_tar` targets for Linux, macOS, and Windows whose file trees
-match the omnibus-produced tarballs for `datadog-installer`. Hand-inspect the
-package scripts to confirm correct behavior. Once validated, promote the Linux
-`pkg_deb` and `pkg_rpm` targets to CI and retire the omnibus installer build.
+Produce Bazel `pkg_deb` and `pkg_rpm` targets for Linux whose package contents
+match the omnibus-produced packages for `datadog-installer`, then cut over CI
+to use the Bazel packages exclusively.
+
+**Status:** Phases 1–4 (BUILD files) complete. Phase 6 (fix differences) partially
+complete — `embedded/` dirs and `README.md` done, deb epoch and RPM vendor still
+needed. Phase 5 (CI comparison) is next once the remaining fixes land.
+
+---
 
 ## Source of Truth
 
 **Omnibus side** (do not modify these during migration):
 - `omnibus/config/projects/installer.rb` — package metadata, platform conditions
-- `omnibus/config/software/installer.rb` — binary build + file placement
+- `omnibus/config/software/installer.rb` — binary build + file placement; also runs
+  the Bazel build inline (see Stage 1 below)
 - `omnibus/package-scripts/installer-deb/` — `postinst`, `postrm`
 - `omnibus/package-scripts/installer-rpm/` — `posttrans`, `postrm`
 
 ---
 
-## What the Omnibus Build Produces
+## How the Current CI Pipeline Works
 
-### Install dir: `/opt/datadog-installer/` (Linux/macOS), `C:/opt/datadog-installer/` (Windows)
+### Stage 1 — binary + XZ build (`installer-amd64` / `installer-arm64` jobs)
+
+File: `.gitlab/build/package_build/installer.yml`, template `.installer_build_common`
 
 ```
-bin/
-  installer/
-    installer          ← the Go binary, CGO_ENABLED=0 on Linux
-embedded/
-  bin/                 ← empty dir (omnibus artifact from preparation.rb — ignore in Bazel)
-  lib/                 ← empty dir (omnibus artifact from preparation.rb — ignore in Bazel)
+dda inv omnibus.build --target-project=installer
 ```
 
-The `embedded/` empty dirs are created by `preparation.rb` as scaffolding. They
-are not needed in the Bazel build.
+What omnibus does inside this job:
+1. **`preparation.rb`** creates `/opt/datadog-installer/embedded/bin/` and
+   `embedded/lib/` with `.gitkeep` placeholders.
+2. **`installer.rb` (software)** runs `invoke installer.build --no-cgo …` → binary
+   lands at `bin/installer/installer` in the repo root.
+3. **`installer.rb` (software)** then runs (via `command_on_repo_root`):
+   - `bazelisk build --config=release //packages/installer/linux:whole_distro_tar`
+   - `bazelisk build --config=release //packages/installer/linux:debian` (or `:rpm`)
+   The Bazel packages are **built here** but are **not uploaded as CI artifacts**.
+4. Omnibus license scanner creates `LICENSES/`, `LICENSE`,
+   `version-manifest.json`, `version-manifest.txt` inside `install_dir`.
+5. **XZ packager** creates `datadog-installer_7-{arch}.tar.xz` containing:
+   - `install_dir/*` → everything under `/opt/datadog-installer/`
+   - `extra_package_files`: `omnibus/package-scripts/installer-deb/`,
+     `omnibus/package-scripts/installer-rpm/`,
+     `omnibus/config/templates/installer/README.md.erb`
+6. `$OMNIBUS_PACKAGE_DIR/datadog-installer_7-{arch}.tar.xz` is saved as the CI artifact.
 
-### Binary build flags baked in at compile time
+### Stage 2 — final deb/rpm packaging
 
-The omnibus recipe runs:
+Files: `.gitlab/build/packaging/deb.yml` (`installer_deb-amd64`, `installer_deb-arm64`),
+       `.gitlab/build/packaging/rpm.yml` (`installer_rpm-amd64`, `installer_rpm-arm64`,
+       `installer_suse_rpm-amd64`, `installer_suse_rpm-arm64`)
+
 ```
-invoke installer.build --no-cgo \
-    --run-path=/opt/datadog-packages/run \
-    --install-path=/opt/datadog-installer
+OMNIBUS_PACKAGE_ARTIFACT_DIR=$OMNIBUS_PACKAGE_DIR
+dda inv omnibus.build --target-project=installer
 ```
 
-Which translates to these ldflags:
+`OMNIBUS_PACKAGE_ARTIFACT_DIR` triggers the `package-artifact` software path:
+1. **`package-artifact.rb`**: `tar xf *.tar.xz -C /` → files land at their
+   absolute paths (e.g., `/opt/datadog-installer/bin/installer/installer`).
+2. **`package-artifact.rb`** (installer-specific): renders `README.md` from
+   `config/templates/installer/README.md.erb` and places it in `install_dir`.
+3. **DEB packager**: copies `install_dir` to staging dir, adds `extra_package_files`
+   (the script dirs, extracted from the XZ to their original absolute paths), writes
+   `DEBIAN/{control,md5sums,conffiles,postinst,postrm}`, runs `dpkg-deb`.
+4. **RPM packager**: same flow with an RPM spec file.
+
+---
+
+## What Each Package Contains
+
+### Omnibus `.deb` — data section (what installs on disk)
 ```
--X github.com/DataDog/datadog-agent/pkg/config/setup.InstallPath=/opt/datadog-installer
--X github.com/DataDog/datadog-agent/pkg/config/setup.defaultRunPath=/opt/datadog-packages/run
+/opt/datadog-installer/bin/installer/installer       ← Go binary
+/opt/datadog-installer/embedded/bin/                 ← empty dir (preparation.rb)
+/opt/datadog-installer/embedded/lib/                 ← empty dir (preparation.rb)
+/opt/datadog-installer/LICENSES/<many files>         ← omnibus license scanner
+/opt/datadog-installer/LICENSE                       ← aggregated license file
+/opt/datadog-installer/version-manifest.json
+/opt/datadog-installer/version-manifest.txt
+/opt/datadog-installer/README.md                     ← rendered from .erb template
 ```
-Plus version ldflags (`pkg/version.Commit`, `pkg/version.AgentVersion`, etc.).
 
-### Package scripts
+### Omnibus `.deb` — control section
+- `Package`: `datadog-installer`
+- `Version`: `1:{PACKAGE_VERSION}-1` (epoch 1, version from env var)
+- `Maintainer`: `Datadog Packages <package@datadoghq.com>`
+- `Recommends`: `datadog-signing-keys (>= 1:1.4.0)`
+- `postinst`, `postrm` scripts
 
-| Platform | Script | Action |
-|---|---|---|
-| deb | `postinst` | Creates `/usr/bin/datadog-bootstrap` → `$INSTALL_DIR/bin/installer/installer` |
-| deb | `postrm` | On remove/purge: runs `datadog-installer purge`, deletes install and package dirs |
-| rpm | `posttrans` | Creates `/usr/bin/datadog-bootstrap` symlink |
-| rpm | `postrm` (`%postun`) | On remove: same cleanup as deb `postrm` |
+### Omnibus `.rpm` — file list
+Same as deb data section above; `.gitkeep` placeholder files are excluded (RPM
+ignores empty dirs unless explicitly listed).
 
-No `preinst`/`prerm` scripts exist.
+### Omnibus `.rpm` — spec metadata
+- `Vendor`: `Datadog <package@datadoghq.com>`
+- `Packager`: `Datadog, Inc <package@datadoghq.com>` (redhat target)
+- `Epoch`: 1
+- Pre-requires: `coreutils findutils grep glibc-common shadow-utils` (RHEL);
+  `coreutils findutils grep glibc shadow` (SUSE)
+- `posttrans`, `postun` scripts
 
-### Package metadata (Linux)
+### Bazel `.deb` data section (current state)
+```
+/opt/datadog-installer/bin/installer/installer       ← Go binary
+/opt/datadog-installer/embedded/bin/                 ← pkg_mkdirs (mode 0755)
+/opt/datadog-installer/embedded/lib/                 ← pkg_mkdirs (mode 0755)
+/opt/datadog-installer/LICENSES/<many files>         ← package_licenses aspect
+/opt/datadog-installer/README.md                     ← dd_agent_expand_template
+```
 
-| Field | Value |
-|---|---|
-| Package name | `datadog-installer` |
-| Maintainer (deb) | `Datadog Packages <package@datadoghq.com>` |
-| Maintainer (rpm) | `Datadog, Inc <package@datadoghq.com>` |
-| License | Apache License Version 2.0 |
-| Section (deb) | utils |
-| Priority (deb) | extra |
-| Category (rpm) | System Environment/Daemons |
-| Epoch | 1 |
-| Recommends (deb) | `datadog-signing-keys (>= 1:1.4.0)` |
-| RPM pre-requires | `coreutils`, `findutils`, `grep`, `glibc-common`, `shadow-utils` (RHEL) |
+---
+
+## Known Differences
+
+| Item | Omnibus | Bazel | Status | Action |
+|------|---------|-------|--------|--------|
+| Package version | `$PACKAGE_VERSION` (real) | `"7"` (hardcoded) | ❌ Open | ABLD-364: wire `{version}` variable |
+| deb epoch | `Version: 1:7-1` in control | version `"7"`, no epoch | ❌ Open | Set `version = "1:7"` in `pkg_deb` (no separate epoch attr) |
+| RPM epoch | `Epoch: 1` in spec | `epoch = "1"` | ✅ Done | — |
+| RPM vendor/packager | set | unset | ❌ Open | Add `vendor` to `pkg_rpm` |
+| `embedded/bin/` + `embedded/lib/` | yes (empty dirs) | yes (pkg_mkdirs) | ✅ Done | — |
+| `README.md` | rendered from .erb | dd_agent_expand_template | ✅ Done | — |
+| `version-manifest.json/txt` | yes | no | ✅ Accepted drop | omnibus-specific artifact |
+| `LICENSE` | aggregated text | no | ⚠️ Pending decision | Add or accept drop |
+| `LICENSES/` content | omnibus license scanner | Bazel aspect | ⚠️ Needs verification | Spot-check files match |
+
+---
+
+## Comparison Methodology
+
+Run after both packages are available (see CI integration below).
+
+### A. File-tree comparison
+
+```bash
+OMNIBUS_DEB="$(ls $OMNIBUS_PACKAGE_DIR/datadog-installer_*_amd64.deb | head -1)"
+BAZEL_DEB="$(ls bazel-bin/packages/installer/linux/datadog-installer_*_amd64.deb | head -1)"
+
+echo "=== File tree diff (< omnibus  > bazel) ==="
+diff <(dpkg-deb --fsys-tarfile "$OMNIBUS_DEB" | tar t | sort) \
+     <(dpkg-deb --fsys-tarfile "$BAZEL_DEB"   | tar t | sort) || true
+
+# RPM
+OMNIBUS_RPM="$(ls $OMNIBUS_PACKAGE_DIR/datadog-installer-*x86_64.rpm | head -1)"
+BAZEL_RPM="$(ls bazel-bin/packages/installer/linux/datadog-installer-*x86_64.rpm | head -1)"
+diff <(rpm -qlp "$OMNIBUS_RPM" | sort) \
+     <(rpm -qlp "$BAZEL_RPM"   | sort) || true
+```
+
+### B. Package metadata and scripts comparison
+
+```bash
+# DEB control section
+dpkg-deb -e "$OMNIBUS_DEB" /tmp/omnibus-ctrl/
+dpkg-deb -e "$BAZEL_DEB"   /tmp/bazel-ctrl/
+diff /tmp/omnibus-ctrl/control  /tmp/bazel-ctrl/control  || true
+diff /tmp/omnibus-ctrl/postinst /tmp/bazel-ctrl/postinst || true
+diff /tmp/omnibus-ctrl/postrm   /tmp/bazel-ctrl/postrm   || true
+
+# RPM scripts
+diff <(rpm -qp --scripts "$OMNIBUS_RPM") \
+     <(rpm -qp --scripts "$BAZEL_RPM")   || true
+```
+
+---
+
+## CI Integration: Automated Comparison
+
+The Bazel packages are already built during Stage 1 (`installer-amd64` job) but
+the output is not saved. To run the comparison in Stage 2, we rebuild the Bazel
+package there (fast: the binary is already extracted from the XZ artifact) and
+diff the results.
+
+Both `installer_deb-amd64` and `installer_deb-arm64` have a `script` override in
+`.gitlab/build/packaging/deb.yml` (and similarly for rpm variants in `rpm.yml`)
+that:
+
+1. Copies the already-extracted binary to the workspace root path expected by
+   `@installer_binary//:installer`:
+   ```bash
+   mkdir -p bin/installer
+   cp /opt/datadog-installer/bin/installer/installer bin/installer/installer
+   ```
+
+2. Builds the Bazel deb (or rpm):
+   ```bash
+   bazelisk build --config=release //packages/installer/linux:debian
+   ```
+
+3. Runs the comparison and writes output to `$OMNIBUS_PACKAGE_DIR/installer-pkg-diff.txt`
+   (which is already in the job's artifact paths).
+
+The diff file is saved as a CI artifact and can be downloaded from any pipeline run.
 
 ---
 
@@ -81,392 +206,173 @@ No `preinst`/`prerm` scripts exist.
 
 ```
 packages/installer/
+├── BUILD.bazel         ← exports README.md.in for linux/BUILD.bazel
 ├── MIGRATION_PLAN.md   ← this file
+├── README.md.in        ← template expanded by dd_agent_expand_template
 ├── linux/
-│   └── BUILD.bazel     ← pkg_tar, pkg_deb, pkg_rpm
+│   └── BUILD.bazel     ← pkg_tar, pkg_deb, pkg_rpm (all targets present)
 ├── macos/
-│   └── BUILD.bazel     ← pkg_tar only (no PKG or DMG rule yet)
+│   └── BUILD.bazel     ← pkg_tar only (PKG not yet supported)
 └── windows/
-    └── BUILD.bazel     ← pkg_tar only (no MSI rule yet)
+    └── BUILD.bazel     ← pkg_tar only (MSI not yet supported)
 ```
-
-No top-level `packages/installer/BUILD.bazel` is needed — the installer has no
-flavors and no shared config_settings. No `product/` or `dependencies/`
-subdirectories are needed at this stage; the installer is a single binary with no
-third-party runtime libs.
 
 ---
 
 ## Migration Phases
 
-### Phase 1 — Declare the prebuilt installer binary in MODULE.bazel
+### Phase 1 — Declare prebuilt installer binary in MODULE.bazel ✅ DONE
 
-The installer binary is built outside the Bazel graph by `dda inv installer.build`
-(just as the agent binary is built by `dda inv agent.build`). We use the same
-`prebuilt_file` pattern to make it available as a Bazel target.
+`prebuilt_file` entry for `@installer_binary` is in `MODULE.bazel`.
 
-**File to change**: `MODULE.bazel`
+### Phase 2 — `packages/installer/linux/BUILD.bazel` ✅ DONE
 
-Add after the `agent_binary` declaration:
+`pkg_tar`, `pkg_deb`, and `pkg_rpm` targets exist.
 
-```python
-prebuilt_file(
-    name = "installer_binary",
-    target_label = "@@//:bin/installer/installer",
-    target_name = "installer",
-)
-```
+### Phase 3 — `packages/installer/macos/BUILD.bazel` ✅ DONE
 
-The `target_label` path matches what `omnibus/config/software/installer.rb` places
-there:
-- The recipe copies `bin/installer` → `${INSTALL_DIR}/bin/`, so the binary lives at
-  `bin/installer/installer` relative to the repo root.
-- On Windows the rule automatically falls back to `installer.exe`.
+`pkg_tar` target exists. PKG deferred.
 
-No BUILD.bazel changes are needed; the `prebuilt_file` rule auto-generates the
-repository with a `filegroup(name = "installer")` target.
+### Phase 4 — `packages/installer/windows/BUILD.bazel` ✅ DONE
 
-**How to test**: After adding the declaration, run:
-```bash
-dda inv installer.build --no-cgo \
-    --run-path=/opt/datadog-packages/run \
-    --install-path=/opt/datadog-installer
-# Then confirm Bazel can see the file:
-bazel build @installer_binary//:installer
-```
+`pkg_tar` target exists. MSI deferred.
 
----
+### Phase 5 — Automated comparison in CI ⏳ PENDING
 
-### Phase 2 — Create `packages/installer/linux/BUILD.bazel`
+Add comparison step to packaging jobs so every pipeline produces a diff report.
+Deferred until Phase 6 fixes are complete.
 
-Wire the binary into a full Linux package definition. The structure mirrors
-`packages/agent/linux/BUILD.bazel` but is much simpler (single binary, no
-embedded Python, no transitive C deps).
+**Files to modify:**
+- `.gitlab/build/packaging/deb.yml` — add comparison to `installer_deb-amd64` and
+  `installer_deb-arm64`
+- `.gitlab/build/packaging/rpm.yml` — add comparison to `installer_rpm-amd64`,
+  `installer_rpm-arm64`, `installer_suse_rpm-amd64`, `installer_suse_rpm-arm64`
 
-```python
-"""Installer package components specific to Linux."""
+See "CI Integration" section above for the exact steps to add.
 
-load("@rules_pkg//pkg:deb.bzl", "pkg_deb")
-load(
-    "@rules_pkg//pkg:mappings.bzl",
-    "pkg_filegroup",
-    "pkg_files",
-)
-load("@rules_pkg//pkg:rpm.bzl", "pkg_rpm")
-load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
-load("//bazel/rules:compression.bzl", "get_compression_level")
-load("//compliance:package_licenses.bzl", "package_licenses")
-load("//packages/rules:package_naming.bzl", "package_name_variables")
+**Verification:** After merging, open a pipeline and download
+`$OMNIBUS_PACKAGE_DIR/installer-pkg-diff.txt` from any installer packaging job.
+Confirm the known differences from the table above appear in the diff.
 
-package(default_visibility = ["//packages:__subpackages__"])
+### Phase 6 — Fix differences 🔄 IN PROGRESS
 
-package_name_variables(
-    name = "variables",
-    product_name = "datadog-installer",
-)
+#### ✅ Done
 
-# The installer binary, placed at bin/installer/ within the install dir.
-pkg_files(
-    name = "installer_binary",
-    srcs = ["@installer_binary//:installer"],
-    prefix = "bin/installer",
-)
+- **`embedded/bin/` + `embedded/lib/`**: Added via `pkg_mkdirs` in `installer_components`,
+  mode `0755`. The `pkg_filegroup` prefix `/opt/datadog-installer` resolves the
+  relative paths to the correct absolute destinations.
 
-# Everything that belongs under /opt/datadog-installer/
-pkg_filegroup(
-    name = "installer_components",
-    srcs = [":installer_binary"],
-    prefix = "/opt/datadog-installer",
-)
+- **`README.md`**: Added via `dd_agent_expand_template` using `packages/installer/README.md.in`
+  as the template. The deb and rpm use different `{uninstall_command}` substitutions
+  (`apt-get` vs `yum`) and distinct output filenames (`README_deb.md` / `README_rpm.md`)
+  to avoid Bazel output name collisions, then `pkg_files` with `renames` normalises
+  each to `README.md` at the install prefix.
+  - Deb: included in `whole_distro_tar_deb` (a separate tarball from `whole_distro_tar`
+    so the XZ intermediate artifact stays README-free).
+  - RPM: included directly in `pkg_rpm.srcs`.
 
-# Intermediate node for the license-gathering aspect.
-pkg_filegroup(
-    name = "everything",
-    srcs = [":installer_components"],
-)
+- **RPM `epoch = "1"`**: Already present in `pkg_rpm`.
 
-package_licenses(
-    name = "license_files",
-    src = ":everything",
-)
+#### ❌ Still needed
 
-pkg_filegroup(
-    name = "whole_distro",
-    srcs = [
-        ":everything",
-        ":license_files",
-    ],
-)
-
-# Primary deliverable for this phase.
-pkg_tar(
-    name = "whole_distro_tar",
-    srcs = [":whole_distro"],
-    compression_level = get_compression_level(),
-    extension = "tar.xz",
-    owner = "0.0",
-)
-
-_DESCRIPTION = """Datadog Installer
-The Datadog Installer is a lightweight process that installs and updates
-the Datadog Agent and Tracers.
-
-See http://www.datadoghq.com/ for more information
-"""
-
-pkg_deb(
-    name = "debian",
-    data = ":whole_distro_tar",
-    description = _DESCRIPTION,
-    homepage = "http://www.datadoghq.com",
-    license = "Apache License Version 2.0",
-    maintainer = "Datadog Packages <package@datadoghq.com>",
-    package = "datadog-installer",
-    package_file_name = "datadog-installer_{version}-1_{arch_deb}.deb",
-    package_variables = ":variables",
-    postinst = "//omnibus:package-scripts/installer-deb/postinst",
-    postrm = "//omnibus:package-scripts/installer-deb/postrm",
-    priority = "extra",
-    recommends = ["datadog-signing-keys (>= 1:1.4.0)"],
-    section = "utils",
-    version = "7",  # TODO: stamp from pipeline (ABLD-364)
-)
-
-pkg_rpm(
-    name = "rpm",
-    package_name = "datadog-installer",
-    srcs = [":whole_distro"],
-    description = _DESCRIPTION,
-    epoch = "1",
-    group = "System Environment/Daemons",
-    license = "Apache License Version 2.0",
-    package_file_name = "datadog-installer-{version}-1.{arch_rpm}.rpm",
-    package_variables = ":variables",
-    posttrans_scriptlet_file = "//omnibus:package-scripts/installer-rpm/posttrans",
-    postun_scriptlet_file = "//omnibus:package-scripts/installer-rpm/postrm",
-    release = "1",
-    # TODO: use select() for RHEL vs SUSE when a platform constraint is defined.
-    requires_contextual = {
-        "pre": [
-            "coreutils",
-            "findutils",
-            "glibc-common",
-            "grep",
-            "shadow-utils",
-        ],
-    },
-    summary = "Datadog Installer",
-    url = "http://www.datadoghq.com",
-    version = "7",  # TODO: stamp from pipeline (ABLD-364)
-)
-```
-
-**Verification**:
-```bash
-bazel build //packages/installer/linux:whole_distro_tar
-tar tf bazel-bin/packages/installer/linux/whole_distro_tar.tar.xz
-```
-
-Expected output includes:
-```
-./opt/datadog-installer/bin/installer/installer
-```
-
----
-
-### Phase 3 — Create `packages/installer/macos/BUILD.bazel`
-
-macOS uses `pkg_tar` only; no PKG rule exists yet. The install path is identical
-to Linux.
-
-Note: on macOS the binary is built **with** CGO (unlike Linux `--no-cgo`). The
-`prebuilt_file` rule handles the platform difference transparently — the same
-`@installer_binary//:installer` label resolves to the locally-built binary.
-
-```python
-"""Installer package components specific to macOS."""
-
-load(
-    "@rules_pkg//pkg:mappings.bzl",
-    "pkg_filegroup",
-    "pkg_files",
-)
-load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
-load("//bazel/rules:compression.bzl", "get_compression_level")
-load("//compliance:package_licenses.bzl", "package_licenses")
-
-package(default_visibility = ["//packages:__subpackages__"])
-
-pkg_files(
-    name = "installer_binary",
-    srcs = ["@installer_binary//:installer"],
-    prefix = "bin/installer",
-)
-
-pkg_filegroup(
-    name = "installer_components",
-    srcs = [":installer_binary"],
-    prefix = "/opt/datadog-installer",
-)
-
-pkg_filegroup(
-    name = "everything",
-    srcs = [":installer_components"],
-)
-
-package_licenses(
-    name = "license_files",
-    src = ":everything",
-)
-
-pkg_tar(
-    name = "whole_distro_tar",
-    srcs = [
-        ":everything",
-        ":license_files",
-    ],
-    compression_level = get_compression_level(),
-    extension = "tar.xz",
-    owner = "0.0",
-)
-
-# TODO: PKG target when pkg_pkg rule is available.
-```
-
----
-
-### Phase 4 — Create `packages/installer/windows/BUILD.bazel`
-
-On Windows the binary is placed differently: at the root of the install dir as
-`datadog-installer.exe` (not under `bin/installer/`). The `prebuilt_file` rule
-already handles the `.exe` extension fallback.
-
-```python
-"""Installer package components specific to Windows."""
-
-load(
-    "@rules_pkg//pkg:mappings.bzl",
-    "pkg_filegroup",
-    "pkg_files",
-)
-load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
-load("//bazel/rules:compression.bzl", "get_compression_level")
-load("//compliance:package_licenses.bzl", "package_licenses")
-
-package(default_visibility = ["//packages:__subpackages__"])
-
-# On Windows the binary lives at the install dir root as datadog-installer.exe,
-# not under bin/installer/ as on Linux/macOS.
-pkg_files(
-    name = "installer_binary",
-    srcs = ["@installer_binary//:installer"],
-    # No prefix: lands at /opt/datadog-installer/datadog-installer.exe
-)
-
-pkg_filegroup(
-    name = "installer_components",
-    srcs = [":installer_binary"],
-    prefix = "/opt/datadog-installer",
-)
-
-pkg_filegroup(
-    name = "everything",
-    srcs = [":installer_components"],
-)
-
-package_licenses(
-    name = "license_files",
-    src = ":everything",
-)
-
-pkg_tar(
-    name = "whole_distro_tar",
-    srcs = [
-        ":everything",
-        ":license_files",
-    ],
-    compression_level = get_compression_level(),
-    extension = "tar.xz",
-)
-
-# TODO: MSI target when a Bazel MSI rule is available.
-# TODO: Symbol stripping equivalent of windows_symbol_stripping_file.
-```
-
----
-
-### Phase 5 — Hand inspection and validation
-
-With all three `pkg_tar` targets building, verify by hand:
-
-1. **Linux tarball contents**:
-   ```bash
-   bazel build //packages/installer/linux:whole_distro_tar
-   tar tf bazel-bin/packages/installer/linux/whole_distro_tar.tar.xz | sort
+1. **Deb epoch**
+   `pkg_deb` has no separate `epoch` attribute (confirmed by reading the rules_pkg
+   source). The epoch must be embedded in the `version` field using Debian's
+   `epoch:version` format. Change:
+   ```python
+   version = "7",
    ```
-   Compare against the omnibus tarball:
-   ```bash
-   tar tf <omnibus-built.tar.xz> | sort
+   to:
+   ```python
+   version = "1:7",
    ```
-   Expected difference: omnibus includes `embedded/bin/` and `embedded/lib/` empty
-   dirs and the package-scripts directories; the Bazel tarball does not.
+   Without this, `apt` will not correctly resolve upgrades from omnibus-built
+   packages (which carry `Version: 1:7-1` in their control file).
 
-2. **Package scripts correctness** — inspect the generated deb/rpm:
-   ```bash
-   bazel build //packages/installer/linux:debian
-   dpkg --info bazel-bin/packages/installer/linux/datadog-installer_*.deb
-   dpkg-deb -e bazel-bin/packages/installer/linux/datadog-installer_*.deb /tmp/control
-   diff /tmp/control/postinst omnibus/package-scripts/installer-deb/postinst
-   diff /tmp/control/postrm  omnibus/package-scripts/installer-deb/postrm
-   ```
-   Repeat for RPM:
-   ```bash
-   bazel build //packages/installer/linux:rpm
-   rpm -qp --scripts bazel-bin/packages/installer/linux/datadog-installer-*.rpm
+2. **RPM vendor/packager** (verify exact values from comparison)
+   ```python
+   pkg_rpm(
+       name = "rpm",
+       ...
+       vendor = "Datadog <package@datadoghq.com>",
+   )
    ```
 
-3. **Binary correctness**:
-   ```bash
-   file bazel-bin/external/installer_binary/bin/installer/installer
-   # Expected: ELF ... statically linked
-   strings bazel-bin/external/installer_binary/bin/installer/installer | grep datadog-installer
-   # Expected: /opt/datadog-installer in output
+3. **Wire up real package version** (ABLD-364)
+   `package_name_variables` already reads `PACKAGE_VERSION` from the environment.
+   Once ABLD-364 lands, change both `version = "7"` fields to use the stamped value.
+
+#### ⚠️ Pending decisions
+
+4. **`LICENSE` aggregated file** — omnibus generates a concatenated license file.
+   Decide whether to generate an equivalent from the Bazel graph or accept the drop.
+
+5. **`LICENSES/` content equivalence** — spot-check a few files from both packages
+   to confirm the Bazel `package_licenses` aspect picks up the same third-party
+   licenses as the omnibus scanner.
+
+### Phase 7 — Cutover ⏳ PENDING
+
+Once the diff output is clean (or remaining diffs are explicitly accepted):
+
+1. Add standalone Bazel packaging jobs to CI — parallel to the existing omnibus
+   jobs initially, for validation:
+   ```yaml
+   installer_deb-amd64-bazel:
+     stage: packaging
+     needs: ["installer-amd64"]
+     script:
+       - mkdir -p bin/installer
+       - tar -xJOf $OMNIBUS_PACKAGE_DIR/datadog-installer_*-amd64.tar.xz \
+           opt/datadog-installer/bin/installer/installer \
+           --strip-components=3 -C bin/
+       - bazelisk build --config=release //packages/installer/linux:debian
+       - cp bazel-bin/packages/installer/linux/datadog-installer_*.deb $OMNIBUS_PACKAGE_DIR/
    ```
 
----
+2. Add Bazel installer packages to the size quality gate
+   (`tasks/quality_gates/...`).
 
-### Phase 6 — Cutover (future)
+3. Validate the Bazel-built deb installs correctly on a test Ubuntu/Debian system:
+   ```bash
+   dpkg -i datadog-installer_*.deb
+   ls -la /usr/bin/datadog-bootstrap
+   /usr/bin/datadog-bootstrap version
+   ```
 
-Once hand inspection passes and the packages install correctly on a test system:
+4. Replace the omnibus packaging jobs with Bazel-only jobs in the YAML files.
 
-1. Update CI to build `//packages/installer/linux:debian` and
-   `//packages/installer/linux:rpm` instead of running omnibus for the installer.
-2. Add the Bazel installer targets to the size quality gate.
-3. Mark `omnibus/config/projects/installer.rb` and
-   `omnibus/config/software/installer.rb` as deprecated.
-4. Repeat Phases 1–5 for the next omnibus project (likely `dogstatsd` or `iot-agent`
-   — they follow the same single-binary pattern).
+5. Update `dd-pkg promote` in
+   `.gitlab/distribute/trigger_release/installer.yml` to reference the
+   Bazel-built package paths.
+
+6. Mark `omnibus/config/projects/installer.rb` and
+   `omnibus/config/software/installer.rb` as deprecated (keep until cutover is
+   confirmed in production).
+
+7. Remove `command_on_repo_root` Bazel calls from `omnibus/config/software/installer.rb`
+   (they are no longer needed once Stage 2 is purely Bazel).
+
+8. Delete omnibus installer files after one release cycle.
 
 ---
 
 ## Open Questions
 
 | # | Question | Affects |
-|---|---|---|
-| 1 | The `pkg_files` prefix for Windows — is the install root `/opt/datadog-installer` correct for Windows, or should it be `C:/opt/datadog-installer`? | Phase 4 |
-| 2 | Version ldflags (`pkg/version.*`) — how are these stamped in existing Bazel `go_binary` targets? The `prebuilt_file` approach sidesteps this, but when we eventually build the binary inside Bazel we'll need it. | Future |
-| 3 | Should `embedded/bin/` and `embedded/lib/` be included as empty `pkg_mkdirs` entries to match omnibus exactly? | Phase 5 |
-| 4 | macOS: does the installer binary use the same `/opt/datadog-installer` install path? | Phase 3 |
+|---|----------|---------|
+| 1 | Windows install root — `/opt/datadog-installer` or `C:/opt/datadog-installer`? | windows/BUILD.bazel |
+| 2 | Should the aggregated `LICENSE` file be generated from the Bazel graph? | Phase 6 |
+| 3 | How does `dd-pkg promote` locate packages — by glob or explicit path? | Phase 7 |
 
 ---
 
-## Not In Scope (this migration)
+## Not In Scope (for this milestone)
 
 - Building the installer binary inside the Bazel graph (`cmd/installer/BUILD.bazel`)
-  — the prebuilt_file approach is sufficient for the packaging migration
+  — the `prebuilt_file` approach is sufficient for the packaging migration
 - Windows MSI (no Bazel rule exists yet)
-- macOS DMG (no Bazel rule exists yet)
+- macOS PKG (no Bazel rule exists yet)
 - Symbol stripping / debug package split
 - Code signing (Windows `sign_file`, macOS `code_signing_identity`)
-- Automated tarball comparison test (deferred; hand inspection is the gate for now)
-- Removing omnibus installer code (happens after cutover)
+- Removing omnibus installer code (happens after Phase 7 completes)

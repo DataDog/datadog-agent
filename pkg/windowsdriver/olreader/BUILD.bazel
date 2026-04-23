@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "olreader",
+    srcs = ["olreader.go"],
+    cgo = True,
+    importpath = "github.com/DataDog/datadog-agent/pkg/windowsdriver/olreader",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)

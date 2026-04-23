@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    The kubelet core check now reports container ``kubernetes.containers.cpu.requests``, ``kubernetes.containers.cpu.limits``, ``kubernetes.containers.memory.requests``, and ``kubernetes.containers.memory.limits`` metrics using the live values from ``pod.status.containerStatuses[].resources`` when available, so the metrics reflect the effective runtime values after an in-place vertical resize. Resources declared only in the pod spec (for example GPUs or custom resources) are preserved, and clusters where the kubelet does not yet populate ``status.resources`` continue to report the spec values as before.

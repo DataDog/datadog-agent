@@ -117,6 +117,11 @@ var (
 			"persistentvolumeclaim:www2-web-3",
 			"pod_phase:running",
 		},
+		"container_id://resized-container-id": {
+			"kube_container_name:resized-container",
+			"kube_namespace:default",
+		},
+		"kubernetes_pod_uid://resized-pod-uid-0001": {"pod_name:resized-pod"},
 	}
 
 	// InstanceTags are default tags that should be applied to all metrics at the instance level

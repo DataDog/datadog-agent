@@ -272,7 +272,7 @@ def get_pr_for_branch(branch: str):
         prs = list(github.get_pr_for_branch(branch))
         return prs[0] if prs else None
     except Exception as e:
-        print(color_message(f"[WARN] Failed to get PR for branch {branch}: {e}", "orange"))
+        print(color_message(f"[WARN] Failed to get PR for branch {branch}: {type(e).__name__}: {e}", "orange"))
         return None
 
 

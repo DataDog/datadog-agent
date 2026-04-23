@@ -1,0 +1,30 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "mongodb",
+    srcs = [
+        "constants.go",
+        "count_documents.go",
+        "create_index.go",
+        "entrypoint.go",
+        "find.go",
+        "find_and_modify.go",
+        "helpers.go",
+        "insert_many.go",
+        "insert_one.go",
+        "replace_one.go",
+        "update_many.go",
+        "update_one.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/mongodb",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/privateactionrunner/adapters/logging",
+        "//pkg/privateactionrunner/libs/privateconnection",
+        "//pkg/privateactionrunner/types",
+        "@org_mongodb_go_mongo_driver//bson/primitive",
+        "@org_mongodb_go_mongo_driver//mongo",
+        "@org_mongodb_go_mongo_driver//mongo/options",
+        "@org_mongodb_go_mongo_driver//x/mongo/driver/connstring",
+    ],
+)

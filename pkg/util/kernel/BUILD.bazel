@@ -1,5 +1,8 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
+# gazelle:exclude headers
+# gazelle:exclude testdata
+
 go_library(
     name = "kernel",
     srcs = [
@@ -98,6 +101,7 @@ go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":kernel"],
+    gotags = ["test"],
     deps = select({
         "@rules_go//go/platform:android": [
             "@com_github_stretchr_testify//assert",
