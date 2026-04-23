@@ -8,22 +8,15 @@ package containercheckimpl
 
 import (
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/comp/process/containercheck"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
+	containercheck "github.com/DataDog/datadog-agent/comp/process/containercheck/def"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
-
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newCheck))
-}
 
 var _ types.CheckComponent = (*check)(nil)
 
@@ -32,7 +25,7 @@ type check struct {
 }
 
 type dependencies struct {
-	fx.In
+	compdef.In
 
 	Config    config.Component
 	Sysconfig sysprobeconfig.Component
@@ -40,18 +33,19 @@ type dependencies struct {
 	Statsd    statsd.ClientInterface
 }
 
-type result struct {
-	fx.Out
+type Provides struct {
+	compdef.Out
 
 	Check     types.ProvidesCheck
 	Component containercheck.Component
 }
 
-func newCheck(deps dependencies) result {
+// NewCheck creates a new containercheck component.
+func NewCheck(deps dependencies) Provides {
 	c := &check{
 		containerCheck: checks.NewContainerCheck(deps.Config, deps.Sysconfig, deps.WMmeta, deps.Statsd),
 	}
-	return result{
+	return Provides{
 		Check: types.ProvidesCheck{
 			CheckComponent: c,
 		},
