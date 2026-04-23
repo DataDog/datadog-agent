@@ -9,10 +9,13 @@
 package constantfetch
 
 import (
+	"bytes"
+	"compress/gzip"
 	_ "embed" // for go:embed
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"runtime"
 	"strings"
 
@@ -31,13 +34,27 @@ var archMapping = map[string]string{
 	"arm64": "arm64",
 }
 
+func decompressByteArray(data []byte) ([]byte, error) {
+	reader, err := gzip.NewReader(bytes.NewBuffer(data))
+	if err != nil {
+		return nil, err
+	}
+	defer reader.Close()
+	decompressed, err := io.ReadAll(reader)
+	return decompressed, err
+}
+
 func (f *BTFHubConstantFetcher) fillStore() error {
 	if len(f.inStore) != 0 {
 		return nil
 	}
 
 	var constantsInfos BTFHubConstants
-	if err := json.Unmarshal(btfhubConstants, &constantsInfos); err != nil {
+	decomp, err := decompressByteArray(btfhubConstants)
+	if err != nil {
+		return err
+	}
+	if err := json.Unmarshal(decomp, &constantsInfos); err != nil {
 		return err
 	}
 
