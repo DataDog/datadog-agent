@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux || windows
+//go:build test && (linux || windows)
 
 package rtcontainercheckimpl
 
@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
-	"github.com/DataDog/datadog-agent/comp/process/rtcontainercheck"
+	rtcontainercheck "github.com/DataDog/datadog-agent/comp/process/rtcontainercheck/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/process/util/coreagent"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -154,7 +154,7 @@ func TestRTContainerCheckIsEnabled(t *testing.T) {
 				fx.Provide(func() statsd.ClientInterface {
 					return &statsd.NoOpClient{}
 				}),
-				Module(),
+				fxutil.ProvideComponentConstructor(NewCheck),
 			))
 
 			assert.Equal(t, tc.enabled, c.Object().IsEnabled())
