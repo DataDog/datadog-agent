@@ -120,7 +120,6 @@ def render(db: Db, root: Path = Path(".")) -> str:
     lines.append(f"- wall_hours_used: {db.budget.wall_hours_used:.2f}")
     if db.budget.wall_hours_ceiling is not None:
         lines.append(f"- wall_hours_ceiling: {db.budget.wall_hours_ceiling:.2f}")
-    # Format token count with thousands separators + ceiling ratio if set
     tok = db.budget.api_tokens_used
     if db.budget.api_token_ceiling:
         pct = 100.0 * tok / db.budget.api_token_ceiling
@@ -129,6 +128,25 @@ def render(db: Db, root: Path = Path(".")) -> str:
         )
     else:
         lines.append(f"- api_tokens_used: {tok:,}")
+    # Per-model breakdown + list-price cost estimate. Real bill runs higher
+    # due to prompt-cache write tokens and SDK retries.
+    try:
+        from . import sdk as _sdk
+        counter = {
+            "opus_in": db.budget.opus_in, "opus_out": db.budget.opus_out,
+            "sonnet_in": db.budget.sonnet_in, "sonnet_out": db.budget.sonnet_out,
+            "unknown_in": db.budget.unknown_in, "unknown_out": db.budget.unknown_out,
+        }
+        cost = _sdk.estimate_cost(counter)
+        lines.append(f"- estimated_cost_usd: ${cost:.2f} (list-price)")
+        lines.append(
+            f"- opus: {db.budget.opus_in:,} in / {db.budget.opus_out:,} out"
+        )
+        lines.append(
+            f"- sonnet: {db.budget.sonnet_in:,} in / {db.budget.sonnet_out:,} out"
+        )
+    except Exception:
+        pass
     lines.append("")
 
     lines.append("## Candidates")

@@ -118,41 +118,112 @@ def _run_query(prompt: str, model: str | None = None, **options_kwargs) -> str:
     query, ClaudeAgentOptions = _import_sdk()
     if model:
         options_kwargs["model"] = model
+    family = _model_family(model)
 
     def _once() -> str:
-        return _collect_text(query(prompt=prompt, options=ClaudeAgentOptions(**options_kwargs)))
+        return _collect_text(
+            query(prompt=prompt, options=ClaudeAgentOptions(**options_kwargs)),
+            model_family_for_call=family,
+        )
 
     return _with_retries(_once)
 
 
 # Process-wide token counter. Reset per iteration by the driver via
-# `consume_token_count()`. Accumulates from ResultMessage.usage on each
-# SDK roundtrip.
-_TOKEN_COUNTER: dict[str, int] = {"input": 0, "output": 0}
+# `consume_token_count()`. Tracks tokens by (model_family, input/output)
+# so the driver can report per-model usage and cost.
+# model_family ∈ {"opus", "sonnet", "unknown"}.
+_TOKEN_COUNTER: dict[str, int] = {
+    "opus_in": 0, "opus_out": 0,
+    "sonnet_in": 0, "sonnet_out": 0,
+    "unknown_in": 0, "unknown_out": 0,
+}
+
+# Per-million-token prices used for dollar estimates in PR comments /
+# journal. Opus = model_deep; Sonnet = model_light. Public list prices
+# as of April 2026; update when Anthropic pricing changes. The real
+# bill runs higher due to prompt-cache write tokens + retries.
+_PRICING = {
+    "opus":   {"in": 15.00, "out": 75.00},   # $/1M tokens
+    "sonnet": {"in":  3.00, "out": 15.00},
+    "unknown": {"in": 3.00, "out": 15.00},   # assume Sonnet-ish as a floor
+}
 
 
-def consume_token_count() -> dict[str, int]:
-    """Return and reset the accumulated token counts. Caller responsible for
-    recording them onto BudgetState.api_tokens_used."""
+def _model_family(model: str | None) -> str:
+    """Classify an SDK model ID into one of {opus, sonnet, unknown} for
+    cost attribution. Robust to future model-version renames — we look for
+    the substring, not exact match."""
+    if not model:
+        return "unknown"
+    m = model.lower()
+    if "opus" in m:
+        return "opus"
+    if "sonnet" in m:
+        return "sonnet"
+    if "haiku" in m:
+        # Haiku cheap, currently unused; lump into sonnet bucket as an
+        # approximation — underestimates cost slightly.
+        return "sonnet"
+    return "unknown"
+
+
+def estimate_cost(counter: dict[str, int]) -> float:
+    """Rough $ estimate from a per-model token counter dict."""
+    cost = 0.0
+    for fam in ("opus", "sonnet", "unknown"):
+        in_k = counter.get(f"{fam}_in", 0) / 1_000_000
+        out_k = counter.get(f"{fam}_out", 0) / 1_000_000
+        cost += in_k * _PRICING[fam]["in"]
+        cost += out_k * _PRICING[fam]["out"]
+    return cost
+
+
+def peek_token_count() -> dict[str, int]:
+    """Return the accumulated per-model token counts WITHOUT resetting.
+
+    Lets the driver include this-iteration token usage in end-of-iter PR
+    comments without losing the count for the end-of-iteration
+    consume_token_count() + budget-state update path.
+    """
     ret = dict(_TOKEN_COUNTER)
-    _TOKEN_COUNTER["input"] = 0
-    _TOKEN_COUNTER["output"] = 0
+    ret["input"] = ret["opus_in"] + ret["sonnet_in"] + ret["unknown_in"]
+    ret["output"] = ret["opus_out"] + ret["sonnet_out"] + ret["unknown_out"]
     return ret
 
 
-def _collect_text(async_iter) -> str:
-    """Drain an SDK query's async iterator into a single text string."""
+def consume_token_count() -> dict[str, int]:
+    """Return and reset the accumulated per-model token counts.
+
+    Returned dict has keys `opus_in`, `opus_out`, `sonnet_in`, `sonnet_out`,
+    `unknown_in`, `unknown_out` plus the legacy aggregate `input`/`output`
+    so existing callers keep working.
+    """
+    ret = dict(_TOKEN_COUNTER)
+    ret["input"] = ret["opus_in"] + ret["sonnet_in"] + ret["unknown_in"]
+    ret["output"] = ret["opus_out"] + ret["sonnet_out"] + ret["unknown_out"]
+    for k in _TOKEN_COUNTER:
+        _TOKEN_COUNTER[k] = 0
+    return ret
+
+
+def _collect_text(async_iter, model_family_for_call: str = "unknown") -> str:
+    """Drain an SDK query's async iterator into a single text string.
+
+    `model_family_for_call` tags any observed token usage with the model
+    family that produced them — used by consume_token_count + estimate_cost
+    for per-model billing breakdown.
+    """
     chunks: list[str] = []
+    in_key = f"{model_family_for_call}_in"
+    out_key = f"{model_family_for_call}_out"
 
     async def _go():
         async for msg in async_iter:
-            # Accumulate token usage whenever the SDK surfaces it — works
-            # for ResultMessage and any message type that carries `.usage`.
             usage = getattr(msg, "usage", None)
             if usage is not None:
-                _TOKEN_COUNTER["input"] += int(getattr(usage, "input_tokens", 0) or 0)
-                _TOKEN_COUNTER["output"] += int(getattr(usage, "output_tokens", 0) or 0)
-            # ResultMessage carries `.result`; other message types are skipped.
+                _TOKEN_COUNTER[in_key] += int(getattr(usage, "input_tokens", 0) or 0)
+                _TOKEN_COUNTER[out_key] += int(getattr(usage, "output_tokens", 0) or 0)
             if hasattr(msg, "result") and msg.result is not None:
                 chunks.append(str(msg.result))
         return "".join(chunks)

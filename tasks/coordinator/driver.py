@@ -50,6 +50,45 @@ class ProtectedPathTamperHalt(Exception):
     """Raised when ground-truth fixtures changed between iterations."""
 
 
+def _budget_footer(db: Db, iter_tokens: dict | None = None) -> str:
+    """Compact one-line-ish token/cost summary for PR comments.
+
+    Shows this-iteration usage (if provided) + cumulative usage + ceiling
+    %age. Costs are list-price estimates; real bill runs higher due to
+    prompt-cache write tokens and retries.
+    """
+    b = db.budget
+    cum = {
+        "opus_in": b.opus_in, "opus_out": b.opus_out,
+        "sonnet_in": b.sonnet_in, "sonnet_out": b.sonnet_out,
+        "unknown_in": b.unknown_in, "unknown_out": b.unknown_out,
+    }
+    cum_cost = sdk_mod.estimate_cost(cum)
+    total_toks = b.api_tokens_used
+    pct = ""
+    if CONFIG.api_token_ceiling:
+        pct = f" ({100 * total_toks / CONFIG.api_token_ceiling:.0f}% of {CONFIG.api_token_ceiling:,} token ceiling)"
+    opus_pct = 0
+    if total_toks > 0:
+        opus_pct = 100 * (b.opus_in + b.opus_out) / total_toks
+
+    iter_line = ""
+    if iter_tokens:
+        iter_cost = sdk_mod.estimate_cost(iter_tokens)
+        iter_line = (
+            f"This iter: {iter_tokens.get('input', 0):,} in / "
+            f"{iter_tokens.get('output', 0):,} out "
+            f"(~${iter_cost:.2f}). "
+        )
+    return (
+        f"\n\n---\n"
+        f"**Budget**: {iter_line}"
+        f"Run total: {total_toks:,} tokens "
+        f"(~${cum_cost:.2f}){pct}. "
+        f"Model mix: Opus {opus_pct:.0f}%, Sonnet {100 - opus_pct:.0f}%."
+    )
+
+
 def _snapshot_protected_paths(db: Db, root: Path) -> None:
     """Record current content hashes of scoring labels into db.yaml."""
     db.protected_path_hashes = {
@@ -408,13 +447,45 @@ def run_iteration(db: Db, root: Path, dry_run: bool = False) -> Db:
         save_db(db, root)
 
     if not dry_run:
-        # Accumulate SDK tokens consumed during this iteration.
+        # Accumulate SDK tokens consumed during this iteration. Per-model
+        # breakdown (opus vs sonnet) enables honest $ attribution — Opus
+        # is ~5× Sonnet per input token.
         tokens = sdk_mod.consume_token_count()
         db.budget.api_tokens_used += tokens["input"] + tokens["output"]
+        cost_iter = sdk_mod.estimate_cost(tokens)
+        cumulative_cost = sdk_mod.estimate_cost({
+            "opus_in": 0, "opus_out": 0,           # budget state tracks aggregate;
+            "sonnet_in": 0, "sonnet_out": 0,       # accurate cumulative requires
+            "unknown_in": 0, "unknown_out": 0,     # per-model accumulation in db.
+        })
+        # Store the cumulative breakdown on budget so future iterations
+        # can render "we've spent $X on Opus, $Y on Sonnet".
+        for k, v in tokens.items():
+            if k in ("input", "output"):
+                continue
+            setattr(
+                db.budget,
+                k,
+                getattr(db.budget, k, 0) + v,
+            )
         if tokens["input"] or tokens["output"]:
             journal.append(
                 "tokens_used",
-                {"iter": len(db.iterations), "input": tokens["input"], "output": tokens["output"]},
+                {
+                    "iter": len(db.iterations),
+                    "input": tokens["input"],
+                    "output": tokens["output"],
+                    "opus_in": tokens.get("opus_in", 0),
+                    "opus_out": tokens.get("opus_out", 0),
+                    "sonnet_in": tokens.get("sonnet_in", 0),
+                    "sonnet_out": tokens.get("sonnet_out", 0),
+                    "cost_iter_usd": round(cost_iter, 4),
+                    "cumulative_cost_usd": round(sdk_mod.estimate_cost({
+                        f"{fam}_{d}": getattr(db.budget, f"{fam}_{d}", 0)
+                        for fam in ("opus", "sonnet", "unknown")
+                        for d in ("in", "out")
+                    }), 4),
+                },
                 root,
             )
 
@@ -593,6 +664,7 @@ def _run_iteration_body(
                     f"implementation agent crashed.\n\n"
                     f"Error: `{str(e)[:400]}`\n\n"
                     f"Working tree reverted; moving on."
+                    + _budget_footer(db, sdk_mod.peek_token_count())
                 ),
                 requires_ack=False,
                 root=root,
@@ -680,6 +752,7 @@ def _run_iteration_body(
                     f"**iter {iter_num}** · `{candidate.id}` — eval failed.\n\n"
                     f"Stderr tail: `{eval_msg[:400]}`\n\n"
                     f"Working tree reverted; moving on."
+                    + _budget_footer(db, sdk_mod.peek_token_count())
                 ),
                 requires_ack=False,
                 root=root,
@@ -807,6 +880,7 @@ def _run_iteration_body(
                 f"Total FPs {scoring.baseline_total_fps} → {scoring.total_fps} "
                 f"(Δ{scoring.total_dfps:+d}).\n\n"
                 f"Working tree reverted; no commit."
+                + _budget_footer(db, sdk_mod.peek_token_count())
             ),
             requires_ack=False,
             root=root,
@@ -913,6 +987,7 @@ def _run_iteration_body(
                 f"(Δ{scoring.total_dfps:+d}).\n\n"
                 f"**Top 5 scenario wins**:\n{win_lines}\n\n"
                 f"**Reviewer verdicts**:\n{rationale_lines}"
+                + _budget_footer(db, sdk_mod.peek_token_count())
             ),
             requires_ack=False,
             root=root,
@@ -983,6 +1058,7 @@ def _run_iteration_body(
                 f"(Δ{scoring.mean_df1:+.4f}).\n\n"
                 f"**Reviewer verdicts**:\n{rationale_lines}\n\n"
                 f"Working tree reverted; no commit."
+                + _budget_footer(db, sdk_mod.peek_token_count())
             ),
             requires_ack=False,
             root=root,
