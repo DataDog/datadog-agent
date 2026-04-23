@@ -24,6 +24,23 @@ import (
 	boundport "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/bound-port"
 )
 
+// SanitizeStatusOutputForKnownNoise filters expected non-actionable status output noise
+// so tests can assert on real errors only.
+func SanitizeStatusOutputForKnownNoise(statusOutput string) string {
+	// API key is intentionally invalid in these tests.
+	statusOutput = strings.ReplaceAll(statusOutput, "[ERROR] API Key is invalid", "API Key is invalid")
+
+	// Ignore errors specifically due to NTP flakiness.
+	if strings.Contains(statusOutput, "Error: failed to get clock offset from any ntp host") {
+		// The triggering error will look something like this:
+		// Instance ID: ntp:4c427a42a70bbf8 [ERROR]
+		re := regexp.MustCompile(`Instance\sID[:]\sntp[:][a-z0-9]+\s\[ERROR\]`)
+		statusOutput = re.ReplaceAllString(statusOutput, "Instance ID: ntp [ignored]")
+	}
+
+	return statusOutput
+}
+
 // CheckAgentBehaviour runs test to check the agent is behaving as expected
 func CheckAgentBehaviour(t *testing.T, client *TestClient) {
 	t.Run("datadog-agent service running", func(tt *testing.T) {
@@ -70,19 +87,7 @@ func CheckAgentBehaviour(t *testing.T, client *TestClient) {
 	})
 
 	t.Run("status command no errors", func(tt *testing.T) {
-		statusOutput := client.AgentClient.Status().Content
-
-		// API Key is invalid we should not check for the following error
-		statusOutput = strings.ReplaceAll(statusOutput, "[ERROR] API Key is invalid", "API Key is invalid")
-
-		// Ignore errors specifically due to NTP flakiness.
-		if strings.Contains(statusOutput, "Error: failed to get clock offset from any ntp host") {
-			// The triggering error will look something like this:
-			// Instance ID: ntp:4c427a42a70bbf8 [ERROR]
-			re := regexp.MustCompile(`Instance\sID[:]\sntp[:][a-z0-9]+\s\[ERROR\]`)
-			statusOutput = re.ReplaceAllString(statusOutput, "Instance ID: ntp [ignored]")
-		}
-
+		statusOutput := SanitizeStatusOutputForKnownNoise(client.AgentClient.Status().Content)
 		require.NotContains(tt, statusOutput, "ERROR")
 	})
 }

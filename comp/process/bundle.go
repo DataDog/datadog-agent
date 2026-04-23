@@ -24,7 +24,7 @@ import (
 	processcheckfx "github.com/DataDog/datadog-agent/comp/process/processcheck/fx"
 	processdiscoverycheckfx "github.com/DataDog/datadog-agent/comp/process/processdiscoverycheck/fx"
 	profilerimpl "github.com/DataDog/datadog-agent/comp/process/profiler/fx"
-	"github.com/DataDog/datadog-agent/comp/process/rtcontainercheck/rtcontainercheckimpl"
+	rtcontainercheckfx "github.com/DataDog/datadog-agent/comp/process/rtcontainercheck/fx"
 	"github.com/DataDog/datadog-agent/comp/process/runner/runnerimpl"
 	submitterfx "github.com/DataDog/datadog-agent/comp/process/submitter/fx"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
@@ -46,7 +46,7 @@ func Bundle() fxutil.BundleOptions {
 		connectionscheckfx.Module(),
 		containercheckimpl.Module(),
 		processcheckfx.Module(),
-		rtcontainercheckimpl.Module(),
+		rtcontainercheckfx.Module(),
 		processdiscoverycheckfx.Module(),
 
 		agentimpl.Module(),

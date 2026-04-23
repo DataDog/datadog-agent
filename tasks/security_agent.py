@@ -522,17 +522,15 @@ def generate_cws_documentation(ctx):
 @task
 def cws_go_generate(ctx, verbose=False):
     # run different `go generate` for pkg/security/secl and pkg/security
-    ctx.run("go install golang.org/x/tools/cmd/stringer")
     ctx.run("go install github.com/mailru/easyjson/easyjson")
     ctx.run("go install github.com/DataDog/datadog-agent/pkg/security/generators/accessors")
     ctx.run("go install github.com/DataDog/datadog-agent/pkg/security/generators/event_deep_copy")
     ctx.run("go install github.com/DataDog/datadog-agent/pkg/security/generators/operators")
     with ctx.cd("./pkg/security/secl"):
         if sys.platform == "linux":
-            ctx.run("GOOS=windows go generate ./...")
-        # Disable cross generation from windows for now. Need to fix the stringer issue.
-        # elif sys.platform == "win32":
-        #     ctx.run("set GOOS=linux && go generate ./...")
+            ctx.run("GOOS=windows go generate -run=-tag.+windows ./...")
+        elif is_windows:
+            ctx.run('set "GOOS=linux" && go generate -run=-tag.+unix ./...')
         cmd = "go generate"
         if verbose:
             cmd += " -v"
