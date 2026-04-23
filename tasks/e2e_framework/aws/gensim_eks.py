@@ -188,12 +188,10 @@ def submit_gensim_eks(
     for ep_name, scen_name, pinned_sha in episode_pairs:
         ep_dir = _find_episode_dir(gensim_repo_path, ep_name)
         chart_dir = ep_dir / "chart"
-        scenario_file = ep_dir / "episodes" / f"{scen_name}.yaml"
 
         if not chart_dir.exists():
             raise Exit(f"Chart directory not found: {chart_dir}")
-        if not scenario_file.exists():
-            raise Exit(f"Scenario file not found: {scenario_file}")
+        _resolve_scenario_file(ep_dir, scen_name)
 
         if pinned_sha:
             rel_path = ep_dir.relative_to(gensim_repo_path)
@@ -715,8 +713,18 @@ _EPISODE_SUBDIRS = ["agent-q-branch", "postmortems", "synthetics"]
 _EPISODE_SUBDIR_SET = frozenset(_EPISODE_SUBDIRS)
 
 
+def _resolve_scenario_file(ep_dir: Path, scen_name: str) -> Path:
+    """Return episodes/<scenario>.yaml or .yml, preferring .yaml if both exist (matches submit / Pulumi)."""
+    episodes_dir = ep_dir / "episodes"
+    for ext in (".yaml", ".yml"):
+        candidate = episodes_dir / f"{scen_name}{ext}"
+        if candidate.is_file():
+            return candidate
+    raise Exit(f"Scenario file not found for {scen_name!r} under {episodes_dir} (tried .yaml and .yml).")
+
+
 def _discover_episode_scenario_pairs(repo_path: Path) -> list[tuple[str, str]]:
-    """Return sorted unique (episode_name, scenario_stem) pairs from episodes/*.yaml."""
+    """Return sorted unique (episode_name, scenario_stem) pairs from episodes/*.yaml and *.yml."""
     pairs: set[tuple[str, str]] = set()
 
     def add_from_episode_dir(ep_dir: Path) -> None:
