@@ -8,4 +8,5 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/gui",
     visibility = ["//visibility:public"],
+    deps = ["//comp/core/gui/def"],
 )
