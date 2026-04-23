@@ -15,7 +15,6 @@ import (
 	"errors"
 	"math/rand"
 	"sync"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
@@ -25,7 +24,6 @@ type Resolver struct {
 }
 
 var newSignatureResolver = sync.OnceValue(func() *Resolver {
-	rand.Seed(time.Now().UnixNano())
 	return &Resolver{
 		signatureKey: rand.Uint64(),
 	}

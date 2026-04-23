@@ -37,12 +37,18 @@ func (cg *testCGroup) enter() error {
 }
 
 func (cg *testCGroup) leave(t *testing.T) {
-	if err := os.WriteFile("/sys/fs/cgroup"+cg.previousCGroupPath+"/cgroup.procs", []byte(strconv.Itoa(os.Getpid())), 0700); err != nil {
-		if err := os.WriteFile("/sys/fs/cgroup/systemd"+cg.previousCGroupPath+"/cgroup.procs", []byte(strconv.Itoa(os.Getpid())), 0700); err != nil {
-			t.Log(err)
+	pid := []byte(strconv.Itoa(os.Getpid()))
+	paths := []string{
+		"/sys/fs/cgroup" + cg.previousCGroupPath + "/cgroup.procs",
+		"/sys/fs/cgroup/systemd" + cg.previousCGroupPath + "/cgroup.procs",
+		"/sys/fs/cgroup/systemd/cgroup.procs",
+	}
+	for _, p := range paths {
+		if err := os.WriteFile(p, pid, 0700); err == nil {
 			return
 		}
 	}
+	t.Errorf("failed to restore process to any cgroup (tried %v)", paths)
 }
 
 func (cg *testCGroup) remove(t *testing.T) {

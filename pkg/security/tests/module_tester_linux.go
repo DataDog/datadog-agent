@@ -691,12 +691,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	}
 
 	if testMod != nil && ebpfLessEnabled {
-		testMod.st = st
-		testMod.cmdWrapper = cmdWrapper
-		testMod.t = t
-		testMod.opts.dynamicOpts = opts.dynamicOpts
-		testMod.opts.staticOpts = opts.staticOpts
-		testMod.statsdClient.Flush()
+		testMod.resetTestState(t, st, cmdWrapper, opts)
 
 		if opts.staticOpts.preStartCallback != nil {
 			opts.staticOpts.preStartCallback(testMod)
@@ -708,13 +703,8 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 			}
 		}
 		return testMod, nil
-
 	} else if !opts.forceReload && testMod != nil && opts.staticOpts.Equal(testMod.opts.staticOpts) {
-		testMod.st = st
-		testMod.cmdWrapper = cmdWrapper
-		testMod.t = t
-		testMod.opts.dynamicOpts = opts.dynamicOpts
-		testMod.statsdClient.Flush()
+		testMod.resetTestState(t, st, cmdWrapper, opts)
 
 		if !disableTracePipe && !ebpfLessEnabled {
 			if testMod.tracePipe, err = testMod.startTracing(); err != nil {
@@ -738,6 +728,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		return testMod, nil
 	} else if testMod != nil {
 		testMod.cleanup()
+		testMod = nil
 	}
 
 	emconfig, secconfig, err := genTestConfigs(t, commonCfgDir, opts.staticOpts)
@@ -1006,7 +997,47 @@ func (tm *testModule) startTracing() (*tracePipeLogger, error) {
 	return logger, nil
 }
 
+// resetTestState prepares a reused module for a new test by clearing all
+// test-scoped state while keeping the eBPF infrastructure intact.
+func (tm *testModule) resetTestState(t testing.TB, st *simpleTest, cmdWrapper cmdWrapper, opts tmOpts) {
+	if tm.tracePipe != nil {
+		tm.tracePipe.Stop()
+		tm.tracePipe = nil
+	}
+
+	// Clear event handlers FIRST under lock. The eBPF ring buffer goroutine
+	// calls HandleEvent/RuleMatch/SendEvent concurrently, which acquire
+	// eventHandlers.RLock(). We must never replace the struct wholesale
+	// (that would overwrite the embedded mutex while it may be held).
+	// Once handlers are nil, no callbacks fire, so subsequent field updates
+	// (tm.t, tm.st, etc.) are safe from concurrent reads via callbacks.
+	tm.eventHandlers.Lock()
+	tm.eventHandlers.onRuleMatch = nil
+	tm.eventHandlers.onProbeEvent = nil
+	tm.eventHandlers.onCustomSendEvent = nil
+	tm.eventHandlers.onSendEvent = nil
+	tm.eventHandlers.onDiscarderPushed = nil
+	tm.eventHandlers.Unlock()
+
+	tm.st = st
+	tm.cmdWrapper = cmdWrapper
+	tm.t = t
+	tm.opts.dynamicOpts = opts.dynamicOpts
+	tm.opts.staticOpts = opts.staticOpts
+	tm.statsdClient.Flush()
+	if tm.msgSender != nil {
+		tm.msgSender.flush()
+	}
+}
+
 func (tm *testModule) cleanup() {
+	if tm.tracePipe != nil {
+		tm.tracePipe.Stop()
+		tm.tracePipe = nil
+	}
+	if tm.grpcServer != nil {
+		tm.grpcServer.Stop()
+	}
 	if tm.eventMonitor != nil {
 		tm.eventMonitor.Close()
 	}

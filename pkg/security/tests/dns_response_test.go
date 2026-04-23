@@ -76,7 +76,9 @@ func TestDNSResponse(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	defer justBind().Close()
+	// Bind socket AFTER module creation so module can track the process
+	conn1 := justBind()
+	defer conn1.Close()
 
 	t.Run("catch-dns-rcode-zero", func(t *testing.T) {
 		test.WaitSignalFromRule(t, func() error {
@@ -94,6 +96,7 @@ func TestDNSResponse(t *testing.T) {
 		}, "dns_response_ok")
 	})
 	test.Close()
+	conn1.Close()
 
 	test, err = newTestModule(t, nil, ruleDefsRcodeNXDomain, withStaticOpts(testOpts{
 		dnsPort: DNSPort,
@@ -102,6 +105,11 @@ func TestDNSResponse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	// Bind a fresh socket AFTER creating the second test module
+	conn2 := justBind()
+	defer conn2.Close()
+
 	t.Run("catch-dns-rcode-nxdomain", func(t *testing.T) {
 		test.WaitSignalFromRule(t, func() error {
 			hexDump := "0000000000000000000000000800450000732e9d400001114ca77f0000357f00000115b1d778005fba5b2a7281830001000000010000037777770864617461646177670265750000010001c0190006000100000258002a02736903646e73c0190474656368056575726964c019423b7e6500000e10000007080036ee8000000258"
@@ -144,7 +152,10 @@ func TestDNSResponseDiscarder(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer test.Close()
-	defer justBind().Close()
+
+	// Bind socket AFTER module creation so module can track the process
+	conn := justBind()
+	defer conn.Close()
 
 	t.Run("noerror-packet-is-discarded", func(_ *testing.T) {
 		err = test.GetProbeEvent(func() error {
