@@ -3,9 +3,9 @@ module github.com/DataDog/datadog-agent/comp/core/secrets/impl
 go 1.25.0
 
 require (
-	github.com/DataDog/datadog-agent/comp/api/api/def v0.68.3
-	github.com/DataDog/datadog-agent/comp/core/flare/types v0.68.3
-	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.71.0-rc.1
+	github.com/DataDog/datadog-agent/comp/api/api/def v0.72.0-rc.1
+	github.com/DataDog/datadog-agent/comp/core/flare/types v0.72.0-rc.1
+	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.72.0-rc.1
 	github.com/DataDog/datadog-agent/comp/core/secrets/utils v0.70.0
 	github.com/DataDog/datadog-agent/comp/core/status v0.73.0-rc.5
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.68.3
