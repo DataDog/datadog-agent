@@ -186,9 +186,29 @@ foreign_cc_shared_wrapper(
     lib_filter = "libcrypto",
 )
 
+# On Windows, lib_filter fails because DLLs live in out_binaries and
+# rules_foreign_cc leaves LibraryToLink.dynamic_library = None.
+# openssl_shared (no lib_filter) succeeds silently with empty DefaultInfo;
+# the DLLs are supplied explicitly via installed_executables instead.
+alias(
+    name = "_libssl_shared_input",
+    actual = select({
+        "@platforms//os:windows": ":openssl_shared",
+        "//conditions:default": ":libssl_shared",
+    }),
+)
+
+alias(
+    name = "_libcrypto_shared_input",
+    actual = select({
+        "@platforms//os:windows": ":openssl_shared",
+        "//conditions:default": ":libcrypto_shared",
+    }),
+)
+
 dd_cc_packaged(
     name = "libssl_shared_pkg",
-    input = ":libssl_shared",
+    input = ":_libssl_shared_input",
     version = OPENSSL_VERSION,
     libname = "libssl",
 )
@@ -221,7 +241,7 @@ pkg_filegroup(
 
 dd_cc_packaged(
     name = "libcrypto_shared_pkg",
-    input = ":libcrypto_shared",
+    input = ":_libcrypto_shared_input",
     version = OPENSSL_VERSION,
     libname = "libcrypto",
     installed_files = [":openssl_files"] + select({
@@ -231,6 +251,14 @@ dd_cc_packaged(
     installed_executables = {
         ":openssl_binary": "bin",
     } | select({
+        # On Windows, DLLs are in out_binaries so LibraryToLink.dynamic_library is
+        # None; supply them explicitly so _dd_packaged_files_rule installs them.
+        "@platforms//os:windows": {
+            ":libcrypto_shared_file": "bin",
+            ":libssl_shared_file": "bin",
+        },
+        "//conditions:default": {},
+    }) | select({
         # Engines, modules, and fips provider are only installed for FIPS builds.
         # Non-FIPS Windows has out_data_dirs = [] so the engines/modules output groups
         # do not exist there; non-FIPS non-Windows builds don't need them either.
