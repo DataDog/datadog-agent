@@ -1102,8 +1102,7 @@ new-e2e-ssi-gradual-rollout:
   needs:
     - !reference [.needs_new_e2e_template]
     - qa_dca
-    - qa_agent
-    - qa_agent_full
+    - qa_agent_linux
   variables:
     TARGETS: ./tests/ssi-gradual-rollout
     TEAM: apm-release-platform

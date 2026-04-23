@@ -4,11 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package ssigradualrollout: This test suite is to E2E test the gradual rollout feature in SSI.
-// It will test the following scenarios:
-// - The gradual rollout feature is enabled by default.
-// - The gradual rollout feature is disabled by setting the `DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_GRADUAL_ROLLOUT_ENABLED` environment variable to `false`.
-// - The gradual rollout feature is disabled by setting the `DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_CONTAINER_REGISTRY` environment variable to a custom registry.
-// - The gradual rollout feature is disabled by setting the version tag for a library to a full canonical tag (e.g. "1.2.3") instead of a mutable tag (e.g. "v1" or "latest").
+// It will test that the gradual rollout feature is enabled by default.
 package ssigradualrollout
 
 import (
