@@ -29,8 +29,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/pidmapimpl"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	replaymock "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/fx-mock"
-	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
+	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/def"
+	serverdebugmock "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/mock"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	filterlistmock "github.com/DataDog/datadog-agent/comp/filterlist/fx-mock"
 	offlinereporter "github.com/DataDog/datadog-agent/comp/offlinereporter/def"
@@ -86,7 +86,7 @@ func fulfillDepsWithConfigOverride(t testing.TB, overrides map[string]interface{
 		fx.Provide(func() configComponent.Component { return configComponent.NewMockWithOverrides(t, overrides) }),
 		mocktelemetry.Module(),
 		hostnameimpl.MockModule(),
-		serverdebugimpl.MockModule(),
+		serverdebugmock.MockModule(),
 		replaymock.MockModule(),
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
@@ -106,7 +106,7 @@ func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 		fx.Provide(func(t testing.TB) configComponent.Component { return configComponent.NewMockFromYAML(t, yaml) }),
 		mocktelemetry.Module(),
 		hostnameimpl.MockModule(),
-		serverdebugimpl.MockModule(),
+		serverdebugmock.MockModule(),
 		replaymock.MockModule(),
 		metricscompression.MockModule(),
 		logscompression.MockModule(),
@@ -128,7 +128,7 @@ func fulfillDepsWithInactiveServer(t *testing.T, cfg map[string]interface{}) (de
 		fx.Provide(func() configComponent.Component { return configComponent.NewMockWithOverrides(t, cfg) }),
 		mocktelemetry.Module(),
 		hostnameimpl.MockModule(),
-		serverdebugimpl.MockModule(),
+		serverdebugmock.MockModule(),
 		fx.Supply(Params{Serverless: false}),
 		replaymock.MockModule(),
 		pidmapimpl.Module(),
