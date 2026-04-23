@@ -18,6 +18,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
+	"golang.org/x/term"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -147,7 +148,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	// general communication options
 	snmpWalkCmd.Flags().IntVarP(&connParams.Retries, "retries", "r", defaultRetries, "Set the number of retries")
 	snmpWalkCmd.Flags().IntVarP(&connParams.Timeout, "timeout", "t", defaultTimeout, "Set the request timeout (in seconds)")
-	snmpWalkCmd.Flags().BoolVarP(&analyze, "analyze", "", false, "Analyze snmp walk results")
+	snmpWalkCmd.Flags().BoolVarP(&analyze, "analyze", "", false, "Analyze snmp walk results (report to stdout when redirected; otherwise open in a pager)")
 
 	snmpCmd.AddCommand(snmpWalkCmd)
 
@@ -364,7 +365,12 @@ func snmpWalk(connParams *snmpparse.SNMPConfig, args argsType, analyze analyzeFl
 			return fmt.Errorf("analyze walk: %w", err)
 		}
 		report := analyzer.FormatReport(found, notFound, profileName, extendedProfiles)
-		if err := runPager(report); err != nil {
+		// Interactive terminal: pager. Redirected stdout (>, >>, |): print so customers can save with e.g. --analyze > snmp.txt
+		if term.IsTerminal(int(os.Stdout.Fd())) {
+			if err := runPager(report); err != nil {
+				fmt.Print(report)
+			}
+		} else {
 			fmt.Print(report)
 		}
 		return nil
