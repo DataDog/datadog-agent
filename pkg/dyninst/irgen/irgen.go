@@ -791,7 +791,11 @@ func analyzeAllProbes(
 				}
 			}
 
-			// Pre-scan: collect return variables and compute display names.
+			// Pre-scan: collect return variables and compute display names for
+			// return events. @return is a return-point concept, so these are
+			// only used when the probe has a Return event; at line probes,
+			// named returns are treated as locals and unnamed returns are
+			// filtered out (see the switch below).
 			var returnVars []*ir.Variable
 			if haveReturn {
 				for _, v := range inst.Subprogram.Variables {
@@ -828,6 +832,16 @@ func analyzeAllProbes(
 				case len(inst.Events) == 1 &&
 					inst.Events[0].Kind == ir.EventKindLine:
 					// The line-probe case.
+					//
+					// Return-role vars are either filtered out (unnamed,
+					// e.g. ~r0) or treated as plain locals (named). The
+					// function hasn't returned yet, so they aren't "return
+					// values" here; unnamed slots have no user-facing value
+					// and named returns are just pre-declared locals.
+					if v.Role == ir.VariableRoleReturn &&
+						strings.HasPrefix(v.Name, "~") {
+						continue
+					}
 					ips := inst.Events[0].InjectionPoints
 					if !variableIsAvailable(ips, v) {
 						continue
@@ -847,9 +861,12 @@ func analyzeAllProbes(
 				// Capture expression probes only capture explicitly listed
 				// expressions (handled below), not all variables.
 				if isSnapshot && !isCaptureExpression {
-					// Compute the display name for this expression.
+					// Compute the display name for this expression. The
+					// @return wrapping is only for return events; at line
+					// probes named returns keep their original name (see
+					// switch above).
 					name := v.Name
-					if v.Role == ir.VariableRoleReturn {
+					if exprKind == ir.RootExpressionKindReturn {
 						if returnDisplayNames == nil {
 							name = "@return"
 						} else {
@@ -902,8 +919,10 @@ func analyzeAllProbes(
 				delete(segmentRefs, v.Name)
 			}
 
-			// Handle @return references in template segments.
-			if segs, ok := segmentRefs["@return"]; ok && len(returnVars) > 0 {
+			// Handle @return references in template segments. @return is
+			// a return-point concept and only resolves at probes with a
+			// Return event.
+			if segs, ok := segmentRefs["@return"]; ok && haveReturn {
 				for _, seg := range segs {
 					rv, rewritten, errMsg := resolveReturnExpr(
 						seg.segment.JSON, returnVars, returnDisplayNames,
@@ -941,7 +960,7 @@ func analyzeAllProbes(
 				}
 				// Handle @return references in capture expressions.
 				var rootVar *ir.Variable
-				if rootVarName == "@return" && len(returnVars) > 0 {
+				if rootVarName == "@return" && haveReturn {
 					rootVar, parsedExpr, _ = resolveReturnExpr(
 						parsedExpr, returnVars, returnDisplayNames,
 					)
@@ -1047,7 +1066,7 @@ func analyzeAllProbes(
 					}
 				}
 				var rootVar *ir.Variable
-				if rootVarName == "@return" && len(returnVars) > 0 {
+				if rootVarName == "@return" && haveReturn {
 					var errMsg string
 					rootVar, condExpr, errMsg = resolveReturnExpr(
 						condExpr, returnVars, returnDisplayNames,
