@@ -6,8 +6,3 @@
 //go:build test
 
 package status
-
-// Mock implements mock-specific methods.
-type Mock interface {
-	Component
-}
