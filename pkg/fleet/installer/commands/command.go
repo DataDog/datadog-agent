@@ -14,19 +14,16 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
-	"go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
@@ -43,9 +40,6 @@ const (
 	// For example, `setup` is run by humans and its output should be human readable.
 	AnnotationHumanReadableErrors = "human-readable-errors"
 )
-
-// agentConfigDir is the directory containing datadog.yaml. Overridable in tests.
-var agentConfigDir = paths.AgentConfigDir
 
 type cmdOption func(*cmdConfig)
 type cmdConfig struct{ quiet bool }
@@ -83,7 +77,6 @@ func newCmd(operation string, opts ...cmdOption) *cmd {
 		o(cfg)
 	}
 	env := env.FromEnv()
-	applyDatadogYAMLRegistryConfig(env)
 	if !env.IsFromDaemon && !cfg.quiet {
 		setupStdoutLogger(env)
 	}
@@ -160,82 +153,8 @@ func (i *installerCmd) stop(err error) {
 	}
 }
 
-type telemetryConfigFields struct {
-	APIKey string `yaml:"api_key"`
-	Site   string `yaml:"site"`
-}
-
-type installerRegistryYAMLConfig struct {
-	Installer struct {
-		Registry struct {
-			URL      string `yaml:"url"`
-			Auth     string `yaml:"auth"`
-			Username string `yaml:"username"`
-			Password string `yaml:"password"`
-		} `yaml:"registry"`
-	} `yaml:"installer"`
-}
-
-// telemetryConfig is a best effort to get the API key / site from `datadog.yaml`.
-func telemetryConfig() telemetryConfigFields {
-	configPath := filepath.Join(paths.AgentConfigDir, "datadog.yaml")
-	rawConfig, err := os.ReadFile(configPath)
-	if err != nil {
-		return telemetryConfigFields{}
-	}
-	var config telemetryConfigFields
-	err = yaml.Unmarshal(rawConfig, &config)
-	if err != nil {
-		return telemetryConfigFields{}
-	}
-	return config
-}
-
 func newTelemetry(env *env.Env) *telemetry.Telemetry {
-	config := telemetryConfig()
-	apiKey := env.APIKey
-	if apiKey == "" {
-		apiKey = config.APIKey
-	}
-	site := env.Site
-	_, ddSiteSet := os.LookupEnv("DD_SITE")
-	if !ddSiteSet && config.Site != "" {
-		site = config.Site
-	}
-
-	// Update env fields with corrected values so subprocesses inherit the right config
-	env.APIKey = apiKey
-	env.Site = site
-
-	t := telemetry.NewTelemetry(env.HTTPClient(), apiKey, site, "datadog-installer") // No sampling rules for commands
-	return t
-}
-
-// applyDatadogYAMLRegistryConfig reads installer.registry from datadog.yaml and
-// applies any values not already set by environment variables.
-func applyDatadogYAMLRegistryConfig(env *env.Env) {
-	configPath := filepath.Join(agentConfigDir, "datadog.yaml")
-	rawConfig, err := os.ReadFile(configPath)
-	if err != nil {
-		return
-	}
-	var config installerRegistryYAMLConfig
-	if err = yaml.Unmarshal(rawConfig, &config); err != nil {
-		return
-	}
-	r := config.Installer.Registry
-	if env.HasDefaultRegistryOverride() && r.Auth != "" {
-		env.RegistryOverride = r.URL
-	}
-	if env.HasDefaultRegistryAuthOverride() && r.Auth != "" {
-		env.RegistryAuthOverride = r.Auth
-	}
-	if env.HasDefaultRegistryUsername() && r.Username != "" {
-		env.RegistryUsername = r.Username
-	}
-	if env.HasDefaultRegistryPassword() && r.Password != "" {
-		env.RegistryPassword = r.Password
-	}
+	return telemetry.NewTelemetry(env.HTTPClient(), env.APIKey, env.Site, "datadog-installer")
 }
 
 // RootCommands returns the root commands

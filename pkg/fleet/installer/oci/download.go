@@ -114,23 +114,11 @@ func NewDownloader(env *env.Env, client *http.Client) *Downloader {
 
 // WithRegistryOverride returns a new Downloader with the given registry overrides applied.
 // The returned Downloader shares the same HTTP client as the original.
-// Image-scoped override maps (from DD_INSTALLER_REGISTRY_URL_<IMAGE> env vars) are
-// preserved and take precedence over the per-extension override, matching the
-// existing priority order.
+// Per-package overrides on the existing env.Registry take precedence over this
+// override, matching the existing priority order.
 func (d *Downloader) WithRegistryOverride(url, auth, username, password string) *Downloader {
 	envCopy := *d.env
-	if url != "" {
-		envCopy.RegistryOverride = url
-	}
-	if auth != "" {
-		envCopy.RegistryAuthOverride = auth
-	}
-	if username != "" {
-		envCopy.RegistryUsername = username
-	}
-	if password != "" {
-		envCopy.RegistryPassword = password
-	}
+	envCopy.Registry.Default = envCopy.Registry.Default.MergeStrings(url, auth, username, password)
 	return &Downloader{
 		env:    &envCopy,
 		client: d.client,
@@ -221,7 +209,8 @@ func getRefAndKeychains(mainEnv *env.Env, url string) []urlWithKeychain {
 		defaultRegistries = defaultRegistriesStaging
 	}
 	for _, additionalDefaultRegistry := range defaultRegistries {
-		refAndKeychain := getRefAndKeychain(&env.Env{RegistryOverride: additionalDefaultRegistry}, url)
+		fallbackEnv := &env.Env{Registry: env.RegistryConfig{Default: env.RegistryEntry{URL: additionalDefaultRegistry}}}
+		refAndKeychain := getRefAndKeychain(fallbackEnv, url)
 		// Deduplicate
 		found := false
 		for _, rk := range refAndKeychains {
@@ -238,33 +227,25 @@ func getRefAndKeychains(mainEnv *env.Env, url string) []urlWithKeychain {
 	return refAndKeychains
 }
 
-// getRefAndKeychain returns the reference and keychain for the given URL.
-// This function applies potential registry and authentication overrides set either globally or per image.
-func getRefAndKeychain(env *env.Env, url string) urlWithKeychain {
+// getRefAndKeychain returns the reference and keychain for the given URL,
+// applying registry and authentication overrides from the unified
+// env.Registry (per-package with fallback to Default).
+func getRefAndKeychain(e *env.Env, url string) urlWithKeychain {
 	imageWithIdentifier := url[strings.LastIndex(url, "/")+1:]
-	registryOverride := env.RegistryOverride
-	for image, override := range env.RegistryOverrideByImage {
-		if strings.HasPrefix(imageWithIdentifier, image+":") || strings.HasPrefix(imageWithIdentifier, image+"@") {
-			registryOverride = override
-			break
-		}
-	}
+	pkg := env.PackageNameFromURL(url)
+	entry := e.Registry.Resolve(pkg, "")
+
 	ref := url
 	// public.ecr.aws/datadog is ignored for now as there are issues with it
-	if registryOverride != "" && registryOverride != "public.ecr.aws/datadog" {
+	if entry.URL != "" && entry.URL != "public.ecr.aws/datadog" {
+		registryOverride := entry.URL
 		if !strings.HasSuffix(registryOverride, "/") {
 			registryOverride += "/"
 		}
 		registryOverride = formatImageRef(registryOverride)
 		ref = registryOverride + imageWithIdentifier
 	}
-	keychain := getKeychain(env.RegistryAuthOverride, env.RegistryUsername, env.RegistryPassword)
-	for image, override := range env.RegistryAuthOverrideByImage {
-		if strings.HasPrefix(imageWithIdentifier, image+":") || strings.HasPrefix(imageWithIdentifier, image+"@") {
-			keychain = getKeychain(override, env.RegistryUsername, env.RegistryPassword)
-			break
-		}
-	}
+	keychain := getKeychain(entry.Auth, entry.Username, entry.Password)
 	return urlWithKeychain{
 		ref:      ref,
 		keychain: keychain,

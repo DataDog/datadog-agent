@@ -11,79 +11,46 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	extensionsPkg "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/extensions"
 )
 
-func TestParseRegistryConfigExtensionOverrides(t *testing.T) {
-	configContent := `
-installer:
-  registry:
-    url: default.registry.com
-    auth: password
-    username: defaultuser
-    password: defaultpass
-    extensions:
-      datadog-agent:
-        ddot:
-          url: custom.registry.com
-          auth: password
-          username: customuser
-          password: custompass
-        other-ext:
-          url: other.registry.com
-`
-	var config datadogAgentConfig
-	err := yaml.Unmarshal([]byte(configContent), &config)
-	require.NoError(t, err)
-
-	assert.Equal(t, "default.registry.com", config.Installer.Registry.URL)
-	assert.Equal(t, "password", config.Installer.Registry.Auth)
-	assert.Equal(t, "defaultuser", config.Installer.Registry.Username)
-	assert.Equal(t, "defaultpass", config.Installer.Registry.Password)
-
-	require.Contains(t, config.Installer.Registry.Extensions, agentPackage)
-	agentExts := config.Installer.Registry.Extensions[agentPackage]
-	require.Len(t, agentExts, 2)
-
-	ddot := agentExts["ddot"]
-	assert.Equal(t, "custom.registry.com", ddot.URL)
-	assert.Equal(t, "password", ddot.Auth)
-	assert.Equal(t, "customuser", ddot.Username)
-	assert.Equal(t, "custompass", ddot.Password)
-
-	other := agentExts["other-ext"]
-	assert.Equal(t, "other.registry.com", other.URL)
-	assert.Empty(t, other.Auth)
-
-	// Verify conversion to ExtensionRegistry overrides map
-	overrides := make(map[string]extensionsPkg.ExtensionRegistry, len(agentExts))
-	for extName, extCfg := range agentExts {
-		overrides[extName] = extensionsPkg.ExtensionRegistry{
-			URL:      extCfg.URL,
-			Auth:     extCfg.Auth,
-			Username: extCfg.Username,
-			Password: extCfg.Password,
-		}
+func TestExtensionOverrides(t *testing.T) {
+	e := &env.Env{
+		Registry: env.RegistryConfig{
+			Default: env.RegistryEntry{URL: "default.registry.com", Auth: "password", Username: "defaultuser", Password: "defaultpass"},
+			Packages: map[string]env.PackageRegistry{
+				agentPackage: {
+					Extensions: map[string]env.RegistryEntry{
+						"ddot": {
+							URL:      "custom.registry.com",
+							Auth:     "password",
+							Username: "customuser",
+							Password: "custompass",
+						},
+						"other-ext": {URL: "other.registry.com"},
+					},
+				},
+			},
+		},
 	}
-	require.Len(t, overrides, 2)
-	assert.Equal(t, "custom.registry.com", overrides["ddot"].URL)
-	assert.Equal(t, "other.registry.com", overrides["other-ext"].URL)
+
+	got := extensionOverrides(e, []string{"ddot", "other-ext"})
+	require.Len(t, got, 2)
+	assert.Equal(t, extensionsPkg.ExtensionRegistry{
+		URL: "custom.registry.com", Auth: "password", Username: "customuser", Password: "custompass",
+	}, got["ddot"])
+	assert.Equal(t, extensionsPkg.ExtensionRegistry{URL: "other.registry.com"}, got["other-ext"])
 }
 
-func TestParseRegistryConfigNoExtensions(t *testing.T) {
-	configContent := `
-installer:
-  registry:
-    url: default.registry.com
-`
-	var config datadogAgentConfig
-	err := yaml.Unmarshal([]byte(configContent), &config)
-	require.NoError(t, err)
-
-	assert.Equal(t, "default.registry.com", config.Installer.Registry.URL)
-	assert.Nil(t, config.Installer.Registry.Extensions)
+func TestExtensionOverridesEmpty(t *testing.T) {
+	e := &env.Env{
+		Registry: env.RegistryConfig{
+			Default: env.RegistryEntry{URL: "default.registry.com"},
+		},
+	}
+	assert.Nil(t, extensionOverrides(e, []string{"ddot"}))
 }
 
 func TestInstallDDOTExtensionIfEnabled_Disabled(t *testing.T) {
