@@ -15,7 +15,7 @@ import (
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	networktracer "github.com/DataDog/datadog-agent/comp/networktracer/def"
 	"github.com/DataDog/datadog-agent/pkg/network"
