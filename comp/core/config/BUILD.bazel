@@ -18,7 +18,6 @@ go_library(
     deps = [
         "//comp/core/delegatedauth/def",
         "//comp/core/delegatedauth/noop-impl/types",
-        "//comp/core/flare/types",
         "//comp/core/secrets/def",
         "//comp/core/secrets/noop-impl/types",
         "//pkg/config/mock",
@@ -26,6 +25,7 @@ go_library(
         "//pkg/config/setup",
         "//pkg/util/defaultpaths",
         "//pkg/util/fxutil",
+        "@com_github_datadog_datadog_agent_comp_core_flare_types//:types",
         "@org_uber_go_fx//:fx",
     ] + select({
         "@rules_go//go/platform:windows": [
