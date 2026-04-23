@@ -6,7 +6,7 @@
 // Package dogstatsd implements DogStatsD.
 //
 //nolint:revive // TODO(AML) Fix revive linter
-package server
+package serverimpl
 
 import (
 	"strconv"

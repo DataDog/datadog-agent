@@ -4,7 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package server implements a component to run the dogstatsd server
-package server
+package serverimpl
 
 import (
 	"context"
