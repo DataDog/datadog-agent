@@ -90,7 +90,7 @@ func (cs *ConfigStore) Size() (int64, error) {
 	var size int64
 	err := cs.view(func(tx *bbolt.Tx) error {
 		size = tx.Size()
-		return nil
+		return nil, fmt.Errorf("cannot check size of the database")
 	})
 	return size, err
 }
@@ -322,16 +322,6 @@ func (cs *ConfigStore) DeleteConfig(key string) error {
 	})
 }
 
-// evictConfigs deletes the configs identified by the given UUIDs.
-func (cs *ConfigStore) DeleteConfigs(uuids []string) error {
-	for _, uuid := range uuids {
-		if err := cs.DeleteConfig(uuid); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // hashConfig returns a SHA-256 hash of the config content as a string
 func hashConfig(raw string) string {
 	hash := sha256.Sum256([]byte(raw))
@@ -394,6 +384,7 @@ func getGlobalLRUCandidate(configsPerDevice map[string]int, sortedEntries []*Con
 			return entry.ConfigUUID
 		}
 	}
+
 	return ""
 }
 
@@ -414,8 +405,12 @@ func updateEvictionIndex(configsPerDevice map[string]int, sortedEntries []*Confi
 	return configsPerDevice, remaining
 }
 
-// Identify the list of configs to evict in the next eviction round. This evicts configs exceeding the max per-device limit and the uses the LRU rule to reach the storage goal
-func (cs *ConfigStore) GetEvictionCandidates(minRetainedConfigs int, maxRetainedConfigs int, maxSize int64) ([]string, error) {
+// Function to evict configs
+// Return a list of config UUIDs that were evicted
+// Errors retruned if the eviction index cannot be built, configs fail to be deleted, or the DB size is still to large after evictable configs have been removed
+func (cs *ConfigStore) EvictConfigs(minRetainedConfigs int, maxRetainedConfigs int, maxSize int64) ([]string, error) {
+	evicted := make([]string, 0)
+
 	configsPerDevice, sortedEntries, err := cs.buildEvictionIndex()
 	if err != nil {
 		return nil, err
@@ -423,23 +418,37 @@ func (cs *ConfigStore) GetEvictionCandidates(minRetainedConfigs int, maxRetained
 
 	candidates := getEvictableExceedingMax(configsPerDevice, sortedEntries, maxRetainedConfigs)
 	for _, uuid := range candidates {
+		if err := cs.DeleteConfig(uuid); err != nil {
+			return evicted, err
+		}
 		configsPerDevice, sortedEntries = updateEvictionIndex(configsPerDevice, sortedEntries, uuid)
+		evicted = append(evicted, uuid)
 	}
 
 	size, err := cs.Size()
 	if err != nil {
-		return nil, err
+		return evicted, err
 	}
-	if size > maxSize {
-		for {
-			candidate := getGlobalLRUCandidate(configsPerDevice, sortedEntries, minRetainedConfigs)
-			if candidate == "" {
-				break
-			}
-			candidates = append(candidates, candidate)
-			configsPerDevice, sortedEntries = updateEvictionIndex(configsPerDevice, sortedEntries, candidate)
+
+	for size > maxSize {
+		candidate := getGlobalLRUCandidate(configsPerDevice, sortedEntries, minRetainedConfigs)
+		if candidate == "" {
+			break
+		}
+		if err := cs.DeleteConfig(candidate); err != nil {
+			return evicted, err
+		}
+		configsPerDevice, sortedEntries = updateEvictionIndex(configsPerDevice, sortedEntries, candidate)
+		evicted = append(evicted, candidate)
+		
+		size, err = cs.Size()
+		if err != nil {
+			return evicted, err
 		}
 	}
 
-	return candidates, nil
+	if size > maxSize {
+		return evicted, fmt.Errorf("failed to evict configs: DB size still exceeds the limit")
+	}
+	return evicted, nil
 }

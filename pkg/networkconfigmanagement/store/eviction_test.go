@@ -181,7 +181,6 @@ func TestGetEvictableExceedingMax(t *testing.T) {
 func TestEvictConfigs(t *testing.T) {
 	const noSizeLimit = int64(1 << 40) // 1 TB — effectively unlimited for unit tests
 
-	// metadataUUIDs returns the set of config UUIDs currently present in the metadata bucket.
 	metadataUUIDs := func(t *testing.T, cs *ConfigStore) map[string]bool {
 		t.Helper()
 		_, entries, err := cs.buildEvictionIndex()
@@ -193,9 +192,11 @@ func TestEvictConfigs(t *testing.T) {
 		return uuids
 	}
 
-	t.Run("empty store returns no error", func(t *testing.T) {
+	t.Run("empty store returns no evicted and no error", func(t *testing.T) {
 		cs := newTestConfigStore(t)
-		require.NoError(t, cs.evictConfigs(1, 5, noSizeLimit))
+		evicted, err := cs.EvictConfigs(1, 5, noSizeLimit)
+		require.NoError(t, err)
+		assert.Empty(t, evicted)
 	})
 
 	t.Run("no eviction when all devices are within the per-device cap", func(t *testing.T) {
@@ -203,7 +204,9 @@ func TestEvictConfigs(t *testing.T) {
 		insertTestMetadata(t, cs, ConfigMetadata{ConfigUUID: "uuid-1", DeviceID: "device:10.0.0.1", LastAccessedAt: 100})
 		insertTestMetadata(t, cs, ConfigMetadata{ConfigUUID: "uuid-2", DeviceID: "device:10.0.0.1", LastAccessedAt: 200})
 
-		require.NoError(t, cs.evictConfigs(1, 3, noSizeLimit))
+		evicted, err := cs.EvictConfigs(1, 3, noSizeLimit)
+		require.NoError(t, err)
+		assert.Empty(t, evicted)
 
 		remaining := metadataUUIDs(t, cs)
 		assert.True(t, remaining["uuid-1"])
@@ -216,12 +219,14 @@ func TestEvictConfigs(t *testing.T) {
 		insertTestMetadata(t, cs, ConfigMetadata{ConfigUUID: "uuid-middle", DeviceID: "device:10.0.0.1", LastAccessedAt: 200})
 		insertTestMetadata(t, cs, ConfigMetadata{ConfigUUID: "uuid-newest", DeviceID: "device:10.0.0.1", LastAccessedAt: 300})
 
-		require.NoError(t, cs.evictConfigs(1, 1, noSizeLimit))
+		evicted, err := cs.EvictConfigs(1, 1, noSizeLimit)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"uuid-oldest", "uuid-middle"}, evicted)
 
 		remaining := metadataUUIDs(t, cs)
-		assert.False(t, remaining["uuid-oldest"], "oldest should have been evicted")
-		assert.False(t, remaining["uuid-middle"], "middle should have been evicted")
-		assert.True(t, remaining["uuid-newest"], "newest should be retained")
+		assert.False(t, remaining["uuid-oldest"])
+		assert.False(t, remaining["uuid-middle"])
+		assert.True(t, remaining["uuid-newest"])
 	})
 
 	t.Run("pinned configs are preserved during per-device cap eviction", func(t *testing.T) {
@@ -230,15 +235,17 @@ func TestEvictConfigs(t *testing.T) {
 		insertTestMetadata(t, cs, ConfigMetadata{ConfigUUID: "uuid-old", DeviceID: "device:10.0.0.1", LastAccessedAt: 200})
 		insertTestMetadata(t, cs, ConfigMetadata{ConfigUUID: "uuid-new", DeviceID: "device:10.0.0.1", LastAccessedAt: 300})
 
-		require.NoError(t, cs.evictConfigs(1, 1, noSizeLimit))
+		evicted, err := cs.EvictConfigs(1, 1, noSizeLimit)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"uuid-old"}, evicted)
 
 		remaining := metadataUUIDs(t, cs)
 		assert.True(t, remaining["uuid-pinned"], "pinned config must not be evicted")
-		assert.False(t, remaining["uuid-old"], "oldest unpinned should be evicted")
-		assert.True(t, remaining["uuid-new"], "newest should be retained")
+		assert.False(t, remaining["uuid-old"])
+		assert.True(t, remaining["uuid-new"])
 	})
 
-	t.Run("size-based eviction evicts globally by LRU down to the minRetainedConfigs floor", func(t *testing.T) {
+	t.Run("size-based eviction evicts globally by LRU down to minRetainedConfigs floor", func(t *testing.T) {
 		cs := newTestConfigStore(t)
 		insertTestMetadata(t, cs, ConfigMetadata{ConfigUUID: "uuid-oldest", DeviceID: "device:10.0.0.1", LastAccessedAt: 100})
 		insertTestMetadata(t, cs, ConfigMetadata{ConfigUUID: "uuid-middle", DeviceID: "device:10.0.0.1", LastAccessedAt: 200})
@@ -246,12 +253,25 @@ func TestEvictConfigs(t *testing.T) {
 
 		// maxSize=0 always triggers size-based eviction (a bbolt DB is never 0 bytes).
 		// minRetainedConfigs=1 means the loop stops once the device is down to 1 config.
-		require.NoError(t, cs.evictConfigs(1, 10, 0))
+		evicted, err := cs.EvictConfigs(1, 10, 0)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"uuid-oldest", "uuid-middle"}, evicted)
 
 		remaining := metadataUUIDs(t, cs)
-		assert.False(t, remaining["uuid-oldest"], "oldest should have been evicted by global LRU")
-		assert.False(t, remaining["uuid-middle"], "middle should have been evicted by global LRU")
+		assert.False(t, remaining["uuid-oldest"])
+		assert.False(t, remaining["uuid-middle"])
 		assert.True(t, remaining["uuid-newest"], "newest must be retained (minRetainedConfigs floor)")
+	})
+
+	t.Run("returns evicted list and error when size cannot be reduced enough", func(t *testing.T) {
+		cs := newTestConfigStore(t)
+		insertTestMetadata(t, cs, ConfigMetadata{ConfigUUID: "uuid-1", DeviceID: "device:10.0.0.1", LastAccessedAt: 100})
+
+		// maxSize=0 but minRetainedConfigs=1 prevents evicting the last config
+		evicted, err := cs.EvictConfigs(1, 10, 0)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "DB size still exceeds the limit")
+		assert.Empty(t, evicted)
 	})
 }
 
