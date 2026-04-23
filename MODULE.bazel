@@ -89,7 +89,7 @@ git_override(
 # Temporary until rules_pkg > 1.2.0 is in BCR
 git_override(
     module_name = "rules_pkg",
-    commit = "14c78b8e9347a60919999f13177f1aa3fb850ea3",  # main as of Mar 17, 2026
+    commit = "401969d4367c42dcbb45d33a637eae87788d025e",  # main as of April 22, 2026
     remote = "https://github.com/bazelbuild/rules_pkg.git",
 )
 
