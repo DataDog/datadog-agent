@@ -306,7 +306,7 @@ func (ps *ownerPodSet) track(uid string, isSpot bool, info podInfo, now time.Tim
 // getPodToDelete returns the uid and name of a pod to delete to make progress toward the desired config.
 // It returns empty strings if no deletion is needed.
 func (ps *ownerPodSet) getPodToDelete(lastUpdatedBefore time.Time) (string, string) {
-	if ps.admissionSpotCount > 0 || ps.admissionOnDemandCount > 0 {
+	if ps.hasAdmissions() {
 		return "", ""
 	}
 
@@ -338,6 +338,11 @@ func (ps *ownerPodSet) getPodToDelete(lastUpdatedBefore time.Time) (string, stri
 	}
 
 	return "", ""
+}
+
+// hasAdmissions returns true if pod set has admitted but not yet tracked pods.
+func (ps *ownerPodSet) hasAdmissions() bool {
+	return ps.admissionSpotCount > 0 || ps.admissionOnDemandCount > 0
 }
 
 // hasPending returns true if any tracked pod is in PodPending phase.

@@ -208,9 +208,7 @@ func TestScenarios(t *testing.T) {
 
 		// When
 		// ReplicaSet recreates pods
-		for range 6 {
-			cluster.CreatePod(newPod("default", kubernetes.ReplicaSetKind, rs, nil))
-		}
+		d.Reconcile()
 
 		// Then
 		// Fallback to on-demand
@@ -218,8 +216,10 @@ func TestScenarios(t *testing.T) {
 
 		// When
 		cluster.AddSpotNode("new-spot")
-		// Advance past disabled interval to re-enable spot scheduling
-		clk.Step(s.Config().FallbackDuration)
+
+		// Advance past disabled interval to re-enable spot scheduling.
+		stepClockAfterUpdatesSettled(t, s, clk, s.Config().FallbackDuration, "apps", kubernetes.DeploymentKind, d.namespace, d.name)
+
 		requireEventually(t, func() bool {
 			return !s.IsSpotSchedulingDisabled("apps", kubernetes.DeploymentKind, d.namespace, d.name)
 		})
@@ -227,15 +227,13 @@ func TestScenarios(t *testing.T) {
 		// Rebalancing
 		for i := range 6 {
 			// When
-			clk.Step(s.Config().RebalanceStabilizationPeriod)
+			stepClockAfterUpdatesSettled(t, s, clk, s.Config().RebalanceStabilizationPeriod, "apps", kubernetes.DeploymentKind, d.namespace, d.name)
 
 			// Then: excess on-demand pod evicted
 			requireOwnerPods(cluster, kubernetes.ReplicaSetKind, "default", rs, expectRunningOnDemand(10-1-i))
 
 			// ReplicaSet recreates pod
-			cluster.CreatePod(newPod("default", kubernetes.ReplicaSetKind, rs, nil))
-			// Important: wait for it to be Running before next step
-			requireOwnerPods(cluster, kubernetes.ReplicaSetKind, "default", rs, expectRunningSpot(i+1))
+			d.Reconcile()
 		}
 
 		// Then
@@ -275,12 +273,11 @@ func TestScenarios(t *testing.T) {
 
 				cluster.DeletePod(pod)
 				deleted[pod.ID] = struct{}{}
-
-				cluster.CreatePod(newPod("default", kubernetes.ReplicaSetKind, rs, nil))
 			}
-
 			// Important: wait until deletion is complete before checking expectations to avoid counting deleted pods.
 			requireOwnerPods(cluster, kubernetes.ReplicaSetKind, "default", rs, expectHasNoneOf(deleted))
+
+			d.Reconcile()
 
 			// Then
 			requireOwnerPods(cluster, kubernetes.ReplicaSetKind, "default", rs, expectRunningSpot(expectedSpot))
@@ -302,14 +299,15 @@ func TestScenarios(t *testing.T) {
 		requireOwnerPods(cluster, kubernetes.ReplicaSetKind, "default", rs, expectRunningOnDemand(4))
 
 		// When: scale down to 5 replicas leaving 2 spot / 3 on-demand — ratio is off
-		scaleDown(t, cluster, kubernetes.ReplicaSetKind, "default", rs, 2, 3)
+		d.ScaleDown(keep(2, 3))
 
-		// When: rebalancing evicts the excess on-demand pod
-		clk.Step(s.Config().RebalanceStabilizationPeriod)
+		stepClockAfterUpdatesSettled(t, s, clk, s.Config().RebalanceStabilizationPeriod, "apps", kubernetes.DeploymentKind, d.namespace, d.name)
+
+		// Then: excess on-demand pod evicted
 		requireOwnerPods(cluster, kubernetes.ReplicaSetKind, "default", rs, expectRunningOnDemand(2))
 
 		// ReplicaSet recreates the evicted pod as spot
-		cluster.CreatePod(newPod("default", kubernetes.ReplicaSetKind, rs, nil))
+		d.Reconcile()
 
 		// Then: 3 spot / 2 on-demand (60% of 5, minOnDemand=2 satisfied)
 		requireOwnerPods(cluster, kubernetes.ReplicaSetKind, "default", rs, expectRunningSpot(3))
@@ -330,17 +328,19 @@ func TestScenarios(t *testing.T) {
 		requireOwnerPods(cluster, kubernetes.ReplicaSetKind, "default", rs, expectRunningOnDemand(4))
 
 		// When: scale down to 5 replicas leaving 5 spot / 0 on-demand — on-demand count is below minOnDemand=2
-		scaleDown(t, cluster, kubernetes.ReplicaSetKind, "default", rs, 5, 0)
+		d.ScaleDown(keep(5, 0))
 
 		// Rebalancing evicts spot pods until on-demand count reaches minOnDemand=2.
 		// Each evicted spot pod is recreated by the ReplicaSet as on-demand.
 		for i := range 2 {
-			clk.Step(s.Config().RebalanceStabilizationPeriod)
+			// When
+			stepClockAfterUpdatesSettled(t, s, clk, s.Config().RebalanceStabilizationPeriod, "apps", kubernetes.DeploymentKind, d.namespace, d.name)
+
+			// Then: excess spot pod evicted
 			requireOwnerPods(cluster, kubernetes.ReplicaSetKind, "default", rs, expectRunningSpot(4-i))
 
 			// ReplicaSet recreates the evicted pod as on-demand (on-demand count still below minOnDemand)
-			cluster.CreatePod(newPod("default", kubernetes.ReplicaSetKind, rs, nil))
-			requireOwnerPods(cluster, kubernetes.ReplicaSetKind, "default", rs, expectRunningOnDemand(i+1))
+			d.Reconcile()
 		}
 
 		// Then: 3 spot / 2 on-demand (60% of 5, minOnDemand=2 satisfied)
@@ -364,14 +364,15 @@ func TestScenarios(t *testing.T) {
 
 		// When: scale down to 5 replicas leaving 4 spot / 1 on-demand — on-demand satisfies minOnDemand=1
 		// but spot count exceeds the desired 3 (60% of 5).
-		scaleDown(t, cluster, kubernetes.ReplicaSetKind, "default", rs, 4, 1)
+		d.ScaleDown(keep(4, 1))
 
-		// When: rebalancing evicts the excess spot pod
-		clk.Step(s.Config().RebalanceStabilizationPeriod)
+		stepClockAfterUpdatesSettled(t, s, clk, s.Config().RebalanceStabilizationPeriod, "apps", kubernetes.DeploymentKind, d.namespace, d.name)
+
+		// Then: excess spot pod evicted
 		requireOwnerPods(cluster, kubernetes.ReplicaSetKind, "default", rs, expectRunningSpot(3))
 
 		// ReplicaSet recreates the evicted pod as on-demand
-		cluster.CreatePod(newPod("default", kubernetes.ReplicaSetKind, rs, nil))
+		d.Reconcile()
 
 		// Then: 3 spot / 2 on-demand (60% of 5, minOnDemand=1 satisfied)
 		requireOwnerPods(cluster, kubernetes.ReplicaSetKind, "default", rs, expectRunningSpot(3))
@@ -392,10 +393,11 @@ func TestScenarios(t *testing.T) {
 		requireOwnerPods(cluster, kubernetes.ReplicaSetKind, "default", rs, expectRunningOnDemand(4))
 
 		// When: scale down to 5 replicas preserving the ratio — 3 spot / 2 on-demand (60% of 5)
-		scaleDown(t, cluster, kubernetes.ReplicaSetKind, "default", rs, 3, 2)
+		d.ScaleDown(keep(3, 2))
+
+		stepClockAfterUpdatesSettled(t, s, clk, s.Config().RebalanceStabilizationPeriod, "apps", kubernetes.DeploymentKind, d.namespace, d.name)
 
 		// Then: ratio is already correct; rebalancing does not evict any pod
-		clk.Step(s.Config().RebalanceStabilizationPeriod)
 		requireOwnerPods(cluster, kubernetes.ReplicaSetKind, "default", rs, expectRunningSpot(3))
 		requireOwnerPods(cluster, kubernetes.ReplicaSetKind, "default", rs, expectRunningOnDemand(2))
 	})
@@ -444,10 +446,13 @@ func TestScenarios(t *testing.T) {
 
 		// Then: rebalancer evicts one on-demand pod per cycle; RS recreates it as spot.
 		for i := range expectedSpot {
-			clk.Step(s.Config().RebalanceStabilizationPeriod)
+			// When
+			stepClockAfterUpdatesSettled(t, s, clk, s.Config().RebalanceStabilizationPeriod, "apps", kubernetes.DeploymentKind, d.namespace, d.name)
+
+			// Then: excess on-demand pod evicted
 			requireOwnerPods(cluster, kubernetes.ReplicaSetKind, "default", rs, expectRunningOnDemand(replicas-1-i))
-			cluster.CreatePod(newPod("default", kubernetes.ReplicaSetKind, rs, nil))
-			requireOwnerPods(cluster, kubernetes.ReplicaSetKind, "default", rs, expectRunningSpot(i+1))
+
+			d.Reconcile()
 		}
 
 		requireOwnerPods(cluster, kubernetes.ReplicaSetKind, "default", rs, expectRunningSpot(expectedSpot))
@@ -537,15 +542,6 @@ func TestScenarios(t *testing.T) {
 		total, spot := s.TrackedCounts("apps", kubernetes.DeploymentKind, d.namespace, d.name)
 		assert.Zero(t, total)
 		assert.Zero(t, spot)
-
-		// When
-		deleted := make(map[string]struct{}, 5)
-		for _, pod := range cluster.ListOwnerPods(kubernetes.ReplicaSetKind, "default", rs) {
-			cluster.DeletePod(pod)
-			deleted[pod.ID] = struct{}{}
-		}
-		// Then
-		requireOwnerPods(cluster, kubernetes.ReplicaSetKind, "default", rs, expectHasNoneOf(deleted))
 	})
 
 	t.Run("Restarted scheduler tracks existing pods", func(t *testing.T) {
@@ -579,45 +575,37 @@ func TestScenarios(t *testing.T) {
 	})
 }
 
-// scaleDown simulates a Deployment scale-down by deleting pods to reach the expected spot/on-demand counts.
-func scaleDown(t *testing.T, cluster *fakeCluster, ownerKind, namespace, name string, expectSpot, expectOnDemand int) {
+// keep returns a filter that retains given number of spot and on-demand pods.
+func keep(spotCount, onDemandCount int) func([]*workloadmeta.KubernetesPod) []*workloadmeta.KubernetesPod {
+	return func(pods []*workloadmeta.KubernetesPod) []*workloadmeta.KubernetesPod {
+		var toDelete []*workloadmeta.KubernetesPod
+		for _, pod := range pods {
+			if spot.IsSpotAssigned(pod) {
+				if spotCount > 0 {
+					spotCount--
+				} else {
+					toDelete = append(toDelete, pod)
+				}
+			} else {
+				if onDemandCount > 0 {
+					onDemandCount--
+				} else {
+					toDelete = append(toDelete, pod)
+				}
+			}
+		}
+		return toDelete
+	}
+}
+
+// stepClockAfterUpdatesSettled waits for the pod tracker to have no in-flight admissions or pending pods
+// for the given workload, then advances the fake clock by duration.
+func stepClockAfterUpdatesSettled(t *testing.T, s *spot.TestScheduler, clk *clocktesting.FakeClock, duration time.Duration, group, kind, namespace, name string) {
 	t.Helper()
-	pods := cluster.ListOwnerPods(ownerKind, namespace, name)
-
-	currentSpot, currentOnDemand := 0, 0
-	for _, pod := range pods {
-		if spot.IsSpotAssigned(pod) {
-			currentSpot++
-		} else {
-			currentOnDemand++
-		}
-	}
-
-	require.GreaterOrEqual(t, currentSpot, expectSpot, "expectSpot=%d exceeds current spot count %d", expectSpot, currentSpot)
-	require.GreaterOrEqual(t, currentOnDemand, expectOnDemand, "expectOnDemand=%d exceeds current on-demand count %d", expectOnDemand, currentOnDemand)
-
-	spotToDelete := currentSpot - expectSpot
-	onDemandToDelete := currentOnDemand - expectOnDemand
-	deleted := make(map[string]struct{})
-	for _, pod := range pods {
-		if spot.IsSpotAssigned(pod) {
-			if spotToDelete > 0 {
-				cluster.DeletePod(pod)
-				deleted[pod.ID] = struct{}{}
-				spotToDelete--
-			}
-		} else {
-			if onDemandToDelete > 0 {
-				cluster.DeletePod(pod)
-				deleted[pod.ID] = struct{}{}
-				onDemandToDelete--
-			}
-		}
-	}
-
-	requireOwnerPods(cluster, ownerKind, namespace, name, expectHasNoneOf(deleted))
-	requireOwnerPods(cluster, ownerKind, namespace, name, expectRunningSpot(expectSpot))
-	requireOwnerPods(cluster, ownerKind, namespace, name, expectRunningOnDemand(expectOnDemand))
+	requireEventually(t, func() bool {
+		return !s.HasAdmissionsOrPending(group, kind, namespace, name)
+	})
+	clk.Step(duration)
 }
 
 func requireEventually(t *testing.T, condition func() bool, msgAndArgs ...any) {
@@ -647,6 +635,8 @@ func (h *spewStringer[T]) String() string {
 
 // requireOwnerPods checks that all pods owned by ownerKind/namespace/ownerName eventually satisfy check.
 func requireOwnerPods(c *fakeCluster, ownerKind, namespace, ownerName string, check func(wlm []*workloadmeta.KubernetesPod) bool) {
+	c.T().Helper()
+
 	pods := new(spewStringer[[]*workloadmeta.KubernetesPod])
 	requireEventually(c.T(), func() bool {
 		return check(pods.set(c.ListOwnerPods(ownerKind, namespace, ownerName)))
