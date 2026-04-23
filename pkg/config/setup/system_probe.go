@@ -359,6 +359,13 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// Logon Duration config (macOS)
 	cfg.BindEnvAndSetDefault("logon_duration.enabled", false)
 
+	// Lock Contention Check config
+	cfg.BindEnvAndSetDefault("lock_contention_check.enabled", false)
+
+	// Syscall Latency Check config
+	cfg.BindEnvAndSetDefault("syscall_latency_check.enabled", false)
+
+
 	// Fleet policies
 	cfg.BindEnv("fleet_policies_dir") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
