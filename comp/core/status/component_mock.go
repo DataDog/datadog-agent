@@ -6,3 +6,8 @@
 //go:build test
 
 package status
+
+import statusdef "github.com/DataDog/datadog-agent/comp/core/status/def"
+
+// Mock implements mock-specific methods.
+type Mock = statusdef.Mock

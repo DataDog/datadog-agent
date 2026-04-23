@@ -82,8 +82,3 @@ func NewHeaderInformationProvider(provider HeaderProvider) HeaderInformationProv
 		Provider: provider,
 	}
 }
-
-// Mock implements mock-specific methods.
-type Mock interface {
-	Component
-}

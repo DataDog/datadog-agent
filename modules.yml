@@ -66,6 +66,8 @@ modules:
     used_by_otel: true
   comp/core/status:
     used_by_otel: true
+  comp/core/status/fx: default
+  comp/core/status/mock: default
   comp/core/status/statusimpl: default
   comp/core/tagger/def:
     used_by_otel: true

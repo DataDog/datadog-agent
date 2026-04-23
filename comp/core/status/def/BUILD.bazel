@@ -4,6 +4,7 @@ go_library(
     name = "def",
     srcs = [
         "component.go",
+        "mock.go",
         "render_helpers.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/status/def",

@@ -42,6 +42,3 @@ func NewInformationProvider(provider Provider) InformationProvider {
 func NewHeaderInformationProvider(provider HeaderProvider) HeaderInformationProvider {
 	return statusdef.NewHeaderInformationProvider(provider)
 }
-
-// Mock implements mock-specific methods.
-type Mock = statusdef.Mock

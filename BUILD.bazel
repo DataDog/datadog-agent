@@ -68,6 +68,9 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/core/secrets/fx-noop
 # gazelle:exclude comp/core/secrets/impl
 # gazelle:exclude comp/core/settings
+# gazelle:exclude comp/core/status/fx
+# gazelle:exclude comp/core/status/impl
+# gazelle:exclude comp/core/status/mock
 # gazelle:exclude comp/core/status/statusimpl
 # gazelle:exclude comp/core/sysprobeconfig
 # gazelle:exclude comp/core/tagger/api
