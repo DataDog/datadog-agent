@@ -1014,6 +1014,10 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("reverse_dns_enrichment.rate_limiter.limit_per_sec", 1000)
 	config.BindEnvAndSetDefault("reverse_dns_enrichment.rate_limiter.limit_throttled_per_sec", 1)
 	config.BindEnvAndSetDefault("reverse_dns_enrichment.rate_limiter.throttle_error_threshold", 10)
+	// These variables are similarly named, but they serve different purposes:
+	// - recovery_interval is the time to wait before trying to send data again after hitting the throttle_error_threshold
+	// - recovery_intervals is the number of consecutive intervals with errors before considering the issue resolved and lifting the throttling
+	config.BindEnvAndSetDefault("reverse_dns_enrichment.rate_limiter.recovery_interval", 5*time.Second)
 	config.BindEnvAndSetDefault("reverse_dns_enrichment.rate_limiter.recovery_intervals", 5)
 
 	// Remote agents
