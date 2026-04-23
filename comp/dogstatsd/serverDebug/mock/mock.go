@@ -5,12 +5,13 @@
 
 //go:build test
 
-package serverdebugimpl
+// Package mock provides a mock for the serverdebug component.
+package mock
 
 import (
 	"sync"
 
-	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
