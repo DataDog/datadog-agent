@@ -34,7 +34,7 @@ provision:
   - mode: system
     script: |
       #!/bin/bash
-      set -eu
+      set -euo pipefail
       export DEBIAN_FRONTEND=noninteractive
 
       apt-get update
@@ -70,7 +70,7 @@ provision:
   - mode: user
     script: |
       #!/bin/bash
-      set -eu
+      set -euo pipefail
       helm repo add datadog https://helm.datadoghq.com
       helm repo update
 
