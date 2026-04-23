@@ -78,7 +78,7 @@ class TestGit(unittest.TestCase):
         branch = get_current_branch(self.ctx_mock)
 
         self.assertEqual(branch, "main")
-        self.ctx_mock.run.assert_called_once_with("git rev-parse --abbrev-ref HEAD", hide=True)
+        self.ctx_mock.run.assert_called_once_with("git rev-parse --abbrev-ref HEAD", hide=True, warn=True)
 
     def test_check_uncommitted_changes(self):
         tests = [
@@ -126,7 +126,11 @@ class TestGit(unittest.TestCase):
                 )
                 self.ctx_mock.run.reset_mock()
 
-    def test_get_commit_sha(self):
+    # Mock os.path.exists to prevent get_commit_sha from reading agent-version.cache
+    # (if present in local checkout). This ensures the test uses the mocked git command
+    # instead of bypassing it via the cache fallback for gitless builds.
+    @unittest.mock.patch("os.path.exists", return_value=False)
+    def test_get_commit_sha(self, _):
         tests = [
             {
                 "short": False,
