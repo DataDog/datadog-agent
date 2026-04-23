@@ -418,19 +418,6 @@ select_file(
 )
 
 pkg_files(
-    name = "install_libs_unix",
-    srcs = [
-        ":python_lib_dir_unix",
-        ":python_lib_unix",
-    ] + select({
-        "@platforms//os:linux": [":python_stable_lib_linux"],
-        "//conditions:default": [],
-    }),
-    attributes = pkg_attributes("0755"),
-    prefix = "lib",
-)
-
-pkg_files(
     name = "install_headers_unix",
     srcs = [":headers_unix"],
 )
@@ -475,16 +462,6 @@ dd_cc_packaged(
     installed_files = [":_python_pkg_common_files"],
     installed_executables = {":python3_bin": "bin"},
     visibility = ["//visibility:public"],
-)
-
-pkg_files(
-    name = "install_bins_unix",
-    srcs = [
-        ":python3_bin",
-        ":patch_pip_interpreter",
-    ],
-    prefix = "bin",
-    attributes = pkg_attributes("0755"),
 )
 
 pkg_filegroup(
