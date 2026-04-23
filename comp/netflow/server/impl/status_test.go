@@ -5,7 +5,7 @@
 
 //go:build test
 
-package server
+package serverimpl
 
 import (
 	"bytes"
@@ -19,7 +19,7 @@ import (
 )
 
 func TestStatusProvider(t *testing.T) {
-	server := &Server{
+	srv := &Server{
 		listeners: []*netflowListener{
 			{
 				flowState: nil,
@@ -45,7 +45,7 @@ func TestStatusProvider(t *testing.T) {
 	}
 
 	statusProvider := Provider{
-		server: server,
+		server: srv,
 	}
 
 	tests := []struct {
