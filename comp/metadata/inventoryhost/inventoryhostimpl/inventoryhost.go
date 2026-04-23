@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	pkgUtils "github.com/DataDog/datadog-agent/comp/metadata/packagesigning/utils"
-	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
+	runnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/impl"
 	"github.com/DataDog/datadog-agent/pkg/gohai/cpu"
 	"github.com/DataDog/datadog-agent/pkg/gohai/memory"
 	"github.com/DataDog/datadog-agent/pkg/gohai/network"
