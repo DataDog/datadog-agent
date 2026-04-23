@@ -9,11 +9,7 @@
 # gazelle:exclude autoconnections
 # gazelle:exclude bundles/gitlab
 # gazelle:exclude bundles/http
-# Xazelle:exclude bundles/jenkins
 # gazelle:exclude bundles/kubernetes
-# Xazelle:exclude bundles/mongodb
-# gazelle:exclude bundles/registry_kubeapiserver.go
-# gazelle:exclude bundles/registry.go
 # gazelle:exclude bundles/remoteaction
 # gazelle:exclude bundles/script
 # gazelle:exclude enrollment
