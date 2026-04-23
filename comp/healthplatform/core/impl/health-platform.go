@@ -28,6 +28,7 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	checkrunnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/checkrunner/def"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/core/def"
+	noopimpl "github.com/DataDog/datadog-agent/comp/healthplatform/core/noop-impl"
 	forwarderdef "github.com/DataDog/datadog-agent/comp/healthplatform/forwarder/def"
 	issuesmod "github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	configenv "github.com/DataDog/datadog-agent/pkg/config/env"
@@ -202,15 +203,15 @@ func NewComponent(reqs Requires) (Provides, error) {
 	// Check if health platform is enabled
 	if !reqs.Config.GetBool("health_platform.enabled") {
 		reqs.Log.Info("Health platform component is disabled")
-		noop := &noopHealthPlatform{}
+		noop := noopimpl.NewNoopHealthPlatform()
 		return Provides{
 			Comp: noop,
 			APIGetIssues: api.NewAgentEndpointProvider(
-				noop.getIssuesHandler,
+				noop.GetIssuesHandler,
 				"/health-platform/issues",
 				"GET",
 			),
-			FlareProvider: flaretypes.NewProvider(noop.fillFlare),
+			FlareProvider: flaretypes.NewProvider(noop.FillFlare),
 		}, nil
 	}
 

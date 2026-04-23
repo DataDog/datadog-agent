@@ -71,12 +71,12 @@ func newTestForwarder(t *testing.T, cfg config.Component, provider *mockIssuePro
 }
 
 // TestForwarderBuildReport tests report building
-func TestReporterBuildReport(t *testing.T) {
+func TestForwarderBuildReport(t *testing.T) {
 	cfg := config.NewMock(t)
 	cfg.SetWithoutSource("api_key", "test-api-key")
 	provider := newMockIssueProvider()
 
-	rptr := newTestForwarder(t, cfg, provider, "test-host")
+	fwd := newTestForwarder(t, cfg, provider, "test-host")
 
 	// Add some test issues
 	provider.addIssue("check-1", &healthplatform.Issue{
@@ -90,7 +90,7 @@ func TestReporterBuildReport(t *testing.T) {
 		Severity: "medium",
 	})
 
-	report := rptr.buildReport(provider.issues)
+	report := fwd.buildReport(provider.issues)
 
 	assert.Equal(t, "agent-health-issues", report.EventType)
 	assert.Equal(t, flavor.DefaultAgent, report.Service)
@@ -151,7 +151,7 @@ func TestReporterSend(t *testing.T) {
 }
 
 // TestForwarderSendNoIssues tests that no request is sent when there are no issues
-func TestReporterSendNoIssues(t *testing.T) {
+func TestForwarderSendNoIssues(t *testing.T) {
 	requestCount := int32(0)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
