@@ -3,15 +3,17 @@ category = "functional"
 
 [[tests]]
 id = "T001"
-short = "Bootstrap from clean state installs the installer and default packages"
+short = "Bootstrap from initial state installs the installer and default packages"
 long = '''
-Validates the minimal happy path: on a machine with no Datadog software,
-running the bootstrap command downloads the installer, installs it,
-and then installs the default packages resolved from the environment.
+Validates the minimal happy path: given a host where the datadog-installer binary
+has been placed (e.g. via the install script) but not yet set up, running bootstrap
+downloads the installer OCI package, installs it to the local repository, then
+uses the installed copy to install the default packages.
 '''
 ref = ["FUN-015"]
 initial = """
-- No Datadog software is installed on the host.
+- The `datadog-installer` binary is present on the host (e.g. at `/usr/bin/datadog-installer`).
+- No packages are installed in `/opt/datadog-packages/`.
 - `DD_API_KEY` is set to a valid API key.
 - `DD_SITE` is set (or defaults to datadoghq.com).
 - The OCI registry is reachable.
@@ -27,6 +29,10 @@ run = "datadog-installer is-installed datadog-installer; echo $?"
 expected = "0"
 
 [[tests.steps]]
+action = "Verify the stable symlink points to the installed version."
+run = "readlink /opt/datadog-packages/datadog-installer/stable"
+
+[[tests.steps]]
 action = "Verify the default packages (as resolved by the environment) are installed."
 run = "datadog-installer is-installed datadog-agent; echo $?"
 expected = "0"
@@ -36,14 +42,15 @@ id = "T002"
 short = "Bootstrap with custom registry URL"
 long = '''
 Validates that the bootstrap process respects `DD_INSTALLER_REGISTRY_URL`
-to pull the installer from a custom OCI registry instead of the default one.
+to pull the installer OCI package from a custom registry instead of the default one.
 '''
 ref = ["FUN-015", "FUN-014"]
 initial = """
-- No Datadog software is installed on the host.
+- The `datadog-installer` binary is present on the host.
+- No packages are installed in `/opt/datadog-packages/`.
 - `DD_API_KEY` is set.
 - `DD_INSTALLER_REGISTRY_URL` is set to a custom registry URL.
-- The custom registry hosts the installer image.
+- The custom registry hosts the installer and agent images.
 """
 
 [[tests.steps]]
@@ -64,7 +71,8 @@ cannot be reached, leaving no partial state on disk.
 '''
 ref = ["FUN-015"]
 initial = """
-- No Datadog software is installed on the host.
+- The `datadog-installer` binary is present on the host.
+- No packages are installed in `/opt/datadog-packages/`.
 - `DD_API_KEY` is set.
 - `DD_INSTALLER_REGISTRY_URL` points to an unreachable host.
 """
@@ -76,15 +84,15 @@ expected = "1"
 
 [[tests.steps]]
 action = "Verify no installer package was left behind."
-run = "datadog-installer is-installed datadog-installer; echo $?"
-expected = "1"
+run = "ls /opt/datadog-packages/datadog-installer/stable 2>/dev/null; echo $?"
+expected = "2"
 
 [[tests]]
 id = "T004"
 short = "Bootstrap is idempotent"
 long = '''
 Validates that running the bootstrap command a second time on an already-bootstrapped
-host does not break anything and leaves the system in a consistent state.
+host succeeds and leaves the system in a consistent state.
 '''
 ref = ["FUN-015"]
 prereq = ["T001"]
