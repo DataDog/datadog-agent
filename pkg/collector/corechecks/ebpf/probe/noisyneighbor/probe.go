@@ -77,9 +77,15 @@ func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
 		return nil, err
 	}
 
-	err = p.mgr.Start()
-	if err != nil {
-		return nil, err
+	// Manually attach probes instead of calling p.mgr.Start().
+	// Start() runs cleanupTraceFS() which tries to remove ALL orphaned kprobe
+	// events (not just ours) and fails fatally if any are pinned by a dead
+	// process. Since this module only uses tracepoints—no kprobes—we skip
+	// Start() and attach directly. Init already loaded programs and created maps.
+	for _, probe := range p.mgr.Probes {
+		if err := probe.Attach(); err != nil {
+			return nil, fmt.Errorf("failed to attach probe %s: %w", probe.EBPFFuncName, err)
+		}
 	}
 
 	// Cache map references for direct access

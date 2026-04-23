@@ -42,7 +42,6 @@ const (
 	defaultMaxTopNPreemptors           = 5
 	defaultMaxNonContainerCgroups      = 100
 	defaultMinForeignPreemptionsImpact = 10 // minimum foreign preemptions per interval to set impacted=1
-	checkInterval                      = float64(10 * time.Second) // in nanoseconds (time.Duration is int64 ns)
 )
 
 // NoisyNeighborConfig holds check configuration.
@@ -261,23 +260,14 @@ func (n *NoisyNeighborCheck) runLayer1(s sender.Sender) (flaggedIDs []uint64, st
 		if n.firstRun {
 			continue
 		}
-		throttleRatio := float64(throttledDeltaNs) / checkInterval
 		highPSI := psiAvg10 >= n.config.PSIThreshold
-		highThrottle := throttleRatio >= n.config.ThrottleRatio
-		highSteal := stealPct >= n.config.StealThreshold
 
-		// Flag for Layer 2 when:
-		// - PSI high + throttle low + steal low → probable noisy neighbor
-		// - PSI high + throttle high + steal high → multiple factors, neighbor may contribute
-		// Don't flag when pressure is fully explained by one cause:
-		// - PSI high + throttle high + steal low → self-inflicted (quota too low)
-		// - PSI high + throttle low + steal high → hypervisor-level neighbor
+		// Flag for Layer 2 whenever PSI indicates scheduling pressure.
+		// Layer 2's foreign vs self preemption split is the definitive
+		// signal for distinguishing noisy-neighbor from self-inflicted
+		// pressure — don't try to guess here with coarse heuristics.
 		if highPSI && len(flaggedIDs) < n.config.MaxWatchlistSize {
-			selfInflicted := highThrottle && !highSteal
-			hypervisorOnly := highSteal && !highThrottle
-			if !selfInflicted && !hypervisorOnly {
-				flaggedIDs = append(flaggedIDs, inode)
-			}
+			flaggedIDs = append(flaggedIDs, inode)
 		}
 	}
 
