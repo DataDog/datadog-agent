@@ -216,7 +216,6 @@ $sudo_cmd chmod 700 "$install_staging_dir"
     [ -n "$apikey" ] && echo "DD_API_KEY=$apikey"
     [ -n "$site" ] && echo "DD_SITE=$site"
     [ "$gui_app_menu_enabled" = true ] && echo "DD_GUI_APP_MENU_ENABLED=true"
-    [ -n "$infrastructure_mode" ] && echo "DD_INFRASTRUCTURE_MODE=$infrastructure_mode"
     echo "DD_INSTALL_METHOD=install_script_mac"
     echo "DD_INSTALL_SCRIPT_VERSION=$install_script_version"
 } | $sudo_cmd tee "$install_env_file" > /dev/null
@@ -257,6 +256,31 @@ printf "${BLUE}\n    - Unpacking and copying files (this usually takes about a m
 cd / && $sudo_cmd /usr/sbin/installer -pkg "`find "/Volumes/datadog_agent" -name \*.pkg 2>/dev/null`" -target / >/dev/null
 printf "${BLUE}\n    - Unmounting the DMG installer ...\n${NC}"
 $sudo_cmd hdiutil detach "/Volumes/datadog_agent" >/dev/null
+
+if [ "$infrastructure_mode" = "end_user_device" ]; then
+    # Configure end-user device mode
+    printf "${BLUE}\n    - Configuring infrastructure_mode ...\n${NC}"
+    datadog_yaml="/opt/datadog-agent/etc/datadog.yaml"
+    if ! $sudo_cmd grep -q '^infrastructure_mode:' "$datadog_yaml" 2>/dev/null; then
+        echo "infrastructure_mode: end_user_device" | $sudo_cmd tee -a "$datadog_yaml" > /dev/null
+    fi
+
+    # Enable the wlan check
+    printf "${BLUE}\n    - Surpressing location permission prompt ...\n${NC}"
+    wlan_conf_dir="/opt/datadog-agent/etc/conf.d/wlan.d"
+    $sudo_cmd mkdir -p "$wlan_conf_dir"
+    $sudo_cmd tee "$wlan_conf_dir/conf.yaml" > /dev/null <<'WLAN_EOF'
+init_config:
+  request_location_permission: false
+
+instances:
+  - {}
+WLAN_EOF
+
+    # Restart the Agent so the new configuration takes effect
+    printf "${BLUE}\n    - Restarting the Agent ...\n${NC}"
+    $sudo_cmd launchctl kickstart -k -s system/com.datadoghq.agent 2>/dev/null || true
+fi
 
 if $sudo_cmd launchctl print system/com.datadoghq.agent 2>/dev/null | grep -q "pid ="; then
     printf "${GREEN}
