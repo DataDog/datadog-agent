@@ -218,9 +218,10 @@ func (c *fakeCluster) T() *testing.T {
 	return c.t
 }
 
-// WLM returns the underlying workloadmeta mock store.
-func (c *fakeCluster) WLM() workloadmetamock.Mock {
-	return c.wlm
+// WLM returns the workloadmeta component used by the scheduler.
+func (c *fakeCluster) WLM() workloadmeta.Component {
+	// Delay updates delivery to expose race conditions
+	return newDelayedWLM(c.wlm, 50*time.Millisecond)
 }
 
 func (c *fakeCluster) DynamicClient() dynamic.Interface {
