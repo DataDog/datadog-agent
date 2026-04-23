@@ -42,9 +42,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-func getProvides(t *testing.T, confOverrides map[string]any, sysprobeConfOverrides map[string]any) provides {
-	return newInventoryAgentProvider(
-		fxutil.Test[dependencies](
+func getProvides(t *testing.T, confOverrides map[string]any, sysprobeConfOverrides map[string]any) Provides {
+	return NewComponent(
+		fxutil.Test[Requires](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, confOverrides) }),
@@ -544,8 +544,8 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 	assert.False(t, ia.data["feature_dynamic_instrumentation_enabled"].(bool))
 
 	// Testing an inventoryagent without system-probe object
-	p := newInventoryAgentProvider(
-		fxutil.Test[dependencies](
+	p := NewComponent(
+		fxutil.Test[Requires](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMock(t) }),

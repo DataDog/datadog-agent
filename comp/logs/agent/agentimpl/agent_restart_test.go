@@ -39,7 +39,7 @@ import (
 	auditorfx "github.com/DataDog/datadog-agent/comp/logs/auditor/fx"
 	auditorimpl "github.com/DataDog/datadog-agent/comp/logs/auditor/impl"
 	integrationsimpl "github.com/DataDog/datadog-agent/comp/logs/integrations/impl"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
+	inventoryagentmock "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/mock"
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -127,7 +127,7 @@ func createTestAgent(suite *RestartTestSuite, endpoints *config.Endpoints) (*log
 			return configComponent.NewMockWithOverrides(suite.T(), suite.configOverrides)
 		}),
 		hostnameimpl.MockModule(),
-		inventoryagentimpl.MockModule(),
+		inventoryagentmock.MockModule(),
 		auditorfx.Module(),
 		fx.Provide(kubehealthmock.NewProvides),
 	))
