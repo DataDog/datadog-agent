@@ -34,8 +34,8 @@ func fulfillDeps(t testing.TB, overrides map[string]interface{}) serverdebug.Com
 		fx.Provide(func() config.Component {
 			return config.NewMockWithOverrides(t, overrides)
 		}),
-		fx.Provide(func(deps Requires) serverdebug.Component {
-			return NewComponent(deps).Comp
+		fx.Provide(func(l log.Component, cfg config.Component) serverdebug.Component {
+			return NewComponent(Requires{Log: l, Config: cfg}).Comp
 		}),
 	))
 }
