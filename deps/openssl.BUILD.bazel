@@ -132,7 +132,8 @@ configure_make(
         # empty dirs when copying runfiles to a temp dir for `bazel run`, causing FileNotFoundError in pkg_install.
         ":fips_windows": ["lib/ossl-modules", "lib/engines-3"],  #TODO(agent-build): remove special case
         "@//packages/agent:fips_flavor": ["ssl", "lib/ossl-modules", "lib/engines-3"],
-        "//conditions:default": [],
+        "@platforms//os:windows": [],
+        "//conditions:default": ["lib/ossl-modules", "lib/engines-3"],
     }),
     # For whatever reason rules_foreign_cc does not respect
     # out_dll_dir parameter and tries to find Windows DLLs in
@@ -226,13 +227,13 @@ dd_cc_packaged(
         "@//packages/agent:fips_flavor": [":_fips_extra_files"],
         "//conditions:default": [],
     }),
-    installed_executables = select({
-        "@//packages/agent:fips_flavor": {
-            ":openssl_binary": "bin",
-            ":_engines": "lib/engines-3",
-            "@openssl_fips//:fips_provider": "lib/ossl-modules",
-        },
-        "//conditions:default": {":openssl_binary": "bin"},
+    installed_executables = {
+        ":openssl_binary": "bin",
+        ":_engines": "lib/engines-3",
+        ":_ossl_modules": "lib/ossl-modules",
+    } | select({
+        "@//packages/agent:fips_flavor": {"@openssl_fips//:fips_provider": "lib/ossl-modules"},
+        "//conditions:default": {},
     }),
 )
 
@@ -269,6 +270,12 @@ filegroup(
 )
 
 filegroup(
+    name = "_ossl_modules",
+    srcs = [":openssl"],
+    output_group = "ossl-modules",
+)
+
+filegroup(
     name = "_engines",
     srcs = [":openssl"],
     output_group = "engines-3",
@@ -287,7 +294,8 @@ pkg_files(
         # We don't need static libraries in the package
         ":libssl_static",
         ":libcrypto_static",
-        # Engines are rpath-patched separately via installed_executables
+        # Engines and ossl-modules are rpath-patched separately via installed_executables
         ":_engines",
+        ":_ossl_modules",
     ],
 )
