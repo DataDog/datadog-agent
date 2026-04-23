@@ -6,8 +6,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/flare/fx",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/flare",
         "//comp/core/flare/def",
         "//pkg/util/fxutil",
+        "@//comp/core/flare",
     ],
 )
