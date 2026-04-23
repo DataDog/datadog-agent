@@ -229,8 +229,8 @@ dd_cc_packaged(
     }),
     installed_executables = {
         ":openssl_binary": "bin",
-        ":_engines": "lib/engines-3",
-        ":_ossl_modules": "lib/ossl-modules",
+        ":_engines": "lib",
+        ":_ossl_modules": "lib",
     } | select({
         "@//packages/agent:fips_flavor": {"@openssl_fips//:fips_provider": "lib/ossl-modules"},
         "//conditions:default": {},
