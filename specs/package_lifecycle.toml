@@ -51,7 +51,7 @@ The installer shall:
 
 After starting an experiment, the package state shall show both a stable and an experiment version.
 '''
-tags = ["lifecycle", "lifecycle:experiment"]
+tags = ["lifecycle:experiment"]
 
 [[requirements]]
 id = "FUN-004"
@@ -70,7 +70,7 @@ The installer shall:
 After promotion, the package state shall show the promoted version as stable
 with no active experiment.
 '''
-tags = ["lifecycle", "lifecycle:experiment"]
+tags = ["lifecycle:experiment"]
 
 [[requirements]]
 id = "FUN-005"
@@ -87,7 +87,7 @@ The installer shall:
 
 After stopping, the package state shall show only the stable version with no active experiment.
 '''
-tags = ["lifecycle", "lifecycle:experiment"]
+tags = ["lifecycle:experiment"]
 
 [[requirements]]
 id = "FUN-006"
@@ -102,7 +102,7 @@ The response shall include:
 
 The operator shall also be able to query the state of all installed packages at once.
 '''
-tags = ["lifecycle", "lifecycle:query"]
+tags = ["lifecycle:query"]
 
 [[requirements]]
 id = "FUN-007"
@@ -114,4 +114,4 @@ by either the stable or experiment symlinks.
 After garbage collection, only the directories pointed to by the stable and experiment symlinks
 (if any) shall remain on disk for each package.
 '''
-tags = ["lifecycle", "lifecycle:maintenance"]
+tags = ["lifecycle:maintenance"]

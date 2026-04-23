@@ -14,7 +14,7 @@ This architecture decision enables:
 - Using standard OCI annotations for package metadata.
 - Efficient layer-based caching and transfer.
 '''
-tags = ["oci", "oci:distribution"]
+tags = ["oci:distribution"]
 
 [[requirements]]
 id = "ARC-002"
@@ -52,7 +52,7 @@ The hook interface includes:
 - `PostStartConfigExperiment` / `PreStopConfigExperiment` / `PostPromoteConfigExperiment`
 - `PreInstallExtension` / `PostInstallExtension` / `PreRemoveExtension`
 '''
-tags = ["lifecycle", "lifecycle:hooks"]
+tags = ["lifecycle:hooks"]
 
 [[requirements]]
 id = "ARC-004"

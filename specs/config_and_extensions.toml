@@ -66,4 +66,4 @@ When a package is upgraded, the installer shall:
 
 The operator shall not need to manually reinstall extensions after upgrading a package.
 '''
-tags = ["lifecycle:extension", "lifecycle"]
+tags = ["lifecycle:extension"]

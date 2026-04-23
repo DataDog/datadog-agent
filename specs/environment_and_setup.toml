@@ -20,7 +20,7 @@ The following environment variables shall be supported:
 
 When an environment variable is not set, a sensible default shall be used.
 '''
-tags = ["config", "config:environment"]
+tags = ["config:environment"]
 
 [[requirements]]
 id = "FUN-013"
@@ -38,7 +38,7 @@ The resolution shall consider:
 The operator shall be able to override the default resolution to force-include or
 force-exclude specific packages.
 '''
-tags = ["config", "config:packages"]
+tags = ["config:packages"]
 
 [[requirements]]
 id = "FUN-014"
@@ -55,7 +55,7 @@ Supported authentication methods:
 Registry and authentication overrides shall be configurable both globally and per-image,
 allowing different packages to be pulled from different registries.
 '''
-tags = ["config", "oci", "oci:registry"]
+tags = ["config", "oci:registry"]
 
 [[requirements]]
 id = "FUN-015"
