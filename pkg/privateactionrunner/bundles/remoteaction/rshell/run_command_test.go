@@ -323,21 +323,6 @@ func TestFilterAllowedPathsMatrix(t *testing.T) {
 			[]string{"/var/log"}, []string{"/var/logger"}, nil},
 		{"backend prefix sibling is not a sub-path",
 			[]string{"/var/logger"}, []string{"/var/log"}, nil},
-
-		// Windows-native paths: PAR runs on Windows too and rshell itself
-		// uses OS-native separators. Containment must work regardless of
-		// whether entries use forward or backward slashes.
-		{"windows operator narrower than windows backend",
-			[]string{`C:\ProgramData\Datadog`}, []string{`C:\ProgramData\Datadog\logs`},
-			[]string{`C:\ProgramData\Datadog\logs`}},
-		{"windows backend narrower than windows operator",
-			[]string{`C:\ProgramData\Datadog\logs`}, []string{`C:\ProgramData\Datadog`},
-			[]string{`C:\ProgramData\Datadog\logs`}},
-		{"windows prefix sibling is not contained",
-			[]string{`C:\Data`}, []string{`C:\DataExtra`}, nil},
-		{"mixed separators still intersect",
-			[]string{`C:\ProgramData\Datadog`}, []string{"C:/ProgramData/Datadog/logs"},
-			[]string{"C:/ProgramData/Datadog/logs"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

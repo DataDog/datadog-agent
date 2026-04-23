@@ -409,6 +409,21 @@ private_action_runner:
 	assert.Empty(t, cfg.RShellAllowedCommands)
 }
 
+func TestFromDDConfigPARRestrictedShellAllowedPathsPassesThroughBackslash(t *testing.T) {
+	// Backslash-containing entries are preserved in the returned slice so
+	// the handler still sees what the operator wrote; the transform also
+	// logs a warning so a Windows-native path configured by mistake does
+	// not silently produce an empty intersection without feedback.
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
+	mockConfig.SetWithoutSource(setup.PARUrn, "")
+	mockConfig.SetWithoutSource(setup.PARRestrictedShellAllowedPaths, []string{`C:\Data`, "/var/log"})
+
+	cfg, err := FromDDConfig(mockConfig)
+	require.NoError(t, err)
+	assert.Equal(t, []string{`C:\Data`, "/var/log"}, cfg.RShellAllowedPaths)
+}
+
 func TestFromDDConfigPARRestrictedShellAllowedCommandsPassesThroughUnnamespaced(t *testing.T) {
 	// Unnamespaced entries are preserved in the returned slice so the
 	// intersection layer can surface them (as silent no-matches). The

@@ -164,8 +164,29 @@ func warnUnnamespacedCommands(commands []string) {
 // rshellAllowedPaths mirrors rshellAllowedCommands for the filesystem
 // allowlist. Nil means "operator unset" — the handler will pass the backend
 // list through unchanged rather than tightening to an empty intersection.
+//
+// The contract is forward-slash paths only (matching the backend's Linux-
+// style allow-list). Entries containing a backslash are logged as a warning
+// so operators who write Windows-native paths can see why their rule never
+// matches; the entries still flow through and produce an empty intersection
+// at runtime.
 func rshellAllowedPaths(config config.Component) []string {
-	return configuredStringSliceOrNil(config, setup.PARRestrictedShellAllowedPaths)
+	paths := configuredStringSliceOrNil(config, setup.PARRestrictedShellAllowedPaths)
+	warnBackslashPaths(paths)
+	return paths
+}
+
+// warnBackslashPaths emits a log warning for each entry containing a
+// backslash. The operator-side allow-list is defined as forward-slash only;
+// Windows-native paths will never match the backend's Linux-style entries
+// and would otherwise fail silently.
+func warnBackslashPaths(paths []string) {
+	for _, p := range paths {
+		if strings.ContainsRune(p, '\\') {
+			log.Warnf("%s entry %q contains a backslash; only forward-slash paths are supported and this entry will never match a backend path",
+				setup.PARRestrictedShellAllowedPaths, p)
+		}
+	}
 }
 
 // configuredStringSliceOrNil returns the configured value only when the key
