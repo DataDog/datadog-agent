@@ -84,6 +84,10 @@ func runningContainer(id, image string) *workloadmeta.Container {
 		Image:    workloadmeta.ContainerImage{ShortName: image},
 		Runtime:  workloadmeta.ContainerRuntimeContainerd,
 		State:    workloadmeta.ContainerState{Running: true},
+		Owner: &workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesPod,
+			ID:   "test-pod-uid",
+		},
 	}
 }
 
