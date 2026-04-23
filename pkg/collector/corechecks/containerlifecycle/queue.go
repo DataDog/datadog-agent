@@ -11,8 +11,9 @@ import (
 	"sync"
 
 	model "github.com/DataDog/agent-payload/v5/contlcycle"
-	types "github.com/DataDog/datadog-agent/pkg/containerlifecycle"
+
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	types "github.com/DataDog/datadog-agent/pkg/containerlifecycle"
 	ecsutil "github.com/DataDog/datadog-agent/pkg/util/ecs"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
