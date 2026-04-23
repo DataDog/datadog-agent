@@ -144,8 +144,8 @@ func TestParseHexIPv4(t *testing.T) {
 		{"0101A8C0", "192.168.1.1"},
 		{"0200000A", "10.0.0.2"},
 		{"invalid", ""},
-		{"0100007", ""},    // too short: 7 valid hex chars
-		{"0100007F0", ""},  // too long: 9 valid hex chars
+		{"0100007", ""},   // too short: 7 valid hex chars
+		{"0100007F0", ""}, // too long: 9 valid hex chars
 	}
 	for _, tt := range tests {
 		got := parseHexIPv4(tt.in)
