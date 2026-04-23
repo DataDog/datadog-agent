@@ -220,6 +220,38 @@ def _run_query(
         ) from exc
 
 
+_MSG_TRACE_SEEN: set[str] = set()
+
+
+def _trace_first_msg(root: Path, purpose: str, msg) -> None:
+    """One-shot diagnostic: record the type + public-attr list of the
+    first message seen for each purpose. Lets us see what shape the SDK
+    actually emits when debugging missing-token-usage capture.
+    """
+    key = f"{purpose}:{type(msg).__name__}"
+    if key in _MSG_TRACE_SEEN:
+        return
+    _MSG_TRACE_SEEN.add(key)
+    try:
+        log_path = Path(root) / ".coordinator" / "sdk-msg-types.log"
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        attrs = [a for a in dir(msg) if not a.startswith("_")][:30]
+        usage_probe = {}
+        for name in ("usage", "message"):
+            v = getattr(msg, name, None)
+            if v is not None:
+                usage_probe[name] = f"{type(v).__name__}:{[a for a in dir(v) if not a.startswith('_')][:15]}"
+        import datetime as _dt
+        with log_path.open("a") as f:
+            f.write(
+                f"{_dt.datetime.now().isoformat(timespec='seconds')} "
+                f"purpose={purpose} type={type(msg).__name__} "
+                f"attrs={attrs} usage_probe={usage_probe}\n"
+            )
+    except Exception:
+        pass
+
+
 def _collect_text(
     async_iter,
     *,
@@ -240,23 +272,52 @@ def _collect_text(
 
     async def _go():
         async for msg in async_iter:
-            usage = getattr(msg, "usage", None)
+            # Pry token usage out of the message. The SDK (v0.1.x) puts
+            # token counts in different places across message types:
+            # ResultMessage has .usage; AssistantMessage / Message may
+            # have .usage, .message.usage (nested), or none at all.
+            # Plumb through every shape we've seen and fall back to
+            # best-effort attribute access.
+            in_tok = 0
+            out_tok = 0
+            usage = (
+                getattr(msg, "usage", None)
+                or getattr(getattr(msg, "message", None), "usage", None)
+            )
             if usage is not None:
-                in_tok = int(getattr(usage, "input_tokens", 0) or 0)
-                out_tok = int(getattr(usage, "output_tokens", 0) or 0)
-                if in_tok or out_tok:
-                    token_log.append(
-                        root=root,
-                        model=model,
-                        family=family,
-                        purpose=purpose,
-                        input_tok=in_tok,
-                        output_tok=out_tok,
-                        iter_num=iter_num,
-                        success=True,
-                    )
+                # usage may be an object (attrs) OR a dict.
+                if isinstance(usage, dict):
+                    in_tok = int(usage.get("input_tokens", 0) or 0)
+                    out_tok = int(usage.get("output_tokens", 0) or 0)
+                    # Also check cache-aware fields — older SDKs surface
+                    # cache_creation_input_tokens separately from input_tokens.
+                    in_tok += int(usage.get("cache_creation_input_tokens", 0) or 0)
+                    in_tok += int(usage.get("cache_read_input_tokens", 0) or 0)
+                else:
+                    in_tok = int(getattr(usage, "input_tokens", 0) or 0)
+                    out_tok = int(getattr(usage, "output_tokens", 0) or 0)
+                    in_tok += int(getattr(usage, "cache_creation_input_tokens", 0) or 0)
+                    in_tok += int(getattr(usage, "cache_read_input_tokens", 0) or 0)
+            if in_tok or out_tok:
+                token_log.append(
+                    root=root,
+                    model=model,
+                    family=family,
+                    purpose=purpose,
+                    input_tok=in_tok,
+                    output_tok=out_tok,
+                    iter_num=iter_num,
+                    success=True,
+                )
             if hasattr(msg, "result") and msg.result is not None:
                 chunks.append(str(msg.result))
+            # Diagnostic trail: on the FIRST message of each call, dump
+            # its type + available attrs so we can see what the SDK is
+            # actually surfacing. Helps debug missing-usage cases without
+            # a live print. Appended under .coordinator/sdk-msg-types.log
+            # (truncate-safe; only the first msg of each call). Only when
+            # usage capture hasn't fired yet — one-shot per call.
+            _trace_first_msg(root, purpose, msg)
         return "".join(chunks)
 
     return asyncio.run(_go())
