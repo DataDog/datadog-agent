@@ -72,7 +72,7 @@ import (
 	host "github.com/DataDog/datadog-agent/comp/metadata/host/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/def"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
+	inventoryhost "github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/def"
 	packagesigning "github.com/DataDog/datadog-agent/comp/metadata/packagesigning/def"
 	runner "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server/def"
