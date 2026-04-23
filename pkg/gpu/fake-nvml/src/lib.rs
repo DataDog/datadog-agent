@@ -27,8 +27,14 @@
 //! - Return `NVML_ERROR_INVALID_ARGUMENT` on null or out-of-range inputs
 //! - Wrap their bodies in `std::panic::catch_unwind` to prevent panics from
 //!   crossing the C ABI boundary
+//!
+//! This contract is shared by every exported function, so the individual
+//! `# Safety` sections that clippy's `missing_safety_doc` lint demands on each
+//! `pub unsafe extern "C"` entry point would just repeat the module-level
+//! text above. We silence that lint crate-wide and rely on this single
+//! authoritative description of the safety invariants.
 
-#![allow(non_camel_case_types, non_snake_case)]
+#![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
 
 use core::ffi::{c_char, c_int, c_uint, c_void};
 use std::panic;
@@ -427,8 +433,9 @@ pub unsafe extern "C" fn nvmlDeviceGetMemoryInfo(
                 unsafe {
                     (*mem).total = devices()[i].total_mem_bytes;
                     (*mem).free = devices()[i].free_mem_bytes;
-                    (*mem).used =
-                        devices()[i].total_mem_bytes - devices()[i].free_mem_bytes - devices()[i].reserved_mem_bytes;
+                    (*mem).used = devices()[i].total_mem_bytes
+                        - devices()[i].free_mem_bytes
+                        - devices()[i].reserved_mem_bytes;
                 }
                 NVML_SUCCESS
             }
@@ -457,8 +464,9 @@ pub unsafe extern "C" fn nvmlDeviceGetMemoryInfo_v2(
                     (*mem).total = devices()[i].total_mem_bytes;
                     (*mem).reserved = devices()[i].reserved_mem_bytes;
                     (*mem).free = devices()[i].free_mem_bytes;
-                    (*mem).used =
-                        devices()[i].total_mem_bytes - devices()[i].free_mem_bytes - devices()[i].reserved_mem_bytes;
+                    (*mem).used = devices()[i].total_mem_bytes
+                        - devices()[i].free_mem_bytes
+                        - devices()[i].reserved_mem_bytes;
                 }
                 NVML_SUCCESS
             }
