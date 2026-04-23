@@ -31,6 +31,17 @@ api_key:
 #
 # site: datadoghq.com
 
+## @param infrastructure_mode - string - optional - default: "full"
+## @env DD_INFRASTRUCTURE_MODE - string - optional - default: "full"
+## Controls which integrations and metadata the Agent collects.
+## Valid values:
+##   - full: default server/host-monitoring behavior (all checks allowed).
+##   - basic: minimal host-level metrics only.
+##   - end_user_device: tuned for end-user-device (EUDM) laptops and desktops.
+##   - none: disables infrastructure checks.
+#
+# infrastructure_mode: "full"
+
 ## @param dd_url - string - optional - default: "https://app.datadoghq.com"
 ## @env DD_DD_URL - string - optional - default: "https://app.datadoghq.com"
 ## @env DD_URL - string - optional - default: "https://app.datadoghq.com"
@@ -3522,6 +3533,8 @@ api_key:
 ## @env DD_ECS_TASK_COLLECTION_ENABLED - boolean - optional - default: true
 ## The Agent can collect detailed task information from the metadata API exposed by the ECS Agent,
 ## which is used for the orchestrator ECS check.
+## When ``infrastructure_mode`` is ``none``, task collection is disabled unless overridden
+## (for example set ``DD_ECS_TASK_COLLECTION_ENABLED`` to ``true``).
 #
 # ecs_task_collection_enabled: true
 
