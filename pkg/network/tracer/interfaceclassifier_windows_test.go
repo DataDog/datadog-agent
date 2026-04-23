@@ -13,20 +13,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestIfTypeName(t *testing.T) {
-	assert.Equal(t, "ethernet", ifTypeName(6))
-	assert.Equal(t, "ppp", ifTypeName(23))
-	assert.Equal(t, "loopback", ifTypeName(24))
-	assert.Equal(t, "prop_virtual", ifTypeName(53))
-	assert.Equal(t, "wifi", ifTypeName(71))
-	assert.Equal(t, "tunnel", ifTypeName(131))
-	assert.Equal(t, "other_99", ifTypeName(99))
-}
-
 func TestClassify_UsesDescrWhenPresent(t *testing.T) {
 	c := &InterfaceClassifier{
 		ifCache: map[uint32]cachedInterface{
-			45: {ifType: ifTypeWifi, name: `\DEVICE\{GUID}`, descr: "Intel Wi-Fi 6 AX201"},
+			45: {ifType: 71, name: `\DEVICE\{GUID}`, descr: "Intel Wi-Fi 6 AX201"},
 		},
 		done: make(chan struct{}),
 	}
@@ -34,13 +24,13 @@ func TestClassify_UsesDescrWhenPresent(t *testing.T) {
 
 	result := c.Classify(45)
 	assert.Equal(t, "Intel Wi-Fi 6 AX201", result.InterfaceName)
-	assert.Equal(t, "wifi", result.InterfaceType)
+	assert.Equal(t, uint32(71), result.InterfaceType)
 }
 
 func TestClassify_FallsBackToNameWhenDescrEmpty(t *testing.T) {
 	c := &InterfaceClassifier{
 		ifCache: map[uint32]cachedInterface{
-			10: {ifType: ifTypeEthernetCSMACD, name: "Ethernet 2", descr: ""},
+			10: {ifType: 6, name: "Ethernet 2", descr: ""},
 		},
 		done: make(chan struct{}),
 	}
@@ -48,7 +38,7 @@ func TestClassify_FallsBackToNameWhenDescrEmpty(t *testing.T) {
 
 	result := c.Classify(10)
 	assert.Equal(t, "Ethernet 2", result.InterfaceName)
-	assert.Equal(t, "ethernet", result.InterfaceType)
+	assert.Equal(t, uint32(6), result.InterfaceType)
 }
 
 func TestClassify_UnknownIndex(t *testing.T) {
@@ -60,5 +50,5 @@ func TestClassify_UnknownIndex(t *testing.T) {
 
 	result := c.Classify(999)
 	assert.Equal(t, "", result.InterfaceName)
-	assert.Equal(t, "", result.InterfaceType)
+	assert.Equal(t, uint32(0), result.InterfaceType)
 }
