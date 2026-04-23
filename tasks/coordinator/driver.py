@@ -599,8 +599,12 @@ def run_iteration(db: Db, root: Path, dry_run: bool = False) -> Db:
         # emit the ceiling-halt if we've crossed it. Source of truth is
         # the log file, not db.budget.
         records = token_log.read(root)
+        # Just-completed iteration is at index len-1 (was appended inside
+        # _run_iteration_body). Tokens are tagged with the iter_num they
+        # ran under, which is len-1.
+        just_ran_iter = len(db.iterations) - 1
         iter_in, iter_out = token_log.sum_total(
-            token_log.filter_by_iter(records, len(db.iterations))
+            token_log.filter_by_iter(records, just_ran_iter)
         )
         total_in, total_out = token_log.sum_total(records)
         db.budget.api_tokens_used = total_in + total_out
@@ -608,12 +612,12 @@ def run_iteration(db: Db, root: Path, dry_run: bool = False) -> Db:
             journal.append(
                 "tokens_used",
                 {
-                    "iter": len(db.iterations),
+                    "iter": just_ran_iter,
                     "iter_input": iter_in,
                     "iter_output": iter_out,
                     "iter_cost_usd": round(
                         token_log.cost_estimate(
-                            token_log.filter_by_iter(records, len(db.iterations))
+                            token_log.filter_by_iter(records, just_ran_iter)
                         ),
                         4,
                     ),
@@ -628,7 +632,9 @@ def run_iteration(db: Db, root: Path, dry_run: bool = False) -> Db:
         # this iteration's spend looks abnormal versus its peers. Three
         # triggers; ANY fires a tripwire. Streak of N consecutive fires
         # → touch the cooperative-pause file so user must intervene.
-        _check_cost_anomaly(db, root, iter_num=len(db.iterations), records=records)
+        _check_cost_anomaly(
+            db, root, iter_num=just_ran_iter, records=records,
+        )
 
         new_msgs = budget_mod.check_milestones(db.budget, root)
         for m in new_msgs:
