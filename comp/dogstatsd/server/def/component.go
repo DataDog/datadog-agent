@@ -23,8 +23,3 @@ type Component interface {
 	// UDPLocalAddr returns the local address of the UDP statsd listener, if enabled.
 	UDPLocalAddr() string
 }
-
-// Mock implements mock-specific methods.
-type Mock interface {
-	Component
-}
