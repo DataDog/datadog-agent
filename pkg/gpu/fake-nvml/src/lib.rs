@@ -742,3 +742,202 @@ pub unsafe extern "C" fn nvmlDeviceGetComputeRunningProcesses(
         }
     })
 }
+
+// ---------------------------------------------------------------------------
+// GPM (GPU Performance Metrics)
+//
+// Only architectures that declare `capabilities.gpm: true` in the spec
+// (currently hopper + blackwell) return success from these functions. For
+// other architectures, `nvmlGpmSampleAlloc` returns NVML_ERROR_NOT_SUPPORTED,
+// which causes the agent's GPM collector to fail early at instantiation and
+// move on — exactly the behaviour we want for a fake NVML serving a
+// non-GPM-capable architecture.
+//
+// The sample handle is a heap-allocated `u64` whose pointer we hand back to
+// the caller. Its concrete value is meaningless (just a stamp token), but
+// using a real Box ensures Miri / ASAN are happy on alloc/free round-trips.
+// ---------------------------------------------------------------------------
+
+// nvmlGpmMetricId_t values (see nvml.h / go-nvml const.go). We only populate
+// the subset the agent asks for; everything else gets NVML_ERROR_NOT_SUPPORTED.
+const NVML_GPM_METRIC_GRAPHICS_UTIL: u32 = 1;
+const NVML_GPM_METRIC_SM_UTIL: u32 = 2;
+const NVML_GPM_METRIC_SM_OCCUPANCY: u32 = 3;
+const NVML_GPM_METRIC_INTEGER_UTIL: u32 = 4;
+const NVML_GPM_METRIC_ANY_TENSOR_UTIL: u32 = 5;
+const NVML_GPM_METRIC_FP64_UTIL: u32 = 11;
+const NVML_GPM_METRIC_FP32_UTIL: u32 = 12;
+const NVML_GPM_METRIC_FP16_UTIL: u32 = 13;
+
+/// Plausible in-bounds value for a given GPM metric ID, expressed on the same
+/// scale the agent forwards to Datadog (0..=1 for utilisation / occupancy).
+fn gpm_value_for(metric_id: u32) -> Option<f64> {
+    match metric_id {
+        NVML_GPM_METRIC_GRAPHICS_UTIL => Some(0.62),
+        NVML_GPM_METRIC_SM_UTIL => Some(0.58),
+        NVML_GPM_METRIC_SM_OCCUPANCY => Some(0.47),
+        NVML_GPM_METRIC_INTEGER_UTIL => Some(0.22),
+        NVML_GPM_METRIC_ANY_TENSOR_UTIL => Some(0.31),
+        NVML_GPM_METRIC_FP64_UTIL => Some(0.04),
+        NVML_GPM_METRIC_FP32_UTIL => Some(0.27),
+        NVML_GPM_METRIC_FP16_UTIL => Some(0.14),
+        _ => None,
+    }
+}
+
+/// Layout of `nvmlGpmSupport_t` (see nvml.h). `version` is caller-supplied
+/// input; `isSupportedDevice` is the output we set.
+#[repr(C)]
+pub struct NvmlGpmSupport {
+    pub version: u32,
+    pub is_supported_device: u32,
+}
+
+/// Layout of `nvmlGpmMetric_t`. `MetricInfo` holds three pointers (short/long
+/// name + unit) that the agent does not read — we leave them zero.
+#[repr(C)]
+pub struct NvmlGpmMetric {
+    pub metric_id: u32,
+    pub nvml_return: u32,
+    pub value: f64,
+    pub metric_info_short_name: *mut c_char,
+    pub metric_info_long_name: *mut c_char,
+    pub metric_info_unit: *mut c_char,
+}
+
+/// `NVML_GPM_METRIC_MAX` — must match the array length the agent compiles against.
+/// go-nvml v0.13 uses 210; older v0.12 used 98. 210 is a safe upper bound: the
+/// caller supplies `NumMetrics` and we only touch that many entries.
+const NVML_GPM_METRIC_MAX: usize = 210;
+
+/// Layout of `nvmlGpmMetricsGet_t`.
+#[repr(C)]
+pub struct NvmlGpmMetricsGet {
+    pub version: u32,
+    pub num_metrics: u32,
+    pub sample1: *mut c_void,
+    pub sample2: *mut c_void,
+    pub metrics: [NvmlGpmMetric; NVML_GPM_METRIC_MAX],
+}
+
+/// Shared pre-flight check: returns true iff the caller should see GPM as
+/// supported. This funnels every GPM entry point through one decision so the
+/// behaviour stays consistent and arch-driven.
+fn gpm_supported() -> bool {
+    current_arch().supports_gpm
+}
+
+/// `nvmlGpmSampleAlloc(nvmlGpmSample_t *sample)`
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nvmlGpmSampleAlloc(sample_out: *mut *mut c_void) -> NvmlReturn {
+    ffi_guard!({
+        if sample_out.is_null() {
+            return NVML_ERROR_INVALID_ARGUMENT;
+        }
+        if !gpm_supported() {
+            // Agent's GPM collector fails at instantiation when this returns
+            // NOT_SUPPORTED; that is the intended degradation path for every
+            // non-GPM architecture.
+            return NVML_ERROR_NOT_SUPPORTED;
+        }
+        // Handle value is opaque to the caller; a heap-allocated u64 gives us
+        // a unique non-null pointer and a clean free path.
+        let boxed = Box::new(0u64);
+        unsafe { *sample_out = Box::into_raw(boxed) as *mut c_void };
+        NVML_SUCCESS
+    })
+}
+
+/// `nvmlGpmSampleFree(nvmlGpmSample_t sample)`
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nvmlGpmSampleFree(sample: *mut c_void) -> NvmlReturn {
+    ffi_guard!({
+        if sample.is_null() {
+            return NVML_ERROR_INVALID_ARGUMENT;
+        }
+        // SAFETY: handles originate from Box::into_raw in nvmlGpmSampleAlloc.
+        unsafe { drop(Box::from_raw(sample as *mut u64)) };
+        NVML_SUCCESS
+    })
+}
+
+/// `nvmlGpmSampleGet(nvmlDevice_t device, nvmlGpmSample_t sample)`
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nvmlGpmSampleGet(device: NvmlDevice, sample: *mut c_void) -> NvmlReturn {
+    ffi_guard!({
+        if index_from_device(device).is_none() || sample.is_null() {
+            return NVML_ERROR_INVALID_ARGUMENT;
+        }
+        if !gpm_supported() {
+            return NVML_ERROR_NOT_SUPPORTED;
+        }
+        // Stamp the sample so each call produces a distinct token — not strictly
+        // required by the agent, but keeps behaviour realistic.
+        unsafe { *(sample as *mut u64) = (*(sample as *mut u64)).wrapping_add(1) };
+        NVML_SUCCESS
+    })
+}
+
+/// `nvmlGpmMigSampleGet(nvmlDevice_t parent, unsigned int gpuInstanceId, nvmlGpmSample_t sample)`
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nvmlGpmMigSampleGet(
+    _device: NvmlDevice,
+    _gpu_instance_id: c_uint,
+    _sample: *mut c_void,
+) -> NvmlReturn {
+    // MIG mode is not modelled by the fake library — report unsupported so the
+    // agent falls back to physical-device sampling.
+    ffi_guard!({ NVML_ERROR_NOT_SUPPORTED })
+}
+
+/// `nvmlGpmQueryDeviceSupport(nvmlDevice_t device, nvmlGpmSupport_t *support)`
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nvmlGpmQueryDeviceSupport(
+    device: NvmlDevice,
+    support: *mut NvmlGpmSupport,
+) -> NvmlReturn {
+    ffi_guard!({
+        if index_from_device(device).is_none() || support.is_null() {
+            return NVML_ERROR_INVALID_ARGUMENT;
+        }
+        // Preserve caller-supplied version; populate support flag from the spec.
+        let is_supported = if gpm_supported() { 1u32 } else { 0u32 };
+        unsafe { (*support).is_supported_device = is_supported };
+        NVML_SUCCESS
+    })
+}
+
+/// `nvmlGpmMetricsGet(nvmlGpmMetricsGet_t *metricsGet)`
+///
+/// Fills in each requested metric's `value` + `nvml_return`. Unknown metric
+/// IDs get NVML_ERROR_NOT_SUPPORTED, mirroring real NVML behaviour. The agent
+/// then drops those metrics from its collect list (gpm.go:removeUnsupportedMetrics).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nvmlGpmMetricsGet(metrics_get: *mut NvmlGpmMetricsGet) -> NvmlReturn {
+    ffi_guard!({
+        if metrics_get.is_null() {
+            return NVML_ERROR_INVALID_ARGUMENT;
+        }
+        if !gpm_supported() {
+            return NVML_ERROR_NOT_SUPPORTED;
+        }
+        // SAFETY: non-null checked above; caller is responsible for the array size.
+        let mg = unsafe { &mut *metrics_get };
+        let n = (mg.num_metrics as usize).min(NVML_GPM_METRIC_MAX);
+        for i in 0..n {
+            let m = &mut mg.metrics[i];
+            match gpm_value_for(m.metric_id) {
+                Some(v) => {
+                    m.value = v;
+                    m.nvml_return = NVML_SUCCESS;
+                }
+                None => {
+                    m.value = 0.0;
+                    m.nvml_return = NVML_ERROR_NOT_SUPPORTED;
+                }
+            }
+            // Leave metric_info pointers as-is; agent does not read them.
+        }
+        NVML_SUCCESS
+    })
+}

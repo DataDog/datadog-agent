@@ -142,8 +142,8 @@ Collectors that require hardware-specific features degrade gracefully:
 | Collector | Status |
 |---|---|
 | `stateless` (memory, clocks, power, temperature) | ✅ Fully active |
+| `gpm` (tensor/fp16/fp32/fp64/integer/SM active, graphics util, occupancy) | ✅ Active when `FAKE_NVML_ARCH` is `hopper` or `blackwell`; returns `NVML_ERROR_NOT_SUPPORTED` for other architectures (the agent collector then exits cleanly at instantiation) |
 | `sampling` (process utilization) | ❌ Disabled — NVML samples API not implemented |
-| `gpm` (tensor/fp16/fp32 active) | ❌ Disabled — GPM not implemented |
 | `fields` (NVLink, C2C) | ❌ Disabled — `nvmlDeviceGetFieldValues` not implemented |
 | `device_events` (XID errors) | ❌ Disabled — event set API not implemented |
 | `nvlink` (PLR counters) | ❌ Disabled — PRM TLV API not implemented |
@@ -158,7 +158,7 @@ bazelisk build //pkg/gpu/fake-nvml:fake_nvml
 # Release build (LTO + size optimization)
 bazelisk build --config=release //pkg/gpu/fake-nvml:fake_nvml
 
-# Verify exported symbols (24 nvml* symbols)
+# Verify exported symbols (30 nvml* symbols: 24 stateless + 6 GPM)
 nm -D bazel-bin/pkg/gpu/fake-nvml/libfake_nvml.so | grep nvml
 ```
 
