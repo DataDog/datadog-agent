@@ -5,9 +5,9 @@ go 1.25.0
 require (
 	github.com/DataDog/datadog-agent/comp/def v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.61.0
-	github.com/prometheus/client_golang v1.23.3-0.20251103151724-a5ae20370e5e
+	github.com/prometheus/client_golang v1.23.3-0.20260423082357-773db0a948a8
 	github.com/prometheus/client_model v0.6.2
-	github.com/prometheus/common v0.67.5
+	github.com/prometheus/common v0.67.6-0.20260224092343-e4c38a0aea47
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/atomic v1.11.0
 	go.uber.org/fx v1.24.0
