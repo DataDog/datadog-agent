@@ -4,7 +4,7 @@
 // Copyright 2024-present Datadog, Inc.
 
 // Generate String() methods for nvInfoAttr,nvInfoFormat enums so they can be printed in logs/error messages
-//go:generate go run golang.org/x/tools/cmd/stringer@latest -output cubin_string.go -type=nvInfoAttr,nvInfoFormat -linecomment
+//go:generate go run golang.org/x/tools/cmd/stringer -output cubin_string.go -type=nvInfoAttr,nvInfoFormat -linecomment
 
 package cuda
 
