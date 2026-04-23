@@ -22,8 +22,9 @@ const _CudaEventType_name = "CudaEventTypeKernelLaunchCudaEventTypeMemoryCudaEve
 var _CudaEventType_index = [...]uint8{0, 25, 44, 61, 83, 113, 136, 154}
 
 func (i CudaEventType) String() string {
-	if i >= CudaEventType(len(_CudaEventType_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_CudaEventType_index)-1 {
 		return "CudaEventType(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _CudaEventType_name[_CudaEventType_index[i]:_CudaEventType_index[i+1]]
+	return _CudaEventType_name[_CudaEventType_index[idx]:_CudaEventType_index[idx+1]]
 }
