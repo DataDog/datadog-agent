@@ -45,7 +45,6 @@ func setUp(t *testing.T) *services {
 		formatterfx.MockModule(),
 		listenerfx.MockModule(),
 		fxutil.ProvideComponentConstructor(NewComponent),
-		fxutil.FxLifecycleAdapter(),
 	)
 	return &s
 }
