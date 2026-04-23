@@ -73,14 +73,13 @@ func disableOtelCollectorConfigCommon(datadogYamlPath string) error {
 }
 
 // writeOTelConfigCommon creates otel-config.yaml from a template by
-// substituting the api_key and site sourced from environment variables
-// (DD_API_KEY and DD_SITE). The installer never reads datadog.yaml; callers
-// (daemon / CLI fx bootstrap) are expected to have translated yaml values
-// into env vars before reaching this hook.
-// If preserveIfExists is true and outPath already exists, the function
+// substituting DD_API_KEY and DD_SITE placeholders. Values come exclusively
+// from environment variables — the daemon and the CLI fx bootstrap are
+// responsible for translating yaml into env vars upstream.
+// When preserveIfExists is true and outPath already exists, the function
 // returns without writing.
 // nolint:unused // Called only from platform-specific code/contexts
-func writeOTelConfigCommon(ctx HookContext, _, templatePath, outPath string, preserveIfExists bool, mode os.FileMode) (err error) {
+func writeOTelConfigCommon(ctx HookContext, templatePath, outPath string, preserveIfExists bool, mode os.FileMode) (err error) {
 	span, _ := ctx.StartSpan("write_otel_config_common")
 	defer func() { span.Finish(err) }()
 

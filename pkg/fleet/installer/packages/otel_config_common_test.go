@@ -92,9 +92,7 @@ func TestWriteOTelConfigCommonSiteSubstitution(t *testing.T) {
 
 			outPath := filepath.Join(dir, "otel-config.yaml")
 			ctx := HookContext{Context: context.Background()}
-			// writeOTelConfigCommon no longer reads datadog.yaml; the first
-			// arg is kept for call-site symmetry but is ignored.
-			require.NoError(t, writeOTelConfigCommon(ctx, "", templatePath, outPath, false, 0o644))
+			require.NoError(t, writeOTelConfigCommon(ctx, templatePath, outPath, false, 0o644))
 
 			content, err := os.ReadFile(outPath)
 			require.NoError(t, err)
