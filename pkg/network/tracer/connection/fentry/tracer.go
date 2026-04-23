@@ -52,6 +52,7 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHa
 		o.RemoveRlimit = mgrOpts.RemoveRlimit
 		o.MapSpecEditors = mgrOpts.MapSpecEditors
 		o.ConstantEditors = mgrOpts.ConstantEditors
+		o.BypassEnabled = mgrOpts.BypassEnabled
 		var initErr error
 		closeProtocolClassifierSocketFilterFn, initErr = initFentryTracer(ar, o, config, m)
 		return initErr
