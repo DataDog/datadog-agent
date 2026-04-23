@@ -90,8 +90,7 @@ pub struct Architecture {
 // same relative location.
 // ---------------------------------------------------------------------------
 
-const SPEC_YAML: &str =
-    include_str!("../../../collector/corechecks/gpu/spec/architectures.yaml");
+const SPEC_YAML: &str = include_str!("../../../collector/corechecks/gpu/spec/architectures.yaml");
 
 const DEFAULT_ARCH: &str = "hopper";
 const DEFAULT_DEVICE_COUNT: usize = 2;
@@ -100,8 +99,7 @@ fn load_spec() -> SpecRoot {
     // Panics here are desirable: a malformed spec is a build/packaging bug
     // that must be fixed before the fake library is usable. ffi_guard! at
     // call sites still catches the panic before it crosses the C ABI.
-    serde_yaml::from_str(SPEC_YAML)
-        .expect("fake-nvml: failed to parse embedded architectures.yaml")
+    serde_yaml::from_str(SPEC_YAML).expect("fake-nvml: failed to parse embedded architectures.yaml")
 }
 
 fn resolve_arch_name() -> String {
@@ -115,20 +113,17 @@ fn resolve_arch_name() -> String {
 fn build_current_arch() -> Architecture {
     let spec = load_spec();
     let requested = resolve_arch_name();
-    let raw = spec
-        .architectures
-        .get(&requested)
-        .unwrap_or_else(|| {
-            eprintln!(
-                "fake-nvml: unknown FAKE_NVML_ARCH={:?}; falling back to {:?}. Known archs: {:?}",
-                requested,
-                DEFAULT_ARCH,
-                spec.architectures.keys().collect::<Vec<_>>()
-            );
-            spec.architectures
-                .get(DEFAULT_ARCH)
-                .expect("fake-nvml: default architecture missing from embedded spec")
-        });
+    let raw = spec.architectures.get(&requested).unwrap_or_else(|| {
+        eprintln!(
+            "fake-nvml: unknown FAKE_NVML_ARCH={:?}; falling back to {:?}. Known archs: {:?}",
+            requested,
+            DEFAULT_ARCH,
+            spec.architectures.keys().collect::<Vec<_>>()
+        );
+        spec.architectures
+            .get(DEFAULT_ARCH)
+            .expect("fake-nvml: default architecture missing from embedded spec")
+    });
 
     let name = if spec.architectures.contains_key(&requested) {
         requested
@@ -192,9 +187,15 @@ mod tests {
                 a.defaults.nvml_architecture != 0,
                 "{arch} missing nvml_architecture"
             );
-            assert!(!a.defaults.device_name.is_empty(), "{arch} missing device_name");
+            assert!(
+                !a.defaults.device_name.is_empty(),
+                "{arch} missing device_name"
+            );
             assert!(a.defaults.num_gpu_cores > 0, "{arch} missing num_gpu_cores");
-            assert!(a.defaults.total_memory_mib > 0, "{arch} missing total_memory_mib");
+            assert!(
+                a.defaults.total_memory_mib > 0,
+                "{arch} missing total_memory_mib"
+            );
         }
     }
 

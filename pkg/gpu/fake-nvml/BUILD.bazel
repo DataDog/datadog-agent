@@ -57,9 +57,9 @@ rust_shared_library(
 pkg_files(
     name = "all_files",
     srcs = [":fake_nvml"],
-    renames = {":fake_nvml": "libnvidia-ml-fake.so.1"},
     attributes = pkg_attributes(mode = "0755"),
     prefix = "embedded/dev",
+    renames = {":fake_nvml": "libnvidia-ml-fake.so.1"},
     visibility = ["//packages:__subpackages__"],
 )
 
