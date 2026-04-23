@@ -360,6 +360,73 @@ any mid-iteration crash state.
 
 ---
 
+## Status cheat sheet
+
+All of these run from your laptop via `ssh workspace-coord-driver "..."`.
+Source of truth is `.coordinator/journal.jsonl` (append-only structured
+events). Commands are pipe-friendly so you can chain `| tail -N` etc.
+
+```bash
+# Process + branch state
+ssh workspace-coord-driver "pgrep -af 'coordinator.driver'; cd ~/dd/datadog-agent && git rev-parse --short HEAD"
+
+# Last 5 events (whatever just happened)
+ssh workspace-coord-driver "tail -5 ~/dd/datadog-agent/.coordinator/journal.jsonl"
+
+# Did the coordinator read my PR comment yet?
+ssh workspace-coord-driver "grep '\"inbox_ack\"' ~/dd/datadog-agent/.coordinator/journal.jsonl | tail -1 | python3 -m json.tool"
+
+# Full inbox history (all user comments ever interpreted)
+ssh workspace-coord-driver "grep '\"inbox_ack\"' ~/dd/datadog-agent/.coordinator/journal.jsonl | tail -10"
+
+# Has the driver autopilot-pivoted on plateau?
+ssh workspace-coord-driver "grep '\"phase_pivot\"' ~/dd/datadog-agent/.coordinator/journal.jsonl"
+
+# Current pivot state (banned families + count)
+ssh workspace-coord-driver "grep -E 'pivot_banned_families|pivot_count' ~/dd/datadog-agent/.coordinator/db.yaml"
+
+# Cost anomalies fired this run
+ssh workspace-coord-driver "grep '\"cost_anomaly\"' ~/dd/datadog-agent/.coordinator/journal.jsonl"
+
+# What was the LAST candidate tried, and what happened to it?
+ssh workspace-coord-driver "grep -E '\"implementation_done\"|\"implementation_failed\"|\"review_done\"|\"auto_rejected_strict_regression\"|\"iter_shipped\"' ~/dd/datadog-agent/.coordinator/journal.jsonl | tail -5"
+
+# Tokens + cost this run (live, durable)
+ssh workspace-coord-driver "wc -l ~/dd/datadog-agent/.coordinator/tokens.jsonl; cat ~/dd/datadog-agent/.coordinator/tokens.jsonl | python3 -c 'import json,sys; rs=[json.loads(l) for l in sys.stdin]; tok_i=sum(r[\"input\"] for r in rs); tok_o=sum(r[\"output\"] for r in rs); print(f\"{tok_i:,} in / {tok_o:,} out = {tok_i+tok_o:,} total\")'"
+
+# Was the current iteration expensive vs its peers?
+ssh workspace-coord-driver "tail -20 ~/dd/datadog-agent/.coordinator/tokens.jsonl | python3 -c 'import json,sys; rs=[json.loads(l) for l in sys.stdin]; last_iter=max(r[\"iter\"] for r in rs if r[\"iter\"] is not None); print(f\"last iter {last_iter} so far:\", sum(r[\"input\"]+r[\"output\"] for r in rs if r[\"iter\"]==last_iter), \"tokens\")'"
+
+# Is the coordinator paused (auto or manual)?
+ssh workspace-coord-driver "ls -la ~/dd/datadog-agent/.coordinator/pause 2>&1"
+
+# SDK errors captured (one file per failed call; useful when impl_failed)
+ssh workspace-coord-driver "ls -la ~/dd/datadog-agent/.coordinator/sdk-errors/ 2>&1 | tail -10"
+
+# Read the most recent SDK-error capture
+ssh workspace-coord-driver "ls -t ~/dd/datadog-agent/.coordinator/sdk-errors/*.txt | head -1 | xargs cat" 2>&1 | head -60
+
+# Shipped candidates (commits on the scratch branch)
+ssh workspace-coord-driver "cd ~/dd/datadog-agent && git log --oneline claude/observer-improvements ^origin/q-branch-observer | grep 'coord: '"
+
+# Latest iteration's status as seen in metrics.md
+ssh workspace-coord-driver "head -30 ~/dd/datadog-agent/.coordinator/metrics.md"
+
+# gh auth health (budget for the user-facing channel)
+ssh workspace-coord-driver "grep '\"gh_error\"\\|\"github_inbox_pulled\"' ~/dd/datadog-agent/.coordinator/journal.jsonl | tail -5"
+
+# Is anything growing right now? (tokens.jsonl + journal last-modified)
+ssh workspace-coord-driver "stat -c 'tokens:  %y' ~/dd/datadog-agent/.coordinator/tokens.jsonl; stat -c 'journal: %y' ~/dd/datadog-agent/.coordinator/journal.jsonl; date"
+```
+
+**Interpreting**: during an Opus implementation (~20 min), `tokens.jsonl`
+mtime ticks every few seconds but `journal.jsonl` stays quiet. That's
+normal — journal only updates at pipeline milestones (`implementation_done`,
+`eval_done`, `review_done`, etc.). Both files silent for >15 min = either
+stuck or between iterations; check the process pid.
+
+---
+
 ## Fetch results locally
 
 From your laptop at any point:
