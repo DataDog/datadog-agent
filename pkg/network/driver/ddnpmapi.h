@@ -306,9 +306,8 @@ typedef struct _userFlowData {
         UDP_FLOW_DATA     udp;
     } protocol_u;
 
-    uint16_t        tls_cipher_suite;
-    uint16_t        reserved;          // align interfaceIndex to 4 bytes under pack(1)
     uint32_t        interfaceIndex;
+    uint16_t        tls_cipher_suite;
 } USER_FLOW_DATA;
 
 #define CLASSIFICATION_UNCLASSIFIED                 (0)
