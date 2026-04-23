@@ -563,6 +563,11 @@ char **Three::getCheckWarnings(RtLoaderPyObject *check)
             goto done;
         }
         warnings[idx] = as_string(warn);
+        if (warnings[idx] == NULL) {
+            // NULL terminates the array for the caller; stop here to avoid
+            // leaking strings allocated past the terminator.
+            break;
+        }
     }
 
 done:
@@ -918,6 +923,15 @@ void Three::setModuleAttrString(char *module, char *attr, char *value)
     }
 
     PyObject *py_value = PyUnicode_FromString(value);
+    if (py_value == NULL) {
+        // Passing NULL to PyObject_SetAttrString deletes the attribute
+        // instead of reporting the failure, so guard here.
+        setError("error converting value to python string for '" + std::string(module) + "."
+                 + std::string(attr) + "' attribute: " + _fetchPythonError());
+        Py_XDECREF(py_module);
+        return;
+    }
+
     if (PyObject_SetAttrString(py_module, attr, py_value) != 0) {
         setError("error setting the '" + std::string(module) + "." + std::string(attr)
                  + "' attribute: " + _fetchPythonError());
