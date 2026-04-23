@@ -1,0 +1,41 @@
+name: "Logs agent AI review"
+
+on:
+  pull_request:
+    types: [labeled]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  logs-agent-review:
+    if: github.event.label.name == 'team/agent-log-pipelines' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+
+      - name: Run logs-agent AI review
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          LOGS_AGENT_AI_API_KEY: ${{ secrets.LOGS_AGENT_AI_API_KEY }}
+          LOGS_AGENT_AI_BASE_URL: ${{ secrets.LOGS_AGENT_AI_BASE_URL }}
+          LOGS_AGENT_AI_SOURCE: ${{ vars.LOGS_AGENT_AI_SOURCE }}
+          LOGS_AGENT_AI_ORG_ID: ${{ vars.LOGS_AGENT_AI_ORG_ID }}
+          LOGS_AGENT_REVIEW_MODEL: ${{ vars.LOGS_AGENT_REVIEW_MODEL }}
+        run: |
+          python3 -m tools.logs_agent_ai review-pr \
+            --pr "${{ github.event.pull_request.number }}" \
+            --base-sha "${{ github.event.pull_request.base.sha }}" \
+            --head-sha "${{ github.event.pull_request.head.sha }}" \
+            --commit "${{ github.event.pull_request.head.sha }}"
