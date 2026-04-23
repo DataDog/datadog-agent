@@ -5,7 +5,7 @@
 
 //go:build test
 
-package serverimpl
+package server
 
 import (
 	"fmt"
@@ -17,7 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/mapper"
-	server "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
+	serverdef "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -82,7 +82,7 @@ func TestNoMappingsConfig(t *testing.T) {
 	cfg := make(map[string]interface{})
 	cfg["dogstatsd_port"] = listeners.RandomPortName
 	deps := fulfillDepsWithConfigOverride(t, cfg)
-	s := deps.Server.(*dsdServer)
+	s := deps.Server.(*server)
 	cw := deps.Config.(model.Writer)
 	cw.SetWithoutSource("dogstatsd_port", listeners.RandomPortName)
 
@@ -105,21 +105,21 @@ func TestNewServerExtraTags(t *testing.T) {
 	cfg["dogstatsd_port"] = listeners.RandomPortName
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
-	s := deps.Server.(*dsdServer)
+	s := deps.Server.(*server)
 	requireStart(t, s)
 	require.Len(s.extraTags, 0, "no tags should have been read")
 
 	// when not running in fargate, the tags entry is not used
 	cfg["tags"] = "hello:world"
 	deps = fulfillDepsWithConfigOverride(t, cfg)
-	s = deps.Server.(*dsdServer)
+	s = deps.Server.(*server)
 	requireStart(t, s)
 	require.Len(s.extraTags, 0, "no tags should have been read")
 
 	// dogstatsd_tag is always pulled in to extra tags
 	cfg["dogstatsd_tags"] = "hello:world2 extra:tags"
 	deps = fulfillDepsWithConfigOverride(t, cfg)
-	s = deps.Server.(*dsdServer)
+	s = deps.Server.(*server)
 	requireStart(t, s)
 	require.ElementsMatch([]string{"extra:tags", "hello:world2"}, s.extraTags, "two tags should have been read")
 	require.Len(s.extraTags, 2, "two tags should have been read")
@@ -129,7 +129,7 @@ func TestNewServerExtraTags(t *testing.T) {
 	// when running in fargate, "tags" and "dogstatsd_tag" configs are conjoined
 	env.SetFeatures(t, env.EKSFargate)
 	deps = fulfillDepsWithConfigOverride(t, cfg)
-	s = deps.Server.(*dsdServer)
+	s = deps.Server.(*server)
 	requireStart(t, s)
 
 	require.ElementsMatch(
@@ -143,7 +143,7 @@ func TestNewServerExtraTags(t *testing.T) {
 func testContainerIDParsing(t *testing.T, cfg map[string]interface{}) {
 	cfg["dogstatsd_port"] = listeners.RandomPortName
 	deps := fulfillDepsWithConfigOverride(t, cfg)
-	s := deps.Server.(*dsdServer)
+	s := deps.Server.(*server)
 	assert := assert.New(t)
 	requireStart(t, s)
 
@@ -186,7 +186,7 @@ func TestOrigin(t *testing.T) {
 	cfg["dogstatsd_port"] = listeners.RandomPortName
 	t.Run("TestOrigin", func(t *testing.T) {
 		deps := fulfillDepsWithConfigOverride(t, cfg)
-		s := deps.Server.(*dsdServer)
+		s := deps.Server.(*server)
 		assert := assert.New(t)
 
 		requireStart(t, s)
@@ -217,12 +217,12 @@ func TestOrigin(t *testing.T) {
 	})
 }
 
-func requireStart(t *testing.T, s server.Component) {
+func requireStart(t *testing.T, s serverdef.Component) {
 	assert.NotNil(t, s)
 	assert.True(t, s.IsRunning(), "server was not running")
 }
 
-func requireStopped(t *testing.T, s server.Component) {
+func requireStopped(t *testing.T, s serverdef.Component) {
 	assert.NotNil(t, s)
 	assert.False(t, s.IsRunning(), "server was running")
 }

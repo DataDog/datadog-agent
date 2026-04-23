@@ -5,7 +5,7 @@
 
 //go:build test
 
-package serverimpl
+package server
 
 import (
 	"testing"
@@ -29,7 +29,7 @@ import (
 	pidmapfx "github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/fx"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	replaymock "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/fx-mock"
-	server "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
+	serverdef "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/def"
 	serverdebugmock "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/mock"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
@@ -73,7 +73,7 @@ type serverDeps struct {
 	Debug         serverdebug.Component
 	WMeta         option.Option[workloadmeta.Component]
 	Telemetry     telemetry.Component
-	Server        server.Component
+	Server        serverdef.Component
 	FilterList    filterlist.Component
 }
 
@@ -98,7 +98,7 @@ func fulfillDepsWithConfigOverride(t testing.TB, overrides map[string]interface{
 		fx.Provide(func() offlinereporter.Component { return offlinereportermock.Mock(t) }),
 
 		fxutil.ProvideComponentConstructor(NewComponent),
-		fx.Supply(server.Params{Serverless: false}),
+		fx.Supply(serverdef.Params{Serverless: false}),
 	))
 }
 
@@ -119,20 +119,20 @@ func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 		fx.Provide(func() offlinereporter.Component { return offlinereportermock.Mock(t) }),
 
 		fxutil.ProvideComponentConstructor(NewComponent),
-		fx.Supply(server.Params{Serverless: false}),
+		fx.Supply(serverdef.Params{Serverless: false}),
 	))
 }
 
 // Returns a server that is not started along with associated dependencies
 // Be careful when using this functionality, as server start instantiates many internal components to non-nil values
-func fulfillDepsWithInactiveServer(t *testing.T, cfg map[string]interface{}) (depsWithoutServer, *dsdServer) {
+func fulfillDepsWithInactiveServer(t *testing.T, cfg map[string]interface{}) (depsWithoutServer, *server) {
 	deps := fxutil.Test[depsWithoutServer](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() configComponent.Component { return configComponent.NewMockWithOverrides(t, cfg) }),
 		mocktelemetry.Module(),
 		hostnameimpl.MockModule(),
 		serverdebugmock.MockModule(),
-		fx.Supply(server.Params{Serverless: false}),
+		fx.Supply(serverdef.Params{Serverless: false}),
 		replaymock.MockModule(),
 		pidmapfx.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
