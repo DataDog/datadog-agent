@@ -3,10 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// This is to define a mock registry for the gradual rollout E2E tests.
-// This is to avoid actually making calls to the real registry during the tests.
-// It should mock any kind of calls that the image resolver would make to the registry.
-
 package ssigradualrollout
 
 import (
@@ -81,11 +77,6 @@ server.socket = ctx.wrap_socket(server.socket, server_side=True)
 print('Mock registry listening on :5000', flush=True)
 server.serve_forever()
 `
-
-// mockRegistryAddress returns the in-cluster address of the mock registry service.
-func mockRegistryAddress() string {
-	return fmt.Sprintf("mock-registry.mock-registry.svc.cluster.local:%d", mockRegistryPort)
-}
 
 // Package-level sync.Once for cert generation so certs are stable across UpdateEnv calls.
 // Pulumi won't update Secrets unnecessarily if the data hasn't changed.
