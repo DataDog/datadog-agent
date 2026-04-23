@@ -129,7 +129,7 @@ type TestBench struct {
 	compCorrCache      []CompressedGroup
 	compCorrThreshold  float64
 	compCorrGeneration uint64
-	corrGeneration     uint64 // bumped after each rerunDetectorsLocked
+	corrGeneration     uint64  // bumped after each rerunDetectorsLocked
 	liveAdvanceTimes   []int64 // when set, replay uses live advance schedule
 
 	// SSE broadcast hub for pushing events to connected browsers.
@@ -565,7 +565,6 @@ func (tb *TestBench) loadParquetDir(dir string) error {
 	return nil
 }
 
-
 // resetAllState resets all registered components that support Reset().
 func (tb *TestBench) resetAllState() {
 	for _, ci := range tb.components {
@@ -700,12 +699,13 @@ func (tb *TestBench) rerunDetectorsLocked() {
 		tb.handleTelemetry([]observerdef.ObserverTelemetry{t}, detName, dataTime)
 	}
 
-	// Populate tb.logAnomalies from AnomalyTypeLog anomalies produced by detectors.
-	// These are distinct from metric anomalies and are served via /api/log-anomalies.
+	// Populate tb.logAnomalies: direct log anomalies (AnomalyTypeLog) and
+	// metric detector anomalies on log-derived series (isLogDerivedAnomaly),
+	// mirroring the live observer's notify.go classification logic.
 	tb.logAnomalies = []observerdef.Anomaly{}
 	tb.logAnomaliesByDetector = make(map[string][]observerdef.Anomaly)
 	for _, a := range result.anomalies {
-		if a.Type == observerdef.AnomalyTypeLog {
+		if a.Type == observerdef.AnomalyTypeLog || isLogDerivedAnomaly(a) {
 			tb.logAnomalies = append(tb.logAnomalies, a)
 			tb.logAnomaliesByDetector[a.DetectorName] = append(tb.logAnomaliesByDetector[a.DetectorName], a)
 		}
@@ -1615,6 +1615,42 @@ func (tb *TestBench) GetReportedEvents() []ReportedEvent {
 	defer tb.mu.RUnlock()
 
 	return tb.reportedEvents
+}
+
+// SendReportedEvent finds the ReportedEvent matching pattern+firstSeen and
+// posts it to the Datadog backend, tagging it with source:observer-testbench,
+// the active scenario name, and the OS user.
+func (tb *TestBench) SendReportedEvent(pattern string, firstSeen int64) error {
+	tb.mu.RLock()
+	var found *ReportedEvent
+	for i := range tb.reportedEvents {
+		e := &tb.reportedEvents[i]
+		if e.Pattern == pattern && e.FirstSeen == firstSeen {
+			found = e
+			break
+		}
+	}
+	scenario := tb.loadedScenario
+	tb.mu.RUnlock()
+	storage := tb.getStorage()
+
+	if found == nil {
+		return fmt.Errorf("report not found: pattern=%q firstSeen=%d", pattern, firstSeen)
+	}
+
+	sender, err := newLiveEventSender(tb.config.Cfg, tb.config.Logger, storage)
+	if err != nil {
+		return err
+	}
+
+	extraTags := []string{"scenario:" + scenario}
+	if u := os.Getenv("USER"); u != "" {
+		extraTags = append(extraTags, "user:"+u)
+	} else if h, err := os.Hostname(); err == nil {
+		extraTags = append(extraTags, "user:"+h)
+	}
+
+	return sender.sendReportedEvent(*found, extraTags)
 }
 
 // errorLogMessages contains realistic error messages for the demo scenario.

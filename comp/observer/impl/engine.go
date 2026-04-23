@@ -522,7 +522,7 @@ func (e *engine) enrichAnomaly(a *observerdef.Anomaly) {
 	}
 	a.Context = &observerdef.MetricContext{
 		Pattern:   ctx.Pattern,
-		Example:   truncate(ctx.Example, 120),
+		Example:   truncate(ctx.Example, 160),
 		Source:    ctx.Source,
 		SplitTags: ctx.SplitTags,
 	}

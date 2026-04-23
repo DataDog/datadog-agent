@@ -32,6 +32,52 @@ def _get_app_key(cfg):
     return get_app_key(cfg)
 
 
+def _send_launch_event(cfg, run_id, image, episode_pairs, mode, gensim_sha):
+    """Send a Datadog event summarising the gensim evaluation run that was just submitted."""
+    import getpass
+
+    from tasks.libs.common.datadog_api import send_event
+
+    user = getpass.getuser()
+
+    tags = [
+        f"run_id:{run_id}",
+        f"mode:{mode}",
+        f"gensim_sha:{gensim_sha}",
+        f"user:{user}",
+        "source:agent-q-branch-gensim",
+    ]
+    for ep_name, scen_name, _ in episode_pairs:
+        tags.append(f"episode:{ep_name}")
+        tags.append(f"scenario:{scen_name}")
+        tags.append(f"episode_scenario:{ep_name}:{scen_name}")
+
+    episode_lines = "\n".join(f"  - {ep} / {sc}" for ep, sc, _ in episode_pairs)
+    text = (
+        f"%%%\n"
+        f"**Run:** `{run_id}`  \n"
+        f"**User:** `{user}`  \n"
+        f"**Mode:** `{mode}`  \n"
+        f"**Agent image:** `{image}`  \n"
+        f"**Gensim SHA:** `{gensim_sha}`  \n\n"
+        f"**Episodes:**\n{episode_lines}\n"
+        f"%%%"
+    )
+
+    os.environ.setdefault("DD_API_KEY", _get_api_key(cfg))
+    os.environ.setdefault("DD_APP_KEY", _get_app_key(cfg))
+
+    try:
+        send_event(
+            title=f"[gensim-eks] Evaluation run submitted: {run_id}",
+            text=text,
+            tags=tags,
+        )
+        tool.info("Datadog event sent.")
+    except Exception as e:
+        tool.warn(f"Failed to send Datadog event: {e}")
+
+
 # Observer modes for the gensim agent:
 #   record-parquet          - Record observer data to parquet files for offline testbench replay
 #   live-anomaly-detection  - Run live edge anomaly detection, send events to Datadog
@@ -52,6 +98,8 @@ _VALID_MODES = ("record-parquet", "live-anomaly-detection", "live-and-record")
         "config_path": doc.config_path,
         "debug": "Enable Pulumi debug logging",
         "skip_build": "Skip episode image building (use cached ECR images from a previous run)",
+        "send_dd_event": "Send a Datadog event when the run is submitted (default: true)",
+        "disable_logs_agent": "Disable log collection in the Helm values for the gensim Datadog Agent (default: false)",
     }
 )
 def submit_gensim_eks(
@@ -67,6 +115,8 @@ def submit_gensim_eks(
     debug: bool = False,
     config_path: str | None = None,
     skip_build: bool = False,
+    send_dd_event: bool = True,
+    disable_logs_agent: bool = False,
 ) -> None:
     """
     Submit a gensim evaluation run to an EKS cluster.
@@ -83,6 +133,7 @@ def submit_gensim_eks(
         inv aws.eks.gensim.submit --image=docker.io/datadog/agent-dev:my-tag --episodes=authcore-pgbouncer:pool-saturation
         inv aws.eks.gensim.submit --image=... --episode-manifest=./gensim-eval-scenarios.json
         inv aws.eks.gensim.submit --image=... --episodes=... --mode=live-anomaly-detection
+        inv aws.eks.gensim.submit --image=... --episodes=... --disable-logs-agent
     """
     from pydantic_core._pydantic_core import ValidationError
 
@@ -284,6 +335,7 @@ def submit_gensim_eks(
         "gensim:imageRegistry": ecr_registry,
         "gensim:episodeDataDir": str(gensim_repo_path),
         "gensim:mode": mode,
+        "gensim:disableLogsAgent": disable_logs_agent,
         # Datadog keys -- must be explicit since install_agent=False
         "ddagent:apiKey": _get_api_key(local_config),
         "ddagent:appKey": _get_app_key(local_config),
@@ -315,6 +367,10 @@ def submit_gensim_eks(
     # ── 10-11. Print monitoring instructions ──────────────────────────────
     run_id = f"eval-{datetime.now(timezone.utc).strftime('%Y%m%d')}-{gensim_sha[:7]}"
     kube = f"KUBECONFIG={full_stack_name}-kubeconfig.yaml {aws_wrapper}"
+
+    # ── 12. Send a Datadog event for observability ─────────────────────────
+    if send_dd_event:
+        _send_launch_event(local_config, run_id, image, episode_pairs, mode, gensim_sha)
 
     tool.info("\n" + "=" * 70)
     tool.info(f"Run submitted: {run_id}")
@@ -624,7 +680,7 @@ def _get_gensim_repo_path() -> Path:
 
 
 # Episode subdirectories to search within the gensim-episodes repo.
-_EPISODE_SUBDIRS = ["postmortems", "synthetics"]
+_EPISODE_SUBDIRS = ["agent-q-branch", "postmortems", "synthetics"]
 
 
 def _find_episode_dir(repo_path: Path, ep_name: str) -> Path:

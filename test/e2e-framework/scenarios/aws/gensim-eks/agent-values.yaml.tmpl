@@ -8,8 +8,10 @@ datadog:
     instrumentation:
       enabled: true
   logs:
-    enabled: false
-    containerCollectAll: false
+    enabled: {{.LogsEnabled}}
+{{- if .LogsEnabled}}
+    containerCollectAll: true
+{{- end}}
   processAgent:
     enabled: true
     processCollection: true

@@ -4,4 +4,4 @@
 // Copyright 2016-present Datadog, Inc.
 
 /** Tag keys surfaced in filter chips and anomaly list headers. */
-export const MAIN_TAG_FILTER_KEYS = new Set(['status', 'service', 'host', 'detector', 'pod_name', 'container_name']);
+export const MAIN_TAG_FILTER_KEYS = new Set(['anomaly_type', 'status', 'service', 'host', 'detector', 'pod_name', 'container_name']);

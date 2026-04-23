@@ -21,9 +21,9 @@ const advanceLogFileName = "advances.jsonl"
 type advanceEntry struct {
 	DataTime           int64            `json:"data_time"`
 	Reason             string           `json:"reason"`
-	LatePoints         int64            `json:"late_points,omitempty"`            // points ingested after their timestamp was analyzed
+	LatePoints         int64            `json:"late_points,omitempty"`           // points ingested after their timestamp was analyzed
 	LatePointsBySource map[string]int64 `json:"late_points_by_source,omitempty"` // per-source breakdown
-	DroppedObs         int64            `json:"dropped_obs,omitempty"`            // observations dropped due to full channel
+	DroppedObs         int64            `json:"dropped_obs,omitempty"`           // observations dropped due to full channel
 	DroppedBySource    map[string]int64 `json:"dropped_by_source,omitempty"`     // per-source breakdown
 }
 
@@ -73,14 +73,14 @@ func (r *advanceLogRecorder) close() error {
 
 // advanceLogComparator compares advance sequences between live and replay.
 type advanceLogComparator struct {
-	liveAdvances           map[int64]advanceEntry // dataTime → full entry
-	replayOnly             []advanceEntry
-	liveOnly               []advanceEntry
-	matched                int
-	totalLatePoints        int64
-	totalDroppedObs        int64
-	totalLateBySource      map[string]int64
-	totalDroppedBySource   map[string]int64
+	liveAdvances         map[int64]advanceEntry // dataTime → full entry
+	replayOnly           []advanceEntry
+	liveOnly             []advanceEntry
+	matched              int
+	totalLatePoints      int64
+	totalDroppedObs      int64
+	totalLateBySource    map[string]int64
+	totalDroppedBySource map[string]int64
 }
 
 func newAdvanceLogComparator(path string) (*advanceLogComparator, error) {
