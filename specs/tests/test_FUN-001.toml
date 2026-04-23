@@ -20,8 +20,7 @@ run = "datadog-installer install oci://gcr.io/datadoghq/agent-package:latest"
 
 [[tests.steps]]
 action = "Verify the package is installed."
-run = "datadog-installer is-installed datadog-agent; echo $?"
-expected = "0"
+run = "datadog-installer is-installed datadog-agent"
 
 [[tests]]
 id = "T006"
@@ -35,13 +34,11 @@ prereq = ["T005"]
 
 [[tests.steps]]
 action = "Re-install the same package at the same version."
-run = "datadog-installer install oci://gcr.io/datadoghq/agent-package:latest; echo $?"
-expected = "0"
+run = "datadog-installer install oci://gcr.io/datadoghq/agent-package:latest"
 
 [[tests.steps]]
 action = "Verify the package is still installed."
-run = "datadog-installer is-installed datadog-agent; echo $?"
-expected = "0"
+run = "datadog-installer is-installed datadog-agent"
 
 [[tests]]
 id = "T007"
@@ -54,9 +51,9 @@ ref = ["FUN-001"]
 prereq = ["T001"]
 
 [[tests.steps]]
-action = "Attempt to install from an invalid OCI URL."
-run = "datadog-installer install oci://invalid.registry.example/nonexistent:v0; echo $?"
-expected = "1"
+action = "Attempt to install from an invalid OCI URL. The command should fail."
+run = "datadog-installer install oci://invalid.registry.example/nonexistent:v0"
+expected = "could not download package"
 
 [[tests]]
 id = "T008"
@@ -70,13 +67,11 @@ prereq = ["T005"]
 
 [[tests.steps]]
 action = "Force-install the same package."
-run = "datadog-installer install --force oci://gcr.io/datadoghq/agent-package:latest; echo $?"
-expected = "0"
+run = "datadog-installer install --force oci://gcr.io/datadoghq/agent-package:latest"
 
 [[tests.steps]]
 action = "Verify the package is still installed."
-run = "datadog-installer is-installed datadog-agent; echo $?"
-expected = "0"
+run = "datadog-installer is-installed datadog-agent"
 
 [[tests]]
 id = "T009"
@@ -89,6 +84,5 @@ ref = ["FUN-001"]
 prereq = ["T005"]
 
 [[tests.steps]]
-action = "Read the stable symlink target for the installed package."
+action = "Read the stable symlink target for the installed package. It should point to a version directory."
 run = "readlink /opt/datadog-packages/datadog-agent/stable"
-expected = "A version directory name (e.g. 7.x.y)"

@@ -13,13 +13,11 @@ prereq = ["T005"]
 
 [[tests.steps]]
 action = "Remove the installed package."
-run = "datadog-installer remove datadog-agent; echo $?"
-expected = "0"
+run = "datadog-installer remove datadog-agent"
 
 [[tests.steps]]
-action = "Verify the package is no longer installed."
-run = "datadog-installer is-installed datadog-agent; echo $?"
-expected = "1"
+action = "Verify the package is no longer installed. The command should exit with code 10."
+run = "datadog-installer is-installed datadog-agent"
 
 [[tests]]
 id = "T011"
@@ -35,9 +33,9 @@ initial = """
 """
 
 [[tests.steps]]
-action = "Attempt to remove a package that is not installed."
-run = "datadog-installer remove datadog-nonexistent-package; echo $?"
-expected = "1"
+action = "Attempt to remove a package that is not installed. The command should fail."
+run = "datadog-installer remove datadog-nonexistent-package"
+expected = "could not remove package"
 
 [[tests]]
 id = "T012"
@@ -52,10 +50,8 @@ prereq = ["T010"]
 
 [[tests.steps]]
 action = "Reinstall the previously removed package."
-run = "datadog-installer install oci://gcr.io/datadoghq/agent-package:latest; echo $?"
-expected = "0"
+run = "datadog-installer install oci://gcr.io/datadoghq/agent-package:latest"
 
 [[tests.steps]]
 action = "Verify the package is installed again."
-run = "datadog-installer is-installed datadog-agent; echo $?"
-expected = "0"
+run = "datadog-installer is-installed datadog-agent"

@@ -14,32 +14,37 @@ ref = ["FUN-015"]
 initial = """
 - A Linux host (amd64 or arm64) with no Datadog software installed.
 - `curl` and `sha256sum` are available.
-- `DD_API_KEY` is set to a valid API key.
+- A valid Datadog API key is available.
 """
 
 [[tests.steps]]
+action = "Export the API key."
+run = "export DD_API_KEY=<API key>"
+
+[[tests.steps]]
+action = "Download the install script."
+run = "curl -L -o install_script_agent7.sh https://install.datadoghq.com/scripts/install_script_agent7.sh"
+
+[[tests.steps]]
 action = "Run the install script."
-run = "DD_API_KEY=$DD_API_KEY bash -c \"$(curl -L https://install.datadoghq.com/scripts/install_script_agent7.sh)\""
+run = "bash install_script_agent7.sh"
 
 [[tests.steps]]
 action = "Verify the installer binary is installed in the repository."
-run = "test -x /opt/datadog-packages/datadog-installer/stable/bin/installer/installer; echo $?"
-expected = "0"
+run = "test -x /opt/datadog-packages/datadog-installer/stable/bin/installer/installer"
 
 [[tests.steps]]
 action = "Verify the installer reports itself as installed."
-run = "datadog-installer is-installed datadog-installer; echo $?"
-expected = "0"
+run = "datadog-installer is-installed datadog-installer"
 
 [[tests.steps]]
 action = "Verify the agent was installed as a default package."
-run = "datadog-installer is-installed datadog-agent; echo $?"
-expected = "0"
+run = "datadog-installer is-installed datadog-agent"
 
 [[tests.steps]]
 action = "Verify the temporary bootstrap binary was cleaned up."
-run = "test -f /opt/datadog-packages/tmp/installer; echo $?"
-expected = "1"
+run = "ls /opt/datadog-packages/tmp/installer"
+expected = "No such file or directory"
 
 [[tests]]
 id = "T001"
@@ -59,17 +64,15 @@ run = "datadog-installer bootstrap"
 
 [[tests.steps]]
 action = "Verify the installer package is present in the local repository."
-run = "datadog-installer is-installed datadog-installer; echo $?"
-expected = "0"
+run = "datadog-installer is-installed datadog-installer"
 
 [[tests.steps]]
-action = "Verify the stable symlink points to the installed version."
+action = "Verify the stable symlink points to a version directory."
 run = "readlink /opt/datadog-packages/datadog-installer/stable"
 
 [[tests.steps]]
 action = "Verify the default packages (as resolved by the environment) are installed."
-run = "datadog-installer is-installed datadog-agent; echo $?"
-expected = "0"
+run = "datadog-installer is-installed datadog-agent"
 
 [[tests]]
 id = "T002"
@@ -91,8 +94,7 @@ run = "DD_INSTALLER_REGISTRY_URL=https://custom.registry.example datadog-install
 
 [[tests.steps]]
 action = "Verify the installer package is installed."
-run = "datadog-installer is-installed datadog-installer; echo $?"
-expected = "0"
+run = "datadog-installer is-installed datadog-installer"
 
 [[tests]]
 id = "T003"
@@ -108,14 +110,14 @@ initial = """
 """
 
 [[tests.steps]]
-action = "Run the bootstrap command against the unreachable registry."
-run = "DD_INSTALLER_REGISTRY_URL=https://unreachable.invalid datadog-installer bootstrap; echo $?"
-expected = "1"
+action = "Run the bootstrap command against the unreachable registry. The command should fail."
+run = "DD_INSTALLER_REGISTRY_URL=https://unreachable.invalid datadog-installer bootstrap"
+expected = "could not download"
 
 [[tests.steps]]
 action = "Verify no installer package was left behind."
-run = "ls /opt/datadog-packages/datadog-installer/stable 2>/dev/null; echo $?"
-expected = "2"
+run = "ls /opt/datadog-packages/datadog-installer/stable"
+expected = "No such file or directory"
 
 [[tests]]
 id = "T004"
@@ -129,10 +131,12 @@ prereq = ["T001"]
 
 [[tests.steps]]
 action = "Run the bootstrap command again on the already-bootstrapped host."
-run = "datadog-installer bootstrap; echo $?"
-expected = "0"
+run = "datadog-installer bootstrap"
 
 [[tests.steps]]
-action = "Verify all previously installed packages are still present."
-run = "datadog-installer is-installed datadog-installer && datadog-installer is-installed datadog-agent; echo $?"
-expected = "0"
+action = "Verify the installer is still present."
+run = "datadog-installer is-installed datadog-installer"
+
+[[tests.steps]]
+action = "Verify the agent is still present."
+run = "datadog-installer is-installed datadog-agent"
