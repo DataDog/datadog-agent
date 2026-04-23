@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "model",
@@ -14,4 +14,15 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/config/model",
     visibility = ["//visibility:public"],
     deps = ["@com_github_spf13_cast//:cast"],
+)
+
+go_test(
+    name = "model_test",
+    srcs = ["convert_test.go"],
+    embed = [":model"],
+    gotags = ["test"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
 )
