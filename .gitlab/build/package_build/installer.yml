@@ -164,8 +164,6 @@ installer-arm64:
   tags: ["arch:arm64", "specific:true"]
   needs: ["go_deps"]
   variables:
-    # Temporary hack to allow an omnibus step to know where to dump files.
-    OMNIBUS_PACKAGE_DIR: $OMNIBUS_PACKAGE_DIR
     PACKAGE_ARCH: arm64
     DESTINATION_FILE: "datadog-installer_7-arm64.tar.xz"
     DD_CC: "aarch64-unknown-linux-gnu-gcc"
