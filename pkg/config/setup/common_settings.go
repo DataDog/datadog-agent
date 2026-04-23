@@ -1799,6 +1799,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.windows_open_file_timeout", 5)
 
 	// Auto multiline detection settings
+	config.BindEnvAndSetDefault("logs_config.experimental_auto_multi_line_detection", false) // deprecated alias, kept to suppress "unknown key" warnings
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_detection", false)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_detection_custom_samples", []map[string]interface{}{})
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.enable_json_detection", true)
