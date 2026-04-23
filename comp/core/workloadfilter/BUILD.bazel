@@ -1,0 +1,15 @@
+# gazelle:ignore
+# gazelle:exclude baseimpl
+# gazelle:exclude catalog
+# gazelle:exclude fx
+# gazelle:exclude fx-mock
+# gazelle:exclude fx-remote
+# gazelle:exclude impl
+# gazelle:exclude legacy
+# gazelle:exclude mock
+# gazelle:exclude program
+# gazelle:exclude proto
+# gazelle:exclude remoteimpl
+# gazelle:exclude server
+# gazelle:exclude telemetry
+# gazelle:exclude util

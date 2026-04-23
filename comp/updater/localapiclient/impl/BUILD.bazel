@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl",
+    srcs = ["localapiclient.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/updater/localapiclient/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/updater/localapiclient/def",
+        "@//pkg/fleet/daemon",
+    ],
+)

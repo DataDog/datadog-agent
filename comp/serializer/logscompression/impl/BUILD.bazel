@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl",
+    srcs = ["logscompressionimpl.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/serializer/logscompression/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/serializer/logscompression/def",
+        "//pkg/util/compression",
+        "//pkg/util/compression/selector",
+    ],
+)

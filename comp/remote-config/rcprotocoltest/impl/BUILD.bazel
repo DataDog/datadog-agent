@@ -1,0 +1,49 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "grpc.go",
+        "ping_pong.go",
+        "rcprotocoltest.go",
+        "tcp.go",
+        "websocket_actor.go",
+        "websocket_echo.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/remote-config/rcprotocoltest/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/def",
+        "//comp/remote-config/rcprotocoltest/def",
+        "//pkg/config/remote/api",
+        "//pkg/config/utils",
+        "//pkg/proto/pbgo/core",
+        "//pkg/util/log",
+        "//pkg/util/uuid",
+        "@com_github_gorilla_websocket//:websocket",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials",
+        "@org_golang_google_grpc//metadata",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = [
+        "ping_pong_test.go",
+        "websocket_actor_test.go",
+        "websocket_echo_test.go",
+    ],
+    embed = [":impl"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/config/mock",
+        "//pkg/config/remote/api",
+        "//pkg/proto/pbgo/core",
+        "@com_github_gorilla_websocket//:websocket",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_grpc//metadata",
+    ],
+)

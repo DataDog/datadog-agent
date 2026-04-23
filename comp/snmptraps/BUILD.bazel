@@ -1,1 +1,12 @@
 # gazelle:ignore
+# gazelle:exclude config
+# gazelle:exclude formatter/fx
+# gazelle:exclude formatter/impl
+# gazelle:exclude forwarder
+# gazelle:exclude listener/fx
+# gazelle:exclude listener/impl
+# gazelle:exclude packet
+# gazelle:exclude senderhelper
+# gazelle:exclude server
+# gazelle:exclude snmplog
+# gazelle:exclude status
