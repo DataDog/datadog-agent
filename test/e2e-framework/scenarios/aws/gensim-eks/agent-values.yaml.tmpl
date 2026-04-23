@@ -91,6 +91,9 @@ agents:
     - name: logjournal
       hostPath:
         path: /var/log/journal
+    - name: hostmachineid
+      hostPath:
+        path: /etc/machine-id
   volumeMounts:
     - name: logpodpath
       mountPath: /var/log/pods
@@ -100,6 +103,9 @@ agents:
       readOnly: true
     - name: logjournal
       mountPath: /var/log/journal
+      readOnly: true
+    - name: hostmachineid
+      mountPath: /etc/machine-id
       readOnly: true
   containers:
     agent:
