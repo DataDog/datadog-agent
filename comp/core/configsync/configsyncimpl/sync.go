@@ -44,7 +44,7 @@ func (cs *configSync) updater() error {
 			valueMap, ok := value.(map[string]string)
 			if !ok {
 				// this would be unexpected - but deal with it
-				cs.Config.Set(key, value, pkgconfigmodel.SourceLocalConfigProcess)
+				cs.Config.Set(key, coerceJSONToSchemaTypes(cs.Config, key, value), pkgconfigmodel.SourceLocalConfigProcess)
 				continue
 			}
 
@@ -57,7 +57,7 @@ func (cs *configSync) updater() error {
 						typedValues[cfgkey] = cfgval
 					}
 				}
-				cs.Config.Set(key, typedValues, pkgconfigmodel.SourceLocalConfigProcess)
+				cs.Config.Set(key, coerceJSONToSchemaTypes(cs.Config, key, typedValues), pkgconfigmodel.SourceLocalConfigProcess)
 			}
 		} else {
 			helper.SetTree(cs.Config, key, coerceJSONToSchemaTypes(cs.Config, key, value), pkgconfigmodel.SourceLocalConfigProcess)

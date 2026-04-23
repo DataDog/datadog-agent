@@ -11,7 +11,7 @@ import (
 	"github.com/spf13/cast"
 )
 
-// ConvertToDefaultType casts value to the type of defaultValue; returns value unchanged if defaultValue is nil or untyped.
+// ConvertToDefaultType casts value to the type of defaultValue
 func ConvertToDefaultType(value interface{}, defaultValue interface{}) (interface{}, error) {
 	if defaultValue == nil {
 		return value, nil
@@ -21,11 +21,15 @@ func ConvertToDefaultType(value interface{}, defaultValue interface{}) (interfac
 		return cast.ToBoolE(value)
 	case string:
 		return cast.ToStringE(value)
-	case int32, int16, int8, int:
+	case int, int8, int16, int32:
 		return cast.ToIntE(value)
 	case int64:
 		return cast.ToInt64E(value)
-	case float64, float32:
+	case uint, uint8, uint16, uint32:
+		return cast.ToUintE(value)
+	case uint64:
+		return cast.ToUint64E(value)
+	case float32, float64:
 		return cast.ToFloat64E(value)
 	case time.Time:
 		return cast.ToTimeE(value)
@@ -33,6 +37,31 @@ func ConvertToDefaultType(value interface{}, defaultValue interface{}) (interfac
 		return cast.ToDurationE(value)
 	case []string:
 		return cast.ToStringSliceE(value)
+	case []float64:
+		return toFloat64SliceE(value)
+	case map[string]interface{}:
+		return cast.ToStringMapE(value)
+	case map[string]string:
+		return cast.ToStringMapStringE(value)
+	case map[string][]string:
+		return cast.ToStringMapStringSliceE(value)
 	}
 	return value, nil
+}
+
+// toFloat64SliceE casts any slice to []float64
+func toFloat64SliceE(value interface{}) ([]float64, error) {
+	raw, err := cast.ToSliceE(value)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]float64, len(raw))
+	for i, v := range raw {
+		f, err := cast.ToFloat64E(v)
+		if err != nil {
+			return nil, err
+		}
+		out[i] = f
+	}
+	return out, nil
 }
