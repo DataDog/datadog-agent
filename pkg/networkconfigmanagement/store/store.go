@@ -440,7 +440,7 @@ func (cs *ConfigStore) EvictConfigs(minRetainedConfigs int, maxRetainedConfigs i
 		}
 		configsPerDevice, sortedEntries = updateEvictionIndex(configsPerDevice, sortedEntries, candidate)
 		evicted = append(evicted, candidate)
-		
+
 		size, err = cs.Size()
 		if err != nil {
 			return evicted, err
