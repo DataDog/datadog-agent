@@ -21,7 +21,10 @@ def _foreign_cc_shared_wrapper_impl(ctx):
         filtered_libs = [
             lib
             for lib in selected_input.libraries
-            if lib.dynamic_library != None and lib.dynamic_library.basename.startswith(lib_filter + ".")
+            if lib.dynamic_library != None and (
+                lib.dynamic_library.basename.startswith(lib_filter + ".") or
+                lib.dynamic_library.basename.startswith(lib_filter + "-")
+            )
         ]
         if not filtered_libs:
             fail("No library matching '{}.'' found in `{}`".format(lib_filter, ctx.attr.input.label))
