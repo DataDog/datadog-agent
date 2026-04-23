@@ -249,3 +249,5 @@ AUTO_JIRA.md
 
 # Zed config
 .zed
+
+*.lock
