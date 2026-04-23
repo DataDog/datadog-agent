@@ -30,7 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	pidmap "github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/def"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
-	server "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
+	serverdef "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/def"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	offlinereporter "github.com/DataDog/datadog-agent/comp/offlinereporter/def"
@@ -82,7 +82,7 @@ type dependencies struct {
 	Debug           serverdebug.Component
 	Replay          replay.Component
 	PidMap          pidmap.Component
-	Params          server.Params
+	Params          serverdef.Params
 	WMeta           option.Option[workloadmeta.Component]
 	Telemetry       telemetry.Component
 	Hostname        hostnameinterface.Component
@@ -94,7 +94,7 @@ type dependencies struct {
 type Provides struct {
 	compdef.Out
 
-	Comp          server.Component
+	Comp          serverdef.Component
 	StatsEndpoint api.AgentEndpointProvider
 }
 
