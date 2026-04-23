@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-// Package server implements the netflow server component.
-package server
+// Package serverimpl implements the netflow server component.
+package serverimpl
 
 import (
 	"context"
