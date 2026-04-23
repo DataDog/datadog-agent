@@ -75,7 +75,7 @@ class Configuration:
         modules_config.update(
             {name: module.to_dict(remove_path=True) or 'default' for name, module in self.modules.items()}
         )
-        modules_config.update({module: 'ignored' for module in self.ignored_modules})
+        modules_config.update(dict.fromkeys(self.ignored_modules, 'ignored'))
 
         return {
             'modules': modules_config,
@@ -332,13 +332,13 @@ def validate_module(
         return
 
     # Verify attributes
-    assert set(default_attributes).issuperset(
-        attributes
-    ), f"Configuration contains unknown attributes ({set(attributes).difference(default_attributes)})"
+    assert set(default_attributes).issuperset(attributes), (
+        f"Configuration contains unknown attributes ({set(attributes).difference(default_attributes)})"
+    )
     for key, value in attributes.items():
-        assert (
-            attributes[key] != default_attributes[key]
-        ), f"Configuration has a default value which must be removed for {key}: {value}"
+        assert attributes[key] != default_attributes[key], (
+            f"Configuration has a default value which must be removed for {key}: {value}"
+        )
 
     # Verify values
     for target in module.test_targets:
@@ -347,6 +347,6 @@ def validate_module(
     for target in module.lint_targets:
         assert (base_dir / module.path / target).is_dir(), f"Configuration has an unknown lint_target: {target}"
 
-    assert (
-        module.should_test_condition in GoModule.SHOULD_TEST_CONDITIONS
-    ), f"Configuration has an unknown should_test_condition: {module.should_test_condition}"
+    assert module.should_test_condition in GoModule.SHOULD_TEST_CONDITIONS, (
+        f"Configuration has an unknown should_test_condition: {module.should_test_condition}"
+    )
