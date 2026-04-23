@@ -62,7 +62,7 @@ var (
 		"EHOSTDOWN":       -int(syscall.EHOSTDOWN),
 		"EHOSTUNREACH":    -int(syscall.EHOSTUNREACH),
 		"EIDRM":           -int(syscall.EIDRM),
-		"EILSEQ":          -int(syscall.EIDRM),
+		"EILSEQ":          -int(syscall.EILSEQ),
 		"EINPROGRESS":     -int(syscall.EINPROGRESS),
 		"EINTR":           -int(syscall.EINTR),
 		"EINVAL":          -int(syscall.EINVAL),
