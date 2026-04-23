@@ -123,6 +123,9 @@ func (li *linuxImpl) AppendListeningPorts(base []Port) ([]Port, error) {
 // representing an IPv4 address in host byte order and returns the
 // canonical IP string (e.g. "0.0.0.0", "127.0.0.1").
 func parseHexIPv4(hexStr string) string {
+	if len(hexStr) != 8 {
+		return ""
+	}
 	v, err := strconv.ParseUint(hexStr, 16, 32)
 	if err != nil {
 		return ""
@@ -252,8 +255,7 @@ func (li *linuxImpl) parseProcNetFile(r *bufio.Reader, fileBase string) error {
 			pm.keep = true
 			// Rest should be unchanged.
 		} else {
-			localCopy := local.StringCopy()
-			ipHex := localCopy[:i]
+			ipHex := local.SliceTo(i).StringCopy()
 			var ipStr string
 			if isIPv6 {
 				ipStr = parseHexIPv6(ipHex)
