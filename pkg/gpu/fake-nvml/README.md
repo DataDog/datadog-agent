@@ -1,6 +1,8 @@
 # Fake NVML Library (`pkg/gpu/fake-nvml`)
 
-A Rust `cdylib` that implements the [NVML](https://docs.nvidia.com/deploy/nvml-api/) C ABI and returns static data for two fake NVIDIA H100 GPUs. It lets you run the Datadog Agent's GPU check — and observe its full metric pipeline — on any Linux machine without real NVIDIA hardware.
+A Rust `cdylib` that implements the [NVML](https://docs.nvidia.com/deploy/nvml-api/) C ABI. It returns synthesized data for a configurable GPU architecture (Hopper by default) and lets you run the Datadog Agent's GPU check — and observe its full metric pipeline — on any Linux machine without real NVIDIA hardware.
+
+The set of supported architectures and their representative device values is driven by [`pkg/collector/corechecks/gpu/spec/architectures.yaml`](../../collector/corechecks/gpu/spec/architectures.yaml), the same file the agent's GPU check consumes. Select an architecture at process start via the `FAKE_NVML_ARCH` environment variable.
 
 ## Quick start
 
@@ -83,22 +85,39 @@ gpu:
   nvml_lib_path: "<repo_root>/bazel-bin/pkg/gpu/fake-nvml/libfake_nvml.so"
 ```
 
+Select a non-default architecture by exporting `FAKE_NVML_ARCH` in the agent's environment, e.g.:
+
+```bash
+FAKE_NVML_ARCH=ampere FAKE_NVML_DEVICE_COUNT=4 \
+  ./bin/agent/agent run -c bin/agent/dist/datadog.yaml
+```
+
 ## Fake device data
 
-The library exposes two devices:
+All exported devices share the architecture selected via `FAKE_NVML_ARCH` (homogeneous node). Identity fields come from the spec's `defaults:` block for that architecture:
 
-| Field | Device 0 | Device 1 |
+| `FAKE_NVML_ARCH` | Name | CUDA CC | Cores | Memory | NVML arch |
+|---|---|---|---|---|---|
+| `pascal`             | Tesla P40             | 6.1  | 3840  | 24 GiB  | 4 |
+| `volta`              | Tesla V100-SXM2-32GB  | 7.0  | 5120  | 32 GiB  | 5 |
+| `turing`             | Tesla T4              | 7.5  | 2560  | 15 GiB  | 6 |
+| `ampere`             | A100-SXM4-80GB        | 8.0  | 6912  | 80 GiB  | 7 |
+| `hopper` *(default)* | H100 80GB HBM3        | 9.0  | 16384 | 80 GiB  | 9 |
+| `ada`                | L40S                  | 8.9  | 18176 | 45 GiB  | 8 |
+| `blackwell`          | B200                  | 10.0 | 16896 | 192 GiB | 10 |
+
+Runtime knobs (read at process start):
+
+| Env var | Default | Meaning |
 |---|---|---|
-| UUID | `GPU-00000000-FAKE-0001-…` | `GPU-11111111-FAKE-0002-…` |
-| Name | `NVIDIA H100 80GB HBM3 (fake)` | same |
-| Architecture | Hopper (9.0) | same |
-| Total memory | 80 GiB | 80 GiB |
-| Free memory | 40 GiB | 60 GiB |
-| Temperature | 65 °C | 58 °C |
-| Power usage | 300 W | 280 W |
-| Clock (SM) | 1980 MHz | same |
-| Fake process PID | 1001 | 1002 |
-| Driver version | 535.154.05 | — |
+| `FAKE_NVML_ARCH`         | `hopper` | Architecture name (must match a key in `architectures.yaml`). Unknown values log a warning to stderr and fall back to `hopper`. |
+| `FAKE_NVML_DEVICE_COUNT` | `2`      | Number of fake devices to expose, clamped to 1..=16. |
+
+Secondary fields (temperature, power, clocks, fake PID) are plausible
+architecture-agnostic constants — enough to exercise every stateless
+collector in the agent, but not intended to model a specific SKU exactly.
+Metrics vary slightly per device (e.g. temperature, fan speed, energy) so
+scraped series are distinguishable.
 
 ## Metrics emitted
 

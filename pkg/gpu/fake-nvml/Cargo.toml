@@ -15,4 +15,9 @@ description = "Fake NVML shared library for Datadog Agent GPU check development 
 name = "fake_nvml"
 crate-type = ["cdylib"]
 
-# No external dependencies — this library uses only std/core.
+# serde + serde_yaml are used to parse the GPU architecture spec at startup.
+# The spec file is embedded into the binary via include_str! so the shared
+# library stays self-contained and does not need to read from disk at runtime.
+[dependencies]
+serde = { workspace = true }
+serde_yaml = { workspace = true }

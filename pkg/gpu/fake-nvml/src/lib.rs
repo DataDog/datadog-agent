@@ -32,6 +32,10 @@
 
 use core::ffi::{c_char, c_int, c_uint, c_void};
 use std::panic;
+use std::sync::OnceLock;
+
+mod arch;
+use arch::{current_arch, device_count};
 
 // ---------------------------------------------------------------------------
 // NVML return codes
@@ -52,15 +56,13 @@ pub const NVML_ERROR_NOT_SUPPORTED: NvmlReturn = 3;
 
 pub type NvmlDevice = *mut c_void;
 
-const DEVICE_COUNT: usize = 2;
-
 fn device_from_index(idx: usize) -> NvmlDevice {
     (idx + 1) as *mut c_void
 }
 
 fn index_from_device(dev: NvmlDevice) -> Option<usize> {
     let raw = dev as usize;
-    if raw == 0 || raw > DEVICE_COUNT {
+    if raw == 0 || raw > devices().len() {
         return None;
     }
     Some(raw - 1)
@@ -105,16 +107,22 @@ pub struct NvmlProcessInfo {
 }
 
 // ---------------------------------------------------------------------------
-// Static device table
+// Per-device fake state
+//
+// Identity fields (uuid, name, cores, compute capability, architecture, total
+// memory) are derived at first-access time from the GPU architecture spec
+// selected via `FAKE_NVML_ARCH`. All other fields are intentionally plausible
+// constants — the point is to exercise the agent's metric plumbing, not to
+// model a specific SKU exactly.
 // ---------------------------------------------------------------------------
 
 struct FakeDevice {
-    uuid: &'static str,
-    name: &'static str,
+    uuid: String,
+    name: String,
     cores: u32,
     compute_major: i32,
     compute_minor: i32,
-    /// NVML device architecture constant: 9 = HOPPER
+    /// NVML_DEVICE_ARCH_* constant reported by nvmlDeviceGetArchitecture().
     architecture: u32,
     total_mem_bytes: u64,
     free_mem_bytes: u64,
@@ -139,65 +147,63 @@ struct FakeDevice {
 
 const GIB: u64 = 1024 * 1024 * 1024;
 
-static DEVICES: [FakeDevice; DEVICE_COUNT] = [
+/// Build `FakeDevice` number `idx` (0-based) for the currently selected
+/// architecture. Identity values come from the spec; other fields are
+/// architecture-agnostic placeholders.
+fn make_device(idx: usize) -> FakeDevice {
+    let arch = current_arch();
+    let total = arch.total_memory_bytes;
+    // Plausible memory-usage shape: half-full with 1 GiB reserved.
+    let reserved = GIB.min(total / 8);
+    let free = (total - reserved) / 2;
+
+    // UUIDs must be stable and distinct per index; encode the index in the
+    // last block so scraped metrics can tell devices apart.
+    let uuid = format!(
+        "GPU-{idx:08x}-FAKE-{arch:04x}-{arch:04x}-{idx:012x}",
+        idx = idx,
+        // Use the NVML arch constant for a deterministic per-arch block.
+        arch = arch.nvml_architecture as u16
+    );
+
     FakeDevice {
-        uuid: "GPU-00000000-FAKE-0001-0001-000000000001\0",
-        name: "NVIDIA H100 80GB HBM3 (fake)\0",
-        cores: 16_384,
-        compute_major: 9,
-        compute_minor: 0,
-        architecture: 9, // NVML_DEVICE_ARCH_HOPPER
-        total_mem_bytes: 80 * GIB,
-        free_mem_bytes: 40 * GIB,
-        reserved_mem_bytes: 1 * GIB,
-        temperature_c: 65,
-        power_usage_mw: 300_000,
-        power_limit_mw: 400_000,
-        clock_sm_mhz: 1980,
-        clock_mem_mhz: 2619,
-        clock_graphics_mhz: 1980,
-        clock_video_mhz: 1530,
-        fake_pid: 1001,
-        fake_pid_mem_bytes: 4 * GIB,
-        fan_speed_pct: 42,
-        performance_state: 0,
-        bar1_total_bytes: 64 * GIB,
-        bar1_free_bytes: 60 * GIB,
-        energy_mj: 123_456_789,
-    },
-    FakeDevice {
-        uuid: "GPU-11111111-FAKE-0002-0002-000000000002\0",
-        name: "NVIDIA H100 80GB HBM3 (fake)\0",
-        cores: 16_384,
-        compute_major: 9,
-        compute_minor: 0,
-        architecture: 9,
-        total_mem_bytes: 80 * GIB,
-        free_mem_bytes: 60 * GIB,
-        reserved_mem_bytes: 1 * GIB,
-        temperature_c: 58,
+        uuid,
+        name: arch.device_name.clone(),
+        cores: arch.num_gpu_cores,
+        compute_major: arch.cuda_compute_major,
+        compute_minor: arch.cuda_compute_minor,
+        architecture: arch.nvml_architecture,
+        total_mem_bytes: total,
+        free_mem_bytes: free,
+        reserved_mem_bytes: reserved,
+        temperature_c: 60 + (idx as u32 % 8),
         power_usage_mw: 280_000,
         power_limit_mw: 400_000,
         clock_sm_mhz: 1980,
         clock_mem_mhz: 2619,
         clock_graphics_mhz: 1980,
         clock_video_mhz: 1530,
-        fake_pid: 1002,
-        fake_pid_mem_bytes: 2 * GIB,
-        fan_speed_pct: 38,
+        fake_pid: 1001 + idx as u32,
+        fake_pid_mem_bytes: 4 * GIB,
+        fan_speed_pct: 38 + (idx as u32 % 8),
         performance_state: 0,
         bar1_total_bytes: 64 * GIB,
-        bar1_free_bytes: 62 * GIB,
-        energy_mj: 98_765_432,
-    },
-];
+        bar1_free_bytes: 60 * GIB,
+        energy_mj: 100_000_000 + (idx as u64 * 1_000_000),
+    }
+}
+
+fn devices() -> &'static [FakeDevice] {
+    static DEVICES: OnceLock<Vec<FakeDevice>> = OnceLock::new();
+    DEVICES.get_or_init(|| (0..device_count()).map(make_device).collect())
+}
 
 // ---------------------------------------------------------------------------
-// Helper: copy a Rust &str (which must be null-terminated) into a C char buffer.
+// Helper: copy a Rust string into a C char buffer as a null-terminated string.
 //
-// `src` must end with '\0'. Returns NVML_ERROR_INVALID_ARGUMENT if `buf` is
-// null, NVML_SUCCESS otherwise (silently truncates to `len-1` + null if
-// needed).
+// Caller does not need to include a trailing '\0' in `src`. Returns
+// NVML_ERROR_INVALID_ARGUMENT if `buf` is null or `len` is 0. Silently
+// truncates to `len-1` + null if `src` is too long.
 // ---------------------------------------------------------------------------
 
 fn copy_str_to_buf(src: &str, buf: *mut c_char, len: u32) -> NvmlReturn {
@@ -205,8 +211,13 @@ fn copy_str_to_buf(src: &str, buf: *mut c_char, len: u32) -> NvmlReturn {
         return NVML_ERROR_INVALID_ARGUMENT;
     }
     let src_bytes = src.as_bytes();
-    let copy_len = src_bytes.len().min(len as usize - 1);
-    // SAFETY: We've checked buf is non-null and len > 0.
+    // Stop at the first interior NUL so we never copy past it.
+    let effective_len = src_bytes
+        .iter()
+        .position(|&b| b == 0)
+        .unwrap_or(src_bytes.len());
+    let copy_len = effective_len.min(len as usize - 1);
+    // SAFETY: We've checked buf is non-null and len > 0; copy_len <= len-1.
     unsafe {
         std::ptr::copy_nonoverlapping(src_bytes.as_ptr() as *const c_char, buf, copy_len);
         *buf.add(copy_len) = 0;
@@ -262,7 +273,7 @@ pub unsafe extern "C" fn nvmlDeviceGetCount(count: *mut c_uint) -> NvmlReturn {
         if count.is_null() {
             return NVML_ERROR_INVALID_ARGUMENT;
         }
-        unsafe { *count = DEVICE_COUNT as c_uint };
+        unsafe { *count = devices().len() as c_uint };
         NVML_SUCCESS
     })
 }
@@ -277,7 +288,7 @@ pub unsafe extern "C" fn nvmlDeviceGetHandleByIndex(
         if device.is_null() {
             return NVML_ERROR_INVALID_ARGUMENT;
         }
-        if idx as usize >= DEVICE_COUNT {
+        if idx as usize >= devices().len() {
             return NVML_ERROR_INVALID_ARGUMENT;
         }
         unsafe { *device = device_from_index(idx as usize) };
@@ -314,7 +325,7 @@ pub unsafe extern "C" fn nvmlDeviceGetUUID(
     ffi_guard!({
         match index_from_device(device) {
             None => NVML_ERROR_INVALID_ARGUMENT,
-            Some(i) => copy_str_to_buf(DEVICES[i].uuid, buf, len),
+            Some(i) => copy_str_to_buf(&devices()[i].uuid, buf, len),
         }
     })
 }
@@ -329,7 +340,7 @@ pub unsafe extern "C" fn nvmlDeviceGetName(
     ffi_guard!({
         match index_from_device(device) {
             None => NVML_ERROR_INVALID_ARGUMENT,
-            Some(i) => copy_str_to_buf(DEVICES[i].name, buf, len),
+            Some(i) => copy_str_to_buf(&devices()[i].name, buf, len),
         }
     })
 }
@@ -347,7 +358,7 @@ pub unsafe extern "C" fn nvmlDeviceGetNumGpuCores(
                 if cores.is_null() {
                     return NVML_ERROR_INVALID_ARGUMENT;
                 }
-                unsafe { *cores = DEVICES[i].cores };
+                unsafe { *cores = devices()[i].cores };
                 NVML_SUCCESS
             }
         }
@@ -369,8 +380,8 @@ pub unsafe extern "C" fn nvmlDeviceGetCudaComputeCapability(
                     return NVML_ERROR_INVALID_ARGUMENT;
                 }
                 unsafe {
-                    *major = DEVICES[i].compute_major;
-                    *minor = DEVICES[i].compute_minor;
+                    *major = devices()[i].compute_major;
+                    *minor = devices()[i].compute_minor;
                 }
                 NVML_SUCCESS
             }
@@ -391,7 +402,7 @@ pub unsafe extern "C" fn nvmlDeviceGetArchitecture(
                 if arch.is_null() {
                     return NVML_ERROR_INVALID_ARGUMENT;
                 }
-                unsafe { *arch = DEVICES[i].architecture };
+                unsafe { *arch = devices()[i].architecture };
                 NVML_SUCCESS
             }
         }
@@ -414,10 +425,10 @@ pub unsafe extern "C" fn nvmlDeviceGetMemoryInfo(
                     return NVML_ERROR_INVALID_ARGUMENT;
                 }
                 unsafe {
-                    (*mem).total = DEVICES[i].total_mem_bytes;
-                    (*mem).free = DEVICES[i].free_mem_bytes;
+                    (*mem).total = devices()[i].total_mem_bytes;
+                    (*mem).free = devices()[i].free_mem_bytes;
                     (*mem).used =
-                        DEVICES[i].total_mem_bytes - DEVICES[i].free_mem_bytes - DEVICES[i].reserved_mem_bytes;
+                        devices()[i].total_mem_bytes - devices()[i].free_mem_bytes - devices()[i].reserved_mem_bytes;
                 }
                 NVML_SUCCESS
             }
@@ -443,11 +454,11 @@ pub unsafe extern "C" fn nvmlDeviceGetMemoryInfo_v2(
                 }
                 // Preserve the caller-supplied version field; only populate data fields.
                 unsafe {
-                    (*mem).total = DEVICES[i].total_mem_bytes;
-                    (*mem).reserved = DEVICES[i].reserved_mem_bytes;
-                    (*mem).free = DEVICES[i].free_mem_bytes;
+                    (*mem).total = devices()[i].total_mem_bytes;
+                    (*mem).reserved = devices()[i].reserved_mem_bytes;
+                    (*mem).free = devices()[i].free_mem_bytes;
                     (*mem).used =
-                        DEVICES[i].total_mem_bytes - DEVICES[i].free_mem_bytes - DEVICES[i].reserved_mem_bytes;
+                        devices()[i].total_mem_bytes - devices()[i].free_mem_bytes - devices()[i].reserved_mem_bytes;
                 }
                 NVML_SUCCESS
             }
@@ -471,9 +482,9 @@ pub unsafe extern "C" fn nvmlDeviceGetBAR1MemoryInfo(
                     return NVML_ERROR_INVALID_ARGUMENT;
                 }
                 unsafe {
-                    (*bar1mem).total = DEVICES[i].bar1_total_bytes;
-                    (*bar1mem).free = DEVICES[i].bar1_free_bytes;
-                    (*bar1mem).used = DEVICES[i].bar1_total_bytes - DEVICES[i].bar1_free_bytes;
+                    (*bar1mem).total = devices()[i].bar1_total_bytes;
+                    (*bar1mem).free = devices()[i].bar1_free_bytes;
+                    (*bar1mem).used = devices()[i].bar1_total_bytes - devices()[i].bar1_free_bytes;
                 }
                 NVML_SUCCESS
             }
@@ -499,7 +510,7 @@ pub unsafe extern "C" fn nvmlDeviceGetTemperature(
                 if temp.is_null() {
                     return NVML_ERROR_INVALID_ARGUMENT;
                 }
-                unsafe { *temp = DEVICES[i].temperature_c };
+                unsafe { *temp = devices()[i].temperature_c };
                 NVML_SUCCESS
             }
         }
@@ -519,7 +530,7 @@ pub unsafe extern "C" fn nvmlDeviceGetPowerUsage(
                 if power.is_null() {
                     return NVML_ERROR_INVALID_ARGUMENT;
                 }
-                unsafe { *power = DEVICES[i].power_usage_mw };
+                unsafe { *power = devices()[i].power_usage_mw };
                 NVML_SUCCESS
             }
         }
@@ -539,7 +550,7 @@ pub unsafe extern "C" fn nvmlDeviceGetPowerManagementLimit(
                 if limit.is_null() {
                     return NVML_ERROR_INVALID_ARGUMENT;
                 }
-                unsafe { *limit = DEVICES[i].power_limit_mw };
+                unsafe { *limit = devices()[i].power_limit_mw };
                 NVML_SUCCESS
             }
         }
@@ -559,7 +570,7 @@ pub unsafe extern "C" fn nvmlDeviceGetTotalEnergyConsumption(
                 if energy.is_null() {
                     return NVML_ERROR_INVALID_ARGUMENT;
                 }
-                unsafe { *energy = DEVICES[i].energy_mj };
+                unsafe { *energy = devices()[i].energy_mj };
                 NVML_SUCCESS
             }
         }
@@ -598,7 +609,7 @@ pub unsafe extern "C" fn nvmlDeviceGetClockInfo(
                 if clock.is_null() {
                     return NVML_ERROR_INVALID_ARGUMENT;
                 }
-                match clock_for_type(&DEVICES[i], clock_type) {
+                match clock_for_type(&devices()[i], clock_type) {
                     None => NVML_ERROR_INVALID_ARGUMENT,
                     Some(v) => {
                         unsafe { *clock = v };
@@ -662,7 +673,7 @@ pub unsafe extern "C" fn nvmlDeviceGetPerformanceState(
                 if pstate.is_null() {
                     return NVML_ERROR_INVALID_ARGUMENT;
                 }
-                unsafe { *pstate = DEVICES[i].performance_state };
+                unsafe { *pstate = devices()[i].performance_state };
                 NVML_SUCCESS
             }
         }
@@ -682,7 +693,7 @@ pub unsafe extern "C" fn nvmlDeviceGetFanSpeed(
                 if speed.is_null() {
                     return NVML_ERROR_INVALID_ARGUMENT;
                 }
-                unsafe { *speed = DEVICES[i].fan_speed_pct };
+                unsafe { *speed = devices()[i].fan_speed_pct };
                 NVML_SUCCESS
             }
         }
@@ -720,8 +731,8 @@ pub unsafe extern "C" fn nvmlDeviceGetComputeRunningProcesses(
                     return NVML_ERROR_INVALID_ARGUMENT;
                 }
                 unsafe {
-                    (*infos).pid = DEVICES[i].fake_pid;
-                    (*infos).used_gpu_memory = DEVICES[i].fake_pid_mem_bytes;
+                    (*infos).pid = devices()[i].fake_pid;
+                    (*infos).used_gpu_memory = devices()[i].fake_pid_mem_bytes;
                     (*infos).gpu_instance_id = u32::MAX; // NVML_NO_GI_ID
                     (*infos).compute_instance_id = u32::MAX; // NVML_NO_CI_ID
                     *info_count = 1;
