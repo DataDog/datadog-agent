@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v5"
-	"go.uber.org/fx"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -22,14 +21,14 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	hostComp "github.com/DataDog/datadog-agent/comp/metadata/host"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
+	hostComp "github.com/DataDog/datadog-agent/comp/metadata/host/def"
 	resources "github.com/DataDog/datadog-agent/comp/metadata/resources/def"
 	runnerdef "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/gohai"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -57,15 +56,9 @@ type host struct {
 	backoffPolicy *backoff.ExponentialBackOff
 }
 
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newHostProvider),
-	)
-}
-
-type dependencies struct {
-	fx.In
+// Requires defines the dependencies for the host metadata component
+type Requires struct {
+	compdef.In
 
 	Log        log.Component
 	Config     config.Component
@@ -74,8 +67,9 @@ type dependencies struct {
 	Hostname   hostnameinterface.Component
 }
 
-type provides struct {
-	fx.Out
+// Provides defines the output of the host metadata component
+type Provides struct {
+	compdef.Out
 
 	Comp                 hostComp.Component
 	MetadataProvider     runnerdef.Provider
@@ -85,7 +79,8 @@ type provides struct {
 	GohaiEndpoint        api.AgentEndpointProvider
 }
 
-func newHostProvider(deps dependencies) provides {
+// NewComponent creates a new host metadata component
+func NewComponent(deps Requires) Provides {
 	collectInterval := defaultCollectInterval
 	earlyInterval := defaultEarlyInterval
 	confProviders, err := configUtils.GetMetadataProviders(deps.Config)
@@ -139,7 +134,7 @@ func newHostProvider(deps dependencies) provides {
 		serializer:    deps.Serializer,
 		backoffPolicy: bo,
 	}
-	return provides{
+	return Provides{
 		Comp:             &h,
 		MetadataProvider: runnerdef.NewProvider(h.collect),
 		FlareProvider:    flaretypes.NewProvider(h.fillFlare),
