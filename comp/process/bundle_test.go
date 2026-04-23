@@ -40,7 +40,8 @@ import (
 	statsdimpl "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl"
+	npcollectorfx "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/fx"
+	npcollectormock "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/mock"
 	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	"github.com/DataDog/datadog-agent/comp/process/runner"
 	"github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
@@ -73,7 +74,7 @@ func TestBundleDependencies(t *testing.T) {
 		),
 		fx.Provide(func() context.Context { return context.TODO() }),
 		rdnsquerier.MockModule(),
-		npcollectorimpl.MockModule(),
+		npcollectormock.MockModule(),
 		statsdimpl.MockModule(),
 		fx.Provide(func() ddgostatsd.ClientInterface {
 			return &ddgostatsd.NoOpClient{}
@@ -119,7 +120,7 @@ func TestBundleOneShot(t *testing.T) {
 		eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
 		rdnsquerier.MockModule(),
 		remotetraceroute.Module(),
-		npcollectorimpl.Module(),
+		npcollectorfx.Module(),
 		statsdimpl.MockModule(),
 		fx.Provide(func() ddgostatsd.ClientInterface {
 			return &ddgostatsd.NoOpClient{}

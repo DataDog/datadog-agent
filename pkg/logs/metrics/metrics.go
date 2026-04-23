@@ -165,6 +165,11 @@ var (
 	// individually oversized are excluded (they'd be truncated regardless).
 	TlmAutoMultilineWouldTruncate = telemetryimpl.GetCompatComponent().NewCounter("logs", "auto_multi_line_default_would_truncate",
 		nil, "Lines belonging to groups that would be truncated if auto multiline were the default")
+
+	// TlmListenerIPDenied counts connections or datagrams rejected by IP allow/deny filters.
+	// Tags: listener_type (tcp, udp)
+	TlmListenerIPDenied = telemetryimpl.GetCompatComponent().NewCounter("logs", "listener_ip_denied",
+		[]string{"listener_type"}, "Count of connections or datagrams rejected by IP allow/deny filters")
 )
 
 func init() {

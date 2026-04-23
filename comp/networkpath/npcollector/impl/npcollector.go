@@ -22,10 +22,10 @@ import (
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/common"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/connfilter"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/pathteststore"
 	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/common"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/connfilter"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/pathteststore"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
