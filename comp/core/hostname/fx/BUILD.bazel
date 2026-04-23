@@ -7,6 +7,6 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/util/fxutil",
-        "@//comp/core/hostname/hostnameimpl",
+        "//comp/core/hostname/hostnameimpl",
     ],
 )
