@@ -22,8 +22,8 @@
   variables:
     FLAVORS: '--flavor base'
     KUBERNETES_CPU_REQUEST: 16
-    KUBERNETES_MEMORY_REQUEST: 16Gi
-    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 24Gi
+    KUBERNETES_MEMORY_LIMIT: 24Gi
     TEST_OUTPUT_FILE: test_output
     EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
   before_script:

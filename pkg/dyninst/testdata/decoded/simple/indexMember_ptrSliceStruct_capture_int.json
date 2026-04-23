@@ -1,0 +1,61 @@
+[
+  {
+    "service": "simple",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.ptrStructSliceArg",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.ptrStructSliceArg",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 690
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 186
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "indexMember_ptrSliceStruct_capture_int",
+          "location": {
+            "method": "main.ptrStructSliceArg"
+          }
+        },
+        "captures": {
+          "entry": {
+            "captureExpressions": {
+              "s0_Val": {
+                "type": "int32",
+                "value": "500"
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  }
+]

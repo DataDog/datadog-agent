@@ -320,18 +320,23 @@ func modifyDDOTUnitFileForBackwardsCompatibility(ctx HookContext, unitName strin
 		return fmt.Errorf("failed to read unit file %s: %w", unitPath, err)
 	}
 
-	// Modify the content
-	modifiedContent := string(content)
-	// Remove "/ext/ddot" from all paths
-	modifiedContent = strings.ReplaceAll(modifiedContent, "/ext/ddot", "")
+	// Modify the content line-by-line so we can skip ConditionPathExists lines
+	// from the OCI path rewrite. The processes.d gate must always reference the
+	// Agent package tree, not the standalone DDOT package tree.
+	lines := strings.Split(string(content), "\n")
+	for i, line := range lines {
+		// Remove "/ext/ddot" from all paths
+		lines[i] = strings.ReplaceAll(line, "/ext/ddot", "")
 
-	// For OCI packages, replace "/opt/datadog-packages/datadog-agent" with "/opt/datadog-packages/datadog-agent-ddot"
-	// Do specific replacements first to avoid double-replacement issues
-	if isOCI {
-		// Replace paths with /stable or /experiment suffix first
-		modifiedContent = strings.ReplaceAll(modifiedContent, "/opt/datadog-packages/datadog-agent/stable", "/opt/datadog-packages/datadog-agent-ddot/stable")
-		modifiedContent = strings.ReplaceAll(modifiedContent, "/opt/datadog-packages/datadog-agent/experiment", "/opt/datadog-packages/datadog-agent-ddot/experiment")
+		// For OCI packages, rewrite Agent package paths to DDOT package paths,
+		// but skip ConditionPathExists lines so the processes.d gate keeps
+		// pointing at the Agent install directory.
+		if isOCI && !strings.HasPrefix(strings.TrimSpace(lines[i]), "ConditionPathExists=!") {
+			lines[i] = strings.ReplaceAll(lines[i], "/opt/datadog-packages/datadog-agent/stable", "/opt/datadog-packages/datadog-agent-ddot/stable")
+			lines[i] = strings.ReplaceAll(lines[i], "/opt/datadog-packages/datadog-agent/experiment", "/opt/datadog-packages/datadog-agent-ddot/experiment")
+		}
 	}
+	modifiedContent := strings.Join(lines, "\n")
 
 	// Write the modified content back
 	if err := os.WriteFile(unitPath, []byte(modifiedContent), 0644); err != nil {

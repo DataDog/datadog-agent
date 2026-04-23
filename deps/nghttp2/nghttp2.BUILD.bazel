@@ -1,8 +1,8 @@
-load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 package(
     default_applicable_licenses = [":license"],
@@ -29,7 +29,7 @@ PUBLIC_HEADERS = [
 # Following the omnibus build configuration which uses:
 # --disable-app --disable-examples --disable-hpack-tools
 cc_library(
-    name = "nghttp2",
+    name = "libnghttp2",
     srcs = [
         "lib/nghttp2_buf.c",
         "lib/nghttp2_buf.h",
@@ -108,18 +108,9 @@ cc_library(
 )
 
 cc_shared_library(
-    name = "nghttp2_shared",
-    shared_lib_name = "libnghttp2.so.%s" % SO_VERSION,
-    deps = ["nghttp2"],
+    name = "nghttp2",
+    deps = [":libnghttp2"],
     visibility = ["//visibility:public"],
-)
-
-so_symlink(
-    name = "lib_files",
-    src = ":nghttp2_shared",
-    libname = "libnghttp2",
-    version = SO_VERSION,
-    attributes = pkg_attributes(mode = "0755"),
 )
 
 pkg_files(
@@ -128,11 +119,18 @@ pkg_files(
     prefix = "include/nghttp2",
 )
 
+dd_cc_packaged(
+    name = "nghttp2_pkg",
+    input = ":nghttp2",
+    version = SO_VERSION,
+    installed_files = [":header_files"],
+    visibility = ["//visibility:public"],
+)
+
 pkg_filegroup(
     name = "all_files",
     srcs = [
         ":header_files",
-        ":lib_files",
     ],
     prefix = "embedded",
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],

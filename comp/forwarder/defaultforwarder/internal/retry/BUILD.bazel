@@ -1,0 +1,62 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "retry",
+    srcs = [
+        "HttpTransactionProto.pb.go",
+        "disk_usage_limit.go",
+        "docs.go",
+        "file_removal_policy.go",
+        "http_transactions_serializer.go",
+        "on_disk_retry_queue.go",
+        "point_count_telemetry.go",
+        "queue_duration_capacity.go",
+        "telemetry.go",
+        "test_common.go",
+        "time_interval_accumulator.go",
+        "transaction_retry_queue.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry",
+    visibility = [
+        "//comp/forwarder/defaultforwarder:__subpackages__",
+        "@com_github_datadog_datadog_agent_comp_forwarder_defaultforwarder//:__subpackages__",
+    ],
+    deps = [
+        "//comp/core/log/def",
+        "//comp/forwarder/defaultforwarder/resolver",
+        "//comp/forwarder/defaultforwarder/transaction",
+        "//pkg/config/utils",
+        "//pkg/telemetry",
+        "//pkg/util/filesystem",
+        "@com_github_hashicorp_go_multierror//:go-multierror",
+        "@org_golang_google_protobuf//proto",
+        "@org_golang_google_protobuf//reflect/protoreflect",
+        "@org_golang_google_protobuf//runtime/protoimpl",
+    ],
+)
+
+go_test(
+    name = "retry_test",
+    srcs = [
+        "disk_usage_limit_test.go",
+        "file_removal_policy_test.go",
+        "http_transactions_serializer_test.go",
+        "on_disk_retry_queue_test.go",
+        "queue_duration_capacity_test.go",
+        "time_interval_accumulator_test.go",
+        "transaction_retry_queue_test.go",
+    ],
+    embed = [":retry"],
+    gotags = ["test"],  # keep
+    deps = [
+        "//comp/core/log/def",
+        "//comp/core/log/mock",
+        "//comp/forwarder/defaultforwarder/resolver",
+        "//comp/forwarder/defaultforwarder/transaction",
+        "//pkg/config/utils",
+        "//pkg/util/filesystem",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_protobuf//proto",
+    ],
+)

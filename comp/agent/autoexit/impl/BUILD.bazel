@@ -1,0 +1,30 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "autoexit.go",
+        "manager.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/agent/autoexit/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/agent/autoexit/def",
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//pkg/util/common",
+        "@com_github_shirou_gopsutil_v4//process",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = ["manager_test.go"],
+    embed = [":impl"],
+    gotags = ["test"],
+    deps = [
+        "//comp/core/log/def",
+        "//comp/core/log/mock",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -499,7 +499,7 @@
         },
         {
           "name": "process.ancestors.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -1059,7 +1059,7 @@
         },
         {
           "name": "process.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -1524,7 +1524,7 @@
         },
         {
           "name": "process.parent.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -3227,7 +3227,7 @@
         },
         {
           "name": "exec.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -3806,7 +3806,7 @@
         },
         {
           "name": "exit.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -5809,7 +5809,7 @@
         },
         {
           "name": "ptrace.tracee.ancestors.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -6369,7 +6369,7 @@
         },
         {
           "name": "ptrace.tracee.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -6834,7 +6834,7 @@
         },
         {
           "name": "ptrace.tracee.parent.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -8183,7 +8183,7 @@
         },
         {
           "name": "setrlimit.target.ancestors.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -8743,7 +8743,7 @@
         },
         {
           "name": "setrlimit.target.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -9208,7 +9208,7 @@
         },
         {
           "name": "setrlimit.target.parent.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -10134,7 +10134,7 @@
         },
         {
           "name": "signal.target.ancestors.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -10694,7 +10694,7 @@
         },
         {
           "name": "signal.target.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -11159,7 +11159,7 @@
         },
         {
           "name": "signal.target.parent.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -13312,7 +13312,7 @@
       "name": "*.is_kworker",
       "link": "common-pidcontext-is_kworker-doc",
       "type": "bool",
-      "definition": "Indicates whether the process is a kworker",
+      "definition": "Indicates whether the process is a kworker/kthread",
       "prefixes": [
         "exec",
         "exit",

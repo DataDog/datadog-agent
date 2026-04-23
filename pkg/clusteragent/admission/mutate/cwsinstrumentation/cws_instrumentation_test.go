@@ -24,7 +24,15 @@ import (
 	"k8s.io/client-go/kubernetes"
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core"
+	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	noopTelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
+	workloadfiltermock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
@@ -116,6 +124,17 @@ func (mvng *MockV1NodesGetter) Get(_ context.Context, _ string, _ metav1.GetOpti
 			},
 		},
 	}, nil
+}
+
+// newFilterStoreFromConfig creates a workloadfilter mock initialized with the given config.
+// This preserves include/exclude settings set on cfg before the filterStore is created.
+func newFilterStoreFromConfig(t testing.TB, cfg compconfig.Component) workloadfiltermock.Mock {
+	return fxutil.Test[workloadfiltermock.Mock](t, fx.Options(
+		fx.Provide(func() compconfig.Component { return cfg }),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		noopTelemetry.Module(),
+		workloadfilterfxmock.MockModule(),
+	))
 }
 
 func Test_injectCWSCommandInstrumentation(t *testing.T) {
@@ -490,7 +509,8 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 				initialCommand = strings.Join(tt.args.exec.Command, " ")
 			}
 
-			ci, err := NewCWSInstrumentation(wmeta, mockConfig)
+			filterStore := newFilterStoreFromConfig(t, mockConfig)
+			ci, err := NewCWSInstrumentation(wmeta, mockConfig, filterStore)
 			if err != nil {
 				require.Fail(t, "couldn't instantiate CWS Instrumentation", "%v", err)
 			} else {
@@ -847,7 +867,8 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.remote_copy.mount_volume", tt.args.cwsInjectorMountVolumeForRemoteCopy)
 			mockConfig.SetWithoutSource("cluster_agent.service_account_name", tt.args.cwsInjectorServiceAccountName)
 
-			ci, err := NewCWSInstrumentation(wmeta, mockConfig)
+			filterStore := newFilterStoreFromConfig(t, mockConfig)
+			ci, err := NewCWSInstrumentation(wmeta, mockConfig, filterStore)
 			if err != nil {
 				require.Fail(t, "couldn't instantiate CWS Instrumentation", "%v", err)
 			} else {

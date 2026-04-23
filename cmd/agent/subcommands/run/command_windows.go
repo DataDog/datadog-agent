@@ -20,8 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
-	"github.com/DataDog/datadog-agent/comp/trace/etwtracer"
-	"github.com/DataDog/datadog-agent/comp/trace/etwtracer/etwtracerimpl"
+	etwtracer "github.com/DataDog/datadog-agent/comp/trace/etwtracer/def"
+	etwtracerimpl "github.com/DataDog/datadog-agent/comp/trace/etwtracer/fx"
 
 	winregistry "github.com/DataDog/datadog-agent/comp/checks/winregistry/def"
 	winregistryfx "github.com/DataDog/datadog-agent/comp/checks/winregistry/fx"
@@ -79,7 +79,7 @@ import (
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	processAgent "github.com/DataDog/datadog-agent/comp/process/agent"
 	publishermetadatacachefx "github.com/DataDog/datadog-agent/comp/publishermetadatacache/fx"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	snmpscanmanager "github.com/DataDog/datadog-agent/comp/snmpscanmanager/def"
 	softwareinventoryfx "github.com/DataDog/datadog-agent/comp/softwareinventory/fx"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -246,7 +246,7 @@ func reRegisterCtrlHandler(log log.Component, _ collector.Component) {
 func getPlatformModules() fx.Option {
 	return fx.Options(
 		agentcrashdetectfx.Module(),
-		etwtracerimpl.Module,
+		etwtracerimpl.Module(),
 		windowseventlogfx.Module(),
 		winregistryfx.Module(),
 		etwimpl.Module,

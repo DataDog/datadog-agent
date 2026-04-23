@@ -28,9 +28,9 @@ LICENSE_HEADER = """// Unless explicitly stated otherwise all files in this repo
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 """
-OCB_VERSION = "0.147.0"
+OCB_VERSION = "0.150.0"
 # The version the the core collector and collector-contrib may or may not match
-OTEL_CONTRIB_VERSION = "0.147.0"
+OTEL_CONTRIB_VERSION = "0.150.0"
 
 MANDATORY_COMPONENTS = {
     "extensions": [
@@ -519,10 +519,6 @@ class CollectorVersionUpdater:
 
     def update_ocb_yaml(self):
         update_versions_in_ocb_yaml(
-            "./test/otel/testdata/builder-config.yaml",
-            self.modules_version,
-        )
-        update_versions_in_ocb_yaml(
             MANIFEST_FILE,
             self.modules_version,
         )
@@ -532,7 +528,6 @@ class CollectorVersionUpdater:
             MANIFEST_FILE,
             "./comp/otelcol/collector/impl/collector.go",
             "./.gitlab/test/integration_test/otel.yml",
-            "./test/otel/testdata/ocb_build_script.sh",
         ]
         collector_version = self.core_collector.get_version()[1:]
         contrib_version = self.contrib_collector.get_version()[1:]

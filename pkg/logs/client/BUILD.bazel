@@ -1,0 +1,2 @@
+# gazelle:ignore
+# Stub: root package has unmigrated deps (pkg/logs/message). Only mock/ is managed by gazelle.

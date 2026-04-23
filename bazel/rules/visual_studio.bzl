@@ -1,6 +1,8 @@
 """Wrapping Visual Studio and MSBuild to let Bazel track it.
 """
 
+load("@rules_python//python/private:repo_utils.bzl", "repo_utils")  # buildifier: disable=bzl-visibility
+
 def _visual_studio_impl(ctx):
     # vswhere is a tool that lets us inspect existing Visual Studio installations
     ctx.report_progress("Download vswhere.exe")
@@ -63,18 +65,19 @@ alias(
 
 def _get_vs_property(ctx, install_path, property):
     """Query a property of a VS installation using vswhere"""
-    result = ctx.execute([
-        ctx.path("vswhere.exe"),
-        "-nologo",
-        "-nocolor",
-        "-property",
-        property,
-        "-path",
-        install_path,
-    ])
-    if result.return_code:
-        fail("Failed to query property '%s' for '%s': %s" % property, install_path, result.stderr)
-
+    result = repo_utils.execute_checked(
+        ctx,
+        op = "vswhere -property {} for {}".format(property, install_path),
+        arguments = [
+            ctx.path("vswhere.exe"),
+            "-nologo",
+            "-nocolor",
+            "-property",
+            property,
+            "-path",
+            install_path,
+        ],
+    )
     return result.stdout.strip()
 
 visual_studio = repository_rule(

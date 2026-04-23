@@ -24,7 +24,7 @@ require (
 	github.com/prometheus/client_model v0.6.2
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/stretchr/testify v1.11.1
-	go.yaml.in/yaml/v2 v2.4.3
+	go.yaml.in/yaml/v2 v2.4.4
 	golang.org/x/exp v0.0.0-20260312153236-7ab1446f8b90
 )
 
@@ -88,7 +88,7 @@ require (
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
-	github.com/prometheus/client_golang v1.23.2 // indirect
+	github.com/prometheus/client_golang v1.23.3-0.20251103151724-a5ae20370e5e // indirect
 	github.com/prometheus/common v0.67.5 // indirect
 	github.com/prometheus/procfs v0.20.1 // indirect
 	github.com/shirou/gopsutil/v4 v4.26.3 // indirect
@@ -97,7 +97,7 @@ require (
 	github.com/spf13/cobra v1.10.2 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
-	github.com/stretchr/objx v0.5.2 // indirect
+	github.com/stretchr/objx v0.5.3 // indirect
 	github.com/tklauser/go-sysconf v0.3.16 // indirect
 	github.com/tklauser/numcpus v0.11.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
@@ -214,7 +214,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic => ../../../../pkg/logs/diagnostic
 	github.com/DataDog/datadog-agent/pkg/logs/message => ../../../../pkg/logs/message
 	github.com/DataDog/datadog-agent/pkg/logs/metrics => ../../../../pkg/logs/metrics
-	github.com/DataDog/datadog-agent/pkg/logs/pipeline => ../../../../pkg/logs/pipeline
 	github.com/DataDog/datadog-agent/pkg/logs/processor => ../../../../pkg/logs/processor
 	github.com/DataDog/datadog-agent/pkg/logs/sender => ../../../../pkg/logs/sender
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../../../pkg/logs/sources

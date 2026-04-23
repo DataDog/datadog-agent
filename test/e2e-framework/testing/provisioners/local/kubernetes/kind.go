@@ -14,6 +14,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent/helm"
 	fakeintakeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
@@ -40,6 +41,9 @@ type ProvisionerParams struct {
 	extraConfigParams   runner.ConfigMap
 	workloadAppFuncs    []kubeComp.WorkloadAppFunc
 	depWorkloadAppFuncs []kubeComp.AgentDependentWorkloadAppFunc
+	// standaloneAgentFunc, when non-nil, deploys a standalone agent DaemonSet
+	// instead of the Datadog Helm chart. See StandaloneAgentDeployFunc.
+	standaloneAgentFunc StandaloneAgentDeployFunc
 }
 
 func newProvisionerParams() *ProvisionerParams {
@@ -57,6 +61,11 @@ type ProvisionerOption func(*ProvisionerParams) error
 
 // PreAgentHook is executed after the Kubernetes provider is ready but before the agent is installed.
 type PreAgentHook func(e config.Env, kubeProvider *kubernetes.Provider) error
+
+// StandaloneAgentDeployFunc is a callback invoked by KindRunFunc to deploy a
+// standalone agent DaemonSet (e.g. otel-agent with DD_OTEL_STANDALONE=true)
+// after the cluster and fakeintake have been provisioned.
+type StandaloneAgentDeployFunc func(e config.Env, kubeProvider *kubernetes.Provider, fakeIntake *fakeintakeComp.Fakeintake) (*agent.KubernetesAgent, error)
 
 // WithName sets the name of the provisioner
 func WithName(name string) ProvisionerOption {
@@ -122,6 +131,16 @@ func WithAgentDependentWorkloadApp(appFunc kubeComp.AgentDependentWorkloadAppFun
 	}
 }
 
+// WithStandaloneOTelAgent sets a callback that deploys a standalone agent DaemonSet
+// (e.g. otel-agent with DD_OTEL_STANDALONE=true) using raw Kubernetes resources
+// instead of the Datadog Helm chart.
+func WithStandaloneOTelAgent(fn StandaloneAgentDeployFunc) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.standaloneAgentFunc = fn
+		return nil
+	}
+}
+
 // Provisioner creates a new provisioner
 func Provisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[environments.Kubernetes] {
 	// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
@@ -167,8 +186,9 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		return err
 	}
 
+	var fakeIntake *fakeintakeComp.Fakeintake
 	if params.fakeintakeOptions != nil {
-		fakeIntake, err := fakeintakeComp.NewLocalDockerFakeintake(&localEnv, "fakeintake")
+		fakeIntake, err = fakeintakeComp.NewLocalDockerFakeintake(&localEnv, "fakeintake")
 		if err != nil {
 			return err
 		}
@@ -185,7 +205,15 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		env.FakeIntake = nil
 	}
 
-	if params.agentOptions != nil {
+	if params.standaloneAgentFunc != nil {
+		standaloneAgent, err := params.standaloneAgentFunc(&localEnv, kubeProvider, fakeIntake)
+		if err != nil {
+			return err
+		}
+		if err := standaloneAgent.Export(ctx, &env.Agent.KubernetesAgentOutput); err != nil {
+			return err
+		}
+	} else if params.agentOptions != nil {
 		kindClusterName := ctx.Stack()
 		helmValues := fmt.Sprintf(`
 datadog:

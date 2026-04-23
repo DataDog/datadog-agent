@@ -206,6 +206,12 @@ func (t *Tailer) forwardMessages() {
 	}()
 
 	for decodedMessage := range t.decoder.OutputChan() {
+		// This tailer produces StateStructured messages where "message" is
+		// populated from the journal MESSAGE field. Currently, entries without
+		// a MESSAGE field result in an empty "message" and are silently dropped
+		// here -- the structured metadata (unit name, priority, etc.) is
+		// discarded along with it. If that becomes a real concern, replace this
+		// check with decodedMessage.HasContent() (see stream_tailer.go).
 		if len(decodedMessage.GetContent()) > 0 {
 			// Preserve the original message structure and ParsingExtra information (including IsTruncated)
 			// The decodedMessage already has the proper origin with tags set

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build (windows && npm) || linux_bpf
+//go:build (windows && npm) || linux_bpf || darwin
 
 package dns
 
@@ -24,7 +24,7 @@ const (
 	dnsModuleName            = "network_tracer__dns"
 )
 
-// Telemetry
+// snooperTelemetry holds DNS packet processing counters shared across all DNS monitor implementations.
 var snooperTelemetry = struct {
 	decodingErrors *telemetry.StatCounterWrapper
 	truncatedPkts  *telemetry.StatCounterWrapper
@@ -55,14 +55,25 @@ type socketFilterSnooper struct {
 
 	// cache translation object to avoid allocations
 	translation *translation
+
+	// parserFor returns the DNS parser to use for a given packet. Defaults to
+	// returning s.parser (ignoring the PacketInfo). On darwin this is overridden
+	// to select between ethernet and loopback parsers based on the packet's
+	// link-layer type. It is always invoked from the single pollPackets
+	// goroutine, so it may safely access shared state without synchronization.
+	parserFor func(info filter.PacketInfo) *dnsParser
 }
 
 func (s *socketFilterSnooper) WaitForDomain(domain string) error {
+	if s.statKeeper == nil {
+		return nil
+	}
 	return s.statKeeper.WaitForDomain(domain)
 }
 
-// newSocketFilterSnooper returns a new socketFilterSnooper
-func newSocketFilterSnooper(cfg *config.Config, source filter.PacketSource) (*socketFilterSnooper, error) {
+// newSocketFilterSnooper returns a new socketFilterSnooper. If parserSelector
+// is nil, the snooper uses its default parser for all packets.
+func newSocketFilterSnooper(cfg *config.Config, source filter.PacketSource, parserSelector func(filter.PacketInfo) *dnsParser) (*socketFilterSnooper, error) {
 	cache := newReverseDNSCache(dnsCacheSize, dnsCacheExpirationPeriod)
 	var statKeeper *dnsStatKeeper
 	if cfg.CollectDNSStats {
@@ -83,21 +94,30 @@ func newSocketFilterSnooper(cfg *config.Config, source filter.PacketSource) (*so
 		exit:            make(chan struct{}),
 		collectLocalDNS: cfg.CollectLocalDNS,
 	}
+	if parserSelector != nil {
+		snooper.parserFor = parserSelector
+	} else {
+		snooper.parserFor = func(_ filter.PacketInfo) *dnsParser { return snooper.parser }
+	}
 
-	// Start consuming packets
-	snooper.wg.Add(1)
-	go func() {
-		snooper.pollPackets()
-		snooper.wg.Done()
-	}()
-
-	// Start logging DNS stats
-	snooper.wg.Add(1)
-	go func() {
-		snooper.logDNSStats()
-		snooper.wg.Done()
-	}()
 	return snooper, nil
+}
+
+// startPolling starts the background goroutines that read packets and log stats.
+// It must be called by the caller of newSocketFilterSnooper once the snooper is
+// fully initialised.
+func (s *socketFilterSnooper) startPolling() {
+	s.wg.Add(1)
+	go func() {
+		s.pollPackets()
+		s.wg.Done()
+	}()
+
+	s.wg.Add(1)
+	go func() {
+		s.logDNSStats()
+		s.wg.Done()
+	}()
 }
 
 // Resolve IPs to DNS addresses
@@ -138,11 +158,11 @@ func (s *socketFilterSnooper) Close() {
 // The *translation is recycled and re-used in subsequent calls and it should not be accessed concurrently.
 // The second parameter `ts` is the time when the packet was captured off the wire. This is used for latency calculation
 // and much more reliable than calling time.Now() at the user layer.
-func (s *socketFilterSnooper) processPacket(data []byte, _ filter.PacketInfo, ts time.Time) error {
+func (s *socketFilterSnooper) processPacket(data []byte, info filter.PacketInfo, ts time.Time) error {
 	t := s.getCachedTranslation()
 	pktInfo := dnsPacketInfo{}
 
-	if err := s.parser.ParseInto(data, t, &pktInfo); err != nil {
+	if err := s.parserFor(info).ParseInto(data, t, &pktInfo); err != nil {
 		switch err {
 		case errSkippedPayload: // no need to count or log cases where the packet is valid but has no relevant content
 		case errTruncated:

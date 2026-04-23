@@ -1,0 +1,60 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "command",
+    srcs = ["command.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/system-probe/command",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_fatih_color//:color",
+        "@com_github_spf13_cobra//:cobra",
+    ],
+)
+
+go_test(
+    name = "command_test",
+    srcs = [
+        "command_unix_test.go",
+        "command_windows_test.go",
+    ],
+    embed = [":command"],
+    deps = select({
+        "@rules_go//go/platform:aix": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:android": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:windows": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "//conditions:default": [],
+    }),
+)

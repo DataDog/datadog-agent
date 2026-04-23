@@ -483,7 +483,7 @@ func TestGenerateConfig(t *testing.T) {
 				configErrors:      make(map[string]types.ErrorMsgSet),
 			}
 
-			configs, err := cp.generateConfig(tt.entity)
+			configs, err, _ := cp.generateConfig(tt.entity)
 
 			assert.Equal(t, tt.expectedConfigs, configs)
 			assert.Equal(t, tt.expectedErr, err)

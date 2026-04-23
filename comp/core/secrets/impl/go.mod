@@ -5,7 +5,7 @@ go 1.25.0
 require (
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.68.3
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.68.3
-	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.71.0-rc.1
+	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.72.0-rc.1
 	github.com/DataDog/datadog-agent/comp/core/secrets/utils v0.70.0
 	github.com/DataDog/datadog-agent/comp/core/status v0.73.0-rc.5
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.68.3
@@ -20,7 +20,7 @@ require (
 	github.com/benbjohnson/clock v1.3.5
 	github.com/json-iterator/go v1.1.12
 	github.com/stretchr/testify v1.11.1
-	go.yaml.in/yaml/v2 v2.4.3
+	go.yaml.in/yaml/v2 v2.4.4
 	golang.org/x/exp v0.0.0-20260312153236-7ab1446f8b90
 	golang.org/x/sys v0.43.0
 )
@@ -77,7 +77,7 @@ require (
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
-	github.com/prometheus/client_golang v1.23.2 // indirect
+	github.com/prometheus/client_golang v1.23.3-0.20251103151724-a5ae20370e5e // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.67.5 // indirect
 	github.com/prometheus/procfs v0.20.1 // indirect
@@ -201,7 +201,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic => ../../../../pkg/logs/diagnostic
 	github.com/DataDog/datadog-agent/pkg/logs/message => ../../../../pkg/logs/message
 	github.com/DataDog/datadog-agent/pkg/logs/metrics => ../../../../pkg/logs/metrics
-	github.com/DataDog/datadog-agent/pkg/logs/pipeline => ../../../../pkg/logs/pipeline
 	github.com/DataDog/datadog-agent/pkg/logs/processor => ../../../../pkg/logs/processor
 	github.com/DataDog/datadog-agent/pkg/logs/sender => ../../../../pkg/logs/sender
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../../../pkg/logs/sources

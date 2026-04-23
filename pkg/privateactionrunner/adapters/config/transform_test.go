@@ -14,6 +14,7 @@ import (
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 func TestGetBundleInheritedAllowedActions(t *testing.T) {
@@ -67,13 +68,13 @@ func TestGetBundleInheritedAllowedActions(t *testing.T) {
 				"com.datadoghq.gitlab.users":    sets.New[string]("action2"),
 				"com.datadoghq.kubernetes.core": sets.New[string]("action3"),
 				"com.datadoghq.kubernetes.apps": sets.New[string]("action4"),
-				"com.datadoghq.ddagent":         sets.New[string]("action5"),
+				"com.datadoghq.remoteaction":    sets.New[string]("action5"),
 			},
 			expectedInheritedActions: map[string]sets.Set[string]{
 				"com.datadoghq.script":          sets.New[string]("testConnection", "enrichScript"),
 				"com.datadoghq.gitlab.users":    sets.New[string]("testConnection"),
 				"com.datadoghq.kubernetes.core": sets.New[string]("testConnection"),
-				"com.datadoghq.ddagent":         sets.New[string]("testConnection"),
+				"com.datadoghq.remoteaction":    sets.New[string]("testConnection"),
 			},
 		},
 		{
@@ -134,11 +135,6 @@ func TestGetDatadogHost(t *testing.T) {
 			name:     "handles gov site",
 			endpoint: "https://api.ddog-gov.com.",
 			expected: "api.ddog-gov.com",
-		},
-		{
-			name:     "handles gov cloud mil site",
-			endpoint: "https://api.ddog-gov.mil.",
-			expected: "api.ddog-gov.mil",
 		},
 		{
 			name:     "handles custom domain",
@@ -228,6 +224,84 @@ func TestFromDDConfig(t *testing.T) {
 			assert.Equal(t, "api."+tt.expectedDDSite, cfg.DDApiHost, "DDApiHost should be api.<site>")
 		})
 	}
+}
+
+func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
+	t.Run("cluster agent default actions are included when default_actions_enabled is true", func(t *testing.T) {
+		flavor.SetFlavor(flavor.ClusterAgent)
+		defer flavor.SetFlavor(flavor.DefaultAgent)
+
+		mockConfig := configmock.New(t)
+		mockConfig.SetWithoutSource(setup.PARActionsAllowlist, []string{})
+		mockConfig.SetWithoutSource(setup.PARDefaultActionsEnabled, true)
+
+		allowlist := makeActionsAllowlist(mockConfig)
+
+		assert.True(t, allowlist["com.datadoghq.kubernetes.apps"].Has("listDeployment"))
+		assert.True(t, allowlist["com.datadoghq.kubernetes.core"].Has("getPod"))
+		assert.True(t, allowlist["com.datadoghq.kubernetes.batch"].Has("getJob"))
+		// common actions should also be present
+		assert.True(t, allowlist["com.datadoghq.remoteaction.networks"].Has("runNetworkPath"))
+		assert.True(t, allowlist["com.datadoghq.remoteaction.rshell"].Has("runCommand"))
+		// inherited actions should also be present for the kubernetes prefix
+		assert.True(t, allowlist["com.datadoghq.kubernetes.core"].Has("testConnection"))
+	})
+
+	t.Run("non-cluster-agent flavor returns common default actions only", func(t *testing.T) {
+		flavor.SetFlavor(flavor.DefaultAgent)
+
+		mockConfig := configmock.New(t)
+		mockConfig.SetWithoutSource(setup.PARActionsAllowlist, []string{})
+		mockConfig.SetWithoutSource(setup.PARDefaultActionsEnabled, true)
+
+		allowlist := makeActionsAllowlist(mockConfig)
+
+		// common actions should be present
+		assert.True(t, allowlist["com.datadoghq.remoteaction.networks"].Has("runNetworkPath"))
+		assert.True(t, allowlist["com.datadoghq.remoteaction.rshell"].Has("runCommand"))
+		// cluster-agent-specific actions should NOT be present
+		_, hasK8sApps := allowlist["com.datadoghq.kubernetes.apps"]
+		assert.False(t, hasK8sApps)
+	})
+
+	t.Run("default actions are excluded when default_actions_enabled is false", func(t *testing.T) {
+		flavor.SetFlavor(flavor.ClusterAgent)
+		defer flavor.SetFlavor(flavor.DefaultAgent)
+
+		mockConfig := configmock.New(t)
+		mockConfig.SetWithoutSource(setup.PARActionsAllowlist, []string{})
+		mockConfig.SetWithoutSource(setup.PARDefaultActionsEnabled, false)
+
+		allowlist := makeActionsAllowlist(mockConfig)
+
+		assert.Empty(t, allowlist)
+	})
+
+	t.Run("cluster agent default actions merge with explicit allowlist", func(t *testing.T) {
+		flavor.SetFlavor(flavor.ClusterAgent)
+		defer flavor.SetFlavor(flavor.DefaultAgent)
+
+		mockConfig := configmock.New(t)
+		mockConfig.SetWithoutSource(setup.PARActionsAllowlist, []string{"com.datadoghq.http.sendRequest"})
+		mockConfig.SetWithoutSource(setup.PARDefaultActionsEnabled, true)
+
+		allowlist := makeActionsAllowlist(mockConfig)
+
+		assert.True(t, allowlist["com.datadoghq.kubernetes.apps"].Has("listDeployment"))
+		assert.True(t, allowlist["com.datadoghq.http"].Has("sendRequest"))
+	})
+
+	t.Run("explicit allowlist works without default actions", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetWithoutSource(setup.PARActionsAllowlist, []string{"com.datadoghq.http.sendRequest"})
+		mockConfig.SetWithoutSource(setup.PARDefaultActionsEnabled, false)
+
+		allowlist := makeActionsAllowlist(mockConfig)
+
+		assert.True(t, allowlist["com.datadoghq.http"].Has("sendRequest"))
+		_, hasK8sApps := allowlist["com.datadoghq.kubernetes.apps"]
+		assert.False(t, hasK8sApps)
+	})
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedPaths(t *testing.T) {

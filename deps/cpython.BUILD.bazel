@@ -1,5 +1,6 @@
 load("@@//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
 load("@//bazel/rules:foreign_cc_shared_wrapper.bzl", "foreign_cc_shared_wrapper")
+load("@@//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
 load("@//deps/openssl:version.bzl", "OPENSSL_VERSION")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@bazel_lib//lib:run_binary.bzl", "run_binary")
@@ -13,7 +14,7 @@ load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_fil
 python_externals = {
     "bzip2": "1.0.8",
     "mpdecimal": "4.0.0",
-    "sqlite": "3.50.4.0",
+    "sqlite": "3.53.0.0",
     "xz": "5.2.5",
     "zlib": "1.3.1",
     "libffi": "3.4.4",
@@ -249,10 +250,10 @@ configure_make(
         "@zlib//:zlib",
     ],
     dynamic_deps = [
-        "@bzip2//:bz2",
-        "@sqlite3//:sqlite3",
-        "@xz//:lzma",
-        "@zlib//:z",
+        "@bzip2//:bz2_pkg",
+        "@sqlite3//:sqlite3_pkg",
+        "@xz//:lzma_pkg",
+        "@zlib//:z_pkg",
     ],
     includes = ["python{}".format(VERSION_STR)],
     targets = [
@@ -271,8 +272,14 @@ configure_make(
     # However, in our case, that means using tools that are stored in the build sandbox, so they aren't
     # usable when building an extension, causing all builds to fail.
     # fix_sysconfigdata.py strips sandbox-absolute paths from known tool entries (leaving just the
-    # basename so they can be found on PATH) and clears build flags that are Bazel-specific.
-    postfix_script = "$(execpath @python_3_12//:python3) $(execpath @@//deps/cpython:fix_sysconfigdata.py) $$INSTALLDIR/lib/python{version}/_sysconfigdata__*.py".format(
+    # basename so they can be found on PATH), clears build flags that are Bazel-specific, and replaces
+    # sandbox paths with their install-prefix-relative equivalents.
+    postfix_script = """
+    $(execpath @python_3_12//:python3) $(execpath @@//deps/cpython:fix_sysconfigdata.py) \
+      --install-prefix "##PREFIX##" \
+      --sandbox-prefix "$$BUILD_TMPDIR/$$INSTALL_PREFIX" \
+      $$INSTALLDIR/lib/python{version}/_sysconfigdata__*.py
+    """.format(
         version = VERSION_STR,
     ),
 )
@@ -280,6 +287,24 @@ configure_make(
 foreign_cc_shared_wrapper(
     name = "python_unix_shared",
     input = ":python_unix",
+    visibility = ["//visibility:public"],
+)
+
+# TODO(ABLD-392): temporary workaround -- remove once the agent build runs the
+# Python we ship instead of the host Python for extension module compilation.
+# Python extension modules link against these shared libs and need them present
+# in {install_dir}/embedded/lib before any Python invocation (e.g. pip, setuptools).
+# Collected automatically by walking python_unix_shared's dynamic_deps.
+dd_collect_dependencies(
+    name = "_runtime_deps",
+    srcs = [":python_unix_shared"],
+    visibility = ["//visibility:private"],
+)
+
+pkg_filegroup(
+    name = "runtime_deps",
+    srcs = [":_runtime_deps"],
+    prefix = "embedded",
     visibility = ["//visibility:public"],
 )
 
@@ -443,5 +468,8 @@ pkg_install(
     name = "install",
     srcs = [
         ":all_files",
-    ],
+    ] + select({
+        "@platforms//os:windows": [],
+        "//conditions:default": [":runtime_deps"],
+    }),
 )
