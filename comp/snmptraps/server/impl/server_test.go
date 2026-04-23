@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/senderhelper"
 	server "github.com/DataDog/datadog-agent/comp/snmptraps/server/def"
-	serverfx "github.com/DataDog/datadog-agent/comp/snmptraps/server/fx"
 	ndmtestutils "github.com/DataDog/datadog-agent/pkg/networkdevice/testutils"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -46,7 +45,7 @@ func TestServer(t *testing.T) {
 				"network_devices.snmp_traps.community_strings": []string{"public"},
 			})
 		}),
-		serverfx.Module(),
+		fxutil.ProvideComponentConstructor(NewComponent),
 	)
 	assert.NotEmpty(t, srv)
 	assert.NoError(t, srv.Error())
@@ -69,7 +68,7 @@ func TestNonBlockingFailure(t *testing.T) {
 				"network_devices.snmp_traps.community_strings": []string{"public"},
 			})
 		}),
-		serverfx.Module(),
+		fxutil.ProvideComponentConstructor(NewComponent),
 	)
 	assert.NotEmpty(t, srv)
 	assert.ErrorIs(t, srv.Error(), os.ErrNotExist)
@@ -84,7 +83,7 @@ func TestDisabled(t *testing.T) {
 				"network_devices.snmp_traps.enabled": false,
 			})
 		}),
-		serverfx.Module(),
+		fxutil.ProvideComponentConstructor(NewComponent),
 	)
 	assert.NotNil(t, srv)
 	assert.NoError(t, srv.Error())
