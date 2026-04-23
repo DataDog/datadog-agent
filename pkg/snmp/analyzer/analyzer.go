@@ -6,6 +6,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"text/tabwriter"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
@@ -212,49 +213,61 @@ func Analyze(pdus []gosnmp.SnmpPDU, sysOID string) (
 
 const reportWidth = 100
 
+// FormatReport renders the analysis as plain ASCII (no Unicode box-drawing) and tabwriter-aligned
+// columns so layout stays correct in terminals, IDEs, email, and web views with monospace fonts.
 func FormatReport(found, notFound []MetricProfile, profileName string, extendedProfiles []string) string {
 	var b strings.Builder
 	total := len(found) + len(notFound)
 	extendedStr := strings.Join(extendedProfiles, ", ")
 
-	// Header box
-	b.WriteString("╔" + strings.Repeat("═", reportWidth-2) + "╗\n")
-	inner := reportWidth - 2
-	b.WriteString("║" + center("SNMP Walk Analysis", inner) + "║\n")
-	b.WriteString("╠" + strings.Repeat("═", inner) + "╣\n")
-	b.WriteString("║ " + padRight(fmt.Sprintf("Total OIDs: %d   │ Matched: %d    │ Unmatched: %d", total, len(found), len(notFound)), inner-2) + " ║\n")
-	b.WriteString("║ " + padRight("Profile: "+profileName, inner-2) + " ║\n")
-	b.WriteString("║ " + padRight("Extended Profiles: "+extendedStr, inner-2) + " ║\n")
-	b.WriteString("╚" + strings.Repeat("═", reportWidth-2) + "╝\n\n")
+	rule := strings.Repeat("=", reportWidth)
+	dash := strings.Repeat("-", reportWidth)
 
-	// Matched table
-	b.WriteString("┌─ Matched OIDs " + strings.Repeat("─", reportWidth-18) + "┐\n")
-	b.WriteString("│ OID" + strings.Repeat(" ", 35) + "│ Metric Name" + strings.Repeat(" ", 6) + "│ Interface  │ Value" + strings.Repeat(" ", 20) + "│ Found In" + strings.Repeat(" ", 10) + "│\n")
-	b.WriteString("├" + strings.Repeat("─", 37) + "┼" + strings.Repeat("─", 18) + "┼" + strings.Repeat("─", 12) + "┼" + strings.Repeat("─", 25) + "┼" + strings.Repeat("─", 19) + "┤\n")
+	b.WriteString(rule + "\n")
+	b.WriteString(center("SNMP Walk Analysis", reportWidth) + "\n")
+	b.WriteString(dash + "\n")
+	b.WriteString(fmt.Sprintf("  Total OIDs: %d  |  Matched: %d  |  Unmatched: %d\n", total, len(found), len(notFound)))
+	b.WriteString(fmt.Sprintf("  Profile: %s\n", profileName))
+	b.WriteString(fmt.Sprintf("  Extended Profiles: %s\n", extendedStr))
+	b.WriteString(rule + "\n\n")
+
+	b.WriteString("Matched OIDs\n")
+	b.WriteString(dash + "\n")
+	tw := tabwriter.NewWriter(&b, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw, "OID\tMETRIC\tINTERFACE INDEX\tVALUE\tFOUND IN")
 	for _, m := range found {
-		valStr := fmt.Sprintf("%v", m.Value)
-		if len(valStr) > 22 {
-			valStr = valStr[:19] + "..."
-		}
-		iface := m.InterfaceID
-		b.WriteString("│ " + padRight(truncate(m.OID, 35), 35) + " │ " + padRight(truncate(m.SymbolName, 16), 16) + " │ " + padRight(iface, 10) + " │ " + padRight(valStr, 23) + " │ " + padRight(truncate(m.Profile, 17), 17) + " │\n")
+		valStr := formatReportValue(m.Value, 32)
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n",
+			truncate(m.OID, 45),
+			truncate(m.SymbolName, 20),
+			m.InterfaceID,
+			valStr,
+			truncate(m.Profile, 20),
+		)
 	}
-	b.WriteString("└" + strings.Repeat("─", 37) + "┴" + strings.Repeat("─", 18) + "┴" + strings.Repeat("─", 12) + "┴" + strings.Repeat("─", 25) + "┴" + strings.Repeat("─", 19) + "┘\n\n")
+	_ = tw.Flush()
 
-	// Unmatched table: OID and value only (no interface column).
-	const unmatchedOIDW, unmatchedValW = 61, 41
-	b.WriteString("┌─ Unmatched OIDs " + strings.Repeat("─", reportWidth-20) + "┐\n")
-	b.WriteString("│ " + padRight("OID", unmatchedOIDW) + " │ " + padRight("Value", unmatchedValW) + " │\n")
-	b.WriteString("├" + strings.Repeat("─", unmatchedOIDW) + "┼" + strings.Repeat("─", unmatchedValW) + "┤\n")
+	b.WriteString("\nUnmatched OIDs\n")
+	b.WriteString(dash + "\n")
+	tw2 := tabwriter.NewWriter(&b, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw2, "OID\tVALUE")
 	for _, m := range notFound {
-		valStr := fmt.Sprintf("%v", m.Value)
-		if len(valStr) > 40 {
-			valStr = valStr[:37] + "..."
-		}
-		b.WriteString("│ " + padRight(truncate(m.OID, unmatchedOIDW), unmatchedOIDW) + " │ " + padRight(valStr, unmatchedValW) + " │\n")
+		fmt.Fprintf(tw2, "%s\t%s\n", truncate(m.OID, 60), formatReportValue(m.Value, 60))
 	}
-	b.WriteString("└" + strings.Repeat("─", unmatchedOIDW) + "┴" + strings.Repeat("─", unmatchedValW) + "┘\n")
+	_ = tw2.Flush()
+	b.WriteString("\n")
 	return b.String()
+}
+
+func formatReportValue(v interface{}, max int) string {
+	s := fmt.Sprintf("%v", v)
+	if len(s) > max {
+		if max <= 3 {
+			return s[:max]
+		}
+		return s[:max-3] + "..."
+	}
+	return s
 }
 
 func center(s string, w int) string {
@@ -263,13 +276,6 @@ func center(s string, w int) string {
 	}
 	pad := (w - len(s)) / 2
 	return strings.Repeat(" ", pad) + s + strings.Repeat(" ", w-pad-len(s))
-}
-
-func padRight(s string, w int) string {
-	if len(s) >= w {
-		return truncate(s, w)
-	}
-	return s + strings.Repeat(" ", w-len(s))
 }
 
 func truncate(s string, max int) string {
