@@ -62,6 +62,9 @@ const (
 	uploadTimeout     = 15 * time.Second
 	// DefaultMemoryBudget is the symbol upload memory budget used when the
 	// process runs without a cgroup memory limit.
+	//
+	// This is not a single hard limit, binaries exceeding the set limit will still get uploaded. This is more about
+	// having a size limit for concurrent uploads.
 	defaultMemoryBudget = 1 * 1024 * 1024 * 1024 // 1 GB
 )
 
