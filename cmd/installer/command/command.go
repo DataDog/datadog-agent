@@ -87,7 +87,7 @@ Datadog Installer installs datadog-packages based on your commands.`,
 		},
 	)
 
-	agentCmd.PersistentFlags().StringVarP(&globalParams.ConfFilePath, "cfgpath", "c", "", "path to directory containing installer.yaml")
+	agentCmd.PersistentFlags().StringVarP(&globalParams.ConfFilePath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
 	agentCmd.PersistentFlags().StringVarP(&globalParams.PIDFilePath, "pidfile", "p", "", "path to the pidfile")
 	agentCmd.PersistentFlags().StringVarP(&globalParams.LogFilePath, "logfile", "l", "", "path to the logfile")
 	agentCmd.PersistentFlags().BoolVar(&globalParams.AllowNoRoot, "no-root", false, "allow running the installer as non-root")
@@ -101,16 +101,22 @@ Datadog Installer installs datadog-packages based on your commands.`,
 		if globalParams.NoColor {
 			color.NoColor = true
 		}
-		// Translate datadog.yaml into DD_* env vars before any subcommand
-		// reaches the installer logic. The installer itself never reads
-		// yaml; the daemon path already owns this translation, and this
-		// call plays the same role for interactive CLI invocations.
-		// The daemon subcommand opens its own fx app and would clash with
-		// an outer one, so skip there; daemon run.go still forwards all
-		// needed env vars when it spawns the installer.
-		if cmd == nil || cmd.Parent() == nil || cmd.Parent().Name() != "daemon" {
-			fxconfig.LoadAndExportEnv(globalParams.ConfFilePath)
+		// The daemon owns the yaml → env var translation for the
+		// subprocesses it spawns (pkg/fleet/installer/exec.setupInstallerCmd
+		// pushes the daemon's *env.Env through ToEnv into the child's
+		// cmd.Env), so skip the bootstrap entirely when we were launched
+		// by a daemon. The daemon marks every such subprocess with
+		// DD_INSTALLER_FROM_DAEMON=true.
+		if os.Getenv("DD_INSTALLER_FROM_DAEMON") == "true" {
+			return
 		}
+		// Also skip when the binary itself is entering daemon mode: that
+		// subcommand opens its own fx app and a double bootstrap would
+		// clash.
+		if cmd != nil && cmd.Parent() != nil && cmd.Parent().Name() == "daemon" {
+			return
+		}
+		fxconfig.LoadAndExportEnv(globalParams.ConfFilePath)
 	}
 
 	for _, sf := range subcommandFactories {
