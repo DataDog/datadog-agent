@@ -63,15 +63,14 @@ def pulumi_version(ctx: Context) -> tuple[str, bool]:
     return out.stdout.strip(), up_to_date
 
 
-PULUMI_VERSION = "v3.231.0"
-
-
 def install_pulumi(ctx: Context):
     info("🤖 Install Pulumi")
     if is_windows():
-        ctx.run(f"winget install pulumi --version {PULUMI_VERSION.lstrip('v')}")
+        ctx.run("winget install pulumi")
+    elif is_linux():
+        ctx.run("curl -fsSL https://get.pulumi.com | sh")
     else:
-        ctx.run(f"curl -fsSL https://get.pulumi.com | PULUMI_VERSION={PULUMI_VERSION} sh")
+        ctx.run("brew install pulumi/tap/pulumi")
     # If pulumi was just installed for the first time it's probably not on the PATH,
     # add it to the process env so rest of setup can continue.
     if shutil.which("pulumi") is None:
