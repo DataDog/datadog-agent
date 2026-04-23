@@ -165,13 +165,14 @@ func (h *RunCommandHandler) filterAllowedPaths(backendAllowed []string) []string
 }
 
 // pathContains reports whether parent is an ancestor of (or equal to) child,
-// using the path separator as the boundary. Leading and trailing slashes
-// are normalized via path.Clean so "/var/log/" and "/var/log" compare equal.
-// Prefix-sibling strings like "/var/logger" do not count as contained in
-// "/var/log".
+// using the path separator as the boundary. Both inputs are first
+// canonicalized to forward-slash form so the comparison works identically
+// on Linux and on Windows (where PAR also runs and rshell itself uses the
+// OS-native backslash). Prefix-sibling strings like "/var/logger" do not
+// count as contained in "/var/log".
 func pathContains(parent, child string) bool {
-	parent = path.Clean(parent)
-	child = path.Clean(child)
+	parent = normalizePath(parent)
+	child = normalizePath(child)
 	if parent == child {
 		return true
 	}
@@ -182,6 +183,16 @@ func pathContains(parent, child string) bool {
 		parent += "/"
 	}
 	return strings.HasPrefix(child, parent)
+}
+
+// normalizePath rewrites backslashes to forward slashes and runs path.Clean.
+// The backslash-to-slash step is what makes containment work for
+// Windows-native paths; path.Clean alone treats "\\" as an ordinary
+// character, which would make "C:\Data\logs" look like a prefix sibling of
+// "C:\Data" instead of a sub-path. We use path (not path/filepath) so the
+// comparison behaves identically regardless of build OS.
+func normalizePath(p string) string {
+	return path.Clean(strings.ReplaceAll(p, `\`, "/"))
 }
 
 // RunCommandInputs defines the inputs for the runCommand action.
