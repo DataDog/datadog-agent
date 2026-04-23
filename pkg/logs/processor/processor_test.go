@@ -8,12 +8,15 @@ package processor
 import (
 	"regexp"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
@@ -344,6 +347,42 @@ func TestGetHostname(t *testing.T) {
 	}
 	m := message.NewMessage([]byte("hello"), nil, "", 0)
 	assert.Equal(t, "testHostnameFromEnvVar", p.GetHostname(m))
+}
+
+// TestProcessor_ProcessesWithoutObserver is a regression guard confirming that
+// the processor does not require an observer component. Messages must flow from
+// inputChan to outputChan with no observer dependency — the observer handle was
+// removed from the shipping pipeline in M1 to avoid duplicate log observations.
+func TestProcessor_ProcessesWithoutObserver(t *testing.T) {
+	inputChan := make(chan *message.Message, 10)
+	outputChan := make(chan *message.Message, 10)
+	source := sources.NewLogSource("test", &config.LogsConfig{})
+
+	// Construct a processor with all standard fields — notably no observer argument.
+	p := New(
+		nil, // config: nil is fine, disables failover config watch
+		inputChan,
+		outputChan,
+		nil, // no processing rules
+		PassthroughEncoder,
+		&diagnostic.NoopMessageReceiver{},
+		nil, // no hostname component
+		metrics.NewNoopPipelineMonitor("test"),
+		"test",
+	)
+	p.Start()
+	defer p.Stop()
+
+	msg := newMessage([]byte("shipping pipeline message"), source, message.StatusInfo)
+	inputChan <- msg
+
+	select {
+	case out := <-outputChan:
+		assert.Equal(t, []byte("shipping pipeline message"), out.GetContent(),
+			"processor must forward messages to outputChan without observer")
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out — processor did not forward message to outputChan")
+	}
 }
 
 // helpers

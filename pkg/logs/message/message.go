@@ -11,9 +11,14 @@ import (
 	"errors"
 	"time"
 
+	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// Ensure *Message satisfies the observer.LogView interface so callers can pass
+// it directly to observer.Handle.ObserveLog without an adapter.
+var _ observerdef.LogView = (*Message)(nil)
 
 // TruncatedFlag is the flag that is added at the beginning
 // or/and at the end of every trucated lines.

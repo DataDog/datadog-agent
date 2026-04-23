@@ -7,6 +7,7 @@
 package observer
 
 import (
+	locallogtailerfx "github.com/DataDog/datadog-agent/comp/logs/locallogtailer/fx"
 	observerfx "github.com/DataDog/datadog-agent/comp/observer/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -17,5 +18,6 @@ import (
 func Bundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
 		observerfx.Module(),
+		locallogtailerfx.Module(),
 	)
 }
