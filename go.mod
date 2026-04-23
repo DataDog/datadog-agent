@@ -307,7 +307,7 @@ require (
 	github.com/safchain/baloum v0.0.0-20260120132056-b70fa9c29846
 	github.com/safchain/ethtool v0.7.0
 	github.com/samber/lo v1.52.0
-	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
+	github.com/samuel/go-zookeeper v0.0.0-20201211165307-7117e9ea2414
 	github.com/shirou/gopsutil/v4 v4.26.3
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4 // indirect
 	github.com/sijms/go-ora/v2 v2.8.24
