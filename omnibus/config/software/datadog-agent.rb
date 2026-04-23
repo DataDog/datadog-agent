@@ -240,6 +240,15 @@ build do
     command_on_repo_root "bazelisk run #{bazel_flags} //pkg/discovery/module/rust:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
   end
 
+  # libnvidia-ml-fake.so.1 (fake NVML shared library for integration testing).
+  # Installed under embedded/dev/ and NEVER auto-loaded. See
+  # pkg/gpu/fake-nvml/README.md for the opt-in activation path via
+  # gpu.nvml_lib_path in datadog.yaml. Mirrors the linux_default /
+  # linux_fips selectors in //packages/agent/product:BUILD.bazel.
+  if linux_target? and !heroku_target?
+    command_on_repo_root "bazelisk run #{bazel_flags} //pkg/gpu/fake-nvml:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+  end
+
   # dd-procmgrd (process manager daemon)
   if linux_target? and !heroku_target?
     command_on_repo_root "bazelisk run #{bazel_flags} //pkg/procmgr/rust:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
