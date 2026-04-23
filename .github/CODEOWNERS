@@ -324,6 +324,9 @@
 /packages/macos                         @DataDog/agent-build @DataDog/windows-products
 /packages/windows                       @DataDog/agent-build @DataDog/windows-products
 
+# AIX
+/packaging/aix/                         @DataDog/agent-build
+
 # The following is managed by `dda inv lint-components` -- DO NOT EDIT
 # BEGIN COMPONENTS
 /comp @DataDog/agent-runtimes
@@ -796,6 +799,7 @@
 /tasks/unit_tests/libs/build/           @DataDog/agent-build
 /tasks/unit_tests/omnibus_tests.py      @DataDog/agent-build
 /tasks/unit_tests/testdata/components_src/ @DataDog/agent-runtimes
+/tasks/unit_tests/testdata/collector/   @DataDog/opentelemetry-agent
 /tasks/unit_tests/experimental_gates_tests.py @DataDog/agent-build
 /tasks/unit_tests/static_quality_gates_tests.py @DataDog/agent-build
 /tasks/unit_tests/static_quality_gates_reporter_tests.py @DataDog/agent-build
@@ -923,6 +927,7 @@
 # Each team can individually decide to update CODEOWNERS to be requested for a review on each modification of their go.mod/sum
 /**/go.mod                              # do not notify anyone
 /**/go.sum                              # do not notify anyone
+/deps/go.MODULE.bazel                   # do not notify anyone
 
 # Add here modules that need explicit review from the team owning them
 /pkg/util/scrubber/go.mod                @DataDog/agent-runtimes
