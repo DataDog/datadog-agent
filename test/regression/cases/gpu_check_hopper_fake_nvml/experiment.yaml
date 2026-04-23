@@ -1,0 +1,59 @@
+# GPU corecheck running against the fake NVML shared library
+# (pkg/gpu/fake-nvml) shipped inside the standard Linux agent package at
+# /opt/datadog-agent/embedded/dev/libnvidia-ml-fake.so.1. No real NVIDIA
+# hardware is required — SMP runs this against a regular ECR-pushed agent
+# image, and the `gpu.nvml_lib_path` setting in datadog.yaml redirects the
+# check away from the default libnvidia-ml.so.1 discovery paths.
+#
+# Architecture: hopper. This is the busiest collect path because hopper is the
+# only arch (with blackwell) that exercises the GPM collector's full Alloc →
+# SampleGet → MetricsGet cycle every check interval. A second case at a
+# non-GPM arch could be added if the GPM path's memory footprint ever becomes
+# interesting on its own.
+#
+# Why: the GPU corecheck is a core check that runs every 10 seconds in
+# production; a memory regression in any of its collectors (stateless, GPM,
+# fields, sampling, nvlink, device_events) would otherwise go uncaught — the
+# new-e2e GPU tests only run on main/release branches and burn a real AWS GPU
+# instance per run.
+#
+# This experiment is deliberately NOT a quality gate: there are no established
+# baselines for resting GPU-check memory yet. SMP will still flag statistically
+# significant regressions against the merge base; once the metric settles we
+# can promote this to a quality gate with a concrete upper_bound.
+
+optimization_goal: memory
+erratic: false
+
+target:
+  name: datadog-agent
+  cpu_allotment: 4
+  memory_allotment: 512 MiB
+
+  environment:
+    DD_API_KEY: a0000001
+    DD_HOSTNAME: smp-regression
+    # Select the GPU architecture the fake library should impersonate. Read
+    # once at first NVML call and cached for the lifetime of the process, so
+    # this must be set in the agent's environment — not via datadog.yaml.
+    FAKE_NVML_ARCH: hopper
+    # Amplify the per-device cost so the memory signal is easier to see.
+    # Clamped to 1..=16 by the fake library. 8 is plausible for a real 8x-H100
+    # node.
+    FAKE_NVML_DEVICE_COUNT: "8"
+
+  profiling_environment:
+    DD_INTERNAL_PROFILING_BLOCK_PROFILE_RATE: 10000
+    DD_INTERNAL_PROFILING_CPU_DURATION: 1m
+    DD_INTERNAL_PROFILING_DELTA_PROFILES: true
+    DD_INTERNAL_PROFILING_ENABLED: true
+    DD_INTERNAL_PROFILING_ENABLE_GOROUTINE_STACKTRACES: true
+    DD_INTERNAL_PROFILING_MUTEX_PROFILE_FRACTION: 10
+    DD_INTERNAL_PROFILING_PERIOD: 1m
+    DD_INTERNAL_PROFILING_UNIX_SOCKET: /smp-host/apm.socket
+    DD_PROFILING_EXECUTION_TRACE_ENABLED: true
+    DD_PROFILING_EXECUTION_TRACE_PERIOD: 1m
+    DD_PROFILING_WAIT_PROFILE: true
+    DD_APM_INTERNAL_PROFILING_ENABLED: true
+
+    DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:gpu_check_hopper_fake_nvml

@@ -1,0 +1,28 @@
+# Minimal configuration for the gpu_check_hopper_fake_nvml regression
+# experiment. The intent is an otherwise-idle agent whose GPU check
+# exercises the fake NVML shared library against a synthesized 8x-H100 node
+# every 10 seconds.
+
+auth_token_file_path: /tmp/agent-auth-token
+
+dd_url: http://127.0.0.1:9091
+process_config.process_dd_url: http://localhost:9092
+
+# Disable cloud detection. SMP targets are not running in a real cloud, and
+# any successful metadata probe would break the determinism we want.
+cloud_provider_metadata: []
+
+telemetry.enabled: true
+telemetry.checks: '*'
+
+# GPU check.
+#
+# The fake library is packaged into the Linux agent by //pkg/gpu/fake-nvml
+# and installed as embedded/dev/libnvidia-ml-fake.so.1 under the agent's
+# install_dir (/opt/datadog-agent). Because the filename is not
+# libnvidia-ml.so.1 and embedded/dev/ is not on any library search path, the
+# agent's default NVML discovery cannot find it — we must point at it
+# explicitly via nvml_lib_path. Activation is therefore deliberately opt-in.
+gpu:
+  enabled: true
+  nvml_lib_path: /opt/datadog-agent/embedded/dev/libnvidia-ml-fake.so.1
