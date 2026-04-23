@@ -8,15 +8,24 @@
 package cpu
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"context"
+
+	"github.com/shirou/gopsutil/v4/common"
 	"github.com/shirou/gopsutil/v4/load"
+
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // GetContextSwitches retrieves the number of context switches for the current process.
 // It returns an integer representing the count and an error if the retrieval fails.
 func GetContextSwitches() (int64, error) {
 	log.Debug("collecting ctx switches")
-	misc, err := load.Misc()
+	ctx := context.Background()
+	if procfsPath := pkgconfigsetup.Datadog().GetString("procfs_path"); procfsPath != "" {
+		ctx = context.WithValue(ctx, common.EnvKey, common.EnvMap{common.HostProcEnvKey: procfsPath})
+	}
+	misc, err := load.MiscWithContext(ctx)
 	if err != nil {
 		return 0, err
 	}
