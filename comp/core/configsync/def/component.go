@@ -8,7 +8,5 @@ package configsync
 
 // team: agent-configuration
 
-import configsyncdef "github.com/DataDog/datadog-agent/comp/core/configsync/def"
-
 // Component is the component type.
-type Component = configsyncdef.Component
+type Component interface{}
