@@ -9,10 +9,16 @@ load("@rules_rust//rust:defs.bzl", "rust_shared_library")
 
 # Fake libnvidia-ml shared library for development and integration testing.
 #
-# This library implements the NVML C ABI and returns static data for two fake
-# NVIDIA H100 GPUs. It is built by default on Linux but is NEVER auto-loaded
-# by the agent. It only activates when `gpu.nvml_lib_path` in datadog.yaml
-# is explicitly pointed at the installed file:
+# This library implements the NVML C ABI and returns synthesized data for a
+# configurable set of fake GPUs. The architecture is selected at process start
+# via the FAKE_NVML_ARCH environment variable; identity fields (device name,
+# memory, core count, CUDA compute capability, NVML architecture constant)
+# come from the spec at pkg/collector/corechecks/gpu/spec/architectures.yaml,
+# embedded into the binary at build time via include_str!.
+#
+# It is built by default on Linux but is NEVER auto-loaded by the agent. It
+# only activates when `gpu.nvml_lib_path` in datadog.yaml is explicitly
+# pointed at the installed file:
 #
 #   gpu:
 #     enabled: true
@@ -21,12 +27,24 @@ load("@rules_rust//rust:defs.bzl", "rust_shared_library")
 # See pkg/gpu/fake-nvml/README.md for full usage instructions.
 rust_shared_library(
     name = "fake_nvml",
-    srcs = ["src/lib.rs"],
+    srcs = [
+        "src/arch.rs",
+        "src/lib.rs",
+    ],
+    # The GPU architecture spec is pulled in via include_str! in src/arch.rs.
+    # compile_data makes it visible in the Bazel sandbox at the relative path
+    # the Rust source expects, matching Cargo's behavior.
+    compile_data = [
+        "//pkg/collector/corechecks/gpu/spec:architectures.yaml",
+    ],
     crate_name = "fake_nvml",
     edition = "2024",
     target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
-    # No deps — pure std/core implementation
+    deps = [
+        "@crates//:serde",
+        "@crates//:serde_yaml",
+    ],
 )
 
 # Package the shared library as libnvidia-ml-fake.so.1 under embedded/dev/.
