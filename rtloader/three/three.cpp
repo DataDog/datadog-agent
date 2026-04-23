@@ -926,8 +926,8 @@ void Three::setModuleAttrString(char *module, char *attr, char *value)
     if (py_value == NULL) {
         // Passing NULL to PyObject_SetAttrString deletes the attribute
         // instead of reporting the failure, so guard here.
-        setError("error converting value to python string for '" + std::string(module) + "."
-                 + std::string(attr) + "' attribute: " + _fetchPythonError());
+        setError("error converting value to python string for '" + std::string(module) + "." + std::string(attr)
+                 + "' attribute: " + _fetchPythonError());
         Py_XDECREF(py_module);
         return;
     }
