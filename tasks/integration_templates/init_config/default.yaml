@@ -1,0 +1,11 @@
+- name: service
+  value:
+    type: string
+    example: <SERVICE>
+  description: |
+    Attach the tag `service:<SERVICE>` to every metric, event, and service check emitted
+    by this integration.
+
+    If not provided, the service tag defaults to the value of the `service` key set in
+    the `datadog.yaml` file.
+  required: false

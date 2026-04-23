@@ -1,0 +1,45 @@
+- name: min_collection_interval
+  value:
+    type: number
+    example: 15
+    default: 15
+  description: |
+    This changes the collection interval of the check. For more information, see:
+    https://docs.datadoghq.com/developers/write_agent_check/#collection-interval
+  required: false
+
+- name: empty_default_hostname
+  value:
+    type: boolean
+    example: false
+    default: false
+  description: |
+    This forces the check to send metrics with no hostname. This is useful for
+    checks that track global resources and would otherwise create duplicate entries.
+  required: false
+
+- name: service
+  value:
+    type: string
+    example: <SERVICE>
+  description: |
+    Attach the tag `service:<SERVICE>` to every metric, event, and service check emitted
+    by this integration.
+
+    Overrides any `service` defined in the `init_config` section.
+  required: false
+
+- name: tags
+  value:
+    type: array
+    items:
+      type: string
+    example:
+      - <KEY_1>:<VALUE_1>
+      - <KEY_2>:<VALUE_2>
+  description: |
+    A list of tags to attach to every metric, event, and service check emitted
+    by this integration.
+
+    Learn more about tagging: https://docs.datadoghq.com/tagging/
+  required: false
