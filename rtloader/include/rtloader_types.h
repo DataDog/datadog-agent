@@ -132,6 +132,8 @@ typedef void (*cb_write_persistent_cache_t)(char *, char *);
 typedef char *(*cb_read_persistent_cache_t)(char *);
 // (sql_query, options, error_message)
 typedef char *(*cb_obfuscate_sql_t)(char *, char *, char **);
+// (queries, options, error_message)
+typedef char *(*cb_batch_obfuscate_sql_t)(char **, char *, char **);
 // (exec_plan, normalize, error_message)
 typedef char *(*cb_obfuscate_sql_exec_plan_t)(char *, bool, char **);
 // ()
