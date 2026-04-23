@@ -6,11 +6,52 @@
 package containerlifecycle
 
 import (
+	"context"
 	"errors"
 	"sync"
 
 	model "github.com/DataDog/agent-payload/v5/contlcycle"
+	types "github.com/DataDog/datadog-agent/pkg/containerlifecycle"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	ecsutil "github.com/DataDog/datadog-agent/pkg/util/ecs"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+func newPayload(le LifecycleEvent) (*model.EventsPayload, error) {
+	hname, err := hostname.Get(context.TODO())
+	if err != nil {
+		log.Warnf("Error getting hostname: %v", err)
+	}
+
+	var clusterID string
+	if env.IsFeaturePresent(env.Kubernetes) {
+		clusterID, err = clustername.GetClusterID()
+	} else if env.IsFeaturePresent(env.ECSEC2) || env.IsFeaturePresent(env.ECSFargate) || env.IsFeaturePresent(env.ECSManagedInstances) {
+		var meta *ecsutil.MetaECS
+		meta, err = ecsutil.GetClusterMeta()
+		if meta != nil {
+			clusterID = meta.ECSClusterID
+		}
+	}
+	if err != nil {
+		log.Warnf("Error getting cluster id: %v", err)
+	}
+
+	kind, err := kindToModel(le.ObjectKind)
+	if err != nil {
+		return nil, err
+	}
+
+	return &model.EventsPayload{
+		Version:    types.PayloadV1,
+		Host:       hname,
+		ClusterId:  clusterID,
+		ObjectKind: kind,
+		Events:     []*model.Event{le.ProtoEvent},
+	}, nil
+}
 
 type queue struct {
 	chunkSize int
