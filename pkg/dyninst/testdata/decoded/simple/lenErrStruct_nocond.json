@@ -18,12 +18,12 @@
           {
             "function": "main.lenErrStruct",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 655
+            "lineNumber": 681
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 182
+            "lineNumber": 198
           },
           {
             "function": "runtime.main",

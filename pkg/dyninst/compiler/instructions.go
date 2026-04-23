@@ -79,10 +79,15 @@ func makeInstruction(functionID FunctionID, op Op) codeFragment {
 		}
 
 	case ExprDereferencePtrOp:
-		bytes := make([]byte, 0, 12)
+		bytes := make([]byte, 0, 13)
 		bytes = binary.LittleEndian.AppendUint32(bytes, op.Bias)
 		bytes = binary.LittleEndian.AppendUint32(bytes, op.Len)
 		bytes = binary.LittleEndian.AppendUint32(bytes, op.ExprStatusIdx)
+		nullAsZero := uint8(0)
+		if op.NullAsZero {
+			nullAsZero = 1
+		}
+		bytes = append(bytes, nullAsZero)
 		return staticInstruction{
 			opcode: OpcodeExprDereferencePtr,
 			bytes:  bytes,
@@ -271,6 +276,11 @@ func makeInstruction(functionID FunctionID, op Op) codeFragment {
 		bytes = binary.LittleEndian.AppendUint16(bytes, op.GroupByteSize)
 		bytes = binary.LittleEndian.AppendUint32(bytes, op.HeaderByteSize)
 		bytes = binary.LittleEndian.AppendUint32(bytes, op.ExprStatusIdx)
+		existenceOnly := uint8(0)
+		if op.ExistenceOnly {
+			existenceOnly = 1
+		}
+		bytes = append(bytes, existenceOnly)
 		bytes = binary.LittleEndian.AppendUint16(bytes, uint16(len(op.KeyData)))
 		bytes = append(bytes, op.KeyData...)
 		return staticInstruction{

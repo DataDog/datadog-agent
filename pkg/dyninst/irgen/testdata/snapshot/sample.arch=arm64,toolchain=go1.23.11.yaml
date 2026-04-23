@@ -19246,9 +19246,11 @@ Types:
                 - __kind: DereferenceOp
                   Bias: 0
                   ByteSize: 8
+                  NullAsZero: false
                 - __kind: DereferenceOp
                   Bias: 8
                   ByteSize: 16
+                  NullAsZero: false
           DictIndex: -1
     - __kind: EventRootType
       ID: 1423
@@ -19272,9 +19274,11 @@ Types:
                 - __kind: DereferenceOp
                   Bias: 0
                   ByteSize: 8
+                  NullAsZero: false
                 - __kind: DereferenceOp
                   Bias: 0
                   ByteSize: 24
+                  NullAsZero: false
           DictIndex: -1
     - __kind: EventRootType
       ID: 1281
@@ -22327,6 +22331,7 @@ Types:
                 - __kind: DereferenceOp
                   Bias: 0
                   ByteSize: 16
+                  NullAsZero: false
           DictIndex: -1
         - Name: a.b
           Offset: 17
@@ -22341,6 +22346,7 @@ Types:
                 - __kind: DereferenceOp
                   Bias: 16
                   ByteSize: 16
+                  NullAsZero: false
           DictIndex: -1
         - Name: a.c
           Offset: 33
@@ -22355,6 +22361,7 @@ Types:
                 - __kind: DereferenceOp
                   Bias: 32
                   ByteSize: 16
+                  NullAsZero: false
           DictIndex: -1
     - __kind: EventRootType
       ID: 1402

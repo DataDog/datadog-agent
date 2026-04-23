@@ -321,6 +321,7 @@ func (g *generator) addConditionHandler(
 				Bias:          op.Bias,
 				Len:           op.ByteSize,
 				ExprStatusIdx: ^uint32(0),
+				NullAsZero:    op.NullAsZero,
 			})
 		case *ir.ExprPushOffsetOp:
 			ops = append(ops, ExprPushOffsetOp{ByteSize: op.ByteSize})
@@ -423,6 +424,7 @@ func (g *generator) addExpressionHandler(injectionPC uint64, rootType *ir.EventR
 				Bias:          op.Bias,
 				Len:           op.ByteSize,
 				ExprStatusIdx: exprIdx,
+				NullAsZero:    op.NullAsZero,
 			})
 		case *ir.ExprPushOffsetOp:
 			ops = append(ops, ExprPushOffsetOp{ByteSize: op.ByteSize})
@@ -1018,6 +1020,7 @@ func swissMapOps(op *ir.SwissMapLookupOp, exprStatusIdx uint32) []Op {
 			GroupByteSize:            op.GroupByteSize,
 			HeaderByteSize:           op.HeaderByteSize,
 			ExprStatusIdx:            exprStatusIdx,
+			ExistenceOnly:            op.ExistenceOnly,
 		},
 		SwissMapAesencOp{},
 		SwissMapHashFinishOp{},
