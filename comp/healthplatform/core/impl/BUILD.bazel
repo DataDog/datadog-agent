@@ -43,6 +43,7 @@ go_test(
         "//comp/def",
         "//comp/healthplatform/checkrunner/mock",
         "//comp/healthplatform/core/def",
+        "//comp/healthplatform/core/noop-impl",
         "//comp/healthplatform/forwarder/mock",
         "//comp/healthplatform/issues/checkfailure",
         "//comp/healthplatform/issues/dockerpermissions",

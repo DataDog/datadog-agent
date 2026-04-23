@@ -29,6 +29,7 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	checkrunnermock "github.com/DataDog/datadog-agent/comp/healthplatform/checkrunner/mock"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/core/def"
+	noopimpl "github.com/DataDog/datadog-agent/comp/healthplatform/core/noop-impl"
 	forwardermock "github.com/DataDog/datadog-agent/comp/healthplatform/forwarder/mock"
 
 	// Register issue modules so tests that call ReportIssue can resolve issue templates.
@@ -453,8 +454,8 @@ func TestComponentDisabled(t *testing.T) {
 	require.NotNil(t, provides.Comp)
 
 	// Verify it's the noop implementation
-	_, ok := provides.Comp.(*noopHealthPlatform)
-	assert.True(t, ok, "Expected noopHealthPlatform when disabled")
+	_, ok := provides.Comp.(*noopimpl.NoopHealthPlatform)
+	assert.True(t, ok, "Expected NoopHealthPlatform when disabled")
 
 	// Verify all methods work but do nothing
 	err = provides.Comp.ReportIssue("test-check", "Test Check", &healthplatformpayload.IssueReport{
