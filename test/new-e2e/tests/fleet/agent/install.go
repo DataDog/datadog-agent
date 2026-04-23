@@ -150,7 +150,7 @@ func (a *Agent) installLinuxInstallScript(params *installParams) error {
 		// mirror host only.
 		if a.cacheMirrorHost != "" {
 			env["TESTING_APT_URL"] = fmt.Sprintf("%s/apttesting.datad0g.com/datadog-agent/pipeline-%s-a7", a.cacheMirrorHost, params.pipelineID)
-			env["TESTING_YUM_URL"] = fmt.Sprintf("%s/yumtesting.datad0g.com", a.cacheMirrorHost)
+			env["TESTING_YUM_URL"] = a.cacheMirrorHost + "/yumtesting.datad0g.com"
 		}
 	} else if params.stagingPackages != "" {
 		env["DD_REPO_URL"] = "datad0g.com"
@@ -164,11 +164,11 @@ func (a *Agent) installLinuxInstallScript(params *installParams) error {
 	// 127.0.0.1, that sends apt/yum to our local HTTP server instead of S3.
 	// GPG key fetches (${keys_url}) remain HTTPS — we deliberately don't
 	// cache those and they stay on the public domain.
-	curlPipe := fmt.Sprintf(`curl -L %s`, linuxInstallScriptURL)
+	curlPipe := "curl -L " + linuxInstallScriptURL
 	if a.cacheMirrorHost != "" {
-		curlPipe = fmt.Sprintf(`%s | sed -e 's|https://${apt_url}|http://${apt_url}|g' -e 's|https://${yum_url}|http://${yum_url}|g'`, curlPipe)
+		curlPipe += ` | sed -e 's|https://${apt_url}|http://${apt_url}|g' -e 's|https://${yum_url}|http://${yum_url}|g'`
 	}
-	_, err = a.host.RemoteHost.Execute(fmt.Sprintf(`bash -c "$(%s)"`, curlPipe), client.WithEnvVariables(env))
+	_, err = a.host.RemoteHost.Execute(`bash -c "$(`+curlPipe+`)"`, client.WithEnvVariables(env))
 	return err
 }
 
