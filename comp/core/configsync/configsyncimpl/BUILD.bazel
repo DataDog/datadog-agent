@@ -22,6 +22,7 @@ go_library(
         "//pkg/config/helper",
         "//pkg/config/model",
         "//pkg/util/fxutil",
+        "@com_github_spf13_cast//:cast",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@org_uber_go_fx//:fx",

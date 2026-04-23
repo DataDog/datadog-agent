@@ -39,12 +39,6 @@ func ConvertToDefaultType(value interface{}, defaultValue interface{}) (interfac
 		return cast.ToStringSliceE(value)
 	case []float64:
 		return toFloat64SliceE(value)
-	case map[string]interface{}:
-		return cast.ToStringMapE(value)
-	case map[string]string:
-		return cast.ToStringMapStringE(value)
-	case map[string][]string:
-		return cast.ToStringMapStringSliceE(value)
 	}
 	return value, nil
 }

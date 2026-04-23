@@ -121,3 +121,23 @@ func TestCoerceJSONToSchemaTypes(t *testing.T) {
 	assert.Equal(t, 65432, m["input_chan_size"])
 	assert.Equal(t, 16, m["workers"])
 }
+
+// TestCoerceJSONToSchemaTypesMapLeaf verifies that a leaf map setting (e.g. additional_endpoints) is cast to its declared map type.
+func TestCoerceJSONToSchemaTypesMapLeaf(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetDefault("additional_endpoints", map[string][]string{})
+	cfg.BuildSchema()
+
+	coerced := coerceJSONToSchemaTypes(cfg, "additional_endpoints", map[string]interface{}{
+		"https://url1.com": []interface{}{"ep1", "ep2"},
+		"https://url2.com": []interface{}{"ep3"},
+	})
+
+	assert.Equal(t,
+		map[string][]string{
+			"https://url1.com": {"ep1", "ep2"},
+			"https://url2.com": {"ep3"},
+		},
+		coerced,
+	)
+}

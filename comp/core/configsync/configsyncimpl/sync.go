@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/spf13/cast"
+
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	"github.com/DataDog/datadog-agent/pkg/config/helper"
@@ -68,12 +70,15 @@ func (cs *configSync) updater() error {
 
 // coerceJSONToSchemaTypes recursively casts JSON-decoded leaves to the types declared in cfg's schema
 func coerceJSONToSchemaTypes(cfg pkgconfigmodel.Reader, key string, value interface{}) interface{} {
-	if m, ok := value.(map[string]interface{}); ok && !cfg.IsSetting(key) {
-		out := make(map[string]interface{}, len(m))
-		for k, v := range m {
-			out[k] = coerceJSONToSchemaTypes(cfg, key+"."+k, v)
+	if m, ok := value.(map[string]interface{}); ok {
+		if !cfg.IsSetting(key) {
+			out := make(map[string]interface{}, len(m))
+			for k, v := range m {
+				out[k] = coerceJSONToSchemaTypes(cfg, key+"."+k, v)
+			}
+			return out
 		}
-		return out
+		return coerceMapLeaf(cfg.Get(key), m)
 	}
 	existing := cfg.Get(key)
 	if existing == nil {
@@ -84,6 +89,23 @@ func coerceJSONToSchemaTypes(cfg pkgconfigmodel.Reader, key string, value interf
 		return value
 	}
 	return converted
+}
+
+// coerceMapLeaf casts a JSON-decoded map[string]interface{} to the declared map type
+func coerceMapLeaf(defaultValue interface{}, value map[string]interface{}) interface{} {
+	switch defaultValue.(type) {
+	case map[string]interface{}:
+		return value
+	case map[string]string:
+		if converted, err := cast.ToStringMapStringE(value); err == nil {
+			return converted
+		}
+	case map[string][]string:
+		if converted, err := cast.ToStringMapStringSliceE(value); err == nil {
+			return converted
+		}
+	}
+	return value
 }
 
 func (cs *configSync) runWithInterval(refreshInterval time.Duration) {

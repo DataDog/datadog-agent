@@ -33,9 +33,7 @@ func TestConvertToDefaultType(t *testing.T) {
 		{"duration from string", "30s", time.Duration(0), 30 * time.Second},
 		{"string slice from []interface{}", []interface{}{"a", "b"}, []string{}, []string{"a", "b"}},
 		{"float64 slice from []interface{}", []interface{}{float64(1), float64(2.5)}, []float64{}, []float64{1, 2.5}},
-		{"string map from map[string]interface{}", map[string]interface{}{"k": "v"}, map[string]interface{}{}, map[string]interface{}{"k": "v"}},
-		{"string-string map", map[string]interface{}{"k": "v"}, map[string]string{}, map[string]string{"k": "v"}},
-		{"string-slice map", map[string]interface{}{"k": []interface{}{"a", "b"}}, map[string][]string{}, map[string][]string{"k": {"a", "b"}}},
+		{"map default passes through", map[string]interface{}{"k": "v"}, map[string]string{}, map[string]interface{}{"k": "v"}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
