@@ -15,19 +15,15 @@ package config
 import (
 	"go.uber.org/fx"
 
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	configdef "github.com/DataDog/datadog-agent/comp/core/config/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // team: agent-configuration
 
 // Component is the component type.
-type Component interface {
-	pkgconfigmodel.ReaderWriter
-
-	// Warnings returns config warnings collected during setup.
-	Warnings() *pkgconfigmodel.Warnings
-}
+// Deprecated: use comp/core/config/def instead.
+type Component = configdef.Component
 
 // Module defines the fx options for this component.
 func Module() fxutil.Module {

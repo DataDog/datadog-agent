@@ -16,6 +16,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/config",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/config/def",
         "//comp/core/delegatedauth/def",
         "//comp/core/delegatedauth/noop-impl/types",
         "//comp/core/flare/types",
