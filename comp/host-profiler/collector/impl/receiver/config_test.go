@@ -17,14 +17,16 @@ import (
 	"go.opentelemetry.io/collector/confmap"
 )
 
+const profilerName = "host-profiler"
+
 func TestReporterInterval(t *testing.T) {
-	config := defaultConfig()
+	config := defaultConfig(profilerName)
 	cfg := config.(Config)
 	require.Equal(t, 60*time.Second, cfg.EbpfCollectorConfig.ReporterInterval)
 }
 
 func TestTracers(t *testing.T) {
-	config := defaultConfig()
+	config := defaultConfig(profilerName)
 	cfg := config.(Config)
 
 	require.Greater(t, len(cfg.EbpfCollectorConfig.Tracers), 0)
@@ -42,7 +44,7 @@ func TestTracers(t *testing.T) {
 }
 
 func TestDefaultEnvVars(t *testing.T) {
-	config := defaultConfig()
+	config := defaultConfig(profilerName)
 	cfg := config.(Config)
 	cfg.SymbolUploader.Enabled = false
 	require.Equal(t, "", cfg.EbpfCollectorConfig.IncludeEnvVars)
@@ -52,7 +54,7 @@ func TestDefaultEnvVars(t *testing.T) {
 }
 
 func TestSymbolUploader(t *testing.T) {
-	config := defaultConfig()
+	config := defaultConfig(profilerName)
 	cfg := config.(Config)
 	cfg.SymbolUploader.Enabled = false
 	require.NoError(t, cfg.Validate())
@@ -77,7 +79,7 @@ func TestFlatConfigParsingIsAccepted(t *testing.T) {
 		},
 	}
 
-	cfg := defaultConfig().(Config)
+	cfg := defaultConfig(profilerName).(Config)
 	err := confmap.NewFromStringMap(input).Unmarshal(&cfg)
 	require.NoError(t, err)
 
@@ -99,7 +101,7 @@ func TestNestedConfigIsRejected(t *testing.T) {
 		},
 	}
 
-	cfg := defaultConfig().(Config)
+	cfg := defaultConfig(profilerName).(Config)
 	err := confmap.NewFromStringMap(input).Unmarshal(&cfg)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "ebpf_collector")
