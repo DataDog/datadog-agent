@@ -13,6 +13,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"sync"
@@ -448,7 +449,7 @@ func (cs *ConfigStore) EvictConfigs(minRetainedConfigs int, maxRetainedConfigs i
 	}
 
 	if size > maxSize {
-		return evicted, fmt.Errorf("failed to evict configs: DB size still exceeds the limit")
+		return evicted, errors.New("failed to evict configs: DB size still exceeds the limit")
 	}
 	return evicted, nil
 }
