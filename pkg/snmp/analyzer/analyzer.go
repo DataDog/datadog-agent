@@ -3,6 +3,7 @@ package analyzer
 import (
 	"errors"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 
@@ -169,6 +170,7 @@ func Analyze(pdus []gosnmp.SnmpPDU, sysOID string) (
 	// Match each walk PDU's OID: exact lookup first, then prefix match over column bases only (longest first).
 	for _, pdu := range pdus {
 		if len(foundMetrics)+len(notFoundMetrics) >= maxResults {
+			fmt.Fprintln(os.Stderr, "Analysis is limited to 1,000,000 OIDs")
 			continue
 		}
 		normalizedOID := normalizeOID(pdu.Name)
@@ -185,8 +187,7 @@ func Analyze(pdus []gosnmp.SnmpPDU, sysOID string) (
 					matchedProfile = base.Profile
 					symbolName = base.Name
 					if isInterfaceIndex(base.OID) {
-						oidSegments := strings.Split(normalizedOID, ".")
-						interfaceID = oidSegments[len(oidSegments)-1]
+						interfaceID = strings.TrimPrefix(normalizedOID, base.OID+".")
 					}
 					break
 				}
@@ -236,9 +237,6 @@ func FormatReport(found, notFound []MetricProfile, profileName string, extendedP
 			valStr = valStr[:19] + "..."
 		}
 		iface := m.InterfaceID
-		if iface == "" {
-			iface = ""
-		}
 		b.WriteString("│ " + padRight(truncate(m.OID, 35), 35) + " │ " + padRight(truncate(m.SymbolName, 16), 16) + " │ " + padRight(iface, 10) + " │ " + padRight(valStr, 23) + " │ " + padRight(truncate(m.Profile, 17), 17) + " │\n")
 	}
 	b.WriteString("└" + strings.Repeat("─", 37) + "┴" + strings.Repeat("─", 18) + "┴" + strings.Repeat("─", 12) + "┴" + strings.Repeat("─", 25) + "┴" + strings.Repeat("─", 19) + "┘\n\n")
