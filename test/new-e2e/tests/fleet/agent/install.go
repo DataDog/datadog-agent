@@ -233,18 +233,19 @@ func (a *Agent) MustUninstall() {
 
 func (a *Agent) uninstallLinux() error {
 	// Stop services first so the installer daemon can't restart and hold
-	// file descriptors during purge. Package removal uses the low-level
-	// package manager (dpkg/rpm/zypper) rather than apt-get to skip the
-	// dependency solver and per-package transaction setup — measurably
-	// faster across dozens of invocations in a single suite.
+	// file descriptors during removal. Use high-level package managers
+	// (apt-get/yum/zypper): unlike `rpm -e` or `dpkg --purge`, they tolerate
+	// missing packages (skip with a warning) instead of aborting the whole
+	// transaction. The `|| true` wrapper further isolates each manager so
+	// one failing doesn't prevent the others from running.
 	_, err := a.host.RemoteHost.Execute(`
 set +e
-sudo systemctl stop 'datadog-agent*.service' 'datadog-installer*.service' 2>/dev/null
-sudo dpkg --purge --force-all datadog-agent datadog-installer datadog-agent-ddot datadog-signing-keys 2>/dev/null
-sudo rpm -e --nodeps datadog-agent datadog-installer datadog-agent-ddot 2>/dev/null
-sudo zypper --non-interactive remove -y --force datadog-agent datadog-installer datadog-agent-ddot 2>/dev/null
-sudo rm -rf /etc/datadog-agent /opt/datadog-agent /opt/datadog-installer /opt/datadog-packages /var/log/datadog /var/log/datadog-installer /var/lib/datadog-agent
-sudo systemctl reset-failed 2>/dev/null
+sudo systemctl stop 'datadog-agent*.service' 'datadog-installer*.service' 2>/dev/null || true
+sudo apt-get remove -y --purge datadog-agent datadog-installer datadog-agent-ddot 2>/dev/null || true
+sudo yum remove -y datadog-agent datadog-installer datadog-agent-ddot 2>/dev/null || true
+sudo zypper --non-interactive remove -y datadog-agent datadog-installer datadog-agent-ddot 2>/dev/null || true
+sudo rm -rf /etc/datadog-agent
+sudo systemctl reset-failed 2>/dev/null || true
 true
 `)
 	return err

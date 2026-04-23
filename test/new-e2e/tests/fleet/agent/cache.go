@@ -53,21 +53,32 @@ func (a *Agent) warmLinuxCache(pipelineID string) error {
 	yumPrefix := fmt.Sprintf("testing/pipeline-%s-a7/7", pipelineID)
 	suseYumPrefix := fmt.Sprintf("suse/testing/pipeline-%s-a7/7", pipelineID)
 
-	// Ensure tools we rely on are present. The DD CI images ship all of these
-	// but an explicit best-effort install keeps this working on fresh VMs.
+	// Ensure tools we rely on are present. The DD CI images ship most of
+	// these but an explicit best-effort install keeps this working on fresh
+	// VMs. `unzip` is the one that's most commonly missing; without it the
+	// AWS CLI installer fails silently and every `aws s3 sync` errors with
+	// "command not found".
 	bootstrap := `
-set -eux
+set +e
 if ! command -v python3 >/dev/null; then
-  (sudo apt-get install -y python3 || sudo yum install -y python3 || sudo zypper install -y python3) >/dev/null 2>&1 || true
+  sudo apt-get install -y python3 || sudo yum install -y python3 || sudo zypper install -y python3
 fi
-if ! command -v aws >/dev/null; then
+if ! command -v unzip >/dev/null; then
+  sudo apt-get install -y unzip || sudo yum install -y unzip || sudo zypper install -y unzip
+fi
+if ! command -v aws >/dev/null && command -v unzip >/dev/null; then
   tmp=$(mktemp -d)
   arch=$(uname -m); [ "$arch" = "aarch64" ] && awsarch=aarch64 || awsarch=x86_64
-  curl -sSLo "$tmp/awscli.zip" "https://awscli.amazonaws.com/awscli-exe-linux-${awsarch}.zip"
-  (cd "$tmp" && unzip -q awscli.zip && sudo ./aws/install) >/dev/null 2>&1 || true
+  if curl -sSLo "$tmp/awscli.zip" "https://awscli.amazonaws.com/awscli-exe-linux-${awsarch}.zip"; then
+    (cd "$tmp" && unzip -q awscli.zip && sudo ./aws/install)
+  fi
 fi
 sudo mkdir -p /opt/dd-pkg-cache
 sudo chmod 755 /opt/dd-pkg-cache
+# Report final state so a failed warm-up logs something useful.
+command -v aws >/dev/null && echo "aws: $(aws --version 2>&1 | head -1)" >&2 || echo "aws: MISSING" >&2
+command -v python3 >/dev/null && echo "python3: $(python3 --version 2>&1)" >&2 || echo "python3: MISSING" >&2
+true
 `
 	if _, err := a.host.RemoteHost.Execute(bootstrap); err != nil {
 		return fmt.Errorf("cache bootstrap: %w", err)
