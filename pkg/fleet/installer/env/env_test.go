@@ -6,6 +6,7 @@ package env
 
 import (
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -483,4 +484,99 @@ func TestToEnv_emitsExtensionRegistryOverrides(t *testing.T) {
 		"DD_INSTALLER_REGISTRY_EXT_PASSWORD_DATADOG_AGENT__DDOT=p",
 		"DD_INSTALLER_REGISTRY_EXT_URL_DATADOG_AGENT__OTHER_EXT=other.example.com",
 	}, result)
+}
+
+// TestFieldCodec_primitiveTypes exercises every primitive Kind that
+// setFieldFromEnv / formatFieldForEnv accept. The Env struct doesn't use
+// int / uint / float today; this test guards the forward-compat contract
+// that adding such a field only needs an `env:"…"` tag, no new codec
+// case.
+func TestFieldCodec_primitiveTypes(t *testing.T) {
+	type sample struct {
+		S       string
+		B       bool
+		I       int
+		I8      int8
+		I32     int32
+		I64     int64
+		U       uint
+		U32     uint32
+		U64     uint64
+		F32     float32
+		F64     float64
+		PS      *string
+		PB      *bool
+		PI      *int
+		PU32    *uint32
+		PF64    *float64
+		Strs    []string
+		Ignored struct{} // unsupported kind; must silently no-op
+	}
+
+	t.Run("parse + emit round-trip", func(t *testing.T) {
+		var s sample
+		v := reflect.ValueOf(&s).Elem()
+
+		// Each (field, raw) pair is parsed via setFieldFromEnv and then
+		// re-formatted; the formatted output is asserted against `want`
+		// (which is not always equal to `raw` — e.g. trailing zeros in
+		// floats get stripped by strconv).
+		cases := []struct {
+			field string
+			raw   string
+			want  string
+		}{
+			{"S", "hello", "hello"},
+			{"B", "true", "true"},
+			{"I", "42", "42"},
+			{"I8", "-7", "-7"},
+			{"I32", "2147483647", "2147483647"},
+			{"I64", "-9223372036854775808", "-9223372036854775808"},
+			{"U", "42", "42"},
+			{"U32", "4294967295", "4294967295"},
+			{"U64", "18446744073709551615", "18446744073709551615"},
+			{"F32", "1.5", "1.5"},
+			{"F64", "3.14", "3.14"},
+			{"PS", "hi", "hi"},
+			{"PB", "true", "true"},
+			{"PI", "-1", "-1"},
+			{"PU32", "7", "7"},
+			{"PF64", "2.5", "2.5"},
+			{"Strs", "a,b,c", "a,b,c"},
+		}
+		for _, c := range cases {
+			f := v.FieldByName(c.field)
+			setFieldFromEnv(f, c.raw)
+			assert.Equal(t, c.want, formatFieldForEnv(f), "field %s", c.field)
+		}
+	})
+
+	t.Run("malformed input leaves the default alone", func(t *testing.T) {
+		var s sample
+		v := reflect.ValueOf(&s).Elem()
+
+		// Seed defaults that the parser must not clobber on failure.
+		s.I = 99
+		s.U = 7
+		s.F64 = 2.5
+		seven := 7
+		s.PI = &seven
+
+		setFieldFromEnv(v.FieldByName("I"), "not-a-number")
+		setFieldFromEnv(v.FieldByName("U"), "-1") // negative for uint
+		setFieldFromEnv(v.FieldByName("F64"), "pi")
+		setFieldFromEnv(v.FieldByName("PI"), "also-not-a-number")
+
+		assert.Equal(t, 99, s.I)
+		assert.EqualValues(t, 7, s.U)
+		assert.Equal(t, 2.5, s.F64)
+		assert.Equal(t, 7, *s.PI)
+	})
+
+	t.Run("unsupported kind is a no-op in both directions", func(t *testing.T) {
+		var s sample
+		v := reflect.ValueOf(&s).Elem().FieldByName("Ignored")
+		setFieldFromEnv(v, "ignored")
+		assert.Equal(t, "", formatFieldForEnv(v))
+	})
 }

@@ -409,18 +409,30 @@ func parseCSVTags(v string) []string {
 	return out
 }
 
+// setFieldFromEnv decodes a raw env-var string into field. Malformed input
+// (e.g. non-numeric text for an int field) leaves the field at its default
+// rather than clobbering it with zero — same contract as the existing
+// *bool handling.
 func setFieldFromEnv(field reflect.Value, v string) {
 	switch field.Kind() {
 	case reflect.String:
 		field.SetString(v)
 	case reflect.Bool:
 		field.SetBool(strings.ToLower(v) == "true")
-	case reflect.Pointer:
-		if field.Type().Elem().Kind() == reflect.Bool {
-			if b := parseBoolPtr(v); b != nil {
-				field.Set(reflect.ValueOf(b))
-			}
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		if n, err := strconv.ParseInt(v, 10, field.Type().Bits()); err == nil {
+			field.SetInt(n)
 		}
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		if n, err := strconv.ParseUint(v, 10, field.Type().Bits()); err == nil {
+			field.SetUint(n)
+		}
+	case reflect.Float32, reflect.Float64:
+		if f, err := strconv.ParseFloat(v, field.Type().Bits()); err == nil {
+			field.SetFloat(f)
+		}
+	case reflect.Pointer:
+		setPtrFieldFromEnv(field, v)
 	case reflect.Slice:
 		if field.Type().Elem().Kind() == reflect.String {
 			field.Set(reflect.ValueOf(parseCSVTags(v)))
@@ -428,6 +440,50 @@ func setFieldFromEnv(field reflect.Value, v string) {
 	}
 }
 
+// setPtrFieldFromEnv handles `*T` for every primitive `T` supported by
+// setFieldFromEnv. The dereferenced type drives parsing; a failed parse
+// leaves the pointer at its prior value (typically nil).
+func setPtrFieldFromEnv(field reflect.Value, v string) {
+	elem := reflect.New(field.Type().Elem()).Elem()
+	switch elem.Kind() {
+	case reflect.String:
+		elem.SetString(v)
+	case reflect.Bool:
+		b := parseBoolPtr(v)
+		if b == nil {
+			return
+		}
+		field.Set(reflect.ValueOf(b))
+		return
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		n, err := strconv.ParseInt(v, 10, elem.Type().Bits())
+		if err != nil {
+			return
+		}
+		elem.SetInt(n)
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		n, err := strconv.ParseUint(v, 10, elem.Type().Bits())
+		if err != nil {
+			return
+		}
+		elem.SetUint(n)
+	case reflect.Float32, reflect.Float64:
+		f, err := strconv.ParseFloat(v, elem.Type().Bits())
+		if err != nil {
+			return
+		}
+		elem.SetFloat(f)
+	default:
+		return
+	}
+	ptr := reflect.New(field.Type().Elem())
+	ptr.Elem().Set(elem)
+	field.Set(ptr)
+}
+
+// formatFieldForEnv renders field back to the string the subprocess env
+// should see. An empty string signals "don't emit this env var" — the
+// caller skips the line. Types not listed here silently produce "".
 func formatFieldForEnv(field reflect.Value) string {
 	switch field.Kind() {
 	case reflect.String:
@@ -437,13 +493,17 @@ func formatFieldForEnv(field reflect.Value) string {
 			return "true"
 		}
 		return ""
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return strconv.FormatInt(field.Int(), 10)
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return strconv.FormatUint(field.Uint(), 10)
+	case reflect.Float32, reflect.Float64:
+		return strconv.FormatFloat(field.Float(), 'g', -1, field.Type().Bits())
 	case reflect.Pointer:
-		if field.Type().Elem().Kind() == reflect.Bool {
-			if field.IsNil() {
-				return ""
-			}
-			return strconv.FormatBool(field.Elem().Bool())
+		if field.IsNil() {
+			return ""
 		}
+		return formatFieldForEnv(field.Elem())
 	case reflect.Slice:
 		if field.Type().Elem().Kind() == reflect.String {
 			n := field.Len()
