@@ -40,7 +40,7 @@ when present, points to a version being tested before promotion.
 The repository never loads state into memory; all operations read directly from disk
 to avoid divergence between in-memory and on-disk state.
 '''
-tags = ["repository"]
+tags = ["oci:repository"]
 
 [[requirements]]
 id = "DEF-003"
@@ -57,7 +57,7 @@ The experiment lifecycle consists of three phases:
 2. **Promote**: The experiment becomes the new stable; the old stable is removed.
 3. **Stop**: The experiment is discarded; the old stable remains unchanged.
 '''
-tags = ["experiment"]
+tags = ["lifecycle:experiment"]
 ref = ["FUN-003", "FUN-004", "FUN-005"]
 
 [[requirements]]
@@ -72,5 +72,5 @@ the upgrade and restored after.
 
 There is no concept of upgrading an extension independently of its parent package.
 '''
-tags = ["extension"]
+tags = ["lifecycle:extension"]
 ref = ["FUN-010", "FUN-011"]

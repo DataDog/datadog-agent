@@ -11,6 +11,16 @@ The installer shall:
 After removal, querying the package state shall indicate it is no longer installed.
 
 
+:::{dropdown} Tested by
+:open: 
+:icon: check-circle-fill
+:color: success
+
+- [`T010` Remove an installed package](/tests/T010)
+- [`T011` Remove a package that is not installed](/tests/T011)
+- [`T012` Remove then reinstall a package](/tests/T012)
+:::
+
 :::{dropdown} Source
 :icon: file-code
 :color: info

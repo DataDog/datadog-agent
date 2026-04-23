@@ -63,7 +63,7 @@ even if an error occurs mid-operation. Garbage (unreferenced version directories
 may be left behind, but it shall be cleaned up by the next operation or by an
 explicit garbage collection.
 '''
-tags = ["resilience", "repository"]
+tags = ["resilience", "oci:repository"]
 
 [[requirements]]
 id = "NFR-005"

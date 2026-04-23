@@ -1,0 +1,34 @@
+# `T009` Install sets the stable symlink to the installed version
+
+Validates that after installation the stable symlink in the repository
+points to the directory of the newly installed version.
+
+
+:::{dropdown} Is a test for
+:open: 
+:icon: check-circle-fill
+:color: primary
+
+[`FUN-001` Install a package from OCI registry](/requirements/FUN-001)
+:::
+:::{dropdown} Source
+:icon: file-code
+:color: info
+
+__Source file__: [`specs/tests/test_FUN-001.toml`](https://github.com/DataDog/datadog-agent/blob/installer-specs-2/specs/tests/test_FUN-001.toml)
+
+__Loaded from__: [`fleet-installer`](https://github.com/DataDog/datadog-agent/blob/installer-specs-2/specs/spec.yaml)
+
+:::
+
+## Initial state
+The expected state is the final state of
+[`T005` Install a single package from OCI registry](/tests/T005)
+## Procedure
+### Step 1
+Read the stable symlink target for the installed package.
+```console
+$ readlink /opt/datadog-packages/datadog-agent/stable
+A version directory name (e.g. 7.x.y)
+```
+

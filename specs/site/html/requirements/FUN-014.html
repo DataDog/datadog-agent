@@ -248,7 +248,22 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l1 has-children"><a class="reference internal" href="../tests/index.html">Tests</a><input aria-label="Toggle navigation of Tests" class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul class="simple">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../tests/index.html">Tests</a><input aria-label="Toggle navigation of Tests" class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../tests/functional.html">Functional</a><input aria-label="Toggle navigation of Functional" class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../tests/T001.html"><code class="docutils literal notranslate"><span class="pre">T001</span></code> Bootstrap from clean state installs the installer and default packages</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tests/T002.html"><code class="docutils literal notranslate"><span class="pre">T002</span></code> Bootstrap with custom registry URL</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tests/T003.html"><code class="docutils literal notranslate"><span class="pre">T003</span></code> Bootstrap fails gracefully when registry is unreachable</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tests/T004.html"><code class="docutils literal notranslate"><span class="pre">T004</span></code> Bootstrap is idempotent</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tests/T005.html"><code class="docutils literal notranslate"><span class="pre">T005</span></code> Install a single package from OCI registry</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tests/T006.html"><code class="docutils literal notranslate"><span class="pre">T006</span></code> Install a package that is already installed (same version)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tests/T007.html"><code class="docutils literal notranslate"><span class="pre">T007</span></code> Install with invalid OCI URL fails</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tests/T008.html"><code class="docutils literal notranslate"><span class="pre">T008</span></code> Force install overwrites an already-installed package</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tests/T009.html"><code class="docutils literal notranslate"><span class="pre">T009</span></code> Install sets the stable symlink to the installed version</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tests/T010.html"><code class="docutils literal notranslate"><span class="pre">T010</span></code> Remove an installed package</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tests/T011.html"><code class="docutils literal notranslate"><span class="pre">T011</span></code> Remove a package that is not installed</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tests/T012.html"><code class="docutils literal notranslate"><span class="pre">T012</span></code> Remove then reinstall a package</a></li>
+</ul>
+</li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../by_tag.html">Tags</a></li>
@@ -306,7 +321,12 @@ authentication method for downloading packages.</p>
 </ul>
 <p>Registry and authentication overrides shall be configurable both globally and per-image,
 allowing different packages to be pulled from different registries.</p>
-<details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
+<details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3" open="open">
+<summary class="sd-summary-title sd-card-header sd-bg-success sd-bg-text-success">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-check-circle-fill" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 16A8 8 0 1 1 8 0a8 8 0 0 1 0 16Zm3.78-9.72a.751.751 0 0 0-.018-1.042.751.751 0 0 0-1.042-.018L6.75 9.19 5.28 7.72a.751.751 0 0 0-1.042.018.751.751 0 0 0-.018 1.042l2 2a.75.75 0 0 0 1.06 0Z"></path></svg></span><span class="sd-summary-text">Tested by</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<p class="sd-card-text"><a class="reference internal" href="../tests/T002.html"><span class="doc std std-doc"><code class="docutils literal notranslate"><span class="pre">T002</span></code> Bootstrap with custom registry URL</span></a></p>
+</div>
+</details><details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
 <summary class="sd-summary-title sd-card-header sd-bg-info sd-bg-text-info">
 <span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-file-code" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.75C4 .784 4.784 0 5.75 0h5.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v8.586A1.75 1.75 0 0 1 14.25 15h-9a.75.75 0 0 1 0-1.5h9a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 10 4.25V1.5H5.75a.25.25 0 0 0-.25.25v2.5a.75.75 0 0 1-1.5 0Zm1.72 4.97a.75.75 0 0 1 1.06 0l2 2a.75.75 0 0 1 0 1.06l-2 2a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734l1.47-1.47-1.47-1.47a.75.75 0 0 1 0-1.06ZM3.28 7.78 1.81 9.25l1.47 1.47a.751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018l-2-2a.75.75 0 0 1 0-1.06l2-2a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042Zm8.22-6.218V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914-.013-.011Z"></path></svg></span><span class="sd-summary-text">Source</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
 <p class="sd-card-text"><strong>Source file</strong>: <a class="reference external" href="https://github.com/DataDog/datadog-agent/blob/installer-specs-2/specs/environment_and_setup.toml"><code class="docutils literal notranslate"><span class="pre">specs/environment_and_setup.toml</span></code></a></p>

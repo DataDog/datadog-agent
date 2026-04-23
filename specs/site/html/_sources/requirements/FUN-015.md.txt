@@ -12,6 +12,17 @@ This enables a single bootstrap command to go from no Datadog software installed
 to a fully configured agent setup.
 
 
+:::{dropdown} Tested by
+:open: 
+:icon: check-circle-fill
+:color: success
+
+- [`T001` Bootstrap from clean state installs the installer and default packages](/tests/T001)
+- [`T002` Bootstrap with custom registry URL](/tests/T002)
+- [`T003` Bootstrap fails gracefully when registry is unreachable](/tests/T003)
+- [`T004` Bootstrap is idempotent](/tests/T004)
+:::
+
 :::{dropdown} Source
 :icon: file-code
 :color: info

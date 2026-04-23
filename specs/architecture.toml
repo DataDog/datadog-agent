@@ -14,7 +14,7 @@ This architecture decision enables:
 - Using standard OCI annotations for package metadata.
 - Efficient layer-based caching and transfer.
 '''
-tags = ["oci", "distribution"]
+tags = ["oci", "oci:distribution"]
 
 [[requirements]]
 id = "ARC-002"
@@ -29,7 +29,7 @@ This architecture decision enables:
 - No in-memory state that could diverge from the filesystem.
 - Tolerance of process crashes mid-operation (the symlink is either updated or not).
 '''
-tags = ["repository"]
+tags = ["oci:repository"]
 ref = ["DEF-002"]
 
 [[requirements]]
@@ -52,7 +52,7 @@ The hook interface includes:
 - `PostStartConfigExperiment` / `PreStopConfigExperiment` / `PostPromoteConfigExperiment`
 - `PreInstallExtension` / `PostInstallExtension` / `PreRemoveExtension`
 '''
-tags = ["lifecycle", "hooks"]
+tags = ["lifecycle", "lifecycle:hooks"]
 
 [[requirements]]
 id = "ARC-004"

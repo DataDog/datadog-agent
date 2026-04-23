@@ -3,7 +3,7 @@
   <head><meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
-<link rel="index" title="Index" href="../genindex.html"><link rel="search" title="Search" href="../search.html"><link rel="next" title="Tags" href="../by_tag.html"><link rel="prev" title="NFR-005 Telemetry" href="../requirements/NFR-005.html">
+<link rel="index" title="Index" href="../genindex.html"><link rel="search" title="Search" href="../search.html"><link rel="next" title="Functional" href="functional.html"><link rel="prev" title="NFR-005 Telemetry" href="../requirements/NFR-005.html">
 
     <!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
         <title>Tests - Fleet Installer documentation</title>
@@ -248,7 +248,22 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l1 current has-children current-page"><a class="current reference internal" href="#">Tests</a><input aria-label="Toggle navigation of Tests" checked="" class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul class="simple">
+<li class="toctree-l1 current has-children current-page"><a class="current reference internal" href="#">Tests</a><input aria-label="Toggle navigation of Tests" checked="" class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="functional.html">Functional</a><input aria-label="Toggle navigation of Functional" class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="T001.html"><code class="docutils literal notranslate"><span class="pre">T001</span></code> Bootstrap from clean state installs the installer and default packages</a></li>
+<li class="toctree-l3"><a class="reference internal" href="T002.html"><code class="docutils literal notranslate"><span class="pre">T002</span></code> Bootstrap with custom registry URL</a></li>
+<li class="toctree-l3"><a class="reference internal" href="T003.html"><code class="docutils literal notranslate"><span class="pre">T003</span></code> Bootstrap fails gracefully when registry is unreachable</a></li>
+<li class="toctree-l3"><a class="reference internal" href="T004.html"><code class="docutils literal notranslate"><span class="pre">T004</span></code> Bootstrap is idempotent</a></li>
+<li class="toctree-l3"><a class="reference internal" href="T005.html"><code class="docutils literal notranslate"><span class="pre">T005</span></code> Install a single package from OCI registry</a></li>
+<li class="toctree-l3"><a class="reference internal" href="T006.html"><code class="docutils literal notranslate"><span class="pre">T006</span></code> Install a package that is already installed (same version)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="T007.html"><code class="docutils literal notranslate"><span class="pre">T007</span></code> Install with invalid OCI URL fails</a></li>
+<li class="toctree-l3"><a class="reference internal" href="T008.html"><code class="docutils literal notranslate"><span class="pre">T008</span></code> Force install overwrites an already-installed package</a></li>
+<li class="toctree-l3"><a class="reference internal" href="T009.html"><code class="docutils literal notranslate"><span class="pre">T009</span></code> Install sets the stable symlink to the installed version</a></li>
+<li class="toctree-l3"><a class="reference internal" href="T010.html"><code class="docutils literal notranslate"><span class="pre">T010</span></code> Remove an installed package</a></li>
+<li class="toctree-l3"><a class="reference internal" href="T011.html"><code class="docutils literal notranslate"><span class="pre">T011</span></code> Remove a package that is not installed</a></li>
+<li class="toctree-l3"><a class="reference internal" href="T012.html"><code class="docutils literal notranslate"><span class="pre">T012</span></code> Remove then reinstall a package</a></li>
+</ul>
+</li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../by_tag.html">Tags</a></li>
@@ -294,6 +309,23 @@
           <section id="tests">
 <h1>Tests<a class="headerlink" href="#tests" title="Link to this heading">¶</a></h1>
 <div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="functional.html">Functional</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="T001.html"><code class="docutils literal notranslate"><span class="pre">T001</span></code> Bootstrap from clean state installs the installer and default packages</a></li>
+<li class="toctree-l2"><a class="reference internal" href="T002.html"><code class="docutils literal notranslate"><span class="pre">T002</span></code> Bootstrap with custom registry URL</a></li>
+<li class="toctree-l2"><a class="reference internal" href="T003.html"><code class="docutils literal notranslate"><span class="pre">T003</span></code> Bootstrap fails gracefully when registry is unreachable</a></li>
+<li class="toctree-l2"><a class="reference internal" href="T004.html"><code class="docutils literal notranslate"><span class="pre">T004</span></code> Bootstrap is idempotent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="T005.html"><code class="docutils literal notranslate"><span class="pre">T005</span></code> Install a single package from OCI registry</a></li>
+<li class="toctree-l2"><a class="reference internal" href="T006.html"><code class="docutils literal notranslate"><span class="pre">T006</span></code> Install a package that is already installed (same version)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="T007.html"><code class="docutils literal notranslate"><span class="pre">T007</span></code> Install with invalid OCI URL fails</a></li>
+<li class="toctree-l2"><a class="reference internal" href="T008.html"><code class="docutils literal notranslate"><span class="pre">T008</span></code> Force install overwrites an already-installed package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="T009.html"><code class="docutils literal notranslate"><span class="pre">T009</span></code> Install sets the stable symlink to the installed version</a></li>
+<li class="toctree-l2"><a class="reference internal" href="T010.html"><code class="docutils literal notranslate"><span class="pre">T010</span></code> Remove an installed package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="T011.html"><code class="docutils literal notranslate"><span class="pre">T011</span></code> Remove a package that is not installed</a></li>
+<li class="toctree-l2"><a class="reference internal" href="T012.html"><code class="docutils literal notranslate"><span class="pre">T012</span></code> Remove then reinstall a package</a></li>
+</ul>
+</li>
+</ul>
 </div>
 </section>
 
@@ -302,12 +334,12 @@
       <footer>
         
         <div class="related-pages">
-          <a class="next-page" href="../by_tag.html">
+          <a class="next-page" href="functional.html">
               <div class="page-info">
                 <div class="context">
                   <span>Next</span>
                 </div>
-                <div class="title">Tags</div>
+                <div class="title">Functional</div>
               </div>
               <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
             </a>

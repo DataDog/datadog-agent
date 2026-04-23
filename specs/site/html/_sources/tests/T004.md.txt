@@ -1,0 +1,40 @@
+# `T004` Bootstrap is idempotent
+
+Validates that running the bootstrap command a second time on an already-bootstrapped
+host does not break anything and leaves the system in a consistent state.
+
+
+:::{dropdown} Is a test for
+:open: 
+:icon: check-circle-fill
+:color: primary
+
+[`FUN-015` Bootstrap installation](/requirements/FUN-015)
+:::
+:::{dropdown} Source
+:icon: file-code
+:color: info
+
+__Source file__: [`specs/tests/test_FUN-015.toml`](https://github.com/DataDog/datadog-agent/blob/installer-specs-2/specs/tests/test_FUN-015.toml)
+
+__Loaded from__: [`fleet-installer`](https://github.com/DataDog/datadog-agent/blob/installer-specs-2/specs/spec.yaml)
+
+:::
+
+## Initial state
+The expected state is the final state of
+[`T001` Bootstrap from clean state installs the installer and default packages](/tests/T001)
+## Procedure
+### Step 1
+Run the bootstrap command again on the already-bootstrapped host.
+```console
+$ datadog-installer bootstrap; echo $?
+0
+```
+### Step 2
+Verify all previously installed packages are still present.
+```console
+$ datadog-installer is-installed datadog-installer && datadog-installer is-installed datadog-agent; echo $?
+0
+```
+

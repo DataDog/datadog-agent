@@ -1,0 +1,43 @@
+# `T005` Install a single package from OCI registry
+
+Validates the minimal happy path: install a package by URL,
+verify it appears as installed with the correct stable version.
+
+
+:::{dropdown} Is a test for
+:open: 
+:icon: check-circle-fill
+:color: primary
+
+[`FUN-001` Install a package from OCI registry](/requirements/FUN-001)
+:::
+:::{dropdown} Source
+:icon: file-code
+:color: info
+
+__Source file__: [`specs/tests/test_FUN-001.toml`](https://github.com/DataDog/datadog-agent/blob/installer-specs-2/specs/tests/test_FUN-001.toml)
+
+__Loaded from__: [`fleet-installer`](https://github.com/DataDog/datadog-agent/blob/installer-specs-2/specs/spec.yaml)
+
+:::
+
+## Initial state
+- The installer is bootstrapped and functional.
+- `DD_API_KEY` is set.
+- The OCI registry is reachable.
+- The target package is not yet installed.
+
+
+## Procedure
+### Step 1
+Install a package by providing its OCI URL.
+```console
+$ datadog-installer install oci://gcr.io/datadoghq/agent-package:latest
+```
+### Step 2
+Verify the package is installed.
+```console
+$ datadog-installer is-installed datadog-agent; echo $?
+0
+```
+

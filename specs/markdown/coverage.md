@@ -11,17 +11,19 @@
 :color: secondary
 
 :::
-:::{dropdown} Manual (0 — 0%)
+:::{dropdown} Manual (4 — 15%)
 :icon: pencil
-:color: secondary
-
-:::
-:::{dropdown} No Test Plan (27 — 100%)
-:icon: x-circle-fill
-:color: danger
+:color: warning
 
 - [`FUN-001` Install a package from OCI registry](/requirements/FUN-001)
 - [`FUN-002` Remove an installed package](/requirements/FUN-002)
+- [`FUN-014` Custom OCI registry and authentication](/requirements/FUN-014)
+- [`FUN-015` Bootstrap installation](/requirements/FUN-015)
+:::
+:::{dropdown} No Test Plan (23 — 85%)
+:icon: x-circle-fill
+:color: danger
+
 - [`FUN-003` Start an experiment upgrade](/requirements/FUN-003)
 - [`FUN-004` Promote an experiment to stable](/requirements/FUN-004)
 - [`FUN-005` Stop an experiment (rollback)](/requirements/FUN-005)
@@ -33,8 +35,6 @@
 - [`FUN-011` Persist extensions across upgrades](/requirements/FUN-011)
 - [`FUN-012` Configure via environment variables](/requirements/FUN-012)
 - [`FUN-013` Default package resolution](/requirements/FUN-013)
-- [`FUN-014` Custom OCI registry and authentication](/requirements/FUN-014)
-- [`FUN-015` Bootstrap installation](/requirements/FUN-015)
 - [`FUN-016` Remote-triggered operations](/requirements/FUN-016)
 - [`FUN-017` Local HTTP API](/requirements/FUN-017)
 - [`FUN-018` Setup flavors](/requirements/FUN-018)

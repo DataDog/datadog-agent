@@ -15,7 +15,7 @@ to ensure the services can be repaired.
 
 After a successful repair, the Agent shall be in a working state with all services running.
 '''
-tags = ["windows", "msi", "repair"]
+tags = ["windows", "windows:msi", "lifecycle:repair"]
 properties = { source = "https://datadoghq.atlassian.net/wiki/spaces/AW/pages/2962820711" }
 
 [[requirements]]
@@ -33,7 +33,7 @@ If the failure occurs after the service user configuration step and the user acc
 has a password, the rollback may not be able to restore the services automatically.
 In that case, the operator can fix the install by running a repair and providing the password.
 '''
-tags = ["windows", "msi", "upgrade", "rollback"]
+tags = ["windows", "windows:msi", "lifecycle:upgrade", "lifecycle:rollback"]
 properties = { source = "https://datadoghq.atlassian.net/wiki/spaces/AW/pages/2962820711" }
 
 [[requirements]]
@@ -71,7 +71,7 @@ The following parameters shall be supported:
 Parameter values provided at install time shall be reflected in the Agent's
 configuration file (`datadog.yaml`).
 '''
-tags = ["windows", "msi", "config"]
+tags = ["windows", "windows:msi", "config"]
 properties = { source = "https://datadoghq.atlassian.net/wiki/spaces/AW/pages/2962820711" }
 
 [[requirements]]
@@ -88,7 +88,7 @@ The Windows installer shall allow the operator to specify custom directories for
 When custom directories are specified, the Agent shall use those directories
 instead of the default locations.
 '''
-tags = ["windows", "msi", "config"]
+tags = ["windows", "windows:msi", "config"]
 ref = ["FUN-021"]
 properties = { source = "https://datadoghq.atlassian.net/wiki/spaces/AW/pages/2962820711" }
 
@@ -109,7 +109,7 @@ The Windows installer shall support the following upgrade paths:
 
 After a successful upgrade, the Agent shall be in a working state running the new version.
 '''
-tags = ["windows", "msi", "upgrade"]
+tags = ["windows", "windows:msi", "lifecycle:upgrade"]
 properties = { source = "https://datadoghq.atlassian.net/wiki/spaces/AW/pages/2962820711" }
 
 [[requirements]]
@@ -124,7 +124,7 @@ over a newer one (e.g. Agent 7 to Agent 6, or Agent 7.55 to Agent 7.50).
 
 The installer shall display an error message indicating that downgrades are not supported.
 '''
-tags = ["windows", "msi", "upgrade"]
+tags = ["windows", "windows:msi", "lifecycle:upgrade"]
 properties = { source = "https://datadoghq.atlassian.net/wiki/spaces/AW/pages/2962820711" }
 
 [[requirements]]
@@ -154,7 +154,7 @@ password to a random value. The installer shall not change domain account passwo
 
 The installer shall never delete the `ddagentuser` account.
 '''
-tags = ["windows", "msi", "user_account"]
+tags = ["windows", "windows:msi", "windows:user_account"]
 properties = { source = "https://datadoghq.atlassian.net/wiki/spaces/AW/pages/2962820711" }
 
 [[requirements]]
@@ -171,7 +171,7 @@ when running the installer on an existing installation.
 After the change, the Agent services shall run under the new account with the correct
 file and registry permissions.
 '''
-tags = ["windows", "msi", "user_account"]
+tags = ["windows", "windows:msi", "windows:user_account"]
 ref = ["FUN-025"]
 properties = { source = "https://datadoghq.atlassian.net/wiki/spaces/AW/pages/2962820711" }
 
@@ -195,5 +195,5 @@ For CLI (quiet) installs, the file shall contain:
 - `tool_version`: `windows_msi_next_gen`
 - `installer_version`: the installer version string.
 '''
-tags = ["windows", "msi", "telemetry"]
+tags = ["windows", "windows:msi", "observability"]
 properties = { source = "https://datadoghq.atlassian.net/wiki/spaces/AW/pages/2962820711" }

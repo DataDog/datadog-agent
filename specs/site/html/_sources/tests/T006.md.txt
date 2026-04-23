@@ -1,0 +1,40 @@
+# `T006` Install a package that is already installed (same version)
+
+Validates that installing an already-installed package at the same version
+is a no-op and does not produce an error.
+
+
+:::{dropdown} Is a test for
+:open: 
+:icon: check-circle-fill
+:color: primary
+
+[`FUN-001` Install a package from OCI registry](/requirements/FUN-001)
+:::
+:::{dropdown} Source
+:icon: file-code
+:color: info
+
+__Source file__: [`specs/tests/test_FUN-001.toml`](https://github.com/DataDog/datadog-agent/blob/installer-specs-2/specs/tests/test_FUN-001.toml)
+
+__Loaded from__: [`fleet-installer`](https://github.com/DataDog/datadog-agent/blob/installer-specs-2/specs/spec.yaml)
+
+:::
+
+## Initial state
+The expected state is the final state of
+[`T005` Install a single package from OCI registry](/tests/T005)
+## Procedure
+### Step 1
+Re-install the same package at the same version.
+```console
+$ datadog-installer install oci://gcr.io/datadoghq/agent-package:latest; echo $?
+0
+```
+### Step 2
+Verify the package is still installed.
+```console
+$ datadog-installer is-installed datadog-agent; echo $?
+0
+```
+

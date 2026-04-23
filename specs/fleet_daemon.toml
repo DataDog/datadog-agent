@@ -16,7 +16,7 @@ Supported remote operations:
 The daemon shall authenticate with the Datadog backend using the configured API key
 and only accept operations from authorized sources.
 '''
-tags = ["daemon", "remote"]
+tags = ["daemon", "daemon:remote"]
 
 [[requirements]]
 id = "FUN-017"
@@ -33,4 +33,4 @@ The API shall support:
 
 The API shall only accept connections from the local machine.
 '''
-tags = ["daemon", "api"]
+tags = ["daemon", "daemon:api"]

@@ -17,7 +17,7 @@ The installer shall:
 
 If the patch operations are invalid or fail to apply, the configuration shall remain unchanged.
 '''
-tags = ["config", "experiment"]
+tags = ["config", "lifecycle:experiment"]
 
 [[requirements]]
 id = "FUN-009"
@@ -34,7 +34,7 @@ When reverting:
 1. The previous configuration is restored.
 2. The package's PreStopConfigExperiment hook is executed.
 '''
-tags = ["config", "experiment"]
+tags = ["config", "lifecycle:experiment"]
 
 [[requirements]]
 id = "FUN-010"
@@ -51,7 +51,7 @@ When removing an extension:
 1. The package's PreRemoveExtension hook is executed.
 2. The extension files are removed from disk.
 '''
-tags = ["extension"]
+tags = ["lifecycle:extension"]
 
 [[requirements]]
 id = "FUN-011"
@@ -66,4 +66,4 @@ When a package is upgraded, the installer shall:
 
 The operator shall not need to manually reinstall extensions after upgrading a package.
 '''
-tags = ["extension", "lifecycle"]
+tags = ["lifecycle:extension", "lifecycle"]
