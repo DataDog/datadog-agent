@@ -53,9 +53,9 @@ class ProtectedPathTamperHalt(Exception):
 def _budget_footer(db: Db, iter_tokens: dict | None = None) -> str:
     """Compact one-line-ish token/cost summary for PR comments.
 
-    Shows this-iteration usage (if provided) + cumulative usage + ceiling
-    %age. Costs are list-price estimates; real bill runs higher due to
-    prompt-cache write tokens and retries.
+    Shows this-iteration usage + cumulative + ceiling %age. Costs are
+    list-price estimates; real bill runs higher due to prompt-cache
+    write tokens and retries.
     """
     b = db.budget
     cum = {
@@ -65,27 +65,41 @@ def _budget_footer(db: Db, iter_tokens: dict | None = None) -> str:
     }
     cum_cost = sdk_mod.estimate_cost(cum)
     total_toks = b.api_tokens_used
+
     pct = ""
     if CONFIG.api_token_ceiling:
-        pct = f" ({100 * total_toks / CONFIG.api_token_ceiling:.0f}% of {CONFIG.api_token_ceiling:,} token ceiling)"
-    opus_pct = 0
-    if total_toks > 0:
-        opus_pct = 100 * (b.opus_in + b.opus_out) / total_toks
+        pct = (
+            f" ({100 * total_toks / CONFIG.api_token_ceiling:.1f}% of "
+            f"{CONFIG.api_token_ceiling:,} ceiling)"
+        )
 
     iter_line = ""
     if iter_tokens:
+        iter_in = iter_tokens.get("input", 0) or 0
+        iter_out = iter_tokens.get("output", 0) or 0
         iter_cost = sdk_mod.estimate_cost(iter_tokens)
-        iter_line = (
-            f"This iter: {iter_tokens.get('input', 0):,} in / "
-            f"{iter_tokens.get('output', 0):,} out "
-            f"(~${iter_cost:.2f}). "
-        )
+        if iter_in or iter_out:
+            iter_line = (
+                f"This iter: {iter_in:,} in / {iter_out:,} out "
+                f"(~${iter_cost:.2f}). "
+            )
+        else:
+            iter_line = "This iter: 0 tokens (SDK call failed before API). "
+
+    # Model mix line: skip the divide-by-zero when we have no data yet.
+    opus_toks = b.opus_in + b.opus_out
+    sonnet_toks = b.sonnet_in + b.sonnet_out
+    if total_toks > 0:
+        opus_pct = 100 * opus_toks / total_toks
+        mix_line = f" Model mix: Opus {opus_pct:.0f}%, Sonnet {100 - opus_pct:.0f}%."
+    else:
+        mix_line = ""
+
     return (
         f"\n\n---\n"
         f"**Budget**: {iter_line}"
         f"Run total: {total_toks:,} tokens "
-        f"(~${cum_cost:.2f}){pct}. "
-        f"Model mix: Opus {opus_pct:.0f}%, Sonnet {100 - opus_pct:.0f}%."
+        f"(~${cum_cost:.2f}){pct}.{mix_line}"
     )
 
 
@@ -632,6 +646,9 @@ def _run_iteration_body(
                 f"(family `{candidate.approach_family}`)\n\n"
                 f"Evaluating against detectors: `{', '.join(detectors)}`.\n\n"
                 f"> {cand_desc}"
+                # Cumulative-only footer (no "this iter" since no SDK call has
+                # fired yet) — lets observers see run-to-date spend at a glance.
+                + _budget_footer(db, iter_tokens=None)
             ),
             requires_ack=False,
             root=root,
@@ -654,14 +671,23 @@ def _run_iteration_body(
         except Exception as e:
             print(f"[iter {iter_num}] implementation failed: {e}", file=sys.stderr)
             journal.append(
-                "implementation_failed", {"iter": iter_num, "error": str(e)}, root
+                "implementation_failed",
+                {"iter": iter_num, "candidate": candidate.id, "error": str(e)},
+                root,
             )
             git_ops.revert_working_tree(root)
+            # Mark REJECTED so the scheduler doesn't re-pick this same
+            # candidate forever. An implementation crash usually means
+            # the prompt / candidate spec is somehow un-implementable
+            # (or the SDK itself is sick — but re-picking won't help
+            # either way).
+            candidate.status = CandidateStatus.REJECTED
             coord_out.emit(
                 "iter_impl_failed",
                 (
                     f"**iter {iter_num}** · `{candidate.id}` — "
-                    f"implementation agent crashed.\n\n"
+                    f"implementation agent crashed. Candidate marked "
+                    f"REJECTED to prevent loop.\n\n"
                     f"Error: `{str(e)[:400]}`\n\n"
                     f"Working tree reverted; moving on."
                     + _budget_footer(db, sdk_mod.peek_token_count())
