@@ -1,6 +1,7 @@
 load("@//bazel/rules:foreign_cc_shared_wrapper.bzl", "foreign_cc_shared_wrapper")
 load("@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@//deps/openssl:version.bzl", "OPENSSL_VERSION")
+load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
 
@@ -281,21 +282,32 @@ filegroup(
     output_group = "engines-3",
 )
 
+# Strip all executables (binaries, shared libs, engines, modules) from the
+# openssl install tree so that openssl_files contains only the supplementary
+# files (headers, pkgconfig, ssl/).  Path-glob exclusion via copy_to_directory
+# is used because pkg_files label-based excludes cannot exclude TreeArtifacts
+# produced by out_data_dirs.
+copy_to_directory(
+    name = "_openssl_extra_files",
+    srcs = [":openssl"],
+    root_paths = ["openssl"],
+    out = "openssl",
+    exclude_srcs_patterns = [
+        # Binary handled via installed_executables
+        "bin/**",
+        # Shared + static libs handled by libssl_shared_pkg / libcrypto_shared_pkg
+        "lib/libssl*",
+        "lib/libcrypto*",
+        # Engines are rpath-patched and installed via installed_executables
+        "lib/engines-3/**",
+        # ossl-modules (legacy.so etc.) also need rpath patching and are
+        # installed via installed_executables; fips.so comes from openssl_fips
+        "lib/ossl-modules/**",
+    ],
+)
+
 pkg_files(
     name = "openssl_files",
-    srcs = [":openssl"],
+    srcs = [":_openssl_extra_files"],
     strip_prefix = "openssl",
-    excludes = [
-        # Binaries require custom attributes
-        ":openssl_binary",
-        # Dynamic libs require separate symlink post-processing
-        ":libssl_shared_file",
-        ":libcrypto_shared_file",
-        # We don't need static libraries in the package
-        ":libssl_static",
-        ":libcrypto_static",
-        # Engines and ossl-modules are rpath-patched separately via installed_executables
-        ":_engines",
-        ":_ossl_modules",
-    ],
 )
