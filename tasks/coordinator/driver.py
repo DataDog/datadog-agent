@@ -50,11 +50,143 @@ class ProtectedPathTamperHalt(Exception):
     """Raised when ground-truth fixtures changed between iterations."""
 
 
-def _budget_footer(root: Path, iter_num: int | None = None) -> str:
+PAUSE_FILE = "pause"
+
+
+def _wait_while_paused(root: Path) -> None:
+    """Cooperative pause: if `.coordinator/pause` exists, sleep until
+    the user removes it. Checked at iteration boundary, so nothing
+    in flight is wasted (vs. Ctrl-C mid-iter which loses the impl work).
+    """
+    import time as _time
+    pause_path = state_dir(root) / PAUSE_FILE
+    if pause_path.exists():
+        msg = f"[paused] {pause_path} exists; sleeping. `rm` to resume."
+        print(msg, file=sys.stderr)
+        journal.append("paused", {"reason": "pause file exists"}, root)
+    while pause_path.exists():
+        _time.sleep(30)
+    # Optional: log resume only when we actually paused.
+    journal.append("resumed", {}, root) if False else None
+
+
+def _check_cost_anomaly(db: Db, root: Path, iter_num: int, records: list) -> None:
+    """Detect this-iter cost anomalies and act:
+      - Emit a `cost_anomaly` tripwire PR comment when ANY trigger fires.
+      - Increment db.budget.consecutive_cost_anomalies on fire, reset on pass.
+      - Touch `.coordinator/pause` after N consecutive fires.
+
+    Triggers (any one):
+      A. iter_cost > cost_anomaly_vs_rolling_ratio × rolling_mean(last N)
+      B. iter_cost > cost_anomaly_absolute_usd
+      C. iter_tokens > cost_anomaly_absolute_tokens
+    """
+    iter_records = token_log.filter_by_iter(records, iter_num)
+    iter_in, iter_out = token_log.sum_total(iter_records)
+    iter_toks = iter_in + iter_out
+    iter_cost = token_log.cost_estimate(iter_records)
+
+    if iter_toks == 0:
+        # Nothing to evaluate (SDK call failed pre-API or this iter
+        # didn't make any SDK calls). Don't reset the streak — leave it
+        # untouched so a long string of impl-failed iters doesn't mask a
+        # prior anomaly streak.
+        return
+
+    # Build rolling-mean baseline from prior iterations' costs.
+    window = CONFIG.cost_anomaly_rolling_window
+    prior_costs: list[float] = []
+    for j in range(max(0, iter_num - window), iter_num):
+        prev_records = token_log.filter_by_iter(records, j)
+        prev_in, prev_out = token_log.sum_total(prev_records)
+        if prev_in + prev_out == 0:
+            continue
+        prior_costs.append(token_log.cost_estimate(prev_records))
+    rolling_mean = sum(prior_costs) / len(prior_costs) if prior_costs else 0.0
+
+    triggers: list[str] = []
+    if (
+        rolling_mean > 0
+        and iter_cost > CONFIG.cost_anomaly_vs_rolling_ratio * rolling_mean
+    ):
+        triggers.append(
+            f"iter cost ${iter_cost:.2f} > "
+            f"{CONFIG.cost_anomaly_vs_rolling_ratio}× rolling mean "
+            f"${rolling_mean:.2f} (last {len(prior_costs)})"
+        )
+    if iter_cost > CONFIG.cost_anomaly_absolute_usd:
+        triggers.append(
+            f"iter cost ${iter_cost:.2f} > absolute ${CONFIG.cost_anomaly_absolute_usd:.0f}"
+        )
+    if iter_toks > CONFIG.cost_anomaly_absolute_tokens:
+        triggers.append(
+            f"iter tokens {iter_toks:,} > absolute "
+            f"{CONFIG.cost_anomaly_absolute_tokens:,}"
+        )
+
+    if not triggers:
+        if db.budget.consecutive_cost_anomalies > 0:
+            journal.append(
+                "cost_anomaly_streak_reset",
+                {"prev_streak": db.budget.consecutive_cost_anomalies},
+                root,
+            )
+        db.budget.consecutive_cost_anomalies = 0
+        return
+
+    db.budget.consecutive_cost_anomalies += 1
+    streak = db.budget.consecutive_cost_anomalies
+
+    journal.append(
+        "cost_anomaly",
+        {
+            "iter": iter_num,
+            "iter_cost_usd": round(iter_cost, 4),
+            "iter_tokens": iter_toks,
+            "rolling_mean_usd": round(rolling_mean, 4),
+            "rolling_window_n": len(prior_costs),
+            "triggers": triggers,
+            "streak": streak,
+        },
+        root,
+    )
+
+    pause_threshold = CONFIG.cost_anomaly_pause_streak
+    will_pause = streak >= pause_threshold
+    body = (
+        f"**iter {iter_num}** cost: **${iter_cost:.2f}** "
+        f"({iter_toks:,} tokens). "
+        f"Rolling mean (last {len(prior_costs)}): "
+        f"${rolling_mean:.2f}.\n\n"
+        f"**Triggers**:\n"
+        + "\n".join(f"- {t}" for t in triggers)
+        + f"\n\n**Streak**: {streak} consecutive anomalous iter(s) "
+        f"(auto-pause at {pause_threshold})."
+    )
+    if will_pause:
+        pause_path = state_dir(root) / PAUSE_FILE
+        pause_path.write_text(
+            f"auto-paused {now_iso()} after {streak} consecutive cost anomalies "
+            f"(latest iter {iter_num})\n"
+        )
+        body += (
+            f"\n\n**Driver auto-paused** — wrote `{pause_path}`. "
+            "Driver will sleep at the next iteration boundary until you "
+            f"`rm {pause_path}` to resume. Investigate via `tail` on "
+            "`.coordinator/journal.jsonl` and `tokens.jsonl`."
+        )
+    coord_out.emit("cost_anomaly", body, requires_ack=will_pause, root=root)
+
+
+def _budget_footer(root: Path, iter_num: int | None = None, ceiling: int | None = None) -> str:
     """Compact token/cost summary for PR comments, sourced from the
     durable token log (`.coordinator/tokens.jsonl`). Decoupled from
     db.budget — tokens are authoritative from the instant they're
     appended, not from the end-of-iteration save_db.
+
+    `ceiling` is the live token ceiling (typically `db.budget.api_token_ceiling`,
+    which honors `--token-ceiling` overrides). Falls back to the static
+    CONFIG default when callers haven't passed one (e.g. unit tests).
     """
     records = token_log.read(root)
     iter_records = (
@@ -65,11 +197,12 @@ def _budget_footer(root: Path, iter_num: int | None = None) -> str:
     total_toks = total_in + total_out
     cum_cost = token_log.cost_estimate(records)
 
+    effective_ceiling = ceiling if ceiling is not None else CONFIG.api_token_ceiling
     pct = ""
-    if CONFIG.api_token_ceiling:
+    if effective_ceiling:
         pct = (
-            f" ({100 * total_toks / CONFIG.api_token_ceiling:.1f}% of "
-            f"{CONFIG.api_token_ceiling:,} ceiling)"
+            f" ({100 * total_toks / effective_ceiling:.1f}% of "
+            f"{effective_ceiling:,} ceiling)"
         )
 
     iter_line = ""
@@ -491,6 +624,12 @@ def run_iteration(db: Db, root: Path, dry_run: bool = False) -> Db:
                 root,
             )
 
+        # Per-iter cost anomaly: tripwire (and possibly auto-pause) when
+        # this iteration's spend looks abnormal versus its peers. Three
+        # triggers; ANY fires a tripwire. Streak of N consecutive fires
+        # → touch the cooperative-pause file so user must intervene.
+        _check_cost_anomaly(db, root, iter_num=len(db.iterations), records=records)
+
         new_msgs = budget_mod.check_milestones(db.budget, root)
         for m in new_msgs:
             journal.append(
@@ -499,27 +638,30 @@ def run_iteration(db: Db, root: Path, dry_run: bool = False) -> Db:
                 root,
             )
 
-        # Hard token ceiling: halt when cumulative log sum exceeds.
+        # Hard token ceiling: halt when cumulative log sum exceeds the
+        # LIVE ceiling on db.budget (which honors --token-ceiling overrides).
+        live_ceiling = db.budget.api_token_ceiling
         if (
-            CONFIG.api_token_ceiling is not None
-            and db.budget.api_tokens_used >= CONFIG.api_token_ceiling
+            live_ceiling is not None
+            and db.budget.api_tokens_used >= live_ceiling
         ):
             coord_out.emit(
                 "budget_halt",
                 f"Token ceiling reached: {db.budget.api_tokens_used:,} ≥ "
-                f"{CONFIG.api_token_ceiling:,}. Coordinator halted. Raise "
-                f"CONFIG.api_token_ceiling and restart to continue.",
+                f"{live_ceiling:,}. Coordinator halted. Restart with "
+                f"`--token-ceiling N` to bump (or edit "
+                f"CONFIG.api_token_ceiling for a permanent change).",
                 requires_ack=True,
                 root=root,
             )
             journal.append(
                 "budget_halt",
-                {"tokens_used": db.budget.api_tokens_used, "ceiling": CONFIG.api_token_ceiling},
+                {"tokens_used": db.budget.api_tokens_used, "ceiling": live_ceiling},
                 root,
             )
             save_db(db, root)
             raise BudgetCeilingHalt(
-                f"token ceiling {CONFIG.api_token_ceiling} exceeded"
+                f"token ceiling {live_ceiling} exceeded"
             )
 
         # Persist updated wall-hours + tokens.
@@ -635,7 +777,7 @@ def _run_iteration_body(
                 f"> {cand_desc}"
                 # Cumulative-only footer (no "this iter" since no SDK call has
                 # fired yet) — lets observers see run-to-date spend at a glance.
-                + _budget_footer(root, iter_num=None)
+                + _budget_footer(root, iter_num=None, ceiling=db.budget.api_token_ceiling)
             ),
             requires_ack=False,
             root=root,
@@ -679,7 +821,7 @@ def _run_iteration_body(
                     f"REJECTED to prevent loop.\n\n"
                     f"Error: `{str(e)[:400]}`\n\n"
                     f"Working tree reverted; moving on."
-                    + _budget_footer(root, iter_num)
+                    + _budget_footer(root, iter_num, ceiling=db.budget.api_token_ceiling)
                 ),
                 requires_ack=False,
                 root=root,
@@ -767,7 +909,7 @@ def _run_iteration_body(
                     f"**iter {iter_num}** · `{candidate.id}` — eval failed.\n\n"
                     f"Stderr tail: `{eval_msg[:400]}`\n\n"
                     f"Working tree reverted; moving on."
-                    + _budget_footer(root, iter_num)
+                    + _budget_footer(root, iter_num, ceiling=db.budget.api_token_ceiling)
                 ),
                 requires_ack=False,
                 root=root,
@@ -895,7 +1037,7 @@ def _run_iteration_body(
                 f"Total FPs {scoring.baseline_total_fps} → {scoring.total_fps} "
                 f"(Δ{scoring.total_dfps:+d}).\n\n"
                 f"Working tree reverted; no commit."
-                + _budget_footer(root, iter_num)
+                + _budget_footer(root, iter_num, ceiling=db.budget.api_token_ceiling)
             ),
             requires_ack=False,
             root=root,
@@ -1003,7 +1145,7 @@ def _run_iteration_body(
                 f"(Δ{scoring.total_dfps:+d}).\n\n"
                 f"**Top 5 scenario wins**:\n{win_lines}\n\n"
                 f"**Reviewer verdicts**:\n{rationale_lines}"
-                + _budget_footer(root, iter_num)
+                + _budget_footer(root, iter_num, ceiling=db.budget.api_token_ceiling)
             ),
             requires_ack=False,
             root=root,
@@ -1074,7 +1216,7 @@ def _run_iteration_body(
                 f"(Δ{scoring.mean_df1:+.4f}).\n\n"
                 f"**Reviewer verdicts**:\n{rationale_lines}\n\n"
                 f"Working tree reverted; no commit."
-                + _budget_footer(root, iter_num)
+                + _budget_footer(root, iter_num, ceiling=db.budget.api_token_ceiling)
             ),
             requires_ack=False,
             root=root,
@@ -1097,6 +1239,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--forever", action="store_true")
+    parser.add_argument(
+        "--token-ceiling", type=int, default=None,
+        help=(
+            "Override CONFIG.api_token_ceiling for THIS run only. "
+            "Useful after a budget_halt to bump the cap without a code "
+            "edit. Accepts plain integer (e.g. --token-ceiling 30000000)."
+        ),
+    )
+    parser.add_argument(
+        "--wall-hours-ceiling", type=float, default=None,
+        help="Override CONFIG.default_wall_hours_ceiling for THIS run.",
+    )
     args = parser.parse_args(argv)
 
     root = Path(args.root)
@@ -1136,6 +1290,25 @@ def main(argv: list[str] | None = None) -> int:
             "warning: baseline not loaded. Run `coordinator.import_baseline` first.",
             file=sys.stderr,
         )
+
+    # CLI overrides for budget ceilings — apply BEFORE the iteration loop
+    # so this run uses the new cap. Persisted to db.budget so subsequent
+    # restarts (without the flag) keep the same value; pass the flag again
+    # to bump further.
+    if args.token_ceiling is not None:
+        print(
+            f"[startup] --token-ceiling override: {db.budget.api_token_ceiling} "
+            f"→ {args.token_ceiling}",
+            file=sys.stderr,
+        )
+        db.budget.api_token_ceiling = args.token_ceiling
+    if args.wall_hours_ceiling is not None:
+        print(
+            f"[startup] --wall-hours-ceiling override: {db.budget.wall_hours_ceiling} "
+            f"→ {args.wall_hours_ceiling}",
+            file=sys.stderr,
+        )
+        db.budget.wall_hours_ceiling = args.wall_hours_ceiling
 
     # Crash-recovery: revert any orphaned working-tree diffs, push any
     # unpushed commits on claude/observer-improvements, and recover any
@@ -1209,6 +1382,11 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     while True:
+        # Cooperative pause check at iteration boundary (no work in
+        # flight). Sleeps until `.coordinator/pause` is removed. Either
+        # the user touched it or auto-pause from cost_anomaly streak did.
+        _wait_while_paused(root)
+
         before = len(db.iterations)
         try:
             db = run_iteration(db, root, dry_run=args.dry_run)

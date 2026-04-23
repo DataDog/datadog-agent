@@ -92,14 +92,27 @@ class Config:
     sdk_retry_max_attempts: int = 3
     sdk_retry_base_seconds: float = 2.0  # exponential backoff: 2s, 4s, 8s
 
-    # Hard ceiling on cumulative API tokens (input + output) across the
-    # whole coordinator run. When exceeded, the loop halts with a
-    # coord-out budget message. Non-None default so --forever can never
-    # burn unbounded spend; operator raises it explicitly for longer runs.
-    # Note: the SDK token counter only sums ResultMessage.usage and may
-    # under-report retried/failed calls and cache-write tokens — budget
-    # for ~2× this value on the actual bill.
-    api_token_ceiling: int | None = 5_000_000  # ≈ $25-100 of Opus
+    # api_token_ceiling is a PANIC BRAKE, not a budget. Real cost
+    # control happens via wall-hours + per-iter cost anomaly warnings +
+    # auto-pause on consecutive-anomaly streaks (see below). The token
+    # ceiling exists so a runaway loop with a stuck SDK retry can't
+    # silently burn five figures, but it's deliberately set far above
+    # any reasonable run. Tighten via `--token-ceiling N` CLI flag if
+    # you want a hard cost cap.
+    api_token_ceiling: int | None = 500_000_000  # panic brake; ≈ $2.5k-7.5k
+
+    # Per-iter cost anomaly thresholds. ANY of these triggers a
+    # `cost_anomaly` tripwire PR comment for the iteration.
+    # Informational by default; auto-pause kicks in only after
+    # `cost_anomaly_pause_streak` consecutive anomalous iterations.
+    cost_anomaly_vs_rolling_ratio: float = 2.0      # this iter > 2× rolling mean
+    cost_anomaly_rolling_window: int = 5            # rolling-mean window
+    cost_anomaly_absolute_usd: float = 20.0         # this iter cost > $20
+    cost_anomaly_absolute_tokens: int = 5_000_000   # this iter > 5M tokens
+    # Auto-pause: after N consecutive anomalous iters, touch the
+    # cooperative-pause file (`.coordinator/pause`). Driver checks at
+    # iter boundary; sleeps until the user removes the file.
+    cost_anomaly_pause_streak: int = 3
 
     # Overfit detector: every N shipped candidates, evaluate all shipped
     # candidates on the lockbox (locally, not passed to any agent) and

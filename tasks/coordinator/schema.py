@@ -141,6 +141,10 @@ class BudgetState:
                                         # is .coordinator/tokens.jsonl
     api_token_ceiling: int | None
     milestones_notified: list[float] = field(default_factory=list)
+    # Streak of consecutive iterations whose cost was anomalous (per
+    # CONFIG.cost_anomaly_*). At cost_anomaly_pause_streak, driver
+    # touches .coordinator/pause to halt cooperatively at iter boundary.
+    consecutive_cost_anomalies: int = 0
 
 
 @dataclass
@@ -352,6 +356,7 @@ def dict_to_db(d: dict[str, Any]) -> Db:
             api_tokens_used=bs["api_tokens_used"],
             api_token_ceiling=bs.get("api_token_ceiling"),
             milestones_notified=bs.get("milestones_notified", []),
+            consecutive_cost_anomalies=int(bs.get("consecutive_cost_anomalies", 0) or 0),
         ),
         iterations=[Iteration(**it) for it in d.get("iterations", [])],
         split=split,
@@ -449,6 +454,7 @@ def db_to_dict(db: Db) -> dict[str, Any]:
             "api_tokens_used": db.budget.api_tokens_used,
             "api_token_ceiling": db.budget.api_token_ceiling,
             "milestones_notified": db.budget.milestones_notified,
+            "consecutive_cost_anomalies": db.budget.consecutive_cost_anomalies,
         },
         "iterations": [
             {

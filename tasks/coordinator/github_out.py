@@ -69,6 +69,8 @@ _EMOJI = {
     "iter_rejected": "❌",
     "iter_eval_failed": "💥",
     "iter_impl_failed": "💥",
+    "cost_anomaly": "💸",
+    "paused": "⏸️",
 }
 
 
