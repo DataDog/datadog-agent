@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/pidmapimpl"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	replaymock "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/fx-mock"
+	serverdef "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
@@ -72,7 +73,7 @@ type serverDeps struct {
 	Debug         serverdebug.Component
 	WMeta         option.Option[workloadmeta.Component]
 	Telemetry     telemetry.Component
-	Server        Component
+	Server        serverdef.Component
 	FilterList    filterlist.Component
 }
 
@@ -96,7 +97,8 @@ func fulfillDepsWithConfigOverride(t testing.TB, overrides map[string]interface{
 		filterlistmock.MockModule(),
 		fx.Provide(func() offlinereporter.Component { return offlinereportermock.Mock(t) }),
 
-		Module(Params{Serverless: false}),
+		fxutil.ProvideComponentConstructor(NewComponent),
+		fx.Supply(serverdef.Params{Serverless: false}),
 	))
 }
 
@@ -116,7 +118,8 @@ func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 		filterlistmock.MockModule(),
 		fx.Provide(func() offlinereporter.Component { return offlinereportermock.Mock(t) }),
 
-		Module(Params{Serverless: false}),
+		fxutil.ProvideComponentConstructor(NewComponent),
+		fx.Supply(serverdef.Params{Serverless: false}),
 	))
 }
 
@@ -129,7 +132,7 @@ func fulfillDepsWithInactiveServer(t *testing.T, cfg map[string]interface{}) (de
 		mocktelemetry.Module(),
 		hostnameimpl.MockModule(),
 		serverdebugimpl.MockModule(),
-		fx.Supply(Params{Serverless: false}),
+		fx.Supply(serverdef.Params{Serverless: false}),
 		replaymock.MockModule(),
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),

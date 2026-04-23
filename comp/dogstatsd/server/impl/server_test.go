@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/mapper"
+	serverdef "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -216,12 +217,12 @@ func TestOrigin(t *testing.T) {
 	})
 }
 
-func requireStart(t *testing.T, s Component) {
+func requireStart(t *testing.T, s serverdef.Component) {
 	assert.NotNil(t, s)
 	assert.True(t, s.IsRunning(), "server was not running")
 }
 
-func requireStopped(t *testing.T, s Component) {
+func requireStopped(t *testing.T, s serverdef.Component) {
 	assert.NotNil(t, s)
 	assert.False(t, s.IsRunning(), "server was running")
 }
