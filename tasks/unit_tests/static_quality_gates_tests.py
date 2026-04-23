@@ -797,7 +797,7 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             'CI_COMMIT_BRANCH': 'sequoia',
         },
     )
-    @patch("tasks.quality_gates.pr_commenter")
+    @patch("tasks.static_quality_gates.pr_comment.pr_commenter")
     def test_no_error_with_significant_changes(self, pr_commenter_mock):
         """Test PR comment with successful gates that have significant changes (>= 2 KiB)."""
         c = MockContext()
@@ -855,7 +855,7 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             'CI_COMMIT_BRANCH': 'sequoia',
         },
     )
-    @patch("tasks.quality_gates.pr_commenter")
+    @patch("tasks.static_quality_gates.pr_comment.pr_commenter")
     def test_neutral_changes_collapsed(self, pr_commenter_mock):
         """Test that gates with neutral changes (< 2 KiB) are collapsed."""
         c = MockContext()
@@ -909,7 +909,7 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             'CI_COMMIT_BRANCH': 'sequoia',
         },
     )
-    @patch("tasks.quality_gates.pr_commenter")
+    @patch("tasks.static_quality_gates.pr_comment.pr_commenter")
     def test_mixed_significant_and_neutral(self, pr_commenter_mock):
         """Test PR comment with both significant and neutral changes."""
         c = MockContext()
@@ -961,7 +961,7 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             'CI_COMMIT_BRANCH': 'sequoia',
         },
     )
-    @patch("tasks.quality_gates.pr_commenter")
+    @patch("tasks.static_quality_gates.pr_comment.pr_commenter")
     def test_no_info(self, pr_commenter_mock):
         c = MockContext()
         gate_metric_handler = GateMetricHandler("main", "dev")
@@ -1001,7 +1001,7 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             'CI_COMMIT_BRANCH': 'sequoia',
         },
     )
-    @patch("tasks.quality_gates.pr_commenter")
+    @patch("tasks.static_quality_gates.pr_comment.pr_commenter")
     def test_one_of_each(self, pr_commenter_mock):
         c = MockContext()
         gate_metric_handler = GateMetricHandler("main", "dev")
@@ -1048,7 +1048,7 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             'CI_COMMIT_BRANCH': 'sequoia',
         },
     )
-    @patch("tasks.quality_gates.pr_commenter")
+    @patch("tasks.static_quality_gates.pr_comment.pr_commenter")
     def test_missing_data(self, pr_commenter_mock):
         c = MockContext()
         gate_metric_handler = GateMetricHandler("main", "dev")
@@ -1077,7 +1077,7 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             'CI_COMMIT_BRANCH': 'sequoia',
         },
     )
-    @patch("tasks.quality_gates.pr_commenter")
+    @patch("tasks.static_quality_gates.pr_comment.pr_commenter")
     def test_wire_table_separate(self, pr_commenter_mock):
         """Test that on-wire sizes appear in a separate collapsed section."""
         c = MockContext()
@@ -1112,7 +1112,7 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         wire_section_start = body.find('On-wire sizes (compressed)')
         self.assertIn('gateA', body[wire_section_start:])
 
-    @patch("tasks.quality_gates.pr_commenter")
+    @patch("tasks.static_quality_gates.pr_comment.pr_commenter")
     def test_error_on_wire_displays_uncollapsed_on_error_section(self, pr_commenter_mock):
         """Test that when only the on-wire size is violating a specific gate
         (and not the on-disk size for that same gate),
@@ -1359,7 +1359,7 @@ class TestNonBlockingPrComment(unittest.TestCase):
             'CI_COMMIT_BRANCH': 'sequoia',
         },
     )
-    @patch("tasks.quality_gates.pr_commenter")
+    @patch("tasks.static_quality_gates.pr_comment.pr_commenter")
     def test_non_blocking_failure_shows_warning_indicator(self, pr_commenter_mock):
         """Non-blocking failures should show warning indicator, not error."""
         c = MockContext()
@@ -1398,7 +1398,7 @@ class TestNonBlockingPrComment(unittest.TestCase):
             'CI_COMMIT_BRANCH': 'sequoia',
         },
     )
-    @patch("tasks.quality_gates.pr_commenter")
+    @patch("tasks.static_quality_gates.pr_comment.pr_commenter")
     def test_blocking_failure_shows_error_indicator(self, pr_commenter_mock):
         """Blocking failures should show error indicator and blocking message."""
         c = MockContext()
@@ -1435,7 +1435,7 @@ class TestNonBlockingPrComment(unittest.TestCase):
             'CI_COMMIT_BRANCH': 'sequoia',
         },
     )
-    @patch("tasks.quality_gates.pr_commenter")
+    @patch("tasks.static_quality_gates.pr_comment.pr_commenter")
     def test_mixed_blocking_and_non_blocking(self, pr_commenter_mock):
         """Mixed blocking and non-blocking failures should show both indicators."""
         c = MockContext()
