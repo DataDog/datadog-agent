@@ -296,7 +296,7 @@ copy_to_directory(
     name = "_openssl_extra_files",
     srcs = [":openssl"],
     root_paths = ["openssl"],
-    out = "openssl",
+    out = "openssl_extra",
     exclude_srcs_patterns = [
         # Binary handled via installed_executables
         "bin/**",
@@ -314,5 +314,5 @@ copy_to_directory(
 pkg_files(
     name = "openssl_files",
     srcs = [":_openssl_extra_files"],
-    strip_prefix = "openssl",
+    strip_prefix = "openssl_extra",
 )
