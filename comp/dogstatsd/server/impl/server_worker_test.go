@@ -4,7 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 //go:build test
 
-package server
+package serverimpl
 
 import (
 	"strings"

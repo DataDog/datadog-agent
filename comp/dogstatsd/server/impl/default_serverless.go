@@ -5,7 +5,7 @@
 
 //go:build serverless
 
-package server
+package serverimpl
 
 import (
 	"os"

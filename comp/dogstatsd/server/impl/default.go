@@ -5,7 +5,7 @@
 
 //go:build !serverless
 
-package server
+package serverimpl
 
 import "github.com/DataDog/datadog-agent/pkg/metrics"
 

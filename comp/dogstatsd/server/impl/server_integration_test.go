@@ -5,7 +5,7 @@
 
 //go:build test
 
-package server
+package serverimpl
 
 import (
 	"context"
