@@ -28,8 +28,8 @@ import (
 )
 
 func TestNewHostProviderDefaultIntervals(t *testing.T) {
-	ret := newHostProvider(
-		fxutil.Test[dependencies](
+	ret := NewComponent(
+		fxutil.Test[Requires](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMock(t) }),
@@ -115,8 +115,8 @@ func TestNewHostProviderIntervalValidation(t *testing.T) {
 				},
 			}
 
-			ret := newHostProvider(
-				fxutil.Test[dependencies](
+			ret := NewComponent(
+				fxutil.Test[Requires](
 					t,
 					fx.Provide(func() log.Component { return logmock.New(t) }),
 					fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
@@ -144,7 +144,7 @@ func TestBackoffWhenEarlyIntervalEqualsCollectionInterval(t *testing.T) {
 			},
 		},
 	}
-	ret := newHostProvider(fxutil.Test[dependencies](t,
+	ret := NewComponent(fxutil.Test[Requires](t,
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
 		resourcesimpl.MockModule(),
@@ -161,8 +161,8 @@ func TestBackoffWhenEarlyIntervalEqualsCollectionInterval(t *testing.T) {
 }
 
 func TestFlareProvider(t *testing.T) {
-	ret := newHostProvider(
-		fxutil.Test[dependencies](
+	ret := NewComponent(
+		fxutil.Test[Requires](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMock(t) }),
@@ -181,8 +181,8 @@ func TestFlareProvider(t *testing.T) {
 }
 
 func TestStatusHeaderProvider(t *testing.T) {
-	ret := newHostProvider(
-		fxutil.Test[dependencies](
+	ret := NewComponent(
+		fxutil.Test[Requires](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMock(t) }),

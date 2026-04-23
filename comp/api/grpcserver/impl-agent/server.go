@@ -30,7 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	dsdReplay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
-	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
+	"github.com/DataDog/datadog-agent/comp/metadata/host/impl/hosttags"
 	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
 	rcservicemrf "github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
