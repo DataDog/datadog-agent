@@ -290,8 +290,8 @@ func testDyninst(
 			t.Logf("Output: %v\n", string(log.body))
 			t.Logf("Sorted and redacted: %v\n", string(redacted))
 		}
-		expIdx := len(retMap[log.id])
 		id := resultNames[log.id]
+		expIdx := len(retMap[id])
 		retMap[id] = append(retMap[id], redacted)
 		if !rewriteEnabled {
 			expOut, ok := expOut[id]
