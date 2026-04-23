@@ -2,7 +2,7 @@ load("@//bazel/rules:foreign_cc_shared_wrapper.bzl", "foreign_cc_shared_wrapper"
 load("@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@//deps/openssl:version.bzl", "OPENSSL_VERSION")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
 
 # This should be private. We can fix it in another PR
 package(default_visibility = ["//visibility:public"])
@@ -191,11 +191,29 @@ dd_cc_packaged(
     libname = "libssl",
 )
 
+pkg_files(
+    name = "_fips_openssl_cnf",
+    srcs = ["@openssl_fips//:openssl_cnf_tmp"],
+    prefix = "ssl",
+    attributes = pkg_attributes(mode = "0644"),
+)
+
+pkg_files(
+    name = "_fips_fipsinstall_sh",
+    srcs = ["@openssl_fips//:fipsinstall_sh"],
+    prefix = "bin",
+    attributes = pkg_attributes(mode = "0755"),
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
+)
+
 pkg_filegroup(
     name = "_fips_extra_files",
-    srcs = ["@openssl_fips//:openssl_cnf_tmp"] + select({
+    srcs = [":_fips_openssl_cnf"] + select({
         "@platforms//os:windows": [],
-        "//conditions:default": ["@openssl_fips//:fipsinstall_sh"],
+        "//conditions:default": [":_fips_fipsinstall_sh"],
     }),
 )
 
