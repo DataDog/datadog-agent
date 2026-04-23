@@ -328,11 +328,9 @@ exports_files(glob(
 # gazelle:exclude pkg/network/go/goversion
 # gazelle:exclude pkg/network/indexedset
 # gazelle:exclude pkg/network/netlink
-# gazelle:exclude pkg/network/protocols
 # gazelle:exclude pkg/network/sender
 # gazelle:exclude pkg/network/slice
 # gazelle:exclude pkg/network/testdata
-# gazelle:exclude pkg/network/testutil
 # gazelle:exclude pkg/network/tracer/connection
 # gazelle:exclude pkg/network/tracer/networkfilter
 # gazelle:exclude pkg/network/tracer/offsetguess
@@ -358,7 +356,6 @@ exports_files(glob(
 # gazelle:exclude pkg/process/monitor
 # gazelle:exclude pkg/process/net
 # gazelle:exclude pkg/process/procutil
-# gazelle:exclude pkg/process/status
 # gazelle:exclude pkg/process/subscribers
 # gazelle:exclude pkg/process/util/containers
 # gazelle:exclude pkg/process/util/coreagent
@@ -453,7 +450,6 @@ exports_files(glob(
 # gazelle:exclude pkg/util/ecs/metadata
 # gazelle:exclude pkg/util/ecs/telemetry
 # gazelle:exclude pkg/util/fargate
-# gazelle:exclude pkg/util/kernel
 # gazelle:exclude pkg/util/kubelet
 # gazelle:exclude pkg/util/kubernetes/apiserver/controllers
 # gazelle:exclude pkg/util/kubernetes/autoscalers
@@ -468,7 +464,6 @@ exports_files(glob(
 # gazelle:exclude pkg/util/profiling
 # gazelle:exclude pkg/util/tags
 # gazelle:exclude pkg/util/tmplvar
-# gazelle:exclude pkg/windowsdriver
 # gazelle:exclude tasks
 # gazelle:exclude tools/NamedPipeCmd
 # gazelle:exclude tools/agent_QA
