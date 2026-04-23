@@ -7,5 +7,6 @@
     },
     "forwardPorts": [22],
     "containerUser": "root",
-    "remoteUser": "bits"
+    "remoteUser": "bits",
+    "waitFor": "postStartCommand"
 }
