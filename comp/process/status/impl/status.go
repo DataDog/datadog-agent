@@ -45,6 +45,11 @@ func NewComponent(deps dependencies) Provides {
 	}
 }
 
+// defaultProcessExpVarPort is the default port for the process agent expvar server.
+// This mirrors pkgconfigsetup.DefaultProcessExpVarPort but avoids importing pkg/config/setup
+// which is forbidden in comp/ by the depguard lint rule.
+const defaultProcessExpVarPort = 6062
+
 type statusProvider struct {
 	testServerURL string
 	config        config.Component
@@ -97,7 +102,7 @@ func (s statusProvider) populateStatus() map[string]interface{} {
 
 		port := s.config.GetInt("process_config.expvar_port")
 		if port <= 0 {
-			port = 6062 // default process expvar port
+			port = defaultProcessExpVarPort
 		}
 		url = fmt.Sprintf("http://%s:%d/debug/vars", ipcAddr, port)
 	}
