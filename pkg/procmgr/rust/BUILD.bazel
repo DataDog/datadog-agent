@@ -14,16 +14,16 @@ proto_library(
     srcs = ["proto/process_manager.proto"],
 )
 
+_LINUX_OR_WINDOWS = select({
+    "@platforms//os:linux": [],
+    "@platforms//os:windows": [],
+    "//conditions:default": ["@platforms//:incompatible"],
+})
+
 rust_prost_library(
     name = "process_manager_rust_proto",
     proto = ":process_manager_proto",
-    # Keep off macOS: the prost toolchain requires a proto toolchain that
-    # is not configured for darwin.
-    target_compatible_with = select({
-        "@platforms//os:linux": [],
-        "@platforms//os:windows": [],
-        "//conditions:default": ["@platforms//:incompatible"],
-    }),
+    target_compatible_with = _LINUX_OR_WINDOWS,
     visibility = ["//visibility:public"],
 )
 
@@ -80,6 +80,7 @@ rust_library(
     crate_name = "dd_procmgrd",
     edition = "2024",
     rustc_flags = ["--cfg=bazel"],
+    target_compatible_with = _LINUX_OR_WINDOWS,
     visibility = ["//visibility:public"],
     deps = _LIB_DEPS,
 )
@@ -92,6 +93,7 @@ rust_library(
     crate_name = "dd_procmgrd",
     edition = "2024",
     rustc_flags = ["--cfg=bazel"],
+    target_compatible_with = _LINUX_OR_WINDOWS,
     deps = _LIB_DEPS,
 )
 
@@ -138,6 +140,7 @@ rust_binary(
     srcs = ["src/bins/dd-procmgr.rs"],
     edition = "2024",
     rustc_flags = ["--cfg=bazel"],
+    target_compatible_with = _LINUX_OR_WINDOWS,
     visibility = ["//visibility:public"],
     deps = [
         ":dd-procmgrd-lib",
@@ -177,6 +180,7 @@ rust_test(
     crate = ":dd-procmgrd-lib",
     edition = "2024",
     rustc_flags = ["--cfg=bazel"],
+    target_compatible_with = _LINUX_OR_WINDOWS,
     deps = [
         "@crates//:hyper-util",
         "@crates//:tempfile",
