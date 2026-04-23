@@ -1,0 +1,23 @@
+# `FUN-002` Remove an installed package
+{bdg-ref-primary}`lifecycle <lifecycle>`
+
+The operator shall be able to remove a previously installed package by specifying its name.
+
+The installer shall:
+1. Execute the package's PreRemove hook.
+2. Remove the package files from disk.
+3. Remove the package entry from the repository state.
+
+After removal, querying the package state shall indicate it is no longer installed.
+
+
+:::{dropdown} Source
+:icon: file-code
+:color: info
+
+__Source file__: [`specs/package_lifecycle.toml`](https://github.com/DataDog/datadog-agent/blob/installer-specs-2/specs/package_lifecycle.toml)
+
+__Loaded from__: [`fleet-installer`](https://github.com/DataDog/datadog-agent/blob/installer-specs-2/specs/spec.yaml)
+
+:::
+

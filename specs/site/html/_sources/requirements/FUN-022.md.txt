@@ -1,0 +1,41 @@
+# `FUN-022` Custom install directories
+{bdg-ref-primary}`windows <windows>`
+{bdg-ref-primary}`msi <msi>`
+{bdg-ref-primary}`config <config>`
+> The installer shall let the user chose a different directory for the Agent configuration and binaries.
+> 
+
+The Windows installer shall allow the operator to specify custom directories for:
+- Agent configuration files (via `APPLICATIONDATADIRECTORY`).
+- Agent binary files (via `PROJECTLOCATION`).
+
+When custom directories are specified, the Agent shall use those directories
+instead of the default locations.
+
+
+:::{dropdown} Properties
+:icon: note
+:color: primary
+
+__source__: [https://datadoghq.atlassian.net/wiki/spaces/AW/pages/2962820711](https://datadoghq.atlassian.net/wiki/spaces/AW/pages/2962820711)
+
+:::
+:::{dropdown} References
+:icon: link
+:color: secondary
+
+__Relates to:__
+[`FUN-021` Accept MSI configuration parameters](/requirements/FUN-021)
+
+:::
+
+:::{dropdown} Source
+:icon: file-code
+:color: info
+
+__Source file__: [`specs/windows_msi.toml`](https://github.com/DataDog/datadog-agent/blob/installer-specs-2/specs/windows_msi.toml)
+
+__Loaded from__: [`fleet-installer`](https://github.com/DataDog/datadog-agent/blob/installer-specs-2/specs/spec.yaml)
+
+:::
+

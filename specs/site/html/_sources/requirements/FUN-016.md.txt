@@ -1,0 +1,26 @@
+# `FUN-016` Remote-triggered operations
+{bdg-ref-primary}`daemon <daemon>`
+{bdg-ref-primary}`remote <remote>`
+
+The fleet daemon shall listen for remote configuration updates from the Datadog backend
+and execute package management operations accordingly.
+
+Supported remote operations:
+- Install a new package.
+- Start, stop, or promote a package experiment.
+- Start, stop, or promote a configuration experiment.
+
+The daemon shall authenticate with the Datadog backend using the configured API key
+and only accept operations from authorized sources.
+
+
+:::{dropdown} Source
+:icon: file-code
+:color: info
+
+__Source file__: [`specs/fleet_daemon.toml`](https://github.com/DataDog/datadog-agent/blob/installer-specs-2/specs/fleet_daemon.toml)
+
+__Loaded from__: [`fleet-installer`](https://github.com/DataDog/datadog-agent/blob/installer-specs-2/specs/spec.yaml)
+
+:::
+

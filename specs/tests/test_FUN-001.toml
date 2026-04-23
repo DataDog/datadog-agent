@@ -1,0 +1,98 @@
+kind = "tests"
+category = "functional"
+
+[[tests]]
+id = "T005"
+short = "Install a single package from OCI registry"
+long = '''
+Validates the minimal happy path: install a package by URL,
+verify it appears as installed with the correct stable version.
+'''
+ref = ["FUN-001"]
+initial = """
+- The installer is bootstrapped and functional.
+- `DD_API_KEY` is set.
+- The OCI registry is reachable.
+- The target package is not yet installed.
+"""
+
+[[tests.steps]]
+action = "Install a package by providing its OCI URL."
+run = "datadog-installer install oci://gcr.io/datadoghq/agent-package:latest"
+
+[[tests.steps]]
+action = "Verify the package is installed."
+run = "datadog-installer is-installed datadog-agent; echo $?"
+expected = "0"
+
+[[tests]]
+id = "T006"
+short = "Install a package that is already installed (same version)"
+long = '''
+Validates that installing an already-installed package at the same version
+is a no-op and does not produce an error.
+'''
+ref = ["FUN-001"]
+prereq = ["T005"]
+
+[[tests.steps]]
+action = "Re-install the same package at the same version."
+run = "datadog-installer install oci://gcr.io/datadoghq/agent-package:latest; echo $?"
+expected = "0"
+
+[[tests.steps]]
+action = "Verify the package is still installed."
+run = "datadog-installer is-installed datadog-agent; echo $?"
+expected = "0"
+
+[[tests]]
+id = "T007"
+short = "Install with invalid OCI URL fails"
+long = '''
+Validates that providing a malformed or non-existent OCI URL
+results in an error and does not leave partial state.
+'''
+ref = ["FUN-001"]
+initial = """
+- The installer is bootstrapped and functional.
+"""
+
+[[tests.steps]]
+action = "Attempt to install from an invalid OCI URL."
+run = "datadog-installer install oci://invalid.registry.example/nonexistent:v0; echo $?"
+expected = "1"
+
+[[tests]]
+id = "T008"
+short = "Force install overwrites an already-installed package"
+long = '''
+Validates that the `--force` flag re-installs a package even when
+the same version is already present.
+'''
+ref = ["FUN-001"]
+prereq = ["T005"]
+
+[[tests.steps]]
+action = "Force-install the same package."
+run = "datadog-installer install --force oci://gcr.io/datadoghq/agent-package:latest; echo $?"
+expected = "0"
+
+[[tests.steps]]
+action = "Verify the package is still installed."
+run = "datadog-installer is-installed datadog-agent; echo $?"
+expected = "0"
+
+[[tests]]
+id = "T009"
+short = "Install sets the stable symlink to the installed version"
+long = '''
+Validates that after installation the stable symlink in the repository
+points to the directory of the newly installed version.
+'''
+ref = ["FUN-001"]
+prereq = ["T005"]
+
+[[tests.steps]]
+action = "Read the stable symlink target for the installed package."
+run = "readlink /opt/datadog-packages/datadog-agent/stable"
+expected = "A version directory name (e.g. 7.x.y)"

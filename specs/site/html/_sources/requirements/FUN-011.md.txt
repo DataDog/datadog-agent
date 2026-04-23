@@ -1,0 +1,33 @@
+# `FUN-011` Persist extensions across upgrades
+{bdg-ref-primary}`extension <extension>`
+{bdg-ref-primary}`lifecycle <lifecycle>`
+
+Extensions shall be preserved across package upgrades.
+
+When a package is upgraded, the installer shall:
+1. Save the list of installed extensions and their state before the upgrade.
+2. Perform the package upgrade.
+3. Restore the previously installed extensions on the new package version.
+
+The operator shall not need to manually reinstall extensions after upgrading a package.
+
+
+:::{dropdown} References
+:icon: link
+:color: secondary
+
+__Referenced by:__
+[`DEF-004` Extension](/requirements/DEF-004)
+
+:::
+
+:::{dropdown} Source
+:icon: file-code
+:color: info
+
+__Source file__: [`specs/config_and_extensions.toml`](https://github.com/DataDog/datadog-agent/blob/installer-specs-2/specs/config_and_extensions.toml)
+
+__Loaded from__: [`fleet-installer`](https://github.com/DataDog/datadog-agent/blob/installer-specs-2/specs/spec.yaml)
+
+:::
+

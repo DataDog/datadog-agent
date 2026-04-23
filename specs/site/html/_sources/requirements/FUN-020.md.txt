@@ -1,0 +1,34 @@
+# `FUN-020` Rollback on failed upgrade
+{bdg-ref-primary}`windows <windows>`
+{bdg-ref-primary}`msi <msi>`
+{bdg-ref-primary}`upgrade <upgrade>`
+{bdg-ref-primary}`rollback <rollback>`
+> When the installer fails to upgrade the Agent to a newer version, the previous version
+> of the Agent shall be restored to a working state.
+> 
+
+When the Windows installer fails during an upgrade, the previous version of the Agent
+shall be restored to a working state.
+
+If the failure occurs after the service user configuration step and the user account
+has a password, the rollback may not be able to restore the services automatically.
+In that case, the operator can fix the install by running a repair and providing the password.
+
+
+:::{dropdown} Properties
+:icon: note
+:color: primary
+
+__source__: [https://datadoghq.atlassian.net/wiki/spaces/AW/pages/2962820711](https://datadoghq.atlassian.net/wiki/spaces/AW/pages/2962820711)
+
+:::
+:::{dropdown} Source
+:icon: file-code
+:color: info
+
+__Source file__: [`specs/windows_msi.toml`](https://github.com/DataDog/datadog-agent/blob/installer-specs-2/specs/windows_msi.toml)
+
+__Loaded from__: [`fleet-installer`](https://github.com/DataDog/datadog-agent/blob/installer-specs-2/specs/spec.yaml)
+
+:::
+

@@ -1,0 +1,32 @@
+# `DEF-004` Extension
+{bdg-ref-primary}`extension <extension>`
+
+An Extension is a pluggable add-on that is attached to an installed package.
+
+Extensions have their own install/remove lifecycle hooks but are tied to the parent
+package's version. When the parent package is upgraded, extensions are saved before
+the upgrade and restored after.
+
+There is no concept of upgrading an extension independently of its parent package.
+
+
+:::{dropdown} References
+:icon: link
+:color: secondary
+
+__Relates to:__
+- [`FUN-010` Install and remove extensions](/requirements/FUN-010)
+- [`FUN-011` Persist extensions across upgrades](/requirements/FUN-011)
+
+:::
+
+:::{dropdown} Source
+:icon: file-code
+:color: info
+
+__Source file__: [`specs/definitions.toml`](https://github.com/DataDog/datadog-agent/blob/installer-specs-2/specs/definitions.toml)
+
+__Loaded from__: [`fleet-installer`](https://github.com/DataDog/datadog-agent/blob/installer-specs-2/specs/spec.yaml)
+
+:::
+

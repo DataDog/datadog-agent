@@ -1,0 +1,30 @@
+# `FUN-024` Prevent downgrades
+{bdg-ref-primary}`windows <windows>`
+{bdg-ref-primary}`msi <msi>`
+{bdg-ref-primary}`upgrade <upgrade>`
+> The installer shall not allow downgrading the Agent installation.
+> 
+
+The Windows installer shall reject attempts to install an older version of the Agent
+over a newer one (e.g. Agent 7 to Agent 6, or Agent 7.55 to Agent 7.50).
+
+The installer shall display an error message indicating that downgrades are not supported.
+
+
+:::{dropdown} Properties
+:icon: note
+:color: primary
+
+__source__: [https://datadoghq.atlassian.net/wiki/spaces/AW/pages/2962820711](https://datadoghq.atlassian.net/wiki/spaces/AW/pages/2962820711)
+
+:::
+:::{dropdown} Source
+:icon: file-code
+:color: info
+
+__Source file__: [`specs/windows_msi.toml`](https://github.com/DataDog/datadog-agent/blob/installer-specs-2/specs/windows_msi.toml)
+
+__Loaded from__: [`fleet-installer`](https://github.com/DataDog/datadog-agent/blob/installer-specs-2/specs/spec.yaml)
+
+:::
+

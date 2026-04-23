@@ -1,0 +1,27 @@
+# `FUN-008` Install config experiment
+{bdg-ref-primary}`config <config>`
+{bdg-ref-primary}`experiment <experiment>`
+
+The operator shall be able to apply a configuration experiment to an installed package.
+
+A configuration experiment modifies the package's configuration files using JSON Patch
+(RFC 6902) or JSON Merge Patch (RFC 7396) operations, without altering the package binaries.
+
+The installer shall:
+1. Save the current configuration state.
+2. Apply the patch operations to produce a new configuration.
+3. Execute the package's PostStartConfigExperiment hook (e.g. to restart the service).
+
+If the patch operations are invalid or fail to apply, the configuration shall remain unchanged.
+
+
+:::{dropdown} Source
+:icon: file-code
+:color: info
+
+__Source file__: [`specs/config_and_extensions.toml`](https://github.com/DataDog/datadog-agent/blob/installer-specs-2/specs/config_and_extensions.toml)
+
+__Loaded from__: [`fleet-installer`](https://github.com/DataDog/datadog-agent/blob/installer-specs-2/specs/spec.yaml)
+
+:::
+

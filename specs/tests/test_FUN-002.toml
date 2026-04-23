@@ -1,0 +1,61 @@
+kind = "tests"
+category = "functional"
+
+[[tests]]
+id = "T010"
+short = "Remove an installed package"
+long = '''
+Validates the happy path: remove a previously installed package by name,
+verify it is no longer present.
+'''
+ref = ["FUN-002"]
+prereq = ["T005"]
+
+[[tests.steps]]
+action = "Remove the installed package."
+run = "datadog-installer remove datadog-agent; echo $?"
+expected = "0"
+
+[[tests.steps]]
+action = "Verify the package is no longer installed."
+run = "datadog-installer is-installed datadog-agent; echo $?"
+expected = "1"
+
+[[tests]]
+id = "T011"
+short = "Remove a package that is not installed"
+long = '''
+Validates behavior when attempting to remove a package that was never installed.
+The command should fail with a non-zero exit code.
+'''
+ref = ["FUN-002"]
+initial = """
+- The installer is bootstrapped and functional.
+- The target package is not installed.
+"""
+
+[[tests.steps]]
+action = "Attempt to remove a package that is not installed."
+run = "datadog-installer remove datadog-nonexistent-package; echo $?"
+expected = "1"
+
+[[tests]]
+id = "T012"
+short = "Remove then reinstall a package"
+long = '''
+Validates that a package can be cleanly reinstalled after removal,
+confirming that removal does not leave behind state that prevents
+a fresh installation.
+'''
+ref = ["FUN-002", "FUN-001"]
+prereq = ["T010"]
+
+[[tests.steps]]
+action = "Reinstall the previously removed package."
+run = "datadog-installer install oci://gcr.io/datadoghq/agent-package:latest; echo $?"
+expected = "0"
+
+[[tests.steps]]
+action = "Verify the package is installed again."
+run = "datadog-installer is-installed datadog-agent; echo $?"
+expected = "0"

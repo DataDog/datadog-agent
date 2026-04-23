@@ -3,6 +3,7 @@ name: fleet-installer
 root_directory: ..
 files:
   - specs/*.toml
+  - specs/tests/*.toml
 code_sources:
   - pkg/fleet/installer/**/*.go
   - pkg/fleet/daemon/**/*.go

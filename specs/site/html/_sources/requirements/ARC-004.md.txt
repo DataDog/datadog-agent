@@ -1,0 +1,24 @@
+# `ARC-004` Cross-platform support
+{bdg-ref-primary}`platform <platform>`
+
+The installer supports Linux, Windows, and macOS with platform-specific implementations
+behind shared interfaces.
+
+Platform-specific concerns include:
+- Install paths (e.g. `/opt/datadog-packages` on Linux, `ProgramData` on Windows).
+- Service management (systemd, sysvinit, upstart on Linux; Windows services on Windows).
+- Symlink handling (POSIX symlinks vs Windows junctions).
+- Package hooks (platform-specific pre/post install steps).
+- User/group management (Unix UIDs vs Windows SIDs and ACLs).
+
+
+:::{dropdown} Source
+:icon: file-code
+:color: info
+
+__Source file__: [`specs/architecture.toml`](https://github.com/DataDog/datadog-agent/blob/installer-specs-2/specs/architecture.toml)
+
+__Loaded from__: [`fleet-installer`](https://github.com/DataDog/datadog-agent/blob/installer-specs-2/specs/spec.yaml)
+
+:::
+

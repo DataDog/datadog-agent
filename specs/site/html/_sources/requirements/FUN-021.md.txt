@@ -1,0 +1,62 @@
+# `FUN-021` Accept MSI configuration parameters
+{bdg-ref-primary}`windows <windows>`
+{bdg-ref-primary}`msi <msi>`
+{bdg-ref-primary}`config <config>`
+> The installer shall accept the following parameters to configure the Agent:
+> APIKEY, SITE, TAGS, HOSTNAME, LOGS_ENABLED, APM_ENABLED, PROCESS_ENABLED,
+> HOSTNAME_FQDN_ENABLED, CMD_PORT, PROXY_HOST, PROXY_USER, PROXY_PASSWORD, PROXY_PORT,
+> DDAGENTUSER_NAME, DDAGENTUSER_PASSWORD, APPLICATIONDATADIRECTORY, PROJECTLOCATION,
+> ADDLOCAL, EC2_USE_WINDOWS_PREFIX_DETECTION, ALLOW_CLOSED_SOURCE.
+> 
+
+The Windows installer shall accept MSI parameters to configure the Agent at install time.
+
+The following parameters shall be supported:
+- `APIKEY`: The Datadog API key.
+- `SITE`: The Datadog site.
+- `TAGS`: Comma-separated tags.
+- `HOSTNAME`: The hostname override.
+- `LOGS_ENABLED`: Enable log collection (true/false).
+- `APM_ENABLED`: Enable the Trace Agent (true/false).
+- `PROCESS_ENABLED`: Enable the Process Agent (true/false).
+- `HOSTNAME_FQDN_ENABLED`: Use the FQDN as hostname (true/false).
+- `CMD_PORT`: The command port for the Agent GUI.
+- `PROXY_HOST`, `PROXY_USER`, `PROXY_PASSWORD`, `PROXY_PORT`: Proxy configuration.
+- `DDAGENTUSER_NAME`: The user account for Agent services.
+- `DDAGENTUSER_PASSWORD`: The password for the Agent user account.
+- `APPLICATIONDATADIRECTORY`: Custom path for Agent configuration files.
+- `PROJECTLOCATION`: Custom path for Agent binaries.
+- `ADDLOCAL`: Comma-separated list of optional components to install.
+- `EC2_USE_WINDOWS_PREFIX_DETECTION`: Enable EC2 Windows prefix detection.
+- `ALLOW_CLOSED_SOURCE`: Control availability of closed-source components.
+
+Parameter values provided at install time shall be reflected in the Agent's
+configuration file (`datadog.yaml`).
+
+
+:::{dropdown} Properties
+:icon: note
+:color: primary
+
+__source__: [https://datadoghq.atlassian.net/wiki/spaces/AW/pages/2962820711](https://datadoghq.atlassian.net/wiki/spaces/AW/pages/2962820711)
+
+:::
+:::{dropdown} References
+:icon: link
+:color: secondary
+
+__Referenced by:__
+[`FUN-022` Custom install directories](/requirements/FUN-022)
+
+:::
+
+:::{dropdown} Source
+:icon: file-code
+:color: info
+
+__Source file__: [`specs/windows_msi.toml`](https://github.com/DataDog/datadog-agent/blob/installer-specs-2/specs/windows_msi.toml)
+
+__Loaded from__: [`fleet-installer`](https://github.com/DataDog/datadog-agent/blob/installer-specs-2/specs/spec.yaml)
+
+:::
+

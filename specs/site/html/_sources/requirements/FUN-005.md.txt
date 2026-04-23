@@ -1,0 +1,35 @@
+# `FUN-005` Stop an experiment (rollback)
+{bdg-ref-primary}`lifecycle <lifecycle>`
+{bdg-ref-primary}`experiment <experiment>`
+
+The operator shall be able to stop a running experiment, discarding the experiment version
+and keeping the current stable version.
+
+The installer shall:
+1. Execute the experiment version's PreStopExperiment hook.
+2. Remove the experiment version's files from disk.
+3. Remove the "experiment" symlink.
+4. Execute the stable version's PostStopExperiment hook.
+
+After stopping, the package state shall show only the stable version with no active experiment.
+
+
+:::{dropdown} References
+:icon: link
+:color: secondary
+
+__Referenced by:__
+[`DEF-003` Experiment](/requirements/DEF-003)
+
+:::
+
+:::{dropdown} Source
+:icon: file-code
+:color: info
+
+__Source file__: [`specs/package_lifecycle.toml`](https://github.com/DataDog/datadog-agent/blob/installer-specs-2/specs/package_lifecycle.toml)
+
+__Loaded from__: [`fleet-installer`](https://github.com/DataDog/datadog-agent/blob/installer-specs-2/specs/spec.yaml)
+
+:::
+
