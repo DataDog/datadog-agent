@@ -90,7 +90,7 @@ func (cs *ConfigStore) Size() (int64, error) {
 	var size int64
 	err := cs.view(func(tx *bbolt.Tx) error {
 		size = tx.Size()
-		return nil, fmt.Errorf("cannot check size of the database")
+		return nil
 	})
 	return size, err
 }
