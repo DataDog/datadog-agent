@@ -82,6 +82,11 @@ if [ "$DD_GUI_APP_MENU_ENABLED" = "true" ]; then
     gui_app_menu_enabled=true
 fi
 
+infrastructure_mode=
+if [ -n "$DD_INFRASTRUCTURE_MODE" ]; then
+    infrastructure_mode="$DD_INFRASTRUCTURE_MODE"
+fi
+
 if [ -n "$DD_AGENT_MINOR_VERSION" ]; then
   # Examples:
   #  - 20        = defaults to highest patch version x.20.2
@@ -211,6 +216,7 @@ $sudo_cmd chmod 700 "$install_staging_dir"
     [ -n "$apikey" ] && echo "DD_API_KEY=$apikey"
     [ -n "$site" ] && echo "DD_SITE=$site"
     [ "$gui_app_menu_enabled" = true ] && echo "DD_GUI_APP_MENU_ENABLED=true"
+    [ -n "$infrastructure_mode" ] && echo "DD_INFRASTRUCTURE_MODE=$infrastructure_mode"
     echo "DD_INSTALL_METHOD=install_script_mac"
     echo "DD_INSTALL_SCRIPT_VERSION=$install_script_version"
 } | $sudo_cmd tee "$install_env_file" > /dev/null
