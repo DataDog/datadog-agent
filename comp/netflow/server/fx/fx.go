@@ -15,6 +15,5 @@ import (
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(serverimpl.NewComponent),
-		fxutil.FxLifecycleAdapter(),
 	)
 }
