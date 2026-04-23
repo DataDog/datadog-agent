@@ -51,6 +51,7 @@ func DiagnosePortSuite() []diagnose.Diagnosis {
 		}
 
 		binds, ok := portMap[uint16(value)]
+		// if the port is used for several protocols, add a diagnose for each
 		if !ok {
 			diagnoses = append(diagnoses, diagnose.Diagnosis{
 				Name:      key,
@@ -63,27 +64,30 @@ func DiagnosePortSuite() []diagnose.Diagnosis {
 		worst, sev, processName := worstBind(binds)
 
 		// TODO: check process user/group
-		switch sev {
-		case severityAgent:
+		if sev == severityAgent {
 			diagnoses = append(diagnoses, diagnose.Diagnosis{
 				Name:      key,
 				Status:    diagnose.DiagnosisSuccess,
 				Diagnosis: fmt.Sprintf("Required port %d is used by '%s' process (PID=%d) for %s", value, processName, worst.Pid, worst.Proto),
 			})
-		case severityUnknown:
-			// Different user owns the bind; PID and process name aren't retrievable.
+			continue
+		}
+
+		// if the port is used by a process that is not run by the same user as the agent, we cannot retrieve the proc id
+		if worst.Pid == 0 {
 			diagnoses = append(diagnoses, diagnose.Diagnosis{
 				Name:      key,
 				Status:    diagnose.DiagnosisWarning,
 				Diagnosis: fmt.Sprintf("Required port %d is already used by an another process. Ensure this is the expected process.", value),
 			})
-		case severityForeign:
-			diagnoses = append(diagnoses, diagnose.Diagnosis{
-				Name:      key,
-				Status:    diagnose.DiagnosisFail,
-				Diagnosis: fmt.Sprintf("Required port %d is already used by '%s' process (PID=%d) for %s.", value, processName, worst.Pid, worst.Proto),
-			})
+			continue
 		}
+
+		diagnoses = append(diagnoses, diagnose.Diagnosis{
+			Name:      key,
+			Status:    diagnose.DiagnosisFail,
+			Diagnosis: fmt.Sprintf("Required port %d is already used by '%s' process (PID=%d) for %s.", value, processName, worst.Pid, worst.Proto),
+		})
 	}
 
 	return diagnoses
