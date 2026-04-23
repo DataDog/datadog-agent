@@ -30,6 +30,8 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           LOGS_AGENT_AI_API_KEY: ${{ secrets.LOGS_AGENT_AI_API_KEY }}
           LOGS_AGENT_AI_BASE_URL: ${{ secrets.LOGS_AGENT_AI_BASE_URL }}
+          LOGS_AGENT_AI_SOURCE: ${{ vars.LOGS_AGENT_AI_SOURCE }}
+          LOGS_AGENT_AI_ORG_ID: ${{ vars.LOGS_AGENT_AI_ORG_ID }}
           LOGS_AGENT_REVIEW_MODEL: ${{ vars.LOGS_AGENT_REVIEW_MODEL }}
         run: |
           python3 -m tools.logs_agent_ai review-pr \
