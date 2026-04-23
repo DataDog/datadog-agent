@@ -1,12 +1,19 @@
 {
   "enabledPlugins": {
-    "datadog-agent-gopls@datadog-agent-local": true
+    "datadog-agent-gopls@datadog-agent-local": true,
+    "speky@speky": true
   },
   "extraKnownMarketplaces": {
     "datadog-agent-local": {
       "source": {
         "source": "directory",
         "path": ".claude-plugins"
+      }
+    },
+    "speky": {
+      "source": {
+        "source": "github",
+        "repo": "agagniere/speky"
       }
     }
   }
