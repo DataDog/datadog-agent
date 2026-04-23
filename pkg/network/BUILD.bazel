@@ -27,4 +27,3 @@
 # gazelle:exclude ebpf
 # gazelle:exclude events
 # gazelle:exclude dns
-# gazelle:exclude testutil
