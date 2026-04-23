@@ -415,7 +415,7 @@ func (sc *dcaStreamClient) drainPendingUpdate() streamUpdate {
 // streamOnce establishes a single gRPC streaming connection and processes
 // events until the connection is lost or the context is canceled.
 func (sc *dcaStreamClient) streamOnce(ctx context.Context) error {
-	conn, err := dialDCA(ctx)
+	conn, err := dialDCA(ctx, sc.cfg)
 	if err != nil {
 		return fmt.Errorf("failed to connect to DCA: %w", err)
 	}
@@ -456,7 +456,7 @@ func (sc *dcaStreamClient) streamOnce(ctx context.Context) error {
 	}
 }
 
-func dialDCA(ctx context.Context) (*grpc.ClientConn, error) {
+func dialDCA(ctx context.Context, cfg configmodel.Reader) (*grpc.ClientConn, error) {
 	target, err := configutils.GetClusterAgentEndpoint()
 	if err != nil {
 		return nil, fmt.Errorf("could not get DCA endpoint: %w", err)
@@ -469,10 +469,17 @@ func dialDCA(ctx context.Context) (*grpc.ClientConn, error) {
 		return nil, fmt.Errorf("could not get TLS config: %w", err)
 	}
 
+	// Same max message size as the cluster agent gRPC server (cluster-agent/api/server.go).
+	maxMsgSize := cfg.GetInt("cluster_agent.cluster_tagger.grpc_max_message_size")
+
 	return grpc.DialContext( //nolint:staticcheck // TODO: use NewClient when ready
 		ctx,
 		target,
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+		grpc.WithDefaultCallOptions(
+			grpc.MaxCallRecvMsgSize(maxMsgSize),
+			grpc.MaxCallSendMsgSize(maxMsgSize),
+		),
 	)
 }
 

@@ -22,6 +22,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// errExtensionNotInPackage is returned by installSingle when the requested extension
+// layer is absent from the package image.
+var errExtensionNotInPackage = errors.New("extension not in package")
+
 // ExtensionsDBDir is the path to the extensions database, overridden in tests
 var ExtensionsDBDir = paths.RunPath
 
@@ -157,23 +161,31 @@ func Install(ctx context.Context, downloader *oci.Downloader, url string, extens
 			return fmt.Errorf("package %s is installed at version %s, requested version is %s", pkg.Name, dbPkg.Version, pkg.Version)
 		}
 		if dbPkg.Extensions == nil {
-			dbPkg.Extensions = make(map[string]struct{})
+			dbPkg.Extensions = make(map[string]string)
 		}
+
+		newDigest, err := pkg.Image.Digest()
+		if err != nil {
+			return fmt.Errorf("could not get digest for package %s: %w", pkg.Name, err)
+		}
+		newDigestStr := newDigest.String()
 
 		// Process each extension in this group
 		for _, extension := range group.extensions {
-			if _, exists := dbPkg.Extensions[extension]; exists {
-				log.Debugf("Extension %s already installed, skipping", extension)
+			if stored, exists := dbPkg.Extensions[extension]; exists && stored == newDigestStr {
+				log.Debugf("Extension %s already installed at digest %s, skipping", extension, stored)
 				continue
 			}
 
 			err := installSingle(ctx, pkg, extension, isExperiment, hooks)
 			if err != nil {
-				installErrors = append(installErrors, fmt.Errorf("extension %s: %w", extension, err))
+				if !errors.Is(err, errExtensionNotInPackage) {
+					installErrors = append(installErrors, fmt.Errorf("extension %s: %w", extension, err))
+				}
 				continue
 			}
 
-			dbPkg.Extensions[extension] = struct{}{}
+			dbPkg.Extensions[extension] = newDigestStr
 		}
 
 		// Update DB with successfully installed extensions
@@ -215,7 +227,7 @@ func installSingle(ctx context.Context, pkg *oci.DownloadedPackage, extension st
 			// The extension is not available in the package, skip it.
 			// This might be a version where the extension doesn't exist and shouldn't block other methods.
 			fmt.Printf("no layer matches the requested annotations for %s, skipping\n", extension)
-			return nil
+			return errExtensionNotInPackage
 		}
 		return fmt.Errorf("could not extract layers for %s: %w", extension, err)
 	}
@@ -489,8 +501,8 @@ func getExtensionsPath(pkg, version string) string {
 	return filepath.Join(basePath, "ext")
 }
 
-// keys returns the keys of a map[string]struct{}.
-func keys(m map[string]struct{}) []string {
+// keys returns the keys of a map[string]string.
+func keys(m map[string]string) []string {
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
