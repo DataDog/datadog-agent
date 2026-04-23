@@ -7,12 +7,12 @@ package runners
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
@@ -33,14 +33,14 @@ type WorkflowRunner struct {
 	resolver     resolver.PrivateCredentialResolver
 	config       *config.Config
 	keysManager  taskverifier.KeysManager
-	taskVerifier *taskverifier.TaskVerifier
+	taskVerifier taskverifier.TaskVerifier
 	taskLoop     *Loop
 }
 
 func NewWorkflowRunner(
 	configuration *config.Config,
 	keysManager taskverifier.KeysManager,
-	verifier *taskverifier.TaskVerifier,
+	verifier taskverifier.TaskVerifier,
 	opmsClient opms.Client,
 	traceroute traceroute.Component,
 	eventPlatform eventplatform.Component,
@@ -86,7 +86,7 @@ func (n *WorkflowRunner) RunTask(
 	ctx context.Context,
 	task *types.Task,
 	credential *privateconnection.PrivateCredentials,
-) (interface{}, error) {
+) (output interface{}, err error) {
 	fqn := task.GetFQN()
 	bundleName, actionName := actions.SplitFQN(fqn)
 	bundle := n.registry.GetBundle(bundleName)
@@ -106,15 +106,6 @@ func (n *WorkflowRunner) RunTask(
 	if !n.config.IsActionAllowed(bundleName, actionName) {
 		return nil, util.DefaultActionError(fmt.Errorf("action %s is not in the allow list", fqn))
 	}
-	if actions.IsHttpBundle(bundleName) {
-		url, ok := task.Data.Attributes.Inputs["url"].(string)
-		if !ok {
-			return nil, util.DefaultActionError(errors.New("missing required field url"))
-		}
-		if !n.config.IsURLInAllowlist(url) {
-			return nil, util.DefaultActionError(errors.New("request url is not allowed by runner policy: check your configuration file"))
-		}
-	}
 
 	logger := log.FromContext(ctx)
 
@@ -122,8 +113,14 @@ func (n *WorkflowRunner) RunTask(
 	defer heartbeatCancel()
 	go n.startHeartbeat(heartbeatCtx, task, logger)
 
+	ctx = telemetry.WithService(ctx, observability.ParService)
+	span, ctx := telemetry.StartSpanFromUint64IDs(ctx, observability.ActionRunOperation, task.Data.Attributes.TraceId, task.Data.Attributes.SpanId)
+	span.SetResourceName(fqn)
+	span.SetTag("task_id", task.Data.ID)
+	defer func() { span.Finish(err) }()
+
 	startTime := observability.ReportExecutionStart(n.config.MetricsClient, task.Data.Attributes.Client, fqn, task.Data.ID, logger)
-	output, err := action.Run(ctx, task, credential)
+	output, err = action.Run(ctx, task, credential)
 	observability.ReportExecutionCompleted(n.config.MetricsClient, task.Data.Attributes.Client, fqn, task.Data.ID, startTime, err, logger)
 
 	if err != nil {

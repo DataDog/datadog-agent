@@ -11,9 +11,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/docker/docker/api/types/swarm"
-	"github.com/docker/docker/api/types/system"
-	"github.com/docker/docker/client"
+	"github.com/moby/moby/api/types/swarm"
+	"github.com/moby/moby/api/types/system"
+	"github.com/moby/moby/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 

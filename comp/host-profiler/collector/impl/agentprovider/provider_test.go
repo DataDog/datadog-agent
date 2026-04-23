@@ -87,7 +87,7 @@ func createTestFactories(t *testing.T) otelcol.Factories {
 	// Create standalone extensions (without Agent dependencies)
 	// Note: hpflareextension is passed nil for ipc component since we're only validating config structure
 	extensionFactories := []extension.Factory{
-		ddprofilingextensionimpl.NewFactory(),
+		ddprofilingextensionimpl.NewFactoryForAgent(nil, nil),
 		hpflareextension.NewFactoryForAgent(nil),
 	}
 	extensions, err := otelcol.MakeFactoryMap(extensionFactories...)
@@ -210,6 +210,51 @@ func TestProvider(t *testing.T) {
 			agentConfig:  "provider/infer-dc-add-ep/agent.yaml",
 			expectedOTel: "provider/infer-dc-add-ep/otel.yaml",
 		},
+		{
+			name:         "debug-enabled",
+			agentConfig:  "provider/debug-enabled/agent.yaml",
+			expectedOTel: "provider/debug-enabled/otel.yaml",
+		},
+		{
+			name:         "debug-disabled",
+			agentConfig:  "provider/debug-disabled/agent.yaml",
+			expectedOTel: "provider/debug-disabled/otel.yaml",
+		},
+		{
+			name:         "additional-http-headers",
+			agentConfig:  "provider/add-headers/agent.yaml",
+			expectedOTel: "provider/add-headers/otel.yaml",
+		},
+		{
+			name:         "additional-http-headers-with-debug",
+			agentConfig:  "provider/add-headers-debug/agent.yaml",
+			expectedOTel: "provider/add-headers-debug/otel.yaml",
+		},
+		{
+			name:         "ddprofiling-enabled",
+			agentConfig:  "provider/ddprofiling-enabled/agent.yaml",
+			expectedOTel: "provider/ddprofiling-enabled/otel.yaml",
+		},
+		{
+			name:         "ddprofiling-period",
+			agentConfig:  "provider/ddprofiling-period/agent.yaml",
+			expectedOTel: "provider/ddprofiling-period/otel.yaml",
+		},
+		{
+			name:         "health-metrics-disabled",
+			agentConfig:  "provider/health-metrics-disabled/agent.yaml",
+			expectedOTel: "provider/health-metrics-disabled/otel.yaml",
+		},
+		{
+			name:         "health-metrics-custom",
+			agentConfig:  "provider/health-metrics-custom/agent.yaml",
+			expectedOTel: "provider/health-metrics-custom/otel.yaml",
+		},
+		{
+			name:         "hpflare-custom-port",
+			agentConfig:  "provider/hpflare-custom-port/agent.yaml",
+			expectedOTel: "provider/hpflare-custom-port/otel.yaml",
+		},
 	}
 
 	for _, tt := range tests {
@@ -279,8 +324,8 @@ func TestProviderMultipleEndpoints(t *testing.T) {
 
 	// Validate symbol endpoints
 	receivers := actualMap["receivers"].(map[string]interface{})
-	hostprofiler := receivers["hostprofiler"].(map[string]interface{})
-	symbolUploader := hostprofiler["symbol_uploader"].(map[string]interface{})
+	profiling := receivers["profiling"].(map[string]interface{})
+	symbolUploader := profiling["symbol_uploader"].(map[string]interface{})
 	symbolEndpoints := symbolUploader["symbol_endpoints"].([]interface{})
 	require.Len(t, symbolEndpoints, 4, "should have 4 symbol endpoints (2 EU + 1 US3 + 1 main)")
 }

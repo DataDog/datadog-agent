@@ -192,6 +192,7 @@ func deepCopyPIDContext(fieldToCopy PIDContext) PIDContext {
 	copied.NetNS = fieldToCopy.NetNS
 	copied.PPid = fieldToCopy.PPid
 	copied.Pid = fieldToCopy.Pid
+	copied.SID = fieldToCopy.SID
 	copied.Tid = fieldToCopy.Tid
 	copied.UserSessionID = fieldToCopy.UserSessionID
 	return copied
@@ -294,7 +295,9 @@ func deepCopyCGroupContext(fieldToCopy CGroupContext) CGroupContext {
 	copied := CGroupContext{}
 	copied.CGroupID = fieldToCopy.CGroupID
 	copied.CGroupPathKey = deepCopyPathKey(fieldToCopy.CGroupPathKey)
+	copied.CGroupSource = fieldToCopy.CGroupSource
 	copied.CGroupVersion = fieldToCopy.CGroupVersion
+	copied.CreatedAt = fieldToCopy.CreatedAt
 	copied.Releasable = deepCopyReleasablePtr(fieldToCopy.Releasable)
 	return copied
 }
@@ -315,6 +318,7 @@ func deepCopyReleasablePtr(fieldToCopy *Releasable) *Releasable {
 func deepCopyContainerContext(fieldToCopy ContainerContext) ContainerContext {
 	copied := ContainerContext{}
 	copied.ContainerID = fieldToCopy.ContainerID
+	copied.ContainerSource = fieldToCopy.ContainerSource
 	copied.CreatedAt = fieldToCopy.CreatedAt
 	copied.Releasable = deepCopyReleasablePtr(fieldToCopy.Releasable)
 	copied.Tags = deepCopystringArr(fieldToCopy.Tags)

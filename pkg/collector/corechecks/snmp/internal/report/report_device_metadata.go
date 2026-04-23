@@ -6,7 +6,7 @@
 package report
 
 import (
-	json "encoding/json"
+	"encoding/json"
 	"fmt"
 	"net"
 	"sort"

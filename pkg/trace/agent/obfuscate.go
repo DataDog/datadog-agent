@@ -226,7 +226,7 @@ func (a *Agent) obfuscateSpanInternal(span obfuscateSpan) {
 	}
 }
 
-func (a *Agent) obfuscateSpan(span *pb.Span) {
+func (a *Agent) ObfuscateSpan(span *pb.Span) {
 	a.lazyInitObfuscator()
 	for _, spanEvent := range span.SpanEvents {
 		a.obfuscateSpanEvent(spanEvent)

@@ -31,9 +31,9 @@ build do
 
 	if linux_target?
 	    if heroku_target?
-               command_on_repo_root "bazelisk run -- //packages/agent/heroku:license_files_install --destdir=#{install_dir}"
+               command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- //packages/agent/heroku:license_files_install --destdir=#{install_dir}"
             else
-               command_on_repo_root "bazelisk run -- //packages/agent/linux:license_files_install --destdir=#{install_dir}"
+               command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- //packages/agent/linux:license_files_install --destdir=#{install_dir}"
             end
         end
 
@@ -94,8 +94,10 @@ build do
             # Create empty directories so that they're owned by the package
             # (also requires `extra_package_file` directive in project def)
             mkdir "#{output_config_dir}/etc/datadog-agent/checks.d"
-            mkdir "#{output_config_dir}/etc/datadog-agent/processes.d"
             mkdir "/var/log/datadog"
+
+            # Process manager config directory (read-only, under install dir)
+            mkdir "#{install_dir}/processes.d"
 
             # remove unused configs
             delete "#{output_config_dir}/etc/datadog-agent/conf.d/apm.yaml.default"
@@ -142,13 +144,18 @@ build do
             # removing the local folder to reduce package size by ~0.5MB
             delete "#{install_dir}/embedded/share/locale"
 
-            # remove some debug ebpf object files to reduce the size of the package
-            delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/oom-kill-debug.o"
-            delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/tcp-queue-length-debug.o"
+            # Drop bundled unit-test directories from embedded Python wheels/deps (not used at agent runtime).
+            # Deepest paths first so nested tests/ trees are removed safely.
+            command "find #{install_dir}/embedded/lib -path '*/site-packages/*' -depth -type d -name tests -exec rm -rf {} +"
+
+            # Remove debug eBPF object files — they enable bpf_trace_printk logging
+            # and are only useful for local development, not deployed environments.
+            command "rm -f #{install_dir}/embedded/share/system-probe/ebpf/*-debug.o"
+            command "rm -f #{install_dir}/embedded/share/system-probe/ebpf/co-re/*-debug.o"
+
+            # Remove test-only eBPF object files
             delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/error_telemetry.o"
             delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/logdebug-test.o"
-            delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/shared-libraries-debug.o"
-            delete "#{install_dir}/embedded/share/system-probe/ebpf/shared-libraries-debug.o"
 
             # linux build will be stripped - but psycopg2 affected by bug in the way binutils
             # and patchelf work together:
@@ -196,12 +203,41 @@ build do
             command "dda inv -- omnibus.rpath-edit #{install_dir} #{install_dir} --platform=macos", cwd: Dir.pwd
 
             if code_signing_identity
+                # Re-unlock the keychain right before signing.  The keychain
+                # may have been auto-locked if the build took longer than the
+                # previous timeout, or securityd may have dropped state.  This
+                # is a no-op when the keychain is already unlocked.
+                keychain_name = ENV['KEYCHAIN_NAME']
+                keychain_pwd  = ENV['KEYCHAIN_PWD']
+                if keychain_name && keychain_pwd && !keychain_pwd.empty?
+                    command "security unlock-keychain -p \"$KEYCHAIN_PWD\" \"$KEYCHAIN_NAME\"", cwd: Dir.pwd
+                end
+
+                # Signing healthcheck: attempt a single codesign operation
+                # before the parallel batch.  If securityd or the keychain is
+                # in a bad state this will fail fast (seconds) instead of
+                # burning ~90 minutes retrying hundreds of files.
+                #
+                # Uses `find ... -print -quit` (not `| head -1`): under
+                # `pipefail`, piping to `head` makes `find` exit 141 on SIGPIPE
+                # once `head` closes its stdin, which reliably fails the
+                # healthcheck even when codesign itself succeeds.
+                hardened_runtime = "-o runtime --entitlements #{entitlements_file} "
+                command <<-SH.gsub(/^ {20}/, ""), cwd: Dir.pwd
+                    set -euo pipefail
+                    test_file=$(find #{install_dir} -type f -perm +111 ! -path '*/Datadog Agent.app/*' -print -quit)
+                    if [ -n "$test_file" ]; then
+                        echo "Signing healthcheck: codesigning $test_file"
+                        codesign #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' "$test_file"
+                        echo "Signing healthcheck passed"
+                    fi
+                SH
+
                 # Sometimes the timestamp service is not available, so we retry
                 codesign = "../tools/ci/retry.sh codesign"
                 app = "'#{install_dir}/Datadog Agent.app'"
 
                 # Codesign ~480 files (out of ~28000)
-                hardened_runtime = "-o runtime --entitlements #{entitlements_file} "
                 command <<-SH.gsub(/^ {20}/, ""), cwd: Dir.pwd
                     set -euo pipefail
                     (

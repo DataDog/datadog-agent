@@ -9,6 +9,7 @@ import (
 	eval "github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	containerutils "github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	rules "github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	utils "github.com/DataDog/datadog-agent/pkg/security/utils"
 	easyjson "github.com/mailru/easyjson"
 	jlexer "github.com/mailru/easyjson/jlexer"
 	jwriter "github.com/mailru/easyjson/jwriter"
@@ -239,8 +240,18 @@ func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityEvents(in *jle
 		case "created_at":
 			if in.IsNull() {
 				in.Skip()
+				out.CreatedAt = nil
 			} else {
-				out.CreatedAt = uint64(in.Uint64())
+				if out.CreatedAt == nil {
+					out.CreatedAt = new(utils.EasyjsonTime)
+				}
+				if in.IsNull() {
+					in.Skip()
+				} else {
+					if data := in.Raw(); in.Ok() {
+						in.AddError((*out.CreatedAt).UnmarshalJSON(data))
+					}
+				}
 			}
 		default:
 			in.SkipRecursive()
@@ -262,7 +273,7 @@ func easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityEvents(out *jw
 		out.RawString(prefix[1:])
 		out.String(string(in.ContainerID))
 	}
-	{
+	if in.CreatedAt != nil {
 		const prefix string = ",\"created_at\":"
 		if first {
 			first = false
@@ -270,7 +281,7 @@ func easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityEvents(out *jw
 		} else {
 			out.RawString(prefix)
 		}
-		out.Uint64(uint64(in.CreatedAt))
+		(*in.CreatedAt).MarshalEasyJSON(out)
 	}
 	out.RawByte('}')
 }
@@ -1456,6 +1467,12 @@ func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor3(
 			} else {
 				out.Inherited = bool(in.Bool())
 			}
+		case "private":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Private = bool(in.Bool())
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -1587,6 +1604,16 @@ func easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor3(
 			out.RawString(prefix)
 		}
 		out.Bool(bool(in.Inherited))
+	}
+	if in.Private {
+		const prefix string = ",\"private\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.Bool(bool(in.Private))
 	}
 	out.RawByte('}')
 }

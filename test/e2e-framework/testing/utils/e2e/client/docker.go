@@ -18,9 +18,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
 	"github.com/docker/cli/cli/connhelper"
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/client"
-	"github.com/docker/docker/pkg/stdcopy"
+	"github.com/moby/moby/api/pkg/stdcopy"
+	"github.com/moby/moby/client"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -59,10 +58,9 @@ func NewDocker(t *testing.T, dockerOutput docker.ManagerOutput) (*Docker, error)
 
 	opts := []client.Opt{
 		client.WithDialContext(helper.Dialer),
-		client.WithAPIVersionNegotiation(),
 	}
 
-	client, err := client.NewClientWithOpts(opts...)
+	client, err := client.New(opts...)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create docker client: %w", err)
 	}
@@ -97,11 +95,10 @@ func (docker *Docker) ExecuteCommandStdoutStdErr(containerName string, commands 
 	docker.t.Logf("Executing command `%s`", scrubbedCommand)
 
 	context := context.Background()
-	execConfig := container.ExecOptions{Cmd: commands, AttachStderr: true, AttachStdout: true}
-	execCreateResp, err := docker.client.ContainerExecCreate(context, containerName, execConfig)
+	execCreateResp, err := docker.client.ExecCreate(context, containerName, client.ExecCreateOptions{Cmd: commands, AttachStderr: true, AttachStdout: true})
 	require.NoError(docker.t, err)
 
-	execAttachResp, err := docker.client.ContainerExecAttach(context, execCreateResp.ID, container.ExecAttachOptions{})
+	execAttachResp, err := docker.client.ExecAttach(context, execCreateResp.ID, client.ExecAttachOptions{})
 	require.NoError(docker.t, err)
 	defer execAttachResp.Close()
 
@@ -111,7 +108,7 @@ func (docker *Docker) ExecuteCommandStdoutStdErr(containerName string, commands 
 	_, err = stdcopy.StdCopy(&outBuf, &errBuf, execAttachResp.Reader)
 	require.NoError(docker.t, err)
 
-	execInspectResp, err := docker.client.ContainerExecInspect(context, execCreateResp.ID)
+	execInspectResp, err := docker.client.ExecInspect(context, execCreateResp.ID, client.ExecInspectOptions{})
 	require.NoError(docker.t, err)
 
 	stdout = outBuf.String()
@@ -139,11 +136,11 @@ func (docker *Docker) ListContainers() ([]string, error) {
 
 func (docker *Docker) getContainerIDsByName() (map[string]string, error) {
 	containersMap := make(map[string]string)
-	containers, err := docker.client.ContainerList(context.Background(), container.ListOptions{All: true})
+	result, err := docker.client.ContainerList(context.Background(), client.ContainerListOptions{All: true})
 	if err != nil {
 		return containersMap, err
 	}
-	for _, container := range containers {
+	for _, container := range result.Items {
 		for _, name := range container.Names {
 			// remove leading /
 			name = strings.TrimPrefix(name, "/")
@@ -158,13 +155,13 @@ func (docker *Docker) DownloadFile(containerName, containerPath, localPath strin
 	docker.t.Logf("Downloading from container %s:%s to local path %s", containerName, containerPath, localPath)
 
 	ctx := context.Background()
-	reader, _, err := docker.client.CopyFromContainer(ctx, containerName, containerPath)
+	copyResult, err := docker.client.CopyFromContainer(ctx, containerName, client.CopyFromContainerOptions{SourcePath: containerPath})
 	if err != nil {
 		return fmt.Errorf("failed to copy from container %s:%s: %w", containerName, containerPath, err)
 	}
-	defer reader.Close()
+	defer copyResult.Content.Close()
 
-	tarReader := tar.NewReader(reader)
+	tarReader := tar.NewReader(copyResult.Content)
 
 	// Process all entries in the tar archive
 	for {

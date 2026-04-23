@@ -589,6 +589,12 @@ func (s *baseStartStopSuite) SetupSuite() {
 	s.dumpFolder = werCrashDumpFolder
 	err := windowsCommon.EnableWERGlobalDumps(host, s.dumpFolder)
 	s.Require().NoError(err, "should enable WER dumps")
+
+	// Setup cdb.exe for automated crash dump analysis
+	err = windowsCommon.SetupCdb(host)
+	if err != nil {
+		s.T().Logf("Warning: failed to setup cdb for crash dump analysis: %v", err)
+	}
 	env := map[string]string{
 		"GOTRACEBACK": "wer",
 	}
@@ -673,6 +679,10 @@ func (s *baseStartStopSuite) AfterTest(suiteName, testName string) {
 		for _, dump := range dumps {
 			s.T().Logf("  %s", dump)
 		}
+		// Run !analyze -v on each crash dump on the remote VM
+		if analyzeErr := windowsCommon.AnalyzeAllWERDumps(s.Env().RemoteHost, s.dumpFolder, s.SessionOutputDir(), s.T()); analyzeErr != nil {
+			s.T().Logf("Warning: crash dump analysis errors: %v", analyzeErr)
+		}
 	}
 
 	if s.T().Failed() {
@@ -692,6 +702,18 @@ func (s *baseStartStopSuite) AfterTest(suiteName, testName string) {
 		}
 		// collect agent logs
 		s.collectAgentLogs()
+	}
+
+	// Analyze kernel crash dump on the remote VM before downloading it
+	if exists, _ := s.Env().RemoteHost.FileExists(systemCrashDumpFile); exists {
+		output, analyzeErr := windowsCommon.AnalyzeKernelDump(s.Env().RemoteHost, systemCrashDumpFile)
+		if analyzeErr != nil {
+			s.T().Logf("Warning: kernel dump analysis error: %v", analyzeErr)
+		} else {
+			s.T().Logf("=== Kernel crash dump analysis ===\n%s", output)
+			analysisPath := filepath.Join(s.SessionOutputDir(), "kernel-dump-analysis.txt")
+			_ = os.WriteFile(analysisPath, []byte(output), 0644)
+		}
 	}
 
 	// check if the host crashed.

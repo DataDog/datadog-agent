@@ -14,7 +14,14 @@ import (
 
 // PacketInfo holds OS dependent packet information
 // about a packet
-type PacketInfo interface{}
+type PacketInfo interface {
+	// PacketType returns the packet direction type
+	// (e.g. PacketHost, PacketOutgoing)
+	PacketType() uint8
+	// LinkLayerType returns the gopacket layer type for this
+	// packet's link-layer encapsulation
+	LinkLayerType() gopacket.LayerType
+}
 
 // PacketSource reads raw packet data
 type PacketSource interface {

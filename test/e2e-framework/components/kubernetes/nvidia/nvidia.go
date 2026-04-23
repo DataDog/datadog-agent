@@ -90,7 +90,9 @@ func NewKindCluster(env config.Env, vm *remote.Host, name string, clusterOpts *K
 }
 
 func configureContainerToolkit(env config.Env, vm *remote.Host, clusterOpts *KindClusterOptions, opts ...pulumi.ResourceOption) (pulumi.Resource, error) {
-	// Ensure we have Docker
+	// Ensure we have Docker. Callers on AWS (e.g. GPU K8s provisioner) should install the ECR
+	// credentials helper via docker.InstallECRCredentialsHelper before NewKindCluster and pass
+	// it in opts so image pulls to ECR work; this package stays cloud-agnostic.
 	dockerManager, err := docker.NewManager(env, vm, opts...)
 	if err != nil {
 		return nil, err

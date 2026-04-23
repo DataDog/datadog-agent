@@ -9,15 +9,16 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"text/template"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws/ecs"
-	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws/ssm"
-	"github.com/pulumi/pulumi-awsx/sdk/v2/go/awsx/awsx"
-	ecsx "github.com/pulumi/pulumi-awsx/sdk/v2/go/awsx/ecs"
+	"github.com/pulumi/pulumi-aws/sdk/v7/go/aws/ecs"
+	"github.com/pulumi/pulumi-aws/sdk/v7/go/aws/ssm"
+	"github.com/pulumi/pulumi-awsx/sdk/v3/go/awsx/awsx"
+	ecsx "github.com/pulumi/pulumi-awsx/sdk/v3/go/awsx/ecs"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -94,6 +95,11 @@ func TestECSFargate(t *testing.T) {
 			}
 
 			// Create task definition
+			ubuntuImage := "ubuntu:22.04"
+			if awsEnv.CommonEnvironment.ImagePullRegistry() != "" {
+				ubuntuImage = strings.SplitN(awsEnv.CommonEnvironment.ImagePullRegistry(), ",", 2)[0] + "/dockerhub/library/ubuntu:22.04"
+			}
+
 			taskDef, err := ecsx.NewFargateTaskDefinition(ctx, "cws-task", &ecsx.FargateTaskDefinitionArgs{
 				Containers: map[string]ecsx.TaskDefinitionContainerDefinitionArgs{
 					"datadog-agent": {
@@ -142,7 +148,7 @@ func TestECSFargate(t *testing.T) {
 					"ubuntu-with-tracer": {
 						Cpu:       pulumi.IntPtr(0),
 						Name:      pulumi.String("ubuntu-with-tracer"),
-						Image:     pulumi.String("public.ecr.aws/lts/ubuntu:22.04"),
+						Image:     pulumi.String(ubuntuImage),
 						Essential: pulumi.BoolPtr(false),
 						EntryPoint: pulumi.ToStringArray([]string{
 							"/cws-instrumentation-volume/cws-instrumentation",

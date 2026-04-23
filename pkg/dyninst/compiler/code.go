@@ -239,3 +239,27 @@ func (i callInstruction) encode(t codeTracker, out CodeSerializer) error {
 	}
 	return si.encode(t, out)
 }
+
+// callDictResolvedInstruction dispatches to a concrete type's ProcessType
+// based on a dict-resolved runtime type, falling back to the shape type's
+// ProcessType if resolution fails.
+type callDictResolvedInstruction struct {
+	outputOffset uint32
+	fallback     FunctionID
+}
+
+func (i callDictResolvedInstruction) codeByteLen() uint32 {
+	return 1 + 4 + 4 // opcode + outputOffset + fallbackPC
+}
+
+func (i callDictResolvedInstruction) encode(t codeTracker, out CodeSerializer) error {
+	bytes := make([]byte, 0, 8)
+	bytes = binary.LittleEndian.AppendUint32(bytes, i.outputOffset)
+	bytes = binary.LittleEndian.AppendUint32(bytes, t.functionLoc[i.fallback])
+	si := staticInstruction{
+		opcode:  OpcodeCallDictResolved,
+		bytes:   bytes,
+		comment: fmt.Sprintf("dict_offset=%d fallback=%s", i.outputOffset, i.fallback),
+	}
+	return si.encode(t, out)
+}

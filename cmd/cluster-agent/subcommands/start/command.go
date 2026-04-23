@@ -52,7 +52,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	localTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
@@ -67,7 +67,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
+	healthplatformnoopfx "github.com/DataDog/datadog-agent/comp/healthplatform/fx-noop"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	remotetraceroutefx "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec"
@@ -77,10 +77,10 @@ import (
 	metadatarunner "github.com/DataDog/datadog-agent/comp/metadata/runner"
 	metadatarunnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/impl"
-	rccomp "github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcstatus/rcstatusimpl"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
+	rccomp "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
+	rcservicefx "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/fx"
+	rcstatusfx "github.com/DataDog/datadog-agent/comp/remote-config/rcstatus/fx"
+	rctelemetryreporterfx "github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/fx"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
@@ -89,9 +89,11 @@ import (
 	admissionpatch "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 	apidca "github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster"
+	clusterspot "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/spot"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/provider"
 	pkgclusterchecks "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/kubeactions"
 	clusteragentMetricsStatus "github.com/DataDog/datadog-agent/pkg/clusteragent/metricsstatus"
 	orchestratorStatus "github.com/DataDog/datadog-agent/pkg/clusteragent/orchestrator"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
@@ -143,7 +145,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
 )
 
 // Commands returns a slice of subcommands for the 'cluster-agent' command.
@@ -168,7 +170,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				filterlistfx.Module(),
 				demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
 				orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDefaultParams()),
-				eventplatformimpl.Module(eventplatformimpl.NewDisabledParams()),
+				eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
 				eventplatformreceiverimpl.Module(),
 				// setup workloadmeta
 				wmcatalog.GetCatalog(),
@@ -197,9 +199,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					return option.None[integrations.Component]()
 				}),
 				agenttelemetryfx.Module(),
-				fx.Provide(func() option.Option[healthplatform.Component] {
-					return option.None[healthplatform.Component]()
-				}),
+				healthplatformnoopfx.Module(),
 
 				statusimpl.Module(),
 				collectorimpl.Module(),
@@ -207,9 +207,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					return option.None[serializer.MetricSerializer]()
 				}),
 				autodiscoveryimpl.Module(),
-				rcserviceimpl.Module(),
-				rcstatusimpl.Module(),
-				rctelemetryreporterimpl.Module(),
+				rcservicefx.Module(),
+				rcstatusfx.Module(),
+				rctelemetryreporterfx.Module(),
 				fx.Provide(func(config config.Component) healthprobe.Options {
 					return healthprobe.Options{
 						Port:           config.GetInt("health_port"),
@@ -264,6 +264,7 @@ func start(log log.Component,
 	taggerComp tagger.Component,
 	telemetry telemetry.Component,
 	demultiplexer demultiplexer.Component,
+	epForwarder eventplatform.Component,
 	filterStore workloadfilter.Component,
 	wmeta workloadmeta.Component,
 	ac autodiscovery.Component,
@@ -441,7 +442,9 @@ func start(log log.Component,
 		if clusterID != "" {
 			opts = append(opts, tracer.WithGlobalTag("cluster_id", clusterID))
 		}
-		tracer.Start(opts...)
+		if err := tracer.Start(opts...); err != nil {
+			return fmt.Errorf("failed to start APM tracing: %w", err)
+		}
 		pkglog.Infof("APM tracing enabled for Cluster Agent (sample_rate=%.2f)", sampleRate)
 		defer tracer.Stop()
 	}
@@ -449,7 +452,8 @@ func start(log log.Component,
 	// Initialize and start remote configuration client
 	var rcClient *rcclient.Client
 	rcserv, isSet := rcService.Get()
-	if configUtils.IsRemoteConfigEnabled(config) && isSet {
+	rcEnabled := configUtils.IsRemoteConfigEnabled(config)
+	if rcEnabled && isSet {
 		var products []string
 		if config.GetBool("admission_controller.auto_instrumentation.patcher.enabled") {
 			products = append(products, state.ProductAPMTracing)
@@ -460,10 +464,12 @@ func start(log log.Component,
 		if config.GetBool("autoscaling.cluster.enabled") {
 			products = append(products, state.ProductClusterAutoscalingValues)
 		}
+		if config.GetBool("kubeactions.enabled") {
+			products = append(products, state.ProductK8SActions)
+		}
 		if config.GetBool("admission_controller.auto_instrumentation.enabled") || config.GetBool("apm_config.instrumentation.enabled") {
 			products = append(products, state.ProductGradualRollout)
 		}
-		// Add private action runner product if enabled
 		if config.GetBool("private_action_runner.enabled") {
 			products = append(products, state.ProductActionPlatformRunnerKeys)
 		}
@@ -530,7 +536,7 @@ func start(log log.Component,
 	}
 
 	// Autoscaling Product
-	var pa workload.PodPatcher
+	var pp workload.PodPatcher
 	if config.GetBool("autoscaling.workload.enabled") {
 		if rcClient == nil {
 			return errors.New("Remote config is disabled or failed to initialize, remote config is a required dependency for autoscaling")
@@ -540,8 +546,8 @@ func start(log log.Component,
 			log.Error("Admission controller is disabled, vertical autoscaling requires the admission controller to be enabled. Vertical scaling will be disabled.")
 		}
 
-		if adapter, err := provider.StartWorkloadAutoscaling(mainCtx, clusterID, clusterName, le.IsLeader, apiCl, rcClient, wmeta, taggerComp, demultiplexer); err == nil {
-			pa = adapter
+		if patcher, err := provider.StartWorkloadAutoscaling(mainCtx, clusterID, clusterName, le.IsLeader, apiCl, rcClient, wmeta, taggerComp, demultiplexer); err == nil {
+			pp = patcher
 		} else {
 			return fmt.Errorf("Error while starting workload autoscaling: %v", err)
 		}
@@ -557,13 +563,36 @@ func start(log log.Component,
 		}
 	}
 
+	var sh clusterspot.PodHandler
+	if config.GetBool("autoscaling.cluster.spot.enabled") {
+		if scheduler, err := clusterspot.StartSpotScheduling(mainCtx, wmeta, apiCl, le.IsLeader); err == nil {
+			sh = scheduler
+		} else {
+			return fmt.Errorf("Error while starting spot scheduling: %w", err)
+		}
+	}
+
+	// Kubernetes Actions
+	var kubeactionsRetriever *kubeactions.ConfigRetriever
+	if config.GetBool("kubeactions.enabled") {
+		if rcClient == nil {
+			return errors.New("remote config is disabled or failed to initialize, remote config is a required dependency for kubeactions")
+		}
+		log.Infof("[KubeActions] Starting with cluster_id=%s, cluster_name=%s", clusterID, clusterName)
+
+		if kubeactionsRetriever, err = kubeactions.Setup(mainCtx, apiCl.Cl, clusterName, clusterID, le.IsLeader, rcClient, epForwarder); err != nil {
+			return fmt.Errorf("Error while starting kubernetes actions: %v", err)
+		}
+		log.Info("Kubernetes actions subsystem started successfully")
+	}
+
 	// Compliance
 	if config.GetBool("compliance_config.enabled") {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 
-			if err := runCompliance(mainCtx, demultiplexer, wmeta, filterStore, apiCl, compression, le.IsLeader); err != nil {
+			if err := runCompliance(mainCtx, demultiplexer, wmeta, filterStore, apiCl, compression, le.IsLeader, secretResolver); err != nil {
 				pkglog.Errorf("Error while running compliance agent: %v", err)
 			}
 		}()
@@ -620,9 +649,10 @@ func start(log log.Component,
 			StopCh:                       stopCh,
 			ValidatingStopCh:             validatingStopCh,
 			Demultiplexer:                demultiplexer,
+			FilterStore:                  filterStore,
 		}
 
-		webhooks, err := admissionpkg.StartControllers(admissionCtx, wmeta, pa, datadogConfig)
+		webhooks, err := admissionpkg.StartControllers(admissionCtx, datadogConfig, wmeta, pp, sh)
 		// Ignore the error if it's related to the validatingwebhookconfigurations.
 		var syncInformerError *apiserver.SyncInformersError
 		if err != nil && !(errors.As(err, &syncInformerError) && syncInformerError.Name == apiserver.ValidatingWebhooksInformer) {
@@ -684,6 +714,11 @@ func start(log log.Component,
 
 	// Cancel the main context to stop components
 	mainCtxCancel()
+
+	// If kubeactions are enabled, stop the config retriever
+	if kubeactionsRetriever != nil {
+		kubeactionsRetriever.Stop()
+	}
 
 	// wait for the External Metrics Server and the Admission Webhook Server to
 	// stop properly
@@ -762,13 +797,12 @@ func initializeRemoteConfigClient(rcService rccomp.Component, config config.Comp
 		pkglog.Warn("Error retrieving cluster ID: cluster-id won't be set for remote-config client")
 	}
 
-	pkglog.Debugf("Initializing remote-config client with cluster-name: '%s', cluster-id: '%s', products: %v", clusterName, clusterID, products)
 	rcClient, err := rcclient.NewClient(rcService,
 		rcclient.WithAgent("cluster-agent", version.AgentVersion),
 		rcclient.WithCluster(clusterName, clusterID),
+		rcclient.WithDirectorRootOverride(config.GetString("site"), config.GetString("remote_configuration.director_root")),
 		rcclient.WithProducts(products...),
 		rcclient.WithPollInterval(5*time.Second),
-		rcclient.WithDirectorRootOverride(config.GetString("site"), config.GetString("remote_configuration.director_root")),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create local remote-config client: %w", err)

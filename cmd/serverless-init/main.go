@@ -32,8 +32,9 @@ import (
 	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	localTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
-	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/fx-noop"
 	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
+	healthplatformnoopfx "github.com/DataDog/datadog-agent/comp/healthplatform/fx-noop"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 
@@ -74,6 +75,7 @@ func main() {
 		delegatedauthfx.Module(),
 		workloadfilterfx.Module(),
 		autodiscoveryimpl.Module(),
+		healthplatformnoopfx.Module(),
 		fx.Provide(func(config coreconfig.Component) healthprobeDef.Options {
 			return healthprobeDef.Options{
 				Port:           config.GetInt("health_port"),
@@ -109,7 +111,8 @@ func run(secretComp secrets.Component, delegatedAuthComp delegatedauth.Component
 	err := modeConf.Runner(logConfig)
 
 	// Defers are LIFO. We want to run the cloud service shutdown logic before last flush.
-	defer lastFlush(logConfig.FlushTimeout, metricAgent, tracingCtx.TraceAgent, logsAgent)
+	defer lastFlush(logConfig.FlushTimeout, metricAgent, logsAgent)
+	defer tracingCtx.TraceAgent.Stop() // synchronous: drains traces, flushes stats, sends to network
 	defer func() {
 		cloudService.Shutdown(*metricAgent, enhancedMetricsEnabled, err) // submits task.ended metric
 
@@ -152,6 +155,21 @@ func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Compone
 	origin := cloudService.GetOrigin()
 	// Note: we do not modify tags for the LogsAgent.
 	logsAgent := serverlessInitLog.SetupLogAgent(agentLogConfig, tagConfig.Tags, tagger, compression, hostname, origin)
+
+	// When no API key is configured, skip trace and metric agent initialization
+	// to avoid noisy error logs. The process wrapper and logs agent still function normally.
+	// Also check the deprecated apm_config.api_key, which the trace agent still honors.
+	apiKey := configUtils.SanitizeAPIKey(pkgconfigsetup.Datadog().GetString("api_key"))
+	apmAPIKey := configUtils.SanitizeAPIKey(pkgconfigsetup.Datadog().GetString("apm_config.api_key"))
+	if apiKey == "" && apmAPIKey == "" {
+		log.Warnf("DD_API_KEY is not set; trace and metric collection are disabled. Set DD_API_KEY to enable monitoring.")
+		traceAgent := trace.NewNoopTraceAgent()
+		tracingCtx := &cloudservice.TracingContext{TraceAgent: traceAgent}
+		metricAgent := &metrics.ServerlessMetricAgent{
+			Tagger: tagger,
+		}
+		return cloudService, agentLogConfig, tracingCtx, metricAgent, logsAgent, nil, false
+	}
 
 	traceTags := serverlessInitTag.MakeTraceAgentTags(tagConfig.Tags)
 	traceAgent := setupTraceAgent(traceTags, tagConfig.ConfiguredTags, tagger, origin)
@@ -312,12 +330,11 @@ func flushMetricsAgent(metricAgent *metrics.ServerlessMetricAgent) {
 	}
 }
 
-func lastFlush(flushTimeout time.Duration, metricAgent serverless.FlushableAgent, traceAgent serverless.FlushableAgent, logsAgent logsAgent.ServerlessLogsAgent) bool {
+func lastFlush(flushTimeout time.Duration, metricAgent serverless.FlushableAgent, logsAgent logsAgent.ServerlessLogsAgent) bool {
 	hasTimeout := atomic.NewInt32(0)
 	wg := &sync.WaitGroup{}
-	wg.Add(3)
+	wg.Add(2)
 	go flushAndWait(flushTimeout, wg, metricAgent, hasTimeout)
-	go flushAndWait(flushTimeout, wg, traceAgent, hasTimeout)
 	childCtx, cancel := context.WithTimeout(context.Background(), flushTimeout)
 	defer cancel()
 	go func(wg *sync.WaitGroup, ctx context.Context) {

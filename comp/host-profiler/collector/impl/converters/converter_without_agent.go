@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux
-
 // Package converters implements the converters for the host profiler collector.
 package converters
 
@@ -46,8 +44,8 @@ var resourceDetectionDefaultConfig = confMap{
 //   - remove infraattributes processor from metrics processors pipeline
 //   - At least one otlphttpexporter with dd-api-key declared & used
 //   - Check if used otlphttpexporter has dd-api-key as string, if not string convert it, if not at all notify user
-//   - If hostprofiler::symbol_uploader::enabled == true, convert api_key/app_key to strings in each endpoint
-//   - If no hostprofiler is used & configured, add minimal one with symbol_uploader: false
+//   - If profiling::symbol_uploader::enabled == true, convert api_key/app_key to strings in each endpoint
+//   - If no profiling is used & configured, add minimal one with symbol_uploader: false
 //   - remove ddprofiling & hpflare extensions
 type converterWithoutAgent struct{}
 
@@ -100,7 +98,7 @@ func (c *converterWithoutAgent) Convert(_ context.Context, conf *confmap.Conf) e
 	}
 	profilesPipeline["processors"] = newProcessorNames
 
-	// Ensures at least one hostprofiler is used & configured
+	// Ensures at least one profiling receiver is used & configured
 	// If not, create a minimal component with symbol uploading disabled
 	newReceiverNames, err := c.fixReceiversPipeline(confStringMap, receiverNames)
 	if err != nil {
@@ -272,52 +270,52 @@ func (c *converterWithoutAgent) ensureResourceDetectionConfig(resourceDetection 
 	return nil
 }
 
-// fixReceiversPipeline ensures at least one hostprofiler receiver is configured in the pipeline
-// If none exists, it adds a minimal hostprofiler receiver with symbol_uploader disabled
+// fixReceiversPipeline ensures at least one profiling receiver is configured in the pipeline
+// If none exists, it adds a minimal profiling receiver with symbol_uploader disabled
 func (c *converterWithoutAgent) fixReceiversPipeline(conf confMap, receiverNames []any) ([]any, error) {
-	// Check if hostprofiler is in the pipeline
-	hasHostProfiler := false
+	// Check if profiling is in the pipeline
+	hasProfiling := false
 	for _, nameAny := range receiverNames {
 		name, ok := nameAny.(string)
 		if !ok {
 			return nil, fmt.Errorf("receiver name must be a string, got %T", nameAny)
 		}
 
-		if !isComponentType(name, componentTypeHostProfiler) {
+		if !isComponentType(name, componentTypeProfiling) {
 			continue
 		}
 
-		hasHostProfiler = true
+		hasProfiling = true
 
-		if hostProfilerConfig, ok := Get[confMap](conf, pathPrefixReceivers+name); ok {
-			if err := c.checkHostProfilerReceiverConfig(hostProfilerConfig); err != nil {
+		if profilingConfig, ok := Get[confMap](conf, pathPrefixReceivers+name); ok {
+			if err := c.checkProfilingReceiverConfig(profilingConfig); err != nil {
 				return nil, err
 			}
 		}
 	}
 
-	if hasHostProfiler {
+	if hasProfiling {
 		return receiverNames, nil
 	}
 
-	// Ensure default config exists if hostprofiler receiver is not configured
-	if err := Set(conf, pathPrefixReceivers+defaultHostProfilerName+"::"+pathSymbolUploaderEnabled, false); err != nil {
+	// Ensure default config exists if profiling receiver is not configured
+	if err := Set(conf, pathPrefixReceivers+defaultProfilingName+"::"+pathSymbolUploaderEnabled, false); err != nil {
 		return nil, err
 	}
 
-	slog.Warn("Added minimal hostprofiler receiver to user configuration")
-	return append(receiverNames, defaultHostProfilerName), nil
+	slog.Warn("Added minimal profiling receiver to user configuration")
+	return append(receiverNames, defaultProfilingName), nil
 }
 
-// checkHostProfilerReceiverConfig validates and normalizes hostprofiler receiver configuration
+// checkProfilingReceiverConfig validates and normalizes a profiling receiver configuration.
 // It ensures that if symbol_uploader is enabled, symbol_endpoints is properly configured
-// and all api_key/app_key values are strings
-func (c *converterWithoutAgent) checkHostProfilerReceiverConfig(hostProfiler confMap) error {
-	if isEnabled, ok := Get[bool](hostProfiler, pathSymbolUploaderEnabled); !ok || !isEnabled {
+// and all api_key/app_key values are strings.
+func (c *converterWithoutAgent) checkProfilingReceiverConfig(profiling confMap) error {
+	if isEnabled, ok := Get[bool](profiling, pathSymbolUploaderEnabled); !ok || !isEnabled {
 		return nil
 	}
 
-	endpoints, ok := Get[[]any](hostProfiler, pathSymbolEndpoints)
+	endpoints, ok := Get[[]any](profiling, pathSymbolEndpoints)
 
 	if !ok {
 		return errors.New("symbol_endpoints must be a list")
@@ -342,6 +340,10 @@ func (c *converterWithoutAgent) ensureOtlpHTTPExporterConfig(conf confMap, expor
 	for _, nameAny := range exporterNames {
 		if name, ok := nameAny.(string); ok && isComponentType(name, componentTypeOtlpHTTP) {
 			hasOtlpHTTP = true
+
+			if _, err := SetDefault(conf, pathPrefixExporters+name+"::compression", "zstd"); err != nil {
+				return err
+			}
 
 			headers, err := Ensure[confMap](conf, pathPrefixExporters+name+"::headers")
 			if err != nil {

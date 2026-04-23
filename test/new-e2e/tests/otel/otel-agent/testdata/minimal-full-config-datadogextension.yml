@@ -1,18 +1,13 @@
 connectors:
   datadog/connector:
     traces:
-      bucket_interval: 10000000000
       compute_stats_by_span_kind: true
       compute_top_level_by_span_kind: true
-      ignore_missing_datadog_fields: false
       ignore_resources: []
-      peer_service_aggregation: true
       peer_tags: null
       peer_tags_aggregation: true
-      resource_attributes_as_container_tags: null
       span_name_as_resource_name: false
       span_name_remappings: null
-      trace_buffer: 1000
 exporters:
   datadog:
     api:
@@ -38,7 +33,7 @@ exporters:
       histograms:
         mode: distributions
         send_aggregation_metrics: false
-        send_count_sum_metrics: false
+
       instrumentation_scope_metadata_as_tags: true
       resource_attributes_as_tags: true
       summaries:
@@ -76,12 +71,10 @@ exporters:
       compute_stats_by_span_kind: true
       compute_top_level_by_span_kind: true
       ignore_resources: []
-      peer_service_aggregation: true
       peer_tags: null
       peer_tags_aggregation: true
       span_name_as_resource_name: false
       span_name_remappings: null
-      trace_buffer: 0
 extensions:
   datadog/dd-autoconfigured:
     api:
@@ -90,6 +83,8 @@ extensions:
       site: datadoghq.com
     deployment_type: daemonset
     force_attempt_http2: true
+    gateway_destination: ""
+    gateway_service: ""
     hostname: ""
     installation_method: "" # TODO: change to "helm" after helm chart version bump
     http:
@@ -255,7 +250,10 @@ receivers:
             - targets:
                 - 0.0.0.0:8888
           track_timestamps_staleness: false
-    report_extra_scrape_metrics: false
+      storage:
+        tsdb:
+          outofordertimewindow: 0
+          retention: {}
     target_allocator: null
     trim_metric_suffixes: false
 service:
@@ -323,8 +321,6 @@ service:
               prometheus:
                 host: "localhost"
                 port: 8888
-                with_resource_constant_labels:
-                  included: []
                 without_scope_info: true
                 without_type_suffix: true
                 without_units: true

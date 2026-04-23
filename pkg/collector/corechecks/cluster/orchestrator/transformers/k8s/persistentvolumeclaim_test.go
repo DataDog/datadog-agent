@@ -29,10 +29,8 @@ func TestExtractPersistentVolumeClaim(t *testing.T) {
 	parsedResource := resource.MustParse("2Gi")
 
 	tests := map[string]struct {
-		input             corev1.PersistentVolumeClaim
-		labelsAsTags      map[string]string
-		annotationsAsTags map[string]string
-		expected          model.PersistentVolumeClaim
+		input    corev1.PersistentVolumeClaim
+		expected model.PersistentVolumeClaim
 	}{
 		"full pvc": {
 			input: corev1.PersistentVolumeClaim{
@@ -81,12 +79,6 @@ func TestExtractPersistentVolumeClaim(t *testing.T) {
 					},
 				},
 			},
-			labelsAsTags: map[string]string{
-				"app": "application",
-			},
-			annotationsAsTags: map[string]string{
-				"annotation": "annotation_key",
-			},
 			expected: model.PersistentVolumeClaim{
 				Metadata: &model.Metadata{
 					Annotations:       []string{"annotation:my-annotation"},
@@ -124,19 +116,12 @@ func TestExtractPersistentVolumeClaim(t *testing.T) {
 						Reason: "OfflineResize",
 					}},
 				},
-				Tags: []string{
-					"application:my-app",
-					"annotation_key:my-annotation",
-				},
 			},
 		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			pctx := &processors.K8sProcessorContext{
-				LabelsAsTags:      tc.labelsAsTags,
-				AnnotationsAsTags: tc.annotationsAsTags,
-			}
+			pctx := &processors.K8sProcessorContext{}
 			actual := ExtractPersistentVolumeClaim(pctx, &tc.input)
 			sort.Strings(actual.Tags)
 			sort.Strings(tc.expected.Tags)

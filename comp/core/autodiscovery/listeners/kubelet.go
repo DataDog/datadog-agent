@@ -55,7 +55,8 @@ func NewKubeletListener(options ServiceListernerDeps) (ServiceListener, error) {
 		return nil, errors.New("workloadmeta store is not initialized")
 	}
 	var err error
-	l.workloadmetaListener, err = newWorkloadmetaListener(name, wmetaFilter, l.processPod, wmetaInstance, options.Telemetry)
+	maxWait := time.Duration(pkgconfigsetup.Datadog().GetInt("ad_tag_completeness_max_wait")) * time.Second
+	l.workloadmetaListener, err = newWorkloadmetaListenerWithTagWait(name, wmetaFilter, l.processPod, wmetaInstance, options.Telemetry, l.areTagsComplete, maxWait)
 	if err != nil {
 		return nil, err
 	}
@@ -214,4 +215,36 @@ func (l *KubeletListener) createContainerService(
 	svcID := buildSvcID(container.GetID())
 	podSvcID := buildSvcID(pod.GetID())
 	l.AddService(svcID, svc, podSvcID)
+}
+
+func (l *KubeletListener) areTagsComplete(entity workloadmeta.Entity) bool {
+	pod, ok := entity.(*workloadmeta.KubernetesPod)
+	if !ok {
+		log.Errorf("expected KubernetesPod entity, got %T", entity)
+		return true
+	}
+
+	podTaggerID := common.BuildTaggerEntityID(pod.GetID())
+	_, podComplete, err := l.tagger.TagWithCompleteness(podTaggerID, types.ChecksConfigCardinality)
+	if err != nil {
+		log.Debugf("error checking tag completeness for pod %s: %s", pod.ID, err)
+		return false
+	}
+	if !podComplete {
+		return false
+	}
+
+	for _, podContainer := range pod.GetAllContainers() {
+		containerTaggerID := types.NewEntityID(types.ContainerID, podContainer.ID)
+		_, containerComplete, err := l.tagger.TagWithCompleteness(containerTaggerID, types.ChecksConfigCardinality)
+		if err != nil {
+			log.Debugf("error checking tag completeness for container %s: %s", podContainer.ID, err)
+			return false
+		}
+		if !containerComplete {
+			return false
+		}
+	}
+
+	return true
 }

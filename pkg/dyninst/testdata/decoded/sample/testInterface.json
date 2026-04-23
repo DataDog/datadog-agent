@@ -28,7 +28,7 @@
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 49
+            "lineNumber": 51
           },
           {
             "function": "runtime.main",
@@ -66,18 +66,19 @@
               }
             }
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "@duration",
+            "message": "not available: function has no body"
+          }
+        ]
       },
-      "type": "snapshot",
-      "evaluationErrors": [
-        {
-          "expr": "@duration",
-          "message": "not available: function has no body"
-        }
-      ]
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "message": "{s: foo}"
+    "message": "{s: foo}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
     "service": "sample",
@@ -108,7 +109,7 @@
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 49
+            "lineNumber": 51
           },
           {
             "function": "runtime.main",
@@ -147,18 +148,19 @@
               }
             }
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "@duration",
+            "message": "not available: function has no body"
+          }
+        ]
       },
-      "type": "snapshot",
-      "evaluationErrors": [
-        {
-          "expr": "@duration",
-          "message": "not available: function has no body"
-        }
-      ]
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "message": "{s: foo}"
+    "message": "{s: foo}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
     "service": "sample",
@@ -189,7 +191,7 @@
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 49
+            "lineNumber": 51
           },
           {
             "function": "runtime.main",
@@ -227,18 +229,19 @@
               }
             }
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "@duration",
+            "message": "not available: function has no body"
+          }
+        ]
       },
-      "type": "snapshot",
-      "evaluationErrors": [
-        {
-          "expr": "@duration",
-          "message": "not available: function has no body"
-        }
-      ]
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "message": "{i: 42}"
+    "message": "{i: 42}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
     "service": "sample",
@@ -269,7 +272,7 @@
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 49
+            "lineNumber": 51
           },
           {
             "function": "runtime.main",
@@ -308,18 +311,19 @@
               }
             }
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "@duration",
+            "message": "not available: function has no body"
+          }
+        ]
       },
-      "type": "snapshot",
-      "evaluationErrors": [
-        {
-          "expr": "@duration",
-          "message": "not available: function has no body"
-        }
-      ]
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "message": "{i: 42}"
+    "message": "{i: 42}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
     "service": "sample",
@@ -350,7 +354,7 @@
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 49
+            "lineNumber": 51
           },
           {
             "function": "runtime.main",
@@ -383,18 +387,19 @@
               }
             }
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "@duration",
+            "message": "not available: function has no body"
+          }
+        ]
       },
-      "type": "snapshot",
-      "evaluationErrors": [
-        {
-          "expr": "@duration",
-          "message": "not available: function has no body"
-        }
-      ]
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "message": "nil"
+    "message": "nil",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
     "service": "sample",
@@ -425,7 +430,7 @@
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 49
+            "lineNumber": 51
           },
           {
             "function": "runtime.main",
@@ -453,17 +458,18 @@
               }
             }
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "@duration",
+            "message": "not available: function has no body"
+          }
+        ]
       },
-      "type": "snapshot",
-      "evaluationErrors": [
-        {
-          "expr": "@duration",
-          "message": "not available: function has no body"
-        }
-      ]
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "message": "nil"
+    "message": "nil",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

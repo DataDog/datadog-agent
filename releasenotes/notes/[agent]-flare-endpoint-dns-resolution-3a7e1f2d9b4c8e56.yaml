@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Flares now include a ``connectivity/resolved_endpoints.txt`` file that lists
+    the IP addresses each configured Datadog intake endpoint hostname resolves
+    to at flare-generation time. This makes it straightforward to determine
+    whether the Agent is using PrivateLink (private IPs) or the public Datadog
+    intake.

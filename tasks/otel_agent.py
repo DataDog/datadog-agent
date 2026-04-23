@@ -84,6 +84,7 @@ def build(ctx, byoc=False, flavor=AgentFlavor.base.name):
         gcflags=gcflags,
         bin_path=bin_path,
         check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
+        coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
         env=env,
     )
 

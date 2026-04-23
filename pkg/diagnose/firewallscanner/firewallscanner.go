@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
-	netflowConfig "github.com/DataDog/datadog-agent/comp/netflow/config"
+	netflowConfig "github.com/DataDog/datadog-agent/comp/netflow/config/def"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 )
 

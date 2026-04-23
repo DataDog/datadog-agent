@@ -7,6 +7,7 @@ package flare
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"runtime/debug"
@@ -16,7 +17,7 @@ import (
 
 const maxDepsInFlare = 50
 
-func provideRuntimeDebugInfo(fb flaretypes.FlareBuilder) error {
+func provideRuntimeDebugInfo(_ context.Context, fb flaretypes.FlareBuilder) error {
 	return fb.AddFileFromFunc("runtime_debug_info.log", getRuntimeDebugInfo)
 }
 

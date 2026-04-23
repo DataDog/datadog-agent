@@ -1,3 +1,5 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_static_library", "rust_test")
@@ -16,6 +18,11 @@ rust_library(
             "src/bin/**",
         ],
     ),
+    crate_features = [
+        "java-archives",
+        "spring",
+        "jee",
+    ],
     crate_name = "dd_discovery",
     edition = "2024",
     target_compatible_with = [
@@ -27,6 +34,7 @@ rust_library(
         "@crates//:cap-std",
         "@crates//:clap",
         "@crates//:elf",
+        "@crates//:flate2",
         "@crates//:glob-match",
         "@crates//:http-body-util",
         "@crates//:hyper",
@@ -37,12 +45,16 @@ rust_library(
         "@crates//:nom",
         "@crates//:normalize-path",
         "@crates//:phf",
+        "@crates//:rawzip",
         "@crates//:rmp-serde",
+        "@crates//:saphyr-parser",
         "@crates//:serde",
         "@crates//:serde_json",
         "@crates//:thiserror",
         "@crates//:tokio",
         "@crates//:uzers",
+        "@crates//:walkdir",
+        "@crates//:xml-rs",
     ],
 )
 
@@ -56,6 +68,11 @@ rust_static_library(
             "src/bin/**",
         ],
     ),
+    crate_features = [
+        "java-archives",
+        "spring",
+        "jee",
+    ],
     crate_name = "dd_discovery",
     crate_root = "src/lib.rs",
     edition = "2024",
@@ -68,6 +85,7 @@ rust_static_library(
         "@crates//:cap-std",
         "@crates//:clap",
         "@crates//:elf",
+        "@crates//:flate2",
         "@crates//:glob-match",
         "@crates//:http-body-util",
         "@crates//:hyper",
@@ -78,12 +96,16 @@ rust_static_library(
         "@crates//:nom",
         "@crates//:normalize-path",
         "@crates//:phf",
+        "@crates//:rawzip",
         "@crates//:rmp-serde",
+        "@crates//:saphyr-parser",
         "@crates//:serde",
         "@crates//:serde_json",
         "@crates//:thiserror",
         "@crates//:tokio",
         "@crates//:uzers",
+        "@crates//:walkdir",
+        "@crates//:xml-rs",
     ],
 )
 
@@ -109,11 +131,13 @@ rust_binary(
         "src/main.rs",
     ],
     edition = "2024",
+    target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
     deps = [
         ":dd_discovery",
         "//comp/core/log/rust:dd-agent-log",
         "@crates//:anyhow",
+        "@crates//:caps",
         "@crates//:http-body-util",
         "@crates//:hyper",
         "@crates//:hyper-util",
@@ -182,9 +206,11 @@ rust_test(
         "@crates//:tempfile",
         "@crates//:temp-env",
         # Optional deps needed when spring/jee features are enabled
-        "@crates//:quick-xml",
+        "@crates//:flate2",
+        "@crates//:rawzip",
+        "@crates//:xml-rs",
         "@crates//:walkdir",
-        "@crates//:yaml-rust2",
+        "@crates//:saphyr-parser",
         "@crates//:zip",
     ],
 )
@@ -236,4 +262,69 @@ rust_test(
         "@crates//:tempfile",
         "@crates//:yaml-rust2",
     ],
+)
+
+# Static library built with `force-ffi-panic` for FFI panic-catch testing
+rust_static_library(
+    name = "libdd_discovery_force_panic",
+    testonly = True,
+    srcs = glob(
+        ["src/**/*.rs"],
+        exclude = [
+            "src/main.rs",
+            "src/bin/**",
+        ],
+    ),
+    crate_features = ["force-ffi-panic"],
+    crate_name = "dd_discovery_force_panic",
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    target_compatible_with = [
+        "@platforms//os:linux",
+    ],
+    deps = [
+        "@crates//:anyhow",
+        "@crates//:cap-std",
+        "@crates//:clap",
+        "@crates//:elf",
+        "@crates//:glob-match",
+        "@crates//:http-body-util",
+        "@crates//:hyper",
+        "@crates//:hyper-util",
+        "@crates//:log",
+        "@crates//:lru",
+        "@crates//:memchr",
+        "@crates//:nom",
+        "@crates//:normalize-path",
+        "@crates//:phf",
+        "@crates//:rmp-serde",
+        "@crates//:serde",
+        "@crates//:serde_json",
+        "@crates//:thiserror",
+        "@crates//:tokio",
+        "@crates//:uzers",
+    ],
+)
+
+# cc_library wrapper that exposes the forced-panic static library with its header.
+cc_library(
+    name = "dd_discovery_force_panic_cc",
+    testonly = True,
+    hdrs = [":dd_discovery_headers"],
+    includes = ["include"],
+    target_compatible_with = [
+        "@platforms//os:linux",
+    ],
+    deps = [":libdd_discovery_force_panic"],
+)
+
+# C test: verifies that a panic inside dd_discovery_get_services is caught and
+# NULL is returned rather than unwinding across the C ABI boundary.
+cc_test(
+    name = "ffi_panic_test",
+    srcs = ["tests/ffi_panic_test.c"],
+    target_compatible_with = [
+        "@platforms//os:linux",
+    ],
+    deps = [":dd_discovery_force_panic_cc"],
 )

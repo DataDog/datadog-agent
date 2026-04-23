@@ -830,6 +830,12 @@ func easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers6(i
 					*out.PPid = uint32(in.Uint32())
 				}
 			}
+		case "sid":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.SID = uint32(in.Uint32())
+			}
 		case "tid":
 			if in.IsNull() {
 				in.Skip()
@@ -1333,24 +1339,24 @@ func easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers6(o
 		}
 		out.Uint32(uint32(*in.PPid))
 	}
-	if in.Tid != 0 {
-		const prefix string = ",\"tid\":"
+	{
+		const prefix string = ",\"sid\":"
 		if first {
 			first = false
 			out.RawString(prefix[1:])
 		} else {
 			out.RawString(prefix)
 		}
+		out.Uint32(uint32(in.SID))
+	}
+	if in.Tid != 0 {
+		const prefix string = ",\"tid\":"
+		out.RawString(prefix)
 		out.Uint32(uint32(in.Tid))
 	}
 	{
 		const prefix string = ",\"fork_flags\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
+		out.RawString(prefix)
 		out.Int(int(in.ForkFlags))
 	}
 	{
@@ -3251,6 +3257,12 @@ func easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers22(
 			} else {
 				out.ID = string(in.String())
 			}
+		case "source":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Source = string(in.String())
+			}
 		case "created_at":
 			if in.IsNull() {
 				in.Skip()
@@ -3292,6 +3304,16 @@ func easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers22(
 		first = false
 		out.RawString(prefix[1:])
 		out.String(string(in.ID))
+	}
+	if in.Source != "" {
+		const prefix string = ",\"source\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.Source))
 	}
 	if in.CreatedAt != nil {
 		const prefix string = ",\"created_at\":"
@@ -3351,6 +3373,28 @@ func easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers23(
 			} else {
 				out.Manager = string(in.String())
 			}
+		case "source":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Source = string(in.String())
+			}
+		case "created_at":
+			if in.IsNull() {
+				in.Skip()
+				out.CreatedAt = nil
+			} else {
+				if out.CreatedAt == nil {
+					out.CreatedAt = new(utils.EasyjsonTime)
+				}
+				if in.IsNull() {
+					in.Skip()
+				} else {
+					if data := in.Raw(); in.Ok() {
+						in.AddError((*out.CreatedAt).UnmarshalJSON(data))
+					}
+				}
+			}
 		case "variables":
 			if in.IsNull() {
 				in.Skip()
@@ -3386,6 +3430,26 @@ func easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers23(
 			out.RawString(prefix)
 		}
 		out.String(string(in.Manager))
+	}
+	if in.Source != "" {
+		const prefix string = ",\"source\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.Source))
+	}
+	if in.CreatedAt != nil {
+		const prefix string = ",\"created_at\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		(*in.CreatedAt).MarshalEasyJSON(out)
 	}
 	if len(in.Variables) != 0 {
 		const prefix string = ",\"variables\":"

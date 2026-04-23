@@ -19,11 +19,12 @@ import (
 
 	trapsconfig "github.com/DataDog/datadog-agent/comp/snmptraps/config/def"
 	configfx "github.com/DataDog/datadog-agent/comp/snmptraps/config/fx"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/formatter/formatterimpl"
+	formatter "github.com/DataDog/datadog-agent/comp/snmptraps/formatter/def"
+	formatterimpl "github.com/DataDog/datadog-agent/comp/snmptraps/formatter/impl"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/forwarder"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/forwarder/forwarderimpl"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/listener"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/listener/listenerimpl"
+	listener "github.com/DataDog/datadog-agent/comp/snmptraps/listener/def"
+	listenerfx "github.com/DataDog/datadog-agent/comp/snmptraps/listener/fx"
 	oidresolverfx "github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver/fx"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/server"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/status/def"
@@ -97,6 +98,7 @@ func newServer(lc fx.Lifecycle, deps dependencies) provides {
 	// elsewhere if possible.
 	app := fx.New(
 		logging.DefaultFxLoggingOption(),
+		fxutil.FxLifecycleAdapter(),
 		fx.Supply(injections{
 			Conf:      deps.Conf,
 			HNService: deps.HNService,
@@ -105,9 +107,10 @@ func newServer(lc fx.Lifecycle, deps dependencies) provides {
 			Status:    stat,
 		}),
 		configfx.Module(),
-		formatterimpl.Module(),
+		fxutil.ProvideComponentConstructor(formatterimpl.NewComponent),
+		fxutil.ProvideOptional[formatter.Component](),
 		forwarderimpl.Module(),
-		listenerimpl.Module(),
+		listenerfx.Module(),
 		oidresolverfx.Module(),
 		fx.Invoke(func(_ forwarder.Component, _ listener.Component) {}),
 	)

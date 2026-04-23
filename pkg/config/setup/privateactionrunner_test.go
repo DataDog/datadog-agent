@@ -6,23 +6,23 @@
 package setup
 
 import (
-	"os"
-	"path"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func mockParPathExists(existing map[string]bool) func(string) bool {
-	return func(path string) bool {
-		return existing[path]
-	}
+func TestPrivateActionRunnerApiKeyOnlyEnrollmentDefaultFalse(t *testing.T) {
+	cfg := newTestConf(t)
+
+	assert.False(t, cfg.GetBool(PARApiKeyOnlyEnrollment))
 }
 
-func overrideParPathExists(t *testing.T, fn func(string) bool) {
-	original := parPathExists
-	parPathExists = fn
-	t.Cleanup(func() { parPathExists = original })
+func TestPrivateActionRunnerApiKeyOnlyEnrollmentFromEnv(t *testing.T) {
+	t.Setenv("DD_PRIVATE_ACTION_RUNNER_API_KEY_ONLY_ENROLLMENT", "true")
+
+	cfg := newTestConf(t)
+
+	assert.True(t, cfg.GetBool(PARApiKeyOnlyEnrollment))
 }
 
 func TestPrivateActionRunnerActionsAllowlistFromEnv(t *testing.T) {
@@ -41,11 +41,19 @@ func TestPrivateActionRunnerHttpAllowlistFromEnv(t *testing.T) {
 	assert.Equal(t, []string{"*.datadoghq.com", "datadoghq.eu"}, cfg.GetStringSlice(PARHttpAllowlist))
 }
 
+func TestPrivateActionRunnerRestrictedShellAllowedPathsUnsetByDefault(t *testing.T) {
+	cfg := newTestConf(t)
+
+	assert.False(t, cfg.IsConfigured(PARRestrictedShellAllowedPaths))
+	assert.Empty(t, cfg.GetStringSlice(PARRestrictedShellAllowedPaths))
+}
+
 func TestPrivateActionRunnerRestrictedShellAllowedPathsFromEnv(t *testing.T) {
 	t.Setenv("DD_PRIVATE_ACTION_RUNNER_RESTRICTED_SHELL_ALLOWED_PATHS", "/var/log,/tmp")
 
 	cfg := newTestConf(t)
 
+	assert.True(t, cfg.IsConfigured(PARRestrictedShellAllowedPaths))
 	assert.Equal(t, []string{"/var/log", "/tmp"}, cfg.GetStringSlice(PARRestrictedShellAllowedPaths))
 }
 
@@ -54,55 +62,43 @@ func TestPrivateActionRunnerRestrictedShellAllowedPathsEmptyEnv(t *testing.T) {
 
 	cfg := newTestConf(t)
 
-	assert.Equal(t, []string{defaultLogPath}, cfg.GetStringSlice(PARRestrictedShellAllowedPaths))
+	// Empty env is treated the same as unset so a stray empty var does not
+	// accidentally block every filesystem access.
+	assert.False(t, cfg.IsConfigured(PARRestrictedShellAllowedPaths))
+	assert.Empty(t, cfg.GetStringSlice(PARRestrictedShellAllowedPaths))
 }
 
 func TestPrivateActionRunnerAllowlistDefaultsEmpty(t *testing.T) {
 	cfg := newTestConf(t)
 
-	// actions_allowlist defaults to an OS-appropriate script action, not empty.
-	allowlist := cfg.GetStringSlice(PARActionsAllowlist)
-	assert.Len(t, allowlist, 1)
-	assert.Contains(t, []string{
-		"com.datadoghq.script.runPredefinedScript",
-		"com.datadoghq.script.runPredefinedPowershellScript",
-	}, allowlist[0])
+	assert.Empty(t, cfg.GetStringSlice(PARActionsAllowlist))
 	assert.Empty(t, cfg.GetStringSlice(PARHttpAllowlist))
-	assert.Equal(t, []string{defaultLogPath}, cfg.GetStringSlice(PARRestrictedShellAllowedPaths))
+	assert.Empty(t, cfg.GetStringSlice(PARRestrictedShellAllowedPaths))
 }
 
-func TestPrivateActionRunnerAllowedPathsBareMetal(t *testing.T) {
-	t.Setenv("DOCKER_DD_AGENT", "")
-	os.Unsetenv("DOCKER_DD_AGENT")
+func TestPrivateActionRunnerRestrictedShellAllowedCommandsUnsetByDefault(t *testing.T) {
+	cfg := newTestConf(t)
+
+	assert.False(t, cfg.IsConfigured(PARRestrictedShellAllowedCommands))
+	assert.Empty(t, cfg.GetStringSlice(PARRestrictedShellAllowedCommands))
+}
+
+func TestPrivateActionRunnerRestrictedShellAllowedCommandsFromEnv(t *testing.T) {
+	t.Setenv("DD_PRIVATE_ACTION_RUNNER_RESTRICTED_SHELL_ALLOWED_COMMANDS", "cat,ls,grep")
 
 	cfg := newTestConf(t)
 
-	paths := cfg.GetStringSlice(PARRestrictedShellAllowedPaths)
-	assert.Equal(t, []string{defaultLogPath}, paths)
+	assert.True(t, cfg.IsConfigured(PARRestrictedShellAllowedCommands))
+	assert.Equal(t, []string{"cat", "ls", "grep"}, cfg.GetStringSlice(PARRestrictedShellAllowedCommands))
 }
 
-func TestPrivateActionRunnerAllowedPathsContainerizedWithHostMounts(t *testing.T) {
-	t.Setenv("DOCKER_DD_AGENT", "true")
-	overrideParPathExists(t, mockParPathExists(map[string]bool{
-		"/host/var/log": true,
-	}))
+func TestPrivateActionRunnerRestrictedShellAllowedCommandsEmptyEnv(t *testing.T) {
+	t.Setenv("DD_PRIVATE_ACTION_RUNNER_RESTRICTED_SHELL_ALLOWED_COMMANDS", "")
 
 	cfg := newTestConf(t)
 
-	paths := cfg.GetStringSlice(PARRestrictedShellAllowedPaths)
-	assert.Equal(t, []string{"/host/var/log"}, paths)
-}
-
-func TestPrivateActionRunnerAllowedPathsContainerizedWithoutHostMounts(t *testing.T) {
-	t.Setenv("DOCKER_DD_AGENT", "true")
-	overrideParPathExists(t, mockParPathExists(map[string]bool{}))
-
-	cfg := newTestConf(t)
-
-	// Even without host mounts, containerized paths should use /host prefix
-	// (rshell handles missing paths at runtime; config logs a warning)
-	paths := cfg.GetStringSlice(PARRestrictedShellAllowedPaths)
-	assert.Equal(t, []string{
-		path.Join(containerizedPathPrefix, defaultLogPath),
-	}, paths)
+	// Empty env is treated the same as unset so a stray empty var does not
+	// accidentally block every command on the agent.
+	assert.False(t, cfg.IsConfigured(PARRestrictedShellAllowedCommands))
+	assert.Empty(t, cfg.GetStringSlice(PARRestrictedShellAllowedCommands))
 }

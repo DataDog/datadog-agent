@@ -20,6 +20,11 @@ func (pc *ProcessCacheEntry) setAncestor(parent *ProcessCacheEntry) {
 		return
 	}
 
+	// prevent creating a cycle in the ancestor chain
+	if parent == pc {
+		return
+	}
+
 	// remove from old parent's children list
 	if pc.Ancestor != nil {
 		pc.Ancestor.RemoveChild(pc)

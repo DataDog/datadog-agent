@@ -32,6 +32,7 @@ var (
 		common.DatadogAPMLibraryDotNetPackage: "3",
 		common.DatadogAPMLibraryPythonPackage: "3",
 		common.DatadogAPMLibraryPHPPackage:    "1",
+		common.DatadogAPMLibraryNginxPackage:  "1",
 	}
 
 	fullSemverRe = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+`)

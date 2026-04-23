@@ -1,5 +1,6 @@
 exporters:
     otlphttp:
+        compression: zstd
         endpoint: http://localhost:4318
         headers:
             dd-api-key: test-key
@@ -33,7 +34,7 @@ processors:
                 os.type:
                     enabled: false
 receivers:
-    hostprofiler:
+    profiling:
         symbol_uploader:
             enabled: false
 service:
@@ -51,4 +52,4 @@ service:
                 - resourcedetection/default
                 - resource/dd-profiler-internal-metadata
             receivers:
-                - hostprofiler
+                - profiling

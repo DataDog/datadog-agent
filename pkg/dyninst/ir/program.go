@@ -44,8 +44,16 @@ type Program struct {
 	Issues []ProbeIssue
 	// GoModuledataInfo is used to resolve types from interfaces.
 	GoModuledataInfo GoModuledataInfo
+	// GoMapHashInfo holds addresses of runtime hash secrets needed for
+	// swiss table map lookups. Zero values indicate the symbols were not
+	// found in DWARF (map index expressions will be unsupported).
+	GoMapHashInfo GoMapHashInfo
 	// CommonTypes store references to common types.
 	CommonTypes CommonTypes
+	// IsARM64 is true when the target binary is arm64. This determines which
+	// AES instruction semantics (x86 AESENC vs arm64 AESE+AESMC) the BPF
+	// hash emulation uses for swiss table map lookups.
+	IsARM64 bool
 }
 
 // GoModuledataInfo is information about the runtime-internal structure used to
@@ -63,6 +71,21 @@ type GoModuledataInfo struct {
 	//
 	// See https://github.com/golang/go/blob/5a56d884/src/runtime/symtab.go#L414
 	TypesOffset uint32
+}
+
+// GoMapHashInfo holds the addresses of runtime hash-related globals needed to
+// perform swiss table map lookups from BPF. These addresses are extracted from
+// DWARF during irgen and used by the loader to read the per-process hash
+// secrets at program load time.
+//
+// See pkg/dyninst/irgen/go_swiss_maps.md for details on the hash algorithms.
+type GoMapHashInfo struct {
+	// UseAeshashAddr is the address of runtime.useAeshash (bool).
+	// Determines whether the process uses AES-NI or wyhash for map hashing.
+	UseAeshashAddr uint64
+	// AeskeyschedAddr is the address of runtime.aeskeysched (uint8[128]).
+	// The per-process AES round key schedule, used when useAeshash is true.
+	AeskeyschedAddr uint64
 }
 
 // CommonTypes stores references to common types.
@@ -101,6 +124,10 @@ type Subprogram struct {
 	InlinePCRanges []InlinePCRanges
 	// Variables are the variables that are used in the subprogram.
 	Variables []*Variable
+	// DictRegister is the ABI register number holding the dictionary pointer
+	// for shape-instantiated generic functions. Nil for non-generic functions.
+	// See pkg/dyninst/irgen/go_generics.md for details.
+	DictRegister *uint8
 }
 
 // VariableRole is the role of a variable within a subprogram.
@@ -139,6 +166,11 @@ type Variable struct {
 	Locations []Location
 	// Role is the role of the variable within the subprogram.
 	Role VariableRole
+	// DictIndex is the index into the runtime dictionary where the concrete
+	// *runtime._type for this variable's shape type can be found. -1 means
+	// no dict resolution is needed (the variable is not a generic shape type).
+	// See pkg/dyninst/irgen/go_generics.md for details.
+	DictIndex int
 }
 
 // PCRange is the range of PC values that will be probed.
@@ -191,13 +223,29 @@ type DurationSegment struct{}
 func (s *DurationSegment) templateSegment() {}
 
 // Probe represents a probe from the config as it applies to the program.
+// A single probe may target multiple subprograms (e.g. different shape
+// instantiations of a generic function), each represented as a
+// ProbeInstance. Throttling is shared across all instances.
 type Probe struct {
 	ProbeDefinition
-	// The subprogram to which the probe is attached.
+	// Instances are the per-subprogram instances of this probe. There is
+	// one instance per matching subprogram (shape function). For
+	// non-generic probes there is exactly one instance.
+	Instances []ProbeInstance
+}
+
+// ProbeInstance represents a single subprogram targeted by a probe. Each
+// instance has its own events and template because expression indices may
+// differ across shape instantiations.
+type ProbeInstance struct {
+	// Subprogram is the subprogram targeted by this instance.
 	Subprogram *Subprogram
-	// The events that trigger the probe.
+	// Events are the events that trigger this instance.
 	Events []*Event
-	// Template contains the concrete template structure for this probe.
+	// Template contains the concrete template structure for this instance.
+	// The template string is the same across all instances of a probe, but
+	// the JSONSegment.EventExpressionIndex values may differ because
+	// expression resolution can produce different results per shape.
 	Template *Template
 }
 

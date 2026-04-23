@@ -17,6 +17,8 @@ import (
 
 // ExtractPersistentVolumeClaim returns the protobuf model corresponding to a
 // Kubernetes PersistentVolumeClaim resource.
+//
+//nolint:revive
 func ExtractPersistentVolumeClaim(ctx processors.ProcessorContext, pvc *corev1.PersistentVolumeClaim) *model.PersistentVolumeClaim {
 	message := &model.PersistentVolumeClaim{
 		Metadata: extractMetadata(&pvc.ObjectMeta),
@@ -32,9 +34,8 @@ func ExtractPersistentVolumeClaim(ctx processors.ProcessorContext, pvc *corev1.P
 	extractSpec(pvc, message)
 	extractStatus(pvc, message)
 
-	pctx := ctx.(*processors.K8sProcessorContext)
 	message.Tags = append(message.Tags, transformers.RetrieveUnifiedServiceTags(pvc.ObjectMeta.Labels)...)
-	message.Tags = append(message.Tags, transformers.RetrieveMetadataTags(pvc.ObjectMeta.Labels, pvc.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
+	message.Tags = append(message.Tags, transformers.RetrieveTeamTag(pvc.ObjectMeta.Labels, pvc.ObjectMeta.Annotations)...)
 
 	return message
 }

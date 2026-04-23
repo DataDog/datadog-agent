@@ -248,6 +248,10 @@ func TestCollectEC2InstanceInfo(t *testing.T) {
 	}
 	t.Cleanup(func() { fetchContainerInstanceARN = oldFetchARN })
 
+	oldIsSpot := isSpotInstance
+	isSpotInstance = func(_ context.Context) (bool, error) { return true, nil }
+	t.Cleanup(func() { isSpotInstance = oldIsSpot })
+
 	tags, err := GetInstanceInfo(context.Background())
 	require.NoError(t, err)
 
@@ -258,6 +262,7 @@ func TestCollectEC2InstanceInfo(t *testing.T) {
 		"image:ami-aaaaaaaaaaaaaaaaa",
 		"availability-zone:eu-west-3a",
 		"container_instance_arn:arn:aws:ecs:region:account:container-instance/ci-123",
+		"capacity-type:spot",
 	}
 	assert.Equal(t, expected, tags)
 

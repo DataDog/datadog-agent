@@ -16,6 +16,8 @@ import (
 
 // ExtractStatefulSet returns the protobuf model corresponding to a
 // Kubernetes StatefulSet resource.
+//
+//nolint:revive
 func ExtractStatefulSet(ctx processors.ProcessorContext, sts *v1.StatefulSet) *model.StatefulSet {
 	statefulSet := model.StatefulSet{
 		Metadata: extractMetadata(&sts.ObjectMeta),
@@ -54,9 +56,8 @@ func ExtractStatefulSet(ctx processors.ProcessorContext, sts *v1.StatefulSet) *m
 
 	statefulSet.Spec.ResourceRequirements = ExtractPodTemplateResourceRequirements(sts.Spec.Template)
 
-	pctx := ctx.(*processors.K8sProcessorContext)
 	statefulSet.Tags = append(statefulSet.Tags, transformers.RetrieveUnifiedServiceTags(sts.ObjectMeta.Labels)...)
-	statefulSet.Tags = append(statefulSet.Tags, transformers.RetrieveMetadataTags(sts.ObjectMeta.Labels, sts.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
+	statefulSet.Tags = append(statefulSet.Tags, transformers.RetrieveTeamTag(sts.ObjectMeta.Labels, sts.ObjectMeta.Annotations)...)
 
 	return &statefulSet
 }

@@ -95,7 +95,7 @@ func TestFillFlare(t *testing.T) {
 
 	flareBuilderMock := helpers.NewFlareBuilderMock(t, false)
 
-	err = scanManager.fillFlare(flareBuilderMock)
+	err = scanManager.fillFlare(context.Background(), flareBuilderMock)
 	assert.NoError(t, err)
 
 	filePath := filepath.Join(flareDirName, flareFileName)
@@ -137,7 +137,7 @@ func TestFillFlare_NoCache(t *testing.T) {
 
 	flareBuilderMock := helpers.NewFlareBuilderMock(t, false)
 
-	err = scanManager.fillFlare(flareBuilderMock)
+	err = scanManager.fillFlare(context.Background(), flareBuilderMock)
 	assert.NoError(t, err)
 
 	filePath := filepath.Join(flareDirName, flareFileName)

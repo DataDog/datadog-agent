@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "model",
+    srcs = [
+        "stats.go",
+        "types.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/orchestrator/model",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/log",
+        "@com_github_patrickmn_go_cache//:go-cache",
+    ],
+)

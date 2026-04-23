@@ -17,6 +17,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/spf13/cast"
 	"github.com/stretchr/testify/assert"
@@ -354,17 +355,17 @@ func TestAllSettingsBySource(t *testing.T) {
 		model.SourceFile: map[string]interface{}{
 			"a": 987,
 		},
-		model.SourceEnvVar:        map[string]interface{}{},
-		model.SourceFleetPolicies: map[string]interface{}{},
+		model.SourceEnvVar:             map[string]interface{}{},
+		model.SourceFleetPolicies:      map[string]interface{}{},
+		model.SourceConfigPostInit:     map[string]interface{}{},
+		model.SourceLocalConfigProcess: map[string]interface{}{},
 		model.SourceAgentRuntime: map[string]interface{}{
 			"b": map[string]interface{}{
 				"c": 123,
 			},
 		},
-		model.SourceSecretBackend:      map[string]interface{}{},
-		model.SourceLocalConfigProcess: map[string]interface{}{},
-		model.SourceRC:                 map[string]interface{}{},
-		model.SourceCLI:                map[string]interface{}{},
+		model.SourceRC:  map[string]interface{}{},
+		model.SourceCLI: map[string]interface{}{},
 		model.SourceProvided: map[string]interface{}{
 			"a": 987,
 			"b": map[string]interface{}{
@@ -382,7 +383,7 @@ func TestAllSettingsWithoutSecrets(t *testing.T) {
 	cfg.BuildSchema()
 
 	cfg.Set("a", "file_value", model.SourceFile)
-	cfg.Set("a", "secret_value", model.SourceSecretBackend)
+	cfg.Set("a", "secret_value", model.SourceSecret)
 	cfg.Set("b", 42, model.SourceAgentRuntime)
 
 	// includes secrets
@@ -404,7 +405,7 @@ func TestAllSettingsWithoutDefaultOrSecrets(t *testing.T) {
 	cfg.BuildSchema()
 
 	cfg.Set("a", "file_value", model.SourceFile)
-	cfg.Set("a", "secret_value", model.SourceSecretBackend)
+	cfg.Set("a", "secret_value", model.SourceSecret)
 	cfg.Set("b", 42, model.SourceAgentRuntime)
 
 	result := cfg.AllSettingsWithoutDefaultOrSecrets()
@@ -1507,6 +1508,40 @@ func TestOnUpdate(t *testing.T) {
 	assert.Equal(t, 2, gotNewValue)
 }
 
+// TestUnsetForSourceListenerCanReadConfig reproduces a deadlock where
+// UnsetForSource notified OnUpdate subscribers while still holding the
+// write lock. Any subscriber that read the config (via the read side of
+// the RWMutex) would block against the held write lock forever.
+func TestUnsetForSourceListenerCanReadConfig(t *testing.T) {
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg.SetDefault("log_level", "info")
+	cfg.BuildSchema()
+
+	observed := []string{}
+	cfg.OnUpdate(func(_ string, _ model.Source, _, _ any, _ uint64) {
+		// A realistic listener reads the current config. Before the fix
+		// this call deadlocked because UnsetForSource still held the
+		// config write lock.
+		observed = append(observed, cfg.GetString("log_level"))
+	})
+
+	cfg.Set("log_level", "debug", model.SourceRC)
+
+	done := make(chan struct{})
+	go func() {
+		cfg.UnsetForSource("log_level", model.SourceRC)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("UnsetForSource deadlocked while notifying listeners")
+	}
+
+	assert.Equal(t, []string{"debug", "info"}, observed)
+}
+
 func TestSetInvalidSource(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "TEST", nil)
 	cfg.SetDefault("a", 1)
@@ -1900,4 +1935,45 @@ func TestEnvVarLayerConvertsToDefaultType(t *testing.T) {
 > my_int_setting
     leaf(#ptr<000002>), val:789, source:environment-variable`
 	assert.Equal(t, expect, txt)
+}
+
+// TestCheckKnownKeyConcurrentAccess verifies that concurrent getter calls with
+// unknown config keys do not crash the agent with "fatal error: concurrent map writes".
+// This reproduces the race condition where multiple goroutines call GetBool (or other
+// getters) simultaneously, each writing to the unknownKeys map under only an RLock.
+func TestCheckKnownKeyConcurrentAccess(t *testing.T) {
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg.SetDefault("known_key", true)
+	cfg.BuildSchema()
+
+	const numGoroutines = 200
+
+	// Use a barrier so all goroutines start at the same instant,
+	// maximizing the chance of concurrent map writes.
+	var ready sync.WaitGroup
+	ready.Add(1)
+
+	var done sync.WaitGroup
+	done.Add(numGoroutines)
+
+	for i := 0; i < numGoroutines; i++ {
+		go func(id int) {
+			defer done.Done()
+			ready.Wait() // all goroutines wait here until released
+
+			// Use a mix of getters with unknown keys to trigger checkKnownKey writes
+			key := fmt.Sprintf("unknown_key_%d", id)
+			cfg.GetBool(key)
+			cfg.GetString(key)
+			cfg.GetInt(key)
+		}(i)
+	}
+
+	// Release all goroutines simultaneously
+	ready.Done()
+	// Wait for all goroutines to finish (if there's a concurrent map write, the process crashes before this)
+	done.Wait()
+
+	// If we reach here without a fatal "concurrent map writes" crash, the test passed
+	assert.True(t, cfg.GetBool("known_key"))
 }

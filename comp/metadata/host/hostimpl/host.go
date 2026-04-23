@@ -174,7 +174,7 @@ func (h *host) GetPayloadAsJSON(ctx context.Context) ([]byte, error) {
 	return json.MarshalIndent(h.getPayload(ctx), "", "    ")
 }
 
-func (h *host) fillFlare(fb flaretypes.FlareBuilder) error {
+func (h *host) fillFlare(_ context.Context, fb flaretypes.FlareBuilder) error {
 	return fb.AddFileFromFunc(filepath.Join("metadata", "host.json"), func() ([]byte, error) { return h.GetPayloadAsJSON(context.Background()) })
 }
 

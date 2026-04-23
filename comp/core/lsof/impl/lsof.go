@@ -7,6 +7,7 @@
 package lsofimpl
 
 import (
+	"context"
 	"errors"
 	"runtime"
 
@@ -25,7 +26,7 @@ type Provides struct {
 	FlareProvider flaretypes.Provider
 }
 
-func fillFlare(fb flaretypes.FlareBuilder) error {
+func fillFlare(_ context.Context, fb flaretypes.FlareBuilder) error {
 	if fb.IsLocal() {
 		_ = fb.Logf("listing open files is not supported in local mode")
 		return nil

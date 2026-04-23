@@ -25,7 +25,7 @@ fi
 
 patch_text_file() {
     f="$1"
-    sed -ibak -e "s|^prefix=.*|prefix=$PREFIX|" -e "s|##PREFIX##|$PREFIX|" -e "s|\${EXT_BUILD_DEPS}|$PREFIX|" "$f" && rm -f "${f}bak"
+    sed -ibak -e "s|^prefix=.*|prefix=$PREFIX|" -e "s|##PREFIX##|$PREFIX|g" -e "s|\${EXT_BUILD_DEPS}|$PREFIX|g" "$f" && rm -f "${f}bak"
 }
 
 for f in "$@"; do
@@ -40,7 +40,7 @@ for f in "$@"; do
     fi
 
     case $f in
-        *.pc)
+        *.pc | *.py)
             patch_text_file "$f"
             ;;
         *)
