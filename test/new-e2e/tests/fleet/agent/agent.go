@@ -28,6 +28,13 @@ import (
 type Agent struct {
 	t    func() *testing.T
 	host *environments.Host
+
+	// cacheMirrorHost is "127.0.0.1:<port>" after WarmPackageCache; empty
+	// otherwise. When set, Install() swaps https://<host> → http://<host>
+	// in the install script so apt/yum pull from the local mirror.
+	cacheMirrorHost string
+	// cacheWindowsInstaller is the on-disk filename of the cached Windows MSI.
+	cacheWindowsInstaller string
 }
 
 // New creates a new instance of Agent.

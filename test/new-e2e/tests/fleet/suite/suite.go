@@ -80,6 +80,15 @@ func (s *FleetSuite) SetupSuite() {
 	s.Backend = backend.New(s.T, s.Env())
 	s.Host = fleethost.New(s.Env())
 	s.Installer = installer.New(s.T, s.Env())
+
+	// Warm a VM-local package mirror so per-test install/uninstall cycles
+	// hit localhost instead of S3. A warm-up failure logs and falls back to
+	// the remote S3 repo: this optimization must never make a green test
+	// red. If CI duration doesn't improve, check the suite logs for this
+	// warning.
+	if err := s.Agent.WarmPackageCache(); err != nil {
+		s.T().Logf("package cache warm-up failed, falling back to S3: %v", err)
+	}
 }
 
 // Run runs the fleet suite for the given platforms.
