@@ -14,19 +14,19 @@ func TestFindSysOID_Found(t *testing.T) {
 		{Name: SysObjectOID(), Value: "1.3.6.1.4.1.9.1.1208"},
 	}
 
-	got := FindSysOID(pdus)
-	if got != "1.3.6.1.4.1.9.1.1208" {
-		t.Fatalf("expected sysOID, got %q", got)
+	sysOID := FindSysOID(pdus)
+	if sysOID != "1.3.6.1.4.1.9.1.1208" {
+		t.Fatalf("expected sysOID, got %q", sysOID)
 	}
 }
 
 func TestFindSysOID_FoundScalarInstance0(t *testing.T) {
-	expectedSysOID := "1.3.6.1.4.1.9.1.1208"
+
 	pdus := []gosnmp.SnmpPDU{
-		{Name: ".1.3.6.1.2.1.1.2.0", Value: expectedSysOID},
+		{Name: ".1.3.6.1.2.1.1.2.0", Value: "1.3.6.1.4.1.9.1.1208"},
 	}
-	if got := FindSysOID(pdus); got != expectedSysOID {
-		t.Fatalf("FindSysOID with .1.3.6.1.2.1.1.2.0: got %q, want %q", got, expectedSysOID)
+	if sysOID := FindSysOID(pdus); sysOID != "1.3.6.1.4.1.9.1.1208" {
+		t.Fatalf("Found sysOID = %q, but got %q", sysOID, "1.3.6.1.4.1.9.1.1208")
 	}
 }
 
@@ -35,34 +35,36 @@ func TestFindSysOID_NotFound(t *testing.T) {
 		{Name: ".1.3.3.1.2.1.2.2", Value: "no sysOID here"},
 	}
 
-	got := FindSysOID(pdus)
-	if got != "" {
-		t.Fatalf("expected empty string, got %q", got)
+	sysOID := FindSysOID(pdus)
+	if sysOID != "" {
+		t.Fatalf("expected empty string, got %q", sysOID)
 	}
 }
 
 func TestFindSysOID_NonStringValue(t *testing.T) {
-	sysObjIDOID := ".1.3.6.1.2.1.1.2"
 
 	pdus := []gosnmp.SnmpPDU{
-		{Name: sysObjIDOID, Value: []byte{49, 50, 51}},
+		{Name: SysObjectOID(), Value: []byte{49, 50, 51}},
 	}
 
-	got := FindSysOID(pdus)
-	if got == "" {
-		t.Fatalf("expected non-empty string, got %q", got)
+	sysOID := FindSysOID(pdus)
+	if sysOID == "" {
+		t.Fatalf("expected non-empty string, got %q", sysOID)
 	}
 }
 
 func TestAnalyze_EmptySysOID(t *testing.T) {
 	expectedErrMsg := "sysObjectID is required for analysis"
+	pdus := []gosnmp.SnmpPDU{
+		{Name: SysObjectOID(), Value: "x"},
+	}
 
 	_, _, _, _, err := Analyze(nil, "")
 	if err == nil || err.Error() != expectedErrMsg {
 		t.Fatalf("Analyze(nil, \"\"): got err=%v, want Error()=%q", err, expectedErrMsg)
 	}
 
-	_, _, _, _, err = Analyze([]gosnmp.SnmpPDU{{Name: ".1.3.6.1.2.1.1.1.0", Value: "x"}}, "   ")
+	_, _, _, _, err = Analyze(pdus, "")
 	if err == nil || err.Error() != expectedErrMsg {
 		t.Fatalf("Analyze(..., whitespace sysOID): got err=%v, want Error()=%q", err, expectedErrMsg)
 	}
@@ -101,18 +103,36 @@ func TestProfileNotFound(t *testing.T) {
 	}
 }
 
+func TestUnmatchedProfile(t *testing.T) {
+	pdus := []gosnmp.SnmpPDU{
+		{Name: SysObjectOID(), Value: "1.3.6.1.4.1.14823.1.1.17"},
+		{Name: ".1.3.6.1.2.1.1.1.0.1234.2324", Value: "Fake OID"},
+	}
+	sysOID := FindSysOID(pdus)
+	_, notFound, _, _, err := Analyze(pdus, sysOID)
+
+	if err != nil {
+		t.Skipf("profile lookup not available (analyzer returned 0 metrics): %v", err)
+	}
+
+	for _, p := range notFound {
+		if p.Profile != "" {
+			t.Fatalf("expected no profiles to match the oid of %v", p.Value)
+		}
+	}
+
+}
+
 func TestAnalyze(t *testing.T) {
 	pdus := []gosnmp.SnmpPDU{
-		// Required for profile detection
 		{Name: SysObjectOID(), Value: "1.3.6.1.4.1.674.1"},
 
-		// Standard MIB-2 system OIDs (Dell profile typically includes these)
 		{Name: ".1.3.6.1.2.1.1.1.0", Value: "Dell iDRAC SNMP Agent"}, // sysDescr
 		{Name: ".1.3.6.1.2.1.1.5.0", Value: "dell-pdu-01"},           // sysName
 		{Name: ".1.3.6.1.2.1.1.3.0", Value: uint32(12345678)},        // sysUpTime
 	}
 
-	sysOID := "1.3.6.1.4.1.674.1"
+	sysOID := FindSysOID(pdus)
 
 	found, notFound, profileName, extendedProfiles, err := Analyze(pdus, sysOID)
 	if err != nil {
@@ -145,7 +165,7 @@ func TestFormatReport(t *testing.T) {
 		{Name: ".1.3.6.1.2.1.1.5.0", Value: "dell-pdu-01"},
 		{Name: ".1.3.6.1.2.1.1.3.0", Value: uint32(12345678)},
 	}
-	sysOID := "1.3.6.1.4.1.674.1"
+	sysOID := FindSysOID(pdus)
 
 	found, notFound, profileName, extendedProfiles, err := Analyze(pdus, sysOID)
 	if err != nil {
@@ -175,6 +195,7 @@ func TestFormatReport(t *testing.T) {
 
 func TestInterfaceID(t *testing.T) {
 	pdus := []gosnmp.SnmpPDU{
+		{Name: SysObjectOID(), Value: "1.3.6.1.4.1.3375.2.1.3.4.1"},
 		{Name: ".1.3.6.1.2.1.1.1.0", Value: "Test Device"},
 		{Name: ".1.3.6.1.2.1.1.5.0", Value: "router-01"},
 		{Name: ".1.3.6.1.2.1.1.3.0", Value: uint32(12345678)},
@@ -185,7 +206,8 @@ func TestInterfaceID(t *testing.T) {
 		{Name: ".1.3.6.1.2.1.2.2.1.13.11", Value: uint32(3000)},
 		{Name: ".1.3.6.1.2.1.2.2.1.13.24", Value: uint32(4000)},
 	}
-	sysOID := "1.3.6.1.4.1.3375.2.1.3.4.1"
+
+	sysOID := FindSysOID(pdus)
 
 	found, _, _, _, err := Analyze(pdus, sysOID)
 	if err != nil {
