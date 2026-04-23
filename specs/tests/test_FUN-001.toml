@@ -84,5 +84,6 @@ ref = ["FUN-001"]
 prereq = ["T005"]
 
 [[tests.steps]]
-action = "Read the stable symlink target for the installed package. It should point to a version directory."
+action = "Read the stable symlink target for the installed package."
 run = "readlink /opt/datadog-packages/datadog-agent/stable"
+expected = "/opt/datadog-packages/datadog-agent/[...]"

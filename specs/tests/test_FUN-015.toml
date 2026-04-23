@@ -23,7 +23,7 @@ run = "export DD_API_KEY=<API key>"
 
 [[tests.steps]]
 action = "Download the install script."
-run = "curl -L -o install_script_agent7.sh https://install.datadoghq.com/scripts/install_script_agent7.sh"
+run = "curl --location --output install_script_agent7.sh https://install.datadoghq.com/scripts/install_script_agent7.sh"
 
 [[tests.steps]]
 action = "Run the install script."
@@ -43,8 +43,8 @@ run = "datadog-installer is-installed datadog-agent"
 
 [[tests.steps]]
 action = "Verify the temporary bootstrap binary was cleaned up."
-run = "ls /opt/datadog-packages/tmp/installer"
-expected = "No such file or directory"
+run = "test -f /opt/datadog-packages/tmp/installer || echo 'No such file'"
+expected = "No such file"
 
 [[tests]]
 id = "T001"
@@ -69,6 +69,7 @@ run = "datadog-installer is-installed datadog-installer"
 [[tests.steps]]
 action = "Verify the stable symlink points to a version directory."
 run = "readlink /opt/datadog-packages/datadog-installer/stable"
+expected = "/opt/datadog-packages/datadog-installer/[...]"
 
 [[tests.steps]]
 action = "Verify the default packages (as resolved by the environment) are installed."
@@ -116,8 +117,8 @@ expected = "could not download"
 
 [[tests.steps]]
 action = "Verify no installer package was left behind."
-run = "ls /opt/datadog-packages/datadog-installer/stable"
-expected = "No such file or directory"
+run = "test -d /opt/datadog-packages/datadog-installer/stable || echo 'No such directory'"
+expected = "No such directory"
 
 [[tests]]
 id = "T004"
