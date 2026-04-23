@@ -1198,6 +1198,7 @@ func agent(config pkgconfigmodel.Setup) {
 		"agent_telemetry",
 		"agentcrashdetect",
 		"disk",
+		"directory",
 		"file_handle",
 		"filehandles",
 		"io",
@@ -1222,6 +1223,9 @@ func agent(config pkgconfigmodel.Setup) {
 		"wincrashdetect",
 		"winkmem",
 		"winproc",
+		"wmi_check",
+		"windows_certificate",
+		"windows_registry",
 		"windows_service",
 	})
 	// Configuration for TLS for outgoing connections
