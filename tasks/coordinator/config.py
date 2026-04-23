@@ -116,10 +116,13 @@ class Config:
     # `cost_anomaly` tripwire PR comment for the iteration.
     # Informational by default; auto-pause kicks in only after
     # `cost_anomaly_pause_streak` consecutive anomalous iterations.
+    # The relative rolling-mean trigger is the primary signal — it
+    # catches "this iter is weirdly expensive vs its peers." The
+    # absolute-tokens trigger is a hard ceiling so any single iter
+    # north of 10M tokens gets flagged even on a quiet rolling window.
     cost_anomaly_vs_rolling_ratio: float = 2.0      # this iter > 2× rolling mean
     cost_anomaly_rolling_window: int = 5            # rolling-mean window
-    cost_anomaly_absolute_usd: float = 20.0         # this iter cost > $20
-    cost_anomaly_absolute_tokens: int = 5_000_000   # this iter > 5M tokens
+    cost_anomaly_absolute_tokens: int = 10_000_000  # this iter > 10M tokens
     # Auto-pause: after N consecutive anomalous iters, touch the
     # cooperative-pause file (`.coordinator/pause`). Driver checks at
     # iter boundary; sleeps until the user removes the file.

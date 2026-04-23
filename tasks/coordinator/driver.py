@@ -167,8 +167,12 @@ def _check_cost_anomaly(db: Db, root: Path, iter_num: int, records: list) -> Non
 
     Triggers (any one):
       A. iter_cost > cost_anomaly_vs_rolling_ratio × rolling_mean(last N)
-      B. iter_cost > cost_anomaly_absolute_usd
-      C. iter_tokens > cost_anomaly_absolute_tokens
+         — primary signal. Catches "this iter is weirdly more expensive
+         than its peers", which is the actual thing we care about.
+      B. iter_tokens > cost_anomaly_absolute_tokens
+         — hard ceiling. Catches single-iter runaways even when there's
+         no rolling baseline yet (iter 1) or the peers happen to also
+         be expensive.
     """
     iter_records = token_log.filter_by_iter(records, iter_num)
     iter_in, iter_out = token_log.sum_total(iter_records)
@@ -202,10 +206,6 @@ def _check_cost_anomaly(db: Db, root: Path, iter_num: int, records: list) -> Non
             f"iter cost ${iter_cost:.2f} > "
             f"{CONFIG.cost_anomaly_vs_rolling_ratio}× rolling mean "
             f"${rolling_mean:.2f} (last {len(prior_costs)})"
-        )
-    if iter_cost > CONFIG.cost_anomaly_absolute_usd:
-        triggers.append(
-            f"iter cost ${iter_cost:.2f} > absolute ${CONFIG.cost_anomaly_absolute_usd:.0f}"
         )
     if iter_toks > CONFIG.cost_anomaly_absolute_tokens:
         triggers.append(
