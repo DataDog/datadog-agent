@@ -11,5 +11,6 @@ go_test(
     name = "cli_test",
     srcs = ["deprecated_test.go"],
     embed = [":cli"],
+    gotags = ["test"],
     deps = ["@com_github_stretchr_testify//assert"],
 )

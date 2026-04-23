@@ -91,8 +91,10 @@ func (suite *RestartTestSuite) SetupTest() {
 	suite.source = sources.NewLogSource("", &logConfig)
 
 	suite.configOverrides["logs_config.run_path"] = suite.testDir
-	// Shorter grace period for tests.
-	suite.configOverrides["logs_config.stop_grace_period"] = 1
+	// Grace period must be generous enough for ARM64 CI to stop all
+	// components (launchers → pipelineProvider → destinationsCtx) before
+	// the timeout fires and the force-close path kicks in.
+	suite.configOverrides["logs_config.stop_grace_period"] = 5
 	// Set a short scan period to allow it to run in the time period of the tcp and http tests
 	suite.configOverrides["logs_config.file_scan_period"] = 1
 
@@ -368,13 +370,33 @@ func (suite *RestartTestSuite) TestPartialStop_FlushesRegistryToDisk() {
 	agent.startPipeline()
 	sources.AddSource(suite.source)
 
-	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 5*time.Second, func() bool {
-		return suite.fakeLogs == metrics.LogsSent.Value()
+	// The file tailer registers with identifier "file:<path>".
+	tailerID := "file:" + suite.testLogFile
+
+	// Wait for ALL initial log lines to be sent through the pipeline.
+	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 10*time.Second, func() bool {
+		return metrics.LogsSent.Value() >= suite.fakeLogs
+	})
+
+	// Now that all lines have reached the destination, their acks are
+	// in-flight (or already processed) on the auditor's inputChan.
+	// Poll until the auditor offset stabilizes, confirming every ack
+	// has been drained — not just the first line's.
+	var prevOffset string
+	testutil.AssertTrueBeforeTimeout(suite.T(), 50*time.Millisecond, 5*time.Second, func() bool {
+		cur := agent.auditor.GetOffset(tailerID)
+		if cur != "" && cur == prevOffset {
+			return true
+		}
+		prevOffset = cur
+		return false
 	})
 
 	runPath := agent.config.GetString("logs_config.run_path")
 	registryPath := filepath.Join(runPath, "registry.json")
 	_ = os.Remove(registryPath)
+
+	offsetBeforeAppend := agent.auditor.GetOffset(tailerID)
 
 	f, err := os.OpenFile(suite.testLogFile, os.O_APPEND|os.O_WRONLY, 0)
 	suite.NoError(err)
@@ -382,9 +404,10 @@ func (suite *RestartTestSuite) TestPartialStop_FlushesRegistryToDisk() {
 	suite.NoError(err)
 	f.Close()
 
-	expected := metrics.LogsSent.Value() + 1
-	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 4*time.Second, func() bool {
-		return metrics.LogsSent.Value() >= expected
+	// Wait for the auditor to advance past the offset recorded before the
+	// append, confirming the new log line has been fully processed.
+	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 5*time.Second, func() bool {
+		return agent.auditor.GetOffset(tailerID) != offsetBeforeAppend
 	})
 
 	err = agent.partialStop()

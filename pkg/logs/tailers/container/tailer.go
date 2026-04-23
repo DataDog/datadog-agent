@@ -416,7 +416,7 @@ func (d *dockerMessageForwarder) forward() {
 		d.tailer.done <- struct{}{}
 	}()
 	for output := range d.tailer.decoder.OutputChan() {
-		if len(output.GetContent()) > 0 {
+		if output.HasContent() {
 			msg := buildMessage(d.tailer, output)
 			d.tailer.outputChan <- msg
 		}
@@ -456,7 +456,7 @@ func (k *kubeletMessageForwarder) forward() {
 		k.tailer.done <- struct{}{}
 	}()
 	for output := range k.tailer.decoder.OutputChan() {
-		if len(output.GetContent()) > 0 {
+		if output.HasContent() {
 			// Because the kubelet API does not support sub-second granularity we run the risk of logging duplicates
 			// we check the timestamp to drop logs that have already been processed
 			logTime, _ := time.Parse(time.RFC3339Nano, output.ParsingExtra.Timestamp)

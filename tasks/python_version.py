@@ -86,7 +86,7 @@ def update(
     # Prepare all updates first to validate patterns before writing anything
     updates = []
     try:
-        updates.append(_prepare_omnibus_update(target_version, sha256_hash))
+        updates.append(_prepare_omnibus_update(target_version))
         updates.append(_prepare_bazel_update(target_version, sha256_hash))
         updates.append(_prepare_test_update(target_version))
     except Exit:
@@ -225,8 +225,10 @@ def _get_python_sha256_hash(version: str) -> str:
     return hash_value.lower()
 
 
-def _prepare_omnibus_update(version: str, sha256: str) -> tuple[Path, str]:
-    """Prepare Python version and SHA256 update for omnibus config.
+def _prepare_omnibus_update(version: str) -> tuple[Path, str]:
+    """Prepare Python version update for omnibus config.
+
+    The SHA256 hash is managed in deps/cpython/cpython.MODULE.bazel, not here.
 
     Returns:
         Tuple of (file_path, new_content) ready to write
@@ -240,13 +242,6 @@ def _prepare_omnibus_update(version: str, sha256: str) -> tuple[Path, str]:
 
     if count != 1:
         raise Exit(f"Expected 1 version match in {file_path}, found {count}")
-
-    # Update SHA256
-    sha_pattern = r'(:sha256\s+=>\s+")([0-9a-fA-F]{64})(")'
-    new_content, count = re.subn(sha_pattern, rf'\g<1>{sha256}\g<3>', new_content)
-
-    if count != 1:
-        raise Exit(f"Expected 1 SHA256 match in {file_path}, found {count}")
 
     return (file_path, new_content)
 
@@ -267,12 +262,14 @@ def _prepare_bazel_update(version: str, sha256: str) -> tuple[Path, str]:
     if count != 1:
         raise Exit(f"Expected 1 PYTHON_VERSION match in {file_path}, found {count}")
 
-    # Update sha256
+    # Update sha256 for the cpython http_archive (the first sha256 in the file,
+    # immediately after PYTHON_VERSION). Other http_archive entries (sqlite, etc.)
+    # have their own sha256 fields that must not be touched.
     sha_pattern = r'(sha256\s+=\s+")([0-9a-fA-F]{64})(")'
-    new_content, count = re.subn(sha_pattern, rf'\g<1>{sha256}\g<3>', new_content)
+    new_content, count = re.subn(sha_pattern, rf'\g<1>{sha256}\g<3>', new_content, count=1)
 
     if count != 1:
-        raise Exit(f"Expected 1 sha256 match in {file_path}, found {count}")
+        raise Exit(f"Expected at least 1 sha256 match in {file_path}, found {count}")
 
     return (file_path, new_content)
 

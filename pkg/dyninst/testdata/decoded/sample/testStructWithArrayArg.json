@@ -18,12 +18,12 @@
           {
             "function": "main.testStructWithArrayArg",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 362
+            "lineNumber": 368
           },
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 428
+            "lineNumber": 435
           },
           {
             "function": "main.main",
@@ -77,30 +77,34 @@
           },
           "return": {
             "locals": {
-              "~r0": {
-                "type": "int",
-                "value": "74"
-              },
-              "~r1": {
-                "type": "main.structWithArray",
+              "@return": {
                 "fields": {
-                  "arr": {
-                    "type": "[2]int",
-                    "size": "2",
-                    "elements": [
-                      {
-                        "type": "int",
-                        "value": "710"
-                      },
-                      {
-                        "type": "int",
-                        "value": "720"
-                      }
-                    ]
-                  },
-                  "x": {
+                  "r0": {
                     "type": "int",
-                    "value": "730"
+                    "value": "74"
+                  },
+                  "r1": {
+                    "type": "main.structWithArray",
+                    "fields": {
+                      "arr": {
+                        "type": "[2]int",
+                        "size": "2",
+                        "elements": [
+                          {
+                            "type": "int",
+                            "value": "710"
+                          },
+                          {
+                            "type": "int",
+                            "value": "720"
+                          }
+                        ]
+                      },
+                      "x": {
+                        "type": "int",
+                        "value": "730"
+                      }
+                    }
                   }
                 }
               }

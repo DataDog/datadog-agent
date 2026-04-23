@@ -145,10 +145,11 @@ func (m *defaultMapper) MapHistogramMetrics(
 
 		switch m.cfg.HistMode {
 		case HistogramModeCounters:
-			m.getLegacyBuckets(ctx, consumer, pointDims, p, delta)
+			if err := m.getLegacyBuckets(ctx, consumer, pointDims, p, delta); err != nil {
+				return err
+			}
 		case HistogramModeDistributions:
-			err := m.getSketchBuckets(ctx, consumer, pointDims, p, histInfo, delta)
-			if err != nil {
+			if err := m.getSketchBuckets(ctx, consumer, pointDims, p, histInfo, delta); err != nil {
 				return err
 			}
 		}
@@ -339,6 +340,12 @@ func (m *defaultMapper) getSketchBuckets(
 
 	bucketCounts := p.BucketCounts()
 	explicitBounds := p.ExplicitBounds()
+	// Validate the OTel invariant: N bucket counts require exactly N-1 explicit bounds.
+	// Malformed senders can violate this; guard before the loop to prevent an index panic.
+	if bucketCounts.Len() > 0 && bucketCounts.Len() != explicitBounds.Len()+1 {
+		return fmt.Errorf("histogram %q has %d bucket counts but %d explicit bounds (expected counts == bounds+1)",
+			pointDims.name, bucketCounts.Len(), explicitBounds.Len())
+	}
 	// From the spec (https://github.com/open-telemetry/opentelemetry-specification/blob/v1.29.0/specification/metrics/data-model.md#histogram):
 	// > A Histogram without buckets conveys a population in terms of only the sum and count,
 	// > and may be interpreted as a histogram with single bucket covering (-Inf, +Inf).
@@ -467,11 +474,15 @@ func (m *defaultMapper) getLegacyBuckets(
 	pointDims *Dimensions,
 	p pmetric.HistogramDataPoint,
 	delta bool,
-) {
+) error {
 	startTs := uint64(p.StartTimestamp())
 	ts := uint64(p.Timestamp())
 	// We have a single metric, 'bucket', which is tagged with the bucket bounds. See:
 	// https://github.com/DataDog/integrations-core/blob/7.30.1/datadog_checks_base/datadog_checks/base/checks/openmetrics/v2/transformers/histogram.py
+	if p.BucketCounts().Len() > 0 && p.BucketCounts().Len() != p.ExplicitBounds().Len()+1 {
+		return fmt.Errorf("histogram %q has %d bucket counts but %d explicit bounds (expected counts == bounds+1)",
+			pointDims.name, p.BucketCounts().Len(), p.ExplicitBounds().Len())
+	}
 	baseBucketDims := pointDims.WithSuffix("bucket")
 	for idx := 0; idx < p.BucketCounts().Len(); idx++ {
 		lowerBound, upperBound := getBounds(p.ExplicitBounds(), idx)
@@ -487,6 +498,7 @@ func (m *defaultMapper) getLegacyBuckets(
 			consumer.ConsumeTimeSeries(ctx, bucketDims, Count, ts, 0, dx)
 		}
 	}
+	return nil
 }
 
 // exponentialHistogramToDDSketch converts an exponential histogram to a DDSketch

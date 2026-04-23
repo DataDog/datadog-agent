@@ -15,18 +15,18 @@ import (
 	connectionsforwarderfx "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/fx"
 	"github.com/DataDog/datadog-agent/comp/process/agent/agentimpl"
 	"github.com/DataDog/datadog-agent/comp/process/apiserver"
-	"github.com/DataDog/datadog-agent/comp/process/connectionscheck/connectionscheckimpl"
+	connectionscheckfx "github.com/DataDog/datadog-agent/comp/process/connectionscheck/fx"
 	"github.com/DataDog/datadog-agent/comp/process/containercheck/containercheckimpl"
 	expvarsfx "github.com/DataDog/datadog-agent/comp/process/expvars/fx"
 	forwardersfx "github.com/DataDog/datadog-agent/comp/process/forwarders/fx"
 	gpusubscriber "github.com/DataDog/datadog-agent/comp/process/gpusubscriber/fx"
 	hostinfofx "github.com/DataDog/datadog-agent/comp/process/hostinfo/fx"
-	"github.com/DataDog/datadog-agent/comp/process/processcheck/processcheckimpl"
-	"github.com/DataDog/datadog-agent/comp/process/processdiscoverycheck/processdiscoverycheckimpl"
+	processcheckfx "github.com/DataDog/datadog-agent/comp/process/processcheck/fx"
+	processdiscoverycheckfx "github.com/DataDog/datadog-agent/comp/process/processdiscoverycheck/fx"
 	profilerimpl "github.com/DataDog/datadog-agent/comp/process/profiler/fx"
 	"github.com/DataDog/datadog-agent/comp/process/rtcontainercheck/rtcontainercheckimpl"
 	"github.com/DataDog/datadog-agent/comp/process/runner/runnerimpl"
-	"github.com/DataDog/datadog-agent/comp/process/submitter/submitterimpl"
+	submitterfx "github.com/DataDog/datadog-agent/comp/process/submitter/fx"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -39,15 +39,15 @@ import (
 func Bundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
 		runnerimpl.Module(),
-		submitterimpl.Module(),
+		submitterfx.Module(),
 		profilerimpl.Module(),
 
 		// Checks
-		connectionscheckimpl.Module(),
+		connectionscheckfx.Module(),
 		containercheckimpl.Module(),
-		processcheckimpl.Module(),
+		processcheckfx.Module(),
 		rtcontainercheckimpl.Module(),
-		processdiscoverycheckimpl.Module(),
+		processdiscoverycheckfx.Module(),
 
 		agentimpl.Module(),
 

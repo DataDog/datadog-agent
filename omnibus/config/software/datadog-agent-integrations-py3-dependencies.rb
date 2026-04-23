@@ -7,16 +7,6 @@ dependency 'openssl3'
 if linux_target?
 
   build do
-    command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- @unixodbc//:install --destdir='#{install_dir}'"
-    command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
-    " #{install_dir}/embedded/lib/libodbc.so" \
-    " #{install_dir}/embedded/lib/libodbccr.so" \
-    " #{install_dir}/embedded/lib/libodbcinst.so"
-
-    command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- @freetds//:install --destdir='#{install_dir}'"
-    command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
-    " #{install_dir}/embedded/lib/libtdsodbc.so"
-
     unless heroku_target?
       lib_files = [
           'krb5/plugins/tls/k5tls.so',
@@ -52,8 +42,5 @@ if linux_target?
         + " '#{install_dir}/embedded/msodbcsql/lib64/libmsodbcsql-18.3.so.3.1'"
     end
 
-    # gstatus binary used by the glusterfs integration
-    command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- //deps/gstatus:install --destdir='#{install_dir}'"
-    command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- //deps/nfsiostat:install --destdir='#{install_dir}'"
   end
 end

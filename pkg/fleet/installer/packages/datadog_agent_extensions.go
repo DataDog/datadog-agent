@@ -177,6 +177,14 @@ func installAgentExtensions(ctx HookContext, version string, isExperiment bool) 
 		return nil
 	}
 
+	// In testing environments the binary's compiled-in version (e.g. 7.79.0-devel-1)
+	// differs from the pipeline OCI tag (e.g. pipeline-107898846). Allow the caller to
+	// override via DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT so the correct image
+	// is fetched without modifying the installed binary.
+	if override := env.DefaultPackagesVersionOverride[agentPackage]; override != "" {
+		version = override
+	}
+
 	// install extensions
 	overrides := setRegistryConfig(env)
 	downloader := oci.NewDownloader(env, env.HTTPClient())

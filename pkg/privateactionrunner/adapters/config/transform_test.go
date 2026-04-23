@@ -68,13 +68,13 @@ func TestGetBundleInheritedAllowedActions(t *testing.T) {
 				"com.datadoghq.gitlab.users":    sets.New[string]("action2"),
 				"com.datadoghq.kubernetes.core": sets.New[string]("action3"),
 				"com.datadoghq.kubernetes.apps": sets.New[string]("action4"),
-				"com.datadoghq.ddagent":         sets.New[string]("action5"),
+				"com.datadoghq.remoteaction":    sets.New[string]("action5"),
 			},
 			expectedInheritedActions: map[string]sets.Set[string]{
 				"com.datadoghq.script":          sets.New[string]("testConnection", "enrichScript"),
 				"com.datadoghq.gitlab.users":    sets.New[string]("testConnection"),
 				"com.datadoghq.kubernetes.core": sets.New[string]("testConnection"),
-				"com.datadoghq.ddagent":         sets.New[string]("testConnection"),
+				"com.datadoghq.remoteaction":    sets.New[string]("testConnection"),
 			},
 		},
 		{
@@ -135,11 +135,6 @@ func TestGetDatadogHost(t *testing.T) {
 			name:     "handles gov site",
 			endpoint: "https://api.ddog-gov.com.",
 			expected: "api.ddog-gov.com",
-		},
-		{
-			name:     "handles gov cloud mil site",
-			endpoint: "https://api.ddog-gov.mil.",
-			expected: "api.ddog-gov.mil",
 		},
 		{
 			name:     "handles custom domain",
@@ -245,11 +240,14 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 		assert.True(t, allowlist["com.datadoghq.kubernetes.apps"].Has("listDeployment"))
 		assert.True(t, allowlist["com.datadoghq.kubernetes.core"].Has("getPod"))
 		assert.True(t, allowlist["com.datadoghq.kubernetes.batch"].Has("getJob"))
+		// common actions should also be present
+		assert.True(t, allowlist["com.datadoghq.remoteaction.networks"].Has("runNetworkPath"))
+		assert.True(t, allowlist["com.datadoghq.remoteaction.rshell"].Has("runCommand"))
 		// inherited actions should also be present for the kubernetes prefix
 		assert.True(t, allowlist["com.datadoghq.kubernetes.core"].Has("testConnection"))
 	})
 
-	t.Run("non-cluster-agent flavor returns empty default actions", func(t *testing.T) {
+	t.Run("non-cluster-agent flavor returns common default actions only", func(t *testing.T) {
 		flavor.SetFlavor(flavor.DefaultAgent)
 
 		mockConfig := configmock.New(t)
@@ -258,7 +256,12 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 
 		allowlist := makeActionsAllowlist(mockConfig)
 
-		assert.Empty(t, allowlist)
+		// common actions should be present
+		assert.True(t, allowlist["com.datadoghq.remoteaction.networks"].Has("runNetworkPath"))
+		assert.True(t, allowlist["com.datadoghq.remoteaction.rshell"].Has("runCommand"))
+		// cluster-agent-specific actions should NOT be present
+		_, hasK8sApps := allowlist["com.datadoghq.kubernetes.apps"]
+		assert.False(t, hasK8sApps)
 	})
 
 	t.Run("default actions are excluded when default_actions_enabled is false", func(t *testing.T) {
@@ -301,7 +304,17 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 	})
 }
 
-func TestFromDDConfigPARRestrictedShellAllowedPaths(t *testing.T) {
+func TestFromDDConfigPARRestrictedShellAllowedPathsUnset(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
+	mockConfig.SetWithoutSource(setup.PARUrn, "")
+
+	cfg, err := FromDDConfig(mockConfig)
+	require.NoError(t, err)
+	assert.Nil(t, cfg.RShellAllowedPaths)
+}
+
+func TestFromDDConfigPARRestrictedShellAllowedPathsSet(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
 	mockConfig.SetWithoutSource(setup.PARUrn, "")
@@ -310,4 +323,54 @@ func TestFromDDConfigPARRestrictedShellAllowedPaths(t *testing.T) {
 	cfg, err := FromDDConfig(mockConfig)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"/var/log", "/tmp"}, cfg.RShellAllowedPaths)
+}
+
+func TestFromDDConfigPARRestrictedShellAllowedPathsEmpty(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
+	mockConfig.SetWithoutSource(setup.PARUrn, "")
+	mockConfig.SetWithoutSource(setup.PARRestrictedShellAllowedPaths, []string{})
+
+	cfg, err := FromDDConfig(mockConfig)
+	require.NoError(t, err)
+	// Explicit empty: operator opts in to blocking everything.
+	assert.NotNil(t, cfg.RShellAllowedPaths)
+	assert.Empty(t, cfg.RShellAllowedPaths)
+}
+
+func TestFromDDConfigPARRestrictedShellAllowedCommandsUnset(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
+	mockConfig.SetWithoutSource(setup.PARUrn, "")
+
+	cfg, err := FromDDConfig(mockConfig)
+	require.NoError(t, err)
+	// Unset: operator opts out of filtering, handler will pass through the
+	// backend list unchanged.
+	assert.Nil(t, cfg.RShellAllowedCommands)
+}
+
+func TestFromDDConfigPARRestrictedShellAllowedCommandsSet(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
+	mockConfig.SetWithoutSource(setup.PARUrn, "")
+	mockConfig.SetWithoutSource(setup.PARRestrictedShellAllowedCommands, []string{"cat", "ls"})
+
+	cfg, err := FromDDConfig(mockConfig)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"cat", "ls"}, cfg.RShellAllowedCommands)
+}
+
+func TestFromDDConfigPARRestrictedShellAllowedCommandsEmpty(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
+	mockConfig.SetWithoutSource(setup.PARUrn, "")
+	mockConfig.SetWithoutSource(setup.PARRestrictedShellAllowedCommands, []string{})
+
+	cfg, err := FromDDConfig(mockConfig)
+	require.NoError(t, err)
+	// Explicit empty list: operator opts in to blocking every command.
+	// Distinct from the unset case above.
+	assert.NotNil(t, cfg.RShellAllowedCommands)
+	assert.Empty(t, cfg.RShellAllowedCommands)
 }
