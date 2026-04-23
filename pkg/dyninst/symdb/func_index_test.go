@@ -173,3 +173,114 @@ func TestFuncOffsetByNameIndex(t *testing.T) {
 		})
 	}
 }
+
+// originBuilderFactory creates a funcOffsetByOriginIndexBuilder for testing.
+type originBuilderFactory struct {
+	name   string
+	create func(t *testing.T) funcOffsetByOriginIndexBuilder
+}
+
+func getOriginBuilderFactories(t *testing.T) []originBuilderFactory {
+	t.Helper()
+	return []originBuilderFactory{
+		{
+			name:   "in_memory",
+			create: func(_ *testing.T) funcOffsetByOriginIndexBuilder { return &inMemFuncOffsetByOriginIndexBuilder{} },
+		},
+		{
+			name: "on_disk",
+			create: func(t *testing.T) funcOffsetByOriginIndexBuilder {
+				dc := newTestDiskCache(t)
+				b, err := newOnDiskFuncOffsetByOriginIndexBuilder(dc, "test")
+				require.NoError(t, err)
+				t.Cleanup(func() { _ = b.Close() })
+				return b
+			},
+		},
+	}
+}
+
+func collectForOrigin(idx funcOffsetByOriginIndex, origin dwarf.Offset) []dwarf.Offset {
+	var out []dwarf.Offset
+	for instance := range idx.forOrigin(origin) {
+		out = append(out, instance)
+	}
+	slices.Sort(out)
+	return out
+}
+
+func TestFuncOffsetByOriginIndex(t *testing.T) {
+	for _, factory := range getOriginBuilderFactories(t) {
+		t.Run(factory.name, func(t *testing.T) {
+			t.Run("empty", func(t *testing.T) {
+				builder := factory.create(t)
+				idx, err := builder.build()
+				require.NoError(t, err)
+				defer idx.Close()
+
+				assert.Empty(t, collectForOrigin(idx, 100))
+			})
+
+			t.Run("single_entry", func(t *testing.T) {
+				builder := factory.create(t)
+				require.NoError(t, builder.add(100, 500))
+				idx, err := builder.build()
+				require.NoError(t, err)
+				defer idx.Close()
+
+				assert.Equal(t, []dwarf.Offset{500}, collectForOrigin(idx, 100))
+				assert.Empty(t, collectForOrigin(idx, 200))
+			})
+
+			t.Run("multiple_origins", func(t *testing.T) {
+				builder := factory.create(t)
+				require.NoError(t, builder.add(100, 500))
+				require.NoError(t, builder.add(100, 600))
+				require.NoError(t, builder.add(200, 700))
+				require.NoError(t, builder.add(300, 800))
+				idx, err := builder.build()
+				require.NoError(t, err)
+				defer idx.Close()
+
+				assert.Equal(t, []dwarf.Offset{500, 600}, collectForOrigin(idx, 100))
+				assert.Equal(t, []dwarf.Offset{700}, collectForOrigin(idx, 200))
+				assert.Equal(t, []dwarf.Offset{800}, collectForOrigin(idx, 300))
+				assert.Empty(t, collectForOrigin(idx, 999))
+			})
+
+			t.Run("inserted_out_of_order", func(t *testing.T) {
+				builder := factory.create(t)
+				require.NoError(t, builder.add(300, 800))
+				require.NoError(t, builder.add(100, 600))
+				require.NoError(t, builder.add(100, 500))
+				require.NoError(t, builder.add(200, 700))
+				idx, err := builder.build()
+				require.NoError(t, err)
+				defer idx.Close()
+
+				assert.Equal(t, []dwarf.Offset{500, 600}, collectForOrigin(idx, 100))
+				assert.Equal(t, []dwarf.Offset{700}, collectForOrigin(idx, 200))
+				assert.Equal(t, []dwarf.Offset{800}, collectForOrigin(idx, 300))
+			})
+
+			t.Run("early_break_stops_iteration", func(t *testing.T) {
+				builder := factory.create(t)
+				require.NoError(t, builder.add(100, 500))
+				require.NoError(t, builder.add(100, 600))
+				require.NoError(t, builder.add(100, 700))
+				idx, err := builder.build()
+				require.NoError(t, err)
+				defer idx.Close()
+
+				var seen []dwarf.Offset
+				for inst := range idx.forOrigin(100) {
+					seen = append(seen, inst)
+					if len(seen) == 2 {
+						break
+					}
+				}
+				assert.Len(t, seen, 2)
+			})
+		})
+	}
+}

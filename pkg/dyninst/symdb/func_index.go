@@ -120,8 +120,6 @@ func (emptyFuncOffsetByNameIndex) forPackage(string) iter.Seq2[string, dwarf.Off
 
 func (emptyFuncOffsetByNameIndex) Close() error { return nil }
 
-// ─── On-disk implementation ────────────────────────────────────────────────
-
 // onDiskFuncOffsetByNameEntry is the fixed-size entry stored in the index file.
 // The strOffset field points into the string table file.
 type onDiskFuncOffsetByNameEntry struct {
@@ -216,7 +214,6 @@ func (b *onDiskFuncOffsetByNameIndexBuilder) build() (_ funcOffsetByNameIndex, r
 	}
 	b.strW = nil
 
-	// Handle empty index.
 	if b.strPos == 0 {
 		b.cleanup()
 		return emptyFuncOffsetByNameIndex{}, nil
@@ -338,4 +335,236 @@ func (idx *onDiskFuncOffsetByNameIndex) Close() error {
 	}
 	defer func() { *idx = onDiskFuncOffsetByNameIndex{} }()
 	return errors.Join(idx.strMM.Close(), idx.idxMM.Close())
+}
+
+// funcOffsetByOriginIndex maps a DWARF offset (the "origin") to zero or more
+// other DWARF offsets. Used to look up every inlined instance of an abstract
+// function definition across all compile units: key = abstract-origin offset,
+// value = instance offset. Multiple entries for the same origin are
+// permitted and all yielded by forOrigin.
+type funcOffsetByOriginIndex interface {
+	// forOrigin returns an iterator over all instance offsets whose origin
+	// matches the given origin offset.
+	forOrigin(origin dwarf.Offset) iter.Seq[dwarf.Offset]
+	io.Closer
+}
+
+// funcOffsetByOriginIndexBuilder accumulates (origin, instance) pairs and
+// produces a sorted funcOffsetByOriginIndex.
+type funcOffsetByOriginIndexBuilder interface {
+	add(origin, instance dwarf.Offset) error
+	build() (funcOffsetByOriginIndex, error)
+	io.Closer
+}
+
+// funcOffsetByOriginEntry is the fixed-size entry shared by both in-memory
+// and on-disk implementations.
+type funcOffsetByOriginEntry struct {
+	origin   uint32
+	instance uint32
+}
+
+// inMemFuncOffsetByOriginIndexBuilder builds an in-memory origin-keyed index.
+type inMemFuncOffsetByOriginIndexBuilder struct {
+	entries []funcOffsetByOriginEntry
+}
+
+var _ funcOffsetByOriginIndexBuilder = (*inMemFuncOffsetByOriginIndexBuilder)(nil)
+
+func (b *inMemFuncOffsetByOriginIndexBuilder) add(origin, instance dwarf.Offset) error {
+	b.entries = append(b.entries, funcOffsetByOriginEntry{
+		origin:   uint32(origin),
+		instance: uint32(instance),
+	})
+	return nil
+}
+
+func (b *inMemFuncOffsetByOriginIndexBuilder) build() (funcOffsetByOriginIndex, error) {
+	sortFuncOffsetByOriginEntries(b.entries)
+	idx := &inMemFuncOffsetByOriginIndex{entries: b.entries}
+	b.entries = nil
+	return idx, nil
+}
+
+func (b *inMemFuncOffsetByOriginIndexBuilder) Close() error { return nil }
+
+// inMemFuncOffsetByOriginIndex is the in-memory implementation.
+type inMemFuncOffsetByOriginIndex struct {
+	entries []funcOffsetByOriginEntry // sorted by origin, then instance
+}
+
+var _ funcOffsetByOriginIndex = (*inMemFuncOffsetByOriginIndex)(nil)
+
+func (idx *inMemFuncOffsetByOriginIndex) forOrigin(origin dwarf.Offset) iter.Seq[dwarf.Offset] {
+	return forOriginFromEntries(idx.entries, origin, nil)
+}
+
+func (idx *inMemFuncOffsetByOriginIndex) Close() error { return nil }
+
+// emptyFuncOffsetByOriginIndex is a no-op index.
+type emptyFuncOffsetByOriginIndex struct{}
+
+var _ funcOffsetByOriginIndex = emptyFuncOffsetByOriginIndex{}
+
+func (emptyFuncOffsetByOriginIndex) forOrigin(dwarf.Offset) iter.Seq[dwarf.Offset] {
+	return func(func(dwarf.Offset) bool) {}
+}
+
+func (emptyFuncOffsetByOriginIndex) Close() error { return nil }
+
+// onDiskFuncOffsetByOriginIndexBuilder writes (origin, instance) pairs to a
+// single disk file and produces a sorted, mmap-backed index on build().
+type onDiskFuncOffsetByOriginIndexBuilder struct {
+	idxFile    *object.DiskFile
+	idxW       *bufio.Writer
+	numEntries uint32
+	entryBuf   funcOffsetByOriginEntry
+}
+
+var _ funcOffsetByOriginIndexBuilder = (*onDiskFuncOffsetByOriginIndexBuilder)(nil)
+
+const onDiskFuncOffsetByOriginIndexMaxSize = 256 << 20 // 256 MiB
+const onDiskFuncOffsetByOriginIndexInitialSize = 1 << 20
+
+func newOnDiskFuncOffsetByOriginIndexBuilder(dc *object.DiskCache, suffix string) (*onDiskFuncOffsetByOriginIndexBuilder, error) {
+	idxFile, err := dc.NewFile(
+		"funcOffsetByOriginIndex."+suffix+".entries",
+		onDiskFuncOffsetByOriginIndexMaxSize,
+		onDiskFuncOffsetByOriginIndexInitialSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &onDiskFuncOffsetByOriginIndexBuilder{
+		idxFile: idxFile,
+		idxW:    bufio.NewWriter(idxFile),
+	}, nil
+}
+
+func (b *onDiskFuncOffsetByOriginIndexBuilder) add(origin, instance dwarf.Offset) error {
+	if b.idxW == nil {
+		return errors.New("builder is closed")
+	}
+	b.entryBuf = funcOffsetByOriginEntry{
+		origin:   uint32(origin),
+		instance: uint32(instance),
+	}
+	buf := unsafe.Slice((*byte)(unsafe.Pointer(&b.entryBuf)), unsafe.Sizeof(b.entryBuf))
+	if _, err := b.idxW.Write(buf); err != nil {
+		return err
+	}
+	b.numEntries++
+	return nil
+}
+
+func (b *onDiskFuncOffsetByOriginIndexBuilder) build() (_ funcOffsetByOriginIndex, retErr error) {
+	if b.idxW == nil {
+		return nil, errors.New("builder is closed")
+	}
+	defer func() {
+		if retErr != nil {
+			b.cleanup()
+		}
+	}()
+
+	if err := b.idxW.Flush(); err != nil {
+		return nil, err
+	}
+	b.idxW = nil
+
+	if b.numEntries == 0 {
+		b.cleanup()
+		return emptyFuncOffsetByOriginIndex{}, nil
+	}
+
+	idxMM, err := b.idxFile.IntoMMap(syscall.PROT_READ | syscall.PROT_WRITE)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if retErr != nil {
+			_ = idxMM.Close()
+		}
+	}()
+	b.idxFile = nil
+	idxData := idxMM.Data()
+
+	entries := unsafe.Slice(
+		(*funcOffsetByOriginEntry)(unsafe.Pointer(unsafe.SliceData(idxData))),
+		uintptr(len(idxData))/unsafe.Sizeof(funcOffsetByOriginEntry{}),
+	)
+	sortFuncOffsetByOriginEntries(entries)
+
+	return &onDiskFuncOffsetByOriginIndex{
+		idxMM:   idxMM,
+		entries: entries,
+	}, nil
+}
+
+func (b *onDiskFuncOffsetByOriginIndexBuilder) cleanup() {
+	if b.idxFile != nil {
+		_ = b.idxFile.Close()
+		b.idxFile = nil
+	}
+	b.idxW = nil
+}
+
+func (b *onDiskFuncOffsetByOriginIndexBuilder) Close() error {
+	b.cleanup()
+	return nil
+}
+
+// onDiskFuncOffsetByOriginIndex is the mmap-backed implementation.
+type onDiskFuncOffsetByOriginIndex struct {
+	idxMM   object.SectionData
+	entries []funcOffsetByOriginEntry // sorted by origin, then instance
+}
+
+var _ funcOffsetByOriginIndex = (*onDiskFuncOffsetByOriginIndex)(nil)
+
+func (idx *onDiskFuncOffsetByOriginIndex) forOrigin(origin dwarf.Offset) iter.Seq[dwarf.Offset] {
+	return forOriginFromEntries(idx.entries, origin, idx)
+}
+
+func (idx *onDiskFuncOffsetByOriginIndex) Close() error {
+	if idx.idxMM == nil {
+		return nil
+	}
+	defer func() { *idx = onDiskFuncOffsetByOriginIndex{} }()
+	return idx.idxMM.Close()
+}
+
+// sortFuncOffsetByOriginEntries sorts entries by origin then instance.
+func sortFuncOffsetByOriginEntries(entries []funcOffsetByOriginEntry) {
+	slices.SortFunc(entries, func(a, b funcOffsetByOriginEntry) int {
+		return cmp.Or(
+			cmp.Compare(a.origin, b.origin),
+			cmp.Compare(a.instance, b.instance),
+		)
+	})
+}
+
+// forOriginFromEntries is shared by in-memory and on-disk implementations.
+// keepAlive is kept referenced for the lifetime of the iteration to prevent
+// the underlying mmap from being finalized while the caller iterates. Pass
+// nil for in-memory indexes.
+func forOriginFromEntries(entries []funcOffsetByOriginEntry, origin dwarf.Offset, keepAlive any) iter.Seq[dwarf.Offset] {
+	return func(yield func(dwarf.Offset) bool) {
+		target := uint32(origin)
+		i, _ := slices.BinarySearchFunc(entries, target, func(e funcOffsetByOriginEntry, t uint32) int {
+			return cmp.Compare(e.origin, t)
+		})
+		for ; i < len(entries); i++ {
+			e := &entries[i]
+			if e.origin != target {
+				break
+			}
+			if !yield(dwarf.Offset(e.instance)) {
+				return
+			}
+		}
+		if keepAlive != nil {
+			runtime.KeepAlive(keepAlive)
+		}
+	}
 }

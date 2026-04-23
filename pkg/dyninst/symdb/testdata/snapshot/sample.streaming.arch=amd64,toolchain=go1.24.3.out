@@ -1182,6 +1182,7 @@ Package: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib
 			Var: item: .param4 (declared at line 115, available: [116-120])
 	Function: Foo (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Foo) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib/lib.go [13:14] injectible: [13-14]
 	Function: InlinedFunc (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.InlinedFunc) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib/lib.go [16:17] injectible: [17-17]
+	Function: InlinedInLaterCU (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.InlinedInLaterCU) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib/lib.go [27:28] injectible: [28-28]
 	Function: Map[...] (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Map[...]) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib/lib.go [105:106] injectible: [105-106]
 		Arg: box: .param0 (declared at line 105, available: [105-106])
 		Arg: f: .param1 (declared at line 105, available: [105-106])
@@ -1268,13 +1269,9 @@ Package: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib
 		Function: Unwrap (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib2.Wrapper[...].Unwrap) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib2/lib2.go [30:31] injectible: [30-31]
 			Arg: w: .param2 (declared at line 30, available: [30-31])
 			Arg: ~r0: .param3 (declared at line 30, available: )
-=== yield 4 [final=false] ===
+=== yield 4 [final=true] ===
 Package: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2
 	Function: FooV2 (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib%2ev2.FooV2) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2/lib.go [21:30] injectible: [21-21], [29-30]
 	Type: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2.V2Type
 		Function: MyMethod (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib%2ev2.(*V2Type).MyMethod) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2/lib.go [34:36] injectible: [34-36]
 			Arg: v: *github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib%2ev2.V2Type (declared at line 34, available: [34-35])
-=== yield 5 [final=true] ===
-Package: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib
-	Function: InlinedInLaterCU (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.InlinedInLaterCU) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib/lib.go [27:28] injectible: [28-28]
-	Function: NewImmutableSet[...] (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.NewImmutableSet[go.shape.string]) in  [40:0] injectible: 
