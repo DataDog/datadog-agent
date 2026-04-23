@@ -101,22 +101,12 @@ profiles:
 	err = deviceCk.Run(time.Now())
 	assert.Nil(t, err)
 
-	snmpTags := []string{
-		"snmp_device:1.2.3.4",
-		"device_ip:1.2.3.4",
-		"device_id:default:1.2.3.4",
-		"snmp_profile:f5-big-ip",
-		"device_vendor:f5",
-		"snmp_host:foo_sys_name",
-		"static_tag:from_profile_root",
-		"some_tag:some_tag_value",
-		"prefix:f",
-		"suffix:oo_sys_name"}
-	telemetryTags := append(utils.CopyStrings(snmpTags), "agent_version:"+version.AgentVersion)
-	row1Tags := append(utils.CopyStrings(snmpTags), "interface:nameRow1", "interface_alias:descRow1", "table_static_tag:val")
-	row2Tags := append(utils.CopyStrings(snmpTags), "interface:nameRow2", "interface_alias:descRow2", "table_static_tag:val")
+	resourceTag := "dd.internal.resource:ndm_device:default:1.2.3.4"
+	telemetryTags := []string{resourceTag, "loader:core", "agent_version:" + version.AgentVersion}
+	row1Tags := []string{resourceTag, "interface:nameRow1", "interface_alias:descRow1", "table_static_tag:val"}
+	row2Tags := []string{resourceTag, "interface:nameRow2", "interface_alias:descRow2", "table_static_tag:val"}
 
-	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", snmpTags)
+	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", []string{resourceTag})
 	sender.AssertMetric(t, "MonotonicCount", "snmp.ifInErrors", float64(70.5), "", row1Tags)
 	sender.AssertMetric(t, "MonotonicCount", "snmp.ifInErrors", float64(71), "", row2Tags)
 	sender.AssertMetric(t, "MonotonicCount", "snmp.ifInDiscards", float64(131), "", row1Tags)
@@ -133,7 +123,7 @@ profiles:
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.requests", append(utils.CopyStrings(telemetryTags), "request_type:getnext"))
 
 	// Should see f5-specific 'sysStatMemoryTotal' but not fake metrics
-	sender.AssertMetric(t, "Gauge", "snmp.sysStatMemoryTotal", float64(60), "", snmpTags)
+	sender.AssertMetric(t, "Gauge", "snmp.sysStatMemoryTotal", float64(60), "", []string{resourceTag})
 	sender.AssertNotCalled(t, "Gauge", "snmp.anotherMetric", mock.Anything, mock.Anything, mock.Anything)
 	sender.AssertMetricNotTaggedWith(t, "Gauge", "snmp.sysStatMemoryTotal", []string{"unknown_symbol:100"})
 
@@ -148,16 +138,7 @@ profiles:
 	err = deviceCk.Run(time.Now())
 	assert.Nil(t, err)
 
-	snmpTags = []string{
-		"device_namespace:default",
-		"snmp_device:1.2.3.4",
-		"device_ip:1.2.3.4",
-		"device_id:default:1.2.3.4",
-		"snmp_profile:another-profile",
-		"unknown_symbol:100"}
-	telemetryTags = append(utils.CopyStrings(snmpTags), "agent_version:"+version.AgentVersion)
-
-	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", snmpTags)
+	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", []string{resourceTag})
 
 	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", telemetryTags)
 	sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", telemetryTags)
@@ -169,7 +150,7 @@ profiles:
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.requests", append(utils.CopyStrings(telemetryTags), "request_type:getbulk"))
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.requests", append(utils.CopyStrings(telemetryTags), "request_type:getnext"))
 	// Should see fake metrics but not f5-specific 'sysStatMemoryTotal'
-	sender.AssertMetric(t, "Gauge", "snmp.anotherMetric", float64(100), "", snmpTags)
+	sender.AssertMetric(t, "Gauge", "snmp.anotherMetric", float64(100), "", []string{resourceTag})
 	sender.AssertNotCalled(t, "Gauge", "snmp.sysStatMemoryTotal", mock.Anything, mock.Anything, mock.Anything)
 	sender.AssertMetricNotTaggedWith(t, "Gauge", "snmp.anotherMetric", []string{"some_tag:some_tag_value"})
 
@@ -228,8 +209,9 @@ global_metrics:
 	err = deviceCk.Run(time.Now())
 	assert.Nil(t, err)
 
-	sender.AssertMetric(t, "Gauge", "snmp.fake.global.metric", float64(12345), "", []string{"snmp_profile:f5-big-ip"})
-	sender.AssertMetric(t, "Gauge", "snmp.sysStatMemoryTotal", float64(60), "", []string{"snmp_profile:f5-big-ip"})
+	resourceTag := "dd.internal.resource:ndm_device:default:1.2.3.4"
+	sender.AssertMetric(t, "Gauge", "snmp.fake.global.metric", float64(12345), "", []string{resourceTag})
+	sender.AssertMetric(t, "Gauge", "snmp.sysStatMemoryTotal", float64(60), "", []string{resourceTag})
 	sender.AssertNotCalled(t, "Gauge", "snmp.anotherMetric", mock.Anything, mock.Anything, mock.Anything)
 
 	// Switch device sysobjid
@@ -238,8 +220,8 @@ global_metrics:
 	err = deviceCk.Run(time.Now())
 	assert.Nil(t, err)
 
-	sender.AssertMetric(t, "Gauge", "snmp.fake.global.metric", float64(12345), "", []string{"snmp_profile:another_profile"})
-	sender.AssertMetric(t, "Gauge", "snmp.anotherMetric", float64(100), "", []string{"snmp_profile:another_profile"})
+	sender.AssertMetric(t, "Gauge", "snmp.fake.global.metric", float64(12345), "", []string{resourceTag})
+	sender.AssertMetric(t, "Gauge", "snmp.anotherMetric", float64(100), "", []string{resourceTag})
 	sender.AssertNotCalled(t, "Gauge", "snmp.sysStatMemoryTotal", mock.Anything, mock.Anything, mock.Anything)
 
 }
@@ -621,9 +603,10 @@ profiles:
 	err = deviceCk.Run(time.Now())
 	assert.Nil(t, err)
 
+	resourceTag := "dd.internal.resource:ndm_device:default:1.2.3.4"
 	sender.AssertServiceCheck(t, "snmp.can_check", servicecheck.ServiceCheckOK, "", snmpTags, "")
-	sender.AssertMetric(t, "Gauge", deviceReachableMetric, 1., "", snmpTags)
-	sender.AssertMetric(t, "Gauge", deviceUnreachableMetric, 0., "", snmpTags)
+	sender.AssertMetric(t, "Gauge", deviceReachableMetric, 1., "", []string{resourceTag})
+	sender.AssertMetric(t, "Gauge", deviceUnreachableMetric, 0., "", []string{resourceTag})
 
 	sender.ResetCalls()
 	sess.ConnectErr = errors.New("some error")
@@ -631,11 +614,11 @@ profiles:
 
 	assert.Error(t, err, "some error")
 	sender.Mock.AssertCalled(t, "ServiceCheck", "snmp.can_check", servicecheck.ServiceCheckCritical, "", mocksender.MatchTagsContains(snmpTags), "snmp connection error: some error")
-	sender.AssertMetric(t, "Gauge", deviceUnreachableMetric, 1., "", snmpTags)
-	sender.AssertMetric(t, "Gauge", deviceReachableMetric, 0., "", snmpTags)
+	sender.AssertMetric(t, "Gauge", deviceUnreachableMetric, 1., "", []string{resourceTag})
+	sender.AssertMetric(t, "Gauge", deviceReachableMetric, 0., "", []string{resourceTag})
 
 	// Verify that basic telemetry metrics are still sent even when session is nil
-	telemetryTagsForError := append(utils.CopyStrings(snmpTags), "agent_version:"+version.AgentVersion)
+	telemetryTagsForError := []string{resourceTag, "loader:core", "agent_version:" + version.AgentVersion}
 	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", telemetryTagsForError)
 	sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", telemetryTagsForError)
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", telemetryTagsForError)
@@ -643,6 +626,112 @@ profiles:
 
 	// Verify that session-dependent SNMP request counter metrics are NOT sent when session is nil
 	sender.AssertNotCalled(t, "Gauge", "datadog.snmp.requests", mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestEnrichDeviceTagsFromResource(t *testing.T) {
+	profile.SetConfdPathAndCleanProfiles()
+	sess := session.CreateMockSession()
+	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
+		return sess, nil
+	}
+
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+community_string: public
+collect_device_metadata: false
+metrics:
+- symbol:
+    OID: 1.3.6.1.4.1.3375.2.1.1.2.1.44.0
+    name: myMetric
+`)
+	// language=yaml
+	rawInitConfig := []byte(`
+profiles:
+ f5-big-ip:
+   definition_file: f5-big-ip.yaml
+`)
+
+	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
+	assert.Nil(t, err)
+
+	connMgr := NewConnectionManager(config, sessionFactory)
+	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
+	assert.Nil(t, err)
+
+	sender := mocksender.NewMockSender("123")
+	sender.SetupAcceptAll()
+	deviceCk.SetSender(report.NewMetricSender(sender, "", nil, report.MakeInterfaceBandwidthState()))
+
+	sysObjectIDPacket := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name:  "1.3.6.1.2.1.1.2.0",
+				Type:  gosnmp.ObjectIdentifier,
+				Value: "1.3.6.1.4.1.3375.2.1.3.4.1",
+			},
+		},
+	}
+
+	packets := []gosnmp.SnmpPacket{
+		{
+			Variables: []gosnmp.SnmpPDU{
+				{
+					Name:  "1.3.6.1.2.1.1.1.0",
+					Type:  gosnmp.OctetString,
+					Value: []byte("my_desc"),
+				},
+				{
+					Name:  "1.3.6.1.2.1.1.2.0",
+					Type:  gosnmp.ObjectIdentifier,
+					Value: "1.3.6.1.4.1.3375.2.1.3.4.1",
+				},
+				{
+					Name:  "1.3.6.1.2.1.1.3.0",
+					Type:  gosnmp.TimeTicks,
+					Value: 20,
+				},
+				{
+					Name:  "1.3.6.1.2.1.1.5.0",
+					Type:  gosnmp.OctetString,
+					Value: []byte("foo_sys_name"),
+				},
+			},
+		},
+		{
+			Variables: []gosnmp.SnmpPDU{
+				{
+					Name:  "1.3.6.1.4.1.3375.2.1.1.2.1.44.0",
+					Type:  gosnmp.Integer,
+					Value: 30,
+				},
+			},
+		},
+	}
+
+	sess.On("GetNext", []string{"1.0"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
+	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&sysObjectIDPacket, nil)
+	sess.On("Get", mock.MatchedBy(func(oids []string) bool {
+		return len(oids) > 1 // scalar fetch
+	})).Return(&packets[0], nil)
+	sess.On("Get", mock.MatchedBy(func(oids []string) bool {
+		return len(oids) == 1
+	})).Return(&packets[1], nil)
+
+	err = deviceCk.Run(time.Now())
+	assert.Nil(t, err)
+
+	resourceTag := "dd.internal.resource:ndm_device:default:1.2.3.4"
+
+	// Metrics should have the resource tag
+	sender.AssertMetricTaggedWith(t, "Gauge", deviceReachableMetric, []string{resourceTag})
+
+	// Metrics should NOT have device-level tags (those come from backend enrichment)
+	sender.AssertMetricNotTaggedWith(t, "Gauge", deviceReachableMetric, []string{"snmp_device:1.2.3.4"})
+	sender.AssertMetricNotTaggedWith(t, "Gauge", deviceReachableMetric, []string{"device_namespace:default"})
+
+	// Service checks should still have device tags (they are not resource-enriched)
+	sender.AssertServiceCheck(t, "snmp.can_check", servicecheck.ServiceCheckOK, "", []string{"snmp_device:1.2.3.4"}, "")
 }
 
 func TestRun_sessionCloseError(t *testing.T) {
@@ -872,22 +961,12 @@ profiles:
 	err = deviceCk.Run(time.Now())
 	assert.Nil(t, err)
 
-	snmpTags := []string{
-		"snmp_device:1.2.3.4",
-		"device_ip:1.2.3.4",
-		"device_id:default:1.2.3.4",
-		"snmp_profile:f5-big-ip",
-		"device_vendor:f5",
-		"snmp_host:foo_sys_name",
-		"static_tag:from_profile_root",
-		"some_tag:some_tag_value",
-		"prefix:f",
-		"suffix:oo_sys_name"}
-	telemetryTags := append(utils.CopyStrings(snmpTags), "agent_version:"+version.AgentVersion)
-	row1Tags := append(utils.CopyStrings(snmpTags), "interface:nameRow1", "interface_alias:descRow1", "table_static_tag:val")
-	row2Tags := append(utils.CopyStrings(snmpTags), "interface:nameRow2", "interface_alias:descRow2", "table_static_tag:val")
+	resourceTag := "dd.internal.resource:ndm_device:default:1.2.3.4"
+	telemetryTags := []string{resourceTag, "loader:core", "agent_version:" + version.AgentVersion}
+	row1Tags := []string{resourceTag, "interface:nameRow1", "interface_alias:descRow1", "table_static_tag:val"}
+	row2Tags := []string{resourceTag, "interface:nameRow2", "interface_alias:descRow2", "table_static_tag:val"}
 
-	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", snmpTags)
+	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", []string{resourceTag})
 	sender.AssertMetric(t, "MonotonicCount", "snmp.ifInErrors", float64(70.5), "", row1Tags)
 	sender.AssertMetric(t, "MonotonicCount", "snmp.ifInErrors", float64(71), "", row2Tags)
 	sender.AssertMetric(t, "MonotonicCount", "snmp.ifInDiscards", float64(131), "", row1Tags)
@@ -904,7 +983,7 @@ profiles:
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.requests", append(utils.CopyStrings(telemetryTags), "request_type:getnext"))
 
 	// Should see f5-specific 'sysStatMemoryTotal' but not fake metrics
-	sender.AssertMetric(t, "Gauge", "snmp.sysStatMemoryTotal", float64(60), "", snmpTags)
+	sender.AssertMetric(t, "Gauge", "snmp.sysStatMemoryTotal", float64(60), "", []string{resourceTag})
 	sender.AssertNotCalled(t, "Gauge", "snmp.anotherMetric", mock.Anything, mock.Anything, mock.Anything)
 	sender.AssertMetricNotTaggedWith(t, "Gauge", "snmp.sysStatMemoryTotal", []string{"unknown_symbol:100"})
 
@@ -919,16 +998,7 @@ profiles:
 	err = deviceCk.Run(time.Now())
 	assert.Nil(t, err)
 
-	snmpTags = []string{
-		"device_namespace:default",
-		"snmp_device:1.2.3.4",
-		"device_ip:1.2.3.4",
-		"device_id:default:1.2.3.4",
-		"snmp_profile:another-profile",
-		"unknown_symbol:100"}
-	telemetryTags = append(utils.CopyStrings(snmpTags), "agent_version:"+version.AgentVersion)
-
-	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", snmpTags)
+	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", []string{resourceTag})
 
 	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", telemetryTags)
 	sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", telemetryTags)
@@ -940,7 +1010,7 @@ profiles:
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.requests", append(utils.CopyStrings(telemetryTags), "request_type:getbulk"))
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.requests", append(utils.CopyStrings(telemetryTags), "request_type:getnext"))
 	// Should see fake metrics but not f5-specific 'sysStatMemoryTotal'
-	sender.AssertMetric(t, "Gauge", "snmp.anotherMetric", float64(100), "", snmpTags)
+	sender.AssertMetric(t, "Gauge", "snmp.anotherMetric", float64(100), "", []string{resourceTag})
 	sender.AssertNotCalled(t, "Gauge", "snmp.sysStatMemoryTotal", mock.Anything, mock.Anything, mock.Anything)
 	sender.AssertMetricNotTaggedWith(t, "Gauge", "snmp.anotherMetric", []string{"some_tag:some_tag_value"})
 
@@ -949,10 +1019,10 @@ profiles:
 	assert.Len(t, deviceCk.profileCache.profile.MetricTags, 2)
 
 	// Assert Ping Metrics
-	sender.AssertMetric(t, "Gauge", pingReachableMetric, float64(1), "", snmpTags)
-	sender.AssertMetric(t, "Gauge", pingUnreachableMetric, float64(0), "", snmpTags)
-	sender.AssertMetric(t, "Gauge", pingAvgRttMetric, 4, "", snmpTags)
-	sender.AssertMetric(t, "Gauge", pingPacketLoss, 0.57, "", snmpTags)
+	sender.AssertMetric(t, "Gauge", pingReachableMetric, float64(1), "", []string{resourceTag})
+	sender.AssertMetric(t, "Gauge", pingUnreachableMetric, float64(0), "", []string{resourceTag})
+	sender.AssertMetric(t, "Gauge", pingAvgRttMetric, 4, "", []string{resourceTag})
+	sender.AssertMetric(t, "Gauge", pingPacketLoss, 0.57, "", []string{resourceTag})
 }
 
 func TestDeviceCheck_WithFailingPing(t *testing.T) {
@@ -1030,22 +1100,12 @@ profiles:
 	err = deviceCk.Run(time.Now())
 	assert.Nil(t, err)
 
-	snmpTags := []string{
-		"snmp_device:1.2.3.4",
-		"device_ip:1.2.3.4",
-		"device_id:default:1.2.3.4",
-		"snmp_profile:f5-big-ip",
-		"device_vendor:f5",
-		"snmp_host:foo_sys_name",
-		"static_tag:from_profile_root",
-		"some_tag:some_tag_value",
-		"prefix:f",
-		"suffix:oo_sys_name"}
-	telemetryTags := append(utils.CopyStrings(snmpTags), "agent_version:"+version.AgentVersion)
-	row1Tags := append(utils.CopyStrings(snmpTags), "interface:nameRow1", "interface_alias:descRow1", "table_static_tag:val")
-	row2Tags := append(utils.CopyStrings(snmpTags), "interface:nameRow2", "interface_alias:descRow2", "table_static_tag:val")
+	resourceTag := "dd.internal.resource:ndm_device:default:1.2.3.4"
+	telemetryTags := []string{resourceTag, "loader:core", "agent_version:" + version.AgentVersion}
+	row1Tags := []string{resourceTag, "interface:nameRow1", "interface_alias:descRow1", "table_static_tag:val"}
+	row2Tags := []string{resourceTag, "interface:nameRow2", "interface_alias:descRow2", "table_static_tag:val"}
 
-	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", snmpTags)
+	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", []string{resourceTag})
 	sender.AssertMetric(t, "MonotonicCount", "snmp.ifInErrors", float64(70.5), "", row1Tags)
 	sender.AssertMetric(t, "MonotonicCount", "snmp.ifInErrors", float64(71), "", row2Tags)
 	sender.AssertMetric(t, "MonotonicCount", "snmp.ifInDiscards", float64(131), "", row1Tags)
@@ -1062,7 +1122,7 @@ profiles:
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.requests", append(utils.CopyStrings(telemetryTags), "request_type:getnext"))
 
 	// Should see f5-specific 'sysStatMemoryTotal' but not fake metrics
-	sender.AssertMetric(t, "Gauge", "snmp.sysStatMemoryTotal", float64(60), "", snmpTags)
+	sender.AssertMetric(t, "Gauge", "snmp.sysStatMemoryTotal", float64(60), "", []string{resourceTag})
 	sender.AssertNotCalled(t, "Gauge", "snmp.anotherMetric", mock.Anything, mock.Anything, mock.Anything)
 	sender.AssertMetricNotTaggedWith(t, "Gauge", "snmp.sysStatMemoryTotal", []string{"unknown_symbol:100"})
 
@@ -1077,16 +1137,7 @@ profiles:
 	err = deviceCk.Run(time.Now())
 	assert.Nil(t, err)
 
-	snmpTags = []string{
-		"device_namespace:default",
-		"snmp_device:1.2.3.4",
-		"device_ip:1.2.3.4",
-		"device_id:default:1.2.3.4",
-		"snmp_profile:another-profile",
-		"unknown_symbol:100"}
-	telemetryTags = append(utils.CopyStrings(snmpTags), "agent_version:"+version.AgentVersion)
-
-	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", snmpTags)
+	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", []string{resourceTag})
 
 	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", telemetryTags)
 	sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", telemetryTags)
@@ -1098,7 +1149,7 @@ profiles:
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.requests", append(utils.CopyStrings(telemetryTags), "request_type:getbulk"))
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.requests", append(utils.CopyStrings(telemetryTags), "request_type:getnext"))
 	// Should see fake metrics but not f5-specific 'sysStatMemoryTotal'
-	sender.AssertMetric(t, "Gauge", "snmp.anotherMetric", float64(100), "", snmpTags)
+	sender.AssertMetric(t, "Gauge", "snmp.anotherMetric", float64(100), "", []string{resourceTag})
 	sender.AssertNotCalled(t, "Gauge", "snmp.sysStatMemoryTotal", mock.Anything, mock.Anything, mock.Anything)
 	sender.AssertMetricNotTaggedWith(t, "Gauge", "snmp.anotherMetric", []string{"some_tag:some_tag_value"})
 
@@ -1107,8 +1158,8 @@ profiles:
 	assert.Len(t, deviceCk.profileCache.profile.MetricTags, 2)
 
 	// Assert Ping reachability metrics are sent
-	sender.AssertMetric(t, "Gauge", pingReachableMetric, float64(0), "", snmpTags)
-	sender.AssertMetric(t, "Gauge", pingUnreachableMetric, float64(1), "", snmpTags)
+	sender.AssertMetric(t, "Gauge", pingReachableMetric, float64(0), "", []string{resourceTag})
+	sender.AssertMetric(t, "Gauge", pingUnreachableMetric, float64(1), "", []string{resourceTag})
 
 	// Assert Ping Loss and RTT metrics are not send
 	sender.AssertNotCalled(t, "Gauge", pingAvgRttMetric, mock.Anything, mock.Anything, mock.Anything)
