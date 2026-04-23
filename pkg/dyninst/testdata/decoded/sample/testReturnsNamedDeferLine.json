@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.testSomeNamedReturn",
+      "method": "main.testReturnsNamedDeferLine",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -16,14 +16,14 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.testSomeNamedReturn",
+            "function": "main.testReturnsNamedDeferLine",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 105
+            "lineNumber": 121
           },
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 412
+            "lineNumber": 414
           },
           {
             "function": "main.main",
@@ -42,36 +42,28 @@
           }
         ],
         "probe": {
-          "id": "testReturnCondMulti",
+          "id": "testReturnsNamedDeferLine",
           "location": {
-            "method": "main.testSomeNamedReturn"
+            "method": "main.testReturnsNamedDeferLine",
+            "file": "returns.go",
+            "line": 121
           }
         },
         "captures": {
-          "entry": {
-            "arguments": {
-              "i": {
-                "type": "int",
-                "value": "42"
-              }
-            }
-          },
-          "return": {
-            "locals": {
-              "@return": {
-                "fields": {
-                  "r0": {
-                    "type": "int",
-                    "value": "420"
-                  },
-                  "result2": {
-                    "type": "int",
-                    "value": "840"
-                  },
-                  "r2": {
-                    "type": "int",
-                    "value": "1260"
-                  }
+          "lines": {
+            "121": {
+              "locals": {
+                "i": {
+                  "type": "int",
+                  "value": "43"
+                },
+                "a": {
+                  "type": "string",
+                  "value": "a43"
+                },
+                "b": {
+                  "type": "string",
+                  "value": "b43"
                 }
               }
             }
@@ -81,8 +73,7 @@
       "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "duration": "[duration]",
-    "message": "r0=420",
+    "message": "43",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]
