@@ -64,7 +64,6 @@ func replaceWithDummyFlowProcessor(srv *Server) *dummyFlowProcessor {
 
 // testOptions is an fx collection of common dependencies for all tests
 var testOptions = fx.Options(
-	fxutil.FxAgentBase(),
 	fxutil.Component(fxutil.ProvideComponentConstructor(NewComponent)),
 	nfconfigmock.MockModule(),
 	forwardermock.MockModule(),
@@ -91,6 +90,7 @@ func TestStartServerAndStopServer(t *testing.T) {
 	require.NoError(t, err)
 	var component server.Component
 	app := fxtest.New(t, fx.Options(
+		fxutil.FxAgentBase(),
 		testOptions,
 		fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
 		fx.Replace(
