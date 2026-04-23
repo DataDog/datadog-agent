@@ -24,6 +24,9 @@ const thirdPartyIntegration = "datadog-ping==1.0.2"
 
 type upgradeSuite struct {
 	suite.FleetSuite
+
+	agentInstalled    bool
+	currentInstallSig string
 }
 
 func newUpgradeSuite() e2e.Suite[environments.Host] {
@@ -34,10 +37,96 @@ func TestFleetUpgrade(t *testing.T) {
 	suite.Run(t, newUpgradeSuite, suite.Platforms())
 }
 
-func (s *upgradeSuite) TestUpgrade() {
-	s.Agent.MustInstall(agent.WithRemoteUpdates(), agent.WithStablePackages())
-	defer s.Agent.MustUninstall()
+// upgradeProfiles declares the install flavor and state-mutation behavior of
+// each upgrade test. Tests with the same sig and no mutator in between share
+// a single agent install per platform. The two failure tests, which always
+// roll back to the stable baseline, can reuse one install.
+var upgradeProfiles = map[string]testInstallProfile{
+	"TestIntegrationPreservationDebToOCI": {
+		sig:     "oci",
+		install: func(a *agent.Agent) { a.MustInstall(agent.WithRemoteUpdates()) },
+		mutator: true,
+	},
+	"TestIntegrationPreservationOCIToOCI": {
+		sig:     "stable-deb",
+		install: func(a *agent.Agent) { a.MustInstall(agent.WithRemoteUpdates(), agent.WithStablePackages()) },
+		mutator: true,
+	},
+	"TestODBCConfigPreservedOnUpgrade": {
+		sig:     "oci",
+		install: func(a *agent.Agent) { a.MustInstall(agent.WithRemoteUpdates()) },
+		mutator: true,
+		skipOn:  skipOnWindows,
+	},
+	"TestUpgrade": {
+		sig:     "stable-deb",
+		install: func(a *agent.Agent) { a.MustInstall(agent.WithRemoteUpdates(), agent.WithStablePackages()) },
+		mutator: true,
+	},
+	"TestUpgradeFailureHealth": {
+		sig:     "stable-deb",
+		install: func(a *agent.Agent) { a.MustInstall(agent.WithRemoteUpdates(), agent.WithStablePackages()) },
+		mutator: false,
+	},
+	"TestUpgradeFailureTimeout": {
+		sig:     "stable-deb",
+		install: func(a *agent.Agent) { a.MustInstall(agent.WithRemoteUpdates(), agent.WithStablePackages()) },
+		mutator: false,
+	},
+}
 
+// BeforeTest either reuses the running agent (clearing any RC experiment from
+// a prior test) or reinstalls when the target install flavor changes.
+// When the test will self-skip on this platform (skipOn), the hook is a no-op
+// so we don't pay install cycles for a test that won't run.
+func (s *upgradeSuite) BeforeTest(_, testName string) {
+	p, ok := upgradeProfiles[testName]
+	require.True(s.T(), ok, "no install profile for %s", testName)
+
+	if p.skipOn != nil && p.skipOn(s.Env()) {
+		return
+	}
+
+	if s.agentInstalled && s.currentInstallSig == p.sig {
+		require.NoError(s.T(), s.Backend.ResetConfigExperiment())
+		return
+	}
+	if s.agentInstalled {
+		_ = s.Agent.Uninstall()
+	}
+	p.install(s.Agent)
+	s.agentInstalled = true
+	s.currentInstallSig = p.sig
+}
+
+// AfterTest uninstalls after mutator tests so the next test starts clean.
+// Skipped-on-this-platform tests are no-ops here too.
+func (s *upgradeSuite) AfterTest(_, testName string) {
+	p, ok := upgradeProfiles[testName]
+	if !ok {
+		return
+	}
+	if p.skipOn != nil && p.skipOn(s.Env()) {
+		return
+	}
+	if p.mutator {
+		_ = s.Agent.Uninstall()
+		s.agentInstalled = false
+		s.currentInstallSig = ""
+	}
+}
+
+// TearDownSuite uninstalls the agent if a non-mutator test was the last to run.
+func (s *upgradeSuite) TearDownSuite() {
+	if s.agentInstalled {
+		_ = s.Agent.Uninstall()
+		s.agentInstalled = false
+		s.currentInstallSig = ""
+	}
+	s.FleetSuite.TearDownSuite()
+}
+
+func (s *upgradeSuite) TestUpgrade() {
 	targetVersion := s.Backend.Catalog().Latest(backend.BranchTesting, "datadog-agent")
 	originalVersion, err := s.Agent.Version()
 	s.Require().NoError(err)
@@ -58,9 +147,6 @@ func (s *upgradeSuite) TestUpgrade() {
 }
 
 func (s *upgradeSuite) TestIntegrationPreservationDebToOCI() {
-	s.Agent.MustInstall(agent.WithRemoteUpdates())
-	defer s.Agent.MustUninstall()
-
 	err := s.Agent.InstallIntegration(thirdPartyIntegration)
 	s.Require().NoError(err)
 
@@ -93,9 +179,6 @@ func (s *upgradeSuite) TestIntegrationPreservationDebToOCI() {
 // state, then experiments from that OCI version to another OCI version and verifies the integration
 // is preserved throughout.
 func (s *upgradeSuite) TestIntegrationPreservationOCIToOCI() {
-	s.Agent.MustInstall(agent.WithRemoteUpdates(), agent.WithStablePackages())
-	defer s.Agent.MustUninstall()
-
 	testingVersion := s.Backend.Catalog().Latest(backend.BranchTesting, "datadog-agent")
 	err := s.Backend.StartExperiment("datadog-agent", testingVersion)
 	s.Require().NoError(err)
@@ -135,8 +218,6 @@ func (s *upgradeSuite) TestIntegrationPreservationOCIToOCI() {
 }
 
 func (s *upgradeSuite) TestUpgradeFailureTimeout() {
-	s.Agent.MustInstall(agent.WithRemoteUpdates(), agent.WithStablePackages())
-	defer s.Agent.MustUninstall()
 	s.Agent.MustSetExperimentTimeout(60 * time.Second)
 	defer s.Agent.MustUnsetExperimentTimeout()
 
@@ -149,18 +230,18 @@ func (s *upgradeSuite) TestUpgradeFailureTimeout() {
 	s.Require().NoError(err)
 	s.Require().NotEqual(originalVersion, version)
 
-	time.Sleep(90 * time.Second)
+	// Wait long enough for the 60s experiment timeout to trigger, with a
+	// small buffer for the rollback to start. Subsequent polling detects
+	// completion quickly once the daemon rolls back.
+	time.Sleep(70 * time.Second)
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		version, err := s.Agent.Version()
 		require.NoError(c, err)
 		require.Equal(c, originalVersion, version)
-	}, 300*time.Second, 30*time.Second)
+	}, 300*time.Second, 5*time.Second)
 }
 
 func (s *upgradeSuite) TestUpgradeFailureHealth() {
-	s.Agent.MustInstall(agent.WithRemoteUpdates(), agent.WithStablePackages())
-	defer s.Agent.MustUninstall()
-
 	targetVersion := s.Backend.Catalog().Latest(backend.BranchTesting, "datadog-agent")
 	originalVersion, err := s.Agent.Version()
 	s.Require().NoError(err)
@@ -176,7 +257,7 @@ func (s *upgradeSuite) TestUpgradeFailureHealth() {
 		version, err := s.Agent.Version()
 		require.NoError(c, err)
 		require.Equal(c, originalVersion, version)
-	}, 300*time.Second, 30*time.Second)
+	}, 300*time.Second, 5*time.Second)
 }
 
 // TestODBCConfigPreservedOnUpgrade verifies that customer-modified ODBC config files
@@ -191,8 +272,6 @@ func (s *upgradeSuite) TestODBCConfigPreservedOnUpgrade() {
 	// pipeline OCI as experiment) because the ODBC save/restore code is new and not yet
 	// in a released stable binary. Once this fix ships as a stable release, rewrite this
 	// test to use WithStablePackages() + BranchTesting experiment, like other upgrade tests.
-	s.Agent.MustInstall(agent.WithRemoteUpdates())
-	defer s.Agent.MustUninstall()
 	_, err := s.Env().RemoteHost.Execute(`sudo sh -c 'printf "[ODBC]\nTrace=no\n" > /opt/datadog-agent/embedded/etc/odbc.ini'`)
 	s.Require().NoError(err)
 	_, err = s.Env().RemoteHost.Execute(`sudo sh -c 'printf "[ODBC Driver 18 for SQL Server]\nDescription=Microsoft ODBC Driver 18 for SQL Server\nDriver=/opt/microsoft/msodbcsql18/lib64/libmsodbcsql-18.6.so.1.1\nUsageCount=1\n" > /opt/datadog-agent/embedded/etc/odbcinst.ini'`)
