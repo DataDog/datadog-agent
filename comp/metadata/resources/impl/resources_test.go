@@ -39,8 +39,8 @@ func TestConfDisabled(t *testing.T) {
 		},
 	}
 
-	ret := newResourcesProvider(
-		fxutil.Test[dependencies](
+	ret := NewComponent(
+		fxutil.Test[Requires](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
@@ -63,8 +63,8 @@ func TestConfInterval(t *testing.T) {
 		},
 	}
 
-	ret := newResourcesProvider(
-		fxutil.Test[dependencies](
+	ret := NewComponent(
+		fxutil.Test[Requires](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
@@ -96,8 +96,8 @@ func TestCollect(t *testing.T) {
 		}),
 	).Return(nil)
 
-	ret := newResourcesProvider(
-		fxutil.Test[dependencies](
+	ret := NewComponent(
+		fxutil.Test[Requires](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMock(t) }),
@@ -121,8 +121,8 @@ func TestCollectError(t *testing.T) {
 	}
 
 	s := serializermock.NewMetricSerializer(t)
-	ret := newResourcesProvider(
-		fxutil.Test[dependencies](
+	ret := NewComponent(
+		fxutil.Test[Requires](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMock(t) }),
