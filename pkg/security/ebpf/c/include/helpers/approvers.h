@@ -70,11 +70,53 @@ void __attribute__((always_inline)) monitor_event_sample_sampled(u64 event_type)
 }
 
 
+static __always_inline u8 sampling_admission_check(u32 limiter_key, u16 rate, u8 threshold) {
+    u64 dynamic_sampling_enabled = 0;
+    LOAD_CONSTANT("dynamic_sampling_enabled", dynamic_sampling_enabled);
+    if (!dynamic_sampling_enabled) {
+        return (rate == 0) || global_limiter_allow(limiter_key, rate, 1);
+    }
+
+#if USE_RING_BUFFER == 1
+    u64 use_ring_buffer;
+    LOAD_CONSTANT("use_ring_buffer", use_ring_buffer);
+    if (use_ring_buffer) {
+        u64 usage = bpf_ringbuf_query(&events, 0);
+        u64 ring_buffer_size = 0;
+        LOAD_CONSTANT("ring_buffer_size", ring_buffer_size);
+
+        if (ring_buffer_size > 0) {
+            u8 pressure_pct = (u8)(usage * 100 / ring_buffer_size);
+
+            struct event_sample_stats_t *stats = get_active_event_sample_stats(0);
+            if (stats != NULL && (u64)pressure_pct > stats->max_pressure) {
+                __sync_val_compare_and_swap(&stats->max_pressure, stats->max_pressure, (u64)pressure_pct);
+            }
+
+            if (pressure_pct > SAMPLING_PRESSURE_CRITICAL) {
+                bpf_printk("sampling_admission: REJECT limiter=%u pressure=%u%% > critical", limiter_key, pressure_pct);
+                return 0;
+            }
+            if (pressure_pct < threshold) {
+                bpf_printk("sampling_admission: BYPASS limiter=%u pressure=%u%% < threshold=%u%%", limiter_key, pressure_pct, threshold);
+                return 1;
+            }
+        }
+    }
+#endif
+
+    u8 allowed = (rate == 0) || global_limiter_allow(limiter_key, rate, 1);
+    bpf_printk("sampling_admission: RATE_LIMIT limiter=%u threshold=%u%% allowed=%u", limiter_key, threshold, allowed);
+    return allowed;
+}
+
 enum SYSCALL_STATE __attribute__((always_inline)) approve_bind_sample(u32 pid, u16 family, u16 port, u16 protocol, u64 *addr) {
     u64 event_sampling_bind_enabled = 0;
     LOAD_CONSTANT("event_sampling_bind_enabled", event_sampling_bind_enabled);
     u64 event_sampling_bind_rate = 0;
     LOAD_CONSTANT("event_sampling_bind_rate", event_sampling_bind_rate);
+    u64 event_sampling_bind_threshold = 60;
+    LOAD_CONSTANT("event_sampling_bind_threshold", event_sampling_bind_threshold);
 
     if (!event_sampling_bind_enabled) {
         return DISCARDED;
@@ -105,7 +147,7 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_bind_sample(u32 pid, u
         return DISCARDED;
     }
 
-    if (event_sampling_bind_rate > 0 && !global_limiter_allow(BIND_SAMPLE_LIMITER, event_sampling_bind_rate, 1)) {
+    if (!sampling_admission_check(BIND_SAMPLE_LIMITER, event_sampling_bind_rate, (u8)event_sampling_bind_threshold)) {
         bpf_map_delete_elem(&bind_samples, &key);
         return DISCARDED;
     }
@@ -119,6 +161,8 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_dns_sample(u32 pid) {
     LOAD_CONSTANT("event_sampling_dns_enabled", event_sampling_dns_enabled);
     u64 event_sampling_dns_rate = 0;
     LOAD_CONSTANT("event_sampling_dns_rate", event_sampling_dns_rate);
+    u64 event_sampling_dns_threshold = 60;
+    LOAD_CONSTANT("event_sampling_dns_threshold", event_sampling_dns_threshold);
 
     if (!event_sampling_dns_enabled) {
         return DISCARDED;
@@ -131,7 +175,7 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_dns_sample(u32 pid) {
 
     monitor_event_sample_total(EVENT_DNS);
 
-    if (event_sampling_dns_rate > 0 && !global_limiter_allow(DNS_SAMPLE_LIMITER, event_sampling_dns_rate, 1)) {
+    if (!sampling_admission_check(DNS_SAMPLE_LIMITER, event_sampling_dns_rate, (u8)event_sampling_dns_threshold)) {
         return DISCARDED;
     }
 
@@ -144,6 +188,8 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_connect_sample(u32 pid
     LOAD_CONSTANT("event_sampling_connect_enabled", event_sampling_connect_enabled);
     u64 event_sampling_connect_rate = 0;
     LOAD_CONSTANT("event_sampling_connect_rate", event_sampling_connect_rate);
+    u64 event_sampling_connect_threshold = 40;
+    LOAD_CONSTANT("event_sampling_connect_threshold", event_sampling_connect_threshold);
 
     if (!event_sampling_connect_enabled) {
         return DISCARDED;
@@ -174,7 +220,7 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_connect_sample(u32 pid
         return DISCARDED;
     }
 
-    if (event_sampling_connect_rate > 0 && !global_limiter_allow(CONNECT_SAMPLE_LIMITER, event_sampling_connect_rate, 1)) {
+    if (!sampling_admission_check(CONNECT_SAMPLE_LIMITER, event_sampling_connect_rate, (u8)event_sampling_connect_threshold)) {
         bpf_map_delete_elem(&connect_samples, &key);
         return DISCARDED;
     }
@@ -414,6 +460,9 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(struct den
     u64 event_sampling_open_rate = 0;
     LOAD_CONSTANT("event_sampling_open_rate", event_sampling_open_rate);
 
+    u64 event_sampling_open_threshold = 80;
+    LOAD_CONSTANT("event_sampling_open_threshold", event_sampling_open_threshold);
+
     if (!event_sampling_open_enabled) {
         return DISCARDED;
     }
@@ -451,7 +500,7 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(struct den
         return DISCARDED;
     }
 
-    if (event_sampling_open_rate > 0 && !global_limiter_allow(OPEN_SAMPLE_LIMITER, event_sampling_open_rate, 1)) {
+    if (!sampling_admission_check(OPEN_SAMPLE_LIMITER, event_sampling_open_rate, (u8)event_sampling_open_threshold)) {
         bpf_map_delete_elem(&open_samples, &key);
         return DISCARDED;
     }

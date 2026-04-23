@@ -211,6 +211,8 @@ static __attribute__((always_inline)) u64 get_capabilities_monitoring_period() {
 #define CGROUP_SYSTEMD_SERVICE (1 << 8)
 #define CGROUP_SYSTEMD_SCOPE (1 << 8) + 1
 
+#define SAMPLING_PRESSURE_CRITICAL 90
+
 #define ACTIVE_FLOWS_MAX_SIZE 128
 
 enum PID_ROUTE_TYPE

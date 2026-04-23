@@ -166,10 +166,9 @@ type EBPFProbe struct {
 	runtimeCompiled    bool
 	useSyscallWrapper  bool
 	useFentry          bool
-	useRingBuffers     bool
-	useMmapableMaps    bool
-	cgroup2MountPath   string
-
+	useRingBuffers         bool
+	useMmapableMaps        bool
+	cgroup2MountPath       string
 	// On demand1
 	onDemandManager     *OnDemandProbesManager
 	onDemandRateLimiter *rate.Limiter
@@ -586,6 +585,7 @@ func (p *EBPFProbe) Init() error {
 	}
 
 	p.processKiller.Start(p.ctx, &p.wg)
+
 
 	if p.config.RuntimeSecurity.ActivityDumpEnabled || p.config.RuntimeSecurity.SecurityProfileEnabled {
 		p.wg.Add(1)
@@ -1019,6 +1019,7 @@ func (p *EBPFProbe) SendStats() error {
 	if err := p.statsdClient.Count(metrics.MetricNameTruncated, int64(valueNameTruncated), []string{}, 1.0); err != nil {
 		return err
 	}
+
 
 	return p.monitors.SendStats()
 }
@@ -2343,6 +2344,7 @@ func (p *EBPFProbe) Stop() {
 	p.wg.Wait()
 }
 
+
 // Close the probe
 func (p *EBPFProbe) Close() error {
 	if p.rawPacketFilterCollection != nil {
@@ -2794,12 +2796,20 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: uint64(p.config.RuntimeSecurity.EventSamplingOpenRate),
 		},
 		manager.ConstantEditor{
+			Name:  "event_sampling_open_threshold",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingOpenThreshold),
+		},
+		manager.ConstantEditor{
 			Name:  "event_sampling_connect_enabled",
 			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingConnectEnabled),
 		},
 		manager.ConstantEditor{
 			Name:  "event_sampling_connect_rate",
 			Value: uint64(p.config.RuntimeSecurity.EventSamplingConnectRate),
+		},
+		manager.ConstantEditor{
+			Name:  "event_sampling_connect_threshold",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingConnectThreshold),
 		},
 		manager.ConstantEditor{
 			Name:  "event_sampling_bind_enabled",
@@ -2810,12 +2820,33 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: uint64(p.config.RuntimeSecurity.EventSamplingBindRate),
 		},
 		manager.ConstantEditor{
+			Name:  "event_sampling_bind_threshold",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingBindThreshold),
+		},
+		manager.ConstantEditor{
 			Name:  "event_sampling_dns_enabled",
 			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingDNSEnabled),
 		},
 		manager.ConstantEditor{
 			Name:  "event_sampling_dns_rate",
 			Value: uint64(p.config.RuntimeSecurity.EventSamplingDNSRate),
+		},
+		manager.ConstantEditor{
+			Name:  "event_sampling_dns_threshold",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingDNSThreshold),
+		},
+		manager.ConstantEditor{
+			Name:  "dynamic_sampling_enabled",
+			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingDynamicEnabled),
+		},
+		manager.ConstantEditor{
+			Name: "ring_buffer_size",
+			Value: func() uint64 {
+				if p.config.Probe.EventStreamBufferSize != 0 {
+					return uint64(p.config.Probe.EventStreamBufferSize)
+				}
+				return uint64(probes.ComputeDefaultEventsRingBufferSize())
+			}(),
 		},
 		manager.ConstantEditor{
 			Name:  "capabilities_monitoring_enabled",
