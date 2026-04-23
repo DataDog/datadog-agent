@@ -10,7 +10,6 @@ From https://github.com/Sarcasm/run-clang-format
 """
 
 import argparse
-import codecs
 import difflib
 import errno
 import fnmatch
@@ -21,12 +20,7 @@ import subprocess
 import sys
 import traceback
 from functools import partial
-
-try:
-    from subprocess import DEVNULL  # py3k
-except ImportError:
-    DEVNULL = open(os.devnull, "wb")
-
+from subprocess import DEVNULL
 
 DEFAULT_EXTENSIONS = 'c,h,C,H,cpp,hpp,cc,hh,c++,h++,cxx,hxx'
 DEFAULT_CLANG_FORMAT_IGNORE = '.clang-format-ignore'
@@ -150,25 +144,14 @@ def run_clang_format_diff(args, file):
     #   > for the diagnostic.
     #   > -- http://clang.llvm.org/docs/InternalsManual.html#internals-diag-translation
     #
-    # It's not pretty, due to Python 2 & 3 compatibility.
-    encoding_py3 = {}
-    if sys.version_info[0] >= 3:
-        encoding_py3['encoding'] = 'utf-8'
-
     try:
         proc = subprocess.Popen(
-            invocation, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, **encoding_py3
+            invocation, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, encoding='utf-8'
         )
     except OSError as exc:
         raise DiffError(f"Command '{subprocess.list2cmdline(invocation)}' failed to start: {exc}") from exc
     proc_stdout = proc.stdout
     proc_stderr = proc.stderr
-    if sys.version_info[0] < 3:
-        # make the pipes compatible with Python 3,
-        # reading lines should output unicode
-        encoding = 'utf-8'
-        proc_stdout = codecs.getreader(encoding)(proc_stdout)
-        proc_stderr = codecs.getreader(encoding)(proc_stderr)
     # hopefully the stderr pipe won't get full and block the process
     outs = list(proc_stdout.readlines())
     errs = list(proc_stderr.readlines())
@@ -249,7 +232,7 @@ def run(raw_args=None):
         metavar='N',
         type=int,
         default=0,
-        help='run N clang-format jobs in parallel' ' (default number of cpus + 1)',
+        help='run N clang-format jobs in parallel (default number of cpus + 1)',
     )
     parser.add_argument(
         '--color', default='auto', choices=['auto', 'always', 'never'], help='show colored diff (default: auto)'
@@ -260,7 +243,7 @@ def run(raw_args=None):
         metavar='PATTERN',
         action='append',
         default=[],
-        help='exclude paths matching the given glob-like pattern(s)' ' from recursive search',
+        help='exclude paths matching the given glob-like pattern(s) from recursive search',
     )
     parser.add_argument('--style', help='formatting style to apply (LLVM, Google, Chromium, Mozilla, WebKit)')
 

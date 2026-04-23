@@ -32,7 +32,7 @@ class MultiPIDCheck(AgentCheck):
         for idx in range(3):
             try:
                 pid = pid_queue.get_nowait()
-                self.gauge("multi_pid_check.process.pid", pid, tags=[f"process:index_{idx+1}"])
+                self.gauge("multi_pid_check.process.pid", pid, tags=[f"process:index_{idx + 1}"])
             except Exception as e:
                 self.log.error(f"Failed to get PID from queue: {str(e)}")  # noqa: G004
 

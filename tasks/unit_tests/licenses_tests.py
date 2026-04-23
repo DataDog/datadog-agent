@@ -8,4 +8,4 @@ class TestLicensesMethod(unittest.TestCase):
         self.assertTrue(is_valid_quote('"\'hello\'"'))
 
     def test_invalid_quotes(self):
-        self.assertFalse(is_valid_quote('""hello' '"""'))
+        self.assertFalse(is_valid_quote('""hello"""'))
