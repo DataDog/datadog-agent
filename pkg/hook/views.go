@@ -50,3 +50,39 @@ type LogView interface {
 	GetTags() []string
 	GetHostname() string
 }
+
+// LogSampleSnapshot is an immutable snapshot of a log message, safe to retain
+// across goroutine boundaries. All fields are owned copies — the original
+// message.Message may be mutated by downstream pipeline stages after the
+// snapshot is taken.
+type LogSampleSnapshot struct {
+	Content     []byte
+	Status      string
+	Tags        []string
+	Hostname    string
+	TimestampNs int64
+}
+
+// TraceStatsView provides read-only access to an aggregated trace stats entry.
+type TraceStatsView interface {
+	// Grouped stats fields (from ClientGroupedStats).
+	GetService() string
+	GetName() string
+	GetResource() string
+	GetType() string
+	GetHTTPStatusCode() uint32
+	GetSpanKind() string
+	GetHits() uint64
+	GetErrors() uint64
+	GetDuration() uint64
+	GetTopLevelHits() uint64
+	GetOkSummary() []byte
+	GetErrorSummary() []byte
+
+	// Envelope fields from ClientStatsPayload / ClientStatsBucket.
+	GetHostname() string
+	GetEnv() string
+	GetVersion() string
+	GetBucketStartNs() uint64
+	GetBucketDurationNs() uint64
+}

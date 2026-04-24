@@ -334,6 +334,65 @@ func TestNoGoroutineLeak(t *testing.T) {
 	goleak.VerifyNone(t, options)
 }
 
+// TestSubscribeWithBuffer_NoDrops verifies that a buffer of 4096 absorbs a
+// burst of exactly 4096 payloads without any drops.
+func TestSubscribeWithBuffer_NoDrops(t *testing.T) {
+	h := NewHook[int]("buf-test")
+	var received atomic.Int64
+
+	unsub := h.Subscribe("consumer", func(_ int) {
+		received.Add(1)
+	}, WithBufferSize[int](4096))
+	defer unsub()
+
+	for i := range 4096 {
+		h.Publish("producer", i)
+	}
+
+	require.Eventually(t, func() bool { return received.Load() == 4096 },
+		5*time.Second, time.Millisecond, "expected 4096 deliveries, got %d", received.Load())
+}
+
+// TestSubscribeWithBuffer_DropOnOverflow verifies that publishing more items
+// than the buffer size causes drops. We use a blocked consumer so the channel
+// fills up, then verify that overflow items are silently dropped (non-blocking).
+func TestSubscribeWithBuffer_DropOnOverflow(t *testing.T) {
+	// White-box: create a hook with a pre-filled consumer channel.
+	h := &hook[int]{
+		name:      "buf-overflow",
+		consumers: make(map[string]consumer[int]),
+		ctx:       context.Background(),
+	}
+	const bufSize = 4096
+	ch := make(chan int, bufSize)
+	for i := range bufSize {
+		ch <- i
+	}
+	h.consumers["consumer"] = consumer[int]{ch: ch, dropLabel: []string{"buf-overflow", "consumer"}}
+
+	// This publish should not block — it hits the drop path.
+	h.Publish("producer", 99999)
+
+	// Channel still holds exactly bufSize items — the overflow was dropped.
+	assert.Equal(t, bufSize, len(ch))
+}
+
+// TestSubscribeWithBuffer_DefaultOnZeroSize verifies that a zero buffer size
+// falls back to the default of 100.
+func TestSubscribeWithBuffer_DefaultOnZeroSize(t *testing.T) {
+	h := NewHook[int]("buf-default")
+	var received atomic.Int64
+
+	unsub := h.Subscribe("consumer", func(_ int) {
+		received.Add(1)
+	}, WithBufferSize[int](0))
+	defer unsub()
+
+	h.Publish("producer", 1)
+	require.Eventually(t, func() bool { return received.Load() == 1 },
+		time.Second, time.Millisecond)
+}
+
 // ----------------------------------------------------------------------------
 // Benchmarks
 //
