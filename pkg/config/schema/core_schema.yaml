@@ -11205,7 +11205,7 @@ properties:
           enabled:
             node_type: setting
             type: boolean
-            default: false
+            default: true
       enabled:
         node_type: setting
         type: boolean
