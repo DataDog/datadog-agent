@@ -44,6 +44,17 @@ func TestBuildIssue(t *testing.T) {
 			expectedStepCount: 3,
 		},
 		{
+			name: "template resolution error",
+			context: map[string]string{
+				"entityName":   "postgres (docker://abc123)",
+				"errorMessage": "failed to get extra info for service docker://abc123, skipping config - extra config \"dbinstanceidentifier\" is not supported",
+				"errorSource":  "template_resolution",
+			},
+			expectedTitle:     "AD Misconfiguration on 'postgres (docker://abc123)'",
+			expectedDescSub:   "template resolution error",
+			expectedStepCount: 2,
+		},
+		{
 			name:              "empty context defaults to pod annotation remediation",
 			context:           map[string]string{},
 			expectedTitle:     "AD Misconfiguration on 'unknown'",
