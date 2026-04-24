@@ -8,6 +8,7 @@
 package agentimpl
 
 import (
+	"context"
 	"time"
 
 	"github.com/spf13/afero"
@@ -16,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
@@ -102,6 +104,13 @@ func buildHTTPEndpointsForRestart(coreConfig model.Reader) (*config.Endpoints, e
 
 // buildPipelineProvider builds a new pipeline provider with the given configuration
 func buildPipelineProvider(a *logAgent, processingRules []*config.ProcessingRule, diagnosticMessageReceiver *diagnostic.BufferedMessageReceiver, destinationsCtx *client.DestinationsContext) pipeline.Provider {
+	var hostTagsProvider func() []string
+	if config.SendHostTagsToOPW(a.config) {
+		cfg := a.config
+		hostTagsProvider = func() []string {
+			return hostMetadataUtils.Get(context.TODO(), true, cfg).System
+		}
+	}
 	pipelineProvider := pipeline.NewProvider(
 		a.config.GetInt("logs_config.pipelines"),
 		a.auditor,
@@ -116,6 +125,7 @@ func buildPipelineProvider(a *logAgent, processingRules []*config.ProcessingRule
 		a.config.GetBool("logs_config.disable_distributed_senders"), // legacy
 		false, // serverless
 		a.secrets,
+		hostTagsProvider,
 	)
 	return pipelineProvider
 }

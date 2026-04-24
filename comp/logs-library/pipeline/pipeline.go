@@ -30,7 +30,10 @@ type Pipeline struct {
 	pipelineMonitor metrics.PipelineMonitor
 }
 
-// NewPipeline returns a new Pipeline
+// NewPipeline returns a new Pipeline.
+// hostTagsProvider, if non-nil, supplies host tags to append to the ddtags field of each JSON-encoded
+// payload. It is only consulted on the HTTP/JSON path used by Observability Pipelines Worker; the
+// serverless, proto, and raw paths ignore it.
 func NewPipeline(
 	processingRules []*config.ProcessingRule,
 	endpoints *config.Endpoints,
@@ -41,6 +44,7 @@ func NewPipeline(
 	cfg pkgconfigmodel.Reader,
 	compression logscompression.Component,
 	instanceID string,
+	hostTagsProvider func() []string,
 ) *Pipeline {
 	strategyInput := make(chan *message.Message, cfg.GetInt("logs_config.message_channel_size"))
 	flushChan := make(chan struct{})
@@ -49,7 +53,11 @@ func NewPipeline(
 	if serverlessMeta.IsEnabled() {
 		encoder = processor.JSONServerlessInitEncoder
 	} else if endpoints.UseHTTP {
-		encoder = processor.JSONEncoder
+		if hostTagsProvider != nil && config.SendHostTagsToOPW(cfg) {
+			encoder = processor.NewJSONEncoderWithHostTags(hostTagsProvider)
+		} else {
+			encoder = processor.JSONEncoder
+		}
 	} else if endpoints.UseProto {
 		encoder = processor.ProtoEncoder
 	} else {

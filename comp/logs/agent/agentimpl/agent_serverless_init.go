@@ -58,6 +58,7 @@ func (a *logAgent) SetupPipeline(
 		true, // disable distributed sending for serverless
 		true, // serverless
 		a.secrets,
+		nil, // hostTagsProvider
 	)
 
 	lnchrs := launchers.NewLaunchers(a.sources, pipelineProvider, a.auditor, a.tracker)

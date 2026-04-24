@@ -221,6 +221,7 @@ func (a *Agent) SetupPipeline(
 		a.config.GetBool("logs_config.disable_distributed_senders"),
 		false, // serverless
 		secretsnoopimpl.NewComponent().Comp,
+		nil, // hostTagsProvider
 	)
 
 	a.destinationsCtx = destinationsCtx
