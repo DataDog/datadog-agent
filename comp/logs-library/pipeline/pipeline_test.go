@@ -14,24 +14,16 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs-library/sender"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	"github.com/DataDog/datadog-agent/pkg/logs/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
-type pipelineTestSender struct{}
-
-func (pipelineTestSender) In() chan *message.Payload { return make(chan *message.Payload, 1) }
-func (pipelineTestSender) PipelineMonitor() metrics.PipelineMonitor {
-	return metrics.NewNoopPipelineMonitor("0")
-}
-func (pipelineTestSender) Start() {}
-func (pipelineTestSender) Stop()  {}
-
-func encodeViaPipeline(t *testing.T, p *Pipeline) string {
+// encodeAndGetTags runs the encoder on a minimal rendered message and returns
+// the ddtags field of the resulting JSON payload. Used to detect whether a
+// returned encoder has a host-tag provider wired.
+func encodeAndGetTags(t *testing.T, encoder processor.Encoder) string {
 	t.Helper()
 	logsConfig := &config.LogsConfig{
 		Service: "Service",
@@ -43,7 +35,7 @@ func encodeViaPipeline(t *testing.T, p *Pipeline) string {
 	msg.Origin.LogSource = source
 	msg.Origin.SetTags([]string{"a"})
 
-	require.NoError(t, p.processor.GetEncoder().Encode(msg, "unknown"))
+	require.NoError(t, encoder.Encode(msg, "unknown"))
 	var payload struct {
 		Tags string `json:"ddtags"`
 	}
@@ -51,83 +43,101 @@ func encodeViaPipeline(t *testing.T, p *Pipeline) string {
 	return payload.Tags
 }
 
-// TestNewPipelineJSONEncoderWithoutHostTags verifies the HTTP/JSON pipeline keeps the shared
-// JSONEncoder singleton (no host tags injected) when no host-tag provider is supplied.
-func TestNewPipelineJSONEncoderWithoutHostTags(t *testing.T) {
+func httpEndpoints() *config.Endpoints {
+	return config.NewMockEndpointsWithOptions([]config.Endpoint{config.NewMockEndpoint()}, map[string]interface{}{
+		"use_http": true,
+	})
+}
+
+// TestSelectEncoderHTTPNoProvider verifies that the HTTP/JSON path returns the
+// shared JSONEncoder singleton (no host tags injected) when no host-tag
+// provider is supplied, regardless of the send_host_tags toggle.
+func TestSelectEncoderHTTPNoProvider(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetWithoutSource("observability_pipelines_worker.logs.enabled", true)
 	cfg.SetWithoutSource("observability_pipelines_worker.logs.send_host_tags", true)
-	endpoints := config.NewMockEndpointsWithOptions([]config.Endpoint{config.NewMockEndpoint()}, map[string]interface{}{
-		"use_http": true,
-	})
 
-	p := NewPipeline(
-		nil,
-		endpoints,
-		&pipelineTestSender{},
-		&diagnostic.NoopMessageReceiver{},
-		sender.NewServerlessMeta(false),
-		nil,
-		cfg,
-		compressionfx.NewMockCompressor(),
-		"0",
-		nil,
-	)
+	encoder := selectEncoder(httpEndpoints(), sender.NewServerlessMeta(false), cfg, nil)
 
-	tags := encodeViaPipeline(t, p)
-	assert.Equal(t, "a", tags)
+	// Identity check: should be the shared singleton, not a freshly-constructed encoder.
+	assert.Same(t, processor.JSONEncoder, encoder)
+	assert.Equal(t, "a", encodeAndGetTags(t, encoder))
 }
 
-// TestNewPipelineJSONEncoderWithHostTagsDisabled verifies a pipeline falls back to the shared
-// JSONEncoder singleton when the OPW send_host_tags toggle is false even if a provider is given.
-func TestNewPipelineJSONEncoderWithHostTagsDisabled(t *testing.T) {
+// TestSelectEncoderHTTPProviderToggleDisabled verifies that the HTTP/JSON path
+// falls back to the shared JSONEncoder singleton when the OPW send_host_tags
+// toggle is false, even if a provider is supplied.
+func TestSelectEncoderHTTPProviderToggleDisabled(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetWithoutSource("observability_pipelines_worker.logs.enabled", true)
 	cfg.SetWithoutSource("observability_pipelines_worker.logs.send_host_tags", false)
-	endpoints := config.NewMockEndpointsWithOptions([]config.Endpoint{config.NewMockEndpoint()}, map[string]interface{}{
-		"use_http": true,
-	})
 
-	p := NewPipeline(
-		nil,
-		endpoints,
-		&pipelineTestSender{},
-		&diagnostic.NoopMessageReceiver{},
+	encoder := selectEncoder(
+		httpEndpoints(),
 		sender.NewServerlessMeta(false),
-		nil,
 		cfg,
-		compressionfx.NewMockCompressor(),
-		"0",
 		func() []string { return []string{"host:x"} },
 	)
 
-	tags := encodeViaPipeline(t, p)
-	assert.Equal(t, "a", tags)
+	assert.Same(t, processor.JSONEncoder, encoder)
+	assert.Equal(t, "a", encodeAndGetTags(t, encoder))
 }
 
-// TestNewPipelineJSONEncoderWithHostTagsEnabled verifies a pipeline wires the host-tag provider
-// into the JSON encoder when the OPW send_host_tags toggle is true.
-func TestNewPipelineJSONEncoderWithHostTagsEnabled(t *testing.T) {
+// TestSelectEncoderHTTPProviderToggleEnabled verifies that the HTTP/JSON path
+// wires the host-tag provider into a new JSON encoder when the OPW
+// send_host_tags toggle is true.
+func TestSelectEncoderHTTPProviderToggleEnabled(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetWithoutSource("observability_pipelines_worker.logs.enabled", true)
 	cfg.SetWithoutSource("observability_pipelines_worker.logs.send_host_tags", true)
-	endpoints := config.NewMockEndpointsWithOptions([]config.Endpoint{config.NewMockEndpoint()}, map[string]interface{}{
-		"use_http": true,
-	})
 
-	p := NewPipeline(
-		nil,
-		endpoints,
-		&pipelineTestSender{},
-		&diagnostic.NoopMessageReceiver{},
+	encoder := selectEncoder(
+		httpEndpoints(),
 		sender.NewServerlessMeta(false),
-		nil,
 		cfg,
-		compressionfx.NewMockCompressor(),
-		"0",
 		func() []string { return []string{"host:x", "env:prod"} },
 	)
 
-	tags := encodeViaPipeline(t, p)
-	assert.Equal(t, "a,host:x,env:prod", tags)
+	// Identity check: should not be the shared singleton.
+	assert.NotSame(t, processor.JSONEncoder, encoder)
+	assert.Equal(t, "a,host:x,env:prod", encodeAndGetTags(t, encoder))
+}
+
+// TestSelectEncoderNonHTTPIgnoresProvider verifies that non-HTTP pipelines
+// (proto, raw) keep their original encoders even when a host-tag provider is
+// supplied and the OPW send_host_tags toggle is true. Host tag injection is
+// only applicable to the HTTP/JSON path used by OPW.
+func TestSelectEncoderNonHTTPIgnoresProvider(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetWithoutSource("observability_pipelines_worker.logs.enabled", true)
+	cfg.SetWithoutSource("observability_pipelines_worker.logs.send_host_tags", true)
+
+	provider := func() []string { return []string{"host:x"} }
+
+	protoEndpoints := config.NewMockEndpointsWithOptions([]config.Endpoint{config.NewMockEndpoint()}, map[string]interface{}{
+		"use_http": false,
+	})
+	protoEndpoints.UseProto = true
+	assert.Same(t, processor.ProtoEncoder, selectEncoder(protoEndpoints, sender.NewServerlessMeta(false), cfg, provider))
+
+	rawEndpoints := config.NewMockEndpointsWithOptions([]config.Endpoint{config.NewMockEndpoint()}, map[string]interface{}{
+		"use_http": false,
+	})
+	assert.Same(t, processor.RawEncoder, selectEncoder(rawEndpoints, sender.NewServerlessMeta(false), cfg, provider))
+}
+
+// TestSelectEncoderServerlessIgnoresProvider verifies that serverless mode
+// always uses the serverless JSON encoder and ignores any host-tag provider.
+func TestSelectEncoderServerlessIgnoresProvider(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetWithoutSource("observability_pipelines_worker.logs.enabled", true)
+	cfg.SetWithoutSource("observability_pipelines_worker.logs.send_host_tags", true)
+
+	encoder := selectEncoder(
+		httpEndpoints(),
+		sender.NewServerlessMeta(true),
+		cfg,
+		func() []string { return []string{"host:x"} },
+	)
+	assert.Same(t, processor.JSONServerlessInitEncoder, encoder)
 }

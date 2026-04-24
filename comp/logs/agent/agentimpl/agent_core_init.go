@@ -8,7 +8,6 @@
 package agentimpl
 
 import (
-	"context"
 	"time"
 
 	"github.com/spf13/afero"
@@ -106,9 +105,14 @@ func buildHTTPEndpointsForRestart(coreConfig model.Reader) (*config.Endpoints, e
 func buildPipelineProvider(a *logAgent, processingRules []*config.ProcessingRule, diagnosticMessageReceiver *diagnostic.BufferedMessageReceiver, destinationsCtx *client.DestinationsContext) pipeline.Provider {
 	var hostTagsProvider func() []string
 	if config.SendHostTagsToOPW(a.config) {
-		cfg := a.config
+		// Runs once per log message: use the lookup-only cache accessor so a
+		// cold cache returns nil (no tags appended) instead of falling through
+		// to the blocking cloud-provider resolution path in hostMetadataUtils.Get.
 		hostTagsProvider = func() []string {
-			return hostMetadataUtils.Get(context.TODO(), true, cfg).System
+			if t := hostMetadataUtils.GetCached(); t != nil {
+				return t.System
+			}
+			return nil
 		}
 	}
 	pipelineProvider := pipeline.NewProvider(

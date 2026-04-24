@@ -299,11 +299,6 @@ func isMatchingLiteralPrefix(r *regexp.Regexp, content []byte) bool {
 	return bytes.Contains(content, []byte(prefix))
 }
 
-// GetEncoder returns the encoder used by this processor.
-func (p *Processor) GetEncoder() Encoder {
-	return p.encoder
-}
-
 // GetHostname returns the hostname to applied the given log message
 func (p *Processor) GetHostname(msg *message.Message) string {
 	if msg.Hostname != "" {

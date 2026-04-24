@@ -104,6 +104,21 @@ func appendAndSplitTags(target []string, tags []string, splits map[string]string
 	return target
 }
 
+// GetCached returns the host tags currently stored in the process-wide cache
+// without triggering any resolution. It returns nil when the cache has not yet
+// been populated by the host metadata collector.
+//
+// This lookup-only variant is intended for hot paths (e.g. per-log-message tag
+// lookups) where the caller cannot afford the blocking cloud-provider plugin
+// retries and sleeps that Get falls through to on a cache miss. Callers that
+// need a guaranteed-non-nil result should use Get instead.
+func GetCached() *Tags {
+	if x, found := cache.Cache.Get(tagsCacheKey); found {
+		return x.(*Tags)
+	}
+	return nil
+}
+
 // Get the host tags, optionally looking in the cache
 // There are two levels of caching:
 // - First one controlled by `cached` boolean, used for performances (cache all tags)
