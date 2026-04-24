@@ -743,7 +743,7 @@ probes:
     methodName: main.condLine
     sourceFile: main.go
     lines:
-      - "494"
+      - "519"
   when:
     dsl: "n == 7"
     json: {eq: [{ref: "n"}, 7]}
@@ -768,7 +768,7 @@ probes:
     methodName: main.condLine
     sourceFile: main.go
     lines:
-      - "494"
+      - "519"
   sampling:
     snapshotsPerSecond: 10
 
@@ -2607,3 +2607,499 @@ probes:
         json: {getmember: [{index: [{ref: "m"}, "k"]}, "Val"]}
   sampling:
     snapshotsPerSecond: 10
+
+# ==========================================================================
+# Compound condition probes (and / or / not).
+# ==========================================================================
+
+# and: both parameters of condReturnAndLocal must match. Called with (5, 3)
+# and (1, 1); the probe should fire only for (1, 1).
+# Uses the (a, b) signature to reuse an existing fixture with two comparable
+# ints.
+- id: condCompound_and
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condReturnAndLocal
+  when:
+    dsl: "a == 1 && b == 1"
+    json: {and: [{eq: [{ref: "a"}, 1]}, {eq: [{ref: "b"}, 1]}]}
+  template: "a == 1 && b == 1 [a={a}, b={b}]"
+  segments:
+    - str: "a == 1 && b == 1 [a="
+    - json: {ref: "a"}
+      dsl: "a"
+    - str: ", b="
+    - json: {ref: "b"}
+      dsl: "b"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+# or: single int parameter, two accepted values. Exercises short-circuit on
+# the first leaf. condInt32 is called with x=42 ("match") and x=7 ("miss").
+- id: condCompound_or
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condInt32
+  when:
+    dsl: "x == 42 || x == 100"
+    json: {or: [{eq: [{ref: "x"}, 42]}, {eq: [{ref: "x"}, 100]}]}
+  template: "x == 42 || x == 100 [x={x}, tag={tag}]"
+  segments:
+    - str: "x == 42 || x == 100 [x="
+    - json: {ref: "x"}
+      dsl: "x"
+    - str: ", tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+# not: boolean parameter negated. Called with true and false — probe fires
+# only for false.
+- id: condCompound_not
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condBool
+  when:
+    dsl: "!x"
+    json: {not: {eq: [{ref: "x"}, true]}}
+  template: "!x [x={x}, tag={tag}]"
+  segments:
+    - str: "!x [x="
+    - json: {ref: "x"}
+      dsl: "x"
+    - str: ", tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Nested compound: and(or(...), not(isEmpty(...))).
+# Uses condStructArg (two calls: one with I32=300, S="world"; one with I32=3,
+# S="other"). Fires only for the first call.
+- id: condCompound_nested
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condStructArg
+  when:
+    dsl: "(x.I32 == 300 || x.I32 == 999) && !isEmpty(x.S)"
+    json:
+      and:
+        - or:
+          - eq: [{getmember: [{ref: "x"}, "I32"]}, 300]
+          - eq: [{getmember: [{ref: "x"}, "I32"]}, 999]
+        - not:
+            isEmpty: {getmember: [{ref: "x"}, "S"]}
+  template: "(x.I32 == 300 || x.I32 == 999) && !isEmpty(x.S) [x.I32={x.I32}, x.S={x.S}, tag={tag}]"
+  segments:
+    - str: "(x.I32 == 300 || x.I32 == 999) && !isEmpty(x.S) [x.I32="
+    - json: {getmember: [{ref: "x"}, "I32"]}
+      dsl: "x.I32"
+    - str: ", x.S="
+    - json: {getmember: [{ref: "x"}, "S"]}
+      dsl: "x.S"
+    - str: ", tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Cross-event compound must fail: @return is a return-event variable while
+# parameter `a` resolves to the entry event. Compound conditions require
+# all leaves to share a single event kind, so this probe is rejected with
+# ConditionVariableUnavailable.
+- id: condCompound_return_and_param
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condReturnAndLocal
+  when:
+    dsl: "@return == 2 && a == 1"
+    json:
+      and:
+        - eq: [{ref: "@return"}, 2]
+        - eq: [{ref: "a"}, 1]
+  template: "@return == 2 && a == 1"
+  segments:
+    - str: "@return == 2 && a == 1"
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionVariableUnavailable"
+
+# Static-error leaf in one branch. Today this must fail the whole probe
+# with issue:ConditionExpressionUnresolvable (matching single-leaf
+# semantics). obj.missingField does not exist on condFields.
+- id: condCompound_or_bad_leaf
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condStructArg
+  when:
+    dsl: "x.I32 == 300 || x.missingField == 7"
+    json:
+      or:
+        - eq: [{getmember: [{ref: "x"}, "I32"]}, 300]
+        - eq: [{getmember: [{ref: "x"}, "missingField"]}, 7]
+  template: "x.I32 == 300 || x.missingField == 7 [tag={tag}]"
+  segments:
+    - str: "x.I32 == 300 || x.missingField == 7 [tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionExpressionUnresolvable"
+
+# Runtime error in a leaf that is short-circuited. condNilPtrStruct is called
+# with &{I32:300} and with nil. With or(eq(tag,"nilptr"), eq(x.I32, 300)),
+# the nilptr call satisfies the first leaf and must not evaluate the second
+# (which would nil-deref) — so condition_eval_error must be 0 in the event
+# header for both calls.
+- id: condCompound_runtime_error_shortcircuited
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condNilPtrStruct
+  when:
+    dsl: "tag == \"nilptr\" || x.I32 == 300"
+    json:
+      or:
+        - eq: [{ref: "tag"}, "nilptr"]
+        - eq: [{getmember: [{ref: "x"}, "I32"]}, 300]
+  template: "tag == \"nilptr\" || x.I32 == 300 [tag={tag}]"
+  segments:
+    - str: "tag == \"nilptr\" || x.I32 == 300 [tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Runtime error in a leaf that executes. Same fixture but with `and`: the
+# nilptr call executes the first leaf (succeeds) then the second
+# (nil-deref), producing a condition_eval_error.
+- id: condCompound_runtime_error_executed
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condNilPtrStruct
+  when:
+    dsl: "tag == \"nilptr\" && x.I32 == 300"
+    json:
+      and:
+        - eq: [{ref: "tag"}, "nilptr"]
+        - eq: [{getmember: [{ref: "x"}, "I32"]}, 300]
+  template: "tag == \"nilptr\" && x.I32 == 300 [tag={tag}]"
+  segments:
+    - str: "tag == \"nilptr\" && x.I32 == 300 [tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Back-to-back string equality leaves. Exercises the invariant that each
+# leaf's data-stack push/pop balances within itself: two consecutive string
+# CmpEqString ops would corrupt state if push/pop were lifted out of the
+# leaf. Using x.S (struct field string) and tag (param string) for two
+# independent string eq leaves under AND.
+# condStructArg is called with (x.S="world", tag="match") and
+# (x.S="other", tag="miss"); the AND fires only for the first call.
+- id: condCompound_and_two_strings
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condStructArg
+  when:
+    dsl: "x.S == \"world\" && tag == \"match\""
+    json:
+      and:
+        - eq: [{getmember: [{ref: "x"}, "S"]}, "world"]
+        - eq: [{ref: "tag"}, "match"]
+  template: "x.S == \"world\" && tag == \"match\" [x.S={x.S}, tag={tag}]"
+  segments:
+    - str: "x.S == \"world\" && tag == \"match\" [x.S="
+    - json: {getmember: [{ref: "x"}, "S"]}
+      dsl: "x.S"
+    - str: ", tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Multi-return compound: references @return.r0 (int) and @return.r1 (string)
+# from different leaves. Proves the per-leaf @return rewrite works on the
+# happy path (distinct fields, both resolved, probe installs and fires).
+# condMultiReturn is called with "ok" (→ r0=2, r1="ok") and "other" (→ r0=5,
+# r1="other"); the AND fires only for the first call.
+- id: condCompound_return_pair
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condMultiReturn
+  when:
+    dsl: "@return.r0 == 2 && @return.r1 == \"ok\""
+    json:
+      and:
+        - eq: [{getmember: [{ref: "@return"}, "r0"]}, 2]
+        - eq: [{getmember: [{ref: "@return"}, "r1"]}, "ok"]
+  template: "@return.r0 == 2 && @return.r1 == \"ok\" [r0={@return.r0}, r1={@return.r1}]"
+  segments:
+    - str: "@return.r0 == 2 && @return.r1 == \"ok\" [r0="
+    - json: {getmember: [{ref: "@return"}, "r0"]}
+      dsl: "@return.r0"
+    - str: ", r1="
+    - json: {getmember: [{ref: "@return"}, "r1"]}
+      dsl: "@return.r1"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Standalone not(isEmpty(...)) under short-circuit OR. Exercises the jump
+# landing after a NotOp (label PC must point just past the Not, not just
+# past the underlying IsEmpty comparison).
+# lenString is called with ("hello", "match") and ("", "miss"):
+#   - ("hello", "match"): left tag=="match" is true → short-circuit past
+#     not(isEmpty(s)) → fires.
+#   - ("", "miss"): left tag!="match" is false → right evaluates
+#     not(isEmpty("")) = not(true) = false → no fire.
+# So exactly one event is emitted, and the right leaf is only executed
+# on the no-fire call (further evidence short-circuit worked on the fire).
+- id: condCompound_or_not_isempty
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenString
+  when:
+    dsl: "tag == \"match\" || !isEmpty(s)"
+    json:
+      or:
+        - eq: [{ref: "tag"}, "match"]
+        - not:
+            isEmpty: {ref: "s"}
+  template: "tag == \"match\" || !isEmpty(s) [s={s}, tag={tag}]"
+  segments:
+    - str: "tag == \"match\" || !isEmpty(s) [s="
+    - json: {ref: "s"}
+      dsl: "s"
+    - str: ", tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Compound condition on a line probe. Line probes share a single
+# EventKindLine event, so event-kind unification reduces to "every leaf's
+# root must be available at the line PC". condLine(n, tag) is called with
+# (7, "match") and (0, "miss"); the AND fires only for the first call.
+# Nested eq(eq(X), true) — boolean-valued LHS at the top of a leaf.
+# Must be rejected: the outer eq's LHS type happens to be bool (a base
+# type), so without an explicit shape check the resolver would silently
+# encode `inner_bool_byte == 0x01`, bypassing the root-variable analysis
+# that compound conditions rely on.
+- id: condCompound_eq_of_eq
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condInt32
+  when:
+    dsl: "(x == 1) == true"
+    json:
+      eq:
+        - eq: [{ref: "x"}, 1]
+        - true
+  template: "(x == 1) == true"
+  segments:
+    - str: "(x == 1) == true"
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:UnsupportedFeature"
+
+# Same shape but wrapping an @return leaf. Without the shape check,
+# @return rewriting quietly succeeds for single-return functions and
+# fails with a misleading "return value selector must be used" message
+# for multi-return. Both paths bypass the leaf-as-a-variable-expression
+# contract; must be rejected cleanly at analysis time.
+- id: condCompound_eq_of_eq_return
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condMultiReturn
+  when:
+    dsl: "(@return.r0 == 1) == true"
+    json:
+      eq:
+        - eq: [{getmember: [{ref: "@return"}, "r0"]}, 1]
+        - true
+  template: "(@return.r0 == 1) == true"
+  segments:
+    - str: "(@return.r0 == 1) == true"
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:UnsupportedFeature"
+
+- id: condCompound_line_and
+  tags:
+    # Line-probe location lists are flaky on 1.23 (same reason the
+    # existing condLine probes skip this toolchain).
+    - "skip_integration:arch=arm64,toolchain=go1.23.11"
+    - "skip_integration:arch=amd64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condLine
+    sourceFile: main.go
+    lines:
+      - "519"
+  when:
+    dsl: "n == 7 && tag == \"match\""
+    json:
+      and:
+        - eq: [{ref: "n"}, 7]
+        - eq: [{ref: "tag"}, "match"]
+  template: "n == 7 && tag == \"match\" [n={n}, tag={tag}]"
+  segments:
+    - str: "n == 7 && tag == \"match\" [n="
+    - json: {ref: "n"}
+      dsl: "n"
+    - str: ", tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+# ==========================================================================
+# Null-equality probes. One per nullable Go type; each target is called with
+# nil (probe fires) and non-nil (probe does not fire).
+# ==========================================================================
+
+- id: condNull_ptr
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condNullPtr
+  when:
+    dsl: "p == nil"
+    json: {eq: [{ref: "p"}, null]}
+  template: "p == nil [tag={tag}]"
+  segments:
+    - str: "p == nil [tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+- id: condNull_slice
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condNullSlice
+  when:
+    dsl: "s == nil"
+    json: {eq: [{ref: "s"}, null]}
+  template: "s == nil [tag={tag}]"
+  segments:
+    - str: "s == nil [tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+- id: condNull_map
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condNullMap
+  when:
+    dsl: "m == nil"
+    json: {eq: [{ref: "m"}, null]}
+  template: "m == nil [tag={tag}]"
+  segments:
+    - str: "m == nil [tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+- id: condNull_iface
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condNullIface
+  when:
+    dsl: "i == nil"
+    json: {eq: [{ref: "i"}, null]}
+  template: "i == nil [tag={tag}]"
+  segments:
+    - str: "i == nil [tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+- id: condNull_unsafeptr
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condNullUnsafePtr
+  when:
+    dsl: "p == nil"
+    json: {eq: [{ref: "p"}, null]}
+  template: "p == nil [tag={tag}]"
+  segments:
+    - str: "p == nil [tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Negative case: nullable LHS compared to a non-null literal. Must fail with
+# ConditionExpressionUnresolvable (covers the "can only be compared to null"
+# path added alongside null-equality support).
+- id: condNull_slice_vs_int
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condNullSlice
+  when:
+    dsl: "s == 1"
+    json: {eq: [{ref: "s"}, 1]}
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionExpressionUnresolvable"
+
+# Negative case: non-nullable LHS compared to null. Must fail with
+# ConditionExpressionUnresolvable.
+- id: condNull_int_vs_null
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condInt32
+  when:
+    dsl: "x == nil"
+    json: {eq: [{ref: "x"}, null]}
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionExpressionUnresolvable"

@@ -2061,9 +2061,9 @@ func TestGenerateInstallSignature(t *testing.T) {
 	cfg := c.Object()
 	assert.NotNil(t, cfg)
 
-	assert.False(t, coreConfig.IsSet("apm_config.install_id"))
-	assert.False(t, coreConfig.IsSet("apm_config.install_type"))
-	assert.False(t, coreConfig.IsSet("apm_config.install_time"))
+	assert.False(t, coreConfig.IsConfigured("apm_config.install_id"))
+	assert.False(t, coreConfig.IsConfigured("apm_config.install_type"))
+	assert.False(t, coreConfig.IsConfigured("apm_config.install_time"))
 
 	assert.True(t, cfg.InstallSignature.Found)
 	installFilePath := filepath.Join(cfgDir, "install.json")

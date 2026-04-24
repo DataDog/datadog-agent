@@ -78,10 +78,6 @@
                       "value": "5"
                     }
                   ]
-                },
-                "@return": {
-                  "type": "int",
-                  "notCapturedReason": "unavailable"
                 }
               }
             }

@@ -95,7 +95,9 @@ func (*ExprReadStringOp) irOp() {}
 
 // ExprCmpEqBaseOp pops the LHS offset from the data stack, compares ByteSize
 // bytes at LHS vs RHS (current offset), and writes a bool result (0 or 1) at
-// the current offset.
+// the current offset. Used both for base-type equality and for the 8-byte
+// leading-pointer comparison that implements `== nil` on nullable types
+// (pointer, map, slice, interface).
 type ExprCmpEqBaseOp struct {
 	ByteSize uint8
 }
@@ -179,3 +181,32 @@ func (*SwissMapLookupOp) irOp() {}
 type ConditionCheckOp struct{}
 
 func (*ConditionCheckOp) irOp() {}
+
+// LabelID identifies a jump target within a single compiled condition
+// handler. Allocated per condition, starting at 1.
+type LabelID uint32
+
+// CondNotOp flips the uint8 bool at the current offset (1 -> 0, 0 -> 1).
+type CondNotOp struct{}
+
+func (*CondNotOp) irOp() {}
+
+// CondJumpOp jumps to Target when the uint8 bool at the current offset matches
+// Cond. Cond == false is jump-if-false (used for and short-circuit); Cond ==
+// true is jump-if-true (used for or short-circuit). The jump does NOT touch
+// condition_eval_error — leaves after the jump can still fault, so the error
+// arm set by ConditionBeginOp is kept in place until the tail
+// ConditionCheckOp runs.
+type CondJumpOp struct {
+	Cond   bool
+	Target LabelID
+}
+
+func (*CondJumpOp) irOp() {}
+
+// CondLabelOp marks a jump target. Emits no bytes; just records its PC.
+type CondLabelOp struct {
+	ID LabelID
+}
+
+func (*CondLabelOp) irOp() {}
