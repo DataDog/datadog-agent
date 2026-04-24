@@ -59,6 +59,7 @@
       OTEL_AGENT_REPOSITORY: ddot-collector
       DSD_REPOSITORY: dogstatsd
       CWS_INSTRUMENTATION_REPOSITORY: cws-instrumentation
+      SECRET_GENERIC_CONNECTOR_REPOSITORY: secret-generic-connector
       IMG_REGISTRIES: public
 
 # Same as on_deploy_manual, except the job would not run on pipelines
@@ -82,6 +83,7 @@
       OTEL_AGENT_REPOSITORY: ddot-collector
       DSD_REPOSITORY: dogstatsd
       CWS_INSTRUMENTATION_REPOSITORY: cws-instrumentation
+      SECRET_GENERIC_CONNECTOR_REPOSITORY: secret-generic-connector
       IMG_REGISTRIES: public
 
 # This is used for image vulnerability scanning. Because agent 6
@@ -98,6 +100,7 @@
       OTEL_AGENT_REPOSITORY: ci/datadog-agent/otel-agent-release
       DSD_REPOSITORY: ci/datadog-agent/dogstatsd-release
       CWS_INSTRUMENTATION_REPOSITORY: ci/datadog-agent/cws-instrumentation-release
+      SECRET_GENERIC_CONNECTOR_REPOSITORY: ci/datadog-agent/secret-generic-connector-release
       IMG_REGISTRIES: internal-aws-ddbuild
 
 # Same as on_deploy_manual_final, except the job is used to publish images
@@ -115,6 +118,7 @@
       CLUSTER_AGENT_REPOSITORY: ci/datadog-agent/cluster-agent-release
       DSD_REPOSITORY: ci/datadog-agent/dogstatsd-release
       CWS_INSTRUMENTATION_REPOSITORY: ci/datadog-agent/cws-instrumentation-release
+      SECRET_GENERIC_CONNECTOR_REPOSITORY: ci/datadog-agent/secret-generic-connector-release
       IMG_REGISTRIES: internal-aws-ddbuild
 
 .on_deploy_stable_or_beta_repo_branch_manual:
