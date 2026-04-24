@@ -26,11 +26,12 @@ var _ types.LoggerInterface = (*Wrapper)(nil)
 // for the per-level convenience methods (Trace, Debug, …) called directly on
 // the Wrapper.  The chain is:
 //
-//	runtime.Callers          (0)
-//	handle{Args,Format,Error}  (1)
-//	Wrapper.{Trace,Debug,…}    (2)
-//	caller                     (3)  ← captured
-const baseStackDepth = 3
+//	runtime.Callers            (0)
+//	handle                     (1)
+//	handle{Args,Format,Error}  (2)
+//	Wrapper.{Trace,Debug,…}    (3)
+//	caller                     (4)  ← captured
+const baseStackDepth = 4
 
 // Wrapper is a wrapper around the slog.Handler interface.
 // It implements the LoggerInterface interface.
@@ -60,19 +61,10 @@ func (w *Wrapper) Handler() slog.Handler {
 	return w.handler
 }
 
-// handle creates and dispatches a slog.Record.  pc must already be the correct
-// program counter of the original call site; no additional frame skipping is
-// performed here.
-func (w *Wrapper) handle(level types.LogLevel, pc uintptr, message string, attrs []slog.Attr) {
-	r := slog.NewRecord(
-		time.Now(),
-		types.ToSlogLevel(level),
-		message,
-		pc,
-	)
-	if len(attrs) > 0 {
-		r.AddAttrs(attrs...)
-	}
+func (w *Wrapper) handle(level types.LogLevel, message string) {
+	var pc [1]uintptr
+	runtime.Callers(baseStackDepth, pc[:])
+	r := slog.NewRecord(time.Now(), types.ToSlogLevel(level), message, pc[0])
 	if err := w.handler.Handle(context.Background(), r); err != nil {
 		fmt.Fprintf(os.Stderr, "log: wrapper internal error: %v\n", err)
 	}
@@ -80,25 +72,19 @@ func (w *Wrapper) handle(level types.LogLevel, pc uintptr, message string, attrs
 
 func (w *Wrapper) handleArgs(level types.LogLevel, v ...interface{}) {
 	if !w.closed.Load() && w.handler.Enabled(context.Background(), types.ToSlogLevel(level)) {
-		var pc [1]uintptr
-		runtime.Callers(baseStackDepth, pc[:])
-		w.handle(level, pc[0], renderArgs(v...), nil)
+		w.handle(level, renderArgs(v...))
 	}
 }
 
 func (w *Wrapper) handleFormat(level types.LogLevel, format string, params ...interface{}) {
 	if !w.closed.Load() && w.handler.Enabled(context.Background(), types.ToSlogLevel(level)) {
-		var pc [1]uintptr
-		runtime.Callers(baseStackDepth, pc[:])
-		w.handle(level, pc[0], renderFormat(format, params...), nil)
+		w.handle(level, renderFormat(format, params...))
 	}
 }
 
 func (w *Wrapper) handleError(level types.LogLevel, message string) error {
 	if !w.closed.Load() && w.handler.Enabled(context.Background(), types.ToSlogLevel(level)) {
-		var pc [1]uintptr
-		runtime.Callers(baseStackDepth, pc[:])
-		w.handle(level, pc[0], message, nil)
+		w.handle(level, message)
 	}
 	return errors.New(message)
 }
@@ -110,8 +96,13 @@ func (w *Wrapper) handleError(level types.LogLevel, message string) error {
 // Returns a non-nil error for Warn, Error, and Critical levels; nil otherwise.
 func (w *Wrapper) Log(level types.LogLevel, pc uintptr, message string, ctx []interface{}) error {
 	if !w.closed.Load() && w.handler.Enabled(context.Background(), types.ToSlogLevel(level)) {
-		attrs := formatters.ToSlogAttrs(ctx)
-		w.handle(level, pc, message, attrs)
+		r := slog.NewRecord(time.Now(), types.ToSlogLevel(level), message, pc)
+		if attrs := formatters.ToSlogAttrs(ctx); len(attrs) > 0 {
+			r.AddAttrs(attrs...)
+		}
+		if err := w.handler.Handle(context.Background(), r); err != nil {
+			fmt.Fprintf(os.Stderr, "log: wrapper internal error: %v\n", err)
+		}
 	}
 	if level >= types.WarnLvl {
 		return errors.New(message)
