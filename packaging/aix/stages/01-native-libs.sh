@@ -69,6 +69,8 @@ BZIP2_SHA256="ab5a03176ee106d3f0fa90e381da478ddae405918153cca248e682cd0c4a2269"
 OPENSSL_VERSION="3.5.5"
 OPENSSL_SHA256="b28c91532a8b65a1f983b4c28b7488174e4a01008e29ce8e69bd789f28bc2a89"
 XZ_VERSION="5.8.1"
+# xz does not publish SHA-256 checksums; hash manually computed from the GitHub release tarball.
+# To update: curl -fsSL https://github.com/tukaani-project/xz/releases/download/v<VERSION>/xz-<VERSION>.tar.gz | sha256sum
 XZ_SHA256="507825b599356c10dca1cd720c9d0d0c9d5400b9de300af00e4d1ea150795543"
 LIBXML2_VERSION="2.14.5"    # built from source (AIX Toolbox also available but we build)
 LIBXML2_SHA256="03d006f3537616833c16c53addcdc32a0eb20e55443cba4038307e3fa7d8d44b"
