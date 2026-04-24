@@ -66,6 +66,8 @@ type discovery struct {
 func NewDiscoveryModule(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
 	cfg := core.NewConfig()
 
+	InitDiscoveryLogger()
+
 	d := &discovery{
 		core: core.Discovery{
 			Config: cfg,
