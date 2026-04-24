@@ -37,8 +37,8 @@ const (
 	// intakeEndpointPath is the API path for agent health reports
 	intakeEndpointPath = "/api/v2/agenthealth"
 
-	// defaultReporterInterval is the default interval between health report submissions
-	defaultReporterInterval = 15 * time.Minute
+	// defaultForwarderInterval is the default interval between health report submissions
+	defaultForwarderInterval = 15 * time.Minute
 
 	// httpTimeout is the timeout for HTTP requests
 	httpTimeout = 30 * time.Second
@@ -79,7 +79,7 @@ func New(reqs Requires) forwarderdef.Component {
 
 	interval := reqs.Config.GetDuration("health_platform.forwarder.interval")
 	if interval <= 0 {
-		interval = defaultReporterInterval
+		interval = defaultForwarderInterval
 	}
 
 	f := &forwarder{
