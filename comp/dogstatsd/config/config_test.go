@@ -74,3 +74,26 @@ func TestTruthTable(t *testing.T) {
 		})
 	}
 }
+
+func TestLogResolvedMode(t *testing.T) {
+	cases := []struct {
+		name       string
+		use        bool
+		dpEnabled  bool
+		dpDogstats bool
+	}{
+		{"adp", true, true, true},
+		{"core", true, false, false},
+		{"off", false, true, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := configmock.New(t)
+			cfg.SetWithoutSource("use_dogstatsd", tc.use)
+			cfg.SetWithoutSource("data_plane.enabled", tc.dpEnabled)
+			cfg.SetWithoutSource("data_plane.dogstatsd.enabled", tc.dpDogstats)
+			c := NewConfig(cfg)
+			c.LogResolvedMode() // must not panic
+		})
+	}
+}

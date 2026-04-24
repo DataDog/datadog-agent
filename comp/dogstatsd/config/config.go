@@ -10,6 +10,7 @@ import (
 	"os"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // team: agent-metric-pipelines
@@ -59,4 +60,23 @@ func (c *Config) enabledDataPlane() bool {
 	dsdEnabledDataPlane := c.config.GetBool("data_plane.enabled") && c.config.GetBool("data_plane.dogstatsd.enabled")
 
 	return c.Enabled() && (dsdEnabledDataPlaneOldStyle || dsdEnabledDataPlane)
+}
+
+// LogResolvedMode emits a one-line INFO summary of the effective
+// DogStatsD routing decision so operators can verify their config
+// from agent logs without cross-referencing three separate settings.
+func (c *Config) LogResolvedMode() {
+	mode := "off"
+	switch {
+	case c.enabledDataPlane():
+		mode = "agent-data-plane"
+	case c.EnabledInternal():
+		mode = "core-agent"
+	}
+	log.Infof("DogStatsD routing: use_dogstatsd=%t data_plane.enabled=%t data_plane.dogstatsd.enabled=%t -> %s",
+		c.config.GetBool("use_dogstatsd"),
+		c.config.GetBool("data_plane.enabled"),
+		c.config.GetBool("data_plane.dogstatsd.enabled"),
+		mode,
+	)
 }
