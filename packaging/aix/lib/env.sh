@@ -74,9 +74,13 @@ export CC CXX NM ARFLAGS OBJECT_MODE
 
 CFLAGS="-maix64"
 CXXFLAGS="-maix64"
-# -Wl,-bbigtoc: remove the 64KB TOC limit (required for large libs like OpenSSL and Python)
-# -Wl,-brtl:    enable runtime linking for dlopen support
-LDFLAGS="-maix64 -Wl,-brtl -Wl,-bbigtoc -L$EMBEDDED_DESTDIR/lib"
+# -Wl,-bbigtoc:     remove the 64KB TOC limit (required for large libs like OpenSSL and Python)
+# -Wl,-brtl:        enable runtime linking for dlopen support
+# -static-libstdc++: embed libstdc++ into each binary/shared library; eliminates the runtime
+#                    dependency on libstdc++.a[libstdc++.so.6], which differs between GCC
+#                    versions and AIX TL levels (e.g. GCC 13 needs strftime_l absent in TL2).
+# -static-libgcc:   embed libgcc_s for the same reason (version-specific GCC intrinsics).
+LDFLAGS="-maix64 -Wl,-brtl -Wl,-bbigtoc -static-libstdc++ -static-libgcc -L$EMBEDDED_DESTDIR/lib"
 CPPFLAGS="-I$EMBEDDED_DESTDIR/include"
 
 export CFLAGS CXXFLAGS LDFLAGS CPPFLAGS

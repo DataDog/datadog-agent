@@ -93,6 +93,7 @@ export CGO_LDFLAGS="$CGO_LDFLAGS \
   -L$EMBEDDED_DESTDIR/lib \
   -lpython3 \
   -Wl,-bE:$PYTHON_EXP \
+  -static-libstdc++ -static-libgcc \
   -Wl,-blibpath:/opt/datadog-agent/rtloader:/opt/datadog-agent/embedded/lib:/opt/freeware/lib64:/opt/freeware/lib:/usr/lib:/lib"
 
 # ─── Step 3: Get commit hash ──────────────────────────────────────────────────
