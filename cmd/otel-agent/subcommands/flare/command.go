@@ -32,7 +32,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/flare"
+	flaredef "github.com/DataDog/datadog-agent/comp/core/flare/def"
+	flareFx "github.com/DataDog/datadog-agent/comp/core/flare/fx"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -70,7 +71,7 @@ func MakeCommand(globalConfGetter func() *subcommands.GlobalParams) *cobra.Comma
 			cliParams.GlobalParams = globalParams
 			cliParams.args = args
 
-			flareParams := flare.NewLocalParams(
+			flareParams := flaredef.NewLocalParams(
 				"", // distPath - not used for OTel Agent
 				"", // pyChecksPath - not used for OTel Agent
 				"", // logFilePath - not used for OTel Agent
@@ -85,7 +86,7 @@ func MakeCommand(globalConfGetter func() *subcommands.GlobalParams) *cobra.Comma
 					ConfigParams: config.NewAgentParams("", config.WithConfigName(globalParams.ConfigName)),
 					LogParams:    log.ForOneShot(globalParams.LoggerName, "info", false),
 				}),
-				flare.Module(flareParams),
+				flareFx.Module(flareParams),
 				core.Bundle(),
 				// Provide empty option for workloadmeta (optional dependency)
 				fx.Supply(option.None[workloadmeta.Component]()),
@@ -104,7 +105,7 @@ func MakeCommand(globalConfGetter func() *subcommands.GlobalParams) *cobra.Comma
 }
 
 func makeFlare(
-	flareComp flare.Component,
+	flareComp flaredef.Component,
 	_ log.Component,
 	_ config.Component,
 	cliParams *cliParams,
