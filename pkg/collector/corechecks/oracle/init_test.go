@@ -233,30 +233,69 @@ func dumpOracleDiagnostics() {
 		conn.Close()
 	}
 
-	// Dump /dev/shm info from this container
-	if out, err := exec.Command("df", "-h", "/dev/shm").CombinedOutput(); err == nil {
-		fmt.Printf("/dev/shm:\n%s\n", out)
-	}
-
-	// Check cgroup version
-	if _, err := os.Stat("/sys/fs/cgroup/cgroup.controllers"); err == nil {
-		fmt.Println("cgroup: v2")
-		if out, err := os.ReadFile("/sys/fs/cgroup/memory.max"); err == nil {
-			fmt.Printf("memory.max: %s", out)
-		}
-	} else {
-		fmt.Println("cgroup: v1")
-		if out, err := os.ReadFile("/sys/fs/cgroup/memory/memory.limit_in_bytes"); err == nil {
-			fmt.Printf("memory.limit_in_bytes: %s", out)
-		}
-	}
-
-	// Try to resolve the oracle hostname
+	// DNS resolution
 	addrs, err := net.LookupHost(server)
 	if err != nil {
 		fmt.Printf("DNS lookup %s: FAILED: %s\n", server, err)
 	} else {
 		fmt.Printf("DNS lookup %s: %v\n", server, addrs)
+	}
+
+	// /dev/shm usage — if Oracle allocated SGA, this should be non-zero.
+	// 0% used means Oracle never got to SGA allocation.
+	if out, err := exec.Command("df", "-h", "/dev/shm").CombinedOutput(); err == nil {
+		fmt.Printf("/dev/shm:\n%s", out)
+	}
+	if out, err := exec.Command("ls", "-la", "/dev/shm/").CombinedOutput(); err == nil {
+		fmt.Printf("/dev/shm contents:\n%s", out)
+	}
+
+	// cgroup version + memory stats — key theory: on cgroup v2, tmpfs is charged
+	// against the container's memory limit. Oracle auto-sizes SGA to ~60-75% of
+	// detected memory. If SGA + process RSS exceeds the cgroup limit, mmap fails
+	// or OOM kills Oracle, causing it to hang at "Starting Oracle Database instance XE".
+	if _, err := os.Stat("/sys/fs/cgroup/cgroup.controllers"); err == nil {
+		fmt.Println("cgroup: v2")
+		for _, f := range []string{"memory.max", "memory.current", "memory.swap.current", "memory.peak"} {
+			if out, err := os.ReadFile("/sys/fs/cgroup/" + f); err == nil {
+				fmt.Printf("  %s: %s", f, out)
+			}
+		}
+		// memory.events shows oom/oom_kill counts — critical to confirm OOM theory
+		if out, err := os.ReadFile("/sys/fs/cgroup/memory.events"); err == nil {
+			fmt.Printf("  memory.events:\n%s", out)
+		}
+	} else {
+		fmt.Println("cgroup: v1")
+		if out, err := os.ReadFile("/sys/fs/cgroup/memory/memory.limit_in_bytes"); err == nil {
+			fmt.Printf("  memory.limit_in_bytes: %s", out)
+		}
+		if out, err := os.ReadFile("/sys/fs/cgroup/memory/memory.usage_in_bytes"); err == nil {
+			fmt.Printf("  memory.usage_in_bytes: %s", out)
+		}
+	}
+
+	// Check sibling container cgroups — Oracle's container will be a sibling
+	// cgroup under the pod's cgroup. Try to find and read its memory stats.
+	// On cgroup v2, pod cgroup is typically the parent of our cgroup.
+	if out, err := os.ReadFile("/proc/self/cgroup"); err == nil {
+		fmt.Printf("self cgroup: %s", out)
+	}
+	// Walk up to parent cgroup and list siblings (other containers in the pod)
+	if out, err := exec.Command("sh", "-c", "SELF=$(cat /proc/self/cgroup | head -1 | cut -d: -f3); PARENT=$(dirname /sys/fs/cgroup$SELF); echo \"Pod cgroup: $PARENT\"; for d in $PARENT/*/; do echo \"--- $d\"; cat $d/memory.max $d/memory.current $d/memory.events 2>/dev/null | head -20; done").CombinedOutput(); err == nil {
+		fmt.Printf("Pod cgroup siblings:\n%s", out)
+	}
+
+	// Check if Oracle env vars are visible in this (build) container
+	for _, key := range []string{"INIT_SGA_SIZE", "INIT_PGA_SIZE", "ORACLE_PWD", "ALLOCATED_MEMORY", "CI_DEBUG_SERVICES"} {
+		val := os.Getenv(key)
+		if val == "" {
+			fmt.Printf("env %s: <not set>\n", key)
+		} else if key == "ORACLE_PWD" {
+			fmt.Printf("env %s: <set>\n", key)
+		} else {
+			fmt.Printf("env %s: %s\n", key, val)
+		}
 	}
 
 	fmt.Println("=== End Diagnostics ===")
