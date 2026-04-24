@@ -1499,6 +1499,10 @@ func aggregator(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("basic_telemetry_add_container_tags", false) // configure adding the agent container tags to the basic agent telemetry metrics (e.g. `datadog.agent.running`)
 	config.BindEnvAndSetDefault("aggregator_flush_metrics_and_serialize_in_parallel_chan_size", 200)
 	config.BindEnvAndSetDefault("aggregator_flush_metrics_and_serialize_in_parallel_buffer_size", 4000)
+
+	// Number of no-op hook subscribers to register on the metrics pipeline hook at startup.
+	// Used exclusively for benchmark experiments — set to 0 in normal operation.
+	config.BindEnvAndSetDefault("hook.bench_subscriber_count", 0)
 }
 
 func serverless(config pkgconfigmodel.Setup) {
