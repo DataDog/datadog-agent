@@ -285,7 +285,7 @@
     "_dd.top_level": {
       "canonical": "_dd.top_level",
       "fallbacks": [
-        {"name": "_dd.top_level", "provider": "datadog", "type": "float64"},
+        {"name": "_dd.top_level", "provider": "datadog", "type": "int64"},
         {"name": "_top_level", "provider": "datadog", "type": "float64"}
       ]
     },

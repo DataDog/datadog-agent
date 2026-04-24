@@ -91,11 +91,25 @@ func otelSpanToDDSpanMinimal(
 	if code, ok := semantics.LookupInt64(reg, spanAccessor, semantics.ConceptHTTPStatusCode); ok && code >= 0 {
 		ddspan.Metrics[traceutil.TagStatusCode] = float64(code)
 	}
-	if isTopLevel {
+	if v, ok := semantics.LookupInt64(reg, spanAccessor, semantics.ConceptDDTopLevel); ok {
+		if v == 1 {
+			traceutil.SetTopLevel(ddspan, true)
+		} else {
+			// Explicit opt-out: write _dd.top_level=0 so the concentrator can distinguish this from
+			// "not set" and skip top-level-based stats for this span.
+			traceutil.MarkExplicitlyNotTopLevel(ddspan)
+		}
+	} else if isTopLevel {
 		traceutil.SetTopLevel(ddspan, true)
 	}
-	if v, ok := semantics.LookupInt64(reg, spanAccessor, semantics.ConceptDDMeasured); ok && v == 1 {
-		traceutil.SetMeasured(ddspan, true)
+	if v, ok := semantics.LookupInt64(reg, spanAccessor, semantics.ConceptDDMeasured); ok {
+		if v == 1 {
+			traceutil.SetMeasured(ddspan, true)
+		} else {
+			// Explicit opt-out: write _dd.measured=0 so the concentrator can distinguish this from
+			// "not set" and skip eligibleSpanKind-based stats for this span.
+			traceutil.MarkExplicitlyUnmeasured(ddspan)
+		}
 	} else if topLevelByKind && (spanKind == ptrace.SpanKindClient || spanKind == ptrace.SpanKindProducer) {
 		// When enable_otlp_compute_top_level_by_span_kind is true, compute stats for client-side spans
 		traceutil.SetMeasured(ddspan, true)
