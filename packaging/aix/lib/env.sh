@@ -134,36 +134,6 @@ verify_sha256() {
     fi
 }
 
-# verify_gpg FILE SIG_FILE KEY_FILE NAME
-#   Verify FILE against the detached GPG signature SIG_FILE using the armored
-#   public key in KEY_FILE.  A temporary GPG homedir is used so the system
-#   keyring is never touched.  If neither gpg2 nor gpg is installed the check
-#   is skipped with a warning; install gnupg2 (yum install gnupg2) for full
-#   supply-chain verification.
-verify_gpg() {
-    _vg_file=$1
-    _vg_sig=$2
-    _vg_key=$3
-    _vg_name=$4
-    if ! command -v gpg2 >/dev/null 2>&1 && ! command -v gpg >/dev/null 2>&1; then
-        log "WARNING: gpg/gpg2 not found — skipping signature verification for $_vg_name"
-        log "         Install gnupg2 (yum install gnupg2) for full supply-chain verification."
-        return 0
-    fi
-    _gpg=$(command -v gpg2 2>/dev/null || command -v gpg 2>/dev/null)
-    _vg_home=$(mktemp -d)
-    "$_gpg" --homedir "$_vg_home" --batch --quiet --import "$_vg_key"
-    if "$_gpg" --homedir "$_vg_home" --batch --trust-model direct \
-               --verify "$_vg_sig" "$_vg_file" 2>/dev/null; then
-        log "GPG signature OK for $_vg_name"
-    else
-        log "ERROR: GPG signature verification failed for $_vg_name"
-        rm -rf "$_vg_home"
-        exit 1
-    fi
-    rm -rf "$_vg_home"
-}
-
 # sentinel_done STAGE_NAME
 #   Returns 0 (true) if the stage sentinel file exists, 1 (false) otherwise.
 sentinel_done() {

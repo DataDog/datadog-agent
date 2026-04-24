@@ -69,9 +69,7 @@ BZIP2_SHA256="ab5a03176ee106d3f0fa90e381da478ddae405918153cca248e682cd0c4a2269"
 OPENSSL_VERSION="3.5.5"
 OPENSSL_SHA256="b28c91532a8b65a1f983b4c28b7488174e4a01008e29ce8e69bd789f28bc2a89"
 XZ_VERSION="5.8.1"
-# xz releases are signed with GPG; no SHA-256 is published by the project.
-# Key: Lasse Collin <lasse.collin@tukaani.org> — see keys/lasse_collin.asc
-XZ_GPG_KEY="$SCRIPT_DIR/../keys/lasse_collin.asc"
+XZ_SHA256="507825b599356c10dca1cd720c9d0d0c9d5400b9de300af00e4d1ea150795543"
 LIBXML2_VERSION="2.14.5"    # built from source (AIX Toolbox also available but we build)
 LIBXML2_SHA256="03d006f3537616833c16c53addcdc32a0eb20e55443cba4038307e3fa7d8d44b"
 LIBXSLT_VERSION="1.1.45"   # from AIX Toolbox (yum install libxslt-devel; source build fails on AIX)
@@ -300,9 +298,7 @@ else
     [ -f "$TARBALL" ] || curl -fSL -o "$TARBALL" \
         "https://github.com/tukaani-project/xz/releases/download/v${XZ_VERSION}/xz-${XZ_VERSION}.tar.gz" || \
         curl -fSL -o "$TARBALL" "https://tukaani.org/xz/xz-${XZ_VERSION}.tar.gz"
-    [ -f "$TARBALL.sig" ] || curl -fSL -o "$TARBALL.sig" \
-        "https://github.com/tukaani-project/xz/releases/download/v${XZ_VERSION}/xz-${XZ_VERSION}.tar.gz.sig"
-    verify_gpg "$TARBALL" "$TARBALL.sig" "$XZ_GPG_KEY" "xz-${XZ_VERSION}.tar.gz"
+    verify_sha256 "$TARBALL" "$XZ_SHA256" "xz-${XZ_VERSION}.tar.gz"
     # Touch pre-timestamp before compile so install files are strictly newer (AIX has 1s mtime)
     _pre="$BUILD_DIR/.lib-pre-xz"
     touch "$_pre"
