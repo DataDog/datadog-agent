@@ -10,20 +10,10 @@
 package flare
 
 import (
-	"go.uber.org/fx"
-
 	flaredef "github.com/DataDog/datadog-agent/comp/core/flare/def"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // team: agent-configuration
 
 // Component is the component type.
 type Component = flaredef.Component
-
-// Module defines the fx options for this component.
-func Module(params Params) fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newFlare),
-		fx.Supply(params))
-}

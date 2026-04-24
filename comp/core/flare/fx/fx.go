@@ -7,12 +7,19 @@
 package fx
 
 import (
-	flare "github.com/DataDog/datadog-agent/comp/core/flare"
+	"go.uber.org/fx"
+
 	flaredef "github.com/DataDog/datadog-agent/comp/core/flare/def"
+	flareimpl "github.com/DataDog/datadog-agent/comp/core/flare/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // Module defines the fx options for this component.
 func Module(params flaredef.Params) fxutil.Module {
-	return flare.Module(params)
+	return fxutil.Component(
+		fxutil.ProvideComponentConstructor(
+			flareimpl.NewComponent,
+		),
+		fx.Supply(params),
+	)
 }

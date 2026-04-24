@@ -1,1 +1,19 @@
-# gazelle:ignore
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "flare",
+    srcs = [
+        "component.go",
+        "flare.go",
+        "params.go",
+        "providers.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/flare",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/flare/def",
+        "//comp/core/flare/impl",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
+    ],
+)
