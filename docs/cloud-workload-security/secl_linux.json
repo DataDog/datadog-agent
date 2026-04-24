@@ -499,7 +499,7 @@
         },
         {
           "name": "process.ancestors.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -531,6 +531,11 @@
           "name": "process.ancestors.ppid",
           "definition": "Parent process ID",
           "property_doc_link": "common-pidcontext-ppid-doc"
+        },
+        {
+          "name": "process.ancestors.sid",
+          "definition": "Session ID of the process",
+          "property_doc_link": "common-pidcontext-sid-doc"
         },
         {
           "name": "process.ancestors.tid",
@@ -1059,7 +1064,7 @@
         },
         {
           "name": "process.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -1524,7 +1529,7 @@
         },
         {
           "name": "process.parent.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -1551,6 +1556,11 @@
           "name": "process.parent.ppid",
           "definition": "Parent process ID",
           "property_doc_link": "common-pidcontext-ppid-doc"
+        },
+        {
+          "name": "process.parent.sid",
+          "definition": "Session ID of the process",
+          "property_doc_link": "common-pidcontext-sid-doc"
         },
         {
           "name": "process.parent.tid",
@@ -1641,6 +1651,11 @@
           "name": "process.ppid",
           "definition": "Parent process ID",
           "property_doc_link": "common-pidcontext-ppid-doc"
+        },
+        {
+          "name": "process.sid",
+          "definition": "Session ID of the process",
+          "property_doc_link": "common-pidcontext-sid-doc"
         },
         {
           "name": "process.tid",
@@ -3227,7 +3242,7 @@
         },
         {
           "name": "exec.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -3254,6 +3269,11 @@
           "name": "exec.ppid",
           "definition": "Parent process ID",
           "property_doc_link": "common-pidcontext-ppid-doc"
+        },
+        {
+          "name": "exec.sid",
+          "definition": "Session ID of the process",
+          "property_doc_link": "common-pidcontext-sid-doc"
         },
         {
           "name": "exec.syscall.path",
@@ -3806,7 +3826,7 @@
         },
         {
           "name": "exit.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -3833,6 +3853,11 @@
           "name": "exit.ppid",
           "definition": "Parent process ID",
           "property_doc_link": "common-pidcontext-ppid-doc"
+        },
+        {
+          "name": "exit.sid",
+          "definition": "Session ID of the process",
+          "property_doc_link": "common-pidcontext-sid-doc"
         },
         {
           "name": "exit.tid",
@@ -5809,7 +5834,7 @@
         },
         {
           "name": "ptrace.tracee.ancestors.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -5841,6 +5866,11 @@
           "name": "ptrace.tracee.ancestors.ppid",
           "definition": "Parent process ID",
           "property_doc_link": "common-pidcontext-ppid-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.sid",
+          "definition": "Session ID of the process",
+          "property_doc_link": "common-pidcontext-sid-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.tid",
@@ -6369,7 +6399,7 @@
         },
         {
           "name": "ptrace.tracee.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -6834,7 +6864,7 @@
         },
         {
           "name": "ptrace.tracee.parent.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -6861,6 +6891,11 @@
           "name": "ptrace.tracee.parent.ppid",
           "definition": "Parent process ID",
           "property_doc_link": "common-pidcontext-ppid-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.sid",
+          "definition": "Session ID of the process",
+          "property_doc_link": "common-pidcontext-sid-doc"
         },
         {
           "name": "ptrace.tracee.parent.tid",
@@ -6951,6 +6986,11 @@
           "name": "ptrace.tracee.ppid",
           "definition": "Parent process ID",
           "property_doc_link": "common-pidcontext-ppid-doc"
+        },
+        {
+          "name": "ptrace.tracee.sid",
+          "definition": "Session ID of the process",
+          "property_doc_link": "common-pidcontext-sid-doc"
         },
         {
           "name": "ptrace.tracee.tid",
@@ -8183,7 +8223,7 @@
         },
         {
           "name": "setrlimit.target.ancestors.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -8215,6 +8255,11 @@
           "name": "setrlimit.target.ancestors.ppid",
           "definition": "Parent process ID",
           "property_doc_link": "common-pidcontext-ppid-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.sid",
+          "definition": "Session ID of the process",
+          "property_doc_link": "common-pidcontext-sid-doc"
         },
         {
           "name": "setrlimit.target.ancestors.tid",
@@ -8743,7 +8788,7 @@
         },
         {
           "name": "setrlimit.target.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -9208,7 +9253,7 @@
         },
         {
           "name": "setrlimit.target.parent.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -9235,6 +9280,11 @@
           "name": "setrlimit.target.parent.ppid",
           "definition": "Parent process ID",
           "property_doc_link": "common-pidcontext-ppid-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.sid",
+          "definition": "Session ID of the process",
+          "property_doc_link": "common-pidcontext-sid-doc"
         },
         {
           "name": "setrlimit.target.parent.tid",
@@ -9325,6 +9375,11 @@
           "name": "setrlimit.target.ppid",
           "definition": "Parent process ID",
           "property_doc_link": "common-pidcontext-ppid-doc"
+        },
+        {
+          "name": "setrlimit.target.sid",
+          "definition": "Session ID of the process",
+          "property_doc_link": "common-pidcontext-sid-doc"
         },
         {
           "name": "setrlimit.target.tid",
@@ -10134,7 +10189,7 @@
         },
         {
           "name": "signal.target.ancestors.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -10166,6 +10221,11 @@
           "name": "signal.target.ancestors.ppid",
           "definition": "Parent process ID",
           "property_doc_link": "common-pidcontext-ppid-doc"
+        },
+        {
+          "name": "signal.target.ancestors.sid",
+          "definition": "Session ID of the process",
+          "property_doc_link": "common-pidcontext-sid-doc"
         },
         {
           "name": "signal.target.ancestors.tid",
@@ -10694,7 +10754,7 @@
         },
         {
           "name": "signal.target.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -11159,7 +11219,7 @@
         },
         {
           "name": "signal.target.parent.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -11186,6 +11246,11 @@
           "name": "signal.target.parent.ppid",
           "definition": "Parent process ID",
           "property_doc_link": "common-pidcontext-ppid-doc"
+        },
+        {
+          "name": "signal.target.parent.sid",
+          "definition": "Session ID of the process",
+          "property_doc_link": "common-pidcontext-sid-doc"
         },
         {
           "name": "signal.target.parent.tid",
@@ -11276,6 +11341,11 @@
           "name": "signal.target.ppid",
           "definition": "Parent process ID",
           "property_doc_link": "common-pidcontext-ppid-doc"
+        },
+        {
+          "name": "signal.target.sid",
+          "definition": "Session ID of the process",
+          "property_doc_link": "common-pidcontext-sid-doc"
         },
         {
           "name": "signal.target.tid",
@@ -13312,7 +13382,7 @@
       "name": "*.is_kworker",
       "link": "common-pidcontext-is_kworker-doc",
       "type": "bool",
-      "definition": "Indicates whether the process is a kworker",
+      "definition": "Indicates whether the process is a kworker/kthread",
       "prefixes": [
         "exec",
         "exit",
@@ -14730,6 +14800,31 @@
         "signal.target.ancestors.user_session",
         "signal.target.parent.user_session",
         "signal.target.user_session"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.sid",
+      "link": "common-pidcontext-sid-doc",
+      "type": "int",
+      "definition": "Session ID of the process",
+      "prefixes": [
+        "exec",
+        "exit",
+        "process",
+        "process.ancestors",
+        "process.parent",
+        "ptrace.tracee",
+        "ptrace.tracee.ancestors",
+        "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
+        "signal.target",
+        "signal.target.ancestors",
+        "signal.target.parent"
       ],
       "constants": "",
       "constants_link": "",
@@ -20255,7 +20350,15 @@
           "architecture": "all"
         },
         {
+          "name": "MAP_DROPPABLE",
+          "architecture": "all"
+        },
+        {
           "name": "MAP_EXECUTABLE",
+          "architecture": "all"
+        },
+        {
+          "name": "MAP_FILE",
           "architecture": "all"
         },
         {
@@ -20558,6 +20661,10 @@
           "architecture": "all"
         },
         {
+          "name": "AF_MCTP",
+          "architecture": "all"
+        },
+        {
           "name": "AF_MAX",
           "architecture": "all"
         }
@@ -20719,7 +20826,15 @@
           "architecture": "all"
         },
         {
+          "name": "O_PATH",
+          "architecture": "all"
+        },
+        {
           "name": "O_RSYNC",
+          "architecture": "all"
+        },
+        {
+          "name": "O_TMPFILE",
           "architecture": "all"
         }
       ]
@@ -20885,6 +21000,14 @@
           "architecture": "all"
         },
         {
+          "name": "PR_PAC_GET_ENABLED_KEYS",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_PAC_SET_ENABLED_KEYS",
+          "architecture": "all"
+        },
+        {
           "name": "PR_SET_PDEATHSIG",
           "architecture": "all"
         },
@@ -20913,6 +21036,10 @@
           "architecture": "all"
         },
         {
+          "name": "PR_SCHED_CORE",
+          "architecture": "all"
+        },
+        {
           "name": "PR_GET_SPECULATION_CTRL",
           "architecture": "all"
         },
@@ -20926,6 +21053,14 @@
         },
         {
           "name": "PR_SVE_GET_VL",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SME_SET_VL",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SME_GET_VL",
           "architecture": "all"
         },
         {
@@ -20977,6 +21112,10 @@
           "architecture": "all"
         },
         {
+          "name": "PR_TIMER_CREATE_RESTORE_IDS",
+          "architecture": "all"
+        },
+        {
           "name": "PR_SET_TSC",
           "architecture": "all"
         },
@@ -21002,6 +21141,46 @@
         },
         {
           "name": "PR_GET_MDWE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_MEMORY_MERGE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_MEMORY_MERGE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_SHADOW_STACK_STATUS",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_SHADOW_STACK_STATUS",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_LOCK_SHADOW_STACK_STATUS",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_FUTEX_HASH",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_PPC_GET_DEXCR",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_PPC_SET_DEXCR",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_RISCV_V_GET_CONTROL",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_RISCV_V_SET_CONTROL",
           "architecture": "all"
         },
         {
@@ -21099,6 +21278,14 @@
           "architecture": "all"
         },
         {
+          "name": "PTRACE_GETREGS",
+          "architecture": "all"
+        },
+        {
+          "name": "PTRACE_SETREGS",
+          "architecture": "all"
+        },
+        {
           "name": "PTRACE_SETOPTIONS",
           "architecture": "all"
         },
@@ -21156,6 +21343,22 @@
         },
         {
           "name": "PTRACE_GET_SYSCALL_INFO",
+          "architecture": "all"
+        },
+        {
+          "name": "PTRACE_SET_SYSCALL_INFO",
+          "architecture": "all"
+        },
+        {
+          "name": "PTRACE_GET_RSEQ_CONFIGURATION",
+          "architecture": "all"
+        },
+        {
+          "name": "PTRACE_GET_SYSCALL_USER_DISPATCH_CONFIG",
+          "architecture": "all"
+        },
+        {
+          "name": "PTRACE_SET_SYSCALL_USER_DISPATCH_CONFIG",
           "architecture": "all"
         },
         {

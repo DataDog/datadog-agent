@@ -56,10 +56,6 @@
                 "needle": {
                   "type": "go.shape.string",
                   "value": "b"
-                },
-                "~r0": {
-                  "type": "bool",
-                  "notCapturedReason": "unavailable"
                 }
               }
             }
@@ -147,10 +143,6 @@
                 "needle": {
                   "type": "int",
                   "value": "2"
-                },
-                "~r0": {
-                  "type": "bool",
-                  "notCapturedReason": "unavailable"
                 }
               }
             }
@@ -238,10 +230,6 @@
                 "needle": {
                   "type": "main.namedInt",
                   "value": "2"
-                },
-                "~r0": {
-                  "type": "bool",
-                  "notCapturedReason": "unavailable"
                 }
               }
             }
@@ -329,10 +317,6 @@
                 "needle": {
                   "type": "main.score",
                   "value": "20"
-                },
-                "~r0": {
-                  "type": "bool",
-                  "notCapturedReason": "unavailable"
                 }
               }
             }
@@ -416,10 +400,6 @@
                 "needle": {
                   "type": "main.celsius",
                   "value": "100"
-                },
-                "~r0": {
-                  "type": "bool",
-                  "notCapturedReason": "unavailable"
                 }
               }
             }

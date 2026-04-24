@@ -17,13 +17,24 @@ type healthMetricsConfig struct {
 	Target  string
 }
 
+// ddProfilingConfig holds configuration for the ddprofiling self-profiling extension.
+type ddProfilingConfig struct {
+	Enabled bool
+	Period  int
+}
+
+// hpFlareConfig holds configuration for the hpflare diagnostics extension.
+type hpFlareConfig struct {
+	Port int
+}
+
 // hostProfilerConfig holds host-profiler settings extracted from the Agent config.
 type hostProfilerConfig struct {
 	DebugVerbosity        string
 	AdditionalHTTPHeaders map[string]string
-	DDProfilingEnabled    bool
-	DDProfilingPeriod     int
+	DDProfiling           ddProfilingConfig
 	HealthMetrics         healthMetricsConfig
+	HPFlare               hpFlareConfig
 }
 
 type endpoint struct {
@@ -97,11 +108,16 @@ func newConfigManager(config config.Component) configManager {
 	hostProfilerConfig := hostProfilerConfig{
 		DebugVerbosity:        config.GetString("hostprofiler.debug.verbosity"),
 		AdditionalHTTPHeaders: config.GetStringMapString("hostprofiler.additional_http_headers"),
-		DDProfilingEnabled:    config.GetBool("hostprofiler.ddprofiling.enabled"),
-		DDProfilingPeriod:     config.GetInt("hostprofiler.ddprofiling.period"),
+		DDProfiling: ddProfilingConfig{
+			Enabled: config.GetBool("hostprofiler.ddprofiling.enabled"),
+			Period:  config.GetInt("hostprofiler.ddprofiling.period"),
+		},
 		HealthMetrics: healthMetricsConfig{
 			Enabled: config.GetBool("hostprofiler.health_metrics.enabled"),
 			Target:  config.GetString("hostprofiler.health_metrics.target"),
+		},
+		HPFlare: hpFlareConfig{
+			Port: config.GetInt("hostprofiler.hpflare.port"),
 		},
 	}
 

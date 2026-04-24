@@ -471,10 +471,15 @@ func (x *StreamTagsRequest) GetStreamingID() string {
 }
 
 type StreamTagsResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Events        []*StreamTagsEvent     `protobuf:"bytes,1,rep,name=events,proto3" json:"events,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Events []*StreamTagsEvent     `protobuf:"bytes,1,rep,name=events,proto3" json:"events,omitempty"`
+	// When true, this message is the last chunk of the initial full-state
+	// snapshot sent after a (re)connection. Clients should accumulate events
+	// until they receive a response with this flag set, then apply the
+	// complete set atomically.
+	InitialSnapshotComplete bool `protobuf:"varint,2,opt,name=initial_snapshot_complete,json=initialSnapshotComplete,proto3" json:"initial_snapshot_complete,omitempty"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
 }
 
 func (x *StreamTagsResponse) Reset() {
@@ -512,6 +517,13 @@ func (x *StreamTagsResponse) GetEvents() []*StreamTagsEvent {
 		return x.Events
 	}
 	return nil
+}
+
+func (x *StreamTagsResponse) GetInitialSnapshotComplete() bool {
+	if x != nil {
+		return x.InitialSnapshotComplete
+	}
+	return false
 }
 
 type StreamTagsEvent struct {
@@ -1630,9 +1642,10 @@ const file_datadog_model_v1_model_proto_rawDesc = "" +
 	"\rincludeFilter\x18\x02 \x01(\v2\".datadog.model.v1.DeprecatedFilterR\rincludeFilter\x12H\n" +
 	"\rexcludeFilter\x18\x03 \x01(\v2\".datadog.model.v1.DeprecatedFilterR\rexcludeFilter\x12\x1a\n" +
 	"\bprefixes\x18\x04 \x03(\tR\bprefixes\x12 \n" +
-	"\vstreamingID\x18\x05 \x01(\tR\vstreamingID\"O\n" +
+	"\vstreamingID\x18\x05 \x01(\tR\vstreamingID\"\x8b\x01\n" +
 	"\x12StreamTagsResponse\x129\n" +
-	"\x06events\x18\x01 \x03(\v2!.datadog.model.v1.StreamTagsEventR\x06events\"t\n" +
+	"\x06events\x18\x01 \x03(\v2!.datadog.model.v1.StreamTagsEventR\x06events\x12:\n" +
+	"\x19initial_snapshot_complete\x18\x02 \x01(\bR\x17initialSnapshotComplete\"t\n" +
 	"\x0fStreamTagsEvent\x12/\n" +
 	"\x04type\x18\x01 \x01(\x0e2\x1b.datadog.model.v1.EventTypeR\x04type\x120\n" +
 	"\x06entity\x18\x02 \x01(\v2\x18.datadog.model.v1.EntityR\x06entity\"t\n" +

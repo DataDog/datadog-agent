@@ -21,7 +21,7 @@ import (
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadfilterServer "github.com/DataDog/datadog-agent/comp/core/workloadfilter/server"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -113,7 +113,7 @@ func (s *server) BuildServer() http.Handler {
 		taggerServer:     taggerserver.NewServer(s.tagger, s.telemetry, maxEventSize, s.configComp.GetInt("remote_tagger.max_concurrent_sync")),
 		tagProcessor:     s.tagProcessor,
 		// TODO(components): decide if workloadmetaServer should be componentized itself
-		workloadmetaServer:   workloadmetaServer.NewServer(s.workloadMeta),
+		workloadmetaServer:   workloadmetaServer.NewServer(s.workloadMeta, maxEventSize),
 		workloadfilterServer: workloadfilterServer.NewServer(s.workloadfilter),
 		dogstatsdServer:      s.dogstatsdServer,
 		capture:              s.capture,

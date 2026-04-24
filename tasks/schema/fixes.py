@@ -29,6 +29,7 @@ decided at runtime by the Agent, OS based description and more.
 #     windows: c:\programdata\datadog\logs
 
 core_defaults = {
+    "api_key": "",
     "container_cgroup_root": "/host/sys/fs/cgroup/",
     "container_proc_root": "/host/proc",
     "sbom.cache_directory": "${run_path}/sbom-agent",
@@ -177,5 +178,8 @@ def fix_schema(core_schema, sysprobe_schema):
     core_schema, sysprobe_schema = fix_defaults(core_schema, sysprobe_schema)
     core_schema, sysprobe_schema = fix_tags(core_schema, sysprobe_schema)
     core_schema, sysprobe_schema = fix_missing_env_doc(core_schema, sysprobe_schema)
+
+    # special edge case for api_key
+    core_schema["properties"]["api_key"]["type"] = "string"
 
     return core_schema, sysprobe_schema

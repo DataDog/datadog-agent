@@ -78,19 +78,42 @@ bazel_dep(name = "rules_testing", version = "0.9.0", dev_dependency = True)
 # https://github.com/bazel-contrib/rules_go/pull/4586 gets merged
 git_override(
     module_name = "rules_go",
-    commit = "4cb2eab3d1aec456573f0cefd8e8800e9c68ae7d",
+    commit = "8808bb8c6604f1e7a2badbfcd9a9db4c32ba0a8c",  # main as of April 17, 2026
     patch_strip = 1,
     patches = [
         "//bazel/patches:rules_go-windows-symlink-workaround.patch",  # bazel-contrib/rules_go#3977
     ],
-    remote = "https://github.com/chouquette/rules_go.git",
+    remote = "https://github.com/bazel-contrib/rules_go.git",
 )
 
 # Temporary until rules_pkg > 1.2.0 is in BCR
 git_override(
     module_name = "rules_pkg",
-    commit = "14c78b8e9347a60919999f13177f1aa3fb850ea3",  # main as of Mar 17, 2026
+    commit = "401969d4367c42dcbb45d33a637eae87788d025e",  # main as of April 22, 2026
     remote = "https://github.com/bazelbuild/rules_pkg.git",
+)
+
+# Temporary until rules_rust > 0.69.0 ships with Windows GNU ABI support (PR #3940).
+# The CI runner uses MinGW as its cc_toolchain; rules_rust 0.69.0 defaults to
+# x86_64-pc-windows-msvc whose linker flags are incompatible with MinGW's g++.
+git_override(
+    module_name = "rules_rust",
+    commit = "82506df3f31240f97194b2e9453022125eaa07f4",  # main as of April 21, 2026
+    patch_strip = 1,
+    patches = [
+        # Stops rustc_compile_action from leaking default_shell_env into
+        # CrateInfo.rustc_env, which otherwise clobbers cc_toolchain link_env
+        # for rust_test(crate = ...). Upstream issue pending.
+        "//bazel/patches:rules_rust-crateinfo-env-leak.patch",
+    ],
+    remote = "https://github.com/bazelbuild/rules_rust.git",
+)
+
+git_override(
+    module_name = "rules_rust_prost",
+    commit = "82506df3f31240f97194b2e9453022125eaa07f4",
+    remote = "https://github.com/bazelbuild/rules_rust.git",
+    strip_prefix = "extensions/prost",
 )
 
 #########################
@@ -197,6 +220,7 @@ gcc_toolchains.toolchain(
     name = "gcc_toolchain_x86_64",
     binary_prefix = "x86_64-unknown-linux-gnu-",
     enable_fortran = False,
+    extra_ldflags = ["-Wl,--build-id=sha1"],
     gcc_version = "11.4.0",
     target_arch = "x86_64",
 )
@@ -204,6 +228,7 @@ gcc_toolchains.toolchain(
     name = "gcc_toolchain_aarch64",
     binary_prefix = "aarch64-unknown-linux-gnu-",
     enable_fortran = False,
+    extra_ldflags = ["-Wl,--build-id=sha1"],
     gcc_version = "12.3.0",
     target_arch = "aarch64",
 )
@@ -258,6 +283,31 @@ register_toolchains("@pythons_hub//:all")
 #######################
 
 rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
+
+# Register a GNU-ABI Rust toolchain for Windows so that rustc generates
+# GNU-style linker flags (-lkernel32, -o, etc.) compatible with the MinGW
+# cc_toolchain used on the Windows CI runner.  Processed before the default
+# toolchains, so Bazel's toolchain resolution picks it over the auto-registered
+# x86_64-pc-windows-msvc toolchain.
+rust.repository_set(
+    name = "rust_windows_gnu_x86_64",
+    edition = "2024",
+    exec_triple = "x86_64-pc-windows-gnu",
+    extra_exec_rustc_flags = [
+        "-Clinker=C:/tools/msys64/mingw64/bin/gcc.exe",
+        "-Cdlltool=C:/tools/msys64/mingw64/bin/dlltool.exe",
+    ],
+    extra_rustc_flags = [
+        "-Clinker=C:/tools/msys64/mingw64/bin/gcc.exe",
+        "-Cdlltool=C:/tools/msys64/mingw64/bin/dlltool.exe",
+    ],
+    target_compatible_with = [
+        "@platforms//os:windows",
+        "@platforms//cpu:x86_64",
+    ],
+    target_triple = "x86_64-pc-windows-gnu",
+    versions = ["1.92.0"],
+)
 rust.toolchain(
     edition = "2024",
     versions = ["1.92.0"],
@@ -351,6 +401,12 @@ prebuilt_file(
     name = "agent_binary",
     target_label = "@@//:bin/agent/agent",
     target_name = "agent",
+)
+
+prebuilt_file(
+    name = "installer_binary",
+    target_label = "@@//:bin/installer/installer",
+    target_name = "installer",
 )
 
 prebuilt_file(

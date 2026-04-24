@@ -1,12 +1,20 @@
 {
     "$schema": "https://docs.renovatebot.com/renovate-schema.json",
     "extends": ["config:recommended", ":enablePreCommit"],
+    "constraints": {
+      "go": "1.25.9"
+    },
+    "constraintsFiltering": "strict",
     "minimumReleaseAge": "7 days",
     "labels": ["dependencies", "changelog/no-changelog", "qa/no-code-change"],
     "stopUpdatingLabel": "stop-updating",
     "gitIgnoredAuthors": ["41898282+github-actions[bot]@users.noreply.github.com", "200755185+dd-octo-sts[bot]@users.noreply.github.com"],
     "platformCommit": "enabled",
     "packageRules": [
+      {
+        "matchDepNames": ["*"],
+        "prPriority": -1
+      },
       {
         "matchDepNames": ["integrations-core"],
         "changelogUrl": "https://github.com/DataDog/integrations-core/compare/{{currentDigest}}..{{newDigest}}",
@@ -37,11 +45,8 @@
       },
       {
         "matchManagers": ["custom.regex"],
-        "minimumReleaseAge": null
-      },
-      {
-        "matchDepNames": ["protocolbuffers/protobuf"],
-        "minimumReleaseAge": "7 days"
+        "minimumReleaseAge": null,
+        "prPriority": 10
       },
       {
         "matchManagers": ["github-actions"],
@@ -79,6 +84,11 @@
           "github.com/spf13/cast",
           "github.com/mailru/easyjson"
         ],
+        "enabled": false
+      },
+      {
+        "matchManagers": ["gomod"],
+        "matchDepTypes": ["replace"],
         "enabled": false
       },
       {
@@ -129,6 +139,11 @@
       {
         "matchManagers": ["bazel-module"],
         "matchDepTypes": ["git_override"],
+        "enabled": false
+      },
+      {
+        "matchManagers": ["bundler"],
+        "matchDepNames": ["omnibus"],
         "enabled": false
       }
     ],

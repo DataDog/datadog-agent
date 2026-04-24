@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -21,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/tracker"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/utilizationtracker"
@@ -38,7 +38,7 @@ const (
 // for each worker, which is a bit inconvenient to use because the number of
 // workers might be different on every Agent. With telemetry, we can use a
 // single metric and put the worker name in a tag.
-var workerUtilization = telemetry.NewGauge(
+var workerUtilization = telemetryimpl.GetCompatComponent().NewGauge(
 	"collector",
 	"worker_utilization",
 	[]string{"worker_name"},
@@ -191,8 +191,18 @@ func (w *Worker) Run(ctx context.Context) {
 
 		utilizationTracker.Started()
 
-		// Run the check
-		checkErr := check.Run()
+		// Run the check, recovering from any panic so that a single
+		// misbehaving check cannot crash the entire agent process.
+		var checkErr error
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					checkErr = fmt.Errorf("check panicked: %v", r)
+					log.Errorf("Recovered from panic in check %s: %v", check, r)
+				}
+			}()
+			checkErr = check.Run()
+		}()
 
 		utilizationTracker.Finished()
 

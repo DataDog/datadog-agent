@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	noopTelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	noopTelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/fx-noop"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadfilterimpl "github.com/DataDog/datadog-agent/comp/core/workloadfilter/impl"
 	workloadfiltermock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/mock"
@@ -53,7 +53,7 @@ cel_workload_exclude:
 	))
 
 	// Create provider with the filter
-	provider, err := NewProcessLogConfigProvider(nil, nil, nil, filter, nil)
+	provider, err := NewProcessLogConfigProvider(nil, nil, nil, filter, nil, nil)
 	require.NoError(t, err)
 
 	p, ok := provider.(*processLogConfigProvider)

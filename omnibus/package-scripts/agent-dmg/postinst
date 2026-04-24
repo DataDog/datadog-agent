@@ -43,17 +43,17 @@ for logged_user in $(who | awk '{print $1}' | sort -u); do
 done
 
 # Wait for GUI processes to actually terminate (with 10 second timeout to match ExitTimeOut)
-max_wait=100  # 100 * 0.1s = 10 seconds
+max_wait=10  # 10 * 1s = 10 seconds
 count=0
 while [ $count -lt $max_wait ]; do
     if ! pgrep -f "Datadog Agent.app/Contents/MacOS/gui" > /dev/null 2>&1; then
         echo "GUI app processes terminated"
         break
     fi
-    sleep 0.1
+    sleep 1
     count=$((count + 1))
 done
-if [ $count -ge $max_wait ]; then
+if pgrep -f "Datadog Agent.app/Contents/MacOS/gui" > /dev/null 2>&1; then
     echo "Warning: GUI processes still running after 10s, proceeding anyway"
 fi
 
@@ -116,6 +116,7 @@ if [ -f "$INSTALL_ENV_FILE" ]; then
     dd_api_key=$(grep '^DD_API_KEY=' "$INSTALL_ENV_FILE" | cut -d= -f2-)
     dd_site=$(grep '^DD_SITE=' "$INSTALL_ENV_FILE" | cut -d= -f2-)
     dd_gui_menu=$(grep '^DD_GUI_APP_MENU_ENABLED=' "$INSTALL_ENV_FILE" | cut -d= -f2-)
+    dd_infra_mode=$(grep '^DD_INFRASTRUCTURE_MODE=' "$INSTALL_ENV_FILE" | cut -d= -f2-)
     dd_install_method=$(grep '^DD_INSTALL_METHOD=' "$INSTALL_ENV_FILE" | cut -d= -f2-)
     dd_install_version=$(grep '^DD_INSTALL_SCRIPT_VERSION=' "$INSTALL_ENV_FILE" | cut -d= -f2-)
 
@@ -124,6 +125,15 @@ if [ -f "$INSTALL_ENV_FILE" ]; then
     fi
     if [ -n "$dd_site" ]; then
         sed -i '' "s/^#* *site:.*/site: $dd_site/" "$CONF_DIR/datadog.yaml"
+    fi
+    if [ -n "$dd_infra_mode" ]; then
+        if grep -Eq '^#* *infrastructure_mode:' "$CONF_DIR/datadog.yaml"; then
+            sed -i '' "s/^#* *infrastructure_mode:.*/infrastructure_mode: $dd_infra_mode/" "$CONF_DIR/datadog.yaml"
+        else
+            # The restored datadog.yaml predates the infrastructure_mode entry
+            # (older Agent versions had no example line to replace).
+            printf '\ninfrastructure_mode: %s\n' "$dd_infra_mode" >> "$CONF_DIR/datadog.yaml"
+        fi
     fi
     if [ -n "$dd_install_method" ]; then
         install_method="$dd_install_method"

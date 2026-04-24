@@ -11,10 +11,11 @@ import (
 	"context"
 
 	kubeactions "github.com/DataDog/agent-payload/v5/kubeactions"
+	"k8s.io/client-go/kubernetes"
+
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/kubeactions/executors"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"k8s.io/client-go/kubernetes"
 )
 
 // Setup initializes the kubeactions subsystem with all executors registered
@@ -57,8 +58,9 @@ type executorAdapter struct {
 func (a *executorAdapter) Execute(ctx context.Context, action *kubeactions.KubeAction) ExecutionResult {
 	result := a.exec.Execute(ctx, action)
 	return ExecutionResult{
-		Status:  result.Status,
-		Message: result.Message,
+		Status:   result.Status,
+		Message:  result.Message,
+		Payloads: result.Payloads,
 	}
 }
 
@@ -75,6 +77,14 @@ func registerExecutors(registry *ExecutorRegistry, clientset kubernetes.Interfac
 	// Register patch_deployment executor
 	registry.Register("patch_deployment", &executorAdapter{exec: executors.NewPatchDeploymentExecutor(clientset)})
 	log.Infof("Registered executor for action type: patch_deployment")
+
+	// Register rollback_deployment executor
+	registry.Register("rollback_deployment", &executorAdapter{exec: executors.NewRollbackDeploymentExecutor(clientset)})
+	log.Infof("Registered executor for action type: rollback_deployment")
+
+	// Register get_resource executor
+	registry.Register("get_resource", &executorAdapter{exec: executors.NewGetResourceExecutor(clientset)})
+	log.Infof("Registered executor for action type: get_resource")
 
 	// TODO: Add more executors here as they are implemented:
 	// registry.Register("drain_node", &executorAdapter{exec: executors.NewDrainNodeExecutor(clientset)})

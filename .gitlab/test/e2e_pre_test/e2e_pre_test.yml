@@ -7,7 +7,8 @@ e2e_pre_test:
   extends: .new_e2e_template
   needs:
     - go_e2e_deps
-    - go_e2e_test_binaries
+    - job: go_e2e_test_binaries
+      artifacts: false
     - go_tools_deps
     - job: publish_fakeintake
       optional: true

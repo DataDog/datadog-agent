@@ -1,36 +1,24 @@
 # GPU metric specification for the GPU corecheck.
 # Schema:
 # - metric_prefix: string prepended to all emitted metric names
-# - tagsets.<tagset_name>: represents a set of tags that are common to a group of metrics.
-#   - tags: list of tag keys attached to that tagset
 # - metrics.<metric_name>:
-#   - tagsets: list of tagset names declared under root tagsets
-#   - custom_tags (optional): additional dynamic tag keys (e.g., memory_location for errors.ecc.corrected.total)
+#   - metadata:
+#       - metric_type: Datadog metric type used for metadata.csv generation
+#       - unit (optional): unit string, optionally with per-unit suffix like byte/second
+#       - description: metric description used for metadata.csv generation
+#   - tagsets: list of tagset names declared in tags.yaml
+#   - custom_tags (optional): additional dynamic tag names declared in tags.yaml (e.g., memory_location)
+#   - workload_only (optional): true when the metric is only guaranteed while a workload is active
 #   - support:
 #       - unsupported_architectures: [<architecture_name>, ...] (the list of architectures that do not support the metric)
 #       - device_modes: {mig: bool, physical: bool, vgpu: bool} (a map describing whether each device mode supports the metric)
 metric_prefix: gpu
-tagsets:
-  container:
-    tags:
-      - kube_container_name
-  device:
-    tags:
-      - gpu_uuid
-      - gpu_device
-      - gpu_vendor
-      - gpu_driver_version
-      - gpu_virtualization_mode
-      - gpu_architecture
-      - gpu_slicing_mode
-      - gpu_parent_uuid
-      - gpu_type
-  process:
-    tags:
-      - pid
-      - nspid
 metrics:
   clock.speed.graphics:
+    metadata:
+      metric_type: gauge
+      unit: megahertz
+      description: Current clock speed for the graphics domain
     tagsets:
       - device
     support:
@@ -40,6 +28,10 @@ metrics:
         physical: true
         vgpu: true
   clock.speed.graphics.max:
+    metadata:
+      metric_type: gauge
+      unit: megahertz
+      description: Maximum clock speed for the graphics domain
     tagsets:
       - device
     support:
@@ -49,6 +41,10 @@ metrics:
         physical: true
         vgpu: false
   clock.speed.memory:
+    metadata:
+      metric_type: gauge
+      unit: megahertz
+      description: Current clock speed for the memory
     tagsets:
       - device
     support:
@@ -58,6 +54,10 @@ metrics:
         physical: true
         vgpu: true
   clock.speed.memory.max:
+    metadata:
+      metric_type: gauge
+      unit: megahertz
+      description: Maximum clock speed for the memory
     tagsets:
       - device
     support:
@@ -67,6 +67,10 @@ metrics:
         physical: true
         vgpu: false
   clock.speed.sm:
+    metadata:
+      metric_type: gauge
+      unit: megahertz
+      description: Current clock speed for the Streaming Multiprocessor
     tagsets:
       - device
     support:
@@ -76,6 +80,10 @@ metrics:
         physical: true
         vgpu: true
   clock.speed.sm.max:
+    metadata:
+      metric_type: gauge
+      unit: megahertz
+      description: Maximum clock speed for the Streaming Multiprocessor
     tagsets:
       - device
     support:
@@ -85,6 +93,10 @@ metrics:
         physical: true
         vgpu: false
   clock.speed.video:
+    metadata:
+      metric_type: gauge
+      unit: megahertz
+      description: Current clock speed for the video encoder/decoder
     tagsets:
       - device
     support:
@@ -95,6 +107,10 @@ metrics:
         physical: true
         vgpu: true
   clock.speed.video.max:
+    metadata:
+      metric_type: gauge
+      unit: megahertz
+      description: Maximum clock speed for the video encoder/decoder
     tagsets:
       - device
     support:
@@ -105,8 +121,13 @@ metrics:
         physical: true
         vgpu: false
   clock.throttle_reasons.applications_clocks_setting:
+    metadata:
+      metric_type: gauge
+      description: GPU clocks that are throttled due to application settings
     tagsets:
       - device
+    validator:
+      values: [ 0, 1 ]
     support:
       unsupported_architectures:
         - fermi
@@ -115,8 +136,13 @@ metrics:
         physical: true
         vgpu: false
   clock.throttle_reasons.display_clock_setting:
+    metadata:
+      metric_type: gauge
+      description: GPU clocks that are throttled due to display clock settings
     tagsets:
       - device
+    validator:
+      values: [ 0, 1 ]
     support:
       unsupported_architectures:
         - fermi
@@ -125,8 +151,13 @@ metrics:
         physical: true
         vgpu: false
   clock.throttle_reasons.gpu_idle:
+    metadata:
+      metric_type: gauge
+      description: GPU clocks that are throttled due to the GPU being idle
     tagsets:
       - device
+    validator:
+      values: [ 0, 1 ]
     support:
       unsupported_architectures:
         - fermi
@@ -135,8 +166,13 @@ metrics:
         physical: true
         vgpu: false
   clock.throttle_reasons.none:
+    metadata:
+      metric_type: gauge
+      description: GPU clocks that are not throttled
     tagsets:
       - device
+    validator:
+      values: [ 0, 1 ]
     support:
       unsupported_architectures:
         - fermi
@@ -145,8 +181,13 @@ metrics:
         physical: true
         vgpu: false
   clock.throttle_reasons.sw_power_cap:
+    metadata:
+      metric_type: gauge
+      description: GPU clocks that are throttled to avoid exceeding power limits
     tagsets:
       - device
+    validator:
+      values: [ 0, 1 ]
     support:
       unsupported_architectures:
         - fermi
@@ -155,8 +196,13 @@ metrics:
         physical: true
         vgpu: false
   clock.throttle_reasons.sw_thermal_slowdown:
+    metadata:
+      metric_type: gauge
+      description: GPU clocks that are throttled to avoid exceeding temperature limits
     tagsets:
       - device
+    validator:
+      values: [ 0, 1 ]
     support:
       unsupported_architectures:
         - fermi
@@ -165,8 +211,13 @@ metrics:
         physical: true
         vgpu: false
   clock.throttle_reasons.sync_boost:
+    metadata:
+      metric_type: gauge
+      description: GPU clocks that are throttled to match clock speed of another GPU in the current sync boost group
     tagsets:
       - device
+    validator:
+      values: [ 0, 1 ]
     support:
       unsupported_architectures:
         - fermi
@@ -175,10 +226,18 @@ metrics:
         physical: true
         vgpu: false
   core.limit:
+    metadata:
+      metric_type: gauge
+      unit: core
+      description: Number of GPU cores that the process/container/device has available
     tagsets:
       - device
       - process
       - container
+    validator:
+      range:
+        min: 0
+        max: 1000000
     support:
       unsupported_architectures: []
       device_modes:
@@ -186,6 +245,10 @@ metrics:
         physical: true
         vgpu: true
   decoder_active:
+    metadata:
+      metric_type: gauge
+      unit: percent
+      description: Percentage of time the decoder was active
     tagsets:
       - device
     support:
@@ -196,8 +259,13 @@ metrics:
         physical: true
         vgpu: false
   device.total:
+    metadata:
+      metric_type: gauge
+      description: Number of GPU devices found in the host
     tagsets:
       - device
+    validator:
+      values: [ 1 ]
     support:
       unsupported_architectures: []
       device_modes:
@@ -205,8 +273,13 @@ metrics:
         physical: true
         vgpu: true
   device.unhealthy:
+    metadata:
+      metric_type: gauge
+      description: Whether the GPU device is unhealthy
     tagsets:
       - device
+    validator:
+      values: [ 0, 1 ]
     support:
       unsupported_architectures: []
       device_modes:
@@ -214,6 +287,10 @@ metrics:
         physical: true
         vgpu: true
   dram_active:
+    metadata:
+      metric_type: gauge
+      unit: percent
+      description: Percentage of time the DRAM was active
     tagsets:
       - device
     support:
@@ -224,6 +301,10 @@ metrics:
         physical: true
         vgpu: true
   encoder_active:
+    metadata:
+      metric_type: gauge
+      unit: percent
+      description: Percentage of time the encoder was active
     tagsets:
       - device
     support:
@@ -234,6 +315,14 @@ metrics:
         physical: true
         vgpu: false
   errors.ecc.corrected.total:
+    metadata:
+      metric_type: gauge
+      description: >-
+        Corrected ECC (Error Correcting Code) errors indicate GPU memory
+        corruption that was detected and successfully corrected by the hardware.
+        While these errors do not immediately impact application correctness,
+        recurring corrected errors can be an early sign of degrading memory or
+        underlying hardware issues.
     tagsets:
       - device
     custom_tags:
@@ -245,6 +334,13 @@ metrics:
         physical: true
         vgpu: true
   errors.ecc.uncorrected.total:
+    metadata:
+      metric_type: gauge
+      description: >-
+        Uncorrectable ECC (Error Correcting Code) errors indicate GPU memory
+        corruption that could not be automatically fixed. These errors can lead
+        to data corruption, application crashes, or incorrect computation
+        results.
     tagsets:
       - device
     custom_tags:
@@ -256,6 +352,9 @@ metrics:
         physical: true
         vgpu: true
   ecc.repair_pending.channel:
+    metadata:
+      metric_type: gauge
+      description: Whether a channel repair is pending due to ECC errors
     tagsets:
       - device
     support:
@@ -268,6 +367,9 @@ metrics:
         physical: true
         vgpu: false
   ecc.repair_pending.tpc:
+    metadata:
+      metric_type: gauge
+      description: Whether a TPC repair is pending due to ECC errors
     tagsets:
       - device
     support:
@@ -280,6 +382,13 @@ metrics:
         physical: true
         vgpu: false
   errors.xid.total:
+    metadata:
+      metric_type: gauge
+      description: >-
+        XID errors are NVIDIA driver error codes that indicate GPU hardware or
+        software issues like thermal throttling to hardware defects.
+        Investigate these errors immediately as they often precede total GPU
+        failures.
     tagsets:
       - device
     custom_tags:
@@ -292,6 +401,10 @@ metrics:
         physical: true
         vgpu: false
   fan_speed:
+    metadata:
+      metric_type: gauge
+      unit: percent
+      description: Configured fan speed as a percentage of its maximum
     tagsets:
       - device
     support:
@@ -301,6 +414,10 @@ metrics:
         physical: true
         vgpu: false
   fp16_active:
+    metadata:
+      metric_type: gauge
+      unit: percent
+      description: Percentage of the time that the 16-bit floating point calculation engine was active. Only for Hopper and newer GPUs
     tagsets:
       - device
     support:
@@ -318,6 +435,10 @@ metrics:
         physical: true
         vgpu: false
   fp32_active:
+    metadata:
+      metric_type: gauge
+      unit: percent
+      description: Percentage of the time that the 32-bit floating point calculation engine was active. Only for Hopper and newer GPUs
     tagsets:
       - device
     support:
@@ -335,6 +456,10 @@ metrics:
         physical: true
         vgpu: false
   fp64_active:
+    metadata:
+      metric_type: gauge
+      unit: percent
+      description: Percentage of the time that the 64-bit floating point calculation engine was active. Only for Hopper and newer GPUs
     tagsets:
       - device
     support:
@@ -352,6 +477,10 @@ metrics:
         physical: true
         vgpu: false
   gr_engine_active:
+    metadata:
+      metric_type: gauge
+      unit: percent
+      description: Percentage of time that the graphics engine was active
     tagsets:
       - device
     support:
@@ -362,6 +491,10 @@ metrics:
         physical: true
         vgpu: true
   integer_active:
+    metadata:
+      metric_type: gauge
+      unit: percent
+      description: Percentage of the time that the integer calculation engine was active. Only for Hopper and newer GPUs
     tagsets:
       - device
     support:
@@ -379,6 +512,10 @@ metrics:
         physical: true
         vgpu: false
   memory.bar1.free:
+    metadata:
+      metric_type: gauge
+      unit: byte
+      description: Unallocated BAR1 memory (in bytes)
     tagsets:
       - device
     support:
@@ -389,6 +526,10 @@ metrics:
         physical: true
         vgpu: true
   memory.bar1.total:
+    metadata:
+      metric_type: gauge
+      unit: byte
+      description: Total BAR1 memory (in bytes).
     tagsets:
       - device
     support:
@@ -399,6 +540,10 @@ metrics:
         physical: true
         vgpu: true
   memory.bar1.used:
+    metadata:
+      metric_type: gauge
+      unit: byte
+      description: Allocated used memory (in bytes)
     tagsets:
       - device
     support:
@@ -409,6 +554,10 @@ metrics:
         physical: true
         vgpu: true
   memory.free:
+    metadata:
+      metric_type: gauge
+      unit: byte
+      description: Unallocated device memory (in bytes).
     tagsets:
       - device
     support:
@@ -421,10 +570,18 @@ metrics:
         physical: true
         vgpu: true
   memory.limit:
+    metadata:
+      metric_type: gauge
+      unit: byte
+      description: The maximum amount of memory a process/container/device could allocate
     tagsets:
       - device
       - process
       - container
+    validator:
+      range:
+        min: 0
+        max: 1000000000000 # 1 TB (bytes)
     support:
       unsupported_architectures: []
       device_modes:
@@ -432,6 +589,10 @@ metrics:
         physical: true
         vgpu: true
   memory.reserved:
+    metadata:
+      metric_type: gauge
+      unit: byte
+      description: Device memory (in bytes) reserved for system use (driver or firmware)..
     tagsets:
       - device
     support:
@@ -444,6 +605,10 @@ metrics:
         physical: true
         vgpu: true
   memory.temperature:
+    metadata:
+      metric_type: gauge
+      unit: degree celsius
+      description: Temperature of the memory chip
     tagsets:
       - device
     support:
@@ -460,6 +625,9 @@ metrics:
         physical: true
         vgpu: false
   nvlink.count.active:
+    metadata:
+      metric_type: gauge
+      description: Number of active nvlinks for the device
     tagsets:
       - device
     support:
@@ -472,6 +640,9 @@ metrics:
         physical: true
         vgpu: true
   nvlink.count.inactive:
+    metadata:
+      metric_type: gauge
+      description: Number of inactive nvlinks for the device
     tagsets:
       - device
     support:
@@ -484,6 +655,9 @@ metrics:
         physical: true
         vgpu: true
   nvlink.count.total:
+    metadata:
+      metric_type: gauge
+      description: Number of total nvlinks for the device
     tagsets:
       - device
     support:
@@ -496,6 +670,9 @@ metrics:
         physical: true
         vgpu: true
   nvlink.ber.effective:
+    metadata:
+      metric_type: gauge
+      description: Effective bit error rate for all NVLINK links
     tagsets:
       - device
     support:
@@ -514,6 +691,9 @@ metrics:
         physical: true
         vgpu: false
   nvlink.ber.symbol:
+    metadata:
+      metric_type: gauge
+      description: Symbol bit error rate for all NVLINK links
     tagsets:
       - device
     support:
@@ -532,8 +712,15 @@ metrics:
         physical: true
         vgpu: false
   nvlink.errors.crc.data:
+    metadata:
+      metric_type: gauge
+      description: NVLink data CRC error counter total for all links
     tagsets:
       - device
+    validator:
+      range:
+        min: 0
+        max: 1000000000000000
     support:
       unsupported_architectures:
         - fermi
@@ -545,8 +732,15 @@ metrics:
         physical: true
         vgpu: false
   nvlink.errors.crc.flit:
+    metadata:
+      metric_type: gauge
+      description: NVLink flow control CRC error counter total for all links
     tagsets:
       - device
+    validator:
+      range:
+        min: 0
+        max: 1000000000000000
     support:
       unsupported_architectures:
         - fermi
@@ -558,6 +752,9 @@ metrics:
         physical: true
         vgpu: false
   nvlink.errors.buffer.overrun:
+    metadata:
+      metric_type: gauge
+      description: NVLink buffer overrun error counter total for all links
     tagsets:
       - device
     support:
@@ -576,8 +773,15 @@ metrics:
         physical: true
         vgpu: false
   nvlink.errors.ecc:
+    metadata:
+      metric_type: gauge
+      description: NVLink ECC error counter total for all links
     tagsets:
       - device
+    validator:
+      range:
+        min: 0
+        max: 1000000000000000
     support:
       unsupported_architectures:
         - fermi
@@ -589,6 +793,9 @@ metrics:
         physical: true
         vgpu: false
   nvlink.errors.effective:
+    metadata:
+      metric_type: gauge
+      description: NVLink effective error counter total for all links
     tagsets:
       - device
     support:
@@ -607,6 +814,9 @@ metrics:
         physical: true
         vgpu: false
   nvlink.errors.local.link.integrity:
+    metadata:
+      metric_type: gauge
+      description: NVLink local link integrity error counter total for all links
     tagsets:
       - device
     support:
@@ -625,6 +835,9 @@ metrics:
         physical: true
         vgpu: false
   nvlink.errors.malformed.packet:
+    metadata:
+      metric_type: gauge
+      description: NVLink malformed packet error counter total for all links
     tagsets:
       - device
     support:
@@ -643,8 +856,15 @@ metrics:
         physical: true
         vgpu: false
   nvlink.errors.recovery:
+    metadata:
+      metric_type: gauge
+      description: NVLink recovery error counter total for all links
     tagsets:
       - device
+    validator:
+      range:
+        min: 0
+        max: 1000000000000000
     support:
       unsupported_architectures:
         - fermi
@@ -656,8 +876,15 @@ metrics:
         physical: true
         vgpu: false
   nvlink.errors.replay:
+    metadata:
+      metric_type: gauge
+      description: NVLink replay error counter total for all links
     tagsets:
       - device
+    validator:
+      range:
+        min: 0
+        max: 1000000000000000
     support:
       unsupported_architectures:
         - fermi
@@ -669,6 +896,9 @@ metrics:
         physical: true
         vgpu: false
   nvlink.errors.rx:
+    metadata:
+      metric_type: gauge
+      description: NVLink receive error counter total for all links
     tagsets:
       - device
     support:
@@ -687,6 +917,9 @@ metrics:
         physical: true
         vgpu: false
   nvlink.errors.rx.general:
+    metadata:
+      metric_type: gauge
+      description: NVLink general receive error counter total for all links
     tagsets:
       - device
     support:
@@ -705,6 +938,9 @@ metrics:
         physical: true
         vgpu: false
   nvlink.errors.rx.remote:
+    metadata:
+      metric_type: gauge
+      description: NVLink remote receive error counter total for all links
     tagsets:
       - device
     support:
@@ -723,6 +959,9 @@ metrics:
         physical: true
         vgpu: false
   nvlink.errors.symbol:
+    metadata:
+      metric_type: gauge
+      description: NVLink symbol error counter total for all links
     tagsets:
       - device
     support:
@@ -741,6 +980,9 @@ metrics:
         physical: true
         vgpu: false
   nvlink.nvswitch_connected:
+    metadata:
+      metric_type: gauge
+      description: Number of NVLinks connected to the NVSwitch
     tagsets:
       - device
     support:
@@ -753,9 +995,224 @@ metrics:
         mig: false
         physical: true
         vgpu: false
-  nvlink.speed:
+  nvlink.plr.codes_loss:
+    metadata:
+      metric_type: gauge
+      description: NVLink PLR codes loss counter for the port
     tagsets:
       - device
+    custom_tags:
+      - nvlink_port
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+        - ampere
+        - ada
+        - hopper
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  nvlink.plr.rx.code_err:
+    metadata:
+      metric_type: gauge
+      description: NVLink PLR RX code error counter for the port
+    tagsets:
+      - device
+    custom_tags:
+      - nvlink_port
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+        - ampere
+        - ada
+        - hopper
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  nvlink.plr.rx.codes:
+    metadata:
+      metric_type: gauge
+      description: NVLink PLR RX codes counter for the port
+    tagsets:
+      - device
+    custom_tags:
+      - nvlink_port
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+        - ampere
+        - ada
+        - hopper
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  nvlink.plr.rx.uncorrectable_code:
+    metadata:
+      metric_type: gauge
+      description: NVLink PLR RX uncorrectable code counter for the port
+    tagsets:
+      - device
+    custom_tags:
+      - nvlink_port
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+        - ampere
+        - ada
+        - hopper
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  nvlink.plr.tx.sync_events:
+    metadata:
+      metric_type: gauge
+      description: NVLink PLR TX sync events counter for the port
+    tagsets:
+      - device
+    custom_tags:
+      - nvlink_port
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+        - ampere
+        - ada
+        - hopper
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  nvlink.plr.tx.codes:
+    metadata:
+      metric_type: gauge
+      description: NVLink PLR TX codes counter for the port
+    tagsets:
+      - device
+    custom_tags:
+      - nvlink_port
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+        - ampere
+        - ada
+        - hopper
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  nvlink.plr.tx.retry_codes:
+    metadata:
+      metric_type: gauge
+      description: NVLink PLR TX retry codes counter for the port
+    tagsets:
+      - device
+    custom_tags:
+      - nvlink_port
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+        - ampere
+        - ada
+        - hopper
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  nvlink.plr.tx.retry_events:
+    metadata:
+      metric_type: gauge
+      description: NVLink PLR TX retry events counter for the port
+    tagsets:
+      - device
+    custom_tags:
+      - nvlink_port
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+        - ampere
+        - ada
+        - hopper
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  nvlink.plr.tx.retry_events_within_t_sec_max:
+    metadata:
+      metric_type: gauge
+      description: Maximum NVLink PLR TX retry events within the configured time window for the port
+    tagsets:
+      - device
+    custom_tags:
+      - nvlink_port
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+        - ampere
+        - ada
+        - hopper
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  nvlink.speed:
+    metadata:
+      metric_type: gauge
+      unit: megabit/second
+      description: common speed of all NVLINK links
+    tagsets:
+      - device
+    validator:
+      range:
+        min: 0
+        max: 5000000000000 # 5 TB/s (bytes/second)
     support:
       unsupported_architectures:
         - fermi
@@ -767,6 +1224,9 @@ metrics:
         physical: true
         vgpu: false
   nvlink.recovery.events.failed:
+    metadata:
+      metric_type: gauge
+      description: Failed NVLink recovery events total for all links
     tagsets:
       - device
     support:
@@ -785,6 +1245,9 @@ metrics:
         physical: true
         vgpu: false
   nvlink.recovery.events.successful:
+    metadata:
+      metric_type: gauge
+      description: Successful NVLink recovery events total for all links
     tagsets:
       - device
     support:
@@ -803,6 +1266,9 @@ metrics:
         physical: true
         vgpu: false
   nvlink.rx.packets:
+    metadata:
+      metric_type: gauge
+      description: NVLink received packet counter total for all links
     tagsets:
       - device
     support:
@@ -821,8 +1287,16 @@ metrics:
         physical: true
         vgpu: false
   nvlink.throughput.data.rx:
+    metadata:
+      metric_type: gauge
+      unit: kilobyte/second
+      description: Total RX data throughput of all NVLINK links
     tagsets:
       - device
+    validator:
+      range:
+        min: 0
+        max: 3000000000000 # 3 TB/s (bytes/second)
     support:
       unsupported_architectures:
         - fermi
@@ -834,8 +1308,16 @@ metrics:
         physical: true
         vgpu: false
   nvlink.throughput.data.tx:
+    metadata:
+      metric_type: gauge
+      unit: kilobyte/second
+      description: Total TX data throughput of all NVLINK links
     tagsets:
       - device
+    validator:
+      range:
+        min: 0
+        max: 3000000000000 # 3 TB/s (bytes/second)
     support:
       unsupported_architectures:
         - fermi
@@ -847,8 +1329,16 @@ metrics:
         physical: true
         vgpu: false
   nvlink.throughput.raw.rx:
+    metadata:
+      metric_type: gauge
+      unit: kilobyte/second
+      description: Total RX of all NVLINK links
     tagsets:
       - device
+    validator:
+      range:
+        min: 0
+        max: 3000000000000 # 3 TB/s (bytes/second)
     support:
       unsupported_architectures:
         - fermi
@@ -860,8 +1350,16 @@ metrics:
         physical: true
         vgpu: false
   nvlink.throughput.raw.tx:
+    metadata:
+      metric_type: gauge
+      unit: kilobyte/second
+      description: Total TX of all NVLINK links
     tagsets:
       - device
+    validator:
+      range:
+        min: 0
+        max: 3000000000000 # 3 TB/s (bytes/second)
     support:
       unsupported_architectures:
         - fermi
@@ -873,6 +1371,9 @@ metrics:
         physical: true
         vgpu: false
   nvlink.tx.discards:
+    metadata:
+      metric_type: gauge
+      description: NVLink transmitted discard counter total for all links
     tagsets:
       - device
     support:
@@ -891,6 +1392,9 @@ metrics:
         physical: true
         vgpu: false
   nvlink.tx.packets:
+    metadata:
+      metric_type: gauge
+      description: NVLink transmitted packet counter total for all links
     tagsets:
       - device
     support:
@@ -909,6 +1413,9 @@ metrics:
         physical: true
         vgpu: false
   c2c.errors.interrupt:
+    metadata:
+      metric_type: gauge
+      description: C2C interrupt error counter total
     tagsets:
       - device
     support:
@@ -928,6 +1435,9 @@ metrics:
         physical: true
         vgpu: false
   c2c.errors.replay:
+    metadata:
+      metric_type: gauge
+      description: C2C replay error counter total
     tagsets:
       - device
     support:
@@ -947,6 +1457,9 @@ metrics:
         physical: true
         vgpu: false
   c2c.errors.replay.b2b:
+    metadata:
+      metric_type: gauge
+      description: C2C back-to-back replay error counter total
     tagsets:
       - device
     support:
@@ -966,8 +1479,15 @@ metrics:
         physical: true
         vgpu: false
   pci.replay_counter:
+    metadata:
+      metric_type: gauge
+      description: PCI replay counter
     tagsets:
       - device
+    validator:
+      range:
+        min: 0
+        max: 1000000000000000
     support:
       unsupported_architectures:
         - fermi
@@ -976,8 +1496,16 @@ metrics:
         physical: true
         vgpu: false
   pci.throughput.rx:
+    metadata:
+      metric_type: gauge
+      unit: byte/second
+      description: Bytes received through PCI to the GPU device per second
     tagsets:
       - device
+    validator:
+      range:
+        min: 0
+        max: 300000000000 # 300 GB/s (bytes/second)
     support:
       unsupported_architectures:
         - fermi
@@ -986,8 +1514,16 @@ metrics:
         physical: true
         vgpu: false
   pci.throughput.tx:
+    metadata:
+      metric_type: gauge
+      unit: byte/second
+      description: Bytes transmitted through PCI from the GPU device per second
     tagsets:
       - device
+    validator:
+      range:
+        min: 0
+        max: 300000000000 # 300 GB/s (bytes/second)
     support:
       unsupported_architectures:
         - fermi
@@ -996,6 +1532,9 @@ metrics:
         physical: true
         vgpu: false
   performance_state:
+    metadata:
+      metric_type: gauge
+      description: Returns the current performance state of the device
     tagsets:
       - device
     support:
@@ -1005,6 +1544,10 @@ metrics:
         physical: true
         vgpu: true
   power.management_limit:
+    metadata:
+      metric_type: gauge
+      unit: milliwatt
+      description: Upper boundary for the device power draw.
     tagsets:
       - device
     support:
@@ -1014,6 +1557,13 @@ metrics:
         physical: true
         vgpu: false
   power.usage:
+    metadata:
+      metric_type: gauge
+      unit: milliwatt
+      description: >-
+        Power usage for the GPU device. On GA100 and older architectures this
+        is the instantaneous power at that moment, in newer ones it represents
+        the average power draw over one second
     tagsets:
       - device
     support:
@@ -1023,10 +1573,19 @@ metrics:
         physical: true
         vgpu: false
   process.core.usage:
+    metadata:
+      metric_type: gauge
+      unit: core
+      description: Average number of GPU cores that a process was using in the interval. Only emitted when processes are active.
+    workload_only: true
     tagsets:
       - device
       - process
       - container
+    validator:
+      range:
+        min: 0
+        max: 1000000
     support:
       unsupported_architectures: []
       device_modes:
@@ -1034,6 +1593,11 @@ metrics:
         physical: true
         vgpu: true
   process.decoder_active:
+    metadata:
+      metric_type: gauge
+      unit: percent
+      description: Percentage of time the decoder was active for a specific process
+    workload_only: true
     tagsets:
       - device
       - process
@@ -1046,6 +1610,11 @@ metrics:
         physical: true
         vgpu: true
   process.dram_active:
+    metadata:
+      metric_type: gauge
+      unit: percent
+      description: Percentage of time the DRAM was active for a specific process
+    workload_only: true
     tagsets:
       - device
       - process
@@ -1058,6 +1627,11 @@ metrics:
         physical: true
         vgpu: true
   process.encoder_active:
+    metadata:
+      metric_type: gauge
+      unit: percent
+      description: Percentage of time the encoder was active for a specific process
+    workload_only: true
     tagsets:
       - device
       - process
@@ -1070,10 +1644,19 @@ metrics:
         physical: true
         vgpu: true
   process.memory.usage:
+    metadata:
+      metric_type: gauge
+      unit: byte
+      description: The memory used by this process at the point the metric was given. Only emitted when processes are active.
+    workload_only: true
     tagsets:
       - device
       - process
       - container
+    validator:
+      range:
+        min: 0
+        max: 1000000000000 # 1 TB (bytes)
     support:
       unsupported_architectures: []
       device_modes:
@@ -1081,10 +1664,19 @@ metrics:
         physical: true
         vgpu: true
   process.sm_active:
+    metadata:
+      metric_type: gauge
+      unit: percent
+      description: Percentage of time the streaming multiprocessor was active for a specific process
+    workload_only: true
     tagsets:
       - device
       - process
       - container
+    validator:
+      range:
+        min: 0
+        max: 100
     support:
       unsupported_architectures: []
       device_modes:
@@ -1092,8 +1684,15 @@ metrics:
         physical: true
         vgpu: true
   remapped_rows.correctable:
+    metadata:
+      metric_type: gauge
+      description: Number of rows remapped due to correctable errors
     tagsets:
       - device
+    validator:
+      range:
+        min: 0
+        max: 1000000000000000
     support:
       unsupported_architectures:
         - fermi
@@ -1107,8 +1706,13 @@ metrics:
         physical: true
         vgpu: false
   remapped_rows.failed:
+    metadata:
+      metric_type: gauge
+      description: Number of rows that failed remapping
     tagsets:
       - device
+    validator:
+      values: [ 0, 1 ]
     support:
       unsupported_architectures:
         - fermi
@@ -1122,8 +1726,13 @@ metrics:
         physical: true
         vgpu: false
   remapped_rows.pending:
+    metadata:
+      metric_type: gauge
+      description: Number of rows pending remapping
     tagsets:
       - device
+    validator:
+      values: [ 0, 1 ]
     support:
       unsupported_architectures:
         - fermi
@@ -1137,8 +1746,15 @@ metrics:
         physical: true
         vgpu: false
   remapped_rows.uncorrectable:
+    metadata:
+      metric_type: gauge
+      description: Number of rows remapped due to uncorrectable errors
     tagsets:
       - device
+    validator:
+      range:
+        min: 0
+        max: 1000000000000000
     support:
       unsupported_architectures:
         - fermi
@@ -1152,6 +1768,10 @@ metrics:
         physical: true
         vgpu: false
   slowdown_temperature:
+    metadata:
+      metric_type: gauge
+      unit: degree celsius
+      description: Slowdown temperature
     tagsets:
       - device
     support:
@@ -1162,8 +1782,16 @@ metrics:
         physical: true
         vgpu: false
   sm_active:
+    metadata:
+      metric_type: gauge
+      unit: percent
+      description: Percentage of time the streaming multiprocessor was active
     tagsets:
       - device
+    validator:
+      range:
+        min: 0
+        max: 100
     support:
       unsupported_architectures: []
       device_modes:
@@ -1171,6 +1799,10 @@ metrics:
         physical: true
         vgpu: true
   sm_occupancy:
+    metadata:
+      metric_type: gauge
+      unit: percent
+      description: Percentage of the Streaming Multiprocessors that were active in the interval
     tagsets:
       - device
     support:
@@ -1188,6 +1820,10 @@ metrics:
         physical: true
         vgpu: false
   sm_utilization:
+    metadata:
+      metric_type: gauge
+      unit: percent
+      description: Percentage of the Streaming Multiprocessors that were in use in the interval
     tagsets:
       - device
     support:
@@ -1205,8 +1841,16 @@ metrics:
         physical: true
         vgpu: false
   temperature:
+    metadata:
+      metric_type: gauge
+      unit: degree celsius
+      description: Temperature of the GPU device
     tagsets:
       - device
+    validator:
+      range:
+        min: 0
+        max: 100
     support:
       unsupported_architectures: []
       device_modes:
@@ -1214,6 +1858,10 @@ metrics:
         physical: true
         vgpu: false
   tensor_active:
+    metadata:
+      metric_type: gauge
+      unit: percent
+      description: Percentage of the time that the tensor calculation engine was active. Only for Hopper and newer GPUs
     tagsets:
       - device
     support:
@@ -1231,6 +1879,10 @@ metrics:
         physical: true
         vgpu: false
   total_energy_consumption:
+    metadata:
+      metric_type: gauge
+      unit: millijoule
+      description: Total energy consumed by the device since the driver was reloaded
     tagsets:
       - device
     support:

@@ -196,6 +196,7 @@ modules:
   pkg/config/render_config:
     should_tag: false
     should_test_condition: never
+  pkg/config/schema: default
   pkg/config/setup:
     used_by_otel: true
   pkg/config/structure:
@@ -225,8 +226,6 @@ modules:
   pkg/logs/metrics:
     used_by_otel: true
   pkg/logs/processor:
-    used_by_otel: true
-  pkg/logs/sender:
     used_by_otel: true
   pkg/logs/sources:
     used_by_otel: true
@@ -281,8 +280,6 @@ modules:
   pkg/tagger/types:
     used_by_otel: true
   pkg/tagset:
-    used_by_otel: true
-  pkg/telemetry:
     used_by_otel: true
   pkg/template:
     should_replace_internal_modules: false

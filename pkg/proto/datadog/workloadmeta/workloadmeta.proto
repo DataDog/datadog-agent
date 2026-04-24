@@ -165,6 +165,7 @@ message KubernetesPodOwner {
   string kind = 1;
   string name = 2;
   string id = 3;
+  string group = 4;
 }
 
 message OrchestratorContainer {
@@ -284,4 +285,9 @@ message WorkloadmetaEvent {
 
 message WorkloadmetaStreamResponse {
   repeated WorkloadmetaEvent events = 1;
+  // When true, this message is the last chunk of the initial full-state
+  // snapshot sent after a (re)connection. Clients that need to resync should
+  // accumulate events until they receive a response with this flag set, then
+  // apply the complete set atomically.
+  bool initial_snapshot_complete = 2;
 }

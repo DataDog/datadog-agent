@@ -38,7 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
-	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
@@ -97,6 +97,7 @@ type remoteTagger struct {
 
 	telemetryTicker *time.Ticker
 	telemetryStore  *telemetry.Store
+	resyncEvents    []types.EntityEvent
 
 	checksCardinality    types.TagCardinality
 	dogstatsdCardinality types.TagCardinality
@@ -221,10 +222,17 @@ func start(remoteTagger *remoteTagger) error {
 	creds := credentials.NewTLS(remoteTagger.tlsConfig)
 
 	var onStartErr error
+	// Same max message size as the core agent AgentSecure gRPC server (impl-agent.BuildServer).
+	maxMsgSize := remoteTagger.cfg.GetInt("cluster_agent.cluster_tagger.grpc_max_message_size")
+
 	remoteTagger.conn, onStartErr = grpc.DialContext( //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
 		remoteTagger.ctx,
 		remoteTagger.options.Target,
 		grpc.WithTransportCredentials(creds),
+		grpc.WithDefaultCallOptions(
+			grpc.MaxCallRecvMsgSize(maxMsgSize),
+			grpc.MaxCallSendMsgSize(maxMsgSize),
+		),
 		grpc.WithContextDialer(func(_ context.Context, url string) (net.Conn, error) {
 			if vsockAddr := remoteTagger.cfg.GetString("vsock_addr"); vsockAddr != "" {
 				_, sPort, err := net.SplitHostPort(url)
@@ -529,6 +537,7 @@ func (t *remoteTagger) run() {
 			// must be re-established.
 			t.ready = false
 			t.stream = nil
+			t.resyncEvents = nil
 
 			t.log.Warnf("error received from remote tagger: %s", err)
 
@@ -563,7 +572,9 @@ func (t *remoteTagger) processResponse(response *pb.StreamTagsResponse) error {
 	// returning early when there are no events prevents a keep-alive sent
 	// from the core agent from wiping the store clean in case the remote
 	// tagger was previously in an unready (but filled) state.
-	if len(response.Events) == 0 {
+	// However, during resync we must still check InitialSnapshotComplete
+	// to handle empty initial bursts.
+	if len(response.Events) == 0 && t.ready {
 		return nil
 	}
 
@@ -589,19 +600,25 @@ func (t *remoteTagger) processResponse(response *pb.StreamTagsResponse) error {
 		})
 	}
 
-	// if the tagger was not ready by this point, it means an error
-	// occurred and the contents of the store are no longer valid and need
-	// to be replaced by the batch coming from the current response
-	replaceStoreContents := !t.ready
+	replaceStoreContents := false
 
-	err := t.store.processEvents(events, replaceStoreContents)
-	if err != nil {
-		return err
+	if !t.ready {
+		// Accumulate events across chunked snapshot messages until the
+		// server signals that the initial snapshot is complete.
+		t.resyncEvents = append(t.resyncEvents, events...)
+		if response.GetInitialSnapshotComplete() {
+			replaceStoreContents = true
+			err := t.store.processEvents(t.resyncEvents, replaceStoreContents)
+			t.resyncEvents = nil
+			if err != nil {
+				return err
+			}
+			t.ready = true
+		}
+		return nil
 	}
 
-	t.ready = true
-
-	return nil
+	return t.store.processEvents(events, replaceStoreContents)
 }
 
 // startTaggerStream tries to establish a stream with the remote gRPC endpoint.

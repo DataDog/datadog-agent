@@ -436,8 +436,8 @@ func LoadProxyFromEnv(config pkgconfigmodel.ReaderWriter) {
 	// We have to set each value individually so both config.Get("proxy")
 	// and config.Get("proxy.http") work
 	if isSet {
-		config.Set("proxy.http", p.HTTP, pkgconfigmodel.SourceAgentRuntime)
-		config.Set("proxy.https", p.HTTPS, pkgconfigmodel.SourceAgentRuntime)
+		config.Set("proxy.http", p.HTTP, pkgconfigmodel.SourceConfigPostInit)
+		config.Set("proxy.https", p.HTTPS, pkgconfigmodel.SourceConfigPostInit)
 
 		// If this is set to an empty []string, viper will have a type conflict when merging
 		// this config during secrets resolution. It unmarshals empty yaml lists to type
@@ -446,7 +446,7 @@ func LoadProxyFromEnv(config pkgconfigmodel.ReaderWriter) {
 		for idx := range p.NoProxy {
 			noProxy[idx] = p.NoProxy[idx]
 		}
-		config.Set("proxy.no_proxy", noProxy, pkgconfigmodel.SourceAgentRuntime)
+		config.Set("proxy.no_proxy", noProxy, pkgconfigmodel.SourceConfigPostInit)
 	}
 }
 
@@ -1046,7 +1046,7 @@ func resolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 func configAssignAtPath(config pkgconfigmodel.Config, settingPath []string, newValue any) error {
 	settingName := strings.Join(settingPath, ".")
 	if config.IsKnown(settingName) {
-		config.Set(settingName, newValue, pkgconfigmodel.SourceAgentRuntime)
+		config.Set(settingName, newValue, pkgconfigmodel.SourceSecret)
 		return nil
 	}
 
@@ -1160,7 +1160,7 @@ func configAssignAtPath(config pkgconfigmodel.Config, settingPath []string, newV
 		}
 	}
 
-	config.Set(settingName, startingValue, pkgconfigmodel.SourceAgentRuntime)
+	config.Set(settingName, startingValue, pkgconfigmodel.SourceSecret)
 	return nil
 }
 
@@ -1425,24 +1425,16 @@ func applyInfrastructureModeOverrides(config pkgconfigmodel.Config) {
 			{"match_domain": "claude.ai", "type": "include"},
 		}
 
-		// Append user-defined filters to the defaults
-		if userFilters := config.Get("network_path.collector.filters"); userFilters != nil {
-			if userFiltersList, ok := userFilters.([]interface{}); ok {
-				for _, f := range userFiltersList {
-					if filterMap, ok := f.(map[string]interface{}); ok {
-						converted := make(map[string]string)
-						for k, v := range filterMap {
-							if strVal, ok := v.(string); ok {
-								converted[k] = strVal
-							}
-						}
-						// Always append the user defined filters to the defaults at the end of the list to get the higher priority than the default configuration
-						defaultNetworkPathCollectorFilters = append(defaultNetworkPathCollectorFilters, converted)
-					}
-				}
-			}
+		// Append user-defined filters after the defaults so they win (last matching filter wins).
+		// On unmarshal error, skip the override entirely: the user's (malformed) config is left
+		// in place so downstream surfaces it, rather than silently replacing it with defaults.
+		var userFilters []map[string]string
+		if err := structure.UnmarshalKey(config, "network_path.collector.filters", &userFilters); err != nil {
+			log.Errorf("Failed to unmarshal network_path.collector.filters, skipping EUDM filter override: %v", err)
+		} else {
+			defaultNetworkPathCollectorFilters = append(defaultNetworkPathCollectorFilters, userFilters...)
+			config.Set("network_path.collector.filters", defaultNetworkPathCollectorFilters, pkgconfigmodel.SourceAgentRuntime) // Agent runtime source is required to override customer defined filters with default configuration
 		}
-		config.Set("network_path.collector.filters", defaultNetworkPathCollectorFilters, pkgconfigmodel.SourceAgentRuntime) // Agent runtime source is required to override customer defined filters with default configuration
 
 		// Enable features for end_user_device mode
 		config.Set("process_config.process_collection.enabled", true, pkgconfigmodel.SourceInfraMode)
@@ -1451,6 +1443,8 @@ func applyInfrastructureModeOverrides(config pkgconfigmodel.Config) {
 	} else if infraMode == "none" {
 		// Disable integrations (no host metrics collection)
 		config.Set("integration.enabled", false, pkgconfigmodel.SourceInfraMode)
+		// Avoid detailed ECS task metadata collection when not collecting infrastructure.
+		config.Set("ecs_task_collection_enabled", false, pkgconfigmodel.SourceInfraMode)
 	}
 }
 

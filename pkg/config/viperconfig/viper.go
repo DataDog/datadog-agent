@@ -207,6 +207,11 @@ func (c *safeConfig) IsKnown(key string) bool {
 	return c.Viper.IsKnown(key)
 }
 
+// IsSetting always returns true for Viper, because it doesn't have a way to tell
+func (c *safeConfig) IsSetting(_ string) bool {
+	return true
+}
+
 // checkKnownKey checks if a key is known, and if not logs a warning
 // Only a single warning will be logged per unknown key.
 //
@@ -818,6 +823,16 @@ func (c *safeConfig) AllSettingsWithoutDefault() map[string]interface{} {
 	// AllSettingsWithoutDefault returns a fresh map, so the caller may do with it
 	// as they please without holding the lock.
 	return c.Viper.AllSettingsWithoutDefault()
+}
+
+// AllSettingsWithoutSecrets falls back to AllSettings (viper has no secrets layer).
+func (c *safeConfig) AllSettingsWithoutSecrets() map[string]interface{} {
+	return c.AllSettings()
+}
+
+// AllSettingsWithoutDefaultOrSecrets falls back to AllSettingsWithoutDefault (viper has no secrets layer).
+func (c *safeConfig) AllSettingsWithoutDefaultOrSecrets() map[string]interface{} {
+	return c.AllSettingsWithoutDefault()
 }
 
 // AllSettingsBySource returns the settings from each source (file, env vars, ...)

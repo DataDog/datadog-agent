@@ -1,0 +1,32 @@
+[
+  {
+    "service": "simple",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.condLine",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "probe": {
+          "id": "condCompound_line_and",
+          "location": {
+            "method": "main.condLine",
+            "file": "main.go",
+            "line": 519
+          }
+        }
+      },
+      "type": "snapshot"
+    },
+    "timestamp": "[ts]",
+    "message": "n == 7 && tag == \"match\" [n=7, tag=match]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  }
+]

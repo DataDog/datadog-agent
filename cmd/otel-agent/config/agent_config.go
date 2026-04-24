@@ -16,7 +16,7 @@ import (
 
 	delegatedauthnooptypes "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl/types"
 	secretsimpl "github.com/DataDog/datadog-agent/comp/core/secrets/impl"
-	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
 	ddfg "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/featuregates"
 	"go.opentelemetry.io/collector/confmap"
@@ -194,7 +194,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 
 	// APM & OTel trace configs
 	pkgconfig.Set("apm_config.enabled", true, pkgconfigmodel.SourceDefault)
-	pkgconfig.Set("apm_config.apm_non_local_traffic", true, pkgconfigmodel.SourceDefault)
+	pkgconfig.Set("apm_config.apm_non_local_traffic", true, pkgconfigmodel.SourceAgentRuntime)
 
 	pkgconfig.Set("apm_config.debug.port", 0, pkgconfigmodel.SourceDefault)      // Disabled in the otel-agent
 	pkgconfig.Set(pkgconfigsetup.OTLPTracePort, 0, pkgconfigmodel.SourceDefault) // Disabled in the otel-agent
