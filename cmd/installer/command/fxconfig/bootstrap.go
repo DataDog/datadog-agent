@@ -30,11 +30,52 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	agentconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// yamlSourcedKeys returns the set of dotted keys (e.g. "proxy.no_proxy")
+// that appear in the datadog.yaml file. Unlike `cfg.GetSource(key) ==
+// SourceFile`, this correctly identifies yaml-origin values even when
+// post-init processing has replaced their source (e.g. proxy.* gets
+// promoted to config-post-init after defaults are layered in, which
+// would falsely hide user intent).
+//
+// We use AllSettingsBySource()[SourceFile] — that map only contains keys
+// that were literally present in the yaml file, so it's a reliable
+// signal of user intent regardless of downstream transformations.
+func yamlSourcedKeys(cfg agentconfig.Component) map[string]bool {
+	out := map[string]bool{}
+	all := cfg.AllSettingsBySource()
+	fromFile, ok := all[pkgconfigmodel.SourceFile].(map[string]interface{})
+	if !ok {
+		return out
+	}
+	flattenKeys("", fromFile, out)
+	return out
+}
+
+// flattenKeys walks a nested `map[string]interface{}` and records every
+// leaf path under `prefix` into `out`. A leaf is any non-map value.
+func flattenKeys(prefix string, m map[string]interface{}, out map[string]bool) {
+	for k, v := range m {
+		path := k
+		if prefix != "" {
+			path = prefix + "." + k
+		}
+		if child, isMap := v.(map[string]interface{}); isMap {
+			// Record the parent too — some callers care about the
+			// presence of a subtree (e.g. `installer.registry.extensions`).
+			out[path] = true
+			flattenKeys(path, child, out)
+			continue
+		}
+		out[path] = true
+	}
+}
 
 // LoadAndExportEnv reads installer-relevant fields from datadog.yaml via fx
 // and exports them as DD_* environment variables. Existing env vars are
@@ -58,6 +99,13 @@ func LoadAndExportEnv(confFilePath string) {
 	if os.Getenv("DD_INSTALLER_FROM_DAEMON") == "true" {
 		return
 	}
+	// Always translate legacy DD_INSTALLER_REGISTRY_* prefix vars into
+	// the canonical DD_INSTALLER_REGISTRY JSON. This runs independently of
+	// fx so user-set overrides reach the installer even if the fx bootstrap
+	// fails for any reason (broken yaml, missing dep, secrets provider
+	// error, etc.).
+	applyEnvOnlyRegistry()
+
 	err := fxutil.OneShot(
 		applyConfigToEnv,
 		fx.Supply(core.BundleParams{
@@ -69,17 +117,12 @@ func LoadAndExportEnv(confFilePath string) {
 	if err != nil {
 		pkglog.Warnf("fxconfig bootstrap failed (continuing with process env): %v", err)
 	}
-	// Env-only fallback: always translate any remaining legacy
-	// DD_INSTALLER_REGISTRY_{URL,AUTH,USERNAME,PASSWORD}[_<PKG>] vars
-	// into the canonical DD_INSTALLER_REGISTRY JSON. When fx succeeded
-	// this is a no-op (applyConfigToEnv already absorbed and unset them);
-	// when fx failed before invoking applyConfigToEnv this is the safety
-	// net so user-set overrides aren't silently dropped.
-	applyEnvOnlyRegistry()
 }
 
 // applyEnvOnlyRegistry absorbs legacy DD_INSTALLER_REGISTRY_* prefix vars
 // into DD_INSTALLER_REGISTRY (without yaml) and unsets the legacy vars.
+// Safe to call multiple times: setEnvIfUnset preserves the first-written
+// value, and the second call finds no legacy vars left to absorb.
 func applyEnvOnlyRegistry() {
 	registry, blob, err := env.BuildRegistryFromEnv()
 	if err != nil {
@@ -93,47 +136,56 @@ func applyEnvOnlyRegistry() {
 }
 
 func applyConfigToEnv(cfg agentconfig.Component) {
-	setEnvIfUnset("DD_API_KEY", utils.SanitizeAPIKey(cfg.GetString("api_key")))
-	setEnvIfUnset("DD_SITE", cfg.GetString("site"))
-	setEnvIfUnset("DD_HOSTNAME", cfg.GetString("hostname"))
-	setEnvIfUnset("DD_INSTALLER_MIRROR", cfg.GetString("installer.mirror"))
-	setEnvIfUnset("DD_LOG_LEVEL", cfg.GetString("log_level"))
-
-	if cfg.IsConfigured("remote_updates") {
+	// Only emit env vars for values that actually came from datadog.yaml.
+	// See yamlSourcedKeys for why we can't use cfg.GetSource(key) directly.
+	fromYAML := yamlSourcedKeys(cfg)
+	if fromYAML["api_key"] {
+		setEnvIfUnset("DD_API_KEY", utils.SanitizeAPIKey(cfg.GetString("api_key")))
+	}
+	if fromYAML["site"] {
+		setEnvIfUnset("DD_SITE", cfg.GetString("site"))
+	}
+	if fromYAML["hostname"] {
+		setEnvIfUnset("DD_HOSTNAME", cfg.GetString("hostname"))
+	}
+	if fromYAML["installer.mirror"] {
+		setEnvIfUnset("DD_INSTALLER_MIRROR", cfg.GetString("installer.mirror"))
+	}
+	if fromYAML["log_level"] {
+		setEnvIfUnset("DD_LOG_LEVEL", cfg.GetString("log_level"))
+	}
+	if fromYAML["remote_updates"] {
 		setEnvIfUnset("DD_REMOTE_UPDATES", strconv.FormatBool(cfg.GetBool("remote_updates")))
 	}
-
-	setEnvIfUnset("DD_PROXY_HTTP", cfg.GetString("proxy.http"))
-	setEnvIfUnset("DD_PROXY_HTTPS", cfg.GetString("proxy.https"))
-	// Only emit DD_PROXY_NO_PROXY when the user explicitly set
-	// proxy.no_proxy in yaml. GetStringSlice always returns the effective
-	// value including cloud-metadata defaults (169.254.169.254 etc.),
-	// which would leak into downstream datadog.yaml writes.
-	if cfg.IsConfigured("proxy.no_proxy") {
+	if fromYAML["proxy.http"] {
+		setEnvIfUnset("DD_PROXY_HTTP", cfg.GetString("proxy.http"))
+	}
+	if fromYAML["proxy.https"] {
+		setEnvIfUnset("DD_PROXY_HTTPS", cfg.GetString("proxy.https"))
+	}
+	if fromYAML["proxy.no_proxy"] {
 		if np := cfg.GetStringSlice("proxy.no_proxy"); len(np) > 0 {
 			setEnvIfUnset("DD_PROXY_NO_PROXY", strings.Join(np, ","))
 		}
 	}
-
-	// Only emit DD_TAGS when explicitly configured. Default config can
-	// pull in host tags from cloud metadata which would then overwrite
-	// the user's explicit "no tags" choice in datadog.yaml.
-	if cfg.IsConfigured("tags") || cfg.IsConfigured("extra_tags") {
+	if fromYAML["tags"] || fromYAML["extra_tags"] {
 		if tags := utils.GetConfiguredTags(cfg, false); len(tags) > 0 {
 			setEnvIfUnset("DD_TAGS", strings.Join(tags, ","))
 		}
 	}
 
 	// Registry: fold yaml `installer.registry.*` (incl. per-extension
-	// entries) + legacy DD_INSTALLER_REGISTRY_* prefix vars + any
-	// already-set DD_INSTALLER_REGISTRY JSON into a single canonical
-	// JSON blob. Unset the legacy prefix vars so the installer's FromEnv
-	// sees a clean contract.
+	// entries) + already-set DD_INSTALLER_REGISTRY JSON (which includes
+	// legacy prefix vars absorbed by the earlier applyEnvOnlyRegistry).
+	// Unconditional Setenv so yaml extensions added here don't get lost
+	// because the earlier env-only pass already set the env var.
 	registry, blob, err := env.BuildRegistryFromConfigAndEnv(cfg)
 	if err != nil {
 		pkglog.Debugf("fxconfig: failed to build registry config (continuing): %v", err)
 	} else if !registry.IsEmpty() {
-		setEnvIfUnset(env.EnvInstallerRegistry, blob)
+		if err := os.Setenv(env.EnvInstallerRegistry, blob); err != nil {
+			pkglog.Debugf("fxconfig: failed to set %s: %v", env.EnvInstallerRegistry, err)
+		}
 	}
 	unsetLegacyRegistryVars()
 }
