@@ -1882,7 +1882,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// could happen while serializing large objects on log lines.
 	config.BindEnvAndSetDefault("logs_config.aggregation_timeout", 1000)
 	// Time in seconds
-	config.BindEnvAndSetDefault("logs_config.file_scan_period", 10.0)
+	config.BindEnvAndSetDefault("logs_config.file_scan_period", 1.0)
 
 	// Controls how wildcard file log source are prioritized when there are more files
 	// that match wildcard log configurations than the `logs_config.open_files_limit`
