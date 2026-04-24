@@ -170,6 +170,11 @@ type EBPFProbe struct {
 	useMmapableMaps    bool
 	cgroup2MountPath   string
 
+	// seenNetNS tracks network namespace IDs already submitted for lazy handle
+	// resolution. Safe to use without synchronization because handleEvent is
+	// called from a single goroutine (the ring buffer / perf buffer reader).
+	seenNetNS map[uint32]struct{}
+
 	// On demand1
 	onDemandManager     *OnDemandProbesManager
 	onDemandRateLimiter *rate.Limiter
@@ -1266,11 +1271,14 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	// save netns handle if applicable
 	netNS := event.PIDContext.NetNS
 	pid := event.PIDContext.Pid
-	go func() {
-		_, _ = p.Resolvers.NamespaceResolver.SaveNetworkNamespaceHandleLazy(netNS, func() *utils.NSPath {
-			return utils.NewNSPathFromPid(pid, utils.NetNsType)
-		})
-	}()
+	if _, seen := p.seenNetNS[netNS]; !seen && netNS != 0 {
+		p.seenNetNS[netNS] = struct{}{}
+		go func() {
+			_, _ = p.Resolvers.NamespaceResolver.SaveNetworkNamespaceHandleLazy(netNS, func() *utils.NSPath {
+				return utils.NewNSPathFromPid(pid, utils.NetNsType)
+			})
+		}()
+	}
 
 	// handle exec and fork before process context resolution as they modify the process context resolution
 	if !p.handleBeforeProcessContext(event, data, offset, dataLen, cgroupContext, newEntryCb) {
@@ -3029,6 +3037,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 		BPFFilterTruncated:   atomic.NewUint64(0),
 		MetricNameTruncated:  atomic.NewUint64(0),
 		activeRemediations:   make(map[string]*Remediation),
+		seenNetNS:            make(map[uint32]struct{}),
 	}
 
 	if err := p.detectKernelVersion(); err != nil {
