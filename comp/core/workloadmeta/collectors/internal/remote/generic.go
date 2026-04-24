@@ -66,6 +66,10 @@ type StreamHandler interface {
 	HandleResponse(store workloadmeta.Component, response interface{}) ([]workloadmeta.CollectorEvent, error)
 	// HandleResync is called on resynchronization.
 	HandleResync(store workloadmeta.Component, events []workloadmeta.CollectorEvent)
+	// IsResyncComplete returns true if the given response marks the end of the
+	// initial full-state snapshot. Implementations that don't support chunked
+	// snapshots should always return true.
+	IsResyncComplete(response interface{}) bool
 }
 
 // GenericCollector is a generic remote workloadmeta collector with resync mechanisms.
@@ -76,6 +80,7 @@ type GenericCollector struct {
 
 	store        workloadmeta.Component
 	resyncNeeded bool
+	resyncEvents []workloadmeta.CollectorEvent
 
 	client GrpcClient
 	stream Stream
@@ -224,6 +229,7 @@ func (c *GenericCollector) Run() {
 			// connection is re-established.
 			c.stream = nil
 			c.resyncNeeded = true
+			c.resyncEvents = nil
 
 			if err != io.EOF {
 				telemetry.RemoteClientErrors.Inc(c.CollectorID)
@@ -240,8 +246,12 @@ func (c *GenericCollector) Run() {
 		}
 
 		if c.resyncNeeded {
-			c.StreamHandler.HandleResync(c.store, collectorEvents)
-			c.resyncNeeded = false
+			c.resyncEvents = append(c.resyncEvents, collectorEvents...)
+			if c.StreamHandler.IsResyncComplete(response) {
+				c.StreamHandler.HandleResync(c.store, c.resyncEvents)
+				c.resyncEvents = nil
+				c.resyncNeeded = false
+			}
 		} else {
 			c.store.Notify(collectorEvents)
 		}

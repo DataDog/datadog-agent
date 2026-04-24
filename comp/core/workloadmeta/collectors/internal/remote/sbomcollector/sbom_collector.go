@@ -416,5 +416,11 @@ func handleEvents(store workloadmeta.Component, collectorEvents []workloadmeta.C
 	return collectorEvents
 }
 
+// IsResyncComplete always returns true because the SBOM collector does not
+// use chunked snapshots.
+func (s *streamHandler) IsResyncComplete(_ interface{}) bool {
+	return true
+}
+
 func (s *streamHandler) HandleResync(_ workloadmeta.Component, _ []workloadmeta.CollectorEvent) {
 }
