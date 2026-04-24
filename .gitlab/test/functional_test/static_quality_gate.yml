@@ -38,6 +38,8 @@ static_quality_gates:
     - docker_build_cws_instrumentation_arm64
     - docker_build_dogstatsd_amd64
     - docker_build_dogstatsd_arm64
+    - docker_build_host_profiler_standalone_amd64
+    - docker_build_host_profiler_standalone_arm64
     - dogstatsd_deb-x64
     - dogstatsd_deb-arm64
     - dogstatsd_rpm-x64
