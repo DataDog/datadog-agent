@@ -608,6 +608,11 @@ func (p *EBPFLessProbe) Walk(callback func(*model.ProcessCacheEntry)) {
 	p.Resolvers.ProcessResolver.Walk(callback)
 }
 
+// ShouldEvaluateDiscarders returns whether discarder evaluation should proceed for the given event
+func (p *EBPFLessProbe) ShouldEvaluateDiscarders(_ *model.Event) bool {
+	return true
+}
+
 // OnNewDiscarder handles discarders
 func (p *EBPFLessProbe) OnNewDiscarder(_ *rules.RuleSet, _ *model.Event, _ eval.Field, _ eval.EventType) {
 }

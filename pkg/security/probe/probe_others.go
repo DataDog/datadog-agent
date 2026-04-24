@@ -61,6 +61,11 @@ func (p *Probe) ApplyRuleSet(_ *rules.RuleSet) (*kfilters.FilterReport, bool, er
 func (p *Probe) OnNewRuleSetLoaded(_ *rules.RuleSet) {
 }
 
+// ShouldEvaluateDiscarders returns whether discarder evaluation should proceed for the given event
+func (p *Probe) ShouldEvaluateDiscarders(_ *model.Event) bool {
+	return true
+}
+
 // OnNewDiscarder is called when a new discarder is found. We currently don't generate discarders on Windows.
 func (p *Probe) OnNewDiscarder(_ *rules.RuleSet, _ *model.Event, _ eval.Field, _ eval.EventType) {
 }
