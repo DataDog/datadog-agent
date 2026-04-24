@@ -51,6 +51,15 @@ func TestLoadSpecNotEmpty(t *testing.T) {
 			require.NotNil(t, archSpec.UnsupportedDeviceModes, "unsupported_device_modes should be present")
 		})
 	}
+
+	require.NotEmpty(t, specs.Aggregations.Aggregations, "aggregations should not be empty")
+	for aggregationName, aggregationSpec := range specs.Aggregations.Aggregations {
+		require.NotEmptyf(t, aggregationName, "aggregation name should not be empty")
+		require.NotEmptyf(t, aggregationSpec.Description, "aggregation %s should define description", aggregationName)
+		require.NotEmptyf(t, aggregationSpec.TimeAggregator, "aggregation %s should define time_aggregator", aggregationName)
+		require.NotEmptyf(t, aggregationSpec.GroupAggregator, "aggregation %s should define group-aggregator", aggregationName)
+		require.NotEmptyf(t, aggregationSpec.GranularityAggregator, "aggregation %s should define granularity_aggregator", aggregationName)
+	}
 }
 
 func TestTagSpecUnmarshalYAML(t *testing.T) {
@@ -169,6 +178,7 @@ metadata:
   metric_type: gauge
   unit: byte/second
   description: Example description
+  aggregation: absolute_usage
 tagsets:
   - device
 support:
@@ -184,6 +194,7 @@ support:
 	require.Equal(t, "gauge", spec.Metadata.MetricType)
 	require.Equal(t, "byte/second", spec.Metadata.Unit)
 	require.Equal(t, "Example description", spec.Metadata.Description)
+	require.Equal(t, "absolute_usage", spec.Metadata.Aggregation)
 }
 
 func TestMetricMetadataSpecUnmarshalYAMLRejectsInvalidMetricType(t *testing.T) {
