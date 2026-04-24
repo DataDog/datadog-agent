@@ -10,7 +10,7 @@ package hostimpl
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
+	"github.com/DataDog/datadog-agent/comp/metadata/host/impl/utils"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
 

@@ -5,28 +5,28 @@
 
 //go:build test
 
-package hostimpl
+// Package mock provides a mock for the host metadata component
+package mock
 
 import (
 	"context"
 
-	"go.uber.org/fx"
-
-	hostinterface "github.com/DataDog/datadog-agent/comp/metadata/host"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
+	host "github.com/DataDog/datadog-agent/comp/metadata/host/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // MockModule defines the fx options for the mocked component
 func MockModule() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newMock))
+		fxutil.ProvideComponentConstructor(newMock))
 }
 
 // MockProvides is the mock component output
 type MockProvides struct {
-	fx.Out
+	compdef.Out
 
-	Comp hostinterface.Component
+	Comp host.Component
 }
 
 // MockHost is a mocked struct that implements the host component interface

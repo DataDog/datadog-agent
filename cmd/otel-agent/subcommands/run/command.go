@@ -51,7 +51,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface"
 	logconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
+	hostfx "github.com/DataDog/datadog-agent/comp/metadata/host/fx"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/inventoryhostimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
@@ -285,7 +285,7 @@ func standaloneAgentFxOptions(params *cliParams) fx.Option {
 	return fx.Options(
 		// Metadata collection (host inventory, runner) for dogtelextension
 		runnerimpl.Module(),
-		hostimpl.Module(),
+		hostfx.Module(),
 		inventoryhostimpl.Module(),
 		// Real secrets backend so ENC[] handles in OTel/DD config are resolved locally
 		secretsfx.Module(),
