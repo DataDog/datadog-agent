@@ -1830,9 +1830,6 @@ func (s *TracerSuite) TestSendfileRegression() {
 }
 
 func httpSupported() bool {
-	if ebpftest.GetBuildMode() == ebpftest.Fentry {
-		return false
-	}
 	return kv >= usmconfig.MinimumKernelVersion
 }
 
@@ -2476,9 +2473,6 @@ func testConfig() *config.Config {
 		// protocol classification not yet supported on fargate
 		cfg.ProtocolClassificationEnabled = false
 	}
-	if ebpftest.GetBuildMode() == ebpftest.Fentry {
-		cfg.ProtocolClassificationEnabled = false
-	}
 
 	// prebuilt on 5.18+ does not support UDPv6
 	if isPrebuilt(cfg) && kv >= kernel.VersionCode(5, 18, 0) {
@@ -2954,9 +2948,6 @@ func (s *TracerSuite) TestTLSClassification() {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if ebpftest.GetBuildMode() == ebpftest.Fentry {
-				t.Skip("protocol classification not supported for fentry tracer")
-			}
 			t.Cleanup(func() {
 				tr.RemoveClient(clientID)
 				_ = tr.Pause()

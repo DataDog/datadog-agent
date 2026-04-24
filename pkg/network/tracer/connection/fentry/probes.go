@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -43,7 +44,10 @@ const (
 	udpRecvMsgReturn        = "udp_recvmsg_exit"
 	udpRecvMsgPre5190Return = "udp_recvmsg_exit_pre_5_19_0"
 	udpSendMsgReturn        = "udp_sendmsg_exit"
-	udpSendSkb              = "kprobe__udp_send_skb"
+	// udpSendSkb uses kprobe because udp_send_skb is a static kernel function
+	// (not exported via BTF), so fentry attach is not possible.
+	// The pid_tgid-keyed handoff in tracer-fentry.c is PREEMPT_LAZY-sensitive.
+	udpSendSkb = "kprobe__udp_send_skb"
 
 	skbFreeDatagramLocked   = "skb_free_datagram_locked"
 	__skbFreeDatagramLocked = "__skb_free_datagram_locked" // nolint:revive
@@ -53,7 +57,10 @@ const (
 	udpv6RecvMsgReturn        = "udpv6_recvmsg_exit"
 	udpv6RecvMsgPre5190Return = "udpv6_recvmsg_exit_pre_5_19_0"
 	udpv6SendMsgReturn        = "udpv6_sendmsg_exit"
-	udpv6SendSkb              = "kprobe__udp_v6_send_skb"
+	// udpv6SendSkb uses kprobe because udp_v6_send_skb is a static kernel
+	// function (not exported via BTF), so fentry attach is not possible.
+	// The pid_tgid-keyed handoff in tracer-fentry.c is PREEMPT_LAZY-sensitive.
+	udpv6SendSkb = "kprobe__udp_v6_send_skb"
 
 	// udpDestroySock traces the udp_destroy_sock() function
 	udpDestroySock = "udp_destroy_sock"
@@ -84,6 +91,9 @@ const (
 	inetBindRet = "inet_bind_exit"
 	// inet6BindRet traces the bind() syscall for IPv6
 	inet6BindRet = "inet6_bind_exit"
+
+	// netDevQueueRawTracepoint maps sk_buff to sock tuples for NAT correlation
+	netDevQueueRawTracepoint = "raw_tracepoint__net__net_dev_queue"
 )
 
 var programs = map[string]struct{}{
@@ -121,6 +131,13 @@ var programs = map[string]struct{}{
 	tcpRecvMsgPre5190Return:   {},
 	udpRecvMsgPre5190Return:   {},
 	udpv6RecvMsgPre5190Return: {},
+	// Protocol classification socket filters
+	probes.ProtocolClassifierEntrySocketFilter:     {},
+	probes.ProtocolClassifierTLSClientSocketFilter: {},
+	probes.ProtocolClassifierTLSServerSocketFilter: {},
+	probes.ProtocolClassifierQueuesSocketFilter:    {},
+	probes.ProtocolClassifierDBsSocketFilter:       {},
+	probes.ProtocolClassifierGRPCSocketFilter:      {},
 }
 
 func enableProgram(enabled map[string]struct{}, name string) {
@@ -154,13 +171,17 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		enableProgram(enabled, tcpEnterRecovery)
 		enableProgram(enabled, tcpSendProbe0)
 
-		// TODO: see comments above on availability for these
-		//       hooks
-		// ksymPath := filepath.Join(c.ProcRoot, "kallsyms")
-		// missing, err := ebpf.VerifyKernelFuncs(ksymPath, []string{"sockfd_lookup_light"})
-		// if err == nil && len(missing) == 0 {
-		// 	enableProgram(enabled, sockFDLookupRet)
-		// }
+		if util.ClassificationSupported(c) {
+			enableProgram(enabled, probes.ProtocolClassifierEntrySocketFilter)
+			enableProgram(enabled, probes.ProtocolClassifierTLSClientSocketFilter)
+			enableProgram(enabled, probes.ProtocolClassifierTLSServerSocketFilter)
+			enableProgram(enabled, probes.ProtocolClassifierQueuesSocketFilter)
+			enableProgram(enabled, probes.ProtocolClassifierDBsSocketFilter)
+			enableProgram(enabled, probes.ProtocolClassifierGRPCSocketFilter)
+			// Raw tracepoint is registered separately in initManager with
+			// tracepoint metadata, so enable it directly (not via programs map).
+			enabled[netDevQueueRawTracepoint] = struct{}{}
+		}
 
 		if hasSendPage {
 			enableProgram(enabled, tcpSendPageReturn)

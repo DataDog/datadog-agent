@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    Protocol classification (HTTP, HTTP/2, Kafka, Postgres, Redis, gRPC) is now
+    supported when the fentry eBPF tracer is enabled. Previously, enabling fentry
+    disabled all protocol detection. Activate with
+    ``network_config.enable_fentry: true`` in ``system-probe.yaml``.

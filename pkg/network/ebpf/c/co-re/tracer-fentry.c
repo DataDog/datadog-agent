@@ -18,6 +18,8 @@
 #include "tracer/telemetry.h"
 #include "tracer/port.h"
 
+#include "protocols/classification/protocol-classification.h"
+
 BPF_PERCPU_HASH_MAP(udp6_send_skb_args, u64, u64, 1024)
 BPF_PERCPU_HASH_MAP(udp_send_skb_args, u64, conn_tuple_t, 1024)
 
@@ -239,6 +241,14 @@ int BPF_PROG(tcp_close, struct sock *sk, long timeout) {
         return 0;
     }
     log_debug("fentry/tcp_close: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
+
+    // Protocol classification cleanup: fentry has direct access to the
+    // conn_tuple, so we can clean up inline without the kretprobe two-phase
+    // pattern (kprobe stores to tcp_close_args, kretprobe reads it).
+    // This eliminates the PREEMPT_LAZY-vulnerable tcp_close_args map.
+    if (is_protocol_classification_supported()) {
+        clean_protocol_classification(&t);
+    }
 
     skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
     skp_conn.tup.pid = 0;
@@ -619,6 +629,105 @@ SEC("kprobe/tcp_send_probe0")
 int BPF_BYPASSABLE_KPROBE(kprobe__tcp_send_probe0, struct sock *sk) {
     handle_tcp_send_probe0(sk);
     return 0;
+}
+
+// =============================================================================
+// Protocol classification support
+// =============================================================================
+
+// Socket filter programs for protocol classification.
+// These are BPF_PROG_TYPE_SOCKET_FILTER programs that work independently
+// of the tracer attachment type (kprobe vs fentry).
+
+SEC("socket/classifier_entry")
+int socket__classifier_entry(struct __sk_buff *skb) {
+    protocol_classifier_entrypoint(skb);
+    return 0;
+}
+
+SEC("socket/classifier_tls_handshake_client")
+int socket__classifier_tls_handshake_client(struct __sk_buff *skb) {
+    protocol_classifier_entrypoint_tls_handshake_client(skb);
+    return 0;
+}
+
+SEC("socket/classifier_tls_handshake_server")
+int socket__classifier_tls_handshake_server(struct __sk_buff *skb) {
+    protocol_classifier_entrypoint_tls_handshake_server(skb);
+    return 0;
+}
+
+SEC("socket/classifier_queues")
+int socket__classifier_queues(struct __sk_buff *skb) {
+    protocol_classifier_entrypoint_queues(skb);
+    return 0;
+}
+
+SEC("socket/classifier_dbs")
+int socket__classifier_dbs(struct __sk_buff *skb) {
+    protocol_classifier_entrypoint_dbs(skb);
+    return 0;
+}
+
+SEC("socket/classifier_grpc")
+int socket__classifier_grpc(struct __sk_buff *skb) {
+    protocol_classifier_entrypoint_grpc(skb);
+    return 0;
+}
+
+// net_dev_queue raw tracepoint: maps sk_buff tuples to socket tuples for
+// NAT correlation. Required for protocol classification to work correctly
+// when NAT is involved. The fentry tracer only needs the raw_tracepoint
+// variant since it requires kernel >= 5.8 (raw_tracepoint available since 4.17).
+
+static __always_inline struct sock *sk_buff_sk(struct sk_buff *skb) {
+    struct sock *sk = NULL;
+    BPF_CORE_READ_INTO(&sk, skb, sk);
+    return sk;
+}
+
+static __always_inline int handle_net_dev_queue(struct sk_buff* skb) {
+    struct sock *sk = sk_buff_sk(skb);
+    if (!sk) {
+        return 0;
+    }
+
+    conn_tuple_t skb_tup;
+    bpf_memset(&skb_tup, 0, sizeof(conn_tuple_t));
+    if (sk_buff_to_tuple(skb, &skb_tup) <= 0) {
+        return 0;
+    }
+
+    if (!(skb_tup.metadata & CONN_TYPE_TCP)) {
+        return 0;
+    }
+
+    conn_tuple_t sock_tup;
+    bpf_memset(&sock_tup, 0, sizeof(conn_tuple_t));
+    if (!read_conn_tuple(&sock_tup, sk, 0, CONN_TYPE_TCP)) {
+        return 0;
+    }
+    sock_tup.netns = 0;
+    sock_tup.pid = 0;
+
+    if (!is_equal(&skb_tup, &sock_tup)) {
+        normalize_tuple(&skb_tup);
+        normalize_tuple(&sock_tup);
+        // We skip EEXIST because of the use of BPF_NOEXIST flag.
+        bpf_map_update_with_telemetry(conn_tuple_to_socket_skb_conn_tuple, &sock_tup, &skb_tup, BPF_NOEXIST, -EEXIST);
+    }
+
+    return 0;
+}
+
+SEC("raw_tracepoint/net/net_dev_queue")
+int BPF_PROG(raw_tracepoint__net__net_dev_queue, struct sk_buff *skb) {
+    CHECK_BPF_PROGRAM_BYPASSED()
+    if (!skb) {
+        return 0;
+    }
+
+    return handle_net_dev_queue(skb);
 }
 
 char _license[] SEC("license") = "GPL";
