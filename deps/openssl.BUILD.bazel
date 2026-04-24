@@ -248,7 +248,10 @@ dd_cc_packaged(
     input = ":_libcrypto_shared_input",
     version = OPENSSL_VERSION,
     libname = "libcrypto",
-    installed_files = [":openssl_files"] + select({
+    installed_files = select({
+        "@platforms//os:windows": [":_openssl_files_win"],
+        "//conditions:default": [":_openssl_files_unix"],
+    }) + select({
         "@@//packages/agent:fips_flavor": [":_fips_extra_files"],
         "//conditions:default": [],
     }),
@@ -344,7 +347,21 @@ copy_to_directory(
 )
 
 pkg_files(
-    name = "openssl_files",
+    name = "_openssl_files_unix",
     srcs = [":_openssl_extra_files"],
     strip_prefix = "openssl_extra",
+)
+
+# copy_to_directory uses bash internals that don't work on Windows.
+# out_data_dirs = [] on non-FIPS Windows so no TreeArtifacts exist and
+# label-based excludes are sufficient to drop the files handled elsewhere.
+pkg_files(
+    name = "_openssl_files_win",
+    srcs = [":openssl"],
+    strip_prefix = "openssl",
+    excludes = [
+        ":openssl_binary",
+        ":libcrypto_shared_file",
+        ":libssl_shared_file",
+    ],
 )
