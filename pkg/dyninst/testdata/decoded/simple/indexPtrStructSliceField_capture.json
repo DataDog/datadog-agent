@@ -18,12 +18,12 @@
           {
             "function": "main.lenPtrStructFields",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 574
+            "lineNumber": 581
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 146
+            "lineNumber": 153
           },
           {
             "function": "runtime.main",
@@ -77,12 +77,12 @@
           {
             "function": "main.lenPtrStructFields",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 574
+            "lineNumber": 581
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 150
+            "lineNumber": 157
           },
           {
             "function": "runtime.main",
@@ -100,14 +100,14 @@
           "location": {
             "method": "main.lenPtrStructFields"
           }
-        }
-      },
-      "evaluationErrors": [
-        {
-          "expr": "items_0",
-          "message": "index out of bounds"
-        }
-      ]
+        },
+        "evaluationErrors": [
+          {
+            "expr": "items_0",
+            "message": "index out of bounds"
+          }
+        ]
+      }
     },
     "timestamp": "[ts]",
     "duration": "[duration]",

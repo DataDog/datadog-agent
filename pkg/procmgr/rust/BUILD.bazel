@@ -14,19 +14,23 @@ proto_library(
     srcs = ["proto/process_manager.proto"],
 )
 
+_LINUX_OR_WINDOWS = select({
+    "@platforms//os:linux": [],
+    "@platforms//os:windows": [],
+    "//conditions:default": ["@platforms//:incompatible"],
+})
+
 rust_prost_library(
     name = "process_manager_rust_proto",
     proto = ":process_manager_proto",
-    # Keep Linux-only: rust_prost_library requires a prost toolchain that
-    # is only configured for Linux. Widen when a Windows toolchain exists.
-    target_compatible_with = ["@platforms//os:linux"],
+    target_compatible_with = _LINUX_OR_WINDOWS,
     visibility = ["//visibility:public"],
 )
 
 # rust_prost_library propagates CcInfo from proto_library, which transitively
 # includes abseil-cpp (C++). The Rust linker does not add libstdc++ by default,
-# so we provide it explicitly. On Windows the MSVC toolchain links the C++
-# runtime automatically.
+# so we provide it explicitly. On Windows the MinGW toolchain links C++ runtime
+# automatically.
 cc_library(
     name = "cpp_stdlib",
     linkopts = select({
@@ -38,10 +42,6 @@ cc_library(
 # ============================================================================
 # Library
 # ============================================================================
-
-# The Rust source is cross-platform, but Bazel targets remain Linux-only
-# because :process_manager_rust_proto requires a prost toolchain that only
-# exists for Linux. Widen to Linux+Windows when the toolchain is ported.
 
 _LIB_SRCS = glob(
     ["src/**/*.rs"],
@@ -59,6 +59,7 @@ _LIB_DEPS = [
     "@crates//:serde_json",
     "@crates//:serde_yaml",
     "@crates//:tokio",
+    "@crates//:tokio-stream",
     "@crates//:tonic",
     "@crates//:tonic-reflection",
     "@crates//:tower",
@@ -66,7 +67,6 @@ _LIB_DEPS = [
 ] + select({
     "@platforms//os:linux": [
         "@crates//:nix",
-        "@crates//:tokio-stream",
     ],
     "@platforms//os:windows": [
         "@crates//:windows-sys",
@@ -80,7 +80,7 @@ rust_library(
     crate_name = "dd_procmgrd",
     edition = "2024",
     rustc_flags = ["--cfg=bazel"],
-    target_compatible_with = ["@platforms//os:linux"],
+    target_compatible_with = _LINUX_OR_WINDOWS,
     visibility = ["//visibility:public"],
     deps = _LIB_DEPS,
 )
@@ -93,7 +93,7 @@ rust_library(
     crate_name = "dd_procmgrd",
     edition = "2024",
     rustc_flags = ["--cfg=bazel"],
-    target_compatible_with = ["@platforms//os:linux"],
+    target_compatible_with = _LINUX_OR_WINDOWS,
     deps = _LIB_DEPS,
 )
 
@@ -118,8 +118,7 @@ rust_binary(
 )
 
 # Windows service binary — functionally identical to dd-procmgrd, different
-# name for the Windows installer. Skipped until S22 enables the Windows prost
-# toolchain.
+# name for the Windows installer.
 rust_binary(
     name = "dd-procmgr-service",
     srcs = ["src/bins/dd-procmgr-service.rs"],
@@ -141,7 +140,7 @@ rust_binary(
     srcs = ["src/bins/dd-procmgr.rs"],
     edition = "2024",
     rustc_flags = ["--cfg=bazel"],
-    target_compatible_with = ["@platforms//os:linux"],
+    target_compatible_with = _LINUX_OR_WINDOWS,
     visibility = ["//visibility:public"],
     deps = [
         ":dd-procmgrd-lib",
@@ -156,20 +155,20 @@ pkg_files(
     name = "all_files",
     srcs = [
         ":dd-procmgr",
-    ] + select({
-        "@platforms//os:windows": [":dd-procmgr-service"],
-        "//conditions:default": [":dd-procmgrd"],
-    }),
+        ":dd-procmgrd",
+    ],
     attributes = pkg_attributes(
         mode = "0755",
     ),
     prefix = "embedded/bin",
+    target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//packages:__subpackages__"],
 )
 
 pkg_install(
     name = "install",
     srcs = [":all_files"],
+    target_compatible_with = ["@platforms//os:linux"],
 )
 
 # ============================================================================
@@ -181,6 +180,7 @@ rust_test(
     crate = ":dd-procmgrd-lib",
     edition = "2024",
     rustc_flags = ["--cfg=bazel"],
+    target_compatible_with = _LINUX_OR_WINDOWS,
     deps = [
         "@crates//:hyper-util",
         "@crates//:tempfile",
@@ -206,7 +206,7 @@ rust_test(
         "CARGO_BIN_EXE_dd-procmgrd": "$(rootpath :dd-procmgrd)",
         "DDOT_TEMPLATE_PATH": "$(rootpath //pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-ddot.yaml.tmpl)",
     },
-    # Keep Linux-only until transport/named_pipe.rs is implemented
+    # E2E tests use UDS for transport and spawn the Linux daemon binary.
     target_compatible_with = ["@platforms//os:linux"],
     deps = [
         ":dd-procmgrd-lib-testhelpers",

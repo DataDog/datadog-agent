@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "parversion",
+    srcs = ["version.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/parversion",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/privateactionrunner/adapters/logging",
+        "//pkg/version",
+    ],
+)

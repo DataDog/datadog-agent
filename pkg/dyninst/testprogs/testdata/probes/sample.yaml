@@ -1872,6 +1872,20 @@ probes:
           ref: "i"
         dsl: "i"
     captureSnapshot: true
+  # Tests multiple named returns in scope at a line probe.
+  - id: testReturnsNamedDeferLine
+    type: LOG_PROBE
+    where:
+      methodName: main.testReturnsNamedDeferLine
+      sourceFile: returns.go
+      lines:
+        - "121"
+    template: "{i}"
+    segments:
+      - json:
+          ref: "i"
+        dsl: "i"
+    captureSnapshot: true
   - id: testReturnTemplate
     type: LOG_PROBE
     where:

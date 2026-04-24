@@ -24,6 +24,10 @@ type suiteParams struct {
 
 	disableCoverage bool
 
+	// coverageRequired holds per-agent overrides for the Required field of coverage targets.
+	// Keys are agent names (e.g. "datadog-agent", "trace-agent"). When nil, the defaults from the environment are used.
+	coverageRequired map[string]bool
+
 	provisioners provisioners.ProvisionerMap
 }
 
@@ -84,5 +88,14 @@ func WithPulumiProvisioner[Env any](runFunc provisioners.PulumiEnvRunFunc[Env], 
 func WithSkipCoverage() SuiteOption {
 	return func(options *suiteParams) {
 		options.disableCoverage = true
+	}
+}
+
+// WithCoverageRequired overrides the default Required field for the given coverage targets.
+// Each key must match a CoverageTargetSpec.AgentName (e.g. "datadog-agent", "trace-agent").
+// Targets not listed keep their environment default.
+func WithCoverageRequired(overrides map[string]bool) SuiteOption {
+	return func(options *suiteParams) {
+		options.coverageRequired = overrides
 	}
 }

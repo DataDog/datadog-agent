@@ -18,7 +18,7 @@
           {
             "function": "main.intSliceArg",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 285
+            "lineNumber": 292
           },
           {
             "function": "main.main",
@@ -41,14 +41,14 @@
           "location": {
             "method": "main.intSliceArg"
           }
-        }
-      },
-      "evaluationErrors": [
-        {
-          "expr": "s_5",
-          "message": "index out of bounds"
-        }
-      ]
+        },
+        "evaluationErrors": [
+          {
+            "expr": "s_5",
+            "message": "index out of bounds"
+          }
+        ]
+      }
     },
     "timestamp": "[ts]",
     "duration": "[duration]",

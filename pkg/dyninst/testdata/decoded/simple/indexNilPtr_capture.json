@@ -18,12 +18,12 @@
           {
             "function": "main.indexNilPtrSlice",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 600
+            "lineNumber": 607
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 171
+            "lineNumber": 178
           },
           {
             "function": "runtime.main",
@@ -77,12 +77,12 @@
           {
             "function": "main.indexNilPtrSlice",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 600
+            "lineNumber": 607
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 172
+            "lineNumber": 179
           },
           {
             "function": "runtime.main",
@@ -100,14 +100,14 @@
           "location": {
             "method": "main.indexNilPtrSlice"
           }
-        }
-      },
-      "evaluationErrors": [
-        {
-          "expr": "items_0",
-          "message": "nil pointer dereference"
-        }
-      ]
+        },
+        "evaluationErrors": [
+          {
+            "expr": "items_0",
+            "message": "nil pointer dereference"
+          }
+        ]
+      }
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
