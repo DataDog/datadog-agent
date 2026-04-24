@@ -97,6 +97,10 @@ def running_in_pre_commit():
     return os.environ.get("PRE_COMMIT") == "1"
 
 
+def running_in_workspace():
+    return os.environ.get("WORKSPACE_NAME") is not None
+
+
 def bin_name(name):
     """
     Generate platform dependent names for binaries
