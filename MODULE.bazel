@@ -86,10 +86,16 @@ git_override(
     remote = "https://github.com/bazel-contrib/rules_go.git",
 )
 
-# Temporary until rules_pkg > 1.2.0 is in BCR
+# Temporary until rules_pkg > 1.2.0 is released. Then switch to http_override.
 git_override(
     module_name = "rules_pkg",
     commit = "401969d4367c42dcbb45d33a637eae87788d025e",  # main as of April 22, 2026
+    patch_strip = 1,
+    patches = [
+        # Replaces the Python build_tar tool with dd_tar_writer (Go) so that
+        # pkg_tar emits a .md5sums sidecar via OutputGroupInfo(md5sums=...).
+        "//third_party/rules_pkg/patches:tar_bzl.patch",
+    ],
     remote = "https://github.com/bazelbuild/rules_pkg.git",
 )
 
