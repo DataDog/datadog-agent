@@ -12,7 +12,7 @@ import (
 	"runtime"
 	"time"
 
-	"go.uber.org/fx"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
@@ -45,7 +45,7 @@ type resourcesImpl struct {
 // This is why we have a Params struct for resources. It's `optional` so most of the binaries don't have to
 // supply a Params struct but only need to import the metadata.Bundle.
 type Requires struct {
-	fx.In
+	compdef.In
 
 	Params *Params `optional:"true"`
 
@@ -57,7 +57,7 @@ type Requires struct {
 
 // Provides defines the output of the resources metadata component.
 type Provides struct {
-	fx.Out
+	compdef.Out
 
 	Comp     resources.Component
 	Provider runnerimpl.Provider
