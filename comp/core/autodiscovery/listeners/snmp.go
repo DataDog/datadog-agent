@@ -176,7 +176,10 @@ func (l *SNMPListener) loadCache(subnet *snmpSubnet) {
 	// Create services sequentially
 	for i, device := range devices {
 		entityID := subnet.config.Digest(device.IP.String())
-		l.createService(entityID, subnet, device.IP.String(), deviceInfos[i], device.AuthIndex, device.Failures, true)
+		svc := l.createService(entityID, subnet, device.IP.String(), device.AuthIndex)
+		if svc != nil {
+			l.processService(svc, deviceInfos[i], device.AuthIndex, device.Failures, true)
+		}
 	}
 }
 
@@ -219,13 +222,11 @@ func (l *SNMPListener) checkDevice(job snmpJob) {
 	deviceFound := false
 	for authIndex, authentication := range job.subnet.config.Authentications {
 		deviceFound = l.checkDeviceReachable(authentication, job.subnet.config.Port, deviceIP)
+		l.deviceDeduper.RecordScanResult(deviceIP, deviceFound)
 
 		if !deviceFound {
-			l.deviceDeduper.DecrementIPCounter(deviceIP)
 			continue
 		}
-
-		l.deviceDeduper.MarkIPAsProcessed(deviceIP)
 
 		device, exists := job.subnet.devices[entityID]
 		if exists && device.Failures != 0 {
@@ -236,7 +237,10 @@ func (l *SNMPListener) checkDevice(job snmpJob) {
 		}
 
 		deviceInfo := l.checkDeviceInfo(authentication, job.subnet.config.Port, deviceIP)
-		l.createService(entityID, job.subnet, deviceIP, deviceInfo, authIndex, 0, false)
+		svc := l.createService(entityID, job.subnet, deviceIP, authIndex)
+		if svc != nil {
+			l.processService(svc, deviceInfo, authIndex, 0, false)
+		}
 
 		break
 	}
@@ -478,26 +482,18 @@ func (l *SNMPListener) checkDevices() {
 	}
 }
 
-func (l *SNMPListener) createService(
-	entityID string,
-	subnet *snmpSubnet,
-	deviceIP string,
-	deviceInfo devicededuper.DeviceInfo,
-	authIndex int,
-	deviceFailures int,
-	addedFromCache bool,
-) {
+func (l *SNMPListener) createService(entityID string, subnet *snmpSubnet, deviceIP string, authIndex int) *SNMPService {
 	l.Lock()
 	defer l.Unlock()
 
 	if _, present := l.services[entityID]; present {
-		return
+		return nil
 	}
 
 	config := subnet.config
 	if authIndex < 0 || authIndex >= len(config.Authentications) {
 		log.Errorf("Invalid authentication index %d for device %s (max: %d)", authIndex, deviceIP, len(config.Authentications)-1)
-		return
+		return nil
 	}
 	authentication := config.Authentications[authIndex]
 	config.Version = authentication.Version
@@ -512,7 +508,7 @@ func (l *SNMPListener) createService(
 	config.ContextEngineID = authentication.ContextEngineID
 	config.ContextName = authentication.ContextName
 
-	svc := SNMPService{
+	svc := &SNMPService{
 		adIdentifier: subnet.adIdentifier,
 		entityID:     entityID,
 		deviceIP:     deviceIP,
@@ -520,14 +516,17 @@ func (l *SNMPListener) createService(
 		subnet:       subnet,
 		pending:      true,
 	}
-	l.services[entityID] = &svc
+	l.services[entityID] = svc
+	return svc
+}
 
+func (l *SNMPListener) processService(svc *SNMPService, deviceInfo devicededuper.DeviceInfo, authIndex int, deviceFailures int, addedFromCache bool) {
 	pendingDevice := devicededuper.PendingDevice{
-		Config:         config,
+		Config:         svc.config,
 		Info:           deviceInfo,
 		AuthIndex:      authIndex,
 		AddedFromCache: addedFromCache,
-		IP:             deviceIP,
+		IP:             svc.deviceIP,
 		Failures:       deviceFailures,
 	}
 
@@ -553,6 +552,9 @@ func (l *SNMPListener) registerDedupedDevices() {
 }
 
 func (l *SNMPListener) registerService(pendingDevice devicededuper.PendingDevice) {
+	l.Lock()
+	defer l.Unlock()
+
 	entityID := pendingDevice.Config.Digest(pendingDevice.IP)
 
 	svc, ok := l.services[entityID]
