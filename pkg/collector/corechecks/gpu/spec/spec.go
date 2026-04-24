@@ -105,8 +105,10 @@ type TagsetSpec struct {
 
 // MetricMetadataSpec defines metadata used to generate integrations metadata.csv rows.
 type MetricMetadataSpec struct {
-	MetricType  string `yaml:"metric_type,omitempty"`
-	Unit        string `yaml:"unit,omitempty"`
+	MetricType string `yaml:"metric_type,omitempty"`
+	Unit       string `yaml:"unit,omitempty"`
+	// UsedInDDUI marks metrics surfaced in Datadog UI defaults.
+	UsedInDDUI bool   `yaml:"used_in_dd_ui,omitempty"`
 	Description string `yaml:"description,omitempty"`
 	Aggregation string `yaml:"aggregation,omitempty"`
 }

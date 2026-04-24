@@ -177,6 +177,7 @@ func TestMetricMetadataSpecUnmarshalYAML(t *testing.T) {
 metadata:
   metric_type: gauge
   unit: byte/second
+  used_in_dd_ui: true
   description: Example description
   aggregation: absolute_usage
 tagsets:
@@ -193,6 +194,7 @@ support:
 	require.NotNil(t, spec.Metadata)
 	require.Equal(t, "gauge", spec.Metadata.MetricType)
 	require.Equal(t, "byte/second", spec.Metadata.Unit)
+	require.True(t, spec.Metadata.UsedInDDUI)
 	require.Equal(t, "Example description", spec.Metadata.Description)
 	require.Equal(t, "absolute_usage", spec.Metadata.Aggregation)
 }
