@@ -25,7 +25,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/core/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -39,12 +39,12 @@ type ContainerConfigProvider struct {
 	mu                sync.RWMutex
 	telemetryStore    *telemetry.Store
 
-	healthPlatform healthplatform.Component
+	healthPlatform healthplatformdef.Component
 }
 
 // NewContainerConfigProvider returns a new ConfigProvider subscribed to both container
 // and pods
-func NewContainerConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, wmeta workloadmeta.Component, _ tagger.Component, _ workloadfilter.Component, hp healthplatform.Component, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
+func NewContainerConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, wmeta workloadmeta.Component, _ tagger.Component, _ workloadfilter.Component, hp healthplatformdef.Component, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
 	return &ContainerConfigProvider{
 		workloadmetaStore: wmeta,
 		configCache:       make(map[string]map[string]integration.Config),
@@ -323,7 +323,7 @@ func (k *ContainerConfigProvider) reportConfigurationError(entityName string, er
 
 	checkID := "ad-annotation:" + entityName
 	report := &healthplatformpayload.IssueReport{
-		IssueId: healthplatform.ADMisconfigurationIssueID,
+		IssueId: healthplatformdef.ADMisconfigurationIssueID,
 		Context: map[string]string{
 			"entityName":   entityName,
 			"errorMessage": errorMsg,
@@ -331,7 +331,7 @@ func (k *ContainerConfigProvider) reportConfigurationError(entityName string, er
 		},
 	}
 
-	if err := k.healthPlatform.ReportIssue(checkID, healthplatform.ADMisconfigurationCheckName, report); err != nil {
+	if err := k.healthPlatform.ReportIssue(checkID, healthplatformdef.ADMisconfigurationCheckName, report); err != nil {
 		log.Debugf("Failed to report AD annotation issue for %s: %v", entityName, err)
 	}
 }
@@ -344,7 +344,7 @@ func (k *ContainerConfigProvider) clearConfigurationErrors(entityName string) {
 
 	checkID := "ad-annotation:" + entityName
 	// Passing nil report clears the issue
-	if err := k.healthPlatform.ReportIssue(checkID, healthplatform.ADMisconfigurationCheckName, nil); err != nil {
+	if err := k.healthPlatform.ReportIssue(checkID, healthplatformdef.ADMisconfigurationCheckName, nil); err != nil {
 		log.Debugf("Failed to clear AD annotation issue %s: %v", checkID, err)
 	}
 }

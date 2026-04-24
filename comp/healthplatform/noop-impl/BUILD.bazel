@@ -9,7 +9,7 @@ go_library(
         "//comp/api/api/def",
         "//comp/core/flare/types",
         "//comp/def",
-        "//comp/healthplatform/def",
+        "//comp/healthplatform/core/def",
         "@com_github_datadog_agent_payload_v5//healthplatform",
     ],
 )

@@ -34,7 +34,7 @@ import (
 	localTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/fx-noop"
 	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
-	healthplatformnoopfx "github.com/DataDog/datadog-agent/comp/healthplatform/fx-noop"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 
@@ -75,7 +75,7 @@ func main() {
 		delegatedauthfx.Module(),
 		workloadfilterfx.Module(),
 		autodiscoveryimpl.Module(),
-		healthplatformnoopfx.Module(),
+		healthplatform.Bundle(),
 		fx.Provide(func(config coreconfig.Component) healthprobeDef.Options {
 			return healthprobeDef.Options{
 				Port:           config.GetInt("health_port"),

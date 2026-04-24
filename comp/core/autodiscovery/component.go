@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/core/def"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
@@ -35,5 +35,5 @@ type Component interface {
 	GetTelemetryStore() *telemetry.Store
 	// TODO (component): once cluster agent uses the API component remove this function
 	GetConfigCheck() integration.ConfigCheckResponse
-	GetHealthPlatform() healthplatform.Component
+	GetHealthPlatform() healthplatformdef.Component
 }
