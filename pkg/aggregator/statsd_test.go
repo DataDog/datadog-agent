@@ -15,6 +15,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/pkg/hook"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -24,7 +25,7 @@ func TestStatsdDirect(t *testing.T) {
 	opts.FlushInterval = time.Hour
 	opts.DontStartForwarders = true
 	demuxDeps := createDemultiplexerAgentTestDeps(t)
-	demux := initAgentDemultiplexer(demuxDeps.Log, NewForwarderTest(demuxDeps.Log), demuxDeps.OrchestratorFwd, opts, demuxDeps.EventPlatform, demuxDeps.HaAgent, demuxDeps.Compressor, demuxDeps.Tagger, demuxDeps.FilterList, "")
+	demux := initAgentDemultiplexer(demuxDeps.Log, NewForwarderTest(demuxDeps.Log), demuxDeps.OrchestratorFwd, opts, demuxDeps.EventPlatform, demuxDeps.HaAgent, demuxDeps.Compressor, demuxDeps.Tagger, demuxDeps.FilterList, "", hook.NewNoopHook[[]hook.MetricSampleSnapshot]())
 
 	hostnameComp := fxutil.Test[hostnameinterface.Mock](t,
 		fx.Options(

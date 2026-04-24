@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/hook"
 	"github.com/DataDog/datadog-agent/pkg/hosttags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
@@ -136,8 +137,9 @@ func InitAndStartAgentDemultiplexer(
 	compressor compression.Component,
 	tagger tagger.Component,
 	filterList filterlist.Component,
-	hostname string) *AgentDemultiplexer {
-	demux := initAgentDemultiplexer(log, sharedForwarder, orchestratorForwarder, options, eventPlatformForwarder, haAgent, compressor, tagger, filterList, hostname)
+	hostname string,
+	metricHook hook.Hook[[]hook.MetricSampleSnapshot]) *AgentDemultiplexer {
+	demux := initAgentDemultiplexer(log, sharedForwarder, orchestratorForwarder, options, eventPlatformForwarder, haAgent, compressor, tagger, filterList, hostname, metricHook)
 	go demux.run()
 	return demux
 }
@@ -151,7 +153,8 @@ func initAgentDemultiplexer(log log.Component,
 	compressor compression.Component,
 	tagger tagger.Component,
 	filterList filterlist.Component,
-	hostname string) *AgentDemultiplexer {
+	hostname string,
+	metricHook hook.Hook[[]hook.MetricSampleSnapshot]) *AgentDemultiplexer {
 	// prepare the multiple forwarders
 	// -------------------------------
 	if pkgconfigsetup.Datadog().GetBool("telemetry.enabled") && pkgconfigsetup.Datadog().GetBool("telemetry.dogstatsd_origin") && !pkgconfigsetup.Datadog().GetBool("aggregator_use_tags_store") {
@@ -167,7 +170,7 @@ func initAgentDemultiplexer(log log.Component,
 	// prepare the embedded aggregator
 	// --
 
-	agg := NewBufferedAggregator(sharedSerializer, eventPlatformForwarder, haAgent, tagger, hostname, options.FlushInterval, filterList)
+	agg := NewBufferedAggregator(sharedSerializer, eventPlatformForwarder, haAgent, tagger, hostname, options.FlushInterval, filterList, metricHook)
 
 	// statsd samplers
 	// ---------------
@@ -183,7 +186,7 @@ func initAgentDemultiplexer(log log.Component,
 		// the sampler
 		tagsStore := tags.NewStore(pkgconfigsetup.Datadog().GetBool("aggregator_use_tags_store"), fmt.Sprintf("timesampler #%d", i))
 
-		statsdSampler := NewTimeSampler(TimeSamplerID(i), bucketSize, tagsStore, tagger, agg.hostname)
+		statsdSampler := NewTimeSampler(TimeSamplerID(i), bucketSize, tagsStore, tagger, agg.hostname, metricHook)
 
 		// its worker (process loop + flush/serialization mechanism)
 
@@ -202,6 +205,7 @@ func initAgentDemultiplexer(log log.Component,
 			noAggSerializer,
 			agg.flushAndSerializeInParallel,
 			tagger,
+			metricHook,
 		)
 	}
 

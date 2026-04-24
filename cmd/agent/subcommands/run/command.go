@@ -126,6 +126,7 @@ import (
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	healthplatformfx "github.com/DataDog/datadog-agent/comp/healthplatform/fx"
 	healthplatformimpl "github.com/DataDog/datadog-agent/comp/healthplatform/impl"
+	hookbenchsubscriberfx "github.com/DataDog/datadog-agent/comp/hookbenchsubscriber/fx"
 	hostProfilerFlareFx "github.com/DataDog/datadog-agent/comp/host-profiler/flare/fx"
 	langDetectionCl "github.com/DataDog/datadog-agent/comp/languagedetection/client/def"
 	langDetectionClimpl "github.com/DataDog/datadog-agent/comp/languagedetection/client/fx"
@@ -478,6 +479,7 @@ func getSharedFxOption() fx.Option {
 		remoteconfig.Bundle(),
 		daemoncheckerfx.Module(),
 		fleetfx.Module(),
+		hookbenchsubscriberfx.Module(),
 		dualTaggerfx.Module(common.DualTaggerParams()),
 		autodiscoveryimpl.Module(),
 		// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.

@@ -331,6 +331,8 @@ exports_files(glob(
 # gazelle:exclude pkg/gpu/tags
 # gazelle:exclude pkg/gpu/testutil
 # gazelle:exclude pkg/hosttags
+# gazelle:exclude pkg/hook
+# gazelle:exclude pkg/inventory
 # gazelle:exclude pkg/jmxfetch
 # gazelle:exclude pkg/kubestatemetrics
 # gazelle:exclude pkg/logonduration
