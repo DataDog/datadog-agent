@@ -8,10 +8,8 @@ package agent
 import (
 	"fmt"
 	"os"
-	"strings"
 
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/pipeline"
 )
 
 // cacheMirrorPort is the TCP port on which the VM-local package mirror listens.
@@ -20,84 +18,88 @@ const cacheMirrorPort = 7071
 
 // WarmPackageCache pre-fetches every agent package the fleet suite will install
 // into a VM-local directory and starts a localhost HTTP server that serves
-// them. Subsequent calls to Install() will rewrite the install script to pull
-// from this mirror instead of S3, removing the per-install download cost.
+// them. Subsequent Install() calls rewrite the install script to pull from
+// this mirror instead of S3, removing the per-install download cost.
 //
 // Requirements:
 //   - E2E_PIPELINE_ID must be set (testing packages). Stable/staging installs
-//     do not benefit from caching and are skipped.
-//   - The VM must be able to reach s3.amazonaws.com at suite setup time (one
-//     sync); afterwards every install is served locally.
+//     do not benefit and are skipped.
+//   - python3 must be present on the VM (true on every DD CI Linux image).
+//   - The VM reaches s3.amazonaws.com at suite setup time (one sync);
+//     afterwards every install is served locally.
 //
-// Fails loudly. Silent fallback would mask regressions that erase the speedup.
+// Only Linux is supported. Windows tests use the uncached S3 path until a
+// suitable Windows HTTP server implementation is available.
 func (a *Agent) WarmPackageCache() error {
 	pipelineID := os.Getenv("E2E_PIPELINE_ID")
 	if pipelineID == "" {
 		return nil
 	}
-	switch a.host.RemoteHost.OSFamily {
-	case e2eos.LinuxFamily:
-		return a.warmLinuxCache(pipelineID)
-	case e2eos.WindowsFamily:
-		return a.warmWindowsCache(pipelineID)
-	default:
+	if a.host.RemoteHost.OSFamily != e2eos.LinuxFamily {
 		return nil
 	}
+	return a.warmLinuxCache(pipelineID)
 }
 
 func (a *Agent) warmLinuxCache(pipelineID string) error {
-	// Package manager family drives which S3 subtree we need. The install
-	// script builds URLs like https://${apt_url}/... and https://${yum_url}/...
-	// — we mirror just the subtree this VM will actually read.
 	aptPrefix := fmt.Sprintf("datadog-agent/pipeline-%s-a7", pipelineID)
 	yumPrefix := fmt.Sprintf("testing/pipeline-%s-a7/7", pipelineID)
 	suseYumPrefix := fmt.Sprintf("suse/testing/pipeline-%s-a7/7", pipelineID)
 
-	// Ensure tools we rely on are present. The DD CI images ship most of
-	// these but an explicit best-effort install keeps this working on fresh
-	// VMs. `unzip` is the one that's most commonly missing; without it the
-	// AWS CLI installer fails silently and every `aws s3 sync` errors with
-	// "command not found".
-	bootstrap := `
+	// Python3 is the only dependency, and it's present on every CI image we
+	// run on. Doing the sync with Python's urllib (no AWS CLI, no unzip)
+	// sidesteps the fragile "install awscli via curl+unzip" dance and keeps
+	// the warm-up dependency surface tiny.
+	//
+	// The script is written to /tmp via a quoted heredoc so the Python body
+	// isn't subject to shell expansion.
+	setup := fmt.Sprintf(`
 set +e
 if ! command -v python3 >/dev/null; then
   sudo apt-get install -y python3 || sudo yum install -y python3 || sudo zypper install -y python3
 fi
-if ! command -v unzip >/dev/null; then
-  sudo apt-get install -y unzip || sudo yum install -y unzip || sudo zypper install -y unzip
-fi
-if ! command -v aws >/dev/null && command -v unzip >/dev/null; then
-  tmp=$(mktemp -d)
-  arch=$(uname -m); [ "$arch" = "aarch64" ] && awsarch=aarch64 || awsarch=x86_64
-  if curl -sSLo "$tmp/awscli.zip" "https://awscli.amazonaws.com/awscli-exe-linux-${awsarch}.zip"; then
-    (cd "$tmp" && unzip -q awscli.zip && sudo ./aws/install)
-  fi
+if ! command -v python3 >/dev/null; then
+  echo "python3 missing, cannot warm cache" >&2
+  exit 1
 fi
 sudo mkdir -p /opt/dd-pkg-cache
-sudo chmod 755 /opt/dd-pkg-cache
-# Report final state so a failed warm-up logs something useful.
-command -v aws >/dev/null && echo "aws: $(aws --version 2>&1 | head -1)" >&2 || echo "aws: MISSING" >&2
-command -v python3 >/dev/null && echo "python3: $(python3 --version 2>&1)" >&2 || echo "python3: MISSING" >&2
-true
-`
-	if _, err := a.host.RemoteHost.Execute(bootstrap); err != nil {
-		return fmt.Errorf("cache bootstrap: %w", err)
-	}
-
-	sync := fmt.Sprintf(`
-set -eux
-# The testing S3 buckets are public-read; anonymous listing works via --no-sign-request.
-sudo aws --no-sign-request s3 sync s3://apttesting.datad0g.com/%s/ /opt/dd-pkg-cache/apttesting.datad0g.com/%s/ --only-show-errors
-sudo aws --no-sign-request s3 sync s3://yumtesting.datad0g.com/%s/ /opt/dd-pkg-cache/yumtesting.datad0g.com/%s/ --only-show-errors
-sudo aws --no-sign-request s3 sync s3://yumtesting.datad0g.com/%s/ /opt/dd-pkg-cache/yumtesting.datad0g.com/%s/ --only-show-errors
-`, aptPrefix, aptPrefix, yumPrefix, yumPrefix, suseYumPrefix, suseYumPrefix)
-	if _, err := a.host.RemoteHost.Execute(sync); err != nil {
+sudo chmod 1777 /opt/dd-pkg-cache
+cat > /tmp/dd-pkg-cache-sync.py <<'PYEOF'
+import sys, os, urllib.request, urllib.parse, xml.etree.ElementTree as ET
+NS = "{http://s3.amazonaws.com/doc/2006-03-01/}"
+bucket, prefix, dest = sys.argv[1], sys.argv[2], sys.argv[3]
+cont = None
+while True:
+    qs = "list-type=2&prefix=" + urllib.parse.quote(prefix)
+    if cont:
+        qs += "&continuation-token=" + urllib.parse.quote(cont)
+    with urllib.request.urlopen("https://s3.amazonaws.com/" + bucket + "/?" + qs) as r:
+        root = ET.parse(r).getroot()
+    for c in root.findall(NS + "Contents"):
+        key = c.find(NS + "Key").text
+        if key.endswith("/"):
+            continue
+        local = os.path.join(dest, key)
+        os.makedirs(os.path.dirname(local), exist_ok=True)
+        if os.path.exists(local) and os.path.getsize(local) == int(c.find(NS + "Size").text):
+            continue
+        urllib.request.urlretrieve("https://s3.amazonaws.com/" + bucket + "/" + urllib.parse.quote(key), local)
+    if (root.find(NS + "IsTruncated").text or "false") != "true":
+        break
+    cont = root.find(NS + "NextContinuationToken").text
+PYEOF
+set -e
+python3 /tmp/dd-pkg-cache-sync.py apttesting.datad0g.com %q /opt/dd-pkg-cache/apttesting.datad0g.com
+python3 /tmp/dd-pkg-cache-sync.py yumtesting.datad0g.com %q /opt/dd-pkg-cache/yumtesting.datad0g.com
+python3 /tmp/dd-pkg-cache-sync.py yumtesting.datad0g.com %q /opt/dd-pkg-cache/yumtesting.datad0g.com
+`, aptPrefix, yumPrefix, suseYumPrefix)
+	if _, err := a.host.RemoteHost.Execute(setup); err != nil {
 		return fmt.Errorf("cache sync: %w", err)
 	}
 
-	// Serve the cache via a transient systemd service. Cleaner than nohup+
-	// disown over SSH: systemd handles stdio, restarts, and teardown, and
-	// the service survives the SSH session that created it.
+	// Serve via a transient systemd service. Cleaner than nohup+disown over
+	// SSH: systemd handles stdio/teardown and the service survives the
+	// session that created it.
 	start := fmt.Sprintf(`
 set -eux
 sudo systemctl stop dd-pkg-cache.service 2>/dev/null || true
@@ -114,67 +116,5 @@ exit 1
 		return fmt.Errorf("cache http server: %w", err)
 	}
 	a.cacheMirrorHost = fmt.Sprintf("127.0.0.1:%d", cacheMirrorPort)
-	return nil
-}
-
-func (a *Agent) warmWindowsCache(pipelineID string) error {
-	artifactURL, err := pipeline.GetPipelineArtifact(pipelineID, pipeline.AgentS3BucketTesting, pipeline.DefaultMajorVersion, func(artifact string) bool {
-		return strings.Contains(artifact, "datadog-installer") && strings.HasSuffix(artifact, ".exe")
-	})
-	if err != nil {
-		return fmt.Errorf("pipeline artifact lookup: %w", err)
-	}
-	// Derive the filename the install script expects.
-	parts := strings.Split(artifactURL, "/")
-	filename := parts[len(parts)-1]
-
-	download := fmt.Sprintf(`
-$ErrorActionPreference = 'Stop'
-New-Item -ItemType Directory -Force -Path C:\dd-pkg-cache | Out-Null
-[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
-(New-Object System.Net.WebClient).DownloadFile('%s', 'C:\dd-pkg-cache\%s')
-`, artifactURL, filename)
-	if _, err := a.host.RemoteHost.Execute(download); err != nil {
-		return fmt.Errorf("windows installer download: %w", err)
-	}
-
-	// Serve the cache directory. PowerShell's HttpListener is native, no
-	// Python dependency required.
-	startServer := fmt.Sprintf(`
-$ErrorActionPreference = 'Stop'
-# Kill any previous cache server (harmless if none).
-Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" | Where-Object { $_.CommandLine -match 'dd-pkg-cache-server' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
-$script = @'
-# dd-pkg-cache-server
-$listener = New-Object System.Net.HttpListener
-$listener.Prefixes.Add('http://127.0.0.1:%d/')
-$listener.Start()
-while ($listener.IsListening) {
-  $ctx = $listener.GetContext()
-  $path = 'C:\dd-pkg-cache' + $ctx.Request.Url.LocalPath.Replace('/', '\')
-  if (Test-Path $path -PathType Leaf) {
-    $bytes = [System.IO.File]::ReadAllBytes($path)
-    $ctx.Response.ContentLength64 = $bytes.Length
-    $ctx.Response.OutputStream.Write($bytes, 0, $bytes.Length)
-  } else {
-    $ctx.Response.StatusCode = 404
-  }
-  $ctx.Response.Close()
-}
-'@
-$encoded = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($script))
-Start-Process -WindowStyle Hidden powershell -ArgumentList '-NoProfile','-EncodedCommand',$encoded
-# Wait until up.
-for ($i = 0; $i -lt 10; $i++) {
-  try { Invoke-WebRequest -UseBasicParsing "http://127.0.0.1:%d/%s" -Method Head | Out-Null; exit 0 } catch { Start-Sleep -Seconds 1 }
-}
-Write-Error "cache HTTP server did not come up"
-exit 1
-`, cacheMirrorPort, cacheMirrorPort, filename)
-	if _, err := a.host.RemoteHost.Execute(startServer); err != nil {
-		return fmt.Errorf("windows cache http server: %w", err)
-	}
-	a.cacheMirrorHost = fmt.Sprintf("127.0.0.1:%d", cacheMirrorPort)
-	a.cacheWindowsInstaller = filename
 	return nil
 }

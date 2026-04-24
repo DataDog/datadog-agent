@@ -158,14 +158,17 @@ func (a *Agent) installLinuxInstallScript(params *installParams) error {
 		env["DD_AGENT_MINOR_VERSION"] = strings.TrimPrefix(params.stagingPackages, "7.")
 		env["DD_AGENT_DIST_CHANNEL"] = "beta"
 	}
-	// When a VM-local package mirror is warm, rewrite the install script so
-	// the hardcoded `https://${apt_url}` / `https://${yum_url}` templates
-	// emit http:// URLs. With TESTING_APT_URL/TESTING_YUM_URL pointing at
-	// 127.0.0.1, that sends apt/yum to our local HTTP server instead of S3.
-	// GPG key fetches (${keys_url}) remain HTTPS — we deliberately don't
-	// cache those and they stay on the public domain.
+	// When a VM-local package mirror is warm AND we're using testing
+	// packages, rewrite the install script so the hardcoded
+	// `https://${apt_url}` / `https://${yum_url}` templates emit http://
+	// URLs. With TESTING_APT_URL/TESTING_YUM_URL pointing at 127.0.0.1, that
+	// sends apt/yum to our local HTTP server instead of S3. Skipping the
+	// rewrite for stable/staging installs is important — those still point
+	// at apt.datadoghq.com, which does not serve HTTP. GPG key fetches
+	// (${keys_url}) always remain HTTPS.
 	curlPipe := "curl -L " + linuxInstallScriptURL
-	if a.cacheMirrorHost != "" {
+	useCache := a.cacheMirrorHost != "" && !params.stablePackages && params.stagingPackages == ""
+	if useCache {
 		curlPipe += ` | sed -e 's|https://${apt_url}|http://${apt_url}|g' -e 's|https://${yum_url}|http://${yum_url}|g'`
 	}
 	_, err = a.host.RemoteHost.Execute(`bash -c "$(`+curlPipe+`)"`, client.WithEnvVariables(env))
@@ -232,18 +235,18 @@ func (a *Agent) MustUninstall() {
 }
 
 func (a *Agent) uninstallLinux() error {
-	// Stop services first so the installer daemon can't restart and hold
-	// file descriptors during removal. Use high-level package managers
-	// (apt-get/yum/zypper): unlike `rpm -e` or `dpkg --purge`, they tolerate
-	// missing packages (skip with a warning) instead of aborting the whole
-	// transaction. The `|| true` wrapper further isolates each manager so
-	// one failing doesn't prevent the others from running.
+	// Match main's behavior: remove only datadog-agent, using the package
+	// manager that exists on this distro (apt-get on deb, yum on rpm, zypper
+	// on SUSE). Adding datadog-installer or datadog-agent-ddot to the list
+	// breaks upgrade tests that start from WithStablePackages() — those
+	// packages aren't in the stable apt/yum repo, so a multi-package remove
+	// fails with "Unable to locate package" and no packages get removed.
+	// The upfront service-stop is a safe addition: it prevents the installer
+	// daemon from holding file descriptors during removal.
 	_, err := a.host.RemoteHost.Execute(`
 set +e
 sudo systemctl stop 'datadog-agent*.service' 'datadog-installer*.service' 2>/dev/null || true
-sudo apt-get remove -y --purge datadog-agent datadog-installer datadog-agent-ddot 2>/dev/null || true
-sudo yum remove -y datadog-agent datadog-installer datadog-agent-ddot 2>/dev/null || true
-sudo zypper --non-interactive remove -y datadog-agent datadog-installer datadog-agent-ddot 2>/dev/null || true
+sudo apt-get remove -y --purge datadog-agent 2>/dev/null || sudo yum remove -y datadog-agent 2>/dev/null || sudo zypper --non-interactive remove -y datadog-agent 2>/dev/null || true
 sudo rm -rf /etc/datadog-agent
 sudo systemctl reset-failed 2>/dev/null || true
 true
