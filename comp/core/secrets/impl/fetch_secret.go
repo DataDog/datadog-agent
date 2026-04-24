@@ -195,7 +195,7 @@ func splitSecretHandle(handle string) (backendID, secretKey string) {
 func (r *secretResolver) resolveBackendConfig(backendID string) (string, map[string]interface{}, int, error) {
 	if backendID == "" {
 		if len(r.backendConfigs) > 0 && r.backendType == "" {
-			return "", nil, 0, fmt.Errorf("unknown backend")
+			return "", nil, 0, errors.New("unknown backend")
 		}
 		return r.backendType, r.backendConfig, r.backendTimeout, nil
 	}
