@@ -193,6 +193,58 @@ func TestFormatReport(t *testing.T) {
 	}
 }
 
+func TestFormatReport_matchedUnmatchedTableLineWidth(t *testing.T) {
+	found := []MetricProfile{
+		{
+			OID:         "1" + strings.Repeat(".2", 80) + ".0",
+			SymbolName:  strings.Repeat("L", 50),
+			InterfaceID: "1234567890123456",
+			Value:       strings.Repeat("V", 100),
+			Profile:     strings.Repeat("P", 50),
+		},
+	}
+	notFound := []MetricProfile{
+		{OID: "1" + strings.Repeat(".3", 80) + ".0", Value: strings.Repeat("U", 200)},
+	}
+	rep := FormatReport(found, notFound, "device-profile", nil)
+	lines := strings.Split(rep, "\n")
+	// Lines under Matched OIDs: dash, header (100), data (100)
+	inMatched := -1
+	for i, line := range lines {
+		if line == "Matched OIDs" {
+			inMatched = i
+			break
+		}
+	}
+	if inMatched < 0 {
+		t.Fatal("no Matched OIDs section")
+	}
+	// inMatched+1 = dash, +2 = table header, +3 = data row
+	hdr := lines[inMatched+2]
+	data := lines[inMatched+3]
+	if len(hdr) != reportWidth {
+		t.Errorf("matched header row: len %d, want %d: %q", len(hdr), reportWidth, hdr)
+	}
+	if len(data) != reportWidth {
+		t.Errorf("matched data row: len %d, want %d: %q", len(data), reportWidth, data)
+	}
+	inUnmatched := -1
+	for i, line := range lines {
+		if line == "Unmatched OIDs" {
+			inUnmatched = i
+			break
+		}
+	}
+	uHdr := lines[inUnmatched+2]
+	uData := lines[inUnmatched+3]
+	if len(uHdr) != reportWidth {
+		t.Errorf("unmatched header row: len %d, want %d", len(uHdr), reportWidth)
+	}
+	if len(uData) != reportWidth {
+		t.Errorf("unmatched data row: len %d, want %d", len(uData), reportWidth)
+	}
+}
+
 func TestInterfaceID(t *testing.T) {
 	pdus := []gosnmp.SnmpPDU{
 		{Name: SysObjectOID(), Value: "1.3.6.1.4.1.3375.2.1.3.4.1"},

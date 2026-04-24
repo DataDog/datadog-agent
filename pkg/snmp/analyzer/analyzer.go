@@ -6,7 +6,6 @@ import (
 	"os"
 	"sort"
 	"strings"
-	"text/tabwriter"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
@@ -213,8 +212,16 @@ func Analyze(pdus []gosnmp.SnmpPDU, sysOID string) (
 
 const reportWidth = 100
 
-// FormatReport renders the analysis as plain ASCII (no Unicode box-drawing) and tabwriter-aligned
-// columns so layout stays correct in terminals, IDEs, email, and web views with monospace fonts.
+const (
+	wColOID     = 28
+	wColMetric  = 14
+	wColIface   = 8 // "IF INDEX"
+	wColValue   = 26
+	wColFound   = 19
+	wUnmatchedA = 49
+	wUnmatchedB = 50
+)
+
 func FormatReport(found, notFound []MetricProfile, profileName string, extendedProfiles []string) string {
 	var b strings.Builder
 	total := len(found) + len(notFound)
@@ -228,35 +235,120 @@ func FormatReport(found, notFound []MetricProfile, profileName string, extendedP
 	b.WriteString(dash + "\n")
 	b.WriteString(fmt.Sprintf("  Total OIDs: %d  |  Matched: %d  |  Unmatched: %d\n", total, len(found), len(notFound)))
 	b.WriteString(fmt.Sprintf("  Profile: %s\n", profileName))
-	b.WriteString(fmt.Sprintf("  Extended Profiles: %s\n", extendedStr))
+	writeExtendedProfilesWrapped(&b, extendedStr, reportWidth)
 	b.WriteString(rule + "\n\n")
 
 	b.WriteString("Matched OIDs\n")
 	b.WriteString(dash + "\n")
-	tw := tabwriter.NewWriter(&b, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "OID\tMETRIC\tINTERFACE INDEX\tVALUE\tFOUND IN")
+	b.WriteString(fmt.Sprintf(
+		"%-*s %-*s %-*s  %-*s %-*s\n",
+		wColOID, reportTruncate("OID", wColOID),
+		wColMetric, reportTruncate("METRIC", wColMetric),
+		wColIface, reportTruncate("IF INDEX", wColIface),
+		wColValue, reportTruncate("VALUE", wColValue),
+		wColFound, reportTruncate("FOUND IN", wColFound),
+	))
 	for _, m := range found {
-		valStr := formatReportValue(m.Value, 32)
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n",
-			truncate(m.OID, 45),
-			truncate(m.SymbolName, 20),
-			m.InterfaceID,
-			valStr,
-			truncate(m.Profile, 20),
+		line := fmt.Sprintf(
+			"%-*s %-*s %-*s  %-*s %-*s",
+			wColOID, reportTruncate(m.OID, wColOID),
+			wColMetric, reportTruncate(m.SymbolName, wColMetric),
+			wColIface, reportTruncate(m.InterfaceID, wColIface),
+			wColValue, formatReportValue(m.Value, wColValue),
+			wColFound, reportTruncate(m.Profile, wColFound),
 		)
+		b.WriteString(line)
+		b.WriteByte('\n')
 	}
-	_ = tw.Flush()
 
 	b.WriteString("\nUnmatched OIDs\n")
 	b.WriteString(dash + "\n")
-	tw2 := tabwriter.NewWriter(&b, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw2, "OID\tVALUE")
+	b.WriteString(fmt.Sprintf(
+		"%-*s %-*s\n",
+		wUnmatchedA, reportTruncate("OID", wUnmatchedA),
+		wUnmatchedB, reportTruncate("VALUE", wUnmatchedB),
+	))
 	for _, m := range notFound {
-		fmt.Fprintf(tw2, "%s\t%s\n", truncate(m.OID, 60), formatReportValue(m.Value, 60))
+		line := fmt.Sprintf(
+			"%-*s %-*s",
+			wUnmatchedA, reportTruncate(m.OID, wUnmatchedA),
+			wUnmatchedB, formatReportValue(m.Value, wUnmatchedB),
+		)
+		b.WriteString(line)
+		b.WriteByte('\n')
 	}
-	_ = tw2.Flush()
 	b.WriteString("\n")
 	return b.String()
+}
+
+func writeExtendedProfilesWrapped(b *strings.Builder, joined string, width int) {
+	const prefix = "  Extended Profiles: "
+	if width < 40 {
+		width = 40
+	}
+	if joined == "" {
+		b.WriteString(prefix)
+		b.WriteByte('\n')
+		return
+	}
+	max := width - len(prefix)
+	if max < 8 {
+		max = 8
+	}
+	cont := strings.Repeat(" ", len(prefix))
+	items := strings.Split(joined, ", ")
+	var cur []string
+	isFirst := true
+	i := 0
+	for i < len(items) {
+		item := items[i]
+		var test string
+		if len(cur) == 0 {
+			test = item
+		} else {
+			test = strings.Join(append(append([]string{}, cur...), item), ", ")
+		}
+		if len(test) <= max {
+			cur = append(cur, item)
+			i++
+			continue
+		}
+		if len(cur) > 0 {
+			if isFirst {
+				b.WriteString(prefix)
+				isFirst = false
+			} else {
+				b.WriteString(cont)
+			}
+			b.WriteString(strings.Join(cur, ", "))
+			b.WriteByte('\n')
+			cur = nil
+			continue
+		}
+		// Single item does not fit on one line.
+		chunk := item
+		if len(chunk) > max {
+			chunk = chunk[:max-3] + "..."
+		}
+		if isFirst {
+			b.WriteString(prefix)
+			isFirst = false
+		} else {
+			b.WriteString(cont)
+		}
+		b.WriteString(chunk)
+		b.WriteByte('\n')
+		i++
+	}
+	if len(cur) > 0 {
+		if isFirst {
+			b.WriteString(prefix)
+		} else {
+			b.WriteString(cont)
+		}
+		b.WriteString(strings.Join(cur, ", "))
+		b.WriteByte('\n')
+	}
 }
 
 func formatReportValue(v interface{}, max int) string {
@@ -278,9 +370,15 @@ func center(s string, w int) string {
 	return strings.Repeat(" ", pad) + s + strings.Repeat(" ", w-pad-len(s))
 }
 
-func truncate(s string, max int) string {
+func reportTruncate(s string, max int) string {
+	if max <= 0 {
+		return ""
+	}
 	if len(s) <= max {
 		return s
+	}
+	if max <= 3 {
+		return s[:max]
 	}
 	return s[:max-3] + "..."
 }
