@@ -53,6 +53,13 @@ _TRANSIENT_PATTERNS = (
     "temporarily unavailable",
     "server error",
     "service unavailable",
+    # claude-agent-sdk bubbles CLI subprocess crashes as a bare Exception
+    # with one of these strings. Empirically these appear as isolated
+    # one-off failures (not bursts) — retry almost always recovers.
+    # Without matching these, `_with_retries` re-raises immediately and
+    # burns the iteration.
+    "command failed with exit code",
+    "fatal error in message reader",
 )
 
 
@@ -115,7 +122,13 @@ def _import_sdk():
 _SDK_ERRORS_DIR = "sdk-errors"
 
 
-def _dump_sdk_error(root: Path, exc: BaseException, purpose: str, model: str) -> Path:
+def _dump_sdk_error(
+    root: Path,
+    exc: BaseException,
+    purpose: str,
+    model: str,
+    cli_stderr: list[str] | None = None,
+) -> Path:
     """Serialise every scrap of context we can get from a failed SDK call
     to a file under .coordinator/sdk-errors/. Return the path so callers
     can reference it in journal / PR comments."""
@@ -165,6 +178,11 @@ def _dump_sdk_error(root: Path, exc: BaseException, purpose: str, model: str) ->
         cause = cause.__cause__ or cause.__context__
     lines.append("\n--- traceback ---")
     lines.append("".join(traceback.format_exception(type(exc), exc, exc.__traceback__))[:8000])
+    if cli_stderr:
+        lines.append(f"\n--- claude CLI stderr (last {len(cli_stderr)} lines) ---")
+        lines.extend(cli_stderr)
+    elif cli_stderr is not None:
+        lines.append("\n--- claude CLI stderr ---\n(empty)")
     p.write_text("\n".join(lines))
     return p
 
@@ -197,6 +215,26 @@ def _run_query(
     family = token_log.model_family(model)
     root_path = Path(root) if root else Path(".")
 
+    # Capture claude-CLI stderr into a bounded ring buffer. On failure the
+    # SDK raises a bare `Exception("Command failed with exit code 1 ...
+    # Check stderr output for details")` without the stderr content
+    # attached — pre-this wire, we had no way to diagnose CLI crashes.
+    # deque(maxlen=500) caps memory if the CLI writes a lot before dying.
+    import collections
+    cli_stderr: collections.deque[str] = collections.deque(maxlen=500)
+    # Don't clobber a caller-provided stderr callback; chain instead.
+    prior_cb = options_kwargs.get("stderr")
+
+    def _stderr_cb(line: str) -> None:
+        cli_stderr.append(line)
+        if prior_cb is not None:
+            try:
+                prior_cb(line)
+            except Exception:  # noqa: BLE001 — callback errors must not kill the SDK
+                pass
+
+    options_kwargs["stderr"] = _stderr_cb
+
     def _once() -> str:
         return _collect_text(
             query(prompt=prompt, options=ClaudeAgentOptions(**options_kwargs)),
@@ -213,7 +251,10 @@ def _run_query(
         # Capture full context to an sdk-errors file; then re-raise with a
         # breadcrumb so the driver's iter_impl_failed handler can include
         # the path in the PR comment.
-        err_path = _dump_sdk_error(root_path, exc, purpose, model or "")
+        err_path = _dump_sdk_error(
+            root_path, exc, purpose, model or "",
+            cli_stderr=list(cli_stderr),
+        )
         raise RuntimeError(
             f"SDK call failed (purpose={purpose}, model={model}). "
             f"Full context: {err_path}"

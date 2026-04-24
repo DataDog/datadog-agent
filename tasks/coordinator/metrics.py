@@ -11,9 +11,10 @@ import json
 from pathlib import Path
 
 from .db import state_dir
-from .schema import Baseline, CandidateStatus, Db, ExperimentStatus
+from .schema import Baseline, CandidateStatus, Db, ExperimentStatus, ScenarioResult
 
 METRICS_NAME = "metrics.md"
+F1_MATRIX_NAME = "f1-matrix.md"
 
 
 def _path(root: Path) -> Path:
@@ -102,6 +103,13 @@ def render(db: Db, root: Path = Path(".")) -> str:
                 f"| {name} | {d.mean_f1:.4f} | {d.total_fps} | "
                 f"{prec_floor:.3f} | {rec_floor:.3f} | {lb_str} |"
             )
+        lines.append("")
+
+    compact = _f1_matrix_compact(db)
+    if compact:
+        lines.append("## Current F1 matrix (vs baseline)")
+        lines.extend(compact)
+        lines.append(f"_Full per-scenario table: `.coordinator/{F1_MATRIX_NAME}`_")
         lines.append("")
 
     # Harness meta
@@ -206,6 +214,109 @@ def render(db: Db, root: Path = Path(".")) -> str:
     return "\n".join(lines)
 
 
+def _matrix_from_shipped(db: Db) -> dict[str, dict[str, ScenarioResult]]:
+    """Most-recent shipped value per (detector, scenario).
+
+    Walks experiments in insertion order (chronological). Only experiments
+    whose candidate is SHIPPED count — these correspond to commits that
+    landed. Per-scenario keys are `<detector>/<scenario>`; we bucket by
+    detector.
+    """
+    out: dict[str, dict[str, ScenarioResult]] = {}
+    for exp in db.experiments.values():
+        cand = db.candidates.get(exp.candidate_id)
+        if not cand or cand.status != CandidateStatus.SHIPPED:
+            continue
+        for key, sr in exp.per_scenario.items():
+            if "/" not in key:
+                continue
+            detector, scenario = key.split("/", 1)
+            out.setdefault(detector, {})[scenario] = sr
+    return out
+
+
+def build_f1_matrix(db: Db) -> str:
+    """Per-detector × per-scenario F1 matrix (baseline → current, Δ).
+
+    Caveat: values for a given detector come from the most-recent shipped
+    experiment that touched that detector. If detector X hasn't shipped in
+    a while, its row reflects that older state, not today's code — but the
+    code for X hasn't changed since, so it's still accurate.
+    """
+    lines: list[str] = ["# F1 matrix (per-detector × per-scenario)\n"]
+    if not db.baseline:
+        lines.append("_(no baseline)_\n")
+        return "\n".join(lines)
+
+    current = _matrix_from_shipped(db)
+    train = db.split.as_train_set() if db.split else set()
+    lockbox = db.split.as_lockbox_set() if db.split else set()
+
+    lines.append(f"Baseline SHA: `{db.baseline.sha}`  ·  Generated: {db.baseline.generated_at}")
+    ship_count = sum(1 for c in db.candidates.values() if c.status == CandidateStatus.SHIPPED)
+    lines.append(f"Shipped candidates reflected: {ship_count}\n")
+
+    for det_name, det_base in db.baseline.detectors.items():
+        lines.append(f"## {det_name}")
+        det_current = current.get(det_name, {})
+        if not det_current:
+            lines.append("_(no shipped experiments have updated this detector; showing baseline only)_\n")
+        # Order: train first, then lockbox, then any extras.
+        all_scen = list(det_base.scenarios.keys())
+        ordered = (
+            [s for s in all_scen if s in train]
+            + [s for s in all_scen if s in lockbox]
+            + [s for s in all_scen if s not in train and s not in lockbox]
+        )
+        lines.append("| Scenario | Split | Baseline F1 | Current F1 | ΔF1 | FPs base → cur |")
+        lines.append("|---|---|---:|---:|---:|---:|")
+        for scen in ordered:
+            base_sr = det_base.scenarios[scen]
+            cur_sr = det_current.get(scen)
+            split_tag = "train" if scen in train else ("lockbox" if scen in lockbox else "other")
+            if cur_sr is None:
+                lines.append(
+                    f"| `{scen}` | {split_tag} | {base_sr.f1:.3f} | — | — | {base_sr.num_baseline_fps} → — |"
+                )
+            else:
+                df1 = cur_sr.f1 - base_sr.f1
+                lines.append(
+                    f"| `{scen}` | {split_tag} | {base_sr.f1:.3f} | {cur_sr.f1:.3f} "
+                    f"| {df1:+.3f} | {base_sr.num_baseline_fps} → {cur_sr.num_baseline_fps} |"
+                )
+        # Aggregate
+        cur_f1s = [cur_sr.f1 for cur_sr in det_current.values()]
+        if cur_f1s:
+            lines.append(
+                f"\n**mean F1**: {det_base.mean_f1:.4f} → "
+                f"{sum(cur_f1s) / len(cur_f1s):.4f} "
+                f"(over {len(cur_f1s)}/{len(all_scen)} scenarios updated)"
+            )
+        lines.append("")
+    return "\n".join(lines)
+
+
+def _f1_matrix_compact(db: Db) -> list[str]:
+    """One-line-per-detector summary suitable for embedding in metrics.md."""
+    if not db.baseline:
+        return []
+    current = _matrix_from_shipped(db)
+    out: list[str] = []
+    for det_name, det_base in db.baseline.detectors.items():
+        det_current = current.get(det_name, {})
+        cur_f1s = [sr.f1 for sr in det_current.values()]
+        if not cur_f1s:
+            out.append(f"- **{det_name}**: baseline mean F1 {det_base.mean_f1:.4f} (unchanged)")
+            continue
+        cur_mean = sum(cur_f1s) / len(cur_f1s)
+        d = cur_mean - det_base.mean_f1
+        out.append(
+            f"- **{det_name}**: {det_base.mean_f1:.4f} → {cur_mean:.4f} "
+            f"(Δ{d:+.4f}, {len(cur_f1s)}/{len(det_base.scenarios)} scenarios updated)"
+        )
+    return out
+
+
 def _min_over(detector_baseline, attr: str, scope: set[str] | None) -> float:
     """Min value of `attr` over scenarios in `scope` (or all if scope=None)."""
     vals = [
@@ -237,3 +348,5 @@ def regenerate(db: Db, root: Path = Path(".")) -> None:
     p = _path(root)
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(render(db, root))
+    matrix_path = state_dir(root) / F1_MATRIX_NAME
+    matrix_path.write_text(build_f1_matrix(db))
