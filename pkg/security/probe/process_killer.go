@@ -286,8 +286,10 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 	killedAt := time.Now() // get the current time now to make sure it precedes any process exit time
 	// we need to keep to lock when we kill and update
 	report.Lock()
+	// populate pendingKills so updateKillActionReport can map failed/killed pids back
+	// to this report (same invariant as the disarmer warmup path).
+	report.pendingKills = pcs
 	failedPids, killedPids := p.KillProcesses(true, rule.ID, sig, pcs)
-	// there is only one report here so nbOfKilled is enough
 	updateKillActionReport(report, killedAt, failedPids, killedPids)
 	report.Unlock()
 	if len(failedPids) > 0 && len(killedPids) > 0 {
