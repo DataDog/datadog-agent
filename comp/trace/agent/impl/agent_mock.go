@@ -26,7 +26,7 @@ func (n *noopTraceWriter) Run() {}
 
 func (n *noopTraceWriter) Stop() {}
 
-func (n *noopTraceWriter) WriteChunks(_ *writer.SampledChunks) {}
+func (n *noopTraceWriter) WriteChunksV1(_ *writer.SampledChunksV1) {}
 
 func (n *noopTraceWriter) FlushSync() error { return nil }
 
@@ -60,7 +60,7 @@ func NewMock(deps dependencies, _ testing.TB) traceagent.Component {
 	}
 
 	// Temporary copy of pkg/trace/agent.NewTestAgent
-	ag.TraceWriter = &noopTraceWriter{}
+	ag.TraceWriterV1 = &noopTraceWriter{}
 	ag.Concentrator = &noopConcentrator{}
 
 	return component{}

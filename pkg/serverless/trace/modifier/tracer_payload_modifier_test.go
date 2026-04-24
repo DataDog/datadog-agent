@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 )
 
@@ -112,20 +112,52 @@ func TestTracerPayloadModifier_Modify(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			modifier := NewTracerPayloadModifier(tt.functionTags)
 
-			payload := &pb.TracerPayload{
-				Tags: tt.inputTags,
+			// Create InternalTracerPayload with StringTable
+			// Only initialize Attributes if we have input tags
+			payload := &idx.InternalTracerPayload{
+				Strings: idx.NewStringTable(),
+			}
+			if tt.inputTags != nil {
+				payload.Attributes = make(map[uint32]*idx.AnyValue)
+			}
+
+			// Set input tags as attributes
+			for key, value := range tt.inputTags {
+				payload.SetStringAttribute(key, value)
 			}
 
 			modifier.Modify(payload)
 
+			// Verify the function tags attribute
 			if tt.shouldHaveFunctionTags {
-				assert.Contains(t, payload.Tags, tagFunctionTags)
-				assert.Equal(t, tt.functionTags, payload.Tags[tagFunctionTags])
+				value, ok := payload.GetAttributeAsString(tagFunctionTags)
+				assert.True(t, ok, "Expected function tags attribute to exist")
+				assert.Equal(t, tt.functionTags, value)
 			} else {
-				assert.NotContains(t, payload.Tags, tagFunctionTags)
+				_, ok := payload.GetAttributeAsString(tagFunctionTags)
+				assert.False(t, ok, "Expected function tags attribute to not exist")
 			}
 
-			assert.Equal(t, tt.expectedTags, payload.Tags)
+			// Verify all expected tags
+			for key, expectedValue := range tt.expectedTags {
+				value, ok := payload.GetAttributeAsString(key)
+				if expectedValue == "" && !tt.shouldHaveFunctionTags && key == tagFunctionTags {
+					// Special case: empty function tags that we don't set
+					assert.False(t, ok, "Expected %s attribute to not exist", key)
+				} else {
+					assert.True(t, ok, "Expected %s attribute to exist", key)
+					assert.Equal(t, expectedValue, value, "Unexpected value for %s", key)
+				}
+			}
+
+			// Verify no extra tags exist
+			if tt.expectedTags == nil {
+				assert.Nil(t, payload.Attributes, "Expected no attributes when expectedTags is nil")
+			} else {
+				actualCount := len(payload.Attributes)
+				expectedCount := len(tt.expectedTags)
+				assert.Equal(t, expectedCount, actualCount, "Expected %d attributes but got %d", expectedCount, actualCount)
+			}
 		})
 	}
 }

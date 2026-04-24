@@ -244,6 +244,7 @@ func (c *Concentrator) addNowV1(pt *traceutil.ProcessedTraceV1, tags infraTags) 
 		ContainerID:     tags.containerID,
 		GitCommitSha:    pt.GitCommitSha,
 		ImageTag:        pt.ImageTag,
+		Lang:            pt.Lang,
 		ProcessTagsHash: tags.processTagsHash,
 		BaseService:     baseService,
 	}

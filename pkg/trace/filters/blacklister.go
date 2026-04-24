@@ -29,16 +29,6 @@ func (f *Blacklister) AllowsString(s string) (bool, *regexp.Regexp) {
 	return true, nil
 }
 
-// Allows returns true if the Blacklister permits this span. False and the denying rule otherwise.
-func (f *Blacklister) Allows(span *pb.Span) (bool, *regexp.Regexp) {
-	for _, entry := range f.list {
-		if entry.MatchString(span.Resource) {
-			return false, entry
-		}
-	}
-	return true, nil
-}
-
 // AllowsStat returns true if the Blacklister permits this stat
 func (f *Blacklister) AllowsStat(stat *pb.ClientGroupedStats) bool {
 	for _, entry := range f.list {

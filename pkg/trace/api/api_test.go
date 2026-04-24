@@ -63,9 +63,8 @@ func (noopStatsProcessor) ProcessStats(_ context.Context, _ *pb.ClientStatsPaylo
 func newTestReceiverFromConfig(conf *config.AgentConfig) *HTTPReceiver {
 	dynConf := sampler.NewDynamicConfig()
 
-	rawTraceChan := make(chan *Payload, 5000)
 	rawTraceChanV1 := make(chan *PayloadV1, 5000)
-	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, rawTraceChanV1, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChanV1, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
 
 	return receiver
 }
@@ -89,18 +88,6 @@ func newTestReceiverConfig() *config.AgentConfig {
 	return conf
 }
 
-// newTestReceiverConfigWithFeatures creates a test config with specific features enabled
-func newTestReceiverConfigWithFeatures(features ...string) *config.AgentConfig {
-	conf := newTestReceiverConfig()
-	if conf.Features == nil {
-		conf.Features = make(map[string]struct{})
-	}
-	for _, feat := range features {
-		conf.Features[feat] = struct{}{}
-	}
-	return conf
-}
-
 func TestMain(m *testing.M) {
 	// We're about to os.Exit, no need to revert this value to original
 	killProcess = func(format string, args ...interface{}) {
@@ -120,9 +107,8 @@ func TestServerShutdown(t *testing.T) {
 	conf.ReceiverSocket = t.TempDir() + "/somesock.sock"
 	dynConf := sampler.NewDynamicConfig()
 
-	rawTraceChan := make(chan *Payload)
 	rawTraceChanV1 := make(chan *PayloadV1)
-	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, rawTraceChanV1, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChanV1, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
 
 	receiver.Start()
 
@@ -130,15 +116,9 @@ func TestServerShutdown(t *testing.T) {
 		for {
 			// simulate the channel being busy
 			time.Sleep(100 * time.Millisecond)
-			select {
-			case _, ok := <-rawTraceChan:
-				if !ok {
-					return
-				}
-			case _, okV1 := <-rawTraceChanV1:
-				if !okV1 {
-					return
-				}
+			_, okV1 := <-rawTraceChanV1
+			if !okV1 {
+				return
 			}
 		}
 	}()
@@ -903,10 +883,10 @@ func TestDecodeV05(t *testing.T) {
 	assert.NoError(err)
 
 	// Check payload-level fields
-	assert.Equal("abcdef123789456", tp.ContainerID)
-	assert.Equal("python", tp.LanguageName)
-	assert.Equal("3.8.1", tp.LanguageVersion)
-	assert.Equal("1.2.3", tp.TracerVersion)
+	assert.Equal("abcdef123789456", tp.ContainerID())
+	assert.Equal("python", tp.LanguageName())
+	assert.Equal("3.8.1", tp.LanguageVersion())
+	assert.Equal("1.2.3", tp.TracerVersion())
 
 	// Check we have one chunk
 	assert.Len(tp.Chunks, 1)
@@ -920,54 +900,54 @@ func TestDecodeV05(t *testing.T) {
 
 	// Check first span (TraceID 1)
 	span0 := chunk.Spans[0]
-	assert.Equal("Service", span0.Service)
-	assert.Equal("Name", span0.Name)
-	assert.Equal("Resource", span0.Resource)
-	assert.Equal(uint64(2), span0.SpanID)
-	assert.Equal(uint64(3), span0.ParentID)
-	assert.Equal(int64(123), span0.Start)
-	assert.Equal(int64(456), span0.Duration)
-	assert.Equal(int32(1), span0.Error)
-	metaA, ok := span0.Meta["A"]
+	assert.Equal("Service", span0.Service())
+	assert.Equal("Name", span0.Name())
+	assert.Equal("Resource", span0.Resource())
+	assert.Equal(uint64(2), span0.SpanID())
+	assert.Equal(uint64(3), span0.ParentID())
+	assert.Equal(uint64(123), span0.Start())
+	assert.Equal(uint64(456), span0.Duration())
+	assert.Equal(true, span0.Error())
+	metaA, ok := span0.GetAttributeAsString("A")
 	assert.True(ok)
 	assert.Equal("B", metaA)
-	metricX, ok := span0.Metrics["X"]
+	metricX, ok := span0.GetAttributeAsFloat64("X")
 	assert.True(ok)
 	assert.Equal(1.2, metricX)
-	assert.Equal("sql", span0.Type)
+	assert.Equal("sql", span0.Type())
 
 	// Check second span (TraceID 2)
 	span1 := chunk.Spans[1]
-	assert.Equal("Service2", span1.Service)
-	assert.Equal("Name2", span1.Name)
-	assert.Equal("Resource2", span1.Resource)
-	assert.Equal(uint64(3), span1.SpanID)
-	assert.Equal(uint64(3), span1.ParentID)
-	assert.Equal(int64(789), span1.Start)
-	assert.Equal(int64(456), span1.Duration)
-	assert.Equal(int32(0), span1.Error)
-	metaC, ok := span1.Meta["c"]
+	assert.Equal("Service2", span1.Service())
+	assert.Equal("Name2", span1.Name())
+	assert.Equal("Resource2", span1.Resource())
+	assert.Equal(uint64(3), span1.SpanID())
+	assert.Equal(uint64(3), span1.ParentID())
+	assert.Equal(uint64(789), span1.Start())
+	assert.Equal(uint64(456), span1.Duration())
+	assert.Equal(false, span1.Error())
+	metaC, ok := span1.GetAttributeAsString("c")
 	assert.True(ok)
 	assert.Equal("d", metaC)
-	metricY, ok := span1.Metrics["y"]
+	metricY, ok := span1.GetAttributeAsFloat64("y")
 	assert.True(ok)
 	assert.Equal(1.4, metricY)
-	assert.Equal("sql", span1.Type)
+	assert.Equal("sql", span1.Type())
 
 	// Check third span (TraceID 2, same as second but no metrics)
 	span2 := chunk.Spans[2]
-	assert.Equal("Service2", span2.Service)
-	assert.Equal("Name2", span2.Name)
-	assert.Equal("Resource2", span2.Resource)
-	assert.Equal(uint64(3), span2.SpanID)
-	assert.Equal(uint64(3), span2.ParentID)
-	assert.Equal(int64(789), span2.Start)
-	assert.Equal(int64(456), span2.Duration)
-	assert.Equal(int32(0), span2.Error)
-	metaC2, ok := span2.Meta["c"]
+	assert.Equal("Service2", span2.Service())
+	assert.Equal("Name2", span2.Name())
+	assert.Equal("Resource2", span2.Resource())
+	assert.Equal(uint64(3), span2.SpanID())
+	assert.Equal(uint64(3), span2.ParentID())
+	assert.Equal(uint64(789), span2.Start())
+	assert.Equal(uint64(456), span2.Duration())
+	assert.Equal(false, span2.Error())
+	metaC2, ok := span2.GetAttributeAsString("c")
 	assert.True(ok)
 	assert.Equal("d", metaC2)
-	assert.Equal("sql", span2.Type)
+	assert.Equal("sql", span2.Type())
 }
 
 func TestDecodeTracerPayloadContentLengthTooLarge(t *testing.T) {
@@ -1329,9 +1309,8 @@ func TestHandleTraces(t *testing.T) {
 		conf.Decoders = 1
 		dynConf := sampler.NewDynamicConfig()
 
-		rawTraceChan := make(chan *Payload)
 		rawTraceChanV1 := make(chan *PayloadV1)
-		receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, rawTraceChanV1, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+		receiver := NewHTTPReceiver(conf, dynConf, rawTraceChanV1, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
 		receiver.recvsem = make(chan struct{}) // overwrite recvsem to ALWAYS block and ensure we look overwhelmed
 		// response recorder
 		handler := receiver.handleWithVersion(v04, receiver.handleTraces)
@@ -1356,8 +1335,8 @@ func TestHandleTraces(t *testing.T) {
 		conf.Decoders = 1
 		dynConf := sampler.NewDynamicConfig()
 
-		rawTraceChan := make(chan *Payload)
-		receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, nil, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+		rawTraceChanV1 := make(chan *PayloadV1)
+		receiver := NewHTTPReceiver(conf, dynConf, rawTraceChanV1, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
 
 		// Block the recvsem to ensure the handler waits for the semaphore
 		receiver.recvsem = make(chan struct{})
@@ -1410,9 +1389,8 @@ func TestHandleTraces(t *testing.T) {
 		conf.Decoders = 1
 		dynConf := sampler.NewDynamicConfig()
 
-		rawTraceChan := make(chan *Payload)
 		rawTraceChanV1 := make(chan *PayloadV1)
-		receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, rawTraceChanV1, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+		receiver := NewHTTPReceiver(conf, dynConf, rawTraceChanV1, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
 
 		// Block the recvsem
 		receiver.recvsem = make(chan struct{})
@@ -1444,41 +1422,6 @@ func TestHandleTraces(t *testing.T) {
 		finalTimeout := ts.PayloadTimeout.Load()
 		assert.Equal(t, initialTimeout+1, finalTimeout, "PayloadTimeout should be incremented for V10 endpoint")
 	})
-}
-
-func TestHandleTracesWithoutConvertFeature(t *testing.T) {
-	// Test that the old code path (without convert-traces feature) still works
-	// prepare the msgpack payload
-	bts, err := testutil.GetTestTraces(10, 10, true).MarshalMsg(nil)
-	assert.Nil(t, err)
-
-	// prepare the receiver WITHOUT the convert-traces feature
-	conf := newTestReceiverConfigWithFeatures() // no features
-	receiver := newTestReceiverFromConfig(conf)
-	receiver.conf.Features = make(map[string]struct{}) // explicitly disable convert-traces
-
-	// response recorder
-	handler := receiver.handleWithVersion(v04, receiver.handleTraces)
-
-	// forge the request
-	rr := httptest.NewRecorder()
-	req, _ := http.NewRequest("POST", "/v0.4/traces", bytes.NewReader(bts))
-	req.Header.Set("Content-Type", "application/msgpack")
-	req.Header.Set("Datadog-Meta-Lang", "python")
-
-	handler.ServeHTTP(rr, req)
-
-	// Should receive from the old 'out' channel, not 'outV1'
-	select {
-	case p := <-receiver.out:
-		assert.NotNil(t, p)
-		assert.NotNil(t, p.TracerPayload)
-		assert.Equal(t, 10, len(p.TracerPayload.Chunks))
-	case <-receiver.outV1:
-		t.Fatal("received from outV1 but expected out channel")
-	case <-time.After(time.Second):
-		t.Fatal("no data received")
-	}
 }
 
 func TestClientComputedTopLevel(t *testing.T) {
@@ -1691,7 +1634,7 @@ func BenchmarkWatchdog(b *testing.B) {
 	now := time.Now()
 	conf := newTestReceiverConfig()
 	conf.Endpoints[0].APIKey = "apikey_2"
-	r := NewHTTPReceiver(conf, nil, nil, nil, nil, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+	r := NewHTTPReceiver(conf, nil, nil, nil, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -1913,7 +1856,7 @@ func TestGetProcessTags(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result := getProcessTags(tc.header, tc.payload)
+			result := getProcessTags(tc.header, ConvertToIdx(tc.payload, "v04-json"))
 			if result != tc.expected {
 				t.Errorf("expected %q, got %q", tc.expected, result)
 			}

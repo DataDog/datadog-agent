@@ -23,6 +23,29 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
+// pathTraces is the target host API path for delivering traces.
+const pathTraces = "/api/v0.2/traces"
+
+// tagAPMMode specifies whether running APM in "edge" mode (may support other modes in the future)
+const tagAPMMode = "_dd.apm_mode"
+
+// tagOTelGateway is attached to the AgentPayload when the agent is configured as an OTel gateway.
+const tagOTelGateway = "_dd.otel.gateway"
+
+const defaultConnectionLimit = 5
+
+// MaxPayloadSize specifies the maximum accumulated payload size that is allowed before
+// a flush is triggered; replaced in tests.
+var MaxPayloadSize = 3_200_000 // 3.2MB is the maximum allowed by the Datadog API
+
+type samplerTPSReader interface {
+	GetTargetTPS() float64
+}
+
+type samplerEnabledReader interface {
+	IsEnabled() bool
+}
+
 // SampledChunksV1 is a wrapper around an InternalTracerPayload that contains the size of the payload, the number of spans, and the number of events
 type SampledChunksV1 struct {
 	TracerPayload *idx.InternalTracerPayload
@@ -54,8 +77,7 @@ type TraceWriterV1 struct {
 	bufferedSizeV1     int // accurate buffer size (using compacted sizes)
 
 	// syncMode reports whether the writer should flush on its own or only when FlushSync is called
-	syncMode  bool
-	flushChan chan chan struct{}
+	syncMode bool
 
 	telemetryCollector telemetry.TelemetryCollector
 
@@ -66,6 +88,8 @@ type TraceWriterV1 struct {
 	compressor compression.Component
 	// apmMode exists here to propagate the value to the AgentPayload
 	apmMode string
+	// otelGateway indicates whether the agent is configured as an OTel gateway
+	otelGateway bool
 }
 
 // NewTraceWriterV1 returns a new TraceWriterV1. It is created for the given agent configuration and
@@ -89,7 +113,6 @@ func NewTraceWriterV1(
 		stats:              &info.TraceWriterInfo{},
 		statsLastMinute:    &info.TraceWriterInfo{},
 		stop:               make(chan struct{}),
-		flushChan:          make(chan chan struct{}),
 		syncMode:           cfg.SynchronousFlushing,
 		tick:               5 * time.Second,
 		agentVersion:       cfg.AgentVersion,
@@ -99,7 +122,8 @@ func NewTraceWriterV1(
 		timing:             timing,
 		compressor:         compressor,
 		// apmMode exists here to propagate the value to the AgentPayload
-		apmMode: cfg.APMMode,
+		apmMode:     cfg.APMMode,
+		otelGateway: cfg.OTelGateway,
 	}
 	climit := cfg.TraceWriter.ConnectionLimit
 	if climit == 0 {
@@ -115,7 +139,7 @@ func NewTraceWriterV1(
 	tw.flushTicker = time.NewTicker(tw.tick)
 
 	qsize := 1
-	log.Infof("Trace writer initialized (climt=%d qsize=%d compression=%s)", climit, qsize, compressor.Encoding())
+	log.Infof("Trace writer initialized (climit=%d qsize=%d compression=%s)", climit, qsize, compressor.Encoding())
 	tw.senders = newSenders(cfg, tw, pathTraces, climit, qsize, telemetryCollector, statsd)
 	tw.wg.Add(1)
 	go tw.timeFlush()
@@ -289,8 +313,14 @@ func (w *TraceWriterV1) flushPreparedPayloadsV1(prepared []*pb.PreparedTracerPay
 		RareSamplerEnabled: w.rareSampler.IsEnabled(),
 		// IdxTracerPayloads is not set - we use prepared payloads directly
 	}
-	if w.apmMode != "" {
-		p.Tags = map[string]string{tagAPMMode: w.apmMode}
+	if w.apmMode != "" || w.otelGateway {
+		p.Tags = make(map[string]string)
+		if w.apmMode != "" {
+			p.Tags[tagAPMMode] = w.apmMode
+		}
+		if w.otelGateway {
+			p.Tags[tagOTelGateway] = "true"
+		}
 	}
 	log.Debugf("Reported agent rates: target_tps=%v errors_tps=%v rare_sampling=%v", p.TargetTPS, p.ErrorTPS, p.RareSamplerEnabled)
 
