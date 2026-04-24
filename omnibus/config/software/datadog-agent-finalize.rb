@@ -156,6 +156,7 @@ build do
             # Remove test-only eBPF object files
             delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/error_telemetry.o"
             delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/logdebug-test.o"
+            delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/sleepable.o"
 
             # linux build will be stripped - but psycopg2 affected by bug in the way binutils
             # and patchelf work together:
