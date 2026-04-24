@@ -57,7 +57,7 @@ import (
 
 // episodeSubdirs lists the subdirectories within the gensim-episodes repo
 // that may contain episode directories.
-var episodeSubdirs = []string{"postmortems", "synthetics"}
+var episodeSubdirs = []string{"agent-q-branch", "postmortems", "synthetics"}
 
 // findEpisodeDir locates an episode directory by searching known subdirectories
 // within the gensim-episodes repo root. Also supports legacy episodeDataDir
@@ -75,6 +75,23 @@ func findEpisodeDir(repoRoot, episodeName string) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("episode %q not found in %v under %s", episodeName, episodeSubdirs, repoRoot)
+}
+
+// readScenarioFile loads episodes/<scenario>.yaml or episodes/<scenario>.yml from an episode directory.
+// It prefers .yaml when both exist. The orchestrator and ConfigMap always use the key <scenario>.yaml.
+func readScenarioFile(epDir, scenario string) ([]byte, error) {
+	episodesDir := filepath.Join(epDir, "episodes")
+	for _, ext := range []string{".yaml", ".yml"} {
+		p := filepath.Join(episodesDir, scenario+ext)
+		b, err := os.ReadFile(p)
+		if err == nil {
+			return b, nil
+		}
+		if !os.IsNotExist(err) {
+			return nil, fmt.Errorf("reading scenario file %q: %w", p, err)
+		}
+	}
+	return nil, fmt.Errorf("scenario file not found for %q in %s (tried .yaml and .yml)", scenario, episodesDir)
 }
 
 // Run is the Pulumi entry point for the aws/gensim-eks scenario.
@@ -332,7 +349,7 @@ func deployOrchestratorJob(
 		if err != nil {
 			return fmt.Errorf("reading play-episode.sh for episode %q: %w", ep.episode, err)
 		}
-		scenarioContent, err := os.ReadFile(filepath.Join(epDir, "episodes", ep.scenario+".yaml"))
+		scenarioContent, err := readScenarioFile(epDir, ep.scenario)
 		if err != nil {
 			return fmt.Errorf("reading scenario %q for episode %q: %w", ep.scenario, ep.episode, err)
 		}
