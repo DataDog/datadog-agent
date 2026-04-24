@@ -1,0 +1,16 @@
+[Unit]
+Description=Datadog APM Inject - Manages libinject in ld.so.preload
+Documentation=https://docs.datadoghq.com/
+After=network.target
+Before=shutdown.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'p=/opt/datadog-packages/datadog-installer/stable/bin/installer/installer; [ -x "$p" ] || p=/opt/datadog-packages/run/datadog-installer-ssi; [ -x "$p" ] || p=/opt/datadog-packages/datadog-agent/stable/embedded/bin/installer; [ -x "$p" ] || p=/usr/bin/datadog-installer; exec "$p" apm instrument-start host'
+ExecStop=/bin/sh -c 'p=/opt/datadog-packages/datadog-installer/stable/bin/installer/installer; [ -x "$p" ] || p=/opt/datadog-packages/run/datadog-installer-ssi; [ -x "$p" ] || p=/opt/datadog-packages/datadog-agent/stable/embedded/bin/installer; [ -x "$p" ] || p=/usr/bin/datadog-installer; exec "$p" apm instrument-stop host'
+RemainAfterExit=yes
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
