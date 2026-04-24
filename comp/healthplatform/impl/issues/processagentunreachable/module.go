@@ -1,0 +1,66 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025-present Datadog, Inc.
+
+// Package processagentunreachable provides a complete issue module for detecting
+// when process collection is enabled but the process-agent is not running or reachable.
+package processagentunreachable
+
+import (
+	"github.com/DataDog/agent-payload/v5/healthplatform"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues"
+)
+
+func init() {
+	issues.RegisterModuleFactory(NewModule)
+}
+
+const (
+	// IssueID is the unique identifier for the process-agent unreachable issue
+	IssueID = "process-agent-unreachable"
+
+	// CheckID is the unique identifier for the built-in health check
+	CheckID = "process-agent-reachability"
+
+	// CheckName is the human-readable name for the health check
+	CheckName = "Process Agent Reachability"
+)
+
+// processAgentUnreachableModule implements issues.Module
+type processAgentUnreachableModule struct {
+	template *ProcessAgentUnreachableIssue
+	conf     config.Component
+}
+
+// NewModule creates a new process-agent unreachable issue module
+func NewModule(conf config.Component) issues.Module {
+	return &processAgentUnreachableModule{
+		template: NewProcessAgentUnreachableIssue(),
+		conf:     conf,
+	}
+}
+
+// IssueID returns the unique identifier for this issue type
+func (m *processAgentUnreachableModule) IssueID() string {
+	return IssueID
+}
+
+// IssueTemplate returns the template for building complete issues
+func (m *processAgentUnreachableModule) IssueTemplate() issues.IssueTemplate {
+	return m.template
+}
+
+// BuiltInCheck returns the built-in health check configuration.
+// Once is true so the check runs only once at startup.
+func (m *processAgentUnreachableModule) BuiltInCheck() *issues.BuiltInCheck {
+	return &issues.BuiltInCheck{
+		ID:   CheckID,
+		Name: CheckName,
+		CheckFn: func() (*healthplatform.IssueReport, error) {
+			return Check(m.conf)
+		},
+		Once: true,
+	}
+}
