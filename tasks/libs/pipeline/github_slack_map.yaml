@@ -46,6 +46,13 @@
   review:
     name: '#security-and-compliance-agent'
     id: 'CTNVD37T3'
+'@datadog/agent-data-plane':
+  notification:
+    name: '#agent-data-plane'
+    id: 'C070PQKLLP5'
+  review:
+    name: '#agent-data-plane'
+    id: 'C070PQKLLP5'
 '@datadog/agent-delivery':
   notification:
     name: '#agent-delivery-ops'
@@ -382,6 +389,13 @@
   review:
     name: '#synthetics'
     id: 'C8E85JEGH'
+'@datadog/telemetry-onboarding':
+  notification:
+    name: '#telemetry-onboarding'
+    id: 'C0ACU5FGE3H'
+  review:
+    name: '#telemetry-onboarding'
+    id: 'C0ACU5FGE3H'
 '@datadog/universal-service-monitoring':
   notification:
     name: '#universal-service-monitoring'
