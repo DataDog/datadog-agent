@@ -87,6 +87,8 @@ run_binary(
         "TCL_VERSION": python_externals["tcltk"],
         "MSBUILD": "$(location @visual_studio//:msbuild)",
         "PYTHON_FOR_BUILD": "$(location @python_3_12//:python3)",
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PIP_COMPILE": "0",  # ensurepip installs pip which runs compileall, bypassing PYTHONDONTWRITEBYTECODE
     },
     outs = [
         "build/{}".format(file)
