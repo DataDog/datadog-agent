@@ -12,6 +12,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -50,17 +51,39 @@ func TestMain(m *testing.M) {
 		return
 	}
 
-	print("Running initdb.d sql files...")
-	// This is a bit of a hack to get a db connection without a testing.T
-	// Ideally we should pull the connection logic out
-	// to make it more accessible for testing
-	sysCheck, _ := newSysCheck(nil, "", "")
-	sysCheck.Run()
-	_, err := sysCheck.db.Exec("SELECT 1 FROM dual")
-	if err != nil {
-		fmt.Printf("Error executing select check: %s\n", err)
-		os.Exit(1)
+	// Wait for the Oracle XE service to be fully registered with the TNS
+	// listener before running tests. In CI the Oracle sidecar container may
+	// report as "ready" (listener accepting TCP connections) before the XE
+	// database service is registered, causing ORA-12514 errors.
+	fmt.Println("Waiting for Oracle to be ready...")
+	var sysCheck Check
+	timeout := 5 * time.Minute
+	start := time.Now()
+	for {
+		sysCheck, _ = newSysCheck(nil, "", "")
+		if err := sysCheck.Run(); err != nil {
+			sysCheck.Teardown()
+			if time.Since(start) > timeout {
+				fmt.Printf("Oracle failed to become ready within %s: %s\n", timeout, err)
+				os.Exit(1)
+			}
+			fmt.Printf("Oracle not ready yet: %s\n", err)
+			time.Sleep(5 * time.Second)
+			continue
+		}
+		if _, err := sysCheck.db.Exec("SELECT 1 FROM dual"); err != nil {
+			sysCheck.Teardown()
+			if time.Since(start) > timeout {
+				fmt.Printf("Oracle failed to become ready within %s: %s\n", timeout, err)
+				os.Exit(1)
+			}
+			fmt.Printf("Oracle not ready yet: %s\n", err)
+			time.Sleep(5 * time.Second)
+			continue
+		}
+		break
 	}
+	fmt.Printf("Oracle is ready after %s\n", time.Since(start).Round(time.Second))
 
 	initDbPath := "./compose/initdb.d"
 	files, _ := os.ReadDir(initDbPath)

@@ -1,5 +1,4 @@
 oracle:
-  allow_failure: true #incident-51958
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
   stage: functional_test
@@ -14,6 +13,8 @@ oracle:
         ORACLE_PWD: "datad0g"
   variables:
     CI_DEBUG_SERVICES: "true"
+    INIT_SGA_SIZE: "1024"
+    INIT_PGA_SIZE: "512"
     DD_HOSTNAME: "oracle-test"
     # Configure static CPUs
     KUBERNETES_POD_ANNOTATIONS_1: "ci.ddbuild.io/enforce-static-cpus=true"
