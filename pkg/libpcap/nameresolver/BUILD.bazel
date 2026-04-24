@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "nameresolver",
+    srcs = ["resolver.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/libpcap/nameresolver",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "nameresolver_test",
+    srcs = ["resolver_test.go"],
+    embed = [":nameresolver"],
+)
