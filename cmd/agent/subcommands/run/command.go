@@ -45,6 +45,7 @@ import (
 	snmpscanfx "github.com/DataDog/datadog-agent/comp/snmpscan/fx"
 	snmpscanmanagerfx "github.com/DataDog/datadog-agent/comp/snmpscanmanager/fx"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/agentaccountcheck"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/firewallscanner"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/ports"
@@ -733,11 +734,19 @@ func startAgent(
 		return firewallscanner.Diagnose(cfg)
 	})
 
+	diagnosecatalog.Register(diagnose.AgentAccountCheck, func(_ diagnose.Config) []diagnose.Diagnosis {
+		return agentaccountcheck.Diagnose()
+	})
+
 	diagnosecatalog.Register(diagnose.HealthPlatformIssues, func(diagCfg diagnose.Config) []diagnose.Diagnosis {
 		if !cfg.GetBool("health_platform.enabled") {
 			return nil
 		}
 		return healthplatformimpl.Diagnose(healthplatformComp, diagCfg)
+	})
+
+	diagnosecatalog.Register(diagnose.AgentAccountCheck, func(_ diagnose.Config) []diagnose.Diagnosis {
+		return agentaccountcheck.Diagnose()
 	})
 
 	// start dependent services

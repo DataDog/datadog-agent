@@ -43,6 +43,8 @@ const (
 	FirewallScan = "firewall-scan"
 	// HealthPlatformIssues is the suite name for the health-issues suite
 	HealthPlatformIssues = "health-issues"
+	// AgentAccountCheck is the suite name for the agent-account-check suite
+	AgentAccountCheck = "agent-account-check"
 )
 
 // AllSuites is a list of all available suites
@@ -54,6 +56,7 @@ var AllSuites = []string{
 	PortConflict,
 	FirewallScan,
 	HealthPlatformIssues,
+	AgentAccountCheck,
 }
 
 var catalog *Catalog
