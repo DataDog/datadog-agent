@@ -309,6 +309,7 @@ func TestUpdateTagFilterListCheckSamplerCacheInvalidation(t *testing.T) {
 		deps.Tagger,
 		filterList,
 		"",
+		hook.NewNoopHook[[]hook.MetricSampleSnapshot](),
 	)
 
 	s := &MockSerializerSketch{}
