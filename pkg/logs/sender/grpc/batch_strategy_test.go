@@ -16,10 +16,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/DataDog/agent-payload/v5/statefulpb"
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 )
 
@@ -43,6 +43,16 @@ func createTestStatefulMessage(content string) *message.StatefulMessage {
 		Metadata: &msg.MessageMetadata,
 		Datum:    datum,
 	}
+}
+
+func createTestStatefulMessageWithService(content string, serviceDictID uint64) *message.StatefulMessage {
+	msg := createTestStatefulMessage(content)
+	msg.Datum.GetLogs().Service = &statefulpb.DynamicValue{
+		Value: &statefulpb.DynamicValue_DictIndex{
+			DictIndex: serviceDictID,
+		},
+	}
+	return msg
 }
 
 func TestBatchStrategySendsPayloadWhenBufferIsFull(t *testing.T) {
@@ -459,6 +469,41 @@ func TestBatchStrategyCompression(t *testing.T) {
 	for _, datum := range datumSeq.Data {
 		assert.Equal(t, "test message", datum.GetLogs().GetRaw())
 	}
+
+	strategy.Stop()
+}
+
+func TestBatchStrategyDeltaEncodesRepeatedService(t *testing.T) {
+	input := make(chan *message.StatefulMessage)
+	output := make(chan *message.Payload, 10)
+	flushChan := make(chan struct{})
+
+	strategy := NewBatchStrategy(
+		input,
+		output,
+		flushChan,
+		time.Hour,
+		100,
+		10000,
+		"test",
+		compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1),
+		metrics.NewNoopPipelineMonitor(""),
+		"test")
+	strategy.Start()
+
+	input <- createTestStatefulMessageWithService("a", 42)
+	input <- createTestStatefulMessageWithService("b", 42)
+	flushChan <- struct{}{}
+
+	payload := <-output
+	var datumSeq statefulpb.DatumSequence
+	err := proto.Unmarshal(payload.Encoded, &datumSeq)
+	require.NoError(t, err)
+	require.Len(t, datumSeq.Data, 2)
+
+	require.NotNil(t, datumSeq.Data[0].GetLogs().Service)
+	assert.EqualValues(t, 42, datumSeq.Data[0].GetLogs().Service.GetDictIndex())
+	assert.Nil(t, datumSeq.Data[1].GetLogs().Service)
 
 	strategy.Stop()
 }

@@ -61,6 +61,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/sender/grpc v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/types v0.71.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/proto v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.65.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/log v0.77.0-devel // indirect
