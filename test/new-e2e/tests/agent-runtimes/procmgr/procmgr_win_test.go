@@ -30,8 +30,13 @@ const (
 
 	winTestProcessConfig = `command: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe
 args:
+  - "-NoProfile"
+  - "-NonInteractive"
   - "-Command"
   - "Start-Sleep -Seconds 3600"
+env:
+  SystemRoot: C:\Windows
+  PATH: C:\Windows\System32;C:\Windows
 auto_start: true
 restart: always
 description: E2E test process
