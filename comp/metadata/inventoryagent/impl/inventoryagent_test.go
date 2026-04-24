@@ -19,6 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -38,12 +39,37 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
+// testDeps is a bridge struct with fx.In so that fxutil.Test can inject dependencies.
+// Requires uses no fx.In embed, so we use testDeps + makeRequires as an adapter.
+type testDeps struct {
+	fx.In
+
+	Log            log.Component
+	Config         config.Component
+	SysProbeConfig option.Option[sysprobeconfig.Component]
+	Serializer     serializer.MetricSerializer
+	IPCClient      ipc.HTTPClient
+	Hostname       hostnameinterface.Component
+}
+
+func makeRequires(deps testDeps) Requires {
+	return Requires{
+		Log:            deps.Log,
+		Config:         deps.Config,
+		SysProbeConfig: deps.SysProbeConfig,
+		Serializer:     deps.Serializer,
+		IPCClient:      deps.IPCClient,
+		Hostname:       deps.Hostname,
+	}
+}
+
 func getProvides(t *testing.T, confOverrides map[string]any, sysprobeConfOverrides map[string]any) Provides {
 	return NewComponent(
-		fxutil.Test[Requires](
+		makeRequires(fxutil.Test[testDeps](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, confOverrides) }),
@@ -53,7 +79,7 @@ func getProvides(t *testing.T, confOverrides map[string]any, sysprobeConfOverrid
 			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 			fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
 			hostnameimpl.MockModule(),
-		),
+		)),
 	)
 }
 
@@ -544,7 +570,7 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 
 	// Testing an inventoryagent without system-probe object
 	p := NewComponent(
-		fxutil.Test[Requires](
+		makeRequires(fxutil.Test[testDeps](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMock(t) }),
@@ -553,7 +579,7 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 			fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
 			hostnameimpl.MockModule(),
-		),
+		)),
 	)
 	ia = p.Comp.(*inventoryagent)
 	ia.fetchSystemProbeMetadata()
