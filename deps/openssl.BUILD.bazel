@@ -217,6 +217,8 @@ pkg_files(
     name = "_fips_openssl_cnf",
     srcs = ["@openssl_fips//:openssl_cnf_tmp"],
     prefix = "ssl",
+    # Bazel genrule adds .out suffix; strip it so fipsinstall.sh finds openssl.cnf.tmp.
+    renames = {"@openssl_fips//:openssl_cnf_tmp": "openssl.cnf.tmp"},
     attributes = pkg_attributes(mode = "0644"),
 )
 
@@ -224,6 +226,8 @@ pkg_files(
     name = "_fips_fipsinstall_sh",
     srcs = ["@openssl_fips//:fipsinstall_sh"],
     prefix = "bin",
+    # Bazel genrule adds .out suffix; strip it so the post-install hook finds fipsinstall.sh.
+    renames = {"@openssl_fips//:fipsinstall_sh": "fipsinstall.sh"},
     attributes = pkg_attributes(mode = "0755"),
     target_compatible_with = select({
         "@platforms//os:windows": ["@platforms//:incompatible"],
