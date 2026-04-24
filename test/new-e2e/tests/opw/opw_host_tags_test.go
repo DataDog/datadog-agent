@@ -97,12 +97,8 @@ func (s *opwHostTagsSuite) TestSendHostTagsEnabled() {
 
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		logs, err := s.Env().FakeIntake.Client().FilterLogs(serviceName, fi.WithMessageContaining(content))
-		if !assert.NoError(c, err) {
-			return
-		}
-		if !assert.NotEmpty(c, logs, "expected at least one log for service %q containing %q", serviceName, content) {
-			return
-		}
+		require.NoError(c, err)
+		require.NotEmpty(c, logs, "expected at least one log for service %q containing %q", serviceName, content)
 		assert.Contains(c, logs[0].Tags, hostTag, "expected host tag %q in ddtags; got %v", hostTag, logs[0].Tags)
 	}, waitDuration, tickInterval)
 }
@@ -115,17 +111,13 @@ func (s *opwHostTagsSuite) TestSendHostTagsDisabled() {
 	content := "opw-send-host-tags-disabled"
 	s.appendLog(content)
 
-	var captured []string
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		logs, err := s.Env().FakeIntake.Client().FilterLogs(serviceName, fi.WithMessageContaining(content))
-		if !assert.NoError(c, err) {
-			return
+		require.NoError(c, err)
+		require.NotEmpty(c, logs, "expected log for service %q containing %q", serviceName, content)
+		for i, l := range logs {
+			assert.NotContains(s.T(), l.Tags, hostTag,
+				"log[%d] unexpectedly carried %q; tags=%v", i, hostTag, l.Tags)
 		}
-		if !assert.NotEmpty(c, logs, "expected log for service %q containing %q", serviceName, content) {
-			return
-		}
-		captured = logs[0].Tags
 	}, waitDuration, tickInterval)
-
-	assert.NotContains(s.T(), captured, hostTag, "host tag %q must not be in ddtags when send_host_tags is false; got %v", hostTag, captured)
 }
