@@ -10,12 +10,15 @@ package diskv2
 import (
 	"errors"
 	"fmt"
+	"runtime"
 	"slices"
 	"strings"
+	"time"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/benbjohnson/clock"
 	gopsutil_disk "github.com/shirou/gopsutil/v4/disk"
 	win "golang.org/x/sys/windows"
 )
@@ -58,6 +61,9 @@ func (c *Check) excludePartitionInPlatform(partition gopsutil_disk.PartitionStat
 
 var mpr = win.NewLazySystemDLL("mpr.dll")
 var procWNetAddConnection2W = mpr.NewProc("WNetAddConnection2W")
+
+var modkernel32 = win.NewLazySystemDLL("kernel32.dll")
+var procCancelSynchronousIO = modkernel32.NewProc("CancelSynchronousIo")
 
 type netResource struct {
 	Scope       uint32
@@ -170,4 +176,60 @@ func (c *Check) loadRootDevices() (map[string]string, error) {
 	rootDevices := make(map[string]string)
 
 	return rootDevices, nil
+}
+
+// diskUsageInterruptible runs fn(mountpoint) on an OS-thread-locked goroutine and
+// waits up to timeout for it to complete. On timeout, CancelSynchronousIo is called
+// on the goroutine's OS thread, which causes the in-progress SMB/NFS I/O to return
+// with ERROR_OPERATION_ABORTED instead of blocking indefinitely.
+func diskUsageInterruptible(fn func(string) (*gopsutil_disk.UsageStat, error), mountpoint string, timeout time.Duration, clk clock.Clock) (*gopsutil_disk.UsageStat, error) {
+	type result struct {
+		usage *gopsutil_disk.UsageStat
+		err   error
+	}
+
+	resultCh := make(chan result, 1)
+	// Buffered so the goroutine can always send its handle without blocking,
+	// even if the main goroutine has already moved past the receive.
+	handleCh := make(chan win.Handle, 1)
+
+	go func() {
+		runtime.LockOSThread()
+		defer runtime.UnlockOSThread()
+
+		// GetCurrentThread() returns a pseudo-handle only valid on this thread.
+		// OpenThread() gives a real handle usable from other goroutines.
+		tid := win.GetCurrentThreadId()
+		handle, err := win.OpenThread(win.THREAD_TERMINATE, false, tid)
+		if err != nil {
+			log.Debugf("disk usage: failed to open thread handle, I/O cancellation unavailable: %v", err)
+			handle = win.Handle(0)
+		}
+		handleCh <- handle
+
+		usage, err := fn(mountpoint)
+		resultCh <- result{usage, err}
+	}()
+
+	// Wait for the goroutine to be pinned to its OS thread and have its handle ready.
+	// This is fast (goroutine startup + one Win32 syscall).
+	handle := <-handleCh
+	defer func() {
+		if handle != win.Handle(0) {
+			win.CloseHandle(handle)
+		}
+	}()
+
+	select {
+	case r := <-resultCh:
+		return r.usage, r.err
+	case <-clk.After(timeout):
+		if handle != win.Handle(0) {
+			// Interrupt the blocking I/O on the goroutine's OS thread.
+			// The fn() call returns with ERROR_OPERATION_ABORTED.
+			// The goroutine then sends to the buffered resultCh and exits cleanly.
+			procCancelSynchronousIO.Call(uintptr(handle))
+		}
+		return nil, fmt.Errorf("disk usage call timed out after %s", timeout)
+	}
 }

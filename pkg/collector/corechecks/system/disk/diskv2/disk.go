@@ -659,30 +659,9 @@ func (c *Check) getDiskPartitionsWithTimeout(includeAllDevices bool) ([]gopsutil
 }
 
 func (c *Check) getDiskUsageWithTimeout(mountpoint string) (*gopsutil_disk.UsageStat, error) {
-	type usageResult struct {
-		usage *gopsutil_disk.UsageStat
-		err   error
-	}
-	resultCh := make(chan usageResult, 1)
 	timeout := time.Duration(c.instanceConfig.Timeout) * time.Second
-	timeoutCh := c.clock.After(timeout)
-	// Start the disk usage call in a separate goroutine.
-	go func() {
-		// UsageWithContext in gopsutil ignores the context for now (PR opened: https://github.com/shirou/gopsutil/pull/1837)
-		usage, err := c.diskUsage(mountpoint)
-		// Use select to avoid writing to resultCh if timeout already occurred.
-		select {
-		case resultCh <- usageResult{usage, err}:
-		case <-timeoutCh:
-		}
-	}()
-	// Use select to wait for either the disk usage result or a timeout.
-	select {
-	case result := <-resultCh:
-		return result.usage, result.err
-	case <-timeoutCh:
-		return nil, fmt.Errorf("disk usage call timed out after %s", timeout)
-	}
+	// UsageWithContext in gopsutil ignores the context for now (PR opened: https://github.com/shirou/gopsutil/pull/1837)
+	return diskUsageInterruptible(c.diskUsage, mountpoint, timeout, c.clock)
 }
 
 func (c *Check) getPartitionUsage(partition gopsutil_disk.PartitionStat) *gopsutil_disk.UsageStat {
