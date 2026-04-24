@@ -17,6 +17,9 @@ DEFAULT_ALLOWLIST_PATH = "../dd-analytics/luigiscripts/billing/usage/standard_me
 METADATA_PACKAGE = f"{SPEC_PACKAGE}/metadata"
 METADATA_BINARY = f"{METADATA_PACKAGE}/gpu-metrics-metadata"
 DEFAULT_METADATA_PATH = "../integrations-core/gpu/metadata.csv"
+METRICS_LIST_PACKAGE = f"{SPEC_PACKAGE}/metrics-list"
+METRICS_LIST_BINARY = f"{METRICS_LIST_PACKAGE}/gpu-metrics-list"
+DEFAULT_METRICS_LIST_PATH = "../integrations-core/gpu/list_of_metrics.csv"
 VALIDATOR_PACKAGE = f"{SPEC_PACKAGE}/metrics-validator"
 VALIDATOR_BINARY = f"{VALIDATOR_PACKAGE}/gpu-metrics-validator"
 VALIDATOR_SITE = "datadoghq.com"
@@ -134,4 +137,26 @@ def update_metadata(
         f"--default-interval {int(default_interval)}"
     )
     print(f"== Updating GPU metadata at {metadata_path} ==")
+    ctx.run(command)
+
+
+@task(
+    name="generate-metrics-list",
+    help={
+        "output_path": f"Path to write generated CSV (default: {DEFAULT_METRICS_LIST_PATH})",
+    },
+)
+def generate_metrics_list(
+    ctx,
+    output_path: str = DEFAULT_METRICS_LIST_PATH,
+):
+    """
+    Generate a GPU metrics list CSV from the shared GPU spec.
+    """
+    binary_path = build_binary(ctx, METRICS_LIST_PACKAGE, METRICS_LIST_BINARY, "metrics list generator")
+    command = (
+        f"{shlex.quote(binary_path)} "
+        f"--output-path {shlex.quote(output_path)}"
+    )
+    print(f"== Generating GPU metrics list CSV at {output_path} ==")
     ctx.run(command)
