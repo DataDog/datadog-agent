@@ -249,3 +249,132 @@ func TestPayloadAllowsMessageContentGC(t *testing.T) {
 	assert.Equal(t, 1, len(payload.MessageMetas))
 	assert.Equal(t, int64(2), payload.MessageMetas[0].IngestionTimestamp)
 }
+
+func TestSplitEscapedPath(t *testing.T) {
+	tests := []struct {
+		input string
+		want  []string
+	}{
+		{"syslog.hostname", []string{"syslog", "hostname"}},
+		{`syslog.structured_data.my\.org@99999.status`, []string{"syslog", "structured_data", "my.org@99999", "status"}},
+		{`a\\b.c`, []string{`a\b`, "c"}},
+		{`trailing\`, []string{`trailing\`}},
+		{`a\\.b`, []string{`a\`, "b"}},
+		{`no_dots`, []string{"no_dots"}},
+		{"", []string{""}},
+		{`\.`, []string{"."}},
+		{`\\`, []string{`\`}},
+		{`a.b.c.d`, []string{"a", "b", "c", "d"}},
+		{`a\.b\.c.d`, []string{"a.b.c", "d"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.input, func(t *testing.T) {
+			got := splitEscapedPath(tc.input)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestGetStructuredAttribute_EscapedDotInKey(t *testing.T) {
+	t.Run("dotted map key reachable with escape", func(t *testing.T) {
+		sc := &BasicStructuredContent{Data: map[string]interface{}{
+			"syslog": map[string]interface{}{
+				"structured_data": map[string]interface{}{
+					"my.org@99999": map[string]interface{}{
+						"status": "ok",
+					},
+				},
+			},
+		}}
+		msg := NewStructuredMessage(sc, nil, "", 0)
+		val, ok := msg.GetStructuredAttribute(`syslog.structured_data.my\.org@99999.status`)
+		assert.True(t, ok)
+		assert.Equal(t, "ok", val)
+	})
+
+	t.Run("unescaped dot in dotted key fails", func(t *testing.T) {
+		sc := &BasicStructuredContent{Data: map[string]interface{}{
+			"syslog": map[string]interface{}{
+				"structured_data": map[string]interface{}{
+					"my.org@99999": map[string]interface{}{
+						"status": "ok",
+					},
+				},
+			},
+		}}
+		msg := NewStructuredMessage(sc, nil, "", 0)
+		_, ok := msg.GetStructuredAttribute("syslog.structured_data.my.org@99999.status")
+		assert.False(t, ok)
+	})
+
+	t.Run("escaped backslash in path", func(t *testing.T) {
+		sc := &BasicStructuredContent{Data: map[string]interface{}{
+			`back\slash`: "found",
+		}}
+		msg := NewStructuredMessage(sc, nil, "", 0)
+		val, ok := msg.GetStructuredAttribute(`back\\slash`)
+		assert.True(t, ok)
+		assert.Equal(t, "found", val)
+	})
+}
+
+// ---------------------------------------------------------------------------
+// EnsureRendered
+// ---------------------------------------------------------------------------
+
+// fullEncoderSC implements both StructuredContent and FullEncoder for testing.
+type fullEncoderSC struct {
+	BasicStructuredContent
+}
+
+func (f *fullEncoderSC) EncodeFull(_ string, _ int64, _, _, _, _ string) ([]byte, error) {
+	return []byte(`{"message":"mock"}`), nil
+}
+
+func TestEnsureRendered(t *testing.T) {
+	t.Run("unstructured promotes state", func(t *testing.T) {
+		msg := NewMessage([]byte("raw"), nil, "", 0)
+		assert.Equal(t, StateUnstructured, msg.State)
+
+		require.NoError(t, msg.EnsureRendered())
+		assert.Equal(t, StateRendered, msg.State)
+		assert.Equal(t, "raw", string(msg.GetContent()))
+	})
+
+	t.Run("already rendered is no-op", func(t *testing.T) {
+		msg := NewMessage([]byte("data"), nil, "", 0)
+		msg.SetRendered([]byte("rendered"))
+
+		require.NoError(t, msg.EnsureRendered())
+		assert.Equal(t, StateRendered, msg.State)
+		assert.Equal(t, "rendered", string(msg.GetContent()))
+	})
+
+	t.Run("already encoded is no-op", func(t *testing.T) {
+		msg := NewMessage([]byte("data"), nil, "", 0)
+		msg.SetEncoded([]byte("encoded"))
+
+		require.NoError(t, msg.EnsureRendered())
+		assert.Equal(t, StateEncoded, msg.State)
+		assert.Equal(t, "encoded", string(msg.GetContent()))
+	})
+
+	t.Run("structured without FullEncoder renders", func(t *testing.T) {
+		sc := &BasicStructuredContent{Data: map[string]interface{}{"message": "hello"}}
+		msg := NewStructuredMessage(sc, nil, "", 0)
+		assert.Equal(t, StateStructured, msg.State)
+
+		require.NoError(t, msg.EnsureRendered())
+		assert.Equal(t, StateRendered, msg.State)
+		assert.Contains(t, string(msg.GetContent()), `"message":"hello"`)
+	})
+
+	t.Run("structured with FullEncoder skips render", func(t *testing.T) {
+		sc := &fullEncoderSC{BasicStructuredContent{Data: map[string]interface{}{"message": "hello"}}}
+		msg := NewStructuredMessage(sc, nil, "", 0)
+		assert.Equal(t, StateStructured, msg.State)
+
+		require.NoError(t, msg.EnsureRendered())
+		assert.Equal(t, StateStructured, msg.State, "state should stay StateStructured for FullEncoder")
+	})
+}
