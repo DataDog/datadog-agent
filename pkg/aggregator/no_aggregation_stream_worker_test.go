@@ -10,6 +10,8 @@ package aggregator
 import (
 	"testing"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/hook"
 )
 
 // TestNoAggStreamWorkerSeriesDisabled is a regression test for a nil pointer
@@ -28,7 +30,7 @@ func TestNoAggStreamWorkerSeriesDisabled(t *testing.T) {
 	mockSerializer.On("AreSketchesEnabled").Return(false)
 
 	deps := createDemultiplexerAgentTestDeps(t)
-	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
+	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "", hook.NewNoopHook[[]hook.MetricSampleSnapshot]())
 	demux.statsd.noAggStreamWorker.serializer = mockSerializer
 
 	go demux.run()
