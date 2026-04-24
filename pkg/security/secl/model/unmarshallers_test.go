@@ -37,7 +37,7 @@ func allSyscallsTest() syscallsEventTest {
 	}
 
 	for i := 0; i < syscallsEventByteCount*8; i++ {
-		all.want = append(all.want, Syscall(i))
+		all.want = append(all.want, NewSyscall(i))
 
 		// should be tested in eBPF...
 		index := i / 8
@@ -55,8 +55,8 @@ func oneSyscallTest(s Syscall) syscallsEventTest {
 	}
 
 	// should be tested in eBPF ...
-	index := s / 8
-	bit := byte(1 << (s % 8))
+	index := s.ToInt() / 8
+	bit := byte(1 << (s.ToInt() % 8))
 	one.args[index+8] |= bit
 
 	one.want = []Syscall{s}
@@ -85,7 +85,7 @@ func TestSyscallsEvent_UnmarshalBinary(t *testing.T) {
 
 	// add single syscall tests
 	for i := 0; i < syscallsEventByteCount*8; i++ {
-		tests = append(tests, oneSyscallTest(Syscall(i)))
+		tests = append(tests, oneSyscallTest(NewSyscall(i)))
 	}
 
 	for _, tt := range tests {

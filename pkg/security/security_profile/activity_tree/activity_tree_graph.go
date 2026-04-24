@@ -483,7 +483,7 @@ func (at *ActivityTree) prepareSyscallsNode(p *ProcessNode, data *utils.SubGraph
 		} else {
 			labelBuilder.WriteString(", ")
 		}
-		labelBuilder.WriteString(model.Syscall(s.Syscall).String())
+		labelBuilder.WriteString(model.NewSyscall(s.Syscall).String())
 	}
 	labelBuilder.WriteString("</TD></TR>")
 	labelBuilder.WriteString("</TABLE>>")

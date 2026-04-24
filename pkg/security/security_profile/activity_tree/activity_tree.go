@@ -946,11 +946,8 @@ func (at *ActivityTree) ExtractSyscalls(arch string) []string {
 
 	at.visit(func(processNode *ProcessNode) {
 		for _, s := range processNode.Syscalls {
-			sycallKey := utils.SyscallKey{Arch: arch, ID: s.Syscall}
-			syscall, ok := utils.Syscalls[sycallKey]
-			if ok {
-				syscalls = append(syscalls, syscall)
-			}
+			syscall := model.NewSyscallByArch(s.Syscall, arch)
+			syscalls = append(syscalls, syscall.String())
 		}
 	})
 	return syscalls
