@@ -35,7 +35,7 @@ type testDeps struct {
 	Providers []MetadataProvider `group:"metadata_provider"`
 }
 
-func makeRequires(t *testing.T, deps testDeps) Requires {
+func makeRequires(_ *testing.T, deps testDeps) Requires {
 	return Requires{
 		Log:       deps.Log,
 		Config:    deps.Config,
