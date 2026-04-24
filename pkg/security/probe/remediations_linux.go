@@ -50,7 +50,12 @@ type Remediation struct {
 	policy             string
 	isolationReApplied bool
 	isolationNew       bool
+	isolationPerformed bool
 	ruleTags           RuleTags
+	createdAt          time.Time
+	detectedAt         time.Time
+	killedAt           time.Time
+	exitedAt           time.Time
 }
 
 const (
@@ -95,6 +100,11 @@ type RemediationEvent struct {
 	Status      string                      `json:"status"`
 	Timestamp   int64                       `json:"timestamp"`
 	RuleTags    RuleTags                    `json:"rule_tags,omitempty"`
+	CreatedAt   *utils.EasyjsonTime         `json:"created_at,omitempty"`
+	DetectedAt  *utils.EasyjsonTime         `json:"detected_at,omitempty"`
+	KilledAt    *utils.EasyjsonTime         `json:"killed_at,omitempty"`
+	ExitedAt    *utils.EasyjsonTime         `json:"exited_at,omitempty"`
+	TTR         string                      `json:"ttr,omitempty"`
 }
 
 // ToJSON marshals the remediation event to JSON
@@ -118,14 +128,14 @@ func generateKillActionKey(ruleID string, scope string, signal string) string {
 	return KillKeyPrefix + ruleID + scope + signal
 }
 
-func generateNetworkIsolationActionKey(ruleID string, filter string) string {
-	// prefix + ruleID + sha256(filter)
+func generateNetworkIsolationActionKey(ruleID string, scope string, filter string) string {
+	// prefix + ruleID + scope + sha256(filter)
 	hash := sha256.Sum256([]byte(filter))
-	return NetworkIsolationKeyPrefix + ruleID + hex.EncodeToString(hash[:])
+	return NetworkIsolationKeyPrefix + ruleID + scope + hex.EncodeToString(hash[:])
 
 }
 func generateRemediationActionKey(key string) string {
-	// prefix + agent_event_id
+	// prefix + key
 	return RemediationKeyPrefix + key
 }
 
@@ -139,7 +149,7 @@ func getRemediationKeyFromAction(rule *rules.Rule, action *rules.Action) string 
 		key = generateKillActionKey(rule.ID, action.Def.Kill.Scope, action.Def.Kill.Signal)
 	} else if action.Def.NetworkFilter != nil {
 		// ruleID + bpffilter
-		key = generateNetworkIsolationActionKey(rule.ID, action.Def.NetworkFilter.BPFFilter)
+		key = generateNetworkIsolationActionKey(rule.ID, action.Def.NetworkFilter.Scope, action.Def.NetworkFilter.BPFFilter)
 	}
 
 	if getRemediationTagBool(rule) {
@@ -169,7 +179,7 @@ func NewRemediationEvent(p *EBPFProbe, remediation *Remediation, status string, 
 		Version:       version.AgentVersion,
 	}
 
-	return &RemediationEvent{
+	re := &RemediationEvent{
 		Date:        now.Format(time.RFC3339Nano),
 		Container:   remediation.containerContext,
 		Process:     remediation.processContext,
@@ -182,6 +192,16 @@ func NewRemediationEvent(p *EBPFProbe, remediation *Remediation, status string, 
 		Remediation: remediationType,
 		RuleTags:    remediation.ruleTags,
 	}
+
+	re.CreatedAt = utils.NewEasyjsonTimeIfNotZero(remediation.createdAt)
+	re.DetectedAt = utils.NewEasyjsonTimeIfNotZero(remediation.detectedAt)
+	re.KilledAt = utils.NewEasyjsonTimeIfNotZero(remediation.killedAt)
+	re.ExitedAt = utils.NewEasyjsonTimeIfNotZero(remediation.exitedAt)
+	if !remediation.exitedAt.IsZero() {
+		re.TTR = remediation.exitedAt.Sub(remediation.createdAt).String()
+	}
+
+	return re
 }
 
 func getTagsFromRule(rule *rules.Rule) RuleTags {
@@ -221,7 +241,7 @@ func (p *EBPFProbe) HandleRemediationStatus(rs *rules.RuleSet) {
 		}
 	}
 
-	// When a new ruleset is loaded, reset all flags
+	// When a new ruleset is loaded, reset all flags except the performed flag
 	for _, state := range p.activeRemediations {
 		state.triggered = false
 		state.isolationReApplied = false
@@ -286,10 +306,7 @@ func (p *EBPFProbe) SendCustomEventKillAction(report model.ActionReport, tags []
 	status := string(killReport.Status)
 	scope := killReport.Scope
 	pid := killReport.Pid
-	killReport.RUnlock()
-
 	containerContext := killReport.GetRemediationContainerContext()
-
 	remediation := &Remediation{
 		actionType:       RemediationTypeKill,
 		triggered:        true,
@@ -297,7 +314,13 @@ func (p *EBPFProbe) SendCustomEventKillAction(report model.ActionReport, tags []
 		containerContext: containerContext,
 		processContext:   RemediationProcessContext{PID: pid},
 		ruleTags:         tagsToRuleTags(tags),
+		createdAt:        killReport.CreatedAt,
+		detectedAt:       killReport.DetectedAt,
+		killedAt:         killReport.KilledAt,
+		exitedAt:         killReport.ExitedAt,
 	}
+	killReport.RUnlock()
+
 	re := NewRemediationEvent(p, remediation, status, RemediationTypeKillStr)
 	p.SendRemediationEvent(re)
 }
@@ -333,9 +356,17 @@ func (p *EBPFProbe) HandleNetworkRemediation(rule *rules.Rule, ev *model.Event, 
 		return
 	}
 	remediation.triggered = true
-	if remediation.isolationReApplied {
-		// We already re-applied the isolation, no need to send the event
+
+	// if the isolation is from the same rule and was already performed, don't send an event
+	if remediation.isolationReApplied && remediation.isolationPerformed {
 		return
+	}
+
+	// if the status is performed, update the isolationPerformed field
+	if report.Status == RawPacketActionStatusPerformed {
+		remediation.isolationPerformed = true
+	} else {
+		remediation.isolationPerformed = false
 	}
 
 	remediation.processContext.PID = ev.ProcessContext.Process.Pid
@@ -369,6 +400,8 @@ func (p *EBPFProbe) HandleRemediationNotTriggered() {
 		var remediationStr string
 		if !remediation.triggered {
 			if remediation.actionType == RemediationTypeNetworkIsolation {
+				// If the isolation was not triggered, set isolationPerformed to false since the ressource might have been killed
+				remediation.isolationPerformed = false
 				remediationStr = RemediationTypeNetworkIsolationStr
 			} else if remediation.actionType == RemediationTypeKill {
 				remediationStr = RemediationTypeKillStr

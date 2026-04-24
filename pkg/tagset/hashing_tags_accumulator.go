@@ -158,9 +158,9 @@ func (h *HashingTagsAccumulator) removeSorted(o *HashingTagsAccumulator) {
 			h.data[i] = holeData
 			h.hash[i] = holeHash
 			i++
-		case h.hash[i] < o.hash[j]:
+		case h.hash[i] < o.hash[j] || (h.hash[i] == o.hash[j] && h.data[i] < o.data[j]):
 			i++
-		case h.hash[i] > o.hash[j]:
+		default:
 			j++
 		}
 	}

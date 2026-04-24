@@ -7,6 +7,7 @@
 package agent
 
 import (
+	"context"
 	"encoding/json"
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
@@ -24,7 +25,7 @@ func NewFlareHelper(checks []checks.Check) *FlareHelper {
 }
 
 // FillFlare is the callback function for the flare.
-func (fh *FlareHelper) FillFlare(fb flaretypes.FlareBuilder) error {
+func (fh *FlareHelper) FillFlare(_ context.Context, fb flaretypes.FlareBuilder) error {
 	for _, check := range fh.Checks {
 		if check.Realtime() {
 			continue

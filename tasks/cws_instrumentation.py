@@ -9,6 +9,7 @@ from invoke.exceptions import Exit
 
 from tasks.build_tags import get_default_build_tags
 from tasks.flavor import AgentFlavor
+from tasks.libs.common.constants import CONTAINER_PLATFORM_MAPPING
 from tasks.libs.common.git import get_commit_sha, get_current_branch
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
@@ -22,7 +23,6 @@ from tasks.libs.common.utils import (
 BIN_DIR = os.path.join(".", "bin")
 BIN_PATH = os.path.join(BIN_DIR, "cws-instrumentation", bin_name("cws-instrumentation"))
 AGENT_TAG = "datadog/cws-instrumentation:master"
-CONTAINER_PLATFORM_MAPPING = {"aarch64": "arm64", "amd64": "amd64", "x86_64": "amd64"}
 
 
 @task(iterable=["build_tags"])

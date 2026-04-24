@@ -1,11 +1,11 @@
 service:
   pipelines:
     profiles:
-      receivers: [hostprofiler]
+      receivers: [profiling]
       processors: [batch, infraattributes]
       exporters: [otlphttp]
 receivers:
-  hostprofiler:
+  profiling:
     symbol_uploader:
       enabled: false
 processors:

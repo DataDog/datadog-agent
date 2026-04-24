@@ -19,11 +19,11 @@ import (
 	"go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -40,7 +40,7 @@ var (
 	// for testing purpose
 	ntpQuery = ntp.QueryWithOptions
 
-	tlmNtpOffset = telemetry.NewGauge("check", "ntp_offset",
+	tlmNtpOffset = telemetryimpl.GetCompatComponent().NewGauge("check", "ntp_offset",
 		nil, "Ntp offset")
 
 	defaultDatadogPool = []string{"0.datadog.pool.ntp.org", "1.datadog.pool.ntp.org", "2.datadog.pool.ntp.org", "3.datadog.pool.ntp.org"}
@@ -163,7 +163,7 @@ func (c *ntpConfig) parse(data []byte, initData []byte, getLocalServers func() (
 }
 
 // Configure configure the data from the yaml
-func (c *NTPCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+func (c *NTPCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string, provider string) error {
 	cfg := new(ntpConfig)
 	err := cfg.parse(data, initConfig, getLocalDefinedNTPServersFunc)
 	if err != nil {
@@ -174,7 +174,7 @@ func (c *NTPCheck) Configure(senderManager sender.SenderManager, integrationConf
 	c.BuildID(integrationConfigDigest, data, initConfig)
 	c.cfg = cfg
 
-	err = c.CommonConfigure(senderManager, initConfig, data, source)
+	err = c.CommonConfigure(senderManager, initConfig, data, source, provider)
 	if err != nil {
 		return err
 	}
@@ -226,7 +226,7 @@ func (c *NTPCheck) Run() error {
 				currentTime := time.Now()
 				intakeServerTime := currentTime.Add(time.Duration(intakeOffset * float64(time.Second)))
 				intakeTS := float64(intakeServerTime.UnixNano()) / 1e9
-				_ = sender.GaugeWithTimestamp("ntp.offset", intakeOffset, "", []string{"source:intake"}, intakeTS)
+				_ = sender.GaugeWithTimestamp("ntp.intake_offset", intakeOffset, "", nil, intakeTS)
 			}
 		}
 	}
@@ -248,7 +248,7 @@ func (c *NTPCheck) Run() error {
 		serviceCheckStatus = servicecheck.ServiceCheckOK
 	}
 
-	_ = sender.GaugeWithTimestamp("ntp.offset", clockOffset, "", []string{"source:ntp"}, ts)
+	_ = sender.GaugeWithTimestamp("ntp.offset", clockOffset, "", nil, ts)
 	ntpExpVar.Set(clockOffset)
 	tlmNtpOffset.Set(clockOffset)
 

@@ -6,28 +6,30 @@
 bazel:test:linux-amd64:
   extends: [ .bazel:test, .bazel:runner:linux-amd64 ]
   script:
-    - bazel test //...
+    - bazel test --keep_going //...
 
 bazel:test:linux-arm64:
   extends: [ .bazel:test, .bazel:runner:linux-arm64 ]
   script:
-    - bazel test //...
+    - bazel test --keep_going //...
 
 bazel:test:macos-amd64:
   extends: [ .bazel:test, .bazel:runner:macos-amd64 ]
   script:
-    - bazel test //bazel/tests/... //rtloader/...
+    - bazel test --keep_going //...
 
 bazel:test:macos-arm64:
   extends: [ .bazel:test, .bazel:runner:macos-arm64 ]
   script:
-    - bazel test //bazel/tests/... //rtloader/...
+    - bazel test --keep_going //...
 
 bazel:test:windows-amd64:
   extends: [ .bazel:test, .bazel:runner:windows-amd64 ]
-  rules:
-    - !reference [ .except_skip_windows ]
-    - when: on_success
   variables:
-    POWERSHELL_SCRIPT: |-
-      bazel test //bazel/tests/... //rtloader/...
+    POWERSHELL_SCRIPT: >-
+      bazel test --keep_going
+      "--action_env=PATH=C:/tools/msys64/mingw64/bin;C:/tools/msys64/usr/bin;C:/Windows/System32/WindowsPowerShell/v1.0;C:/Windows/system32;C:/Windows"
+      "--host_action_env=PATH=C:/tools/msys64/mingw64/bin;C:/tools/msys64/usr/bin;C:/Windows/System32/WindowsPowerShell/v1.0;C:/Windows/system32;C:/Windows"
+      //... --
+      -//bazel/rules/dd_packaging/...
+      -//packages/agent/linux/...

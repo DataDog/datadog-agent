@@ -7,12 +7,14 @@ package semantics
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 )
 
 // Accessor provides attribute access for semantic lookups.
 // Implementations may return not-found from GetInt64/GetFloat64 when the
-// underlying store has no numeric type information (e.g. map[string]string).
+// underlying store has no numeric type information (e.g. map[string]string),
+// or not-found from GetString when the store has no string values (e.g. map[string]float64).
 type Accessor interface {
 	GetString(key string) string
 	GetInt64(key string) (int64, bool)
@@ -49,6 +51,44 @@ func (a StringMapAccessor) GetInt64(_ string) (int64, bool) {
 // GetFloat64 always returns (0, false) for the same reason as GetInt64.
 func (a StringMapAccessor) GetFloat64(_ string) (float64, bool) {
 	return 0, false
+}
+
+// MetricsMapAccessor adapts a map[string]float64 into an Accessor (e.g. DD span Metrics).
+// GetString always returns ""; string-typed registry entries are intentionally skipped
+// because map[string]float64 holds no string values. Use DDSpanAccessor, which routes
+// string lookups to StringMapAccessor (meta) instead.
+type MetricsMapAccessor struct {
+	m map[string]float64
+}
+
+// NewMetricsMapAccessor returns a MetricsMapAccessor for a map[string]float64.
+func NewMetricsMapAccessor(m map[string]float64) MetricsMapAccessor {
+	return MetricsMapAccessor{m: m}
+}
+
+// GetString always returns "". map[string]float64 holds no string values.
+func (a MetricsMapAccessor) GetString(_ string) string { return "" }
+
+// GetFloat64 returns the value directly, or (0, false) if missing or nil map.
+func (a MetricsMapAccessor) GetFloat64(key string) (float64, bool) {
+	if a.m == nil {
+		return 0, false
+	}
+	v, ok := a.m[key]
+	return v, ok
+}
+
+// GetInt64 converts the float64 value to int64 if it is an exact integer, or (0, false) otherwise.
+func (a MetricsMapAccessor) GetInt64(key string) (int64, bool) {
+	v, ok := a.GetFloat64(key)
+	if !ok {
+		return 0, false
+	}
+	i := int64(v)
+	if float64(i) != v || math.IsInf(v, 0) || math.IsNaN(v) {
+		return 0, false
+	}
+	return i, true
 }
 
 // LookupResult contains the result of a semantic attribute lookup.

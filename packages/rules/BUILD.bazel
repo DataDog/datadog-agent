@@ -1,0 +1,11 @@
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load(":package_naming_test.bzl", "package_naming_test_suite")
+
+bzl_library(
+    name = "package_naming_bzl",
+    srcs = ["package_naming.bzl"],
+    # Limited visibility because the names are volatile.
+    visibility = ["//packages:__subpackages__"],
+)
+
+package_naming_test_suite(name = "_package_naming_tests")

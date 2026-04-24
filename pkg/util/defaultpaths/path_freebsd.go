@@ -50,6 +50,11 @@ func GetInstallPath() string {
 	return _here
 }
 
+// GetDefaultConfPath returns the fully qualified directory path where the agent looks for the datadog.yaml config
+func GetDefaultConfPath() string {
+	return ConfPath
+}
+
 // GetEmbeddedBinPath returns the path of the embedded binary for the given flavor.
 func GetEmbeddedBinPath() string {
 	if flavor.GetFlavor() == flavor.ClusterAgent {

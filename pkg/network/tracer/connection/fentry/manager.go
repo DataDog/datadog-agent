@@ -20,7 +20,6 @@ func initManager(mgr *ddebpf.Manager) {
 		{Name: probes.ConnMap},
 		{Name: probes.TCPStatsMap},
 		{Name: probes.TCPOngoingConnectPid},
-		{Name: probes.ConnCloseBatchMap},
 		{Name: "udp_recv_sock"},
 		{Name: "udpv6_recv_sock"},
 		{Name: probes.PortBindingsMap},

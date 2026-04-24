@@ -43,7 +43,7 @@ func TestPull(t *testing.T) {
 		foundIDs[gpu.ID] = true
 		var expectedName string
 		if gpu.DeviceType == workloadmeta.GPUDeviceTypeMIG {
-			expectedName = "MIG " + testutil.DefaultGPUName
+			expectedName = testutil.DefaultGPUName + " MIG 3g.40gb"
 		} else if gpu.DeviceType == workloadmeta.GPUDeviceTypePhysical {
 			expectedName = testutil.DefaultGPUName
 			//for now, we test totalMemory only for physical devices
@@ -70,23 +70,6 @@ func TestPull(t *testing.T) {
 		for _, migChildUUID := range migChildrenUUIDs {
 			require.True(t, foundIDs[migChildUUID], "MIG child GPU %s not found", migChildUUID)
 		}
-	}
-}
-
-func TestGpuArchToString(t *testing.T) {
-	tests := []struct {
-		arch     nvml.DeviceArchitecture
-		expected string
-	}{
-		{nvml.DEVICE_ARCH_KEPLER, "kepler"},
-		{nvml.DEVICE_ARCH_UNKNOWN, "unknown"},
-		{nvml.DeviceArchitecture(3751), "invalid"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.expected, func(t *testing.T) {
-			require.Equal(t, tt.expected, gpuArchToString(tt.arch))
-		})
 	}
 }
 
@@ -462,8 +445,8 @@ func TestPullWithMIGDevices(t *testing.T) {
 			// Verify MIG device properties
 			require.Equal(t, workloadmeta.GPUDeviceTypeMIG, migGPU.DeviceType)
 			require.Equal(t, parentUUID, migGPU.ParentGPUUUID, "MIG device %s should have parent %s", childUUID, parentUUID)
-			require.Equal(t, "MIG "+testutil.DefaultGPUName, migGPU.Name)
-			require.Equal(t, "MIG "+testutil.DefaultGPUName, migGPU.Device)
+			require.Equal(t, testutil.DefaultGPUName+" MIG 3g.40gb", migGPU.Name)
+			require.Equal(t, testutil.DefaultGPUName+" MIG 3g.40gb", migGPU.Device)
 			require.Equal(t, testutil.DefaultNvidiaDriverVersion, migGPU.DriverVersion)
 			require.Equal(t, nvidiaVendor, migGPU.Vendor)
 			require.Equal(t, "hopper", migGPU.Architecture)

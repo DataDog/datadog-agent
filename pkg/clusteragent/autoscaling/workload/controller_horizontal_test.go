@@ -260,6 +260,26 @@ func TestHorizontalControllerSyncPrerequisites(t *testing.T) {
 	assert.Equal(t, autoscaling.NoRequeue, result)
 	assert.NoError(t, err)
 
+	// Test case: Preview mode blocks scaling even when current replicas are outside boundaries
+	fakePai.Spec.ApplyPolicy = &datadoghq.DatadogPodAutoscalerApplyPolicy{
+		Mode: datadoghq.DatadogPodAutoscalerApplyModePreview,
+	}
+	fakePai.Spec.Constraints = &datadoghqcommon.DatadogPodAutoscalerConstraints{
+		MinReplicas: pointer.Ptr[int32](2),
+		MaxReplicas: pointer.Ptr[int32](8),
+	}
+	result, err = f.testScalingDecision(horizontalScalingTestArgs{
+		fakePai:         fakePai,
+		dataSource:      datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+		currentReplicas: 10,
+		statusReplicas:  10,
+		recReplicas:     7,
+		scaleReplicas:   10,
+		scaleError:      testutil.NewErrorString("horizontal scaling disabled due to applyMode: Preview not allowing recommendations from source: Autoscaling"),
+	})
+	assert.Equal(t, autoscaling.NoRequeue, result)
+	assert.NoError(t, err)
+
 	// Test case: Fallback scaling direction disabled by policy
 	fakePai.Spec.Fallback = &datadoghq.DatadogFallbackPolicy{
 		Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{

@@ -101,10 +101,10 @@ func newCheck() check.Check {
 }
 
 // Configure configures the Helm check
-func (hc *HelmCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
+func (hc *HelmCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string, provider string) error {
 	hc.BuildID(integrationConfigDigest, config, initConfig)
 
-	err := hc.CommonConfigure(senderManager, initConfig, config, source)
+	err := hc.CommonConfigure(senderManager, initConfig, config, source, provider)
 	if err != nil {
 		return err
 	}

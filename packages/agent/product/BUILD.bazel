@@ -1,0 +1,169 @@
+"""The Agent 'Product' bundle.
+
+Gathering spot for all the components shipped as part of the product.
+This gradually replaces datadog-agent.rb.
+"""
+
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load(
+    "@rules_pkg//pkg:mappings.bzl",
+    "pkg_attributes",
+    "pkg_filegroup",
+    "pkg_files",
+    "pkg_mkdirs",
+)
+load("//packages/agent:defs.bzl", "ETC_DIR_SELECTOR")
+
+package(default_visibility = ["//packages:__subpackages__"])
+
+# All the components to be installed in {install_dir}
+# This list is probably too long because it includes transitive deps of some
+# of the components. It serves as a checklist of what we need to account for.
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        # TODO: dependency "python3"
+        # TODO: dependency "openscap" if linux_target? and !arm7l_target? and !heroku_target?
+        # TODO: dependencies:all_files belongs here, but that adding it will essentially
+        # mean all builds build dependencies. That would break the repackage workflow, so
+        # we'll do that in April.
+        # "//packages/agent/dependencies:all_files",
+        ":dirs",
+        ":example_config",
+        "//cmd/agent/dist:all_files",
+        "//cmd/agent/dist:all_python_files",
+        "//rtloader:all_files",
+        ":dda_built_agent_binary",
+
+        # TODO: sysprobe - windows
+        # TODO: systray - windows
+        # TODO: installer
+        "//cmd/loader:trace_loader",
+        ":dda_built_trace_agent_binary",
+        ":dda_built_process_agent_binary",
+        ":dda_built_privateactionrunner_binary",
+
+        # TODO: system-probe
+        # TODO: system-probe - selinux policy
+        # TODO: system-probe - eBPF
+
+        # TODO: //pkg/discovery/module/rust
+        # TODO: security-agent
+        # TODO: cws-instrumentation
+        # TODO: secret-generic-connector
+        # TODO: cacerts
+        # TODO: dependency 'datadog-agent-integrations-py3'
+    ] + select({
+        "//packages/agent:linux_default": [
+            "//pkg/discovery/module/rust:all_files",
+            "//pkg/procmgr/rust:all_files",
+        ],
+        "//packages/agent:linux_fips": [
+            "//pkg/discovery/module/rust:all_files",
+            "//pkg/procmgr/rust:all_files",
+        ],
+        "//packages/agent:linux_heroku": [],
+        "//conditions:default": [
+        ],
+    }) + select({
+        "@platforms//os:macos": [
+            "//packages/macos/app:all_files",
+            # TODO: systray
+        ],
+        "@platforms//os:windows": [
+            "//packages/windows:all_files",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+# All the components to be installed in {install_dir} during the build during the migration.
+# This is the subset of :all_files that we need to place in install_dir so the omnibus
+# packaging can pick them up. When we can build the packages with bazel rules, this goes
+# away.
+pkg_filegroup(
+    name = "all_install_dir_files",
+    srcs = [
+        ":dirs",
+        ":example_config",
+        "//cmd/agent/dist:all_files",
+        "//cmd/agent/dist:all_python_files",
+    ],
+)
+
+# Temporary during migration, to call from omnibus build after we have built the agent with dda.
+pkg_install(
+    name = "post_build_install",
+    srcs = [
+        ":all_install_dir_files",
+    ],
+    destdir_flag = "//:install_dir",
+)
+
+# Dirs that should exist with particular permissions.
+pkg_mkdirs(
+    name = "dirs",
+    attributes = pkg_attributes(mode = "755"),
+    dirs = [
+        "bin",
+    ] + select({
+        "@platforms//os:macos": ["etc"],
+        "//conditions:default": ["etc/datadog-agent"],
+    }) + select({
+        "@platforms//os:windows": [],
+        "//conditions:default": [
+            "run",
+            "scripts",
+        ],
+    }),
+)
+
+pkg_files(
+    name = "example_config",
+    srcs = [
+        "//pkg/config:agent_config",
+    ],
+    prefix = select(ETC_DIR_SELECTOR),
+    renames = {
+        "//pkg/config:agent_config": "datadog.yaml.example",
+    },
+)
+
+pkg_files(
+    name = "dda_built_agent_binary",
+    srcs = [
+        "@agent_binary//:agent",
+    ],
+    attributes = pkg_attributes(mode = "755"),
+    prefix = "bin/agent",
+)
+
+pkg_files(
+    name = "dda_built_process_agent_binary",
+    srcs = [
+        "@process_agent_binary//:process_agent",
+    ],
+    attributes = pkg_attributes(mode = "755"),
+    prefix = select({
+        "@platforms//os:windows": "bin/agent",
+        "//conditions:default": "embedded/bin",
+    }),
+)
+
+pkg_files(
+    name = "dda_built_privateactionrunner_binary",
+    srcs = [
+        "@privateactionrunner_binary//:privateactionrunner",
+    ],
+    attributes = pkg_attributes(mode = "755"),
+    prefix = "embedded/bin",
+)
+
+pkg_files(
+    name = "dda_built_trace_agent_binary",
+    srcs = [
+        "@trace_agent_binary//:trace_agent",
+    ],
+    attributes = pkg_attributes(mode = "755"),
+    prefix = "embedded/bin",
+)

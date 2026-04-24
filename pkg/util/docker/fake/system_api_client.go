@@ -11,10 +11,8 @@ package fake
 import (
 	"context"
 
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/events"
-	"github.com/docker/docker/api/types/registry"
-	"github.com/docker/docker/api/types/system"
+	"github.com/moby/moby/api/types/system"
+	"github.com/moby/moby/client"
 )
 
 // SystemAPIClient is a mock
@@ -23,26 +21,27 @@ type SystemAPIClient struct {
 }
 
 // Events is a mock method
-func (c *SystemAPIClient) Events(context.Context, events.ListOptions) (<-chan events.Message, <-chan error) {
-	return nil, nil
+func (c *SystemAPIClient) Events(context.Context, client.EventsListOptions) client.EventsResult {
+	return client.EventsResult{}
 }
 
 // Info is a mock method
-func (c *SystemAPIClient) Info(context.Context) (system.Info, error) {
-	return c.InfoFunc()
+func (c *SystemAPIClient) Info(_ context.Context, _ client.InfoOptions) (client.SystemInfoResult, error) {
+	info, err := c.InfoFunc()
+	return client.SystemInfoResult{Info: info}, err
 }
 
 // RegistryLogin is a mock method
-func (c *SystemAPIClient) RegistryLogin(context.Context, registry.AuthConfig) (registry.AuthenticateOKBody, error) {
-	return registry.AuthenticateOKBody{}, nil
+func (c *SystemAPIClient) RegistryLogin(context.Context, client.RegistryLoginOptions) (client.RegistryLoginResult, error) {
+	return client.RegistryLoginResult{}, nil
 }
 
 // DiskUsage is a mock method
-func (c *SystemAPIClient) DiskUsage(context.Context, types.DiskUsageOptions) (types.DiskUsage, error) {
-	return types.DiskUsage{}, nil
+func (c *SystemAPIClient) DiskUsage(context.Context, client.DiskUsageOptions) (client.DiskUsageResult, error) {
+	return client.DiskUsageResult{}, nil
 }
 
 // Ping is a mock method
-func (c *SystemAPIClient) Ping(context.Context) (types.Ping, error) {
-	return types.Ping{}, nil
+func (c *SystemAPIClient) Ping(context.Context, client.PingOptions) (client.PingResult, error) {
+	return client.PingResult{}, nil
 }

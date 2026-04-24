@@ -83,7 +83,7 @@ func TestEnableDiscovery(t *testing.T) {
 
 	t.Run("default", func(t *testing.T) {
 		cfg := mock.NewSystemProbe(t)
-		assert.False(t, cfg.GetBool(discoveryNS("enabled")))
+		assert.Equal(t, runtime.GOOS == "linux", cfg.GetBool(discoveryNS("enabled")))
 	})
 
 	discoveryDefaultEnabled := runtime.GOOS == "linux"
@@ -105,6 +105,16 @@ func TestEnableDiscovery(t *testing.T) {
 
 		t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLED", "true")
 
+		cfg, err := New("", "")
+		require.NoError(t, err)
+		assert.Equal(t, discoveryDefaultEnabled, cfg.ModuleIsEnabled(DiscoveryModule))
+	})
+
+	t.Run("default enabled standalone on linux", func(t *testing.T) {
+		// Reset global config to avoid test interference
+		_ = mock.NewSystemProbe(t)
+
+		// No other modules enabled — discovery should still auto-enable on Linux
 		cfg, err := New("", "")
 		require.NoError(t, err)
 		assert.Equal(t, discoveryDefaultEnabled, cfg.ModuleIsEnabled(DiscoveryModule))

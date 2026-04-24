@@ -223,15 +223,13 @@ func (e *Process) UnmarshalPidCacheBinary(data []byte) (int, error) {
 	if cookie > 0 {
 		e.Cookie = cookie
 	}
-	e.PPid = binary.NativeEndian.Uint32(data[8:12])
 
-	// padding
-
-	e.ForkTime = unmarshalTime(data[16:24])
-	e.ExitTime = unmarshalTime(data[24:32])
-	e.UserSession.K8SSessionID = binary.NativeEndian.Uint64(data[32:40])
-
-	e.ForkFlags = binary.NativeEndian.Uint64(data[40:48])
+	e.ForkTime = unmarshalTime(data[8:16])
+	e.ExitTime = unmarshalTime(data[16:24])
+	e.UserSession.K8SSessionID = binary.NativeEndian.Uint64(data[24:32])
+	e.ForkFlags = binary.NativeEndian.Uint64(data[32:40])
+	e.PIDContext.SID = binary.NativeEndian.Uint32(data[40:44])
+	// [44:48] padding_sid
 
 	// Unmarshal the credentials contained in pid_cache_t
 	read, err := e.Credentials.UnmarshalBinary(data[48:])
@@ -494,6 +492,8 @@ func (e *MountEvent) UnmarshalBinary(data []byte) (int, error) {
 		e.Mount.Origin = MountOriginFsmount
 	case MountEventSourceMoveMountSyscall:
 		e.Mount.Origin = MountOriginMoveMount
+	case MountEventSourcePivotRootSyscall:
+		e.Mount.Origin = MountOriginPivotRoot
 	}
 	e.Origin = e.Mount.Origin
 	return n + 4, nil
@@ -588,7 +588,7 @@ func (e *SELinuxEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself, process_context_t kernel side
 func (p *PIDContext) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 40 {
+	if len(data) < 48 {
 		return 0, ErrNotEnoughData
 	}
 
@@ -597,11 +597,13 @@ func (p *PIDContext) UnmarshalBinary(data []byte) (int, error) {
 	p.NetNS = binary.NativeEndian.Uint32(data[8:12])
 	p.MntNS = binary.NativeEndian.Uint32(data[12:16])
 	p.IsKworker = binary.NativeEndian.Uint32(data[16:20]) > 0
-	// padding
-	p.ExecInode = binary.NativeEndian.Uint64(data[24:32])
-	p.UserSessionID = binary.NativeEndian.Uint64(data[32:40])
+	p.PPid = binary.NativeEndian.Uint32(data[20:24])
+	p.SID = binary.NativeEndian.Uint32(data[24:28])
+	// [28:32] padding_sid
+	p.ExecInode = binary.NativeEndian.Uint64(data[32:40])
+	p.UserSessionID = binary.NativeEndian.Uint64(data[40:48])
 
-	return 40, nil
+	return 48, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself

@@ -674,6 +674,17 @@ func TestNetworkPathDefaults(t *testing.T) {
 	assert.Equal(t, false, config.GetBool("network_path.collector.disable_windows_driver"))
 }
 
+func TestInfrastructureModeNoneDisablesECSTaskCollection(t *testing.T) {
+	datadogYaml := `
+infrastructure_mode: none
+`
+	config := confFromYAML(t, datadogYaml)
+	applyInfrastructureModeOverrides(config)
+
+	assert.False(t, config.GetBool("ecs_task_collection_enabled"))
+	assert.False(t, config.GetBool("integration.enabled"))
+}
+
 func TestInfrastructureModeLegacyAliases(t *testing.T) {
 	// Test that legacy allowed_additional_checks is aliased to mode-specific
 	// key via applyInfrastructureModeOverrides
@@ -726,6 +737,54 @@ infrastructure_mode: end_user_device
 	assert.True(t, foundSlack, "*.slack.com should be in the default filters")
 	assert.True(t, foundGitHub, "*.github.com should be in the default filters")
 
+}
+
+func TestNetworkPathFiltersEndUserDeviceModeAppendsUser(t *testing.T) {
+	datadogYaml := `
+infrastructure_mode: end_user_device
+network_path:
+  collector:
+    filters:
+      - match_ip: 0.0.0.0/0
+        type: include
+`
+	config := confFromYAML(t, datadogYaml)
+	applyInfrastructureModeOverrides(config)
+	filters := config.Get("network_path.collector.filters")
+	require.NotNil(t, filters)
+
+	filtersList, ok := filters.([]map[string]string)
+	require.True(t, ok, "filters should be []map[string]string, got %T", filters)
+
+	last := filtersList[len(filtersList)-1]
+	assert.Equal(t, "0.0.0.0/0", last["match_ip"], "user filter should be appended last")
+	assert.Equal(t, "include", last["type"])
+}
+
+func TestNetworkPathFiltersEndUserDeviceModeMalformedUserFiltersSkipsOverride(t *testing.T) {
+	// Malformed filters: list of scalars instead of list of maps, so structure.UnmarshalKey fails.
+	datadogYaml := `
+infrastructure_mode: end_user_device
+network_path:
+  collector:
+    filters:
+      - "not_a_map"
+      - "still_not_a_map"
+`
+	config := confFromYAML(t, datadogYaml)
+	applyInfrastructureModeOverrides(config)
+
+	// The filter override must be skipped: the user's (malformed) value is left in place
+	// rather than being silently replaced with the EUDM defaults.
+	filters := config.Get("network_path.collector.filters")
+	_, ok := filters.([]map[string]string)
+	assert.False(t, ok, "EUDM defaults should NOT be applied when user filters fail to unmarshal, got %T", filters)
+
+	// The other EUDM overrides should still be applied — a filter parse failure must not
+	// prevent the rest of the mode from taking effect.
+	assert.True(t, config.GetBool("process_config.process_collection.enabled"))
+	assert.True(t, config.GetBool("software_inventory.enabled"))
+	assert.True(t, config.GetBool("notable_events.enabled"))
 }
 
 func TestUsePodmanLogsAndDockerPathOverride(t *testing.T) {
@@ -1136,9 +1195,6 @@ func TestConfigAssignAtPath(t *testing.T) {
 
 	config := newTestConf(t)
 	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
-	// This setting is required because overrideRunInCoreAgentConfig in pkg/config/setup/process.go adds
-	// it for non-linux OSes. By adding it here the test passes on all OSes.
-	config.Set("process_config.run_in_core_agent.enabled", false, pkgconfigmodel.SourceAgentRuntime)
 
 	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
 	os.WriteFile(configPath, testExampleConf, 0o600)
@@ -1169,8 +1225,6 @@ process_config:
     - fifth
     https://url2.eu:
     - modified
-  run_in_core_agent:
-    enabled: false
 secret_backend_command: different
 use_proxy_for_cloud_metadata: true
 `
@@ -1223,10 +1277,7 @@ func TestConfigAssignAtPathWorksWithGet(t *testing.T) {
 		config.Get("process_config.additional_endpoints"))
 }
 
-var testSimpleConf = []byte(`process_config:
-  run_in_core_agent:
-    enabled: false
-secret_backend_command: some command
+var testSimpleConf = []byte(`secret_backend_command: some command
 secret_backend_arguments:
 - ENC[pass1]
 `)
@@ -1235,7 +1286,6 @@ func TestConfigAssignAtPathSimple(t *testing.T) {
 
 	config := newTestConf(t)
 	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
-	config.Set("process_config.run_in_core_agent.enabled", false, pkgconfigmodel.SourceAgentRuntime)
 	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
 	os.WriteFile(configPath, testSimpleConf, 0o600)
 	config.SetConfigFile(configPath)
@@ -1246,10 +1296,7 @@ func TestConfigAssignAtPathSimple(t *testing.T) {
 	err = configAssignAtPath(config, []string{"secret_backend_arguments", "0"}, "password1")
 	assert.NoError(t, err)
 
-	expectedYaml := `process_config:
-  run_in_core_agent:
-    enabled: false
-secret_backend_arguments:
+	expectedYaml := `secret_backend_arguments:
 - password1
 secret_backend_command: some command
 use_proxy_for_cloud_metadata: true
@@ -1339,7 +1386,6 @@ additional_endpoints:
 `)
 	config := newTestConf(t)
 	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
-	config.Set("process_config.run_in_core_agent.enabled", false, pkgconfigmodel.SourceAgentRuntime)
 	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
 	os.WriteFile(configPath, testIntKeysConf, 0o600)
 	config.SetConfigFile(configPath)
@@ -1359,12 +1405,12 @@ additional_endpoints:
 func TestServerlessConfigNumComponents(t *testing.T) {
 	// Enforce the number of config "components" reachable by the serverless agent
 	// to avoid accidentally adding entire components if it's not needed
-	require.Len(t, serverlessConfigComponents, 24)
+	require.Len(t, commonConfigComponents, 24)
 }
 
 func TestServerlessConfigInit(t *testing.T) {
 	conf := newEmptyMockConf(t)
-	initCommonWithServerless(conf)
+	initCommonConfigComponents(conf)
 
 	// ensure some core configs are declared
 	assert.True(t, conf.IsKnown("api_key"))
@@ -1469,9 +1515,9 @@ yet_another_key: 'dddd'`
 
 	scrubbed, err := scrubber.ScrubYamlString(stringToScrub)
 	assert.Nil(t, err)
-	expected := `api_key: '***************************aaaaa'
+	expected := `api_key: '****************************aaaa'
 some_other_key: "********"
-app_key: '***********************************acccc'
+app_key: '************************************cccc'
 yet_another_key: "********"`
 	assert.YAMLEq(t, expected, scrubbed)
 }
@@ -1486,5 +1532,5 @@ func TestLoadProxyFromEnv(t *testing.T) {
 
 	LoadProxyFromEnv(cfg)
 	assert.Equal(t, "http://www.example.com/", cfg.Get("proxy.http"))
-	assert.Equal(t, pkgconfigmodel.SourceAgentRuntime, cfg.GetSource("proxy.http"))
+	assert.Equal(t, pkgconfigmodel.SourceConfigPostInit, cfg.GetSource("proxy.http"))
 }

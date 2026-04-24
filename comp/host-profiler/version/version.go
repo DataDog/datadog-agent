@@ -3,13 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux
-
 // Package version provides version information for the host profiler.
 package version
 
 import "github.com/DataDog/datadog-agent/pkg/version"
 
-const ProfilerName = "full-host-profiler"
+const ProfilerName = "host-profiler"
 
 var ProfilerVersion = version.AgentVersion

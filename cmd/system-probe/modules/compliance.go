@@ -28,8 +28,6 @@ import (
 
 func init() { registerModule(ComplianceModule) }
 
-var complianceConfigNamespaces = []string{"compliance_config", "runtime_security_config"}
-
 // ComplianceModule is a system-probe module that exposes an HTTP api to
 // perform compliance checks that require more privileges than security-agent
 // can offer.
@@ -37,9 +35,8 @@ var complianceConfigNamespaces = []string{"compliance_config", "runtime_security
 // For instance, being able to run cross-container checks at runtime by directly
 // accessing the /proc/<pid>/root mount point.
 var ComplianceModule = &module.Factory{
-	Name:             config.ComplianceModule,
-	ConfigNamespaces: complianceConfigNamespaces,
-	Fn:               newComplianceModule,
+	Name: config.ComplianceModule,
+	Fn:   newComplianceModule,
 	NeedsEBPF: func() bool {
 		return false
 	},
@@ -62,7 +59,7 @@ func newComplianceModule(_ *sysconfigtypes.Config, deps module.FactoryDependenci
 		sysProbeClient := &compliance.LocalSysProbeClient{}
 
 		// start compliance agent
-		complianceAgent, err = compliance.StartCompliance(deps.Log, deps.CoreConfig, hostnameDetected, stopper, deps.Statsd, deps.WMeta, deps.FilterStore, deps.Compression, sysProbeClient)
+		complianceAgent, err = compliance.StartCompliance(deps.Log, deps.CoreConfig, hostnameDetected, stopper, deps.Statsd, deps.WMeta, deps.FilterStore, deps.Compression, sysProbeClient, deps.Secrets)
 		if err != nil {
 			return nil, err
 		}

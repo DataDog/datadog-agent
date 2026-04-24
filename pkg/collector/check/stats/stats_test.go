@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -33,6 +33,7 @@ type mockCheck struct {
 
 // Mock Check interface implementation
 func (mc *mockCheck) ConfigSource() string    { return mc.cfgSource }
+func (mc *mockCheck) ConfigProvider() string  { return "" }
 func (mc *mockCheck) Loader() string          { return mc.loaderName }
 func (mc *mockCheck) ID() checkid.ID          { return mc.id }
 func (mc *mockCheck) String() string          { return mc.stringVal }

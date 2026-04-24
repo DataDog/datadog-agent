@@ -396,12 +396,12 @@ func (v *VersaCheck) Run() error {
 }
 
 // Configure the Versa check
-func (v *VersaCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
+func (v *VersaCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, rawInstance integration.Data, rawInitConfig integration.Data, source string, provider string) error {
 
 	// Must be called before v.CommonConfigure
 	v.BuildID(integrationConfigDigest, rawInstance, rawInitConfig)
 
-	err := v.CommonConfigure(senderManager, rawInitConfig, rawInstance, source)
+	err := v.CommonConfigure(senderManager, rawInitConfig, rawInstance, source, provider)
 	if err != nil {
 		return err
 	}

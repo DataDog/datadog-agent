@@ -12,14 +12,15 @@
 package model
 
 import (
-	"net"
 	"net/netip"
 	"runtime"
+	"syscall"
 	"time"
 	"unsafe"
 
 	"github.com/google/gopacket"
 
+	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
@@ -207,12 +208,43 @@ func (e *Event) GetContainerID() string {
 	return string(e.ProcessContext.Process.ContainerContext.ContainerID)
 }
 
+// CGroupSource indicates the origin of a cgroup entry
+type CGroupSource uint64
+
+const (
+	// CGroupSourceUnknown defines a cgroup entry from an unknown source
+	CGroupSourceUnknown CGroupSource = iota
+	// CGroupSourceEvent defines a cgroup entry populated from a kernel event
+	CGroupSourceEvent
+	// CGroupSourceProcFS defines a cgroup entry populated from the procfs fallback
+	CGroupSourceProcFS
+)
+
+// String returns a string representation of the cgroup source
+func (s CGroupSource) String() string {
+	switch s {
+	case CGroupSourceEvent:
+		return "event"
+	case CGroupSourceProcFS:
+		return "procfs"
+	default:
+		return "unknown"
+	}
+}
+
 // CGroupContext holds the cgroup context of an event
 type CGroupContext struct {
 	*Releasable
 	CGroupID      containerutils.CGroupID `field:"id"` // SECLDoc[id] Definition:`ID of the cgroup`
 	CGroupPathKey PathKey                 `field:"file"`
 	CGroupVersion int                     `field:"version,handler:ResolveCGroupVersion"` // SECLDoc[version] Definition:`[Experimental] Version of the cgroup API`
+	CGroupSource  CGroupSource            `field:"-"`
+	CreatedAt     uint64                  `field:"created_at,opts:gen_getters"` // SECLDoc[created_at] Definition:`Timestamp of the creation of the cgroup`
+}
+
+// UnixCreatedAt returns the creation time of the cgroup
+func (cg *CGroupContext) UnixCreatedAt() time.Time {
+	return time.Unix(0, int64(cg.CreatedAt))
 }
 
 // IsNull returns true if the cgroup context is null
@@ -380,7 +412,6 @@ type Process struct {
 	CreatedAt uint64 `field:"created_at,handler:ResolveProcessCreatedAt"` // SECLDoc[created_at] Definition:`Timestamp of the creation of the process`
 
 	Cookie uint64 `field:"-"`
-	PPid   uint32 `field:"ppid"` // SECLDoc[ppid] Definition:`Parent process ID`
 
 	// credentials_t section of pid_cache_t
 	Credentials
@@ -392,7 +423,7 @@ type Process struct {
 
 	AWSSecurityCredentials []AWSSecurityCredentials `field:"-"`
 
-	TracerTags []string `field:"-"` // Tags from APM tracer instrumentation
+	TracerMetadata tracermetadata.TracerMetadata `field:"-"` // Metadata from APM tracer instrumentation
 
 	ArgsID uint64 `field:"-"`
 	EnvsID uint64 `field:"-"`
@@ -424,15 +455,7 @@ type Process struct {
 
 	Source uint64 `field:"-"`
 
-	// lineage
-	validLineageResult *validLineageResult `field:"-"`
-
 	IsThroughSymLink bool `field:"-"` // Indicates whether the process is through a symlink
-}
-
-type validLineageResult struct {
-	valid bool
-	err   error
 }
 
 // SetAncestorFields force the process cache entry to be valid
@@ -482,6 +505,11 @@ type FileFields struct {
 
 	NLink uint32 `field:"-"`
 	Flags int32  `field:"-"`
+}
+
+// IsDir reports whether the file mode represents a directory.
+func (f *FileFields) IsDir() bool {
+	return f.Mode&syscall.S_IFMT == syscall.S_IFDIR
 }
 
 // FileEvent is the common file event type
@@ -643,7 +671,9 @@ type PIDContext struct {
 	Tid           uint32 `field:"tid"`        // SECLDoc[tid] Definition:`Thread ID of the thread`
 	NetNS         uint32 `field:"netns"`      // SECLDoc[netns] Definition:`NetNS ID of the process`
 	MntNS         uint32 `field:"mntns"`      // SECLDoc[mntns] Definition:`MNTNS ID of the process`
-	IsKworker     bool   `field:"is_kworker"` // SECLDoc[is_kworker] Definition:`Indicates whether the process is a kworker`
+	IsKworker     bool   `field:"is_kworker"` // SECLDoc[is_kworker] Definition:`Indicates whether the process is a kworker/kthread`
+	PPid          uint32 `field:"ppid"`       // SECLDoc[ppid] Definition:`Parent process ID`
+	SID           uint32 `field:"sid"`        // SECLDoc[sid] Definition:`Session ID of the process`
 	ExecInode     uint64 `field:"-"`          // used to track exec and event loss
 	UserSessionID uint64 `field:"-"`          // used to track user sessions from kernel space
 	// used for ebpfless
@@ -907,27 +937,6 @@ type PathKey struct {
 	PathID  uint32 `field:"-"`
 }
 
-// MountEquals returns true if the mount ID is the same as the other mount ID taking the path ID into account
-// See the increment of the path ID when the mount is updated kernel side
-func (p *PathKey) MountEquals(other PathKey) bool {
-	// PathID encodes as PATH_ID(high, low) = (high << 16) | (low & 0xFFFF).
-	// The high 16 bits are the mount revision counter (bumped by MOUNT_REVISION_BUMP_VALUE on
-	// global invalidations such as directory renames/unlinks affecting the mount namespace).
-	// The low 16 bits are a per-inode counter and are unrelated between different files,
-	// so we must compare the high bits here.
-	pathID, otherPathID := uint16(p.PathID>>16), uint16(other.PathID>>16)
-
-	diff := pathID - otherPathID // unsigned wrap-around
-	if diff > 0x8000 {
-		diff = ^diff + 1 // equivalent to 65536 - diff
-	}
-
-	// see kernel side definition of MOUNT_REVISION_BUMP_VALUE
-	const mountRevisionBumpValue = 64
-
-	return p.MountID == other.MountID && (p.PathID == 0 || other.PathID == 0 || diff < mountRevisionBumpValue)
-}
-
 // OnDemandPerArgSize is the size of each argument in Data in the on-demand event
 const OnDemandPerArgSize = 64
 
@@ -956,14 +965,6 @@ type OnDemandEvent struct {
 // LoginUIDWriteEvent is used to propagate login UID updates to user space
 type LoginUIDWriteEvent struct {
 	AUID uint32 `field:"-"`
-}
-
-// SnapshottedBoundSocket represents a snapshotted bound socket
-type SnapshottedBoundSocket struct {
-	IP       net.IP
-	Port     uint16
-	Family   uint16
-	Protocol uint16
 }
 
 // RawPacketEvent represents a packet event

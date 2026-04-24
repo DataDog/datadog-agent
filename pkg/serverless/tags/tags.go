@@ -46,10 +46,12 @@ func MapToArray(tagsMap map[string]string) []string {
 	return tagsArray
 }
 
-func MergeWithOverwrite(tags map[string]string, overwritingTags map[string]string) map[string]string {
+// MergeWithOverwrite merges tag maps in order (later overwrites earlier).
+func MergeWithOverwrite(tagMaps ...map[string]string) map[string]string {
 	merged := make(map[string]string)
-	maps.Copy(merged, tags)
-	maps.Copy(merged, overwritingTags)
+	for _, m := range tagMaps {
+		maps.Copy(merged, m)
+	}
 	return merged
 }
 

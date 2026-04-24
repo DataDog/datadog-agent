@@ -1,0 +1,4 @@
+# gazelle:ignore
+
+# gazelle:exclude testutils
+# gazelle:exclude windowsevent

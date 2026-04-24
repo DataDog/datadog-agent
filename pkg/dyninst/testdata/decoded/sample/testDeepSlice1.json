@@ -18,17 +18,17 @@
           {
             "function": "main.testDeepSlice1",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 143
+            "lineNumber": 162
           },
           {
             "function": "main.executeComplexFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 280
+            "lineNumber": 301
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 36
+            "lineNumber": 37
           },
           {
             "function": "runtime.main",
@@ -79,17 +79,18 @@
               }
             }
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "@duration",
+            "message": "not available: function has no body"
+          }
+        ]
       },
-      "type": "snapshot",
-      "evaluationErrors": [
-        {
-          "expr": "@duration",
-          "message": "not available: function has no body"
-        }
-      ]
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "message": "{a: [{a: [{pointer: not captured at 0x[addr]}]}]}"
+    "message": "{a: [{a: [{pointer: not captured at 0x[addr]}]}]}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

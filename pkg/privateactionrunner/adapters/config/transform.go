@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -84,8 +85,10 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		ActionsAllowlist:          makeActionsAllowlist(config),
 		Allowlist:                 config.GetStringSlice(setup.PARHttpAllowlist),
 		AllowIMDSEndpoint:         config.GetBool(setup.PARHttpAllowImdsEndpoint),
+		RShellAllowedPaths:        rshellAllowedPaths(config),
+		RShellAllowedCommands:     rshellAllowedCommands(config),
 		DDHost:                    ddHost,
-		DDApiHost:                 ddHost,
+		DDApiHost:                 "api." + ddSite,
 		Modes:                     []modes.Mode{modes.ModePull},
 		OrgId:                     orgID,
 		PrivateKey:                privateKey,
@@ -98,6 +101,15 @@ func FromDDConfig(config config.Component) (*Config, error) {
 func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 	allowlist := make(map[string]sets.Set[string])
 	actionFqns := config.GetStringSlice(setup.PARActionsAllowlist)
+
+	if config.GetBool(setup.PARDefaultActionsEnabled) {
+		if flavor.GetFlavor() == flavor.ClusterAgent {
+			actionFqns = append(actionFqns, DefaultClusterAgentActionFQNs...)
+		} else {
+			actionFqns = append(actionFqns, DefaultActionFQNs...)
+		}
+	}
+
 	for _, fqn := range actionFqns {
 		bundleName, actionName := actions.SplitFQN(fqn)
 		previous, ok := allowlist[bundleName]
@@ -113,6 +125,26 @@ func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 	}
 
 	return allowlist
+}
+
+// rshellAllowedCommands returns the operator-configured rshell command
+// allowlist, or nil when the operator did not configure one. Nil signals
+// "pass-through" so the handler forwards the backend list unchanged.
+func rshellAllowedCommands(config config.Component) []string {
+	if !config.IsConfigured(setup.PARRestrictedShellAllowedCommands) {
+		return nil
+	}
+	return config.GetStringSlice(setup.PARRestrictedShellAllowedCommands)
+}
+
+// rshellAllowedPaths mirrors rshellAllowedCommands for the filesystem
+// allowlist. Nil means "operator unset" — the handler will pass the backend
+// list through unchanged rather than tightening to an empty intersection.
+func rshellAllowedPaths(config config.Component) []string {
+	if !config.IsConfigured(setup.PARRestrictedShellAllowedPaths) {
+		return nil
+	}
+	return config.GetStringSlice(setup.PARRestrictedShellAllowedPaths)
 }
 
 // getDatadogHost extracts and normalizes the Datadog host from the main endpoint.

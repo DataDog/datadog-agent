@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build netbsd || openbsd || solaris || dragonfly || linux
+//go:build netbsd || openbsd || solaris || dragonfly || linux || aix
 
 package defaultpaths
 
@@ -50,6 +50,11 @@ func GetDistPath() string {
 // GetInstallPath returns the fully qualified path to the datadog-agent executable
 func GetInstallPath() string {
 	return _here
+}
+
+// GetDefaultConfPath returns the fully qualified directory path where the agent looks for the datadog.yaml config
+func GetDefaultConfPath() string {
+	return ConfPath
 }
 
 // GetEmbeddedBinPath returns the path of the embedded binary for the given flavor.

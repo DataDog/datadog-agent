@@ -17,6 +17,8 @@ import (
 )
 
 // ExtractLimitRange returns the protobuf model corresponding to a Kubernetes LimitRange resource.
+//
+//nolint:revive
 func ExtractLimitRange(ctx processors.ProcessorContext, lr *corev1.LimitRange) *model.LimitRange {
 	msg := &model.LimitRange{
 		Metadata: extractMetadata(&lr.ObjectMeta),
@@ -36,8 +38,7 @@ func ExtractLimitRange(ctx processors.ProcessorContext, lr *corev1.LimitRange) *
 		msg.Spec.Limits = append(msg.Spec.Limits, limit)
 	}
 
-	pctx := ctx.(*processors.K8sProcessorContext)
-	msg.Tags = append(msg.Tags, transformers.RetrieveMetadataTags(lr.ObjectMeta.Labels, lr.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
+	msg.Tags = append(msg.Tags, transformers.RetrieveTeamTag(lr.ObjectMeta.Labels, lr.ObjectMeta.Annotations)...)
 
 	return msg
 }

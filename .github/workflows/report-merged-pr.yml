@@ -12,8 +12,8 @@ permissions: {}
 jobs:
   report_merged_pr:
     runs-on: ubuntu-latest
-    environment:
-      name: main
+    permissions:
+      id-token: write # This is required for getting the required OIDC token from GitHub
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -46,10 +46,16 @@ jobs:
 
           echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
 
+      - name: Get Datadog credentials
+        id: dd-sts
+        uses: DataDog/dd-sts-action@2e8187910199bd93129520183c093e19aa585c75
+        with:
+          policy: datadog-agent-report-pr
+
       - name: Send merge event to Datadog
         env:
           PR_NUMBER: ${{ steps.extract_pr.outputs.pr_number }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DD_API_KEY: ${{ secrets.REPORT_MERGED_PR_DD_API_KEY }}
+          DD_API_KEY: ${{ steps.dd-sts.outputs.api_key }}
         run: |
           dda inv -- -e github.pr-merge-dd-event-sender -p "$PR_NUMBER"

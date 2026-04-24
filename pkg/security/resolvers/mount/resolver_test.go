@@ -10,9 +10,8 @@ package mount
 
 import (
 	"fmt"
-	"testing"
-
 	"github.com/stretchr/testify/assert"
+	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
@@ -46,10 +45,7 @@ func TestMountResolver(t *testing.T) {
 						mount: &model.MountEvent{
 							Mount: model.Mount{
 								MountID: 27,
-								RootPathKey: model.PathKey{
-									MountID: 27,
-								},
-								Device: 1,
+								Device:  1,
 								ParentPathKey: model.PathKey{
 									MountID: 1,
 								},
@@ -78,10 +74,7 @@ func TestMountResolver(t *testing.T) {
 						mount: &model.MountEvent{
 							Mount: model.Mount{
 								MountID: 127,
-								RootPathKey: model.PathKey{
-									MountID: 127,
-								},
-								Device: 52,
+								Device:  52,
 								ParentPathKey: model.PathKey{
 									MountID: 27,
 								},
@@ -142,10 +135,7 @@ func TestMountResolver(t *testing.T) {
 						mount: &model.MountEvent{
 							Mount: model.Mount{
 								MountID: 27,
-								RootPathKey: model.PathKey{
-									MountID: 27,
-								},
-								Device: 1,
+								Device:  1,
 								ParentPathKey: model.PathKey{
 									MountID: 1,
 								},
@@ -214,10 +204,7 @@ func TestMountResolver(t *testing.T) {
 						mount: &model.MountEvent{
 							Mount: model.Mount{
 								MountID: 27,
-								RootPathKey: model.PathKey{
-									MountID: 27,
-								},
-								Device: 1,
+								Device:  1,
 								ParentPathKey: model.PathKey{
 									MountID: 1,
 								},
@@ -245,10 +232,7 @@ func TestMountResolver(t *testing.T) {
 						mount: &model.MountEvent{
 							Mount: model.Mount{
 								MountID: 638,
-								RootPathKey: model.PathKey{
-									MountID: 638,
-								},
-								Device: 53,
+								Device:  53,
 								ParentPathKey: model.PathKey{
 									MountID: 635,
 								},
@@ -262,10 +246,7 @@ func TestMountResolver(t *testing.T) {
 						mount: &model.MountEvent{
 							Mount: model.Mount{
 								MountID: 639,
-								RootPathKey: model.PathKey{
-									MountID: 639,
-								},
-								Device: 54,
+								Device:  54,
 								ParentPathKey: model.PathKey{
 									MountID: 638,
 								},
@@ -294,10 +275,7 @@ func TestMountResolver(t *testing.T) {
 						mount: &model.MountEvent{
 							Mount: model.Mount{
 								MountID: 32,
-								RootPathKey: model.PathKey{
-									MountID: 32,
-								},
-								Device: 97,
+								Device:  97,
 								ParentPathKey: model.PathKey{
 									MountID: 638,
 								},
@@ -309,10 +287,7 @@ func TestMountResolver(t *testing.T) {
 						mount: &model.MountEvent{
 							Mount: model.Mount{
 								MountID: 41,
-								RootPathKey: model.PathKey{
-									MountID: 41,
-								},
-								Device: 98,
+								Device:  98,
 								ParentPathKey: model.PathKey{
 									MountID: 32,
 								},
@@ -324,10 +299,7 @@ func TestMountResolver(t *testing.T) {
 						mount: &model.MountEvent{
 							Mount: model.Mount{
 								MountID: 42,
-								RootPathKey: model.PathKey{
-									MountID: 42,
-								},
-								Device: 99,
+								Device:  99,
 								ParentPathKey: model.PathKey{
 									MountID: 41,
 								},
@@ -373,7 +345,7 @@ func TestMountResolver(t *testing.T) {
 					mr.insert(&evt.mount.Mount)
 				}
 				if evt.umount != nil {
-					mount, _, _, err := mr.ResolveMount(model.PathKey{MountID: evt.umount.MountID}, pid)
+					mount, _, _, err := mr.ResolveMount(evt.umount.MountID, pid)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -382,7 +354,7 @@ func TestMountResolver(t *testing.T) {
 			}
 
 			for _, testC := range tt.args.cases {
-				p, _, _, err := mr.ResolveMountPath(model.PathKey{MountID: testC.mountID}, pid)
+				p, _, _, err := mr.ResolveMountPath(testC.mountID, pid)
 				if err != nil {
 					if testC.expectedError != nil {
 						assert.Equal(t, testC.expectedError.Error(), err.Error())

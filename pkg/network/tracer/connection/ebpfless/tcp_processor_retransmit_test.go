@@ -11,16 +11,15 @@ import (
 	"syscall"
 	"testing"
 
-	"golang.org/x/sys/unix"
-
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/filter"
 )
 
 // retransmitNth repeats the nth packet twice
 func retransmitNth(packets []testCapture, n int) []testCapture {
-	if packets[n].pktType != unix.PACKET_OUTGOING {
+	if packets[n].pktType != filter.PacketOutgoing {
 		panic("can only retransmit outgoing packets")
 	}
 

@@ -226,7 +226,7 @@ Package tagger provides the tagger interface for the Datadog Agent
 
 ### [comp/core/telemetry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/telemetry)
 
-Package telemetry implements a component for all agent telemetry.
+Package telemetry defines the interfaces for the telemetry component.
 
 ### [comp/core/workloadfilter](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/workloadfilter)
 
@@ -245,6 +245,10 @@ Package workloadmeta provides the workloadmeta component for the Datadog Agent
 *Datadog Team*: agent-metric-pipelines
 
 
+
+### [comp/dogstatsd/http](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/dogstatsd/http)
+
+Package http defines dogstatsd http server component
 
 ### [comp/dogstatsd/pidmap](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap)
 
@@ -507,6 +511,10 @@ Package ddflareextension defines the OpenTelemetry Extension component.
 
 Package ddprofilingextension defines the otel agent ddprofilingextension component.
 
+### [comp/otelcol/dogtelextension](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/dogtelextension)
+
+Package dogtelextension provides Datadog agent functionalities for OTel collector
+
 ### [comp/otelcol/logsagentpipeline](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline)
 
 Package logsagentpipeline contains logs agent pipeline component
@@ -592,7 +600,12 @@ Package remoteconfig defines the fx options for the Bundle
 
 ### [comp/remote-config/rcclient](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/remote-config/rcclient)
 
+Package rcclient is a remote config client that can run within the agent to receive
+configurations.
 
+### [comp/remote-config/rcprotocoltest](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/remote-config/rcprotocoltest)
+
+Package rcprotocoltest manages RC protocol connectivity duration tests.
 
 ### [comp/remote-config/rcservice](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/remote-config/rcservice)
 
@@ -746,6 +759,12 @@ Package datadogclient provides a client to query the datadog API
 
 Package connectivitychecker is responsible for running connectivity checks that will be sent to the backend via the inventory agent.
 
+### [comp/dataobs/queryactions](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/dataobs/queryactions)
+
+*Datadog Team*: data-observability
+
+Package queryactions provides the Data Observability query actions component
+
 ### [comp/etw](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/etw)
 
 *Datadog Team*: windows-products
@@ -805,6 +824,14 @@ Package networkdeviceconfig provides the component for retrieving network device
 *Datadog Team*: windows-products
 
 Package notableevents provides a component that monitors notable system events and forwards them to the Datadog Event Management v2 API.
+
+### [comp/offlinereporter](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/offlinereporter)
+
+*Datadog Team*: agent-metric-pipelines
+
+Package offlinereporter tracks the time gap between agent runs by maintaining a
+heartbeat file updated every 5 seconds. On startup it captures the
+last-written timestamp so callers can measure how long the agent was offline.
 
 ### [comp/privateactionrunner](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/privateactionrunner)
 

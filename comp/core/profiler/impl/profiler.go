@@ -8,6 +8,7 @@ package profilerimpl
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net"
@@ -28,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/process/util/coreagent"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 )
 
@@ -216,7 +218,7 @@ func (p profiler) setProfilerSetting(settingName string, newValue int, fb flaret
 // to utilize this provider over time, which will require additional plumbing. For
 // example, the flare api call must be expanded to take in an optional profile duration
 // before the cli command can be fully ported over.
-func (p profiler) fillFlare(fb flaretypes.FlareBuilder) error {
+func (p profiler) fillFlare(_ context.Context, fb flaretypes.FlareBuilder) error {
 	duration := fb.GetFlareArgs().ProfileDuration
 
 	if duration <= 0 {
@@ -264,7 +266,7 @@ func (p profiler) processAgentEnabled() bool {
 	processChecksEnabled := p.cfg.GetBool("process_config.enabled") ||
 		p.cfg.GetBool("process_config.container_collection.enabled") ||
 		p.cfg.GetBool("process_config.process_collection.enabled")
-	processChecksInProcessAgent := !p.cfg.GetBool("process_config.run_in_core_agent.enabled") &&
+	processChecksInProcessAgent := !coreagent.ProcessChecksRunInCoreAgent() &&
 		processChecksEnabled
 	npmEnabled := p.sysProbeCfg.GetBool("network_config.enabled")
 	usmEnabled := p.sysProbeCfg.GetBool("service_monitoring_config.enabled")

@@ -238,5 +238,23 @@ namespace Datadog.AgentCustomActions
         {
             return Datadog.CustomActions.InstallerHooksCustomAction.RunPostInstallHook(session);
         }
+
+        [CustomAction]
+        public static ActionResult ConfigureAutoLogger(Session session)
+        {
+            return Datadog.CustomActions.AutoLoggerCustomAction.ConfigureAutoLogger(session);
+        }
+
+        [CustomAction]
+        public static ActionResult ConfigureAutoLoggerRollback(Session session)
+        {
+            return Datadog.CustomActions.AutoLoggerCustomAction.ConfigureAutoLoggerRollback(session);
+        }
+
+        [CustomAction]
+        public static ActionResult RemoveAutoLogger(Session session)
+        {
+            return Datadog.CustomActions.AutoLoggerCustomAction.RemoveAutoLogger(session);
+        }
     }
 }

@@ -43,6 +43,10 @@ func (*lang) Kinds() map[string]rule.KindInfo {
 	}
 }
 
+func (*lang) KnownDirectives() []string {
+	return []string{name}
+}
+
 func (*lang) Loads() []rule.LoadInfo {
 	return []rule.LoadInfo{{
 		Name:    fmt.Sprintf("//bazel/rules/%s:defs.bzl", name),
@@ -51,6 +55,13 @@ func (*lang) Loads() []rule.LoadInfo {
 }
 
 func (*lang) GenerateRules(args language.GenerateArgs) language.GenerateResult {
+	if args.File != nil {
+		for _, d := range args.File.Directives {
+			if d.Key == name && d.Value == "off" {
+				return language.GenerateResult{}
+			}
+		}
+	}
 	var goFiles []string
 	for _, f := range args.RegularFiles {
 		if strings.HasSuffix(f, ".go") {

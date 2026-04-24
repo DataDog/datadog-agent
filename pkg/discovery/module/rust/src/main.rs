@@ -20,15 +20,14 @@
 #![deny(clippy::print_stderr)]
 
 use std::env;
-use std::fs::{DirBuilder, OpenOptions, Permissions};
-use std::io::{ErrorKind, Write};
-use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt, PermissionsExt, chown};
-use std::os::unix::process::CommandExt;
-use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::fs::Permissions;
+use std::io::ErrorKind;
+use std::os::unix::fs::{PermissionsExt, chown};
+use std::path::Path;
 
-use anyhow::{Context, Result, anyhow, bail};
+use anyhow::{Context, Result, anyhow};
 use dd_discovery::{Params, get_services};
+
 use http_body_util::combinators::BoxBody;
 use http_body_util::{BodyExt, Full};
 use hyper::body::Bytes;
@@ -41,40 +40,18 @@ use log::{debug, error, info, warn};
 use serde_json::json;
 use tokio::net::UnixListener;
 use tokio::signal::unix::{SignalKind, signal};
+use tokio::sync::Semaphore;
 
 mod cli;
-mod config;
 
 use cli::Args;
 
+/// We choose 2 because one is for regular agent checks and another one is for manual troubleshooting.
+/// This matches the Go system-probe's DefaultMaxConcurrentRequests.
+static SERVICES_SEMAPHORE: Semaphore = Semaphore::const_new(2);
+
 static BADREQUEST: &[u8] = b"Bad request";
 static NOTFOUND: &[u8] = b"Not found";
-
-fn write_pid_file(path: &Path) -> Result<()> {
-    // Create parent directories if needed
-    if let Some(parent) = path.parent() {
-        DirBuilder::new()
-            .recursive(true)
-            .mode(0o755)
-            .create(parent)
-            .context("Failed to create PID file parent directory")?;
-    }
-
-    // Write PID to file
-    let pid = std::process::id();
-    let mut file = OpenOptions::new()
-        .write(true)
-        .mode(0o644)
-        .truncate(true)
-        .create(true)
-        .open(path)
-        .context("Failed to write PID file")?;
-    file.write_all(pid.to_string().as_bytes())
-        .context("Failed to write PID to file")?;
-
-    info!("Created PID file at {}", path.display());
-    Ok(())
-}
 
 fn remove_pid_file(path: &Path) {
     if let Err(e) = std::fs::remove_file(path) {
@@ -115,9 +92,90 @@ fn setup_socket(socket_path: &str) -> Result<UnixListener> {
     Ok(sock)
 }
 
-async fn handle_services(
-    req: Request<hyper::body::Incoming>,
-) -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
+/// Drops all Linux capabilities except CAP_SYS_PTRACE and CAP_DAC_READ_SEARCH
+/// from every capability set.
+///
+/// Both capabilities are required for full service discovery:
+/// - CAP_SYS_PTRACE: open /proc/<pid>/root and /proc/<pid>/{fd,maps,exe,environ}
+/// - CAP_DAC_READ_SEARCH: traverse restricted directories (e.g. mode-750 home dirs,
+///   container app directories) when reading files through /proc/<pid>/root/
+///
+/// Must be called after socket setup (which needs CAP_CHOWN for chown).
+/// Failure is non-fatal: SPL logs a warning and continues with inherited capabilities
+/// rather than refusing to start.
+///
+/// Sets modified:
+/// - Effective:    {CAP_SYS_PTRACE, CAP_DAC_READ_SEARCH} (or subset if not in permitted)
+/// - Permitted:    {CAP_SYS_PTRACE, CAP_DAC_READ_SEARCH} (or subset)
+/// - Inheritable:  {} (empty — exec'd children get nothing)
+/// - Ambient:      {} (empty — requires kernel ≥ 4.3, silently skipped otherwise)
+/// - Bounding:     {CAP_SYS_PTRACE, CAP_DAC_READ_SEARCH} (prevents future escalation)
+fn drop_capabilities() {
+    match try_drop_capabilities() {
+        Ok(true) => info!("Capabilities restricted to {{CAP_SYS_PTRACE, CAP_DAC_READ_SEARCH}}"),
+        Ok(false) => {
+            warn!("Not all required capabilities were available; service discovery may be impaired")
+        }
+        Err(e) => {
+            warn!("Failed to restrict capabilities: {e}; continuing with inherited capabilities")
+        }
+    }
+}
+
+fn try_drop_capabilities() -> Result<bool> {
+    use caps::{CapSet, Capability};
+
+    let current_permitted = caps::read(None, CapSet::Permitted)?;
+
+    // CAP_SYS_PTRACE: needed to follow /proc/<pid>/root and open /proc/<pid>/ files.
+    // CAP_DAC_READ_SEARCH: needed to traverse restricted directories inside process
+    // root filesystems (e.g. mode-750 home dirs on Ubuntu 22.04+, container app dirs).
+    let has_ptrace = current_permitted.contains(&Capability::CAP_SYS_PTRACE);
+    let has_dac = current_permitted.contains(&Capability::CAP_DAC_READ_SEARCH);
+
+    let mut keep = caps::CapsHashSet::new();
+    if has_ptrace {
+        keep.insert(Capability::CAP_SYS_PTRACE);
+    } else {
+        warn!(
+            "CAP_SYS_PTRACE is not in the permitted set; /proc access for other processes will fail"
+        );
+    }
+    if has_dac {
+        keep.insert(Capability::CAP_DAC_READ_SEARCH);
+    } else {
+        warn!(
+            "CAP_DAC_READ_SEARCH is not in the permitted set; reading files in restricted directories may fail"
+        );
+    }
+
+    // Clear inheritable set (children cannot inherit capabilities).
+    caps::clear(None, CapSet::Inheritable)?;
+
+    // Clear ambient set (kernel ≥ 4.3; older kernels return EINVAL, which we ignore).
+    let _ = caps::clear(None, CapSet::Ambient);
+
+    // Lower the bounding set BEFORE restricting effective/permitted, because
+    // CAP_SETPCAP (needed for bounding set drops) must still be in the effective
+    // set at this point. Ignores errors for capabilities absent from the bounding set.
+    for cap in caps::all() {
+        if !keep.contains(&cap) {
+            let _ = caps::drop(None, CapSet::Bounding, cap);
+        }
+    }
+
+    // Restrict effective and permitted to {CAP_SYS_PTRACE, CAP_DAC_READ_SEARCH} (or subset).
+    caps::set(None, CapSet::Effective, &keep)?;
+    caps::set(None, CapSet::Permitted, &keep)?;
+
+    Ok(has_ptrace && has_dac)
+}
+
+async fn handle_services<B>(req: Request<B>) -> Result<Response<BoxBody<Bytes, std::io::Error>>>
+where
+    B: hyper::body::Body<Data = Bytes>,
+    B::Error: std::fmt::Display,
+{
     if req
         .headers()
         .get(CONTENT_TYPE)
@@ -142,7 +200,7 @@ async fn handle_services(
         }
     };
 
-    let services = get_services(params);
+    let services = tokio::task::spawn_blocking(|| get_services(params)).await?;
     debug!("Found {} services", services.services.len());
 
     Response::builder()
@@ -155,6 +213,64 @@ async fn handle_services(
                         b"Internal server error".to_vec()
                     })
                     .into(),
+            )
+            .map_err(|e| match e {})
+            .boxed(),
+        )
+        .map_err(|e| anyhow!("Failed to build response: {}", e))
+}
+
+async fn handle_state() -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
+    Response::builder()
+        .header("Content-Type", "application/json")
+        .body(
+            Full::new(
+                serde_json::to_vec(&json!({
+                    "implementation": "system-probe-lite",
+                }))
+                .unwrap_or_else(|e| {
+                    error!("Failed to serialize response: {e}");
+                    b"Internal server error".to_vec()
+                })
+                .into(),
+            )
+            .map_err(|e| match e {})
+            .boxed(),
+        )
+        .map_err(|e| anyhow!("Failed to build response: {}", e))
+}
+
+async fn handle_config() -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
+    // SPL only runs when discovery.enabled and discovery.use_system_probe_lite are both true,
+    // so we can hardcode these values.
+    let yaml_config = "discovery:\n  enabled: true\n  use_system_probe_lite: true\n";
+    Response::builder()
+        .body(
+            Full::new(Bytes::from(yaml_config))
+                .map_err(|e| match e {})
+                .boxed(),
+        )
+        .map_err(|e| anyhow!("Failed to build response: {}", e))
+}
+
+async fn handle_config_by_source() -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
+    Response::builder()
+        .header("Content-Type", "application/json")
+        .body(
+            Full::new(
+                serde_json::to_vec(&json!({
+                    "default": {
+                        "discovery": {
+                            "enabled": true,
+                            "use_system_probe_lite": true
+                        }
+                    }
+                }))
+                .unwrap_or_else(|e| {
+                    error!("Failed to serialize response: {e}");
+                    b"Internal server error".to_vec()
+                })
+                .into(),
             )
             .map_err(|e| match e {})
             .boxed(),
@@ -194,17 +310,40 @@ fn not_found() -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
         .map_err(|e| anyhow!("Failed to build not found response: {}", e))
 }
 
-async fn handle_request(
-    req: Request<hyper::body::Incoming>,
-) -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
+fn too_many_requests() -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
+    Response::builder()
+        .status(StatusCode::TOO_MANY_REQUESTS)
+        .body(
+            Full::new(Bytes::from("Too many requests"))
+                .map_err(|e| match e {})
+                .boxed(),
+        )
+        .map_err(|e| anyhow!("Failed to build too many requests response: {}", e))
+}
+
+async fn handle_request<B>(req: Request<B>) -> Result<Response<BoxBody<Bytes, std::io::Error>>>
+where
+    B: hyper::body::Body<Data = Bytes>,
+    B::Error: std::fmt::Display,
+{
     match (req.method(), req.uri().path()) {
         (&Method::POST, "/discovery/services") => {
             debug!("Handling /discovery/services request");
+            let _permit = match SERVICES_SEMAPHORE.try_acquire() {
+                Ok(permit) => permit,
+                Err(_) => {
+                    warn!("rejecting request for path=/discovery/services concurrency_limit=2");
+                    return too_many_requests();
+                }
+            };
             handle_services(req).await
         }
+        (&Method::GET, "/discovery/state") => handle_state().await,
+        (&Method::GET, "/config") => handle_config().await,
+        (&Method::GET, "/config/by-source") => handle_config_by_source().await,
         (&Method::GET, "/debug/stats") => handle_debug_stats().await,
         _ => {
-            info!(
+            debug!(
                 "{} Request to unknown endpoint: {}",
                 req.method(),
                 req.uri().path()
@@ -214,28 +353,11 @@ async fn handle_request(
     }
 }
 
-fn fallback_to_system_probe(binary_path: &Path, args: &[String]) -> Result<()> {
-    // Build command with all system-probe args
-    let mut cmd = Command::new(binary_path);
-    cmd.args(args);
-
-    info!("Executing system-probe: {:?}", cmd);
-    let err = cmd.exec(); // Replaces current process, never returns
-    Err(anyhow!("Failed to exec: {}", err))
-}
-
-async fn run_system_probe_lite(
-    config: Option<yaml_rust2::Yaml>,
-    pid_path: Option<PathBuf>,
-) -> Result<()> {
-    let socket_path = config::get_sysprobe_socket_path(&config);
+async fn run_system_probe_lite(socket_path: &str) -> Result<()> {
     info!("Using sysprobe socket path: {}", socket_path);
-    let sock = setup_socket(&socket_path).context("Failed to setup Unix socket")?;
+    let sock = setup_socket(socket_path).context("Failed to setup Unix socket")?;
 
-    // Write PID file if needed
-    if let Some(ref path) = pid_path {
-        write_pid_file(path)?;
-    }
+    drop_capabilities();
 
     // Setup signal handlers
     let mut sigterm = signal(SignalKind::terminate()).context("Failed to setup SIGTERM handler")?;
@@ -299,53 +421,20 @@ async fn run_system_probe_lite(
     }
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
-    let args = Args::parse(env::args());
-    let config = config::load_config(args.config_path);
-    let log_level = config::get_log_level(&config);
-    let log_file_path = config::get_log_file(&config);
+    let args = Args::parse(env::args())?;
     dd_agent_log::init(dd_agent_log::LogConfig {
         logger_name: "SYS-PROBE-LITE",
-        level: log_level,
-        log_file: Some(std::path::PathBuf::from(log_file_path)),
+        level: args.log_level,
+        log_file: args.log_file.clone(),
     })?;
-    info!("Log level set to: {:?}", log_level);
-
-    // Handle fallback decision if fallback binary is configured
-    if let Some(fallback_binary) = &args.fallback_binary {
-        // Do this check regardless of whether we're running system-probe-lite or not
-        // since we may need it at some point if we fallback to system-probe and
-        // we don't want to fail startup during another invocation.
-        if !fallback_binary.exists() {
-            bail!(
-                "Fallback binary does not exist: {}",
-                fallback_binary.display()
-            );
-        }
-
-        match config::determine_action(&config) {
-            config::FallbackDecision::FallbackToSystemProbe => {
-                info!("Unsupported configuration detected. Falling back to system-probe.");
-                fallback_to_system_probe(fallback_binary, &args.system_probe_args)?;
-                unreachable!() // exec never returns
-            }
-            config::FallbackDecision::ExitCleanly => {
-                info!("Discovery is disabled and no other configuration is present. Exiting.");
-                return Ok(());
-            }
-            config::FallbackDecision::RunSystemProbeLite => {
-                info!("Only discovery module enabled. Running system-probe-lite.");
-            }
-        }
+    info!("Starting system-probe-lite");
+    for arg in &args.unknown_args {
+        warn!("unknown argument: {arg}");
     }
 
-    // Convert Result<Option<Yaml>> to Option<Yaml> for run_system_probe_lite.
-    let config = config.ok().flatten();
-
-    // Run system-probe-lite server
-    info!("Starting system-probe-lite");
-    let result = run_system_probe_lite(config, args.pid_path.clone()).await;
+    let result = run_system_probe_lite(&args.socket_path).await;
 
     // Cleanup PID file on exit (defer pattern)
     // This ensures cleanup happens regardless of how we exit (signal, error, or normal completion)
@@ -363,69 +452,69 @@ mod tests {
     use std::fs;
     use tempfile::TempDir;
 
-    #[test]
-    fn test_write_pid_file_creates_file_with_correct_pid() {
-        let temp_dir =
-            TempDir::new().unwrap_or_else(|e| panic!("Failed to create temp dir: {}", e));
-        let pid_path = temp_dir.path().join("test.pid");
-
-        write_pid_file(&pid_path).unwrap_or_else(|e| panic!("Failed to write PID file: {}", e));
-
-        assert!(pid_path.exists(), "PID file should exist");
-        let content = fs::read_to_string(&pid_path)
-            .unwrap_or_else(|e| panic!("Failed to read PID file: {}", e));
-        let written_pid: u32 = content
-            .trim()
-            .parse()
-            .unwrap_or_else(|e| panic!("Failed to parse PID: {}", e));
-        assert_eq!(
-            written_pid,
-            std::process::id(),
-            "PID file should contain current process ID"
-        );
+    fn services_request() -> Request<Full<Bytes>> {
+        Request::builder()
+            .method(Method::POST)
+            .uri("/discovery/services")
+            .header(CONTENT_TYPE, "application/json")
+            .body(Full::new(Bytes::from("{}")))
+            .unwrap_or_else(|e| panic!("Failed to build request: {e}"))
     }
 
-    #[test]
-    fn test_write_pid_file_creates_parent_directories() {
-        let temp_dir =
-            TempDir::new().unwrap_or_else(|e| panic!("Failed to create temp dir: {}", e));
-        let nested_path = temp_dir.path().join("nested").join("dirs").join("test.pid");
+    #[tokio::test]
+    async fn test_concurrency_limit() {
+        // Acquire both permits to saturate the semaphore (limit=2).
+        let permit1 = SERVICES_SEMAPHORE
+            .try_acquire()
+            .unwrap_or_else(|e| panic!("Failed to acquire first permit: {e}"));
+        let permit2 = SERVICES_SEMAPHORE
+            .try_acquire()
+            .unwrap_or_else(|e| panic!("Failed to acquire second permit: {e}"));
 
-        write_pid_file(&nested_path).unwrap_or_else(|e| panic!("Failed to write PID file: {}", e));
-
-        assert!(
-            nested_path.exists(),
-            "PID file should exist in nested directory"
-        );
-    }
-
-    #[test]
-    fn test_write_pid_file_overwrites_existing() {
-        let temp_dir =
-            TempDir::new().unwrap_or_else(|e| panic!("Failed to create temp dir: {}", e));
-        let pid_path = temp_dir.path().join("test.pid");
-
-        // Write first time
-        write_pid_file(&pid_path).unwrap_or_else(|e| panic!("First write failed: {}", e));
-
-        // Write second time (should overwrite)
-        write_pid_file(&pid_path).unwrap_or_else(|e| panic!("Second write failed: {}", e));
-
-        assert!(
-            pid_path.exists(),
-            "PID file should still exist after overwrite"
-        );
-        let content = fs::read_to_string(&pid_path)
-            .unwrap_or_else(|e| panic!("Failed to read PID file: {}", e));
-        let written_pid: u32 = content
-            .trim()
-            .parse()
-            .unwrap_or_else(|e| panic!("Failed to parse PID: {}", e));
+        // With both permits held, handle_request should return 429.
+        let resp = handle_request(services_request())
+            .await
+            .unwrap_or_else(|e| panic!("handle_request failed: {e}"));
         assert_eq!(
-            written_pid,
-            std::process::id(),
-            "PID should still be correct"
+            resp.status(),
+            StatusCode::TOO_MANY_REQUESTS,
+            "Expected 429 when semaphore is exhausted"
         );
+
+        // Other endpoints should still work even with both permits held.
+        for path in [
+            "/discovery/state",
+            "/config",
+            "/config/by-source",
+            "/debug/stats",
+        ] {
+            let req = Request::builder()
+                .method(Method::GET)
+                .uri(path)
+                .body(Full::new(Bytes::new()))
+                .unwrap_or_else(|e| panic!("Failed to build request: {e}"));
+            let resp = handle_request(req)
+                .await
+                .unwrap_or_else(|e| panic!("handle_request failed for {path}: {e}"));
+            assert_eq!(
+                resp.status(),
+                StatusCode::OK,
+                "Expected 200 for {path} even when semaphore is exhausted"
+            );
+        }
+
+        // Release one permit — request should now get through (not 429).
+        drop(permit1);
+        let resp = handle_request(services_request())
+            .await
+            .unwrap_or_else(|e| panic!("handle_request failed: {e}"));
+        assert_ne!(
+            resp.status(),
+            StatusCode::TOO_MANY_REQUESTS,
+            "Should not get 429 when a permit is available"
+        );
+
+        drop(permit2);
     }
 
     #[test]

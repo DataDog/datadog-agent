@@ -20,16 +20,15 @@ use lru::LruCache;
 use memchr::memmem;
 use serde::{Deserialize, Serialize};
 
+use crate::procfs::maps::MapsInfo;
 use crate::procfs::{Cmdline, Exe, fd::OpenFilesInfo};
 
 const BINARY_CACHE_SIZE: usize = 1000;
 
-#[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Language {
-    #[default]
-    Unknown,
-    #[serde(rename = "jvm")]
+    #[serde(rename = "jvm", alias = "java")]
     Java,
     NodeJS,
     Python,
@@ -42,9 +41,25 @@ pub enum Language {
 }
 
 impl Language {
+    /// Convert a tracer_language string from tracer metadata to a Language.
+    /// Returns None for unrecognized strings so the caller can fall back to
+    /// other detection methods.
+    pub fn from_tracer_str(s: &str) -> Option<Self> {
+        match s {
+            "jvm" | "java" => Some(Self::Java),
+            "nodejs" => Some(Self::NodeJS),
+            "python" => Some(Self::Python),
+            "ruby" => Some(Self::Ruby),
+            "dotnet" => Some(Self::DotNet),
+            "go" => Some(Self::Go),
+            "cpp" => Some(Self::CPlusPlus),
+            "php" => Some(Self::PHP),
+            _ => None,
+        }
+    }
+
     pub fn as_str(&self) -> &'static str {
         match self {
-            Self::Unknown => "unknown",
             Self::Java => "jvm",
             Self::NodeJS => "nodejs",
             Self::Python => "python",
@@ -56,24 +71,30 @@ impl Language {
         }
     }
 
-    pub fn detect(pid: i32, exe: &Exe, cmdline: &Cmdline, open_files_info: &OpenFilesInfo) -> Self {
+    pub fn detect(
+        pid: i32,
+        exe: &Exe,
+        cmdline: &Cmdline,
+        open_files_info: &OpenFilesInfo,
+        maps_info: &MapsInfo,
+    ) -> Option<Self> {
         if let Some(lang) = Self::from_basename(cmdline) {
-            return lang;
+            return Some(lang);
         }
 
         if let Some(lang) = Self::from_cmdline(cmdline) {
-            return lang;
+            return Some(lang);
         }
 
         if let Some(lang) = Self::from_exe(exe) {
-            return lang;
+            return Some(lang);
         }
 
-        if let Some(lang) = Self::from_binary(pid, open_files_info) {
-            return lang;
+        if let Some(lang) = Self::from_binary(pid, open_files_info, maps_info) {
+            return Some(lang);
         }
 
-        Self::Unknown
+        None
     }
 
     fn from_basename(cmdline: &Cmdline) -> Option<Self> {
@@ -125,7 +146,11 @@ impl Language {
 
     /// Try language detection methods that are tied to a specific binary and
     /// can be cached at a binary level.
-    fn from_binary(pid: i32, open_files_info: &OpenFilesInfo) -> Option<Self> {
+    fn from_binary(
+        pid: i32,
+        open_files_info: &OpenFilesInfo,
+        maps_info: &MapsInfo,
+    ) -> Option<Self> {
         #[allow(clippy::unwrap_used)] // `BINARY_CACHE_SIZE` is a non-zero constant, this cannot fail
         static CACHE: LazyLock<Mutex<LruCache<BinaryID, Language>>> = LazyLock::new(|| {
             Mutex::new(LruCache::new(NonZeroUsize::new(BINARY_CACHE_SIZE).unwrap()))
@@ -141,7 +166,7 @@ impl Language {
                     Ok(lang)
                 } else if let Some(lang) = Self::from_go(pid) {
                     Ok(lang)
-                } else if let Some(lang) = Self::from_dotnet(pid) {
+                } else if let Some(lang) = Self::from_dotnet(maps_info) {
                     Ok(lang)
                 } else {
                     Err(())
@@ -193,8 +218,8 @@ impl Language {
         const BUILD_INFO_SIZE: usize = 32;
         const BUILD_INFO_ALIGN: usize = 16;
 
-        let exe = Exe::get(pid).ok()?;
-        let mut elf_file = File::open(&exe.0).ok()?;
+        let exe_path = crate::procfs::root_path().join(pid.to_string()).join("exe");
+        let mut elf_file = File::open(&exe_path).ok()?;
         let mut elf = elf::ElfStream::<AnyEndian, _>::open_stream(&mut elf_file).ok()?;
 
         // First, try to find .go.buildinfo section.
@@ -214,7 +239,7 @@ impl Language {
         let read_size = std::cmp::min(data_phdr.p_filesz as usize, ELF_READ_LIMIT);
 
         // Reopen file for manual read (elf consumes the original file)
-        let mut file = File::open(&exe.0).ok()?;
+        let mut file = File::open(&exe_path).ok()?;
         file.seek(SeekFrom::Start(data_phdr.p_offset)).ok()?;
         file.read_exact(segment_buffer.get_mut(..read_size)?).ok()?;
 
@@ -236,32 +261,18 @@ impl Language {
         Some(Self::Go)
     }
 
-    /// Detects .NET processes by scanning /proc/PID/maps for System.Runtime.dll.
+    /// Detects .NET processes using pre-scanned maps info.
     /// This works for non-single-file deployments (both self-contained and
     /// framework-dependent), and framework-dependent single-file deployments.
     /// It does not work for self-contained single-file deployments since these
     /// do not have any DLLs in their maps file.
-    fn from_dotnet(pid: i32) -> Option<Self> {
-        let maps_reader = crate::procfs::maps::get_reader_for_pid(pid).ok()?;
-
-        if has_dotnet_dll_in_maps(maps_reader) {
+    fn from_dotnet(maps_info: &MapsInfo) -> Option<Self> {
+        if maps_info.has_system_runtime_dll {
             Some(Language::DotNet)
         } else {
             None
         }
     }
-}
-
-fn has_dotnet_dll_in_maps<R: std::io::BufRead>(maps_reader: R) -> bool {
-    const DOTNET_RUNTIME_DLL: &str = "/System.Runtime.dll";
-
-    maps_reader.lines().any(|line| {
-        let Ok(line) = line else {
-            return false;
-        };
-
-        line.ends_with(DOTNET_RUNTIME_DLL)
-    })
 }
 
 #[derive(Eq, PartialEq, Hash)]
@@ -378,6 +389,7 @@ fn get_exe(cmdline: &Cmdline) -> Option<&str> {
 #[cfg(test)]
 #[allow(
     clippy::expect_used,
+    clippy::unwrap_used,
     clippy::print_stderr,
     clippy::undocumented_unsafe_blocks
 )]
@@ -510,37 +522,21 @@ mod tests {
     }
 
     #[test]
-    fn test_has_dotnet_dll_in_maps() {
-        use std::io::Cursor;
+    fn test_from_dotnet_with_maps_info() {
+        // No System.Runtime.dll in maps
+        let maps_info = MapsInfo::default();
+        assert_eq!(Language::from_dotnet(&maps_info), None);
 
-        use super::has_dotnet_dll_in_maps;
-
-        // Test case: empty maps
-        let maps = "";
-        let reader = Cursor::new(maps.as_bytes());
-        assert!(!has_dotnet_dll_in_maps(reader));
-
-        // Test case: maps without System.Runtime.dll
-        let maps = "79f6cd47d000-79f6cd47f000 r--p 00000000 fc:04 793163                     /usr/lib/python3.10/lib-dynload/_bz2.cpython-310-x86_64-linux-gnu.so
-79f6cd479000-79f6cd47a000 r-xp 00001000 fc:06 5507018                    /home/foo/.local/lib/python3.10/site-packages/ddtrace_fake/md.cpython-310-x86_64-linux-gnu.so";
-        let reader = Cursor::new(maps.as_bytes());
-        assert!(!has_dotnet_dll_in_maps(reader));
-
-        // Test case: maps with System.Runtime.dll
-        let maps = "7d97b4e57000-7d97b4e85000 r--s 00000000 fc:04 1332568                    /usr/lib/dotnet/shared/Microsoft.NETCore.App/8.0.8/System.Console.dll
-7d97b4e85000-7d97b4e8e000 r--s 00000000 fc:04 1332665                    /usr/lib/dotnet/shared/Microsoft.NETCore.App/8.0.8/System.Runtime.dll
-7d97b4e8e000-7d97b4e99000 r--p 00000000 fc:04 1332718                    /usr/lib/dotnet/shared/Microsoft.NETCore.App/8.0.8/libSystem.Native.so";
-        let reader = Cursor::new(maps.as_bytes());
-        assert!(has_dotnet_dll_in_maps(reader));
-
-        // Test case: partial match should not detect (must end with /System.Runtime.dll)
-        let maps = "7d97b4e85000-7d97b4e8e000 r--s 00000000 fc:04 1332665                    /usr/lib/dotnet/System.Runtime.dll.bak";
-        let reader = Cursor::new(maps.as_bytes());
-        assert!(!has_dotnet_dll_in_maps(reader));
+        // System.Runtime.dll present in maps
+        let maps_info = MapsInfo {
+            has_system_runtime_dll: true,
+            ..Default::default()
+        };
+        assert_eq!(Language::from_dotnet(&maps_info), Some(Language::DotNet));
     }
 
     #[test]
-    fn test_from_dotnet() {
+    fn test_from_dotnet_integration() {
         use std::fs::File;
 
         use memmap2::Mmap;
@@ -548,7 +544,8 @@ mod tests {
         let current_pid = std::process::id().cast_signed();
 
         // Negative test: current process should NOT be detected as .NET initially
-        let result = Language::from_dotnet(current_pid);
+        let maps_info = crate::procfs::maps::read_maps_info(current_pid).unwrap();
+        let result = Language::from_dotnet(&maps_info);
         assert_eq!(
             result, None,
             "Process should not be detected as .NET before mmapping System.Runtime.dll"
@@ -561,8 +558,11 @@ mod tests {
         let file = File::open(&dll_path).expect("Failed to open System.Runtime.dll test file");
         let _mmap = unsafe { Mmap::map(&file).expect("Failed to mmap System.Runtime.dll") };
 
+        // Re-read maps info after mmapping
+        let maps_info = crate::procfs::maps::read_maps_info(current_pid).unwrap();
+
         // Positive test: current process SHOULD be detected as .NET after mmapping
-        let result = Language::from_dotnet(current_pid);
+        let result = Language::from_dotnet(&maps_info);
         assert_eq!(
             result,
             Some(Language::DotNet),
@@ -654,7 +654,7 @@ mod tests {
             let open_files_info = OpenFilesInfo {
                 sockets: vec![],
                 logs: vec![],
-                tracer_memfd: None,
+                tracer_memfds: Vec::new(),
                 memfd_path: Some(tmpfile.path().to_path_buf()),
                 has_gpu_device: false,
             };
@@ -686,7 +686,7 @@ mod tests {
         let open_files_info = OpenFilesInfo {
             sockets: vec![],
             logs: vec![],
-            tracer_memfd: None,
+            tracer_memfds: Vec::new(),
             memfd_path: Some(tmpfile.path().to_path_buf()),
             has_gpu_device: false,
         };
@@ -702,7 +702,7 @@ mod tests {
         let open_files_info = OpenFilesInfo {
             sockets: vec![],
             logs: vec![],
-            tracer_memfd: None,
+            tracer_memfds: Vec::new(),
             memfd_path: None,
             has_gpu_device: false,
         };
@@ -720,7 +720,7 @@ mod tests {
         let open_files_info = OpenFilesInfo {
             sockets: vec![],
             logs: vec![],
-            tracer_memfd: None,
+            tracer_memfds: Vec::new(),
             memfd_path: Some(PathBuf::from("/dev/null")),
             has_gpu_device: false,
         };
@@ -740,7 +740,7 @@ mod tests {
         let open_files_info = OpenFilesInfo {
             sockets: vec![],
             logs: vec![],
-            tracer_memfd: None,
+            tracer_memfds: Vec::new(),
             memfd_path: Some(PathBuf::from("/nonexistent/file/path")),
             has_gpu_device: false,
         };

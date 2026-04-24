@@ -19,12 +19,15 @@ import (
 	"sync"
 	"time"
 
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -48,10 +51,10 @@ const (
 var (
 	errClient  = errors.New("client error")
 	errServer  = errors.New("server error")
-	tlmSend    = telemetry.NewCounter("logs_client_http_destination", "send", []string{"endpoint_host", "error"}, "Payloads sent")
-	tlmInUse   = telemetry.NewCounter("logs_client_http_destination", "in_use_ms", []string{"sender"}, "Time spent sending payloads in ms")
-	tlmIdle    = telemetry.NewCounter("logs_client_http_destination", "idle_ms", []string{"sender"}, "Time spent idle while not sending payloads in ms")
-	tlmDropped = telemetry.NewCounterWithOpts("logs_client_http_destination", "payloads_dropped", []string{}, "Number of payloads dropped because of unrecoverable errors", telemetry.Options{DefaultMetric: true})
+	tlmSend    = telemetryimpl.GetCompatComponent().NewCounter("logs_client_http_destination", "send", []string{"endpoint_host", "error"}, "Payloads sent")
+	tlmInUse   = telemetryimpl.GetCompatComponent().NewCounter("logs_client_http_destination", "in_use_ms", []string{"sender"}, "Time spent sending payloads in ms")
+	tlmIdle    = telemetryimpl.GetCompatComponent().NewCounter("logs_client_http_destination", "idle_ms", []string{"sender"}, "Time spent idle while not sending payloads in ms")
+	tlmDropped = telemetryimpl.GetCompatComponent().NewCounterWithOpts("logs_client_http_destination", "payloads_dropped", []string{}, "Number of payloads dropped because of unrecoverable errors", telemetry.Options{DefaultMetric: true})
 
 	expVarIdleMsMapKey  = "idleMs"
 	expVarInUseMsMapKey = "inUseMs"
@@ -89,6 +92,9 @@ type Destination struct {
 	shouldRetry    bool
 	lastRetryError error
 
+	// Secrets
+	secrets secrets.Component
+
 	// Telemetry
 	expVars         *expvar.Map
 	destMeta        *client.DestinationMetadata
@@ -100,6 +106,7 @@ type Destination struct {
 // NewDestination returns a new Destination.
 // minConcurrency denotes the minimum number of concurrent http requests the pipeline will allow at once.
 // maxConcurrency represents the maximum number of concurrent http requests, reachable when the client is experiencing a large latency in sends.
+// secretsComp is used to trigger an API key refresh on 403 responses; pass a SecretNoop when no secrets backend is available.
 func NewDestination(endpoint config.Endpoint,
 	contentType string,
 	destinationsContext *client.DestinationsContext,
@@ -109,7 +116,8 @@ func NewDestination(endpoint config.Endpoint,
 	minConcurrency int,
 	maxConcurrency int,
 	pipelineMonitor metrics.PipelineMonitor,
-	instanceID string) *Destination {
+	instanceID string,
+	secretsComp secrets.Component) *Destination {
 
 	return newDestination(endpoint,
 		contentType,
@@ -121,7 +129,8 @@ func NewDestination(endpoint config.Endpoint,
 		minConcurrency,
 		maxConcurrency,
 		pipelineMonitor,
-		instanceID)
+		instanceID,
+		secretsComp)
 }
 
 func newDestination(endpoint config.Endpoint,
@@ -134,7 +143,8 @@ func newDestination(endpoint config.Endpoint,
 	minConcurrency int,
 	maxConcurrency int,
 	pipelineMonitor metrics.PipelineMonitor,
-	instanceID string) *Destination {
+	instanceID string,
+	secretsComp secrets.Component) *Destination {
 
 	policy := backoff.NewExpBackoffPolicy(
 		endpoint.BackoffFactor,
@@ -171,6 +181,7 @@ func newDestination(endpoint config.Endpoint,
 		lastRetryError:      nil,
 		retryLock:           sync.Mutex{},
 		shouldRetry:         shouldRetry,
+		secrets:             secretsComp,
 		expVars:             expVars,
 		destMeta:            destMeta,
 		isMRF:               endpoint.IsMRF,
@@ -360,6 +371,9 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 	req.Header.Set("dd-message-timestamp", strconv.FormatInt(getMessageTimestamp(payload.MessageMetas), 10))
 	then := time.Now()
 	req.Header.Set("dd-current-timestamp", strconv.FormatInt(then.UnixMilli(), 10))
+	for k, v := range d.endpoint.ExtraHTTPHeaders {
+		req.Header.Set(k, v)
+	}
 
 	req = req.WithContext(ctx)
 	resp, err := d.client.Do(req)
@@ -391,17 +405,17 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 	if resp.StatusCode >= http.StatusBadRequest {
 		log.Warnf("failed to post http payload. code=%d, url=%s, EvP track type=%s, content type=%s, EvP category=%s, origin=%s, response=%s", resp.StatusCode, d.url, d.endpoint.TrackType, d.contentType, d.destMeta.EvpCategory(), d.origin, string(response))
 	}
-	if resp.StatusCode == http.StatusBadRequest ||
+	if resp.StatusCode == http.StatusForbidden &&
+		d.secrets.IsValueFromSecret(d.endpoint.GetAPIKey()) &&
+		d.secrets.Refresh() {
+		return client.NewRetryableError(errServer)
+	} else if resp.StatusCode == http.StatusBadRequest ||
 		resp.StatusCode == http.StatusUnauthorized ||
 		resp.StatusCode == http.StatusForbidden ||
 		resp.StatusCode == http.StatusRequestEntityTooLarge {
-		// the logs-agent is likely to be misconfigured,
-		// the URL or the API key may be wrong.
 		tlmDropped.Inc()
 		return errClient
 	} else if resp.StatusCode > http.StatusBadRequest {
-		// the server could not serve the request, most likely because of an
-		// internal error. We should retry these requests.
 		return client.NewRetryableError(errServer)
 	}
 	d.pipelineMonitor.ReportComponentEgress(payload, d.destMeta.MonitorTag(), d.instanceID)
@@ -501,7 +515,7 @@ func getMessageTimestamp(messages []*message.MessageMetadata) int64 {
 
 func prepareCheckConnectivity(endpoint config.Endpoint, cfg pkgconfigmodel.Reader, timeoutOverride time.Duration) (*client.DestinationsContext, *Destination) {
 	ctx := client.NewDestinationsContext()
-	destination := newDestination(endpoint, JSONContentType, ctx, timeoutOverride, false, client.NewNoopDestinationMetadata(), cfg, 1, 1, metrics.NewNoopPipelineMonitor(""), "")
+	destination := newDestination(endpoint, JSONContentType, ctx, timeoutOverride, false, client.NewNoopDestinationMetadata(), cfg, 1, 1, metrics.NewNoopPipelineMonitor(""), "", secretsnoopimpl.NewComponent().Comp)
 
 	return ctx, destination
 }

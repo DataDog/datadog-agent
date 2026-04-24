@@ -8,16 +8,17 @@ Probes:
       template: ""
       segments: []
       captureSnapshot: true
-      subprogram: {subprogram: 1}
-      events:
-        - Kind: Entry
-          Type: 105 EventRootType Probe[main.callMe]
-          InjectionPoints: [{PC: "0x4a804e", Frameless: false}]
-          Condition: null
-        - Kind: Return
-          Type: 106 EventRootType Probe[main.callMe]Return
-          InjectionPoints: [{PC: "0x4a80f2", Frameless: false}]
-          Condition: null
+      instances:
+        - subprogram: {subprogram: 1}
+          events:
+            - Kind: Entry
+              Type: 105 EventRootType Probe[main.callMe]
+              InjectionPoints: [{PC: "0x4a804e", Frameless: false}]
+              Condition: null
+            - Kind: Return
+              Type: 106 EventRootType Probe[main.callMe]Return
+              InjectionPoints: [{PC: "0x4a80f2", Frameless: false}]
+              Condition: null
 Subprograms:
     - ID: 1
       Name: main.callMe
@@ -34,6 +35,7 @@ Subprograms:
                 - Size: 8
                   Op: {RegNo: 3, Shift: 0}
           Role: Parameter
+          DictIndex: -1
         - Name: s2
           Type: 10 GoStringHeaderType string
           Locations:
@@ -50,6 +52,7 @@ Subprograms:
                 - Size: 8
                   Op: {CfaOffset: 24}
           Role: Parameter
+          DictIndex: -1
         - Name: i
           Type: 93 PointerType *int
           Locations:
@@ -58,6 +61,8 @@ Subprograms:
             - Range: 0x4a8085..0x4a8134
               Pieces: [{Size: 8, Op: {CfaOffset: 32}}]
           Role: Parameter
+          DictIndex: -1
+      DictRegister: null
 Types:
     - __kind: PointerType
       ID: 39
@@ -246,7 +251,7 @@ Types:
       ID: 105
       Name: Probe[main.callMe]
       ByteSize: 41
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: s1
           Offset: 1
@@ -258,6 +263,7 @@ Types:
                   Variable: {subprogram: 1, index: 0, name: s1}
                   Offset: 0
                   ByteSize: 16
+          DictIndex: -1
         - Name: s2
           Offset: 17
           Kind: argument
@@ -268,6 +274,7 @@ Types:
                   Variable: {subprogram: 1, index: 1, name: s2}
                   Offset: 0
                   ByteSize: 16
+          DictIndex: -1
         - Name: i
           Offset: 33
           Kind: argument
@@ -278,6 +285,7 @@ Types:
                   Variable: {subprogram: 1, index: 2, name: i}
                   Offset: 0
                   ByteSize: 8
+          DictIndex: -1
     - __kind: EventRootType
       ID: 106
       Name: Probe[main.callMe]Return
@@ -1379,6 +1387,8 @@ Types:
 MaxTypeID: 106
 Issues: []
 GoModuledataInfo: {FirstModuledataAddr: "0x576240", TypesOffset: 296}
+GoMapHashInfo: {UseAeshashAddr: "0x59fa6a", AeskeyschedAddr: "0x5a0140"}
 CommonTypes:
     G: 22 StructureType runtime.g
     M: 29 StructureType runtime.m
+IsARM64: false

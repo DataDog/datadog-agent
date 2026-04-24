@@ -23,16 +23,10 @@ if(ARCH_I386)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m32")
 endif()
 
-## Config options
-option(BUILD_DEMO "Build the demo app" ON)
-
 ## Add Build Targets
 add_subdirectory(three)
 add_subdirectory(rtloader)
 add_subdirectory(test)
-if (BUILD_DEMO)
-    add_subdirectory(demo)
-endif()
 
 ## Dev tools
 include(cmake/clang-format.cmake)

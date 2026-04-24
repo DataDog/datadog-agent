@@ -23,8 +23,7 @@ func init() { registerModule(WinCrashProbe) }
 
 // WinCrashProbe Factory
 var WinCrashProbe = &module.Factory{
-	Name:             config.WindowsCrashDetectModule,
-	ConfigNamespaces: []string{"windows_crash_detection"},
+	Name: config.WindowsCrashDetectModule,
 	Fn: func(cfg *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
 		log.Infof("Starting the WinCrashProbe probe")
 		cp, err := probe.NewWinCrashProbe(cfg)

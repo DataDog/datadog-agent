@@ -40,7 +40,9 @@ type Program struct {
 	Types            []ir.Type
 	Throttlers       []Throttler
 	GoModuledataInfo ir.GoModuledataInfo
+	GoMapHashInfo    ir.GoMapHashInfo
 	CommonTypes      ir.CommonTypes
+	IsARM64          bool
 }
 
 type generator struct {
@@ -76,29 +78,57 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 		return Program{}, err
 	}
 	throttlers := make([]Throttler, 0, len(program.Probes))
-	for idx, probe := range program.Probes {
-		for _, event := range probe.Events {
-			for _, injectionPoint := range event.InjectionPoints {
-				err := g.addEventHandler(
-					injectionPoint,
-					len(throttlers),
-					probe.GetCaptureConfig(),
-					uint32(idx),
-					event.Type,
-					event.Kind,
-				)
-				if err != nil {
-					return Program{}, err
+	for probeIdx, probe := range program.Probes {
+		// Determine which event kind has a condition (if any) across all
+		// instances. All instances share the same probe config so conditions
+		// are uniform.
+		var conditionEventKind ir.EventKind
+		for _, inst := range probe.Instances {
+			for _, event := range inst.Events {
+				if event.Condition != nil {
+					conditionEventKind = event.Kind
+					break
 				}
 			}
-			// We throttle each event individually, across all its injection points.
-			throttleConfig := probe.GetThrottleConfig()
-			periodMs := throttleConfig.GetThrottlePeriodMs()
-			periodNs := uint64(periodMs) * uint64(time.Millisecond)
-			throttlers = append(throttlers, Throttler{
-				PeriodNs: periodNs,
-				Budget:   throttleConfig.GetThrottleBudget(),
-			})
+			if conditionEventKind != 0 {
+				break
+			}
+		}
+
+		// Track throttler indices per event kind so that all instances of
+		// the same event kind share a single throttler.
+		throttlerByKind := make(map[ir.EventKind]int)
+		for _, inst := range probe.Instances {
+			for _, event := range inst.Events {
+				throttlerIdx, ok := throttlerByKind[event.Kind]
+				if !ok {
+					throttlerIdx = len(throttlers)
+					throttlerByKind[event.Kind] = throttlerIdx
+					throttleConfig := probe.GetThrottleConfig()
+					periodMs := throttleConfig.GetThrottlePeriodMs()
+					periodNs := uint64(periodMs) * uint64(time.Millisecond)
+					throttlers = append(throttlers, Throttler{
+						PeriodNs: periodNs,
+						Budget:   throttleConfig.GetThrottleBudget(),
+					})
+				}
+				throttleMode := computeThrottleMode(event, conditionEventKind)
+				for _, injectionPoint := range event.InjectionPoints {
+					err := g.addEventHandler(
+						injectionPoint,
+						throttlerIdx,
+						probe.GetCaptureConfig(),
+						uint32(probeIdx),
+						event.Type,
+						event.Kind,
+						event.Condition,
+						throttleMode,
+					)
+					if err != nil {
+						return Program{}, err
+					}
+				}
+			}
 		}
 	}
 	// Add all the types for which we know the Go runtime type to the
@@ -147,8 +177,42 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 		Types:            types,
 		Throttlers:       throttlers,
 		GoModuledataInfo: program.GoModuledataInfo,
+		GoMapHashInfo:    program.GoMapHashInfo,
 		CommonTypes:      program.CommonTypes,
+		IsARM64:          program.IsARM64,
 	}, nil
+}
+
+// computeThrottleMode determines the throttle mode for an event based on
+// whether this event or its sibling has a condition.
+//
+// Condition evaluation (including compound and/or/not conditions) is
+// constrained to a single event kind per probe (see irgen's event-kind
+// unification), so at most one event per probe carries a condition.
+func computeThrottleMode(event *ir.Event, conditionEventKind ir.EventKind) ThrottleMode {
+	hasCond := event.Condition != nil
+	isReturn := event.Kind == ir.EventKindReturn
+
+	if hasCond {
+		// This event has a condition: throttle after condition check.
+		// Note: if we later support compound conditions where the entry and
+		// return both have conditions, we will need to adjust this to only
+		// throttle the return.
+		return ThrottleAfterCondCheck
+	}
+	if conditionEventKind != 0 && conditionEventKind != event.Kind {
+		// Sibling event has a condition: skip throttling for this event.
+		// For entry with conditional return: don't throttle entry so the return
+		// condition can evaluate.
+		// For return with conditional entry: unconditional returns never throttle.
+		return ThrottleNone
+	}
+	if isReturn {
+		// Unconditional return without sibling condition: never throttle.
+		return ThrottleNone
+	}
+	// Default: throttle at start.
+	return ThrottleAtStart
 }
 
 // Generates a function called when a probe (represented by the root type)
@@ -161,6 +225,8 @@ func (g *generator) addEventHandler(
 	probeID uint32,
 	rootType *ir.EventRootType,
 	eventKind ir.EventKind,
+	condition *ir.Expression,
+	throttleMode ThrottleMode,
 ) error {
 	id := ProcessEvent{
 		InjectionPC:         injectionPoint.PC,
@@ -172,14 +238,45 @@ func (g *generator) addEventHandler(
 		HasAssociatedReturn: injectionPoint.HasAssociatedReturn,
 		NoReturnReason:      injectionPoint.NoReturnReason,
 		TopPCOffset:         injectionPoint.TopPCOffset,
+		ThrottleMode:        throttleMode,
 		ProbeID:             probeID,
 		EventKind:           eventKind,
 		EventRootType:       rootType,
 	}
-	ops := make([]Op, 0, 2+len(rootType.Expressions))
+	ops := make([]Op, 0, 3+len(rootType.Expressions))
+
+	// If there's a condition, insert the condition check before
+	// PrepareEventRoot so that non-matching events are skipped entirely.
+	if condition != nil {
+		condFunctionID, err := g.addConditionHandler(injectionPoint.PC, rootType, condition)
+		if err != nil {
+			return err
+		}
+		ops = append(ops, CallOp{
+			FunctionID: condFunctionID,
+		})
+	}
+
 	ops = append(ops, PrepareEventRootOp{
 		EventRootType: rootType,
 	})
+	// For generic shape functions, resolve dict entries right after
+	// preparing the event root. Each dict entry reads the dictionary
+	// pointer from a register, indexes into it, and writes the resolved
+	// runtime type into the event output. For return events, bit 7 of
+	// DictRegister is set to signal the eBPF handler to read the dict
+	// pointer from saved call context instead of a CPU register.
+	for _, de := range rootType.DictEntries {
+		reg := de.DictRegister
+		if eventKind == ir.EventKindReturn {
+			reg |= 0x80
+		}
+		ops = append(ops, ProcessGoDictTypeOp{
+			DictIndex:    int32(de.DictIndex),
+			DictRegister: reg,
+			OutputOffset: de.Offset,
+		})
+	}
 	for i := range rootType.Expressions {
 		exprFunctionID, err := g.addExpressionHandler(injectionPoint.PC, rootType, uint32(i))
 		if err != nil {
@@ -191,6 +288,88 @@ func (g *generator) addEventHandler(
 	}
 	ops = append(ops, ReturnOp{})
 	return g.addFunction(id, ops)
+}
+
+// Generates a function that evaluates a condition expression. If the condition
+// evaluates to false, the stack machine sets condition_failed and aborts.
+func (g *generator) addConditionHandler(
+	injectionPC uint64,
+	rootType *ir.EventRootType,
+	condition *ir.Expression,
+) (FunctionID, error) {
+	id := ProcessCondition{
+		EventRootType: rootType,
+		InjectionPC:   injectionPC,
+	}
+	ops := make([]Op, 0, 5+len(condition.Operations))
+	ops = append(ops, ConditionBeginOp{})
+	ops = append(ops, ExprPrepareOp{})
+
+	for _, op := range condition.Operations {
+		switch op := op.(type) {
+		case *ir.LocationOp:
+			opsAfter, err := g.EncodeLocationOp(injectionPC, op, ops)
+			if err != nil {
+				logLocationIssue(
+					"error encoding location op for condition: %v", err,
+				)
+				opsAfter = append(ops, ReturnOp{})
+			}
+			ops = opsAfter
+		case *ir.DereferenceOp:
+			ops = append(ops, ExprDereferencePtrOp{
+				Bias:          op.Bias,
+				Len:           op.ByteSize,
+				ExprStatusIdx: ^uint32(0),
+			})
+		case *ir.ExprPushOffsetOp:
+			ops = append(ops, ExprPushOffsetOp{ByteSize: op.ByteSize})
+		case *ir.ExprLoadLiteralOp:
+			ops = append(ops, ExprLoadLiteralOp{Data: op.Data})
+		case *ir.ExprReadStringOp:
+			ops = append(ops, ExprReadStringOp{MaxLen: op.MaxLen})
+		case *ir.ExprCmpEqBaseOp:
+			ops = append(ops, ExprCmpEqBaseOp{ByteSize: op.ByteSize})
+		case *ir.ExprCmpEqStringOp:
+			ops = append(ops, ExprCmpEqStringOp{})
+		case *ir.SliceBoundsCheckOp:
+			ops = append(ops, ExprSliceBoundsCheckOp{
+				Index:         op.Index,
+				ExprStatusIdx: ^uint32(0), // conditions don't have per-expression status
+			})
+		case *ir.SwissMapLookupOp:
+			ops = append(ops, swissMapOps(op, ^uint32(0))...) // conditions don't have per-expression status
+		case *ir.ConditionCheckOp:
+			ops = append(ops, ConditionCheckOp{})
+		case *ir.CondNotOp:
+			ops = append(ops, CondNotOp{})
+		case *ir.CondJumpOp:
+			ops = append(ops, CondJumpOp{Cond: op.Cond, Label: op.Target})
+		case *ir.CondLabelOp:
+			ops = append(ops, CondLabelOp{ID: op.ID})
+		default:
+			panic(fmt.Sprintf("unexpected ir.Operation in condition: %#v", op))
+		}
+	}
+	ops = append(ops, ReturnOp{})
+	err := g.addFunction(id, ops)
+	if err != nil {
+		return nil, err
+	}
+	return id, nil
+}
+
+// findDictEntry returns the DictEntry matching the given dictIndex, or nil.
+func findDictEntry(rootType *ir.EventRootType, dictIndex int) *ir.DictEntry {
+	if dictIndex < 0 {
+		return nil
+	}
+	for i := range rootType.DictEntries {
+		if rootType.DictEntries[i].DictIndex == dictIndex {
+			return &rootType.DictEntries[i]
+		}
+	}
+	return nil
 }
 
 var encodeLocationLogLimiter = rate.NewLimiter(rate.Every(10*time.Minute), 10)
@@ -241,9 +420,33 @@ func (g *generator) addExpressionHandler(injectionPC uint64, rootType *ir.EventR
 			}
 			lastOpSize = op.ByteSize
 			ops = append(ops, ExprDereferencePtrOp{
-				Bias: op.Bias,
-				Len:  op.ByteSize,
+				Bias:          op.Bias,
+				Len:           op.ByteSize,
+				ExprStatusIdx: exprIdx,
 			})
+		case *ir.ExprPushOffsetOp:
+			ops = append(ops, ExprPushOffsetOp{ByteSize: op.ByteSize})
+		case *ir.ExprLoadLiteralOp:
+			ops = append(ops, ExprLoadLiteralOp{Data: op.Data})
+		case *ir.ExprReadStringOp:
+			ops = append(ops, ExprReadStringOp{MaxLen: op.MaxLen})
+		case *ir.ExprCmpEqBaseOp:
+			ops = append(ops, ExprCmpEqBaseOp{ByteSize: op.ByteSize})
+		case *ir.ExprCmpEqStringOp:
+			ops = append(ops, ExprCmpEqStringOp{})
+		case *ir.SliceBoundsCheckOp:
+			// After the bounds check, the scratch still starts with the
+			// data pointer (8 bytes). Update lastOpSize so the following
+			// DereferenceOp sees a pointer-sized value.
+			lastOpSize = 8
+			ops = append(ops, ExprSliceBoundsCheckOp{
+				Index:         op.Index,
+				ExprStatusIdx: exprIdx,
+			})
+		case *ir.SwissMapLookupOp:
+			// The lookup writes the value element at sm->offset on success.
+			lastOpSize = op.ValByteSize
+			ops = append(ops, swissMapOps(op, exprIdx)...)
 		default:
 			panic(fmt.Sprintf("unexpected ir.Operation: %#v", op))
 		}
@@ -257,9 +460,21 @@ func (g *generator) addExpressionHandler(injectionPC uint64, rootType *ir.EventR
 		return nil, err
 	}
 	if needed {
-		ops = append(ops, CallOp{
-			FunctionID: typeFunctionID,
-		})
+		// For dict-resolved shape types, emit a dynamic dispatch that
+		// tries to call the concrete type's ProcessType, falling back
+		// to the shape type's.
+		rootExpr := rootType.Expressions[exprIdx]
+		dictEntry := findDictEntry(rootType, rootExpr.DictIndex)
+		if dictEntry != nil {
+			ops = append(ops, CallDictResolvedOp{
+				OutputOffset: dictEntry.Offset,
+				FallbackFunc: typeFunctionID,
+			})
+		} else {
+			ops = append(ops, CallOp{
+				FunctionID: typeFunctionID,
+			})
+		}
 	}
 	ops = append(ops, ReturnOp{})
 	err = g.addFunction(id, ops)
@@ -649,8 +864,24 @@ func offsetOfUint8(fields []ir.Field, name string) (uint8, error) {
 	return uint8(offset), nil
 }
 
+// hasDuplicateInterfacePieces returns true if an interface type has both
+// pieces claiming the same register. Interface types have two distinct
+// pointers (type/itab and data) that can never have the same value, so
+// duplicate registers indicate invalid DWARF. Seen on ARM64 with go1.26rc1.
+func hasDuplicateInterfacePieces(typ ir.Type, pieces []ir.Piece) bool {
+	switch typ.(type) {
+	case *ir.GoInterfaceType, *ir.GoEmptyInterfaceType:
+		// Interfaces always have exactly 2 pieces
+		if len(pieces) == 2 && pieces[0].Op == pieces[1].Op {
+			return true
+		}
+	}
+	return false
+}
+
 // `ops` is used as an output buffer for the encoded instructions.
 func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]Op, error) {
+outer:
 	for _, loclist := range op.Variable.Locations {
 		if pc < loclist.Range[0] || pc >= loclist.Range[1] {
 			continue
@@ -669,29 +900,60 @@ func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]
 			// Nothing needs to be read.
 			return ops, nil
 		}
+
+		// Check if the matching location list is unavailable. If so, by
+		// breaking here we'll make sure we don't mark the variable as
+		// available.
+		//
+		// Also check for duplicate interface pieces where both claim the same
+		// register (seen on ARM64 with go1.26rc1). Interface types have two
+		// distinct pointers that can never share a register.
+		if len(loclist.Pieces) == 0 ||
+			hasDuplicateInterfacePieces(op.Variable.Type, loclist.Pieces) {
+			break
+		}
+
 		layoutPieces, err := g.typeMemoryLayout(op.Variable.Type)
 		if err != nil {
 			return nil, err
 		}
 		layoutIdx := 0
-		if len(loclist.Pieces) == 0 {
-			// Variable has loclist entry for relevant PC range, but it is still unavailable.
-			break
-		}
+		origLen := len(ops)
 		for _, piece := range loclist.Pieces {
 			if layoutIdx >= len(layoutPieces) {
-				return nil, fmt.Errorf("mismatch between loclist pieces and type memory layout for %s : %s", op.Variable.Name, op.Variable.Type.GetName())
+				return nil, fmt.Errorf(
+					"mismatch between loclist pieces and type memory layout for %s: %s",
+					op.Variable.Name, op.Variable.Type.GetName(),
+				)
 			}
 			paddedOffset := layoutPieces[layoutIdx].PaddedOffset
 			nextLayoutIdx := layoutIdx
-			for nextLayoutIdx < len(layoutPieces) && layoutPieces[nextLayoutIdx].PaddedOffset-paddedOffset < uint32(piece.Size) {
+			for nextLayoutIdx < len(layoutPieces) &&
+				layoutPieces[nextLayoutIdx].PaddedOffset-paddedOffset < uint32(piece.Size) {
 				nextLayoutIdx++
 			}
 			// Layout pieces in [layoutIdx, nextLayoutIdx) range correspond to current locPiece.
 			layoutIdx = nextLayoutIdx
-			if op.Offset <= paddedOffset && paddedOffset < op.Offset+op.ByteSize {
-				switch p := piece.Op.(type) {
-				case ir.Register:
+
+			switch p := piece.Op.(type) {
+			case nil:
+				// If this piece is unavailable, only bail out if it
+				// overlaps with the requested byte range. This avoids
+				// rejecting narrowed field captures (e.g. foo.bar) when an
+				// unrelated field in the same parent struct is unavailable.
+				pieceEnd := paddedOffset + piece.Size
+				if op.Offset < pieceEnd && paddedOffset < op.Offset+op.ByteSize {
+					// Overlaps with requested range — variable is
+					// partially unavailable, treat as unavailable.
+					// Discard any ops emitted for earlier pieces.
+					ops = ops[:origLen]
+					break outer
+				}
+			case ir.Register:
+				// Register pieces are small and map to individual layout
+				// pieces. Check whether this piece's padded position falls
+				// within the requested range.
+				if op.Offset <= paddedOffset && paddedOffset < op.Offset+op.ByteSize {
 					if piece.Size > 8 {
 						return nil, fmt.Errorf("unsupported register size: %d", piece.Size)
 					}
@@ -700,15 +962,30 @@ func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]
 						Size:         uint8(piece.Size),
 						OutputOffset: paddedOffset - op.Offset,
 					})
-				case ir.Cfa:
-					ops = append(ops, ExprDereferenceCfaOp{
-						Offset:       p.CfaOffset,
-						Len:          piece.Size,
-						OutputOffset: paddedOffset - op.Offset,
-					})
-				case ir.Addr:
-					return nil, errUnsupportedAddrLocationOp
 				}
+			case ir.Cfa:
+				// CFA pieces represent contiguous memory on the stack that
+				// already has correct padding. Compute the overlap between
+				// this piece's range and the requested range, then read just
+				// that portion.
+				pieceEnd := paddedOffset + piece.Size
+				reqEnd := op.Offset + op.ByteSize
+				overlapStart := max(op.Offset, paddedOffset)
+				overlapEnd := min(reqEnd, pieceEnd)
+				if overlapStart < overlapEnd {
+					cfaOff := p.CfaOffset + int32(overlapStart-paddedOffset)
+					ops = append(ops, ExprDereferenceCfaOp{
+						Offset:       cfaOff,
+						Len:          overlapEnd - overlapStart,
+						OutputOffset: overlapStart - op.Offset,
+					})
+				}
+			case ir.Addr:
+				return nil, errUnsupportedAddrLocationOp
+			default:
+				return nil, fmt.Errorf(
+					"internal error: unexpected piece op: %#v (%T)", p, p,
+				)
 			}
 		}
 		return ops, nil
@@ -716,6 +993,37 @@ func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]
 	// Variable is not available, just return. Expression ops are allowed to "return early" on error.
 	ops = append(ops, ReturnOp{})
 	return ops, nil
+}
+
+// swissMapOps returns the 5-opcode sequence for a swiss map lookup.
+func swissMapOps(op *ir.SwissMapLookupOp, exprStatusIdx uint32) []Op {
+	return []Op{
+		SwissMapSetupOp{
+			KeyData:                  op.KeyData,
+			IsStringKey:              op.IsStringKey,
+			KeyByteSize:              op.KeyByteSize,
+			ValByteSize:              op.ValByteSize,
+			SeedOffset:               op.SeedOffset,
+			DirPtrOffset:             op.DirPtrOffset,
+			DirLenOffset:             op.DirLenOffset,
+			GlobalShiftOffset:        op.GlobalShiftOffset,
+			CtrlOffset:               op.CtrlOffset,
+			SlotsOffset:              op.SlotsOffset,
+			SlotSize:                 op.SlotSize,
+			KeyInSlotOffset:          op.KeyInSlotOffset,
+			ValInSlotOffset:          op.ValInSlotOffset,
+			TableGroupsFieldOffset:   op.TableGroupsFieldOffset,
+			GroupsDataFieldOffset:    op.GroupsDataFieldOffset,
+			GroupsLenMaskFieldOffset: op.GroupsLenMaskFieldOffset,
+			GroupByteSize:            op.GroupByteSize,
+			HeaderByteSize:           op.HeaderByteSize,
+			ExprStatusIdx:            exprStatusIdx,
+		},
+		SwissMapAesencOp{},
+		SwissMapHashFinishOp{},
+		SwissMapProbeOp{},
+		SwissMapCheckSlotOp{},
+	}
 }
 
 var errUnsupportedAddrLocationOp = errors.New("unsupported addr location op")

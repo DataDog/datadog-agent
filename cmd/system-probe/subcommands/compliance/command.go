@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	statsdFx "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/fx"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/compliance/cli"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -62,7 +62,7 @@ func CheckCommand(globalParams *command.GlobalParams) *cobra.Command {
 				fx.Supply(bundleParams),
 				core.Bundle(),
 				logscompressionfx.Module(),
-				statsd.Module(),
+				statsdFx.Module(),
 				ipcfx.ModuleInsecure(),
 				remotehostnameimpl.Module(),
 			)

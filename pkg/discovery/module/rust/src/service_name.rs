@@ -7,12 +7,14 @@ mod context;
 mod dotnet;
 mod gunicorn;
 mod java;
+#[cfg(feature = "jee")]
 mod jee;
 mod nodejs;
 mod php;
 mod python;
 mod rails;
 mod ruby;
+#[cfg(feature = "spring")]
 mod spring;
 mod uvicorn;
 
@@ -59,10 +61,15 @@ pub enum ServiceNameSource {
     Nodejs,
     Gunicorn,
     Rails,
+    #[cfg(feature = "spring")]
     Spring,
+    #[cfg(feature = "jee")]
     Jboss,
+    #[cfg(feature = "jee")]
     Tomcat,
+    #[cfg(feature = "jee")]
     Weblogic,
+    #[cfg(feature = "jee")]
     Websphere,
 }
 
@@ -76,17 +83,22 @@ impl ServiceNameSource {
             Self::Nodejs => "nodejs",
             Self::Gunicorn => "gunicorn",
             Self::Rails => "rails",
+            #[cfg(feature = "spring")]
             Self::Spring => "spring",
+            #[cfg(feature = "jee")]
             Self::Jboss => "jboss",
+            #[cfg(feature = "jee")]
             Self::Tomcat => "tomcat",
+            #[cfg(feature = "jee")]
             Self::Weblogic => "weblogic",
+            #[cfg(feature = "jee")]
             Self::Websphere => "websphere",
         }
     }
 }
 
 pub fn get(
-    language: &Language,
+    language: Option<&Language>,
     cmdline: &Cmdline,
     ctx: &mut DetectionContext,
 ) -> Option<ServiceNameMetadata> {
@@ -113,12 +125,12 @@ pub fn get(
         "beam.smp" | "beam" => erlang::extract_name(cmdline),
         "php" => php::extract_name(cmdline, ctx),
         &_ => match language {
-            Language::Python => python::extract_name(cmdline, ctx),
-            Language::Ruby => ruby::extract_name(cmdline),
-            Language::Java => java::extract_name(cmdline, ctx),
-            Language::NodeJS => nodejs::extract_name(cmdline, ctx),
-            Language::DotNet => dotnet::extract_name(cmdline),
-            Language::PHP => php::extract_name(cmdline, ctx),
+            Some(Language::Python) => python::extract_name(cmdline, ctx),
+            Some(Language::Ruby) => ruby::extract_name(cmdline),
+            Some(Language::Java) => java::extract_name(cmdline, ctx),
+            Some(Language::NodeJS) => nodejs::extract_name(cmdline, ctx),
+            Some(Language::DotNet) => dotnet::extract_name(cmdline),
+            Some(Language::PHP) => php::extract_name(cmdline, ctx),
             _ => None,
         },
     };
@@ -217,7 +229,7 @@ mod tests {
     fn empty_cmdline() {
         let (envs, fs) = test_ctx();
         let mut ctx = DetectionContext::new(0, envs, &fs);
-        assert_eq!(get_name(&Language::Unknown, &cmdline![], &mut ctx), None);
+        assert_eq!(get_name(None, &cmdline![], &mut ctx), None);
     }
 
     #[test]
@@ -225,7 +237,7 @@ mod tests {
         let (envs, fs) = test_ctx();
         let mut ctx = DetectionContext::new(0, envs, &fs);
         assert_eq!(
-            get_name(&Language::Unknown, &cmdline!["./my-server.sh"], &mut ctx),
+            get_name(None, &cmdline!["./my-server.sh"], &mut ctx),
             Some(ServiceNameMetadata::new(
                 "my-server",
                 ServiceNameSource::CommandLine,
@@ -235,7 +247,7 @@ mod tests {
         let (envs, fs) = test_ctx();
         let mut ctx = DetectionContext::new(0, envs, &fs);
         assert_eq!(
-            get_name(&Language::Unknown, &cmdline!["./-my-server.sh-"], &mut ctx),
+            get_name(None, &cmdline!["./-my-server.sh-"], &mut ctx),
             Some(ServiceNameMetadata::new(
                 "my-server",
                 ServiceNameSource::CommandLine,
@@ -250,7 +262,7 @@ mod tests {
         let cmdline = cmdline!["beam.smp", "-progname", "erl", "-home", "/var/lib/rabbitmq"];
         let (envs, fs) = test_ctx();
         let mut ctx = DetectionContext::new(0, envs, &fs);
-        let result = get_name(&Language::Unknown, &cmdline, &mut ctx);
+        let result = get_name(None, &cmdline, &mut ctx);
         assert_eq!(
             result,
             Some(ServiceNameMetadata::new(
@@ -266,7 +278,7 @@ mod tests {
         let cmdline = cmdline!["beam", "-progname", "couchdb", "-home", "/opt/couchdb"];
         let (envs, fs) = test_ctx();
         let mut ctx = DetectionContext::new(0, envs, &fs);
-        let result = get_name(&Language::Unknown, &cmdline, &mut ctx);
+        let result = get_name(None, &cmdline, &mut ctx);
         assert_eq!(
             result,
             Some(ServiceNameMetadata::new(
@@ -285,7 +297,7 @@ mod tests {
         let cmdline = cmdline!["beam.smp", "-smp", "auto", "-noinput"];
         let (envs, fs) = test_ctx();
         let mut ctx = DetectionContext::new(0, envs, &fs);
-        let result = get_name(&Language::Unknown, &cmdline, &mut ctx);
+        let result = get_name(None, &cmdline, &mut ctx);
         assert_eq!(
             result,
             Some(ServiceNameMetadata::new(
@@ -304,7 +316,7 @@ mod tests {
         let mut ctx = DetectionContext::new(0, envs, fs.as_ref());
         assert_eq!(
             get_name(
-                &Language::NodeJS,
+                Some(&Language::NodeJS),
                 &cmdline!["/usr/bin/node", "./testdata/index.js"],
                 &mut ctx
             ),
@@ -323,7 +335,7 @@ mod tests {
         let mut ctx = DetectionContext::new(0, envs, &fs);
         assert_eq!(
             get_name(
-                &Language::Ruby,
+                Some(&Language::Ruby),
                 &cmdline!["puma", "5.6.5", "(cluster)", "[api_gateway_service]"],
                 &mut ctx
             ),
@@ -342,7 +354,7 @@ mod tests {
         let mut ctx = DetectionContext::new(0, envs, &fs);
         assert_eq!(
             get_name(
-                &Language::DotNet,
+                Some(&Language::DotNet),
                 &cmdline!["/usr/bin/dotnet", "./myservice.dll"],
                 &mut ctx
             ),
@@ -360,7 +372,7 @@ mod tests {
         let mut ctx = DetectionContext::new(0, envs, &fs);
         assert_eq!(
             get_name(
-                &Language::Ruby,
+                Some(&Language::Ruby),
                 &cmdline![
                     "ruby",
                     "/usr/sbin/td-agent",
@@ -388,7 +400,7 @@ mod tests {
         let mut ctx = DetectionContext::new(0, envs, fs.as_ref());
         assert_eq!(
             get_name(
-                &Language::Python,
+                Some(&Language::Python),
                 &cmdline!["python", "modules/m1/first/nice/something.py"],
                 &mut ctx
             ),
@@ -407,7 +419,7 @@ mod tests {
         let mut ctx = DetectionContext::new(0, envs, &fs);
         assert_eq!(
             get_name(
-                &Language::Java,
+                Some(&Language::Java),
                 &cmdline![
                     "java",
                     "-Xmx4000m",
@@ -431,7 +443,7 @@ mod tests {
         let mut ctx = DetectionContext::new(0, envs, &fs);
         assert_eq!(
             get_name(
-                &Language::PHP,
+                Some(&Language::PHP),
                 &cmdline!["php", "artisan", "serve"],
                 &mut ctx
             ),
@@ -449,7 +461,7 @@ mod tests {
         let mut ctx = DetectionContext::new(0, envs, &fs);
         assert_eq!(
             get_name(
-                &Language::PHP,
+                Some(&Language::PHP),
                 &cmdline!["php", "-ddatadog.service=my-php-service", "server.php"],
                 &mut ctx
             ),
@@ -466,7 +478,7 @@ mod tests {
         let mut ctx = DetectionContext::new(0, envs, &fs);
         assert_eq!(
             get_name(
-                &Language::Python,
+                Some(&Language::Python),
                 &cmdline!["gunicorn", "--workers=2", "test:app"],
                 &mut ctx
             ),
@@ -483,7 +495,7 @@ mod tests {
         let mut ctx = DetectionContext::new(0, envs, &fs);
         assert_eq!(
             get_name(
-                &Language::Python,
+                Some(&Language::Python),
                 &cmdline![
                     "/usr/bin/python3",
                     "/usr/bin/gunicorn",
@@ -509,7 +521,7 @@ mod tests {
         let (envs, fs) = test_ctx();
         let mut ctx = DetectionContext::new(0, envs, &fs);
 
-        let service_name = get_name(&Language::Python, &cmdline, &mut ctx);
+        let service_name = get_name(Some(&Language::Python), &cmdline, &mut ctx);
 
         assert_eq!(
             service_name,
@@ -526,7 +538,7 @@ mod tests {
         let mut ctx = DetectionContext::new(0, envs, &fs);
         assert_eq!(
             get_name(
-                &Language::Python,
+                Some(&Language::Python),
                 &cmdline![
                     "/usr/local/bin/python",
                     "/usr/local/bin/uvicorn",
@@ -550,7 +562,11 @@ mod tests {
         let (envs, fs) = test_ctx();
         let mut ctx = DetectionContext::new(0, envs, &fs);
         assert_eq!(
-            get_name(&Language::Python, &cmdline!["sleep", "1000"], &mut ctx),
+            get_name(
+                Some(&Language::Python),
+                &cmdline!["sleep", "1000"],
+                &mut ctx
+            ),
             Some(ServiceNameMetadata::new(
                 "sleep",
                 ServiceNameSource::CommandLine,
@@ -564,7 +580,7 @@ mod tests {
         let mut ctx = DetectionContext::new(0, envs, &fs);
         assert_eq!(
             get_name(
-                &Language::Java,
+                Some(&Language::Java),
                 &cmdline!["my-daemon", "--config", "/etc/foo.conf"],
                 &mut ctx
             ),
@@ -582,11 +598,7 @@ mod tests {
         let (envs, fs) = test_ctx();
         let mut ctx = DetectionContext::new(0, envs, &fs);
         assert_eq!(
-            get_name(
-                &Language::Unknown,
-                &cmdline!["./server.x86_64.bin"],
-                &mut ctx
-            ),
+            get_name(None, &cmdline!["./server.x86_64.bin"], &mut ctx),
             Some(ServiceNameMetadata::new(
                 "server.x86_64",
                 ServiceNameSource::CommandLine,
@@ -599,11 +611,7 @@ mod tests {
         let (envs, fs) = test_ctx();
         let mut ctx = DetectionContext::new(0, envs, &fs);
         assert_eq!(
-            get_name(
-                &Language::Unknown,
-                &cmdline!["my-service", "--flag"],
-                &mut ctx
-            ),
+            get_name(None, &cmdline!["my-service", "--flag"], &mut ctx),
             Some(ServiceNameMetadata::new(
                 "my-service",
                 ServiceNameSource::CommandLine,
@@ -618,7 +626,7 @@ mod tests {
         let (envs, fs) = test_ctx();
         let mut ctx = DetectionContext::new(0, envs, &fs);
         assert_eq!(
-            get_name(&Language::Unknown, &cmdline![".hidden"], &mut ctx),
+            get_name(None, &cmdline![".hidden"], &mut ctx),
             Some(ServiceNameMetadata::new(
                 ".hidden",
                 ServiceNameSource::CommandLine,

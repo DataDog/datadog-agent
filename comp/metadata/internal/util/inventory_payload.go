@@ -67,6 +67,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 var (
@@ -86,6 +87,15 @@ type PayloadGetter func() marshaler.JSONMarshaler
 //
 // Embedding type need to provide a PayloadGetter callback when calling Init. This callback will be called each time a
 // new payload need to be generated.
+//
+// # Scrubbing responsibility
+//
+// InventoryPayload owns flare scrubbing: FlareProvider applies ScrubJSON (structured JSON scrubbing
+// by key name) before writing the payload file. Callers do not need to scrub simple scalar fields.
+//
+// Exception: callers that store YAML content as JSON string values (e.g. check init_config or
+// instance_config) must pre-scrub those strings with scrubber.ScrubYamlString before storing them,
+// because ScrubJSON operates on JSON key names and cannot reach inside opaque string values.
 type InventoryPayload struct {
 	m sync.Mutex
 
@@ -143,14 +153,26 @@ func (i *InventoryPayload) FlareProvider() flaretypes.Provider {
 	// instead of:
 	//   'comp/metadata/internal/util.(*InventoryPayload).fillFlare-fm'
 	return flaretypes.NewProvider(
-		func(fb flaretypes.FlareBuilder) error {
+		func(_ context.Context, fb flaretypes.FlareBuilder) error {
 			path := filepath.Join("metadata", "inventory", i.FlareFileName)
 			if !i.Enabled {
 				fb.AddFile(path, []byte("inventory metadata is disabled")) //nolint:errcheck
 				return nil
 			}
 
-			fb.AddFileFromFunc(path, i.GetAsJSON) //nolint:errcheck
+			// InventoryPayload owns flare scrubbing. We use ScrubJSON (structured,
+			// key-name-based) rather than the builder's default ScrubBytes, which applies
+			// regex replacers to raw text and corrupts JSON when a key name contains a
+			// pattern substring (e.g. "pass" in "cache_bypass_limit").
+			data, err := i.GetAsJSON()
+			if err != nil {
+				return err
+			}
+			scrubbed, err := scrubber.ScrubJSON(data)
+			if err != nil {
+				return err
+			}
+			fb.AddFileWithoutScrubbing(path, scrubbed) //nolint:errcheck
 			return nil
 		})
 }
@@ -233,5 +255,5 @@ func (i *InventoryPayload) GetAsJSON() ([]byte, error) {
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	return json.MarshalIndent(i.getPayload(), "", "    ")
+	return json.MarshalIndent(i.getPayload(), "", "  ")
 }

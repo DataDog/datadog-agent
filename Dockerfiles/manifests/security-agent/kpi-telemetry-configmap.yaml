@@ -8,5 +8,5 @@ metadata:
   labels: {}
 data:
   install_type: k8s_manual
-  install_id: "274d6376-e2c2-4259-8725-1e043caeb0fe"
-  install_time: "1767611881"
+  install_id: "887fafe5-1cc0-4b7e-8482-9b042ed2900d"
+  install_time: "1774359230"

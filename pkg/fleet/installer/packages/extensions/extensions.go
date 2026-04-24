@@ -22,8 +22,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// errExtensionNotInPackage is returned by installSingle when the requested extension
+// layer is absent from the package image.
+var errExtensionNotInPackage = errors.New("extension not in package")
+
 // ExtensionsDBDir is the path to the extensions database, overridden in tests
 var ExtensionsDBDir = paths.RunPath
+
+// ExtensionRegistry holds per-extension registry override settings.
+type ExtensionRegistry struct {
+	URL      string
+	Auth     string
+	Username string
+	Password string
+}
 
 // ExtensionHooks is the interface for the extension hooks.
 type ExtensionHooks interface {
@@ -73,10 +85,12 @@ func DeletePackage(ctx context.Context, pkg string, isExperiment bool) (err erro
 }
 
 // Install installs extensions for a package.
-func Install(ctx context.Context, downloader *oci.Downloader, url string, extensions []string, isExperiment bool, hooks ExtensionHooks) (err error) {
+// If overrides is non-nil, extensions whose name appears as a key will be
+// downloaded from the corresponding registry instead of the default one.
+func Install(ctx context.Context, downloader *oci.Downloader, url string, extensionsList []string, isExperiment bool, hooks ExtensionHooks, overrides map[string]ExtensionRegistry) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "extensions.install")
 	defer func() { span.Finish(err) }()
-	span.SetTag("extensions", strings.Join(extensions, ","))
+	span.SetTag("extensions", strings.Join(extensionsList, ","))
 	span.SetTag("url", url)
 	span.SetTag("is_experiment", isExperiment)
 
@@ -87,53 +101,98 @@ func Install(ctx context.Context, downloader *oci.Downloader, url string, extens
 	}
 	defer db.Close()
 
-	// Download package metadata
-	pkg, err := downloader.Download(ctx, url)
-	if err != nil {
-		return installerErrors.Wrap(
-			installerErrors.ErrDownloadFailed,
-			fmt.Errorf("could not download package: %w", err),
-		)
+	// Group extensions by their effective downloader (default vs override).
+	type downloaderGroup struct {
+		downloader *oci.Downloader
+		extensions []string
 	}
-	span.SetTag("package_name", pkg.Name)
-	span.SetTag("package_version", pkg.Version)
+	defaultGroup := &downloaderGroup{downloader: downloader}
+	overrideGroups := map[string]*downloaderGroup{} // keyed by override URL for dedup
 
-	// Check if package is already installed
-	dbPkg, err := db.GetPackage(pkg.Name, isExperiment)
-	if err != nil && !errors.Is(err, errPackageNotFound) {
-		return fmt.Errorf("could not check if package %s is installed: %w", pkg.Name, err)
-	} else if err != nil && errors.Is(err, errPackageNotFound) {
-		return fmt.Errorf("package %s is not installed", pkg.Name)
-	} else if dbPkg.Version != pkg.Version {
-		return fmt.Errorf("package %s is installed at version %s, requested version is %s", pkg.Name, dbPkg.Version, pkg.Version)
-	}
-	if dbPkg.Extensions == nil {
-		dbPkg.Extensions = make(map[string]struct{})
+	for _, ext := range extensionsList {
+		if o, ok := overrides[ext]; ok && o.URL != "" {
+			key := o.URL
+			g, exists := overrideGroups[key]
+			if !exists {
+				g = &downloaderGroup{
+					downloader: downloader.WithRegistryOverride(o.URL, o.Auth, o.Username, o.Password),
+				}
+				overrideGroups[key] = g
+			}
+			g.extensions = append(g.extensions, ext)
+		} else {
+			defaultGroup.extensions = append(defaultGroup.extensions, ext)
+		}
 	}
 
-	// Process each extension
+	groups := []*downloaderGroup{}
+	if len(defaultGroup.extensions) > 0 {
+		groups = append(groups, defaultGroup)
+	}
+	for _, g := range overrideGroups {
+		groups = append(groups, g)
+	}
+
 	var installErrors []error
-	for _, extension := range extensions {
-		// Check if extension is already installed with the same package version
-		if _, exists := dbPkg.Extensions[extension]; exists {
-			log.Debugf("Extension %s already installed, skipping", extension)
-			continue
-		}
-
-		err := installSingle(ctx, pkg, extension, isExperiment, hooks)
+	tagSet := false
+	for _, group := range groups {
+		// Download package metadata once per distinct registry
+		pkg, err := group.downloader.Download(ctx, url)
 		if err != nil {
-			installErrors = append(installErrors, fmt.Errorf("extension %s: %w", extension, err))
+			installErrors = append(installErrors, installerErrors.Wrap(
+				installerErrors.ErrDownloadFailed,
+				fmt.Errorf("could not download package: %w", err),
+			))
 			continue
 		}
+		if !tagSet {
+			span.SetTag("package_name", pkg.Name)
+			span.SetTag("package_version", pkg.Version)
+			tagSet = true
+		}
 
-		// Mark as installed
-		dbPkg.Extensions[extension] = struct{}{}
-	}
+		// Check if package is already installed
+		dbPkg, err := db.GetPackage(pkg.Name, isExperiment)
+		if err != nil && !errors.Is(err, errPackageNotFound) {
+			return fmt.Errorf("could not check if package %s is installed: %w", pkg.Name, err)
+		} else if err != nil && errors.Is(err, errPackageNotFound) {
+			return fmt.Errorf("package %s is not installed", pkg.Name)
+		} else if dbPkg.Version != pkg.Version {
+			return fmt.Errorf("package %s is installed at version %s, requested version is %s", pkg.Name, dbPkg.Version, pkg.Version)
+		}
+		if dbPkg.Extensions == nil {
+			dbPkg.Extensions = make(map[string]string)
+		}
 
-	// Update DB with successfully installed extensions
-	err = db.SetPackage(dbPkg, isExperiment)
-	if err != nil {
-		return fmt.Errorf("could not update package in db: %w", err)
+		newDigest, err := pkg.Image.Digest()
+		if err != nil {
+			return fmt.Errorf("could not get digest for package %s: %w", pkg.Name, err)
+		}
+		newDigestStr := newDigest.String()
+
+		// Process each extension in this group
+		for _, extension := range group.extensions {
+			if stored, exists := dbPkg.Extensions[extension]; exists && stored == newDigestStr {
+				log.Debugf("Extension %s already installed at digest %s, skipping", extension, stored)
+				continue
+			}
+
+			err := installSingle(ctx, pkg, extension, isExperiment, hooks)
+			if err != nil {
+				if !errors.Is(err, errExtensionNotInPackage) {
+					installErrors = append(installErrors, fmt.Errorf("extension %s: %w", extension, err))
+				}
+				continue
+			}
+
+			dbPkg.Extensions[extension] = newDigestStr
+		}
+
+		// Update DB with successfully installed extensions
+		err = db.SetPackage(dbPkg, isExperiment)
+		if err != nil {
+			return fmt.Errorf("could not update package in db: %w", err)
+		}
 	}
 
 	return errors.Join(installErrors...)
@@ -168,7 +227,7 @@ func installSingle(ctx context.Context, pkg *oci.DownloadedPackage, extension st
 			// The extension is not available in the package, skip it.
 			// This might be a version where the extension doesn't exist and shouldn't block other methods.
 			fmt.Printf("no layer matches the requested annotations for %s, skipping\n", extension)
-			return nil
+			return errExtensionNotInPackage
 		}
 		return fmt.Errorf("could not extract layers for %s: %w", extension, err)
 	}
@@ -391,7 +450,7 @@ func Save(ctx context.Context, pkg string, saveDir string, isExperiment bool) (e
 }
 
 // Restore restores the extensions after a package upgrade
-func Restore(ctx context.Context, downloader *oci.Downloader, pkg string, downloadURL string, saveDir string, isExperiment bool, hooks ExtensionHooks) (err error) {
+func Restore(ctx context.Context, downloader *oci.Downloader, pkg string, downloadURL string, saveDir string, isExperiment bool, hooks ExtensionHooks, overrides map[string]ExtensionRegistry) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "extensions.restore")
 	defer func() { span.Finish(err) }()
 	span.SetTag("package_name", pkg)
@@ -408,10 +467,10 @@ func Restore(ctx context.Context, downloader *oci.Downloader, pkg string, downlo
 	if content == "" {
 		return nil // No extensions to restore
 	}
-	extensions := strings.Split(content, "\n")
-	span.SetTag("extensions", strings.Join(extensions, ","))
+	extensionsList := strings.Split(content, "\n")
+	span.SetTag("extensions", strings.Join(extensionsList, ","))
 
-	err = Install(ctx, downloader, downloadURL, extensions, isExperiment, hooks)
+	err = Install(ctx, downloader, downloadURL, extensionsList, isExperiment, hooks, overrides)
 	if err != nil {
 		return fmt.Errorf("could not install extensions: %w", err)
 	}
@@ -442,8 +501,8 @@ func getExtensionsPath(pkg, version string) string {
 	return filepath.Join(basePath, "ext")
 }
 
-// keys returns the keys of a map[string]struct{}.
-func keys(m map[string]struct{}) []string {
+// keys returns the keys of a map[string]string.
+func keys(m map[string]string) []string {
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
