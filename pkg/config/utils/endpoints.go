@@ -261,7 +261,14 @@ func GetMainEndpoint(c pkgconfigmodel.Reader, prefix string, ddURLKey string) st
 	// value under ddURLKey takes precedence over 'site'
 	if c.IsSet(ddURLKey) && c.GetString(ddURLKey) != "" {
 		return getResolvedDDUrl(c, ddURLKey)
-	} else if c.GetString("site") != "" {
+	}
+	// Fall back to the root dd_url when the prefixed key (e.g. "container_lifecycle.dd_url")
+	// is not set. This ensures that setting dd_url globally routes all traffic — including
+	// event platform pipelines — through the configured endpoint.
+	if ddURLKey != "dd_url" && c.IsSet("dd_url") && c.GetString("dd_url") != "" {
+		return getResolvedDDUrl(c, "dd_url")
+	}
+	if c.GetString("site") != "" {
 		return BuildURLWithPrefix(prefix, c.GetString("site"))
 	}
 	return BuildURLWithPrefix(prefix, pkgconfigsetup.DefaultSite)
