@@ -393,12 +393,12 @@ func TestResolveUnprefixedDisallowedWithMultiOnly(t *testing.T) {
 	assert.ErrorContains(t, err, "could not resolve 1 secret handle(s)")
 	found := false
 	for k := range resolver.unresolvedSecrets {
-		if strings.Contains(k, "unprefixed ENC[secretKey] handles are not supported") {
+		if strings.Contains(k, "unknown backend") {
 			found = true
 			break
 		}
 	}
-	require.True(t, found, "expected unprefixed-handle error in unresolvedSecrets, got %#v", resolver.unresolvedSecrets)
+	require.True(t, found, "expected unknown backend in unresolvedSecrets, got %#v", resolver.unresolvedSecrets)
 }
 
 func TestResolveDoestSendDuplicates(t *testing.T) {

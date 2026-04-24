@@ -176,12 +176,8 @@ func (r *secretResolver) fetchSecretBackendVersion() (string, error) {
 	return strings.TrimSpace(stdout.buf.String()), nil
 }
 
-// splitSecretHandle splits a handle on "::" returning (backendID, secretKey).
-// Used only when secret_backend_type is unset: ENC[backendID::secretKey] routes to multi_secret_backends,
-// and ENC[secretKey] is unprefixed (see resolveBackendConfig).
-// When secret_backend_type is set, fetchSecret does not use this split: the full inner string is the secret key.
-// The double-colon delimiter avoids ambiguity with handle formats that already contain
-// a single colon, such as vault://path#/json/pointer or Windows absolute paths (C:\...).
+// splitSecretHandle splits on "::" into (backendID, secretKey). Used for multi_secret_backends routing
+// when secret_backend_type is unset; "::" avoids ambiguity with single-colon paths (e.g. vault URIs).
 func splitSecretHandle(handle string) (backendID, secretKey string) {
 	const delim = "::"
 	idx := strings.Index(handle, delim)
@@ -191,15 +187,15 @@ func splitSecretHandle(handle string) (backendID, secretKey string) {
 	return handle[:idx], handle[idx+len(delim):]
 }
 
-// resolveBackendConfig returns the type, config, and timeout for a named backend.
-// backendID "" selects secret_backend_type / secret_backend_config (or legacy secret_backend_command with no type),
-// except when only multi_secret_backends is set (no secret_backend_type): then unprefixed ENC[secretKey] is rejected.
-// Any other backendID must name an entry in multi_secret_backends (e.g. yaml, json).
+// resolveBackendConfig returns the type, config, and timeout for backendID in multi_secret_backends.
+// When only multi_secret_backends is set (no secret_backend_type), backendID "" (unprefixed ENC[...]) is rejected.
+// When secret_backend_type is set, fetchSecret passes backendID "" and uses the top-level type only
+// (multi_secret_backends is ignored for routing).
 // The timeout falls back to the global r.backendTimeout if not set.
 func (r *secretResolver) resolveBackendConfig(backendID string) (string, map[string]interface{}, int, error) {
 	if backendID == "" {
 		if len(r.backendConfigs) > 0 && r.backendType == "" {
-			return "", nil, 0, fmt.Errorf("unprefixed ENC[secretKey] handles are not supported when multi_secret_backends is set without secret_backend_type; use ENC[backendID::secretKey] or set secret_backend_type")
+			return "", nil, 0, fmt.Errorf("unknown backend")
 		}
 		return r.backendType, r.backendConfig, r.backendTimeout, nil
 	}
