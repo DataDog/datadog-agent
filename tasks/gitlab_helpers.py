@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+import time
 
 import yaml
 from invoke import task
@@ -294,6 +295,114 @@ def print_entry_points(ctx):
     print(len(entry_points), 'entry points:')
     for entry_point, config in entry_points.items():
         print(f'- {color_message(entry_point, Color.BOLD)} ({len(config)} components)')
+
+
+_TERMINAL_JOB_STATUSES = {'success', 'failed', 'canceled', 'skipped'}
+
+
+@task
+def find_pipeline(ctx, branch=None, repo='DataDog/datadog-agent'):
+    """Find the latest pipeline for a branch (defaults to the current git branch).
+
+    Usage:
+        $ dda inv gitlab.find-pipeline
+        $ dda inv gitlab.find-pipeline --branch my-feature-branch
+    """
+    if branch is None:
+        branch = ctx.run('git branch --show-current', hide=True).stdout.strip()
+
+    gl_repo = get_gitlab_repo(repo)
+    pipelines = gl_repo.pipelines.list(ref=branch, order_by='id', sort='desc', get_all=False)
+    if not pipelines:
+        print(color_message(f"No pipelines found for branch '{branch}'", Color.RED))
+        raise Exit(1)
+
+    pipeline = pipelines[0]
+    print(f"Pipeline {pipeline.id}  status={pipeline.status}  branch={branch}\n" f"  {pipeline.web_url}")
+    return pipeline.id
+
+
+@task
+def find_pipeline_job(ctx, pipeline_id, job_name, repo='DataDog/datadog-agent'):
+    """Find a job by name inside a pipeline and print its id, status and URL.
+
+    Usage:
+        $ dda inv gitlab.find-pipeline-job --pipeline-id 1234 --job-name observer-component-eval
+    """
+    gl_repo = get_gitlab_repo(repo)
+    pipeline = gl_repo.pipelines.get(pipeline_id)
+    jobs = pipeline.jobs.list(get_all=True)
+    matching = [j for j in jobs if j.name == job_name]
+    if not matching:
+        print(color_message(f"No job named '{job_name}' in pipeline {pipeline_id}", Color.RED))
+        raise Exit(1)
+
+    job = matching[-1]
+    print(f"Job {job.id}  name={job.name}  status={job.status}\n  {job.web_url}")
+    return job.id
+
+
+@task
+def trigger_manual_job(ctx, pipeline_id, job_name, variables=None, repo='DataDog/datadog-agent'):
+    """Play (trigger) a manual job by name inside a pipeline.
+
+    Args:
+        variables: Comma-separated KEY=VALUE pairs forwarded as job variable overrides.
+                   Example: --variables OBSERVER_COMPONENT=scanmw,OBSERVER_N_TRIALS=10
+
+    Usage:
+        $ dda inv gitlab.trigger-manual-job --pipeline-id 1234 --job-name observer-component-eval --variables OBSERVER_COMPONENT=scanmw
+    """
+    gl_repo = get_gitlab_repo(repo)
+    pipeline = gl_repo.pipelines.get(pipeline_id)
+    jobs = pipeline.jobs.list(get_all=True)
+    matching = [j for j in jobs if j.name == job_name]
+    if not matching:
+        raise Exit(color_message(f"No job named '{job_name}' in pipeline {pipeline_id}", Color.RED))
+
+    job_stub = matching[-1]
+    job = gl_repo.jobs.get(job_stub.id, lazy=True)
+
+    var_list = []
+    if variables:
+        for kv in variables.split(','):
+            k, v = kv.split('=', 1)
+            var_list.append({'key': k.strip(), 'value': v.strip()})
+
+    job.play(variables=var_list)
+    print(color_message(f"Triggered job '{job_name}' (id={job_stub.id}) in pipeline {pipeline_id}", Color.GREEN))
+    print(f"  {job_stub.web_url}")
+    return job_stub.id
+
+
+@task
+def wait_for_job(ctx, job_id, timeout=3600, poll_interval=30, repo='DataDog/datadog-agent'):
+    """Poll a job until it reaches a terminal state (success/failed/canceled/skipped).
+
+    Args:
+        timeout: Maximum seconds to wait (default: 3600).
+        poll_interval: Seconds between polls (default: 30).
+
+    Usage:
+        $ dda inv gitlab.wait-for-job --job-id 9876
+        $ dda inv gitlab.wait-for-job --job-id 9876 --timeout 7200 --poll-interval 60
+    """
+    gl_repo = get_gitlab_repo(repo)
+    deadline = time.monotonic() + int(timeout)
+
+    while time.monotonic() < deadline:
+        job = gl_repo.jobs.get(job_id)
+        status = job.status
+        ts = time.strftime('%H:%M:%S')
+        print(f"[{ts}] Job {job_id} ({job.name}): {status}")
+        if status in _TERMINAL_JOB_STATUSES:
+            color = Color.GREEN if status == 'success' else Color.RED
+            print(color_message(f"Job finished: {status}  {job.web_url}", color))
+            return status
+        time.sleep(int(poll_interval))
+
+    print(color_message(f"Timed out after {timeout}s waiting for job {job_id}", Color.RED))
+    raise Exit(1)
 
 
 @task
