@@ -116,6 +116,8 @@ type SafeDevice interface {
 	RegisterEvents(evtTypes uint64, evtSet nvml.EventSet) error
 	// GetMemoryErrorCounter retrieves the requested memory error counter for the device.
 	GetMemoryErrorCounter(errorType nvml.MemoryErrorType, eccCounterType nvml.EccCounterType, memoryLocation nvml.MemoryLocation) (uint64, error)
+	// GetSramEccErrorStatus retrieves the detailed SRAM ECC error status for the device.
+	GetSramEccErrorStatus() (nvml.EccSramErrorStatus, error)
 }
 
 // DeviceEventData holds basic information about a device event
