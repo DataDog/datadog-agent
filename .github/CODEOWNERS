@@ -657,7 +657,6 @@
 /pkg/logs/diagnostic                    @DataDog/agent-log-pipelines
 /pkg/logs/message                       @DataDog/agent-log-pipelines
 /pkg/logs/processor                     @DataDog/agent-log-pipelines
-/pkg/logs/sender                        @DataDog/agent-log-pipelines
 /pkg/process/                           @DataDog/container-experiences
 /pkg/process/util/address*.go           @DataDog/cloud-network-monitoring
 /pkg/process/checks/net*.go             @DataDog/cloud-network-monitoring
@@ -799,6 +798,7 @@
 /tasks/unit_tests/libs/build/           @DataDog/agent-build
 /tasks/unit_tests/omnibus_tests.py      @DataDog/agent-build
 /tasks/unit_tests/testdata/components_src/ @DataDog/agent-runtimes
+/tasks/unit_tests/testdata/collector/   @DataDog/opentelemetry-agent
 /tasks/unit_tests/experimental_gates_tests.py @DataDog/agent-build
 /tasks/unit_tests/static_quality_gates_tests.py @DataDog/agent-build
 /tasks/unit_tests/static_quality_gates_reporter_tests.py @DataDog/agent-build

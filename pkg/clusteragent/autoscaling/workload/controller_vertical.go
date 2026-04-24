@@ -229,13 +229,25 @@ func (u *verticalController) syncInternal(
 		}
 	}
 
-	// If the resize patch was rejected as forbidden (e.g. RBAC missing for
-	// pods/resize), or any pod has been stuck in an unresolvable state for longer
-	// than RolloutFallbackDelay, escalate to a full rollout.
-	if shouldFallbackToRollout(toEvict, podAutoscaler, now, patchForbidden) {
-		if patchForbidden {
+	// Escalate to a full rollout when:
+	//  - the resize patch was rejected as forbidden (e.g. RBAC missing for pods/resize), or
+	//  - any pod is PodResizePending=Infeasible, or
+	//  - any pod has been stuck in an unresolvable state longer than RolloutFallbackDelay.
+	hasInfeasible := len(podsByResizeStatus[PodResizeStatusInfeasible]) > 0
+	if shouldFallbackToRollout(toEvict, hasInfeasible, podAutoscaler, now, patchForbidden) {
+		// Wait for the in-flight rollout to converge rather than restamping the pod template.
+		lastAction := autoscalerInternal.VerticalLastAction()
+		if lastAction != nil &&
+			lastAction.Type == datadoghqcommon.DatadogPodAutoscalerRolloutTriggeredVerticalActionType &&
+			lastAction.Version == recommendationID {
+			return autoscaling.ProcessResult{Requeue: true, RequeueAfter: rolloutCheckRequeueDelay}, nil
+		}
+		switch {
+		case patchForbidden:
 			log.Infof("In-place resize fallback: pods/resize patch forbidden, triggering rollout for autoscaler %s", autoscalerInternal.ID())
-		} else {
+		case hasInfeasible:
+			log.Infof("In-place resize fallback: pod resize Infeasible (exceeds node capacity), triggering rollout for autoscaler %s", autoscalerInternal.ID())
+		default:
 			log.Infof("In-place resize fallback: pods stuck too long, triggering rollout for autoscaler %s", autoscalerInternal.ID())
 		}
 		autoscalerInternal.InPlaceRolloutFallbackInc()
