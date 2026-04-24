@@ -7,6 +7,7 @@ package observerimpl
 
 import (
 	"math"
+	"math/rand"
 	"testing"
 
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
@@ -87,7 +88,11 @@ func TestBOCPDDetector_DetectsDownwardStepChange(t *testing.T) {
 func TestBOCPDDetector_DetectsSustainedShiftViaShortRunMass(t *testing.T) {
 	config := DefaultBOCPDConfig()
 	config.WarmupPoints = 20
-	config.CPThreshold = 0.99     // discourage pure r_t=0 triggers
+	// CPThreshold raised to 0.999 so a cpProb spike does not mask the
+	// short-run-mass trigger. With the Student-t predictive (ν≈40 at
+	// WarmupPoints=20) and a 3-σ shift, mass accumulates in short run-length
+	// hypotheses before cpProb reaches this level.
+	config.CPThreshold = 0.999
 	config.CPMassThreshold = 0.55 // allow short-run posterior mass trigger
 	config.ShortRunLength = 6
 	d := NewBOCPDDetector(config)
@@ -258,7 +263,7 @@ func TestFindingH3_CPProbUsesOnlyPriorPredictiveNotSumOverRunLengths(t *testing.
 	// Confirmed as bug by author (lukesteensen) -- cascading shift detection
 	// is intended. Prior-only formula was a shortcut, not a design choice.
 
-	// Test strategy: snapshot posterior state, call updatePosterior, then
+	// Test strategy: snapshot NIG posterior state, call updatePosterior, then
 	// independently compute both standard and prior-only formulas through
 	// normalization and compare against the implementation's actual output.
 
@@ -288,14 +293,25 @@ func TestFindingH3_CPProbUsesOnlyPriorPredictiveNotSumOverRunLengths(t *testing.
 
 	x := 14.0
 	hazard := d.config.Hazard
+	dfFloor := d.config.DegreesOfFreedomFloor
 
 	// Snapshot state before updatePosterior mutates it.
 	snapRunProbs := make([]float64, len(state.runProbs))
 	copy(snapRunProbs, state.runProbs)
-	snapMeans := make([]float64, len(state.means))
-	copy(snapMeans, state.means)
-	snapPrecisions := make([]float64, len(state.precisions))
-	copy(snapPrecisions, state.precisions)
+	snapMus := make([]float64, len(state.mus))
+	copy(snapMus, state.mus)
+	snapKappas := make([]float64, len(state.kappas))
+	copy(snapKappas, state.kappas)
+	snapAlphas := make([]float64, len(state.alphas))
+	copy(snapAlphas, state.alphas)
+	snapBetas := make([]float64, len(state.betas))
+	copy(snapBetas, state.betas)
+
+	// Capture prior parameters (unchanged by updatePosterior).
+	priorMu := state.priorMu
+	priorKappa := state.priorKappa
+	priorAlpha := state.priorAlpha
+	priorBeta := state.priorBeta
 
 	// Call the implementation.
 	_, implCpProb, _ := d.updatePosterior(state, x)
@@ -305,7 +321,7 @@ func TestFindingH3_CPProbUsesOnlyPriorPredictiveNotSumOverRunLengths(t *testing.
 	standardProbs := make([]float64, newLen)
 	var cpMass float64
 	for r := range snapRunProbs {
-		pred := gaussianPDF(x, snapMeans[r], state.obsVar+1.0/snapPrecisions[r])
+		pred := studentTPredictivePDF(x, snapMus[r], snapKappas[r], snapAlphas[r], snapBetas[r], dfFloor)
 		standardProbs[r+1] = snapRunProbs[r] * (1.0 - hazard) * pred
 		cpMass += snapRunProbs[r] * pred
 	}
@@ -315,9 +331,9 @@ func TestFindingH3_CPProbUsesOnlyPriorPredictiveNotSumOverRunLengths(t *testing.
 
 	// Independently compute the prior-only formula from the snapshot.
 	priorProbs := make([]float64, newLen)
-	predPrior := gaussianPDF(x, state.priorMean, state.obsVar+1.0/state.priorPrecision)
+	predPrior := studentTPredictivePDF(x, priorMu, priorKappa, priorAlpha, priorBeta, dfFloor)
 	for r := range snapRunProbs {
-		pred := gaussianPDF(x, snapMeans[r], state.obsVar+1.0/snapPrecisions[r])
+		pred := studentTPredictivePDF(x, snapMus[r], snapKappas[r], snapAlphas[r], snapBetas[r], dfFloor)
 		priorProbs[r+1] = snapRunProbs[r] * (1.0 - hazard) * pred
 	}
 	priorProbs[0] = hazard * predPrior
@@ -443,18 +459,20 @@ func TestFindingM7_WarmupPointsOneCausesNaN(t *testing.T) {
 		}
 	}
 
-	// Also verify the detector's internal state is not corrupted with NaN.
+	// Also verify the detector's internal NIG state is not corrupted with NaN.
 	for key, state := range d.series {
 		assert.False(t, math.IsNaN(state.baselineMean),
 			"NaN baselineMean in series state %s", key)
 		assert.False(t, math.IsNaN(state.baselineStddev),
 			"NaN baselineStddev in series state %s", key)
-		assert.False(t, math.IsNaN(state.obsVar),
-			"NaN obsVar in series state %s", key)
-		assert.False(t, math.IsNaN(state.priorMean),
-			"NaN priorMean in series state %s", key)
-		assert.False(t, math.IsNaN(state.priorPrecision),
-			"NaN priorPrecision in series state %s", key)
+		assert.False(t, math.IsNaN(state.priorMu),
+			"NaN priorMu in series state %s", key)
+		assert.False(t, math.IsNaN(state.priorKappa),
+			"NaN priorKappa in series state %s", key)
+		assert.False(t, math.IsNaN(state.priorAlpha),
+			"NaN priorAlpha in series state %s", key)
+		assert.False(t, math.IsNaN(state.priorBeta),
+			"NaN priorBeta in series state %s", key)
 		if state.initialized {
 			for i, p := range state.runProbs {
 				assert.False(t, math.IsNaN(p),
@@ -497,4 +515,129 @@ func TestFindingM8_ShortRunMassExcludesCPProb(t *testing.T) {
 	// trigger would NOT fire on its own without cpProb inflating it.
 	assert.Less(t, mass, 0.7,
 		"short-run mass (%.4f) without cpProb should be below CPMassThreshold (0.7)", mass)
+}
+
+// ---------------------------------------------------------------------------
+// New tests for NIG / Student-t robustness
+// ---------------------------------------------------------------------------
+
+// TestBOCPDDetector_NIGUpdateSanity verifies the NIG conjugate update against
+// hand-computed values to catch any coefficient transposition.
+func TestBOCPDDetector_NIGUpdateSanity(t *testing.T) {
+	mu0 := 10.0
+	kappa0 := 2.0
+	alpha0 := 3.0
+	beta0 := 6.0
+	x := 14.0
+
+	muN, kappaN, alphaN, betaN := nigUpdate(mu0, kappa0, alpha0, beta0, x)
+
+	// Hand-computed:
+	//   kappaN = 2 + 1 = 3
+	//   muN    = (2*10 + 14) / 3 = 34/3 ≈ 11.3333...
+	//   alphaN = 3 + 0.5 = 3.5
+	//   betaN  = 6 + 2*(14-10)^2 / (2*3) = 6 + 2*16/6 = 6 + 16/6 ≈ 8.6667
+	expectedKappaN := 3.0
+	expectedMuN := 34.0 / 3.0
+	expectedAlphaN := 3.5
+	expectedBetaN := 6.0 + (2.0*(14.0-10.0)*(14.0-10.0))/(2.0*3.0)
+
+	assert.InDelta(t, expectedKappaN, kappaN, 1e-9, "kappaN mismatch")
+	assert.InDelta(t, expectedMuN, muN, 1e-9, "muN mismatch")
+	assert.InDelta(t, expectedAlphaN, alphaN, 1e-9, "alphaN mismatch")
+	assert.InDelta(t, expectedBetaN, betaN, 1e-9, "betaN mismatch")
+}
+
+// TestBOCPDDetector_RobustToTailSpike asserts that isolated spike values near
+// 2σ of the baseline do not trigger an anomaly. The spike magnitude (110) is
+// chosen so that it is within ≈2σ of the NIG predictive distribution for the
+// long-run hypothesis (predictive scale ≈5 with σ_baseline=5). At this range,
+// the Student-t predictive assigns non-negligible probability to the spike, so
+// the short-run posterior mass does not concentrate enough to trigger.
+//
+// NOTE: Using σ_baseline=5 instead of σ=1. A 10σ spike would be near-zero
+// probability under ANY continuous distribution and would trigger both Gaussian
+// and Student-t detectors via the normalizeProbs fallback. The meaningful
+// robustness window is at 2–4σ of the predictive, which requires a wider
+// baseline variance.
+func TestBOCPDDetector_RobustToTailSpike(t *testing.T) {
+	config := DefaultBOCPDConfig()
+	config.WarmupPoints = 40
+	config.Aggregations = []observer.Aggregate{observer.AggregateAverage}
+	d := NewBOCPDDetector(config)
+
+	rng := rand.New(rand.NewSource(42))
+	storage := newTimeSeriesStorage()
+
+	// 40 warmup points ~N(100, 5).
+	for i := 0; i < 40; i++ {
+		v := 100.0 + rng.NormFloat64()*5.0
+		storage.Add("ns", "test.metric", v, int64(i+1), nil)
+	}
+
+	// 40 post-warmup points ~N(100, 5) with 3 evenly-spaced spikes to 110.
+	// 110 is ≈2σ from the baseline mean, within the plausible predictive range.
+	// Spike positions: 53, 67, 80 (roughly every 13 points).
+	spikeSet := map[int]bool{53: true, 67: true, 80: true}
+	for i := 40; i < 80; i++ {
+		ts := int64(i + 1)
+		var v float64
+		if spikeSet[i+1] {
+			v = 110.0
+		} else {
+			v = 100.0 + rng.NormFloat64()*5.0
+		}
+		storage.Add("ns", "test.metric", v, ts, nil)
+	}
+
+	result := d.Detect(storage, 80)
+
+	var anomalies []observer.Anomaly
+	for _, a := range result.Anomalies {
+		if a.Source.String() == "test.metric:avg" {
+			anomalies = append(anomalies, a)
+		}
+	}
+	assert.Empty(t, anomalies,
+		"isolated ≈2σ spikes should not trigger BOCPD detector")
+}
+
+// TestBOCPDDetector_StudentTApproximatesGaussianAtHighDF checks that with many
+// warmup points (ν large → Student-t ≈ Gaussian) the detector still catches a
+// clean sustained step change quickly.
+func TestBOCPDDetector_StudentTApproximatesGaussianAtHighDF(t *testing.T) {
+	config := DefaultBOCPDConfig()
+	config.WarmupPoints = 200
+	config.Aggregations = []observer.Aggregate{observer.AggregateAverage}
+	d := NewBOCPDDetector(config)
+
+	rng := rand.New(rand.NewSource(7))
+	storage := newTimeSeriesStorage()
+
+	// 200 warmup points ~N(100, 2).
+	for i := 0; i < 200; i++ {
+		v := 100.0 + rng.NormFloat64()*2.0
+		storage.Add("ns", "test.metric", v, int64(i+1), nil)
+	}
+
+	// 50 post-warmup points at 120 — a clean 10-σ step.
+	for i := 200; i < 250; i++ {
+		storage.Add("ns", "test.metric", 120.0, int64(i+1), nil)
+	}
+
+	result := d.Detect(storage, 250)
+
+	var anomalies []observer.Anomaly
+	for _, a := range result.Anomalies {
+		if a.Source.String() == "test.metric:avg" {
+			anomalies = append(anomalies, a)
+		}
+	}
+
+	require.GreaterOrEqual(t, len(anomalies), 1, "should detect clean step change at high ν")
+	// Onset should be within 5 points of the step at t=201.
+	assert.LessOrEqual(t, anomalies[0].Timestamp, int64(206),
+		"onset should be detected quickly after the step")
+	assert.GreaterOrEqual(t, anomalies[0].Timestamp, int64(201),
+		"onset should not precede the step")
 }
