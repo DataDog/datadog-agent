@@ -912,13 +912,12 @@ func (r *secretResolver) getDebugInfo(stats map[string]interface{}, includeVersi
 	stats["backendCommandSet"] = true
 	stats["executable"] = r.backendCommand
 	stats["backendType"] = r.backendType
+	stats["embeddedSecretBackend"] = r.embeddedBackendPermissiveRights
 
-	// Add backend secret version information
+	// executableVersion: optional --version probe for status/flare (unset on failure).
 	if includeVersion {
 		if version, err := r.fetchSecretBackendVersion(); err == nil {
 			stats["executableVersion"] = strings.TrimSpace(version)
-		} else {
-			stats["executableVersion"] = "version info not found"
 		}
 	}
 
@@ -945,15 +944,17 @@ func (r *secretResolver) getDebugInfo(stats map[string]interface{}, includeVersi
 		stats["executablePermissionsError"] = permissionsError
 	}
 
-	// Get detailed permissions
-	details, err := r.getExecutablePermissions()
-	if err != nil {
-		stats["executablePermissionsDetailsError"] = err.Error()
-	} else {
-		jsonDetails, _ := json.Marshal(details)
-		var mapDetails map[string]interface{}
-		_ = json.Unmarshal(jsonDetails, &mapDetails)
-		stats["executablePermissionsDetails"] = mapDetails
+	// Skip permission details for embedded secret-generic-connector (templates hide that block too).
+	if !r.embeddedBackendPermissiveRights {
+		details, err := r.getExecutablePermissions()
+		if err != nil {
+			stats["executablePermissionsDetailsError"] = err.Error()
+		} else {
+			jsonDetails, _ := json.Marshal(details)
+			var mapDetails map[string]interface{}
+			_ = json.Unmarshal(jsonDetails, &mapDetails)
+			stats["executablePermissionsDetails"] = mapDetails
+		}
 	}
 
 	// Handle secrets handles

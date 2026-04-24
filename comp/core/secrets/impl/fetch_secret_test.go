@@ -383,4 +383,5 @@ func TestFetchSecretBackendVersionNoBackendType(t *testing.T) {
 	_, err := resolver.fetchSecretBackendVersion()
 	assert.Error(t, err)
 	assert.ErrorContains(t, err, "secret_backend_type")
+	assert.ErrorContains(t, err, "multi_secret_backends")
 }
