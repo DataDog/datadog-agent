@@ -36,7 +36,6 @@ import (
 	sysprobeConfigFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe"
 	"github.com/DataDog/datadog-agent/pkg/config/fetcher/tracers"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -88,6 +87,7 @@ type inventoryagent struct {
 	data         agentMetadata
 	hostname     string
 	client       ipc.HTTPClient
+	startupTime  time.Time
 }
 
 // Requires defines the dependencies for the inventoryagent component
@@ -120,6 +120,7 @@ func NewComponent(deps Requires) Provides {
 		hostname:     hname,
 		data:         make(agentMetadata),
 		client:       deps.IPCClient,
+		startupTime:  time.Now(),
 	}
 	ia.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ia.getPayload, "agent.json")
 
@@ -171,7 +172,7 @@ func (ia *inventoryagent) initData() {
 
 	ia.data["agent_version"] = version.AgentVersion
 	ia.data["package_version"] = version.AgentPackageVersion
-	ia.data["agent_startup_time_ms"] = pkgconfigsetup.StartTime.UnixMilli()
+	ia.data["agent_startup_time_ms"] = ia.startupTime.UnixMilli()
 	ia.data["flavor"] = flavor.GetFlavor()
 
 	infraMode := scrub(ia.conf.GetString("infrastructure_mode"))
