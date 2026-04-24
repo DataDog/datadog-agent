@@ -987,59 +987,50 @@ func ResolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 	return resolveSecrets(config, secretResolver, origin)
 }
 
-// getSecretBackends reads the extra_secret_backends map from config. It uses config.Get
-// rather than GetStringMap to preserve the nested map structure of each backend's config,
-// then deep-converts any map[interface{}]interface{} values (from go-yaml v2) to
-// map[string]interface{} so callers can safely use type assertions.
+// multiSecretBackendEntry is the typed shape of each entry under multi_secret_backends
+// in datadog.yaml. Only backend-specific knobs belong here; other secret_* settings
+// (output max size, refresh interval, skip_checks, remove trailing line break, etc.)
+// remain global agent configuration for the secrets component as a whole.
+type multiSecretBackendEntry struct {
+	Type                 string                 `mapstructure:"type"`
+	Config               map[string]interface{} `mapstructure:"config"`
+	SecretBackendTimeout int                    `mapstructure:"secret_backend_timeout"`
+}
+
+// getSecretBackends reads multi_secret_backends via UnmarshalKey into typed entries,
+// then converts to map[string]interface{} for the secrets resolver (which still
+// expects the legacy nested map shape per backend).
 func getSecretBackends(config pkgconfigmodel.Config) map[string]interface{} {
-	raw := config.Get("extra_secret_backends")
-	if raw == nil {
+	var entries map[string]multiSecretBackendEntry
+	if err := structure.UnmarshalKey(config, "multi_secret_backends", &entries); err != nil {
+		log.Warnf("multi_secret_backends: %v", err)
 		return nil
 	}
-	m, err := deepToStringMap(raw)
-	if err != nil {
+	if len(entries) == 0 {
 		return nil
 	}
-	return m
-}
 
-// deepToStringMap recursively converts any map (including map[interface{}]interface{} as
-// returned by go-yaml v2) into map[string]interface{}.
-func deepToStringMap(v interface{}) (map[string]interface{}, error) {
-	switch m := v.(type) {
-	case map[string]interface{}:
-		out := make(map[string]interface{}, len(m))
-		for k, val := range m {
-			out[k] = deepToStringMapValue(val)
+	out := make(map[string]interface{}, 0)
+	for name, e := range entries {
+		if name == "default" {
+			log.Warnf(`multi_secret_backends: backend name "default" is not supported; use secret_backend_type and secret_backend_config for that backend. Ignoring entry "default".`)
+			continue
 		}
-		return out, nil
-	case map[interface{}]interface{}:
-		out := make(map[string]interface{}, len(m))
-		for k, val := range m {
-			out[fmt.Sprintf("%v", k)] = deepToStringMapValue(val)
+		cfg := e.Config
+		if cfg == nil {
+			cfg = map[string]interface{}{}
 		}
-		return out, nil
+		out[name] = map[string]interface{}{
+			"type":                   e.Type,
+			"config":                 cfg,
+			"secret_backend_timeout": e.SecretBackendTimeout,
+		}
 	}
-	return nil, fmt.Errorf("extra_secret_backends: expected map, got %T", v)
-}
 
-// deepToStringMapValue recursively normalises map values.
-func deepToStringMapValue(v interface{}) interface{} {
-	switch m := v.(type) {
-	case map[string]interface{}:
-		out := make(map[string]interface{}, len(m))
-		for k, val := range m {
-			out[k] = deepToStringMapValue(val)
-		}
-		return out
-	case map[interface{}]interface{}:
-		out := make(map[string]interface{}, len(m))
-		for k, val := range m {
-			out[fmt.Sprintf("%v", k)] = deepToStringMapValue(val)
-		}
-		return out
+	if len(out) == 0 {
+		return nil
 	}
-	return v
+	return out
 }
 
 // resolveSecrets merges all the secret values from origin into config. Secret values
