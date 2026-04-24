@@ -23,7 +23,6 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/metadata/resources"
-	resourcesdef "github.com/DataDog/datadog-agent/comp/metadata/resources/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/resources/resourcesimpl"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -35,7 +34,7 @@ type testDeps struct {
 
 	Log        log.Component
 	Config     config.Component
-	Resources  resourcesdef.Component
+	Resources  resources.Component
 	Serializer serializer.MetricSerializer
 	Hostname   hostnameinterface.Component
 }
