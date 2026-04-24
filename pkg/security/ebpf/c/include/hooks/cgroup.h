@@ -86,14 +86,16 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
     case CGROUP_DEFAULT: {
         // Retrieve the container ID from the cgroup path.
         struct kernfs_open_file *kern_f = (struct kernfs_open_file *)CTX_PARM1(ctx);
+        u64 kernfs_open_file_file_offset;
+        LOAD_CONSTANT("kernfs_open_file_file_offset", kernfs_open_file_file_offset);
         struct file *f;
-        bpf_probe_read(&f, sizeof(f), &kern_f->file);
+        bpf_probe_read(&f, sizeof(f), (void *)kern_f + kernfs_open_file_file_offset);
         struct dentry *dentry = get_file_dentry(f);
 
         // The last dentry in the cgroup path should be `cgroup.procs`, thus the container ID should be its parent.
-        bpf_probe_read(&container_d, sizeof(container_d), &dentry->d_parent);
+        container_d = get_dentry_parent(dentry);
 #ifdef DEBUG_CGROUP
-        bpf_probe_read(&container_qstr, sizeof(container_qstr), &container_d->d_name);
+        container_qstr = get_dentry_qstr(container_d);
         container_id = (void *)container_qstr.name;
 #endif
 
@@ -104,10 +106,12 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
     }
     case CGROUP_CENTOS_7: {
         void *cgroup = (void *)CTX_PARM1(ctx);
-        bpf_probe_read(&container_d, sizeof(container_d), cgroup + 72); // offsetof(struct cgroup, dentry)
+        u64 cgroup_dentry_offset;
+        LOAD_CONSTANT("cgroup_dentry_offset", cgroup_dentry_offset);
+        bpf_probe_read(&container_d, sizeof(container_d), cgroup + cgroup_dentry_offset);
 
 #ifdef DEBUG_CGROUP
-        bpf_probe_read(&container_qstr, sizeof(container_qstr), &container_d->d_name);
+        container_qstr = get_dentry_qstr(container_d);
         container_id = (void *)container_qstr.name;
 #endif
 
@@ -225,8 +229,7 @@ static __attribute__((always_inline)) int trace__cgroup_open(ctx_t *ctx) {
 
     cache_file(dentry, mount_id);
 
-    struct dentry *d_parent;
-    bpf_probe_read(&d_parent, sizeof(d_parent), &dentry->d_parent);
+    struct dentry *d_parent = get_dentry_parent(dentry);
     cache_file(d_parent, mount_id);
 
     return 0;

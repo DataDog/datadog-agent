@@ -26,6 +26,15 @@ static __attribute__((always_inline)) struct inode* get_dentry_inode(struct dent
     return inode;
 }
 
+static struct dentry *__attribute__((always_inline)) get_dentry_parent(struct dentry *dentry) {
+    u64 offset;
+    LOAD_CONSTANT("dentry_d_parent_offset", offset);
+
+    struct dentry *parent;
+    bpf_probe_read(&parent, sizeof(parent), (void *)dentry + offset);
+    return parent;
+}
+
 static dev_t __attribute__((always_inline)) get_sb_dev(struct super_block *sb) {
     u64 sb_dev_offset;
     LOAD_CONSTANT("sb_dev_offset", sb_dev_offset);
@@ -287,12 +296,17 @@ static unsigned long __attribute__((always_inline)) get_path_ino(struct path *pa
     return get_dentry_ino(dentry);
 }
 
-static void __attribute__((always_inline)) get_dentry_name(struct dentry *dentry, void *buffer, size_t n) {
+static struct qstr __attribute__((always_inline)) get_dentry_qstr(struct dentry *dentry) {
 	u64 dentry_d_name_offset;
 	LOAD_CONSTANT("dentry_d_name_offset", dentry_d_name_offset);
 
     struct qstr qstr;
     bpf_probe_read(&qstr, sizeof(qstr), (void *)dentry + dentry_d_name_offset);
+    return qstr;
+}
+
+static void __attribute__((always_inline)) get_dentry_name(struct dentry *dentry, void *buffer, size_t n) {
+    struct qstr qstr = get_dentry_qstr(dentry);
     bpf_probe_read_str(buffer, n, (void *)qstr.name);
 }
 

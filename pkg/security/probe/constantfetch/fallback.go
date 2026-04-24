@@ -45,6 +45,8 @@ func (f *FallbackConstantFetcher) String() string {
 func computeRawsTable() map[string]uint64 {
 	return map[string]uint64{
 		OffsetInodeIno:                            64,
+		OffsetInodeMode:                           0,
+		OffsetInodeUID:                            4,
 		OffsetInodeGid:                            8,
 		OffsetInodeNlink:                          72,
 		OffsetInodeMtime:                          104,
@@ -59,6 +61,8 @@ func computeRawsTable() map[string]uint64 {
 		OffsetNameSockCommonStructSKCFamily:       16,
 		OffsetNameDentryDSb:                       104,
 		OffsetNameNetDeviceStructName:             0,
+		OffsetNameVMAreaStructVMStart:             0,
+		OffsetNameVMAreaStructVMEnd:               8,
 		OffsetNameRenameStructOldDentry:           16,
 		OffsetNameRenameStructNewDentry:           40,
 		OffsetNameSbDev:                           16,
@@ -73,13 +77,19 @@ func computeRawsTable() map[string]uint64 {
 		OffsetNameSuperblockSType:                 40,
 		OffsetNameVfsmountMntRoot:                 0,
 		OffsetNameDentryDName:                     32,
+		OffsetNameDentryDParent:                   24,
 		OffsetNameVfsmountMntSb:                   8,
 		OffsetNameSockCommonStructSKCNum:          14,
 		SizeOfPipeBuffer:                          40,
 		OffsetNamePipeBufferStructFlags:           24,
+		OffsetNameCgroupDentry:                    72,
+		OffsetNameKernfsOpenFileFile:              24,
+		OffsetNameModuleName:                      24,
 		OffsetNameRtnlLinkOpsKind:                 16,
 		OffsetNameMntNamespaceNs:                  8,
 		OffsetNameNsCommonInum:                    16,
+		OffsetNameNsproxyMntNs:                    0,
+		OffsetNameNsproxyNetNs:                    32,
 	}
 }
 
