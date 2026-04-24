@@ -77,6 +77,28 @@ class TestFixSysconfigdata(unittest.TestCase):
         # -B/execroot/... is not bazel-out so left alone
         self.assertEqual(build_time_vars["LDSHARED"], "gcc -shared -Wl,-z,relro -B/execroot/_main/bin -L##PREFIX##/lib")
 
+    def test_tool_name_mapping(self):
+        """Test that the tool's basenames in the mapping are replaced by the expected target."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            fixture = textwrap.dedent("""\
+    build_time_vars = {
+        "CC": "/execroot/_main/external/toolchains_llvm++llvm+llvm_toolchain/bin/cc_wrapper.sh",
+        "AR": "/execroot/_main/external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/llvm-ar",
+        "LDSHARED": "/execroot/_main/external/toolchains_llvm++llvm+llvm_toolchain/bin/cc_wrapper.sh -shared -Wl,-z,relro -B/execroot/_main/bin -L/bazel-out/k8-opt/lib",
+        "CONFIGURED_CC": "--cc=/execroot/_main/external/toolchains_llvm++llvm+llvm_toolchain/bin/cc_wrapper.sh -O2",
+    }
+""")
+            path = os.path.join(tmpdir, "_sysconfigdata__test.py")
+            with open(path, "w") as f:
+                f.write(fixture)
+            fix_sysconfigdata.fix_file(path, install_prefix=_PREFIX, sandbox_prefix=_SANDBOX_PREFIX)
+            build_time_vars = _load_fixed(path)
+
+        self.assertEqual(build_time_vars["CC"], "clang")
+        self.assertEqual(build_time_vars["AR"], "ar")
+        self.assertTrue(build_time_vars["LDSHARED"].startswith("clang "))
+        self.assertEqual(build_time_vars["CONFIGURED_CC"], "--cc=clang -O2")
+
 
 if __name__ == "__main__":
     unittest.main()

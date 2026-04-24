@@ -178,6 +178,13 @@ configure_make(
         "@@//:macos_arm64": ["--with-universal-archs=universal2"],
         "@@//:macos_x86_64": ["--with-universal-archs=intel"],
         "//conditions:default": [],
+    }) + select({
+        "@platforms//os:macos": [
+            # Override ARFLAGS: the hermetic toolchain injects -static (invalid for llvm-ar).
+            # Passing as a configure arg takes precedence over the inline env.
+            "ARFLAGS=rcs",
+        ],
+        "//conditions:default": [],
     }),
     copts = [
         "-O2",
@@ -204,8 +211,10 @@ configure_make(
         for dep, lib in python_deps.items()
     } | select({
         "@platforms//os:macos": {
-            # https://github.com/bazelbuild/bazel/issues/5127
-            "AR": "/usr/bin/ar",
+            # `ar` defaults to `libtool` on darwin toolchains, which doesn't support the same flags
+            # Setting `AR` allows us to use llvm-ar (coming from the hermetic toolchain) instead
+            # See also: https://github.com/bazelbuild/bazel/issues/5127
+            "AR": "$(execpath @llvm_toolchain_llvm//:ar)",
         },
         "//conditions:default": {},
     }),
@@ -213,7 +222,12 @@ configure_make(
         ":redacted_compat.h",
         "@@//deps/cpython:fix_sysconfigdata.py",
         "@python_3_12//:python3",
-    ],
+    ] + select({
+        "@platforms//os:macos": [
+            "@llvm_toolchain_llvm//:ar",
+        ],
+        "//conditions:default": [],
+    }),
     lib_source = ":all_srcs",
     out_binaries = UNIX_BINS,
     out_data_dirs = [
