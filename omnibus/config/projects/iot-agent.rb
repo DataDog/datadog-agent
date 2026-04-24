@@ -179,6 +179,7 @@ package :msi do
 
   # For a consistent package management, please NEVER change this code
   arch = "x64"
+  # NOTE: We no longer build for 32 bit windows, so we always take the x64 path.
   if windows_arch_i386?
     full_agent_upgrade_code = '2497f989-f07e-4e8c-9e05-841ad3d4405f'
     upgrade_code '6f7ac237-334c-44c8-9fec-ec8f3459db37'

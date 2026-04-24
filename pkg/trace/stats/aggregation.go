@@ -23,8 +23,6 @@ var ddRegistry = semantics.DefaultRegistry()
 
 const (
 	tagSynthetics    = "synthetics"
-	tagSpanKind      = "span.kind"
-	tagBaseService   = "_dd.base_service"
 	tagServiceSource = "_dd.svc_src"
 )
 
@@ -36,20 +34,20 @@ type Aggregation struct {
 
 // BucketsAggregationKey specifies the key by which a bucket is aggregated.
 type BucketsAggregationKey struct {
-	Service                    string
-	Name                       string
-	Resource                   string
-	Type                       string
-	SpanKind                   string
-	StatusCode                 uint32
-	Synthetics                 bool
-	PeerTagsHash               uint64
-	SpanDerivedPrimaryTagsHash uint64
-	ServiceSource              string
-	IsTraceRoot                pb.Trilean
-	GRPCStatusCode             string
-	HTTPMethod                 string
-	HTTPEndpoint               string
+	Service                  string
+	Name                     string
+	Resource                 string
+	Type                     string
+	SpanKind                 string
+	StatusCode               uint32
+	Synthetics               bool
+	PeerTagsHash             uint64
+	AdditionalMetricTagsHash uint64
+	ServiceSource            string
+	IsTraceRoot              pb.Trilean
+	GRPCStatusCode           string
+	HTTPMethod               string
+	HTTPEndpoint             string
 }
 
 // PayloadAggregationKey specifies the key by which a payload is aggregated.
@@ -110,20 +108,20 @@ func NewAggregationFromSpan(s *StatSpan, origin string, aggKey PayloadAggregatio
 	agg := Aggregation{
 		PayloadAggregationKey: aggKey,
 		BucketsAggregationKey: BucketsAggregationKey{
-			Resource:                   s.resource,
-			Service:                    s.service,
-			Name:                       s.name,
-			SpanKind:                   s.spanKind,
-			Type:                       s.typ,
-			StatusCode:                 s.statusCode,
-			ServiceSource:              s.serviceSource,
-			Synthetics:                 synthetics,
-			IsTraceRoot:                isTraceRoot,
-			GRPCStatusCode:             s.grpcStatusCode,
-			PeerTagsHash:               tagsFnvHash(s.matchingPeerTags),
-			SpanDerivedPrimaryTagsHash: tagsFnvHash(s.matchingSpanDerivedPrimaryTags),
-			HTTPMethod:                 s.httpMethod,
-			HTTPEndpoint:               s.httpEndpoint,
+			Resource:                 s.resource,
+			Service:                  s.service,
+			Name:                     s.name,
+			SpanKind:                 s.spanKind,
+			Type:                     s.typ,
+			StatusCode:               s.statusCode,
+			ServiceSource:            s.serviceSource,
+			Synthetics:               synthetics,
+			IsTraceRoot:              isTraceRoot,
+			GRPCStatusCode:           s.grpcStatusCode,
+			PeerTagsHash:             tagsFnvHash(s.matchingPeerTags),
+			AdditionalMetricTagsHash: tagsFnvHash(s.matchingAdditionalMetricTags),
+			HTTPMethod:               s.httpMethod,
+			HTTPEndpoint:             s.httpEndpoint,
 		},
 	}
 	return agg
@@ -157,19 +155,19 @@ func tagsFnvHash(tags []string) uint64 {
 func NewAggregationFromGroup(g *pb.ClientGroupedStats) Aggregation {
 	return Aggregation{
 		BucketsAggregationKey: BucketsAggregationKey{
-			Resource:                   g.Resource,
-			Service:                    g.Service,
-			Name:                       g.Name,
-			SpanKind:                   g.SpanKind,
-			StatusCode:                 g.HTTPStatusCode,
-			Synthetics:                 g.Synthetics,
-			PeerTagsHash:               tagsFnvHash(g.PeerTags),
-			SpanDerivedPrimaryTagsHash: tagsFnvHash(g.SpanDerivedPrimaryTags),
-			ServiceSource:              g.ServiceSource,
-			IsTraceRoot:                g.IsTraceRoot,
-			GRPCStatusCode:             g.GRPCStatusCode,
-			HTTPMethod:                 g.HTTPMethod,
-			HTTPEndpoint:               g.HTTPEndpoint,
+			Resource:                 g.Resource,
+			Service:                  g.Service,
+			Name:                     g.Name,
+			SpanKind:                 g.SpanKind,
+			StatusCode:               g.HTTPStatusCode,
+			Synthetics:               g.Synthetics,
+			PeerTagsHash:             tagsFnvHash(g.PeerTags),
+			AdditionalMetricTagsHash: tagsFnvHash(g.AdditionalMetricTags),
+			ServiceSource:            g.ServiceSource,
+			IsTraceRoot:              g.IsTraceRoot,
+			GRPCStatusCode:           g.GRPCStatusCode,
+			HTTPMethod:               g.HTTPMethod,
+			HTTPEndpoint:             g.HTTPEndpoint,
 		},
 	}
 }
@@ -195,65 +193,37 @@ var grpcStatusMap = map[string]string{
 	"DATALOSS":           "15",
 }
 
-func getGRPCStatusCode(meta map[string]string, metrics map[string]float64) string {
-	// List of possible keys to check in order
-	statusCodeFields := []string{"rpc.grpc.status_code", "grpc.code", "rpc.grpc.status.code", "grpc.status.code"}
-
-	for _, key := range statusCodeFields {
-		if strC, exists := meta[key]; exists && strC != "" {
-			c, err := strconv.ParseUint(strC, 10, 32)
-			if err == nil {
-				return strconv.FormatUint(c, 10)
-			}
-			strC = strings.TrimPrefix(strC, "StatusCode.") // Some tracers send status code values prefixed by "StatusCode."
-			strCUpper := strings.ToUpper(strC)
-			if statusCode, exists := grpcStatusMap[strCUpper]; exists {
-				return statusCode
-			}
-
-			// If not integer or canceled or multi-word, check for valid gRPC status string
-			if codeNum, found := code.Code_value[strCUpper]; found {
-				return strconv.Itoa(int(codeNum))
-			}
-
-			return ""
-		}
+// parseGRPCStatusString converts a raw gRPC status string (numeric, enum name, or
+// "StatusCode."-prefixed) to its canonical numeric string form, or "" if unrecognized.
+func parseGRPCStatusString(strC string) string {
+	if c, err := strconv.ParseUint(strC, 10, 32); err == nil {
+		return strconv.FormatUint(c, 10)
 	}
-
-	for _, key := range statusCodeFields { // Check if gRPC status code is stored in metrics
-		if code, ok := metrics[key]; ok {
-			return strconv.FormatUint(uint64(code), 10)
-		}
+	strC = strings.TrimPrefix(strC, "StatusCode.") // Some tracers send status code values prefixed by "StatusCode."
+	strCUpper := strings.ToUpper(strC)
+	if statusCode, exists := grpcStatusMap[strCUpper]; exists {
+		return statusCode
 	}
-
+	if codeNum, found := code.Code_value[strCUpper]; found {
+		return strconv.Itoa(int(codeNum))
+	}
 	return ""
 }
 
-func getGRPCStatusCodeV1(s *idx.InternalSpan) string {
-	// List of possible keys to check in order
-	statusCodeFields := []string{"rpc.grpc.status_code", "grpc.code", "rpc.grpc.status.code", "grpc.status.code"}
-
-	for _, key := range statusCodeFields {
-		// TODO: could optimize this to use the Attribute directly to avoid the string conversion sometimes
-		if strC, exists := s.GetAttributeAsString(key); exists && strC != "" {
-			c, err := strconv.ParseUint(strC, 10, 32)
-			if err == nil {
-				return strconv.FormatUint(c, 10)
-			}
-			strC = strings.TrimPrefix(strC, "StatusCode.") // Some tracers send status code values prefixed by "StatusCode."
-			strCUpper := strings.ToUpper(strC)
-			if statusCode, exists := grpcStatusMap[strCUpper]; exists {
-				return statusCode
-			}
-
-			// If not integer or canceled or multi-word, check for valid gRPC status string
-			if codeNum, found := code.Code_value[strCUpper]; found {
-				return strconv.Itoa(int(codeNum))
-			}
-
-			return ""
-		}
+func getGRPCStatusCode(meta map[string]string, metrics map[string]float64) string {
+	a := semantics.NewDDSpanAccessor(meta, metrics)
+	strC := semantics.LookupString(ddRegistry, a, semantics.ConceptGRPCStatusCode)
+	if strC == "" {
+		return ""
 	}
+	return parseGRPCStatusString(strC)
+}
 
-	return ""
+func getGRPCStatusCodeV1(s *idx.InternalSpan) string {
+	a := semantics.NewDDSpanAccessorV1(s)
+	strC := semantics.LookupString(ddRegistry, a, semantics.ConceptGRPCStatusCode)
+	if strC == "" {
+		return ""
+	}
+	return parseGRPCStatusString(strC)
 }

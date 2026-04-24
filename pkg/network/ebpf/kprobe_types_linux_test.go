@@ -36,10 +36,6 @@ func TestCgoAlignment_PidTs(t *testing.T) {
 	ebpftest.TestCgoAlignment[PidTs](t)
 }
 
-func TestCgoAlignment_Batch(t *testing.T) {
-	ebpftest.TestCgoAlignment[Batch](t)
-}
-
 func TestCgoAlignment_Telemetry(t *testing.T) {
 	ebpftest.TestCgoAlignment[Telemetry](t)
 }
@@ -74,10 +70,6 @@ func TestCgoAlignment_TLSTags(t *testing.T) {
 
 func TestCgoAlignment_TLSTagsWrapper(t *testing.T) {
 	ebpftest.TestCgoAlignment[TLSTagsWrapper](t)
-}
-
-func TestCgoAlignment_NetTimeMs(t *testing.T) {
-	ebpftest.TestCgoAlignment[NetTimeMs](t)
 }
 
 func TestCgoAlignment_CertItem(t *testing.T) {

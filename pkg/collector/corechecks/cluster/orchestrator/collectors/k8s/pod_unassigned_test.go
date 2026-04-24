@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build kubeapiserver && orchestrator && test && test
+//go:build kubeapiserver && orchestrator && test
 
 package k8s
 
@@ -24,7 +24,6 @@ import (
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	mockconfig "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -65,8 +64,6 @@ func TestUnassignedPodCollector(t *testing.T) {
 		},
 	}
 
-	metadataAsTags := utils.GetMetadataAsTags(mockconfig.New(t))
-
 	// Create dependencies
 	mockCfg := mockconfig.New(t)
 	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
@@ -75,7 +72,7 @@ func TestUnassignedPodCollector(t *testing.T) {
 	))
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 
-	collector := NewUnassignedPodCollector(mockCfg, mockStore, mockTagger, metadataAsTags)
+	collector := NewUnassignedPodCollector(mockCfg, mockStore, mockTagger)
 
 	config := CollectorTestConfig{
 		Resources:                  []runtime.Object{pod},

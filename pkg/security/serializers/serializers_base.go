@@ -30,6 +30,8 @@ import (
 type ContainerContextSerializer struct {
 	// Container ID
 	ID string `json:"id,omitempty"`
+	// Source of the container entry (event or procfs)
+	Source string `json:"source,omitempty"`
 	// Creation time of the container
 	CreatedAt *utils.EasyjsonTime `json:"created_at,omitempty"`
 	// Variable values
@@ -43,6 +45,10 @@ type CGroupContextSerializer struct {
 	ID string `json:"id,omitempty"`
 	// CGroup manager
 	Manager string `json:"manager,omitempty"`
+	// Source of the cgroup entry (event or procfs)
+	Source string `json:"source,omitempty"`
+	// Timestamp of the creation of the cgroup
+	CreatedAt *utils.EasyjsonTime `json:"created_at,omitempty"`
 	// Variable values
 	Variables Variables `json:"variables,omitempty"`
 }
@@ -442,7 +448,7 @@ func newIMDSEventSerializer(e *model.IMDSEvent) *IMDSEventSerializer {
 // nolint: deadcode, unused
 func newIPPortSerializer(c *model.IPPortContext) IPPortSerializer {
 	return IPPortSerializer{
-		IP:   c.IPNet.IP.String(),
+		IP:   utils.GetIPStringFromIPNet(c.IPNet),
 		Port: c.Port,
 	}
 }
@@ -450,7 +456,7 @@ func newIPPortSerializer(c *model.IPPortContext) IPPortSerializer {
 // nolint: deadcode, unused
 func newIPPortFamilySerializer(c *model.IPPortContext, family string) IPPortFamilySerializer {
 	return IPPortFamilySerializer{
-		IP:     c.IPNet.IP.String(),
+		IP:     utils.GetIPStringFromIPNet(c.IPNet),
 		Port:   c.Port,
 		Family: family,
 	}

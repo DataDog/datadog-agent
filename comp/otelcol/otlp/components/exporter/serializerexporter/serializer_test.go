@@ -102,6 +102,10 @@ func TestProxyConfiguration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Clear all proxy env vars to avoid inheriting from the test environment
+			for _, key := range []string{"HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy"} {
+				t.Setenv(key, "")
+			}
 			// Set environment variables for the test
 			for key, value := range tt.envVars {
 				t.Setenv(key, value)

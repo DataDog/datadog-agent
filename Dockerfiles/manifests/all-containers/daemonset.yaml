@@ -32,7 +32,7 @@ spec:
       hostPID: true
       containers:
         - name: agent
-          image: "gcr.io/datadoghq/agent:7.73.0"
+          image: "gcr.io/datadoghq/agent:7.76.1"
           imagePullPolicy: IfNotPresent
           command: ["agent", "run"]
           securityContext:
@@ -76,6 +76,8 @@ spec:
               value: "true"
             - name: DD_STRIP_PROCESS_ARGS
               value: "false"
+            - name: DD_PROCESS_CONFIG_RUN_IN_CORE_AGENT_ENABLED
+              value: "true"
             - name: DD_LOG_LEVEL
               value: "INFO"
             - name: DD_DOGSTATSD_PORT
@@ -150,6 +152,8 @@ spec:
               value: "true"
             - name: DD_SYSTEM_PROBE_NETWORK_ENABLED
               value: "true"
+            - name: DD_KUBERNETES_KUBE_SERVICE_IGNORE_READINESS
+              value: "false"
             - name: DD_ORCHESTRATOR_EXPLORER_KUBELET_CONFIG_CHECK_ENABLED
               value: "true"
           volumeMounts:
@@ -244,9 +248,9 @@ spec:
             successThreshold: 1
             timeoutSeconds: 5
         - name: trace-agent
-          image: "gcr.io/datadoghq/agent:7.73.0"
+          image: "gcr.io/datadoghq/agent:7.76.1"
           imagePullPolicy: IfNotPresent
-          command: ["trace-agent", "-config=/etc/datadog-agent/datadog.yaml"]
+          command: ["trace-loader", "/etc/datadog-agent/datadog.yaml", "trace-agent", "-config=/etc/datadog-agent/datadog.yaml"]
           securityContext:
             readOnlyRootFilesystem: true
           resources: {}
@@ -352,7 +356,7 @@ spec:
               port: 8126
             timeoutSeconds: 5
         - name: process-agent
-          image: "gcr.io/datadoghq/agent:7.73.0"
+          image: "gcr.io/datadoghq/agent:7.76.1"
           imagePullPolicy: IfNotPresent
           command: ["process-agent", "--cfgpath=/etc/datadog-agent/datadog.yaml"]
           securityContext:
@@ -401,6 +405,8 @@ spec:
               value: "true"
             - name: DD_STRIP_PROCESS_ARGS
               value: "false"
+            - name: DD_PROCESS_CONFIG_RUN_IN_CORE_AGENT_ENABLED
+              value: "true"
             - name: DD_LOG_LEVEL
               value: "INFO"
             - name: DD_SYSTEM_PROBE_ENABLED
@@ -453,7 +459,7 @@ spec:
               subPath: system-probe.yaml
               readOnly: true
         - name: system-probe
-          image: "gcr.io/datadoghq/agent:7.73.0"
+          image: "gcr.io/datadoghq/agent:7.76.1"
           imagePullPolicy: IfNotPresent
           securityContext:
             capabilities:
@@ -467,6 +473,7 @@ spec:
                 - IPC_LOCK
                 - CHOWN
                 - DAC_READ_SEARCH
+                - KILL
             privileged: false
             readOnlyRootFilesystem: true
             seccompProfile:
@@ -563,7 +570,7 @@ spec:
               mountPropagation: None
               readOnly: true
         - name: security-agent
-          image: "gcr.io/datadoghq/agent:7.73.0"
+          image: "gcr.io/datadoghq/agent:7.76.1"
           imagePullPolicy: IfNotPresent
           securityContext:
             capabilities:
@@ -677,7 +684,7 @@ spec:
               readOnly: true
       initContainers:
         - name: init-volume
-          image: "gcr.io/datadoghq/agent:7.73.0"
+          image: "gcr.io/datadoghq/agent:7.76.1"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:
@@ -688,7 +695,7 @@ spec:
               readOnly: false # Need RW for config path
           resources: {}
         - name: init-config
-          image: "gcr.io/datadoghq/agent:7.73.0"
+          image: "gcr.io/datadoghq/agent:7.76.1"
           imagePullPolicy: IfNotPresent
           command:
             - bash
@@ -742,7 +749,7 @@ spec:
               value: "false"
           resources: {}
         - name: seccomp-setup
-          image: "gcr.io/datadoghq/agent:7.73.0"
+          image: "gcr.io/datadoghq/agent:7.76.1"
           imagePullPolicy: IfNotPresent
           command:
             - cp

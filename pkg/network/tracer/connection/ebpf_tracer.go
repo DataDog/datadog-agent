@@ -21,11 +21,12 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/ebpf-manager/tracefs"
 	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/btf"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sys/unix"
 
-	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/perf"
@@ -38,7 +39,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	ssluprobes "github.com/DataDog/datadog-agent/pkg/network/tracer/connection/ssl-uprobes"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
@@ -52,10 +52,8 @@ var tlsTagsMapTTL = 3 * time.Minute.Nanoseconds()
 
 // EbpfTracerTelemetryData holds telemetry from the EBPF tracer
 type EbpfTracerTelemetryData struct {
-	connections       telemetry.Gauge
+	connections       telemetryComponent.Gauge
 	tcpSentMiscounts  *prometheus.Desc
-	unbatchedTCPClose *prometheus.Desc
-	unbatchedUDPClose *prometheus.Desc
 	udpSendsProcessed *prometheus.Desc
 	udpSendsMissed    *prometheus.Desc
 	udpDroppedConns   *prometheus.Desc
@@ -67,19 +65,17 @@ type EbpfTracerTelemetryData struct {
 	tcpCloseTargetFailures      *prometheus.Desc
 	tcpDoneConnectionFlush      *prometheus.Desc
 	tcpCloseConnectionFlush     *prometheus.Desc
-	tcpFailedConnections        telemetry.Counter
+	tcpFailedConnections        telemetryComponent.Counter
 	tcpSynRetransmit            *prometheus.Desc
-	ongoingConnectPidCleaned    telemetry.Counter
-	PidCollisions               *telemetry.StatCounterWrapper
-	iterationDups               telemetry.Counter
-	iterationAborts             telemetry.Counter
-	sslCertMissed               telemetry.Counter
+	ongoingConnectPidCleaned    telemetryComponent.Counter
+	PidCollisions               *telemetryComponent.StatCounterWrapper
+	iterationDups               telemetryComponent.Counter
+	iterationAborts             telemetryComponent.Counter
+	sslCertMissed               telemetryComponent.Counter
 
 	mu sync.Mutex
 
 	lastTCPSentMiscounts  int64
-	lastUnbatchedTCPClose int64
-	lastUnbatchedUDPClose int64
 	lastUDPSendsProcessed int64
 	lastUDPSendsMissed    int64
 	lastUDPDroppedConns   int64
@@ -96,10 +92,8 @@ type EbpfTracerTelemetryData struct {
 
 // EbpfTracerTelemetry holds telemetry from the EBPF tracer
 var EbpfTracerTelemetry = EbpfTracerTelemetryData{
-	telemetry.NewGauge(connTracerModuleName, "connections", []string{"ip_proto", "family"}, "Gauge measuring the number of active connections in the EBPF map"),
+	telemetryimpl.GetCompatComponent().NewGauge(connTracerModuleName, "connections", []string{"ip_proto", "family"}, "Gauge measuring the number of active connections in the EBPF map"),
 	prometheus.NewDesc(connTracerModuleName+"__tcp_sent_miscounts", "Counter measuring the number of miscounted tcp sends in the EBPF map", nil, nil),
-	prometheus.NewDesc(connTracerModuleName+"__unbatched_tcp_close", "Counter measuring the number of missed TCP close events in the EBPF map", nil, nil),
-	prometheus.NewDesc(connTracerModuleName+"__unbatched_udp_close", "Counter measuring the number of missed UDP close events in the EBPF map", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__udp_sends_processed", "Counter measuring the number of processed UDP sends in EBPF", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__udp_sends_missed", "Counter measuring failures to process UDP sends in EBPF", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__udp_dropped_conns", "Counter measuring the number of dropped UDP connections in the EBPF map", nil, nil),
@@ -110,16 +104,14 @@ var EbpfTracerTelemetry = EbpfTracerTelemetryData{
 	prometheus.NewDesc(connTracerModuleName+"__tcp_close_target_failures", "Counter measuring the number of failed TCP connections in tcp_close", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__tcp_done_connection_flush", "Counter measuring the number of connection flushes performed in tcp_done", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__tcp_close_connection_flush", "Counter measuring the number of connection flushes performed in tcp_close", nil, nil),
-	telemetry.NewCounter(connTracerModuleName, "tcp_failed_connections", []string{"errno"}, "Gauge measuring the number of unsupported failed TCP connections"),
+	telemetryimpl.GetCompatComponent().NewCounter(connTracerModuleName, "tcp_failed_connections", []string{"errno"}, "Gauge measuring the number of unsupported failed TCP connections"),
 	prometheus.NewDesc(connTracerModuleName+"__tcp_syn_retransmit", "Counter measuring the number of tcp retransmits of syn packets", nil, nil),
-	telemetry.NewCounter(connTracerModuleName, "ongoing_connect_pid_cleaned", []string{}, "Counter measuring the number of tcp_ongoing_connect_pid entries cleaned in userspace"),
-	telemetry.NewStatCounterWrapper(connTracerModuleName, "pid_collisions", []string{}, "Counter measuring number of process collisions"),
-	telemetry.NewCounter(connTracerModuleName, "iteration_dups", []string{}, "Counter measuring the number of connections iterated more than once"),
-	telemetry.NewCounter(connTracerModuleName, "iteration_aborts", []string{}, "Counter measuring how many times ebpf iteration of connection map was aborted"),
-	telemetry.NewCounter(connTracerModuleName, "__ssl_cert_missed", []string{}, "Counter measuring the number of times the agent tried to fetch a cert that was missing from the cert info map (probably because it was full)"),
+	telemetryimpl.GetCompatComponent().NewCounter(connTracerModuleName, "ongoing_connect_pid_cleaned", []string{}, "Counter measuring the number of tcp_ongoing_connect_pid entries cleaned in userspace"),
+	telemetryComponent.NewStatCounterWrapper(telemetryimpl.GetCompatComponent(), connTracerModuleName, "pid_collisions", []string{}, "Counter measuring number of process collisions"),
+	telemetryimpl.GetCompatComponent().NewCounter(connTracerModuleName, "iteration_dups", []string{}, "Counter measuring the number of connections iterated more than once"),
+	telemetryimpl.GetCompatComponent().NewCounter(connTracerModuleName, "iteration_aborts", []string{}, "Counter measuring how many times ebpf iteration of connection map was aborted"),
+	telemetryimpl.GetCompatComponent().NewCounter(connTracerModuleName, "__ssl_cert_missed", []string{}, "Counter measuring the number of times the agent tried to fetch a cert that was missing from the cert info map (probably because it was full)"),
 	sync.Mutex{},
-	0,
-	0,
 	0,
 	0,
 	0,
@@ -222,41 +214,7 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 		manager.ConstantEditor{Name: "ephemeral_range_begin", Value: uint64(begin)},
 		manager.ConstantEditor{Name: "ephemeral_range_end", Value: uint64(end)})
 
-	// Pass tcp_sock field offsets for fields that can't use BPF_CORE_READ_INTO
-	// on older kernels (see comment in handle_congestion_stats()).
-	if spec, err := ddebpf.GetKernelSpec(); err == nil {
-		mgrOptions.ConstantEditors = append(mgrOptions.ConstantEditors,
-			manager.ConstantEditor{Name: "reord_seen_offset", Value: tcpSockFieldOffset(spec, "reord_seen")},
-			manager.ConstantEditor{Name: "rcv_ooopack_offset", Value: tcpSockFieldOffset(spec, "rcv_ooopack")},
-			manager.ConstantEditor{Name: "delivered_ce_offset", Value: tcpSockFieldOffset(spec, "delivered_ce")},
-			manager.ConstantEditor{Name: "ecn_flags_offset", Value: tcpSockFieldOffset(spec, "ecn_flags")})
-	}
-
 	connPool := ddsync.NewDefaultTypedPool[network.ConnectionStats]()
-	var extractor *batchExtractor
-
-	util.AddBoolConst(&mgrOptions, "batching_enabled", config.CustomBatchingEnabled)
-	// Set batch flush threshold: 4 on ringbuf (no stack limit), 3 on perf buffer
-	// (to fit within the 512-byte BPF stack when doing the stack copy).
-	batchFlushSize := uint64(4)
-	if !config.RingBufferSupportedNPM() {
-		batchFlushSize = 3
-	}
-	mgrOptions.ConstantEditors = append(mgrOptions.ConstantEditors, manager.ConstantEditor{
-		Name:  "conn_closed_batch_size",
-		Value: batchFlushSize,
-	})
-	if config.CustomBatchingEnabled {
-		numCPUs, err := ebpf.PossibleCPU()
-		if err != nil {
-			return nil, fmt.Errorf("could not determine number of CPUs: %w", err)
-		}
-		extractor = newBatchExtractor(numCPUs)
-		mgrOptions.MapSpecEditors[probes.ConnCloseBatchMap] = manager.MapSpecEditor{
-			MaxEntries: uint32(numCPUs),
-			EditorFlag: manager.EditMaxEntries,
-		}
-	}
 
 	tr := &ebpfTracer{
 		removeTuple:             &netebpf.ConnTuple{},
@@ -264,7 +222,7 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 		lastTCPFailureTelemetry: make(map[int32]uint64),
 	}
 
-	connCloseEventHandler, err := initClosedConnEventHandler(config, tr.getSSLCertInfo, tr.closedPerfCallback, connPool, extractor)
+	connCloseEventHandler, err := initClosedConnEventHandler(config, tr.getSSLCertInfo, tr.closedPerfCallback, connPool)
 	if err != nil {
 		return nil, err
 	}
@@ -291,14 +249,7 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 	m.DumpHandler = dumpMapsHandler
 	ddebpf.AddNameMappings(m.Manager, "npm_tracer")
 
-	var flusher perf.Flusher = connCloseEventHandler
-	if config.CustomBatchingEnabled {
-		flusher, err = newConnBatchManager(m.Manager, extractor, connPool, tr.closedPerfCallback)
-		if err != nil {
-			return nil, err
-		}
-	}
-	tr.closeConsumer = newTCPCloseConsumer(flusher, connPool)
+	tr.closeConsumer = newTCPCloseConsumer(connCloseEventHandler, connPool)
 
 	if tracerType == TracerTypeKProbePrebuilt {
 		// Failed connections are not supported on prebuilt
@@ -370,10 +321,10 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 
 type lookupCertCb = func(certID uint32, refreshTimestamp bool) unique.Handle[network.CertInfo]
 
-func initClosedConnEventHandler(config *config.Config, lookupCert lookupCertCb, closedCallback func(*network.ConnectionStats), pool ddsync.Pool[network.ConnectionStats], extractor *batchExtractor) (*perf.EventHandler, error) {
+func initClosedConnEventHandler(config *config.Config, lookupCert lookupCertCb, closedCallback func(*network.ConnectionStats), pool ddsync.Pool[network.ConnectionStats]) (*perf.EventHandler, error) {
 	connHasher := newCookieHasher()
 
-	singleConnHandler := func(buf []byte) {
+	handler := func(buf []byte) {
 		if len(buf) == 0 {
 			closedCallback(nil)
 			return
@@ -394,36 +345,8 @@ func initClosedConnEventHandler(config *config.Config, lookupCert lookupCertCb, 
 		closedCallback(c)
 	}
 
-	handler := singleConnHandler
 	perfMode := perf.WakeupEvents(config.ClosedBufferWakeupCount)
-	// multiply by number of connections with in-buffer batching to have same effective size as with custom batching
 	chanSize := config.ClosedChannelSize * config.ClosedBufferWakeupCount
-	if config.CustomBatchingEnabled {
-		perfMode = perf.Watermark(1)
-		chanSize = config.ClosedChannelSize
-		handler = func(buf []byte) {
-			l := len(buf)
-			switch {
-			case l >= netebpf.SizeofBatch3:
-				// Accept both 3-connection batches (perf buffer, older kernels)
-				// and 4-connection batches (ring buffer, modern kernels).
-				b := netebpf.ToBatch(buf)
-				for rc := extractor.NextConnection(b); rc != nil; rc = extractor.NextConnection(b) {
-					c := pool.Get()
-					c.FromConn(rc)
-					connHasher.Hash(c)
-
-					closedCallback(c)
-				}
-			case l >= netebpf.SizeofConn:
-				singleConnHandler(buf)
-			case l == 0:
-				singleConnHandler(nil)
-			default:
-				log.Debugf("unexpected %q binary data of size %d bytes", probes.ConnCloseEventMap, l)
-			}
-		}
-	}
 
 	perfBufferSize := util.ComputeDefaultClosedConnPerfBufferSize()
 	mode := perf.UsePerfBuffers(perfBufferSize, chanSize, perfMode)
@@ -447,49 +370,6 @@ func boolConst(name string, value bool) manager.ConstantEditor {
 	}
 
 	return c
-}
-
-// tcpSockFieldOffset returns the byte offset of a field within the kernel's
-// tcp_sock struct by looking it up in BTF. Returns 0 if BTF is unavailable or
-// the field doesn't exist (e.g. on kernels older than when the field was added).
-// This is used to pass offsets as LOAD_CONSTANT values to CO-RE BPF programs
-// for fields that cannot use BPF_CORE_READ_INTO because poisoned CO-RE
-// relocations are not pruned by the BPF verifier on older kernels (e.g. 4.15).
-func tcpSockFieldOffset(spec *btf.Spec, fieldName string) uint64 {
-	var tcpSock *btf.Struct
-	if err := spec.TypeByName("tcp_sock", &tcpSock); err != nil {
-		return 0
-	}
-	return findFieldOffset(tcpSock, fieldName)
-}
-
-// findFieldOffset searches for a field by name in a BTF struct, recursing into
-// anonymous struct/union members. This handles kernels (6.8+) where tcp_sock
-// fields may be reorganized into __cacheline_group anonymous structs.
-func findFieldOffset(s *btf.Struct, fieldName string) uint64 {
-	return findFieldOffsetInMembers(s.Members, fieldName)
-}
-
-func findFieldOffsetInMembers(members []btf.Member, fieldName string) uint64 {
-	for _, m := range members {
-		if m.Name == fieldName {
-			return uint64(m.Offset.Bytes())
-		}
-		// Recurse into anonymous structs/unions (Name == "")
-		if m.Name == "" {
-			var innerMembers []btf.Member
-			switch inner := m.Type.(type) {
-			case *btf.Struct:
-				innerMembers = inner.Members
-			case *btf.Union:
-				innerMembers = inner.Members
-			}
-			if off := findFieldOffsetInMembers(innerMembers, fieldName); off > 0 {
-				return uint64(m.Offset.Bytes()) + off
-			}
-		}
-	}
-	return 0
 }
 
 func (t *ebpfTracer) closedPerfCallback(c *network.ConnectionStats) {
@@ -755,8 +635,6 @@ func (t *ebpfTracer) getTCPFailureTelemetry() map[int32]uint64 {
 // Describe returns all descriptions of the collector
 func (t *ebpfTracer) Describe(ch chan<- *prometheus.Desc) {
 	ch <- EbpfTracerTelemetry.tcpSentMiscounts
-	ch <- EbpfTracerTelemetry.unbatchedTCPClose
-	ch <- EbpfTracerTelemetry.unbatchedUDPClose
 	ch <- EbpfTracerTelemetry.udpSendsProcessed
 	ch <- EbpfTracerTelemetry.udpSendsMissed
 	ch <- EbpfTracerTelemetry.udpDroppedConns
@@ -782,14 +660,6 @@ func (t *ebpfTracer) Collect(ch chan<- prometheus.Metric) {
 	delta := int64(ebpfTelemetry.Tcp_sent_miscounts) - EbpfTracerTelemetry.lastTCPSentMiscounts
 	EbpfTracerTelemetry.lastTCPSentMiscounts = int64(ebpfTelemetry.Tcp_sent_miscounts)
 	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpSentMiscounts, prometheus.CounterValue, float64(delta))
-
-	delta = int64(ebpfTelemetry.Unbatched_tcp_close) - EbpfTracerTelemetry.lastUnbatchedTCPClose
-	EbpfTracerTelemetry.lastUnbatchedTCPClose = int64(ebpfTelemetry.Unbatched_tcp_close)
-	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.unbatchedTCPClose, prometheus.CounterValue, float64(delta))
-
-	delta = int64(ebpfTelemetry.Unbatched_udp_close) - EbpfTracerTelemetry.lastUnbatchedUDPClose
-	EbpfTracerTelemetry.lastUnbatchedUDPClose = int64(ebpfTelemetry.Unbatched_udp_close)
-	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.unbatchedUDPClose, prometheus.CounterValue, float64(delta))
 
 	delta = int64(ebpfTelemetry.Udp_sends_processed) - EbpfTracerTelemetry.lastUDPSendsProcessed
 	EbpfTracerTelemetry.lastUDPSendsProcessed = int64(ebpfTelemetry.Udp_sends_processed)

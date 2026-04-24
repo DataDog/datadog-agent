@@ -32,6 +32,7 @@ class TestAddReviewers(unittest.TestCase):
         pr_mock.user.login = "dependabot[bot]"
         pr_mock.title = "Bump github.com/redis/go-redis/v9 from 9.1.0 to 9.7.0"
         gh_instance = MagicMock()
+        gh_instance.repo.default_branch = "main"
         gh_instance.repo.get_pull.return_value = pr_mock
         gh_mock.return_value = gh_instance
         c = MockContext(
@@ -52,6 +53,7 @@ class TestAddReviewers(unittest.TestCase):
         pr_mock.user.login = "dependabot[bot]"
         pr_mock.title = "Bump github.com/redis/go-redis/v9 from 9.1.0 to 9.7.0 in tasks/unit_tests/testdata/add_reviewers/fakeintake"
         gh_instance = MagicMock()
+        gh_instance.repo.default_branch = "main"
         gh_instance.repo.get_pull.return_value = pr_mock
         gh_mock.return_value = gh_instance
         c = MockContext(
@@ -74,6 +76,7 @@ tasks/unit_tests/testdata/add_reviewers/fakeintake/fake.go
         pr_mock.user.login = "dependabot[bot]"
         pr_mock.title = "Bump github.com/go-delve/delve from 1.6.0 to 1.7.0"
         gh_instance = MagicMock()
+        gh_instance.repo.default_branch = "main"
         gh_instance.repo.get_pull.return_value = pr_mock
         gh_mock.return_value = gh_instance
         c = MockContext(
@@ -98,6 +101,7 @@ tasks/unit_tests/testdata/add_reviewers/debugger/fake.go
         pr_mock.user.login = "dependabot[bot]"
         pr_mock.title = "Bump the aws-sdk-go-v2 group with 5 updates"
         gh_instance = MagicMock()
+        gh_instance.repo.default_branch = "main"
         gh_instance.repo.get_pull.return_value = pr_mock
         gh_mock.return_value = gh_instance
         c = MockContext(
@@ -126,6 +130,7 @@ tasks/unit_tests/testdata/add_reviewers/new-e2e/fake.go""")
         pr_mock.user.login = "dependabot[bot]"
         pr_mock.title = "build(deps): Bump github.com/redis/go-redis/v9 from 9.1.0 to 9.7.0"
         gh_instance = MagicMock()
+        gh_instance.repo.default_branch = "main"
         gh_instance.repo.get_pull.return_value = pr_mock
         gh_mock.return_value = gh_instance
         c = MockContext(
@@ -147,6 +152,7 @@ tasks/unit_tests/testdata/add_reviewers/new-e2e/fake.go""")
         pr_mock.user.login = "dependabot[bot]"
         pr_mock.title = "build(deps): bump github.com/redis/go-redis/v9 from 9.1.0 to 9.7.0"
         gh_instance = MagicMock()
+        gh_instance.repo.default_branch = "main"
         gh_instance.repo.get_pull.return_value = pr_mock
         gh_mock.return_value = gh_instance
         c = MockContext(
@@ -168,6 +174,7 @@ tasks/unit_tests/testdata/add_reviewers/new-e2e/fake.go""")
         pr_mock.user.login = "dependabot[bot]"
         pr_mock.title = "build(deps): Bump the aws-sdk-go-v2 group with 5 updates"
         gh_instance = MagicMock()
+        gh_instance.repo.default_branch = "main"
         gh_instance.repo.get_pull.return_value = pr_mock
         gh_mock.return_value = gh_instance
         c = MockContext(
@@ -196,6 +203,7 @@ tasks/unit_tests/testdata/add_reviewers/new-e2e/fake.go""")
         pr_mock.user.login = "dependabot[bot]"
         pr_mock.title = "build(deps): bump the aws-sdk-go-v2 group in tasks/unit_tests/testdata/add_reviewers/new-e2e with 5 updates"
         gh_instance = MagicMock()
+        gh_instance.repo.default_branch = "main"
         gh_instance.repo.get_pull.return_value = pr_mock
         gh_mock.return_value = gh_instance
         c = MockContext(
@@ -222,6 +230,7 @@ tasks/unit_tests/testdata/add_reviewers/new-e2e/fake.go""")
         pr_mock.user.login = "dependabot[bot]"
         pr_mock.title = "build(deps): bump github.com/redis/go-redis/v9 from 9.1.0 to 9.7.0 in tasks/unit_tests/testdata/add_reviewers/fakeintake"
         gh_instance = MagicMock()
+        gh_instance.repo.default_branch = "main"
         gh_instance.repo.get_pull.return_value = pr_mock
         gh_mock.return_value = gh_instance
         c = MockContext(
@@ -244,6 +253,7 @@ tasks/unit_tests/testdata/add_reviewers/fakeintake/fake.go
         pr_mock.user.login = "dependabot[bot]"
         pr_mock.title = "Bump the aws-sdk-go-v2 group in tasks/unit_tests/testdata/add_reviewers/new-e2e with 5 updates"
         gh_instance = MagicMock()
+        gh_instance.repo.default_branch = "main"
         gh_instance.repo.get_pull.return_value = pr_mock
         gh_mock.return_value = gh_instance
         c = MockContext(
@@ -288,6 +298,7 @@ class TestAskReviews(unittest.TestCase):
         pr_mock.user.name = None
 
         gh_instance = MagicMock()
+        gh_instance.repo.default_branch = "main"
         gh_instance.repo.get_pull.return_value = pr_mock
         gh_mock.return_value = gh_instance
 
@@ -337,6 +348,7 @@ class TestAskReviews(unittest.TestCase):
         # to match current implementation expectations if the order changes in the future.
 
         gh_instance = MagicMock()
+        gh_instance.repo.default_branch = "main"
         gh_instance.repo.get_pull.return_value = pr_mock
         gh_mock.return_value = gh_instance
 
@@ -367,6 +379,7 @@ class TestAskReviews(unittest.TestCase):
         # to match current implementation expectations if the order changes in the future.
 
         gh_instance = MagicMock()
+        gh_instance.repo.default_branch = "main"
         gh_instance.repo.get_pull.return_value = pr_mock
         gh_mock.return_value = gh_instance
 
@@ -397,6 +410,7 @@ class TestAskReviews(unittest.TestCase):
         pr_mock.user.name = None
 
         gh_instance = MagicMock()
+        gh_instance.repo.default_branch = "main"
         gh_instance.repo.get_pull.return_value = pr_mock
         gh_mock.return_value = gh_instance
 
@@ -412,21 +426,20 @@ class TestAskReviews(unittest.TestCase):
     )
     @patch('tasks.issue.GithubAPI')
     @patch('slack_sdk.WebClient')
-    def test_backport(self, slack_mock, gh_mock, print_mock):
+    def test_backport_review_requested(self, slack_mock, gh_mock, print_mock):
+        """review_requested on a non-main branch is still rejected"""
         pr_mock = MagicMock()
         pr_mock.title = "Backport: fix issue 123"
         pr_mock.base.ref = "7.7.x"
         pr_mock.get_labels.return_value = [MagicMock(name='ask-review')]
         pr_mock.user.login = "actorlogin"
         pr_mock.user.name = None
-        # ask_reviews returns early on backport before reading events, but keep events non-empty
-        # to match current implementation expectations if the order changes in the future.
         gh_instance = MagicMock()
+        gh_instance.repo.default_branch = "main"
         gh_instance.repo.get_pull.return_value = pr_mock
         gh_mock.return_value = gh_instance
 
-        # team_slugs is required; value doesn't matter because backport returns early
-        ask_reviews(MockContext(), 6, "labeled", team_slugs=["team1"])
+        ask_reviews(MockContext(), 6, "review_requested", team_slugs=["team1"])
         print_mock.assert_any_call("We don't ask for reviews on non main target PRs.")
         slack_mock.assert_not_called()
 
@@ -452,6 +465,7 @@ class TestAskReviews(unittest.TestCase):
         pr_mock.html_url = "http://foo"
         pr_mock.title = "PR with reviewers on DEFAULT_SLACK_CHANNEL"
         gh_instance = MagicMock()
+        gh_instance.repo.default_branch = "main"
         gh_instance.repo.get_pull.return_value = pr_mock
         gh_mock.return_value = gh_instance
 
@@ -489,6 +503,7 @@ class TestAskReviews(unittest.TestCase):
         pr_mock.html_url = "http://foo"
         pr_mock.title = "Test"
         gh_instance = MagicMock()
+        gh_instance.repo.default_branch = "main"
         gh_instance.repo.get_pull.return_value = pr_mock
         gh_mock.return_value = gh_instance
 
@@ -539,6 +554,7 @@ class TestAskReviews(unittest.TestCase):
         pr_mock.html_url = "https://github.com/foo/bar/pull/9"
 
         gh_instance = MagicMock()
+        gh_instance.repo.default_branch = "main"
         gh_instance.repo.get_pull.return_value = pr_mock
         gh_mock.return_value = gh_instance
 
@@ -583,6 +599,7 @@ class TestAskReviews(unittest.TestCase):
         pr_mock.html_url = "http://foo"
 
         gh_instance = MagicMock()
+        gh_instance.repo.default_branch = "main"
         gh_instance.repo.get_pull.return_value = pr_mock
         gh_mock.return_value = gh_instance
 

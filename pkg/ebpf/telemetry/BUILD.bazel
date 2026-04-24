@@ -10,4 +10,5 @@ exports_files([
 cgo_godefs(
     name = "types_godefs",
     src = "types.go",
+    visibility = ["//visibility:public"],
 )

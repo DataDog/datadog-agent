@@ -38,7 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
-	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
@@ -221,10 +221,17 @@ func start(remoteTagger *remoteTagger) error {
 	creds := credentials.NewTLS(remoteTagger.tlsConfig)
 
 	var onStartErr error
+	// Same max message size as the core agent AgentSecure gRPC server (impl-agent.BuildServer).
+	maxMsgSize := remoteTagger.cfg.GetInt("cluster_agent.cluster_tagger.grpc_max_message_size")
+
 	remoteTagger.conn, onStartErr = grpc.DialContext( //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
 		remoteTagger.ctx,
 		remoteTagger.options.Target,
 		grpc.WithTransportCredentials(creds),
+		grpc.WithDefaultCallOptions(
+			grpc.MaxCallRecvMsgSize(maxMsgSize),
+			grpc.MaxCallSendMsgSize(maxMsgSize),
+		),
 		grpc.WithContextDialer(func(_ context.Context, url string) (net.Conn, error) {
 			if vsockAddr := remoteTagger.cfg.GetString("vsock_addr"); vsockAddr != "" {
 				_, sPort, err := net.SplitHostPort(url)
@@ -232,7 +239,7 @@ func start(remoteTagger *remoteTagger) error {
 					return nil, err
 				}
 
-				port, err := strconv.Atoi(sPort)
+				port, err := strconv.ParseUint(sPort, 10, 16)
 				if err != nil {
 					return nil, fmt.Errorf("invalid port for vsock listener: %v", err)
 				}

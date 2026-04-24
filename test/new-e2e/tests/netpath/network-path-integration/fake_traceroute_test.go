@@ -118,10 +118,10 @@ func (s *fakeTracerouteTestSuite) TestFakeTraceroute() {
 		assert.NoError(c, err, "GetLatestNetpathEvents() errors")
 		require.NotNil(c, nps, "GetLatestNetpathEvents() returned nil netpaths")
 
-		udpPath := s.expectNetpath(c, func(np *aggregator.Netpath) bool {
+		udpPath := s.expectNetpath(c, hostname, func(np *aggregator.Netpath) bool {
 			return np.Destination.Hostname == targetIP.String() && np.Protocol == "UDP"
 		})
-		tcpPath := s.expectNetpath(c, func(np *aggregator.Netpath) bool {
+		tcpPath := s.expectNetpath(c, hostname, func(np *aggregator.Netpath) bool {
 			return np.Destination.Hostname == targetIP.String() && np.Protocol == "TCP"
 		})
 

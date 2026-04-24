@@ -4,7 +4,7 @@ service:
       processors: []
       receivers:
       - 123
-      - hostprofiler
+      - profiling
       exporters:
       - otlphttp
 exporters:

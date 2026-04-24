@@ -147,6 +147,7 @@ type ContainerPortSpec struct {
 // ContainerProbe contains fields for unmarshalling a Pod.Spec.Containers.ReadinessProbe
 type ContainerProbe struct {
 	InitialDelaySeconds int `json:"initialDelaySeconds"`
+	FailureThreshold    int `json:"failureThreshold"`
 }
 
 // ContainerSecurityContextSpec contains fields for unmarshalling a Pod.Spec.Containers.SecurityContext
@@ -252,6 +253,9 @@ type ContainerStatus struct {
 	State                      ContainerState               `json:"state"`
 	LastState                  ContainerState               `json:"lastState"`
 	ResolvedAllocatedResources []ContainerAllocatedResource `json:"resolvedAllocatedResources,omitempty"`
+
+	// Resources may not be the same as spec due to in-place vertical sizing
+	Resources *ContainerResourcesSpec `json:"resources,omitempty"`
 }
 
 // ContainerAllocatedResource contains the fields for an assigned resource to a container

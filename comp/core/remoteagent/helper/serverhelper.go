@@ -253,13 +253,13 @@ func newAgentSecureClient(ipcComp ipc.Component, agentIpcAddress string, cfg con
 			return nil, err
 		}
 
-		cmdPort, parseErr := strconv.Atoi(sPort)
+		cmdPort, parseErr := strconv.ParseUint(sPort, 10, 16)
 		if parseErr != nil {
 			return nil, fmt.Errorf("invalid vsock socket path '%s'", agentIpcAddress)
 		}
 
-		if cmdPort <= 0 {
-			return nil, fmt.Errorf("invalid port '%d' for vsock", cmdPort)
+		if cmdPort == 0 {
+			return nil, errors.New("invalid port '0' for vsock")
 		}
 
 		opts = append(opts, grpc.WithContextDialer(func(_ context.Context, _ string) (net.Conn, error) {

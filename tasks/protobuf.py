@@ -3,10 +3,9 @@ import os
 import re
 from pathlib import Path
 
-from invoke import Exit, UnexpectedExit, task
+from invoke import Exit, task
 
-from tasks.install_tasks import TOOL_LIST_PROTO
-from tasks.libs.common.check_tools_version import check_tools_installed
+from tasks.libs.build.bazel import BazelTools
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_unstaged_files, get_untracked_files
 
@@ -64,8 +63,7 @@ def generate(ctx, pre_commit=False):
     proto_file = re.compile(r"pkg/proto/pbgo/.*\.pb\.go$")
     old_unstaged_proto_files = set(get_unstaged_files(ctx, re_filter=proto_file, include_deleted_files=True))
     old_untracked_proto_files = set(get_untracked_files(ctx, re_filter=proto_file))
-    # Key: path, Value: inject_tags
-    check_tools(ctx)
+    bt = BazelTools(ctx)
     base = os.path.dirname(os.path.abspath(__file__))
     repo_root = os.path.abspath(os.path.join(base, ".."))
     proto_root = os.path.join(repo_root, "pkg", "proto")
@@ -85,10 +83,9 @@ def generate(ctx, pre_commit=False):
 
         for pkg, inject_tags in PROTO_PKGS.items():
             files = []
-            pkg_root = os.path.join(proto_root, "datadog", pkg).rstrip(os.sep)
-            pkg_root_level = pkg_root.count(os.sep)
-            for path in Path(pkg_root).rglob('*.proto'):
-                if path.as_posix().count(os.sep) == pkg_root_level + 1:
+            pkg_root = Path(proto_root, "datadog", pkg)
+            for path in pkg_root.rglob('*.proto'):
+                if len(path.parts) == len(pkg_root.parts) + 1:
                     files.append(path.as_posix())
 
             targets = ' '.join(files)
@@ -103,7 +100,7 @@ def generate(ctx, pre_commit=False):
             if pkg in CLI_EXTRAS_GRPC:
                 cli_extras_grpc = CLI_EXTRAS_GRPC[pkg]
             ctx.run(
-                f"protoc -I{proto_root} -I{protodep_root} --go_out={repo_root} {cli_extras} --go-grpc_out={repo_root} {cli_extras_grpc} {targets}"
+                f"{bt.protoc} {bt.protoc_plugin("protoc-gen-go")} {bt.protoc_plugin("protoc-gen-go-grpc")} -I{proto_root} -I{protodep_root} --go_out={repo_root} {cli_extras} --go-grpc_out={repo_root} {cli_extras_grpc} {targets}"
             )
 
             if pkg in PKG_PLUGINS:
@@ -112,25 +109,30 @@ def generate(ctx, pre_commit=False):
                 if pkg in PKG_CLI_EXTRAS:
                     cli_extras = PKG_CLI_EXTRAS[pkg]
 
-                ctx.run(f"protoc -I{proto_root} -I{protodep_root} {output_generator}{repo_root} {cli_extras} {targets}")
+                ctx.run(
+                    f"{bt.protoc} {bt.protoc_plugin("protoc-gen-go-vtproto")} -I{proto_root} -I{protodep_root} {output_generator}{repo_root} {cli_extras} {targets}"
+                )
 
             if inject_tags:
                 inject_path = os.path.join(proto_root, "pbgo", pkg)
                 # inject_tags logic
                 for target in INJECT_TAG_TARGETS[pkg]:
-                    ctx.run(f"protoc-go-inject-tag -input={os.path.join(inject_path, target)}")
+                    ctx.run(f"{bt.protoc_go_inject_tag} -input={os.path.join(inject_path, target)}")
 
         # Mockgen (not done in pre-commit as it is slow)
         if not pre_commit:
             mockgen_out = os.path.join(proto_root, "pbgo", "mocks")
-            pbgo_rel = os.path.relpath(pbgo_dir, repo_root)
+            pbgo_rel = Path(pbgo_dir).relative_to(repo_root).as_posix()
             try:
                 os.mkdir(mockgen_out)
             except FileExistsError:
                 print(f"{mockgen_out} folder already exists")
 
             # Generate mocks from the gRPC file (api_grpc.pb.go) which contains the client/server interfaces
-            ctx.run(f"mockgen -source={pbgo_rel}/core/api_grpc.pb.go -destination={mockgen_out}/core/api_mockgen.pb.go")
+            ctx.run(
+                f"{bt.mockgen} -source={pbgo_rel}/core/api_grpc.pb.go -destination={mockgen_out}/core/api_mockgen.pb.go",
+                env=bt.go_env,
+            )
 
     # Generate messagepack marshallers
     # msgp targets (file, io)
@@ -148,7 +150,9 @@ def generate(ctx, pre_commit=False):
         for src, io_gen in files:
             dst = os.path.splitext(os.path.basename(src))[0]  # .go
             dst = os.path.splitext(dst)[0]  # .pb
-            ctx.run(f"msgp -file {pbgo_dir}/{pkg}/{src} -o={pbgo_dir}/{pkg}/{dst}_gen.go -io={io_gen}")
+            ctx.run(
+                f"{bt.msgp} -file {pbgo_dir}/{pkg}/{src} -o={pbgo_dir}/{pkg}/{dst}_gen.go -io={io_gen}", env=bt.go_env
+            )
 
     # Apply msgp patches
     # msgp patches key is `pkg` : (patch, destination)
@@ -163,7 +167,7 @@ def generate(ctx, pre_commit=False):
         for patch in patches:
             patch_file = os.path.join(proto_root, "patches", patch[0])
             switches = patch[1] if patch[1] else ''
-            ctx.run(f"git apply {switches} --unsafe-paths --directory='{pbgo_dir}/{pkg}' {patch_file}")
+            ctx.run(f'git apply {switches} --unsafe-paths --directory="{pbgo_dir}/{pkg}" {patch_file}')
 
     # Check the generated files were properly committed
     current_unstaged_proto_files = set(get_unstaged_files(ctx, re_filter=proto_file, include_deleted_files=True))
@@ -180,23 +184,3 @@ def generate(ctx, pre_commit=False):
             print("Generation complete and new files were updated, don't forget to commit and push")
     else:
         print(f"[{color_message('WARN', Color.ORANGE)}] Generation complete and no new files were updated")
-
-
-def check_tools(ctx):
-    """
-    Check if all the required dependencies are installed
-    """
-    tools = [tool.split("/")[-1] for tool in TOOL_LIST_PROTO]
-    if not check_tools_installed(tools):
-        raise Exit("Please install the required tools with `dda inv install-tools` before running this task.", code=1)
-    try:
-        current_version = ctx.run("protoc --version", hide=True).stdout.strip().removeprefix("libprotoc ")
-        with open(".protoc-version") as f:
-            expected_version = f.read().strip()
-        if current_version != expected_version:
-            raise Exit(
-                f"Expected protoc version {expected_version}, found {current_version}. Please run `dda inv install-protoc` before running this task.",
-                code=1,
-            )
-    except UnexpectedExit as e:
-        raise Exit("protoc is not installed. Please install it before running this task.", code=1) from e

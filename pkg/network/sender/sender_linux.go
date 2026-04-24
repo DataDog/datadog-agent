@@ -29,12 +29,14 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	connectionsforwarder "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
+	npcollector "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/def"
 	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/hosttags"
@@ -45,7 +47,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -59,9 +60,9 @@ var senderTelemetry = struct {
 	queueBytes      telemetry.Gauge
 	connectionCount telemetry.Counter
 }{
-	telemetry.NewGauge(telemetrySubsystem, "queue_size", nil, ""),
-	telemetry.NewGauge(telemetrySubsystem, "queue_bytes", nil, ""),
-	telemetry.NewCounter(telemetrySubsystem, "connection_count", nil, ""),
+	telemetryimpl.GetCompatComponent().NewGauge(telemetrySubsystem, "queue_size", nil, ""),
+	telemetryimpl.GetCompatComponent().NewGauge(telemetrySubsystem, "queue_bytes", nil, ""),
+	telemetryimpl.GetCompatComponent().NewCounter(telemetrySubsystem, "connection_count", nil, ""),
 }
 
 // New creates a direct sender
@@ -141,10 +142,11 @@ func New(
 
 		hostTagProvider: hosttags.NewHostTagProviderWithDuration(syscfg.GetDuration("system_probe_config.expected_tags_duration")),
 		agentCfg: &model.AgentConfiguration{
-			NpmEnabled: syscfg.GetBool("network_config.enabled"),
-			UsmEnabled: syscfg.GetBool("service_monitoring_config.enabled"),
-			CcmEnabled: syscfg.GetBool("ccm_network_config.enabled"),
-			CsmEnabled: syscfg.GetBool("runtime_security_config.enabled"),
+			NpmEnabled:  syscfg.GetBool("network_config.enabled"),
+			UsmEnabled:  syscfg.GetBool("service_monitoring_config.enabled"),
+			CcmEnabled:  syscfg.GetBool("ccm_network_config.enabled"),
+			CsmEnabled:  syscfg.GetBool("runtime_security_config.enabled"),
+			EudmEnabled: deps.Config.GetString("infrastructure_mode") == "end_user_device",
 		},
 		ctx:        ctx,
 		cancelFunc: cancel,

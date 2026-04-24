@@ -1035,3 +1035,28 @@ func TestPrivateActionRunnerPrivateKey(t *testing.T) {
 		`private_key: abc123def456`,
 		`private_key: "********"`)
 }
+
+func TestHideKeyExceptLastChars(t *testing.T) {
+	tests := []struct {
+		name     string
+		key      string
+		expected string
+	}{
+		{"empty", "", defaultReplacement},
+		{"1 char", "a", defaultReplacement},
+		{"4 chars", "abcd", defaultReplacement},
+		{"5 chars: show 1", "abcde", "****e"},
+		{"7 chars: show 1", "abcdefg", "******g"},
+		{"8 chars: show 2", "abcdefgh", "******gh"},
+		{"15 chars: show 2", "abcdefghijklmno", "*************no"},
+		{"16 chars: show 3", "abcdefghijklmnop", "*************nop"},
+		{"31 chars: show 3", "abcdefghijklmnopqrstuvwxyz01234", "****************************234"},
+		{"32 chars: show 4 (DD API key length)", "abcdefghijklmnopqrstuvwxyz012345", "****************************2345"},
+		{"40 chars: show 4 (DD app key length)", "abcdefghijklmnopqrstuvwxyz0123456789abcd", "************************************abcd"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, HideKeyExceptLastChars(tt.key))
+		})
+	}
+}

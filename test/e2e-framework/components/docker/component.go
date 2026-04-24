@@ -7,6 +7,7 @@ package docker
 
 import (
 	"fmt"
+	"maps"
 	"path"
 	"path/filepath"
 	"strings"
@@ -37,8 +38,9 @@ type Manager struct {
 	pulumi.ResourceState
 	components.Component
 
-	namer namer.Namer
-	opts  []pulumi.ResourceOption
+	namer          namer.Namer
+	opts           []pulumi.ResourceOption
+	defaultEnvVars pulumi.StringMap
 
 	Host *remoteComp.Host `pulumi:"host"`
 }
@@ -63,6 +65,31 @@ func NewManager(e config.Env, host *remoteComp.Host, opts ...pulumi.ResourceOpti
 
 		return nil
 	}, opts...)
+}
+
+// NewAWSManager creates a docker Manager with the Amazon ECR credentials helper pre-installed.
+// The ECR credentials helper enables automatic authentication against ECR registries,
+// including our pull-through cache. Use this instead of NewManager when the host is on AWS.
+//
+// When ImagePullRegistry is configured, DD_REGISTRY is automatically injected into every
+// ComposeStrUp call so that compose files using ${DD_REGISTRY:-docker.io} pull from the
+// ECR pull-through cache for Docker Hub images. Callers may still override DD_REGISTRY by
+// passing it explicitly in their envVars map.
+func NewAWSManager(e config.Env, host *remoteComp.Host, opts ...pulumi.ResourceOption) (*Manager, error) {
+	ecrCreds, err := InstallECRCredentialsHelper(e.CommonNamer().WithPrefix("docker"), host, opts...)
+	if err != nil {
+		return nil, err
+	}
+	mgr, err := NewManager(e, host, utils.MergeOptions(opts, utils.PulumiDependsOn(ecrCreds))...)
+	if err != nil {
+		return nil, err
+	}
+	if reg := e.ImagePullRegistry(); reg != "" {
+		mgr.defaultEnvVars = pulumi.StringMap{
+			"DD_REGISTRY": pulumi.String(strings.SplitN(reg, ",", 2)[0] + "/dockerhub"),
+		}
+	}
+	return mgr, nil
 }
 
 func (d *Manager) Export(ctx *pulumi.Context, out *ManagerOutput) error {
@@ -129,10 +156,12 @@ func (d *Manager) ComposeStrUp(name string, composeManifests []ComposeInlineMani
 		return utils.StrHash(mergedContent)
 	}).(pulumi.StringOutput)
 
-	// Initialize envVars if nil to prevent panic
-	if envVars == nil {
-		envVars = pulumi.StringMap{}
-	}
+	// Merge defaultEnvVars (set at manager construction time) with caller-provided envVars.
+	// Caller-provided values take precedence.
+	merged := pulumi.StringMap{}
+	maps.Copy(merged, d.defaultEnvVars)
+	maps.Copy(merged, envVars)
+	envVars = merged
 
 	// We include a hash of the manifests content in the environment variables to trigger an update when a manifest changes
 	// This is a workaround to avoid a force replace with Triggers when the content of the manifest changes

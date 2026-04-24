@@ -30,11 +30,16 @@ def _cgo_godefs_impl(ctx):
 
     platform = go.sdk.goos
     base = src.basename.removesuffix(".go")
-    out_name = base + "_" + platform + ".go"
+
+    # Prefix with _ to avoid runfiles path collision with the committed source
+    # file of the same name. Without this, write_source_file's diff_test
+    # resolves both the generated and committed files to the same runfiles path,
+    # causing the test to compare a file against itself (always passes).
+    out_name = "_" + base + "_" + platform + ".go"
     out = ctx.actions.declare_file(out_name)
     outputs = [out]
 
-    all_deps = list(ctx.attr._std_deps) + list(ctx.attr.deps)
+    all_deps = list(ctx.attr.deps)
     inc = collect_include_dirs(all_deps)
     headers = collect_headers(all_deps + list(ctx.attr.hdrs))
     src_dir = src.dirname
@@ -61,23 +66,24 @@ def _cgo_godefs_impl(ctx):
     genpost_args = ""
     test_out = None
     if platform == "linux":
-        test_name = base + "_" + platform + "_test.go"
+        test_name = "_" + base + "_" + platform + "_test.go"
         test_out = ctx.actions.declare_file(test_name)
         outputs.append(test_out)
         test_path_no_ext = test_out.path.removesuffix(".go")
         package_name = ctx.label.package.split("/")[-1]
         genpost_args = "$ROOT/{test} {pkg}".format(test = test_path_no_ext, pkg = package_name)
 
+    # TODO(ABLD-410): uses the system clang rather than a hermetic toolchain.
+    # On Windows, Go defaults to gcc (MinGW) — no CC override needed, matching
+    # the old ninja behavior.
+    cc_prefix = "CC=clang " if platform == "linux" else ""
+
     cmd = (
-        "ROOT=$PWD && cd {src_dir} && " +
-        # TODO(ABLD-410): CC=clang uses the system clang rather than a hermetic
-        # toolchain binary. The LLVM BPF toolchain's clang only supports BPF
-        # targets and lacks host-target backends (x86_64/aarch64) that cgo
-        # needs. To hermitize this, either ship a clang with host backends
-        # enabled or wire in a separate host-CC toolchain.
-        "GOROOT=$ROOT/{goroot} CC=clang $ROOT/{go} tool cgo -godefs -- {includes} -fsigned-char {src_file} | " +
+        "set -euo pipefail && ROOT=$PWD && cd {src_dir} && " +
+        "GOROOT=$ROOT/{goroot} {cc_prefix}$ROOT/{go} tool cgo -godefs -- {includes} -fsigned-char {src_file} | " +
         "$ROOT/{genpost} {genpost_args} > $ROOT/{out}"
     ).format(
+        cc_prefix = cc_prefix,
         goroot = go.sdk.root_file.dirname,
         src_dir = src.dirname,
         go = go.go.path,
@@ -123,16 +129,9 @@ _cgo_godefs = rule(
             allow_single_file = [".go"],
             doc = """The Go source file containing C type references (import "C").""",
         ),
-        "_std_deps": attr.label_list(
-            default = [
-                "//pkg/network/ebpf/c:ebpf_c_network",
-                "//pkg/ebpf/c:ebpf_c_headers",
-            ],
-            providers = [CcInfo],
-        ),
         "deps": attr.label_list(
             providers = [CcInfo],
-            doc = "Additional cc_library targets providing C headers and -I include paths beyond the standard ebpf ones.",
+            doc = "cc_library targets providing C headers and -I include paths needed by the cgo source.",
         ),
         "hdrs": attr.label_list(
             providers = [CcInfo],
@@ -150,16 +149,21 @@ _cgo_godefs = rule(
     toolchains = ["@rules_go//go:toolchain"],
 )
 
+_STD_LINUX_DEPS = [
+    "//pkg/ebpf/c:ebpf_c_headers",
+]
+
 def _cgo_godefs_macro_impl(name, visibility, src, deps, hdrs, platform):
+    all_deps = deps + (_STD_LINUX_DEPS if platform == "linux" else [])
+
     gen = name + "_gen"
     _cgo_godefs(
         name = gen,
         src = src,
-        deps = deps,
+        deps = all_deps,
         hdrs = hdrs,
         target_compatible_with = select({
-            "@platforms//os:linux": [],
-            "@platforms//os:windows": [],
+            "@platforms//os:{}".format(platform): [],
             "//conditions:default": ["@platforms//:incompatible"],
         }),
     )
@@ -189,6 +193,7 @@ def _cgo_godefs_macro_impl(name, visibility, src, deps, hdrs, platform):
         )
         write_source_file(
             name = name + "_test_file",
+            visibility = visibility,
             in_file = ":" + name + "_test_out",
             out_file = test_file,
             check_that_out_file_exists = False,
@@ -202,8 +207,9 @@ cgo_godefs = macro(
     Runs `go tool cgo -godefs` on the source file, post-processes with genpost,
     and on Linux also generates alignment test stubs.
 
-    The standard include deps (pkg/network/ebpf/c and pkg/ebpf/c) are
-    provided automatically. Use deps/hdrs only for additional headers.
+    On Linux, the base eBPF headers (pkg/ebpf/c) are prepended
+    automatically. Use deps/hdrs for additional headers
+    or all headers on Windows.
 
     The main target (`name`) verifies the generated output matches the
     committed file. Use `bazel test` to verify, `bazel run` to update.

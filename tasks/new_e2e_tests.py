@@ -219,6 +219,146 @@ def build_binaries(
 
 
 @task(
+    help={
+        "output_dir": "Directory containing compiled test binaries",
+        "manifest_file_path": "Path to the manifest JSON file",
+        "s3_base_uri": "S3 base URI for uploading (e.g. s3://bucket/path/e2e-pre-build/pipeline-id)",
+        "parallel": "Number of parallel uploads [default: 8]",
+    },
+)
+def upload_binaries(
+    ctx,
+    output_dir="test-binaries",
+    manifest_file_path="manifest.json",
+    s3_base_uri="",
+    parallel=8,
+):
+    """
+    Create per-package tarballs from pre-built test binaries and upload them to S3.
+    Each binary gets its own tarball so that test jobs can download only what they need.
+    """
+    if not s3_base_uri:
+        raise Exit("--s3-base-uri is required", code=1)
+
+    with open(manifest_file_path) as f:
+        manifest = json.load(f)
+
+    output_path = Path(output_dir)
+    tarball_dir = Path(tempfile.mkdtemp(prefix="e2e-tarballs-"))
+
+    print(f"Creating per-package tarballs and uploading to {s3_base_uri}")
+
+    print_lock = threading.Lock()
+    upload_failures = 0
+
+    def upload_single(binary_info):
+        nonlocal upload_failures
+        binary_name = binary_info["binary"]
+        binary_file = output_path / binary_name
+        if not binary_file.exists():
+            with print_lock:
+                print(f"  ✗ Binary {binary_name} not found, skipping")
+            return
+
+        tarball_path = tarball_dir / f"{binary_name}.tar.zst"
+        try:
+            ctx.run(
+                f'tar c -I zstd -f {tarball_path} -C {output_path.parent} {output_path.name}/{binary_name}',
+                hide=True,
+            )
+            ctx.run(f'aws s3 cp {tarball_path} {s3_base_uri}/{binary_name}.tar.zst', hide=True)
+            with print_lock:
+                print(f"  ✓ Uploaded {binary_name}")
+        except Exception as e:
+            with print_lock:
+                print(f"  ✗ Failed to upload {binary_name}: {e}")
+                upload_failures += 1
+
+    with ThreadPoolExecutor(max_workers=parallel) as executor:
+        futures = [executor.submit(upload_single, bi) for bi in manifest["binaries"]]
+        for future in as_completed(futures):
+            future.result()
+
+    if upload_failures > 0:
+        print(f"Error: {upload_failures} uploads failed")
+        raise Exit(code=1)
+
+    # Upload manifest
+    result = ctx.run(f'aws s3 cp {manifest_file_path} {s3_base_uri}/manifest.json', warn=True)
+    if not result.ok:
+        print(f"  ✗ Failed to upload manifest to {s3_base_uri}/manifest.json")
+        raise Exit(code=1)
+    print(f"Uploaded manifest to {s3_base_uri}/manifest.json")
+
+    # Cleanup temp tarballs
+    shutil.rmtree(tarball_dir, ignore_errors=True)
+
+
+def _download_prebuilt_binaries(ctx, s3_base_uri, targets):
+    """Download pre-built binaries from S3 for the specified targets.
+
+    Downloads manifest.json, resolves which binaries are needed based on the
+    target package prefixes, then downloads and extracts only those tarballs.
+    Returns True if binaries were successfully downloaded, False otherwise.
+    """
+    manifest_path = "manifest.json"
+    extract_path = Path("test-binaries")
+
+    # Download manifest from S3 (unset AWS_PROFILE to use default runner credentials for the build-stable bucket)
+    with environ({"AWS_PROFILE": "DELETE"}):
+        result = ctx.run(f'aws s3 cp {s3_base_uri}/manifest.json {manifest_path}', warn=True)
+        if not result.ok:
+            print(f"WARNING: Failed to download manifest from {s3_base_uri}/manifest.json")
+            return False
+
+    with open(manifest_path) as f:
+        manifest = json.load(f)
+
+    # Normalize targets: ./tests/agent-devx -> tests/agent-devx
+    target_prefixes = []
+    for target in targets:
+        prefix = target.lstrip("./")
+        target_prefixes.append(prefix)
+
+    # Find matching binaries in manifest
+    needed_binaries = []
+    for binary_info in manifest["binaries"]:
+        pkg = binary_info["package"]
+        for prefix in target_prefixes:
+            if pkg == prefix or pkg.startswith(prefix + "/"):
+                needed_binaries.append(binary_info)
+                break
+
+    if not needed_binaries:
+        print(f"WARNING: No pre-built binaries found matching targets: {targets}")
+        return False
+
+    print(f"Downloading {len(needed_binaries)} pre-built binaries from S3")
+
+    extract_path.mkdir(exist_ok=True, parents=True)
+
+    with environ({"AWS_PROFILE": "DELETE"}):
+        for binary_info in needed_binaries:
+            binary_name = binary_info["binary"]
+            tarball_name = f"{binary_name}.tar.zst"
+            s3_path = f"{s3_base_uri}/{tarball_name}"
+
+            print(f"  Downloading {binary_name}...")
+            result = ctx.run(f'aws s3 cp {s3_path} {tarball_name}', warn=True)
+            if not result.ok:
+                print(f"  ✗ Failed to download {tarball_name}")
+                return False
+            result = ctx.run(f'tar xf {tarball_name}', warn=True)
+            if not result.ok:
+                print(f"  ✗ Failed to extract {tarball_name}")
+                return False
+            os.remove(tarball_name)
+
+    print(f"Pre-built binaries extracted to {extract_path}")
+    return True
+
+
+@task(
     iterable=['tags', 'targets', 'configparams', 'run', 'skip'],
     help={
         "profile": "Override auto-detected runner profile (local or CI)",
@@ -269,6 +409,7 @@ def run(
     max_retries=0,
     osdescriptors="",
     module_name="test/new-e2e",
+    recursive=True,
 ):
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
@@ -421,7 +562,13 @@ def run(
     # Scrub the test output to avoid leaking API or APP keys when running in the CI
 
     if use_prebuilt_binaries:
-        if not os.path.exists("test-binaries.tar.zst") or not os.path.exists("manifest.json"):
+        s3_uri = os.environ.get("E2E_PREBUILD_S3_URI", "")
+        if s3_uri and targets:
+            # New flow: download per-package tarballs from S3
+            if not _download_prebuilt_binaries(ctx, s3_uri, targets):
+                print("WARNING: Failed to download pre-built binaries from S3, disabling use_prebuilt_binaries")
+                use_prebuilt_binaries = False
+        elif not os.path.exists("test-binaries.tar.zst") or not os.path.exists("manifest.json"):
             print(
                 "WARNING: required artifacts test-binaries.tar.zst and manifest.json not found, disabling use_prebuilt_binaries"
             )
@@ -498,6 +645,7 @@ def run(
             result_junit=partial_result_junit,
             result_json=partial_result_json,
             test_profiler=None,
+            recursive=recursive,
         )
         if test_res is None:
             ctx.run("datadog-ci tag --level job --tags 'e2e.skipped_all_tests:true'")
@@ -1313,9 +1461,8 @@ def _find_local_msi_build(pkg: str | None = None) -> str | None:
     return max(msi_files, key=os.path.getmtime)
 
 
-def _parse_version_from_msi_filename(ctx, msi_path: str) -> tuple[str, str] | None:
-    """
-    Parse version information from MSI filename.
+def _version_from_msi_filename(filename: str) -> tuple[str, str] | None:
+    """Parse version information from an MSI filename (basename or full path).
 
     MSI filename format: datadog-agent-{version}-{arch}.msi
     Example: datadog-agent-7.75.0-devel.git.59.ac0523a-1-x86_64.msi
@@ -1326,51 +1473,47 @@ def _parse_version_from_msi_filename(ctx, msi_path: str) -> tuple[str, str] | No
     """
     import re
 
+    basename = os.path.basename(filename)
+    pattern = r'^datadog(?:-fips)?-agent-(.+)-(x86_64|amd64)\.msi$'
+    match = re.match(pattern, basename)
+    if not match:
+        return None
+
+    package_version = match.group(1)
+
+    if '.git.' in package_version:
+        display_version = package_version.split('.git.')[0]
+    elif package_version.endswith('-1'):
+        display_version = package_version[:-2]
+    else:
+        display_version = package_version
+
+    return display_version, package_version
+
+
+def _parse_version_from_msi_filename(ctx, msi_path: str) -> tuple[str, str] | None:
+    """Parse version information from a local MSI file path.
+
+    Tries the agent.version cache first for accuracy, then falls back to
+    regex parsing via _version_from_msi_filename.
+    """
     filename = os.path.basename(msi_path)
 
-    # Try to use cached agent.version first
     try:
         expected_version = f"{get_version(ctx, include_git=True, url_safe=True)}-1"
         if expected_version in filename:
-            # Version matches what we expect from git state
             package_version = expected_version
-
-            # Extract display version
             if '.git.' in package_version:
                 display_version = package_version.split('.git.')[0]
             elif package_version.endswith('-1'):
                 display_version = package_version[:-2]
             else:
                 display_version = package_version
-
             return display_version, package_version
     except Exception:
         print("Warning: Could not determine version from cached agent.version. Falling back to regex parsing")
-        pass
 
-    # Pattern to match: datadog-agent-{version}-{arch}.msi or datadog-fips-agent-{version}-{arch}.msi
-    # Version format: 7.75.0-devel.git.59.ac0523a-1
-    # Arch is typically: x86_64
-    pattern = r'^datadog(?:-fips)?-agent-(.+)-(x86_64|amd64)\.msi$'
-    match = re.match(pattern, filename)
-
-    if not match:
-        return None
-
-    package_version = match.group(1)  # e.g., "7.75.0-devel.git.59.ac0523a-1"
-
-    # Extract display version (everything before .git. or the full version if no .git.)
-    # e.g., "7.75.0-devel.git.59.ac0523a-1" -> "7.75.0-devel"
-    # e.g., "7.75.0-1" -> "7.75.0"
-    if '.git.' in package_version:
-        display_version = package_version.split('.git.')[0]
-    elif package_version.endswith('-1'):
-        # Remove trailing -1 for display version (e.g., "7.75.0-1" -> "7.75.0")
-        display_version = package_version[:-2]
-    else:
-        display_version = package_version
-
-    return display_version, package_version
+    return _version_from_msi_filename(msi_path)
 
 
 def _path_to_file_url(file_path: str) -> str:
@@ -1382,31 +1525,174 @@ def _path_to_file_url(file_path: str) -> str:
     return f"file://{abs_path}"
 
 
+def _resolve_local_build(ctx, prefix, env_vars, pkg=None):
+    """Resolve agent package from a local MSI build in omnibus/pkg."""
+    msi_path = _find_local_msi_build(pkg)
+    if not msi_path:
+        if pkg:
+            raise Exit(f"No MSI matching '{pkg}' found in omnibus/pkg/.", code=1)
+        raise Exit("No local MSI build found in omnibus/pkg/. Run 'dda inv msi.build' first.", code=1)
+
+    env_vars[f"{prefix}_MSI_URL"] = _path_to_file_url(msi_path)
+    print(f"# Found local MSI: {msi_path}", file=sys.stderr)
+
+    # parse the version from the MSI filename
+    version_info = _parse_version_from_msi_filename(ctx, msi_path)
+    if version_info:
+        display_version, package_version = version_info
+        env_vars[f"{prefix}_ASSERT_VERSION"] = display_version
+        env_vars[f"{prefix}_ASSERT_PACKAGE_VERSION"] = package_version
+    else:
+        print("Warning: Could not parse version from MSI filename, falling back to git", file=sys.stderr)
+        try:
+            env_vars[f"{prefix}_ASSERT_VERSION"] = get_version(ctx, include_git=False, include_pre=True)
+            package_version = get_version(ctx, include_git=True, url_safe=True)
+            env_vars[f"{prefix}_ASSERT_PACKAGE_VERSION"] = f"{package_version}-1"
+        except Exception as e:
+            raise Exit(f"Could not determine agent version: {e}", code=1) from e
+
+    # find matching OCI package
+    pkg_version_key = f"{prefix}_ASSERT_PACKAGE_VERSION"
+    if pkg_version_key in env_vars:
+        oci_filename = f"datadog-agent-{env_vars[pkg_version_key]}-windows-amd64.oci.tar"
+        oci_path = os.path.join(os.path.dirname(msi_path), oci_filename)
+        if os.path.isfile(oci_path):
+            env_vars[f"{prefix}_OCI_URL"] = _path_to_file_url(oci_path)
+            print(f"# Found local OCI: {oci_path}", file=sys.stderr)
+        else:
+            print(f"# Note: No OCI package found at {oci_filename}", file=sys.stderr)
+
+
+def _list_pipeline_msi_files(pipeline_id, bucket="dd-agent-mstesting"):
+    """List MSI files in S3 for a given pipeline.
+
+    Returns a list of S3 object keys matching the pipeline prefix.
+    """
+    import boto3
+    from botocore import UNSIGNED
+    from botocore.config import Config
+
+    s3_client = boto3.client('s3', config=Config(signature_version=UNSIGNED))
+    s3_prefix = f"pipelines/A7/{pipeline_id}/"
+
+    result = s3_client.list_objects_v2(Bucket=bucket, Prefix=s3_prefix)
+    if result.get('KeyCount', 0) == 0:
+        raise Exit(f"No artifacts found in s3://{bucket}/{s3_prefix}", code=1)
+
+    return [obj['Key'] for obj in result.get('Contents', [])]
+
+
+def _extract_version_from_pipeline_artifacts(keys):
+    """Extract version info from pipeline S3 artifact filenames.
+
+    Looks for the base datadog-agent MSI (not fips) and parses the version.
+    Returns (display_version, package_version) or raises Exit.
+    """
+    for key in keys:
+        if '/datadog-fips-agent-' in key:
+            continue
+        result = _version_from_msi_filename(key)
+        if result:
+            return result
+
+    raise Exit("No datadog-agent MSI found in pipeline artifacts", code=1)
+
+
+def _resolve_pipeline_build(ctx, prefix, env_vars, pipeline_id=None, branch=None):
+    """Resolve agent package from a CI pipeline."""
+    if pipeline_id:
+        env_vars[f"{prefix}_PIPELINE"] = pipeline_id
+        print(f"# Using pipeline: {pipeline_id}", file=sys.stderr)
+    else:
+        result = _find_recent_successful_pipeline(ctx, branch)
+        if result:
+            env_vars[f"{prefix}_PIPELINE"] = result
+            pipeline_id = result
+            print(f"# Found pipeline: {result}", file=sys.stderr)
+        else:
+            raise Exit("Could not find a recent successful pipeline.", code=1)
+
+    try:
+        keys = _list_pipeline_msi_files(pipeline_id)
+        display_version, package_version = _extract_version_from_pipeline_artifacts(keys)
+        env_vars[f"{prefix}_ASSERT_VERSION"] = display_version
+        env_vars[f"{prefix}_ASSERT_PACKAGE_VERSION"] = package_version
+        print(f"# Resolved version from S3: {display_version} (package: {package_version})", file=sys.stderr)
+    except Exit:
+        raise
+    except Exception as e:
+        raise Exit(f"Could not determine agent version from pipeline artifacts: {e}", code=1) from e
+
+
+def _resolve_release_build(prefix, env_vars, version=None):
+    """Resolve agent package from a released version.
+
+    When version is provided, uses that version directly (supports stable and
+    beta/RC versions). When omitted, reads the last stable version from release.json.
+    """
+    if version is None:
+        try:
+            release_json = load_release_json()
+            version = release_json["last_stable"]["7"]
+        except Exception as e:
+            print(f"# Warning: Could not read stable version from release.json: {e}", file=sys.stderr)
+            print("# Using fallback stable version", file=sys.stderr)
+            version = "7.75.0"
+
+    env_vars[f"{prefix}_ASSERT_VERSION"] = version
+    env_vars[f"{prefix}_ASSERT_PACKAGE_VERSION"] = f"{version}-1"
+    env_vars[f"{prefix}_SOURCE_VERSION"] = f"{version}-1"
+
+
 @task(
     help={
         "fmt": "Output format: 'bash' for export commands, 'powershell' for $env: commands, 'json' for JSON output",
-        "build": "Build source: 'local' for local build in omnibus/pkg, 'pipeline' for CI pipeline artifacts (default: pipeline)",
-        "pkg": "Local MSI to use instead of using the most recent one. Only used with --build local",
+        "build": "Build source: 'local' (local MSI in omnibus/pkg), 'pipeline' (CI pipeline artifacts), 'release' (released version from S3)",
+        "prefix": "Environment variable prefix (e.g., CURRENT_AGENT, STABLE_AGENT). When omitted, outputs CURRENT_AGENT from --build + STABLE_AGENT from release.json",
+        "pkg": "Local MSI to use instead of the most recent one. Only used with --build local",
         "branch": "Git branch to find pipeline from (default: current branch, falls back to main). Only used with --build pipeline",
         "pipeline_id": "Override pipeline ID instead of auto-detecting. Only used with --build pipeline",
+        "version": "Specific released version (e.g., 7.75.0 or 7.76.0-rc.2). Only used with --build release. When omitted, reads last stable from release.json",
     }
 )
-def setup_env(ctx, fmt="bash", build="pipeline", pkg=None, branch=None, pipeline_id=None):
+def setup_env(ctx, fmt="bash", build="pipeline", prefix=None, pkg=None, branch=None, pipeline_id=None, version=None):
     """
-    Generate environment variables for running E2E Fleet Automation tests locally.
+    Generate environment variables for running Windows E2E tests locally.
 
     This task derives version information and artifact locations to set the required
-    environment variables for running E2E tests.
+    environment variables (CURRENT_AGENT_*, STABLE_AGENT_*) for running E2E tests.
+
+    Build modes:
+      local    - Find MSI/OCI from omnibus/pkg (a local build)
+      pipeline - Resolve artifacts from a CI pipeline (auto-detects or use --pipeline-id)
+      release  - Resolve from a released version (stable or RC). Uses release.json by default,
+                 or a specific version with --version
+
+    When --prefix is omitted, the task outputs both:
+      - CURRENT_AGENT_* from the specified --build mode (default: pipeline)
+      - STABLE_AGENT_* from release.json
+
+    When --prefix is specified, the task outputs only that prefix using the
+    specified --build mode.
 
     Usage:
-        # Use local MSI build from omnibus/pkg directory (Windows)
-        dda inv new-e2e-tests.setup-env --build local
-
-        # Use artifacts from a CI pipeline (auto-detects most recent successful pipeline)
+        # Default: CURRENT_AGENT from pipeline + STABLE_AGENT from release.json
         dda inv new-e2e-tests.setup-env --build pipeline
 
-        # Use a specific pipeline
-        dda inv new-e2e-tests.setup-env --build pipeline --pipeline-id 12345678
+        # Default: CURRENT_AGENT from local build + STABLE_AGENT from release.json
+        dda inv new-e2e-tests.setup-env --build local
+
+        # Only STABLE_AGENT, resolved from a specific pipeline
+        dda inv new-e2e-tests.setup-env --prefix STABLE_AGENT --build pipeline --pipeline-id 12345678
+
+        # Only CURRENT_AGENT from a local build
+        dda inv new-e2e-tests.setup-env --prefix CURRENT_AGENT --build local
+
+        # STABLE_AGENT from a specific stable release
+        dda inv new-e2e-tests.setup-env --prefix STABLE_AGENT --build release --version 7.75.0
+
+        # STABLE_AGENT from a release candidate (beta channel)
+        dda inv new-e2e-tests.setup-env --prefix STABLE_AGENT --build release --version 7.76.0-rc.2
 
         # Bash/WSL - eval the output to apply the environment variables
         eval "$(dda inv new-e2e-tests.setup-env --build local)"
@@ -1428,80 +1714,30 @@ def setup_env(ctx, fmt="bash", build="pipeline", pkg=None, branch=None, pipeline
     if fmt not in valid_formats:
         raise Exit(f"Invalid --fmt option: {fmt}. Use one of: {', '.join(valid_formats)}", code=1)
 
-    if build == "local":
-        # Find local MSI build (Windows)
-        msi_path = _find_local_msi_build(pkg)
-        if msi_path:
-            env_vars["CURRENT_AGENT_MSI_URL"] = _path_to_file_url(msi_path)
-            print(f"# Found local MSI: {msi_path}", file=sys.stderr)
+    valid_builds = ["local", "pipeline", "release"]
+    if build not in valid_builds:
+        raise Exit(f"Invalid --build option: {build}. Use one of: {', '.join(valid_builds)}", code=1)
 
-            # Extract version from MSI filename
-            version_info = _parse_version_from_msi_filename(ctx, msi_path)
-            if version_info:
-                display_version, package_version = version_info
-                env_vars["CURRENT_AGENT_VERSION"] = display_version
-                env_vars["CURRENT_AGENT_VERSION_PACKAGE"] = package_version
-            else:
-                print("Warning: Could not parse version from MSI filename, falling back to git", file=sys.stderr)
-                try:
-                    env_vars["CURRENT_AGENT_VERSION"] = get_version(ctx, include_git=False, include_pre=True)
-                    package_version = get_version(ctx, include_git=True, url_safe=True)
-                    env_vars["CURRENT_AGENT_VERSION_PACKAGE"] = f"{package_version}-1"
-                except Exception as e:
-                    raise Exit(f"Could not determine current agent version: {e}", code=1) from e
+    if version and build != "release":
+        raise Exit("--version can only be used with --build release", code=1)
 
-            # Check for matching OCI package
-            if "CURRENT_AGENT_VERSION_PACKAGE" in env_vars:
-                oci_filename = f"datadog-agent-{env_vars['CURRENT_AGENT_VERSION_PACKAGE']}-windows-amd64.oci.tar"
-                oci_path = os.path.join(os.path.dirname(msi_path), oci_filename)
-                if os.path.isfile(oci_path):
-                    env_vars["CURRENT_AGENT_OCI_URL"] = _path_to_file_url(oci_path)
-                    print(f"# Found local OCI: {oci_path}", file=sys.stderr)
-                else:
-                    print(f"# Note: No OCI package found at {oci_filename}", file=sys.stderr)
-        else:
-            if pkg:
-                raise Exit(f"No MSI matching '{pkg}' found in omnibus/pkg/.", code=1)
-            else:
-                raise Exit("No local MSI build found in omnibus/pkg/. Run 'dda inv msi.build' first.", code=1)
-
-    elif build == "pipeline":
-        # Find pipeline ID
-        if pipeline_id:
-            env_vars["E2E_PIPELINE_ID"] = pipeline_id
-            print(f"# Using pipeline: {pipeline_id}", file=sys.stderr)
-        else:
-            result = _find_recent_successful_pipeline(ctx, branch)
-            if result:
-                env_vars["E2E_PIPELINE_ID"] = result
-                print(f"# Found pipeline: {env_vars['E2E_PIPELINE_ID']}", file=sys.stderr)
-            else:
-                raise Exit("Could not find a recent successful pipeline.", code=1)
-
-        try:
-            current_version = get_version(ctx, include_git=False, include_pre=True, pipeline_id=pipeline_id)
-            env_vars["CURRENT_AGENT_VERSION"] = current_version
-        except Exception as e:
-            raise Exit(f"Could not determine current agent version: {e}", code=1) from e
-
+    if prefix:
+        # Single-prefix mode: resolve one prefix using the specified build mode
+        if build == "local":
+            _resolve_local_build(ctx, prefix, env_vars, pkg=pkg)
+        elif build == "pipeline":
+            _resolve_pipeline_build(ctx, prefix, env_vars, pipeline_id=pipeline_id, branch=branch)
+        elif build == "release":
+            _resolve_release_build(prefix, env_vars, version=version)
     else:
-        raise Exit(f"Invalid --build option: {build}. Use 'local' or 'pipeline'.", code=1)
-
-    # Get stable version from release.json
-    try:
-        release_json = load_release_json()
-        stable_version = release_json["last_stable"]["7"]
-        env_vars["STABLE_AGENT_VERSION"] = stable_version
-        env_vars["STABLE_AGENT_VERSION_PACKAGE"] = f"{stable_version}-1"
-        env_vars["STABLE_AGENT_MSI_URL"] = (
-            f"https://s3.amazonaws.com/ddagent-windows-stable/ddagent-cli-{stable_version}.msi"
-        )
-    except Exception as e:
-        print(f"# Warning: Could not read stable version from release.json: {e}", file=sys.stderr)
-        print("# Using fallback stable version", file=sys.stderr)
-        env_vars["STABLE_AGENT_VERSION"] = "7.75.0"
-        env_vars["STABLE_AGENT_VERSION_PACKAGE"] = "7.75.0-1"
-        env_vars["STABLE_AGENT_MSI_URL"] = "https://s3.amazonaws.com/ddagent-windows-stable/ddagent-cli-7.75.0.msi"
+        # Default mode: CURRENT_AGENT from build mode + STABLE_AGENT from release.json
+        if build == "release":
+            raise Exit("--build release requires --prefix (e.g., --prefix STABLE_AGENT)", code=1)
+        if build == "local":
+            _resolve_local_build(ctx, "CURRENT_AGENT", env_vars, pkg=pkg)
+        elif build == "pipeline":
+            _resolve_pipeline_build(ctx, "CURRENT_AGENT", env_vars, pipeline_id=pipeline_id, branch=branch)
+        _resolve_release_build("STABLE_AGENT", env_vars)
 
     # Output in requested format
     if fmt == "json":

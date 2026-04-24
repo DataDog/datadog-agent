@@ -7,9 +7,15 @@ load(
 )
 load("@rules_pkg//pkg:rpm.bzl", "pkg_rpm")
 load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
+load("//bazel/rules:compression.bzl", "get_compression_level")
 load("//compliance:package_licenses.bzl", "package_licenses")
+load("//packages/rules:package_naming.bzl", "package_name_variables")
 
 package(default_visibility = ["//packages:__subpackages__"])
+
+package_name_variables(
+    name = "variables",
+)
 
 # TODO: Add the dogstatsd binary and component targets here, analogous to
 # //packages/agent/dependencies:all_files and //packages/install_dir:embedded.
@@ -49,6 +55,7 @@ pkg_filegroup(
 pkg_tar(
     name = "whole_distro_tar",
     srcs = [":whole_distro"],
+    compression_level = get_compression_level(),
     extension = "tar.xz",
     owner = "0.0",
 )
@@ -72,6 +79,8 @@ pkg_deb(
     license = "Apache License Version 2.0",
     maintainer = "Datadog Packages <package@datadoghq.com>",
     package = "datadog-dogstatsd",
+    package_file_name = "datadog-dogstatsd_{version}-1_{arch_deb}.deb",
+    package_variables = ":variables",
     postinst = "//omnibus:package-scripts/dogstatsd-deb/postinst",
     postrm = "//omnibus:package-scripts/dogstatsd-deb/postrm",
     preinst = "//omnibus:package-scripts/dogstatsd-deb/preinst",
@@ -91,6 +100,8 @@ pkg_rpm(
     epoch = "1",
     group = "System Environment/Daemons",
     license = "Apache License Version 2.0",
+    package_file_name = "datadog-dogstatsd-{version}-1.{arch_rpm}.rpm",
+    package_variables = ":variables",
     post_scriptlet_file = "//omnibus:package-scripts/dogstatsd-rpm/postinst",
     posttrans_scriptlet_file = "//omnibus:package-scripts/dogstatsd-rpm/posttrans",
     postun_scriptlet_file = "//omnibus:package-scripts/dogstatsd-rpm/postrm",
@@ -98,7 +109,7 @@ pkg_rpm(
     preun_scriptlet_file = "//omnibus:package-scripts/dogstatsd-rpm/prerm",
     # TODO: Stamp in pipeline: 7.77.0~devel.git.394.fe0d0bb.pipeline.95313893
     release = "1",
-    # Packages needed during %pre scriptlet execution (from dogstatsd.rb runtime_script_dependency).
+    # Packages needed during %pre scriptlet execution (from dogstatsd.rb ).
     # coreutils and grep are common to RHEL and SUSE.
     # glibc-common and shadow-utils are RHEL-specific; SUSE uses glibc and shadow.
     # TODO: use select() when a RHEL vs SUSE constraint is defined.

@@ -9,16 +9,34 @@ nodes:
   - hostPath: ./certs.d
     containerPath: /etc/containerd/certs.d
 {{- end }}
-{{- if .DualNodeSetup }}
+{{- range .WorkerNodes }}
 - role: worker
   extraMounts:
   - hostPath: /proc
     containerPath: /host/proc
-{{- if .NewContainerdRegistryConfig }}
+{{- if $.NewContainerdRegistryConfig }}
   - hostPath: ./certs.d
     containerPath: /etc/containerd/certs.d
 {{- end }}
-{{- end }} {{- /* end of .DualNodeSetup */}}
+{{- if or .Labels .Taints }}
+  kubeadmConfigPatches:
+    - |
+      kind: JoinConfiguration
+      nodeRegistration:
+{{- if .Labels }}
+        kubeletExtraArgs:
+          node-labels: "{{range $i, $l := .Labels}}{{if $i}},{{end}}{{$l.Key}}={{$l.Value}}{{end}}"
+{{- end }}
+{{- if .Taints }}
+        taints:
+{{- range .Taints }}
+          - key: "{{.Key}}"
+            value: "{{.Value}}"
+            effect: "{{.Effect}}"
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }} {{- /* end of range .WorkerNodes */}}
 containerdConfigPatches:
   - |-
 {{- if .NewContainerdRegistryConfig }}

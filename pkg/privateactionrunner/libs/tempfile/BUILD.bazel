@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "tempfile",
+    srcs = ["tempfile.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/tempfile",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/privateactionrunner/adapters/logging"],
+)

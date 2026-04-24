@@ -7,7 +7,7 @@ package additionalfields
 
 import (
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
-	"github.com/DataDog/datadog-agent/comp/netflow/config"
+	"github.com/DataDog/datadog-agent/comp/netflow/config/def"
 	"github.com/netsampler/goflow2/decoders/netflow"
 	"github.com/stretchr/testify/assert"
 	"testing"

@@ -1,3 +1,20 @@
+load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
 load("//bazel/rules/ebpf:cgo_godefs_test.bzl", "cgo_godefs_test_suite")
+
+string_flag(
+    name = "target_arch",
+    build_setting_default = "",
+    visibility = ["//visibility:public"],
+)
+
+config_setting(
+    name = "target_arch_aarch64",
+    flag_values = {":target_arch": "aarch64"},
+)
+
+config_setting(
+    name = "target_arch_x86_64",
+    flag_values = {":target_arch": "x86_64"},
+)
 
 cgo_godefs_test_suite(name = "cgo_godefs_tests")

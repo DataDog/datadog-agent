@@ -22,6 +22,7 @@
       -e OMNIBUS_TARGET
       -e WINDOWS_BUILDER=true
       -e INTEGRATIONS_CORE_VERSION
+      -e INTEGRATIONS_WHEELS_STORAGE
       -e WINDOWS_DDNPM_DRIVER
       -e WINDOWS_DDNPM_VERSION
       -e WINDOWS_DDNPM_SHASUM
@@ -87,7 +88,7 @@ windows_msi_and_bosh_zip_x64-a7-fips:
     - !reference [.except_mergequeue]
     - when: on_success
   extends: .windows_docker_default
-  needs: ["go_mod_tidy_check", "go_deps"]
+  needs: ["go_deps"]
   variables:
     ARCH: "x64"
   script:
@@ -107,6 +108,7 @@ windows_msi_and_bosh_zip_x64-a7-fips:
       -e OMNIBUS_TARGET
       -e WINDOWS_BUILDER=true
       -e INTEGRATIONS_CORE_VERSION
+      -e INTEGRATIONS_WHEELS_STORAGE
       -e WINDOWS_DDNPM_DRIVER
       -e WINDOWS_DDNPM_VERSION
       -e WINDOWS_DDNPM_SHASUM

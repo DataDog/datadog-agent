@@ -49,7 +49,7 @@ This command acts as the CLI wrapper that initializes and runs the core profilin
 To build the host-profiler binary, use the following invoke task:
 
 ```bash
-dda inv full-host-profiler.build
+dda inv host-profiler.build
 ```
 
 **Note**: This must be run on a Linux system or in a Linux build environment, as the binary includes Linux-specific eBPF dependencies.
@@ -65,6 +65,8 @@ DD_SITE=datad0g.com # optional, defaults to "datadoghq.com"
 UID=1234 # required on Datadog workspace, set to the output of `id -u` on the workspace
 GID=1234 # required on Datadog workspace, set to the output of `id -g` on the workspace
 DD_TAGS="key:value,key1:value2" # optional, defaults to workspace:${workspace-name} on a Datadog workspace
+DD_HOSTPROFILER_DEBUG='{"verbosity":"detailed"}' # optional, enable debug exporter (basic|normal|detailed|none)
+DD_HOSTPROFILER_ADDITIONAL_HTTP_HEADERS='{"x-custom-header":"value"}' # optional, additional HTTP headers on OTLP exporter requests; defaults to workspace metadata on Datadog workspaces
 ```
 
 Then run
@@ -83,15 +85,14 @@ docker-compose logs host-profiler -f
 
 ```bash
 # Standalone mode
-./bin/full-host-profiler/full-host-profiler run -c cmd/host-profiler/dist/host-profiler-config.yaml
+./bin/host-profiler/host-profiler run -c cmd/host-profiler/dist/host-profiler-config.yaml
 
 # Agent-integrated mode
 # First, start the Datadog Agent
 ./bin/agent/agent run -c ./dev/dist
 
 # Then, in another terminal, start the host-profiler with Agent integration
-./bin/full-host-profiler/full-host-profiler run \
-  -c cmd/host-profiler/dist/host-profiler-config.yaml \
+./bin/host-profiler/host-profiler run \
   --core-config ./dev/dist/datadog.yaml
 ```
 
@@ -103,7 +104,7 @@ The component is configured via an OpenTelemetry Collector YAML file. See [`dist
 
 ### Key Configuration Sections
 
-- **`receivers.hostprofiler`**: eBPF profiling parameters, tracers, symbol upload settings
+- **`receivers.profiling`**: eBPF profiling parameters, tracers, symbol upload settings
 - **`processors.infraattributes`**: Infrastructure metadata enrichment (Agent mode only)
 - **`processors.k8sattributes`**: Kubernetes metadata enrichment (standalone mode)
 - **`exporters.otlphttp`**: Datadog profiling intake endpoint configuration

@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/local"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/profile"
+	workloadpatcher "github.com/DataDog/datadog-agent/pkg/clusteragent/patcher"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -58,7 +59,8 @@ func StartWorkloadAutoscaling(
 	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
 	workload.InitDumper(store)
 
-	podPatcher := workload.NewPodPatcher(store, isLeaderFunc, apiCl.DynamicCl, eventRecorder)
+	patcher := workloadpatcher.NewPatcher(apiCl.DynamicCl, isLeaderFunc)
+	podPatcher := workload.NewPodPatcher(store, patcher, eventRecorder)
 	podWatcher := workload.NewPodWatcher(wlm, podPatcher)
 
 	clock := clock.RealClock{}
@@ -86,7 +88,7 @@ func StartWorkloadAutoscaling(
 	maxDatadogPodAutoscalerObjects := pkgconfigsetup.Datadog().GetInt("autoscaling.workload.limit")
 	limitHeap := autoscaling.NewHashHeap(maxDatadogPodAutoscalerObjects, store, (*model.PodAutoscalerInternal).CreationTimestamp)
 
-	controller, err := workload.NewController(clock, clusterID, eventRecorder, apiCl.RESTMapper, apiCl.ScaleCl, apiCl.Cl, apiCl.DynamicInformerCl, apiCl.DynamicInformerFactory, isLeaderFunc, store, podWatcher, sender, limitHeap, globalTagsFunc)
+	controller, err := workload.NewController(clock, clusterID, eventRecorder, apiCl.RESTMapper, apiCl.ScaleCl, apiCl.Cl, apiCl.DynamicCl, apiCl.DynamicInformerFactory, isLeaderFunc, store, podWatcher, sender, limitHeap, globalTagsFunc)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to start workload autoscaling controller: %w", err)
 	}
@@ -94,7 +96,7 @@ func StartWorkloadAutoscaling(
 	profileStore := autoscaling.NewStore[model.PodAutoscalerProfileInternal]()
 	profileController, err := profile.NewController(
 		clock,
-		apiCl.DynamicInformerCl,
+		apiCl.DynamicCl,
 		apiCl.DynamicInformerFactory,
 		isLeaderFunc,
 		profileStore,
@@ -106,27 +108,29 @@ func StartWorkloadAutoscaling(
 	workloadWatcher := profile.NewWorkloadWatcher(
 		profileStore,
 		isLeaderFunc,
-		apiCl.DynamicInformerCl,
+		apiCl.MetadataInformerCl,
 		[]profile.GroupVersionKindResource{
 			{GroupVersionResource: schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}, Kind: "Deployment"},
 			{GroupVersionResource: schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "statefulsets"}, Kind: "StatefulSet"},
 		},
+		profileController.InitialSyncDone,
 	)
 
-	autoscalerSyncer := profile.NewAutoscalerSyncer(profileStore, store, isLeaderFunc, profileController.HasSynced, workloadWatcher.HasSynced)
+	autoscalerSyncer := profile.NewAutoscalerSyncer(profileStore, store, isLeaderFunc, profileController.InitialSyncDone, workloadWatcher.HasSynced)
 	builtinManager := profile.NewBuiltinProfileManager(apiCl.DynamicInformerCl, isLeaderFunc)
 
 	// Start informers & controllers (informers can be started multiple times)
 	apiCl.DynamicInformerFactory.Start(ctx.Done())
 	apiCl.InformerFactory.Start(ctx.Done())
 
+	dpaNumWorkers := pkgconfigsetup.Datadog().GetInt("autoscaling.workload.num_workers")
 	// TODO: Wait POD Watcher sync before running the controller
 	go builtinManager.Run(ctx)
-	go profileController.Run(ctx)
+	go profileController.Run(ctx, 1)
 	go workloadWatcher.Run(ctx)
 	go autoscalerSyncer.Run(ctx)
 	go podWatcher.Run(ctx)
-	go controller.Run(ctx)
+	go controller.Run(ctx, dpaNumWorkers)
 
 	// Only start the local recommender if failover metrics collection is enabled
 	if pkgconfigsetup.Datadog().GetBool("autoscaling.failover.enabled") {

@@ -229,14 +229,6 @@ func (c *logonDurationComponent) detectReboot() (bool, string, error) {
 	return false, currentBootTime, nil
 }
 
-// safeDurationSeconds returns a.Sub(b).Seconds() if both are non-zero, otherwise 0.
-func safeDurationSeconds(a, b time.Time) float64 {
-	if a.IsZero() || b.IsZero() {
-		return 0
-	}
-	return a.Sub(b).Seconds()
-}
-
 // safeDurationMs returns a.Sub(b).Milliseconds() if both are non-zero, otherwise 0.
 func safeDurationMs(a, b time.Time) int64 {
 	if a.IsZero() || b.IsZero() {
@@ -257,28 +249,32 @@ func buildTimelineMilestones(bootTime time.Time, ts logonduration.LoginTimestamp
 
 	milestones := []Milestone{
 		{
-			Name:      "Boot Start",
-			OffsetS:   0,
-			DurationS: safeDurationSeconds(ts.LoginWindowTime, bootTime),
-			Timestamp: bootTime.UTC().Format(tsFmt),
+			ID:         "boot_start",
+			Name:       "Boot Start",
+			OffsetMs:   0,
+			DurationMs: float64(safeDurationMs(ts.LoginWindowTime, bootTime)),
+			Timestamp:  bootTime.UTC().Format(tsFmt),
 		},
 		{
-			Name:      "Login Window Ready",
-			OffsetS:   safeDurationSeconds(ts.LoginWindowTime, bootTime),
-			DurationS: safeDurationSeconds(ts.LoginTime, ts.LoginWindowTime),
-			Timestamp: formatTS(ts.LoginWindowTime),
+			ID:         "login_window_ready",
+			Name:       "Login Window Ready",
+			OffsetMs:   float64(safeDurationMs(ts.LoginWindowTime, bootTime)),
+			DurationMs: 0,
+			Timestamp:  formatTS(ts.LoginWindowTime),
 		},
 		{
-			Name:      "User Login",
-			OffsetS:   safeDurationSeconds(ts.LoginTime, bootTime),
-			DurationS: safeDurationSeconds(ts.DesktopReadyTime, ts.LoginTime),
-			Timestamp: formatTS(ts.LoginTime),
+			ID:         "user_login",
+			Name:       "User Login",
+			OffsetMs:   float64(safeDurationMs(ts.LoginTime, bootTime)),
+			DurationMs: float64(safeDurationMs(ts.DesktopReadyTime, ts.LoginTime)),
+			Timestamp:  formatTS(ts.LoginTime),
 		},
 		{
-			Name:      "Desktop Ready",
-			OffsetS:   safeDurationSeconds(ts.DesktopReadyTime, bootTime),
-			DurationS: 0,
-			Timestamp: formatTS(ts.DesktopReadyTime),
+			ID:         "desktop_ready",
+			Name:       "Desktop Ready",
+			OffsetMs:   float64(safeDurationMs(ts.DesktopReadyTime, bootTime)),
+			DurationMs: 0,
+			Timestamp:  formatTS(ts.DesktopReadyTime),
 		},
 	}
 
@@ -288,15 +284,25 @@ func buildTimelineMilestones(bootTime time.Time, ts logonduration.LoginTimestamp
 func buildCustomPayload(bootTime time.Time, ts logonduration.LoginTimestamps) map[string]interface{} {
 	custom := make(map[string]interface{})
 
-	custom["boot_timeline"] = buildTimelineMilestones(bootTime, ts)
+	milestones := buildTimelineMilestones(bootTime, ts)
+	custom["boot_timeline"] = milestones
 
 	bootMs := safeDurationMs(ts.LoginWindowTime, bootTime)
 	logonMs := safeDurationMs(ts.DesktopReadyTime, ts.LoginTime)
 
-	custom["durations"] = map[string]interface{}{
-		"boot_duration_ms":       bootMs,
-		"logon_duration_ms":      logonMs,
-		"total_boot_duration_ms": bootMs + logonMs,
+	durations := make(map[string]interface{})
+	durations["boot_duration_ms"] = bootMs
+	durations["logon_duration_ms"] = logonMs
+	durations["total_boot_duration_ms"] = bootMs + logonMs
+
+	for _, milestone := range milestones {
+		if milestone.DurationMs > 0 {
+			durations[milestone.ID] = milestone.DurationMs
+		}
+	}
+
+	if len(durations) > 0 {
+		custom["durations"] = durations
 	}
 
 	custom["filevault_enabled"] = ts.FileVaultEnabled
@@ -309,10 +315,10 @@ func buildCustomPayload(bootTime time.Time, ts logonduration.LoginTimestamps) ma
 func (c *logonDurationComponent) submitEvent(bootTime time.Time, ts logonduration.LoginTimestamps) error {
 	custom := buildCustomPayload(bootTime, ts)
 
-	msg := "macOS logon duration analysis after reboot"
+	msg := "Total boot duration analysis after reboot"
 	if durations, ok := custom["durations"].(map[string]interface{}); ok {
-		if logonMs, ok := durations["logon_duration_ms"]; ok {
-			msg = fmt.Sprintf("macOS logon took %d ms", logonMs)
+		if totalMs, ok := durations["total_boot_duration_ms"]; ok {
+			msg = fmt.Sprintf("Total boot duration took %d ms.", totalMs)
 		}
 	}
 

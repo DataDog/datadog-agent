@@ -37,13 +37,6 @@ BPF_HASH_MAP(tcp_ongoing_connect_pid, skp_conn_tuple_t, pid_ts_t, 0)
  */
 BPF_PERF_EVENT_ARRAY_MAP(conn_close_event, __u32)
 
-/* We use this map as a container for batching closed tcp/udp connections
- * The key represents the CPU core. Ideally we should use a BPF_MAP_TYPE_PERCPU_HASH map
- * or BPF_MAP_TYPE_PERCPU_ARRAY, but they are not available in
- * some of the Kernels we support (4.4 ~ 4.6)
- */
-BPF_HASH_MAP(conn_close_batch, __u32, batch_t, 1)
-
 /*
  * Map to hold struct sock parameter for tcp_sendmsg calls
  * to be used in kretprobe/tcp_sendmsg
@@ -131,12 +124,6 @@ BPF_HASH_MAP(conn_tuple_to_socket_skb_conn_tuple, conn_tuple_t, conn_tuple_t, 0)
 // Map to hold conn_tuple_t parameter for tcp_close calls
 // to be used in kretprobe/tcp_close.
 BPF_HASH_MAP(tcp_close_args, __u64, conn_tuple_t, 1024)
-
-// This program array is needed to bypass a memory limit on socket filters.
-// There is a limitation on number of instructions can be attached to a socket filter,
-// as we dispatching more protocols, we reached that limit, thus we workaround it
-// by using tail call.
-BPF_PROG_ARRAY(tcp_close_progs, 1)
 
 // Map to store extra information about TLS connections like version, cipher, etc.
 BPF_HASH_MAP(tls_enhanced_tags, conn_tuple_t, tls_info_wrapper_t, 0)

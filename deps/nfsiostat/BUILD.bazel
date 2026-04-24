@@ -11,7 +11,7 @@ package(default_visibility = [
 genrule(
     name = "fix_shebang",
     srcs = ["@nfsiostat//:nfsiostat_py"],
-    outs = ["nfsiosat"],
+    outs = ["nfsiostat"],
     cmd = "sed 's@#!/usr/bin/python@#!/opt/datadog-agent/embedded/bin/python@' $(location  @nfsiostat//:nfsiostat_py) >$@",
 )
 

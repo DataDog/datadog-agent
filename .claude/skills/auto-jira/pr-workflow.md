@@ -24,9 +24,9 @@ This skill handles: fetching full ticket context, codebase analysis, branching, 
 
 **PR must be a draft** (`--draft` flag).
 
-**Linter:** `dda inv linter.go --targets=./path/to/changed/package` must pass before the PR is created.
+**Linter:** `dda inv linter.go --targets=./path/to/changed/package` must pass **before pushing**.
 
-**Tests:** `dda inv test --targets=./path/to/changed/package` must pass.
+**Tests:** `dda inv test --targets=./path/to/changed/package` must pass **before pushing**.
 
 **Reno release notes:** if the change touches Agent binary code, run `dda inv releasenotes.new-note` and include the note in the commit.
 

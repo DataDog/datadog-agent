@@ -32,6 +32,8 @@ services:
     environment:
       DD_SITE: ${DD_SITE:-datadoghq.com}
       DO_NOT_START_PROFILER:
+      DD_HOSTPROFILER_DEBUG:
+      DD_HOSTPROFILER_ADDITIONAL_HTTP_HEADERS: ${DD_HOSTPROFILER_ADDITIONAL_HTTP_HEADERS:-${WORKSPACE_NAME:+{"x-datadog-profiling-metadata":"workspace:${WORKSPACE_NAME}"}}}
     volumes:
       - ../..:/app
       - /var/run/docker.sock:/var/run/docker.sock:ro

@@ -170,8 +170,80 @@ func TestGetGRPCStatusCode(t *testing.T) {
 			},
 			"3",
 		},
+		// Earlier key wins regardless of whether the value comes from meta or metrics.
+		{
+			&pb.Span{
+				Meta:    map[string]string{"grpc.code": "7"},
+				Metrics: map[string]float64{"rpc.grpc.status_code": 10},
+			},
+			"10",
+		},
 	} {
 		assert.Equal(t, tt.out, getGRPCStatusCode(tt.in.Meta, tt.in.Metrics))
+	}
+}
+
+func TestGetGRPCStatusCodeV1(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		in   *idx.InternalSpan
+		out  string
+	}{
+		{"empty", newTestInternalSpanV1(), ""},
+		{"int value", func() *idx.InternalSpan {
+			s := newTestInternalSpanV1()
+			s.SetAttributeFromString("rpc.grpc.status_code", "10")
+			return s
+		}(), "10"},
+		{"numeric string value", func() *idx.InternalSpan {
+			s := newTestInternalSpanV1()
+			s.SetStringAttribute("rpc.grpc.status.code", "15")
+			return s
+		}(), "15"},
+		{"enum name", func() *idx.InternalSpan {
+			s := newTestInternalSpanV1()
+			s.SetStringAttribute("rpc.grpc.status_code", "aborted")
+			return s
+		}(), "10"},
+		{"StatusCode prefix", func() *idx.InternalSpan {
+			s := newTestInternalSpanV1()
+			s.SetStringAttribute("grpc.status.code", "StatusCode.ABORTED")
+			return s
+		}(), "10"},
+		{"CANCELLED", func() *idx.InternalSpan {
+			s := newTestInternalSpanV1()
+			s.SetStringAttribute("rpc.grpc.status.code", "CANCELLED")
+			return s
+		}(), "1"},
+		{"Canceled", func() *idx.InternalSpan {
+			s := newTestInternalSpanV1()
+			s.SetStringAttribute("rpc.grpc.status.code", "Canceled")
+			return s
+		}(), "1"},
+		{"InvalidArgument", func() *idx.InternalSpan {
+			s := newTestInternalSpanV1()
+			s.SetStringAttribute("rpc.grpc.status_code", "InvalidArgument")
+			return s
+		}(), "3"},
+		{"invalid unrecognized string", func() *idx.InternalSpan {
+			s := newTestInternalSpanV1()
+			s.SetStringAttribute("grpc.status.code", "StatusCodee.ABORTED")
+			return s
+		}(), ""},
+		{"fallback key", func() *idx.InternalSpan {
+			s := newTestInternalSpanV1()
+			s.SetAttributeFromString("grpc.code", "7")
+			return s
+		}(), "7"},
+		// Earlier key wins regardless of attribute storage type.
+		{"earlier key beats later key regardless of type", func() *idx.InternalSpan {
+			s := newTestInternalSpanV1()
+			s.SetAttributeFromString("rpc.grpc.status_code", "10")
+			s.SetStringAttribute("grpc.code", "7")
+			return s
+		}(), "10"},
+	} {
+		assert.Equal(t, tt.out, getGRPCStatusCodeV1(tt.in), tt.name)
 	}
 }
 
@@ -290,8 +362,8 @@ func TestNewAggregation(t *testing.T) {
 	}
 }
 
-func TestSpanDerivedPrimaryTags(t *testing.T) {
-	spanDerivedPrimaryTagsHash := tagsFnvHash([]string{"customer_tier:premium", "datacenter:us-east-1"})
+func TestAdditionalMetricTags(t *testing.T) {
+	additionalMetricTagsHash := tagsFnvHash([]string{"customer_tier:premium", "datacenter:us-east-1"})
 	sc := &SpanConcentrator{}
 
 	span := &pb.Span{
@@ -307,13 +379,13 @@ func TestSpanDerivedPrimaryTags(t *testing.T) {
 	}
 	traceutil.SetMeasured(span, true)
 
-	spanDerivedPrimaryTags := []string{"datacenter", "customer_tier"}
-	statSpan, ok := sc.NewStatSpanFromPB(span, nil, spanDerivedPrimaryTags)
+	additionalMetricTagKeys := []string{"datacenter", "customer_tier"}
+	statSpan, ok := sc.NewStatSpanFromPB(span, nil, additionalMetricTagKeys)
 	assert.True(t, ok)
-	assert.Equal(t, []string{"datacenter:us-east-1", "customer_tier:premium"}, statSpan.matchingSpanDerivedPrimaryTags)
+	assert.Equal(t, []string{"datacenter:us-east-1", "customer_tier:premium"}, statSpan.matchingAdditionalMetricTags)
 
 	agg := NewAggregationFromSpan(statSpan, "", PayloadAggregationKey{})
-	assert.Equal(t, spanDerivedPrimaryTagsHash, agg.SpanDerivedPrimaryTagsHash)
+	assert.Equal(t, additionalMetricTagsHash, agg.AdditionalMetricTagsHash)
 }
 
 func TestPeerTagsToAggregateForSpan(t *testing.T) {

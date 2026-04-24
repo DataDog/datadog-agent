@@ -37,24 +37,26 @@ type CodeSerializer interface {
 func GenerateCode(program Program, out CodeSerializer) (CodeMetadata, error) {
 	t := codeTracker{
 		functionLoc: make(map[FunctionID]uint32, len(program.Functions)),
+		labelLoc:    make(map[functionLabel]uint32),
 	}
 
 	var fs []codeFragment
 	pc := uint32(0)
 	var maxOpLen uint32
 	appendFragment := func(f codeFragment) {
+		f.layout(&t, pc)
 		fs = append(fs, f)
 		pc += f.codeByteLen()
 		maxOpLen = max(maxOpLen, f.codeByteLen())
 	}
 
-	appendFragment(makeInstruction(IllegalOp{}))
+	appendFragment(makeInstruction(nil, IllegalOp{}))
 
 	for _, f := range program.Functions {
 		t.functionLoc[f.ID] = pc
 		appendFragment(functionComment{id: f.ID})
 		for _, op := range f.Ops {
-			appendFragment(makeInstruction(op))
+			appendFragment(makeInstruction(f.ID, op))
 		}
 	}
 
@@ -62,11 +64,11 @@ func GenerateCode(program Program, out CodeSerializer) (CodeMetadata, error) {
 	// implementation can statically succeed. By padding out to the maximum
 	// size of a literal op, we know that the ops bounds check and also the
 	// literal data bounds check will succeed.
-	appendFragment(blockComment{"Extra illegal ops to simplify code bound checks"})
+	appendFragment(blockComment{comment: "Extra illegal ops to simplify code bound checks"})
 	const maxDataOpLen = 1 + ir.MaxStringLiteralLength + 4
 	padLen := max(maxOpLen, maxDataOpLen)
 	for range padLen {
-		appendFragment(makeInstruction(IllegalOp{}))
+		appendFragment(makeInstruction(nil, IllegalOp{}))
 	}
 
 	for _, f := range fs {
@@ -161,23 +163,46 @@ func (s *DebugSerializer) SerializeInstruction(opcode Opcode, paramBytes []byte,
 	return err
 }
 
+// functionLabel uniquely identifies a label within a single function body.
+// Labels are allocated per-condition starting at 1, so LabelID alone is not
+// globally unique — pairing it with the enclosing FunctionID keeps jump
+// targets from colliding across functions.
+type functionLabel struct {
+	function FunctionID
+	label    ir.LabelID
+}
+
 // tracker aggregates information about the final generated code,
 // before it is generated.
 type codeTracker struct {
 	// PC of the first instruction of the function, used for call ops.
 	functionLoc map[FunctionID]uint32
+	// PC of each label, keyed by (function, label) so label IDs can
+	// safely restart at 1 in every function body.
+	labelLoc map[functionLabel]uint32
 }
 
-// codeFragment is part of the code can be serialized into byte code.
-// Each code fragment must be able to declare apriori how many bytes it will
-// generate.
+// codeFragment is part of the code that can be serialized into byte code.
+// Each code fragment must:
+//   - declare a priori how many bytes it will generate (codeByteLen), and
+//   - optionally record its PC into the tracker during the layout pass
+//     (layout) so later fragments can reference it.
 type codeFragment interface {
 	codeByteLen() uint32
+	// layout is called during the layout pass with the fragment's PC.
+	// Fragments that do not need to record anything use noopLayout.
+	layout(t *codeTracker, pc uint32)
 	encode(t codeTracker, out CodeSerializer) error
 }
 
+// noopLayout is embedded by fragments that do not record PCs during layout.
+type noopLayout struct{}
+
+func (noopLayout) layout(*codeTracker, uint32) {}
+
 // comment is a code fragment with free-form comment.
 type blockComment struct {
+	noopLayout
 	comment string
 }
 
@@ -191,6 +216,7 @@ func (c blockComment) encode(_ codeTracker, out CodeSerializer) error {
 
 // functionComment is a code fragment that comments a function, itself containing no code.
 type functionComment struct {
+	noopLayout
 	id FunctionID
 }
 
@@ -204,6 +230,7 @@ func (f functionComment) encode(t codeTracker, out CodeSerializer) error {
 
 // staticInstruction is a code fragment encoding logical ops, with all bytes known apriori.
 type staticInstruction struct {
+	noopLayout
 	opcode  Opcode
 	bytes   []byte
 	comment string
@@ -221,6 +248,7 @@ func (i staticInstruction) encode(_ codeTracker, out CodeSerializer) error {
 // callInstruction is a custom code fragment for logical CallOp, requiring
 // known code layout to encode itself.
 type callInstruction struct {
+	noopLayout
 	target FunctionID
 }
 
@@ -236,6 +264,84 @@ func (i callInstruction) encode(t codeTracker, out CodeSerializer) error {
 	}
 	if i.codeByteLen() != si.codeByteLen() {
 		return fmt.Errorf("internal: callInstruction codeByteLen mismatch: %d != %d", i.codeByteLen(), si.codeByteLen())
+	}
+	return si.encode(t, out)
+}
+
+// jumpInstruction encodes a conditional jump whose target is a label
+// resolved at code-layout time. Emits opcode + u32 absolute target PC. The
+// label is scoped to the enclosing function via functionID so label IDs
+// may safely restart at 1 in every function body.
+type jumpInstruction struct {
+	noopLayout
+	opcode     Opcode
+	functionID FunctionID
+	label      ir.LabelID
+}
+
+func (i jumpInstruction) codeByteLen() uint32 {
+	return 1 + 4
+}
+
+func (i jumpInstruction) encode(t codeTracker, out CodeSerializer) error {
+	key := functionLabel{function: i.functionID, label: i.label}
+	target, ok := t.labelLoc[key]
+	if !ok {
+		return fmt.Errorf("internal: jumpInstruction references unresolved label %d in %s", i.label, i.functionID)
+	}
+	si := staticInstruction{
+		opcode:  i.opcode,
+		bytes:   binary.LittleEndian.AppendUint32(nil, target),
+		comment: fmt.Sprintf("L%d", i.label),
+	}
+	if i.codeByteLen() != si.codeByteLen() {
+		return fmt.Errorf("internal: jumpInstruction codeByteLen mismatch: %d != %d", i.codeByteLen(), si.codeByteLen())
+	}
+	return si.encode(t, out)
+}
+
+// labelMarker is a zero-byte fragment that records its PC in
+// codeTracker.labelLoc during the layout pass. It emits no bytes. The
+// label is scoped to the enclosing function so label IDs may safely
+// restart at 1 in every function body.
+type labelMarker struct {
+	functionID FunctionID
+	id         ir.LabelID
+}
+
+func (labelMarker) codeByteLen() uint32 {
+	return 0
+}
+
+func (m labelMarker) layout(t *codeTracker, pc uint32) {
+	t.labelLoc[functionLabel{function: m.functionID, label: m.id}] = pc
+}
+
+func (m labelMarker) encode(_ codeTracker, out CodeSerializer) error {
+	return out.CommentBlock(fmt.Sprintf("L%d:", m.id))
+}
+
+// callDictResolvedInstruction dispatches to a concrete type's ProcessType
+// based on a dict-resolved runtime type, falling back to the shape type's
+// ProcessType if resolution fails.
+type callDictResolvedInstruction struct {
+	noopLayout
+	outputOffset uint32
+	fallback     FunctionID
+}
+
+func (i callDictResolvedInstruction) codeByteLen() uint32 {
+	return 1 + 4 + 4 // opcode + outputOffset + fallbackPC
+}
+
+func (i callDictResolvedInstruction) encode(t codeTracker, out CodeSerializer) error {
+	bytes := make([]byte, 0, 8)
+	bytes = binary.LittleEndian.AppendUint32(bytes, i.outputOffset)
+	bytes = binary.LittleEndian.AppendUint32(bytes, t.functionLoc[i.fallback])
+	si := staticInstruction{
+		opcode:  OpcodeCallDictResolved,
+		bytes:   bytes,
+		comment: fmt.Sprintf("dict_offset=%d fallback=%s", i.outputOffset, i.fallback),
 	}
 	return si.encode(t, out)
 }

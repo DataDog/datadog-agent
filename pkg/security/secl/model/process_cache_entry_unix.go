@@ -20,6 +20,11 @@ func (pc *ProcessCacheEntry) setAncestor(parent *ProcessCacheEntry) {
 		return
 	}
 
+	// prevent creating a cycle in the ancestor chain
+	if parent == pc {
+		return
+	}
+
 	// remove from old parent's children list
 	if pc.Ancestor != nil {
 		pc.Ancestor.RemoveChild(pc)
@@ -189,7 +194,7 @@ func (pc *ProcessCacheEntry) Fork(child *ProcessCacheEntry) {
 	child.Credentials = pc.Credentials
 	child.LinuxBinprm = pc.LinuxBinprm
 	child.Cookie = pc.Cookie
-	child.TracerTags = pc.TracerTags
+	child.TracerMetadata = pc.TracerMetadata
 
 	child.SetForkParent(pc)
 }

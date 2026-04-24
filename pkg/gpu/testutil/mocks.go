@@ -20,8 +20,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -94,6 +94,10 @@ var DefaultMaxClockRates = map[nvml.ClockType]uint32{
 	nvml.CLOCK_VIDEO:    4000,
 }
 
+var DefaultFieldValues = map[uint32]uint64{
+	nvml.FI_DEV_NVLINK_LINK_COUNT: 2,
+}
+
 // DevicesWithMIGChildren is a list of device indexes that have MIG children.
 var DevicesWithMIGChildren = []int{5, 6}
 
@@ -121,6 +125,7 @@ type deviceOptions struct {
 	processInfoCB      func(uuid string) ([]nvml.ProcessInfo, nvml.Return)
 	gpmSupported       *bool
 	unsupportedFields  map[uint32]struct{}
+	migChildCount      int
 }
 
 func (o deviceOptions) isMIGChild() bool {
@@ -149,10 +154,6 @@ func (o deviceOptions) hasUnsupportedField(fieldID uint32) bool {
 	}
 	_, found := o.unsupportedFields[fieldID]
 	return found
-}
-
-func (o deviceOptions) hasUnsupportedNVLinkFields() bool {
-	return o.hasUnsupportedField(nvml.FI_DEV_NVLINK_SPEED_MBPS_COMMON)
 }
 
 func (o deviceOptions) effectiveArchitecture() (nvml.DeviceArchitecture, int, int) {
@@ -221,7 +222,7 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 		},
 		GetNameFunc: func() (string, nvml.Return) {
 			if opts.isMIGChild() {
-				return "MIG " + DefaultGPUName, nvml.SUCCESS
+				return DefaultGPUName + " MIG 3g.40gb", nvml.SUCCESS
 			}
 			return DefaultGPUName, nvml.SUCCESS
 		},
@@ -259,6 +260,9 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			if opts.isMIGChild() || opts.migDisabled {
 				return 0, nvml.SUCCESS
 			}
+			if opts.migChildCount > 0 {
+				return opts.migChildCount, nvml.SUCCESS
+			}
 			return MIGChildrenPerDevice[deviceIdx], nvml.SUCCESS
 		},
 		GetMigDeviceHandleByIndexFunc: func(index int) (nvml.Device, nvml.Return) {
@@ -291,7 +295,7 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			return DefaultMemoryBusWidth, nvml.SUCCESS
 		},
 		GetMaxClockInfoFunc: func(clockType nvml.ClockType) (uint32, nvml.Return) {
-			if isMIGUnsupported {
+			if isMIGOrVGPUUnsupported {
 				return 0, nvml.ERROR_NOT_SUPPORTED
 			}
 			rate, ok := DefaultMaxClockRates[clockType]
@@ -376,8 +380,17 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			}
 			return 0, 0, false, false, nvml.SUCCESS
 		},
+		GetRepairStatusFunc: func() (nvml.RepairStatus, nvml.Return) {
+			if isMIGOrVGPUUnsupported {
+				return nvml.RepairStatus{}, nvml.ERROR_NOT_SUPPORTED
+			}
+			if arch < nvml.DEVICE_ARCH_AMPERE {
+				return nvml.RepairStatus{}, nvml.ERROR_NOT_SUPPORTED
+			}
+			return nvml.RepairStatus{}, nvml.SUCCESS
+		},
 		GetNvLinkStateFunc: func(_ int) (nvml.EnableState, nvml.Return) {
-			if isMIGUnsupported || opts.hasUnsupportedNVLinkFields() {
+			if isMIGUnsupported {
 				return 0, nvml.ERROR_NOT_SUPPORTED
 			}
 			return nvml.FEATURE_ENABLED, nvml.SUCCESS
@@ -467,8 +480,13 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 				}
 				values[i].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_LONG_LONG)
 
+				value := fieldValuesCounter + uint64(i)
+				if defaultValue, ok := DefaultFieldValues[values[i].FieldId]; ok {
+					value = defaultValue
+				}
+
 				var encoded [8]byte
-				binary.LittleEndian.PutUint64(encoded[:], fieldValuesCounter+uint64(i))
+				binary.LittleEndian.PutUint64(encoded[:], value)
 				values[i].Value = encoded
 			}
 			return nvml.SUCCESS
@@ -496,7 +514,7 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 		},
 		GetVirtualizationModeFunc: func() (nvml.GpuVirtualizationMode, nvml.Return) {
 			if opts.isVGPU() {
-				return nvml.GPU_VIRTUALIZATION_MODE_HOST_VGPU, nvml.SUCCESS
+				return nvml.GPU_VIRTUALIZATION_MODE_VGPU, nvml.SUCCESS
 			}
 			return nvml.GPU_VIRTUALIZATION_MODE_NONE, nvml.SUCCESS
 		},
@@ -508,6 +526,12 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 				return nvml.GpuInstanceProfileInfo{}, nvml.ERROR_INVALID_ARGUMENT
 			}
 			return getGpuInstanceProfileInfo(deviceIdx), nvml.SUCCESS
+		},
+		ReadWritePRM_v1Func: func(_ *nvml.PRMTLV_v1) nvml.Return {
+			if opts.isVGPU() || opts.isMIGMode() || opts.architecture < nvml.DEVICE_ARCH_BLACKWELL {
+				return nvml.ERROR_NOT_SUPPORTED
+			}
+			return nvml.SUCCESS
 		},
 	}
 
@@ -575,6 +599,12 @@ func WithDeviceCount(count int) NvmlMockOption {
 	}
 }
 
+func WithMIGChildCount(count int) NvmlMockOption {
+	return func(o *nvmlMockOptions) {
+		o.deviceOptions.migChildCount = count
+	}
+}
+
 // WithEventSetCreate influences the definition of EventSetCreateFunc
 func WithEventSetCreate(eventSetCreate func() (nvml.EventSet, nvml.Return)) NvmlMockOption {
 	return func(o *nvmlMockOptions) {
@@ -616,7 +646,7 @@ var archNameToNVML = map[string]struct {
 	"hopper":  {nvml.DEVICE_ARCH_HOPPER, 9, 0},
 	"ada":     {nvml.DEVICE_ARCH_ADA, 8, 9},
 	"blackwell": {
-		nvml.DeviceArchitecture(10), // nvml.DEVICE_ARCH_BLACKWELL in newer go-nvml
+		nvml.DEVICE_ARCH_BLACKWELL,
 		10,
 		0,
 	},
@@ -874,7 +904,7 @@ func GetWorkloadMetaMockWithDefaultGPUs(t testing.TB) workloadmetamock.Mock {
 
 // GetTelemetryMock returns a mock of the telemetry.Component.
 func GetTelemetryMock(t testing.TB) telemetry.Mock {
-	return fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
+	return fxutil.Test[telemetry.Mock](t, mocktelemetry.Module())
 }
 
 // GetTotalExpectedDevices calculates the total number of devices (physical + MIG)

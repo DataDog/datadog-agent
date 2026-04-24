@@ -90,7 +90,7 @@ def get_pr_from_commit(commit_title: str, project_name: str) -> tuple[str, str] 
     return parsed_pr_id, f"{GITHUB_BASE_URL}/{project_name}/pull/{parsed_pr_id}"
 
 
-def warn_new_commits(release_managers, team, branch, next_rc):
+def warn_new_commits(team, branch, next_rc):
     from slack_sdk import WebClient
 
     today = datetime.today()
@@ -99,8 +99,7 @@ def warn_new_commits(release_managers, team, branch, next_rc):
     message = "Hello :wave:\n"
     message += f":announcement: We detected new commits on the {branch} release branch of `integrations-core`.\n"
     message += f"Could you please release and tag your repo to prepare the {next_rc} `datadog-agent` release candidate planned <{rc_schedule_link}|{rc_date.strftime('%Y-%m-%d %H:%M')}> UTC?\n"
-    message += "Thanks in advance!\n"
-    message += f"cc {' '.join(release_managers)}"
+    message += "Thanks in advance!"
     client = WebClient(os.environ["SLACK_DATADOG_AGENT_BOT_TOKEN"])
     client.chat_postMessage(channel=f"#{team}", text=message)
 

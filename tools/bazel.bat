@@ -21,28 +21,36 @@ if not exist "%XDG_CACHE_HOME%" (
   )
 )
 
-:: Ensure `bazel` & managed toolchains honor `XDG_CACHE_HOME` as per https://wiki.archlinux.org/title/XDG_Base_Directory
+:: Ensure `bazel` & managed toolchains honor `XDG_CACHE_HOME`
+set "extra_args="
 if defined XDG_CACHE_HOME (
   set "XDG_CACHE_HOME=!XDG_CACHE_HOME:/=\!"
   if "!XDG_CACHE_HOME:~1,2!" neq ":\" if "!XDG_CACHE_HOME:~0,2!" neq "\\" (
     >&2 echo 🔴 XDG_CACHE_HOME ^(!XDG_CACHE_HOME!^) must denote an absolute path!
     exit /b 2
   )
-  :: https://pkg.go.dev/cmd/go#hdr-Build_and_test_caching
-  set "GOCACHE=%XDG_CACHE_HOME%\go-build"
-  :: https://wiki.archlinux.org/title/XDG_Base_Directory#Partial
-  set "GOMODCACHE=%XDG_CACHE_HOME%\go\mod"
-  :: https://pip.pypa.io/en/stable/topics/caching/#default-paths
-  set "PIP_CACHE_DIR=%XDG_CACHE_HOME%\pip"
+  set "GOCACHE=!XDG_CACHE_HOME!\go-build"
+  set "GOMODCACHE=!XDG_CACHE_HOME!\go\mod"
+  set "PIP_CACHE_DIR=!XDG_CACHE_HOME!\pip"
   :: https://github.com/bazelbuild/bazel/issues/27808
-  set "bazel_home=%XDG_CACHE_HOME%\bazel"
+  set "bazel_home=!XDG_CACHE_HOME!\bazel"
   set bazel_home_startup_option="--output_user_root=!bazel_home!"
+  set extra_args="--disk_cache=!bazel_home!\disk-cache"
+  :: https://github.com/bazelbuild/bazel/issues/26384
+  for %%i in ("%~dp0..\.cache") do if "!XDG_CACHE_HOME!" == "%%~fi" set "extra_args=!extra_args! --repo_contents_cache="
+  if defined CI if not defined GITHUB_ACTIONS set "extra_args=!extra_args! --config=ci"
 ) else (
-  for %%i in ("%~dp0..\.cache") do set "XDG_CACHE_HOME=%%~fi"
+  :: Without XDG_CACHE_HOME, fall back Go caches to official defaults so Go repo rules work under strict repo_env
+  if not defined GOCACHE set "GOCACHE=%LOCALAPPDATA%\go-build"
+  if not defined GOMODCACHE (
+    if defined GOPATH (for /f "tokens=1 delims=;" %%i in ("%GOPATH%") do set "gp=%%i") else set "gp=%USERPROFILE%\go"
+    set "GOMODCACHE=!gp!\pkg\mod"
+    set "gp="
+  )
 )
 
 :: Check legacy max path length of 260 characters got lifted, or fail with instructions
-set "more_than_260_chars=!XDG_CACHE_HOME!\more-than-260-chars"
+for %%i in ("%~dp0..\.cache") do if defined XDG_CACHE_HOME (set "more_than_260_chars=!XDG_CACHE_HOME!") else set "more_than_260_chars=%%~fi"
 for /l %%i in (1,1,26) do set "more_than_260_chars=!more_than_260_chars!\123456789"
 if not exist "!more_than_260_chars!" (
   2>nul mkdir "!more_than_260_chars!"
@@ -55,20 +63,12 @@ if not exist "!more_than_260_chars!" (
 )
 
 set "args=%*"
-if defined args if defined CI (
-  set "ci_args="
-  if not defined GITHUB_ACTIONS set "ci_args=--config=ci"
-  :: https://github.com/bazelbuild/bazel/issues/26384
-  for %%i in ("%~dp0..\.cache") do if "!XDG_CACHE_HOME!" == "%%~fi" (
-    if defined ci_args (set "ci_args=!ci_args! --repo_contents_cache=") else set "ci_args=--repo_contents_cache="
-  )
-  if defined ci_args call :inject_ci_args
-)
+if defined args if defined extra_args call :insert_extra_args
 "%BAZEL_REAL%" !bazel_home_startup_option! !args!
 exit /b !errorlevel!
 
 :: "--startup cmd ..." -> "--startup cmd --config=ci ..."
-:inject_ci_args
+:insert_extra_args
 set "startup_args="
 set "next_args=!args!"
 :parse_next_arg
@@ -81,7 +81,7 @@ for /f "tokens=1* delims= " %%i in ("!next_args!") do (
   ) else (
     if defined startup_args set "startup_args=!startup_args:~1! "
     set "cmd=%%i"
-    set "args=!startup_args!!cmd! !ci_args! %%j"
+    set "args=!startup_args!!cmd! !extra_args! %%j"
   )
 )
 if not defined cmd if defined next_args goto :parse_next_arg
