@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime/debug"
 	"slices"
 	"strconv"
 	"strings"
@@ -163,16 +164,10 @@ func (c *collector) stream(ctx context.Context) {
 		case <-health.C:
 
 		case ev := <-c.containerEventsCh:
-			err := c.handleContainerEvent(ctx, ev)
-			if err != nil {
-				log.Warnf("%s", err.Error())
-			}
+			c.handleContainerEventSafely(ctx, ev)
 
 		case ev := <-c.imageEventsCh:
-			err := c.handleImageEvent(ctx, ev, nil)
-			if err != nil {
-				log.Warnf("%s", err.Error())
-			}
+			c.handleImageEventSafely(ctx, ev)
 
 		case <-ctx.Done():
 			var err error
@@ -192,6 +187,49 @@ func (c *collector) stream(ctx context.Context) {
 			return
 		}
 	}
+}
+
+// handleContainerEventSafely wraps handleContainerEvent in a defer/recover so
+// that a panic inside buildCollectorEvent (for example, a panic raised by
+// moby/client's JSON decoder while processing a malformed ContainerInspect
+// response — see taskmds/05001 for the full story) does not tear down the
+// agent. The event is dropped and the stream loop continues.
+func (c *collector) handleContainerEventSafely(ctx context.Context, ev *docker.ContainerEvent) {
+	runWithRecovery(
+		fmt.Sprintf("handling docker container event (containerID=%q action=%q)", ev.ContainerID, ev.Action),
+		func() {
+			if err := c.handleContainerEvent(ctx, ev); err != nil {
+				log.Warnf("%s", err.Error())
+			}
+		},
+	)
+}
+
+// handleImageEventSafely is the panic-recovery wrapper for image events.
+// Mirrors handleContainerEventSafely so a single bad image event cannot
+// take down the collector goroutine.
+func (c *collector) handleImageEventSafely(ctx context.Context, ev *docker.ImageEvent) {
+	runWithRecovery(
+		fmt.Sprintf("handling docker image event (action=%q)", ev.Action),
+		func() {
+			if err := c.handleImageEvent(ctx, ev, nil); err != nil {
+				log.Warnf("%s", err.Error())
+			}
+		},
+	)
+}
+
+// runWithRecovery invokes fn with a deferred panic recovery. If fn panics,
+// the panic value and a stack trace are logged at ERROR and runWithRecovery
+// returns normally. Extracted so the behaviour can be exercised from a unit
+// test without having to mock the full DockerUtil surface.
+func runWithRecovery(what string, fn func()) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Errorf("panic while %s, dropping event: %v\n%s", what, r, debug.Stack())
+		}
+	}()
+	fn()
 }
 
 func (c *collector) generateEventsFromContainerList(ctx context.Context, filter workloadfilter.FilterBundle) error {

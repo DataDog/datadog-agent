@@ -1,4 +1,12 @@
 ad_identifiers:
     - _gpu
 instances:
-    - {}
+    - ## Override the check collection interval in seconds (default: 15).
+      ## Set to 1 for high-frequency integration testing, e.g. when using
+      ## the fake NVML library at embedded/dev/libnvidia-ml-fake.so.1.
+      # min_collection_interval: 15
+
+      ## Disable specific NVML collectors (comma-separated list).
+      ## Available: stateless, sampling, fields, gpm, ebpf, nvlink, device_events
+      # disabled_collectors: []
+
