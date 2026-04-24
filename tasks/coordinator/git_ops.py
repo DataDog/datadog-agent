@@ -17,8 +17,8 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-SCRATCH_BRANCH = "claude/observer-improvements"
-UPSTREAM_BRANCH = "q-branch-observer"
+SCRATCH_BRANCH = "claude/observer-blank-improvements"
+UPSTREAM_BRANCH = "ella/observer-blank"
 # Only comp/observer/ is committable by the coordinator, with the
 # critical EXCEPTION of comp/observer/scenarios/ — that directory holds
 # ground-truth labels (ground_truth.json) and episode windows
