@@ -293,6 +293,14 @@ rust.repository_set(
     name = "rust_windows_gnu_x86_64",
     edition = "2024",
     exec_triple = "x86_64-pc-windows-gnu",
+    extra_exec_rustc_flags = [
+        "-Clinker=C:/tools/msys64/mingw64/bin/gcc.exe",
+        "-Cdlltool=C:/tools/msys64/mingw64/bin/dlltool.exe",
+    ],
+    extra_rustc_flags = [
+        "-Clinker=C:/tools/msys64/mingw64/bin/gcc.exe",
+        "-Cdlltool=C:/tools/msys64/mingw64/bin/dlltool.exe",
+    ],
     target_compatible_with = [
         "@platforms//os:windows",
         "@platforms//cpu:x86_64",
