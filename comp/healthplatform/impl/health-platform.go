@@ -36,6 +36,7 @@ import (
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues/checkfailure"
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues/dockerpermissions"
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues/rofspermissions"
+	_ "github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues/windowseventlogchannels"
 )
 
 // Requires defines the dependencies for the health-platform component
