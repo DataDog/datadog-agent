@@ -11,7 +11,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/hook"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
@@ -35,7 +34,7 @@ func NewProcessorOnlyProvider(diagnosticMessageReceiver diagnostic.MessageReceiv
 	pipelineID := "0"
 	pipelineMonitor := metrics.NewNoopPipelineMonitor(pipelineID)
 	processor := processor.New(nil, inputChan, outputChan, processingRules,
-		encoder, diagnosticMessageReceiver, hostname, pipelineMonitor, pipelineID, hook.NewNoopHook[hook.LogView]())
+		encoder, diagnosticMessageReceiver, hostname, pipelineMonitor, pipelineID)
 
 	p := &processorOnlyProvider{
 		processor:       processor,

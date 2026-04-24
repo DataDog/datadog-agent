@@ -37,7 +37,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/hook"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
@@ -98,7 +97,6 @@ type provides struct {
 	StatusProvider statusComponent.InformationProvider
 	LogsReciever   option.Option[integrations.Component]
 	APIStreamLogs  api.AgentEndpointProvider
-	LogHook        hook.Hook[hook.LogView] `group:"hook"`
 }
 
 // logAgent represents the data pipeline that collects, decodes,
@@ -110,6 +108,7 @@ type logAgent struct {
 	inventoryAgent inventoryagent.Component
 	hostname       hostname.Component
 	tagger         tagger.Component
+	secrets        secrets.Component
 
 	sources                   *sources.LogSources
 	services                  *service.Services
@@ -126,8 +125,6 @@ type logAgent struct {
 	schedulerProviders        []schedulers.Scheduler
 	integrationsLogs          integrations.Component
 	compression               logscompression.Component
-	secrets                   secrets.Component
-	logHook                   hook.Hook[hook.LogView]
 
 	// make sure this is done only once, when we're ready
 	prepareSchedulers sync.Once
@@ -151,7 +148,6 @@ func newLogsAgent(deps dependencies) provides {
 		}
 
 		integrationsLogs := integrationsimpl.NewLogsIntegration()
-		logHook := hook.NewHook[hook.LogView]("logs-pipeline")
 
 		logsAgent := &logAgent{
 			log:                deps.Log,
@@ -170,7 +166,6 @@ func newLogsAgent(deps dependencies) provides {
 			tagger:             deps.Tagger,
 			compression:        deps.Compression,
 			secrets:            deps.Secrets,
-			logHook:            logHook,
 		}
 		deps.Lc.Append(fx.Hook{
 			OnStart: logsAgent.start,
@@ -186,7 +181,6 @@ func newLogsAgent(deps dependencies) provides {
 				"/stream-logs",
 				"POST",
 			),
-			LogHook: logHook,
 		}
 	}
 
@@ -195,7 +189,6 @@ func newLogsAgent(deps dependencies) provides {
 		Comp:           option.None[agent.Component](),
 		StatusProvider: statusComponent.NewInformationProvider(NewStatusProvider()),
 		LogsReciever:   option.None[integrations.Component](),
-		LogHook:        hook.NewNoopHook[hook.LogView](),
 	}
 }
 
