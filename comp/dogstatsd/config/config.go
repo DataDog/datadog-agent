@@ -8,6 +8,7 @@ package config
 
 import (
 	"os"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -46,6 +47,8 @@ func (c *Config) EnabledInternal() bool {
 	return c.Enabled() && !c.enabledDataPlane()
 }
 
+var legacyADPEnabledWarnOnce sync.Once
+
 // enabledDataPlane returns true if DogStatsD is enabled via Agent Data Plane
 func (c *Config) enabledDataPlane() bool {
 	// `DD_ADP_ENABLED` is a deprecated environment variable for signaling that Agent Data Plane is running _and_ that
@@ -54,6 +57,11 @@ func (c *Config) enabledDataPlane() bool {
 	// This is now split into two separate settings: `data_plane.enabled` and `data_plane.dogstatsd.enabled`, which
 	// indicate whether ADP is enabled at all and whether it's handling DogStatsD traffic, respectively.
 	dsdEnabledDataPlaneOldStyle := os.Getenv("DD_ADP_ENABLED") == "true"
+	if dsdEnabledDataPlaneOldStyle {
+		legacyADPEnabledWarnOnce.Do(func() {
+			log.Warnf("DD_ADP_ENABLED is deprecated; set data_plane.enabled and data_plane.dogstatsd.enabled instead")
+		})
+	}
 
 	// ADP has a global enable flag that controls whether or not it runs, and then a per-feature enable flag, which we
 	// check to see if enabled for DogStatsD.
