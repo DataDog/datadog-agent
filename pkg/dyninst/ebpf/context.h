@@ -91,9 +91,19 @@ typedef struct stack_machine {
 
   // Set to true by ConditionCheck when the condition is false.
   bool condition_failed;
-  // Set to true by ConditionBegin, cleared by ConditionCheck. If a condition
-  // exits early (e.g. nil pointer dereference), this flag remains set to
-  // signal that the condition could not be fully evaluated.
+  // "Arm" flag for the condition-evaluation error channel. Lifecycle:
+  //   1. SM_OP_CONDITION_BEGIN sets it to true at the start of every
+  //      condition evaluation.
+  //   2. If any leaf aborts the stack machine mid-evaluation (nil deref,
+  //      OOB, map miss, etc.) it stays true — the abort path leaves it
+  //      armed so userspace sees a failed condition.
+  //   3. The tail SM_OP_CONDITION_CHECK clears it to false iff the full
+  //      condition tree ran to completion. For compound conditions the
+  //      intermediate SM_OP_COND_JUMP_IF_* ops deliberately do NOT
+  //      clear it: a short-circuit jump may skip a leaf that would have
+  //      aborted, but leaves that fall through can still fault, so the
+  //      arm must survive until CHECK.
+  // event.c surfaces the flag as header->condition_eval_error (0, 1, 2).
   bool condition_eval_error;
   // Set to true when a nil pointer dereference causes an expression or
   // condition evaluation to abort. Used together with condition_eval_error

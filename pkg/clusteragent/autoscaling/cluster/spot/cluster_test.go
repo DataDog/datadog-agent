@@ -214,6 +214,10 @@ func (c *fakeCluster) DeletePod(pod *workloadmeta.KubernetesPod) {
 	async(c.wlm.Set, podCopy)
 }
 
+func (c *fakeCluster) T() *testing.T {
+	return c.t
+}
+
 // WLM returns the underlying workloadmeta mock store.
 func (c *fakeCluster) WLM() workloadmetamock.Mock {
 	return c.wlm
@@ -221,14 +225,6 @@ func (c *fakeCluster) WLM() workloadmetamock.Mock {
 
 func (c *fakeCluster) DynamicClient() dynamic.Interface {
 	return c.dynamicClient
-}
-
-// AssertOwnerPods checks that all pods owned by ownerKind/namespace/ownerName eventually satisfy check.
-func (c *fakeCluster) AssertOwnerPods(ownerKind, namespace, ownerName string, check func(wlm []*workloadmeta.KubernetesPod) bool) {
-	const assertWaitFor = 1 * time.Second
-	require.Eventuallyf(c.t, func() bool {
-		return check(c.ListOwnerPods(ownerKind, namespace, ownerName))
-	}, assertWaitFor, assertWaitFor/10, "%s %s/%s", ownerKind, namespace, ownerName)
 }
 
 // runPodScheduler simulates a Kubernetes scheduler for testing.

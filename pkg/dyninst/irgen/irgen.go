@@ -484,14 +484,24 @@ type analyzedExpression struct {
 	captureExprName string
 }
 
-// analyzedCondition represents a single condition clause that has been
-// parsed and matched to a variable. For simple conditions (eq), there
-// is one of these. Future compound conditions (and/or) will decompose
-// into multiple clauses, potentially targeting different events.
+// analyzedCondition represents a parsed and resolved condition tree. The
+// tree may be a single leaf (eq / isEmpty) or a compound of and/or/not
+// over leaves. All leaves must reference variables available at the same
+// event kind; that single kind is stored here.
+//
+// Only analyzeCondition should construct values of this type: leafRoots
+// is keyed by pointer identity of the leaves reachable from expr, and
+// mixing pre- and post-@return-rewrite leaves would silently break the
+// map. Callers downstream (exploreTypesForExpressions, resolveCondition)
+// treat the struct as read-only.
 type analyzedCondition struct {
-	expr         exprlang.Expr
-	rootVariable *ir.Variable
-	eventKind    ir.EventKind
+	// expr is the @return-rewritten condition AST.
+	expr exprlang.Expr
+	// leafRoots maps each condition leaf (EqExpr / IsEmptyExpr) reachable
+	// from expr to the variable feeding its LHS.
+	leafRoots map[exprlang.Expr]*ir.Variable
+	// eventKind is the single event kind shared by every leaf's root.
+	eventKind ir.EventKind
 }
 
 // analyzedProbe holds all analyzed expressions for a single probe instance.
@@ -503,10 +513,9 @@ type analyzedProbe struct {
 	expressions []analyzedExpression
 	template    *ir.Template
 
-	// Condition clauses, one per leaf equality in the condition tree.
-	// For simple eq conditions, len == 0 or 1.
-	// For future compound conditions, may have multiple entries
-	// potentially targeting different event kinds.
+	// condition holds the analyzed condition tree, or nil if the probe
+	// has no condition (or if analysis failed, in which case
+	// conditionIssue is populated).
 	condition *analyzedCondition
 
 	// conditionIssue is set when condition analysis fails (parse error,
@@ -569,20 +578,248 @@ func cleanReturnNames(vars []*ir.Variable) map[*ir.Variable]string {
 	return result
 }
 
-// resolveReturnExpr resolves an expression referencing @return to the
-// corresponding return variable and rewrites the expression to target that
-// variable directly.
+// analyzeCondition parses a when-clause expression and resolves it to an
+// analyzedCondition ready for resolveCondition. The returned condition's
+// fields are related by pointer identity — leafRoots is keyed by the
+// leaves reachable from expr — so this function is the only correct way
+// to build an analyzedCondition: callers must never assemble one by
+// hand, because it's easy to mismatch pre- vs post-@return-rewrite leaf
+// nodes and silently break the pointer-identity map.
 //
-// For single returns, ref("@return") is rewritten to ref(varName).
-// For multiple returns, getmember(ref("@return"), "field") is matched against
-// displayNames and rewritten to ref(varName). A bare @return is rejected
-// since multi-value returns require a field selector, and referencing more
-// than one distinct field in the same expression is rejected since the
-// result must resolve to a single root variable.
+// Returns a non-none issue when the parse fails, a leaf is malformed, a
+// referenced variable is missing/unavailable, or the leaves resolve to
+// more than one event kind. addRoot is invoked once per distinct
+// resolved variable type so type exploration covers every leaf's root.
+func analyzeCondition(
+	whenJSON []byte,
+	varByName map[string]*ir.Variable,
+	returnVars []*ir.Variable,
+	returnDisplayNames map[*ir.Variable]string,
+	conditionEventKind func(*ir.Variable) (ir.EventKind, bool),
+	addRoot func(ir.TypeID, uint32),
+	budget uint32,
+) (*analyzedCondition, ir.Issue) {
+	condExpr, err := exprlang.Parse(whenJSON)
+	if err != nil {
+		return nil, ir.Issue{
+			Kind:    ir.IssueKindUnsupportedFeature,
+			Message: fmt.Sprintf("failed to parse condition: %v", err),
+		}
+	}
+
+	// Collect every leaf of the (possibly compound) condition. A leaf
+	// here is an EqExpr or IsEmptyExpr; anything else is rejected.
+	leaves := conditionLeafExprs(condExpr)
+	if len(leaves) == 0 {
+		return nil, ir.Issue{
+			Kind:    ir.IssueKindUnsupportedFeature,
+			Message: fmt.Sprintf("unsupported condition expression type: %T", condExpr),
+		}
+	}
+	// Validate every leaf is a supported shape first so error messages
+	// are deterministic before any rewriting.
+	for _, leaf := range leaves {
+		sub, ok := conditionLeafSubExpr(leaf)
+		if !ok {
+			return nil, ir.Issue{
+				Kind:    ir.IssueKindUnsupportedFeature,
+				Message: fmt.Sprintf("unsupported condition expression type: %T", leaf),
+			}
+		}
+		// A condition leaf's LHS must be a variable-derived path
+		// (ref / getmember / index / len / isEmpty). Nesting another
+		// boolean operator inside eq's LHS — e.g. `eq(eq(x, 1), true)`
+		// — is rejected: it would work by accident because bool is a
+		// base type, but it bypasses root-variable analysis and
+		// @return rewriting, and it's semantically redundant with
+		// writing the inner condition directly.
+		if err := checkConditionLHS(sub); err != nil {
+			return nil, ir.Issue{
+				Kind:    ir.IssueKindUnsupportedFeature,
+				Message: err.Error(),
+			}
+		}
+	}
+
+	// If any leaf references @return, rewrite the entire condition tree
+	// to replace @return refs with concrete return-variable refs. Each
+	// leaf enforces "at most one @return.rN field" via rewriteReturnRefs,
+	// but distinct leaves may reference different fields — this is what
+	// makes compound conditions useful over multi-return functions.
+	//
+	// After rewriting we re-collect the leaves so every subsequent step
+	// uses the post-rewrite nodes; mixing pre- and post-rewrite leaves
+	// would silently break the leafRoots pointer-identity map.
+	if len(returnVars) > 0 {
+		rewroteAny := false
+		for _, leaf := range leaves {
+			sub, _ := conditionLeafSubExpr(leaf)
+			rootVarName, ok := extractRootVariableName(sub)
+			if !ok || rootVarName != "@return" {
+				continue
+			}
+			_, rewrittenLeaf, errMsg := rewriteReturnRefs(
+				leaf, returnVars, returnDisplayNames,
+			)
+			if errMsg != "" {
+				return nil, ir.Issue{
+					Kind:    ir.IssueKindConditionVariableUnavailable,
+					Message: errMsg,
+				}
+			}
+			origLeaf := leaf
+			condExpr = exprlang.Rewrite(condExpr, func(e exprlang.Expr) exprlang.Expr {
+				if e == origLeaf {
+					return rewrittenLeaf
+				}
+				return nil
+			})
+			rewroteAny = true
+		}
+		if rewroteAny {
+			leaves = conditionLeafExprs(condExpr)
+		}
+	}
+
+	// Resolve each leaf's root variable and event kind, and check that
+	// every leaf lands on the same event.
+	leafRoots := make(map[exprlang.Expr]*ir.Variable, len(leaves))
+	var evKind ir.EventKind
+	var evKindSet bool
+	for _, leaf := range leaves {
+		sub, _ := conditionLeafSubExpr(leaf)
+		rootVarName, ok := extractRootVariableName(sub)
+		if !ok {
+			return nil, ir.Issue{
+				Kind:    ir.IssueKindUnsupportedFeature,
+				Message: "failed to extract root variable from condition leaf",
+			}
+		}
+		rootVar := varByName[rootVarName]
+		if rootVar == nil {
+			return nil, ir.Issue{
+				Kind:    ir.IssueKindConditionVariableUnavailable,
+				Message: fmt.Sprintf("condition variable %q not found", rootVarName),
+			}
+		}
+		leafEvKind, ok := conditionEventKind(rootVar)
+		if !ok {
+			return nil, ir.Issue{
+				Kind:    ir.IssueKindConditionVariableUnavailable,
+				Message: fmt.Sprintf("condition variable %q not available at any event", rootVarName),
+			}
+		}
+		if evKindSet && leafEvKind != evKind {
+			return nil, ir.Issue{
+				Kind: ir.IssueKindConditionVariableUnavailable,
+				Message: fmt.Sprintf(
+					"compound condition references variables from multiple event kinds (%v and %v)",
+					evKind, leafEvKind,
+				),
+			}
+		}
+		evKind = leafEvKind
+		evKindSet = true
+		leafRoots[leaf] = rootVar
+		addRoot(rootVar.Type.GetID(), budget)
+	}
+
+	return &analyzedCondition{
+		expr:      condExpr,
+		leafRoots: leafRoots,
+		eventKind: evKind,
+	}, ir.Issue{}
+}
+
+// checkConditionLHS validates that expr is a legal LHS for a condition
+// leaf: a variable-derived path built from ref / getmember / index / len
+// / isEmpty nodes. Boolean operators (eq, and, or, not) are rejected
+// because they produce boolean values that would bypass the root-variable
+// and @return analysis paths, and they're semantically redundant with
+// writing the inner condition directly.
 //
-// Returns the resolved variable, the rewritten expression, and an error
-// message if resolution fails.
-func resolveReturnExpr(
+// LiteralExpr is also rejected — literals belong on the RHS of a leaf,
+// not the LHS.
+func checkConditionLHS(expr exprlang.Expr) error {
+	switch e := expr.(type) {
+	case *exprlang.RefExpr:
+		return nil
+	case *exprlang.GetMemberExpr:
+		return checkConditionLHS(e.Base)
+	case *exprlang.IndexExpr:
+		return checkConditionLHS(e.Base)
+	case *exprlang.LenExpr:
+		return checkConditionLHS(e.Operand)
+	case *exprlang.IsEmptyExpr:
+		return checkConditionLHS(e.Operand)
+	case *exprlang.EqExpr, *exprlang.AndExpr, *exprlang.OrExpr, *exprlang.NotExpr:
+		return fmt.Errorf(
+			"condition leaf LHS may not be a boolean expression (%T); "+
+				"use the inner expression directly",
+			expr,
+		)
+	case *exprlang.LiteralExpr:
+		return errors.New("condition leaf LHS may not be a literal")
+	default:
+		return fmt.Errorf("unsupported condition leaf LHS type: %T", expr)
+	}
+}
+
+// conditionLeafExprs yields every leaf of a condition tree (EqExpr /
+// IsEmptyExpr). For a non-compound condition this yields exactly one node;
+// for a compound, it yields each leaf in source order.
+func conditionLeafExprs(expr exprlang.Expr) []exprlang.Expr {
+	var leaves []exprlang.Expr
+	var walk func(exprlang.Expr)
+	walk = func(e exprlang.Expr) {
+		switch e := e.(type) {
+		case *exprlang.AndExpr:
+			walk(e.Left)
+			walk(e.Right)
+		case *exprlang.OrExpr:
+			walk(e.Left)
+			walk(e.Right)
+		case *exprlang.NotExpr:
+			walk(e.Operand)
+		default:
+			leaves = append(leaves, e)
+		}
+	}
+	walk(expr)
+	return leaves
+}
+
+// conditionLeafSubExpr returns the sub-expression a leaf's LHS descends
+// through (the part passed to resolveExpression in resolveCondition). For
+// EqExpr it's the Left side; for IsEmptyExpr it's the Operand. Any other
+// expression type is a malformed leaf (caller should have rejected earlier).
+func conditionLeafSubExpr(leaf exprlang.Expr) (exprlang.Expr, bool) {
+	switch l := leaf.(type) {
+	case *exprlang.EqExpr:
+		return l.Left, true
+	case *exprlang.IsEmptyExpr:
+		return l.Operand, true
+	default:
+		return nil, false
+	}
+}
+
+// rewriteReturnRefs rewrites every @return reference in expr to reference
+// a concrete return variable.
+//
+// For single-return functions, ref("@return") is rewritten to ref(varName).
+// For multi-return functions, getmember(ref("@return"), "field") is matched
+// against displayNames and rewritten to ref(varName); a bare @return is
+// rejected because multi-value returns require a field selector.
+//
+// The expression passed here must resolve to a single return variable —
+// if it touches two distinct @return.rN fields, the call fails with
+// "expression references multiple @return fields". Callers that want to
+// allow multiple distinct @return fields across a larger tree (e.g.
+// compound conditions) must split the tree into single-leaf expressions
+// and call this function once per leaf, then splice the rewritten leaves
+// back together.
+func rewriteReturnRefs(
 	expr exprlang.Expr,
 	returnVars []*ir.Variable,
 	displayNames map[*ir.Variable]string,
@@ -598,6 +835,7 @@ func resolveReturnExpr(
 		return v, rewritten, ""
 	}
 
+	// Multi-return case: the expression must identify a single field.
 	var matched *ir.Variable
 	for node := range exprlang.Children(expr) {
 		gme, ok := node.(*exprlang.GetMemberExpr)
@@ -616,20 +854,15 @@ func resolveReturnExpr(
 			}
 		}
 		if v == nil {
-			errMsg = fmt.Sprintf(
+			return nil, nil, fmt.Sprintf(
 				"@return field %q does not match any return variable", gme.Member)
-			break
 		}
 		if matched != nil && matched != v {
-			errMsg = "expression references multiple @return fields"
-			break
+			return nil, nil, "expression references multiple @return fields"
 		}
 		matched = v
 	}
-	switch {
-	case errMsg != "":
-		return nil, nil, errMsg
-	case matched == nil:
+	if matched == nil {
 		return nil, nil, "return value selector (e.g., @return.r0) must be used for multi-value returns"
 	}
 	rewritten = exprlang.Rewrite(expr, func(e exprlang.Expr) exprlang.Expr {
@@ -791,7 +1024,11 @@ func analyzeAllProbes(
 				}
 			}
 
-			// Pre-scan: collect return variables and compute display names.
+			// Pre-scan: collect return variables and compute display names for
+			// return events. @return is a return-point concept, so these are
+			// only used when the probe has a Return event; at line probes,
+			// named returns are treated as locals and unnamed returns are
+			// filtered out (see the switch below).
 			var returnVars []*ir.Variable
 			if haveReturn {
 				for _, v := range inst.Subprogram.Variables {
@@ -828,6 +1065,16 @@ func analyzeAllProbes(
 				case len(inst.Events) == 1 &&
 					inst.Events[0].Kind == ir.EventKindLine:
 					// The line-probe case.
+					//
+					// Return-role vars are either filtered out (unnamed,
+					// e.g. ~r0) or treated as plain locals (named). The
+					// function hasn't returned yet, so they aren't "return
+					// values" here; unnamed slots have no user-facing value
+					// and named returns are just pre-declared locals.
+					if v.Role == ir.VariableRoleReturn &&
+						strings.HasPrefix(v.Name, "~") {
+						continue
+					}
 					ips := inst.Events[0].InjectionPoints
 					if !variableIsAvailable(ips, v) {
 						continue
@@ -847,9 +1094,12 @@ func analyzeAllProbes(
 				// Capture expression probes only capture explicitly listed
 				// expressions (handled below), not all variables.
 				if isSnapshot && !isCaptureExpression {
-					// Compute the display name for this expression.
+					// Compute the display name for this expression. The
+					// @return wrapping is only for return events; at line
+					// probes named returns keep their original name (see
+					// switch above).
 					name := v.Name
-					if v.Role == ir.VariableRoleReturn {
+					if exprKind == ir.RootExpressionKindReturn {
 						if returnDisplayNames == nil {
 							name = "@return"
 						} else {
@@ -902,10 +1152,12 @@ func analyzeAllProbes(
 				delete(segmentRefs, v.Name)
 			}
 
-			// Handle @return references in template segments.
-			if segs, ok := segmentRefs["@return"]; ok && len(returnVars) > 0 {
+			// Handle @return references in template segments. @return is
+			// a return-point concept and only resolves at probes with a
+			// Return event.
+			if segs, ok := segmentRefs["@return"]; ok && haveReturn {
 				for _, seg := range segs {
-					rv, rewritten, errMsg := resolveReturnExpr(
+					rv, rewritten, errMsg := rewriteReturnRefs(
 						seg.segment.JSON, returnVars, returnDisplayNames,
 					)
 					if rv != nil {
@@ -941,8 +1193,8 @@ func analyzeAllProbes(
 				}
 				// Handle @return references in capture expressions.
 				var rootVar *ir.Variable
-				if rootVarName == "@return" && len(returnVars) > 0 {
-					rootVar, parsedExpr, _ = resolveReturnExpr(
+				if rootVarName == "@return" && haveReturn {
+					rootVar, parsedExpr, _ = rewriteReturnRefs(
 						parsedExpr, returnVars, returnDisplayNames,
 					)
 				} else {
@@ -1015,72 +1267,18 @@ func analyzeAllProbes(
 			}
 
 			// Analyze condition expression.
-			ap.condition, ap.conditionIssue = func() (*analyzedCondition, ir.Issue) {
-				whenJSON := probe.ProbeDefinition.GetWhen()
-				if len(whenJSON) == 0 {
-					return nil, ir.Issue{}
-				}
-				condExpr, err := exprlang.Parse(whenJSON)
-				if err != nil {
-					return nil, ir.Issue{
-						Kind:    ir.IssueKindUnsupportedFeature,
-						Message: fmt.Sprintf("failed to parse condition: %v", err),
-					}
-				}
-				var rootExpr exprlang.Expr
-				switch ce := condExpr.(type) {
-				case *exprlang.EqExpr:
-					rootExpr = ce.Left
-				case *exprlang.IsEmptyExpr:
-					rootExpr = ce.Operand
-				default:
-					return nil, ir.Issue{
-						Kind:    ir.IssueKindUnsupportedFeature,
-						Message: fmt.Sprintf("unsupported condition expression type: %T", condExpr),
-					}
-				}
-				rootVarName, ok := extractRootVariableName(rootExpr)
-				if !ok {
-					return nil, ir.Issue{
-						Kind:    ir.IssueKindUnsupportedFeature,
-						Message: "failed to extract root variable from condition",
-					}
-				}
-				var rootVar *ir.Variable
-				if rootVarName == "@return" && len(returnVars) > 0 {
-					var errMsg string
-					rootVar, condExpr, errMsg = resolveReturnExpr(
-						condExpr, returnVars, returnDisplayNames,
-					)
-					if rootVar == nil {
-						return nil, ir.Issue{
-							Kind:    ir.IssueKindConditionVariableUnavailable,
-							Message: errMsg,
-						}
-					}
-				} else {
-					rootVar = varByName[rootVarName]
-				}
-				if rootVar == nil {
-					return nil, ir.Issue{
-						Kind:    ir.IssueKindConditionVariableUnavailable,
-						Message: fmt.Sprintf("condition variable %q not found", rootVarName),
-					}
-				}
-				evKind, ok := conditionEventKind(rootVar)
-				if !ok {
-					return nil, ir.Issue{
-						Kind:    ir.IssueKindConditionVariableUnavailable,
-						Message: fmt.Sprintf("condition variable %q not available at any event", rootVarName),
-					}
-				}
-				addRoot(rootVar.Type.GetID(), budget)
-				return &analyzedCondition{
-					expr:         condExpr,
-					rootVariable: rootVar,
-					eventKind:    evKind,
-				}, ir.Issue{}
-			}()
+			whenJSON := probe.ProbeDefinition.GetWhen()
+			if len(whenJSON) > 0 {
+				ap.condition, ap.conditionIssue = analyzeCondition(
+					whenJSON,
+					varByName,
+					returnVars,
+					returnDisplayNames,
+					conditionEventKind,
+					addRoot,
+					budget,
+				)
+			}
 
 			// Mark unmatched segments as invalid.
 			for name, segs := range segmentRefs {
@@ -3568,30 +3766,38 @@ func exploreTypesForExpressions(
 			}
 		}
 
-		// Validate condition types.
+		// Validate condition types. For compound conditions this walks
+		// every leaf; the first leaf that fails exploration fails the
+		// whole probe — matches today's single-leaf semantics.
 		if cond := ap.condition; cond != nil {
-			var condExploreExpr exprlang.Expr
-			switch ce := cond.expr.(type) {
-			case *exprlang.EqExpr:
-				condExploreExpr = ce.Left
-			case *exprlang.IsEmptyExpr:
-				condExploreExpr = ce.Operand
-			default:
-				ap.conditionIssue = ir.Issue{
-					Kind:    ir.IssueKindUnsupportedFeature,
-					Message: fmt.Sprintf("unsupported condition expression type: %T", cond.expr),
+			for _, leaf := range conditionLeafExprs(cond.expr) {
+				sub, ok := conditionLeafSubExpr(leaf)
+				if !ok {
+					ap.conditionIssue = ir.Issue{
+						Kind:    ir.IssueKindUnsupportedFeature,
+						Message: fmt.Sprintf("unsupported condition expression type: %T", leaf),
+					}
+					ap.condition = nil
+					break
 				}
-				ap.condition = nil
-			}
-			if condExploreExpr != nil {
+				rootVar, ok := cond.leafRoots[leaf]
+				if !ok || rootVar == nil {
+					ap.conditionIssue = ir.Issue{
+						Kind:    ir.IssueKindConditionExpressionUnresolvable,
+						Message: "condition leaf has no resolved root variable",
+					}
+					ap.condition = nil
+					break
+				}
 				if _, err := exploreExpressionTypes(
-					condExploreExpr, cond.rootVariable.Type, tc, "",
+					sub, rootVar.Type, tc, "",
 				); err != nil {
 					ap.conditionIssue = ir.Issue{
 						Kind:    ir.IssueKindConditionExpressionUnresolvable,
 						Message: fmt.Sprintf("condition type exploration failed: %v", err),
 					}
 					ap.condition = nil
+					break
 				}
 			}
 		}
@@ -5004,30 +5210,102 @@ func resolveIsEmptyComparison(
 	return resolveEqComparison(lenExpr, zeroLit, tc)
 }
 
-// resolveCondition resolves a condition expression AST into an IR Expression
-// that evaluates to bool. Only eq comparisons with literal values are supported.
+// resolveCondition lowers an analyzed condition tree into an IR Expression
+// with a single trailing ConditionCheckOp. Compound conditions (and/or/not)
+// are emitted with short-circuit jumps — see pkg/dyninst/ir/expression.go for
+// the CondJumpOp/CondLabelOp/CondNotOp semantics.
 func resolveCondition(
 	condExpr exprlang.Expr,
-	rootVar *ir.Variable,
+	leafRoots map[exprlang.Expr]*ir.Variable,
 	tc *typeCatalog,
 ) (*ir.Expression, error) {
-	// Handle isEmpty as a standalone condition: semantically len(x) == 0.
-	if ie, ok := condExpr.(*exprlang.IsEmptyExpr); ok {
-		return resolveIsEmptyCondition(ie, rootVar, tc)
+	var la labelAllocator
+	ops, err := emitCondition(condExpr, leafRoots, tc, &la)
+	if err != nil {
+		return nil, err
 	}
+	ops = append(ops, &ir.ConditionCheckOp{})
+	boolType := tc.typesByID[tc.boolType]
+	return &ir.Expression{Type: boolType, Operations: ops}, nil
+}
 
-	eqExpr, ok := condExpr.(*exprlang.EqExpr)
-	if !ok {
-		return nil, fmt.Errorf("unsupported condition expression type: %T", condExpr)
+// labelAllocator hands out LabelIDs unique within a single condition handler.
+type labelAllocator struct {
+	next ir.LabelID
+}
+
+func (la *labelAllocator) newLabel() ir.LabelID {
+	la.next++
+	return la.next
+}
+
+// emitCondition recursively emits IR ops for a condition expression, leaving
+// the resulting boolean byte at sm->offset on execution.
+func emitCondition(
+	e exprlang.Expr,
+	leafRoots map[exprlang.Expr]*ir.Variable,
+	tc *typeCatalog,
+	la *labelAllocator,
+) ([]ir.ExpressionOp, error) {
+	switch e := e.(type) {
+	case *exprlang.EqExpr:
+		return emitEqLeaf(e, leafRoots[e], tc)
+	case *exprlang.IsEmptyExpr:
+		return emitIsEmptyLeaf(e, leafRoots[e], tc)
+	case *exprlang.NotExpr:
+		inner, err := emitCondition(e.Operand, leafRoots, tc, la)
+		if err != nil {
+			return nil, err
+		}
+		return append(inner, &ir.CondNotOp{}), nil
+	case *exprlang.AndExpr:
+		return emitShortCircuit(e.Left, e.Right, leafRoots, tc, la, false)
+	case *exprlang.OrExpr:
+		return emitShortCircuit(e.Left, e.Right, leafRoots, tc, la, true)
+	default:
+		return nil, fmt.Errorf("unsupported condition expression type: %T", e)
 	}
+}
 
-	// Resolve the LHS operand (must be a variable reference).
+// emitShortCircuit emits a binary short-circuit chain. jumpOn == false is
+// AND (jump past Right when Left is false); jumpOn == true is OR.
+func emitShortCircuit(
+	left, right exprlang.Expr,
+	leafRoots map[exprlang.Expr]*ir.Variable,
+	tc *typeCatalog,
+	la *labelAllocator,
+	jumpOn bool,
+) ([]ir.ExpressionOp, error) {
+	end := la.newLabel()
+	leftOps, err := emitCondition(left, leafRoots, tc, la)
+	if err != nil {
+		return nil, err
+	}
+	rightOps, err := emitCondition(right, leafRoots, tc, la)
+	if err != nil {
+		return nil, err
+	}
+	out := leftOps
+	out = append(out, &ir.CondJumpOp{Cond: jumpOn, Target: end})
+	out = append(out, rightOps...)
+	out = append(out, &ir.CondLabelOp{ID: end})
+	return out, nil
+}
+
+// emitEqLeaf lowers an EqExpr leaf into comparison ops that write a single
+// boolean byte at sm->offset.
+func emitEqLeaf(
+	eqExpr *exprlang.EqExpr,
+	rootVar *ir.Variable,
+	tc *typeCatalog,
+) ([]ir.ExpressionOp, error) {
+	if rootVar == nil {
+		return nil, errors.New("condition leaf has no resolved root variable")
+	}
 	lhsExpr, err := resolveExpression(eqExpr.Left, rootVar, tc)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve condition LHS: %w", err)
 	}
-
-	// Get the RHS literal.
 	litExpr, ok := eqExpr.Right.(*exprlang.LiteralExpr)
 	if !ok {
 		return nil, fmt.Errorf(
@@ -5035,27 +5313,28 @@ func resolveCondition(
 			eqExpr.Right,
 		)
 	}
-
 	expr, err := resolveEqComparison(lhsExpr, litExpr, tc)
 	if err != nil {
 		return nil, err
 	}
-	expr.Operations = append(expr.Operations, &ir.ConditionCheckOp{})
-	return &expr, nil
+	return expr.Operations, nil
 }
 
-// resolveIsEmptyCondition resolves an isEmpty condition: semantically len(x) == 0.
-func resolveIsEmptyCondition(
+// emitIsEmptyLeaf lowers an IsEmptyExpr leaf into ops that write a single
+// boolean byte at sm->offset.
+func emitIsEmptyLeaf(
 	ie *exprlang.IsEmptyExpr,
 	rootVar *ir.Variable,
 	tc *typeCatalog,
-) (*ir.Expression, error) {
+) ([]ir.ExpressionOp, error) {
+	if rootVar == nil {
+		return nil, errors.New("condition leaf has no resolved root variable")
+	}
 	expr, err := resolveIsEmptyComparison(ie, rootVar, tc)
 	if err != nil {
 		return nil, err
 	}
-	expr.Operations = append(expr.Operations, &ir.ConditionCheckOp{})
-	return &expr, nil
+	return expr.Operations, nil
 }
 
 // populateProbeEventsExpressions resolves expressions for every analyzed
@@ -5106,7 +5385,7 @@ func populateInstanceExpressions(
 	for _, event := range inst.Events {
 		// Resolve condition for the matching event only.
 		if cond := ap.condition; cond != nil && cond.eventKind == event.Kind {
-			resolved, err := resolveCondition(cond.expr, cond.rootVariable, typeCatalog)
+			resolved, err := resolveCondition(cond.expr, cond.leafRoots, typeCatalog)
 			if err != nil {
 				return ir.Issue{
 					Kind:    ir.IssueKindConditionExpressionUnresolvable,

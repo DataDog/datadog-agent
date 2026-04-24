@@ -275,4 +275,25 @@ type ConditionCheckOp struct {
 	baseOp
 }
 
+// CondNotOp flips the boolean result byte at sm->offset.
+type CondNotOp struct {
+	baseOp
+}
+
+// CondJumpOp branches past Right of a binary And/Or when the preceding leaf's
+// result matches Cond (false -> and short-circuit, true -> or short-circuit).
+// Label identifies the target, resolved at code-layout time.
+type CondJumpOp struct {
+	baseOp
+	Cond  bool
+	Label ir.LabelID
+}
+
+// CondLabelOp marks a jump target. Emits no bytes; the layout pass records
+// its PC in codeTracker.labelLoc.
+type CondLabelOp struct {
+	baseOp
+	ID ir.LabelID
+}
+
 //revive:enable:exported
