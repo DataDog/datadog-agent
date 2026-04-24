@@ -81,7 +81,7 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 
 	// Production flow: try OCI layer, fallback to MSI extraction for older packages
 	installerBinPath := filepath.Join(tmpDir, "datadog-installer.exe")
-	err = downloadedPackage.ExtractLayers(oci.DatadogPackageInstallerLayerMediaType, installerBinPath) // Returns nil if the layer doesn't exist
+	err = downloadedPackage.ExtractLayers(ctx, oci.DatadogPackageInstallerLayerMediaType, installerBinPath) // Returns nil if the layer doesn't exist
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract layers: %w", err)
 	}
@@ -100,7 +100,7 @@ func downloadInstallerTestMode(ctx context.Context, env *env.Env, pkg *oci.Downl
 	case "OCI":
 		// Force OCI path - fail if installer layer is missing
 		installerBinPath := filepath.Join(tmpDir, "datadog-installer.exe")
-		err := pkg.ExtractLayers(oci.DatadogPackageInstallerLayerMediaType, installerBinPath)
+		err := pkg.ExtractLayers(ctx, oci.DatadogPackageInstallerLayerMediaType, installerBinPath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to extract installer layer: %w", err)
 		}
@@ -163,7 +163,7 @@ func downloadInstallerOld(ctx context.Context, env *env.Env, url string, tmpDir 
 		return nil, fmt.Errorf("failed to write OCI layout: %w", err)
 	}
 
-	err = downloadedPackage.ExtractLayers(oci.DatadogPackageLayerMediaType, tmpDir)
+	err = downloadedPackage.ExtractLayers(ctx, oci.DatadogPackageLayerMediaType, tmpDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract layers: %w", err)
 	}

@@ -138,12 +138,17 @@ func (d *Downloader) WithRegistryOverride(url, auth, username, password string) 
 }
 
 // Download downloads the Datadog Package referenced in the given Package struct.
-func (d *Downloader) Download(ctx context.Context, packageURL string) (*DownloadedPackage, error) {
+func (d *Downloader) Download(ctx context.Context, packageURL string) (_ *DownloadedPackage, err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "oci.download")
+	defer func() { span.Finish(err) }()
+	span.SetTag("package.url", packageURL)
+
 	log.Debugf("Downloading package from %s", packageURL)
 	url, err := url.Parse(packageURL)
 	if err != nil {
 		return nil, fmt.Errorf("could not parse package URL: %w", err)
 	}
+	span.SetTag("url.scheme", url.Scheme)
 	var image oci.Image
 	switch url.Scheme {
 	case "oci":
@@ -176,6 +181,9 @@ func (d *Downloader) Download(ctx context.Context, packageURL string) (*Download
 			return nil, fmt.Errorf("could not parse package size: %w", err)
 		}
 	}
+	span.SetTag("package.name", name)
+	span.SetTag("package.version", version)
+	span.SetTag("package.size", size)
 	log.Debugf("Successfully downloaded package from %s", packageURL)
 	return &DownloadedPackage{
 		Image:   image,
@@ -351,7 +359,13 @@ func (d *Downloader) downloadIndex(index oci.ImageIndex) (oci.Image, error) {
 }
 
 // ExtractLayers extracts the layers of the downloaded package with the given media type to the given directory.
-func (d *DownloadedPackage) ExtractLayers(mediaType types.MediaType, dir string, annotationFilters ...LayerAnnotation) error {
+func (d *DownloadedPackage) ExtractLayers(ctx context.Context, mediaType types.MediaType, dir string, annotationFilters ...LayerAnnotation) (err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "oci.extract_layers")
+	defer func() { span.Finish(err) }()
+	span.SetTag("package.name", d.Name)
+	span.SetTag("package.version", d.Version)
+	span.SetTag("media_type", string(mediaType))
+
 	manifest, err := d.Image.Manifest()
 	if err != nil {
 		return fmt.Errorf("could not get image manifest: %w", err)
@@ -378,45 +392,59 @@ func (d *DownloadedPackage) ExtractLayers(mediaType types.MediaType, dir string,
 		if err != nil {
 			return fmt.Errorf("could not get layer: %w", err)
 		}
-		err = withNetworkRetries(
-			func() error {
-				var err error
-				defer func() {
-					if err != nil {
-						deferErr := tar.Clean(dir)
-						if deferErr != nil {
-							err = deferErr
-						}
-					}
-				}()
-				uncompressedLayer, err := layer.Uncompressed()
-				if err != nil {
-					return err
-				}
-
-				switch layerManifest.MediaType {
-				case DatadogPackageLayerMediaType, DatadogPackageConfigLayerMediaType, DatadogPackageExtensionLayerMediaType:
-					err = tar.Extract(uncompressedLayer, dir, layerMaxSize)
-				case DatadogPackageInstallerLayerMediaType:
-					err = writeBinary(uncompressedLayer, dir)
-				default:
-					return fmt.Errorf("unsupported layer media type: %s", layerManifest.MediaType)
-				}
-				uncompressedLayer.Close()
-				if err != nil {
-					return err
-				}
-				return nil
-			},
-		)
+		err = d.extractLayer(ctx, layer, layerManifest, dir)
 		if err != nil {
 			return fmt.Errorf("could not extract layer: %w", err)
 		}
 	}
+	span.SetTag("layers.matched", matchesAnnotationsCount)
 	if matchesAnnotationsCount == 0 && len(annotationFilters) > 0 {
 		return ErrNoLayerMatchesAnnotations
 	}
 	return nil
+}
+
+// extractLayer downloads + decompresses + extracts a single layer to the given
+// directory. A per-layer child span records compressed size and digest so the
+// dominant cost (network transfer vs tar extraction) can be isolated in APM.
+func (d *DownloadedPackage) extractLayer(ctx context.Context, layer oci.Layer, layerManifest oci.Descriptor, dir string) (err error) {
+	span, _ := telemetry.StartSpanFromContext(ctx, "oci.extract_layer")
+	defer func() { span.Finish(err) }()
+	span.SetTag("layer.digest", layerManifest.Digest.String())
+	span.SetTag("layer.media_type", string(layerManifest.MediaType))
+	span.SetTag("layer.size", layerManifest.Size)
+
+	return withNetworkRetries(
+		func() error {
+			var err error
+			defer func() {
+				if err != nil {
+					deferErr := tar.Clean(dir)
+					if deferErr != nil {
+						err = deferErr
+					}
+				}
+			}()
+			uncompressedLayer, err := layer.Uncompressed()
+			if err != nil {
+				return err
+			}
+
+			switch layerManifest.MediaType {
+			case DatadogPackageLayerMediaType, DatadogPackageConfigLayerMediaType, DatadogPackageExtensionLayerMediaType:
+				err = tar.Extract(uncompressedLayer, dir, layerMaxSize)
+			case DatadogPackageInstallerLayerMediaType:
+				err = writeBinary(uncompressedLayer, dir)
+			default:
+				return fmt.Errorf("unsupported layer media type: %s", layerManifest.MediaType)
+			}
+			uncompressedLayer.Close()
+			if err != nil {
+				return err
+			}
+			return nil
+		},
+	)
 }
 
 // WriteOCILayout writes the image as an OCI layout to the given directory.
