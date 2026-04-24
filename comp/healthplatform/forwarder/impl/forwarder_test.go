@@ -55,7 +55,7 @@ func (m *mockIssueProvider) addIssue(checkID string, issue *healthplatform.Issue
 func newTestForwarder(t *testing.T, cfg config.Component, provider *mockIssueProvider, hostname string) *forwarder {
 	interval := cfg.GetDuration("health_platform.forwarder.interval")
 	if interval <= 0 {
-		interval = defaultReporterInterval
+		interval = defaultForwarderInterval
 	}
 	return &forwarder{
 		cfg:        cfg,
@@ -105,7 +105,7 @@ func TestForwarderBuildReport(t *testing.T) {
 }
 
 // TestForwarderSend tests sending reports to a mock server
-func TestReporterSend(t *testing.T) {
+func TestForwarderSend(t *testing.T) {
 	var receivedRequest *http.Request
 	var receivedBody []byte
 
@@ -124,8 +124,8 @@ func TestReporterSend(t *testing.T) {
 	cfg.SetWithoutSource("api_key", "test-api-key")
 	provider := newMockIssueProvider()
 
-	rptr := newTestForwarder(t, cfg, provider, "test-host")
-	rptr.intakeURL = server.URL
+	fwd := newTestForwarder(t, cfg, provider, "test-host")
+	fwd.intakeURL = server.URL
 
 	provider.addIssue("check-1", &healthplatform.Issue{
 		Id:       "issue-1",
@@ -133,8 +133,8 @@ func TestReporterSend(t *testing.T) {
 		Severity: "high",
 	})
 
-	report := rptr.buildReport(provider.issues)
-	err := rptr.send(report)
+	report := fwd.buildReport(provider.issues)
+	err := fwd.send(report)
 	require.NoError(t, err)
 
 	// Verify request headers
@@ -164,17 +164,17 @@ func TestForwarderSendNoIssues(t *testing.T) {
 	cfg.SetWithoutSource("api_key", "test-api-key")
 	provider := newMockIssueProvider() // No issues
 
-	rptr := newTestForwarder(t, cfg, provider, "test-host")
-	rptr.intakeURL = server.URL
+	fwd := newTestForwarder(t, cfg, provider, "test-host")
+	fwd.intakeURL = server.URL
 
-	rptr.sendHealthReport()
+	fwd.sendHealthReport()
 
 	// Verify no request was sent
 	assert.Equal(t, int32(0), atomic.LoadInt32(&requestCount))
 }
 
 // TestForwarderSendError tests error handling when server returns error
-func TestReporterSendError(t *testing.T) {
+func TestForwarderSendError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
@@ -184,8 +184,8 @@ func TestReporterSendError(t *testing.T) {
 	cfg.SetWithoutSource("api_key", "test-api-key")
 	provider := newMockIssueProvider()
 
-	rptr := newTestForwarder(t, cfg, provider, "test-host")
-	rptr.intakeURL = server.URL
+	fwd := newTestForwarder(t, cfg, provider, "test-host")
+	fwd.intakeURL = server.URL
 
 	provider.addIssue("check-1", &healthplatform.Issue{
 		Id:       "issue-1",
@@ -194,36 +194,36 @@ func TestReporterSendError(t *testing.T) {
 	})
 
 	// This should not panic - error is logged internally
-	rptr.sendHealthReport()
+	fwd.sendHealthReport()
 }
 
-// TestForwarderStartStop tests the reporter lifecycle
-func TestReporterStartStop(t *testing.T) {
+// TestForwarderStartStop tests the forwarder lifecycle
+func TestForwarderStartStop(t *testing.T) {
 	cfg := config.NewMock(t)
 	cfg.SetWithoutSource("health_platform.forwarder.interval", 100*time.Millisecond)
 	cfg.SetWithoutSource("api_key", "test-api-key")
 
 	provider := newMockIssueProvider()
 
-	rptr := newTestForwarder(t, cfg, provider, "test-host")
+	fwd := newTestForwarder(t, cfg, provider, "test-host")
 
 	// Start the forwarder
-	rptr.start(context.Background()) //nolint:errcheck
+	fwd.start(context.Background()) //nolint:errcheck
 
 	// Give it a moment to start the goroutine
 	time.Sleep(50 * time.Millisecond)
 
 	// Stop the forwarder - should complete gracefully
-	rptr.stop(context.Background()) //nolint:errcheck
+	fwd.stop(context.Background()) //nolint:errcheck
 }
 
 // TestForwarderSendWithoutAPIKey tests that send fails gracefully without API key
-func TestReporterSendWithoutAPIKey(t *testing.T) {
+func TestForwarderSendWithoutAPIKey(t *testing.T) {
 	cfg := config.NewMock(t)
 	// Don't set API key
 	provider := newMockIssueProvider()
 
-	rptr := newTestForwarder(t, cfg, provider, "test-host")
+	fwd := newTestForwarder(t, cfg, provider, "test-host")
 
 	provider.addIssue("check-1", &healthplatform.Issue{
 		Id:       "issue-1",
@@ -231,8 +231,8 @@ func TestReporterSendWithoutAPIKey(t *testing.T) {
 		Severity: "high",
 	})
 
-	report := rptr.buildReport(provider.issues)
-	err := rptr.send(report)
+	report := fwd.buildReport(provider.issues)
+	err := fwd.send(report)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "API key not configured")
@@ -283,11 +283,11 @@ func TestBuildIntakeURL(t *testing.T) {
 }
 
 // TestForwarderNewWithHostname tests that a forwarder stores the given hostname
-func TestReporterNewWithHostname(t *testing.T) {
+func TestForwarderNewWithHostname(t *testing.T) {
 	cfg := config.NewMock(t)
 	cfg.SetWithoutSource("api_key", "test-api-key")
 	provider := newMockIssueProvider()
 
-	rptr := newTestForwarder(t, cfg, provider, "test-hostname")
-	assert.Equal(t, "test-hostname", rptr.hostname)
+	fwd := newTestForwarder(t, cfg, provider, "test-hostname")
+	assert.Equal(t, "test-hostname", fwd.hostname)
 }
