@@ -805,7 +805,8 @@ net:
 	defer stop()
 
 	c, ok := LoadMongoDBConfig(context.Background(), hostroot, proc)
-	assert.True(t, ok)
+	require.True(t, ok)
+	require.NotNil(t, c)
 	assert.Equal(t, customConfigPath, c.ConfigFilePath)
 
 	configData := c.ConfigData.(*mongoDBConfig)
