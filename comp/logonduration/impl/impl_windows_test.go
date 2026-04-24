@@ -49,8 +49,6 @@ func fullBootTimeline(boot time.Time) BootTimeline {
 		DesktopVisibleEnd:            boot.Add(57 * time.Second),
 		DesktopStartupAppsStart:      boot.Add(58 * time.Second),
 		DesktopStartupAppsEnd:        boot.Add(62 * time.Second),
-		DesktopReadyStart:            boot.Add(59 * time.Second),
-		DesktopReadyEnd:              boot.Add(65 * time.Second),
 	}
 }
 
@@ -59,9 +57,9 @@ func TestBuildTimelineMilestones(t *testing.T) {
 
 	t.Run("includes only non-zero timestamps", func(t *testing.T) {
 		tl := BootTimeline{
-			BootStart:         boot,
-			LoginUIStart:      boot.Add(1 * time.Second),
-			DesktopReadyStart: boot.Add(90 * time.Second),
+			BootStart:               boot,
+			LoginUIStart:            boot.Add(1 * time.Second),
+			DesktopStartupAppsStart: boot.Add(90 * time.Second),
 		}
 
 		milestones := buildTimelineMilestones(tl)
@@ -69,14 +67,14 @@ func TestBuildTimelineMilestones(t *testing.T) {
 		assert.Len(t, milestones, 3)
 		assert.Equal(t, "Boot Start", milestones[0].Name)
 		assert.Equal(t, "Login UI Start", milestones[1].Name)
-		assert.Equal(t, "Desktop Ready", milestones[2].Name)
+		assert.Equal(t, "Desktop Startup Apps", milestones[2].Name)
 	})
 
 	t.Run("computes correct offsets from boot start", func(t *testing.T) {
 		tl := BootTimeline{
-			BootStart:         boot,
-			LoginUIStart:      boot.Add(2 * time.Second),
-			DesktopReadyStart: boot.Add(90 * time.Second),
+			BootStart:               boot,
+			LoginUIStart:            boot.Add(2 * time.Second),
+			DesktopStartupAppsStart: boot.Add(90 * time.Second),
 		}
 
 		milestones := buildTimelineMilestones(tl)
@@ -107,8 +105,8 @@ func TestBuildTimelineMilestones(t *testing.T) {
 
 	t.Run("zero BootStart produces zero offsets", func(t *testing.T) {
 		tl := BootTimeline{
-			LoginUIStart:      boot.Add(1 * time.Second),
-			DesktopReadyStart: boot.Add(90 * time.Second),
+			LoginUIStart:            boot.Add(1 * time.Second),
+			DesktopStartupAppsStart: boot.Add(90 * time.Second),
 		}
 
 		milestones := buildTimelineMilestones(tl)
@@ -125,7 +123,7 @@ func TestBuildTimelineMilestones(t *testing.T) {
 
 		milestones := buildTimelineMilestones(tl)
 
-		require.Len(t, milestones, 14)
+		require.Len(t, milestones, 12)
 
 		expected := []struct {
 			name     string
@@ -141,14 +139,39 @@ func TestBuildTimelineMilestones(t *testing.T) {
 			{"Execute Shell Commands", 40000},
 			{"Explorer.exe Start", 50000},
 			{"Explorer Initializing", 51000},
-			{"Desktop Created", 53000},
-			{"Desktop Visible", 55000},
+			{"Desktop Visible", 53000},
 			{"Desktop Startup Apps", 58000},
-			{"Desktop Ready", 59000},
 		}
 		for i, exp := range expected {
 			assert.Equal(t, exp.name, milestones[i].Name, "milestone %d name", i)
 			assert.InDelta(t, exp.offsetMs, milestones[i].OffsetMs, 0.001, "milestone %d offset", i)
+		}
+	})
+
+	t.Run("desktop_visible merged spans DesktopCreateStart to DesktopVisibleEnd", func(t *testing.T) {
+		tl := BootTimeline{
+			BootStart:          boot,
+			DesktopCreateStart: boot.Add(53 * time.Second),
+			DesktopVisibleEnd:  boot.Add(57 * time.Second),
+		}
+
+		milestones := buildTimelineMilestones(tl)
+
+		var dv *Milestone
+		for i := range milestones {
+			if milestones[i].ID == "desktop_visible" {
+				dv = &milestones[i]
+				break
+			}
+		}
+		require.NotNil(t, dv, "desktop_visible milestone missing")
+		assert.Equal(t, "Desktop Visible", dv.Name)
+		assert.InDelta(t, 53000.0, dv.OffsetMs, 0.001)
+		assert.InDelta(t, 4000.0, dv.DurationMs, 0.001)
+
+		for _, m := range milestones {
+			assert.NotEqual(t, "desktop_created", m.ID)
+			assert.NotEqual(t, "desktop_ready", m.ID)
 		}
 	})
 }

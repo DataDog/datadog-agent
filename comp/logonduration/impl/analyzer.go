@@ -90,8 +90,6 @@ type BootTimeline struct {
 	DesktopCreateEnd             time.Time // Shell-Core Event 9612 (Explorer_CreateDesktopStop)
 	DesktopVisibleStart          time.Time // Shell-Core Event 9648 (waitfordesktopvisuals step)
 	DesktopVisibleEnd            time.Time // Shell-Core Event 9649 (waitfordesktopvisuals step)
-	DesktopReadyStart            time.Time // Shell-Core Event 9648 (finalize step)
-	DesktopReadyEnd              time.Time // Shell-Core Event 9649 (finalize step)
 
 	// Winlogon sub-events for detailed component timing
 	LoginUIStart time.Time // Winlogon Event 103
@@ -403,10 +401,6 @@ func (p *shellCoreParser) Parse(e eventWithProperties, id uint16, ts time.Time) 
 			if p.timeline.DesktopVisibleStart.IsZero() {
 				p.timeline.DesktopVisibleStart = ts
 			}
-		case "finalize":
-			if p.timeline.DesktopReadyStart.IsZero() {
-				p.timeline.DesktopReadyStart = ts
-			}
 		case "desktopstartupapps":
 			if p.timeline.DesktopStartupAppsStart.IsZero() {
 				p.timeline.DesktopStartupAppsStart = ts
@@ -418,10 +412,6 @@ func (p *shellCoreParser) Parse(e eventWithProperties, id uint16, ts time.Time) 
 		case "waitfordesktopvisuals":
 			if p.timeline.DesktopVisibleEnd.IsZero() {
 				p.timeline.DesktopVisibleEnd = ts
-			}
-		case "finalize":
-			if p.timeline.DesktopReadyEnd.IsZero() {
-				p.timeline.DesktopReadyEnd = ts
 			}
 		case "desktopstartupapps":
 			if p.timeline.DesktopStartupAppsEnd.IsZero() {

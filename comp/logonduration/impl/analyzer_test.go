@@ -355,22 +355,6 @@ func TestParseShellCore(t *testing.T) {
 		assert.Equal(t, ts, tl.DesktopVisibleEnd)
 	})
 
-	t.Run("event 9648 Finalize sets DesktopReadyStart", func(t *testing.T) {
-		tl := &BootTimeline{}
-		p := &shellCoreParser{timeline: tl}
-		e := makeShellCoreEvent(evtExplorerStepStart, ts, property{Name: "psz", Value: "Finalize"})
-		p.Parse(e, evtExplorerStepStart, ts)
-		assert.Equal(t, ts, tl.DesktopReadyStart)
-	})
-
-	t.Run("event 9649 Finalize sets DesktopReadyEnd", func(t *testing.T) {
-		tl := &BootTimeline{}
-		p := &shellCoreParser{timeline: tl}
-		e := makeShellCoreEvent(evtExplorerStepEnd, ts, property{Name: "psz", Value: "Finalize"})
-		p.Parse(e, evtExplorerStepEnd, ts)
-		assert.Equal(t, ts, tl.DesktopReadyEnd)
-	})
-
 	t.Run("event 9648 DesktopStartupApps sets DesktopStartupAppsStart", func(t *testing.T) {
 		tl := &BootTimeline{}
 		p := &shellCoreParser{timeline: tl}
@@ -482,9 +466,9 @@ func TestCollector_FullBootSequence(t *testing.T) {
 		makeEvent(guidShellCore, 9649, boot.Add(60*time.Second),
 			property{Name: "psz", Value: "WaitForDesktopVisuals"}),
 		makeEvent(guidShellCore, 9648, boot.Add(61*time.Second),
-			property{Name: "psz", Value: "Finalize"}),
+			property{Name: "psz", Value: "DesktopStartupApps"}),
 		makeEvent(guidShellCore, 9649, boot.Add(65*time.Second),
-			property{Name: "psz", Value: "Finalize"}),
+			property{Name: "psz", Value: "DesktopStartupApps"}),
 	}
 
 	for _, e := range events {
@@ -507,8 +491,8 @@ func TestCollector_FullBootSequence(t *testing.T) {
 	assert.Equal(t, boot.Add(53*time.Second), tl.ExplorerInitEnd)
 	assert.Equal(t, boot.Add(55*time.Second), tl.DesktopVisibleStart)
 	assert.Equal(t, boot.Add(60*time.Second), tl.DesktopVisibleEnd)
-	assert.Equal(t, boot.Add(61*time.Second), tl.DesktopReadyStart)
-	assert.Equal(t, boot.Add(65*time.Second), tl.DesktopReadyEnd)
+	assert.Equal(t, boot.Add(61*time.Second), tl.DesktopStartupAppsStart)
+	assert.Equal(t, boot.Add(65*time.Second), tl.DesktopStartupAppsEnd)
 
 	custom := buildCustomPayload(tl)
 	durations := custom["durations"].(map[string]interface{})
