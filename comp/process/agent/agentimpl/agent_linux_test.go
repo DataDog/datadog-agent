@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux && test
+//go:build test && linux
 
 package agentimpl
 
@@ -29,7 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/agent"
 	hostinfomock "github.com/DataDog/datadog-agent/comp/process/hostinfo/mock"
 	processcheckimpl "github.com/DataDog/datadog-agent/comp/process/processcheck/impl"
-	"github.com/DataDog/datadog-agent/comp/process/runner/runnerimpl"
+	runnerfx "github.com/DataDog/datadog-agent/comp/process/runner/fx"
 	submittermock "github.com/DataDog/datadog-agent/comp/process/submitter/mock"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	checkMocks "github.com/DataDog/datadog-agent/pkg/process/checks/mocks"
@@ -98,7 +98,7 @@ func TestProcessAgentComponentOnLinux(t *testing.T) {
 			}()
 
 			opts := []fx.Option{
-				runnerimpl.Module(),
+				runnerfx.Module(),
 				hostinfomock.MockModule(),
 				submittermock.MockModule(),
 				statsdimpl.MockModule(),
@@ -163,7 +163,7 @@ func TestStatusProvider(t *testing.T) {
 			}()
 
 			deps := fxutil.Test[dependencies](t, fx.Options(
-				runnerimpl.Module(),
+				runnerfx.Module(),
 				hostinfomock.MockModule(),
 				submittermock.MockModule(),
 				statsdimpl.MockModule(),
@@ -210,7 +210,7 @@ func TestTelemetryCoreAgent(t *testing.T) {
 	}()
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		runnerimpl.Module(),
+		runnerfx.Module(),
 		hostinfomock.MockModule(),
 		submittermock.MockModule(),
 		statsdimpl.MockModule(),
