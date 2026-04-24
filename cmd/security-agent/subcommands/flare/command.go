@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -117,7 +118,7 @@ func requestFlare(_ log.Component, config config.Component, _ secrets.Component,
 		}
 	}
 
-	response, e := helpers.SendFlare(config, filePath, params.caseID, params.customerEmail, helpers.NewLocalFlareSource())
+	response, e := helpers.SendFlare(config, filePath, params.caseID, params.customerEmail, flaretypes.NewLocalFlareSource())
 	fmt.Println(response)
 	if e != nil {
 		return e

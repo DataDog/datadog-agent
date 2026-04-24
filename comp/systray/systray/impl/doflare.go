@@ -20,7 +20,7 @@ import (
 
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	"github.com/DataDog/datadog-agent/comp/core/diagnose/format"
-	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
@@ -208,7 +208,7 @@ func requestFlare(s *systrayImpl, caseID, customerEmail string) (response string
 
 	s.log.Warnf("%s is going to be uploaded to Datadog\n", filePath)
 
-	response, e = s.flare.Send(filePath, caseID, customerEmail, helpers.NewLocalFlareSource())
+	response, e = s.flare.Send(filePath, caseID, customerEmail, flaretypes.NewLocalFlareSource())
 	s.log.Debug(response)
 	if e != nil {
 		return

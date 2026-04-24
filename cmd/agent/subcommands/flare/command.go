@@ -35,7 +35,6 @@ import (
 	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
 	diagnoseLocal "github.com/DataDog/datadog-agent/comp/core/diagnose/local"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
-	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -319,7 +318,7 @@ func makeFlare(flareComp flare.Component,
 		}
 	}
 
-	response, e := flareComp.Send(filePath, caseID, customerEmail, helpers.NewLocalFlareSource())
+	response, e := flareComp.Send(filePath, caseID, customerEmail, flaretypes.NewLocalFlareSource())
 	fmt.Println(response)
 	return e
 }

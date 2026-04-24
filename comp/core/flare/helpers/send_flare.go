@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	hostnameUtil "github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -40,28 +41,7 @@ type flareResponse struct {
 	RequestUUID string `json:"request_uuid,omitempty"`
 }
 
-// FlareSource has metadata about why the flare was sent
-type FlareSource struct {
-	sourceType string
-	rcTaskUUID string
-}
-
-// NewLocalFlareSource returns a flare source struct for local flares
-func NewLocalFlareSource() FlareSource {
-	return FlareSource{
-		sourceType: "local",
-	}
-}
-
-// NewRemoteConfigFlareSource returns a flare source struct for remote-config
-func NewRemoteConfigFlareSource(rcTaskUUID string) FlareSource {
-	return FlareSource{
-		sourceType: "remote-config",
-		rcTaskUUID: rcTaskUUID,
-	}
-}
-
-func getFlareReader(multipartBoundary, archivePath, caseID, email, hostname string, source FlareSource) io.ReadCloser {
+func getFlareReader(multipartBoundary, archivePath, caseID, email, hostname string, source flaretypes.FlareSource) io.ReadCloser {
 	//No need to close the reader, http.Client does it for us
 	bodyReader, bodyWriter := io.Pipe()
 
@@ -80,12 +60,12 @@ func getFlareReader(multipartBoundary, archivePath, caseID, email, hostname stri
 		if email != "" {
 			writer.WriteField("email", email) //nolint:errcheck
 		}
-		if source.sourceType != "" {
-			writer.WriteField("source", source.sourceType) //nolint:errcheck
+		if source.SourceType() != "" {
+			writer.WriteField("source", source.SourceType()) //nolint:errcheck
 		}
-		if source.rcTaskUUID != "" {
+		if source.RCTaskUUID() != "" {
 			// UUID of the remote-config task sending the flare
-			writer.WriteField("rc_task_uuid", source.rcTaskUUID) //nolint:errcheck
+			writer.WriteField("rc_task_uuid", source.RCTaskUUID()) //nolint:errcheck
 		}
 
 		p, err := writer.CreateFormFile("flare_file", filepath.Base(archivePath))
@@ -114,7 +94,7 @@ func getFlareReader(multipartBoundary, archivePath, caseID, email, hostname stri
 	return bodyReader
 }
 
-func readAndPostFlareFile(archivePath, caseID, email, hostname, url string, source FlareSource, client *http.Client, apiKey string) (*http.Response, error) {
+func readAndPostFlareFile(archivePath, caseID, email, hostname, url string, source flaretypes.FlareSource, client *http.Client, apiKey string) (*http.Response, error) {
 	// Having resolved the POST URL, we do not expect to see further redirects, so do not
 	// handle them.
 	client.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
@@ -245,7 +225,7 @@ func mkURL(baseURL string, caseID string) string {
 
 // SendTo sends a flare file to the backend. This is part of the "helpers" package while all the code is moved to
 // components. When possible use the "Send" method of the "flare" component instead.
-func SendTo(cfg pkgconfigmodel.Reader, archivePath, caseID, email, apiKey, url string, source FlareSource) (string, error) {
+func SendTo(cfg pkgconfigmodel.Reader, archivePath, caseID, email, apiKey, url string, source flaretypes.FlareSource) (string, error) {
 	hostname, err := hostnameUtil.Get(context.TODO())
 	if err != nil {
 		hostname = "unknown"
@@ -331,6 +311,6 @@ func GetFlareEndpoint(cfg config.Reader) string {
 
 // SendFlare sends a flare and returns the message returned by the backend. This entry point is deprecated in favor of
 // the 'Send' method of the flare component.
-func SendFlare(cfg pkgconfigmodel.Reader, archivePath string, caseID string, email string, source FlareSource) (string, error) {
+func SendFlare(cfg pkgconfigmodel.Reader, archivePath string, caseID string, email string, source flaretypes.FlareSource) (string, error) {
 	return SendTo(cfg, archivePath, caseID, email, cfg.GetString("api_key"), configUtils.GetInfraEndpoint(cfg), source)
 }

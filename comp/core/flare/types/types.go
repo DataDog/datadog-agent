@@ -72,3 +72,34 @@ func NewProviderWithTimeout(callback FlareCallback, timeout FlareTimeout) Provid
 		},
 	}
 }
+
+// FlareSource has metadata about why the flare was sent
+type FlareSource struct {
+	sourceType string
+	rcTaskUUID string
+}
+
+// NewLocalFlareSource returns a flare source struct for local flares
+func NewLocalFlareSource() FlareSource {
+	return FlareSource{
+		sourceType: "local",
+	}
+}
+
+// NewRemoteConfigFlareSource returns a flare source struct for remote-config triggered flares
+func NewRemoteConfigFlareSource(rcTaskUUID string) FlareSource {
+	return FlareSource{
+		sourceType: "remote-config",
+		rcTaskUUID: rcTaskUUID,
+	}
+}
+
+// SourceType returns the source type of the flare
+func (f FlareSource) SourceType() string {
+	return f.sourceType
+}
+
+// RCTaskUUID returns the remote-config task UUID if applicable
+func (f FlareSource) RCTaskUUID() string {
+	return f.rcTaskUUID
+}

@@ -16,7 +16,6 @@ import (
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
-	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -50,7 +49,7 @@ func (fc *MockFlare) Create(_ flaretypes.ProfileData, _ time.Duration, _ error, 
 }
 
 // Send mocks the flare send function
-func (fc *MockFlare) Send(_ string, _ string, _ string, _ helpers.FlareSource) (string, error) {
+func (fc *MockFlare) Send(_ string, _ string, _ string, _ flaretypes.FlareSource) (string, error) {
 	return "", nil
 }
 

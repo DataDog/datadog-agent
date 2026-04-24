@@ -26,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaredef "github.com/DataDog/datadog-agent/comp/core/flare/def"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
-	"github.com/DataDog/datadog-agent/comp/core/flare/types"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -39,12 +39,12 @@ import (
 )
 
 // flareBuilderFactory creates an instance of FlareBuilder
-type flareBuilderFactory func(localFlare bool, flareArgs types.FlareArgs) (types.FlareBuilder, error)
+type flareBuilderFactory func(localFlare bool, flareArgs flaretypes.FlareArgs) (flaretypes.FlareBuilder, error)
 
 var fbFactory flareBuilderFactory = helpers.NewFlareBuilder
 
 // sendToFunc is used to send a flare to the backend. Overridden in tests to avoid real HTTP calls.
-var sendToFunc func(model.Reader, string, string, string, string, string, helpers.FlareSource) (string, error)
+var sendToFunc func(model.Reader, string, string, string, string, string, flaretypes.FlareSource) (string, error)
 
 // Requires defines the dependencies for the flare component.
 type Requires struct {
@@ -53,7 +53,7 @@ type Requires struct {
 	Log       log.Component
 	Config    config.Component
 	Params    flaredef.Params
-	Providers []*types.FlareFiller `group:"flare"`
+	Providers []*flaretypes.FlareFiller `group:"flare"`
 	WMeta     option.Option[workloadmeta.Component]
 	IPC       ipc.Component
 }
@@ -71,12 +71,12 @@ type flareImpl struct {
 	log       log.Component
 	config    config.Component
 	params    flaredef.Params
-	providers []*types.FlareFiller
+	providers []*flaretypes.FlareFiller
 }
 
 // filterNilProviders removes nil entries from the providers slice.
-func filterNilProviders(providers []*types.FlareFiller) []*types.FlareFiller {
-	result := make([]*types.FlareFiller, 0, len(providers))
+func filterNilProviders(providers []*flaretypes.FlareFiller) []*flaretypes.FlareFiller {
+	result := make([]*flaretypes.FlareFiller, 0, len(providers))
 	for _, p := range providers {
 		if p != nil {
 			result = append(result, p)
@@ -104,8 +104,8 @@ func NewComponent(deps Requires) Provides {
 	)
 	f.providers = append(
 		f.providers,
-		types.NewFiller(f.collectLogsFiles),
-		types.NewFiller(f.collectConfigFiles),
+		flaretypes.NewFiller(f.collectLogsFiles),
+		flaretypes.NewFiller(f.collectConfigFiles),
 	)
 
 	return Provides{
@@ -128,7 +128,7 @@ func (f *flareImpl) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rccli
 		return true, errors.New("User handle was not provided in the flare agent task")
 	}
 
-	flareArgs := types.FlareArgs{}
+	flareArgs := flaretypes.FlareArgs{}
 
 	enableProfiling, found := task.Config.TaskArgs["enable_profiling"]
 	if !found {
@@ -158,12 +158,12 @@ func (f *flareImpl) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rccli
 
 	f.log.Infof("Flare was created by remote-config at %s", filePath)
 
-	_, err = f.Send(filePath, caseID, userHandle, helpers.NewRemoteConfigFlareSource(task.Config.UUID))
+	_, err = f.Send(filePath, caseID, userHandle, flaretypes.NewRemoteConfigFlareSource(task.Config.UUID))
 	return true, err
 }
 
 func (f *flareImpl) createAndReturnFlarePath(w http.ResponseWriter, r *http.Request) {
-	var profile types.ProfileData
+	var profile flaretypes.ProfileData
 
 	if r.Body != http.NoBody {
 		body, err := io.ReadAll(r.Body)
@@ -209,7 +209,7 @@ func (f *flareImpl) createAndReturnFlarePath(w http.ResponseWriter, r *http.Requ
 }
 
 // Send sends a flare archive to Datadog. The local archive file is removed on success unless Params.KeepArchiveAfterSend is set (e.g. CLI --keep-archive).
-func (f *flareImpl) Send(flarePath string, caseID string, email string, source helpers.FlareSource) (string, error) {
+func (f *flareImpl) Send(flarePath string, caseID string, email string, source flaretypes.FlareSource) (string, error) {
 	// For now this is a wrapper around helpers.SendFlare since some code hasn't migrated to FX yet.
 	// The `source` is the reason why the flare was created, for now it's either local or remote-config
 	sendFn := sendToFunc
@@ -233,18 +233,18 @@ func (f *flareImpl) Send(flarePath string, caseID string, email string, source h
 // Create creates a new flare and returns the path to the final archive file.
 //
 // If providerTimeout is 0 or negative, the timeout from the configuration will be used.
-func (f *flareImpl) Create(pdata types.ProfileData, providerTimeout time.Duration, ipcError error, diagnoseResult []byte) (string, error) {
-	return f.create(types.FlareArgs{}, providerTimeout, ipcError, pdata, diagnoseResult)
+func (f *flareImpl) Create(pdata flaretypes.ProfileData, providerTimeout time.Duration, ipcError error, diagnoseResult []byte) (string, error) {
+	return f.create(flaretypes.FlareArgs{}, providerTimeout, ipcError, pdata, diagnoseResult)
 }
 
 // CreateWithArgs creates a new flare and returns the path to the final archive file.
 //
 // If providerTimeout is 0 or negative, the timeout from the configuration will be used.
-func (f *flareImpl) CreateWithArgs(flareArgs types.FlareArgs, providerTimeout time.Duration, ipcError error, diagnoseResult []byte) (string, error) {
-	return f.create(flareArgs, providerTimeout, ipcError, types.ProfileData{}, diagnoseResult)
+func (f *flareImpl) CreateWithArgs(flareArgs flaretypes.FlareArgs, providerTimeout time.Duration, ipcError error, diagnoseResult []byte) (string, error) {
+	return f.create(flareArgs, providerTimeout, ipcError, flaretypes.ProfileData{}, diagnoseResult)
 }
 
-func (f *flareImpl) create(flareArgs types.FlareArgs, providerTimeout time.Duration, ipcError error, pdata types.ProfileData, diagnoseResult []byte) (string, error) {
+func (f *flareImpl) create(flareArgs flaretypes.FlareArgs, providerTimeout time.Duration, ipcError error, pdata flaretypes.ProfileData, diagnoseResult []byte) (string, error) {
 	if providerTimeout <= 0 {
 		providerTimeout = f.config.GetDuration("flare_provider_timeout")
 	}
@@ -288,7 +288,7 @@ func (f *flareImpl) create(flareArgs types.FlareArgs, providerTimeout time.Durat
 	return fb.Save()
 }
 
-func (f *flareImpl) runProviders(fb types.FlareBuilder, providerTimeout time.Duration) {
+func (f *flareImpl) runProviders(fb flaretypes.FlareBuilder, providerTimeout time.Duration) {
 	for _, p := range f.providers {
 		timeout := max(providerTimeout, p.Timeout(fb))
 		providerName := runtime.FuncForPC(reflect.ValueOf(p.Callback).Pointer()).Name()

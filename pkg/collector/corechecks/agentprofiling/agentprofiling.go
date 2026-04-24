@@ -24,8 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 
 	"github.com/DataDog/datadog-agent/comp/core/flare"
-	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
-	"github.com/DataDog/datadog-agent/comp/core/flare/types"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -343,7 +342,7 @@ func (m *Check) generateFlare() error {
 	}
 
 	// Prepare flare arguments
-	flareArgs := types.FlareArgs{
+	flareArgs := flaretypes.FlareArgs{
 		ProfileDuration:      m.agentConfig.GetDuration("flare.rc_profiling.profile_duration"),
 		ProfileBlockingRate:  m.agentConfig.GetInt("flare.rc_profiling.blocking_rate"),
 		ProfileMutexFraction: m.agentConfig.GetInt("flare.rc_profiling.mutex_fraction"),
@@ -359,7 +358,7 @@ func (m *Check) generateFlare() error {
 		// Send the flare
 		caseID := m.instance.TicketID
 		userHandle := m.instance.UserEmail
-		response, err := m.flareComponent.Send(flarePath, caseID, userHandle, helpers.NewLocalFlareSource())
+		response, err := m.flareComponent.Send(flarePath, caseID, userHandle, flaretypes.NewLocalFlareSource())
 		if err != nil {
 			// Include the user-friendly response message in the error
 			return fmt.Errorf("Failed to send flare: %s (%w)", response, err)

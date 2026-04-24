@@ -12,7 +12,6 @@ package flare
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
 )
 
@@ -28,7 +27,7 @@ type Component interface {
 	// This function is used to create a flare with specific arguments.
 	CreateWithArgs(flareArgs types.FlareArgs, providerTimeout time.Duration, ipcError error, diagnoseResult []byte) (string, error)
 	// Send sends a flare archive to Datadog. The local archive is removed after a successful upload unless the component was created with KeepArchiveAfterSend (e.g. CLI --keep-archive).
-	Send(flarePath string, caseID string, email string, source helpers.FlareSource) (string, error)
+	Send(flarePath string, caseID string, email string, source types.FlareSource) (string, error)
 }
 
 // Params defines the parameters for the flare component.

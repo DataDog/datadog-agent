@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -92,7 +93,7 @@ func TestFlareHasRightForm(t *testing.T) {
 			caseID := "12345"
 			email := "dev@datadoghq.com"
 			apiKey := "abcdef"
-			source := FlareSource{}
+			source := flaretypes.FlareSource{}
 
 			_, err := SendTo(cfg, archivePath, caseID, email, apiKey, ddURL, source)
 
@@ -388,7 +389,7 @@ func TestSendToRetryLogic(t *testing.T) {
 				io.WriteString(w, "Not Found")
 			}))
 			defer server.Close()
-			result, err := SendTo(cfg, "./test/blank.zip", "12345", "test@example.com", "test-api-key", server.URL, FlareSource{})
+			result, err := SendTo(cfg, "./test/blank.zip", "12345", "test@example.com", "test-api-key", server.URL, flaretypes.FlareSource{})
 
 			assert.Equal(t, tc.expectedAttempts, attemptCount, "Unexpected number of attempts")
 
@@ -516,7 +517,7 @@ func TestSendToWithNetworkErrors(t *testing.T) {
 		}))
 		defer server.Close()
 
-		result, err := SendTo(cfg, "./test/blank.zip", "12345", "test@example.com", "test-api-key", server.URL, FlareSource{})
+		result, err := SendTo(cfg, "./test/blank.zip", "12345", "test@example.com", "test-api-key", server.URL, flaretypes.FlareSource{})
 
 		assert.NoError(t, err, "Expected success after retries")
 		assert.Contains(t, result, "Your logs were successfully uploaded", "Expected success message")
@@ -544,7 +545,7 @@ func TestSendToWithNetworkErrors(t *testing.T) {
 		}))
 		defer server.Close()
 
-		result, err := SendTo(cfg, "./test/blank.zip", "12345", "test@example.com", "test-api-key", server.URL, FlareSource{})
+		result, err := SendTo(cfg, "./test/blank.zip", "12345", "test@example.com", "test-api-key", server.URL, flaretypes.FlareSource{})
 
 		assert.Error(t, err, "Expected error after exhausting retries")
 		assert.Contains(t, err.Error(), "failed to send flare after", "Expected retry exhaustion error")
@@ -574,7 +575,7 @@ func TestSendToWithNetworkErrors(t *testing.T) {
 		}))
 		defer server.Close()
 
-		result, err := SendTo(cfg, "./test/blank.zip", "12345", "test@example.com", "test-api-key", server.URL, FlareSource{})
+		result, err := SendTo(cfg, "./test/blank.zip", "12345", "test@example.com", "test-api-key", server.URL, flaretypes.FlareSource{})
 
 		assert.Error(t, err, "Expected error")
 		assert.Equal(t, 1, attemptCount, "Expected only 1 attempt (no retries)")
