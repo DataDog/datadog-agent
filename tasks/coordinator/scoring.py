@@ -89,7 +89,28 @@ def score_against_baseline(
     "no-worse-than-baseline" contract, period.
     """
     mean_f1, observed = load_report(report_path)
-    bd = baseline.detectors[detector]
+    bd = baseline.detectors.get(detector)
+    if bd is None:
+        # Detector not baselined yet (blank-slate bootstrap or a newly
+        # invented name). Report the raw scores but skip every gate —
+        # there is nothing to regress against. A human admits this
+        # detector into the baseline via import_baseline once they
+        # decide it is promising enough to lock in as the new floor.
+        total_observed_fps = sum(s.num_baseline_fps for s in observed.values())
+        return ScoringResult(
+            detector=detector,
+            mean_f1=mean_f1,
+            total_fps=total_observed_fps,
+            per_scenario=observed,
+            baseline_mean_f1=0.0,
+            baseline_total_fps=0,
+            mean_df1=mean_f1,
+            total_dfps=total_observed_fps,
+            per_scenario_delta={},
+            strict_regressions=[],
+            recall_floor_violations=[],
+            fp_reduction_pct=0.0,
+        )
 
     deltas: dict[str, ScenarioDelta] = {}
     strict_regressions = []

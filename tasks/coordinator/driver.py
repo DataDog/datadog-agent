@@ -570,32 +570,32 @@ def known_detectors(db: Db) -> tuple[str, ...]:
 
 
 def relevant_detectors(candidate: Candidate, db: Db) -> list[str]:
-    """Which detectors' F1 do we measure to decide if this candidate shipped?
+    """Which detectors' F1 do we measure for this candidate?
 
-    A candidate can modify any file under comp/observer/. But scoring runs
-    per-detector, and the panel review caught this: silently defaulting to
-    ONE detector meant candidates modifying e.g. detector A's internals
-    got scored against detector B's unaffected output — ΔF1≈0 by
-    construction, "improvement" or "regression" both invisible.
+    Policy: eval the UNION of (a) all baselined detectors — so every
+    candidate is checked against the "don't break existing wins" contract
+    for every baselined detector — and (b) the candidate's own
+    target_components, so a brand-new detector name the agent just
+    invented is still measured (its score enters the report but passes
+    no gates until a human admits it into the baseline via
+    import_baseline).
 
-    Policy:
-      - Intersect target_components with known (baselined) detectors. If the
-        intersection is non-empty, eval each one in it and gate on the
-        WORST ΔF1 across them.
-      - If the intersection is empty (correlator changes, new features,
-        pipeline-level work), eval ALL known detectors — we can't tell in
-        advance which one the change affects, so measure them all.
-      - If no detectors are baselined yet (blank-slate bootstrap), return
-        target_components as-is. Scoring will treat empty baseline.scenarios
-        as "no gate," and the per-detector report is still generated.
+    Rationale: on a blank-slate run the agent invents detector names
+    freely. The previous "fall back to all known if target doesn't
+    intersect known" policy evaluated the wrong detector — the new one
+    the candidate created was silently excluded. Including target_components
+    unconditionally fixes that; gates stay safe because
+    score_against_baseline treats an unbaselined detector as "no gate."
+
+    Always returns a non-empty list. Order: baselined first (stable),
+    then new target_components (in given order).
     """
     known = known_detectors(db)
-    if not known:
-        return list(candidate.target_components) or ["unknown"]
-    named = [c for c in candidate.target_components if c in known]
-    if named:
-        return named
-    return list(known)
+    ordered: list[str] = list(known)
+    for c in candidate.target_components:
+        if c not in ordered:
+            ordered.append(c)
+    return ordered or ["unknown"]
 
 
 def primary_detector(candidate: Candidate, db: Db) -> str:
