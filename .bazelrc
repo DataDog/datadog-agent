@@ -61,6 +61,11 @@ common:windows --repo_env=SYSTEMROOT # used by COM to load system DLLs, needed b
 common:windows --repo_env=USERPROFILE # used by MSYS2 bash to emulate HOME, needed by git to fetch repositories
 common:windows --repo_env=VSTUDIO_ROOT # visual_studio(path_variable) in MODULE.bazel
 common:windows --shell_executable=C:/tools/msys64/usr/bin/bash.exe
+# Even though rust toolchain does rely on cc_toolchain, it doesn't inherit the PATH from it.
+# So we need to set the PATH explicitly, otherwise linking is failing.
+# But we also don't want to leak the PATH into the build environment, so we set it only for the rust toolchain.
+#common:windows --@rules_rust//rust/settings:extra_rustc_env=PATH=C:/tools/msys64/mingw64/bin
+#common:windows --@rules_rust//rust/settings:extra_exec_rustc_env=PATH=C:/tools/msys64/mingw64/bin
 # Force the x86_64-pc-windows-gnu Rust toolchain (compact name for rust_windows_gnu_x86_64)
 # to take priority over the default MSVC toolchain, since the CI cc_toolchain is MinGW/GCC.
 common:windows --extra_toolchains=@rust_toolchains//:rw-2070622084
