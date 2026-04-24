@@ -63,33 +63,6 @@ def _append_to_inbox(root: Path, text: str) -> None:
             f.write(text.rstrip() + "\n\n")
 
 
-_own_login_cache: str | None = None
-
-
-def _own_login() -> str | None:
-    """Return the GitHub login of whoever `gh` is authenticated as.
-
-    Cached for the process lifetime. If auth is broken or gh is missing,
-    returns None and the caller falls back to marker-only filtering (which
-    is fragile but strictly additive — never re-ingest own comments).
-    """
-    global _own_login_cache
-    if _own_login_cache is not None:
-        return _own_login_cache
-    try:
-        r = subprocess.run(
-            ["gh", "api", "user", "--jq", ".login"],
-            capture_output=True, text=True, timeout=15,
-        )
-    except (FileNotFoundError, subprocess.TimeoutExpired, Exception):
-        return None
-    if r.returncode != 0:
-        return None
-    login = r.stdout.strip()
-    _own_login_cache = login or None
-    return _own_login_cache
-
-
 def _fetch_comments(pr: str) -> tuple[list[dict] | None, str]:
     """Call `gh api` to pull all issue comments for the PR (PRs are issues).
 
@@ -159,11 +132,15 @@ def poll(root: Path = Path(".")) -> tuple[int, str]:
     # Process oldest-first so inbox ordering matches chronology.
     comments.sort(key=lambda c: int(c.get("id", 0)))
 
-    # Primary own-filter: author login. Marker is kept as a belt-and-
-    # suspenders check in case gh is re-authed mid-run to a different
-    # login (e.g. a human posts as themselves during a coordinator pause).
-    own_login = _own_login()
-
+    # Own-filter: body-marker ONLY. Every coordinator-emitted comment
+    # begins with OWN_MESSAGE_MARKER (U+200B, zero-width space) prepended
+    # by github_out.format_message. A human posting from the same GitHub
+    # login as the coordinator's gh auth cannot type that marker, so the
+    # marker cleanly distinguishes the two — author login cannot, because
+    # the coordinator posts under the same account the operator uses to
+    # type steering comments, and an author-login filter silently swallows
+    # every human message. (Pre-fix: this exact bug dropped 2+ days of
+    # steering input without a trace.)
     appended = 0
     max_id = last_seen_id
     for c in comments:
@@ -174,9 +151,7 @@ def poll(root: Path = Path(".")) -> tuple[int, str]:
         if cid <= last_seen_id:
             continue
         body = c.get("body") or ""
-        author = c.get("user_login") or ""
-        is_own = (own_login is not None and author == own_login) or \
-                 body.startswith(github_out.OWN_MESSAGE_MARKER)
+        is_own = body.startswith(github_out.OWN_MESSAGE_MARKER)
         if is_own:
             # Own comment; advance the cursor so we don't reconsider next poll.
             if cid > max_id:
