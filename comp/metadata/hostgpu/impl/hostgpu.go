@@ -21,7 +21,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	hostgpu "github.com/DataDog/datadog-agent/comp/metadata/hostgpu/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
-	runnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/impl"
+	runnerdef "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"

@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	hostComp "github.com/DataDog/datadog-agent/comp/metadata/host"
 	resources "github.com/DataDog/datadog-agent/comp/metadata/resources/def"
-	runnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/impl"
+	runnerdef "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/gohai"
