@@ -217,6 +217,20 @@ require.Equal(t, stats.get, stats.put)  // Balanced get/put
 - Handles library loading, error recovery
 - Caches device info to reduce NVML calls
 
+### fake-nvml (`fake-nvml/`) — testing without real GPUs
+- Rust `cdylib` that implements the NVML C ABI and returns canned data driven
+  off `pkg/collector/corechecks/gpu/spec/architectures.yaml`. Activated via
+  `gpu.nvml_lib_path` in `datadog.yaml`; never auto-loaded.
+- Architecture and device count are picked at process start via
+  `FAKE_NVML_ARCH` (default `hopper`) and `FAKE_NVML_DEVICE_COUNT` (default 2,
+  clamped to 1..=16). See `pkg/gpu/fake-nvml/README.md` for the full surface.
+- Used by the SMP regression experiment
+  `test/regression/cases/gpu_check_hopper_fake_nvml/` and the integration
+  tests in `pkg/gpu/integrationtests/` and
+  `pkg/collector/corechecks/gpu/integrationtests/`. Drive the GPU check on
+  any Linux laptop without an NVIDIA driver — useful for reproducing
+  collector-side bugs that need real cgo behavior.
+
 ---
 
 ## Active Time Metrics (`sm_active` and `process.sm_active`)
