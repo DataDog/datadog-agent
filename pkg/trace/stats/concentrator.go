@@ -72,10 +72,12 @@ func NewConcentrator(conf *config.AgentConfig, writer Writer, now time.Time, sta
 		statsd:           statsd,
 		bsize:            bsize,
 		peerTagKeys:      conf.ConfiguredPeerTags(),
-		// additionalMetricTagKeys is intentionally nil on the agent side. This feature is only
-		// configurable through the Go tracer (dd-trace-go), which imports the SpanConcentrator
-		// directly and passes its own tag keys via NewStatSpanWithConfig's StatSpanConfig.AdditionalMetricTagKeys.
-		additionalMetricTagKeys: nil,
+		// additionalMetricTagKeys is populated from AgentConfig.SpanDerivedPrimaryTagKeys, which
+		// serverless-init sets from DD_APM_SPAN_DERIVED_PRIMARY_TAGS. In all other agent deployments
+		// this slice is empty, so the field stays nil. The Go tracer (dd-trace-go) also configures
+		// this via NewStatSpanWithConfig's StatSpanConfig.AdditionalMetricTagKeys when it imports
+		// the SpanConcentrator directly.
+		additionalMetricTagKeys: conf.ConfiguredSpanDerivedPrimaryTagKeys(),
 	}
 	return &c
 }
