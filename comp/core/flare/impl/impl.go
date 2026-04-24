@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2024-present Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // Package flareimpl provides the flare component implementation.
 package flareimpl
@@ -75,6 +75,7 @@ type flareImpl struct {
 }
 
 // filterNilProviders removes nil entries from the providers slice.
+// fxutil.GetAndFilterGroup cannot be used directly here as impl must not import fxutil.
 func filterNilProviders(providers []*flaretypes.FlareFiller) []*flaretypes.FlareFiller {
 	result := make([]*flaretypes.FlareFiller, 0, len(providers))
 	for _, p := range providers {

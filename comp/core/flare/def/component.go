@@ -3,10 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package flare implements a component to generate flares from the agent.
-//
-// A flare is a archive containing all the information necessary to troubleshoot the Agent. When opening a support
-// ticket a flare might be requested. Flares contain the Agent logs, configurations and much more.
+// Package flare defines the flare component interface and its parameters.
 package flare
 
 import (

@@ -20,7 +20,7 @@ import (
 	yaml "go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	flare "github.com/DataDog/datadog-agent/comp/core/flare/def"
+	flaredef "github.com/DataDog/datadog-agent/comp/core/flare/def"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -31,7 +31,7 @@ import (
 )
 
 // Adds the specific handlers for /agent/ endpoints
-func agentHandler(r *mux.Router, flare flare.Component, statusComponent status.Component, config config.Component, hostname hostnameinterface.Component, startTimestamp int64) {
+func agentHandler(r *mux.Router, flare flaredef.Component, statusComponent status.Component, config config.Component, hostname hostnameinterface.Component, startTimestamp int64) {
 	r.HandleFunc("/ping", func(w http.ResponseWriter, _ *http.Request) { ping(w, startTimestamp) }).Methods("POST")
 	r.HandleFunc("/status/{type}", func(w http.ResponseWriter, r *http.Request) { getStatus(w, r, statusComponent) }).Methods("POST")
 	r.HandleFunc("/version", http.HandlerFunc(getVersion)).Methods("POST")
@@ -138,7 +138,7 @@ func getLog(w http.ResponseWriter, r *http.Request, config configmodel.Reader) {
 }
 
 // Makes a new flare
-func makeFlare(w http.ResponseWriter, r *http.Request, flare flare.Component) {
+func makeFlare(w http.ResponseWriter, r *http.Request, flare flaredef.Component) {
 	payload, e := parseBody(r)
 	if e != nil {
 		w.Write([]byte(e.Error()))

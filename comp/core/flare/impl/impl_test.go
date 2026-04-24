@@ -354,12 +354,12 @@ func TestSendRemovesArchiveAfterSuccess(t *testing.T) {
 
 	origSendTo := sendToFunc
 	defer func() { sendToFunc = origSendTo }()
-	sendToFunc = func(_ model.Reader, _ string, _ string, _ string, _ string, _ string, _ helpers.FlareSource) (string, error) {
+	sendToFunc = func(_ model.Reader, _ string, _ string, _ string, _ string, _ string, _ types.FlareSource) (string, error) {
 		return "success", nil
 	}
 
 	comp := getFlareComponent(t, flaredef.Params{}, nil)
-	_, err := comp.Send(archivePath, "case1", "test@example.com", helpers.NewLocalFlareSource())
+	_, err := comp.Send(archivePath, "case1", "test@example.com", types.NewLocalFlareSource())
 	require.NoError(t, err)
 
 	_, statErr := os.Stat(archivePath)
@@ -373,12 +373,12 @@ func TestSendKeepsArchiveWhenKeepArchiveAfterSend(t *testing.T) {
 
 	origSendTo := sendToFunc
 	defer func() { sendToFunc = origSendTo }()
-	sendToFunc = func(_ model.Reader, _ string, _ string, _ string, _ string, _ string, _ helpers.FlareSource) (string, error) {
+	sendToFunc = func(_ model.Reader, _ string, _ string, _ string, _ string, _ string, _ types.FlareSource) (string, error) {
 		return "success", nil
 	}
 
 	comp := getFlareComponent(t, flaredef.Params{KeepArchiveAfterSend: true}, nil)
-	_, err := comp.Send(archivePath, "case1", "test@example.com", helpers.NewLocalFlareSource())
+	_, err := comp.Send(archivePath, "case1", "test@example.com", types.NewLocalFlareSource())
 	require.NoError(t, err)
 
 	_, statErr := os.Stat(archivePath)
