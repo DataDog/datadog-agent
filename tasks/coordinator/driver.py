@@ -555,39 +555,54 @@ def _recent_same_family(db: Db, candidate: Candidate, limit: int = 5) -> list[di
     return out
 
 
-KNOWN_DETECTORS = ("bocpd", "scanmw", "scanwelch")
+def known_detectors(db: Db) -> tuple[str, ...]:
+    """Detector names recognised by the coordinator for gating purposes.
+
+    Derived from baseline.detectors so the set grows as new detectors are
+    imported via re-baselining — no hardcoded list to keep in sync with
+    the catalog. A detector must have a baseline entry to be gate-eligible;
+    score_against_baseline does detectors[name] lookup which would KeyError
+    without one.
+    """
+    if db.baseline is None or not db.baseline.detectors:
+        return ()
+    return tuple(db.baseline.detectors.keys())
 
 
-def relevant_detectors(candidate: Candidate) -> list[str]:
+def relevant_detectors(candidate: Candidate, db: Db) -> list[str]:
     """Which detectors' F1 do we measure to decide if this candidate shipped?
 
     A candidate can modify any file under comp/observer/. But scoring runs
     per-detector, and the panel review caught this: silently defaulting to
-    ONE detector (previously scanmw) meant candidates modifying e.g. bocpd
-    internals got scored against scanmw's unaffected output — ΔF1≈0 by
+    ONE detector meant candidates modifying e.g. detector A's internals
+    got scored against detector B's unaffected output — ΔF1≈0 by
     construction, "improvement" or "regression" both invisible.
 
     Policy:
-      - Intersect target_components with the 3 known detectors. If the
+      - Intersect target_components with known (baselined) detectors. If the
         intersection is non-empty, eval each one in it and gate on the
         WORST ΔF1 across them.
       - If the intersection is empty (correlator changes, new features,
-        pipeline-level work), eval ALL 3 detectors — we can't tell in
+        pipeline-level work), eval ALL known detectors — we can't tell in
         advance which one the change affects, so measure them all.
-
-    Always returns a non-empty list.
+      - If no detectors are baselined yet (blank-slate bootstrap), return
+        target_components as-is. Scoring will treat empty baseline.scenarios
+        as "no gate," and the per-detector report is still generated.
     """
-    named = [c for c in candidate.target_components if c in KNOWN_DETECTORS]
+    known = known_detectors(db)
+    if not known:
+        return list(candidate.target_components) or ["unknown"]
+    named = [c for c in candidate.target_components if c in known]
     if named:
         return named
-    return list(KNOWN_DETECTORS)
+    return list(known)
 
 
-def primary_detector(candidate: Candidate) -> str:
+def primary_detector(candidate: Candidate, db: Db) -> str:
     """Deprecated single-detector view. Kept for callers that print a
     single string (metrics, log lines). Returns the first relevant detector.
     """
-    return relevant_detectors(candidate)[0]
+    return relevant_detectors(candidate, db)[0]
 
 
 def _merge_scorings(scorings: dict, detectors: list[str]):
@@ -847,7 +862,7 @@ def _run_iteration_body(
         return
 
     it.candidate_id = candidate.id
-    detectors = relevant_detectors(candidate)
+    detectors = relevant_detectors(candidate, db)
     # Why a list, not a single detector: a candidate modifying correlator
     # code or a shared feature affects MULTIPLE detectors. Gating on a
     # single "primary" detector was a panel-reviewed BLOCK — silent

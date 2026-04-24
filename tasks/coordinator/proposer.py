@@ -156,9 +156,11 @@ research harness. Your job is to brainstorm {n_candidates} **genuinely
 novel** candidate changes that might improve anomaly detection on the
 observer pipeline.
 
-This harness is explicitly for exploration. Threshold-tuning on the three
-existing detectors (bocpd / scanmw / scanwelch) is the LEAST interesting
-thing you can do here — it finds small local wins and saturates fast.
+This harness is explicitly for exploration. The observer pipeline currently
+has ZERO detectors and ZERO correlators — only wiring, storage, extractors,
+and interfaces. Your job is to invent the detectors/correlators from
+scratch. Shallow threshold-tuning on whatever you first land is the LEAST
+interesting thing you can do here — saturate fast and pivot.
 
 What's actually interesting:
 
@@ -173,15 +175,17 @@ What's actually interesting:
   outputs differently, new emitter logic, new feature-engineering stages,
   seasonality-aware baseline windows, per-signal-class routing.
 
-- **Replace an existing detector's internals.** bocpd/scanmw/scanwelch
-  are starting points, not sacred. Keep the detector's registration and
-  whichever interface from `comp/observer/def/component.go` it already
-  implements (`SeriesDetector` or `Detector`), but swap the guts for a
-  different algorithm entirely (e.g. replace BOCPD with a density-ratio
-  detector while keeping the `bocpd` name).
+- **Register detectors in `comp/observer/impl/component_catalog.go`.**
+  Implement the `Detector` or `SeriesDetector` interface from
+  `comp/observer/def/component.go`, give the detector a stable name,
+  add an entry to `defaultCatalog()`. The name must match the
+  candidate's `target_components[0]`; the coordinator uses that name
+  for `q.eval-scenarios --only <name>` and for baseline gating. Pick a
+  name and keep it stable across iterations of the same family.
 
-- **Prefer non-doubling patterns over full replacement** when the
-  original detector has visible wins. Wholesale replacement can
+- **Evolve or replace without doubling work.** Once a detector is
+  shipped, later candidates can refine it in place or swap the guts
+  while keeping the registered name. Wholesale replacement can
   catastrophically regress scenarios the original aced (see `recent
   experiments` — replacements tend to show big +ΔF1 on scenarios the
   original missed AND big -ΔF1 on scenarios it aced).
@@ -216,9 +220,10 @@ What's actually interesting:
 
 The eval framework is OFF LIMITS. Do NOT modify `tasks/q.py`,
 `tasks/libs/q`, `q.eval-scenarios` orchestration, or the testbench
-registry. The three detector names and scenario list are fixed
-evaluation boundaries. All innovation happens INSIDE `comp/observer/`,
-behind the three existing detector names.
+registry. The scenario list is a fixed evaluation boundary. All
+innovation happens INSIDE `comp/observer/`. Detector names are
+INVENTED by you — pick one and keep it stable across iterations so
+the coordinator's baseline/gate machinery lines up.
 
 - **Adapted research from related systems.** Datadog's watchdog uses
   AnomalyRank. Netflix's SURUS does robust PCA on streams. NAB has a battery
