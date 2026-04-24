@@ -12,6 +12,7 @@ package secrets
 type ConfigParams struct {
 	Type                         string
 	Config                       map[string]interface{}
+	Backends                     map[string]interface{}
 	Command                      string
 	Arguments                    []string
 	Timeout                      int

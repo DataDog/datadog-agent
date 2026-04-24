@@ -20,37 +20,40 @@ func decryptConfig(conf integration.Config, secretResolver secrets.Component, or
 		return conf, nil
 	}
 
-	var err error
+	var decryptErr error
 
 	// init_config
-	conf.InitConfig, err = secretResolver.Resolve(conf.InitConfig, origin, conf.ImageName, conf.PodNamespace, false)
+	resolved, err := secretResolver.Resolve(conf.InitConfig, origin, conf.ImageName, conf.PodNamespace, false)
 	if err != nil {
-		return conf, fmt.Errorf("error while decrypting secrets in 'init_config': %s", err)
+		decryptErr = fmt.Errorf("error while decrypting secrets in 'init_config': %s", err)
 	}
+	conf.InitConfig = resolved
 
 	// instances
 	// we cannot update in place as, being a slice, it would modify the input config as well
 	instances := make([]integration.Data, 0, len(conf.Instances))
 	for _, inputInstance := range conf.Instances {
 		decryptedInstance, err := secretResolver.Resolve(inputInstance, origin, conf.ImageName, conf.PodNamespace, false)
-		if err != nil {
-			return conf, fmt.Errorf("error while decrypting secrets in an instance: %s", err)
+		if err != nil && decryptErr == nil {
+			decryptErr = fmt.Errorf("error while decrypting secrets in an instance: %s", err)
 		}
 		instances = append(instances, decryptedInstance)
 	}
 	conf.Instances = instances
 
 	// metrics
-	conf.MetricConfig, err = secretResolver.Resolve(conf.MetricConfig, origin, conf.ImageName, conf.PodNamespace, false)
-	if err != nil {
-		return conf, fmt.Errorf("error while decrypting secrets in 'metrics': %s", err)
+	resolved, err = secretResolver.Resolve(conf.MetricConfig, origin, conf.ImageName, conf.PodNamespace, false)
+	if err != nil && decryptErr == nil {
+		decryptErr = fmt.Errorf("error while decrypting secrets in 'metrics': %s", err)
 	}
+	conf.MetricConfig = resolved
 
 	// logs
-	conf.LogsConfig, err = secretResolver.Resolve(conf.LogsConfig, origin, conf.ImageName, conf.PodNamespace, false)
-	if err != nil {
-		return conf, fmt.Errorf("error while decrypting secrets 'logs': %s", err)
+	resolved, err = secretResolver.Resolve(conf.LogsConfig, origin, conf.ImageName, conf.PodNamespace, false)
+	if err != nil && decryptErr == nil {
+		decryptErr = fmt.Errorf("error while decrypting secrets 'logs': %s", err)
 	}
+	conf.LogsConfig = resolved
 
-	return conf, nil
+	return conf, decryptErr
 }

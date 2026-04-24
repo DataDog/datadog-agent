@@ -987,6 +987,47 @@ func ResolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 	return resolveSecrets(config, secretResolver, origin)
 }
 
+// multiSecretBackendEntry is one entry under multi_secret_backends (type, config; timeout is global).
+type multiSecretBackendEntry struct {
+	Type   string                 `mapstructure:"type"`
+	Config map[string]interface{} `mapstructure:"config"`
+}
+
+// getSecretBackends reads multi_secret_backends via UnmarshalKey into typed entries,
+// then converts to map[string]interface{} for the secrets resolver (which still
+// expects the legacy nested map shape per backend).
+func getSecretBackends(config pkgconfigmodel.Config) map[string]interface{} {
+	var entries map[string]multiSecretBackendEntry
+	if err := structure.UnmarshalKey(config, "multi_secret_backends", &entries); err != nil {
+		log.Warnf("multi_secret_backends: %v", err)
+		return nil
+	}
+	if len(entries) == 0 {
+		return nil
+	}
+
+	out := make(map[string]interface{}, 0)
+	for name, e := range entries {
+		if name == "default" {
+			log.Warnf(`multi_secret_backends: backend name "default" is not supported; use secret_backend_type and secret_backend_config for that backend. Ignoring entry "default".`)
+			continue
+		}
+		cfg := e.Config
+		if cfg == nil {
+			cfg = map[string]interface{}{}
+		}
+		out[name] = map[string]interface{}{
+			"type":   e.Type,
+			"config": cfg,
+		}
+	}
+
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
 // resolveSecrets merges all the secret values from origin into config. Secret values
 // are identified by a value of the form "ENC[key]" where key is the secret key.
 // See: https://github.com/DataDog/datadog-agent/blob/main/docs/agent/secrets.md
@@ -997,6 +1038,7 @@ func resolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 	secretResolver.Configure(secrets.ConfigParams{
 		Type:                         config.GetString("secret_backend_type"),
 		Config:                       config.GetStringMap("secret_backend_config"),
+		Backends:                     getSecretBackends(config),
 		Command:                      config.GetString("secret_backend_command"),
 		Arguments:                    config.GetStringSlice("secret_backend_arguments"),
 		Timeout:                      config.GetInt("secret_backend_timeout"),
@@ -1013,7 +1055,7 @@ func resolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 		APIKeyFailureRefreshInterval: config.GetInt("secret_refresh_on_api_key_failure_interval"),
 	})
 
-	if config.GetString("secret_backend_command") != "" || config.GetString("secret_backend_type") != "" {
+	if config.GetString("secret_backend_command") != "" || config.GetString("secret_backend_type") != "" || len(getSecretBackends(config)) > 0 {
 		// Viper doesn't expose the final location of the file it
 		// loads. Since we are searching for 'datadog.yaml' in multiple
 		// locations we let viper determine the one to use before

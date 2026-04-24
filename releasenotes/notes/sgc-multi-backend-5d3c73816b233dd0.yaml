@@ -1,0 +1,12 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be formatted as reStructuredText.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Add ``multi_secret_backends`` in ``datadog.yaml`` so you can declare extra named secret backends (each with ``type`` and ``config``). When no ``secret_backend_type`` is set, select the backend per handle using ``ENC[backendID::secretKey]`` (``backendID`` matches a name under ``multi_secret_backends``).
+    Precedence is ``secret_backend_command`` (if set) over ``secret_backend_type`` over ``multi_secret_backends``: a custom command wins over native type; when native ``secret_backend_type`` is set (and no custom command), every ``ENC[...]`` inner string is resolved only through that type and ``multi_secret_backends`` is not used for routing.
