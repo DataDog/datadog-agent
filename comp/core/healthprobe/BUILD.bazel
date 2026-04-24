@@ -1,2 +1,3 @@
 # gazelle:ignore
-# gazelle:exclude def
+# gazelle:exclude fx
+# gazelle:exclude impl
