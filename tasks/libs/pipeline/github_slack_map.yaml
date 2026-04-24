@@ -151,6 +151,13 @@
   review:
     name: '#apm-onboarding'
     id: 'CLWN64GAW'
+'@datadog/apm-release-platform':
+  notification:
+    name: '#apm-release-platform'
+    id: 'C07AFGS1N81'
+  review:
+    name: '#apm-release-platform'
+    id: 'C07AFGS1N81'
 '@datadog/apm-trace-storage':
   notification:
     name: '#apm-trace-storage'

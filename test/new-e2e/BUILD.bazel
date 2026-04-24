@@ -142,6 +142,8 @@
 # gazelle:exclude tests/security-agent-functional
 # gazelle:exclude tests/ssi
 # gazelle:exclude tests/ssi/testdata
+# gazelle:exclude tests/ssi-gradual-rollout
+# gazelle:exclude tests/ssi-gradual-rollout/testdata
 # gazelle:exclude tests/sysprobe-functional
 # gazelle:exclude tests/sysprobe-functional/assets
 # gazelle:exclude tests/sysprobe-functional/fixtures
