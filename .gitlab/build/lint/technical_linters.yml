@@ -81,3 +81,17 @@ lint_releasenotes_rst:
   rules: !reference [.on_releasenotes_changes]
   script:
     - dda inv -- -e linter.rst-releasenotes --only-changed
+
+lint_releasenotes_md:
+  extends: .lint
+  rules: !reference [.on_releasenotes_changes]
+  allow_failure: true
+  script:
+    - dda inv -- -e linter.lint-releasenotes-md --only-changed
+
+compare_assemblers:
+  extends: .lint
+  rules: !reference [.on_releasenotes_changes]
+  allow_failure: true
+  script:
+    - dda inv -- -e linter.compare-assemblers

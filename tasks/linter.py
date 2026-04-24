@@ -276,6 +276,97 @@ def rst_releasenotes(ctx, files=None, only_changed=False):
 
 
 @task
+def lint_releasenotes_md(ctx, files=None, only_changed=False):
+    """Check release notes for structural issues (YAML structure only).
+
+    Validates that release notes are valid YAML with known sections and correct
+    content types. Content format (RST or Markdown) is NOT validated — this task
+    works on existing RST fragments during the reno migration period.
+
+    Args:
+        files: Optional comma-separated list of files to lint. If not provided,
+               lints all .yaml files in releasenotes/notes/, releasenotes-dca/notes/,
+               and releasenotes-installscript/notes/.
+        only_changed: If True, only lint release note files modified compared to
+                      the base branch. Used in CI to only check PR files.
+    """
+    from tasks.libs.linter.releasenotes_md import lint_releasenotes as _lint_files
+
+    if files:
+        file_list = [f.strip() for f in files.split(',') if f.strip()]
+    elif only_changed:
+        base_branch = get_ancestor_base_branch()
+        merge_base = get_common_ancestor(ctx, "HEAD", f"origin/{base_branch}")
+        result = ctx.run(
+            f"git diff --name-only --diff-filter=AM {merge_base} | grep -E '^releasenotes(-dca|-installscript)?/notes/.*\\.yaml$'",
+            warn=True,
+            hide=True,
+        )
+        file_list = [f.strip() for f in (result.stdout or "").splitlines() if f.strip()]
+    else:
+        file_list = (
+            list(glob('releasenotes/notes/*.yaml'))
+            + list(glob('releasenotes-dca/notes/*.yaml'))
+            + list(glob('releasenotes-installscript/notes/*.yaml'))
+        )
+
+    if not file_list:
+        print(color_message("No release note files to lint", "yellow"))
+        return
+
+    errors, warnings = _lint_files(file_list)
+
+    if warnings:
+        print(color_message("Warnings in release notes:", "yellow"))
+        print()
+        for result in warnings:
+            print(result.format_output())
+            print()
+
+    if errors:
+        print(color_message("Errors found in release notes:", "red"))
+        print()
+        for result in errors:
+            print(result.format_output())
+            print()
+        raise Exit(code=1)
+
+    print(color_message(f"All {len(file_list)} release note files pass structural validation", "green"))
+
+
+@task
+def compare_assemblers(ctx, changelog_dir='releasenotes'):
+    """Run both reno and the new Markdown assembler on the same fragments.
+
+    Outputs both RST (reno) and Markdown (new assembler) for side-by-side
+    comparison. The two outputs differ in format but should contain the same
+    fragments, sections, and items.
+
+    Args:
+        changelog_dir: The releasenotes directory to assemble. One of:
+                       releasenotes, releasenotes-dca, releasenotes-installscript.
+
+    Example::
+
+        dda inv linter.compare-assemblers
+        dda inv linter.compare-assemblers --changelog-dir releasenotes-dca
+    """
+    from tasks.libs.releasing.notes import _assemble_changelog
+
+    print(color_message(f"=== reno report (RST) for {changelog_dir} ===", "bold"))
+    ctx.run(f"reno -q --rel-notes-dir {changelog_dir} report --ignore-cache", warn=True)
+
+    print()
+    print(color_message(f"=== New assembler (Markdown) for {changelog_dir} ===", "bold"))
+    try:
+        md_output = _assemble_changelog(changelog_dir, 'draft')
+        print(md_output)
+    except Exception as e:
+        print(color_message(f"New assembler failed: {e}", "red"))
+        raise Exit(code=1) from e
+
+
+@task
 def github_actions_shellcheck(
     ctx,
     exclude=DEFAULT_SHELLCHECK_EXCLUDES,
