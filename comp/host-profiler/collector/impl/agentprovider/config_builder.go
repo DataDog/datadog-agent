@@ -158,6 +158,7 @@ func buildMetricsPipeline(conf confMap, enableGoRuntimeMetrics bool, healthMetri
 		receivers["prometheus"] = converters.PrometheusReceiverConfigWithTarget(healthMetrics.Target)
 		processors["filter"] = converters.FilterProcessorConfig()
 		processors["cumulativetodelta"] = confMap{}
+		_ = converters.Set(conf, "exporters::debug::verbosity", "detailed")
 		metricsProcessors = append([]any{"filter", "cumulativetodelta"}, profilesProcessors...)
 		metricsReceivers = append(metricsReceivers, "prometheus")
 	}
@@ -185,7 +186,7 @@ func buildMetricsPipeline(conf confMap, enableGoRuntimeMetrics bool, healthMetri
 
 	metricsPipeline["receivers"] = metricsReceivers
 	metricsPipeline["processors"] = metricsProcessors
-	metricsPipeline["exporters"] = profilesExporters
+	metricsPipeline["exporters"] = append(profilesExporters, "debug")
 }
 
 func buildConfig(agent configManager, p params.CollectorParams) confMap {
