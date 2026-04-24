@@ -1,0 +1,13 @@
+prebuild-workspace-image-check:
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  needs: []
+  stage: setup
+  tags: ["arch:amd64", "specific:true"]
+  rules:
+    - !reference [.except_main_release_or_mq]
+    - changes:
+        paths:
+          - .devcontainer/datadog/default/**/*
+        compare_to: $COMPARE_TO_BRANCH
+  script:
+    - bash tools/prebuild-devcontainer-check.sh
