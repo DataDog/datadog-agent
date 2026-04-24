@@ -53,7 +53,7 @@ type SymbolUploaderConfig struct {
 	Name string `mapstructure:"-"`
 }
 
-func DefaultSymbolUploaderConfig() SymbolUploaderConfig {
+func DefaultSymbolUploaderConfig(profilerName string) SymbolUploaderConfig {
 	return SymbolUploaderConfig{
 		SymbolUploaderOptions: SymbolUploaderOptions{
 			Enabled:              DefaultUploadSymbols,
@@ -63,7 +63,7 @@ func DefaultSymbolUploaderConfig() SymbolUploaderConfig {
 			SymbolQueryInterval:  DefaultSymbolQueryInterval,
 			DryRun:               DefaultUploadSymbolsDryRun,
 		},
-		Name:    version.ProfilerName,
+		Name:    profilerName,
 		Version: version.ProfilerVersion,
 	}
 }
