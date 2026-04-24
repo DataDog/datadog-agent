@@ -7,6 +7,7 @@ go_library(
         "etwSession.go",
         "eventrecord.go",
     ],
+    cgo = True,
     importpath = "github.com/DataDog/datadog-agent/comp/etw/impl",
     visibility = ["//visibility:public"],
     deps = select({
