@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "etwImpl.go",
+        "etwSession.go",
+        "eventrecord.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/etw/impl",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//comp/def",
+            "//comp/etw/def",
+        ],
+        "//conditions:default": [],
+    }),
+)
