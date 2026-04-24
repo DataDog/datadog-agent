@@ -80,8 +80,8 @@ type serverDebugImpl struct {
 }
 
 // NewServerlessServerDebug creates a new instance of serverDebug.Component
-func NewServerlessServerDebug() serverdebug.Component {
-	return newServerDebugCompat(logComponentImpl.NewTemporaryLoggerWithoutInit(), nil)
+func NewServerlessServerDebug(cfg model.Reader) serverdebug.Component {
+	return newServerDebugCompat(logComponentImpl.NewTemporaryLoggerWithoutInit(), cfg)
 }
 
 func newServerDebugCompat(l log.Component, cfg model.Reader) serverdebug.Component {
