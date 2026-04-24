@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.condLine",
+      "method": "main.condNullIface",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -15,18 +15,17 @@
         "timestamp": "[ts]",
         "language": "go",
         "probe": {
-          "id": "condCompound_line_and",
+          "id": "condNull_iface",
           "location": {
-            "method": "main.condLine",
-            "file": "main.go",
-            "line": 519
+            "method": "main.condNullIface"
           }
         }
       },
       "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "message": "n == 7 && tag == \"match\" [n=7, tag=match]",
+    "duration": "[duration]",
+    "message": "i == nil [tag=match]",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]
