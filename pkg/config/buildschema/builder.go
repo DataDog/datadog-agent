@@ -12,6 +12,26 @@ import (
 	"time"
 )
 
+func (b *builder) setEnvParser(name string, parser string) {
+	b.Lock()
+	defer b.Unlock()
+
+	parts := strings.Split(name, ".")
+	curr := b.Schema
+	for i := 0; i < len(parts)-1; i++ {
+		section, ok := curr["properties"].(map[string]interface{})[parts[i]]
+		if !ok {
+			panic(fmt.Sprintf("buildschema: setEnvParser: section %q not found for key %q", parts[i], name))
+		}
+		curr = section.(map[string]interface{})
+	}
+	leaf, ok := curr["properties"].(map[string]interface{})[parts[len(parts)-1]]
+	if !ok {
+		panic(fmt.Sprintf("buildschema: setEnvParser: key %q not found in schema", name))
+	}
+	leaf.(map[string]interface{})["env_parser"] = parser
+}
+
 func (b *builder) addToSchema(name string, val interface{}, envVars []string, noEnv bool, noDefault bool) {
 	b.Lock()
 	defer b.Unlock()

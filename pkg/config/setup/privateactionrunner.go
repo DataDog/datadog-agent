@@ -6,8 +6,6 @@
 package setup
 
 import (
-	"strings"
-
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
@@ -62,16 +60,12 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault(PARTaskTimeoutSeconds, 60)
 	config.BindEnvAndSetDefault(PARActionsAllowlist, []string{})
 	config.BindEnvAndSetDefault(PARDefaultActionsEnabled, true)
-	config.ParseEnvAsStringSlice(PARActionsAllowlist, func(s string) []string {
-		return strings.Split(s, ",")
-	})
+	config.ParseEnvSplitComma(PARActionsAllowlist)
 
 	// HTTP action
 	config.BindEnvAndSetDefault(PARHttpTimeoutSeconds, 30)
 	config.BindEnvAndSetDefault(PARHttpAllowlist, []string{})
-	config.ParseEnvAsStringSlice(PARHttpAllowlist, func(s string) []string {
-		return strings.Split(s, ",")
-	})
+	config.ParseEnvSplitComma(PARHttpAllowlist)
 	config.BindEnvAndSetDefault(PARHttpAllowImdsEndpoint, false)
 
 	// Restricted shell allow-lists are opt-in restrictions layered on top of
@@ -82,18 +76,8 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	// false when the user has not set the key, so the pass-through vs.
 	// explicit-empty distinction is preserved.
 	config.BindEnvAndSetDefault(PARRestrictedShellAllowedPaths, []string{})
-	config.ParseEnvAsStringSlice(PARRestrictedShellAllowedPaths, func(s string) []string {
-		if s == "" {
-			return nil
-		}
-		return strings.Split(s, ",")
-	})
+	config.ParseEnvSplitComma(PARRestrictedShellAllowedPaths)
 
 	config.BindEnvAndSetDefault(PARRestrictedShellAllowedCommands, []string{})
-	config.ParseEnvAsStringSlice(PARRestrictedShellAllowedCommands, func(s string) []string {
-		if s == "" {
-			return nil
-		}
-		return strings.Split(s, ",")
-	})
+	config.ParseEnvSplitComma(PARRestrictedShellAllowedCommands)
 }

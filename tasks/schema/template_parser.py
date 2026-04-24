@@ -196,6 +196,7 @@ def nice_key_order(obj):
         'type',
         'default',
         'env_vars',
+        'env_parser',
         'items',
         'additionalProperties',
         'format',
