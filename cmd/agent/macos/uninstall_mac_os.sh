@@ -8,7 +8,7 @@
 # Paired with install_mac_os.sh (Agent 7.79.0+). Removes the system-wide
 # components installed by the DMG: LaunchDaemons (agent, sysprobe),
 # GUI LaunchAgent, /Applications app, /opt/datadog-agent tree, and symlinks.
-set -u
+set -eu
 
 if [ -t 1 ]; then
     RED='\033[31m'
@@ -21,7 +21,10 @@ else
     BLUE=''
     NC=''
 fi
-uninstall_log_file=/tmp/ddagent-uninstall.log
+# Use mktemp so the log path is unpredictable (0600, random suffix). A fixed
+# /tmp path would let a local user pre-create it as a symlink and redirect
+# root-owned `tee` output into a privileged file.
+uninstall_log_file=$(mktemp /tmp/ddagent-uninstall.XXXXXX)
 exec > >(tee "$uninstall_log_file") 2>&1
 
 if [ "$(echo "$UID")" = "0" ]; then
