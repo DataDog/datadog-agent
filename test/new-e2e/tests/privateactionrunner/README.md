@@ -37,6 +37,26 @@ permissive state so the outcome is attributable to the axis under test.
 `rshell_matrix_base_test.go` holds the shared `matrixSuite` base, PAR-readiness
 probe, and `enqueueAndWait` / `assertBlocked` / `assertAllowed` helpers.
 
+## CI workaround for the PAR sidecar's datadog.yaml
+
+The Datadog Helm chart (`agents.customAgentConfig` + `agents.useConfigMap:
+true`) mounts the generated `datadog.yaml` ConfigMap only on the main agent
+container — not on the `private-action-runner` sidecar. Without that mount,
+PAR reads the image's baked-in default `datadog.yaml` and any operator
+`private_action_runner.restricted_shell.*` config we set via customAgentConfig
+never reaches it.
+
+The proper fix is upstream in
+[DataDog/helm-charts#2601](https://github.com/DataDog/helm-charts/pull/2601),
+which adds the mirror mount on the PAR sidecar. Until that's released and the
+framework's default chart version catches up, `provisioner.go` applies a
+Pulumi `DaemonSetPatch` after the Helm install that injects the same mount.
+The patch is gated on operator config being set (so the
+`BothUnset` suite, which doesn't populate customAgentConfig, skips it).
+
+Once the chart fix is released, bump `minHelmChartVersion` and delete the
+patch (it's annotated with a `TODO(helm-charts#2601)` comment).
+
 ## Naming schema
 
 ```

@@ -11,6 +11,9 @@ import (
 	"strings"
 
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
+	appsv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/apps/v1"
+	corev1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/core/v1"
+	metav1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/meta/v1"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
@@ -189,6 +192,20 @@ func parK8sProvisioner(runnerURN, privateKeyB64 string, rshellCfg rshellOperator
 				return fmt.Errorf("agent.Export: %w", err)
 			}
 
+			// 6. Workaround for helm-charts#2601: mount the `datadog-yaml` ConfigMap on
+			// the private-action-runner sidecar so `agents.customAgentConfig` reaches PAR
+			// (the chart template currently only mounts it on the main agent container).
+			// Only needed when the operator axis is configured — otherwise useConfigMap=false
+			// and no ConfigMap exists to mount.
+			//
+			// TODO(helm-charts#2601): remove this patch and bump minHelmChartVersion once
+			// the PR lands in a released chart version.
+			if rshellCfg.commandsSet || rshellCfg.pathsSet {
+				if err = patchPARMountDatadogYAML(ctx, kubeProvider, agent); err != nil {
+					return fmt.Errorf("patchPARMountDatadogYAML: %w", err)
+				}
+			}
+
 			return nil
 		}, nil)
 
@@ -231,4 +248,56 @@ agents:
       envDict:
         DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST: "com.datadoghq.remoteaction.rshell.runCommand"
 `, clusterName, runnerURN, privateKeyB64, customCfg)
+}
+
+// patchPARMountDatadogYAML server-side-applies a strategic-merge patch to the
+// Datadog DaemonSet that adds the `datadog-yaml` ConfigMap mount (populated by
+// Helm when useConfigMap=true) to the private-action-runner container's
+// volumeMounts. This is a workaround for helm-charts#2601: the chart's
+// _container-private-action-runner.yaml template does not mount the
+// customAgentConfig ConfigMap, so PAR reads the image's baked-in datadog.yaml
+// instead of the operator-supplied content.
+//
+// The patch depends on the Helm agent install (the DaemonSet and the
+// `datadog-yaml` ConfigMap must already exist); K8s rolls out new pods that
+// pick up the new mount, and PAR then sees the operator config on startup.
+func patchPARMountDatadogYAML(ctx *pulumi.Context, kubeProvider *kubernetes.Provider, agent pulumi.Resource) error {
+	const (
+		daemonSetName   = "dda-linux-datadog" // matches linuxInstallName+"-datadog" from framework helm install
+		namespace       = "datadog"
+		parContainer    = "private-action-runner"
+		configMapVolume = "datadog-yaml"
+		confPath        = "/etc/datadog-agent/datadog.yaml"
+	)
+	_, err := appsv1.NewDaemonSetPatch(ctx, "par-mount-datadog-yaml", &appsv1.DaemonSetPatchArgs{
+		Metadata: &metav1.ObjectMetaPatchArgs{
+			Name:      pulumi.String(daemonSetName),
+			Namespace: pulumi.String(namespace),
+			Annotations: pulumi.StringMap{
+				// Force a rollout each time the patch is (re)applied so the mount
+				// actually takes effect on pods already running without it.
+				"kubectl.kubernetes.io/restartedAt": pulumi.String("par-operator-cfg"),
+			},
+		},
+		Spec: &appsv1.DaemonSetSpecPatchArgs{
+			Template: &corev1.PodTemplateSpecPatchArgs{
+				Spec: &corev1.PodSpecPatchArgs{
+					Containers: corev1.ContainerPatchArray{
+						&corev1.ContainerPatchArgs{
+							Name: pulumi.String(parContainer),
+							VolumeMounts: corev1.VolumeMountPatchArray{
+								&corev1.VolumeMountPatchArgs{
+									Name:      pulumi.String(configMapVolume),
+									MountPath: pulumi.String(confPath),
+									SubPath:   pulumi.String("datadog.yaml"),
+									ReadOnly:  pulumi.Bool(true),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}, pulumi.Provider(kubeProvider), utils.PulumiDependsOn(agent))
+	return err
 }
