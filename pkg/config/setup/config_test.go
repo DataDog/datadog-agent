@@ -787,6 +787,43 @@ network_path:
 	assert.True(t, config.GetBool("notable_events.enabled"))
 }
 
+func TestApplyUseDogstatsdSuppression(t *testing.T) {
+	t.Run("use_dogstatsd=false forces data_plane.dogstatsd.enabled=false", func(t *testing.T) {
+		cfg := newEmptyMockConf(t)
+		cfg.SetWithoutSource("use_dogstatsd", false)
+		cfg.SetWithoutSource("data_plane.enabled", true)
+		cfg.SetWithoutSource("data_plane.dogstatsd.enabled", true)
+
+		applyUseDogstatsdSuppression(cfg)
+
+		assert.False(t, cfg.GetBool("data_plane.dogstatsd.enabled"),
+			"data_plane.dogstatsd.enabled must be forced false when use_dogstatsd=false")
+		assert.True(t, cfg.GetBool("data_plane.enabled"),
+			"data_plane.enabled must not be touched by the suppression override")
+	})
+
+	t.Run("use_dogstatsd=true leaves data_plane.dogstatsd.enabled untouched", func(t *testing.T) {
+		cfg := newEmptyMockConf(t)
+		cfg.SetWithoutSource("use_dogstatsd", true)
+		cfg.SetWithoutSource("data_plane.enabled", true)
+		cfg.SetWithoutSource("data_plane.dogstatsd.enabled", true)
+
+		applyUseDogstatsdSuppression(cfg)
+
+		assert.True(t, cfg.GetBool("data_plane.dogstatsd.enabled"))
+	})
+
+	t.Run("use_dogstatsd unset leaves data_plane.dogstatsd.enabled untouched", func(t *testing.T) {
+		cfg := newEmptyMockConf(t)
+		cfg.SetWithoutSource("data_plane.enabled", true)
+		cfg.SetWithoutSource("data_plane.dogstatsd.enabled", true)
+
+		applyUseDogstatsdSuppression(cfg)
+
+		assert.True(t, cfg.GetBool("data_plane.dogstatsd.enabled"))
+	})
+}
+
 func TestUsePodmanLogsAndDockerPathOverride(t *testing.T) {
 	// If use_podman_logs is true and docker_path_override is set, the config should return an error
 	datadogYaml := `
