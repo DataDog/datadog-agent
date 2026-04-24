@@ -4463,7 +4463,6 @@ api_key:
 #     enabled: false
 
 #     # @param listeners - list of object - optional - default: []
-#     # @env DD_NETWORK_DEVICES_NETFLOW_LISTENERS - JSON list of object - optional - default: []
 #     # This section configures one or more listeners ports that will receive flow traffic.
 #     # Each listener have the following options:
 #     #  * flow_type    - string - The flow type correspond to the incoming flow protocol.
