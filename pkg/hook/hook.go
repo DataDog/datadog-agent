@@ -11,15 +11,28 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 const subsystem = "hooks"
 
 var (
-	hooksGauge           = telemetry.NewGauge(subsystem, "hooks_gauge", []string{"hook_name"}, "The number of hooks")
-	dropperCounter       = telemetry.NewCounter(subsystem, "drops_counter", []string{"hook_name", "consumer_name"}, "The number of payloads dropped on the consumer side")
-	hooksSubscribedGauge = telemetry.NewGauge(subsystem, "subscribed_callbacks_gauge", []string{"hook_name"}, "The number of callbacks subscribed to the hook")
+	hooksGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Subsystem: subsystem,
+		Name:      "hooks_gauge",
+		Help:      "The number of hooks",
+	}, []string{"hook_name"})
+	dropperCounter = promauto.NewCounterVec(prometheus.CounterOpts{
+		Subsystem: subsystem,
+		Name:      "drops_counter",
+		Help:      "The number of payloads dropped on the consumer side",
+	}, []string{"hook_name", "consumer_name"})
+	hooksSubscribedGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Subsystem: subsystem,
+		Name:      "subscribed_callbacks_gauge",
+		Help:      "The number of callbacks subscribed to the hook",
+	}, []string{"hook_name"})
 )
 
 // Option is a functional option for [Hook.Subscribe].
@@ -106,7 +119,7 @@ type Hook[T any] interface {
 // Publish is synchronous: it delivers to each subscriber's buffered channel inline,
 // dropping the payload for any subscriber whose channel is full.
 func NewHook[T any](name string) Hook[T] {
-	hooksGauge.Inc(name)
+	hooksGauge.With(prometheus.Labels{"hook_name": name}).Inc()
 	return &hook[T]{
 		name:      name,
 		consumers: make(map[string]consumer[T]),
@@ -165,7 +178,7 @@ func (h *hook[T]) Publish(_ string, payload T) {
 			if c.recycle != nil {
 				c.recycle(item)
 			}
-			dropperCounter.Inc(c.dropLabel...)
+			dropperCounter.With(prometheus.Labels{"hook_name": c.dropLabel[0], "consumer_name": c.dropLabel[1]}).Inc()
 		}
 	}
 }
@@ -197,7 +210,7 @@ func (h *hook[T]) Subscribe(name string, callback func(payload T), opts ...Optio
 	h.subscriberCount.Add(1)
 	h.mu.Unlock()
 
-	hooksSubscribedGauge.Inc(h.name)
+	hooksSubscribedGauge.With(prometheus.Labels{"hook_name": h.name}).Inc()
 
 	go func() {
 		for {
@@ -222,7 +235,7 @@ func (h *hook[T]) Subscribe(name string, callback func(payload T), opts ...Optio
 			delete(h.consumers, name)
 			h.subscriberCount.Add(-1)
 			close(c.done)
-			hooksSubscribedGauge.Dec(h.name)
+			hooksSubscribedGauge.With(prometheus.Labels{"hook_name": h.name}).Dec()
 		}
 	}
 }
