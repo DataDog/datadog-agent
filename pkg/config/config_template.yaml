@@ -1301,14 +1301,14 @@ api_key:
 #
 #   enabled: true
 
-#   # @param env - string - optional - default: "none"
-#   # @env DD_APM_ENV - string - optional - default: "none"
+#   # @param env - string - optional - default: ""
+#   # @env DD_APM_ENV - string - optional - default: ""
 #   # The environment tag that Traces should be tagged with.
 #   # If not set the value will be inherited, in order, from the top level
 #   # "env" config option if set and then from the 'env:' tag if present in the
 #   # 'tags' top level config option.
 #
-#   env: none
+#   env: ""
 
 #   # @param receiver_port - integer - optional - default: 8126
 #   # @env DD_APM_RECEIVER_PORT - integer - optional - default: 8126
@@ -1335,16 +1335,16 @@ api_key:
 #
 #   apm_non_local_traffic: false
 
-#   # @param apm_dd_url - string - optional
-#   # @env DD_APM_DD_URL - string - optional
+#   # @param apm_dd_url - string - optional - default: ""
+#   # @env DD_APM_DD_URL - string - optional - default: ""
 #   # Define the endpoint and port to hit when using a proxy for APM. The traces are forwarded in TCP
 #   # therefore the proxy must be able to handle TCP connections.
 #
 #   apm_dd_url: <ENDPOINT>:<PORT>
 
-#   # @param max_traces_per_second - integer - optional - default: 10
-#   # @env DD_APM_MAX_TPS - integer - optional - default: 10
-#   # @env DD_MAX_TPS - integer - optional - default: 10
+#   # @param max_traces_per_second - float - optional - default: 10
+#   # @env DD_APM_MAX_TPS - float - optional - default: 10
+#   # @env DD_MAX_TPS - float - optional - default: 10
 #   # DEPRECATED - please use `target_traces_per_second` instead.
 #   #
 #   # The target traces per second to sample. Sampling rates to apply are adjusted given
@@ -1353,52 +1353,52 @@ api_key:
 #   # disables sampling, but instead sends no traces to the intake. To avoid rate limiting, set this
 #   # value sufficiently high for your traffic pattern.
 #
-#   max_traces_per_second: 10
+#   max_traces_per_second: 10.0
 
-#   # @param target_traces_per_second - integer - optional - default: 10
-#   # @env DD_APM_TARGET_TPS - integer - optional - default: 10
+#   # @param target_traces_per_second - float - optional - default: 10
+#   # @env DD_APM_TARGET_TPS - float - optional - default: 10
 #   # The target traces per second to sample. Sampling rates to apply are adjusted given
 #   # the received traffic and communicated to tracers. This configures head-based sampling.
 #   # As of 7.35.0 sampling cannot be disabled and setting 'max_traces_per_second' to 0 no longer
 #   # disables sampling, but instead sends no traces to the intake. To avoid rate limiting, set this
 #   # value sufficiently high for your traffic pattern.
 #
-#   target_traces_per_second: 10
+#   target_traces_per_second: 10.0
 
-#   # @param errors_per_second - integer - optional - default: 10
-#   # @env DD_APM_ERROR_TPS - integer - optional - default: 10
+#   # @param errors_per_second - float - optional - default: 10
+#   # @env DD_APM_ERROR_TPS - float - optional - default: 10
 #   # The target error trace chunks to receive per second. The TPS is spread
 #   # to catch all combinations of service, name, resource, http.status, and error.type.
 #   # Set to 0 to disable the errors sampler.
 #
-#   errors_per_second: 10
+#   errors_per_second: 10.0
 
-#   # @param max_events_per_second - integer - optional - default: 200
-#   # @env DD_APM_MAX_EPS - integer - optional - default: 200
-#   # @env DD_MAX_EPS - integer - optional - default: 200
+#   # @param max_events_per_second - float - optional - default: 200
+#   # @env DD_APM_MAX_EPS - float - optional - default: 200
+#   # @env DD_MAX_EPS - float - optional - default: 200
 #   # **Deprecated.** APM events are a deprecated feature related to legacy App Analytics. This setting
 #   # caps sampling for that legacy path only. It does not limit trace volume, spans, or general APM
 #   # ingestion; for trace sampling, see `max_traces_per_second` and `target_traces_per_second` above.
 #   # Maximum number of APM events per second to sample.
 #
-#   max_events_per_second: 200
+#   max_events_per_second: 200.0
 
-#   # @param max_memory - integer - optional - default: 500000000
-#   # @env DD_APM_MAX_MEMORY - integer - optional - default: 500000000
+#   # @param max_memory - float - optional - default: "5e+08"
+#   # @env DD_APM_MAX_MEMORY - float - optional - default: "5e+08"
 #   # This value is what the Agent aims to use in terms of memory. If surpassed, the API
 #   # rate limits incoming requests to aim and stay below this value.
 #   # Note: The Agent process is killed if it uses more than 150% of `max_memory`.
 #   # Set the `max_memory` parameter to `0` to disable the memory limitation.
 #
-#   max_memory: 500000000
+#   max_memory: 500000000.0
 
-#   # @param max_cpu_percent - integer - optional - default: 50
-#   # @env DD_APM_MAX_CPU_PERCENT - integer - optional - default: 50
+#   # @param max_cpu_percent - float - optional - default: 50
+#   # @env DD_APM_MAX_CPU_PERCENT - float - optional - default: 50
 #   # The CPU percentage that the Agent aims to use. If surpassed, the API rate limits
 #   # incoming requests to aim and stay below this value. Examples: 50 = half a core, 200 = two cores.
 #   # Set `max_cpu_percent` to `0` to disable rate limiting based on CPU usage.
 #
-#   max_cpu_percent: 50
+#   max_cpu_percent: 50.0
 
 #   # @param obfuscation - custom object - optional
 #   # Defines obfuscation rules for sensitive data.
@@ -1717,8 +1717,8 @@ api_key:
 #
 #     reject: [<LIST_OF_KEY_VALUE_REGEX_TAGS>]     # e.g. ["<key>:<regex>"]
 
-#   # @param replace_tags - list of objects - optional
-#   # @env DD_APM_REPLACE_TAGS - list of objects - optional
+#   # @param replace_tags - list of object - optional - default: []
+#   # @env DD_APM_REPLACE_TAGS - JSON object of string to string - optional - default: []
 #   # Defines a set of rules to replace or remove certain resources, tags containing
 #   # potentially sensitive information.
 #   # Each rules has to contain:
@@ -1741,8 +1741,8 @@ api_key:
 #
 #   ignore_resources: ["(GET|POST) /healthcheck"]
 
-#   # @param log_file - string - optional
-#   # @env DD_APM_LOG_FILE - string - optional
+#   # @param log_file - string - optional - default: ""
+#   # @env DD_APM_LOG_FILE - string - optional - default: ""
 #   # The full path to the file where APM-agent logs are written.
 #
 #   log_file: <APM_LOG_FILE_PATH>
@@ -1786,7 +1786,7 @@ api_key:
 #   peer_tags_aggregation: true
 
 #   # @param peer_tags - list of strings - optional - default: []
-#   # @env DD_APM_PEER_TAGS - list of strings - optional - default: []
+#   # @env DD_APM_PEER_TAGS - JSON array of strings - optional - default: []
 #   # Optional list of supplementary peer tags that go beyond the defaults. The Datadog backend validates all tags
 #   # and will drop ones that are unapproved.
 #
@@ -1801,7 +1801,7 @@ api_key:
 #   features: ["error_rare_sample_tracer_drop","table_names","component2name","sqllexer","enable_otlp_compute_top_level_by_span_kind","disable_receive_resource_spans_v2", "disable_operation_and_resource_name_logic_v2"]
 
 #   # @param additional_endpoints - object - optional - default: {}
-#   # @env DD_APM_ADDITIONAL_ENDPOINTS - object - optional - default: {}
+#   # @env DD_APM_ADDITIONAL_ENDPOINTS - JSON object - optional - default: {}
 #   # Enables sending data to multiple endpoints and/or with multiple API keys via dual shipping.
 #   # See https://docs.datadoghq.com/agent/guide/dual-shipping
 #
@@ -1882,7 +1882,7 @@ api_key:
 #     # @env DD_APM_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE - float - optional - default: 0
 #     # Samples this percentage (0-100) of traffic
 #
-#     sampling_percentage: 0
+#     sampling_percentage: 0.0
 
 #     # @param hash_seed - integer - optional - default: 0
 #     # @env DD_APM_PROBABILISTIC_SAMPLER_HASH_SEED - integer - optional - default: 0
