@@ -6,81 +6,68 @@ package env
 
 import (
 	"os"
+	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestFromEnv(t *testing.T) {
+// The installer env package is env-var only. Any yaml-sourced configuration
+// is the caller's responsibility to translate into DD_* env vars before
+// invoking the installer (the daemon does it via its fx config.Component,
+// the CLI via its fx bootstrap).
+
+func TestGet(t *testing.T) {
 	tests := []struct {
 		name     string
 		envVars  map[string]string
 		expected *Env
 	}{
 		{
-			name:    "Empty environment variables",
+			name:    "empty environment variables",
 			envVars: map[string]string{},
-			expected: &Env{
-				APIKey:                         "",
-				Site:                           "datadoghq.com",
-				Mirror:                         "",
-				RegistryOverride:               "",
-				RegistryAuthOverride:           "",
-				RegistryUsername:               "",
-				RegistryPassword:               "",
-				RegistryOverrideByImage:        map[string]string{},
-				RegistryAuthOverrideByImage:    map[string]string{},
-				RegistryUsernameByImage:        map[string]string{},
-				RegistryPasswordByImage:        map[string]string{},
-				DefaultPackagesInstallOverride: map[string]bool{},
-				DefaultPackagesVersionOverride: map[string]string{},
-				ApmLibraries:                   map[ApmLibLanguage]ApmLibVersion{},
-				InstallScript: InstallScriptEnv{
-					APMInstrumentationEnabled: APMInstrumentationNotSet,
-				},
-				Tags:       []string{},
-				Hostname:   "",
-				HTTPProxy:  "",
-				HTTPSProxy: "",
-				NoProxy:    os.Getenv("NO_PROXY"), // Default value from the environment, as some test envs set it
-			},
+			expected: func() *Env {
+				e := newDefaultEnv()
+				return &e
+			}(),
 		},
 		{
-			name: "All environment variables set",
+			name: "environment variables only",
 			envVars: map[string]string{
-				envAPIKey:                                     "123456",
-				envSite:                                       "datadoghq.eu",
-				envRemoteUpdates:                              "true",
-				envMirror:                                     "https://mirror.example.com",
-				envRegistryURL:                                "registry.example.com",
-				envRegistryAuth:                               "auth",
-				envRegistryUsername:                           "username",
-				envRegistryPassword:                           "password",
-				envRegistryURL + "_IMAGE":                     "another.registry.example.com",
-				envRegistryURL + "_ANOTHER_IMAGE":             "yet.another.registry.example.com",
-				envRegistryAuth + "_IMAGE":                    "another.auth",
-				envRegistryAuth + "_ANOTHER_IMAGE":            "yet.another.auth",
-				envRegistryUsername + "_IMAGE":                "another.username",
-				envRegistryUsername + "_ANOTHER_IMAGE":        "yet.another.username",
-				envRegistryPassword + "_IMAGE":                "another.password",
-				envRegistryPassword + "_ANOTHER_IMAGE":        "yet.another.password",
-				envDefaultPackageInstall + "_PACKAGE":         "true",
-				envDefaultPackageInstall + "_ANOTHER_PACKAGE": "false",
-				envDefaultPackageVersion + "_PACKAGE":         "1.2.3",
-				envDefaultPackageVersion + "_ANOTHER_PACKAGE": "4.5.6",
-				envApmLibraries:                               "java,dotnet:latest,ruby:1.2",
-				envApmInstrumentationEnabled:                  "all",
-				envAgentUserName:                              "customuser",
-				envTags:                                       "k1:v1,k2:v2",
-				envExtraTags:                                  "k3:v3,k4:v4",
-				envHostname:                                   "hostname",
-				envDDHTTPProxy:                                "http://proxy.example.com:8080",
-				envDDHTTPSProxy:                               "http://proxy.example.com:8080",
-				envDDNoProxy:                                  "localhost",
-				envInfrastructureMode:                         "basic",
-				envAppKey:                                     "app_key_123",
-				envPAREnabled:                                 "true",
-				envPARActionsAllowlist:                        "com.datadoghq.script.runPredefinedScript,com.datadoghq.script.testConnection",
+				"DD_API_KEY":                                       "123456",
+				"DD_SITE":                                          "datadoghq.eu",
+				"DD_REMOTE_UPDATES":                                "true",
+				"DD_INSTALLER_MIRROR":                              "https://mirror.example.com",
+				"DD_INSTALLER_REGISTRY_URL":                        "registry.example.com",
+				"DD_INSTALLER_REGISTRY_AUTH":                       "auth",
+				"DD_INSTALLER_REGISTRY_USERNAME":                   "username",
+				"DD_INSTALLER_REGISTRY_PASSWORD":                   "password",
+				"DD_INSTALLER_REGISTRY_URL_IMAGE":                  "another.registry.example.com",
+				"DD_INSTALLER_REGISTRY_URL_ANOTHER_IMAGE":          "yet.another.registry.example.com",
+				"DD_INSTALLER_REGISTRY_AUTH_IMAGE":                 "another.auth",
+				"DD_INSTALLER_REGISTRY_AUTH_ANOTHER_IMAGE":         "yet.another.auth",
+				"DD_INSTALLER_REGISTRY_USERNAME_IMAGE":             "another.username",
+				"DD_INSTALLER_REGISTRY_USERNAME_ANOTHER_IMAGE":     "yet.another.username",
+				"DD_INSTALLER_REGISTRY_PASSWORD_IMAGE":             "another.password",
+				"DD_INSTALLER_REGISTRY_PASSWORD_ANOTHER_IMAGE":     "yet.another.password",
+				"DD_INSTALLER_DEFAULT_PKG_INSTALL_PACKAGE":         "true",
+				"DD_INSTALLER_DEFAULT_PKG_INSTALL_ANOTHER_PACKAGE": "false",
+				"DD_INSTALLER_DEFAULT_PKG_VERSION_PACKAGE":         "1.2.3",
+				"DD_INSTALLER_DEFAULT_PKG_VERSION_ANOTHER_PACKAGE": "4.5.6",
+				"DD_APM_INSTRUMENTATION_LIBRARIES":                 "java,dotnet:latest,ruby:1.2",
+				"DD_APM_INSTRUMENTATION_ENABLED":                   "all",
+				"DD_AGENT_USER_NAME":                               "customuser",
+				"DD_TAGS":                                          "k1:v1,k2:v2",
+				"DD_EXTRA_TAGS":                                    "k3:v3,k4:v4",
+				"DD_HOSTNAME":                                      "hostname",
+				"DD_PROXY_HTTP":                                    "http://proxy.example.com:8080",
+				"DD_PROXY_HTTPS":                                   "http://proxy.example.com:8080",
+				"DD_PROXY_NO_PROXY":                                "localhost",
+				"DD_INFRASTRUCTURE_MODE":                           "basic",
+				"DD_APP_KEY":                                       "app_key_123",
+				"DD_PRIVATE_ACTION_RUNNER_ENABLED":                 "true",
+				"DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST":       "com.datadoghq.script.runPredefinedScript,com.datadoghq.script.testConnection",
 			},
 			expected: &Env{
 				APIKey:               "123456",
@@ -126,27 +113,26 @@ func TestFromEnv(t *testing.T) {
 				InstallScript: InstallScriptEnv{
 					APMInstrumentationEnabled: APMInstrumentationEnabledAll,
 				},
-				Tags:                []string{"k1:v1", "k2:v2", "k3:v3", "k4:v4"},
-				Hostname:            "hostname",
-				HTTPProxy:           "http://proxy.example.com:8080",
-				HTTPSProxy:          "http://proxy.example.com:8080",
-				NoProxy:             "localhost",
-				InfrastructureMode:  "basic",
-				AppKey:              "app_key_123",
-				PAREnabled:          true,
-				PARActionsAllowlist: "com.datadoghq.script.runPredefinedScript,com.datadoghq.script.testConnection",
+				Tags:                       []string{"k1:v1", "k2:v2", "k3:v3", "k4:v4"},
+				Hostname:                   "hostname",
+				HTTPProxy:                  "http://proxy.example.com:8080",
+				HTTPSProxy:                 "http://proxy.example.com:8080",
+				NoProxy:                    "localhost",
+				InfrastructureMode:         "basic",
+				AppKey:                     "app_key_123",
+				PAREnabled:                 true,
+				PARActionsAllowlist:        "com.datadoghq.script.runPredefinedScript,com.datadoghq.script.testConnection",
+				LogLevel:                   "warn",
+				ExtensionRegistryOverrides: map[string]map[string]ExtensionRegistryOverride{},
 			},
 		},
 		{
 			name: "APM libraries parsing",
 			envVars: map[string]string{
-				envApmLibraries: "java  dotnet:latest, ruby:1.2   ,python:1.2.3",
+				"DD_APM_INSTRUMENTATION_LIBRARIES": "java  dotnet:latest, ruby:1.2   ,python:1.2.3",
 			},
 			expected: &Env{
-				APIKey:                         "",
 				Site:                           "datadoghq.com",
-				RegistryOverride:               "",
-				RegistryAuthOverride:           "",
 				RegistryOverrideByImage:        map[string]string{},
 				RegistryAuthOverrideByImage:    map[string]string{},
 				RegistryUsernameByImage:        map[string]string{},
@@ -162,16 +148,17 @@ func TestFromEnv(t *testing.T) {
 				InstallScript: InstallScriptEnv{
 					APMInstrumentationEnabled: APMInstrumentationNotSet,
 				},
-				Tags:    []string{},
-				NoProxy: os.Getenv("NO_PROXY"), // Default value from the environment, as some test envs set it
+				Tags:                       []string{},
+				LogLevel:                   "warn",
+				ExtensionRegistryOverrides: map[string]map[string]ExtensionRegistryOverride{},
 			},
 		},
 		{
 			name: "deprecated apm lang",
 			envVars: map[string]string{
-				envAPIKey:                    "123456",
-				envApmLanguages:              "java dotnet ruby",
-				envApmInstrumentationEnabled: "all",
+				"DD_API_KEY":                       "123456",
+				"DD_APM_INSTRUMENTATION_LANGUAGES": "java dotnet ruby",
+				"DD_APM_INSTRUMENTATION_ENABLED":   "all",
 			},
 			expected: &Env{
 				APIKey: "123456",
@@ -181,8 +168,29 @@ func TestFromEnv(t *testing.T) {
 					"dotnet": "",
 					"ruby":   "",
 				},
+				RegistryOverrideByImage:        map[string]string{},
+				RegistryAuthOverrideByImage:    map[string]string{},
+				RegistryUsernameByImage:        map[string]string{},
+				RegistryPasswordByImage:        map[string]string{},
+				DefaultPackagesInstallOverride: map[string]bool{},
+				DefaultPackagesVersionOverride: map[string]string{},
 				InstallScript: InstallScriptEnv{
 					APMInstrumentationEnabled: APMInstrumentationEnabledAll,
+				},
+				Tags:                       []string{},
+				LogLevel:                   "warn",
+				ExtensionRegistryOverrides: map[string]map[string]ExtensionRegistryOverride{},
+			},
+		},
+		{
+			name: "primary set",
+			envVars: map[string]string{
+				"DD_AGENT_USER_NAME": "customuser",
+			},
+			expected: &Env{
+				Site: "datadoghq.com",
+				MsiParams: MsiParamsEnv{
+					AgentUserName: "customuser",
 				},
 				RegistryOverrideByImage:        map[string]string{},
 				RegistryAuthOverrideByImage:    map[string]string{},
@@ -190,23 +198,132 @@ func TestFromEnv(t *testing.T) {
 				RegistryPasswordByImage:        map[string]string{},
 				DefaultPackagesInstallOverride: map[string]bool{},
 				DefaultPackagesVersionOverride: map[string]string{},
-				Tags:                           []string{},
-				Hostname:                       "",
-				NoProxy:                        os.Getenv("NO_PROXY"), // Default value from the environment, as some test envs set it
+				ApmLibraries:                   map[ApmLibLanguage]ApmLibVersion{},
+				InstallScript: InstallScriptEnv{
+					APMInstrumentationEnabled: APMInstrumentationNotSet,
+				},
+				Tags:                       []string{},
+				LogLevel:                   "warn",
+				ExtensionRegistryOverrides: map[string]map[string]ExtensionRegistryOverride{},
+			},
+		},
+		{
+			name: "compat set",
+			envVars: map[string]string{
+				"DDAGENTUSER_NAME": "customuser",
+			},
+			expected: &Env{
+				Site: "datadoghq.com",
+				MsiParams: MsiParamsEnv{
+					AgentUserName: "customuser",
+				},
+				RegistryOverrideByImage:        map[string]string{},
+				RegistryAuthOverrideByImage:    map[string]string{},
+				RegistryUsernameByImage:        map[string]string{},
+				RegistryPasswordByImage:        map[string]string{},
+				DefaultPackagesInstallOverride: map[string]bool{},
+				DefaultPackagesVersionOverride: map[string]string{},
+				ApmLibraries:                   map[ApmLibLanguage]ApmLibVersion{},
+				InstallScript: InstallScriptEnv{
+					APMInstrumentationEnabled: APMInstrumentationNotSet,
+				},
+				Tags:                       []string{},
+				LogLevel:                   "warn",
+				ExtensionRegistryOverrides: map[string]map[string]ExtensionRegistryOverride{},
+			},
+		},
+		{
+			name: "primary precedence",
+			envVars: map[string]string{
+				"DD_AGENT_USER_NAME": "customuser",
+				"DDAGENTUSER_NAME":   "otheruser",
+			},
+			expected: &Env{
+				Site: "datadoghq.com",
+				MsiParams: MsiParamsEnv{
+					AgentUserName: "customuser",
+				},
+				RegistryOverrideByImage:        map[string]string{},
+				RegistryAuthOverrideByImage:    map[string]string{},
+				RegistryUsernameByImage:        map[string]string{},
+				RegistryPasswordByImage:        map[string]string{},
+				DefaultPackagesInstallOverride: map[string]bool{},
+				DefaultPackagesVersionOverride: map[string]string{},
+				ApmLibraries:                   map[ApmLibLanguage]ApmLibVersion{},
+				InstallScript: InstallScriptEnv{
+					APMInstrumentationEnabled: APMInstrumentationNotSet,
+				},
+				Tags:                       []string{},
+				LogLevel:                   "warn",
+				ExtensionRegistryOverrides: map[string]map[string]ExtensionRegistryOverride{},
 			},
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			for key, value := range tt.envVars {
-				os.Setenv(key, value)
-				defer os.Unsetenv(key)
+	savedEnv := make(map[string]string)
+	for _, kv := range os.Environ() {
+		key, val, _ := strings.Cut(kv, "=")
+		savedEnv[key] = val
+		os.Unsetenv(key)
+	}
+
+	defer func() {
+		for k, v := range savedEnv {
+			os.Setenv(k, v)
+		}
+	}()
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			for k, v := range tc.envVars {
+				t.Setenv(k, v)
 			}
-			result := FromEnv()
-			assert.Equal(t, tt.expected, result, "failed %v", tt.name)
+
+			env := Get()
+
+			assert.Equal(t, tc.expected, env)
 		})
 	}
+}
+
+// TestGet_extensionRegistryOverridesFromEnv exercises the
+// DD_INSTALLER_REGISTRY_EXT_*_<PKG>__<EXT> prefix pattern that the daemon
+// / CLI uses to forward per-extension registry overrides to the installer.
+func TestGet_extensionRegistryOverridesFromEnv(t *testing.T) {
+	savedEnv := make(map[string]string)
+	for _, kv := range os.Environ() {
+		key, val, _ := strings.Cut(kv, "=")
+		savedEnv[key] = val
+		os.Unsetenv(key)
+	}
+	defer func() {
+		for k, v := range savedEnv {
+			os.Setenv(k, v)
+		}
+	}()
+
+	t.Setenv("DD_INSTALLER_REGISTRY_EXT_URL_DATADOG_AGENT__DDOT", "custom.example.com")
+	t.Setenv("DD_INSTALLER_REGISTRY_EXT_AUTH_DATADOG_AGENT__DDOT", "basic")
+	t.Setenv("DD_INSTALLER_REGISTRY_EXT_USERNAME_DATADOG_AGENT__DDOT", "u")
+	t.Setenv("DD_INSTALLER_REGISTRY_EXT_PASSWORD_DATADOG_AGENT__DDOT", "p")
+	t.Setenv("DD_INSTALLER_REGISTRY_EXT_URL_DATADOG_AGENT__OTHER_EXT", "other.example.com")
+
+	env := Get()
+
+	expected := map[string]map[string]ExtensionRegistryOverride{
+		"datadog-agent": {
+			"ddot": {
+				URL:      "custom.example.com",
+				Auth:     "basic",
+				Username: "u",
+				Password: "p",
+			},
+			"other-ext": {
+				URL: "other.example.com",
+			},
+		},
+	}
+	assert.Equal(t, expected, env.ExtensionRegistryOverrides)
 }
 
 func TestToEnv(t *testing.T) {
@@ -338,65 +455,128 @@ func TestToEnv(t *testing.T) {
 	}
 }
 
-func TestAgentUserVars(t *testing.T) {
-	tests := []struct {
-		name     string
-		envVars  map[string]string
-		expected *Env
-	}{
-		{
-			name:    "not set",
-			envVars: map[string]string{},
-			expected: &Env{
-				MsiParams: MsiParamsEnv{
-					AgentUserName: "",
+// TestToEnv_emitsExtensionRegistryOverrides covers the round-trip
+// encoding of ExtensionRegistryOverrides onto the
+// DD_INSTALLER_REGISTRY_EXT_*_<PKG>__<EXT> prefix scheme.
+func TestToEnv_emitsExtensionRegistryOverrides(t *testing.T) {
+	e := &Env{
+		APIKey: "123456",
+		ExtensionRegistryOverrides: map[string]map[string]ExtensionRegistryOverride{
+			"datadog-agent": {
+				"ddot": {
+					URL:      "custom.example.com",
+					Auth:     "basic",
+					Username: "u",
+					Password: "p",
 				},
-			},
-		},
-		{
-			name: "primary set",
-			envVars: map[string]string{
-				envAgentUserName: "customuser",
-			},
-			expected: &Env{
-				MsiParams: MsiParamsEnv{
-					AgentUserName: "customuser",
-				},
-			},
-		},
-		{
-			name: "compat set",
-			envVars: map[string]string{
-				envAgentUserNameCompat: "customuser",
-			},
-			expected: &Env{
-				MsiParams: MsiParamsEnv{
-					AgentUserName: "customuser",
-				},
-			},
-		},
-		{
-			name: "primary precedence",
-			envVars: map[string]string{
-				envAgentUserName:       "customuser",
-				envAgentUserNameCompat: "otheruser",
-			},
-			expected: &Env{
-				MsiParams: MsiParamsEnv{
-					AgentUserName: "customuser",
-				},
+				"other-ext": {URL: "other.example.com"},
 			},
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			for key, value := range tt.envVars {
-				os.Setenv(key, value)
-				defer os.Unsetenv(key)
-			}
-			result := FromEnv()
-			assert.Equal(t, tt.expected.MsiParams.AgentUserName, result.MsiParams.AgentUserName)
-		})
+	result := e.ToEnv()
+
+	assert.ElementsMatch(t, []string{
+		"DD_API_KEY=123456",
+		"DD_INSTALLER_REGISTRY_EXT_URL_DATADOG_AGENT__DDOT=custom.example.com",
+		"DD_INSTALLER_REGISTRY_EXT_AUTH_DATADOG_AGENT__DDOT=basic",
+		"DD_INSTALLER_REGISTRY_EXT_USERNAME_DATADOG_AGENT__DDOT=u",
+		"DD_INSTALLER_REGISTRY_EXT_PASSWORD_DATADOG_AGENT__DDOT=p",
+		"DD_INSTALLER_REGISTRY_EXT_URL_DATADOG_AGENT__OTHER_EXT=other.example.com",
+	}, result)
+}
+
+// TestFieldCodec_primitiveTypes exercises every primitive Kind that
+// setFieldFromEnv / formatFieldForEnv accept. The Env struct doesn't use
+// int / uint / float today; this test guards the forward-compat contract
+// that adding such a field only needs an `env:"…"` tag, no new codec
+// case.
+func TestFieldCodec_primitiveTypes(t *testing.T) {
+	type sample struct {
+		S       string
+		B       bool
+		I       int
+		I8      int8
+		I32     int32
+		I64     int64
+		U       uint
+		U32     uint32
+		U64     uint64
+		F32     float32
+		F64     float64
+		PS      *string
+		PB      *bool
+		PI      *int
+		PU32    *uint32
+		PF64    *float64
+		Strs    []string
+		Ignored struct{} // unsupported kind; must silently no-op
 	}
+
+	t.Run("parse + emit round-trip", func(t *testing.T) {
+		var s sample
+		v := reflect.ValueOf(&s).Elem()
+
+		// Each (field, raw) pair is parsed via setFieldFromEnv and then
+		// re-formatted; the formatted output is asserted against `want`
+		// (which is not always equal to `raw` — e.g. trailing zeros in
+		// floats get stripped by strconv).
+		cases := []struct {
+			field string
+			raw   string
+			want  string
+		}{
+			{"S", "hello", "hello"},
+			{"B", "true", "true"},
+			{"I", "42", "42"},
+			{"I8", "-7", "-7"},
+			{"I32", "2147483647", "2147483647"},
+			{"I64", "-9223372036854775808", "-9223372036854775808"},
+			{"U", "42", "42"},
+			{"U32", "4294967295", "4294967295"},
+			{"U64", "18446744073709551615", "18446744073709551615"},
+			{"F32", "1.5", "1.5"},
+			{"F64", "3.14", "3.14"},
+			{"PS", "hi", "hi"},
+			{"PB", "true", "true"},
+			{"PI", "-1", "-1"},
+			{"PU32", "7", "7"},
+			{"PF64", "2.5", "2.5"},
+			{"Strs", "a,b,c", "a,b,c"},
+		}
+		for _, c := range cases {
+			f := v.FieldByName(c.field)
+			setFieldFromEnv(f, c.raw)
+			assert.Equal(t, c.want, formatFieldForEnv(f), "field %s", c.field)
+		}
+	})
+
+	t.Run("malformed input leaves the default alone", func(t *testing.T) {
+		var s sample
+		v := reflect.ValueOf(&s).Elem()
+
+		// Seed defaults that the parser must not clobber on failure.
+		s.I = 99
+		s.U = 7
+		s.F64 = 2.5
+		seven := 7
+		s.PI = &seven
+
+		setFieldFromEnv(v.FieldByName("I"), "not-a-number")
+		setFieldFromEnv(v.FieldByName("U"), "-1") // negative for uint
+		setFieldFromEnv(v.FieldByName("F64"), "pi")
+		setFieldFromEnv(v.FieldByName("PI"), "also-not-a-number")
+
+		assert.Equal(t, 99, s.I)
+		assert.EqualValues(t, 7, s.U)
+		assert.Equal(t, 2.5, s.F64)
+		assert.Equal(t, 7, *s.PI)
+	})
+
+	t.Run("unsupported kind is a no-op in both directions", func(t *testing.T) {
+		var s sample
+		v := reflect.ValueOf(&s).Elem().FieldByName("Ignored")
+		setFieldFromEnv(v, "ignored")
+		assert.Equal(t, "", formatFieldForEnv(v))
+	})
 }

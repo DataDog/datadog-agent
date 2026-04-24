@@ -219,9 +219,10 @@ func preRemoveDatadogAgentDDOT(ctx HookContext) error {
 	return nil
 }
 
-// writeOTelConfig creates otel-config.yaml by substituting API key and site values from datadog.yaml, fallback with env variables.
+// writeOTelConfig creates otel-config.yaml by substituting API key and site
+// values from the DD_API_KEY / DD_SITE env vars.
 func writeOTelConfig(ctx HookContext) error {
-	return writeOTelConfigCommon(ctx, datadogYamlPath, otelConfigExamplePath, otelConfigPath, false, 0640)
+	return writeOTelConfigCommon(ctx, otelConfigExamplePath, otelConfigPath, false, 0640)
 }
 
 //////////////////////////////
@@ -256,7 +257,7 @@ func postInstallDDOTExtension(ctx HookContext) (err error) {
 	}
 
 	// Write otel-config.yaml. Doesn't update the file if it already exists.
-	if err := writeOTelConfigCommon(ctx, datadogYamlPath, otelConfigExamplePath, otelConfigPath, true, 0640); err != nil {
+	if err := writeOTelConfigCommon(ctx, otelConfigExamplePath, otelConfigPath, true, 0640); err != nil {
 		return fmt.Errorf("failed to write otel-config.yaml: %w", err)
 	}
 

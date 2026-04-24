@@ -89,14 +89,16 @@ func init() {
 	// This is important for experiments, as running the MSI may remove the registry keys.
 	// The daemon should expect to only read the paths from the registry, but there's no way to
 	// differentiate the two runtime environments here.
-	env := env.FromEnv()
+
+	// env.Get() is pure env-var now, so a single call is enough.
+	e := env.Get()
 
 	// OS paths
 	DefaultUserConfigsDir, _ = windows.KnownFolderPath(windows.FOLDERID_ProgramData, 0)
 
 	// Data directory
-	if env.MsiParams.ApplicationDataDirectory != "" {
-		DatadogDataDir = env.MsiParams.ApplicationDataDirectory
+	if e.MsiParams.ApplicationDataDirectory != "" {
+		DatadogDataDir = e.MsiParams.ApplicationDataDirectory
 	} else {
 		DatadogDataDir, _ = getProgramDataDirForProduct("Datadog Agent")
 	}
@@ -110,8 +112,8 @@ func init() {
 	RunPath = filepath.Join(PackagesPath, "run")
 
 	// Install directory
-	if env.MsiParams.ProjectLocation != "" {
-		DatadogProgramFilesDir = env.MsiParams.ProjectLocation
+	if e.MsiParams.ProjectLocation != "" {
+		DatadogProgramFilesDir = e.MsiParams.ProjectLocation
 	} else {
 		DatadogProgramFilesDir, _ = getProgramFilesDirForProduct("Datadog Agent")
 	}

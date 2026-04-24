@@ -41,7 +41,7 @@ func WriteConfig(path string, config any, perms os.FileMode, merge bool) error {
 	var originalBytes []byte
 	if merge {
 		// Read the original YAML (for preserving comments)
-		originalBytes, err = readConfig(path)
+		originalBytes, err = ReadConfig(path)
 		if err != nil && !os.IsNotExist(err) {
 			return err
 		}
@@ -172,7 +172,7 @@ func copyNodeComments(dst *yaml.Node, src *yaml.Node) {
 //
 // NOTE: Currently intended to only be used on fresh installs, not for updating existing configs from customers.
 func BackfillFromTemplate(configPath, templatePath string, perms os.FileMode) error {
-	templateBytes, err := readConfig(templatePath)
+	templateBytes, err := ReadConfig(templatePath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil
@@ -183,7 +183,7 @@ func BackfillFromTemplate(configPath, templatePath string, perms os.FileMode) er
 		return nil
 	}
 
-	currentBytes, err := readConfig(configPath)
+	currentBytes, err := ReadConfig(configPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil
@@ -243,13 +243,13 @@ func BackfillFromTemplate(configPath, templatePath string, perms os.FileMode) er
 	return os.WriteFile(configPath, buf.Bytes(), perms)
 }
 
-// readConfig returns the Agent config bytes from path and performs the following normalizations:
+// ReadConfig returns the Agent config bytes from path and performs the following normalizations:
 //   - Converts from UTF-16 to UTF-8
 //   - Removes CR (\r) bytes
 //
 // the yaml package does its own decoding, but since we're stripping out CR (\r) bytes we need
 // to decode the config, too.
-func readConfig(path string) ([]byte, error) {
+func ReadConfig(path string) ([]byte, error) {
 	originalBytes, err := os.ReadFile(path)
 	if err != nil && !os.IsNotExist(err) {
 		return nil, err

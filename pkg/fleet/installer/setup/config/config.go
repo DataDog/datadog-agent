@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	datadogConfFile        = "datadog.yaml"
+	DatadogConfFile        = "datadog.yaml"
 	injectTracerConfigFile = "inject/tracer.yaml"
 )
 
@@ -24,7 +24,7 @@ var (
 
 // WriteConfigs writes the configuration files to the given directory.
 func WriteConfigs(config Config, configDir string) error {
-	err := WriteConfig(filepath.Join(configDir, datadogConfFile), config.DatadogYAML, 0640, true)
+	err := WriteConfig(filepath.Join(configDir, DatadogConfFile), config.DatadogYAML, 0640, true)
 	if err != nil {
 		return fmt.Errorf("could not write datadog.yaml: %w", err)
 	}

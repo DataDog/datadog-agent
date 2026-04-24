@@ -151,22 +151,24 @@ func setConfigSecurityProducts(s *common.Setup) {
 	}
 }
 
-// setConfigInstallerDaemon sets the daemon in the configuration
+// setConfigInstallerDaemon sets the daemon in the configuration.
+// Uses os.LookupEnv as a gate to distinguish "not set" from "explicitly false",
+// since Env.RemoteUpdates is a plain bool without nil semantics.
 func setConfigInstallerDaemon(s *common.Setup) {
-	if val, ok := os.LookupEnv("DD_REMOTE_UPDATES"); ok {
-		s.Config.DatadogYAML.RemoteUpdates = config.BoolToPtr(strings.ToLower(val) == "true")
+	if _, ok := os.LookupEnv("DD_REMOTE_UPDATES"); ok {
+		s.Config.DatadogYAML.RemoteUpdates = config.BoolToPtr(s.Env.RemoteUpdates)
 	}
 }
 
 // setConfigInstallerRegistries sets the registries in the configuration
 func setConfigInstallerRegistries(s *common.Setup) {
-	registryURL, registryURLOk := os.LookupEnv("DD_INSTALLER_REGISTRY_URL")
-	registryAuth, registryAuthOk := os.LookupEnv("DD_INSTALLER_REGISTRY_AUTH")
+	_, registryURLOk := os.LookupEnv("DD_INSTALLER_REGISTRY_URL")
+	_, registryAuthOk := os.LookupEnv("DD_INSTALLER_REGISTRY_AUTH")
 	if registryURLOk || registryAuthOk {
 		s.Config.DatadogYAML.Installer = config.DatadogConfigInstaller{
 			Registry: config.DatadogConfigInstallerRegistry{
-				URL:  registryURL,
-				Auth: registryAuth,
+				URL:  s.Env.RegistryOverride,
+				Auth: s.Env.RegistryAuthOverride,
 			},
 		}
 	}

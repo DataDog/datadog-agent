@@ -8,7 +8,9 @@
 // Package paths defines commonly used paths throughout the installer
 package paths
 
-import "os"
+import (
+	"os"
+)
 
 const (
 	// PackagesPath is the path to the packages directory.

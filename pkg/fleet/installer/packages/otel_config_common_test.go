@@ -62,41 +62,29 @@ func TestWriteOTelConfigCommonSiteSubstitution(t *testing.T) {
 	const template = "endpoint: ${env:DD_SITE}\napi_key: ${env:DD_API_KEY}\n"
 
 	tests := []struct {
-		name           string
-		datadogYAML    string
-		expectedAPIKey string
-		expectedSite   string
-		isDatadogYAML  bool
+		name         string
+		envSite      string
+		expectedSite string
 	}{
 		{
-			name:           "defaults to datadoghq.com when site is not set",
-			datadogYAML:    "api_key: testapikey\n",
-			expectedAPIKey: "testapikey",
-			expectedSite:   "datadoghq.com",
-			isDatadogYAML:  true,
+			name:         "defaults to datadoghq.com when DD_SITE is not set",
+			envSite:      "",
+			expectedSite: "datadoghq.com",
 		},
 		{
-			name:           "uses explicit site when set",
-			datadogYAML:    "api_key: testapikey\nsite: datadoghq.eu\n",
-			expectedAPIKey: "testapikey",
-			expectedSite:   "datadoghq.eu",
-			isDatadogYAML:  true,
-		},
-		{
-			name:           "Fallback when datadog.yaml is not present",
-			expectedAPIKey: "${env:DD_API_KEY}",
-			expectedSite:   "datadoghq.com",
-			isDatadogYAML:  false,
+			name:         "uses DD_SITE when set",
+			envSite:      "datadoghq.eu",
+			expectedSite: "datadoghq.eu",
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()
-
-			datadogYamlPath := filepath.Join(dir, "datadog.yaml")
-			if tc.isDatadogYAML {
-				require.NoError(t, os.WriteFile(datadogYamlPath, []byte(tc.datadogYAML), 0o644))
+			if tc.envSite != "" {
+				t.Setenv("DD_SITE", tc.envSite)
+			} else {
+				t.Setenv("DD_SITE", "")
 			}
 
 			templatePath := filepath.Join(dir, "otel-config.yaml.tmpl")
@@ -104,7 +92,7 @@ func TestWriteOTelConfigCommonSiteSubstitution(t *testing.T) {
 
 			outPath := filepath.Join(dir, "otel-config.yaml")
 			ctx := HookContext{Context: context.Background()}
-			require.NoError(t, writeOTelConfigCommon(ctx, datadogYamlPath, templatePath, outPath, false, 0o644))
+			require.NoError(t, writeOTelConfigCommon(ctx, templatePath, outPath, false, 0o644))
 
 			content, err := os.ReadFile(outPath)
 			require.NoError(t, err)

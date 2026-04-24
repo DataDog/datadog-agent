@@ -15,8 +15,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"go.yaml.in/yaml/v2"
-
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	windowssvc "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/windows"
 	windowsuser "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user/windows"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
@@ -75,12 +74,7 @@ func postInstallDatadogAgentDdot(ctx HookContext) (err error) {
 			return nil
 		}
 	}
-	ak, err := readAPIKeyFromDatadogYAML()
-	if err != nil {
-		log.Warnf("DDOT: skipping service start: %v", err)
-		return nil
-	}
-	if ak == "" {
+	if env.Get().APIKey == "" {
 		log.Warnf("DDOT: skipping service start (no API key configured)")
 		return nil
 	}
@@ -103,23 +97,6 @@ func postInstallDatadogAgentDdot(ctx HookContext) (err error) {
 	return nil
 }
 
-// readAPIKeyFromDatadogYAML reads the api_key from ProgramData datadog.yaml, returns empty string if unset/unknown
-func readAPIKeyFromDatadogYAML() (string, error) {
-	ddYaml := filepath.Join(paths.DatadogDataDir, "datadog.yaml")
-	data, err := os.ReadFile(ddYaml)
-	if err != nil {
-		return "", fmt.Errorf("failed to read datadog.yaml from %s: %w", ddYaml, err)
-	}
-	var cfg map[string]any
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return "", fmt.Errorf("failed to parse datadog.yaml: %w", err)
-	}
-	if v, ok := cfg["api_key"].(string); ok && v != "" {
-		return v, nil
-	}
-	return "", errors.New("api_key not found or empty in datadog.yaml")
-}
-
 // preRemoveDatadogAgentDdot performs pre-removal steps for the DDOT package on Windows
 // All the steps are allowed to fail
 func preRemoveDatadogAgentDdot(ctx HookContext) error {
@@ -139,9 +116,9 @@ func preRemoveDatadogAgentDdot(ctx HookContext) error {
 	return nil
 }
 
-// writeOTelConfigWindows creates otel-config.yaml by substituting API key and site values from datadog.yaml, fallback with env variables.
+// writeOTelConfigWindows creates otel-config.yaml by substituting API key
+// and site values from the DD_API_KEY / DD_SITE env vars.
 func writeOTelConfigWindows(ctx HookContext) error {
-	ddYaml := filepath.Join(paths.DatadogDataDir, "datadog.yaml")
 	// Prefer packaged example/template from the installed package repository
 	cfgTemplate := filepath.Join(paths.PackagesPath, agentDDOTPackage, "stable", "etc", "datadog-agent", "otel-config.yaml.example")
 	// Fallback to local ProgramData example/template if needed
@@ -152,7 +129,7 @@ func writeOTelConfigWindows(ctx HookContext) error {
 		}
 	}
 	out := filepath.Join(paths.DatadogDataDir, "otel-config.yaml")
-	return writeOTelConfigCommon(ctx, ddYaml, cfgTemplate, out, true, 0o600)
+	return writeOTelConfigCommon(ctx, cfgTemplate, out, true, 0o600)
 }
 
 // enableOtelCollectorConfigWindows adds otelcollector.enabled and agent_ipc defaults to datadog.yaml
@@ -459,10 +436,9 @@ func preRemoveDDOTExtension(_ HookContext) error {
 
 // writeOTelConfigWindowsExtension writes otel-config.yaml for extension
 func writeOTelConfigWindowsExtension(ctx HookContext, extensionPath string) error {
-	ddYaml := filepath.Join(paths.DatadogDataDir, "datadog.yaml")
 	templatePath := filepath.Join(extensionPath, "etc", "datadog-agent", "otel-config.yaml.example")
 	outPath := filepath.Join(paths.DatadogDataDir, "otel-config.yaml")
-	return writeOTelConfigCommon(ctx, ddYaml, templatePath, outPath, true, 0o640)
+	return writeOTelConfigCommon(ctx, templatePath, outPath, true, 0o640)
 }
 
 // ensureDDOTServiceForExtension ensures the DDOT service exists and is configured correctly for extension

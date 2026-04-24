@@ -137,22 +137,23 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config agentconf
 		configID = "empty"
 	}
 	env := &env.Env{
-		APIKey:               utils.SanitizeAPIKey(config.GetString("api_key")),
-		Site:                 config.GetString("site"),
-		RemoteUpdates:        config.GetBool("remote_updates"),
-		Mirror:               config.GetString("installer.mirror"),
-		RegistryOverride:     config.GetString("installer.registry.url"),
-		RegistryAuthOverride: config.GetString("installer.registry.auth"),
-		RegistryUsername:     config.GetString("installer.registry.username"),
-		RegistryPassword:     config.GetString("installer.registry.password"),
-		Tags:                 utils.GetConfiguredTags(config, false),
-		Hostname:             hostname,
-		HTTPProxy:            config.GetString("proxy.http"),
-		HTTPSProxy:           config.GetString("proxy.https"),
-		NoProxy:              strings.Join(config.GetStringSlice("proxy.no_proxy"), ","),
-		IsCentos6:            env.DetectCentos6(),
-		IsFromDaemon:         true,
-		ConfigID:             configID,
+		APIKey:                     utils.SanitizeAPIKey(config.GetString("api_key")),
+		Site:                       config.GetString("site"),
+		RemoteUpdates:              config.GetBool("remote_updates"),
+		Mirror:                     config.GetString("installer.mirror"),
+		RegistryOverride:           config.GetString("installer.registry.url"),
+		RegistryAuthOverride:       config.GetString("installer.registry.auth"),
+		RegistryUsername:           config.GetString("installer.registry.username"),
+		RegistryPassword:           config.GetString("installer.registry.password"),
+		ExtensionRegistryOverrides: parseExtensionRegistryOverrides(config.GetStringMap("installer.registry.extensions")),
+		Tags:                       utils.GetConfiguredTags(config, false),
+		Hostname:                   hostname,
+		HTTPProxy:                  config.GetString("proxy.http"),
+		HTTPSProxy:                 config.GetString("proxy.https"),
+		NoProxy:                    strings.Join(config.GetStringSlice("proxy.no_proxy"), ","),
+		IsCentos6:                  env.DetectCentos6(),
+		IsFromDaemon:               true,
+		ConfigID:                   configID,
 	}
 	installer := newInstaller(installerBin)
 	refreshInterval := config.GetDuration("installer.refresh_interval")
@@ -861,4 +862,55 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 		Packages:           packages,
 		AvailableDiskSpace: availableSpace,
 	})
+}
+
+// parseExtensionRegistryOverrides translates the yaml-sourced
+// `installer.registry.extensions` section into the typed map the installer
+// consumes. Shape:
+//
+//	installer.registry.extensions.<pkg>.<ext>.{url,auth,username,password}
+//
+// (*env.Env).ToEnv() encodes this map into DD_INSTALLER_REGISTRY_EXT_*
+// prefix env vars that the installer subprocess decodes symmetrically.
+func parseExtensionRegistryOverrides(raw map[string]interface{}) map[string]map[string]env.ExtensionRegistryOverride {
+	if len(raw) == 0 {
+		return nil
+	}
+	out := make(map[string]map[string]env.ExtensionRegistryOverride, len(raw))
+	for pkg, extMapAny := range raw {
+		extMap, ok := extMapAny.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		for ext, extCfgAny := range extMap {
+			extCfg, ok := extCfgAny.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			o := env.ExtensionRegistryOverride{}
+			if s, ok := extCfg["url"].(string); ok {
+				o.URL = s
+			}
+			if s, ok := extCfg["auth"].(string); ok {
+				o.Auth = s
+			}
+			if s, ok := extCfg["username"].(string); ok {
+				o.Username = s
+			}
+			if s, ok := extCfg["password"].(string); ok {
+				o.Password = s
+			}
+			if o == (env.ExtensionRegistryOverride{}) {
+				continue
+			}
+			if out[pkg] == nil {
+				out[pkg] = map[string]env.ExtensionRegistryOverride{}
+			}
+			out[pkg][ext] = o
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }

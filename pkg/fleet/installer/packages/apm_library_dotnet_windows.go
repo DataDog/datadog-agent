@@ -172,7 +172,7 @@ func uninstrumentDotnetLibrary(ctx context.Context, target string) (err error) {
 }
 
 func instrumentDotnetLibraryIfNeeded(ctx context.Context, target string) (err error) {
-	envInst := env.FromEnv()
+	envInst := env.Get()
 	if envInst.InstallScript.APMInstrumentationEnabled == env.APMInstrumentationEnabledIIS {
 		return instrumentDotnetLibrary(ctx, target)
 	}

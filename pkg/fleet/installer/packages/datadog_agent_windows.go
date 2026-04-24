@@ -623,7 +623,7 @@ func getWatchdogTimeout() time.Duration {
 
 // getenv returns an Env struct with values from the environment, supplemented by values from the registry.
 //
-// See also env.FromEnv()
+// See also env.Get()
 //
 // This function prefers values from the environment, falling back to the registry if not set, for values:
 //   - Agent user name
@@ -634,7 +634,7 @@ func getWatchdogTimeout() time.Duration {
 //   - ensures setup carries over settings from previous installs (i.e. before remote updates)
 //   - ensures subcommands provide the correct options even if the MSI removes the registry keys (like during rollback)
 func getenv() *env.Env {
-	env := env.FromEnv()
+	env := env.Get()
 
 	// This function prefers values from the environment, with a fallback if not set, for values:
 	//   - Agent user name (fallback to service user)
