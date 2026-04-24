@@ -1230,6 +1230,12 @@ def _run_iteration_body(
             f"- **{dec.persona}**: {dec.rationale[:300]}"
             for dec in verdict.decisions
         )
+        matrix_compact = "\n".join(metrics._f1_matrix_compact(db))
+        matrix_block = (
+            f"\n\n**F1 matrix (cumulative vs baseline)**:\n{matrix_compact}"
+            if matrix_compact
+            else ""
+        )
         coord_out.emit(
             "iter_shipped",
             (
@@ -1241,6 +1247,7 @@ def _run_iteration_body(
                 f"(Δ{scoring.total_dfps:+d}).\n\n"
                 f"**Top 5 scenario wins**:\n{win_lines}\n\n"
                 f"**Reviewer verdicts**:\n{rationale_lines}"
+                + matrix_block
                 + _budget_footer(root, iter_num, ceiling=db.budget.api_token_ceiling)
             ),
             requires_ack=False,

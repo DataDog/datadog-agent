@@ -413,15 +413,21 @@ experiment for audit.
 
 ## Model routing
 
-Deep-thinking SDK calls use Opus; lightweight summaries use Sonnet.
+Design/judgment work uses Opus; mechanical execution uses Sonnet.
 Tune in `config.py`:
 
 | Role | Model | Task |
 |---|---|---|
-| Implementation agent | `model_deep` (Opus) | writing code for a candidate |
-| Review personas | `model_deep` (Opus) | judging approve/reject |
-| Proposer | `model_deep` (Opus) | brainstorming new candidates from history |
-| Inbox interpreter | `model_light` (Sonnet) | summarizing a user message |
+| **Proposer** | `model_deep` (Opus) | Brainstorm novel directions AND author a detailed `implementation_plan` per candidate (30-80 lines: exact files, interface contract, numbered algorithm steps, data shapes, test plan, perf). Opus does the design work. |
+| **Implementation agent** | `model_light` (Sonnet) when a plan is present | Execute the plan mechanically. `max_turns=25`. No design discretion. Task tool hard-blocked via PreToolUse hook. Falls back to Opus if the candidate has no plan (rare). |
+| Review personas (×3) | `model_deep` (Opus) | Judge approve/reject. See both the diff AND the plan; `plan_fidelity` check flags deviations. A net-positive deviation ships; a net-negative one doesn't. |
+| Inbox interpreter | `model_light` (Sonnet) | Distill a user PR comment into (interpretation, planned_change). |
+
+Why this split: Opus-as-implementer reached for the Task tool on big
+candidates, spawning sub-agents that crashed after 17 minutes and
+burned $291 per iter (iter 16 matrix-profile). Moving design into the
+proposer + executing with Sonnet + plan makes implementations
+mechanical, bounded, and ~5× cheaper.
 
 Set `CONFIG.model_deep` / `CONFIG.model_light` to an empty string to fall
 back to the SDK default.

@@ -233,13 +233,15 @@ PYTHONPATH=tasks python -m coordinator.seed_candidates
 # different from the baseline-measured version.
 PYTHONPATH=tasks python -m coordinator.import_validations
 
-# 6f. Before the real run, set a hard API-token ceiling. Edit
-# tasks/coordinator/config.py:
+# 6f. Token ceiling is now a PANIC BRAKE, not a budget. Default is
+# 500M tokens (≈ $2.5k-7.5k Opus list price) — deliberately set very
+# high so a 72h run finishes without nagging halts. Actual cost control
+# is wall-hours + per-iter cost-anomaly tripwire + autopilot pause on
+# consecutive-anomaly streak (see §Autopilot behaviors below).
 #
-#    api_token_ceiling: int | None = 20_000_000   # ≈ $50-200 of Opus
-#
-# Prevents a runaway edge case from burning $1-5k of API spend.
-# Leave None while smoke-testing.
+# To tighten the ceiling for a specific cost-bounded run, pass
+# --token-ceiling N to the driver CLI. Same for wall hours:
+# --wall-hours-ceiling H. Both persist to db.budget on first save.
 ```
 
 If `eval-results/` doesn't exist on this driver workspace yet, pull it
@@ -284,10 +286,59 @@ Expected flow:
 ## 8. Launch the forever loop
 
 ```bash
-PYTHONPATH=tasks python -m coordinator.driver --forever 2>&1 | tee -a .coordinator/driver.log
+PYTHONPATH=tasks python -u -m coordinator.driver --forever 2>&1 | tee -a .coordinator/driver.log
+```
+
+`-u` is important — unbuffered Python output so `tail -f driver.log` updates live.
+
+Optional CLI overrides (both persist to `db.budget` so you don't need to re-pass on restart):
+
+```bash
+# Tighten the panic-brake for a bounded run
+PYTHONPATH=tasks python -u -m coordinator.driver --forever \
+    --token-ceiling 50000000 \
+    --wall-hours-ceiling 48 \
+    2>&1 | tee -a .coordinator/driver.log
 ```
 
 Detach from tmux with `Ctrl-b d`. The loop keeps running.
+
+---
+
+## 8a. Autopilot behaviors (you don't need to do anything for these)
+
+Three autonomous reactions the coordinator takes without user input:
+
+**Phase plateau → pivot.** After `plateau_patience` (5) consecutive
+non-improving iterations, the driver auto-bans every `approach_family`
+from the last 5 iters into `db.pivot_banned_families` (persistent),
+resets the plateau counter, fires a `phase_pivot` PR comment, and
+keeps running. The proposer's next call sees a "this is a pivot"
+block in its prompt and generates structurally-different candidates.
+Only hard-halts (requires_ack) after `max_pivots_before_halt` (4)
+pivots without any ship — "structurally un-improvable."
+
+**Per-iter cost anomaly tripwire.** At iteration end, driver compares
+this iter's token cost to the rolling mean of the last 5. If
+`this_cost > 2× rolling_mean` OR `this_tokens > 10M`, a `cost_anomaly`
+PR comment fires with the triggers enumerated. After 3 consecutive
+anomalous iters, driver writes `.coordinator/pause` to cooperatively
+halt at the next iter boundary — user must `rm .coordinator/pause`
+to resume. Nothing in flight is wasted (iter finishes normally first).
+
+**Cooperative pause.** Touch `.coordinator/pause` at any time to stop
+the loop at the next iter boundary. Safer than Ctrl-C (doesn't lose
+mid-iter implementation work). Remove the file to resume. Used by the
+auto-pause above; also usable manually for "let me look at recent
+comments before you spend more money."
+
+**SDK error capture.** When an SDK call crashes (claude CLI subprocess
+exits non-zero, which unfortunately surfaces as bare "exit code 1"
+through the SDK), the driver dumps full context to
+`.coordinator/sdk-errors/<ts>-<purpose>.txt`: exception repr, cause
+chain, traceback, plus enrichment (token-log stats for the iter, last
+N SDK message types, git state at crash, SDK versions). Referenced
+in the `iter_impl_failed` PR comment.
 
 ---
 
