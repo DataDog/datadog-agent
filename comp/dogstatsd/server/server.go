@@ -207,7 +207,6 @@ func newServer(deps dependencies) provides {
 	s.offlineReporter = deps.OfflineReporter
 
 	dsdConfig := dsdconfig.NewConfig(s.config)
-	dsdConfig.LogResolvedMode()
 	if dsdConfig.EnabledInternal() {
 		deps.Lc.Append(fx.Hook{
 			OnStart: s.startHook,
