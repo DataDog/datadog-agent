@@ -1,0 +1,5 @@
+logs:
+  - type: file
+    path: '/var/log/e2e_test_logs/opw-host-tags.log'
+    service: opw-e2e
+    source: opw-test
