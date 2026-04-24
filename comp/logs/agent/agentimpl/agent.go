@@ -21,6 +21,7 @@ import (
 	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils/stream"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
@@ -86,6 +87,7 @@ type dependencies struct {
 	SchedulerProviders []schedulers.Scheduler `group:"log-agent-scheduler"`
 	Tagger             tagger.Component
 	Compression        logscompression.Component
+	Secrets            secrets.Component
 }
 
 type provides struct {
@@ -124,6 +126,7 @@ type logAgent struct {
 	schedulerProviders        []schedulers.Scheduler
 	integrationsLogs          integrations.Component
 	compression               logscompression.Component
+	secrets                   secrets.Component
 	logHook                   hook.Hook[hook.LogView]
 
 	// make sure this is done only once, when we're ready
@@ -166,6 +169,7 @@ func newLogsAgent(deps dependencies) provides {
 			integrationsLogs:   integrationsLogs,
 			tagger:             deps.Tagger,
 			compression:        deps.Compression,
+			secrets:            deps.Secrets,
 			logHook:            logHook,
 		}
 		deps.Lc.Append(fx.Hook{
