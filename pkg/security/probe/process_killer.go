@@ -576,8 +576,10 @@ func (p *ProcessKiller) HandleProcessExited(event *model.Event) {
 			report.ExitedAt = event.ProcessContext.ExitTime
 		}
 		switch report.Status {
-		// if the report is queued, remove the exited PID from pendingKills
-		case KillActionStatusQueued:
+		// if the report is queued or error, remove the exited PID from pendingKills
+		// queued: this will handle the case where a process exited before we tried to kill
+		// error: this will handle the case where we failed to kill a process before it exited (race condition or another rule killed it before)
+		case KillActionStatusQueued, KillActionStatusError:
 			report.pendingKills = slices.DeleteFunc(report.pendingKills, func(kc killContext) bool {
 				return uint32(kc.pid) == exitedPid
 			})
