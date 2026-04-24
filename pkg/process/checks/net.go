@@ -511,6 +511,9 @@ func batchConnections(
 			// tags remap
 			serviceCtx := serviceExtractor.GetServiceContext(c.Pid)
 			tagsStr := convertAndEnrichWithServiceCtx(tags, c.Tags, serviceCtx...)
+			if len(tagsStr) > 0 {
+				log.Debugf("batchConnections: pid=%d resolved tags from system-probe: %v", c.Pid, tagsStr)
+			}
 
 			// Get process tags and add them to the connection tags
 			if processTagProvider != nil {

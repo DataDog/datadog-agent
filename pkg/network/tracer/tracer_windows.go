@@ -66,7 +66,8 @@ type Tracer struct {
 	// windows event handle for stopping the closed connection event loop
 	hStopClosedLoopEvent windows.Handle
 
-	processCache *processCache
+	processCache        *processCache
+	interfaceClassifier *InterfaceClassifier
 }
 
 // NewTracer returns an initialized tracer struct
@@ -123,6 +124,8 @@ func NewTracer(config *config.Config, telemetry telemetry.Component, _ statsd.Cl
 		destExcludes:         filter.ParseConnectionFilters(config.ExcludedDestinationConnections),
 		hStopClosedLoopEvent: stopEvent,
 	}
+	tr.interfaceClassifier = NewInterfaceClassifier()
+
 	if config.EnableProcessEventMonitoring {
 		if tr.processCache, err = newProcessCache(config.MaxProcessesTracked); err != nil {
 			return nil, fmt.Errorf("could not create process cache; %w", err)
@@ -163,6 +166,7 @@ func NewTracer(config *config.Config, telemetry telemetry.Component, _ statsd.Cl
 
 				for i := range closedConnStats {
 					tr.addProcessInfo(&closedConnStats[i])
+					tr.addInterfaceInfo(&closedConnStats[i])
 					tr.state.StoreClosedConnection(&closedConnStats[i])
 				}
 
@@ -185,6 +189,9 @@ func (t *Tracer) Stop() {
 		_ = t.usmMonitor.Stop()
 	}
 	t.reverseDNS.Close()
+	if t.interfaceClassifier != nil {
+		t.interfaceClassifier.Close()
+	}
 
 	windows.SetEvent(t.hStopClosedLoopEvent)
 	t.closedEventLoop.Wait()
@@ -228,9 +235,11 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, fu
 
 	for i := range activeConnStats {
 		t.addProcessInfo(&activeConnStats[i])
+		t.addInterfaceInfo(&activeConnStats[i])
 	}
 	for i := range closedConnStats {
 		t.addProcessInfo(&closedConnStats[i])
+		t.addInterfaceInfo(&closedConnStats[i])
 		t.state.StoreClosedConnection(&closedConnStats[i])
 	}
 
@@ -368,4 +377,20 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 	if p.ContainerID != nil {
 		c.ContainerID.Source = p.ContainerID
 	}
+}
+
+func (t *Tracer) addInterfaceInfo(c *network.ConnectionStats) {
+	if t.interfaceClassifier == nil || c.InterfaceIndex == 0 {
+		return
+	}
+	result := t.interfaceClassifier.Classify(c.InterfaceIndex)
+	if result.InterfaceName == "" {
+		return
+	}
+	c.Tags = append(c.Tags,
+		intern.GetByString("interface_name:"+result.InterfaceName),
+		intern.GetByString(fmt.Sprintf("interface_type:%d", result.InterfaceType)),
+	)
+	log.Debugf("interface_classifier: pid=%d ifIndex=%d tagged interface_name=%q interface_type=%d",
+		c.Pid, c.InterfaceIndex, result.InterfaceName, result.InterfaceType)
 }
