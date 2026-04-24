@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "spot_test",
+    srcs = [
+        "deployment_test.go",
+        "suite_test.go",
+    ],
+    gotags = ["test"],
+    deps = [
+        "@com_github_datadog_datadog_agent_test_e2e_framework//components/datadog/kubernetesagentparams",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//components/kubernetes",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//testing/e2e",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//testing/environments",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//testing/provisioners/local/kubernetes",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_api//apps/v1:apps",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/types",
+        "@io_k8s_client_go//kubernetes",
+    ],
+)
