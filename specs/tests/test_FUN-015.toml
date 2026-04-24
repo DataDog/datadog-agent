@@ -85,13 +85,16 @@ to pull the installer OCI package from a custom registry instead of the default 
 ref = ["FUN-015", "FUN-014"]
 prereq = ["T000"]
 initial = """
-- `DD_INSTALLER_REGISTRY_URL` is set to a custom registry URL.
 - The custom registry hosts the installer and agent images.
 """
 
 [[tests.steps]]
-action = "Run the bootstrap command with the custom registry configured."
-run = "DD_INSTALLER_REGISTRY_URL=https://custom.registry.example datadog-installer bootstrap"
+action = "Configure the installer to use the custom registry."
+run = "export DD_INSTALLER_REGISTRY_URL=https://custom.registry.example"
+
+[[tests.steps]]
+action = "Run the bootstrap command."
+run = "datadog-installer bootstrap"
 
 [[tests.steps]]
 action = "Verify the installer package is installed."
@@ -106,13 +109,13 @@ cannot be reached, leaving no partial state on disk.
 '''
 ref = ["FUN-015"]
 prereq = ["T000"]
-initial = """
-- `DD_INSTALLER_REGISTRY_URL` points to an unreachable host.
-"""
+[[tests.steps]]
+action = "Point the installer at an unreachable registry."
+run = "export DD_INSTALLER_REGISTRY_URL=https://unreachable.invalid"
 
 [[tests.steps]]
-action = "Run the bootstrap command against the unreachable registry. The command should fail."
-run = "DD_INSTALLER_REGISTRY_URL=https://unreachable.invalid datadog-installer bootstrap"
+action = "Run the bootstrap command. The command should fail."
+run = "datadog-installer bootstrap"
 expected = "could not download"
 
 [[tests.steps]]
