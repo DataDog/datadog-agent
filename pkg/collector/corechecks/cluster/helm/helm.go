@@ -39,6 +39,7 @@ const (
 	// CheckName is the name of the check
 	CheckName               = "helm"
 	serviceCheckName        = "helm.release_state"
+	releaseAgeMetricName    = "helm.release_age"
 	maximumWaitForAPIServer = 10 * time.Second
 	defaultExtraSyncTimeout = 120 * time.Second
 	defaultResyncInterval   = 10 * time.Minute
@@ -160,6 +161,17 @@ func (hc *HelmCheck) Run() error {
 		for _, rel := range hc.store.getAll(storageDriver) {
 			tags := append(rel.commonTags, rel.tagsForMetricsAndEvents...)
 			sender.Gauge("helm.release", 1, "", tags)
+		}
+	}
+
+	for _, storageDriver := range []helmStorage{k8sConfigmaps, k8sSecrets} {
+		for _, taggedRel := range hc.store.getLatestRevisions(storageDriver) {
+			if taggedRel.release.Info == nil || taggedRel.release.Info.LastDeployed.IsZero() {
+				continue
+			}
+			age := time.Since(taggedRel.release.Info.LastDeployed).Seconds()
+			tags := append(taggedRel.commonTags, taggedRel.tagsForMetricsAndEvents...)
+			sender.Gauge(releaseAgeMetricName, age, "", tags)
 		}
 	}
 

@@ -632,6 +632,72 @@ func TestRun_ServiceCheck(t *testing.T) {
 
 }
 
+func TestRun_releaseAge(t *testing.T) {
+	lastDeployed := time.Now().Add(-2 * time.Hour)
+
+	rel := &release{
+		Name: "my_datadog",
+		Info: &info{
+			Status:       "deployed",
+			LastDeployed: lastDeployed,
+		},
+		Chart: &chart{
+			Metadata: &metadata{
+				Name:       "datadog",
+				Version:    "2.30.5",
+				AppVersion: "7",
+			},
+		},
+		Version:   1,
+		Namespace: "default",
+	}
+
+	relWithoutInfo := &release{
+		Name:      "no_info",
+		Info:      nil,
+		Version:   1,
+		Namespace: "default",
+	}
+
+	relWithZeroLastDeployed := &release{
+		Name: "zero_last_deployed",
+		Info: &info{
+			Status: "deployed",
+		},
+		Version:   1,
+		Namespace: "default",
+	}
+
+	for _, storage := range []helmStorage{k8sSecrets, k8sConfigmaps} {
+		t.Run(string(storage), func(t *testing.T) {
+			check := newCheck().(*HelmCheck)
+			check.runLeaderElection = false
+			check.store.add(rel, storage, commonTags(rel, storage), check.tagsForMetricsAndEvents(rel, true))
+			check.store.add(relWithoutInfo, storage, commonTags(relWithoutInfo, storage), check.tagsForMetricsAndEvents(relWithoutInfo, true))
+			check.store.add(relWithZeroLastDeployed, storage, commonTags(relWithZeroLastDeployed, storage), check.tagsForMetricsAndEvents(relWithZeroLastDeployed, true))
+
+			mockedSender := mocksender.NewMockSender(CheckName)
+			mockedSender.SetupAcceptAll()
+
+			k8sClient := fake.NewSimpleClientset()
+			check.informerFactory = informers.NewSharedInformerFactory(k8sClient, time.Minute)
+			err := check.CommonConfigure(mockedSender.GetSenderManager(), nil, nil, "", "")
+			require.NoError(t, err)
+
+			err = check.Run()
+			require.NoError(t, err)
+
+			expectedMinAge := time.Since(lastDeployed).Seconds() - 5
+			expectedMaxAge := time.Since(lastDeployed).Seconds() + 5
+			expectedTags := append(commonTags(rel, storage), check.tagsForMetricsAndEvents(rel, true)...)
+			mockedSender.AssertMetricInRange(t, "Gauge", releaseAgeMetricName, expectedMinAge, expectedMaxAge, "", expectedTags)
+
+			mockedSender.AssertMetricNotTaggedWith(t, "Gauge", releaseAgeMetricName, commonTags(relWithoutInfo, storage))
+			mockedSender.AssertMetricNotTaggedWith(t, "Gauge", releaseAgeMetricName, commonTags(relWithZeroLastDeployed, storage))
+		})
+	}
+}
+
 // secretForRelease returns a Kubernetes secret that contains the info of the
 // given Helm release.
 func secretForRelease(rls *release, creationTS time.Time) (*v1.Secret, error) {
