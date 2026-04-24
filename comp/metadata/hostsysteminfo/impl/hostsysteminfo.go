@@ -20,7 +20,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	hostsysteminfo "github.com/DataDog/datadog-agent/comp/metadata/hostsysteminfo/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
-	runnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/impl"
+	runnerdef "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/inventory/systeminfo"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"

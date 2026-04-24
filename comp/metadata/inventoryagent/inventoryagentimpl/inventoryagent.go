@@ -31,7 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	iainterface "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
-	runnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/impl"
+	runnerdef "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	sysprobeConfigFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe"

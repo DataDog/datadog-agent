@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/resources"
-	runnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/impl"
+	runnerdef "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/gohai/processes"
 	"github.com/DataDog/datadog-agent/pkg/serializer"

@@ -21,7 +21,7 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
-	runnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/impl"
+	runnerdef "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	securityagent "github.com/DataDog/datadog-agent/comp/metadata/securityagent/def"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
