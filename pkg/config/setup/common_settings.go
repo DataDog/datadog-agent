@@ -237,7 +237,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 
 	// NetFlow
 	config.BindEnvAndSetDefault("network_devices.netflow.enabled", false)
-	config.BindEnvAndSetDefault("network_devices.netflow.listeners", []map[string]interface{}{})
+	config.SetDefault("network_devices.netflow.listeners", []map[string]interface{}{})
 	config.BindEnvAndSetDefault("network_devices.netflow.stop_timeout", 5)
 	config.BindEnvAndSetDefault("network_devices.netflow.aggregator_buffer_size", 10_000)
 	config.BindEnvAndSetDefault("network_devices.netflow.aggregator_flush_interval", 300)
