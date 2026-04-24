@@ -789,10 +789,13 @@ network_path:
 
 func TestApplyUseDogstatsdSuppression(t *testing.T) {
 	t.Run("use_dogstatsd=false forces data_plane.dogstatsd.enabled=false", func(t *testing.T) {
-		cfg := newTestConf(t)
-		cfg.SetWithoutSource("use_dogstatsd", false)
-		cfg.SetWithoutSource("data_plane.enabled", true)
-		cfg.SetWithoutSource("data_plane.dogstatsd.enabled", true)
+		cfg := confFromYAML(t, `
+use_dogstatsd: false
+data_plane:
+  enabled: true
+  dogstatsd:
+    enabled: true
+`)
 
 		applyUseDogstatsdSuppression(cfg)
 
@@ -803,10 +806,13 @@ func TestApplyUseDogstatsdSuppression(t *testing.T) {
 	})
 
 	t.Run("use_dogstatsd=true leaves data_plane.dogstatsd.enabled untouched", func(t *testing.T) {
-		cfg := newTestConf(t)
-		cfg.SetWithoutSource("use_dogstatsd", true)
-		cfg.SetWithoutSource("data_plane.enabled", true)
-		cfg.SetWithoutSource("data_plane.dogstatsd.enabled", true)
+		cfg := confFromYAML(t, `
+use_dogstatsd: true
+data_plane:
+  enabled: true
+  dogstatsd:
+    enabled: true
+`)
 
 		applyUseDogstatsdSuppression(cfg)
 
@@ -814,9 +820,12 @@ func TestApplyUseDogstatsdSuppression(t *testing.T) {
 	})
 
 	t.Run("use_dogstatsd unset leaves data_plane.dogstatsd.enabled untouched", func(t *testing.T) {
-		cfg := newTestConf(t)
-		cfg.SetWithoutSource("data_plane.enabled", true)
-		cfg.SetWithoutSource("data_plane.dogstatsd.enabled", true)
+		cfg := confFromYAML(t, `
+data_plane:
+  enabled: true
+  dogstatsd:
+    enabled: true
+`)
 
 		applyUseDogstatsdSuppression(cfg)
 
