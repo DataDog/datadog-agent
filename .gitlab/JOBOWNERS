@@ -207,14 +207,14 @@ new-e2e-agent-health                    @DataDog/agent-health
 new-e2e-fips-compliance-test*           @DataDog/agent-runtimes
 new-e2e-remote-config                   @DataDog/remote-config
 # --- Containers / orchestration / SSI ---
-new-e2e-containers*                     @DataDog/container-integrations
+new-e2e-containers*                     @DataDog/container-integrations @DataDog/container-platform
 new-e2e-orchestrator*                   @DataDog/kubernetes-experiences
 new-e2e-language-detection              @DataDog/container-experiences
 new-e2e-process*                        @DataDog/container-experiences
 new-e2e-ssi*                            @DataDog/injection-platform
 # --- Networking ---
 new-e2e-npm*                            @DataDog/cloud-network-monitoring
-new-e2e-netpath*                        @DataDog/cloud-network-monitoring
+new-e2e-netpath*                        @DataDog/network-path
 new-e2e-ndm-netflow*                    @DataDog/ndm-integrations
 new-e2e-ndm-snmp*                       @DataDog/network-device-monitoring-core
 new-e2e-ha-agent*                       @DataDog/network-device-monitoring-core
@@ -224,7 +224,7 @@ new-e2e-alp*                            @DataDog/agent-log-pipelines
 new-e2e-apm*                            @DataDog/agent-apm
 # --- Security ---
 new-e2e-cws*                            @DataDog/agent-security
-new-e2e-sbom                            @DataDog/agent-security @DataDog/container-integrations
+new-e2e-sbom*                           @DataDog/agent-security
 new-e2e-cspm                            @DataDog/agent-cspm @DataDog/agent-security
 # --- OpenTelemetry ---
 new-e2e-otel*                           @DataDog/opentelemetry-agent
@@ -232,8 +232,8 @@ new-e2e-otel*                           @DataDog/opentelemetry-agent
 new-e2e-fleet*                          @DataDog/fleet
 new-e2e-installer*                      @DataDog/fleet
 # --- Agent packaging (install scripts, step-by-step, package signing) ---
-new-e2e-agent-platform-*                @DataDog/agent-delivery
-new-e2e-platform-integrations-*         @DataDog/agent-delivery
+new-e2e-agent-platform-*                @DataDog/fleet
+new-e2e-platform-integrations-*         @DataDog/agent-runtimes
 new-e2e-package-signing-*               @DataDog/agent-delivery
 # --- GPU ---
 new-e2e-gpu*                            @DataDog/ebpf-platform
