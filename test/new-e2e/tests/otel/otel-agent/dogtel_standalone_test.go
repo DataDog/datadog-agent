@@ -88,6 +88,10 @@ func TestDogtelStandalone(t *testing.T) {
 	t.Parallel()
 	e2e.Run(t, &dogtelStandaloneTestSuite{},
 		e2e.WithProvisioner(dogtelStandaloneProvisioner()),
+		e2e.WithCoverageRequired(map[string]bool{
+			"agent":      false,
+			"otel-agent": true,
+		}),
 	)
 }
 

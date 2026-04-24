@@ -1104,7 +1104,7 @@ func (ua *UprobeAttacher) attachToLibrariesOfPID(pid uint32) error {
 
 		if err == nil {
 			successfulMatches = append(successfulMatches, libpath)
-		} else if !errors.Is(err, ErrNoMatchingRule) {
+		} else if !errors.Is(err, ErrNoMatchingRule) && !errors.Is(err, utils.ErrPathIsAlreadyRegistered) {
 			registerErrors = append(registerErrors, err)
 		}
 	}

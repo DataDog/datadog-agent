@@ -138,6 +138,14 @@ var testCases = []struct {
 	// Test len/isEmpty inside eq
 	{name: "eq with len", input: `{"eq": [{"len": {"ref": "s"}}, 5]}`},
 	{name: "eq with isEmpty", input: `{"eq": [{"isEmpty": {"ref": "s"}}, true]}`},
+	// Compound conditions (and/or binary, not unary).
+	{name: "not with eq", input: `{"not": {"eq": [{"ref": "x"}, 42]}}`},
+	{name: "or with nested and", input: `{"or": [{"and": [{"eq": [{"ref": "x"}, 1]}, {"eq": [{"ref": "y"}, 2]}]}, {"isEmpty": {"ref": "s"}}]}`},
+	{name: "deeply nested compound", input: `{"and": [{"or": [{"eq": [{"ref": "x"}, 1]}, {"eq": [{"ref": "x"}, 2]}]}, {"not": {"isEmpty": {"ref": "s"}}}]}`},
+	// Arity error cases for strictly-binary and/or.
+	{name: "and arity 1", input: `{"and": [{"eq": [{"ref": "x"}, 1]}]}`},
+	{name: "and arity 3", input: `{"and": [{"eq": [{"ref": "x"}, 1]}, {"eq": [{"ref": "y"}, 2]}, {"eq": [{"ref": "z"}, 3]}]}`},
+	{name: "or arity 0", input: `{"or": []}`},
 }
 
 // exprResult represents the result of parsing an expression for storage in JSON.
@@ -179,6 +187,17 @@ func exprToResult(expr Expr, err error) exprResult {
 		base := exprToResult(e.Base, nil)
 		index := exprToResult(e.Index, nil)
 		return exprResult{Type: "index", Left: &base, Right: &index}
+	case *AndExpr:
+		left := exprToResult(e.Left, nil)
+		right := exprToResult(e.Right, nil)
+		return exprResult{Type: "and", Left: &left, Right: &right}
+	case *OrExpr:
+		left := exprToResult(e.Left, nil)
+		right := exprToResult(e.Right, nil)
+		return exprResult{Type: "or", Left: &left, Right: &right}
+	case *NotExpr:
+		operand := exprToResult(e.Operand, nil)
+		return exprResult{Type: "not", Left: &operand}
 	case *LiteralExpr:
 		return exprResult{Type: "literal", Value: e.Value}
 	case *UnsupportedExpr:

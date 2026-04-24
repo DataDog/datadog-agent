@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    Autoscaling profiles (``DatadogPodAutoscalerClusterProfile``) now support
+    Argo Rollouts as a target workload type. The Cluster Agent automatically
+    detects whether the Argo Rollouts CRD is installed at startup and, if
+    present, watches Rollout resources for profile labels alongside
+    Deployments and StatefulSets.
+

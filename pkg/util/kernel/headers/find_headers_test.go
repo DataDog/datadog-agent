@@ -9,7 +9,6 @@ package headers
 
 import (
 	"bytes"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -17,12 +16,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
-func TestGetKernelHeaders(t *testing.T) {
-	if _, ok := os.LookupEnv("INTEGRATION"); !ok {
-		t.Skip("set INTEGRATION environment variable to run")
-	}
+func TestDownloadKernelHeaders(t *testing.T) {
+	t.Cleanup(func() { HeaderProvider = nil })
 
-	opts := HeaderOptions{}
+	opts := HeaderOptions{
+		DownloadEnabled: true,
+		Dirs:            []string{t.TempDir()},
+		DownloadDir:     t.TempDir(),
+
+		AptConfigDir:   "/etc/apt",
+		YumReposDir:    "/etc/yum.repos.d",
+		ZypperReposDir: "/etc/zypp/repos.d",
+	}
 	dirs := GetKernelHeaders(opts)
 	assert.NotZero(t, len(dirs), "expected to find header directories")
 	t.Log(dirs)

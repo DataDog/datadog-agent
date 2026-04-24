@@ -74,6 +74,8 @@ receivers:
     v0.150.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver
     v0.150.0
+- gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sobjectsreceiver
+    v0.150.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver
     v0.150.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/receivercreator

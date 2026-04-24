@@ -51,6 +51,10 @@ const (
 	OpcodeSwissMapHashFinish
 	OpcodeSwissMapProbe
 	OpcodeSwissMapCheckSlot
+	// Compound condition opcodes.
+	OpcodeCondNot
+	OpcodeCondJumpIfFalse
+	OpcodeCondJumpIfTrue
 )
 
 //revive:enable:exported

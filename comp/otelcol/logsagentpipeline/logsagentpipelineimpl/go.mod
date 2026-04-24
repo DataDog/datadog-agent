@@ -44,19 +44,18 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.64.0-rc.12 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/metrics v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/processor v0.64.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/logs/sender v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/sources v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/types v0.71.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.65.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/backoff v0.61.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/backoff v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.64.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/flavor v0.0.0-00010101000000-000000000000 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/http v0.61.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/http v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/option v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.64.0-rc.3 // indirect
@@ -222,7 +221,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/message => ../../../../pkg/logs/message
 	github.com/DataDog/datadog-agent/pkg/logs/metrics => ../../../../pkg/logs/metrics
 	github.com/DataDog/datadog-agent/pkg/logs/processor => ../../../../pkg/logs/processor
-	github.com/DataDog/datadog-agent/pkg/logs/sender => ../../../../pkg/logs/sender
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../../../pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../../../../pkg/logs/status/statusinterface
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ../../../../pkg/logs/status/utils

@@ -24,6 +24,7 @@ import (
 
 // DockerHost is an environment that contains a Docker VM, FakeIntake and Agent configured to talk to each other.
 type DockerHost struct {
+	CoverageBase
 	// Components
 	RemoteHost *components.RemoteHost
 	FakeIntake *components.FakeIntake
@@ -130,7 +131,7 @@ func (e *DockerHost) Coverage(outputDir string) (string, error) {
 
 // getAgentCoverageCommands returns the coverage commands for each agent component
 func (e *DockerHost) getAgentCoverageCommands() []CoverageTargetSpec {
-	return []CoverageTargetSpec{
+	targets := []CoverageTargetSpec{
 		{
 			AgentName:       "agent",
 			CoverageCommand: []string{"agent", "coverage", "generate"},
@@ -157,6 +158,8 @@ func (e *DockerHost) getAgentCoverageCommands() []CoverageTargetSpec {
 			Required:        false,
 		},
 	}
+	e.applyCoverageOverrides(targets)
+	return targets
 }
 
 func (e *DockerHost) generateAndDownloadCoverageForContainer(outputDir string) (string, error) {

@@ -544,9 +544,9 @@ func shouldEvictDeferred(podAutoscaler *datadoghq.DatadogPodAutoscaler, now time
 }
 
 // shouldFallbackToRollout returns true if a rollout should be triggered instead
-// of continuing to attempt in-place resizing
-func shouldFallbackToRollout(toEvict []classifiedPod, podAutoscaler *datadoghq.DatadogPodAutoscaler, now time.Time, patchForbidden bool) bool {
-	if patchForbidden {
+// of continuing to attempt in-place resizing.
+func shouldFallbackToRollout(toEvict []classifiedPod, hasInfeasible bool, podAutoscaler *datadoghq.DatadogPodAutoscaler, now time.Time, patchForbidden bool) bool {
+	if patchForbidden || hasInfeasible {
 		return true
 	}
 
