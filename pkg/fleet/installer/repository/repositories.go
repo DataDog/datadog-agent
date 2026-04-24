@@ -7,11 +7,13 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/shirou/gopsutil/v4/disk"
 )
 
@@ -123,13 +125,14 @@ func (r *Repositories) Cleanup(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("could not load repositories: %w", err)
 	}
+	var errs []error
 	for _, repo := range repositories {
-		err := repo.Cleanup(ctx)
-		if err != nil {
-			return fmt.Errorf("could not clean up repository: %w", err)
+		if err := repo.Cleanup(ctx); err != nil {
+			log.Errorf("installer: could not clean up repository %s: %v", repo.rootPath, err)
+			errs = append(errs, err)
 		}
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 // MkdirTemp creates a temporary directory in the same partition as the root path.

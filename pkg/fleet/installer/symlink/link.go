@@ -12,6 +12,9 @@ import (
 	"os"
 )
 
+// ErrNotSymlink is returned when the path exists but is not a symlink.
+var ErrNotSymlink = errors.New("not a symlink")
+
 // Read reads the target of a link.
 func Read(linkPath string) (string, error) {
 	return os.Readlink(linkPath)
@@ -26,7 +29,7 @@ func Exist(linkPath string) (bool, error) {
 		return false, err
 	}
 	if fileInfo.Mode()&os.ModeSymlink == 0 {
-		return false, fmt.Errorf("path %s is not a symlink, mode: %s", linkPath, fileInfo.Mode())
+		return false, fmt.Errorf("path %s is not a symlink, mode: %s: %w", linkPath, fileInfo.Mode(), ErrNotSymlink)
 	}
 	return true, nil
 }
