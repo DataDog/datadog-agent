@@ -789,7 +789,7 @@ network_path:
 
 func TestApplyUseDogstatsdSuppression(t *testing.T) {
 	t.Run("use_dogstatsd=false forces data_plane.dogstatsd.enabled=false", func(t *testing.T) {
-		cfg := newEmptyMockConf(t)
+		cfg := newTestConf(t)
 		cfg.SetWithoutSource("use_dogstatsd", false)
 		cfg.SetWithoutSource("data_plane.enabled", true)
 		cfg.SetWithoutSource("data_plane.dogstatsd.enabled", true)
@@ -803,7 +803,7 @@ func TestApplyUseDogstatsdSuppression(t *testing.T) {
 	})
 
 	t.Run("use_dogstatsd=true leaves data_plane.dogstatsd.enabled untouched", func(t *testing.T) {
-		cfg := newEmptyMockConf(t)
+		cfg := newTestConf(t)
 		cfg.SetWithoutSource("use_dogstatsd", true)
 		cfg.SetWithoutSource("data_plane.enabled", true)
 		cfg.SetWithoutSource("data_plane.dogstatsd.enabled", true)
@@ -814,7 +814,7 @@ func TestApplyUseDogstatsdSuppression(t *testing.T) {
 	})
 
 	t.Run("use_dogstatsd unset leaves data_plane.dogstatsd.enabled untouched", func(t *testing.T) {
-		cfg := newEmptyMockConf(t)
+		cfg := newTestConf(t)
 		cfg.SetWithoutSource("data_plane.enabled", true)
 		cfg.SetWithoutSource("data_plane.dogstatsd.enabled", true)
 

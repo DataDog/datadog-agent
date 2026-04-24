@@ -1267,6 +1267,27 @@ func agent(config pkgconfigmodel.Setup) {
 
 	pkgconfigmodel.AddOverrideFunc(toggleDefaultPayloads)
 	pkgconfigmodel.AddOverrideFunc(applyInfrastructureModeOverrides)
+	pkgconfigmodel.AddOverrideFunc(applyUseDogstatsdSuppression)
+}
+
+// applyUseDogstatsdSuppression is a post-load override that, when
+// use_dogstatsd is false, forces data_plane.dogstatsd.enabled to false
+// so the Agent Data Plane process (which reads the latter via the
+// config stream) skips its DogStatsD source. data_plane.enabled is
+// intentionally left alone so other ADP pipelines (e.g. OTLP) keep
+// working independently of the DogStatsD master toggle.
+//
+// Matches the truth table at
+// https://github.com/DataDog/saluki/issues/1334#issuecomment-4292253054.
+func applyUseDogstatsdSuppression(config pkgconfigmodel.Config) {
+	if config.GetBool("use_dogstatsd") {
+		return
+	}
+	if !config.GetBool("data_plane.dogstatsd.enabled") {
+		return
+	}
+	log.Infof("Forcing data_plane.dogstatsd.enabled=false because use_dogstatsd=false")
+	config.Set("data_plane.dogstatsd.enabled", false, pkgconfigmodel.SourceAgentRuntime)
 }
 
 func fleet(config pkgconfigmodel.Setup) {
