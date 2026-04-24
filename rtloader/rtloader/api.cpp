@@ -302,8 +302,7 @@ char *get_check_diagnoses(rtloader_t *rtloader, rtloader_pyobject_t *check)
 
 int has_subinterpreter_support(const rtloader_t *rtloader)
 {
-    // This is a compile-time check, not a runtime query on the rtloader instance.
-    // The rtloader parameter is accepted for API consistency but unused.
+    // compile-time check; rtloader unused, kept for API consistency
     (void)rtloader;
 #ifdef RTLOADER_HAS_SUBINTERPRETERS
     return 1;

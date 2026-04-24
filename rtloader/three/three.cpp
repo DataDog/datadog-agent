@@ -13,6 +13,7 @@
 #include "containers.h"
 #include "datadog_agent.h"
 #include "kubeutil.h"
+#include "log.h"
 #include "rtloader_mem.h"
 #include "stringutils.h"
 #include "tagger.h"
@@ -377,6 +378,12 @@ bool Three::getCheck(RtLoaderPyObject *py_class, const char *init_config_str, co
 
         // Get the check's class as a new PyObject in this sub-interpreter.
         if (_setupSubInterpClass(module_name_str, sub_klass)) {
+            {
+                std::ostringstream msg;
+                msg << "[SUB-INTERPRETERS][EXPERIMENTAL] created sub-interpreter (tstate="
+                    << sub_tstate << ") for check '" << module_name_str << "'";
+                agent_log(DATADOG_AGENT_INFO, const_cast<char *>(msg.str().c_str()));
+            }
             // Rebind klass to the sub-interpreter's class. All code below runs
             // in the sub-interpreter's context (we're attached to it).
             klass = sub_klass;
@@ -385,6 +392,10 @@ bool Three::getCheck(RtLoaderPyObject *py_class, const char *init_config_str, co
             // Re-import or class lookup failed - fall back to main for this check.
             // Clear both errors: Python's so it doesn't affect later Python
             // calls, and rtloader's so Go doesn't see this as a failure.
+            std::string msg = "[SUB-INTERPRETERS][EXPERIMENTAL] sub-interp setup failed for '"
+                            + module_name_str + "' - falling back to main interpreter";
+            agent_log(DATADOG_AGENT_INFO, const_cast<char *>(msg.c_str()));
+
             PyErr_Clear();
             clearError();
             _destroySubInterpreter(sub_tstate, main_tstate);

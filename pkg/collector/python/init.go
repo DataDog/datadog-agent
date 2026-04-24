@@ -452,7 +452,7 @@ func Initialize(paths ...string) error {
 	// This is controlled at build time via -DENABLE_SUBINTERPRETERS=ON in CMake.
 	// When enabled, each Python check runs in its own isolated sub-interpreter.
 	if C.has_subinterpreter_support(rtloader) == 1 {
-		log.Warnf("EXPERIMENTAL: Python sub-interpreter isolation is enabled (per-check isolation)")
+		log.Warnf("[SUB-INTERPRETERS][EXPERIMENTAL] Python sub-interpreter isolation is enabled (per-check isolation)")
 
 		// Load the sub-interpreter blocklist from config. Modules in this list
 		// run in the main interpreter instead of a sub-interpreter. This is
@@ -461,7 +461,7 @@ func Initialize(paths ...string) error {
 		blocklist := pkgconfigsetup.Datadog().GetStringSlice("subinterpreter_blocklist")
 		for _, moduleName := range blocklist {
 			C.add_subinterp_blocklist_entry(rtloader, TrackedCString(moduleName))
-			log.Infof("Sub-interpreter blocklist: '%s' will run in the main interpreter", moduleName)
+			log.Infof("[SUB-INTERPRETERS][EXPERIMENTAL] Blocklist: '%s' will run in the main interpreter", moduleName)
 		}
 	}
 

@@ -93,7 +93,7 @@ static PyMethodDef methods[] = {
  * See aggregator.c for a detailed explanation of multi-phase init, m_size,
  * and Py_MOD_PER_INTERPRETER_GIL_SUPPORTED rationale.
  */
-#if PY_VERSION_HEX >= 0x030E0000
+#if PY_VERSION_HEX >= 0x030D0000
 
 static PyModuleDef_Slot datadog_agent_slots[] = {
     {Py_mod_multiple_interpreters, Py_MOD_PER_INTERPRETER_GIL_SUPPORTED},
@@ -126,7 +126,7 @@ PyMODINIT_FUNC PyInit_datadog_agent(void)
     return PyModule_Create(&module_def);
 }
 
-#endif /* PY_VERSION_HEX >= 0x030E0000 */
+#endif /* PY_VERSION_HEX >= 0x030D0000 */
 
 void _set_get_version_cb(cb_get_version_t cb)
 {

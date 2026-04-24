@@ -101,7 +101,7 @@ static void add_constants(PyObject *m)
  * For Python < 3.14, we preserve the original single-phase init unchanged
  * to maintain backward compatibility.
  */
-#if PY_VERSION_HEX >= 0x030E0000
+#if PY_VERSION_HEX >= 0x030D0000
 
 /*
  * aggregator_exec: Multi-phase init "exec" slot callback.
@@ -184,7 +184,7 @@ PyMODINIT_FUNC PyInit_aggregator(void)
     return m;
 }
 
-#endif /* PY_VERSION_HEX >= 0x030E0000 */
+#endif /* PY_VERSION_HEX >= 0x030D0000 */
 
 void _set_submit_metric_cb(cb_submit_metric_t cb)
 {
