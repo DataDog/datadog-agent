@@ -71,6 +71,15 @@ func NewCluster(e aws.Environment, name string, opts ...Option) (*ecsComp.Cluste
 			capacityProviders = append(capacityProviders, cpName)
 		}
 
+		if params.ManagedInstanceNodeGroup {
+			cpName, err := ecs.NewECSOptimizedNodeGroup(e, ecsCluster.Name, false)
+			if err != nil {
+				return err
+			}
+
+			capacityProviders = append(capacityProviders, cpName)
+		}
+
 		// Associate capacity providers
 		_, err = ecs.NewClusterCapacityProvider(e, e.Ctx().Stack(), ecsCluster.Name, capacityProviders)
 		if err != nil {

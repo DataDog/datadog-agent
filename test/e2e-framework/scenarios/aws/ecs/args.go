@@ -16,6 +16,7 @@ type Params struct {
 	LinuxARMNodeGroup          bool
 	LinuxBottleRocketNodeGroup bool
 	WindowsNodeGroup           bool
+	ManagedInstanceNodeGroup   bool
 }
 
 type Option = func(*Params) error
@@ -56,6 +57,13 @@ func WithLinuxBottleRocketNodeGroup() Option {
 func WithWindowsNodeGroup() Option {
 	return func(p *Params) error {
 		p.WindowsNodeGroup = true
+		return nil
+	}
+}
+
+func WithManagedInstanceNodeGroup() Option {
+	return func(p *Params) error {
+		p.ManagedInstanceNodeGroup = true
 		return nil
 	}
 }
