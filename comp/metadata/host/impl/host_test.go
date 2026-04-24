@@ -19,17 +19,40 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/metadata/resources"
+	resourcesdef "github.com/DataDog/datadog-agent/comp/metadata/resources/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/resources/resourcesimpl"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
+// testDeps is an fx-compatible bridge used in tests, since Requires uses compdef.In (not fx.In).
+type testDeps struct {
+	fx.In
+
+	Log        log.Component
+	Config     config.Component
+	Resources  resourcesdef.Component
+	Serializer serializer.MetricSerializer
+	Hostname   hostnameinterface.Component
+}
+
+func makeRequires(deps testDeps) Requires {
+	return Requires{
+		Log:        deps.Log,
+		Config:     deps.Config,
+		Resources:  deps.Resources,
+		Serializer: deps.Serializer,
+		Hostname:   deps.Hostname,
+	}
+}
+
 func TestNewHostProviderDefaultIntervals(t *testing.T) {
 	ret := NewComponent(
-		fxutil.Test[Requires](
+		makeRequires(fxutil.Test[testDeps](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMock(t) }),
@@ -37,7 +60,7 @@ func TestNewHostProviderDefaultIntervals(t *testing.T) {
 			fx.Replace(resources.MockParams{Data: nil}),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
 			hostnameimpl.MockModule(),
-		),
+		)),
 	)
 
 	assert.Equal(t, defaultCollectInterval, ret.Comp.(*host).backoffPolicy.MaxInterval)
@@ -116,7 +139,7 @@ func TestNewHostProviderIntervalValidation(t *testing.T) {
 			}
 
 			ret := NewComponent(
-				fxutil.Test[Requires](
+				makeRequires(fxutil.Test[testDeps](
 					t,
 					fx.Provide(func() log.Component { return logmock.New(t) }),
 					fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
@@ -124,7 +147,7 @@ func TestNewHostProviderIntervalValidation(t *testing.T) {
 					fx.Replace(resources.MockParams{Data: nil}),
 					fx.Provide(func() serializer.MetricSerializer { return nil }),
 					hostnameimpl.MockModule(),
-				),
+				)),
 			)
 
 			hostProvider := ret.Comp.(*host)
@@ -144,14 +167,14 @@ func TestBackoffWhenEarlyIntervalEqualsCollectionInterval(t *testing.T) {
 			},
 		},
 	}
-	ret := NewComponent(fxutil.Test[Requires](t,
+	ret := NewComponent(makeRequires(fxutil.Test[testDeps](t,
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
 		resourcesimpl.MockModule(),
 		fx.Replace(resources.MockParams{Data: nil}),
 		fx.Provide(func() serializer.MetricSerializer { return nil }),
 		hostnameimpl.MockModule(),
-	))
+	)))
 	h := ret.Comp.(*host)
 
 	h.backoffPolicy.Reset()
@@ -162,7 +185,7 @@ func TestBackoffWhenEarlyIntervalEqualsCollectionInterval(t *testing.T) {
 
 func TestFlareProvider(t *testing.T) {
 	ret := NewComponent(
-		fxutil.Test[Requires](
+		makeRequires(fxutil.Test[testDeps](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMock(t) }),
@@ -170,7 +193,7 @@ func TestFlareProvider(t *testing.T) {
 			fx.Replace(resources.MockParams{Data: nil}),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
 			hostnameimpl.MockModule(),
-		),
+		)),
 	)
 
 	hostProvider := ret.Comp.(*host)
@@ -182,7 +205,7 @@ func TestFlareProvider(t *testing.T) {
 
 func TestStatusHeaderProvider(t *testing.T) {
 	ret := NewComponent(
-		fxutil.Test[Requires](
+		makeRequires(fxutil.Test[testDeps](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMock(t) }),
@@ -190,7 +213,7 @@ func TestStatusHeaderProvider(t *testing.T) {
 			fx.Replace(resources.MockParams{Data: nil}),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
 			hostnameimpl.MockModule(),
-		),
+		)),
 	)
 
 	headerStatusProvider := ret.StatusHeaderProvider.Provider
