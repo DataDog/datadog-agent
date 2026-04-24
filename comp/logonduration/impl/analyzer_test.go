@@ -121,66 +121,6 @@ func TestParseKernelProcess(t *testing.T) {
 		)
 	}
 
-	t.Run("first smss.exe sets SmssStart", func(t *testing.T) {
-		tl := &BootTimeline{}
-		p := &kernelProcessParser{timeline: tl}
-		e := makeProcessEvent("smss.exe", ts)
-
-		p.Parse(e, evtProcessStart, ts)
-
-		assert.Equal(t, ts, tl.SmssStart)
-		assert.Equal(t, 1, p.smssCount)
-	})
-
-	t.Run("third smss.exe sets UserSmssStart", func(t *testing.T) {
-		tl := &BootTimeline{}
-		p := &kernelProcessParser{timeline: tl}
-		ts2 := ts.Add(2 * time.Second)
-		ts3 := ts.Add(5 * time.Second)
-
-		p.Parse(makeProcessEvent("smss.exe", ts), evtProcessStart, ts)
-		p.Parse(makeProcessEvent("smss.exe", ts2), evtProcessStart, ts2)
-		p.Parse(makeProcessEvent("smss.exe", ts3), evtProcessStart, ts3)
-
-		assert.Equal(t, ts, tl.SmssStart)
-		assert.Equal(t, ts3, tl.UserSmssStart)
-		assert.Equal(t, 3, p.smssCount)
-	})
-
-	t.Run("first winlogon.exe sets WinlogonStart", func(t *testing.T) {
-		tl := &BootTimeline{}
-		p := &kernelProcessParser{timeline: tl}
-		e := makeProcessEvent("winlogon.exe", ts)
-
-		p.Parse(e, evtProcessStart, ts)
-
-		assert.Equal(t, ts, tl.WinlogonStart)
-		assert.Equal(t, 1, p.winlogonCount)
-	})
-
-	t.Run("second winlogon.exe sets UserWinlogonStart", func(t *testing.T) {
-		tl := &BootTimeline{}
-		p := &kernelProcessParser{timeline: tl}
-		ts2 := ts.Add(10 * time.Second)
-
-		p.Parse(makeProcessEvent("winlogon.exe", ts), evtProcessStart, ts)
-		p.Parse(makeProcessEvent("winlogon.exe", ts2), evtProcessStart, ts2)
-
-		assert.Equal(t, ts, tl.WinlogonStart)
-		assert.Equal(t, ts2, tl.UserWinlogonStart)
-	})
-
-	t.Run("userinit.exe sets UserinitStart only once", func(t *testing.T) {
-		tl := &BootTimeline{}
-		p := &kernelProcessParser{timeline: tl}
-		ts2 := ts.Add(5 * time.Second)
-
-		p.Parse(makeProcessEvent("userinit.exe", ts), evtProcessStart, ts)
-		p.Parse(makeProcessEvent("userinit.exe", ts2), evtProcessStart, ts2)
-
-		assert.Equal(t, ts, tl.UserinitStart)
-	})
-
 	t.Run("explorer.exe sets ExplorerStart only once", func(t *testing.T) {
 		tl := &BootTimeline{}
 		p := &kernelProcessParser{timeline: tl}
@@ -195,21 +135,21 @@ func TestParseKernelProcess(t *testing.T) {
 	t.Run("handles mixed case image names", func(t *testing.T) {
 		tl := &BootTimeline{}
 		p := &kernelProcessParser{timeline: tl}
-		e := makeProcessEvent("SMSS.EXE", ts)
+		e := makeProcessEvent("EXPLORER.EXE", ts)
 
 		p.Parse(e, evtProcessStart, ts)
 
-		assert.Equal(t, ts, tl.SmssStart)
+		assert.Equal(t, ts, tl.ExplorerStart)
 	})
 
 	t.Run("handles full path image names", func(t *testing.T) {
 		tl := &BootTimeline{}
 		p := &kernelProcessParser{timeline: tl}
-		e := makeProcessEvent(`C:\Windows\System32\smss.exe`, ts)
+		e := makeProcessEvent(`C:\Windows\explorer.exe`, ts)
 
 		p.Parse(e, evtProcessStart, ts)
 
-		assert.Equal(t, ts, tl.SmssStart)
+		assert.Equal(t, ts, tl.ExplorerStart)
 	})
 
 	t.Run("tries alternative property names", func(t *testing.T) {
@@ -231,38 +171,12 @@ func TestParseKernelProcess(t *testing.T) {
 
 		p.Parse(e, evtProcessStart, ts)
 
-		assert.True(t, tl.SmssStart.IsZero())
-		assert.True(t, tl.WinlogonStart.IsZero())
-		assert.True(t, tl.UserinitStart.IsZero())
 		assert.True(t, tl.ExplorerStart.IsZero())
 	})
 }
 
 func TestParseWinlogon(t *testing.T) {
 	ts := time.Date(2026, 1, 15, 8, 0, 30, 0, time.UTC)
-
-	t.Run("event 101 sets WinlogonInit", func(t *testing.T) {
-		tl := &BootTimeline{}
-		p := &winlogonParser{timeline: tl}
-		p.Parse(nil, evtWinlogonInit, ts)
-		assert.Equal(t, ts, tl.WinlogonInit)
-	})
-
-	t.Run("event 101 first-write-wins", func(t *testing.T) {
-		tl := &BootTimeline{}
-		p := &winlogonParser{timeline: tl}
-		ts2 := ts.Add(5 * time.Second)
-		p.Parse(nil, evtWinlogonInit, ts)
-		p.Parse(nil, evtWinlogonInit, ts2)
-		assert.Equal(t, ts, tl.WinlogonInit)
-	})
-
-	t.Run("event 102 sets WinlogonInitDone", func(t *testing.T) {
-		tl := &BootTimeline{}
-		p := &winlogonParser{timeline: tl}
-		p.Parse(nil, evtWinlogonInitDone, ts)
-		assert.Equal(t, ts, tl.WinlogonInitDone)
-	})
 
 	t.Run("event 103 sets LoginUIStart", func(t *testing.T) {
 		tl := &BootTimeline{}
@@ -550,21 +464,14 @@ func TestCollector_FullBootSequence(t *testing.T) {
 
 	events := []*mockEvent{
 		makeEvent(guidKernelGeneral, 12, boot),
-		makeEvent(guidKernelProcess, 1, boot.Add(1*time.Second),
-			property{Name: "ImageName", Value: "smss.exe"}),
-		makeEvent(guidWinlogon, 101, boot.Add(4*time.Second)),
 		makeEvent(guidWinlogon, 103, boot.Add(8*time.Second)),
 		makeEvent(guidWinlogon, 104, boot.Add(10*time.Second)),
 		makeEvent(guidGroupPolicy, 4000, boot.Add(12*time.Second)),
 		makeEvent(guidGroupPolicy, 8000, boot.Add(20*time.Second)),
-		makeEvent(guidKernelProcess, 1, boot.Add(25*time.Second),
-			property{Name: "ImageName", Value: "winlogon.exe"}),
 		makeEvent(guidWinlogon, 7001, boot.Add(29*time.Second)),
 		makeEvent(guidUserProfile, 1001, boot.Add(31*time.Second)),
 		makeEvent(guidUserProfile, 1002, boot.Add(35*time.Second)),
 		makeEvent(guidWinlogon, 9, boot.Add(40*time.Second)),
-		makeEvent(guidKernelProcess, 1, boot.Add(42*time.Second),
-			property{Name: "ImageName", Value: "userinit.exe"}),
 		makeEvent(guidWinlogon, 10, boot.Add(45*time.Second)),
 		makeEvent(guidKernelProcess, 1, boot.Add(50*time.Second),
 			property{Name: "ImageName", Value: "explorer.exe"}),
@@ -586,18 +493,14 @@ func TestCollector_FullBootSequence(t *testing.T) {
 
 	tl := coll.timeline
 	assert.Equal(t, boot, tl.BootStart)
-	assert.Equal(t, boot.Add(1*time.Second), tl.SmssStart)
-	assert.Equal(t, boot.Add(4*time.Second), tl.WinlogonInit)
 	assert.Equal(t, boot.Add(8*time.Second), tl.LoginUIStart)
 	assert.Equal(t, boot.Add(10*time.Second), tl.LoginUIDone)
 	assert.Equal(t, boot.Add(12*time.Second), tl.MachineGPStart)
 	assert.Equal(t, boot.Add(20*time.Second), tl.MachineGPEnd)
-	assert.Equal(t, boot.Add(25*time.Second), tl.WinlogonStart)
 	assert.Equal(t, boot.Add(29*time.Second), tl.SessionLogon)
 	assert.Equal(t, boot.Add(31*time.Second), tl.ProfileCreationStart)
 	assert.Equal(t, boot.Add(35*time.Second), tl.ProfileCreationEnd)
 	assert.Equal(t, boot.Add(40*time.Second), tl.ExecuteShellCommandListStart)
-	assert.Equal(t, boot.Add(42*time.Second), tl.UserinitStart)
 	assert.Equal(t, boot.Add(45*time.Second), tl.ExecuteShellCommandListEnd)
 	assert.Equal(t, boot.Add(50*time.Second), tl.ExplorerStart)
 	assert.Equal(t, boot.Add(51*time.Second), tl.ExplorerInitStart)

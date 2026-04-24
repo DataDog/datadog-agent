@@ -44,8 +44,6 @@ const (
 	// Winlogon
 	evtWinlogonShellCmdStart uint16 = 9
 	evtWinlogonShellCmdEnd   uint16 = 10
-	evtWinlogonInit          uint16 = 101
-	evtWinlogonInitDone      uint16 = 102
 	evtLoginUIStart          uint16 = 103
 	evtLoginUIDone           uint16 = 104
 	evtSessionLogon          uint16 = 7001
@@ -74,10 +72,6 @@ const (
 // BootTimeline holds all milestone timestamps collected from ETL events.
 type BootTimeline struct {
 	BootStart                    time.Time // Kernel-General Event 12
-	SmssStart                    time.Time // Kernel-Process Event 1 (first smss.exe)
-	WinlogonStart                time.Time // Kernel-Process Event 1 (first winlogon.exe, Session 1)
-	UserSmssStart                time.Time // Kernel-Process Event 1 (smss.exe, Session 2+)
-	UserWinlogonStart            time.Time // Kernel-Process Event 1 (winlogon.exe, Session 2+)
 	SessionLogon                 time.Time // Winlogon Event 7001 (Session Logon)
 	ProfileLoadStart             time.Time // User Profile Service Event 1
 	ProfileLoadEnd               time.Time // User Profile Service Event 2
@@ -89,7 +83,6 @@ type BootTimeline struct {
 	UserGPEnd                    time.Time // GroupPolicy Event 8001
 	ExecuteShellCommandListStart time.Time // Winlogon Event 9
 	ExecuteShellCommandListEnd   time.Time // Winlogon Event 10
-	UserinitStart                time.Time // Kernel-Process Event 1 (userinit.exe)
 	ExplorerStart                time.Time // Kernel-Process Event 1 (explorer.exe)
 	ExplorerInitStart            time.Time // Shell-Core Event 9601 (Explorer_InitializingExplorerStart)
 	ExplorerInitEnd              time.Time // Shell-Core Event 9602 (Explorer_InitializingExplorerStop)
@@ -101,10 +94,8 @@ type BootTimeline struct {
 	DesktopReadyEnd              time.Time // Shell-Core Event 9649 (finalize step)
 
 	// Winlogon sub-events for detailed component timing
-	WinlogonInit     time.Time // Winlogon Event 101
-	WinlogonInitDone time.Time // Winlogon Event 102
-	LoginUIStart     time.Time // Winlogon Event 103
-	LoginUIDone      time.Time // Winlogon Event 104
+	LoginUIStart time.Time // Winlogon Event 103
+	LoginUIDone  time.Time // Winlogon Event 104
 
 	// Shell-Core sub-events for detailed component timing
 	DesktopStartupAppsStart time.Time // Shell-Core Event 9648 (desktopstartupapps step)
@@ -158,7 +149,6 @@ func buildProviders(timeline *BootTimeline) map[windows.GUID]providerConfig {
 		guidWinlogon: {
 			acceptedIDs: map[uint16]struct{}{
 				evtWinlogonShellCmdStart: {}, evtWinlogonShellCmdEnd: {},
-				evtWinlogonInit: {}, evtWinlogonInitDone: {},
 				evtLoginUIStart: {}, evtLoginUIDone: {},
 				evtSessionLogon: {},
 			},
@@ -277,11 +267,9 @@ func (p *kernelGeneralParser) Parse(_ eventWithProperties, _ uint16, ts time.Tim
 }
 
 // kernelProcessParser processes Kernel-Process events (Event 1: Process Start).
-// Tracks key process milestones: smss.exe, winlogon.exe, userinit.exe, explorer.exe.
+// Tracks the first explorer.exe process start.
 type kernelProcessParser struct {
-	timeline      *BootTimeline
-	smssCount     int
-	winlogonCount int
+	timeline *BootTimeline
 }
 
 func (p *kernelProcessParser) Parse(e eventWithProperties, _ uint16, ts time.Time) {
@@ -298,29 +286,8 @@ func (p *kernelProcessParser) Parse(e eventWithProperties, _ uint16, ts time.Tim
 	imageName = strings.ToLower(filepath.Base(imageName))
 	log.Debugf("Parsing kernel process event: imageName: %s", imageName)
 
-	switch {
-	case strings.Contains(imageName, "smss.exe"):
-		p.smssCount++
-		if p.smssCount == 1 {
-			p.timeline.SmssStart = ts
-		} else if p.timeline.UserSmssStart.IsZero() && p.smssCount >= 3 {
-			p.timeline.UserSmssStart = ts
-		}
-	case strings.Contains(imageName, "winlogon.exe"):
-		p.winlogonCount++
-		if p.winlogonCount == 1 {
-			p.timeline.WinlogonStart = ts
-		} else if p.timeline.UserWinlogonStart.IsZero() && p.winlogonCount >= 2 {
-			p.timeline.UserWinlogonStart = ts
-		}
-	case strings.Contains(imageName, "userinit.exe"):
-		if p.timeline.UserinitStart.IsZero() {
-			p.timeline.UserinitStart = ts
-		}
-	case strings.Contains(imageName, "explorer.exe"):
-		if p.timeline.ExplorerStart.IsZero() {
-			p.timeline.ExplorerStart = ts
-		}
+	if strings.Contains(imageName, "explorer.exe") && p.timeline.ExplorerStart.IsZero() {
+		p.timeline.ExplorerStart = ts
 	}
 }
 
@@ -331,14 +298,6 @@ type winlogonParser struct {
 
 func (p *winlogonParser) Parse(_ eventWithProperties, id uint16, ts time.Time) {
 	switch id {
-	case evtWinlogonInit:
-		if p.timeline.WinlogonInit.IsZero() {
-			p.timeline.WinlogonInit = ts
-		}
-	case evtWinlogonInitDone:
-		if p.timeline.WinlogonInitDone.IsZero() {
-			p.timeline.WinlogonInitDone = ts
-		}
 	case evtLoginUIStart:
 		if p.timeline.LoginUIStart.IsZero() {
 			p.timeline.LoginUIStart = ts

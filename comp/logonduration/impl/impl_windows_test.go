@@ -27,18 +27,12 @@ import (
 func fullBootTimeline(boot time.Time) BootTimeline {
 	return BootTimeline{
 		BootStart:                    boot,
-		SmssStart:                    boot.Add(1 * time.Second),
-		UserSmssStart:                boot.Add(5 * time.Second),
-		WinlogonStart:                boot.Add(3 * time.Second),
-		WinlogonInit:                 boot.Add(4 * time.Second),
-		WinlogonInitDone:             boot.Add(6 * time.Second),
 		LoginUIStart:                 boot.Add(8 * time.Second),
 		LoginUIDone:                  boot.Add(10 * time.Second),
 		MachineGPStart:               boot.Add(12 * time.Second),
 		MachineGPEnd:                 boot.Add(20 * time.Second),
 		UserGPStart:                  boot.Add(32 * time.Second),
 		UserGPEnd:                    boot.Add(38 * time.Second),
-		UserWinlogonStart:            boot.Add(25 * time.Second),
 		SessionLogon:                 boot.Add(29 * time.Second),
 		ProfileLoadStart:             boot.Add(31 * time.Second),
 		ProfileLoadEnd:               boot.Add(34 * time.Second),
@@ -46,7 +40,6 @@ func fullBootTimeline(boot time.Time) BootTimeline {
 		ProfileCreationEnd:           boot.Add(36 * time.Second),
 		ExecuteShellCommandListStart: boot.Add(40 * time.Second),
 		ExecuteShellCommandListEnd:   boot.Add(45 * time.Second),
-		UserinitStart:                boot.Add(42 * time.Second),
 		ExplorerStart:                boot.Add(50 * time.Second),
 		ExplorerInitStart:            boot.Add(51 * time.Second),
 		ExplorerInitEnd:              boot.Add(54 * time.Second),
@@ -67,7 +60,7 @@ func TestBuildTimelineMilestones(t *testing.T) {
 	t.Run("includes only non-zero timestamps", func(t *testing.T) {
 		tl := BootTimeline{
 			BootStart:         boot,
-			SmssStart:         boot.Add(1 * time.Second),
+			LoginUIStart:      boot.Add(1 * time.Second),
 			DesktopReadyStart: boot.Add(90 * time.Second),
 		}
 
@@ -75,14 +68,14 @@ func TestBuildTimelineMilestones(t *testing.T) {
 
 		assert.Len(t, milestones, 3)
 		assert.Equal(t, "Boot Start", milestones[0].Name)
-		assert.Equal(t, "SMSS Start", milestones[1].Name)
+		assert.Equal(t, "Login UI Start", milestones[1].Name)
 		assert.Equal(t, "Desktop Ready", milestones[2].Name)
 	})
 
 	t.Run("computes correct offsets from boot start", func(t *testing.T) {
 		tl := BootTimeline{
 			BootStart:         boot,
-			SmssStart:         boot.Add(2 * time.Second),
+			LoginUIStart:      boot.Add(2 * time.Second),
 			DesktopReadyStart: boot.Add(90 * time.Second),
 		}
 
@@ -114,7 +107,7 @@ func TestBuildTimelineMilestones(t *testing.T) {
 
 	t.Run("zero BootStart produces zero offsets", func(t *testing.T) {
 		tl := BootTimeline{
-			SmssStart:         boot.Add(1 * time.Second),
+			LoginUIStart:      boot.Add(1 * time.Second),
 			DesktopReadyStart: boot.Add(90 * time.Second),
 		}
 
@@ -132,26 +125,20 @@ func TestBuildTimelineMilestones(t *testing.T) {
 
 		milestones := buildTimelineMilestones(tl)
 
-		require.Len(t, milestones, 20)
+		require.Len(t, milestones, 14)
 
 		expected := []struct {
 			name     string
 			offsetMs float64
 		}{
 			{"Boot Start", 0},
-			{"SMSS Start", 1000},
-			{"User Session SMSS Start", 5000},
-			{"Winlogon Start", 3000},
-			{"Winlogon Init", 4000},
 			{"Login UI Start", 8000},
 			{"Computer Group Policy", 12000},
 			{"User Group Policy", 32000},
-			{"User Session Winlogon Start", 25000},
 			{"User Logon", 29000},
 			{"Profile Loaded", 31000},
 			{"Profile Created", 33000},
 			{"Execute Shell Commands", 40000},
-			{"Userinit.exe", 42000},
 			{"Explorer.exe Start", 50000},
 			{"Explorer Initializing", 51000},
 			{"Desktop Created", 53000},
