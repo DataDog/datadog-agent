@@ -1,6 +1,6 @@
 {
     "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-    "extends": ["config:recommended", ":enablePreCommit"],
+    "extends": ["config:recommended", ":enablePreCommit", "schedule:nonOfficeHours"],
     "constraints": {
       "go": "1.25.9"
     },
