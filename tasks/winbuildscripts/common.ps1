@@ -131,6 +131,84 @@ function Expand-ModCache() {
     }
 }
 
+<#
+.SYNOPSIS
+Expands the Go build cache from an archive file.
+
+.DESCRIPTION
+This function expands the Go build cache from an archive file located in the specified root directory.
+It extracts the contents into the directory defined by the GOCACHE environment variable.
+
+.PARAMETER root
+The root directory where the archive file is located. Defaults to the current location.
+#>
+function Expand-GoCache() {
+    param(
+        [string] $root = (Get-Location).Path
+    )
+
+    if (-not $env:GOCACHE) {
+        Write-Host "GOCACHE environment variable not set, skipping go build cache expansion"
+        return
+    }
+
+    $GOCACHE_ARCHIVE = Join-Path $root "gocache.7z"
+
+    if (-not (Test-Path $GOCACHE_ARCHIVE)) {
+        Write-Host "Go build cache archive not found at $GOCACHE_ARCHIVE, starting with empty cache"
+        return
+    }
+
+    Write-Host "Extracting go build cache from $GOCACHE_ARCHIVE to $env:GOCACHE"
+    mkdir -Force "$env:GOCACHE" -ErrorAction Stop | Out-Null
+    & 7z.exe x $GOCACHE_ARCHIVE -o"$env:GOCACHE" -aoa -bt
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warning "Failed to extract go build cache, continuing without cache"
+        return
+    }
+    Write-Host "Go build cache extracted to $env:GOCACHE"
+}
+
+<#
+.SYNOPSIS
+Saves the Go build cache to an archive file.
+
+.DESCRIPTION
+This function compresses the Go build cache directory (defined by GOCACHE) into an archive file
+at the specified destination directory, to be persisted by CI cache.
+
+.PARAMETER destination
+The directory where the archive file will be saved. Defaults to the current location.
+#>
+function Save-GoCache() {
+    param(
+        [string] $destination = (Get-Location).Path
+    )
+
+    if (-not $env:GOCACHE) {
+        Write-Host "GOCACHE environment variable not set, skipping go build cache save"
+        return
+    }
+
+    if (-not (Test-Path $env:GOCACHE)) {
+        Write-Host "GOCACHE directory $env:GOCACHE does not exist, skipping save"
+        return
+    }
+
+    $GOCACHE_ARCHIVE = Join-Path $destination "gocache.7z"
+    Write-Host "Saving go build cache from $env:GOCACHE to $GOCACHE_ARCHIVE"
+    if (Test-Path $GOCACHE_ARCHIVE) {
+        Remove-Item -Force $GOCACHE_ARCHIVE
+    }
+    & 7z.exe a -mx=1 -mmt=on $GOCACHE_ARCHIVE "$env:GOCACHE\*"
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warning "Failed to save go build cache (non-fatal)"
+        return
+    }
+    $size = [math]::Round((Get-Item $GOCACHE_ARCHIVE).Length / 1MB, 1)
+    Write-Host "Go build cache saved ($size MB)"
+}
+
 function Install-Deps() {
     Write-Host "Installing python requirements"
     pip3.exe install dda
@@ -303,6 +381,7 @@ function Invoke-BuildScript {
             if ($InstallTestingDeps) {
                 Expand-ModCache -root "c:\mnt" -modcache modcache_tools
             }
+            Expand-GoCache -root "c:\mnt"
             Enter-BuildRoot
         } else {
             Enter-RepoRoot
@@ -313,6 +392,7 @@ function Invoke-BuildScript {
             if ($InstallTestingDeps) {
                 Expand-ModCache -modcache modcache_tools
             }
+            Expand-GoCache
         }
 
         Enable-DevEnv
@@ -345,10 +425,12 @@ function Invoke-BuildScript {
         # This finally block is executed regardless of whether the try block completes successfully, throws an exception,
         # or uses `exit` to terminate the script.
 
-        # Restore the original working directory
+        # Save the go build cache before leaving
         if ($BuildOutOfSource) {
+            Save-GoCache -destination "c:\mnt"
             Exit-BuildRoot
         } else {
+            Save-GoCache
             Exit-RepoRoot
         }
     }
