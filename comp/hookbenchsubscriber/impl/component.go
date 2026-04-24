@@ -12,8 +12,8 @@ import (
 
 	"go.uber.org/fx"
 
-	hookbenchsubscriber "github.com/DataDog/datadog-agent/comp/hookbenchsubscriber/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	hookbenchsubscriber "github.com/DataDog/datadog-agent/comp/hookbenchsubscriber/def"
 	"github.com/DataDog/datadog-agent/pkg/hook"
 )
 
