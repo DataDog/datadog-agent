@@ -372,7 +372,11 @@ type AgentConfig struct {
 	PeerTagsAggregation       bool          // enables/disables stats aggregation for peer entity tags, used by Concentrator and ClientStatsAggregator
 	ComputeStatsBySpanKind    bool          // enables/disables the computing of stats based on a span's `span.kind` field
 	PeerTags                  []string      // additional tags to use for peer entity stats aggregation
-	SpanDerivedPrimaryTagKeys []string      // tag keys to use for span-derived primary tag stats aggregation
+	// SpanDerivedPrimaryTagKeys holds the raw tag keys to use for span-derived primary tag stats aggregation.
+	// Do NOT read this field directly: callers must go through ConfiguredSpanDerivedPrimaryTagKeys(),
+	// which applies dedup/sort normalization via preparePeerTags (mirrors how ConfiguredPeerTags is the
+	// authoritative getter for PeerTags).
+	SpanDerivedPrimaryTagKeys []string
 
 	// Sampler configuration
 	ExtraSampleRate float64
@@ -813,6 +817,16 @@ func (c *AgentConfig) ConfiguredPeerTags() []string {
 		return nil
 	}
 	return preparePeerTags(append(basePeerTags, c.PeerTags...))
+}
+
+// ConfiguredSpanDerivedPrimaryTagKeys returns the set of span-derived primary tag keys that should be used
+// for stats aggregation. These tag keys will be used to extract tags from spans
+// for use in aggregation keys, similar to peer tags.
+func (c *AgentConfig) ConfiguredSpanDerivedPrimaryTagKeys() []string {
+	if len(c.SpanDerivedPrimaryTagKeys) == 0 {
+		return nil
+	}
+	return preparePeerTags(c.SpanDerivedPrimaryTagKeys)
 }
 
 func inAzureAppServices() bool {

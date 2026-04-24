@@ -9,6 +9,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"strings"
 	"sync"
@@ -56,6 +57,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/otlp"
 	serverlessTag "github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
+	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	tracelog "github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -261,6 +263,44 @@ var serverlessProfileTags = []string{
 	"_dd.origin",
 }
 
+// spanDerivedPrimaryTagsEnvVar is the environment variable consumed by
+// spanDerivedPrimaryTagsLoader below. See the type's doc comment for details.
+const spanDerivedPrimaryTagsEnvVar = "DD_APM_SPAN_DERIVED_PRIMARY_TAGS"
+
+// spanDerivedPrimaryTagsLoader wraps an inner trace.Load to layer the
+// DD_APM_SPAN_DERIVED_PRIMARY_TAGS env var onto AgentConfig.SpanDerivedPrimaryTagKeys.
+//
+// Deprecated: the agent-computed span_derived_primary_tags path is being
+// replaced by tracer-populated additional_metric_tags. This wrapper exists
+// solely to unblock serverless-init customers mid-transition and must be
+// removed once tracers emit additional_metric_tags. Do not generalize or
+// extend; do not reintroduce a customer-facing config key.
+type spanDerivedPrimaryTagsLoader struct {
+	inner trace.Load
+}
+
+// Load delegates to the inner loader, then parses DD_APM_SPAN_DERIVED_PRIMARY_TAGS
+// as a JSON array of strings and assigns it to AgentConfig.SpanDerivedPrimaryTagKeys.
+// Unset/empty env → no change. Invalid JSON → warn and continue.
+func (l *spanDerivedPrimaryTagsLoader) Load() (*traceconfig.AgentConfig, error) {
+	tc, err := l.inner.Load()
+	if err != nil {
+		return tc, err
+	}
+	raw := os.Getenv(spanDerivedPrimaryTagsEnvVar)
+	if raw == "" {
+		return tc, nil
+	}
+	var keys []string
+	if jsonErr := json.Unmarshal([]byte(raw), &keys); jsonErr != nil {
+		log.Warnf("%s could not be parsed as a JSON array of strings: %v", spanDerivedPrimaryTagsEnvVar, jsonErr)
+		return tc, nil
+	}
+	tc.SpanDerivedPrimaryTagKeys = keys
+	log.Debugf("%s set to %v; this is a deprecated serverless-init-only escape hatch and will be removed once tracers populate additional_metric_tags", spanDerivedPrimaryTagsEnvVar, keys)
+	return tc, nil
+}
+
 func setupTraceAgent(tags map[string]string, configuredTags []string, tagger tagger.Component, origin string) trace.ServerlessTraceAgent {
 	profileTags := make(map[string]string)
 	for _, serverlessProfileTag := range serverlessProfileTags {
@@ -282,7 +322,7 @@ func setupTraceAgent(tags map[string]string, configuredTags []string, tagger tag
 	functionTags := strings.Join(configuredTags, ",")
 	traceAgent := trace.StartServerlessTraceAgent(trace.StartServerlessTraceAgentArgs{
 		Enabled:               pkgconfigsetup.Datadog().GetBool("apm_config.enabled"),
-		LoadConfig:            &trace.LoadConfig{Path: datadogConfigPath, Tagger: tagger},
+		LoadConfig:            &spanDerivedPrimaryTagsLoader{inner: &trace.LoadConfig{Path: datadogConfigPath, Tagger: tagger}},
 		AdditionalProfileTags: profileTags,
 		FunctionTags:          functionTags,
 	})
