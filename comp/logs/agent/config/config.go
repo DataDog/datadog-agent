@@ -168,6 +168,11 @@ func IsExpectedTagsSet(coreConfig pkgconfigmodel.Reader) bool {
 	return ExpectedTagsDuration(coreConfig) > 0
 }
 
+// SendHostTagsToOPW returns true if host tags should be attached to log payloads forwarded to an Observability Pipelines Worker.
+func SendHostTagsToOPW(coreConfig pkgconfigmodel.Reader) bool {
+	return defaultLogsConfigKeysWithVectorOverride(coreConfig).sendHostTagsToOPW()
+}
+
 // GlobalFingerprintConfig returns the global fingerprint configuration to apply to all logs.
 func GlobalFingerprintConfig(coreConfig pkgconfigmodel.Reader) (*types.FingerprintConfig, error) {
 	var err error

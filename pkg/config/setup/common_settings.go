@@ -1924,6 +1924,11 @@ func bindVectorOptions(config pkgconfigmodel.Setup, datatype string) {
 
 	config.BindEnvAndSetDefault(fmt.Sprintf("vector.%s.enabled", datatype), false)
 	config.BindEnvAndSetDefault(fmt.Sprintf("vector.%s.url", datatype), "")
+
+	if datatype == Logs {
+		config.BindEnvAndSetDefault(fmt.Sprintf("observability_pipelines_worker.%s.send_host_tags", datatype), false)
+		config.BindEnvAndSetDefault(fmt.Sprintf("vector.%s.send_host_tags", datatype), false)
+	}
 }
 
 func cloudfoundry(config pkgconfigmodel.Setup) {

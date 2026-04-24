@@ -340,3 +340,13 @@ func (l *LogsConfigKeys) getObsPipelineURL() (string, bool) {
 	}
 	return "", false
 }
+
+func (l *LogsConfigKeys) sendHostTagsToOPW() bool {
+	if !l.obsPipelineWorkerEnabled() {
+		return false
+	}
+	if l.getConfig().GetBool(l.getObsPipelineConfigKey("observability_pipelines_worker", "send_host_tags")) {
+		return true
+	}
+	return l.getConfig().GetBool(l.getObsPipelineConfigKey("vector", "send_host_tags"))
+}
