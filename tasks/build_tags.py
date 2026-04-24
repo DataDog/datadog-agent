@@ -164,6 +164,9 @@ DOGSTATSD_TAGS = {"containerd", "docker", "kubelet", "podman", "zlib", "zstd"}
 # IOT_AGENT_TAGS lists the tags needed when building the IoT agent
 IOT_AGENT_TAGS = {"jetson", "systemd", "zlib", "zstd"}
 
+# LITE_AGENT_TAGS lists the tags needed when building the lite agent (no Python)
+LITE_AGENT_TAGS = AGENT_TAGS.difference({"python"})
+
 # INSTALLER_TAGS lists the tags needed when building the installer
 INSTALLER_TAGS = {"ec2"}
 
@@ -384,6 +387,11 @@ build_tags = {
         "dogstatsd": DOGSTATSD_TAGS,
         "lint": DOGSTATSD_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
         "unit-tests": DOGSTATSD_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
+    },
+    AgentFlavor.lite: {
+        "agent": LITE_AGENT_TAGS,
+        "lint": LITE_AGENT_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
+        "unit-tests": LITE_AGENT_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
     },
 }
 

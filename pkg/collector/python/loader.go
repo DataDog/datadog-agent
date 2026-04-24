@@ -61,11 +61,12 @@ var (
 )
 
 const (
-	wheelNamespace = "datadog_checks"
-	a7TagReady     = "ready"
-	a7TagNotReady  = "not_ready"
-	a7TagUnknown   = "unknown"
-	a7TagPython3   = "python3" // Already running on python3, linting is disabled
+	wheelNamespace      = "datadog_checks"
+	a7TagReady          = "ready"
+	a7TagNotReady       = "not_ready"
+	a7TagUnknown        = "unknown"
+	a7TagPython3        = "python3" // Already running on python3, linting is disabled
+	rtloaderLibraryName = "libdatadog-agent-rtloader.so"
 )
 
 // PythonCheckLoaderName is the name of the Python check loader
@@ -73,6 +74,11 @@ const PythonCheckLoaderName string = "python"
 
 func init() {
 	factory := func(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component, filter workloadfilter.Component) (check.Loader, int, error) {
+		if err := checkRtloaderAvailable(); err != nil {
+			return nil, 20, fmt.Errorf("python runtime not available: rtloader library %s not found (%w). "+
+				"Python checks will be disabled. Install the python runtime package to enable them",
+				rtloaderLibraryName, err)
+		}
 		loader, err := NewPythonCheckLoader(senderManager, logReceiver, tagger, filter)
 		return loader, 20, err
 	}

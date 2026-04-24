@@ -31,7 +31,9 @@ func InitPython(paths ...string) {
 
 func pySetup(paths ...string) (pythonVersion, pythonHome, pythonPath string) {
 	if err := Initialize(paths...); err != nil {
-		log.Errorf("Could not initialize Python: %s", err)
+		log.Errorf("Could not initialize Python: %s. "+
+			"Python checks will not be available. "+
+			"If the python runtime is not bundled, install the python runtime package to enable Python checks", err)
 	}
 	return PythonVersion, PythonHome, PythonPath
 }
