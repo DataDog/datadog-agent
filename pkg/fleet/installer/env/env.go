@@ -236,10 +236,15 @@ func FromEnv() *Env {
 		return c == ','
 	}
 
-	// Best effort: a malformed DD_INSTALLER_REGISTRY is logged by the
-	// boundary layer; here we treat it as empty so the installer still
-	// runs against default registries.
-	registry, _ := parseRegistryFromEnv()
+	// Registry: prefer DD_INSTALLER_REGISTRY JSON (canonical). If it
+	// isn't set, fall back to parsing any legacy DD_INSTALLER_REGISTRY_*
+	// prefix vars directly, so user overrides reach the installer even
+	// if the boundary translators (daemon / fxconfig CLI bootstrap)
+	// failed to run or didn't absorb them.
+	//
+	// A malformed DD_INSTALLER_REGISTRY JSON is treated as empty so the
+	// installer still runs against default registries.
+	registry, _, _ := BuildRegistryFromEnv()
 
 	return &Env{
 		APIKey:               getEnvOrDefault(envAPIKey, defaultEnv.APIKey),
