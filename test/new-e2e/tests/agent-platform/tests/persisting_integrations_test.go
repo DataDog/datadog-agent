@@ -105,7 +105,7 @@ func (is *persistingIntegrationsSuite) TestIntegrationPersistsByDefault() {
 
 	startAgentVersion := is.SetupAgentStartVersion(VMclient)
 	is.InstallNVMLIntegration(VMclient)
-	is.InstallPackage(VMclient, "datadog-api-client")
+	is.InstallPackage(VMclient, "datadog-api-client==2.40.0")
 
 	// remove the flag to skip installing third party deps if it exists
 	is.DisableSkipInstallThirdPartyDepsFlag(VMclient)
@@ -152,7 +152,7 @@ func (is *persistingIntegrationsSuite) InstallNVMLIntegration(VMclient *common.T
 
 	// Install the integration and its dependencies
 	VMclient.Host.MustExecute("sudo -u dd-agent datadog-agent integration install -t datadog-nvml==1.0.0")
-	VMclient.Host.MustExecute("sudo -u dd-agent /opt/datadog-agent/embedded/bin/pip3 install grpcio pynvml")
+	VMclient.Host.MustExecute("sudo -u dd-agent /opt/datadog-agent/embedded/bin/pip3 install grpcio==1.80.0 pynvml==13.0.1")
 
 	// Check that the integration is installed successfully
 	freezeRequirement = VMclient.AgentClient.Integration(agentclient.WithArgs([]string{"freeze"}))

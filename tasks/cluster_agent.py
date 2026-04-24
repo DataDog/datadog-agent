@@ -225,7 +225,7 @@ RUN find /usr/src/datadog-agent -type d -empty -print0 | xargs -0 rmdir
 
 FROM golang:latest AS dlv
 
-RUN go install github.com/go-delve/delve/cmd/dlv@latest
+RUN go install github.com/go-delve/delve/cmd/dlv@v1.26.0
 
 FROM {base_image}
 
