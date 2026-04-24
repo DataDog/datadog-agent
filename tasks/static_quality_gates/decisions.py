@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from tasks.libs.common.color import color_message
-from tasks.static_quality_gates.gates import GateMetricHandler, byte_to_string
+from tasks.static_quality_gates.gates import GateMetricHandler
 
 PER_PR_THRESHOLD = 600 * 1024
 EXCEPTION_APPROVERS = {"cmourot", "dd-ddamien"}

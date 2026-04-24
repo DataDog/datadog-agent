@@ -1,35 +1,27 @@
 import os
 import traceback
 import typing
-import yaml
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+import yaml
 from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.git import get_ancestor
 from tasks.libs.ciproviders.github_api import GithubAPI
-from tasks.static_quality_gates.decisions import (
-    EXCEPTION_APPROVERS,
-    PER_PR_THRESHOLD,
-    ExceptionApprovalChecker,
-    identify_gates_exceeding_pr_threshold,
-    should_bypass_failure,
-)
-from tasks.static_quality_gates.github import get_pr_author, get_pr_for_branch, get_pr_number_from_commit
 from tasks.libs.common.color import color_message
-from tasks.static_quality_gates.metrics import (
-    GateMetricsData,
-    _extract_gate_name_from_scope,
-    _get_latest_value_from_pointlist,
-    fetch_main_headroom,
-    fetch_pr_metrics,
-)
 from tasks.libs.common.git import (
     get_commit_sha,
     is_a_release_branch,
 )
 from tasks.libs.package.size import InfraError
+from tasks.static_quality_gates.decisions import (
+    PER_PR_THRESHOLD,
+    ExceptionApprovalChecker,
+    identify_gates_exceeding_pr_threshold,
+    should_bypass_failure,
+)
 from tasks.static_quality_gates.experimental_gates import (
     measure_image_local as _measure_image_local,
 )
@@ -43,26 +35,22 @@ from tasks.static_quality_gates.gates import (
     byte_to_string,
 )
 from tasks.static_quality_gates.gates_reporter import QualityGateOutputFormatter
+from tasks.static_quality_gates.github import get_pr_author, get_pr_for_branch, get_pr_number_from_commit
+from tasks.static_quality_gates.metrics import (
+    fetch_main_headroom,
+    fetch_pr_metrics,
+)
 from tasks.static_quality_gates.pr_comment import (
     FAIL_CHAR,
-    NEUTRAL_THRESHOLD_BYTES,
     SUCCESS_CHAR,
-    WARNING_CHAR,
     display_pr_comment,
-    get_change_metrics,
 )
 from tasks.static_quality_gates.thresholds import (
-    BUFFER_SIZE,
     GATE_CONFIG_PATH,
-    SIZE_INCREASE_THRESHOLD_BYTES,
-    generate_new_quality_gate_config,
-    get_gate_new_limit_threshold,
-    identify_failing_gates,
     identify_gates_with_size_increase,
     notify_threshold_update,
     update_quality_gates_threshold,
 )
-
 
 
 def _print_quality_gates_report(gate_states: list[dict[str, typing.Any]]):

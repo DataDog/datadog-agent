@@ -5,8 +5,7 @@ import random
 
 import yaml
 
-from tasks.libs.ciproviders.github_api import GithubAPI, create_datadog_agent_pr
-from tasks.libs.common.color import color_message
+from tasks.libs.ciproviders.github_api import create_datadog_agent_pr
 from tasks.libs.common.git import create_tree
 from tasks.libs.common.utils import running_in_ci
 from tasks.static_quality_gates.gates import byte_to_string

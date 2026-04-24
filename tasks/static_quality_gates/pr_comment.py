@@ -4,7 +4,6 @@ import os
 import typing
 
 from tasks.github_tasks import pr_commenter
-from tasks.libs.common.color import color_message
 from tasks.static_quality_gates.decisions import PER_PR_THRESHOLD
 from tasks.static_quality_gates.gates import GateMetricHandler, byte_to_string
 
