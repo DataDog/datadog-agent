@@ -86,6 +86,11 @@ func TestProcmgrSmokeWindowsSuite(t *testing.T) {
 func (s *procmgrWindowsSuite) SetupSuite() {
 	s.baseProcmgrSuite.SetupSuite()
 
+	// dd-procmgr-service is DEMAND_START; the agent starts it as a dependent
+	// service, but on a fresh install the timing is unpredictable. Ensure the
+	// service is running before the tests begin.
+	s.Env().RemoteHost.MustExecute(`powershell -Command "Start-Service dd-procmgr-service"`)
+
 	if s.hasCLI {
 		require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
 			out, err := s.Env().RemoteHost.Execute(
