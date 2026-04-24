@@ -8,6 +8,7 @@ package config
 import (
 	"crypto/ecdsa"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -23,6 +24,11 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"k8s.io/apimachinery/pkg/util/sets"
 )
+
+// statPathFn is the os.Stat function used to classify operator-configured
+// paths as directories or files at config load. Package-level so tests can
+// override without touching the filesystem.
+var statPathFn = os.Stat
 
 // rshellCommandNamespace is the prefix the backend stamps onto every command
 // in its allow-list. Operator entries in datadog.yaml must use the same form
@@ -165,15 +171,22 @@ func warnUnnamespacedCommands(commands []string) {
 // allowlist. Nil means "operator unset" — the handler will pass the backend
 // list through unchanged rather than tightening to an empty intersection.
 //
-// The contract is forward-slash paths only (matching the backend's Linux-
-// style allow-list). Entries containing a backslash are logged as a warning
-// so operators who write Windows-native paths can see why their rule never
-// matches; the entries still flow through and produce an empty intersection
-// at runtime.
+// Two constraints are enforced at load time so misconfiguration is
+// observable to the operator before any task runs:
+//
+//   - paths must be forward-slash (Linux form). Backslash entries are
+//     warned but left in place; they fail to match the Linux-form backend
+//     list at the intersection layer.
+//   - paths that exist on disk must be directories. rshell's AllowedPaths
+//     sandbox is built on os.Root which represents a directory handle, so
+//     file entries would be silently skipped at runner creation and produce
+//     permission-denied for every open. We warn and drop them here.
+//     Entries that do not exist at load time are left alone (the run-time
+//     stat loop in RunCommandHandler.Run covers that case).
 func rshellAllowedPaths(config config.Component) []string {
 	paths := configuredStringSliceOrNil(config, setup.PARRestrictedShellAllowedPaths)
 	warnBackslashPaths(paths)
-	return paths
+	return filterNonDirectoryPaths(paths)
 }
 
 // warnBackslashPaths emits a log warning for each entry containing a
@@ -187,6 +200,37 @@ func warnBackslashPaths(paths []string) {
 				setup.PARRestrictedShellAllowedPaths, p)
 		}
 	}
+}
+
+// filterNonDirectoryPaths returns the input with non-directory entries
+// removed. rshell's AllowedPaths sandbox only accepts directories (see
+// rshell/allowedpaths/sandbox.go — it calls os.OpenRoot which fails on
+// files), so a file entry would be silently skipped at runner creation and
+// produce permission-denied for every open. Warning here means the
+// operator sees the problem once at startup instead of once per task.
+//
+// The function preserves nil-vs-empty semantics downstream: a nil input
+// stays nil (operator unset → pass-through), and an empty input stays a
+// non-nil empty slice (explicit kill-switch). Entries whose existence
+// cannot be determined (stat errors other than a clear "not a directory")
+// are kept — they might be paths that will be created later, and the
+// existing run-time stat loop + rshell's own sandbox warning cover that
+// case at task execution time.
+func filterNonDirectoryPaths(paths []string) []string {
+	if paths == nil {
+		return nil
+	}
+	filtered := make([]string, 0, len(paths))
+	for _, p := range paths {
+		info, err := statPathFn(p)
+		if err == nil && !info.IsDir() {
+			log.Warnf("%s entry %q is not a directory; rshell's sandbox only accepts directory entries, so this entry is dropped. Use the containing directory instead.",
+				setup.PARRestrictedShellAllowedPaths, p)
+			continue
+		}
+		filtered = append(filtered, p)
+	}
+	return filtered
 }
 
 // configuredStringSliceOrNil returns the configured value only when the key

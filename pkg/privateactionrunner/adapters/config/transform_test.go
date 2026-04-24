@@ -6,6 +6,8 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -407,6 +409,64 @@ private_action_runner:
 	require.NoError(t, err)
 	assert.NotNil(t, cfg.RShellAllowedCommands, "YAML [] must reach the handler as a non-nil slice so the kill-switch is honored")
 	assert.Empty(t, cfg.RShellAllowedCommands)
+}
+
+func TestFilterNonDirectoryPaths(t *testing.T) {
+	// Build a temp tree with one directory, one file, and reference a path
+	// that doesn't exist. The filter should drop the file, keep the
+	// directory, and leave the missing entry alone (rshell and the
+	// run-time stat loop handle that case).
+	tmpDir := t.TempDir()
+	dirEntry := filepath.Join(tmpDir, "subdir")
+	require.NoError(t, os.Mkdir(dirEntry, 0o755))
+	fileEntry := filepath.Join(tmpDir, "file.txt")
+	require.NoError(t, os.WriteFile(fileEntry, []byte("x"), 0o600))
+	missingEntry := filepath.Join(tmpDir, "does-not-exist")
+
+	cases := []struct {
+		name string
+		in   []string
+		want []string
+	}{
+		{"nil stays nil (operator unset)", nil, nil},
+		{"empty stays non-nil empty (kill-switch)", []string{}, []string{}},
+		{"directory kept", []string{dirEntry}, []string{dirEntry}},
+		{"file dropped", []string{fileEntry}, []string{}},
+		{"missing entry kept", []string{missingEntry}, []string{missingEntry}},
+		{"mixed: file dropped, dir and missing kept",
+			[]string{dirEntry, fileEntry, missingEntry},
+			[]string{dirEntry, missingEntry}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := filterNonDirectoryPaths(tc.in)
+
+			// Preserve nil-vs-empty: assert identity on both sides.
+			if tc.want == nil {
+				assert.Nil(t, got)
+			} else {
+				assert.NotNil(t, got)
+				assert.Equal(t, tc.want, got)
+			}
+		})
+	}
+}
+
+func TestFromDDConfigPARRestrictedShellAllowedPathsDropsFileEntries(t *testing.T) {
+	// End-to-end through FromDDConfig: operator lists a file alongside a
+	// directory; transform drops the file and keeps the directory.
+	tmpDir := t.TempDir()
+	fp := filepath.Join(tmpDir, "file.txt")
+	require.NoError(t, os.WriteFile(fp, []byte("x"), 0o600))
+
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
+	mockConfig.SetWithoutSource(setup.PARUrn, "")
+	mockConfig.SetWithoutSource(setup.PARRestrictedShellAllowedPaths, []string{tmpDir, fp})
+
+	cfg, err := FromDDConfig(mockConfig)
+	require.NoError(t, err)
+	assert.Equal(t, []string{tmpDir}, cfg.RShellAllowedPaths)
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedPathsPassesThroughBackslash(t *testing.T) {
