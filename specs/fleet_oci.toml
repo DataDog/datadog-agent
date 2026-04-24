@@ -125,3 +125,124 @@ libraries from the GAC).
 '''
 tags = ["installer:fleet"]
 ref = ["RF023"]
+
+[[requirements]]
+id = "RF036"
+short = "Default package resolution"
+long = '''
+The fleet installer shall resolve which packages to install by default based on
+the runtime environment.
+
+Each known package has a release status, optional per-site overrides, and an
+optional condition function. A package is included in the default set when:
+1. It is marked as released (globally, for the current site, or when remote
+   updates are enabled), AND
+2. Its condition function returns true (e.g. APM injection is enabled, DDOT
+   is enabled), AND
+3. It has not been explicitly excluded via DefaultPackagesInstallOverride.
+
+Packages can also be force-included or force-excluded via overrides regardless
+of release status.
+
+Version selection follows this precedence:
+1. Explicit version override (DefaultPackagesVersionOverride)
+2. Package-specific version function (e.g. pinned versions for CentOS 6)
+3. Default major version from the package defaults table
+4. "latest"
+'''
+tags = ["lifecycle:install", "installer:fleet", "component:apm"]
+ref = ["RF023", "RF031"]
+
+[[requirements]]
+id = "RF037"
+short = "Registry mirror and fallback"
+long = '''
+The fleet installer shall support registry mirrors and fallback registries for
+OCI package downloads.
+
+When a mirror is configured (via installer.mirror), all registry requests shall
+be transparently rewritten to the mirror host. The mirror transport rewrites the
+host, scheme, and optionally the path prefix while preserving the OCI API
+request structure.
+
+When the primary registry is unreachable, the installer shall attempt fallback
+registries in order. Default registries:
+- Production: install.datadoghq.com, with gcr.io/datadoghq as fallback
+- Staging: install.datad0g.com
+
+Authentication methods: Docker config (default), GCR service account, or
+explicit username/password. The method is configurable via
+installer.registry.auth.
+'''
+tags = ["lifecycle:install", "installer:fleet"]
+ref = ["RF023", "RA009"]
+
+[[requirements]]
+id = "RF038"
+short = "Remote config driven operations"
+long = '''
+The fleet daemon shall receive and process instructions from the Datadog remote
+configuration service to manage packages and configuration.
+
+When the daemon receives a catalog update, it shall compare the desired state
+with the current installed state and trigger install, experiment, or config
+experiment operations as needed.
+
+Operations are processed sequentially through a request queue. Each operation
+is persisted in the task database so that its status can be reported back to
+the remote config service. The daemon reports the current package state,
+config state, and any errors to the remote config service on each refresh
+interval.
+
+The daemon also supports catalog and config overrides via the local API,
+allowing local clients to take precedence over remote config.
+'''
+tags = ["installer:fleet"]
+ref = ["RA004", "RA005", "RF024", "RF025"]
+
+[[requirements]]
+id = "RF039"
+short = "Service management during lifecycle"
+long = '''
+The installer shall manage agent services at the appropriate points during
+package lifecycle operations.
+
+- Install: services shall be started after post-install hooks complete.
+  When DD_INSTALL_ONLY=1 is set, services shall not be started.
+- Upgrade: services shall be stopped before replacing binaries and restarted
+  after post-install hooks complete.
+- Uninstall: services shall be stopped before removing binaries and service
+  registrations.
+- Experiment start: the experiment version's services shall be started after
+  swapping the experiment symlink.
+- Experiment stop: services shall be reverted to the stable version.
+- Config experiment: services shall be restarted to pick up the new
+  configuration.
+
+On Windows, service-stopping hooks spawn detached background processes to
+avoid blocking the daemon's Fx shutdown timeout.
+'''
+tags = ["lifecycle:install", "lifecycle:upgrade", "lifecycle:uninstall", "installer:fleet", "installer:msi"]
+ref = ["RF001", "RF007", "RF013", "RF024"]
+
+[[requirements]]
+id = "RF040"
+short = "Install script"
+long = '''
+The fleet installer shall provide install scripts (shell for Linux/macOS,
+PowerShell for Windows) as an alternative entry point for automated
+deployments.
+
+The install script shall:
+1. Download and bootstrap the fleet installer binary
+2. Resolve the default set of packages to install based on environment
+   variables (DD_API_KEY, DD_SITE, DD_APM_INSTRUMENTATION_ENABLED,
+   DD_APM_INSTRUMENTATION_LIBRARIES, etc.)
+3. Install each resolved package
+4. Configure the agent with the provided API key and site
+
+The script shall be idempotent: running it again on an already-installed host
+shall update packages to the resolved versions without losing configuration.
+'''
+tags = ["lifecycle:install", "installer:fleet"]
+ref = ["RF036", "RF001"]
