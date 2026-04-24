@@ -7,15 +7,112 @@ package packages
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
+
+	"go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	extensionsPkg "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/extensions"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
+
+// installerYAMLSchema is a minimal subset of datadog.yaml used as a
+// last-resort fallback when the env-var boundary translation didn't fire.
+//
+// Context: on Windows MSI deferred custom actions, the installer is
+// spawned by RunPostInstallHook with a stripped environment — the CLI
+// fxconfig bootstrap should still read datadog.yaml and populate
+// DD_INSTALLER_REGISTRY, but observed behavior in CI shows the
+// registry override sometimes doesn't reach restoreAgentExtensions.
+// This fallback reads yaml directly in the hook so MSI upgrades of
+// agents that have an `installer.registry.*` block continue to restore
+// extensions from the correct registry.
+//
+//nolint:unused // Used in platform-specific files
+type installerYAMLSchema struct {
+	Installer struct {
+		Registry struct {
+			URL        string                                   `yaml:"url,omitempty"`
+			Auth       string                                   `yaml:"auth,omitempty"`
+			Username   string                                   `yaml:"username,omitempty"`
+			Password   string                                   `yaml:"password,omitempty"`
+			Extensions map[string]map[string]yamlExtensionEntry `yaml:"extensions,omitempty"`
+		} `yaml:"registry,omitempty"`
+	} `yaml:"installer,omitempty"`
+}
+
+//nolint:unused // Used in platform-specific files
+type yamlExtensionEntry struct {
+	URL      string `yaml:"url,omitempty"`
+	Auth     string `yaml:"auth,omitempty"`
+	Username string `yaml:"username,omitempty"`
+	Password string `yaml:"password,omitempty"`
+}
+
+// applyYAMLRegistryFallback reads datadog.yaml and populates env.Registry
+// for any fields the boundary translation didn't set. This is specifically
+// a safety net for hooks running on Windows MSI where the env may be
+// stripped — see the `installerYAMLSchema` doc for context.
+//
+//nolint:unused // Used in platform-specific files
+func applyYAMLRegistryFallback(e *env.Env) {
+	configPath := filepath.Join(paths.AgentConfigDir, "datadog.yaml")
+	raw, err := os.ReadFile(configPath)
+	if err != nil {
+		return
+	}
+	var cfg installerYAMLSchema
+	if err := yaml.Unmarshal(raw, &cfg); err != nil {
+		log.Debugf("fallback: could not parse %s: %v", configPath, err)
+		return
+	}
+	reg := cfg.Installer.Registry
+	// Layer yaml values into Default — only fields that aren't already set
+	// by the env boundary (so env > yaml precedence holds).
+	if reg.URL != "" && e.Registry.Default.URL == "" {
+		e.Registry.Default.URL = reg.URL
+	}
+	if reg.Auth != "" && e.Registry.Default.Auth == "" {
+		e.Registry.Default.Auth = reg.Auth
+	}
+	if reg.Username != "" && e.Registry.Default.Username == "" {
+		e.Registry.Default.Username = reg.Username
+	}
+	if reg.Password != "" && e.Registry.Default.Password == "" {
+		e.Registry.Default.Password = reg.Password
+	}
+	// Per-extension entries under the agent package.
+	agentExts := reg.Extensions[agentPackage]
+	if len(agentExts) == 0 {
+		return
+	}
+	if e.Registry.Packages == nil {
+		e.Registry.Packages = map[string]env.PackageRegistry{}
+	}
+	pkg := e.Registry.Packages[agentPackage]
+	if pkg.Extensions == nil {
+		pkg.Extensions = map[string]env.RegistryEntry{}
+	}
+	for name, entry := range agentExts {
+		existing, ok := pkg.Extensions[name]
+		if ok && existing != (env.RegistryEntry{}) {
+			continue // don't overwrite env-sourced entries
+		}
+		pkg.Extensions[name] = env.RegistryEntry{
+			URL:      entry.URL,
+			Auth:     entry.Auth,
+			Username: entry.Username,
+			Password: entry.Password,
+		}
+	}
+	e.Registry.Packages[agentPackage] = pkg
+}
 
 //nolint:unused // Used in platform-specific files
 const agentPackage = "datadog-agent"
@@ -31,9 +128,14 @@ func getCurrentAgentVersion() string {
 	return v + "-1"
 }
 
-// extensionOverrides returns per-extension registry override entries for the
-// agent package, resolved from the unified env.Registry. Only extensions
-// whose resolved entry differs from the default are included.
+// extensionOverrides returns per-extension registry override entries for
+// the agent package, resolved from the unified env.Registry.
+//
+// If `extensions` is non-nil, only the named ones are returned (used at
+// install time when the caller already knows what's being installed). If
+// `extensions` is nil, ALL extensions defined under the package are
+// returned — needed by restoreAgentExtensions, which discovers extensions
+// from disk and has to pass the full override map downstream.
 //
 //nolint:unused // Used in platform-specific files
 func extensionOverrides(e *env.Env, extensions []string) map[string]extensionsPkg.ExtensionRegistry {
@@ -41,13 +143,23 @@ func extensionOverrides(e *env.Env, extensions []string) map[string]extensionsPk
 	if !hasPkg || len(pkgEntry.Extensions) == 0 {
 		return nil
 	}
-	overrides := make(map[string]extensionsPkg.ExtensionRegistry, len(extensions))
-	for _, ext := range extensions {
-		entry, ok := pkgEntry.Extensions[ext]
-		if !ok {
+	wanted := func(name string) bool {
+		if extensions == nil {
+			return true
+		}
+		for _, ext := range extensions {
+			if ext == name {
+				return true
+			}
+		}
+		return false
+	}
+	overrides := make(map[string]extensionsPkg.ExtensionRegistry)
+	for name, entry := range pkgEntry.Extensions {
+		if !wanted(name) {
 			continue
 		}
-		overrides[ext] = extensionsPkg.ExtensionRegistry{
+		overrides[name] = extensionsPkg.ExtensionRegistry{
 			URL:      entry.URL,
 			Auth:     entry.Auth,
 			Username: entry.Username,
@@ -88,6 +200,7 @@ func removeAgentExtensions(ctx HookContext, experiment bool) error {
 //nolint:unused // Used in platform-specific files
 func restoreAgentExtensions(ctx HookContext, version string, experiment bool) error {
 	env := env.FromEnv()
+	applyYAMLRegistryFallback(env)
 
 	storagePath := getExtensionStoragePath(ctx.PackagePath)
 
@@ -107,6 +220,7 @@ func restoreAgentExtensions(ctx HookContext, version string, experiment bool) er
 //nolint:unused // Used in platform-specific files
 func installAgentExtensions(ctx HookContext, version string, isExperiment bool) error {
 	env := env.FromEnv()
+	applyYAMLRegistryFallback(env)
 	// populate extensions list based on environment variables
 	var extensions []string
 	if env.OTelCollectorEnabled {
