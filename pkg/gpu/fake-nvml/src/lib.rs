@@ -52,6 +52,7 @@ pub type NvmlReturn = u32;
 pub const NVML_SUCCESS: NvmlReturn = 0;
 pub const NVML_ERROR_INVALID_ARGUMENT: NvmlReturn = 1;
 pub const NVML_ERROR_NOT_SUPPORTED: NvmlReturn = 3;
+pub const NVML_ERROR_INSUFFICIENT_SIZE: NvmlReturn = 7;
 
 // ---------------------------------------------------------------------------
 // NVML opaque device handle
@@ -103,7 +104,21 @@ pub struct NvmlUtilization {
     pub memory: u32, // % memory bandwidth utilization
 }
 
-/// Matches `nvmlProcessInfo_t` from nvml.h
+/// Matches `nvmlProcessInfo_v1_t` from nvml.h (`pid` + `usedGpuMemory`,
+/// 16 bytes with tail padding for 8-byte alignment of `used_gpu_memory`).
+/// This is the ABI the unsuffixed `nvmlDeviceGetComputeRunningProcesses`
+/// symbol must write, because go-nvml's v1 wrapper allocates a buffer of
+/// this size. Writing a larger struct (v2/v3) here overflows into
+/// Go-managed memory and corrupts the process.
+#[repr(C)]
+pub struct NvmlProcessInfoV1 {
+    pub pid: u32,
+    pub used_gpu_memory: u64,
+}
+
+/// Matches `nvmlProcessInfo_v2_t` / `nvmlProcessInfo_t` from nvml.h.
+/// Layout is 24 bytes (with 4 bytes of padding after `pid` to align
+/// `used_gpu_memory`).
 #[repr(C)]
 pub struct NvmlProcessInfo {
     pub pid: u32,
@@ -710,15 +725,28 @@ pub unsafe extern "C" fn nvmlDeviceGetFanSpeed(
 
 // --- Processes ---
 
-/// `nvmlDeviceGetComputeRunningProcesses(nvmlDevice_t device, unsigned int *infoCount, nvmlProcessInfo_t *infos)`
+/// Fake process identity used by all `nvmlDeviceGet*RunningProcesses*` symbols.
+fn fake_process(idx: usize) -> (u32, u64) {
+    (devices()[idx].fake_pid, devices()[idx].fake_pid_mem_bytes)
+}
+
+/// `nvmlDeviceGetComputeRunningProcesses(nvmlDevice_t device, unsigned int *infoCount, nvmlProcessInfo_v1_t *infos)`
 ///
-/// Returns one fake process per device. The caller first calls with `infos=NULL`
-/// to query the count, then again with a buffer. Both patterns are handled.
+/// This is the *unsuffixed* symbol. go-nvml (built with
+/// `NVML_NO_UNVERSIONED_FUNC_DEFS=1`) keeps the three versioned entry points
+/// distinct and by default dispatches to this v1-ABI symbol. The caller
+/// allocates a buffer of `nvmlProcessInfo_v1_t` (16 bytes / entry) so we
+/// MUST NOT write the larger v2/v3 layout here — doing so overflows into
+/// Go-managed memory and manifests as spurious `0xFFFFFFFFFFFFFFFF` pointer
+/// values corrupting unrelated struct fields (e.g. later GPM sample handles).
+///
+/// Returns one fake process per device. The caller first calls with
+/// `infos=NULL` to query the count, then again with a buffer.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvmlDeviceGetComputeRunningProcesses(
     device: NvmlDevice,
     info_count: *mut c_uint,
-    infos: *mut NvmlProcessInfo,
+    infos: *mut NvmlProcessInfoV1,
 ) -> NvmlReturn {
     ffi_guard!({
         match index_from_device(device) {
@@ -727,28 +755,83 @@ pub unsafe extern "C" fn nvmlDeviceGetComputeRunningProcesses(
                 if info_count.is_null() {
                     return NVML_ERROR_INVALID_ARGUMENT;
                 }
-                // Caller is querying the count
                 if infos.is_null() {
                     unsafe { *info_count = 1 };
                     return NVML_SUCCESS;
                 }
-                // Caller provided a buffer — fill one entry
                 if unsafe { *info_count } < 1 {
-                    // Buffer too small; tell caller how many we need
                     unsafe { *info_count = 1 };
-                    return NVML_ERROR_INVALID_ARGUMENT;
+                    return NVML_ERROR_INSUFFICIENT_SIZE;
                 }
+                let (pid, mem) = fake_process(i);
                 unsafe {
-                    (*infos).pid = devices()[i].fake_pid;
-                    (*infos).used_gpu_memory = devices()[i].fake_pid_mem_bytes;
-                    (*infos).gpu_instance_id = u32::MAX; // NVML_NO_GI_ID
-                    (*infos).compute_instance_id = u32::MAX; // NVML_NO_CI_ID
+                    (*infos).pid = pid;
+                    (*infos).used_gpu_memory = mem;
                     *info_count = 1;
                 }
                 NVML_SUCCESS
             }
         }
     })
+}
+
+/// `nvmlDeviceGetComputeRunningProcesses_v2(...)` — v2 ABI (24-byte entries).
+///
+/// Exporting this symbol causes go-nvml's init-time probe to upgrade the
+/// internal dispatch variable `deviceGetComputeRunningProcesses` to the v2
+/// wrapper, which allocates a `[]ProcessInfo_v2` buffer matching the size we
+/// write here.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nvmlDeviceGetComputeRunningProcesses_v2(
+    device: NvmlDevice,
+    info_count: *mut c_uint,
+    infos: *mut NvmlProcessInfo,
+) -> NvmlReturn {
+    ffi_guard!({ compute_running_processes_v2(device, info_count, infos) })
+}
+
+/// `nvmlDeviceGetComputeRunningProcesses_v3(...)` — same ABI as v2 (the v3
+/// struct is identical in size and layout), so we dispatch to the shared
+/// helper. Exporting it ensures go-nvml's init prefers v3 on top of v2.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nvmlDeviceGetComputeRunningProcesses_v3(
+    device: NvmlDevice,
+    info_count: *mut c_uint,
+    infos: *mut NvmlProcessInfo,
+) -> NvmlReturn {
+    ffi_guard!({ compute_running_processes_v2(device, info_count, infos) })
+}
+
+fn compute_running_processes_v2(
+    device: NvmlDevice,
+    info_count: *mut c_uint,
+    infos: *mut NvmlProcessInfo,
+) -> NvmlReturn {
+    match index_from_device(device) {
+        None => NVML_ERROR_INVALID_ARGUMENT,
+        Some(i) => {
+            if info_count.is_null() {
+                return NVML_ERROR_INVALID_ARGUMENT;
+            }
+            if infos.is_null() {
+                unsafe { *info_count = 1 };
+                return NVML_SUCCESS;
+            }
+            if unsafe { *info_count } < 1 {
+                unsafe { *info_count = 1 };
+                return NVML_ERROR_INSUFFICIENT_SIZE;
+            }
+            let (pid, mem) = fake_process(i);
+            unsafe {
+                (*infos).pid = pid;
+                (*infos).used_gpu_memory = mem;
+                (*infos).gpu_instance_id = u32::MAX; // NVML_NO_GI_ID
+                (*infos).compute_instance_id = u32::MAX; // NVML_NO_CI_ID
+                *info_count = 1;
+            }
+            NVML_SUCCESS
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------

@@ -136,6 +136,23 @@ func runOneArchitecture(t *testing.T, archName, libPath string) {
 		_ = lib.Shutdown()
 	})
 
+	// Regression guard for the v1-vs-v2 ABI mismatch in
+	// nvmlDeviceGetComputeRunningProcesses. go-nvml's init-time probe picks
+	// the v2 (or v3) dispatch *iff* the matching versioned symbol resolves,
+	// and only the v2/v3 path sizes the buffer to fit what our fake writes
+	// (pid + usedGpuMemory + gpuInstanceId + computeInstanceId = 24 bytes).
+	// If these symbols disappear, go-nvml silently falls back to the v1
+	// wrapper, which allocates only 16 bytes per entry and the fake's write
+	// overflows into Go-managed memory. That manifests as bogus
+	// `0xFFFFFFFFFFFFFFFF` pointer values corrupting unrelated heap objects
+	// and crashing the agent (see the SMP regression caused by adding the
+	// Docker check to the experiment, which increased concurrent calls into
+	// this code path).
+	require.NoError(t, lib.Extensions().LookupSymbol("nvmlDeviceGetComputeRunningProcesses_v2"),
+		"fake library must export nvmlDeviceGetComputeRunningProcesses_v2 so go-nvml picks the matching-size v2 ABI")
+	require.NoError(t, lib.Extensions().LookupSymbol("nvmlDeviceGetComputeRunningProcesses_v3"),
+		"fake library must export nvmlDeviceGetComputeRunningProcesses_v3 so go-nvml picks the matching-size v3 ABI")
+
 	// --- Device enumeration ---------------------------------------------
 
 	count, ret := lib.DeviceGetCount()
@@ -193,6 +210,26 @@ func runOneArchitecture(t *testing.T, archName, libPath string) {
 		assert.Equal(t, nvml.SUCCESS, ret, "GetPowerUsage[%d]", i)
 		_, ret = dev.GetFanSpeed()
 		assert.Equal(t, nvml.SUCCESS, ret, "GetFanSpeed[%d]", i)
+
+		// --- ComputeRunningProcesses: regression guard ------------------
+		//
+		// The fake library exports nvmlDeviceGetComputeRunningProcesses (v1),
+		// _v2, and _v3 so that go-nvml dispatches to the *matching-size* ABI.
+		// Historically it only exported the unsuffixed symbol while writing a
+		// v2-sized struct, which silently overflowed go-nvml's v1-sized
+		// buffer by 8 bytes (the two MIG instance-ID u32s, both 0xFFFFFFFF).
+		// The overflow clobbered adjacent Go-managed memory and produced
+		// spurious `0xFFFFFFFFFFFFFFFF` pointer values elsewhere in the
+		// agent, crashing it during SMP regression runs.
+		//
+		// Exercising this call path through go-nvml's high-level wrapper is
+		// the only way to catch a recurrence: the wrapper picks the ABI at
+		// dlopen time based on which versioned symbols are present.
+		procs, ret := dev.GetComputeRunningProcesses()
+		require.Equal(t, nvml.SUCCESS, ret, "GetComputeRunningProcesses[%d]", i)
+		require.Len(t, procs, 1, "fake exposes exactly one process per device")
+		assert.NotZero(t, procs[0].Pid, "fake process pid should be non-zero")
+		assert.NotZero(t, procs[0].UsedGpuMemory, "fake process used_gpu_memory should be non-zero")
 	}
 
 	// --- GPM behaviour must match capabilities.gpm ----------------------
