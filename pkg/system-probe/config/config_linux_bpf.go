@@ -49,6 +49,11 @@ func ProcessEventDataStreamSupported() bool {
 	return true
 }
 
+// DirectSendSupported returns true if sending data CNM/USM directly from system-probe is supported
+func DirectSendSupported() bool {
+	return ProcessEventDataStreamSupported()
+}
+
 // RedisMonitoringSupported returns true if Redis monitoring is supported on the current kernel
 func RedisMonitoringSupported() bool {
 	kernelVersion, err := ebpfkernel.NewKernelVersion()

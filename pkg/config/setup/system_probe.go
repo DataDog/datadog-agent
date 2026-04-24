@@ -392,7 +392,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	initCWSSystemProbeConfig(cfg)
 	initUSMSystemProbeConfig(cfg)
 
-	cfg.BindEnvAndSetDefault("network_config.direct_send", false)
+	cfg.BindEnvAndSetDefault("network_config.direct_send", runtime.GOOS == "linux")
 }
 
 func suffixHostEtc(suffix string) string {
