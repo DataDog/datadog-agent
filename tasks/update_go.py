@@ -31,6 +31,7 @@ GO_VERSION_REFERENCES: list[tuple[str, str, str, bool]] = [
     ("./pkg/logs/launchers/windowsevent/README.md", "install go ", "+,", False),
     ("./tools/host-profiler/Dockerfile", "FROM golang:", "-trixie", True),
     ("./.wwhrd.yml", "raw.githubusercontent.com/golang/go/go", "/LICENSE", True),
+    ("./renovate.json", '"go": "', '"', True),
     ("./go.work", "go ", "", True),
 ]
 
@@ -68,7 +69,7 @@ def update_go(
     """
     import semver
 
-    if not semver.Version.is_valid(version):
+    if not semver.VersionInfo.isvalid(version):
         raise exceptions.Exit(f"The version {version} isn't valid.")
 
     current_version = _get_repo_go_version()
