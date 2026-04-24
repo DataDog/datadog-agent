@@ -117,10 +117,102 @@ func TestDemuxNoAggOptionEnabled(t *testing.T) {
 	require.Len(mockSerializer.series, 3)
 
 	for i := 0; i < len(batch); i++ {
-		require.Equal(batch[i].Name, mockSerializer.series[i].Name)
-		require.Len(mockSerializer.series[i].Points, 1)
-		require.Equal(batch[i].Timestamp, mockSerializer.series[i].Points[0].Ts)
-		require.ElementsMatch(batch[i].Tags, mockSerializer.series[i].Tags.UnsafeToReadOnlySliceString())
+		s := mockSerializer.series[i]
+		require.Equal(batch[i].Name, s.Name)
+		require.Len(s.Points, 1)
+		require.Equal(batch[i].Timestamp, s.Points[0].Ts)
+		require.ElementsMatch(batch[i].Tags, s.Tags.UnsafeToReadOnlySliceString())
+
+		// The no-aggregation pipeline has no client-supplied interval in
+		// the wire protocol, so Serie.Interval must be DefaultBucketSize
+		// and rate-typed samples (CounterType -> APIRateType) must be
+		// divided by DefaultBucketSize. Pinning both here so any future
+		// change to that convention surfaces as a test failure.
+		require.Equal(DefaultBucketSize, s.Interval,
+			"no-agg series %q must carry DefaultBucketSize as Interval", s.Name)
+		switch batch[i].Mtype {
+		case metrics.CounterType, metrics.RateType:
+			require.Equal(batch[i].Value/float64(DefaultBucketSize), s.Points[0].Value,
+				"no-agg rate sample %q must be normalized by DefaultBucketSize", s.Name)
+		case metrics.GaugeType:
+			require.Equal(batch[i].Value, s.Points[0].Value,
+				"no-agg gauge %q must pass through unchanged", s.Name)
+		}
+	}
+}
+
+// TestDemuxBucketSizeOption verifies that AgentDemultiplexerOptions.BucketSize
+// flows through to the time samplers but deliberately does NOT affect the
+// no-aggregation stream worker: that pipeline has no client-supplied interval
+// in the DogStatsD wire protocol and must keep using DefaultBucketSize to
+// avoid silently shifting the meaning of external-client rate points.
+func TestDemuxBucketSizeOption(t *testing.T) {
+	require := require.New(t)
+
+	noAggWorkerStreamCheckFrequency = 100 * time.Millisecond
+
+	opts := demuxTestOptions()
+	opts.BucketSize = 1
+	opts.EnableNoAggregationPipeline = true
+	mockSerializer := &MockSerializerIterableSerie{}
+	mockSerializer.On("AreSeriesEnabled").Return(true)
+	mockSerializer.On("AreSketchesEnabled").Return(true)
+
+	deps := createDemultiplexerAgentTestDeps(t)
+	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
+	demux.statsd.noAggStreamWorker.serializer = mockSerializer
+
+	// Option propagates into the time samplers.
+	for i, w := range demux.statsd.workers {
+		require.Equal(int64(1), w.sampler.interval, "time sampler %d should use configured bucket size", i)
+	}
+
+	// Options() must report the effective (canonicalized) bucket size, so
+	// that observers of demux state cannot diverge from runtime behavior.
+	require.Equal(int64(1), demux.Options().BucketSize,
+		"demux.Options().BucketSize must reflect the effective runtime value")
+
+	go demux.run()
+
+	batch := testDemuxSamples(t)
+	demux.SendSamplesWithoutAggregation(batch)
+	time.Sleep(200 * time.Millisecond) // let the automatic flush trigger
+	demux.Stop(true)
+
+	require.Len(mockSerializer.series, 3)
+
+	// The no-agg pipeline must keep using DefaultBucketSize regardless of
+	// opts.BucketSize: each series carries Interval=DefaultBucketSize and
+	// rate samples are divided by DefaultBucketSize, not by opts.BucketSize.
+	for i, s := range mockSerializer.series {
+		require.Equal(DefaultBucketSize, s.Interval,
+			"no-agg series %q must carry DefaultBucketSize, not opts.BucketSize", s.Name)
+		require.Len(s.Points, 1)
+		if batch[i].Mtype == metrics.CounterType {
+			require.Equal(batch[i].Value/float64(DefaultBucketSize), s.Points[0].Value,
+				"no-agg rate sample %q must be divided by DefaultBucketSize even when opts.BucketSize=1", s.Name)
+		}
+	}
+}
+
+// TestDemuxBucketSizeCanonicalization verifies that when options.BucketSize
+// is left at the zero value, Options() reports the resolved (effective)
+// value rather than the uncanonicalized input. Prevents drift between
+// observers of demux state and what the samplers actually use.
+func TestDemuxBucketSizeCanonicalization(t *testing.T) {
+	require := require.New(t)
+
+	opts := demuxTestOptions()
+	require.Equal(int64(0), opts.BucketSize, "precondition: demuxTestOptions leaves BucketSize zero")
+
+	deps := createDemultiplexerAgentTestDeps(t)
+	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
+
+	require.Equal(DefaultBucketSize, demux.Options().BucketSize,
+		"Options().BucketSize must report the effective value, not the zero input")
+	for i, w := range demux.statsd.workers {
+		require.Equal(DefaultBucketSize, w.sampler.interval,
+			"time sampler %d must use DefaultBucketSize when no override is set", i)
 	}
 }
 
