@@ -7,9 +7,7 @@ package com_datadoghq_temporal
 
 import (
 	"context"
-	"errors"
 
-	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
@@ -50,13 +48,7 @@ func (h *GetWorkflowResultHandler) Run(
 	}
 	defer temporalClient.Close()
 
-	workflowRun := temporalClient.GetWorkflow(ctx, inputs.WorkflowId, inputs.RunId)
-	if workflowRun == nil {
-		log.FromContext(ctx).Warn("Unable to get workflow run.")
-		return nil, errors.New("unable to get workflow run")
-	}
-	var workflowResult string
-	err = workflowRun.Get(ctx, &workflowResult)
+	workflowResult, err := temporalClient.GetWorkflowResult(ctx, inputs.WorkflowId, inputs.RunId)
 	if err != nil {
 		return nil, err
 	}
