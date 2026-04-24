@@ -8,8 +8,6 @@ package runnerimpl
 
 import (
 	"context"
-	"reflect"
-	"slices"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -53,7 +51,7 @@ type Requires struct {
 
 // NewComponent creates a new runner component.
 func NewComponent(reqs Requires) (runner.Component, error) {
-	filteredChecks := filterNilChecks(reqs.Checks)
+	filteredChecks := runner.FilterNilChecks(reqs.Checks)
 	c, err := processRunner.NewRunner(reqs.Config, reqs.SysCfg.SysProbeObject(), reqs.HostInfo.Object(), filterEnabledChecks(filteredChecks), reqs.RTNotifier)
 	if err != nil {
 		return nil, err
@@ -82,23 +80,6 @@ func (r *runnerImpl) Run(context.Context) error {
 func (r *runnerImpl) stop(context.Context) error {
 	r.checkRunner.Stop()
 	return nil
-}
-
-// filterNilChecks removes both untyped and typed-nil values from an fx group of CheckComponent.
-// A typed nil (e.g. (*concreteCheck)(nil) stored as CheckComponent) is common for disabled
-// components and must be caught via reflection since a plain nil comparison misses it.
-func filterNilChecks(group []types.CheckComponent) []types.CheckComponent {
-	return slices.DeleteFunc(group, func(item types.CheckComponent) bool {
-		t := reflect.TypeOf(item)
-		if t == nil {
-			return true
-		}
-		switch t.Kind() {
-		case reflect.Pointer, reflect.Map, reflect.Array, reflect.Chan, reflect.Slice, reflect.Func, reflect.Interface:
-			return reflect.ValueOf(item).IsNil()
-		}
-		return false
-	})
 }
 
 func filterEnabledChecks(providedChecks []types.CheckComponent) []checks.Check {
