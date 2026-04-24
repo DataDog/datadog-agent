@@ -32,7 +32,7 @@ type testDeps struct {
 	Log    log.Component
 	Config config.Component
 
-	Providers []MetadataProvider `group:"metadata_provider"`
+	Providers []runner.MetadataProvider `group:"metadata_provider"`
 }
 
 func makeRequires(_ *testing.T, deps testDeps) Requires {
@@ -58,7 +58,7 @@ func TestHandleProvider(t *testing.T) {
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMock(t) }),
-			fx.Supply(NewProvider(provider)),
+			fx.Supply(runner.NewProvider(provider)),
 		)))
 
 	r.start()
@@ -78,7 +78,7 @@ func TestHandleProviderShortTimeout(t *testing.T) {
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMock(t) }),
-			fx.Supply(NewProvider(provider)),
+			fx.Supply(runner.NewProvider(provider)),
 		)))
 
 	r.config.Set("metadata_provider_stop_timeout", time.Duration(0), model.SourceFile)
@@ -108,7 +108,7 @@ func TestHandleProviderLongTimeout(t *testing.T) {
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMock(t) }),
-			fx.Supply(NewProvider(provider)),
+			fx.Supply(runner.NewProvider(provider)),
 		)))
 
 	r.config.Set("metadata_provider1_stop_timeout", 1*time.Minute, model.SourceFile)
@@ -146,7 +146,7 @@ func TestRunnerCreation(t *testing.T) {
 		fxutil.ProvideComponentConstructor(NewComponent),
 		fxutil.FxLifecycleAdapter(),
 		// Supplying our provider by using the helper function
-		fx.Supply(NewProvider(provider)),
+		fx.Supply(runner.NewProvider(provider)),
 	)
 
 	ctx := context.Background()
