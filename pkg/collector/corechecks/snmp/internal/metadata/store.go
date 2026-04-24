@@ -6,6 +6,8 @@
 package metadata
 
 import (
+	"net"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -78,6 +80,41 @@ func (s Store) GetColumnAsByteArray(field string, index string) []byte {
 		return value.Value.([]byte)
 	}
 	return nil
+}
+
+// GetColumnAsIPString gets a column value formatted as an IP address string.
+// Handles both decoder outputs: []byte for OCTET STRING fields (e.g. cdpCacheAddress)
+// and string for IpAddress fields (e.g. cipSecTunLocalAddr). Returns "" on
+// missing field/index or unparseable value.
+func (s Store) GetColumnAsIPString(field string, index string) string {
+	column, ok := s.columnValues[field]
+	if !ok {
+		return ""
+	}
+	value, ok := column[index]
+	if !ok {
+		return ""
+	}
+	switch v := value.Value.(type) {
+	case []byte:
+		ip := net.IP(v)
+		if len(ip) != net.IPv4len && len(ip) != net.IPv6len {
+			log.Debugf("unexpected IP byte length for field `%s` index `%s`: %d", field, index, len(ip))
+			return ""
+		}
+		return ip.String()
+	case string:
+		if v == "" {
+			return ""
+		}
+		if ip := net.ParseIP(v); ip != nil {
+			return ip.String()
+		}
+		log.Debugf("unparseable IP string for field `%s` index `%s`: %q", field, index, v)
+		return ""
+	}
+	log.Debugf("unexpected IP value type for field `%s` index `%s`: %T", field, index, value.Value)
+	return ""
 }
 
 // GetColumnAsFloat get column value as float
