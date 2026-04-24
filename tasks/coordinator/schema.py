@@ -85,6 +85,13 @@ class Candidate:
     approach_family: str = "unspecified"
     # Which prior candidate IDs informed this one (proposer fills this in).
     parent_candidates: list[str] = field(default_factory=list)
+    # Detailed implementation plan authored by the proposer (Opus). The
+    # implementer (Sonnet) follows it mechanically rather than redesigning
+    # in-flight — that's the split that keeps Task-tool amplification and
+    # context exhaustion out of the implementation call. Reviewer compares
+    # the actual diff against this plan for "plan_fidelity": deviations
+    # are flagged but a net-positive deviation is approvable.
+    implementation_plan: str = ""
 
 
 @dataclass
@@ -310,6 +317,7 @@ def dict_to_db(d: dict[str, Any]) -> Db:
             proposed_at=c.get("proposed_at", ""),
             approach_family=c.get("approach_family", "unspecified"),
             parent_candidates=list(c.get("parent_candidates", [])),
+            implementation_plan=c.get("implementation_plan", "") or "",
         )
         for cid, c in d.get("candidates", {}).items()
     }
@@ -450,6 +458,7 @@ def db_to_dict(db: Db) -> dict[str, Any]:
                 "proposed_at": c.proposed_at,
                 "approach_family": c.approach_family,
                 "parent_candidates": c.parent_candidates,
+                "implementation_plan": c.implementation_plan,
             }
             for cid, c in db.candidates.items()
         },

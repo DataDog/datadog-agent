@@ -540,25 +540,52 @@ def _format_prior_work(prior_experiments: list[dict]) -> str:
     return "\n".join(lines)
 
 
+async def _block_task_tool_hook(input_data, tool_use_id, context):
+    """PreToolUse hook: block the Task tool entirely.
+
+    Task spawns a sub-Opus conversation — a 17-minute runaway of that
+    is what crashed iter 16 ($291 burned, 19M tokens). The implementer
+    is Sonnet with a detailed plan from the proposer; there is nothing
+    that needs delegating. If the plan is too big for one Sonnet call,
+    the proposer should have broken it into phases.
+    """
+    return {
+        "decision": "block",
+        "reason": (
+            "Task tool is disabled for implementation calls. You (Sonnet) "
+            "are executing the proposer's detailed implementation_plan, "
+            "not redesigning the task. If the plan seems too big to "
+            "finish in your remaining tool turns, produce a partial "
+            "implementation and note in DONE what you completed vs what "
+            "the plan called for — the reviewer will evaluate."
+        ),
+    }
+
+
 def implement_candidate(
     candidate: Candidate,
     root: Path,
     prior_experiments: list[dict] | None = None,
     iter_num: int | None = None,
 ) -> str:
-    """Spawn the implementation agent on the current working tree.
+    """Execute the proposer's implementation_plan against the working tree.
 
-    Returns a short string summarizing what the agent changed (extracted
-    from its final message). The caller is responsible for evaluating
-    the change and deciding commit-or-revert.
+    Runs on **Sonnet** (CONFIG.model_light). The proposer (Opus) already
+    did the design work — file list, interface contract, algorithm steps,
+    tests. Sonnet follows it mechanically. This split solves two problems:
 
-    The agent's Bash access is filtered by a PreToolUse hook that blocks
-    all `git` invocations — coordinator owns git state end-to-end.
+      1. Cost: Sonnet is ~5× cheaper per token. A typical implementation
+         of ~6M tokens at Opus pricing is ~$100; at Sonnet pricing it's
+         ~$20.
+      2. Failure mode: Opus-with-vague-instructions reached for the Task
+         tool and spawned sub-agents that crashed after 17 min. Sonnet
+         with a detailed plan doesn't need to delegate; the Task tool
+         is also explicitly blocked here (see `_block_task_tool_hook`).
 
-    `prior_experiments`: optional list of recent experiments (same
-    approach_family) with rationales, so the agent can learn from past
-    rejects instead of re-exploring dead ends. Format per
-    `_format_prior_work` docstring.
+    If the proposer emitted no plan (`candidate.implementation_plan`
+    empty), fall back to Opus with the old "design and implement"
+    prompt — that's a bug upstream but we don't want to fail the
+    iteration.
     """
     try:
         from claude_agent_sdk import HookMatcher
@@ -566,93 +593,102 @@ def implement_candidate(
         raise RuntimeError("claude-agent-sdk HookMatcher unavailable") from e
 
     prior_block = _format_prior_work(prior_experiments or [])
+    has_plan = bool(candidate.implementation_plan and len(candidate.implementation_plan) > 50)
 
-    prompt = f"""You are the implementation agent for the observer AD improvement
-coordinator. Your job is to implement ONE candidate change in the repo at
-{root.resolve()}.
+    # Plan-first prompt (Sonnet). Short and prescriptive — no design
+    # framing, no "consider alternatives." Execute what's specified.
+    if has_plan:
+        prompt = f"""You are a mechanical implementer. The proposer (Opus) already
+designed this change; your job is to execute the plan faithfully.
 
+Working directory: {root.resolve()}
 Candidate ID: {candidate.id}
-Approach family: {getattr(candidate, 'approach_family', 'unspecified')}
+Approach family: {candidate.approach_family}
 Target components: {', '.join(candidate.target_components)}
 
-Instructions:
+## Implementation plan (from the proposer — follow this)
+
+{candidate.implementation_plan}
+
+## Candidate description (context only; the plan is authoritative)
+
 {candidate.description}
 
-## Prior work on this approach family (last 5, oldest first)
+## Prior same-family experiments
 
 {prior_block}
 
-Read those rationales before starting. If a prior attempt was rejected for
-a specific reason, do not repeat that mistake — try a *different* concrete
-approach within the same family, or explain in your DONE message why this
-attempt is not the same.
+## Execution rules
+
+1. **Follow the plan.** Do not redesign. If a plan step is ambiguous,
+   pick the most mechanical interpretation (e.g. "maintain a ring buffer
+   of size N" → allocate a Go slice with exactly N slots).
+2. **Discovery is already in the plan.** The proposer already named
+   files, interfaces, and line ranges. Read those files to confirm
+   the current code matches what the plan expects, then apply the
+   edits. If a file or symbol isn't where the plan says it should be,
+   make your best effort and note the deviation in your DONE message.
+3. **If you must deviate from the plan** (e.g. the interface has
+   changed since the proposer read it, a dependency is missing, a
+   test will fail with the plan as written), do the minimum deviation
+   that makes the change compile + pass existing tests, and DOCUMENT
+   it in your DONE message so the reviewer can judge. A net-positive
+   deviation is acceptable; a deviation that abandons the plan's
+   intent is not.
+4. **Only touch files under `comp/observer/`.** Do NOT edit
+   `comp/observer/scenarios/` (scoring labels), `tasks/q.py`,
+   `tasks/libs/q/`, or anything outside `comp/observer/`. A hook will
+   block those writes.
+5. **Do NOT run `git`.** Coordinator owns git state.
+6. **Do NOT use the Task tool.** It's disabled. You have Read, Edit,
+   Write, Bash (non-destructive), Grep, Glob — that is sufficient for
+   any reasonable implementation plan. If the plan seems too big,
+   produce a partial implementation and note what's left.
+7. **Finish with `DONE:`** — a 2-4 line summary of (a) which plan
+   steps you completed, (b) which files you actually modified, (c)
+   any deviations and why, (d) per-tick cost if you measured it.
+"""
+    else:
+        # Fallback: no plan from the proposer. Very rare — the proposer
+        # prompt demands a plan — but possible if the proposer errored
+        # or output was malformed. Use the old Opus-design prompt,
+        # shorter version.
+        prompt = f"""You are implementing one candidate change in the observer
+AD pipeline. Working directory: {root.resolve()}
+
+Candidate ID: {candidate.id}
+Approach family: {candidate.approach_family}
+Target components: {', '.join(candidate.target_components)}
+
+## Description
+
+{candidate.description}
+
+## Prior same-family experiments
+
+{prior_block}
 
 ## Constraints
 
-- Only modify files under comp/observer/. Do not touch tests outside that
-  path, do not edit CLAUDE.md / AGENTS.md, do not add new top-level
-  dependencies, and **do NOT modify the eval framework** (tasks/q.py,
-  tasks/libs/q, testbench_registry.go orchestration, or q.eval-scenarios
-  itself). The three detector names (bocpd, scanmw, scanwelch) and the
-  scenario list are fixed evaluation boundaries; innovation happens
-  INSIDE those detector implementations, not by changing what's being
-  evaluated.
-- You CAN replace an existing detector's internals wholesale — keep the
-  registration (see `comp/observer/impl/component_catalog.go`) and
-  whichever interface from `comp/observer/def/component.go` it already
-  implements (`SeriesDetector` or `Detector`). Swap the algorithm behind
-  the same name. E.g. replace BOCPD's core with a density-ratio or
-  spectral-residual algorithm while keeping the `bocpd` registration.
-
-- **PERF CONSTRAINT**: this detector runs in production on streaming
-  data. Your implementation MUST be within ~1.5× the original's per-
-  tick CPU cost and ~1.5× memory footprint. DO NOT run multiple full
-  algorithms in parallel on every tick (that doubles infrastructure
-  cost). Preferred patterns for additive-style improvements:
-  * **Post-filter**: the original detector runs unchanged; your new
-    logic only fires when the original emits. Near-zero cost on silent
-    ticks (99%+).
-  * **Pre-gate selector**: a cheap O(1)-per-tick shape check (variance,
-    autocorrelation, quantile) picks ONE algorithm for this stream.
-    Runs one algorithm per tick, not both.
-  * **Shared rolling stats**: if both algorithms need the same
-    statistics, compute them once, then run O(k)-bounded decision
-    heads on the shared features (k = sketch size, not window size).
-
-- If the candidate description mentions per-tick cost or memory, treat
-  that as a HARD budget. Exceeding it is grounds for the algorithm-
-  expert reviewer to reject. State the actual cost in your DONE:
-  summary ("adds ~20 FLOPs per tick, O(32) memory per stream").
-
-- BEFORE editing, spend tool hops on discovery:
-  1. Read `comp/observer/AGENTS.md` if it exists — house rules live there.
-  2. Read `comp/observer/def/component.go` to confirm which interface
-     the detector implements (SeriesDetector vs Detector) and what its
-     contract is (especially: non-blocking Detect, no mutating storage,
-     single dispatch goroutine).
-  3. Read ONE sibling detector implementation under
-     `comp/observer/impl/metrics_detector_*.go` to match the factory
-     signature, per-series state-key pattern, logger calls, and
-     Apache license header.
-  4. Read the `*_test.go` companion for the detector you're changing —
-     if you swap the algorithm, you must update the test file to lock
-     in the new contract. Do not weaken assertions silently.
-  Skip this discovery and your PR will be convention-drift'd to death
-  by the Algorithm Expert reviewer.
-- Keep the change minimal for the candidate's stated goal — but don't
-  avoid meaningful structural work out of caution. "The candidate says to
-  try X; do X." Not "the candidate says to try X; I'll tweak a threshold."
-- DO NOT run any git command. The coordinator manages all git state;
-  attempting `git` will be blocked. Just make file edits.
-- When done, print a 1-3 sentence summary starting with "DONE:" describing
-  exactly which files you changed and how, and what distinguishes this
-  attempt from the prior-work list above if applicable.
+- Only modify files under comp/observer/ (minus scenarios/). Do NOT
+  touch tasks/q.py, tasks/libs/q, or the eval framework.
+- Do NOT use git commands. Do NOT use the Task tool (it's blocked).
+- Read the target detector + its sibling + the Detector/SeriesDetector
+  interface in comp/observer/def/component.go before editing.
+- Keep the change small: if the candidate calls for a big algorithm,
+  stub the shape and note in DONE that a proper implementation needs
+  a more detailed plan next iteration.
+- Finish with DONE: listing files changed + what you did.
 """
+
     write_guard = _make_write_guard(root)
     bash_guard = _make_bash_guard(root)
+    # Sonnet with a detailed plan. max_turns ~25 is enough for: read
+    # cited files, make edits, run build+test. If it can't finish in 25
+    # turns, the plan was too big (proposer problem, not implementer).
     text = _run_query(
         prompt,
-        model=CONFIG.model_deep,  # deep thinking — Opus
+        model=CONFIG.model_light if has_plan else CONFIG.model_deep,
         purpose="implement",
         root=root,
         iter_num=iter_num,
@@ -660,25 +696,16 @@ attempt is not the same.
         cwd=str(root),
         hooks={
             "PreToolUse": [
-                # Path whitelist on Edit/Write: agent may only modify
-                # comp/observer/ (minus scenarios/). Without this guard,
-                # the agent could edit tasks/q.py, .git/hooks/, etc. — and
-                # revert_working_tree only undoes comp/observer/ changes,
-                # so out-of-scope edits persist silently across iterations.
                 HookMatcher(matcher="Edit", hooks=[write_guard]),
                 HookMatcher(matcher="Write", hooks=[write_guard]),
-                # Bash: git already blocked; now also block shell redirects
-                # / cp / mv / sed -i targeting forbidden paths. Heuristic,
-                # not airtight.
                 HookMatcher(matcher="Bash", hooks=[bash_guard]),
+                # Hard-block Task: this is the iter-16-crash mitigation.
+                # Without it, the agent can still reach the Task tool
+                # because claude-agent-sdk exposes it implicitly.
+                HookMatcher(matcher="Task", hooks=[_block_task_tool_hook]),
             ],
         },
-        # Hard ceiling on tool hops for one implementation call. Realistic
-        # edits finish in 10-30 hops (read target, read neighbors, edit,
-        # maybe grep for callers, re-read). 60 is well beyond any honest
-        # budget and still catches a runaway "read the whole repo" loop
-        # before it burns a day of tokens.
-        max_turns=60,
+        max_turns=25 if has_plan else 40,
     )
     # Extract the "DONE:" summary line.
     for line in text.splitlines():
@@ -793,28 +820,35 @@ def review_experiment(
     phase: Phase,
     all_scenarios: list[str],
     root: Path,
+    candidate: Candidate | None = None,
     iter_num: int | None = None,
 ) -> ReviewVerdict:
-    """Invoke Phase-1 review (leakage_auditor + hack_detector).
+    """Invoke Phase-1 review (leakage_auditor + hack_detector + algorithm_expert).
 
-    Each persona returns YAML with per-check evidence fields; a reviewer
-    that returns only `approve: true` without filling evidence is treated
-    as reject. Unanimity required for approval.
+    Each persona returns YAML with per-check evidence fields; unanimity
+    required. Personas get the candidate's `implementation_plan` (written
+    by the proposer) alongside the actual diff — lets them check plan
+    fidelity and distinguish "clean execution" from "net-positive
+    deviation" from "abandoned the plan and produced bad code."
     """
     personas = PHASE1_PERSONAS if phase == Phase.ONE else PHASE2_PERSONAS
     scoring_summary = _format_scoring_for_review(scoring)
     diff = _working_tree_diff(root)
 
     prior_block = "(no prior same-family experiments)"
-    # Prior-work string is stored on the experiment; reviewer.HACK_DETECTOR_PROMPT
-    # renders it. Provided by the driver when it builds the experiment.
     prior_rationales = getattr(experiment, "prior_rationales_summary", "") or ""
     if prior_rationales:
-        # Double-redaction in case an older rationale from before we
-        # started redacting at write time still contains scenario names.
         prior_block = _redact_scenario_names(prior_rationales, all_scenarios)
 
     all_s = ", ".join(all_scenarios) or "(none)"
+
+    # Plan for plan-fidelity checks. Empty string means "no plan authored" —
+    # the reviewer persona can skip the fidelity check in that case.
+    plan_block = (
+        candidate.implementation_plan
+        if candidate and candidate.implementation_plan
+        else "(no implementation_plan was authored by the proposer for this candidate)"
+    )
 
     decisions: list[ReviewDecision] = []
     for name, persona_prompt in personas.items():
@@ -823,6 +857,7 @@ def review_experiment(
             all_scenarios=all_s,
             scoring_summary=scoring_summary,
             prior_block=prior_block,
+            implementation_plan=plan_block,
         )
         full_prompt += f"\n\n--- Experiment context ---\n{scoring_summary}\n"
         text = _run_query(

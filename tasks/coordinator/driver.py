@@ -1156,6 +1156,7 @@ def _run_iteration_body(
                 + (list(db.split.lockbox) if db.split else [])
             ),
             root=root,
+            candidate=candidate,
             iter_num=iter_num,
         )
     except Exception as e:

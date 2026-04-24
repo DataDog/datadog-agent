@@ -45,6 +45,10 @@ the baseline report numbers shown in the experiment context.
 {diff}
 ```
 
+## Implementation plan (authored by proposer; implementer was supposed to follow this)
+
+{implementation_plan}
+
 ## Full scenario set
 
 {all_scenarios}
@@ -107,6 +111,10 @@ defensible from the code, reject.
 {diff}
 ```
 
+## Implementation plan (authored by proposer; the diff should execute this)
+
+{implementation_plan}
+
 ## Per-scenario breakdown (from experiment context, reproduced here for reference)
 
 {scoring_summary}
@@ -132,12 +140,18 @@ checks:
   prior_retread:
     status: pass | fail
     evidence: "<list prior experiment IDs checked, OR 'no prior attempts in family'>"
+  plan_fidelity:
+    status: pass | fail
+    evidence: "<did the implementer execute the proposer's plan? If not, is the deviation net-positive (explain why) or net-negative? Approve a net-positive deviation; reject a net-negative one. If no plan was authored, write 'no plan' and don't fail this check.>"
 approve: true | false
 rationale: "<2-3 sentences tying check results to the decision>"
 ```
 
 Any check with empty evidence or evidence that just restates the rubric
-text is a fail. Approve only if ALL checks pass.
+text is a fail. **plan_fidelity is advisory**: if the plan was abandoned
+but the net result is a positive improvement, pass the check with a
+clear explanation of the deviation. If no plan was authored, pass the
+check with `no plan`. Approve only if ALL checks pass.
 """
 
 
@@ -201,6 +215,10 @@ You HAVE tool access. Read the diff and one sibling detector to compare.
 ```diff
 {diff}
 ```
+
+## Implementation plan (authored by proposer; diff should execute this)
+
+{implementation_plan}
 
 ## Full scenario set
 

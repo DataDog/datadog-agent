@@ -272,15 +272,63 @@ a genuinely different family.
   fallback behavior.
 - For new-detector proposals: describe the algorithm precisely enough
   that the implementation agent can code it in a single iteration
-  (~60 tool hops). If the idea is too big to implement in that budget,
+  (~25 tool hops). If the idea is too big to implement in that budget,
   break it into phases and propose phase 1 here.
+
+## Proposer-implementer split (IMPORTANT)
+
+You are doing BOTH the brainstorming AND the detailed planning. The
+implementer that runs after you is **Sonnet** with only ~25 tool turns
+— it cannot design, it can only execute your plan. If your plan is
+vague, Sonnet will either misimplement or crash trying to redesign in
+flight. You are Opus. You have Read/Grep/Glob access. Use them to
+ground your plan in the actual code BEFORE writing the plan.
+
+For each candidate you propose, the `implementation_plan` field must
+be detailed enough that a competent Sonnet instance can execute it
+mechanically. Concretely:
+
+1. **Files to modify / create** — exact paths under `comp/observer/`.
+   Read the file first (before writing the plan) and cite the specific
+   function or line range being replaced.
+2. **Interface to preserve** — which interface (`SeriesDetector` or
+   `Detector` from `comp/observer/def/component.go`), which factory
+   signature, which catalog entry. Do NOT ask Sonnet to infer.
+3. **Algorithm steps** — numbered, concrete. Cite papers if
+   literature-derived, but the steps must be translatable to Go
+   without further design choices (e.g. "maintain a ring buffer of
+   size N=window/2" not "use a ring buffer").
+4. **Data structures** — specify Go-level types and shapes. Not
+   "a map" — "`map[seriesKey]*ringState` where ringState has the
+   fields: buf []float64, head int, n int".
+5. **Integration / wiring** — where in the detector's existing
+   Detect() path your new logic inserts. Line ranges help.
+6. **Tests** — what new tests to add (input shape + expected behavior)
+   and what existing tests must still pass. If an existing test needs
+   an assertion update to match the new contract, say so EXPLICITLY
+   with rationale.
+7. **Perf** — stated per-tick cost (O-notation + concrete constant if
+   you know it) and memory footprint per series.
+8. **Forbidden**: do not suggest the implementer use the `Task` tool
+   to sub-delegate. Sonnet's toolset is Read/Edit/Write/Bash/Grep/Glob
+   only. If you can't express the change as a plan Sonnet can follow
+   with that toolset, the candidate is too big — break it into phases.
+
+A good `implementation_plan` is 30-80 lines. A 5-line plan is a
+proposal, not a plan — Sonnet will fail on it.
 
 ## Output
 Return a YAML document with a top-level key `candidates` containing a list.
-Each entry has these fields: id, description, approach_family,
-target_components, phase (use "1"), parent_candidates (list of past
-experiment_ids that informed this candidate; may be empty). Do not include
-any other prose — just the YAML block.
+Each entry has these fields:
+- `id`: short kebab-case tag
+- `description`: 1-3 sentences on the idea + motivation
+- `approach_family`: short tag (e.g. "kernel-two-sample", "spectral-residual")
+- `target_components`: list of detectors this affects
+- `phase`: "1"
+- `parent_candidates`: list of past experiment_ids that informed this
+- `implementation_plan`: the detailed plan (see above)
+
+Do not include any other prose — just the YAML block.
 """
 
 
@@ -342,6 +390,7 @@ def materialize_candidates(
             proposed_at=now,
             approach_family=str(prop.get("approach_family", "unspecified")),
             parent_candidates=list(prop.get("parent_candidates", [])),
+            implementation_plan=str(prop.get("implementation_plan", "") or "").strip(),
         )
         # Write YAML snapshot for audit
         snapshot = {
