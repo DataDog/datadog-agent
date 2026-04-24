@@ -11,23 +11,17 @@ import (
 	"sync"
 	"time"
 
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	runner "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
-
-// MetadataProvider is the provider for metadata
-type MetadataProvider func(context.Context) time.Duration
 
 type runnerImpl struct {
 	log    log.Component
 	config config.Component
 
-	providers []MetadataProvider
+	providers []runner.MetadataProvider
 
 	wg       sync.WaitGroup
 	stopChan chan struct{}
@@ -41,7 +35,7 @@ type Requires struct {
 	Log    log.Component
 	Config config.Component
 
-	Providers []MetadataProvider `group:"metadata_provider"`
+	Providers []runner.MetadataProvider `group:"metadata_provider"`
 }
 
 // Provides defines the output of the runner component
@@ -51,26 +45,12 @@ type Provides struct {
 	Comp runner.Component
 }
 
-// Provider represents the callback from a metadata provider. This is returned by 'NewProvider' helper.
-type Provider struct {
-	fx.Out
-
-	Callback MetadataProvider `group:"metadata_provider"`
-}
-
-// NewProvider registers a new metadata provider by adding a callback to the runner.
-func NewProvider(callback MetadataProvider) Provider {
-	return Provider{
-		Callback: callback,
-	}
-}
-
 // createRunner instantiates a runner object
 func createRunner(deps Requires) *runnerImpl {
 	return &runnerImpl{
 		log:       deps.Log,
 		config:    deps.Config,
-		providers: fxutil.GetAndFilterGroup(deps.Providers),
+		providers: runner.GetAndFilterProviders(deps.Providers),
 		stopChan:  make(chan struct{}),
 	}
 }
@@ -96,7 +76,7 @@ func NewComponent(deps Requires) Provides {
 }
 
 // handleProvider runs a provider at regular interval until the runner is stopped
-func (r *runnerImpl) handleProvider(p MetadataProvider) {
+func (r *runnerImpl) handleProvider(p runner.MetadataProvider) {
 	r.log.Debugf("Starting runner for MetadataProvider %#v", p)
 
 	intervalChan := make(chan time.Duration)
