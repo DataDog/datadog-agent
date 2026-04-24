@@ -873,7 +873,7 @@
 /test/new-e2e/tests/sysprobe-functional     @DataDog/windows-products
 /test/new-e2e/tests/security-agent-functional     @DataDog/windows-products @DataDog/agent-security
 /test/new-e2e/tests/cws                       @DataDog/agent-security
-/test/new-e2e/tests/cws/fargate_test.go      @DataDog/ecs-experiences
+/test/new-e2e/tests/cws/fargate_test.go       @DataDog/agent-security @DataDog/ecs-experiences
 /test/new-e2e/tests/agent-log-pipelines       @DataDog/agent-log-pipelines
 /test/new-e2e/tests/windows                   @DataDog/windows-products @DataDog/windows-products
 /test/new-e2e/tests/apm                       @DataDog/agent-apm
