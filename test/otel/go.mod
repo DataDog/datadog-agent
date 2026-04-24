@@ -75,15 +75,19 @@ require (
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
 	github.com/fatih/color v1.18.0 // indirect
+	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mdlayher/socket v0.5.1 // indirect
 	github.com/mdlayher/vsock v1.2.1 // indirect
 	github.com/pierrec/lz4/v4 v4.1.26 // indirect
 	github.com/twmb/murmur3 v1.1.8 // indirect
+	github.com/vmihailenco/msgpack/v4 v4.3.13 // indirect
+	github.com/vmihailenco/tagparser v0.1.2 // indirect
 	go.opentelemetry.io/collector/consumer/consumererror v0.150.0 // indirect
 	go.opentelemetry.io/collector/pdata/pprofile v0.150.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
+	google.golang.org/appengine v1.6.8 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
