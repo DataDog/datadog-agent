@@ -163,8 +163,6 @@ func getExpectedBinFilesForAgentMajorVersion(majorVersion string) []string {
 		`bin\agent\process-agent.exe`,
 		`bin\agent\security-agent.exe`,
 		`bin\agent\system-probe.exe`,
-		`bin\agent\dd-procmgr-service.exe`,
-		`bin\agent\dd-procmgr.exe`,
 		// drivers
 		`bin\agent\driver\ddnpm.sys`,
 		`bin\agent\driver\ddnpm.inf`,
