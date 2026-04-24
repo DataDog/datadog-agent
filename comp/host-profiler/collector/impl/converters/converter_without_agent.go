@@ -233,7 +233,7 @@ func (c *converterWithoutAgent) fixProcessorsPipeline(conf confMap, processorNam
 		if err := Set(processors, defaultDDHostNameProcessorName, confMap{}); err != nil {
 			return nil, err
 		}
-		slog.Warn("Added minimal ddhostname processor to user configuration")
+		slog.Info("Added minimal ddhostname processor to user configuration")
 		processorNames = append(processorNames, defaultDDHostNameProcessorName)
 	}
 
