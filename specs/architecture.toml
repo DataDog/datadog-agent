@@ -21,3 +21,124 @@ HKLM\SOFTWARE\Datadog\Datadog Agent\InstallerBootstrapMode (values: "OCI" or
 '''
 tags = ["installer:fleet", "installer:msi"]
 ref = ["RF023", "RF029"]
+
+[[requirements]]
+id = "RA002"
+short = "Symlink-based repository layout"
+long = '''
+Each installed package is stored on disk in a directory named after its version.
+Two symlinks, "stable" and "experiment", point to the active and candidate
+versions respectively.
+
+Repository state is never loaded into memory. All operations read from disk to
+avoid divergence between in-memory and on-disk state. Operations are designed to
+be atomic: no sequence of symlink updates can leave the repository in an invalid
+state, even if the process is interrupted.
+
+Garbage (unreferenced version directories) may be left behind after an
+interrupted operation. It is cleaned up by the next operation or by garbage
+collection.
+'''
+tags = ["installer:fleet"]
+ref = ["RF024", "RD004"]
+
+[[requirements]]
+id = "RA003"
+short = "Hooks dispatched as subprocess calls"
+long = '''
+Package lifecycle hooks (pre-install, post-install, pre-remove, experiment
+start/stop/promote, extension install/remove) are not executed in-process.
+Instead, the daemon serializes a HookContext to JSON and invokes the installer
+binary as a subprocess with a "run-hook" command.
+
+On Linux, for the datadog-agent package, the hook binary is resolved to the
+installer embedded inside the agent package itself rather than the running
+daemon binary. This allows the new agent version's hooks to run during upgrades.
+
+This design isolates hook failures from the daemon process and allows hooks to
+be version-specific to the package being installed.
+'''
+tags = ["installer:fleet"]
+ref = ["RF023", "RF024"]
+
+[[requirements]]
+id = "RA004"
+short = "Daemon drives remote configuration"
+long = '''
+The fleet daemon is a long-running process that receives instructions from the
+Datadog remote configuration service.
+
+The daemon maintains:
+- A package catalog mapping package names to available versions and URLs
+- A config catalog mapping packages to configuration operations
+- A request queue for serializing install/remove/experiment operations
+- A task database (SQLite) for persisting async operation state
+- A NaCl keypair for decrypting secrets in config experiments
+
+The daemon periodically refreshes its state and runs garbage collection at
+configurable intervals. All install/remove operations are delegated to the
+installer via subprocess execution, not in-process calls.
+'''
+tags = ["installer:fleet"]
+ref = ["RF023", "RF025", "RA003"]
+
+[[requirements]]
+id = "RA005"
+short = "Local API for inter-process communication"
+long = '''
+The fleet daemon exposes a local HTTP API for other processes on the same host
+to query state and trigger operations.
+
+The API is bound to a Unix domain socket (Linux/macOS) or a named pipe
+(Windows), restricting access to local processes. It provides endpoints for:
+- Querying installed package states and config states
+- Triggering install, remove, and experiment operations
+- Retrieving remote config state and APM injection status
+- Starting and stopping config experiments
+
+The API is the boundary between the daemon and CLI commands (e.g. "installer
+install", "installer remove").
+'''
+tags = ["installer:fleet"]
+ref = ["RA004"]
+
+[[requirements]]
+id = "RA006"
+short = "BoltDB package database"
+long = '''
+Installed package metadata (name, version, installer version) is persisted in a
+BoltDB (bbolt) key-value store at packages.db within the packages directory.
+
+The database serves as the source of truth for which packages are installed and
+at which version. Repository symlinks reflect the on-disk layout, but the
+database is authoritative for the installed set.
+
+The database uses file-level locking. A configurable timeout (default 5 minutes)
+prevents indefinite blocking when another process holds the lock. The caller can
+also cancel the lock acquisition via context.
+'''
+tags = ["installer:fleet"]
+ref = ["RF023"]
+
+[[requirements]]
+id = "RA007"
+short = "OCI layer media types for selective extraction"
+long = '''
+OCI packages use custom media types to distinguish layer purposes, allowing the
+installer to extract only the layers relevant to the current operation:
+
+- application/vnd.datadog.package.layer.v1.tar+zstd: main binary layer,
+  always extracted on install
+- application/vnd.datadog.package.config.layer.v1.tar+zstd: configuration
+  templates, always extracted on install
+- application/vnd.datadog.package.installer.layer.v1: installer binary,
+  extracted only during bootstrap
+- application/vnd.datadog.package.extension.layer.v1.tar+zstd: optional
+  extensions, extracted selectively based on annotation matching
+  (com.datadoghq.package.extension.name)
+
+This design allows a single OCI image to carry multiple concerns without
+requiring the installer to download or extract everything.
+'''
+tags = ["installer:fleet"]
+ref = ["RD003", "RF023", "RF026"]
