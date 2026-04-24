@@ -32,6 +32,7 @@ type SecurityEventMessage struct {
 	Timestamp      *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=Timestamp,proto3" json:"Timestamp,omitempty"`
 	OriginalRuleID string                 `protobuf:"bytes,6,opt,name=OriginalRuleID,proto3" json:"OriginalRuleID,omitempty"`
 	Track          string                 `protobuf:"bytes,7,opt,name=Track,proto3" json:"Track,omitempty"`
+	Hostname       string                 `protobuf:"bytes,8,opt,name=Hostname,proto3" json:"Hostname,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -111,6 +112,13 @@ func (x *SecurityEventMessage) GetOriginalRuleID() string {
 func (x *SecurityEventMessage) GetTrack() string {
 	if x != nil {
 		return x.Track
+	}
+	return ""
+}
+
+func (x *SecurityEventMessage) GetHostname() string {
+	if x != nil {
+		return x.Hostname
 	}
 	return ""
 }
@@ -3432,7 +3440,7 @@ var File_pkg_security_proto_api_api_proto protoreflect.FileDescriptor
 
 const file_pkg_security_proto_api_api_proto_rawDesc = "" +
 	"\n" +
-	" pkg/security/proto/api/api.proto\x12\x03api\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1bgoogle/protobuf/empty.proto\"\xe8\x01\n" +
+	" pkg/security/proto/api/api.proto\x12\x03api\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1bgoogle/protobuf/empty.proto\"\x84\x02\n" +
 	"\x14SecurityEventMessage\x12\x16\n" +
 	"\x06RuleID\x18\x01 \x01(\tR\x06RuleID\x12\x12\n" +
 	"\x04Data\x18\x02 \x01(\fR\x04Data\x12\x12\n" +
@@ -3440,7 +3448,8 @@ const file_pkg_security_proto_api_api_proto_rawDesc = "" +
 	"\aService\x18\x04 \x01(\tR\aService\x128\n" +
 	"\tTimestamp\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\tTimestamp\x12&\n" +
 	"\x0eOriginalRuleID\x18\x06 \x01(\tR\x0eOriginalRuleID\x12\x14\n" +
-	"\x05Track\x18\a \x01(\tR\x05Track\"L\n" +
+	"\x05Track\x18\a \x01(\tR\x05Track\x12\x1a\n" +
+	"\bHostname\x18\b \x01(\tR\bHostname\"L\n" +
 	"\x16DumpProcessCacheParams\x12\x1a\n" +
 	"\bWithArgs\x18\x01 \x01(\bR\bWithArgs\x12\x16\n" +
 	"\x06Format\x18\x02 \x01(\tR\x06Format\"=\n" +

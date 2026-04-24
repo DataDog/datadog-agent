@@ -192,6 +192,7 @@ type APIServer struct {
 	stopper  startstop.Stopper
 	wg       sync.WaitGroup
 
+	hostname               string
 	securityAgentAPIClient *SecurityAgentAPIClient
 }
 
@@ -407,6 +408,7 @@ func (a *APIServer) start(ctx context.Context) {
 					Service:   msg.service,
 					Tags:      msg.tags,
 					Timestamp: timestamppb.New(msg.timestamp),
+					Hostname:  a.hostname,
 				}
 				a.updateMsgService(m)
 
@@ -865,10 +867,11 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 		connEstablished: atomic.NewBool(false),
 		envAsTags:       getEnvAsTags(cfg),
 		containerFilter: containerFilter,
+		hostname:        hostname,
 	}
 
-	if !cfg.SendPayloadsFromSystemProbe && cfg.EventGRPCServer == "security-agent" {
-		seclog.Infof("setting up security agent api client")
+	if !cfg.SendPayloadsFromSystemProbe && (cfg.EventGRPCServer == "security-agent" || cfg.EventGRPCServer == "system-probe") {
+		seclog.Infof("setting up runtime security agent api client")
 
 		securityAgentAPIClient, err := NewSecurityAgentAPIClient(cfg)
 		if err != nil {
