@@ -842,7 +842,7 @@ require (
 	go.opentelemetry.io/collector/connector v0.150.0 // indirect
 	go.opentelemetry.io/collector/connector/connectortest v0.150.0 // indirect
 	go.opentelemetry.io/collector/connector/xconnector v0.150.0 // indirect
-	go.opentelemetry.io/collector/consumer v1.56.0 // indirect
+	go.opentelemetry.io/collector/consumer v1.56.0
 	go.opentelemetry.io/collector/consumer/consumererror v0.150.0 // indirect
 	go.opentelemetry.io/collector/consumer/consumererror/xconsumererror v0.150.0 // indirect
 	go.opentelemetry.io/collector/consumer/consumertest v0.150.0 // indirect
@@ -864,16 +864,16 @@ require (
 	go.opentelemetry.io/collector/internal/memorylimiter v0.150.0 // indirect
 	go.opentelemetry.io/collector/internal/sharedcomponent v0.150.0 // indirect
 	go.opentelemetry.io/collector/internal/telemetry v0.150.0 // indirect
-	go.opentelemetry.io/collector/pdata/pprofile v0.150.0 // indirect
+	go.opentelemetry.io/collector/pdata/pprofile v0.150.0
 	go.opentelemetry.io/collector/pdata/testdata v0.150.0 // indirect
 	go.opentelemetry.io/collector/pdata/xpdata v0.150.0 // indirect
 	go.opentelemetry.io/collector/pipeline v1.56.0 // indirect
 	go.opentelemetry.io/collector/pipeline/xpipeline v0.150.0 // indirect
 	go.opentelemetry.io/collector/processor/memorylimiterprocessor v0.150.0 // indirect
-	go.opentelemetry.io/collector/processor/processorhelper v0.150.0 // indirect
-	go.opentelemetry.io/collector/processor/processorhelper/xprocessorhelper v0.150.0 // indirect
+	go.opentelemetry.io/collector/processor/processorhelper v0.150.0
+	go.opentelemetry.io/collector/processor/processorhelper/xprocessorhelper v0.150.0
 	go.opentelemetry.io/collector/processor/processortest v0.150.0 // indirect
-	go.opentelemetry.io/collector/processor/xprocessor v0.150.0 // indirect
+	go.opentelemetry.io/collector/processor/xprocessor v0.150.0
 	go.opentelemetry.io/collector/receiver/nopreceiver v0.150.0 // indirect
 	go.opentelemetry.io/collector/receiver/receiverhelper v0.150.0 // indirect
 	go.opentelemetry.io/collector/receiver/receivertest v0.150.0 // indirect

@@ -257,7 +257,7 @@ LOADER_TAGS = set()
 
 # We need to remove all discovery provider from prometheusreceiver components to avoid loading too many dependencies in the host-profiler binary.
 # imported by https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/f963ab53ee55aeb56d58617ed12c840e8b07cc53/receiver/prometheusreceiver/factory.go#L10
-HOST_PROFILER_TAGS = {"remove_all_sd"}
+HOST_PROFILER_TAGS = {"remove_all_sd", "docker", "kubelet"}
 
 PRIVATEACTIONRUNNER_TAGS = set()
 
