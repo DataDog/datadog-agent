@@ -2866,6 +2866,82 @@ probes:
   sampling:
     snapshotsPerSecond: 10
 
+# @duration used as a condition operand on a return-capable function.
+# Compiles to an 8-byte eq comparison in BPF; the user-facing literal
+# 0.0 ms translates to 0 nanoseconds at IR time, so the condition is
+# true only when the return fires in the same nanosecond as entry
+# (essentially never in practice — this probe exists to exercise
+# lowering, not to fire under load).
+- id: condDuration_eq
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condMultiReturn
+  when:
+    dsl: "@duration == 0.0"
+    json: {eq: [{ref: "@duration"}, 0.0]}
+  template: "duration={@duration}"
+  segments:
+    - str: "duration="
+    - json: {ref: "@duration"}
+      dsl: "@duration"
+  sampling:
+    snapshotsPerSecond: 10
+
+# @duration as a condition operand with an inequality. Exercises
+# CmpKindInt ordering on the synthetic int64-ns operand. The literal is
+# in milliseconds and is coerced to nanoseconds at IR time, so the
+# condition holds for any nonzero elapsed time.
+- id: condDuration_gt
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condMultiReturn
+  when:
+    dsl: "@duration > 0.0"
+    json: {gt: [{ref: "@duration"}, 0.0]}
+  template: "duration_gt"
+  segments:
+    - str: "duration_gt"
+  sampling:
+    snapshotsPerSecond: 10
+
+# @duration as a captureExpression on a return probe — the snapshot
+# carries the value as a named capture, rendered as a millisecond
+# float.
+- id: captureDuration_return
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condMultiReturn
+  captureExpressions:
+    - name: "duration_ms"
+      expr:
+        dsl: "@duration"
+        json: {ref: "@duration"}
+  sampling:
+    snapshotsPerSecond: 10
+
+# @duration in a condition on a line probe — must be rejected at
+# irgen time because line probes are not return events.
+- id: condDuration_on_line
+  type: LOG_PROBE
+  tags: ["issue:ConditionVariableUnavailable"]
+  captureSnapshot: false
+  where:
+    methodName: main.condLine
+    sourceFile: main.go
+    lines:
+      - "535"
+  when:
+    dsl: "@duration == 0.0"
+    json: {eq: [{ref: "@duration"}, 0.0]}
+  template: "line"
+  segments:
+    - str: "line"
+  sampling:
+    snapshotsPerSecond: 10
+
 # Standalone not(isEmpty(...)) under short-circuit OR. Exercises the jump
 # landing after a NotOp (label PC must point just past the Not, not just
 # past the underlying IsEmpty comparison).

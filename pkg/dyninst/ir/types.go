@@ -60,6 +60,7 @@ func (t *GoTypeAttributes) GetGoKind() (reflect.Kind, bool) {
 
 var (
 	_ Type = (*BaseType)(nil)
+	_ Type = (*DurationType)(nil)
 	_ Type = (*PointerType)(nil)
 	_ Type = (*UnresolvedPointeeType)(nil)
 	_ Type = (*StructureType)(nil)
@@ -138,6 +139,18 @@ type BaseType struct {
 }
 
 func (t *BaseType) irType() {}
+
+// DurationType is a synthetic 8-byte integer type used by the synthetic
+// @duration variable. Its underlying representation is a signed int64 of
+// nanoseconds, computed at BPF evaluation time as
+// (entry_to_return_duration_ns). It renders in templates and snapshots as
+// a float of milliseconds.
+type DurationType struct {
+	TypeCommon
+	syntheticType
+}
+
+func (t *DurationType) irType() {}
 
 // VoidPointerType is a type that represents a pointer to a value of an unknown type.
 // unsafe.Pointer is such a type.

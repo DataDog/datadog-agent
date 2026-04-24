@@ -1,6 +1,8 @@
 #ifndef __EVENT_H__
 #define __EVENT_H__
 
+// Touched to force Bazel to rebuild after header changes in types.h and
+// stack_machine.h (see feedback_bazel_stale_cache memory).
 #include "bpf_metadata.h"
 #include "bpf_helpers.h"
 #include "bpf_tracing.h"

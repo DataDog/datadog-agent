@@ -57,6 +57,12 @@ import (
 var loclistErrorLogLimiter = rate.NewLimiter(rate.Every(10*time.Minute), 10)
 var invalidGoRuntimeTypeLogLimiter = rate.NewLimiter(rate.Every(10*time.Minute), 10)
 
+// errDurationNotOnReturn is the irgen-time error message used when a
+// @duration reference appears on a probe that does not have a return
+// event. It matches the text used in the decode package so
+// capture-expression absent-status reports are identical.
+const errDurationNotOnReturn = "@duration is only available at function return"
+
 // TODO: This code creates a lot of allocations, but we could greatly reduce
 // the number of distinct allocations by using a batched allocation scheme.
 // Such an approach makes sense because we know the lifetimes of all the
@@ -395,7 +401,7 @@ func generateIR(
 	// roots. Must happen before type expansion. Returns one analyzedProbe per
 	// instance.
 	budgets := computeDepthBudgets(processed.pendingSubprograms)
-	analyzedProbes, explorationRoots := analyzeAllProbes(probes, budgets)
+	analyzedProbes, explorationRoots := analyzeAllProbes(probes, budgets, typeCatalog)
 
 	// Resolve placeholder types by a unified, budgeted expansion from
 	// exploration roots. Container internals are zero-cost.
@@ -697,6 +703,12 @@ func analyzeCondition(
 		}
 		rootVar := varByName[rootVarName]
 		if rootVar == nil {
+			if rootVarName == "@duration" {
+				return nil, ir.Issue{
+					Kind:    ir.IssueKindConditionVariableUnavailable,
+					Message: errDurationNotOnReturn,
+				}
+			}
 			return nil, ir.Issue{
 				Kind:    ir.IssueKindConditionVariableUnavailable,
 				Message: fmt.Sprintf("condition variable %q not found", rootVarName),
@@ -941,6 +953,7 @@ func extractRootVariableName(expr exprlang.Expr) (string, bool) {
 func analyzeAllProbes(
 	probes []*ir.Probe,
 	budgets map[ir.SubprogramID]uint32,
+	tc *typeCatalog,
 ) ([]analyzedProbe, []explorationRoot) {
 	var analyzed []analyzedProbe
 
@@ -950,6 +963,18 @@ func analyzeAllProbes(
 		if existing, ok := rootBudgets[typeID]; !ok || budget > existing {
 			rootBudgets[typeID] = budget
 		}
+	}
+
+	// durationVar is a single synthetic variable reused across all probes
+	// that support @duration. Its role signals to the compiler that its
+	// LocationOp should emit an ExprLoadDurationOp rather than reading
+	// from DWARF locations.
+	durationType := tc.typesByID[tc.durationType]
+	durationVar := &ir.Variable{
+		Name:      "@duration",
+		Type:      durationType,
+		Role:      ir.VariableRoleDuration,
+		DictIndex: -1,
 	}
 
 	for _, probe := range probes {
@@ -969,7 +994,7 @@ func analyzeAllProbes(
 			}
 
 			// Build variable lookup for this instance's subprogram.
-			varByName := make(map[string]*ir.Variable, len(inst.Subprogram.Variables))
+			varByName := make(map[string]*ir.Variable, len(inst.Subprogram.Variables)+1)
 			for _, v := range inst.Subprogram.Variables {
 				varByName[v.Name] = v
 			}
@@ -985,6 +1010,14 @@ func analyzeAllProbes(
 			}
 			haveEntry := slices.ContainsFunc(inst.Events, isKind(ir.EventKindEntry))
 			haveReturn := slices.ContainsFunc(inst.Events, isKind(ir.EventKindReturn))
+
+			// @duration is a synthetic variable available only on probes
+			// with a return event. Expose it under varByName so refs in
+			// conditions, template segments, and capture expressions
+			// resolve through the normal variable-matching paths.
+			if haveReturn {
+				varByName["@duration"] = durationVar
+			}
 
 			// isFloatType returns true if the variable has a float32 or float64 type.
 			isFloatType := func(v *ir.Variable) bool {
@@ -1182,6 +1215,42 @@ func analyzeAllProbes(
 				delete(segmentRefs, v.Name)
 			}
 
+			// Handle @duration references in template segments. Only
+			// plain {ref: "@duration"} is supported — member access or
+			// indexing on @duration produces an InvalidSegment. On
+			// probes without a return event we mark the segment
+			// invalid; at runtime on return probes the BPF program
+			// computes the duration from the entry/return timestamps.
+			if segs, ok := segmentRefs["@duration"]; ok {
+				for _, seg := range segs {
+					if !haveReturn {
+						ap.template.Segments[seg.index] = ir.InvalidSegment{
+							Error: errDurationNotOnReturn,
+							DSL:   seg.segment.DSL,
+						}
+						continue
+					}
+					if _, plainRef := seg.segment.JSON.(*exprlang.RefExpr); !plainRef {
+						ap.template.Segments[seg.index] = ir.InvalidSegment{
+							Error: "@duration does not support member access or indexing",
+							DSL:   seg.segment.DSL,
+						}
+						continue
+					}
+					ap.expressions = append(ap.expressions, analyzedExpression{
+						expr:         seg.segment.JSON,
+						dsl:          seg.segment.DSL,
+						rootVariable: durationVar,
+						eventKind:    ir.EventKindReturn,
+						exprKind:     ir.RootExpressionKindTemplateSegment,
+						segment:      seg.segment,
+						segmentIdx:   seg.index,
+					})
+					addRoot(durationType.GetID(), budget)
+				}
+				delete(segmentRefs, "@duration")
+			}
+
 			// Handle @return references in template segments. @return is
 			// a return-point concept and only resolves at probes with a
 			// Return event.
@@ -1230,11 +1299,35 @@ func analyzeAllProbes(
 				} else {
 					rootVar = varByName[rootVarName]
 				}
+				// @duration is a capturable expression even on probes
+				// without a return event: we bind it to whatever event
+				// the probe does have so that at runtime the BPF
+				// program writes ExprStatusAbsent and the decoder
+				// surfaces a clear "@duration is only available at
+				// function return" evaluation error on the snapshot.
+				if rootVar == nil && rootVarName == "@duration" {
+					rootVar = durationVar
+				}
 				if rootVar == nil {
 					continue
 				}
 				var evKind ir.EventKind
 				switch {
+				case rootVar.Role == ir.VariableRoleDuration:
+					// Prefer the return event when available. Otherwise
+					// fall back to the entry event or the sole line
+					// event, so the expression still runs and can
+					// report its absent status.
+					switch {
+					case haveReturn:
+						evKind = ir.EventKindReturn
+					case haveEntry:
+						evKind = ir.EventKindEntry
+					case len(inst.Events) == 1 && inst.Events[0].Kind == ir.EventKindLine:
+						evKind = ir.EventKindLine
+					default:
+						continue
+					}
 				case haveEntry && rootVar.Role == ir.VariableRoleParameter:
 					if isFloatType(rootVar) && floatIsRegisterOnly(entryIPs, rootVar) {
 						continue
@@ -1274,6 +1367,11 @@ func analyzeAllProbes(
 			) (ir.EventKind, bool) {
 				events := inst.Events
 				switch {
+				case rootVar.Role == ir.VariableRoleDuration:
+					// durationVar is only registered in varByName when
+					// haveReturn is true, so this arm always resolves to
+					// the return event.
+					return ir.EventKindReturn, true
 				case haveEntry && rootVar.Role == ir.VariableRoleParameter:
 					if isFloatType(rootVar) && floatIsRegisterOnly(entryIPs, rootVar) {
 						return 0, false
@@ -1370,10 +1468,6 @@ func newTemplate(td ir.TemplateDefinition) *ir.Template {
 			} else {
 				switch expr := expr.(type) {
 				case *exprlang.RefExpr:
-					if expr.Ref == "@duration" {
-						addSegment(&ir.DurationSegment{})
-						continue
-					}
 				case *exprlang.GetMemberExpr:
 				case *exprlang.IndexExpr:
 				case *exprlang.LenExpr:
@@ -1561,6 +1655,7 @@ func (p *typeQueueProcessor) drainQueue() error {
 
 		// Nothing to do for these types.
 		case *ir.BaseType,
+			*ir.DurationType,
 			*ir.EventRootType,
 			*ir.GoChannelType,
 			*ir.GoEmptyInterfaceType,
@@ -5326,6 +5421,28 @@ func coerceLiteral(value any, targetKind reflect.Kind, byteSize uint32) ([]byte,
 	return litData, nil
 }
 
+// coerceDurationLiteral encodes a user-provided millisecond literal
+// (float64 or integer) into an 8-byte little-endian int64 nanoseconds
+// value, matching what the BPF program writes for @duration.
+func coerceDurationLiteral(value any) ([]byte, error) {
+	var ns int64
+	switch v := value.(type) {
+	case float64:
+		ns = int64(math.Round(v * 1e6))
+	case int64:
+		// Treat an integer literal as whole milliseconds.
+		ns = v * 1_000_000
+	default:
+		return nil, fmt.Errorf(
+			"eq: @duration can only be compared to a numeric millisecond "+
+				"literal (got %T)", value,
+		)
+	}
+	out := make([]byte, 8)
+	binary.LittleEndian.PutUint64(out, uint64(ns))
+	return out, nil
+}
+
 // isNilComparable reports whether t can be compared against a null literal.
 // All supported types have a pointer at the start of their in-memory
 // representation whose zero value coincides with Go's `== nil` semantics:
@@ -5476,6 +5593,23 @@ func resolveComparison(
 			Op:       op,
 			Kind:     cmpKind,
 			ByteSize: uint8(byteSize),
+		})
+	} else if _, isDuration := lhsType.(*ir.DurationType); isDuration {
+		// @duration has user-facing millisecond semantics but is stored
+		// as int64 nanoseconds at BPF eval time. Convert the literal
+		// from milliseconds into nanoseconds and emit an 8-byte signed
+		// comparison against the value the BPF program wrote for
+		// @duration.
+		litData, err := coerceDurationLiteral(litExpr.Value)
+		if err != nil {
+			return ir.Expression{}, err
+		}
+		ops = append(ops, &ir.ExprPushOffsetOp{ByteSize: 8})
+		ops = append(ops, &ir.ExprLoadLiteralOp{Data: litData})
+		ops = append(ops, &ir.ExprCmpBaseOp{
+			Op:       op,
+			Kind:     ir.CmpKindInt,
+			ByteSize: 8,
 		})
 	} else {
 		return ir.Expression{}, fmt.Errorf(
