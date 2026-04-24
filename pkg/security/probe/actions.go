@@ -65,6 +65,7 @@ type KillActionReport struct {
 
 	// internal
 	Pid              uint32
+	pendingKills     []killContext
 	resolved         bool
 	rule             *rules.Rule
 	containerContext RemediationContainerContext // This is an internal field needed for remediation status events
