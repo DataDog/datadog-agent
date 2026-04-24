@@ -80,6 +80,7 @@ func (m *mockRemoteAgentRegistry) GetRegisteredAgentStatuses() []remoteagentregi
 
 func setupTest(ctx context.Context, t *testing.T, sessionID string) (*Server, *mockComp, *mockStream, chan *pb.ConfigEvent) {
 	cfg := configmock.New(t)
+	cfg.Set("remote_agent.configstream.enabled", true, model.SourceAgentRuntime)
 	cfg.Set("remote_agent.configstream.sleep_interval", 10*time.Millisecond, model.SourceAgentRuntime)
 
 	comp := &mockComp{}
@@ -181,8 +182,25 @@ func TestRARAuthorization(t *testing.T) {
 		Name: "test-client",
 	}
 
+	t.Run("rejects request when remote_agent.configstream.enabled is false", func(t *testing.T) {
+		cfg := configmock.New(t)
+		cfg.Set("remote_agent.configstream.enabled", false, model.SourceAgentRuntime)
+		comp := &mockComp{}
+		mockRAR := &mockRemoteAgentRegistry{}
+		server := NewServer(cfg, comp, mockRAR)
+		md := metadata.New(map[string]string{"session_id": "test-session-id"})
+		ctx := metadata.NewIncomingContext(context.Background(), md)
+		stream := &mockStream{ctx: ctx}
+
+		err := server.StreamConfigEvents(testReq, stream)
+		assert.Error(t, err)
+		assert.Equal(t, codes.Unimplemented, status.Code(err))
+		require.ErrorContains(t, err, "config stream is not enabled")
+	})
+
 	t.Run("rejects request with missing metadata", func(t *testing.T) {
 		cfg := configmock.New(t)
+		cfg.Set("remote_agent.configstream.enabled", true, model.SourceAgentRuntime)
 		comp := &mockComp{}
 		mockRAR := &mockRemoteAgentRegistry{}
 		server := NewServer(cfg, comp, mockRAR)
@@ -198,6 +216,7 @@ func TestRARAuthorization(t *testing.T) {
 
 	t.Run("rejects request with missing session_id in metadata", func(t *testing.T) {
 		cfg := configmock.New(t)
+		cfg.Set("remote_agent.configstream.enabled", true, model.SourceAgentRuntime)
 		comp := &mockComp{}
 		mockRAR := &mockRemoteAgentRegistry{}
 		server := NewServer(cfg, comp, mockRAR)
@@ -215,6 +234,7 @@ func TestRARAuthorization(t *testing.T) {
 
 	t.Run("rejects request with empty session_id", func(t *testing.T) {
 		cfg := configmock.New(t)
+		cfg.Set("remote_agent.configstream.enabled", true, model.SourceAgentRuntime)
 		comp := &mockComp{}
 		mockRAR := &mockRemoteAgentRegistry{}
 		server := NewServer(cfg, comp, mockRAR)
