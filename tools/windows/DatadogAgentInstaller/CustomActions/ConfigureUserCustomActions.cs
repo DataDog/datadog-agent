@@ -764,7 +764,8 @@ namespace Datadog.CustomActions
                     // because the new version of the Agent will need it. Technically it should already have it
                     // because it's fetched in ProcessDDAgentUserCredentials, which runs before the existing
                     // products are removed, but we don't want to lose it on rollback.
-                    // TODO(WINA-1357): rollback the password if the upgrade fails
+                    // TODO(WINA-1357): rollback the password if the upgrade fails.
+                    //   Note: the uninstall rollback case is handled by UninstallUserRollback/RestoreAgentCredentials.
                     // If this is a Fleet Automation upgrade (uninstall->install workflow), we don't want to remove
                     // the password from the LSA secret store because the new version of the Agent will need it.
                     _session.Log($"Upgrade detected, not removing password from LSA secret store");
@@ -811,8 +812,69 @@ namespace Datadog.CustomActions
 
         public ActionResult UninstallUserRollback()
         {
+            RestoreAgentCredentials();
             RunRollbackDataRestore();
             return ActionResult.Success;
+        }
+
+        /// <summary>
+        /// Restores the agent password to the LSA secret store and resets the SCM service
+        /// logon credentials on all ddagentuser services.
+        /// </summary>
+        /// <remarks>
+        /// The password was saved in CustomActionData by ReadInstallState during the immediate
+        /// phase. We restore both the LSA secret (for future upgrades/Fleet Automation) and the
+        /// SCM service credentials (since MSI's DeleteServices rollback does not restore
+        /// passwords — QueryServiceConfig does not return them).
+        /// </remarks>
+        private void RestoreAgentCredentials()
+        {
+            var password = _session.Property("DDAGENTUSER_LSA_PASSWORD_BACKUP");
+            if (string.IsNullOrEmpty(password))
+            {
+                _session.Log("No agent password in rollback data, skipping credential restore");
+                return;
+            }
+
+            // Restore the LSA secret
+            try
+            {
+                var keyName = AgentPasswordPrivateDataKey();
+                _nativeMethods.StoreSecret(keyName, password);
+                _session.Log("Restored agent password to LSA secret store");
+            }
+            catch (Exception e)
+            {
+                _session.Log($"Failed to restore agent password to LSA: {e}");
+            }
+
+            // Restore the SCM service logon credentials
+            var ddAgentUserName = _session.Property("DDAGENTUSER_NAME");
+            if (string.IsNullOrEmpty(ddAgentUserName))
+            {
+                _session.Log("No agent user name in rollback data, skipping SCM credential restore");
+                return;
+            }
+
+            try
+            {
+                var userFound = _nativeMethods.LookupAccountName(ddAgentUserName,
+                    out _, out _, out var ddAgentUserSID, out _);
+                if (!userFound || ddAgentUserSID == null)
+                {
+                    _session.Log($"Could not find user {ddAgentUserName}, skipping SCM credential restore");
+                    return;
+                }
+
+                ServiceCustomAction.SetDdAgentUserServiceCredentials(
+                    _serviceController, _nativeMethods, _session,
+                    ddAgentUserName, password, ddAgentUserSID);
+                _session.Log("Restored SCM service logon credentials");
+            }
+            catch (Exception e)
+            {
+                _session.Log($"Failed to restore SCM service credentials: {e}");
+            }
         }
 
         public static ActionResult UninstallUserRollback(Session session)

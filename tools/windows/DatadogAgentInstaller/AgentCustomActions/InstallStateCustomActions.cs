@@ -45,6 +45,7 @@ namespace Datadog.AgentCustomActions
                     RegistryValueProperty(_session, "APPLICATIONDATADIRECTORY", subkey, "ConfigRoot");
                 }
 
+                LoadAgentPasswordProperty();
                 GetWindowsBuildVersion();
                 SetDDDriverRollback();
                 SetRemoveFolderExProperties();
@@ -56,6 +57,36 @@ namespace Datadog.AgentCustomActions
             }
 
             return ActionResult.Success;
+        }
+
+        /// <summary>
+        /// Reads the agent password from the LSA secret store and stores it in the
+        /// DDAGENTUSER_LSA_PASSWORD_BACKUP MSI property for use during uninstall rollback.
+        /// </summary>
+        /// <remarks>
+        /// The password must be available as an MSI property during the immediate phase so that
+        /// it can be passed to the UninstallUserRollback deferred action via CustomActionData.
+        /// We intentionally do not log the password value.
+        /// </remarks>
+        private void LoadAgentPasswordProperty()
+        {
+            try
+            {
+                var keyName = ConfigureUserCustomActions.AgentPasswordPrivateDataKey();
+                var password = _nativeMethods.FetchSecret(keyName);
+                if (!string.IsNullOrEmpty(password))
+                {
+                    // Use lowercase property name so MSI treats it as a private property.
+                    // Do not log the password value.
+                    _session["DDAGENTUSER_LSA_PASSWORD_BACKUP"] = password;
+                    _session.Log("Read agent password from LSA for rollback");
+                }
+            }
+            catch (Exception e)
+            {
+                // Not an error - the password may not exist (e.g., fresh install or service account)
+                _session.Log($"Could not read agent password from LSA for rollback: {e}");
+            }
         }
 
         // <summary>
