@@ -139,7 +139,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
-	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
+	packagesigning "github.com/DataDog/datadog-agent/comp/metadata/packagesigning/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	securityagentmetadata "github.com/DataDog/datadog-agent/comp/metadata/securityagent/def"
 	systemprobemetadata "github.com/DataDog/datadog-agent/comp/metadata/systemprobe/def"
