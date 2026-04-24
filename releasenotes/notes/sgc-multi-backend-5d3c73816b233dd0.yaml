@@ -8,7 +8,5 @@
 ---
 features:
   - |
-    Add support for multiple secret backends via ``multi_secret_backends`` in ``datadog.yaml``.
-    Each named backend declares its own ``type``, ``config``, and ``secret_backend_timeout``.
-    When ``secret_backend_type`` is unset, secret handles use ``ENC[backendID::secretKey]`` to route to a named backend.
-    When ``secret_backend_type`` is set, ``multi_secret_backends`` has no effect on resolution: the full inner ``ENC[...]`` string is the secret key for ``secret_backend_type``.
+    Add ``multi_secret_backends`` in ``datadog.yaml`` so you can declare extra named secret backends (each with ``type`` and ``config``). When no ``secret_backend_type`` is set, select the backend per handle using ``ENC[backendID::secretKey]`` (``backendID`` matches a name under ``multi_secret_backends``).
+    Precedence is ``secret_backend_command`` (if set) over ``secret_backend_type`` over ``multi_secret_backends``: a custom command wins over native type; when native ``secret_backend_type`` is set (and no custom command), every ``ENC[...]`` inner string is resolved only through that type and ``multi_secret_backends`` is not used for routing.

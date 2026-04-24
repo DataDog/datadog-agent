@@ -191,7 +191,7 @@ func splitSecretHandle(handle string) (backendID, secretKey string) {
 // When only multi_secret_backends is set (no secret_backend_type), backendID "" (unprefixed ENC[...]) is rejected.
 // When secret_backend_type is set, fetchSecret passes backendID "" and uses the top-level type only
 // (multi_secret_backends is ignored for routing).
-// The timeout falls back to the global r.backendTimeout if not set.
+// Named backends use the global secret_backend_timeout (r.backendTimeout).
 func (r *secretResolver) resolveBackendConfig(backendID string) (string, map[string]interface{}, int, error) {
 	if backendID == "" {
 		if len(r.backendConfigs) > 0 && r.backendType == "" {
@@ -212,14 +212,7 @@ func (r *secretResolver) resolveBackendConfig(backendID string) (string, map[str
 	if bConfig == nil {
 		bConfig = make(map[string]interface{})
 	}
-	bTimeout := r.backendTimeout
-	switch v := entry["secret_backend_timeout"].(type) {
-	case int:
-		bTimeout = v
-	case float64:
-		bTimeout = int(v)
-	}
-	return bType, bConfig, bTimeout, nil
+	return bType, bConfig, r.backendTimeout, nil
 }
 
 // fetchSecret groups the provided handles by backend, calls fetchSingleBackend once per group, and

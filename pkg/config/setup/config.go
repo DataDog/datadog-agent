@@ -987,14 +987,10 @@ func ResolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 	return resolveSecrets(config, secretResolver, origin)
 }
 
-// multiSecretBackendEntry is the typed shape of each entry under multi_secret_backends
-// in datadog.yaml. Only backend-specific knobs belong here; other secret_* settings
-// (output max size, refresh interval, skip_checks, remove trailing line break, etc.)
-// remain global agent configuration for the secrets component as a whole.
+// multiSecretBackendEntry is one entry under multi_secret_backends (type, config; timeout is global).
 type multiSecretBackendEntry struct {
-	Type                 string                 `mapstructure:"type"`
-	Config               map[string]interface{} `mapstructure:"config"`
-	SecretBackendTimeout int                    `mapstructure:"secret_backend_timeout"`
+	Type   string                 `mapstructure:"type"`
+	Config map[string]interface{} `mapstructure:"config"`
 }
 
 // getSecretBackends reads multi_secret_backends via UnmarshalKey into typed entries,
@@ -1021,9 +1017,8 @@ func getSecretBackends(config pkgconfigmodel.Config) map[string]interface{} {
 			cfg = map[string]interface{}{}
 		}
 		out[name] = map[string]interface{}{
-			"type":                   e.Type,
-			"config":                 cfg,
-			"secret_backend_timeout": e.SecretBackendTimeout,
+			"type":   e.Type,
+			"config": cfg,
 		}
 	}
 
