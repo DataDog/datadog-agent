@@ -6,6 +6,8 @@
 package grpc
 
 import (
+	"encoding/json"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -32,11 +34,11 @@ const staleSweepInterval = 30 * time.Second
 // even when some messages are skipped (empty content).
 type batchEntry struct {
 	msg               *message.Message
-	content           string   // preprocessed content (JSON extracted message, or raw string)
-	messageKey        string   // JSON key the message was extracted from (e.g. "msg", "message")
-	jsonContextSchema string   // comma-separated sorted keys (e.g. "level,service,timestamp")
-	jsonContextValues []string // leaf values in schema key order
-	isRawJSON         bool     // true when patterns.json_as_raw=true — skip tokenization, send as RawLog
+	content           string // preprocessed content (JSON extracted message, or raw string)
+	messageKey        string // JSON key the message was extracted from (e.g. "msg", "message")
+	jsonContextSchema string // comma-separated sorted keys (e.g. "level,service,timestamp")
+	jsonContextValues []interface{}
+	isRawJSON         bool // true when patterns.json_as_raw=true — skip tokenization, send as RawLog
 }
 
 func getTranslatorContent(msg *message.Message) []byte {
@@ -59,9 +61,12 @@ const (
 // contiguous allocation. Each wildcard position uses exactly one of the three fields;
 // grouping them avoids three separate heap allocations per wildcard position.
 type dvTypeBackings struct {
-	intOneof    statefulpb.DynamicValue_IntValue
-	dictOneof   statefulpb.DynamicValue_DictIndex
-	stringOneof statefulpb.DynamicValue_StringValue
+	intOneof     statefulpb.DynamicValue_IntValue
+	floatOneof   statefulpb.DynamicValue_FloatValue
+	boolOneof    statefulpb.DynamicValue_BoolValue
+	dictOneof    statefulpb.DynamicValue_DictIndex
+	rawJSONOneof statefulpb.DynamicValue_RawJsonValue
+	stringOneof  statefulpb.DynamicValue_StringValue
 }
 
 type tagCacheEntry struct {
@@ -284,7 +289,7 @@ func (mt *MessageTranslator) processMessage(msg *message.Message, outputChan cha
 	}
 	contentStr := string(content)
 	var messageKey, jsonContextSchema string
-	var jsonContextValues []string
+	var jsonContextValues []interface{}
 	if results := processor.PreprocessJSON(content); results.Message != "" {
 		contentStr = results.Message
 		messageKey = results.MessageKey
@@ -301,7 +306,7 @@ func (mt *MessageTranslator) processMessage(msg *message.Message, outputChan cha
 
 // processPreTokenized handles post-tokenization: clustering, eviction, datum construction, and sending.
 // Called by both processBatch (batch pipeline) and processMessage (single-message path).
-func (mt *MessageTranslator) processPreTokenized(msg *message.Message, tokenList *token.TokenList, messageKey string, jsonContextSchema string, jsonContextValues []string, outputChan chan *message.StatefulMessage) {
+func (mt *MessageTranslator) processPreTokenized(msg *message.Message, tokenList *token.TokenList, messageKey string, jsonContextSchema string, jsonContextValues []interface{}, outputChan chan *message.StatefulMessage) {
 	var patternDefineSent bool
 	var patternDefineParamCount uint32
 
@@ -387,7 +392,7 @@ func (mt *MessageTranslator) processPreTokenized(msg *message.Message, tokenList
 		dynamicValues[i] = &dvBacking[i]
 	}
 	for i, val := range wildcardValues {
-		mt.fillDynamicValue(&dvBacking[i], &typeBacking[i].intOneof, &typeBacking[i].dictOneof, &typeBacking[i].stringOneof, val)
+		mt.fillWildcardDynamicValue(&dvBacking[i], &typeBacking[i].intOneof, &typeBacking[i].dictOneof, &typeBacking[i].stringOneof, val)
 	}
 
 	// Encode message key as dict entry
@@ -420,7 +425,10 @@ func (mt *MessageTranslator) processPreTokenized(msg *message.Message, tokenList
 			mt.fillDynamicValue(
 				&jsonContextDVBacking[i],
 				&jsonContextTypeBacking[i].intOneof,
+				&jsonContextTypeBacking[i].floatOneof,
+				&jsonContextTypeBacking[i].boolOneof,
 				&jsonContextTypeBacking[i].dictOneof,
+				&jsonContextTypeBacking[i].rawJSONOneof,
 				&jsonContextTypeBacking[i].stringOneof,
 				val,
 			)
@@ -681,16 +689,71 @@ func buildDictEntryDefine(id uint64, value string) *statefulpb.Datum {
 	}
 }
 
-// encodeDynamicValue encodes a wildcard value with type inference
-// Priority: int64 → dict_index (via tagManager)
+// parseLosslessIntString returns an int64 only when the original string is already
+// the canonical base-10 representation of that integer. Numeric-looking strings
+// like "00123" are kept as strings so they can round-trip without losing lexeme
+// fidelity when reconstructed downstream.
+func parseLosslessIntString(value string) (int64, bool) {
+	intVal, err := strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		return 0, false
+	}
+	if strconv.FormatInt(intVal, 10) != value {
+		return 0, false
+	}
+	return intVal, true
+}
+
+// parseLosslessFloatString returns a float64 only when the original string is already
+// the canonical representation produced by strconv.FormatFloat(..., 'g', -1, 64).
+func parseLosslessFloatString(value string) (float64, bool) {
+	floatVal, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		return 0, false
+	}
+	if strconv.FormatFloat(floatVal, 'g', -1, 64) != value {
+		return 0, false
+	}
+	return floatVal, true
+}
+
+func parseLosslessBoolString(value string) (bool, bool) {
+	switch value {
+	case "true":
+		return true, true
+	case "false":
+		return false, true
+	default:
+		return false, false
+	}
+}
+
+// encodeDynamicValue encodes a wildcard value with type inference.
+// Priority: canonical int64 → dict_index (via tagManager)
 // Returns the encoded DynamicValue and whether a new dict entry was created
 func (mt *MessageTranslator) encodeDynamicValue(value string) (*statefulpb.DynamicValue, uint64, bool) {
-	// Try parsing as int64
-	if intVal, err := strconv.ParseInt(value, 10, 64); err == nil {
+	if intVal, ok := parseLosslessIntString(value); ok {
 		return &statefulpb.DynamicValue{
 			Value: &statefulpb.DynamicValue_IntValue{
 				IntValue: intVal,
 			},
+			RenderAsString: true,
+		}, 0, false
+	}
+	if floatVal, ok := parseLosslessFloatString(value); ok {
+		return &statefulpb.DynamicValue{
+			Value: &statefulpb.DynamicValue_FloatValue{
+				FloatValue: floatVal,
+			},
+			RenderAsString: true,
+		}, 0, false
+	}
+	if boolVal, ok := parseLosslessBoolString(value); ok {
+		return &statefulpb.DynamicValue{
+			Value: &statefulpb.DynamicValue_BoolValue{
+				BoolValue: boolVal,
+			},
+			RenderAsString: true,
 		}, 0, false
 	}
 
@@ -703,22 +766,107 @@ func (mt *MessageTranslator) encodeDynamicValue(value string) (*statefulpb.Dynam
 	}, dictID, isNew
 }
 
-// fillDynamicValue fills a pre-allocated DynamicValue in-place using pre-allocated oneof wrappers,
-// eliminating the 3 heap allocations per wildcard that encodeDynamicValue incurs.
-// Encoding priority: int_value → dict_index (existing entries only) → string_value inline.
-// New high-cardinality values (UUIDs, IPs, request IDs) are sent as string_value to prevent
-// unbounded TagManager growth; no DictEntryDefine is emitted for wildcard values.
+// fillDynamicValue fills a pre-allocated DynamicValue in-place for a typed JSON context value.
+// Primitive JSON types preserve their native type; nested objects/arrays arrive as JSON strings.
+// String values may use numeric or bool encodings with render_as_string when they can round-trip exactly.
 func (mt *MessageTranslator) fillDynamicValue(
+	dv *statefulpb.DynamicValue,
+	oneofInt *statefulpb.DynamicValue_IntValue,
+	oneofFloat *statefulpb.DynamicValue_FloatValue,
+	oneofBool *statefulpb.DynamicValue_BoolValue,
+	oneofDict *statefulpb.DynamicValue_DictIndex,
+	oneofRawJSON *statefulpb.DynamicValue_RawJsonValue,
+	oneofStr *statefulpb.DynamicValue_StringValue,
+	value interface{},
+) {
+	dv.RenderAsString = false
+	switch typed := value.(type) {
+	case nil:
+		dv.Value = nil
+		return
+	case string:
+		if intVal, ok := parseLosslessIntString(typed); ok {
+			oneofInt.IntValue = intVal
+			dv.Value = oneofInt
+			dv.RenderAsString = true
+			return
+		}
+		if floatVal, ok := parseLosslessFloatString(typed); ok {
+			oneofFloat.FloatValue = floatVal
+			dv.Value = oneofFloat
+			dv.RenderAsString = true
+			return
+		}
+		if boolVal, ok := parseLosslessBoolString(typed); ok {
+			oneofBool.BoolValue = boolVal
+			dv.Value = oneofBool
+			dv.RenderAsString = true
+			return
+		}
+		if dictID, ok := mt.tagManager.GetStringID(typed); ok {
+			oneofDict.DictIndex = dictID
+			dv.Value = oneofDict
+			return
+		}
+		oneofStr.StringValue = typed
+		dv.Value = oneofStr
+		return
+	case json.Number:
+		raw := typed.String()
+		if intVal, ok := parseLosslessIntString(raw); ok {
+			oneofInt.IntValue = intVal
+			dv.Value = oneofInt
+			return
+		}
+		if floatVal, ok := parseLosslessFloatString(raw); ok {
+			oneofFloat.FloatValue = floatVal
+			dv.Value = oneofFloat
+			return
+		}
+		oneofRawJSON.RawJsonValue = []byte(raw)
+		dv.Value = oneofRawJSON
+		return
+	case float64:
+		if !math.IsInf(typed, 0) && !math.IsNaN(typed) && math.Trunc(typed) == typed && typed >= math.MinInt64 && typed <= math.MaxInt64 {
+			oneofInt.IntValue = int64(typed)
+			dv.Value = oneofInt
+			return
+		}
+		oneofFloat.FloatValue = typed
+		dv.Value = oneofFloat
+		return
+	case bool:
+		oneofBool.BoolValue = typed
+		dv.Value = oneofBool
+		return
+	default:
+		rawJSON, err := json.Marshal(typed)
+		if err != nil {
+			log.Warnf("Failed to marshal nested JSON context value: %v", err)
+			oneofStr.StringValue = ""
+			dv.Value = oneofStr
+			return
+		}
+		oneofRawJSON.RawJsonValue = rawJSON
+		dv.Value = oneofRawJSON
+		return
+	}
+}
+
+func (mt *MessageTranslator) fillWildcardDynamicValue(
 	dv *statefulpb.DynamicValue,
 	oneofInt *statefulpb.DynamicValue_IntValue,
 	oneofDict *statefulpb.DynamicValue_DictIndex,
 	oneofStr *statefulpb.DynamicValue_StringValue,
 	value string,
 ) {
-	// Integer values: encode efficiently as int_value
-	if intVal, err := strconv.ParseInt(value, 10, 64); err == nil {
+	dv.RenderAsString = false
+	// Only canonical base-10 integers are safe to encode numerically without
+	// changing the original token's lexeme.
+	if intVal, ok := parseLosslessIntString(value); ok {
 		oneofInt.IntValue = intVal
 		dv.Value = oneofInt
+		dv.RenderAsString = true
 		return
 	}
 	// Already in dict (e.g., from a previous tag encoding): reuse existing ID

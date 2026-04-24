@@ -603,11 +603,17 @@ type DynamicValue struct {
 	//
 	//	*DynamicValue_IntValue
 	//	*DynamicValue_FloatValue
+	//	*DynamicValue_BoolValue
 	//	*DynamicValue_StringValue
 	//	*DynamicValue_DictIndex
-	Value         isDynamicValue_Value `protobuf_oneof:"value"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	//	*DynamicValue_RawJsonValue
+	Value isDynamicValue_Value `protobuf_oneof:"value"`
+	// When set to true, renders int_value, float_value, and bool_value back to JSON strings instead of JSON numbers/booleans.
+	// This preserves string-vs-number JSON typing for numeric-looking strings while keeping a numeric
+	// on-wire representation.
+	RenderAsString bool `protobuf:"varint,5,opt,name=render_as_string,json=renderAsString,proto3" json:"render_as_string,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *DynamicValue) Reset() {
@@ -665,6 +671,15 @@ func (x *DynamicValue) GetFloatValue() float64 {
 	return 0
 }
 
+func (x *DynamicValue) GetBoolValue() bool {
+	if x != nil {
+		if x, ok := x.Value.(*DynamicValue_BoolValue); ok {
+			return x.BoolValue
+		}
+	}
+	return false
+}
+
 func (x *DynamicValue) GetStringValue() string {
 	if x != nil {
 		if x, ok := x.Value.(*DynamicValue_StringValue); ok {
@@ -683,6 +698,22 @@ func (x *DynamicValue) GetDictIndex() uint64 {
 	return 0
 }
 
+func (x *DynamicValue) GetRawJsonValue() []byte {
+	if x != nil {
+		if x, ok := x.Value.(*DynamicValue_RawJsonValue); ok {
+			return x.RawJsonValue
+		}
+	}
+	return nil
+}
+
+func (x *DynamicValue) GetRenderAsString() bool {
+	if x != nil {
+		return x.RenderAsString
+	}
+	return false
+}
+
 type isDynamicValue_Value interface {
 	isDynamicValue_Value()
 }
@@ -695,6 +726,10 @@ type DynamicValue_FloatValue struct {
 	FloatValue float64 `protobuf:"fixed64,2,opt,name=float_value,json=floatValue,proto3,oneof"`
 }
 
+type DynamicValue_BoolValue struct {
+	BoolValue bool `protobuf:"varint,6,opt,name=bool_value,json=boolValue,proto3,oneof"`
+}
+
 type DynamicValue_StringValue struct {
 	StringValue string `protobuf:"bytes,3,opt,name=string_value,json=stringValue,proto3,oneof"`
 }
@@ -703,13 +738,21 @@ type DynamicValue_DictIndex struct {
 	DictIndex uint64 `protobuf:"varint,4,opt,name=dict_index,json=dictIndex,proto3,oneof"`
 }
 
+type DynamicValue_RawJsonValue struct {
+	RawJsonValue []byte `protobuf:"bytes,7,opt,name=raw_json_value,json=rawJsonValue,proto3,oneof"`
+}
+
 func (*DynamicValue_IntValue) isDynamicValue_Value() {}
 
 func (*DynamicValue_FloatValue) isDynamicValue_Value() {}
 
+func (*DynamicValue_BoolValue) isDynamicValue_Value() {}
+
 func (*DynamicValue_StringValue) isDynamicValue_Value() {}
 
 func (*DynamicValue_DictIndex) isDynamicValue_Value() {}
+
+func (*DynamicValue_RawJsonValue) isDynamicValue_Value() {}
 
 // We could choose to delta encode at batch level or at stream level.
 // If at stream level, then we need to send the delta encoding related state
@@ -1120,14 +1163,18 @@ const file_datadog_stateful_stateful_encoding_proto_rawDesc = "" +
 	"\x10json_message_key\x18\x04 \x01(\v2%.datadog.intake.stateful.DynamicValueR\x0ejsonMessageKey\x123\n" +
 	"\x16json_context_schema_id\x18\x05 \x01(\x04R\x13jsonContextSchemaId\x12U\n" +
 	"\x13json_context_values\x18\x06 \x03(\v2%.datadog.intake.stateful.DynamicValueR\x11jsonContextValues\x12!\n" +
-	"\fjson_context\x18\x03 \x01(\fR\vjsonContext\"\x9f\x01\n" +
+	"\fjson_context\x18\x03 \x01(\fR\vjsonContext\"\x92\x02\n" +
 	"\fDynamicValue\x12\x1d\n" +
 	"\tint_value\x18\x01 \x01(\x03H\x00R\bintValue\x12!\n" +
 	"\vfloat_value\x18\x02 \x01(\x01H\x00R\n" +
-	"floatValue\x12#\n" +
+	"floatValue\x12\x1f\n" +
+	"\n" +
+	"bool_value\x18\x06 \x01(\bH\x00R\tboolValue\x12#\n" +
 	"\fstring_value\x18\x03 \x01(\tH\x00R\vstringValue\x12\x1f\n" +
 	"\n" +
-	"dict_index\x18\x04 \x01(\x04H\x00R\tdictIndexB\a\n" +
+	"dict_index\x18\x04 \x01(\x04H\x00R\tdictIndex\x12&\n" +
+	"\x0eraw_json_value\x18\a \x01(\fH\x00R\frawJsonValue\x12(\n" +
+	"\x10render_as_string\x18\x05 \x01(\bR\x0erenderAsStringB\a\n" +
 	"\x05value\"\x85\x01\n" +
 	"\x11DeltaEncodingSync\x12\x1c\n" +
 	"\ttimestamp\x18\x01 \x01(\x04R\ttimestamp\x12\x1d\n" +
@@ -1229,8 +1276,10 @@ func file_datadog_stateful_stateful_encoding_proto_init() {
 	file_datadog_stateful_stateful_encoding_proto_msgTypes[8].OneofWrappers = []any{
 		(*DynamicValue_IntValue)(nil),
 		(*DynamicValue_FloatValue)(nil),
+		(*DynamicValue_BoolValue)(nil),
 		(*DynamicValue_StringValue)(nil),
 		(*DynamicValue_DictIndex)(nil),
+		(*DynamicValue_RawJsonValue)(nil),
 	}
 	file_datadog_stateful_stateful_encoding_proto_msgTypes[10].OneofWrappers = []any{
 		(*Datum_PatternDefine)(nil),

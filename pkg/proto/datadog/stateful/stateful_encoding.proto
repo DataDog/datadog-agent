@@ -103,9 +103,16 @@ message DynamicValue {
   oneof value {
     int64 int_value = 1;
     double float_value = 2;
+    bool bool_value = 6;
     string string_value = 3;
     uint64 dict_index = 4;
+    bytes raw_json_value = 7;
   }
+  
+  // When set to true, renders int_value, float_value, and bool_value back to JSON strings instead of JSON numbers/booleans.
+  // This preserves string-vs-number JSON typing for numeric-looking strings while keeping a numeric
+  // on-wire representation.
+  bool render_as_string = 5;
 }
 
 // We could choose to delta encode at batch level or at stream level.
