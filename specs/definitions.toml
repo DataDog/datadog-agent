@@ -1,0 +1,94 @@
+kind = "requirements"
+category = "definition"
+
+[[requirements]]
+id = "RD001"
+short = "Fleet installer"
+long = '''
+The fleet installer is the modern Go-based cross-platform package manager.
+
+Binary name: datadog-installer
+Entry point: cmd/installer/
+Core logic: pkg/fleet/installer/
+
+It manages Datadog packages in OCI format, supports experiment-based safe
+upgrades, and communicates with the Datadog remote configuration service via the
+fleet daemon. It runs on Linux, macOS, and Windows.
+'''
+tags = ["installer:fleet"]
+ref = ["RD002"]
+
+[[requirements]]
+id = "RD002"
+short = "MSI installer"
+long = '''
+The MSI installer is the traditional Windows-only installer for the Datadog
+Agent, built with the WiX Toolset and C# custom actions.
+
+Location: tools/windows/DatadogAgentInstaller/
+
+It produces .msi packages that handle file extraction, service creation, user
+account management, and configuration through Windows Installer custom actions.
+On fleet-managed installations, the MSI is orchestrated by the fleet installer
+via msiexec.exe with the FLEET_INSTALL=1 property.
+'''
+tags = ["installer:msi"]
+ref = ["RD001"]
+
+[[requirements]]
+id = "RD003"
+short = "OCI package"
+long = '''
+An OCI package is a container image with custom media-typed layers used to
+distribute Datadog agent components.
+
+Layer types (identified by media type):
+- Binary layer (application/vnd.datadog.package.layer.v1.tar+zstd): agent
+  binaries
+- Config layer (application/vnd.datadog.package.config.layer.v1.tar+zstd):
+  configuration file templates
+- Installer layer (application/vnd.datadog.package.installer.layer.v1):
+  the installer binary for bootstrapping
+- Extension layer (application/vnd.datadog.package.extension.layer.v1.tar+zstd):
+  optional add-on components, identified by the annotation
+  com.datadoghq.package.extension.name
+
+Package metadata (name, version, size) is carried in OCI annotations.
+'''
+tags = ["installer:fleet"]
+ref = ["RF023", "RD005"]
+
+[[requirements]]
+id = "RD004"
+short = "Experiment"
+long = '''
+An experiment is a candidate package version installed alongside the current
+stable version for safe validation before promotion.
+
+The on-disk repository maintains two symlinks:
+- stable: points to the currently active version
+- experiment: points to the candidate version under evaluation
+
+An experiment can be promoted to stable (replacing the previous stable version)
+or removed (reverting to the previous stable version). On Windows, a background
+watchdog automatically removes the experiment if the agent service crashes.
+'''
+tags = ["feature:experiment", "installer:fleet"]
+ref = ["RF024", "RF025"]
+
+[[requirements]]
+id = "RD005"
+short = "Extension"
+long = '''
+An extension is an optional add-on layer within an OCI package that can be
+independently installed or removed from a base package.
+
+Extensions are identified by the OCI layer annotation
+com.datadoghq.package.extension.name (e.g. "ddot" for the OpenTelemetry
+collector).
+
+Extensions are tracked in a separate database and are preserved across package
+upgrades via save/restore operations.
+'''
+tags = ["feature:extension", "installer:fleet"]
+ref = ["RF026", "RD003"]

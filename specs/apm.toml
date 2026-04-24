@@ -1,0 +1,43 @@
+kind = "requirements"
+category = "functional"
+
+[[requirements]]
+id = "RF031"
+short = "APM injection"
+long = '''
+The fleet installer shall support enabling and disabling APM auto-injection.
+
+Supported instrumentation methods:
+- Host-based: installs the ddinjector driver for system-wide injection
+- IIS: instruments IIS applications via .NET library GAC registration
+
+The installer shall verify that the required package (datadog-apm-inject or
+datadog-apm-library-dotnet) is installed before enabling instrumentation. If
+the package is not installed, the operation shall fail with an error.
+
+Disabling instrumentation shall cleanly remove the injection mechanism without
+affecting other agent functionality.
+'''
+tags = ["component:apm", "installer:fleet"]
+ref = ["RF032"]
+
+[[requirements]]
+id = "RF032"
+short = ".NET library management"
+long = '''
+The fleet installer shall manage the .NET APM library package lifecycle on
+Windows:
+
+- Install: extract the library, register it in the Global Assembly Cache (GAC),
+  and configure environment variables via the bundled Datadog.FleetInstaller.exe.
+- Update: install the new version, then garbage-collect the old version after
+  verifying no processes hold references to it.
+- Remove: unregister from GAC and remove environment variables. If native
+  loader files are in use (e.g. by an IIS worker process), removal shall be
+  blocked until the files are released.
+
+Experiment workflows shall register/unregister GAC versions and switch
+environment variables atomically.
+'''
+tags = ["component:apm", "component:dotnet", "installer:fleet"]
+ref = ["RF031", "RF024"]

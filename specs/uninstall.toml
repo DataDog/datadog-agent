@@ -1,0 +1,55 @@
+kind = "requirements"
+category = "functional"
+
+[[requirements]]
+id = "RF013"
+short = "Uninstall removes agent"
+long = '''
+Uninstalling the agent shall:
+1. Stop all running agent services
+2. Remove agent binaries and service registrations
+3. Remove OCI packages (unless KEEP_INSTALLED_PACKAGES=1 is set)
+
+The configuration directory shall be preserved by default so that a subsequent
+reinstall can reuse the existing configuration.
+'''
+tags = ["lifecycle:uninstall", "installer:msi"]
+ref = ["RF019"]
+
+[[requirements]]
+id = "RF014"
+short = "Repair damaged installation"
+client_statement = '''
+A user has damaged their Agent installation and wants to restore it to a
+working state.
+'''
+long = '''
+Running the installer on a damaged installation shall repair it by restoring
+missing binaries and service registrations.
+
+If the service account has a password, the user should provide it to ensure the
+services can be repaired. If the services already exist and are functional, the
+password is not required.
+'''
+tags = ["lifecycle:repair", "installer:msi"]
+ref = ["RF001"]
+[requirements.properties]
+source = "https://datadoghq.atlassian.net/wiki/spaces/AW/pages/2962820711#REQ-001"
+
+[[requirements]]
+id = "RF015"
+short = "Purge removes all artifacts"
+long = '''
+The purge operation shall remove all installer-managed artifacts:
+- All installed packages and their on-disk repositories
+- The packages database
+- Configuration directories
+- Temporary files and directories
+- OCI package state
+
+Each package shall have its pre-remove hooks called before deletion. If a
+package's pre-remove hook fails, the error shall be logged but purge shall
+continue with the remaining packages.
+'''
+tags = ["lifecycle:purge", "installer:fleet"]
+ref = ["RF013"]

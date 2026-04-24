@@ -1,0 +1,23 @@
+kind = "requirements"
+category = "architecture"
+
+[[requirements]]
+id = "RA001"
+short = "Bootstrap flow"
+long = '''
+On Windows, the fleet installer bootstrap shall extract the installer binary
+from a downloaded OCI package.
+
+The primary (modern) path extracts the installer layer directly from the OCI
+image using the DatadogPackageInstallerLayerMediaType.
+
+For agent packages older than version 7.70, the bootstrap shall fall back to
+an MSI administrative install (/a action) to extract the installer binary from
+the MSI contents.
+
+The bootstrap mode can be forced via the registry key
+HKLM\SOFTWARE\Datadog\Datadog Agent\InstallerBootstrapMode (values: "OCI" or
+"MSI") for testing purposes.
+'''
+tags = ["installer:fleet", "installer:msi"]
+ref = ["RF023", "RF029"]

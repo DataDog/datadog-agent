@@ -1,0 +1,47 @@
+kind = "requirements"
+category = "functional"
+
+[[requirements]]
+id = "RF033"
+short = "NPM driver files installed"
+long = '''
+The installer shall always include the NPM (Network Performance Monitoring)
+driver files in the installation, regardless of whether NPM is enabled.
+
+The driver files shall be present on disk so that NPM can be enabled
+post-install without requiring a reinstallation.
+'''
+tags = ["component:npm", "installer:msi"]
+[requirements.properties]
+source = "https://datadoghq.atlassian.net/wiki/spaces/AW/pages/2962820711#REQ-013"
+
+[[requirements]]
+id = "RF034"
+short = "NPM driver enabled by default"
+long = '''
+Starting with Agent 7.45, the NPM driver shall be enabled by default.
+
+The system-probe service shall be configured to start automatically, with the
+NPM driver loaded as a dependency.
+'''
+tags = ["component:npm", "installer:msi"]
+[requirements.properties]
+source = "https://datadoghq.atlassian.net/wiki/spaces/AW/pages/2962820711#REQ-015"
+
+[[requirements]]
+id = "RF035"
+short = "Closed-source component control"
+long = '''
+The ALLOW_CLOSED_SOURCE MSI property shall control the availability of
+closed-source components (such as the NPM driver).
+
+When ALLOW_CLOSED_SOURCE is set to True, the installer shall set the registry
+key Datadog\Datadog Agent\AllowClosedSource to enable closed-source components.
+
+When the registry key is not set or is set to False, closed-source components
+shall not be loaded by the agent at runtime.
+'''
+tags = ["component:npm", "installer:msi"]
+ref = ["RF033"]
+[requirements.properties]
+source = "https://datadoghq.atlassian.net/wiki/spaces/AW/pages/2962820711#REQ-014"

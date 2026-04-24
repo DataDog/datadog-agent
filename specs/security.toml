@@ -1,0 +1,22 @@
+kind = "requirements"
+category = "functional"
+
+[[requirements]]
+id = "RF022"
+short = "Configuration directory permissions"
+long = '''
+The configuration directory shall be created with restricted NTFS ACLs:
+
+- SYSTEM: Full Control
+- Administrators: Full Control
+- ddagentuser: Read and limited Write
+
+These permissions shall ensure that the agent can read its configuration files
+while preventing unauthorized modification by other local users.
+
+Permissions shall be preserved across upgrades and repairs.
+'''
+tags = ["security:permissions", "feature:config", "installer:msi"]
+ref = ["RF011"]
+[requirements.properties]
+source = "https://datadoghq.atlassian.net/wiki/spaces/AW/pages/2962820711#REQ-004"

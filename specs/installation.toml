@@ -1,0 +1,163 @@
+kind = "requirements"
+category = "functional"
+
+[[requirements]]
+id = "RF001"
+short = "Fresh install with default settings"
+client_statement = '''
+I want to install the Datadog Agent on a fresh Windows machine by providing
+only my API key, and have it start collecting data immediately.
+'''
+long = '''
+The installer shall install the Datadog Agent with sensible defaults when only
+an API key is provided.
+
+On completion of a successful install, the agent services shall be registered
+and started automatically. The agent shall begin reporting to the Datadog
+platform using the provided API key and the default site.
+
+If no DDAGENTUSER_NAME is provided, the installer shall create a local
+"ddagentuser" account with a random password and configure all agent services
+to run under it.
+'''
+tags = ["lifecycle:install", "installer:msi"]
+ref = ["RF002", "RF005"]
+[requirements.properties]
+source = "https://datadoghq.atlassian.net/wiki/spaces/AW/pages/2962820711#REQ-006"
+
+[[requirements]]
+id = "RF002"
+short = "Install-time configuration via parameters"
+client_statement = '''
+I want to configure the Datadog Agent at install time so I can automate
+deployment with my preferred settings (API key, site, tags, proxy, etc.).
+'''
+long = '''
+The installer shall accept the following MSI properties to configure the agent
+at install time:
+
+- APIKEY: Datadog API key
+- SITE: Datadog intake site
+- TAGS: comma-separated host tags
+- HOSTNAME: override hostname
+- HOSTNAME_FQDN_ENABLED: use FQDN as hostname
+- LOGS_ENABLED: enable log collection
+- APM_ENABLED: enable APM trace collection
+- PROCESS_ENABLED: enable process monitoring
+- CMD_PORT: command port for the agent
+- PROXY_HOST, PROXY_PORT, PROXY_USER, PROXY_PASSWORD: HTTP proxy settings
+- DDAGENTUSER_NAME: service account name
+- DDAGENTUSER_PASSWORD: service account password
+- APPLICATIONDATADIRECTORY: configuration directory path
+- PROJECTLOCATION: binary installation directory path
+- ADDLOCAL: additional MSI features to install
+- EC2_USE_WINDOWS_PREFIX_DETECTION: EC2 hostname prefix detection
+- ALLOW_CLOSED_SOURCE: enable closed-source components
+
+Each provided parameter shall be written into the corresponding field in the
+agent configuration files (datadog.yaml, system-probe.yaml, security-agent.yaml).
+Parameters that are not provided shall retain their default values.
+'''
+tags = ["lifecycle:install", "installer:msi", "feature:config"]
+ref = ["RF001", "RF003"]
+[requirements.properties]
+source = "https://datadoghq.atlassian.net/wiki/spaces/AW/pages/2962820711#REQ-006"
+
+[[requirements]]
+id = "RF003"
+short = "Custom install and config directories"
+client_statement = '''
+I want to place the Agent binaries and configuration in non-standard locations
+to comply with my organization's directory structure policy.
+'''
+long = '''
+The installer shall allow the user to specify non-default directories for agent
+binaries (via the PROJECTLOCATION property) and configuration files (via the
+APPLICATIONDATADIRECTORY property).
+
+When custom directories are specified, all agent services, file paths, and
+registry entries shall reference the custom locations instead of the defaults.
+
+Default locations:
+- Binaries: C:\Program Files\Datadog\Datadog Agent\
+- Configuration: C:\ProgramData\Datadog\
+'''
+tags = ["lifecycle:install", "installer:msi", "feature:config"]
+ref = ["RF002"]
+[requirements.properties]
+source = "https://datadoghq.atlassian.net/wiki/spaces/AW/pages/2962820711#REQ-008"
+
+[[requirements]]
+id = "RF004"
+short = "Silent and GUI install modes"
+client_statement = '''
+I need to install the agent both interactively through a GUI and silently
+via the command line for automated deployments.
+'''
+long = '''
+The installer shall support both interactive (GUI) and silent (command-line)
+installation modes.
+
+In GUI mode, the installer shall present dialogs for the user to enter
+configuration values (API key, site, tags, proxy, user account).
+
+In silent mode (msiexec /qn), all required parameters shall be accepted via
+MSI properties on the command line. The installer shall not display any UI.
+
+Both modes shall produce identical results given the same input parameters.
+'''
+tags = ["lifecycle:install", "installer:msi"]
+ref = ["RF002", "RF005"]
+[requirements.properties]
+source = "https://datadoghq.atlassian.net/wiki/spaces/AW/pages/2962820711#REQ-016"
+
+[[requirements]]
+id = "RF005"
+short = "Install creates install_info file"
+client_statement = '''
+I need to know how the agent was installed so I can troubleshoot and track
+deployment methods across my fleet.
+'''
+long = '''
+The installer shall create an install_info file in the configuration directory
+recording the installation method.
+
+The file shall contain:
+- tool: the installation tool identifier (e.g. "windows_msi_gui" or
+  "windows_msi_quiet")
+- tool_version: the installer generation (e.g. "windows_msi_next_gen")
+- installer_version: the version of the installer
+
+When the fleet installer drives the installation, the tool field shall reflect
+the fleet installer rather than the underlying MSI.
+'''
+tags = ["lifecycle:install", "installer:msi", "installer:fleet"]
+ref = ["RF001"]
+[requirements.properties]
+source = "https://datadoghq.atlassian.net/wiki/spaces/AW/pages/2962820711#REQ-016"
+
+[[requirements]]
+id = "RF006"
+short = "Clean state on failed install"
+client_statement = '''
+If the installer fails on a clean machine, I expect no leftover files, services,
+or registry entries.
+'''
+long = '''
+When a fresh installation fails at any point, the installer shall execute
+rollback actions to leave the target system in a clean state.
+
+Rollback shall remove:
+- Extracted binary files and directories
+- Created Windows services
+- Registry entries written during the install
+- The ddagentuser account (if it was created by this install attempt)
+- Temporary files
+
+After rollback, the system shall be indistinguishable from its pre-install state
+with respect to Datadog components.
+'''
+tags = ["lifecycle:install", "lifecycle:rollback", "installer:msi"]
+ref = ["RF010"]
+[requirements.properties]
+source = "https://datadoghq.atlassian.net/wiki/spaces/AW/pages/2962820711#REQ-007"

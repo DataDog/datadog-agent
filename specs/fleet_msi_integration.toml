@@ -1,0 +1,46 @@
+kind = "requirements"
+category = "functional"
+
+[[requirements]]
+id = "RF029"
+short = "Fleet installer orchestrates MSI"
+long = '''
+On Windows, the fleet installer shall orchestrate agent installation and removal
+by invoking msiexec.exe to run the MSI package.
+
+The fleet installer shall:
+- Build the msiexec command line with the appropriate action (/i for install,
+  /x for uninstall), properties, and logging flags
+- Apply MSIFASTINSTALL=7 for faster installation
+- Suppress the Add/Remove Programs entry with ARPSYSTEMCOMPONENT=1
+- Prevent automatic reboots with /norestart
+- Retry on transient errors (exit code 1618 for concurrent MSI, 1601 for
+  service failure) with exponential backoff
+- Parse MSI logs to extract error context for telemetry
+
+Exit codes 3010 (reboot required) and 1641 (reboot initiated) shall be treated
+as success.
+'''
+tags = ["installer:fleet", "installer:msi"]
+ref = ["RF030"]
+
+[[requirements]]
+id = "RF030"
+short = "FLEET_INSTALL property"
+long = '''
+When the fleet installer drives an MSI operation, it shall pass the MSI property
+FLEET_INSTALL=1 to the msiexec command.
+
+This property signals to the MSI custom actions that the fleet installer is in
+charge of the overall installation workflow. When FLEET_INSTALL=1 is set, the
+MSI custom actions shall:
+- Skip operations that the fleet installer handles itself (OCI package
+  management, installer hooks)
+- Preserve OCI packages during upgrade (rather than purging them)
+- Not clear the service account password during the upgrade cycle
+
+The fleet installer sets FLEET_INSTALL=1 for both install and uninstall
+operations.
+'''
+tags = ["installer:fleet", "installer:msi"]
+ref = ["RF029"]

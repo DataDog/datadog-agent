@@ -1,0 +1,20 @@
+kind: project
+name: fleet-installer
+root_directory: ..
+files:
+  - specs/*.toml
+code_sources:
+  - cmd/installer/**/*.go
+  - pkg/fleet/**/*.go
+  - comp/fleetstatus/**/*.go
+  - tools/windows/DatadogAgentInstaller/**/*.cs
+  - test/new-e2e/tests/installer/**/*.go
+  - test/new-e2e/tests/fleet/**/*.go
+  - test/new-e2e/tests/windows/install-test/**/*.go
+  - test/new-e2e/tests/windows/domain-test/**/*.go
+source_links:
+  url: auto
+  branch: auto
+coverage_categories:
+  - functional
+  - non-functional

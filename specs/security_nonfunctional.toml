@@ -1,0 +1,51 @@
+kind = "requirements"
+category = "non-functional"
+
+[[requirements]]
+id = "RN001"
+short = "Code signing"
+client_statement = '''
+I only install trusted, signed software on my machines.
+'''
+long = '''
+The installer binary (MSI) and all Datadog-authored executables and DLLs
+shipped within it shall be code-signed with a valid Datadog certificate.
+
+The signature shall be verifiable via standard Windows code-signing validation
+(e.g. signtool verify).
+'''
+tags = ["security:signing", "installer:msi"]
+[requirements.properties]
+source = "https://datadoghq.atlassian.net/wiki/spaces/AW/pages/2962820711#REQ-002"
+
+[[requirements]]
+id = "RN002"
+short = "Least privilege"
+client_statement = '''
+Agent services must run with the minimum privileges necessary as required by
+our security policy.
+'''
+long = '''
+Agent services shall run under a dedicated service account (ddagentuser by
+default) with the minimum privileges necessary.
+
+The installer shall grant the service account:
+- SeServiceLogonRight (log on as a service)
+
+The installer shall deny the service account:
+- SeDenyInteractiveLogonRight
+- SeDenyNetworkLogonRight
+- SeDenyRemoteInteractiveLogonRight
+
+The service account shall be added to:
+- Performance Monitoring Users
+- Performance Logging Users
+- Event Log Readers
+
+Services that require elevated privileges (system-probe, process-agent) shall
+run as LocalSystem.
+'''
+tags = ["security:permissions", "account", "installer:msi"]
+ref = ["RF016"]
+[requirements.properties]
+source = "https://datadoghq.atlassian.net/wiki/spaces/AW/pages/2962820711#REQ-005"

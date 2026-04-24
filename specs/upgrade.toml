@@ -1,0 +1,141 @@
+kind = "requirements"
+category = "functional"
+
+[[requirements]]
+id = "RF007"
+short = "Minor version upgrade"
+client_statement = '''
+I want to upgrade my Agent 7.50 to Agent 7.52 to get the latest bug fixes and
+features.
+'''
+long = '''
+The installer shall upgrade an existing agent to a newer minor version of the
+same major version.
+
+During a minor upgrade, the installer shall:
+1. Stop all running agent services
+2. Replace agent binaries with the new version
+3. Preserve all existing configuration files
+4. Restart agent services with the updated binaries
+
+The user account, service registrations, and file permissions shall be preserved.
+'''
+tags = ["lifecycle:upgrade", "installer:msi"]
+ref = ["RF008", "RF011"]
+[requirements.properties]
+source = "https://datadoghq.atlassian.net/wiki/spaces/AW/pages/2962820711#REQ-010"
+
+[[requirements]]
+id = "RF008"
+short = "Major version upgrade"
+client_statement = '''
+I want to upgrade my Agent from version 6 to version 7.
+'''
+long = '''
+The installer shall upgrade an agent across major versions. The following
+upgrade paths shall be supported:
+
+- Agent 5 to Agent 6
+- Agent 5 to Agent 7
+- Agent 6 to Agent 7
+
+The installer shall detect the currently installed major version and perform
+the appropriate migration steps.
+'''
+tags = ["lifecycle:upgrade", "installer:msi"]
+ref = ["RF007", "RF009"]
+[requirements.properties]
+source = "https://datadoghq.atlassian.net/wiki/spaces/AW/pages/2962820711#REQ-009"
+
+[[requirements]]
+id = "RF009"
+short = "Downgrade prevention"
+client_statement = '''
+I accidentally ran an older installer; the system should prevent me from
+downgrading.
+'''
+long = '''
+The installer shall prevent downgrading the agent to a lower major version.
+
+If a user attempts to install an agent with a lower major version than the
+currently installed one (e.g. Agent 7 to Agent 6), the installer shall refuse
+the operation and report an error.
+'''
+tags = ["lifecycle:upgrade", "installer:msi"]
+ref = ["RF008"]
+[requirements.properties]
+source = "https://datadoghq.atlassian.net/wiki/spaces/AW/pages/2962820711#REQ-011"
+
+[[requirements]]
+id = "RF010"
+short = "Rollback on failed upgrade"
+client_statement = '''
+When the installer fails to upgrade the Agent to a newer version, the previous
+version of the Agent shall be restored to a working state.
+'''
+long = '''
+The user triggers an agent upgrade (via MSI or fleet installer). If any step of
+the upgrade fails after the point of no return, the installer shall automatically
+restore the previous agent version so that services resume with the prior
+configuration and binaries.
+
+On a standalone MSI upgrade, the MSI engine shall execute rollback custom actions
+in reverse order: stop partially-started services, restore file and service ACLs
+from the rollback data store, remove extracted files, and re-register the
+previous service binaries.
+
+On a fleet-managed upgrade, if the new agent version crashes during the
+experiment window, the background watchdog process shall detect the service
+failure and invoke RemoveExperiment to revert to the stable version.
+
+After rollback completes, the agent shall be running the previous version with
+its original configuration. No user intervention shall be required except when
+the failure occurs after a service-account password change, in which case the
+user must run a repair with the correct password.
+'''
+tags = ["lifecycle:upgrade", "lifecycle:rollback", "installer:msi", "installer:fleet"]
+ref = ["RF007", "RF008", "RF024"]
+[requirements.properties]
+source = "https://datadoghq.atlassian.net/wiki/spaces/AW/pages/2962820711#REQ-003"
+
+[[requirements]]
+id = "RF011"
+short = "Configuration preservation on upgrade"
+client_statement = '''
+I have customized my agent configuration and I expect my changes to survive
+an upgrade.
+'''
+long = '''
+On upgrade, the installer shall preserve all existing agent configuration files.
+
+New configuration files (e.g. system-probe.yaml, security-agent.yaml) shall only
+be created from templates if they do not already exist. Existing files shall
+never be overwritten.
+
+Configuration directory permissions shall be preserved across upgrades.
+'''
+tags = ["lifecycle:upgrade", "feature:config", "installer:msi"]
+ref = ["RF007", "RF022"]
+
+[[requirements]]
+id = "RF012"
+short = "Upgrade without password"
+client_statement = '''
+I want to upgrade the agent without having to remember or provide the service
+account password every time.
+'''
+long = '''
+The installer shall successfully upgrade a functional installation without
+requiring the ddagentuser password to be provided.
+
+On upgrade, the installer shall retrieve the service account password from the
+LSA secret store. If the password is not available and is required to recreate
+services, the installer shall report an error.
+
+When the fleet installer drives the upgrade (FLEET_INSTALL=1), the password
+shall not be cleared during the upgrade cycle to support remote upgrades.
+'''
+tags = ["lifecycle:upgrade", "account", "installer:msi", "installer:fleet"]
+ref = ["RF016", "RF030"]
+[requirements.properties]
+source = "https://datadoghq.atlassian.net/wiki/spaces/AW/pages/2962820711#REQ-021"

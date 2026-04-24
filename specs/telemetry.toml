@@ -1,0 +1,30 @@
+kind = "requirements"
+category = "non-functional"
+
+[[requirements]]
+id = "RN003"
+short = "Installation telemetry"
+long = '''
+The installer shall report telemetry events to the Datadog instrumentation
+telemetry intake after each install, upgrade, or uninstall operation.
+
+On success, an "agent.installation.success" event shall be sent.
+On failure, an "agent.installation.error" event shall be sent.
+
+The telemetry payload shall include: agent version, installer version, and
+platform information.
+'''
+tags = ["telemetry", "installer:msi"]
+
+[[requirements]]
+id = "RN004"
+short = "Installer tracing"
+long = '''
+The fleet installer shall instrument all operations with APM traces for
+observability.
+
+Each installer operation (install, remove, experiment, config experiment,
+extension management, garbage collection) shall produce a trace span with
+relevant tags (package name, version, operation type).
+'''
+tags = ["telemetry", "installer:fleet"]

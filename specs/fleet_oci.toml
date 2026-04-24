@@ -1,0 +1,127 @@
+kind = "requirements"
+category = "functional"
+
+[[requirements]]
+id = "RF023"
+short = "OCI package download and install"
+long = '''
+The fleet installer shall download OCI images from a package registry and
+install them to the local package repository.
+
+During download, the installer shall:
+1. Resolve the package URL to a registry reference
+2. Download the OCI image, with up to 3 retries on network failure
+3. Extract layers by media type:
+   - application/vnd.datadog.package.layer.v1.tar+zstd for binaries
+   - application/vnd.datadog.package.config.layer.v1.tar+zstd for configuration
+4. Create the package in the local repository with a stable symlink
+
+If the same package and version is already installed, the installer shall skip
+the operation (unless ForceInstall is used).
+
+Pre-install and post-install hooks shall be called for each package to perform
+package-specific setup (service registration, user configuration, etc.).
+'''
+tags = ["lifecycle:install", "installer:fleet"]
+ref = ["RF027", "RD003"]
+
+[[requirements]]
+id = "RF024"
+short = "Experiment lifecycle"
+long = '''
+The fleet installer shall support an experiment workflow for safe package
+upgrades:
+
+1. InstallExperiment: download and install a candidate version alongside the
+   stable version, linked via an "experiment" symlink.
+2. RemoveExperiment: delete the experiment version and revert to stable.
+3. PromoteExperiment: promote the experiment to stable, updating the stable
+   symlink and the packages database.
+
+On Windows, starting an experiment shall launch a background watchdog process
+that monitors the agent and installer services. If either service crashes during
+the experiment window (configurable, default 60 minutes), the watchdog shall
+automatically invoke RemoveExperiment to restore the stable version.
+
+The watchdog timeout is configurable via the registry key
+HKLM\SOFTWARE\Datadog\Datadog Agent\WatchdogTimeout.
+'''
+tags = ["lifecycle:upgrade", "feature:experiment", "installer:fleet"]
+ref = ["RF010", "RF025", "RD004"]
+
+[[requirements]]
+id = "RF025"
+short = "Config experiment lifecycle"
+long = '''
+The fleet installer shall support configuration experiments:
+
+1. InstallConfigExperiment: apply configuration changes to an experiment
+   directory. Secrets in the operations shall be decrypted before writing.
+2. RemoveConfigExperiment: remove the experiment configuration and revert to
+   the stable configuration.
+3. PromoteConfigExperiment: promote the experiment configuration to stable.
+
+On Windows, config experiments use the "fleet_policies_dir" registry key to
+point the agent at the stable or experiment configuration directory. A watchdog
+monitors for service crashes and reverts to stable configuration on failure.
+'''
+tags = ["feature:experiment", "feature:config", "installer:fleet"]
+ref = ["RF024"]
+
+[[requirements]]
+id = "RF026"
+short = "Extension management"
+long = '''
+The fleet installer shall support package extensions -- optional add-on layers
+within OCI packages that can be independently managed.
+
+Operations:
+- InstallExtensions: download the OCI image and extract only the extension
+  layers matching the requested extension names (identified by annotation).
+- RemoveExtensions: remove the specified extensions from the package.
+- SaveExtensions: persist the current extension state to disk for backup.
+- RestoreExtensions: restore previously saved extensions after a package
+  reinstall.
+
+Extensions shall be preserved across package upgrades. When a package is
+upgraded, the installer shall save extensions before removal and restore them
+after installation.
+
+After installing or removing agent extensions, the agent shall be restarted.
+'''
+tags = ["feature:extension", "installer:fleet"]
+ref = ["RD005"]
+
+[[requirements]]
+id = "RF027"
+short = "Disk space check before install"
+long = '''
+Before installing a package, the installer shall verify that sufficient disk
+space is available on the partition hosting the packages directory.
+
+The required space is the reported package size plus a 10 MiB overhead. If the
+package does not report a size, a default estimate of 2 GiB shall be used.
+
+If insufficient space is available, the installer shall fail with a
+"not enough disk space" error before attempting extraction.
+'''
+tags = ["lifecycle:install", "installer:fleet"]
+ref = ["RF023"]
+
+[[requirements]]
+id = "RF028"
+short = "Garbage collection"
+long = '''
+The fleet installer shall perform garbage collection to reclaim disk space:
+
+1. Remove old package versions that are no longer referenced by stable or
+   experiment symlinks.
+2. Remove temporary files and directories older than 24 hours from the
+   installer's temp directory.
+
+Garbage collection shall call async pre-remove hooks for each package version
+being removed to allow package-specific cleanup (e.g. unregistering .NET
+libraries from the GAC).
+'''
+tags = ["installer:fleet"]
+ref = ["RF023"]
