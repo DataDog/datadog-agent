@@ -35,6 +35,7 @@ import (
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues/admisconfig"
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues/checkfailure"
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues/dockerpermissions"
+	_ "github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues/k8srbac"
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues/rofspermissions"
 )
 
