@@ -17,6 +17,7 @@ import (
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	flaredef "github.com/DataDog/datadog-agent/comp/core/flare/def"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	rcclienttypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -31,8 +32,9 @@ func Module() fxutil.Module {
 type MockProvides struct {
 	fx.Out
 
-	Comp     flaredef.Component
-	Endpoint api.AgentEndpointProvider
+	Comp       flaredef.Component
+	Endpoint   api.AgentEndpointProvider
+	RCListener rcclienttypes.TaskListenerProvider
 }
 
 // MockFlare is a mock of the flare component.

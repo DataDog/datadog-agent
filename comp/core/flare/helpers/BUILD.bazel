@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "helpers",
@@ -31,4 +31,30 @@ go_library(
         ],
         "//conditions:default": [],
     }),
+)
+
+go_test(
+    name = "helpers_test",
+    srcs = [
+        "builder_mock.go",
+        "builder_test.go",
+        "send_flare_test.go",
+    ] + select({
+        "@rules_go//go/platform:windows": ["perm_info_win_test.go"],
+        "//conditions:default": ["perm_info_nix_test.go"],
+    }),
+    embed = [":helpers"],
+    gotags = ["test"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/flare/builder",
+        "//comp/core/flare/types",
+        "//pkg/util/archive",
+        "//pkg/util/hostname",
+        "//pkg/util/hostname/validate",
+        "//pkg/util/scrubber",
+        "//pkg/version",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
 )

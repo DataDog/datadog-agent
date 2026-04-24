@@ -22,7 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
-	flare "github.com/DataDog/datadog-agent/comp/core/flare/def"
+	flaredef "github.com/DataDog/datadog-agent/comp/core/flare/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -47,7 +47,7 @@ type Requires struct {
 
 	Log      log.Component
 	Config   config.Component
-	Flare    flare.Component
+	Flare    flaredef.Component
 	Diagnose diagnose.Component
 	Params   systray.Params
 	Client   ipc.HTTPClient
@@ -64,7 +64,7 @@ type systrayImpl struct {
 
 	log      log.Component
 	config   config.Component
-	flare    flare.Component
+	flare    flaredef.Component
 	diagnose diagnose.Component
 	params   systray.Params
 	client   ipc.HTTPClient

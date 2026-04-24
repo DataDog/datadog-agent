@@ -10,6 +10,7 @@ go_library(
         "//comp/api/api/def",
         "//comp/core/flare/def",
         "//comp/core/flare/types",
+        "//comp/remote-config/rcclient/types",
         "//pkg/util/fxutil",
         "@org_uber_go_fx//:fx",
     ],
