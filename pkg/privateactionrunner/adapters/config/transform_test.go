@@ -6,6 +6,8 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -373,4 +375,103 @@ func TestFromDDConfigPARRestrictedShellAllowedCommandsEmpty(t *testing.T) {
 	// Distinct from the unset case above.
 	assert.NotNil(t, cfg.RShellAllowedCommands)
 	assert.Empty(t, cfg.RShellAllowedCommands)
+}
+
+// TestFromDDConfigPARRestrictedShellAllowedPathsEmptyYAML reproduces the
+// real-world failure observed in PAR: when datadog.yaml contains
+// `allowed_paths: []` the transform must preserve the explicit-empty value so
+// the handler treats it as "block everything", not "operator unset". This
+// exercises the YAML parsing path rather than SetWithoutSource; the two can
+// differ in whether IsConfigured reports an empty slice as set.
+func TestFromDDConfigPARRestrictedShellAllowedPathsEmptyYAML(t *testing.T) {
+	yaml := `
+private_action_runner:
+  restricted_shell:
+    allowed_paths: []
+`
+	mockConfig := configmock.NewFromYAML(t, yaml)
+
+	cfg, err := FromDDConfig(mockConfig)
+	require.NoError(t, err)
+	assert.NotNil(t, cfg.RShellAllowedPaths, "YAML [] must reach the handler as a non-nil slice so the kill-switch is honored")
+	assert.Empty(t, cfg.RShellAllowedPaths)
+}
+
+func TestFromDDConfigPARRestrictedShellAllowedCommandsEmptyYAML(t *testing.T) {
+	yaml := `
+private_action_runner:
+  restricted_shell:
+    allowed_commands: []
+`
+	mockConfig := configmock.NewFromYAML(t, yaml)
+
+	cfg, err := FromDDConfig(mockConfig)
+	require.NoError(t, err)
+	assert.NotNil(t, cfg.RShellAllowedCommands, "YAML [] must reach the handler as a non-nil slice so the kill-switch is honored")
+	assert.Empty(t, cfg.RShellAllowedCommands)
+}
+
+func TestFromDDConfigPARRestrictedShellAllowedPathsPassesThroughFileEntries(t *testing.T) {
+	// File entries are warned about at load time but not dropped — the
+	// intersection layer and rshell's own sandbox filter them. The
+	// transform's job is to surface the misconfiguration; it does not
+	// rewrite the operator's written list.
+	tmpDir := t.TempDir()
+	fp := filepath.Join(tmpDir, "file.txt")
+	require.NoError(t, os.WriteFile(fp, []byte("x"), 0o600))
+
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
+	mockConfig.SetWithoutSource(setup.PARUrn, "")
+	mockConfig.SetWithoutSource(setup.PARRestrictedShellAllowedPaths, []string{tmpDir, fp})
+
+	cfg, err := FromDDConfig(mockConfig)
+	require.NoError(t, err)
+	assert.Equal(t, []string{tmpDir, fp}, cfg.RShellAllowedPaths)
+}
+
+func TestFromDDConfigPARRestrictedShellAllowedPathsPassesThroughBackslash(t *testing.T) {
+	// Backslash-containing entries are preserved in the returned slice so
+	// the handler still sees what the operator wrote; the transform also
+	// logs a warning so a Windows-native path configured by mistake does
+	// not silently produce an empty intersection without feedback.
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
+	mockConfig.SetWithoutSource(setup.PARUrn, "")
+	mockConfig.SetWithoutSource(setup.PARRestrictedShellAllowedPaths, []string{`C:\Data`, "/var/log"})
+
+	cfg, err := FromDDConfig(mockConfig)
+	require.NoError(t, err)
+	assert.Equal(t, []string{`C:\Data`, "/var/log"}, cfg.RShellAllowedPaths)
+}
+
+func TestFromDDConfigPARRestrictedShellAllowedCommandsPassesThroughUnnamespaced(t *testing.T) {
+	// Unnamespaced entries are preserved in the returned slice so the
+	// intersection layer can surface them (as silent no-matches). The
+	// transform also emits a log warning about them, which is not asserted
+	// here — the point of this test is that unnamespaced entries do not
+	// cause config load to fail.
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
+	mockConfig.SetWithoutSource(setup.PARUrn, "")
+	mockConfig.SetWithoutSource(setup.PARRestrictedShellAllowedCommands, []string{"cat", "rshell:ls"})
+
+	cfg, err := FromDDConfig(mockConfig)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"cat", "rshell:ls"}, cfg.RShellAllowedCommands)
+}
+
+func TestFromDDConfigPARRestrictedShellAllowedAbsentYAML(t *testing.T) {
+	// No restricted_shell block at all: the handler must see nil slices so
+	// it passes the backend list through unchanged.
+	yaml := `
+private_action_runner:
+  enabled: true
+`
+	mockConfig := configmock.NewFromYAML(t, yaml)
+
+	cfg, err := FromDDConfig(mockConfig)
+	require.NoError(t, err)
+	assert.Nil(t, cfg.RShellAllowedPaths)
+	assert.Nil(t, cfg.RShellAllowedCommands)
 }

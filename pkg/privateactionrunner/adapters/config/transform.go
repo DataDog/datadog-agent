@@ -8,6 +8,7 @@ package config
 import (
 	"crypto/ecdsa"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -18,10 +19,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"k8s.io/apimachinery/pkg/util/sets"
 )
+
+// rshellCommandNamespace is the prefix the backend stamps onto every command
+// in its allow-list. Operator entries in datadog.yaml must use the same form
+// to intersect; otherwise they silently fail to match.
+const rshellCommandNamespace = "rshell:"
 
 func FromDDConfig(config config.Component) (*Config, error) {
 	mainEndpoint := configutils.GetMainEndpoint(config, "https://api.", "dd_url")
@@ -129,22 +136,101 @@ func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 
 // rshellAllowedCommands returns the operator-configured rshell command
 // allowlist, or nil when the operator did not configure one. Nil signals
-// "pass-through" so the handler forwards the backend list unchanged.
+// "pass-through" so the handler forwards the backend list unchanged; a
+// non-nil empty slice is the explicit "block everything" kill-switch.
+//
+// Entries are expected to be in the backend's namespaced form
+// ("rshell:<name>"). Operators spelling commands without the prefix are
+// warned at load time so the silent no-match failure mode is observable.
 func rshellAllowedCommands(config config.Component) []string {
-	if !config.IsConfigured(setup.PARRestrictedShellAllowedCommands) {
-		return nil
+	commands := configuredStringSliceOrNil(config, setup.PARRestrictedShellAllowedCommands)
+	warnUnnamespacedCommands(commands)
+	return commands
+}
+
+// warnUnnamespacedCommands emits a log warning for each entry missing the
+// "rshell:" prefix. These entries will never match a backend command, so an
+// operator who writes `allowed_commands: [cat]` instead of
+// `allowed_commands: [rshell:cat]` would otherwise get silent kill-switch
+// behavior with no feedback.
+func warnUnnamespacedCommands(commands []string) {
+	for _, c := range commands {
+		if !strings.HasPrefix(c, rshellCommandNamespace) {
+			log.Warnf("%s entry %q is missing the %q prefix and will never match a backend command; use %q instead",
+				setup.PARRestrictedShellAllowedCommands, c, rshellCommandNamespace, rshellCommandNamespace+c)
+		}
 	}
-	return config.GetStringSlice(setup.PARRestrictedShellAllowedCommands)
 }
 
 // rshellAllowedPaths mirrors rshellAllowedCommands for the filesystem
 // allowlist. Nil means "operator unset" — the handler will pass the backend
 // list through unchanged rather than tightening to an empty intersection.
+//
+// Two advisory warnings fire at load time so misconfiguration is
+// observable to the operator before any task runs. Both leave the entries
+// in place and let the intersection / rshell's own sandbox do the final
+// filtering:
+//
+//   - backslash entries fail to match the Linux-form backend list at the
+//     intersection layer;
+//   - non-directory entries are silently skipped by rshell's os.Root-based
+//     sandbox at runner creation. The operator-visible symptom is
+//     permission-denied with no explanation, so we surface the reason in
+//     the agent log once at load time.
 func rshellAllowedPaths(config config.Component) []string {
-	if !config.IsConfigured(setup.PARRestrictedShellAllowedPaths) {
+	paths := configuredStringSliceOrNil(config, setup.PARRestrictedShellAllowedPaths)
+	warnBackslashPaths(paths)
+	warnNonDirectoryPaths(paths)
+	return paths
+}
+
+// warnBackslashPaths emits a log warning for each entry containing a
+// backslash. The operator-side allow-list is defined as forward-slash only;
+// Windows-native paths will never match the backend's Linux-style entries
+// and would otherwise fail silently.
+func warnBackslashPaths(paths []string) {
+	for _, p := range paths {
+		if strings.ContainsRune(p, '\\') {
+			log.Warnf("%s entry %q contains a backslash; only forward-slash paths are supported and this entry will never match a backend path",
+				setup.PARRestrictedShellAllowedPaths, p)
+		}
+	}
+}
+
+// warnNonDirectoryPaths emits a log warning for entries that exist on disk
+// but are not directories. rshell's sandbox is built on os.Root, which
+// only accepts directory handles, so file entries get silently dropped at
+// runner creation and every open inside the task returns permission-
+// denied. Entries that do not exist at load time are not warned about:
+// rshell's own "path not found" warning at task time covers that case.
+func warnNonDirectoryPaths(paths []string) {
+	for _, p := range paths {
+		info, err := os.Stat(p)
+		if err == nil && !info.IsDir() {
+			log.Warnf("%s entry %q is not a directory; rshell's sandbox only accepts directory entries and will drop this entry at runtime. Use the containing directory instead.",
+				setup.PARRestrictedShellAllowedPaths, p)
+		}
+	}
+}
+
+// configuredStringSliceOrNil returns the configured value only when the key
+// was explicitly set by the user (YAML file, env, or SetWithoutSource); it
+// returns nil when the key is still at its default.
+//
+// GetStringSlice returns a nil slice for an explicit YAML empty list
+// (`key: []`), which is indistinguishable at the slice level from "unset".
+// IsConfigured is the authoritative signal for "user touched this key", so we
+// gate on that and then normalize nil → non-nil empty to preserve the
+// "operator explicitly allowed nothing" semantics downstream.
+func configuredStringSliceOrNil(config config.Component, key string) []string {
+	if !config.IsConfigured(key) {
 		return nil
 	}
-	return config.GetStringSlice(setup.PARRestrictedShellAllowedPaths)
+	v := config.GetStringSlice(key)
+	if v == nil {
+		return []string{}
+	}
+	return v
 }
 
 // getDatadogHost extracts and normalizes the Datadog host from the main endpoint.
