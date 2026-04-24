@@ -85,6 +85,7 @@ func TestProcmgrSmokeLinuxSuite(t *testing.T) {
 
 func (s *procmgrLinuxSuite) SetupSuite() {
 	s.baseProcmgrSuite.SetupSuite()
+	defer s.CleanupOnSetupFailure()
 
 	s.hasDDOT = s.installRealDDOT()
 

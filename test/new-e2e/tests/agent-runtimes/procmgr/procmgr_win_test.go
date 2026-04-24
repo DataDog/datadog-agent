@@ -85,6 +85,7 @@ func TestProcmgrSmokeWindowsSuite(t *testing.T) {
 
 func (s *procmgrWindowsSuite) SetupSuite() {
 	s.baseProcmgrSuite.SetupSuite()
+	defer s.CleanupOnSetupFailure()
 
 	// dd-procmgr-service is DEMAND_START; the agent starts it as a dependent
 	// service, but on a fresh install the timing is unpredictable. Ensure the
