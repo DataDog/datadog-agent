@@ -31,6 +31,12 @@ const (
 	// accessible inside the PAR container at /host/var/log/ via the host volume mount.
 	testDataFile    = "/host/var/log/par-e2e-testdata.txt"
 	testDataContent = "PAR_E2E_VALUE=hello_from_rshell"
+
+	// testDataPrefixSibling is planted at /var/logger/ — a prefix-sibling of /var/log.
+	// Used by the paths narrow disjoint test to exercise operator narrowing: the
+	// backend admits /host/var/logger (the parent of this file), but the operator
+	// list ["/host/var/log"] does not, so the intersection is empty.
+	testDataPrefixSibling = "/host/var/logger/par-e2e-prefix.txt"
 )
 
 type parK8sSuite struct {
@@ -42,7 +48,10 @@ func TestPARRshellK8sSuite(t *testing.T) {
 	t.Parallel()
 	urn, keyB64 := generateTestRunnerIdentity(t)
 	suite := &parK8sSuite{runnerURN: urn}
-	e2e.Run(t, suite, e2e.WithProvisioner(parK8sProvisioner(urn, keyB64)))
+	// Operator unset on both axes: rshell sees the backend list verbatim. These tests
+	// focus on the happy path and per-task (backend) blocking; full operator-matrix
+	// coverage lives in rshell_matrix_*_test.go.
+	e2e.Run(t, suite, e2e.WithProvisioner(parK8sProvisioner(urn, keyB64, rshellOperatorConfig{})))
 }
 
 // SetupSuite waits for PAR to be ready and actively polling fakeintake.
