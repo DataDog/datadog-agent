@@ -1,0 +1,31 @@
+[
+  {
+    "service": "simple",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.condStructArg",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "probe": {
+          "id": "condCompound_nested",
+          "location": {
+            "method": "main.condStructArg"
+          }
+        }
+      },
+      "type": "snapshot"
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "message": "(x.I32 == 300 || x.I32 == 999) && !isEmpty(x.S) [x.I32=300, x.S=world, tag=match]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  }
+]
