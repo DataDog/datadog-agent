@@ -11,3 +11,11 @@ import (
 func TestCgoAlignment_ebpfCgroupAggStats(t *testing.T) {
 	ebpftest.TestCgoAlignment[ebpfCgroupAggStats](t)
 }
+
+func TestCgoAlignment_ebpfPreemptorKey(t *testing.T) {
+	ebpftest.TestCgoAlignment[ebpfPreemptorKey](t)
+}
+
+func TestCgoAlignment_ebpfPreemptorStats(t *testing.T) {
+	ebpftest.TestCgoAlignment[ebpfPreemptorStats](t)
+}

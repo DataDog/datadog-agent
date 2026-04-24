@@ -9,8 +9,12 @@ package noisyneighbor
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
 	"time"
 
+	cpuutil "github.com/shirou/gopsutil/v4/cpu"
 	"go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -29,14 +33,44 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-type NoisyNeighborConfig struct{}
+const (
+	defaultPSIThreshold                = 5.0  // PSI avg10 "some" percentage
+	defaultThrottleRatio               = 0.10 // 10% of wall clock spent throttled
+	defaultStealThreshold              = 5.0  // steal time percentage
+	defaultMaxWatchlistSize            = 100
+	hardMaxWatchlistSize               = 128 // must match noisyneighbor.MaxWatchlistEntries / BPF map max_entries
+	defaultMaxTopNPreemptors           = 5
+	defaultMaxNonContainerCgroups      = 100
+	defaultMinForeignPreemptionsImpact = 10 // minimum foreign preemptions per interval to set impacted=1
+)
 
+// NoisyNeighborConfig holds check configuration.
+// All thresholds are configurable via check YAML to allow tuning without rebuilding.
+type NoisyNeighborConfig struct {
+	PSIThreshold                float64 `yaml:"psi_threshold"`
+	ThrottleRatio               float64 `yaml:"throttle_ratio"`
+	StealThreshold              float64 `yaml:"steal_threshold"`
+	MaxWatchlistSize            int     `yaml:"max_watchlist_size"`
+	MaxTopNPreemptors           int     `yaml:"max_top_n_preemptors"`
+	MaxNonContainerCgroups      int     `yaml:"max_non_container_cgroups"`
+	MinForeignPreemptionsImpact uint64  `yaml:"min_foreign_preemptions_impact"`
+}
+
+// NoisyNeighborCheck implements the 3-layer noisy neighbor detection check
 type NoisyNeighborCheck struct {
 	core.CheckBase
 	config         *NoisyNeighborConfig
 	tagger         tagger.Component
 	sysProbeClient *sysprobeclient.CheckClient
-	cgroupReader   *cgroups.Reader
+	cgroupReader   *cgroups.Reader     // container cgroups (for tagging)
+	allCgroupReader *cgroups.Reader    // all cgroups (for Layer 1 PSI reading)
+
+	// Layer 1 state
+	lastThrottledNs  map[uint64]uint64 // cgroup inode -> last throttled_time in ns
+	lastStealTime    float64
+	lastTotalCPU     float64
+	firstRun         bool
+	lastWatchlistIDs map[uint64]struct{} // previous interval's flagged cgroup IDs
 }
 
 func Factory(tagger tagger.Component) option.Option[func() check.Check] {
@@ -47,14 +81,44 @@ func Factory(tagger tagger.Component) option.Option[func() check.Check] {
 
 func newCheck(tagger tagger.Component) check.Check {
 	return &NoisyNeighborCheck{
-		CheckBase: core.NewCheckBaseWithInterval(CheckName, 10*time.Second),
-		config:    &NoisyNeighborConfig{},
-		tagger:    tagger,
+		CheckBase:       core.NewCheckBaseWithInterval(CheckName, 10*time.Second),
+		config:          &NoisyNeighborConfig{},
+		tagger:          tagger,
+		lastThrottledNs: make(map[uint64]uint64),
+		firstRun:        true,
 	}
 }
 
 func (c *NoisyNeighborConfig) Parse(data []byte) error {
-	return yaml.Unmarshal(data, c)
+	if err := yaml.Unmarshal(data, c); err != nil {
+		return err
+	}
+	if c.PSIThreshold == 0 {
+		c.PSIThreshold = defaultPSIThreshold
+	}
+	if c.ThrottleRatio == 0 {
+		c.ThrottleRatio = defaultThrottleRatio
+	}
+	if c.StealThreshold == 0 {
+		c.StealThreshold = defaultStealThreshold
+	}
+	if c.MaxWatchlistSize == 0 {
+		c.MaxWatchlistSize = defaultMaxWatchlistSize
+	}
+	if c.MaxWatchlistSize > hardMaxWatchlistSize {
+		log.Warnf("noisy_neighbor: max_watchlist_size %d exceeds BPF map capacity %d, clamping", c.MaxWatchlistSize, hardMaxWatchlistSize)
+		c.MaxWatchlistSize = hardMaxWatchlistSize
+	}
+	if c.MaxTopNPreemptors == 0 {
+		c.MaxTopNPreemptors = defaultMaxTopNPreemptors
+	}
+	if c.MaxNonContainerCgroups == 0 {
+		c.MaxNonContainerCgroups = defaultMaxNonContainerCgroups
+	}
+	if c.MinForeignPreemptionsImpact == 0 {
+		c.MinForeignPreemptionsImpact = defaultMinForeignPreemptionsImpact
+	}
+	return nil
 }
 
 func (n *NoisyNeighborCheck) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string, provider string) error {
@@ -65,75 +129,319 @@ func (n *NoisyNeighborCheck) Configure(senderManager sender.SenderManager, _ uin
 		return fmt.Errorf("noisy_neighbor check config: %s", err)
 	}
 	n.sysProbeClient = sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")))
+
+	// Container reader for tag resolution
 	reader, err := cgroups.NewReader(cgroups.WithReaderFilter(cgroups.ContainerFilter))
 	if err != nil {
-		return fmt.Errorf("noisy_neighbor: cgroup reader init failed: %s", err)
+		return fmt.Errorf("noisy_neighbor: container cgroup reader init failed: %s", err)
 	}
 	n.cgroupReader = reader
+
+	// All-cgroup reader for Layer 1 PSI/stat reading
+	allReader, err := cgroups.NewReader()
+	if err != nil {
+		return fmt.Errorf("noisy_neighbor: all cgroup reader init failed: %s", err)
+	}
+	n.allCgroupReader = allReader
+
+	// Warn if PSI is not available (kernel booted with psi=0).
+	// Without PSI, Layer 1 will never detect CPU pressure and Layer 2 will never activate.
+	if _, err := os.Stat("/proc/pressure/cpu"); err != nil {
+		log.Warnf("noisy_neighbor: PSI is not available (%v). Layer 1 will not detect CPU pressure and Layer 2 will never activate. The kernel may have been booted with psi=0.", err)
+	}
+
 	return nil
 }
 
 func (n *NoisyNeighborCheck) Run() error {
-	stats, err := sysprobeclient.GetCheck[[]model.NoisyNeighborStats](n.sysProbeClient, sysconfig.NoisyNeighborModule)
-	if err != nil {
-		return fmt.Errorf("get noisy neighbor check: %s", err)
-	}
-
-	sender, err := n.GetSender()
+	s, err := n.GetSender()
 	if err != nil {
 		return fmt.Errorf("get metric sender: %s", err)
 	}
 
-	err = n.cgroupReader.RefreshCgroups(0)
-	if err != nil {
-		return fmt.Errorf("unable to refresh cgroups: %s", err)
+	// Refresh both cgroup readers
+	if err := n.allCgroupReader.RefreshCgroups(0); err != nil {
+		return fmt.Errorf("unable to refresh all cgroups: %s", err)
+	}
+	if err := n.cgroupReader.RefreshCgroups(0); err != nil {
+		return fmt.Errorf("unable to refresh container cgroups: %s", err)
 	}
 
-	var totalCgroups uint64
-	for _, stat := range stats {
-		totalCgroups++
-		tags := n.getContainerTags(stat)
-		n.submitPrimaryMetrics(sender, stat, tags)
-		n.submitRawCounters(sender, stat, tags)
+	// Layer 1: Read canary signals from filesystem
+	flaggedCgroupIDs, stealPct := n.runLayer1(s)
+
+	// Emit system-wide steal time
+	if !n.firstRun {
+		s.Gauge("noisy_neighbor.system.steal_time_pct", stealPct, "", nil)
 	}
-	sender.Gauge("noisy_neighbor.system.cgroups_tracked", float64(totalCgroups), "", nil)
-	sender.Commit()
+
+	// Check if the watchlist changed since last interval
+	watchlistChanged := n.watchlistChanged(flaggedCgroupIDs)
+
+	if watchlistChanged {
+		// Flush stale eBPF data before updating the watchlist to avoid mixing
+		// stats from old and new watched cgroups.
+		if _, err := sysprobeclient.GetCheck[model.CheckResponse](n.sysProbeClient, sysconfig.NoisyNeighborModule); err != nil {
+			log.Warnf("noisy_neighbor: failed to flush stale check data: %v", err)
+		}
+
+		// Update watchlist in system-probe
+		watchlistReq := model.WatchlistRequest{CgroupIDs: flaggedCgroupIDs}
+		if _, err := sysprobeclient.Post[struct{}](n.sysProbeClient, "/watchlist", watchlistReq, sysconfig.NoisyNeighborModule); err != nil {
+			log.Warnf("noisy_neighbor: failed to update watchlist: %v", err)
+		}
+	}
+
+	// Layer 2+3: Fetch eBPF stats.
+	// On the first interval after a watchlist change, this may return sparse data
+	// since the eBPF program only just started collecting for the new cgroups.
+	resp, err := sysprobeclient.GetCheck[model.CheckResponse](n.sysProbeClient, sysconfig.NoisyNeighborModule)
+	if err != nil {
+		log.Warnf("noisy_neighbor: failed to get check data: %v", err)
+	} else {
+		n.emitLayer2Metrics(s, resp.CgroupStats)
+		n.emitLayer3Metrics(s, resp.PreemptorStats)
+		if resp.CgroupStats != nil {
+			s.Gauge("noisy_neighbor.system.cgroups_tracked", float64(len(resp.CgroupStats)), "", nil)
+		}
+	}
+
+	n.firstRun = false
+	s.Commit()
 	return nil
 }
 
-func (n *NoisyNeighborCheck) getContainerTags(stat model.NoisyNeighborStats) []string {
-	if cg := n.cgroupReader.GetCgroupByInode(stat.CgroupID); cg != nil {
+// runLayer1 reads PSI and throttle data from cgroup filesystem, emits Layer 1 metrics,
+// and returns the list of cgroup IDs that should be watched by Layer 2.
+func (n *NoisyNeighborCheck) runLayer1(s sender.Sender) (flaggedIDs []uint64, stealPct float64) {
+	stealPct = n.readStealTime()
+
+	allCgroups := n.allCgroupReader.ListCgroups()
+	nonContainerCount := 0
+	for _, cg := range allCgroups {
+		inode := cg.Inode()
+		tags, isContainer := n.resolveTagsForCgroup(inode)
+
+		if !isContainer {
+			nonContainerCount++
+			if nonContainerCount > n.config.MaxNonContainerCgroups {
+				continue
+			}
+		}
+
+		var cpuStats cgroups.CPUStats
+		if err := cg.GetCPUStats(&cpuStats); err != nil {
+			continue
+		}
+
+		// PSI
+		var psiAvg10 float64
+		if cpuStats.PSISome.Avg10 != nil {
+			psiAvg10 = *cpuStats.PSISome.Avg10
+		}
+
+		// Throttle delta
+		var throttledDeltaNs uint64
+		if cpuStats.ThrottledTime != nil {
+			prev, hasPrev := n.lastThrottledNs[inode]
+			n.lastThrottledNs[inode] = *cpuStats.ThrottledTime
+			if hasPrev && *cpuStats.ThrottledTime >= prev {
+				throttledDeltaNs = *cpuStats.ThrottledTime - prev
+			}
+		}
+
+		// Emit Layer 1 metrics (always, for all cgroups)
+		if !n.firstRun {
+			s.Gauge("noisy_neighbor.cpu_pressure", psiAvg10, "", tags)
+			s.Count("noisy_neighbor.cpu_throttled_ns", float64(throttledDeltaNs), "", tags)
+		}
+
+		// Triage: should this cgroup be flagged for Layer 2?
+		if n.firstRun {
+			continue
+		}
+		highPSI := psiAvg10 >= n.config.PSIThreshold
+
+		// Flag for Layer 2 whenever PSI indicates scheduling pressure.
+		// Layer 2's foreign vs self preemption split is the definitive
+		// signal for distinguishing noisy-neighbor from self-inflicted
+		// pressure — don't try to guess here with coarse heuristics.
+		if highPSI && len(flaggedIDs) < n.config.MaxWatchlistSize {
+			flaggedIDs = append(flaggedIDs, inode)
+		}
+	}
+
+	// Clean up stale throttle entries for cgroups that no longer exist
+	activeCgroups := make(map[uint64]struct{}, len(allCgroups))
+	for _, cg := range allCgroups {
+		activeCgroups[cg.Inode()] = struct{}{}
+	}
+	for inode := range n.lastThrottledNs {
+		if _, exists := activeCgroups[inode]; !exists {
+			delete(n.lastThrottledNs, inode)
+		}
+	}
+
+	return flaggedIDs, stealPct
+}
+
+// watchlistChanged returns true if flaggedIDs differs from the previous interval,
+// and updates lastWatchlistIDs for the next comparison.
+// Note: lastWatchlistIDs starts as nil. This works correctly because len(nil map) == 0,
+// so an empty flaggedIDs on the first call returns changed=false (no-op), and a non-empty
+// flaggedIDs returns changed=true (triggers initial watchlist setup).
+func (n *NoisyNeighborCheck) watchlistChanged(flaggedIDs []uint64) bool {
+	newSet := make(map[uint64]struct{}, len(flaggedIDs))
+	for _, id := range flaggedIDs {
+		newSet[id] = struct{}{}
+	}
+
+	changed := len(newSet) != len(n.lastWatchlistIDs)
+	if !changed {
+		for id := range newSet {
+			if _, ok := n.lastWatchlistIDs[id]; !ok {
+				changed = true
+				break
+			}
+		}
+	}
+
+	n.lastWatchlistIDs = newSet
+	return changed
+}
+
+// readStealTime reads /proc/stat and computes steal time percentage since last call
+func (n *NoisyNeighborCheck) readStealTime() float64 {
+	cpuTimes, err := cpuutil.Times(false)
+	if err != nil || len(cpuTimes) == 0 {
+		return 0
+	}
+	t := cpuTimes[0]
+	total := t.User + t.System + t.Idle + t.Nice + t.Iowait + t.Irq + t.Softirq + t.Steal + t.Guest + t.GuestNice
+
+	var stealPct float64
+	if !n.firstRun {
+		totalDelta := total - n.lastTotalCPU
+		stealDelta := t.Steal - n.lastStealTime
+		if totalDelta > 0 {
+			stealPct = (stealDelta / totalDelta) * 100
+		}
+	}
+
+	n.lastStealTime = t.Steal
+	n.lastTotalCPU = total
+	return stealPct
+}
+
+// resolveTagsForCgroup returns tags and whether the cgroup is a container
+func (n *NoisyNeighborCheck) resolveTagsForCgroup(cgroupInode uint64) ([]string, bool) {
+	// Try container tag resolution first
+	if cg := n.cgroupReader.GetCgroupByInode(cgroupInode); cg != nil {
 		containerID := cg.Identifier()
 		if containerID != "" {
 			entityID := types.NewEntityID(types.ContainerID, containerID)
 			if !entityID.Empty() {
 				taggerTags, err := n.tagger.Tag(entityID, types.HighCardinality)
-				if err != nil {
-					log.Warnf("noisy_neighbor: tagger error for container %s: %v", containerID, err)
-				} else {
-					return taggerTags
+				if err == nil && len(taggerTags) > 0 {
+					return taggerTags, true
 				}
 			}
 		}
 	}
-	return []string{}
+
+	// Fallback: use cgroup path basename as tag
+	if cg := n.allCgroupReader.GetCgroupByInode(cgroupInode); cg != nil {
+		identifier := cg.Identifier()
+		if identifier != "" {
+			name := filepath.Base(identifier)
+			return []string{"cgroup_name:" + name}, false
+		}
+	}
+
+	return nil, false
 }
 
-// submitPrimaryMetrics sends the main PSL and PSP metrics
-// Note: "process" in metric names follows kernel convention, but these are thread-level measurements
-func (n *NoisyNeighborCheck) submitPrimaryMetrics(sender sender.Sender, stat model.NoisyNeighborStats, tags []string) {
-	if stat.UniquePidCount == 0 {
+// emitLayer2Metrics emits detailed scheduling metrics for watched cgroups
+// and the synthesized noisy_neighbor.impacted signal.
+func (n *NoisyNeighborCheck) emitLayer2Metrics(s sender.Sender, stats []model.NoisyNeighborStats) {
+	for _, stat := range stats {
+		tags, _ := n.resolveTagsForCgroup(stat.CgroupID)
+
+		// Synthesized impact signal: 1.0 if foreign preemptions exceed the threshold, 0.0 otherwise.
+		// A small number of foreign preemptions is normal (kernel threads, CFS rotation).
+		// Only flag when the count indicates sustained pressure from another cgroup.
+		var impacted float64
+		if stat.ForeignPreemptionCount >= n.config.MinForeignPreemptionsImpact {
+			impacted = 1.0
+		}
+		s.Gauge("noisy_neighbor.impacted", impacted, "", tags)
+
+		if stat.TaskCount > 0 {
+			psl := float64(stat.SumLatenciesNs) / float64(stat.TaskCount)
+			s.Gauge("noisy_neighbor.scheduling_latency.per_process", psl, "", tags)
+
+			foreignPsp := float64(stat.ForeignPreemptionCount) / float64(stat.TaskCount)
+			s.Gauge("noisy_neighbor.preemptions.foreign.per_process", foreignPsp, "", tags)
+
+			selfPsp := float64(stat.SelfPreemptionCount) / float64(stat.TaskCount)
+			s.Gauge("noisy_neighbor.preemptions.self.per_process", selfPsp, "", tags)
+		}
+
+		totalPreemptions := stat.ForeignPreemptionCount + stat.SelfPreemptionCount
+		if totalPreemptions > 0 {
+			latPerPreempt := float64(stat.SumLatenciesNs) / float64(totalPreemptions)
+			s.Gauge("noisy_neighbor.latency_per_preemption", latPerPreempt, "", tags)
+		}
+
+		// Latency histogram buckets
+		s.Count("noisy_neighbor.scheduling_latency.bucket.lt_100us", float64(stat.LatencyBucketLt100us), "", tags)
+		s.Count("noisy_neighbor.scheduling_latency.bucket.100us_1ms", float64(stat.LatencyBucket100us1ms), "", tags)
+		s.Count("noisy_neighbor.scheduling_latency.bucket.1ms_10ms", float64(stat.LatencyBucket1ms10ms), "", tags)
+		s.Count("noisy_neighbor.scheduling_latency.bucket.gt_10ms", float64(stat.LatencyBucketGt10ms), "", tags)
+
+		// Raw counters
+		s.Count("noisy_neighbor.events.total", float64(stat.EventCount), "", tags)
+		s.Gauge("noisy_neighbor.cgroup_task_count", float64(stat.TaskCount), "", tags)
+		s.Count("noisy_neighbor.cpu_migrations", float64(stat.CpuMigrations), "", tags)
+	}
+}
+
+// emitLayer3Metrics emits top-N preemptor identification metrics
+func (n *NoisyNeighborCheck) emitLayer3Metrics(s sender.Sender, preemptorStats []model.PreemptorStats) {
+	if len(preemptorStats) == 0 {
 		return
 	}
 
-	psl := float64(stat.SumLatenciesNs) / float64(stat.UniquePidCount)
-	sender.Gauge("noisy_neighbor.process_scheduling_latency.per_process", psl, "", tags)
+	// Group by victim, sort by count descending, take top N
+	byVictim := make(map[uint64][]model.PreemptorStats)
+	for _, ps := range preemptorStats {
+		byVictim[ps.VictimCgroupID] = append(byVictim[ps.VictimCgroupID], ps)
+	}
 
-	psp := float64(stat.PreemptionCount) / float64(stat.UniquePidCount)
-	sender.Gauge("noisy_neighbor.process_scheduler_preemptions.per_process", psp, "", tags)
-}
+	for victimCgroupID, entries := range byVictim {
+		sort.Slice(entries, func(i, j int) bool {
+			return entries[i].Count > entries[j].Count
+		})
 
-func (n *NoisyNeighborCheck) submitRawCounters(sender sender.Sender, stat model.NoisyNeighborStats, tags []string) {
-	sender.Count("noisy_neighbor.events.total", float64(stat.EventCount), "", tags)
-	sender.Gauge("noisy_neighbor.unique_processes", float64(stat.UniquePidCount), "", tags)
+		victimTags, _ := n.resolveTagsForCgroup(victimCgroupID)
+
+		limit := n.config.MaxTopNPreemptors
+		if len(entries) < limit {
+			limit = len(entries)
+		}
+		for _, ps := range entries[:limit] {
+			preemptorTags, _ := n.resolveTagsForCgroup(ps.PreemptorCgroupID)
+
+			// Combine victim tags with a preemptor identifier tag
+			metricTags := make([]string, len(victimTags))
+			copy(metricTags, victimTags)
+			if len(preemptorTags) > 0 {
+				metricTags = append(metricTags, "preemptor:"+preemptorTags[0])
+			} else {
+				metricTags = append(metricTags, fmt.Sprintf("preemptor_cgroup_id:%d", ps.PreemptorCgroupID))
+			}
+
+			s.Gauge("noisy_neighbor.top_preemptor.count", float64(ps.Count), "", metricTags)
+		}
+	}
 }

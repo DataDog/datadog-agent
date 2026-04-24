@@ -13,3 +13,5 @@ package noisyneighbor
 import "C"
 
 type ebpfCgroupAggStats C.cgroup_agg_stats_t
+type ebpfPreemptorKey C.preemptor_key_t
+type ebpfPreemptorStats C.preemptor_stats_t
