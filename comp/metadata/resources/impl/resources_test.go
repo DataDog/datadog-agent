@@ -22,12 +22,35 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
+
+// testDeps is a bridge struct with fx.In so that fxutil.Test can inject dependencies.
+// Requires uses compdef.In (not fx.In), so we use testDeps + makeRequires as an adapter.
+type testDeps struct {
+	fx.In
+
+	Params     *Params `optional:"true"`
+	Log        log.Component
+	Config     config.Component
+	Serializer serializer.MetricSerializer
+	Hostname   hostnameinterface.Component
+}
+
+func makeRequires(deps testDeps) Requires {
+	return Requires{
+		Params:     deps.Params,
+		Log:        deps.Log,
+		Config:     deps.Config,
+		Serializer: deps.Serializer,
+		Hostname:   deps.Hostname,
+	}
+}
 
 func TestConfDisabled(t *testing.T) {
 	overrides := map[string]any{
@@ -40,13 +63,13 @@ func TestConfDisabled(t *testing.T) {
 	}
 
 	ret := NewComponent(
-		fxutil.Test[Requires](
+		makeRequires(fxutil.Test[testDeps](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
 			hostnameimpl.MockModule(),
-		),
+		)),
 	)
 
 	// When interval is 0 the resource Provider should be nil
@@ -64,13 +87,13 @@ func TestConfInterval(t *testing.T) {
 	}
 
 	ret := NewComponent(
-		fxutil.Test[Requires](
+		makeRequires(fxutil.Test[testDeps](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
 			hostnameimpl.MockModule(),
-		),
+		)),
 	)
 
 	assert.NotNil(t, ret.Provider.Callback)
@@ -97,13 +120,13 @@ func TestCollect(t *testing.T) {
 	).Return(nil)
 
 	ret := NewComponent(
-		fxutil.Test[Requires](
+		makeRequires(fxutil.Test[testDeps](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMock(t) }),
 			fx.Provide(func() serializer.MetricSerializer { return s }),
 			hostnameimpl.MockModule(),
-		),
+		)),
 	)
 
 	r := ret.Comp.(*resourcesImpl)
@@ -122,13 +145,13 @@ func TestCollectError(t *testing.T) {
 
 	s := serializermock.NewMetricSerializer(t)
 	ret := NewComponent(
-		fxutil.Test[Requires](
+		makeRequires(fxutil.Test[testDeps](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMock(t) }),
 			fx.Provide(func() serializer.MetricSerializer { return s }),
 			hostnameimpl.MockModule(),
-		),
+		)),
 	)
 
 	r := ret.Comp.(*resourcesImpl)
