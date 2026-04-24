@@ -91,7 +91,7 @@ type Requires struct {
 // Provides defines the output of the hostgpu component
 type Provides struct {
 	Comp          hostgpu.Component
-	Provider      runnerimpl.Provider
+	Provider      runnerdef.Provider
 	FlareProvider flaretypes.Provider
 	Endpoint      api.AgentEndpointProvider
 }

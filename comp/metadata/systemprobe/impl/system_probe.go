@@ -75,7 +75,7 @@ type Requires struct {
 // Provides defines the output of the systemprobe metadatacomponent
 type Provides struct {
 	Comp             systemprobemetadata.Component
-	MetadataProvider runnerimpl.Provider
+	MetadataProvider runnerdef.Provider
 	FlareProvider    flaretypes.Provider
 	Endpoint         api.AgentEndpointProvider
 }

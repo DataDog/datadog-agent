@@ -113,7 +113,7 @@ type provides struct {
 	fx.Out
 
 	Comp                 iainterface.Component
-	Provider             runnerimpl.Provider
+	Provider             runnerdef.Provider
 	FlareProvider        flaretypes.Provider
 	StatusHeaderProvider status.HeaderInformationProvider
 	Endpoint             api.AgentEndpointProvider

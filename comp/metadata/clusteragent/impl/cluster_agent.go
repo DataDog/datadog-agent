@@ -77,7 +77,7 @@ type datadogclusteragent struct {
 // Provides defines the output of the clusteragent metadata component
 type Provides struct {
 	Comp             clusteragent.Component
-	MetadataProvider runnerimpl.Provider
+	MetadataProvider runnerdef.Provider
 }
 
 // NewComponent creates a new securityagent metadata Component
