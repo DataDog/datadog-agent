@@ -1,4 +1,4 @@
-load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
@@ -23,6 +23,7 @@ copy_file(
         "@@//:linux_arm64": "config-linux-arm64.h",
     }),
     out = "config.h",
+    target_compatible_with = ["@platforms//os:linux"],
 )
 
 expand_template(
@@ -111,19 +112,12 @@ cc_shared_library(
     name = "xslt",
     deps = [":libxslt"],
     # Ensure we don't statically link with libxml2
-    dynamic_deps = ["@libxml2//:xml2"],
+    dynamic_deps = ["@libxml2//:xml2_pkg"],
     additional_linker_inputs = ["libxslt/libxslt.syms"],
     user_link_flags = [
         "-Wl,--version-script=$(location libxslt/libxslt.syms)",
     ],
     visibility = ["//visibility:public"],
-)
-
-so_symlink(
-    name = "xslt_lib_files",
-    src = ":xslt",
-    libname = "libxslt",
-    version = "1.1.43",
 )
 
 pkg_files(
@@ -132,21 +126,11 @@ pkg_files(
     prefix = "include/libxslt",
 )
 
-expand_template(
-    name = "gen_xslt_pkgconfig",
-    template = "libxslt.pc.in",
-    out = "libxslt.pc",
-    substitutions = {
-        "@prefix@": "##PREFIX##",
-        "@exec_prefix@": "${prefix}",
-        "@libdir@": "${prefix}/lib",
-        "@includedir@": "${prefix}/include",
-        "@VERSION@": XSLT_VERSION,
-        "@XSLT_INCLUDEDIR@": "-I${includedir}",
-        "@LIBXSLT_CFLAGS@": "",
-        "@XSLT_LIBDIR@": "-L${libdir}",
-        "@XSLT_PRIVATE_LIBS@": "",
-    },
+dd_cc_packaged(
+    name = "xslt_pkg",
+    input = ":xslt",
+    version = XSLT_VERSION,
+    installed_files = [":xslt_headers"],
     visibility = ["//visibility:public"],
 )
 
@@ -204,15 +188,8 @@ cc_library(
 cc_shared_library(
     name = "exslt",
     deps = [":libexslt"],
-    dynamic_deps = ["@libxml2//:xml2", ":xslt"],
+    dynamic_deps = ["@libxml2//:xml2_pkg", ":xslt_pkg"],
     visibility = ["//visibility:public"],
-)
-
-so_symlink(
-    name = "exslt_lib_files",
-    src = ":exslt",
-    libname = "libexslt",
-    version = "0.8.24",
 )
 
 pkg_files(
@@ -221,28 +198,12 @@ pkg_files(
     prefix = "include/libexslt",
 )
 
-expand_template(
-    name = "gen_exslt_pkgconfig",
-    template = "libexslt.pc.in",
-    out = "libexslt.pc",
-    substitutions = {
-        "@prefix@": "##PREFIX##",
-        "@exec_prefix@": "${prefix}",
-        "@libdir@": "${prefix}/lib",
-        "@includedir@": "${prefix}/include",
-        "@LIBEXSLT_VERSION@": EXSLT_VERSION,
-        "@EXSLT_INCLUDEDIR@": "-I${includedir}",
-        "@LIBEXSLT_CFLAGS@": "",
-        "@EXSLT_LIBDIR@": "-L${libdir}",
-        "@EXSLT_PRIVATE_LIBS@": "",
-    },
+dd_cc_packaged(
+    name = "exslt_pkg",
+    input = ":exslt",
+    version = "0.8.24",
+    installed_files = [":exslt_headers"],
     visibility = ["//visibility:public"],
-)
-
-pkg_files(
-    name = "pkgconfig",
-    srcs = [":gen_xslt_pkgconfig", ":gen_exslt_pkgconfig"],
-    prefix = "lib/pkgconfig",
 )
 
 pkg_filegroup(
@@ -250,9 +211,8 @@ pkg_filegroup(
     srcs = [
         ":xslt_headers",
         ":exslt_headers",
-        ":xslt_lib_files",
-        ":exslt_lib_files",
     ],
+    prefix = "embedded",
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )
 
@@ -260,6 +220,5 @@ pkg_install(
     name = "install",
     srcs = [
         ":all_files",
-        ":pkgconfig",
     ],
 )

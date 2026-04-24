@@ -1,0 +1,83 @@
+name: systemd
+fleet_configurable: true
+version: 1.0.0
+files:
+- name: systemd.yaml
+  options:
+  - template: instances
+    options:
+    - name: unit_names
+      fleet_configurable: true
+      value:
+        type: array
+        items:
+          type: string
+        example: ["<UNIT_NAME_1>", "<UNIT_NAME_2>"]
+      description: |
+        List of systemd units to monitor.
+        Full names must be used. Examples: ssh.service, docker.socket
+        You must specify at least one of `unit_names` or `unit_regexes`.
+        If you provide both fields, `unit_names` match first, then `unit_regexes`.
+      required: false
+    - name: unit_regexes
+      fleet_configurable: true
+      value:
+        type: array
+        items:
+          type: string
+        example: ["^<UNIT_NAME>$", "<PREFIX>.+"]
+      description: |
+        Regex pattern[s] matching the names of units to monitor.
+        Patterns from Go's regexp package are supported: https://pkg.go.dev/regexp#pkg-overview
+        You must specify at least one of `unit_names` or `unit_regexes`.
+        If you provide both fields, `unit_names` match first, then `unit_regexes`.
+      required: false
+    - name: private_socket
+      fleet_configurable: true
+      value:
+        type: string
+        example: "<PATH_TO_SYSTEMD_PRIVATE_SOCKET>"
+      description: |
+        Path to systemd private socket needed to retrieve systemd data.
+        Defaults to `/run/systemd/private` or `/host/run/systemd/private` when
+        using Docker Agent (https://docs.datadoghq.com/agent/docker/).
+      required: false
+    - name: substate_status_mapping
+      fleet_configurable: true
+      value:
+        type: object
+        example:
+          <UNIT_NAME_1>:
+            running: ok
+            exited: critical
+          <UNIT_NAME_2>:
+            plugged: ok
+            mounted: ok
+            running: ok
+            exited: critical
+            stopped: critical
+      description: |
+        The integration will emit an additional `systemd.unit.substate` service check whose value is
+        based on the provided mapping from systemd substate to service check status.
+        This configuration option allows you to be alerted on the unit substate for some specific situations.
+        Such a case includes units that are expected to be always running
+        but the systemd reported state and substate is 'active (exited)'. The provided example will send a
+        CRITICAL service check in that situation.
+        Valid statuses are 'ok', 'warning', 'critical', and 'unknown'. If the substate is not mapped,
+        the service check status will report 'unknown'.
+        Each top-level key is a unit name, and its value is a mapping of substate strings to one of:
+        'ok', 'warning', 'critical', 'unknown'.
+      required: false
+    - name: tags
+      fleet_configurable: true
+      value:
+        type: array
+        items:
+          type: string
+        example: ["<KEY_1>:<VALUE_1>", "<KEY_2>:<VALUE_2>"]
+      description: |
+        List of tags to attach to every metric, event, and service check emitted
+        by this integration.
+
+        Learn more about tagging: https://docs.datadoghq.com/tagging/
+      required: false

@@ -378,6 +378,74 @@ func (_c *SecurityModuleCmdServer_GetConfig_Call) RunAndReturn(run func(context1
 	return _c
 }
 
+// GetLoadedPolicies provides a mock function for the type SecurityModuleCmdServer
+func (_mock *SecurityModuleCmdServer) GetLoadedPolicies(context1 context.Context, getLoadedPoliciesParams *api.GetLoadedPoliciesParams) (*api.GetLoadedPoliciesMessage, error) {
+	ret := _mock.Called(context1, getLoadedPoliciesParams)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetLoadedPolicies")
+	}
+
+	var r0 *api.GetLoadedPoliciesMessage
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *api.GetLoadedPoliciesParams) (*api.GetLoadedPoliciesMessage, error)); ok {
+		return returnFunc(context1, getLoadedPoliciesParams)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *api.GetLoadedPoliciesParams) *api.GetLoadedPoliciesMessage); ok {
+		r0 = returnFunc(context1, getLoadedPoliciesParams)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*api.GetLoadedPoliciesMessage)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, *api.GetLoadedPoliciesParams) error); ok {
+		r1 = returnFunc(context1, getLoadedPoliciesParams)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// SecurityModuleCmdServer_GetLoadedPolicies_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetLoadedPolicies'
+type SecurityModuleCmdServer_GetLoadedPolicies_Call struct {
+	*mock.Call
+}
+
+// GetLoadedPolicies is a helper method to define mock.On call
+//   - context1 context.Context
+//   - getLoadedPoliciesParams *api.GetLoadedPoliciesParams
+func (_e *SecurityModuleCmdServer_Expecter) GetLoadedPolicies(context1 interface{}, getLoadedPoliciesParams interface{}) *SecurityModuleCmdServer_GetLoadedPolicies_Call {
+	return &SecurityModuleCmdServer_GetLoadedPolicies_Call{Call: _e.mock.On("GetLoadedPolicies", context1, getLoadedPoliciesParams)}
+}
+
+func (_c *SecurityModuleCmdServer_GetLoadedPolicies_Call) Run(run func(context1 context.Context, getLoadedPoliciesParams *api.GetLoadedPoliciesParams)) *SecurityModuleCmdServer_GetLoadedPolicies_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 *api.GetLoadedPoliciesParams
+		if args[1] != nil {
+			arg1 = args[1].(*api.GetLoadedPoliciesParams)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *SecurityModuleCmdServer_GetLoadedPolicies_Call) Return(getLoadedPoliciesMessage *api.GetLoadedPoliciesMessage, err error) *SecurityModuleCmdServer_GetLoadedPolicies_Call {
+	_c.Call.Return(getLoadedPoliciesMessage, err)
+	return _c
+}
+
+func (_c *SecurityModuleCmdServer_GetLoadedPolicies_Call) RunAndReturn(run func(context1 context.Context, getLoadedPoliciesParams *api.GetLoadedPoliciesParams) (*api.GetLoadedPoliciesMessage, error)) *SecurityModuleCmdServer_GetLoadedPolicies_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetRuleSetReport provides a mock function for the type SecurityModuleCmdServer
 func (_mock *SecurityModuleCmdServer) GetRuleSetReport(context1 context.Context, getRuleSetReportParams *api.GetRuleSetReportParams) (*api.GetRuleSetReportMessage, error) {
 	ret := _mock.Called(context1, getRuleSetReportParams)

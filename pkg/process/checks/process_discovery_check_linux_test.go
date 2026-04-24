@@ -15,16 +15,16 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestProcessDiscoveryLinuxWithRunInCoreAgent(t *testing.T) {
+func TestProcessDiscoveryLinuxRunsInCoreAgent(t *testing.T) {
 	originalFlavor := flavor.GetFlavor()
 	defer flavor.SetFlavor(originalFlavor)
 
-	// Ensure the process discovery checks run on the core agent only when run in core agent mode is enabled
+	// On Linux, process discovery checks always run in the core agent
 	cfg := configmock.New(t)
 	sysCfg := configmock.NewSystemProbe(t)
 	cfg.SetWithoutSource("process_config.process_collection.enabled", false)
 	cfg.SetWithoutSource("process_config.process_discovery.enabled", true)
-	cfg.SetWithoutSource("process_config.run_in_core_agent.enabled", true)
+	sysCfg.SetWithoutSource("discovery.enabled", false)
 
 	tests := []struct {
 		name    string

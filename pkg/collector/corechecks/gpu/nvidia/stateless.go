@@ -8,6 +8,7 @@
 package nvidia
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"unsafe"
@@ -16,27 +17,16 @@ import (
 	"github.com/hashicorp/go-multierror"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 // nvlinkSample handles NVLink metrics collection logic
 func nvlinkSample(device ddnvml.Device) ([]Metric, uint64, error) {
-	// Get total number of NVLinks dynamically
-	fields := []nvml.FieldValue{
-		{
-			FieldId: nvml.FI_DEV_NVLINK_LINK_COUNT,
-			ScopeId: 0,
-		},
-	}
-
-	if err := device.GetFieldValues(fields); err != nil {
+	totalNVLinks, err := getNVLinkCount(device)
+	if err != nil {
 		return nil, 0, fmt.Errorf("failed to get nvlink count: %w", err)
-	}
-
-	totalNVLinks, convErr := fieldValueToNumber[int](nvml.ValueType(fields[0].ValueType), fields[0].Value)
-	if convErr != nil {
-		return nil, 0, fmt.Errorf("failed to convert number of nvlinks to integer: %w", convErr)
 	}
 
 	// Collect NVLink states
@@ -185,6 +175,7 @@ func processDetailListSample(device ddnvml.Device) ([]Metric, uint64, error) {
 
 	detail, err := device.GetRunningProcessDetailList()
 	var usage []processMemoryUsageData
+	var nvmlErr *ddnvml.NvmlAPIError
 	if err == nil {
 		// procs.ProcArray is a pointer to an array of ProcessDetail_v1, in C-style pointer+length mode,
 		// so convert it to a slice:
@@ -195,6 +186,13 @@ func processDetailListSample(device ddnvml.Device) ([]Metric, uint64, error) {
 				usedGpuMemory: proc.UsedGpuMemory,
 			})
 		}
+	} else if errors.As(err, &nvmlErr) && nvmlErr.NvmlErrorCode == nvml.ERROR_INSUFFICIENT_SIZE {
+		// Depending on the NVML implementation, there might be an issue with the size of the array being passed.
+		// This PR seems related https://github.com/NVIDIA/go-nvml/pull/165 but for now we will suppress the error
+		// and continue with the collection.
+		// In this case, if we get no metrics, processMemoryUsage will emit a memory.limit metric with low priority
+		// so that it can be overridden by alternative APIs if available.
+		err = nil
 	}
 
 	return processMemoryUsage(device, usage, High), 0, err
@@ -272,6 +270,34 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 					return nil, 0, err
 				}
 				return []Metric{{Name: "fan_speed", Value: float64(speed), Type: metrics.GaugeType}}, 0, nil
+			},
+		},
+		{
+			Name: "fan_speed_v2",
+			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+				var output []Metric
+				numFans, err := device.GetNumFans()
+				if err != nil {
+					return nil, 0, fmt.Errorf("failed to get number of fans: %w", err)
+				}
+
+				var multiErr error
+				for i := 0; i < numFans; i++ {
+					speed, err := device.GetFanSpeed_v2(i)
+					if err != nil {
+						multiErr = errors.Join(multiErr, fmt.Errorf("failed to get fan speed for fan %d: %w", i, err))
+					} else {
+						output = append(output, Metric{
+							Name:     "fan_speed",
+							Value:    float64(speed),
+							Type:     metrics.GaugeType,
+							Priority: Medium,
+							Tags:     []string{"fan_index:" + strconv.Itoa(i)},
+						})
+					}
+				}
+
+				return output, 0, multiErr
 			},
 		},
 		{
@@ -413,6 +439,10 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 		{
 			Name: "device_unhealthy_count",
 			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+				if !env.IsFeaturePresent(env.KubernetesDevicePlugins) {
+					return nil, 0, ddnvml.NewNvmlAPIErrorOrNil("GetUnhealthyDevices", nvml.ERROR_NOT_SUPPORTED)
+				}
+
 				gpu, err := deps.Workloadmeta.GetGPU(device.GetDeviceInfo().UUID)
 				if err != nil {
 					return nil, 0, err
@@ -469,6 +499,28 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 					{Name: "remapped_rows.uncorrectable", Value: float64(uncorrectable), Type: metrics.GaugeType},
 					{Name: "remapped_rows.pending", Value: boolToFloat(pending), Type: metrics.GaugeType},
 					{Name: "remapped_rows.failed", Value: boolToFloat(failed), Type: metrics.GaugeType},
+				}, 0, nil
+			},
+		},
+		{
+			Name: "repair_status",
+			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+				repairStatus, err := device.GetRepairStatus()
+				if err != nil {
+					return nil, 0, err
+				}
+
+				return []Metric{
+					{
+						Name:  "ecc.repair_pending.channel",
+						Value: float64(repairStatus.BChannelRepairPending),
+						Type:  metrics.GaugeType,
+					},
+					{
+						Name:  "ecc.repair_pending.tpc",
+						Value: float64(repairStatus.BTpcRepairPending),
+						Type:  metrics.GaugeType,
+					},
 				}, 0, nil
 			},
 		},

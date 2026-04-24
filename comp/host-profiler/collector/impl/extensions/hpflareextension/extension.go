@@ -14,12 +14,12 @@ import (
 	"net/http"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
-	"github.com/goccy/go-yaml"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componentstatus"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/extension/extensioncapabilities"
 	"go.uber.org/zap"
+	"go.yaml.in/yaml/v3"
 )
 
 var _ extensioncapabilities.ConfigWatcher = (*DDExtension)(nil)

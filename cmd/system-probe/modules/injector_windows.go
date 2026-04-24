@@ -13,14 +13,15 @@ import (
 
 	"go.uber.org/atomic"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/windowsdriver/ddinjector"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
@@ -34,8 +35,7 @@ var _ module.Module = &injectorModule{}
 
 // Injector Factory
 var Injector = &module.Factory{
-	Name:             config.InjectorModule,
-	ConfigNamespaces: []string{},
+	Name: config.InjectorModule,
 	Fn: func(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
 		log.Infof("Creating Windows Injector module")
 
@@ -51,11 +51,12 @@ var Injector = &module.Factory{
 }
 
 type injectorModule struct {
-	lastCheck      atomic.Int64
-	collectMutex   sync.Mutex
-	telemetry      telemetry.Component
-	counters       ddinjector.InjectorCounters
-	sysProbeConfig sysprobeconfig.Component
+	lastCheck         atomic.Int64
+	collectMutex      sync.Mutex
+	telemetry         telemetry.Component
+	counters          ddinjector.InjectorCounters
+	sysProbeConfig    sysprobeconfig.Component
+	lastOpenErrorTime atomic.Int64
 }
 
 // Register registers the endpoint for this module
@@ -206,15 +207,25 @@ func (m *injectorModule) Collect(_ chan<- prometheus.Metric) {
 		return
 	}
 
-	m.lastCheck.Store(time.Now().Unix())
+	currentTime := time.Now().Unix()
+	m.lastCheck.Store(currentTime)
 
 	log.Debug("Collecting telemetry from Windows Injector")
 
 	// Query the driver for current counters
 	injector, err := ddinjector.NewInjector()
 	if err != nil {
-		log.Errorf("unable to open Windows Injector: %v", err)
+		if m.lastOpenErrorTime.Load() == 0 {
+			// If we cannot open ddinjector, most likely it is disabled. Do not spam the log.
+			log.Warnf("failed to open Windows Injector the first time, ignoring future errors: %v", err)
+			m.lastOpenErrorTime.Store(currentTime)
+		}
+
 		return
+	} else if m.lastOpenErrorTime.Load() != 0 {
+		// We recovered from a previous error. Log that we are collecting telemetry again.
+		log.Info("regained access to Windows Injector, collecting telemetry again")
+		m.lastOpenErrorTime.Store(0)
 	}
 	defer injector.Close()
 

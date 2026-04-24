@@ -64,7 +64,14 @@ func (p *FileHasher) FlushPendingReports() {
 		report.Lock()
 		defer report.Unlock()
 
-		if time.Now().After(report.seenAt.Add(defaultHashActionFlushDelay)) {
+		hashDelay := defaultHashActionFlushDelay
+		if report.eventType == model.ExecEventType {
+			// Exec events can be hashed immediately since the executable file
+			// is already on disk when we process the exec event
+			hashDelay = 0
+		}
+
+		if time.Now().After(report.seenAt.Add(hashDelay)) {
 			report.Trigger = HashTriggerTimeout
 			p.hash(report)
 			return true

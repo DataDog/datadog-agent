@@ -67,6 +67,7 @@ func (ps *processStore) ensureExists(update *process.Config) procRuntimeID {
 				service:     update.Service,
 				version:     update.Version,
 				environment: update.Environment,
+				processTags: update.ProcessTags,
 			},
 			executable:    update.Executable,
 			gitInfo:       update.GitInfo,
@@ -93,6 +94,9 @@ func (ps *processStore) ensureExists(update *process.Config) procRuntimeID {
 	}
 	if update.RuntimeID != "" {
 		proc.runtimeID = update.RuntimeID
+	}
+	if len(update.ProcessTags) > 0 {
+		proc.processTags = update.ProcessTags
 	}
 	if update.Executable.Path != "" {
 		proc.executable = update.Executable

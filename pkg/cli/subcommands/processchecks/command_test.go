@@ -23,14 +23,13 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
-	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl"
+	npcollectormock "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/mock"
 	processComponent "github.com/DataDog/datadog-agent/comp/process"
 	rdnsquerierfxmock "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx-mock"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
@@ -62,15 +61,14 @@ func TestCommand(t *testing.T) {
 	getTestFxOptions := func(cliParams *CliParams, bundleParams core.BundleParams) []fx.Option {
 		return []fx.Option{
 			fx.Supply(cliParams, bundleParams),
-			core.Bundle(),
+			core.Bundle(core.WithSecrets()),
 			hostnameimpl.Module(),
-			secretsfx.Module(),
 
 			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			workloadfilterfxmock.MockModule(),
 			fx.Provide(func() tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 			rdnsquerierfxmock.MockModule(),
-			npcollectorimpl.MockModule(),
+			npcollectormock.MockModule(),
 			processComponent.Bundle(),
 
 			// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initialized correctly.

@@ -81,5 +81,15 @@ func getKnownErrors() []knownError {
 			retryType:    ReUp,
 			maxRetry:     5,
 		},
+		{
+			errorMessage: `Google Compute Engine does not have enough resources available to fulfill request`,
+			retryType:    ReCreate,
+			maxRetry:     stackUpMaxRetry,
+		},
+		{
+			errorMessage: `Failed to get route table object`,
+			retryType:    ReCreate,
+			maxRetry:     stackUpMaxRetry,
+		},
 	}
 }

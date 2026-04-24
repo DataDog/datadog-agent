@@ -200,6 +200,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`process.ancestors.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
 | [`process.ancestors.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`process.ancestors.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`process.ancestors.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`process.ancestors.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`process.ancestors.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
@@ -277,13 +278,14 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`process.ancestors.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`process.ancestors.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
-| [`process.ancestors.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`process.ancestors.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker/kthread |
 | [`process.ancestors.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`process.ancestors.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`process.ancestors.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`process.ancestors.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`process.ancestors.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`process.ancestors.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`process.ancestors.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
+| [`process.ancestors.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`process.ancestors.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`process.ancestors.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`process.ancestors.uid`](#common-credentials-uid-doc) | UID of the process |
@@ -311,6 +313,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`process.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
 | [`process.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`process.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`process.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`process.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`process.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
@@ -388,7 +391,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`process.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`process.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
-| [`process.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`process.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker/kthread |
 | [`process.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`process.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`process.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
@@ -403,6 +406,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`process.parent.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
 | [`process.parent.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`process.parent.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`process.parent.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`process.parent.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`process.parent.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
@@ -480,12 +484,13 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`process.parent.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`process.parent.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
-| [`process.parent.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`process.parent.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker/kthread |
 | [`process.parent.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`process.parent.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`process.parent.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`process.parent.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`process.parent.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`process.parent.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
+| [`process.parent.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`process.parent.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`process.parent.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`process.parent.uid`](#common-credentials-uid-doc) | UID of the process |
@@ -503,7 +508,8 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.user_session.ssh_public_key`](#common-sshsessioncontext-ssh_public_key-doc) | SSH public key used for authentication (if applicable) |
 | [`process.parent.user_session.ssh_session_id`](#common-sshsessioncontext-ssh_session_id-doc) | Unique identifier of the SSH user session on the host |
 | [`process.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`process.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`process.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
+| [`process.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`process.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`process.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`process.uid`](#common-credentials-uid-doc) | UID of the process |
@@ -529,6 +535,8 @@ An accept was executed
 | -------- | ------------- |
 | [`accept.addr.family`](#accept-addr-family-doc) | Address family |
 | [`accept.addr.hostname`](#accept-addr-hostname-doc) | Address hostname (if available) |
+| [`accept.addr.hostname.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`accept.addr.hostname.root_domain`](#common-string-root_domain-doc) | Root domain of the corresponding element |
 | [`accept.addr.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`accept.addr.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`accept.addr.port`](#common-ipportcontext-port-doc) | Port number |
@@ -745,6 +753,8 @@ A connect was executed
 | -------- | ------------- |
 | [`connect.addr.family`](#connect-addr-family-doc) | Address family |
 | [`connect.addr.hostname`](#connect-addr-hostname-doc) | Address hostname (if available) |
+| [`connect.addr.hostname.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`connect.addr.hostname.root_domain`](#common-string-root_domain-doc) | Root domain of the corresponding element |
 | [`connect.addr.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`connect.addr.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`connect.addr.port`](#common-ipportcontext-port-doc) | Port number |
@@ -763,6 +773,7 @@ A DNS request was sent
 | [`dns.question.length`](#dns-question-length-doc) | the total DNS request size in bytes |
 | [`dns.question.name`](#dns-question-name-doc) | the queried domain name |
 | [`dns.question.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`dns.question.name.root_domain`](#common-string-root_domain-doc) | Root domain of the corresponding element |
 | [`dns.question.type`](#dns-question-type-doc) | a two octet code which specifies the DNS question type |
 | [`dns.response.code`](#dns-response-code-doc) | Response code of the DNS response according to RFC 1035 |
 | [`network.destination.ip`](#common-ipportcontext-ip-doc) | IP address |
@@ -796,6 +807,7 @@ A process was executed (does not trigger on fork syscalls).
 | [`exec.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`exec.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
 | [`exec.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`exec.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`exec.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`exec.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`exec.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
@@ -881,12 +893,13 @@ A process was executed (does not trigger on fork syscalls).
 | [`exec.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`exec.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`exec.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
-| [`exec.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`exec.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker/kthread |
 | [`exec.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`exec.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`exec.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`exec.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`exec.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`exec.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
+| [`exec.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`exec.syscall.path`](#exec-syscall-path-doc) | path argument of the syscall |
 | [`exec.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`exec.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
@@ -923,6 +936,7 @@ A process was terminated
 | [`exit.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
 | [`exit.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
 | [`exit.cause`](#exit-cause-doc) | Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED) |
+| [`exit.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`exit.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`exit.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`exit.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
@@ -1001,12 +1015,13 @@ A process was terminated
 | [`exit.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`exit.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`exit.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
-| [`exit.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`exit.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker/kthread |
 | [`exit.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`exit.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`exit.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`exit.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`exit.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`exit.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
+| [`exit.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`exit.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`exit.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`exit.uid`](#common-credentials-uid-doc) | UID of the process |
@@ -1388,6 +1403,7 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`ptrace.tracee.ancestors.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
 | [`ptrace.tracee.ancestors.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`ptrace.tracee.ancestors.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`ptrace.tracee.ancestors.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`ptrace.tracee.ancestors.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`ptrace.tracee.ancestors.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
@@ -1465,13 +1481,14 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`ptrace.tracee.ancestors.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`ptrace.tracee.ancestors.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
-| [`ptrace.tracee.ancestors.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`ptrace.tracee.ancestors.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker/kthread |
 | [`ptrace.tracee.ancestors.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`ptrace.tracee.ancestors.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`ptrace.tracee.ancestors.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`ptrace.tracee.ancestors.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`ptrace.tracee.ancestors.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`ptrace.tracee.ancestors.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`ptrace.tracee.ancestors.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
+| [`ptrace.tracee.ancestors.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`ptrace.tracee.ancestors.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`ptrace.tracee.ancestors.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`ptrace.tracee.ancestors.uid`](#common-credentials-uid-doc) | UID of the process |
@@ -1499,6 +1516,7 @@ A ptrace command was executed
 | [`ptrace.tracee.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`ptrace.tracee.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
 | [`ptrace.tracee.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`ptrace.tracee.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`ptrace.tracee.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`ptrace.tracee.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`ptrace.tracee.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
@@ -1576,7 +1594,7 @@ A ptrace command was executed
 | [`ptrace.tracee.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`ptrace.tracee.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`ptrace.tracee.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
-| [`ptrace.tracee.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`ptrace.tracee.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker/kthread |
 | [`ptrace.tracee.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`ptrace.tracee.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`ptrace.tracee.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
@@ -1591,6 +1609,7 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`ptrace.tracee.parent.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
 | [`ptrace.tracee.parent.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`ptrace.tracee.parent.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`ptrace.tracee.parent.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`ptrace.tracee.parent.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`ptrace.tracee.parent.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
@@ -1668,12 +1687,13 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`ptrace.tracee.parent.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`ptrace.tracee.parent.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
-| [`ptrace.tracee.parent.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`ptrace.tracee.parent.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker/kthread |
 | [`ptrace.tracee.parent.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`ptrace.tracee.parent.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`ptrace.tracee.parent.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`ptrace.tracee.parent.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`ptrace.tracee.parent.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`ptrace.tracee.parent.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
+| [`ptrace.tracee.parent.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`ptrace.tracee.parent.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`ptrace.tracee.parent.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`ptrace.tracee.parent.uid`](#common-credentials-uid-doc) | UID of the process |
@@ -1691,7 +1711,8 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.user_session.ssh_public_key`](#common-sshsessioncontext-ssh_public_key-doc) | SSH public key used for authentication (if applicable) |
 | [`ptrace.tracee.parent.user_session.ssh_session_id`](#common-sshsessioncontext-ssh_session_id-doc) | Unique identifier of the SSH user session on the host |
 | [`ptrace.tracee.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`ptrace.tracee.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`ptrace.tracee.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
+| [`ptrace.tracee.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`ptrace.tracee.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`ptrace.tracee.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`ptrace.tracee.uid`](#common-credentials-uid-doc) | UID of the process |
@@ -1891,6 +1912,7 @@ A setrlimit command was executed
 | [`setrlimit.target.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`setrlimit.target.ancestors.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
 | [`setrlimit.target.ancestors.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`setrlimit.target.ancestors.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`setrlimit.target.ancestors.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`setrlimit.target.ancestors.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`setrlimit.target.ancestors.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
@@ -1968,13 +1990,14 @@ A setrlimit command was executed
 | [`setrlimit.target.ancestors.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`setrlimit.target.ancestors.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`setrlimit.target.ancestors.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
-| [`setrlimit.target.ancestors.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`setrlimit.target.ancestors.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker/kthread |
 | [`setrlimit.target.ancestors.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`setrlimit.target.ancestors.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`setrlimit.target.ancestors.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`setrlimit.target.ancestors.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`setrlimit.target.ancestors.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`setrlimit.target.ancestors.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`setrlimit.target.ancestors.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
+| [`setrlimit.target.ancestors.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`setrlimit.target.ancestors.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`setrlimit.target.ancestors.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`setrlimit.target.ancestors.uid`](#common-credentials-uid-doc) | UID of the process |
@@ -2002,6 +2025,7 @@ A setrlimit command was executed
 | [`setrlimit.target.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`setrlimit.target.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
 | [`setrlimit.target.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`setrlimit.target.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`setrlimit.target.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`setrlimit.target.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`setrlimit.target.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
@@ -2079,7 +2103,7 @@ A setrlimit command was executed
 | [`setrlimit.target.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`setrlimit.target.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`setrlimit.target.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
-| [`setrlimit.target.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`setrlimit.target.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker/kthread |
 | [`setrlimit.target.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`setrlimit.target.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`setrlimit.target.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
@@ -2094,6 +2118,7 @@ A setrlimit command was executed
 | [`setrlimit.target.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`setrlimit.target.parent.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
 | [`setrlimit.target.parent.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`setrlimit.target.parent.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`setrlimit.target.parent.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`setrlimit.target.parent.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`setrlimit.target.parent.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
@@ -2171,12 +2196,13 @@ A setrlimit command was executed
 | [`setrlimit.target.parent.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`setrlimit.target.parent.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`setrlimit.target.parent.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
-| [`setrlimit.target.parent.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`setrlimit.target.parent.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker/kthread |
 | [`setrlimit.target.parent.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`setrlimit.target.parent.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`setrlimit.target.parent.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`setrlimit.target.parent.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`setrlimit.target.parent.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`setrlimit.target.parent.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
+| [`setrlimit.target.parent.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`setrlimit.target.parent.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`setrlimit.target.parent.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`setrlimit.target.parent.uid`](#common-credentials-uid-doc) | UID of the process |
@@ -2194,7 +2220,8 @@ A setrlimit command was executed
 | [`setrlimit.target.parent.user_session.ssh_public_key`](#common-sshsessioncontext-ssh_public_key-doc) | SSH public key used for authentication (if applicable) |
 | [`setrlimit.target.parent.user_session.ssh_session_id`](#common-sshsessioncontext-ssh_session_id-doc) | Unique identifier of the SSH user session on the host |
 | [`setrlimit.target.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`setrlimit.target.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`setrlimit.target.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
+| [`setrlimit.target.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`setrlimit.target.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`setrlimit.target.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`setrlimit.target.uid`](#common-credentials-uid-doc) | UID of the process |
@@ -2299,6 +2326,7 @@ A signal was sent
 | [`signal.target.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`signal.target.ancestors.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
 | [`signal.target.ancestors.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`signal.target.ancestors.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`signal.target.ancestors.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`signal.target.ancestors.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`signal.target.ancestors.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
@@ -2376,13 +2404,14 @@ A signal was sent
 | [`signal.target.ancestors.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`signal.target.ancestors.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`signal.target.ancestors.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
-| [`signal.target.ancestors.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`signal.target.ancestors.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker/kthread |
 | [`signal.target.ancestors.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`signal.target.ancestors.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`signal.target.ancestors.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`signal.target.ancestors.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`signal.target.ancestors.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`signal.target.ancestors.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`signal.target.ancestors.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
+| [`signal.target.ancestors.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`signal.target.ancestors.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`signal.target.ancestors.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`signal.target.ancestors.uid`](#common-credentials-uid-doc) | UID of the process |
@@ -2410,6 +2439,7 @@ A signal was sent
 | [`signal.target.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`signal.target.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
 | [`signal.target.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`signal.target.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`signal.target.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`signal.target.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`signal.target.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
@@ -2487,7 +2517,7 @@ A signal was sent
 | [`signal.target.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`signal.target.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`signal.target.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
-| [`signal.target.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`signal.target.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker/kthread |
 | [`signal.target.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`signal.target.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`signal.target.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
@@ -2502,6 +2532,7 @@ A signal was sent
 | [`signal.target.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`signal.target.parent.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
 | [`signal.target.parent.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`signal.target.parent.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`signal.target.parent.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`signal.target.parent.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`signal.target.parent.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
@@ -2579,12 +2610,13 @@ A signal was sent
 | [`signal.target.parent.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`signal.target.parent.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`signal.target.parent.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
-| [`signal.target.parent.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`signal.target.parent.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker/kthread |
 | [`signal.target.parent.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`signal.target.parent.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`signal.target.parent.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`signal.target.parent.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`signal.target.parent.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`signal.target.parent.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
+| [`signal.target.parent.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`signal.target.parent.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`signal.target.parent.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`signal.target.parent.uid`](#common-credentials-uid-doc) | UID of the process |
@@ -2602,7 +2634,8 @@ A signal was sent
 | [`signal.target.parent.user_session.ssh_public_key`](#common-sshsessioncontext-ssh_public_key-doc) | SSH public key used for authentication (if applicable) |
 | [`signal.target.parent.user_session.ssh_session_id`](#common-sshsessioncontext-ssh_session_id-doc) | Unique identifier of the SSH user session on the host |
 | [`signal.target.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`signal.target.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`signal.target.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
+| [`signal.target.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`signal.target.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`signal.target.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`signal.target.uid`](#common-credentials-uid-doc) | UID of the process |
@@ -2934,6 +2967,15 @@ Definition: Comm attribute of the process
 `exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
+### `*.created_at` {#common-cgroupcontext-created_at-doc}
+Type: int
+
+Definition: Timestamp of the creation of the cgroup
+
+`*.created_at` has 14 possible prefixes:
+`exec.cgroup` `exit.cgroup` `process.ancestors.cgroup` `process.cgroup` `process.parent.cgroup` `ptrace.tracee.ancestors.cgroup` `ptrace.tracee.cgroup` `ptrace.tracee.parent.cgroup` `setrlimit.target.ancestors.cgroup` `setrlimit.target.cgroup` `setrlimit.target.parent.cgroup` `signal.target.ancestors.cgroup` `signal.target.cgroup` `signal.target.parent.cgroup`
+
+
 ### `*.created_at` {#common-containercontext-created_at-doc}
 Type: int
 
@@ -3225,7 +3267,7 @@ Definition: Indicates whether the process entry is from a new binary execution
 ### `*.is_kworker` {#common-pidcontext-is_kworker-doc}
 Type: bool
 
-Definition: Indicates whether the process is a kworker
+Definition: Indicates whether the process is a kworker/kthread
 
 `*.is_kworker` has 14 possible prefixes:
 `exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
@@ -3314,8 +3356,8 @@ Type: int
 
 Definition: Length of the corresponding element
 
-`*.length` has 98 possible prefixes:
-`cgroup_write.file.name` `cgroup_write.file.path` `chdir.file.name` `chdir.file.path` `chmod.file.name` `chmod.file.path` `chown.file.name` `chown.file.path` `dns.question.name` `exec.file.name` `exec.file.path` `exec.interpreter.file.name` `exec.interpreter.file.path` `exit.file.name` `exit.file.path` `exit.interpreter.file.name` `exit.interpreter.file.path` `link.file.destination.name` `link.file.destination.path` `link.file.name` `link.file.path` `load_module.file.name` `load_module.file.path` `mkdir.file.name` `mkdir.file.path` `mmap.file.name` `mmap.file.path` `network_flow_monitor.flows` `open.file.name` `open.file.path` `process.ancestors` `process.ancestors.file.name` `process.ancestors.file.path` `process.ancestors.interpreter.file.name` `process.ancestors.interpreter.file.path` `process.file.name` `process.file.path` `process.interpreter.file.name` `process.interpreter.file.path` `process.parent.file.name` `process.parent.file.path` `process.parent.interpreter.file.name` `process.parent.interpreter.file.path` `ptrace.tracee.ancestors` `ptrace.tracee.ancestors.file.name` `ptrace.tracee.ancestors.file.path` `ptrace.tracee.ancestors.interpreter.file.name` `ptrace.tracee.ancestors.interpreter.file.path` `ptrace.tracee.file.name` `ptrace.tracee.file.path` `ptrace.tracee.interpreter.file.name` `ptrace.tracee.interpreter.file.path` `ptrace.tracee.parent.file.name` `ptrace.tracee.parent.file.path` `ptrace.tracee.parent.interpreter.file.name` `ptrace.tracee.parent.interpreter.file.path` `removexattr.file.name` `removexattr.file.path` `rename.file.destination.name` `rename.file.destination.path` `rename.file.name` `rename.file.path` `rmdir.file.name` `rmdir.file.path` `setrlimit.target.ancestors` `setrlimit.target.ancestors.file.name` `setrlimit.target.ancestors.file.path` `setrlimit.target.ancestors.interpreter.file.name` `setrlimit.target.ancestors.interpreter.file.path` `setrlimit.target.file.name` `setrlimit.target.file.path` `setrlimit.target.interpreter.file.name` `setrlimit.target.interpreter.file.path` `setrlimit.target.parent.file.name` `setrlimit.target.parent.file.path` `setrlimit.target.parent.interpreter.file.name` `setrlimit.target.parent.interpreter.file.path` `setxattr.file.name` `setxattr.file.path` `signal.target.ancestors` `signal.target.ancestors.file.name` `signal.target.ancestors.file.path` `signal.target.ancestors.interpreter.file.name` `signal.target.ancestors.interpreter.file.path` `signal.target.file.name` `signal.target.file.path` `signal.target.interpreter.file.name` `signal.target.interpreter.file.path` `signal.target.parent.file.name` `signal.target.parent.file.path` `signal.target.parent.interpreter.file.name` `signal.target.parent.interpreter.file.path` `splice.file.name` `splice.file.path` `unlink.file.name` `unlink.file.path` `utimes.file.name` `utimes.file.path`
+`*.length` has 100 possible prefixes:
+`accept.addr.hostname` `cgroup_write.file.name` `cgroup_write.file.path` `chdir.file.name` `chdir.file.path` `chmod.file.name` `chmod.file.path` `chown.file.name` `chown.file.path` `connect.addr.hostname` `dns.question.name` `exec.file.name` `exec.file.path` `exec.interpreter.file.name` `exec.interpreter.file.path` `exit.file.name` `exit.file.path` `exit.interpreter.file.name` `exit.interpreter.file.path` `link.file.destination.name` `link.file.destination.path` `link.file.name` `link.file.path` `load_module.file.name` `load_module.file.path` `mkdir.file.name` `mkdir.file.path` `mmap.file.name` `mmap.file.path` `network_flow_monitor.flows` `open.file.name` `open.file.path` `process.ancestors` `process.ancestors.file.name` `process.ancestors.file.path` `process.ancestors.interpreter.file.name` `process.ancestors.interpreter.file.path` `process.file.name` `process.file.path` `process.interpreter.file.name` `process.interpreter.file.path` `process.parent.file.name` `process.parent.file.path` `process.parent.interpreter.file.name` `process.parent.interpreter.file.path` `ptrace.tracee.ancestors` `ptrace.tracee.ancestors.file.name` `ptrace.tracee.ancestors.file.path` `ptrace.tracee.ancestors.interpreter.file.name` `ptrace.tracee.ancestors.interpreter.file.path` `ptrace.tracee.file.name` `ptrace.tracee.file.path` `ptrace.tracee.interpreter.file.name` `ptrace.tracee.interpreter.file.path` `ptrace.tracee.parent.file.name` `ptrace.tracee.parent.file.path` `ptrace.tracee.parent.interpreter.file.name` `ptrace.tracee.parent.interpreter.file.path` `removexattr.file.name` `removexattr.file.path` `rename.file.destination.name` `rename.file.destination.path` `rename.file.name` `rename.file.path` `rmdir.file.name` `rmdir.file.path` `setrlimit.target.ancestors` `setrlimit.target.ancestors.file.name` `setrlimit.target.ancestors.file.path` `setrlimit.target.ancestors.interpreter.file.name` `setrlimit.target.ancestors.interpreter.file.path` `setrlimit.target.file.name` `setrlimit.target.file.path` `setrlimit.target.interpreter.file.name` `setrlimit.target.interpreter.file.path` `setrlimit.target.parent.file.name` `setrlimit.target.parent.file.path` `setrlimit.target.parent.interpreter.file.name` `setrlimit.target.parent.interpreter.file.path` `setxattr.file.name` `setxattr.file.path` `signal.target.ancestors` `signal.target.ancestors.file.name` `signal.target.ancestors.file.path` `signal.target.ancestors.interpreter.file.name` `signal.target.ancestors.interpreter.file.path` `signal.target.file.name` `signal.target.file.path` `signal.target.interpreter.file.name` `signal.target.interpreter.file.path` `signal.target.parent.file.name` `signal.target.parent.file.path` `signal.target.parent.interpreter.file.name` `signal.target.parent.interpreter.file.path` `splice.file.name` `splice.file.path` `unlink.file.name` `unlink.file.path` `utimes.file.name` `utimes.file.path`
 
 
 ### `*.mntns` {#common-pidcontext-mntns-doc}
@@ -3539,7 +3581,7 @@ Definition: Port number
 `accept.addr` `bind.addr` `connect.addr` `network.destination` `network.source` `network_flow_monitor.flows.destination` `network_flow_monitor.flows.source` `packet.destination` `packet.source`
 
 
-### `*.ppid` {#common-process-ppid-doc}
+### `*.ppid` {#common-pidcontext-ppid-doc}
 Type: int
 
 Definition: Parent process ID
@@ -3572,6 +3614,15 @@ Constants: [File mode constants](#file-mode-constants)
 
 
 
+### `*.root_domain` {#common-string-root_domain-doc}
+Type: string
+
+Definition: Root domain of the corresponding element
+
+`*.root_domain` has 3 possible prefixes:
+`accept.addr.hostname` `connect.addr.hostname` `dns.question.name`
+
+
 ### `*.session_type` {#common-usersessioncontext-session_type-doc}
 Type: int
 
@@ -3579,6 +3630,15 @@ Definition: Type of the user session
 
 `*.session_type` has 14 possible prefixes:
 `exec.user_session` `exit.user_session` `process.ancestors.user_session` `process.parent.user_session` `process.user_session` `ptrace.tracee.ancestors.user_session` `ptrace.tracee.parent.user_session` `ptrace.tracee.user_session` `setrlimit.target.ancestors.user_session` `setrlimit.target.parent.user_session` `setrlimit.target.user_session` `signal.target.ancestors.user_session` `signal.target.parent.user_session` `signal.target.user_session`
+
+
+### `*.sid` {#common-pidcontext-sid-doc}
+Type: int
+
+Definition: Session ID of the process
+
+`*.sid` has 14 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
 ### `*.size` {#common-networkcontext-size-doc}
@@ -5819,7 +5879,9 @@ MMap flags are the supported flags for the mmap syscall.
 | `MAP_ANON` | all |
 | `MAP_ANONYMOUS` | all |
 | `MAP_DENYWRITE` | all |
+| `MAP_DROPPABLE` | all |
 | `MAP_EXECUTABLE` | all |
+| `MAP_FILE` | all |
 | `MAP_FIXED` | all |
 | `MAP_FIXED_NOREPLACE` | all |
 | `MAP_GROWSDOWN` | all |
@@ -5899,6 +5961,7 @@ Network Address Family constants are the supported network address families.
 | `AF_QIPCRTR` | all |
 | `AF_SMC` | all |
 | `AF_XDP` | all |
+| `AF_MCTP` | all |
 | `AF_MAX` | all |
 
 ### `Network Protocol Types` {#network-protocol-types}
@@ -5952,7 +6015,9 @@ Open flags are the supported flags for the open syscall.
 | `O_NOCTTY` | all |
 | `O_NOFOLLOW` | all |
 | `O_NONBLOCK` | all |
+| `O_PATH` | all |
 | `O_RSYNC` | all |
+| `O_TMPFILE` | all |
 
 ### `Pipe buffer flags` {#pipe-buffer-flags}
 Pipe buffer flags are the supported flags for a pipe buffer.
@@ -6002,6 +6067,8 @@ PrCtl Options are the supported options for the prctl event
 | `PR_SET_NO_NEW_PRIVS` | all |
 | `PR_GET_NO_NEW_PRIVS` | all |
 | `PR_PAC_RESET_KEYS` | all |
+| `PR_PAC_GET_ENABLED_KEYS` | all |
+| `PR_PAC_SET_ENABLED_KEYS` | all |
 | `PR_SET_PDEATHSIG` | all |
 | `PR_GET_PDEATHSIG` | all |
 | `PR_SET_PTRACER` | all |
@@ -6009,10 +6076,13 @@ PrCtl Options are the supported options for the prctl event
 | `PR_GET_SECCOMP` | all |
 | `PR_SET_SECUREBITS` | all |
 | `PR_GET_SECUREBITS` | all |
+| `PR_SCHED_CORE` | all |
 | `PR_GET_SPECULATION_CTRL` | all |
 | `PR_SET_SPECULATION_CTRL` | all |
 | `PR_SVE_SET_VL` | all |
 | `PR_SVE_GET_VL` | all |
+| `PR_SME_SET_VL` | all |
+| `PR_SME_GET_VL` | all |
 | `PR_SET_SYSCALL_USER_DISPATCH` | all |
 | `PR_SET_TAGGED_ADDR_CTRL` | all |
 | `PR_GET_TAGGED_ADDR_CTRL` | all |
@@ -6025,6 +6095,7 @@ PrCtl Options are the supported options for the prctl event
 | `PR_GET_TIMERSLACK` | all |
 | `PR_SET_TIMING` | all |
 | `PR_GET_TIMING` | all |
+| `PR_TIMER_CREATE_RESTORE_IDS` | all |
 | `PR_SET_TSC` | all |
 | `PR_GET_TSC` | all |
 | `PR_SET_UNALIGN` | all |
@@ -6032,6 +6103,16 @@ PrCtl Options are the supported options for the prctl event
 | `PR_GET_AUXV` | all |
 | `PR_SET_MDWE` | all |
 | `PR_GET_MDWE` | all |
+| `PR_SET_MEMORY_MERGE` | all |
+| `PR_GET_MEMORY_MERGE` | all |
+| `PR_SET_SHADOW_STACK_STATUS` | all |
+| `PR_GET_SHADOW_STACK_STATUS` | all |
+| `PR_LOCK_SHADOW_STACK_STATUS` | all |
+| `PR_FUTEX_HASH` | all |
+| `PR_PPC_GET_DEXCR` | all |
+| `PR_PPC_SET_DEXCR` | all |
+| `PR_RISCV_V_GET_CONTROL` | all |
+| `PR_RISCV_V_SET_CONTROL` | all |
 | `PR_RISCV_SET_ICACHE_FLUSH_CTX` | all |
 
 ### `Protection constants` {#protection-constants}
@@ -6064,6 +6145,8 @@ Ptrace constants are the supported ptrace commands for the ptrace syscall.
 | `PTRACE_ATTACH` | all |
 | `PTRACE_DETACH` | all |
 | `PTRACE_SYSCALL` | all |
+| `PTRACE_GETREGS` | all |
+| `PTRACE_SETREGS` | all |
 | `PTRACE_SETOPTIONS` | all |
 | `PTRACE_GETEVENTMSG` | all |
 | `PTRACE_GETSIGINFO` | all |
@@ -6079,6 +6162,10 @@ Ptrace constants are the supported ptrace commands for the ptrace syscall.
 | `PTRACE_SECCOMP_GET_FILTER` | all |
 | `PTRACE_SECCOMP_GET_METADATA` | all |
 | `PTRACE_GET_SYSCALL_INFO` | all |
+| `PTRACE_SET_SYSCALL_INFO` | all |
+| `PTRACE_GET_RSEQ_CONFIGURATION` | all |
+| `PTRACE_GET_SYSCALL_USER_DISPATCH_CONFIG` | all |
+| `PTRACE_SET_SYSCALL_USER_DISPATCH_CONFIG` | all |
 | `PTRACE_GETFPREGS` | amd64, arm |
 | `PTRACE_SETFPREGS` | amd64, arm |
 | `PTRACE_GETFPXREGS` | amd64 |

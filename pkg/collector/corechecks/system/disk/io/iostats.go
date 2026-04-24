@@ -9,7 +9,7 @@ package io
 import (
 	"regexp"
 
-	yaml "gopkg.in/yaml.v2"
+	yaml "go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -28,8 +28,8 @@ const (
 )
 
 // Configure the IOstats check
-func (c *IOCheck) commonConfigure(senderManager sender.SenderManager, data integration.Data, initConfig integration.Data, source string) error {
-	if err := c.CommonConfigure(senderManager, initConfig, data, source); err != nil {
+func (c *IOCheck) commonConfigure(senderManager sender.SenderManager, data integration.Data, initConfig integration.Data, source string, provider string) error {
+	if err := c.CommonConfigure(senderManager, initConfig, data, source, provider); err != nil {
 		return err
 	}
 

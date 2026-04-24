@@ -1,0 +1,17 @@
+receivers:
+  profiling:
+    symbol_uploader:
+      enabled: false
+service:
+  pipelines:
+    profiles:
+      processors: []
+      receivers:
+      - profiling
+      exporters:
+      - otlphttp
+exporters:
+  otlphttp:
+    headers:
+      dd-api-key: test-api-key
+    profiles_endpoint: https://intake.profile.us3.datadoghq.com/v1development/profiles

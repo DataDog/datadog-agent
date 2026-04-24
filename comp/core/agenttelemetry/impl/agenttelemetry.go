@@ -24,7 +24,7 @@ import (
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	installertelemetry "github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
@@ -405,8 +405,10 @@ func (a *atel) transformMetricFamily(p *Profile, mfam *dto.MetricFamily) *agentm
 	var mCfg *MetricConfig
 	var ok bool
 
-	// Check if the metric is included in the profile
-	if mCfg, ok = p.metricsMap[mfam.GetName()]; !ok {
+	// Check if the metric is included in the profile. Normalize "__" to "_"
+	// so that metrics registered with or without NoDoubleUnderscoreSep are matched.
+	normalizedName := strings.Replace(mfam.GetName(), "__", "_", 1)
+	if mCfg, ok = p.metricsMap[normalizedName]; !ok {
 		return nil
 	}
 
@@ -430,11 +432,15 @@ func (a *atel) transformMetricFamily(p *Profile, mfam *dto.MetricFamily) *agentm
 		return nil
 	}
 
-	// Aggregate the metric tags
-	amt := a.aggregateMetricTags(mCfg, mt, fm)
+	// Convert Prom Metrics values to the corresponding Datadog metrics style values.
+	// This must happen BEFORE aggregation so that delta cache keys are based on raw
+	// Prometheus labels (which are stable), not on synthetic labels like "total" whose
+	// value encodes the timeseries count and changes when timeseries appear/disappear.
+	// Mathematically: sum(deltas) == delta(sums), so aggregating deltas is equivalent.
+	a.convertPromMetricToDatadogMetricsValues(mt, mCfg.Name, fm)
 
-	// Convert Prom Metrics values to the corresponding Datadog metrics style values
-	a.convertPromMetricToDatadogMetricsValues(mt, mCfg.Name, amt)
+	// Aggregate the metric tags (now operating on deltas rather than cumulative values)
+	amt := a.aggregateMetricTags(mCfg, mt, fm)
 
 	return &agentmetric{
 		name:    mCfg.Name,

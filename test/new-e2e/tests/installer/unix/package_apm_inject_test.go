@@ -15,7 +15,7 @@ import (
 
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/stretchr/testify/assert"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 const (
@@ -551,6 +551,72 @@ func (s *packageApmInjectSuite) assertAppArmorProfile() {
 /proc/@{pid}/** rix,
 /run/datadog/apm.socket rw,`)
 	assert.Contains(s.T(), s.Env().RemoteHost.MustExecute("sudo aa-enabled"), "Yes")
+}
+
+// TestSystemdService verifies that on a host with systemd, the datadog-apm-inject.service
+// is installed and enabled after host instrumentation. The service is not started during
+// install; direct instrumentation covers the current boot. The service's ExecStart/ExecStop
+// commands (instrument-start/instrument-stop) manage /etc/ld.so.preload on every reboot.
+func (s *packageApmInjectSuite) TestSystemdService() {
+	if s.installMethod == InstallMethodAnsible {
+		s.T().Skip("Ansible runs stable install-ssi script")
+	}
+	if _, err := s.Env().RemoteHost.Execute("test \"$(cat /proc/1/comm 2>/dev/null)\" = systemd"); err != nil {
+		s.T().Skip("systemd is not running as PID 1 on this host")
+	}
+
+	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=host", "DD_APM_INSTRUMENTATION_LIBRARIES=python")
+	defer s.Purge()
+
+	// After install: service is enabled (will start on next boot) and ld.so.preload is
+	// already written by direct instrumentation during install.
+	state := s.host.State()
+	state.AssertFileExists("/etc/systemd/system/datadog-apm-inject.service", 0644, "root", "root")
+	state.AssertUnitsEnabled("datadog-apm-inject.service")
+	s.assertLDPreloadInstrumented(injectOCIPath)
+
+	// Verify ExecStop command removes from ld.so.preload
+	s.Env().RemoteHost.MustExecute("sudo datadog-installer apm instrument-stop host")
+	s.assertLDPreloadNotInstrumented()
+
+	// Verify ExecStart command writes to ld.so.preload
+	s.Env().RemoteHost.MustExecute("sudo datadog-installer apm instrument-start host")
+	s.assertLDPreloadInstrumented(injectOCIPath)
+
+	// Uninstrumenting removes the service file and clears ld.so.preload
+	s.Env().RemoteHost.MustExecute("sudo datadog-installer apm uninstrument host")
+
+	state = s.host.State()
+	state.AssertPathDoesNotExist("/etc/systemd/system/datadog-apm-inject.service")
+	state.AssertUnitsNotLoaded("datadog-apm-inject.service")
+	s.assertLDPreloadNotInstrumented()
+}
+
+// TestInstrumentHost_NoSystemd verifies that host instrumentation writes directly to
+// /etc/ld.so.preload when systemd is not the init system, without creating a service file.
+// This test only runs on hosts where systemd is not PID 1; TestSystemdService covers the systemd path.
+func (s *packageApmInjectSuite) TestInstrumentHost_NoSystemd() {
+	if s.installMethod == InstallMethodAnsible {
+		s.T().Skip("Ansible runs stable install-ssi script")
+	}
+	if _, err := s.Env().RemoteHost.Execute("test \"$(cat /proc/1/comm 2>/dev/null)\" = systemd"); err == nil {
+		s.T().Skip("systemd is PID 1 on this host; TestSystemdService covers that path")
+	}
+
+	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=host", "DD_APM_INSTRUMENTATION_LIBRARIES=python")
+	defer s.Purge()
+
+	s.Env().RemoteHost.MustExecute("sudo datadog-installer apm uninstrument host")
+	s.assertLDPreloadNotInstrumented()
+
+	s.Env().RemoteHost.MustExecute("sudo datadog-installer apm instrument host")
+	s.assertLDPreloadInstrumented(injectOCIPath)
+
+	state := s.host.State()
+	state.AssertPathDoesNotExist("/etc/systemd/system/datadog-apm-inject.service")
+
+	s.Env().RemoteHost.MustExecute("sudo datadog-installer apm uninstrument host")
+	s.assertLDPreloadNotInstrumented()
 }
 
 func (s *packageApmInjectSuite) purgeInjectorDebInstall() {

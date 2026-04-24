@@ -1,1 +1,18 @@
 """Package delimiter."""
+
+load("@rules_python//python:py_library.bzl", "py_library")
+load("@rules_python//python:py_test.bzl", "py_test")
+
+exports_files(["fix_sysconfigdata.py"])
+
+py_library(
+    name = "fix_sysconfigdata_lib",
+    srcs = ["fix_sysconfigdata.py"],
+    imports = ["."],
+)
+
+py_test(
+    name = "fix_sysconfigdata_test",
+    srcs = ["fix_sysconfigdata_test.py"],
+    deps = [":fix_sysconfigdata_lib"],
+)

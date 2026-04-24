@@ -14,17 +14,18 @@ import tempfile
 from invoke import task
 from invoke.exceptions import Exit
 
+from tasks import core_checks, doc
 from tasks.build_tags import (
     compute_build_tags_for_flavor,
     get_default_build_tags,
 )
-from tasks.cluster_agent import CONTAINER_PLATFORM_MAPPING
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
 from tasks.gointegrationtest import (
     CORE_AGENT_WINDOWS_IT_CONF,
     containerized_integration_tests,
 )
+from tasks.libs.common.constants import CONTAINER_PLATFORM_MAPPING
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
     REPO_PATH,
@@ -38,6 +39,7 @@ from tasks.libs.common.utils import (
 from tasks.libs.releasing.version import create_version_json
 from tasks.rtloader import clean as rtloader_clean
 from tasks.rtloader import install as rtloader_install
+from tasks.rtloader import install_with_bazel as rtloader_install_with_bazel
 from tasks.rtloader import make as rtloader_make
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
@@ -53,70 +55,6 @@ if sys.platform == "win32":
     AWS_CMD = "aws.exe"
 else:
     AWS_CMD = "aws"
-
-AGENT_CORECHECKS = [
-    "container",
-    "containerd",
-    "container_image",
-    "container_lifecycle",
-    "cpu",
-    "cri",
-    "snmp",
-    "docker",
-    "file_handle",
-    "go_expvar",
-    "io",
-    "jmx",
-    "kubernetes_apiserver",
-    "load",
-    "memory",
-    "ntp",
-    "oom_kill",
-    "oracle",
-    "oracle-dbm",
-    "sbom",
-    "systemd",
-    "tcp_queue_length",
-    "uptime",
-    "jetson",
-    "telemetry",
-    "orchestrator_pod",
-    "orchestrator_kubelet_config",
-    "orchestrator_ecs",
-    "cisco_sdwan",
-    "network_path",
-    "gpu",
-    "wlan",
-    "discovery",
-    "versa",
-    "network_config_management",
-    "battery",
-    "cloud_hostinfo",
-]
-
-WINDOWS_CORECHECKS = [
-    "agentcrashdetect",
-    "sbom",
-    "windows_registry",
-    "winkmem",
-    "wincrashdetect",
-    "windows_certificate",
-    "winproc",
-    "win32_event_log",
-]
-
-IOT_AGENT_CORECHECKS = [
-    "cpu",
-    "disk",
-    "io",
-    "load",
-    "memory",
-    "network",
-    "ntp",
-    "uptime",
-    "systemd",
-    "jetson",
-]
 
 CACHED_WHEEL_FILENAME_PATTERN = "datadog_{integration}-*.whl"
 CACHED_WHEEL_DIRECTORY_PATTERN = "integration-wheels/{branch}/{hash}/{python_version}/"
@@ -148,6 +86,7 @@ def build(
     agent_bin=None,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
     glibc=True,
+    enable_bazel=False,
 ):
     """
     Build the agent. If the bits to include in the build are not specified,
@@ -158,12 +97,16 @@ def build(
     """
     flavor = AgentFlavor[flavor]
 
-    if not exclude_rtloader and not flavor.is_iot():
-        # If embedded_path is set, we should give it to rtloader as it should install the headers/libs
-        # in the embedded path folder because that's what is used in get_build_flags()
+    if not exclude_rtloader and not flavor.is_iot() and sys.platform != "aix":
+        # On AIX, rtloader is built natively in advance as a prerequisite.
         with gitlab_section("Install embedded rtloader", collapsed=True):
-            rtloader_make(ctx, install_prefix=embedded_path, cmake_options=cmake_options)
-            rtloader_install(ctx)
+            if enable_bazel:
+                bazel_embedded = rtloader_install_with_bazel(ctx)
+                embedded_path = bazel_embedded
+                python_home_3 = bazel_embedded
+            else:
+                rtloader_make(ctx, install_prefix=embedded_path, cmake_options=cmake_options)
+                rtloader_install(ctx)
 
     ldflags, gcflags, env = get_build_flags(
         ctx,
@@ -295,8 +238,6 @@ def render_config(ctx, env, flavor, skip_assets, build_tags, development, window
     if sys.platform != 'win32' or windows_sysprobe:
         generate_config(ctx, build_type="system-probe", output_file="./cmd/agent/dist/system-probe.yaml", env=env)
 
-    generate_config(ctx, build_type="security-agent", output_file="./cmd/agent/dist/security-agent.yaml", env=env)
-
     if not skip_assets:
         refresh_assets(ctx, build_tags, development=development, flavor=flavor.name, windows_sysprobe=windows_sysprobe)
 
@@ -317,8 +258,18 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
     os.mkdir(dist_folder)
 
     if "python" in build_tags:
-        shutil.copytree("./cmd/agent/dist/checks/", os.path.join(dist_folder, "checks"), dirs_exist_ok=True)
-        shutil.copytree("./cmd/agent/dist/utils/", os.path.join(dist_folder, "utils"), dirs_exist_ok=True)
+        shutil.copytree(
+            "./cmd/agent/dist/checks/",
+            os.path.join(dist_folder, "checks"),
+            ignore=shutil.ignore_patterns("BUILD.bazel"),
+            dirs_exist_ok=True,
+        )
+        shutil.copytree(
+            "./cmd/agent/dist/utils/",
+            os.path.join(dist_folder, "utils"),
+            ignore=shutil.ignore_patterns("BUILD.bazel"),
+            dirs_exist_ok=True,
+        )
         shutil.copy("./cmd/agent/dist/config.py", os.path.join(dist_folder, "config.py"))
     if not flavor.is_iot():
         shutil.copy("./cmd/agent/dist/dd-agent", os.path.join(dist_folder, "dd-agent"))
@@ -331,20 +282,28 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
         shutil.copy("./cmd/agent/dist/system-probe.yaml", os.path.join(dist_folder, "system-probe.yaml"))
     shutil.copy("./cmd/agent/dist/datadog.yaml", os.path.join(dist_folder, "datadog.yaml"))
 
-    shutil.copy("./cmd/agent/dist/security-agent.yaml", os.path.join(dist_folder, "security-agent.yaml"))
-
-    for check in AGENT_CORECHECKS if not flavor.is_iot() else IOT_AGENT_CORECHECKS:
+    for check in core_checks.AGENT_CORECHECKS if not flavor.is_iot() else core_checks.IOT_AGENT_CORECHECKS:
         check_dir = os.path.join(dist_folder, f"conf.d/{check}.d/")
-        shutil.copytree(f"./cmd/agent/dist/conf.d/{check}.d/", check_dir, dirs_exist_ok=True)
+        shutil.copytree(
+            f"./cmd/agent/dist/conf.d/{check}.d/",
+            check_dir,
+            ignore=shutil.ignore_patterns("BUILD.bazel"),
+            dirs_exist_ok=True,
+        )
         # Ensure the config folders are not world writable
         os.chmod(check_dir, mode=0o755)
 
     # add additional windows-only corechecks, only on windows. Otherwise the check loader
     # on linux will throw an error because the module is not found, but the config is.
     if sys.platform == 'win32':
-        for check in WINDOWS_CORECHECKS:
+        for check in core_checks.WINDOWS_CORECHECKS:
             check_dir = os.path.join(dist_folder, f"conf.d/{check}.d/")
-            shutil.copytree(f"./cmd/agent/dist/conf.d/{check}.d/", check_dir, dirs_exist_ok=True)
+            shutil.copytree(
+                f"./cmd/agent/dist/conf.d/{check}.d/",
+                check_dir,
+                ignore=shutil.ignore_patterns("BUILD.bazel"),
+                dirs_exist_ok=True,
+            )
 
     if sys.platform == 'darwin':
         shutil.copy("./cmd/agent/dist/conf.d/apm.yaml.default", os.path.join(dist_folder, "conf.d/apm.yaml.default"))
@@ -353,9 +312,14 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
             os.path.join(dist_folder, "conf.d/process_agent.yaml.default"),
         )
 
-    shutil.copytree("./comp/core/gui/guiimpl/views/private", os.path.join(dist_folder, "views"), dirs_exist_ok=True)
+    shutil.copytree(
+        "./comp/core/gui/guiimpl/views/private",
+        os.path.join(dist_folder, "views"),
+        ignore=shutil.ignore_patterns("BUILD.bazel"),
+        dirs_exist_ok=True,
+    )
     if development:
-        shutil.copytree("./dev/dist/", dist_folder, dirs_exist_ok=True)
+        shutil.copytree("./dev/dist/", dist_folder, ignore=shutil.ignore_patterns("BUILD.bazel"), dirs_exist_ok=True)
 
 
 @task
@@ -444,7 +408,23 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", skip_tests=False, tag=Non
     ctx.run(f"rm {build_context}/{deb_glob}")
 
 
-@task
+@task(
+    help={
+        "base_image": doc.base_image,
+        "target_image": doc.target_image,
+        "process_agent": doc.process_agent,
+        "trace_agent": doc.trace_agent,
+        "system_probe": doc.system_probe,
+        "security_agent": doc.security_agent,
+        "trace_loader": doc.trace_loader,
+        "privateactionrunner": doc.privateactionrunner,
+        "push": doc.push,
+        "race": doc.race,
+        "signed_pull": doc.signed_pull,
+        "arch": doc.arch,
+        "development": doc.development,
+    }
+)
 def hacky_dev_image_build(
     ctx,
     base_image=None,
@@ -461,6 +441,9 @@ def hacky_dev_image_build(
     arch=None,
     development=True,
 ):
+    """
+    Builds the agent or cluster-agent Docker image.
+    """
     if arch is None:
         arch = CONTAINER_PLATFORM_MAPPING.get(platform.machine().lower())
 
@@ -474,7 +457,7 @@ def hacky_dev_image_build(
 
         # Try to guess what is the latest release of the agent
         latest_release = semver.VersionInfo(0)
-        tags = requests.get("https://registry.datadoghq.com/v2/agent/tags/list", timeout=10)
+        tags = requests.get("https://gcr.io/v2/datadoghq/agent/tags/list", timeout=10)
         for tag in tags.json()['tags']:
             if not semver.VersionInfo.isvalid(tag):
                 continue
@@ -483,7 +466,7 @@ def hacky_dev_image_build(
                 continue
             if ver > latest_release:
                 latest_release = ver
-        base_image = f"registry.datadoghq.com/agent:{latest_release}"
+        base_image = f"gcr.io/datadoghq/agent:{latest_release}"
 
     # Extract the python library of the docker image
     with tempfile.TemporaryDirectory() as extracted_python_dir:
@@ -552,7 +535,10 @@ def hacky_dev_image_build(
         build_dir = get_ebpf_build_dir(build_arch)
         runtime_dir = get_ebpf_runtime_dir()
 
-        copy_extra_agents += "COPY bin/system-probe/system-probe /opt/datadog-agent/embedded/bin/system-probe\n"
+        copy_extra_agents += (
+            "COPY bin/system-probe/system-probe /opt/datadog-agent/embedded/bin/system-probe\n"
+            "COPY pkg/discovery/module/rust/embedded/bin/system-probe-lite /opt/datadog-agent/embedded/bin/system-probe-lite\n"
+        )
         copy_ebpf_assets = f"""
 RUN mkdir -p /opt/datadog-agent/embedded/share/system-probe/ebpf/co-re/
 RUN mkdir -p /opt/datadog-agent/embedded/share/system-probe/ebpf/runtime/
@@ -703,6 +689,24 @@ def check_supports_python_version(check_dir, python):
         return False
 
 
+def _load_manifest_platform_overrides(integrations_dir):
+    """
+    Read [overrides.manifest.platforms] from <integrations_dir>/.ddev/config.toml.
+
+    Returns a mapping of integration folder -> list of supported platform strings
+    (e.g. "linux", "windows", "mac_os"). Used as a fallback for integrations that
+    no longer ship a manifest.json.
+    """
+    import toml
+
+    config_path = os.path.join(integrations_dir, '.ddev', 'config.toml')
+    if not os.path.isfile(config_path):
+        return {}
+    with open(config_path) as f:
+        config = toml.load(f)
+    return config.get('overrides', {}).get('manifest', {}).get('platforms', {}) or {}
+
+
 @task
 def collect_integrations(_, integrations_dir, python_version, target_os, excluded):
     """
@@ -712,6 +716,7 @@ def collect_integrations(_, integrations_dir, python_version, target_os, exclude
     """
     import json
 
+    manifest_overrides = _load_manifest_platform_overrides(integrations_dir)
     integrations = []
 
     for entry in os.listdir(integrations_dir):
@@ -721,21 +726,24 @@ def collect_integrations(_, integrations_dir, python_version, target_os, exclude
 
         manifest_file_path = os.path.join(int_path, "manifest.json")
 
-        # If there is no manifest file, then we should assume the folder does not
-        # contain a working check and move onto the next
-        if not os.path.exists(manifest_file_path):
-            continue
+        if os.path.exists(manifest_file_path):
+            with open(manifest_file_path) as f:
+                manifest = json.load(f)
 
-        with open(manifest_file_path) as f:
-            manifest = json.load(f)
+            # Figure out whether the integration is supported on the target OS
+            if target_os == 'mac_os':
+                tag = 'Supported OS::macOS'
+            else:
+                tag = f'Supported OS::{target_os.capitalize()}'
 
-        # Figure out whether the integration is supported on the target OS
-        if target_os == 'mac_os':
-            tag = 'Supported OS::macOS'
+            if tag not in manifest['tile']['classifier_tags']:
+                continue
+        elif entry in manifest_overrides:
+            # No manifest.json; fall back to .ddev/config.toml [overrides.manifest.platforms]
+            if target_os not in manifest_overrides[entry]:
+                continue
         else:
-            tag = f'Supported OS::{target_os.capitalize()}'
-
-        if tag not in manifest['tile']['classifier_tags']:
+            # No manifest file and no override -> assume the folder is not a working check
             continue
 
         if not check_supports_python_version(int_path, python_version):
@@ -933,7 +941,7 @@ def generate_config(ctx, build_type, output_file, env=None):
     Generates the datadog.yaml configuration file.
     """
     args = {
-        "go_file": "./pkg/config/render_config.go",
+        "go_file": "./pkg/config/render_config/render_config.go",
         "build_type": build_type,
         "template_file": "./pkg/config/config_template.yaml",
         "output_file": output_file,

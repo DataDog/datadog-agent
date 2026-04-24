@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -75,7 +76,7 @@ func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, e
 		},
 		TotalCores:   devInfo.CoreCount,
 		TotalMemory:  devInfo.Memory,
-		Architecture: gpuArchToString(devInfo.Architecture),
+		Architecture: gpuutil.ArchToString(devInfo.Architecture),
 	}
 
 	switch d := device.(type) {
@@ -102,12 +103,12 @@ func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, e
 // fillNVMLAttributes fills the attributes of the GPU device by querying NVML API
 func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device ddnvml.Device) {
 	migDevice, isMig := device.(*ddnvml.MIGDevice)
-	deviceForVirtMode := device
+	physicalDevice := device
 	if isMig {
-		deviceForVirtMode = migDevice.Parent
+		physicalDevice = migDevice.Parent
 	}
 
-	virtMode, err := deviceForVirtMode.GetVirtualizationMode()
+	virtMode, err := physicalDevice.GetVirtualizationMode()
 	if err != nil {
 		if logLimiter.ShouldLog() {
 			log.Warnf("cannot get virtualization mode: %v for %d", err, gpuDeviceInfo.Index)
@@ -127,7 +128,7 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 
 	// Do not generate errors for vGPU devices, we already know that they don't support max clock info
 	if virtMode != nvml.GPU_VIRTUALIZATION_MODE_VGPU {
-		maxSMClock, err := device.GetMaxClockInfo(nvml.CLOCK_SM)
+		maxSMClock, err := physicalDevice.GetMaxClockInfo(nvml.CLOCK_SM)
 		if err != nil {
 			if logLimiter.ShouldLog() {
 				log.Warnf("%v for %d", err, gpuDeviceInfo.Index)
@@ -136,7 +137,7 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 			gpuDeviceInfo.MaxClockRates[workloadmeta.GPUSM] = maxSMClock
 		}
 
-		maxMemoryClock, err := device.GetMaxClockInfo(nvml.CLOCK_MEM)
+		maxMemoryClock, err := physicalDevice.GetMaxClockInfo(nvml.CLOCK_MEM)
 		if err != nil {
 			if logLimiter.ShouldLog() {
 				log.Warnf("%v for %d", err, gpuDeviceInfo.Index)
@@ -367,37 +368,6 @@ func (c *collector) GetID() string {
 
 func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 	return c.catalog
-}
-
-func gpuArchToString(nvmlArch nvml.DeviceArchitecture) string {
-	switch nvmlArch {
-	case nvml.DEVICE_ARCH_KEPLER:
-		return "kepler"
-	case nvml.DEVICE_ARCH_MAXWELL:
-		return "maxwell"
-	case nvml.DEVICE_ARCH_PASCAL:
-		return "pascal"
-	case nvml.DEVICE_ARCH_VOLTA:
-		return "volta"
-	case nvml.DEVICE_ARCH_TURING:
-		return "turing"
-	case nvml.DEVICE_ARCH_AMPERE:
-		return "ampere"
-	case nvml.DEVICE_ARCH_ADA:
-		return "ada"
-	case nvml.DEVICE_ARCH_HOPPER:
-		return "hopper"
-	case 10: // nvml.DEVICE_ARCH_BLACKWELL in newer versions of go-nvml
-		// note: we hardcode the enum to avoid updating to an untested newer go-nvml version
-		return "blackwell"
-	case nvml.DEVICE_ARCH_UNKNOWN:
-		return "unknown"
-	default:
-		// Distinguish invalid and unknown, NVML can return unknown but we should always
-		// be able to process the return value of NVML. If we reach this part, we forgot
-		// to add a new case for a new architecture.
-		return "invalid"
-	}
 }
 
 func extractGPUType(deviceName string) string {

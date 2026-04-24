@@ -305,6 +305,10 @@ var preemptionDetectors = map[string]cloudProviderPreemptionDetector{
 	ec2.CloudProviderName: ec2.GetSpotTerminationTime,
 }
 
+var rebalanceDetectors = map[string]cloudProviderPreemptionDetector{
+	ec2.CloudProviderName: ec2.GetRebalanceRecommendationTime,
+}
+
 // ErrNotPreemptible is returned when the instance is not a preemptible instance
 // (e.g., not an AWS Spot instance, not a GCE Preemptible instance).
 // When this error is returned, callers should stop polling for preemption events.
@@ -334,4 +338,24 @@ func GetPreemptionTerminationTime(ctx context.Context, cloudProviderName string)
 		return time.Time{}, err
 	}
 	return terminationTime, nil
+}
+
+// GetRebalanceRecommendationTime returns the time a rebalance recommendation was issued
+// for a preemptible instance (e.g., AWS Spot rebalance recommendation).
+// Returns ErrNotPreemptible if the instance is not preemptible.
+// Returns ErrPreemptionUnsupported if the cloud provider doesn't support rebalance detection.
+func GetRebalanceRecommendationTime(ctx context.Context, cloudProviderName string) (time.Time, error) {
+	callback, found := rebalanceDetectors[cloudProviderName]
+	if !found {
+		return time.Time{}, ErrPreemptionUnsupported
+	}
+
+	noticeTime, err := callback(ctx)
+	if err != nil {
+		if errors.Is(err, ec2.ErrNotSpotInstance) {
+			return time.Time{}, ErrNotPreemptible
+		}
+		return time.Time{}, err
+	}
+	return noticeTime, nil
 }

@@ -24,12 +24,15 @@ def run_lint_go(
     headless_mode=False,
     verbose=False,
     recursive=True,
+    goos=None,
+    goarch=None,
 ):
     linter_tags = build_tags or compute_build_tags_for_flavor(
         flavor=flavor,
         build=build,
         build_include=build_include,
         build_exclude=build_exclude,
+        platform=goos,
     )
 
     lint_result, execution_times = lint_flavor(
@@ -44,6 +47,8 @@ def run_lint_go(
         headless_mode=headless_mode,
         verbose=verbose,
         recursive=recursive,
+        goos=goos,
+        goarch=goarch,
     )
 
     return lint_result, execution_times
@@ -61,6 +66,8 @@ def lint_flavor(
     headless_mode: bool = False,
     verbose: bool = False,
     recursive: bool = True,
+    goos=None,
+    goarch=None,
 ):
     """Runs linters for given flavor, build tags, and modules."""
 
@@ -68,7 +75,7 @@ def lint_flavor(
     targets = []
     for module in modules:
         # FIXME: Linters also use the `should_test()` condition. Is this expected?
-        if not module.should_test():
+        if not module.should_test(platform=goos):
             continue
         for target in module.lint_targets:
             target_path = os.path.join(module.path, target)
@@ -90,6 +97,8 @@ def lint_flavor(
         headless_mode=headless_mode,
         verbose=verbose,
         recursive=recursive,
+        goos=goos,
+        goarch=goarch,
     )
     for lint_result in lint_results:
         result.lint_outputs.append(lint_result)

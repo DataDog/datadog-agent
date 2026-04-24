@@ -427,15 +427,15 @@ func TestStatsWriterUpdateAPIKey(t *testing.T) {
 	assert.NoError(err)
 
 	assert.Len(sw.senders, 1)
-	assert.Equal("123", sw.senders[0].cfg.apiKey)
+	assert.Equal("123", sw.senders[0].apiKeyManager.Get())
 	assert.Equal(url, sw.senders[0].cfg.url)
 
 	sw.UpdateAPIKey("invalid", "foo")
-	assert.Equal("123", sw.senders[0].cfg.apiKey)
+	assert.Equal("123", sw.senders[0].apiKeyManager.Get())
 	assert.Equal(url, sw.senders[0].cfg.url)
 
 	sw.UpdateAPIKey("123", "foo")
-	assert.Equal("foo", sw.senders[0].cfg.apiKey)
+	assert.Equal("foo", sw.senders[0].apiKeyManager.Get())
 	assert.Equal(url, sw.senders[0].cfg.url)
 	srv.Close()
 }
@@ -609,14 +609,13 @@ func (m *mockContainerTagsBuffer) IsEnabled() bool {
 	return m.enabled
 }
 
-func (m *mockContainerTagsBuffer) AsyncEnrichment(containerID string, cb func([]string, error), _ int64) bool {
-
+func (m *mockContainerTagsBuffer) AsyncEnrichment(containerID string, cb func([]string, error, *containertagsbuffer.DebugInfo), _ int64) bool {
 	returnTags := m.returnTags[containerID]
 	var returnErr error
 	if retErrStr := m.returnErr[containerID]; retErrStr != "" {
 		returnErr = errors.New(retErrStr)
 	}
-	cb(returnTags, returnErr)
+	cb(returnTags, returnErr, nil)
 	return m.pending
 }
 

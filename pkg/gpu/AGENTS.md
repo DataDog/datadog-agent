@@ -235,3 +235,9 @@ Active time is derived from kernel execution intervals captured within each coll
 
 - **Per-process**: Merge intervals for a single process, then compute the percentage of the window that was active.
 - **Device-wide**: Merge intervals across all processes on the device, then compute the percentage of the window that was active.
+
+## GPU Spec Guidance
+
+The GPU spec defines what metrics and tags the core check is expected to emit across architectures and device modes.
+It exists to keep metric behavior explicit, versioned, and testable from YAML-backed definitions instead of ad-hoc test assumptions.
+For full details (files, schemas, and validation commands), see `pkg/collector/corechecks/gpu/spec/README.md`.

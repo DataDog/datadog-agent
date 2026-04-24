@@ -84,6 +84,15 @@ message ReloadPoliciesParams{}
 
 message ReloadPoliciesResultMessage{}
 
+message GetLoadedPoliciesParams {
+    bool IncludeBundled = 1;
+}
+
+message GetLoadedPoliciesMessage {
+    string Policies = 1;
+    string Error = 2;
+}
+
 message RunSelfTestParams {}
 
 message SecuritySelfTestResultMessage {
@@ -343,6 +352,7 @@ service SecurityModuleCmd {
     rpc RunSelfTest(RunSelfTestParams) returns (SecuritySelfTestResultMessage) {}
     rpc GetRuleSetReport(GetRuleSetReportParams) returns (GetRuleSetReportMessage) {}
     rpc ReloadPolicies(ReloadPoliciesParams) returns (ReloadPoliciesResultMessage) {}
+    rpc GetLoadedPolicies(GetLoadedPoliciesParams) returns (GetLoadedPoliciesMessage) {}
     rpc DumpNetworkNamespace(DumpNetworkNamespaceParams) returns (DumpNetworkNamespaceMessage) {}
     rpc DumpDiscarders(DumpDiscardersParams) returns (DumpDiscardersMessage) {}
 

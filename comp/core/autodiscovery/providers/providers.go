@@ -16,6 +16,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -26,7 +27,7 @@ func RegisterProvider(name string,
 	providerCatalog map[string]types.ConfigProviderFactory) {
 	RegisterProviderWithComponents(
 		name,
-		func(providerConfig *pkgconfigsetup.ConfigurationProviders, _ workloadmeta.Component, _ tagger.Component, _ workloadfilter.Component, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
+		func(providerConfig *pkgconfigsetup.ConfigurationProviders, _ workloadmeta.Component, _ tagger.Component, _ workloadfilter.Component, _ healthplatform.Component, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
 			return factory(providerConfig, telemetryStore)
 		},
 		providerCatalog,
@@ -58,16 +59,19 @@ func RegisterProviders(providerCatalog map[string]types.ConfigProviderFactory) {
 	RegisterProvider(names.KubeServicesFileRegisterName, NewKubeServiceFileConfigProvider, providerCatalog)
 	RegisterProvider(names.KubeServicesRegisterName, NewKubeServiceConfigProvider, providerCatalog)
 	RegisterProviderWithComponents(names.PrometheusPodsRegisterName, NewPrometheusPodsConfigProvider, providerCatalog)
-	RegisterProvider(names.PrometheusServicesRegisterName, NewPrometheusServicesConfigProvider, providerCatalog)
 	RegisterProvider(names.ZookeeperRegisterName, NewZookeeperConfigProvider, providerCatalog)
 	RegisterProviderWithComponents(names.ProcessLog, NewProcessLogConfigProvider, providerCatalog)
 
+	prometheusServicesProvider := NewPrometheusServicesConfigProvider
 	endpointsFileProvider := NewKubeEndpointsFileConfigProvider
 	endpointsProvider := NewKubeEndpointsConfigProvider
 	if autoutils.UseEndpointSlices() {
 		endpointsFileProvider = NewKubeEndpointSlicesFileConfigProvider
 		endpointsProvider = NewKubeEndpointSlicesConfigProvider
+		prometheusServicesProvider = NewPrometheusServicesEndpointSlicesConfigProvider
 	}
+	RegisterProvider(names.PrometheusServicesRegisterName, prometheusServicesProvider, providerCatalog)
 	RegisterProvider(names.KubeEndpointsFileRegisterName, endpointsFileProvider, providerCatalog)
 	RegisterProvider(names.KubeEndpointsRegisterName, endpointsProvider, providerCatalog)
+	RegisterProvider(names.KubeCrdRegisterName, NewKubeCRDConfigProvider, providerCatalog)
 }

@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "def",
+    srcs = ["component.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/trace/agent/def",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/opentelemetry-mapping-go/otlp/attributes",
+        "//pkg/opentelemetry-mapping-go/otlp/attributes/source",
+        "//pkg/proto/pbgo/trace",
+        "@io_opentelemetry_go_collector_pdata//ptrace",
+    ],
+)

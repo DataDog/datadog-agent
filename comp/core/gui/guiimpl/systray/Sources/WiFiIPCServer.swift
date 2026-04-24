@@ -234,7 +234,7 @@ class WiFiIPCServer {
         
         data.withUnsafeBytes { ptr in
             let bytesPtr = ptr.baseAddress?.assumingMemoryBound(to: UInt8.self)
-            var bytesWritten = write(clientFD, bytesPtr, data.count)
+            let bytesWritten = write(clientFD, bytesPtr, data.count)
 
             // Handle write errors gracefully (client may disconnect before response is fully sent)
             // With SIGPIPE ignored in main.swift, write() returns -1 instead of crashing the app

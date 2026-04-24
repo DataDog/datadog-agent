@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package runner
 
 import (
@@ -26,8 +28,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	connectionsforwarderfx "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/fx"
-	"github.com/DataDog/datadog-agent/comp/process/forwarders"
-	"github.com/DataDog/datadog-agent/comp/process/forwarders/forwardersimpl"
+	forwarders "github.com/DataDog/datadog-agent/comp/process/forwarders/def"
+	forwardersimpl "github.com/DataDog/datadog-agent/comp/process/forwarders/fx"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"

@@ -1551,27 +1551,7 @@ func TestAutoinstrumentation(t *testing.T) {
 				unmutatedContainers: []string{"istio-proxy"},
 			},
 		},
-		"injection does not occur in the namespace where datadog is deployed": {
-			config: map[string]any{
-				"apm_config.instrumentation.enabled": true,
-				"kube_resources_namespace":           "datadog-test",
-			},
-			pod: common.FakePodSpec{
-				Name:       "test",
-				NS:         "datadog-test",
-				ParentKind: "replicaset",
-				ParentName: "deployment-123",
-			}.Create(),
-			deployments: []common.MockDeployment{
-				{
-					ContainerName:  defaultTestContainer,
-					DeploymentName: "deployment",
-					Namespace:      "datadog-test",
-				},
-			},
-			shouldMutate: false,
-		},
-		"injection does occur in the outside the datadog namespace": {
+		"injection does occur outside the datadog namespace": {
 			config: map[string]any{
 				"apm_config.instrumentation.enabled": true,
 				"kube_resources_namespace":           "datadog-test",
@@ -2707,8 +2687,7 @@ func TestAutoinstrumentation(t *testing.T) {
 				mockMeta.(workloadmetamock.Mock).Set(&ns)
 			}
 
-			// Setup webhook.
-			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta)
+			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil)
 			require.NoError(t, err)
 
 			// Mutate pod.
@@ -2761,6 +2740,84 @@ func TestAutoinstrumentation(t *testing.T) {
 			validator.RequireAnnotations(t, test.expected.expectedAnnotations)
 		})
 	}
+}
+
+func TestAutoinstrumentation_LocalLibInjectionPerContainerOnlyMountsLibraryOnTargetContainer(t *testing.T) {
+	mockConfig := common.FakeConfigWithValues(t, map[string]any{
+		"apm_config.instrumentation.enabled":     false,
+		"admission_controller.mutate_unlabelled": false,
+	})
+	mockMeta := common.FakeStoreWithDeployment(t, defaultDeployments)
+	mockDynamic := fake.NewSimpleDynamicClient(runtime.NewScheme())
+	mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.gradual_rollout.enabled", false)
+
+	for _, ns := range defaultNamespaces {
+		mockMeta.(workloadmetamock.Mock).Set(&ns)
+	}
+
+	webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil)
+	require.NoError(t, err)
+
+	pod := common.FakePodSpec{
+		Name:       "app",
+		NS:         "application",
+		ParentKind: "replicaset",
+		ParentName: "deployment-123",
+		Annotations: map[string]string{
+			"admission.datadoghq.com/app.java-lib.version": "v1",
+		},
+		Labels: map[string]string{
+			admissioncommon.EnabledLabelKey: "true",
+		},
+		Containers: []corev1.Container{
+			{Name: "app2"},
+		},
+	}.Create()
+
+	mutated, err := webhook.MutatePod(pod, pod.Namespace, mockDynamic)
+	require.NoError(t, err)
+	require.True(t, mutated)
+
+	validator := testutils.NewPodValidator(pod, testutils.InjectionModeAuto)
+	validator.RequireInjectorVersion(t, defaultInjectorVersion)
+	validator.RequireLibraryVersions(t, map[string]string{"java": "v1"})
+
+	var appCtr, app2Ctr *corev1.Container
+	for i := range pod.Spec.Containers {
+		switch pod.Spec.Containers[i].Name {
+		case "app":
+			appCtr = &pod.Spec.Containers[i]
+		case "app2":
+			app2Ctr = &pod.Spec.Containers[i]
+		}
+	}
+
+	require.NotNil(t, appCtr)
+	require.NotNil(t, app2Ctr)
+
+	appValidator := testutils.NewContainerValidator(appCtr, nil)
+	appValidator.RequireEnvs(t, map[string]string{
+		"LD_PRELOAD":            "/opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so",
+		"DD_INJECT_SENDER_TYPE": "k8s",
+	})
+
+	app2Validator := testutils.NewContainerValidator(app2Ctr, nil)
+	app2Validator.RequireEnvs(t, map[string]string{
+		"LD_PRELOAD":            "/opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so",
+		"DD_INJECT_SENDER_TYPE": "k8s",
+	})
+
+	hasLibraryMount := func(ctr *corev1.Container) bool {
+		for _, mount := range ctr.VolumeMounts {
+			if mount.MountPath == "/opt/datadog/apm/library" {
+				return true
+			}
+		}
+		return false
+	}
+
+	require.True(t, hasLibraryMount(appCtr), "target container should have the library mount")
+	require.False(t, hasLibraryMount(app2Ctr), "non-target container should not have the library mount")
 }
 
 func TestEnvVarsAlreadySet(t *testing.T) {
@@ -2861,7 +2918,7 @@ func TestEnvVarsAlreadySet(t *testing.T) {
 			}
 
 			// Setup webhook.
-			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta)
+			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil)
 			require.NoError(t, err)
 
 			// Mutate pod.
@@ -2880,6 +2937,12 @@ func TestEnvVarsAlreadySet(t *testing.T) {
 }
 
 func TestSkippedDueToResources(t *testing.T) {
+	// NOTE: This test currently validates behavior under the *default* injection mode.
+	// Today that effectively means init-container injection, so the expectations assert
+	// init-container-style resource gating
+	//
+	// If/when the project default injection mode changes (e.g. to CSI or image_volume), this test’s expectations
+	// will likely need to be updated (or the test can pin `apm_config.instrumentation.injection_mode` explicitly).
 	tests := map[string]struct {
 		config              map[string]any
 		pod                 *corev1.Pod
@@ -2939,7 +3002,7 @@ func TestSkippedDueToResources(t *testing.T) {
 			skipped:            true,
 			expectedContainers: defaultContainerNames,
 			expectedAnnotations: map[string]string{
-				"internal.apm.datadoghq.com/injection-error": "The overall pod's containers limit is too low, memory pod_limit=50Mi needed=100Mi",
+				"internal.apm.datadoghq.com/injection-error": "The overall pod's containers limit is too low for injection, memory pod_limit=50Mi needed=100Mi",
 			},
 		},
 		"a pod with low cpu is skipped": {
@@ -2970,7 +3033,7 @@ func TestSkippedDueToResources(t *testing.T) {
 			skipped:            true,
 			expectedContainers: defaultContainerNames,
 			expectedAnnotations: map[string]string{
-				"internal.apm.datadoghq.com/injection-error": "The overall pod's containers limit is too low, cpu pod_limit=25m needed=50m",
+				"internal.apm.datadoghq.com/injection-error": "The overall pod's containers limit is too low for injection, cpu pod_limit=25m needed=50m",
 			},
 		},
 		"a pod with low cpu and memory is skipped": {
@@ -3003,7 +3066,7 @@ func TestSkippedDueToResources(t *testing.T) {
 			skipped:            true,
 			expectedContainers: defaultContainerNames,
 			expectedAnnotations: map[string]string{
-				"internal.apm.datadoghq.com/injection-error": "The overall pod's containers limit is too low, cpu pod_limit=25m needed=50m, memory pod_limit=50Mi needed=100Mi",
+				"internal.apm.datadoghq.com/injection-error": "The overall pod's containers limit is too low for injection, cpu pod_limit=25m needed=50m, memory pod_limit=50Mi needed=100Mi",
 			},
 		},
 		"a pod with low cpu and memory but with config override is not skipped": {
@@ -3054,7 +3117,7 @@ func TestSkippedDueToResources(t *testing.T) {
 			}
 
 			// Setup webhook.
-			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta)
+			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil)
 			require.NoError(t, err)
 
 			// Mutate pod.

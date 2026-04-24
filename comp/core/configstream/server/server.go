@@ -70,7 +70,7 @@ func (s *Server) StreamConfigEvents(req *pb.ConfigStreamRequest, stream pb.Agent
 	eventsCh, unsubscribe := s.comp.Subscribe(req)
 	defer unsubscribe()
 
-	interval := s.cfg.GetDuration("config_stream.sleep_interval")
+	interval := s.cfg.GetDuration("remote_agent.configstream.sleep_interval")
 
 	for {
 		select {

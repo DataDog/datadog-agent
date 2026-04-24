@@ -15,7 +15,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagent/def"
 	"github.com/DataDog/datadog-agent/comp/core/remoteagent/helper"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -39,7 +39,7 @@ type Provides struct {
 // NewComponent creates a new remoteagent component
 func NewComponent(reqs Requires) (Provides, error) {
 	// Check if the remoteAgentRegistry is enabled
-	if !reqs.Config.GetBool("remote_agent_registry.enabled") {
+	if !reqs.Config.GetBool("remote_agent.registry.enabled") {
 		return Provides{}, nil
 	}
 
@@ -87,6 +87,7 @@ func (r *remoteagentImpl) GetTelemetry(_ context.Context, _ *pbcore.GetTelemetry
 		// Metrics to forward from system-probe to core agent.
 		// The remote_agent tag is set to "system-probe" via metrics.SetAgentIdentity() above.
 		"logs__bytes_sent",
+		"logs__encoded_bytes_sent",
 
 		// Windows Injector metrics (using double underscore format from telemetry component)
 		"injector__processes_added_to_injection_tracker",

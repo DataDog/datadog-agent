@@ -16,3 +16,16 @@ type Component interface {
 
 // ErrNotEnabled is returned when the private action runner is not enabled
 var ErrNotEnabled = errors.New("private action runner is not enabled")
+
+// Configuration keys for the private action runner.
+// Duplicated from pkg/config/setup/privateactionrunner.go because comp/
+// packages cannot import pkg/config/setup (depguard rule).
+const (
+	PAREnabled               = "private_action_runner.enabled"
+	PARSelfEnroll            = "private_action_runner.self_enroll"
+	PARApiKeyOnlyEnrollment  = "private_action_runner.api_key_only_enrollment"
+	PARPrivateKey            = "private_action_runner.private_key"
+	PARUrn                   = "private_action_runner.urn"
+	PARActionsAllowlist      = "private_action_runner.actions_allowlist"
+	PARDefaultActionsEnabled = "private_action_runner.default_actions_enabled"
+)

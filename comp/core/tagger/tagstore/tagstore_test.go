@@ -18,8 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	taggerTelemetry "github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -30,7 +30,7 @@ type StoreTestSuite struct {
 }
 
 func (s *StoreTestSuite) SetupTest() {
-	tel := fxutil.Test[telemetry.Component](s.T(), telemetryimpl.MockModule())
+	tel := fxutil.Test[telemetry.Component](s.T(), mocktelemetry.Module())
 	telemetryStore := taggerTelemetry.NewStore(tel)
 	s.clock = clock.NewMock()
 	// set the mock clock to the current time
@@ -62,38 +62,6 @@ func (s *StoreTestSuite) TestIngest() {
 	storedTags, exists := s.tagstore.store.Get(entityID)
 	require.True(s.T(), exists)
 	assert.Len(s.T(), storedTags.sources(), 2)
-}
-
-func (s *StoreTestSuite) TestLookup() {
-	entityID := types.NewEntityID(types.ContainerID, "test")
-	s.tagstore.ProcessTagInfo([]*types.TagInfo{
-		{
-			Source:       "source1",
-			EntityID:     entityID,
-			LowCardTags:  []string{"tag"},
-			HighCardTags: []string{"tag"},
-		},
-		{
-			Source:      "source2",
-			EntityID:    entityID,
-			LowCardTags: []string{"tag"},
-		},
-		{
-			Source:               "source3",
-			EntityID:             entityID,
-			OrchestratorCardTags: []string{"tag"},
-		},
-	})
-
-	tagsHigh := s.tagstore.Lookup(entityID, types.HighCardinality)
-	tagsOrch := s.tagstore.Lookup(entityID, types.OrchestratorCardinality)
-	tagsLow := s.tagstore.Lookup(entityID, types.LowCardinality)
-	tagsNone := s.tagstore.Lookup(entityID, types.NoneCardinality)
-
-	assert.Len(s.T(), tagsHigh, 4)
-	assert.Len(s.T(), tagsLow, 2)
-	assert.Len(s.T(), tagsOrch, 3)
-	assert.Nil(s.T(), tagsNone)
 }
 
 func (s *StoreTestSuite) TestLookupHashed() {
@@ -166,10 +134,10 @@ func (s *StoreTestSuite) TestLookupStandard() {
 	assert.NotNil(s.T(), err)
 }
 
-func (s *StoreTestSuite) TestLookupNotPresent() {
+func (s *StoreTestSuite) TestLookupHashedNotPresent() {
 	entityID := types.NewEntityID(types.ContainerID, "test")
-	tags := s.tagstore.Lookup(entityID, types.LowCardinality)
-	assert.Nil(s.T(), tags)
+	_, err := s.tagstore.LookupHashed(entityID, types.LowCardinality)
+	assert.ErrorIs(s.T(), err, ErrNotFound)
 }
 
 func (s *StoreTestSuite) TestPrune__deletedEntities() {
@@ -206,25 +174,31 @@ func (s *StoreTestSuite) TestPrune__deletedEntities() {
 	})
 
 	// Data should still be in the store
-	tagsHigh := s.tagstore.Lookup(entityID1, types.HighCardinality)
-	assert.Len(s.T(), tagsHigh, 4)
-	tagsOrch := s.tagstore.Lookup(entityID1, types.OrchestratorCardinality)
-	assert.Len(s.T(), tagsOrch, 2)
-	tagsHigh = s.tagstore.Lookup(entityID2, types.HighCardinality)
-	assert.Len(s.T(), tagsHigh, 2)
+	tagsHigh, err := s.tagstore.LookupHashed(entityID1, types.HighCardinality)
+	require.NoError(s.T(), err)
+	assert.Len(s.T(), tagsHigh.Get(), 4)
+	tagsOrch, err := s.tagstore.LookupHashed(entityID1, types.OrchestratorCardinality)
+	require.NoError(s.T(), err)
+	assert.Len(s.T(), tagsOrch.Get(), 2)
+	tagsHigh, err = s.tagstore.LookupHashed(entityID2, types.HighCardinality)
+	require.NoError(s.T(), err)
+	assert.Len(s.T(), tagsHigh.Get(), 2)
 
 	s.clock.Add(10 * time.Minute)
 	s.tagstore.Prune()
 
 	// test1 should only have tags from source2, source1 should be removed
-	tagsHigh = s.tagstore.Lookup(entityID1, types.HighCardinality)
-	assert.Len(s.T(), tagsHigh, 1)
-	tagsOrch = s.tagstore.Lookup(entityID1, types.OrchestratorCardinality)
-	assert.Len(s.T(), tagsOrch, 0)
+	tagsHigh, err = s.tagstore.LookupHashed(entityID1, types.HighCardinality)
+	require.NoError(s.T(), err)
+	assert.Len(s.T(), tagsHigh.Get(), 1)
+	tagsOrch, err = s.tagstore.LookupHashed(entityID1, types.OrchestratorCardinality)
+	require.NoError(s.T(), err)
+	assert.Len(s.T(), tagsOrch.Get(), 0)
 
 	// test2 should still be present
-	tagsHigh = s.tagstore.Lookup(entityID2, types.HighCardinality)
-	assert.Len(s.T(), tagsHigh, 2)
+	tagsHigh, err = s.tagstore.LookupHashed(entityID2, types.HighCardinality)
+	require.NoError(s.T(), err)
+	assert.Len(s.T(), tagsHigh.Get(), 2)
 
 	s.tagstore.ProcessTagInfo([]*types.TagInfo{
 		// re-add tags from removed source, then remove another one
@@ -244,10 +218,12 @@ func (s *StoreTestSuite) TestPrune__deletedEntities() {
 	s.clock.Add(10 * time.Minute)
 	s.tagstore.Prune()
 
-	tagsHigh = s.tagstore.Lookup(entityID1, types.HighCardinality)
-	assert.Len(s.T(), tagsHigh, 1)
-	tagsHigh = s.tagstore.Lookup(entityID2, types.HighCardinality)
-	assert.Len(s.T(), tagsHigh, 2)
+	tagsHigh, err = s.tagstore.LookupHashed(entityID1, types.HighCardinality)
+	require.NoError(s.T(), err)
+	assert.Len(s.T(), tagsHigh.Get(), 1)
+	tagsHigh, err = s.tagstore.LookupHashed(entityID2, types.HighCardinality)
+	require.NoError(s.T(), err)
+	assert.Len(s.T(), tagsHigh.Get(), 2)
 }
 
 func (s *StoreTestSuite) TestPrune__emptyEntries() {
@@ -301,20 +277,24 @@ func (s *StoreTestSuite) TestPrune__emptyEntries() {
 	assert.Equalf(s.T(), tagStoreSize, 3, "should have 3 item(s), but has %d", tagStoreSize)
 
 	// Assert non-empty tags aren't deleted
-	tagsHigh := s.tagstore.Lookup(entityID1, types.HighCardinality)
-	assert.Len(s.T(), tagsHigh, 3)
-	tagsOrch := s.tagstore.Lookup(entityID1, types.OrchestratorCardinality)
-	assert.Len(s.T(), tagsOrch, 2)
-	tagsHigh = s.tagstore.Lookup(entityID2, types.HighCardinality)
-	assert.Len(s.T(), tagsHigh, 1)
-	tagsLow := s.tagstore.Lookup(entityID3, types.LowCardinality)
-	assert.Len(s.T(), tagsLow, 1)
+	tagsHigh, err := s.tagstore.LookupHashed(entityID1, types.HighCardinality)
+	require.NoError(s.T(), err)
+	assert.Len(s.T(), tagsHigh.Get(), 3)
+	tagsOrch, err := s.tagstore.LookupHashed(entityID1, types.OrchestratorCardinality)
+	require.NoError(s.T(), err)
+	assert.Len(s.T(), tagsOrch.Get(), 2)
+	tagsHigh, err = s.tagstore.LookupHashed(entityID2, types.HighCardinality)
+	require.NoError(s.T(), err)
+	assert.Len(s.T(), tagsHigh.Get(), 1)
+	tagsLow, err := s.tagstore.LookupHashed(entityID3, types.LowCardinality)
+	require.NoError(s.T(), err)
+	assert.Len(s.T(), tagsLow.Get(), 1)
 
 	// Assert empty entities are deleted
-	emptyTags1 := s.tagstore.Lookup(emptyEntityID1, types.HighCardinality)
-	assert.Len(s.T(), emptyTags1, 0)
-	emptyTags2 := s.tagstore.Lookup(emptyEntityID2, types.HighCardinality)
-	assert.Len(s.T(), emptyTags2, 0)
+	_, err = s.tagstore.LookupHashed(emptyEntityID1, types.HighCardinality)
+	assert.ErrorIs(s.T(), err, ErrNotFound)
+	_, err = s.tagstore.LookupHashed(emptyEntityID2, types.HighCardinality)
+	assert.ErrorIs(s.T(), err, ErrNotFound)
 }
 
 func (s *StoreTestSuite) TestList() {
@@ -421,11 +401,12 @@ func (s *StoreTestSuite) TestGetExpiredTags() {
 
 	s.tagstore.Prune()
 
-	tagsHigh := s.tagstore.Lookup(entityIDB, types.HighCardinality)
-	assert.Contains(s.T(), tagsHigh, "expiresSoon")
+	tagsHigh, err := s.tagstore.LookupHashed(entityIDB, types.HighCardinality)
+	require.NoError(s.T(), err)
+	assert.Contains(s.T(), tagsHigh.Get(), "expiresSoon")
 
-	tagsHigh = s.tagstore.Lookup(entityIDA, types.HighCardinality)
-	assert.NotContains(s.T(), tagsHigh, "expired")
+	_, err = s.tagstore.LookupHashed(entityIDA, types.HighCardinality)
+	assert.ErrorIs(s.T(), err, ErrNotFound)
 }
 
 func (s *StoreTestSuite) TestDuplicateSourceTags() {
@@ -476,17 +457,19 @@ func (s *StoreTestSuite) TestDuplicateSourceTags() {
 		&clusterOrchestratorTags,
 	})
 
-	lowCardTags := s.tagstore.Lookup(testEntityID, types.LowCardinality)
+	lowCardTags, err := s.tagstore.LookupHashed(testEntityID, types.LowCardinality)
+	require.NoError(s.T(), err)
 	assert.ElementsMatch(
 		s.T(),
-		lowCardTags,
+		lowCardTags.Get(),
 		[]string{"foo", "bar", "tag1:sourceClusterLow", "tag2:sourceHigh", "tag3:sourceClusterHigh"},
 	)
 
-	highCardTags := s.tagstore.Lookup(testEntityID, types.HighCardinality)
+	highCardTags, err := s.tagstore.LookupHashed(testEntityID, types.HighCardinality)
+	require.NoError(s.T(), err)
 	assert.ElementsMatch(
 		s.T(),
-		highCardTags,
+		highCardTags.Get(),
 		[]string{"foo", "bar", "tag1:sourceClusterLow", "tag2:sourceHigh", "tag3:sourceClusterHigh", "tag4:sourceClusterLow", "tag5:sourceLow"},
 	)
 }
@@ -499,8 +482,122 @@ type entityEventExpectation struct {
 	highCardTags []string
 }
 
+func TestProcessTagInfo_IsComplete(t *testing.T) {
+	entityID := types.NewEntityID(types.ContainerID, "test")
+
+	tests := []struct {
+		name                         string
+		completenessStateTransitions []bool
+		expectedIsComplete           bool
+	}{
+		{
+			name:                         "complete entity",
+			completenessStateTransitions: []bool{true},
+			expectedIsComplete:           true,
+		},
+		{
+			name:                         "incomplete entity",
+			completenessStateTransitions: []bool{false},
+			expectedIsComplete:           false,
+		},
+		{
+			name:                         "incomplete entity updated to complete",
+			completenessStateTransitions: []bool{false, true},
+			expectedIsComplete:           true,
+		},
+		{
+			name:                         "complete entity updated to incomplete",
+			completenessStateTransitions: []bool{true, false},
+			expectedIsComplete:           false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			telemetryComponent := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
+			telemetryStore := taggerTelemetry.NewStore(telemetryComponent)
+			tagStore := NewTagStore(telemetryStore)
+
+			for _, isComplete := range test.completenessStateTransitions {
+				tagStore.ProcessTagInfo([]*types.TagInfo{
+					{
+						Source:      "source",
+						EntityID:    entityID,
+						LowCardTags: []string{"low"},
+						IsComplete:  isComplete,
+					},
+				})
+			}
+
+			entity, err := tagStore.GetEntity(entityID)
+			require.NoError(t, err)
+			assert.Equal(t, test.expectedIsComplete, entity.IsComplete)
+		})
+	}
+}
+
+func TestProcessTagInfo_CompletenessDelay(t *testing.T) {
+	entityID := types.NewEntityID(types.ContainerID, "test")
+	prefix := string(types.ContainerID)
+
+	t.Run("entity arrives already complete emits 0 delay", func(t *testing.T) {
+		telemetryComponent := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
+		telemetryStore := taggerTelemetry.NewStore(telemetryComponent)
+		tagStore := NewTagStore(telemetryStore)
+
+		tagStore.ProcessTagInfo([]*types.TagInfo{
+			{
+				Source:      "source",
+				EntityID:    entityID,
+				LowCardTags: []string{"low"},
+				IsComplete:  true,
+			},
+		})
+
+		hist := telemetryStore.TagCompletenessDelay.WithValues(prefix).Get()
+		assert.Equal(t, uint64(1), hist.Count)
+		assert.Equal(t, 0.0, hist.Sum)
+	})
+
+	t.Run("entity arrives incomplete then becomes complete emits delay", func(t *testing.T) {
+		telemetryComponent := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
+		telemetryStore := taggerTelemetry.NewStore(telemetryComponent)
+		clk := clock.NewMock()
+		clk.Add(time.Since(time.Unix(0, 0)))
+		tagStore := newTagStoreWithClock(clk, telemetryStore)
+
+		tagStore.ProcessTagInfo([]*types.TagInfo{
+			{
+				Source:      "source",
+				EntityID:    entityID,
+				LowCardTags: []string{"low"},
+				IsComplete:  false,
+			},
+		})
+
+		// No observation yet because entity is incomplete
+		hist := telemetryStore.TagCompletenessDelay.WithValues(prefix).Get()
+		assert.Equal(t, uint64(0), hist.Count)
+
+		clk.Add(3 * time.Second)
+
+		tagStore.ProcessTagInfo([]*types.TagInfo{
+			{
+				Source:      "source",
+				EntityID:    entityID,
+				LowCardTags: []string{"low", "extra"},
+				IsComplete:  true,
+			},
+		})
+
+		hist = telemetryStore.TagCompletenessDelay.WithValues(prefix).Get()
+		assert.Equal(t, uint64(1), hist.Count)
+		assert.Equal(t, 3.0, hist.Sum)
+	})
+}
+
 func TestSubscribe(t *testing.T) {
-	tel := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	tel := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
 	telemetryStore := taggerTelemetry.NewStore(tel)
 	clock := clock.NewMock()
 	store := newTagStoreWithClock(clock, telemetryStore)

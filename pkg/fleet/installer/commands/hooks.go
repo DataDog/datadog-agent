@@ -112,6 +112,8 @@ func prermCommand() *cobra.Command {
 
 func parsePackageType(rawPackageType string) (packages.PackageType, error) {
 	switch rawPackageType {
+	case string(packages.PackageTypeMSI):
+		return packages.PackageTypeMSI, nil
 	case string(packages.PackageTypeDEB):
 		return packages.PackageTypeDEB, nil
 	case string(packages.PackageTypeRPM):

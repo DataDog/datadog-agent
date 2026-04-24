@@ -13,18 +13,16 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/tools/record"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
+	workloadpatcher "github.com/DataDog/datadog-agent/pkg/clusteragent/patcher"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-var podGVR = corev1.SchemeGroupVersion.WithResource("pods")
 
 // PodPatcher allows a workload patcher to patch a workload with the recommendations from the autoscaler
 type PodPatcher interface {
@@ -41,19 +39,17 @@ type PodPatcher interface {
 
 type podPatcher struct {
 	store         *store
-	isLeader      func() bool
-	client        dynamic.Interface
+	patcher       *workloadpatcher.Patcher
 	eventRecorder record.EventRecorder
 }
 
 var _ PodPatcher = podPatcher{}
 
 // NewPodPatcher creates a new PodPatcher
-func NewPodPatcher(store *store, isLeader func() bool, client dynamic.Interface, eventRecorder record.EventRecorder) PodPatcher {
+func NewPodPatcher(store *store, patcher *workloadpatcher.Patcher, eventRecorder record.EventRecorder) PodPatcher {
 	return podPatcher{
 		store:         store,
-		isLeader:      isLeader,
-		client:        client,
+		patcher:       patcher,
 		eventRecorder: eventRecorder,
 	}
 }
@@ -93,9 +89,13 @@ func (pa podPatcher) ApplyRecommendations(pod *corev1.Pod) (bool, error) {
 		return patched, nil
 	}
 
-	// Patching the pod with the recommendations
-	if pod.Annotations[model.RecommendationIDAnnotation] != autoscaler.ScalingValues().Vertical.ResourcesHash {
-		pod.Annotations[model.RecommendationIDAnnotation] = autoscaler.ScalingValues().Vertical.ResourcesHash
+	// Patching the pod with the recommendations.
+	// In burstable mode, applyVerticalConstraints has already stamped the CPU-limit remove
+	// sentinel (-1) on each container recommendation, so ResourcesHash naturally encodes the
+	// burstable state — no extra suffix is needed here.
+	effectiveRecommendationID := autoscaler.ScalingValues().Vertical.ResourcesHash
+	if pod.Annotations[model.RecommendationIDAnnotation] != effectiveRecommendationID {
+		pod.Annotations[model.RecommendationIDAnnotation] = effectiveRecommendationID
 		patched = true
 	}
 
@@ -169,7 +169,20 @@ func (pa podPatcher) shouldObservePod(pod *workloadmeta.KubernetesPod) bool {
 }
 
 func (pa podPatcher) observedPodCallback(ctx context.Context, pod *workloadmeta.KubernetesPod) {
-	if !pa.isLeader() {
+	intent := workloadpatcher.NewPatchIntent(workloadpatcher.PodTarget(pod.Namespace, pod.Name)).
+		With(workloadpatcher.SetMetadataAnnotations(map[string]interface{}{
+			model.RecommendationAppliedEventGeneratedAnnotation: "true",
+		}))
+
+	applied, err := pa.patcher.Apply(ctx, intent, workloadpatcher.PatchOptions{
+		Caller: "autoscaling_pod_patcher",
+	})
+	if err != nil {
+		log.Warnf("Failed to patch POD %s/%s with event emitted annotation, event may be generated multiple times, err: %v", pod.Namespace, pod.Name, err)
+		return
+	}
+	if !applied {
+		// Skip: not leader
 		return
 	}
 
@@ -188,11 +201,6 @@ func (pa podPatcher) observedPodCallback(ctx context.Context, pod *workloadmeta.
 		"POD patched with recommendations from autoscaler %s, recommendation id: %s", pod.Annotations[model.AutoscalerIDAnnotation], pod.Annotations[model.RecommendationIDAnnotation],
 	)
 
-	podPatch := []byte(`{"metadata": {"annotations": {"` + model.RecommendationAppliedEventGeneratedAnnotation + `": "true"}}}`)
-	_, err := pa.client.Resource(podGVR).Namespace(pod.Namespace).Patch(ctx, pod.Name, types.StrategicMergePatchType, podPatch, metav1.PatchOptions{})
-	if err != nil {
-		log.Warnf("Failed to patch POD %s/%s with event emitted annotation, event may be generated multiple times, err: %v", pod.Namespace, pod.Name, err)
-	}
 	log.Debugf("Event sent and POD %s/%s patched with event annotation", pod.Namespace, pod.Name)
 }
 
@@ -229,15 +237,22 @@ func patchContainerResources(reco datadoghqcommon.DatadogPodAutoscalerContainerR
 	if cont.Resources.Requests == nil {
 		cont.Resources.Requests = corev1.ResourceList{}
 	}
-	for resource, limit := range reco.Limits {
-		if limit != cont.Resources.Limits[resource] {
-			cont.Resources.Limits[resource] = limit
+	for resourceName, limit := range reco.Limits {
+		if limit.Sign() < 0 {
+			// Negative value (removeLimitSentinel) is set by applyVerticalConstraints in burstable
+			// mode, meaning "remove this limit from the container".
+			if _, hasCurrent := cont.Resources.Limits[resourceName]; hasCurrent {
+				delete(cont.Resources.Limits, resourceName)
+				patched = true
+			}
+		} else if cont.Resources.Limits[resourceName] != limit {
+			cont.Resources.Limits[resourceName] = limit
 			patched = true
 		}
 	}
-	for resource, request := range reco.Requests {
-		if request != cont.Resources.Requests[resource] {
-			cont.Resources.Requests[resource] = request
+	for resourceName, request := range reco.Requests {
+		if cont.Resources.Requests[resourceName] != request {
+			cont.Resources.Requests[resourceName] = request
 			patched = true
 		}
 	}

@@ -18,8 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	mockconfig "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processorstest"
 )
 
 func TestNodeCollector(t *testing.T) {
@@ -86,8 +85,7 @@ func TestNodeCollector(t *testing.T) {
 		},
 	}
 
-	metadataAsTags := utils.GetMetadataAsTags(mockconfig.New(t))
-	collector := NewNodeCollector(metadataAsTags)
+	collector := NewNodeCollector(processorstest.NewEmptyFakeTagger())
 
 	config := CollectorTestConfig{
 		Resources:                  []runtime.Object{node},

@@ -5,7 +5,14 @@ from invoke.exceptions import Exit
 
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.common.color import color_message
-from tasks.libs.common.git import create_tree, get_current_branch, get_default_branch
+from tasks.libs.common.git import (
+    create_tree,
+    get_ancestor_base_branch,
+    get_commit_sha,
+    get_common_ancestor,
+    get_current_branch,
+    get_default_branch,
+)
 
 
 @task
@@ -43,3 +50,19 @@ def push_signed_commits(ctx: Context, branch: str, commit_message: str, source_b
     github = GithubAPI()
     tree = create_tree(ctx, source_branch or get_default_branch())
     github.commit_and_push_signed(branch, commit_message, tree)
+
+
+@task
+def get_ancestor(ctx, branch: str) -> str:
+    base_branch = get_ancestor_base_branch(branch)
+    ancestor = get_common_ancestor(ctx, "HEAD", base_branch)
+    current_commit = get_commit_sha(ctx)
+    # Detect if we're on main branch (ancestor == current commit means merge-base is HEAD itself)
+    # This is used to determine if bypass tolerance should apply (only for PRs, not main)
+    is_on_main_branch = ancestor == current_commit
+    # When on main/release branch, get_common_ancestor returns HEAD itself since merge-base of HEAD and origin/<branch>
+    # is the current commit. In this case, use the parent commit as the ancestor instead.
+    if is_on_main_branch:
+        ancestor = get_commit_sha(ctx, commit="HEAD~1")
+        print(color_message(f"On main branch, using parent commit {ancestor} as ancestor", "cyan"))
+    return ancestor

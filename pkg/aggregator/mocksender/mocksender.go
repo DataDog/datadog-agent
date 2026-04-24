@@ -68,6 +68,7 @@ func SetSender(sender *MockSender, id checkid.ID) {
 type MockSender struct {
 	mock.Mock
 	senderManager sender.SenderManager
+	checkTags     []string
 }
 
 // GetSenderManager returns the instance of sender.SenderManager
@@ -77,7 +78,7 @@ func (m *MockSender) GetSenderManager() sender.SenderManager {
 
 // SetupAcceptAll sets mock expectations to accept any call in the Sender interface
 func (m *MockSender) SetupAcceptAll() {
-	metricCalls := []string{"Rate", "Count", "MonotonicCount", "Counter", "Histogram", "Historate", "Gauge", "Distribution"}
+	metricCalls := []string{"Rate", "Count", "MonotonicCount", "Counter", "Histogram", "Historate", "Gauge", "GaugeNoIndex", "Distribution"}
 	for _, call := range metricCalls {
 		m.On(call,
 			mock.AnythingOfType("string"),   // Metric

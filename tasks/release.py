@@ -51,9 +51,7 @@ from tasks.libs.pipeline.notifications import (
 )
 from tasks.libs.releasing.documentation import (
     create_release_page,
-    get_release_page_info,
     list_not_closed_qa_cards,
-    release_manager,
 )
 from tasks.libs.releasing.json import (
     DEFAULT_BRANCHES,
@@ -124,7 +122,7 @@ def update_modules(ctx, release_branch=None, version=None, trust=False):
     with agent_context(ctx, release_branch, skip_checkout=release_branch is None):
         modules = get_default_modules()
         for module in modules.values():
-            for dependency in module.dependencies:
+            for dependency in module.dependencies(ctx):
                 dependency_mod = modules[dependency]
                 if (
                     agent_version.startswith('6')
@@ -856,9 +854,14 @@ def create_release_branches(
         with open(".gitlab-ci.yml") as f:
             content = f.read()
         with open(".gitlab-ci.yml", "w") as f:
-            f.write(
-                content.replace(f'COMPARE_TO_BRANCH: {get_default_branch()}', f'COMPARE_TO_BRANCH: {release_branch}')
+            updated_content = content.replace(
+                f'COMPARE_TO_BRANCH: {get_default_branch()}', f'COMPARE_TO_BRANCH: {release_branch}'
             )
+            # Workaround for Gitlab not supporting the use of `COMPARE_TO_BRANCH` variable in `includes: rules` so we need to manually update the compare_to value
+            updated_content = updated_content.replace(
+                f'compare_to: {get_default_branch()}', f'compare_to: {release_branch}'
+            )
+            f.write(updated_content)
 
         # Step 1.3 - Commit new changes
         ctx.run("git add release.json .gitlab-ci.yml")
@@ -1168,29 +1171,6 @@ def create_schedule(_, version, cutoff_date):
 
 
 @task
-def chase_release_managers(_, version):
-    url, missing_teams = get_release_page_info(version)
-    github_slack_map = load_and_validate("github_slack_map.yaml", "DEFAULT_SLACK_CHANNEL", DEFAULT_SLACK_CHANNEL)
-    channels = set()
-
-    for team in missing_teams:
-        channel = github_slack_map.get(f"@datadog/{team}")
-        if channel:
-            channels.add(channel)
-        else:
-            print(color_message(f"Missing slack channel for {team}", Color.RED))
-
-    message = f"Hello :wave:\nCould you please update the `datadog-agent` <{url}|release coordination page> with the RM for your team?\nThanks in advance"
-
-    from slack_sdk import WebClient
-
-    client = WebClient(os.environ["SLACK_DATADOG_AGENT_BOT_TOKEN"])
-    for channel in sorted(channels):
-        print(f"Sending message to {channel}")
-        client.chat_postMessage(channel=channel, text=message)
-
-
-@task
 def chase_for_qa_cards(_, version):
     from slack_sdk import WebClient
 
@@ -1206,7 +1186,15 @@ def chase_for_qa_cards(_, version):
     client = WebClient(os.environ["SLACK_DATADOG_AGENT_BOT_TOKEN"])
     print(f"Found {len(cards)} QA cards to chase")
     for project, cards in grouped_cards.items():
-        team = next(team for team, jira_project in GITHUB_JIRA_MAP.items() if project == jira_project)
+        try:
+            team = next(team for team, jira_project in GITHUB_JIRA_MAP.items() if project == jira_project)
+        except StopIteration:
+            client.chat_postMessage(
+                channel="#agent-devx-ops",
+                text=f"Issue in qa_card chase, no team found for project {project} for cards {', '.join([card['key'] for card in cards])}",
+            )
+            print(f"No team found for project {project}")
+            continue
         channel = GITHUB_SLACK_MAP[team]
         print(f" - {channel} for {[card['key'] for card in cards]}")
         card_links = ", ".join(
@@ -1234,8 +1222,7 @@ def check_for_changes(ctx, release_branch, warning_mode=False):
                 print(f"{repo_name} has new commits since {last_tag_name}", file=sys.stderr)
                 if warning_mode:
                     team = "agent-integrations"
-                    emails = release_manager(next_version.clone(), team)
-                    warn_new_commits(emails, team, repo['branch'], next_version)
+                    warn_new_commits(team, repo['branch'], next_version)
                 else:
                     if repo_name not in ["datadog-agent", "integrations-core"]:
                         message.append(
@@ -1270,9 +1257,11 @@ def create_github_release(ctx, release_branch, draft=True):
     )
 
     notes = []
-    version = deduce_version(ctx, release_branch, next_version=False)
 
     with agent_context(ctx, release_branch):
+        # Fetch tags in the worktree so deduce_version can find them
+        ctx.run("git fetch origin --tags", hide=True)
+        version = deduce_version(ctx, release_branch, next_version=False)
         for section, filename in sections:
             text = pandoc.write(pandoc.read(file=filename), format="markdown_strict", options=["--wrap=none"])
 

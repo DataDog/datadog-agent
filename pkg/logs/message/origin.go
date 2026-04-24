@@ -20,11 +20,12 @@ type Origin struct {
 	// FilePath is the concrete path to the file that the message originated from.
 	// This is only populated for file and journald sources. It is used by the
 	// auditor to store the file path when fingerprinting is enabled.
-	FilePath    string
-	Fingerprint *types.Fingerprint
-	service     string
-	source      string
-	tags        []string
+	FilePath     string
+	Fingerprint  *types.Fingerprint
+	service      string
+	source       string
+	mappedSource string
+	tags         []string
 }
 
 // NewOrigin returns a new Origin
@@ -43,6 +44,10 @@ func (o *Origin) Tags(processingTags []string) []string {
 
 // TagsPayload returns the raw tag payload of the origin.
 func (o *Origin) TagsPayload(processingTags []string) []byte {
+	if o == nil || o.LogSource == nil {
+		return []byte{}
+	}
+
 	var tagsPayload []byte
 
 	source := o.Source()
@@ -80,6 +85,9 @@ func (o *Origin) TagsToString(processingTags []string) string {
 }
 
 func (o *Origin) tagsToStringArray(processingTags []string) []string {
+	if o == nil || o.LogSource == nil {
+		return processingTags
+	}
 	sourceCategory := o.LogSource.Config.SourceCategory
 	configTags := o.LogSource.Config.Tags
 
@@ -113,9 +121,24 @@ func (o *Origin) SetSource(source string) {
 	o.source = source
 }
 
-// Source returns the source of the configuration if set or the source of the message,
-// if none are defined, returns an empty string by default.
+// SetMappedSource sets a high-priority source override, typically from a
+// remap_attribute_to_source processing rule. It takes precedence over both
+// the config source and the parser-derived source.
+func (o *Origin) SetMappedSource(source string) {
+	o.mappedSource = source
+}
+
+// Source returns the source with the following priority:
+//  1. mappedSource (set by remap_attribute_to_source processing rule)
+//  2. LogSource.Config.Source (user-configured source)
+//  3. o.source (parser-derived, e.g. syslog AppName)
 func (o *Origin) Source() string {
+	if o == nil || o.LogSource == nil {
+		return ""
+	}
+	if o.mappedSource != "" {
+		return o.mappedSource
+	}
 	if o.LogSource.Config.Source != "" {
 		return o.LogSource.Config.Source
 	}
@@ -130,6 +153,9 @@ func (o *Origin) SetService(service string) {
 // Service returns the service of the configuration if set or the service of the message,
 // if none are defined, returns an empty string by default.
 func (o *Origin) Service() string {
+	if o == nil || o.LogSource == nil {
+		return ""
+	}
 	if o.LogSource.Config.Service != "" {
 		return o.LogSource.Config.Service
 	}

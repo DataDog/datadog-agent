@@ -8,6 +8,7 @@
 package workload
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -21,12 +22,19 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	dynamicfake "k8s.io/client-go/dynamic/fake"
+	"k8s.io/client-go/tools/record"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
+	workloadpatcher "github.com/DataDog/datadog-agent/pkg/clusteragent/patcher"
 )
 
 func patcherTestStoreWithData() *store {
@@ -159,6 +167,38 @@ func patcherTestStoreWithData() *store {
 				Kind:       kubernetes.StatefulSetKind,
 				APIVersion: "apps/v1",
 				Name:       "my-statefulset",
+			},
+		},
+	}.Build(), "")
+
+	// ns1/autoscaler-burstable targets "burstable-deployment" in burstable mode.
+	// applyVerticalConstraints has already stamped removeLimitSentinel (-1) on CPU limit in the
+	// stored ScalingValues (so patchContainerResources will remove the CPU limit).
+	store.Set("ns1/autoscaler-burstable", model.FakePodAutoscalerInternal{
+		Namespace: "ns1",
+		Name:      "autoscaler-burstable",
+		UpstreamCR: &datadoghq.DatadogPodAutoscaler{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace:   "ns1",
+				Name:        "autoscaler-burstable",
+				Annotations: map[string]string{model.PreviewAnnotationKey: `{"burstable":true}`},
+			},
+			Spec: datadoghq.DatadogPodAutoscalerSpec{
+				TargetRef: autoscalingv2.CrossVersionObjectReference{
+					Kind:       "Deployment",
+					APIVersion: "apps/v1",
+					Name:       "burstable-deployment",
+				},
+			},
+		},
+		ScalingValues: model.ScalingValues{
+			Vertical: &model.VerticalScalingValues{
+				Source:        datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+				ResourcesHash: "version1-burstable-sentinel",
+				ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+					// cpu limit is removeLimitSentinel (-1) set by applyVerticalConstraints in burstable mode
+					{Name: "app", Limits: corev1.ResourceList{"cpu": resource.MustParse("-1"), "memory": resource.MustParse("512Mi")}, Requests: corev1.ResourceList{"cpu": resource.MustParse("250m")}},
+				},
 			},
 		},
 	}.Build(), "")
@@ -700,12 +740,120 @@ func TestPatcherApplyRecommendations(t *testing.T) {
 				},
 			},
 		},
+		// burstable mode: CPU limit removed via removeLimitSentinel (-1), rec-id has no special suffix
+		{
+			name: "burstable: CPU limit removed via removeLimitSentinel (-1), rec-id is plain hash",
+			pod: corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "ns1",
+					Name:      "burstable-pod",
+					OwnerReferences: []metav1.OwnerReference{{
+						Kind:       "ReplicaSet",
+						Name:       "burstable-deployment-968f49d86",
+						APIVersion: "apps/v1",
+					}},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Name: "app",
+						Resources: corev1.ResourceRequirements{
+							Limits:   corev1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")},
+							Requests: corev1.ResourceList{"cpu": resource.MustParse("100m")},
+						},
+					}},
+				},
+			},
+			wantInjected: true,
+			wantPod: corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "ns1",
+					Name:      "burstable-pod",
+					OwnerReferences: []metav1.OwnerReference{{
+						Kind:       "ReplicaSet",
+						Name:       "burstable-deployment-968f49d86",
+						APIVersion: "apps/v1",
+					}},
+					Annotations: map[string]string{
+						// rec-id is just the ResourcesHash (no -burstable suffix)
+						model.RecommendationIDAnnotation: "version1-burstable-sentinel",
+						model.AutoscalerIDAnnotation:     "ns1/autoscaler-burstable",
+					},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Name: "app",
+						Resources: corev1.ResourceRequirements{
+							// cpu limit removed (removeLimitSentinel -1); memory limit and cpu request applied
+							Limits:   corev1.ResourceList{"memory": resource.MustParse("512Mi")},
+							Requests: corev1.ResourceList{"cpu": resource.MustParse("250m")},
+						},
+					}},
+				},
+			},
+		},
+		{
+			// When burstable mode is removed the recommendation hash changes (sentinel gone).
+			// A pod on the old sentinel hash is stale → re-patched with the new hash and CPU limit restored.
+			name: "burstable removed: stale pod gets new hash, CPU limit restored",
+			pod: corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "ns1",
+					Name:      "pod1",
+					OwnerReferences: []metav1.OwnerReference{{
+						Kind:       "ReplicaSet",
+						Name:       "test-deployment-968f49d86",
+						APIVersion: "apps/v1",
+					}},
+					// pod still carries the old sentinel-based rec-id from when burstable was active
+					Annotations: map[string]string{
+						model.RecommendationIDAnnotation: "old-sentinel-hash",
+						model.AutoscalerIDAnnotation:     "ns1/autoscaler1",
+					},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Name: "container1",
+						// CPU limit was previously removed while burstable was active
+						Resources: corev1.ResourceRequirements{
+							Requests: corev1.ResourceList{"memory": resource.MustParse("256Mi")},
+						},
+					}},
+				},
+			},
+			wantInjected: true,
+			wantPod: corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "ns1",
+					Name:      "pod1",
+					OwnerReferences: []metav1.OwnerReference{{
+						Kind:       "ReplicaSet",
+						Name:       "test-deployment-968f49d86",
+						APIVersion: "apps/v1",
+					}},
+					// rec-id updated to the current autoscaler1 recommendation hash
+					Annotations: map[string]string{
+						model.RecommendationIDAnnotation: "version1",
+						model.AutoscalerIDAnnotation:     "ns1/autoscaler1",
+					},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Name: "container1",
+						Resources: corev1.ResourceRequirements{
+							// CPU limit is restored from the recommendation
+							Limits:   corev1.ResourceList{"cpu": resource.MustParse("500m")},
+							Requests: corev1.ResourceList{"memory": resource.MustParse("256Mi")},
+						},
+					}},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			store := patcherTestStoreWithData()
-			patcherAdapter := NewPodPatcher(store, nil, nil, nil)
+			patcherAdapter := NewPodPatcher(store, nil, nil)
 
 			injected, err := patcherAdapter.ApplyRecommendations(&tt.pod)
 			if (err != nil) != tt.wantErr {
@@ -934,6 +1082,57 @@ func TestPatchContainerResources(t *testing.T) {
 			expectedLimits:   corev1.ResourceList{"cpu": resource.MustParse("500m")},
 			expectedRequests: corev1.ResourceList{"memory": resource.MustParse("256Mi")},
 		},
+		// burstable mode: applyVerticalConstraints stamps removeLimitSentinel (-1) on CPU limit
+		{
+			name: "burstable sentinel: existing cpu limit is removed, memory limit kept",
+			recommendation: datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				Name: "test-container",
+				// removeLimitSentinel (-1) for cpu (from applyVerticalConstraints in burstable mode)
+				Limits:   corev1.ResourceList{"cpu": resource.MustParse("-1"), "memory": resource.MustParse("512Mi")},
+				Requests: corev1.ResourceList{"cpu": resource.MustParse("250m")},
+			},
+			container: &corev1.Container{
+				Name: "test-container",
+				Resources: corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")},
+				},
+			},
+			expectedPatched:  true,
+			expectedLimits:   corev1.ResourceList{"memory": resource.MustParse("512Mi")},
+			expectedRequests: corev1.ResourceList{"cpu": resource.MustParse("250m")},
+		},
+		{
+			name: "burstable sentinel: container with no cpu limit is unchanged for limits, requests still applied",
+			recommendation: datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				Name:     "test-container",
+				Limits:   corev1.ResourceList{"memory": resource.MustParse("512Mi")},
+				Requests: corev1.ResourceList{"cpu": resource.MustParse("250m")},
+			},
+			container: &corev1.Container{
+				Name: "test-container",
+				Resources: corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{"memory": resource.MustParse("1Gi")},
+				},
+			},
+			expectedPatched:  true,
+			expectedLimits:   corev1.ResourceList{"memory": resource.MustParse("512Mi")},
+			expectedRequests: corev1.ResourceList{"cpu": resource.MustParse("250m")},
+		},
+		{
+			name: "non-burstable: cpu limit from recommendation is applied normally",
+			recommendation: datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				Name:     "test-container",
+				Limits:   corev1.ResourceList{"cpu": resource.MustParse("500m"), "memory": resource.MustParse("512Mi")},
+				Requests: corev1.ResourceList{"cpu": resource.MustParse("250m")},
+			},
+			container: &corev1.Container{
+				Name:      "test-container",
+				Resources: corev1.ResourceRequirements{},
+			},
+			expectedPatched:  true,
+			expectedLimits:   corev1.ResourceList{"cpu": resource.MustParse("500m"), "memory": resource.MustParse("512Mi")},
+			expectedRequests: corev1.ResourceList{"cpu": resource.MustParse("250m")},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1112,4 +1311,93 @@ func TestPatchPod(t *testing.T) {
 			}
 		})
 	}
+}
+
+// newFakePodPatcherClient creates a fake dynamic client with a Pod pre-populated.
+func newFakePodPatcherClient(namespace, name string) *dynamicfake.FakeDynamicClient {
+	podGVR := schema.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
+	scheme := runtime.NewScheme()
+	fakeCl := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(scheme,
+		map[schema.GroupVersionResource]string{podGVR: "PodList"},
+	)
+	pod := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "v1",
+			"kind":       "Pod",
+			"metadata": map[string]interface{}{
+				"name":      name,
+				"namespace": namespace,
+			},
+		},
+	}
+	_ = fakeCl.Tracker().Add(pod)
+	return fakeCl
+}
+
+func TestObservedPodCallback(t *testing.T) {
+	const (
+		namespace    = "ns1"
+		podName      = "pod1"
+		autoscalerID = "ns1/autoscaler1"
+		recoID       = "version1"
+	)
+
+	pod := &workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{ID: "uid-123"},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      podName,
+			Namespace: namespace,
+			Annotations: map[string]string{
+				model.AutoscalerIDAnnotation:     autoscalerID,
+				model.RecommendationIDAnnotation: recoID,
+			},
+		},
+	}
+
+	t.Run("patches pod and records event when leader", func(t *testing.T) {
+		fakeCl := newFakePodPatcherClient(namespace, podName)
+		isLeader := func() bool { return true }
+		patcher := workloadpatcher.NewPatcher(fakeCl, isLeader)
+		fakeRecorder := record.NewFakeRecorder(10)
+
+		pa := podPatcher{
+			store:         patcherTestStoreWithData(),
+			patcher:       patcher,
+			eventRecorder: fakeRecorder,
+		}
+
+		pa.observedPodCallback(context.Background(), pod)
+
+		// Verify the patch was applied via the fake client actions
+		actions := fakeCl.Actions()
+		require.Len(t, actions, 1, "expected one patch action")
+		assert.Equal(t, "patch", actions[0].GetVerb())
+		assert.Equal(t, podName, actions[0].(interface{ GetName() string }).GetName())
+
+		// Verify the event was recorded
+		select {
+		case event := <-fakeRecorder.Events:
+			assert.Contains(t, event, model.RecommendationAppliedEventReason)
+		default:
+			t.Error("expected an event to be recorded")
+		}
+	})
+
+	t.Run("skips patch and event when not leader", func(t *testing.T) {
+		fakeCl := newFakePodPatcherClient(namespace, podName)
+		isLeader := func() bool { return false }
+		patcher := workloadpatcher.NewPatcher(fakeCl, isLeader)
+		fakeRecorder := record.NewFakeRecorder(10)
+
+		pa := podPatcher{
+			store:         patcherTestStoreWithData(),
+			patcher:       patcher,
+			eventRecorder: fakeRecorder,
+		}
+
+		pa.observedPodCallback(context.Background(), pod)
+
+		assert.Empty(t, fakeCl.Actions(), "expected no API calls when not leader")
+		assert.Empty(t, fakeRecorder.Events, "expected no events when not leader")
+	})
 }

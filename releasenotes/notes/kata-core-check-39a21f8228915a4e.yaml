@@ -1,0 +1,7 @@
+features:
+  - |
+    Kata core check to gather kata metrics, see details - https://github.com/kata-containers/kata-containers/blob/main/docs/design/kata-2-0-metrics.md#metrics-architecture
+enhancements:
+  - |
+    Add SandboxId field to the workloadmeta structure.
+    Update collectors (crio and containerd) accordingly.

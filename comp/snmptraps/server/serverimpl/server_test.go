@@ -32,15 +32,16 @@ func TestServer(t *testing.T) {
 	require.NoError(t, os.Mkdir(snmpD, 0777))
 	require.NoError(t, os.Mkdir(tdb, 0777))
 	require.NoError(t, os.WriteFile(filepath.Join(tdb, "foo.json"), []byte{}, 0666))
-	freePort, err := ndmtestutils.GetFreePort()
-	require.NoError(t, err)
+	// Pick a deterministic port specific to this test run to avoid collisions
+	port := ndmtestutils.UniqueTestPort(t.Name(), confdPath)
 	server := fxutil.Test[server.Component](t,
 		senderhelper.Opts,
 		fx.Provide(func(t testing.TB) config.Component {
 			return config.NewMockWithOverrides(t, map[string]interface{}{
 				"confd_path":                                   confdPath,
 				"network_devices.snmp_traps.enabled":           true,
-				"network_devices.snmp_traps.port":              freePort,
+				"network_devices.snmp_traps.port":              port,
+				"network_devices.snmp_traps.bind_host":         "127.0.0.1",
 				"network_devices.snmp_traps.community_strings": []string{"public"},
 			})
 		}),
@@ -55,15 +56,15 @@ func TestNonBlockingFailure(t *testing.T) {
 	confdPath, err := os.MkdirTemp("", "trapsdb")
 	require.NoError(t, err)
 	defer os.RemoveAll(confdPath)
-	freePort, err := ndmtestutils.GetFreePort()
-	require.NoError(t, err)
+	port := ndmtestutils.UniqueTestPort(t.Name(), confdPath)
 	server := fxutil.Test[server.Component](t,
 		senderhelper.Opts,
 		fx.Provide(func(t testing.TB) config.Component {
 			return config.NewMockWithOverrides(t, map[string]interface{}{
 				"confd_path":                                   confdPath,
 				"network_devices.snmp_traps.enabled":           true,
-				"network_devices.snmp_traps.port":              freePort,
+				"network_devices.snmp_traps.port":              port,
+				"network_devices.snmp_traps.bind_host":         "127.0.0.1",
 				"network_devices.snmp_traps.community_strings": []string{"public"},
 			})
 		}),

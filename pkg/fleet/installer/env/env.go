@@ -60,6 +60,9 @@ const (
 	envDataJobsEnabled             = "DD_DATA_JOBS_ENABLED"
 	envAppsecScaEnabled            = "DD_APPSEC_SCA_ENABLED"
 	envInfrastructureMode          = "DD_INFRASTRUCTURE_MODE"
+	envAppKey                      = "DD_APP_KEY"
+	envPAREnabled                  = "DD_PRIVATE_ACTION_RUNNER_ENABLED"
+	envPARActionsAllowlist         = "DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST"
 	envTracerLogsCollectionEnabled = "DD_APP_LOGS_COLLECTION_ENABLED"
 	envRumEnabled                  = "DD_RUM_ENABLED"
 	envRumApplicationID            = "DD_RUM_APPLICATION_ID"
@@ -209,9 +212,29 @@ type Env struct {
 
 	InfrastructureMode string
 
+	AppKey              string
+	PAREnabled          bool
+	PARActionsAllowlist string
+
 	IsCentos6 bool
 
 	IsFromDaemon bool
+}
+
+func (e *Env) HasDefaultRegistryOverride() bool {
+	return e.RegistryOverride == defaultEnv.RegistryOverride
+}
+
+func (e *Env) HasDefaultRegistryAuthOverride() bool {
+	return e.RegistryAuthOverride == defaultEnv.RegistryAuthOverride
+}
+
+func (e *Env) HasDefaultRegistryUsername() bool {
+	return e.RegistryUsername == defaultEnv.RegistryUsername
+}
+
+func (e *Env) HasDefaultRegistryPassword() bool {
+	return e.RegistryPassword == defaultEnv.RegistryPassword
 }
 
 // HTTPClient returns an HTTP client with the proxy settings from the environment.
@@ -308,6 +331,10 @@ func FromEnv() *Env {
 
 		InfrastructureMode: os.Getenv(envInfrastructureMode),
 
+		AppKey:              os.Getenv(envAppKey),
+		PAREnabled:          strings.ToLower(os.Getenv(envPAREnabled)) == "true",
+		PARActionsAllowlist: os.Getenv(envPARActionsAllowlist),
+
 		IsCentos6:    DetectCentos6(),
 		IsFromDaemon: os.Getenv(envIsFromDaemon) == "true",
 	}
@@ -394,6 +421,11 @@ func (e *Env) ToEnv() []string {
 	env = appendStringEnv(env, envHTTPSProxy, e.HTTPSProxy, "")
 	env = appendStringEnv(env, envNoProxy, e.NoProxy, "")
 	env = appendStringEnv(env, envInfrastructureMode, e.InfrastructureMode, "")
+	if e.PAREnabled {
+		env = appendStringEnv(env, envAppKey, e.AppKey, "")
+		env = append(env, envPAREnabled+"=true")
+		env = appendStringEnv(env, envPARActionsAllowlist, e.PARActionsAllowlist, "")
+	}
 	if e.IsFromDaemon {
 		env = append(env, envIsFromDaemon+"=true")
 		// This is a bit of a hack; as we should properly redirect the log level

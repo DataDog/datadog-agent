@@ -215,9 +215,11 @@ func TraceChunkWithSpanAndPriority(span *pb.Span, priority int32) *pb.TraceChunk
 // TraceChunkV1WithSpanAndPriority wraps a `span` and `priority` with pb.TraceChunk
 func TraceChunkV1WithSpanAndPriority(span *idx.InternalSpan, priority int32) *idx.InternalTraceChunk {
 	return &idx.InternalTraceChunk{
-		Strings:  span.Strings,
-		Spans:    []*idx.InternalSpan{span},
-		Priority: priority,
+		TraceID:    []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
+		Strings:    span.Strings,
+		Spans:      []*idx.InternalSpan{span},
+		Priority:   priority,
+		Attributes: map[uint32]*idx.AnyValue{},
 	}
 }
 

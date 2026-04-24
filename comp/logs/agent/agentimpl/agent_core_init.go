@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/afero"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -27,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/listener"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/windowsevent"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
-	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
@@ -115,6 +115,7 @@ func buildPipelineProvider(a *logAgent, processingRules []*config.ProcessingRule
 		a.compression,
 		a.config.GetBool("logs_config.disable_distributed_senders"), // legacy
 		false, // serverless
+		a.secrets,
 	)
 	return pipelineProvider
 }
@@ -162,7 +163,7 @@ func (a *logAgent) addLauncherInstances(lnchrs *launchers.Launchers, wmeta optio
 	lnchrs.AddLauncher(listener.NewLauncher(a.config.GetInt("logs_config.frame_size")))
 	lnchrs.AddLauncher(journald.NewLauncher(a.flarecontroller, a.tagger))
 	lnchrs.AddLauncher(windowsevent.NewLauncher())
-	lnchrs.AddLauncher(container.NewLauncher(a.sources, wmeta, a.tagger, a.healthPlatform))
+	lnchrs.AddLauncher(container.NewLauncher(a.sources, wmeta, a.tagger))
 	lnchrs.AddLauncher(integrationLauncher.NewLauncher(
 		afero.NewOsFs(),
 		a.sources, integrationsLogs))

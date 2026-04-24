@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    The diagnose command now returns an error if an API key is not configured.
+

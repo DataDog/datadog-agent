@@ -18,6 +18,10 @@ if TYPE_CHECKING:
     from collections.abc import Iterable
 
 
+# Reno filenames must end with a 16-character lowercase hex UID: <slug>-<uid>.yaml
+# See: https://docs.openstack.org/reno/latest/user/design.html
+RENO_FILENAME_RE = re.compile(r'^.+-[0-9a-f]{16}\.yaml$')
+
 # Known reno sections that can contain RST content
 # See: https://docs.openstack.org/reno/latest/user/usage.html#editing-a-release-note
 RENO_SECTIONS = frozenset(
@@ -286,6 +290,24 @@ def validate_reno_structure(content: dict, file_path: str) -> list[ReleasenoteEr
                     message=f"Section '{section}' is empty (null). Remove it or add content.",
                 )
             )
+        elif section == 'prelude':
+            # Prelude section contains a string, not a list
+            if not isinstance(section_content, str):
+                section_errors.append(
+                    RSTLintError(
+                        line=None,
+                        level='error',
+                        message=f"Section 'prelude' must be a string, got {type(section_content).__name__}",
+                    )
+                )
+            elif not section_content.strip():
+                section_errors.append(
+                    RSTLintError(
+                        line=None,
+                        level='warning',
+                        message="Section 'prelude' is empty or whitespace-only",
+                    )
+                )
         elif not isinstance(section_content, list):
             section_errors.append(
                 RSTLintError(
@@ -319,7 +341,7 @@ def validate_reno_structure(content: dict, file_path: str) -> list[ReleasenoteEr
     return errors
 
 
-def lint_releasenote_file(file_path: str | Path) -> ReleasenoteFileResult:
+def lint_releasenote_file(file_path: str | Path, *, validate_filename: bool = False) -> ReleasenoteFileResult:
     """Lint a single release note YAML file for RST formatting issues.
 
     Parses the YAML file, validates reno structure, extracts text content
@@ -333,33 +355,44 @@ def lint_releasenote_file(file_path: str | Path) -> ReleasenoteFileResult:
     """
     file_path = Path(file_path)
 
+    section_errors: list[ReleasenoteError] = []
+
+    # Validate filename UID format for files under a notes/ directory
+    if validate_filename and 'notes' in file_path.parts and not RENO_FILENAME_RE.match(file_path.name):
+        section_errors.append(
+            ReleasenoteError(
+                section='filename',
+                errors=[
+                    RSTLintError(
+                        line=None,
+                        level='error',
+                        message=f"Filename '{file_path.name}' does not match reno convention '<slug>-<16 hex chars>.yaml'",
+                    )
+                ],
+            )
+        )
+
     try:
         with open(file_path, encoding='utf-8') as f:
             content = yaml.safe_load(f)
     except yaml.YAMLError as e:
-        return ReleasenoteFileResult(
-            file_path=str(file_path),
-            section_errors=[
-                ReleasenoteError(
-                    section='yaml', errors=[RSTLintError(line=None, level='error', message=f'YAML parsing error: {e}')]
-                )
-            ],
+        section_errors.append(
+            ReleasenoteError(
+                section='yaml', errors=[RSTLintError(line=None, level='error', message=f'YAML parsing error: {e}')]
+            )
         )
+        return ReleasenoteFileResult(file_path=str(file_path), section_errors=section_errors)
     except OSError as e:
-        return ReleasenoteFileResult(
-            file_path=str(file_path),
-            section_errors=[
-                ReleasenoteError(
-                    section='file', errors=[RSTLintError(line=None, level='error', message=f'File read error: {e}')]
-                )
-            ],
+        section_errors.append(
+            ReleasenoteError(
+                section='file', errors=[RSTLintError(line=None, level='error', message=f'File read error: {e}')]
+            )
         )
+        return ReleasenoteFileResult(file_path=str(file_path), section_errors=section_errors)
 
     if content is None:
         # Empty file or only comments
-        return ReleasenoteFileResult(file_path=str(file_path), section_errors=[])
-
-    section_errors = []
+        return ReleasenoteFileResult(file_path=str(file_path), section_errors=section_errors)
 
     # Validate reno structure first
     structure_errors = validate_reno_structure(content, str(file_path))
@@ -396,18 +429,21 @@ def lint_releasenote_file(file_path: str | Path) -> ReleasenoteFileResult:
     return ReleasenoteFileResult(file_path=str(file_path), section_errors=section_errors)
 
 
-def lint_releasenotes(files: Iterable[str | Path]) -> list[ReleasenoteFileResult]:
+def lint_releasenotes(files: Iterable[str | Path], *, validate_filename: bool = False) -> list[ReleasenoteFileResult]:
     """Lint multiple release note files for RST formatting issues.
 
     Args:
         files: Iterable of file paths to lint.
+        validate_filename: If True, validate that filenames match reno's expected
+            ``<slug>-<16 hex chars>.yaml`` pattern.  Intended for CI checks on
+            new/changed files so that existing non-conforming filenames are not flagged.
 
     Returns:
         A list of ReleasenoteFileResult objects, one per file.
     """
     results = []
     for file_path in files:
-        result = lint_releasenote_file(file_path)
+        result = lint_releasenote_file(file_path, validate_filename=validate_filename)
         if result.has_errors:
             results.append(result)
     return results

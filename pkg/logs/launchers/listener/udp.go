@@ -9,9 +9,11 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
+	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
+	"github.com/DataDog/datadog-agent/comp/logs-library/utils/ipfilter"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/socket"
 )
@@ -32,17 +34,33 @@ type UDPListener struct {
 	pipelineProvider pipeline.Provider
 	source           *sources.LogSource
 	frameSize        int
+	ipFilter         *ipfilter.Filter
+	denialInfo       *ipfilter.DenialInfo
 	tailer           *tailer.Tailer
 	Conn             net.UDPConn
 }
 
-// NewUDPListener returns an initialized UDPListener
-func NewUDPListener(pipelineProvider pipeline.Provider, source *sources.LogSource, frameSize int) *UDPListener {
+// NewUDPListener returns an initialized UDPListener or an error if critical
+// configuration (IP filter) fails to build.
+func NewUDPListener(pipelineProvider pipeline.Provider, source *sources.LogSource, frameSize int) (*UDPListener, error) {
+	var ipF *ipfilter.Filter
+	var denialInfo *ipfilter.DenialInfo
+	if len(source.Config.AllowedIPs) > 0 || len(source.Config.DeniedIPs) > 0 {
+		var err error
+		ipF, err = ipfilter.New(source.Config.AllowedIPs, source.Config.DeniedIPs)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build IP filter for UDP listener on port %d: %w", source.Config.Port, err)
+		}
+		denialInfo = ipfilter.NewDenialInfo()
+		source.RegisterInfo(denialInfo)
+	}
 	return &UDPListener{
 		pipelineProvider: pipelineProvider,
 		source:           source,
 		frameSize:        frameSize,
-	}
+		ipFilter:         ipF,
+		denialInfo:       denialInfo,
+	}, nil
 }
 
 // Start opens a new UDP connection and starts a tailer.
@@ -91,28 +109,39 @@ func (l *UDPListener) newUDPConnection() (net.Conn, error) {
 	return udpConn, nil
 }
 
-// read reads data from the tailer connection, returns an error if it failed and reset the tailer.
+// read reads data from the tailer connection, returns an error if it failed
+// and resets the tailer. When an IP filter is active, denied datagrams are
+// consumed in a loop so that no nil/empty data reaches the decoder pipeline.
 func (l *UDPListener) read(_ *tailer.Tailer) ([]byte, string, error) {
 	frame := make([]byte, l.frameSize+1)
-	// Add casting to UDPConn
-	n, udpAddr, err := l.Conn.ReadFromUDP(frame)
-	switch {
-	case err != nil && isClosedConnError(err):
-		return nil, "", err
-	case err != nil:
-		go l.resetTailer()
-		return nil, "", err
-	default:
-		// make sure all logs are separated by line feeds, otherwise they don't get properly split downstream
-		if n > l.frameSize {
-			// the message is bigger than the length of the read buffer,
-			// the trailing part of the content will be dropped.
-			frame[l.frameSize] = '\n'
-		} else if n > 0 && frame[n-1] != '\n' {
-			frame[n] = '\n'
-			n++
+	for {
+		n, udpAddr, err := l.Conn.ReadFromUDP(frame)
+		switch {
+		case err != nil && isClosedConnError(err):
+			return nil, "", err
+		case err != nil:
+			go l.resetTailer()
+			return nil, "", err
+		default:
+			if l.ipFilter != nil {
+				if d := l.ipFilter.Check(udpAddr); !d.Allowed() {
+					metrics.TlmListenerIPDenied.Inc("udp")
+					l.denialInfo.Record(d.Reason())
+					continue
+				}
+			}
+			// Make sure all logs are separated by line feeds so they
+			// get properly split downstream.
+			if n > l.frameSize {
+				// the message is bigger than the length of the read buffer,
+				// the trailing part of the content will be dropped.
+				frame[l.frameSize] = '\n'
+			} else if n > 0 && frame[n-1] != '\n' {
+				frame[n] = '\n'
+				n++
+			}
+			return frame[:n], udpAddr.IP.String(), nil
 		}
-		return frame[:n], udpAddr.IP.String(), nil
 	}
 }
 

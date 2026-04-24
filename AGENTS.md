@@ -37,7 +37,32 @@ The Datadog Agent is a comprehensive monitoring and observability agent written 
 
 - `/rtloader/` - Runtime loader for Python checks
 
+- `/packages/` - The declarations of what goes into each package we build for distribution.
+
+- `/omnibus/` - The legacy build system. Still in used, but we are trying not to add to it.
+
+
 ## Development Workflow
+
+### Critical: Always use `dda inv`, never raw `go` commands
+
+This project uses extensive custom Go build tags. Most source files are ignored
+by the standard Go toolchain unless the correct tags are passed. The `dda inv`
+wrapper tasks (defined in `tasks/`) compute the right build tags automatically.
+
+**Never run these commands directly:**
+
+| Instead of | Use |
+|---|---|
+| `go build …` | `dda inv agent.build`, `dda inv cluster-agent.build`, etc. |
+| `go test …` | `dda inv test --targets=./pkg/…` |
+| `go mod tidy` | `dda inv tidy` |
+| `go vet …` | `dda inv linter.go` |
+| `golangci-lint run …` | `dda inv linter.go` |
+
+This also applies to indirect usage — do not shell out to `go build` or
+`go test` for compilation checks. If you need to verify that code compiles,
+build the relevant component with `dda inv *.build`.
 
 ### Common Commands
 
@@ -57,6 +82,12 @@ dda inv agent.build --build-exclude=systemd
 dda inv dogstatsd.build
 dda inv trace-agent.build
 dda inv system-probe.build
+
+# Build specific packages
+bazel build //packages/agent/linux:debian
+
+# Keep BUILD.bazel files in sync with go dependencies
+dda inv tidy
 ```
 
 #### Testing
@@ -66,6 +97,7 @@ dda inv test
 
 # Test specific package
 dda inv test --targets=./pkg/aggregator
+bazel test //pkg/aggregator/...
 
 # Run Go linters
 dda inv linter.go
@@ -108,15 +140,54 @@ The development configuration file should be placed at `dev/dist/datadog.yaml`. 
 - See `pkg/collector/corechecks/ebpf/AGENTS.md` for detailed structure
 - Quick reference: `.cursor/rules/system_probe_modules.mdc` for common patterns and pitfalls
 
+### eBPF Bazel Build
+
+eBPF programs, runtime compilation bundles, and cgo godefs type definitions
+are built with Bazel. Two convenience targets in `pkg/ebpf/BUILD.bazel`
+cover the most common workflows:
+
+```bash
+# Build every eBPF .o program and runtime flattened .c file at once
+bazel build //pkg/ebpf:all_ebpf_programs
+
+# Verify all committed cgo godefs files are up to date.
+# Covers both Linux and Windows targets; incompatible tests are
+# skipped automatically via target_compatible_with.
+bazel test //pkg/ebpf:verify_generated_files
+```
+
+When a `verify_generated_files` test fails, run the corresponding
+`write_source_file` target to update the committed file:
+
+```bash
+# Update a single cgo godefs output
+bazel run //pkg/ebpf:types_godefs
+```
+
+Runtime compilation integrity hash files (`pkg/ebpf/bytecode/runtime/*.go`) are
+`.gitignored` and generated during the build by `bazel_build_ebpf()`.  To update
+one locally: `bazel run //pkg/ebpf/bytecode:<name>_verify`.
+
+Key Bazel macros:
+- `ebpf_prog` / `ebpf_program_suite` (`bazel/rules/ebpf/ebpf.bzl`) — compile `.c` → `.o`
+- `cgo_godefs` (`bazel/rules/ebpf/cgo_godefs.bzl`) — `go tool cgo -godefs` + `write_source_file` verification
+- `runtime_compilation_bundle` (`bazel/rules/ebpf/runtime_compilation.bzl`) — flatten headers + generate integrity hash `.go` file
+
 ## Testing Strategy
 
 ### Unit Tests
-- Go tests using standard `go test`
+- Go tests run via `dda inv test` (not raw `go test`)
 - Python tests using pytest
 - Run with `dda inv test --targets=<package>`
 
 ### End-to-End Tests
-- E2E framework in `test/new-e2e/`
+- E2E tests live in `test/new-e2e/tests/` and use the framework in `test/e2e-framework/`
+- Tests provision real AWS, GCP or Azure infrastructure, deploy the agent, and assert payloads
+  arrive in **fakeintake** (a mock Datadog intake). By default the fakeintake forwards payloads to `dddev` org account.
+- Key docs: `test/e2e-framework/AGENTS.md` (framework), `test/fakeintake/AGENTS.md`
+  (intake mock), `docs/public/how-to/test/e2e.md` (setup & running)
+- Use `/write-e2e` skill or read those docs directly to write new E2E tests
+- Run locally: `dda inv new-e2e-tests.run --targets=./tests/<area>/...`
 
 ### Linting
 - Go: golangci-lint via `dda inv linter.go`
@@ -169,6 +240,22 @@ Go build tags control feature inclusion, some examples are:
 - Tests about the pull-request settings or repository configuration
 - Release automation workflows
 
+### Contributing
+PRs should follow `.github/PULL_REQUEST_TEMPLATE.md` and the guidelines in
+`docs/public/guidelines/` (contributing, coding style, components, etc.). When
+a PR changes behavior, configuration options, or APIs, update the corresponding
+documentation in the same PR — not as a follow-up.
+
+## Code Review
+
+Code reviewer plugins for Go and Python are available from the
+[Datadog Claude Marketplace](https://github.com/DataDog/claude-marketplace):
+
+- `/go-review`, `/go-improve` - Go code review and iterative improvement
+- `/py-review`, `/py-improve` - Python code review and iterative improvement
+
+See the marketplace README for installation instructions.
+
 ## Security Considerations
 
 ### Sensitive Data
@@ -184,13 +271,12 @@ tasks.
 - **Linux**: Full support (amd64, arm64)
 - **Windows**: Full support (Server 2016+, Windows 10+)
 - **macOS**: Supported
-- **AIX**: No support in this codebase
+- **AIX**: No support in this codebase yet, but we are working towards it.
 - **Container**: Docker, Kubernetes, ECS, containerd, and more
 
 ## Best Practices
-
 1. **Always run linters before committing**: `dda inv linter.go`
-2. **Always test your changes**: `dda inv test --targets=<your_package>`
+2. **Always test your changes**: `dda inv test --targets=<your_package>` `bazel test //pkg/... //comp/...`
 3. **Follow Go conventions**: Use gofmt, follow project structure
 4. **Update documentation**: Keep docs in sync with code changes
 6. **Check for security implications**: Review security-sensitive changes carefully
@@ -204,3 +290,90 @@ tasks.
 ### Testing Issues
 - **Flaky tests**: Check `flakes.yaml` for known issues
 - **Coverage issues**: Use `--coverage` flag
+
+## Review guidelines
+
+The following are areas of particular concern for this codebase. They highlight
+project-specific risks that have led to production bugs in the Datadog Agent.
+
+### E2E coverage with fakeintake
+The E2E framework (`test/new-e2e/`) uses **fakeintake**, a mock Datadog intake
+that captures metrics, logs, traces, and check runs. When a change affects
+user-visible behavior (new metrics, changed log output, modified payloads),
+check whether an E2E test asserts the expected data arrives in fakeintake. Unit
+tests alone are not sufficient for validating the agent's end-to-end data
+pipeline.
+
+### Branch-conditional CI creates blind spots
+Most E2E tests only run on `main`, release branches (`N.N.x`), and RC tags —
+**not on PR branches**. This means some classes of bugs cannot be caught before
+merge. Be extra careful reviewing:
+- Packaging or installation changes (MSI, deb, rpm, BUILD.bazel)
+- Agent startup/shutdown sequences
+- Cross-component communication (e.g. system-probe ↔ agent)
+
+These changes are likely to need `qa/rc-required`.
+
+### Multi-platform divergence
+The agent ships on Linux, Windows, and macOS. Platform-specific code paths (via
+`runtime.GOOS`, build tags, OS-specific file paths) are a frequent source of
+bugs — typically the "other" platform is untested. The same applies to
+packaging: Windows MSI and Linux deb/rpm have independent logic that can
+silently diverge.
+
+### Concurrency and component lifecycle
+The agent runs many concurrent goroutines with explicit `Start()`/`Stop()`
+lifecycles. The most common bugs are send-on-closed-channel during shutdown and
+goroutine leaks. Changes that introduce goroutines or modify component lifecycle
+should have tests exercising startup and graceful shutdown.
+
+### Graceful degradation during startup
+Components initialize in stages — some dependencies may not be ready when others
+start. Functions exposed to UIs or APIs should return safe defaults when a
+dependency is unavailable, not propagate errors or panic.
+
+### Stale documentation
+If a PR changes behavior but doesn't update the corresponding docs, comments,
+or doc strings, flag it. Stale docs lead to bugs: contributors build on
+incorrect assumptions.
+
+## Keeping AI context accurate
+
+AI agents read `AGENTS.md`, `CLAUDE.md`, and skill files to understand the
+codebase. These files must stay accurate — stale guidance causes recurring
+mistakes across sessions.
+
+### File hierarchy
+
+```
+AGENTS.md                          ← repo-wide: architecture, workflow, review guidelines
+├── bazel/AGENTS.md                ← Bazel build system: conventions, pitfalls, rule writing
+├── test/e2e-framework/AGENTS.md   ← E2E framework: environments, provisioners, agentparams
+├── test/fakeintake/AGENTS.md      ← fakeintake: endpoints, client API, extension guide
+├── pkg/.../AGENTS.md              ← package-level: structure, patterns, pitfalls
+└── .claude/skills/*/SKILL.md      ← task-specific: step-by-step procedures
+```
+
+Each level inherits context from its parent via `CLAUDE.md` (`@../../CLAUDE.md`
+→ `@AGENTS.md`). Keep information at the right level — don't duplicate
+repo-wide rules in sub-project files.
+
+### What to update and when
+
+| File | Update when |
+|------|-------------|
+| `AGENTS.md` (root) | Architecture, workflow, build commands, or review guidelines change |
+| Sub-project `AGENTS.md` | APIs, conventions, or extension patterns in that sub-project change |
+| `.claude/skills/*/SKILL.md` | A skill's steps, examples, or recommendations become outdated |
+
+Keep rules generalizable. A good guideline covers a class of bugs, not a single
+incident. Think bias/variance: too specific and it only catches one bug; too
+generic and it's noise.
+
+### Self-improvement expectation
+
+**AI agents:** when working on any task (reviewing, writing code, running
+tests), if you notice a gap or inaccuracy in an `AGENTS.md` or skill file, fix
+it — either in the same PR or as a follow-up. Small, incremental improvements
+are preferred over large rewrites. This creates a feedback loop where every
+session leaves the context more accurate for the next one.

@@ -144,7 +144,8 @@ func (bt *bufferTree) addEvent(key eventKey, event dispatcher.Message) (ok bool)
 			)
 		}
 		bt.mb.release(len(prev.event.Event()))
-		return false
+		prev.event.Release()
+		return true
 	}
 	return true
 }

@@ -131,3 +131,29 @@ func TestStatusHeaderProvider(t *testing.T) {
 		})
 	}
 }
+
+func TestStatusHeaderProviderEnabled(t *testing.T) {
+	overrides := map[string]any{}
+	io := getTestInventoryPayload(t, overrides)
+	haAgentMock := io.haAgent.(haagentmock.Component)
+	haAgentMock.SetEnabled(true)
+	io.refreshMetadata()
+
+	t.Run("Text", func(t *testing.T) {
+		b := new(bytes.Buffer)
+		err := io.Text(false, b)
+
+		assert.NoError(t, err)
+		assert.Contains(t, b.String(), "enabled: true")
+		assert.Contains(t, b.String(), "state: standby")
+	})
+
+	t.Run("HTML", func(t *testing.T) {
+		b := new(bytes.Buffer)
+		err := io.HTML(false, b)
+
+		assert.NoError(t, err)
+		assert.Contains(t, b.String(), "enabled: true")
+		assert.Contains(t, b.String(), "state: standby")
+	})
+}

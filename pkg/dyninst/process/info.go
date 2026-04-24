@@ -28,6 +28,7 @@ type Info struct {
 	Environment string
 	GitInfo     GitInfo
 	Container   ContainerInfo
+	ProcessTags []string
 }
 
 // ID is a unique identifier for a process.

@@ -8,99 +8,99 @@
 package model
 
 import (
-	"slices"
-
-	kubeAutoscaling "github.com/DataDog/agent-payload/v5/autoscaling/kubernetes"
-
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	// AWS Karpenter provider registers some variables in shared packages
 	_ "github.com/aws/karpenter-provider-aws/pkg/apis/v1"
 
-	corev1 "k8s.io/api/core/v1"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/sets"
 	karpenterv1 "sigs.k8s.io/karpenter/pkg/apis/v1"
 )
 
 const (
 	// For use on NodePools
 	DatadogCreatedLabelKey      = "autoscaling.datadoghq.com/created"
-	datadogModifiedLabelKey     = "autoscaling.datadoghq.com/modified"
-	datadogReplicaAnnotationKey = "autoscaling.datadoghq.com/target-nodepool"
+	DatadogReplicaAnnotationKey = "autoscaling.datadoghq.com/target-nodepool"
 
 	// KarpenterNodePoolHashAnnotationKey is the annotation key that that tracks the Karpenter NodePool template hash
 	KarpenterNodePoolHashAnnotationKey = "karpenter.sh/nodepool-hash"
 )
 
 type NodePoolInternal struct {
-	// Name matches name of NodePool
-	name string
-
-	// recommendedInstanceTypes is list of recommended instance types
-	recommendedInstanceTypes []string
-
-	// labels is a map of Node labels that correspond to the NodePool
-	labels map[string]string
-
-	// taints is a list of node taints that correspond to the NodePool
-	taints []corev1.Taint
-
 	// targetName is the user-created NodePool the Datadog-managed NodePool is derived from
 	targetName string
 
 	// targetHash is hash of the user-created NodePoolSpec
 	targetHash string
+
+	// karpenterNodePool is the fully-formed Karpenter NodePool from the manifest
+	karpenterNodePool *karpenterv1.NodePool
 }
 
-func NewNodePoolInternal(v *kubeAutoscaling.ClusterAutoscalingValues) NodePoolInternal {
-	return NodePoolInternal{
-		name:                     v.Name,
-		recommendedInstanceTypes: v.RecommendedInstanceTypes,
-		labels:                   convertLabels(v.Labels),
-		taints:                   convertTaints(v.Taints),
-		targetName:               v.TargetName,
-		targetHash:               v.TargetHash,
+func NewNodePoolInternal(v ClusterAutoscalingValues) NodePoolInternal {
+	npi := NodePoolInternal{
+		targetName: v.TargetName,
+		targetHash: v.TargetHash,
 	}
+	if v.Type == TypeKarpenterV1 && v.Manifest.KarpenterV1 != nil {
+		npi.karpenterNodePool = buildKarpenterNodePoolFromManifest(v.Manifest.KarpenterV1)
+	}
+	return npi
 }
 
-func ConvertToKarpenterNodePool(n NodePoolInternal, nodeClassName string) *karpenterv1.NodePool {
-	knp := &karpenterv1.NodePool{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "NodePool",
-			APIVersion: "karpenter.sh/v1",
-		},
+func buildKarpenterNodePoolFromManifest(kv1 *KarpenterV1NodePool) *karpenterv1.NodePool {
+	if kv1.Spec == nil {
+		log.Debugf("KarpenterV1NodePool %q has nil spec, skipping manifest path", kv1.Metadata.Name)
+		return nil
+	}
+	labels := make(map[string]string, len(kv1.Metadata.Labels))
+	for _, kv := range kv1.Metadata.Labels {
+		labels[kv.Key] = kv.Value
+	}
+	annotations := make(map[string]string, len(kv1.Metadata.Annotations))
+	for _, kv := range kv1.Metadata.Annotations {
+		annotations[kv.Key] = kv.Value
+	}
+	// Merge top-level metadata into template metadata. Top-level acts as defaults;
+	// any keys already set in spec.Template.ObjectMeta take precedence.
+	spec := *kv1.Spec
+	mergedTemplateLabels := make(map[string]string, len(labels))
+	for k, v := range labels {
+		mergedTemplateLabels[k] = v
+	}
+	for k, v := range spec.Template.ObjectMeta.Labels {
+		mergedTemplateLabels[k] = v
+	}
+	mergedTemplateAnnotations := make(map[string]string, len(annotations))
+	for k, v := range annotations {
+		mergedTemplateAnnotations[k] = v
+	}
+	for k, v := range spec.Template.ObjectMeta.Annotations {
+		mergedTemplateAnnotations[k] = v
+	}
+	spec.Template.ObjectMeta = karpenterv1.ObjectMeta{
+		Labels:      mergedTemplateLabels,
+		Annotations: mergedTemplateAnnotations,
+	}
+	return &karpenterv1.NodePool{
+		TypeMeta: metav1.TypeMeta{Kind: "NodePool", APIVersion: "karpenter.sh/v1"},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:   n.name,
-			Labels: map[string]string{DatadogCreatedLabelKey: "true"},
+			Name:        kv1.Metadata.Name,
+			Labels:      labels,
+			Annotations: annotations,
 		},
-		Spec: buildNodePoolSpec(n, nodeClassName),
+		Spec: spec,
 	}
-
-	return knp
 }
 
 // Getters
 
 // Name returns the name of the NodePoolInternal
 func (n *NodePoolInternal) Name() string {
-	return n.name
-}
-
-// RecommendedInstanceTypes returns the recommendedInstanceTypes of the NodePoolInternal
-func (n *NodePoolInternal) RecommendedInstanceTypes() []string {
-	return n.recommendedInstanceTypes
-}
-
-// Labels returns the labels of the NodePoolInternal
-func (n *NodePoolInternal) Labels() map[string]string {
-	return n.labels
-}
-
-// Taints returns the taints of the NodePoolInternal
-func (n *NodePoolInternal) Taints() []corev1.Taint {
-	return n.taints
+	if n.karpenterNodePool == nil {
+		return ""
+	}
+	return n.karpenterNodePool.Name
 }
 
 // TargetName returns the targetName of the NodePoolInternal
@@ -113,230 +113,18 @@ func (n *NodePoolInternal) TargetHash() string {
 	return n.targetHash
 }
 
-func convertLabels(input []*kubeAutoscaling.DomainLabels) map[string]string {
-	output := make(map[string]string)
-	for _, elem := range input {
-		output[elem.Key] = elem.Value
-	}
-
-	return output
+// KarpenterNodePool returns the fully-formed NodePool from the manifest, or nil if the manifest was absent or invalid.
+func (n *NodePoolInternal) KarpenterNodePool() *karpenterv1.NodePool {
+	return n.karpenterNodePool
 }
 
-func convertTaints(input []*kubeAutoscaling.Taints) []corev1.Taint {
-	output := []corev1.Taint{}
-	for _, elem := range input {
-		output = append(output, corev1.Taint{
-			Key:    elem.Key,
-			Value:  elem.Value,
-			Effect: corev1.TaintEffect(elem.Effect),
-		})
-	}
-
-	return output
-}
-
-var deprecatedLabels = sets.New("beta.kubernetes.io/arch", "beta.kubernetes.io/os")
-
-// buildNodePoolSpec is used for creating new NodePools
-func buildNodePoolSpec(n NodePoolInternal, nodeClassName string) karpenterv1.NodePoolSpec {
-	wellKnownLabels := karpenterv1.WellKnownLabels
-
-	metadataLabels := map[string]string{}
-
-	// Convert domain labels into requirements
-	reqs := make([]karpenterv1.NodeSelectorRequirementWithMinValues, 0, len(n.labels)+1)
-	for k, v := range n.labels {
-
-		// Don't include long-deprecated labels
-		if deprecatedLabels.Has(k) {
-			continue
-		}
-
-		// If it is a well-known label, use Operator In
-		if wellKnownLabels.Has(k) {
-			reqs = append(reqs, karpenterv1.NodeSelectorRequirementWithMinValues{
-				NodeSelectorRequirement: corev1.NodeSelectorRequirement{
-					Key:      k,
-					Operator: corev1.NodeSelectorOpIn,
-					Values:   []string{v},
-				},
-			})
-			// If it is not a well-known label, use Operator Exists and include the label in the metadata
-		} else {
-			reqs = append(reqs, karpenterv1.NodeSelectorRequirementWithMinValues{
-				NodeSelectorRequirement: corev1.NodeSelectorRequirement{
-					Key:      k,
-					Operator: corev1.NodeSelectorOpExists,
-				},
-			})
-			metadataLabels[k] = v
-		}
-	}
-
-	// Convert instance types into a requirement
-	// sort the instance types first for readability
-	instanceTypes := n.RecommendedInstanceTypes()
-	slices.Sort(instanceTypes)
-	reqs = append(reqs, karpenterv1.NodeSelectorRequirementWithMinValues{
-		NodeSelectorRequirement: corev1.NodeSelectorRequirement{
-			Key:      corev1.LabelInstanceTypeStable,
-			Operator: corev1.NodeSelectorOpIn,
-			Values:   instanceTypes,
-		},
-	})
-
-	// Add autoscaling label
-	metadataLabels[kubernetes.AutoscalingLabelKey] = "true"
-
-	npSpec := karpenterv1.NodePoolSpec{
-		Template: karpenterv1.NodeClaimTemplate{
-			ObjectMeta: karpenterv1.ObjectMeta{
-				Labels: metadataLabels,
-			},
-			Spec: karpenterv1.NodeClaimTemplateSpec{
-				// Include taints
-				Taints:       n.taints,
-				Requirements: reqs,
-				NodeClassRef: &karpenterv1.NodeClassReference{
-					// Only support EC2NodeClass for now
-					Kind:  "EC2NodeClass",
-					Name:  nodeClassName,
-					Group: "karpenter.k8s.aws",
-				},
-			},
-		},
-	}
-
-	return npSpec
-}
-
-// BuildReplicaNodePool updates the target NodePool spec to create a replica NodePool
-// TODO: Add logic for any existing requirements that could be incompatible with recommendations
-func BuildReplicaNodePool(knp *karpenterv1.NodePool, npi NodePoolInternal) {
-
-	// Update NodePool with recommendation
-	instanceTypeLabelFound := false
-	instanceTypes := npi.RecommendedInstanceTypes()
-	slices.Sort(instanceTypes)
-
-	for i := range knp.Spec.Template.Spec.Requirements {
-		r := &knp.Spec.Template.Spec.Requirements[i]
-		if r.Key == corev1.LabelInstanceTypeStable {
-			r.Operator = corev1.NodeSelectorOpIn
-			r.Values = instanceTypes
-
-			instanceTypeLabelFound = true
-			break
-		}
-	}
-	if !instanceTypeLabelFound {
-		knp.Spec.Template.Spec.Requirements = append(knp.Spec.Template.Spec.Requirements,
-			karpenterv1.NodeSelectorRequirementWithMinValues{
-				NodeSelectorRequirement: corev1.NodeSelectorRequirement{
-					Key:      corev1.LabelInstanceTypeStable,
-					Operator: corev1.NodeSelectorOpIn,
-					Values:   instanceTypes,
-				},
-			},
-		)
-	}
-
-	// Update NodePool weight with (target NodePool weight) + 1
+func GetNodePoolWeight(replicaNp *karpenterv1.NodePool) *int32 {
 	weight := int32(1)
-	if knp.Spec.Weight != nil {
-		if *knp.Spec.Weight == 100 {
-			log.Warnf("Target weight is at the max possible value for target NodePool: %s", npi.TargetName())
+	if replicaNp.Spec.Weight != nil {
+		if *replicaNp.Spec.Weight == 100 {
+			log.Warnf("Target weight is at the max possible value for target NodePool: %s", replicaNp.Name)
 		}
-		weight = min(*knp.Spec.Weight+1, 100)
+		weight = min(*replicaNp.Spec.Weight+1, 100)
 	}
-	knp.Spec.Weight = &weight
-
-	knp.TypeMeta = metav1.TypeMeta{
-		Kind:       "NodePool",
-		APIVersion: "karpenter.sh/v1",
-	}
-
-	// Reset the top-level labels and annotations
-	knp.ObjectMeta = metav1.ObjectMeta{
-		Name:        npi.Name(),
-		Labels:      map[string]string{DatadogCreatedLabelKey: "true"},
-		Annotations: map[string]string{datadogReplicaAnnotationKey: npi.TargetName()},
-	}
-
-	// Append to NodeClaimTemplate labels
-	if knp.Spec.Template.ObjectMeta.Labels == nil {
-		knp.Spec.Template.ObjectMeta.Labels = make(map[string]string)
-	}
-	knp.Spec.Template.ObjectMeta.Labels[kubernetes.AutoscalingLabelKey] = "true"
-
-	// Reset the status
-	knp.Status = karpenterv1.NodePoolStatus{}
-}
-
-// BuildNodePoolPatch is used to construct a JSON patch if the NodePool requirements have changed
-// returns a nil patch if the NodePool requirements have not changed
-func BuildNodePoolPatch(np *karpenterv1.NodePool, npi NodePoolInternal) map[string]any {
-	isUpdated := false
-	// Build requirements patch, only updating values for the instance types
-	updatedRequirements := []map[string]any{}
-	instanceTypeLabelExists := false
-	// sort the recommended instance types for readability
-	instanceTypes := npi.RecommendedInstanceTypes()
-	slices.Sort(instanceTypes)
-
-	for _, r := range np.Spec.Template.Spec.Requirements {
-		if r.Key == corev1.LabelInstanceTypeStable {
-			instanceTypeLabelExists = true
-			if r.Operator != corev1.NodeSelectorOpIn {
-				isUpdated = true
-				r.Operator = corev1.NodeSelectorOpIn
-			}
-
-			if !slices.Equal(r.Values, instanceTypes) {
-				isUpdated = true
-				r.Values = instanceTypes
-			}
-		}
-
-		updatedRequirements = append(updatedRequirements, map[string]any{
-			"key":      r.Key,
-			"operator": string(r.Operator),
-			"values":   r.Values,
-		})
-	}
-
-	if !instanceTypeLabelExists {
-		isUpdated = true
-		updatedRequirements = append(updatedRequirements, map[string]any{
-			"key":      corev1.LabelInstanceTypeStable,
-			"operator": "In",
-			"values":   instanceTypes,
-		})
-	}
-
-	if !isUpdated {
-		return nil
-	}
-
-	patchData := map[string]any{
-		"metadata": map[string]any{
-			"labels": map[string]any{
-				datadogModifiedLabelKey: "true",
-			},
-		},
-		"spec": map[string]any{
-			"template": map[string]any{
-				"metadata": map[string]any{
-					"labels": map[string]string{
-						kubernetes.AutoscalingLabelKey: "true",
-					},
-				},
-				"spec": map[string]any{
-					"requirements": updatedRequirements,
-				},
-			},
-		},
-	}
-
-	return patchData
+	return &weight
 }

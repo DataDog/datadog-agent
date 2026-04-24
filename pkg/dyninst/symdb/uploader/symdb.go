@@ -18,6 +18,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -277,10 +278,13 @@ func ConvertPackageToScope(pkg symdb.Package, agentVersion string) Scope {
 	}
 
 	// Add types as struct scopes.
-	for _, typ := range pkg.Types {
-		typeScope := convertTypeToScope(*typ)
-		scope.Scopes = append(scope.Scopes, typeScope)
+	for _, s := range pkg.Types {
+		scope.Scopes = append(scope.Scopes, convertTypeToScope(*s))
 	}
+	// Sort the types for stable output.
+	slices.SortFunc(scope.Scopes, func(a, b Scope) int {
+		return strings.Compare(a.Name, b.Name)
+	})
 
 	return scope
 }

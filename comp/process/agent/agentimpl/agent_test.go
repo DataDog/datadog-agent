@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build !linux
+//go:build !linux && test
 
 package agentimpl
 
@@ -20,12 +20,14 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	statsdimpl "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/impl"
 	"github.com/DataDog/datadog-agent/comp/process/agent"
-	"github.com/DataDog/datadog-agent/comp/process/hostinfo/hostinfoimpl"
-	"github.com/DataDog/datadog-agent/comp/process/processcheck/processcheckimpl"
+	hostinfomock "github.com/DataDog/datadog-agent/comp/process/hostinfo/mock"
+	processcheckimpl "github.com/DataDog/datadog-agent/comp/process/processcheck/impl"
 	"github.com/DataDog/datadog-agent/comp/process/runner/runnerimpl"
-	"github.com/DataDog/datadog-agent/comp/process/submitter/submitterimpl"
+	submittermock "github.com/DataDog/datadog-agent/comp/process/submitter/mock"
+	"github.com/DataDog/datadog-agent/comp/process/types"
+	processchecks "github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -67,10 +69,10 @@ func TestProcessAgentComponent(t *testing.T) {
 
 			opts := []fx.Option{
 				runnerimpl.Module(),
-				hostinfoimpl.MockModule(),
-				submitterimpl.MockModule(),
+				hostinfomock.MockModule(),
+				submittermock.MockModule(),
 				taggerfxmock.MockModule(),
-				statsd.MockModule(),
+				statsdimpl.MockModule(),
 				Module(),
 				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 				fx.Provide(func(t testing.TB) config.Component { return config.NewMock(t) }),
@@ -80,7 +82,9 @@ func TestProcessAgentComponent(t *testing.T) {
 			}
 
 			if tc.checksEnabled {
-				opts = append(opts, processcheckimpl.MockModule())
+				opts = append(opts, fx.Provide(func(t testing.TB) types.ProvidesCheck {
+					return processcheckimpl.NewMock(t, types.MockCheckParams[*processchecks.ProcessCheck]{})
+				}))
 			}
 
 			agentComponent := fxutil.Test[agent.Component](t, fx.Options(opts...))

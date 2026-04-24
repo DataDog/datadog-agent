@@ -527,6 +527,33 @@ func TestEndpointChecksFromTemplateWithResolveMode(t *testing.T) {
 	}
 }
 
+func TestKubeEndpointsFileConfigProviderGetConfigErrors(t *testing.T) {
+	validTpl := integration.Config{
+		Name: "valid-check",
+		CELSelector: workloadfilter.Rules{
+			KubeEndpoints: []string{`kube_endpoint.namespace == "default" && kube_endpoint.name.matches("")`},
+		},
+	}
+	invalidTpl := integration.Config{
+		Name: "invalid-check",
+		CELSelector: workloadfilter.Rules{
+			KubeEndpoints: []string{`this is not valid CEL !!!`},
+		},
+	}
+
+	p := &KubeEndpointsFileConfigProvider{}
+	p.buildConfigStore([]integration.Config{validTpl, invalidTpl})
+
+	errors := p.GetConfigErrors()
+
+	// The valid template should not produce any errors
+	assert.NotContains(t, errors, "valid-check")
+
+	// The invalid template should produce a compile error
+	assert.Contains(t, errors, "invalid-check")
+	assert.Len(t, errors["invalid-check"], 1)
+}
+
 func kubeEndpointIdentifier(ns string, name string, resolve string) integration.KubeEndpointsIdentifier {
 	return integration.KubeEndpointsIdentifier{
 		KubeNamespacedName: integration.KubeNamespacedName{

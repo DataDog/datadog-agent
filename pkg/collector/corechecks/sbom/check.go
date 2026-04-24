@@ -12,7 +12,7 @@ import (
 	"runtime"
 	"time"
 
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -135,12 +135,12 @@ func Factory(store workloadmeta.Component, filterStore workloadfilter.Component,
 }
 
 // Configure parses the check configuration and initializes the sbom check
-func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
+func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string, provider string) error {
 	if !c.cfg.GetBool("sbom.enabled") {
 		return errors.New("collection of SBOM is disabled")
 	}
 
-	if err := c.CommonConfigure(senderManager, initConfig, config, source); err != nil {
+	if err := c.CommonConfigure(senderManager, initConfig, config, source, provider); err != nil {
 		return err
 	}
 

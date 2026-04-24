@@ -151,6 +151,28 @@ func (p *windowsToolhelpProbe) ProcessesByPID(_ time.Time, collectStats bool) (m
 		}
 		ctime := CPU.CreationTime.Nanoseconds() / 1000000
 
+		// check if the PID is for the same process as last time
+		if cp.createTime != 0 {
+			if cp.createTime != ctime {
+				// the PID was reused for a new process
+				cp.close()
+				cp = &cachedProcess{
+					createTime: ctime,
+				}
+				defer cp.close()
+
+				if err := cp.fillFromProcEntry(&pe32); err != nil {
+					log.Debugf("could not fill Win32 process information for pid %v %v", pid, err)
+					continue
+				}
+				p.cachedProcesses[pid] = cp
+				procHandle = cp.procHandle
+			}
+		} else {
+			// this a newly discovered process
+			cp.createTime = ctime
+		}
+
 		var stats *Stats
 		if collectStats {
 			var handleCount uint32
@@ -228,6 +250,7 @@ type cachedProcess struct {
 	comm           string
 	procHandle     windows.Handle
 	parsedArgs     []string
+	createTime     int64
 }
 
 func (cp *cachedProcess) fillFromProcEntry(pe32 *windows.ProcessEntry32) (err error) {

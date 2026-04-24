@@ -166,6 +166,9 @@ func (s *subscriberState) onStreamConfig(
 			ContainerID: containerID,
 		}
 	}
+	if processTags := tracer.GetProcessTags(); len(processTags) > 0 {
+		entry.ProcessTags = processTags
+	}
 
 	if entry.probesByPath == nil {
 		entry.probesByPath = make(map[string]ir.ProbeDefinition)

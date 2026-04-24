@@ -10,7 +10,6 @@ import (
 	"maps"
 	"os"
 
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
@@ -32,7 +31,14 @@ const (
 	// AppServiceOrigin origin tag value
 	AppServiceOrigin = "appservice"
 
-	appServicePrefix = "azure.appservice"
+	appServicePrefix             = "azure.app_services."
+	appServiceShutdownMetricName = "azure.app_services.enhanced.shutdown"
+	appServiceStartMetricName    = "azure.app_services.enhanced.cold_start"
+
+	appServiceLegacyShutdownMetricName = "azure.appservice.enhanced.shutdown"
+	appServiceLegacyStartMetricName    = "azure.appservice.enhanced.cold_start"
+
+	appServiceUsageMetricSuffix = "instance"
 )
 
 // GetTags returns a map of Azure-related tags
@@ -52,6 +58,21 @@ func (a *AppService) GetTags() map[string]string {
 	return tags
 }
 
+func (a *AppService) GetEnhancedMetricTags(tags map[string]string) EnhancedMetricTags {
+	baseTags := map[string]string{
+		"name":            tagValueOrUnknown(tags["app_name"]),
+		"origin":          tagValueOrUnknown(tags["origin"]),
+		"region":          tagValueOrUnknown(tags["region"]),
+		"resource_group":  tagValueOrUnknown(tags["aas.resource.group"]),
+		"subscription_id": tagValueOrUnknown(tags["aas.subscription.id"]),
+	}
+
+	usageTags := maps.Clone(baseTags)
+	usageTags["instance"] = tagValueOrUnknown(tags["aas.environment.instance_name"])
+
+	return EnhancedMetricTags{Base: baseTags, Usage: usageTags}
+}
+
 // GetDefaultLogsSource returns the default logs source if `DD_SOURCE` is not set
 func (a *AppService) GetDefaultLogsSource() string {
 	return AppServiceOrigin
@@ -61,6 +82,14 @@ func (a *AppService) GetDefaultLogsSource() string {
 // cloud service.
 func (a *AppService) GetOrigin() string {
 	return AppServiceOrigin
+}
+
+func (a *AppService) GetMetricPrefix() string {
+	return appServicePrefix
+}
+
+func (a *AppService) GetUsageMetricSuffix() string {
+	return appServiceUsageMetricSuffix
 }
 
 // GetSource returns the metrics source
@@ -74,13 +103,16 @@ func (a *AppService) Init(_ *TracingContext) error {
 }
 
 // Shutdown emits the shutdown metric for AppService
-func (a *AppService) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, _ error) {
-	metric.Add(appServicePrefix+".enhanced.shutdown", 1.0, a.GetSource(), metricAgent)
+func (a *AppService) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, enhancedMetricsEnabled bool, _ error) {
+	if enhancedMetricsEnabled {
+		metricAgent.AddEnhancedMetric(appServiceShutdownMetricName, 1.0, a.GetSource(), 0)
+		metricAgent.AddLegacyEnhancedMetric(appServiceLegacyShutdownMetricName, 1.0, a.GetSource())
+	}
 }
 
-// GetStartMetricName returns the metric name for container start (coldstart) events
-func (a *AppService) GetStartMetricName() string {
-	return appServicePrefix + ".enhanced.cold_start"
+func (a *AppService) AddStartMetric(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
+	metricAgent.AddEnhancedMetric(appServiceStartMetricName, 1.0, a.GetSource(), 0)
+	metricAgent.AddLegacyEnhancedMetric(appServiceLegacyStartMetricName, 1.0, a.GetSource())
 }
 
 // ShouldForceFlushAllOnForceFlushToSerializer is false usually.

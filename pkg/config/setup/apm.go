@@ -20,8 +20,8 @@ import (
 const Traces string = "traces"
 
 func setupAPM(config pkgconfigmodel.Setup) {
-	config.BindEnvAndSetDefault("apm_config.socket_activation.enabled", false, "DD_APM_SOCKET_ACTIVATION_ENABLED")
-	config.BindEnvAndSetDefault("apm_config.socket_activation.handle_tcp_probe", false, "DD_APM_SOCKET_ACTIVATION_HANDLE_TCP_PROBE")
+	config.BindEnvAndSetDefault("apm_config.socket_activation.enabled", true, "DD_APM_SOCKET_ACTIVATION_ENABLED")
+	config.BindEnvAndSetDefault("apm_config.socket_activation.handle_tcp_probe", true, "DD_APM_SOCKET_ACTIVATION_HANDLE_TCP_PROBE")
 	config.BindEnvAndSetDefault("apm_config.obfuscation.elasticsearch.enabled", true, "DD_APM_OBFUSCATION_ELASTICSEARCH_ENABLED")
 	config.BindEnvAndSetDefault("apm_config.obfuscation.elasticsearch.keep_values", []string{}, "DD_APM_OBFUSCATION_ELASTICSEARCH_KEEP_VALUES")
 	config.BindEnvAndSetDefault("apm_config.obfuscation.elasticsearch.obfuscate_sql_values", []string{}, "DD_APM_OBFUSCATION_ELASTICSEARCH_OBFUSCATE_SQL_VALUES")
@@ -175,7 +175,6 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("apm_config.sql_obfuscation_mode", "", "DD_APM_SQL_OBFUSCATION_MODE")
 	config.BindEnvAndSetDefault("apm_config.debug.port", 5012, "DD_APM_DEBUG_PORT")
 	config.BindEnvAndSetDefault("apm_config.debug_v1_payloads", false, "DD_APM_DEBUG_V1_PAYLOADS")
-	config.BindEnvAndSetDefault("apm_config.enable_v1_trace_endpoint", false, "DD_APM_ENABLE_V1_TRACE_ENDPOINT")
 	config.BindEnvAndSetDefault("apm_config.send_all_internal_stats", false, "DD_APM_SEND_ALL_INTERNAL_STATS")
 	config.BindEnvAndSetDefault("apm_config.enable_container_tags_buffer", true, "DD_APM_ENABLE_CONTAINER_TAGS_BUFFER")
 	config.ParseEnvAsStringSlice("apm_config.features", func(s string) []string {
@@ -232,6 +231,7 @@ func setupAPM(config pkgconfigmodel.Setup) {
 		}
 		return out
 	})
+
 	config.BindEnvAndSetDefault("apm_config.mode", "", "DD_APM_MODE")
 }
 

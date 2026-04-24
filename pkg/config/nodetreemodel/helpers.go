@@ -8,12 +8,13 @@ package nodetreemodel
 import (
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 	"time"
 	"unicode"
 
-	"github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/mohae/deepcopy"
 	"github.com/spf13/cast"
 )
 
@@ -120,9 +121,27 @@ func mapToMapString(m reflect.Value) map[string]interface{} {
 	return res
 }
 
+// valid kinds to call IsNil on
+// duplicated from pkg/config/helper in order to avoid import cycle
+var nillableKinds = []reflect.Kind{reflect.Map, reflect.Ptr, reflect.Interface, reflect.Slice}
+
+// isNilValue returns true if a is nil, or a is an interface with nil data
+// duplicated from pkg/config/helper in order to avoid import cycle
+func isNilValue(a interface{}) bool {
+	if a == nil {
+		return true
+	}
+	rv := reflect.ValueOf(a)
+	// check if IsNil may be called in order to avoid a panic
+	if slices.Contains(nillableKinds, rv.Kind()) {
+		return reflect.ValueOf(a).IsNil()
+	}
+	return false
+}
+
 // newNodeTree will recursively create nodes from the input value to construct a tree
 func newNodeTree(v interface{}, source model.Source) (*nodeImpl, error) {
-	if helper.IsNilValue(v) {
+	if isNilValue(v) {
 		// nil as a value acts as the zero value, and the cast library will correctly
 		// convert it to zero values for the types we handle
 		return newLeafNode(nil, source), nil
@@ -178,7 +197,42 @@ func isScalar(v interface{}) bool {
 	}
 }
 
+// copyIfNeeded returns simple immutable types and deep copies complex types
+func copyIfNeeded(v interface{}) interface{} {
+	if v == nil || isScalar(v) {
+		return v
+	}
+	return deepcopy.Copy(v)
+}
+
 func isSlice(v interface{}) bool {
 	rval := reflect.ValueOf(v)
 	return rval.Kind() == reflect.Slice
+}
+
+// convertToDefaultType converts a value to match the type of the given default value using cast
+// If defaultValue is nil or the type is not one of the known types, it is returned
+func convertToDefaultType(value interface{}, defaultValue interface{}) (interface{}, error) {
+	if defaultValue == nil {
+		return value, nil
+	}
+	switch defaultValue.(type) {
+	case bool:
+		return cast.ToBoolE(value)
+	case string:
+		return cast.ToStringE(value)
+	case int32, int16, int8, int:
+		return cast.ToIntE(value)
+	case int64:
+		return cast.ToInt64E(value)
+	case float64, float32:
+		return cast.ToFloat64E(value)
+	case time.Time:
+		return cast.ToTimeE(value)
+	case time.Duration:
+		return cast.ToDurationE(value)
+	case []string:
+		return cast.ToStringSliceE(value)
+	}
+	return value, nil
 }

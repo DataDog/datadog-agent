@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -21,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/tracker"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/utilizationtracker"
@@ -38,7 +38,7 @@ const (
 // for each worker, which is a bit inconvenient to use because the number of
 // workers might be different on every Agent. With telemetry, we can use a
 // single metric and put the worker name in a tag.
-var workerUtilization = telemetry.NewGauge(
+var workerUtilization = telemetryimpl.GetCompatComponent().NewGauge(
 	"collector",
 	"worker_utilization",
 	[]string{"worker_name"},
@@ -138,8 +138,10 @@ func newWorkerWithOptions(
 	}, nil
 }
 
-// Run waits for checks and run them as long as they arrive on the channel
-func (w *Worker) Run() {
+// Run waits for checks and run them as long as they arrive on the channel.
+// The provided ctx is used for cancellable operations such as hostname resolution;
+// it should be cancelled when the agent shuts down.
+func (w *Worker) Run(ctx context.Context) {
 	log.Debugf("Runner %d, worker %d: Ready to process checks...", w.runnerID, w.ID)
 
 	alpha := 0.25 // converges to 99.98% of constant input in 30 iterations.
@@ -206,7 +208,7 @@ func (w *Worker) Run() {
 		serviceCheckTags := []string{"check:" + check.String(), "dd_enable_check_intake:true"}
 		serviceCheckStatus := servicecheck.ServiceCheckOK
 
-		hname, _ := hostname.Get(context.TODO())
+		hname, _ := hostname.Get(ctx)
 
 		if len(checkWarnings) != 0 {
 			expvars.AddWarningsCount(len(checkWarnings))

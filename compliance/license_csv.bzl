@@ -96,7 +96,7 @@ def _handle_attribute_provider(
         print("##-- %s: %s" % (kind, str(metadata_provider)))
     if not kind:
         return
-    if kind == SHIP_SOURCE_ATTR_KIND:
+    if kind == SHIP_SOURCE_ATTR_KIND and DEBUG_LEVEL > 0:  # ~60 lines on cold analysis
         # buildifier: disable=print
         print("TODO: Couple this to creating the offer file.  Implementation TBD.")
 
@@ -225,8 +225,9 @@ def _license_csv_impl(ctx):
     # For the next few months of co-development with supply-chain, print a
     # report of what we have. It's not the final output. It just helps see what
     # we have.
-    # buildifier: disable=print
-    print("Report: \n   %s\n" % "\n   ".join(report))
+    if DEBUG_LEVEL > 0:  # ~1500 lines on cold analysis
+        # buildifier: disable=print
+        print("Report: \n   %s\n" % "\n   ".join(report))
 
     # Now do the work of turning this into something good.
 

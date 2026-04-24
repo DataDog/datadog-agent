@@ -80,6 +80,7 @@ message Entity {
     repeated string orchestratorCardinalityTags = 4;
     repeated string lowCardinalityTags = 5;
     repeated string standardTags = 6;
+    bool isComplete = 7;
 }
 
 message GenerateContainerIDFromOriginInfoRequest {

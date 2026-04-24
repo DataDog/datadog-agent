@@ -15,7 +15,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -251,6 +251,27 @@ func validateConfigs(t *testing.T, expectedCfg string, actualCfg string) {
 		lcfg := ddExpCfg["logs"].(map[string]any)
 		delete(lcfg, "endpoint")
 	}
+
+	// The hostname in the datadog extension is resolved at runtime and varies per cluster node.
+	// Validate it is non-empty, then remove it from both sides so YAMLEq is not hostname-dependent.
+	exts, _ := actualConfRaw["extensions"].(map[string]any)
+	if ddExt, ok := exts["datadog/dd-autoconfigured"]; ok {
+		ddExtMap := ddExt.(map[string]any)
+		actualHostname, _ := ddExtMap["hostname"].(string)
+		assert.NotEmpty(t, actualHostname, "hostname in datadog/dd-autoconfigured extension should be resolved at runtime")
+		delete(ddExtMap, "hostname")
+	}
+
+	// Also remove hostname from the expected config so the structural comparison is not affected
+	var expectedConfRaw map[string]any
+	require.NoError(t, yaml.Unmarshal([]byte(expectedCfg), &expectedConfRaw))
+	expsExpected, _ := expectedConfRaw["extensions"].(map[string]any)
+	if ddExtExpected, ok := expsExpected["datadog/dd-autoconfigured"]; ok {
+		delete(ddExtExpected.(map[string]any), "hostname")
+	}
+	expectedCfgBytes, err := yaml.Marshal(expectedConfRaw)
+	require.NoError(t, err)
+	expectedCfg = string(expectedCfgBytes)
 
 	actualCfgBytes, err := yaml.Marshal(actualConfRaw)
 	require.NoError(t, err)

@@ -21,9 +21,9 @@ import (
 	yy "github.com/ghodss/yaml"
 	"github.com/swaggest/jsonschema-go"
 	"github.com/xeipuuv/gojsonschema"
+	yaml "go.yaml.in/yaml/v2"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
-	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -147,9 +147,9 @@ func createConfigSchema() ([]byte, error) {
 }
 
 // Configure accepts configuration
-func (w *WinCertChk) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+func (w *WinCertChk) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string, provider string) error {
 	w.BuildID(integrationConfigDigest, data, initConfig)
-	err := w.CommonConfigure(senderManager, initConfig, data, source)
+	err := w.CommonConfigure(senderManager, initConfig, data, source, provider)
 	if err != nil {
 		return err
 	}

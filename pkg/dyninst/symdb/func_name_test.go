@@ -40,10 +40,29 @@ func TestParseFuncName(t *testing.T) {
 				Name:    "worker",
 			}},
 		},
-		{"generic function", "os.init.OnceValue[go.shape.interface { Error() string }].func3",
-			parseFuncNameResult{
-				failureReason: parseFuncNameFailureReasonGenericFunction,
-			},
+		{"generic value receiver method", "main.typeWithGenerics[go.shape.int].Guess",
+			parseFuncNameResult{funcName: funcName{
+				Package:       "main",
+				Type:          "typeWithGenerics[...]",
+				Name:          "Guess",
+				QualifiedName: "main.typeWithGenerics[...].Guess",
+			}},
+		},
+		{"generic pointer receiver method", "sync/atomic.(*Pointer[go.shape.struct { gopkg.in/DataDog/dd-trace-go.v1/internal/datastreams.point gopkg.in/DataDog/dd-trace-go.v1/internal/datastreams.statsPoint }]).Swap",
+			parseFuncNameResult{funcName: funcName{
+				Package:       "sync/atomic",
+				Type:          "Pointer[...]",
+				Name:          "Swap",
+				QualifiedName: "sync/atomic.(*Pointer[...]).Swap",
+			}},
+		},
+		{"generic function closure", "os.init.OnceValue[go.shape.interface { Error() string }].func3",
+			parseFuncNameResult{funcName: funcName{
+				Package:       "os",
+				Type:          "",
+				Name:          "init.OnceValue[...].func3",
+				QualifiedName: "os.init.OnceValue[...].func3",
+			}},
 		},
 		{"anonymous function defined inside free-standing function", "github.com/getsentry/sentry-go.NewClient.func1",
 			parseFuncNameResult{funcName: funcName{
@@ -147,9 +166,12 @@ func TestParseFuncName(t *testing.T) {
 				t.Fatal(err)
 			}
 			// The test cases don't fill in the expected QualifiedName field;
-			// fix it up.
+			// fix it up. For generic names, QualifiedName is the canonical
+			// form with [...].
 			if tt.expected.failureReason == parseFuncNameFailureReasonUndefined {
-				tt.expected.funcName.QualifiedName = tt.qualifiedName
+				if tt.expected.funcName.QualifiedName == "" {
+					tt.expected.funcName.QualifiedName = tt.qualifiedName
+				}
 			}
 			require.Equal(t, tt.expected, result)
 		})

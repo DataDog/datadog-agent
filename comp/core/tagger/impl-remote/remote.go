@@ -10,6 +10,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -20,7 +21,6 @@ import (
 	"github.com/cenkalti/backoff/v5"
 	"github.com/google/uuid"
 	"github.com/mdlayher/vsock"
-	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/grpclog"
@@ -38,7 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
-	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
@@ -221,10 +221,17 @@ func start(remoteTagger *remoteTagger) error {
 	creds := credentials.NewTLS(remoteTagger.tlsConfig)
 
 	var onStartErr error
+	// Same max message size as the core agent AgentSecure gRPC server (impl-agent.BuildServer).
+	maxMsgSize := remoteTagger.cfg.GetInt("cluster_agent.cluster_tagger.grpc_max_message_size")
+
 	remoteTagger.conn, onStartErr = grpc.DialContext( //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
 		remoteTagger.ctx,
 		remoteTagger.options.Target,
 		grpc.WithTransportCredentials(creds),
+		grpc.WithDefaultCallOptions(
+			grpc.MaxCallRecvMsgSize(maxMsgSize),
+			grpc.MaxCallSendMsgSize(maxMsgSize),
+		),
 		grpc.WithContextDialer(func(_ context.Context, url string) (net.Conn, error) {
 			if vsockAddr := remoteTagger.cfg.GetString("vsock_addr"); vsockAddr != "" {
 				_, sPort, err := net.SplitHostPort(url)
@@ -232,7 +239,7 @@ func start(remoteTagger *remoteTagger) error {
 					return nil, err
 				}
 
-				port, err := strconv.Atoi(sPort)
+				port, err := strconv.ParseUint(sPort, 10, 16)
 				if err != nil {
 					return nil, fmt.Errorf("invalid port for vsock listener: %v", err)
 				}
@@ -297,6 +304,23 @@ func (t *remoteTagger) Tag(entityID types.EntityID, cardinality types.TagCardina
 	t.telemetryStore.QueriesByCardinality(cardinality).EmptyTags.Inc()
 
 	return []string{}, nil
+}
+
+// TagWithCompleteness returns tags for an entity along with a boolean indicating
+// whether the entity's data is complete.
+func (t *remoteTagger) TagWithCompleteness(entityID types.EntityID, cardinality types.TagCardinality) ([]string, bool, error) {
+	if cardinality == types.ChecksConfigCardinality {
+		cardinality = t.checksCardinality
+	}
+	entity := t.store.getEntity(entityID)
+	if entity != nil {
+		t.telemetryStore.QueriesByCardinality(cardinality).Success.Inc()
+		return entity.GetTags(cardinality), entity.IsComplete, nil
+	}
+
+	t.telemetryStore.QueriesByCardinality(cardinality).EmptyTags.Inc()
+
+	return []string{}, false, nil
 }
 
 // GenerateContainerIDFromOriginInfo returns a container ID for the given Origin Info.
@@ -567,6 +591,7 @@ func (t *remoteTagger) processResponse(response *pb.StreamTagsResponse) error {
 				OrchestratorCardinalityTags: entity.OrchestratorCardinalityTags,
 				LowCardinalityTags:          entity.LowCardinalityTags,
 				StandardTags:                entity.StandardTags,
+				IsComplete:                  entity.GetIsComplete(),
 			},
 		})
 	}

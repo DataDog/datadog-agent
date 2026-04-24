@@ -60,8 +60,8 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
         // Select the old cache entry
         old_entry = get_proc_from_cookie(cookie);
         if (old_entry) {
-            // copy cache data
-            copy_proc_cache(old_entry, &new_entry);
+            new_entry.cgroup = old_entry->cgroup;
+            copy_proc_entry(&old_entry->entry, &new_entry.entry);
         }
     } else {
         new_cookie = 1;

@@ -18,17 +18,17 @@
           {
             "function": "main.testReturnsMultipleFloats",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 247
+            "lineNumber": 264
           },
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 411
+            "lineNumber": 430
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 50
+            "lineNumber": 52
           },
           {
             "function": "runtime.main",
@@ -50,21 +50,27 @@
         "captures": {
           "return": {
             "locals": {
-              "~r0": {
-                "type": "float32",
-                "notCapturedReason": "unavailable"
-              },
-              "~r1": {
-                "type": "float64",
-                "notCapturedReason": "unavailable"
+              "@return": {
+                "fields": {
+                  "r0": {
+                    "type": "float32",
+                    "notCapturedReason": "unavailable"
+                  },
+                  "r1": {
+                    "type": "float64",
+                    "notCapturedReason": "unavailable"
+                  }
+                }
               }
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "testReturnsMultipleFloats"
+    "message": "testReturnsMultipleFloats",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

@@ -91,12 +91,12 @@ type installerImpl struct {
 }
 
 // NewInstaller returns a new Package Manager.
-func NewInstaller(env *env.Env) (Installer, error) {
+func NewInstaller(ctx context.Context, env *env.Env) (Installer, error) {
 	err := ensureRepositoriesExist()
 	if err != nil {
 		return nil, fmt.Errorf("could not ensure packages and config directory exists: %w", err)
 	}
-	db, err := db.New(filepath.Join(paths.PackagesPath, "packages.db"), db.WithTimeout(5*time.Minute))
+	db, err := db.New(ctx, filepath.Join(paths.PackagesPath, "packages.db"), db.WithTimeout(5*time.Minute))
 	if err != nil {
 		return nil, fmt.Errorf("could not create packages db: %w", err)
 	}
@@ -816,7 +816,7 @@ func (i *installerImpl) InstallExtensions(ctx context.Context, url string, exten
 		return fmt.Errorf("package %s is installed at version %s, requested version is %s", pkg.Name, existingPkg.Version, pkg.Version)
 	}
 
-	err = extensions.Install(ctx, i.downloader, url, extensionList, false, i.hooks)
+	err = extensions.Install(ctx, i.downloader, url, extensionList, false, i.hooks, nil)
 	if err != nil {
 		return fmt.Errorf("could not install extensions: %w", err)
 	}
@@ -860,7 +860,7 @@ func (i *installerImpl) RemoveExtensions(ctx context.Context, pkg string, extens
 func (i *installerImpl) SaveExtensions(ctx context.Context, pkg string, path string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
-	return extensions.Save(ctx, pkg, path)
+	return extensions.Save(ctx, pkg, path, false)
 }
 
 // RestoreExtensions restores the extensions from a specific location on disk.
@@ -874,7 +874,7 @@ func (i *installerImpl) RestoreExtensions(ctx context.Context, url string, path 
 			fmt.Errorf("could not download package: %w", err),
 		)
 	}
-	err = extensions.Restore(ctx, i.downloader, pkg.Name, url, path, false, i.hooks)
+	err = extensions.Restore(ctx, i.downloader, pkg.Name, url, path, false, i.hooks, nil)
 	if err != nil {
 		return fmt.Errorf("could not restore extensions: %w", err)
 	}

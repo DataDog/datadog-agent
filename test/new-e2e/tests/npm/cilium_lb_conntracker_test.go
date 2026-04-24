@@ -137,9 +137,7 @@ func (suite *ciliumLBConntrackerTestSuite) TestCiliumConntracker() {
 				return
 			}
 
-			if !assert.NotNil(collect, c.IpTranslation, "ip translation is nil for service connection") {
-				return
-			}
+			require.NotNil(collect, c.IpTranslation, "ip translation is nil for service connection")
 
 			svcConns = append(svcConns, c)
 		}

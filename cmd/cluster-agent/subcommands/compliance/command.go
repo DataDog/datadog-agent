@@ -18,8 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	statsdFx "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/fx"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/compliance/cli"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -57,10 +56,9 @@ func complianceCheckCommand(globalParams *command.GlobalParams) *cobra.Command {
 			return fxutil.OneShot(cli.RunCheck,
 				fx.Supply(checkArgs),
 				fx.Supply(bundleParams),
-				core.Bundle(),
-				secretsfx.Module(),
+				core.Bundle(core.WithSecrets()),
 				logscompressionfx.Module(),
-				statsd.Module(),
+				statsdFx.Module(),
 				ipcfx.ModuleReadOnly(),
 				hostnameimpl.Module(),
 			)

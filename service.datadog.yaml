@@ -91,8 +91,15 @@ extensions:
           branch: "conductor-sandbox"
           parent_environments: ["staging"]
         - name: "stable-nightly-build"
-          branch: "7.75.x"
+          branch: "7.76.x"
           schedule: "30 2 * * *"
+          build_only: true
+          options:
+            disable_bia: true
+            disable_failure_notifications: true
+        - name: "main-nightly-build"
+          branch: "main"
+          schedule: "0 3 * * 6,0"
           build_only: true
           options:
             disable_bia: true
@@ -103,13 +110,13 @@ extensions:
 ---
 schema-version: v2.1
 dd-service: datadog-cluster-agent
-team: container-integrations
+team: container-platform
 contacts:
   - type: slack
-    # #container-integrations
-    contact: https://dd.slack.com/archives/C4TQDFK1P
+    # #container-platform
+    contact: https://dd.slack.com/archives/C0702JHC7G8
   - type: email
-    contact: team-containerintegrations@datadoghq.com
+    contact: team-containerplatform@datadoghq.com
 links:
   - name: datadog-agent
     type: repo
@@ -143,19 +150,19 @@ links:
     provider: confluence
     url: https://datadoghq.atlassian.net/wiki/spaces/agent/pages/2530706500/Agent+Components+in+Kubernetes#Datadog-Cluster-Agent
 tags:
-  - team:container-integrations
+  - team:container-platform
   - service:datadog-cluster-agent
   - app:datadog-cluster-agent
 ---
 schema-version: v2.1
 dd-service: datadog-agent-cluster-worker
-team: container-integrations
+team: container-platform
 contacts:
   - type: slack
-    # #container-integrations
-    contact: https://dd.slack.com/archives/C4TQDFK1P
+    # #container-platform
+    contact: https://dd.slack.com/archives/C0702JHC7G8
   - type: email
-    contact: team-containerintegrations@datadoghq.com
+    contact: team-containerplatform@datadoghq.com
 links:
   - name: datadog-agent
     type: repo
@@ -189,7 +196,7 @@ links:
     type: doc
     url: https://datadoghq.atlassian.net/wiki/spaces/agent/pages/2530706500/Agent+Components+in+Kubernetes#Datadog-Agent-Cluster-Worker
 tags:
-  - team:container-integrations
+  - team:container-platform
   - service:datadog-agent-cluster-worker
   - app:datadog-agent-cluster-worker
 ---

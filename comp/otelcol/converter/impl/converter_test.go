@@ -9,11 +9,14 @@ package converterimpl
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/confmap"
@@ -23,7 +26,26 @@ import (
 	"go.opentelemetry.io/collector/confmap/provider/httpsprovider"
 	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 )
+
+type mockHostname struct {
+	hostname string
+	err      error
+}
+
+func (m *mockHostname) Get(_ context.Context) (string, error) {
+	return m.hostname, m.err
+}
+
+func (m *mockHostname) GetWithProvider(_ context.Context) (hostnameinterface.Data, error) {
+	return hostnameinterface.Data{Hostname: m.hostname, Provider: "mock"}, m.err
+}
+
+func (m *mockHostname) GetSafe(_ context.Context) string {
+	return m.hostname
+}
 
 func uriFromFile(filename string) []string {
 	return []string{filepath.Join("testdata", filename)}
@@ -57,6 +79,7 @@ func TestConvert(t *testing.T) {
 		provided       string
 		expectedResult string
 		agentConfig    string
+		hostnameErr    bool
 	}{
 		{
 			name:           "extensions/ddflare-and-dd/datadog",
@@ -104,10 +127,22 @@ func TestConvert(t *testing.T) {
 			agentConfig:    "extensions/no-extensions/datadog/acfg.yaml",
 		},
 		{
+			name:           "extensions/no-extensions/datadog-gateway",
+			provided:       "extensions/no-extensions/datadog-gateway/config.yaml",
+			expectedResult: "extensions/no-extensions/datadog-gateway/config-result.yaml",
+			agentConfig:    "extensions/no-extensions/datadog-gateway/acfg.yaml",
+		},
+		{
 			name:           "extensions/other-extensions/datadog",
 			provided:       "extensions/other-extensions/datadog/config.yaml",
 			expectedResult: "extensions/other-extensions/datadog/config-result.yaml",
 			agentConfig:    "extensions/other-extensions/datadog/acfg.yaml",
+		},
+		{
+			name:           "extensions/other-extensions/datadog-site",
+			provided:       "extensions/other-extensions/datadog-site/config.yaml",
+			expectedResult: "extensions/other-extensions/datadog-site/config-result.yaml",
+			agentConfig:    "extensions/other-extensions/datadog-site/acfg.yaml",
 		},
 		{
 			name:           "extensions/no-changes/datadog",
@@ -384,6 +419,37 @@ func TestConvert(t *testing.T) {
 			expectedResult: "features/no-defined-features/config-result.yaml",
 			agentConfig:    "features/no-defined-features/acfg.yaml",
 		},
+		{
+			name:           "extensions/no-extensions/dd-no-hostname",
+			provided:       "extensions/no-extensions/dd-no-hostname/config.yaml",
+			expectedResult: "extensions/no-extensions/dd-no-hostname/config-result.yaml",
+			agentConfig:    "extensions/no-extensions/dd-no-hostname/acfg.yaml",
+			hostnameErr:    true,
+		},
+		{
+			name:           "extensions/standalone/dogtel-injected",
+			provided:       "extensions/standalone/dogtel-injected/config.yaml",
+			expectedResult: "extensions/standalone/dogtel-injected/config-result.yaml",
+			agentConfig:    "extensions/standalone/dogtel-injected/acfg.yaml",
+		},
+		{
+			name:           "extensions/standalone/dogtel-no-inject",
+			provided:       "extensions/standalone/dogtel-no-inject/config.yaml",
+			expectedResult: "extensions/standalone/dogtel-no-inject/config-result.yaml",
+			agentConfig:    "extensions/standalone/dogtel-no-inject/acfg.yaml",
+		},
+		{
+			name:           "extensions/standalone/dogtel-present",
+			provided:       "extensions/standalone/dogtel-present/config.yaml",
+			expectedResult: "extensions/standalone/dogtel-present/config-result.yaml",
+			agentConfig:    "extensions/standalone/dogtel-present/acfg.yaml",
+		},
+		{
+			name:           "extensions/standalone/dogtel-wired",
+			provided:       "extensions/standalone/dogtel-wired/config.yaml",
+			expectedResult: "extensions/standalone/dogtel-wired/config-result.yaml",
+			agentConfig:    "extensions/standalone/dogtel-wired/acfg.yaml",
+		},
 	}
 
 	for _, tc := range tests {
@@ -394,6 +460,11 @@ func TestConvert(t *testing.T) {
 				require.NoError(t, err)
 				acfg := config.NewMockFromYAML(t, string(f))
 				r.Conf = acfg
+				if tc.hostnameErr {
+					r.Hostname = &mockHostname{hostname: "", err: errors.New("hostname resolution failed")}
+				} else {
+					r.Hostname = &mockHostname{hostname: "test-host"}
+				}
 			}
 			converter, err := NewConverterForAgent(r)
 			assert.NoError(t, err)
@@ -443,7 +514,7 @@ func TestConvert(t *testing.T) {
 func TestConvert_APIKeyFromEnvVar(t *testing.T) {
 	t.Setenv("DD_API_KEY", "123456")
 	t.Setenv("DD_SITE", "")
-	converter, err := NewConverterForAgent(Requires{config.NewMock(t)})
+	converter, err := NewConverterForAgent(Requires{Conf: config.NewMock(t), Hostname: &mockHostname{hostname: "test-host"}})
 	assert.NoError(t, err)
 
 	resolver, err := newResolver(uriFromFile("dd-core-cfg/apikey/unset-number/config.yaml"))
@@ -459,4 +530,79 @@ func TestConvert_APIKeyFromEnvVar(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, confResult.ToStringMap(), conf.ToStringMap())
+}
+
+func TestHostmetricsWarning(t *testing.T) {
+	tests := []struct {
+		name        string
+		provided    string
+		agentConfig string
+		wantWarning bool
+	}{
+		{
+			name:        "hostmetrics in connected mode emits warning",
+			provided:    "receivers/hostmetrics-warning/connected/config.yaml",
+			agentConfig: "receivers/hostmetrics-warning/connected/acfg.yaml",
+			wantWarning: true,
+		},
+		{
+			name:        "hostmetrics in standalone mode no warning",
+			provided:    "receivers/hostmetrics-warning/standalone/config.yaml",
+			agentConfig: "receivers/hostmetrics-warning/standalone/acfg.yaml",
+			wantWarning: false,
+		},
+		{
+			name:        "no hostmetrics in connected mode no warning",
+			provided:    "receivers/hostmetrics-warning/no-hostmetrics/config.yaml",
+			agentConfig: "receivers/hostmetrics-warning/no-hostmetrics/acfg.yaml",
+			wantWarning: false,
+		},
+		{
+			name:        "named hostmetrics instance in connected mode emits warning",
+			provided:    "receivers/hostmetrics-warning/named-instance/config.yaml",
+			agentConfig: "receivers/hostmetrics-warning/named-instance/acfg.yaml",
+			wantWarning: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			observedCore, logs := observer.New(zapcore.WarnLevel)
+
+			f, err := os.ReadFile(uriFromFile(tc.agentConfig)[0])
+			require.NoError(t, err)
+			acfg := config.NewMockFromYAML(t, string(f))
+
+			conv := &ddConverter{
+				coreConfig: acfg,
+				hostname:   &mockHostname{hostname: "test-host"},
+				logger:     zap.New(observedCore),
+			}
+
+			resolver, err := newResolver(uriFromFile(tc.provided))
+			require.NoError(t, err)
+			conf, err := resolver.Resolve(context.Background())
+			require.NoError(t, err)
+
+			conv.Convert(context.Background(), conf)
+
+			hostmetricsWarnings := filterLogsBySubstring(logs, "hostmetrics")
+			if tc.wantWarning {
+				assert.NotEmpty(t, hostmetricsWarnings, "expected a hostmetrics warning log")
+				assert.Contains(t, hostmetricsWarnings[0].Message, "connected mode")
+			} else {
+				assert.Empty(t, hostmetricsWarnings, "expected no hostmetrics warning log")
+			}
+		})
+	}
+}
+
+func filterLogsBySubstring(logs *observer.ObservedLogs, substr string) []observer.LoggedEntry {
+	var filtered []observer.LoggedEntry
+	for _, entry := range logs.All() {
+		if entry.Level == zapcore.WarnLevel && strings.Contains(entry.Message, substr) {
+			filtered = append(filtered, entry)
+		}
+	}
+	return filtered
 }

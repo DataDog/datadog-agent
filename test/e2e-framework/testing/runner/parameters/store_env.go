@@ -21,6 +21,9 @@ var envVariablesByStoreKey = map[StoreKey]string{
 	KeyPairName:                  "E2E_KEY_PAIR_NAME",
 	AWSPrivateKeyPassword:        "E2E_AWS_PRIVATE_KEY_PASSWORD",
 	AWSPrivateKeyPath:            "E2E_AWS_PRIVATE_KEY_PATH",
+	ImagePullRegistry:            "E2E_IMAGE_PULL_REGISTRY",
+	ImagePullUsername:            "E2E_IMAGE_PULL_USERNAME",
+	ImagePullPassword:            "E2E_IMAGE_PULL_PASSWORD",
 	Profile:                      "E2E_PROFILE",
 	AWSPublicKeyPath:             "E2E_AWS_PUBLIC_KEY_PATH",
 	AzurePrivateKeyPath:          "E2E_AZURE_PRIVATE_KEY_PATH",
@@ -42,6 +45,7 @@ var envVariablesByStoreKey = map[StoreKey]string{
 	PulumiVerboseProgressStreams: "E2E_PULUMI_VERBOSE_PROGRESS_STREAMS",
 	DevMode:                      "E2E_DEV_MODE",
 	DevLocal:                     "E2E_DEV_LOCAL",
+	Provisioner:                  "E2E_PROVISIONER",
 	InitOnly:                     "E2E_INIT_ONLY",
 	TeardownOnly:                 "E2E_TEARDOWN_ONLY",
 	MajorVersion:                 "E2E_MAJOR_VERSION",
@@ -49,6 +53,8 @@ var envVariablesByStoreKey = map[StoreKey]string{
 	FIPS:                         "E2E_FIPS",
 	CoveragePipeline:             "E2E_COVERAGE_PIPELINE",
 	CoverageOutDir:               "E2E_COVERAGE_OUT_DIR",
+	StackNameSuffix:              "E2E_STACK_NAME_SUFFIX",
+	SkipWindows:                  "E2E_SKIP_WINDOWS",
 }
 
 type envValueStore struct {

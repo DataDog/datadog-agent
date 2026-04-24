@@ -1,3 +1,4 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_license//rules:license.bzl", "license")
@@ -162,6 +163,7 @@ pkg_filegroup(
         ":hdr_files",
         ":lib_files",
     ],
+    prefix = "embedded",
     visibility = ["@@//packages:__subpackages__"],
 )
 

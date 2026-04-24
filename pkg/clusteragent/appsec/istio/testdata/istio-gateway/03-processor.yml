@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: appsec-processor
+  namespace: appsec-gw-test
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: appsec-processor
+  template:
+    metadata:
+      labels:
+        app: appsec-processor
+    spec:
+      containers:
+      - name: processor
+        image: ghcr.io/datadog/dd-trace-go/service-extensions-callout:latest
+        ports:
+        - name: grpc
+          containerPort: 443
+        - name: health
+          containerPort: 80
+        env:
+        - name: DD_SERVICE_EXTENSION_TLS
+          value: "false"
+        readinessProbe:
+          httpGet:
+            path: /
+            port: health
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /
+            port: health
+          initialDelaySeconds: 15
+          periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: appsec-processor
+  namespace: appsec-gw-test
+spec:
+  selector:
+    app: appsec-processor
+  ports:
+  - name: grpc
+    port: 443
+    targetPort: 443
+  - name: health
+    port: 80
+    targetPort: 80

@@ -13,15 +13,16 @@ import (
 
 	"k8s.io/utils/clock"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	configRetrieverStoreID    string        = "cr"
-	settingsReconcileInterval time.Duration = 5 * time.Minute
-	valuesReconcileInterval   time.Duration = 5 * time.Minute
+	configRetrieverStoreID    autoscaling.SenderID = "cr"
+	settingsReconcileInterval time.Duration        = 5 * time.Minute
+	valuesReconcileInterval   time.Duration        = 5 * time.Minute
 )
 
 // RcClient is a subinterface of rcclient.Component to allow mocking
@@ -103,7 +104,7 @@ func (cr *ConfigRetriever) processorCallback(processor autoscalingProcessor, upd
 
 	processor.preProcess()
 	for configKey, rawConfig := range update {
-		log.Debugf("Processing config key: %s, product: %s, id: %s, name: %s, version: %d, leader: %v", configKey, rawConfig.Metadata.Product, rawConfig.Metadata.ID, rawConfig.Metadata.Name, rawConfig.Metadata.Version, cr.isLeader())
+		log.Debugf("Processing config key: %s, product: %s, id: %s, name: %s, version: %d, rawSize: %d, size: %d, leader: %v", configKey, rawConfig.Metadata.Product, rawConfig.Metadata.ID, rawConfig.Metadata.Name, rawConfig.Metadata.Version, rawConfig.Metadata.RawLength, len(rawConfig.Config), cr.isLeader())
 
 		err := processor.processItem(timestamp, configKey, rawConfig)
 		if err != nil {

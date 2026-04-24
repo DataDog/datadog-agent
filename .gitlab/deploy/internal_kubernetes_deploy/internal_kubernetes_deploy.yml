@@ -18,6 +18,7 @@ internal_kubernetes_deploy_experimental:
       artifacts: false
     - job: docker_build_agent7_windows
       artifacts: false
+      optional: true
     - job: k8s-e2e-main # Currently only require container Argo workflow
       artifacts: false
       optional: true

@@ -41,20 +41,6 @@ func (s *Status) GetInfo() (version, runtimeVersion string) {
 	return version, runtimeVersion
 }
 
-// StartupError holds startup status and errors
-type StartupError struct {
-	LastError string
-	Timestamp int64
-}
-
-// GetStartupError retrieves latest JMX startup error
-func GetStartupError() StartupError {
-	lastJMXStartupErrorMutex.RLock()
-	defer lastJMXStartupErrorMutex.RUnlock()
-	errorCopy := StartupError{lastJMXStartupError.LastError, lastJMXStartupError.Timestamp}
-	return errorCopy
-}
-
 // PopulateStatus populate stats with JMX information
 func PopulateStatus(stats map[string]interface{}) {
 	stats["JMXStatus"] = getJMXStatus()

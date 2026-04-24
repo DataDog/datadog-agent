@@ -14,6 +14,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	delegatedauthfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
@@ -30,7 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	localTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	telemetryfx "github.com/DataDog/datadog-agent/comp/core/telemetry/fx"
 	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-dogstatsd"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -125,7 +126,8 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 			defaultConfPath,
 			configOptions...,
 		)),
-		telemetryimpl.Module(),
+		delegatedauthfx.Module(),
+		telemetryfx.Module(),
 		fx.Supply(log.ForDaemon(string(loggerName), "log_file", params.DefaultLogFile)),
 		config.Module(),
 		logfx.Module(),

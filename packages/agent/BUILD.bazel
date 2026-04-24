@@ -13,6 +13,7 @@ string_flag(
         "base",
         "fips",
         "heroku",
+        "iot",
     ],
 )
 
@@ -36,6 +37,27 @@ config_setting(
     flag_values = {"@@//packages/agent:flavor": "heroku"},
 )
 
+config_setting(
+    name = "iot_flavor",
+    flag_values = {"@@//packages/agent:flavor": "iot"},
+)
+
+selects.config_setting_group(
+    name = "linux_default",
+    match_all = [
+        ":base_flavor",
+        "@platforms//os:linux",
+    ],
+)
+
+selects.config_setting_group(
+    name = "linux_fips",
+    match_all = [
+        ":fips_flavor",
+        "@platforms//os:linux",
+    ],
+)
+
 selects.config_setting_group(
     name = "linux_heroku",
     match_all = [
@@ -45,9 +67,9 @@ selects.config_setting_group(
 )
 
 selects.config_setting_group(
-    name = "linux_default",
+    name = "linux_iot",
     match_all = [
-        ":base_flavor",
+        ":iot_flavor",
         "@platforms//os:linux",
     ],
 )

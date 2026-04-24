@@ -54,6 +54,9 @@ func getProcessService(config *config.Config, entry *model.ProcessCacheEntry) (s
 		if service := entry.EnvsEntry.Get(ServiceEnvVar); service != "" {
 			serviceValues = append(serviceValues, service)
 		}
+		if service := entry.EnvsEntry.Get(OTELServiceEnvVar); service != "" {
+			serviceValues = append(serviceValues, service)
+		}
 	}
 
 	inContainer := entry.ProcessContext.ContainerContext.ContainerID != ""
@@ -66,6 +69,9 @@ func getProcessService(config *config.Config, entry *model.ProcessCacheEntry) (s
 
 		if ancestor.EnvsEntry != nil {
 			if service := ancestor.EnvsEntry.Get(ServiceEnvVar); service != "" {
+				serviceValues = append(serviceValues, service)
+			}
+			if service := ancestor.EnvsEntry.Get(OTELServiceEnvVar); service != "" {
 				serviceValues = append(serviceValues, service)
 			}
 		}

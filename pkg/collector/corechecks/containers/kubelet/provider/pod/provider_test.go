@@ -21,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -83,6 +84,7 @@ func (suite *ProviderTestSuite) SetupTest() {
 	env.SetFeatures(suite.T(), env.Kubernetes) // Required to enable the "kubelet" collector
 	wmeta := fxutil.Test[workloadmetamock.Mock](suite.T(), fx.Options(
 		core.MockBundle(),
+		hostnameimpl.MockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		workloadfilterfxmock.MockModule(),
 		// GetCatalog() returns all collectors but only the kubelet one will
@@ -237,6 +239,26 @@ func (suite *ProviderTestSuite) TestTransformPodsRequestsLimits() {
 	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"cpu.limits", 0.5, "", append(config.Tags, "pod_name:cassandra-0"))
 	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"memory.limits", 1073741824.0, "", append(config.Tags, "pod_name:cassandra-0"))
 	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"ephemeral-storage.limits", 2147483648.0, "", append(config.Tags, "pod_name:cassandra-0"))
+}
+
+// TestTransformPodsInPlaceResize verifies that request/limit metrics
+// reflect containerStatuses[].resources (in-place vertical scaling) when
+// set, and fall back to the spec for keys status does not report.
+func (suite *ProviderTestSuite) TestTransformPodsInPlaceResize() {
+	config := suite.provider.config
+
+	testDataFile := "../../testdata/pods_in_place_resize.json"
+	err := suite.fillWorkloadmetaStore(testDataFile)
+	require.Nil(suite.T(), err)
+
+	err = suite.provider.Provide(nil, suite.mockSender)
+	require.Nil(suite.T(), err)
+
+	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"cpu.requests", 0.2, "", append(config.Tags, "kube_container_name:resized-container", "kube_namespace:default"))
+	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"memory.requests", 536870912.0, "", append(config.Tags, "kube_container_name:resized-container", "kube_namespace:default"))
+	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"cpu.limits", 0.2, "", append(config.Tags, "kube_container_name:resized-container", "kube_namespace:default"))
+	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"memory.limits", 536870912.0, "", append(config.Tags, "kube_container_name:resized-container", "kube_namespace:default"))
+	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"nvidia.com/gpu.requests", 1.0, "", append(config.Tags, "kube_container_name:resized-container", "kube_namespace:default"))
 }
 
 func (suite *ProviderTestSuite) TestNoMetricNoKubeletData() {

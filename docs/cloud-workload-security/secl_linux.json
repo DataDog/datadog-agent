@@ -108,6 +108,11 @@
           "property_doc_link": "common-process-caps_used-doc"
         },
         {
+          "name": "process.ancestors.cgroup.created_at",
+          "definition": "Timestamp of the creation of the cgroup",
+          "property_doc_link": "common-cgroupcontext-created_at-doc"
+        },
+        {
           "name": "process.ancestors.cgroup.file.inode",
           "definition": "Inode of the file",
           "property_doc_link": "common-pathkey-inode-doc"
@@ -494,7 +499,7 @@
         },
         {
           "name": "process.ancestors.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -525,7 +530,12 @@
         {
           "name": "process.ancestors.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
+        },
+        {
+          "name": "process.ancestors.sid",
+          "definition": "Session ID of the process",
+          "property_doc_link": "common-pidcontext-sid-doc"
         },
         {
           "name": "process.ancestors.tid",
@@ -661,6 +671,11 @@
           "name": "process.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "process.cgroup.created_at",
+          "definition": "Timestamp of the creation of the cgroup",
+          "property_doc_link": "common-cgroupcontext-created_at-doc"
         },
         {
           "name": "process.cgroup.file.inode",
@@ -1049,7 +1064,7 @@
         },
         {
           "name": "process.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -1121,6 +1136,11 @@
           "name": "process.parent.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "process.parent.cgroup.created_at",
+          "definition": "Timestamp of the creation of the cgroup",
+          "property_doc_link": "common-cgroupcontext-created_at-doc"
         },
         {
           "name": "process.parent.cgroup.file.inode",
@@ -1509,7 +1529,7 @@
         },
         {
           "name": "process.parent.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -1535,7 +1555,12 @@
         {
           "name": "process.parent.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
+        },
+        {
+          "name": "process.parent.sid",
+          "definition": "Session ID of the process",
+          "property_doc_link": "common-pidcontext-sid-doc"
         },
         {
           "name": "process.parent.tid",
@@ -1625,7 +1650,12 @@
         {
           "name": "process.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
+        },
+        {
+          "name": "process.sid",
+          "definition": "Session ID of the process",
+          "property_doc_link": "common-pidcontext-sid-doc"
         },
         {
           "name": "process.tid",
@@ -1725,6 +1755,16 @@
           "name": "accept.addr.hostname",
           "definition": "Address hostname (if available)",
           "property_doc_link": "accept-addr-hostname-doc"
+        },
+        {
+          "name": "accept.addr.hostname.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "accept.addr.hostname.root_domain",
+          "definition": "Root domain of the corresponding element",
+          "property_doc_link": "common-string-root_domain-doc"
         },
         {
           "name": "accept.addr.ip",
@@ -2553,6 +2593,16 @@
           "property_doc_link": "connect-addr-hostname-doc"
         },
         {
+          "name": "connect.addr.hostname.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "connect.addr.hostname.root_domain",
+          "definition": "Root domain of the corresponding element",
+          "property_doc_link": "common-string-root_domain-doc"
+        },
+        {
           "name": "connect.addr.ip",
           "definition": "IP address",
           "property_doc_link": "common-ipportcontext-ip-doc"
@@ -2615,6 +2665,11 @@
           "name": "dns.question.name.length",
           "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "dns.question.name.root_domain",
+          "definition": "Root domain of the corresponding element",
+          "property_doc_link": "common-string-root_domain-doc"
         },
         {
           "name": "dns.question.type",
@@ -2754,6 +2809,11 @@
           "name": "exec.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "exec.cgroup.created_at",
+          "definition": "Timestamp of the creation of the cgroup",
+          "property_doc_link": "common-cgroupcontext-created_at-doc"
         },
         {
           "name": "exec.cgroup.file.inode",
@@ -3182,7 +3242,7 @@
         },
         {
           "name": "exec.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -3208,7 +3268,12 @@
         {
           "name": "exec.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
+        },
+        {
+          "name": "exec.sid",
+          "definition": "Session ID of the process",
+          "property_doc_link": "common-pidcontext-sid-doc"
         },
         {
           "name": "exec.syscall.path",
@@ -3363,6 +3428,11 @@
           "name": "exit.cause",
           "definition": "Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED)",
           "property_doc_link": "exit-cause-doc"
+        },
+        {
+          "name": "exit.cgroup.created_at",
+          "definition": "Timestamp of the creation of the cgroup",
+          "property_doc_link": "common-cgroupcontext-created_at-doc"
         },
         {
           "name": "exit.cgroup.file.inode",
@@ -3756,7 +3826,7 @@
         },
         {
           "name": "exit.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -3782,7 +3852,12 @@
         {
           "name": "exit.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
+        },
+        {
+          "name": "exit.sid",
+          "definition": "Session ID of the process",
+          "property_doc_link": "common-pidcontext-sid-doc"
         },
         {
           "name": "exit.tid",
@@ -5368,6 +5443,11 @@
           "property_doc_link": "common-process-caps_used-doc"
         },
         {
+          "name": "ptrace.tracee.ancestors.cgroup.created_at",
+          "definition": "Timestamp of the creation of the cgroup",
+          "property_doc_link": "common-cgroupcontext-created_at-doc"
+        },
+        {
           "name": "ptrace.tracee.ancestors.cgroup.file.inode",
           "definition": "Inode of the file",
           "property_doc_link": "common-pathkey-inode-doc"
@@ -5754,7 +5834,7 @@
         },
         {
           "name": "ptrace.tracee.ancestors.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -5785,7 +5865,12 @@
         {
           "name": "ptrace.tracee.ancestors.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.sid",
+          "definition": "Session ID of the process",
+          "property_doc_link": "common-pidcontext-sid-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.tid",
@@ -5921,6 +6006,11 @@
           "name": "ptrace.tracee.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "ptrace.tracee.cgroup.created_at",
+          "definition": "Timestamp of the creation of the cgroup",
+          "property_doc_link": "common-cgroupcontext-created_at-doc"
         },
         {
           "name": "ptrace.tracee.cgroup.file.inode",
@@ -6309,7 +6399,7 @@
         },
         {
           "name": "ptrace.tracee.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -6381,6 +6471,11 @@
           "name": "ptrace.tracee.parent.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.cgroup.created_at",
+          "definition": "Timestamp of the creation of the cgroup",
+          "property_doc_link": "common-cgroupcontext-created_at-doc"
         },
         {
           "name": "ptrace.tracee.parent.cgroup.file.inode",
@@ -6769,7 +6864,7 @@
         },
         {
           "name": "ptrace.tracee.parent.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -6795,7 +6890,12 @@
         {
           "name": "ptrace.tracee.parent.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.sid",
+          "definition": "Session ID of the process",
+          "property_doc_link": "common-pidcontext-sid-doc"
         },
         {
           "name": "ptrace.tracee.parent.tid",
@@ -6885,7 +6985,12 @@
         {
           "name": "ptrace.tracee.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
+        },
+        {
+          "name": "ptrace.tracee.sid",
+          "definition": "Session ID of the process",
+          "property_doc_link": "common-pidcontext-sid-doc"
         },
         {
           "name": "ptrace.tracee.tid",
@@ -7727,6 +7832,11 @@
           "property_doc_link": "common-process-caps_used-doc"
         },
         {
+          "name": "setrlimit.target.ancestors.cgroup.created_at",
+          "definition": "Timestamp of the creation of the cgroup",
+          "property_doc_link": "common-cgroupcontext-created_at-doc"
+        },
+        {
           "name": "setrlimit.target.ancestors.cgroup.file.inode",
           "definition": "Inode of the file",
           "property_doc_link": "common-pathkey-inode-doc"
@@ -8113,7 +8223,7 @@
         },
         {
           "name": "setrlimit.target.ancestors.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -8144,7 +8254,12 @@
         {
           "name": "setrlimit.target.ancestors.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.sid",
+          "definition": "Session ID of the process",
+          "property_doc_link": "common-pidcontext-sid-doc"
         },
         {
           "name": "setrlimit.target.ancestors.tid",
@@ -8280,6 +8395,11 @@
           "name": "setrlimit.target.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "setrlimit.target.cgroup.created_at",
+          "definition": "Timestamp of the creation of the cgroup",
+          "property_doc_link": "common-cgroupcontext-created_at-doc"
         },
         {
           "name": "setrlimit.target.cgroup.file.inode",
@@ -8668,7 +8788,7 @@
         },
         {
           "name": "setrlimit.target.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -8740,6 +8860,11 @@
           "name": "setrlimit.target.parent.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.cgroup.created_at",
+          "definition": "Timestamp of the creation of the cgroup",
+          "property_doc_link": "common-cgroupcontext-created_at-doc"
         },
         {
           "name": "setrlimit.target.parent.cgroup.file.inode",
@@ -9128,7 +9253,7 @@
         },
         {
           "name": "setrlimit.target.parent.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -9154,7 +9279,12 @@
         {
           "name": "setrlimit.target.parent.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.sid",
+          "definition": "Session ID of the process",
+          "property_doc_link": "common-pidcontext-sid-doc"
         },
         {
           "name": "setrlimit.target.parent.tid",
@@ -9244,7 +9374,12 @@
         {
           "name": "setrlimit.target.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
+        },
+        {
+          "name": "setrlimit.target.sid",
+          "definition": "Session ID of the process",
+          "property_doc_link": "common-pidcontext-sid-doc"
         },
         {
           "name": "setrlimit.target.tid",
@@ -9663,6 +9798,11 @@
           "property_doc_link": "common-process-caps_used-doc"
         },
         {
+          "name": "signal.target.ancestors.cgroup.created_at",
+          "definition": "Timestamp of the creation of the cgroup",
+          "property_doc_link": "common-cgroupcontext-created_at-doc"
+        },
+        {
           "name": "signal.target.ancestors.cgroup.file.inode",
           "definition": "Inode of the file",
           "property_doc_link": "common-pathkey-inode-doc"
@@ -10049,7 +10189,7 @@
         },
         {
           "name": "signal.target.ancestors.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -10080,7 +10220,12 @@
         {
           "name": "signal.target.ancestors.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
+        },
+        {
+          "name": "signal.target.ancestors.sid",
+          "definition": "Session ID of the process",
+          "property_doc_link": "common-pidcontext-sid-doc"
         },
         {
           "name": "signal.target.ancestors.tid",
@@ -10216,6 +10361,11 @@
           "name": "signal.target.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "signal.target.cgroup.created_at",
+          "definition": "Timestamp of the creation of the cgroup",
+          "property_doc_link": "common-cgroupcontext-created_at-doc"
         },
         {
           "name": "signal.target.cgroup.file.inode",
@@ -10604,7 +10754,7 @@
         },
         {
           "name": "signal.target.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -10676,6 +10826,11 @@
           "name": "signal.target.parent.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "signal.target.parent.cgroup.created_at",
+          "definition": "Timestamp of the creation of the cgroup",
+          "property_doc_link": "common-cgroupcontext-created_at-doc"
         },
         {
           "name": "signal.target.parent.cgroup.file.inode",
@@ -11064,7 +11219,7 @@
         },
         {
           "name": "signal.target.parent.is_kworker",
-          "definition": "Indicates whether the process is a kworker",
+          "definition": "Indicates whether the process is a kworker/kthread",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
         },
         {
@@ -11090,7 +11245,12 @@
         {
           "name": "signal.target.parent.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
+        },
+        {
+          "name": "signal.target.parent.sid",
+          "definition": "Session ID of the process",
+          "property_doc_link": "common-pidcontext-sid-doc"
         },
         {
           "name": "signal.target.parent.tid",
@@ -11180,7 +11340,12 @@
         {
           "name": "signal.target.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
+        },
+        {
+          "name": "signal.target.sid",
+          "definition": "Session ID of the process",
+          "property_doc_link": "common-pidcontext-sid-doc"
         },
         {
           "name": "signal.target.tid",
@@ -12204,6 +12369,31 @@
     },
     {
       "name": "*.created_at",
+      "link": "common-cgroupcontext-created_at-doc",
+      "type": "int",
+      "definition": "Timestamp of the creation of the cgroup",
+      "prefixes": [
+        "exec.cgroup",
+        "exit.cgroup",
+        "process.ancestors.cgroup",
+        "process.cgroup",
+        "process.parent.cgroup",
+        "ptrace.tracee.ancestors.cgroup",
+        "ptrace.tracee.cgroup",
+        "ptrace.tracee.parent.cgroup",
+        "setrlimit.target.ancestors.cgroup",
+        "setrlimit.target.cgroup",
+        "setrlimit.target.parent.cgroup",
+        "signal.target.ancestors.cgroup",
+        "signal.target.cgroup",
+        "signal.target.parent.cgroup"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.created_at",
       "link": "common-containercontext-created_at-doc",
       "type": "int",
       "definition": "Timestamp of the creation of the container",
@@ -13192,7 +13382,7 @@
       "name": "*.is_kworker",
       "link": "common-pidcontext-is_kworker-doc",
       "type": "bool",
-      "definition": "Indicates whether the process is a kworker",
+      "definition": "Indicates whether the process is a kworker/kthread",
       "prefixes": [
         "exec",
         "exit",
@@ -13390,6 +13580,7 @@
       "type": "int",
       "definition": "Length of the corresponding element",
       "prefixes": [
+        "accept.addr.hostname",
         "cgroup_write.file.name",
         "cgroup_write.file.path",
         "chdir.file.name",
@@ -13398,6 +13589,7 @@
         "chmod.file.path",
         "chown.file.name",
         "chown.file.path",
+        "connect.addr.hostname",
         "dns.question.name",
         "exec.file.name",
         "exec.file.path",
@@ -14456,7 +14648,7 @@
     },
     {
       "name": "*.ppid",
-      "link": "common-process-ppid-doc",
+      "link": "common-pidcontext-ppid-doc",
       "type": "int",
       "definition": "Parent process ID",
       "prefixes": [
@@ -14575,6 +14767,20 @@
       "examples": []
     },
     {
+      "name": "*.root_domain",
+      "link": "common-string-root_domain-doc",
+      "type": "string",
+      "definition": "Root domain of the corresponding element",
+      "prefixes": [
+        "accept.addr.hostname",
+        "connect.addr.hostname",
+        "dns.question.name"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "*.session_type",
       "link": "common-usersessioncontext-session_type-doc",
       "type": "int",
@@ -14594,6 +14800,31 @@
         "signal.target.ancestors.user_session",
         "signal.target.parent.user_session",
         "signal.target.user_session"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.sid",
+      "link": "common-pidcontext-sid-doc",
+      "type": "int",
+      "definition": "Session ID of the process",
+      "prefixes": [
+        "exec",
+        "exit",
+        "process",
+        "process.ancestors",
+        "process.parent",
+        "ptrace.tracee",
+        "ptrace.tracee.ancestors",
+        "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
+        "signal.target",
+        "signal.target.ancestors",
+        "signal.target.parent"
       ],
       "constants": "",
       "constants_link": "",
@@ -20119,7 +20350,15 @@
           "architecture": "all"
         },
         {
+          "name": "MAP_DROPPABLE",
+          "architecture": "all"
+        },
+        {
           "name": "MAP_EXECUTABLE",
+          "architecture": "all"
+        },
+        {
+          "name": "MAP_FILE",
           "architecture": "all"
         },
         {
@@ -20422,6 +20661,10 @@
           "architecture": "all"
         },
         {
+          "name": "AF_MCTP",
+          "architecture": "all"
+        },
+        {
           "name": "AF_MAX",
           "architecture": "all"
         }
@@ -20583,7 +20826,15 @@
           "architecture": "all"
         },
         {
+          "name": "O_PATH",
+          "architecture": "all"
+        },
+        {
           "name": "O_RSYNC",
+          "architecture": "all"
+        },
+        {
+          "name": "O_TMPFILE",
           "architecture": "all"
         }
       ]
@@ -20749,6 +21000,14 @@
           "architecture": "all"
         },
         {
+          "name": "PR_PAC_GET_ENABLED_KEYS",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_PAC_SET_ENABLED_KEYS",
+          "architecture": "all"
+        },
+        {
           "name": "PR_SET_PDEATHSIG",
           "architecture": "all"
         },
@@ -20777,6 +21036,10 @@
           "architecture": "all"
         },
         {
+          "name": "PR_SCHED_CORE",
+          "architecture": "all"
+        },
+        {
           "name": "PR_GET_SPECULATION_CTRL",
           "architecture": "all"
         },
@@ -20790,6 +21053,14 @@
         },
         {
           "name": "PR_SVE_GET_VL",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SME_SET_VL",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SME_GET_VL",
           "architecture": "all"
         },
         {
@@ -20841,6 +21112,10 @@
           "architecture": "all"
         },
         {
+          "name": "PR_TIMER_CREATE_RESTORE_IDS",
+          "architecture": "all"
+        },
+        {
           "name": "PR_SET_TSC",
           "architecture": "all"
         },
@@ -20866,6 +21141,46 @@
         },
         {
           "name": "PR_GET_MDWE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_MEMORY_MERGE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_MEMORY_MERGE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_SHADOW_STACK_STATUS",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_SHADOW_STACK_STATUS",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_LOCK_SHADOW_STACK_STATUS",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_FUTEX_HASH",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_PPC_GET_DEXCR",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_PPC_SET_DEXCR",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_RISCV_V_GET_CONTROL",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_RISCV_V_SET_CONTROL",
           "architecture": "all"
         },
         {
@@ -20963,6 +21278,14 @@
           "architecture": "all"
         },
         {
+          "name": "PTRACE_GETREGS",
+          "architecture": "all"
+        },
+        {
+          "name": "PTRACE_SETREGS",
+          "architecture": "all"
+        },
+        {
           "name": "PTRACE_SETOPTIONS",
           "architecture": "all"
         },
@@ -21020,6 +21343,22 @@
         },
         {
           "name": "PTRACE_GET_SYSCALL_INFO",
+          "architecture": "all"
+        },
+        {
+          "name": "PTRACE_SET_SYSCALL_INFO",
+          "architecture": "all"
+        },
+        {
+          "name": "PTRACE_GET_RSEQ_CONFIGURATION",
+          "architecture": "all"
+        },
+        {
+          "name": "PTRACE_GET_SYSCALL_USER_DISPATCH_CONFIG",
+          "architecture": "all"
+        },
+        {
+          "name": "PTRACE_SET_SYSCALL_USER_DISPATCH_CONFIG",
           "architecture": "all"
         },
         {

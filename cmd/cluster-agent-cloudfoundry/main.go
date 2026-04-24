@@ -5,7 +5,7 @@
 
 //go:build !windows && clusterchecks
 
-//go:generate go run ../../pkg/config/render_config.go dcacf ../../pkg/config/config_template.yaml ../../cloudfoundry.yaml
+//go:generate go run ../../pkg/config/render_config/render_config.go dcacf ../../pkg/config/config_template.yaml ../../cloudfoundry.yaml
 
 //nolint:revive // TODO(PLINT) Fix revive linter
 package main

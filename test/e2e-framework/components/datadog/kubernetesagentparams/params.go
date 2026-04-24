@@ -8,7 +8,7 @@ package kubernetesagentparams
 import (
 	"fmt"
 
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
@@ -85,6 +85,9 @@ type Params struct {
 	WindowsImage bool
 	// TimeoutSeconds is the timeout for Helm operations in seconds (default: 300)
 	TimeoutSeconds int
+	// HelmChartVersion overrides the default Helm chart version for this installation.
+	// When empty, the framework default HelmVersion is used.
+	HelmChartVersion string
 }
 
 type Option = func(*Params) error
@@ -174,6 +177,15 @@ func WithHostname(hostname string) func(*Params) error {
 func WithHelmRepoURL(repoURL string) func(*Params) error {
 	return func(p *Params) error {
 		p.HelmRepoURL = repoURL
+		return nil
+	}
+}
+
+// WithHelmChartVersion overrides the Helm chart version for this installation.
+// Use this to pin a specific chart version without changing the global framework default.
+func WithHelmChartVersion(version string) func(*Params) error {
+	return func(p *Params) error {
+		p.HelmChartVersion = version
 		return nil
 	}
 }
@@ -309,6 +321,25 @@ datadog:
 	}
 }
 
+// WithStackIDTag sets the stackid tag on the agent using a pulumi.StringInput.
+func WithStackIDTag(stackID pulumi.StringInput) func(*Params) error {
+	return func(p *Params) error {
+		values := pulumi.Sprintf(`
+datadog:
+  tags:
+    - stackid:%s
+  dogstatsd:
+    tags:
+      - stackid:%s
+`, stackID, stackID)
+
+		p.HelmValues = append(p.HelmValues, values.ApplyT(func(s string) (pulumi.Asset, error) {
+			return pulumi.NewStringAsset(s), nil
+		}).(pulumi.AssetOutput))
+		return nil
+	}
+}
+
 // WithGPUMonitoring enables GPU monitoring in the agent.
 func WithGPUMonitoring() func(*Params) error {
 	return func(p *Params) error {
@@ -327,6 +358,17 @@ datadog:
 func WithTimeout(timeoutSeconds int) func(*Params) error {
 	return func(p *Params) error {
 		p.TimeoutSeconds = timeoutSeconds
+		return nil
+	}
+}
+
+func WithKubernetesUseEndpointSlices() func(*Params) error {
+	return func(p *Params) error {
+		values := `
+datadog:
+  kubernetesUseEndpointSlices: true
+`
+		p.HelmValues = append(p.HelmValues, pulumi.NewStringAsset(values))
 		return nil
 	}
 }

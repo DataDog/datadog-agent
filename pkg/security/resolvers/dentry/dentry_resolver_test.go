@@ -17,22 +17,22 @@ import (
 func TestComputeFilenameFromParts(t *testing.T) {
 	type testEntry struct {
 		name     string
-		parts    []string
+		parts    [][]byte
 		expected string
 	}
 
 	entries := []testEntry{
 		{
 			name:     "empty",
-			parts:    []string{},
+			parts:    [][]byte{},
 			expected: "/",
 		},
 		{
 			name: "basic",
-			parts: []string{
-				"a",
-				"b",
-				"c",
+			parts: [][]byte{
+				[]byte("a"),
+				[]byte("b"),
+				[]byte("c"),
 			},
 			expected: "/c/b/a",
 		},

@@ -1,0 +1,10 @@
+# Nginx check configuration using process-based autodiscovery
+# This check will be scheduled when an nginx process is detected
+cel_selector:
+  processes:
+    - process.cmdline.contains('nginx')
+
+init_config:
+
+instances:
+  - nginx_status_url: "http://%%host%%:81/nginx_status"

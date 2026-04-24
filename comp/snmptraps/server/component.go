@@ -8,7 +8,7 @@
 // reformats them, and sends the resulting data to the backend.
 package server
 
-// team: ndm-core
+// team: network-device-monitoring-core
 
 // Component is the SNMP traps server. It listens for SNMP traps messages and
 // sends traps data to the DD backend.

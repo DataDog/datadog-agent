@@ -28,11 +28,12 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 	yamlk8s "sigs.k8s.io/yaml"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/schemas"
 )
 
 func savePolicy(filename string, testPolicy *PolicyDef) error {
@@ -3313,8 +3314,7 @@ func TestPolicySchema(t *testing.T) {
 		},
 	}
 
-	fs := os.DirFS("../../../../pkg/security/secl/schemas")
-	schemaLoader := gojsonschema.NewReferenceLoaderFileSystem("file:///policy.schema.json", http.FS(fs))
+	schemaLoader := gojsonschema.NewReferenceLoaderFileSystem("file:///policy.schema.json", http.FS(schemas.AssetFS))
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

@@ -6,11 +6,14 @@
 package config
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 
 	"go.uber.org/fx"
 
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
+	delegatedauthnooptypes "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl/types"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
@@ -34,8 +37,9 @@ type cfg struct {
 type dependencies struct {
 	fx.In
 
-	Params Params
-	Secret secrets.Component
+	Params        Params
+	Secret        secrets.Component
+	DelegatedAuth delegatedauth.Component
 }
 
 type provides struct {
@@ -56,8 +60,9 @@ func NewServerlessConfig(path string) (Component, error) {
 	}
 
 	d := dependencies{
-		Params: NewParams(path, options...),
-		Secret: &secretnooptypes.SecretNoop{},
+		Params:        NewParams(path, options...),
+		Secret:        &secretnooptypes.SecretNoop{},
+		DelegatedAuth: &delegatedauthnooptypes.DelegatedAuthNoop{},
 	}
 	return newConfig(d)
 }
@@ -74,7 +79,7 @@ func newConfig(deps dependencies) (*cfg, error) {
 	config := pkgconfigsetup.GlobalConfigBuilder()
 	warnings := &pkgconfigmodel.Warnings{}
 
-	err := setupConfig(config, deps.Secret, deps.Params)
+	err := setupConfig(config, deps.Secret, deps.DelegatedAuth, deps.Params)
 	returnErrFct := func(e error) (*cfg, error) {
 		if e != nil && deps.Params.ignoreErrors {
 			warnings.Errors = []error{e}
@@ -101,7 +106,7 @@ func (c *cfg) Warnings() *pkgconfigmodel.Warnings {
 }
 
 // fillFlare add the Configuration files to flares.
-func (c *cfg) fillFlare(fb flaretypes.FlareBuilder) error {
+func (c *cfg) fillFlare(_ context.Context, fb flaretypes.FlareBuilder) error {
 	if mainConfpath := c.ConfigFileUsed(); mainConfpath != "" {
 		confDir := filepath.Dir(mainConfpath)
 

@@ -18,17 +18,17 @@
           {
             "function": "main.testReturnsLargeStruct",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 151
+            "lineNumber": 168
           },
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 401
+            "lineNumber": 420
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 50
+            "lineNumber": 52
           },
           {
             "function": "runtime.main",
@@ -50,7 +50,7 @@
         "captures": {
           "return": {
             "locals": {
-              "~r0": {
+              "@return": {
                 "type": "main.largeStruct",
                 "fields": {
                   "a": {
@@ -98,10 +98,12 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "testReturnsLargeStruct"
+    "message": "testReturnsLargeStruct",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

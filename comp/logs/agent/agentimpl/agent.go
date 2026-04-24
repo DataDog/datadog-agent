@@ -23,10 +23,11 @@ import (
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
+	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
 	"github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
@@ -40,7 +41,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
-	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -86,7 +86,7 @@ type dependencies struct {
 	SchedulerProviders []schedulers.Scheduler `group:"log-agent-scheduler"`
 	Tagger             tagger.Component
 	Compression        logscompression.Component
-	HealthPlatform     option.Option[healthplatform.Component]
+	Secrets            secrets.Component
 }
 
 type provides struct {
@@ -108,6 +108,7 @@ type logAgent struct {
 	inventoryAgent inventoryagent.Component
 	hostname       hostname.Component
 	tagger         tagger.Component
+	secrets        secrets.Component
 
 	sources                   *sources.LogSources
 	services                  *service.Services
@@ -124,7 +125,6 @@ type logAgent struct {
 	schedulerProviders        []schedulers.Scheduler
 	integrationsLogs          integrations.Component
 	compression               logscompression.Component
-	healthPlatform            option.Option[healthplatform.Component]
 
 	// make sure this is done only once, when we're ready
 	prepareSchedulers sync.Once
@@ -165,7 +165,7 @@ func newLogsAgent(deps dependencies) provides {
 			integrationsLogs:   integrationsLogs,
 			tagger:             deps.Tagger,
 			compression:        deps.Compression,
-			healthPlatform:     deps.HealthPlatform,
+			secrets:            deps.Secrets,
 		}
 		deps.Lc.Append(fx.Hook{
 			OnStart: logsAgent.start,

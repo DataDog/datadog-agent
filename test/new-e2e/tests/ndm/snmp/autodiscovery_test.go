@@ -34,6 +34,7 @@ func autoDiscoverySuiteProvisioner(agentConfig string) provisioners.Provisioner 
 }
 
 func TestAutoDiscoverySuite(t *testing.T) {
+	t.Parallel()
 	e2e.Run(t, &autoDiscoverySuite{}, e2e.WithProvisioner(autoDiscoverySuiteProvisioner(``)))
 }
 
@@ -80,6 +81,42 @@ func (v *autoDiscoverySuite) TestAuthenticationsConfig() {
 network_devices:
   autodiscovery:
     loader: core
+    configs:
+      - network_address: 127.0.0.0/30
+        port: 1161
+        authentications:
+          - community_string: 'invalid1'
+          - community_string: 'cisco-nexus'
+          - community_string: 'invalid2'
+`
+	v.UpdateEnv(autoDiscoverySuiteProvisioner(agentConfig))
+
+	err := fakeIntake.Client().FlushServerAndResetAggregators()
+	v.Require().NoError(err)
+
+	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
+		checkBasicMetrics(c, fakeIntake)
+	}, 2*time.Minute, 10*time.Second)
+
+	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
+		ndmPayload := checkLastNDMPayload(c, fakeIntake, "default")
+		require.NotEmpty(c, ndmPayload.Devices)
+		checkCiscoNexusDeviceMetadata(c, ndmPayload.Devices[0])
+	}, 2*time.Minute, 10*time.Second)
+}
+
+func (v *autoDiscoverySuite) TestAuthenticationsConfigWithDeduplication() {
+	vm := v.Env().RemoteHost
+	fakeIntake := v.Env().FakeIntake
+
+	setupDevice(v.Require(), vm)
+
+	// language=yaml
+	agentConfig := `
+network_devices:
+  autodiscovery:
+    loader: core
+    use_deduplication: true
     configs:
       - network_address: 127.0.0.0/30
         port: 1161

@@ -35,7 +35,7 @@ type Provides struct {
 // NewComponent creates a new remoteagent component
 func NewComponent(reqs Requires) (Provides, error) {
 	// Check if the remoteAgentRegistry is enabled
-	if !reqs.Config.GetBool("remote_agent_registry.enabled") {
+	if !reqs.Config.GetBool("remote_agent.registry.enabled") {
 		return Provides{}, nil
 	}
 

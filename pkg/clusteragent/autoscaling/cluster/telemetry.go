@@ -16,5 +16,3 @@ const (
 )
 
 var autoscalingQueueMetricsProvider = workqueuetelemetry.NewQueueMetricsProvider()
-
-// TODO add more telemetry collection

@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -21,6 +22,7 @@ import (
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 // TestParseKubeletPods_ImageFromContainerSpec tests that the image from the container spec is used
@@ -172,4 +174,156 @@ func TestParseKubeletPods_NamespaceMetadataFromCache(t *testing.T) {
 	// Assert that pod's own labels and annotations are still present
 	assert.Equal(t, podLabels, kubePod.Labels)
 	assert.Equal(t, podAnnotations, kubePod.Annotations)
+}
+
+// TestExtractResources_InPlaceResize covers merging pod spec resources with
+// the live values reported by the kubelet for in-place vertical scaling.
+func TestExtractResources_InPlaceResize(t *testing.T) {
+	tests := []struct {
+		name          string
+		spec          *kubelet.ContainerSpec
+		status        *kubelet.ContainerStatus
+		wantCPUReq    *float64
+		wantCPULimit  *float64
+		wantMemReq    *uint64
+		wantMemLimit  *uint64
+		wantRawReqs   map[string]string
+		wantRawLimits map[string]string
+	}{
+		{
+			name: "status.resources overrides spec (resized down)",
+			spec: &kubelet.ContainerSpec{
+				Name: "c",
+				Resources: &kubelet.ContainerResourcesSpec{
+					Requests: kubelet.ResourceList{
+						kubelet.ResourceCPU:              resource.MustParse("500m"),
+						kubelet.ResourceMemory:           resource.MustParse("1Gi"),
+						kubelet.ResourceGenericNvidiaGPU: resource.MustParse("1"),
+					},
+					Limits: kubelet.ResourceList{
+						kubelet.ResourceCPU:    resource.MustParse("500m"),
+						kubelet.ResourceMemory: resource.MustParse("1Gi"),
+					},
+				},
+			},
+			status: &kubelet.ContainerStatus{
+				Name: "c",
+				Resources: &kubelet.ContainerResourcesSpec{
+					Requests: kubelet.ResourceList{
+						kubelet.ResourceCPU:    resource.MustParse("200m"),
+						kubelet.ResourceMemory: resource.MustParse("512Mi"),
+					},
+					Limits: kubelet.ResourceList{
+						kubelet.ResourceCPU:    resource.MustParse("200m"),
+						kubelet.ResourceMemory: resource.MustParse("512Mi"),
+					},
+				},
+			},
+			wantCPUReq:   pointer.Ptr(20.0),
+			wantCPULimit: pointer.Ptr(20.0),
+			wantMemReq:   pointer.Ptr(uint64(512 * 1024 * 1024)),
+			wantMemLimit: pointer.Ptr(uint64(512 * 1024 * 1024)),
+			wantRawReqs: map[string]string{
+				"cpu":            "200m",
+				"memory":         "512Mi",
+				"nvidia.com/gpu": "1",
+			},
+			wantRawLimits: map[string]string{
+				"cpu":    "200m",
+				"memory": "512Mi",
+			},
+		},
+		{
+			name: "legacy cluster (no status resources) falls back to spec",
+			spec: &kubelet.ContainerSpec{
+				Name: "c",
+				Resources: &kubelet.ContainerResourcesSpec{
+					Requests: kubelet.ResourceList{
+						kubelet.ResourceCPU:    resource.MustParse("100m"),
+						kubelet.ResourceMemory: resource.MustParse("256Mi"),
+					},
+					Limits: kubelet.ResourceList{
+						kubelet.ResourceCPU:    resource.MustParse("200m"),
+						kubelet.ResourceMemory: resource.MustParse("512Mi"),
+					},
+				},
+			},
+			status:       &kubelet.ContainerStatus{Name: "c"},
+			wantCPUReq:   pointer.Ptr(10.0),
+			wantCPULimit: pointer.Ptr(20.0),
+			wantMemReq:   pointer.Ptr(uint64(256 * 1024 * 1024)),
+			wantMemLimit: pointer.Ptr(uint64(512 * 1024 * 1024)),
+			wantRawReqs: map[string]string{
+				"cpu":    "100m",
+				"memory": "256Mi",
+			},
+			wantRawLimits: map[string]string{
+				"cpu":    "200m",
+				"memory": "512Mi",
+			},
+		},
+		{
+			name: "status.resources with partial keys falls through to spec for missing keys",
+			spec: &kubelet.ContainerSpec{
+				Name: "c",
+				Resources: &kubelet.ContainerResourcesSpec{
+					Requests: kubelet.ResourceList{
+						kubelet.ResourceCPU:              resource.MustParse("500m"),
+						kubelet.ResourceMemory:           resource.MustParse("1Gi"),
+						kubelet.ResourceEphemeralStorage: resource.MustParse("500Mi"),
+					},
+					Limits: kubelet.ResourceList{
+						kubelet.ResourceCPU:    resource.MustParse("500m"),
+						kubelet.ResourceMemory: resource.MustParse("1Gi"),
+					},
+				},
+			},
+			status: &kubelet.ContainerStatus{
+				Name: "c",
+				Resources: &kubelet.ContainerResourcesSpec{
+					Requests: kubelet.ResourceList{
+						kubelet.ResourceCPU: resource.MustParse("300m"),
+					},
+				},
+			},
+			wantCPUReq:   pointer.Ptr(30.0),
+			wantCPULimit: pointer.Ptr(50.0),
+			wantMemReq:   pointer.Ptr(uint64(1024 * 1024 * 1024)),
+			wantMemLimit: pointer.Ptr(uint64(1024 * 1024 * 1024)),
+			wantRawReqs: map[string]string{
+				"cpu":               "300m",
+				"memory":            "1Gi",
+				"ephemeral-storage": "500Mi",
+			},
+			wantRawLimits: map[string]string{
+				"cpu":    "500m",
+				"memory": "1Gi",
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := extractResources(tc.spec, tc.status)
+
+			if tc.wantCPUReq != nil {
+				require.NotNil(t, got.CPURequest)
+				assert.InDelta(t, *tc.wantCPUReq, *got.CPURequest, 0.001)
+			}
+			if tc.wantCPULimit != nil {
+				require.NotNil(t, got.CPULimit)
+				assert.InDelta(t, *tc.wantCPULimit, *got.CPULimit, 0.001)
+			}
+			if tc.wantMemReq != nil {
+				require.NotNil(t, got.MemoryRequest)
+				assert.Equal(t, *tc.wantMemReq, *got.MemoryRequest)
+			}
+			if tc.wantMemLimit != nil {
+				require.NotNil(t, got.MemoryLimit)
+				assert.Equal(t, *tc.wantMemLimit, *got.MemoryLimit)
+			}
+			assert.Equal(t, tc.wantRawReqs, got.RawRequests)
+			assert.Equal(t, tc.wantRawLimits, got.RawLimits)
+		})
+	}
 }

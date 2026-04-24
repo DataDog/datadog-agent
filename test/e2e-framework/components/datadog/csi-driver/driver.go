@@ -6,7 +6,7 @@
 package csidriver
 
 import (
-	"errors"
+	"strings"
 
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	corev1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/core/v1"
@@ -15,11 +15,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
-)
-
-const (
-	csiRepository       = "669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/datadog/csi-driver"
-	registrarRepository = " 669783387624.dkr.ecr.us-east-1.amazonaws.com/sig-storage/csi-node-driver-registrar"
 )
 
 func NewDatadogCSIDriver(e config.Env, kubeProvider *kubernetes.Provider, csiDriverTag string) error {
@@ -36,6 +31,9 @@ func NewDatadogCSIDriver(e config.Env, kubeProvider *kubernetes.Provider, csiDri
 	}
 	opts = append(opts, utils.PulumiDependsOn(ns))
 
+	csiRepo := "docker.io/datadog/csi-driver"
+	registrarRepo := "registry.k8s.io/sig-storage/csi-node-driver-registrar"
+
 	var imgPullSecret *corev1.Secret
 	if e.ImagePullRegistry() != "" {
 		imgPullSecret, err = utils.NewImagePullSecret(e, CSINamespace, opts...)
@@ -43,28 +41,31 @@ func NewDatadogCSIDriver(e config.Env, kubeProvider *kubernetes.Provider, csiDri
 			return err
 		}
 		opts = append(opts, utils.PulumiDependsOn(imgPullSecret))
+		reg := strings.SplitN(e.ImagePullRegistry(), ",", 2)[0]
+		csiRepo = reg + "/dockerhub/datadog/csi-driver"
+		registrarRepo = reg + "/sig-storage/csi-node-driver-registrar"
 	}
 
-	if imgPullSecret == nil {
-		return errors.New("nil imgPullSecret")
+	imageMap := pulumi.Map{
+		"repository": pulumi.String(csiRepo),
+		"tag":        pulumi.String(csiDriverTag),
+	}
+	if imgPullSecret != nil {
+		imageMap["pullSecrets"] = pulumi.MapArray{
+			pulumi.Map{
+				"name": imgPullSecret.Metadata.Name(),
+			},
+		}
 	}
 
 	params := &Params{
 		HelmValues: HelmValues{
 			"registrar": pulumi.Map{
 				"image": pulumi.Map{
-					"repository": pulumi.String(registrarRepository),
+					"repository": pulumi.String(registrarRepo),
 				},
 			},
-			"image": pulumi.Map{
-				"repository": pulumi.String(csiRepository),
-				"tag":        pulumi.String(csiDriverTag),
-				"pullSecrets": pulumi.MapArray{
-					pulumi.Map{
-						"name": imgPullSecret.Metadata.Name(),
-					},
-				},
-			},
+			"image": imageMap,
 		},
 		Version: "0.3.1",
 	}

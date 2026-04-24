@@ -1,8 +1,6 @@
-load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
-load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
-load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
@@ -25,6 +23,7 @@ copy_file(
         "@@//:linux_arm64": "config-linux-arm64.h",
     }),
     out = "config.h",
+    target_compatible_with = ["@platforms//os:linux"],
 )
 
 cc_library(
@@ -104,8 +103,8 @@ cc_shared_library(
         ":libxmlsec1",
     ],
     dynamic_deps = [
-        "@libxslt//:xslt",
-        "@libxml2//:xml2",
+        "@libxslt//:xslt_pkg",
+        "@libxml2//:xml2_pkg",
     ],
     visibility = ["//visibility:public"],
 )
@@ -170,10 +169,10 @@ cc_shared_library(
         ":libxmlsec1-openssl",
     ],
     dynamic_deps = [
-        "@libxslt//:xslt",
-        "@libxml2//:xml2",
+        "@libxslt//:xslt_pkg",
+        "@libxml2//:xml2_pkg",
         "@openssl//:openssl_shared",
-        ":xmlsec1",
+        ":xmlsec1_pkg",
     ],
     user_link_flags = select({
         "@platforms//os:linux": [
@@ -182,20 +181,6 @@ cc_shared_library(
         "//conditions:default": [],
     }),
     visibility = ["//visibility:public"],
-)
-
-so_symlink(
-    name = "libxmlsec_files",
-    src = ":xmlsec1",
-    libname = "libxmlsec1",
-    version = VERSION,
-)
-
-so_symlink(
-    name = "libxmlsec_openssl_files",
-    src = ":xmlsec1-openssl",
-    libname = "libxmlsec1-openssl",
-    version = VERSION,
 )
 
 pkg_files(
@@ -210,31 +195,20 @@ pkg_files(
     prefix = "include/xmlsec1/xmlsec/openssl",
 )
 
-expand_template(
-    name = "fixup_pc_xmlsec",
-    template = "xmlsec1.pc",
-    out = "fixed/xmlsec1.pc",
-    substitutions = {
-        "prefix=/usr": "prefix=##PREFIX##",
-    },
+dd_cc_packaged(
+    name = "xmlsec1_pkg",
+    input = ":xmlsec1",
+    version = VERSION,
+    installed_files = [":headers_files"],
+    visibility = ["//visibility:public"],
 )
 
-expand_template(
-    name = "fixup_pc_xmlsec_openssl",
-    template = "xmlsec1-openssl.pc",
-    out = "fixed/xmlsec1-openssl.pc",
-    substitutions = {
-        "prefix=/usr": "prefix=##PREFIX##",
-    },
-)
-
-pkg_files(
-    name = "pc_files",
-    srcs = [
-        ":fixup_pc_xmlsec",
-        ":fixup_pc_xmlsec_openssl",
-    ],
-    prefix = "lib/pkgconfig",
+dd_cc_packaged(
+    name = "xmlsec1-openssl_pkg",
+    input = ":xmlsec1-openssl",
+    version = VERSION,
+    installed_files = [":openssl_headers_files"],
+    visibility = ["//visibility:public"],
 )
 
 pkg_filegroup(
@@ -242,9 +216,8 @@ pkg_filegroup(
     srcs = [
         ":headers_files",
         ":openssl_headers_files",
-        ":libxmlsec_files",
-        ":libxmlsec_openssl_files",
     ],
+    prefix = "embedded",
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )
 
@@ -252,6 +225,5 @@ pkg_install(
     name = "install",
     srcs = [
         ":all_files",
-        ":pc_files",
     ],
 )

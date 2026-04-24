@@ -6,6 +6,7 @@
 package httpclient
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -25,13 +26,36 @@ type Provider interface {
 }
 
 type defaultHTTPClientProvider struct {
-	runnerConfig *config.Config
+	runnerConfig        *config.Config
+	enforceURLAllowlist bool
 }
 
-func NewDefaultProvider(runnerConfig *config.Config) Provider {
-	return &defaultHTTPClientProvider{
-		runnerConfig: runnerConfig,
+// ProviderOption configures optional behavior on the default HTTP client provider.
+type ProviderOption func(*defaultHTTPClientProvider)
+
+// WithURLAllowlistDisabled disables URL allowlist enforcement on all clients created by this provider.
+func WithURLAllowlistDisabled() ProviderOption {
+	return func(p *defaultHTTPClientProvider) {
+		p.enforceURLAllowlist = false
 	}
+}
+
+func NewDefaultProvider(runnerConfig *config.Config, opts ...ProviderOption) Provider {
+	p := &defaultHTTPClientProvider{
+		runnerConfig:        runnerConfig,
+		enforceURLAllowlist: true,
+	}
+	for _, opt := range opts {
+		opt(p)
+	}
+	return p
+}
+
+func (d defaultHTTPClientProvider) wrapClient(client HTTPClient) HTTPClient {
+	if d.enforceURLAllowlist {
+		return &urlAllowlistClient{inner: client, config: d.runnerConfig}
+	}
+	return client
 }
 
 func (d defaultHTTPClientProvider) NewDefaultClient() (HTTPClient, error) {
@@ -41,7 +65,7 @@ func (d defaultHTTPClientProvider) NewDefaultClient() (HTTPClient, error) {
 	if err != nil {
 		return nil, util.DefaultActionErrorWithDisplayError(fmt.Errorf("error creating HTTP client: %w", err), "Failed to create HTTP client")
 	}
-	return client, nil
+	return d.wrapClient(client), nil
 }
 
 func (d defaultHTTPClientProvider) NewClient(clientConfig *RunnerHttpClientConfig) (HTTPClient, error) {
@@ -49,5 +73,18 @@ func (d defaultHTTPClientProvider) NewClient(clientConfig *RunnerHttpClientConfi
 	if err != nil {
 		return nil, util.DefaultActionErrorWithDisplayError(fmt.Errorf("error creating HTTP client: %w", err), "Failed to create HTTP client")
 	}
-	return client, nil
+	return d.wrapClient(client), nil
+}
+
+// urlAllowlistClient wraps an HTTPClient to enforce the URL allowlist before making requests.
+type urlAllowlistClient struct {
+	inner  HTTPClient
+	config *config.Config
+}
+
+func (c *urlAllowlistClient) Do(req *http.Request) (*http.Response, error) {
+	if !c.config.IsURLInAllowlist(req.URL.String()) {
+		return nil, util.DefaultActionError(errors.New("request url is not allowed by runner policy: check your configuration file"))
+	}
+	return c.inner.Do(req)
 }

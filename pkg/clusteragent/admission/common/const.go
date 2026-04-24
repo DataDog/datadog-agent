@@ -37,4 +37,13 @@ const (
 	// This label was added in Kubernetes 1.22, and won't work on older k8s versions.
 	// See https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/#automatic-labelling
 	NamespaceLabelKey = "kubernetes.io/metadata.name"
+
+	// ProbeLabelKey is set on dry-run pods created by the admission probe to
+	// test webhook connectivity. The webhook handler short-circuits when it
+	// sees this label, skipping all mutation logic.
+	ProbeLabelKey = "admission.datadoghq.com/probe"
+
+	// ProbeReceivedAnnotationKey is the annotation the webhook handler adds
+	// to probe pods to confirm the request reached the admission controller.
+	ProbeReceivedAnnotationKey = "admission.datadoghq.com/probe-received"
 )

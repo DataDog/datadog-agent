@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "flake",
+    srcs = [
+        "flake.go",
+        "parse.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/testutil/flake",
+    tags = ["test"],
+    visibility = ["//visibility:public"],
+    deps = ["@in_yaml_go_yaml_v3//:yaml"],
+)
+
+go_test(
+    name = "flake_test",
+    srcs = [
+        "flake_test.go",
+        "parse_test.go",
+    ],
+    embed = [":flake"],
+    gotags = ["test"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

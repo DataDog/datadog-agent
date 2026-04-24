@@ -112,7 +112,6 @@ components_classic_style = [
     'comp/api/authtoken/fetchonlyimpl',
     'comp/api/authtoken/createandfetchimpl',
     'comp/checks/agentcrashdetect/agentcrashdetectimpl',
-    'comp/checks/windowseventlog/windowseventlogimpl',
     "comp/checks/winregistry/impl",
     'comp/collector/collector/collectorimpl',
     'comp/core/autodiscovery/autodiscoveryimpl',
@@ -123,8 +122,6 @@ components_classic_style = [
     'comp/core/settings/settingsimpl',
     'comp/core/status/statusimpl',
     'comp/core/sysprobeconfig/sysprobeconfigimpl',
-    'comp/core/telemetry/telemetryimpl',
-    'comp/core/telemetry/noopsimpl',
     'comp/dogstatsd/pidmap/pidmapimpl',
     'comp/dogstatsd/serverDebug/serverdebugimpl',
     'comp/dogstatsd/status/statusimpl',
@@ -132,7 +129,6 @@ components_classic_style = [
     'comp/forwarder/eventplatform/eventplatformimpl',
     'comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl',
     'comp/forwarder/orchestrator/orchestratorimpl',
-    'comp/languagedetection/client/clientimpl',
     'comp/logs/adscheduler/adschedulerimpl',
     'comp/logs/agent/agentimpl',
     'comp/metadata/host/hostimpl',
@@ -188,12 +184,14 @@ components_missing_implementation_folder = [
 ]
 
 ignore_fx_import = [
+    "comp/otelcol/logsagentpipeline",
     "comp/core/workloadmeta",
     "comp/rdnsquerier",
     "comp/trace/agent",
 ]
 
 ignore_provide_component_constructor_missing = [
+    "comp/otelcol/logsagentpipeline",
     "comp/core/workloadmeta",
     "comp/trace/agent",
 ]

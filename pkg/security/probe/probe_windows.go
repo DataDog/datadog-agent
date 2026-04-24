@@ -10,7 +10,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"sync"
 	"time"
@@ -917,6 +919,17 @@ func (p *WindowsProbe) Start() error {
 	p.wg.Add(1)
 	go func() {
 		defer p.wg.Done()
+		defer func() {
+			if r := recover(); r != nil {
+				buf := make([]byte, 1<<20)
+				n := runtime.Stack(buf, true)
+				log.Criticalf("panic in event processing goroutine: %v\n%s", r, buf[:n])
+
+				time.Sleep(20 * time.Second)
+
+				os.Exit(2)
+			}
+		}()
 
 		for {
 			ev := p.zeroEvent()
@@ -1592,6 +1605,9 @@ func (p *Probe) Origin() string {
 func (p *WindowsProbe) EnableEnforcement(state bool) {
 	p.processKiller.SetState(state)
 }
+
+// SendCustomEventKillAction is a no-op on Windows (remediation custom events are Linux-only).
+func (p *WindowsProbe) SendCustomEventKillAction(_ model.ActionReport, _ []string) {}
 
 // NewProbe instantiates a new runtime security agent probe
 func NewProbe(config *config.Config, hostname string, opts Opts) (*Probe, error) {

@@ -19,6 +19,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/inventory"
@@ -27,7 +28,6 @@ import (
 	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -44,13 +44,33 @@ const (
 	KarpenterAPIGroup       = "karpenter.sh"
 	KarpenterAWSAPIGroup    = "karpenter.k8s.aws"
 	KarpenterAzureAPIGroup  = "karpenter.azure.com"
+	EKSAPIGroup             = "eks.amazonaws.com"
+
+	// Gateway API
+	GatewayAPIGroup = "gateway.networking.k8s.io"
+
+	// Service mesh
+	IstioNetworkingAPIGroup = "networking.istio.io"
+	EnvoyGatewayAPIGroup    = "gateway.envoyproxy.io"
+	TraefikLegacyAPIGroup   = "traefik.containo.us"
+	LinkerdPolicyAPIGroup   = "policy.linkerd.io"
+	ConsulAPIGroup          = "consul.hashicorp.com"
+	ConsulMeshAPIGroup      = "mesh.consul.hashicorp.com"
+	KumaAPIGroup            = "kuma.io"
+
+	// Ingress controllers
+	NginxAPIGroup            = "k8s.nginx.org"
+	TraefikAPIGroup          = "traefik.io"
+	KongAPIGroup             = "configuration.konghq.com"
+	HAProxyCoreAPIGroup      = "core.haproxy.org"
+	HAProxyIngressV1APIGroup = "ingress.v1.haproxy.org"
 )
 
 var (
 	skippedResourcesExpVars = expvar.NewMap("orchestrator-skipped-resources")
 	skippedResources        = map[string]*expvar.String{}
 
-	tlmSkippedResources = telemetry.NewCounter("orchestrator", "skipped_resources", []string{"name"}, "Skipped resources in orchestrator check")
+	tlmSkippedResources = telemetryimpl.GetCompatComponent().NewCounter("orchestrator", "skipped_resources", []string{"name"}, "Skipped resources in orchestrator check")
 )
 
 // CollectorBundle is a container for a group of collectors. It provides a way
@@ -495,6 +515,9 @@ func newBuiltinCRDConfig(group, kind string, enabled bool, preferredVersion stri
 // newBuiltinCRDConfigs returns the configuration for all built-in CRDs.
 func newBuiltinCRDConfigs() []builtinCRDConfig {
 	isOOTBCRDEnabled := pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.custom_resources.ootb.enabled")
+	isGatewayAPIEnabled := isOOTBCRDEnabled && pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.custom_resources.ootb.gateway_api")
+	isServiceMeshEnabled := isOOTBCRDEnabled && pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.custom_resources.ootb.service_mesh")
+	isIngressControllersEnabled := isOOTBCRDEnabled && pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.custom_resources.ootb.ingress_controllers")
 
 	return []builtinCRDConfig{
 		// Datadog resources
@@ -504,6 +527,7 @@ func newBuiltinCRDConfigs() []builtinCRDConfig {
 		newBuiltinCRDConfig(datadogAPIGroup, "datadogmonitors", isOOTBCRDEnabled, "v1alpha1"),
 		newBuiltinCRDConfig(datadogAPIGroup, "datadogmetrics", isOOTBCRDEnabled, "v1alpha1"),
 		newBuiltinCRDConfig(datadogAPIGroup, "datadogpodautoscalers", isOOTBCRDEnabled, "v1alpha2"),
+		newBuiltinCRDConfig(datadogAPIGroup, "datadogpodautoscalerclusterprofiles", isOOTBCRDEnabled, "v1alpha2"),
 		newBuiltinCRDConfig(datadogAPIGroup, "datadogagents", isOOTBCRDEnabled, "v2alpha1"),
 
 		// Argo resources
@@ -525,6 +549,43 @@ func newBuiltinCRDConfigs() []builtinCRDConfig {
 		newBuiltinCRDConfig(KarpenterAPIGroup, "", isOOTBCRDEnabled, "v1"),
 		newBuiltinCRDConfig(KarpenterAWSAPIGroup, "", isOOTBCRDEnabled, "v1"),
 		newBuiltinCRDConfig(KarpenterAzureAPIGroup, "", isOOTBCRDEnabled, "v1beta1"),
+
+		// EKS Auto Mode resources (for now only nodeclasses, but we can easily add more in the future if needed)
+		newBuiltinCRDConfig(EKSAPIGroup, "nodeclasses", isOOTBCRDEnabled, "v1", "v1beta1"),
+
+		// Gateway API resources
+		newBuiltinCRDConfig(GatewayAPIGroup, "gateways", isGatewayAPIEnabled, "v1", "v1beta1"),
+		newBuiltinCRDConfig(GatewayAPIGroup, "httproutes", isGatewayAPIEnabled, "v1", "v1beta1"),
+		newBuiltinCRDConfig(GatewayAPIGroup, "grpcroutes", isGatewayAPIEnabled, "v1", "v1alpha2"),
+		newBuiltinCRDConfig(GatewayAPIGroup, "tlsroutes", isGatewayAPIEnabled, "v1alpha2"),
+		newBuiltinCRDConfig(GatewayAPIGroup, "listenersets", isGatewayAPIEnabled, "v1alpha1"),
+
+		// Service mesh — Istio (resource-specific to avoid over-collection)
+		newBuiltinCRDConfig(IstioNetworkingAPIGroup, "virtualservices", isServiceMeshEnabled, "v1", "v1beta1", "v1alpha3"),
+		newBuiltinCRDConfig(IstioNetworkingAPIGroup, "gateways", isServiceMeshEnabled, "v1", "v1beta1", "v1alpha3"),
+		newBuiltinCRDConfig(IstioNetworkingAPIGroup, "destinationrules", isServiceMeshEnabled, "v1", "v1beta1", "v1alpha3"),
+		newBuiltinCRDConfig(IstioNetworkingAPIGroup, "serviceentries", isServiceMeshEnabled, "v1", "v1beta1", "v1alpha3"),
+		newBuiltinCRDConfig(IstioNetworkingAPIGroup, "sidecars", isServiceMeshEnabled, "v1", "v1beta1", "v1alpha3"),
+
+		// Service mesh — other vendors (group-level, empty kind = all resources in group)
+		newBuiltinCRDConfig(EnvoyGatewayAPIGroup, "", isServiceMeshEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(TraefikLegacyAPIGroup, "", isServiceMeshEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(LinkerdPolicyAPIGroup, "", isServiceMeshEnabled, "v1beta3", "v1beta2", "v1beta1"),
+		newBuiltinCRDConfig(ConsulAPIGroup, "", isServiceMeshEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(ConsulMeshAPIGroup, "", isServiceMeshEnabled, "v2beta1"),
+		newBuiltinCRDConfig(KumaAPIGroup, "", isServiceMeshEnabled, "v1alpha1"),
+
+		// Ingress controllers — NGINX (resource-specific)
+		newBuiltinCRDConfig(NginxAPIGroup, "virtualservers", isIngressControllersEnabled, "v1"),
+		newBuiltinCRDConfig(NginxAPIGroup, "virtualserverroutes", isIngressControllersEnabled, "v1"),
+
+		// Ingress controllers — Traefik (resource-specific)
+		newBuiltinCRDConfig(TraefikAPIGroup, "ingressroutes", isIngressControllersEnabled, "v1alpha1"),
+
+		// Ingress controllers — other vendors (group-level, empty kind = all resources in group)
+		newBuiltinCRDConfig(KongAPIGroup, "", isIngressControllersEnabled, "v1", "v1beta1"),
+		newBuiltinCRDConfig(HAProxyCoreAPIGroup, "", isIngressControllersEnabled, "v1alpha2"),
+		newBuiltinCRDConfig(HAProxyIngressV1APIGroup, "", isIngressControllersEnabled, "v1"),
 	}
 }
 

@@ -50,6 +50,8 @@ var (
 	AgentConfigDirExp string
 	// RootTmpDir is the temporary path where the bootstrapper will be extracted to.
 	RootTmpDir string
+	// ProtectedDir is the path to the protected directory for persistent data across upgrades.
+	ProtectedDir string
 	// DefaultUserConfigsDir is the default Agent configuration directory
 	DefaultUserConfigsDir string
 	// StableInstallerPath is the path to the stable installer binary.
@@ -104,6 +106,7 @@ func init() {
 	PackagesPath = filepath.Join(DatadogInstallerData, "packages")
 	ConfigsPath = filepath.Join(DatadogInstallerData, "managed")
 	RootTmpDir = filepath.Join(DatadogInstallerData, "tmp")
+	ProtectedDir = filepath.Join(DatadogDataDir, "protected")
 	RunPath = filepath.Join(PackagesPath, "run")
 
 	// Install directory
@@ -191,6 +194,12 @@ func SetupInstallerDataDir() error {
 		err = resetPermissionsForTree(RootTmpDir)
 		if err != nil {
 			return fmt.Errorf("failed to reset permissions for RootTmpDir: %w", err)
+		}
+
+		// Create protected directory under DatadogDataDir for persistent data across upgrades.
+		// It inherits permissions from DatadogDataDir (managed by MSI).
+		if err := createDirIfNotExists(ProtectedDir); err != nil {
+			return fmt.Errorf("failed to create ProtectedDir: %w", err)
 		}
 
 		// Create subdirectories that have different permissions (global read)
@@ -553,7 +562,7 @@ func getProgramDataDirForProduct(product string) (path string, err error) {
 	defer k.Close()
 	val, _, err := k.GetStringValue("ConfigRoot")
 	if err != nil {
-		log.Warnf("Windows installation key config not found, using default program data dir")
+		log.Debugf("Windows installation key config not found, using default program data dir")
 		return filepath.Join(res, "Datadog"), nil
 	}
 	path = val
@@ -580,7 +589,7 @@ func getProgramFilesDirForProduct(product string) (path string, err error) {
 	defer k.Close()
 	val, _, err := k.GetStringValue("InstallPath")
 	if err != nil {
-		log.Warnf("Windows installation key config not found, using default program data dir")
+		log.Debugf("Windows installation key config not found, using default program data dir")
 		return filepath.Join(res, "Datadog", product), nil
 	}
 	path = val

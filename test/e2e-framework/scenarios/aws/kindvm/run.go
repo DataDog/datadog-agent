@@ -8,6 +8,7 @@ package kindvm
 import (
 	_ "embed"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent/helm"
@@ -26,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/operator"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/operatorparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
 	kubeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/argorollouts"
@@ -36,12 +38,20 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/outputs"
 
+	"github.com/Masterminds/semver/v3"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
 //go:embed agent_helm_values.yaml
 var agentHelmValues string
+
+// StandaloneAgentDeployFunc is a callback invoked by RunWithEnv to deploy a
+// standalone agent (e.g. otel-agent in DD_OTEL_STANDALONE mode) after the
+// cluster and fakeintake have been provisioned. Using a callback keeps the
+// otelstandalone package out of the kindvm import graph, avoiding OOM-kills
+// in the e2e-framework unit-test CI job when compiling large cloud SDKs.
+type StandaloneAgentDeployFunc func(e config.Env, kubeProvider *kubernetes.Provider, fakeIntake *fakeintakeComp.Fakeintake) (*agent.KubernetesAgent, error)
 
 // Run is the entry point for the scenario when run via pulumi.
 // It uses outputs.Kubernetes which is lightweight and doesn't pull in test dependencies.
@@ -93,7 +103,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 		return err
 	}
 
-	installEcrCredsHelperCmd, err := ec2.InstallECRCredentialsHelper(awsEnv, host)
+	installEcrCredsHelperCmd, err := docker.InstallECRCredentialsHelper(awsEnv.Namer, host)
 	if err != nil {
 		return err
 	}
@@ -112,6 +122,11 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 	err = kindCluster.Export(ctx, env.KubernetesClusterOutput())
 	if err != nil {
 		return err
+	}
+
+	// If InitOnly is set, return after creating the cluster.
+	if awsEnv.InitOnly() {
+		return nil
 	}
 
 	kubeProvider, err := kubernetes.NewProvider(ctx, awsEnv.Namer.ResourceName("k8s-provider"), &kubernetes.ProviderArgs{
@@ -143,7 +158,14 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 
 	var dependsOnArgoRollout pulumi.ResourceOption
 	if params.deployArgoRollout {
-		argoParams, err := argorollouts.NewParams()
+		var argoOpts []argorollouts.Option
+		// argo-rollouts chart >= 2.40.8 uses x-kubernetes-validations in CRDs,
+		// which requires K8s >= 1.25. Pin to last compatible version for older clusters.
+		kubeVer, err := semver.NewVersion(utils.ParseKubernetesVersion(awsEnv.KubernetesVersion()))
+		if err == nil && kubeVer.LessThan(semver.MustParse("1.25.0")) {
+			argoOpts = append(argoOpts, argorollouts.WithVersion("2.40.7"))
+		}
+		argoParams, err := argorollouts.NewParams(argoOpts...)
 		if err != nil {
 			return err
 		}
@@ -156,7 +178,11 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 
 	var dependsOnDDAgent pulumi.ResourceOption
 	if len(params.agentOptions) > 0 && !params.deployOperator {
-		newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithHelmValues(agentHelmValues), kubernetesagentparams.WithClusterName(kindCluster.ClusterName), kubernetesagentparams.WithTags([]string{"stackid:" + ctx.Stack()})}
+		newOpts := []kubernetesagentparams.Option{
+			kubernetesagentparams.WithHelmValues(agentHelmValues),
+			kubernetesagentparams.WithClusterName(kindCluster.ClusterName),
+			kubernetesagentparams.WithTags([]string{"stackid:" + ctx.Stack()}),
+		}
 		params.agentOptions = append(newOpts, params.agentOptions...)
 		agent, err := helm.NewKubernetesAgent(&awsEnv, "kind", kubeProvider, params.agentOptions...)
 		if err != nil {
@@ -189,6 +215,16 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 
 	if params.deployDogstatsd {
 		if _, err := dogstatsdstandalone.K8sAppDefinition(&awsEnv, kubeProvider, "dogstatsd-standalone", "/run/containerd/containerd.sock", fakeIntake, false, ctx.Stack()); err != nil {
+			return err
+		}
+	}
+
+	if params.standaloneAgentFunc != nil {
+		standaloneAgent, err := params.standaloneAgentFunc(&awsEnv, kubeProvider, fakeIntake)
+		if err != nil {
+			return err
+		}
+		if err := standaloneAgent.Export(ctx, env.KubernetesAgentOutput()); err != nil {
 			return err
 		}
 	}
@@ -277,7 +313,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 
 	}
 
-	if len(params.agentOptions) == 0 && len(params.operatorDDAOptions) == 0 {
+	if len(params.agentOptions) == 0 && len(params.operatorDDAOptions) == 0 && params.standaloneAgentFunc == nil {
 		env.DisableAgent()
 	}
 

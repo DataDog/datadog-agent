@@ -26,12 +26,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
+	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
-	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	auditorfx "github.com/DataDog/datadog-agent/comp/logs/auditor/fx"
@@ -55,7 +55,6 @@ import (
 	logsStatus "github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
@@ -162,6 +161,7 @@ func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*logAgent,
 		tagger:          fakeTagger,
 		flarecontroller: flareController.NewFlareController(),
 		compression:     compressionfx.NewMockCompressor(),
+		secrets:         secretsnoopimpl.NewComponent().Comp,
 	}
 
 	agent.setupAgent()
@@ -508,14 +508,12 @@ func (suite *AgentTestSuite) createDeps() dependencies {
 		inventoryagentimpl.MockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		compressionfx.MockModule(),
+		secretsnoopfx.Module(),
 		fx.Provide(func() tagger.Component {
 			return suite.tagger
 		}),
 		auditorfx.Module(),
 		fx.Provide(kubehealthmock.NewProvides),
-		fx.Provide(func() option.Option[healthplatform.Component] {
-			return option.New[healthplatform.Component](healthplatformmock.Mock(suite.T()))
-		}),
 	))
 }
 

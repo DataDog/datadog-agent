@@ -46,6 +46,17 @@ func EksFargateAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, na
 		return nil, err
 	}
 
+	var imagePullSecrets corev1.LocalObjectReferenceArray
+	if e.ImagePullRegistry() != "" {
+		imgPullSecret, err := utils.NewImagePullSecret(e, namespace, opts...)
+		if err != nil {
+			return nil, err
+		}
+		imagePullSecrets = append(imagePullSecrets, corev1.LocalObjectReferenceArgs{
+			Name: imgPullSecret.Metadata.Name(),
+		})
+	}
+
 	nginxManifest, err := k8s.NewNginxDeploymentManifest(
 		namespace,
 		80,
@@ -55,7 +66,8 @@ func EksFargateAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, na
 		k8s.WithAnnotations(map[string]string{
 			"ad.datadoghq.com/nginx.logs": `[{"source": "sidecar", "service": "nginx-fargate"}]`,
 		}),
-		k8s.WithServiceAccount(serviceAccount))
+		k8s.WithServiceAccount(serviceAccount),
+		k8s.WithImagePullSecrets(imagePullSecrets))
 
 	if err != nil {
 		return nil, err
@@ -77,6 +89,7 @@ func EksFargateAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, na
 		k8s.WithAnnotations(map[string]string{
 			"ad.datadoghq.com/query.logs": `[{"source": "sidecar", "service": "nginx-query-fargate"}]`,
 		}),
+		k8s.WithImagePullSecrets(imagePullSecrets),
 	)
 	if err != nil {
 		return nil, err
