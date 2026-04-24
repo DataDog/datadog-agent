@@ -52,6 +52,8 @@
 
 #include "three.h"
 
+#include "log.h"
+
 #include <sstream>
 
 /*
@@ -91,7 +93,7 @@ PyThreadState *Three::_createSubInterpreter()
     PyStatus status = Py_NewInterpreterFromConfig(&tstate_new, &config);
 
     if (PyStatus_Exception(status) || tstate_new == NULL) {
-        setError("failed to create sub-interpreter" + (status.err_msg ? ": " + std::string(status.err_msg) : ""));
+        setError("[SUB-INTERPRETERS][EXPERIMENTAL] failed to create sub-interpreter" + (status.err_msg ? ": " + std::string(status.err_msg) : ""));
 
         /*
          * Python doc: "If creation of the new interpreter is unsuccessful, tstate_p is set to NULL; no exception is set since the exception state is stored in the attached thread state, which might not exist."
@@ -108,14 +110,14 @@ PyThreadState *Three::_createSubInterpreter()
 
     // Step 4: Copy _pythonPaths (agent's Python package search paths, e.g., dist/, checks.d/ - see cmd/agent/common/common.go) into the sub-interpreter's sys.path.
     if (_pythonPaths.empty()) {
-        setError("sub-interpreter: _pythonPaths is empty — no Python sys.path search paths were added "
+        setError("[SUB-INTERPRETERS][EXPERIMENTAL] _pythonPaths is empty — no Python sys.path search paths were added "
                  "(e.g., dist/, checks.d/, additional_checksd). Imports will likely fail.");
     } else {
         // https://docs.python.org/3/c-api/sys.html#c.PySys_GetObject
         PyObject *path = PySys_GetObject("path");  // borrowed reference so no need to Py_DECREF after
 
         if (path == NULL) {
-            setError("sub-interpreter: could not access sys.path: " + _fetchPythonError());
+            setError("[SUB-INTERPRETERS][EXPERIMENTAL] could not access sys.path: " + _fetchPythonError());
             _destroySubInterpreter(tstate_new, main_tstate);
             return NULL;
         }
@@ -127,7 +129,7 @@ PyThreadState *Three::_createSubInterpreter()
             // Fresh string needed - objects can't be shared across interpreters (use_main_obmalloc = 0).
             PyObject *p = PyUnicode_FromString(_pythonPaths[i].c_str());
             if (p == NULL) { // OOM
-                setError("sub-interpreter: could not create path string: " + _fetchPythonError());
+                setError("[SUB-INTERPRETERS][EXPERIMENTAL] could not create path string: " + _fetchPythonError());
                 _destroySubInterpreter(tstate_new, main_tstate);
                 return NULL;
             }
@@ -136,7 +138,7 @@ PyThreadState *Three::_createSubInterpreter()
             // https://docs.python.org/3/c-api/list.html#c.PyList_Insert --> C API that steals references are explicitly called out (e.g., PyList_SET_ITEM), not the case for PyList_Insert.
             Py_DECREF(p);
             if (rc == -1) {
-                setError("sub-interpreter: could not insert into sys.path: "
+                setError("[SUB-INTERPRETERS][EXPERIMENTAL] could not insert into sys.path: "
                          + _fetchPythonError());
                 _destroySubInterpreter(tstate_new, main_tstate);
                 return NULL;
@@ -175,6 +177,12 @@ void Three::_destroySubInterpreter(PyThreadState *tstate, PyThreadState *restore
 {
     if (tstate == NULL) {
         return;
+    }
+
+    {
+        std::ostringstream msg;
+        msg << "[SUB-INTERPRETERS][EXPERIMENTAL] destroying sub-interpreter (tstate=" << tstate << ")";
+        agent_log(DATADOG_AGENT_INFO, const_cast<char *>(msg.str().c_str()));
     }
 
     Py_EndInterpreter(tstate);
@@ -251,6 +259,9 @@ PyThreadState *Three::_assignInterpreter(const char *module_name)
         std::string mod(module_name);
         for (const auto &blocked : _subinterpBlocklist) {
             if (mod.find(blocked) != std::string::npos) {
+                std::string msg = "[SUB-INTERPRETERS][EXPERIMENTAL] check '" + mod
+                                + "' is blocklisted - running in main interpreter";
+                agent_log(DATADOG_AGENT_INFO, const_cast<char *>(msg.c_str()));
                 return NULL;  // NULL signals getCheck to use the main interpreter.
             }
         }
@@ -303,6 +314,12 @@ PyThreadState *Three::_removeCheckInterp(PyObject *check)
     if (it != _checkToInterp.end()) {
         PyThreadState *tstate = it->second;
         _checkToInterp.erase(it);
+        {
+            std::ostringstream msg;
+            msg << "[SUB-INTERPRETERS][EXPERIMENTAL] removed check " << check
+                << " from sub-interpreter (tstate=" << tstate << ")";
+            agent_log(DATADOG_AGENT_INFO, const_cast<char *>(msg.str().c_str()));
+        }
         return tstate;
     }
     return NULL;
@@ -325,6 +342,12 @@ PyThreadState *Three::_enterCheckInterp(PyObject *py_check)
 {
     PyThreadState *sub_tstate = _lookupCheckInterp(py_check);
     if (sub_tstate != NULL) {
+        {
+            std::ostringstream msg;
+            msg << "[SUB-INTERPRETERS][EXPERIMENTAL] running check " << py_check
+                << " in sub-interpreter (tstate=" << sub_tstate << ")";
+            agent_log(DATADOG_AGENT_DEBUG, const_cast<char *>(msg.str().c_str()));
+        }
         return PyThreadState_Swap(sub_tstate);
     }
     return NULL;

@@ -190,7 +190,7 @@ static void add_constants(PyObject *m)
  * See aggregator.c for a detailed explanation of multi-phase init, m_size,
  * and Py_MOD_PER_INTERPRETER_GIL_SUPPORTED rationale.
  */
-#if PY_VERSION_HEX >= 0x030E0000
+#if PY_VERSION_HEX >= 0x030D0000
 
 /*
  * tagger_exec: Populates the module with cardinality constants (LOW,
@@ -246,4 +246,4 @@ PyMODINIT_FUNC PyInit_tagger(void)
     return module;
 }
 
-#endif /* PY_VERSION_HEX >= 0x030E0000 */
+#endif /* PY_VERSION_HEX >= 0x030D0000 */

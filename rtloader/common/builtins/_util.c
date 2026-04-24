@@ -61,7 +61,7 @@ static PyMethodDef methods[] = {
  * See aggregator.c for a detailed explanation of multi-phase init, m_size,
  * and Py_MOD_PER_INTERPRETER_GIL_SUPPORTED rationale.
  */
-#if PY_VERSION_HEX >= 0x030E0000
+#if PY_VERSION_HEX >= 0x030D0000
 
 /*
  * _util_exec: Registers the SubprocessOutputEmptyError exception class on the
@@ -118,7 +118,7 @@ PyMODINIT_FUNC PyInit__util(void)
     return m;
 }
 
-#endif /* PY_VERSION_HEX >= 0x030E0000 */
+#endif /* PY_VERSION_HEX >= 0x030D0000 */
 
 void _set_get_subprocess_output_cb(cb_get_subprocess_output_t cb)
 {

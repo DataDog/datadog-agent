@@ -30,9 +30,9 @@ option(ENABLE_SUBINTERPRETERS "Enable experimental Python sub-interpreter suppor
 
 if(ENABLE_SUBINTERPRETERS)
   find_package(Python3 COMPONENTS Interpreter)
-  if(Python3_VERSION VERSION_LESS "3.14")
+  if(Python3_VERSION VERSION_LESS "3.13")
     message(FATAL_ERROR
-      "ENABLE_SUBINTERPRETERS=ON requires Python 3.14+, but found Python ${Python3_VERSION}")
+      "ENABLE_SUBINTERPRETERS=ON requires Python 3.13+, but found Python ${Python3_VERSION}")
   endif()
   message(STATUS "Sub-interpreter support enabled (Python ${Python3_VERSION})")
   # NOTE: Each subdirectory adds RTLOADER_HAS_SUBINTERPRETERS to its own
