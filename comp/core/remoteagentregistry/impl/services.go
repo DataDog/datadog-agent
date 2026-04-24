@@ -154,7 +154,7 @@ func (ra *remoteAgentRegistry) ExecuteRemoteCommand(commandPath string, request 
 
 	if err != nil {
 		ra.telemetryStore.remoteAgentActionError.Inc(targetClient.RegisteredAgent.SanitizedDisplayName, CommandServiceName, grpcErrorMessage(err))
-		return nil, fmt.Errorf("failed to execute command %q on remote agent '%s': %w", commandPath, targetClient.RegisteredAgent.DisplayName, err)
+		return nil, fmt.Errorf("remote agent '%s' is unavailable (%s)", targetClient.RegisteredAgent.DisplayName, grpcErrorMessage(err))
 	}
 
 	// Validate session ID

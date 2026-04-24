@@ -7,7 +7,6 @@
 package command
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -18,15 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 )
-
-// RemoteCommandHandler is a function type for handling remote command execution.
-// It is set externally to avoid circular imports.
-var RemoteCommandHandler func(globalParams *GlobalParams, args []string) error
-
-// RemoteAliasHandler checks if a subcommand name matches a remote command alias.
-// If a match is found, it executes the remote command and calls os.Exit().
-// If no match is found (or the agent isn't running), it returns silently.
-var RemoteAliasHandler func(globalParams *GlobalParams, cmdName string, args []string)
 
 const (
 	// ConfigName is the name of the config
@@ -102,20 +92,6 @@ The Datadog Agent faithfully collects events and metrics and brings them
 to Datadog on your behalf so that you can do something useful with your
 monitoring and performance data.`,
 		SilenceUsage: true,
-		// Allow arbitrary args so that unrecognized subcommands can be handled
-		// as remote commands from registered remote agents.
-		Args: cobra.ArbitraryArgs,
-	}
-
-	// Set RunE separately because it references agentCmd (for Help()).
-	agentCmd.RunE = func(_ *cobra.Command, args []string) error {
-		if len(args) == 0 {
-			return agentCmd.Help()
-		}
-		if RemoteCommandHandler != nil {
-			return RemoteCommandHandler(&globalParams, args)
-		}
-		return fmt.Errorf("unknown command %q", args[0])
 	}
 
 	agentCmd.PersistentFlags().StringVarP(&globalParams.ConfFilePath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
@@ -130,33 +106,36 @@ monitoring and performance data.`,
 	// whether the process is running in a tty.  So, we only want to override that when
 	// the value is true.
 	agentCmd.PersistentFlags().BoolVarP(&globalParams.NoColor, "no-color", "n", false, "disable color output")
-	agentCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+	agentCmd.PersistentPreRun = func(*cobra.Command, []string) {
 		if globalParams.NoColor {
 			color.NoColor = true
 		}
-
-		// Don't check aliases on the root command itself -- the RunE
-		// fallback already handles unknown subcommands as remote commands.
-		if cmd == agentCmd {
-			return nil
-		}
-
-		// Check if this subcommand name matches a remote command alias.
-		// If it does, the handler executes the remote command and calls
-		// os.Exit() so the local subcommand's RunE never fires.
-		// If no alias matches (or the agent isn't running), the handler
-		// returns silently and the local subcommand proceeds.
-		if RemoteAliasHandler != nil {
-			RemoteAliasHandler(&globalParams, cmd.Name(), args)
-		}
-
-		return nil
 	}
 
+	// Add static subcommands from factories.
 	for _, sf := range subcommandFactories {
 		subcommands := sf(&globalParams)
 		for _, cmd := range subcommands {
 			agentCmd.AddCommand(cmd)
+		}
+	}
+
+	// Record which shorthands are taken by root persistent flags so
+	// remote command flags can avoid conflicts.
+	initReservedShorthands(agentCmd)
+
+	// Attempt to fetch remote commands from the running Core Agent and
+	// register them as native cobra subcommands. This uses a lightweight
+	// config bootstrap (no Fx) with an aggressive timeout so it adds
+	// negligible latency when the agent isn't running.
+	if groups := fetchRemoteCommands(); len(groups) > 0 {
+		for _, group := range groups {
+			for _, cmd := range group.Commands {
+				if cmd.Alias != "" {
+					removeSubcommand(agentCmd, cmd.Alias)
+				}
+				agentCmd.AddCommand(buildCobraCommand(cmd, &globalParams))
+			}
 		}
 	}
 

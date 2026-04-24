@@ -29,6 +29,23 @@ message CommandParameter {
   bool required = 5;
   bool is_flag = 6;
   bool is_persistent = 7;
+  // Optional default value. When present, the field corresponding to the
+  // parameter's type is read; other fields are ignored.
+  optional ParameterDefaultValue default_value = 8;
+}
+
+// ParameterDefaultValue holds a default value for a command parameter.
+// Only the field matching the parameter's ParameterType is read.
+message ParameterDefaultValue {
+  string string_default = 1;
+  int64  int_default = 2;
+  uint64 uint_default = 3;
+  double float_default = 4;
+  bool   bool_default = 5;
+  repeated string string_slice_default = 6;
+  repeated int64  int_slice_default = 7;
+  repeated uint64 uint_slice_default = 8;
+  repeated double float_slice_default = 9;
 }
 
 // Command describes a CLI command that a remote agent exposes.

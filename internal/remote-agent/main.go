@@ -124,6 +124,77 @@ func (s *remoteAgentServer) ListCommands(_ context.Context, _ *pbcore.ListRemote
 			{
 				Name:   "hello",
 				Helper: "Says hello from the remote agent",
+				Parameters: []*pbcore.CommandParameter{
+					{
+						Name:      "name",
+						ShortName: "n",
+						Helper:    "Name to greet",
+						Type:      pbcore.ParameterType_PARAMETER_TYPE_STRING,
+						IsFlag:    true,
+						DefaultValue: &pbcore.ParameterDefaultValue{
+							StringDefault: "world",
+						},
+					},
+					{
+						Name:      "count",
+						ShortName: "c",
+						Helper:    "Number of times to greet",
+						Type:      pbcore.ParameterType_PARAMETER_TYPE_INT,
+						IsFlag:    true,
+						DefaultValue: &pbcore.ParameterDefaultValue{
+							IntDefault: 1,
+						},
+					},
+					{
+						Name:      "loud",
+						ShortName: "l",
+						Helper:    "Use uppercase",
+						Type:      pbcore.ParameterType_PARAMETER_TYPE_BOOL,
+						IsFlag:    true,
+					},
+				},
+			},
+			{
+				Name:   "greet",
+				Helper: "Greet someone (positional arg test)",
+				Parameters: []*pbcore.CommandParameter{
+					{
+						Name:   "person",
+						Helper: "The person to greet",
+						Type:   pbcore.ParameterType_PARAMETER_TYPE_STRING,
+						IsFlag: false,
+					},
+					{
+						Name:      "greeting",
+						ShortName: "g",
+						Helper:    "The greeting to use",
+						Type:      pbcore.ParameterType_PARAMETER_TYPE_STRING,
+						IsFlag:    true,
+						Required:  true,
+					},
+				},
+			},
+			{
+				Name:   "tag",
+				Helper: "Tag test (slice flags)",
+				Parameters: []*pbcore.CommandParameter{
+					{
+						Name:      "tags",
+						ShortName: "t",
+						Helper:    "Tags to apply",
+						Type:      pbcore.ParameterType_PARAMETER_TYPE_STRING_SLICE,
+						IsFlag:    true,
+						DefaultValue: &pbcore.ParameterDefaultValue{
+							StringSliceDefault: []string{"env:dev"},
+						},
+					},
+					{
+						Name:   "ids",
+						Helper: "IDs to include",
+						Type:   pbcore.ParameterType_PARAMETER_TYPE_INT_SLICE,
+						IsFlag: true,
+					},
+				},
 			},
 			{
 				Name:   "dsd-stats",
@@ -135,7 +206,7 @@ func (s *remoteAgentServer) ListCommands(_ context.Context, _ *pbcore.ListRemote
 				Helper: "Shows remote agent info",
 				Children: []*pbcore.Command{
 					{
-						Name:   "info detail",
+						Name:   "detail",
 						Helper: "Shows detailed remote agent info",
 					},
 				},
@@ -145,28 +216,108 @@ func (s *remoteAgentServer) ListCommands(_ context.Context, _ *pbcore.ListRemote
 }
 
 func (s *remoteAgentServer) ExecuteCommand(_ context.Context, req *pbcore.ExecuteCommandRequest) (*pbcore.ExecuteCommandResponse, error) {
-	log.Printf("Got request to execute command: %s", req.CommandPath)
+	log.Printf("Got request to execute command: %s (args: %v)", req.CommandPath, req.Arguments)
+
+	// Helper to read a string field from the arguments Struct
+	getString := func(key string) string {
+		if req.Arguments == nil {
+			return ""
+		}
+		if v, ok := req.Arguments.Fields[key]; ok {
+			return v.GetStringValue()
+		}
+		return ""
+	}
+	getNumber := func(key string) float64 {
+		if req.Arguments == nil {
+			return 0
+		}
+		if v, ok := req.Arguments.Fields[key]; ok {
+			return v.GetNumberValue()
+		}
+		return 0
+	}
+	getBool := func(key string) bool {
+		if req.Arguments == nil {
+			return false
+		}
+		if v, ok := req.Arguments.Fields[key]; ok {
+			return v.GetBoolValue()
+		}
+		return false
+	}
+	getList := func(key string) []string {
+		if req.Arguments == nil {
+			return nil
+		}
+		v, ok := req.Arguments.Fields[key]
+		if !ok {
+			return nil
+		}
+		list := v.GetListValue()
+		if list == nil {
+			return nil
+		}
+		var result []string
+		for _, item := range list.Values {
+			result = append(result, fmt.Sprintf("%v", item.AsInterface()))
+		}
+		return result
+	}
+
 	switch req.CommandPath {
 	case "hello":
+		name := getString("name")
+		count := int(getNumber("count"))
+		if count == 0 {
+			count = 1 // fallback in case default wasn't forwarded
+		}
+		loud := getBool("loud")
+
+		var output string
+		for i := 0; i < count; i++ {
+			msg := fmt.Sprintf("Hello, %s! (uptime: %s)\n", name, time.Since(s.started))
+			if loud {
+				msg = fmt.Sprintf("HELLO, %s! (UPTIME: %s)\n", name, time.Since(s.started))
+			}
+			output += msg
+		}
+		return &pbcore.ExecuteCommandResponse{ExitCode: 0, Stdout: output}, nil
+
+	case "greet":
+		person := getString("person")
+		greeting := getString("greeting")
 		return &pbcore.ExecuteCommandResponse{
 			ExitCode: 0,
-			Stdout:   fmt.Sprintf("Hello from remote agent! (uptime: %s)\n", time.Since(s.started)),
+			Stdout:   fmt.Sprintf("%s, %s!\n", greeting, person),
 		}, nil
+
+	case "tag":
+		tags := getList("tags")
+		ids := getList("ids")
+		return &pbcore.ExecuteCommandResponse{
+			ExitCode: 0,
+			Stdout:   fmt.Sprintf("Tags: %v\nIDs: %v\n", tags, ids),
+		}, nil
+
 	case "info":
 		return &pbcore.ExecuteCommandResponse{
 			ExitCode: 0,
 			Stdout:   fmt.Sprintf("Remote Agent v1.0.0\nStarted: %s\n", s.started.Format(time.RFC3339)),
 		}, nil
-	case "info detail":
+
+	case "detail":
 		return &pbcore.ExecuteCommandResponse{
 			ExitCode: 0,
-			Stdout:   fmt.Sprintf("Remote Agent v1.0.0\nStarted: %s\nUptime: %s\nJSON: %v\nVerbose: %v\n", s.started.Format(time.RFC3339), time.Since(s.started), req.JsonOutput, req.Verbose),
+			Stdout:   fmt.Sprintf("Remote Agent v1.0.0\nStarted: %s\nUptime: %s\n", s.started.Format(time.RFC3339), time.Since(s.started)),
 		}, nil
+
 	case "dsd-stats":
 		return &pbcore.ExecuteCommandResponse{
 			ExitCode: 0,
-			Stdout:   fmt.Sprintf("stats! from %d\n", time.Since(s.started)),
+			Stdout:   fmt.Sprintf("stats! from %s\n", time.Since(s.started)),
 		}, nil
+
 	default:
 		return &pbcore.ExecuteCommandResponse{
 			ExitCode: 1,

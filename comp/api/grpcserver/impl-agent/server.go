@@ -300,7 +300,7 @@ func (s *serverSecure) ExecuteRemoteCommand(_ context.Context, in *pb.ExecuteCom
 
 	result, err := s.remoteAgentRegistry.ExecuteRemoteCommand(in.CommandPath, in)
 	if err != nil {
-		return nil, status.Error(codes.Internal, err.Error())
+		return nil, err
 	}
 
 	return &pb.ExecuteCommandResponse{
