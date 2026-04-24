@@ -62,6 +62,10 @@ common:windows --repo_env=USERPROFILE # used by MSYS2 bash to emulate HOME, need
 common:windows --repo_env=VSTUDIO_ROOT # visual_studio(path_variable) in MODULE.bazel
 common:windows --shell_executable=C:/tools/msys64/usr/bin/bash.exe
 
+# Force the x86_64-pc-windows-gnu Rust toolchain (compact name for rust_windows_gnu_x86_64)
+# to take priority over the default MSVC toolchain, since the CI cc_toolchain is MinGW/GCC.
+common:windows --extra_toolchains=@rust_toolchains//:rw-2070622084
+
 # Remote cache config --------------------------------------------------------------------------------------------------
 # datadog-agent virtually isolates caching instance from its parent (which is remote-caching).
 # If entry isn't found in datadog-agent, it will be searched in remote-caching.

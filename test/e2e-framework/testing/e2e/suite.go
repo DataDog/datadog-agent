@@ -807,6 +807,10 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 // If a test is explicitly restarting the agent the coverage should be saved first otherwise the counters are reset after restart.
 func (bs *BaseSuite[Env]) SaveCoverage(coverageDir string) error {
 	if coverageEnv, ok := any(bs.env).(common.Coverageable); ok {
+		// Apply coverage required override if set
+		if overrideable, ok := any(bs.env).(common.CoverageRequiredOverrideable); ok {
+			overrideable.SetCoverageRequiredOverride(bs.params.coverageRequired)
+		}
 		// Create coverage folder if it doesn't exist
 		rootTestName := strings.ToLower(strings.Split(bs.T().Name(), "/")[0])
 		coverageFolder := filepath.Join(coverageDir, rootTestName)

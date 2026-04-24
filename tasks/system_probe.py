@@ -59,6 +59,7 @@ TEST_PACKAGES_LIST = [
     "./pkg/privileged-logs/test/...",
     "./pkg/system-probe/config/...",
     "./comp/metadata/inventoryagent/...",
+    "./pkg/util/kernel/headers/...",
 ]
 TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)
 # change `timeouts` in `test/new-e2e/system-probe/test-runner/main.go` if you change them here

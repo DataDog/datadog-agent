@@ -1,25 +1,35 @@
 {
-  "type": "unsupported",
-  "operation": "and",
-  "argument": [
-    {
-      "eq": [
-        {
-          "ref": "hits"
-        },
-        42
-      ]
+  "type": "and",
+  "operation": "",
+  "left": {
+    "type": "eq",
+    "operation": "",
+    "left": {
+      "type": "ref",
+      "ref": "hits",
+      "operation": "",
+      "error": ""
     },
-    {
-      "gt": [
-        {
-          "len": {
-            "ref": "payload"
-          }
-        },
-        5
-      ]
-    }
-  ],
+    "right": {
+      "type": "literal",
+      "operation": "",
+      "value": 42,
+      "error": ""
+    },
+    "error": ""
+  },
+  "right": {
+    "type": "unsupported",
+    "operation": "gt",
+    "argument": [
+      {
+        "len": {
+          "ref": "payload"
+        }
+      },
+      5
+    ],
+    "error": ""
+  },
   "error": ""
 }

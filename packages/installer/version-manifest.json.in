@@ -1,0 +1,24 @@
+{
+  "manifest_format": 2,
+  "software": {
+    "installer": {
+      "locked_version": null,
+      "locked_source": {
+        "path": "..",
+        "options": {
+          "exclude": [
+            "**/.cache/**/*",
+            "**/testdata/**/*"
+          ]
+        }
+      },
+      "source_type": "path",
+      "described_version": null,
+      "license": "Apache-2.0",
+      "dependencies": []
+    }
+  },
+  "build_version": "{build_version}",
+  "build_git_revision": null,
+  "license": "Apache-2.0"
+}

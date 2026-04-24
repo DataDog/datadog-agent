@@ -29,3 +29,9 @@ type Diagnosable interface {
 type Coverageable interface {
 	Coverage(outputDir string) (string, error)
 }
+
+// CoverageRequiredOverrideable defines an optional interface for environments that support overriding
+// the default coverage required setting per agent. Each key in the map must match a CoverageTargetSpec.AgentName.
+type CoverageRequiredOverrideable interface {
+	SetCoverageRequiredOverride(overrides map[string]bool)
+}

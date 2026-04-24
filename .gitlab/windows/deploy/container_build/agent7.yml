@@ -3,14 +3,14 @@
 # Change base images here to update all builds
 .windows_1809_nanoserver: &windows_1809_nanoserver
   VARIANT: "1809"
-  SERVER_BASE_IMAGE: "mcr.microsoft.com/powershell:lts-nanoserver-1809"
+  SERVER_BASE_IMAGE: "mcr.microsoft.com/dotnet/sdk:9.0-nanoserver-1809"
   WINDOWS_RUNNER: "windows-v2:2019"
   OS_TYPE: "nano"
   OS_DISPLAY_NAME: "windows nanoserver"
 
 .windows_1809_servercore: &windows_1809_servercore
   VARIANT: "1809"
-  SERVER_BASE_IMAGE: "mcr.microsoft.com/powershell:windowsservercore-1809"
+  SERVER_BASE_IMAGE: "mcr.microsoft.com/dotnet/sdk:9.0-windowsservercore-ltsc2019"
   WINDOWS_RUNNER: "windows-v2:2019"
   OS_TYPE: "core"
   OS_DISPLAY_NAME: "windows server core"
