@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    The debugger proxy no longer forwards Exception Replay and Live Debugger
+    logs when ``logs_enabled`` is ``false``.

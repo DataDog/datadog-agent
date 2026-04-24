@@ -616,6 +616,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if k := "apm_config.profiling_receiver_timeout"; core.IsSet(k) {
 		c.ProfilingProxy.ReceiverTimeout = core.GetInt(k)
 	}
+	c.DebuggerLogsEnabled = core.GetBool("logs_enabled") || core.GetBool("log_enabled")
 	if k := "apm_config.debugger_dd_url"; core.IsSet(k) {
 		c.DebuggerProxy.DDURL = core.GetString(k)
 	}
