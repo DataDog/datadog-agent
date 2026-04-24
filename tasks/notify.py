@@ -110,9 +110,9 @@ def failure_summary_send_notifications(
     Make summaries from data in s3 and send them to slack
     """
 
-    assert daily_summary or weekly_summary and not (daily_summary and weekly_summary), (
-        "Exactly one of daily or weekly summary must be set"
-    )
+    assert (
+        daily_summary or weekly_summary and not (daily_summary and weekly_summary)
+    ), "Exactly one of daily or weekly summary must be set"
 
     if not (is_conductor_scheduled_pipeline()):
         print(
