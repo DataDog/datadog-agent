@@ -3,6 +3,15 @@ import Foundation
 /// Request structure for IPC commands
 struct WiFiIPCRequest: Codable {
     let command: String
+    /// When true, the GUI may show the macOS Location Services prompt. The
+    /// agent owns this value (read from WLAN init_config) and sends it on
+    /// every request, so config edits take effect on the next check run.
+    let requestLocationPermission: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case command
+        case requestLocationPermission = "request_location_permission"
+    }
 }
 
 /// Response structure for IPC
@@ -213,7 +222,9 @@ class WiFiIPCServer {
         // Handle command
         switch request.command {
         case "get_wifi_info":
-            let wifiData = wifiDataProvider.getWiFiInfo()
+            let wifiData = wifiDataProvider.getWiFiInfo(
+                requestLocationPermission: request.requestLocationPermission ?? false
+            )
             let response = WiFiIPCResponse(success: true, data: wifiData, error: nil)
             sendResponse(clientFD, response: response)
 
