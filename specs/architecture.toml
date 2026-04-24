@@ -44,22 +44,27 @@ ref = ["RF024", "RD004"]
 
 [[requirements]]
 id = "RA003"
-short = "Hooks dispatched as subprocess calls"
+short = "Hook-based package lifecycle"
 long = '''
-Package lifecycle hooks (pre-install, post-install, pre-remove, experiment
-start/stop/promote, extension install/remove) are not executed in-process.
-Instead, the daemon serializes a HookContext to JSON and invokes the installer
-binary as a subprocess with a "run-hook" command.
+Package-specific behavior (service registration, user configuration, driver
+installation, GAC registration, etc.) is implemented via lifecycle hooks:
+PreInstall, PostInstall, PreRemove, experiment start/stop/promote, config
+experiment start/stop/promote, and extension install/remove. Each package type
+registers its own hook implementations, allowing the core installer to remain
+generic.
 
-On Linux, for the datadog-agent package, the hook binary is resolved to the
-installer embedded inside the agent package itself rather than the running
-daemon binary. This allows the new agent version's hooks to run during upgrades.
+Hooks are not executed in-process. The daemon serializes a HookContext to JSON
+and invokes the installer binary as a subprocess with a "run-hook" command. On
+Linux, for the datadog-agent package, the hook binary is resolved to the
+installer embedded inside the agent package itself rather than the running daemon
+binary. This allows the new agent version's hooks to run during upgrades.
 
-This design isolates hook failures from the daemon process and allows hooks to
-be version-specific to the package being installed.
+This design isolates hook failures from the daemon process, allows hooks to be
+version-specific to the package being installed, and lets each package type
+customize its lifecycle without modifying the core installer logic.
 '''
 tags = ["installer:fleet"]
-ref = ["RF023", "RF024"]
+ref = ["RF023", "RF024", "RA008"]
 
 [[requirements]]
 id = "RA004"
@@ -141,4 +146,70 @@ This design allows a single OCI image to carry multiple concerns without
 requiring the installer to download or extract everything.
 '''
 tags = ["installer:fleet"]
-ref = ["RD003", "RF023", "RF026"]
+ref = ["RD003", "RF023", "RF026", "RA009"]
+
+[[requirements]]
+id = "RA008"
+short = "Daemon / installer split"
+long = '''
+The fleet installer is split into two execution modes: a long-running daemon and
+a stateless installer binary.
+
+The daemon (datadog-installer daemon run) is a persistent process that maintains
+remote config connections, a package catalog, and a task queue. It receives
+instructions from Datadog's remote configuration service and serializes them into
+operations.
+
+The installer binary (datadog-installer install, remove, etc.) is stateless
+between invocations. It performs a single operation -- download, extract, link,
+run hooks -- then exits. The daemon invokes the installer as a subprocess for
+each operation.
+
+This separation means the daemon can be upgraded independently of the packages
+it manages, and installer crashes do not bring down the daemon.
+'''
+tags = ["installer:fleet"]
+ref = ["RA003", "RA004", "RA005"]
+
+[[requirements]]
+id = "RA009"
+short = "OCI-based package distribution"
+long = '''
+Packages are distributed as OCI (Open Container Initiative) container images,
+pulled from OCI-compatible registries using the go-containerregistry library.
+
+This decision reuses the existing container registry infrastructure (Docker Hub,
+GCR, private registries) for package distribution, avoiding a custom package
+repository. OCI images provide content-addressable layers, multi-architecture
+support, and standard authentication mechanisms (Docker config, GCR, password).
+
+The installer supports registry mirrors and fallback registries for resilience.
+Default registries are install.datadoghq.com (production) and install.datad0g.com
+(staging), with GCR as a fallback.
+'''
+tags = ["installer:fleet"]
+ref = ["RA007", "RD003"]
+
+[[requirements]]
+id = "RA010"
+short = "Cross-platform support via platform-specific files"
+long = '''
+The installer supports Linux, Windows, and macOS from a single codebase using
+Go build tags and platform-specific file suffixes (_nix.go, _windows.go,
+_darwin.go).
+
+Platform-specific concerns:
+- Paths: different default directories per OS (e.g. /opt/datadog-packages vs
+  C:\ProgramData\Datadog)
+- Service management: systemd units (Linux), Windows services, launchd (macOS)
+- Symlinks: OS-native symlinks on Unix, directory junctions on Windows
+- Package hooks: each package registers different hooks per platform (e.g.
+  MSI orchestration on Windows, systemd unit management on Linux)
+- Bootstrap: OCI extraction on all platforms, MSI fallback on Windows only
+- User management: Unix uid/gid vs Windows SID and LSA
+
+The core installer logic (download, extract, repository management) is shared;
+only the platform-specific edges differ.
+'''
+tags = ["installer:fleet"]
+ref = ["RA001", "RA002", "RA003"]
