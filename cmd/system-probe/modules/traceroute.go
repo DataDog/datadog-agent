@@ -12,11 +12,14 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/mux"
 	"google.golang.org/grpc"
+
+	traceroutelib "github.com/DataDog/datadog-traceroute/traceroute"
 
 	traceroutecomp "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
@@ -69,7 +72,12 @@ func (t *traceroute) Register(httpMux *module.Router) error {
 		// Run traceroute
 		path, err := t.runner.Run(context.Background(), cfg)
 		if err != nil {
-			handleTracerouteReqError(w, http.StatusInternalServerError, fmt.Sprintf("unable to run traceroute for host: %s: %s", cfg.DestHostname, err.Error()))
+			classified := traceroutelib.ClassifyError(err)
+			errResp := traceroutelib.ErrorResponse{
+				Code:    classified.Code,
+				Message: classified.Message,
+			}
+			handleTracerouteStructuredError(w, http.StatusInternalServerError, errResp, cfg.DestHostname)
 			return
 		}
 
@@ -107,6 +115,38 @@ func handleTracerouteReqError(w http.ResponseWriter, statusCode int, errString s
 	log.Error(errString)
 	_, err := w.Write([]byte(errString))
 	if err != nil {
+		log.Errorf("unable to write traceroute error response: %s", err)
+	}
+}
+
+// userFacingMessages maps error codes to user-facing message formats aligned
+// with synthetics-worker so the UI shows the same text regardless of the
+// source. Messages may contain a %s placeholder for the destination hostname.
+var userFacingMessages = map[traceroutelib.ErrorCode]string{
+	traceroutelib.ErrCodeDNS:            "Failed to resolve the host name %s.",
+	traceroutelib.ErrCodeTimeout:        "The request timed out.",
+	traceroutelib.ErrCodeConnRefused:    "The connection to %s was refused by the remote host.",
+	traceroutelib.ErrCodeHostUnreach:    "The remote host %s is unreachable.",
+	traceroutelib.ErrCodeNetUnreach:     "The remote network for %s is unreachable.",
+	traceroutelib.ErrCodeDenied:         "Permission denied.",
+	traceroutelib.ErrCodeInvalidRequest: "Invalid request parameters.",
+	traceroutelib.ErrCodeFailedEncoding: "Failed to encode the response.",
+	traceroutelib.ErrCodeUnknown:        "An unknown error occurred.",
+}
+
+func userFacingMessage(code traceroutelib.ErrorCode, host string, fallback string) string {
+	if format, ok := userFacingMessages[code]; ok {
+		return strings.ReplaceAll(format, "%s", host)
+	}
+	return fallback
+}
+
+func handleTracerouteStructuredError(w http.ResponseWriter, statusCode int, errResp traceroutelib.ErrorResponse, host string) {
+	log.Errorf("traceroute error for host %s: [%s] %s", host, errResp.Code, errResp.Message)
+	errResp.Message = userFacingMessage(errResp.Code, host, errResp.Message)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	if err := json.NewEncoder(w).Encode(errResp); err != nil {
 		log.Errorf("unable to write traceroute error response: %s", err)
 	}
 }

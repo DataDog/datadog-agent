@@ -62,7 +62,7 @@ type remoteTraceroute struct {
 func (t *remoteTraceroute) Run(ctx context.Context, cfg config.Config) (payload.NetworkPath, error) {
 	resp, err := t.getTracerouteFromSysProbe(ctx, clientID, cfg.DestHostname, cfg.DestPort, cfg.Protocol, cfg.TCPMethod, cfg.TCPSynParisTracerouteMode, cfg.DisableWindowsDriver, cfg.ReverseDNS, cfg.MaxTTL, cfg.Timeout, cfg.TracerouteQueries, cfg.E2eQueries)
 	if err != nil {
-		return payload.NetworkPath{}, fmt.Errorf("error getting traceroute: %s", err)
+		return payload.NetworkPath{}, fmt.Errorf("error getting traceroute: %w", err)
 	}
 
 	var path payload.NetworkPath
@@ -116,6 +116,16 @@ func (t *remoteTraceroute) getTracerouteFromSysProbe(ctx context.Context, client
 		if err != nil {
 			return nil, fmt.Errorf("traceroute request failed: url: %s, status code: %d", req.URL, resp.StatusCode)
 		}
+
+		// Try to parse structured error response
+		var errResp payload.TracerouteErrorResponse
+		if json.Unmarshal(body, &errResp) == nil && errResp.Code != "" {
+			return nil, &payload.TracerouteError{
+				Code:    errResp.Code,
+				Message: errResp.Message,
+			}
+		}
+
 		return nil, fmt.Errorf("traceroute request failed: url: %s, status code: %d, error: %s", req.URL, resp.StatusCode, string(body))
 	}
 
