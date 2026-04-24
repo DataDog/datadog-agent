@@ -1280,14 +1280,10 @@ func agent(config pkgconfigmodel.Setup) {
 // Matches the truth table at
 // https://github.com/DataDog/saluki/issues/1334#issuecomment-4292253054.
 func applyUseDogstatsdSuppression(config pkgconfigmodel.Config) {
-	if config.GetBool("use_dogstatsd") {
-		return
+	if !config.GetBool("use_dogstatsd") && config.GetBool("data_plane.dogstatsd.enabled") {
+		log.Infof("Forcing data_plane.dogstatsd.enabled=false because use_dogstatsd=false")
+		config.Set("data_plane.dogstatsd.enabled", false, pkgconfigmodel.SourceAgentRuntime)
 	}
-	if !config.GetBool("data_plane.dogstatsd.enabled") {
-		return
-	}
-	log.Infof("Forcing data_plane.dogstatsd.enabled=false because use_dogstatsd=false")
-	config.Set("data_plane.dogstatsd.enabled", false, pkgconfigmodel.SourceAgentRuntime)
 }
 
 func fleet(config pkgconfigmodel.Setup) {
