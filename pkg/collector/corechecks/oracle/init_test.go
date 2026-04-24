@@ -9,7 +9,9 @@ package oracle
 
 import (
 	"fmt"
+	"net"
 	"os"
+	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -65,9 +67,10 @@ func TestMain(m *testing.M) {
 			sysCheck.Teardown()
 			if time.Since(start) > timeout {
 				fmt.Printf("Oracle failed to become ready within %s: %s\n", timeout, err)
+				dumpOracleDiagnostics()
 				os.Exit(1)
 			}
-			fmt.Printf("Oracle not ready yet: %s\n", err)
+			fmt.Printf("Oracle not ready yet (%s elapsed): %s\n", time.Since(start).Round(time.Second), err)
 			time.Sleep(5 * time.Second)
 			continue
 		}
@@ -75,9 +78,10 @@ func TestMain(m *testing.M) {
 			sysCheck.Teardown()
 			if time.Since(start) > timeout {
 				fmt.Printf("Oracle failed to become ready within %s: %s\n", timeout, err)
+				dumpOracleDiagnostics()
 				os.Exit(1)
 			}
-			fmt.Printf("Oracle not ready yet: %s\n", err)
+			fmt.Printf("Oracle not ready yet (%s elapsed): %s\n", time.Since(start).Round(time.Second), err)
 			time.Sleep(5 * time.Second)
 			continue
 		}
@@ -210,4 +214,50 @@ func TestCreateDatabaseIdentifier(t *testing.T) {
 			assert.Equal(t, tt.expectedResult, identifier, "Database identifier does not match expected value")
 		})
 	}
+}
+
+func dumpOracleDiagnostics() {
+	server := os.Getenv("ORACLE_TEST_SERVER")
+	if server == "" {
+		server = "oracle"
+	}
+
+	fmt.Println("=== Oracle Diagnostics ===")
+
+	// Check TCP connectivity to listener
+	conn, err := net.DialTimeout("tcp", server+":1521", 5*time.Second)
+	if err != nil {
+		fmt.Printf("TCP connect to %s:1521: FAILED: %s\n", server, err)
+	} else {
+		fmt.Printf("TCP connect to %s:1521: OK\n", server)
+		conn.Close()
+	}
+
+	// Dump /dev/shm info from this container
+	if out, err := exec.Command("df", "-h", "/dev/shm").CombinedOutput(); err == nil {
+		fmt.Printf("/dev/shm:\n%s\n", out)
+	}
+
+	// Check cgroup version
+	if _, err := os.Stat("/sys/fs/cgroup/cgroup.controllers"); err == nil {
+		fmt.Println("cgroup: v2")
+		if out, err := os.ReadFile("/sys/fs/cgroup/memory.max"); err == nil {
+			fmt.Printf("memory.max: %s", out)
+		}
+	} else {
+		fmt.Println("cgroup: v1")
+		if out, err := os.ReadFile("/sys/fs/cgroup/memory/memory.limit_in_bytes"); err == nil {
+			fmt.Printf("memory.limit_in_bytes: %s", out)
+		}
+	}
+
+	// Try to resolve the oracle hostname
+	addrs, err := net.LookupHost(server)
+	if err != nil {
+		fmt.Printf("DNS lookup %s: FAILED: %s\n", server, err)
+	} else {
+		fmt.Printf("DNS lookup %s: %v\n", server, addrs)
+	}
+
+	fmt.Println("=== End Diagnostics ===")
 }

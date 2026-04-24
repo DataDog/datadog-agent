@@ -13,8 +13,6 @@ oracle:
         ORACLE_PWD: "datad0g"
   variables:
     CI_DEBUG_SERVICES: "true"
-    INIT_SGA_SIZE: "1024"
-    INIT_PGA_SIZE: "512"
     DD_HOSTNAME: "oracle-test"
     # Configure static CPUs
     KUBERNETES_POD_ANNOTATIONS_1: "ci.ddbuild.io/enforce-static-cpus=true"
