@@ -144,7 +144,6 @@ func TestRunnerCreation(t *testing.T) {
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		fxutil.ProvideComponentConstructor(NewComponent),
-		fxutil.FxLifecycleAdapter(),
 		// Supplying our provider by using the helper function
 		fx.Supply(runner.NewProvider(provider)),
 	)
