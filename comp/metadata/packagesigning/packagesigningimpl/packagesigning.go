@@ -81,7 +81,7 @@ type provides struct {
 	fx.Out
 
 	Comp          packagesigning.Component
-	Provider      runnerimpl.Provider
+	Provider      runnerdef.Provider
 	FlareProvider flaretypes.Provider
 	Endpoint      api.AgentEndpointProvider
 }
@@ -109,7 +109,7 @@ func newPackageSigningProvider(deps dependencies) provides {
 	is.InventoryPayload.MaxInterval = defaultCollectInterval
 	is.InventoryPayload.MinInterval = defaultCollectInterval
 	is.InventoryPayload.Enabled = isPackageSigningEnabled(deps.Config, is.log)
-	var provider runnerimpl.Provider
+	var provider runnerdef.Provider
 	if is.InventoryPayload.Enabled {
 		if getPkgManager() != "" {
 			// Package signing telemetry is only valid on Linux and DEB/RPM based distros (including SUSE)

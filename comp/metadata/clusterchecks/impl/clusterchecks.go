@@ -88,7 +88,7 @@ type Requires struct {
 // Provides defines the output of the clusterchecks metadata component
 type Provides struct {
 	Comp     clusterchecksmetadata.Component
-	Provider runnerimpl.Provider
+	Provider runnerdef.Provider
 }
 
 // NewComponent creates a new clusterchecks component
@@ -214,7 +214,7 @@ func (cc *clusterChecksImpl) getPayloadAsMarshaler() marshaler.JSONMarshaler {
 }
 
 // MetadataProvider returns the metadata provider for cluster checks (delegating to InventoryPayload)
-func (cc *clusterChecksImpl) MetadataProvider() runnerimpl.Provider {
+func (cc *clusterChecksImpl) MetadataProvider() runnerdef.Provider {
 	return cc.InventoryPayload.MetadataProvider()
 }
 

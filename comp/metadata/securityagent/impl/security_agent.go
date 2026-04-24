@@ -71,7 +71,7 @@ type Requires struct {
 // Provides defines the output of the securityagent metadata component
 type Provides struct {
 	Comp             securityagent.Component
-	MetadataProvider runnerimpl.Provider
+	MetadataProvider runnerdef.Provider
 	FlareProvider    flaretypes.Provider
 	Endpoint         api.AgentEndpointProvider
 }

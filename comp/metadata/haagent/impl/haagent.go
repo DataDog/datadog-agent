@@ -34,7 +34,7 @@ type Requires struct {
 // Provides defines the output of the haagentimpl component
 type Provides struct {
 	Comp                 haagent.Component
-	Provider             runnerimpl.Provider
+	Provider             runnerdef.Provider
 	FlareProvider        flaretypes.Provider
 	StatusHeaderProvider status.HeaderInformationProvider
 	Endpoint             api.AgentEndpointProvider

@@ -179,11 +179,11 @@ func (i *InventoryPayload) FlareProvider() flaretypes.Provider {
 
 // MetadataProvider returns a metadata 'runner.Provider' for the current inventory payload (taking into account if
 // invnetory is enabled or not).
-func (i *InventoryPayload) MetadataProvider() runnerimpl.Provider {
+func (i *InventoryPayload) MetadataProvider() runnerdef.Provider {
 	if i.Enabled {
-		return runnerimpl.NewProvider(i.collect)
+		return runnerdef.NewProvider(i.collect)
 	}
-	return runnerimpl.NewProvider(nil)
+	return runnerdef.NewProvider(nil)
 }
 
 // collect is the callback expected by the metadata runner.Provider. It will send a new payload and return the next

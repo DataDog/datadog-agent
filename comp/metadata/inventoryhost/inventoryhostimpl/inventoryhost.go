@@ -141,7 +141,7 @@ type provides struct {
 	fx.Out
 
 	Comp          inventoryhost.Component
-	Provider      runnerimpl.Provider
+	Provider      runnerdef.Provider
 	FlareProvider flaretypes.Provider
 	Endpoint      api.AgentEndpointProvider
 }
