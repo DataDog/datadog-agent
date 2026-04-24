@@ -18,12 +18,12 @@
           {
             "function": "main.mapIndexMissing",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 735
+            "lineNumber": 742
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 213
+            "lineNumber": 220
           },
           {
             "function": "runtime.main",
@@ -41,14 +41,14 @@
           "location": {
             "method": "main.mapIndexMissing"
           }
-        }
-      },
-      "evaluationErrors": [
-        {
-          "expr": "m_missing",
-          "message": "index out of bounds"
-        }
-      ]
+        },
+        "evaluationErrors": [
+          {
+            "expr": "m_missing",
+            "message": "index out of bounds"
+          }
+        ]
+      }
     },
     "timestamp": "[ts]",
     "duration": "[duration]",

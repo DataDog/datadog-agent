@@ -1,6 +1,22 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 load("//bazel/rules/go_stringer:defs.bzl", "go_stringer")
 
+exports_files(
+    glob(
+        ["*.go"],
+        exclude = ["model_string.go"],
+    ),
+    visibility = ["//pkg/security/seclwin/model:__pkg__"],
+)
+
+go_stringer(
+    name = "model_string",
+    src = "model.go",
+    linecomment = True,
+    output = "model_string.go",
+    types = ["HashState"],
+)
+
 go_library(
     name = "model",
     srcs = [
@@ -203,12 +219,4 @@ go_test(
         ],
         "//conditions:default": [],
     }),
-)
-
-go_stringer(
-    name = "model_string",
-    src = "model.go",
-    linecomment = True,
-    output = "model_string.go",
-    types = ["HashState"],
 )

@@ -11,8 +11,8 @@ import (
 	"context"
 	"time"
 
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
 
@@ -30,9 +30,9 @@ const (
 
 // Telemetry metrics
 var (
-	tlmDriftDetected = telemetry.NewCounter("hostname", "drift_detected",
+	tlmDriftDetected = telemetryimpl.GetCompatComponent().NewCounter("hostname", "drift_detected",
 		[]string{"state", "provider"}, "Hostname drift detection status")
-	tlmDriftResolutionTime = telemetry.NewHistogram("hostname", "drift_resolution_time_ms",
+	tlmDriftResolutionTime = telemetryimpl.GetCompatComponent().NewHistogram("hostname", "drift_resolution_time_ms",
 		[]string{"state", "provider"}, "Hostname drift resolution time in seconds", []float64{.5, 1, 2.5, 5, 10, 60})
 )
 

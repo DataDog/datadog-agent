@@ -793,20 +793,94 @@ func TestSyncInternal_InPlace_SkipsTerminatingPods(t *testing.T) {
 	assert.False(t, result.Requeue, "no active pods means resize is complete")
 }
 
-// TestSyncInternal_InPlace_Infeasible_Evicts verifies that a pod with an infeasible resize
-// is evicted.
-func TestSyncInternal_InPlace_Infeasible_Evicts(t *testing.T) {
+// TestSyncInternal_InPlace_Infeasible_TriggersRollout verifies that a pod with an
+// infeasible resize triggers an immediate rollout.
+func TestSyncInternal_InPlace_Infeasible_TriggersRollout(t *testing.T) {
 	f := newVerticalControllerFixture(t, time.Now())
+	f.createTarget("default", "d1", kubernetes.DeploymentKind)
 	k8sClient := f.attachK8sClient()
 	interceptEvictions(k8sClient)
+
+	workloadPatched := false
+	f.dynamicClient.PrependReactor("patch", "deployments", func(_ k8stesting.Action) (bool, runtime.Object, error) {
+		workloadPatched = true
+		return true, &unstructured.Unstructured{Object: map[string]any{
+			"metadata": map[string]any{"name": "d1", "namespace": "default"},
+		}}, nil
+	})
+
+	gvk := schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: kubernetes.DeploymentKind}
+	target := NamespacedPodOwner{Namespace: "default", Kind: kubernetes.DeploymentKind, Name: "d1"}
+
+	ai := (&model.FakePodAutoscalerInternal{
+		Namespace: "default",
+		Name:      "ai",
+		Spec: &datadoghq.DatadogPodAutoscalerSpec{
+			TargetRef: v2.CrossVersionObjectReference{Name: "d1", Kind: kubernetes.DeploymentKind, APIVersion: "apps/v1"},
+		},
+		ScalingValues: model.ScalingValues{Vertical: scalingValWithRequests("r1", "500m")},
+	}).Build()
 
 	pods := []*workloadmeta.KubernetesPod{
 		podWithResizeCondition("p1", "r1", kubernetes.ReplicaSetKind, "rs1",
 			kubePodConditionResizePending, kubePodConditionResizePendingReasonInfeasible),
 	}
-	_, err := f.runSyncInPlaceMode(t, nil, nil, "r1", pods)
+
+	_, err := f.controller.syncInternal(
+		context.Background(), &datadoghq.DatadogPodAutoscaler{}, &ai, target, gvk, "r1",
+		pods, map[string]int32{}, map[string]int32{}, buildPodsByResizeStatus(pods, "r1"),
+	)
 	assert.NoError(t, err)
-	assert.Equal(t, 1, countEvictions(t, k8sClient.Actions()))
+	assert.True(t, workloadPatched, "rollout must be triggered immediately on Infeasible")
+	assert.Equal(t, 0, countEvictions(t, k8sClient.Actions()), "no eviction when Infeasible triggers rollout")
+}
+
+// TestSyncInternal_InPlace_Infeasible_RolloutAlreadyTriggered_Skips verifies that when a
+// rollout has already been triggered for the current recommendation, a subsequent sync
+// observing an Infeasible pod does not re-trigger the rollout. Re-entering triggerRollout
+// would stamp a new timestamp on the pod template and start another ReplicaSet.
+func TestSyncInternal_InPlace_Infeasible_RolloutAlreadyTriggered_Skips(t *testing.T) {
+	now := time.Now()
+	f := newVerticalControllerFixture(t, now)
+	f.createTarget("default", "d1", kubernetes.DeploymentKind)
+
+	workloadPatched := false
+	f.dynamicClient.PrependReactor("patch", "deployments", func(_ k8stesting.Action) (bool, runtime.Object, error) {
+		workloadPatched = true
+		return true, &unstructured.Unstructured{Object: map[string]any{
+			"metadata": map[string]any{"name": "d1", "namespace": "default"},
+		}}, nil
+	})
+
+	gvk := schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: kubernetes.DeploymentKind}
+	target := NamespacedPodOwner{Namespace: "default", Kind: kubernetes.DeploymentKind, Name: "d1"}
+
+	ai := (&model.FakePodAutoscalerInternal{
+		Namespace: "default",
+		Name:      "ai",
+		Spec: &datadoghq.DatadogPodAutoscalerSpec{
+			TargetRef: v2.CrossVersionObjectReference{Name: "d1", Kind: kubernetes.DeploymentKind, APIVersion: "apps/v1"},
+		},
+		ScalingValues: model.ScalingValues{Vertical: scalingValWithRequests("r1", "500m")},
+		VerticalLastAction: &datadoghqcommon.DatadogPodAutoscalerVerticalAction{
+			Time:    metav1.NewTime(now.Add(-time.Minute)),
+			Version: "r1",
+			Type:    datadoghqcommon.DatadogPodAutoscalerRolloutTriggeredVerticalActionType,
+		},
+	}).Build()
+
+	pods := []*workloadmeta.KubernetesPod{
+		podWithResizeCondition("p1", "r1", kubernetes.ReplicaSetKind, "rs1",
+			kubePodConditionResizePending, kubePodConditionResizePendingReasonInfeasible),
+	}
+
+	result, err := f.controller.syncInternal(
+		context.Background(), &datadoghq.DatadogPodAutoscaler{}, &ai, target, gvk, "r1",
+		pods, map[string]int32{}, map[string]int32{}, buildPodsByResizeStatus(pods, "r1"),
+	)
+	assert.NoError(t, err)
+	assert.False(t, workloadPatched, "rollout must not re-trigger when already triggered for the same recommendation")
+	assert.True(t, result.Requeue, "must requeue while waiting for the previously-triggered rollout to converge")
 }
 
 // TestSyncInternal_InPlace_Error_Evicts verifies that a pod with PodResizeInProgress/Error
@@ -878,12 +952,12 @@ func TestSyncInternal_InPlace_PDB_StopsEviction(t *testing.T) {
 		return false, nil, nil
 	})
 
-	// Two infeasible pods; PDB blocks the first -> second should not be attempted.
+	// Two pods in resize-Error; PDB blocks the first -> second should not be attempted.
 	pods := []*workloadmeta.KubernetesPod{
 		podWithResizeCondition("p1", "r1", kubernetes.ReplicaSetKind, "rs1",
-			kubePodConditionResizePending, kubePodConditionResizePendingReasonInfeasible),
+			kubePodConditionResizeInProgress, kubePodConditionResizeInProgressReasonError),
 		podWithResizeCondition("p2", "r1", kubernetes.ReplicaSetKind, "rs1",
-			kubePodConditionResizePending, kubePodConditionResizePendingReasonInfeasible),
+			kubePodConditionResizeInProgress, kubePodConditionResizeInProgressReasonError),
 	}
 	result, err := f.runSyncInPlaceMode(t, nil, nil, "r1", pods)
 	assert.NoError(t, err)
@@ -921,7 +995,7 @@ func TestSyncInternal_InPlace_FallbackToRollout_WhenStuck(t *testing.T) {
 	stuckSince := now.Add(-10 * time.Minute)
 	pods := []*workloadmeta.KubernetesPod{
 		podWithResizeConditionAt("p1", "r1", kubernetes.ReplicaSetKind, "rs1",
-			kubePodConditionResizePending, kubePodConditionResizePendingReasonInfeasible, stuckSince),
+			kubePodConditionResizeInProgress, kubePodConditionResizeInProgressReasonError, stuckSince),
 	}
 	dpa := makeDPAWithFallbackDelay("default", "ai", 300) // 5 minutes
 
@@ -951,7 +1025,7 @@ func TestSyncInternal_InPlace_NoFallback_WhenNotStuckLongEnough(t *testing.T) {
 	stuckSince := now.Add(-1 * time.Minute)
 	pods := []*workloadmeta.KubernetesPod{
 		podWithResizeConditionAt("p1", "r1", kubernetes.ReplicaSetKind, "rs1",
-			kubePodConditionResizePending, kubePodConditionResizePendingReasonInfeasible, stuckSince),
+			kubePodConditionResizeInProgress, kubePodConditionResizeInProgressReasonError, stuckSince),
 	}
 	dpa := makeDPAWithFallbackDelay("default", "ai", 300) // 5 minutes
 

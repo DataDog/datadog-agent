@@ -24,7 +24,7 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 	agentmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 )

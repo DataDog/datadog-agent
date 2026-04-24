@@ -23,7 +23,7 @@
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 383
+            "lineNumber": 394
           },
           {
             "function": "main.main",
@@ -72,15 +72,15 @@
               }
             }
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "@return.r1 == 42.5",
+            "message": "error evaluating condition"
+          }
+        ]
       },
-      "type": "snapshot",
-      "evaluationErrors": [
-        {
-          "expr": "@return.r1 == 42.5",
-          "message": "error evaluating condition"
-        }
-      ]
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
