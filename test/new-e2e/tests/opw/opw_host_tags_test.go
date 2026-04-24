@@ -60,6 +60,11 @@ tags:
 `, fakeintakeURL, sendHostTags, hostTag)
 }
 
+func (s *opwHostTagsSuite) TearDownSuite() {
+	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	s.BaseSuite.TearDownSuite()
+}
+
 func (s *opwHostTagsSuite) BeforeTest(suiteName, testName string) {
 	s.BaseSuite.BeforeTest(suiteName, testName)
 	require.NoError(s.T(), s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
@@ -116,7 +121,7 @@ func (s *opwHostTagsSuite) TestSendHostTagsDisabled() {
 		require.NoError(c, err)
 		require.NotEmpty(c, logs, "expected log for service %q containing %q", serviceName, content)
 		for i, l := range logs {
-			assert.NotContains(s.T(), l.Tags, hostTag,
+			assert.NotContains(c, l.Tags, hostTag,
 				"log[%d] unexpectedly carried %q; tags=%v", i, hostTag, l.Tags)
 		}
 	}, waitDuration, tickInterval)
