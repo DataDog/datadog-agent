@@ -21,9 +21,10 @@ const (
 	metricsSpecFile       = "gpu_metrics.yaml"
 	architecturesSpecFile = "architectures.yaml"
 	tagsSpecFile          = "tags.yaml"
+	aggregationsSpecFile  = "aggregations.yaml"
 )
 
-//go:embed gpu_metrics.yaml architectures.yaml tags.yaml
+//go:embed gpu_metrics.yaml architectures.yaml tags.yaml aggregations.yaml
 var embeddedSpecs embed.FS
 
 // DeviceMode identifies the GPU device operating mode in the spec.
@@ -52,6 +53,19 @@ type MetricsSpec struct {
 type TagsSpec struct {
 	Tags    map[string]TagSpec    `yaml:"tags"`
 	Tagsets map[string]TagsetSpec `yaml:"tagsets"`
+}
+
+// AggregationsSpec is the YAML aggregation specification.
+type AggregationsSpec struct {
+	Aggregations map[string]AggregationSpec `yaml:"aggregations"`
+}
+
+// AggregationSpec defines aggregation behavior metadata.
+type AggregationSpec struct {
+	Description           string `yaml:"description"`
+	TimeAggregator        string `yaml:"time_aggregator"`
+	GroupAggregator       string `yaml:"group-aggregator"`
+	GranularityAggregator string `yaml:"granularity_aggregator"`
 }
 
 // TagSpec defines validation metadata for a reusable tag.
@@ -94,6 +108,7 @@ type MetricMetadataSpec struct {
 	MetricType  string `yaml:"metric_type,omitempty"`
 	Unit        string `yaml:"unit,omitempty"`
 	Description string `yaml:"description,omitempty"`
+	Aggregation string `yaml:"aggregation,omitempty"`
 }
 
 // UnmarshalYAML validates metric metadata values while decoding.
@@ -228,6 +243,7 @@ type Specs struct {
 	Metrics       *MetricsSpec
 	Tags          *TagsSpec
 	Architectures *ArchitecturesSpec
+	Aggregations  *AggregationsSpec
 }
 
 // ArchitectureCapabilities defines capabilities and unsupported fields.
@@ -328,6 +344,21 @@ func LoadArchitecturesSpec() (*ArchitecturesSpec, error) {
 	return &parsed, nil
 }
 
+// LoadAggregationsSpec loads the canonical GPU aggregations specification file.
+func LoadAggregationsSpec() (*AggregationsSpec, error) {
+	data, err := embeddedSpecs.ReadFile(aggregationsSpecFile)
+	if err != nil {
+		return nil, fmt.Errorf("read aggregations spec %q: %w", aggregationsSpecFile, err)
+	}
+
+	var parsed AggregationsSpec
+	if err := yaml.Unmarshal(data, &parsed); err != nil {
+		return nil, fmt.Errorf("unmarshal aggregations spec %q: %w", aggregationsSpecFile, err)
+	}
+
+	return &parsed, nil
+}
+
 // LoadSpecs loads all canonical GPU specification files.
 func LoadSpecs() (*Specs, error) {
 	metrics, err := LoadMetricsSpec()
@@ -345,9 +376,24 @@ func LoadSpecs() (*Specs, error) {
 		return nil, fmt.Errorf("load architectures spec: %w", err)
 	}
 
+	aggregations, err := LoadAggregationsSpec()
+	if err != nil {
+		return nil, fmt.Errorf("load aggregations spec: %w", err)
+	}
+
+	for metricName, metricSpec := range metrics.Metrics {
+		if metricSpec.Metadata == nil || metricSpec.Metadata.Aggregation == "" {
+			continue
+		}
+		if _, found := aggregations.Aggregations[metricSpec.Metadata.Aggregation]; !found {
+			return nil, fmt.Errorf("metric %q references unknown aggregation %q", metricName, metricSpec.Metadata.Aggregation)
+		}
+	}
+
 	return &Specs{
 		Metrics:       metrics,
 		Tags:          tags,
 		Architectures: architectures,
+		Aggregations:  aggregations,
 	}, nil
 }
