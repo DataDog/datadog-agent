@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Fix OTel logs sent via the Datadog exporter on ECS Fargate showing an empty
+    string for the ``host`` reserved attribute instead of no host. The hostname
+    field is now omitted from the log payload when no hostname applies (e.g.
+    serverless/Fargate environments), so logs appear without a host rather than
+    with a blank one.

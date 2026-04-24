@@ -29,7 +29,7 @@ type jsonServerlessInitPayload struct {
 	Message   ValidUtf8Bytes `json:"message"`
 	Status    string         `json:"status"`
 	Timestamp int64          `json:"timestamp"`
-	Hostname  string         `json:"hostname"`
+	Hostname  string         `json:"hostname,omitempty"`
 	Service   string         `json:"service,omitempty"`
 	Source    string         `json:"ddsource"`
 	Tags      string         `json:"ddtags"`
