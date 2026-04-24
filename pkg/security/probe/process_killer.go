@@ -140,7 +140,7 @@ func (p *ProcessKiller) registerReport(report *KillActionReport, ev *model.Event
 
 // checkDisarmerCache checks a single disarmer cache (container or executable) and handles
 // disarm/dismantle transitions. Returns true if the kill action is allowed to proceed.
-func (p *ProcessKiller) checkDisarmerCache(disarmer *ruleDisarmer, dt disarmerType, key string, ruleID string) bool {
+func (p *ProcessKiller) checkDisarmerCache(disarmer *ruleDisarmer, dt disarmerType, key string, ruleID string) (bool, bool) {
 	var cache *disarmerCache[string, bool]
 	var params *disarmerParams
 	switch dt {
@@ -176,13 +176,15 @@ func (p *ProcessKiller) checkDisarmerCache(disarmer *ruleDisarmer, dt disarmerTy
 			disarmer.pendingReports = nil
 		}
 	}
+	// get it before unlocking the mutex
+	dismantled := disarmer.dismantled
 	disarmer.m.Unlock()
 
 	if newlyDisarmed {
 		p.processPendingKills()
 		p.updateNextAlarm()
 	}
-	return allow
+	return allow, dismantled
 }
 
 func (p *ProcessKiller) reportBlockedByDisarmer(scope string, kill *rules.KillDefinition, ev *model.Event, rule *rules.Rule, dt disarmerType, dismantled bool) *KillActionReport {
@@ -237,16 +239,16 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 		if disarmer.container.enabled {
 			containerID := string(ev.ProcessContext.Process.ContainerContext.ContainerID)
 			if containerID != "" {
-				if !p.checkDisarmerCache(disarmer, containerDisarmerType, containerID, rule.ID) {
-					return false, p.reportBlockedByDisarmer(scope, kill, ev, rule, containerDisarmerType, disarmer.dismantled)
+				if allow, dismantled := p.checkDisarmerCache(disarmer, containerDisarmerType, containerID, rule.ID); !allow {
+					return false, p.reportBlockedByDisarmer(scope, kill, ev, rule, containerDisarmerType, dismantled)
 				}
 			}
 		}
 
 		if disarmer.executable.enabled {
 			executable := entry.Process.FileEvent.PathnameStr
-			if !p.checkDisarmerCache(disarmer, executableDisarmerType, executable, rule.ID) {
-				return false, p.reportBlockedByDisarmer(scope, kill, ev, rule, executableDisarmerType, disarmer.dismantled)
+			if allow, dismantled := p.checkDisarmerCache(disarmer, executableDisarmerType, executable, rule.ID); !allow {
+				return false, p.reportBlockedByDisarmer(scope, kill, ev, rule, executableDisarmerType, dismantled)
 			}
 		}
 	}
@@ -445,24 +447,26 @@ func (p *ProcessKiller) killPendingForDisarmer(disarmer *ruleDisarmer, now time.
 		return
 	}
 
+	// Hold the locks until the end of the function to avoid a conflict with HandleProcessExit and FlushPendingReports
+	for _, r := range disarmer.pendingReports {
+		r.Lock()
+		defer r.Unlock()
+	}
+
 	// Drop reports that were already resolved (e.g. aborted because all PIDs
 	// exited before the warmup period elapsed). Without this, updateKillActionReport
 	// would overwrite their final status.
 	disarmer.pendingReports = slices.DeleteFunc(disarmer.pendingReports, func(r *KillActionReport) bool {
-		r.RLock()
-		defer r.RUnlock()
 		return r.resolved
 	})
-
+	// After dropping the reports, check if there are any left
 	if len(disarmer.pendingReports) == 0 {
 		return
 	}
 
 	var allKills []killContext
 	for _, r := range disarmer.pendingReports {
-		r.Lock()
 		allKills = append(allKills, r.pendingKills...)
-		r.Unlock()
 	}
 	slices.SortFunc(allKills, func(a, b killContext) int {
 		if a.pid < b.pid {
@@ -477,14 +481,9 @@ func (p *ProcessKiller) killPendingForDisarmer(disarmer *ruleDisarmer, now time.
 	if len(allKills) == 0 {
 		seclog.Debugf("no pending kill for rule `%s`", disarmer.ruleID)
 	}
-	for _, r := range disarmer.pendingReports {
-		// we need to lock the report before calling KillProcesses to avoid races with HandleProcessExit
-		r.Lock()
-	}
 	failedPids, killedPids := p.KillProcesses(false, disarmer.ruleID, disarmer.killSignal, allKills)
 	for _, r := range disarmer.pendingReports {
 		updateKillActionReport(r, now, failedPids, killedPids)
-		r.Unlock()
 	}
 	disarmer.pendingReports = nil
 }
@@ -655,6 +654,8 @@ func isWarmupPeriod(rd *ruleDisarmer) bool {
 // enqueueDuringWarmup enqueues the kill contexts into the report and adds it to the disarmer's
 // pending reports if the warmup period has not yet elapsed. Returns true if enqueued.
 func (p *ProcessKiller) enqueueDuringWarmup(rd *ruleDisarmer, signal int, report *KillActionReport, kcs []killContext) bool {
+	rd.m.Lock()
+	defer rd.m.Unlock()
 	rd.killSignal = signal
 	report.pendingKills = kcs
 	rd.pendingReports = append(rd.pendingReports, report)
