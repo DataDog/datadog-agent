@@ -715,7 +715,11 @@ def docker_build(
         '"'
     )
     docker_cmd = (
-        f"docker run --rm {env_str} {vol_str} -w /go/src/github.com/DataDog/datadog-agent {build_image} {build_cmd}"
+        f"docker run --rm "
+        f"{env_str} {vol_str} "
+        f"-w /go/src/github.com/DataDog/datadog-agent "
+        f"{build_image} "
+        f"{build_cmd}"
     )
 
     print(f"Building Datadog Agent for {arch}")
