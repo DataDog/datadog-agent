@@ -12,48 +12,43 @@ import (
 	"fmt"
 	"io"
 
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	processStatus "github.com/DataDog/datadog-agent/pkg/process/util/status"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
 type dependencies struct {
-	fx.In
+	compdef.In
 
 	Config   config.Component
 	Hostname hostnameinterface.Component
 }
 
-type provides struct {
-	fx.Out
+// Provides defines the output dependencies of the status component.
+type Provides struct {
+	compdef.Out
 
 	StatusProvider status.InformationProvider
 }
 
-// Module defines the fx options for the status component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newStatus))
+// NewComponent creates the status component.
+func NewComponent(deps dependencies) Provides {
+	return Provides{
+		StatusProvider: status.NewInformationProvider(statusProvider{
+			config:   deps.Config,
+			hostname: deps.Hostname,
+		}),
+	}
 }
 
 type statusProvider struct {
 	testServerURL string
 	config        config.Component
 	hostname      hostnameinterface.Component
-}
-
-func newStatus(deps dependencies) provides {
-	return provides{
-		StatusProvider: status.NewInformationProvider(statusProvider{
-			config:   deps.Config,
-			hostname: deps.Hostname,
-		}),
-	}
 }
 
 //go:embed status_templates
@@ -88,17 +83,19 @@ func (s statusProvider) populateStatus() map[string]interface{} {
 	} else {
 
 		// Get expVar server address
-		ipcAddr, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+		// ipc_address is deprecated in favor of cmd_host, but we still need to support it
+		ipcKey := "cmd_host"
+		if s.config.IsSet("ipc_address") {
+			log.Warn("ipc_address is deprecated, use cmd_host instead")
+			ipcKey = "ipc_address"
+		}
+		ipcAddr, err := system.IsLocalAddress(s.config.GetString(ipcKey))
 		if err != nil {
-			status["error"] = err.Error()
+			status["error"] = fmt.Sprintf("%s: %s", ipcKey, err)
 			return status
 		}
 
-		port := s.config.GetInt("process_config.expvar_port")
-		if port <= 0 {
-			port = pkgconfigsetup.DefaultProcessExpVarPort
-		}
-		url = fmt.Sprintf("http://%s:%d/debug/vars", ipcAddr, port)
+		url = fmt.Sprintf("http://%s:%d/debug/vars", ipcAddr, s.config.GetInt("process_config.expvar_port"))
 	}
 
 	agentStatus, err := processStatus.GetStatus(s.config, url, s.hostname)

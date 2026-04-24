@@ -54,7 +54,7 @@ import (
 	expvars "github.com/DataDog/datadog-agent/comp/process/expvars/def"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo/def"
 	profiler "github.com/DataDog/datadog-agent/comp/process/profiler/def"
-	"github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
+	processstatusfx "github.com/DataDog/datadog-agent/comp/process/status/fx"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
 	remoteconfig "github.com/DataDog/datadog-agent/comp/remote-config"
@@ -151,7 +151,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		remoteconfig.Bundle(),
 
 		// Provide status modules
-		statusimpl.Module(),
+		processstatusfx.Module(),
 		coreStatusImpl.Module(),
 
 		// Provide statsd client module
