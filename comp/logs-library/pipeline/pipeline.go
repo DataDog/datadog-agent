@@ -30,7 +30,10 @@ type Pipeline struct {
 	pipelineMonitor metrics.PipelineMonitor
 }
 
-// NewPipeline returns a new Pipeline
+// NewPipeline returns a new Pipeline.
+// hostTagsProvider, if non-nil, supplies host tags to append to the ddtags field of each JSON-encoded
+// payload. It is only consulted on the HTTP/JSON path used by Observability Pipelines Worker; the
+// serverless, proto, and raw paths ignore it.
 func NewPipeline(
 	processingRules []*config.ProcessingRule,
 	endpoints *config.Endpoints,
@@ -41,20 +44,12 @@ func NewPipeline(
 	cfg pkgconfigmodel.Reader,
 	compression logscompression.Component,
 	instanceID string,
+	hostTagsProvider func() []string,
 ) *Pipeline {
 	strategyInput := make(chan *message.Message, cfg.GetInt("logs_config.message_channel_size"))
 	flushChan := make(chan struct{})
 
-	var encoder processor.Encoder
-	if serverlessMeta.IsEnabled() {
-		encoder = processor.JSONServerlessInitEncoder
-	} else if endpoints.UseHTTP {
-		encoder = processor.JSONEncoder
-	} else if endpoints.UseProto {
-		encoder = processor.ProtoEncoder
-	} else {
-		encoder = processor.RawEncoder
-	}
+	encoder := selectEncoder(endpoints, serverlessMeta, cfg, hostTagsProvider)
 	strategy := getStrategy(strategyInput, senderImpl.In(), flushChan, endpoints, serverlessMeta, senderImpl.PipelineMonitor(), compression, instanceID)
 
 	inputChan := make(chan *message.Message, cfg.GetInt("logs_config.message_channel_size"))
@@ -87,6 +82,31 @@ func (p *Pipeline) Stop() {
 func (p *Pipeline) Flush(ctx context.Context) {
 	p.flushChan <- struct{}{}
 	p.processor.Flush(ctx) // flush messages in the processor into the sender
+}
+
+// selectEncoder returns the encoder to use for the given pipeline configuration.
+// The host-tag-aware JSON encoder is only selected on the HTTP/JSON path when a
+// provider is supplied and the OPW send_host_tags toggle is true; all other
+// paths (serverless, proto, raw) keep their original encoders untouched.
+func selectEncoder(
+	endpoints *config.Endpoints,
+	serverlessMeta sender.ServerlessMeta,
+	cfg pkgconfigmodel.Reader,
+	hostTagsProvider func() []string,
+) processor.Encoder {
+	if serverlessMeta.IsEnabled() {
+		return processor.JSONServerlessInitEncoder
+	}
+	if endpoints.UseHTTP {
+		if hostTagsProvider != nil && config.SendHostTagsToOPW(cfg) {
+			return processor.NewJSONEncoderWithHostTags(hostTagsProvider)
+		}
+		return processor.JSONEncoder
+	}
+	if endpoints.UseProto {
+		return processor.ProtoEncoder
+	}
+	return processor.RawEncoder
 }
 
 func getStrategy(

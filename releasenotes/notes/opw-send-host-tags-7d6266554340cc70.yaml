@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    When ``observability_pipelines_worker.logs.send_host_tags`` is enabled (env
+    ``DD_OBSERVABILITY_PIPELINES_WORKER_LOGS_SEND_HOST_TAGS``), the Agent attaches
+    the host's tags (``tags`` config, cloud metadata such as EC2 and cluster
+    tags) to the ``ddtags`` field of log payloads forwarded to an Observability
+    Pipelines Worker. Enabling this may increase log payload size.

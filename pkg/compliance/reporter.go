@@ -54,6 +54,7 @@ func NewLogReporter(hostname string, sourceName, sourceType string, endpoints *c
 		cfg.GetBool("logs_config.disable_distributed_senders"),
 		false, // serverless
 		secretsComp,
+		nil, // hostTagsProvider
 	)
 	pipelineProvider.Start()
 

@@ -67,9 +67,10 @@ type provider struct {
 	currentPipelineIndex *atomic.Uint32
 	serverlessMeta       sender.ServerlessMeta
 
-	hostname    hostnameinterface.Component
-	cfg         pkgconfigmodel.Reader
-	compression logscompression.Component
+	hostname         hostnameinterface.Component
+	cfg              pkgconfigmodel.Reader
+	compression      logscompression.Component
+	hostTagsProvider func() []string
 
 	failoverEnabled    bool
 	routerChannels     []chan *message.Message
@@ -80,6 +81,7 @@ type provider struct {
 // NewProvider returns a new Provider.
 // When secretsComp is backed by a real secrets backend, HTTP destinations will trigger an async API key refresh
 // on 403 responses and retry the payload instead of dropping it. Pass a SecretNoop when no secrets backend is available.
+// hostTagsProvider may be nil; see NewPipeline for its semantics.
 func NewProvider(
 	numberOfPipelines int,
 	sink sender.Sink,
@@ -94,6 +96,7 @@ func NewProvider(
 	legacyMode bool,
 	serverless bool,
 	secretsComp secrets.Component,
+	hostTagsProvider func() []string,
 ) Provider {
 	var senderImpl sender.PipelineComponent
 	serverlessMeta := sender.NewServerlessMeta(serverless)
@@ -114,6 +117,7 @@ func NewProvider(
 		compression,
 		serverlessMeta,
 		senderImpl,
+		hostTagsProvider,
 	)
 }
 
@@ -223,6 +227,7 @@ func newProvider(
 	compression logscompression.Component,
 	serverlessMeta sender.ServerlessMeta,
 	senderImpl sender.PipelineComponent,
+	hostTagsProvider func() []string,
 ) Provider {
 	return &provider{
 		numberOfPipelines:         numberOfPipelines,
@@ -233,6 +238,7 @@ func newProvider(
 		pipelines:                 []*Pipeline{},
 		currentPipelineIndex:      atomic.NewUint32(0),
 		serverlessMeta:            serverlessMeta,
+		hostTagsProvider:          hostTagsProvider,
 		hostname:                  hostname,
 		cfg:                       cfg,
 		compression:               compression,
@@ -260,6 +266,7 @@ func (p *provider) Start() {
 			p.cfg,
 			p.compression,
 			strconv.Itoa(i),
+			p.hostTagsProvider,
 		)
 		pipeline.Start()
 		p.pipelines = append(p.pipelines, pipeline)

@@ -1247,6 +1247,55 @@ func TestShouldUseTCP(t *testing.T) {
 	}
 }
 
+func TestSendHostTagsToOPW(t *testing.T) {
+	tests := []struct {
+		name     string
+		setup    func(c config.Component)
+		expected bool
+	}{
+		{
+			name: "OPW enabled, send_host_tags disabled",
+			setup: func(c config.Component) {
+				c.SetWithoutSource("observability_pipelines_worker.logs.enabled", true)
+				c.SetWithoutSource("observability_pipelines_worker.logs.send_host_tags", false)
+			},
+			expected: false,
+		},
+		{
+			name: "OPW disabled, send_host_tags enabled",
+			setup: func(c config.Component) {
+				c.SetWithoutSource("observability_pipelines_worker.logs.enabled", false)
+				c.SetWithoutSource("observability_pipelines_worker.logs.send_host_tags", true)
+			},
+			expected: false,
+		},
+		{
+			name: "OPW enabled, observability_pipelines_worker.logs.send_host_tags enabled",
+			setup: func(c config.Component) {
+				c.SetWithoutSource("observability_pipelines_worker.logs.enabled", true)
+				c.SetWithoutSource("observability_pipelines_worker.logs.send_host_tags", true)
+			},
+			expected: true,
+		},
+		{
+			name: "OPW enabled via vector alias, vector.logs.send_host_tags enabled",
+			setup: func(c config.Component) {
+				c.SetWithoutSource("vector.logs.enabled", true)
+				c.SetWithoutSource("vector.logs.send_host_tags", true)
+			},
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := config.NewMock(t)
+			tt.setup(cfg)
+			assert.Equal(t, tt.expected, SendHostTagsToOPW(cfg))
+		})
+	}
+}
+
 func (suite *ConfigTestSuite) TestBatchWaitSubsecondValues() {
 	suite.config.SetWithoutSource("api_key", "123")
 

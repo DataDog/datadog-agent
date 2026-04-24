@@ -753,6 +753,14 @@ api_key:
 #
 #     url: "http://127.0.0.1:8080"
 
+#     # @param send_host_tags - boolean - optional - default: false
+#     # @env DD_OBSERVABILITY_PIPELINES_WORKER_LOGS_SEND_HOST_TAGS - boolean - optional - default: false
+#     # When true, attaches host-level tags (from `tags` config and cloud metadata such
+#     # as EC2 and cluster tags) to the `ddtags` field of log payloads sent to the
+#     # Observability Pipelines Worker. Enabling this may increase log payload size.
+#
+#     send_host_tags: false
+
 #   # @param traces - custom object - optional
 #   # Specific configurations for traces
 #

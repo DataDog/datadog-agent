@@ -200,6 +200,27 @@ func TestEnvNestedConfig(t *testing.T) {
 	assert.Equal(t, "baz", config.GetString("foo.bar.nested"))
 }
 
+func TestObsPipelineSendHostTagsDefaults(t *testing.T) {
+	testConfig := newTestConf(t)
+	assert.Equal(t, false, testConfig.GetBool("observability_pipelines_worker.logs.send_host_tags"))
+	assert.Equal(t, false, testConfig.GetBool("vector.logs.send_host_tags"))
+	// send_host_tags is logs-only; the metrics path must not define it.
+	assert.False(t, testConfig.IsKnown("observability_pipelines_worker.metrics.send_host_tags"))
+	assert.False(t, testConfig.IsKnown("vector.metrics.send_host_tags"))
+}
+
+func TestObsPipelineSendHostTagsEnvVar(t *testing.T) {
+	t.Setenv("DD_OBSERVABILITY_PIPELINES_WORKER_LOGS_SEND_HOST_TAGS", "true")
+	testConfig := newTestConf(t)
+	assert.Equal(t, true, testConfig.GetBool("observability_pipelines_worker.logs.send_host_tags"))
+}
+
+func TestVectorLogsSendHostTagsEnvVar(t *testing.T) {
+	t.Setenv("DD_VECTOR_LOGS_SEND_HOST_TAGS", "true")
+	testConfig := newTestConf(t)
+	assert.Equal(t, true, testConfig.GetBool("vector.logs.send_host_tags"))
+}
+
 func TestProxy(t *testing.T) {
 	type testCase struct {
 		name                  string

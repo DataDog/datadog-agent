@@ -237,6 +237,7 @@ func TestProviderConfigurations(t *testing.T) {
 				tc.legacyMode,
 				tc.serverless,
 				secretsnoopimpl.NewComponent().Comp,
+				nil, // hostTagsProvider
 			)
 			require.NotNil(t, providerImpl)
 
@@ -306,6 +307,7 @@ func TestPipelineChannelDistribution(t *testing.T) {
 				false, // legacy mode
 				false, // serverless
 				secretsnoopimpl.NewComponent().Comp,
+				nil, // hostTagsProvider
 			)
 
 			require.NotNil(t, providerImpl)

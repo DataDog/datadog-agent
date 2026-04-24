@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -23,7 +24,16 @@ var JSONEncoder Encoder = &jsonEncoder{}
 var JSONPayload = jsonPayload{}
 
 // jsonEncoder transforms a message into a JSON byte array.
-type jsonEncoder struct{}
+type jsonEncoder struct {
+	hostTags func() []string
+}
+
+// NewJSONEncoderWithHostTags returns a JSON encoder that appends host tags,
+// provided by the given callback, to the ddtags field of each payload.
+// Passing a nil callback yields an encoder equivalent to the JSONEncoder singleton.
+func NewJSONEncoderWithHostTags(hostTags func() []string) Encoder {
+	return &jsonEncoder{hostTags: hostTags}
+}
 
 // JSON representation of a message.
 type jsonPayload struct {
@@ -47,6 +57,18 @@ func (j *jsonEncoder) Encode(msg *message.Message, hostname string) error {
 		ts = msg.ServerlessExtra.Timestamp
 	}
 
+	tags := msg.TagsToString()
+	if j.hostTags != nil {
+		if extra := j.hostTags(); len(extra) > 0 {
+			joined := strings.Join(extra, ",")
+			if tags == "" {
+				tags = joined
+			} else {
+				tags = tags + "," + joined
+			}
+		}
+	}
+
 	encoded, err := json.Marshal(jsonPayload{
 		Message:   ValidUtf8Bytes(msg.GetContent()),
 		Status:    msg.GetStatus(),
@@ -54,7 +76,7 @@ func (j *jsonEncoder) Encode(msg *message.Message, hostname string) error {
 		Hostname:  hostname,
 		Service:   msg.Origin.Service(),
 		Source:    msg.Origin.Source(),
-		Tags:      msg.TagsToString(),
+		Tags:      tags,
 	})
 
 	if err != nil {
