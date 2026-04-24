@@ -382,6 +382,13 @@
   review:
     name: '#synthetics'
     id: 'C8E85JEGH'
+'@datadog/telemetry-onboarding':
+  notification:
+    name: '#telemetry-onboarding'
+    id: 'C0ACU5FGE3H'
+  review:
+    name: '#telemetry-onboarding'
+    id: 'C0ACU5FGE3H'
 '@datadog/universal-service-monitoring':
   notification:
     name: '#universal-service-monitoring'

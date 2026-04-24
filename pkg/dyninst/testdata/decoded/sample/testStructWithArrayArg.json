@@ -18,12 +18,12 @@
           {
             "function": "main.testStructWithArrayArg",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 368
+            "lineNumber": 379
           },
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 435
+            "lineNumber": 447
           },
           {
             "function": "main.main",

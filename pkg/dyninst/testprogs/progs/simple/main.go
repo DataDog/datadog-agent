@@ -98,6 +98,13 @@ func main() {
 	condReturnAndLocal(5, 3)
 	condReturnAndLocal(1, 1)
 
+	// Multi-return with two distinct-typed fields. Called with "ok" (→ r0=2,
+	// r1="ok") and "other" (→ r0=5, r1="other") so compound conditions
+	// referencing both @return.r0 and @return.r1 across different leaves
+	// can be distinguished.
+	condMultiReturn("ok")
+	condMultiReturn("other")
+
 	// Condition-only probe: called twice, condition matches only one.
 	condOnly(99, "match")
 	condOnly(0, "miss")
@@ -884,4 +891,16 @@ func (m *methodValueReceiver) inlinedMethod() int {
 //go:noinline
 func methodValueSink(f func() int) {
 	fmt.Println(f())
+}
+
+// condMultiReturn has two distinct-typed named returns so compound
+// conditions can reference both @return.r0 (int) and @return.r1 (string)
+// from different leaves.
+//
+//go:noinline
+func condMultiReturn(tag string) (r0 int, r1 string) {
+	r0 = len(tag)
+	r1 = tag
+	fmt.Println("condMultiReturn", r0, r1)
+	return r0, r1
 }
