@@ -1225,6 +1225,7 @@ func agent(config pkgconfigmodel.Setup) {
 		"winproc",
 		"wmi_check",
 		"windows_certificate",
+		"windows_performance_counters",
 		"windows_registry",
 		"windows_service",
 	})

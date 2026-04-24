@@ -9,6 +9,7 @@
 enhancements:
   - |
     When ``infrastructure_mode`` is ``basic``, the Agent's default allowlist
-    now includes the Directory, WMI Check, Windows Certificate, and Windows
-    Registry integrations so they can run without extra
-    ``integration.additional`` configuration on Windows-oriented deployments.
+    now includes the Directory, WMI Check, Windows Certificate, Windows
+    Performance Counters, and Windows Registry integrations so they can run
+    without extra ``integration.additional`` configuration on
+    Windows-oriented deployments.
