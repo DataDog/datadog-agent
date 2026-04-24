@@ -6,6 +6,8 @@ go_library(
         "etwImpl.go",
         "etwSession.go",
         "eventrecord.go",
+        "session.c",
+        "session.h",
     ],
     cgo = True,
     importpath = "github.com/DataDog/datadog-agent/comp/etw/impl",
