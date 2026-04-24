@@ -247,3 +247,7 @@ AUTO_JIRA.md
 
 # Zed config
 .zed
+
+# Devcontainer
+.devcontainer/
+!.devcontainer/datadog/default
