@@ -23,11 +23,8 @@ import (
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
 
-//go:embed fixtures/secrets.yaml
-var embeddedSecretFileYAML string
-
-//go:embed fixtures/secrets.json
-var embeddedSecretFileJSON string
+//go:embed fixtures/secrets_merged.yaml
+var embeddedSecretMergedYAML string
 
 type linuxRuntimeSecretSuite struct {
 	e2e.BaseSuite[environments.Host]
@@ -38,32 +35,28 @@ func TestSGCMultiBackendLinuxSuite(t *testing.T) {
 	e2e.Run(t, &linuxRuntimeSecretSuite{}, e2e.WithProvisioner(awshost.Provisioner()))
 }
 
-// TestMultiBackend verifies that extra_secret_backends routes handles to the correct
-// backend when multiple backends are configured simultaneously.
-//   - api_key uses the default AWS backend (secret_backend_type/secret_backend_config),
-//     testing backward compatibility with no "::" prefix in the handle.
-//   - additional_endpoints keys are resolved via extra_secret_backends:
-//   - "yaml" backend (file.yaml) for ENC[yaml::fake_yaml_key]
-//   - "json" backend (file.json) for ENC[json::fake_json_key]
+// TestMultiBackend verifies that when secret_backend_type is set, every ENC[...] inner string is
+// looked up as a single secret key on that backend (including substrings that look like multi-backend
+// prefixes, e.g. "yaml::..."). multi_secret_backends entries are ignored for routing but may still
+// be present in config (and should trigger a warning in agent logs).
 func (v *linuxRuntimeSecretSuite) TestMultiBackend() {
 	config := `api_key: ENC[embedded-secret;embedded_secret_key]
-secret_backend_type: aws.secrets
+secret_backend_type: file.yaml
 secret_backend_config:
-  aws_session:
-    aws_region: us-east-1
+  file_path: /tmp/secrets_merged.yaml
 additional_endpoints:
   "https://app.datadoghq.com":
   - ENC[yaml::fake_yaml_key]
   - ENC[json::fake_json_key]
-extra_secret_backends:
+multi_secret_backends:
   yaml:
     type: file.yaml
     config:
-      file_path: /tmp/secrets.yaml
+      file_path: /tmp/does-not-exist.yaml
   json:
     type: file.json
     config:
-      file_path: /tmp/secrets.json`
+      file_path: /tmp/does-not-exist.json`
 
 	unixPermission := perms.NewUnixPermissions(
 		perms.WithPermissions("0400"),
@@ -72,8 +65,7 @@ extra_secret_backends:
 	)
 	v.UpdateEnv(awshost.Provisioner(
 		awshost.WithRunOptions(scenec2.WithAgentOptions(
-			agentparams.WithFileWithPermissions("/tmp/secrets.yaml", embeddedSecretFileYAML, true, unixPermission),
-			agentparams.WithFileWithPermissions("/tmp/secrets.json", embeddedSecretFileJSON, true, unixPermission),
+			agentparams.WithFileWithPermissions("/tmp/secrets_merged.yaml", embeddedSecretMergedYAML, true, unixPermission),
 			agentparams.WithSkipAPIKeyInConfig(),
 			agentparams.WithAgentConfig(config),
 		)),

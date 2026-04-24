@@ -275,7 +275,7 @@ func TestResolvePartialFailure(t *testing.T) {
 	resolver.backendCommand = "some_command"
 	// backendConfigs is intentionally left empty so "bad_backend" is unknown.
 
-	// commandHookFunc mocks execCommand for the default backend.
+	// commandHookFunc mocks execCommand for the global secret_backend_command path.
 	resolver.commandHookFunc = func(string) ([]byte, error) {
 		return []byte(`{"pass1":{"value":"password1"}}`), nil
 	}
@@ -303,13 +303,13 @@ func TestResolvePartialFailure(t *testing.T) {
 	assert.NotEmpty(t, resolver.unresolvedSecrets)
 }
 
-func TestResolveExtraSecretBackendsDefault(t *testing.T) {
+func TestResolveMultiSecretBackendsNamed(t *testing.T) {
 	tel := nooptelemetry.GetCompatComponent()
 	resolver := newEnabledSecretResolver(tel)
 	resolver.backendCommand = "some_command"
-	// No secret_backend_type set; use extra_secret_backends["default"] instead.
+	// Named backend under multi_secret_backends (no reserved "default" entry).
 	resolver.backendConfigs = map[string]interface{}{
-		"default": map[string]interface{}{
+		"file": map[string]interface{}{
 			"type":   "file.yaml",
 			"config": map[string]interface{}{"file_path": "/tmp/secrets.yaml"},
 		},
@@ -318,11 +318,87 @@ func TestResolveExtraSecretBackendsDefault(t *testing.T) {
 		return []byte(`{"pass1":{"value":"resolved_value"}}`), nil
 	}
 
-	conf := []byte("password: ENC[pass1]\n")
+	conf := []byte("password: ENC[file::pass1]\n")
 	resolvedConf, err := resolver.Resolve(conf, "test", "", "", false)
 
 	require.NoError(t, err)
 	assert.Contains(t, string(resolvedConf), "resolved_value")
+}
+
+func TestResolveSecretBackendTypeUsesFullInnerHandle(t *testing.T) {
+	tel := nooptelemetry.GetCompatComponent()
+	resolver := newEnabledSecretResolver(tel)
+	resolver.backendCommand = "some_command"
+	resolver.backendType = "file.yaml"
+	resolver.backendConfig = map[string]interface{}{"file_path": "/tmp/secrets.yaml"}
+	var got []string
+	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
+		got = append([]string(nil), secrets...)
+		m := make(map[string]string, len(secrets))
+		for _, s := range secrets {
+			m[s] = "v-" + s
+		}
+		return m, nil
+	}
+
+	conf := []byte("k: ENC[foo::bar]\n")
+	_, err := resolver.Resolve(conf, "test", "", "", false)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"foo::bar"}, got)
+}
+
+func TestResolveMultiIgnoredWhenSecretBackendTypeSet(t *testing.T) {
+	tel := nooptelemetry.GetCompatComponent()
+	resolver := newEnabledSecretResolver(tel)
+	resolver.backendCommand = "some_command"
+	resolver.backendType = "file.yaml"
+	resolver.backendConfig = map[string]interface{}{"file_path": "/tmp/primary.yaml"}
+	resolver.backendConfigs = map[string]interface{}{
+		"file": map[string]interface{}{
+			"type":   "file.yaml",
+			"config": map[string]interface{}{"file_path": "/tmp/other.yaml"},
+		},
+	}
+	var got []string
+	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
+		got = append([]string(nil), secrets...)
+		m := make(map[string]string, len(secrets))
+		for _, s := range secrets {
+			m[s] = "resolved"
+		}
+		return m, nil
+	}
+
+	conf := []byte("password: ENC[file::pass1]\n")
+	_, err := resolver.Resolve(conf, "test", "", "", false)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"file::pass1"}, got, "inner string must not be split for multi routing when secret_backend_type is set")
+}
+
+func TestResolveUnprefixedDisallowedWithMultiOnly(t *testing.T) {
+	tel := nooptelemetry.GetCompatComponent()
+	resolver := newEnabledSecretResolver(tel)
+	resolver.backendCommand = "some_command"
+	resolver.backendType = ""
+	resolver.backendConfigs = map[string]interface{}{
+		"file": map[string]interface{}{
+			"type":   "file.yaml",
+			"config": map[string]interface{}{"file_path": "/tmp/secrets.yaml"},
+		},
+	}
+
+	conf := []byte("password: ENC[pass1]\n")
+	_, err := resolver.Resolve(conf, "test", "", "", false)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "could not resolve 1 secret handle(s)")
+	found := false
+	for k := range resolver.unresolvedSecrets {
+		if strings.Contains(k, "unprefixed ENC[secretKey] handles are not supported") {
+			found = true
+			break
+		}
+	}
+	require.True(t, found, "expected unprefixed-handle error in unresolvedSecrets, got %#v", resolver.unresolvedSecrets)
 }
 
 func TestResolveDoestSendDuplicates(t *testing.T) {

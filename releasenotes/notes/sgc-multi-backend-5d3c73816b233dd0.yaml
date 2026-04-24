@@ -2,14 +2,13 @@
 # CHANGELOG.rst is rendered. So the text needs to be worded so that
 # it does not depend on any information only available in another
 # section. This may mean repeating some details, but each section
-# must be readable independently of the other.
+# must be formatted as reStructuredText.
 #
 # Each section note must be formatted as reStructuredText.
 ---
 features:
   - |
-    Add support for multiple secret backends via ``extra_secret_backends`` in ``datadog.yaml``.
-    Each named backend declares its own ``type`` , ``config``, ``secret_backend_timeout`` and
-    secret handles use the ``ENC[backendID::secretKey]`` syntax to route to the correct backend.
-    The default backend (``secret_backend_type`` / ``secret_backend_config``) continues to work
-    as before, and handles without a ``::`` prefix are routed to it.
+    Add support for multiple secret backends via ``multi_secret_backends`` in ``datadog.yaml``.
+    Each named backend declares its own ``type``, ``config``, and ``secret_backend_timeout``.
+    When ``secret_backend_type`` is unset, secret handles use ``ENC[backendID::secretKey]`` to route to a named backend.
+    When ``secret_backend_type`` is set, ``multi_secret_backends`` has no effect on resolution: the full inner ``ENC[...]`` string is the secret key for ``secret_backend_type``.
