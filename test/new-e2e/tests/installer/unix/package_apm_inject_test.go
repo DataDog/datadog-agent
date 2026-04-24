@@ -558,9 +558,6 @@ func (s *packageApmInjectSuite) assertAppArmorProfile() {
 // install; direct instrumentation covers the current boot. The service's ExecStart/ExecStop
 // commands (instrument-start/instrument-stop) manage /etc/ld.so.preload on every reboot.
 func (s *packageApmInjectSuite) TestSystemdService() {
-	if s.installMethod == InstallMethodAnsible {
-		s.T().Skip("Ansible runs stable install-ssi script")
-	}
 	if _, err := s.Env().RemoteHost.Execute("test \"$(cat /proc/1/comm 2>/dev/null)\" = systemd"); err != nil {
 		s.T().Skip("systemd is not running as PID 1 on this host")
 	}
@@ -596,9 +593,6 @@ func (s *packageApmInjectSuite) TestSystemdService() {
 // /etc/ld.so.preload when systemd is not the init system, without creating a service file.
 // This test only runs on hosts where systemd is not PID 1; TestSystemdService covers the systemd path.
 func (s *packageApmInjectSuite) TestInstrumentHost_NoSystemd() {
-	if s.installMethod == InstallMethodAnsible {
-		s.T().Skip("Ansible runs stable install-ssi script")
-	}
 	if _, err := s.Env().RemoteHost.Execute("test \"$(cat /proc/1/comm 2>/dev/null)\" = systemd"); err == nil {
 		s.T().Skip("systemd is PID 1 on this host; TestSystemdService covers that path")
 	}
