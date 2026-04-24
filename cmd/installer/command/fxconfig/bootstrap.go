@@ -69,6 +69,27 @@ func LoadAndExportEnv(confFilePath string) {
 	if err != nil {
 		pkglog.Warnf("fxconfig bootstrap failed (continuing with process env): %v", err)
 	}
+	// Env-only fallback: always translate any remaining legacy
+	// DD_INSTALLER_REGISTRY_{URL,AUTH,USERNAME,PASSWORD}[_<PKG>] vars
+	// into the canonical DD_INSTALLER_REGISTRY JSON. When fx succeeded
+	// this is a no-op (applyConfigToEnv already absorbed and unset them);
+	// when fx failed before invoking applyConfigToEnv this is the safety
+	// net so user-set overrides aren't silently dropped.
+	applyEnvOnlyRegistry()
+}
+
+// applyEnvOnlyRegistry absorbs legacy DD_INSTALLER_REGISTRY_* prefix vars
+// into DD_INSTALLER_REGISTRY (without yaml) and unsets the legacy vars.
+func applyEnvOnlyRegistry() {
+	registry, blob, err := env.BuildRegistryFromEnv()
+	if err != nil {
+		pkglog.Debugf("fxconfig: env-only registry fallback failed: %v", err)
+		return
+	}
+	if !registry.IsEmpty() {
+		setEnvIfUnset(env.EnvInstallerRegistry, blob)
+	}
+	unsetLegacyRegistryVars()
 }
 
 func applyConfigToEnv(cfg agentconfig.Component) {
@@ -84,12 +105,23 @@ func applyConfigToEnv(cfg agentconfig.Component) {
 
 	setEnvIfUnset("DD_PROXY_HTTP", cfg.GetString("proxy.http"))
 	setEnvIfUnset("DD_PROXY_HTTPS", cfg.GetString("proxy.https"))
-	if np := cfg.GetStringSlice("proxy.no_proxy"); len(np) > 0 {
-		setEnvIfUnset("DD_PROXY_NO_PROXY", strings.Join(np, ","))
+	// Only emit DD_PROXY_NO_PROXY when the user explicitly set
+	// proxy.no_proxy in yaml. GetStringSlice always returns the effective
+	// value including cloud-metadata defaults (169.254.169.254 etc.),
+	// which would leak into downstream datadog.yaml writes.
+	if cfg.IsConfigured("proxy.no_proxy") {
+		if np := cfg.GetStringSlice("proxy.no_proxy"); len(np) > 0 {
+			setEnvIfUnset("DD_PROXY_NO_PROXY", strings.Join(np, ","))
+		}
 	}
 
-	if tags := utils.GetConfiguredTags(cfg, false); len(tags) > 0 {
-		setEnvIfUnset("DD_TAGS", strings.Join(tags, ","))
+	// Only emit DD_TAGS when explicitly configured. Default config can
+	// pull in host tags from cloud metadata which would then overwrite
+	// the user's explicit "no tags" choice in datadog.yaml.
+	if cfg.IsConfigured("tags") || cfg.IsConfigured("extra_tags") {
+		if tags := utils.GetConfiguredTags(cfg, false); len(tags) > 0 {
+			setEnvIfUnset("DD_TAGS", strings.Join(tags, ","))
+		}
 	}
 
 	// Registry: fold yaml `installer.registry.*` (incl. per-extension
