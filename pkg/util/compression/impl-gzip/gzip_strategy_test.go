@@ -38,6 +38,40 @@ func FuzzGzipIdentity(f *testing.F) {
 	})
 }
 
+// Asserts that Compress(empty) produces a valid compressed frame (non-empty
+// output that roundtrips back to empty). Derived from the ValidFrame invariant
+// in compression.allium.
+func TestGzipValidFrameEmpty(t *testing.T) {
+	levels := []int{
+		gzip.HuffmanOnly,
+		gzip.NoCompression,
+		gzip.BestSpeed,
+		gzip.DefaultCompression,
+		gzip.BestCompression,
+	}
+
+	for _, level := range levels {
+		c := New(Requires{Level: level})
+		compressed, err := c.Compress([]byte{})
+		if err != nil {
+			t.Fatalf("Compress(empty) failed at level %d: %v", level, err)
+		}
+
+		if len(compressed) == 0 {
+			t.Errorf("Compress(empty) produced empty output at level %d; expected a valid gzip frame", level)
+		}
+
+		decompressed, err := c.Decompress(compressed)
+		if err != nil {
+			t.Fatalf("Decompress of empty frame failed at level %d: %v", level, err)
+		}
+
+		if !bytes.Equal(decompressed, []byte{}) {
+			t.Errorf("Roundtrip of empty input produced non-empty output at level %d: %v", level, decompressed)
+		}
+	}
+}
+
 // Asserts that len(compress(b)) <= CompressBound(len(b)) for all b and levels.
 func FuzzGzipCompressBound(f *testing.F) {
 	f.Add([]byte("hello world"), gzip.BestSpeed)

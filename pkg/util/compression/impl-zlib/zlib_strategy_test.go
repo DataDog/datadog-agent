@@ -37,6 +37,30 @@ func FuzzZlibIdentity(f *testing.F) {
 	})
 }
 
+// Asserts that Compress(empty) produces a valid compressed frame (non-empty
+// output that roundtrips back to empty). Derived from the ValidFrame invariant
+// in compression.allium.
+func TestZlibValidFrameEmpty(t *testing.T) {
+	c := New()
+	compressed, err := c.Compress([]byte{})
+	if err != nil {
+		t.Fatalf("Compress(empty) failed: %v", err)
+	}
+
+	if len(compressed) == 0 {
+		t.Errorf("Compress(empty) produced empty output; expected a valid zlib frame")
+	}
+
+	decompressed, err := c.Decompress(compressed)
+	if err != nil {
+		t.Fatalf("Decompress of empty frame failed: %v", err)
+	}
+
+	if !bytes.Equal(decompressed, []byte{}) {
+		t.Errorf("Roundtrip of empty input produced non-empty output: %v", decompressed)
+	}
+}
+
 // Asserts that len(compress(b)) <= CompressBound(len(b)) for all b.
 func FuzzZlibCompressBound(f *testing.F) {
 	f.Add([]byte("hello world"))
