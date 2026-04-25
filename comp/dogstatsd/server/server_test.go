@@ -48,6 +48,7 @@ func TestNewServerDataPlaneEnabled(t *testing.T) {
 	requireStopped(t, deps.Server)
 }
 
+
 // This test is proving that no data race occurred on the `cachedTlmOriginIds` map.
 // It should not fail since `cachedTlmOriginIds` and `cachedOrder` should be
 // properly protected from multiple accesses by `cachedTlmLock`.
