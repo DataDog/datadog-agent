@@ -340,7 +340,7 @@ if windows_target?
   windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\dd-compile-policy.exe"
 
   # Rust binaries (not in GO_BINARIES — no Go symbol inspection needed)
-  windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\dd-procmgr-service.exe"
+  windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\dd-procmgrd.exe"
   windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\dd-procmgr.exe"
 
   if windows_signing_enabled?
@@ -366,7 +366,7 @@ if windows_target?
       "#{install_dir}\\bin\\agent\\ddtray.exe",
       "#{install_dir}\\bin\\agent\\libdatadog-agent-three.dll",
       "#{install_dir}\\bin\\agent\\dd-compile-policy.exe",
-      "#{install_dir}\\bin\\agent\\dd-procmgr-service.exe",
+      "#{install_dir}\\bin\\agent\\dd-procmgrd.exe",
       "#{install_dir}\\bin\\agent\\dd-procmgr.exe",
     ]
 

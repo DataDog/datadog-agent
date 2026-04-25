@@ -3,12 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//! Windows Service Control Manager (SCM) adapter for dd-procmgr-service.
+//! Windows Service Control Manager (SCM) adapter for dd-procmgrd.
 //!
 //! Implements the SCM protocol using `windows-sys` directly:
 //! - `StartServiceCtrlDispatcherW` registers with SCM (blocks the calling thread).
 //! - `RegisterServiceCtrlHandlerExW` installs our control-event callback.
 //! - `SetServiceStatus` reports lifecycle transitions.
+//!
+//! When launched interactively (not by SCM), `run_as_service` detects
+//! `ERROR_FAILED_SERVICE_CONTROLLER_CONNECT` and falls back to console mode.
 //!
 //! The control handler bridges SCM stop events into the tokio runtime via
 //! [`crate::platform::shutdown_notify()`], so `ProcessManager::run()` shuts
@@ -147,7 +150,7 @@ fn run_service_inner() -> Result<()> {
     })
     .context("failed to initialize logging")?;
 
-    info!("dd-procmgr-service starting (SCM mode)");
+    info!("dd-procmgrd starting (SCM mode)");
 
     let runtime = tokio::runtime::Runtime::new().context("failed to create tokio runtime")?;
 
@@ -206,8 +209,8 @@ pub fn run_as_service() -> Result<()> {
     bail!("StartServiceCtrlDispatcherW failed: error {err}");
 }
 
-/// Fallback console mode: identical to dd-procmgrd but under the
-/// dd-procmgr-service binary name, useful for interactive debugging.
+/// Fallback console mode: runs the process manager directly without SCM,
+/// useful for interactive debugging.
 fn run_console_fallback() -> Result<()> {
     dd_agent_log::init(dd_agent_log::LogConfig {
         logger_name: "PROCMGR",
@@ -216,7 +219,7 @@ fn run_console_fallback() -> Result<()> {
     })
     .context("failed to initialize logging")?;
 
-    info!("dd-procmgr-service starting (console mode)");
+    info!("dd-procmgrd starting (console mode)");
 
     let runtime = tokio::runtime::Runtime::new().context("failed to create tokio runtime")?;
     runtime.block_on(async {
