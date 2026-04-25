@@ -194,6 +194,7 @@ ignore_provide_component_constructor_missing = [
     "comp/otelcol/logsagentpipeline",
     "comp/core/workloadmeta",
     "comp/trace/agent",
+    "comp/core/configsync",
 ]
 
 mock_definitions = [
