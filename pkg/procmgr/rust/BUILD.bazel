@@ -69,6 +69,7 @@ _LIB_DEPS = [
         "@crates//:nix",
     ],
     "@platforms//os:windows": [
+        "//comp/core/log/rust:dd-agent-log",
         "@crates//:windows-sys",
     ],
     "//conditions:default": [],
@@ -106,25 +107,7 @@ rust_binary(
     srcs = ["src/bins/dd-procmgrd.rs"],
     edition = "2024",
     rustc_flags = ["--cfg=bazel"],
-    target_compatible_with = ["@platforms//os:linux"],
-    visibility = ["//visibility:public"],
-    deps = [
-        ":dd-procmgrd-lib",
-        "//comp/core/log/rust:dd-agent-log",
-        "@crates//:anyhow",
-        "@crates//:log",
-        "@crates//:tokio",
-    ],
-)
-
-# Windows service binary — functionally identical to dd-procmgrd, different
-# name for the Windows installer.
-rust_binary(
-    name = "dd-procmgr-service",
-    srcs = ["src/bins/dd-procmgr-service.rs"],
-    edition = "2024",
-    rustc_flags = ["--cfg=bazel"],
-    target_compatible_with = ["@platforms//os:windows"],
+    target_compatible_with = _LINUX_OR_WINDOWS,
     visibility = ["//visibility:public"],
     deps = [
         ":dd-procmgrd-lib",
@@ -152,7 +135,7 @@ rust_binary(
 )
 
 pkg_files(
-    name = "all_files",
+    name = "all_files_linux",
     srcs = [
         ":dd-procmgr",
         ":dd-procmgrd",
@@ -165,10 +148,25 @@ pkg_files(
     visibility = ["//packages:__subpackages__"],
 )
 
+pkg_files(
+    name = "all_files_windows",
+    srcs = [
+        ":dd-procmgr",
+        ":dd-procmgrd",
+    ],
+    prefix = "bin/agent",
+    target_compatible_with = ["@platforms//os:windows"],
+    visibility = ["//packages:__subpackages__"],
+)
+
 pkg_install(
     name = "install",
-    srcs = [":all_files"],
-    target_compatible_with = ["@platforms//os:linux"],
+    srcs = select({
+        "@platforms//os:linux": [":all_files_linux"],
+        "@platforms//os:windows": [":all_files_windows"],
+        "//conditions:default": [],
+    }),
+    target_compatible_with = _LINUX_OR_WINDOWS,
 )
 
 # ============================================================================
