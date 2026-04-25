@@ -61,8 +61,18 @@ export AGENT_VERSION AGENT_BUILD AGENT_BRANCH AGENT_VRMF
 
 # ── Toolchain ─────────────────────────────────────────────────────────────────
 
-CC=/opt/freeware/bin/gcc
-CXX=/opt/freeware/bin/g++
+# GCC 8 is required for AIX 7.2 TL2 compatibility.
+# GCC 8's libstdc++ does not reference strftime_l (added to AIX libc only at
+# TL3+); GCC 10/13 do.  Code compiled by GCC 8 also calls ostringstream
+# constructors that GCC 8's libstdc++ actually exports, so the resulting
+# binaries run on AIX 7.2 without any compatibility stubs.
+# Install on the build host with: yum install -y gcc8 gcc8-c++
+if [ ! -x /opt/freeware/bin/gcc-8 ]; then
+    printf 'ERROR: gcc-8 not found. Install it with: yum install -y gcc8 gcc8-c++\n' >&2
+    exit 1
+fi
+CC=/opt/freeware/bin/gcc-8
+CXX=/opt/freeware/bin/g++-8
 NM="/usr/bin/nm -X64"
 ARFLAGS="-X64 -cru"
 OBJECT_MODE=64
@@ -74,13 +84,9 @@ export CC CXX NM ARFLAGS OBJECT_MODE
 
 CFLAGS="-maix64"
 CXXFLAGS="-maix64"
-# -Wl,-bbigtoc:     remove the 64KB TOC limit (required for large libs like OpenSSL and Python)
-# -Wl,-brtl:        enable runtime linking for dlopen support
-# -static-libstdc++: embed libstdc++ into each binary/shared library; eliminates the runtime
-#                    dependency on libstdc++.a[libstdc++.so.6], which differs between GCC
-#                    versions and AIX TL levels (e.g. GCC 13 needs strftime_l absent in TL2).
-# -static-libgcc:   embed libgcc_s for the same reason (version-specific GCC intrinsics).
-LDFLAGS="-maix64 -Wl,-brtl -Wl,-bbigtoc -static-libstdc++ -static-libgcc -L$EMBEDDED_DESTDIR/lib"
+# -Wl,-bbigtoc: remove the 64KB TOC limit (required for large libs like OpenSSL and Python)
+# -Wl,-brtl:    enable runtime linking for dlopen support
+LDFLAGS="-maix64 -Wl,-brtl -Wl,-bbigtoc -L$EMBEDDED_DESTDIR/lib"
 CPPFLAGS="-I$EMBEDDED_DESTDIR/include"
 
 export CFLAGS CXXFLAGS LDFLAGS CPPFLAGS
