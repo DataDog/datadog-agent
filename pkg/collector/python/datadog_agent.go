@@ -359,6 +359,9 @@ var defaultSQLPlanNormalizeSettings = obfuscate.JSONConfig{
 		"TID Cond",
 	},
 	KeepValues: []string{
+		// clickhouse
+		"Description",
+		"Node Id",
 		// mysql
 		"access_type",
 		"backward_index_scan",
