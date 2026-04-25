@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/file"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/packagemanager"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/systemd"
@@ -219,9 +220,11 @@ func preRemoveDatadogAgentDDOT(ctx HookContext) error {
 	return nil
 }
 
-// writeOTelConfig creates otel-config.yaml by substituting API key and site values from datadog.yaml, fallback with env variables.
+// writeOTelConfig creates otel-config.yaml by substituting api_key and site
+// values from env vars.
 func writeOTelConfig(ctx HookContext) error {
-	return writeOTelConfigCommon(ctx, datadogYamlPath, otelConfigExamplePath, otelConfigPath, false, 0640)
+	e := env.FromEnv()
+	return writeOTelConfigCommon(ctx, e.APIKey, e.Site, otelConfigExamplePath, otelConfigPath, false, 0640)
 }
 
 //////////////////////////////
@@ -256,7 +259,8 @@ func postInstallDDOTExtension(ctx HookContext) (err error) {
 	}
 
 	// Write otel-config.yaml. Doesn't update the file if it already exists.
-	if err := writeOTelConfigCommon(ctx, datadogYamlPath, otelConfigExamplePath, otelConfigPath, true, 0640); err != nil {
+	e := env.FromEnv()
+	if err := writeOTelConfigCommon(ctx, e.APIKey, e.Site, otelConfigExamplePath, otelConfigPath, true, 0640); err != nil {
 		return fmt.Errorf("failed to write otel-config.yaml: %w", err)
 	}
 

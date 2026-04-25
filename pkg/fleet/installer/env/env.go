@@ -27,10 +27,6 @@ const (
 	envRemoteUpdates         = "DD_REMOTE_UPDATES"
 	envOTelCollectorEnabled  = "DD_OTELCOLLECTOR_ENABLED"
 	envMirror                = "DD_INSTALLER_MIRROR"
-	envRegistryURL           = "DD_INSTALLER_REGISTRY_URL"
-	envRegistryAuth          = "DD_INSTALLER_REGISTRY_AUTH"
-	envRegistryUsername      = "DD_INSTALLER_REGISTRY_USERNAME"
-	envRegistryPassword      = "DD_INSTALLER_REGISTRY_PASSWORD"
 	envDefaultPackageVersion = "DD_INSTALLER_DEFAULT_PKG_VERSION"
 	envDefaultPackageInstall = "DD_INSTALLER_DEFAULT_PKG_INSTALL"
 	envApmLibraries          = "DD_APM_INSTRUMENTATION_LIBRARIES"
@@ -89,15 +85,6 @@ var defaultEnv = Env{
 	RemoteUpdates:        false,
 	OTelCollectorEnabled: false,
 	Mirror:               "",
-
-	RegistryOverride:            "",
-	RegistryAuthOverride:        "",
-	RegistryUsername:            "",
-	RegistryPassword:            "",
-	RegistryOverrideByImage:     map[string]string{},
-	RegistryAuthOverrideByImage: map[string]string{},
-	RegistryUsernameByImage:     map[string]string{},
-	RegistryPasswordByImage:     map[string]string{},
 
 	DefaultPackagesInstallOverride: map[string]bool{},
 	DefaultPackagesVersionOverride: map[string]string{},
@@ -181,15 +168,8 @@ type Env struct {
 	OTelCollectorEnabled bool
 	ConfigID             string
 
-	Mirror                      string
-	RegistryOverride            string
-	RegistryAuthOverride        string
-	RegistryUsername            string
-	RegistryPassword            string
-	RegistryOverrideByImage     map[string]string
-	RegistryAuthOverrideByImage map[string]string
-	RegistryUsernameByImage     map[string]string
-	RegistryPasswordByImage     map[string]string
+	Mirror   string
+	Registry RegistryConfig
 
 	DefaultPackagesInstallOverride map[string]bool
 	DefaultPackagesVersionOverride map[string]string
@@ -221,22 +201,6 @@ type Env struct {
 	IsFromDaemon bool
 }
 
-func (e *Env) HasDefaultRegistryOverride() bool {
-	return e.RegistryOverride == defaultEnv.RegistryOverride
-}
-
-func (e *Env) HasDefaultRegistryAuthOverride() bool {
-	return e.RegistryAuthOverride == defaultEnv.RegistryAuthOverride
-}
-
-func (e *Env) HasDefaultRegistryUsername() bool {
-	return e.RegistryUsername == defaultEnv.RegistryUsername
-}
-
-func (e *Env) HasDefaultRegistryPassword() bool {
-	return e.RegistryPassword == defaultEnv.RegistryPassword
-}
-
 // HTTPClient returns an HTTP client with the proxy settings from the environment.
 func (e *Env) HTTPClient() *http.Client {
 	proxyConfig := &httpproxy.Config{
@@ -263,11 +227,24 @@ func (e *Env) HTTPClient() *http.Client {
 	return client
 }
 
-// FromEnv returns an Env struct with values from the environment.
+// FromEnv returns an Env struct with values from the environment. The
+// Registry field is populated from DD_INSTALLER_REGISTRY (JSON) only;
+// legacy DD_INSTALLER_REGISTRY_* prefix vars are expected to have been
+// translated into that JSON before the installer runs.
 func FromEnv() *Env {
 	splitFunc := func(c rune) bool {
 		return c == ','
 	}
+
+	// Registry: prefer DD_INSTALLER_REGISTRY JSON (canonical). If it
+	// isn't set, fall back to parsing any legacy DD_INSTALLER_REGISTRY_*
+	// prefix vars directly, so user overrides reach the installer even
+	// if the boundary translators (daemon / fxconfig CLI bootstrap)
+	// failed to run or didn't absorb them.
+	//
+	// A malformed DD_INSTALLER_REGISTRY JSON is treated as empty so the
+	// installer still runs against default registries.
+	registry, _, _ := BuildRegistryFromEnv()
 
 	return &Env{
 		APIKey:               getEnvOrDefault(envAPIKey, defaultEnv.APIKey),
@@ -275,15 +252,8 @@ func FromEnv() *Env {
 		RemoteUpdates:        strings.ToLower(os.Getenv(envRemoteUpdates)) == "true",
 		OTelCollectorEnabled: strings.ToLower(os.Getenv(envOTelCollectorEnabled)) == "true",
 
-		Mirror:                      getEnvOrDefault(envMirror, defaultEnv.Mirror),
-		RegistryOverride:            getEnvOrDefault(envRegistryURL, defaultEnv.RegistryOverride),
-		RegistryAuthOverride:        getEnvOrDefault(envRegistryAuth, defaultEnv.RegistryAuthOverride),
-		RegistryUsername:            getEnvOrDefault(envRegistryUsername, defaultEnv.RegistryUsername),
-		RegistryPassword:            getEnvOrDefault(envRegistryPassword, defaultEnv.RegistryPassword),
-		RegistryOverrideByImage:     overridesByNameFromEnv(envRegistryURL, func(s string) string { return s }),
-		RegistryAuthOverrideByImage: overridesByNameFromEnv(envRegistryAuth, func(s string) string { return s }),
-		RegistryUsernameByImage:     overridesByNameFromEnv(envRegistryUsername, func(s string) string { return s }),
-		RegistryPasswordByImage:     overridesByNameFromEnv(envRegistryPassword, func(s string) string { return s }),
+		Mirror:   getEnvOrDefault(envMirror, defaultEnv.Mirror),
+		Registry: registry,
 
 		DefaultPackagesInstallOverride: overridesByNameFromEnv(envDefaultPackageInstall, func(s string) bool { return strings.ToLower(s) == "true" }),
 		DefaultPackagesVersionOverride: overridesByNameFromEnv(envDefaultPackageVersion, func(s string) string { return s }),
@@ -395,10 +365,9 @@ func (e *Env) ToEnv() []string {
 		env = append(env, envOTelCollectorEnabled+"=true")
 	}
 	env = appendStringEnv(env, envMirror, e.Mirror, "")
-	env = appendStringEnv(env, envRegistryURL, e.RegistryOverride, "")
-	env = appendStringEnv(env, envRegistryAuth, e.RegistryAuthOverride, "")
-	env = appendStringEnv(env, envRegistryUsername, e.RegistryUsername, "")
-	env = appendStringEnv(env, envRegistryPassword, e.RegistryPassword, "")
+	if blob := marshalRegistryIfNonEmpty(e.Registry); blob != "" {
+		env = append(env, EnvInstallerRegistry+"="+blob)
+	}
 	env = e.MsiParams.ToEnv(env)
 	env = e.InstallScript.ToEnv(env)
 	if len(e.ApmLibraries) > 0 {
@@ -435,10 +404,6 @@ func (e *Env) ToEnv() []string {
 		// is by env var.
 		env = append(env, "DD_LOG_LEVEL=off")
 	}
-	env = append(env, overridesByNameToEnv(envRegistryURL, e.RegistryOverrideByImage)...)
-	env = append(env, overridesByNameToEnv(envRegistryAuth, e.RegistryAuthOverrideByImage)...)
-	env = append(env, overridesByNameToEnv(envRegistryUsername, e.RegistryUsernameByImage)...)
-	env = append(env, overridesByNameToEnv(envRegistryPassword, e.RegistryPasswordByImage)...)
 	env = append(env, overridesByNameToEnv(envDefaultPackageInstall, e.DefaultPackagesInstallOverride)...)
 	env = append(env, overridesByNameToEnv(envDefaultPackageVersion, e.DefaultPackagesVersionOverride)...)
 

@@ -30,7 +30,6 @@ go_library(
         "//pkg/fleet/installer/telemetry",
         "//pkg/util/log",
         "//pkg/version",
-        "@in_gopkg_yaml_v3//:yaml_v3",
         "@in_yaml_go_yaml_v2//:yaml",
     ] + select({
         "@rules_go//go/platform:android": [
@@ -91,10 +90,10 @@ go_test(
     embed = [":packages"],
     gotags = ["test"],
     deps = [
+        "//pkg/fleet/installer/env",
         "//pkg/fleet/installer/packages/extensions",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
-        "@in_gopkg_yaml_v3//:yaml_v3",
     ] + select({
         "@rules_go//go/platform:windows": [
             "//pkg/fleet/installer/setup/config",

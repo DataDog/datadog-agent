@@ -136,23 +136,28 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config agentconf
 	if configID == "" {
 		configID = "empty"
 	}
+	// Registry (incl. per-package + per-extension overrides from
+	// installer.registry.* in datadog.yaml) is marshaled into a single
+	// DD_INSTALLER_REGISTRY env var by ToEnv() when spawning subprocess
+	// installer commands.
+	registry, _, err := env.BuildRegistryFromConfigAndEnv(config)
+	if err != nil {
+		return nil, fmt.Errorf("could not build installer registry config: %w", err)
+	}
 	env := &env.Env{
-		APIKey:               utils.SanitizeAPIKey(config.GetString("api_key")),
-		Site:                 config.GetString("site"),
-		RemoteUpdates:        config.GetBool("remote_updates"),
-		Mirror:               config.GetString("installer.mirror"),
-		RegistryOverride:     config.GetString("installer.registry.url"),
-		RegistryAuthOverride: config.GetString("installer.registry.auth"),
-		RegistryUsername:     config.GetString("installer.registry.username"),
-		RegistryPassword:     config.GetString("installer.registry.password"),
-		Tags:                 utils.GetConfiguredTags(config, false),
-		Hostname:             hostname,
-		HTTPProxy:            config.GetString("proxy.http"),
-		HTTPSProxy:           config.GetString("proxy.https"),
-		NoProxy:              strings.Join(config.GetStringSlice("proxy.no_proxy"), ","),
-		IsCentos6:            env.DetectCentos6(),
-		IsFromDaemon:         true,
-		ConfigID:             configID,
+		APIKey:        utils.SanitizeAPIKey(config.GetString("api_key")),
+		Site:          config.GetString("site"),
+		RemoteUpdates: config.GetBool("remote_updates"),
+		Mirror:        config.GetString("installer.mirror"),
+		Registry:      registry,
+		Tags:          utils.GetConfiguredTags(config, false),
+		Hostname:      hostname,
+		HTTPProxy:     config.GetString("proxy.http"),
+		HTTPSProxy:    config.GetString("proxy.https"),
+		NoProxy:       strings.Join(config.GetStringSlice("proxy.no_proxy"), ","),
+		IsCentos6:     env.DetectCentos6(),
+		IsFromDaemon:  true,
+		ConfigID:      configID,
 	}
 	installer := newInstaller(installerBin)
 	refreshInterval := config.GetDuration("installer.refresh_interval")

@@ -12,8 +12,6 @@ import (
 	"strings"
 
 	"go.yaml.in/yaml/v2"
-
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 )
 
 // enableOTelCollectorConfigInDatadogYAML adds otelcollector.enabled and agent_ipc defaults to the given datadog.yaml path
@@ -72,10 +70,12 @@ func disableOtelCollectorConfigCommon(datadogYamlPath string) error {
 	return os.WriteFile(datadogYamlPath, updated, 0o600)
 }
 
-// writeOTelConfigCommon creates otel-config.yaml from a template by substituting api_key and site found in datadog.yaml
-// If preserveIfExists is true and outPath already exists, the function returns without writing.
+// writeOTelConfigCommon creates otel-config.yaml from a template by
+// substituting the supplied api_key and site values.
+// If preserveIfExists is true and outPath already exists, the function
+// returns without writing.
 // nolint:unused // Called only from platform-specific code/contexts
-func writeOTelConfigCommon(ctx HookContext, datadogYamlPath, templatePath, outPath string, preserveIfExists bool, mode os.FileMode) (err error) {
+func writeOTelConfigCommon(ctx HookContext, apiKey, site, templatePath, outPath string, preserveIfExists bool, mode os.FileMode) (err error) {
 	span, _ := ctx.StartSpan("write_otel_config_common")
 	defer func() { span.Finish(err) }()
 
@@ -83,27 +83,6 @@ func writeOTelConfigCommon(ctx HookContext, datadogYamlPath, templatePath, outPa
 		if _, err := os.Stat(outPath); err == nil {
 			return nil
 		}
-	}
-
-	var apiKey, site string
-	data, err := os.ReadFile(datadogYamlPath)
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("failed to read datadog.yaml: %w", err)
-	}
-	if err == nil {
-		span.SetTag("datadog.yaml_found", true)
-		var cfg map[string]any
-		if err := yaml.Unmarshal(data, &cfg); err != nil {
-			return fmt.Errorf("failed to parse datadog.yaml: %w", err)
-		}
-		apiKey, _ = cfg["api_key"].(string)
-		site, _ = cfg["site"].(string)
-	} else {
-		// datadog.yaml not yet written (fresh install); fall back to environment variables
-		span.SetTag("datadog.yaml_found", false)
-		e := env.FromEnv()
-		apiKey = e.APIKey
-		site = e.Site
 	}
 
 	templateData, err := os.ReadFile(templatePath)

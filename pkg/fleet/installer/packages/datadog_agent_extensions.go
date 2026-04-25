@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
@@ -21,6 +21,98 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
+
+// installerYAMLSchema is a minimal subset of datadog.yaml used as a
+// last-resort fallback when the env-var boundary translation didn't fire.
+//
+// Context: on Windows MSI deferred custom actions, the installer is
+// spawned by RunPostInstallHook with a stripped environment — the CLI
+// fxconfig bootstrap should still read datadog.yaml and populate
+// DD_INSTALLER_REGISTRY, but observed behavior in CI shows the
+// registry override sometimes doesn't reach restoreAgentExtensions.
+// This fallback reads yaml directly in the hook so MSI upgrades of
+// agents that have an `installer.registry.*` block continue to restore
+// extensions from the correct registry.
+//
+//nolint:unused // Used in platform-specific files
+type installerYAMLSchema struct {
+	Installer struct {
+		Registry struct {
+			URL        string                                   `yaml:"url,omitempty"`
+			Auth       string                                   `yaml:"auth,omitempty"`
+			Username   string                                   `yaml:"username,omitempty"`
+			Password   string                                   `yaml:"password,omitempty"`
+			Extensions map[string]map[string]yamlExtensionEntry `yaml:"extensions,omitempty"`
+		} `yaml:"registry,omitempty"`
+	} `yaml:"installer,omitempty"`
+}
+
+//nolint:unused // Used in platform-specific files
+type yamlExtensionEntry struct {
+	URL      string `yaml:"url,omitempty"`
+	Auth     string `yaml:"auth,omitempty"`
+	Username string `yaml:"username,omitempty"`
+	Password string `yaml:"password,omitempty"`
+}
+
+// applyYAMLRegistryFallback reads datadog.yaml and populates env.Registry
+// for any fields the boundary translation didn't set. This is specifically
+// a safety net for hooks running on Windows MSI where the env may be
+// stripped — see the `installerYAMLSchema` doc for context.
+//
+//nolint:unused // Used in platform-specific files
+func applyYAMLRegistryFallback(e *env.Env) {
+	configPath := filepath.Join(paths.AgentConfigDir, "datadog.yaml")
+	raw, err := os.ReadFile(configPath)
+	if err != nil {
+		return
+	}
+	var cfg installerYAMLSchema
+	if err := yaml.Unmarshal(raw, &cfg); err != nil {
+		log.Debugf("fallback: could not parse %s: %v", configPath, err)
+		return
+	}
+	reg := cfg.Installer.Registry
+	// Layer yaml values into Default — only fields that aren't already set
+	// by the env boundary (so env > yaml precedence holds).
+	if reg.URL != "" && e.Registry.Default.URL == "" {
+		e.Registry.Default.URL = reg.URL
+	}
+	if reg.Auth != "" && e.Registry.Default.Auth == "" {
+		e.Registry.Default.Auth = reg.Auth
+	}
+	if reg.Username != "" && e.Registry.Default.Username == "" {
+		e.Registry.Default.Username = reg.Username
+	}
+	if reg.Password != "" && e.Registry.Default.Password == "" {
+		e.Registry.Default.Password = reg.Password
+	}
+	// Per-extension entries under the agent package.
+	agentExts := reg.Extensions[agentPackage]
+	if len(agentExts) == 0 {
+		return
+	}
+	if e.Registry.Packages == nil {
+		e.Registry.Packages = map[string]env.PackageRegistry{}
+	}
+	pkg := e.Registry.Packages[agentPackage]
+	if pkg.Extensions == nil {
+		pkg.Extensions = map[string]env.RegistryEntry{}
+	}
+	for name, entry := range agentExts {
+		existing, ok := pkg.Extensions[name]
+		if ok && existing != (env.RegistryEntry{}) {
+			continue // don't overwrite env-sourced entries
+		}
+		pkg.Extensions[name] = env.RegistryEntry{
+			URL:      entry.URL,
+			Auth:     entry.Auth,
+			Username: entry.Username,
+			Password: entry.Password,
+		}
+	}
+	e.Registry.Packages[agentPackage] = pkg
+}
 
 //nolint:unused // Used in platform-specific files
 const agentPackage = "datadog-agent"
@@ -36,85 +128,46 @@ func getCurrentAgentVersion() string {
 	return v + "-1"
 }
 
-// Config structs for reading installer registry configuration from datadog.yaml
-
-//nolint:unused // Used in platform-specific files
-type datadogAgentConfig struct {
-	Installer installerConfig `yaml:"installer"`
-}
-
-//nolint:unused // Used in platform-specific files
-type installerConfig struct {
-	Registry installerRegistryConfig `yaml:"registry,omitempty"`
-}
-
-//nolint:unused // Used in platform-specific files
-type extensionRegistryConfig struct {
-	URL      string `yaml:"url,omitempty"`
-	Auth     string `yaml:"auth,omitempty"`
-	Username string `yaml:"username,omitempty"`
-	Password string `yaml:"password,omitempty"`
-}
-
-//nolint:unused // Used in platform-specific files
-type installerRegistryConfig struct {
-	URL        string                                        `yaml:"url,omitempty"`
-	Auth       string                                        `yaml:"auth,omitempty"`
-	Username   string                                        `yaml:"username,omitempty"`
-	Password   string                                        `yaml:"password,omitempty"`
-	Extensions map[string]map[string]extensionRegistryConfig `yaml:"extensions,omitempty"`
-}
-
-// setRegistryConfig is a best effort to get the `installer` block from `datadog.yaml` and update the env.
-// It returns per-extension registry overrides parsed from installer.registry.extensions.<pkg>.<ext>.
+// extensionOverrides returns per-extension registry override entries for
+// the agent package, resolved from the unified env.Registry.
+//
+// If `extensions` is non-nil, only the named ones are returned (used at
+// install time when the caller already knows what's being installed). If
+// `extensions` is nil, ALL extensions defined under the package are
+// returned — needed by restoreAgentExtensions, which discovers extensions
+// from disk and has to pass the full override map downstream.
 //
 //nolint:unused // Used in platform-specific files
-func setRegistryConfig(env *env.Env) map[string]extensionsPkg.ExtensionRegistry {
-	configPath := filepath.Join(paths.AgentConfigDir, "datadog.yaml")
-	rawConfig, err := os.ReadFile(configPath)
-	if err != nil {
-		log.Debugf("could not read agent config at %s: %v", configPath, err)
+func extensionOverrides(e *env.Env, extensions []string) map[string]extensionsPkg.ExtensionRegistry {
+	pkgEntry, hasPkg := e.Registry.Packages[agentPackage]
+	if !hasPkg || len(pkgEntry.Extensions) == 0 {
 		return nil
 	}
-	var config datadogAgentConfig
-	err = yaml.Unmarshal(rawConfig, &config)
-	if err != nil {
-		log.Warnf("could not parse agent config at %s: %v", configPath, err)
-		return nil
+	wanted := func(name string) bool {
+		if extensions == nil {
+			return true
+		}
+		for _, ext := range extensions {
+			if ext == name {
+				return true
+			}
+		}
+		return false
 	}
-
-	// Update env with values from config if not already set.
-	// DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE takes precedence over installer.registry.url.
-	if env.RegistryOverride == "" {
-		if agentPackageURL := os.Getenv("DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE"); agentPackageURL != "" {
-			env.RegistryOverride = agentPackageURL
-		} else if config.Installer.Registry.URL != "" {
-			env.RegistryOverride = config.Installer.Registry.URL
+	overrides := make(map[string]extensionsPkg.ExtensionRegistry)
+	for name, entry := range pkgEntry.Extensions {
+		if !wanted(name) {
+			continue
+		}
+		overrides[name] = extensionsPkg.ExtensionRegistry{
+			URL:      entry.URL,
+			Auth:     entry.Auth,
+			Username: entry.Username,
+			Password: entry.Password,
 		}
 	}
-	if config.Installer.Registry.Auth != "" && env.RegistryAuthOverride == "" {
-		env.RegistryAuthOverride = config.Installer.Registry.Auth
-	}
-	if config.Installer.Registry.Username != "" && env.RegistryUsername == "" {
-		env.RegistryUsername = config.Installer.Registry.Username
-	}
-	if config.Installer.Registry.Password != "" && env.RegistryPassword == "" {
-		env.RegistryPassword = config.Installer.Registry.Password
-	}
-
-	// Parse per-extension registry overrides for the agent package.
-	extConfigs := config.Installer.Registry.Extensions[agentPackage]
-	if len(extConfigs) == 0 {
+	if len(overrides) == 0 {
 		return nil
-	}
-	overrides := make(map[string]extensionsPkg.ExtensionRegistry, len(extConfigs))
-	for extName, extCfg := range extConfigs {
-		overrides[extName] = extensionsPkg.ExtensionRegistry{
-			URL:      extCfg.URL,
-			Auth:     extCfg.Auth,
-			Username: extCfg.Username,
-			Password: extCfg.Password,
-		}
 	}
 	return overrides
 }
@@ -147,11 +200,11 @@ func removeAgentExtensions(ctx HookContext, experiment bool) error {
 //nolint:unused // Used in platform-specific files
 func restoreAgentExtensions(ctx HookContext, version string, experiment bool) error {
 	env := env.FromEnv()
+	applyYAMLRegistryFallback(env)
 
 	storagePath := getExtensionStoragePath(ctx.PackagePath)
 
-	// Best effort to get the registry config from datadog.yaml
-	overrides := setRegistryConfig(env)
+	overrides := extensionOverrides(env, nil)
 
 	downloader := oci.NewDownloader(env, env.HTTPClient())
 	url := oci.PackageURL(env, agentPackage, version)
@@ -167,6 +220,7 @@ func restoreAgentExtensions(ctx HookContext, version string, experiment bool) er
 //nolint:unused // Used in platform-specific files
 func installAgentExtensions(ctx HookContext, version string, isExperiment bool) error {
 	env := env.FromEnv()
+	applyYAMLRegistryFallback(env)
 	// populate extensions list based on environment variables
 	var extensions []string
 	if env.OTelCollectorEnabled {
@@ -186,7 +240,7 @@ func installAgentExtensions(ctx HookContext, version string, isExperiment bool) 
 	}
 
 	// install extensions
-	overrides := setRegistryConfig(env)
+	overrides := extensionOverrides(env, extensions)
 	downloader := oci.NewDownloader(env, env.HTTPClient())
 	url := oci.PackageURL(env, agentPackage, version)
 	hooks := NewHooks(env, repository.NewRepositories(paths.PackagesPath, AsyncPreRemoveHooks))
