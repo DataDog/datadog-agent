@@ -145,6 +145,11 @@
         "matchManagers": ["bundler"],
         "matchDepNames": ["omnibus"],
         "enabled": false
+      },
+      {
+        "matchManagers": ["bundler"],
+        "matchDatasources": ["git-refs"],
+        "registryUrls": []
       }
     ],
     "customManagers" : [
