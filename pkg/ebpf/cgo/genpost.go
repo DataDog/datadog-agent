@@ -16,6 +16,7 @@ import (
 	"os"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 )
 
@@ -73,6 +74,8 @@ func processFile(rdr io.Reader, out io.Writer) error {
 	convertBytePointerToUint64Regex := regexp.MustCompile(`(\s+)(\*(byte|uint64))`)
 	b = convertBytePointerToUint64Regex.ReplaceAll(b, []byte("${1}uint64"))
 
+	b = fixGccUnsignedCharConsts(b)
+
 	b, err = format.Source(b)
 	if err != nil {
 		return err
@@ -80,6 +83,33 @@ func processFile(rdr io.Reader, out io.Writer) error {
 
 	_, err = out.Write(b)
 	return err
+}
+
+// fixGccUnsignedCharConsts rewrites integer-valued "%f"-formatted constants
+// (e.g. `= 24.000000`) back to hex literals matching clang's output.
+//
+// Background: for `static const unsigned char X = 5;`, gcc emits
+// DW_ATE_unsigned_char in DWARF, which Go's debug/dwarf package decodes as
+// *dwarf.UcharType. cgo's godefs fconst handler only special-cases
+// *dwarf.IntType / *dwarf.UintType, so the UcharType falls through to
+// `fmt.Sprintf("%f", floats[i])` and the value is emitted as a float.
+// Clang historically emitted DW_ATE_unsigned for the same declaration,
+// which decoded to *dwarf.UintType and took the matching branch.
+// Converting `N.000000` back to `0xN` keeps committed outputs stable.
+var intAsFloatConstRegex = regexp.MustCompile(`= (-?\d+)\.000000\b`)
+
+func fixGccUnsignedCharConsts(b []byte) []byte {
+	return intAsFloatConstRegex.ReplaceAllFunc(b, func(match []byte) []byte {
+		sub := intAsFloatConstRegex.FindSubmatch(match)
+		n, err := strconv.ParseInt(string(sub[1]), 10, 64)
+		if err != nil {
+			return match
+		}
+		if n < 0 {
+			return fmt.Appendf(nil, "= -%#x", -n)
+		}
+		return fmt.Appendf(nil, "= %#x", n)
+	})
 }
 
 // removeAbsolutePath removes the absolute file path that is automatically output by cgo -godefs
