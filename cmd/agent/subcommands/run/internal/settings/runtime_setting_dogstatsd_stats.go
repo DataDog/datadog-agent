@@ -9,7 +9,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 )

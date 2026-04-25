@@ -17,34 +17,39 @@ import (
 
 	"github.com/benbjohnson/clock"
 	"go.uber.org/atomic"
-	"go.uber.org/fx"
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logComponentImpl "github.com/DataDog/datadog-agent/comp/core/log/impl"
-	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
+	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
 
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newServerDebug))
-}
-
-type dependencies struct {
-	fx.In
+// Requires defines the dependencies for the serverDebug component.
+type Requires struct {
+	compdef.In
 
 	Log    log.Component
 	Config configComponent.Component
+}
+
+// Provides defines the output of the serverDebug component.
+type Provides struct {
+	compdef.Out
+
+	Comp serverdebug.Component
+}
+
+// NewComponent creates a new instance of the serverDebug component.
+func NewComponent(deps Requires) Provides {
+	return Provides{Comp: newServerDebugCompat(deps.Log, deps.Config)}
 }
 
 // metricStat holds how many times a metric has been
@@ -75,13 +80,8 @@ type serverDebugImpl struct {
 }
 
 // NewServerlessServerDebug creates a new instance of serverDebug.Component
-func NewServerlessServerDebug() serverdebug.Component {
-	return newServerDebugCompat(logComponentImpl.NewTemporaryLoggerWithoutInit(), pkgconfigsetup.Datadog())
-}
-
-// newServerDebug creates a new instance of a ServerDebug
-func newServerDebug(deps dependencies) serverdebug.Component {
-	return newServerDebugCompat(deps.Log, deps.Config)
+func NewServerlessServerDebug(cfg model.Reader) serverdebug.Component {
+	return newServerDebugCompat(logComponentImpl.NewTemporaryLoggerWithoutInit(), cfg)
 }
 
 func newServerDebugCompat(l log.Component, cfg model.Reader) serverdebug.Component {
@@ -285,6 +285,9 @@ func (d *serverDebugImpl) disableMetricsStats() {
 
 // build a local dogstatsd logger and bubbling up any errors
 func (d *serverDebugImpl) getDogstatsdDebug(cfg model.Reader) pkglog.LoggerInterface {
+	if cfg == nil {
+		return nil
+	}
 
 	var dogstatsdLogger pkglog.LoggerInterface
 
@@ -296,7 +299,7 @@ func (d *serverDebugImpl) getDogstatsdDebug(cfg model.Reader) pkglog.LoggerInter
 
 	// Set up dogstatsdLogger
 	if cfg.GetBool("dogstatsd_logging_enabled") {
-		logger, e := pkglogsetup.SetupDogstatsdLogger(logFile, pkgconfigsetup.Datadog())
+		logger, e := pkglogsetup.SetupDogstatsdLogger(logFile, cfg)
 		if e != nil {
 			// use component logger instead of global logger.
 			d.log.Errorf("Unable to set up Dogstatsd logger: %v. || Please reach out to Datadog support at https://docs.datadoghq.com/help/ ", e)

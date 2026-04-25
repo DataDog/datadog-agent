@@ -31,7 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
-	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/def"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	offlinereporter "github.com/DataDog/datadog-agent/comp/offlinereporter/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
