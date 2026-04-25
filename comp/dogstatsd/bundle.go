@@ -6,7 +6,7 @@
 package dogstatsd //nolint:revive // TODO(AML) Fix revive linter
 
 import (
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/pidmapimpl"
+	pidmapfx "github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/fx"
 	replayfx "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
@@ -23,7 +23,7 @@ func Bundle(params server.Params) fxutil.BundleOptions {
 		offlinereporterfx.Module(),
 		serverdebugimpl.Module(),
 		replayfx.Module(),
-		pidmapimpl.Module(),
+		pidmapfx.Module(),
 		server.Module(params),
 		statusimpl.Module())
 }
