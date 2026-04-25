@@ -1805,6 +1805,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 
 	// Auto multiline detection settings
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_detection", false)
+	config.BindEnvAndSetDefault("logs_config.experimental_auto_multi_line_detection", false) // deprecated alias for logs_config.auto_multi_line_detection
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_detection_custom_samples", []map[string]interface{}{})
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.enable_json_detection", true)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.enable_datetime_detection", true)
