@@ -30,7 +30,7 @@ extern void getHostname(char **);
 extern bool getTracemallocEnabled();
 extern void getVersion(char **);
 extern void headers(char **);
-extern void sendLog(char *, char *);
+extern int sendLog(char *, char *);
 extern void setCheckMetadata(char*, char*, char*);
 extern void setExternalHostTags(char*, char*, char**);
 extern void writePersistentCache(char*, char*);
@@ -194,14 +194,19 @@ func doLog(msg *C.char, level C.int) {
 }
 
 //export sendLog
-func sendLog(logLine, checkID *C.char) {
+func sendLog(logLine, checkID *C.char) C.int {
 	line := C.GoString(logLine)
 	cid := C.GoString(checkID)
+
+	if line == "return-error" {
+		return C.int(1)
+	}
 
 	f, _ := os.OpenFile(tmpfile.Name(), os.O_APPEND|os.O_RDWR|os.O_CREATE, 0666)
 	defer f.Close()
 
 	f.WriteString(strings.Join([]string{line, cid}, ","))
+	return C.int(0)
 }
 
 //export setCheckMetadata
