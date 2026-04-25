@@ -411,11 +411,7 @@ func (t *Tailer) forwardMessages() {
 		origin.FilePath = t.file.Path
 		origin.Fingerprint = t.fingerprint
 
-		tags := make([]string, len(t.tags))
-		copy(tags, t.tags)
-		tags = append(tags, t.tagProvider.GetTags()...)
-		tags = append(tags, output.ParsingExtra.Tags...)
-		origin.SetTags(tags)
+		origin.SetTags(buildTags(t.tags, t.tagProvider.GetTags(), output.ParsingExtra.Tags))
 		// Ignore empty lines once the registry offset is updated
 		if len(output.GetContent()) == 0 {
 			continue
@@ -433,6 +429,15 @@ func (t *Tailer) forwardMessages() {
 		case <-t.forwardContext.Done():
 		}
 	}
+}
+
+// buildTags combines multiple tag slices into one with exact capacity.
+func buildTags(baseTags, providerTags, parsingTags []string) []string {
+	tags := make([]string, 0, len(baseTags)+len(providerTags)+len(parsingTags))
+	tags = append(tags, baseTags...)
+	tags = append(tags, providerTags...)
+	tags = append(tags, parsingTags...)
+	return tags
 }
 
 // getFormattedTime return readable timestamp
