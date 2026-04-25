@@ -1,0 +1,15 @@
+# E2E CI Artifact Dependencies for agent-subcommands tests
+# Generate CI config: dda e2e generate-ci-deps --area agent-subcommands
+# Validate: dda e2e generate-ci-deps --validate
+
+area: agent-subcommands
+
+# Default artifacts for agent subcommand tests
+# These tests validate agent CLI commands (status, check, flare, config, etc.)
+# Uses .new_e2e_template_needs_deb_x64 template
+default_artifacts:
+  - agent_deb-x64-a7       # Debian package for VM-based testing
+  - agent_deb-x64-a7-fips  # FIPS Debian package
+
+# Test-specific overrides
+# Add optimizations here after verifying test requirements

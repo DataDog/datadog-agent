@@ -1,0 +1,16 @@
+# E2E CI Artifact Dependencies for ha-agent tests
+# This file defines which GitLab CI build artifacts (qa_* jobs) are needed
+# for E2E tests in this area.
+#
+# Generated from: .gitlab/test/e2e/e2e.yml
+# Validate: dda e2e generate-ci-deps --validate
+# Regenerate: dda e2e generate-manifests --area ha-agent --force
+
+area: ha-agent
+
+# Default artifacts used by tests in this area
+# Generated from current CI configuration
+# Source: new-e2e-ha-agent and new-e2e-ha-agent-failover both extend .new_e2e_template_needs_deb_x64
+default_artifacts:
+  - agent_deb-x64-a7               # Debian package
+  - agent_deb-x64-a7-fips          # FIPS Debian package

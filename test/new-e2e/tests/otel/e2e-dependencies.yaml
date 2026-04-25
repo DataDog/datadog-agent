@@ -1,0 +1,22 @@
+# E2E CI Artifact Dependencies for otel (OpenTelemetry) tests
+# This file defines which GitLab CI build artifacts (qa_* jobs) are needed
+# for E2E tests in this area.
+#
+# Generated from: .gitlab/test/e2e/e2e.yml
+# Validate: dda e2e generate-ci-deps --validate
+# Regenerate: dda e2e generate-manifests --area otel --force
+#
+# Three jobs cover this area:
+#   - new-e2e-otel-eks-init: init job (E2E_INIT_ONLY=true), no artifacts needed
+#   - new-e2e-otel-eks:  --run "TestOTelAgentIA(EKS|USTEKS)"
+#   - new-e2e-otel:      --skip "TestOTelAgentIA(EKS|USTEKS)"
+# The two non-init jobs share the same artifact set.
+
+area: otel
+
+# Default artifacts used by tests in this area
+# Source: new-e2e-otel and new-e2e-otel-eks with explicit needs
+default_artifacts:
+  - qa_dca                         # Datadog Cluster Agent
+  - qa_agent_full                  # Full agent Docker image
+  - qa_ot_agent_standalone         # OpenTelemetry standalone agent

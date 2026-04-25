@@ -1,0 +1,35 @@
+# E2E CI Artifact Dependencies for fleet (Fleet Automation / Installer) tests
+# Generate CI config: dda e2e generate-ci-deps --area fleet
+# Validate: dda e2e generate-ci-deps --validate
+
+area: fleet
+
+# Default artifacts for fleet tests
+# Fleet tests need many package formats and installer artifacts
+default_artifacts:
+  # Debian packages
+  - deploy_deb_testing-a7_arm64
+  - deploy_deb_testing-a7_x64
+  # RPM packages
+  - deploy_rpm_testing-a7_arm64
+  - deploy_rpm_testing-a7_x64
+  # SUSE RPM packages
+  - deploy_suse_rpm_testing_arm64-a7
+  - deploy_suse_rpm_testing_x64-a7
+  # Windows package (optional in CI, but listed here for validation)
+  - deploy_windows_testing-a7
+  # OCI artifacts
+  - deploy_installer_oci
+  - deploy_agent_oci
+  - deploy_ddot_oci
+  # Installer scripts
+  - qa_installer_script_linux
+  - qa_installer_script_windows  # Optional in CI
+  - deploy_agent_oci
+
+# Optional artifacts (may not always be available)
+optional_artifacts:
+  - deploy_windows_testing-a7  # Windows MSI (optional)
+
+# Test-specific overrides
+# Add optimizations here after verifying test requirements

@@ -155,3 +155,11 @@ repos:
       language: system
       files: ^releasenotes(-dca)?/notes/.*\.yaml$
       pass_filenames: true
+    - id: e2e-ci-dependencies
+      name: e2e-ci-dependencies
+      description: Validate E2E CI dependencies match manifests
+      entry: 'dda e2e generate-ci-deps --validate'
+      language: system
+      require_serial: true
+      files: (test/new-e2e/tests/.*/e2e-dependencies\.yaml|\.gitlab/test/e2e/e2e\.yml)$
+      pass_filenames: false

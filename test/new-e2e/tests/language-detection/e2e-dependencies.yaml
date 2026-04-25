@@ -1,0 +1,15 @@
+# E2E CI Artifact Dependencies for language-detection tests
+# Generate CI config: dda e2e generate-ci-deps --area language-detection
+# Validate: dda e2e generate-ci-deps --validate
+
+area: language-detection
+
+# Default artifacts for language detection tests
+# These tests validate automatic language/framework detection
+# Uses .new_e2e_template_needs_deb_x64 template
+default_artifacts:
+  - agent_deb-x64-a7       # Debian package for VM-based testing
+  - agent_deb-x64-a7-fips  # FIPS Debian package
+
+# Test-specific overrides
+# Add optimizations here after verifying test requirements

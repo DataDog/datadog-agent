@@ -1,0 +1,14 @@
+# E2E CI Artifact Dependencies for APM (Application Performance Monitoring) tests
+# Generate CI config: dda e2e generate-ci-deps --area apm
+# Validate: dda e2e generate-ci-deps --validate
+
+area: apm
+
+# Default artifacts for APM tests
+# APM tests use both Docker images and Debian packages
+default_artifacts:
+  - qa_agent_linux       # Docker image for containerized APM tests
+  - agent_deb-x64-a7     # Debian package for VM-based APM tests
+
+# Test-specific overrides
+# Add optimizations here after verifying test requirements

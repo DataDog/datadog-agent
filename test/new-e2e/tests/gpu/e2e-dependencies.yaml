@@ -1,0 +1,18 @@
+# E2E CI Artifact Dependencies for GPU monitoring tests
+# Generate CI config: dda e2e generate-ci-deps --area gpu
+# Validate: dda e2e generate-ci-deps --validate
+
+area: gpu
+
+# Default artifacts for GPU tests
+# GPU tests run on specialized hardware and need the base agent
+# Uses .new_e2e_template_needs_container_deploy_linux template + Debian package
+default_artifacts:
+  - agent_deb-x64-a7       # Debian package for VM-based GPU testing
+  - qa_agent_linux         # Base Linux agent with GPU monitoring support
+  - qa_agent_linux_jmx     # Linux agent with JMX support
+  - qa_dca                 # Cluster agent for K8s GPU tests
+  - qa_dogstatsd           # DogStatsD standalone binary
+
+# Test-specific overrides
+# Add optimizations here after verifying test requirements

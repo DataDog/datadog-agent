@@ -1,0 +1,22 @@
+# E2E CI Artifact Dependencies for agent-platform tests
+# This file defines which GitLab CI build artifacts (qa_* jobs) are needed
+# for E2E tests in this area.
+#
+# Generated from: .gitlab/test/e2e/e2e.yml
+# Validate: dda e2e generate-ci-deps --validate
+# Regenerate: dda e2e generate-manifests --area agent-platform --force
+
+area: agent-platform
+
+# Default artifacts used by tests in this area
+# Generated from current CI configuration
+default_artifacts:
+  - agent_deb-x64-a7               # Debian package
+
+# Test-specific overrides
+# These patterns match specific tests that need different artifacts
+test_specific:
+  - pattern: "MANUAL:new-e2e-package-signing-suse-a7-x86_64"
+    artifacts:
+      - agent_suse-x64-a7
+    comment: "No test pattern - from job: new-e2e-package-signing-suse-a7-x86_64 (requires manual pattern or CI update)"

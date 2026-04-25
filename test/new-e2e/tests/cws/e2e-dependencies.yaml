@@ -1,0 +1,17 @@
+# E2E CI Artifact Dependencies for CWS (Cloud Workload Security) tests
+# Generate CI config: dda e2e generate-ci-deps --area cws
+# Validate: dda e2e generate-ci-deps --validate
+
+area: cws
+
+# Default artifacts for CWS tests
+# CWS tests need base agent with security monitoring capabilities
+default_artifacts:
+  - agent_deb-x64-a7       # Debian package for VM-based testing
+  - qa_cws_instrumentation # CWS instrumentation artifacts
+  - qa_agent_linux         # Base Linux agent with CWS support
+  - qa_dca                 # Cluster agent for K8s CWS tests
+
+# Test-specific overrides
+# CWS tests run on different platforms (ECS, K8s, VMs)
+# Add specific patterns here as requirements are identified

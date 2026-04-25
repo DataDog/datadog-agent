@@ -1,0 +1,58 @@
+# E2E CI Artifact Dependencies for installer tests
+# This file defines which GitLab CI build artifacts (qa_* jobs) are needed
+# for E2E tests in this area.
+#
+# Generated from: .gitlab/test/e2e/e2e.yml
+# Validate: dda e2e generate-ci-deps --validate
+# Regenerate: dda e2e generate-manifests --area installer --force
+#
+# Three jobs cover this area (./tests/installer/script and ./tests/installer/unix),
+# each with slightly different artifact sets. The default here is the union.
+# Per-job differences are noted in test_specific with MANUAL: patterns.
+
+area: installer
+
+# Default artifacts used by tests in this area
+# Union of artifacts across all three installer jobs
+default_artifacts:
+  - deploy_deb_testing-a7_arm64    # Debian arm64 package
+  - deploy_deb_testing-a7_x64     # Debian x64 package
+  - deploy_rpm_testing-a7_arm64   # RPM arm64 package
+  - deploy_rpm_testing-a7_x64     # RPM x64 package
+  - deploy_suse_rpm_testing_arm64-a7 # SUSE RPM arm64 package
+  - deploy_suse_rpm_testing_x64-a7   # SUSE RPM x64 package
+  - deploy_windows_testing-a7     # Windows MSI package
+  - deploy_installer_oci          # Installer OCI artifact
+  - deploy_agent_oci              # Agent OCI artifact
+  - deploy_ddot_oci               # DDOT OCI artifact
+  - qa_installer_script_linux     # Linux installer script
+  - qa_installer_script_windows   # Windows installer script
+
+# Test-specific overrides
+# Jobs without --run patterns are listed with MANUAL: prefix for documentation
+test_specific:
+  - pattern: "MANUAL:new-e2e-installer-script"
+    artifacts:
+      - deploy_deb_testing-a7_arm64
+      - deploy_deb_testing-a7_x64
+      - deploy_rpm_testing-a7_arm64
+      - deploy_rpm_testing-a7_x64
+      - deploy_suse_rpm_testing_arm64-a7
+      - deploy_suse_rpm_testing_x64-a7
+      - deploy_installer_oci
+      - deploy_agent_oci
+      - qa_installer_script_linux
+    comment: "script tests (./tests/installer/script): no Windows or ddot artifacts"
+  - pattern: "MANUAL:new-e2e-installer-ansible"
+    artifacts:
+      - deploy_deb_testing-a7_arm64
+      - deploy_deb_testing-a7_x64
+      - deploy_rpm_testing-a7_arm64
+      - deploy_rpm_testing-a7_x64
+      - deploy_suse_rpm_testing_arm64-a7
+      - deploy_suse_rpm_testing_x64-a7
+      - deploy_windows_testing-a7
+      - deploy_installer_oci
+      - deploy_agent_oci
+      - qa_installer_script_windows
+    comment: "ansible tests (./tests/installer/unix, FLEET_INSTALL_METHOD=ansible): no qa_installer_script_linux or deploy_ddot_oci"
