@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    Fix the ``connection_reset_interval`` setting not being applied to additional
+    log endpoints and HTTP MRF endpoints. Previously, only the main log endpoint
+    would periodically reset its connection, which could cause additional endpoints
+    to send logs to stale destinations after a DNS failover. Additional endpoints
+    now inherit the global ``logs_config.connection_reset_interval`` value by
+    default, and can also be overridden per-endpoint in the
+    ``additional_endpoints`` configuration.
