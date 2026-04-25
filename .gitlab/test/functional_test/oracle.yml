@@ -9,6 +9,10 @@ oracle:
   services:
     - alias: "oracle"
       name: "registry.ddbuild.io/images/mirror/oracle:${DBMS_VERSION}"
+      # Override command to tee Oracle's stdout/stderr to /dev/shm so the build
+      # container can read it (CI_DEBUG_SERVICES is disabled on the runner).
+      entrypoint: ["/bin/bash", "-c"]
+      command: ["exec /bin/bash -c \"$ORACLE_BASE/$RUN_FILE\" 2>&1 | tee /dev/shm/oracle.log"]
       variables:
         ORACLE_PWD: "datad0g"
         INIT_SGA_SIZE: "1024"
@@ -28,4 +32,7 @@ oracle:
   before_script:
     - !reference [.retrieve_linux_go_deps]
   script:
+    - echo "=== /dev/shm state ===" && ls -la /dev/shm/ && df -h /dev/shm && mount | grep shm
     - dda inv -- oracle.test
+  after_script:
+    - echo "=== Oracle service log ===" && cat /dev/shm/oracle.log 2>/dev/null || echo "no oracle log found"
