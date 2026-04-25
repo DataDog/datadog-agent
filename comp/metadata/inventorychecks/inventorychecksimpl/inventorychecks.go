@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -206,6 +207,19 @@ func (ic *inventorychecksImpl) getPayload(withConfigs bool) marshaler.JSONMarsha
 
 				if checkData, found := ic.data[string(c.ID())]; found {
 					maps.Copy(cm, checkData.metadata)
+				}
+
+				if checkStats, found := expvars.CheckStats(c.ID()); found {
+					status := "ok"
+					if checkStats.LastError != "" {
+						status = "error"
+					} else if len(checkStats.LastWarnings) > 0 {
+						status = "warning"
+					}
+					cm["state"] = map[string]interface{}{
+						"status": status,
+						"error":  checkStats.LastError,
+					}
 				}
 
 				checkName := c.String()
