@@ -13,6 +13,7 @@ LOG="$BUILD_DIR/logs/$STAGE_NAME.log"
 PYTHON_TARBALL="Python-${PYTHON_VERSION}.tgz"
 PYTHON_URL="https://www.python.org/ftp/python/${PYTHON_VERSION}/${PYTHON_TARBALL}"
 PYTHON_SRC="$BUILD_DIR/build/Python-${PYTHON_VERSION}"
+PYTHON_TARBALL_SHA256="12e7cb170ad2d1a69aee96a1cc7fc8de5b1e97a2bdac51683a3db016ec9a2996"
 
 # Redirect all output to log file (follow with: tail -f "$LOG")
 mkdir -p "$BUILD_DIR/logs"
@@ -77,6 +78,7 @@ else
     curl -fSL -o "$TARBALL" "$PYTHON_URL"
     log "Download complete: $TARBALL"
 fi
+verify_sha256 "$TARBALL" "$PYTHON_TARBALL_SHA256" "$PYTHON_TARBALL"
 
 # ─── Step 2: Extract source ───────────────────────────────────────────────────
 

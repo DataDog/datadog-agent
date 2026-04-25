@@ -105,6 +105,35 @@ log() {
     printf '[%s] %s\n' "$(date '+%Y-%m-%dT%H:%M:%S')" "$*"
 }
 
+# sha256_file FILE
+#   Print the SHA-256 hex digest of FILE to stdout.
+sha256_file() {
+    _sf_file=$1
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$_sf_file" | awk '{print $1}'
+    elif command -v shasum >/dev/null 2>&1; then
+        shasum -a 256 "$_sf_file" | awk '{print $1}'
+    else
+        log "ERROR: neither sha256sum nor shasum is available for checksum verification"
+        exit 1
+    fi
+}
+
+# verify_sha256 FILE EXPECTED_HEX NAME
+#   Abort with an error if FILE's SHA-256 digest does not match EXPECTED_HEX.
+verify_sha256() {
+    _vs_file=$1
+    _vs_expected=$2
+    _vs_name=$3
+    _vs_actual=$(sha256_file "$_vs_file")
+    if [ "$_vs_actual" != "$_vs_expected" ]; then
+        log "ERROR: checksum mismatch for $_vs_name"
+        log "       expected: $_vs_expected"
+        log "       actual:   $_vs_actual"
+        exit 1
+    fi
+}
+
 # sentinel_done STAGE_NAME
 #   Returns 0 (true) if the stage sentinel file exists, 1 (false) otherwise.
 sentinel_done() {
