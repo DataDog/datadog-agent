@@ -468,7 +468,7 @@ func start(log log.Component,
 			products = append(products, state.ProductK8SActions)
 		}
 		if config.GetBool("admission_controller.auto_instrumentation.enabled") || config.GetBool("apm_config.instrumentation.enabled") {
-			products = append(products, state.ProductGradualRollout)
+			products = append(products, state.ProductGradualRollout, state.ProductSSITargets) // FIXME: use debug product for tests
 		}
 		if config.GetBool("private_action_runner.enabled") {
 			products = append(products, state.ProductActionPlatformRunnerKeys)
@@ -646,6 +646,7 @@ func start(log log.Component,
 			ValidatingInformers:          apiCl.WebhookConfigInformerFactory,
 			MutatingInformers:            apiCl.WebhookConfigInformerFactory,
 			Client:                       apiCl.Cl,
+			RcClient:                     rcClient,
 			StopCh:                       stopCh,
 			ValidatingStopCh:             validatingStopCh,
 			Demultiplexer:                demultiplexer,

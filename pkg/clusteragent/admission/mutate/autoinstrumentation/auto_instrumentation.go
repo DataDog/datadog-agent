@@ -18,13 +18,14 @@ import (
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	configWebhook "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/tagsfromlabels"
+	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 
 	"k8s.io/apimachinery/pkg/version"
 )
 
 // NewAutoInstrumentation is a helper function to create a fully initialized webhook for SSI. Our webhook is made up of
 // several components, but consumers of this webhook should not need to care about how the webhook is wired together.
-func NewAutoInstrumentation(datadogConfig config.Component, wmeta workloadmeta.Component, serverVersion *version.Info) (*Webhook, error) {
+func NewAutoInstrumentation(datadogConfig config.Component, wmeta workloadmeta.Component, serverVersion *version.Info, rcClient *rcclient.Client) (*Webhook, error) {
 	config, err := NewConfig(datadogConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create auto instrumentation config: %v", err)
@@ -33,10 +34,15 @@ func NewAutoInstrumentation(datadogConfig config.Component, wmeta workloadmeta.C
 	// Populate Kubernetes server version for feature gating.
 	config.kubeServerVersion = serverVersion
 	imageResolver := imageresolver.New(imageresolver.NewConfig(datadogConfig))
-	apm, err := NewTargetMutator(config, wmeta, imageResolver)
+	localMutator, err := NewTargetMutator(config, wmeta, imageResolver)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create auto instrumentation namespace mutator: %v", err)
 	}
+	rcProvider, err := newRCTargetProvider(rcClient, config, wmeta, imageResolver)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create auto instrumentation remote target provider: %v", err)
+	}
+	apm := newCompositeTargetMutator(localMutator, rcProvider)
 
 	// For auto instrumentation, we need all the mutators to be applied for SSI to function. Specifically, we need
 	// things like the Datadog socket to be mounted from the config webhook and the DD_ENV, DD_SERVICE, and DD_VERSION
