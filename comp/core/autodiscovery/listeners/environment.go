@@ -55,6 +55,7 @@ func (l *EnvironmentListener) createServices() {
 		"kube_orchestrator":           env.KubeOrchestratorExplorer,
 		"kubelet_config_orchestrator": env.KubeletConfigOrchestratorCheck,
 		"ecs_orchestrator":            env.ECSOrchestratorExplorer,
+		"kata_containers":             env.KataContainers,
 	}
 
 	for name, feature := range features {

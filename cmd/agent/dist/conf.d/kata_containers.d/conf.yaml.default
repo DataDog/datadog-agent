@@ -1,0 +1,22 @@
+ad_identifiers:
+  - _kata_containers
+init_config:
+instances:
+  -
+    ## @param sandbox_storage_paths - list of strings - optional - default: ["/run/vc/sbs", "/run/kata"]
+    ## Directories to scan for Kata shim sockets. When running the Agent in a container,
+    ## host paths are typically mounted under /host — both variants are listed here so the
+    ## check works without manual configuration in either deployment mode.
+    #
+    sandbox_storage_paths:
+      - /host/run/vc/sbs
+      - /host/run/kata
+
+    ## @param tags - list of strings following the pattern: "key:value" - optional
+    ## List of tags to attach to every metric, event, and service check emitted by this integration.
+    ##
+    ## Learn more about tagging: https://docs.datadoghq.com/tagging/
+    #
+    # tags:
+    #   - <KEY_1>:<VALUE_1>
+    #   - <KEY_2>:<VALUE_2>
