@@ -112,7 +112,7 @@ func (s *SBOM) IsComputed() bool {
 
 // SetReport sets the SBOM report
 func (s *SBOM) setReport(pkgs []sbomtypes.PackageWithInstalledFiles) {
-	// build file cache
+	s.data.packages = pkgs
 	s.data.files = newFileQuerier(pkgs)
 }
 
