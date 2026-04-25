@@ -18,7 +18,7 @@ import (
 	expvarserver "github.com/DataDog/datadog-agent/comp/agent/expvarserver/def"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
-	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
+	etwfx "github.com/DataDog/datadog-agent/comp/etw/fx"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	etwtracer "github.com/DataDog/datadog-agent/comp/trace/etwtracer/def"
 	etwtracerimpl "github.com/DataDog/datadog-agent/comp/trace/etwtracer/fx"
@@ -249,7 +249,7 @@ func getPlatformModules() fx.Option {
 		etwtracerimpl.Module(),
 		windowseventlogfx.Module(),
 		winregistryfx.Module(),
-		etwimpl.Module,
+		etwfx.Module(),
 		traceconfigfx.Module(),
 		softwareinventoryfx.Module(),
 		publishermetadatacachefx.Module(),
