@@ -9,9 +9,13 @@ package oracle
 
 import (
 	"fmt"
+	"net"
 	"os"
+	"os/exec"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -50,17 +54,48 @@ func TestMain(m *testing.M) {
 		return
 	}
 
-	print("Running initdb.d sql files...")
-	// This is a bit of a hack to get a db connection without a testing.T
-	// Ideally we should pull the connection logic out
-	// to make it more accessible for testing
-	sysCheck, _ := newSysCheck(nil, "", "")
-	sysCheck.Run()
-	_, err := sysCheck.db.Exec("SELECT 1 FROM dual")
-	if err != nil {
-		fmt.Printf("Error executing select check: %s\n", err)
-		os.Exit(1)
+	// Wait for the Oracle XE service to be fully registered with the TNS
+	// listener before running tests. In CI the Oracle sidecar container may
+	// report as "ready" (listener accepting TCP connections) before the XE
+	// database service is registered, causing ORA-12514 errors.
+	fmt.Println("Waiting for Oracle to be ready...")
+	var sysCheck Check
+	timeout := 5 * time.Minute
+	start := time.Now()
+	attempt := 0
+	for {
+		attempt++
+		sysCheck, _ = newSysCheck(nil, "", "")
+		if err := sysCheck.Run(); err != nil {
+			sysCheck.Teardown()
+			if time.Since(start) > timeout {
+				fmt.Printf("Oracle failed to become ready within %s: %s\n", timeout, err)
+				dumpOracleDiagnostics()
+				os.Exit(1)
+			}
+			elapsed := time.Since(start).Round(time.Second)
+			fmt.Printf("Oracle not ready yet (%s elapsed): %s\n", elapsed, err)
+			// Sample state every 30s to track progress
+			if attempt%6 == 0 {
+				dumpPeriodicState(elapsed)
+			}
+			time.Sleep(5 * time.Second)
+			continue
+		}
+		if _, err := sysCheck.db.Exec("SELECT 1 FROM dual"); err != nil {
+			sysCheck.Teardown()
+			if time.Since(start) > timeout {
+				fmt.Printf("Oracle failed to become ready within %s: %s\n", timeout, err)
+				dumpOracleDiagnostics()
+				os.Exit(1)
+			}
+			fmt.Printf("Oracle not ready yet (%s elapsed): %s\n", time.Since(start).Round(time.Second), err)
+			time.Sleep(5 * time.Second)
+			continue
+		}
+		break
 	}
+	fmt.Printf("Oracle is ready after %s\n", time.Since(start).Round(time.Second))
 
 	initDbPath := "./compose/initdb.d"
 	files, _ := os.ReadDir(initDbPath)
@@ -187,4 +222,157 @@ func TestCreateDatabaseIdentifier(t *testing.T) {
 			assert.Equal(t, tt.expectedResult, identifier, "Database identifier does not match expected value")
 		})
 	}
+}
+
+func dumpOracleDiagnostics() {
+	server := os.Getenv("ORACLE_TEST_SERVER")
+	if server == "" {
+		server = "oracle"
+	}
+
+	fmt.Println("=== Oracle Diagnostics ===")
+
+	// Check TCP connectivity to listener
+	conn, err := net.DialTimeout("tcp", server+":1521", 5*time.Second)
+	if err != nil {
+		fmt.Printf("TCP connect to %s:1521: FAILED: %s\n", server, err)
+	} else {
+		fmt.Printf("TCP connect to %s:1521: OK\n", server)
+		conn.Close()
+	}
+
+	// DNS resolution
+	addrs, err := net.LookupHost(server)
+	if err != nil {
+		fmt.Printf("DNS lookup %s: FAILED: %s\n", server, err)
+	} else {
+		fmt.Printf("DNS lookup %s: %v\n", server, addrs)
+	}
+
+	// /dev/shm usage — if Oracle allocated SGA, this should be non-zero.
+	// 0% used means Oracle never got to SGA allocation.
+	if out, err := exec.Command("df", "-h", "/dev/shm").CombinedOutput(); err == nil {
+		fmt.Printf("/dev/shm:\n%s", out)
+	}
+	if out, err := exec.Command("ls", "-la", "/dev/shm/").CombinedOutput(); err == nil {
+		fmt.Printf("/dev/shm contents:\n%s", out)
+	}
+
+	// cgroup version + memory stats — key theory: on cgroup v2, tmpfs is charged
+	// against the container's memory limit. Oracle auto-sizes SGA to ~60-75% of
+	// detected memory. If SGA + process RSS exceeds the cgroup limit, mmap fails
+	// or OOM kills Oracle, causing it to hang at "Starting Oracle Database instance XE".
+	if _, err := os.Stat("/sys/fs/cgroup/cgroup.controllers"); err == nil {
+		fmt.Println("cgroup: v2")
+		for _, f := range []string{"memory.max", "memory.current", "memory.swap.current", "memory.peak"} {
+			if out, err := os.ReadFile("/sys/fs/cgroup/" + f); err == nil {
+				fmt.Printf("  %s: %s", f, out)
+			}
+		}
+		// memory.events shows oom/oom_kill counts — critical to confirm OOM theory
+		if out, err := os.ReadFile("/sys/fs/cgroup/memory.events"); err == nil {
+			fmt.Printf("  memory.events:\n%s", out)
+		}
+	} else {
+		fmt.Println("cgroup: v1")
+		if out, err := os.ReadFile("/sys/fs/cgroup/memory/memory.limit_in_bytes"); err == nil {
+			fmt.Printf("  memory.limit_in_bytes: %s", out)
+		}
+		if out, err := os.ReadFile("/sys/fs/cgroup/memory/memory.usage_in_bytes"); err == nil {
+			fmt.Printf("  memory.usage_in_bytes: %s", out)
+		}
+	}
+
+	// Check sibling container cgroups — Oracle's container will be a sibling
+	// cgroup under the pod's cgroup. Try to find and read its memory stats.
+	// On cgroup v2, pod cgroup is typically the parent of our cgroup.
+	if out, err := os.ReadFile("/proc/self/cgroup"); err == nil {
+		fmt.Printf("self cgroup: %s", out)
+	}
+	// Walk up to parent cgroup and list siblings (other containers in the pod)
+	if out, err := exec.Command("sh", "-c", "SELF=$(cat /proc/self/cgroup | head -1 | cut -d: -f3); PARENT=$(dirname /sys/fs/cgroup$SELF); echo \"Pod cgroup: $PARENT\"; for d in $PARENT/*/; do echo \"--- $d\"; cat $d/memory.max $d/memory.current $d/memory.events 2>/dev/null | head -20; done").CombinedOutput(); err == nil {
+		fmt.Printf("Pod cgroup siblings:\n%s", out)
+	}
+
+	// Check if Oracle env vars are visible in this (build) container
+	for _, key := range []string{"INIT_SGA_SIZE", "INIT_PGA_SIZE", "ORACLE_PWD", "ALLOCATED_MEMORY", "CI_DEBUG_SERVICES"} {
+		val := os.Getenv(key)
+		if val == "" {
+			fmt.Printf("env %s: <not set>\n", key)
+		} else if key == "ORACLE_PWD" {
+			fmt.Printf("env %s: <set>\n", key)
+		} else {
+			fmt.Printf("env %s: %s\n", key, val)
+		}
+	}
+
+	// Check /dev/shm permissions and mount options
+	if out, err := exec.Command("mount").CombinedOutput(); err == nil {
+		for _, line := range strings.Split(string(out), "\n") {
+			if strings.Contains(line, "shm") || strings.Contains(line, "tmpfs") {
+				fmt.Printf("mount: %s\n", line)
+			}
+		}
+	}
+
+	// Check if we can write to /dev/shm ourselves (permission test)
+	testFile := "/dev/shm/.oracle_test_probe"
+	if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
+		fmt.Printf("/dev/shm write test: FAILED: %s\n", err)
+	} else {
+		fmt.Printf("/dev/shm write test: OK\n")
+		os.Remove(testFile)
+	}
+
+	// Try to see Oracle processes — check if PID namespace is shared
+	if out, err := exec.Command("sh", "-c", "ps aux 2>/dev/null | grep -i ora | grep -v grep || echo 'no oracle processes visible (separate PID namespace)'").CombinedOutput(); err == nil {
+		fmt.Printf("Oracle processes:\n%s", out)
+	}
+
+	// Check what the TNS listener actually reports — connect and read the raw response
+	if conn, err := net.DialTimeout("tcp", server+":1521", 5*time.Second); err == nil {
+		// Send a minimal TNS connect packet requesting XE service
+		// This is a TNS NSPTCN (connect) packet header
+		conn.SetDeadline(time.Now().Add(5 * time.Second))
+		buf := make([]byte, 4096)
+		// Just read what the listener sends back (if anything)
+		n, err := conn.Read(buf)
+		if err != nil {
+			fmt.Printf("TNS raw read: err=%s\n", err)
+		} else {
+			fmt.Printf("TNS raw read: %d bytes: %x\n", n, buf[:n])
+		}
+		conn.Close()
+	}
+
+	fmt.Println("=== End Diagnostics ===")
+}
+
+func dumpPeriodicState(elapsed time.Duration) {
+	// Quick state sample during the wait loop — runs every ~30s
+	var parts []string
+
+	// /dev/shm usage (is Oracle allocating SGA over time?)
+	if out, err := exec.Command("sh", "-c", "du -sh /dev/shm/ 2>/dev/null").CombinedOutput(); err == nil {
+		parts = append(parts, fmt.Sprintf("shm=%s", strings.TrimSpace(string(out))))
+	}
+
+	// Build container memory usage
+	if out, err := os.ReadFile("/sys/fs/cgroup/memory.current"); err == nil {
+		mb := 0
+		if v, err := strconv.ParseInt(strings.TrimSpace(string(out)), 10, 64); err == nil {
+			mb = int(v / 1024 / 1024)
+		}
+		parts = append(parts, fmt.Sprintf("build_mem=%dMB", mb))
+	}
+
+	// TCP probe to listener
+	if conn, err := net.DialTimeout("tcp", "oracle:1521", 2*time.Second); err != nil {
+		parts = append(parts, "listener=DOWN")
+	} else {
+		parts = append(parts, "listener=UP")
+		conn.Close()
+	}
+
+	fmt.Printf("[%s] %s\n", elapsed, strings.Join(parts, " "))
 }

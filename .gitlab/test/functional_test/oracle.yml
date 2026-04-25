@@ -1,5 +1,4 @@
 oracle:
-  allow_failure: true #incident-51958
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
   stage: functional_test
@@ -10,8 +9,14 @@ oracle:
   services:
     - alias: "oracle"
       name: "registry.ddbuild.io/images/mirror/oracle:${DBMS_VERSION}"
+      # Override command to tee Oracle's stdout/stderr to /dev/shm so the build
+      # container can read it (CI_DEBUG_SERVICES is disabled on the runner).
+      entrypoint: ["/bin/bash", "-c"]
+      command: ["exec /bin/bash -c \"$ORACLE_BASE/$RUN_FILE\" 2>&1 | tee /dev/shm/oracle.log"]
       variables:
         ORACLE_PWD: "datad0g"
+        INIT_SGA_SIZE: "1024"
+        INIT_PGA_SIZE: "512"
   variables:
     CI_DEBUG_SERVICES: "true"
     DD_HOSTNAME: "oracle-test"
@@ -27,4 +32,7 @@ oracle:
   before_script:
     - !reference [.retrieve_linux_go_deps]
   script:
+    - echo "=== /dev/shm state ===" && ls -la /dev/shm/ && df -h /dev/shm && mount | grep shm
     - dda inv -- oracle.test
+  after_script:
+    - echo "=== Oracle service log ===" && cat /dev/shm/oracle.log 2>/dev/null || echo "no oracle log found"
