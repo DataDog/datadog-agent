@@ -8,7 +8,6 @@ package gui
 
 // team: agent-configuration
 
-import guidef "github.com/DataDog/datadog-agent/comp/core/gui/def"
-
 // Component is the component type.
-type Component = guidef.Component
+type Component interface {
+}
