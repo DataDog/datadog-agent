@@ -87,6 +87,9 @@ var (
 	// TlmAutoMultilineJSONAggregatorFlush Count of each line flushed from the auto multiline JSON aggregator.
 	TlmAutoMultilineJSONAggregatorFlush = telemetryimpl.GetCompatComponent().NewCounter("logs", "auto_multi_line_json_aggregator_flush", []string{"is_valid"}, "Count of each line flushed from the auto multiline JSON aggregator")
 
+	// TlmAutoMultilineStackTraceAggregatorFlush counts Go stack trace aggregation outcomes.
+	TlmAutoMultilineStackTraceAggregatorFlush = telemetryimpl.GetCompatComponent().NewCounter("logs", "auto_multi_line_go_stack_trace_aggregator_flush", []string{"result"}, "Count of Go stack traces flushed from the stack trace aggregator")
+
 	// TlmUtilizationRatio is the utilization ratio of a component.
 	// Utilization ratio is calculated as the ratio of time spent in use to the total time.
 	// This metric is internally sampled and exposed as an ewma in order to produce a useable value.

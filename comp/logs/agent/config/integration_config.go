@@ -150,6 +150,12 @@ type SourceAutoMultiLineOptions struct {
 
 	// TagAggregatedJSON allows to enable or disable the tagging of aggregated JSON logs for this source.
 	TagAggregatedJSON *bool `mapstructure:"tag_aggregated_json" json:"tag_aggregated_json" yaml:"tag_aggregated_json"`
+
+	// StackTraceParsers overrides the list of enabled stack trace parsers for this source.
+	// Valid names match keys in the parser registry (e.g. "go"). An empty list disables
+	// stack trace aggregation for this source.
+	StackTraceParsers *[]string `mapstructure:"stack_trace_parsers" json:"stack_trace_parsers" yaml:"stack_trace_parsers"`
+
 }
 
 // SourceAdaptiveSamplingOptions defines per-source overrides for the experimental adaptive sampler.

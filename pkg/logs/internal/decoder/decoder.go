@@ -202,7 +202,7 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 		if rule.Type == config.MultiLine {
 			regexAggregator := preprocessor.NewRegexAggregator(rule.Regex, maxContentSize, false, tailerInfo, "multi_line")
 			syncSourceInfo(source, regexAggregator)
-			lineHandler = newPreprocessorHandler(regexAggregator, tok, preprocessor.NewNoopLabeler(), sampler, outputChan, preprocessor.NewNoopJSONAggregator(), flushTimeout, labelerMaxBytes)
+			lineHandler = newPreprocessorHandler(regexAggregator, tok, preprocessor.NewNoopLabeler(), sampler, outputChan, preprocessor.NewNoopJSONAggregator(), preprocessor.NewNoopStackTraceAggregator(), flushTimeout, labelerMaxBytes)
 		}
 	}
 
@@ -231,7 +231,9 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 		if enableJSON {
 			jsonAgg = preprocessor.NewJSONAggregator(pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line.tag_aggregated_json"), maxContentSize)
 		}
-		return newPreprocessorHandler(combiningAggregator, tok, labeler, sampler, outputChan, jsonAgg, flushTimeout, labelerMaxBytes)
+		stackTraceParsers := resolveStackTraceParsers(source)
+		stackTraceAgg := preprocessor.NewStackTraceAggregatorFromNames(stackTraceParsers, maxContentSize)
+		return newPreprocessorHandler(combiningAggregator, tok, labeler, sampler, outputChan, jsonAgg, stackTraceAgg, flushTimeout, labelerMaxBytes)
 	} else if pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line_detection_tagging") {
 		labeler := buildAutoMultilineLabeler(source.Config().AutoMultiLineOptions, source.Config().AutoMultiLineSamples, tailerInfo)
 		cfg := pkgconfigsetup.Datadog()
@@ -239,9 +241,19 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 		// JSON aggregation is disabled in detection mode — we don't want to combine JSON
 		// while only tagging everything else.
 		detectingAggregator := preprocessor.NewDetectingAggregator(tailerInfo, maxContentSize, pkgconfigsetup.Datadog().GetBool("logs_config.tag_truncated_logs"), isDefaultPath)
-		return newPreprocessorHandler(detectingAggregator, tok, labeler, sampler, outputChan, preprocessor.NewNoopJSONAggregator(), flushTimeout, labelerMaxBytes)
+		return newPreprocessorHandler(detectingAggregator, tok, labeler, sampler, outputChan, preprocessor.NewNoopJSONAggregator(), preprocessor.NewNoopStackTraceAggregator(), flushTimeout, labelerMaxBytes)
 	}
-	return newPreprocessorHandler(preprocessor.NewPassThroughAggregator(maxContentSize), tok, preprocessor.NewNoopLabeler(), sampler, outputChan, preprocessor.NewNoopJSONAggregator(), flushTimeout, 0)
+	return newPreprocessorHandler(preprocessor.NewPassThroughAggregator(maxContentSize), tok, preprocessor.NewNoopLabeler(), sampler, outputChan, preprocessor.NewNoopJSONAggregator(), preprocessor.NewNoopStackTraceAggregator(), flushTimeout, 0)
+}
+
+// resolveStackTraceParsers returns the list of enabled stack trace parser
+// names for the given source, respecting per-source overrides.
+func resolveStackTraceParsers(source *sources.ReplaceableSource) []string {
+	opts := source.Config().AutoMultiLineOptions
+	if opts != nil && opts.StackTraceParsers != nil {
+		return *opts.StackTraceParsers
+	}
+	return pkgconfigsetup.Datadog().GetStringSlice("logs_config.auto_multi_line.stack_trace_parsers")
 }
 
 func validateAdaptiveSamplerConfig(c preprocessor.AdaptiveSamplerConfig) preprocessor.AdaptiveSamplerConfig {
