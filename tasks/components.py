@@ -191,6 +191,7 @@ ignore_fx_import = [
 ]
 
 ignore_provide_component_constructor_missing = [
+    "comp/core/autodiscovery",
     "comp/otelcol/logsagentpipeline",
     "comp/core/workloadmeta",
     "comp/trace/agent",

@@ -68,6 +68,7 @@ linters:
             - "!**/comp/core/autodiscovery/common/utils/container_collect_all.go"
             - "!**/comp/core/autodiscovery/common/utils/prometheus.go"
             - "!**/comp/core/autodiscovery/component.go"
+            - "!**/comp/core/autodiscovery/def/component.go"
             - "!**/comp/core/autodiscovery/configresolver/configresolver.go"
             - "!**/comp/core/autodiscovery/listeners/common.go"
             - "!**/comp/core/autodiscovery/listeners/container.go"
