@@ -14,30 +14,21 @@ import (
 	"strings"
 	"time"
 
-	"go.uber.org/fx"
-
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
-	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
+	packagesigning "github.com/DataDog/datadog-agent/comp/metadata/packagesigning/def"
 	pkgUtils "github.com/DataDog/datadog-agent/comp/metadata/packagesigning/utils"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 )
-
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newPackageSigningProvider))
-}
 
 const defaultCollectInterval = 12 * time.Hour
 
@@ -68,18 +59,16 @@ type pkgSigning struct {
 	pkgManager string
 }
 
-type dependencies struct {
-	fx.In
-
+// Requires defines the dependencies for the packagesigning component
+type Requires struct {
 	Log        log.Component
 	Config     config.Component
 	Serializer serializer.MetricSerializer
 	Hostname   hostnameinterface.Component
 }
 
-type provides struct {
-	fx.Out
-
+// Provides defines the output of the packagesigning component
+type Provides struct {
 	Comp          packagesigning.Component
 	Provider      runnerimpl.Provider
 	FlareProvider flaretypes.Provider
@@ -97,7 +86,8 @@ const (
 	supportedPkgManager = "apt, yum, dnf, zypper"
 )
 
-func newPackageSigningProvider(deps dependencies) provides {
+// NewComponent creates a new packagesigning component
+func NewComponent(deps Requires) Provides {
 	hname, _ := deps.Hostname.Get(context.Background())
 	is := &pkgSigning{
 		conf:       deps.Config,
@@ -119,7 +109,7 @@ func newPackageSigningProvider(deps dependencies) provides {
 		}
 	}
 
-	return provides{
+	return Provides{
 		Comp:          is,
 		Provider:      provider,
 		FlareProvider: is.FlareProvider(),

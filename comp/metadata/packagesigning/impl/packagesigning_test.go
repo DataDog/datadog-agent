@@ -15,7 +15,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	hostnameimpl "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	pkgUtils "github.com/DataDog/datadog-agent/comp/metadata/packagesigning/utils"
@@ -23,6 +24,25 @@ import (
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
+
+// testDeps bridges fx injection for tests since Requires has no fx.In marker.
+type testDeps struct {
+	fx.In
+
+	Log        log.Component
+	Config     config.Component
+	Serializer serializer.MetricSerializer
+	Hostname   hostnameinterface.Component
+}
+
+func makeRequires(deps testDeps) Requires {
+	return Requires{
+		Log:        deps.Log,
+		Config:     deps.Config,
+		Serializer: deps.Serializer,
+		Hostname:   deps.Hostname,
+	}
+}
 
 func TestGetAPTPayload(t *testing.T) {
 	setupAPTSigningMock(t)
@@ -88,14 +108,14 @@ func getYUMKeysMock(_ string, _ *http.Client, _ log.Component) []signingKey {
 }
 
 func getTestPackageSigning(t *testing.T) *pkgSigning {
-	p := newPackageSigningProvider(
-		fxutil.Test[dependencies](
+	p := NewComponent(
+		makeRequires(fxutil.Test[testDeps](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMock(t) }),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
 			hostnameimpl.MockModule(),
-		),
+		)),
 	)
 	return p.Comp.(*pkgSigning)
 }
