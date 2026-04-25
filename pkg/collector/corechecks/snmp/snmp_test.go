@@ -346,18 +346,16 @@ tags:
 	err = chk.Run()
 	assert.Nil(t, err)
 
-	snmpTags := []string{"snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4"}
-	snmpGlobalTags := append(utils.CopyStrings(snmpTags), "snmp_host:foo_sys_name")
-	snmpGlobalTagsWithLoader := append(utils.CopyStrings(snmpGlobalTags), "loader:core")
-	telemetryTags := append(utils.CopyStrings(snmpGlobalTagsWithLoader), "agent_version:"+version.AgentVersion)
-	row1Tags := append(utils.CopyStrings(snmpGlobalTags), "if_index:1", "if_desc:desc1")
-	row2Tags := append(utils.CopyStrings(snmpGlobalTags), "if_index:2", "if_desc:desc2")
-	scalarTags := append(utils.CopyStrings(snmpGlobalTags), "symboltag1:1", "symboltag2:2")
+	resourceTag := "dd.internal.resource:ndm_device:default:1.2.3.4"
+	telemetryTags := []string{resourceTag, "loader:core", "agent_version:" + version.AgentVersion}
+	row1Tags := []string{resourceTag, "if_index:1", "if_desc:desc1"}
+	row2Tags := []string{resourceTag, "if_index:2", "if_desc:desc2"}
+	scalarTags := []string{resourceTag, "symboltag1:1", "symboltag2:2"}
 
-	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", snmpGlobalTags)
-	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", snmpGlobalTags)
+	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", telemetryTags)
+	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", []string{resourceTag})
 	sender.AssertMetric(t, "Gauge", "snmp.ifNumber", float64(30), "", scalarTags)
-	sender.AssertMetric(t, "Gauge", "snmp.aMetricWithExtractValue", float64(22), "", snmpGlobalTags)
+	sender.AssertMetric(t, "Gauge", "snmp.aMetricWithExtractValue", float64(22), "", []string{resourceTag})
 	sender.AssertMetric(t, "Gauge", "snmp.ifInErrors", float64(141), "", row1Tags)
 	sender.AssertMetric(t, "Gauge", "snmp.ifInErrors", float64(142), "", row2Tags)
 	sender.AssertMetric(t, "Gauge", "snmp.ifOutErrors", float64(201), "", row1Tags)
@@ -873,27 +871,24 @@ profiles:
 	err = chk.Run()
 	assert.Nil(t, err)
 
+	resourceTag := "dd.internal.resource:ndm_device:default:1.2.3.4"
+	telemetryTags := []string{resourceTag, "loader:core", "agent_version:" + version.AgentVersion}
+	row1Tags := []string{resourceTag, "interface:nameRow1", "interface_alias:descRow1", "mac_address:00:00:00:00:00:01", "table_static_tag:val"}
+	row2Tags := []string{resourceTag, "interface:nameRow2", "interface_alias:descRow2", "mac_address:00:00:00:00:00:02", "table_static_tag:val"}
 	snmpTags := []string{
 		"device_namespace:default",
 		"snmp_device:1.2.3.4",
 		"device_ip:1.2.3.4",
 		"device_id:default:1.2.3.4",
-		"snmp_profile:f5-big-ip",
-		"device_vendor:f5",
-		"snmp_host:foo_sys_name",
-		"static_tag:from_profile_root",
-		"static_tag:from_base_profile",
 	}
-	row1Tags := append(utils.CopyStrings(snmpTags), "interface:nameRow1", "interface_alias:descRow1", "mac_address:00:00:00:00:00:01", "table_static_tag:val")
-	row2Tags := append(utils.CopyStrings(snmpTags), "interface:nameRow2", "interface_alias:descRow2", "mac_address:00:00:00:00:00:02", "table_static_tag:val")
 
-	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", snmpTags)
-	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", snmpTags)
+	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", telemetryTags)
+	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", []string{resourceTag})
 	sender.AssertMetric(t, "MonotonicCount", "snmp.ifInErrors", float64(70.5), "", row1Tags)
 	sender.AssertMetric(t, "MonotonicCount", "snmp.ifInErrors", float64(71), "", row2Tags)
 	sender.AssertMetric(t, "MonotonicCount", "snmp.ifInDiscards", float64(131), "", row1Tags)
 	sender.AssertMetric(t, "MonotonicCount", "snmp.ifInDiscards", float64(132), "", row2Tags)
-	sender.AssertMetric(t, "Gauge", "snmp.sysStatMemoryTotal", float64(60), "", snmpTags)
+	sender.AssertMetric(t, "Gauge", "snmp.sysStatMemoryTotal", float64(60), "", []string{resourceTag})
 
 	// language=json
 	event := []byte(fmt.Sprintf(`
@@ -1578,10 +1573,12 @@ tags:
 	err = chk.Run()
 	assert.EqualError(t, err, "failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no value")
 
+	resourceTag := "dd.internal.resource:ndm_device:default:1.2.3.4"
+	telemetryTags := []string{resourceTag, "loader:core", "agent_version:" + version.AgentVersion}
 	snmpTags := []string{"device_namespace:default", "snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4"}
 
-	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", snmpTags)
-	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", snmpTags)
+	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", telemetryTags)
+	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", []string{resourceTag})
 
 	// language=json
 	event := []byte(fmt.Sprintf(`
@@ -1740,9 +1737,11 @@ tags:
 	err = chk.Run()
 	assert.EqualError(t, err, expectedErrMsg)
 
+	resourceTag5 := "dd.internal.resource:ndm_device:default:1.2.3.5"
+	telemetryTags5 := []string{resourceTag5, "loader:core", "agent_version:" + version.AgentVersion}
 	snmpTags := []string{"device_namespace:default", "snmp_device:1.2.3.5", "device_ip:1.2.3.5", "device_id:default:1.2.3.5"}
 
-	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", snmpTags)
+	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", telemetryTags5)
 
 	// language=json
 	event := []byte(fmt.Sprintf(`
@@ -2057,18 +2056,17 @@ metric_tags:
 	assert.Nil(t, err)
 
 	for _, deviceData := range deviceMap {
-		snmpTags := []string{"device_namespace:default", "snmp_device:" + deviceData.ipAddress, "device_ip:" + deviceData.ipAddress, "device_id:default:" + deviceData.ipAddress, "autodiscovery_subnet:10.10.0.0/30"}
-		snmpGlobalTags := append(utils.CopyStrings(snmpTags), "snmp_host:foo_sys_name")
-		snmpGlobalTagsWithLoader := append(utils.CopyStrings(snmpGlobalTags), "loader:core")
-		scalarTags := append(utils.CopyStrings(snmpGlobalTags), "symboltag1:1", "symboltag2:2")
+		deviceResourceTag := "dd.internal.resource:ndm_device:default:" + deviceData.ipAddress
+		deviceTelemetryTags := []string{deviceResourceTag, "loader:core", "agent_version:" + version.AgentVersion}
+		scalarTags := []string{deviceResourceTag, "symboltag1:1", "symboltag2:2"}
 
-		sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", snmpGlobalTags)
-		sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", snmpGlobalTags)
+		sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", deviceTelemetryTags)
+		sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", []string{deviceResourceTag})
 		sender.AssertMetric(t, "Gauge", "snmp.ifNumber", float64(30), "", scalarTags)
 
-		sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", snmpGlobalTagsWithLoader)
-		sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", snmpGlobalTagsWithLoader)
-		sender.AssertMetric(t, "Gauge", "datadog.snmp.submitted_metrics", 2, "", snmpGlobalTagsWithLoader)
+		sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", deviceTelemetryTags)
+		sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", deviceTelemetryTags)
+		sender.AssertMetric(t, "Gauge", "datadog.snmp.submitted_metrics", 2, "", deviceTelemetryTags)
 
 		// language=json
 		event := []byte(fmt.Sprintf(`
@@ -2418,18 +2416,17 @@ use_device_id_as_hostname: true
 	assert.Nil(t, err)
 
 	hostname := "device:default:1.2.3.4"
-	snmpTags := []string{"snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4"}
-	snmpGlobalTags := utils.CopyStrings(snmpTags)
-	snmpGlobalTagsWithLoader := append(utils.CopyStrings(snmpGlobalTags), "loader:core")
-	scalarTags := append(utils.CopyStrings(snmpGlobalTags), "symboltag1:1", "symboltag2:2")
+	resourceTag := "dd.internal.resource:ndm_device:default:1.2.3.4"
+	telemetryTags := []string{resourceTag, "loader:core", "agent_version:" + version.AgentVersion}
+	scalarTags := []string{resourceTag, "symboltag1:1", "symboltag2:2"}
 
-	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), hostname, snmpGlobalTags)
-	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), hostname, snmpGlobalTags)
+	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), hostname, telemetryTags)
+	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), hostname, []string{resourceTag})
 	sender.AssertMetric(t, "Gauge", "snmp.ifNumber", float64(30), hostname, scalarTags)
 
-	sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", snmpGlobalTagsWithLoader)
-	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", snmpGlobalTagsWithLoader)
-	sender.AssertMetric(t, "Gauge", "datadog.snmp.submitted_metrics", 2, hostname, snmpGlobalTagsWithLoader)
+	sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", telemetryTags)
+	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", telemetryTags)
+	sender.AssertMetric(t, "Gauge", "datadog.snmp.submitted_metrics", 2, hostname, telemetryTags)
 
 	// Test SetExternalTags
 	host := "device:default:1.2.3.4"
@@ -2652,18 +2649,17 @@ metrics:
 
 	for _, deviceData := range deviceMap {
 		hostname := "device:" + deviceData.deviceID
-		snmpTags := []string{"snmp_device:" + deviceData.ipAddress, "device_ip:" + deviceData.ipAddress, "device_id:default:" + deviceData.ipAddress, "autodiscovery_subnet:10.10.0.0/30", "agent_host:my-hostname"}
-		snmpGlobalTags := utils.CopyStrings(snmpTags)
-		snmpGlobalTagsWithLoader := append(utils.CopyStrings(snmpGlobalTags), "loader:core")
-		scalarTags := append(utils.CopyStrings(snmpGlobalTags), "symboltag1:1", "symboltag2:2")
+		deviceResourceTag := "dd.internal.resource:ndm_device:default:" + deviceData.ipAddress
+		deviceTelemetryTags := []string{deviceResourceTag, "loader:core", "agent_version:" + version.AgentVersion}
+		scalarTags := []string{deviceResourceTag, "symboltag1:1", "symboltag2:2"}
 
-		sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), hostname, snmpGlobalTags)
-		sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), hostname, snmpGlobalTags)
+		sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), hostname, deviceTelemetryTags)
+		sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), hostname, []string{deviceResourceTag})
 		sender.AssertMetric(t, "Gauge", "snmp.ifNumber", float64(30), hostname, scalarTags)
 
-		sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", snmpGlobalTagsWithLoader)
-		sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", snmpGlobalTagsWithLoader)
-		sender.AssertMetric(t, "Gauge", "datadog.snmp.submitted_metrics", 2, hostname, snmpGlobalTagsWithLoader)
+		sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", deviceTelemetryTags)
+		sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", deviceTelemetryTags)
+		sender.AssertMetric(t, "Gauge", "datadog.snmp.submitted_metrics", 2, hostname, deviceTelemetryTags)
 	}
 	networkTags := []string{"network:10.10.0.0/30", "autodiscovery_subnet:10.10.0.0/30"}
 	sender.AssertMetric(t, "Gauge", "snmp.discovered_devices_count", 4, "", networkTags)
