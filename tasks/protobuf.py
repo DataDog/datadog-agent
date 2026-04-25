@@ -8,6 +8,7 @@ from invoke import Exit, task
 from tasks.libs.build.bazel import BazelTools
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_unstaged_files, get_untracked_files
+from tasks.libs.common.utils import debug_go_proxy_env
 
 PROTO_PKGS = {
     'model/v1': False,
@@ -60,6 +61,7 @@ def generate(ctx, pre_commit=False):
 
     We must build the packages one at a time due to protoc-gen-go limitations
     """
+    debug_go_proxy_env(ctx, "protobuf.generate")
     proto_file = re.compile(r"pkg/proto/pbgo/.*\.pb\.go$")
     old_unstaged_proto_files = set(get_unstaged_files(ctx, re_filter=proto_file, include_deleted_files=True))
     old_untracked_proto_files = set(get_untracked_files(ctx, re_filter=proto_file))

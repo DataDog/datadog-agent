@@ -10,6 +10,7 @@ from invoke import task
 
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_commit_sha
+from tasks.libs.common.utils import debug_go_proxy_env
 from tasks.libs.owners.parsing import search_owners
 from tasks.libs.pipeline.notifications import GITHUB_SLACK_MAP
 
@@ -65,6 +66,8 @@ def build_and_upload_fuzz(
     This builds and uploads fuzz targets to the internal fuzzing infrastructure.
     It needs to be passed the -fuzz flag in order to build the fuzz with efficient coverage guidance.
     """
+
+    debug_go_proxy_env(ctx, "build-and-upload-fuzz")
 
     api_url = "https://fuzzing-api.us1.ddbuild.io/api/v1"
     git_sha = get_commit_sha(ctx)
