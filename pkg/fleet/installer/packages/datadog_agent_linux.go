@@ -282,6 +282,13 @@ func postInstallDatadogAgent(ctx HookContext) (err error) {
 	if err := agentService.EnableStable(ctx); err != nil {
 		return fmt.Errorf("failed to install stable unit: %s", err)
 	}
+	// On OCI upgrades the agent's versioned directory is recreated, which
+	// drops any process configs written by DDOT's post-install hook. Restore
+	// before restarting the agent so that procmgrd (restarted via BindsTo)
+	// picks up the DDOT config on its first read of processes.d/.
+	if err := restoreDDOTProcessConfig(ctx); err != nil {
+		log.Warnf("failed to restore DDOT process config: %s", err)
+	}
 	if err := agentService.RestartStable(ctx); err != nil {
 		return fmt.Errorf("failed to restart stable unit: %s", err)
 	}

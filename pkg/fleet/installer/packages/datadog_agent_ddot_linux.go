@@ -11,10 +11,12 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/file"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/packagemanager"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/systemd"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -29,6 +31,15 @@ const (
 	datadogYamlPath       = "/etc/datadog-agent/datadog.yaml"
 	otelConfigPath        = "/etc/datadog-agent/otel-config.yaml"
 	otelConfigExamplePath = "/etc/datadog-agent/otel-config.yaml.example"
+
+	ddotProcessConfigName = "datadog-agent-ddot.yaml"
+	agentInstallDirDebRpm = "/opt/datadog-agent"
+
+	// procmgrDDOTMarkerPath is written after the first successful opt-in
+	// (DD_PROCMGR_MANAGE_DDOT=true). Its presence signals that subsequent
+	// upgrades should preserve procmgrd management without requiring the
+	// env var again.
+	procmgrDDOTMarkerPath = "/etc/datadog-agent/.procmgr-ddot-enabled"
 )
 
 var (
@@ -132,6 +143,13 @@ func postInstallDatadogAgentDDOTOCI(ctx HookContext) (err error) {
 		return fmt.Errorf("failed to restart agent after enabling otelcollector: %v", err)
 	}
 
+	// Write the procmgr YAML so dd-procmgrd manages DDOT instead of systemd.
+	// This must happen before writing the systemd unit, because the unit's
+	// ConditionPathExists=! will skip itself when the YAML is present.
+	if err = writeDDOTProcessConfig(ctx); err != nil {
+		return fmt.Errorf("failed to write DDOT process config: %v", err)
+	}
+
 	if err := agentDDOTService.WriteStable(ctx); err != nil {
 		return fmt.Errorf("failed to write stable units: %s", err)
 	}
@@ -147,6 +165,13 @@ func postInstallDatadogAgentDDOTOCI(ctx HookContext) (err error) {
 	}
 	if err := agentDDOTService.RestartStable(ctx); err != nil {
 		return fmt.Errorf("failed to restart stable unit: %s", err)
+	}
+
+	// Restart procmgrd so it picks up the new DDOT config file.
+	// dd-procmgrd does not watch the config directory; it requires an
+	// explicit reload or restart to detect new process definitions.
+	if err := restartProcmgrd(ctx); err != nil {
+		log.Warnf("failed to restart procmgrd: %s", err)
 	}
 
 	return nil
@@ -175,6 +200,11 @@ func postInstallDatadogAgentDDOTDEBRPM(ctx HookContext) (err error) {
 		return fmt.Errorf("failed to set DDOT config ownerships: %v", err)
 	}
 
+	// Write the procmgr YAML so dd-procmgrd manages DDOT instead of systemd.
+	if err = writeDDOTProcessConfig(ctx); err != nil {
+		return fmt.Errorf("failed to write DDOT process config: %v", err)
+	}
+
 	if err := agentDDOTService.WriteStable(ctx); err != nil {
 		return fmt.Errorf("failed to write stable units: %s", err)
 	}
@@ -189,12 +219,25 @@ func postInstallDatadogAgentDDOTDEBRPM(ctx HookContext) (err error) {
 		return fmt.Errorf("failed to install stable unit: %s", err)
 	}
 
+	// Restart procmgrd so it picks up the new DDOT config file.
+	if err := restartProcmgrd(ctx); err != nil {
+		log.Warnf("failed to restart procmgrd: %s", err)
+	}
+
 	return nil
 }
 
 // preRemoveDatadogAgentDDOT performs pre-removal steps for the DDOT package
 // All the steps are allowed to fail
 func preRemoveDatadogAgentDDOT(ctx HookContext) error {
+	removeDDOTProcessConfig(ctx.PackageType)
+	// Restart procmgrd so it detects the removed config and stops the DDOT
+	// process. Without this, procmgrd would keep supervising otel-agent
+	// from its in-memory state until the agent service is restarted.
+	if err := restartProcmgrd(ctx); err != nil {
+		log.Warnf("failed to restart procmgrd after removing DDOT config: %s", err)
+	}
+
 	err := agentDDOTService.StopExperiment(ctx)
 	if err != nil {
 		log.Warnf("failed to stop experiment unit: %s", err)
@@ -294,6 +337,128 @@ func copyFile(src, dst string, perm os.FileMode) error {
 		return err
 	}
 	return os.WriteFile(dst, data, perm)
+}
+
+// agentProcessesDir returns the agent's processes.d directory based on the package type.
+func agentProcessesDir(packageType PackageType) string {
+	if packageType == PackageTypeOCI {
+		return filepath.Join(paths.PackagesPath, "datadog-agent", "stable", "processes.d")
+	}
+	return filepath.Join(agentInstallDirDebRpm, "processes.d")
+}
+
+// procmgrdBinaryPath returns the expected path to the dd-procmgrd binary.
+func procmgrdBinaryPath(packageType PackageType) string {
+	if packageType == PackageTypeOCI {
+		return filepath.Join(paths.PackagesPath, "datadog-agent", "stable", "embedded", "bin", "dd-procmgrd")
+	}
+	return filepath.Join(agentInstallDirDebRpm, "embedded", "bin", "dd-procmgrd")
+}
+
+// writeDDOTProcessConfig writes the process manager YAML config for DDOT to
+// the agent's processes.d directory. When this file is present, systemd's
+// ConditionPathExists=! causes it to skip the DDOT unit, and dd-procmgrd
+// picks up management instead.
+//
+// Gated behind DD_PROCMGR_MANAGE_DDOT=true. When unset or false, DDOT
+// remains systemd-managed. This allows the full PR series (extension hooks,
+// upgrade handling, telemetry, E2E tests, docs) to land before enabling
+// procmgrd management by default.
+//
+// If dd-procmgrd is not installed (binary not found), the write is also
+// skipped and DDOT falls back to systemd management.
+func writeDDOTProcessConfig(ctx HookContext) error {
+	envSet := strings.EqualFold(os.Getenv("DD_PROCMGR_MANAGE_DDOT"), "true")
+	_, markerErr := os.Stat(procmgrDDOTMarkerPath)
+	markerExists := markerErr == nil
+
+	if !envSet && !markerExists {
+		log.Infof("DD_PROCMGR_MANAGE_DDOT not set and no prior opt-in marker, skipping process config write; DDOT will be managed by systemd")
+		return nil
+	}
+	return doWriteDDOTProcessConfig(ctx)
+}
+
+// doWriteDDOTProcessConfig is the implementation called by
+// writeDDOTProcessConfig after the env-var / marker gate passes.
+// On success it persists the opt-in marker so future upgrades
+// preserve procmgrd management without the env var.
+func doWriteDDOTProcessConfig(ctx HookContext) error {
+	if _, err := os.Stat(procmgrdBinaryPath(ctx.PackageType)); os.IsNotExist(err) {
+		log.Infof("dd-procmgrd not found, skipping process config write; DDOT will be managed by systemd")
+		return nil
+	}
+
+	var unitType embedded.SystemdUnitType
+	if ctx.PackageType == PackageTypeOCI {
+		unitType = embedded.SystemdUnitTypeOCI
+	} else {
+		unitType = embedded.SystemdUnitTypeDebRpm
+	}
+
+	content, err := embedded.GetDDOTProcessConfig(unitType, true)
+	if err != nil {
+		return fmt.Errorf("failed to get DDOT process config: %w", err)
+	}
+
+	// The embedded YAML uses extension-layout paths (e.g. .../ext/ddot/...).
+	// The standalone DDOT package installs the binary at a different path,
+	// so apply the same rewrites as modifyDDOTUnitFileForBackwardsCompatibility.
+	content = strings.ReplaceAll(content, "/ext/ddot", "")
+	if ctx.PackageType == PackageTypeOCI {
+		content = strings.ReplaceAll(content, "/opt/datadog-packages/datadog-agent/stable", "/opt/datadog-packages/datadog-agent-ddot/stable")
+		content = strings.ReplaceAll(content, "/opt/datadog-packages/datadog-agent/experiment", "/opt/datadog-packages/datadog-agent-ddot/experiment")
+	}
+
+	dest := filepath.Join(agentProcessesDir(ctx.PackageType), ddotProcessConfigName)
+	if err := os.WriteFile(dest, []byte(content), 0644); err != nil {
+		return fmt.Errorf("failed to write DDOT process config to %s: %w", dest, err)
+	}
+
+	if err := os.WriteFile(procmgrDDOTMarkerPath, []byte{}, 0644); err != nil {
+		log.Warnf("failed to write procmgr DDOT opt-in marker %s: %s", procmgrDDOTMarkerPath, err)
+	}
+	return nil
+}
+
+// removeDDOTProcessConfig removes the process manager YAML config for DDOT
+// from the agent's processes.d directory. After removal, systemd's
+// ConditionPathExists=! is satisfied and the DDOT unit can start again.
+func removeDDOTProcessConfig(packageType PackageType) {
+	dest := filepath.Join(agentProcessesDir(packageType), ddotProcessConfigName)
+	if err := os.Remove(dest); err != nil && !os.IsNotExist(err) {
+		log.Warnf("failed to remove DDOT process config %s: %s", dest, err)
+	}
+}
+
+// restoreDDOTProcessConfig re-creates the DDOT procmgr YAML if the standalone
+// DDOT OCI package is still installed. This is needed for OCI agent upgrades
+// where the versioned directory (and its processes.d/) is recreated from scratch.
+//
+// The DD_PROCMGR_MANAGE_DDOT env-var gate is satisfied by the persistent
+// marker file written during the original opt-in, so upgrades do not need
+// the env var re-exported.
+//
+// This intentionally skips DEB/RPM: the install path is stable across upgrades
+// and extension-based DDOT installs use different paths that would be broken
+// by the standalone path rewriting in doWriteDDOTProcessConfig.
+func restoreDDOTProcessConfig(ctx HookContext) error {
+	if ctx.PackageType != PackageTypeOCI {
+		return nil
+	}
+	ddotPkgPath := filepath.Join(paths.PackagesPath, "datadog-agent-ddot", "stable")
+	if _, err := os.Stat(ddotPkgPath); os.IsNotExist(err) {
+		return nil
+	}
+	return writeDDOTProcessConfig(ctx)
+}
+
+const procmgrdUnit = "datadog-agent-procmgrd.service"
+
+// restartProcmgrd restarts the dd-procmgrd systemd unit so it reloads its
+// config directory and picks up newly added or removed process definitions.
+func restartProcmgrd(ctx HookContext) error {
+	return systemd.RestartUnit(ctx, procmgrdUnit)
 }
 
 // modifyDDOTUnitFileForBackwardsCompatibility modifies the systemd unit file to remove "/ext/ddot" from paths
