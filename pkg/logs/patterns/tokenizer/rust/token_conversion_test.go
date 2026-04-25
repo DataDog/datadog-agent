@@ -165,6 +165,40 @@ func TestToAgentTokenWithRaw_UsesOffsets(t *testing.T) {
 	}
 }
 
+func TestToAgentTokenWithRaw_MultiByteOffsetsAreByteBased(t *testing.T) {
+	setExtractFromOriginalLog(true)
+
+	raw := "state: → active"
+	rt := RustToken{
+		Kind:        RustTokenSpecialChar,
+		Value:       "normalized-arrow",
+		StartOffset: 7,
+		EndOffset:   10,
+	}
+
+	tok := rt.ToAgentTokenWithRaw(raw)
+	if tok.Value != "→" {
+		t.Fatalf("Expected byte offsets to slice raw arrow %q, got %q", "→", tok.Value)
+	}
+}
+
+func TestToAgentTokenWithRaw_MultiByteRuneOffsetsWouldSliceIncorrectly(t *testing.T) {
+	setExtractFromOriginalLog(true)
+
+	raw := "state: → active"
+	rt := RustToken{
+		Kind:        RustTokenSpecialChar,
+		Value:       "normalized-arrow",
+		StartOffset: 7,
+		EndOffset:   8,
+	}
+
+	tok := rt.ToAgentTokenWithRaw(raw)
+	if tok.Value == "→" {
+		t.Fatalf("Rune-based offsets unexpectedly sliced the multibyte arrow correctly")
+	}
+}
+
 func TestToAgentTokenWithRaw_Disabled(t *testing.T) {
 	setExtractFromOriginalLog(false)
 	defer setExtractFromOriginalLog(true)
