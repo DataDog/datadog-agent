@@ -12,46 +12,42 @@ import (
 	"expvar"
 	"io"
 
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/status"
+	corestatus "github.com/DataDog/datadog-agent/comp/core/status"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	dsdconfig "github.com/DataDog/datadog-agent/comp/dogstatsd/config"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 //go:embed status_templates
 var templatesFS embed.FS
 
-type dependencies struct {
-	fx.In
+// Requires defines the dependencies for the status component.
+type Requires struct {
+	compdef.In
 
 	Config config.Component
 }
 
-type provides struct {
-	fx.Out
+// Provides defines the output of the status component.
+type Provides struct {
+	compdef.Out
 
-	Status status.InformationProvider
+	Status corestatus.InformationProvider
 }
 
 type statusProvider struct{}
 
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newStatusProvider))
-}
-
-func newStatusProvider(deps dependencies) provides {
+// NewComponent creates a new dogstatsd status component.
+func NewComponent(deps Requires) Provides {
 	dsdConfig := dsdconfig.NewConfig(deps.Config)
 
-	var provider status.Provider
+	var provider corestatus.Provider
 	if dsdConfig.EnabledInternal() {
 		provider = statusProvider{}
 	}
 
-	return provides{
-		Status: status.NewInformationProvider(provider),
+	return Provides{
+		Status: corestatus.NewInformationProvider(provider),
 	}
 }
 
@@ -74,12 +70,12 @@ func (s statusProvider) JSON(_ bool, stats map[string]interface{}) error {
 
 // Text renders the text output
 func (s statusProvider) Text(_ bool, buffer io.Writer) error {
-	return status.RenderText(templatesFS, "dogstatsd.tmpl", buffer, s.getStatusInfo())
+	return corestatus.RenderText(templatesFS, "dogstatsd.tmpl", buffer, s.getStatusInfo())
 }
 
 // HTML renders the html output
 func (s statusProvider) HTML(_ bool, buffer io.Writer) error {
-	return status.RenderHTML(templatesFS, "dogstatsdHTML.tmpl", buffer, s.getStatusInfo())
+	return corestatus.RenderHTML(templatesFS, "dogstatsdHTML.tmpl", buffer, s.getStatusInfo())
 }
 
 func (s statusProvider) getStatusInfo() map[string]interface{} {

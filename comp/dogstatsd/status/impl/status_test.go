@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
+//go:build test
+
 package statusimpl
 
 import (
@@ -22,19 +24,19 @@ func TestStatusDisabledWhenADPEnabled(t *testing.T) {
 	config.Set("data_plane.enabled", true, configmodel.SourceAgentRuntime)
 	config.Set("data_plane.dogstatsd.enabled", true, configmodel.SourceAgentRuntime)
 
-	deps := dependencies{
+	deps := Requires{
 		Config: config,
 	}
-	provides := newStatusProvider(deps)
+	provides := NewComponent(deps)
 
 	assert.Nil(t, provides.Status.Provider)
 }
 
 func TestStatusOutputPresent(t *testing.T) {
-	deps := dependencies{
+	deps := Requires{
 		Config: configmock.New(t),
 	}
-	provides := newStatusProvider(deps)
+	provides := NewComponent(deps)
 
 	statusProvider := provides.Status.Provider
 
