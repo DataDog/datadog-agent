@@ -43,11 +43,11 @@ type LoggerInterface interface {
 	// Flush flushes all the messages in the logger.
 	Flush()
 
-	// SetAdditionalStackDepth sets the additional number of frames to skip by runtime.Caller
-	SetAdditionalStackDepth(depth int) error
-
-	// Sets logger context that can be used in formatter funcs and custom receivers
-	SetContext(context interface{})
+	// Log writes a pre-formatted, already-scrubbed message at the given level.
+	// pc is the program counter of the original call site (obtained via runtime.Callers).
+	// context is an optional flat slice of key-value pairs added as log attributes.
+	// Returns a non-nil error for Warn, Error, and Critical levels; nil otherwise.
+	Log(level LogLevel, pc uintptr, message string, context []interface{}) error
 
 	// Tracef formats message according to format specifier
 	// and writes to log with level = Trace.
