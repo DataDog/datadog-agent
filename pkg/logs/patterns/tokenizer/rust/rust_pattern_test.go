@@ -507,6 +507,34 @@ func TestRustTokenizer_WildcardPositions_EqualIndices(t *testing.T) {
 	}
 }
 
+func TestRustTokenizer_WildcardPositions_ProductionWorkerArrowShape(t *testing.T) {
+	tokenizer := NewRustTokenizer()
+	cm := clustering.NewClusterManager()
+
+	logs := []string{
+		"Worker dual-0: alpha stream beta (state: connecting → active)",
+		"Worker dual-0: gamma stream delta (state: waiting → stopped)",
+	}
+
+	var pattern *clustering.Pattern
+	for _, log := range logs {
+		tokenList, err := tokenizer.Tokenize(log)
+		require.NoError(t, err)
+		require.NotNil(t, tokenList)
+		pattern, _, _, _ = cm.Add(tokenList)
+	}
+
+	require.NotNil(t, pattern)
+
+	patternString := pattern.GetPatternString()
+	wildcardPositions := pattern.GetWildcardCharPositions()
+
+	t.Logf("pattern=%q positions=%v tokens=%v", patternString, wildcardPositions, pattern.Template)
+
+	assert.Equal(t, "Worker dual-0:  stream  (state:  → )", patternString)
+	assert.Equal(t, []int{15, 23, 32, 37}, wildcardPositions)
+}
+
 // TestRustTokenizer_PatternTemplates validates that pattern templates correctly
 // represent the structure of clustered logs.
 func TestRustTokenizer_PatternTemplates(t *testing.T) {
