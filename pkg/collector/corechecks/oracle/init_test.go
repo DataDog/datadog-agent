@@ -12,6 +12,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -61,7 +62,9 @@ func TestMain(m *testing.M) {
 	var sysCheck Check
 	timeout := 5 * time.Minute
 	start := time.Now()
+	attempt := 0
 	for {
+		attempt++
 		sysCheck, _ = newSysCheck(nil, "", "")
 		if err := sysCheck.Run(); err != nil {
 			sysCheck.Teardown()
@@ -70,7 +73,12 @@ func TestMain(m *testing.M) {
 				dumpOracleDiagnostics()
 				os.Exit(1)
 			}
-			fmt.Printf("Oracle not ready yet (%s elapsed): %s\n", time.Since(start).Round(time.Second), err)
+			elapsed := time.Since(start).Round(time.Second)
+			fmt.Printf("Oracle not ready yet (%s elapsed): %s\n", elapsed, err)
+			// Sample state every 30s to track progress
+			if attempt%6 == 0 {
+				dumpPeriodicState(elapsed)
+			}
 			time.Sleep(5 * time.Second)
 			continue
 		}
@@ -298,5 +306,73 @@ func dumpOracleDiagnostics() {
 		}
 	}
 
+	// Check /dev/shm permissions and mount options
+	if out, err := exec.Command("mount").CombinedOutput(); err == nil {
+		for _, line := range strings.Split(string(out), "\n") {
+			if strings.Contains(line, "shm") || strings.Contains(line, "tmpfs") {
+				fmt.Printf("mount: %s\n", line)
+			}
+		}
+	}
+
+	// Check if we can write to /dev/shm ourselves (permission test)
+	testFile := "/dev/shm/.oracle_test_probe"
+	if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
+		fmt.Printf("/dev/shm write test: FAILED: %s\n", err)
+	} else {
+		fmt.Printf("/dev/shm write test: OK\n")
+		os.Remove(testFile)
+	}
+
+	// Try to see Oracle processes — check if PID namespace is shared
+	if out, err := exec.Command("sh", "-c", "ps aux 2>/dev/null | grep -i ora | grep -v grep || echo 'no oracle processes visible (separate PID namespace)'").CombinedOutput(); err == nil {
+		fmt.Printf("Oracle processes:\n%s", out)
+	}
+
+	// Check what the TNS listener actually reports — connect and read the raw response
+	if conn, err := net.DialTimeout("tcp", server+":1521", 5*time.Second); err == nil {
+		// Send a minimal TNS connect packet requesting XE service
+		// This is a TNS NSPTCN (connect) packet header
+		conn.SetDeadline(time.Now().Add(5 * time.Second))
+		buf := make([]byte, 4096)
+		// Just read what the listener sends back (if anything)
+		n, err := conn.Read(buf)
+		if err != nil {
+			fmt.Printf("TNS raw read: err=%s\n", err)
+		} else {
+			fmt.Printf("TNS raw read: %d bytes: %x\n", n, buf[:n])
+		}
+		conn.Close()
+	}
+
 	fmt.Println("=== End Diagnostics ===")
+}
+
+func dumpPeriodicState(elapsed time.Duration) {
+	// Quick state sample during the wait loop — runs every ~30s
+	var parts []string
+
+	// /dev/shm usage (is Oracle allocating SGA over time?)
+	if out, err := exec.Command("sh", "-c", "du -sh /dev/shm/ 2>/dev/null").CombinedOutput(); err == nil {
+		parts = append(parts, fmt.Sprintf("shm=%s", strings.TrimSpace(string(out))))
+	}
+
+	// Build container memory usage
+	if out, err := os.ReadFile("/sys/fs/cgroup/memory.current"); err == nil {
+		mb := 0
+		if v, err := strconv.ParseInt(strings.TrimSpace(string(out)), 10, 64); err == nil {
+			mb = int(v / 1024 / 1024)
+		}
+		parts = append(parts, fmt.Sprintf("build_mem=%dMB", mb))
+	}
+
+	// TCP probe to listener
+	if conn, err := net.DialTimeout("tcp", "oracle:1521", 2*time.Second); err != nil {
+		parts = append(parts, "listener=DOWN")
+	} else {
+		parts = append(parts, "listener=UP")
+		conn.Close()
+	}
+
+	fmt.Printf("[%s] %s\n", elapsed, strings.Join(parts, " "))
 }
