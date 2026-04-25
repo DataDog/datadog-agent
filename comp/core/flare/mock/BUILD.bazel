@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "mock",
+    srcs = ["mock.go"],
+    gotags = ["test"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/flare/mock",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/api/api/def",
+        "//comp/core/flare/def",
+        "//comp/core/flare/types",
+        "//comp/remote-config/rcclient/types",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
+    ],
+)

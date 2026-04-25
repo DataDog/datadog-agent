@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package flare
+package flareimpl
 
 import (
 	"context"
@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flarebuilder "github.com/DataDog/datadog-agent/comp/core/flare/builder"
+	flaredef "github.com/DataDog/datadog-agent/comp/core/flare/def"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
@@ -47,6 +48,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 type rcSettings struct {
@@ -56,15 +58,38 @@ type rcSettings struct {
 	enableStreamLogs bool
 }
 
-func getFlare(t *testing.T, overrides map[string]interface{}, fillers ...fx.Option) *flare {
-	return getFlareWithParams(t, Params{}, overrides, fillers...)
+// testRequires mirrors Requires but uses fx.In (required by fxutil.Test).
+type testRequires struct {
+	fx.In
+
+	Log       log.Component
+	Config    config.Component
+	Params    flaredef.Params
+	Providers []*types.FlareFiller `group:"flare"`
+	WMeta     option.Option[workloadmeta.Component]
+	IPC       ipc.Component
 }
 
-func getFlareWithParams(t *testing.T, params Params, overrides map[string]interface{}, fillers ...fx.Option) *flare {
+func toRequires(tr testRequires) Requires {
+	return Requires{
+		Log:       tr.Log,
+		Config:    tr.Config,
+		Params:    tr.Params,
+		Providers: tr.Providers,
+		WMeta:     tr.WMeta,
+		IPC:       tr.IPC,
+	}
+}
+
+func getFlare(t *testing.T, overrides map[string]interface{}, fillers ...fx.Option) *flareImpl {
+	return getFlareWithParams(t, flaredef.Params{}, overrides, fillers...)
+}
+
+func getFlareWithParams(t *testing.T, params flaredef.Params, overrides map[string]interface{}, fillers ...fx.Option) *flareImpl {
 	fillerModule := fxutil.Component(fillers...)
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	return newFlare(
-		fxutil.Test[dependencies](
+	return NewComponent(
+		toRequires(fxutil.Test[testRequires](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
@@ -72,7 +97,7 @@ func getFlareWithParams(t *testing.T, params Params, overrides map[string]interf
 			hostnameimpl.MockModule(),
 			fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 			demultiplexerimpl.MockModule(),
-			fx.Provide(func() Params { return params }),
+			fx.Provide(func() flaredef.Params { return params }),
 			collector.NoneModule(),
 			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			autodiscoveryimpl.MockModule(),
@@ -83,16 +108,16 @@ func getFlareWithParams(t *testing.T, params Params, overrides map[string]interf
 			fillerModule,
 			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 			fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
-		),
-	).Comp.(*flare)
+		)),
+	).Comp.(*flareImpl)
 }
 
 // getFlareComponent returns the flare Component (public API) for tests that should only use the interface.
-func getFlareComponent(t *testing.T, params Params, overrides map[string]interface{}, fillers ...fx.Option) Component {
+func getFlareComponent(t *testing.T, params flaredef.Params, overrides map[string]interface{}, fillers ...fx.Option) flaredef.Component {
 	fillerModule := fxutil.Component(fillers...)
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	return newFlare(
-		fxutil.Test[dependencies](
+	return NewComponent(
+		toRequires(fxutil.Test[testRequires](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
@@ -100,7 +125,7 @@ func getFlareComponent(t *testing.T, params Params, overrides map[string]interfa
 			hostnameimpl.MockModule(),
 			fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 			demultiplexerimpl.MockModule(),
-			fx.Provide(func() Params { return params }),
+			fx.Provide(func() flaredef.Params { return params }),
 			collector.NoneModule(),
 			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			autodiscoveryimpl.MockModule(),
@@ -111,11 +136,11 @@ func getFlareComponent(t *testing.T, params Params, overrides map[string]interfa
 			fillerModule,
 			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 			fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
-		),
+		)),
 	).Comp
 }
 
-// CreateFlareBuilderMockFactory generates a FlareBuilderFactory that will output mocked builders when called.
+// setupMockBuilder generates a FlareBuilderFactory that will output mocked builders when called.
 func setupMockBuilder(t *testing.T) func() {
 	fbFactory = func(localFlare bool, flareArgs types.FlareArgs) (types.FlareBuilder, error) {
 		return helpers.NewFlareBuilderMockWithArgs(t, localFlare, flareArgs), nil
@@ -329,12 +354,12 @@ func TestSendRemovesArchiveAfterSuccess(t *testing.T) {
 
 	origSendTo := sendToFunc
 	defer func() { sendToFunc = origSendTo }()
-	sendToFunc = func(_ model.Reader, _ string, _ string, _ string, _ string, _ string, _ helpers.FlareSource) (string, error) {
+	sendToFunc = func(_ model.Reader, _ string, _ string, _ string, _ string, _ string, _ types.FlareSource) (string, error) {
 		return "success", nil
 	}
 
-	comp := getFlareComponent(t, Params{}, nil)
-	_, err := comp.Send(archivePath, "case1", "test@example.com", helpers.NewLocalFlareSource())
+	comp := getFlareComponent(t, flaredef.Params{}, nil)
+	_, err := comp.Send(archivePath, "case1", "test@example.com", types.NewLocalFlareSource())
 	require.NoError(t, err)
 
 	_, statErr := os.Stat(archivePath)
@@ -348,12 +373,12 @@ func TestSendKeepsArchiveWhenKeepArchiveAfterSend(t *testing.T) {
 
 	origSendTo := sendToFunc
 	defer func() { sendToFunc = origSendTo }()
-	sendToFunc = func(_ model.Reader, _ string, _ string, _ string, _ string, _ string, _ helpers.FlareSource) (string, error) {
+	sendToFunc = func(_ model.Reader, _ string, _ string, _ string, _ string, _ string, _ types.FlareSource) (string, error) {
 		return "success", nil
 	}
 
-	comp := getFlareComponent(t, Params{KeepArchiveAfterSend: true}, nil)
-	_, err := comp.Send(archivePath, "case1", "test@example.com", helpers.NewLocalFlareSource())
+	comp := getFlareComponent(t, flaredef.Params{KeepArchiveAfterSend: true}, nil)
+	_, err := comp.Send(archivePath, "case1", "test@example.com", types.NewLocalFlareSource())
 	require.NoError(t, err)
 
 	_, statErr := os.Stat(archivePath)
@@ -392,7 +417,7 @@ func TestLocalFlareFileContent(t *testing.T) {
 	defer func() { fbFactory = helpers.NewFlareBuilder }()
 
 	errIpc := errors.New("connection refused")
-	flareComp := getFlareWithParams(t, NewLocalParams("", "", "", "", "", ""), nil)
+	flareComp := getFlareWithParams(t, flaredef.NewLocalParams("", "", "", "", "", ""), nil)
 	// Save() is a no-op in the mock and returns an error; the local file is still written.
 	_, _ = flareComp.Create(types.ProfileData{}, 0, errIpc, []byte{})
 

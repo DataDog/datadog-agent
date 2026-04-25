@@ -5,8 +5,8 @@
 
 //go:build test
 
-// Package flareimpl implements the component flare
-package flareimpl
+// Package mock provides a mock for the flare component.
+package mock
 
 import (
 	"net/http"
@@ -15,14 +15,14 @@ import (
 	"go.uber.org/fx"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	"github.com/DataDog/datadog-agent/comp/core/flare"
-	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flaredef "github.com/DataDog/datadog-agent/comp/core/flare/def"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	rcclienttypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// MockModule defines the fx options for the mock component.
-func MockModule() fxutil.Module {
+// Module defines the fx options for the mock component.
+func Module() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(NewMock),
 	)
@@ -32,14 +32,15 @@ func MockModule() fxutil.Module {
 type MockProvides struct {
 	fx.Out
 
-	Comp     flare.Component
-	Endpoint api.AgentEndpointProvider
+	Comp       flaredef.Component
+	Endpoint   api.AgentEndpointProvider
+	RCListener rcclienttypes.TaskListenerProvider
 }
 
-// MockFlare is a mock of the
+// MockFlare is a mock of the flare component.
 type MockFlare struct{}
 
-// ServeHTTP is a simple mocked http.Handler function
+// handlerFunc is a simple mocked http.Handler function
 func (fc *MockFlare) handlerFunc(w http.ResponseWriter, _ *http.Request) {
 	w.Write([]byte("OK"))
 }
@@ -50,7 +51,7 @@ func (fc *MockFlare) Create(_ flaretypes.ProfileData, _ time.Duration, _ error, 
 }
 
 // Send mocks the flare send function
-func (fc *MockFlare) Send(_ string, _ string, _ string, _ helpers.FlareSource) (string, error) {
+func (fc *MockFlare) Send(_ string, _ string, _ string, _ flaretypes.FlareSource) (string, error) {
 	return "", nil
 }
 

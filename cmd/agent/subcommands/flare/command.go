@@ -34,8 +34,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/diagnose/format"
 	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
 	diagnoseLocal "github.com/DataDog/datadog-agent/comp/core/diagnose/local"
-	"github.com/DataDog/datadog-agent/comp/core/flare"
-	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flaredef "github.com/DataDog/datadog-agent/comp/core/flare/def"
+	flareFx "github.com/DataDog/datadog-agent/comp/core/flare/fx"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -119,7 +119,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath),
 			)
 
-			flareParams := flare.NewLocalParams(
+			flareParams := flaredef.NewLocalParams(
 				defaultpaths.GetDistPath(),
 				defaultpaths.PyChecksPath,
 				defaultpaths.LogFile,
@@ -135,7 +135,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:            log.ForOneShot(command.LoggerName, cliParams.logLevelDefaultOff.Value(), false),
 				}),
-				flare.Module(flareParams),
+				flareFx.Module(flareParams),
 				flareprofilerfx.Module(),
 				// workloadmeta setup
 				wmcatalog.GetCatalog(),
@@ -197,7 +197,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{flareCmd}
 }
 
-func makeFlare(flareComp flare.Component,
+func makeFlare(flareComp flaredef.Component,
 	lc log.Component,
 	config config.Component,
 	_ sysprobeconfig.Component,
@@ -319,7 +319,7 @@ func makeFlare(flareComp flare.Component,
 		}
 	}
 
-	response, e := flareComp.Send(filePath, caseID, customerEmail, helpers.NewLocalFlareSource())
+	response, e := flareComp.Send(filePath, caseID, customerEmail, flaretypes.NewLocalFlareSource())
 	fmt.Println(response)
 	return e
 }
@@ -367,7 +367,7 @@ func requestArchive(pdata flaretypes.ProfileData, client ipc.HTTPClient, provide
 	return string(r), nil
 }
 
-func createArchive(flareComp flare.Component, pdata flaretypes.ProfileData, providerTimeout time.Duration, ipcError error, diagnoseResult []byte) (string, error) {
+func createArchive(flareComp flaredef.Component, pdata flaretypes.ProfileData, providerTimeout time.Duration, ipcError error, diagnoseResult []byte) (string, error) {
 	fmt.Fprintln(color.Output, color.YellowString("Initiating flare locally."))
 	filePath, err := flareComp.Create(pdata, providerTimeout, ipcError, diagnoseResult)
 	if err != nil {

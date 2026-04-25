@@ -17,9 +17,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	configmock "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/flare"
-	flaremock "github.com/DataDog/datadog-agent/comp/core/flare/flareimpl"
+	flaredef "github.com/DataDog/datadog-agent/comp/core/flare/def"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flaremock "github.com/DataDog/datadog-agent/comp/core/flare/mock"
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -47,7 +47,7 @@ terminate_agent_on_threshold: %t`, memoryThreshold, cpuThreshold, ticketID, user
 
 // failingFlareMock is a mock flare component that can fail on creation or sending
 type failingFlareMock struct {
-	flare.Component
+	flaredef.Component
 	createError error
 	sendError   error
 	callCount   int

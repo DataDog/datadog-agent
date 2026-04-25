@@ -76,7 +76,8 @@ import (
 	configstreamfx "github.com/DataDog/datadog-agent/comp/core/configstream/fx"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
-	"github.com/DataDog/datadog-agent/comp/core/flare"
+	flaredef "github.com/DataDog/datadog-agent/comp/core/flare/def"
+	flareFx "github.com/DataDog/datadog-agent/comp/core/flare/fx"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/gui/guiimpl"
@@ -263,7 +264,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 // run starts the main loop.
 func run(log log.Component,
 	cfg config.Component,
-	flare flare.Component,
+	flare flaredef.Component,
 	tlm telemetry.Component,
 	sysprobeConf sysprobeconfig.Component,
 	server dogstatsdServer.Component,
@@ -402,7 +403,7 @@ func run(log log.Component,
 
 func getSharedFxOption() fx.Option {
 	return fx.Options(
-		flare.Module(flare.NewParams(
+		flareFx.Module(flaredef.NewParams(
 			defaultpaths.GetDistPath(),
 			defaultpaths.PyChecksPath,
 			defaultpaths.LogFile,
@@ -584,7 +585,7 @@ func getSharedFxOption() fx.Option {
 // startAgent Initializes the agent process
 func startAgent(
 	log log.Component,
-	flare flare.Component,
+	flare flaredef.Component,
 	tlm telemetry.Component,
 	server dogstatsdServer.Component,
 	wmeta workloadmeta.Component,

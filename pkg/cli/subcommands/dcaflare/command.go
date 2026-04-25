@@ -20,6 +20,7 @@ import (
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
@@ -219,7 +220,7 @@ func run(cliParams *cliParams, _ config.Component, diagnoseComponent diagnose.Co
 		}
 	}
 
-	response, e := helpers.SendFlare(pkgconfigsetup.Datadog(), filePath, cliParams.caseID, cliParams.email, helpers.NewLocalFlareSource())
+	response, e := helpers.SendFlare(pkgconfigsetup.Datadog(), filePath, cliParams.caseID, cliParams.email, flaretypes.NewLocalFlareSource())
 	fmt.Println(response)
 	if e != nil {
 		return e
