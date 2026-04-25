@@ -12,12 +12,12 @@ import (
 	"runtime"
 	"time"
 
-	"go.uber.org/fx"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/metadata/resources"
+	resources "github.com/DataDog/datadog-agent/comp/metadata/resources/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/gohai/processes"
@@ -35,16 +35,18 @@ type resourcesImpl struct {
 	serializer      serializer.MetricSerializer
 }
 
-type dependencies struct {
-	fx.In
+// Requires defines the dependencies for the resources metadata component.
+//
+// Resources is enabled by default for most binaries. But even for binaries where we don't want to send the
+// 'resources' paylod, like dogstatsd, we still need the resources Component. This is because the resources data
+// is embedded in other metadata payload like 'host'. This means that even if resources is disabled it might be
+// required in the build in order for the `Get` method to be available.
+//
+// This is why we have a Params struct for resources. It's `optional` so most of the binaries don't have to
+// supply a Params struct but only need to import the metadata.Bundle.
+type Requires struct {
+	compdef.In
 
-	// Resources is enabled by default for most binaries. But even for binaries where we don't want to send the
-	// 'resources' paylod, like dogstatsd, we still need the resources Component. This is because the resources data
-	// is embedded in other metadata payload like 'host'. This means that even if resources is disabled it might be
-	// required in the build in order for the `Get` method to be available.
-	//
-	// This is why we have a Params struct for resources. It's `optional` so most of the binaries don't have to
-	// supply a Params struct but only need to import the metadata.Bundle.
 	Params *Params `optional:"true"`
 
 	Log        log.Component
@@ -53,14 +55,16 @@ type dependencies struct {
 	Hostname   hostnameinterface.Component
 }
 
-type provides struct {
-	fx.Out
+// Provides defines the output of the resources metadata component.
+type Provides struct {
+	compdef.Out
 
 	Comp     resources.Component
 	Provider runnerimpl.Provider
 }
 
-func newResourcesProvider(deps dependencies) provides {
+// NewComponent creates a new resources metadata component.
+func NewComponent(deps Requires) Provides {
 	// By default, the 'resources' metadata is only enabled on Linux. Users can manually enable it on darwin
 	// platform. This is legacy behavior from Agent V5.
 	enabled := runtime.GOOS == "linux"
@@ -87,7 +91,7 @@ func newResourcesProvider(deps dependencies) provides {
 		collectInterval: collectInterval,
 		serializer:      deps.Serializer,
 	}
-	res := provides{
+	res := Provides{
 		Comp: &r,
 	}
 
