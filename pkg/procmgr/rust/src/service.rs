@@ -42,11 +42,16 @@ use crate::platform;
 use crate::uuid_gen::V4UuidGenerator;
 
 const SERVICE_NAME: &str = "dd-procmgr-service";
-/// SCM wait-hint: how long SCM should wait before considering the stop
-/// stalled. Set generously so that `ProcessManager::shutdown` can
-/// gracefully stop + force-kill every child without SCM intervening.
-/// The actual shutdown budget is driven by each child's `stop_timeout`
-/// (default 90s) + `FORCE_KILL_TIMEOUT` (10s).
+/// SCM wait-hint: advisory value telling SCM how long to wait before
+/// considering the stop stalled. Set generously so that
+/// `ProcessManager::shutdown` can gracefully stop + force-kill every
+/// child without SCM intervening. The actual shutdown budget is driven
+/// by each child's `stop_timeout` (default 90s) + `FORCE_KILL_TIMEOUT`
+/// (10s).
+///
+/// NOTE: some Windows tools ignore this hint entirely (see WINA-180).
+/// Do not rely on it for correctness — the shutdown logic must be
+/// self-contained with its own timeouts.
 const SCM_STOP_WAIT_HINT: Duration = Duration::from_secs(180);
 const EXIT_GATE: Duration = Duration::from_secs(5);
 
