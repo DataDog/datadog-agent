@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Fix a panic in the OTel Agent when an unset environment variable
+    is referenced as the Prometheus host or port in
+    ``service.telemetry.metrics.readers``. The agent now exits with
+    an error instead of crashing.

@@ -298,12 +298,12 @@ func getDatadogExporters(conf *confmap.Conf) map[string]any {
 }
 
 // findInternalMetricsAddress returns the address of internal prometheus server if configured
-func findInternalMetricsAddress(conf *confmap.Conf) string {
+func findInternalMetricsAddress(conf *confmap.Conf) (string, error) {
 	internalMetricsAddress := "0.0.0.0:8888"
 	mreaders := conf.Get("service::telemetry::metrics::readers")
 	mreadersSlice, ok := mreaders.([]any)
 	if !ok {
-		return internalMetricsAddress
+		return internalMetricsAddress, nil
 	}
 	for _, reader := range mreadersSlice {
 		readerMap, ok := reader.(map[string]any)
@@ -337,12 +337,20 @@ func findInternalMetricsAddress(conf *confmap.Conf) string {
 		host := "0.0.0.0"
 		port := 8888
 		if h, ok := promExpMap["host"]; ok {
-			host = h.(string)
+			hStr, ok := h.(string)
+			if !ok {
+				return "", fmt.Errorf("service::telemetry::metrics::readers[].pull.exporter.prometheus.host must be a string, got %T", h)
+			}
+			host = hStr
 		}
 		if p, ok := promExpMap["port"]; ok {
-			port = p.(int)
+			pInt, ok := p.(int)
+			if !ok {
+				return "", fmt.Errorf("service::telemetry::metrics::readers[].pull.exporter.prometheus.port must be an int, got %T", p)
+			}
+			port = pInt
 		}
-		return fmt.Sprintf("%s:%d", host, port)
+		return fmt.Sprintf("%s:%d", host, port), nil
 	}
-	return internalMetricsAddress
+	return internalMetricsAddress, nil
 }
