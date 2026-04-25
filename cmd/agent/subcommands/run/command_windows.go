@@ -75,7 +75,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
-	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
+	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server/def"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	processAgent "github.com/DataDog/datadog-agent/comp/process/agent"
 	publishermetadatacachefx "github.com/DataDog/datadog-agent/comp/publishermetadatacache/fx"
