@@ -44,7 +44,7 @@ func (cs *configSync) updater() error {
 			valueMap, ok := value.(map[string]string)
 			if !ok {
 				// this would be unexpected - but deal with it
-				cs.Config.Set(key, value, pkgconfigmodel.SourceLocalConfigProcess)
+				cs.Config.Set(key, coerceJSONToSchemaTypes(cs.Config, key, value), pkgconfigmodel.SourceLocalConfigProcess)
 				continue
 			}
 
@@ -57,13 +57,33 @@ func (cs *configSync) updater() error {
 						typedValues[cfgkey] = cfgval
 					}
 				}
-				cs.Config.Set(key, typedValues, pkgconfigmodel.SourceLocalConfigProcess)
+				cs.Config.Set(key, coerceJSONToSchemaTypes(cs.Config, key, typedValues), pkgconfigmodel.SourceLocalConfigProcess)
 			}
 		} else {
-			helper.SetTree(cs.Config, key, value, pkgconfigmodel.SourceLocalConfigProcess)
+			helper.SetTree(cs.Config, key, coerceJSONToSchemaTypes(cs.Config, key, value), pkgconfigmodel.SourceLocalConfigProcess)
 		}
 	}
 	return nil
+}
+
+// coerceJSONToSchemaTypes recursively casts JSON-decoded leaves to the types declared in cfg's schema
+func coerceJSONToSchemaTypes(cfg pkgconfigmodel.Reader, key string, value interface{}) interface{} {
+	if m, ok := value.(map[string]interface{}); ok && !cfg.IsSetting(key) {
+		out := make(map[string]interface{}, len(m))
+		for k, v := range m {
+			out[k] = coerceJSONToSchemaTypes(cfg, key+"."+k, v)
+		}
+		return out
+	}
+	existing := cfg.Get(key)
+	if existing == nil {
+		return value
+	}
+	converted, err := pkgconfigmodel.ConvertToDefaultType(value, existing, true)
+	if err != nil {
+		return value
+	}
+	return converted
 }
 
 func (cs *configSync) runWithInterval(refreshInterval time.Duration) {

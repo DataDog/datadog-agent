@@ -229,7 +229,7 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 
 	// convert the value to the type of the default
 	if declaredNode.IsLeafNode() {
-		if converted, err := convertToDefaultType(newValue, declaredNode.Get()); err == nil {
+		if converted, err := model.ConvertToDefaultType(newValue, declaredNode.Get(), false); err == nil {
 			if ok := c.setWarnings[key]; !ok {
 				if reflect.TypeOf(converted) != reflect.TypeOf(newValue) {
 					log.Warnf("Set('%s'): converting value from %T to %T to match default type", key, newValue, converted)
@@ -636,7 +636,7 @@ func (c *ntmConfig) insertNodeFromString(curr *nodeImpl, key string, envval stri
 	}
 
 	if defaultNode := c.leafAtPathFromNode(key, c.defaults); defaultNode != missingLeaf {
-		if converted, err := convertToDefaultType(actualValue, defaultNode.Get()); err == nil {
+		if converted, err := model.ConvertToDefaultType(actualValue, defaultNode.Get(), false); err == nil {
 			actualValue = converted
 		}
 	}
