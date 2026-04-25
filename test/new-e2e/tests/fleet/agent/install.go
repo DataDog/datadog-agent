@@ -144,13 +144,34 @@ func (a *Agent) installLinuxInstallScript(params *installParams) error {
 		env["DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE"] = "installtesting.datad0g.com.internal.dda-testing.com"
 		env["DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT"] = "pipeline-" + params.pipelineID
 		env["DD_INSTALLER_REGISTRY_URL"] = "installtesting.datad0g.com.internal.dda-testing.com"
+		// When the VM-local mirror is warm, redirect apt/yum reads to it.
+		// The install script hardcodes https://${apt_url}/... — the sed
+		// rewrite below (in the curl pipeline) downgrades to http for the
+		// mirror host only.
+		if a.cacheMirrorHost != "" {
+			env["TESTING_APT_URL"] = fmt.Sprintf("%s/apttesting.datad0g.com/datadog-agent/pipeline-%s-a7", a.cacheMirrorHost, params.pipelineID)
+			env["TESTING_YUM_URL"] = a.cacheMirrorHost + "/yumtesting.datad0g.com"
+		}
 	} else if params.stagingPackages != "" {
 		env["DD_REPO_URL"] = "datad0g.com"
 		env["DD_AGENT_MAJOR_VERSION"] = "7"
 		env["DD_AGENT_MINOR_VERSION"] = strings.TrimPrefix(params.stagingPackages, "7.")
 		env["DD_AGENT_DIST_CHANNEL"] = "beta"
 	}
-	_, err = a.host.RemoteHost.Execute(fmt.Sprintf(`bash -c "$(curl -L %s)"`, linuxInstallScriptURL), client.WithEnvVariables(env))
+	// When a VM-local package mirror is warm AND we're using testing
+	// packages, rewrite the install script so the hardcoded
+	// `https://${apt_url}` / `https://${yum_url}` templates emit http://
+	// URLs. With TESTING_APT_URL/TESTING_YUM_URL pointing at 127.0.0.1, that
+	// sends apt/yum to our local HTTP server instead of S3. Skipping the
+	// rewrite for stable/staging installs is important — those still point
+	// at apt.datadoghq.com, which does not serve HTTP. GPG key fetches
+	// (${keys_url}) always remain HTTPS.
+	curlPipe := "curl -L " + linuxInstallScriptURL
+	useCache := a.cacheMirrorHost != "" && !params.stablePackages && params.stagingPackages == ""
+	if useCache {
+		curlPipe += ` | sed -e 's|https://${apt_url}|http://${apt_url}|g' -e 's|https://${yum_url}|http://${yum_url}|g'`
+	}
+	_, err = a.host.RemoteHost.Execute(`bash -c "$(`+curlPipe+`)"`, client.WithEnvVariables(env))
 	return err
 }
 
@@ -178,6 +199,10 @@ func (a *Agent) installWindowsInstallScript(params *installParams) error {
 		env["DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT"] = "pipeline-" + params.pipelineID
 		env["DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE"] = "installtesting.datad0g.com.internal.dda-testing.com"
 		scriptURL = fmt.Sprintf("https://installtesting.datad0g.com/pipeline-%s/scripts/Install-Datadog.ps1", os.Getenv("E2E_PIPELINE_ID"))
+		// When the VM-local mirror is warm, redirect the MSI pull.
+		if a.cacheMirrorHost != "" && a.cacheWindowsInstaller != "" {
+			env["DD_INSTALLER_URL"] = fmt.Sprintf("http://%s/%s", a.cacheMirrorHost, a.cacheWindowsInstaller)
+		}
 	} else if params.stagingPackages != "" {
 		env["DD_SITE"] = "datad0g.com"
 		env["DD_INSTALLER_URL"] = fmt.Sprintf("https://install.datad0g.com/builds/beta/datadog-installer-%s-1-x86_64.exe", strings.ReplaceAll(params.stagingPackages, "~", "-"))
@@ -210,17 +235,33 @@ func (a *Agent) MustUninstall() {
 }
 
 func (a *Agent) uninstallLinux() error {
-	_, err := a.host.RemoteHost.Execute("sudo apt-get remove -y --purge datadog-agent || sudo yum remove -y datadog-agent || sudo zypper remove -y datadog-agent")
-	if err != nil {
-		return err
-	}
-	_, err = a.host.RemoteHost.Execute("sudo rm -rf /etc/datadog-agent")
+	// Match main's behavior: remove only datadog-agent, using the package
+	// manager that exists on this distro (apt-get on deb, yum on rpm, zypper
+	// on SUSE). Adding datadog-installer or datadog-agent-ddot to the list
+	// breaks upgrade tests that start from WithStablePackages() — those
+	// packages aren't in the stable apt/yum repo, so a multi-package remove
+	// fails with "Unable to locate package" and no packages get removed.
+	// The upfront service-stop is a safe addition: it prevents the installer
+	// daemon from holding file descriptors during removal.
+	_, err := a.host.RemoteHost.Execute(`
+set +e
+sudo systemctl stop 'datadog-agent*.service' 'datadog-installer*.service' 2>/dev/null || true
+sudo apt-get remove -y --purge datadog-agent 2>/dev/null || sudo yum remove -y datadog-agent 2>/dev/null || sudo zypper --non-interactive remove -y datadog-agent 2>/dev/null || true
+sudo rm -rf /etc/datadog-agent
+sudo systemctl reset-failed 2>/dev/null || true
+true
+`)
 	return err
 }
 
 func (a *Agent) uninstallWindows() error {
-	_, err := a.host.RemoteHost.Execute(`$productCode = (@(Get-ChildItem -Path "HKLM:SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall" -Recurse) | Where {$_.GetValue("DisplayName") -like "Datadog Agent" }).PSChildName;
-start-process msiexec -Wait -ArgumentList ('/log', 'C:\uninst.log', '/q', '/x', "$productCode", 'REBOOT=ReallySuppress')`)
+	// Drop /log (saves disk flush; GitLab job log is sufficient) and kill
+	// agent processes before msiexec so the MSI doesn't spend time waiting
+	// on running services.
+	_, err := a.host.RemoteHost.Execute(`$ErrorActionPreference = 'Continue'
+Get-Process -Name 'datadogagent','datadog-process-agent','datadog-trace-agent','ddtray','datadog-installer' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+$productCode = (@(Get-ChildItem -Path "HKLM:SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall" -Recurse) | Where {$_.GetValue("DisplayName") -like "Datadog Agent" }).PSChildName;
+if ($productCode) { Start-Process msiexec -Wait -ArgumentList ('/q', '/x', "$productCode", 'REBOOT=ReallySuppress') }`)
 	if err != nil {
 		return err
 	}
