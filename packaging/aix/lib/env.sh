@@ -61,8 +61,13 @@ export AGENT_VERSION AGENT_BUILD AGENT_BRANCH AGENT_VRMF
 
 # ── Toolchain ─────────────────────────────────────────────────────────────────
 
-CC=/opt/freeware/bin/gcc
-CXX=/opt/freeware/bin/g++
+# Use GCC 8 explicitly for the rtloader and any C/C++ compilation.
+# GCC 8's libstdc++ on AIX does not reference strftime_l (unlike GCC 10+),
+# and code compiled by GCC 8 calls ostringstream constructors that GCC 8's
+# libstdc++ actually exports — so the resulting binaries are compatible with
+# AIX 7.2 TL2 without any compatibility stubs.
+CC=/opt/freeware/bin/gcc-8
+CXX=/opt/freeware/bin/g++-8
 NM="/usr/bin/nm -X64"
 ARFLAGS="-X64 -cru"
 OBJECT_MODE=64
@@ -74,13 +79,9 @@ export CC CXX NM ARFLAGS OBJECT_MODE
 
 CFLAGS="-maix64"
 CXXFLAGS="-maix64"
-# -Wl,-bbigtoc:     remove the 64KB TOC limit (required for large libs like OpenSSL and Python)
-# -Wl,-brtl:        enable runtime linking for dlopen support
-# -static-libstdc++: embed libstdc++ into each binary/shared library; eliminates the runtime
-#                    dependency on libstdc++.a[libstdc++.so.6], which differs between GCC
-#                    versions and AIX TL levels (e.g. GCC 13 needs strftime_l absent in TL2).
-# -static-libgcc:   embed libgcc_s for the same reason (version-specific GCC intrinsics).
-LDFLAGS="-maix64 -Wl,-brtl -Wl,-bbigtoc -static-libstdc++ -static-libgcc -L$EMBEDDED_DESTDIR/lib"
+# -Wl,-bbigtoc: remove the 64KB TOC limit (required for large libs like OpenSSL and Python)
+# -Wl,-brtl:    enable runtime linking for dlopen support
+LDFLAGS="-maix64 -Wl,-brtl -Wl,-bbigtoc -L$EMBEDDED_DESTDIR/lib"
 CPPFLAGS="-I$EMBEDDED_DESTDIR/include"
 
 export CFLAGS CXXFLAGS LDFLAGS CPPFLAGS

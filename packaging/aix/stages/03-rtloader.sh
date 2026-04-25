@@ -151,64 +151,31 @@ if dump -X64 -Hv libdatadog-agent-three.so 2>/dev/null | grep "libpython${PYTHON
 fi
 log "Verified: libdatadog-agent-three.so depends on libpython${PYTHON_MAJ_MIN}.a(shr_64.o)"
 
-# ─── Step 3c: Embed strftime_l compatibility stub ─────────────────────────────
+# ─── Step 3c: Fix baked-in LIBPATH ────────────────────────────────────────────
 #
-# GCC 13's static libstdc++ (embedded via -static-libstdc++ in LDFLAGS) references
-# strftime_l from libc.  On AIX 7.2 TL2, libc does not export strftime_l (it was
-# added in a later Technology Level).  The mismatch causes exec() to fail with:
-#   Symbol strftime_l is not exported from dependent module /usr/lib/libc.a[shr_64.o]
-#
-# Fix: compile a tiny compatibility stub that implements strftime_l as a wrapper
-# around the universally available strftime(), then relink both rtloader .so files
-# with the stub object appended.  The IBM linker resolves strftime_l from the stub
-# and removes it from the external import table, so the installed .so no longer
-# requires strftime_l from libc.
-#
-# The relink also corrects -blibpath: cmake bakes the staging tree path into the
-# .so (e.g. /opt/dd-build/staging/...) which does not exist on a target host.
-# We replace it with the installed path so the loader resolves libraries correctly.
+# cmake bakes the staging tree path into the .so's loader section LIBPATH
+# (e.g. /opt/dd-build/staging/...) which does not exist on a target host.
+# Relink both .so files substituting the installed path so the AIX loader can
+# find the rtloader's dependencies (libpython, libgcc_s, libstdc++) on any host.
 
-log "Compiling strftime_l compatibility stub"
-cat > /tmp/strftime_compat.c << 'CEOF'
-#include <time.h>
-#include <locale.h>
-/* strftime_l is absent from AIX 7.2 TL2 libc; delegate to strftime. */
-size_t strftime_l(char *s, size_t maxsize, const char *format,
-                  const struct tm *timeptr, locale_t locale) {
-    return strftime(s, maxsize, format, timeptr);
-}
-CEOF
-"$CC" -maix64 -c /tmp/strftime_compat.c -o /tmp/strftime_compat.o
-log "strftime_l stub compiled"
-
-COMPAT=/tmp/strftime_compat.o
 INSTALLED_LIBPATH="/opt/datadog-agent/embedded/lib:/opt/datadog-agent/rtloader:/opt/freeware/lib:/usr/lib:/lib"
 
-log "Relinking libdatadog-agent-rtloader.so with strftime_l stub and installed LIBPATH"
+log "Relinking libdatadog-agent-rtloader.so with installed LIBPATH"
 cd /opt/datadog-agent/rtloader/build/rtloader
 eval "$(head -1 CMakeFiles/datadog-agent-rtloader.dir/link.txt)"
 LINK=$(tail -1 CMakeFiles/datadog-agent-rtloader.dir/link.txt)
 LINK_FIXED=$(printf '%s' "$LINK" | sed "s|-Wl,-blibpath:[^ ]*|-Wl,-blibpath:${INSTALLED_LIBPATH}|g")
-eval "$LINK_FIXED $COMPAT"
+eval "$LINK_FIXED"
 
-log "Relinking libdatadog-agent-three.so with strftime_l stub and installed LIBPATH"
+log "Relinking libdatadog-agent-three.so with installed LIBPATH"
 cd /opt/datadog-agent/rtloader/build/three
 eval "$(head -1 CMakeFiles/datadog-agent-three.dir/link.txt)"
 LINK=$(tail -1 CMakeFiles/datadog-agent-three.dir/link.txt)
 LINK_FIXED=$(printf '%s' "$LINK" | sed "s|libpython${PYTHON_MAJ_MIN}\\.so|libpython${PYTHON_MAJ_MIN}.a|g" \
                                   | sed "s|-Wl,-blibpath:[^ ]*|-Wl,-blibpath:${INSTALLED_LIBPATH}|g")
-eval "$LINK_FIXED $COMPAT"
+eval "$LINK_FIXED"
 
-log "strftime_l stub relink complete"
-
-# Verify: strftime_l should no longer appear as an unresolved import
-for so in \
-    /opt/datadog-agent/rtloader/build/rtloader/libdatadog-agent-rtloader.so \
-    /opt/datadog-agent/rtloader/build/three/libdatadog-agent-three.so; do
-    if /usr/bin/nm -X64 -u "$so" 2>/dev/null | grep "strftime_l"; then
-        log "WARNING: strftime_l still unresolved in $so — AIX 7.2 may not load this library"
-    fi
-done
+log "LIBPATH relink complete"
 
 # ─── Step 4: Copy outputs to staging ──────────────────────────────────────────
 #
