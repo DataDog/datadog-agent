@@ -21,7 +21,7 @@ use std::ffi::c_void;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicPtr, Ordering};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, bail};
 use log::{error, info, warn};
@@ -166,6 +166,8 @@ fn run_service_inner() -> Result<()> {
         0,
     );
 
+    let running_since = Instant::now();
+
     let result = runtime.block_on(async {
         let loader = Arc::new(YamlConfigLoader::from_env());
         let mgr = ProcessManager::new(loader, Arc::new(V4UuidGenerator));
@@ -176,9 +178,12 @@ fn run_service_inner() -> Result<()> {
         warn!("ProcessManager exited with error: {e:#}");
     }
 
-    // Keep the service alive briefly so SCM treats a quick clean exit as
-    // success rather than a crash (mirrors Go's runTimeExitGate).
-    std::thread::sleep(EXIT_GATE);
+    // Keep the service alive long enough for SCM to treat the start as
+    // successful (mirrors Go's runTimeExitGate). If the process has
+    // already been running longer than EXIT_GATE this is a no-op.
+    if let Some(remaining) = EXIT_GATE.checked_sub(running_since.elapsed()) {
+        std::thread::sleep(remaining);
+    }
 
     result
 }
