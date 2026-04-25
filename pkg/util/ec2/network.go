@@ -22,6 +22,7 @@ var (
 	imdsHostname    = "/hostname"
 	imdsIPv4        = "/public-ipv4"
 	imdsNetworkMacs = "/network/interfaces/macs"
+	imdsAMIID       = "/ami-id"
 )
 
 var publicIPv4Fetcher = cachedfetch.Fetcher{
