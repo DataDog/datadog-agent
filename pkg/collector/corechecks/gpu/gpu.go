@@ -419,6 +419,15 @@ func (c *Check) emitSingleMetric(metric *nvidia.Metric, snd sender.Sender, curre
 	allTags = append(allTags, metricTags...)
 	allTags = append(allTags, metric.Tags...)
 
+	if metric.Type == ddmetrics.HistogramType {
+		if metric.HistogramBucket == nil {
+			return fmt.Errorf("metric %s has histogram type but no histogram bucket data", metric.Name)
+		}
+
+		snd.HistogramBucket(metricName, int64(metric.Value), metric.HistogramBucket.Bounds[0], metric.HistogramBucket.Bounds[1], metric.HistogramBucket.Monotonic, "", allTags, metric.HistogramBucket.FlushFirstValue)
+		return nil
+	}
+
 	// Use the current execution time as the timestamp for the metrics, that way we can ensure that the metrics are aligned with the check interval.
 	// We need this to ensure weighted metrics are calibrated correctly.
 	var err error

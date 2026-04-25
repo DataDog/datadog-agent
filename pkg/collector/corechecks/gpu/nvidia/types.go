@@ -35,7 +35,15 @@ type Metric struct {
 	Type                metrics.MetricType      // Type holds the type of the metric.
 	Priority            MetricPriority          // Priority is the priority of the metric, indicating which metric to keep in case of duplicates. Low (default) is the lowest priority.
 	Tags                []string                // Tags holds optional metric-specific tags (e.g., "error type").
+	HistogramBucket     *Bucket                 // HistogramBucket holds histogram-bucket data when the metric is emitted via sender.HistogramBucket.
 	AssociatedWorkloads []workloadmeta.EntityID // AssociatedWorkloads represents specific workloads that are associated with the metric, e.g. a process associated with a process-level metric. Used for tagging.
+}
+
+// Bucket carries histogram bucket data for a metric emitted with sender.HistogramBucket.
+type Bucket struct {
+	Bounds          [2]float64
+	Monotonic       bool
+	FlushFirstValue bool
 }
 
 // Collector defines a collector that gets metric from a specific NVML subsystem and device

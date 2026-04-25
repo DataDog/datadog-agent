@@ -9,15 +9,16 @@ package nvidia
 
 import (
 	"encoding/binary"
+	"errors"
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	gpuspec "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/spec"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 func TestCreatePPCNTTLVByteArray(t *testing.T) {
@@ -59,9 +60,22 @@ func TestNVLinkCollector(t *testing.T) {
 	mockDevice := setupMockDeviceWithLibOpts(t, func(device *mock.Device) *mock.Device {
 		testutil.WithMockAllDeviceFunctions()(device)
 		device.GetFieldValuesFunc = func(values []nvml.FieldValue) nvml.Return {
-			require.Len(t, values, 1)
-			values[0].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_INT)
-			values[0].Value = [8]byte{2, 0, 0, 0, 0, 0, 0, 0}
+			switch len(values) {
+			case 1:
+				values[0].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_INT)
+				values[0].Value = [8]byte{2, 0, 0, 0, 0, 0, 0, 0}
+			case len(nvlinkFECHistoryFieldIDs):
+				scopeID := values[0].ScopeId
+				for i := range values {
+					require.Equal(t, scopeID, values[i].ScopeId)
+					require.Equal(t, nvlinkFECHistoryFieldIDs[i], values[i].FieldId)
+					values[i].NvmlReturn = uint32(nvml.SUCCESS)
+					values[i].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_INT)
+					binary.LittleEndian.PutUint32(values[i].Value[:], uint32(int(scopeID)*100+10+i))
+				}
+			default:
+				t.Fatalf("unexpected GetFieldValues request size: %d", len(values))
+			}
 			return nvml.SUCCESS
 		}
 		device.ReadWritePRM_v1Func = func(buffer *nvml.PRMTLV_v1) nvml.Return {
@@ -75,13 +89,20 @@ func TestNVLinkCollector(t *testing.T) {
 
 	collector, err := newNVLinkCollector(mockDevice, nil)
 	require.NoError(t, err)
-	metrics, err := collector.Collect()
+	collectedMetrics, err := collector.Collect()
 	require.NoError(t, err)
-	require.Len(t, metrics, len(plrCounterFields)*2)
+	require.Len(t, collectedMetrics, (len(plrCounterFields)+len(nvlinkFECHistoryFieldIDs))*2)
 
 	port1Count := 0
 	port2Count := 0
-	for _, metric := range metrics {
+	fecMetricCount := 0
+	for _, metric := range collectedMetrics {
+		if metric.Name == nvlinkFECHistoryMetricName {
+			require.Equal(t, metrics.HistogramType, metric.Type)
+			require.NotNil(t, metric.HistogramBucket)
+			require.True(t, metric.HistogramBucket.Monotonic)
+			fecMetricCount++
+		}
 		switch {
 		case hasTag(metric.Tags, "nvlink_port:1"):
 			port1Count++
@@ -91,99 +112,165 @@ func TestNVLinkCollector(t *testing.T) {
 			t.Fatalf("missing nvlink_port tag on metric %+v", metric)
 		}
 	}
-	require.Equal(t, len(plrCounterFields), port1Count)
-	require.Equal(t, len(plrCounterFields), port2Count)
+	require.Equal(t, len(plrCounterFields)+len(nvlinkFECHistoryFieldIDs), port1Count)
+	require.Equal(t, len(plrCounterFields)+len(nvlinkFECHistoryFieldIDs), port2Count)
+	require.Equal(t, len(nvlinkFECHistoryFieldIDs)*2, fecMetricCount)
 }
 
-func TestNVLinkCollectorPartialFailure(t *testing.T) {
-	mockDevice := setupMockDeviceWithLibOpts(t, func(device *mock.Device) *mock.Device {
-		testutil.WithMockAllDeviceFunctions()(device)
-		device.GetFieldValuesFunc = func(values []nvml.FieldValue) nvml.Return {
-			require.Len(t, values, 1)
-			values[0].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_INT)
-			values[0].Value = [8]byte{2, 0, 0, 0, 0, 0, 0, 0}
-			return nvml.SUCCESS
-		}
-		device.ReadWritePRM_v1Func = func(buffer *nvml.PRMTLV_v1) nvml.Return {
-			port := int(binary.BigEndian.Uint32(buffer.InData[20:24]) >> 16)
-			if port == 2 {
-				return nvml.ERROR_NOT_SUPPORTED
-			}
-			response := makePLRResponseBytes(100)
-			copy(buffer.InData[:], response)
-			return nvml.SUCCESS
-		}
-		return device
-	})
-
-	collector, err := newNVLinkCollector(mockDevice, nil)
-	require.NoError(t, err)
-	metrics, err := collector.Collect()
-	require.NoError(t, err)
-	require.Len(t, metrics, len(plrCounterFields))
-	for _, metric := range metrics {
-		require.Contains(t, metric.Tags, "nvlink_port:1")
-	}
-}
-
-func TestNVLinkCollectorKeepsPortOnTransientError(t *testing.T) {
+func TestNvlinkCollectorOnePortFails(t *testing.T) {
 	callCountByPort := map[int]int{}
+	stableCollector := func(port int) ([]Metric, error) {
+		return []Metric{{
+			Name:  "stable.metric",
+			Value: float64(port),
+			Type:  metrics.GaugeType,
+		}}, nil
+	}
+	flakyCollector := func(port int) ([]Metric, error) {
+		callCountByPort[port]++
+		if port == 2 && callCountByPort[port] == 1 {
+			return nil, errors.New("transient failure")
+		}
+		return []Metric{{
+			Name:  "flaky.metric",
+			Value: float64(port * 10),
+			Type:  metrics.GaugeType,
+		}}, nil
+	}
+
+	collector := &nvlinkCollector{
+		portCollectors: map[int][]portCollector{
+			1: {stableCollector, flakyCollector},
+			2: {stableCollector, flakyCollector},
+		},
+	}
+	require.Len(t, collector.portCollectors, 2)
+	require.Len(t, collector.portCollectors[1], 2)
+	require.Len(t, collector.portCollectors[2], 2)
+
+	collectedMetrics, err := collector.Collect()
+	require.Error(t, err)
+	require.Len(t, collectedMetrics, 3)
+	require.Equal(t, 1, callCountByPort[1])
+	require.Equal(t, 1, callCountByPort[2])
+	require.Len(t, collector.portCollectors, 2)
+	require.Len(t, collector.portCollectors[1], 2)
+	require.Len(t, collector.portCollectors[2], 2)
+
+	metricsByPortAndName := map[string]map[string]float64{}
+	for _, metric := range collectedMetrics {
+		var portTag string
+		for _, tag := range metric.Tags {
+			if tag == "nvlink_port:1" || tag == "nvlink_port:2" {
+				portTag = tag
+				break
+			}
+		}
+		require.NotEmpty(t, portTag, "missing nvlink port tag on metric %+v", metric)
+		if _, ok := metricsByPortAndName[portTag]; !ok {
+			metricsByPortAndName[portTag] = map[string]float64{}
+		}
+		metricsByPortAndName[portTag][metric.Name] = metric.Value
+	}
+	require.Equal(t, map[string]float64{"stable.metric": 1, "flaky.metric": 10}, metricsByPortAndName["nvlink_port:1"])
+	require.Equal(t, map[string]float64{"stable.metric": 2}, metricsByPortAndName["nvlink_port:2"])
+
+	collectedMetrics, err = collector.Collect()
+	require.NoError(t, err)
+	require.Len(t, collectedMetrics, 4)
+	require.Equal(t, 2, callCountByPort[1])
+	require.Equal(t, 2, callCountByPort[2])
+	require.Len(t, collector.portCollectors, 2)
+	require.Len(t, collector.portCollectors[1], 2)
+	require.Len(t, collector.portCollectors[2], 2)
+
+	metricsByPortAndName = map[string]map[string]float64{}
+	for _, metric := range collectedMetrics {
+		var portTag string
+		for _, tag := range metric.Tags {
+			if tag == "nvlink_port:1" || tag == "nvlink_port:2" {
+				portTag = tag
+				break
+			}
+		}
+		require.NotEmpty(t, portTag, "missing nvlink port tag on metric %+v", metric)
+		if _, ok := metricsByPortAndName[portTag]; !ok {
+			metricsByPortAndName[portTag] = map[string]float64{}
+		}
+		metricsByPortAndName[portTag][metric.Name] = metric.Value
+	}
+	require.Equal(t, map[string]float64{"stable.metric": 1, "flaky.metric": 10}, metricsByPortAndName["nvlink_port:1"])
+	require.Equal(t, map[string]float64{"stable.metric": 2, "flaky.metric": 20}, metricsByPortAndName["nvlink_port:2"])
+}
+
+func TestNVLinkCollectorFECScopesAndBuckets(t *testing.T) {
+	type fieldRequest struct {
+		fieldID uint32
+		scopeID uint32
+	}
+
+	var requests []fieldRequest
 	mockDevice := setupMockDeviceWithLibOpts(t, func(device *mock.Device) *mock.Device {
 		testutil.WithMockAllDeviceFunctions()(device)
 		device.GetFieldValuesFunc = func(values []nvml.FieldValue) nvml.Return {
-			// Return two ports
-			require.Len(t, values, 1)
-			values[0].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_INT)
-			values[0].Value = [8]byte{2, 0, 0, 0, 0, 0, 0, 0}
-			return nvml.SUCCESS
-		}
-		device.ReadWritePRM_v1Func = func(buffer *nvml.PRMTLV_v1) nvml.Return {
-			port := int(binary.BigEndian.Uint32(buffer.InData[20:24]) >> 16)
-			callCountByPort[port]++
-			if port == 2 && callCountByPort[port] == 2 { // first call is to check support, second call fails, third one works
-				return nvml.ERROR_UNKNOWN
+			switch len(values) {
+			case len(nvlinkFECHistoryFieldIDs):
+				for i := range values {
+					requests = append(requests, fieldRequest{fieldID: values[i].FieldId, scopeID: values[i].ScopeId})
+					values[i].NvmlReturn = uint32(nvml.SUCCESS)
+					values[i].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_INT)
+					binary.LittleEndian.PutUint32(values[i].Value[:], uint32(100+int(values[i].ScopeId)*10+i))
+				}
+			default:
+				t.Fatalf("unexpected GetFieldValues request size: %d", len(values))
 			}
-			response := makePLRResponseBytes(uint64(port * 100))
-			copy(buffer.InData[:], response)
 			return nvml.SUCCESS
 		}
 		return device
 	})
 
-	collector, err := newNVLinkCollector(mockDevice, nil)
+	collector := &nvlinkCollector{device: mockDevice}
+	port1Metrics, err := collector.readFECHistory(1)
 	require.NoError(t, err)
-	nvlinkCollector, ok := collector.(*nvlinkCollector)
-	require.True(t, ok)
-	assert.Len(t, nvlinkCollector.ports, 2)
-	assert.Equal(t, 1, callCountByPort[1], "port 1 should be called exactly once")
-	assert.Equal(t, 1, callCountByPort[2], "port 2 should be called exactly once")
-
-	// First call will fail on the second port, it will emit only port 1 metrics
-	metrics, err := collector.Collect()
-	require.Error(t, err) // Error gets propagated from readPortCounters
-	require.Len(t, metrics, len(plrCounterFields))
-	foundTags := map[string]bool{}
-	for _, metric := range metrics {
-		for _, tag := range metric.Tags {
-			foundTags[tag] = true
-		}
-	}
-	require.Len(t, foundTags, 1)
-	require.Contains(t, foundTags, "nvlink_port:1")
-
-	// Second call will succeed on all ports, it will emit port 1 and port 2 metrics
-	metrics, err = collector.Collect()
+	port2Metrics, err := collector.readFECHistory(2)
 	require.NoError(t, err)
-	require.Len(t, metrics, len(plrCounterFields)*2)
-	foundTags = map[string]bool{}
-	for _, metric := range metrics {
-		for _, tag := range metric.Tags {
-			foundTags[tag] = true
-		}
+
+	fecMetricsByPort := map[string][]Metric{}
+	for _, metric := range port1Metrics {
+		require.Equal(t, nvlinkFECHistoryMetricName, metric.Name)
+		require.NotNil(t, metric.HistogramBucket)
+		fecMetricsByPort["nvlink_port:1"] = append(fecMetricsByPort["nvlink_port:1"], metric)
 	}
-	require.Len(t, foundTags, 2)
-	require.Contains(t, foundTags, "nvlink_port:1")
-	require.Contains(t, foundTags, "nvlink_port:2")
+	for _, metric := range port2Metrics {
+		require.Equal(t, nvlinkFECHistoryMetricName, metric.Name)
+		require.NotNil(t, metric.HistogramBucket)
+		fecMetricsByPort["nvlink_port:2"] = append(fecMetricsByPort["nvlink_port:2"], metric)
+	}
+
+	require.Len(t, fecMetricsByPort["nvlink_port:1"], len(nvlinkFECHistoryFieldIDs))
+	require.Len(t, fecMetricsByPort["nvlink_port:2"], len(nvlinkFECHistoryFieldIDs))
+	require.Len(t, requests, len(nvlinkFECHistoryFieldIDs)*2)
+
+	requestsByScope := map[uint32][]uint32{}
+	for _, request := range requests {
+		requestsByScope[request.scopeID] = append(requestsByScope[request.scopeID], request.fieldID)
+	}
+
+	require.Equal(t, nvlinkFECHistoryFieldIDs, requestsByScope[0])
+	require.Equal(t, nvlinkFECHistoryFieldIDs, requestsByScope[1])
+
+	for idx, metric := range fecMetricsByPort["nvlink_port:1"] {
+		require.Equal(t, float64(100+idx), metric.Value)
+		require.Equal(t, [2]float64{float64(idx), float64(idx + 1)}, metric.HistogramBucket.Bounds)
+		require.True(t, metric.HistogramBucket.Monotonic)
+		require.False(t, metric.HistogramBucket.FlushFirstValue)
+	}
+	for idx, metric := range fecMetricsByPort["nvlink_port:2"] {
+		require.Equal(t, float64(110+idx), metric.Value)
+		require.Equal(t, [2]float64{float64(idx), float64(idx + 1)}, metric.HistogramBucket.Bounds)
+		require.True(t, metric.HistogramBucket.Monotonic)
+		require.False(t, metric.HistogramBucket.FlushFirstValue)
+	}
 }
 
 func TestNVLinkCollectorUnsupportedDevice(t *testing.T) {

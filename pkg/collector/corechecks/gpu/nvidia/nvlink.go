@@ -10,6 +10,7 @@ package nvidia
 import (
 	"encoding/binary"
 	"fmt"
+	"math"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/hashicorp/go-multierror"
@@ -47,10 +48,33 @@ var plrCounterFields = []string{
 	"nvlink.plr.tx.retry_events_within_t_sec_max",
 }
 
-type nvlinkCollector struct {
-	device ddnvml.Device
-	ports  []int
+const nvlinkFECHistoryMetricName = "nvlink.errors.fec"
+
+var nvlinkFECHistoryFieldIDs = []uint32{
+	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_0,
+	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_1,
+	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_2,
+	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_3,
+	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_4,
+	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_5,
+	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_6,
+	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_7,
+	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_8,
+	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_9,
+	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_10,
+	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_11,
+	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_12,
+	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_13,
+	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_14,
+	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_15,
 }
+
+type nvlinkCollector struct {
+	device         ddnvml.Device
+	portCollectors map[int][]portCollector
+}
+
+type portCollector func(port int) ([]Metric, error)
 
 func getNVLinkCount(device ddnvml.Device) (int, error) {
 	fields := []nvml.FieldValue{{
@@ -81,17 +105,20 @@ func newNVLinkCollector(device ddnvml.Device, _ *CollectorDependencies) (Collect
 		return nil, errUnsupportedDevice
 	}
 
-	ports := make([]int, 0, totalPorts)
-	for port := 1; port <= totalPorts; port++ {
-		ports = append(ports, port)
+	c := &nvlinkCollector{
+		device:         device,
+		portCollectors: make(map[int][]portCollector, totalPorts),
 	}
 
-	c := &nvlinkCollector{
-		device: device,
-		ports:  ports,
+	for port := 1; port <= totalPorts; port++ {
+		c.portCollectors[port] = []portCollector{
+			c.readPLRCounters,
+			c.readFECHistory,
+		}
 	}
+
 	c.removeUnsupportedPorts()
-	if len(c.ports) == 0 {
+	if len(c.portCollectors) == 0 {
 		return nil, errUnsupportedDevice
 	}
 
@@ -112,52 +139,98 @@ func (c *nvlinkCollector) Collect() ([]Metric, error) {
 		multiErr   error
 	)
 
-	for _, port := range c.ports {
-		counters, err := c.readPortCounters(port)
-		if err != nil {
-			multiErr = multierror.Append(multiErr, fmt.Errorf("read PLR counters for port %d: %w", port, err))
-			continue
-		}
-
-		for _, field := range plrCounterFields {
-			value, found := counters[field]
-			if !found {
-				multiErr = multierror.Append(multiErr, fmt.Errorf("missing PLR counter %q for port %d", field, port))
+	for port, collectors := range c.portCollectors {
+		for _, collector := range collectors {
+			metrics, err := collector(port)
+			if err != nil {
+				multiErr = multierror.Append(multiErr, fmt.Errorf("collect metrics for port %d using collector %T: %w", port, collector, err))
 				continue
 			}
 
-			allMetrics = append(allMetrics, Metric{
-				Name:  field,
-				Value: float64(value),
-				Type:  metrics.GaugeType,
-				Tags: []string{
-					fmt.Sprintf("nvlink_port:%d", port),
-				},
-				Priority: Medium,
-			})
-		}
-	}
+			for i := range metrics {
+				metrics[i].Tags = append(metrics[i].Tags, fmt.Sprintf("nvlink_port:%d", port))
+			}
 
-	if len(allMetrics) == 0 && multiErr != nil {
-		return nil, multiErr
+			allMetrics = append(allMetrics, metrics...)
+		}
 	}
 
 	return allMetrics, multiErr
 }
 
 func (c *nvlinkCollector) removeUnsupportedPorts() {
-	var supportedPorts []int
-	for _, port := range c.ports {
-		counters, err := c.readPortCounters(port)
-		if err == nil && len(counters) > 0 {
-			supportedPorts = append(supportedPorts, port)
+	supportedPortCollectors := make(map[int][]portCollector)
+	for port, collectors := range c.portCollectors {
+		var supportedCollectors []portCollector
+		for _, collector := range collectors {
+			_, err := collector(port)
+			if ddnvml.IsAPIUnsupportedOnDevice(err, c.device) {
+				continue
+			}
+			supportedCollectors = append(supportedCollectors, collector)
+		}
+
+		if len(supportedCollectors) > 0 {
+			supportedPortCollectors[port] = supportedCollectors
 		}
 	}
 
-	c.ports = supportedPorts
+	c.portCollectors = supportedPortCollectors
 }
 
-func (c *nvlinkCollector) readPortCounters(port int) (map[string]uint64, error) {
+func (c *nvlinkCollector) readFECHistory(port int) ([]Metric, error) {
+	fields := make([]nvml.FieldValue, len(nvlinkFECHistoryFieldIDs))
+	scopeID := uint32(port - 1)
+	for i, fieldID := range nvlinkFECHistoryFieldIDs {
+		fields[i] = nvml.FieldValue{
+			FieldId: fieldID,
+			ScopeId: scopeID,
+		}
+	}
+
+	if err := c.device.GetFieldValues(fields); err != nil {
+		return nil, fmt.Errorf("get FEC history field values for scope %d: %w", scopeID, err)
+	}
+
+	var fecMetrics []Metric
+	var multiErr error
+	for bucket, fieldValue := range fields {
+		if fieldValue.NvmlReturn != uint32(nvml.SUCCESS) {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("field %d returned %s for scope %d", fieldValue.FieldId, nvml.ErrorString(nvml.Return(fieldValue.NvmlReturn)), scopeID))
+			continue
+		}
+
+		count, err := fieldValueToNumber[uint64](nvml.ValueType(fieldValue.ValueType), fieldValue.Value)
+		if err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("convert FEC history field %d for scope %d: %w", fieldValue.FieldId, scopeID, err))
+			continue
+		}
+		if count > math.MaxInt64 {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("FEC history field %d for scope %d exceeds int64: %d", fieldValue.FieldId, scopeID, count))
+			continue
+		}
+
+		fecMetrics = append(fecMetrics, Metric{
+			Name:     nvlinkFECHistoryMetricName,
+			Type:     metrics.HistogramType,
+			Value:    float64(count),
+			Priority: Medium,
+			HistogramBucket: &Bucket{
+				Bounds:          [2]float64{float64(bucket), float64(bucket + 1)},
+				Monotonic:       true,
+				FlushFirstValue: false,
+			},
+		})
+	}
+
+	if len(fecMetrics) == 0 && multiErr != nil {
+		return nil, multiErr
+	}
+
+	return fecMetrics, multiErr
+}
+
+func (c *nvlinkCollector) readPLRCounters(port int) ([]Metric, error) {
 	tlvBytes := createPPCNTTLVByteArray(ppcntGroupPLR, uint32(port))
 	var prm nvml.PRMTLV_v1
 	if len(tlvBytes) > len(prm.InData) {
@@ -173,7 +246,28 @@ func (c *nvlinkCollector) readPortCounters(port int) (map[string]uint64, error) 
 
 	// InData and outData are a C union in nvmlPRMTLV_v1_t; the NVML API
 	// writes the response back into the same buffer that held the request.
-	return unpackTLV(prm.InData[:])
+	counters, err := unpackTLV(prm.InData[:])
+	if err != nil {
+		return nil, fmt.Errorf("unpack PPCNT TLV: %w", err)
+	}
+
+	var plrMetrics []Metric
+	var multiErr error
+	for _, field := range plrCounterFields {
+		value, found := counters[field]
+		if !found {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("missing PLR counter %q for port %d", field, port))
+			continue
+		}
+
+		plrMetrics = append(plrMetrics, Metric{
+			Name:  field,
+			Value: float64(value),
+			Type:  metrics.GaugeType,
+		})
+	}
+
+	return plrMetrics, multiErr
 }
 
 func createPPCNTTLVByteArray(group, port uint32) []byte {

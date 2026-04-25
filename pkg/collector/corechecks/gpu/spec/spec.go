@@ -106,11 +106,11 @@ func (m *MetricMetadataSpec) UnmarshalYAML(unmarshal func(interface{}) error) er
 	}
 
 	switch decoded.MetricType {
-	case "", "gauge", "counter":
+	case "", "gauge", "counter", "histogram":
 		*m = MetricMetadataSpec(decoded)
 		return nil
 	default:
-		return fmt.Errorf("invalid metric_type %q: must be one of [gauge, counter]", decoded.MetricType)
+		return fmt.Errorf("invalid metric_type %q: must be one of [gauge, counter, histogram]", decoded.MetricType)
 	}
 }
 

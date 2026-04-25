@@ -1202,6 +1202,31 @@ metrics:
         mig: false
         physical: true
         vgpu: false
+  nvlink.errors.fec:
+    metadata:
+      metric_type: histogram
+      description: >-
+        NVLink FEC history histogram for the port. Each emitted histogram bucket
+        represents the cumulative count of messages with exactly N FEC errors.
+    tagsets:
+      - device
+    custom_tags:
+      - nvlink_port
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+        - ampere
+        - hopper
+        - ada
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
   nvlink.speed:
     metadata:
       metric_type: gauge

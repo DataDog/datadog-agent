@@ -483,6 +483,36 @@ func TestEmitSingleMetricDoesNotAliasDeviceTags(t *testing.T) {
 	require.Equal(t, []string{"gpu_uuid:gpu-1"}, deviceTags)
 }
 
+func TestEmitSingleMetricHistogramBucket(t *testing.T) {
+	mockSender := mocksender.NewMockSender("gpu")
+
+	value := float64(7)
+	upperBound := 14.0
+	lowerBound := 13.0
+	metricName := "nvlink.errors.fec"
+	portTag := "nvlink_port:2"
+	gpuTag := "gpu_uuid:gpu-1"
+
+	check := &Check{}
+	metric := &nvidia.Metric{
+		Name:  metricName,
+		Type:  ddmetrics.HistogramType,
+		Value: value,
+		Tags:  []string{portTag},
+		HistogramBucket: &nvidia.Bucket{
+			Bounds:          [2]float64{lowerBound, upperBound},
+			Monotonic:       true,
+			FlushFirstValue: false,
+		},
+	}
+	mockSender.On("HistogramBucket", "gpu."+metricName, int64(value), lowerBound, upperBound, true, "", []string{gpuTag, portTag}, false).Return()
+
+	err := check.emitSingleMetric(metric, mockSender, time.Now(), nil, []string{gpuTag})
+	require.NoError(t, err)
+
+	mockSender.AssertExpectations(t)
+}
+
 func TestTagsChangeBetweenRuns(t *testing.T) {
 	// Create a mock sender
 	mockSender := mocksender.NewMockSender("gpu")
