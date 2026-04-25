@@ -772,6 +772,61 @@ int test_bind_af_unix(void) {
     return EXIT_SUCCESS;
 }
 
+// test_socket: create a socket with the given domain/type/protocol and close it.
+// Usage: syscall_tester socket <AF_INET|AF_INET6|AF_UNIX> <SOCK_STREAM|SOCK_DGRAM|SOCK_RAW> <IPPROTO_TCP|IPPROTO_UDP|IPPROTO_ICMP|0>
+int test_socket(int argc, char** argv) {
+    if (argc != 4) {
+        fprintf(stderr, "%s: expected <domain> <type> <protocol>\n", __FUNCTION__);
+        return EXIT_FAILURE;
+    }
+
+    int domain;
+    if (!strcmp(argv[1], "AF_INET")) {
+        domain = AF_INET;
+    } else if (!strcmp(argv[1], "AF_INET6")) {
+        domain = AF_INET6;
+    } else if (!strcmp(argv[1], "AF_UNIX")) {
+        domain = AF_UNIX;
+    } else {
+        fprintf(stderr, "invalid domain: %s\n", argv[1]);
+        return EXIT_FAILURE;
+    }
+
+    int sock_type;
+    if (!strcmp(argv[2], "SOCK_STREAM")) {
+        sock_type = SOCK_STREAM;
+    } else if (!strcmp(argv[2], "SOCK_DGRAM")) {
+        sock_type = SOCK_DGRAM;
+    } else if (!strcmp(argv[2], "SOCK_RAW")) {
+        sock_type = SOCK_RAW;
+    } else {
+        fprintf(stderr, "invalid type: %s\n", argv[2]);
+        return EXIT_FAILURE;
+    }
+
+    int protocol;
+    if (!strcmp(argv[3], "IPPROTO_TCP")) {
+        protocol = IPPROTO_TCP;
+    } else if (!strcmp(argv[3], "IPPROTO_UDP")) {
+        protocol = IPPROTO_UDP;
+    } else if (!strcmp(argv[3], "IPPROTO_ICMP")) {
+        protocol = IPPROTO_ICMP;
+    } else if (!strcmp(argv[3], "0")) {
+        protocol = 0;
+    } else {
+        fprintf(stderr, "invalid protocol: %s\n", argv[3]);
+        return EXIT_FAILURE;
+    }
+
+    int fd = socket(domain, sock_type, protocol);
+    if (fd < 0) {
+        perror("socket");
+        return EXIT_FAILURE;
+    }
+    close(fd);
+    return EXIT_SUCCESS;
+}
+
 int test_bind(int argc, char** argv) {
     if (argc <= 1) {
         fprintf(stderr, "Please specify an addr_type\n");
@@ -2060,6 +2115,8 @@ int main(int argc, char **argv) {
             exit_code = test_bind(sub_argc, sub_argv);
         } else if (strcmp(cmd, "connect") == 0) {
             exit_code = test_connect(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "socket") == 0) {
+            exit_code = test_socket(sub_argc, sub_argv);
         } else if (strcmp(cmd, "fork") == 0) {
             exit_code = test_forkexec(sub_argc, sub_argv);
         } else if (strcmp(cmd, "set-signal-handler") == 0) {

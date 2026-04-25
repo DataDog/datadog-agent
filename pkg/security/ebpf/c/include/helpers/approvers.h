@@ -632,6 +632,35 @@ static enum SYSCALL_STATE __attribute__((always_inline)) setsockopt_approvers(st
     return state;
 }
 
+static enum SYSCALL_STATE __attribute__((always_inline)) approve_socket_by_domain(struct syscall_cache_t *syscall) {
+    u32 key = 0;
+    struct u64_flags_filter_t *filter = bpf_map_lookup_elem(&socket_domain_approvers, &key);
+    return flag_approver(filter, syscall->type, (u64)syscall->socket.domain);
+}
+
+static enum SYSCALL_STATE __attribute__((always_inline)) approve_socket_by_type(struct syscall_cache_t *syscall) {
+    u32 key = 0;
+    struct u64_flags_filter_t *filter = bpf_map_lookup_elem(&socket_type_approvers, &key);
+    return flag_approver(filter, syscall->type, (u64)syscall->socket.type);
+}
+
+static enum SYSCALL_STATE __attribute__((always_inline)) approve_socket_by_protocol(struct syscall_cache_t *syscall) {
+    u32 key = 0;
+    struct u64_flags_filter_t *filter = bpf_map_lookup_elem(&socket_protocol_approvers, &key);
+    return flag_approver(filter, syscall->type, (u64)syscall->socket.protocol);
+}
+
+enum SYSCALL_STATE __attribute__((always_inline)) socket_approvers(struct syscall_cache_t *syscall) {
+    enum SYSCALL_STATE state = approve_socket_by_type(syscall);
+    if (state == DISCARDED) {
+        state = approve_socket_by_domain(syscall);
+    }
+    if (state == DISCARDED) {
+        state = approve_socket_by_protocol(syscall);
+    }
+    return state;
+}
+
 enum SYSCALL_STATE __attribute__((always_inline)) approve_syscall_with_tgid(u32 tgid, struct syscall_cache_t *syscall, enum SYSCALL_STATE (*check_approvers)(struct syscall_cache_t *syscall)) {
     if (syscall->policy.mode != DENY) {
         monitor_event_approved(syscall->type, POLICY_APPROVER_TYPE);

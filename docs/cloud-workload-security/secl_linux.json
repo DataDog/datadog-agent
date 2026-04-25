@@ -11435,6 +11435,35 @@
       ]
     },
     {
+      "name": "socket",
+      "definition": "A socket was created",
+      "type": "Network",
+      "from_agent_version": "7.68",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "socket.domain",
+          "definition": "Socket domain",
+          "property_doc_link": "socket-domain-doc"
+        },
+        {
+          "name": "socket.protocol",
+          "definition": "Socket protocol",
+          "property_doc_link": "socket-protocol-doc"
+        },
+        {
+          "name": "socket.retval",
+          "definition": "Return value of the syscall",
+          "property_doc_link": "common-syscallevent-retval-doc"
+        },
+        {
+          "name": "socket.type",
+          "definition": "Socket type",
+          "property_doc_link": "socket-type-doc"
+        }
+      ]
+    },
+    {
       "name": "splice",
       "definition": "A splice command was executed",
       "type": "File",
@@ -14700,6 +14729,7 @@
         "setsockopt",
         "setxattr",
         "signal",
+        "socket",
         "splice",
         "unlink",
         "unload_module",
@@ -16904,6 +16934,42 @@
       ],
       "constants": "Signal constants",
       "constants_link": "signal-constants",
+      "examples": []
+    },
+    {
+      "name": "socket.domain",
+      "link": "socket-domain-doc",
+      "type": "int",
+      "definition": "Socket domain",
+      "prefixes": [
+        "socket"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "socket.protocol",
+      "link": "socket-protocol-doc",
+      "type": "int",
+      "definition": "Socket protocol",
+      "prefixes": [
+        "socket"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "socket.type",
+      "link": "socket-type-doc",
+      "type": "int",
+      "definition": "Socket type",
+      "prefixes": [
+        "socket"
+      ],
+      "constants": "",
+      "constants_link": "",
       "examples": []
     },
     {
@@ -22590,6 +22656,60 @@
         },
         {
           "name": "SIGSYS",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "Socket domains",
+      "link": "socket-domains",
+      "description": "Socket domains are the supported socket domains.",
+      "all": [
+        {
+          "name": "AF_UNSPEC",
+          "architecture": "all"
+        },
+        {
+          "name": "AF_INET",
+          "architecture": "all"
+        },
+        {
+          "name": "AF_INET6",
+          "architecture": "all"
+        },
+        {
+          "name": "AF_UNIX",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "Socket protocols",
+      "link": "socket-protocols",
+      "description": "Socket protocols are the supported socket protocols.",
+      "all": [
+        {
+          "name": "IPPROTO_IP",
+          "architecture": "all"
+        },
+        {
+          "name": "IPPROTO_TCP",
+          "architecture": "all"
+        },
+        {
+          "name": "IPPROTO_UDP",
+          "architecture": "all"
+        },
+        {
+          "name": "IPPROTO_ICMP",
+          "architecture": "all"
+        },
+        {
+          "name": "IPPROTO_IPV6",
+          "architecture": "all"
+        },
+        {
+          "name": "IPPROTO_ICMPV6",
           "architecture": "all"
         }
       ]

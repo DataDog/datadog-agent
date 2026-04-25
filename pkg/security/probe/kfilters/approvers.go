@@ -223,4 +223,5 @@ func init() {
 	KFilterGetters["connect"] = connectKFiltersGetter
 	KFilterGetters["prctl"] = prctlKFiltersGetter
 	KFilterGetters["setsockopt"] = setsockoptKFiltersGetter
+	KFilterGetters["socket"] = socketKFiltersGetter
 }
