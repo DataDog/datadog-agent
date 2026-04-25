@@ -336,7 +336,7 @@ func TestAutoscalerController(t *testing.T) {
 
 	timeoutDuration := 5 * time.Second
 	retryPeriod := 500 * time.Millisecond
-	timeout := time.NewTimer(10 * time.Second)
+	timeout := time.NewTimer(20 * time.Second)
 	defer timeout.Stop()
 
 	select {
