@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
 	kubeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/eks"
@@ -43,7 +44,7 @@ func eksHttpbinEnvProvisioner(opts ...eks.RunOption) provisioners.PulumiEnvRunFu
 			return err
 		}
 		vmName := "httpbinvm"
-		httpbinHost, err := ec2.NewVM(awsEnv, vmName)
+		httpbinHost, err := ec2.NewVM(awsEnv, vmName, ec2.WithOS(os.Ubuntu2204E2E))
 		if err != nil {
 			return err
 		}
@@ -52,7 +53,6 @@ func eksHttpbinEnvProvisioner(opts ...eks.RunOption) provisioners.PulumiEnvRunFu
 			return err
 		}
 
-		// install docker.io
 		manager, err := docker.NewAWSManager(&awsEnv, httpbinHost)
 		if err != nil {
 			return err
