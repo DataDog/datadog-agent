@@ -63,7 +63,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/netns"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/bundled"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
@@ -1122,13 +1121,12 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 
 	event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
 
-	if process.IsKworker(event.ProcessContext.PPid, event.ProcessContext.Pid) {
-		return false
-	}
-
 	if !eventWithNoProcessContext(eventType) {
 		if !isResolved {
-			event.Error = model.ErrNoProcessContext
+			// Is not process context is not a kworker it means that this a real resolution error
+			if !event.ProcessContext.IsKworker {
+				event.Error = model.ErrNoProcessContext
+			}
 		} else {
 			// If the kernel reports a different ppid than the one in our
 			// cache, the process was reparented (e.g. subreaper). Update
