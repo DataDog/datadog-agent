@@ -26,6 +26,7 @@ unless do_repackage?
   dependency 'datadog-agent-prepare'
 
   dependency "python3"
+  dependency "re2" if linux_target?
 
   dependency "openscap" if linux_target? and !arm7l_target? and !heroku_target? # Security-agent dependency, not needed for Heroku
 
@@ -60,7 +61,12 @@ build do
   unless windows_target?
     env['LDFLAGS'] = "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib"
     env['CGO_CFLAGS'] = "-I. -I#{install_dir}/embedded/include"
+    env['CGO_CXXFLAGS'] = "-I. -I#{install_dir}/embedded/include"
     env['CGO_LDFLAGS'] = "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib"
+  end
+
+  if linux_target?
+    env['AGENT_EXTRA_BUILD_TAGS'] = "re2_cgo"
   end
 
   unless ENV["OMNIBUS_GOMODCACHE"].nil? || ENV["OMNIBUS_GOMODCACHE"].empty?

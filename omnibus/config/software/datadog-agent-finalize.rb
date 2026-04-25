@@ -59,6 +59,7 @@ build do
 
             # Delete the leftovers of static linking.
             delete "#{install_dir}/embedded/lib/libdbus-1.a"
+            delete "#{install_dir}/embedded/lib/libcre2.a"
             delete "#{install_dir}/embedded/include/dbus-1.0"
             delete "#{install_dir}/embedded/lib/dbus-1.0/include"
         end

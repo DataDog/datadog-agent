@@ -438,9 +438,9 @@ func (m *MessageMetadata) Size() int64 {
 }
 
 // RecordProcessingRule records the application of a processing rule to a message.
-func (m *MessageMetadata) RecordProcessingRule(ruleType string, ruleName string) {
+func (m *MessageMetadata) RecordProcessingRule(ruleDesignation string) {
 	if m.Origin != nil && m.Origin.LogSource != nil {
-		m.Origin.LogSource.ProcessingInfo.Inc(ruleType + ":" + ruleName)
+		m.Origin.LogSource.ProcessingInfo.Inc(ruleDesignation)
 	} else {
 		nilSource := "LogSource"
 		if m.Origin == nil {

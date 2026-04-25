@@ -39,6 +39,7 @@ build do
 
   unless windows_target?
     env['CGO_CFLAGS'] = "-I#{install_dir}/embedded/include"
+    env['CGO_CXXFLAGS'] = "-I#{install_dir}/embedded/include"
   end
 
   if linux_target?

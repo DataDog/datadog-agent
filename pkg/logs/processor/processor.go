@@ -6,9 +6,7 @@
 package processor
 
 import (
-	"bytes"
 	"context"
-	"regexp"
 	"slices"
 	"sync"
 
@@ -18,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	re2 "github.com/DataDog/datadog-agent/pkg/logs/re2"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -75,6 +74,11 @@ func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Messa
 		pipelineMonitor:           pipelineMonitor,
 		utilization:               pipelineMonitor.MakeUtilizationMonitor(metrics.ProcessorTlmName, instanceID),
 		instanceID:                instanceID,
+	}
+
+	// Apply RE2 engine toggle from config
+	if config != nil {
+		re2.SetEnabled(config.GetBool("logs_config.use_re2_regex"))
 	}
 
 	// Initialize cached failover config
@@ -256,47 +260,31 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 	for _, rule := range rules {
 		switch rule.Type {
 		case config.ExcludeAtMatch:
-			// if this message matches, we ignore it
-			if rule.Regex.Match(content) {
-				msg.RecordProcessingRule(rule.Type, rule.Name)
+			if re2MatchContent(rule, content) {
+				msg.RecordProcessingRule(rule.GetDesignation())
 				return false
 			}
 		case config.IncludeAtMatch:
-			// if this message doesn't match, we ignore it
-			if !rule.Regex.Match(content) {
+			if !re2MatchContent(rule, content) {
 				return false
 			}
-			msg.RecordProcessingRule(rule.Type, rule.Name)
+			msg.RecordProcessingRule(rule.GetDesignation())
 		case config.MaskSequences:
-			if isMatchingLiteralPrefix(rule.Regex, content) {
-				originalContent := content
-				content = rule.Regex.ReplaceAll(content, rule.Placeholder)
-				if !bytes.Equal(originalContent, content) {
-					msg.RecordProcessingRule(rule.Type, rule.Name)
-				}
+			newContent, changed := re2MaskReplace(rule, content)
+			if changed {
+				content = newContent
+				msg.RecordProcessingRule(rule.GetDesignation())
 			}
 		case config.ExcludeTruncated:
 			if msg.IsTruncated {
-				msg.RecordProcessingRule(rule.Type, rule.Name)
+				msg.RecordProcessingRule(rule.GetDesignation())
 				return false
 			}
-
 		}
 	}
 
 	msg.SetContent(content)
 	return true // we want to send this message
-}
-
-// isMatchingLiteralPrefix uses a potential literal prefix from the given regex
-// to indicate if the contant even has a chance of matching the regex
-func isMatchingLiteralPrefix(r *regexp.Regexp, content []byte) bool {
-	prefix, _ := r.LiteralPrefix()
-	if prefix == "" {
-		return true
-	}
-
-	return bytes.Contains(content, []byte(prefix))
 }
 
 // GetHostname returns the hostname to applied the given log message

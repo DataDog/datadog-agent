@@ -1,0 +1,19 @@
+logs:
+  - type: file
+    path: "/smp-shared/*.log"
+    service: "my-service"
+    source: "my-client-app"
+    log_processing_rules:
+      - type: exclude_at_match
+        name: source_exclude_regen_endpoints
+        pattern: 'regenerating all endpoints'
+      - type: exclude_at_match
+        name: source_include_vaultdmetric
+        pattern: 'vaultdmetric'
+      - type: exclude_at_match
+        name: source_include_error_code
+        pattern: '(E|F)\d\d\d\d'
+      - type: mask_sequences
+        name: source_mask_bearer_token
+        pattern: '(?i)bearer [-a-z0-9._~+/]{4,}'
+        replace_placeholder: 'bearer [REDACTED_TOKEN]'

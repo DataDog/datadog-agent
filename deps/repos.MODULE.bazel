@@ -452,3 +452,14 @@ http_archive(
         "https://github.com/systemd/systemd/archive/refs/tags/v253.tar.gz",
     ],
 )
+
+http_archive(
+    name = "re2",
+    build_file = "//deps:re2.BUILD.bazel",
+    sha256 = "87f6029d2f6de8aa023654240a03ada90e876ce9a4676e258dd01ea4c26ffd67",
+    strip_prefix = "re2-2025-11-05",
+    urls = [
+        "https://dd-agent-omnibus.s3.amazonaws.com/bazel/re2-2025-11-05.tar.gz",
+        "https://github.com/google/re2/releases/download/2025-11-05/re2-2025-11-05.tar.gz",
+    ],
+)

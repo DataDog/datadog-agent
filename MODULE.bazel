@@ -320,6 +320,12 @@ register_toolchains("//bazel/toolchains/prost:prost_toolchain")
 
 include("//deps:crates.MODULE.bazel")
 
+##############################
+## C / C++ base libraries  ##
+##############################
+
+bazel_dep(name = "abseil-cpp", version = "20240116.2")
+
 #########################
 ## Native dependencies ##
 #########################

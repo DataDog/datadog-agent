@@ -1,0 +1,21 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_static_library.bzl", "cc_static_library")
+
+cc_library(
+    name = "cre2_lib",
+    srcs = ["lib/cre2.cpp"],
+    hdrs = ["lib/cre2.h"],
+    copts = [
+        "-std=c++17",
+        "-fPIC",
+    ],
+    deps = ["@re2//:libre2"],
+)
+
+# Fat static archive: bundles cre2 + RE2 + Abseil so the Go binary
+# has zero runtime C++ shared-library dependencies.
+cc_static_library(
+    name = "cre2",
+    visibility = ["//visibility:public"],
+    deps = [":cre2_lib"],
+)

@@ -1,0 +1,37 @@
+auth_token_file_path: /tmp/agent-auth-token
+
+# Disable cloud detection. This stops the Agent from poking around the
+# execution environment & network. This is particularly important if the target
+# has network access.
+cloud_provider_metadata: []
+
+dd_url: http://127.0.0.1:9091
+
+logs_enabled: true
+logs_config:
+  logs_dd_url: 127.0.0.1:9092
+  logs_no_ssl: true
+  force_use_http: true
+  processing_rules:
+    - type: exclude_at_match
+      name: global_exclude_node_deleted
+      pattern: '"msg":"Node deleted"'
+    - type: exclude_at_match
+      name: global_exclude_info_level
+      pattern: '(?i)(level=info|lvl=info|"(level|severity)"\s*:\s*"info"|level:\s*info|\[info\]|\bI[0-9]{4}\s+[0-9]{2}:[0-9]{2}:)'
+    - type: exclude_at_match
+      name: global_include_error_level
+      pattern: 'level=(error|fatal|panic)'
+    - type: mask_sequences
+      name: global_mask_api_key
+      pattern: '(?:api_key=[a-f0-9]{28})'
+      replace_placeholder: '[REDACTED_API_KEY]'
+    - type: mask_sequences
+      name: global_mask_ipv4
+      pattern: '\b((25[0-5]|(2[0-4]|1?[0-9])?[0-9])\.){3}(25[0-5]|(2[0-4]|1?[0-9])?[0-9])\b'
+      replace_placeholder: '[REDACTED_IP]'
+
+process_config.process_dd_url: http://localhost:9093
+
+telemetry.enabled: true
+telemetry.checks: '*'

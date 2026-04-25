@@ -1,0 +1,135 @@
+load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
+load("@rules_license//rules:license.bzl", "license")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
+
+package(
+    default_package_metadata = [":license"],
+    default_visibility = ["@@//packages:__subpackages__"],
+)
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:BSD-3-Clause"],
+    license_text = "LICENSE",
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "libre2",
+    srcs = [
+        "re2/bitmap256.cc",
+        "re2/bitmap256.h",
+        "re2/bitstate.cc",
+        "re2/compile.cc",
+        "re2/dfa.cc",
+        "re2/filtered_re2.cc",
+        "re2/mimics_pcre.cc",
+        "re2/nfa.cc",
+        "re2/onepass.cc",
+        "re2/parse.cc",
+        "re2/perl_groups.cc",
+        "re2/pod_array.h",
+        "re2/prefilter.cc",
+        "re2/prefilter.h",
+        "re2/prefilter_tree.cc",
+        "re2/prefilter_tree.h",
+        "re2/prog.cc",
+        "re2/prog.h",
+        "re2/re2.cc",
+        "re2/regexp.cc",
+        "re2/regexp.h",
+        "re2/set.cc",
+        "re2/simplify.cc",
+        "re2/sparse_array.h",
+        "re2/sparse_set.h",
+        "re2/tostring.cc",
+        "re2/unicode_casefold.cc",
+        "re2/unicode_casefold.h",
+        "re2/unicode_groups.cc",
+        "re2/unicode_groups.h",
+        "re2/walker-inl.h",
+        "util/rune.cc",
+        "util/strutil.cc",
+        "util/strutil.h",
+        "util/utf.h",
+    ],
+    hdrs = [
+        "re2/filtered_re2.h",
+        "re2/re2.h",
+        "re2/set.h",
+        "re2/stringpiece.h",
+    ],
+    copts = select({
+        "@platforms//os:windows": [],
+        "//conditions:default": [
+            "-std=c++17",
+            "-pthread",
+        ],
+    }),
+    linkopts = select({
+        "@platforms//os:macos": [],
+        "@platforms//os:windows": [],
+        "//conditions:default": ["-pthread"],
+    }),
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@abseil-cpp//absl/base",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/container:fixed_array",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/container:inlined_vector",
+        "@abseil-cpp//absl/hash",
+        "@abseil-cpp//absl/log:absl_check",
+        "@abseil-cpp//absl/log:absl_log",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/types:optional",
+        "@abseil-cpp//absl/types:span",
+    ],
+)
+
+cc_shared_library(
+    name = "re2",
+    deps = [":libre2"],
+    visibility = ["//visibility:public"],
+)
+
+so_symlink(
+    name = "lib_files",
+    src = ":re2",
+    libname = "libre2",
+    version = "11.0.0",
+    prefix = "embedded",
+)
+
+pkg_files(
+    name = "hdr_files",
+    srcs = [
+        "re2/filtered_re2.h",
+        "re2/re2.h",
+        "re2/set.h",
+        "re2/stringpiece.h",
+    ],
+    prefix = "embedded/include/re2",
+)
+
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        ":hdr_files",
+        ":lib_files",
+    ],
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":all_files",
+    ],
+)
