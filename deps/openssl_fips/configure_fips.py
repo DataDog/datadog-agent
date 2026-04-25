@@ -1,7 +1,10 @@
-"""Cross-platform FIPS configuration script.
+"""Substitute placeholders in a FIPS config file.
 
-Replaces placeholder values in openssl.cnf.tmp and fipsinstall.sh with actual paths.
-Works on both Windows and Linux.
+Usage (Bazel genrule):
+    configure_fips --input <src> --output <dst> KEY=VALUE ...
+
+Usage (manual, legacy):
+    configure_fips --destdir <dir> [--embedded_ssl_dir <path>]
 """
 
 import argparse
@@ -10,39 +13,40 @@ import sys
 from pathlib import Path
 
 
-def replace_in_file(filepath: Path, placeholder: str, replacement: str):
-    """Replace placeholder with replacement in file."""
-    if not filepath.exists():
-        raise RuntimeError(f"Warning: {filepath} not found")
-
-    content = filepath.read_text()
-    new_content = content.replace(placeholder, replacement)
-    filepath.write_text(new_content)
-    print(f"Updated: {filepath}")
-    return True
-
-
 def main():
-    parser = argparse.ArgumentParser(description="Configure FIPS installation paths")
-    parser.add_argument("--destdir", required=True, help="Destination directory")
-    parser.add_argument("--embedded_ssl_dir", required=False, help="Embedded SSL directory (defaults to destdir/ssl)")
+    parser = argparse.ArgumentParser(description="Substitute placeholders in a FIPS config file")
+    # Bazel genrule interface
+    parser.add_argument("--input", help="Input template file")
+    parser.add_argument("--output", help="Output file")
+    parser.add_argument("substitutions", nargs="*", metavar="KEY=VALUE")
+    # Legacy interface kept for manual use
+    parser.add_argument("--destdir", help="(legacy) Destination directory")
+    parser.add_argument("--embedded_ssl_dir", help="(legacy) Embedded SSL directory")
     args = parser.parse_args()
 
-    destdir = Path(args.destdir)
-    embedded_ssl_dir = args.embedded_ssl_dir if args.embedded_ssl_dir else str(destdir / "ssl")
+    if args.input and args.output:
+        content = Path(args.input).read_text()
+        for kv in args.substitutions:
+            key, _, value = kv.partition("=")
+            content = content.replace(key, value)
+        Path(args.output).write_text(content)
+        return 0
 
-    openssl_cnf_tmp = destdir / "ssl" / "openssl.cnf.tmp"
-    fipsinstall_sh = destdir / "bin" / "fipsinstall.sh"
+    if args.destdir:
+        destdir = Path(args.destdir)
+        embedded_ssl_dir = args.embedded_ssl_dir or str(destdir / "ssl")
+        _replace_in_file(destdir / "ssl" / "openssl.cnf.tmp", "{{embedded_ssl_dir}}", embedded_ssl_dir)
+        if os.name != "nt":
+            _replace_in_file(destdir / "bin" / "fipsinstall.sh", "{{install_dir}}", str(destdir))
+        return 0
 
-    # Replace {{embedded_ssl_dir}} in openssl.cnf.tmp
-    replace_in_file(openssl_cnf_tmp, "{{embedded_ssl_dir}}", embedded_ssl_dir)
+    parser.error("either --input/--output or --destdir is required")
 
-    # Replace {{install_dir}} in fipsinstall.sh (Linux only)
-    if os.name != "nt" and fipsinstall_sh.exists():
-        replace_in_file(fipsinstall_sh, "{{install_dir}}", str(destdir))
 
-    print("Configuration complete.")
-    return 0
+def _replace_in_file(path: Path, placeholder: str, replacement: str):
+    if not path.exists():
+        raise RuntimeError(f"{path} not found")
+    path.write_text(path.read_text().replace(placeholder, replacement))
 
 
 if __name__ == "__main__":
