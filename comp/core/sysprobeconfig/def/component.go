@@ -16,21 +16,33 @@
 package sysprobeconfig
 
 import (
-	sysprobeconfigdef "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // team: ebpf-platform
 
 // Component is the component type.
-// Deprecated: use comp/core/sysprobeconfig/def instead.
-type Component = sysprobeconfigdef.Component
+type Component interface {
+	model.ReaderWriter
+
+	// Warnings returns config warnings collected during setup.
+	Warnings() *model.Warnings
+
+	// SysProbeObject returns the wrapper sysconfig
+	SysProbeObject() *sysconfigtypes.Config
+}
 
 // NoneModule return a None optional type for sysprobeconfig.Component.
 //
 // This helper allows code that needs a disabled Optional type for sysprobeconfig to get it. The helper is split from
 // the implementation to avoid linking with the dependencies from sysprobeconfig.
-// Deprecated: use comp/core/sysprobeconfig/def instead.
 func NoneModule() fxutil.Module {
-	return sysprobeconfigdef.NoneModule()
+	return fxutil.Component(fx.Provide(func() option.Option[Component] {
+		return option.None[Component]()
+	}))
 }
