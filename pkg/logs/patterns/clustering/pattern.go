@@ -138,7 +138,7 @@ func (p *Pattern) GetWildcardCount() int {
 	return len(p.Positions)
 }
 
-// GetWildcardCharPositions returns character indices where dynamic values should be injected.
+// GetWildcardCharPositions returns UTF-8 byte offsets where dynamic values should be injected.
 // The template does NOT contain wildcard placeholders - wildcards are omitted entirely.
 // Positions mark the injection points in the template string.
 // Example: Template "User  logged" (wildcard omitted) returns [5] (inject after "User ")
@@ -156,11 +156,7 @@ func (p *Pattern) GetWildcardCharPositions() []int {
 			charPositions = append(charPositions, currentPos)
 			// Wildcard tokens are NOT in the template, so don't advance currentPos
 		} else {
-			// Use rune count (not byte count) so positions match Java String indices.
-			// Java String.length() returns UTF-16 code units; for BMP characters
-			// (U+0000–U+FFFF, which covers all common log content including →, ≥, etc.)
-			// this equals Unicode codepoint count.
-			currentPos += sanitizeForTemplateRuneLen(tok.Value)
+			currentPos += sanitizeForTemplateLen(tok.Value)
 		}
 	}
 
