@@ -20,6 +20,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	statsdcomp "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
@@ -61,6 +62,7 @@ type Requires struct {
 	Tagger        tagger.Component
 	Traceroute    traceroute.Component
 	EventPlatform eventplatform.Component
+	Statsd        statsdcomp.Component
 }
 
 // Provides defines the output of the privateactionrunner component
@@ -76,6 +78,7 @@ type PrivateActionRunner struct {
 	tagger         tagger.Component
 	traceroute     traceroute.Component
 	eventPlatform  eventplatform.Component
+	statsd         statsdcomp.Component
 
 	workflowRunner *runners.WorkflowRunner
 	commonRunner   *runners.CommonRunner
@@ -97,7 +100,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, privateactionrunner.ErrNotEnabled
 	}
 
-	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform)
+	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.Statsd)
 	if err != nil {
 		return Provides{}, err
 	}
@@ -117,6 +120,7 @@ func NewPrivateActionRunner(
 	taggerComp tagger.Component,
 	tracerouteComp traceroute.Component,
 	eventPlatform eventplatform.Component,
+	statsdComp statsdcomp.Component,
 ) (*PrivateActionRunner, error) {
 	return &PrivateActionRunner{
 		coreConfig:     coreConfig,
@@ -126,6 +130,7 @@ func NewPrivateActionRunner(
 		tagger:         taggerComp,
 		traceroute:     tracerouteComp,
 		eventPlatform:  eventPlatform,
+		statsd:         statsdComp,
 		startChan:      make(chan struct{}),
 	}, nil
 }
@@ -148,7 +153,7 @@ func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.C
 		p.coreConfig.Set(privateactionrunner.PARUrn, persistedIdentity.URN, model.SourceAgentRuntime)
 	}
 
-	cfg, err := parconfig.FromDDConfig(p.coreConfig)
+	cfg, err := parconfig.FromDDConfig(p.coreConfig, p.statsd)
 	if err != nil {
 		return nil, err
 	}

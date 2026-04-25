@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/util/sets"
 
+	statsdimpl "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/impl"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -213,7 +214,9 @@ func TestFromDDConfig(t *testing.T) {
 			mockConfig.SetWithoutSource(setup.PARUrn, "")
 
 			// Call FromDDConfig
-			cfg, err := FromDDConfig(mockConfig)
+			statsdProvides, err := statsdimpl.NewComponent()
+			require.NoError(t, err)
+			cfg, err := FromDDConfig(mockConfig, statsdProvides.Comp)
 			require.NoError(t, err)
 
 			// Verify both DDHost and DatadogSite are set correctly
@@ -320,7 +323,9 @@ func TestFromDDConfigPARRestrictedShellAllowedPathsSet(t *testing.T) {
 	mockConfig.SetWithoutSource(setup.PARUrn, "")
 	mockConfig.SetWithoutSource(setup.PARRestrictedShellAllowedPaths, []string{"/var/log", "/tmp"})
 
-	cfg, err := FromDDConfig(mockConfig)
+	statsdProvides, err := statsdimpl.NewComponent()
+	require.NoError(t, err)
+	cfg, err := FromDDConfig(mockConfig, statsdProvides.Comp)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"/var/log", "/tmp"}, cfg.RShellAllowedPaths)
 }

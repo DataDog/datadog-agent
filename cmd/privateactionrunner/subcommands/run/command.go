@@ -21,6 +21,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
+	statsdfx "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
@@ -76,6 +77,7 @@ func runPrivateActionRunner(ctx context.Context, confPath string, extraConfFiles
 		logscompressionfx.Module(),
 		eventplatformreceiverimpl.Module(),
 		eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
+		statsdfx.Module(),
 		privateactionrunnerfx.Module(),
 	}
 
