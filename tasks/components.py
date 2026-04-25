@@ -240,6 +240,8 @@ def check_component_contents_and_file_hiearchy(comp):
 
     # Implementation folder or folders must exist
     impl_folders = locate_implementation_folders(comp)
+    if impl_folders == 'skip':
+        return None
     if len(impl_folders) == 0:
         return f"** {comp.name} is missing the implementation folder in {comp.path}. See https://datadoghq.dev/datadog-agent/components/creating-components/"
 
