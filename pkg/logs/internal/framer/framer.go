@@ -44,6 +44,11 @@ const (
 	// consulted.  The result does not include the trailing newlines.
 	DockerStream
 
+	// SyslogFraming handles syslog TCP streams per RFC 6587. It auto-detects
+	// between octet counting (MSG-LEN SP SYSLOG-MSG) and non-transparent
+	// framing (LF or NUL delimited) on a per-message basis.
+	SyslogFraming
+
 	// UTF8NewlineDatagram splits on newlines like UTF8Newline, but also
 	// flushes any remaining data at the end of each Process() call. This is
 	// appropriate for datagram transports (UDP, unixgram) where each
@@ -125,6 +130,8 @@ func NewFramer(
 		matcher = &oneByteNewLineMatcher{contentLenLimit}
 	case DockerStream:
 		matcher = &dockerStreamMatcher{contentLenLimit}
+	case SyslogFraming:
+		matcher = &syslogFrameMatcher{contentLenLimit}
 	case NoFraming:
 		matcher = &noFramingMatcher{}
 	case UTF8NewlineDatagram:
