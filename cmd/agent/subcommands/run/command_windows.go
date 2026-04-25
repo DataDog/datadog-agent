@@ -63,7 +63,7 @@ import (
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
-	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"

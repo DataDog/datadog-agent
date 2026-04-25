@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
+//go:build test
+
 package statusimpl
 
 import (
@@ -14,7 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	// We need to include this to make sure the Dogstatsd expvars are initialized
-	_ "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	_ "github.com/DataDog/datadog-agent/comp/dogstatsd/server/impl"
 )
 
 func TestStatusDisabledWhenADPEnabled(t *testing.T) {
