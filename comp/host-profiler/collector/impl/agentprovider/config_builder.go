@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/converters"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/extensions/hpflareextension"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/params"
+	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/cgroup"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -62,6 +63,7 @@ func buildExporters(conf confMap, agent configManager) []any {
 		headers["dd-api-key"] = key
 		headers["dd-evp-origin"] = version.ProfilerName
 		headers["dd-evp-origin-version"] = version.ProfilerVersion
+		headers["dd-otel-metric-config"] = `{"resource_attributes_as_tags": true}`
 		return confMap{
 			"profiles_endpoint": fmt.Sprintf(profilesEndpointFormat, site),
 			"metrics_endpoint":  fmt.Sprintf(metricsEndpointFormat, site),
@@ -156,6 +158,7 @@ func buildMetricsPipeline(conf confMap, enableGoRuntimeMetrics bool, healthMetri
 		receivers["prometheus"] = converters.PrometheusReceiverConfigWithTarget(healthMetrics.Target)
 		processors["filter"] = converters.FilterProcessorConfig()
 		processors["cumulativetodelta"] = confMap{}
+		_ = converters.Set(conf, "exporters::debug::verbosity", "detailed")
 		metricsProcessors = append([]any{"filter", "cumulativetodelta"}, profilesProcessors...)
 		metricsReceivers = append(metricsReceivers, "prometheus")
 	}
@@ -165,9 +168,25 @@ func buildMetricsPipeline(conf confMap, enableGoRuntimeMetrics bool, healthMetri
 		metricsReceivers = append(metricsReceivers, "otlp")
 	}
 
+	if containerID, err := cgroup.GetSelfContainerID(); err == nil {
+		const processorName = "resource/self-container-id"
+		processors[processorName] = confMap{
+			"attributes": []any{
+				confMap{
+					"key":    "container.id",
+					"value":  containerID,
+					"action": "upsert",
+				},
+			},
+		}
+		metricsProcessors = append([]any{processorName}, metricsProcessors...)
+	} else {
+		log.Warnf("Unable to determine self container ID for metrics pipeline: %v", err)
+	}
+
 	metricsPipeline["receivers"] = metricsReceivers
 	metricsPipeline["processors"] = metricsProcessors
-	metricsPipeline["exporters"] = profilesExporters
+	metricsPipeline["exporters"] = append(profilesExporters, "debug")
 }
 
 func buildConfig(agent configManager, p params.CollectorParams) confMap {
