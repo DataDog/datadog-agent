@@ -277,7 +277,7 @@ func (h *StatKeeper) addDiscovery(tx Transaction) {
 	if dynamicTags := tx.DynamicTags(); len(dynamicTags) > 0 {
 		dynamicTagsSet = common.NewStringSet(dynamicTags...)
 	}
-	stats.AddDiscoveryRequest(statusCode, tx.StaticTags(), dynamicTagsSet)
+	stats.AddDiscoveryRequest(statusCode, latency, tx.StaticTags(), dynamicTagsSet)
 }
 
 func pathIsMalformed(fullPath []byte) bool {

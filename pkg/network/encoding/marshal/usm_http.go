@@ -81,17 +81,19 @@ func (e *httpEncoder) encodeData(c network.ConnectionStats, w io.Writer) (uint64
 					w.SetKey(int32(code))
 					w.SetValue(func(w *model.HTTPStats_DataBuilder) {
 						w.SetCount(uint32(stats.Count))
-						// In discovery mode, skip latency serialization entirely —
-						// no DDSketch, no FirstLatencySample.
-						if !e.discoveryMode {
-							if latencies := stats.Latencies; latencies != nil {
-								w.SetLatencies(func(b *bytes.Buffer) {
-									e.sketchBuilder.Reset(b)
-									e.sketchBuilder.AddSketch(latencies)
-								})
-							} else {
-								w.SetFirstLatencySample(stats.FirstLatencySample)
+						if e.discoveryMode {
+							// In discovery mode FirstLatencySample stores a running
+							// sum of latencies; convert it to an average for the wire.
+							if stats.Count > 0 {
+								w.SetFirstLatencySample(stats.FirstLatencySample / float64(stats.Count))
 							}
+						} else if latencies := stats.Latencies; latencies != nil {
+							w.SetLatencies(func(b *bytes.Buffer) {
+								e.sketchBuilder.Reset(b)
+								e.sketchBuilder.AddSketch(latencies)
+							})
+						} else {
+							w.SetFirstLatencySample(stats.FirstLatencySample)
 						}
 					})
 				})
