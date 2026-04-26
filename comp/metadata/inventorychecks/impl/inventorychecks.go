@@ -16,8 +16,6 @@ import (
 	"sync"
 	"time"
 
-	"go.uber.org/fx"
-
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
@@ -27,25 +25,17 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logagent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
+	inventorychecks "github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 )
-
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newInventoryChecksProvider),
-	)
-}
 
 type metadata map[string]interface{}
 type checksMetadata map[string][]metadata
@@ -86,9 +76,8 @@ type inventorychecksImpl struct {
 	hostname string
 }
 
-type dependencies struct {
-	fx.In
-
+// Requires defines the component dependencies.
+type Requires struct {
 	Log        log.Component
 	Config     config.Component
 	Serializer serializer.MetricSerializer
@@ -97,16 +86,16 @@ type dependencies struct {
 	Hostname   hostnameinterface.Component
 }
 
-type provides struct {
-	fx.Out
-
+// Provides defines the component outputs.
+type Provides struct {
 	Comp          inventorychecks.Component
 	Provider      runnerimpl.Provider
 	FlareProvider flaretypes.Provider
 	Endpoint      api.AgentEndpointProvider
 }
 
-func newInventoryChecksProvider(deps dependencies) provides {
+// NewComponent creates a new inventorychecks component.
+func NewComponent(deps Requires) Provides {
 	hname, _ := deps.Hostname.Get(context.Background())
 	ic := &inventorychecksImpl{
 		conf:     deps.Config,
@@ -138,7 +127,7 @@ func newInventoryChecksProvider(deps dependencies) provides {
 		}))
 	}
 
-	return provides{
+	return Provides{
 		Comp:          ic,
 		Provider:      ic.MetadataProvider(),
 		FlareProvider: ic.FlareProvider(),

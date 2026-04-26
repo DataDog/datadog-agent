@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	filterlistimpl "github.com/DataDog/datadog-agent/comp/filterlist/impl"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/inventorychecksimpl"
+	inventorychecksmock "github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -1192,7 +1192,7 @@ func (m mockCollector) GetChecks() []check.Check {
 }
 
 func TestGetVersion(t *testing.T) {
-	invChecks := inventorychecksimpl.NewMock().Comp
+	invChecks := inventorychecksmock.NewMock().Comp
 	check.InitializeInventoryChecksContext(invChecks)
 	defer check.ReleaseContext()
 
