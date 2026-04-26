@@ -1,0 +1,15 @@
+- offset: "0x00049800"
+  size: 72
+  kind: struct
+  nameEntry: main.Node (exported)
+  name: main.Node
+  pkg: main
+  ptrToThis: "0x00015760"
+  struct:
+    fields:
+        - name: Value (exported)
+          type: '[64]uint8'
+          offset: 0
+        - name: Next (exported)
+          type: '*main.Node'
+          offset: 64
