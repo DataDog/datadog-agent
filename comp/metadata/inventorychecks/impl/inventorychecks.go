@@ -33,6 +33,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 )
@@ -78,6 +80,8 @@ type inventorychecksImpl struct {
 
 // Requires defines the component dependencies.
 type Requires struct {
+	fx.In
+
 	Log        log.Component
 	Config     config.Component
 	Serializer serializer.MetricSerializer
