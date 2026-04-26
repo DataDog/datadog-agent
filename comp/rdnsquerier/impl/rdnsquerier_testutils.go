@@ -73,7 +73,15 @@ type testState struct {
 func testSetup(t *testing.T, overrides map[string]interface{}, start bool, fakeIPResults map[string]*fakeResults, delay time.Duration) *testState {
 	lc := compdef.NewTestLifecycle(t)
 
-	config := config.NewMockWithOverrides(t, overrides)
+	configOverrides := maps.Clone(overrides)
+	if configOverrides == nil {
+		configOverrides = make(map[string]interface{})
+	}
+	if _, ok := configOverrides["run_path"]; !ok {
+		configOverrides["run_path"] = t.TempDir()
+	}
+
+	config := config.NewMockWithOverrides(t, configOverrides)
 
 	logComp := logmock.New(t)
 	telemetryComp := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())

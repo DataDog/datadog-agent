@@ -43,6 +43,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/encoding/marshal"
 	"github.com/DataDog/datadog-agent/pkg/network/indexedset"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/process/runner/endpoint"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
@@ -289,6 +290,7 @@ func (d *directSender) networkPathConnections(conns *network.Connections) iter.S
 				Dest:              dest,
 				TranslatedDest:    transDest,
 				SourceContainerID: srcContainerID,
+				Origin:            payload.PathOriginNetworkTraffic,
 				Type:              networkProtocolToModel[conn.Type],
 				Direction:         formatDirection(conn.Direction),
 				Family:            formatFamily(conn.Family),

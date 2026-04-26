@@ -29,12 +29,16 @@ type Pathtest struct {
 	Port              uint16
 	Protocol          payload.Protocol
 	SourceContainerID string
+	Namespace         string
+	Origin            payload.PathOrigin
 	Metadata          PathtestMetadata
 }
 
 // GetHash returns the hash of the Pathtest
 func (p Pathtest) GetHash() uint64 {
 	h := fnv.New64()
+	_, _ = h.Write([]byte(p.Origin))
+	_, _ = h.Write([]byte(p.Namespace))
 	_, _ = h.Write([]byte(p.Hostname))
 	_ = binary.Write(h, binary.LittleEndian, p.Port)
 	_, _ = h.Write([]byte(p.Protocol))

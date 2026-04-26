@@ -133,6 +133,8 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 
 // makePathtest extracts pathtest information using a single connection and the connection check's reverse dns map
 func (s *npCollectorImpl) makePathtest(conn npmodel.NetworkPathConnection) common.Pathtest {
+	origin := conn.Origin
+
 	protocol := modelProtocolToPayload[conn.Type]
 	if s.collectorConfigs.icmpMode.ShouldUseICMP(protocol) {
 		protocol = payload.ProtocolICMP
@@ -149,15 +151,18 @@ func (s *npCollectorImpl) makePathtest(conn npmodel.NetworkPathConnection) commo
 		hostname = conn.Domain
 	}
 
-	return common.Pathtest{
+	pathtest := common.Pathtest{
 		Hostname:          hostname,
 		Port:              remotePort,
 		Protocol:          protocol,
 		SourceContainerID: conn.SourceContainerID,
+		Namespace:         conn.Namespace,
+		Origin:            origin,
 		Metadata: common.PathtestMetadata{
 			ReverseDNSHostname: conn.Domain,
 		},
 	}
+	return pathtest
 }
 
 func doSubnetsContainIP(subnets []netip.Prefix, ip netip.Addr) bool {
@@ -246,7 +251,7 @@ func (s *npCollectorImpl) getVPCSubnets() ([]netip.Prefix, error) {
 }
 
 func (s *npCollectorImpl) ScheduleNetworkPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) {
-	if !s.collectorConfigs.connectionsMonitoringEnabled {
+	if !s.collectorConfigs.networkPathCollectorEnabled() {
 		return
 	}
 	vpcSubnets, err := s.getVPCSubnets()
@@ -371,7 +376,13 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 
 	path.Source.ContainerID = ptest.Pathtest.SourceContainerID
 	path.Namespace = s.networkDevicesNamespace
+	if ptest.Pathtest.Namespace != "" {
+		path.Namespace = ptest.Pathtest.Namespace
+	}
 	path.Origin = payload.PathOriginNetworkTraffic
+	if ptest.Pathtest.Origin != "" {
+		path.Origin = ptest.Pathtest.Origin
+	}
 	path.TestRunType = payload.TestRunTypeDynamic
 	path.SourceProduct = s.collectorConfigs.sourceProduct
 	path.CollectorType = payload.CollectorTypeAgent

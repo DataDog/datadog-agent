@@ -4488,6 +4488,25 @@ properties:
             example: 'true'
             tags:
             - template_section:CoreAgent
+      netflow_monitoring:
+        node_type: section
+        type: object
+        visibility: public
+        description: Configurations for Network Path Dynamic Test for monitoring NetFlow
+          destinations via Network Path.
+        tags:
+        - template_section:CoreAgent
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            visibility: public
+            description: Enables Network Path Dynamic Test for monitoring NetFlow
+              destinations via Network Path.
+            example: 'true'
+            tags:
+            - template_section:CoreAgent
       collector:
         node_type: section
         type: object
@@ -9200,6 +9219,16 @@ properties:
             visibility: public
             description: Set to true to enable reverse DNS enrichment of private source
               and destination IP addresses in NetFlow records.
+            example: 'false'
+            tags:
+            - template_section:CoreAgent
+          reverse_dns_enrichment_public_ips_enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            visibility: public
+            description: Set to true to allow NetFlow reverse DNS enrichment to
+              query public source and destination IP addresses too.
             example: 'false'
             tags:
             - template_section:CoreAgent

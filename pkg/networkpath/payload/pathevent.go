@@ -98,6 +98,8 @@ type PathOrigin string
 const (
 	// PathOriginNetworkTraffic correspond to traffic from network traffic (NPM).
 	PathOriginNetworkTraffic PathOrigin = "network_traffic"
+	// PathOriginNetflow correspond to traffic from NetFlow.
+	PathOriginNetflow PathOrigin = "netflow"
 	// PathOriginNetworkPathIntegration correspond to traffic from network_path integration.
 	PathOriginNetworkPathIntegration PathOrigin = "network_path_integration"
 	// PathOriginSynthetics correspond to traffic from synthetics.

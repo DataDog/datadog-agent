@@ -658,6 +658,21 @@ func Test_npCollectorImpl_ScheduleNetworkPathTests(t *testing.T) {
 			},
 		},
 		{
+			name:         "one outgoing NetFlow UDP conn",
+			agentConfigs: defaultagentConfigs,
+			conns: []npmodel.NetworkPathConnection{
+				{
+					Source:    netip.MustParseAddrPort("10.0.0.5:30000"),
+					Dest:      netip.MustParseAddrPort("10.0.0.6:161"),
+					Namespace: "netflow-ns",
+					Origin:    payload.PathOriginNetflow,
+					Direction: model.ConnectionDirection_outgoing,
+					Type:      model.ConnectionType_udp,
+				},
+			},
+			expectedPathtests: []*common.Pathtest{},
+		},
+		{
 			name:         "only non-outgoing conns",
 			agentConfigs: defaultagentConfigs,
 			conns: []npmodel.NetworkPathConnection{
@@ -1503,6 +1518,17 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 			shouldSchedule: true,
 		},
 		{
+			name: "should not schedule netflow IP target without domain by default",
+			conn: npmodel.NetworkPathConnection{
+				Source:    netip.MustParseAddrPort("10.0.0.1:30000"),
+				Dest:      netip.MustParseAddrPort("10.0.0.2:53"),
+				Origin:    payload.PathOriginNetflow,
+				Direction: model.ConnectionDirection_outgoing,
+				Type:      model.ConnectionType_udp,
+			},
+			shouldSchedule: false,
+		},
+		{
 			name: "should not schedule incoming conn",
 			conn: npmodel.NetworkPathConnection{
 				Source:    netip.MustParseAddrPort("10.0.0.1:30000"),
@@ -1668,6 +1694,21 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 				Dest:      netip.MustParseAddrPort("10.0.0.2:80"),
 				Direction: model.ConnectionDirection_outgoing,
 				Domain:    "abc",
+			},
+			sourceExcludes: map[string][]string{
+				"10.0.0.1": {"30000-30005"},
+			},
+			shouldSchedule:     false,
+			connectionExcluded: true,
+		},
+		{
+			name: "exclusion: block netflow source with original source IP",
+			conn: npmodel.NetworkPathConnection{
+				Source:    netip.MustParseAddrPort("10.0.0.1:30000"),
+				Dest:      netip.MustParseAddrPort("10.0.0.2:53"),
+				Origin:    payload.PathOriginNetflow,
+				Direction: model.ConnectionDirection_outgoing,
+				Type:      model.ConnectionType_udp,
 			},
 			sourceExcludes: map[string][]string{
 				"10.0.0.1": {"30000-30005"},

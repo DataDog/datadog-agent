@@ -42,22 +42,24 @@ type flowAccumulator struct {
 
 	hashCollisionFlowCount *atomic.Uint64
 
-	logger      log.Component
-	rdnsQuerier rdnsquerier.Component
+	logger                  log.Component
+	rdnsQuerier             rdnsquerier.Component
+	reverseDNSLookupOptions rdnsquerier.LookupOptions
 }
 
-func newFlowAccumulator(flushConfig common.FlushConfig, flowScheduler FlowScheduler, aggregatorFlowContextTTL time.Duration, portRollupThreshold int, portRollupDisabled bool, logger log.Component, rdnsQuerier rdnsquerier.Component) *flowAccumulator {
+func newFlowAccumulator(flushConfig common.FlushConfig, flowScheduler FlowScheduler, aggregatorFlowContextTTL time.Duration, portRollupThreshold int, portRollupDisabled bool, logger log.Component, rdnsQuerier rdnsquerier.Component, reverseDNSLookupOptions rdnsquerier.LookupOptions) *flowAccumulator {
 	return &flowAccumulator{
-		flows:                  make(map[uint64]flowContext),
-		FlushConfig:            flushConfig,
-		flowContextTTL:         aggregatorFlowContextTTL,
-		portRollup:             portrollup.NewEndpointPairPortRollupStore(portRollupThreshold),
-		portRollupThreshold:    portRollupThreshold,
-		portRollupDisabled:     portRollupDisabled,
-		hashCollisionFlowCount: atomic.NewUint64(0),
-		scheduler:              flowScheduler,
-		logger:                 logger,
-		rdnsQuerier:            rdnsQuerier,
+		flows:                   make(map[uint64]flowContext),
+		FlushConfig:             flushConfig,
+		flowContextTTL:          aggregatorFlowContextTTL,
+		portRollup:              portrollup.NewEndpointPairPortRollupStore(portRollupThreshold),
+		portRollupThreshold:     portRollupThreshold,
+		portRollupDisabled:      portRollupDisabled,
+		hashCollisionFlowCount:  atomic.NewUint64(0),
+		scheduler:               flowScheduler,
+		logger:                  logger,
+		rdnsQuerier:             rdnsQuerier,
+		reverseDNSLookupOptions: reverseDNSLookupOptions,
 	}
 }
 
@@ -214,8 +216,9 @@ func (f *flowAccumulator) setDstReverseDNSHostname(aggHash uint64, hostname stri
 }
 
 func (f *flowAccumulator) addRDNSEnrichment(aggHash uint64, srcAddr []byte, dstAddr []byte) {
-	err := f.rdnsQuerier.GetHostnameAsync(
+	err := f.rdnsQuerier.GetHostnameAsyncWithOptions(
 		srcAddr,
+		f.reverseDNSLookupOptions,
 		// Sync callback, lock is already held
 		func(hostname string) {
 			f.setSrcReverseDNSHostname(aggHash, hostname, false)
@@ -233,8 +236,9 @@ func (f *flowAccumulator) addRDNSEnrichment(aggHash uint64, srcAddr []byte, dstA
 		f.logger.Debugf("Error requesting reverse DNS enrichment for source IP address: %v error: %v", srcAddr, err)
 	}
 
-	err = f.rdnsQuerier.GetHostnameAsync(
+	err = f.rdnsQuerier.GetHostnameAsyncWithOptions(
 		dstAddr,
+		f.reverseDNSLookupOptions,
 		// Sync callback, lock is held
 		func(hostname string) {
 			f.setDstReverseDNSHostname(aggHash, hostname, false)

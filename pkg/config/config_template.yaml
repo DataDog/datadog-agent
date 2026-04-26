@@ -2123,6 +2123,17 @@ api_key:
 #
 #     enabled: true
 
+#   # @param netflow_monitoring - custom object - optional
+#   # Configurations for Network Path Dynamic Test for monitoring NetFlow destinations via Network Path.
+#
+#   netflow_monitoring:
+#
+#     # @param enabled - boolean - optional - default: false
+#     # @env DD_NETWORK_PATH_NETFLOW_MONITORING_ENABLED - boolean - optional - default: false
+#     # Enables Network Path Dynamic Test for monitoring NetFlow destinations via Network Path.
+#
+#     enabled: true
+
 #   # @param collector - custom object - optional
 #   # Configuration related to Network Path Collector used for Network Path Dynamic Test
 #   # to monitor network traffic connections on the host.
@@ -4511,6 +4522,12 @@ api_key:
 #     # Set to true to enable reverse DNS enrichment of private source and destination IP addresses in NetFlow records.
 #
 #     reverse_dns_enrichment_enabled: false
+#
+#     # @param reverse_dns_enrichment_public_ips_enabled - boolean - optional - default: false
+#     # @env DD_NETWORK_DEVICES_NETFLOW_REVERSE_DNS_ENRICHMENT_PUBLIC_IPS_ENABLED - boolean - optional - default: false
+#     # Set to true to allow NetFlow reverse DNS enrichment to query public source and destination IP addresses too.
+#
+#     reverse_dns_enrichment_public_ips_enabled: false
 
 ## @param reverse_dns_enrichment - custom object - optional
 ## This section configures the reverse DNS enrichment component that can be used by other components in the Datadog Agent.

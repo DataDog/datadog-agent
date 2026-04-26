@@ -10,6 +10,8 @@ import (
 	"net/netip"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
+	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
 // NetworkPathConnection is the minimum information needed about a connection to schedule a network path test
@@ -18,6 +20,8 @@ type NetworkPathConnection struct {
 	Dest              netip.AddrPort
 	TranslatedDest    netip.AddrPort
 	SourceContainerID string
+	Namespace         string
+	Origin            payload.PathOrigin
 	Type              model.ConnectionType
 	Direction         model.ConnectionDirection
 	Family            model.ConnectionFamily
