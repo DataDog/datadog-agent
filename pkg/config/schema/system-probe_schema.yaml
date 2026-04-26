@@ -1,0 +1,2882 @@
+properties:
+  system_probe_config:
+    node_type: section
+    title: System Probe Configuration
+    type: object
+    visibility: public
+    description: |-
+      Enter specific configurations for your System Probe data collection.
+      Uncomment this parameter and the one below to enable them.
+    tags: []
+    properties:
+      sysprobe_socket:
+        node_type: setting
+        type: string
+        env_vars:
+        - DD_SYSPROBE_SOCKET
+        visibility: public
+        description: |-
+          On Windows: the TCP address where system probes are accessed.
+          On Unix: the full path to the location of the unix socket where system probes are accessed.
+        tags: []
+        platform_default:
+          linux: ${run_path}/sysprobe.sock
+          darwin: /opt/datadog-agent/run/sysprobe.sock
+          windows: \\.\pipe\dd_system_probe
+      log_file:
+        node_type: setting
+        type: string
+        default: ''
+        visibility: public
+        description: The full path to the file where system-probe logs are written.
+        example: /var/log/datadog/system-probe.log
+        tags: []
+      language_detection:
+        node_type: section
+        type: object
+        visibility: public
+        description: |-
+          Enter specific configurations for language detection
+          Uncomment this parameter and the one below to enable them.
+        tags: []
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            visibility: public
+            description: '[Beta] Enables language detection via binary analysis in
+              the system probe.'
+            example: 'false'
+            tags: []
+      health_port:
+        node_type: setting
+        type: number
+        default: 0
+        env_vars:
+        - DD_SYSTEM_PROBE_HEALTH_PORT
+        visibility: public
+        description: |-
+          The Agent can expose its health check on a dedicated HTTP port.
+          This is useful for orchestrators that support HTTP probes.
+          Default is 0 (disabled). Set a valid port number (example: 5558) to enable.
+        example: '0'
+        tags: []
+      adjusted:
+        node_type: setting
+        type: boolean
+        default: false
+        tags:
+        - no-env
+      allow_prebuilt_fallback:
+        node_type: setting
+        env_vars:
+        - DD_ALLOW_PREBUILT_FALLBACK
+        tags:
+        - TODO:fix-no-default
+        - TODO:fix-missing-type
+      allow_precompiled_fallback:
+        node_type: setting
+        env_vars:
+        - DD_ALLOW_PRECOMPILED_FALLBACK
+        tags:
+        - TODO:fix-no-default
+        - TODO:fix-missing-type
+      allow_runtime_compiled_fallback:
+        node_type: setting
+        type: boolean
+        default: true
+        env_vars:
+        - DD_ALLOW_RUNTIME_COMPILED_FALLBACK
+        tags: []
+      apt_config_dir:
+        node_type: setting
+        type: string
+        default: /etc/apt
+        env_vars:
+        - DD_APT_CONFIG_DIR
+        tags: []
+      attach_kprobes_with_kprobe_events_abi:
+        node_type: setting
+        type: boolean
+        default: false
+        env_vars:
+        - DD_ATTACH_KPROBES_WITH_KPROBE_EVENTS_ABI
+        tags: []
+      bpf_debug:
+        node_type: setting
+        type: boolean
+        default: false
+        env_vars:
+        - DD_SYSTEM_PROBE_CONFIG_BPF_DEBUG
+        - BPF_DEBUG
+        tags: []
+      bpf_dir:
+        node_type: setting
+        type: string
+        default: ${install_path}/embedded/share/system-probe/ebpf
+        env_vars:
+        - DD_SYSTEM_PROBE_BPF_DIR
+        tags: []
+      btf_output_dir:
+        node_type: setting
+        type: string
+        default: /var/tmp/datadog-agent/system-probe/btf
+        env_vars:
+        - DD_SYSTEM_PROBE_BTF_OUTPUT_DIR
+        tags: []
+      btf_path:
+        node_type: setting
+        type: string
+        default: ''
+        env_vars:
+        - DD_SYSTEM_PROBE_BTF_PATH
+        tags: []
+      closed_channel_size:
+        node_type: setting
+        tags:
+        - TODO:fix-no-default
+        - TODO:fix-missing-type
+      closed_connection_flush_threshold:
+        node_type: setting
+        tags:
+        - TODO:fix-no-default
+        - TODO:fix-missing-type
+      collect_dns_domains:
+        node_type: setting
+        type: boolean
+        default: true
+        env_vars:
+        - DD_COLLECT_DNS_DOMAINS
+        tags: []
+      collect_dns_stats:
+        node_type: setting
+        type: boolean
+        default: true
+        env_vars:
+        - DD_COLLECT_DNS_STATS
+        tags: []
+      collect_local_dns:
+        node_type: setting
+        type: boolean
+        default: false
+        env_vars:
+        - DD_COLLECT_LOCAL_DNS
+        tags: []
+      conntrack_max_state_size:
+        node_type: setting
+        type: number
+        default: 131072
+      conntrack_rate_limit:
+        node_type: setting
+        type: number
+        default: 500
+      debug_port:
+        node_type: setting
+        type: number
+        default: 0
+      dest_excludes:
+        node_type: setting
+        type: object
+        default: {}
+        additionalProperties:
+          items:
+            type: string
+          type: array
+      disable_dns_inspection:
+        node_type: setting
+        type: boolean
+        default: false
+        env_vars:
+        - DD_DISABLE_DNS_INSPECTION
+        tags: []
+      disable_ipv6:
+        node_type: setting
+        type: boolean
+        default: false
+        env_vars:
+        - DD_DISABLE_IPV6_TRACING
+        tags: []
+      disable_tcp:
+        node_type: setting
+        type: boolean
+        default: false
+        env_vars:
+        - DD_DISABLE_TCP_TRACING
+        tags: []
+      disable_thp:
+        node_type: setting
+        type: boolean
+        default: true
+      disable_udp:
+        node_type: setting
+        type: boolean
+        default: false
+        env_vars:
+        - DD_DISABLE_UDP_TRACING
+        tags: []
+      dns_timeout_in_s:
+        node_type: setting
+        type: number
+        default: 15
+      enable_co_re:
+        node_type: setting
+        type: boolean
+        default: true
+        env_vars:
+        - DD_ENABLE_CO_RE
+        tags: []
+      enable_conntrack:
+        node_type: setting
+        type: boolean
+        default: true
+      enable_conntrack_all_namespaces:
+        node_type: setting
+        type: boolean
+        default: true
+        env_vars:
+        - DD_SYSTEM_PROBE_ENABLE_CONNTRACK_ALL_NAMESPACES
+        tags: []
+      enable_kernel_header_download:
+        node_type: setting
+        env_vars:
+        - DD_ENABLE_KERNEL_HEADER_DOWNLOAD
+        tags:
+        - TODO:fix-no-default
+        - TODO:fix-missing-type
+      enable_oom_kill:
+        node_type: setting
+        type: boolean
+        default: false
+      enable_runtime_compiler:
+        node_type: setting
+        env_vars:
+        - DD_ENABLE_RUNTIME_COMPILER
+        tags:
+        - TODO:fix-no-default
+        - TODO:fix-missing-type
+      enable_tcp_queue_length:
+        node_type: setting
+        type: boolean
+        default: false
+      enable_tracepoints:
+        node_type: setting
+        type: boolean
+        default: false
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        env_vars:
+        - DD_SYSTEM_PROBE_ENABLED
+        tags: []
+      excluded_linux_versions:
+        node_type: setting
+        type: array
+        default: []
+        items:
+          type: string
+      expected_tags_duration:
+        node_type: setting
+        type: number
+        default: 30m0s
+        env_vars:
+        - DD_SYSTEM_PROBE_EXPECTED_TAGS_DURATION
+        format: duration
+        tags:
+        - golang_type:duration
+      external:
+        node_type: setting
+        type: boolean
+        default: false
+        env_vars:
+        - DD_SYSTEM_PROBE_EXTERNAL
+        tags: []
+      http_idle_connection_ttl_in_s:
+        node_type: setting
+        type: number
+        default: 30
+      http_map_cleaner_interval_in_s:
+        node_type: setting
+        type: number
+        default: 300
+      internal_profiling:
+        node_type: section
+        type: object
+        properties:
+          api_key:
+            node_type: setting
+            type: string
+            default: ''
+            env_vars:
+            - DD_SYSTEM_PROBE_INTERNAL_PROFILING_API_KEY
+            - DD_API_KEY
+            tags: []
+          block_profile_rate:
+            node_type: setting
+            type: number
+            default: 0
+          cpu_duration:
+            node_type: setting
+            type: number
+            default: 1m0s
+            env_vars:
+            - DD_SYSTEM_PROBE_INTERNAL_PROFILING_CPU_DURATION
+            format: duration
+            tags:
+            - golang_type:duration
+          custom_attributes:
+            node_type: setting
+            type: array
+            default:
+            - module
+            - rule_id
+            items:
+              type: string
+          delta_profiles:
+            node_type: setting
+            type: boolean
+            default: true
+          enable_block_profiling:
+            node_type: setting
+            type: boolean
+            default: false
+          enable_goroutine_stacktraces:
+            node_type: setting
+            type: boolean
+            default: false
+          enable_mutex_profiling:
+            node_type: setting
+            type: boolean
+            default: false
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            env_vars:
+            - DD_SYSTEM_PROBE_INTERNAL_PROFILING_ENABLED
+            tags: []
+          env:
+            node_type: setting
+            type: string
+            default: ''
+            env_vars:
+            - DD_SYSTEM_PROBE_INTERNAL_PROFILING_ENV
+            - DD_ENV
+            tags: []
+          extra_tags:
+            node_type: setting
+            type: array
+            default: []
+            items:
+              type: string
+          mutex_profile_fraction:
+            node_type: setting
+            type: number
+            default: 0
+          period:
+            node_type: setting
+            type: number
+            default: 5m0s
+            env_vars:
+            - DD_SYSTEM_PROBE_INTERNAL_PROFILING_PERIOD
+            format: duration
+            tags:
+            - golang_type:duration
+          profile_dd_url:
+            node_type: setting
+            type: string
+            default: ''
+            env_vars:
+            - DD_SYSTEM_PROBE_INTERNAL_PROFILING_DD_URL
+            - DD_APM_INTERNAL_PROFILING_DD_URL
+            tags: []
+          site:
+            node_type: setting
+            type: string
+            default: datadoghq.com
+            env_vars:
+            - DD_SYSTEM_PROBE_INTERNAL_PROFILING_SITE
+            - DD_SITE
+            tags: []
+          unix_socket:
+            node_type: setting
+            type: string
+            default: ''
+      kernel_header_dirs:
+        node_type: setting
+        type: array
+        default: []
+        env_vars:
+        - DD_KERNEL_HEADER_DIRS
+        items:
+          type: string
+        tags: []
+      kernel_header_download_dir:
+        node_type: setting
+        type: string
+        default: /var/tmp/datadog-agent/system-probe/kernel-headers
+        env_vars:
+        - DD_KERNEL_HEADER_DOWNLOAD_DIR
+        tags: []
+      log_level:
+        node_type: setting
+        type: string
+        default: ''
+      max_closed_connections_buffered:
+        node_type: setting
+        tags:
+        - TODO:fix-no-default
+        - TODO:fix-missing-type
+      max_connection_state_buffered:
+        node_type: setting
+        type: number
+        default: 75000
+      max_conns_per_message:
+        node_type: setting
+        type: number
+        default: 600
+      max_dns_stats:
+        node_type: setting
+        type: number
+        default: 20000
+      max_tracked_connections:
+        node_type: setting
+        type: number
+        default: 65536
+      memory_controller:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+          hierarchy:
+            node_type: setting
+            type: string
+            default: v1
+          pressure_levels:
+            node_type: setting
+            type: object
+            default: {}
+            additionalProperties:
+              type: string
+          thresholds:
+            node_type: setting
+            type: object
+            default: {}
+            additionalProperties:
+              type: string
+      offset_guess_threshold:
+        node_type: setting
+        type: number
+        default: 400
+      process_config:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            env_vars:
+            - DD_SYSTEM_PROBE_PROCESS_ENABLED
+            tags: []
+      process_service_inference:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            platform_default:
+              windows: true
+              other: false
+          use_improved_algorithm:
+            node_type: setting
+            type: boolean
+            default: false
+          use_windows_service_name:
+            node_type: setting
+            type: boolean
+            default: true
+      remote_config_btf_enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        env_vars:
+        - DD_SYSTEM_PROBE_REMOTE_CONFIG_BTF_ENABLED
+        tags: []
+      runtime_compiler_output_dir:
+        node_type: setting
+        type: string
+        default: /var/tmp/datadog-agent/system-probe/build
+        env_vars:
+        - DD_RUNTIME_COMPILER_OUTPUT_DIR
+        tags: []
+      source_excludes:
+        node_type: setting
+        type: object
+        default: {}
+        additionalProperties:
+          items:
+            type: string
+          type: array
+      telemetry_enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        env_vars:
+        - DD_TELEMETRY_ENABLED
+        tags: []
+      telemetry_perf_buffer_emit_per_cpu:
+        node_type: setting
+        type: boolean
+        default: false
+      windows:
+        node_type: section
+        type: object
+        properties:
+          enable_monotonic_count:
+            node_type: setting
+            type: boolean
+            default: false
+      yum_repos_dir:
+        node_type: setting
+        type: string
+        default: /etc/yum.repos.d
+        env_vars:
+        - DD_YUM_REPOS_DIR
+        tags: []
+      zypper_repos_dir:
+        node_type: setting
+        type: string
+        default: /etc/zypp/repos.d
+        env_vars:
+        - DD_ZYPPER_REPOS_DIR
+        tags: []
+  log_file:
+    node_type: setting
+    type: string
+    default: ${log_path}/system-probe.log
+    visibility: public
+    description: The full path to the file where system-probe logs are written.
+    tags: []
+  network_config:
+    node_type: section
+    title: System Probe Network Configuration
+    type: object
+    visibility: public
+    description: Configuration for the Network Performance Monitoring (NPM) module.
+    tags: []
+    properties:
+      enabled:
+        node_type: setting
+        env_vars:
+        - DD_SYSTEM_PROBE_NETWORK_ENABLED
+        visibility: public
+        description: |-
+          Set to true to enable the Network Module of the System Probe
+
+          Please note that enabling the Network Module, on Windows, of the System
+          Probe will result in a kernel driver being loaded.
+        example: 'false'
+        tags:
+        - TODO:fix-no-default
+        - TODO:fix-missing-type
+      dns_monitoring_ports:
+        node_type: setting
+        type: array
+        default:
+        - 53
+        items:
+          type: number
+        visibility: public
+        description: A list of ports that should be monitored for DNS traffic.
+        example: |2-
+
+            - 53
+        tags: []
+      allow_netlink_conntracker_fallback:
+        node_type: setting
+        type: boolean
+        default: true
+      cert_collection_map_cleaner_interval:
+        node_type: setting
+        type: number
+        default: 30s
+        format: duration
+        tags:
+        - golang_type:duration
+      closed_buffer_wakeup_count:
+        node_type: setting
+        type: number
+        default: 4
+      closed_channel_size:
+        node_type: setting
+        tags:
+        - TODO:fix-no-default
+        - TODO:fix-missing-type
+      closed_connection_flush_threshold:
+        node_type: setting
+        tags:
+        - TODO:fix-no-default
+        - TODO:fix-missing-type
+      collect_tcp_v4:
+        node_type: setting
+        type: boolean
+        default: true
+        tags:
+        - no-env
+      collect_tcp_v6:
+        node_type: setting
+        type: boolean
+        default: true
+        tags:
+        - no-env
+      collect_udp_v4:
+        node_type: setting
+        type: boolean
+        default: true
+        tags:
+        - no-env
+      collect_udp_v6:
+        node_type: setting
+        type: boolean
+        default: true
+        tags:
+        - no-env
+      conntrack_init_timeout:
+        node_type: setting
+        type: number
+        default: 10s
+        format: duration
+        tags:
+        - golang_type:duration
+      direct_send:
+        node_type: setting
+        type: boolean
+        default: false
+      dns_recorded_query_types:
+        node_type: setting
+        type: array
+        default: []
+        items:
+          type: string
+      enable_cert_collection:
+        node_type: setting
+        type: boolean
+        default: false
+      enable_cilium_lb_conntracker:
+        node_type: setting
+        type: boolean
+        default: true
+      enable_connection_rollup:
+        node_type: setting
+        type: boolean
+        default: false
+      enable_dns_by_querytype:
+        node_type: setting
+        type: boolean
+        default: false
+      enable_ebpf_conntracker:
+        node_type: setting
+        type: boolean
+        default: true
+      enable_ebpfless:
+        node_type: setting
+        type: boolean
+        default: false
+        env_vars:
+        - DD_ENABLE_EBPFLESS
+        - DD_NETWORK_CONFIG_ENABLE_EBPFLESS
+        tags: []
+      enable_fentry:
+        node_type: setting
+        type: boolean
+        default: false
+      enable_gateway_lookup:
+        node_type: setting
+        type: boolean
+        default: true
+        env_vars:
+        - DD_SYSTEM_PROBE_NETWORK_ENABLE_GATEWAY_LOOKUP
+        tags: []
+      enable_http_monitoring:
+        node_type: setting
+        type: boolean
+        default: true
+        env_vars:
+        - DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING
+        tags: []
+      enable_https_monitoring:
+        node_type: setting
+        env_vars:
+        - DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTPS_MONITORING
+        tags:
+        - TODO:fix-no-default
+        - TODO:fix-missing-type
+      enable_protocol_classification:
+        node_type: setting
+        type: boolean
+        default: true
+        env_vars:
+        - DD_ENABLE_PROTOCOL_CLASSIFICATION
+        tags: []
+      enable_ringbuffers:
+        node_type: setting
+        type: boolean
+        default: true
+        env_vars:
+        - DD_SYSTEM_PROBE_NETWORK_ENABLE_RINGBUFFERS
+        tags: []
+      enable_root_netns:
+        node_type: setting
+        type: boolean
+        default: true
+      enable_tcp_failed_connections:
+        node_type: setting
+        type: boolean
+        default: true
+        env_vars:
+        - DD_SYSTEM_PROBE_NETWORK_ENABLE_FAILED_CONNS
+        tags: []
+      http_max_request_fragment:
+        node_type: setting
+        type: number
+        default: 512
+      http_notification_threshold:
+        node_type: setting
+        type: number
+        default: 512
+      http_replace_rules:
+        node_type: setting
+        env_vars:
+        - DD_SYSTEM_PROBE_NETWORK_HTTP_REPLACE_RULES
+        tags:
+        - golang_type:nil
+        - TODO:fix-missing-type
+        - TODO:fix-no-default
+      ignore_conntrack_init_failure:
+        node_type: setting
+        type: boolean
+        default: false
+        env_vars:
+        - DD_SYSTEM_PROBE_NETWORK_IGNORE_CONNTRACK_INIT_FAILURE
+        tags: []
+      max_failed_connections_buffered:
+        node_type: setting
+        tags:
+        - TODO:fix-no-default
+        - TODO:fix-missing-type
+      max_http_stats_buffered:
+        node_type: setting
+        type: number
+        default: 100000
+        env_vars:
+        - DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED
+        tags: []
+      max_tracked_http_connections:
+        node_type: setting
+        type: number
+        default: 1024
+  service_monitoring_config:
+    node_type: section
+    title: System Probe Universal Service monitoring Configuration
+    type: object
+    visibility: public
+    description: Configuration for the Universal Service Monitoring (USM) module.
+    tags: []
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        env_vars:
+        - DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED
+        visibility: public
+        description: |-
+          Set to true to enable the Universal Service Monitoring Module of the System Probe
+
+          Please note that, on Windows, enabling the Universal Service Monitoring
+          Module of the System Probe will result in a kernel driver
+          being loaded.
+        example: 'false'
+        tags: []
+      data_channel_size:
+        node_type: setting
+        type: number
+        default: 100
+      direct_consumer:
+        node_type: section
+        type: object
+        properties:
+          buffer_wakeup_count_per_cpu:
+            node_type: setting
+            type: number
+            default: 8
+          channel_size:
+            node_type: setting
+            type: number
+            default: 1000
+          kernel_buffer_size_per_cpu:
+            node_type: setting
+            type: number
+            default: 65536
+      disable_map_preallocation:
+        node_type: setting
+        type: boolean
+        default: true
+      enable_connection_rollup:
+        node_type: setting
+        tags:
+        - TODO:fix-no-default
+        - TODO:fix-missing-type
+      enable_event_stream:
+        node_type: setting
+        type: boolean
+        default: true
+      enable_go_tls_support:
+        node_type: setting
+        tags:
+        - TODO:fix-no-default
+        - TODO:fix-missing-type
+      enable_http2_monitoring:
+        node_type: setting
+        type: boolean
+        default: false
+      enable_http_monitoring:
+        node_type: setting
+        type: boolean
+        default: true
+      enable_kafka_monitoring:
+        node_type: setting
+        type: boolean
+        default: false
+      enable_quantization:
+        node_type: setting
+        tags:
+        - TODO:fix-no-default
+        - TODO:fix-missing-type
+      enable_ring_buffers:
+        node_type: setting
+        type: boolean
+        default: true
+      http:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+          idle_connection_ttl_seconds:
+            node_type: setting
+            type: number
+            default: 30
+          map_cleaner_interval_seconds:
+            node_type: setting
+            type: number
+            default: 300
+          max_request_fragment:
+            node_type: setting
+            type: number
+            default: 512
+          max_stats_buffered:
+            node_type: setting
+            type: number
+            default: 100000
+          max_tracked_connections:
+            node_type: setting
+            type: number
+            default: 1024
+          notification_threshold:
+            node_type: setting
+            type: number
+            default: 512
+          replace_rules:
+            node_type: setting
+            tags:
+            - golang_type:nil
+            - TODO:fix-missing-type
+            - TODO:fix-no-default
+          use_direct_consumer:
+            node_type: setting
+            type: boolean
+            default: false
+      http2:
+        node_type: section
+        type: object
+        properties:
+          dynamic_table_map_cleaner_interval_seconds:
+            node_type: setting
+            type: number
+            default: 30
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+      http2_dynamic_table_map_cleaner_interval_seconds:
+        node_type: setting
+        type: number
+        default: 30
+      http_idle_connection_ttl_in_s:
+        node_type: setting
+        type: number
+        default: 30
+      http_map_cleaner_interval_in_s:
+        node_type: setting
+        type: number
+        default: 300
+      http_max_request_fragment:
+        node_type: setting
+        type: number
+        default: 512
+      http_notification_threshold:
+        node_type: setting
+        type: number
+        default: 512
+      http_replace_rules:
+        node_type: setting
+        tags:
+        - golang_type:nil
+        - TODO:fix-missing-type
+        - TODO:fix-no-default
+      kafka:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+          max_stats_buffered:
+            node_type: setting
+            type: number
+            default: 100000
+      kernel_buffer_pages:
+        node_type: setting
+        type: number
+        default: 16
+      max_concurrent_requests:
+        node_type: setting
+        tags:
+        - TODO:fix-no-default
+        - TODO:fix-missing-type
+      max_http_stats_buffered:
+        node_type: setting
+        type: number
+        default: 100000
+      max_kafka_stats_buffered:
+        node_type: setting
+        type: number
+        default: 100000
+      max_tracked_http_connections:
+        node_type: setting
+        type: number
+        default: 1024
+      postgres:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+          max_stats_buffered:
+            node_type: setting
+            type: number
+            default: 100000
+          max_telemetry_buffer:
+            node_type: setting
+            type: number
+            default: 160
+      process_service_inference:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            env_vars:
+            - DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_ENABLED
+            tags:
+            - TODO:fix-no-default
+            - TODO:fix-missing-type
+          use_windows_service_name:
+            node_type: setting
+            env_vars:
+            - DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_USE_WINDOWS_SERVICE_NAME
+            tags:
+            - TODO:fix-no-default
+            - TODO:fix-missing-type
+      redis:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+          max_stats_buffered:
+            node_type: setting
+            type: number
+            default: 100000
+          track_resources:
+            node_type: setting
+            type: boolean
+            default: false
+      tls:
+        node_type: section
+        type: object
+        properties:
+          go:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+              exclude_self:
+                node_type: setting
+                type: boolean
+                default: true
+          istio:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+              envoy_path:
+                node_type: setting
+                type: string
+                default: /bin/envoy
+          native:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+          nodejs:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                tags:
+                - TODO:fix-no-default
+                - TODO:fix-missing-type
+  ping:
+    node_type: section
+    title: System Probe Ping Configuration
+    type: object
+    visibility: public
+    description: Configuration for the Ping module, which sends ICMP probes to monitor
+      host reachability.
+    tags: []
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        visibility: public
+        description: Set to true to enable the Ping Module of the System Probe
+        example: 'false'
+        tags: []
+  traceroute:
+    node_type: section
+    title: System Probe Traceroute Configuration
+    type: object
+    visibility: public
+    description: Configuration for the Traceroute module, which maps the network path
+      to a destination host.
+    tags: []
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        visibility: public
+        description: Set to true to enable the Traceroute Module of the System Probe
+        example: 'false'
+        tags: []
+  runtime_security_config:
+    node_type: section
+    title: Security Agent Runtime Configuration
+    type: object
+    visibility: public
+    description: Settings to sent logs to Datadog are fetched from section `logs_config`
+    tags: []
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        visibility: public
+        description: Set to true to enable Cloud Workload Security (CWS).
+        example: 'false'
+        tags: []
+      fim_enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        visibility: public
+        description: Set to true to enable the File Integrity Monitoring (FIM) feature
+          of Cloud Workload Security (CWS).
+        example: 'false'
+        tags: []
+      socket:
+        node_type: setting
+        type: string
+        visibility: public
+        description: |-
+          On Windows: the TCP address where the security runtime module is accessed.
+          On Unix: the full path to the location of the unix socket where security runtime module is accessed.
+        tags: []
+        platform_default:
+          windows: localhost:3335
+          other: ${install_path}/run/runtime-security.sock
+      policies:
+        node_type: section
+        type: object
+        visibility: public
+        description: Policy files
+        tags: []
+        properties:
+          dir:
+            node_type: setting
+            type: string
+            visibility: public
+            description: Path from where the policy files are loaded
+            tags: []
+            platform_default:
+              windows: ${conf_path}/runtime-security.d
+              other: /etc/datadog-agent/runtime-security.d
+          monitor:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+              per_rule_enabled:
+                node_type: setting
+                type: boolean
+                default: false
+              report_internal_policies:
+                node_type: setting
+                type: boolean
+                default: false
+          rule_cache_enabled:
+            node_type: setting
+            type: boolean
+            default: true
+      activity_dump:
+        node_type: section
+        type: object
+        visibility: public
+        description: Activity dump section configures if/how the Agent sends activity
+          dumps to Datadog
+        tags: []
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+            visibility: public
+            description: Set to true to activate the security profiles feature.
+            example: 'true'
+            tags: []
+          traced_cgroups_count:
+            node_type: setting
+            type: number
+            default: 5
+            visibility: public
+            description: Defines the number of concurrent cgroups to be traced.
+            example: '5'
+            tags: []
+          dump_duration:
+            node_type: setting
+            type: string
+            default: 900s
+            visibility: public
+            description: Defines the duration of cgroups learning phase. Minimum value
+              is 10m.
+            example: 30m
+            tags: []
+          auto_suppression:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+          cgroup_differentiate_args:
+            node_type: setting
+            type: boolean
+            default: false
+          cgroup_dump_timeout:
+            node_type: setting
+            tags:
+            - TODO:fix-no-default
+            - TODO:fix-missing-type
+          cgroup_wait_list_timeout:
+            node_type: setting
+            type: string
+            default: 4500s
+          cleanup_period:
+            node_type: setting
+            type: string
+            default: 30s
+          load_controller_period:
+            node_type: setting
+            type: string
+            default: 60s
+          local_storage:
+            node_type: section
+            type: object
+            properties:
+              compression:
+                node_type: setting
+                type: boolean
+                default: false
+              formats:
+                node_type: setting
+                type: array
+                default:
+                - profile
+                items:
+                  type: string
+              max_dumps_count:
+                node_type: setting
+                type: number
+                default: 100
+              output_directory:
+                node_type: setting
+                type: string
+                default: ${run_path}/runtime-security/profiles
+          max_dump_count_per_workload:
+            node_type: setting
+            type: number
+            default: 25
+          max_dump_size:
+            node_type: setting
+            type: number
+            default: 1750
+          min_timeout:
+            node_type: setting
+            type: string
+            default: 10m
+          rate_limiter:
+            node_type: setting
+            type: number
+            default: 500
+          silent_workloads:
+            node_type: section
+            type: object
+            properties:
+              delay:
+                node_type: setting
+                type: string
+                default: 10s
+              ticker:
+                node_type: setting
+                type: string
+                default: 10s
+          syscall_monitor:
+            node_type: section
+            type: object
+            properties:
+              period:
+                node_type: setting
+                type: string
+                default: 60s
+          tag_rules:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+          tags_resolution_period:
+            node_type: setting
+            type: string
+            default: 60s
+          trace_systemd_cgroups:
+            node_type: setting
+            type: boolean
+            default: false
+          traced_event_types:
+            node_type: setting
+            type: array
+            default:
+            - exec
+            - open
+            - dns
+            - imds
+            items:
+              type: string
+          workload_deny_list:
+            node_type: setting
+            type: array
+            default: []
+            items:
+              type: string
+      cmd_socket:
+        node_type: setting
+        type: string
+        default: ''
+      compliance_module:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+      container_exclude:
+        node_type: setting
+        type: array
+        default: []
+        items:
+          type: string
+      container_include:
+        node_type: setting
+        type: array
+        default: []
+        items:
+          type: string
+      cookie_cache_size:
+        node_type: setting
+        type: number
+        default: 100
+      direct_send_from_system_probe:
+        node_type: setting
+        type: boolean
+        default: false
+      ebpfless:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+          socket:
+            node_type: setting
+            type: string
+            default: localhost:5678
+      enforcement:
+        node_type: section
+        type: object
+        properties:
+          disarmer:
+            node_type: section
+            type: object
+            properties:
+              container:
+                node_type: section
+                type: object
+                properties:
+                  enabled:
+                    node_type: setting
+                    type: boolean
+                    default: true
+                  max_allowed:
+                    node_type: setting
+                    type: number
+                    default: 5
+                  period:
+                    node_type: setting
+                    type: string
+                    default: 1m
+              executable:
+                node_type: section
+                type: object
+                properties:
+                  enabled:
+                    node_type: setting
+                    type: boolean
+                    default: true
+                  max_allowed:
+                    node_type: setting
+                    type: number
+                    default: 5
+                  period:
+                    node_type: setting
+                    type: string
+                    default: 1m
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+          exclude_binaries:
+            node_type: setting
+            type: array
+            default: []
+            items:
+              type: string
+          raw_syscall:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+          rule_source_allowed:
+            node_type: setting
+            type: array
+            default:
+            - file
+            - remote-config
+            items:
+              type: string
+      env_as_tags:
+        node_type: setting
+        type: array
+        default: []
+        items:
+          type: string
+      etw_events_channel_size:
+        node_type: setting
+        type: number
+        default: 16384
+        tags:
+        - no-env
+      event_grpc_server:
+        node_type: setting
+        type: string
+        default: ''
+      event_retry_queue_threshold:
+        node_type: setting
+        type: number
+        default: 30
+      event_sampling:
+        node_type: section
+        type: object
+        properties:
+          bind:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+              rate:
+                node_type: setting
+                type: number
+                default: 500
+          connect:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+              rate:
+                node_type: setting
+                type: number
+                default: 500
+          dns:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+              rate:
+                node_type: setting
+                type: number
+                default: 500
+          open:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+              rate:
+                node_type: setting
+                type: number
+                default: 500
+      event_server:
+        node_type: section
+        type: object
+        properties:
+          burst:
+            node_type: setting
+            type: number
+            default: 40
+          rate:
+            node_type: setting
+            type: number
+            default: 10
+          retention:
+            node_type: setting
+            type: string
+            default: 6s
+      exclude_pause_container:
+        node_type: setting
+        type: boolean
+        default: true
+      file_metadata_resolver:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+      hash_resolver:
+        node_type: section
+        type: object
+        properties:
+          cache_size:
+            node_type: setting
+            type: number
+            default: 500
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+          event_types:
+            node_type: setting
+            type: array
+            default:
+            - exec
+            - open
+            items:
+              type: string
+          hash_algorithms:
+            node_type: setting
+            type: array
+            default:
+            - sha1
+            - sha256
+            - ssdeep
+            items:
+              type: string
+          max_file_size:
+            node_type: setting
+            type: number
+            default: 5242880
+          max_hash_rate:
+            node_type: setting
+            type: number
+            default: 500
+          replace:
+            node_type: setting
+            type: object
+            default: {}
+            additionalProperties:
+              type: string
+      imds_ipv4:
+        node_type: setting
+        type: string
+        default: 169.254.169.254
+      internal_monitoring:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+      log_patterns:
+        node_type: setting
+        type: array
+        default: []
+        items:
+          type: string
+      log_tags:
+        node_type: setting
+        type: array
+        default: []
+        items:
+          type: string
+      network_monitoring:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+      on_demand:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+          rate_limiter:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+      reduced_proc_pid_cache_size:
+        node_type: setting
+        type: boolean
+        default: false
+      remote_configuration:
+        node_type: section
+        type: object
+        properties:
+          dump_policies:
+            node_type: setting
+            type: boolean
+            default: false
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+      sbom:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+          enrichment_ticker:
+            node_type: setting
+            type: string
+            default: 1m
+          generate_policies:
+            node_type: setting
+            type: boolean
+            default: false
+          host:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+          workloads_cache_size:
+            node_type: setting
+            type: number
+            default: 10
+      security_profile:
+        node_type: section
+        type: object
+        properties:
+          anomaly_detection:
+            node_type: section
+            type: object
+            properties:
+              default_minimum_stable_period:
+                node_type: setting
+                type: string
+                default: 900s
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+              event_types:
+                node_type: setting
+                type: array
+                default:
+                - exec
+                items:
+                  type: string
+              minimum_stable_period:
+                node_type: section
+                type: object
+                properties:
+                  dns:
+                    node_type: setting
+                    type: string
+                    default: 900s
+                  exec:
+                    node_type: setting
+                    type: string
+                    default: 900s
+              rate_limiter:
+                node_type: section
+                type: object
+                properties:
+                  num_events_allowed:
+                    node_type: setting
+                    type: number
+                    default: 10
+                  num_keys:
+                    node_type: setting
+                    type: number
+                    default: 256
+                  period:
+                    node_type: setting
+                    type: string
+                    default: 1m
+              silent_rule_events:
+                node_type: section
+                type: object
+                properties:
+                  enabled:
+                    node_type: setting
+                    type: boolean
+                    default: false
+              tag_rules:
+                node_type: section
+                type: object
+                properties:
+                  enabled:
+                    node_type: setting
+                    type: boolean
+                    default: true
+              unstable_profile_size_threshold:
+                node_type: setting
+                type: number
+                default: 5000000
+              unstable_profile_time_threshold:
+                node_type: setting
+                type: string
+                default: 1h
+              workload_warmup_period:
+                node_type: setting
+                type: string
+                default: 180s
+          auto_suppression:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+              event_types:
+                node_type: setting
+                type: array
+                default:
+                - exec
+                - dns
+                items:
+                  type: string
+          cache_size:
+            node_type: setting
+            type: number
+            default: 10
+          dir:
+            node_type: setting
+            type: string
+            default: ${run_path}/runtime-security/profiles
+          dns_match_max_depth:
+            node_type: setting
+            type: number
+            default: 3
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+          max_count:
+            node_type: setting
+            type: number
+            default: 400
+          max_image_tags:
+            node_type: setting
+            type: number
+            default: 20
+          node_eviction_timeout:
+            node_type: setting
+            type: string
+            default: 0s
+          profile_cleanup_delay:
+            node_type: setting
+            type: string
+            default: 60m
+          v2:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+              event_types:
+                node_type: setting
+                type: array
+                default:
+                - exec
+                - dns
+                - bind
+                - connect
+                items:
+                  type: string
+          watch_dir:
+            node_type: setting
+            type: boolean
+            default: true
+      self_test:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+          send_report:
+            node_type: setting
+            type: boolean
+            default: true
+      sysctl:
+        node_type: section
+        type: object
+        properties:
+          ebpf:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+          snapshot:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+              ignored_base_names:
+                node_type: setting
+                type: array
+                default:
+                - netdev_rss_key
+                - stable_secret
+                items:
+                  type: string
+              kernel_compilation_flags:
+                node_type: setting
+                type: array
+                default: []
+                items:
+                  type: string
+              period:
+                node_type: setting
+                type: string
+                default: 1h
+      use_secruntime_track:
+        node_type: setting
+        type: boolean
+        default: true
+      user_sessions:
+        node_type: section
+        type: object
+        properties:
+          cache_size:
+            node_type: setting
+            type: number
+            default: 1024
+          ssh:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+      windows_filename_cache_max:
+        node_type: setting
+        type: number
+        default: 16384
+        tags:
+        - no-env
+      windows_probe_block_on_channel_send:
+        node_type: setting
+        type: boolean
+        default: false
+        tags:
+        - no-env
+      windows_registry_cache_max:
+        node_type: setting
+        type: number
+        default: 4096
+        tags:
+        - no-env
+      windows_write_event_rate_limiter_max_allowed:
+        node_type: setting
+        type: number
+        default: 4096
+        tags:
+        - no-env
+      windows_write_event_rate_limiter_period:
+        node_type: setting
+        type: string
+        default: 1s
+        tags:
+        - no-env
+  event_monitoring_config:
+    node_type: section
+    type: object
+    visibility: public
+    description: Configuration for the Event Monitoring module, which monitors kernel-level
+      security events.
+    tags: []
+    properties:
+      custom_sensitive_words:
+        node_type: setting
+        type: array
+        default: []
+        env_vars:
+        - DD_EVENT_MONITORING_CONFIG_CUSTOM_SENSITIVE_WORDS
+        - DD_RUNTIME_SECURITY_CONFIG_CUSTOM_SENSITIVE_WORDS
+        items:
+          type: string
+        visibility: public
+        description: |-
+          Define your own list of sensitive data to be merged with the default one.
+          Read more on Datadog documentation:
+          https://docs.datadoghq.com/graphing/infrastructure/process/#process-arguments-scrubbing
+        example: |2-
+
+            - 'personal_key'
+            - '*token'
+            - 'sql*'
+            - '*pass*d*'
+        tags: []
+      custom_sensitive_regexps:
+        node_type: setting
+        type: array
+        default: []
+        env_vars:
+        - DD_EVENT_MONITORING_CONFIG_CUSTOM_SENSITIVE_REGEXPS
+        - DD_RUNTIME_SECURITY_CONFIG_CUSTOM_SENSITIVE_REGEXPS
+        items:
+          type: string
+        visibility: public
+        description: List of regular expressions matching process arguments that should
+          be redacted.
+        example: |2-
+
+            - 'gh-[a-zA-Z0-9]+'
+
+          # @param envs_with_value - list of strings - optional - default: ["LD_PRELOAD", "LD_LIBRARY_PATH", "PATH", "HISTSIZE", "HISTFILESIZE", "GLIBC_TUNABLES", "SSH_CLIENT"]
+          # @env DD_EVENT_MONITORING_CONFIG_ENVS_WITH_VALUE - space-separated list of strings - optional - default: 'LD_PRELOAD LD_LIBRARY_PATH PATH HISTSIZE HISTFILESIZE GLIBC_TUNABLES SSH_CLIENT'
+          # @env DD_RUNTIME_SECURITY_CONFIG_ENVS_WITH_VALUE - space-separated list of strings - optional - default: 'LD_PRELOAD LD_LIBRARY_PATH PATH HISTSIZE HISTFILESIZE GLIBC_TUNABLES SSH_CLIENT'
+          # Define your own list of non-sensitive environment variable names whose value will not be
+          # concealed by the runtime security module.
+          # Default: LD_PRELOAD, LD_LIBRARY_PATH, PATH, HISTSIZE, HISTFILESIZE, GLIBC_TUNABLES, OTEL_SERVICE_NAME, DD_SERVICE
+
+          envs_with_value:
+            - LD_PRELOAD
+            - LD_LIBRARY_PATH
+            - PATH
+            - HISTSIZE
+            - HISTFILESIZE
+            - OTEL_SERVICE_NAME
+            - DD_SERVICE
+        tags: []
+      network:
+        node_type: section
+        type: object
+        visibility: public
+        description: Network section is used to configure Cloud Workload Security
+          (CWS) network features.
+        tags: []
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+            env_vars:
+            - DD_EVENT_MONITORING_CONFIG_NETWORK_ENABLED
+            - DD_RUNTIME_SECURITY_CONFIG_NETWORK_ENABLED
+            visibility: public
+            description: Set to true to activate the CWS network detections.
+            example: 'true'
+            tags: []
+          classifier_handle:
+            node_type: setting
+            type: number
+            default: 0
+            env_vars:
+            - DD_EVENT_MONITORING_CONFIG_NETWORK_CLASSIFIER_HANDLE
+            - DD_RUNTIME_SECURITY_CONFIG_NETWORK_CLASSIFIER_HANDLE
+            tags: []
+          classifier_priority:
+            node_type: setting
+            type: number
+            default: 10
+            env_vars:
+            - DD_EVENT_MONITORING_CONFIG_NETWORK_CLASSIFIER_PRIORITY
+            - DD_RUNTIME_SECURITY_CONFIG_NETWORK_CLASSIFIER_PRIORITY
+            tags: []
+          extra_private_ip_ranges:
+            node_type: setting
+            type: array
+            default: []
+            env_vars:
+            - DD_EVENT_MONITORING_CONFIG_NETWORK_EXTRA_PRIVATE_IP_RANGES
+            - DD_RUNTIME_SECURITY_CONFIG_NETWORK_EXTRA_PRIVATE_IP_RANGES
+            items:
+              type: string
+            tags: []
+          flow_monitor:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+                env_vars:
+                - DD_EVENT_MONITORING_CONFIG_NETWORK_FLOW_MONITOR_ENABLED
+                - DD_RUNTIME_SECURITY_CONFIG_NETWORK_FLOW_MONITOR_ENABLED
+                tags: []
+              period:
+                node_type: setting
+                type: string
+                default: 10s
+                env_vars:
+                - DD_EVENT_MONITORING_CONFIG_NETWORK_FLOW_MONITOR_PERIOD
+                - DD_RUNTIME_SECURITY_CONFIG_NETWORK_FLOW_MONITOR_PERIOD
+                tags: []
+              sk_storage:
+                node_type: section
+                type: object
+                properties:
+                  enabled:
+                    node_type: setting
+                    type: boolean
+                    default: false
+                    env_vars:
+                    - DD_EVENT_MONITORING_CONFIG_NETWORK_FLOW_MONITOR_SK_STORAGE_ENABLED
+                    - DD_RUNTIME_SECURITY_CONFIG_NETWORK_FLOW_MONITOR_SK_STORAGE_ENABLED
+                    tags: []
+          ingress:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+                env_vars:
+                - DD_EVENT_MONITORING_CONFIG_NETWORK_INGRESS_ENABLED
+                - DD_RUNTIME_SECURITY_CONFIG_NETWORK_INGRESS_ENABLED
+                tags: []
+          lazy_interface_prefixes:
+            node_type: setting
+            type: array
+            default: []
+            env_vars:
+            - DD_EVENT_MONITORING_CONFIG_NETWORK_LAZY_INTERFACE_PREFIXES
+            - DD_RUNTIME_SECURITY_CONFIG_NETWORK_LAZY_INTERFACE_PREFIXES
+            items:
+              type: string
+            tags: []
+          private_ip_ranges:
+            node_type: setting
+            type: array
+            default:
+            - 10.0.0.0/8
+            - 172.16.0.0/12
+            - 192.168.0.0/16
+            - 0.0.0.0/8
+            - 127.0.0.0/8
+            - 169.254.0.0/16
+            - 192.0.0.0/24
+            - 192.0.2.0/24
+            - 198.18.0.0/15
+            - 198.51.100.0/24
+            - 203.0.113.0/24
+            - 224.0.0.0/4
+            - 240.0.0.0/4
+            - 100.64.0.0/10
+            - fc00::/7
+            - ::1/128
+            env_vars:
+            - DD_EVENT_MONITORING_CONFIG_NETWORK_PRIVATE_IP_RANGES
+            - DD_RUNTIME_SECURITY_CONFIG_NETWORK_PRIVATE_IP_RANGES
+            items:
+              type: string
+            tags: []
+          raw_classifier_handle:
+            node_type: setting
+            type: number
+            default: 0
+            env_vars:
+            - DD_EVENT_MONITORING_CONFIG_NETWORK_RAW_CLASSIFIER_HANDLE
+            - DD_RUNTIME_SECURITY_CONFIG_NETWORK_RAW_CLASSIFIER_HANDLE
+            tags: []
+          raw_packet:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+                env_vars:
+                - DD_EVENT_MONITORING_CONFIG_NETWORK_RAW_PACKET_ENABLED
+                - DD_RUNTIME_SECURITY_CONFIG_NETWORK_RAW_PACKET_ENABLED
+                tags: []
+              filter:
+                node_type: setting
+                type: string
+                default: no_pid_tcp_syn
+                env_vars:
+                - DD_EVENT_MONITORING_CONFIG_NETWORK_RAW_PACKET_FILTER
+                - DD_RUNTIME_SECURITY_CONFIG_NETWORK_RAW_PACKET_FILTER
+                tags: []
+              limiter_rate:
+                node_type: setting
+                type: number
+                default: 10
+                env_vars:
+                - DD_EVENT_MONITORING_CONFIG_NETWORK_RAW_PACKET_LIMITER_RATE
+                - DD_RUNTIME_SECURITY_CONFIG_NETWORK_RAW_PACKET_LIMITER_RATE
+                tags: []
+      capabilities_monitoring:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            env_vars:
+            - DD_EVENT_MONITORING_CONFIG_CAPABILITIES_MONITORING_ENABLED
+            - DD_RUNTIME_SECURITY_CONFIG_CAPABILITIES_MONITORING_ENABLED
+            tags: []
+          period:
+            node_type: setting
+            type: string
+            default: 5s
+            env_vars:
+            - DD_EVENT_MONITORING_CONFIG_CAPABILITIES_MONITORING_PERIOD
+            - DD_RUNTIME_SECURITY_CONFIG_CAPABILITIES_MONITORING_PERIOD
+            tags: []
+      dentry_cache_size:
+        node_type: setting
+        type: number
+        default: 8000
+        env_vars:
+        - DD_EVENT_MONITORING_CONFIG_DENTRY_CACHE_SIZE
+        - DD_RUNTIME_SECURITY_CONFIG_DENTRY_CACHE_SIZE
+        tags: []
+      dns_resolution:
+        node_type: section
+        type: object
+        properties:
+          cache_size:
+            node_type: setting
+            type: number
+            default: 1024
+            env_vars:
+            - DD_EVENT_MONITORING_CONFIG_DNS_RESOLUTION_CACHE_SIZE
+            - DD_RUNTIME_SECURITY_CONFIG_DNS_RESOLUTION_CACHE_SIZE
+            tags: []
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+            env_vars:
+            - DD_EVENT_MONITORING_CONFIG_DNS_RESOLUTION_ENABLED
+            - DD_RUNTIME_SECURITY_CONFIG_DNS_RESOLUTION_ENABLED
+            tags: []
+      enable_all_probes:
+        node_type: setting
+        type: boolean
+        default: false
+        env_vars:
+        - DD_EVENT_MONITORING_CONFIG_ENABLE_ALL_PROBES
+        - DD_RUNTIME_SECURITY_CONFIG_ENABLE_ALL_PROBES
+        tags: []
+      enable_approvers:
+        node_type: setting
+        type: boolean
+        default: false
+        env_vars:
+        - DD_EVENT_MONITORING_CONFIG_ENABLE_APPROVERS
+        - DD_RUNTIME_SECURITY_CONFIG_ENABLE_APPROVERS
+        tags: []
+      enable_discarders:
+        node_type: setting
+        type: boolean
+        default: false
+        env_vars:
+        - DD_EVENT_MONITORING_CONFIG_ENABLE_DISCARDERS
+        - DD_RUNTIME_SECURITY_CONFIG_ENABLE_DISCARDERS
+        tags: []
+      enable_kernel_filters:
+        node_type: setting
+        type: boolean
+        default: true
+        env_vars:
+        - DD_EVENT_MONITORING_CONFIG_ENABLE_KERNEL_FILTERS
+        - DD_RUNTIME_SECURITY_CONFIG_ENABLE_KERNEL_FILTERS
+        tags: []
+      env_vars_resolution:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+      envs_with_value:
+        node_type: setting
+        type: array
+        default:
+        - LD_PRELOAD
+        - LD_LIBRARY_PATH
+        - PATH
+        - HISTSIZE
+        - HISTFILESIZE
+        - GLIBC_TUNABLES
+        - SSH_CLIENT
+        - DD_SERVICE
+        - OTEL_SERVICE_NAME
+        - CLAUDECODE
+        - RUNNER_TRACKING_ID
+        env_vars:
+        - DD_EVENT_MONITORING_CONFIG_ENVS_WITH_VALUE
+        - DD_RUNTIME_SECURITY_CONFIG_ENVS_WITH_VALUE
+        items:
+          type: string
+        tags: []
+      erpc_dentry_resolution_enabled:
+        node_type: setting
+        type: boolean
+        default: true
+        env_vars:
+        - DD_EVENT_MONITORING_CONFIG_ERPC_DENTRY_RESOLUTION_ENABLED
+        - DD_RUNTIME_SECURITY_CONFIG_ERPC_DENTRY_RESOLUTION_ENABLED
+        tags: []
+      event_stream:
+        node_type: section
+        type: object
+        properties:
+          buffer_size:
+            node_type: setting
+            type: number
+            default: 0
+            env_vars:
+            - DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_BUFFER_SIZE
+            - DD_RUNTIME_SECURITY_CONFIG_EVENT_STREAM_BUFFER_SIZE
+            tags: []
+          kretprobe_max_active:
+            node_type: setting
+            type: number
+            default: 512
+            env_vars:
+            - DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_KRETPROBE_MAX_ACTIVE
+            - DD_RUNTIME_SECURITY_CONFIG_EVENT_STREAM_KRETPROBE_MAX_ACTIVE
+            tags: []
+          use_fentry:
+            node_type: setting
+            type: boolean
+            default: false
+            env_vars:
+            - DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_USE_FENTRY
+            - DD_RUNTIME_SECURITY_CONFIG_EVENT_STREAM_USE_FENTRY
+            tags: []
+          use_kprobe_fallback:
+            node_type: setting
+            type: boolean
+            default: true
+            env_vars:
+            - DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_USE_KPROBE_FALLBACK
+            - DD_RUNTIME_SECURITY_CONFIG_EVENT_STREAM_USE_KPROBE_FALLBACK
+            tags: []
+          use_ring_buffer:
+            node_type: setting
+            type: boolean
+            default: true
+            env_vars:
+            - DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_USE_RING_BUFFER
+            - DD_RUNTIME_SECURITY_CONFIG_EVENT_STREAM_USE_RING_BUFFER
+            tags: []
+      events_stats:
+        node_type: section
+        type: object
+        properties:
+          polling_interval:
+            node_type: setting
+            type: number
+            default: 20
+            env_vars:
+            - DD_EVENT_MONITORING_CONFIG_EVENTS_STATS_POLLING_INTERVAL
+            - DD_RUNTIME_SECURITY_CONFIG_EVENTS_STATS_POLLING_INTERVAL
+            tags: []
+          tags_cardinality:
+            node_type: setting
+            type: string
+            default: high
+            env_vars:
+            - DD_EVENT_MONITORING_CONFIG_EVENTS_STATS_TAGS_CARDINALITY
+            - DD_RUNTIME_SECURITY_CONFIG_EVENTS_STATS_TAGS_CARDINALITY
+            tags: []
+      flush_discarder_window:
+        node_type: setting
+        type: number
+        default: 3
+        env_vars:
+        - DD_EVENT_MONITORING_CONFIG_FLUSH_DISCARDER_WINDOW
+        - DD_RUNTIME_SECURITY_CONFIG_FLUSH_DISCARDER_WINDOW
+        tags: []
+      map_dentry_resolution_enabled:
+        node_type: setting
+        type: boolean
+        default: true
+        env_vars:
+        - DD_EVENT_MONITORING_CONFIG_MAP_DENTRY_RESOLUTION_ENABLED
+        - DD_RUNTIME_SECURITY_CONFIG_MAP_DENTRY_RESOLUTION_ENABLED
+        tags: []
+      network_process:
+        node_type: section
+        type: object
+        properties:
+          container_store:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+              max_containers_tracked:
+                node_type: setting
+                type: number
+                default: 1024
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+            env_vars:
+            - DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED
+            tags: []
+          max_processes_tracked:
+            node_type: setting
+            env_vars:
+            - DD_EVENT_MONITORING_CONFIG_NETWORK_PROCESS_MAX_PROCESSES_TRACKED
+            - DD_RUNTIME_SECURITY_CONFIG_NETWORK_PROCESS_MAX_PROCESSES_TRACKED
+            tags:
+            - TODO:fix-no-default
+            - TODO:fix-missing-type
+      pid_cache_size:
+        node_type: setting
+        type: number
+        default: 10000
+        env_vars:
+        - DD_EVENT_MONITORING_CONFIG_PID_CACHE_SIZE
+        - DD_RUNTIME_SECURITY_CONFIG_PID_CACHE_SIZE
+        tags: []
+      runtime_compilation:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            env_vars:
+            - DD_EVENT_MONITORING_CONFIG_RUNTIME_COMPILATION_ENABLED
+            - DD_RUNTIME_SECURITY_CONFIG_RUNTIME_COMPILATION_ENABLED
+            tags: []
+      snapshot_using_listmount:
+        node_type: setting
+        type: boolean
+        default: false
+        env_vars:
+        - DD_EVENT_MONITORING_CONFIG_SNAPSHOT_USING_LISTMOUNT
+        - DD_RUNTIME_SECURITY_CONFIG_SNAPSHOT_USING_LISTMOUNT
+        tags: []
+      span_tracking:
+        node_type: section
+        type: object
+        properties:
+          cache_size:
+            node_type: setting
+            type: number
+            default: 4096
+            env_vars:
+            - DD_EVENT_MONITORING_CONFIG_SPAN_TRACKING_CACHE_SIZE
+            - DD_RUNTIME_SECURITY_CONFIG_SPAN_TRACKING_CACHE_SIZE
+            tags: []
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            env_vars:
+            - DD_EVENT_MONITORING_CONFIG_SPAN_TRACKING_ENABLED
+            - DD_RUNTIME_SECURITY_CONFIG_SPAN_TRACKING_ENABLED
+            tags: []
+      syscalls_monitor:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            env_vars:
+            - DD_EVENT_MONITORING_CONFIG_SYSCALLS_MONITOR_ENABLED
+            - DD_RUNTIME_SECURITY_CONFIG_SYSCALLS_MONITOR_ENABLED
+            tags: []
+  windows_crash_detection:
+    node_type: section
+    title: Datadog Agent Windows Crash Detection module
+    type: object
+    visibility: public
+    description: Configuration for the Windows Crash Detection module, which monitors
+      for application crashes.
+    tags:
+    - platform_only:windows
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        visibility: public
+        description: Enables the system probe module which supports the Windows crash
+          detection check.
+        example: 'false'
+        tags: []
+  auto_exit:
+    node_type: section
+    type: object
+    properties:
+      noprocess:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+          excluded_processes:
+            node_type: setting
+            type: array
+            default: []
+            items:
+              type: string
+      validation_period:
+        node_type: setting
+        type: number
+        default: 60
+  bind_host:
+    node_type: setting
+    tags:
+    - TODO:fix-no-default
+    - TODO:fix-missing-type
+  ccm_network_config:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+  compliance_config:
+    node_type: section
+    type: object
+    properties:
+      database_benchmarks:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+  disable_file_logging:
+    node_type: setting
+    type: boolean
+    default: false
+  discovery:
+    node_type: section
+    type: object
+    properties:
+      cpu_usage_update_delay:
+        node_type: setting
+        type: string
+        default: 60s
+      enabled:
+        node_type: setting
+        type: boolean
+        default: true
+      service_collection_interval:
+        node_type: setting
+        type: string
+        default: 60s
+      use_system_probe_lite:
+        node_type: setting
+        type: boolean
+        default: true
+  dogstatsd_port:
+    node_type: setting
+    type: number
+    default: 8125
+  dynamic_instrumentation:
+    node_type: section
+    type: object
+    properties:
+      circuit_breaker:
+        node_type: section
+        type: object
+        properties:
+          all_probes_cpu_limit:
+            node_type: setting
+            type: number
+            default: 0.5
+            tags:
+            - golang_type:float64
+          interrupt_overhead:
+            node_type: setting
+            type: number
+            default: "2\xB5s"
+            format: duration
+            tags:
+            - golang_type:duration
+          interval:
+            node_type: setting
+            type: number
+            default: 1s
+            format: duration
+            tags:
+            - golang_type:duration
+          per_probe_cpu_limit:
+            node_type: setting
+            type: number
+            default: 0.1
+            tags:
+            - golang_type:float64
+      debug_info_disk_cache:
+        node_type: section
+        type: object
+        properties:
+          dir:
+            node_type: setting
+            type: string
+            default: /tmp/datadog-agent/system-probe/dynamic-instrumentation/decompressed-debug-info
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+          max_total_bytes:
+            node_type: setting
+            type: number
+            default: 2147483648
+          required_disk_space_bytes:
+            node_type: setting
+            type: number
+            default: 536870912
+          required_disk_space_percent:
+            node_type: setting
+            type: number
+            default: 0
+            tags:
+            - golang_type:float64
+      diagnostics_output_file_path:
+        node_type: setting
+        type: boolean
+        default: false
+        env_vars:
+        - DD_DYNAMIC_INSTRUMENTATION_DIAGNOSTICS_FILE_PATH
+        tags: []
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        env_vars:
+        - DD_DYNAMIC_INSTRUMENTATION_ENABLED
+        tags: []
+      offline_mode:
+        node_type: setting
+        type: boolean
+        default: false
+        env_vars:
+        - DD_DYNAMIC_INSTRUMENTATION_OFFLINE_MODE
+        tags: []
+      probes_file_path:
+        node_type: setting
+        type: boolean
+        default: false
+        env_vars:
+        - DD_DYNAMIC_INSTRUMENTATION_PROBES_FILE_PATH
+        tags: []
+      snapshot_output_file_path:
+        node_type: setting
+        type: boolean
+        default: false
+        env_vars:
+        - DD_DYNAMIC_INSTRUMENTATION_SNAPSHOT_FILE_PATH
+        tags: []
+      symdb_upload_enabled:
+        node_type: setting
+        type: boolean
+        default: true
+        env_vars:
+        - DD_SYMBOL_DATABASE_UPLOAD_ENABLED
+        tags: []
+  ebpf_check:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+      entry_count:
+        node_type: section
+        type: object
+        properties:
+          entries_for_iteration_restart_detection:
+            node_type: setting
+            type: number
+            default: 100
+          max_keys_buffer_size_bytes:
+            node_type: setting
+            type: number
+            default: 524288
+          max_restarts:
+            node_type: setting
+            type: number
+            default: 3
+          max_values_buffer_size_bytes:
+            node_type: setting
+            type: number
+            default: 1048576
+      kernel_bpf_stats:
+        node_type: setting
+        type: boolean
+        default: false
+  fleet_policies_dir:
+    node_type: setting
+    tags:
+    - TODO:fix-no-default
+    - TODO:fix-missing-type
+  go_core_dump:
+    node_type: setting
+    type: boolean
+    default: false
+  gpu_monitoring:
+    node_type: section
+    type: object
+    properties:
+      attacher_detailed_logs:
+        node_type: setting
+        type: boolean
+        default: false
+      cgroup_reapply_infinitely:
+        node_type: setting
+        type: boolean
+        default: false
+      cgroup_reapply_interval:
+        node_type: setting
+        type: number
+        default: 30s
+        format: duration
+        tags:
+        - golang_type:duration
+      configure_cgroup_perms:
+        node_type: setting
+        type: boolean
+        default: false
+      device_cache_refresh_interval:
+        node_type: setting
+        type: number
+        default: 5s
+        format: duration
+        tags:
+        - golang_type:duration
+      enable_fatbin_parsing:
+        node_type: setting
+        type: boolean
+        default: false
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+      fatbin_request_queue_size:
+        node_type: setting
+        type: number
+        default: 100
+      initial_process_sync:
+        node_type: setting
+        type: boolean
+        default: true
+      nvml_lib_path:
+        node_type: setting
+        tags:
+        - TODO:fix-no-default
+        - TODO:fix-missing-type
+      process_scan_interval_seconds:
+        node_type: setting
+        type: number
+        default: 5
+      ring_buffer_pages_per_device:
+        node_type: setting
+        type: number
+        default: 32
+      ringbuffer_flush_interval:
+        node_type: setting
+        type: number
+        default: 1s
+        format: duration
+        tags:
+        - golang_type:duration
+      ringbuffer_wakeup_size:
+        node_type: setting
+        type: number
+        default: 3000
+      streams:
+        node_type: section
+        type: object
+        properties:
+          max_active:
+            node_type: setting
+            type: number
+            default: 100
+          max_kernel_launches:
+            node_type: setting
+            type: number
+            default: 1000
+          max_mem_alloc_events:
+            node_type: setting
+            type: number
+            default: 1000
+          max_pending_kernel_spans:
+            node_type: setting
+            type: number
+            default: 1000
+          max_pending_memory_spans:
+            node_type: setting
+            type: number
+            default: 1000
+          timeout_seconds:
+            node_type: setting
+            type: number
+            default: 30
+  ignore_host_etc:
+    node_type: setting
+    type: boolean
+    default: false
+  injector:
+    node_type: section
+    type: object
+    properties:
+      enable_telemetry:
+        node_type: setting
+        type: boolean
+        default: true
+  log_file_max_rolls:
+    node_type: setting
+    type: number
+    default: 1
+  log_file_max_size:
+    node_type: setting
+    type: string
+    default: 10Mb
+  log_format_json:
+    node_type: setting
+    type: boolean
+    default: false
+  log_format_rfc3339:
+    node_type: setting
+    type: boolean
+    default: false
+  log_level:
+    node_type: setting
+    type: string
+    default: info
+    env_vars:
+    - DD_LOG_LEVEL
+    - LOG_LEVEL
+    tags: []
+  log_to_console:
+    node_type: setting
+    type: boolean
+    default: true
+  log_to_syslog:
+    node_type: setting
+    type: boolean
+    default: false
+  logon_duration:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+  noisy_neighbor:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+  privileged_logs:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+  secret_backend_arguments:
+    node_type: setting
+    type: array
+    default: []
+    items:
+      type: string
+  secret_backend_command:
+    node_type: setting
+    type: string
+    default: ''
+  secret_backend_command_allow_group_exec_perm:
+    node_type: setting
+    type: boolean
+    default: false
+  secret_backend_output_max_size:
+    node_type: setting
+    type: number
+    default: 1048576
+  secret_backend_skip_checks:
+    node_type: setting
+    type: boolean
+    default: false
+  secret_backend_timeout:
+    node_type: setting
+    type: number
+    default: 30
+  syslog_rfc:
+    node_type: setting
+    type: boolean
+    default: false
+  syslog_uri:
+    node_type: setting
+    type: string
+    default: ''
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: https://raw.githubusercontent.com/DataDog/schema/main/agent/system-probe.yaml.schema.json
+title: System Probe configuration schema
+description: The schema to validate the system-probe.yaml configuration for the DataDog
+  Agent

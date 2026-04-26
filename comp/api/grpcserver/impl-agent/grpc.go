@@ -113,7 +113,7 @@ func (s *server) BuildServer() http.Handler {
 		taggerServer:     taggerserver.NewServer(s.tagger, s.telemetry, maxEventSize, s.configComp.GetInt("remote_tagger.max_concurrent_sync")),
 		tagProcessor:     s.tagProcessor,
 		// TODO(components): decide if workloadmetaServer should be componentized itself
-		workloadmetaServer:   workloadmetaServer.NewServer(s.workloadMeta),
+		workloadmetaServer:   workloadmetaServer.NewServer(s.workloadMeta, maxEventSize),
 		workloadfilterServer: workloadfilterServer.NewServer(s.workloadfilter),
 		dogstatsdServer:      s.dogstatsdServer,
 		capture:              s.capture,
