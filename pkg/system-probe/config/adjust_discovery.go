@@ -45,4 +45,9 @@ func adjustDiscovery(cfg model.Config) {
 		}
 		cfg.Set(key, false, model.SourceAgentRuntime)
 	}
+
+	// Enable process service inference by default in discovery mode so that
+	// connections get tagged with service names (without it the service map
+	// would only show IP:port pairs).
+	applyDefault(cfg, spNS("process_service_inference", "enabled"), true)
 }

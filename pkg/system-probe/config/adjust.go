@@ -51,10 +51,12 @@ func Adjust(cfg model.Config) {
 	adjustUSM(cfg)
 	adjustSecurity(cfg)
 
+	discoveryServiceMapEnabled := cfg.GetBool(discoveryNS("service_map", "enabled"))
 	if cfg.GetBool(spNS("process_service_inference", "enabled")) &&
 		!usmEnabled &&
-		!npmEnabled {
-		log.Warn("universal service monitoring and network monitoring are disabled, disabling process service inference")
+		!npmEnabled &&
+		!discoveryServiceMapEnabled {
+		log.Warn("universal service monitoring, network monitoring, and discovery service map are disabled, disabling process service inference")
 		cfg.Set(spNS("process_service_inference", "enabled"), false, model.SourceAgentRuntime)
 	}
 
