@@ -233,10 +233,6 @@ func (s *npCollectorImpl) checkPassesConnCIDRFilters(conn npmodel.NetworkPathCon
 }
 
 func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn npmodel.NetworkPathConnection, vpcSubnets []netip.Prefix) bool {
-	if !s.collectorConfigs.monitoringEnabledForOrigin(conn.Origin) {
-		_ = s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_origin_disabled"}, 1)
-		return false
-	}
 	if conn.IntraHost {
 		_ = s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_intra_host"}, 1)
 		return false

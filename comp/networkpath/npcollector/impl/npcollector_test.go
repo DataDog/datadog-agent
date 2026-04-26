@@ -600,10 +600,6 @@ func Test_npCollectorImpl_ScheduleNetworkPathTests(t *testing.T) {
 		"network_path.connections_monitoring.enabled": true,
 		"network_path.collector.filters":              []map[string]any{},
 	}
-	netflowAgentConfigs := map[string]any{
-		"network_path.netflow_monitoring.enabled": true,
-		"network_path.collector.filters":          []map[string]any{},
-	}
 	monitorIPWithoutDomainConfigs := map[string]any{
 		"network_path.connections_monitoring.enabled":      true,
 		"network_path.collector.monitor_ip_without_domain": true,
@@ -664,7 +660,7 @@ func Test_npCollectorImpl_ScheduleNetworkPathTests(t *testing.T) {
 		},
 		{
 			name:         "one outgoing NetFlow UDP conn",
-			agentConfigs: netflowAgentConfigs,
+			agentConfigs: defaultagentConfigs,
 			conns: []npmodel.NetworkPathConnection{
 				{
 					Source:    netip.MustParseAddrPort("10.0.0.5:30000"),
@@ -685,20 +681,6 @@ func Test_npCollectorImpl_ScheduleNetworkPathTests(t *testing.T) {
 					HashKey:   "netflow|netflow-ns|10.0.0.6|UDP",
 				},
 			},
-		},
-		{
-			name:         "skip NetFlow conn when netflow monitoring disabled",
-			agentConfigs: defaultagentConfigs,
-			conns: []npmodel.NetworkPathConnection{
-				{
-					Source:    netip.MustParseAddrPort("10.0.0.5:30000"),
-					Dest:      netip.MustParseAddrPort("10.0.0.6:161"),
-					Origin:    payload.PathOriginNetflow,
-					Direction: model.ConnectionDirection_outgoing,
-					Type:      model.ConnectionType_udp,
-				},
-			},
-			expectedPathtests: []*common.Pathtest{},
 		},
 		{
 			name:         "only non-outgoing conns",
@@ -1533,7 +1515,6 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 		destExcludes           map[string][]string
 		filters                string
 		monitorIPWithoutDomain bool
-		netflowMonitoring      bool
 		connectionExcluded     bool
 	}{
 		{
@@ -1555,19 +1536,7 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 				Direction: model.ConnectionDirection_outgoing,
 				Type:      model.ConnectionType_udp,
 			},
-			netflowMonitoring: true,
-			shouldSchedule:    true,
-		},
-		{
-			name: "should not schedule netflow when netflow monitoring is disabled",
-			conn: npmodel.NetworkPathConnection{
-				Source:    netip.MustParseAddrPort("10.0.0.1:30000"),
-				Dest:      netip.MustParseAddrPort("10.0.0.2:53"),
-				Origin:    payload.PathOriginNetflow,
-				Direction: model.ConnectionDirection_outgoing,
-				Type:      model.ConnectionType_udp,
-			},
-			shouldSchedule: false,
+			shouldSchedule: true,
 		},
 		{
 			name: "should not schedule incoming conn",
@@ -1754,7 +1723,6 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 			sourceExcludes: map[string][]string{
 				"10.0.0.1": {"30000-30005"},
 			},
-			netflowMonitoring:  true,
 			shouldSchedule:     false,
 			connectionExcluded: true,
 		},
@@ -1890,7 +1858,6 @@ network_path:
 			require.NoError(t, json.Unmarshal(b, &filtersAny))
 			agentConfigs := map[string]any{
 				"network_path.connections_monitoring.enabled":         true,
-				"network_path.netflow_monitoring.enabled":             tt.netflowMonitoring,
 				"network_path.collector.disable_intra_vpc_collection": true,
 				"network_path.collector.source_excludes":              tt.sourceExcludes,
 				"network_path.collector.dest_excludes":                tt.destExcludes,

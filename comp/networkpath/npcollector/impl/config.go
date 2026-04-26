@@ -91,14 +91,3 @@ func newConfig(agentConfig config.Component, logger log.Component) *collectorCon
 func (c *collectorConfigs) networkPathCollectorEnabled() bool {
 	return c.connectionsMonitoringEnabled || c.netflowMonitoringEnabled
 }
-
-func (c *collectorConfigs) monitoringEnabledForOrigin(origin payload.PathOrigin) bool {
-	switch origin {
-	case payload.PathOriginNetflow:
-		return c.netflowMonitoringEnabled
-	case "", payload.PathOriginNetworkTraffic:
-		return c.connectionsMonitoringEnabled
-	default:
-		return false
-	}
-}
