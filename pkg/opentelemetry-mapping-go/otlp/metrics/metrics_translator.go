@@ -300,7 +300,7 @@ func (t *defaultTranslator) mapNumberMonotonicMetrics(
 
 		ts := uint64(p.Timestamp())
 		startTs := uint64(p.StartTimestamp())
-		pointDims := dims.WithAttributeMap(p.Attributes())
+		pointDims := dims.WithAttributeMap(p.Attributes(), t.cfg.EncodeSliceMetadataAsTags)
 
 		var val float64
 		switch p.ValueType() {
