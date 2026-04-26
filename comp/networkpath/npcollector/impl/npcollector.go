@@ -165,17 +165,6 @@ func (s *npCollectorImpl) makePathtest(conn npmodel.NetworkPathConnection) commo
 	return pathtest
 }
 
-func filterDomain(conn npmodel.NetworkPathConnection) string {
-	if conn.Domain != "" {
-		return conn.Domain
-	}
-	if conn.Origin == payload.PathOriginNetflow {
-		// NetFlow paths target IPs directly, so IP-only destinations must remain eligible for filtering.
-		return conn.Dest.Addr().String()
-	}
-	return ""
-}
-
 func doSubnetsContainIP(subnets []netip.Prefix, ip netip.Addr) bool {
 	for _, subnet := range subnets {
 		if subnet.Contains(ip) {
@@ -238,7 +227,7 @@ func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn npmodel.NetworkP
 		return false
 	}
 
-	if !s.filter.IsIncluded(filterDomain(conn), conn.Dest.Addr()) {
+	if !s.filter.IsIncluded(conn.Domain, conn.Dest.Addr()) {
 		_ = s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_not_matched_by_filters"}, 1)
 		return false
 	}

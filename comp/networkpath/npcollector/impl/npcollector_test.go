@@ -670,15 +670,7 @@ func Test_npCollectorImpl_ScheduleNetworkPathTests(t *testing.T) {
 					Type:      model.ConnectionType_udp,
 				},
 			},
-			expectedPathtests: []*common.Pathtest{
-				{
-					Hostname:  "10.0.0.6",
-					Port:      uint16(0),
-					Protocol:  payload.ProtocolUDP,
-					Namespace: "netflow-ns",
-					Origin:    payload.PathOriginNetflow,
-				},
-			},
+			expectedPathtests: []*common.Pathtest{},
 		},
 		{
 			name:         "only non-outgoing conns",
@@ -1526,7 +1518,7 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 			shouldSchedule: true,
 		},
 		{
-			name: "should schedule netflow IP target without domain",
+			name: "should not schedule netflow IP target without domain by default",
 			conn: npmodel.NetworkPathConnection{
 				Source:    netip.MustParseAddrPort("10.0.0.1:30000"),
 				Dest:      netip.MustParseAddrPort("10.0.0.2:53"),
@@ -1534,7 +1526,7 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 				Direction: model.ConnectionDirection_outgoing,
 				Type:      model.ConnectionType_udp,
 			},
-			shouldSchedule: true,
+			shouldSchedule: false,
 		},
 		{
 			name: "should not schedule incoming conn",
