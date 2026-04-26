@@ -259,7 +259,8 @@ func makeRealDependencies(
 	if err = unix.ClockGettime(unix.CLOCK_MONOTONIC, &ts); err != nil {
 		return ret, fmt.Errorf("error getting monotonic time: %w", err)
 	}
-	ret.dispatcher = dispatcher.NewDispatcher(ret.loader.OutputReader(), ret.loader.DropNotifyReader())
+	ret.dispatcher = dispatcher.NewDispatcher(
+		ret.loader.OutputReader(), ret.loader.DropNotifyReader())
 	ret.procSubscriber = procsubscribe.NewSubscriber(
 		remoteConfigSubscriber,
 	)
