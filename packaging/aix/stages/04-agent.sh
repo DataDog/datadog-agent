@@ -103,8 +103,12 @@ log "Building agent version $AGENT_VERSION at commit $COMMIT"
 # ─── Step 4: Build the agent binary ───────────────────────────────────────────
 #
 # Build tags come from tasks/build_tags.py AIX_AGENT_TAGS + COMMON_TAGS:
-#   python, otlp, osusergo, datadog.no_waf, zstd
+#   python, otlp, osusergo, datadog.no_waf, zlib, zstd
 #   + grpcnotrace, retrynotrace, no_dynamic_plugins, trivy_no_javadb (COMMON_TAGS)
+#
+# zlib is included alongside zstd so that the compression/selector package
+# resolves to the existing zlib-and-zstd.go variant.  Without zlib the
+# !zlib&&zstd case is missing from the selector, causing "undefined: NewCompressor".
 #
 # Note: pythonHome3 must be set explicitly here.
 # The agent binary computes Python home as filepath.Join(executableFolder, "../../embedded").
