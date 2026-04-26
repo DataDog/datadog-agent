@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dispatcher"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/eventbuf"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/jsonprune"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symbol"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -329,6 +330,7 @@ func (s *sink) emit(ready eventbuf.Ready) {
 	if missingTypes := s.missingTypes.drain(); len(missingTypes) > 0 {
 		s.runtime.actuator.ReportMissingTypes(s.processID, missingTypes)
 	}
+	decoded = jsonprune.Prune(decoded, jsonprune.MaxSnapshotBytes)
 	s.logUploader.Enqueue(decoded)
 }
 
