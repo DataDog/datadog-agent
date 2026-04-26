@@ -135,10 +135,6 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 // makePathtest extracts pathtest information using a single connection and the connection check's reverse dns map
 func (s *npCollectorImpl) makePathtest(conn npmodel.NetworkPathConnection) common.Pathtest {
 	origin := conn.Origin
-	effectiveOrigin := origin
-	if effectiveOrigin == "" {
-		effectiveOrigin = payload.PathOriginNetworkTraffic
-	}
 
 	protocol := modelProtocolToPayload[conn.Type]
 	if s.collectorConfigs.icmpMode.ShouldUseICMP(protocol) {
@@ -149,7 +145,7 @@ func (s *npCollectorImpl) makePathtest(conn npmodel.NetworkPathConnection) commo
 	// only TCP traces can be done to the active port
 	if protocol == payload.ProtocolTCP {
 		remotePort = conn.Dest.Port()
-	} else if effectiveOrigin == payload.PathOriginNetflow && protocol == payload.ProtocolUDP {
+	} else if origin == payload.PathOriginNetflow && protocol == payload.ProtocolUDP {
 		remotePort = tracerouterunner.DefaultDestPort
 	}
 
