@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package inventorycheckimpl implements the inventorychecks component interface.
-package inventorycheckimpl
+// Package inventorychecksimpl implements the inventorychecks component interface.
+package inventorychecksimpl
 
 import (
 	"context"

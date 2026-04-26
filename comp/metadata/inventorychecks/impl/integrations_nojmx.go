@@ -5,7 +5,7 @@
 
 //go:build !jmx
 
-package inventorycheckimpl
+package inventorychecksimpl
 
 func (ic *inventorychecksImpl) getJMXChecksMetadata() (jmxMetadata map[string][]metadata) {
 	// This function is a no-op when JMX is not enabled.
