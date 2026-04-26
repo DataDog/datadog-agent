@@ -26,8 +26,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
 	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
+	"github.com/DataDog/datadog-agent/pkg/serializer/limits"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
-	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 	"github.com/DataDog/datadog-agent/pkg/serializer/types"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 
@@ -327,14 +327,23 @@ func (s *Serializer) SendAgentchecksMetadata(m marshaler.JSONMarshaler) error {
 }
 
 func (s *Serializer) sendMetadata(m marshaler.JSONMarshaler, submit func(payload transaction.BytesPayloads, extra http.Header) error) error {
-	mustSplit, compressedPayload, payload, err := split.CheckSizeAndSerialize(m, true, s.Strategy)
+	// Serialize the payload
+	payload, err := m.MarshalJSON()
 	if err != nil {
-		return fmt.Errorf("could not determine size of metadata payload: %s", err)
+		return fmt.Errorf("could not serialize metadata payload: %s", err)
+	}
+
+	// Compress the payload
+	compressedPayload, err := s.Strategy.Compress(payload)
+	if err != nil {
+		return fmt.Errorf("could not compress metadata payload: %s", err)
 	}
 
 	s.logger.Debugf("Sending metadata payload, content: %v", string(payload))
 
-	if mustSplit {
+	// Check if payload exceeds limits
+	metadataLimits := limits.Get(limits.Metadata, nil)
+	if metadataLimits.Exceeds(len(compressedPayload), len(payload)) {
 		return fmt.Errorf("metadata payload was too big to send (%d bytes compressed, %d bytes uncompressed), metadata payloads cannot be split", len(compressedPayload), len(payload))
 	}
 
