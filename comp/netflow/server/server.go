@@ -66,9 +66,9 @@ func newServer(lc fx.Lifecycle, deps dependencies) (provides, error) {
 		rdnsQuerier = rdnsquerierimplnone.NewNone().Comp
 		deps.Logger.Infof("Reverse DNS Enrichment is disabled for NDM NetFlow")
 	}
-	conf.NetworkPath.Enabled = deps.AgentConfig.GetBool("network_path.netflow_monitoring.enabled")
+	networkPathEnabled := deps.AgentConfig.GetBool("network_path.netflow_monitoring.enabled")
 
-	flowAgg := flowaggregator.NewFlowAggregator(sender, deps.Forwarder, conf, deps.Hostname.GetSafe(context.Background()), deps.Logger, rdnsQuerier, deps.NPCollector)
+	flowAgg := flowaggregator.NewFlowAggregator(sender, deps.Forwarder, conf, deps.Hostname.GetSafe(context.Background()), deps.Logger, rdnsQuerier, networkPathEnabled, deps.NPCollector)
 
 	server := &Server{
 		config:  conf,

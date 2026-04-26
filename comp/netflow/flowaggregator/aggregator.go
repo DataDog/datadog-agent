@@ -95,7 +95,7 @@ var maxNegativeSequenceDiffToReset = map[common.FlowType]int{
 }
 
 // NewFlowAggregator returns a new FlowAggregator
-func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder, config *config.NetflowConfig, hostname string, logger log.Component, rdnsQuerier rdnsquerier.Component, npCollector npcollector.Component) *FlowAggregator {
+func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder, config *config.NetflowConfig, hostname string, logger log.Component, rdnsQuerier rdnsquerier.Component, networkPathEnabled bool, npCollector npcollector.Component) *FlowAggregator {
 	flushConfig := common.FlushConfig{
 		FlowCollectionDuration: time.Duration(config.AggregatorFlushInterval) * time.Second,
 		FlushTickFrequency:     flushFlowsToSendInterval,
@@ -128,7 +128,7 @@ func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder
 		goflowPrometheusGatherer:     prometheus.DefaultGatherer,
 		TimeNowFunction:              time.Now,
 		NewTicker:                    time.Tick,
-		networkPathEnabled:           config.NetworkPath.Enabled,
+		networkPathEnabled:           networkPathEnabled,
 		npCollector:                  npCollector,
 		lastSequencePerExporter:      make(map[sequenceDeltaKey]uint32),
 		logger:                       logger,
