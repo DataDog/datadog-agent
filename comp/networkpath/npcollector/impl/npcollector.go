@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"iter"
 	"net/netip"
-	"strconv"
 	"sync"
 	"time"
 
@@ -170,18 +169,7 @@ func (s *npCollectorImpl) makePathtest(conn npmodel.NetworkPathConnection) commo
 			ReverseDNSHostname: conn.Domain,
 		},
 	}
-	if effectiveOrigin == payload.PathOriginNetflow {
-		pathtest.HashKey = netflowPathtestHashKey(conn.Namespace, hostname, protocol, remotePort)
-	}
 	return pathtest
-}
-
-func netflowPathtestHashKey(namespace, hostname string, protocol payload.Protocol, port uint16) string {
-	key := string(payload.PathOriginNetflow) + "|" + namespace + "|" + hostname + "|" + string(protocol)
-	if protocol == payload.ProtocolTCP {
-		return key + "|" + strconv.FormatUint(uint64(port), 10)
-	}
-	return key
 }
 
 func filterDomain(conn npmodel.NetworkPathConnection) string {

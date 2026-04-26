@@ -678,7 +678,6 @@ func Test_npCollectorImpl_ScheduleNetworkPathTests(t *testing.T) {
 					Protocol:  payload.ProtocolUDP,
 					Namespace: "netflow-ns",
 					Origin:    payload.PathOriginNetflow,
-					HashKey:   "netflow|netflow-ns|10.0.0.6|UDP",
 				},
 			},
 		},
@@ -1887,17 +1886,6 @@ func mustParseCIDR(t *testing.T, cidr string) netip.Prefix {
 	ipNet, err := netip.ParsePrefix(cidr)
 	assert.NoError(t, err)
 	return ipNet
-}
-
-func Test_netflowPathtestHashKey_UDPDoesNotUsePort(t *testing.T) {
-	assert.Equal(t,
-		netflowPathtestHashKey("ns1", "10.0.0.1", payload.ProtocolUDP, 53),
-		netflowPathtestHashKey("ns1", "10.0.0.1", payload.ProtocolUDP, 1234),
-	)
-	assert.NotEqual(t,
-		netflowPathtestHashKey("ns1", "10.0.0.1", payload.ProtocolTCP, 53),
-		netflowPathtestHashKey("ns1", "10.0.0.1", payload.ProtocolTCP, 1234),
-	)
 }
 
 func Test_npCollectorImpl_shouldScheduleNetworkPathForConn_subnets(t *testing.T) {
