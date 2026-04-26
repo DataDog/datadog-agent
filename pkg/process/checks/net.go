@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	netEncoding "github.com/DataDog/datadog-agent/pkg/network/encoding/unmarshal"
 	"github.com/DataDog/datadog-agent/pkg/network/indexedset"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/process/net/resolver"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
@@ -221,6 +222,7 @@ func (c *ConnectionsCheck) scheduleNetworkPath(conns *model.Connections) {
 				Dest:              dest,
 				TranslatedDest:    transDest,
 				SourceContainerID: conn.Laddr.GetContainerId(),
+				Origin:            payload.PathOriginNetworkTraffic,
 				Domain:            getDNSNameForIP(conns, conn.Raddr.GetIp()),
 				Type:              conn.Type,
 				Direction:         conn.Direction,

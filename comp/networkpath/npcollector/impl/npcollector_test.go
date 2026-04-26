@@ -39,7 +39,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
-	tracerouterunner "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/runner"
 	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
 	utillog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -674,7 +673,7 @@ func Test_npCollectorImpl_ScheduleNetworkPathTests(t *testing.T) {
 			expectedPathtests: []*common.Pathtest{
 				{
 					Hostname:  "10.0.0.6",
-					Port:      tracerouterunner.DefaultDestPort,
+					Port:      uint16(0),
 					Protocol:  payload.ProtocolUDP,
 					Namespace: "netflow-ns",
 					Origin:    payload.PathOriginNetflow,

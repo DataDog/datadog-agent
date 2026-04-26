@@ -32,7 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/networkfilter"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
-	tracerouterunner "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/runner"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
 	utillog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -145,8 +144,6 @@ func (s *npCollectorImpl) makePathtest(conn npmodel.NetworkPathConnection) commo
 	// only TCP traces can be done to the active port
 	if protocol == payload.ProtocolTCP {
 		remotePort = conn.Dest.Port()
-	} else if origin == payload.PathOriginNetflow && protocol == payload.ProtocolUDP {
-		remotePort = tracerouterunner.DefaultDestPort
 	}
 
 	hostname := conn.Dest.Addr().String()

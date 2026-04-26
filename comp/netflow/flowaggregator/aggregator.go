@@ -216,24 +216,6 @@ func (agg *FlowAggregator) scheduleNetworkPathForFlow(flow *common.Flow) {
 	})
 }
 
-func netflowProtocolToConnectionType(ipProtocol uint32) (model.ConnectionType, bool) {
-	switch ipProtocol {
-	case 6:
-		return model.ConnectionType_tcp, true
-	case 17:
-		return model.ConnectionType_udp, true
-	default:
-		return 0, false
-	}
-}
-
-func toUint16Port(port int32) (uint16, bool) {
-	if port < 0 || port > 65535 {
-		return 0, false
-	}
-	return uint16(port), true
-}
-
 func (agg *FlowAggregator) sendFlows(flows []*common.Flow, flushTime time.Time) {
 	for _, flow := range flows {
 		flowPayload := buildPayload(flow, agg.hostname, flushTime)
