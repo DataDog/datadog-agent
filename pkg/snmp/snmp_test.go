@@ -42,6 +42,20 @@ func TestBuildSNMPParams(t *testing.T) {
 	assert.Equal(t, "192.168.0.1", params.Target)
 
 	authentication = snmp.Authentication{
+		Community: "public",
+		Version:   "2c",
+	}
+	params, _ = authentication.BuildSNMPParams("192.168.0.1", 0)
+	assert.Equal(t, gosnmp.Version2c, params.Version)
+
+	authentication = snmp.Authentication{
+		Community: "public",
+		Version:   "2C",
+	}
+	params, _ = authentication.BuildSNMPParams("192.168.0.1", 0)
+	assert.Equal(t, gosnmp.Version2c, params.Version)
+
+	authentication = snmp.Authentication{
 		User: "admin",
 	}
 	params, _ = authentication.BuildSNMPParams("192.168.0.2", 0)
