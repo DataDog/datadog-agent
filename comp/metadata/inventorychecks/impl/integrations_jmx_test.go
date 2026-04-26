@@ -5,7 +5,7 @@
 
 //go:build jmx
 
-package inventorycheckimpl
+package inventorychecksimpl
 
 import (
 	"testing"

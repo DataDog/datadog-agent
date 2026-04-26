@@ -5,8 +5,8 @@
 
 //go:build jmx
 
-// Package inventorycheckimpl implements the inventorychecks component interface.
-package inventorycheckimpl
+// Package inventorychecksimpl implements the inventorychecks component interface.
+package inventorychecksimpl
 
 import (
 	"fmt"

@@ -7,13 +7,13 @@
 package fx
 
 import (
-	inventorycheckimpl "github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/impl"
+	inventorychecksimpl "github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(inventorycheckimpl.NewComponent),
+		fxutil.ProvideComponentConstructor(inventorychecksimpl.NewComponent),
 	)
 }
