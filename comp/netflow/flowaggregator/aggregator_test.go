@@ -62,6 +62,12 @@ func (c *capturingNPCollector) ScheduleNetworkPathTests(conns iter.Seq[npmodel.N
 	}
 }
 
+type droppingFlowFilter struct{}
+
+func (f droppingFlowFilter) Filter(_ common.FlushContext, _ []*common.Flow) []*common.Flow {
+	return nil
+}
+
 func TestFlowAggregator_scheduleNetworkPathForFlow(t *testing.T) {
 	sender := mocksender.NewMockSender("")
 	logger := logmock.New(t)
@@ -70,12 +76,13 @@ func TestFlowAggregator_scheduleNetworkPathForFlow(t *testing.T) {
 	aggregator := NewFlowAggregator(sender, nil, conf, "test-host", logger, nil, true, collector)
 
 	aggregator.scheduleNetworkPathForFlow(&common.Flow{
-		Namespace:  "netflow-ns",
-		SrcAddr:    []byte{10, 0, 0, 1},
-		DstAddr:    []byte{10, 0, 0, 2},
-		SrcPort:    12345,
-		DstPort:    161,
-		IPProtocol: 17,
+		Namespace:             "netflow-ns",
+		SrcAddr:               []byte{10, 0, 0, 1},
+		DstAddr:               []byte{10, 0, 0, 2},
+		SrcPort:               12345,
+		DstPort:               161,
+		IPProtocol:            17,
+		DstReverseDNSHostname: "dst-hostname.customer.com",
 	})
 
 	require.Len(t, collector.conns, 1)
@@ -83,7 +90,63 @@ func TestFlowAggregator_scheduleNetworkPathForFlow(t *testing.T) {
 	assert.Equal(t, netip.MustParseAddrPort("10.0.0.2:161"), collector.conns[0].Dest)
 	assert.Equal(t, "netflow-ns", collector.conns[0].Namespace)
 	assert.Equal(t, payload.PathOriginNetflow, collector.conns[0].Origin)
+	assert.Equal(t, "dst-hostname.customer.com", collector.conns[0].Domain)
 	assert.Equal(t, model.ConnectionType_udp, collector.conns[0].Type)
+	assert.Equal(t, model.ConnectionDirection_outgoing, collector.conns[0].Direction)
+}
+
+func TestFlowAggregator_flushSchedulesNetworkPathForFlushedFlow(t *testing.T) {
+	flushTime, _ := time.Parse(time.RFC3339, "2019-02-18T16:00:00Z")
+	sender := mocksender.NewMockSender("")
+	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("Commit").Return()
+
+	logger := logmock.New(t)
+	rdnsQuerier := fxutil.Test[rdnsquerier.Component](t, rdnsquerierfxmock.MockModule())
+	collector := &capturingNPCollector{}
+	conf := &config.NetflowConfig{
+		AggregatorFlushInterval:                1,
+		AggregatorPortRollupThreshold:          10,
+		AggregatorRollupTrackerRefreshInterval: 3600,
+	}
+	aggregator := NewFlowAggregator(sender, nil, conf, "test-host", logger, rdnsQuerier, true, collector)
+	aggregator.flowFilter = droppingFlowFilter{}
+
+	setMockTimeNow(flushTime)
+	aggregator.flowAcc.add(&common.Flow{
+		Namespace:      "netflow-ns",
+		FlowType:       common.TypeNetFlow9,
+		ExporterAddr:   []byte{127, 0, 0, 1},
+		StartTimestamp: 1234568,
+		EndTimestamp:   1234569,
+		Bytes:          20,
+		Packets:        4,
+		SrcAddr:        []byte{10, 0, 0, 1},
+		DstAddr:        []byte{10, 0, 0, 20},
+		IPProtocol:     uint32(6),
+		SrcPort:        12345,
+		DstPort:        443,
+		EtherType:      uint32(0x0800),
+	})
+
+	require.Empty(t, collector.conns)
+
+	flushedCount := aggregator.flush(common.FlushContext{
+		FlushTime:     flushTime,
+		LastFlushedAt: time.Time{},
+		NumFlushes:    1,
+	})
+
+	assert.Equal(t, 0, flushedCount)
+	require.Len(t, collector.conns, 1)
+	assert.Equal(t, netip.MustParseAddrPort("10.0.0.1:12345"), collector.conns[0].Source)
+	assert.Equal(t, netip.MustParseAddrPort("10.0.0.20:443"), collector.conns[0].Dest)
+	assert.Equal(t, "hostname-10.0.0.20", collector.conns[0].Domain)
+	assert.Equal(t, "netflow-ns", collector.conns[0].Namespace)
+	assert.Equal(t, payload.PathOriginNetflow, collector.conns[0].Origin)
+	assert.Equal(t, model.ConnectionType_tcp, collector.conns[0].Type)
 	assert.Equal(t, model.ConnectionDirection_outgoing, collector.conns[0].Direction)
 }
 

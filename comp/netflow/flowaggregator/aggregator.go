@@ -164,7 +164,6 @@ func (agg *FlowAggregator) run() {
 			return
 		case flow := <-agg.flowIn:
 			agg.receivedFlowCount.Inc()
-			agg.scheduleNetworkPathForFlow(flow)
 			agg.flowAcc.add(flow)
 		}
 	}
@@ -209,6 +208,7 @@ func (agg *FlowAggregator) scheduleNetworkPathForFlow(flow *common.Flow) {
 			Dest:      netip.AddrPortFrom(dstIP, dstPort),
 			Namespace: flow.Namespace,
 			Origin:    payload.PathOriginNetflow,
+			Domain:    flow.DstReverseDNSHostname,
 			Type:      connType,
 			Direction: model.ConnectionDirection_outgoing,
 			Family:    family,
@@ -345,6 +345,9 @@ func (agg *FlowAggregator) flush(ctx common.FlushContext) int {
 	flowsContexts := agg.flowAcc.getFlowContextCount()
 	flushTime := ctx.FlushTime
 	flowsToFlush := agg.flowAcc.flush(ctx)
+	for _, flow := range flowsToFlush {
+		agg.scheduleNetworkPathForFlow(flow)
+	}
 
 	// apply filtering
 	flowsBeforeFilter := len(flowsToFlush)
