@@ -183,6 +183,14 @@ func (s *streamHandler) HandleResponse(_ workloadmeta.Component, resp interface{
 	return collectorEvents, nil
 }
 
+func (s *streamHandler) IsResyncComplete(response interface{}) bool {
+	resp, ok := response.(*pb.WorkloadmetaStreamResponse)
+	if !ok {
+		return true
+	}
+	return resp.GetInitialSnapshotComplete()
+}
+
 func (s *streamHandler) HandleResync(store workloadmeta.Component, events []workloadmeta.CollectorEvent) {
 	entities := make([]workloadmeta.Entity, 0, len(events))
 	for _, event := range events {

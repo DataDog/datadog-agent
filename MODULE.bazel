@@ -99,6 +99,13 @@ git_override(
 git_override(
     module_name = "rules_rust",
     commit = "82506df3f31240f97194b2e9453022125eaa07f4",  # main as of April 21, 2026
+    patch_strip = 1,
+    patches = [
+        # Stops rustc_compile_action from leaking default_shell_env into
+        # CrateInfo.rustc_env, which otherwise clobbers cc_toolchain link_env
+        # for rust_test(crate = ...). Upstream issue pending.
+        "//bazel/patches:rules_rust-crateinfo-env-leak.patch",
+    ],
     remote = "https://github.com/bazelbuild/rules_rust.git",
 )
 
