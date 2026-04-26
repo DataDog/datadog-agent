@@ -1,0 +1,9 @@
+"""toolchain to wrap the install_name_tool binary.
+
+Type: @install_name_tool//:install_name_tool_toolchain_type
+
+Toolchains:
+- @install_name_tool//:install_name_tool_toolchain: provides the tool
+- @install_name_tool//:install_name_tool_missing_toolchain: provides a fallback toolchain for
+  exec platforms where install_name_tool might not be available.
+"""

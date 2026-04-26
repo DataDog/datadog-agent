@@ -1,13 +1,13 @@
-"""toolchain to provide an otool binary."""
+"""toolchain to provide the {TOOL_NAME} binary."""
 
 load("@@//bazel/toolchains:toolchain_info.bzl", "ToolInfo")
 
-def _otool_toolchain_impl(ctx):
+def _{TOOL_NAME}_toolchain_impl(ctx):
     if ctx.attr.label and ctx.attr.path:
-        fail("otool_toolchain must not specify both label and path.")
+        fail("{TOOL_NAME}_toolchain must not specify both label and path.")
     valid = bool(ctx.attr.label) or bool(ctx.attr.path)
     toolchain_info = platform_common.ToolchainInfo(
-        otool = ToolInfo(
+        {TOOL_NAME} = ToolInfo(
             name = str(ctx.label),
             valid = valid,
             label = ctx.attr.label,
@@ -17,8 +17,8 @@ def _otool_toolchain_impl(ctx):
     )
     return [toolchain_info]
 
-otool_toolchain = rule(
-    implementation = _otool_toolchain_impl,
+{TOOL_NAME}_toolchain = rule(
+    implementation = _{TOOL_NAME}_toolchain_impl,
     attrs = {
         "label": attr.label(
             doc = "A valid label of a target to build or a prebuilt binary. Mutually exclusive with path.",
@@ -35,15 +35,17 @@ otool_toolchain = rule(
     },
 )
 
-# Expose the presence of otool in the resolved toolchain as a flag.
-def _is_otool_available_impl(ctx):
-    toolchain = ctx.toolchains["@@//bazel/toolchains/otool:otool_toolchain_type"].otool
+# Expose the presence of {TOOL_NAME} in the resolved toolchain as a flag.
+# The signal is to look at the default toolchain of the {TOOL_NAME}_toolchan_type
+# and see that it is valid (that is, it has a path).
+def _is_{TOOL_NAME}_available_impl(ctx):
+    toolchain = ctx.toolchains["@{TOOL_NAME}//:{TOOL_NAME}_toolchain_type"].{TOOL_NAME}
     return [config_common.FeatureFlagInfo(
         value = ("1" if toolchain.valid else "0"),
     )]
 
-is_otool_available = rule(
-    implementation = _is_otool_available_impl,
+is_{TOOL_NAME}_available = rule(
+    implementation = _is_{TOOL_NAME}_available_impl,
     attrs = {},
-    toolchains = ["@@//bazel/toolchains/otool:otool_toolchain_type"],
+    toolchains = ["@{TOOL_NAME}//:{TOOL_NAME}_toolchain_type"],
 )
