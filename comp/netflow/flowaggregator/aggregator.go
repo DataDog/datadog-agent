@@ -59,7 +59,6 @@ type FlowAggregator struct {
 	goflowPrometheusGatherer     prometheus.Gatherer
 	TimeNowFunction              func() time.Time // Allows to mock time in tests
 	NewTicker                    func(duration time.Duration) <-chan time.Time
-	networkPathEnabled           bool
 	npCollector                  npcollector.Component
 
 	lastSequencePerExporter   map[sequenceDeltaKey]uint32
@@ -95,7 +94,7 @@ var maxNegativeSequenceDiffToReset = map[common.FlowType]int{
 }
 
 // NewFlowAggregator returns a new FlowAggregator
-func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder, config *config.NetflowConfig, hostname string, logger log.Component, rdnsQuerier rdnsquerier.Component, networkPathEnabled bool, npCollector npcollector.Component) *FlowAggregator {
+func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder, config *config.NetflowConfig, hostname string, logger log.Component, rdnsQuerier rdnsquerier.Component, npCollector npcollector.Component) *FlowAggregator {
 	flushConfig := common.FlushConfig{
 		FlowCollectionDuration: time.Duration(config.AggregatorFlushInterval) * time.Second,
 		FlushTickFrequency:     flushFlowsToSendInterval,
@@ -128,7 +127,6 @@ func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder
 		goflowPrometheusGatherer:     prometheus.DefaultGatherer,
 		TimeNowFunction:              time.Now,
 		NewTicker:                    time.Tick,
-		networkPathEnabled:           networkPathEnabled,
 		npCollector:                  npCollector,
 		lastSequencePerExporter:      make(map[sequenceDeltaKey]uint32),
 		logger:                       logger,
@@ -171,7 +169,7 @@ func (agg *FlowAggregator) run() {
 }
 
 func (agg *FlowAggregator) scheduleNetworkPathForFlow(flow *common.Flow) {
-	if !agg.networkPathEnabled || agg.npCollector == nil || flow == nil {
+	if agg.npCollector == nil || flow == nil {
 		return
 	}
 

@@ -34,6 +34,20 @@ func TestNetworkPathCollectorEnabled(t *testing.T) {
 	assert.True(t, config.networkPathCollectorEnabled())
 }
 
+func TestMonitoringEnabledForOrigin(t *testing.T) {
+	config := &collectorConfigs{
+		connectionsMonitoringEnabled: true,
+		netflowMonitoringEnabled:     false,
+	}
+	assert.True(t, config.monitoringEnabledForOrigin(""))
+	assert.True(t, config.monitoringEnabledForOrigin(payload.PathOriginNetworkTraffic))
+	assert.False(t, config.monitoringEnabledForOrigin(payload.PathOriginNetflow))
+
+	config.netflowMonitoringEnabled = true
+	assert.True(t, config.monitoringEnabledForOrigin(payload.PathOriginNetflow))
+	assert.False(t, config.monitoringEnabledForOrigin(payload.PathOriginNetworkPathIntegration))
+}
+
 func TestNewConfig(t *testing.T) {
 	tests := []struct {
 		name           string
