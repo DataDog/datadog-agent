@@ -5,7 +5,11 @@
 
 package flowaggregator
 
-import model "github.com/DataDog/agent-payload/v5/process"
+import (
+	"strings"
+
+	model "github.com/DataDog/agent-payload/v5/process"
+)
 
 func netflowProtocolToConnectionType(ipProtocol uint32) (model.ConnectionType, bool) {
 	switch ipProtocol {
@@ -23,4 +27,8 @@ func toUint16Port(port int32) (uint16, bool) {
 		return 0, false
 	}
 	return uint16(port), true
+}
+
+func normalizeReverseDNSHostname(hostname string) string {
+	return strings.TrimSuffix(hostname, ".")
 }

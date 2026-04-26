@@ -208,7 +208,7 @@ func (agg *FlowAggregator) scheduleNetworkPathForFlow(flow *common.Flow) {
 			Dest:      netip.AddrPortFrom(dstIP, dstPort),
 			Namespace: flow.Namespace,
 			Origin:    payload.PathOriginNetflow,
-			Domain:    flow.DstReverseDNSHostname,
+			Domain:    normalizeReverseDNSHostname(flow.DstReverseDNSHostname),
 			Type:      connType,
 			Direction: model.ConnectionDirection_outgoing,
 			Family:    family,

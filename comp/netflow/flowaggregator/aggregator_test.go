@@ -82,7 +82,7 @@ func TestFlowAggregator_scheduleNetworkPathForFlow(t *testing.T) {
 		SrcPort:               12345,
 		DstPort:               161,
 		IPProtocol:            17,
-		DstReverseDNSHostname: "dst-hostname.customer.com",
+		DstReverseDNSHostname: "dst-hostname.customer.com.",
 	})
 
 	require.Len(t, collector.conns, 1)
