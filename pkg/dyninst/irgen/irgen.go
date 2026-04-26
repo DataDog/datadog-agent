@@ -5118,6 +5118,32 @@ func coerceLiteral(value any, targetKind reflect.Kind, byteSize uint32) ([]byte,
 	return litData, nil
 }
 
+// isNilComparable reports whether t can be compared against a null literal.
+// All supported types have a pointer at the start of their in-memory
+// representation whose zero value coincides with Go's `== nil` semantics:
+//
+//   - *T (PointerType): the pointer itself (8 bytes).
+//   - unsafe.Pointer (VoidPointerType): 8-byte pointer.
+//   - map (GoMapType): pointer to the map header (8 bytes).
+//   - slice (GoSliceHeaderType): 24-byte header; the leading 8 bytes are
+//     the data pointer, which matches Go's `s == nil` check.
+//   - interface (GoInterfaceType / GoEmptyInterfaceType): 16-byte header;
+//     the leading 8 bytes are the itab/type-descriptor pointer, which
+//     matches Go's `i == nil` rule (a typed nil pointer in an interface is
+//     not equal to nil because the type slot is populated).
+func isNilComparable(t ir.Type) bool {
+	switch t.(type) {
+	case *ir.PointerType,
+		*ir.VoidPointerType,
+		*ir.GoMapType,
+		*ir.GoSliceHeaderType,
+		*ir.GoEmptyInterfaceType,
+		*ir.GoInterfaceType:
+		return true
+	}
+	return false
+}
+
 // resolveEqComparison builds comparison ops for an equality check.
 // Returns a bool-typed Expression without ConditionCheckOp.
 func resolveEqComparison(
@@ -5127,6 +5153,31 @@ func resolveEqComparison(
 ) (ir.Expression, error) {
 	lhsType := lhsExpr.Type
 	ops := lhsExpr.Operations
+
+	// Null-literal comparison: supported for pointers, maps, slices, and
+	// interfaces. For all four we compare the first 8 bytes of the value
+	// against zero — see isNilComparable for the layout details.
+	if litExpr.Value == nil {
+		if !isNilComparable(lhsType) {
+			return ir.Expression{}, fmt.Errorf(
+				"eq: type %s cannot be compared to null",
+				lhsType.GetName(),
+			)
+		}
+		ops = append(ops, &ir.ExprPushOffsetOp{ByteSize: 8})
+		ops = append(ops, &ir.ExprLoadLiteralOp{Data: make([]byte, 8)})
+		ops = append(ops, &ir.ExprCmpEqBaseOp{ByteSize: 8})
+		boolType := tc.typesByID[tc.boolType]
+		return ir.Expression{Type: boolType, Operations: ops}, nil
+	}
+
+	// Non-null literal against a nullable-only type: reject up front.
+	if isNilComparable(lhsType) {
+		return ir.Expression{}, fmt.Errorf(
+			"eq: type %s can only be compared to null",
+			lhsType.GetName(),
+		)
+	}
 
 	// Check if LHS is a string type.
 	if _, isString := lhsType.(*ir.GoStringHeaderType); isString {

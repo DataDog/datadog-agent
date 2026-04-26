@@ -197,7 +197,7 @@ func TestCollection(t *testing.T) {
 		core.MockBundle(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
-	server := &serverSecure{workloadmetaServer: server.NewServer(mockServerStore)}
+	server := &serverSecure{workloadmetaServer: server.NewServer(mockServerStore, 6<<20)}
 
 	// gRPC server
 	grpcServer := grpc.NewServer(grpc.Creds(credentials.NewTLS(ipcComp.GetTLSServerConfig())))
