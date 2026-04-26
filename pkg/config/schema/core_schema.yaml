@@ -9222,6 +9222,16 @@ properties:
             example: 'false'
             tags:
             - template_section:CoreAgent
+          reverse_dns_enrichment_public_ips_enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            visibility: public
+            description: Set to true to allow NetFlow reverse DNS enrichment to
+              query public source and destination IP addresses too.
+            example: 'false'
+            tags:
+            - template_section:CoreAgent
           aggregator_buffer_size:
             node_type: setting
             tags:

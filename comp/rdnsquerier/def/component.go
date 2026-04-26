@@ -19,9 +19,17 @@ type ReverseDNSResult struct {
 	Err      error
 }
 
+// LookupOptions controls reverse DNS lookup behavior for a specific caller.
+type LookupOptions struct {
+	AllowPublic bool
+}
+
 // Component is the component type.
 type Component interface {
 	GetHostnameAsync([]byte, func(string), func(string, error)) error
+	GetHostnameAsyncWithOptions([]byte, LookupOptions, func(string), func(string, error)) error
 	GetHostname(context.Context, string) (string, error)
+	GetHostnameWithOptions(context.Context, string, LookupOptions) (string, error)
 	GetHostnames(context.Context, []string) map[string]ReverseDNSResult
+	GetHostnamesWithOptions(context.Context, []string, LookupOptions) map[string]ReverseDNSResult
 }

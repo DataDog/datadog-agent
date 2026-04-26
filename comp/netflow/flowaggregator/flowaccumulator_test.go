@@ -96,7 +96,7 @@ func Test_flowAccumulator_add(t *testing.T) {
 	flushConfig := common.FlushConfig{
 		FlowCollectionDuration: common.DefaultAggregatorFlushInterval * time.Second,
 	}
-	acc := newFlowAccumulator(flushConfig, ImmediateFlowScheduler{flushConfig: flushConfig}, common.DefaultAggregatorFlushInterval, common.DefaultAggregatorPortRollupThreshold, false, logger, rdnsQuerier)
+	acc := newFlowAccumulator(flushConfig, ImmediateFlowScheduler{flushConfig: flushConfig}, common.DefaultAggregatorFlushInterval, common.DefaultAggregatorPortRollupThreshold, false, logger, rdnsQuerier, rdnsquerier.LookupOptions{})
 	acc.add(flowA1)
 	acc.add(flowA2)
 	acc.add(flowB1)
@@ -147,7 +147,7 @@ func Test_flowAccumulator_addWithJitter(t *testing.T) {
 	flushConfig := common.FlushConfig{
 		FlowCollectionDuration: common.DefaultAggregatorFlushInterval * time.Second,
 	}
-	acc := newFlowAccumulator(flushConfig, JitterFlowScheduler{flushConfig: flushConfig}, common.DefaultAggregatorFlushInterval, common.DefaultAggregatorPortRollupThreshold, false, logger, rdnsQuerier)
+	acc := newFlowAccumulator(flushConfig, JitterFlowScheduler{flushConfig: flushConfig}, common.DefaultAggregatorFlushInterval, common.DefaultAggregatorPortRollupThreshold, false, logger, rdnsQuerier, rdnsquerier.LookupOptions{})
 	setMockTimeNow(MockTimeNow())
 	acc.add(flowA1)
 
@@ -221,7 +221,7 @@ func Test_flowAccumulator_portRollUp(t *testing.T) {
 	flushConfig := common.FlushConfig{
 		FlowCollectionDuration: common.DefaultAggregatorFlushInterval * time.Second,
 	}
-	acc := newFlowAccumulator(flushConfig, ImmediateFlowScheduler{flushConfig: flushConfig}, common.DefaultAggregatorFlushInterval*time.Second, 3, false, logger, rdnsQuerier)
+	acc := newFlowAccumulator(flushConfig, ImmediateFlowScheduler{flushConfig: flushConfig}, common.DefaultAggregatorFlushInterval*time.Second, 3, false, logger, rdnsQuerier, rdnsquerier.LookupOptions{})
 	acc.add(flowA1)
 	acc.add(flowA2)
 
@@ -301,7 +301,7 @@ func Test_flowAccumulator_flush(t *testing.T) {
 	flushConfig := common.FlushConfig{
 		FlowCollectionDuration: flushInterval,
 	}
-	acc := newFlowAccumulator(flushConfig, ImmediateFlowScheduler{flushConfig: flushConfig}, flowContextTTL, common.DefaultAggregatorPortRollupThreshold, false, logger, rdnsQuerier)
+	acc := newFlowAccumulator(flushConfig, ImmediateFlowScheduler{flushConfig: flushConfig}, flowContextTTL, common.DefaultAggregatorPortRollupThreshold, false, logger, rdnsQuerier, rdnsquerier.LookupOptions{})
 	acc.add(flow)
 
 	// Then
@@ -448,7 +448,7 @@ func Test_flowAccumulator_detectHashCollision(t *testing.T) {
 	flushConfig := common.FlushConfig{
 		FlowCollectionDuration: flushInterval,
 	}
-	acc := newFlowAccumulator(flushConfig, ImmediateFlowScheduler{flushConfig: flushConfig}, flowContextTTL, common.DefaultAggregatorPortRollupThreshold, false, logger, rdnsQuerier)
+	acc := newFlowAccumulator(flushConfig, ImmediateFlowScheduler{flushConfig: flushConfig}, flowContextTTL, common.DefaultAggregatorPortRollupThreshold, false, logger, rdnsQuerier, rdnsquerier.LookupOptions{})
 
 	// Then
 	assert.Equal(t, uint64(0), acc.hashCollisionFlowCount.Load())
@@ -468,4 +468,33 @@ func Test_flowAccumulator_detectHashCollision(t *testing.T) {
 	aggHash3 := flowB1.AggregationHash()
 	acc.detectHashCollision(aggHash3, *flowA1, *flowB1)
 	assert.Equal(t, uint64(1), acc.hashCollisionFlowCount.Load())
+}
+
+func Test_flowAccumulator_addRDNSEnrichmentAllowsPublicIPsWhenConfigured(t *testing.T) {
+	logger := logmock.New(t)
+	rdnsQuerier := fxutil.Test[rdnsquerier.Component](t, rdnsquerierfxmock.MockModule())
+	flow := &common.Flow{
+		FlowType:       common.TypeNetFlow9,
+		ExporterAddr:   []byte{127, 0, 0, 1},
+		StartTimestamp: 1234568,
+		EndTimestamp:   1234569,
+		Bytes:          20,
+		Packets:        4,
+		SrcAddr:        []byte{8, 8, 8, 8},
+		DstAddr:        []byte{1, 1, 1, 8},
+		IPProtocol:     uint32(6),
+		SrcPort:        2000,
+		DstPort:        80,
+	}
+
+	flushConfig := common.FlushConfig{
+		FlowCollectionDuration: common.DefaultAggregatorFlushInterval * time.Second,
+	}
+	acc := newFlowAccumulator(flushConfig, ImmediateFlowScheduler{flushConfig: flushConfig}, common.DefaultAggregatorFlushInterval, common.DefaultAggregatorPortRollupThreshold, false, logger, rdnsQuerier, rdnsquerier.LookupOptions{AllowPublic: true})
+	acc.add(flow)
+
+	wrappedFlow := acc.flows[flow.AggregationHash()]
+	require.NotNil(t, wrappedFlow.flow)
+	assert.Equal(t, "hostname-8.8.8.8", wrappedFlow.flow.SrcReverseDNSHostname)
+	assert.Equal(t, "hostname-1.1.1.8", wrappedFlow.flow.DstReverseDNSHostname)
 }

@@ -675,6 +675,13 @@ func TestNetworkPathDefaults(t *testing.T) {
 	assert.Equal(t, false, config.GetBool("network_path.netflow_monitoring.enabled"))
 }
 
+func TestNetworkDevicesNetFlowDefaults(t *testing.T) {
+	config := confFromYAML(t, "")
+
+	assert.Equal(t, false, config.GetBool("network_devices.netflow.reverse_dns_enrichment_enabled"))
+	assert.Equal(t, false, config.GetBool("network_devices.netflow.reverse_dns_enrichment_public_ips_enabled"))
+}
+
 func TestInfrastructureModeNoneDisablesECSTaskCollection(t *testing.T) {
 	datadogYaml := `
 infrastructure_mode: none

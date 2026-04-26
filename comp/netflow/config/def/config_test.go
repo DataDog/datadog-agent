@@ -57,6 +57,7 @@ network_devices:
           my-ns2<abc
           zz
     reverse_dns_enrichment_enabled: true
+    reverse_dns_enrichment_public_ips_enabled: true
 `,
 			expectedConfig: NetflowConfig{
 				Enabled:                                true,
@@ -85,7 +86,8 @@ network_devices:
 						Namespace: "my-ns2-abczz",
 					},
 				},
-				ReverseDNSEnrichmentEnabled: true,
+				ReverseDNSEnrichmentEnabled:          true,
+				ReverseDNSEnrichmentPublicIPsEnabled: true,
 			},
 		},
 		{
@@ -115,7 +117,8 @@ network_devices:
 						Namespace: "default",
 					},
 				},
-				ReverseDNSEnrichmentEnabled: false,
+				ReverseDNSEnrichmentEnabled:          false,
+				ReverseDNSEnrichmentPublicIPsEnabled: false,
 			},
 		},
 		{
@@ -146,7 +149,8 @@ network_devices:
 						Namespace: "default",
 					},
 				},
-				ReverseDNSEnrichmentEnabled: false,
+				ReverseDNSEnrichmentEnabled:          false,
+				ReverseDNSEnrichmentPublicIPsEnabled: false,
 			},
 		},
 		{
@@ -211,7 +215,8 @@ network_devices:
 						},
 					},
 				},
-				ReverseDNSEnrichmentEnabled: false,
+				ReverseDNSEnrichmentEnabled:          false,
+				ReverseDNSEnrichmentPublicIPsEnabled: false,
 			},
 		},
 	}

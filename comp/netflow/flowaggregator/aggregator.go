@@ -114,7 +114,7 @@ func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder
 	rollupTrackerRefreshInterval := time.Duration(config.AggregatorRollupTrackerRefreshInterval) * time.Second
 	return &FlowAggregator{
 		flowIn:                       make(chan *common.Flow, config.AggregatorBufferSize),
-		flowAcc:                      newFlowAccumulator(flushConfig, flowScheduler, flowContextTTL, config.AggregatorPortRollupThreshold, config.AggregatorPortRollupDisabled, logger, rdnsQuerier),
+		flowAcc:                      newFlowAccumulator(flushConfig, flowScheduler, flowContextTTL, config.AggregatorPortRollupThreshold, config.AggregatorPortRollupDisabled, logger, rdnsQuerier, rdnsquerier.LookupOptions{AllowPublic: config.ReverseDNSEnrichmentPublicIPsEnabled}),
 		FlushConfig:                  flushConfig,
 		rollupTrackerRefreshInterval: rollupTrackerRefreshInterval,
 		sender:                       sender,
