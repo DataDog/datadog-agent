@@ -1,0 +1,11 @@
+# gazelle:ignore
+# gazelle:exclude collectors
+# gazelle:exclude defaults
+# gazelle:exclude fx
+# gazelle:exclude fx-mock
+# gazelle:exclude impl
+# gazelle:exclude init
+# gazelle:exclude mock
+# gazelle:exclude proto
+# gazelle:exclude server
+# gazelle:exclude telemetry

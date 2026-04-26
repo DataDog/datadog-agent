@@ -1,1 +1,15 @@
 # gazelle:ignore
+# gazelle:exclude config
+# gazelle:exclude constants
+# gazelle:exclude http
+# gazelle:exclude listeners
+# gazelle:exclude mapper
+# gazelle:exclude packets
+# gazelle:exclude pidmap
+# gazelle:exclude replay
+# gazelle:exclude server
+# gazelle:exclude serverDebug
+# gazelle:exclude statsd/def
+# gazelle:exclude statsd/mock
+# gazelle:exclude statsd/otel
+# gazelle:exclude status

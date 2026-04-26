@@ -1,1 +1,8 @@
 # gazelle:ignore
+# gazelle:exclude agentcrashdetect/fx
+# gazelle:exclude agentcrashdetect/impl
+# gazelle:exclude agentcrashdetect/mock
+# gazelle:exclude windowseventlog
+# gazelle:exclude winregistry/fx
+# gazelle:exclude winregistry/impl
+# gazelle:exclude winregistry/mock
