@@ -269,8 +269,15 @@ func (r *RequestStats) AddRequest(statusCode uint16, latency float64, staticTags
 
 // AddDiscoveryRequest records a transaction in discovery mode.
 // Status codes are collapsed to two buckets (200 = success, 500 = error)
-// and no DDSketch is created — only counters are tracked.
-func (r *RequestStats) AddDiscoveryRequest(statusCode uint16, staticTags uint64, dynamicTags common.StringSet) {
+// and no DDSketch is created — only counters and a running latency sum
+// are tracked.
+//
+// Note: in discovery mode FirstLatencySample is repurposed as a running
+// sum of latencies. The encoder converts this to an average at serialization
+// time (sum / Count) and sends it via the existing SetFirstLatencySample
+// wire field. This avoids adding a new struct field while reusing the
+// existing zero-valued slot in this mode.
+func (r *RequestStats) AddDiscoveryRequest(statusCode uint16, latency float64, staticTags uint64, dynamicTags common.StringSet) {
 	// Collapse all status codes into two buckets
 	bucket := uint16(200)
 	if statusCode >= 400 {
@@ -294,8 +301,7 @@ func (r *RequestStats) AddDiscoveryRequest(statusCode uint16, staticTags uint64,
 	}
 
 	stats.Count++
-	// No DDSketch, no latency tracking — discovery mode only needs
-	// topology (P0) and hit/error counts for visual indicators (P1).
+	stats.FirstLatencySample += latency
 }
 
 // HalfAllCounts sets the count of all stats for each status class to half their current value.

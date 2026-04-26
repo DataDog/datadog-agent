@@ -91,7 +91,7 @@ func TestDiscoveryMode_CollapsesPathsIntoSingleEntry(t *testing.T) {
 	}
 }
 
-func TestDiscoveryMode_NoLatencyTracking(t *testing.T) {
+func TestDiscoveryMode_NoDDSketch(t *testing.T) {
 	sk := newDiscoveryStatkeeper(t)
 
 	_, _ = processTransactions(sk, []int{200, 500})
@@ -99,8 +99,37 @@ func TestDiscoveryMode_NoLatencyTracking(t *testing.T) {
 	for _, rs := range sk.GetAndResetAllStats() {
 		for bucket, stat := range rs.Data {
 			assert.Nil(t, stat.Latencies, "bucket %d: no DDSketch in discovery mode", bucket)
-			assert.Zero(t, stat.FirstLatencySample, "bucket %d: no latency sample", bucket)
 		}
+	}
+}
+
+func TestDiscoveryMode_LatencySumAccumulates(t *testing.T) {
+	sk := newDiscoveryStatkeeper(t)
+
+	srcIP := util.AddressFromString(testClientIP)
+	dstIP := util.AddressFromString(testServerIP)
+
+	// Reference latency: capture what the generator/parser pair actually
+	// reports for a 1ms request. Platform timestamp conversion may round.
+	refTx := generateIPv4HTTPTransaction(srcIP, dstIP, testClientPort, testServerPort, "/probe", 200, time.Millisecond)
+	perTxLatency := refTx.RequestLatency()
+	require.Greater(t, perTxLatency, float64(0))
+
+	const numRequests = 3
+	for range numRequests {
+		tx := generateIPv4HTTPTransaction(srcIP, dstIP, testClientPort, testServerPort, "/x", 200, time.Millisecond)
+		sk.Process(tx)
+	}
+
+	stats := sk.GetAndResetAllStats()
+	require.Len(t, stats, 1)
+	for _, rs := range stats {
+		bucket := rs.Data[successBucket]
+		require.NotNil(t, bucket)
+		assert.Equal(t, numRequests, bucket.Count)
+		// FirstLatencySample is repurposed as a running sum in discovery mode.
+		assert.InDelta(t, perTxLatency*float64(numRequests), bucket.FirstLatencySample, 1.0,
+			"latency sum should equal numRequests * per-tx latency")
 	}
 }
 
