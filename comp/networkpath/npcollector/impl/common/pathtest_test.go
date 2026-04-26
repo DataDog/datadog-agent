@@ -93,7 +93,7 @@ func TestPathtest_GetHash_Netflow(t *testing.T) {
 		Protocol: payload.ProtocolUDP,
 	}
 
-	assert.Equal(t, udp53.GetHash(), udp1234.GetHash())
+	assert.NotEqual(t, udp53.GetHash(), udp1234.GetHash())
 	assert.NotEqual(t, tcp53.GetHash(), tcp1234.GetHash())
 	assert.NotEqual(t, udp53.GetHash(), otherNamespace.GetHash())
 	assert.NotEqual(t, udp53.GetHash(), networkTraffic.GetHash())
