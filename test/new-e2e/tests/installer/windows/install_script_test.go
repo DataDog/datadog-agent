@@ -64,6 +64,7 @@ func (s *testInstallScriptSuite) TestInstallIgnoreMajorMinor() {
 	// Assert
 	// should ignore params and install current agent version
 	s.Require().NoError(err)
+	s.Require().NoError(s.WaitForInstallerService("Running"))
 	s.Require().Host(s.Env().RemoteHost).
 		HasARunningDatadogInstallerService().
 		HasARunningDatadogAgentService().

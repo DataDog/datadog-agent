@@ -83,6 +83,8 @@ type RollbackDeploymentExecutor struct {
 	clientset kubernetes.Interface
 }
 
+var _ Executor = (*RollbackDeploymentExecutor)(nil)
+
 // NewRollbackDeploymentExecutor creates a new RollbackDeploymentExecutor
 func NewRollbackDeploymentExecutor(clientset kubernetes.Interface) *RollbackDeploymentExecutor {
 	return &RollbackDeploymentExecutor{

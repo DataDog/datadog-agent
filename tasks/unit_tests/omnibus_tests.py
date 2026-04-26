@@ -76,6 +76,7 @@ class TestOmnibusCache(unittest.TestCase):
             (r'git .*', Result()),
             (r'aws(\.exe)? s3 .*', Result()),
             (r'go mod .*', Result()),
+            (r'go run .*compress_schema\.go .*', Result()),
             (r'grep .*', Result()),
             (r'aws(\.exe)? ssm .*', Result()),
             (r'vault kv get .*', Result()),

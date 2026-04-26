@@ -196,6 +196,7 @@ modules:
   pkg/config/render_config:
     should_tag: false
     should_test_condition: never
+  pkg/config/schema: default
   pkg/config/setup:
     used_by_otel: true
   pkg/config/structure:

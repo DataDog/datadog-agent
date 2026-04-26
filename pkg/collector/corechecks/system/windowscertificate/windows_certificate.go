@@ -154,6 +154,12 @@ func (w *WinCertChk) Configure(senderManager sender.SenderManager, integrationCo
 		return err
 	}
 
+	s, err := w.GetSender()
+	if err != nil {
+		return err
+	}
+	s.FinalizeCheckServiceTag()
+
 	schemaString, err := createConfigSchema()
 	if err != nil {
 		return fmt.Errorf("failed to create config validation schema: %s", err)

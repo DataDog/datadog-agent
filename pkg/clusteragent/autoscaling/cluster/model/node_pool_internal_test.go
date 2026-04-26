@@ -55,8 +55,8 @@ func TestNewNodePoolInternal_KarpenterV1(t *testing.T) {
 	assert.Equal(t, map[string]string{"env": "prod"}, knp.Labels)
 	assert.Equal(t, map[string]string{"note": "managed"}, knp.Annotations)
 	assert.Equal(t, &weight, knp.Spec.Weight)
-	assert.Equal(t, map[string]string{"env": "prod"}, knp.Spec.Template.ObjectMeta.Labels)
-	assert.Equal(t, map[string]string{"note": "managed"}, knp.Spec.Template.ObjectMeta.Annotations)
+	assert.Empty(t, knp.Spec.Template.ObjectMeta.Labels)
+	assert.Empty(t, knp.Spec.Template.ObjectMeta.Annotations)
 }
 
 func TestNewNodePoolInternal_MissingManifest(t *testing.T) {
@@ -116,9 +116,32 @@ func TestBuildKarpenterNodePoolFromManifest(t *testing.T) {
 	assert.Equal(t, map[string]string{"foo": "bar"}, knp.Labels)
 	assert.Equal(t, map[string]string{"ann-key": "ann-val"}, knp.Annotations)
 	assert.Equal(t, &weight, knp.Spec.Weight)
-	assert.Equal(t, map[string]string{"foo": "bar"}, knp.Spec.Template.ObjectMeta.Labels)
-	assert.Equal(t, map[string]string{"ann-key": "ann-val"}, knp.Spec.Template.ObjectMeta.Annotations)
+	assert.Empty(t, knp.Spec.Template.ObjectMeta.Labels)
+	assert.Empty(t, knp.Spec.Template.ObjectMeta.Annotations)
 	assert.NotContains(t, knp.Labels, DatadogCreatedLabelKey)
+}
+
+func TestBuildKarpenterNodePoolFromManifest_WithTemplateMetadata(t *testing.T) {
+	kv1 := &KarpenterV1NodePool{
+		Metadata: Metadata{
+			Name:        "test-pool",
+			Labels:      Labels{{Key: "foo", Value: "bar"}},
+			Annotations: Annotations{{Key: "ann-key", Value: "ann-val"}},
+		},
+		TemplateMetadata: &Metadata{
+			Labels:      Labels{{Key: "node-label", Value: "node-val"}},
+			Annotations: Annotations{{Key: "node-ann", Value: "node-ann-val"}},
+		},
+		Spec: &karpenterv1.NodePoolSpec{},
+	}
+
+	knp := buildKarpenterNodePoolFromManifest(kv1)
+
+	require.NotNil(t, knp)
+	assert.Equal(t, map[string]string{"foo": "bar"}, knp.Labels)
+	assert.Equal(t, map[string]string{"ann-key": "ann-val"}, knp.Annotations)
+	assert.Equal(t, map[string]string{"node-label": "node-val"}, knp.Spec.Template.ObjectMeta.Labels)
+	assert.Equal(t, map[string]string{"node-ann": "node-ann-val"}, knp.Spec.Template.ObjectMeta.Annotations)
 }
 
 func TestBuildKarpenterNodePoolFromManifest_NilSpec(t *testing.T) {

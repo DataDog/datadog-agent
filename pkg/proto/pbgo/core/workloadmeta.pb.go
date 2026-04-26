@@ -2485,10 +2485,15 @@ func (x *WorkloadmetaEvent) GetContainerImageMetadata() *ContainerImageMetadata 
 }
 
 type WorkloadmetaStreamResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Events        []*WorkloadmetaEvent   `protobuf:"bytes,1,rep,name=events,proto3" json:"events,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Events []*WorkloadmetaEvent   `protobuf:"bytes,1,rep,name=events,proto3" json:"events,omitempty"`
+	// When true, this message is the last chunk of the initial full-state
+	// snapshot sent after a (re)connection. Clients that need to resync should
+	// accumulate events until they receive a response with this flag set, then
+	// apply the complete set atomically.
+	InitialSnapshotComplete bool `protobuf:"varint,2,opt,name=initial_snapshot_complete,json=initialSnapshotComplete,proto3" json:"initial_snapshot_complete,omitempty"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
 }
 
 func (x *WorkloadmetaStreamResponse) Reset() {
@@ -2526,6 +2531,13 @@ func (x *WorkloadmetaStreamResponse) GetEvents() []*WorkloadmetaEvent {
 		return x.Events
 	}
 	return nil
+}
+
+func (x *WorkloadmetaStreamResponse) GetInitialSnapshotComplete() bool {
+	if x != nil {
+		return x.InitialSnapshotComplete
+	}
+	return false
 }
 
 var File_datadog_workloadmeta_workloadmeta_proto protoreflect.FileDescriptor
@@ -2758,9 +2770,10 @@ const file_datadog_workloadmeta_workloadmeta_proto_rawDesc = "" +
 	"\aecsTask\x18\x04 \x01(\v2\x1d.datadog.workloadmeta.ECSTaskR\aecsTask\x127\n" +
 	"\aprocess\x18\x05 \x01(\v2\x1d.datadog.workloadmeta.ProcessR\aprocess\x12+\n" +
 	"\x03crd\x18\x06 \x01(\v2\x19.datadog.workloadmeta.CrdR\x03crd\x12d\n" +
-	"\x16containerImageMetadata\x18\a \x01(\v2,.datadog.workloadmeta.ContainerImageMetadataR\x16containerImageMetadata\"]\n" +
+	"\x16containerImageMetadata\x18\a \x01(\v2,.datadog.workloadmeta.ContainerImageMetadataR\x16containerImageMetadata\"\x99\x01\n" +
 	"\x1aWorkloadmetaStreamResponse\x12?\n" +
-	"\x06events\x18\x01 \x03(\v2'.datadog.workloadmeta.WorkloadmetaEventR\x06events*w\n" +
+	"\x06events\x18\x01 \x03(\v2'.datadog.workloadmeta.WorkloadmetaEventR\x06events\x12:\n" +
+	"\x19initial_snapshot_complete\x18\x02 \x01(\bR\x17initialSnapshotComplete*w\n" +
 	"\x10WorkloadmetaKind\x12\r\n" +
 	"\tCONTAINER\x10\x00\x12\x12\n" +
 	"\x0eKUBERNETES_POD\x10\x01\x12\f\n" +

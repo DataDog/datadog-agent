@@ -276,12 +276,12 @@ func getListeners(cfg model.Reader) (tcpFD int, listeners map[string]uintptr, er
 	// the loader needs to initialize the sockets in the same way as the trace-agent
 
 	traceCfgReceiverHost := "localhost"
-	if cfg.IsSet("bind_host") || cfg.IsSet("apm_config.apm_non_local_traffic") {
+	if cfg.IsSet("bind_host") || cfg.IsConfigured("apm_config.apm_non_local_traffic") {
 		if cfg.IsSet("bind_host") {
 			traceCfgReceiverHost = cfg.GetString("bind_host")
 		}
 
-		if cfg.IsSet("apm_config.apm_non_local_traffic") && cfg.GetBool("apm_config.apm_non_local_traffic") {
+		if cfg.IsConfigured("apm_config.apm_non_local_traffic") && cfg.GetBool("apm_config.apm_non_local_traffic") {
 			traceCfgReceiverHost = "0.0.0.0"
 		}
 	} else if env.IsContainerized() {

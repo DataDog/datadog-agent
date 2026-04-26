@@ -12,16 +12,19 @@ import (
 	"fmt"
 
 	kubeactions "github.com/DataDog/agent-payload/v5/kubeactions"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // PatchDeploymentExecutor executes patch deployment actions
 type PatchDeploymentExecutor struct {
 	clientset kubernetes.Interface
 }
+
+var _ Executor = (*PatchDeploymentExecutor)(nil)
 
 // NewPatchDeploymentExecutor creates a new PatchDeploymentExecutor
 func NewPatchDeploymentExecutor(clientset kubernetes.Interface) *PatchDeploymentExecutor {

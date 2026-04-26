@@ -1,0 +1,34 @@
+Do not leak ctx.configuration.default_shell_env into CrateInfo.rustc_env.
+
+At the tail of rustc_compile_action, CrateInfo is re-created with
+`rustc_env = env`. But `env` was built as `dict(default_shell_env) +
+env_from_args`, so it carries the host's default_shell_env (PATH, LIB,
+INCLUDE, ...) on top of the rustc-specific env. Every downstream consumer
+that inherits crate_info.rustc_env (notably rust_test(crate = ...)) then
+picks up the host env, and at its own compile time the inherited values
+clobber cc_toolchain's link_env -- because construct_arguments applies
+link_env first (line ~1183) and crate_info.rustc_env after.
+
+Persisting only env_from_args keeps CrateInfo honest: Bazel re-injects
+default_shell_env at action execution time anyway, so there is no reason
+to bake it into provider state.
+
+Upstream issue: https://github.com/bazelbuild/rules_rust/issues/TBD
+
+diff --git a/rust/private/rustc.bzl b/rust/private/rustc.bzl
+index f43ddaba67abb9b27f840b7d984c4cafd3147c29..dc30e62545a6778315c30237a3895a63911babb9 100644
+--- a/rust/private/rustc.bzl
++++ b/rust/private/rustc.bzl
+@@ -1797,8 +1797,11 @@ def rustc_compile_action(
+         )
+ 
+     if crate_info_dict != None:
++        # Persist only rustc-specific env; `env` above also carries default_shell_env
++        # which must not leak through CrateInfo (it would clobber cc_toolchain
++        # link_env in downstream rust_test(crate = ...)).
+         crate_info_dict.update({
+-            "rustc_env": env,
++            "rustc_env": env_from_args,
+         })
+         crate_info = rust_common.create_crate_info(
+             deps = depset(deps),

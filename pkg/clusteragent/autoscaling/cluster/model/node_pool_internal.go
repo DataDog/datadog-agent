@@ -53,6 +53,7 @@ func buildKarpenterNodePoolFromManifest(kv1 *KarpenterV1NodePool) *karpenterv1.N
 		log.Debugf("KarpenterV1NodePool %q has nil spec, skipping manifest path", kv1.Metadata.Name)
 		return nil
 	}
+
 	labels := make(map[string]string, len(kv1.Metadata.Labels))
 	for _, kv := range kv1.Metadata.Labels {
 		labels[kv.Key] = kv.Value
@@ -61,27 +62,24 @@ func buildKarpenterNodePoolFromManifest(kv1 *KarpenterV1NodePool) *karpenterv1.N
 	for _, kv := range kv1.Metadata.Annotations {
 		annotations[kv.Key] = kv.Value
 	}
-	// Merge top-level metadata into template metadata. Top-level acts as defaults;
-	// any keys already set in spec.Template.ObjectMeta take precedence.
+
+	// Handle template metadata labels/annotations
 	spec := *kv1.Spec
-	mergedTemplateLabels := make(map[string]string, len(labels))
-	for k, v := range labels {
-		mergedTemplateLabels[k] = v
+	if kv1.TemplateMetadata != nil {
+		templateLabels := make(map[string]string, len(kv1.TemplateMetadata.Labels))
+		for _, kv := range kv1.TemplateMetadata.Labels {
+			templateLabels[kv.Key] = kv.Value
+		}
+		templateAnnotations := make(map[string]string, len(kv1.TemplateMetadata.Annotations))
+		for _, kv := range kv1.TemplateMetadata.Annotations {
+			templateAnnotations[kv.Key] = kv.Value
+		}
+		spec.Template.ObjectMeta = karpenterv1.ObjectMeta{
+			Labels:      templateLabels,
+			Annotations: templateAnnotations,
+		}
 	}
-	for k, v := range spec.Template.ObjectMeta.Labels {
-		mergedTemplateLabels[k] = v
-	}
-	mergedTemplateAnnotations := make(map[string]string, len(annotations))
-	for k, v := range annotations {
-		mergedTemplateAnnotations[k] = v
-	}
-	for k, v := range spec.Template.ObjectMeta.Annotations {
-		mergedTemplateAnnotations[k] = v
-	}
-	spec.Template.ObjectMeta = karpenterv1.ObjectMeta{
-		Labels:      mergedTemplateLabels,
-		Annotations: mergedTemplateAnnotations,
-	}
+
 	return &karpenterv1.NodePool{
 		TypeMeta: metav1.TypeMeta{Kind: "NodePool", APIVersion: "karpenter.sh/v1"},
 		ObjectMeta: metav1.ObjectMeta{

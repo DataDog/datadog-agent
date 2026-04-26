@@ -206,6 +206,12 @@ func handleEvents[T any](collectorEvents []workloadmeta.CollectorEvent, setEvent
 	return collectorEvents
 }
 
+// IsResyncComplete always returns true because the process collector does not
+// use chunked snapshots.
+func (s *streamHandler) IsResyncComplete(_ interface{}) bool {
+	return true
+}
+
 func (s *streamHandler) HandleResync(store workloadmeta.Component, events []workloadmeta.CollectorEvent) {
 	var processes []workloadmeta.Entity
 	for _, event := range events {
