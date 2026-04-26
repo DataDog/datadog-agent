@@ -2123,6 +2123,17 @@ api_key:
 #
 #     enabled: true
 
+#   # @param netflow_monitoring - custom object - optional
+#   # Configurations for Network Path Dynamic Test for monitoring NetFlow destinations via Network Path.
+#
+#   netflow_monitoring:
+#
+#     # @param enabled - boolean - optional - default: false
+#     # @env DD_NETWORK_PATH_NETFLOW_MONITORING_ENABLED - boolean - optional - default: false
+#     # Enables Network Path Dynamic Test for monitoring NetFlow destinations via Network Path.
+#
+#     enabled: true
+
 #   # @param collector - custom object - optional
 #   # Configuration related to Network Path Collector used for Network Path Dynamic Test
 #   # to monitor network traffic connections on the host.

@@ -9,10 +9,12 @@ package flowaggregator
 import (
 	"encoding/json"
 	"net"
+	"net/netip"
 	"strings"
 	"sync"
 	"time"
 
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/comp/netflow/topn"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/atomic"
@@ -22,10 +24,13 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/netflow/format"
+	npcollector "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/def"
+	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 
@@ -54,6 +59,8 @@ type FlowAggregator struct {
 	goflowPrometheusGatherer     prometheus.Gatherer
 	TimeNowFunction              func() time.Time // Allows to mock time in tests
 	NewTicker                    func(duration time.Duration) <-chan time.Time
+	networkPathEnabled           bool
+	npCollector                  npcollector.Component
 
 	lastSequencePerExporter   map[sequenceDeltaKey]uint32
 	lastSequencePerExporterMu sync.Mutex
@@ -88,7 +95,7 @@ var maxNegativeSequenceDiffToReset = map[common.FlowType]int{
 }
 
 // NewFlowAggregator returns a new FlowAggregator
-func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder, config *config.NetflowConfig, hostname string, logger log.Component, rdnsQuerier rdnsquerier.Component) *FlowAggregator {
+func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder, config *config.NetflowConfig, hostname string, logger log.Component, rdnsQuerier rdnsquerier.Component, npCollector npcollector.Component) *FlowAggregator {
 	flushConfig := common.FlushConfig{
 		FlowCollectionDuration: time.Duration(config.AggregatorFlushInterval) * time.Second,
 		FlushTickFrequency:     flushFlowsToSendInterval,
@@ -121,6 +128,8 @@ func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder
 		goflowPrometheusGatherer:     prometheus.DefaultGatherer,
 		TimeNowFunction:              time.Now,
 		NewTicker:                    time.Tick,
+		networkPathEnabled:           config.NetworkPath.Enabled,
+		npCollector:                  npCollector,
 		lastSequencePerExporter:      make(map[sequenceDeltaKey]uint32),
 		logger:                       logger,
 		flowFilter:                   topNFilter,
@@ -155,9 +164,74 @@ func (agg *FlowAggregator) run() {
 			return
 		case flow := <-agg.flowIn:
 			agg.receivedFlowCount.Inc()
+			agg.scheduleNetworkPathForFlow(flow)
 			agg.flowAcc.add(flow)
 		}
 	}
+}
+
+func (agg *FlowAggregator) scheduleNetworkPathForFlow(flow *common.Flow) {
+	if !agg.networkPathEnabled || agg.npCollector == nil || flow == nil {
+		return
+	}
+
+	connType, ok := netflowProtocolToConnectionType(flow.IPProtocol)
+	if !ok {
+		return
+	}
+
+	srcIP, ok := netip.AddrFromSlice(flow.SrcAddr)
+	if !ok {
+		return
+	}
+	dstIP, ok := netip.AddrFromSlice(flow.DstAddr)
+	if !ok {
+		return
+	}
+
+	srcPort, ok := toUint16Port(flow.SrcPort)
+	if !ok {
+		return
+	}
+	dstPort, ok := toUint16Port(flow.DstPort)
+	if !ok {
+		return
+	}
+
+	family := model.ConnectionFamily_v4
+	if srcIP.Is6() || dstIP.Is6() {
+		family = model.ConnectionFamily_v6
+	}
+
+	agg.npCollector.ScheduleNetworkPathTests(func(yield func(npmodel.NetworkPathConnection) bool) {
+		yield(npmodel.NetworkPathConnection{
+			Source:    netip.AddrPortFrom(srcIP, srcPort),
+			Dest:      netip.AddrPortFrom(dstIP, dstPort),
+			Namespace: flow.Namespace,
+			Origin:    payload.PathOriginNetflow,
+			Type:      connType,
+			Direction: model.ConnectionDirection_outgoing,
+			Family:    family,
+		})
+	})
+}
+
+func netflowProtocolToConnectionType(ipProtocol uint32) (model.ConnectionType, bool) {
+	switch ipProtocol {
+	case 6:
+		return model.ConnectionType_tcp, true
+	case 17:
+		return model.ConnectionType_udp, true
+	default:
+		return 0, false
+	}
+}
+
+func toUint16Port(port int32) (uint16, bool) {
+	if port < 0 || port > 65535 {
+		return 0, false
+	}
+	return uint16(port), true
 }
 
 func (agg *FlowAggregator) sendFlows(flows []*common.Flow, flushTime time.Time) {

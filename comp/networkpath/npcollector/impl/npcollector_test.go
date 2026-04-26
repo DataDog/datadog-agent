@@ -39,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
+	tracerouterunner "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/runner"
 	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
 	utillog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -655,6 +656,30 @@ func Test_npCollectorImpl_ScheduleNetworkPathTests(t *testing.T) {
 			},
 			expectedPathtests: []*common.Pathtest{
 				{Hostname: "10.0.0.6", Port: uint16(0), Protocol: payload.ProtocolUDP, SourceContainerID: "testId1"},
+			},
+		},
+		{
+			name:         "one outgoing NetFlow UDP conn",
+			agentConfigs: defaultagentConfigs,
+			conns: []npmodel.NetworkPathConnection{
+				{
+					Source:    netip.MustParseAddrPort("10.0.0.5:30000"),
+					Dest:      netip.MustParseAddrPort("10.0.0.6:161"),
+					Namespace: "netflow-ns",
+					Origin:    payload.PathOriginNetflow,
+					Direction: model.ConnectionDirection_outgoing,
+					Type:      model.ConnectionType_udp,
+				},
+			},
+			expectedPathtests: []*common.Pathtest{
+				{
+					Hostname:  "10.0.0.6",
+					Port:      tracerouterunner.DefaultDestPort,
+					Protocol:  payload.ProtocolUDP,
+					Namespace: "netflow-ns",
+					Origin:    payload.PathOriginNetflow,
+					HashKey:   "netflow|netflow-ns|10.0.0.6|UDP",
+				},
 			},
 		},
 		{
@@ -1503,6 +1528,17 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 			shouldSchedule: true,
 		},
 		{
+			name: "should schedule netflow IP target without domain",
+			conn: npmodel.NetworkPathConnection{
+				Source:    netip.MustParseAddrPort("10.0.0.1:30000"),
+				Dest:      netip.MustParseAddrPort("10.0.0.2:53"),
+				Origin:    payload.PathOriginNetflow,
+				Direction: model.ConnectionDirection_outgoing,
+				Type:      model.ConnectionType_udp,
+			},
+			shouldSchedule: true,
+		},
+		{
 			name: "should not schedule incoming conn",
 			conn: npmodel.NetworkPathConnection{
 				Source:    netip.MustParseAddrPort("10.0.0.1:30000"),
@@ -1676,6 +1712,21 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 			connectionExcluded: true,
 		},
 		{
+			name: "exclusion: block netflow source with original source IP",
+			conn: npmodel.NetworkPathConnection{
+				Source:    netip.MustParseAddrPort("10.0.0.1:30000"),
+				Dest:      netip.MustParseAddrPort("10.0.0.2:53"),
+				Origin:    payload.PathOriginNetflow,
+				Direction: model.ConnectionDirection_outgoing,
+				Type:      model.ConnectionType_udp,
+			},
+			sourceExcludes: map[string][]string{
+				"10.0.0.1": {"30000-30005"},
+			},
+			shouldSchedule:     false,
+			connectionExcluded: true,
+		},
+		{
 			name: "exclusion: block dest subnet",
 			conn: npmodel.NetworkPathConnection{
 				Source:    netip.MustParseAddrPort("10.0.0.1:30000"),
@@ -1836,6 +1887,17 @@ func mustParseCIDR(t *testing.T, cidr string) netip.Prefix {
 	ipNet, err := netip.ParsePrefix(cidr)
 	assert.NoError(t, err)
 	return ipNet
+}
+
+func Test_netflowPathtestHashKey_UDPDoesNotUsePort(t *testing.T) {
+	assert.Equal(t,
+		netflowPathtestHashKey("ns1", "10.0.0.1", payload.ProtocolUDP, 53),
+		netflowPathtestHashKey("ns1", "10.0.0.1", payload.ProtocolUDP, 1234),
+	)
+	assert.NotEqual(t,
+		netflowPathtestHashKey("ns1", "10.0.0.1", payload.ProtocolTCP, 53),
+		netflowPathtestHashKey("ns1", "10.0.0.1", payload.ProtocolTCP, 1234),
+	)
 }
 
 func Test_npCollectorImpl_shouldScheduleNetworkPathForConn_subnets(t *testing.T) {

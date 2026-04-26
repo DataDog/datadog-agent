@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"iter"
 	"net/netip"
+	"strconv"
 	"sync"
 	"time"
 
@@ -32,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/networkfilter"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
+	tracerouterunner "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/runner"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
 	utillog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -133,6 +135,12 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 
 // makePathtest extracts pathtest information using a single connection and the connection check's reverse dns map
 func (s *npCollectorImpl) makePathtest(conn npmodel.NetworkPathConnection) common.Pathtest {
+	origin := conn.Origin
+	effectiveOrigin := origin
+	if effectiveOrigin == "" {
+		effectiveOrigin = payload.PathOriginNetworkTraffic
+	}
+
 	protocol := modelProtocolToPayload[conn.Type]
 	if s.collectorConfigs.icmpMode.ShouldUseICMP(protocol) {
 		protocol = payload.ProtocolICMP
@@ -142,6 +150,8 @@ func (s *npCollectorImpl) makePathtest(conn npmodel.NetworkPathConnection) commo
 	// only TCP traces can be done to the active port
 	if protocol == payload.ProtocolTCP {
 		remotePort = conn.Dest.Port()
+	} else if effectiveOrigin == payload.PathOriginNetflow && protocol == payload.ProtocolUDP {
+		remotePort = tracerouterunner.DefaultDestPort
 	}
 
 	hostname := conn.Dest.Addr().String()
@@ -149,15 +159,40 @@ func (s *npCollectorImpl) makePathtest(conn npmodel.NetworkPathConnection) commo
 		hostname = conn.Domain
 	}
 
-	return common.Pathtest{
+	pathtest := common.Pathtest{
 		Hostname:          hostname,
 		Port:              remotePort,
 		Protocol:          protocol,
 		SourceContainerID: conn.SourceContainerID,
+		Namespace:         conn.Namespace,
+		Origin:            origin,
 		Metadata: common.PathtestMetadata{
 			ReverseDNSHostname: conn.Domain,
 		},
 	}
+	if effectiveOrigin == payload.PathOriginNetflow {
+		pathtest.HashKey = netflowPathtestHashKey(conn.Namespace, hostname, protocol, remotePort)
+	}
+	return pathtest
+}
+
+func netflowPathtestHashKey(namespace, hostname string, protocol payload.Protocol, port uint16) string {
+	key := string(payload.PathOriginNetflow) + "|" + namespace + "|" + hostname + "|" + string(protocol)
+	if protocol == payload.ProtocolTCP {
+		return key + "|" + strconv.FormatUint(uint64(port), 10)
+	}
+	return key
+}
+
+func filterDomain(conn npmodel.NetworkPathConnection) string {
+	if conn.Domain != "" {
+		return conn.Domain
+	}
+	if conn.Origin == payload.PathOriginNetflow {
+		// NetFlow paths target IPs directly, so IP-only destinations must remain eligible for filtering.
+		return conn.Dest.Addr().String()
+	}
+	return ""
 }
 
 func doSubnetsContainIP(subnets []netip.Prefix, ip netip.Addr) bool {
@@ -222,7 +257,7 @@ func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn npmodel.NetworkP
 		return false
 	}
 
-	if !s.filter.IsIncluded(conn.Domain, conn.Dest.Addr()) {
+	if !s.filter.IsIncluded(filterDomain(conn), conn.Dest.Addr()) {
 		_ = s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_not_matched_by_filters"}, 1)
 		return false
 	}
@@ -246,7 +281,7 @@ func (s *npCollectorImpl) getVPCSubnets() ([]netip.Prefix, error) {
 }
 
 func (s *npCollectorImpl) ScheduleNetworkPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) {
-	if !s.collectorConfigs.connectionsMonitoringEnabled {
+	if !s.collectorConfigs.networkPathCollectorEnabled() {
 		return
 	}
 	vpcSubnets, err := s.getVPCSubnets()
@@ -371,7 +406,13 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 
 	path.Source.ContainerID = ptest.Pathtest.SourceContainerID
 	path.Namespace = s.networkDevicesNamespace
+	if ptest.Pathtest.Namespace != "" {
+		path.Namespace = ptest.Pathtest.Namespace
+	}
 	path.Origin = payload.PathOriginNetworkTraffic
+	if ptest.Pathtest.Origin != "" {
+		path.Origin = ptest.Pathtest.Origin
+	}
 	path.TestRunType = payload.TestRunTypeDynamic
 	path.SourceProduct = s.collectorConfigs.sourceProduct
 	path.CollectorType = payload.CollectorTypeAgent

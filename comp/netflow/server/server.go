@@ -15,12 +15,14 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	forwarder "github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/def"
 	nfconfig "github.com/DataDog/datadog-agent/comp/netflow/config/def"
 	"github.com/DataDog/datadog-agent/comp/netflow/flowaggregator"
+	npcollector "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/def"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	rdnsquerierimplnone "github.com/DataDog/datadog-agent/comp/rdnsquerier/impl-none"
 )
@@ -28,11 +30,13 @@ import (
 type dependencies struct {
 	fx.In
 	Config        nfconfig.Component
+	AgentConfig   coreconfig.Component
 	Logger        log.Component
 	Demultiplexer demultiplexer.Component
 	Forwarder     forwarder.Component
 	Hostname      hostname.Component
 	RDNSQuerier   rdnsquerier.Component
+	NPCollector   npcollector.Component `optional:"true"`
 }
 
 type provides struct {
@@ -62,8 +66,9 @@ func newServer(lc fx.Lifecycle, deps dependencies) (provides, error) {
 		rdnsQuerier = rdnsquerierimplnone.NewNone().Comp
 		deps.Logger.Infof("Reverse DNS Enrichment is disabled for NDM NetFlow")
 	}
+	conf.NetworkPath.Enabled = deps.AgentConfig.GetBool("network_path.netflow_monitoring.enabled")
 
-	flowAgg := flowaggregator.NewFlowAggregator(sender, deps.Forwarder, conf, deps.Hostname.GetSafe(context.Background()), deps.Logger, rdnsQuerier)
+	flowAgg := flowaggregator.NewFlowAggregator(sender, deps.Forwarder, conf, deps.Hostname.GetSafe(context.Background()), deps.Logger, rdnsQuerier, deps.NPCollector)
 
 	server := &Server{
 		config:  conf,

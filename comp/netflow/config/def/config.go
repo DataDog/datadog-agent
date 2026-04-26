@@ -33,7 +33,13 @@ type NetflowConfig struct {
 	PrometheusListenerAddress string `mapstructure:"prometheus_listener_address"` // Example `localhost:9090`
 	PrometheusListenerEnabled bool   `mapstructure:"prometheus_listener_enabled"`
 
-	ReverseDNSEnrichmentEnabled bool `mapstructure:"reverse_dns_enrichment_enabled"`
+	ReverseDNSEnrichmentEnabled bool              `mapstructure:"reverse_dns_enrichment_enabled"`
+	NetworkPath                 NetworkPathConfig `mapstructure:"-"`
+}
+
+// NetworkPathConfig contains runtime configuration injected from the shared network_path section.
+type NetworkPathConfig struct {
+	Enabled bool
 }
 
 // ListenerConfig contains configuration for a single flow listener
