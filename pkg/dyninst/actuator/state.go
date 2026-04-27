@@ -14,6 +14,7 @@ import (
 	"slices"
 	"time"
 
+	"golang.org/x/sys/unix"
 	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
@@ -58,8 +59,9 @@ type state struct {
 	// If true, the state machine is shutting down.
 	shuttingDown bool
 
-	breakerCfg    CircuitBreakerConfig
-	lastHeartbeat time.Time
+	breakerCfg        CircuitBreakerConfig
+	bufferEvictionCfg BufferEvictionConfig
+	lastHeartbeat     time.Time
 
 	// discoveredTypes tracks type names discovered at runtime via interface
 	// decoding, keyed by service name. Each value is a sorted, deduplicated
@@ -233,6 +235,7 @@ func newState(cfg Config) *state {
 			return p.id
 		}),
 		breakerCfg:             cfg.CircuitBreakerConfig,
+		bufferEvictionCfg:      cfg.BufferEvictionConfig,
 		lastHeartbeat:          time.Now(),
 		discoveredTypes:        make(map[string][]string),
 		discoveredTypesLimit:   cfg.DiscoveredTypesLimit,
@@ -253,6 +256,11 @@ type program struct {
 
 	// Stats collected from the last heartbeat, indexed by core.
 	lastRuntimeStats []loader.RuntimeStats
+
+	// lastAppliedLost is the most recent drop_notify_lost_at value for
+	// which we have already fired an eviction effect on this program's
+	// sink. Monotonic: only advances.
+	lastAppliedLost uint64
 
 	// The process with which this program is associated.
 	//
@@ -1153,6 +1161,7 @@ func checkCosts(sm *state, interval time.Duration, effects effectHandler) {
 			// Not attached.
 			continue
 		}
+		evaluateDropNotifyEviction(sm, prog)
 		perCoreStats := prog.loaded.loaded.RuntimeStats()
 		if len(prog.lastRuntimeStats) < len(perCoreStats) {
 			lastRuntimeStats := make([]loader.RuntimeStats, len(perCoreStats))
@@ -1229,6 +1238,39 @@ func checkCosts(sm *state, interval time.Duration, effects effectHandler) {
 			effects.detachFromProcess(proc.attachedProgram, err)
 		}
 	}
+}
+
+// nowKtimeNs returns the current kernel-monotonic time in nanoseconds —
+// the same clock source as bpf_ktime_get_ns. Overridden by tests.
+var nowKtimeNs = func() uint64 {
+	var ts unix.Timespec
+	if err := unix.ClockGettime(unix.CLOCK_MONOTONIC, &ts); err != nil {
+		// CLOCK_MONOTONIC always succeeds on Linux; fall back to 0.
+		return 0
+	}
+	return uint64(ts.Sec)*1_000_000_000 + uint64(ts.Nsec)
+}
+
+// evaluateDropNotifyEviction reads the BPF drop_notify_lost_at timestamp
+// for prog, and if it has advanced since the last observation AND the
+// grace window has elapsed, asks prog's sink to evict buffered entries
+// older than the lost timestamp.
+func evaluateDropNotifyEviction(sm *state, prog *program) {
+	gw := sm.bufferEvictionCfg.GraceWindow
+	if gw <= 0 {
+		return // eviction disabled
+	}
+	lostAt := prog.loaded.loaded.DropNotifyLostAt()
+	if lostAt == 0 || lostAt <= prog.lastAppliedLost {
+		return
+	}
+	now := nowKtimeNs()
+	if now < uint64(gw.Nanoseconds()) || lostAt > now-uint64(gw.Nanoseconds()) {
+		// Grace window hasn't elapsed yet; retry on the next poll.
+		return
+	}
+	prog.loaded.loaded.EvictBufferOlderThan(lostAt)
+	prog.lastAppliedLost = lostAt
 }
 
 func replenishRecompilationAllowance(sm *state, interval time.Duration) {

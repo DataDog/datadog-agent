@@ -1,0 +1,48 @@
+binary: drop_tester
+probes:
+  # Entry-only probe on CaptureBytes. Large maxLength so a payload of
+  # 40 KiB is captured (exceeds 32 KiB scratch buffer, forces continuation).
+  # High snapshotsPerSecond so hundreds of hits per scenario make it through
+  # (the default of 1/s would let only one hit per probe fire, which
+  # defeats the purpose of stress-testing drop behavior).
+  - id: capture_bytes
+    type: LOG_PROBE
+    where:
+      methodName: main.CaptureBytes
+    captureSnapshot: true
+    capture:
+      maxLength: 65536
+      maxCollectionSize: 65536
+      maxReferenceDepth: 3
+    sampling:
+      snapshotsPerSecond: 10000
+
+  # Paired entry + return probe on CaptureBytesReturn. Entry captures the
+  # payload; return captures the result. Separate sizes let the test drive
+  # drops on either side independently.
+  - id: capture_bytes_return
+    type: LOG_PROBE
+    where:
+      methodName: main.CaptureBytesReturn
+    captureSnapshot: true
+    capture:
+      maxLength: 65536
+      maxCollectionSize: 65536
+      maxReferenceDepth: 3
+    sampling:
+      snapshotsPerSecond: 10000
+
+  # Pointer-chasing probe on CaptureChain. The linked list crosses the
+  # scratch buffer quickly once the chain length exceeds about 100 nodes
+  # (each ~64 bytes), so this probe exercises the mid-chase flush path.
+  - id: capture_chain
+    type: LOG_PROBE
+    where:
+      methodName: main.CaptureChain
+    captureSnapshot: true
+    capture:
+      maxLength: 65536
+      maxCollectionSize: 65536
+      maxReferenceDepth: 4096
+    sampling:
+      snapshotsPerSecond: 10000

@@ -452,6 +452,10 @@ func (p *fakeLoadedProgram) setRuntimeStats(stats []loader.RuntimeStats) {
 	p.runtimeStats = append([]loader.RuntimeStats(nil), stats...)
 }
 
+func (*fakeLoadedProgram) DropNotifyLostAt() uint64 { return 0 }
+
+func (*fakeLoadedProgram) EvictBufferOlderThan(uint64) {}
+
 func (*fakeLoadedProgram) Close() error {
 	return nil
 }

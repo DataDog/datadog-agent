@@ -17,6 +17,17 @@ func InlinedFunc() {
 	dummy++
 }
 
+// InlinedInLaterCU is defined in lib but called only from lib.v2, which
+// is compiled into a CU that is emitted LATER in the binary than lib's
+// own CU. The Go compiler emits the abstract definition DIE for this
+// function into lib.v2's CU (the only CU that inlines it). symdb
+// processes lib's CU first and emits the lib package before it sees
+// lib.v2's CU — so without the cross-CU inline-instance index, this
+// function cannot be attached to lib at all.
+func InlinedInLaterCU() {
+	dummy++
+}
+
 // ImmutableSet is a generic immutable set. Calling Insert returns a new set,
 // mimicking the pattern from go-immutable-radix. When Insert is called in a
 // loop with reassignment (set, _ = set.Insert(k, v)), the Go compiler may

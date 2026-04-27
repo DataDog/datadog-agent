@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dispatcher"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/eventbuf"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/module/tombstone"
@@ -86,8 +87,10 @@ func NewModule(
 	return m, nil
 }
 
+// eventbufBudgetBytes is the per-process byte ceiling enforced across all
+// per-program event buffers. Matches the pre-Buffer pairing-store budget.
 // TODO: make this configurable.
-const bufferedMessagesByteLimit = 512 << 10
+const eventbufBudgetBytes = 512 << 10
 
 // tombstoneFilePath is the path to the tombstone file left behind to detect
 // crashes while loading programs. If empty, tombstone files are not
@@ -103,7 +106,6 @@ func newUnstartedModule(deps dependencies, tombstoneFilePath string) *Module {
 	store := newProcessStore()
 	logsUploader := logsUploaderFactoryImpl[LogsUploader]{factory: deps.LogsFactory}
 	diagnostics := newDiagnosticsManager(deps.DiagnosticsUploader)
-	bufferedMessagesTracker := newBufferedMessageTracker(bufferedMessagesByteLimit)
 	runtime := &runtimeImpl{
 		store:                    store,
 		diagnostics:              diagnostics,
@@ -116,7 +118,7 @@ func newUnstartedModule(deps dependencies, tombstoneFilePath string) *Module {
 		dispatcher:               deps.Dispatcher,
 		logsFactory:              logsUploader,
 		procRuntimeIDbyProgramID: &sync.Map{},
-		bufferedMessageTracker:   bufferedMessagesTracker,
+		eventbufBudget:           eventbuf.NewBudget(eventbufBudgetBytes),
 		tombstoneFilePath:        tombstoneFilePath,
 	}
 	deps.Actuator.SetRuntime(runtime)
@@ -257,7 +259,8 @@ func makeRealDependencies(
 	if err = unix.ClockGettime(unix.CLOCK_MONOTONIC, &ts); err != nil {
 		return ret, fmt.Errorf("error getting monotonic time: %w", err)
 	}
-	ret.dispatcher = dispatcher.NewDispatcher(ret.loader.OutputReader())
+	ret.dispatcher = dispatcher.NewDispatcher(
+		ret.loader.OutputReader(), ret.loader.DropNotifyReader())
 	ret.procSubscriber = procsubscribe.NewSubscriber(
 		remoteConfigSubscriber,
 	)

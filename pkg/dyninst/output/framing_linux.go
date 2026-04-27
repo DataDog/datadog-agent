@@ -12,12 +12,25 @@ type EventHeader struct {
 	Stack_byte_len            uint16
 	Event_pairing_expectation uint8
 	Condition_eval_error      uint8
-	X__padding                [4]int8
+	Continuation_seq          uint16
+	Continuation_flags        uint8
+	X__padding                [1]int8
 	Stack_hash                uint64
 	Ktime_ns                  uint64
+	Entry_ktime_ns            uint64
 }
 type DataItemHeader struct {
 	Type    uint32
 	Length  uint32
 	Address uint64
+}
+type DropNotification struct {
+	Prog_id          uint32
+	Probe_id         uint32
+	Goid             uint64
+	Stack_byte_depth uint32
+	Drop_reason      uint8
+	X__padding       [1]uint8
+	Last_seq         uint16
+	Entry_ktime_ns   uint64
 }
