@@ -86,8 +86,11 @@ type remoteagentImpl struct {
 }
 
 func (r *remoteagentImpl) GetStatusDetails(_ context.Context, _ *pbcore.GetStatusDetailsRequest) (*pbcore.GetStatusDetailsResponse, error) {
-	text, ok := statusregistry.GetText()
-	if !ok {
+	text, registered, err := statusregistry.GetTextOrError()
+	if !registered {
+		return &pbcore.GetStatusDetailsResponse{}, nil
+	}
+	if err != nil {
 		return &pbcore.GetStatusDetailsResponse{}, nil
 	}
 	return &pbcore.GetStatusDetailsResponse{

@@ -52,7 +52,9 @@ func newComplianceModule(_ *sysconfigtypes.Config, deps module.FactoryDependenci
 	runInSystemProbe := deps.CoreConfig.GetBool("compliance_config.run_in_system_probe")
 
 	if enabled && runInSystemProbe {
-		hostnameDetected, err := deps.Hostname.Get(context.Background())
+		hostnameCtx, hostnameCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer hostnameCancel()
+		hostnameDetected, err := deps.Hostname.Get(hostnameCtx)
 		if err != nil {
 			return nil, err
 		}
@@ -66,6 +68,7 @@ func newComplianceModule(_ *sysconfigtypes.Config, deps module.FactoryDependenci
 		}
 
 		if complianceAgent != nil {
+			log.Debug("compliance: registering status renderer for remote agent")
 			statusregistry.Set(complianceAgent.RenderStatusText)
 		}
 	}

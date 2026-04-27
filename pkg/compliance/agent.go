@@ -582,7 +582,7 @@ func (a *Agent) runTelemetry(ctx context.Context) {
 	}
 }
 
-func (a *Agent) getChecksStatus() interface{} {
+func (a *Agent) getChecksStatus() []*CheckStatus {
 	a.statusesMu.RLock()
 	defer a.statusesMu.RUnlock()
 	statuses := make([]*CheckStatus, 0, len(a.statuses))

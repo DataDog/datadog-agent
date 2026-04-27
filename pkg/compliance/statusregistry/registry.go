@@ -9,26 +9,33 @@
 // dependency on pkg/compliance from the component layer.
 package statusregistry
 
-import "sync/atomic"
+import "sync"
 
-var renderer atomic.Pointer[func() (string, error)]
+var (
+	mu       sync.RWMutex
+	renderer func() (string, error)
+)
 
 // Set registers fn as the compliance status renderer. Safe to call once at
 // startup; fn must remain safe to call concurrently after registration.
 func Set(fn func() (string, error)) {
-	renderer.Store(&fn)
+	mu.Lock()
+	defer mu.Unlock()
+	renderer = fn
 }
 
-// GetText calls the registered renderer and returns the rendered compliance
-// status text. Returns ("", false) if no renderer has been registered.
-func GetText() (string, bool) {
-	p := renderer.Load()
-	if p == nil {
-		return "", false
+// GetTextOrError calls the registered renderer and returns the text plus any
+// error from rendering, so callers can log the reason for failure.
+func GetTextOrError() (string, bool, error) {
+	mu.RLock()
+	fn := renderer
+	mu.RUnlock()
+	if fn == nil {
+		return "", false, nil
 	}
-	text, err := (*p)()
+	text, err := fn()
 	if err != nil {
-		return "", false
+		return "", true, err
 	}
-	return text, true
+	return text, true, nil
 }
