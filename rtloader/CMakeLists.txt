@@ -28,7 +28,7 @@ endif()
 option(ENABLE_SUBINTERPRETERS "Enable experimental Python sub-interpreter support (requires Python 3.13+)" OFF)
 
 if(ENABLE_SUBINTERPRETERS)
-  find_package(Python3 COMPONENTS Interpreter)
+  find_package(Python3 COMPONENTS Interpreter Development)
   if(Python3_VERSION VERSION_LESS "3.13")
     message(FATAL_ERROR
       "ENABLE_SUBINTERPRETERS=ON requires Python 3.13+, but found Python ${Python3_VERSION}")
