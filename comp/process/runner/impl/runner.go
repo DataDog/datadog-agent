@@ -9,40 +9,34 @@ package runnerimpl
 import (
 	"context"
 
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/process/agent"
-	"github.com/DataDog/datadog-agent/comp/process/hostinfo/def"
-	"github.com/DataDog/datadog-agent/comp/process/runner"
+	hostinfo "github.com/DataDog/datadog-agent/comp/process/hostinfo/def"
+	runner "github.com/DataDog/datadog-agent/comp/process/runner/def"
 	submitter "github.com/DataDog/datadog-agent/comp/process/submitter/def"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	processRunner "github.com/DataDog/datadog-agent/pkg/process/runner"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // for testing
 var agentEnabled = agent.Enabled
 
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newRunner))
-}
-
-// runner implements the Component.
+// runnerImpl implements the Component.
 type runnerImpl struct {
 	checkRunner    *processRunner.CheckRunner
 	providedChecks []types.CheckComponent
 }
 
-type dependencies struct {
-	fx.In
-	Lc  fx.Lifecycle
+// Requires defines the dependencies for the runner component.
+type Requires struct {
+	compdef.In
+
+	Lc  compdef.Lifecycle
 	Log log.Component
 
 	Submitter  submitter.Component
@@ -55,21 +49,22 @@ type dependencies struct {
 	Tagger   tagger.Component
 }
 
-func newRunner(deps dependencies) (runner.Component, error) {
-	checks := fxutil.GetAndFilterGroup(deps.Checks)
-	c, err := processRunner.NewRunner(deps.Config, deps.SysCfg.SysProbeObject(), deps.HostInfo.Object(), filterEnabledChecks(checks), deps.RTNotifier)
+// NewComponent creates a new runner component.
+func NewComponent(reqs Requires) (runner.Component, error) {
+	filteredChecks := runner.FilterNilChecks(reqs.Checks)
+	c, err := processRunner.NewRunner(reqs.Config, reqs.SysCfg.SysProbeObject(), reqs.HostInfo.Object(), filterEnabledChecks(filteredChecks), reqs.RTNotifier)
 	if err != nil {
 		return nil, err
 	}
-	c.Submitter = deps.Submitter
+	c.Submitter = reqs.Submitter
 
 	runnerComponent := &runnerImpl{
 		checkRunner:    c,
-		providedChecks: checks,
+		providedChecks: filteredChecks,
 	}
 
-	if agentEnabled(deps.Config, deps.Checks, deps.Log) {
-		deps.Lc.Append(fx.Hook{
+	if agentEnabled(reqs.Config, reqs.Checks, reqs.Log) {
+		reqs.Lc.Append(compdef.Hook{
 			OnStart: runnerComponent.Run,
 			OnStop:  runnerComponent.stop,
 		})
