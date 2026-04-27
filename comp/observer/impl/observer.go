@@ -244,6 +244,10 @@ func NewComponent(deps Requires) Provides {
 		ingestMetricsEnabled: cfg.GetBool("observer.ingest_metrics.enabled"),
 	}
 
+	if !obs.ingestMetricsEnabled {
+		pkglog.Warn("[observer] observer.ingest_metrics.enabled=false: externally-ingested metrics will be dropped at the handle factory")
+	}
+
 	// Set up handle function based on recording and analysis configuration.
 	// Recording (observer.recording.enabled) enables parquet writers and the fetcher.
 	// Analysis (observer.analysis.enabled) enables the anomaly detection pipeline.
@@ -775,6 +779,8 @@ func (f *hfFilteredHandle) ObserveProfile(p observerdef.ProfileView)       { f.i
 // during engine.IngestLog are unaffected because they bypass this handle
 // path entirely (they are written directly to storage from the engine).
 type metricDropHandle struct{ inner observerdef.Handle }
+
+var _ observerdef.Handle = (*metricDropHandle)(nil)
 
 func (m *metricDropHandle) ObserveMetric(_ observerdef.MetricView) {}
 func (m *metricDropHandle) ObserveMetricAndReportDrop(_ observerdef.MetricView) bool {

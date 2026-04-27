@@ -17,21 +17,9 @@ import (
 )
 
 // TestObserverDropsMetricsWhenIngestMetricsDisabled verifies that when
-// observer.ingest_metrics.enabled is false:
-//
-//   - the "all-metrics" handle is wrapped in metricDropHandle so
-//     ObserveMetric calls do not reach engine storage,
-//   - ObserveMetricAndReportDrop returns false (the call was dropped by
-//     configuration, not by a full channel),
-//   - ObserveLog still passes through to the engine and the
-//     LogMetricsExtractor's virtual metrics land in storage under the
-//     extractor's namespace.
-//
-// The third assertion is the structural regression guard: the gate must
-// only block externally-ingested metrics on the handle path. Virtual
-// metrics produced inside the engine by LogMetricsExtractors must keep
-// flowing because they are what enables log-only anomaly detection when
-// external metric ingestion is disabled.
+// observer.ingest_metrics.enabled is false, the handle drops external
+// ObserveMetric calls while logs and log-derived virtual metrics still
+// reach the engine.
 func TestObserverDropsMetricsWhenIngestMetricsDisabled(t *testing.T) {
 	storage := newTimeSeriesStorage()
 	extractor := NewLogMetricsExtractor(DefaultLogMetricsExtractorConfig())
@@ -50,39 +38,50 @@ func TestObserverDropsMetricsWhenIngestMetricsDisabled(t *testing.T) {
 	}
 	obs.handleFunc = obs.innerHandle
 
-	var wg sync.WaitGroup
+	var (
+		wg        sync.WaitGroup
+		closeOnce sync.Once
+	)
+	stopFn := func() {
+		// close is idempotent via Once; wg.Wait() is safe to call multiple times.
+		closeOnce.Do(func() { close(obs.obsCh) })
+		wg.Wait()
+	}
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		obs.run()
 	}()
+	// Guarantee cleanup even if an assertion calls t.Fatal before stopFn().
+	t.Cleanup(stopFn)
 
 	h := obs.GetHandle("all-metrics")
 
-	dropHandle, ok := h.(*metricDropHandle)
-	require.Truef(t, ok, "expected metricDropHandle wrapper, got %T", h)
+	drop, ok := h.(*metricDropHandle)
+	require.Truef(t, ok, `GetHandle("all-metrics") returned %T, want *metricDropHandle`, h)
 
-	assert.False(t, dropHandle.ObserveMetricAndReportDrop(&metricObs{
+	assert.False(t, drop.ObserveMetricAndReportDrop(&metricObs{
 		name:      "system.cpu.user",
 		value:     50,
 		timestamp: 1000,
 	}), "ObserveMetricAndReportDrop should report false when dropped by configuration")
 
-	dropHandle.ObserveMetric(&metricObs{
+	drop.ObserveMetric(&metricObs{
 		name:      "system.mem.used",
 		value:     1024,
 		timestamp: 1000,
 	})
 
-	dropHandle.ObserveLog(&logObs{
+	drop.ObserveLog(&logObs{
 		content:     []byte("Request completed in 45ms"),
 		status:      "info",
 		tags:        []string{"service:web"},
 		timestampMs: 1_000_000,
 	})
 
-	close(obs.obsCh)
-	wg.Wait()
+	// Flush: close signals EOF; run() drains all buffered items before returning,
+	// so the ObserveLog above is guaranteed to be processed before we assert storage.
+	stopFn()
 
 	allMetricsSeries := storage.ListSeries(observerdef.SeriesFilter{Namespace: "all-metrics"})
 	assert.Empty(t, allMetricsSeries,
@@ -93,19 +92,25 @@ func TestObserverDropsMetricsWhenIngestMetricsDisabled(t *testing.T) {
 		"log-extractor virtual metrics must keep flowing into storage even when observer.ingest_metrics.enabled=false")
 }
 
-// TestMetricDropHandleUnit covers the wrapper in isolation, mirroring
+// TestMetricDropHandle covers the wrapper in isolation, mirroring
 // the pattern used in system_filter_test.go for hfFilteredHandle.
-func TestMetricDropHandleUnit(t *testing.T) {
+func TestMetricDropHandle(t *testing.T) {
 	inner := &countingHandle{}
 	wrap := &metricDropHandle{inner: inner}
 
 	wrap.ObserveMetric(&sampleNoSource{name: "any.metric"})
 	wrap.ObserveTrace(nil)
 	wrap.ObserveTraceStats(nil)
-	assert.Zero(t, inner.received, "ObserveMetric/Trace/TraceStats must not reach inner")
+	assert.Equal(t, 0, inner.received,
+		"metricDropHandle: inner.received = %d, want 0 (ObserveMetric/Trace/TraceStats must be dropped)", inner.received)
 	assert.False(t, wrap.ObserveMetricAndReportDrop(&sampleNoSource{name: "any.metric"}),
 		"ObserveMetricAndReportDrop reports false (config drop, not channel-full)")
 
 	wrap.ObserveLog(&logObs{content: []byte("hi"), timestampMs: 1})
+	assert.Equal(t, 1, inner.logReceived,
+		"metricDropHandle: inner.logReceived = %d, want 1 (ObserveLog must forward to inner)", inner.logReceived)
+
 	wrap.ObserveProfile(nil)
+	assert.Equal(t, 1, inner.profileReceived,
+		"metricDropHandle: inner.profileReceived = %d, want 1 (ObserveProfile must forward to inner)", inner.profileReceived)
 }
