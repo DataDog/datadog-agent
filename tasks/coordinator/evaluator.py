@@ -27,9 +27,13 @@ def run_scenarios(
     timeout_seconds: int = 3600,
     rebuild: bool = True,
     config_path: Path | None = None,
+    scenarios: str = "",
 ) -> EvalRun:
     """Run q.eval-scenarios with the given --only detector, writing the
     main report to `report_path`. Returns an EvalRun describing outcome.
+
+    `scenarios`: comma-separated scenario name list; defaults to all.
+    Used by the per-iter sanity sentinel (single scenario, fast turnaround).
     """
     scenario_output_dir.mkdir(parents=True, exist_ok=True)
     report_path.parent.mkdir(parents=True, exist_ok=True)
@@ -44,6 +48,8 @@ def run_scenarios(
         cmd.append("--no-build")
     if config_path is not None:
         cmd += ["--config", str(config_path)]
+    if scenarios:
+        cmd += ["--scenarios", scenarios]
 
     try:
         proc = subprocess.run(
