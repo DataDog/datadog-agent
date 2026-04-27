@@ -1378,15 +1378,22 @@ def _run_iteration_body(
         return
 
     # Blank-mode quality floor for the FIRST-ever ship. Catastrophe filters
-    # can't fire when baseline F1 ≈ 0 across the board, so the first
-    # candidate that compiles would otherwise ship regardless of detection
-    # quality. Once anything has shipped, effective_baseline (best-historical)
-    # takes over and provides the floor.
+    # can't fire when baseline F1 ≈ 0 across the board (blank-mode runs),
+    # so the first candidate that compiles would otherwise ship regardless
+    # of detection quality. ONLY enforce the floor when the baseline is
+    # essentially absent — for full-mode runs with a real baseline, rely
+    # on catastrophe filters + reviewer; an absolute 0.25 floor would
+    # block legitimate small improvements (e.g. baseline=0.116 + Δ=0.10
+    # is a real win but doesn't clear 0.25).
     any_prior_ship = any(
         c.status == CandidateStatus.SHIPPED for c in db.candidates.values()
     )
+    baseline_essentially_blank = (
+        scoring.baseline_mean_f1 < 0.05
+    )
     first_ship_floor_breached = (
         not any_prior_ship
+        and baseline_essentially_blank
         and scoring.mean_f1 < CONFIG.first_ship_min_mean_f1
     )
 
