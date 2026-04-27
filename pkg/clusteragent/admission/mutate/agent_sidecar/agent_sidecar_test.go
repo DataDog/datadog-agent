@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
-const commonRegistry = "gcr.io/datadoghq"
+const commonRegistry = "registry.datadoghq.com"
 
 func TestInjectAgentSidecar(t *testing.T) {
 	mockConfig := configmock.New(t)

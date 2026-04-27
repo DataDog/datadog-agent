@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    Change the default ``admission_controller.container_registry`` from
+    ``gcr.io/datadoghq`` to ``registry.datadoghq.com`` to align with the
+    Helm chart registry migration initiative. Users who rely on the previous
+    default can set ``admission_controller.container_registry`` back to
+    ``gcr.io/datadoghq`` explicitly.
