@@ -102,17 +102,11 @@ log "Building agent version $AGENT_VERSION at commit $COMMIT"
 
 # ─── Step 4: Build the agent binary ───────────────────────────────────────────
 #
-# Build tags come from tasks/build_tags.py AIX_AGENT_TAGS + COMMON_TAGS:
-#   python, otlp, osusergo, datadog.no_waf, zstd
-#   + grpcnotrace, retrynotrace, no_dynamic_plugins, trivy_no_javadb (COMMON_TAGS)
+# Build tags and ldflags are determined by inv agent.build (tasks/build_tags.py).
 #
-# Note: pythonHome3 must be set explicitly here.
-# The agent binary computes Python home as filepath.Join(executableFolder, "../../embedded").
-# On Linux (standard omnibus), the binary lives at bin/agent/agent so "../../embedded"
-# correctly resolves to /opt/datadog-agent/embedded.
-# On AIX we place the binary at bin/agent (one level shallower) so the relative path
-# would resolve to /opt/embedded — which does not exist.
-# Setting pythonHome3 via -ldflags overrides the relative calculation.
+# --python-home-3 must be set explicitly because on AIX the binary lives at
+# bin/agent (one level shallower than bin/agent/agent on Linux), so the default
+# relative path calculation resolves to /opt/embedded which does not exist.
 
 log "Building agent binary via inv agent.build"
 cd /opt/datadog-agent
@@ -131,7 +125,7 @@ log "agent binary build complete: $STAGING/opt/datadog-agent/bin/agent"
 
 # ─── Step 5: Build the trace-agent binary ─────────────────────────────────────
 #
-# Build tags come from tasks/build_tags.py AGENT_TAGS minus AIX_EXCLUDE_TAGS, plus COMMON_TAGS.
+# Build tags are determined by inv trace-agent.build (tasks/build_tags.py).
 
 log "Building trace-agent binary via inv trace-agent.build"
 cd /opt/datadog-agent

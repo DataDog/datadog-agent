@@ -19,14 +19,23 @@ fetch_openjdk                        @DataDog/agent-metric-pipelines
 
 # Source test
 # Notifications are handled separately for more fine-grained control on go tests
-tests_*                                 @DataDog/multiple
+# tests_* defaults to agent-devx, with overrides below
+tests_*                                 @DataDog/agent-devx
 tests_ebpf*                             @DataDog/ebpf-platform
+tests_gpu                               @DataDog/ebpf-platform
+tests_windows-x64                       @DataDog/windows-products
 tests_windows_sysprobe*                 @DataDog/windows-products
+tests_windows_secagent*                 @DataDog/windows-products @DataDog/agent-security
+tests_flavor_*                          @DataDog/agent-runtimes
+tests_flavor_dogstatsd*                 @DataDog/agent-metric-pipelines
+tests_nodetreemodel                     @DataDog/agent-configuration
+tests_rtloader*                         @DataDog/agent-runtimes
+tests_serverless-init*                  @DataDog/serverless-azure-gcp
 security_go_generate_check              @DataDog/agent-security
 prepare_sysprobe_ebpf_functional_tests* @DataDog/ebpf-platform
 prepare_secagent_ebpf_functional_tests* @DataDog/agent-security
 procmgr_rust_tests                      @DataDog/agent-runtimes
-protobuf_test                           @DataDog/multiple
+protobuf_test                           @DataDog/agent-runtimes
 test_kmt_local_setup*                   @DataDog/ebpf-platform
 
 # Send count metrics about Golang dependencies
@@ -182,7 +191,62 @@ k8s-e2e-cspm-*                    @DataDog/agent-security
 
 # New E2E
 e2e_pre_test*                     @DataDog/agent-devx
-new-e2e*                          @DataDog/multiple
+# new-e2e* defaults to @DataDog/agent-devx
+# More detailed rules are following for precise team match
+# latest match wins
+new-e2e*                          @DataDog/agent-devx
+# --- E2E framework / infra ---
+new-e2e-base*                           @DataDog/agent-devx
+new-e2e-unit-tests                      @DataDog/agent-devx
+new-e2e-cleanup-on-failure              @DataDog/agent-devx
+# --- Agent core ---
+new-e2e-agent-configuration*            @DataDog/agent-configuration
+new-e2e-agent-subcommands*              @DataDog/agent-configuration
+new-e2e-agent-runtimes*                 @DataDog/agent-runtimes
+new-e2e-agent-health                    @DataDog/agent-health
+new-e2e-fips-compliance-test*           @DataDog/agent-runtimes
+new-e2e-remote-config                   @DataDog/remote-config
+# --- Containers / orchestration / SSI ---
+new-e2e-containers*                     @DataDog/container-integrations @DataDog/container-platform
+new-e2e-orchestrator*                   @DataDog/kubernetes-experiences
+new-e2e-language-detection              @DataDog/container-experiences
+new-e2e-process*                        @DataDog/container-experiences
+new-e2e-ssi*                            @DataDog/injection-platform
+# --- Networking ---
+new-e2e-npm*                            @DataDog/cloud-network-monitoring
+new-e2e-netpath*                        @DataDog/network-path
+new-e2e-ndm-netflow*                    @DataDog/ndm-integrations
+new-e2e-ndm-snmp*                       @DataDog/network-device-monitoring-core
+new-e2e-ha-agent*                       @DataDog/network-device-monitoring-core
+# --- Pipelines (metrics / logs / traces) ---
+new-e2e-amp                             @DataDog/agent-metric-pipelines
+new-e2e-alp*                            @DataDog/agent-log-pipelines
+new-e2e-apm*                            @DataDog/agent-apm
+# --- Security ---
+new-e2e-cws*                            @DataDog/agent-security
+new-e2e-sbom*                           @DataDog/agent-security
+new-e2e-cspm                            @DataDog/agent-cspm @DataDog/agent-security
+# --- OpenTelemetry ---
+new-e2e-otel*                           @DataDog/opentelemetry-agent
+# --- Fleet / installer (non-Windows) ---
+new-e2e-fleet*                          @DataDog/fleet
+new-e2e-installer*                      @DataDog/fleet
+# --- Agent packaging (install scripts, step-by-step, package signing) ---
+new-e2e-agent-platform-*                @DataDog/fleet
+new-e2e-platform-integrations-*         @DataDog/agent-runtimes
+new-e2e-package-signing-*               @DataDog/agent-delivery
+# --- GPU ---
+new-e2e-gpu*                            @DataDog/ebpf-platform
+# --- Action platform / discovery ---
+new-e2e-privateactionrunner             @DataDog/action-platform
+new-e2e-discovery                       @DataDog/agent-discovery
+# --- Windows-only jobs (single owner: windows-products) ---
+new-e2e-windows-*                       @DataDog/windows-products
+# --- Shared-ownership overrides (must come after the per-category rules above) ---
+new-e2e-installer-windows*              @DataDog/fleet @DataDog/windows-products
+new-e2e-windows-security-agent          @DataDog/windows-products @DataDog/agent-security
+new-e2e-windows-fips-compliance-test*   @DataDog/windows-products @DataDog/agent-runtimes
+new-e2e-windows-systemprobe*            @DataDog/windows-products @DataDog/ebpf-platform
 go_e2e_test_binaries              @DataDog/agent-devx
 all-artifacts                     @DataDog/agent-devx
 

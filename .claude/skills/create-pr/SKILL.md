@@ -10,26 +10,34 @@ Create a pull request for the current branch following the Datadog Agent contrib
 
 ## Instructions
 
-1. **Check the current branch** and ensure it's not `main`
+1. **Check the current branch**. If the current branch is `main` (or the default branch):
+   - Check for uncommitted or staged changes (`git status`). If there are changes, create a new feature branch from the default branch (`git checkout -b <branch-name>`), stage the changes, commit, and push.
+   - If there are no changes at all, stop and inform the user there is nothing to open a PR for.
 2. **Get the commits** on this branch compared to `main` using `git log main..HEAD`
 3. **Get the diff** using `git diff main..HEAD` to understand all changes
 4. **Read the PR template** from `.github/PULL_REQUEST_TEMPLATE.md`
-5. **Push the branch** to origin if needed
-6. **Open the PR**: By default, open as **Draft** using `gh pr create --draft`. If `$ARGUMENTS` contains `--real`, open as a regular (non-draft) PR instead (omit the `--draft` flag). Remove `--real` from `$ARGUMENTS` before processing remaining arguments as labels.
-7. **PR title**: Use [conventional commits](https://www.conventionalcommits.org/en/v1.0.0/) format, prefixed with the general area of change. Examples:
+5. **Codex review** (optional): Check if `codex` is installed (`command -v codex`). If it is, run a review against the default branch:
+   ```bash
+   DEFAULT_BRANCH=$(git rev-parse --abbrev-ref origin/HEAD | sed 's|^origin/||')
+   codex review --base "$DEFAULT_BRANCH"
+   ```
+   Show the review output to the user. If codex is not installed, skip this step silently.
+6. **Push the branch** to origin if needed
+7. **Open the PR**: By default, open as **Draft** using `gh pr create --draft`. If `$ARGUMENTS` contains `--real`, open as a regular (non-draft) PR instead (omit the `--draft` flag). Remove `--real` from `$ARGUMENTS` before processing remaining arguments as labels.
+8. **PR title**: Use [conventional commits](https://www.conventionalcommits.org/en/v1.0.0/) format, prefixed with the general area of change. Examples:
    - `fix(e2e): Fix flaky diagnose test`
    - `feat(logs): Add new log pipeline`
    - `refactor(config): Simplify endpoint resolution`
-8. **Labels**: Choose appropriate labels (plus any additional labels passed as $ARGUMENTS):
+9. **Labels**: Choose appropriate labels (plus any additional labels passed as $ARGUMENTS):
    - If the PR only changes tests, docs, CI config, or developer tooling (no Agent binary code changes), use `changelog/no-changelog` and `qa/no-code-change`
    - If the PR changes Agent binary code and QA was done, use `qa/done`
    - If the PR changes Agent binary code, a reno release note is expected (remind the user)
    - Add `backport/<branch-name>` if the user asks for a backport
-9. **PR body**: Fill in the PR template sections:
+10. **PR body**: Fill in the PR template sections:
    - **What does this PR do?**: A clear description of what is changed. Must be readable independently, tying back to the changed code.
    - **Motivation**: A reason why the change is made. Point to an issue if applicable. Include drawbacks or tradeoffs if any.
    - **Describe how you validated your changes**: How you validated the change (tests added/run, benchmarks, manual testing). Only needed when testing included work not covered by test suites.
-   - **Additional Notes**: Any extra context, links to predecessor PRs if part of a chain, notes that make code understanding easier.
+   - **Additional Notes**: Any extra context, links to predecessor PRs if part of a chain, notes that make code understanding easier. **Only include this section if there is genuinely useful context to add** — omit it entirely rather than filling it with filler.
 
 ## PR Description Guidelines (from CONTRIBUTING.md)
 
