@@ -2230,7 +2230,7 @@ def coord_down(ctx, session: str = "", wait: int = 30):
     if r and r.ok:
         print(color_message(f"killed tmux session '{session}'.", Color.GREEN))
     else:
-        print(color_message(f"no tmux session '{session}' (already stopped?).", Color.YELLOW))
+        print(color_message(f"no tmux session '{session}' (already stopped?).", Color.ORANGE))
 
     # Leave the pause file in place — next coord-up should `rm` to resume.
     print(color_message(f"pause file at {pause_path} (rm to resume on next start).", Color.BLUE))
