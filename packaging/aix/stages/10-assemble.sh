@@ -75,21 +75,19 @@ log "Config example written to $STAGING/etc/datadog-agent/datadog.yaml.example"
 # Python, so including its default config would produce a permanent loading
 # error in agent status.
 
-log "Installing default check configs"
-DIST_CONFD=/opt/datadog-agent/cmd/agent/dist/conf.d
+log "Installing check configs"
+# inv agent.build (stage 04) populates bin/agent/dist/conf.d/ with the check
+# configs for AIX_CORECHECKS (defined in tasks/core_checks.py).  Copy that
+# output directly — no list to maintain here.
+DIST_CONFD=/opt/datadog-agent/bin/agent/dist/conf.d
 STAGING_CONFD="$STAGING/etc/datadog-agent/conf.d"
+if [ ! -d "$DIST_CONFD" ]; then
+    log "ERROR: $DIST_CONFD not found — did Stage 04 complete successfully?"
+    exit 1
+fi
 mkdir -p "$STAGING_CONFD"
-for check in cpu disk io load memory ntp uptime; do
-    src="$DIST_CONFD/${check}.d/conf.yaml.default"
-    if [ -f "$src" ]; then
-        mkdir -p "$STAGING_CONFD/${check}.d"
-        cp "$src" "$STAGING_CONFD/${check}.d/conf.yaml.default"
-        log "  $check.d/conf.yaml.default"
-    else
-        log "  WARNING: $src not found — skipping $check"
-    fi
-done
-log "Default check configs installed"
+cp -r "$DIST_CONFD/." "$STAGING_CONFD/"
+log "Check configs installed from $DIST_CONFD"
 
 # ─── Step 2c: Install sitecustomize.py ────────────────────────────────────────
 #
