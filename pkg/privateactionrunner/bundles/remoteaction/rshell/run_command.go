@@ -92,18 +92,12 @@ type RunCommandHandler struct {
 // NewRunCommandHandler creates a new RunCommandHandler. Pass nil for either
 // operator list to disable filtering on that axis. A non-nil empty slice is
 // an explicit "block everything on this axis" and is honored as such.
-//
-// Operator paths are env-filtered at construction: containerized runners
-// drop entries outside /host/, bare-metal runners drop entries inside it.
-// An operator who lists only wrong-namespace paths will get an empty
-// operator allowlist and block all access.
 func NewRunCommandHandler(operatorAllowedPaths []string, operatorAllowedCommands []string) *RunCommandHandler {
 	h := &RunCommandHandler{}
 	if operatorAllowedPaths != nil {
 		h.operatorPathsFilterEnabled = true
-		envFiltered := envFilterAllowedPaths(operatorAllowedPaths)
-		h.operatorAllowedPaths = make(map[string]struct{}, len(envFiltered))
-		for _, p := range envFiltered {
+		h.operatorAllowedPaths = make(map[string]struct{}, len(operatorAllowedPaths))
+		for _, p := range operatorAllowedPaths {
 			if p == "" {
 				continue
 			}

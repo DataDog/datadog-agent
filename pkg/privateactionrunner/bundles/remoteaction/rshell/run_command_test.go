@@ -179,7 +179,6 @@ func TestFilterAllowedPathsExplicitEmptyBackendBlocksAll(t *testing.T) {
 }
 
 func TestFilterAllowedPathsIntersection(t *testing.T) {
-	t.Setenv("DOCKER_DD_AGENT", "")
 	handler := NewRunCommandHandler([]string{"/var/log", "/tmp"}, nil)
 
 	got := handler.filterAllowedPaths([]string{"/var/log", "/etc", "/tmp"})
@@ -272,7 +271,6 @@ func TestFilterAllowedCommandsMatrix(t *testing.T) {
 // TestFilterAllowedCommandsMatrix. Twelve scenarios with the same shape:
 // path intersection is plain string equality, identical to commands.
 func TestFilterAllowedPathsMatrix(t *testing.T) {
-	t.Setenv("DOCKER_DD_AGENT", "")
 	cases := []struct {
 		name     string
 		backend  []string
@@ -323,7 +321,6 @@ func TestFilterAllowedPathsMatrix(t *testing.T) {
 }
 
 func TestNewRunCommandHandlerStoresAllowedPaths(t *testing.T) {
-	t.Setenv("DOCKER_DD_AGENT", "")
 	paths := []string{"/var/log", "/tmp"}
 
 	handler := NewRunCommandHandler(paths, nil)
@@ -333,7 +330,6 @@ func TestNewRunCommandHandlerStoresAllowedPaths(t *testing.T) {
 }
 
 func TestNewRshellBundleUsesConfiguredAllowedPaths(t *testing.T) {
-	t.Setenv("DOCKER_DD_AGENT", "")
 	cfg := &config.Config{RShellAllowedPaths: []string{"/var/log", "/tmp"}}
 
 	bundle := NewRshellBundle(cfg)
@@ -400,43 +396,6 @@ func TestEnvFilterAllowedPaths(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestNewRunCommandHandlerOperatorPathsFilteredBareMetal(t *testing.T) {
-	t.Setenv("DOCKER_DD_AGENT", "")
-
-	handler := NewRunCommandHandler(
-		[]string{"/var/log", "/host/var/log", "/etc"}, nil)
-
-	assert.Equal(t,
-		map[string]struct{}{"/var/log": {}, "/etc": {}},
-		handler.operatorAllowedPaths)
-	assert.True(t, handler.operatorPathsFilterEnabled)
-}
-
-func TestNewRunCommandHandlerOperatorPathsFilteredContainerized(t *testing.T) {
-	t.Setenv("DOCKER_DD_AGENT", "true")
-
-	handler := NewRunCommandHandler(
-		[]string{"/var/log", "/host/var/log", "/host/etc"}, nil)
-
-	assert.Equal(t,
-		map[string]struct{}{"/host/var/log": {}, "/host/etc": {}},
-		handler.operatorAllowedPaths)
-	assert.True(t, handler.operatorPathsFilterEnabled)
-}
-
-func TestNewRunCommandHandlerOperatorPathsAllWrongEnvBlocksAll(t *testing.T) {
-	// Operator misconfigured for the runner's environment. The filter
-	// strips every entry, leaving an empty allowlist — operatorPathsFilter
-	// stays enabled, so rshell will block all filesystem access regardless
-	// of what the backend approves.
-	t.Setenv("DOCKER_DD_AGENT", "true")
-
-	handler := NewRunCommandHandler([]string{"/var/log", "/etc"}, nil)
-
-	assert.Empty(t, handler.operatorAllowedPaths)
-	assert.True(t, handler.operatorPathsFilterEnabled)
 }
 
 func TestRunCommandBackendPathsEnvFilteredContainerized(t *testing.T) {
