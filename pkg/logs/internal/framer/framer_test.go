@@ -831,7 +831,17 @@ func TestFlush(t *testing.T) {
 		require.Equal(t, []string{"<134>second"}, gotContent)
 	})
 
-	t.Run("Flush before any Process is no-op", func(t *testing.T) {
+	t.Run("Flush before any Process is no-op/UTF8Newline", func(t *testing.T) {
+		gotContent := []string{}
+		outputFn := func(msg *message.Message, _ int) {
+			gotContent = append(gotContent, string(msg.GetContent()))
+		}
+		fr := NewFramer(outputFn, UTF8Newline, contentLenLimit)
+		fr.Flush()
+		require.Empty(t, gotContent, "Flush with no prior Process should be safe no-op")
+	})
+
+	t.Run("Flush before any Process is no-op/SyslogFraming", func(t *testing.T) {
 		gotContent := []string{}
 		outputFn := func(msg *message.Message, _ int) {
 			gotContent = append(gotContent, string(msg.GetContent()))

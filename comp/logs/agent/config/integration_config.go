@@ -304,10 +304,10 @@ func (c *LogsConfig) Dump(multiline bool) string {
 		}
 		if c.Format != "" {
 			fmt.Fprintf(&b, ws("Format: %#v,"), c.Format)
-
 		}
 	case UDPType:
 		fmt.Fprintf(&b, ws("Port: %d,"), c.Port)
+		fmt.Fprintf(&b, ws("IdleTimeout: %#v,"), c.IdleTimeout)
 		if c.Format != "" {
 			fmt.Fprintf(&b, ws("Format: %#v,"), c.Format)
 		}
