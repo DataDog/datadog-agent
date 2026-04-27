@@ -76,7 +76,10 @@ func NewComponent(deps Requires) (Provides, error) {
 	obs, obsOk := deps.Observer.Get()
 	wmeta, wmetaOk := deps.WMeta.Get()
 
-	if !obsOk || !wmetaOk || deps.Config.GetBool("logs_enabled") || deps.Config.GetBool("log_enabled") {
+	analysisEnabled := deps.Config.GetBool("observer.analysis.enabled")
+	recordingEnabled := deps.Config.GetBool("observer.recording.enabled")
+	if !obsOk || !wmetaOk || deps.Config.GetBool("logs_enabled") || deps.Config.GetBool("log_enabled") ||
+		(!analysisEnabled && !recordingEnabled) {
 		return Provides{Comp: &logssourceComponent{}}, nil
 	}
 
