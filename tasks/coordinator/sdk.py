@@ -460,6 +460,24 @@ Reply in YAML with two fields:
 # 2. Implementation agent
 # ---------------------------------------------------------------------------
 
+def _deny(reason: str) -> dict:
+    """Build a SDK-0.1.68-compatible PreToolUse deny verdict.
+
+    Older SDK versions accepted `{"decision": "block", "reason": ...}` but
+    0.1.68+ requires `hookSpecificOutput.permissionDecision = "deny"`.
+    Returning the old format silently kills the SDK message reader with
+    "Fatal error in message reader" — exactly the hang we hit on every
+    impl iter today. This helper centralises the format.
+    """
+    return {
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": reason,
+        }
+    }
+
+
 async def _block_git_hook(input_data, tool_use_id, context):
     """PreToolUse hook: block any Bash call that invokes `git`.
 
@@ -469,14 +487,11 @@ async def _block_git_hook(input_data, tool_use_id, context):
     """
     cmd = (input_data.get("tool_input") or {}).get("command", "") or ""
     if is_git_command(cmd):
-        return {
-            "decision": "block",
-            "reason": (
-                "git commands are forbidden for the implementation agent. "
-                "The coordinator manages all git state. Make file edits only; "
-                "the coordinator will commit on the scratch branch after review."
-            ),
-        }
+        return _deny(
+            "git commands are forbidden for the implementation agent. "
+            "The coordinator manages all git state. Make file edits only; "
+            "the coordinator will commit on the scratch branch after review."
+        )
     return {}
 
 
@@ -533,20 +548,17 @@ def _make_write_guard(root: Path):
             return {}
         bad = _path_in_forbidden(file_path, root)
         if bad:
-            return {
-                "decision": "block",
-                "reason": (
-                    f"Path '{file_path}' is not writable: matches forbidden "
-                    f"prefix '{bad}'. The agent may only modify files under "
-                    f"comp/observer/ (excluding comp/observer/scenarios/, "
-                    "which contains scoring labels). The eval framework "
-                    "(tasks/q.py, tasks/libs/q/), coordinator state "
-                    "(.coordinator/), git internals (.git/), and scenario "
-                    "manifests (q_branch/) are intentional evaluation "
-                    "boundaries — changing them would invalidate the run's "
-                    "F1 measurements."
-                ),
-            }
+            return _deny(
+                f"Path '{file_path}' is not writable: matches forbidden "
+                f"prefix '{bad}'. The agent may only modify files under "
+                f"comp/observer/ (excluding comp/observer/scenarios/, "
+                "which contains scoring labels). The eval framework "
+                "(tasks/q.py, tasks/libs/q/), coordinator state "
+                "(.coordinator/), git internals (.git/), and scenario "
+                "manifests (q_branch/) are intentional evaluation "
+                "boundaries — changing them would invalidate the run's "
+                "F1 measurements."
+            )
         return {}
     return _guard
 
@@ -569,12 +581,7 @@ def _make_bash_guard(root: Path):
     async def _guard(input_data, tool_use_id, context):
         cmd = (input_data.get("tool_input") or {}).get("command", "") or ""
         if is_git_command(cmd):
-            return {
-                "decision": "block",
-                "reason": (
-                    "git commands are forbidden for the implementation agent."
-                ),
-            }
+            return _deny("git commands are forbidden for the implementation agent.")
         if not _WRITE_TOKENS.search(cmd):
             return {}
         # Command looks like it writes something. Check each word that looks
@@ -589,15 +596,12 @@ def _make_bash_guard(root: Path):
                 continue
             bad = _path_in_forbidden(cleaned, root)
             if bad:
-                return {
-                    "decision": "block",
-                    "reason": (
-                        f"Bash command appears to write to '{cleaned}', "
-                        f"which matches forbidden prefix '{bad}'. Use Edit/"
-                        "Write tools for comp/observer/ files; no other "
-                        "paths are modifiable."
-                    ),
-                }
+                return _deny(
+                    f"Bash command appears to write to '{cleaned}', "
+                    f"which matches forbidden prefix '{bad}'. Use Edit/"
+                    "Write tools for comp/observer/ files; no other "
+                    "paths are modifiable."
+                )
         return {}
     return _guard
 
@@ -635,17 +639,14 @@ async def _block_task_tool_hook(input_data, tool_use_id, context):
     that needs delegating. If the plan is too big for one Sonnet call,
     the proposer should have broken it into phases.
     """
-    return {
-        "decision": "block",
-        "reason": (
-            "Task tool is disabled for implementation calls. You (Sonnet) "
-            "are executing the proposer's detailed implementation_plan, "
-            "not redesigning the task. If the plan seems too big to "
-            "finish in your remaining tool turns, produce a partial "
-            "implementation and note in DONE what you completed vs what "
-            "the plan called for — the reviewer will evaluate."
-        ),
-    }
+    return _deny(
+        "Task tool is disabled for implementation calls. You (Sonnet) "
+        "are executing the proposer's detailed implementation_plan, "
+        "not redesigning the task. If the plan seems too big to "
+        "finish in your remaining tool turns, produce a partial "
+        "implementation and note in DONE what you completed vs what "
+        "the plan called for — the reviewer will evaluate."
+    )
 
 
 def implement_candidate(
