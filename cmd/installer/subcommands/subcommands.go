@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
+	"github.com/DataDog/datadog-agent/cmd/installer/command/fxconfig"
 	"github.com/DataDog/datadog-agent/cmd/installer/subcommands/daemon"
 	"github.com/DataDog/datadog-agent/cmd/installer/user"
 	installer "github.com/DataDog/datadog-agent/pkg/fleet/installer/commands"
@@ -27,6 +28,17 @@ func installerUnprivilegedCommands(_ *command.GlobalParams) []*cobra.Command {
 
 func withRoot(factory command.SubcommandFactory) command.SubcommandFactory {
 	return withPersistentPreRunE(factory, func(global *command.GlobalParams) error {
+		// Translate datadog.yaml → DD_* env vars before any installer
+		// command reads env. The installer binary never reads yaml; for
+		// daemon-spawned subprocesses, the daemon already emitted every
+		// relevant DD_* via Env.ToEnv() and sets DD_INSTALLER_FROM_DAEMON
+		// so LoadAndExportEnv no-ops there.
+		//
+		// This must live here (not on the root command's PersistentPreRun)
+		// because cobra runs only the closest PersistentPreRun* found
+		// walking up — withPersistentPreRunE installs one on each child,
+		// which would otherwise shadow the root's bootstrap.
+		fxconfig.LoadAndExportEnv(global.ConfFilePath)
 		if !user.IsRoot() && global.AllowNoRoot {
 			return nil
 		}
