@@ -195,6 +195,30 @@ func TestBuildTagSet_CacheHitSelfHealsAfterSilentDictEviction(t *testing.T) {
 	assert.NotEqual(t, tagSet1, tagSet2, "rebuilt tagset must not reuse stale cached pointer")
 }
 
+func TestPrepareForNewStreamInvalidatesEvictedTagCache(t *testing.T) {
+	tok := rtokenizer.NewRustTokenizer()
+	mt := NewMessageTranslator("test-pipeline", tok)
+
+	origin := makeTestOrigin("svc-a", "src-a", []string{"env:test"})
+	msg1 := makeMsg("log line 1", "host-1", "info", origin)
+
+	tagSet1, tagStr1, dictID1, isNew1 := mt.buildTagSet(msg1)
+	require.NotNil(t, tagSet1)
+	require.True(t, isNew1)
+
+	mt.tagManager.EvictStaleEntries(0)
+	mt.PrepareForNewStream()
+
+	msg2 := makeMsg("log line 2", "host-1", "info", origin)
+	tagSet2, tagStr2, dictID2, isNew2 := mt.buildTagSet(msg2)
+
+	require.NotNil(t, tagSet2)
+	assert.True(t, isNew2, "prepareForNewStream must rebuild evicted cached tagset")
+	assert.Equal(t, tagStr1, tagStr2)
+	assert.NotEqual(t, dictID1, dictID2)
+	assert.NotEqual(t, tagSet1, tagSet2)
+}
+
 // --- toValidUTF8 tests ---
 
 func TestToValidUTF8_ValidString(t *testing.T) {
@@ -206,7 +230,7 @@ func TestToValidUTF8_ValidString(t *testing.T) {
 		{"ascii", "hello world"},
 		{"multibyte", "caf\xc3\xa9"},                          // café
 		{"emoji", "\xf0\x9f\x98\x80 smile"},                   // U+1F600
-		{"nul is valid utf8", "hello\x00world"},                // NUL is valid UTF-8 (U+0000)
+		{"nul is valid utf8", "hello\x00world"},               // NUL is valid UTF-8 (U+0000)
 		{"mixed scripts", "\xe4\xb8\xad\xe6\x96\x87 Chinese"}, // 中文
 	}
 	for _, tt := range tests {

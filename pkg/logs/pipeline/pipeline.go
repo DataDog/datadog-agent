@@ -26,11 +26,12 @@ import (
 
 // Pipeline processes and sends messages to the backend
 type Pipeline struct {
-	InputChan       chan *message.Message
-	flushChan       chan struct{}
-	processor       *processor.Processor
-	strategy        sender.Strategy
-	pipelineMonitor metrics.PipelineMonitor
+	InputChan           chan *message.Message
+	flushChan           chan struct{}
+	processor           *processor.Processor
+	strategy            sender.Strategy
+	pipelineMonitor     metrics.PipelineMonitor
+	prepareForNewStream func()
 }
 
 // NewPipeline returns a new Pipeline
@@ -47,7 +48,6 @@ func NewPipeline(
 ) *Pipeline {
 	strategyInput := make(chan *message.Message, cfg.GetInt("logs_config.message_channel_size"))
 	flushChan := make(chan struct{})
-
 	var encoder processor.Encoder
 	if serverlessMeta.IsEnabled() {
 		encoder = processor.JSONServerlessInitEncoder
@@ -62,7 +62,7 @@ func NewPipeline(
 	} else {
 		encoder = processor.RawEncoder
 	}
-	strategy := getStrategy(strategyInput, senderImpl.In(), flushChan, endpoints, serverlessMeta, senderImpl.PipelineMonitor(), compression, instanceID, cfg)
+	strategy, prepareForNewStream := getStrategy(strategyInput, senderImpl.In(), flushChan, endpoints, serverlessMeta, senderImpl.PipelineMonitor(), compression, instanceID, cfg)
 
 	inputChan := make(chan *message.Message, cfg.GetInt("logs_config.message_channel_size"))
 
@@ -70,11 +70,12 @@ func NewPipeline(
 		encoder, diagnosticMessageReceiver, hostname, senderImpl.PipelineMonitor(), instanceID)
 
 	return &Pipeline{
-		InputChan:       inputChan,
-		flushChan:       flushChan,
-		processor:       processor,
-		strategy:        strategy,
-		pipelineMonitor: senderImpl.PipelineMonitor(),
+		InputChan:           inputChan,
+		flushChan:           flushChan,
+		processor:           processor,
+		strategy:            strategy,
+		pipelineMonitor:     senderImpl.PipelineMonitor(),
+		prepareForNewStream: prepareForNewStream,
 	}
 }
 
@@ -106,7 +107,7 @@ func getStrategy(
 	compressor logscompression.Component,
 	instanceID string,
 	cfg pkgconfigmodel.Reader,
-) sender.Strategy {
+) (sender.Strategy, func()) {
 	if endpoints.UseGRPC || endpoints.UseHTTP || serverlessMeta.IsEnabled() {
 		var encoder compressioncommon.Compressor
 		encoder = compressor.NewCompressor(compressioncommon.NoneKind, 0)
@@ -120,11 +121,11 @@ func getStrategy(
 			// translator := grpcsender.NewMessageTranslator(getSharedClusterManager(), tokenizer)
 			statefulInputChan := translator.Start(inputChan, cfg.GetInt("logs_config.message_channel_size"))
 
-			return grpcsender.NewBatchStrategy(statefulInputChan, outputChan, flushChan, endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", encoder, pipelineMonitor, instanceID)
+			return grpcsender.NewBatchStrategy(statefulInputChan, outputChan, flushChan, endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", encoder, pipelineMonitor, instanceID), translator.PrepareForNewStream
 		}
 		if grpcEndpoint, ok := firstGRPCAdditionalEndpoint(endpoints); ok && !serverlessMeta.IsEnabled() {
 			grpcComp := buildEndpointCompressor(compressor, grpcEndpoint)
-			return grpcsender.NewDualStrategy(inputChan, outputChan, flushChan, grpcEndpoint, grpcComp, cfg, endpoints, serverlessMeta, encoder, pipelineMonitor, instanceID)
+			return grpcsender.NewDualStrategy(inputChan, outputChan, flushChan, grpcEndpoint, grpcComp, cfg, endpoints, serverlessMeta, encoder, pipelineMonitor, instanceID), nil
 		}
 		return sender.NewBatchStrategy(
 			inputChan,
@@ -137,11 +138,11 @@ func getStrategy(
 			"logs",
 			encoder,
 			pipelineMonitor,
-			instanceID)
+			instanceID), nil
 	}
 
 	log.Infof("Pipeline: Using StreamStrategy (default)")
-	return sender.NewStreamStrategy(inputChan, outputChan, compressor.NewCompressor(compressioncommon.NoneKind, 0))
+	return sender.NewStreamStrategy(inputChan, outputChan, compressor.NewCompressor(compressioncommon.NoneKind, 0)), nil
 }
 
 func firstGRPCAdditionalEndpoint(endpoints *config.Endpoints) (config.Endpoint, bool) {

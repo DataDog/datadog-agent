@@ -108,6 +108,7 @@ type streamWorker struct {
 	// Configuration
 	workerID            string
 	destinationsContext *client.DestinationsContext
+	prepareForNewStream func()
 
 	// Pipeline integration
 	inputChan  chan *message.Payload
@@ -160,9 +161,10 @@ func newStreamWorker(
 	streamLifetime time.Duration,
 	compressor compression.Compressor,
 	maxInflight int,
+	prepareForNewStream func(),
 ) *streamWorker {
 	return newStreamWorkerWithClock(workerID, inputChan, destinationsCtx, conn, client, sink,
-		endpoint, streamLifetime, compressor, clock.New(), nil, maxInflight)
+		endpoint, streamLifetime, compressor, clock.New(), nil, maxInflight, prepareForNewStream)
 }
 
 // newStreamWorkerWithClock creates a new gRPC stream worker with injectable clock for testing
@@ -179,6 +181,7 @@ func newStreamWorkerWithClock(
 	clock clock.Clock,
 	inflightTracker *inflightTracker,
 	maxInflight int,
+	prepareForNewStream func(),
 ) *streamWorker {
 	backoffPolicy := backoff.NewExpBackoffPolicy(
 		endpoint.BackoffFactor,
@@ -196,6 +199,7 @@ func newStreamWorkerWithClock(
 	worker := &streamWorker{
 		workerID:            workerID,
 		destinationsContext: destinationsCtx,
+		prepareForNewStream: prepareForNewStream,
 		inputChan:           inputChan,
 		outputChan:          nil,
 		sink:                sink,
@@ -541,6 +545,10 @@ func (s *streamWorker) finishStreamRotation(streamInfo *streamInfo) {
 	// Convert all the unacked items to buffered/unsent items by resetting inflight
 	// tracker. Supervisor loop will pick them up automatically and send them.
 	s.inflight.resetOnRotation()
+
+	if s.prepareForNewStream != nil {
+		s.prepareForNewStream()
+	}
 
 	log.Infof("Worker %s: Stream rotation complete, now active", s.workerID)
 
