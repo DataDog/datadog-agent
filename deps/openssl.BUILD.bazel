@@ -264,16 +264,25 @@ dd_cc_packaged(
     input = ":_libcrypto_shared_input",
     version = OPENSSL_VERSION,
     libname = "libcrypto",
-    installed_files = [":_openssl_files"] + select({
+    installed_files = select({
+        # On non-FIPS Windows, nothing from the OpenSSL install tree is needed:
+        # import libs and headers are only required for the FIPS cryptography source
+        # build, and copy_to_directory produces a non-existent TreeArtifact when all
+        # files are excluded, which would break the installer.
+        ":fips_windows": [":_openssl_files"],
+        "@platforms//os:windows": [],
+        "//conditions:default": [":_openssl_files"],
+    }) + select({
         "@@//packages/agent:fips_flavor": [":_fips_extra_files"],
         "//conditions:default": [],
     }),
     installed_executables = {
         ":openssl_binary": "bin",
     } | select({
-        # On Windows, DLLs are in out_binaries so LibraryToLink.dynamic_library is
+        # On FIPS Windows, DLLs are in out_binaries so LibraryToLink.dynamic_library is
         # None; supply them explicitly so _dd_packaged_files_rule installs them.
-        "@platforms//os:windows": {
+        # Non-FIPS Windows does not need the agent's OpenSSL DLLs at runtime.
+        ":fips_windows": {
             ":libcrypto_shared_file": "bin",
             ":libssl_shared_file": "bin",
         },
