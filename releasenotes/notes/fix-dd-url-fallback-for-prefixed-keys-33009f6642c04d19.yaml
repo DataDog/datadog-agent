@@ -1,0 +1,129 @@
+---
+fixes:
+  - |
+    The top-level ``dd_url`` setting is now honored by every Agent data
+    pipeline that previously ignored it. Prior to this fix, ``dd_url`` only
+    routed metrics traffic; pipelines that read a per-pipeline ``<prefix>.dd_url``
+    key (for example ``container_lifecycle.dd_url`` or
+    ``apm_config.apm_dd_url``) silently fell back to the default Datadog
+    intake hostnames when their own ``<prefix>.dd_url`` was unset, even
+    though ``dd_url`` was set globally. They now fall back to ``dd_url``
+    when their per-pipeline override is unset, matching the behavior
+    customers reasonably expect when configuring a single proxy or
+    air-gapped egress endpoint.
+
+    An explicit per-pipeline ``<prefix>.dd_url`` continues to take
+    precedence over the new global fallback, so existing per-pipeline
+    overrides are unaffected.
+
+  - |
+    APM : APM trace and APM internal-telemetry endpoints now honor a
+    global ``dd_url`` when ``apm_config.apm_dd_url`` and
+    ``apm_config.telemetry.dd_url`` are unset. Previously these pipelines
+    sent traffic to ``trace.agent.{site}`` and
+    ``instrumentation-telemetry-intake.{site}`` regardless of ``dd_url``.
+upgrade:
+  - |
+    **Behavior change for ``dd_url``: more traffic now routes through it.**
+
+    The Agent previously had an inconsistency where ``dd_url`` only
+    affected the metrics intake. Several other data pipelines silently
+    bypassed ``dd_url`` and sent to the default Datadog intake hostnames
+    instead. This release fixes that inconsistency: when a pipeline's
+    own ``<prefix>.dd_url`` is unset, the pipeline now falls back to the
+    global ``dd_url`` before falling back to ``site``.
+
+    **You are affected if all of the following are true:**
+
+    1. You set ``dd_url`` (or ``DD_DD_URL`` / ``DD_URL``) globally,
+    2. You did **not** set the matching per-pipeline override key for
+       a pipeline you care about, and
+    3. You expect that pipeline's traffic to continue reaching the
+       default Datadog intake hostnames after upgrading.
+
+    The most common case is a customer running the Agent behind an HTTP
+    proxy that ``dd_url`` points at, but whose proxy is not sized for or
+    not authorized to forward traffic from APM, CWS, container lifecycle,
+    SBOM, Remote Config, or other pipelines listed below. Those pipelines
+    will start sending through the proxy on this version.
+
+    **Pipelines whose traffic now follows the global ``dd_url``** (when
+    their own override is unset), grouped by the Agent process that
+    sends the traffic:
+
+    * **Core Agent**
+
+      * Logs intake (``logs_config.dd_url``)
+      * Container lifecycle events (``container_lifecycle.dd_url``)
+      * Container image metadata (``container_image.dd_url``)
+      * Software bill of materials (``sbom.dd_url``)
+      * Database Monitoring metrics, samples, activity, and health
+        (``database_monitoring.metrics.dd_url``,
+        ``database_monitoring.samples.dd_url``,
+        ``database_monitoring.activity.dd_url``)
+      * Network Devices Monitoring metadata, SNMP traps, NetFlow
+        (``network_devices.metadata.dd_url``,
+        ``network_devices.snmp_traps.forwarder.dd_url``,
+        ``network_devices.netflow.forwarder.dd_url``)
+      * Network Path (``network_path.forwarder.dd_url``)
+      * Network Configuration Management
+        (``network_config_management.forwarder.dd_url``)
+      * Synthetics private locations (``synthetics.forwarder.dd_url``)
+      * Event Management (``event_management.forwarder.dd_url``)
+      * Data Streams Monitoring (``data_streams.forwarder.dd_url``)
+      * Data Observability (``data_observability.forwarder.dd_url``)
+      * Kubernetes Actions (``kubeactions.forwarder.dd_url``)
+      * Software Inventory (``software_inventory.forwarder.dd_url``)
+      * Internal Agent telemetry
+
+    * **Trace Agent**
+
+      * APM traces (``apm_config.apm_dd_url``)
+      * APM internal telemetry (``apm_config.telemetry.dd_url``)
+
+    * **System Probe and Security Agent**
+
+      * Cloud Workload Security runtime events
+        (``runtime_security_config.endpoints.dd_url``)
+      * CWS activity dump remote storage
+        (``runtime_security_config.activity_dump.remote_storage.endpoints.dd_url``)
+      * Compliance findings
+        (``compliance_config.endpoints.dd_url``)
+
+    * **Cluster Agent**
+
+      * Cluster Agent internal telemetry
+        (``apm_config.telemetry.dd_url``)
+      * Compliance reporter (``compliance_config.endpoints.dd_url``)
+      * External Metrics Provider
+        (``external_metrics_provider.endpoint``)
+      * Remote Configuration (``remote_configuration.rc_dd_url``)
+
+    **What is not changing:**
+
+    * The metrics intake. ``dd_url`` already routed metrics correctly
+      before this fix.
+    * ``additional_endpoints``. Multi-intake fan-out continues to use the
+      same configuration mechanism it always has.
+    * Any pipeline where the per-pipeline override is explicitly set.
+      An explicit ``<prefix>.dd_url`` value continues to take precedence
+      over the global ``dd_url`` fallback.
+
+    **How to keep the previous behavior** for one or more specific
+    pipelines: set the per-pipeline override key to the default Datadog
+    intake URL for your site. For example, to keep APM traces flowing
+    directly to ``trace.agent.{site}`` while routing metrics through a
+    global ``dd_url``:
+
+    .. code-block:: yaml
+
+        dd_url: https://my-proxy.internal:8081
+        site: datadoghq.com
+        apm_config:
+          apm_dd_url: https://trace.agent.datadoghq.com
+
+    Replace ``trace.agent.datadoghq.com`` with the appropriate intake
+    hostname for your site (for example ``trace.agent.datadoghq.eu``,
+    ``trace.agent.us3.datadoghq.com``, ``trace.agent.us5.datadoghq.com``,
+    ``trace.agent.ap1.datadoghq.com``, or ``trace.agent.ddog-gov.com``).
+    The same pattern applies to every key listed above.
