@@ -18,7 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/senderhelper"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/server"
+	server "github.com/DataDog/datadog-agent/comp/snmptraps/server/def"
 	ndmtestutils "github.com/DataDog/datadog-agent/pkg/networkdevice/testutils"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -34,7 +34,7 @@ func TestServer(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(tdb, "foo.json"), []byte{}, 0666))
 	// Pick a deterministic port specific to this test run to avoid collisions
 	port := ndmtestutils.UniqueTestPort(t.Name(), confdPath)
-	server := fxutil.Test[server.Component](t,
+	srv := fxutil.Test[server.Component](t,
 		senderhelper.Opts,
 		fx.Provide(func(t testing.TB) config.Component {
 			return config.NewMockWithOverrides(t, map[string]interface{}{
@@ -45,11 +45,11 @@ func TestServer(t *testing.T) {
 				"network_devices.snmp_traps.community_strings": []string{"public"},
 			})
 		}),
-		Module(),
+		fxutil.ProvideComponentConstructor(NewComponent),
 	)
-	assert.NotEmpty(t, server)
-	assert.NoError(t, server.Error())
-	assert.True(t, server.Running())
+	assert.NotEmpty(t, srv)
+	assert.NoError(t, srv.Error())
+	assert.True(t, srv.Running())
 }
 
 func TestNonBlockingFailure(t *testing.T) {
@@ -57,7 +57,7 @@ func TestNonBlockingFailure(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(confdPath)
 	port := ndmtestutils.UniqueTestPort(t.Name(), confdPath)
-	server := fxutil.Test[server.Component](t,
+	srv := fxutil.Test[server.Component](t,
 		senderhelper.Opts,
 		fx.Provide(func(t testing.TB) config.Component {
 			return config.NewMockWithOverrides(t, map[string]interface{}{
@@ -68,24 +68,24 @@ func TestNonBlockingFailure(t *testing.T) {
 				"network_devices.snmp_traps.community_strings": []string{"public"},
 			})
 		}),
-		Module(),
+		fxutil.ProvideComponentConstructor(NewComponent),
 	)
-	assert.NotEmpty(t, server)
-	assert.ErrorIs(t, server.Error(), os.ErrNotExist)
-	assert.False(t, server.Running())
+	assert.NotEmpty(t, srv)
+	assert.ErrorIs(t, srv.Error(), os.ErrNotExist)
+	assert.False(t, srv.Running())
 }
 
 func TestDisabled(t *testing.T) {
-	server := fxutil.Test[server.Component](t,
+	srv := fxutil.Test[server.Component](t,
 		senderhelper.Opts,
 		fx.Provide(func(t testing.TB) config.Component {
 			return config.NewMockWithOverrides(t, map[string]interface{}{
 				"network_devices.snmp_traps.enabled": false,
 			})
 		}),
-		Module(),
+		fxutil.ProvideComponentConstructor(NewComponent),
 	)
-	assert.NotNil(t, server)
-	assert.NoError(t, server.Error())
-	assert.False(t, server.Running())
+	assert.NotNil(t, srv)
+	assert.NoError(t, srv.Error())
+	assert.False(t, srv.Running())
 }
