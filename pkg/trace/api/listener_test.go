@@ -86,7 +86,6 @@ func TestMockListener(t *testing.T) {
 		_, err := ln.Accept()
 		nerr, ok := err.(net.Error)
 		assert.True(ok)
-		assert.True(nerr.Temporary())
 		assert.False(nerr.Timeout())
 	})
 
@@ -97,7 +96,6 @@ func TestMockListener(t *testing.T) {
 		_, err := ln.Accept()
 		nerr, ok := err.(net.Error)
 		assert.True(ok)
-		assert.False(nerr.Temporary())
 		assert.True(nerr.Timeout())
 	})
 
@@ -109,7 +107,6 @@ func TestMockListener(t *testing.T) {
 		_, err := ln.Accept()
 		nerr, ok := err.(net.Error)
 		assert.True(ok)
-		assert.False(nerr.Temporary())
 		assert.True(nerr.Timeout())
 
 		ln.SetSuccess()
@@ -120,7 +117,6 @@ func TestMockListener(t *testing.T) {
 		_, err = ln.Accept()
 		nerr, ok = err.(net.Error)
 		assert.True(ok)
-		assert.True(nerr.Temporary())
 		assert.False(nerr.Timeout())
 
 		ln.SetSuccess()
