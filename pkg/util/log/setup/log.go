@@ -13,6 +13,7 @@ import (
 	stdslog "log/slog"
 	"os"
 	"strings"
+	"sync/atomic"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -186,9 +187,15 @@ func buildSlogLogger(
 	multiHandler := handlers.NewMulti(handlerList...)
 	asyncHandler := handlers.NewAsync(multiHandler)
 
+	// AGTHEAL-15: errortracking branch is a sibling of asyncHandler under the
+	// global level filter so error records reach the COAT pipeline directly
+	// (no async batching) while non-error records are filtered by the slot's
+	// Enabled check before reaching multi.
+	topHandler := handlers.NewMulti(asyncHandler, newErrortrackingSlot())
+
 	levelVar := new(stdslog.LevelVar)
 	levelVar.Set(types.ToSlogLevel(logLevel))
-	levelHandler := handlers.NewLevel(levelVar, asyncHandler)
+	levelHandler := handlers.NewLevel(levelVar, topHandler)
 
 	// Close async handler first so it drains and stops writing, then close writers.
 	// Otherwise the async goroutine can still call Write() while the file writer is closed (data race).
@@ -276,4 +283,74 @@ func (t *tlsHandshakeErrorWriter) Write(p []byte) (n int, err error) {
 		return len(p), nil
 	}
 	return t.writer.Write(p)
+}
+
+// errortrackingHandlerSlot is the package-global atomic pointer that backs
+// every errortrackingSlot returned by buildSlogLogger. The Fx wiring at
+// cmd/agent/subcommands/run/ registers the COAT errortracking handler here
+// at startup; until then the slot is a no-op so the chain works whether or
+// not errortracking is enabled.
+var errortrackingHandlerSlot atomic.Pointer[stdslog.Handler]
+
+// RegisterErrortrackingHandler installs h as the inner handler that the
+// errortracking branch of every slog chain built via buildSlogLogger
+// delegates to. Passing nil clears the registration so the branch becomes a
+// no-op again - tests use this to clean up between cases.
+//
+// This is a setter rather than a constructor argument because SetupLogger is
+// invoked from many call-sites (most without Fx access) and we do not want
+// to thread an errortracking.Sender through every one. The Fx graph in the
+// run command resolves the COAT sender, builds the in-package Pipeline +
+// Handler, and calls RegisterErrortrackingHandler exactly once during
+// startup.
+func RegisterErrortrackingHandler(h stdslog.Handler) {
+	if h == nil {
+		errortrackingHandlerSlot.Store(nil)
+		return
+	}
+	errortrackingHandlerSlot.Store(&h)
+}
+
+// errortrackingSlot is the slog.Handler placed in the chain at construction
+// time so SetupLogger does not need to know whether errortracking is enabled.
+// It defers to whichever handler is currently registered in
+// errortrackingHandlerSlot; when nothing is registered it reports Enabled =
+// false so the parent multi-handler skips it entirely.
+type errortrackingSlot struct{}
+
+func newErrortrackingSlot() *errortrackingSlot { return &errortrackingSlot{} }
+
+func (s *errortrackingSlot) Enabled(ctx context.Context, level stdslog.Level) bool {
+	if h := errortrackingHandlerSlot.Load(); h != nil {
+		return (*h).Enabled(ctx, level)
+	}
+	return false
+}
+
+func (s *errortrackingSlot) Handle(ctx context.Context, r stdslog.Record) error {
+	if h := errortrackingHandlerSlot.Load(); h != nil {
+		return (*h).Handle(ctx, r)
+	}
+	return nil
+}
+
+// WithAttrs delegates to the registered handler when present, returning a
+// concrete handler derived from it. When nothing is registered, the call is
+// a no-op: the slot returns itself, so future Handle calls still defer to
+// whatever gets registered later. The trade-off is that WithAttrs values
+// applied before registration are not retained on the errortracking branch;
+// this is acceptable for v1 because the Fx graph registers the handler
+// during startup, before any feature code attaches per-call attrs.
+func (s *errortrackingSlot) WithAttrs(attrs []stdslog.Attr) stdslog.Handler {
+	if h := errortrackingHandlerSlot.Load(); h != nil {
+		return (*h).WithAttrs(attrs)
+	}
+	return s
+}
+
+func (s *errortrackingSlot) WithGroup(name string) stdslog.Handler {
+	if h := errortrackingHandlerSlot.Load(); h != nil {
+		return (*h).WithGroup(name)
+	}
+	return s
 }
