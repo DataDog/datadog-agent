@@ -152,6 +152,20 @@ class Config:
     # reason rather than `strict_regression`.
     sanity_zero_detections_check: bool = True
 
+    # Blank-mode quality floor for the FIRST ship.
+    #
+    # When original baseline F1 ≈ 0 across all scenarios (blank-slate
+    # runs), the catastrophe filters cannot fire — you can't drop below
+    # zero — so the first candidate that compiles ships regardless of
+    # how poor its detection quality actually is. That candidate then
+    # becomes the effective_baseline for everything that follows, locking
+    # in noise as the run's reference.
+    #
+    # This floor requires the first-ever ship's mean F1 to clear a
+    # minimum bar before it's allowed to land. Once anything has shipped,
+    # the floor stops applying — effective_baseline takes over.
+    first_ship_min_mean_f1: float = 0.25
+
     # Overfit detector: every N shipped candidates, evaluate all shipped
     # candidates on the lockbox (locally, not passed to any agent) and
     # compute Spearman rank-correlation between train-rank and lockbox-rank.

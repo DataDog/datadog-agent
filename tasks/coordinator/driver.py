@@ -1255,10 +1255,24 @@ def _run_iteration_body(
         metrics.regenerate(db, root)
         return
 
+    # Blank-mode quality floor for the FIRST-ever ship. Catastrophe filters
+    # can't fire when baseline F1 ≈ 0 across the board, so the first
+    # candidate that compiles would otherwise ship regardless of detection
+    # quality. Once anything has shipped, effective_baseline (best-historical)
+    # takes over and provides the floor.
+    any_prior_ship = any(
+        c.status == CandidateStatus.SHIPPED for c in db.candidates.values()
+    )
+    first_ship_floor_breached = (
+        not any_prior_ship
+        and scoring.mean_f1 < CONFIG.first_ship_min_mean_f1
+    )
+
     if (
         scoring.strict_regressions
         or scoring.recall_floor_violations
         or fp_ceiling_breached
+        or first_ship_floor_breached
     ):
         fp_reason = ""
         if fp_ceiling_breached:
@@ -1267,10 +1281,17 @@ def _run_iteration_body(
                 f"{fp_ceiling} (ratio {CONFIG.fp_ceiling_ratio}× baseline "
                 f"{scoring.baseline_total_fps})"
             )
+        floor_reason = ""
+        if first_ship_floor_breached:
+            floor_reason = (
+                f" first_ship_floor_breached=mean_f1 {scoring.mean_f1:.4f} < "
+                f"{CONFIG.first_ship_min_mean_f1:.2f} (no prior ship — "
+                f"quality bar for first commit on a blank-baseline run)"
+            )
         reason = (
             f"strict_regressions={scoring.strict_regressions} "
             f"recall_violations={scoring.recall_floor_violations}"
-            f"{fp_reason}"
+            f"{fp_reason}{floor_reason}"
         )
         # Persist on the experiment so the proposer can see WHY this was
         # rejected on the next iteration's research-memory context.
