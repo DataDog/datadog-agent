@@ -324,6 +324,34 @@ def _budget_footer(root: Path, iter_num: int | None = None, ceiling: int | None 
     )
 
 
+def _detectors_not_registered(detectors: list[str], root: Path) -> set[str]:
+    """Return any detector names not present in component_catalog.go.
+
+    Greps the catalog file for the detector name as a quoted string
+    literal — `name: "<detector>"` is the registration shape used in
+    `defaultCatalog()`. Misses on case mismatch, intentional: the
+    implementer should match the candidate.target_components exactly.
+
+    Returns the set of detectors NOT registered. Empty set = all good.
+    """
+    catalog_path = root / "comp" / "observer" / "impl" / "component_catalog.go"
+    if not catalog_path.exists():
+        # Catalog file missing entirely — every detector is "not registered."
+        return set(detectors)
+    try:
+        text = catalog_path.read_text()
+    except OSError:
+        return set(detectors)
+    missing: set[str] = set()
+    for det in detectors:
+        # Look for the name as a quoted string literal. `"<det>"` covers
+        # both the `name: "<det>"` registration form and any other
+        # quoted reference. Cheap, deterministic, no regex risk.
+        if f'"{det}"' not in text:
+            missing.add(det)
+    return missing
+
+
 def _sanity_pre_eval_sentinel(db: Db, root: Path, iter_num: int) -> tuple[bool, str]:
     """Run a single-scenario eval on the sentinel detector + scenario.
 
@@ -1082,6 +1110,54 @@ def _run_iteration_body(
         {"iter": iter_num, "candidate": candidate.id, "summary": impl_summary},
         root,
     )
+
+    # 3a. Pre-eval registration check: verify each target detector is
+    # actually registered in comp/observer/impl/component_catalog.go.
+    # Without this, q.eval-scenarios --only <name> matches nothing,
+    # eval runs with no detector enabled, returns an empty report, and
+    # the eval_silent_failure gate fires too late ($30+ wasted per iter).
+    # Common cause: the implementer (Sonnet) hits max_turns before
+    # finishing the catalog registration step. Catching it here saves
+    # the eval cost AND gives the proposer a precise rejection reason.
+    if not dry_run:
+        unregistered = _detectors_not_registered(detectors, root)
+        if unregistered:
+            reason = (
+                f"detector_not_registered: {sorted(unregistered)} — "
+                f"the implementer wrote code but did not register the "
+                f"detector(s) in comp/observer/impl/component_catalog.go, "
+                f"so eval would run with nothing to measure"
+            )
+            print(f"[iter {iter_num}] AUTO-REJECTED ({reason})", file=sys.stderr)
+            journal.append(
+                "auto_rejected_unregistered",
+                {"iter": iter_num, "candidate": candidate.id, "detectors": sorted(unregistered)},
+                root,
+            )
+            experiment.auto_reject_reason = reason
+            coord_out.emit(
+                "iter_rejected",
+                (
+                    f"**iter {iter_num}** · `{candidate.id}` — auto-rejected "
+                    f"before eval: detector(s) `{sorted(unregistered)}` were "
+                    f"not registered in `component_catalog.go`. Likely the "
+                    f"implementer hit max_turns before finishing the catalog "
+                    f"step.\n\n"
+                    f"**Implementer summary**: `{impl_summary[:300]}`\n\n"
+                    f"Working tree reverted; moving on. The proposer will "
+                    f"see this as a rejection reason on the next iter."
+                    + _budget_footer(root, iter_num, ceiling=db.budget.api_token_ceiling)
+                ),
+                requires_ack=False,
+                root=root,
+            )
+            candidate.status = CandidateStatus.REJECTED
+            git_ops.revert_working_tree(root)
+            it.ended_at = now_iso()
+            db.iterations.append(it)
+            save_db(db, root)
+            metrics.regenerate(db, root)
+            return
 
     # 4. Eval — one run per relevant detector. Reports go to per-detector
     # subdirs so we keep full visibility across the set.

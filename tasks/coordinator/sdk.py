@@ -630,6 +630,35 @@ def _format_prior_work(prior_experiments: list[dict]) -> str:
     return "\n".join(lines)
 
 
+def _is_blank_creation(candidate) -> bool:
+    """True if this candidate is creating a brand-new detector (target
+    name doesn't match any existing detector file in comp/observer/impl/).
+
+    Used to decide max_turns: blank-slate creation needs more headroom
+    than tweaking an existing file because the implementer has to write
+    the detector file AND update component_catalog.go AND add tests.
+    """
+    targets = [t for t in (candidate.target_components or []) if t]
+    if not targets:
+        return False
+    impl_dir = Path("comp/observer/impl")
+    if not impl_dir.is_dir():
+        return True  # nothing exists; everything is creation
+    # Look for any .go file that mentions the target name as a quoted
+    # string. Catalog file is the most reliable signal — if the target
+    # is quoted there, it's already registered (full-mode tweak).
+    catalog = impl_dir / "component_catalog.go"
+    if catalog.exists():
+        try:
+            text = catalog.read_text()
+            for t in targets:
+                if f'"{t}"' in text:
+                    return False
+        except OSError:
+            pass
+    return True
+
+
 async def _block_task_tool_hook(input_data, tool_use_id, context):
     """PreToolUse hook: block the Task tool entirely.
 
@@ -792,7 +821,16 @@ Target components: {', '.join(candidate.target_components)}
                 HookMatcher(matcher="Task", hooks=[_block_task_tool_hook]),
             ],
         },
-        max_turns=25 if has_plan else 40,
+        # max_turns: blank-slate candidates need MORE turns than full-mode
+        # (create a new file + write algorithm + register in catalog +
+        # update tests). The earlier 25 was tuned for full-mode tweaks
+        # which only edit existing files. Bump to 50 when blank
+        # (heuristic: target_components contains a name not in the
+        # baseline). Plan-less still gets 40 as a fallback.
+        max_turns=(
+            50 if has_plan and _is_blank_creation(candidate) else
+            (25 if has_plan else 40)
+        ),
     )
     # Extract the "DONE:" summary line.
     for line in text.splitlines():
