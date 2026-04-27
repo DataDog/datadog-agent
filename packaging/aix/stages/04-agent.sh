@@ -102,11 +102,7 @@ log "Building agent version $AGENT_VERSION at commit $COMMIT"
 
 # ─── Step 4: Build the agent binary ───────────────────────────────────────────
 #
-# Build tags are determined by inv agent.build (tasks/build_tags.py).
-#
-# The binary is placed at bin/agent/agent — matching the Linux convention —
-# so the agent's built-in relative path computation (../../embedded) resolves
-# to /opt/datadog-agent/embedded without needing --python-home-3.
+# Build tags and ldflags are determined by inv agent.build (tasks/build_tags.py).
 
 log "Building agent binary via inv agent.build"
 cd /opt/datadog-agent
@@ -124,7 +120,7 @@ log "agent binary build complete: $STAGING/opt/datadog-agent/bin/agent/agent"
 
 # ─── Step 5: Build the trace-agent binary ─────────────────────────────────────
 #
-# Build tags come from tasks/build_tags.py AGENT_TAGS minus AIX_EXCLUDE_TAGS, plus COMMON_TAGS.
+# Build tags are determined by inv trace-agent.build (tasks/build_tags.py).
 
 log "Building trace-agent binary via inv trace-agent.build"
 cd /opt/datadog-agent
