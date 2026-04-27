@@ -187,6 +187,44 @@ def _dump_sdk_error(
     return p
 
 
+def tail_sdk_error_for_pr(err_msg: str, max_lines: int = 20) -> str:
+    """Extract a small inlinable snippet from an sdk-errors dump.
+
+    Driver code emits `iter_impl_failed` / `iter_review_failed` PR comments
+    with `str(exc)` which includes the dump path. This helper reads that
+    dump and returns the last `max_lines` lines of the captured CLI stderr
+    (or the cause-chain block if no stderr was captured) so a human reading
+    the PR doesn't need to ssh to the workspace just to see what crashed.
+
+    Returns "" if the path can't be located or read — caller should
+    treat that as "no extra context available" and fall back to the
+    bare exception text.
+    """
+    import re
+    m = re.search(r"Full context:\s*(\S+)", err_msg)
+    if not m:
+        return ""
+    path = Path(m.group(1))
+    try:
+        text = path.read_text()
+    except OSError:
+        return ""
+    # Prefer the CLI-stderr section if present and non-empty.
+    stderr_marker = "--- claude CLI stderr ---"
+    idx = text.rfind(stderr_marker)
+    snippet: str
+    if idx != -1:
+        body = text[idx + len(stderr_marker):].strip()
+        if body and body.lower() != "(empty)":
+            lines = body.splitlines()
+            snippet = "\n".join(lines[-max_lines:])
+            return f"```\n{snippet[:2400]}\n```"
+    # Fall back to the cause chain — last `max_lines` of the dump file.
+    lines = text.splitlines()
+    snippet = "\n".join(lines[-max_lines:])
+    return f"```\n{snippet[:2400]}\n```"
+
+
 def _run_query(
     prompt: str,
     model: str | None = None,
@@ -234,6 +272,16 @@ def _run_query(
                 pass
 
     options_kwargs["stderr"] = _stderr_cb
+
+    # Ask the CLI to write verbose debug output to its own stderr (which
+    # we now capture above). Without this, the CLI runs quietly and a
+    # crash leaves us with `(empty)` stderr — exactly the case we hit
+    # iter 24. With it, we see the tool calls and what failed.
+    # `extra_args` is a dict[str, str|None]; the SDK checks key
+    # membership, so a value of None just adds the bare flag.
+    extra = dict(options_kwargs.get("extra_args") or {})
+    extra.setdefault("debug-to-stderr", None)
+    options_kwargs["extra_args"] = extra
 
     def _once() -> str:
         return _collect_text(

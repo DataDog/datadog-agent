@@ -923,14 +923,17 @@ def _run_iteration_body(
             # (or the SDK itself is sick — but re-picking won't help
             # either way).
             candidate.status = CandidateStatus.REJECTED
+            stderr_tail = sdk_mod.tail_sdk_error_for_pr(str(e))
+            tail_block = f"\n\n**Captured CLI stderr (tail)**:\n{stderr_tail}" if stderr_tail else ""
             coord_out.emit(
                 "iter_impl_failed",
                 (
                     f"**iter {iter_num}** · `{candidate.id}` — "
                     f"implementation agent crashed. Candidate marked "
                     f"REJECTED to prevent loop.\n\n"
-                    f"Error: `{str(e)[:400]}`\n\n"
-                    f"Working tree reverted; moving on."
+                    f"Error: `{str(e)[:400]}`"
+                    + tail_block
+                    + f"\n\nWorking tree reverted; moving on."
                     + _budget_footer(root, iter_num, ceiling=db.budget.api_token_ceiling)
                 ),
                 requires_ack=False,
@@ -1177,6 +1180,21 @@ def _run_iteration_body(
     except Exception as e:
         print(f"[iter {iter_num}] review failed: {e}", file=sys.stderr)
         journal.append("review_failed", {"iter": iter_num, "error": str(e)}, root)
+        stderr_tail = sdk_mod.tail_sdk_error_for_pr(str(e))
+        tail_block = f"\n\n**Captured CLI stderr (tail)**:\n{stderr_tail}" if stderr_tail else ""
+        coord_out.emit(
+            "iter_review_failed",
+            (
+                f"**iter {iter_num}** · `{candidate.id}` — "
+                f"review crashed. Candidate marked REJECTED to prevent loop.\n\n"
+                f"Error: `{str(e)[:400]}`"
+                + tail_block
+                + f"\n\nWorking tree reverted; moving on."
+                + _budget_footer(root, iter_num, ceiling=db.budget.api_token_ceiling)
+            ),
+            requires_ack=False,
+            root=root,
+        )
         git_ops.revert_working_tree(root)
         # Review crash is not a judgement — revert, reject, move on.
         candidate.status = CandidateStatus.REJECTED
