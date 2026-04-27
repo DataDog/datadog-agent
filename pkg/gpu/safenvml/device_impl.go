@@ -405,6 +405,14 @@ func (d *safeDeviceImpl) GetMemoryErrorCounter(errorType nvml.MemoryErrorType, e
 	return count, NewNvmlAPIErrorOrNil("GetMemoryErrorCounter", ret)
 }
 
+func (d *safeDeviceImpl) GetSramEccErrorStatus() (nvml.EccSramErrorStatus, error) {
+	if err := d.lib.lookup(toNativeName("GetSramEccErrorStatus")); err != nil {
+		return nvml.EccSramErrorStatus{}, err
+	}
+	status, ret := d.nvmlDevice.GetSramEccErrorStatus()
+	return status, NewNvmlAPIErrorOrNil("GetSramEccErrorStatus", ret)
+}
+
 func (d *safeDeviceImpl) GetRunningProcessDetailList() (nvml.ProcessDetailList, error) {
 	if err := d.lib.lookup(toNativeName("GetRunningProcessDetailList")); err != nil {
 		return nvml.ProcessDetailList{}, err
