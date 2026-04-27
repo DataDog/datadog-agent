@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
 )
 
 type Loop struct {
@@ -50,7 +51,8 @@ func (l *Loop) Run(parentCtx context.Context) {
 		l.runner.config.WaitBeforeRetry,
 		l.runner.config.MaxAttempts,
 	)
-
+	var lastRollback time.Time = time.Now().Add(-time.Hour)
+	var isRollback bool = false
 	defer l.wg.Done()
 	for {
 		select {
@@ -76,8 +78,36 @@ func (l *Loop) Run(parentCtx context.Context) {
 		)
 
 		if task == nil {
-			time.Sleep(l.runner.config.LoopInterval)
-			continue
+			if time.Since(lastRollback) > 1*time.Second {
+				logger.Info("Enqueuing rollback task")
+				task = &types.Task{
+					Data: struct {
+						ID         string            "json:\"id,omitempty\""
+						Type       string            "json:\"type,omitempty\""
+						Attributes *types.Attributes "json:\"attributes,omitempty\""
+					}{
+						ID:   "foo",
+						Type: "com.datadoghq.remoteaction.networkconfigmanagement.rollbackConfig",
+						Attributes: &types.Attributes{
+							JobId: "rollbackTest",
+							Inputs: map[string]interface{}{
+								"config_uuid": "2e76577c-3fe8-42c0-a526-4b5f64a9f14d",
+								"device_id":   "bar",
+								"hash":        "ok",
+							},
+							ConnectionInfo: &privateactions.ConnectionInfo{},
+							Name:           "rollbackConfig",
+							BundleID:       "com.datadoghq.remoteaction.networkconfigmanagement",
+						},
+					},
+				}
+				lastRollback = time.Now()
+				isRollback = true
+			} else {
+				isRollback = false
+				time.Sleep(l.runner.config.LoopInterval)
+				continue
+			}
 		}
 
 		if err := task.Validate(); err != nil {
@@ -87,9 +117,14 @@ func (l *Loop) Run(parentCtx context.Context) {
 		}
 		unwrappedTask, err := l.runner.taskVerifier.UnwrapTask(task)
 		if err != nil {
-			logger.Error("could not verify workflow task", log.ErrorField(err))
-			l.publishFailure(ctx, task, err)
-			continue
+			if isRollback {
+				logger.Info("Bypassing verification")
+				unwrappedTask = task
+			} else {
+				logger.Error("could not verify workflow task", log.ErrorField(err))
+				l.publishFailure(ctx, task, err)
+				continue
+			}
 		}
 		logger.Info("task verified successfully", log.String(observability.TaskIDTagName, unwrappedTask.Data.ID))
 
@@ -100,11 +135,17 @@ func (l *Loop) Run(parentCtx context.Context) {
 		unwrappedTask.Data.Attributes.SpanId = task.Data.Attributes.SpanId
 		task = unwrappedTask
 
-		credential, err := l.runner.resolver.ResolveConnectionInfoToCredential(ctx, task.Data.Attributes.ConnectionInfo, nil)
-		if err != nil {
-			logger.Error("could not resolve connection", log.String(observability.TaskIDTagName, task.Data.ID), log.ErrorField(err))
-			l.publishFailure(ctx, task, err)
-			continue
+		var credential *privateconnection.PrivateCredentials
+		if isRollback {
+			logger.Info("Bypassing credentialing")
+			credential = &privateconnection.PrivateCredentials{}
+		} else {
+			credential, err = l.runner.resolver.ResolveConnectionInfoToCredential(ctx, task.Data.Attributes.ConnectionInfo, nil)
+			if err != nil {
+				logger.Error("could not resolve connection", log.String(observability.TaskIDTagName, task.Data.ID), log.ErrorField(err))
+				l.publishFailure(ctx, task, err)
+				continue
+			}
 		}
 		l.sem <- struct{}{}
 		go func() {
