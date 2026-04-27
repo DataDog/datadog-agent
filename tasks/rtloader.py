@@ -157,6 +157,53 @@ def test(ctx):
 
 
 @task
+def test_subinterpreters(ctx, python="/opt/homebrew/bin/python3.14"):
+    """
+    Build rtloader with -DENABLE_SUBINTERPRETERS=ON and run only the
+    Subinterpreter* tests. Requires Python 3.13+ at the given path.
+
+    Independent of `dda inv agent.build` — this task re-builds rtloader
+    in `rtloader/build/` for the standalone Go test binary, separate from
+    the main agent build that goes to `dev/lib/`.
+
+    Usage:
+      dda inv rtloader.test-subinterpreters
+      dda inv rtloader.test-subinterpreters --python=/opt/homebrew/bin/python3.13
+    """
+    rtloader_path = get_rtloader_path()
+    build_path = get_rtloader_build_path()
+
+    # Clean + rebuild with the sub-interpreter flag.
+    ctx.run(f"rm -rf {build_path}", echo=True)
+    ctx.run(f"mkdir -p {build_path}", echo=True)
+    ctx.run(
+        f'cd {build_path} && cmake '
+        f'-DENABLE_SUBINTERPRETERS=ON '
+        f'-DPython3_EXECUTABLE={python} {rtloader_path}',
+        echo=True,
+    )
+    ctx.run(f"make -C {build_path} -j", echo=True)
+
+    # Run only Subinterpreter* tests. Embed library paths into the test binary
+    # via -Wl,-rpath so dyld can find them at runtime without DYLD_LIBRARY_PATH
+    # (which doesn't propagate reliably through invoke's subprocess chain on macOS).
+    env = {
+        "CGO_CFLAGS": f"-I{rtloader_path}/include -I{rtloader_path}/common",
+        "CGO_LDFLAGS": (
+            f"-L{build_path}/rtloader -L{build_path}/three "
+            f"-Wl,-rpath,{build_path}/rtloader -Wl,-rpath,{build_path}/three "
+            "-ldatadog-agent-rtloader -ldatadog-agent-three -ldl"
+        ),
+    }
+    ctx.run(
+        'go test -v -tags "three,python" ./rtloader/test/rtloader/ '
+        '-run "Subinterpreter" -count=1',
+        env=env,
+        echo=True,
+    )
+
+
+@task
 def format(ctx, raise_if_changed=False):
     with gitlab_section("Run clang-format on rtloader", collapsed=True):
         run_make_command(ctx, "clang-format")
