@@ -273,15 +273,12 @@ def _run_query(
 
     options_kwargs["stderr"] = _stderr_cb
 
-    # Ask the CLI to write verbose debug output to its own stderr (which
-    # we now capture above). Without this, the CLI runs quietly and a
-    # crash leaves us with `(empty)` stderr — exactly the case we hit
-    # iter 24. With it, we see the tool calls and what failed.
-    # `extra_args` is a dict[str, str|None]; the SDK checks key
-    # membership, so a value of None just adds the bare flag.
-    extra = dict(options_kwargs.get("extra_args") or {})
-    extra.setdefault("debug-to-stderr", None)
-    options_kwargs["extra_args"] = extra
+    # NOTE: `debug-to-stderr` previously enabled here was destabilising
+    # the run — every "Fatal error in message reader" event followed by
+    # process hang traced back to it. The volume of debug output through
+    # the SDK's stderr task confused the reader. Kept disabled by default
+    # until we can isolate the specific cause; the stderr callback above
+    # still captures whatever the CLI emits naturally.
 
     def _once() -> str:
         return _collect_text(
