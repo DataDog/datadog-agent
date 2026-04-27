@@ -404,7 +404,9 @@ def eval_combinations(
         build_testbench(ctx)
         build_scorer(ctx)
 
-    if seed is None:
+    if seed is not None:
+        seed = int(seed)
+    else:
         seed = random.randint(0, 2**32 - 1)
 
     force_enable_list = [c.strip() for c in force_enable.split(",") if c.strip()]
@@ -655,7 +657,9 @@ def eval_bayesian(
         print(color_message(f"Error: locked components not in active set: {', '.join(sorted(not_active))}", Color.RED))
         return
 
-    if seed is None:
+    if seed is not None:
+        seed = int(seed)
+    else:
         seed = random.randint(0, 2**32 - 1)
 
     if not _prepare_eval_output_dir(output_dir, overwrite=overwrite):
@@ -973,7 +977,9 @@ def eval_pipeline(
     if not _prepare_eval_output_dir(output_dir, overwrite=overwrite):
         return
 
-    if seed is None:
+    if seed is not None:
+        seed = int(seed)
+    else:
         seed = random.randint(0, 2**32 - 1)
 
     rng = random.Random(seed)
@@ -1305,7 +1311,9 @@ def eval_component(
         print(color_message(f"Error: cannot force-disable the evaluated component '{component}'", Color.RED))
         return
 
-    if seed is None:
+    if seed is not None:
+        seed = int(seed)
+    else:
         seed = random.randint(0, 2**32 - 1)
 
     # --- deterministic seed derivation ---
