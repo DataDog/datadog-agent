@@ -77,12 +77,16 @@ jobs:
       - name: Comment on backport failure
         if: steps.cherry-pick.outcome == 'failure'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          TARGET_BRANCH: ${{ steps.target.outputs.target_branch }}
+          MERGE_COMMIT_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         with:
           github-token: ${{ steps.octo-sts.outputs.token }}
           script: |
-            const targetBranch = `${{ steps.target.outputs.target_branch }}`;
-            const mergeCommitSHA = `${{ github.event.pull_request.merge_commit_sha }}`;
-            const runUrl = `${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}`;
+            const targetBranch = process.env.TARGET_BRANCH;
+            const mergeCommitSHA = process.env.MERGE_COMMIT_SHA;
+            const runUrl = process.env.RUN_URL;
             const commentBody = `⚠️ Automatic backport to \`${targetBranch}\` failed.
 
             This usually happens when the cherry-pick has merge conflicts and needs manual resolution.
