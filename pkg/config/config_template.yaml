@@ -2127,7 +2127,7 @@ api_key:
 #   # Configurations for Network Path Dynamic Test for monitoring NetFlow destinations via Network Path.
 #
 #   netflow_monitoring:
-#
+
 #     # @param enabled - boolean - optional - default: false
 #     # @env DD_NETWORK_PATH_NETFLOW_MONITORING_ENABLED - boolean - optional - default: false
 #     # Enables Network Path Dynamic Test for monitoring NetFlow destinations via Network Path.
@@ -4522,7 +4522,7 @@ api_key:
 #     # Set to true to enable reverse DNS enrichment of private source and destination IP addresses in NetFlow records.
 #
 #     reverse_dns_enrichment_enabled: false
-#
+
 #     # @param reverse_dns_enrichment_public_ips_enabled - boolean - optional - default: false
 #     # @env DD_NETWORK_DEVICES_NETFLOW_REVERSE_DNS_ENRICHMENT_PUBLIC_IPS_ENABLED - boolean - optional - default: false
 #     # Set to true to allow NetFlow reverse DNS enrichment to query public source and destination IP addresses too.
