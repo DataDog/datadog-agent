@@ -41,6 +41,10 @@ datadog:
     - name: DD_OBSERVER_EVENT_REPORTER_SENDING_ENABLED
       value: "true"
 {{- end}}
+{{- if not .MetricsIngestionEnabled}}
+    - name: DD_OBSERVER_INGEST_METRICS_ENABLED
+      value: "false"
+{{- end}}
     - name: DD_OBSERVER_HIGH_FREQUENCY_INTERVAL
       value: "1s"
 
@@ -54,6 +58,10 @@ agents:
   useConfigMap: true
   customAgentConfig:
     observer:
+{{- if not .MetricsIngestionEnabled}}
+      ingest_metrics:
+        enabled: false
+{{- end}}
 {{- if eq .Mode "record-parquet"}}
       recording:
         enabled: true

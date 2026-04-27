@@ -784,7 +784,7 @@ var _ observerdef.Handle = (*metricDropHandle)(nil)
 
 func (m *metricDropHandle) ObserveMetric(_ observerdef.MetricView) {}
 func (m *metricDropHandle) ObserveMetricAndReportDrop(_ observerdef.MetricView) bool {
-	return false
+	return true
 }
 func (m *metricDropHandle) ObserveLog(msg observerdef.LogView)             { m.inner.ObserveLog(msg) }
 func (m *metricDropHandle) ObserveTrace(_ observerdef.TraceView)           {}

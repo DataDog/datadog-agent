@@ -139,6 +139,14 @@ func Run(ctx *pulumi.Context) error {
 	}
 	logsEnabled := !disableLogsAgent
 
+	disableMetricsIngestion := false
+	if v := strings.TrimSpace(cfg.Get("disableMetricsIngestion")); v != "" {
+		if b, err := strconv.ParseBool(v); err == nil {
+			disableMetricsIngestion = b
+		}
+	}
+	metricsIngestionEnabled := !disableMetricsIngestion
+
 	// If no episodes are specified, stop here — cluster-only mode.
 	if episodes == "" {
 		return nil
@@ -221,7 +229,7 @@ func Run(ctx *pulumi.Context) error {
 	if err := deployOrchestratorJob(
 		ctx, &awsEnv, kubeProvider, sa, ddSecret,
 		episodes, agentImage, gensimSha, namespace, s3Bucket, imageRegistry, episodeDataDir, mode,
-		logsEnabled,
+		logsEnabled, metricsIngestionEnabled,
 	); err != nil {
 		return err
 	}
@@ -313,6 +321,7 @@ func deployOrchestratorJob(
 	episodeDataDir string,
 	mode string,
 	logsEnabled bool,
+	metricsIngestionEnabled bool,
 ) error {
 	kubeOpts := []pulumi.ResourceOption{pulumi.Provider(kubeProvider)}
 
@@ -439,7 +448,7 @@ func deployOrchestratorJob(
 	}
 
 	// ── Agent values ConfigMap ───────────────────────────────────────────────
-	renderedValues, err := renderAgentValues(agentImage, mode, logsEnabled)
+	renderedValues, err := renderAgentValues(agentImage, mode, logsEnabled, metricsIngestionEnabled)
 	if err != nil {
 		return err
 	}
@@ -555,9 +564,13 @@ var orchestratorScript string
 //go:embed agent-values.yaml.tmpl
 var agentValuesTmpl string
 
-// renderAgentValues renders the agent Helm values template with the given image and mode.
+// renderAgentValues renders the agent Helm values template with the given
+// image, mode, and feature toggles. metricsIngestionEnabled=false makes the
+// observer drop externally-ingested metrics (DogStatsD, check samplers, HF
+// runners) at the handle factory; logs and log-derived virtual metrics
+// produced inside the engine by LogMetricsExtractors keep flowing.
 // mode is one of "record-parquet" or "live-anomaly-detection".
-func renderAgentValues(agentImage, mode string, logsEnabled bool) (string, error) {
+func renderAgentValues(agentImage, mode string, logsEnabled, metricsIngestionEnabled bool) (string, error) {
 	idx := strings.LastIndex(agentImage, ":")
 	if idx < 0 {
 		return "", fmt.Errorf("invalid image reference %q: expected format repo:tag (e.g. docker.io/datadog/agent-dev:latest)", agentImage)
@@ -574,7 +587,8 @@ func renderAgentValues(agentImage, mode string, logsEnabled bool) (string, error
 	err = tmpl.Execute(&buf, struct {
 		ImageRepo, ImageTag, Mode string
 		LogsEnabled               bool
-	}{repo, tag, mode, logsEnabled})
+		MetricsIngestionEnabled   bool
+	}{repo, tag, mode, logsEnabled, metricsIngestionEnabled})
 	if err != nil {
 		return "", fmt.Errorf("rendering agent-values template: %w", err)
 	}
