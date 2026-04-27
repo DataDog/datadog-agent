@@ -25,11 +25,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 )
 
-// rshellCommandNamespace is the prefix the backend stamps onto every command
-// in its allow-list. Operator entries in datadog.yaml must use the same form
-// to intersect; otherwise they silently fail to match.
-const rshellCommandNamespace = "rshell:"
-
 func FromDDConfig(config config.Component) (*Config, error) {
 	mainEndpoint := configutils.GetMainEndpoint(config, "https://api.", "dd_url")
 	ddHost := getDatadogHost(mainEndpoint)
@@ -134,97 +129,61 @@ func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 	return allowlist
 }
 
-// rshellAllowedCommands returns the operator-configured rshell command
-// allowlist.
+// rshellAllowedCommands returns the operator-configured rshell command allowlist.
 //
-// The default registered in pkg/config/setup is ["rshell:*"] — a wildcard
-// sentinel that the handler treats as "allow every backend-allowed command
-// in the rshell namespace". So when the operator hasn't touched the key,
-// the intersection produces the backend list as-is. An explicit YAML empty
-// list (`allowed_commands: []`) reaches GetStringSlice as a nil slice; we
-// normalize that into a non-nil empty slice so the handler honors it as
-// the kill-switch.
+// The default value is a wildcard ["rshell:*"] created to match all commands in the rshell namespace.
+// See pkg/config/setup/privateactionrunner.go for more details.
 //
-// Entries other than the wildcard are expected to be in the backend's
-// namespaced form ("rshell:<name>"). Operators spelling commands without
-// the prefix are warned at load time so the silent no-match failure mode
-// is observable.
+// If the wildcard "rshell:*" is present, the operator-configured list acts as an ALLOW ALL:
+// only the backend will be used to filter the commands.
+//
+// If the wildcard "rshell:*" is not present, the operator-configured list is used to filter the commands.
+// For a command to be executed by rshell, it needs to be present in both the operator-configured list
+// AND the backend's allowed commands list. (intersection operation)
 func rshellAllowedCommands(config config.Component) []string {
 	commands := config.GetStringSlice(setup.PARRestrictedShellAllowedCommands)
-	if commands == nil {
-		// YAML `allowed_commands: []` round-trips through Viper as a nil
-		// slice; normalize so the kill-switch is preserved downstream.
-		commands = []string{}
-	}
 	warnUnnamespacedCommands(commands)
 	return commands
 }
 
-// warnUnnamespacedCommands emits a log warning for each entry missing the
-// "rshell:" prefix. These entries will never match a backend command, so an
-// operator who writes `allowed_commands: [cat]` instead of
-// `allowed_commands: [rshell:cat]` would otherwise get silent kill-switch
-// behavior with no feedback.
 func warnUnnamespacedCommands(commands []string) {
 	for _, c := range commands {
-		if !strings.HasPrefix(c, rshellCommandNamespace) {
-			log.Warnf("%s entry %q is missing the %q prefix and will never match a backend command; use %q instead",
-				setup.PARRestrictedShellAllowedCommands, c, rshellCommandNamespace, rshellCommandNamespace+c)
+		if !strings.HasPrefix(c, RshellCommandNamespacePrefix) {
+			log.Warnf(
+				"%s entry %q is missing the %q prefix and will never match a backend command; use %q instead",
+				setup.PARRestrictedShellAllowedCommands,
+				c,
+				RshellCommandNamespacePrefix,
+				RshellCommandNamespacePrefix+c,
+			)
 		}
 	}
 }
 
 // rshellAllowedPaths returns the operator-configured rshell path allowlist.
 //
-// The default registered in pkg/config/setup is ["/"] — a sentinel that the
-// handler treats as "allow every backend-allowed path" via containment
-// matching. So when the operator hasn't touched the key, the intersection
-// produces the backend list as-is. An explicit YAML empty list
-// (`allowed_paths: []`) reaches GetStringSlice as a nil slice; we normalize
-// that into a non-nil empty slice so the handler honors it as the
-// kill-switch.
+// The default value is ["/"] matching all paths.
+// See pkg/config/setup/privateactionrunner.go for more details.
 //
-// Two advisory warnings fire at load time so misconfiguration is observable
-// to the operator before any task runs. Both leave the entries in place and
-// let the intersection / rshell's own sandbox do the final filtering:
-//
-//   - backslash entries fail to match the Linux-form backend list at the
-//     intersection layer;
-//   - non-directory entries are silently skipped by rshell's os.Root-based
-//     sandbox at runner creation. The operator-visible symptom is
-//     permission-denied with no explanation, so we surface the reason in
-//     the agent log once at load time.
+// The operator-configured list is used to filter the paths.
+// For a path to be accessible by rshell, it needs to be present in both the operator-configured list
+// AND the backend's allowed paths list. (intersection operation)
 func rshellAllowedPaths(config config.Component) []string {
 	paths := config.GetStringSlice(setup.PARRestrictedShellAllowedPaths)
-	if paths == nil {
-		// YAML `allowed_paths: []` round-trips through Viper as a nil
-		// slice; normalize so the kill-switch is preserved downstream.
-		paths = []string{}
-	}
 	warnBackslashPaths(paths)
 	warnNonDirectoryPaths(paths)
 	return paths
 }
 
-// warnBackslashPaths emits a log warning for each entry containing a
-// backslash. The operator-side allow-list is defined as forward-slash only;
-// Windows-native paths will never match the backend's Linux-style entries
-// and would otherwise fail silently.
 func warnBackslashPaths(paths []string) {
 	for _, p := range paths {
 		if strings.ContainsRune(p, '\\') {
-			log.Warnf("%s entry %q contains a backslash; only forward-slash paths are supported and this entry will never match a backend path",
+			log.Warnf("%s entry %q contains a backslash; only forward-slash paths are supported and this entry will never match a backend rule",
 				setup.PARRestrictedShellAllowedPaths, p)
 		}
 	}
 }
 
-// warnNonDirectoryPaths emits a log warning for entries that exist on disk
-// but are not directories. rshell's sandbox is built on os.Root, which
-// only accepts directory handles, so file entries get silently dropped at
-// runner creation and every open inside the task returns permission-
-// denied. Entries that do not exist at load time are not warned about:
-// rshell's own "path not found" warning at task time covers that case.
 func warnNonDirectoryPaths(paths []string) {
 	for _, p := range paths {
 		info, err := os.Stat(p)

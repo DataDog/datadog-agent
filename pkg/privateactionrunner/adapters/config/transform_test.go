@@ -381,12 +381,12 @@ func TestFromDDConfigPARRestrictedShellAllowedCommandsEmpty(t *testing.T) {
 	assert.Empty(t, cfg.RShellAllowedCommands)
 }
 
-// TestFromDDConfigPARRestrictedShellAllowedPathsEmptyYAML reproduces the
-// real-world failure observed in PAR: when datadog.yaml contains
-// `allowed_paths: []` the transform must preserve the explicit-empty value so
-// the handler treats it as "block everything", not "operator unset". This
-// exercises the YAML parsing path rather than SetWithoutSource; the two can
-// differ in whether IsConfigured reports an empty slice as set.
+// TestFromDDConfigPARRestrictedShellAllowedPathsEmptyYAML pins the
+// kill-switch contract for `allowed_paths: []`: GetStringSlice returns a
+// nil slice for the explicit YAML empty list, and the transform forwards
+// that as-is. The handler's downstream dedup pass turns nil into a non-nil
+// empty slice, which produces an empty intersection — the kill-switch.
+// The slice value here is "no entries" regardless of nil/non-nil shape.
 func TestFromDDConfigPARRestrictedShellAllowedPathsEmptyYAML(t *testing.T) {
 	yaml := `
 private_action_runner:
@@ -397,8 +397,7 @@ private_action_runner:
 
 	cfg, err := FromDDConfig(mockConfig)
 	require.NoError(t, err)
-	assert.NotNil(t, cfg.RShellAllowedPaths, "YAML [] must reach the handler as a non-nil slice so the kill-switch is honored")
-	assert.Empty(t, cfg.RShellAllowedPaths)
+	assert.Empty(t, cfg.RShellAllowedPaths, "YAML [] must surface as an empty slice; kill-switch is enforced by the handler intersection on this input")
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedCommandsEmptyYAML(t *testing.T) {
@@ -411,8 +410,7 @@ private_action_runner:
 
 	cfg, err := FromDDConfig(mockConfig)
 	require.NoError(t, err)
-	assert.NotNil(t, cfg.RShellAllowedCommands, "YAML [] must reach the handler as a non-nil slice so the kill-switch is honored")
-	assert.Empty(t, cfg.RShellAllowedCommands)
+	assert.Empty(t, cfg.RShellAllowedCommands, "YAML [] must surface as an empty slice; kill-switch is enforced by the handler intersection on this input")
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedPathsPassesThroughFileEntries(t *testing.T) {
