@@ -10,3 +10,7 @@ system_probe_config:
 network_config:
   enabled: true
   collect_tcp_v6: true
+
+ebpf_check:
+  enabled: true
+  kernel_bpf_stats: true
