@@ -3691,10 +3691,12 @@ func runNetemCongestionTest(
 	}, 30*time.Second, 200*time.Millisecond)
 }
 
-// TestTCPRecoveryCount validates the recovery_count signal. Uses escalating
-// netem configs to handle test variability — delay keeps enough segments
-// in-flight for SACK to detect gaps, while moderate loss triggers fast
-// recovery rather than full RTO timeout.
+// TestTCPRecoveryCount validates the recovery_count signal. To stay reliable
+// across the CI kernel matrix, the test tries a sequence of netem configs
+// until one triggers fast recovery. Each attempt runs in a fresh network
+// namespace with a fresh TCP connection, so kernel per-connection and
+// per-peer adaptive state (notably tp->reordering, which the kernel raises
+// when it sees reordering without loss) starts from defaults every time.
 func (s *TracerSuite) TestTCPRecoveryCount() {
 	t := s.T()
 	cfg := testConfig()
@@ -3708,35 +3710,51 @@ func (s *TracerSuite) TestTCPRecoveryCount() {
 	tr := setupTracer(t, cfg)
 
 	netemConfigs := [][]string{
+		{"delay", "20ms", "2ms"},
+		{"delay", "20ms", "10ms"},
+		{"delay", "20ms", "reorder", "3%", "25%"},
+		{"delay", "50ms", "reorder", "75%"},
 		{"delay", "50ms", "loss", "15%", "50%"},
 		{"delay", "50ms", "loss", "20%", "50%"},
-		{"delay", "50ms", "loss", "25%", "75%"},
 	}
-	for _, netemArgs := range netemConfigs {
+
+	for i, netemArgs := range netemConfigs {
+		t.Logf("TestTCPRecoveryCount attempt %d/%d: netem %v", i+1, len(netemConfigs), netemArgs)
 		c := setupNetemCongestionTest(t, netemArgs, nil)
 		triggered := false
 		deadline := time.Now().Add(20 * time.Second)
 		for time.Now().Before(deadline) {
 			c.SetWriteDeadline(time.Now().Add(2 * time.Second))
 			c.Write(make([]byte, 64*1024)) //nolint:errcheck
-			time.Sleep(200 * time.Millisecond)
 
 			conns, cleanup := getConnections(t, tr)
 			conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
-			if ok && conn.Last.TCPRecoveryCount > 0 {
-				triggered = true
-				cleanup()
-				break
+			if ok {
+				if conn.Last.TCPRecoveryCount > 0 {
+					triggered = true
+					cleanup()
+					break
+				}
+				// Once RTO fires cwnd collapses and fast recovery is
+				// very unlikely to fire in the remaining budget — bail
+				// out and try the next config.
+				if conn.Monotonic.TCPRTOCount > 0 {
+					t.Logf("  RTO fired, cwnd collapsed; abandoning config early")
+					cleanup()
+					break
+				}
 			}
 			cleanup()
+
+			time.Sleep(200 * time.Millisecond)
 		}
 		c.Close()
 		if triggered {
+			t.Logf("recovery_count > 0 reached with config %v", netemArgs)
 			return
 		}
-		t.Logf("netem config %v did not trigger recovery, trying next", netemArgs)
 	}
-	require.Fail(t, "no netem configuration triggered recovery_count > 0")
+	t.Fatalf("no netem config triggered recovery_count > 0 after %d attempts", len(netemConfigs))
 }
 
 // TestTCPReordSeen validates the reord_seen signal by introducing packet

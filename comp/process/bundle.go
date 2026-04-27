@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/agent/agentimpl"
 	"github.com/DataDog/datadog-agent/comp/process/apiserver"
 	connectionscheckfx "github.com/DataDog/datadog-agent/comp/process/connectionscheck/fx"
-	"github.com/DataDog/datadog-agent/comp/process/containercheck/containercheckimpl"
+	containercheckfx "github.com/DataDog/datadog-agent/comp/process/containercheck/fx"
 	expvarsfx "github.com/DataDog/datadog-agent/comp/process/expvars/fx"
 	forwardersfx "github.com/DataDog/datadog-agent/comp/process/forwarders/fx"
 	gpusubscriber "github.com/DataDog/datadog-agent/comp/process/gpusubscriber/fx"
@@ -24,8 +24,8 @@ import (
 	processcheckfx "github.com/DataDog/datadog-agent/comp/process/processcheck/fx"
 	processdiscoverycheckfx "github.com/DataDog/datadog-agent/comp/process/processdiscoverycheck/fx"
 	profilerimpl "github.com/DataDog/datadog-agent/comp/process/profiler/fx"
-	"github.com/DataDog/datadog-agent/comp/process/rtcontainercheck/rtcontainercheckimpl"
-	"github.com/DataDog/datadog-agent/comp/process/runner/runnerimpl"
+	rtcontainercheckfx "github.com/DataDog/datadog-agent/comp/process/rtcontainercheck/fx"
+	runnerfx "github.com/DataDog/datadog-agent/comp/process/runner/fx"
 	submitterfx "github.com/DataDog/datadog-agent/comp/process/submitter/fx"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -38,15 +38,15 @@ import (
 // See: https://uber-go.github.io/fx/modules.html#don-t-provide-what-you-don-t-own
 func Bundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
-		runnerimpl.Module(),
+		runnerfx.Module(),
 		submitterfx.Module(),
 		profilerimpl.Module(),
 
 		// Checks
 		connectionscheckfx.Module(),
-		containercheckimpl.Module(),
+		containercheckfx.Module(),
 		processcheckfx.Module(),
-		rtcontainercheckimpl.Module(),
+		rtcontainercheckfx.Module(),
 		processdiscoverycheckfx.Module(),
 
 		agentimpl.Module(),

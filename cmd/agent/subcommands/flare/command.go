@@ -62,7 +62,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/inventoryhostimpl"
-	"github.com/DataDog/datadog-agent/comp/metadata/resources/resourcesimpl"
+	resourcesfx "github.com/DataDog/datadog-agent/comp/metadata/resources/fx"
 	logscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
@@ -163,7 +163,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				hostimpl.Module(),
 				inventoryhostimpl.Module(),
 				haagentmetadatafx.Module(),
-				resourcesimpl.Module(),
+				resourcesfx.Module(),
 				// inventoryagent require a serializer. Since we're not actually sending the payload to
 				// the backend a nil will work.
 				fx.Provide(func() serializer.MetricSerializer {

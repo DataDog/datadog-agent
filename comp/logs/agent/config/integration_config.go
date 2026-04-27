@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/netip"
 	"strings"
 	"sync"
 
@@ -52,8 +53,10 @@ type LogsConfig struct {
 	IdleTimeout    string `mapstructure:"idle_timeout" json:"idle_timeout" yaml:"idle_timeout"`          // Network (tcp)
 	MaxConnections int    `mapstructure:"max_connections" json:"max_connections" yaml:"max_connections"` // Network (tcp)
 	// TLS is under active security review and is not ready for general use.
-	TLS  *TLSListenerConfig `mapstructure:"tls" json:"tls,omitempty" yaml:"tls,omitempty"`
-	Path string             // File, Journald
+	TLS        *TLSListenerConfig `mapstructure:"tls" json:"tls,omitempty" yaml:"tls,omitempty"`
+	AllowedIPs StringSliceField   `mapstructure:"allowed_ips" json:"allowed_ips,omitempty" yaml:"allowed_ips,omitempty"` // Network (tcp, udp)
+	DeniedIPs  StringSliceField   `mapstructure:"denied_ips" json:"denied_ips,omitempty" yaml:"denied_ips,omitempty"`    // Network (tcp, udp)
+	Path       string             // File, Journald
 
 	Encoding     string           `mapstructure:"encoding" json:"encoding" yaml:"encoding"`                   // File
 	ExcludePaths StringSliceField `mapstructure:"exclude_paths" json:"exclude_paths" yaml:"exclude_paths"`    // File
@@ -99,6 +102,13 @@ type LogsConfig struct {
 	ProcessingRules []*ProcessingRule `mapstructure:"log_processing_rules" json:"log_processing_rules" yaml:"log_processing_rules"`
 	// ProcessRawMessage is used to process the raw message instead of only the content part of the message.
 	ProcessRawMessage *bool `mapstructure:"process_raw_message" json:"process_raw_message" yaml:"process_raw_message"`
+
+	// SIEMParsing enables CEF/LEEF header detection and extraction within syslog
+	// message bodies. When true (the default once syslog ingestion is wired up),
+	// syslog messages whose body starts with "CEF:" or "LEEF:" are parsed into
+	// structured SIEM fields. Set to false to skip this detection and treat the
+	// message body as plain text. See IsSIEMParsingEnabled() for nil handling.
+	SIEMParsing *bool `mapstructure:"siem_parsing" json:"siem_parsing" yaml:"siem_parsing"`
 
 	AutoMultiLine               *bool   `mapstructure:"auto_multi_line_detection" json:"auto_multi_line_detection" yaml:"auto_multi_line_detection"`
 	AutoMultiLineSampleSize     int     `mapstructure:"auto_multi_line_sample_size" json:"auto_multi_line_sample_size" yaml:"auto_multi_line_sample_size"`
@@ -315,6 +325,12 @@ func (c *LogsConfig) Dump(multiline bool) string {
 		fmt.Fprintf(&b, ws("ChannelTags: %#v,"), c.ChannelTags)
 		c.ChannelTagsMutex.Unlock()
 	}
+	if len(c.AllowedIPs) > 0 {
+		fmt.Fprintf(&b, ws("AllowedIPs: %#v,"), []string(c.AllowedIPs))
+	}
+	if len(c.DeniedIPs) > 0 {
+		fmt.Fprintf(&b, ws("DeniedIPs: %#v,"), []string(c.DeniedIPs))
+	}
 	fmt.Fprintf(&b, ws("Service: %#v,"), c.Service)
 	fmt.Fprintf(&b, ws("Source: %#v,"), c.Source)
 	fmt.Fprintf(&b, ws("SourceCategory: %#v,"), c.SourceCategory)
@@ -445,6 +461,10 @@ func (c *LogsConfig) Validate() error {
 		return err
 	}
 
+	if err := c.validateIPFilter(); err != nil {
+		return err
+	}
+
 	// Validate fingerprint configuration
 	err := ValidateFingerprintConfig(c.FingerprintConfig)
 	if err != nil {
@@ -495,6 +515,37 @@ func (c *LogsConfig) validateTLS() error {
 	}
 	tlsutil.WarnKeyFilePermissions(c.TLS.KeyFile)
 	return nil
+}
+
+func (c *LogsConfig) validateIPFilter() error {
+	if len(c.AllowedIPs) == 0 && len(c.DeniedIPs) == 0 {
+		return nil
+	}
+	if c.Type != TCPType && c.Type != UDPType {
+		return fmt.Errorf("allowed_ips/denied_ips are only supported for %s and %s sources, got %s", TCPType, UDPType, c.Type)
+	}
+	for _, entry := range c.AllowedIPs {
+		if err := validateIPOrCIDR(entry); err != nil {
+			return fmt.Errorf("invalid allowed_ips entry %q: %w", entry, err)
+		}
+	}
+	for _, entry := range c.DeniedIPs {
+		if err := validateIPOrCIDR(entry); err != nil {
+			return fmt.Errorf("invalid denied_ips entry %q: %w", entry, err)
+		}
+	}
+	return nil
+}
+
+func validateIPOrCIDR(s string) error {
+	s = strings.TrimSpace(s)
+	if _, err := netip.ParsePrefix(s); err == nil {
+		return nil
+	}
+	if _, err := netip.ParseAddr(s); err == nil {
+		return nil
+	}
+	return errors.New("not a valid IP address or CIDR")
 }
 
 // LegacyAutoMultiLineEnabled determines whether the agent has fallen back to legacy auto multi line detection
@@ -562,6 +613,15 @@ func (c *LogsConfig) ShouldProcessRawMessage() bool {
 		return *c.ProcessRawMessage
 	}
 	return true // default behaviour when nothing's been configured
+}
+
+// IsSIEMParsingEnabled returns whether CEF/LEEF header detection is enabled
+// for this source. When SIEMParsing is nil (unconfigured), it defaults to true.
+func (c *LogsConfig) IsSIEMParsingEnabled() bool {
+	if c.SIEMParsing != nil {
+		return *c.SIEMParsing
+	}
+	return true
 }
 
 // ContainsWildcard returns true if the path contains any wildcard character

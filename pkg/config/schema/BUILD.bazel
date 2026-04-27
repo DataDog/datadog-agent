@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "schema",
+    srcs = ["schema.go"],
+    embedsrcs = [
+        "compressed/.embed",
+    ] + glob(
+        ["compressed/*.zstd"],
+        allow_empty = True,
+    ),
+    importpath = "github.com/DataDog/datadog-agent/pkg/config/schema",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_datadog_zstd//:zstd",
+        "@com_github_santhosh_tekuri_jsonschema_v6//:jsonschema",
+        "@in_yaml_go_yaml_v3//:yaml",
+    ],
+)
+
+go_test(
+    name = "schema_test",
+    srcs = ["schema_test.go"],
+    embed = [":schema"],
+    gotags = ["test"],
+    deps = [
+        "@com_github_santhosh_tekuri_jsonschema_v6//:jsonschema",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//assert/yaml",
+    ],
+)
