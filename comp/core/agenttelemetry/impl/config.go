@@ -209,6 +209,10 @@ var defaultProfiles = `
         - name: health_platform.issues_detected
           aggregate_tags:
             - issue_type
+        - name: openmetrics_core.configure
+          aggregate_tags:
+            - outcome
+            - reason
     schedule:
       start_after: 30
       iterations: 0
