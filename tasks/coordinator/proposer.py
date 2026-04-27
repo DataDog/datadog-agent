@@ -135,6 +135,39 @@ def build_proposer_prompt(
             "consecutive non-improving iterations OR were exhausted by a "
             "phase-plateau pivot. Do NOT propose anything in these families.\n"
         )
+    # Build a strong, explicit detector-inventory clause so the proposer
+    # cannot accidentally name a full-mode detector ('bocpd', 'scanmw',
+    # 'scanwelch') when running on the blank branch where those don't
+    # exist. The static prompt body uses those names as illustrative
+    # examples; without this counter-signal, Opus defaults to assuming
+    # they exist.
+    known_detectors = sorted((db.baseline.detectors or {}).keys()) if db.baseline else []
+    if known_detectors:
+        detector_inventory_clause = (
+            f"The current branch has these registered detectors: "
+            f"`{known_detectors}`. Their baseline metrics are below.\n\n"
+            f"**`target_components` MUST be drawn from this list** OR be "
+            f"a brand-new detector name you invent (and your candidate "
+            f"description must include the steps to register it in "
+            f"`comp/observer/impl/component_catalog.go`). Do NOT name "
+            f"detectors not in this list unless you are creating them."
+        )
+    else:
+        detector_inventory_clause = (
+            "**BLANK SLATE**: this branch has NO registered detectors yet. "
+            "Every candidate must be a brand-new detector that you (the "
+            "proposer) name and the implementer creates from scratch. "
+            "DO NOT use the names `bocpd`, `scanmw`, or `scanwelch` — "
+            "those refer to detectors on a different branch and DO NOT "
+            "EXIST here. Pick novel names like `cpd-streaming`, "
+            "`mad-zscore-twin`, `spectral-residual`, `ewma-baseline`, "
+            "etc. Each candidate's `target_components` must be the new "
+            "detector name(s) it will create. The implementer must write "
+            "the detector's Go file AND register it in "
+            "`comp/observer/impl/component_catalog.go` so eval can target "
+            "it via `--only <name>`."
+        )
+
     pivot_ban = getattr(db, "pivot_banned_families", []) or []
     if pivot_ban:
         pivot_clause = (
@@ -232,6 +265,10 @@ the coordinator's baseline/gate machinery lines up.
 Conservative, incremental threshold tweaks are allowed but should be rare —
 only propose one of those if the prior-work list suggests a specific small
 win is untapped. Bias the pool toward structurally-different approaches.
+
+## Current detector inventory
+
+{detector_inventory_clause}
 
 ## Current baseline
 {yaml.safe_dump(baseline, sort_keys=False) if baseline else '(no baseline loaded)'}
