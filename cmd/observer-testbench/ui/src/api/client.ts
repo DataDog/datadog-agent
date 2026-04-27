@@ -382,6 +382,14 @@ class ApiClient {
     return this.fetch('/reports');
   }
 
+  async sendReport(pattern: string, firstSeen: number): Promise<void> {
+    await this.fetch('/reports/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pattern, firstSeen }),
+    });
+  }
+
   async getComponentData(name: string): Promise<ComponentDataResponse> {
     return this.fetch(`/components/${encodeURIComponent(name)}/data`);
   }

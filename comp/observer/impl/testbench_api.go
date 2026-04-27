@@ -61,6 +61,7 @@ func (api *TestBenchAPI) Start(addr string) error {
 	mux.HandleFunc("/api/log-patterns", api.cors(api.handleLogPatterns))
 	mux.HandleFunc("/api/correlations", api.cors(api.handleCorrelations))
 	mux.HandleFunc("/api/reports", api.cors(api.handleReports))
+	mux.HandleFunc("/api/reports/send", api.cors(api.handleSendReport))
 	mux.HandleFunc("/api/stats", api.cors(api.handleStats))
 	mux.HandleFunc("/api/score", api.cors(api.handleScore))
 	mux.HandleFunc("/api/benchmark", api.cors(api.handleBenchmark))
@@ -1171,6 +1172,32 @@ func (api *TestBenchAPI) handleReports(w http.ResponseWriter, _ *http.Request) {
 		events = []ReportedEvent{}
 	}
 	api.writeJSON(w, events)
+}
+
+// handleSendReport posts a specific ReportedEvent to the Datadog backend.
+// Body: {"pattern":"...", "firstSeen": 123}
+func (api *TestBenchAPI) handleSendReport(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		api.writeError(w, http.StatusMethodNotAllowed, "use POST")
+		return
+	}
+	var req struct {
+		Pattern   string `json:"pattern"`
+		FirstSeen int64  `json:"firstSeen"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		api.writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+	if req.Pattern == "" {
+		api.writeError(w, http.StatusBadRequest, "pattern is required")
+		return
+	}
+	if err := api.tb.SendReportedEvent(req.Pattern, req.FirstSeen); err != nil {
+		api.writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	api.writeJSON(w, map[string]string{"status": "sent"})
 }
 
 // handleComponentAction handles /api/components/{name}/{action} (toggle, data).

@@ -441,9 +441,10 @@ def _resolve_zip_from_runs_jsonl(ctx, name):
                     continue  # skip malformed records
 
         # Find the latest successful entry matching this episode.
-        # parquet_count < 100 indicates a failed or incomplete run (empirically: 0 or 2).
+        # parquet_count < 50 indicates a failed or truncated run. Known failures are 0 or 2.
+        # Post trace-removal, legitimate recordings on short scenarios produce ~60-90 parquets.
         matches = [
-            entry for entry in lines if entry.get("episode") == episode_name and entry.get("parquet_count", 0) >= 100
+            entry for entry in lines if entry.get("episode") == episode_name and entry.get("parquet_count", 0) >= 50
         ]
         if not matches:
             return None

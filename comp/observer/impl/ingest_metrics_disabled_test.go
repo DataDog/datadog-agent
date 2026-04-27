@@ -1,0 +1,116 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+package observerimpl
+
+import (
+	"sync"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
+)
+
+// TestObserverDropsMetricsWhenIngestMetricsDisabled verifies that when
+// observer.ingest_metrics.enabled is false, the handle drops external
+// ObserveMetric calls while logs and log-derived virtual metrics still
+// reach the engine.
+func TestObserverDropsMetricsWhenIngestMetricsDisabled(t *testing.T) {
+	storage := newTimeSeriesStorage()
+	extractor := NewLogMetricsExtractor(DefaultLogMetricsExtractorConfig())
+	eng := newEngine(engineConfig{
+		storage:    storage,
+		extractors: []observerdef.LogMetricsExtractor{extractor},
+	})
+
+	th := newTelemetryHandler(noopsimpl.GetCompatComponent())
+	obs := &observerImpl{
+		engine:               eng,
+		obsCh:                make(chan observation, 16),
+		telemetryHandler:     th,
+		dropCounter:          th.telemetryCounters[telemetryObsChannelDropped],
+		ingestMetricsEnabled: false,
+	}
+	obs.handleFunc = obs.innerHandle
+
+	var (
+		wg        sync.WaitGroup
+		closeOnce sync.Once
+	)
+	stopFn := func() {
+		// close is idempotent via Once; wg.Wait() is safe to call multiple times.
+		closeOnce.Do(func() { close(obs.obsCh) })
+		wg.Wait()
+	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		obs.run()
+	}()
+	// Guarantee cleanup even if an assertion calls t.Fatal before stopFn().
+	t.Cleanup(stopFn)
+
+	h := obs.GetHandle("all-metrics")
+
+	drop, ok := h.(*metricDropHandle)
+	require.Truef(t, ok, `GetHandle("all-metrics") returned %T, want *metricDropHandle`, h)
+
+	assert.False(t, drop.ObserveMetricAndReportDrop(&metricObs{
+		name:      "system.cpu.user",
+		value:     50,
+		timestamp: 1000,
+	}), "ObserveMetricAndReportDrop should report false when dropped by configuration")
+
+	drop.ObserveMetric(&metricObs{
+		name:      "system.mem.used",
+		value:     1024,
+		timestamp: 1000,
+	})
+
+	drop.ObserveLog(&logObs{
+		content:     []byte("Request completed in 45ms"),
+		status:      "info",
+		tags:        []string{"service:web"},
+		timestampMs: 1_000_000,
+	})
+
+	// Flush: close signals EOF; run() drains all buffered items before returning,
+	// so the ObserveLog above is guaranteed to be processed before we assert storage.
+	stopFn()
+
+	allMetricsSeries := storage.ListSeries(observerdef.SeriesFilter{Namespace: "all-metrics"})
+	assert.Empty(t, allMetricsSeries,
+		"external metrics must not be stored when observer.ingest_metrics.enabled=false")
+
+	extractorSeries := storage.ListSeries(observerdef.SeriesFilter{Namespace: extractor.Name()})
+	require.NotEmpty(t, extractorSeries,
+		"log-extractor virtual metrics must keep flowing into storage even when observer.ingest_metrics.enabled=false")
+}
+
+// TestMetricDropHandle covers the wrapper in isolation, mirroring
+// the pattern used in system_filter_test.go for hfFilteredHandle.
+func TestMetricDropHandle(t *testing.T) {
+	inner := &countingHandle{}
+	wrap := &metricDropHandle{inner: inner}
+
+	wrap.ObserveMetric(&sampleNoSource{name: "any.metric"})
+	wrap.ObserveTrace(nil)
+	wrap.ObserveTraceStats(nil)
+	assert.Equal(t, 0, inner.received,
+		"metricDropHandle: inner.received = %d, want 0 (ObserveMetric/Trace/TraceStats must be dropped)", inner.received)
+	assert.False(t, wrap.ObserveMetricAndReportDrop(&sampleNoSource{name: "any.metric"}),
+		"ObserveMetricAndReportDrop reports false (config drop, not channel-full)")
+
+	wrap.ObserveLog(&logObs{content: []byte("hi"), timestampMs: 1})
+	assert.Equal(t, 1, inner.logReceived,
+		"metricDropHandle: inner.logReceived = %d, want 1 (ObserveLog must forward to inner)", inner.logReceived)
+
+	wrap.ObserveProfile(nil)
+	assert.Equal(t, 1, inner.profileReceived,
+		"metricDropHandle: inner.profileReceived = %d, want 1 (ObserveProfile must forward to inner)", inner.profileReceived)
+}
