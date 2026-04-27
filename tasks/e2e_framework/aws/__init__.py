@@ -5,6 +5,7 @@ from tasks.e2e_framework.aws.ecs import create_ecs, destroy_ecs
 from tasks.e2e_framework.aws.eks import create_eks, destroy_eks
 from tasks.e2e_framework.aws.gensim_eks import (
     destroy_gensim_eks,
+    list_episodes_gensim_eks,
     status_gensim_eks,
     stop_all_gensim_eks,
     submit_gensim_eks,
@@ -24,6 +25,7 @@ _gensim_eks_coll.add_task(status_gensim_eks, name="status")
 _gensim_eks_coll.add_task(destroy_gensim_eks, name="destroy")
 _gensim_eks_coll.add_task(stop_all_gensim_eks, name="stop-all")
 _gensim_eks_coll.add_task(update_manifest_shas_gensim_eks, name="update-manifest-shas")
+_gensim_eks_coll.add_task(list_episodes_gensim_eks, name="list-episodes")
 _eks_coll = Collection("eks")
 _eks_coll.add_collection(_gensim_eks_coll)
 collection.add_collection(_eks_coll)

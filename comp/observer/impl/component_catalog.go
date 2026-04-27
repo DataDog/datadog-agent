@@ -30,7 +30,7 @@ type componentEntry struct {
 	name           string
 	displayName    string
 	kind           componentKind
-	defaultConfig  any           // typed config value (e.g. CUSUMConfig, RRCFConfig)
+	defaultConfig  any           // typed config value passed to factory
 	factory        func(any) any // accepts the config, returns the component
 	defaultEnabled bool
 
@@ -137,104 +137,9 @@ func defaultCatalog() *componentCatalog {
 				},
 			},
 			// ---- Detectors ----
-			{
-				name:           "cusum",
-				displayName:    "CUSUM",
-				kind:           componentDetector,
-				defaultConfig:  DefaultCUSUMConfig(),
-				factory:        func(cfg any) any { return NewCUSUMDetector(cfg.(CUSUMConfig)) },
-				defaultEnabled: false,
-				parseJSON: func(defaults any, raw []byte) (any, error) {
-					cfg := defaults.(CUSUMConfig)
-					if err := json.Unmarshal(raw, &cfg); err != nil {
-						return nil, err
-					}
-					return cfg, nil
-				},
-			},
-			{
-				name:           "bocpd",
-				displayName:    "BOCPD",
-				kind:           componentDetector,
-				defaultConfig:  DefaultBOCPDConfig(),
-				factory:        func(cfg any) any { return NewBOCPDDetector(cfg.(BOCPDConfig)) },
-				defaultEnabled: true,
-				parseJSON: func(defaults any, raw []byte) (any, error) {
-					cfg := defaults.(BOCPDConfig)
-					if err := json.Unmarshal(raw, &cfg); err != nil {
-						return nil, err
-					}
-					return cfg, nil
-				},
-			},
-			{
-				name:           "rrcf",
-				displayName:    "RRCF",
-				kind:           componentDetector,
-				defaultConfig:  DefaultRRCFConfig(),
-				factory:        func(cfg any) any { return NewRRCFDetector(cfg.(RRCFConfig)) },
-				defaultEnabled: true,
-				parseJSON: func(defaults any, raw []byte) (any, error) {
-					cfg := defaults.(RRCFConfig)
-					if err := json.Unmarshal(raw, &cfg); err != nil {
-						return nil, err
-					}
-					return cfg, nil
-				},
-			},
-			{
-				name:           "scanmw",
-				displayName:    "ScanMW",
-				kind:           componentDetector,
-				factory:        func(any) any { return NewScanMWDetector() },
-				defaultEnabled: false,
-			},
-			{
-				name:           "scanwelch",
-				displayName:    "ScanWelch",
-				kind:           componentDetector,
-				factory:        func(any) any { return NewScanWelchDetector() },
-				defaultEnabled: false,
-			},
+			// (none — blank slate for novel implementations)
 			// ---- Correlators ----
-			{
-				name:           "cross_signal",
-				displayName:    "CrossSignal",
-				kind:           componentCorrelator,
-				defaultConfig:  DefaultCorrelatorConfig(),
-				factory:        func(cfg any) any { return NewCorrelator(cfg.(CorrelatorConfig)) },
-				defaultEnabled: false,
-				parseJSON: func(defaults any, raw []byte) (any, error) {
-					cfg := defaults.(CorrelatorConfig)
-					if err := json.Unmarshal(raw, &cfg); err != nil {
-						return nil, err
-					}
-					return cfg, nil
-				},
-			},
-			{
-				name:           "time_cluster",
-				displayName:    "TimeCluster",
-				kind:           componentCorrelator,
-				defaultConfig:  DefaultTimeClusterConfig(),
-				factory:        func(cfg any) any { return NewTimeClusterCorrelator(cfg.(TimeClusterConfig)) },
-				defaultEnabled: true,
-				readConfig:     readTimeClusterConfig,
-				parseJSON: func(defaults any, raw []byte) (any, error) {
-					cfg := defaults.(TimeClusterConfig)
-					if err := json.Unmarshal(raw, &cfg); err != nil {
-						return nil, err
-					}
-					return cfg, nil
-				},
-			},
-			{
-				name:           "passthrough",
-				displayName:    "Passthrough",
-				kind:           componentCorrelator,
-				factory:        func(any) any { return NewDetectorPassthroughCorrelator() },
-				defaultEnabled: false,
-			},
+			// (none — blank slate for novel implementations)
 		},
 	}
 }
