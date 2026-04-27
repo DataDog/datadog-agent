@@ -7462,7 +7462,7 @@ properties:
       container_registry:
         node_type: setting
         type: string
-        default: gcr.io/datadoghq
+        default: registry.datadoghq.com
       cws_instrumentation:
         node_type: section
         type: object
