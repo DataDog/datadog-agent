@@ -2069,16 +2069,46 @@ def coord_up(
     """
     coord_setup(ctx, auto=True)
 
-    # Generate a per-run unique scratch branch name unless one is explicitly
-    # passed. This lets multiple workspaces run coord-up in parallel without
-    # fighting over a single shared branch, and produces a separate audit
-    # trail per run that can be evaluated side-by-side after the fact.
+    # Two distinct branches are involved beyond the scratch:
+    #   - upstream_branch: the actual upstream feature branch the run
+    #     iterates ON. Driver merges from here every iter via
+    #     sync_from_upstream.
+    #   - pr_base_branch: the branch the PR is opened against. To keep
+    #     the PR diff scoped to observer changes only (not the harness
+    #     code), this is the harness-merged-with-upstream branch. Each
+    #     ship commit appears as a new entry in the PR diff.
     run_ts = time.strftime("%Y%m%dT%H%M")
     if not scratch_branch:
         scratch_branch = f"claude/observer-{mode}-{run_ts}"
-    upstream_branch = "ella/observer-blank" if mode == "blank" else "q-branch-observer"
+    if mode == "blank":
+        upstream_branch = "ella/observer-blank"
+        pr_base_branch = "ella/claude-coordinator-harness-blank"
+    else:
+        upstream_branch = "q-branch-observer"
+        pr_base_branch = "ella/claude-coordinator-harness"
 
-    coord_branches(ctx, mode=mode, scratch_name=scratch_branch)
+    # Fetch + verify the PR base branch exists on origin
+    r = ctx.run(f"git fetch origin {shlex.quote(pr_base_branch)}", warn=True)
+    if r is None or r.failed:
+        raise Exit(code=1, message=f"git fetch origin/{pr_base_branch} failed — does the branch exist?")
+
+    # Fork scratch from pr_base_branch (which carries harness code +
+    # upstream merged in) so the driver has its modules available AND
+    # the PR diff against pr_base_branch starts empty (we add one
+    # initial empty commit so gh pr create works).
+    print(color_message(f"\nCreating scratch branch {scratch_branch} forked from origin/{pr_base_branch}", Color.BLUE))
+    ctx.run(
+        f"git checkout -b {shlex.quote(scratch_branch)} origin/{shlex.quote(pr_base_branch)}",
+        warn=False,
+    )
+    # Initial empty commit gives gh pr create something to attach to
+    # (PRs against an identical base/head are rejected with "No commits
+    # between base and head"). Subsequent ships add real diff.
+    ctx.run(
+        f"git commit --allow-empty --no-verify -m "
+        f"{shlex.quote(f'coord: run-log start ({mode}, {run_ts})')}",
+        warn=False,
+    )
 
     if mode == "blank" and not no_wipe:
         from tasks.coordinator import setup as coord_setup_mod
@@ -2100,28 +2130,26 @@ def coord_up(
 
     pr_num = reuse_pr
     if pr_num == 0:
-        # Fresh PR against the upstream feature branch (q-branch-observer or
-        # ella/observer-blank) so the diff/comments/commits are scoped to
-        # observer changes, not the whole repo. Push the scratch branch so
-        # origin has a head to PR from.
         ctx.run(f"git push -u origin {shlex.quote(scratch_branch)} --no-verify", warn=True)
         title = f"coord run-log ({mode}) — {time.strftime('%Y-%m-%d %H:%M')}"
         body = (
             f"Coordinator harness run-log.\n\n"
             f"- Mode: `{mode}`\n"
             f"- Scratch branch: `{scratch_branch}`\n"
-            f"- Upstream base: `{upstream_branch}`\n"
+            f"- PR base: `{pr_base_branch}` (harness + observer; PR diff = ships only)\n"
+            f"- Upstream merge source: `{upstream_branch}`\n"
             f"- Started: {time.strftime('%Y-%m-%dT%H:%M:%S')}\n\n"
             f"_This PR is the bidirectional control channel: status comments "
             f"posted by the coordinator; steering comments by the operator. "
             f"Each shipped candidate becomes one commit on this branch, "
-            f"making the run a self-contained eval matrix entry._\n"
+            f"making the run a self-contained eval-matrix entry diffable "
+            f"against `{pr_base_branch}`._\n"
         )
         # `hide=False` so gh's actual error message surfaces if PR creation
         # fails — previously stderr was swallowed leaving a bare "failed:"
         # with no diagnostic.
         r = ctx.run(
-            f"gh pr create --draft --base {shlex.quote(upstream_branch)} "
+            f"gh pr create --draft --base {shlex.quote(pr_base_branch)} "
             f"--head {shlex.quote(scratch_branch)} "
             f"--title {shlex.quote(title)} --body {shlex.quote(body)}",
             warn=True,
