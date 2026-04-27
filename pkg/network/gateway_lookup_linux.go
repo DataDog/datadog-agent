@@ -202,10 +202,33 @@ func (g *gatewayLookup) LookupWithIPs(source util.Address, dest util.Address, ne
 		}
 		return nil
 	case *Via:
+		if isVPCRouterIP(r.Gateway, cv.Subnet.Cidr) {
+			return nil
+		}
 		return cv
 	default:
 		return nil
 	}
+}
+
+// isVPCRouterIP returns true if gateway is the VPC router IP for the given
+// subnet CIDR. In AWS, the VPC router is always the first usable IP in the
+// subnet (network base + 1, e.g. 10.0.0.1 for 10.0.0.0/24). Traffic routed
+// through the VPC router is intra-VPC and should not be attributed as NAT
+// gateway traffic.
+func isVPCRouterIP(gateway util.Address, cidr string) bool {
+	if cidr == "" {
+		return false
+	}
+	_, ipNet, err := net.ParseCIDR(cidr)
+	if err != nil {
+		return false
+	}
+	routerIP := make(net.IP, len(ipNet.IP))
+	copy(routerIP, ipNet.IP)
+	// increment last byte to get the first usable IP (.1)
+	routerIP[len(routerIP)-1]++
+	return gateway == util.AddressFromNetIP(routerIP)
 }
 
 // Close cleans up resources allocated
@@ -232,7 +255,7 @@ func awsSubnetForHardwareAddr(hwAddr net.HardwareAddr) (Subnet, error) {
 		return Subnet{}, err
 	}
 
-	return Subnet{Alias: snet.ID}, nil
+	return Subnet{Alias: snet.ID, Cidr: snet.Cidr}, nil
 }
 
 type cloudProviderImpl struct{}

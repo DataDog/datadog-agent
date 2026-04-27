@@ -20,4 +20,5 @@ type Interface struct {
 // Subnet stores info about a subnet
 type Subnet struct {
 	Alias string `json:"alias,omitempty"`
+	Cidr  string `json:"-"` // not serialized; used internally for VPC router detection
 }
