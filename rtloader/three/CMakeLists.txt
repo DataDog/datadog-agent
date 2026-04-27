@@ -10,11 +10,6 @@ endif()
 
 project(datadog-agent-three VERSION 0.1.0 DESCRIPTION "CPython backend for the Datadog Agent")
 
-# Sub-interpreter support: ENABLE_SUBINTERPRETERS option is set in the root
-# CMakeLists.txt (cache variable, visible here). We add the compile definition
-# to this target specifically because directory-level add_compile_definitions
-# in the root doesn't propagate across project() boundaries.
-
 if(WIN32)
   if(MSVC)
     # explicitly set the compiler flags to use the static C runtime (/MT(d) instead of the DLL
@@ -54,10 +49,9 @@ add_library(datadog-agent-three SHARED
     ../common/builtins/containers.c
 )
 
-# Compile three_subinterp.cpp and define RTLOADER_HAS_SUBINTERPRETERS
-# only when ENABLE_SUBINTERPRETERS is ON (set in root CMakeLists.txt).
+# Sub-interpreter source: three_subinterp.cpp must be added here because target_sources
+# must reference an existing target, and datadog-agent-three is created in this file.
 if(ENABLE_SUBINTERPRETERS)
-  target_compile_definitions(datadog-agent-three PRIVATE RTLOADER_HAS_SUBINTERPRETERS)
   target_sources(datadog-agent-three PRIVATE three_subinterp.cpp)
 endif()
 
