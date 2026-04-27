@@ -46,6 +46,20 @@ datadog:
 
 agents:
   enabled: true
+  volumes:
+    - name: host-var-log-journal
+      hostPath:
+        path: /var/log/journal
+    - name: host-run-log-journal
+      hostPath:
+        path: /run/log/journal
+  volumeMounts:
+    - name: host-var-log-journal
+      mountPath: /var/log/journal
+      readOnly: true
+    - name: host-run-log-journal
+      mountPath: /run/log/journal
+      readOnly: true
   image:
     repository: {{.ImageRepo}}
     tag: {{.ImageTag}}

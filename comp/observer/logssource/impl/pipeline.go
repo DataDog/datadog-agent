@@ -77,9 +77,10 @@ func (p *observerPipeline) start() {
 					break
 				}
 			}
-			if count == 1 || count%1000 == 0 {
+			if count == 1 || count%100 == 0 {
 				log.Infof("[observer/logssource] delivered %d logs to observer (source:kubelet=%d)", count, kubeletCount)
 			}
+			log.Infof("[cc] Observing log: %s", msg.GetContent())
 			p.observerHandle.ObserveLog(msg)
 		}
 	}()

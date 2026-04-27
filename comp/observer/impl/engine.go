@@ -13,6 +13,7 @@ import (
 	"time"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Note: stateView is defined in stateview.go and provides read-only access
@@ -229,6 +230,7 @@ func (e *engine) IngestMetric(source string, m *metricObs) []advanceRequest {
 // notifies log observers, and consults the scheduler policy to determine whether
 // detectors should advance. Returns advance requests that the caller should execute.
 func (e *engine) IngestLog(source string, l *logObs) ([]advanceRequest, []observerdef.ObserverTelemetry) {
+	pkglog.Info("Ingesting log", "source", source, "content", l.content)
 	sourceTag := "observer_source:" + source
 	view := &logView{obs: l}
 	var logTelemetry = []observerdef.ObserverTelemetry{}
