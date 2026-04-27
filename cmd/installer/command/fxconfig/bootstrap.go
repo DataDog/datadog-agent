@@ -117,6 +117,21 @@ func LoadAndExportEnv(confFilePath string) {
 	if err != nil {
 		pkglog.Warnf("fxconfig bootstrap failed (continuing with process env): %v", err)
 	}
+
+	// Reset the global logger to a no-op after fx OneShot. The fx log
+	// component leaves the global logger pointing at a partially torn-down
+	// inner once the app shuts down, which makes subsequent pkglog.Errorf
+	// (and any internal log.Errorf inside the installer) fall back to
+	// stderr via the `fallbackStderr && isInnerNil` path.
+	//
+	// Why we care: the installer's e2e harness invokes commands over SSH
+	// with `session.CombinedOutput`, so any stray stderr write merges into
+	// the stdout JSON of `installer status --json` and breaks parsing
+	// ("invalid character 'e' looking for beginning of value"). The actual
+	// installer subcommands set up their own stdout/file logger as needed
+	// (see commands.setupStdoutLogger) — until they do, we want pkglog
+	// calls to be silent rather than leaking to stderr.
+	pkglog.SetupLogger(pkglog.Disabled(), "off")
 }
 
 // applyEnvOnlyRegistry absorbs legacy DD_INSTALLER_REGISTRY_* prefix vars

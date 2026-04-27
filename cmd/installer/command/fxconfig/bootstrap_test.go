@@ -7,6 +7,7 @@ package fxconfig
 
 import (
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // TestLoadAndExportEnvFxDependencies validates that the fxutil.OneShot call
@@ -212,4 +214,45 @@ func TestLoadAndExportEnvMissingYAMLIsBestEffort(t *testing.T) {
 	dir := t.TempDir()
 	assert.NotPanics(t, func() { LoadAndExportEnv(dir) })
 	assert.Equal(t, "", os.Getenv(env.EnvInstallerRegistry))
+}
+
+// TestLoadAndExportEnvLeavesPkglogSilent guards a real e2e regression:
+// after LoadAndExportEnv runs, fx app shutdown leaves the global
+// pkg/util/log logger with a partially torn-down inner. Subsequent
+// pkglog.Errorf calls then fall back to stderr via the
+// `fallbackStderr && isInnerNil` path. The installer's e2e harness
+// captures SSH output with `session.CombinedOutput`, so any stray stderr
+// write merges into the stdout of `installer status --json` and breaks
+// JSON parsing ("invalid character 'e' looking for beginning of value").
+//
+// LoadAndExportEnv re-installs a Disabled logger as a defensive cleanup;
+// this test asserts that contract by writing an Error after the bootstrap
+// and verifying nothing reaches the real stderr.
+func TestLoadAndExportEnvLeavesPkglogSilent(t *testing.T) {
+	clearDDEnvForTest(t)
+	dir := t.TempDir()
+	writeYAML(t, dir, "api_key: yaml-key\n")
+
+	// Capture the process stderr around the bootstrap + an Errorf so we
+	// observe what an e2e SSH `CombinedOutput` reader would see.
+	origStderr := os.Stderr
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	os.Stderr = w
+
+	captured := make(chan string, 1)
+	go func() {
+		buf, _ := io.ReadAll(r)
+		captured <- string(buf)
+	}()
+
+	LoadAndExportEnv(dir)
+	_ = pkglog.Errorf("post-bootstrap error must not leak to stderr")
+
+	require.NoError(t, w.Close())
+	os.Stderr = origStderr
+	stderr := <-captured
+
+	assert.NotContains(t, stderr, "post-bootstrap error must not leak to stderr",
+		"LoadAndExportEnv must reinstall a no-op logger so post-bootstrap pkglog.Errorf doesn't fall back to stderr — see test doc for the e2e regression this guards against")
 }
