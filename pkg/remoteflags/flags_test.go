@@ -267,6 +267,50 @@ func TestHealthMonitor_RecoveryProbeConfirmsHealthy(t *testing.T) {
 	}
 }
 
+// Versioned flags: a flag with a version less than or equal to the last applied
+// version must be ignored.
+func TestOnUpdate_VersionDropsOlderOrEqual(t *testing.T) {
+	client := NewClient()
+	h := newStubHandler(testFlag1)
+	require.NoError(t, client.SubscribeWithHandler(h))
+
+	// Apply version 5 with value=true
+	sendUpdate(client, Flag{Name: string(testFlag1), Value: true, Version: 5})
+	assert.True(t, bool(waitChan(t, h.onChangeCh)))
+
+	// Older version with a different value: must be dropped
+	sendUpdate(client, Flag{Name: string(testFlag1), Value: false, Version: 3})
+	time.Sleep(50 * time.Millisecond)
+	assert.Empty(t, h.onChangeCh)
+	v, _ := client.GetCurrentValue(testFlag1)
+	assert.True(t, bool(v), "current value must remain the one from the latest applied version")
+
+	// Same version: also dropped
+	sendUpdate(client, Flag{Name: string(testFlag1), Value: false, Version: 5})
+	time.Sleep(50 * time.Millisecond)
+	assert.Empty(t, h.onChangeCh)
+	v, _ = client.GetCurrentValue(testFlag1)
+	assert.True(t, bool(v))
+
+	// Strictly newer version: applied
+	sendUpdate(client, Flag{Name: string(testFlag1), Value: false, Version: 6})
+	assert.False(t, bool(waitChan(t, h.onChangeCh)))
+}
+
+// Versioned flags: version 0 (omitted) bypasses the sequence check.
+func TestOnUpdate_VersionZeroBypassesCheck(t *testing.T) {
+	client := NewClient()
+	h := newStubHandler(testFlag1)
+	require.NoError(t, client.SubscribeWithHandler(h))
+
+	sendUpdate(client, Flag{Name: string(testFlag1), Value: true, Version: 10})
+	assert.True(t, bool(waitChan(t, h.onChangeCh)))
+
+	// Unversioned update with a different value: applied regardless of prior version
+	sendUpdate(client, Flag{Name: string(testFlag1), Value: false})
+	assert.False(t, bool(waitChan(t, h.onChangeCh)))
+}
+
 // Recovery monitor logs warning when component stays unhealthy through the entire probe window.
 func TestHealthMonitor_RecoveryProbeStaysUnhealthy(t *testing.T) {
 	origInterval := HealthCheckInterval

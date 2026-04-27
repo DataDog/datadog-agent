@@ -92,10 +92,15 @@ type RemoteFlagSubscriber interface {
 
 // Flag represents a single flag with its name and value.
 type Flag struct {
-	Name                             string    `json:"name"`
-	Value                            FlagValue `json:"value"`
-	HealthCheckDurationSeconds       int       `json:"health_check_duration_seconds,omitempty"`
-	HealthCheckFailuresBeforeRecover int       `json:"health_check_failures_before_recover,omitempty"`
+	Name  string    `json:"name"`
+	Value FlagValue `json:"value"`
+	// Version is the sequence number of this flag value. The client only applies
+	// a flag whose Version is strictly greater than the last applied Version for
+	// that flag. A Version of 0 (omitted) is treated as unversioned and applied
+	// unconditionally.
+	Version                          int `json:"version,omitempty"`
+	HealthCheckDurationSeconds       int `json:"health_check_duration_seconds,omitempty"`
+	HealthCheckFailuresBeforeRecover int `json:"health_check_failures_before_recover,omitempty"`
 }
 
 // HealthCheckDuration returns the duration for health monitoring.
@@ -136,6 +141,7 @@ type Client struct {
 	mu            sync.Mutex
 	subscriptions map[FlagName][]*subscription
 	currentValues map[FlagName]FlagValue
+	lastVersions  map[FlagName]int
 	ctx           context.Context
 	cancel        context.CancelFunc
 }
@@ -146,6 +152,7 @@ func NewClient() *Client {
 	return &Client{
 		subscriptions: make(map[FlagName][]*subscription),
 		currentValues: make(map[FlagName]FlagValue),
+		lastVersions:  make(map[FlagName]int),
 		ctx:           ctx,
 		cancel:        cancel,
 	}
@@ -213,6 +220,16 @@ func (c *Client) OnUpdate(updates map[string]state.RawConfig, applyStateCallback
 			flag.Name = strings.ToLower(flag.Name)
 			flagName := FlagName(flag.Name)
 			processedFlags[flagName] = struct{}{}
+
+			// Enforce version sequencing: drop strictly older or equal flag versions.
+			// version 0 (omitted) bypasses the check.
+			if flag.Version > 0 {
+				if lastVersion, seen := c.lastVersions[flagName]; seen && flag.Version <= lastVersion {
+					log.Debugf("Remote flag %s: ignoring version %d (last applied %d)", flag.Name, flag.Version, lastVersion)
+					continue
+				}
+				c.lastVersions[flagName] = flag.Version
+			}
 
 			// Check if the value changed
 			oldValue, existed := c.currentValues[flagName]
