@@ -471,8 +471,8 @@ func isRetryableNetworkError(err error) bool {
 	}
 
 	if netErr, ok := err.(*net.OpError); ok {
-		if netErr.Temporary() {
-			// Temporary errors, such as "connection timed out"
+		if netErr.Timeout() {
+			// Timeout errors, such as "connection timed out"
 			return true
 		}
 		if syscallErr, ok := netErr.Err.(*os.SyscallError); ok {

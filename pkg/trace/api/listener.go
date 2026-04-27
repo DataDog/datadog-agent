@@ -8,6 +8,7 @@ package api
 import (
 	"errors"
 	"net"
+	"os"
 	"sync"
 	"time"
 
@@ -104,7 +105,7 @@ func (ln *measuredListener) Accept() (net.Conn, error) {
 	conn, err := ln.Listener.Accept()
 	if err != nil {
 		log.Debugf("Error connection named %q: %s", ln.name, err)
-		if ne, ok := err.(net.Error); ok && ne.Timeout() && !ne.Temporary() {
+		if ne, ok := err.(net.Error); ok && ne.Timeout() {
 			ln.timedout.Inc()
 		} else {
 			ln.errored.Inc()
@@ -229,12 +230,10 @@ func (sl *rateLimitedListener) Accept() (net.Conn, error) {
 		conn, err := sl.TCPListener.Accept()
 		if err != nil {
 			if ne, ok := err.(net.Error); ok && ne.Timeout() {
-				if ne.Temporary() {
+				if errors.Is(err, os.ErrDeadlineExceeded) {
 					// deadline expired; continue
 					continue
 				}
-				// don't count temporary errors; they usually signify expired deadlines
-				// see (golang/go/src/internal/poll/fd.go).TimeoutError
 				sl.timedout.Inc()
 
 			} else {

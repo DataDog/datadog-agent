@@ -404,10 +404,6 @@ linters:
     # it too. Should be replaced by using a local source, but there are too many uses in the repo.
     - text: "rand.Seed has been deprecated since Go 1.20"
       linters: [staticcheck]
-    # net.Error.Temporary() isn't properly defined and was thus deprecated.
-    # We are using it and it's not clear how to replace it.
-    - text: "Temporary has been deprecated since Go 1.18"
-      linters: [staticcheck]
     - text: ".IsSet is deprecated: this method will be removed once all settings have a default, use 'IsConfigured' instead"
       linters: [staticcheck]
     # Endpoints and EndpointSubsets are deprecated in Kubernetes v1.33+. We need to work on a migration path.
