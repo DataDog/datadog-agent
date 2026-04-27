@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/processor"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // observerPipeline is a pipeline.Provider that forwards log messages to the
@@ -66,18 +65,7 @@ func newObserverPipeline(
 func (p *observerPipeline) start() {
 	go func() {
 		defer close(p.drainDone)
-		var count, kubeletCount uint64
 		for msg := range p.outputChan {
-			count++
-			for _, t := range msg.GetTags() {
-				if t == "source:kubelet" {
-					kubeletCount++
-					break
-				}
-			}
-			if count == 1 || count%1000 == 0 {
-				log.Infof("[observer/logssource] delivered %d logs to observer (source:kubelet=%d)", count, kubeletCount)
-			}
 			p.observerHandle.ObserveLog(msg)
 		}
 	}()
