@@ -60,11 +60,11 @@ func TestObserverDropsMetricsWhenIngestMetricsDisabled(t *testing.T) {
 	drop, ok := h.(*metricDropHandle)
 	require.Truef(t, ok, `GetHandle("all-metrics") returned %T, want *metricDropHandle`, h)
 
-	assert.False(t, drop.ObserveMetricAndReportDrop(&metricObs{
+	assert.True(t, drop.ObserveMetricAndReportDrop(&metricObs{
 		name:      "system.cpu.user",
 		value:     50,
 		timestamp: 1000,
-	}), "ObserveMetricAndReportDrop should report false when dropped by configuration")
+	}), "ObserveMetricAndReportDrop should report true when dropped by configuration (signals recorder to write Dropped=true)")
 
 	drop.ObserveMetric(&metricObs{
 		name:      "system.mem.used",
@@ -103,8 +103,8 @@ func TestMetricDropHandle(t *testing.T) {
 	wrap.ObserveTraceStats(nil)
 	assert.Equal(t, 0, inner.received,
 		"metricDropHandle: inner.received = %d, want 0 (ObserveMetric/Trace/TraceStats must be dropped)", inner.received)
-	assert.False(t, wrap.ObserveMetricAndReportDrop(&sampleNoSource{name: "any.metric"}),
-		"ObserveMetricAndReportDrop reports false (config drop, not channel-full)")
+	assert.True(t, wrap.ObserveMetricAndReportDrop(&sampleNoSource{name: "any.metric"}),
+		"ObserveMetricAndReportDrop reports true (config drop) so recordingHandle writes Dropped=true")
 
 	wrap.ObserveLog(&logObs{content: []byte("hi"), timestampMs: 1})
 	assert.Equal(t, 1, inner.logReceived,
