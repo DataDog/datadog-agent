@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build kubelet
-
 // Package logssourceimpl implements the logssource component.
 package logssourceimpl
 
@@ -67,6 +65,13 @@ type logssourceComponent struct{}
 //   - the observer is unavailable
 //   - workloadmeta is unavailable
 //   - logs_enabled is true (anomaly detection is only for non-log-management customers)
+//
+// The component itself has no build-tag constraints. Capability differences
+// across builds are handled transparently by the underlying launchers:
+//   - container logs require the kubelet or docker build tag (no-op otherwise)
+//   - journald logs (incl. the kubelet.service source) require the systemd
+//     build tag (no-op otherwise)
+//   - file logs are always supported
 func NewComponent(deps Requires) (Provides, error) {
 	obs, obsOk := deps.Observer.Get()
 	wmeta, wmetaOk := deps.WMeta.Get()
@@ -116,16 +121,7 @@ func NewComponent(deps Requires) (Provides, error) {
 	launchersMgr.AddLauncher(launcher)
 	launchersMgr.AddLauncher(journaldlauncher.NewLauncher(flare.NewFlareController(), deps.Tagger))
 
-	kubeletSource := sources.NewLogSource("kubelet", &logsconfig.LogsConfig{
-		Type:               logsconfig.JournaldType,
-		ConfigID:           "kubelet",
-		IncludeSystemUnits: logsconfig.StringSliceField{"kubelet.service"},
-		Tags:               logsconfig.StringSliceField{"source:kubelet"},
-	})
-	logSources.AddSource(kubeletSource)
-	deps.Log.Infof("[observer/logssource] registered kubelet journald source: config_id=%q include_units=%v tags=%v (expected tailer id=journald:%s)",
-		kubeletSource.Config.ConfigID, kubeletSource.Config.IncludeSystemUnits,
-		kubeletSource.Config.Tags, kubeletSource.Config.ConfigID)
+	registerKubeletJournaldSource(logSources, deps.Log)
 
 	sp := newSourceProvider(wmeta, logSources, pauseFilter)
 
