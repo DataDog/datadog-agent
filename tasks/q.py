@@ -2104,19 +2104,28 @@ def coord_up(
     # upstream merged in) so the driver has its modules available AND
     # the PR diff against pr_base_branch starts empty (we add one
     # initial empty commit so gh pr create works).
-    print(color_message(f"\nCreating scratch branch {scratch_branch} forked from origin/{pr_base_branch}", Color.BLUE))
-    ctx.run(
-        f"git checkout -b {shlex.quote(scratch_branch)} origin/{shlex.quote(pr_base_branch)}",
-        warn=False,
+    has_local = ctx.run(
+        f"git rev-parse --verify --quiet {shlex.quote(scratch_branch)}",
+        warn=True, hide=True,
     )
-    # Initial empty commit gives gh pr create something to attach to
-    # (PRs against an identical base/head are rejected with "No commits
-    # between base and head"). Subsequent ships add real diff.
-    ctx.run(
-        f"git commit --allow-empty --no-verify -m "
-        f"{shlex.quote(f'coord: run-log start ({mode}, {run_ts})')}",
-        warn=False,
-    )
+    if has_local and not has_local.failed:
+        # Resume case: branch already exists locally, just check it out
+        # and skip the initial empty commit (it's already there).
+        print(color_message(f"\nResuming on existing scratch branch {scratch_branch}", Color.BLUE))
+        ctx.run(f"git checkout {shlex.quote(scratch_branch)}", warn=False)
+    else:
+        # Fresh case: create from origin/pr_base, add initial empty commit
+        # so gh pr create has something to attach to.
+        print(color_message(f"\nCreating scratch branch {scratch_branch} forked from origin/{pr_base_branch}", Color.BLUE))
+        ctx.run(
+            f"git checkout -b {shlex.quote(scratch_branch)} origin/{shlex.quote(pr_base_branch)}",
+            warn=False,
+        )
+        ctx.run(
+            f"git commit --allow-empty --no-verify -m "
+            f"{shlex.quote(f'coord: run-log start ({mode}, {run_ts})')}",
+            warn=False,
+        )
 
     if mode == "blank" and not no_wipe:
         from tasks.coordinator import setup as coord_setup_mod
@@ -2238,7 +2247,7 @@ def coord_down(ctx, session: str = "", wait: int = 30):
     if r and r.ok:
         print(color_message(f"killed tmux session '{session}'.", Color.GREEN))
     else:
-        print(color_message(f"no tmux session '{session}' (already stopped?).", Color.YELLOW))
+        print(color_message(f"no tmux session '{session}' (already stopped?).", Color.ORANGE))
 
     # Leave the pause file in place — next coord-up should `rm` to resume.
     print(color_message(f"pause file at {pause_path} (rm to resume on next start).", Color.BLUE))

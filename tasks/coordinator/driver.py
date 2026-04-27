@@ -324,6 +324,34 @@ def _budget_footer(root: Path, iter_num: int | None = None, ceiling: int | None 
     )
 
 
+def _detectors_not_registered(detectors: list[str], root: Path) -> set[str]:
+    """Return any detector names not present in component_catalog.go.
+
+    Greps the catalog file for the detector name as a quoted string
+    literal — `name: "<detector>"` is the registration shape used in
+    `defaultCatalog()`. Misses on case mismatch, intentional: the
+    implementer should match the candidate.target_components exactly.
+
+    Returns the set of detectors NOT registered. Empty set = all good.
+    """
+    catalog_path = root / "comp" / "observer" / "impl" / "component_catalog.go"
+    if not catalog_path.exists():
+        # Catalog file missing entirely — every detector is "not registered."
+        return set(detectors)
+    try:
+        text = catalog_path.read_text()
+    except OSError:
+        return set(detectors)
+    missing: set[str] = set()
+    for det in detectors:
+        # Look for the name as a quoted string literal. `"<det>"` covers
+        # both the `name: "<det>"` registration form and any other
+        # quoted reference. Cheap, deterministic, no regex risk.
+        if f'"{det}"' not in text:
+            missing.add(det)
+    return missing
+
+
 def _sanity_pre_eval_sentinel(db: Db, root: Path, iter_num: int) -> tuple[bool, str]:
     """Run a single-scenario eval on the sentinel detector + scenario.
 
@@ -646,10 +674,20 @@ def _recent_same_family(db: Db, candidate: Candidate, limit: int = 5) -> list[di
     return out
 
 
-KNOWN_DETECTORS = ("bocpd", "scanmw", "scanwelch")
+def known_detectors(db: Db) -> tuple[str, ...]:
+    """Detectors that exist in the current run's baseline.
+
+    Source of truth is `db.baseline.detectors`. Empty on blank-slate
+    runs — the proposer is inventing detector names from scratch; the
+    KNOWN_DETECTORS hardcoded fallback would clobber those novel names
+    with bocpd/scanmw/scanwelch, which don't exist on the blank branch.
+    """
+    if db.baseline is None:
+        return ()
+    return tuple(db.baseline.detectors.keys())
 
 
-def relevant_detectors(candidate: Candidate) -> list[str]:
+def relevant_detectors(candidate: Candidate, db: Db) -> list[str]:
     """Which detectors' F1 do we measure to decide if this candidate shipped?
 
     A candidate can modify any file under comp/observer/. But scoring runs
@@ -658,27 +696,37 @@ def relevant_detectors(candidate: Candidate) -> list[str]:
     internals got scored against scanmw's unaffected output — ΔF1≈0 by
     construction, "improvement" or "regression" both invisible.
 
-    Policy:
-      - Intersect target_components with the 3 known detectors. If the
-        intersection is non-empty, eval each one in it and gate on the
-        WORST ΔF1 across them.
-      - If the intersection is empty (correlator changes, new features,
-        pipeline-level work), eval ALL 3 detectors — we can't tell in
-        advance which one the change affects, so measure them all.
+    Policy (with `db` to keep blank-mode runs honest):
+      - Take the union of (candidate.target_components ∩ known) PLUS any
+        novel target names not yet in baseline (the implementer creates
+        them and registers in component_catalog.go; eval `--only <name>`
+        will work after registration). This is what blank-mode runs need
+        — every candidate is novel, so we must keep its proposed name(s).
+      - If target_components is empty (correlator-only / pipeline-only
+        changes), return the full set of known detectors so we measure
+        whichever one the change might have affected.
 
-    Always returns a non-empty list.
+    Always returns a non-empty list (driver code assumes that). On a
+    blank run with empty target_components and no baseline detectors,
+    falls back to ['<candidate-id>'] as a last resort so eval at least
+    has something to point `--only` at.
     """
-    named = [c for c in candidate.target_components if c in KNOWN_DETECTORS]
-    if named:
-        return named
-    return list(KNOWN_DETECTORS)
+    target = list(candidate.target_components or [])
+    if target:
+        return target
+    known = known_detectors(db)
+    if known:
+        return list(known)
+    # Truly blank with no targets: use the candidate id as the detector
+    # name so eval has something to dispatch with.
+    return [candidate.id]
 
 
-def primary_detector(candidate: Candidate) -> str:
+def primary_detector(candidate: Candidate, db: Db) -> str:
     """Deprecated single-detector view. Kept for callers that print a
     single string (metrics, log lines). Returns the first relevant detector.
     """
-    return relevant_detectors(candidate)[0]
+    return relevant_detectors(candidate, db)[0]
 
 
 def _merge_scorings(scorings: dict, detectors: list[str]):
@@ -938,7 +986,7 @@ def _run_iteration_body(
         return
 
     it.candidate_id = candidate.id
-    detectors = relevant_detectors(candidate)
+    detectors = relevant_detectors(candidate, db)
     # Why a list, not a single detector: a candidate modifying correlator
     # code or a shared feature affects MULTIPLE detectors. Gating on a
     # single "primary" detector was a panel-reviewed BLOCK — silent
@@ -1062,6 +1110,54 @@ def _run_iteration_body(
         {"iter": iter_num, "candidate": candidate.id, "summary": impl_summary},
         root,
     )
+
+    # 3a. Pre-eval registration check: verify each target detector is
+    # actually registered in comp/observer/impl/component_catalog.go.
+    # Without this, q.eval-scenarios --only <name> matches nothing,
+    # eval runs with no detector enabled, returns an empty report, and
+    # the eval_silent_failure gate fires too late ($30+ wasted per iter).
+    # Common cause: the implementer (Sonnet) hits max_turns before
+    # finishing the catalog registration step. Catching it here saves
+    # the eval cost AND gives the proposer a precise rejection reason.
+    if not dry_run:
+        unregistered = _detectors_not_registered(detectors, root)
+        if unregistered:
+            reason = (
+                f"detector_not_registered: {sorted(unregistered)} — "
+                f"the implementer wrote code but did not register the "
+                f"detector(s) in comp/observer/impl/component_catalog.go, "
+                f"so eval would run with nothing to measure"
+            )
+            print(f"[iter {iter_num}] AUTO-REJECTED ({reason})", file=sys.stderr)
+            journal.append(
+                "auto_rejected_unregistered",
+                {"iter": iter_num, "candidate": candidate.id, "detectors": sorted(unregistered)},
+                root,
+            )
+            experiment.auto_reject_reason = reason
+            coord_out.emit(
+                "iter_rejected",
+                (
+                    f"**iter {iter_num}** · `{candidate.id}` — auto-rejected "
+                    f"before eval: detector(s) `{sorted(unregistered)}` were "
+                    f"not registered in `component_catalog.go`. Likely the "
+                    f"implementer hit max_turns before finishing the catalog "
+                    f"step.\n\n"
+                    f"**Implementer summary**: `{impl_summary[:300]}`\n\n"
+                    f"Working tree reverted; moving on. The proposer will "
+                    f"see this as a rejection reason on the next iter."
+                    + _budget_footer(root, iter_num, ceiling=db.budget.api_token_ceiling)
+                ),
+                requires_ack=False,
+                root=root,
+            )
+            candidate.status = CandidateStatus.REJECTED
+            git_ops.revert_working_tree(root)
+            it.ended_at = now_iso()
+            db.iterations.append(it)
+            save_db(db, root)
+            metrics.regenerate(db, root)
+            return
 
     # 4. Eval — one run per relevant detector. Reports go to per-detector
     # subdirs so we keep full visibility across the set.
