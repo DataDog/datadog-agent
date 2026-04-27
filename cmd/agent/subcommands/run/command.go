@@ -37,6 +37,8 @@ import (
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/datastreams"
+	errortracking "github.com/DataDog/datadog-agent/comp/core/errortracking/def"
+	errortrackingfx "github.com/DataDog/datadog-agent/comp/core/errortracking/fx"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
 	doqueryactionsfx "github.com/DataDog/datadog-agent/comp/dataobs/queryactions/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
@@ -201,6 +203,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+	errortrackingpkg "github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
+	errortrackingprocessors "github.com/DataDog/datadog-agent/pkg/util/log/errortracking/processors"
+	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
@@ -573,6 +578,15 @@ func getSharedFxOption() fx.Option {
 		}),
 		settingsfx.Module(),
 		agenttelemetryfx.Module(),
+		errortrackingfx.Module(),
+		// AGTHEAL-15: install the errortracking branch into the slog handler
+		// chain. The Fx graph builds the COAT Sender component above; we
+		// wrap it in the in-package Pipeline (Source channel -> Processors ->
+		// batched Sender) and register the resulting Handler with the
+		// pkg/util/log/setup slot. The slot is a no-op until this Invoke
+		// runs, so SetupLogger does not need to know about errortracking
+		// during its own construction.
+		fx.Invoke(installErrortrackingHandler),
 		remotetraceroute.Module(),
 		networkpath.Bundle(),
 		syntheticsTestsfx.Module(),
@@ -591,6 +605,51 @@ func getSharedFxOption() fx.Option {
 		healthplatform.Bundle(),
 		tracetelemetryfx.Module(),
 	)
+}
+
+// installErrortrackingHandler is the AGTHEAL-15 Fx invoke that wires the
+// COAT Sender component into the in-package Pipeline at
+// pkg/util/log/errortracking and registers the resulting Handler with
+// pkg/util/log/setup. The function is a no-op when errortracking.enabled is
+// false; the COAT Sender component is still constructed (cheap) but never
+// receives a Send call because no Pipeline points at it.
+//
+// Lifecycle: OnStart spins up the Pipeline goroutine and installs the
+// Handler so error records are forwarded from then on. OnStop unregisters
+// the Handler so any logs emitted during shutdown fall through to the
+// existing chain only, then drains the Pipeline with a 5s deadline so
+// in-flight batches reach the Sender before the agent exits.
+func installErrortrackingHandler(lc fx.Lifecycle, cfg config.Component, sender errortracking.Component) {
+	if !cfg.GetBool("errortracking.enabled") {
+		return
+	}
+
+	pipeline := errortrackingpkg.NewPipeline(sender, errortrackingpkg.Options{
+		BufferSize:    cfg.GetInt("errortracking.buffer_size"),
+		BatchSize:     cfg.GetInt("errortracking.batch_size"),
+		FlushInterval: time.Duration(cfg.GetInt("errortracking.flush_interval_seconds")) * time.Second,
+		Processors:    []errortrackingpkg.Processor{errortrackingprocessors.Noop()},
+	})
+	handler := errortrackingpkg.New(pipeline)
+
+	runCtx, runCancel := context.WithCancel(context.Background())
+
+	lc.Append(fx.Hook{
+		OnStart: func(_ context.Context) error {
+			go pipeline.Run(runCtx)
+			pkglogsetup.RegisterErrortrackingHandler(handler)
+			return nil
+		},
+		OnStop: func(stopCtx context.Context) error {
+			pkglogsetup.RegisterErrortrackingHandler(nil)
+
+			drainCtx, drainCancel := context.WithTimeout(stopCtx, 5*time.Second)
+			defer drainCancel()
+			err := pipeline.Drain(drainCtx)
+			runCancel()
+			return err
+		},
+	})
 }
 
 // startAgent Initializes the agent process
