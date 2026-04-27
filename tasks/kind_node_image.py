@@ -27,7 +27,7 @@ def _check_dependencies():
     """Check if required dependencies are installed."""
     if requests is None:
         raise Exit(
-            "Missing required dependencies: requests\nInstall with: pip install requests",
+            "Missing required dependencies: requests\n" "Install with: pip install requests",
             code=1,
         )
 
