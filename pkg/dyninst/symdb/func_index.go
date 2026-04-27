@@ -21,17 +21,28 @@ import (
 	"syscall"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/gosymname"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 )
 
-// funcOffsetByNameIndex maps canonicalized qualified names to DWARF offsets.
-// The name keys are treated as package-prefixed identifiers; forPackage
-// returns entries whose name starts with pkgName + ".". Used to find
-// functions that belong to a package but appear in a different CU (e.g.
-// generic shape instantiations placed in a foreign CU by the compiler).
+// funcOffsetByNameIndex maps DWARF-form qualified names to DWARF offsets.
+// The name keys are the linker-symbol form, where the package portion is
+// escaped per cmd/internal/objabi.PathToPrefix (dots inside the last
+// path segment become %2e, etc.). forPackage takes an *unescaped*
+// package import path (matching DW_AT_name on the compile unit) and
+// internally escapes it before searching, so callers don't deal with
+// the escaping themselves. Used to find functions that belong to a
+// package but appear in a different compile unit (e.g. generic shape
+// instantiations placed in a foreign compile unit by the compiler).
 type funcOffsetByNameIndex interface {
 	// forPackage returns an iterator over all (canonicalName, funcOffset)
-	// pairs where the function's qualified name starts with pkgName + ".".
+	// pairs whose owning package equals pkgName (compared in unescaped
+	// form). Internally the lookup escapes pkgName via gosymname.EscapePkg
+	// so that packages whose name contains a dot in a path segment (e.g.
+	// "lib.v2", "gopkg.in/ini.v1") match their own entries and only
+	// their own. Sibling packages that happen to share a dot-prefixed
+	// segment (e.g. "lib" and "lib.v2") are not yielded across each
+	// other.
 	forPackage(pkgName string) iter.Seq2[string, dwarf.Offset]
 	io.Closer
 }
@@ -89,9 +100,11 @@ type inMemFuncOffsetByNameIndex struct {
 var _ funcOffsetByNameIndex = (*inMemFuncOffsetByNameIndex)(nil)
 
 func (idx *inMemFuncOffsetByNameIndex) forPackage(pkgName string) iter.Seq2[string, dwarf.Offset] {
-	prefix := pkgName + "."
+	prefix := gosymname.EscapePkg(pkgName) + "."
 	return func(yield func(string, dwarf.Offset) bool) {
 		// Binary search for the first entry whose name >= prefix.
+		// Entries are stored in DWARF (escaped) form, so the prefix
+		// must be escaped too.
 		i, _ := slices.BinarySearchFunc(idx.entries, prefix, func(e inMemFuncOffsetByNameEntry, target string) int {
 			return strings.Compare(e.name, target)
 		})
@@ -309,9 +322,11 @@ func (idx *onDiskFuncOffsetByNameIndex) readName(offset uint32) string {
 }
 
 func (idx *onDiskFuncOffsetByNameIndex) forPackage(pkgName string) iter.Seq2[string, dwarf.Offset] {
-	prefix := pkgName + "."
+	prefix := gosymname.EscapePkg(pkgName) + "."
 	return func(yield func(string, dwarf.Offset) bool) {
 		// Binary search for the first entry whose name >= prefix.
+		// Entries are stored in DWARF (escaped) form, so the prefix
+		// must be escaped too.
 		i, _ := slices.BinarySearchFunc(idx.entries, prefix, func(e onDiskFuncOffsetByNameEntry, target string) int {
 			return strings.Compare(idx.readName(e.strOffset), target)
 		})

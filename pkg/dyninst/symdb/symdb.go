@@ -1243,11 +1243,12 @@ func (b *packagesIterator) buildPrePassIndexes() (idx prePassIndexes, retErr err
 				continue
 			}
 
+			// Store the canonical name in DWARF (escaped) form,
+			// matching genericFuncs and inlineDefs. forPackage handles
+			// the escape on lookup; storing here in unescaped form
+			// would make lookups for packages whose last path segment
+			// contains a dot (e.g. "gopkg.in/foo.v2") miss this entry.
 			canonicalName := gosymname.CanonicalizeGenerics(name)
-			// Unescape the package path in the canonical name.
-			if unescaped, err := unescapeSymbol(canonicalName); err == nil {
-				canonicalName = unescaped
-			}
 			if err := genericTypeBuilder.add(canonicalName, entry.Offset); err != nil {
 				return prePassIndexes{}, err
 			}
@@ -1522,6 +1523,14 @@ func packageHasFunctionQName(pkg *Package, qname string) bool {
 	})
 }
 
+// typeHasMethodQName returns true if the type already has a method with the
+// given qualified name.
+func typeHasMethodQName(t *Type, qname string) bool {
+	return slices.ContainsFunc(t.Methods, func(f Function) bool {
+		return f.QualifiedName == qname
+	})
+}
+
 // emitAbstractFunctionsForPackage emits every abstract (inlined) function
 // that inlineDefs attributes to pkg. Each abstract DIE is parsed
 // fresh, its inline instances are replayed from inlineInstances to
@@ -1562,12 +1571,6 @@ func (b *packagesIterator) emitAbstractFunctionsForPackage(pkg *Package) error {
 		if !af.interesting {
 			continue
 		}
-		// forPackage is a prefix match on the qualified name, so it also
-		// returns entries for packages with the same prefix (e.g. "lib."
-		// matches "lib.v2.*"). Filter.
-		if af.pkg != pkg.Name {
-			continue
-		}
 
 		for instanceOffset := range b.indexes.inlineInstances.forOrigin(defOffset) {
 			if err := b.replayInlineInstance(instanceOffset, pkg, af); err != nil {
@@ -1577,14 +1580,22 @@ func (b *packagesIterator) emitAbstractFunctionsForPackage(pkg *Package) error {
 		}
 
 		f := buildFunctionFromAbstract(af)
+		// Dedup against entries the per-compile-unit walk already
+		// emitted: the Go compiler sometimes emits both an abstract
+		// inline DIE and an out-of-line Subprogram for the same
+		// function, in which case the out-of-line copy is processed
+		// first by the normal compile-unit walk and we'd otherwise
+		// emit the function a second time here.
 		if af.receiver != "" {
 			t, ok := pkg.Types[af.receiver]
 			if !ok {
 				t = &Type{Name: af.receiver}
 				pkg.Types[af.receiver] = t
 			}
-			t.Methods = append(t.Methods, f)
-		} else {
+			if !typeHasMethodQName(t, f.QualifiedName) {
+				t.Methods = append(t.Methods, f)
+			}
+		} else if !packageHasFunctionQName(pkg, f.QualifiedName) {
 			pkg.Functions = append(pkg.Functions, f)
 		}
 	}
