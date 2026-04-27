@@ -1,9 +1,8 @@
 ---
-# Default opt-in scenario: no specific tag will use the default version defined in the languageVersions map,
-# and opt in to the gradual rollout feature.
+# Default opt-in scenario: no ddTraceVersions means the cluster-agent defaults to
+# all languages at their latest major versions (Python: v4, Java: v1, etc.).
+# v4 is a mutable major-version tag, so the gradual rollout resolver applies.
 clusterAgent:
-  admissionController:
-    configMode: "hostip"
   volumes:
     - name: mock-registry-ca
       secret:
@@ -24,9 +23,8 @@ datadog:
     instrumentation:
       enabled: true
       injector:
-        imageTag: "0.52.0"
-      enabledNamespaces:
-        - "gradual-rollout-default"
+        imageTag: "0.54.0"
+      enabledNamespaces: []
       targets:
         - name: "python-apps"
           namespaceSelector:

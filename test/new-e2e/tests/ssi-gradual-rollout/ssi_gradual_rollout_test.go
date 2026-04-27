@@ -23,7 +23,7 @@ import (
 	ssi "github.com/DataDog/datadog-agent/test/new-e2e/tests/ssi"
 )
 
-//go:embed testdata/default_opt_in.yaml
+//go:embed testdata/base.yaml
 var baseHelmValues string
 
 //go:embed testdata/default_opt_in.yaml
@@ -39,6 +39,9 @@ type ssiGradualRolloutSuite struct {
 // the mock registry deployed initially, then UpdateEnv is called at the start of each test.
 func TestSSIGradualRolloutSuite(t *testing.T) {
 	e2e.Run(t, &ssiGradualRolloutSuite{}, e2e.WithProvisioner(ssi.Provisioner(ssi.ProvisionerOptions{
+		AgentOptions: []kubernetesagentparams.Option{
+			kubernetesagentparams.WithHelmValues(baseHelmValues),
+		},
 		WorkloadAppFunc: func(e config.Env, kubeProvider *kubernetes.Provider) (*compkube.Workload, error) {
 			return nil, deployMockRegistry(e, kubeProvider)
 		},
