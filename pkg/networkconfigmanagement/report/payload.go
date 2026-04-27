@@ -10,15 +10,7 @@ package report
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
-	ncmstore "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/store"
-)
-
-// ConfigSource represents where the config was retrieved from (in the case of the integration, it's always via CLI commands"
-type ConfigSource string
-
-const (
-	// CLI represents the source the config was retrieved
-	CLI ConfigSource = "cli"
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 )
 
 // NCMPayload contains network devices configuration payload sent to EvP / backend
@@ -30,13 +22,13 @@ type NCMPayload struct {
 
 // NetworkDeviceConfig contains network device configuration for a single device
 type NetworkDeviceConfig struct {
-	DeviceID     string              `json:"device_id"`
-	DeviceIP     string              `json:"device_ip"`
-	ConfigType   ncmstore.ConfigType `json:"config_type"`
-	ConfigSource string              `json:"config_source"`
-	Timestamp    int64               `json:"timestamp"`
-	Tags         []string            `json:"tags"`
-	Content      string              `json:"content"`
+	DeviceID     string             `json:"device_id"`
+	DeviceIP     string             `json:"device_ip"`
+	ConfigType   types.ConfigType   `json:"config_type"`
+	ConfigSource types.ConfigSource `json:"config_source"`
+	Timestamp    int64              `json:"timestamp"`
+	Tags         []string           `json:"tags"`
+	Content      string             `json:"content"`
 }
 
 // ToNCMPayload converts the given parameters into a NCMPayload (sent to event platform / backend).
@@ -55,7 +47,7 @@ func ToNCMPayload(namespace string, configs []NetworkDeviceConfig, timestamp int
 }
 
 // ToNetworkDeviceConfig converts the given parameters into a NetworkDeviceConfig, representing a single device's configuration in a point in time.
-func ToNetworkDeviceConfig(deviceID, deviceIP string, configType ncmstore.ConfigType, extractedMetadata *profile.ExtractedMetadata, tags []string, content []byte) NetworkDeviceConfig {
+func ToNetworkDeviceConfig(deviceID, deviceIP string, configType types.ConfigType, extractedMetadata *profile.ExtractedMetadata, tags []string, content []byte) NetworkDeviceConfig {
 	var ts int64
 	if extractedMetadata != nil && extractedMetadata.Timestamp != 0 {
 		ts = extractedMetadata.Timestamp
@@ -66,7 +58,7 @@ func ToNetworkDeviceConfig(deviceID, deviceIP string, configType ncmstore.Config
 		DeviceID:     deviceID,
 		DeviceIP:     deviceIP,
 		ConfigType:   configType,
-		ConfigSource: string(CLI),
+		ConfigSource: types.CLI,
 		Timestamp:    ts,
 		Tags:         tags,
 		Content:      string(content),

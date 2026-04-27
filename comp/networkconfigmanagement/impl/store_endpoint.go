@@ -12,16 +12,17 @@ import (
 	"net/http"
 
 	ncmstore "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/store"
+	types "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
 // GetConfigResponse is the JSON response returned by the /agent/ncm/config endpoint.
 type GetConfigResponse struct {
-	ConfigUUID string              `json:"config_uuid"`
-	DeviceID   string              `json:"device_id"`
-	ConfigType ncmstore.ConfigType `json:"config_type"`
-	CapturedAt int64               `json:"captured_at"`
-	RawConfig  string              `json:"raw_config"`
+	ConfigUUID string           `json:"config_uuid"`
+	DeviceID   string           `json:"device_id"`
+	ConfigType types.ConfigType `json:"config_type"`
+	CapturedAt int64            `json:"captured_at"`
+	RawConfig  string           `json:"raw_config"`
 }
 
 // newConfigEndpointHandler returns an http.HandlerFunc for GET /agent/ncm/config?uuid=<uuid>.

@@ -16,6 +16,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.etcd.io/bbolt"
+
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 )
 
 var testRawConfig = `
@@ -88,7 +90,7 @@ func TestGetConfig(t *testing.T) {
 
 		assert.Equal(t, configUUID, metadata.ConfigUUID)
 		assert.Equal(t, "device:10.0.0.1", metadata.DeviceID)
-		assert.Equal(t, RUNNING, metadata.ConfigType)
+		assert.Equal(t, types.RUNNING, metadata.ConfigType)
 		assert.NotZero(t, metadata.CapturedAt)
 		assert.Equal(t, metadata.CapturedAt, metadata.LastAccessedAt)
 		assert.Equal(t, hashConfig(testRawConfig), metadata.RawHash)
@@ -174,9 +176,9 @@ func TestHashConfig(t *testing.T) {
 func TestCheckDuplicate(t *testing.T) {
 	tests := []struct {
 		name           string
-		existing       []ConfigMetadata // seed these into the metadata bucket
+		existing       []types.ConfigMetadata // seed these into the metadata bucket
 		deviceID       string
-		configType     ConfigType
+		configType     types.ConfigType
 		rawHash        string
 		wantConfigUUID string // empty means no match expected
 	}{
@@ -189,7 +191,7 @@ func TestCheckDuplicate(t *testing.T) {
 		},
 		{
 			name: "matching hash returns UUID (duplicate config)",
-			existing: []ConfigMetadata{
+			existing: []types.ConfigMetadata{
 				{ConfigUUID: "uuid-1", DeviceID: "device:10.0.0.1", ConfigType: "running", CapturedAt: 100, RawHash: "abc123"},
 			},
 			deviceID:       "device:10.0.0.1",
@@ -199,7 +201,7 @@ func TestCheckDuplicate(t *testing.T) {
 		},
 		{
 			name: "same device, but different hash returns no match (new config, not duplicate)",
-			existing: []ConfigMetadata{
+			existing: []types.ConfigMetadata{
 				{ConfigUUID: "uuid-1", DeviceID: "device:10.0.0.1", ConfigType: "running", CapturedAt: 100, RawHash: "abc123"},
 			},
 			deviceID:       "device:10.0.0.1",
@@ -209,7 +211,7 @@ func TestCheckDuplicate(t *testing.T) {
 		},
 		{
 			name: "matches latest by CapturedAt (duplicate of the latest config)",
-			existing: []ConfigMetadata{
+			existing: []types.ConfigMetadata{
 				{ConfigUUID: "uuid-old", DeviceID: "device:10.0.0.1", ConfigType: "running", CapturedAt: 100, RawHash: "old-hash"},
 				{ConfigUUID: "uuid-new", DeviceID: "device:10.0.0.1", ConfigType: "running", CapturedAt: 200, RawHash: "new-hash"},
 			},
@@ -220,7 +222,7 @@ func TestCheckDuplicate(t *testing.T) {
 		},
 		{
 			name: "old hash no longer matches when latest differs (seen hash, but not duplicate since it doesn't match latest)",
-			existing: []ConfigMetadata{
+			existing: []types.ConfigMetadata{
 				{ConfigUUID: "uuid-old", DeviceID: "device:10.0.0.1", ConfigType: "running", CapturedAt: 100, RawHash: "old-hash"},
 				{ConfigUUID: "uuid-new", DeviceID: "device:10.0.0.1", ConfigType: "running", CapturedAt: 200, RawHash: "new-hash"},
 			},
@@ -231,7 +233,7 @@ func TestCheckDuplicate(t *testing.T) {
 		},
 		{
 			name: "different device not matched (same hash, but different device)",
-			existing: []ConfigMetadata{
+			existing: []types.ConfigMetadata{
 				{ConfigUUID: "uuid-1", DeviceID: "device:10.0.0.2", ConfigType: "running", CapturedAt: 100, RawHash: "abc123"},
 			},
 			deviceID:       "device:10.0.0.1",
@@ -241,7 +243,7 @@ func TestCheckDuplicate(t *testing.T) {
 		},
 		{
 			name: "different config type not matched (same config, same device, but different config type should store as new config)",
-			existing: []ConfigMetadata{
+			existing: []types.ConfigMetadata{
 				{ConfigUUID: "uuid-1", DeviceID: "device:10.0.0.1", ConfigType: "startup", CapturedAt: 100, RawHash: "abc123"},
 			},
 			deviceID:       "device:10.0.0.1",
@@ -251,7 +253,7 @@ func TestCheckDuplicate(t *testing.T) {
 		},
 		{
 			name: "existing metadata has same capturedAt ts - should break by config UUID order",
-			existing: []ConfigMetadata{
+			existing: []types.ConfigMetadata{
 				{ConfigUUID: "uuid-1", DeviceID: "device:10.0.0.1", ConfigType: "running", CapturedAt: 100, RawHash: "hash123"},
 				{ConfigUUID: "uuid-2", DeviceID: "device:10.0.0.1", ConfigType: "running", CapturedAt: 100, RawHash: "hash345"}, // will win from config UUID
 			},

@@ -21,6 +21,7 @@ import (
 	"github.com/google/uuid"
 	"go.etcd.io/bbolt"
 
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/compression/selector"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -112,7 +113,7 @@ func (cs *configStore) update(fn func(tx *bbolt.Tx) error) error {
 
 // StoreConfig is responsible for checking if the config for the device is new,
 // if so, it will create a new entry in each bucket (for the config, metadata, and secrets)
-func (cs *configStore) StoreConfig(deviceID string, configType ConfigType, rawConfig string) (string, error) {
+func (cs *configStore) StoreConfig(deviceID string, configType types.ConfigType, rawConfig string) (string, error) {
 	// Setup + marshal everything first (does not require DB lock)
 	configUUID := uuid.New().String()
 	now := time.Now().Unix()
@@ -128,7 +129,7 @@ func (cs *configStore) StoreConfig(deviceID string, configType ConfigType, rawCo
 		return "", fmt.Errorf("compress raw config error: %w", err)
 	}
 	// Metadata
-	metadata := ConfigMetadata{
+	metadata := types.ConfigMetadata{
 		ConfigUUID:     configUUID,
 		DeviceID:       deviceID,
 		ConfigType:     configType,
@@ -179,10 +180,10 @@ func (cs *configStore) StoreConfig(deviceID string, configType ConfigType, rawCo
 // and checks for configs that match the device ID and config type (e.g. default:10.0.0.1, "running")
 // and compares the hashes with the incoming config retrieved to help check if we need to store it
 // TODO: nice to have optimization since we check duplicates more than we'd check by exact UUID is having a composite key / prefix scan
-func (cs *configStore) checkDuplicateInTx(tx *bbolt.Tx, deviceID string, configType ConfigType, rawHash string) (string, error) {
-	var latest *ConfigMetadata
+func (cs *configStore) checkDuplicateInTx(tx *bbolt.Tx, deviceID string, configType types.ConfigType, rawHash string) (string, error) {
+	var latest *types.ConfigMetadata
 	err := tx.Bucket([]byte(metadataBucket)).ForEach(func(_, v []byte) error {
-		var current ConfigMetadata
+		var current types.ConfigMetadata
 		if err := json.Unmarshal(v, &current); err != nil {
 			return err
 		}
@@ -204,7 +205,7 @@ func (cs *configStore) checkDuplicateInTx(tx *bbolt.Tx, deviceID string, configT
 }
 
 // CheckDuplicate is the wrapper around the checkDuplicateInTx function that contains the logic including locking the DB
-func (cs *configStore) CheckDuplicate(deviceID string, configType ConfigType, rawHash string) (string, error) {
+func (cs *configStore) CheckDuplicate(deviceID string, configType types.ConfigType, rawHash string) (string, error) {
 	var configID string
 	err := cs.view(func(tx *bbolt.Tx) error {
 		var txErr error
@@ -215,9 +216,9 @@ func (cs *configStore) CheckDuplicate(deviceID string, configType ConfigType, ra
 }
 
 // GetConfig retrieves all the data associated with a config given its UUID
-func (cs *configStore) GetConfig(configUUID string) (string, *ConfigMetadata, error) {
+func (cs *configStore) GetConfig(configUUID string) (string, *types.ConfigMetadata, error) {
 	var rawConfig string
-	var metadata ConfigMetadata
+	var metadata types.ConfigMetadata
 
 	err := cs.view(func(tx *bbolt.Tx) error {
 		key := []byte(configUUID) // TODO: keep UUID as key vs. composite key / index?

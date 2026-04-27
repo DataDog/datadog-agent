@@ -15,13 +15,14 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 type memConfigStore struct {
 	lock       sync.RWMutex
 	rawConfigs map[string]string
-	metadata   map[string]ConfigMetadata
+	metadata   map[string]types.ConfigMetadata
 }
 
 var _ ConfigStore = (*memConfigStore)(nil)
@@ -30,7 +31,7 @@ var _ ConfigStore = (*memConfigStore)(nil)
 func NewMemStore() ConfigStore {
 	return &memConfigStore{
 		rawConfigs: make(map[string]string),
-		metadata:   make(map[string]ConfigMetadata),
+		metadata:   make(map[string]types.ConfigMetadata),
 	}
 }
 
@@ -40,7 +41,7 @@ func (m *memConfigStore) Close(_ context.Context) error {
 }
 
 // StoreConfig stores a device configuration, deduplicating against the latest stored config for the same device+type.
-func (m *memConfigStore) StoreConfig(deviceID string, configType ConfigType, rawConfig string) (string, error) {
+func (m *memConfigStore) StoreConfig(deviceID string, configType types.ConfigType, rawConfig string) (string, error) {
 	rawHash := hashConfig(rawConfig)
 	now := time.Now().Unix()
 
@@ -54,7 +55,7 @@ func (m *memConfigStore) StoreConfig(deviceID string, configType ConfigType, raw
 	configUUID := uuid.New().String()
 	m.rawConfigs[configUUID] = rawConfig
 
-	m.metadata[configUUID] = ConfigMetadata{
+	m.metadata[configUUID] = types.ConfigMetadata{
 		ConfigUUID:     configUUID,
 		DeviceID:       deviceID,
 		ConfigType:     configType,
@@ -69,8 +70,8 @@ func (m *memConfigStore) StoreConfig(deviceID string, configType ConfigType, raw
 
 // findLatestMatch returns the UUID of the latest stored config for the given device+type if its hash matches.
 // Must be called with m.lock held.
-func (m *memConfigStore) findLatestMatch(deviceID string, configType ConfigType, rawHash string) string {
-	var latest *ConfigMetadata
+func (m *memConfigStore) findLatestMatch(deviceID string, configType types.ConfigType, rawHash string) string {
+	var latest *types.ConfigMetadata
 	for _, meta := range m.metadata {
 		if meta.DeviceID != deviceID || meta.ConfigType != configType {
 			continue
@@ -86,14 +87,14 @@ func (m *memConfigStore) findLatestMatch(deviceID string, configType ConfigType,
 }
 
 // CheckDuplicate returns the UUID of the latest stored config for the given device+type if its hash matches, or empty string otherwise.
-func (m *memConfigStore) CheckDuplicate(deviceID string, configType ConfigType, rawHash string) (string, error) {
+func (m *memConfigStore) CheckDuplicate(deviceID string, configType types.ConfigType, rawHash string) (string, error) {
 	m.lock.RLock()
 	defer m.lock.RUnlock()
 	return m.findLatestMatch(deviceID, configType, rawHash), nil
 }
 
 // GetConfig retrieves all data for a config by UUID.
-func (m *memConfigStore) GetConfig(configUUID string) (string, *ConfigMetadata, error) {
+func (m *memConfigStore) GetConfig(configUUID string) (string, *types.ConfigMetadata, error) {
 	m.lock.RLock()
 	defer m.lock.RUnlock()
 
