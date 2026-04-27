@@ -2057,6 +2057,14 @@ def coord_up(
                 print(color_message(f"  · {a}", Color.BLUE))
         else:
             print(color_message("\nNo prior .coordinator/ state to archive.", Color.BLUE))
+        # Seed a stub baseline so the driver has something concrete to
+        # score against. Empty detectors dict + scoring's missing-detector
+        # fallback means every proposed detector is auto-tolerated against
+        # zero baseline; the first-ship floor (CONFIG.first_ship_min_mean_f1)
+        # is the only gate.
+        bootstrap = coord_setup_mod.write_blank_bootstrap_db(".coordinator")
+        if bootstrap:
+            print(color_message(f"  · seeded {bootstrap} (empty baseline; first-ship floor gates)", Color.BLUE))
 
     pr_num = reuse_pr
     if pr_num == 0:

@@ -139,7 +139,14 @@ def score_against_baseline(
     doomed the prior `last_shipped_per_scenario` design.
     """
     mean_f1, observed = load_report(report_path)
-    bd = baseline.detectors[detector]
+    # Gracefully handle "detector not in baseline" — happens on blank-mode
+    # runs where the proposer adds a new detector that didn't exist
+    # before. Treat as zero baseline; every observed F1 is positive ΔF1,
+    # catastrophe filters can't fire, and the first-ship floor is the
+    # only gate. (Pre-this, KeyError → iter crashed → review_failed.)
+    bd = baseline.detectors.get(detector)
+    if bd is None:
+        bd = BaselineDetector(mean_f1=0.0, total_fps=0, scenarios={})
 
     deltas: dict[str, ScenarioDelta] = {}
     strict_regressions = []

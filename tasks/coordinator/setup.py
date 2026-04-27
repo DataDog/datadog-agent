@@ -271,6 +271,51 @@ def blockers(checks: list[Check]) -> list[Check]:
     return [c for c in checks if not c.ok]
 
 
+def write_blank_bootstrap_db(coord_dir: str = ".coordinator") -> str:
+    """Write a minimal db.yaml with an empty Baseline (no detectors).
+
+    Blank-mode runs need *some* baseline non-None so the scoring path
+    runs and the first-ship floor can fire — but the actual content is
+    "no detectors known yet, all scenarios zero." `score_against_baseline`
+    handles missing detectors gracefully (treats as zero baseline), so
+    every detector the proposer adds is auto-tolerated.
+
+    Returns the path written, or empty string if a db.yaml already exists.
+    """
+    import datetime as _dt
+    db_path = os.path.join(coord_dir, "db.yaml")
+    if os.path.exists(db_path):
+        return ""
+    os.makedirs(coord_dir, exist_ok=True)
+    ts = _dt.datetime.now().isoformat(timespec="seconds")
+    # Minimal valid db.yaml. dict_to_db will fill defaults for everything
+    # not specified. Empty detectors dict means scoring uses the missing-
+    # detector fallback (zero baseline) for every proposal.
+    content = (
+        "schema_version: 1\n"
+        "baseline:\n"
+        "  sha: blank-bootstrap\n"
+        f"  generated_at: '{ts}'\n"
+        "  detectors: {}\n"
+        "experiments: {}\n"
+        "candidates: {}\n"
+        "phase_state:\n"
+        "  current_phase: '1'\n"
+        "  best_score: 0.0\n"
+        "  plateau_counter: 0\n"
+        "  phase_start_iter: 0\n"
+        "budget:\n"
+        "  wall_hours_used: 0.0\n"
+        "  wall_hours_ceiling: 72.0\n"
+        "  api_tokens_used: 0\n"
+        "  api_token_ceiling: 500000000\n"
+        "iterations: []\n"
+    )
+    with open(db_path, "w") as f:
+        f.write(content)
+    return db_path
+
+
 def archive_stale_state(coord_dir: str = ".coordinator") -> list[str]:
     """Move per-run state aside so a fresh run starts clean.
 
