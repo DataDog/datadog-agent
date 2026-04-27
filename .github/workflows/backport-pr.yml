@@ -23,15 +23,15 @@ jobs:
           # For 'labeled' event, use just the added label
           # For 'closed' event, use all backport labels
           if [[ "$EVENT_ACTION" == "labeled" ]]; then
-            if [[ "$EVENT_LABEL_NAME" == backport/* ]]; then
+            if [[ "$EVENT_LABEL_NAME" =~ ^backport/([0-9]+\.[0-9]+\.x|main)$ ]]; then
               targets=$(jq -cn --arg label "$EVENT_LABEL_NAME" '[$label]')
               echo "targets=$targets" >> "$GITHUB_OUTPUT"
             else
               echo "targets=[]" >> "$GITHUB_OUTPUT"
             fi
           else
-            # Extract all backport/* labels as JSON array
-            targets=$(jq -c '[.[] | select(startswith("backport/"))]' <<< "$PR_LABEL_NAMES_JSON")
+            # Extract all well-formed backport/* labels as JSON array
+            targets=$(jq -c '[.[] | select(test("^backport/([0-9]+\\.[0-9]+\\.x|main)$"))]' <<< "$PR_LABEL_NAMES_JSON")
             echo "targets=$targets" >> "$GITHUB_OUTPUT"
           fi
 
