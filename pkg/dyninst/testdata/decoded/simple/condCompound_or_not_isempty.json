@@ -1,0 +1,36 @@
+[
+  {
+    "service": "simple",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.lenString",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "probe": {
+          "id": "condCompound_or_not_isempty",
+          "location": {
+            "method": "main.lenString"
+          }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "@duration",
+            "message": "not available: maximum call count exceeded"
+          }
+        ]
+      },
+      "type": "snapshot"
+    },
+    "timestamp": "[ts]",
+    "message": "tag == \"match\" || !isEmpty(s) [s=hello, tag=match]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  }
+]

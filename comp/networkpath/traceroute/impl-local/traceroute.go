@@ -63,7 +63,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 func (t *localTraceroute) Run(ctx context.Context, cfg config.Config) (payload.NetworkPath, error) {
 	path, err := t.runner.Run(ctx, cfg)
 	if err != nil {
-		return payload.NetworkPath{}, fmt.Errorf("error getting traceroute: %s", err)
+		return payload.NetworkPath{}, fmt.Errorf("error getting traceroute: %w", err)
 	}
 
 	agentHostname, err := t.hostname.Get(ctx)

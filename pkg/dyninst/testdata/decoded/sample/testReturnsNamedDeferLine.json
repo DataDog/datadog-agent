@@ -1,0 +1,79 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testReturnsNamedDeferLine",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testReturnsNamedDeferLine",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
+            "lineNumber": 121
+          },
+          {
+            "function": "main.executeReturns",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
+            "lineNumber": 414
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 52
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testReturnsNamedDeferLine",
+          "location": {
+            "method": "main.testReturnsNamedDeferLine",
+            "file": "returns.go",
+            "line": 121
+          }
+        },
+        "captures": {
+          "lines": {
+            "121": {
+              "locals": {
+                "i": {
+                  "type": "int",
+                  "value": "43"
+                },
+                "a": {
+                  "type": "string",
+                  "value": "a43"
+                },
+                "b": {
+                  "type": "string",
+                  "value": "b43"
+                }
+              }
+            }
+          }
+        }
+      },
+      "type": "snapshot"
+    },
+    "timestamp": "[ts]",
+    "message": "43",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  }
+]

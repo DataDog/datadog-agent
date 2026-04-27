@@ -40,7 +40,7 @@ LIBPATH_VAL=${LIBPATH_VAL}:/opt/freeware/lib64:/opt/freeware/lib
 printf '#!/bin/sh\n'                                                          > "$WRAPPER"
 printf 'export LIBPATH=%s\n' "$LIBPATH_VAL"                                  >> "$WRAPPER"
 printf 'export PATH=/opt/datadog-agent/embedded/bin:/opt/freeware/bin:/usr/sbin:/usr/bin:/bin:${PATH}\n' >> "$WRAPPER"
-printf 'exec /opt/datadog-agent/bin/agent "$@"\n'                            >> "$WRAPPER"
+printf 'exec /opt/datadog-agent/bin/agent/agent "$@"\n'                      >> "$WRAPPER"
 chmod 755 "$WRAPPER"
 
 # Write SRC wrapper for trace-agent.
@@ -48,7 +48,7 @@ TRACE_WRAPPER=/opt/datadog-agent/bin/trace-agent-svc
 printf '#!/bin/sh\n'                                                              > "$TRACE_WRAPPER"
 printf 'export LIBPATH=%s\n' "$LIBPATH_VAL"                                      >> "$TRACE_WRAPPER"
 printf 'export PATH=/opt/datadog-agent/embedded/bin:/opt/freeware/bin:/usr/sbin:/usr/bin:/bin:${PATH}\n' >> "$TRACE_WRAPPER"
-printf 'exec /opt/datadog-agent/bin/trace-agent run --config /etc/datadog-agent/datadog.yaml\n' >> "$TRACE_WRAPPER"
+printf 'exec /opt/datadog-agent/embedded/bin/trace-agent run --config /etc/datadog-agent/datadog.yaml\n' >> "$TRACE_WRAPPER"
 chmod 755 "$TRACE_WRAPPER"
 
 # Remove ALL stale SRC entries then register fresh.

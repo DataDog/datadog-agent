@@ -58,8 +58,9 @@ type executorAdapter struct {
 func (a *executorAdapter) Execute(ctx context.Context, action *kubeactions.KubeAction) ExecutionResult {
 	result := a.exec.Execute(ctx, action)
 	return ExecutionResult{
-		Status:  result.Status,
-		Message: result.Message,
+		Status:   result.Status,
+		Message:  result.Message,
+		Payloads: result.Payloads,
 	}
 }
 
@@ -80,6 +81,10 @@ func registerExecutors(registry *ExecutorRegistry, clientset kubernetes.Interfac
 	// Register rollback_deployment executor
 	registry.Register("rollback_deployment", &executorAdapter{exec: executors.NewRollbackDeploymentExecutor(clientset)})
 	log.Infof("Registered executor for action type: rollback_deployment")
+
+	// Register get_resource executor
+	registry.Register("get_resource", &executorAdapter{exec: executors.NewGetResourceExecutor(clientset)})
+	log.Infof("Registered executor for action type: get_resource")
 
 	// TODO: Add more executors here as they are implemented:
 	// registry.Register("drain_node", &executorAdapter{exec: executors.NewDrainNodeExecutor(clientset)})

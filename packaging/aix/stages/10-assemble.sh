@@ -46,7 +46,7 @@ trap cleanup EXIT
 # The agent binary is the primary deliverable. If it is absent the staging
 # tree is incomplete and packaging will produce a broken BFF.
 
-AGENT_BIN="$STAGING/opt/datadog-agent/bin/agent"
+AGENT_BIN="$STAGING/opt/datadog-agent/bin/agent/agent"
 if [ ! -f "$AGENT_BIN" ]; then
     log "ERROR: agent binary not found at $AGENT_BIN"
     log "       Did Stage 04 (04-agent) complete successfully?"
