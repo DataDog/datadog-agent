@@ -12,6 +12,7 @@ import (
 	"time"
 
 	kubeactions "github.com/DataDog/agent-payload/v5/kubeactions"
+
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -27,20 +28,21 @@ const (
 // The backend stores the entire serialized payload as the `data` jsonb column
 // and extracts the top-level fields into their respective DB columns.
 type ActionResultEvent struct {
-	ActionID          string `json:"action_id"`
-	OrgID             int64  `json:"org_id"`
-	EventType         string `json:"event_type"`
-	Status            string `json:"status"`
-	ActionType        string `json:"action_type"`
-	ClusterID         string `json:"cluster_id"`
-	ResourceID        string `json:"resource_id"`
-	RequestedBy       string `json:"requested_by"`
-	Timestamp         string `json:"timestamp"`
-	Message           string `json:"message"`
-	ClusterName       string `json:"cluster_name"`
-	ResourceKind      string `json:"resource_kind,omitempty"`
-	ResourceName      string `json:"resource_name,omitempty"`
-	ResourceNamespace string `json:"resource_namespace,omitempty"`
+	ActionID          string            `json:"action_id"`
+	OrgID             int64             `json:"org_id"`
+	EventType         string            `json:"event_type"`
+	Status            string            `json:"status"`
+	ActionType        string            `json:"action_type"`
+	ClusterID         string            `json:"cluster_id"`
+	ResourceID        string            `json:"resource_id"`
+	RequestedBy       string            `json:"requested_by"`
+	Timestamp         string            `json:"timestamp"`
+	Message           string            `json:"message"`
+	Payloads          map[string][]byte `json:"payloads,omitempty"`
+	ClusterName       string            `json:"cluster_name"`
+	ResourceKind      string            `json:"resource_kind,omitempty"`
+	ResourceName      string            `json:"resource_name,omitempty"`
+	ResourceNamespace string            `json:"resource_namespace,omitempty"`
 }
 
 // ResultReporter handles reporting action execution results back to the backend via Event Platform
@@ -61,15 +63,15 @@ func NewResultReporter(epForwarder eventplatform.Forwarder, clusterName, cluster
 
 // ReportReceived sends an action_received event via EVP when an action is first received from RC
 func (r *ResultReporter) ReportReceived(actionKey ActionKey, action *kubeactions.KubeAction, orgID int64) {
-	r.report(actionKey, action, orgID, EventTypeActionReceived, StatusSuccess, "action received", time.Now())
+	r.report(actionKey, action, orgID, EventTypeActionReceived, StatusSuccess, "action received", nil, time.Now())
 }
 
 // ReportResult sends an action_executed event via EVP after execution completes
 func (r *ResultReporter) ReportResult(actionKey ActionKey, action *kubeactions.KubeAction, result ExecutionResult, orgID int64, executedAt time.Time) {
-	r.report(actionKey, action, orgID, EventTypeActionExecuted, result.Status, result.Message, executedAt)
+	r.report(actionKey, action, orgID, EventTypeActionExecuted, result.Status, result.Message, result.Payloads, executedAt)
 }
 
-func (r *ResultReporter) report(actionKey ActionKey, action *kubeactions.KubeAction, orgID int64, evpEventType, status, msg string, ts time.Time) {
+func (r *ResultReporter) report(actionKey ActionKey, action *kubeactions.KubeAction, orgID int64, evpEventType, status, msg string, payloads map[string][]byte, ts time.Time) {
 	if r.epForwarder == nil {
 		log.Warnf("[KubeActions] Event Platform forwarder not available, skipping %s reporting for action %s", evpEventType, actionKey.String())
 		return
@@ -102,6 +104,7 @@ func (r *ResultReporter) report(actionKey ActionKey, action *kubeactions.KubeAct
 		RequestedBy:       action.GetRequestedBy(),
 		Timestamp:         ts.Format(time.RFC3339),
 		Message:           msg,
+		Payloads:          payloads,
 		ClusterName:       r.clusterName,
 		ResourceKind:      resourceKind,
 		ResourceName:      resourceName,
