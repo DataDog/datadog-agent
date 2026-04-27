@@ -1,0 +1,1 @@
+# Package marker so //bazel/rules/cws_codegen:defs.bzl resolves.
