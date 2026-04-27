@@ -416,6 +416,12 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			}
 			return 0, nvml.SUCCESS
 		},
+		GetSramEccErrorStatusFunc: func() (nvml.EccSramErrorStatus, nvml.Return) {
+			if isMIGUnsupported || arch < nvml.DEVICE_ARCH_AMPERE {
+				return nvml.EccSramErrorStatus{}, nvml.ERROR_NOT_SUPPORTED
+			}
+			return nvml.EccSramErrorStatus{}, nvml.SUCCESS
+		},
 		GetIndexFunc: func() (int, nvml.Return) {
 			return deviceIdx, nvml.SUCCESS
 		},

@@ -30,6 +30,7 @@ services:
     # host-profiler needs to share agent's loopback
     network_mode: "service:datadog-agent"
     environment:
+      DOCKER_DD_AGENT: "true"
       DD_SITE: ${DD_SITE:-datadoghq.com}
       DO_NOT_START_PROFILER:
       DD_HOSTPROFILER_DEBUG:
