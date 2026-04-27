@@ -97,6 +97,7 @@ func getNonCriticalAPIs() []string {
 		toNativeName("GetSupportedEventTypes"),
 		toNativeName("RegisterEvents"),
 		toNativeName("GetMemoryErrorCounter"),
+		toNativeName("GetSramEccErrorStatus"),
 		toNativeName("GetRunningProcessDetailList"),
 	}
 }

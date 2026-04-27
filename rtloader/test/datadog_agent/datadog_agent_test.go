@@ -35,10 +35,7 @@ func TestGetVersion(t *testing.T) {
 	code := fmt.Sprintf(`
 	with open(r'%s', 'w') as f:
 		version = datadog_agent.get_version()
-		if sys.version_info.major == 2:
-			assert type(version) == type(b"")
-		else:
-			assert type(version) == type(u"")
+		assert type(version) == type(u"")
 		f.write(version)
 	`, tmpfile.Name())
 	out, err := run(code)
@@ -102,10 +99,7 @@ func TestGetHostname(t *testing.T) {
 	code := fmt.Sprintf(`
 	with open(r'%s', 'w') as f:
 		name = datadog_agent.get_hostname()
-		if sys.version_info.major == 2:
-			assert type(name) == type(b"")
-		else:
-			assert type(name) == type(u"")
+		assert type(name) == type(u"")
 		f.write(name)
 	`, tmpfile.Name())
 	out, err := run(code)
@@ -127,10 +121,7 @@ func TestGetClustername(t *testing.T) {
 	code := fmt.Sprintf(`
 	with open(r'%s', 'w') as f:
 		name = datadog_agent.get_clustername()
-		if sys.version_info.major == 2:
-			assert type(name) == type(b"")
-		else:
-			assert type(name) == type(u"")
+		assert type(name) == type(u"")
 		f.write(name)
 	`, tmpfile.Name())
 

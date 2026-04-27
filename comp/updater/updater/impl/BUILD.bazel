@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = ["updater.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/updater/updater/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/hostname",
+        "//comp/core/log/def",
+        "//comp/def",
+        "//comp/remote-config/rcservice/def",
+        "//comp/updater/updater/def",
+        "//pkg/util/option",
+        "@//pkg/fleet/daemon",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = ["updater_test.go"],
+    embed = [":impl"],
+    gotags = ["test"],
+    deps = [
+        "//comp/def",
+        "//comp/remote-config/rcservice/def",
+        "//pkg/util/option",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

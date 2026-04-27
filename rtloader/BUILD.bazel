@@ -168,11 +168,9 @@ cc_library(
     local_defines = select({
         "@platforms//os:windows": [
             "_hypot=hypot",
-            "DATADOG_AGENT_THREE",
         ],
         "//conditions:default": [
             "_GLIBCXX_USE_CXX11_ABI=0",
-            "DATADOG_AGENT_THREE",
         ],
     }),
     visibility = ["//visibility:public"],

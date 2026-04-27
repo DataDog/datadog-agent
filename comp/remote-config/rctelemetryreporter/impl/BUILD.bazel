@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl",
+    srcs = ["rctelemetryreporter.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/telemetry/def",
+        "//comp/def",
+        "//comp/remote-config/rctelemetryreporter/def",
+    ],
+)

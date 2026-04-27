@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "mock.go",
+        "oid_resolver.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/def",
+        "//comp/snmptraps/oidresolver/def",
+        "@in_yaml_go_yaml_v2//:yaml",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = ["oid_resolver_test.go"],
+    embed = [":impl"],
+    gotags = ["test"],
+    deps = [
+        "//comp/core/log/mock",
+        "//comp/snmptraps/oidresolver/def",
+        "@com_github_stretchr_testify//require",
+        "@in_yaml_go_yaml_v2//:yaml",
+    ],
+)

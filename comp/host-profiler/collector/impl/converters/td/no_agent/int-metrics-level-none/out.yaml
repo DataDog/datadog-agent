@@ -7,6 +7,7 @@ exporters:
             dd-evp-origin-version: 7.0.0-test
         profiles_endpoint: https://intake.profile.datadoghq.com/v1development/profiles
 processors:
+    ddhostname/default: {}
     resource/dd-profiler-internal-metadata:
         attributes:
             - action: upsert
@@ -39,6 +40,7 @@ service:
                 - otlphttp
             processors:
                 - resourcedetection/default
+                - ddhostname/default
                 - resource/dd-profiler-internal-metadata
             receivers:
                 - profiling

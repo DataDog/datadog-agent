@@ -77,6 +77,13 @@ func TestTagsFromAttributesEmpty(t *testing.T) {
 	assert.Equal(t, []string{}, TagsFromAttributes(attrs))
 }
 
+func TestServiceInstanceIDMapping(t *testing.T) {
+	attrs := pcommon.NewMap()
+	attrs.PutStr(string(semconv127.ServiceInstanceIDKey), "my-instance-123")
+
+	assert.Equal(t, []string{"service.instance.id:my-instance-123"}, TagsFromAttributes(attrs))
+}
+
 func TestContainerTagFromResourceAttributes(t *testing.T) {
 	t.Run("valid", func(t *testing.T) {
 		attributes := pcommon.NewMap()

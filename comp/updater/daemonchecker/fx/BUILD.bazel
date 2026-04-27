@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fx",
+    srcs = ["fx.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/updater/daemonchecker/fx",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/updater/daemonchecker/def",
+        "//comp/updater/daemonchecker/impl",
+        "//pkg/util/fxutil",
+    ],
+)

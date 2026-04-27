@@ -8,16 +8,19 @@ package com_datadoghq_remoteaction
 import (
 	"context"
 
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/parversion"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 type TestConnectionHandler struct {
+	cfg *config.Config
 }
 
-func NewTestConnectionHandler() *TestConnectionHandler {
-	return &TestConnectionHandler{}
+func NewTestConnectionHandler(cfg *config.Config) *TestConnectionHandler {
+	return &TestConnectionHandler{cfg: cfg}
 }
 
 type TestConnectionInputs struct {
@@ -30,7 +33,9 @@ type TestConnectionOutputs struct {
 }
 
 type AgentInfo struct {
-	Version string `json:"version"`
+	Version  string `json:"version"`
+	Flavor   string `json:"flavor"`
+	RunnerID string `json:"runnerId"`
 }
 
 func (h *TestConnectionHandler) Run(
@@ -41,7 +46,9 @@ func (h *TestConnectionHandler) Run(
 	return &TestConnectionOutputs{
 		Success: true,
 		AgentInfo: AgentInfo{
-			Version: parversion.RunnerVersion,
+			Version:  parversion.RunnerVersion,
+			Flavor:   flavor.GetFlavor(),
+			RunnerID: h.cfg.RunnerId,
 		},
 	}, nil
 }

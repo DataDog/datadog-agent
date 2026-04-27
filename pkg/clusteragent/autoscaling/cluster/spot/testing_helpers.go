@@ -35,6 +35,24 @@ func NewTestScheduler(config Config, clk clock.WithTicker, wlm workloadmeta.Comp
 	return newScheduler(config, clk, wlm, evictorFunc, patcherFunc, dynamicClient, newWLMPodLister(wlm), isLeader)
 }
 
+// HasAdmissionsOrPending reports whether the pod tracker has any in-flight admissions or pending pods
+// for the given workload. Used in tests to wait for pod tracker updates to propagate before advancing the clock.
+func (s *TestScheduler) HasAdmissionsOrPending(group, kind, namespace, name string) bool {
+	s.tracker.mu.RLock()
+	defer s.tracker.mu.RUnlock()
+	w := objectRef{Group: group, Kind: kind, Namespace: namespace, Name: name}
+	owners, ok := s.tracker.podSets[w]
+	if !ok {
+		return true
+	}
+	for _, ps := range owners {
+		if ps.hasAdmissions() || ps.hasPending() {
+			return true
+		}
+	}
+	return false
+}
+
 // TrackedCounts returns the total and spot tracked pod counts (including in-flight admissions) for the given workload.
 func (s *TestScheduler) TrackedCounts(group, kind, namespace, name string) (total, spot int) {
 	s.tracker.mu.RLock()

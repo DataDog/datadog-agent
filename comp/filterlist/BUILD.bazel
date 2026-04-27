@@ -1,0 +1,4 @@
+# gazelle:ignore
+# gazelle:exclude fx
+# gazelle:exclude fx-mock
+# gazelle:exclude impl

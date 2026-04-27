@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/agent"
 	expvars "github.com/DataDog/datadog-agent/comp/process/expvars/impl"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo/def"
-	"github.com/DataDog/datadog-agent/comp/process/runner"
+	runner "github.com/DataDog/datadog-agent/comp/process/runner/def"
 	submitterComp "github.com/DataDog/datadog-agent/comp/process/submitter/def"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"

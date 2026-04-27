@@ -68,9 +68,17 @@ configure_make(
     configure_options = select({
         "@//:macos_arm64": [
             "darwin64-arm64-cc",
+            # Override ARFLAGS aimed at libtools set by the toolchain,
+            # setting them to what the openssl build system would otherwise set (qc)
+            # (see Configurations/00-base-templates.conf)
+            "ARFLAGS=qc",
         ] + DEFAULT_CONFIG,
         "@//:macos_x86_64": [
             "darwin64-x86_64-cc",
+            # Override ARFLAGS aimed at libtools set by the toolchain,
+            # setting them to what the openssl build system would otherwise set (qc)
+            # (see Configurations/00-base-templates.conf)
+            "ARFLAGS=qc",
         ] + DEFAULT_CONFIG,
         # We build openssl for Windows without zlib.
         # Hence, excluding last DEFAULT_CONFIG entry.
@@ -97,11 +105,19 @@ configure_make(
             "--runtime-dir=$(INSTALL_DIR)/embedded",
         ],
     }),
+    build_data = select({
+        "@platforms//os:macos": [
+            # Pull hermetic llvm-ar into the sandbox so $(execpath) below resolves.
+            "@llvm_toolchain_llvm//:ar",
+        ],
+        "//conditions:default": [],
+    }),
     env = select({
         "@platforms//os:macos": {
-            # For some reason AR is set to libtool on macos
-            # and that breaks the build.
-            "AR": "ar",
+            # `ar` defaults to `libtool` on darwin toolchains, which doesn't support the incremental
+            # build of static archives that the openssl build system relies upon
+            # Setting `AR` allows us to use llvm-ar (coming from the hermetic toolchain) instead
+            "AR": "$(execpath @llvm_toolchain_llvm//:ar)",
         },
         "//conditions:default": {},
     }),

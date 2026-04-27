@@ -14,6 +14,7 @@ extensions:
 processors:
     batch:
         timeout: 10s
+    ddhostname/default: {}
     resource/dd-profiler-internal-metadata:
         attributes:
             - action: upsert
@@ -50,6 +51,7 @@ service:
             processors:
                 - batch
                 - resourcedetection/default
+                - ddhostname/default
                 - resource/dd-profiler-internal-metadata
             receivers:
                 - profiling

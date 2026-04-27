@@ -16,6 +16,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/converters"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/extensions/hpflareextension"
+	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/processor/ddhostnameprocessor"
 	profilesreceiver "github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/receiver"
 	ddprofilingextensionimpl "github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
@@ -172,6 +173,7 @@ func (e extraFactoriesWithoutAgentCore) GetProcessors() []processor.Factory {
 		k8sattributesprocessor.NewFactory(),
 		resourcedetectionprocessor.NewFactory(),
 		resourceprocessor.NewFactory(),
+		ddhostnameprocessor.NewFactory(),
 	}
 }
 

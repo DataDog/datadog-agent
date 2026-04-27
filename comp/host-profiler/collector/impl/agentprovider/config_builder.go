@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/extensions/hpflareextension"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/params"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type confMap = map[string]any
@@ -198,8 +197,6 @@ func buildConfig(agent configManager, p params.CollectorParams) confMap {
 		serviceExtensions = append(serviceExtensions, "ddprofiling/default")
 	}
 	_ = converters.Set(config, "service::extensions", serviceExtensions)
-
-	log.Debugf("Generated configuration: %+v", config)
 
 	return config
 }

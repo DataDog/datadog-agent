@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    The default for ``logs_config.file_scan_period`` is now **1** second instead of 10, so the Agent discovers new and rotated log files on disk more quickly. Set ``logs_config.file_scan_period`` explicitly if you need a slower scan to reduce filesystem load (for example on network file systems).
