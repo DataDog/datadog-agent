@@ -87,6 +87,7 @@ _embedded_real=$(cd "$EMBEDDED" 2>/dev/null && pwd -P)
 _destdir_real=$(cd "$EMBEDDED_DESTDIR" 2>/dev/null && pwd -P)
 if [ "$_embedded_real" != "$_destdir_real" ]; then
     ln -sf "$EMBEDDED_DESTDIR/lib/libpython${PYTHON_MAJ_MIN}.so" "$EMBEDDED/lib/libpython${PYTHON_MAJ_MIN}.so" 2>/dev/null || true
+    ln -sf "$EMBEDDED_DESTDIR/lib/libpython${PYTHON_MAJ_MIN}.a"  "$EMBEDDED/lib/libpython${PYTHON_MAJ_MIN}.a"  2>/dev/null || true
 fi
 
 log "Running cmake for rtloader"
@@ -98,6 +99,8 @@ OBJECT_MODE=64 cmake \
     -DCMAKE_C_FLAGS="$CFLAGS" \
     -DCMAKE_CXX_FLAGS="$CXXFLAGS" \
     -DCMAKE_SHARED_LINKER_FLAGS="$LDFLAGS" \
+    -DCMAKE_INSTALL_RPATH="/opt/datadog-agent/embedded/lib:/opt/datadog-agent/rtloader:/opt/freeware/lib:/usr/lib:/lib" \
+    -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON \
     -DBUILD_DEMO=OFF \
     -DDISABLE_PYTHON2=ON \
     -DPython3_INCLUDE_DIR="$EMBEDDED_DESTDIR/include/python${PYTHON_MAJ_MIN}" \
@@ -150,32 +153,6 @@ if dump -X64 -Hv libdatadog-agent-three.so 2>/dev/null | grep "libpython${PYTHON
     exit 1
 fi
 log "Verified: libdatadog-agent-three.so depends on libpython${PYTHON_MAJ_MIN}.a(shr_64.o)"
-
-# ─── Step 3c: Fix baked-in LIBPATH ────────────────────────────────────────────
-#
-# cmake bakes the staging tree path into the .so's loader section LIBPATH
-# (e.g. /opt/dd-build/staging/...) which does not exist on a target host.
-# Relink both .so files substituting the installed path so the AIX loader can
-# find the rtloader's dependencies (libpython, libgcc_s, libstdc++) on any host.
-
-INSTALLED_LIBPATH="/opt/datadog-agent/embedded/lib:/opt/datadog-agent/rtloader:/opt/freeware/lib:/usr/lib:/lib"
-
-log "Relinking libdatadog-agent-rtloader.so with installed LIBPATH"
-cd /opt/datadog-agent/rtloader/build/rtloader
-eval "$(head -1 CMakeFiles/datadog-agent-rtloader.dir/link.txt)"
-LINK=$(tail -1 CMakeFiles/datadog-agent-rtloader.dir/link.txt)
-LINK_FIXED=$(printf '%s' "$LINK" | sed "s|-Wl,-blibpath:[^ ]*|-Wl,-blibpath:${INSTALLED_LIBPATH}|g")
-eval "$LINK_FIXED"
-
-log "Relinking libdatadog-agent-three.so with installed LIBPATH"
-cd /opt/datadog-agent/rtloader/build/three
-eval "$(head -1 CMakeFiles/datadog-agent-three.dir/link.txt)"
-LINK=$(tail -1 CMakeFiles/datadog-agent-three.dir/link.txt)
-LINK_FIXED=$(printf '%s' "$LINK" | sed "s|libpython${PYTHON_MAJ_MIN}\\.so|libpython${PYTHON_MAJ_MIN}.a|g" \
-                                  | sed "s|-Wl,-blibpath:[^ ]*|-Wl,-blibpath:${INSTALLED_LIBPATH}|g")
-eval "$LINK_FIXED"
-
-log "LIBPATH relink complete"
 
 # ─── Step 4: Copy outputs to staging ──────────────────────────────────────────
 #
