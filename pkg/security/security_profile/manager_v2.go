@@ -315,6 +315,15 @@ func (m *ManagerV2) persistProfile(p *profile.Profile) {
 	format := config.Protobuf
 	requests := m.configuredStorageRequests[format]
 
+	// Consolidate sibling FileNodes into path-pattern templates before
+	// encoding. This is the "learning → stable" finalize pass: merges run
+	// even on directories that never exceeded the MaxChildren fan-out
+	// threshold, so short-lived profiles persisted after only a handful
+	// of events still benefit from path pattern reduction.
+	if p.ActivityTree != nil {
+		p.ActivityTree.FinalizePatterns()
+	}
+
 	data, err := p.Encode(format)
 	if err != nil {
 		seclog.Errorf("couldn't encode profile [%s] to %s format: %v", p.GetSelectorStr(), format, err)
@@ -395,7 +404,7 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 
 	// Try to resolve tags for this workload
 	workloadTags, err := m.resolvers.TagsResolver.ResolveWithErr(workloadID)
-	tagsResolved := err == nil && len(workloadTags) != 0 && utils.GetTagValue("image_tag", workloadTags) != ""
+	tagsResolved := err == nil && len(workloadTags) != 0 && utils.GetTagValue("image_name", workloadTags) != ""
 
 	if tagsResolved {
 		// Set resolved tags on the event for downstream processing
@@ -534,6 +543,10 @@ func (m *ManagerV2) onEventTagsResolved(event *model.Event) {
 			return
 		}
 		imageTag = utils.GetTagValue("version", tags)
+	}
+
+	if imageTag == "" {
+		imageTag = "latest"
 	}
 
 	if workloadID != nil {
@@ -765,6 +778,9 @@ func (m *ManagerV2) loadProfileFromStorage(selector cgroupModel.WorkloadSelector
 		profile.WithDNSMatchMaxDepth(m.config.RuntimeSecurity.SecurityProfileDNSMatchMaxDepth),
 		profile.WithEventTypes(m.config.RuntimeSecurity.SecurityProfileV2EventTypes),
 		profile.WithWorkloadSelector(selector),
+		// Path-pattern mining is a v2-only feature: opt in here so v1
+		// profiles and activity dumps keep their historical behavior.
+		profile.WithPathPatterns(activity_tree.DefaultPathPatternConfig()),
 	)
 
 	// Try to load from local storage
@@ -811,6 +827,8 @@ func (m *ManagerV2) createNewProfile(selector cgroupModel.WorkloadSelector, even
 		profile.WithDNSMatchMaxDepth(m.config.RuntimeSecurity.SecurityProfileDNSMatchMaxDepth),
 		profile.WithEventTypes(m.config.RuntimeSecurity.SecurityProfileV2EventTypes),
 		profile.WithWorkloadSelector(selector),
+		// Path-pattern mining is v2-only. See loadProfileFromStorage.
+		profile.WithPathPatterns(activity_tree.DefaultPathPatternConfig()),
 	)
 	secprof.SetTreeType(secprof, "security_profile")
 

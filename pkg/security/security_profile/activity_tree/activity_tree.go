@@ -848,6 +848,55 @@ func (at *ActivityTree) TagAllNodes(imageTag string, timestamp time.Time) {
 	}
 }
 
+// FinalizePatterns runs a path-pattern merge pass on every FileNode map
+// in the tree, using MinClusterSizeOnFinalize as the threshold. This is
+// the "learning → stable" consolidation hook: call it before persisting
+// or freezing a profile so short-lived profiles still benefit from path
+// pattern merging even when fan-out never crossed MaxChildren at
+// insertion time.
+//
+// No-op on trees that have not opted into pattern mining (i.e. trees
+// whose Stats.patternCfg.Enabled is false, which is the default: only
+// v2 security profiles enable it).
+//
+// Safe to call repeatedly — nodes already promoted to pattern templates
+// are skipped by the grouping step.
+func (at *ActivityTree) FinalizePatterns() {
+	if at == nil {
+		return
+	}
+	cfg := at.Stats.PathPatternConfig()
+	if !cfg.Enabled {
+		return
+	}
+	for _, pn := range at.ProcessNodes {
+		at.finalizePatternsOnProcess(pn, cfg.MinClusterSizeOnFinalize)
+	}
+}
+
+func (at *ActivityTree) finalizePatternsOnProcess(pn *ProcessNode, minClusterSize int) {
+	if pn == nil {
+		return
+	}
+	mergeChildren(pn.Files, minClusterSize, at.Stats)
+	for _, fn := range pn.Files {
+		at.finalizePatternsOnFile(fn, minClusterSize)
+	}
+	for _, child := range pn.Children {
+		at.finalizePatternsOnProcess(child, minClusterSize)
+	}
+}
+
+func (at *ActivityTree) finalizePatternsOnFile(fn *FileNode, minClusterSize int) {
+	if fn == nil || len(fn.Children) == 0 {
+		return
+	}
+	mergeChildren(fn.Children, minClusterSize, at.Stats)
+	for _, child := range fn.Children {
+		at.finalizePatternsOnFile(child, minClusterSize)
+	}
+}
+
 // EvictImageTag will remove every trace of the given image tag from the tree
 func (at *ActivityTree) EvictImageTag(imageTag string) {
 	// purge the cookies which todays are never set. TODO: once they'll get used, recompute them here
