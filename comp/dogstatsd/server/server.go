@@ -290,7 +290,7 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 		captureChan:             nil,
 		sharedPacketPool:        nil,
 		sharedPacketPoolManager: nil,
-		sharedFloat64List:       newFloat64ListPool(telemetrycomp),
+		sharedFloat64List:       newFloat64ListPool(cfg, telemetrycomp),
 		demultiplexer:           demux,
 		listeners:               nil,
 		stopChan:                make(chan bool),
@@ -378,7 +378,7 @@ func (s *server) start(context.Context) error {
 
 	// sharedPacketPool is used by the packet assembler to retrieve already allocated
 	// buffer in order to avoid allocation. The packets are pushed back by the server.
-	sharedPacketPool := packets.NewPool(s.config.GetInt("dogstatsd_buffer_size"), s.packetsTelemetry)
+	sharedPacketPool := packets.NewPool(s.config, s.config.GetInt("dogstatsd_buffer_size"), s.packetsTelemetry)
 	sharedPacketPoolManager := packets.NewPoolManager[packets.Packet](sharedPacketPool)
 
 	socketPath := s.config.GetString("dogstatsd_socket")
