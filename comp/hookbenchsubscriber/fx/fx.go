@@ -7,13 +7,17 @@
 package fx
 
 import (
+	"go.uber.org/fx"
+
 	hookbenchsubscriberimpl "github.com/DataDog/datadog-agent/comp/hookbenchsubscriber/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // Module defines the fx options for the hookbenchsubscriber component.
+// Uses fx.Provide directly (not fxutil.ProvideComponentConstructor) so that
+// the group:"hook" tag on Requires.MetricHooks is preserved by dig's reflection.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(hookbenchsubscriberimpl.NewComponent),
+		fx.Provide(hookbenchsubscriberimpl.NewComponent),
 	)
 }
