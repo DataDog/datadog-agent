@@ -799,39 +799,131 @@ Target components: {', '.join(candidate.target_components)}
 
     write_guard = _make_write_guard(root)
     bash_guard = _make_bash_guard(root)
-    # Sonnet with a detailed plan. max_turns ~25 is enough for: read
-    # cited files, make edits, run build+test. If it can't finish in 25
-    # turns, the plan was too big (proposer problem, not implementer).
-    text = _run_query(
-        prompt,
-        model=CONFIG.model_light if has_plan else CONFIG.model_deep,
-        purpose="implement",
-        root=root,
-        iter_num=iter_num,
-        allowed_tools=["Read", "Edit", "Write", "Bash", "Grep", "Glob"],
-        cwd=str(root),
-        hooks={
-            "PreToolUse": [
-                HookMatcher(matcher="Edit", hooks=[write_guard]),
-                HookMatcher(matcher="Write", hooks=[write_guard]),
-                HookMatcher(matcher="Bash", hooks=[bash_guard]),
-                # Hard-block Task: this is the iter-16-crash mitigation.
-                # Without it, the agent can still reach the Task tool
-                # because claude-agent-sdk exposes it implicitly.
-                HookMatcher(matcher="Task", hooks=[_block_task_tool_hook]),
-            ],
-        },
-        # max_turns: blank-slate candidates need MORE turns than full-mode
-        # (create a new file + write algorithm + register in catalog +
-        # update tests). The earlier 25 was tuned for full-mode tweaks
-        # which only edit existing files. Bump to 50 when blank
-        # (heuristic: target_components contains a name not in the
-        # baseline). Plan-less still gets 40 as a fallback.
-        max_turns=(
-            50 if has_plan and _is_blank_creation(candidate) else
-            (25 if has_plan else 40)
-        ),
-    )
+
+    def _run_impl(stage_prompt: str, model: str, max_turns: int, purpose_tag: str) -> str:
+        return _run_query(
+            stage_prompt,
+            model=model,
+            purpose=purpose_tag,
+            root=root,
+            iter_num=iter_num,
+            allowed_tools=["Read", "Edit", "Write", "Bash", "Grep", "Glob"],
+            cwd=str(root),
+            hooks={
+                "PreToolUse": [
+                    HookMatcher(matcher="Edit", hooks=[write_guard]),
+                    HookMatcher(matcher="Write", hooks=[write_guard]),
+                    HookMatcher(matcher="Bash", hooks=[bash_guard]),
+                    HookMatcher(matcher="Task", hooks=[_block_task_tool_hook]),
+                ],
+            },
+            max_turns=max_turns,
+        )
+
+    # Two-stage implementation for blank-slate creation (target detector
+    # not yet in component_catalog.go). Stage 1 registers a stub so the
+    # detector name exists in the catalog; stage 2 fills in the algorithm
+    # with a fresh context window. Without the split, a single call with
+    # max_turns=50 burned out on detector + tests and never reached the
+    # catalog edit (every blank-mode iter on PR 49954 ended in
+    # eval_silent_failure for this reason). Two focused calls each have
+    # their own max_turns budget and don't suffer KV-cache quadratic
+    # growth from trying to do everything in one conversation.
+    is_creation = has_plan and _is_blank_creation(candidate)
+    model = CONFIG.model_light if has_plan else CONFIG.model_deep
+
+    if is_creation:
+        target = (candidate.target_components or [candidate.id])[0]
+        # Stage 1: stub registration. Tiny task — open the catalog,
+        # add ONE entry that points at a stub Detect() returning no
+        # detections, save. ~5-10 turns.
+        stage1_prompt = f"""You are doing the FIRST stage of a two-stage
+implementation. Your ONLY job in this stage is to register a stub
+detector named `{target}` in `comp/observer/impl/component_catalog.go`
+so that `q.eval-scenarios --only {target}` will recognise the name.
+
+## What to do
+1. Read `comp/observer/impl/component_catalog.go` to see how existing
+   entries are registered (pattern: `name: "<n>", ...factory function...`).
+2. Read `comp/observer/def/component.go` to see the `SeriesDetector`
+   or `Detector` interface signature you need to satisfy.
+3. CREATE a new file `comp/observer/impl/metrics_detector_{target.replace("-", "_")}.go`
+   with a minimal stub: a struct, a `Name() string {{ return "{target}" }}`,
+   and a `Detect()` that returns an empty `DetectionResult` (no anomalies).
+   The stub does not implement the algorithm — just satisfies the interface.
+4. EDIT `comp/observer/impl/component_catalog.go` to add the new entry
+   in `defaultCatalog()` so the testbench can `--only {target}`.
+5. Verify with a single Bash call: `grep '"{target}"' comp/observer/impl/component_catalog.go`
+   should return one line.
+
+DO NOT write the algorithm in this stage. DO NOT write tests. The next
+stage will fill those in. Keep the file small (under 30 lines).
+
+Output `DONE: stage1 stub registered` when finished."""
+
+        s1_summary = _run_impl(stage1_prompt, model, max_turns=15, purpose_tag="implement:stage1")
+
+        # Stage 2: algorithm + tests. Catalog stub now exists; the
+        # implementer just needs to fill in the detector body and add
+        # tests. Fresh context = no KV-cache blow-up.
+        stage2_prompt = f"""You are doing the SECOND stage of a two-stage
+implementation. Stage 1 registered a STUB for detector `{target}` in
+`comp/observer/impl/component_catalog.go` and a placeholder file at
+`comp/observer/impl/metrics_detector_{target.replace("-", "_")}.go`.
+The catalog entry is DONE — do NOT modify it again.
+
+Your job NOW: replace the stub body with the actual algorithm and write
+tests, per the plan below.
+
+## Implementation plan (from the proposer)
+
+{candidate.implementation_plan}
+
+## Candidate description (context)
+
+{candidate.description}
+
+## Prior same-family experiments
+
+{prior_block}
+
+## Execution rules
+
+1. The catalog registration is ALREADY DONE. Do not touch
+   `component_catalog.go`. Do not change the detector's name or the
+   factory's signature.
+2. Replace the stub `Detect()` body with the real algorithm from the plan.
+3. Write the test file (typically
+   `comp/observer/impl/metrics_detector_{target.replace("-", "_")}_test.go`).
+4. Only modify files under `comp/observer/`. The hook will block writes
+   elsewhere.
+5. Do NOT use git. Do NOT use the Task tool.
+6. If you run out of turns mid-algorithm, prefer leaving a working
+   partial implementation over a broken full one. Note in DONE: what's
+   incomplete.
+7. Finish with `DONE: stage2 ...` summarising files modified, lines of
+   real algorithm code added, and any deviation from the plan.
+
+## Stage 1 summary (for context)
+
+{s1_summary[:400]}
+"""
+        s2_summary = _run_impl(stage2_prompt, model, max_turns=50, purpose_tag="implement:stage2")
+        text = (
+            f"=== Stage 1 (catalog stub) ===\n{s1_summary}\n\n"
+            f"=== Stage 2 (algorithm + tests) ===\n{s2_summary}"
+        )
+    else:
+        # Single-call path: full-mode tweaks (existing detector edit).
+        # Cheap path because all the file structure already exists; the
+        # implementer just edits the algorithm body. max_turns=25
+        # historically sufficient.
+        text = _run_impl(
+            prompt,
+            model=model,
+            max_turns=25 if has_plan else 40,
+            purpose_tag="implement",
+        )
     # Extract the "DONE:" summary line.
     for line in text.splitlines():
         if line.strip().startswith("DONE:"):
