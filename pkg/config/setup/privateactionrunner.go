@@ -40,9 +40,17 @@ const (
 	PARRestrictedShellAllowedCommands = "private_action_runner.restricted_shell.allowed_commands"
 	// RShellCommandNamespacePrefix is the prefix the backend stamps onto
 	// every command in its allow-list. Operator entries in datadog.yaml
-	// must use the same form to intersect; otherwise they silently fail
-	// to match.
+	// must use the same form to intersect.
 	RShellCommandNamespacePrefix = "rshell:"
+	// RShellCommandAllowAllWildcard is the operator-side sentinel that
+	// admits every backend command in the rshell namespace. It is the
+	// default value, so an operator who has not narrowed gets the backend
+	// list as-is.
+	RShellCommandAllowAllWildcard = RShellCommandNamespacePrefix + "*"
+	// RShellPathAllowAll is the operator-side sentinel that admits every
+	// backend path through containment matching. It is the default value
+	// for allowed_paths.
+	RShellPathAllowAll = "/"
 )
 
 // setupPrivateActionRunner registers all configuration keys for the private action runner
@@ -79,14 +87,19 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	})
 	config.BindEnvAndSetDefault(PARHttpAllowImdsEndpoint, false)
 
-	// Restricted shell allow-lists are opt-in restrictions layered on top of
-	// the backend-injected lists. When unset, the agent forwards the
-	// backend list unchanged (pass-through). When set to a non-empty list,
-	// the runtime takes the intersection. An explicit empty list blocks
-	// all access on its axis. The []string{} default keeps IsConfigured
-	// false when the user has not set the key, so the pass-through vs.
-	// explicit-empty distinction is preserved.
-	config.BindEnvAndSetDefault(PARRestrictedShellAllowedPaths, []string{})
+	// Restricted shell allow-lists are opt-in restrictions layered on top
+	// of the backend-injected lists. Both axes use a sentinel value as
+	// their "allow whatever the backend allowed" default, so the
+	// operator-side intersection runs uniformly. An explicit YAML empty
+	// list on either axis is the kill-switch.
+	//
+	//   - allowed_paths defaults to ["/"]; pathContains("/", X) is true
+	//     for any absolute X, so the intersection returns the backend
+	//     list as-is when the operator has not narrowed.
+	//   - allowed_commands defaults to ["rshell:*"]; the wildcard is a
+	//     special case in the intersection that admits every backend
+	//     command in the "rshell:" namespace.
+	config.BindEnvAndSetDefault(PARRestrictedShellAllowedPaths, []string{RShellPathAllowAll})
 	config.ParseEnvAsStringSlice(PARRestrictedShellAllowedPaths, func(s string) []string {
 		if s == "" {
 			return nil
@@ -94,7 +107,7 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 		return strings.Split(s, ",")
 	})
 
-	config.BindEnvAndSetDefault(PARRestrictedShellAllowedCommands, []string{})
+	config.BindEnvAndSetDefault(PARRestrictedShellAllowedCommands, []string{RShellCommandAllowAllWildcard})
 	config.ParseEnvAsStringSlice(PARRestrictedShellAllowedCommands, func(s string) []string {
 		if s == "" {
 			return nil

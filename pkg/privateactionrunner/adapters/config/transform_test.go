@@ -307,13 +307,14 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedPathsUnset(t *testing.T) {
+	// Unset: registered default ["/"] flows through.
 	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
 	mockConfig.SetWithoutSource(setup.PARUrn, "")
 
 	cfg, err := FromDDConfig(mockConfig)
 	require.NoError(t, err)
-	assert.Nil(t, cfg.RShellAllowedPaths)
+	assert.Equal(t, []string{setup.RShellPathAllowAll}, cfg.RShellAllowedPaths)
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedPathsSet(t *testing.T) {
@@ -341,15 +342,14 @@ func TestFromDDConfigPARRestrictedShellAllowedPathsEmpty(t *testing.T) {
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedCommandsUnset(t *testing.T) {
+	// Unset: registered default ["rshell:*"] flows through.
 	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
 	mockConfig.SetWithoutSource(setup.PARUrn, "")
 
 	cfg, err := FromDDConfig(mockConfig)
 	require.NoError(t, err)
-	// Unset: operator opts out of filtering, handler will pass through the
-	// backend list unchanged.
-	assert.Nil(t, cfg.RShellAllowedCommands)
+	assert.Equal(t, []string{setup.RShellCommandAllowAllWildcard}, cfg.RShellAllowedCommands)
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedCommandsSet(t *testing.T) {
@@ -377,12 +377,11 @@ func TestFromDDConfigPARRestrictedShellAllowedCommandsEmpty(t *testing.T) {
 	assert.Empty(t, cfg.RShellAllowedCommands)
 }
 
-// TestFromDDConfigPARRestrictedShellAllowedPathsEmptyYAML reproduces the
-// real-world failure observed in PAR: when datadog.yaml contains
-// `allowed_paths: []` the transform must preserve the explicit-empty value
-// so the handler treats it as "block everything", not "operator unset".
-// This exercises the YAML parsing path rather than SetWithoutSource; the
-// two differ in whether GetStringSlice round-trips the empty list as nil.
+// TestFromDDConfigPARRestrictedShellAllowedPathsEmptyYAML pins the
+// kill-switch contract for `allowed_paths: []`. The handler's
+// always-intersect logic produces an empty effective list when the
+// operator is empty, regardless of nil-vs-non-nil shape from the
+// transform.
 func TestFromDDConfigPARRestrictedShellAllowedPathsEmptyYAML(t *testing.T) {
 	yaml := `
 private_action_runner:
@@ -393,8 +392,7 @@ private_action_runner:
 
 	cfg, err := FromDDConfig(mockConfig)
 	require.NoError(t, err)
-	assert.NotNil(t, cfg.RShellAllowedPaths, "YAML [] must reach the handler as a non-nil slice so the kill-switch is honored")
-	assert.Empty(t, cfg.RShellAllowedPaths)
+	assert.Empty(t, cfg.RShellAllowedPaths, "YAML [] must surface as an empty slice; kill-switch is enforced by the handler intersection on this input")
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedCommandsEmptyYAML(t *testing.T) {
@@ -407,8 +405,7 @@ private_action_runner:
 
 	cfg, err := FromDDConfig(mockConfig)
 	require.NoError(t, err)
-	assert.NotNil(t, cfg.RShellAllowedCommands, "YAML [] must reach the handler as a non-nil slice so the kill-switch is honored")
-	assert.Empty(t, cfg.RShellAllowedCommands)
+	assert.Empty(t, cfg.RShellAllowedCommands, "YAML [] must surface as an empty slice; kill-switch is enforced by the handler intersection on this input")
 }
 
 // TestFromDDConfigPARRestrictedShellAllowedPathsPassesThroughBackslash
@@ -444,8 +441,10 @@ func TestFromDDConfigPARRestrictedShellAllowedPathsPassesThroughFileEntries(t *t
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedAbsentYAML(t *testing.T) {
-	// No restricted_shell block at all: both axes nil, handler passes
-	// the backend list through.
+	// No restricted_shell block: both axes fall back to their registered
+	// sentinels — ["/"] for paths, ["rshell:*"] for commands — which the
+	// operator-side intersection treats as "allow whatever the backend
+	// allowed".
 	yaml := `
 private_action_runner:
   enabled: true
@@ -454,6 +453,6 @@ private_action_runner:
 
 	cfg, err := FromDDConfig(mockConfig)
 	require.NoError(t, err)
-	assert.Nil(t, cfg.RShellAllowedPaths)
-	assert.Nil(t, cfg.RShellAllowedCommands)
+	assert.Equal(t, []string{setup.RShellPathAllowAll}, cfg.RShellAllowedPaths)
+	assert.Equal(t, []string{setup.RShellCommandAllowAllWildcard}, cfg.RShellAllowedCommands)
 }

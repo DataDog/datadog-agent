@@ -130,11 +130,11 @@ func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 }
 
 // rshellAllowedCommands returns the operator-configured rshell command
-// allowlist. Nil = pass-through; non-nil empty = kill-switch.
-// Operator entries must be in the backend's namespaced form ("rshell:<name>");
-// any other spelling is warned at load time.
+// allowlist. The default is ["rshell:*"]; an explicit YAML empty list is
+// the kill-switch. Other entries must use the backend's "rshell:<name>"
+// form; any other spelling is warned at load time.
 func rshellAllowedCommands(config config.Component) []string {
-	commands := configuredStringSliceOrNil(config, setup.PARRestrictedShellAllowedCommands)
+	commands := config.GetStringSlice(setup.PARRestrictedShellAllowedCommands)
 	warnUnnamespacedCommands(commands)
 	return commands
 }
@@ -150,13 +150,10 @@ func warnUnnamespacedCommands(commands []string) {
 	}
 }
 
-// rshellAllowedPaths mirrors rshellAllowedCommands for the filesystem
-// allowlist. Two advisory warnings fire at load time: backslash entries
-// (forward-slash contract) and non-directory entries (rshell's os.Root
-// sandbox is directory-only). Entries still flow through; the warnings
-// surface silent-failure modes in agent logs.
+// rshellAllowedPaths mirrors rshellAllowedCommands. Default is ["/"];
+// explicit YAML empty list is the kill-switch.
 func rshellAllowedPaths(config config.Component) []string {
-	paths := configuredStringSliceOrNil(config, setup.PARRestrictedShellAllowedPaths)
+	paths := config.GetStringSlice(setup.PARRestrictedShellAllowedPaths)
 	warnBackslashPaths(paths)
 	warnNonDirectoryPaths(paths)
 	return paths
@@ -187,21 +184,6 @@ func warnNonDirectoryPaths(paths []string) {
 				setup.PARRestrictedShellAllowedPaths, p)
 		}
 	}
-}
-
-// configuredStringSliceOrNil returns the configured value only when the
-// user explicitly set the key. Normalizes the YAML-empty-list edge case,
-// where GetStringSlice returns a nil slice indistinguishable from "unset",
-// into a non-nil empty slice so the kill-switch is honored.
-func configuredStringSliceOrNil(config config.Component, key string) []string {
-	if !config.IsConfigured(key) {
-		return nil
-	}
-	v := config.GetStringSlice(key)
-	if v == nil {
-		return []string{}
-	}
-	return v
 }
 
 // getDatadogHost extracts and normalizes the Datadog host from the main endpoint.
