@@ -173,7 +173,7 @@ static void add_constants(PyObject *m)
 }
 
 /*
- * Sub-interpreter support (Python 3.14+): Multi-phase module initialization
+ * Sub-interpreter support (Python 3.13+): Multi-phase module initialization
  * =========================================================================
  *
  * Converts the tagger module from single-phase to multi-phase init to allow
@@ -235,7 +235,7 @@ PyMODINIT_FUNC PyInit_tagger(void)
     return PyModuleDef_Init(&module_def);
 }
 
-#else /* Python < 3.14: original single-phase initialization */
+#else /* Python < 3.13: original single-phase initialization */
 
 static struct PyModuleDef module_def = { PyModuleDef_HEAD_INIT, TAGGER_MODULE_NAME, NULL, -1, methods };
 

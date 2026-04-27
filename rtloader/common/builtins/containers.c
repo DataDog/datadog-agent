@@ -19,7 +19,7 @@ static PyMethodDef methods[] = {
 };
 
 /*
- * Sub-interpreter support (Python 3.14+): Multi-phase module initialization
+ * Sub-interpreter support (Python 3.13+): Multi-phase module initialization
  * =========================================================================
  *
  * Converts the containers module from single-phase to multi-phase init to
@@ -58,7 +58,7 @@ PyMODINIT_FUNC PyInit_containers(void)
     return PyModuleDef_Init(&module_def);
 }
 
-#else /* Python < 3.14: original single-phase initialization */
+#else /* Python < 3.13: original single-phase initialization */
 
 static struct PyModuleDef module_def = { PyModuleDef_HEAD_INIT, CONTAINERS_MODULE_NAME, NULL, -1, methods };
 
