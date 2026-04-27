@@ -7,7 +7,7 @@ retract v0.46.0-devel
 require (
 	github.com/golang/mock v1.7.0-rc.1
 	github.com/google/gofuzz v1.2.0
-	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10
+	github.com/planetscale/vtprotobuf v0.6.1-0.20250313105119-ba97887b0a25
 	github.com/stretchr/testify v1.11.1
 	github.com/tinylib/msgp v1.6.3
 	github.com/vmihailenco/msgpack/v4 v4.3.13
