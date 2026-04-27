@@ -157,20 +157,6 @@ build do
             delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/error_telemetry.o"
             delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/logdebug-test.o"
 
-            # linux build will be stripped - but psycopg2 affected by bug in the way binutils
-            # and patchelf work together:
-            #    https://github.com/pypa/manylinux/issues/119
-            #    https://github.com/NixOS/patchelf
-            #
-            # Only affects psycopg2 - any binary whose path matches the pattern will be
-            # skipped.
-            strip_exclude("*psycopg2*")
-            strip_exclude("*cffi_backend*")
-
-            # We get the following error when the aerospike lib is stripped:
-            # The `aerospike` client is not installed: /opt/datadog-agent/embedded/lib/python2.7/site-packages/aerospike.so: ELF load command address/offset not properly aligned
-            strip_exclude("*aerospike*")
-
             # Do not strip eBPF programs
             strip_exclude("#{install_dir}/embedded/share/system-probe/ebpf/*.o")
             strip_exclude("#{install_dir}/embedded/share/system-probe/ebpf/co-re/*.o")

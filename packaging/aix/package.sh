@@ -47,7 +47,7 @@ trap cleanup EXIT
 # components. If either is absent the staging tree is incomplete and mkinstallp
 # will produce a broken or empty BFF.
 
-AGENT_BIN="$STAGING/opt/datadog-agent/bin/agent"
+AGENT_BIN="$STAGING/opt/datadog-agent/bin/agent/agent"
 if [ ! -f "$AGENT_BIN" ]; then
     log "ERROR: agent binary not found at $AGENT_BIN"
     log "       Did Stage 04 (04-agent) complete successfully?"
@@ -72,7 +72,7 @@ log "Pre-flight: postinst script found at $POSTINST"
 # AIX mkinstallp USRFiles requires individual file/directory paths; listing a
 # directory path alone only packages the directory entry, not its contents.
 # We use find to enumerate every path under each package directory and strip the
-# staging prefix so each line is the absolute installed path (e.g. /opt/datadog-agent/bin/agent).
+# staging prefix so each line is the absolute installed path (e.g. /opt/datadog-agent/bin/agent/agent).
 
 log "Generating gen.template with VRMF=${AGENT_VRMF}"
 
