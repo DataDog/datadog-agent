@@ -135,15 +135,27 @@ func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 }
 
 // rshellAllowedCommands returns the operator-configured rshell command
-// allowlist, or nil when the operator did not configure one. Nil signals
-// "pass-through" so the handler forwards the backend list unchanged; a
-// non-nil empty slice is the explicit "block everything" kill-switch.
+// allowlist.
 //
-// Entries are expected to be in the backend's namespaced form
-// ("rshell:<name>"). Operators spelling commands without the prefix are
-// warned at load time so the silent no-match failure mode is observable.
+// The default registered in pkg/config/setup is ["rshell:*"] — a wildcard
+// sentinel that the handler treats as "allow every backend-allowed command
+// in the rshell namespace". So when the operator hasn't touched the key,
+// the intersection produces the backend list as-is. An explicit YAML empty
+// list (`allowed_commands: []`) reaches GetStringSlice as a nil slice; we
+// normalize that into a non-nil empty slice so the handler honors it as
+// the kill-switch.
+//
+// Entries other than the wildcard are expected to be in the backend's
+// namespaced form ("rshell:<name>"). Operators spelling commands without
+// the prefix are warned at load time so the silent no-match failure mode
+// is observable.
 func rshellAllowedCommands(config config.Component) []string {
-	commands := configuredStringSliceOrNil(config, setup.PARRestrictedShellAllowedCommands)
+	commands := config.GetStringSlice(setup.PARRestrictedShellAllowedCommands)
+	if commands == nil {
+		// YAML `allowed_commands: []` round-trips through Viper as a nil
+		// slice; normalize so the kill-switch is preserved downstream.
+		commands = []string{}
+	}
 	warnUnnamespacedCommands(commands)
 	return commands
 }
@@ -162,14 +174,19 @@ func warnUnnamespacedCommands(commands []string) {
 	}
 }
 
-// rshellAllowedPaths mirrors rshellAllowedCommands for the filesystem
-// allowlist. Nil means "operator unset" — the handler will pass the backend
-// list through unchanged rather than tightening to an empty intersection.
+// rshellAllowedPaths returns the operator-configured rshell path allowlist.
 //
-// Two advisory warnings fire at load time so misconfiguration is
-// observable to the operator before any task runs. Both leave the entries
-// in place and let the intersection / rshell's own sandbox do the final
-// filtering:
+// The default registered in pkg/config/setup is ["/"] — a sentinel that the
+// handler treats as "allow every backend-allowed path" via containment
+// matching. So when the operator hasn't touched the key, the intersection
+// produces the backend list as-is. An explicit YAML empty list
+// (`allowed_paths: []`) reaches GetStringSlice as a nil slice; we normalize
+// that into a non-nil empty slice so the handler honors it as the
+// kill-switch.
+//
+// Two advisory warnings fire at load time so misconfiguration is observable
+// to the operator before any task runs. Both leave the entries in place and
+// let the intersection / rshell's own sandbox do the final filtering:
 //
 //   - backslash entries fail to match the Linux-form backend list at the
 //     intersection layer;
@@ -178,7 +195,12 @@ func warnUnnamespacedCommands(commands []string) {
 //     permission-denied with no explanation, so we surface the reason in
 //     the agent log once at load time.
 func rshellAllowedPaths(config config.Component) []string {
-	paths := configuredStringSliceOrNil(config, setup.PARRestrictedShellAllowedPaths)
+	paths := config.GetStringSlice(setup.PARRestrictedShellAllowedPaths)
+	if paths == nil {
+		// YAML `allowed_paths: []` round-trips through Viper as a nil
+		// slice; normalize so the kill-switch is preserved downstream.
+		paths = []string{}
+	}
 	warnBackslashPaths(paths)
 	warnNonDirectoryPaths(paths)
 	return paths
@@ -211,26 +233,6 @@ func warnNonDirectoryPaths(paths []string) {
 				setup.PARRestrictedShellAllowedPaths, p)
 		}
 	}
-}
-
-// configuredStringSliceOrNil returns the configured value only when the key
-// was explicitly set by the user (YAML file, env, or SetWithoutSource); it
-// returns nil when the key is still at its default.
-//
-// GetStringSlice returns a nil slice for an explicit YAML empty list
-// (`key: []`), which is indistinguishable at the slice level from "unset".
-// IsConfigured is the authoritative signal for "user touched this key", so we
-// gate on that and then normalize nil → non-nil empty to preserve the
-// "operator explicitly allowed nothing" semantics downstream.
-func configuredStringSliceOrNil(config config.Component, key string) []string {
-	if !config.IsConfigured(key) {
-		return nil
-	}
-	v := config.GetStringSlice(key)
-	if v == nil {
-		return []string{}
-	}
-	return v
 }
 
 // getDatadogHost extracts and normalizes the Datadog host from the main endpoint.

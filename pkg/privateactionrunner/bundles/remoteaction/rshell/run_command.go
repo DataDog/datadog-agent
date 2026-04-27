@@ -35,49 +35,49 @@ const (
 // and can be overridden in tests.
 var statFn = os.Stat
 
+// rshellCommandWildcard is the operator-side sentinel that admits every
+// backend command in the rshell namespace. It is the default value
+// registered in pkg/config/setup, so an operator who has not narrowed gets
+// the backend list as-is.
+const rshellCommandWildcard = "rshell:*"
+
 // RunCommandHandler implements the runCommand action.
 //
-// Both allow-lists are stored as dedup-preserving slices of operator entries
-// plus a boolean that distinguishes "unset" from "empty". The filter
-// functions intersect with the backend list under two different notions of
-// equivalence:
+// Both allow-lists are intersected unconditionally with the per-task backend
+// list before being passed to rshell. They use different equivalence
+// notions, and each axis has a sentinel value that means "allow whatever
+// the backend allowed":
 //
-//   - commands compare by exact string equality. The backend stamps every
-//     entry with the "rshell:" namespace (e.g. "rshell:cat"); operators must
-//     spell entries the same way in datadog.yaml for them to match;
-//   - paths compare by containment, with the narrower side winning, so that
-//     an operator entry of "/var/log/nginx" is admitted even when the
-//     backend only lists "/var/log". Prefix siblings like "/var/logger" do
-//     not match "/var/log" — boundary is a path separator.
+//   - commands compare by exact string equality, with one special case:
+//     the literal "rshell:*" admits every backend entry in the "rshell:"
+//     namespace. Other operator entries must be in the backend's namespaced
+//     form to match.
+//   - paths compare by containment with the narrower side winning; the
+//     sentinel "/" admits every absolute path through containment.
+//
+// On either axis, an explicit empty operator list is the kill-switch.
 type RunCommandHandler struct {
 	// operatorAllowedPaths is the operator's filesystem allowlist from
-	// datadog.yaml. Populated only when filtering is enabled.
+	// datadog.yaml. The transform guarantees a non-nil slice — ["/"] for
+	// the default "allow whatever the backend allowed", an explicit empty
+	// for the kill-switch, or the operator's literal entries.
 	operatorAllowedPaths []string
-	// operatorPathsFilterEnabled distinguishes "unset" (nil slice, no
-	// filtering) from "empty list" (operator explicitly allowed nothing).
-	operatorPathsFilterEnabled bool
-	// operatorAllowedCommands is the operator allow-list, stored verbatim.
-	// Entries are expected to be namespaced ("rshell:<name>") to match the
-	// backend form; anything else silently fails to intersect.
+	// operatorAllowedCommands is the operator command allowlist. Same
+	// shape contract as paths: ["rshell:*"] for the default, empty for the
+	// kill-switch, or literal entries (which must use the backend's
+	// "rshell:<name>" form).
 	operatorAllowedCommands []string
-	// operatorCommandsFilterEnabled distinguishes "unset" from "empty".
-	operatorCommandsFilterEnabled bool
 }
 
-// NewRunCommandHandler creates a new RunCommandHandler. Pass nil for either
-// operator list to disable filtering on that axis. A non-nil empty slice is
-// an explicit "block everything on this axis" and is honored as such.
+// NewRunCommandHandler creates a new RunCommandHandler. The intersection
+// runs unconditionally on both axes — pass the sentinel value (["/"] for
+// paths, ["rshell:*"] for commands) to express "allow whatever the backend
+// allowed", or a non-nil empty slice to block everything.
 func NewRunCommandHandler(operatorAllowedPaths []string, operatorAllowedCommands []string) *RunCommandHandler {
-	h := &RunCommandHandler{}
-	if operatorAllowedPaths != nil {
-		h.operatorPathsFilterEnabled = true
-		h.operatorAllowedPaths = dedupeNonEmpty(operatorAllowedPaths)
+	return &RunCommandHandler{
+		operatorAllowedPaths:    dedupeNonEmpty(operatorAllowedPaths),
+		operatorAllowedCommands: dedupeNonEmpty(operatorAllowedCommands),
 	}
-	if operatorAllowedCommands != nil {
-		h.operatorCommandsFilterEnabled = true
-		h.operatorAllowedCommands = dedupeNonEmpty(operatorAllowedCommands)
-	}
-	return h
 }
 
 // dedupeNonEmpty returns the input slice with empties removed and duplicates
@@ -104,22 +104,32 @@ func dedupeNonEmpty(in []string) []string {
 // The backend is the authoritative gate. A nil backend list (field absent)
 // produces an empty result — rshell then blocks every command. The operator
 // config can only tighten further; it cannot grant commands the backend did
-// not. Comparison is plain string equality: operator entries in datadog.yaml
-// must be spelled in the backend's namespaced form ("rshell:<name>") to
-// match.
+// not.
+//
+// The match is plain string equality with one special case: when the
+// operator list contains "rshell:*", every backend entry in the "rshell:"
+// namespace is admitted. That sentinel is the default registered in
+// pkg/config/setup, so an operator who has not narrowed gets the backend
+// list as-is.
 func (h *RunCommandHandler) filterAllowedCommands(backendAllowed []string) []string {
 	if backendAllowed == nil {
 		return nil
 	}
-	if !h.operatorCommandsFilterEnabled {
-		return backendAllowed
-	}
 	operatorSet := make(map[string]struct{}, len(h.operatorAllowedCommands))
+	wildcardActive := false
 	for _, c := range h.operatorAllowedCommands {
+		if c == rshellCommandWildcard {
+			wildcardActive = true
+			continue
+		}
 		operatorSet[c] = struct{}{}
 	}
 	filtered := make([]string, 0, len(backendAllowed))
 	for _, c := range backendAllowed {
+		if wildcardActive && strings.HasPrefix(c, rshellCommandPrefix) {
+			filtered = append(filtered, c)
+			continue
+		}
 		if _, ok := operatorSet[c]; ok {
 			filtered = append(filtered, c)
 		}
@@ -127,18 +137,24 @@ func (h *RunCommandHandler) filterAllowedCommands(backendAllowed []string) []str
 	return filtered
 }
 
+// rshellCommandPrefix is the namespace prefix the backend stamps on every
+// command. Used by the wildcard match.
+const rshellCommandPrefix = "rshell:"
+
 // filterAllowedPaths is the paths analogue of filterAllowedCommands, but
 // with containment-aware intersection: the narrower of each matching
 // (backend, operator) pair wins. This admits an operator sub-path when the
 // backend entry is a parent directory, and vice versa. Disjoint pairs are
 // skipped. Prefix siblings do not match (boundary is a path separator), so
 // "/var/logger" does not satisfy a "/var/log" rule.
+//
+// The intersection always runs (no operator-unset bypass). An empty operator
+// list produces an empty effective list — the kill-switch. The default
+// operator list of ["/"] is what produces "allow whatever the backend
+// allowed" because pathContains("/", X) is true for any absolute X.
 func (h *RunCommandHandler) filterAllowedPaths(backendAllowed []string) []string {
 	if backendAllowed == nil {
 		return nil
-	}
-	if !h.operatorPathsFilterEnabled {
-		return backendAllowed
 	}
 	filtered := make([]string, 0, len(backendAllowed))
 	seen := make(map[string]struct{})

@@ -75,13 +75,19 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault(PARHttpAllowImdsEndpoint, false)
 
 	// Restricted shell allow-lists are opt-in restrictions layered on top of
-	// the backend-injected lists. When unset, the agent forwards the
-	// backend list unchanged (pass-through). When set to a non-empty list,
-	// the runtime takes the intersection. An explicit empty list blocks
-	// all access on its axis. The []string{} default keeps IsConfigured
-	// false when the user has not set the key, so the pass-through vs.
-	// explicit-empty distinction is preserved.
-	config.BindEnvAndSetDefault(PARRestrictedShellAllowedPaths, []string{})
+	// the backend-injected lists. Both axes use a sentinel value for their
+	// "allow whatever the backend allowed" default so the operator-side
+	// intersection is a single uniform code path; an explicit YAML empty
+	// list on either axis is the kill-switch.
+	//
+	//   - allowed_paths defaults to ["/"]. pathContains("/", X) is true for
+	//     any absolute X, so the intersection returns the backend list as-is
+	//     when the operator has not narrowed.
+	//   - allowed_commands defaults to ["rshell:*"]. The wildcard token is
+	//     handled as a special case in the operator-side intersection: when
+	//     it appears in the operator list, every backend command in the
+	//     "rshell:" namespace is admitted.
+	config.BindEnvAndSetDefault(PARRestrictedShellAllowedPaths, []string{"/"})
 	config.ParseEnvAsStringSlice(PARRestrictedShellAllowedPaths, func(s string) []string {
 		if s == "" {
 			return nil
@@ -89,7 +95,7 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 		return strings.Split(s, ",")
 	})
 
-	config.BindEnvAndSetDefault(PARRestrictedShellAllowedCommands, []string{})
+	config.BindEnvAndSetDefault(PARRestrictedShellAllowedCommands, []string{"rshell:*"})
 	config.ParseEnvAsStringSlice(PARRestrictedShellAllowedCommands, func(s string) []string {
 		if s == "" {
 			return nil

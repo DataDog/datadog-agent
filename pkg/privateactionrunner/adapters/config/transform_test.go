@@ -307,13 +307,16 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedPathsUnset(t *testing.T) {
+	// Unset key: the registered default is ["/"], a sentinel that admits
+	// every backend-allowed path through containment matching. The
+	// transform returns it verbatim.
 	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
 	mockConfig.SetWithoutSource(setup.PARUrn, "")
 
 	cfg, err := FromDDConfig(mockConfig)
 	require.NoError(t, err)
-	assert.Nil(t, cfg.RShellAllowedPaths)
+	assert.Equal(t, []string{"/"}, cfg.RShellAllowedPaths)
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedPathsSet(t *testing.T) {
@@ -341,15 +344,16 @@ func TestFromDDConfigPARRestrictedShellAllowedPathsEmpty(t *testing.T) {
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedCommandsUnset(t *testing.T) {
+	// Unset key: the registered default is ["rshell:*"], the wildcard
+	// sentinel that admits every backend command in the rshell namespace.
+	// The transform returns it verbatim.
 	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
 	mockConfig.SetWithoutSource(setup.PARUrn, "")
 
 	cfg, err := FromDDConfig(mockConfig)
 	require.NoError(t, err)
-	// Unset: operator opts out of filtering, handler will pass through the
-	// backend list unchanged.
-	assert.Nil(t, cfg.RShellAllowedCommands)
+	assert.Equal(t, []string{"rshell:*"}, cfg.RShellAllowedCommands)
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedCommandsSet(t *testing.T) {
@@ -462,8 +466,10 @@ func TestFromDDConfigPARRestrictedShellAllowedCommandsPassesThroughUnnamespaced(
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedAbsentYAML(t *testing.T) {
-	// No restricted_shell block at all: the handler must see nil slices so
-	// it passes the backend list through unchanged.
+	// No restricted_shell block at all: both axes fall back to their
+	// registered sentinels — ["/"] for paths, ["rshell:*"] for commands —
+	// which the operator-side intersection treats as "allow whatever the
+	// backend allowed".
 	yaml := `
 private_action_runner:
   enabled: true
@@ -472,6 +478,6 @@ private_action_runner:
 
 	cfg, err := FromDDConfig(mockConfig)
 	require.NoError(t, err)
-	assert.Nil(t, cfg.RShellAllowedPaths)
-	assert.Nil(t, cfg.RShellAllowedCommands)
+	assert.Equal(t, []string{"/"}, cfg.RShellAllowedPaths)
+	assert.Equal(t, []string{"rshell:*"}, cfg.RShellAllowedCommands)
 }

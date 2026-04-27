@@ -44,8 +44,11 @@ func TestPrivateActionRunnerHttpAllowlistFromEnv(t *testing.T) {
 func TestPrivateActionRunnerRestrictedShellAllowedPathsUnsetByDefault(t *testing.T) {
 	cfg := newTestConf(t)
 
+	// Default is the ["/"] sentinel — the operator-side intersection
+	// admits every backend-allowed path through containment matching when
+	// the operator has not narrowed.
 	assert.False(t, cfg.IsConfigured(PARRestrictedShellAllowedPaths))
-	assert.Empty(t, cfg.GetStringSlice(PARRestrictedShellAllowedPaths))
+	assert.Equal(t, []string{"/"}, cfg.GetStringSlice(PARRestrictedShellAllowedPaths))
 }
 
 func TestPrivateActionRunnerRestrictedShellAllowedPathsFromEnv(t *testing.T) {
@@ -63,9 +66,11 @@ func TestPrivateActionRunnerRestrictedShellAllowedPathsEmptyEnv(t *testing.T) {
 	cfg := newTestConf(t)
 
 	// Empty env is treated the same as unset so a stray empty var does not
-	// accidentally block every filesystem access.
+	// accidentally block every filesystem access. The default ["/"]
+	// sentinel applies, which the operator-side intersection treats as
+	// "allow whatever the backend allowed".
 	assert.False(t, cfg.IsConfigured(PARRestrictedShellAllowedPaths))
-	assert.Empty(t, cfg.GetStringSlice(PARRestrictedShellAllowedPaths))
+	assert.Equal(t, []string{"/"}, cfg.GetStringSlice(PARRestrictedShellAllowedPaths))
 }
 
 func TestPrivateActionRunnerAllowlistDefaultsEmpty(t *testing.T) {
@@ -73,14 +78,20 @@ func TestPrivateActionRunnerAllowlistDefaultsEmpty(t *testing.T) {
 
 	assert.Empty(t, cfg.GetStringSlice(PARActionsAllowlist))
 	assert.Empty(t, cfg.GetStringSlice(PARHttpAllowlist))
-	assert.Empty(t, cfg.GetStringSlice(PARRestrictedShellAllowedPaths))
+	// PARRestrictedShellAllowedPaths intentionally defaults to ["/"]
+	// rather than empty — the sentinel makes the operator-side
+	// intersection a no-op when the user hasn't narrowed.
+	assert.Equal(t, []string{"/"}, cfg.GetStringSlice(PARRestrictedShellAllowedPaths))
 }
 
 func TestPrivateActionRunnerRestrictedShellAllowedCommandsUnsetByDefault(t *testing.T) {
 	cfg := newTestConf(t)
 
+	// Default is the ["rshell:*"] wildcard sentinel — the operator-side
+	// intersection admits every backend entry in the rshell namespace
+	// when the operator has not narrowed.
 	assert.False(t, cfg.IsConfigured(PARRestrictedShellAllowedCommands))
-	assert.Empty(t, cfg.GetStringSlice(PARRestrictedShellAllowedCommands))
+	assert.Equal(t, []string{"rshell:*"}, cfg.GetStringSlice(PARRestrictedShellAllowedCommands))
 }
 
 func TestPrivateActionRunnerRestrictedShellAllowedCommandsFromEnv(t *testing.T) {
@@ -98,7 +109,9 @@ func TestPrivateActionRunnerRestrictedShellAllowedCommandsEmptyEnv(t *testing.T)
 	cfg := newTestConf(t)
 
 	// Empty env is treated the same as unset so a stray empty var does not
-	// accidentally block every command on the agent.
+	// accidentally block every command on the agent. The default
+	// ["rshell:*"] sentinel applies, which the operator-side intersection
+	// treats as "allow whatever the backend allowed".
 	assert.False(t, cfg.IsConfigured(PARRestrictedShellAllowedCommands))
-	assert.Empty(t, cfg.GetStringSlice(PARRestrictedShellAllowedCommands))
+	assert.Equal(t, []string{"rshell:*"}, cfg.GetStringSlice(PARRestrictedShellAllowedCommands))
 }

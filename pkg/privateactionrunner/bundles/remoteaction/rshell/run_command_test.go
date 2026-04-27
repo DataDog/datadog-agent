@@ -59,7 +59,10 @@ func TestRunCommandNoAllowedCommandsBlocksExecution(t *testing.T) {
 }
 
 func TestRunCommandWithAllowedCommandSucceeds(t *testing.T) {
-	handler := NewRunCommandHandler(nil, nil)
+	// Operator uses the default ["rshell:*"] wildcard sentinel (the value
+	// the production transform produces when the operator hasn't narrowed),
+	// so the backend's "rshell:echo" passes through and echo runs.
+	handler := NewRunCommandHandler(nil, []string{rshellCommandWildcard})
 
 	out, err := handler.Run(context.Background(), makeTask("echo hello", []string{"rshell:echo"}), nil)
 
@@ -122,12 +125,36 @@ func TestRunCommandOperatorEmptyListBlocksEverything(t *testing.T) {
 	assert.Contains(t, result.Stderr, "command not allowed")
 }
 
-func TestFilterAllowedCommandsNilOperatorPassesThrough(t *testing.T) {
-	handler := NewRunCommandHandler(nil, nil)
+func TestFilterAllowedCommandsWildcardSentinelPassesThrough(t *testing.T) {
+	// The default operator value is ["rshell:*"]. The wildcard admits any
+	// backend entry in the rshell namespace, so the intersection equals
+	// the backend list.
+	handler := NewRunCommandHandler(nil, []string{rshellCommandWildcard})
 
 	got := handler.filterAllowedCommands([]string{"rshell:echo", "rshell:cat"})
 
 	assert.Equal(t, []string{"rshell:echo", "rshell:cat"}, got)
+}
+
+func TestFilterAllowedCommandsWildcardCoexistsWithExplicit(t *testing.T) {
+	// Operators may write the wildcard alongside explicit entries; the
+	// wildcard subsumes them but the result is still well-defined and
+	// dedup-correct.
+	handler := NewRunCommandHandler(nil, []string{rshellCommandWildcard, "rshell:echo"})
+
+	got := handler.filterAllowedCommands([]string{"rshell:echo", "rshell:cat"})
+
+	assert.Equal(t, []string{"rshell:echo", "rshell:cat"}, got)
+}
+
+func TestFilterAllowedCommandsWildcardDoesNotAdmitNonNamespaced(t *testing.T) {
+	// The wildcard is scoped to the rshell namespace; a backend entry
+	// outside the namespace is not admitted by ["rshell:*"].
+	handler := NewRunCommandHandler(nil, []string{rshellCommandWildcard})
+
+	got := handler.filterAllowedCommands([]string{"rshell:echo", "evil:cat"})
+
+	assert.Equal(t, []string{"rshell:echo"}, got)
 }
 
 func TestFilterAllowedCommandsIntersection(t *testing.T) {
@@ -148,10 +175,12 @@ func TestFilterAllowedPathsNilBackendBlocksAll(t *testing.T) {
 	assert.Empty(t, got)
 }
 
-func TestFilterAllowedPathsOperatorUnsetPassesThrough(t *testing.T) {
-	// Operator left allowed_paths unset in datadog.yaml — the backend list
-	// passes through unchanged (no operator-side tightening).
-	handler := NewRunCommandHandler(nil, nil)
+func TestFilterAllowedPathsRootDefaultPassesBackendThrough(t *testing.T) {
+	// The default operator paths value is ["/"] (registered in
+	// pkg/config/setup), which is the sentinel meaning "allow whatever the
+	// backend allowed". Containment makes "/" admit every absolute path,
+	// so the intersection equals the backend list as-is.
+	handler := NewRunCommandHandler([]string{"/"}, nil)
 
 	got := handler.filterAllowedPaths([]string{"/var/log/nginx", "/etc"})
 
@@ -210,12 +239,11 @@ func TestRunCommandBackendAllowedPathsRestrictsAccess(t *testing.T) {
 	assert.NotEqual(t, 0, result.ExitCode, "expected cat to fail because /var/log is not in the backend list")
 }
 
-// TestFilterAllowedCommandsMatrix pins every cell of the 3x3 grid
-// (backend in {nil, [], non-empty} x operator in {nil, [], non-empty}) with
-// four sub-cases splitting the non-empty x non-empty cell by the set
-// relationship between operator and backend. Twelve scenarios total. The
-// truth table is documented in the PR description; this is its executable
-// form.
+// TestFilterAllowedCommandsMatrix pins backend × operator combinations.
+// Operator-side equality is plain string match with one special case: the
+// "rshell:*" sentinel admits every backend entry in the rshell namespace.
+// The default registered in pkg/config/setup is ["rshell:*"], so unset
+// keys reach the handler as the sentinel rather than as nil.
 func TestFilterAllowedCommandsMatrix(t *testing.T) {
 	cases := []struct {
 		name     string
@@ -224,19 +252,20 @@ func TestFilterAllowedCommandsMatrix(t *testing.T) {
 		want     []string // nil or empty both mean "nothing allowed"
 	}{
 		// Backend nil — fail-closed regardless of what the operator said.
-		{"backend nil, operator nil", nil, nil, nil},
+		{"backend nil, operator default ['rshell:*']", nil, []string{rshellCommandWildcard}, nil},
 		{"backend nil, operator empty list", nil, []string{}, nil},
 		{"backend nil, operator set", nil, []string{"rshell:echo"}, nil},
 
 		// Backend explicit empty list — same outcome as nil.
-		{"backend empty list, operator nil", []string{}, nil, nil},
+		{"backend empty list, operator default ['rshell:*']", []string{}, []string{rshellCommandWildcard}, nil},
 		{"backend empty list, operator empty list", []string{}, []string{}, nil},
 		{"backend empty list, operator set", []string{}, []string{"rshell:echo"}, nil},
 
-		// Backend non-empty: the non-empty x non-empty cell splits into
-		// four sub-cases by set relationship.
-		{"backend set, operator nil (pass-through)",
-			[]string{"rshell:echo", "rshell:cat"}, nil,
+		// Backend non-empty: the default ['rshell:*'] passes through; an
+		// explicit empty list is the kill-switch; a non-empty list is
+		// intersected by exact-string equality.
+		{"backend set, operator default ['rshell:*'] (pass-through)",
+			[]string{"rshell:echo", "rshell:cat"}, []string{rshellCommandWildcard},
 			[]string{"rshell:echo", "rshell:cat"}},
 		{"backend set, operator empty list (operator blocks all)",
 			[]string{"rshell:echo"}, []string{}, nil},
@@ -269,8 +298,9 @@ func TestFilterAllowedCommandsMatrix(t *testing.T) {
 
 // TestFilterAllowedPathsMatrix is the paths analogue of
 // TestFilterAllowedCommandsMatrix. Path intersection is containment-aware
-// ("narrower wins") rather than plain set equality, so the non-empty x
-// non-empty cell has extra sub-cases for sub-path interplay.
+// ("narrower wins") rather than plain set equality, and the default
+// operator value is ["/"] rather than nil — there is no operator-unset
+// branch. The matrix below pins each backend × operator combination.
 func TestFilterAllowedPathsMatrix(t *testing.T) {
 	cases := []struct {
 		name     string
@@ -278,19 +308,21 @@ func TestFilterAllowedPathsMatrix(t *testing.T) {
 		operator []string
 		want     []string
 	}{
-		// Backend nil — fail-closed.
-		{"backend nil, operator nil", nil, nil, nil},
+		// Backend nil — fail-closed regardless of operator.
+		{"backend nil, operator default ['/']", nil, []string{"/"}, nil},
 		{"backend nil, operator empty list", nil, []string{}, nil},
 		{"backend nil, operator set", nil, []string{"/var/log"}, nil},
 
 		// Backend explicit empty list — same outcome as nil.
-		{"backend empty list, operator nil", []string{}, nil, nil},
+		{"backend empty list, operator default ['/']", []string{}, []string{"/"}, nil},
 		{"backend empty list, operator empty list", []string{}, []string{}, nil},
 		{"backend empty list, operator set", []string{}, []string{"/var/log"}, nil},
 
-		// Backend non-empty: four sub-cases for the set relationship.
-		{"backend set, operator nil (pass-through)",
-			[]string{"/var/log", "/etc"}, nil,
+		// Backend non-empty: the default ['/'] passes through; an explicit
+		// empty list is the kill-switch; a non-empty list is intersected by
+		// containment (see sub-cases below).
+		{"backend set, operator default ['/'] (pass-through)",
+			[]string{"/var/log", "/etc"}, []string{"/"},
 			[]string{"/var/log", "/etc"}},
 		{"backend set, operator empty list (operator blocks all)",
 			[]string{"/var/log"}, []string{}, nil},
@@ -356,7 +388,6 @@ func TestNewRunCommandHandlerStoresAllowedPaths(t *testing.T) {
 	handler := NewRunCommandHandler(paths, nil)
 
 	assert.Equal(t, []string{"/var/log", "/tmp"}, handler.operatorAllowedPaths)
-	assert.True(t, handler.operatorPathsFilterEnabled)
 }
 
 func TestNewRshellBundleUsesConfiguredAllowedPaths(t *testing.T) {
