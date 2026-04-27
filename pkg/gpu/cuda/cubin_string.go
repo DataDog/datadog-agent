@@ -80,10 +80,11 @@ const _nvInfoAttr_name = "nviAttrErrornviAttrPadnviAttrImageSlotnviAttrJumptable
 var _nvInfoAttr_index = [...]uint16{0, 12, 22, 38, 60, 77, 94, 112, 128, 152, 170, 187, 210, 234, 250, 271, 285, 299, 315, 334, 365, 392, 418, 444, 461, 481, 502, 523, 541, 564, 591, 610, 631, 650, 672, 690, 709, 723, 752, 775, 801, 829, 854, 873, 888, 910, 940, 968, 983, 1002, 1032, 1052, 1069, 1097, 1116, 1128, 1149, 1168, 1195, 1226, 1251, 1279, 1299, 1321, 1342, 1360}
 
 func (i nvInfoAttr) String() string {
-	if i >= nvInfoAttr(len(_nvInfoAttr_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_nvInfoAttr_index)-1 {
 		return "nvInfoAttr(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _nvInfoAttr_name[_nvInfoAttr_index[i]:_nvInfoAttr_index[i+1]]
+	return _nvInfoAttr_name[_nvInfoAttr_index[idx]:_nvInfoAttr_index[idx+1]]
 }
 func _() {
 	// An "invalid array index" compiler error signifies that the constant values have changed.
@@ -100,9 +101,9 @@ const _nvInfoFormat_name = "nviFmtNonenviFmtBvalnviFmtHvalnviFmtSval"
 var _nvInfoFormat_index = [...]uint8{0, 10, 20, 30, 40}
 
 func (i nvInfoFormat) String() string {
-	i -= 1
-	if i >= nvInfoFormat(len(_nvInfoFormat_index)-1) {
-		return "nvInfoFormat(" + strconv.FormatInt(int64(i+1), 10) + ")"
+	idx := int(i) - 1
+	if i < 1 || idx >= len(_nvInfoFormat_index)-1 {
+		return "nvInfoFormat(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _nvInfoFormat_name[_nvInfoFormat_index[i]:_nvInfoFormat_index[i+1]]
+	return _nvInfoFormat_name[_nvInfoFormat_index[idx]:_nvInfoFormat_index[idx+1]]
 }

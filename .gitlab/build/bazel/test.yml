@@ -27,6 +27,7 @@ bazel:test:windows-amd64:
   extends: [ .bazel:test, .bazel:runner:windows-amd64 ]
   variables:
     POWERSHELL_SCRIPT: >-
-      bazel test --keep_going //... --
+      bazel test --keep_going
+      //... --
       -//bazel/rules/dd_packaging/...
       -//packages/agent/linux/...
