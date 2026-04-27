@@ -7,7 +7,7 @@
 // observer without requiring the logs agent to be enabled.
 package logssource
 
-// team: agent-metric-pipelines
+// team: q-branch
 
 // Component is the component type.
 type Component interface{}
