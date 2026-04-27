@@ -11,15 +11,19 @@ import (
 	"regexp"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/hook"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+const logHookBatchSize = 256
 
 const (
 	// UnstructuredProcessingMetricName collects how many rules are used on unstructured
@@ -55,12 +59,17 @@ type Processor struct {
 	pipelineMonitor metrics.PipelineMonitor
 	utilization     metrics.UtilizationMonitor
 	instanceID      string
+
+	// Hook tap point for pipeline observers.
+	logHook      hook.Hook[[]hook.LogSampleSnapshot]
+	logHookBatch []hook.LogSampleSnapshot
 }
 
 // New returns an initialized Processor with config support for failover notifications.
 func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule,
 	encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component,
-	pipelineMonitor metrics.PipelineMonitor, instanceID string) *Processor {
+	pipelineMonitor metrics.PipelineMonitor, instanceID string,
+	logHook hook.Hook[[]hook.LogSampleSnapshot]) *Processor {
 
 	p := &Processor{
 		config:                    config,
@@ -75,6 +84,8 @@ func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Messa
 		pipelineMonitor:           pipelineMonitor,
 		utilization:               pipelineMonitor.MakeUtilizationMonitor(metrics.ProcessorTlmName, instanceID),
 		instanceID:                instanceID,
+		logHook:                   logHook,
+		logHookBatch:              make([]hook.LogSampleSnapshot, 0, logHookBatchSize),
 	}
 
 	// Initialize cached failover config
@@ -155,6 +166,7 @@ func (p *Processor) Flush(ctx context.Context) {
 // run starts the processing of the inputChan
 func (p *Processor) run() {
 	defer func() {
+		p.flushLogHookBatch()
 		p.done <- struct{}{}
 	}()
 
@@ -165,6 +177,10 @@ func (p *Processor) run() {
 				return
 			}
 			p.processMessage(msg)
+			// Flush log hook batch when input channel drains (low-latency at low volume).
+			if len(p.logHookBatch) > 0 && len(p.inputChan) == 0 {
+				p.flushLogHookBatch()
+			}
 			p.mu.Lock() // block here if we're trying to flush synchronously
 			//nolint:staticcheck
 			p.mu.Unlock()
@@ -172,6 +188,14 @@ func (p *Processor) run() {
 			p.failoverConfig = conf
 		}
 	}
+}
+
+func (p *Processor) flushLogHookBatch() {
+	if len(p.logHookBatch) == 0 || p.logHook == nil {
+		return
+	}
+	p.logHook.Publish("logs", p.logHookBatch)
+	p.logHookBatch = p.logHookBatch[:0]
 }
 
 func (p *Processor) processMessage(msg *message.Message) {
@@ -200,6 +224,19 @@ func (p *Processor) processMessage(msg *message.Message) {
 			return
 		}
 		msg.SetRendered(rendered)
+
+		if p.logHook != nil && p.logHook.HasSubscribers() {
+			p.logHookBatch = append(p.logHookBatch, hook.LogSampleSnapshot{
+				Content:     append([]byte(nil), msg.GetContent()...),
+				Status:      msg.GetStatus(),
+				Tags:        append([]string(nil), msg.GetTags()...),
+				Hostname:    msg.GetHostname(),
+				TimestampNs: time.Now().UnixNano(),
+			})
+			if len(p.logHookBatch) >= logHookBatchSize {
+				p.flushLogHookBatch()
+			}
+		}
 
 		// report this message to diagnostic receivers (e.g. `stream-logs` command)
 		p.diagnosticMessageReceiver.HandleMessage(msg, rendered, "")

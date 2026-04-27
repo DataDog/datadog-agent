@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/hook"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	compressioncommon "github.com/DataDog/datadog-agent/pkg/util/compression"
@@ -60,7 +61,8 @@ func NewPipeline(
 	inputChan := make(chan *message.Message, cfg.GetInt("logs_config.message_channel_size"))
 
 	processor := processor.New(cfg, inputChan, strategyInput, processingRules,
-		encoder, diagnosticMessageReceiver, hostname, senderImpl.PipelineMonitor(), instanceID)
+		encoder, diagnosticMessageReceiver, hostname, senderImpl.PipelineMonitor(), instanceID,
+		hook.NewNoopHook[[]hook.LogSampleSnapshot]())
 
 	return &Pipeline{
 		InputChan:       inputChan,
