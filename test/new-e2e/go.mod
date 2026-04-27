@@ -331,6 +331,7 @@ require (
 	github.com/pulumi/pulumi-random/sdk/v4 v4.18.4 // indirect
 	github.com/pulumi/pulumi-tls/sdk/v4 v4.11.1 // indirect
 	github.com/puzpuzpuz/xsync/v3 v3.5.1 // indirect
+	github.com/richardartoul/molecule v1.0.1-0.20240607132359-c1a75a0f9580 // indirect
 	github.com/rs/zerolog v1.34.0 // indirect
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.9.0 // indirect

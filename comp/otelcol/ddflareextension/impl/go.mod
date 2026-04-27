@@ -408,7 +408,7 @@ require (
 	github.com/prometheus/procfs v0.20.1 // indirect
 	github.com/prometheus/prometheus v0.311.2-0.20260410083055-07c6232d159b // indirect
 	github.com/prometheus/sigv4 v0.4.1 // indirect
-	github.com/richardartoul/molecule v1.0.1-0.20240531184615-7ca0df43c0b3 // indirect
+	github.com/richardartoul/molecule v1.0.1-0.20240607132359-c1a75a0f9580 // indirect
 	github.com/rs/cors v1.11.1 // indirect
 	github.com/scaleway/scaleway-sdk-go v1.0.0-beta.36 // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.9.0 // indirect
