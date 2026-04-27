@@ -18,12 +18,12 @@
           {
             "function": "main.testMixedArgsStackReturn",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 328
+            "lineNumber": 339
           },
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 432
+            "lineNumber": 444
           },
           {
             "function": "main.main",

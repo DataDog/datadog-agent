@@ -236,14 +236,16 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.users", []map[string]string{})
 
 	// NetFlow
-	config.SetKnown("network_devices.netflow.listeners")                                  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.netflow.stop_timeout")                               //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.netflow.aggregator_buffer_size")                     //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.netflow.aggregator_flush_interval")                  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.netflow.aggregator_flow_context_ttl")                //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.netflow.aggregator_port_rollup_threshold")           //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.netflow.aggregator_rollup_tracker_refresh_interval") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.BindEnvAndSetDefault("network_devices.netflow.enabled", false)
+	config.SetDefault("network_devices.netflow.listeners", []map[string]interface{}{})
+	config.BindEnvAndSetDefault("network_devices.netflow.stop_timeout", 5)
+	config.BindEnvAndSetDefault("network_devices.netflow.aggregator_buffer_size", 10_000)
+	config.BindEnvAndSetDefault("network_devices.netflow.aggregator_flush_interval", 300)
+	// The default behavior for this value is to copy the "aggregator_flush_interval" when absent/zero. This is to avoid
+	// expiring flows too early when the flush interval is increased, while still allowing to set a custom TTL when needed.
+	config.BindEnvAndSetDefault("network_devices.netflow.aggregator_flow_context_ttl", 0)
+	config.BindEnvAndSetDefault("network_devices.netflow.aggregator_port_rollup_threshold", 10)
+	config.BindEnvAndSetDefault("network_devices.netflow.aggregator_rollup_tracker_refresh_interval", 300)
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.netflow.forwarder.")
 	config.BindEnvAndSetDefault("network_devices.netflow.reverse_dns_enrichment_enabled", false)
 
@@ -676,6 +678,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.fallback_to_file_provider", false)                                // to be enabled only in e2e tests
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.file_provider_path", "/etc/datadog-agent/patch/auto-instru.json") // to be used only in e2e tests
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.inject_auto_detected_libraries", true)                                    // allows injecting libraries for languages detected by automatic language detection feature
+	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.container_registry_allow_list", []string{})                               // restricts which registries can be used for library injection
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.init_resources.cpu", "")
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.init_resources.memory", "")
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.init_security_context", "")
@@ -683,6 +686,16 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.iast.enabled", false, "DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_IAST_ENABLED")          // config for IAST which is implemented in the client libraries
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.asm_sca.enabled", false, "DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_APPSEC_SCA_ENABLED") // config for SCA
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.profiling.enabled", "", "DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_PROFILING_ENABLED")   // config for profiling
+	config.ParseEnvAsStringSlice("admission_controller.auto_instrumentation.container_registry_allow_list", func(s string) []string {
+		var result []string
+		for _, r := range strings.Split(s, ",") {
+			r = strings.TrimSpace(r)
+			if r != "" {
+				result = append(result, r)
+			}
+		}
+		return result
+	})
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.enabled", false)
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.pod_endpoint", "/inject-pod-cws")
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.command_endpoint", "/inject-command-cws")
@@ -910,20 +923,20 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("runtime_security_config.event_grpc_server", "")
 
 	// trace-agent's evp_proxy
-	config.BindEnv("evp_proxy_config.enabled")              //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("evp_proxy_config.dd_url")               //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("evp_proxy_config.api_key")              //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("evp_proxy_config.additional_endpoints") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("evp_proxy_config.max_payload_size")     //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("evp_proxy_config.receiver_timeout")     //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("evp_proxy_config.enabled", true)
+	config.BindEnvAndSetDefault("evp_proxy_config.dd_url", "")
+	config.BindEnvAndSetDefault("evp_proxy_config.api_key", "")
+	config.BindEnvAndSetDefault("evp_proxy_config.additional_endpoints", map[string][]string{})
+	config.BindEnvAndSetDefault("evp_proxy_config.max_payload_size", int64(10*1024*1024))
+	config.BindEnvAndSetDefault("evp_proxy_config.receiver_timeout", 0)
 	// Delegated authentication for evp_proxy
 	bindDelegatedAuthConfig(config, "evp_proxy_config")
 
 	// trace-agent's ol_proxy
 	config.BindEnvAndSetDefault("ol_proxy_config.enabled", true)
-	config.BindEnv("ol_proxy_config.dd_url")               //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("ol_proxy_config.api_key")              //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("ol_proxy_config.additional_endpoints") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("ol_proxy_config.dd_url", "")
+	config.BindEnvAndSetDefault("ol_proxy_config.api_key", "")
+	config.BindEnvAndSetDefault("ol_proxy_config.additional_endpoints", map[string][]string{})
 	config.BindEnvAndSetDefault("ol_proxy_config.api_version", 2)
 	// Delegated authentication for ol_proxy_config
 	bindDelegatedAuthConfig(config, "ol_proxy_config")
@@ -1000,20 +1013,23 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	bindEnvAndSetLogsConfigKeys(config, "data_observability.forwarder.")
 
 	// Reverse DNS Enrichment
-	config.SetKnown("reverse_dns_enrichment.workers")   //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("reverse_dns_enrichment.chan_size") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("reverse_dns_enrichment.workers", 10)
+	config.BindEnvAndSetDefault("reverse_dns_enrichment.chan_size", 5000)
 	config.BindEnvAndSetDefault("reverse_dns_enrichment.rate_limiter.enabled", true)
 	config.BindEnvAndSetDefault("reverse_dns_enrichment.cache.enabled", true)
 	config.BindEnvAndSetDefault("reverse_dns_enrichment.cache.entry_ttl", 24*time.Hour)
 	config.BindEnvAndSetDefault("reverse_dns_enrichment.cache.clean_interval", 2*time.Hour)
 	config.BindEnvAndSetDefault("reverse_dns_enrichment.cache.persist_interval", 2*time.Hour)
 	config.BindEnvAndSetDefault("reverse_dns_enrichment.cache.max_retries", 10)
-	config.SetKnown("reverse_dns_enrichment.cache.max_size")                        //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("reverse_dns_enrichment.rate_limiter.limit_per_sec")            //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("reverse_dns_enrichment.rate_limiter.limit_throttled_per_sec")  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("reverse_dns_enrichment.rate_limiter.throttle_error_threshold") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("reverse_dns_enrichment.rate_limiter.recovery_intervals")       //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("reverse_dns_enrichment.cache.max_size", 1_000_000)
+	config.BindEnvAndSetDefault("reverse_dns_enrichment.rate_limiter.limit_per_sec", 1000)
+	config.BindEnvAndSetDefault("reverse_dns_enrichment.rate_limiter.limit_throttled_per_sec", 1)
+	config.BindEnvAndSetDefault("reverse_dns_enrichment.rate_limiter.throttle_error_threshold", 10)
+	// These variables are similarly named, but they serve different purposes:
+	// - recovery_interval is the time to wait before trying to send data again after hitting the throttle_error_threshold
+	// - recovery_intervals is the number of consecutive intervals with errors before considering the issue resolved and lifting the throttling
 	config.BindEnvAndSetDefault("reverse_dns_enrichment.rate_limiter.recovery_interval", 5*time.Second)
+	config.BindEnvAndSetDefault("reverse_dns_enrichment.rate_limiter.recovery_intervals", 5)
 
 	// Remote agents
 	config.BindEnvAndSetDefault("remote_agent.registry.enabled", true)

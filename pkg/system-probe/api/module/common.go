@@ -23,7 +23,7 @@ import (
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	connectionsforwarder "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/def"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
+	npcollector "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 )

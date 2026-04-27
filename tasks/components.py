@@ -162,7 +162,6 @@ components_classic_style = [
     'comp/snmptraps/forwarder/forwarderimpl',
     'comp/snmptraps/listener/listenerimpl',
     'comp/snmptraps/oidresolver/oidresolverimpl',
-    'comp/snmptraps/server/serverimpl',
     'comp/snmptraps/status/statusimpl',
     'comp/systray/systray/systrayimpl',
     'comp/trace/etwtracer/etwtracerimpl',
@@ -188,6 +187,7 @@ ignore_fx_import = [
     "comp/core/workloadmeta",
     "comp/rdnsquerier",
     "comp/trace/agent",
+    "comp/snmptraps/server",
 ]
 
 ignore_provide_component_constructor_missing = [
