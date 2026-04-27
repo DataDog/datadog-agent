@@ -53,6 +53,28 @@ Behavioural spec: `~/.claude/plans/ad-harness.allium`
 
 ---
 
+## Operator commands (`dda inv q.coord-*`)
+
+Six tasks cover the full lifecycle. All idempotent; safe to re-run.
+
+| Command | Purpose |
+|---|---|
+| `q.coord-up --mode {full,blank}` | One-shot bootstrap: deps + branches + new PR + tmux + driver |
+| `q.coord-down` | Pause + drain + kill tmux |
+| `q.coord-setup` | Dep checks + auto-install (pip/brew/curl) — called by coord-up |
+| `q.coord-branches --mode {full,blank}` | Idempotent branch wiring — called by coord-up |
+| `q.coord-status` | One-screen health snapshot (read-only) |
+| `q.coord-debug-last` | Most recent crash with surrounding journal events |
+
+Mode semantics:
+- **full**: scratch=`claude/observer-improvements` ← upstream `q-branch-observer`. Reuses any prior `db.yaml`.
+- **blank**: scratch=`claude/observer-blank-improvements` ← upstream `ella/observer-blank` (detectors stripped).
+  - On `coord-up --mode blank`: archives prior `db.yaml` to `.bak`, removes ephemeral state (pause, session, github_state, metrics), preserves journal/sdk-errors/reports/tokens, seeds an empty bootstrap baseline so the driver has something concrete to score against.
+  - The "first ship floor" gate (`CONFIG.first_ship_min_mean_f1` = 0.25) is the only quality bar until the first ship lands; after that, `effective_baseline` (best-historical) takes over.
+  - Pass `--no-wipe` to opt out of the archive (rare: resuming a paused blank run).
+
+---
+
 ## Module layout
 
 ```
@@ -69,14 +91,17 @@ tasks/coordinator/
 ├── coord_out.py           coordinator→user channel (file + GitHub PR comment)
 ├── github_out.py          post PR comments on the run-log PR (fail-soft)
 ├── github_in.py           poll PR comments → append user replies to inbox.md
+│                          (filters own comments by zero-width-space marker)
+├── coord_status.py        q.coord-status + q.coord-debug-last renderers
+├── setup.py               q.coord-setup helpers (dep checks + auto-install)
 ├── measure_sigma.py       one-time: multi-seed baseline → populate per-scenario σ
 ├── overfit_check.py       periodic lockbox eval + Spearman rank-corr tripwire
 ├── inbox.py               user→coordinator channel (atomic rename)
 ├── budget.py              wall-hour tracking + milestone escalations
-├── config.py              frozen constants (τ, plateau, retries, …)
+├── config.py              frozen constants (τ, plateau, retries, sanity, …)
 ├── db.py                  atomic YAML persistence
 ├── schema.py              typed dataclasses for every persisted record
-├── metrics.py             markdown dashboard renderer
+├── metrics.py             markdown dashboard + cumulative F1 matrix
 ├── journal.py             append-only JSONL event log
 ├── import_baseline.py     bootstrap: eval reports → db.baseline
 ├── import_validations.py  backfill: pulled eval-component → db.validations
@@ -439,15 +464,27 @@ reverted when pivoting families — so by iter 10, `q.eval-scenarios` runs
 against the cumulative state of 10 prior wins. Gates must decide whether
 the *new* candidate is acceptable on top of that state.
 
-**Single reference:** `db.baseline` (frozen M0.1 scores). Gates always
-compare to this, never to a rolling "last-shipped" reference.
+**Reference:** `db.effective_baseline` (best-historical) post-first-ship,
+falling back to `db.baseline` (frozen) before that. Best-historical
+means: per (detector, scenario), `max(prior, shipped)` for f1/precision/
+recall and `min(prior, shipped)` for FPs. Updated atomically after every
+successful commit.
 
-Why no rolling reference: an earlier design compared to the immediately-
-prior committed state. A panel review identified this as a noise-driven
-ratchet — lucky ships permanently elevate the floor, and the next
-candidate only needs to not-regress from the elevated floor, so a
-candidate strictly worse than baseline can still pass. Over N ships
-E[cumulative drift from baseline] ≈ σ·√(2 ln N) of pure noise. Dropped.
+Why best-historical and not rolling-last-ship: an earlier design used
+the immediately-prior committed state as the reference. A panel review
+identified this as a noise-driven ratchet — lucky ships permanently
+elevate the floor, but the next candidate only needs to not-regress
+from the *elevated* floor, so cumulative drift can leave you strictly
+worse than the original baseline while every individual hop passed.
+Best-historical fixes this: F1/precision/recall can only ratchet UP,
+FPs only ratchet DOWN, never the reverse.
+
+**Missing-detector fallback.** If `baseline.detectors` doesn't have an
+entry for a detector being scored (happens when the proposer adds a
+novel detector on a blank-slate run, or when `db.baseline` is the
+empty bootstrap stub), scoring treats it as zero baseline. Every
+observed F1 becomes positive ΔF1, catastrophe filters can't fire, and
+the **first-ship floor** (below) is the only quality gate.
 
 **Catastrophe filters, not statistical discrimination.** Four
 deterministic gates fire vs the **frozen baseline** (union across all
@@ -462,6 +499,24 @@ relevant detectors — see "multi-detector evaluation" below):
   "emit-everything" reward-hack where rewriting a detector to fire on
   every tick boosts recall while precision crashes; F1 per-scenario can
   look fine while total FPs triple.
+- **First-ship floor**: when no candidate has yet shipped, the candidate
+  must reach `mean_f1 ≥ CONFIG.first_ship_min_mean_f1` (default 0.25).
+  Catastrophe filters can't fire when baseline F1 ≈ 0 (blank-mode), so
+  without this gate the first compile-passing candidate would lock noise
+  in as the run's effective_baseline.
+
+**Pre-eval sanity sentinel** (catches eval pipeline drift). At iter
+start, before SDK implementation, the driver re-runs one known-good
+(detector, scenario) eval — default `bocpd/703_shopify`, baseline F1
+~0.987. If F1 < 0.90 the workspace env is broken (missing dep, drifted
+binary, broken scenarios path). Iter aborts with `eval_env_drift` PR
+comment + auto-pause. Auto-skipped on blank baselines (`mean_f1 < 0.05`).
+
+**Post-eval zero-detections check** (catches silent eval failure). After
+scoring, if every scenario reports F1=precision=recall=0 across ≥3
+scenarios, treats it as `eval_silent_failure` rather than `strict_regression`
+— almost certainly a workspace problem, not a real algorithmic regression.
+Auto-pauses the run.
 
 An earlier design tried per-scenario 3·σ_s gates, but N=5 σ estimation
 has a 95% CI of [0.6σ, 2.2σ] — σ itself is too noisy for 3σ to mean
@@ -652,8 +707,17 @@ Crash scenarios and what happens on restart:
 
 ## Setup (first run)
 
-See [QUICKSTART.md](./QUICKSTART.md) for the full workspace-based walkthrough.
-Summary of the bootstrap scripts:
+For a fresh workspace, **use `q.coord-up`** — it runs the dep checks,
+branch wiring, PR creation, and tmux launch in one command. See
+[QUICKSTART.md](./QUICKSTART.md) for the TL;DR.
+
+```bash
+export ANTHROPIC_API_KEY=…
+dda inv q.coord-up --mode full      # or --mode blank
+```
+
+The manual bootstrap below is kept for reference / edge cases (resuming
+a run, custom token ceilings, importing an existing baseline.json).
 
 ```bash
 # 1. Install deps
@@ -665,8 +729,9 @@ export COORD_GITHUB_PR_NUMBER=49678  # optional — run-log PR number
 #   api_token_ceiling = <N>   # e.g. 20_000_000 ≈ $50–200 of Opus
 # Prevents a multi-day edge case from burning $1–5k of API spend.
 
-# 2. Seed baseline from a fresh q.eval-scenarios run.
+# 2. Seed baseline from a fresh q.eval-scenarios run (full-mode only).
 # --detector NAME=PATH is repeatable; add a flag per detector.
+# Blank-mode runs auto-bootstrap an empty baseline; skip this step.
 PYTHONPATH=tasks python -m coordinator.import_baseline \
     --detector bocpd=eval-results/bocpd/report.json \
     --detector scanmw=eval-results/scanmw/report.json \
