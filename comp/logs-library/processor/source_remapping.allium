@@ -1,15 +1,14 @@
 -- allium: 3
 -- source_remapping.allium
 
--- Scope: The remap_attribute_to_source processing rule, which dynamically
---   overrides a log message's source tag based on values found in its
---   structured content.
--- Includes: Ordered mappings list evaluation, first-match-wins semantics,
+-- Scope: The remap_source processing rule, which dynamically overrides a
+--   log message's source tag based on values found in its structured content.
+-- Includes: Ordered matching list evaluation, first-match-wins semantics,
 --   dot-delimited attribute path traversal (siem.*, syslog.*, nested
 --   structured_data paths) with backslash escape convention (\. for literal
 --   dots, \\ for literal backslashes), numeric-to-string coercion for
---   matching, source priority chain, fallback behavior when no mapping
---   matches.
+--   matching, source priority chain, fallback behavior when no match
+--   is found.
 -- Excludes:
 --   - Other processing rule types (exclude_at_match, include_at_match,
 --     mask_sequences, multi_line, exclude_truncated)
@@ -28,20 +27,20 @@ use "../internal/parsers/syslog/siem_extraction.allium" as siem
 
 value RemapRule {
     name: String
-    mappings: List<SourceMapping>
+    matching: List<SourceMatch>
 }
 
-value SourceMapping {
-    attribute: String       -- dot-delimited path into structured content;
-                            -- supports backslash escapes: \. for literal dot,
-                            -- \\ for literal backslash
-    value: String           -- string to match against the resolved attribute
-    remap_source_to: String -- the source tag to apply on match
+value SourceMatch {
+    attribute: String   -- dot-delimited path into structured content;
+                        -- supports backslash escapes: \. for literal dot,
+                        -- \\ for literal backslash
+    value: String       -- string to match against the resolved attribute
+    new_source: String  -- the source tag to apply on match
 }
 
 value SourcePriority {
     -- The source tag used for the log message, resolved by priority:
-    --   1. mapped_source (set by remap_attribute_to_source)
+    --   1. mapped_source (set by remap_source)
     --   2. config_source (user-configured source on the log source)
     --   3. parser_source (derived from syslog AppName or similar)
     resolved: String
@@ -97,13 +96,13 @@ contract AttributeResolver {
 }
 
 contract SourceRemapper {
-    -- Evaluate the remap_attribute_to_source rule against a message.
+    -- Evaluate the remap_source rule against a message.
     apply: (message: String, rule: RemapRule) -> SourcePriority
 
     @invariant FirstMatchWins
         -- Mappings are evaluated in list order. The first mapping
         -- whose attribute resolves to a value matching mapping.value
-        -- is applied. No further mappings are evaluated after a match.
+        -- is applied. No further entries are evaluated after a match.
 
     @invariant MappedSourceOverridesAll
         -- The source set by a matching remap rule takes the highest
@@ -126,19 +125,19 @@ contract SourceRemapper {
 
 rule EvaluateRemapRule {
     when: ProcessingRuleApplied(message, rule)
-    requires: rule.type = "remap_attribute_to_source"
+    requires: rule.type = "remap_source"
 
     ensures: RemapEvaluated(message, result)
 
     @guidance
-        -- The rule iterates over rule.mappings in order. For each
-        -- mapping:
-        --   1. Resolve mapping.attribute through the structured content
-        --   2. Compare the resolved string value to mapping.value
+        -- The rule iterates over rule.matching in order. For each
+        -- match entry:
+        --   1. Resolve match.attribute through the structured content
+        --   2. Compare the resolved string value to match.value
         --   3. On match: set message.origin.mapped_source to
-        --      mapping.remap_source_to, record the rule, and stop
-        --   4. On no match: continue to the next mapping
-        -- If no mapping matches, the message passes through unchanged.
+        --      match.new_source, record the rule, and stop
+        --   4. On no match: continue to the next match entry
+        -- If no match entry matches, the message passes through unchanged.
 }
 
 rule ResolveSIEMAttribute {
@@ -215,10 +214,10 @@ rule SourcePriorityResolution {
 -- Invariants
 ------------------------------------------------------------
 
-invariant MappingValidation {
-    -- Each mapping must have a non-empty attribute, value, and
-    -- remap_source_to. Empty fields are rejected at config validation
-    -- time, before any messages are processed.
+invariant MatchValidation {
+    -- Each match entry must have a non-empty attribute, value, and
+    -- new_source. Empty fields are rejected at config validation time,
+    -- before any messages are processed.
 }
 
 invariant RuleNameRequired {
@@ -227,20 +226,20 @@ invariant RuleNameRequired {
 }
 
 invariant NoSideEffectsOnUnmatched {
-    -- When no mapping matches, the processing rule makes no changes
+    -- When no match entry matches, the processing rule makes no changes
     -- to the message. The message content, origin, and metadata
     -- are completely unmodified.
 }
 
 invariant MessageAlwaysPassesThrough {
-    -- The remap_attribute_to_source rule never drops a message.
-    -- Unlike exclude_at_match which can filter messages, remapping
+    -- The remap_source rule never drops a message. Unlike
+    -- exclude_at_match which can filter messages, remapping
     -- only modifies the source tag. The message is always forwarded
     -- to the next pipeline stage.
 }
 
 invariant MultipleRemapRulesStack {
-    -- If multiple remap_attribute_to_source rules exist in the
+    -- If multiple remap_source rules exist in the
     -- processing rules list, they are evaluated in order. A later
     -- rule can override the mapped_source set by an earlier rule
     -- (last-write-wins at the Origin level).
