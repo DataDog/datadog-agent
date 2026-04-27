@@ -10,6 +10,7 @@ go_library(
         "agent_client.go",
         "auth.go",
         "cert.go",
+        "chunks.go",
         "hack.go",
         "interceptors.go",
         "logger.go",
