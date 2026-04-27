@@ -179,6 +179,7 @@ func TestFilterAllowedPathsExplicitEmptyBackendBlocksAll(t *testing.T) {
 }
 
 func TestFilterAllowedPathsIntersection(t *testing.T) {
+	t.Setenv("DOCKER_DD_AGENT", "")
 	handler := NewRunCommandHandler([]string{"/var/log", "/tmp"}, nil)
 
 	got := handler.filterAllowedPaths([]string{"/var/log", "/etc", "/tmp"})
@@ -271,6 +272,7 @@ func TestFilterAllowedCommandsMatrix(t *testing.T) {
 // TestFilterAllowedCommandsMatrix. Twelve scenarios with the same shape:
 // path intersection is plain string equality, identical to commands.
 func TestFilterAllowedPathsMatrix(t *testing.T) {
+	t.Setenv("DOCKER_DD_AGENT", "")
 	cases := []struct {
 		name     string
 		backend  []string
@@ -321,6 +323,7 @@ func TestFilterAllowedPathsMatrix(t *testing.T) {
 }
 
 func TestNewRunCommandHandlerStoresAllowedPaths(t *testing.T) {
+	t.Setenv("DOCKER_DD_AGENT", "")
 	paths := []string{"/var/log", "/tmp"}
 
 	handler := NewRunCommandHandler(paths, nil)
@@ -330,6 +333,7 @@ func TestNewRunCommandHandlerStoresAllowedPaths(t *testing.T) {
 }
 
 func TestNewRshellBundleUsesConfiguredAllowedPaths(t *testing.T) {
+	t.Setenv("DOCKER_DD_AGENT", "")
 	cfg := &config.Config{RShellAllowedPaths: []string{"/var/log", "/tmp"}}
 
 	bundle := NewRshellBundle(cfg)
@@ -338,6 +342,139 @@ func TestNewRshellBundleUsesConfiguredAllowedPaths(t *testing.T) {
 	handler, ok := action.(*RunCommandHandler)
 	require.True(t, ok)
 	assert.Equal(t, map[string]struct{}{"/var/log": {}, "/tmp": {}}, handler.operatorAllowedPaths)
+}
+
+// TestEnvFilterAllowedPaths covers the path-namespace separation between
+// containerized and bare-metal runners. The constant is /host/ (with trailing
+// slash) so /hostname is correctly classified as bare-metal, not /host/.
+func TestEnvFilterAllowedPaths(t *testing.T) {
+	cases := []struct {
+		name          string
+		containerized bool
+		input         []string
+		want          []string
+	}{
+		// Bare-metal: keep paths outside /host/, drop paths inside.
+		{"bare-metal nil preserved", false, nil, nil},
+		{"bare-metal empty preserved", false, []string{}, []string{}},
+		{"bare-metal keeps non-host paths", false,
+			[]string{"/var/log", "/tmp"}, []string{"/var/log", "/tmp"}},
+		{"bare-metal drops /host/ paths", false,
+			[]string{"/host/var/log", "/host/etc"}, []string{}},
+		{"bare-metal mixed", false,
+			[]string{"/var/log", "/host/var/log", "/etc"},
+			[]string{"/var/log", "/etc"}},
+		{"bare-metal allows /hostname (not under /host/)", false,
+			[]string{"/hostname"}, []string{"/hostname"}},
+
+		// Containerized: keep paths under /host/, drop paths outside.
+		{"containerized nil preserved", true, nil, nil},
+		{"containerized empty preserved", true, []string{}, []string{}},
+		{"containerized keeps /host/ paths", true,
+			[]string{"/host/var/log", "/host/etc"},
+			[]string{"/host/var/log", "/host/etc"}},
+		{"containerized drops non-host paths", true,
+			[]string{"/var/log", "/tmp"}, []string{}},
+		{"containerized mixed", true,
+			[]string{"/var/log", "/host/var/log", "/etc"},
+			[]string{"/host/var/log"}},
+		{"containerized rejects /hostname (not under /host/)", true,
+			[]string{"/hostname"}, []string{}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.containerized {
+				t.Setenv("DOCKER_DD_AGENT", "true")
+			} else {
+				t.Setenv("DOCKER_DD_AGENT", "")
+			}
+
+			got := envFilterAllowedPaths(tc.input)
+
+			if tc.input == nil {
+				assert.Nil(t, got)
+			} else if len(tc.want) == 0 {
+				assert.Empty(t, got)
+			} else {
+				assert.Equal(t, tc.want, got)
+			}
+		})
+	}
+}
+
+func TestNewRunCommandHandlerOperatorPathsFilteredBareMetal(t *testing.T) {
+	t.Setenv("DOCKER_DD_AGENT", "")
+
+	handler := NewRunCommandHandler(
+		[]string{"/var/log", "/host/var/log", "/etc"}, nil)
+
+	assert.Equal(t,
+		map[string]struct{}{"/var/log": {}, "/etc": {}},
+		handler.operatorAllowedPaths)
+	assert.True(t, handler.operatorPathsFilterEnabled)
+}
+
+func TestNewRunCommandHandlerOperatorPathsFilteredContainerized(t *testing.T) {
+	t.Setenv("DOCKER_DD_AGENT", "true")
+
+	handler := NewRunCommandHandler(
+		[]string{"/var/log", "/host/var/log", "/host/etc"}, nil)
+
+	assert.Equal(t,
+		map[string]struct{}{"/host/var/log": {}, "/host/etc": {}},
+		handler.operatorAllowedPaths)
+	assert.True(t, handler.operatorPathsFilterEnabled)
+}
+
+func TestNewRunCommandHandlerOperatorPathsAllWrongEnvBlocksAll(t *testing.T) {
+	// Operator misconfigured for the runner's environment. The filter
+	// strips every entry, leaving an empty allowlist — operatorPathsFilter
+	// stays enabled, so rshell will block all filesystem access regardless
+	// of what the backend approves.
+	t.Setenv("DOCKER_DD_AGENT", "true")
+
+	handler := NewRunCommandHandler([]string{"/var/log", "/etc"}, nil)
+
+	assert.Empty(t, handler.operatorAllowedPaths)
+	assert.True(t, handler.operatorPathsFilterEnabled)
+}
+
+func TestRunCommandBackendPathsEnvFilteredContainerized(t *testing.T) {
+	// Containerized runner; backend sent a bare-metal path. After env
+	// filtering, the backend list is empty — the intersection with the
+	// (also bare-metal-only) operator list collapses to nothing and rshell
+	// rejects the read.
+	t.Setenv("DOCKER_DD_AGENT", "true")
+
+	handler := NewRunCommandHandler(
+		[]string{"/host/var/log"}, []string{"rshell:cat"})
+	task := makeTaskWithPaths("cat /var/log/syslog",
+		[]string{"rshell:cat"}, []string{"/var/log"})
+
+	out, err := handler.Run(context.Background(), task, nil)
+
+	require.NoError(t, err)
+	result := out.(*RunCommandOutputs)
+	assert.NotEqual(t, 0, result.ExitCode,
+		"expected cat to fail because /var/log was env-filtered out of the backend list")
+}
+
+func TestRunCommandBackendPathsEnvFilteredBareMetal(t *testing.T) {
+	// Bare-metal runner; backend sent a containerized path. Env filtering
+	// drops it before intersection — rshell never sees /host/var/log.
+	t.Setenv("DOCKER_DD_AGENT", "")
+
+	handler := NewRunCommandHandler(
+		[]string{"/var/log"}, []string{"rshell:cat"})
+	task := makeTaskWithPaths("cat /var/log/syslog",
+		[]string{"rshell:cat"}, []string{"/host/var/log"})
+
+	out, err := handler.Run(context.Background(), task, nil)
+
+	require.NoError(t, err)
+	result := out.(*RunCommandOutputs)
+	assert.NotEqual(t, 0, result.ExitCode,
+		"expected cat to fail because /host/var/log was env-filtered out of the backend list")
 }
 
 func mockStatFn(existing map[string]bool) func(string) (os.FileInfo, error) {

@@ -27,13 +27,46 @@ import (
 )
 
 const (
-	defaultProcPath         = "/proc"
-	containerizedPathPrefix = "/host"
+	defaultProcPath = "/proc"
+	// containerizedHostPrefix is the path namespace under which
+	// containerized runners see the host filesystem. Paths outside this
+	// prefix belong to the bare-metal namespace. The trailing slash matters
+	// for prefix matching: "/host" alone would match "/hostname".
+	containerizedHostPrefix = "/host/"
 )
 
 // statFn is the function used to check path existence. It defaults to os.Stat
 // and can be overridden in tests.
 var statFn = os.Stat
+
+// envAllowsPath reports whether p belongs to the path namespace of the
+// current runtime environment. Containerized runners see the host
+// filesystem mounted under /host/; bare-metal runners see it directly.
+// Crossing the line would point rshell at a tree that does not exist in
+// the runner's namespace.
+func envAllowsPath(p string) bool {
+	if env.IsContainerized() {
+		return strings.HasPrefix(p, containerizedHostPrefix)
+	}
+	return !strings.HasPrefix(p, containerizedHostPrefix)
+}
+
+// envFilterAllowedPaths drops paths that do not belong to the current
+// runtime environment. Nil is preserved so the nil-vs-empty contract used
+// by filterAllowedPaths (nil = "field absent", empty = "explicit no
+// paths") survives the filter.
+func envFilterAllowedPaths(paths []string) []string {
+	if paths == nil {
+		return nil
+	}
+	filtered := make([]string, 0, len(paths))
+	for _, p := range paths {
+		if envAllowsPath(p) {
+			filtered = append(filtered, p)
+		}
+	}
+	return filtered
+}
 
 // RunCommandHandler implements the runCommand action.
 //
@@ -59,12 +92,18 @@ type RunCommandHandler struct {
 // NewRunCommandHandler creates a new RunCommandHandler. Pass nil for either
 // operator list to disable filtering on that axis. A non-nil empty slice is
 // an explicit "block everything on this axis" and is honored as such.
+//
+// Operator paths are env-filtered at construction: containerized runners
+// drop entries outside /host/, bare-metal runners drop entries inside it.
+// An operator who lists only wrong-namespace paths will get an empty
+// operator allowlist and block all access.
 func NewRunCommandHandler(operatorAllowedPaths []string, operatorAllowedCommands []string) *RunCommandHandler {
 	h := &RunCommandHandler{}
 	if operatorAllowedPaths != nil {
 		h.operatorPathsFilterEnabled = true
-		h.operatorAllowedPaths = make(map[string]struct{}, len(operatorAllowedPaths))
-		for _, p := range operatorAllowedPaths {
+		envFiltered := envFilterAllowedPaths(operatorAllowedPaths)
+		h.operatorAllowedPaths = make(map[string]struct{}, len(envFiltered))
+		for _, p := range envFiltered {
 			if p == "" {
 				continue
 			}
@@ -162,7 +201,9 @@ func (h *RunCommandHandler) Run(
 	}
 
 	effectiveAllowedCommands := h.filterAllowedCommands(inputs.AllowedCommands)
-	effectiveAllowedPaths := h.filterAllowedPaths(inputs.AllowedPaths)
+	// Env-filter the backend list before intersection: paths from the
+	// wrong namespace would not exist on this runner.
+	effectiveAllowedPaths := h.filterAllowedPaths(envFilterAllowedPaths(inputs.AllowedPaths))
 	log.Debugf("rshell runCommand: command=%q backendAllowedCommands=%v effectiveAllowedCommands=%v backendAllowedPaths=%v effectiveAllowedPaths=%v",
 		inputs.Command, inputs.AllowedCommands, effectiveAllowedCommands, inputs.AllowedPaths, effectiveAllowedPaths)
 
@@ -212,7 +253,7 @@ func (h *RunCommandHandler) Run(
 // /host/proc; otherwise it falls back to /proc.
 func resolveProcPath() string {
 	if env.IsContainerized() {
-		hostProc := path.Join(containerizedPathPrefix, defaultProcPath)
+		hostProc := path.Join(containerizedHostPrefix, defaultProcPath)
 		if _, err := statFn(hostProc); err == nil {
 			return hostProc
 		}
