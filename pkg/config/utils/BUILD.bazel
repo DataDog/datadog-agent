@@ -9,6 +9,7 @@ go_library(
         "metadata_as_tags.go",
         "metadata_providers.go",
         "miscellaneous.go",
+        "process.go",
         "tags.go",
         "telemetry.go",
         "trace.go",
