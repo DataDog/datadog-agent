@@ -23,7 +23,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	hostComp "github.com/DataDog/datadog-agent/comp/metadata/host"
-	"github.com/DataDog/datadog-agent/comp/metadata/resources"
+	resources "github.com/DataDog/datadog-agent/comp/metadata/resources/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"

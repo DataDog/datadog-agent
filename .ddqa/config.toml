@@ -18,6 +18,14 @@ github_team = "agent-metric-pipelines"
 github_labels = ["team/agent-metric-pipelines"]
 exclude_members = [""]
 
+[teams."Agent Data Plane"]
+jira_project = "DADP"
+jira_issue_type = "Task"
+jira_statuses = ["To Do", "In Progress", "Done"]
+github_team = "agent-data-plane"
+github_labels = ["team/agent-data-plane"]
+exclude_members = [""]
+
 [teams."Agent Runtimes"]
 jira_project = "AGENTRUN"
 jira_issue_type = "QA"
