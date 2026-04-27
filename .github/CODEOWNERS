@@ -898,6 +898,7 @@
 /tools/                                 @DataDog/agent-devx
 /tools/host-profiler/                   @DataDog/profiling-full-host
 /tools/bazel*                           @DataDog/agent-build
+/.claude/skills/go-to-bazel/SKILL.md    @DataDog/agent-build
 /tools/ci                               @DataDog/agent-devx
 /tools/ci/*bazel*                       @DataDog/agent-build
 /tools/ebpf/                            @DataDog/ebpf-platform
