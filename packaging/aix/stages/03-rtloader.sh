@@ -87,6 +87,7 @@ _embedded_real=$(cd "$EMBEDDED" 2>/dev/null && pwd -P)
 _destdir_real=$(cd "$EMBEDDED_DESTDIR" 2>/dev/null && pwd -P)
 if [ "$_embedded_real" != "$_destdir_real" ]; then
     ln -sf "$EMBEDDED_DESTDIR/lib/libpython${PYTHON_MAJ_MIN}.so" "$EMBEDDED/lib/libpython${PYTHON_MAJ_MIN}.so" 2>/dev/null || true
+    ln -sf "$EMBEDDED_DESTDIR/lib/libpython${PYTHON_MAJ_MIN}.a"  "$EMBEDDED/lib/libpython${PYTHON_MAJ_MIN}.a"  2>/dev/null || true
 fi
 
 log "Running cmake for rtloader"
@@ -98,6 +99,8 @@ OBJECT_MODE=64 cmake \
     -DCMAKE_C_FLAGS="$CFLAGS" \
     -DCMAKE_CXX_FLAGS="$CXXFLAGS" \
     -DCMAKE_SHARED_LINKER_FLAGS="$LDFLAGS" \
+    -DCMAKE_INSTALL_RPATH="/opt/datadog-agent/embedded/lib:/opt/datadog-agent/rtloader:/opt/freeware/lib:/usr/lib:/lib" \
+    -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON \
     -DBUILD_DEMO=OFF \
     -DDISABLE_PYTHON2=ON \
     -DPython3_INCLUDE_DIR="$EMBEDDED_DESTDIR/include/python${PYTHON_MAJ_MIN}" \
