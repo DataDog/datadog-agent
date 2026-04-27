@@ -6,6 +6,7 @@
 package compliance
 
 import (
+	"bytes"
 	"embed"
 	"encoding/json"
 	"expvar"
@@ -38,10 +39,20 @@ func (statusProvider) Section() string {
 	return "compliance"
 }
 
-func (s statusProvider) populateStatus(stats map[string]interface{}) {
+// RenderStatusText renders the compliance status to text using the standard template.
+func (a *Agent) RenderStatusText() (string, error) {
+	var buf bytes.Buffer
+	if err := statusComp.RenderText(templatesFS, "compliance.tmpl", &buf, a.StatusData()); err != nil {
+		return "", err
+	}
+	return buf.String(), nil
+}
+
+// StatusData returns the compliance status as a map suitable for JSON serialization.
+func (a *Agent) StatusData() map[string]interface{} {
 	complianceStats := map[string]interface{}{}
 
-	complianceStats["endpoints"] = s.agent.opts.Reporter.Endpoints().GetStatus()
+	complianceStats["endpoints"] = a.opts.Reporter.Endpoints().GetStatus()
 
 	complianceVar := expvar.Get("compliance")
 	runnerVar := expvar.Get("runner")
@@ -64,15 +75,19 @@ func (s statusProvider) populateStatus(stats map[string]interface{}) {
 		complianceStats["runnerStats"] = map[string]interface{}{}
 	}
 
-	stats["complianceStatus"] = complianceStats
+	return map[string]interface{}{
+		"complianceStatus": complianceStats,
+	}
+}
+
+func (s statusProvider) populateStatus(stats map[string]interface{}) {
+	for k, v := range s.agent.StatusData() {
+		stats[k] = v
+	}
 }
 
 func (s statusProvider) getStatus() map[string]interface{} {
-	stats := make(map[string]interface{})
-
-	s.populateStatus(stats)
-
-	return stats
+	return s.agent.StatusData()
 }
 
 // JSON populates the status map
