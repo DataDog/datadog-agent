@@ -393,9 +393,6 @@ linters:
       text: '`context` is unused'
     - path: (.+)\.go$
       text: '`id` is unused'
-    # 'unconvert' errors in test/integration/utils/certificates_test.go
-    - path: (.+)\.go$
-      text: unnecessary conversion
     # Exclude some linters from running on tests files.
     - path: _test\.go
       linters:
