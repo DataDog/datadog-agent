@@ -78,6 +78,92 @@ func BenchmarkTimeSamplerHook(b *testing.B) {
 	}
 }
 
+// BenchmarkNoAggWorkerHook measures the hook tap point in the no-aggregation stream
+// worker. Unlike TimeSampler, this path allocates a new snapshot slice per batch
+// when subscribers are present. The noop and 0-subscriber cases remain zero-cost.
+//
+// Pattern (from no_aggregation_stream_worker.go):
+//
+//	if w.metricHook.HasSubscribers() {
+//	    hookBatch := make([]MetricSampleSnapshot, len(samples))
+//	    for i := range samples { hookBatch[i] = NewMetricSampleSnapshot(&samples[i]) }
+//	    w.metricHook.Publish("dogstatsd-no-aggr", hookBatch)
+//	}
+func BenchmarkNoAggWorkerHook(b *testing.B) {
+	samples := make([]metrics.MetricSample, benchBatchSize)
+	for i := range samples {
+		samples[i] = metrics.MetricSample{
+			Name: "bench.metric", Value: float64(i),
+			Mtype: metrics.GaugeType, Tags: []string{"env:prod", "service:foo"},
+			SampleRate: 1.0, Timestamp: 12345.0,
+		}
+	}
+
+	for _, tc := range hookBenchCases(b) {
+		b.Run(fmt.Sprintf("batch%d/%s", benchBatchSize, tc.name), func(b *testing.B) {
+			b.ReportAllocs()
+			b.ResetTimer()
+			for b.Loop() {
+				// Exact pattern from no_aggregation_stream_worker.go
+				if tc.h.HasSubscribers() {
+					hookBatch := make([]hook.MetricSampleSnapshot, len(samples))
+					for i := range samples {
+						hookBatch[i] = hook.NewMetricSampleSnapshot(&samples[i])
+					}
+					tc.h.Publish("dogstatsd-no-aggr", hookBatch)
+				}
+			}
+		})
+	}
+}
+
+// BenchmarkCheckSamplerHook measures the hook tap point in CheckSampler.addSample().
+// Each check metric triggers a single-sample publish when subscribers are present,
+// allocating a one-element slice. The noop and 0-subscriber cases remain zero-cost.
+//
+// Pattern (from check_sampler.go):
+//
+//	if cs.metricHook.HasSubscribers() {
+//	    cs.metricHook.Publish("checks", []MetricSampleSnapshot{NewMetricSampleSnapshot(s)})
+//	}
+func BenchmarkCheckSamplerHook(b *testing.B) {
+	sample := &metrics.MetricSample{
+		Name: "bench.check", Value: 1.0,
+		Mtype: metrics.GaugeType, Tags: []string{"env:prod", "service:foo"},
+		SampleRate: 1.0, Timestamp: 12345.0,
+	}
+
+	for _, tc := range hookBenchCases(b) {
+		b.Run(tc.name, func(b *testing.B) {
+			b.ReportAllocs()
+			b.ResetTimer()
+			for b.Loop() {
+				// Exact pattern from check_sampler.go
+				if tc.h.HasSubscribers() {
+					tc.h.Publish("checks", []hook.MetricSampleSnapshot{hook.NewMetricSampleSnapshot(sample)})
+				}
+			}
+		})
+	}
+}
+
+// hookBenchCases returns the four hook modes used across all pipeline benchmarks.
+func hookBenchCases(b *testing.B) []struct {
+	name string
+	h    hook.Hook[[]hook.MetricSampleSnapshot]
+} {
+	b.Helper()
+	return []struct {
+		name string
+		h    hook.Hook[[]hook.MetricSampleSnapshot]
+	}{
+		{"noop_hook", hook.NewNoopHook[[]hook.MetricSampleSnapshot]()},
+		{"0sub", makeMetricHook(b, 0)},
+		{"1sub", makeMetricHook(b, 1)},
+		{"5sub", makeMetricHook(b, 5)},
+	}
+}
+
 // makeMetricHook returns a real hook with n no-op subscribers.
 // The subscriber channel is sized to b.N * benchBatchSize so sends never block
 // during the benchmark (no drop overhead measured).
