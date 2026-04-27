@@ -220,6 +220,212 @@ func TestAuthCredentials_DefaultValues(t *testing.T) {
 	assert.Equal(t, "tcp", config.Auth.Protocol)
 }
 
+func TestStoreConfig_Validation(t *testing.T) {
+	tests := []struct {
+		name   string
+		config *StoreConfig
+		errMsg string
+	}{
+		{
+			name: "valid config",
+			config: &StoreConfig{
+				MinConfigsPerDevice:    2,
+				MaxConfigsPerDevice:    50,
+				MaxRawConfigStoreBytes: 512 * 1024 * 1024,
+			},
+		},
+		{
+			name: "min equals max is valid",
+			config: &StoreConfig{
+				MinConfigsPerDevice:    10,
+				MaxConfigsPerDevice:    10,
+				MaxRawConfigStoreBytes: 1024,
+			},
+		},
+		{
+			name: "min_configs_per_device zero",
+			config: &StoreConfig{
+				MinConfigsPerDevice:    0,
+				MaxConfigsPerDevice:    50,
+				MaxRawConfigStoreBytes: 512 * 1024 * 1024,
+			},
+			errMsg: "store.min_configs_per_device must be greater than zero",
+		},
+		{
+			name: "max_configs_per_device zero",
+			config: &StoreConfig{
+				MinConfigsPerDevice:    2,
+				MaxConfigsPerDevice:    0,
+				MaxRawConfigStoreBytes: 512 * 1024 * 1024,
+			},
+			errMsg: "store.max_configs_per_device must be greater than zero",
+		},
+		{
+			name: "min exceeds max",
+			config: &StoreConfig{
+				MinConfigsPerDevice:    100,
+				MaxConfigsPerDevice:    10,
+				MaxRawConfigStoreBytes: 512 * 1024 * 1024,
+			},
+			errMsg: "store.min_configs_per_device (100) must not exceed store.max_configs_per_device (10)",
+		},
+		{
+			name: "max_raw_config_store_bytes zero",
+			config: &StoreConfig{
+				MinConfigsPerDevice:    2,
+				MaxConfigsPerDevice:    50,
+				MaxRawConfigStoreBytes: 0,
+			},
+			errMsg: "store.max_raw_config_store_bytes must be greater than zero",
+		},
+		{
+			name: "max_raw_config_store_bytes negative",
+			config: &StoreConfig{
+				MinConfigsPerDevice:    2,
+				MaxConfigsPerDevice:    50,
+				MaxRawConfigStoreBytes: -1,
+			},
+			errMsg: "store.max_raw_config_store_bytes must be greater than zero",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.config.validate()
+			if tt.errMsg != "" {
+				assert.EqualError(t, err, tt.errMsg)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestStoreConfig_Defaults(t *testing.T) {
+	ic := InitConfig{
+		Namespace: "default",
+	}
+	ic.applyDefaults()
+
+	require.NotNil(t, ic.Store)
+	assert.Equal(t, defaultMinConfigsPerDevice, ic.Store.MinConfigsPerDevice)
+	assert.Equal(t, defaultMaxConfigsPerDevice, ic.Store.MaxConfigsPerDevice)
+	assert.Equal(t, defaultMaxRawConfigStoreBytes, ic.Store.MaxRawConfigStoreBytes)
+}
+
+func TestStoreConfig_PartialDefaults(t *testing.T) {
+	ic := InitConfig{
+		Namespace: "default",
+		Store: &StoreConfig{
+			MinConfigsPerDevice: 5,
+		},
+	}
+	ic.applyDefaults()
+
+	assert.Equal(t, 5, ic.Store.MinConfigsPerDevice)
+	assert.Equal(t, defaultMaxConfigsPerDevice, ic.Store.MaxConfigsPerDevice)
+	assert.Equal(t, defaultMaxRawConfigStoreBytes, ic.Store.MaxRawConfigStoreBytes)
+}
+
+func TestStoreConfig_YAMLUnmarshal(t *testing.T) {
+	yamlData := `
+namespace: production
+ssh:
+  insecure_skip_verify: true
+store:
+  min_configs_per_device: 3
+  max_configs_per_device: 100
+  max_raw_config_store_bytes: 1073741824
+`
+	var ic InitConfig
+	err := yaml.Unmarshal([]byte(yamlData), &ic)
+	require.NoError(t, err)
+	require.NotNil(t, ic.Store)
+	assert.Equal(t, 3, ic.Store.MinConfigsPerDevice)
+	assert.Equal(t, 100, ic.Store.MaxConfigsPerDevice)
+	assert.Equal(t, int64(1073741824), ic.Store.MaxRawConfigStoreBytes)
+}
+
+func TestStoreConfig_YAMLUnmarshalOmitted(t *testing.T) {
+	yamlData := `
+namespace: production
+ssh:
+  insecure_skip_verify: true
+`
+	var ic InitConfig
+	err := yaml.Unmarshal([]byte(yamlData), &ic)
+	require.NoError(t, err)
+	assert.Nil(t, ic.Store)
+
+	ic.applyDefaults()
+	require.NotNil(t, ic.Store)
+	assert.Equal(t, defaultMinConfigsPerDevice, ic.Store.MinConfigsPerDevice)
+}
+
+func TestNewNcmCheckContext_WithStoreConfig(t *testing.T) {
+	initConfig := `
+namespace: default
+ssh:
+  insecure_skip_verify: true
+store:
+  min_configs_per_device: 5
+  max_configs_per_device: 200
+  max_raw_config_store_bytes: 2147483648
+`
+	instanceConfig := `
+ip_address: 192.168.0.1
+auth:
+  password: 'password'
+  username: 'admin'
+`
+	cfg, err := NewNcmCheckContext([]byte(instanceConfig), []byte(initConfig))
+	require.NoError(t, err)
+	require.NotNil(t, cfg.Store)
+	assert.Equal(t, 5, cfg.Store.MinConfigsPerDevice)
+	assert.Equal(t, 200, cfg.Store.MaxConfigsPerDevice)
+	assert.Equal(t, int64(2147483648), cfg.Store.MaxRawConfigStoreBytes)
+}
+
+func TestNewNcmCheckContext_StoreDefaultsApplied(t *testing.T) {
+	initConfig := `
+namespace: default
+ssh:
+  insecure_skip_verify: true
+`
+	instanceConfig := `
+ip_address: 192.168.0.1
+auth:
+  password: 'password'
+  username: 'admin'
+`
+	cfg, err := NewNcmCheckContext([]byte(instanceConfig), []byte(initConfig))
+	require.NoError(t, err)
+	require.NotNil(t, cfg.Store)
+	assert.Equal(t, defaultMinConfigsPerDevice, cfg.Store.MinConfigsPerDevice)
+	assert.Equal(t, defaultMaxConfigsPerDevice, cfg.Store.MaxConfigsPerDevice)
+	assert.Equal(t, defaultMaxRawConfigStoreBytes, cfg.Store.MaxRawConfigStoreBytes)
+}
+
+func TestNewNcmCheckContext_InvalidStoreConfig(t *testing.T) {
+	initConfig := `
+namespace: default
+ssh:
+  insecure_skip_verify: true
+store:
+  min_configs_per_device: 100
+  max_configs_per_device: 10
+  max_raw_config_store_bytes: 1024
+`
+	instanceConfig := `
+ip_address: 192.168.0.1
+auth:
+  password: 'password'
+  username: 'admin'
+`
+	_, err := NewNcmCheckContext([]byte(instanceConfig), []byte(initConfig))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "store.min_configs_per_device (100) must not exceed store.max_configs_per_device (10)")
+}
+
 func TestParsingSSHTimeoutFromYAML(t *testing.T) {
 	var tests = []struct {
 		name     string

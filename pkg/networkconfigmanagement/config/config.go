@@ -30,6 +30,13 @@ var checkName = "network_config_management"
 var defaultCheckInterval = 15 * time.Minute
 var defaultSSHTimeout = 30 * time.Second
 
+// Store defaults
+var (
+	defaultMinConfigsPerDevice    = 2
+	defaultMaxConfigsPerDevice    = 50
+	defaultMaxRawConfigStoreBytes = int64(512 * 1024 * 1024) // 512 MB
+)
+
 // AuthCredentials holds the authentication credentials to connect to a network device.
 type AuthCredentials struct { // auth_credentials
 	// Authenticate via password (fallback after private key if provided)
@@ -55,9 +62,10 @@ type DeviceInstance struct {
 
 // InitConfig holds the initial configuration for the NCM component, including the namespace and check interval.
 type InitConfig struct {
-	Namespace             string     `yaml:"namespace"`               // Namespace for the NCM devices where configs are retrieved from, to help match a device on DD
-	MinCollectionInterval int        `yaml:"min_collection_interval"` // Interval in seconds to check for config changes
-	SSH                   *SSHConfig `yaml:"ssh"`                     // SSH holds global connection configurations that can apply to all devices if pertinent
+	Namespace             string       `yaml:"namespace"`               // Namespace for the NCM devices where configs are retrieved from, to help match a device on DD
+	MinCollectionInterval int          `yaml:"min_collection_interval"` // Interval in seconds to check for config changes
+	SSH                   *SSHConfig   `yaml:"ssh"`                     // SSH holds global connection configurations that can apply to all devices if pertinent
+	Store                 *StoreConfig `yaml:"store"`                   // Store holds configuration for the local config store and its eviction policy
 }
 
 // SSHConfig holds the configuration (either globally if in init config or for the specific device instance) to use when connecting to the configured device via SSH
@@ -77,11 +85,21 @@ type SSHConfig struct {
 	AllowLegacyAlgorithms bool `yaml:"allow_legacy_algorithms"`
 }
 
+// StoreConfig holds the configuration for the local bbolt config store and its eviction policy.
+// These can be set globally in init_config to control how many configs are retained per device
+// and the maximum on-disk size of the store.
+type StoreConfig struct {
+	MinConfigsPerDevice    int   `yaml:"min_configs_per_device"`      // minimum configs retained per device even under size pressure
+	MaxConfigsPerDevice    int   `yaml:"max_configs_per_device"`      // hard cap; configs beyond this are evicted oldest-first
+	MaxRawConfigStoreBytes int64 `yaml:"max_raw_config_store_bytes"`  // maximum on-disk size of the store in bytes
+}
+
 // NcmCheckContext holds the processed config needed for an integration instance to run
 type NcmCheckContext struct {
 	Namespace             string
 	Device                *DeviceInstance
 	MinCollectionInterval time.Duration
+	Store                 *StoreConfig
 	ProfileMap            profile.Map
 	ProfileCache          *profile.Cache
 }
@@ -143,6 +161,7 @@ func NewNcmCheckContext(rawInstance integration.Data, rawInitConfig integration.
 		Namespace:             initConfig.Namespace,
 		MinCollectionInterval: time.Duration(initConfig.MinCollectionInterval) * time.Second,
 		Device:                &deviceInstance,
+		Store:                 initConfig.Store,
 		ProfileMap:            profMap,
 		ProfileCache:          profileCache,
 	}
@@ -230,6 +249,10 @@ func (ic *InitConfig) applyDefaults() {
 		log.Debugf("No or invalid min_collection_interval specified in init config, applying default: %d", defaultCheckInterval)
 		ic.MinCollectionInterval = int(defaultCheckInterval.Seconds()) // Default to 15 minutes
 	}
+	if ic.Store == nil {
+		ic.Store = &StoreConfig{}
+	}
+	ic.Store.applyDefaults()
 }
 
 // Validate checks that the InitConfig has all required fields and applies defaults where needed
@@ -248,6 +271,12 @@ func (ic *InitConfig) Validate() error {
 	if ic.SSH != nil {
 		if err := ic.SSH.validate(); err != nil {
 			return fmt.Errorf("invalid init_config SSH config: %w", err)
+		}
+	}
+
+	if ic.Store != nil {
+		if err := ic.Store.validate(); err != nil {
+			return fmt.Errorf("invalid init_config store config: %w", err)
 		}
 	}
 	return nil
@@ -338,6 +367,38 @@ func (sc *SSHConfig) hasRequiredFields() error {
 	// must have at least a known paths specified or skip verification (insecure, only for development/testing purposes)
 	if sc.KnownHostsPath == "" && !sc.InsecureSkipVerify {
 		return errors.New("no SSH host key verification configured: set known_hosts_path or enable insecure_skip_verify")
+	}
+	return nil
+}
+
+func (st *StoreConfig) applyDefaults() {
+	if st.MinConfigsPerDevice <= 0 {
+		log.Debugf("No or invalid min_configs_per_device specified, applying default: %d", defaultMinConfigsPerDevice)
+		st.MinConfigsPerDevice = defaultMinConfigsPerDevice
+	}
+	if st.MaxConfigsPerDevice <= 0 {
+		log.Debugf("No or invalid max_configs_per_device specified, applying default: %d", defaultMaxConfigsPerDevice)
+		st.MaxConfigsPerDevice = defaultMaxConfigsPerDevice
+	}
+	if st.MaxRawConfigStoreBytes <= 0 {
+		log.Debugf("No or invalid max_raw_config_store_bytes specified, applying default: %d", defaultMaxRawConfigStoreBytes)
+		st.MaxRawConfigStoreBytes = defaultMaxRawConfigStoreBytes
+	}
+}
+
+func (st *StoreConfig) validate() error {
+	if st.MinConfigsPerDevice <= 0 {
+		return errors.New("store.min_configs_per_device must be greater than zero")
+	}
+	if st.MaxConfigsPerDevice <= 0 {
+		return errors.New("store.max_configs_per_device must be greater than zero")
+	}
+	if st.MinConfigsPerDevice > st.MaxConfigsPerDevice {
+		return fmt.Errorf("store.min_configs_per_device (%d) must not exceed store.max_configs_per_device (%d)",
+			st.MinConfigsPerDevice, st.MaxConfigsPerDevice)
+	}
+	if st.MaxRawConfigStoreBytes <= 0 {
+		return errors.New("store.max_raw_config_store_bytes must be greater than zero")
 	}
 	return nil
 }
