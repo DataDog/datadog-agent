@@ -1141,7 +1141,26 @@ def _run_iteration_body(
                 {"iter": iter_num, "candidate": candidate.id, "detectors": sorted(unregistered)},
                 root,
             )
-            experiment.auto_reject_reason = reason
+            # Create a minimal Experiment record so the proposer's research
+            # memory sees this rejection on the next iter. Without it,
+            # _recent_experiments skips this iter and the proposer keeps
+            # generating candidates that fail catalog registration.
+            experiment = Experiment(
+                id=experiment_id,
+                candidate_id=candidate.id,
+                phase=candidate.phase,
+                tier=Tier.T0,
+                commit_sha=pre_sha,
+                config_path="",
+                impl_summary=impl_summary,
+                scenario_set=[],
+                status=ExperimentStatus.FAILED,
+                started_at=it.started_at,
+                report_path="",
+                auto_reject_reason=reason,
+            )
+            db.experiments[experiment_id] = experiment
+            it.experiment_ids.append(experiment_id)
             coord_out.emit(
                 "iter_rejected",
                 (
