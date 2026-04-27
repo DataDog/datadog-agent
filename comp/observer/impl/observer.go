@@ -235,12 +235,17 @@ func NewComponent(deps Requires) Provides {
 	hfFilterSources := make(map[metrics.MetricSource]struct{})
 
 	obs := &observerImpl{
-		engine:             eng,
-		obsCh:              make(chan observation, 1000),
-		telemetryHandler:   th,
-		dropCounter:        th.telemetryCounters[telemetryObsChannelDropped],
-		hfContainerEnabled: hfContainerEnabled,
-		hfFilterSources:    hfFilterSources,
+		engine:               eng,
+		obsCh:                make(chan observation, 1000),
+		telemetryHandler:     th,
+		dropCounter:          th.telemetryCounters[telemetryObsChannelDropped],
+		hfContainerEnabled:   hfContainerEnabled,
+		hfFilterSources:      hfFilterSources,
+		ingestMetricsEnabled: cfg.GetBool("observer.ingest_metrics.enabled"),
+	}
+
+	if !obs.ingestMetricsEnabled {
+		pkglog.Warn("[observer] observer.ingest_metrics.enabled=false: externally-ingested metrics will be dropped at the handle factory")
 	}
 
 	// Set up handle function based on recording and analysis configuration.
@@ -510,6 +515,13 @@ type observerImpl struct {
 
 	// hfContainerEnabled is true when high-frequency container check collection is active.
 	hfContainerEnabled bool
+
+	// ingestMetricsEnabled gates externally-ingested metrics at the handle
+	// factory. When false, "all-metrics" and HF handles return a wrapper
+	// that drops ObserveMetric calls. Logs and profiles still pass through,
+	// and log-derived virtual metrics produced inside the engine by
+	// LogMetricsExtractors are unaffected because they bypass the handle.
+	ingestMetricsEnabled bool
 }
 
 // run is the main dispatch loop, processing all observations sequentially.
@@ -677,13 +689,20 @@ func (o *observerImpl) GetHandle(name string) observerdef.Handle {
 // When any HF check collection is enabled, the "all-metrics" handle is wrapped
 // with hfFilteredHandle to suppress 15s samples for checks that have a 1s HF
 // counterpart active — the scorer should only see the higher-resolution stream.
+// When observer.ingest_metrics.enabled=false, the resulting handle is further
+// wrapped with metricDropHandle so external metrics are dropped at the edge,
+// while ObserveLog/ObserveProfile pass through.
 func (o *observerImpl) innerHandle(name string) observerdef.Handle {
 	h := &handle{ch: o.obsCh, source: name, dropCounter: o.dropCounter}
 	o.engine.registerHandle(h)
+	var out observerdef.Handle = h
 	if len(o.hfFilterSources) > 0 && name == "all-metrics" {
-		return &hfFilteredHandle{inner: h, sources: o.hfFilterSources}
+		out = &hfFilteredHandle{inner: h, sources: o.hfFilterSources}
 	}
-	return h
+	if !o.ingestMetricsEnabled {
+		out = &metricDropHandle{inner: out}
+	}
+	return out
 }
 
 // sourceProvider is a structural interface satisfied by *metrics.MetricSample,
@@ -752,6 +771,25 @@ func (f *hfFilteredHandle) ObserveLog(msg observerdef.LogView)             { f.i
 func (f *hfFilteredHandle) ObserveTrace(_ observerdef.TraceView)           {}
 func (f *hfFilteredHandle) ObserveTraceStats(_ observerdef.TraceStatsView) {}
 func (f *hfFilteredHandle) ObserveProfile(p observerdef.ProfileView)       { f.inner.ObserveProfile(p) }
+
+// metricDropHandle drops every ObserveMetric call but lets logs and
+// profiles through. Used when observer.ingest_metrics.enabled=false so
+// external metric sources (DogStatsD, check samplers, HF runners) do not
+// feed the engine. Virtual metrics produced by LogMetricsExtractors
+// during engine.IngestLog are unaffected because they bypass this handle
+// path entirely (they are written directly to storage from the engine).
+type metricDropHandle struct{ inner observerdef.Handle }
+
+var _ observerdef.Handle = (*metricDropHandle)(nil)
+
+func (m *metricDropHandle) ObserveMetric(_ observerdef.MetricView) {}
+func (m *metricDropHandle) ObserveMetricAndReportDrop(_ observerdef.MetricView) bool {
+	return false
+}
+func (m *metricDropHandle) ObserveLog(msg observerdef.LogView)             { m.inner.ObserveLog(msg) }
+func (m *metricDropHandle) ObserveTrace(_ observerdef.TraceView)           {}
+func (m *metricDropHandle) ObserveTraceStats(_ observerdef.TraceStatsView) {}
+func (m *metricDropHandle) ObserveProfile(p observerdef.ProfileView)       { m.inner.ObserveProfile(p) }
 
 // noopHandle returns a handle that discards all observations.
 // Used when analysis is disabled so the analysis pipeline is not started.
