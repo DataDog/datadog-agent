@@ -95,7 +95,9 @@ func (*ExprReadStringOp) irOp() {}
 
 // ExprCmpEqBaseOp pops the LHS offset from the data stack, compares ByteSize
 // bytes at LHS vs RHS (current offset), and writes a bool result (0 or 1) at
-// the current offset.
+// the current offset. Used both for base-type equality and for the 8-byte
+// leading-pointer comparison that implements `== nil` on nullable types
+// (pointer, map, slice, interface).
 type ExprCmpEqBaseOp struct {
 	ByteSize uint8
 }
