@@ -1,0 +1,76 @@
+{
+  "commands": [
+    {
+      "type": "version",
+      "values": [
+        "show version"
+      ]
+    },
+    {
+      "type": "running",
+      "values": [
+        "more system:running-config"
+      ],
+      "processing_rules": {
+        "metadata": [],
+        "validation": [
+          {
+            "type": "valid_output",
+            "pattern": "ASA Version \\d+\\.\\d+\\(\\d+\\)"
+          }
+        ],
+        "redaction": [
+          {
+            "regex": "^(snmp-server community).*",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "enable password (\\S+) (.*)",
+            "replacement": "enable password <secret hidden> $2"
+          },
+          {
+            "regex": "^passwd (\\S+) (.*)",
+            "replacement": "passwd <secret hidden> $2"
+          },
+          {
+            "regex": "username (\\S+) password (\\S+) (.*)",
+            "replacement": "username $1 password <secret hidden> $3"
+          },
+          {
+            "regex": "(ikev[12] ((remote|local)-authentication )?pre-shared-key( hex)?) (\\S+)",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "^(aaa-server \\S+(?: \\(\\S+\\))? host \\S+\\n(?: [^\\n]+\\n)* +key) \\S+$",
+            "replacement": "$1 <secret hidden>",
+            "multiline": true
+          },
+          {
+            "regex": "ldap-login-password (\\S+)",
+            "replacement": "ldap-login-password <secret hidden>"
+          },
+          {
+            "regex": "^snmp-server host (.*) community (\\S+)",
+            "replacement": "snmp-server host $1 community <secret hidden>"
+          },
+          {
+            "regex": "^(failover key) .+",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "^(\\s+ospf message-digest-key \\d+ md5) .+",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "^(\\s+ospf authentication-key) .+",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "^(\\s+neighbor \\S+ password) .+",
+            "replacement": "$1 <secret hidden>"
+          }
+        ]
+      }
+    }
+  ]
+}
