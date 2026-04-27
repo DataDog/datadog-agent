@@ -27,17 +27,20 @@ from .db import state_dir
 # ---------------------------------------------------------------------------
 
 
-def _read_session_info(root: Path) -> tuple[str, str, str]:
-    """(session_name, mode, pr_num) — empty strings if not found."""
+def _read_session_info(root: Path) -> tuple[str, str, str, str, str]:
+    """(session_name, mode, pr_num, scratch_branch, upstream_branch).
+
+    Trailing fields are empty for legacy 3-line session.txt files.
+    """
     p = state_dir(root) / "session.txt"
     if not p.exists():
-        return "", "", ""
+        return "", "", "", "", ""
     parts = p.read_text().splitlines()
-    return (
-        parts[0].strip() if len(parts) >= 1 else "",
-        parts[1].strip() if len(parts) >= 2 else "",
-        parts[2].strip() if len(parts) >= 3 else "",
-    )
+
+    def _get(i: int) -> str:
+        return parts[i].strip() if len(parts) > i else ""
+
+    return _get(0), _get(1), _get(2), _get(3), _get(4)
 
 
 def _tmux_alive(session: str) -> bool:
@@ -130,7 +133,7 @@ def render_status(root: Path = Path(".")) -> str:
     sd = state_dir(root)
     pause_file = sd / "pause"
 
-    session, mode, pr_num = _read_session_info(root)
+    session, mode, pr_num, scratch, upstream = _read_session_info(root)
     alive = _tmux_alive(session)
     git = _git_state(root)
 
@@ -139,6 +142,8 @@ def render_status(root: Path = Path(".")) -> str:
     out.append("=" * 70)
     out.append(f"  branch:   {git.get('branch', '?')} @ {git.get('sha', '?')}")
     out.append(f"  commit:   {git.get('subject', '?')[:80]}")
+    if scratch:
+        out.append(f"  scratch:  {scratch}  (base: {upstream or '?'})")
     if session:
         status = "ALIVE" if alive else "DEAD"
         out.append(f"  tmux:     {session}  [{status}]  (mode={mode}, pr=#{pr_num})")

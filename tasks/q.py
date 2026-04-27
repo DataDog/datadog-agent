@@ -1957,9 +1957,10 @@ def coord_setup(ctx, auto: bool = True):
     help={
         "mode": "full | blank — full uses q-branch-observer; blank uses ella/observer-blank.",
         "remote": "Git remote name (default origin).",
+        "scratch_name": "Override scratch branch name (default: per-run unique from coord-up).",
     }
 )
-def coord_branches(ctx, mode: str = "full", remote: str = "origin"):
+def coord_branches(ctx, mode: str = "full", remote: str = "origin", scratch_name: str = ""):
     """
     Ensure the upstream + scratch branches exist locally and on origin.
 
@@ -1967,6 +1968,11 @@ def coord_branches(ctx, mode: str = "full", remote: str = "origin"):
     (detectors removed) so the run cannot draw on prior implementations
     and is forced to propose novel approaches. Idempotent: re-running
     just verifies and checks out.
+
+    --scratch-name: per-run unique scratch branch (e.g.
+    `claude/observer-full-20260427T1530`). Multiple parallel coord runs
+    use distinct scratch names so they don't fight over the same branch.
+    If omitted, falls back to the legacy shared name for backwards-compat.
 
     Prints the resulting branch + tracking state.
     """
@@ -1976,7 +1982,10 @@ def coord_branches(ctx, mode: str = "full", remote: str = "origin"):
         raise Exit(code=2, message=f"--mode must be 'full' or 'blank', got '{mode}'")
 
     upstream = "ella/observer-blank" if mode == "blank" else "q-branch-observer"
-    scratch = "claude/observer-blank-improvements" if mode == "blank" else "claude/observer-improvements"
+    if scratch_name:
+        scratch = scratch_name
+    else:
+        scratch = "claude/observer-blank-improvements" if mode == "blank" else "claude/observer-improvements"
 
     print(color_message(f"mode={mode}  upstream={upstream}  scratch={scratch}", Color.BLUE))
 
@@ -2012,8 +2021,9 @@ def coord_branches(ctx, mode: str = "full", remote: str = "origin"):
 @task(
     help={
         "mode": "full | blank — see q.coord-branches.",
-        "session": "tmux session name (default coord-<mode>).",
+        "session": "tmux session name (default coord-<mode>-<ts>).",
         "reuse_pr": "Reuse this PR number instead of creating a new one.",
+        "scratch_branch": "Override scratch branch (default: per-run unique name).",
         "token_ceiling": "Override the panic-brake token ceiling (default 500_000_000).",
         "wall_hours_ceiling": "Override the wall-time ceiling in hours (default 72).",
         "no_wipe": "Don't auto-archive prior db.yaml on --mode blank (default: auto-wipes).",
@@ -2024,6 +2034,7 @@ def coord_up(
     mode: str = "full",
     session: str = "",
     reuse_pr: int = 0,
+    scratch_branch: str = "",
     token_ceiling: int = 500_000_000,
     wall_hours_ceiling: float = 72.0,
     no_wipe: bool = False,
@@ -2046,7 +2057,17 @@ def coord_up(
     runs until budget halts, max-pivot halts, or the user kills the session.
     """
     coord_setup(ctx, auto=True)
-    coord_branches(ctx, mode=mode)
+
+    # Generate a per-run unique scratch branch name unless one is explicitly
+    # passed. This lets multiple workspaces run coord-up in parallel without
+    # fighting over a single shared branch, and produces a separate audit
+    # trail per run that can be evaluated side-by-side after the fact.
+    run_ts = time.strftime("%Y%m%dT%H%M")
+    if not scratch_branch:
+        scratch_branch = f"claude/observer-{mode}-{run_ts}"
+    upstream_branch = "ella/observer-blank" if mode == "blank" else "q-branch-observer"
+
+    coord_branches(ctx, mode=mode, scratch_name=scratch_branch)
 
     if mode == "blank" and not no_wipe:
         from tasks.coordinator import setup as coord_setup_mod
@@ -2068,20 +2089,27 @@ def coord_up(
 
     pr_num = reuse_pr
     if pr_num == 0:
-        # Fresh PR. Push current branch first so origin has a head to PR from.
-        cur = ctx.run("git branch --show-current", hide=True).stdout.strip()
-        ctx.run(f"git push -u origin {shlex.quote(cur)} --no-verify", warn=True)
+        # Fresh PR against the upstream feature branch (q-branch-observer or
+        # ella/observer-blank) so the diff/comments/commits are scoped to
+        # observer changes, not the whole repo. Push the scratch branch so
+        # origin has a head to PR from.
+        ctx.run(f"git push -u origin {shlex.quote(scratch_branch)} --no-verify", warn=True)
         title = f"coord run-log ({mode}) — {time.strftime('%Y-%m-%d %H:%M')}"
         body = (
             f"Coordinator harness run-log.\n\n"
             f"- Mode: `{mode}`\n"
-            f"- Branch: `{cur}`\n"
+            f"- Scratch branch: `{scratch_branch}`\n"
+            f"- Upstream base: `{upstream_branch}`\n"
             f"- Started: {time.strftime('%Y-%m-%dT%H:%M:%S')}\n\n"
             f"_This PR is the bidirectional control channel: status comments "
-            f"posted by the coordinator; steering comments by the operator._\n"
+            f"posted by the coordinator; steering comments by the operator. "
+            f"Each shipped candidate becomes one commit on this branch, "
+            f"making the run a self-contained eval matrix entry._\n"
         )
         r = ctx.run(
-            f"gh pr create --draft --title {shlex.quote(title)} --body {shlex.quote(body)}",
+            f"gh pr create --draft --base {shlex.quote(upstream_branch)} "
+            f"--head {shlex.quote(scratch_branch)} "
+            f"--title {shlex.quote(title)} --body {shlex.quote(body)}",
             warn=True, hide=True,
         )
         if r is None or r.failed:
@@ -2094,16 +2122,19 @@ def coord_up(
         url = f"https://github.com/DataDog/datadog-agent/pull/{pr_num}"
         print(color_message(f"reusing PR #{pr_num} — {url}", Color.BLUE))
 
-    session_name = session or f"coord-{mode}"
+    session_name = session or f"coord-{mode}-{run_ts}"
 
-    # Persist a small state file the driver reads + that q.coord-status uses.
+    # Persist run state. Includes scratch_branch + upstream_branch so
+    # q.coord-status / q.coord-down know which branch they're attached to.
     state_dir = os.path.join(".coordinator")
     os.makedirs(state_dir, exist_ok=True)
     with open(os.path.join(state_dir, "session.txt"), "w") as f:
-        f.write(f"{session_name}\n{mode}\n{pr_num}\n")
+        f.write(f"{session_name}\n{mode}\n{pr_num}\n{scratch_branch}\n{upstream_branch}\n")
 
     cmd_inner = (
         f"COORD_GITHUB_PR_NUMBER={pr_num} "
+        f"COORD_SCRATCH_BRANCH={shlex.quote(scratch_branch)} "
+        f"COORD_UPSTREAM_BRANCH={shlex.quote(upstream_branch)} "
         f"PYTHONPATH=tasks "
         f"python -u -m coordinator.driver --forever "
         f"--token-ceiling {int(token_ceiling)} "
