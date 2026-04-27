@@ -14,11 +14,16 @@ Safety:
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 
-SCRATCH_BRANCH = "claude/observer-blank-improvements"
-UPSTREAM_BRANCH = "ella/observer-blank"
+# Branch names are env-overridable so multiple parallel coord runs (one
+# per workspace) don't collide on a shared scratch branch. q.coord-up
+# generates a unique scratch name per invocation and exports it via
+# COORD_SCRATCH_BRANCH; if unset, falls back to the legacy shared name.
+SCRATCH_BRANCH = os.environ.get("COORD_SCRATCH_BRANCH", "claude/observer-improvements")
+UPSTREAM_BRANCH = os.environ.get("COORD_UPSTREAM_BRANCH", "q-branch-observer")
 # Only comp/observer/ is committable by the coordinator, with the
 # critical EXCEPTION of comp/observer/scenarios/ — that directory holds
 # ground-truth labels (ground_truth.json) and episode windows

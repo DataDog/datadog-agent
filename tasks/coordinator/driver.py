@@ -351,6 +351,15 @@ def _sanity_pre_eval_sentinel(db: Db, root: Path, iter_num: int) -> tuple[bool, 
         # Sentinel mis-configured for this run's baseline; warn but continue.
         return True, f"sentinel_not_in_baseline ({detector}/{scenario})"
     expected_f1 = det_base.scenarios[scenario].f1
+    # Blank-slate auto-detect: if the baseline detector itself has no
+    # signal (mean F1 < 0.05), this is a blank-mode run — there's nothing
+    # for the sentinel to verify, since "reproducing baseline" is just
+    # "reproducing zero." Skip rather than halting every iter.
+    if det_base.mean_f1 < 0.05 or expected_f1 < 0.05:
+        return True, (
+            f"skipped_blank_baseline (detector mean_f1={det_base.mean_f1:.3f}, "
+            f"sentinel_scenario_f1={expected_f1:.3f})"
+        )
     min_f1 = max(CONFIG.sanity_sentinel_min_f1, expected_f1 - 0.05)
 
     report_path = state_dir(root) / "sanity" / f"iter-{iter_num:04d}-sentinel.json"
@@ -637,54 +646,39 @@ def _recent_same_family(db: Db, candidate: Candidate, limit: int = 5) -> list[di
     return out
 
 
-def known_detectors(db: Db) -> tuple[str, ...]:
-    """Detector names recognised by the coordinator for gating purposes.
+KNOWN_DETECTORS = ("bocpd", "scanmw", "scanwelch")
 
-    Derived from baseline.detectors so the set grows as new detectors are
-    imported via re-baselining — no hardcoded list to keep in sync with
-    the catalog. A detector must have a baseline entry to be gate-eligible;
-    score_against_baseline does detectors[name] lookup which would KeyError
-    without one.
+
+def relevant_detectors(candidate: Candidate) -> list[str]:
+    """Which detectors' F1 do we measure to decide if this candidate shipped?
+
+    A candidate can modify any file under comp/observer/. But scoring runs
+    per-detector, and the panel review caught this: silently defaulting to
+    ONE detector (previously scanmw) meant candidates modifying e.g. bocpd
+    internals got scored against scanmw's unaffected output — ΔF1≈0 by
+    construction, "improvement" or "regression" both invisible.
+
+    Policy:
+      - Intersect target_components with the 3 known detectors. If the
+        intersection is non-empty, eval each one in it and gate on the
+        WORST ΔF1 across them.
+      - If the intersection is empty (correlator changes, new features,
+        pipeline-level work), eval ALL 3 detectors — we can't tell in
+        advance which one the change affects, so measure them all.
+
+    Always returns a non-empty list.
     """
-    if db.baseline is None or not db.baseline.detectors:
-        return ()
-    return tuple(db.baseline.detectors.keys())
+    named = [c for c in candidate.target_components if c in KNOWN_DETECTORS]
+    if named:
+        return named
+    return list(KNOWN_DETECTORS)
 
 
-def relevant_detectors(candidate: Candidate, db: Db) -> list[str]:
-    """Which detectors' F1 do we measure for this candidate?
-
-    Policy: eval the UNION of (a) all baselined detectors — so every
-    candidate is checked against the "don't break existing wins" contract
-    for every baselined detector — and (b) the candidate's own
-    target_components, so a brand-new detector name the agent just
-    invented is still measured (its score enters the report but passes
-    no gates until a human admits it into the baseline via
-    import_baseline).
-
-    Rationale: on a blank-slate run the agent invents detector names
-    freely. The previous "fall back to all known if target doesn't
-    intersect known" policy evaluated the wrong detector — the new one
-    the candidate created was silently excluded. Including target_components
-    unconditionally fixes that; gates stay safe because
-    score_against_baseline treats an unbaselined detector as "no gate."
-
-    Always returns a non-empty list. Order: baselined first (stable),
-    then new target_components (in given order).
-    """
-    known = known_detectors(db)
-    ordered: list[str] = list(known)
-    for c in candidate.target_components:
-        if c not in ordered:
-            ordered.append(c)
-    return ordered or ["unknown"]
-
-
-def primary_detector(candidate: Candidate, db: Db) -> str:
+def primary_detector(candidate: Candidate) -> str:
     """Deprecated single-detector view. Kept for callers that print a
     single string (metrics, log lines). Returns the first relevant detector.
     """
-    return relevant_detectors(candidate, db)[0]
+    return relevant_detectors(candidate)[0]
 
 
 def _merge_scorings(scorings: dict, detectors: list[str]):
@@ -944,7 +938,7 @@ def _run_iteration_body(
         return
 
     it.candidate_id = candidate.id
-    detectors = relevant_detectors(candidate, db)
+    detectors = relevant_detectors(candidate)
     # Why a list, not a single detector: a candidate modifying correlator
     # code or a shared feature affects MULTIPLE detectors. Gating on a
     # single "primary" detector was a panel-reviewed BLOCK — silent
@@ -1174,13 +1168,17 @@ def _run_iteration_body(
     # means. Rolling "last shipped" reference was dropped earlier (it
     # introduced a noise ratchet).
     scorings: dict[str, "object"] = {}
+    # Use the effective (best-historical) baseline if present so a candidate
+    # can't ratchet backwards through tolerance-bound drift. Falls back to
+    # the original frozen baseline pre-first-ship.
+    score_ref = db.effective_baseline or db.baseline
     for det in detectors:
         rp = reports_by_detector.get(det)
         if rp is None:
             continue
         scorings[det] = score_against_baseline(
             rp,
-            db.baseline,
+            score_ref,
             det,
             train_scenarios=train_set,
         )
@@ -1257,10 +1255,24 @@ def _run_iteration_body(
         metrics.regenerate(db, root)
         return
 
+    # Blank-mode quality floor for the FIRST-ever ship. Catastrophe filters
+    # can't fire when baseline F1 ≈ 0 across the board, so the first
+    # candidate that compiles would otherwise ship regardless of detection
+    # quality. Once anything has shipped, effective_baseline (best-historical)
+    # takes over and provides the floor.
+    any_prior_ship = any(
+        c.status == CandidateStatus.SHIPPED for c in db.candidates.values()
+    )
+    first_ship_floor_breached = (
+        not any_prior_ship
+        and scoring.mean_f1 < CONFIG.first_ship_min_mean_f1
+    )
+
     if (
         scoring.strict_regressions
         or scoring.recall_floor_violations
         or fp_ceiling_breached
+        or first_ship_floor_breached
     ):
         fp_reason = ""
         if fp_ceiling_breached:
@@ -1269,10 +1281,17 @@ def _run_iteration_body(
                 f"{fp_ceiling} (ratio {CONFIG.fp_ceiling_ratio}× baseline "
                 f"{scoring.baseline_total_fps})"
             )
+        floor_reason = ""
+        if first_ship_floor_breached:
+            floor_reason = (
+                f" first_ship_floor_breached=mean_f1 {scoring.mean_f1:.4f} < "
+                f"{CONFIG.first_ship_min_mean_f1:.2f} (no prior ship — "
+                f"quality bar for first commit on a blank-baseline run)"
+            )
         reason = (
             f"strict_regressions={scoring.strict_regressions} "
             f"recall_violations={scoring.recall_floor_violations}"
-            f"{fp_reason}"
+            f"{fp_reason}{floor_reason}"
         )
         # Persist on the experiment so the proposer can see WHY this was
         # rejected on the next iteration's research-memory context.
@@ -1393,6 +1412,21 @@ def _run_iteration_body(
 
         commit_sha = git_ops.commit_candidate(candidate.id, experiment_id, root)
         experiment.commit_sha = commit_sha
+        # Update the effective (best-historical) baseline element-wise per
+        # detector. New floor for subsequent iters: the highest f1/precision/
+        # recall and lowest FPs we've ever achieved. No backsliding allowed.
+        from .scoring import merge_best_historical
+        eff = db.effective_baseline or db.baseline
+        if eff is not None:
+            for det in detectors:
+                shipped_scen = {
+                    s_name.split("/", 1)[1]: sr
+                    for s_name, sr in scoring.per_scenario.items()
+                    if "/" in s_name and s_name.split("/", 1)[0] == det
+                }
+                if shipped_scen:
+                    eff = merge_best_historical(eff, shipped_scen, det)
+            db.effective_baseline = eff
         # Persist the real sha BEFORE pushing. If push fails, db.yaml already
         # reflects the commit; startup_cleanup will push the orphan on restart.
         save_db(db, root)

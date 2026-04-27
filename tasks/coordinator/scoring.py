@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .config import CONFIG
-from .schema import Baseline, ScenarioResult
+from .schema import Baseline, BaselineDetector, ScenarioResult
 
 
 @dataclass
@@ -61,6 +61,55 @@ def load_report(path: Path) -> tuple[float, dict[str, ScenarioResult]]:
     return mean, per_scenario
 
 
+def merge_best_historical(
+    base: Baseline,
+    shipped_per_scenario: dict[str, ScenarioResult],
+    detector: str,
+) -> Baseline:
+    """Element-wise best-of merge for a single detector × scenario set.
+
+    Per scenario, the new effective baseline is:
+      - f1, precision, recall: max(prior, shipped)
+      - num_baseline_fps:      min(prior, shipped)  (lower is better)
+    Scenarios in `shipped_per_scenario` not yet present in `base` are
+    added; scenarios in `base` not in `shipped_per_scenario` are kept
+    as-is. Detectors other than `detector` are passed through unchanged.
+
+    Returns a NEW Baseline (does not mutate input).
+    """
+    new_detectors: dict[str, BaselineDetector] = dict(base.detectors)
+    prior_det = new_detectors.get(
+        detector,
+        BaselineDetector(mean_f1=0.0, total_fps=0, scenarios={}),
+    )
+    new_scens: dict[str, ScenarioResult] = dict(prior_det.scenarios)
+
+    for scen, shipped in shipped_per_scenario.items():
+        prior = new_scens.get(scen)
+        if prior is None:
+            new_scens[scen] = shipped
+            continue
+        new_scens[scen] = ScenarioResult(
+            f1=max(prior.f1, shipped.f1),
+            precision=max(prior.precision, shipped.precision),
+            recall=max(prior.recall, shipped.recall),
+            num_baseline_fps=min(prior.num_baseline_fps, shipped.num_baseline_fps),
+            f1_sigma=prior.f1_sigma,  # σ tracks the original measurement noise; don't merge
+        )
+
+    new_mean = (
+        sum(s.f1 for s in new_scens.values()) / len(new_scens)
+        if new_scens else 0.0
+    )
+    new_total_fps = sum(s.num_baseline_fps for s in new_scens.values())
+    new_detectors[detector] = BaselineDetector(
+        mean_f1=new_mean, total_fps=new_total_fps, scenarios=new_scens,
+    )
+    return Baseline(
+        sha=base.sha, generated_at=base.generated_at, detectors=new_detectors,
+    )
+
+
 def score_against_baseline(
     report_path: Path,
     baseline: Baseline,
@@ -82,35 +131,22 @@ def score_against_baseline(
       - recall_floor_violations: scenarios where baseline recall was
         non-trivial AND observed recall dropped by > catastrophe_recall_drop.
 
-    Gates always compare vs frozen baseline — no rolling reference. The
-    rolling reference allowed a ratchet where noise-driven lucky ships
-    permanently elevated the floor, letting subsequent candidates that
-    were strictly worse than baseline pass the gate. Shipping is now a
-    "no-worse-than-baseline" contract, period.
+    Gates compare against whichever Baseline the caller passes. The
+    driver hands in `db.effective_baseline or db.baseline`: post-first-
+    ship that's the best-historical merge (see `merge_best_historical`),
+    pre-first-ship it's the immutable original. Best-historical can only
+    ratchet UP (or sideways), never down — fixing the noise-ratchet that
+    doomed the prior `last_shipped_per_scenario` design.
     """
     mean_f1, observed = load_report(report_path)
+    # Gracefully handle "detector not in baseline" — happens on blank-mode
+    # runs where the proposer adds a new detector that didn't exist
+    # before. Treat as zero baseline; every observed F1 is positive ΔF1,
+    # catastrophe filters can't fire, and the first-ship floor is the
+    # only gate. (Pre-this, KeyError → iter crashed → review_failed.)
     bd = baseline.detectors.get(detector)
     if bd is None:
-        # Detector not baselined yet (blank-slate bootstrap or a newly
-        # invented name). Report the raw scores but skip every gate —
-        # there is nothing to regress against. A human admits this
-        # detector into the baseline via import_baseline once they
-        # decide it is promising enough to lock in as the new floor.
-        total_observed_fps = sum(s.num_baseline_fps for s in observed.values())
-        return ScoringResult(
-            detector=detector,
-            mean_f1=mean_f1,
-            total_fps=total_observed_fps,
-            per_scenario=observed,
-            baseline_mean_f1=0.0,
-            baseline_total_fps=0,
-            mean_df1=mean_f1,
-            total_dfps=total_observed_fps,
-            per_scenario_delta={},
-            strict_regressions=[],
-            recall_floor_violations=[],
-            fp_reduction_pct=0.0,
-        )
+        bd = BaselineDetector(mean_f1=0.0, total_fps=0, scenarios={})
 
     deltas: dict[str, ScenarioDelta] = {}
     strict_regressions = []

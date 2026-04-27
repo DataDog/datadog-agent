@@ -240,6 +240,21 @@ class Db:
     # Remove after all active runs migrate.
     last_shipped_per_scenario: dict[str, dict[str, ScenarioResult]] = field(default_factory=dict)
 
+    # Best-historical effective baseline. Populated post-ship by element-
+    # wise max(f1, precision, recall) and min(num_baseline_fps) across the
+    # original baseline + every prior ship. None → use db.baseline directly.
+    #
+    # Solves the noise-ratchet that doomed `last_shipped_per_scenario`:
+    # the previous design used last-shipped AS the reference, which meant
+    # a ship with F1=0.49 (vs baseline 0.50) could drift through subsequent
+    # iterations until cumulative drops put cleanly below baseline. Best-
+    # historical can only ratchet UP (or sideways), never down — gates
+    # always compare against the highest score we've ever achieved.
+    #
+    # On blank-mode runs where original baseline is all zeros, this gives
+    # subsequent iters a real floor as soon as the first ship lands.
+    effective_baseline: Baseline | None = None
+
     # Content-hash snapshot of PROTECTED_PATHS (scoring labels). Verified at
     # every iteration start; halt on mismatch (agent or human tampered with
     # ground truth). Empty dict on first run = bootstrap, take snapshot.
@@ -258,10 +273,10 @@ def dict_to_db(d: dict[str, Any]) -> Db:
             f1_sigma=float(x.get("f1_sigma", 0.0) or 0.0),
         )
 
-    baseline = None
-    if d.get("baseline"):
-        b = d["baseline"]
-        baseline = Baseline(
+    def _baseline_from_dict(b: dict | None) -> Baseline | None:
+        if not b:
+            return None
+        return Baseline(
             sha=b["sha"],
             generated_at=b["generated_at"],
             detectors={
@@ -273,6 +288,9 @@ def dict_to_db(d: dict[str, Any]) -> Db:
                 for name, v in b["detectors"].items()
             },
         )
+
+    baseline = _baseline_from_dict(d.get("baseline"))
+    effective_baseline = _baseline_from_dict(d.get("effective_baseline"))
 
     experiments = {}
     for eid, e in d.get("experiments", {}).items():
@@ -380,6 +398,7 @@ def dict_to_db(d: dict[str, Any]) -> Db:
         validations=validations,
         components_eval_dispatched=components_eval_dispatched,
         last_shipped_per_scenario=last_shipped,
+        effective_baseline=effective_baseline,
         protected_path_hashes=dict(d.get("protected_path_hashes") or {}),
         pivot_banned_families=list(d.get("pivot_banned_families") or []),
         pivot_count=int(d.get("pivot_count", 0) or 0),
@@ -396,24 +415,29 @@ def db_to_dict(db: Db) -> dict[str, Any]:
             "f1_sigma": s.f1_sigma,
         }
 
-    baseline_d = None
-    if db.baseline:
-        baseline_d = {
-            "sha": db.baseline.sha,
-            "generated_at": db.baseline.generated_at,
+    def _baseline_to_dict(b: Baseline | None) -> dict | None:
+        if not b:
+            return None
+        return {
+            "sha": b.sha,
+            "generated_at": b.generated_at,
             "detectors": {
                 name: {
-                    "mean_f1": d.mean_f1,
-                    "total_fps": d.total_fps,
-                    "scenarios": {s: _s(sr) for s, sr in d.scenarios.items()},
+                    "mean_f1": dd.mean_f1,
+                    "total_fps": dd.total_fps,
+                    "scenarios": {s: _s(sr) for s, sr in dd.scenarios.items()},
                 }
-                for name, d in db.baseline.detectors.items()
+                for name, dd in b.detectors.items()
             },
         }
+
+    baseline_d = _baseline_to_dict(db.baseline)
+    effective_baseline_d = _baseline_to_dict(db.effective_baseline)
 
     return {
         "schema_version": db.schema_version,
         "baseline": baseline_d,
+        "effective_baseline": effective_baseline_d,
         "experiments": {
             eid: {
                 "id": e.id,
