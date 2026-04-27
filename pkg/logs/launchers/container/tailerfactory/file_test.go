@@ -814,7 +814,7 @@ func TestLogsConfigFieldCoverage_detectsMissingField(t *testing.T) {
 		"Image": "n/a", "Label": "n/a", "Name": "n/a",
 		"ChannelPath": "n/a", "Query": "n/a",
 		"Channel": "n/a", "ChannelTags": "n/a", "ChannelTagsMutex": "n/a",
-		"ExcludePaths": "n/a",
+		"ExcludePaths":    "n/a",
 		"IntegrationName": "n/a", "IntegrationSource": "n/a", "IntegrationSourceIndex": "n/a",
 		"SourceCategory": "n/a",
 	}
