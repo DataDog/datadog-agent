@@ -52,6 +52,13 @@ func main() {
 	condInt16(7, "miss")
 	condInt32(42, "match")
 	condInt32(7, "miss")
+	// Negative value to exercise signed comparison: BPF cmp_kind_int
+	// XORs the sign bit of the most-significant byte before comparing,
+	// turning two's-complement compare into unsigned byte compare. A
+	// bug in that trick surfaces here as `x < 0` either firing on
+	// nothing (treats -5 as 0xfffffffb > 0) or firing on the wrong
+	// calls.
+	condInt32(-5, "neg")
 	condInt64(42, "match")
 	condInt64(7, "miss")
 	condUint8(42, "match")

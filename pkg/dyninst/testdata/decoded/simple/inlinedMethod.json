@@ -18,17 +18,17 @@
           {
             "function": "main.(*methodValueReceiver).inlinedMethod",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 972
+            "lineNumber": 979
           },
           {
             "function": "main.methodValueSink",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 977
+            "lineNumber": 984
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 310
+            "lineNumber": 317
           },
           {
             "function": "runtime.main",

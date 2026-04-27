@@ -752,7 +752,11 @@ func checkConditionLHS(expr exprlang.Expr) error {
 		return checkConditionLHS(e.Operand)
 	case *exprlang.IsEmptyExpr:
 		return checkConditionLHS(e.Operand)
-	case *exprlang.EqExpr, *exprlang.AndExpr, *exprlang.OrExpr, *exprlang.NotExpr, *exprlang.ContainsExpr:
+	case *exprlang.EqExpr, *exprlang.NeExpr,
+		*exprlang.LtExpr, *exprlang.LeExpr,
+		*exprlang.GtExpr, *exprlang.GeExpr,
+		*exprlang.AndExpr, *exprlang.OrExpr, *exprlang.NotExpr,
+		*exprlang.ContainsExpr:
 		return fmt.Errorf(
 			"condition leaf LHS may not be a boolean expression (%T); "+
 				"use the inner expression directly",
@@ -791,11 +795,23 @@ func conditionLeafExprs(expr exprlang.Expr) []exprlang.Expr {
 
 // conditionLeafSubExpr returns the sub-expression a leaf's LHS descends
 // through (the part passed to resolveExpression in resolveCondition). For
-// EqExpr it's the Left side; for IsEmptyExpr it's the Operand. Any other
-// expression type is a malformed leaf (caller should have rejected earlier).
+// the comparison nodes (EqExpr / NeExpr / LtExpr / LeExpr / GtExpr /
+// GeExpr) it's the Left side; for IsEmptyExpr it's the Operand. Any other
+// expression type is a malformed leaf (caller should have rejected
+// earlier).
 func conditionLeafSubExpr(leaf exprlang.Expr) (exprlang.Expr, bool) {
 	switch l := leaf.(type) {
 	case *exprlang.EqExpr:
+		return l.Left, true
+	case *exprlang.NeExpr:
+		return l.Left, true
+	case *exprlang.LtExpr:
+		return l.Left, true
+	case *exprlang.LeExpr:
+		return l.Left, true
+	case *exprlang.GtExpr:
+		return l.Left, true
+	case *exprlang.GeExpr:
 		return l.Left, true
 	case *exprlang.IsEmptyExpr:
 		return l.Operand, true
@@ -899,6 +915,16 @@ func extractRootVariableName(expr exprlang.Expr) (string, bool) {
 		case *exprlang.ContainsExpr:
 			expr = e.Base
 		case *exprlang.EqExpr:
+			expr = e.Left
+		case *exprlang.NeExpr:
+			expr = e.Left
+		case *exprlang.LtExpr:
+			expr = e.Left
+		case *exprlang.LeExpr:
+			expr = e.Left
+		case *exprlang.GtExpr:
+			expr = e.Left
+		case *exprlang.GeExpr:
 			expr = e.Left
 		default:
 			return "", false
@@ -1354,6 +1380,11 @@ func newTemplate(td ir.TemplateDefinition) *ir.Template {
 				case *exprlang.IsEmptyExpr:
 				case *exprlang.ContainsExpr:
 				case *exprlang.EqExpr:
+				case *exprlang.NeExpr:
+				case *exprlang.LtExpr:
+				case *exprlang.LeExpr:
+				case *exprlang.GtExpr:
+				case *exprlang.GeExpr:
 				case *exprlang.UnsupportedExpr:
 					msg := "unsupported operation: " + expr.Operation
 					addInvalid(segment, msg)
@@ -4000,18 +4031,17 @@ func exploreExpressionTypes(
 		return exploreLenExprTypes(e.Operand, currentType, tc, exprPath)
 
 	case *exprlang.EqExpr:
-		// Resolve the left and right expressions.
-		_, err := exploreExpressionTypes(e.Left, currentType, tc, exprPath)
-		if err != nil {
-			return nil, err
-		}
-		if _, ok := e.Right.(*exprlang.LiteralExpr); !ok {
-			return nil, fmt.Errorf("right expression is not a literal: %T", e.Right)
-		}
-		if tc.boolType == 0 {
-			return nil, errors.New("bool type not found")
-		}
-		return tc.typesByID[tc.boolType], nil
+		return exploreComparisonExprTypes(e.Left, e.Right, currentType, tc, exprPath)
+	case *exprlang.NeExpr:
+		return exploreComparisonExprTypes(e.Left, e.Right, currentType, tc, exprPath)
+	case *exprlang.LtExpr:
+		return exploreComparisonExprTypes(e.Left, e.Right, currentType, tc, exprPath)
+	case *exprlang.LeExpr:
+		return exploreComparisonExprTypes(e.Left, e.Right, currentType, tc, exprPath)
+	case *exprlang.GtExpr:
+		return exploreComparisonExprTypes(e.Left, e.Right, currentType, tc, exprPath)
+	case *exprlang.GeExpr:
+		return exploreComparisonExprTypes(e.Left, e.Right, currentType, tc, exprPath)
 
 	case *exprlang.IndexExpr:
 		return exploreIndexExprTypes(e, currentType, tc, exprPath)
@@ -4061,6 +4091,28 @@ func exploreExpressionTypes(
 		// Unknown expression type - nothing to explore.
 		return currentType, nil
 	}
+}
+
+// exploreComparisonExprTypes resolves the LHS of a comparison node
+// (Eq / Ne / Lt / Le / Gt / Ge), validates the RHS is a literal, and
+// returns the bool result type. Shared across all six comparison nodes
+// because they have identical type-exploration semantics.
+func exploreComparisonExprTypes(
+	left, right exprlang.Expr,
+	currentType ir.Type,
+	tc *typeCatalog,
+	exprPath string,
+) (ir.Type, error) {
+	if _, err := exploreExpressionTypes(left, currentType, tc, exprPath); err != nil {
+		return nil, err
+	}
+	if _, ok := right.(*exprlang.LiteralExpr); !ok {
+		return nil, fmt.Errorf("right expression is not a literal: %T", right)
+	}
+	if tc.boolType == 0 {
+		return nil, errors.New("bool type not found")
+	}
+	return tc.typesByID[tc.boolType], nil
 }
 
 // exploreIndexExprTypes explores types for an index expression, resolving
@@ -4539,18 +4591,17 @@ func resolveExpression(
 		return resolveContainsExpression(e, rootVar, tc)
 
 	case *exprlang.EqExpr:
-		lhsExpr, err := resolveExpression(e.Left, rootVar, tc)
-		if err != nil {
-			return ir.Expression{}, fmt.Errorf("failed to resolve eq LHS: %w", err)
-		}
-		litExpr, ok := e.Right.(*exprlang.LiteralExpr)
-		if !ok {
-			return ir.Expression{}, fmt.Errorf(
-				"unsupported eq RHS type: %T (only literals are supported)",
-				e.Right,
-			)
-		}
-		return resolveEqComparison(lhsExpr, litExpr, tc)
+		return resolveComparisonExpression(ir.CmpEq, e.Left, e.Right, rootVar, tc)
+	case *exprlang.NeExpr:
+		return resolveComparisonExpression(ir.CmpNe, e.Left, e.Right, rootVar, tc)
+	case *exprlang.LtExpr:
+		return resolveComparisonExpression(ir.CmpLt, e.Left, e.Right, rootVar, tc)
+	case *exprlang.LeExpr:
+		return resolveComparisonExpression(ir.CmpLe, e.Left, e.Right, rootVar, tc)
+	case *exprlang.GtExpr:
+		return resolveComparisonExpression(ir.CmpGt, e.Left, e.Right, rootVar, tc)
+	case *exprlang.GeExpr:
+		return resolveComparisonExpression(ir.CmpGe, e.Left, e.Right, rootVar, tc)
 
 	default:
 		return ir.Expression{}, fmt.Errorf(
@@ -4591,6 +4642,30 @@ func resolveContainsExpression(
 		return ir.Expression{}, err
 	}
 	return ir.Expression{Type: resultType, Operations: ops}, nil
+}
+
+// resolveComparisonExpression lowers a comparison node (Eq / Ne / Lt / Le
+// / Gt / Ge) by resolving the LHS expression and dispatching to
+// resolveComparison with a literal RHS. Shared across all six comparison
+// shapes — only the CmpOp differs.
+func resolveComparisonExpression(
+	op ir.CmpOp,
+	left, right exprlang.Expr,
+	rootVar *ir.Variable,
+	tc *typeCatalog,
+) (ir.Expression, error) {
+	lhsExpr, err := resolveExpression(left, rootVar, tc)
+	if err != nil {
+		return ir.Expression{}, fmt.Errorf("failed to resolve %s LHS: %w", op, err)
+	}
+	litExpr, ok := right.(*exprlang.LiteralExpr)
+	if !ok {
+		return ir.Expression{}, fmt.Errorf(
+			"unsupported %s RHS type: %T (only literals are supported)",
+			op, right,
+		)
+	}
+	return resolveComparison(op, lhsExpr, litExpr, tc)
 }
 
 // indexElementType returns the element type for an indexable collection type
@@ -5277,9 +5352,22 @@ func isNilComparable(t ir.Type) bool {
 	return false
 }
 
-// resolveEqComparison builds comparison ops for an equality check.
+// isOrderingOp reports whether op is a strict ordering (lt/le/gt/ge) as
+// opposed to equality (eq/ne). Ordering ops are rejected for null,
+// boolean, and floating-point comparisons.
+func isOrderingOp(op ir.CmpOp) bool {
+	switch op {
+	case ir.CmpLt, ir.CmpLe, ir.CmpGt, ir.CmpGe:
+		return true
+	}
+	return false
+}
+
+// resolveComparison builds comparison ops for op (eq / ne / lt / le / gt
+// / ge) between an already-resolved LHS expression and a literal RHS.
 // Returns a bool-typed Expression without ConditionCheckOp.
-func resolveEqComparison(
+func resolveComparison(
+	op ir.CmpOp,
 	lhsExpr ir.Expression,
 	litExpr *exprlang.LiteralExpr,
 	tc *typeCatalog,
@@ -5287,19 +5375,30 @@ func resolveEqComparison(
 	lhsType := lhsExpr.Type
 	ops := lhsExpr.Operations
 
-	// Null-literal comparison: supported for pointers, maps, slices, and
-	// interfaces. For all four we compare the first 8 bytes of the value
-	// against zero — see isNilComparable for the layout details.
+	// Null-literal comparison: only eq/ne are meaningful. Supported for
+	// pointers, maps, slices, and interfaces — for all four we compare
+	// the first 8 bytes of the value against zero (see isNilComparable
+	// for the layout details).
 	if litExpr.Value == nil {
+		if isOrderingOp(op) {
+			return ir.Expression{}, fmt.Errorf(
+				"%s: ordering against null is not supported",
+				op,
+			)
+		}
 		if !isNilComparable(lhsType) {
 			return ir.Expression{}, fmt.Errorf(
-				"eq: type %s cannot be compared to null",
-				lhsType.GetName(),
+				"%s: type %s cannot be compared to null",
+				op, lhsType.GetName(),
 			)
 		}
 		ops = append(ops, &ir.ExprPushOffsetOp{ByteSize: 8})
 		ops = append(ops, &ir.ExprLoadLiteralOp{Data: make([]byte, 8)})
-		ops = append(ops, &ir.ExprCmpEqBaseOp{ByteSize: 8})
+		ops = append(ops, &ir.ExprCmpBaseOp{
+			Op:       op,
+			Kind:     ir.CmpKindUint,
+			ByteSize: 8,
+		})
 		boolType := tc.typesByID[tc.boolType]
 		return ir.Expression{Type: boolType, Operations: ops}, nil
 	}
@@ -5307,25 +5406,26 @@ func resolveEqComparison(
 	// Non-null literal against a nullable-only type: reject up front.
 	if isNilComparable(lhsType) {
 		return ir.Expression{}, fmt.Errorf(
-			"eq: type %s can only be compared to null",
-			lhsType.GetName(),
+			"%s: type %s can only be compared to null",
+			op, lhsType.GetName(),
 		)
 	}
 
 	// Check if LHS is a string type.
 	if _, isString := lhsType.(*ir.GoStringHeaderType); isString {
-		// String equality comparison.
+		// String comparison (eq/ne use byte equality; ordering uses
+		// lexicographic byte order — see ir.ExprCmpStringOp).
 		litStr, ok := litExpr.Value.(string)
 		if !ok {
 			return ir.Expression{}, fmt.Errorf(
-				"eq: string variable compared with non-string literal %T",
-				litExpr.Value,
+				"%s: string variable compared with non-string literal %T",
+				op, litExpr.Value,
 			)
 		}
 		if len(litStr) > ir.MaxStringLiteralLength {
 			return ir.Expression{}, fmt.Errorf(
-				"eq: string literal too long (%d bytes, max %d)",
-				len(litStr), ir.MaxStringLiteralLength,
+				"%s: string literal too long (%d bytes, max %d)",
+				op, len(litStr), ir.MaxStringLiteralLength,
 			)
 		}
 
@@ -5339,25 +5439,30 @@ func resolveEqComparison(
 		ops = append(ops, &ir.ExprLoadLiteralOp{Data: litData})
 
 		// Compare strings.
-		ops = append(ops, &ir.ExprCmpEqStringOp{})
+		ops = append(ops, &ir.ExprCmpStringOp{Op: op})
 	} else if baseType, isBase := lhsType.(*ir.BaseType); isBase {
-		// Base type equality comparison.
+		// Base type comparison.
 		byteSize := baseType.GetByteSize()
 		if byteSize > 8 {
 			return ir.Expression{}, fmt.Errorf(
-				"eq: base type too large for comparison (%d bytes)",
-				byteSize,
+				"%s: base type too large for comparison (%d bytes)",
+				op, byteSize,
 			)
 		}
 
-		// Push LHS offset and advance.
-		ops = append(ops, &ir.ExprPushOffsetOp{ByteSize: uint32(byteSize)})
-
-		// Determine target kind for coercion.
+		// Determine the target Go kind for literal coercion and to
+		// pick the ir.CmpKind that ExprCmpBaseOp uses for ordering.
 		targetKind := reflect.Invalid
 		if goKind, ok := baseType.GetGoKind(); ok {
 			targetKind = goKind
 		}
+		cmpKind, err := cmpKindForGoKind(targetKind, op)
+		if err != nil {
+			return ir.Expression{}, err
+		}
+
+		// Push LHS offset and advance.
+		ops = append(ops, &ir.ExprPushOffsetOp{ByteSize: uint32(byteSize)})
 
 		// Encode the literal value with type coercion.
 		litData, err := coerceLiteral(litExpr.Value, targetKind, byteSize)
@@ -5367,16 +5472,62 @@ func resolveEqComparison(
 		ops = append(ops, &ir.ExprLoadLiteralOp{Data: litData})
 
 		// Compare base values.
-		ops = append(ops, &ir.ExprCmpEqBaseOp{ByteSize: uint8(byteSize)})
+		ops = append(ops, &ir.ExprCmpBaseOp{
+			Op:       op,
+			Kind:     cmpKind,
+			ByteSize: uint8(byteSize),
+		})
 	} else {
 		return ir.Expression{}, fmt.Errorf(
-			"eq: unsupported LHS type %T for equality comparison",
-			lhsType,
+			"%s: unsupported LHS type %T for comparison",
+			op, lhsType,
 		)
 	}
 
 	boolType := tc.typesByID[tc.boolType]
 	return ir.Expression{Type: boolType, Operations: ops}, nil
+}
+
+// cmpKindForGoKind picks the ir.CmpKind that ExprCmpBaseOp will use for
+// the given Go base-type kind, and rejects ordering ops on bool/float
+// where signed-integer ordering doesn't apply. Floats are restricted to
+// eq/ne (bitwise) for now — IEEE-754 ordering with NaN/signed-zero
+// semantics is deferred. Bool ordering is similarly nonsensical.
+func cmpKindForGoKind(k reflect.Kind, op ir.CmpOp) (ir.CmpKind, error) {
+	switch k {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return ir.CmpKindInt, nil
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		return ir.CmpKindUint, nil
+	case reflect.Bool:
+		if isOrderingOp(op) {
+			return 0, fmt.Errorf(
+				"%s: ordering on bool is not supported",
+				op,
+			)
+		}
+		return ir.CmpKindUint, nil
+	case reflect.Float32, reflect.Float64:
+		if isOrderingOp(op) {
+			return 0, fmt.Errorf(
+				"%s: ordering on float types is not supported",
+				op,
+			)
+		}
+		return ir.CmpKindUint, nil
+	default:
+		// Unknown / unspecified kind. eq/ne fall back to bitwise unsigned
+		// compare (matches the previous Eq behaviour); reject ordering
+		// since the byte-by-byte ordering would not map to anything
+		// meaningful at the source language level.
+		if isOrderingOp(op) {
+			return 0, fmt.Errorf(
+				"%s: ordering not supported for base type kind %v",
+				op, k,
+			)
+		}
+		return ir.CmpKindUint, nil
+	}
 }
 
 // resolveIsEmptyComparison resolves isEmpty(x) as len(x) == 0, returning a
@@ -5391,7 +5542,7 @@ func resolveIsEmptyComparison(
 		return ir.Expression{}, fmt.Errorf("failed to resolve isEmpty operand: %w", err)
 	}
 	zeroLit := &exprlang.LiteralExpr{Value: int64(0)}
-	return resolveEqComparison(lenExpr, zeroLit, tc)
+	return resolveComparison(ir.CmpEq, lenExpr, zeroLit, tc)
 }
 
 // resolveCondition lowers an analyzed condition tree into an IR Expression
@@ -5433,7 +5584,17 @@ func emitCondition(
 ) ([]ir.ExpressionOp, error) {
 	switch e := e.(type) {
 	case *exprlang.EqExpr:
-		return emitEqLeaf(e, leafRoots[e], tc)
+		return emitComparisonLeaf(ir.CmpEq, e.Left, e.Right, leafRoots[e], tc)
+	case *exprlang.NeExpr:
+		return emitComparisonLeaf(ir.CmpNe, e.Left, e.Right, leafRoots[e], tc)
+	case *exprlang.LtExpr:
+		return emitComparisonLeaf(ir.CmpLt, e.Left, e.Right, leafRoots[e], tc)
+	case *exprlang.LeExpr:
+		return emitComparisonLeaf(ir.CmpLe, e.Left, e.Right, leafRoots[e], tc)
+	case *exprlang.GtExpr:
+		return emitComparisonLeaf(ir.CmpGt, e.Left, e.Right, leafRoots[e], tc)
+	case *exprlang.GeExpr:
+		return emitComparisonLeaf(ir.CmpGe, e.Left, e.Right, leafRoots[e], tc)
 	case *exprlang.IsEmptyExpr:
 		return emitIsEmptyLeaf(e, leafRoots[e], tc)
 	case *exprlang.ContainsExpr:
@@ -5478,28 +5639,30 @@ func emitShortCircuit(
 	return out, nil
 }
 
-// emitEqLeaf lowers an EqExpr leaf into comparison ops that write a single
-// boolean byte at sm->offset.
-func emitEqLeaf(
-	eqExpr *exprlang.EqExpr,
+// emitComparisonLeaf lowers a comparison condition leaf (Eq / Ne / Lt /
+// Le / Gt / Ge) into IR ops that write a single boolean byte at
+// sm->offset.
+func emitComparisonLeaf(
+	op ir.CmpOp,
+	left, right exprlang.Expr,
 	rootVar *ir.Variable,
 	tc *typeCatalog,
 ) ([]ir.ExpressionOp, error) {
 	if rootVar == nil {
 		return nil, errors.New("condition leaf has no resolved root variable")
 	}
-	lhsExpr, err := resolveExpression(eqExpr.Left, rootVar, tc)
+	lhsExpr, err := resolveExpression(left, rootVar, tc)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve condition LHS: %w", err)
 	}
-	litExpr, ok := eqExpr.Right.(*exprlang.LiteralExpr)
+	litExpr, ok := right.(*exprlang.LiteralExpr)
 	if !ok {
 		return nil, fmt.Errorf(
 			"unsupported condition RHS type: %T (only literals are supported)",
-			eqExpr.Right,
+			right,
 		)
 	}
-	expr, err := resolveEqComparison(lhsExpr, litExpr, tc)
+	expr, err := resolveComparison(op, lhsExpr, litExpr, tc)
 	if err != nil {
 		return nil, err
 	}

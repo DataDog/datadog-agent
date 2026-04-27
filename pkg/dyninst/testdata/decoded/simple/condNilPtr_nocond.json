@@ -18,12 +18,12 @@
           {
             "function": "main.condNilPtrStruct",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 504
+            "lineNumber": 511
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 121
+            "lineNumber": 128
           },
           {
             "function": "runtime.main",
@@ -150,12 +150,12 @@
           {
             "function": "main.condNilPtrStruct",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 504
+            "lineNumber": 511
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 122
+            "lineNumber": 129
           },
           {
             "function": "runtime.main",

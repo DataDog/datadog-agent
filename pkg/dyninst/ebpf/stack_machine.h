@@ -826,6 +826,121 @@ sm_cmp_eq_bytes(scratch_buf_t* buf, buf_offset_t lhs, buf_offset_t rhs,
   return ctx.equal;
 }
 
+// 3-way ordering result of a byte comparison.
+typedef enum cmp_ord_result {
+  CMP_ORD_LT = -1,
+  CMP_ORD_EQ = 0,
+  CMP_ORD_GT = 1,
+} cmp_ord_result_t;
+
+// cmp_ord_mode_t packs the iteration direction and the sign-handling
+// kind into a single byte so sm_cmp_ord_bytes fits in the BPF 5-arg ABI.
+// Bit 0: msb_first (1 = walk MSB-first for little-endian integers).
+// Bit 1: signed_top_byte (1 = XOR the top byte's sign bit before
+// comparing — used for two's-complement signed integers).
+typedef uint8_t cmp_ord_mode_t;
+#define CMP_ORD_MODE_MSB_FIRST 0x1
+#define CMP_ORD_MODE_SIGNED_TOP 0x2
+
+// cmp_ord_bytes_ctx_t is the context for ordering two byte sequences in
+// the scratch buffer with bpf_loop. ord stays CMP_ORD_EQ until the loop
+// finds a differing byte.
+//
+// Iteration order: bpf_loop only walks i = 0..len-1, so to compare
+// little-endian integer bytes MSB-first we compute idx = len-1-i inside
+// the loop body when msb_first is set. Strings clear msb_first and walk
+// forward for lexicographic order.
+//
+// Signed integer trick: when signed_top_byte is set, the
+// most-significant byte (idx == len-1) gets its sign bit XOR'd with
+// 0x80 before comparison. This maps two's-complement signed compare
+// onto an unsigned byte compare without branching inside the inner
+// step.
+typedef struct cmp_ord_bytes_ctx {
+  scratch_buf_t* buf;
+  buf_offset_t lhs;
+  buf_offset_t rhs;
+  uint32_t len;
+  cmp_ord_mode_t mode;
+  cmp_ord_result_t ord;
+} cmp_ord_bytes_ctx_t;
+
+static long cmp_ord_bytes_loop(unsigned long i, void* _ctx) {
+  cmp_ord_bytes_ctx_t* ctx = (cmp_ord_bytes_ctx_t*)_ctx;
+  bool msb_first = (ctx->mode & CMP_ORD_MODE_MSB_FIRST) != 0;
+  uint32_t idx = msb_first ? (ctx->len - 1 - (uint32_t)i) : (uint32_t)i;
+  buf_offset_t lhs = ctx->lhs + idx;
+  buf_offset_t rhs = ctx->rhs + idx;
+  if (!scratch_buf_bounds_check(&lhs, 1)) {
+    return 1;
+  }
+  if (!scratch_buf_bounds_check(&rhs, 1)) {
+    return 1;
+  }
+  uint8_t lhs_val = (uint8_t)(*ctx->buf)[lhs];
+  uint8_t rhs_val = (uint8_t)(*ctx->buf)[rhs];
+  // Sign-bit flip on the top byte of a signed integer comparison.
+  if ((ctx->mode & CMP_ORD_MODE_SIGNED_TOP) && idx == ctx->len - 1) {
+    lhs_val ^= 0x80;
+    rhs_val ^= 0x80;
+  }
+  barrier_var(lhs_val);
+  barrier_var(rhs_val);
+  LOG(4, "cmp_ord_bytes_loop: i=%d, idx=%d, lhs=%d, rhs=%d, lhs_val=%d, rhs_val=%d",
+      i, idx, lhs, rhs, lhs_val, rhs_val);
+  if (lhs_val < rhs_val) {
+    ctx->ord = CMP_ORD_LT;
+    return 1;
+  }
+  if (lhs_val > rhs_val) {
+    ctx->ord = CMP_ORD_GT;
+    return 1;
+  }
+  return 0;
+}
+
+// sm_cmp_ord_bytes returns CMP_ORD_LT/EQ/GT for a byte-by-byte
+// comparison of two ranges in the scratch buffer. mode is a bitfield of
+// CMP_ORD_MODE_* flags packing the iteration direction and signed-top
+// handling into a single byte (BPF function ABI is limited to 5
+// arguments).
+__attribute__((noinline)) cmp_ord_result_t
+sm_cmp_ord_bytes(scratch_buf_t* buf, buf_offset_t lhs, buf_offset_t rhs,
+                 uint32_t len, cmp_ord_mode_t mode) {
+  if (!buf) {
+    return CMP_ORD_EQ;
+  }
+  cmp_ord_bytes_ctx_t ctx = {
+      .buf = buf,
+      .lhs = lhs,
+      .rhs = rhs,
+      .len = len,
+      .mode = mode,
+      .ord = CMP_ORD_EQ,
+  };
+  bpf_loop(len, cmp_ord_bytes_loop, &ctx, 0);
+  return ctx.ord;
+}
+
+// cmp_ord_to_bool maps a 3-way ordering result + cmp_op to a bool.
+// CMP_EQ / CMP_NE callers use sm_cmp_eq_bytes directly and never reach
+// this helper.
+static __always_inline bool cmp_ord_to_bool(cmp_ord_result_t ord, cmp_op_t op) {
+  switch (op) {
+  case CMP_LT:
+    return ord == CMP_ORD_LT;
+  case CMP_LE:
+    return ord != CMP_ORD_GT;
+  case CMP_GT:
+    return ord == CMP_ORD_GT;
+  case CMP_GE:
+    return ord != CMP_ORD_LT;
+  default:
+    LOG(2, "cmp_ord_to_bool: invalid op: %d, ord: %d", op, ord);
+    return false;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Swiss map lookup: O(1) hash-based key lookup in Go swisstable maps.
 // See pkg/dyninst/irgen/go_swiss_maps.md for the algorithm specification.
@@ -2852,15 +2967,17 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     sm->offset += 4 + capped_len;
   } break;
 
-  case SM_OP_EXPR_CMP_EQ_BASE: {
+  case SM_OP_EXPR_CMP_BASE: {
     uint8_t byte_size = sm_read_program_uint8(sm);
+    cmp_op_t op = (cmp_op_t)sm_read_program_uint8(sm);
+    cmp_kind_t kind = (cmp_kind_t)sm_read_program_uint8(sm);
     if (byte_size > 8 || byte_size == 0) {
-      LOG(1, "enqueue: cmp_eq_base: invalid byte_size %d", byte_size);
+      LOG(1, "enqueue: cmp_base: invalid byte_size %d", byte_size);
       return 1;
     }
     // Pop LHS offset from data stack.
     if (sm->data_stack_pointer == 0) {
-      LOG(1, "enqueue: cmp_eq_base: empty data stack");
+      LOG(1, "enqueue: cmp_base: empty data stack");
       return 1;
     }
     sm->data_stack_pointer--;
@@ -2877,19 +2994,36 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
       return 1;
     }
 
-    bool eq = sm_cmp_eq_bytes(buf, lhs_off, rhs_off, (uint32_t)byte_size);
+    uint8_t result = 0;
+    if (op == CMP_EQ || op == CMP_NE) {
+      // Equality fast path: byte-equality is direction-independent and
+      // ignores cmp_kind (signed/unsigned have identical bitwise eq).
+      bool eq = sm_cmp_eq_bytes(buf, lhs_off, rhs_off, (uint32_t)byte_size);
+      result = (op == CMP_EQ) ? (eq ? 1 : 0) : (eq ? 0 : 1);
+    } else {
+      // Ordering: walk MSB-first for little-endian integer compare,
+      // with the sign-bit flip on the top byte for signed kinds.
+      cmp_ord_mode_t mode = CMP_ORD_MODE_MSB_FIRST;
+      if (kind == CMP_KIND_INT) {
+        mode |= CMP_ORD_MODE_SIGNED_TOP;
+      }
+      cmp_ord_result_t ord = sm_cmp_ord_bytes(
+          buf, lhs_off, rhs_off, (uint32_t)byte_size, mode);
+      result = cmp_ord_to_bool(ord, op) ? 1 : 0;
+    }
 
     // Write bool result at sm->offset.
     if (!scratch_buf_bounds_check(&sm->offset, 1)) {
       return 1;
     }
-    (*buf)[sm->offset] = eq ? 1 : 0;
+    (*buf)[sm->offset] = result;
   } break;
 
-  case SM_OP_EXPR_CMP_EQ_STRING: {
+  case SM_OP_EXPR_CMP_STRING: {
+    cmp_op_t op = (cmp_op_t)sm_read_program_uint8(sm);
     // Pop LHS offset from data stack.
     if (sm->data_stack_pointer == 0) {
-      LOG(1, "enqueue: cmp_eq_string: empty data stack");
+      LOG(1, "enqueue: cmp_string: empty data stack");
       return 1;
     }
     sm->data_stack_pointer--;
@@ -2910,12 +3044,37 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     uint32_t rhs_len = *(uint32_t*)(&(*buf)[rhs_off]);
 
     uint8_t result = 0;
-    if (lhs_len == rhs_len) {
-      uint32_t cmp_len = lhs_len;
-      if (cmp_len > 256) {
-        cmp_len = 256;
+    if (op == CMP_EQ || op == CMP_NE) {
+      bool eq = false;
+      if (lhs_len == rhs_len) {
+        uint32_t cmp_len = lhs_len;
+        if (cmp_len > 256) {
+          cmp_len = 256;
+        }
+        eq = sm_cmp_eq_bytes(buf, lhs_off + 4, rhs_off + 4, cmp_len);
       }
-      result = sm_cmp_eq_bytes(buf, lhs_off + 4, rhs_off + 4, cmp_len) ? 1 : 0;
+      result = (op == CMP_EQ) ? (eq ? 1 : 0) : (eq ? 0 : 1);
+    } else {
+      // Ordering: lexicographic byte order on the common prefix, then
+      // shorter side wins ties.
+      uint32_t common = lhs_len < rhs_len ? lhs_len : rhs_len;
+      if (common > 256) {
+        common = 256;
+      }
+      cmp_ord_result_t ord = CMP_ORD_EQ;
+      if (common > 0) {
+        // Strings: walk forward for lexicographic byte order, no sign
+        // handling — pass mode = 0 (neither MSB_FIRST nor SIGNED_TOP).
+        ord = sm_cmp_ord_bytes(buf, lhs_off + 4, rhs_off + 4, common, 0);
+      }
+      if (ord == CMP_ORD_EQ) {
+        if (lhs_len < rhs_len) {
+          ord = CMP_ORD_LT;
+        } else if (lhs_len > rhs_len) {
+          ord = CMP_ORD_GT;
+        }
+      }
+      result = cmp_ord_to_bool(ord, op) ? 1 : 0;
     }
 
     // Write result at sm->offset.

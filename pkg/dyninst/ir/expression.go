@@ -101,23 +101,28 @@ type ExprReadStringOp struct {
 
 func (*ExprReadStringOp) irOp() {}
 
-// ExprCmpEqBaseOp pops the LHS offset from the data stack, compares ByteSize
-// bytes at LHS vs RHS (current offset), and writes a bool result (0 or 1) at
-// the current offset. Used both for base-type equality and for the 8-byte
-// leading-pointer comparison that implements `== nil` on nullable types
-// (pointer, map, slice, interface).
-type ExprCmpEqBaseOp struct {
+// ExprCmpBaseOp pops the LHS offset from the data stack, compares ByteSize
+// bytes at LHS vs RHS (current offset) using Op + Kind, and writes a bool
+// result (0 or 1) at the current offset. Used both for base-type comparison
+// and for the 8-byte leading-pointer comparison that implements `== nil` /
+// `!= nil` on nullable types (pointer, map, slice, interface).
+type ExprCmpBaseOp struct {
+	Op       CmpOp
+	Kind     CmpKind
 	ByteSize uint8
 }
 
-func (*ExprCmpEqBaseOp) irOp() {}
+func (*ExprCmpBaseOp) irOp() {}
 
-// ExprCmpEqStringOp pops the LHS offset from the data stack and compares two
-// length-prefixed strings ([u32 len][bytes...]). Writes a bool result at the
-// current offset.
-type ExprCmpEqStringOp struct{}
+// ExprCmpStringOp pops the LHS offset from the data stack and compares two
+// length-prefixed strings ([u32 len][bytes...]) using Op. Writes a bool
+// result at the current offset. Lt/Le/Gt/Ge use lexicographic byte order;
+// shorter strings sort below longer ones when the common prefix matches.
+type ExprCmpStringOp struct {
+	Op CmpOp
+}
 
-func (*ExprCmpEqStringOp) irOp() {}
+func (*ExprCmpStringOp) irOp() {}
 
 // SliceBoundsCheckOp checks that a compile-time index is within the runtime
 // length of a Go slice. It expects the scratch buffer at the current offset
