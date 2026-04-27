@@ -798,26 +798,11 @@ func checkFieldCoverage(t *testing.T, input, output *config.LogsConfig, excluded
 }
 
 // TestLogsConfigFieldCoverage_detectsMissingField is a meta-test that verifies
-// the guard test catches a newly added field that is copied but then removed
-// from the copy. It does this by checking that Encoding (a known pass-through
-// field) would be detected if it were excluded.
+// the guard logic catches a newly added field that is set on input but missing
+// from output. It simulates the bug by building an output config that
+// deliberately omits Encoding, then checks that Encoding appears in the
+// missing-fields list.
 func TestLogsConfigFieldCoverage_detectsMissingField(t *testing.T) {
-	input := fullyPopulatedLogsConfig()
-	output := &config.LogsConfig{
-		// Deliberately omit Encoding to simulate the bug
-		Type:            config.FileType,
-		TailingMode:     input.TailingMode,
-		Identifier:      input.Identifier,
-		Path:            "some/path",
-		Service:         input.Service,
-		Source:          input.Source,
-		Tags:            input.Tags,
-		ProcessingRules: input.ProcessingRules,
-		FingerprintConfig: &types.FingerprintConfig{
-			FingerprintStrategy: "md5",
-		},
-	}
-
 	excluded := map[string]string{
 		"Type": "hardcoded", "Path": "computed", "Source": "computed", "Service": "computed",
 		"Port": "n/a", "BindHost": "n/a", "IdleTimeout": "n/a", "MaxConnections": "n/a",
@@ -834,12 +819,21 @@ func TestLogsConfigFieldCoverage_detectsMissingField(t *testing.T) {
 		"SourceCategory": "n/a",
 	}
 
-	// Run checkFieldCoverage against a mock testing.T to capture failures
-	mockT := &testing.T{}
-	checkFieldCoverage(mockT, input, output, excluded)
+	input := fullyPopulatedLogsConfig()
+	output := &config.LogsConfig{
+		Type:            config.FileType,
+		TailingMode:     input.TailingMode,
+		Identifier:      input.Identifier,
+		Path:            "some/path",
+		Service:         input.Service,
+		Source:          input.Source,
+		Tags:            input.Tags,
+		ProcessingRules: input.ProcessingRules,
+		FingerprintConfig: &types.FingerprintConfig{
+			FingerprintStrategy: "md5",
+		},
+	}
 
-	// The mock T should have recorded failures for the missing fields.
-	// We verify by running the same check ourselves.
 	inVal := reflect.ValueOf(input).Elem()
 	outVal := reflect.ValueOf(output).Elem()
 	structType := inVal.Type()
@@ -860,7 +854,7 @@ func TestLogsConfigFieldCoverage_detectsMissingField(t *testing.T) {
 		}
 	}
 
-	require.NotEmpty(t, missing, "Expected checkFieldCoverage to detect missing fields")
+	require.NotEmpty(t, missing, "Expected to detect missing fields")
 	found := false
 	for _, name := range missing {
 		if name == "Encoding" {
