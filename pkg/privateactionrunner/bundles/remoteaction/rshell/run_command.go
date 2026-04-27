@@ -37,60 +37,54 @@ var statFn = os.Stat
 
 // RunCommandHandler implements the runCommand action.
 //
-// Both allow-lists follow the same pattern: the operator list is stored as a
-// set for O(1) lookup, and the filter functions do plain string-equality
-// intersection with the backend list. Nil means the operator did not
-// configure the axis (backend list passes through); an empty list means the
-// operator explicitly restricts to nothing.
+// Commands intersect by exact string equality (operator must use the
+// "rshell:<name>" form). Paths intersect by containment with "narrower
+// wins"; prefix siblings like "/var/logger" do not match "/var/log".
 type RunCommandHandler struct {
-	// operatorAllowedPaths is the operator's filesystem allowlist from
-	// datadog.yaml. Populated only when filtering is enabled.
-	operatorAllowedPaths map[string]struct{}
-	// operatorPathsFilterEnabled distinguishes "unset" (nil map, no
-	// filtering) from "empty list" (operator explicitly allowed nothing).
+	// Nil = operator did not configure (backend passes through). Empty =
+	// explicit kill-switch.
+	operatorAllowedPaths       []string
 	operatorPathsFilterEnabled bool
-	// operatorAllowedCommands is the set of bare command names the
-	// operator has allow-listed. Populated only when filtering is enabled.
-	operatorAllowedCommands map[string]struct{}
-	// operatorCommandsFilterEnabled distinguishes "unset" from "empty".
+
+	operatorAllowedCommands       []string
 	operatorCommandsFilterEnabled bool
 }
 
-// NewRunCommandHandler creates a new RunCommandHandler. Pass nil for either
-// operator list to disable filtering on that axis. A non-nil empty slice is
-// an explicit "block everything on this axis" and is honored as such.
+// NewRunCommandHandler creates a new RunCommandHandler. Pass nil to leave
+// filtering off on an axis; a non-nil empty slice is the explicit
+// kill-switch.
 func NewRunCommandHandler(operatorAllowedPaths []string, operatorAllowedCommands []string) *RunCommandHandler {
 	h := &RunCommandHandler{}
 	if operatorAllowedPaths != nil {
 		h.operatorPathsFilterEnabled = true
-		h.operatorAllowedPaths = make(map[string]struct{}, len(operatorAllowedPaths))
-		for _, p := range operatorAllowedPaths {
-			if p == "" {
-				continue
-			}
-			h.operatorAllowedPaths[p] = struct{}{}
-		}
+		h.operatorAllowedPaths = dedupeNonEmpty(operatorAllowedPaths)
 	}
 	if operatorAllowedCommands != nil {
 		h.operatorCommandsFilterEnabled = true
-		h.operatorAllowedCommands = make(map[string]struct{}, len(operatorAllowedCommands))
-		for _, c := range operatorAllowedCommands {
-			if c == "" {
-				continue
-			}
-			h.operatorAllowedCommands[c] = struct{}{}
-		}
+		h.operatorAllowedCommands = dedupeNonEmpty(operatorAllowedCommands)
 	}
 	return h
 }
 
-// filterAllowedCommands returns the effective command allowlist given the
-// per-task list from the backend.
-//
-// The backend is the authoritative gate. A nil backend list (field absent)
-// produces an empty result — rshell then blocks every command. The operator
-// config can only tighten further; it cannot grant commands the backend did
-// not.
+// dedupeNonEmpty drops empties and duplicates, preserving first-seen order.
+func dedupeNonEmpty(in []string) []string {
+	out := make([]string, 0, len(in))
+	seen := make(map[string]struct{}, len(in))
+	for _, s := range in {
+		if s == "" {
+			continue
+		}
+		if _, dup := seen[s]; dup {
+			continue
+		}
+		seen[s] = struct{}{}
+		out = append(out, s)
+	}
+	return out
+}
+
+// filterAllowedCommands returns the operator ∩ backend command list.
+// Plain string equality; nil backend short-circuits to nil (rshell blocks).
 func (h *RunCommandHandler) filterAllowedCommands(backendAllowed []string) []string {
 	if backendAllowed == nil {
 		return nil
@@ -98,18 +92,21 @@ func (h *RunCommandHandler) filterAllowedCommands(backendAllowed []string) []str
 	if !h.operatorCommandsFilterEnabled {
 		return backendAllowed
 	}
+	operatorSet := make(map[string]struct{}, len(h.operatorAllowedCommands))
+	for _, c := range h.operatorAllowedCommands {
+		operatorSet[c] = struct{}{}
+	}
 	filtered := make([]string, 0, len(backendAllowed))
 	for _, c := range backendAllowed {
-		if _, ok := h.operatorAllowedCommands[c]; ok {
+		if _, ok := operatorSet[c]; ok {
 			filtered = append(filtered, c)
 		}
 	}
 	return filtered
 }
 
-// filterAllowedPaths is the paths analogue of filterAllowedCommands. Both
-// do plain string-equality intersection — paths must be spelled identically
-// on the backend and in datadog.yaml to be admitted.
+// filterAllowedPaths returns the operator ∩ backend path list with
+// "narrower wins" containment matching.
 func (h *RunCommandHandler) filterAllowedPaths(backendAllowed []string) []string {
 	if backendAllowed == nil {
 		return nil
@@ -118,12 +115,40 @@ func (h *RunCommandHandler) filterAllowedPaths(backendAllowed []string) []string
 		return backendAllowed
 	}
 	filtered := make([]string, 0, len(backendAllowed))
-	for _, p := range backendAllowed {
-		if _, ok := h.operatorAllowedPaths[p]; ok {
-			filtered = append(filtered, p)
+	seen := make(map[string]struct{})
+	admit := func(p string) {
+		if _, dup := seen[p]; dup {
+			return
+		}
+		seen[p] = struct{}{}
+		filtered = append(filtered, p)
+	}
+	for _, b := range backendAllowed {
+		for _, o := range h.operatorAllowedPaths {
+			switch {
+			case pathContains(b, o):
+				admit(o)
+			case pathContains(o, b):
+				admit(b)
+			}
 		}
 	}
 	return filtered
+}
+
+// pathContains reports whether parent is an ancestor of (or equal to)
+// child, with the path separator as the boundary so "/var/logger" does not
+// match "/var/log".
+func pathContains(parent, child string) bool {
+	parent = path.Clean(parent)
+	child = path.Clean(child)
+	if parent == child {
+		return true
+	}
+	if !strings.HasSuffix(parent, "/") {
+		parent += "/"
+	}
+	return strings.HasPrefix(child, parent)
 }
 
 // RunCommandInputs defines the inputs for the runCommand action.

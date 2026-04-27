@@ -38,6 +38,11 @@ const (
 	// Restricted Shell
 	PARRestrictedShellAllowedPaths    = "private_action_runner.restricted_shell.allowed_paths"
 	PARRestrictedShellAllowedCommands = "private_action_runner.restricted_shell.allowed_commands"
+	// RShellCommandNamespacePrefix is the prefix the backend stamps onto
+	// every command in its allow-list. Operator entries in datadog.yaml
+	// must use the same form to intersect; otherwise they silently fail
+	// to match.
+	RShellCommandNamespacePrefix = "rshell:"
 )
 
 // setupPrivateActionRunner registers all configuration keys for the private action runner
