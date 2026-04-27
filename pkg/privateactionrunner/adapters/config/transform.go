@@ -8,6 +8,7 @@ package config
 import (
 	"crypto/ecdsa"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -150,9 +151,42 @@ func warnUnnamespacedCommands(commands []string) {
 }
 
 // rshellAllowedPaths mirrors rshellAllowedCommands for the filesystem
-// allowlist.
+// allowlist. Two advisory warnings fire at load time: backslash entries
+// (forward-slash contract) and non-directory entries (rshell's os.Root
+// sandbox is directory-only). Entries still flow through; the warnings
+// surface silent-failure modes in agent logs.
 func rshellAllowedPaths(config config.Component) []string {
-	return configuredStringSliceOrNil(config, setup.PARRestrictedShellAllowedPaths)
+	paths := configuredStringSliceOrNil(config, setup.PARRestrictedShellAllowedPaths)
+	warnBackslashPaths(paths)
+	warnNonDirectoryPaths(paths)
+	return paths
+}
+
+// warnBackslashPaths logs a warning per entry containing a backslash. The
+// operator-side allow-list is forward-slash only; backslash paths never
+// match the backend's Linux-style entries.
+func warnBackslashPaths(paths []string) {
+	for _, p := range paths {
+		if strings.ContainsRune(p, '\\') {
+			log.Warnf("%s entry %q contains a backslash; only forward-slash paths are supported and this entry will never match a backend path",
+				setup.PARRestrictedShellAllowedPaths, p)
+		}
+	}
+}
+
+// warnNonDirectoryPaths logs a warning for entries that exist on disk but
+// are not directories. rshell's sandbox is built on os.Root, which only
+// accepts directory handles; file entries are silently dropped at runner
+// creation. Entries that don't exist are not warned about — rshell's own
+// "path not found" warning at task time covers that case.
+func warnNonDirectoryPaths(paths []string) {
+	for _, p := range paths {
+		info, err := os.Stat(p)
+		if err == nil && !info.IsDir() {
+			log.Warnf("%s entry %q is not a directory; rshell's sandbox only accepts directory entries and will drop this entry at runtime. Use the containing directory instead.",
+				setup.PARRestrictedShellAllowedPaths, p)
+		}
+	}
 }
 
 // configuredStringSliceOrNil returns the configured value only when the
