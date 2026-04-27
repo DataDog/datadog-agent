@@ -2003,7 +2003,18 @@ def coord_branches(ctx, mode: str = "full", remote: str = "origin", scratch_name
         # Prefer remote scratch if present, else fork from upstream.
         remote_scratch = f"{remote}/{scratch}"
         has_remote = ctx.run(f"git rev-parse --verify --quiet {shlex.quote(remote_scratch)}", warn=True, hide=True)
-        base = remote_scratch if (has_remote and not has_remote.failed) else f"{remote}/{upstream}"
+        # Fork preference (per-run unique scratch must have commits ahead of
+        # upstream so gh pr create works — empty diff = "No commits between
+        # base and head" GraphQL error):
+        #   1. existing remote scratch (resume case)
+        #   2. current HEAD (typically ella/claude-coordinator-harness, which
+        #      carries the harness code + commits ahead of upstream)
+        #   3. origin/<upstream> (last resort; produces empty PR)
+        if has_remote and not has_remote.failed:
+            base = remote_scratch
+        else:
+            cur_branch = ctx.run("git branch --show-current", hide=True).stdout.strip()
+            base = cur_branch or f"{remote}/{upstream}"
         print(color_message(f"  creating local {scratch} from {base}", Color.BLUE))
         ctx.run(f"git checkout -b {shlex.quote(scratch)} {shlex.quote(base)}")
     else:
@@ -2106,14 +2117,18 @@ def coord_up(
             f"Each shipped candidate becomes one commit on this branch, "
             f"making the run a self-contained eval matrix entry._\n"
         )
+        # `hide=False` so gh's actual error message surfaces if PR creation
+        # fails — previously stderr was swallowed leaving a bare "failed:"
+        # with no diagnostic.
         r = ctx.run(
             f"gh pr create --draft --base {shlex.quote(upstream_branch)} "
             f"--head {shlex.quote(scratch_branch)} "
             f"--title {shlex.quote(title)} --body {shlex.quote(body)}",
-            warn=True, hide=True,
+            warn=True,
         )
         if r is None or r.failed:
-            raise Exit(code=1, message=f"gh pr create failed: {(r.stderr or '').strip()[:200] if r else ''}")
+            err = ((r.stderr or "") + (r.stdout or "")).strip() if r else ""
+            raise Exit(code=1, message=f"gh pr create failed: {err[:400]}")
         # Last line of stdout is the URL; extract the PR number.
         url = r.stdout.strip().splitlines()[-1]
         pr_num = int(url.rstrip("/").rsplit("/", 1)[-1])
