@@ -351,6 +351,15 @@ def _sanity_pre_eval_sentinel(db: Db, root: Path, iter_num: int) -> tuple[bool, 
         # Sentinel mis-configured for this run's baseline; warn but continue.
         return True, f"sentinel_not_in_baseline ({detector}/{scenario})"
     expected_f1 = det_base.scenarios[scenario].f1
+    # Blank-slate auto-detect: if the baseline detector itself has no
+    # signal (mean F1 < 0.05), this is a blank-mode run — there's nothing
+    # for the sentinel to verify, since "reproducing baseline" is just
+    # "reproducing zero." Skip rather than halting every iter.
+    if det_base.mean_f1 < 0.05 or expected_f1 < 0.05:
+        return True, (
+            f"skipped_blank_baseline (detector mean_f1={det_base.mean_f1:.3f}, "
+            f"sentinel_scenario_f1={expected_f1:.3f})"
+        )
     min_f1 = max(CONFIG.sanity_sentinel_min_f1, expected_f1 - 0.05)
 
     report_path = state_dir(root) / "sanity" / f"iter-{iter_num:04d}-sentinel.json"
@@ -1159,13 +1168,17 @@ def _run_iteration_body(
     # means. Rolling "last shipped" reference was dropped earlier (it
     # introduced a noise ratchet).
     scorings: dict[str, "object"] = {}
+    # Use the effective (best-historical) baseline if present so a candidate
+    # can't ratchet backwards through tolerance-bound drift. Falls back to
+    # the original frozen baseline pre-first-ship.
+    score_ref = db.effective_baseline or db.baseline
     for det in detectors:
         rp = reports_by_detector.get(det)
         if rp is None:
             continue
         scorings[det] = score_against_baseline(
             rp,
-            db.baseline,
+            score_ref,
             det,
             train_scenarios=train_set,
         )
@@ -1378,6 +1391,21 @@ def _run_iteration_body(
 
         commit_sha = git_ops.commit_candidate(candidate.id, experiment_id, root)
         experiment.commit_sha = commit_sha
+        # Update the effective (best-historical) baseline element-wise per
+        # detector. New floor for subsequent iters: the highest f1/precision/
+        # recall and lowest FPs we've ever achieved. No backsliding allowed.
+        from .scoring import merge_best_historical
+        eff = db.effective_baseline or db.baseline
+        if eff is not None:
+            for det in detectors:
+                shipped_scen = {
+                    s_name.split("/", 1)[1]: sr
+                    for s_name, sr in scoring.per_scenario.items()
+                    if "/" in s_name and s_name.split("/", 1)[0] == det
+                }
+                if shipped_scen:
+                    eff = merge_best_historical(eff, shipped_scen, det)
+            db.effective_baseline = eff
         # Persist the real sha BEFORE pushing. If push fails, db.yaml already
         # reflects the commit; startup_cleanup will push the orphan on restart.
         save_db(db, root)
