@@ -2016,6 +2016,7 @@ def coord_branches(ctx, mode: str = "full", remote: str = "origin"):
         "reuse_pr": "Reuse this PR number instead of creating a new one.",
         "token_ceiling": "Override the panic-brake token ceiling (default 500_000_000).",
         "wall_hours_ceiling": "Override the wall-time ceiling in hours (default 72).",
+        "no_wipe": "Don't auto-archive prior db.yaml on --mode blank (default: auto-wipes).",
     }
 )
 def coord_up(
@@ -2025,6 +2026,7 @@ def coord_up(
     reuse_pr: int = 0,
     token_ceiling: int = 500_000_000,
     wall_hours_ceiling: float = 72.0,
+    no_wipe: bool = False,
 ):
     """
     One-shot: bring a workspace from zero to a running coordinator driver.
@@ -2032,15 +2034,29 @@ def coord_up(
     Steps performed:
       1. q.coord-setup --auto (env checks + auto-install)
       2. q.coord-branches --mode <mode> (idempotent branch wiring)
-      3. Create a fresh draft run-log PR (or reuse via --reuse-pr <#>)
-      4. Export COORD_GITHUB_PR_NUMBER for the driver
-      5. Launch the driver in a tmux session (default: coord-<mode>)
+      3. (--mode blank only, unless --no-wipe) Archive any prior
+         .coordinator/db.yaml as .bak so a stale full-mode baseline can't
+         poison the gates with phantom regressions on bocpd/scanmw/etc
+         that don't exist on the blank branch.
+      4. Create a fresh draft run-log PR (or reuse via --reuse-pr <#>)
+      5. Export COORD_GITHUB_PR_NUMBER for the driver
+      6. Launch the driver in a tmux session (default: coord-<mode>)
 
     Print the PR URL and `tmux attach -t <session>` at the end. The driver
     runs until budget halts, max-pivot halts, or the user kills the session.
     """
     coord_setup(ctx, auto=True)
     coord_branches(ctx, mode=mode)
+
+    if mode == "blank" and not no_wipe:
+        from tasks.coordinator import setup as coord_setup_mod
+        actions = coord_setup_mod.archive_stale_state(".coordinator")
+        if actions:
+            print(color_message("\nArchiving stale per-run state (blank mode):", Color.BLUE))
+            for a in actions:
+                print(color_message(f"  · {a}", Color.BLUE))
+        else:
+            print(color_message("\nNo prior .coordinator/ state to archive.", Color.BLUE))
 
     pr_num = reuse_pr
     if pr_num == 0:

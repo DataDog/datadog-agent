@@ -269,3 +269,40 @@ def format_report(checks: list[Check]) -> str:
 def blockers(checks: list[Check]) -> list[Check]:
     """Return checks that must be resolved before the coordinator can run."""
     return [c for c in checks if not c.ok]
+
+
+def archive_stale_state(coord_dir: str = ".coordinator") -> list[str]:
+    """Move per-run state aside so a fresh run starts clean.
+
+    Preserves history-valuable artifacts (journal, sdk-errors, tokens log,
+    eval reports, inbox archive) so post-mortem analysis still works.
+    Backs up ONLY the small files that bind the harness to a specific
+    run (db.yaml, github comment cursor, session info, pause flag).
+
+    db.yaml is moved to `db.yaml.<ts>.bak` (reversible). Everything else
+    is just removed — they regenerate on first iter.
+
+    Returns the list of paths that were moved/removed (for printing).
+    """
+    import datetime as _dt
+    import shutil
+
+    if not os.path.isdir(coord_dir):
+        return []
+
+    ts = _dt.datetime.now().strftime("%Y%m%dT%H%M%S")
+    actions: list[str] = []
+
+    db_path = os.path.join(coord_dir, "db.yaml")
+    if os.path.exists(db_path):
+        backup = f"{db_path}.{ts}.bak"
+        shutil.move(db_path, backup)
+        actions.append(f"db.yaml → {os.path.basename(backup)} (reversible)")
+
+    for fname in ("pause", "session.txt", "github_state.json", "metrics.md", "f1-matrix.md", "coord-out.md"):
+        p = os.path.join(coord_dir, fname)
+        if os.path.exists(p):
+            os.remove(p)
+            actions.append(f"removed {fname}")
+
+    return actions
