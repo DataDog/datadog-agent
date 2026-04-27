@@ -720,14 +720,14 @@ func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 
 // DebugEBPFMaps returns all maps registered in the eBPF manager
 func (t *Tracer) DebugEBPFMaps(w io.Writer, maps ...string) error {
-	io.WriteString(w, "tracer:\n")
+	_, _ = io.WriteString(w, "tracer:\n")
 	err := t.ebpfTracer.DumpMaps(w, maps...)
 	if err != nil {
 		return err
 	}
 
 	if t.usmMonitor != nil {
-		io.WriteString(w, "usm_monitor:\n")
+		_, _ = io.WriteString(w, "usm_monitor:\n")
 		err := t.usmMonitor.DumpMaps(w, maps...)
 		if err != nil {
 			return err

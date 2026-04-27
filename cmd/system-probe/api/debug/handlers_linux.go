@@ -110,7 +110,7 @@ func HandleLinuxDmesg(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 
-	io.WriteString(w, dmesgStr)
+	_, _ = io.WriteString(w, dmesgStr)
 }
 
 // handleCommand runs commandName with the provided arguments and writes it to the HTTP response.
