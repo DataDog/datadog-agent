@@ -1,0 +1,10 @@
+---
+enhancements:
+  - |
+    Bump ``rshell`` to v0.0.14 for the Private Action Runner. v0.0.14 adds
+    library-internal hooks (``WarningsWriter`` option and ``Warnings()``
+    accessor) that let callers route sandbox diagnostic messages to a
+    dedicated sink. The Private Action Runner does not yet adopt these
+    hooks, so user-visible behaviour is unchanged; a follow-up will use
+    them to stop sandbox warnings from polluting command stderr in the
+    ``runCommand`` action response.
