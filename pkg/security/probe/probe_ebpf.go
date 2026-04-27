@@ -1137,6 +1137,12 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 				p.Resolvers.ProcessResolver.TryReparentFromKernelPPid(entry, event.PIDContext.PPid, newEntryCb)
 			}
 
+			// If the kernel reports a different SID than the one in our
+			// cache, the process called setsid(). Update the cache entry.
+			if event.PIDContext.SID != 0 {
+				entry.SID = event.PIDContext.SID
+			}
+
 			// Attempt to repair the lineage of processes that were orphaned
 			// during subreaper reparenting (the exit tracepoint may fire
 			// before the kernel has completed forget_original_parent).

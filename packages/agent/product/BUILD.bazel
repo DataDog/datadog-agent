@@ -48,7 +48,6 @@ pkg_filegroup(
         # TODO: system-probe - eBPF
 
         # TODO: //pkg/discovery/module/rust
-        # TODO: //pkg/procmgr/rust
         # TODO: security-agent
         # TODO: cws-instrumentation
         # TODO: secret-generic-connector
@@ -57,9 +56,11 @@ pkg_filegroup(
     ] + select({
         "//packages/agent:linux_default": [
             "//pkg/discovery/module/rust:all_files",
+            "//pkg/procmgr/rust:all_files",
         ],
         "//packages/agent:linux_fips": [
             "//pkg/discovery/module/rust:all_files",
+            "//pkg/procmgr/rust:all_files",
         ],
         "//packages/agent:linux_heroku": [],
         "//conditions:default": [

@@ -70,27 +70,6 @@ type_exception = {
     "dd_url": ("string", "string", "https://app.datadoghq.com"),
     "logs_config.logs_dd_url": ("string", "string", ""),
     "logs_config.processing_rules": ("list of custom objects", "list of custom objects", []),
-    "apm_config.env": ("string", "string", "none"),
-    "apm_config.apm_non_local_traffic": ("boolean", "boolean", False),
-    "apm_config.apm_dd_url": ("string", "string", None),
-    "apm_config.max_traces_per_second": ("integer", "integer", 10),
-    "apm_config.target_traces_per_second": ("integer", "integer", 10),
-    "apm_config.errors_per_second": ("integer", "integer", 10),
-    "apm_config.max_events_per_second": ("integer", "integer", 200),
-    "apm_config.max_memory": ("integer", "integer", 500000000),
-    "apm_config.max_cpu_percent": ("integer", "integer", 50),
-    "apm_config.replace_tags": ("list of objects", "list of objects", None),
-    "apm_config.ignore_resources": ("list of strings", "comma separated list of strings", []),
-    "apm_config.log_file": ("string", "string", None),
-    "apm_config.connection_limit": ("integer", "integer", 2000),
-    "apm_config.peer_tags": ("list of strings", "list of strings", []),
-    "apm_config.additional_endpoints": ("object", "object", {}),
-    "apm_config.trace_buffer": ("integer", "integer", 0),
-    "apm_config.probabilistic_sampler.enabled": ("boolean", "boolean", False),
-    "apm_config.probabilistic_sampler.sampling_percentage": ("float", "float", 0),
-    "apm_config.probabilistic_sampler.hash_seed": ("integer", "integer", 0),
-    "apm_config.profiling_receiver_timeout": ("integer", "integer", 5),
-    "apm_config.internal_profiling.enabled": ("boolean", "boolean", False),
     "bind_host": ("string", "string", "localhost"),
     "dogstatsd_mapper_profiles": ("list of custom object", "list of custom object", None),
     "listeners": ("list of key:value elements", "list of key:value elements", None),
@@ -104,20 +83,6 @@ type_exception = {
     "reverse_dns_enrichment.rate_limiter.limit_throttled_per_sec": ("integer", "integer", 1),
     "reverse_dns_enrichment.rate_limiter.throttle_error_threshold": ("integer", "integer", 10),
     "reverse_dns_enrichment.rate_limiter.recovery_intervals": ("integer", "integer", 5),
-    "otlp_config.receiver.protocols.grpc.endpoint": ("string", "string", "0.0.0.0:4317"),
-    "otlp_config.receiver.protocols.grpc.transport": ("string", "string", "tcp"),
-    "otlp_config.receiver.protocols.grpc.max_recv_msg_size_mib": ("integer", "integer", 4),
-    "otlp_config.receiver.protocols.http.endpoint": ("string", "string", "0.0.0.0:4318"),
-    "otlp_config.metrics.resource_attributes_as_tags": ("boolean", "boolean", False),
-    "otlp_config.metrics.tag_cardinality": ("string", "string", "low"),
-    "otlp_config.metrics.delta_ttl": ("integer", "integer", 3600),
-    "otlp_config.metrics.histograms.mode": ("string", "string", "distributions"),
-    "otlp_config.metrics.histograms.send_count_sum_metrics": ("boolean", "boolean", False),
-    "otlp_config.metrics.histograms.send_aggregation_metrics": ("boolean", "boolean", False),
-    "otlp_config.metrics.sums.cumulative_monotonic_mode": ("string", "string", "to_delta"),
-    "otlp_config.metrics.sums.initial_cumulative_monotonic_value": ("string", "string", "auto"),
-    "otlp_config.metrics.summaries.mode": ("string", "string", "gauges"),
-    "otlp_config.debug.verbosity": ("string", "string", "normal"),
 }
 
 build_type_to_section = {
@@ -214,23 +179,6 @@ def _filter_hidden_nodes(nodes, os_target):
         del nodes[name]
 
     return nodes
-
-
-def _order_items(nodes):
-    res = []
-    for name, node in nodes.items():
-        tags = node.get("tags", [])
-        for tag in tags:
-            if tag.startswith("template_section_order:"):
-                template_order = tag.split(":")[1]
-                break
-        else:
-            print(f"error: {name} is public but has no template order")
-            continue
-
-        res.append((int(template_order), (name, node)))
-
-    return [x[1] for x in sorted(res, key=lambda x: x[0])]
 
 
 def _get_platform_version(data, os_target):
@@ -426,7 +374,7 @@ def _render(build_type, os_target, previous_path, name, node, indent_level):
     template = _render_node(full_name, name, node, indent_level, os_target)
 
     child_nodes = _filter_hidden_nodes(node.get("properties", {}), os_target)
-    for child_name, child in _order_items(child_nodes):
+    for child_name, child in child_nodes.items():
         template += _render(build_type, os_target, full_name, child_name, child, indent_level + 1)
 
     header = _get_header(node)
@@ -439,7 +387,7 @@ def generate_template(schema_file, dest, build_type, os_target):
 
     config_template = ""
     child_nodes = _filter_hidden_nodes(schema.get("properties", {}), os_target)
-    for child_name, child in _order_items(child_nodes):
+    for child_name, child in child_nodes.items():
         config_template += _render(build_type, os_target, "", child_name, child, 0)
 
     final_render = [line.strip() for line in config_template.strip().split("\n")]

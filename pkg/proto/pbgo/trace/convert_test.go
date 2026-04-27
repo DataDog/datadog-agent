@@ -374,3 +374,64 @@ func TestConvertedTracePayload(t *testing.T) {
 	assert.True(t, found)
 	assert.Equal(t, "edge", apmMode)
 }
+
+// TestUnmarshalMsgConvertedRootSpanPriorityNotOverwritten asserts that when a trace
+// contains a root span with _sampling_priority_v1=2 (UserKeep) followed by a child span
+// with _sampling_priority_v1=-1 (UserDrop), the resulting chunk priority should reflect
+// the root span's authoritative decision (2), not be overwritten by the child's value.
+//
+// The root span carries the sampling decision for the whole trace.  Processing the child
+// span second must not clobber that decision in convertedFields.SamplingPriority.
+func TestUnmarshalMsgConvertedRootSpanPriorityNotOverwritten(t *testing.T) {
+	const (
+		traceID     = uint64(2474985802196436598)
+		rootSpanID  = uint64(2474985802196436598)
+		childSpanID = uint64(4517865208795174629)
+	)
+
+	traces := Traces{Trace{
+		// Root span: parent_id=0, _sampling_priority_v1=2 (UserKeep).
+		{
+			TraceID:  traceID,
+			SpanID:   rootSpanID,
+			ParentID: 0,
+			Service:  "weblog",
+			Name:     "http.request",
+			Resource: "GET /rasp/ssrf",
+			Type:     "web",
+			Metrics: map[string]float64{
+				"_sampling_priority_v1": 2.0,
+				"_dd.top_level":         1.0,
+			},
+		},
+		// Child span: parent_id=rootSpanID, _sampling_priority_v1=-1 (UserDrop).
+		// This value must not overwrite the root span's priority on the chunk.
+		{
+			TraceID:  traceID,
+			SpanID:   childSpanID,
+			ParentID: rootSpanID,
+			Service:  "weblog",
+			Name:     "http.request",
+			Resource: "http.request",
+			Type:     "http",
+			Error:    1,
+			Metrics: map[string]float64{
+				"_sampling_priority_v1": -1.0,
+			},
+		},
+	}}
+
+	bts, err := traces.MarshalMsg(nil)
+	assert.NoError(t, err)
+
+	tp := &idx.InternalTracerPayload{}
+	_, err = tp.UnmarshalMsgConverted(bts)
+	assert.NoError(t, err)
+	assert.Len(t, tp.Chunks, 1)
+
+	// The root span (first in trace, parent_id=0) owns the sampling decision for the
+	// whole trace.  The chunk priority must equal 2 (UserKeep), regardless of the child
+	// span's _sampling_priority_v1=-1 being processed afterwards.
+	assert.Equal(t, int32(2), tp.Chunks[0].Priority,
+		"chunk priority must be taken from the root span (2), not overwritten by the child span (-1)")
+}

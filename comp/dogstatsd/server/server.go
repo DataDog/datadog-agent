@@ -23,7 +23,7 @@ import (
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	dsdconfig "github.com/DataDog/datadog-agent/comp/dogstatsd/config"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
@@ -557,7 +557,7 @@ func (s *server) handleMessages() {
 	}
 
 	if s.offlineReporter != nil {
-		s.offlineReporter.SendOfflineDuration("datadog.dogstatsd.offline_duration", nil)
+		s.offlineReporter.SendOfflineDuration("datadog.agent.dogstatsd.offline_duration_seconds", nil)
 	}
 
 	// create and start all the workers

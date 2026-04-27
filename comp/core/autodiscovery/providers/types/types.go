@@ -29,6 +29,8 @@ const (
 	ContainerLabelSource ErrorSource = "container_label"
 	// PodAnnotationSource indicates errors from Kubernetes pod annotations (ad.datadoghq.com/*)
 	PodAnnotationSource ErrorSource = "pod_annotation"
+	// TemplateResolutionSource indicates errors from template variable resolution failures
+	TemplateResolutionSource ErrorSource = "template_resolution"
 )
 
 // ConfigProviderFactory is any function capable to create a ConfigProvider instance

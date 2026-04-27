@@ -14,7 +14,6 @@ use windows_sys::Win32::System::Threading::{
 /// Place the child in its own process group so `GenerateConsoleCtrlEvent`
 /// can target it without affecting the daemon.
 pub fn setup_process_group(cmd: &mut tokio::process::Command) {
-    use std::os::windows::process::CommandExt as _;
     cmd.creation_flags(CREATE_NEW_PROCESS_GROUP);
 }
 

@@ -24,6 +24,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
+	"github.com/DataDog/datadog-agent/comp/logs-library/sender"
+	httpsender "github.com/DataDog/datadog-agent/comp/logs-library/sender/http"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -33,8 +35,6 @@ import (
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
-	"github.com/DataDog/datadog-agent/pkg/logs/sender"
-	httpsender "github.com/DataDog/datadog-agent/pkg/logs/sender/http"
 	compressioncommon "github.com/DataDog/datadog-agent/pkg/util/compression"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -44,7 +44,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-//go:generate mockgen -source=$GOFILE -package=$GOPACKAGE -destination=epforwarder_mockgen.go
+//go:generate go run github.com/golang/mock/mockgen -source=$GOFILE -package=$GOPACKAGE -destination=epforwarder_mockgen.go
 
 // Module defines the fx options for this component.
 func Module(params Params) fxutil.Module {

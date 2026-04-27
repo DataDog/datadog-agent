@@ -9,10 +9,13 @@ package apminject
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSetLDPreloadConfig(t *testing.T) {
@@ -125,6 +128,70 @@ func TestShouldInstrumentHost(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestVerifySharedLib_Missing(t *testing.T) {
+	a := &InjectorInstaller{
+		installPath: "/nonexistent/path",
+	}
+	err := a.verifySharedLib(context.TODO(), "/nonexistent/path/launcher.preload.so")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "launcher library not found")
+}
+
+func TestInstrumentLDPreload_MissingLibrary(t *testing.T) {
+	tmpDir := t.TempDir()
+	preloadFile := filepath.Join(tmpDir, "ld.so.preload")
+
+	a := newInstallerWithPaths(tmpDir, preloadFile)
+
+	err := a.InstrumentLDPreload(context.TODO())
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "launcher library not found")
+
+	// ld.so.preload must not have been created
+	_, statErr := os.Stat(preloadFile)
+	assert.True(t, os.IsNotExist(statErr), "ld.so.preload must not be created on failure")
+}
+
+func TestUninstrumentLDPreload_NoPreloadFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	preloadFile := filepath.Join(tmpDir, "ld.so.preload")
+
+	a := newInstallerWithPaths(tmpDir, preloadFile)
+
+	// File doesn't exist: UninstrumentLDPreload should succeed (idempotent)
+	err := a.UninstrumentLDPreload(context.TODO())
+	assert.NoError(t, err)
+}
+
+func TestUninstrumentLDPreload_RemovesEntry(t *testing.T) {
+	tmpDir := t.TempDir()
+	preloadFile := filepath.Join(tmpDir, "ld.so.preload")
+	launcherPath := filepath.Join(tmpDir, "inject", "launcher.preload.so")
+
+	err := os.WriteFile(preloadFile, []byte(launcherPath+"\n"), 0644)
+	require.NoError(t, err)
+
+	a := newInstallerWithPaths(tmpDir, preloadFile)
+
+	err = a.UninstrumentLDPreload(context.TODO())
+	assert.NoError(t, err)
+
+	content, err := os.ReadFile(preloadFile)
+	require.NoError(t, err)
+	assert.NotContains(t, string(content), "launcher.preload.so")
+}
+
+// newInstallerWithPaths creates an InjectorInstaller using the given install path and preload file
+// path, suitable for unit testing without touching real system files.
+func newInstallerWithPaths(installPath, preloadPath string) *InjectorInstaller {
+	a := &InjectorInstaller{
+		installPath: installPath,
+	}
+	a.ldPreloadFileInstrument = newFileMutator(preloadPath, a.setLDPreloadConfigContent, nil, nil)
+	a.ldPreloadFileUninstrument = newFileMutator(preloadPath, a.deleteLDPreloadConfigContent, nil, nil)
+	return a
 }
 
 func TestShouldInstrumentDocker(t *testing.T) {

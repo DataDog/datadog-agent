@@ -89,13 +89,39 @@ type TagsetSpec struct {
 	WorkloadOnly bool     `yaml:"workload_only,omitempty"`
 }
 
+// MetricMetadataSpec defines metadata used to generate integrations metadata.csv rows.
+type MetricMetadataSpec struct {
+	MetricType  string `yaml:"metric_type,omitempty"`
+	Unit        string `yaml:"unit,omitempty"`
+	Description string `yaml:"description,omitempty"`
+}
+
+// UnmarshalYAML validates metric metadata values while decoding.
+func (m *MetricMetadataSpec) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain MetricMetadataSpec
+
+	var decoded plain
+	if err := unmarshal(&decoded); err != nil {
+		return fmt.Errorf("unmarshal metric metadata: %w", err)
+	}
+
+	switch decoded.MetricType {
+	case "", "gauge", "counter":
+		*m = MetricMetadataSpec(decoded)
+		return nil
+	default:
+		return fmt.Errorf("invalid metric_type %q: must be one of [gauge, counter]", decoded.MetricType)
+	}
+}
+
 // MetricSpec is a metric definition without the name (name is the map key).
 type MetricSpec struct {
-	Tagsets      []string          `yaml:"tagsets"`
-	CustomTags   []string          `yaml:"custom_tags,omitempty"`
-	WorkloadOnly bool              `yaml:"workload_only,omitempty"`
-	Support      MetricSupportSpec `yaml:"support"`
-	Validator    *MetricValidator  `yaml:"validator,omitempty"`
+	Metadata     *MetricMetadataSpec `yaml:"metadata,omitempty"`
+	Tagsets      []string            `yaml:"tagsets"`
+	CustomTags   []string            `yaml:"custom_tags,omitempty"`
+	WorkloadOnly bool                `yaml:"workload_only,omitempty"`
+	Support      MetricSupportSpec   `yaml:"support"`
+	Validator    *MetricValidator    `yaml:"validator,omitempty"`
 }
 
 // MetricValidatorRange defines an inclusive numeric range validator.

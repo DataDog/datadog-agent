@@ -82,15 +82,15 @@
               }
             }
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "@duration",
+            "message": "not available: function has no body"
+          }
+        ]
       },
-      "type": "snapshot",
-      "evaluationErrors": [
-        {
-          "expr": "@duration",
-          "message": "not available: function has no body"
-        }
-      ]
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "message": "{aBool: true, aString: one, aNumber: 2, nested: {anotherInt: 3, anotherString: four}}",

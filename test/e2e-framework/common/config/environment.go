@@ -245,7 +245,7 @@ func (e *CommonEnvironment) KubeNodeURL() string {
 }
 
 func (e *CommonEnvironment) DefaultResourceTags() map[string]string {
-	return map[string]string{"managed-by": "pulumi", "username": e.username}
+	return map[string]string{"managed-by": "pulumi", "username": e.username, "stack": e.Ctx().Stack()}
 }
 
 func (e *CommonEnvironment) InitOnly() bool {

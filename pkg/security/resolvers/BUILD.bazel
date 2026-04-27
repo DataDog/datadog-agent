@@ -1,1 +1,17 @@
 # gazelle:ignore
+
+# gazelle:exclude dentry
+# gazelle:exclude dns
+# gazelle:exclude envvars
+# gazelle:exclude file
+# gazelle:exclude hash
+# gazelle:exclude mount
+# gazelle:exclude netns
+# gazelle:exclude path
+# gazelle:exclude process
+# gazelle:exclude securitydescriptors
+# gazelle:exclude selinux
+# gazelle:exclude tags
+# gazelle:exclude tc
+# gazelle:exclude usergroup
+# gazelle:exclude usersessions

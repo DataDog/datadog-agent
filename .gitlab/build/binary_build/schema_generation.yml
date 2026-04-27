@@ -60,6 +60,17 @@ generate_config_schema-macos:
       - $CI_PROJECT_DIR/pkg/config/schema/core_schema.yaml
       - $CI_PROJECT_DIR/pkg/config/schema/system-probe_schema.yaml
 
+lint_config_schema:
+  stage: binary_build
+  extends: .generate_config_schema
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  needs:
+    - job: "generate_config_schema-linux"
+  script:
+    - dda inv -- schema.lint --schema-dir $CI_PROJECT_DIR/pkg/config/schema/
+  allow_failure: false
+
 generate_config_schema-windows:
   extends:
     - .generate_config_schema

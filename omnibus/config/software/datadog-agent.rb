@@ -241,7 +241,7 @@ build do
   end
 
   # dd-procmgrd (process manager daemon)
-  if ENV['WITH_DD_PROCMGRD'] == 'true'
+  if linux_target? and !heroku_target?
     command_on_repo_root "bazelisk run #{bazel_flags} //pkg/procmgr/rust:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
   end
 

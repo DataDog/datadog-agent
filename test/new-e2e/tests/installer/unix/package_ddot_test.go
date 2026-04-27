@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -192,6 +193,55 @@ func (s *packageDDOTSuite) TestInstallDDOTWithoutDatadogYAML() {
 	state = s.host.State()
 	s.assertCoreUnits(state, true)
 	s.assertDDOTUnits(state, true)
+}
+
+func (s *packageDDOTSuite) TestInstallDDOTSubcommand() {
+	// Install the base agent without DDOT.
+	s.RunInstallScript()
+	defer s.Purge()
+	s.host.AssertPackageInstalledByInstaller("datadog-agent")
+	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit)
+
+	// Install the ddot extension via the new datadog-agent otel subcommand.
+	agentPackageURL := "oci://installtesting.datad0g.com.internal.dda-testing.com/agent-package:pipeline-" + os.Getenv("E2E_PIPELINE_ID")
+	s.host.Run("sudo datadog-agent otel install --url " + agentPackageURL)
+
+	// Wait until DDOT is continuously stable running.
+	// DDOT unit is not stable running until the core agent fully restarts and config sync is ready.
+	s.waitForUnitStableRunning(ddotUnit)
+
+	state := s.host.State()
+	s.assertCoreUnits(state, true)
+	s.assertDDOTUnits(state, true)
+	state.AssertFileExists("/etc/datadog-agent/datadog.yaml", 0640, "dd-agent", "dd-agent")
+	state.AssertFileExists("/etc/datadog-agent/otel-config.yaml", 0640, "dd-agent", "dd-agent")
+	s.host.Run("sudo grep -q 'otelcollector:' /etc/datadog-agent/datadog.yaml")
+
+	// Remove the ddot extension and verify the service stops.
+	s.host.Run("sudo datadog-agent otel remove")
+	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit)
+	state = s.host.State()
+	state.AssertUnitsDead(ddotUnit)
+	s.assertCoreUnits(state, true)
+}
+
+// waitForUnitStableRunning waits until each unit has been continuously in
+// SubState=running for at least minUnitStableDuration.
+func (s *packageDDOTSuite) waitForUnitStableRunning(units ...string) {
+	const minUnitStableDuration = 15 * time.Second
+	for _, unit := range units {
+		require.Eventually(s.T(), func() bool {
+			cmd := fmt.Sprintf(
+				`state=$(systemctl show -p SubState %[1]s | cut -d= -f2) && `+
+					`enter=$(systemctl show -p ActiveEnterTimestampMonotonic %[1]s | cut -d= -f2) && `+
+					`now=$(awk '{printf "%%d", $1 * 1000000}' /proc/uptime) && `+
+					`[ "$state" = "running" ] && [ $((now - enter)) -gt %[2]d ]`,
+				unit, int64(minUnitStableDuration/time.Microsecond))
+			_, err := s.Env().RemoteHost.Execute(cmd)
+			return err == nil
+		}, 3*time.Minute, 3*time.Second,
+			"unit %s did not stabilize in running state for %s", unit, minUnitStableDuration)
+	}
 }
 
 func (s *packageDDOTSuite) assertCoreUnits(state host.State, oldUnits bool) {

@@ -15,7 +15,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagent/def"
 	"github.com/DataDog/datadog-agent/comp/core/remoteagent/helper"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"

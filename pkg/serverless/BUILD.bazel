@@ -1,5 +1,11 @@
 load("@rules_go//go:def.bzl", "go_library")
 
+# gazelle:exclude logs
+# gazelle:exclude metrics
+# gazelle:exclude otlp
+# gazelle:exclude streamlogs
+# gazelle:exclude trace
+
 go_library(
     name = "serverless",
     srcs = ["serverless.go"],

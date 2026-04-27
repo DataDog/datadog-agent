@@ -21,7 +21,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sys/unix"
 
-	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
@@ -36,7 +37,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	ebpfkernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -57,17 +57,17 @@ const (
 var defaultBuckets = []float64{10, 25, 50, 75, 100, 250, 500, 1000, 10000}
 
 var conntrackerTelemetry = struct {
-	getsDuration        telemetry.Histogram
-	unregistersDuration telemetry.Histogram
-	getsTotal           telemetry.Counter
-	unregistersTotal    telemetry.Counter
+	getsDuration        telemetryComp.Histogram
+	unregistersDuration telemetryComp.Histogram
+	getsTotal           telemetryComp.Counter
+	unregistersTotal    telemetryComp.Counter
 	registersTotal      *prometheus.Desc
 	lastRegisters       uint64
 }{
-	telemetry.NewHistogram(ebpfConntrackerModuleName, "gets_duration_nanoseconds", []string{}, "Histogram measuring the time spent retrieving connection tuples from the EBPF map", defaultBuckets),
-	telemetry.NewHistogram(ebpfConntrackerModuleName, "unregisters_duration_nanoseconds", []string{}, "Histogram measuring the time spent deleting connection tuples from the EBPF map", defaultBuckets),
-	telemetry.NewCounter(ebpfConntrackerModuleName, "gets_total", []string{}, "Counter measuring the total number of attempts to get connection tuples from the EBPF map"),
-	telemetry.NewCounter(ebpfConntrackerModuleName, "unregisters_total", []string{}, "Counter measuring the total number of attempts to delete connection tuples from the EBPF map"),
+	telemetryimpl.GetCompatComponent().NewHistogram(ebpfConntrackerModuleName, "gets_duration_nanoseconds", []string{}, "Histogram measuring the time spent retrieving connection tuples from the EBPF map", defaultBuckets),
+	telemetryimpl.GetCompatComponent().NewHistogram(ebpfConntrackerModuleName, "unregisters_duration_nanoseconds", []string{}, "Histogram measuring the time spent deleting connection tuples from the EBPF map", defaultBuckets),
+	telemetryimpl.GetCompatComponent().NewCounter(ebpfConntrackerModuleName, "gets_total", []string{}, "Counter measuring the total number of attempts to get connection tuples from the EBPF map"),
+	telemetryimpl.GetCompatComponent().NewCounter(ebpfConntrackerModuleName, "unregisters_total", []string{}, "Counter measuring the total number of attempts to delete connection tuples from the EBPF map"),
 	prometheus.NewDesc(ebpfConntrackerModuleName+"__registers_total", "Counter measuring the total number of attempts to update/create connection tuples in the EBPF map", nil, nil),
 	0,
 }

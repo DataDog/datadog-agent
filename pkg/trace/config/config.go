@@ -815,16 +815,6 @@ func (c *AgentConfig) ConfiguredPeerTags() []string {
 	return preparePeerTags(append(basePeerTags, c.PeerTags...))
 }
 
-// ConfiguredSpanDerivedPrimaryTagKeys returns the set of span-derived primary tag keys that should be used
-// for stats aggregation. These tag keys will be used to extract tags from spans
-// for use in aggregation keys, similar to peer tags.
-func (c *AgentConfig) ConfiguredSpanDerivedPrimaryTagKeys() []string {
-	if len(c.SpanDerivedPrimaryTagKeys) == 0 {
-		return nil
-	}
-	return preparePeerTags(c.SpanDerivedPrimaryTagKeys)
-}
-
 func inAzureAppServices() bool {
 	_, existsLinux := os.LookupEnv("WEBSITE_STACK")
 	_, existsWin := os.LookupEnv("WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED")

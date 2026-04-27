@@ -54,7 +54,7 @@ type dependencies struct {
 	Config         config.Component
 	Log            log.Component
 	HaAgent        haagent.Component
-	HealthPlatform option.Option[healthplatform.Component]
+	HealthPlatform healthplatform.Component
 	Hostname       hostnameinterface.Component
 
 	SenderManager    sender.SenderManager
@@ -66,7 +66,7 @@ type collectorImpl struct {
 	log            log.Component
 	config         config.Component
 	haAgent        haagent.Component
-	healthPlatform option.Option[healthplatform.Component]
+	healthPlatform healthplatform.Component
 	hostname       hostnameinterface.Component
 
 	senderManager    sender.SenderManager
@@ -177,13 +177,7 @@ func (c *collectorImpl) start(_ context.Context) error {
 	c.m.Lock()
 	defer c.m.Unlock()
 
-	// Get health platform component (may be nil if not available)
-	var healthPlatformComp healthplatform.Component
-	if hp, ok := c.healthPlatform.Get(); ok {
-		healthPlatformComp = hp
-	}
-
-	run := runner.NewRunner(c.senderManager, c.haAgent, healthPlatformComp)
+	run := runner.NewRunner(c.senderManager, c.haAgent, c.healthPlatform)
 	sched := scheduler.NewScheduler(run.GetChan())
 
 	// let the runner some visibility into the scheduler
