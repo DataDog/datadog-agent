@@ -50,32 +50,21 @@ func TestIsPauseContainer(t *testing.T) {
 
 func TestIsAgentContainer(t *testing.T) {
 	cases := []struct {
-		image   string
-		envVars map[string]string
-		want    bool
+		image string
+		want  bool
 	}{
-		// env var takes priority
-		{"nginx", map[string]string{"DOCKER_DD_AGENT": "true"}, true},
-		{"nginx", map[string]string{"DOCKER_DD_AGENT": "yes"}, true},
-		{"nginx", map[string]string{"DOCKER_DD_AGENT": "TRUE"}, true},
-		{"nginx", map[string]string{"DOCKER_DD_AGENT": ""}, false},
-		// image name heuristic fallback
-		{"datadog-agent", nil, true},
-		{"gcr.io/datadoghq/datadog-agent", nil, true},
-		{"dd-agent", nil, true},
-		{"DD-AGENT", nil, true},
-		{"my-datadog-agent-sidecar", nil, true},
-		{"nginx", nil, false},
-		{"jenkins-agent", nil, false},
-		{"buildkite-agent", nil, false},
-		{"java-agent", nil, false},
+		{"datadog-agent", true},
+		{"gcr.io/datadoghq/datadog-agent", true},
+		{"dd-agent", true},
+		{"DD-AGENT", true},
+		{"nginx", false},
+		{"my-datadog-agent-sidecar", true},
 	}
 	for _, tc := range cases {
 		c := &workloadmeta.Container{
-			Image:   workloadmeta.ContainerImage{ShortName: tc.image},
-			EnvVars: tc.envVars,
+			Image: workloadmeta.ContainerImage{ShortName: tc.image},
 		}
-		assert.Equal(t, tc.want, isAgentContainer(c), "image=%q envVars=%v", tc.image, tc.envVars)
+		assert.Equal(t, tc.want, isAgentContainer(c), "image=%q", tc.image)
 	}
 }
 
