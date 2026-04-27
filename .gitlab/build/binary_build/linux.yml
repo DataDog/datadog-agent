@@ -67,6 +67,7 @@ build_dogstatsd-binary_arm64:
 
 # IoT Agent builds to make sure the build is not broken because of build flags
 build_iot_agent-binary_x64:
+  extends: .bazel:defs:cache:progressive
   stage: binary_build
   timeout: 20m
   rules:
