@@ -70,6 +70,8 @@ _EMOJI = {
     "iter_eval_failed": "💥",
     "iter_impl_failed": "💥",
     "iter_review_failed": "💥",
+    "eval_env_drift": "⚠️",
+    "eval_silent_failure": "⚠️",
     "cost_anomaly": "💸",
     "paused": "⏸️",
 }

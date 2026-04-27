@@ -128,6 +128,30 @@ class Config:
     # iter boundary; sleeps until the user removes the file.
     cost_anomaly_pause_streak: int = 3
 
+    # Per-iter sanity gate. Detects "phantom zero" eval failures where the
+    # workspace lost a dep (`dda`, `invoke`, `go` toolchain) and silently
+    # produced 0-detection reports — the candidate looks like it broke
+    # detection when really the eval pipeline is sick.
+    #
+    # `sanity_sentinel_*` runs ONE small eval at iter start (before the
+    # candidate is implemented) and verifies it reproduces a known-good
+    # F1 within ε. If it doesn't, the iteration is aborted with an
+    # `eval_env_drift` PR comment; the run pauses so a human can fix
+    # workspace deps before continuing.
+    #
+    # Set sentinel_detector="" to disable (e.g. blank-slate runs where
+    # no baseline F1 makes sense).
+    sanity_sentinel_detector: str = "bocpd"
+    sanity_sentinel_scenario: str = "703_shopify"
+    sanity_sentinel_min_f1: float = 0.90       # baseline is ~0.987; tolerate ~10% drift
+    sanity_sentinel_timeout_seconds: int = 600  # ~3 min typical, 10-min ceiling
+    # Post-eval check: if a detector's per-scenario results are F1=0,
+    # precision=0, recall=0 across ALL scenarios in the eval set, treat
+    # it as a silent eval failure rather than scoring it as 0. Logged as
+    # `eval_silent_failure` and the candidate is rejected with that
+    # reason rather than `strict_regression`.
+    sanity_zero_detections_check: bool = True
+
     # Overfit detector: every N shipped candidates, evaluate all shipped
     # candidates on the lockbox (locally, not passed to any agent) and
     # compute Spearman rank-correlation between train-rank and lockbox-rank.

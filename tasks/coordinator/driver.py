@@ -324,6 +324,88 @@ def _budget_footer(root: Path, iter_num: int | None = None, ceiling: int | None 
     )
 
 
+def _sanity_pre_eval_sentinel(db: Db, root: Path, iter_num: int) -> tuple[bool, str]:
+    """Run a single-scenario eval on the sentinel detector + scenario.
+
+    Verifies the eval pipeline (build, testbench, scorer, scenarios) is
+    functional before we burn SDK tokens implementing this iter's
+    candidate. If sentinel F1 drops below `sanity_sentinel_min_f1`,
+    something in the workspace env (deps, scenarios, binaries) is broken
+    — abort the iter and ask a human.
+
+    Returns (ok, detail). ok=True → continue iter; ok=False → halt.
+    Caller is responsible for emitting a PR comment and journal event.
+
+    Skipped (returns (True, "skipped")) if `sanity_sentinel_detector` is
+    empty (e.g. blank-slate runs).
+    """
+    detector = CONFIG.sanity_sentinel_detector
+    scenario = CONFIG.sanity_sentinel_scenario
+    if not detector or not scenario:
+        return True, "skipped"
+    if not db.baseline:
+        # Pre-baseline run; nothing to compare against.
+        return True, "no_baseline"
+    det_base = db.baseline.detectors.get(detector)
+    if det_base is None or scenario not in det_base.scenarios:
+        # Sentinel mis-configured for this run's baseline; warn but continue.
+        return True, f"sentinel_not_in_baseline ({detector}/{scenario})"
+    expected_f1 = det_base.scenarios[scenario].f1
+    min_f1 = max(CONFIG.sanity_sentinel_min_f1, expected_f1 - 0.05)
+
+    report_path = state_dir(root) / "sanity" / f"iter-{iter_num:04d}-sentinel.json"
+    scenario_dir = state_dir(root) / "sanity" / f"iter-{iter_num:04d}"
+    run = evaluator.run_scenarios(
+        detector=detector,
+        report_path=report_path,
+        scenario_output_dir=scenario_dir,
+        root=root,
+        timeout_seconds=CONFIG.sanity_sentinel_timeout_seconds,
+        rebuild=True,
+        scenarios=scenario,
+    )
+    if not run.ok:
+        # Build/eval crash: env is definitely broken.
+        return False, (
+            f"sentinel_eval_crashed rc={run.returncode} "
+            f"stderr={(run.stderr or '')[:300]}"
+        )
+    try:
+        from .scoring import load_report
+        _mean, per_scen = load_report(run.report_path)
+    except (OSError, ValueError, KeyError) as exc:
+        return False, f"sentinel_report_unreadable: {exc}"
+    sr = per_scen.get(scenario)
+    if sr is None:
+        return False, f"sentinel_f1_missing in {run.report_path.name}"
+    f1 = sr.f1
+    if f1 < min_f1:
+        return False, (
+            f"sentinel F1 {f1:.3f} < threshold {min_f1:.3f} "
+            f"(baseline expected {expected_f1:.3f}); workspace eval likely broken"
+        )
+    return True, f"sentinel_ok (f1={f1:.3f} >= {min_f1:.3f})"
+
+
+def _sanity_zero_detections(scoring) -> str | None:
+    """Detect "all zeros across all scenarios" — almost-certainly silent
+    eval failure rather than algorithmic regression.
+
+    Returns a string describing the failure, or None if no anomaly.
+    """
+    if not CONFIG.sanity_zero_detections_check:
+        return None
+    if not scoring or not scoring.per_scenario:
+        return "scoring_empty (no per-scenario results)"
+    all_zero = all(
+        sr.f1 == 0.0 and sr.precision == 0.0 and sr.recall == 0.0
+        for sr in scoring.per_scenario.values()
+    )
+    if all_zero and len(scoring.per_scenario) >= 3:
+        return f"all-zero F1/precision/recall across {len(scoring.per_scenario)} scenarios"
+    return None
+
+
 def _snapshot_protected_paths(db: Db, root: Path) -> None:
     """Record current content hashes of scoring labels into db.yaml."""
     db.protected_path_hashes = {
@@ -898,6 +980,43 @@ def _run_iteration_body(
     # candidate's commit.
     pre_sha = git_ops.head_sha(root) if not dry_run else "dry-run"
 
+    # 2b. Sanity sentinel: re-run a known-good detector+scenario eval to
+    # catch a sick eval pipeline (missing dda/invoke/go deps, drifted
+    # binary, broken scenarios dir) BEFORE we burn implementation tokens.
+    # If the sentinel can't reproduce baseline F1, the iter is aborted
+    # and a human is asked to fix the workspace. See CONFIG.sanity_*.
+    if not dry_run:
+        ok, detail = _sanity_pre_eval_sentinel(db, root, iter_num)
+        journal.append("sanity_check_pre", {"iter": iter_num, "ok": ok, "detail": detail}, root)
+        if not ok:
+            print(f"[iter {iter_num}] SANITY FAILED: {detail}", file=sys.stderr)
+            coord_out.emit(
+                "eval_env_drift",
+                (
+                    f"**iter {iter_num}** · `{candidate.id}` — eval pipeline "
+                    f"sanity check FAILED before implementation.\n\n"
+                    f"**Detail**: `{detail[:600]}`\n\n"
+                    f"This usually means workspace deps are broken (`dda` / "
+                    f"`invoke` / `go` toolchain). Run `dda inv q.coord-status` "
+                    f"on the workspace and verify; once fixed, "
+                    f"`rm .coordinator/pause` to resume.\n\n"
+                    f"Iteration aborted; no SDK tokens spent."
+                    + _budget_footer(root, iter_num=None, ceiling=db.budget.api_token_ceiling)
+                ),
+                requires_ack=True,
+                root=root,
+            )
+            # Self-pause so the run halts at the iter boundary instead of
+            # burning more iters on a broken workspace.
+            (state_dir(root) / "pause").write_text(
+                f"auto-paused: sanity sentinel failed at iter {iter_num}\n{detail}\n"
+            )
+            it.ended_at = now_iso()
+            db.iterations.append(it)
+            save_db(db, root)
+            metrics.regenerate(db, root)
+            return
+
     # 3. Implement (SDK)
     impl_summary = "[dry-run] SDK not called"
     if not dry_run:
@@ -1097,6 +1216,47 @@ def _run_iteration_body(
         scoring.baseline_total_fps > 0
         and scoring.total_fps > fp_ceiling
     )
+
+    # Post-eval sanity: did the eval produce all-zero F1/precision/recall
+    # across every scenario? That's not a real algorithmic regression,
+    # it's a silent failure (eval ran but produced nothing useful —
+    # often build silently used stale binary or a dep is missing).
+    silent_failure = _sanity_zero_detections(scoring)
+    if silent_failure:
+        print(f"[iter {iter_num}] SILENT EVAL FAILURE: {silent_failure}", file=sys.stderr)
+        journal.append(
+            "eval_silent_failure",
+            {"iter": iter_num, "candidate": candidate.id, "detail": silent_failure},
+            root,
+        )
+        experiment.auto_reject_reason = f"eval_silent_failure: {silent_failure}"
+        coord_out.emit(
+            "eval_silent_failure",
+            (
+                f"**iter {iter_num}** · `{candidate.id}` — eval reported all-zero "
+                f"F1/precision/recall across every scenario. This is almost "
+                f"certainly a silent eval failure rather than a real regression "
+                f"(missing deps, stale binary, broken scenarios path).\n\n"
+                f"**Detail**: `{silent_failure}`\n\n"
+                f"Candidate marked REJECTED to avoid loop; iter aborted. "
+                f"Run `dda inv q.coord-status` on the workspace to inspect."
+                + _budget_footer(root, iter_num, ceiling=db.budget.api_token_ceiling)
+            ),
+            requires_ack=True,
+            root=root,
+        )
+        candidate.status = CandidateStatus.REJECTED
+        git_ops.revert_working_tree(root)
+        # Auto-pause: the next iter will hit the same broken eval. Stop now.
+        (state_dir(root) / "pause").write_text(
+            f"auto-paused: eval_silent_failure at iter {iter_num}\n{silent_failure}\n"
+        )
+        it.ended_at = now_iso()
+        db.iterations.append(it)
+        save_db(db, root)
+        metrics.regenerate(db, root)
+        return
+
     if (
         scoring.strict_regressions
         or scoring.recall_floor_violations
