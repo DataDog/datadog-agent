@@ -93,6 +93,11 @@
       },
       {
         "matchManagers": ["gomod"],
+        "matchUpdateTypes": ["digest"],
+        "enabled": false
+      },
+      {
+        "matchManagers": ["gomod"],
         "matchDepNames": ["github.com/twmb/franz-go{,/**}"],
         "groupName": "franz-go"
       },

@@ -103,6 +103,13 @@ type LogsConfig struct {
 	// ProcessRawMessage is used to process the raw message instead of only the content part of the message.
 	ProcessRawMessage *bool `mapstructure:"process_raw_message" json:"process_raw_message" yaml:"process_raw_message"`
 
+	// SIEMParsing enables CEF/LEEF header detection and extraction within syslog
+	// message bodies. When true (the default once syslog ingestion is wired up),
+	// syslog messages whose body starts with "CEF:" or "LEEF:" are parsed into
+	// structured SIEM fields. Set to false to skip this detection and treat the
+	// message body as plain text. See IsSIEMParsingEnabled() for nil handling.
+	SIEMParsing *bool `mapstructure:"siem_parsing" json:"siem_parsing" yaml:"siem_parsing"`
+
 	AutoMultiLine               *bool   `mapstructure:"auto_multi_line_detection" json:"auto_multi_line_detection" yaml:"auto_multi_line_detection"`
 	AutoMultiLineSampleSize     int     `mapstructure:"auto_multi_line_sample_size" json:"auto_multi_line_sample_size" yaml:"auto_multi_line_sample_size"`
 	AutoMultiLineMatchThreshold float64 `mapstructure:"auto_multi_line_match_threshold" json:"auto_multi_line_match_threshold" yaml:"auto_multi_line_match_threshold"`
@@ -606,6 +613,15 @@ func (c *LogsConfig) ShouldProcessRawMessage() bool {
 		return *c.ProcessRawMessage
 	}
 	return true // default behaviour when nothing's been configured
+}
+
+// IsSIEMParsingEnabled returns whether CEF/LEEF header detection is enabled
+// for this source. When SIEMParsing is nil (unconfigured), it defaults to true.
+func (c *LogsConfig) IsSIEMParsingEnabled() bool {
+	if c.SIEMParsing != nil {
+		return *c.SIEMParsing
+	}
+	return true
 }
 
 // ContainsWildcard returns true if the path contains any wildcard character
