@@ -100,6 +100,15 @@ func runningContainer(id, image string) *workloadmeta.Container {
 	}
 }
 
+func runningDockerContainer(id, image string) *workloadmeta.Container {
+	return &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: id},
+		Image:    workloadmeta.ContainerImage{ShortName: image},
+		Runtime:  workloadmeta.ContainerRuntimeDocker,
+		State:    workloadmeta.ContainerState{Running: true},
+	}
+}
+
 func TestHandleSet_AddsRunningContainer(t *testing.T) {
 	sp, ls := newTestSourceProvider()
 	sp.handleSet(runningContainer("abc", "nginx"))
@@ -124,6 +133,20 @@ func TestHandleSet_SkipsAgentImage(t *testing.T) {
 	sp, ls := newTestSourceProvider()
 	sp.handleSet(runningContainer("abc", "datadog-agent"))
 	assert.Empty(t, ls.GetSources())
+}
+
+func TestHandleSet_DockerContainerNoPodOwner(t *testing.T) {
+	sp, ls := newTestSourceProvider()
+	sp.handleSet(runningDockerContainer("abc", "nginx"))
+	assert.Len(t, ls.GetSources(), 1, "Docker containers need no pod owner")
+}
+
+func TestHandleSet_ContainerdContainerNoPodOwner(t *testing.T) {
+	sp, ls := newTestSourceProvider()
+	c := runningContainer("abc", "nginx")
+	c.Owner = nil
+	sp.handleSet(c)
+	assert.Empty(t, ls.GetSources(), "containerd containers without a pod owner must wait for kubelet enrichment")
 }
 
 func TestHandleSet_Idempotent(t *testing.T) {
