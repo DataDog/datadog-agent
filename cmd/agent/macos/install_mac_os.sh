@@ -23,7 +23,10 @@ else
     BLUE=''
     NC=''
 fi
-install_log_file=/tmp/ddagent-install.log
+# Use mktemp so the log path is unpredictable (0600, random suffix). A fixed
+# /tmp path would let a local user pre-create it as a symlink and redirect
+# root-owned `tee` output into a privileged file.
+install_log_file=$(mktemp /tmp/ddagent-install.XXXXXX)
 exec > >(tee "$install_log_file") 2>&1
 dmg_file=/tmp/datadog-agent.dmg
 dmg_base_url="https://s3.amazonaws.com/dd-agent"
@@ -187,9 +190,9 @@ function on_error() {
 It looks like you hit an issue when trying to install the Agent.
 See the following log files for details:
 
-    - $install_log_file
     - /opt/datadog-agent/logs/preinstall.log
     - /opt/datadog-agent/logs/postinstall.log
+    - $install_log_file
 
 If you're still having problems, please send an email to support@datadoghq.com
 with the contents of the log files and we'll do our very best to help

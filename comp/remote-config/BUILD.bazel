@@ -1,1 +1,9 @@
 # gazelle:ignore
+# gazelle:exclude rcclient/fx
+# gazelle:exclude rcclient/impl
+# gazelle:exclude rcclient/types
+# gazelle:exclude rcservice/fx
+# gazelle:exclude rcservice/impl
+# gazelle:exclude rcservicemrf/fx
+# gazelle:exclude rcservicemrf/impl
+# gazelle:exclude rcstatus
