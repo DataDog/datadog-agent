@@ -63,6 +63,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/flavor v0.70.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/benbjohnson/clock v1.3.5 // indirect
+	github.com/hectane/go-acl v0.0.0-20230122075934-ca0b05cb1adb // indirect
 	github.com/mdlayher/socket v0.5.1 // indirect
 	github.com/mdlayher/vsock v1.2.1 // indirect
 	go.opentelemetry.io/collector/internal/componentalias v0.150.0 // indirect
@@ -114,6 +115,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
+	github.com/DataDog/go-acl v1.0.0 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/sketches-go v1.4.8 // indirect
 	github.com/DataDog/viper v1.15.1 // indirect
@@ -142,7 +144,6 @@ require (
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/go-version v1.9.0 // indirect
-	github.com/hectane/go-acl v0.0.0-20230225031251-cdfc9e3acf94 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/compress v1.18.5 // indirect
