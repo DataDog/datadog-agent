@@ -733,6 +733,54 @@ func TestUTF8NewlineDatagramFraming(t *testing.T) {
 }
 
 func TestFlush(t *testing.T) {
+	t.Run("SyslogFraming/non-transparent without trailing LF", func(t *testing.T) {
+		gotContent := []string{}
+		gotLens := []int{}
+		outputFn := func(msg *message.Message, rawDataLen int) {
+			gotContent = append(gotContent, string(msg.GetContent()))
+			gotLens = append(gotLens, rawDataLen)
+		}
+		fr := NewFramer(outputFn, SyslogFraming, contentLenLimit)
+
+		msg := message.NewMessage([]byte("<134>hello world"), nil, "", 0)
+		fr.Process(msg)
+		require.Empty(t, gotContent, "no delimiter yet, nothing should be emitted")
+
+		fr.Flush()
+		require.Equal(t, []string{"<134>hello world"}, gotContent)
+		require.Equal(t, []int{16}, gotLens)
+	})
+
+	t.Run("SyslogFraming/partial octet-counted is discarded", func(t *testing.T) {
+		gotContent := []string{}
+		outputFn := func(msg *message.Message, _ int) {
+			gotContent = append(gotContent, string(msg.GetContent()))
+		}
+		fr := NewFramer(outputFn, SyslogFraming, contentLenLimit)
+
+		msg := message.NewMessage([]byte("200 <134>partial"), nil, "", 0)
+		fr.Process(msg)
+		require.Empty(t, gotContent)
+
+		fr.Flush()
+		require.Empty(t, gotContent, "partial octet-counted frame should not be emitted")
+	})
+
+	t.Run("SyslogFraming/empty buffer is no-op", func(t *testing.T) {
+		gotContent := []string{}
+		outputFn := func(msg *message.Message, _ int) {
+			gotContent = append(gotContent, string(msg.GetContent()))
+		}
+		fr := NewFramer(outputFn, SyslogFraming, contentLenLimit)
+
+		msg := message.NewMessage([]byte("<134>complete\n"), nil, "", 0)
+		fr.Process(msg)
+		require.Equal(t, []string{"<134>complete"}, gotContent)
+
+		fr.Flush()
+		require.Len(t, gotContent, 1, "Flush on empty buffer should not emit")
+	})
+
 	t.Run("UTF8Newline/partial line not emitted", func(t *testing.T) {
 		gotContent := []string{}
 		outputFn := func(msg *message.Message, _ int) {
@@ -763,12 +811,32 @@ func TestFlush(t *testing.T) {
 		require.Len(t, gotContent, 1, "NoFraming buffer is always empty after Process")
 	})
 
+	t.Run("SyslogFraming/Flush does not interfere with subsequent Process", func(t *testing.T) {
+		gotContent := []string{}
+		outputFn := func(msg *message.Message, _ int) {
+			gotContent = append(gotContent, string(msg.GetContent()))
+		}
+		fr := NewFramer(outputFn, SyslogFraming, contentLenLimit)
+
+		msg1 := message.NewMessage([]byte("<134>first"), nil, "", 0)
+		fr.Process(msg1)
+		fr.Flush()
+		require.Equal(t, []string{"<134>first"}, gotContent)
+
+		fr.reset()
+		gotContent = gotContent[:0]
+
+		msg2 := message.NewMessage([]byte("<134>second\n"), nil, "", 0)
+		fr.Process(msg2)
+		require.Equal(t, []string{"<134>second"}, gotContent)
+	})
+
 	t.Run("Flush before any Process is no-op", func(t *testing.T) {
 		gotContent := []string{}
 		outputFn := func(msg *message.Message, _ int) {
 			gotContent = append(gotContent, string(msg.GetContent()))
 		}
-		fr := NewFramer(outputFn, UTF8Newline, contentLenLimit)
+		fr := NewFramer(outputFn, SyslogFraming, contentLenLimit)
 		fr.Flush()
 		require.Empty(t, gotContent, "Flush with no prior Process should be safe no-op")
 	})
