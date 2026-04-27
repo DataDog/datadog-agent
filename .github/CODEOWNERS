@@ -800,8 +800,7 @@
 /tasks/unit_tests/testdata/components_src/ @DataDog/agent-runtimes
 /tasks/unit_tests/testdata/collector/   @DataDog/opentelemetry-agent
 /tasks/unit_tests/experimental_gates_tests.py @DataDog/agent-build
-/tasks/unit_tests/static_quality_gates_tests.py @DataDog/agent-build
-/tasks/unit_tests/static_quality_gates_reporter_tests.py @DataDog/agent-build
+/tasks/unit_tests/static_quality_gates/    @DataDog/agent-build
 /tasks/installer.py                     @DataDog/fleet
 /tasks/host_profiler.py                 @DataDog/opentelemetry-agent @DataDog/profiling-full-host
 /test/                                  @DataDog/agent-devx
