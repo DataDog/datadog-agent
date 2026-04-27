@@ -34,3 +34,24 @@ type V2Type struct{}
 func (v *V2Type) MyMethod() {
 	fmt.Println("")
 }
+
+// V2GenericBox is a generic struct in a package whose last path segment
+// contains a dot. It exercises the index-key escape contract: the entry
+// stored in genericTypes uses the DWARF (escaped) package form, matching
+// forPackage's escaped-prefix lookup.
+type V2GenericBox[T any] struct {
+	Value T
+}
+
+// Get is a method so that the Go compiler emits a DW_TAG_structure_type
+// DIE for V2GenericBox. Without a method-using-the-receiver, no struct
+// DIE would be emitted and genericTypes would be empty for lib.v2.
+//
+//go:noinline
+func (b V2GenericBox[T]) Get() T { return b.Value }
+
+//go:noinline
+func UseV2GenericBox() {
+	b := V2GenericBox[int]{Value: 42}
+	dummy += b.Get()
+}
