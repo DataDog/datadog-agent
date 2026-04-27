@@ -158,6 +158,15 @@ auth:
   remote: tcp
 `)
 
+var invalidConfigNoProfile = []byte(`
+ip_address: 10.0.0.1
+auth:
+  username: admin
+  password: password
+  port: "22"
+  remote: tcp
+`)
+
 var invalidConfigMissingIP = []byte(`
 auth:
   username: admin
@@ -327,15 +336,14 @@ func TestCheck_Run_ConnectionFailure(t *testing.T) {
 	require.NoError(t, err)
 
 	// Set up mock remote client factory that fails to connect
-	connectionError := errors.New("connection refused")
-	client := newMockRemoteClient()
-	client.ConnectionError = connectionError
+	check.remoteClient = &MockRemoteClient{
+		ConnectionError: errors.New("connection refused"),
+	}
 
 	// Run the check
-	err = client.Connect()
+	err = check.Run()
 
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "connection refused")
+	assert.ErrorContains(t, err, "connection refused")
 }
 
 func TestCheck_Run_ConfigRetrievalFailure_NoProfileMatch(t *testing.T) {
@@ -345,7 +353,7 @@ func TestCheck_Run_ConfigRetrievalFailure_NoProfileMatch(t *testing.T) {
 	// Configure the check
 	profile.SetConfdPathAndCleanProfiles()
 	t.Cleanup(profile.ResetProfilesPath)
-	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, baseInitConfig, "test", "provider")
+	err := check.Configure(senderManager, integration.FakeConfigHash, invalidConfigNoProfile, baseInitConfig, "test", "provider")
 	require.NoError(t, err)
 
 	// Set up a mock remote client that fails config retrieval
@@ -357,8 +365,7 @@ func TestCheck_Run_ConfigRetrievalFailure_NoProfileMatch(t *testing.T) {
 	// Run the check
 	err = check.Run()
 
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "unable to find matching profile for device 10.0.0.1")
+	assert.ErrorContains(t, err, "unable to find matching profile for device 10.0.0.1")
 	assert.True(t, mockClient.Closed, "Remote client should be closed even on failure")
 }
 
@@ -453,8 +460,7 @@ func TestCheck_FindMatchingProfile_Error(t *testing.T) {
 
 	// Run the profile matching function
 	_, err = check.FindMatchingProfile()
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "unable to find matching profile for device")
+	assert.ErrorContains(t, err, "unable to find matching profile for device")
 }
 
 func getRunningScrubber() *scrubber.Scrubber {
