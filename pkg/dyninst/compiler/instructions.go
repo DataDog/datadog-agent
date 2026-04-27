@@ -12,7 +12,12 @@ import (
 	"fmt"
 )
 
-func makeInstruction(op Op) codeFragment {
+// makeInstruction builds a codeFragment for op. functionID identifies the
+// enclosing function body and is only used by fragments that need
+// function-scoped references (jumps and labels); it may be nil for ops
+// that never appear inside a function (e.g. the leading/trailing
+// IllegalOp guards).
+func makeInstruction(functionID FunctionID, op Op) codeFragment {
 	switch op := op.(type) {
 	case CallOp:
 		return callInstruction{target: op.FunctionID}
@@ -296,6 +301,26 @@ func makeInstruction(op Op) codeFragment {
 			opcode: OpcodeConditionCheck,
 			bytes:  []byte{},
 		}
+
+	case CondNotOp:
+		return staticInstruction{
+			opcode: OpcodeCondNot,
+			bytes:  []byte{},
+		}
+
+	case CondJumpOp:
+		opcode := OpcodeCondJumpIfFalse
+		if op.Cond {
+			opcode = OpcodeCondJumpIfTrue
+		}
+		return jumpInstruction{
+			opcode:     opcode,
+			functionID: functionID,
+			label:      op.Label,
+		}
+
+	case CondLabelOp:
+		return labelMarker{functionID: functionID, id: op.ID}
 
 	default:
 		panic(fmt.Sprintf("unsupported op: %T", op))
