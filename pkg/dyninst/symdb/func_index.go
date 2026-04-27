@@ -472,6 +472,9 @@ func (b *onDiskFuncOffsetByOriginIndexBuilder) build() (_ funcOffsetByOriginInde
 	}
 	b.idxW = nil
 
+	// IntoMMap rejects empty files, so short-circuit before the mmap
+	// call. This handles binaries that have no inline-subroutine
+	// instances at all.
 	if b.numEntries == 0 {
 		b.cleanup()
 		return emptyFuncOffsetByOriginIndex{}, nil
@@ -516,8 +519,10 @@ func (b *onDiskFuncOffsetByOriginIndexBuilder) Close() error {
 
 // onDiskFuncOffsetByOriginIndex is the mmap-backed implementation.
 type onDiskFuncOffsetByOriginIndex struct {
-	idxMM   object.SectionData
-	entries []funcOffsetByOriginEntry // sorted by origin, then instance
+	idxMM object.SectionData
+	// entries is an unsafe view onto idxMM's mmap'ed data, sorted by
+	// origin, then instance. It must not be used after idxMM is closed.
+	entries []funcOffsetByOriginEntry
 }
 
 var _ funcOffsetByOriginIndex = (*onDiskFuncOffsetByOriginIndex)(nil)

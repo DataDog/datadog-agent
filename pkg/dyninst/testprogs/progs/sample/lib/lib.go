@@ -17,13 +17,13 @@ func InlinedFunc() {
 	dummy++
 }
 
-// InlinedInLaterCU is defined in lib but called only from lib.v2, which
-// is compiled into a CU that is emitted LATER in the binary than lib's
-// own CU. The Go compiler emits the abstract definition DIE for this
-// function into lib.v2's CU (the only CU that inlines it). symdb
-// processes lib's CU first and emits the lib package before it sees
-// lib.v2's CU — so without the cross-CU inline-instance index, this
-// function cannot be attached to lib at all.
+// InlinedInLaterCU is defined in lib but called only from lib.v2,
+// whose compile unit is emitted LATER in the binary than lib's own.
+// The Go compiler places the abstract definition DIE for this function
+// into lib.v2's compile unit (the only one that inlines it). symdb
+// processes lib's compile unit first and emits the lib package before
+// it sees lib.v2's compile unit — so without the cross-compile-unit
+// inline-instance index, this function isn't attached to lib at all.
 func InlinedInLaterCU() {
 	dummy++
 }

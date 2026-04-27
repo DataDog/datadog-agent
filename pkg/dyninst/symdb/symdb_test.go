@@ -71,8 +71,7 @@ const snapshotDir = "testdata/snapshot"
 // TestSymDBSnapshot exercises the streaming PackagesIterator API — the
 // one used by the production uploader at pkg/dyninst/module/symdb.go —
 // and records every yield in the golden. Each yield is written as a
-// distinct "=== yield N [final=T/F] ===" section so that duplicate or
-// incomplete yields are visible in the golden.
+// distinct "=== yield N [final=T/F] ===" section.
 func TestSymDBSnapshot(t *testing.T) {
 	cfgs := testprogs.MustGetCommonConfigs(t)
 	progs := testprogs.MustGetPrograms(t)

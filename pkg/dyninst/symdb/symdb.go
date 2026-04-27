@@ -405,9 +405,19 @@ type packagesIterator struct {
 	// used for binary search to find which CU contains a given DWARF offset.
 	sortedCUOffsets []dwarf.Offset
 
+	// indexes are built during a lightweight pre-scan of all DWARF
+	// compile units. They let us find displaced generic shape functions,
+	// struct types, and inline abstract definitions and their instances
+	// regardless of compile-unit ordering. See prePassIndexes for the
+	// per-index details.
 	indexes prePassIndexes
-	// cuContextCache caches CU context (file table, etc.) for foreign compile
-	// units accessed when processing displaced generic functions.
+	// cuContextCache caches compile-unit context (file table, etc.) for
+	// compile units other than the one currently being walked. Populated
+	// lazily when a foreign compile unit is needed — to process a
+	// displaced generic function, to parse an abstract inline definition
+	// that lives in a different compile unit than its owning package, or
+	// to replay an inline instance whose compile unit has already been
+	// walked.
 	cuContextCache map[dwarf.Offset]*cachedCUContext
 }
 
@@ -475,8 +485,11 @@ type compileUnitInfo struct {
 	outputPkg *Package
 }
 
-// cachedCUContext stores a compile unit's context for processing displaced
-// generic functions that live in a foreign CU.
+// cachedCUContext stores a compile unit's context (file table, name,
+// length, header entry) so that we can swap b.currentCompileUnit to a
+// foreign compile unit when parsing displaced generic functions,
+// abstract inline definitions, or inline instances that live in a
+// different compile unit than the one currently being walked.
 type cachedCUContext struct {
 	entry  *dwarf.Entry
 	name   string
@@ -1004,11 +1017,7 @@ func (b *packagesIterator) innerIterator() iter.Seq2[Package, error] {
 			unitHeader := b.offsetToUnit[entry.Offset]
 
 			// Emit every abstract (inline) function owned by this
-			// package by driving from inlineDefs and
-			// inlineInstances. Doing it here rather than as a
-			// side-effect of the per-CU walk makes emission order
-			// independent of where the compiler places the abstract
-			// definition and its inline instances.
+			// package by driving from inlineDefs and inlineInstances.
 			if err = b.emitAbstractFunctionsForPackage(pkg); err != nil {
 				break
 			}
@@ -1484,7 +1493,7 @@ func (b *packagesIterator) augmentWithDisplacedGenerics(pkg *Package, cuOffset d
 	// type-parameter-dependent.
 	if b.indexes.genericTypes != nil {
 		for _, typeOffset := range b.indexes.genericTypes.forPackage(pkg.Name) {
-			// Skip types within the current CU.
+			// Skip types within the current compile unit.
 			if uint64(typeOffset) >= uint64(cuOffset) && uint64(typeOffset) < cuEnd {
 				continue
 			}
