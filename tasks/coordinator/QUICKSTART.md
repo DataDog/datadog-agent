@@ -1,11 +1,43 @@
 # Coordinator Quickstart
 
-Zero-to-running in under 20 minutes. For full architecture and design notes
-see [README.md](./README.md).
+## TL;DR — one command, zero to running
+
+```bash
+# fresh workspace, blank-slate run, new run-log PR, tmux session "coord-blank"
+dda inv q.coord-up --mode blank
+
+# or: full-mode run reusing an existing PR
+dda inv q.coord-up --mode full --reuse-pr 49678
+```
+
+That single command does all of: dep checks + auto-install (`invoke`,
+`claude-agent-sdk`, `dda`, `gh`), branch wiring (upstream + scratch),
+new draft PR creation (default; `--reuse-pr <#>` to reuse), and launches
+the driver in a tmux session. Prints PR URL + attach command at the end.
+
+Pre-requisites you must set yourself (auto-install can't):
+- `ANTHROPIC_API_KEY` env var
+- `gh auth login` once
+- Go toolchain installed (`go version` works)
+
+Manage a running coordinator:
+
+```bash
+dda inv q.coord-status         # one-screen health snapshot
+dda inv q.coord-debug-last     # most recent crash with full context
+dda inv q.coord-down           # graceful pause + tmux kill
+```
+
+Resume after a pause: `rm .coordinator/pause` and (if tmux killed) re-run
+`q.coord-up --reuse-pr <#>`.
+
+For full architecture and design notes see [README.md](./README.md).
+The manual-step instructions below are kept for debugging / understanding;
+**you should not need them with q.coord-up working**.
 
 ---
 
-## Prereqs
+## Prereqs (manual path — q.coord-up automates these)
 
 - Repo access; you can `git push origin`.
 - AWS SSO / `dda inv workspaces.*` working locally.

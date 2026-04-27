@@ -2136,3 +2136,26 @@ def coord_down(ctx, session: str = "", wait: int = 30):
 
     # Leave the pause file in place — next coord-up should `rm` to resume.
     print(color_message(f"pause file at {pause_path} (rm to resume on next start).", Color.BLUE))
+
+
+@task
+def coord_status(ctx):
+    """
+    One-screen health snapshot of the coordinator: branch, tmux, pause
+    state, recent journal events, latest sdk-error tail, cumulative
+    budget. Read-only — safe to run any time.
+    """
+    from pathlib import Path
+    from tasks.coordinator import coord_status as cs
+    print(cs.render_status(Path(".")))
+
+
+@task
+def coord_debug_last(ctx):
+    """
+    Print the most recent sdk-errors crash with surrounding journal
+    events. The "what crashed last" view.
+    """
+    from pathlib import Path
+    from tasks.coordinator import coord_status as cs
+    print(cs.render_debug_last(Path(".")))
