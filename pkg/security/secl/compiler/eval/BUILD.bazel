@@ -1,11 +1,6 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 load("//bazel/rules/cws_codegen:defs.bzl", "operators")
 
-operators(
-    name = "eval_operators",
-    output = "eval_operators.go",
-)
-
 go_library(
     name = "eval",
     srcs = [
@@ -85,4 +80,9 @@ go_test(
         ],
         "//conditions:default": [],
     }),
+)
+
+operators(
+    name = "eval_operators",
+    output = "eval_operators.go",
 )

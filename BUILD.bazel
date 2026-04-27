@@ -544,6 +544,7 @@ gazelle(
 gazelle_binary(
     name = "gazelle_binary",
     languages = DEFAULT_LANGUAGES + [
+        "//bazel/rules/cws_codegen:gazelle_extension",
         "//bazel/rules/go_build_tags:gazelle_extension",
         "//bazel/rules/go_stringer:gazelle_extension",
         "//bazel/rules/write_pb_go:gazelle_extension",
