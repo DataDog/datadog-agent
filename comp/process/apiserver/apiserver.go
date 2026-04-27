@@ -20,7 +20,7 @@ import (
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	logComp "github.com/DataDog/datadog-agent/comp/core/log/def"
-	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 var _ Component = (*apiserver)(nil)
@@ -47,7 +47,7 @@ func newApiServer(deps dependencies) Component {
 	r.Use(deps.IPC.HTTPMiddleware)
 	api.SetupAPIServerHandlers(deps.APIServerDeps, r) // Set up routes
 
-	addr, err := configutils.GetProcessAPIAddressPort(deps.Config)
+	addr, err := pkgconfigsetup.GetProcessAPIAddressPort(deps.Config)
 	if err != nil {
 		return err
 	}

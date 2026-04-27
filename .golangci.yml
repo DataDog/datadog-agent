@@ -166,6 +166,7 @@ linters:
             - "!**/comp/otelcol/otlp/testutil/testutil.go"
             - "!**/comp/process/agent/agent_linux.go"
             - "!**/comp/process/agent/status.go"
+            - "!**/comp/process/apiserver/apiserver.go"
             - "!**/comp/process/expvars/impl/expvars.go"
             - "!**/comp/process/forwarders/impl/forwarders.go"
             - "!**/comp/process/profiler/impl/profiler.go"
