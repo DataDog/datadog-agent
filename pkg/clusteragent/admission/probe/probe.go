@@ -24,7 +24,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/def"
-	"github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues/admissionprobe"
 	admcommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/cloudprovider"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -77,10 +76,9 @@ type StatsSnapshot struct {
 const (
 	defaultInterval = 60 * time.Second
 
-	// healthCheckID is the check registration key used with the health platform.
-	// This is distinct from admissionprobe.IssueID which identifies the issue template.
 	healthCheckID   = "admission-controller-connectivity"
 	healthCheckName = "Admission Controller Connectivity"
+	healthIssueID   = "admission-controller-connectivity-failure"
 )
 
 // New creates a new admission controller connectivity probe.
@@ -248,6 +246,7 @@ func (p *Probe) handleError(err error) {
 	if p.logLimiter.ShouldLog() {
 		log.Errorf("Admission controller probe failed: %v", err)
 	}
+	p.reportHealthIssue()
 }
 
 func (p *Probe) reportHealthIssue() {
@@ -259,7 +258,7 @@ func (p *Probe) reportHealthIssue() {
 	issue := "Datadog admission controller is unreachable from the Kubernetes API server."
 
 	report := &healthplatformpayload.IssueReport{
-		IssueId: admissionprobe.IssueID,
+		IssueId: healthIssueID,
 		Context: map[string]string{
 			"issue":       issue,
 			"remediation": p.diagnosticHint,

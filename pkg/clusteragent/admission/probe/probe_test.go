@@ -290,6 +290,19 @@ func TestRunProbe_ClearsHealthIssueOnSuccess(t *testing.T) {
 	assert.Nil(t, hp.GetIssueForCheck(healthCheckID), "expected health issue to be cleared after successful probe")
 }
 
+func TestRunProbe_ReportsHealthIssueOnAPITimeout(t *testing.T) {
+	client := fakeclientset.NewSimpleClientset()
+	client.PrependReactor("create", "configmaps", func(_ k8stesting.Action) (bool, runtime.Object, error) {
+		return true, nil, k8serrors.NewTimeoutError("request timed out", 10)
+	})
+
+	p, hp := newTestProbeWithHP(t, client)
+	p.runProbe(context.Background())
+
+	issue := hp.GetIssueForCheck(healthCheckID)
+	require.NotNil(t, issue, "API timeout errors should report health issues as they indicate connectivity problems")
+}
+
 func TestRunProbe_NoHealthReportWithoutPlatform(t *testing.T) {
 	client := fakeclientset.NewSimpleClientset()
 	p := newTestProbe(client)
