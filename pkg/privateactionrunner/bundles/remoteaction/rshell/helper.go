@@ -10,8 +10,20 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 )
+
+// selectBackendPathsFromEnv returns the per-environment slice from the
+// backend-supplied allowed-paths map. Falls back to the bare-metal key
+// when not running in a container; returns nil if the relevant key is
+// missing (downstream treats nil as the kill-switch).
+func selectBackendPathsFromEnv(m map[string][]string) []string {
+	if env.IsContainerized() {
+		return m[setup.RShellPathAllowMapContainerizedKey]
+	}
+	return m[setup.RShellPathAllowMapBareMetalKey]
+}
 
 // onlyRshellPrefixedCommands returns the commands that are prefixed with the
 // rshell namespace, excluding the wildcard token and the bare prefix.

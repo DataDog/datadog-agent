@@ -105,9 +105,9 @@ func (h *RunCommandHandler) filterAllowedPaths(backend []string) []string {
 // A non-nil list is intersected with the operator config before being
 // handed to rshell.
 type RunCommandInputs struct {
-	Command         string   `json:"command"`
-	AllowedCommands []string `json:"allowedCommands"`
-	AllowedPaths    []string `json:"allowedPaths"`
+	Command         string              `json:"command"`
+	AllowedCommands []string            `json:"allowedCommands"`
+	AllowedPaths    map[string][]string `json:"allowedPaths"`
 }
 
 // RunCommandOutputs defines the outputs for the runCommand action.
@@ -132,10 +132,11 @@ func (h *RunCommandHandler) Run(
 		return nil, errors.New("command is required")
 	}
 
+	backendPaths := selectBackendPathsFromEnv(inputs.AllowedPaths)
 	effectiveAllowedCommands := h.filterAllowedCommands(inputs.AllowedCommands)
-	effectiveAllowedPaths := h.filterAllowedPaths(inputs.AllowedPaths)
+	effectiveAllowedPaths := h.filterAllowedPaths(backendPaths)
 	log.Debugf("rshell runCommand: command=%q backendAllowedCommands=%v effectiveAllowedCommands=%v backendAllowedPaths=%v effectiveAllowedPaths=%v",
-		inputs.Command, inputs.AllowedCommands, effectiveAllowedCommands, inputs.AllowedPaths, effectiveAllowedPaths)
+		inputs.Command, inputs.AllowedCommands, effectiveAllowedCommands, backendPaths, effectiveAllowedPaths)
 
 	prog, err := syntax.NewParser().Parse(strings.NewReader(inputs.Command), "")
 	if err != nil {

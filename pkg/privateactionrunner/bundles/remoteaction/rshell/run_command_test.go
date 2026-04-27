@@ -32,10 +32,10 @@ func makeTask(command string, allowedCommands []string) *types.Task {
 }
 
 // makeTaskWithPaths constructs a task whose inputs include the allowedPaths
-// field. Use makeTask (without this helper) to exercise the "backend did
-// not send the field" branch — absent JSON fields and explicit null both
-// round-trip to a nil Go slice.
-func makeTaskWithPaths(command string, allowedCommands, allowedPaths []string) *types.Task {
+// field. The backend ships allowedPaths as a per-environment map keyed by
+// "bare_metal" / "containerized"; the runner picks the relevant slice
+// based on env.IsContainerized at task time.
+func makeTaskWithPaths(command string, allowedCommands []string, allowedPaths map[string][]string) *types.Task {
 	task := makeTask(command, allowedCommands)
 	task.Data.Attributes.Inputs["allowedPaths"] = allowedPaths
 	return task
@@ -467,12 +467,14 @@ func TestRunCommandOperatorEmptyListBlocksEverything(t *testing.T) {
 }
 
 func TestRunCommandBackendAllowedPathsRestrictsAccess(t *testing.T) {
-	// End-to-end: operator allows /var/log, backend only allows /tmp; the
-	// intersection drops /var/log so cat /var/log/syslog must fail.
+	// End-to-end: operator allows /var/log, backend only allows /tmp on
+	// bare-metal hosts (the env this test process runs in); /var/log
+	// isn't in the backend list, so cat /var/log/syslog must fail.
 	handler := NewRunCommandHandler([]string{"/var/log"}, []string{"rshell:cat"})
 
 	task := makeTaskWithPaths("cat /var/log/syslog",
-		[]string{"rshell:cat"}, []string{"/tmp"})
+		[]string{"rshell:cat"},
+		map[string][]string{setup.RShellPathAllowMapBareMetalKey: {"/tmp"}})
 
 	out, err := handler.Run(context.Background(), task, nil)
 

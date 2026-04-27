@@ -51,6 +51,12 @@ const (
 	// backend path through containment matching. It is the default value
 	// for allowed_paths.
 	RShellPathAllowAll = "/"
+	// RShellPathAllowMap*Key are the keys used in the per-environment
+	// backend-shipped allowedPaths map. The runner picks the relevant
+	// slice based on env.IsContainerized() before running the
+	// intersection.
+	RShellPathAllowMapContainerizedKey = "containerized"
+	RShellPathAllowMapBareMetalKey     = "bare_metal"
 )
 
 // setupPrivateActionRunner registers all configuration keys for the private action runner
