@@ -32,9 +32,9 @@ var defaultSSHTimeout = 30 * time.Second
 
 // Store defaults
 var (
-	defaultMinConfigsPerDevice    = 2
-	defaultMaxConfigsPerDevice    = 50
-	defaultMaxRawConfigStoreBytes = int64(512 * 1024 * 1024) // 512 MB
+	defaultMinConfigsPerDevice    = 5
+	defaultMaxConfigsPerDevice    = 10
+	defaultMaxRawConfigStoreBytes = int64(500 * 10 * 5000000 / 5) // 500 devices × 10 configs per device × 5 MB per config / 5 (5:1 compression ratio estimate)
 )
 
 // AuthCredentials holds the authentication credentials to connect to a network device.
