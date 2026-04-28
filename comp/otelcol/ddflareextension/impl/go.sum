@@ -44,8 +44,8 @@ github.com/DataDog/datadog-api-client-go/v2 v2.56.0/go.mod h1:d3tOEgUd2kfsr9uuHQ
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
 github.com/DataDog/datadog-go/v5 v5.8.3 h1:s58CUJ9s8lezjhTNJO/SxkPBv2qZjS3ktpRSqGF5n0s=
 github.com/DataDog/datadog-go/v5 v5.8.3/go.mod h1:K9kcYBlxkcPP8tvvjZZKs/m1edNAUFzBbdpTUKfCsuw=
-github.com/DataDog/go-acl v1.0.0 h1:FL7NsVyHOfZl2b1jTrmJCVhMatG/0zYKgWS+5FbUiSA=
-github.com/DataDog/go-acl v1.0.0/go.mod h1:YJx333qSb3GUqCLIbqKeGaZS2pUYh2IYGI7+FsX18CU=
+github.com/DataDog/go-acl v1.0.1 h1:uRbp98YmlVZYqNNyTBFNI3Y6bnziBLyCIR4nRu0bIpU=
+github.com/DataDog/go-acl v1.0.1/go.mod h1:YJx333qSb3GUqCLIbqKeGaZS2pUYh2IYGI7+FsX18CU=
 github.com/DataDog/go-sqllexer v0.2.1 h1:al1RMRTxPoAa1P/RTu7D5yVXC6wCLwTRYLVAVH5MLjQ=
 github.com/DataDog/go-sqllexer v0.2.1/go.mod h1:3xTFXBU69vUikYpESggScvC0RKYA7ZIdVrIkLwUOWdE=
 github.com/DataDog/go-tuf v1.1.1-0.5.2 h1:YWvghV4ZvrQsPcUw8IOUMSDpqc3W5ruOIC+KJxPknv0=
@@ -435,8 +435,6 @@ github.com/hashicorp/nomad/api v0.0.0-20260324203407-b27b0c2e019a h1:HGwfgBNl90Y
 github.com/hashicorp/nomad/api v0.0.0-20260324203407-b27b0c2e019a/go.mod h1:KkLNLU0Nyfh5jWsFoF/PsmMbKpRIAoIV4lmQoJWgKCk=
 github.com/hashicorp/serf v0.10.2 h1:m5IORhuNSjaxeljg5DeQVDlQyVkhRIjJDimbkCa8aAc=
 github.com/hashicorp/serf v0.10.2/go.mod h1:T1CmSGfSeGfnfNy/w0odXQUR1rfECGd2Qdsp84DjOiY=
-github.com/hectane/go-acl v0.0.0-20230225031251-cdfc9e3acf94 h1:0G5JVG0aJDpWvH1r8idd+wbPcAH14UqIuUMepx3v9rE=
-github.com/hectane/go-acl v0.0.0-20230225031251-cdfc9e3acf94/go.mod h1:MvF7bZQy5lD2WcLXjFytRVvnTrFvrjo/qGka1MIBOPE=
 github.com/hetznercloud/hcloud-go/v2 v2.37.0 h1:PMnuOA8pL8aHLLPp6nnnCTo2Xk2tqu4dAfYsC3bWdT0=
 github.com/hetznercloud/hcloud-go/v2 v2.37.0/go.mod h1:zaDOCKmpnI86ftoCpUpaiYaw9Wew1ib1AcXTh96deYI=
 github.com/hexops/gotextdiff v1.0.3 h1:gitA9+qJrrTCsiCl7+kh75nPqQt1cx4ZkudSTLoUqJM=

@@ -276,7 +276,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.76.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.72.0-rc.5 // indirect
-	github.com/DataDog/go-acl v1.0.0 // indirect
+	github.com/DataDog/go-acl v1.0.1 // indirect
 	github.com/DataDog/go-libddwaf/v4 v4.8.0 // indirect
 	github.com/DataDog/go-runtime-metrics-internal v0.0.4-0.20260217080614-b0f4edc38a6d // indirect
 	github.com/DataDog/go-sqllexer v0.2.1 // indirect
@@ -319,7 +319,6 @@ require (
 	github.com/googleapis/enterprise-certificate-proxy v0.3.14 // indirect
 	github.com/googleapis/gax-go/v2 v2.20.0 // indirect
 	github.com/hashicorp/go-version v1.9.0 // indirect
-	github.com/hectane/go-acl v0.0.0-20230225031251-cdfc9e3acf94 // indirect
 	github.com/iwdgo/sigintwindows v0.2.2 // indirect
 	github.com/jmespath/go-jmespath v0.4.1-0.20220621161143-b0104c826a24 // indirect
 	github.com/klauspost/compress v1.18.5 // indirect

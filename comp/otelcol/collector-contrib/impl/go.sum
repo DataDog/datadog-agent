@@ -41,8 +41,8 @@ github.com/DataDog/agent-payload/v5 v5.0.193/go.mod h1:GyA1vuCeRywrNNCbYeR0cOYKE
 github.com/DataDog/datadog-api-client-go/v2 v2.56.0 h1:HKcfvAODmJCUw7nfbDKKqkEUgcu7CfxUPA9EFRJrHEI=
 github.com/DataDog/datadog-api-client-go/v2 v2.56.0/go.mod h1:d3tOEgUd2kfsr9uuHQdY+nXrWp4uikgTgVCPdKNK30U=
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
-github.com/DataDog/go-acl v1.0.0 h1:FL7NsVyHOfZl2b1jTrmJCVhMatG/0zYKgWS+5FbUiSA=
-github.com/DataDog/go-acl v1.0.0/go.mod h1:YJx333qSb3GUqCLIbqKeGaZS2pUYh2IYGI7+FsX18CU=
+github.com/DataDog/go-acl v1.0.1 h1:uRbp98YmlVZYqNNyTBFNI3Y6bnziBLyCIR4nRu0bIpU=
+github.com/DataDog/go-acl v1.0.1/go.mod h1:YJx333qSb3GUqCLIbqKeGaZS2pUYh2IYGI7+FsX18CU=
 github.com/DataDog/gohai v0.0.0-20230524154621-4316413895ee h1:tXibLZk3G6HncIFJKaNItsdzcrk4YqILNDZlXPTNt4k=
 github.com/DataDog/gohai v0.0.0-20230524154621-4316413895ee/go.mod h1:nTot/Iy0kW16bXgXr6blEc8gFeAS7vTqYlhAxh+dbc0=
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 h1:EbzDX8HPk5uE2FsJYxD74QmMw0/3CqSKhEr6teh0ncQ=
@@ -437,8 +437,6 @@ github.com/hashicorp/nomad/api v0.0.0-20260324203407-b27b0c2e019a h1:HGwfgBNl90Y
 github.com/hashicorp/nomad/api v0.0.0-20260324203407-b27b0c2e019a/go.mod h1:KkLNLU0Nyfh5jWsFoF/PsmMbKpRIAoIV4lmQoJWgKCk=
 github.com/hashicorp/serf v0.10.2 h1:m5IORhuNSjaxeljg5DeQVDlQyVkhRIjJDimbkCa8aAc=
 github.com/hashicorp/serf v0.10.2/go.mod h1:T1CmSGfSeGfnfNy/w0odXQUR1rfECGd2Qdsp84DjOiY=
-github.com/hectane/go-acl v0.0.0-20230225031251-cdfc9e3acf94 h1:0G5JVG0aJDpWvH1r8idd+wbPcAH14UqIuUMepx3v9rE=
-github.com/hectane/go-acl v0.0.0-20230225031251-cdfc9e3acf94/go.mod h1:MvF7bZQy5lD2WcLXjFytRVvnTrFvrjo/qGka1MIBOPE=
 github.com/hetznercloud/hcloud-go/v2 v2.37.0 h1:PMnuOA8pL8aHLLPp6nnnCTo2Xk2tqu4dAfYsC3bWdT0=
 github.com/hetznercloud/hcloud-go/v2 v2.37.0/go.mod h1:zaDOCKmpnI86ftoCpUpaiYaw9Wew1ib1AcXTh96deYI=
 github.com/hexops/gotextdiff v1.0.3 h1:gitA9+qJrrTCsiCl7+kh75nPqQt1cx4ZkudSTLoUqJM=

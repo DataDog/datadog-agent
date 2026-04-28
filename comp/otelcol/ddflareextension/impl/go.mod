@@ -98,7 +98,6 @@ require (
 	github.com/google/pprof v0.0.0-20260302011040-a15ffb7f9dcc // indirect
 	github.com/hashicorp/consul/sdk v0.16.2 // indirect
 	github.com/hashicorp/go-metrics v0.5.4 // indirect
-	github.com/hectane/go-acl v0.0.0-20230225031251-cdfc9e3acf94 // indirect
 	github.com/jmespath/go-jmespath v0.4.1-0.20220621161143-b0104c826a24 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/moby/moby/api v1.54.2 // indirect
@@ -231,7 +230,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
 	github.com/DataDog/datadog-api-client-go/v2 v2.56.0 // indirect
 	github.com/DataDog/datadog-go/v5 v5.8.3 // indirect
-	github.com/DataDog/go-acl v1.0.0 // indirect
+	github.com/DataDog/go-acl v1.0.1 // indirect
 	github.com/DataDog/go-sqllexer v0.2.1 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
