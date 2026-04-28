@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"maps"
 	"net/http"
 	"strings"
@@ -65,6 +66,9 @@ func (s *senderMock) sendAgentMetricPayloads(_ *senderSession, metrics []*agentm
 	s.sentMetrics = append(s.sentMetrics, metrics...)
 }
 func (s *senderMock) sendEventPayload(_ *senderSession, _ *Event, _ map[string]interface{}) {
+}
+func (s *senderMock) sendLogsBatch(_ context.Context, _ []slog.Record) error {
+	return nil
 }
 
 // Runner mock (TODO: use use mock.Mock)
