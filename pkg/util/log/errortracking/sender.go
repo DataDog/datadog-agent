@@ -11,7 +11,8 @@ import (
 )
 
 // Sender ships a batch of records to a remote ingest. Implementations live
-// outside this package (typically in comp/core/errortracking/) so that the
+// outside this package (typically the COAT component at
+// comp/core/agenttelemetry/, via its SendErrorLogs method) so that the
 // foundational pkg/util/log subtree stays free of HTTP and configuration
 // dependencies.
 //
