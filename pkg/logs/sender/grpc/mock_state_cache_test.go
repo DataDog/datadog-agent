@@ -194,6 +194,35 @@ func TestBuildTagSet_CacheHitSelfHealsAfterSilentDictEviction(t *testing.T) {
 	assert.NotEqual(t, tagSet1, tagSet2, "rebuilt tagset must not reuse stale cached pointer")
 }
 
+func TestBuildTagSet_CacheHitRefreshesDictAccess(t *testing.T) {
+	tok := rtokenizer.NewRustTokenizer()
+	mt := NewMessageTranslator("test-pipeline", tok)
+
+	origin := makeTestOrigin("svc-a", "src-a", []string{"env:test"})
+	msg1 := makeMsg("log line 1", "host-1", "info", origin)
+
+	tagSet1, _, dictID1, isNew1 := mt.buildTagSet(msg1)
+
+	require.NotNil(t, tagSet1)
+	require.True(t, isNew1)
+
+	ttl := 20 * time.Millisecond
+	time.Sleep(ttl + 10*time.Millisecond)
+
+	msg2 := makeMsg("log line 2", "host-1", "info", origin)
+	tagSet2, _, dictID2, isNew2 := mt.buildTagSet(msg2)
+
+	require.NotNil(t, tagSet2)
+	assert.False(t, isNew2, "second call should use the tagset cache")
+	assert.Equal(t, dictID1, dictID2)
+	assert.Equal(t, tagSet1, tagSet2)
+
+	evictedIDs := mt.tagManager.EvictStaleEntries(ttl)
+
+	assert.NotContains(t, evictedIDs, dictID1, "cache hit should refresh the dict entry access time")
+	assert.True(t, mt.tagManager.HasDictID(dictID1), "refreshed cached tagset should remain live")
+}
+
 // --- toValidUTF8 tests ---
 
 func TestToValidUTF8_ValidString(t *testing.T) {
@@ -205,7 +234,7 @@ func TestToValidUTF8_ValidString(t *testing.T) {
 		{"ascii", "hello world"},
 		{"multibyte", "caf\xc3\xa9"},                          // café
 		{"emoji", "\xf0\x9f\x98\x80 smile"},                   // U+1F600
-		{"nul is valid utf8", "hello\x00world"},                // NUL is valid UTF-8 (U+0000)
+		{"nul is valid utf8", "hello\x00world"},               // NUL is valid UTF-8 (U+0000)
 		{"mixed scripts", "\xe4\xb8\xad\xe6\x96\x87 Chinese"}, // 中文
 	}
 	for _, tt := range tests {

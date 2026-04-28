@@ -27,7 +27,7 @@ import (
 )
 
 const nanoToMillis = 1000000
-const staleTTL = 14 * time.Minute
+const staleTTL = 5 * time.Minute
 const staleSweepInterval = 30 * time.Second
 
 // batchEntry is a per-message sidecar used during batch tokenization.
@@ -497,7 +497,7 @@ func (mt *MessageTranslator) buildTagSet(msg *message.Message) (*statefulpb.TagS
 		mt.tagCache.source == currentSource &&
 		mt.tagCache.status == currentStatus &&
 		mt.tagCache.tagsString == currentTagsString &&
-		mt.tagManager.HasDictID(mt.tagCache.dictID) {
+		mt.tagManager.TouchDictID(mt.tagCache.dictID) {
 		return mt.tagCache.tagSet, mt.tagCache.tagStr, mt.tagCache.dictID, false
 	}
 
