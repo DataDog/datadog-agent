@@ -368,6 +368,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("gpu_monitoring.process_scan_interval_seconds", 5)
 	cfg.BindEnvAndSetDefault("gpu_monitoring.initial_process_sync", true)
 	cfg.BindEnvAndSetDefault("gpu_monitoring.configure_cgroup_perms", false)
+	cfg.BindEnvAndSetDefault("gpu_monitoring.prm_endpoint_enabled", true)
 	cfg.BindEnvAndSetDefault("gpu_monitoring.enable_fatbin_parsing", false)
 	cfg.BindEnvAndSetDefault("gpu_monitoring.fatbin_request_queue_size", 100)
 	cfg.BindEnvAndSetDefault("gpu_monitoring.ring_buffer_pages_per_device", 32) // 32 pages = 128KB by default per device

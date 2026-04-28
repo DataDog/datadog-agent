@@ -37,6 +37,7 @@ import (
 	gpuspec "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/spec"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/gpu/prm"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	ddmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
@@ -235,7 +236,7 @@ func TestRunDoesNotError(t *testing.T) {
 
 func TestCollectorsOnDeviceChanges(t *testing.T) {
 	// note: bump this when we'll add new collectors in nvidia.BuildCollectors
-	const numSupportedCollectorTypes = 6
+	const numSupportedCollectorTypes = 5
 
 	// mock up device count so that we can check when check collectors are created/destroyed
 	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
@@ -957,6 +958,15 @@ func setupMockCheckForMetricCollection(t *testing.T, config gpuspec.GPUConfig, a
 		DeviceMetrics:  deviceMetrics,
 	})
 	check.spCache = spCache
+	if config.Architecture == "blackwell" && config.DeviceMode == gpuspec.DeviceModePhysical {
+		prmCache := &nvidia.PRMCache{}
+		for _, uuid := range cacheDeviceUUIDs {
+			for port := 1; port <= 2; port++ {
+				prmCache.SetCountersForTest(uuid, port, testPRMCounters(uint64(port*100)))
+			}
+		}
+		check.prmCache = prmCache
+	}
 
 	runCollection := func() {
 		// Some metrics require a second run to be collected, so we run it twice.
@@ -987,4 +997,12 @@ func setupMockCheckForMetricCollection(t *testing.T, config gpuspec.GPUConfig, a
 		runCollection:  runCollection,
 		knownTagValues: knownTagValues,
 	}
+}
+
+func testPRMCounters(seed uint64) map[string]uint64 {
+	counters := make(map[string]uint64, len(prm.PLRCounterFields))
+	for i, field := range prm.PLRCounterFields {
+		counters[field] = seed + uint64(i)
+	}
+	return counters
 }

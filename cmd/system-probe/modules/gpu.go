@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gpu"
 	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
 	gpuconfigconsts "github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
+	"github.com/DataDog/datadog-agent/pkg/gpu/prm"
 	usm "github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
@@ -79,6 +80,8 @@ var GPUMonitoring = &module.Factory{
 
 		return &GPUMonitoringModule{
 			Probe:         p,
+			prmHandler:    prm.NewHandler(p.GetDeviceCache()),
+			cfg:           c,
 			contextCancel: cancel,
 			context:       ctx,
 		}, nil
@@ -91,6 +94,8 @@ var GPUMonitoring = &module.Factory{
 // GPUMonitoringModule is a module for GPU monitoring
 type GPUMonitoringModule struct {
 	*gpu.Probe
+	prmHandler    *prm.Handler
+	cfg           *gpuconfig.Config
 	context       context.Context    // Context associated with the module
 	contextCancel context.CancelFunc // Cancel function associated with the context
 }
@@ -108,6 +113,10 @@ func (t *GPUMonitoringModule) Register(httpMux *module.Router) error {
 
 		utils.WriteAsJSON(req, w, stats, utils.CompactOutput)
 	}))
+
+	if t.cfg != nil && t.cfg.PRMEndpointEnabled && t.prmHandler != nil {
+		httpMux.HandleFunc("/prm-metrics", utils.WithConcurrencyLimit(1, t.prmHandler.HandlePRMMetrics))
+	}
 
 	httpMux.HandleFunc("/debug/traced-programs", usm.GetTracedProgramsEndpoint(gpuconfigconsts.GpuModuleName))
 	httpMux.HandleFunc("/debug/blocked-processes", usm.GetBlockedPathIDEndpoint(gpuconfigconsts.GpuModuleName))
