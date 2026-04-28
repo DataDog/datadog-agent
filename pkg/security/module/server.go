@@ -86,6 +86,28 @@ func (p *pendingMsg) getMaxRetry() int {
 	return maxRetry
 }
 
+// tryResolve collects external tags and checks whether the message is ready to be
+// sent. Returns false when the message should be retried later.
+func (p *pendingMsg) tryResolve(isRetryAllowed bool) bool {
+	if p.extTagsCb != nil {
+		tags, retryable := p.extTagsCb()
+		if len(tags) == 0 && isRetryAllowed && retryable && p.retry < p.getMaxRetry() {
+			return false
+		}
+		for _, tag := range tags {
+			if !slices.Contains(p.tags, tag) {
+				p.tags = append(p.tags, tag)
+			}
+		}
+	}
+
+	if !p.isResolved() && isRetryAllowed && p.retry < p.getMaxRetry() {
+		return false
+	}
+
+	return true
+}
+
 func (p *pendingMsg) isResolved() bool {
 	for _, report := range p.actionReports {
 		if err := report.IsResolved(); err != nil {
@@ -254,7 +276,7 @@ func (a *APIServer) enqueue(msg *pendingMsg) {
 	a.queueLock.Unlock()
 }
 
-func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg, retry bool) bool) {
+func (a *APIServer) dequeue(now time.Time, sendCallback func(msg *pendingMsg, retry bool) bool) {
 	a.queueLock.Lock()
 	defer a.queueLock.Unlock()
 
@@ -268,7 +290,7 @@ func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg, retry bool) 
 			return false
 		}
 
-		if cb(msg, queueSize < a.cfg.EventRetryQueueThreshold) {
+		if sendCallback(msg, queueSize < a.cfg.EventRetryQueueThreshold) {
 			queueSize--
 			return true
 		}
@@ -352,7 +374,7 @@ func SendCustomEventKillAction(probe *sprobe.Probe, tags []string, actionReports
 }
 
 func (a *APIServer) start(ctx context.Context) {
-	ticker := time.NewTicker(200 * time.Millisecond)
+	ticker := time.NewTicker(50 * time.Millisecond)
 	defer ticker.Stop()
 
 	for {
@@ -363,22 +385,7 @@ func (a *APIServer) start(ctx context.Context) {
 					seclog.Debugf("queue limit reached: %d, sending event anyway", len(a.queue))
 				}
 
-				if msg.extTagsCb != nil && isRetryAllowed {
-					tags, retryable := msg.extTagsCb()
-					if len(tags) == 0 && retryable && msg.retry < msg.getMaxRetry() {
-						return false
-					}
-
-					// dedup
-					for _, tag := range tags {
-						if !slices.Contains(msg.tags, tag) {
-							msg.tags = append(msg.tags, tag)
-						}
-					}
-				}
-
-				// not fully resolved, retry
-				if !msg.isResolved() && isRetryAllowed && msg.retry < msg.getMaxRetry() {
+				if !msg.tryResolve(isRetryAllowed) {
 					return false
 				}
 
