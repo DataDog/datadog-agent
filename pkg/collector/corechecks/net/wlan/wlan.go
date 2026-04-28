@@ -66,6 +66,13 @@ func (c *WLANCheck) Configure(senderManager sender.SenderManager, _ uint64, data
 	if err := c.CommonConfigure(senderManager, initConfig, data, source, provider); err != nil {
 		return err
 	}
+
+	s, err := c.GetSender()
+	if err != nil {
+		return err
+	}
+	s.FinalizeCheckServiceTag()
+
 	var ic wlanInitConfig
 	if len(initConfig) > 0 {
 		if err := yaml.Unmarshal(initConfig, &ic); err != nil {
