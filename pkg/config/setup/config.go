@@ -359,6 +359,12 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// Observer component configuration for anomaly detection
 	config.BindEnvAndSetDefault("observer.analysis.enabled", true)
+	// When false, the observer drops externally-ingested metrics
+	// (DogStatsD, check samplers, HF runners) at the handle factory.
+	// Logs are unaffected. Log-derived virtual metrics produced inside
+	// the engine by LogMetricsExtractors continue to flow into storage,
+	// so log-only anomaly detection keeps working.
+	config.BindEnvAndSetDefault("observer.ingest_metrics.enabled", true)
 	config.BindEnvAndSetDefault("observer.traces.fetch_interval", 5*time.Second)
 	config.BindEnvAndSetDefault("observer.traces.max_fetch_batch", 100)
 	config.BindEnvAndSetDefault("observer.profiles.fetch_interval", 10*time.Second)
