@@ -18,6 +18,7 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/dispatcher"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/eventbuf"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
@@ -27,6 +28,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/uprobe"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// runtimeTestingKnobs carries the subset of Config.TestingKnobs that
+// affects per-program runtime behavior. Threaded into runtimeImpl so the
+// program-load path can apply overrides without reaching back to Config.
+type runtimeTestingKnobs struct {
+	sinkOverride func(
+		real dispatcher.Sink,
+		buffer *eventbuf.Buffer,
+		budget *eventbuf.Budget,
+	) dispatcher.Sink
+	onProgramLoaded func(prog *loader.Program)
+}
 
 type runtimeImpl struct {
 	store                    *processStore
@@ -43,6 +56,9 @@ type runtimeImpl struct {
 	// eventbufBudget is the per-process byte ceiling shared across all
 	// per-program sink buffers.
 	eventbufBudget *eventbuf.Budget
+	// testingKnobs carries SinkOverride and OnProgramLoaded if set on the
+	// Config. nil in production paths.
+	testingKnobs *runtimeTestingKnobs
 	// tombstoneFilePath is the path to the tombstone file left behind to detect
 	// crashes while loading programs. If empty, tombstone files are not
 	// created.
@@ -201,7 +217,11 @@ func (rt *runtimeImpl) Load(
 		}
 	}
 
-	s := &sink{
+	if k := rt.testingKnobs; k != nil && k.onProgramLoaded != nil {
+		k.onProgramLoaded(loadedProgram)
+	}
+
+	realSink := &sink{
 		runtime:      rt,
 		decoder:      decoder,
 		symbolicator: rt.store.getSymbolicator(programID),
@@ -216,6 +236,10 @@ func (rt *runtimeImpl) Load(
 		}),
 		buffer: eventbuf.NewBuffer(rt.eventbufBudget),
 		probes: irProgram.Probes,
+	}
+	var s dispatcher.Sink = realSink
+	if k := rt.testingKnobs; k != nil && k.sinkOverride != nil {
+		s = k.sinkOverride(realSink, realSink.buffer, rt.eventbufBudget)
 	}
 	rt.dispatcher.RegisterSink(programID, s)
 
