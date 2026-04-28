@@ -338,6 +338,7 @@
 /comp/core @DataDog/agent-runtimes
 /comp/dogstatsd @DataDog/agent-metric-pipelines
 /comp/forwarder @DataDog/agent-metric-pipelines
+/comp/healthplatform @DataDog/agent-health
 /comp/host-profiler @DataDog/opentelemetry-agent @DataDog/profiling-full-host
 /comp/logs @DataDog/agent-log-pipelines
 /comp/logs-library @DataDog/agent-log-pipelines
@@ -393,7 +394,6 @@
 /comp/filterlist @DataDog/agent-metric-pipelines
 /comp/fleetstatus @DataDog/fleet
 /comp/haagent @DataDog/network-device-monitoring-core
-/comp/healthplatform @DataDog/agent-health
 /comp/languagedetection/client @DataDog/container-platform
 /comp/logonduration @DataDog/windows-products
 /comp/networkdeviceconfig @DataDog/ndm-integrations
@@ -488,8 +488,8 @@
 /comp/core/autodiscovery/providers/remote_config*.go  @DataDog/fleet
 /comp/core/autodiscovery/providers/datastreams @DataDog/data-streams-monitoring
 /comp/core/gui/guiimpl/systray/ @DataDog/windows-products @DataDog/agent-configuration
-/comp/healthplatform/impl/issues/rofspermissions @DataDog/container-platform @DataDog/agent-health
-/comp/healthplatform/impl/issues/admisconfig @DataDog/container-platform @DataDog/agent-health
+/comp/healthplatform/issues/admisconfig @DataDog/container-platform @DataDog/agent-health
+/comp/healthplatform/issues/rofspermissions @DataDog/container-platform @DataDog/agent-health
 /pkg/cloudfoundry                       @DataDog/agent-integrations
 /pkg/clusteragent/                      @DataDog/container-platform
 /pkg/clusteragent/autoscaling/          @DataDog/container-autoscaling
