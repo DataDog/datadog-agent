@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	_ "expvar" // Blank import used because this isn't directly used in this file
+	"log/slog"
 	"net/http"
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 	"os"
@@ -37,8 +38,6 @@ import (
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/datastreams"
-	errortracking "github.com/DataDog/datadog-agent/comp/core/errortracking/def"
-	errortrackingfx "github.com/DataDog/datadog-agent/comp/core/errortracking/fx"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
 	doqueryactionsfx "github.com/DataDog/datadog-agent/comp/dataobs/queryactions/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
@@ -578,14 +577,13 @@ func getSharedFxOption() fx.Option {
 		}),
 		settingsfx.Module(),
 		agenttelemetryfx.Module(),
-		errortrackingfx.Module(),
 		// AGTHEAL-15: install the errortracking branch into the slog handler
-		// chain. The Fx graph builds the COAT Sender component above; we
-		// wrap it in the in-package Pipeline (Source channel -> Processors ->
-		// batched Sender) and register the resulting Handler with the
-		// pkg/util/log/setup slot. The slot is a no-op until this Invoke
-		// runs, so SetupLogger does not need to know about errortracking
-		// during its own construction.
+		// chain. The agenttelemetry component above provides the COAT
+		// SendErrorLogs path; we wrap it in the in-package Pipeline
+		// (Source channel -> Processors -> batched Sender) and register the
+		// resulting Handler with the pkg/util/log/setup slot. The slot is a
+		// no-op until this Invoke runs, so SetupLogger does not need to know
+		// about errortracking during its own construction.
 		fx.Invoke(installErrortrackingHandler),
 		remotetraceroute.Module(),
 		networkpath.Bundle(),
@@ -607,24 +605,43 @@ func getSharedFxOption() fx.Option {
 	)
 }
 
+// sendErrorLogsAdapter adapts the agenttelemetry Component's batch-level
+// SendErrorLogs entry point to pkg/util/log/errortracking.Sender, which is
+// the contract the in-package Pipeline calls. It is the only glue between
+// the foundational pkg/util/log subtree and the comp/core/agenttelemetry
+// HTTP path; keeping the adapter inline (rather than exporting it) keeps
+// the dependency arrow one-way.
+type sendErrorLogsAdapter struct {
+	at agenttelemetry.Component
+}
+
+// Send forwards the batch to agenttelemetry. The error semantics required
+// by errortracking.Sender (5xx/network → non-nil for one retry; 4xx → nil
+// because retrying is pointless) are owned by the agenttelemetry
+// implementation; we just pass the result through.
+func (a sendErrorLogsAdapter) Send(ctx context.Context, batch []slog.Record) error {
+	return a.at.SendErrorLogs(ctx, batch)
+}
+
 // installErrortrackingHandler is the AGTHEAL-15 Fx invoke that wires the
-// COAT Sender component into the in-package Pipeline at
+// agenttelemetry SendErrorLogs path into the in-package Pipeline at
 // pkg/util/log/errortracking and registers the resulting Handler with
-// pkg/util/log/setup. The function is a no-op when errortracking.enabled is
-// false; the COAT Sender component is still constructed (cheap) but never
-// receives a Send call because no Pipeline points at it.
+// pkg/util/log/setup. The function is a no-op when errortracking.enabled
+// is false; agenttelemetry is constructed regardless (it has other
+// responsibilities), but its SendErrorLogs entry point is never called
+// because no Pipeline points at it.
 //
 // Lifecycle: OnStart spins up the Pipeline goroutine and installs the
 // Handler so error records are forwarded from then on. OnStop unregisters
 // the Handler so any logs emitted during shutdown fall through to the
 // existing chain only, then drains the Pipeline with a 5s deadline so
 // in-flight batches reach the Sender before the agent exits.
-func installErrortrackingHandler(lc fx.Lifecycle, cfg config.Component, sender errortracking.Component) {
+func installErrortrackingHandler(lc fx.Lifecycle, cfg config.Component, at agenttelemetry.Component) {
 	if !cfg.GetBool("errortracking.enabled") {
 		return
 	}
 
-	pipeline := errortrackingpkg.NewPipeline(sender, errortrackingpkg.Options{
+	pipeline := errortrackingpkg.NewPipeline(sendErrorLogsAdapter{at: at}, errortrackingpkg.Options{
 		BufferSize:    cfg.GetInt("errortracking.buffer_size"),
 		BatchSize:     cfg.GetInt("errortracking.batch_size"),
 		FlushInterval: time.Duration(cfg.GetInt("errortracking.flush_interval_seconds")) * time.Second,
