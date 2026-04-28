@@ -161,7 +161,7 @@ func newDestination(endpoint config.Endpoint,
 		url:                 buildURL(endpoint),
 		endpoint:            endpoint,
 		contentType:         contentType,
-		client:              httputils.NewResetClient(endpoint.ConnectionResetInterval, httpClientFactory(cfg, timeoutOverride)),
+		client:              httputils.NewResetClient(endpoint.ConnectionResetInterval, httpClientFactory(cfg, timeoutOverride, endpoint.TransportOptions...)),
 		destinationsContext: destinationsContext,
 		workerPool:          workerPool,
 		wg:                  sync.WaitGroup{},
@@ -433,7 +433,7 @@ func (d *Destination) updateRetryState(err error, isRetrying chan bool) bool {
 	return false
 }
 
-func httpClientFactory(cfg pkgconfigmodel.Reader, timeoutOverride time.Duration) func() *http.Client {
+func httpClientFactory(cfg pkgconfigmodel.Reader, timeoutOverride time.Duration, extraOpts ...func(*http.Transport)) func() *http.Client {
 	var transport *http.Transport
 
 	transportConfig := cfg.Get("logs_config.http_protocol")
@@ -446,7 +446,7 @@ func httpClientFactory(cfg pkgconfigmodel.Reader, timeoutOverride time.Duration)
 	switch transportConfig {
 	case "http1":
 		// Use default ALPN auto-negotiation to negotiate up to http/1.1
-		transport = httputils.CreateHTTPTransport(cfg)
+		transport = httputils.CreateHTTPTransport(cfg, extraOpts...)
 	case "auto":
 		fallthrough
 	default:
@@ -454,7 +454,8 @@ func httpClientFactory(cfg pkgconfigmodel.Reader, timeoutOverride time.Duration)
 			log.Warnf("Invalid http_protocol '%v', falling back to 'auto'", transportConfig)
 		}
 		// Use default ALPN auto-negotiation and negotiate to HTTP/2 if possible, if not it will automatically fallback to best available protocol
-		transport = httputils.CreateHTTPTransport(cfg, httputils.WithHTTP2())
+		opts := append([]func(*http.Transport){httputils.WithHTTP2()}, extraOpts...)
+		transport = httputils.CreateHTTPTransport(cfg, opts...)
 	}
 
 	return func() *http.Client {

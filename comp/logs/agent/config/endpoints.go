@@ -7,6 +7,7 @@ package config
 
 import (
 	"fmt"
+	"net/http"
 	"time"
 
 	"go.uber.org/atomic"
@@ -89,6 +90,11 @@ type Endpoint struct {
 	Origin    IntakeOrigin
 
 	ExtraHTTPHeaders map[string]string
+
+	// TransportOptions holds optional per-endpoint HTTP transport modifiers. Set when the
+	// endpoint requires non-default TLS behaviour (e.g. OPW with a private CA or client cert).
+	// Fields in the transport func slice are applied after the shared transport defaults.
+	TransportOptions []func(*http.Transport)
 }
 
 // unmarshalEndpoint is used to load additional endpoints from the configuration which stored as JSON/mapstructure.
