@@ -15,8 +15,6 @@ func adjustDiscovery(cfg model.Config) {
 		return
 	}
 
-	log.Info("discovery.service_map.enabled is set; booting USM monitor in restricted mode (HTTP only, no billing)")
-
 	// If paid USM is also enabled, discovery mode is redundant — USM provides
 	// a strict superset of the data. Disable discovery to avoid duplicate work
 	// and ambiguous billing signals.
@@ -26,6 +24,8 @@ func adjustDiscovery(cfg model.Config) {
 		cfg.Set(discoveryNS("service_map", "enabled"), false, model.SourceAgentRuntime)
 		return
 	}
+
+	log.Info("discovery.service_map.enabled is set; booting USM monitor in restricted mode (HTTP only, no billing)")
 
 	// Enable USM so that newUSMMonitor starts on Linux (gated on ServiceMonitoringEnabled).
 	// Windows bypasses this gate via NewWindowsMonitor, but Linux requires it.
