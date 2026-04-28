@@ -104,11 +104,12 @@ func (sp *sourceProvider) handleSet(c *workloadmeta.Container) {
 		}
 	}
 	sp.mu.Lock()
-	defer sp.mu.Unlock()
 	if _, exists := sp.activeSources[c.EntityID.ID]; exists {
+		sp.mu.Unlock()
 		return // idempotent: already tracked
 	}
 	if _, suppressed := sp.suppressedIDs[c.EntityID.ID]; suppressed {
+		sp.mu.Unlock()
 		return // an AD source already owns this container; skip generic source
 	}
 	src := sources.NewLogSource(c.EntityID.ID, &logsconfig.LogsConfig{
@@ -116,18 +117,22 @@ func (sp *sourceProvider) handleSet(c *workloadmeta.Container) {
 		Identifier: c.EntityID.ID,
 	})
 	sp.activeSources[c.EntityID.ID] = src
+	sp.mu.Unlock()
+
 	sp.logSources.AddSource(src)
 	log.Infof("[observer/logssource] added container source: %s (runtime=%s)", c.Image.ShortName, c.Runtime)
 }
 
 func (sp *sourceProvider) handleUnset(c *workloadmeta.Container) {
 	sp.mu.Lock()
-	defer sp.mu.Unlock()
 	src, exists := sp.activeSources[c.EntityID.ID]
 	if !exists {
+		sp.mu.Unlock()
 		return
 	}
 	delete(sp.activeSources, c.EntityID.ID)
+	sp.mu.Unlock()
+
 	sp.logSources.RemoveSource(src)
 }
 
@@ -155,11 +160,15 @@ func isAgentContainer(c *workloadmeta.Container) bool {
 // Must be called before adding the AD source to LogSources.
 func (sp *sourceProvider) suppressIdentifier(containerID string) {
 	sp.mu.Lock()
-	defer sp.mu.Unlock()
 	sp.suppressedIDs[containerID] = struct{}{}
-	if src, exists := sp.activeSources[containerID]; exists {
+	evicted, exists := sp.activeSources[containerID]
+	if exists {
 		delete(sp.activeSources, containerID)
-		sp.logSources.RemoveSource(src)
+	}
+	sp.mu.Unlock()
+
+	if exists {
+		sp.logSources.RemoveSource(evicted)
 		log.Debugf("[observer/logssource] removed generic container source %s: AD source takes priority", containerID)
 	}
 }
