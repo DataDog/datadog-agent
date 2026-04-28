@@ -22,7 +22,7 @@ import (
 // Check is the OpenMetrics core check.
 type Check struct {
 	core.CheckBase
-	scraper *openmetricsScraper
+	scraper *Scraper
 }
 
 // Run executes one OpenMetrics scrape.
@@ -36,7 +36,7 @@ func (c *Check) Run() error {
 	}
 	defer sender.Commit()
 
-	return c.scraper.scrape(sender)
+	return c.scraper.Scrape(sender)
 }
 
 // Configure parses the OpenMetrics instance configuration.
@@ -62,11 +62,12 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 		return err
 	}
 	cfg.checkID = string(c.ID())
-	c.scraper, err = newScraper(cfg)
+	scraper, err := newScraper(cfg)
 	if err != nil {
 		recordConfigureTelemetry(configureOutcomeError, configureReasonNewScraper)
 		return err
 	}
+	c.scraper = &Scraper{inner: scraper}
 	recordConfigureTelemetry(configureOutcomeLoaded, configureReasonNone)
 	return nil
 }
