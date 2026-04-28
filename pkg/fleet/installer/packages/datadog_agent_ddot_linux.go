@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/extensions"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/file"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/packagemanager"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/systemd"
@@ -351,11 +352,17 @@ func copyFile(src, dst string, perm os.FileMode) error {
 	return os.WriteFile(dst, data, perm)
 }
 
-// isDDOTExtensionInstalled reports whether the DDOT extension directory
-// exists under the agent package path.
+// isDDOTExtensionInstalled reports whether the DDOT extension is recorded
+// in the extensions database for the agent package.
 func isDDOTExtensionInstalled(ctx HookContext) bool {
-	_, err := os.Stat(filepath.Join(ctx.PackagePath, "ext", "ddot"))
-	return err == nil
+	isExperiment := filepath.Base(ctx.PackagePath) == "experiment"
+	exts, err := extensions.GetPackage("datadog-agent", isExperiment)
+	if err != nil {
+		log.Warnf("failed to query extensions db: %s", err)
+		return false
+	}
+	_, ok := exts["ddot"]
+	return ok
 }
 
 // isStandaloneDDOTInstalled reports whether the standalone DDOT OCI
