@@ -86,6 +86,7 @@ def otool_dir_action(ctx, input_dir, output_dir, rpath):
             '      install_name_tool -change "$dep" "{rpath}/$(basename "$dep")" "$f" 2>/dev/null || true ;; ' +
             "    esac; " +
             "  done; " +
+            '  codesign --sign - --force "$f"; ' +
             "done"
         ).format(
             otool = toolchain.path,
