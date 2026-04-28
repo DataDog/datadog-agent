@@ -216,7 +216,7 @@ func packDWord(value uint32) []byte {
 }
 
 func makeTLVHeader(tType, length uint32) uint32 {
-	// Match ctypes bitfield layout used in nvlink_plr_metrics.py:
+	// Match ctypes bitfield layout
 	// struct TLV { res1:16, len:11, tType:5 } packed into uint32.
 	// This places tType in the highest 5 bits and len in bits [16..26].
 	return ((tType & 0x1F) << 27) | ((length & 0x7FF) << 16)
