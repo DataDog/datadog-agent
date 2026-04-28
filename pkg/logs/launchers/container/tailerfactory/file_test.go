@@ -71,6 +71,16 @@ func testAdaptiveSamplingOptions(enabled bool) *config.SourceAdaptiveSamplingOpt
 		MatchThreshold:         pointer.Ptr(0.75),
 		TokenizerMaxInputBytes: pointer.Ptr(512),
 		ProtectImportantLogs:   pointer.Ptr(false),
+		Include: []*config.AdaptiveSamplingRule{
+			{Regex: "foo.*bar"},
+			{Sample: "my 123 fun log sample"},
+			{Status: "info"},
+		},
+		Exclude: []*config.AdaptiveSamplingRule{
+			{Regex: "baz.*qux"},
+			{Sample: "my 456 bad log sample"},
+			{Status: "error"},
+		},
 	}
 }
 

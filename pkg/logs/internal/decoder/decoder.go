@@ -7,6 +7,7 @@ package decoder
 
 import (
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -173,7 +174,7 @@ func resolveAdaptiveSamplerEnabled(sourceAdaptiveSampling *config.SourceAdaptive
 	return pkgconfigsetup.Datadog().GetBool("logs_config.experimental_adaptive_sampling.enabled")
 }
 
-func resolveAdaptiveSamplerConfig(sourceAdaptiveSampling *config.SourceAdaptiveSamplingOptions) preprocessor.AdaptiveSamplerConfig {
+func resolveAdaptiveSamplerConfig(sourceAdaptiveSampling *config.SourceAdaptiveSamplingOptions, tok *preprocessor.Tokenizer) preprocessor.AdaptiveSamplerConfig {
 	c := preprocessor.AdaptiveSamplerConfig{
 		MaxPatterns:          pkgconfigsetup.Datadog().GetInt("logs_config.experimental_adaptive_sampling.max_patterns"),
 		RateLimit:            pkgconfigsetup.Datadog().GetFloat64("logs_config.experimental_adaptive_sampling.rate_limit"),
@@ -198,9 +199,51 @@ func resolveAdaptiveSamplerConfig(sourceAdaptiveSampling *config.SourceAdaptiveS
 		if sourceAdaptiveSampling.ProtectImportantLogs != nil {
 			c.ProtectImportantLogs = *sourceAdaptiveSampling.ProtectImportantLogs
 		}
+		c.Include = resolveAdaptiveSamplerFilters(sourceAdaptiveSampling.Include, tok)
+		c.IncludeConfigured = sourceAdaptiveSampling.Include != nil
+		c.Exclude = resolveAdaptiveSamplerFilters(sourceAdaptiveSampling.Exclude, tok)
 	}
 
 	return validateAdaptiveSamplerConfig(c)
+}
+
+func resolveAdaptiveSamplerFilters(rules []*config.AdaptiveSamplingRule, tok *preprocessor.Tokenizer) []preprocessor.AdaptiveSamplerFilter {
+	if len(rules) == 0 {
+		return nil
+	}
+	if tok == nil {
+		tok = preprocessor.NewTokenizer(0)
+	}
+
+	filters := make([]preprocessor.AdaptiveSamplerFilter, 0, len(rules))
+	for _, rule := range rules {
+		if rule == nil {
+			continue
+		}
+
+		filter := preprocessor.AdaptiveSamplerFilter{}
+		if rule.Regex != "" {
+			compiled, err := regexp.Compile(rule.Regex)
+			if err != nil {
+				log.Warnf("Invalid adaptive sampler filter regex %q, skipping rule: %v", rule.Regex, err)
+				continue
+			}
+			filter.Regex = compiled
+		}
+		if rule.Sample != "" {
+			filter.SampleTokens, _ = tok.Tokenize([]byte(rule.Sample))
+		}
+		if rule.Status != "" {
+			filter.Status = strings.ToLower(strings.TrimSpace(rule.Status))
+		}
+		if filter.Regex == nil && len(filter.SampleTokens) == 0 && filter.Status == "" {
+			log.Warn("Adaptive sampler filter rule is empty, skipping")
+			continue
+		}
+
+		filters = append(filters, filter)
+	}
+	return filters
 }
 
 func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regexp.Regexp, tailerInfo *status.InfoRegistry, outputChan chan *message.Message, detectedPattern *DetectedPattern, tok *preprocessor.Tokenizer, labelerMaxBytes int) LineHandler {
@@ -209,7 +252,7 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 
 	var sampler preprocessor.Sampler
 	if resolveAdaptiveSamplerEnabled(source.Config().ExperimentalAdaptiveSampling) {
-		sampler = preprocessor.NewAdaptiveSampler(resolveAdaptiveSamplerConfig(source.Config().ExperimentalAdaptiveSampling), source.UnderlyingSource().Name)
+		sampler = preprocessor.NewAdaptiveSampler(resolveAdaptiveSamplerConfig(source.Config().ExperimentalAdaptiveSampling, tok), source.UnderlyingSource().Name)
 	} else {
 		sampler = preprocessor.NewNoopSampler()
 	}

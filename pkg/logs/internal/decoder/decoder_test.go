@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/preprocessor"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/dockerfile"
@@ -26,6 +27,7 @@ import (
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func InitializeDecoderForTest(source *sources.LogSource, parser parsers.Parser) Decoder {
@@ -492,7 +494,7 @@ func TestResolveAdaptiveSamplerConfig(t *testing.T) {
 	mockConfig.Set("logs_config.experimental_adaptive_sampling.protect_important_logs", true, pkgconfigmodel.SourceAgentRuntime)
 
 	t.Run("falls back to global config", func(t *testing.T) {
-		got := resolveAdaptiveSamplerConfig(nil)
+		got := resolveAdaptiveSamplerConfig(nil, preprocessor.NewTokenizer(0))
 		assert.Equal(t, 100, got.MaxPatterns)
 		assert.Equal(t, 2.5, got.RateLimit)
 		assert.Equal(t, 50.0, got.BurstSize)
@@ -513,7 +515,7 @@ func TestResolveAdaptiveSamplerConfig(t *testing.T) {
 			BurstSize:            &burstSize,
 			MatchThreshold:       &matchThreshold,
 			ProtectImportantLogs: &protectImportantLogs,
-		})
+		}, preprocessor.NewTokenizer(0))
 
 		assert.Equal(t, 200, got.MaxPatterns)
 		assert.Equal(t, 3.5, got.RateLimit)
@@ -527,13 +529,40 @@ func TestResolveAdaptiveSamplerConfig(t *testing.T) {
 
 		got := resolveAdaptiveSamplerConfig(&config.SourceAdaptiveSamplingOptions{
 			RateLimit: &rateLimit,
-		})
+		}, preprocessor.NewTokenizer(0))
 
 		assert.Equal(t, 100, got.MaxPatterns)
 		assert.Equal(t, 9.5, got.RateLimit)
 		assert.Equal(t, 50.0, got.BurstSize)
 		assert.Equal(t, 0.8, got.MatchThreshold)
 		assert.True(t, got.ProtectImportantLogs)
+	})
+
+	t.Run("source filters are resolved", func(t *testing.T) {
+		got := resolveAdaptiveSamplerConfig(&config.SourceAdaptiveSamplingOptions{
+			Include: []*config.AdaptiveSamplingRule{
+				{Regex: "foo.*bar"},
+				{Sample: "my 123 fun log sample"},
+				{Status: " INFO "},
+			},
+			Exclude: []*config.AdaptiveSamplingRule{
+				{Regex: "baz.*qux"},
+				{Sample: "my 456 bad log sample"},
+				{Status: "ERROR"},
+			},
+		}, preprocessor.NewTokenizer(0))
+
+		assert.True(t, got.IncludeConfigured)
+		require.Len(t, got.Include, 3)
+		require.NotNil(t, got.Include[0].Regex)
+		assert.Equal(t, "foo.*bar", got.Include[0].Regex.String())
+		assert.NotEmpty(t, got.Include[1].SampleTokens)
+		assert.Equal(t, "info", got.Include[2].Status)
+		require.Len(t, got.Exclude, 3)
+		require.NotNil(t, got.Exclude[0].Regex)
+		assert.Equal(t, "baz.*qux", got.Exclude[0].Regex.String())
+		assert.NotEmpty(t, got.Exclude[1].SampleTokens)
+		assert.Equal(t, "error", got.Exclude[2].Status)
 	})
 }
 
