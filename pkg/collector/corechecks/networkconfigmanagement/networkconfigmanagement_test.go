@@ -330,9 +330,10 @@ func TestCheck_Run_ConnectionFailure(t *testing.T) {
 	connectionError := errors.New("connection refused")
 	client := newMockRemoteClient()
 	client.ConnectionError = connectionError
+	check.remoteClient = client
 
 	// Run the check
-	err = client.Connect()
+	err = check.Run()
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "connection refused")
