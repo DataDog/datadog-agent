@@ -45,7 +45,13 @@ const (
 	configureReasonNone      = "none"
 )
 
-type kindOpenMetricsSuite struct {
+type openMetricsE2ESuite interface {
+	T() *testing.T
+	SessionOutputDir() string
+	Env() *environments.Kubernetes
+}
+
+type kindOpenMetricsCoreLoaderSuite struct {
 	e2e.BaseSuite[environments.Kubernetes]
 }
 
@@ -56,32 +62,49 @@ func TestKindOpenMetricsCoreLoaderSuite(t *testing.T) {
 		kubernetesagentparams.WithHelmValues(openMetricsCoreLoaderHelmValues),
 	}
 
+	e2e.Run(t, &kindOpenMetricsCoreLoaderSuite{}, openMetricsKindProvisioner("openmetrics-core", agentOptions))
+}
+
+type kindOpenMetricsPythonDefaultSuite struct {
+	e2e.BaseSuite[environments.Kubernetes]
+}
+
+func TestKindOpenMetricsPythonDefaultSuite(t *testing.T) {
+	t.Parallel()
+
+	agentOptions := []kubernetesagentparams.Option{
+		kubernetesagentparams.WithNamespace("datadog"),
+	}
+
+	e2e.Run(t, &kindOpenMetricsPythonDefaultSuite{}, openMetricsKindProvisioner("openmetrics-python", agentOptions))
+}
+
+func openMetricsKindProvisioner(name string, agentOptions []kubernetesagentparams.Option) e2e.SuiteOption {
 	if localAgentImage := os.Getenv(localAgentImageEnv); localAgentImage != "" {
 		provisionerOptions := []localkubernetes.ProvisionerOption{
-			localkubernetes.WithName("openmetrics"),
+			localkubernetes.WithName(name),
 			localkubernetes.WithWorkloadApp(openMetricsK8sAppDefinition),
 		}
-		agentOptions = append(agentOptions,
+		localAgentOptions := append([]kubernetesagentparams.Option{}, agentOptions...)
+		localAgentOptions = append(localAgentOptions,
 			kubernetesagentparams.WithAgentFullImagePath(localAgentImage),
 			kubernetesagentparams.WithHelmValues(openMetricsLocalAgentImageHelmValues),
 		)
 		provisionerOptions = append(provisionerOptions, localkubernetes.WithKindLoadImage(localAgentImage))
-		provisionerOptions = append(provisionerOptions, localkubernetes.WithAgentOptions(agentOptions...))
-
-		e2e.Run(t, &kindOpenMetricsSuite{}, e2e.WithProvisioner(localkubernetes.Provisioner(provisionerOptions...)))
-		return
+		provisionerOptions = append(provisionerOptions, localkubernetes.WithAgentOptions(localAgentOptions...))
+		return e2e.WithProvisioner(localkubernetes.Provisioner(provisionerOptions...))
 	}
 
-	e2e.Run(t, &kindOpenMetricsSuite{}, e2e.WithProvisioner(awskindvm.Provisioner(
+	return e2e.WithProvisioner(awskindvm.Provisioner(
 		awskindvm.WithRunOptions(
-			scenkind.WithName("openmetrics"),
+			scenkind.WithName(name),
 			scenkind.WithAgentOptions(agentOptions...),
 			scenkind.WithWorkloadApp(openMetricsK8sAppDefinition),
 		),
-	)))
+	))
 }
 
-func (s *kindOpenMetricsSuite) TestAutodiscoveryInstancesUseCoreLoaderWithAgentFlag() {
+func (s *kindOpenMetricsCoreLoaderSuite) TestAutodiscoveryInstancesUseCoreLoaderWithAgentFlag() {
 	t := s.T()
 	require.NoError(t, s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
 
@@ -120,7 +143,37 @@ func (s *kindOpenMetricsSuite) TestAutodiscoveryInstancesUseCoreLoaderWithAgentF
 	}, time.Minute, 5*time.Second)
 }
 
-func agentTelemetry(s *kindOpenMetricsSuite, agentType componentskube.KubernetesObjRefOutput) (string, error) {
+func (s *kindOpenMetricsPythonDefaultSuite) TestAutodiscoveryInstancesUsePythonLoaderByDefault() {
+	t := s.T()
+	require.NoError(t, s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
+
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		assertMetric(c, s, "openmetrics_e2e_one.prom_gauge", fakeintakeclient.WithTags[*fakeintakeaggregator.MetricSeries]([]string{"series:0"}))
+		assertMetric(c, s, "openmetrics_e2e_two.prom_gauge", fakeintakeclient.WithTags[*fakeintakeaggregator.MetricSeries]([]string{"series:0"}))
+		assertMetric(c, s, "openmetrics_e2e_one.prom_counter.count", fakeintakeclient.WithMetricValueHigherThan(0))
+		assertMetric(c, s, "openmetrics_e2e_two.prom_counter.count", fakeintakeclient.WithMetricValueHigherThan(0))
+		assertMetric(c, s, "openmetrics_e2e_fixture.go_memstats_alloc_bytes", fakeintakeclient.WithMetricValueHigherThan(100))
+	}, 5*time.Minute, 10*time.Second)
+
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		telemetry, err := agentTelemetry(s, s.Env().Agent.LinuxNodeAgent)
+		if !assert.NoError(c, err, "node Agent telemetry") {
+			return
+		}
+
+		clusterChecksTelemetry, err := agentTelemetry(s, s.Env().Agent.LinuxClusterChecks)
+		if !assert.NoError(c, err, "Cluster Checks Runner telemetry") {
+			return
+		}
+
+		telemetry += "\n" + clusterChecksTelemetry
+		assert.True(c, hasOpenMetricsExecutionTelemetry(telemetry, "python"))
+		assert.False(c, hasOpenMetricsExecutionTelemetry(telemetry, "core"))
+		assert.Zero(c, openMetricsConfigureTelemetryOutcomeCount(telemetry, configureOutcomeLoaded))
+	}, time.Minute, 5*time.Second)
+}
+
+func agentTelemetry(s openMetricsE2ESuite, agentType componentskube.KubernetesObjRefOutput) (string, error) {
 	agentClient, err := e2eclient.NewK8sAgentClient(
 		s,
 		e2eclient.AgentSelectorAnyPod(agentType),
@@ -133,7 +186,7 @@ func agentTelemetry(s *kindOpenMetricsSuite, agentType componentskube.Kubernetes
 	return agentClient.Diagnose(agentclient.WithArgs([]string{"show-metadata", "agent-full-telemetry"})), nil
 }
 
-func assertMetric(c *assert.CollectT, s *kindOpenMetricsSuite, metricName string, options ...fakeintakeclient.MatchOpt[*fakeintakeaggregator.MetricSeries]) {
+func assertMetric(c *assert.CollectT, s openMetricsE2ESuite, metricName string, options ...fakeintakeclient.MatchOpt[*fakeintakeaggregator.MetricSeries]) {
 	metrics, err := s.Env().FakeIntake.Client().FilterMetrics(metricName, options...)
 	assert.NoError(c, err)
 	assert.NotEmpty(c, metrics, "no %s metrics found", metricName)

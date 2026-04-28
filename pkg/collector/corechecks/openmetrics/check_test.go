@@ -117,14 +117,18 @@ func (r checkRun) run(t *testing.T) {
 }
 
 func TestConfigureSkipsWhenCoreLoaderFlagDisabled(t *testing.T) {
-	flavor.SetTestFlavor(t, flavor.DefaultAgent)
-	cfg := configmock.New(t)
-	cfg.Set("openmetrics.use_core_loader", false, configmodel.SourceAgentRuntime)
+	for _, fl := range []string{flavor.DefaultAgent, flavor.IotAgent, flavor.ClusterAgent} {
+		t.Run(fl, func(t *testing.T) {
+			flavor.SetTestFlavor(t, fl)
+			cfg := configmock.New(t)
+			cfg.Set("openmetrics.use_core_loader", false, configmodel.SourceAgentRuntime)
 
-	omCheck := newCheck().(*Check)
-	err := omCheck.Configure(mocksender.CreateDefaultDemultiplexer(), integration.FakeConfigHash, []byte(`openmetrics_endpoint: http://127.0.0.1/metrics`), nil, "test", "provider")
+			omCheck := newCheck().(*Check)
+			err := omCheck.Configure(mocksender.CreateDefaultDemultiplexer(), integration.FakeConfigHash, []byte(`openmetrics_endpoint: http://127.0.0.1/metrics`), nil, "test", "provider")
 
-	require.True(t, errors.Is(err, check.ErrSkipCheckInstance))
+			require.True(t, errors.Is(err, check.ErrSkipCheckInstance))
+		})
+	}
 }
 
 func TestConfigureSkipsUnsupportedCoreHTTPConfig(t *testing.T) {

@@ -6,8 +6,10 @@
 package openmetrics
 
 import (
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -18,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
@@ -26,17 +29,39 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/serializer/types"
+	"github.com/stretchr/testify/require"
 )
 
 func BenchmarkOpenMetricsUpstreamFixtures(b *testing.B) {
-	fixtures := benchmarkOpenMetricsFixtures(b)
-	amazonMSK := benchmarkAmazonMSKConfig(b, fixtures.benchUtils)
+	for _, benchmark := range benchmarkOpenMetricsFixtureCases(b) {
+		b.Run(benchmark.name, func(b *testing.B) {
+			benchmarkOpenMetricsRun(b, benchmark.instance, benchmark.payload)
+		})
+	}
+}
 
-	benchmarks := []struct {
-		name     string
-		instance string
-		payload  string
-	}{
+func TestOpenMetricsUpstreamBenchmarkFixtureSmoke(t *testing.T) {
+	for _, fixture := range benchmarkOpenMetricsFixtureCases(t) {
+		t.Run(fixture.name, func(t *testing.T) {
+			mockSender := runOpenMetricsFixtureOnce(t, fixture.instance, fixture.payload)
+			require.True(t, mockSenderHasMetricCall(mockSender), "expected %s to emit at least one metric", fixture.name)
+		})
+	}
+}
+
+type benchmarkOpenMetricsFixture struct {
+	name     string
+	instance string
+	payload  string
+}
+
+func benchmarkOpenMetricsFixtureCases(tb testing.TB) []benchmarkOpenMetricsFixture {
+	tb.Helper()
+
+	fixtures := benchmarkOpenMetricsFixtures(tb)
+	amazonMSK := fixtures.amazonMSK
+
+	return []benchmarkOpenMetricsFixture{
 		{
 			name: "legacy_ksm_wildcard",
 			instance: `
@@ -169,69 +194,111 @@ share_labels:
 			payload: fixtures.ksm,
 		},
 	}
-
-	for _, benchmark := range benchmarks {
-		b.Run(benchmark.name, func(b *testing.B) {
-			benchmarkOpenMetricsRun(b, benchmark.instance, benchmark.payload)
-		})
-	}
 }
 
 type benchmarkFixtures struct {
 	ksm          string
 	amazonMSKJMX string
-	benchUtils   string
+	amazonMSK    benchmarkAmazonMSKData
 }
 
-func benchmarkOpenMetricsFixtures(b *testing.B) benchmarkFixtures {
-	b.Helper()
+func benchmarkOpenMetricsFixtures(tb testing.TB) benchmarkFixtures {
+	tb.Helper()
 
-	root := benchmarkIntegrationsCoreRoot(b)
+	if root, ok := benchmarkIntegrationsCoreRoot(tb); ok {
+		return benchmarkFixtures{
+			ksm:          benchmarkReadFixture(tb, root, "datadog_checks_base/tests/fixtures/prometheus/ksm.txt"),
+			amazonMSKJMX: benchmarkReadFixture(tb, root, "datadog_checks_base/tests/fixtures/prometheus/amazon_msk_jmx_metrics.txt"),
+			amazonMSK:    benchmarkAmazonMSKConfig(tb, filepath.Join(root, "datadog_checks_base/tests/base/checks/openmetrics/bench_utils.py")),
+		}
+	}
+
 	return benchmarkFixtures{
-		ksm:          benchmarkReadFixture(b, root, "datadog_checks_base/tests/fixtures/prometheus/ksm.txt"),
-		amazonMSKJMX: benchmarkReadFixture(b, root, "datadog_checks_base/tests/fixtures/prometheus/amazon_msk_jmx_metrics.txt"),
-		benchUtils:   filepath.Join(root, "datadog_checks_base/tests/base/checks/openmetrics/bench_utils.py"),
+		ksm:          benchmarkReadCompressedFixture(tb, "ksm.txt.gz"),
+		amazonMSKJMX: benchmarkReadCompressedFixture(tb, "amazon_msk_jmx_metrics.txt.gz"),
+		amazonMSK:    benchmarkReadCompressedAmazonMSKConfig(tb),
 	}
 }
 
-func benchmarkIntegrationsCoreRoot(b *testing.B) string {
-	b.Helper()
+func benchmarkIntegrationsCoreRoot(tb testing.TB) (string, bool) {
+	tb.Helper()
 
 	if root := os.Getenv("OPENMETRICS_BENCH_INTEGRATIONS_CORE"); root != "" {
 		if _, err := os.Stat(root); err != nil {
-			b.Skipf("OPENMETRICS_BENCH_INTEGRATIONS_CORE=%s is not readable: %v", root, err)
+			tb.Fatalf("OPENMETRICS_BENCH_INTEGRATIONS_CORE=%s is not readable: %v", root, err)
 		}
-		return root
+		return root, true
 	}
 
 	dir, err := os.Getwd()
 	if err != nil {
-		b.Fatal(err)
+		tb.Fatal(err)
 	}
 	for {
 		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
 			candidate := filepath.Join(filepath.Dir(dir), "integrations-core")
 			if _, err := os.Stat(candidate); err == nil {
-				return candidate
+				return candidate, true
 			}
-			b.Skipf("integrations-core checkout not found next to %s; set OPENMETRICS_BENCH_INTEGRATIONS_CORE", dir)
+			return "", false
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			b.Skip("datadog-agent repository root not found")
+			return "", false
 		}
 		dir = parent
 	}
 }
 
-func benchmarkReadFixture(b *testing.B, root string, relPath string) string {
-	b.Helper()
+func benchmarkReadFixture(tb testing.TB, root string, relPath string) string {
+	tb.Helper()
 
 	payload, err := os.ReadFile(filepath.Join(root, relPath))
 	if err != nil {
-		b.Fatalf("read %s: %v", relPath, err)
+		tb.Fatalf("read %s: %v", relPath, err)
 	}
 	return string(payload)
+}
+
+func benchmarkReadCompressedFixture(tb testing.TB, name string) string {
+	tb.Helper()
+
+	payload, err := benchmarkReadCompressedTestdata(name)
+	if err != nil {
+		tb.Fatalf("read compressed OpenMetrics benchmark fixture %s: %v", name, err)
+	}
+	return string(payload)
+}
+
+func benchmarkReadCompressedAmazonMSKConfig(tb testing.TB) benchmarkAmazonMSKData {
+	tb.Helper()
+
+	payload, err := benchmarkReadCompressedTestdata("amazon_msk_jmx_config.json.gz")
+	if err != nil {
+		tb.Fatalf("read compressed Amazon MSK benchmark config: %v", err)
+	}
+
+	var data benchmarkAmazonMSKData
+	if err := json.Unmarshal(payload, &data); err != nil {
+		tb.Fatalf("parse compressed Amazon MSK benchmark config: %v", err)
+	}
+	return data
+}
+
+func benchmarkReadCompressedTestdata(name string) ([]byte, error) {
+	file, err := os.Open(filepath.Join("testdata", "upstream_benchmarks", name))
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	reader, err := gzip.NewReader(file)
+	if err != nil {
+		return nil, err
+	}
+	defer reader.Close()
+
+	return io.ReadAll(reader)
 }
 
 type benchmarkAmazonMSKData struct {
@@ -239,8 +306,8 @@ type benchmarkAmazonMSKData struct {
 	Overrides map[string]string `json:"overrides"`
 }
 
-func benchmarkAmazonMSKConfig(b *testing.B, benchUtils string) benchmarkAmazonMSKData {
-	b.Helper()
+func benchmarkAmazonMSKConfig(tb testing.TB, benchUtils string) benchmarkAmazonMSKData {
+	tb.Helper()
 
 	script := `import importlib.util, json, sys
 spec = importlib.util.spec_from_file_location("bench_utils", sys.argv[1])
@@ -253,12 +320,12 @@ print(json.dumps({
 `
 	output, err := exec.Command("python3", "-c", script, benchUtils).Output()
 	if err != nil {
-		b.Skipf("python3 could not load %s: %v", benchUtils, err)
+		tb.Skipf("python3 could not load %s: %v", benchUtils, err)
 	}
 
 	var data benchmarkAmazonMSKData
 	if err := json.Unmarshal(output, &data); err != nil {
-		b.Fatalf("parse Amazon MSK benchmark config: %v", err)
+		tb.Fatalf("parse Amazon MSK benchmark config: %v", err)
 	}
 	return data
 }
@@ -326,6 +393,51 @@ func benchmarkOpenMetricsRun(b *testing.B, instance string, payload string) {
 			b.Fatal(err)
 		}
 	}
+}
+
+func runOpenMetricsFixtureOnce(t *testing.T, instance string, payload string) *mocksender.MockSender {
+	t.Helper()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+		_, _ = w.Write([]byte(payload))
+	}))
+	t.Cleanup(server.Close)
+
+	cfg := configmock.New(t)
+	cfg.Set("openmetrics.use_core_loader", true, configmodel.SourceAgentRuntime)
+
+	omCheck := newCheck().(*Check)
+	instance = strings.ReplaceAll(instance, "%%endpoint%%", server.URL)
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	require.NoError(t, omCheck.Configure(senderManager, integration.FakeConfigHash, integration.Data([]byte(instance)), nil, "test", "provider"))
+
+	mockSender := mocksender.NewMockSenderWithSenderManager(omCheck.ID(), senderManager)
+	mockSender.SetupAcceptAll()
+	require.NoError(t, omCheck.Run())
+	return mockSender
+}
+
+func mockSenderHasMetricCall(mockSender *mocksender.MockSender) bool {
+	metricMethods := map[string]struct{}{
+		"Gauge":                             {},
+		"GaugeNoIndex":                      {},
+		"Rate":                              {},
+		"Count":                             {},
+		"MonotonicCount":                    {},
+		"MonotonicCountWithFlushFirstValue": {},
+		"Counter":                           {},
+		"Histogram":                         {},
+		"Historate":                         {},
+		"Distribution":                      {},
+		"HistogramBucket":                   {},
+	}
+	for _, call := range mockSender.Mock.Calls {
+		if _, ok := metricMethods[call.Method]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 type benchmarkSenderManager struct {
