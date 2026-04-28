@@ -1,0 +1,18 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Add ``admission_controller.auto_instrumentation.container_registry_allow_list``
+    configuration option (env var ``DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_CONTAINER_REGISTRY_ALLOW_LIST``)
+    to restrict which container registries can be used as sources for APM library
+    injection via Single Step Instrumentation. When set to a non-empty
+    comma-separated list, the admission controller will skip injection for any pod
+    whose injector image registry is not in the list, and will set the
+    ``internal.apm.datadoghq.com/injection-error`` annotation with the reason.
+    An empty list (the default) allows injection from any registry.

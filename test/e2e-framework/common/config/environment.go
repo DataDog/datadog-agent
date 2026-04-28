@@ -212,7 +212,7 @@ func (e *CommonEnvironment) CommonNamer() namer.Namer {
 // Infra namespace
 
 func (e *CommonEnvironment) InfraShouldDeployFakeintakeWithLB() bool {
-	return e.GetBoolWithDefault(e.InfraConfig, DDInfraDeployFakeintakeWithLoadBalancer, true)
+	return e.GetBoolWithDefault(e.InfraConfig, DDInfraDeployFakeintakeWithLoadBalancer, false)
 }
 
 func (e *CommonEnvironment) InfraEnvironmentNames() []string {
