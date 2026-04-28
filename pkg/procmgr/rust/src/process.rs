@@ -1126,8 +1126,7 @@ runtime_success_sec: 5
         let mut cfg = test_helpers::make_config(cmd, args);
         cfg.stop_timeout = Some(1);
 
-        let mut proc =
-            ManagedProcess::new_config("tree".into(), test_helpers::test_uuid(), cfg);
+        let mut proc = ManagedProcess::new_config("tree".into(), test_helpers::test_uuid(), cfg);
         proc.spawn().unwrap();
         assert!(proc.is_running());
 
@@ -1135,10 +1134,10 @@ runtime_success_sec: 5
         // moment to spawn and write it).
         let deadline = Instant::now() + Duration::from_secs(5);
         let grandchild_pid: u32 = loop {
-            if let Ok(contents) = std::fs::read_to_string(&pid_file) {
-                if let Ok(pid) = contents.trim().parse::<u32>() {
-                    break pid;
-                }
+            if let Ok(contents) = std::fs::read_to_string(&pid_file)
+                && let Ok(pid) = contents.trim().parse::<u32>()
+            {
+                break pid;
             }
             assert!(
                 Instant::now() < deadline,

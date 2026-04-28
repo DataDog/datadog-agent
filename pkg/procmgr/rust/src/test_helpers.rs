@@ -259,9 +259,7 @@ pub fn grandchild_cmd(pid_file: &str) -> (&'static str, Vec<String>) {
         "/bin/sh",
         vec![
             "-c".into(),
-            format!(
-                "trap '' TERM; /bin/sleep 3600 & echo $! > {pid_file}; wait"
-            ),
+            format!("trap '' TERM; /bin/sleep 3600 & echo $! > {pid_file}; wait"),
         ],
     )
 }
