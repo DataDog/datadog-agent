@@ -147,7 +147,7 @@ func (r *Resolver) AddNewCname(cname string, hostname string) {
 // SendStats sends the DNS resolver metrics
 func (r *Resolver) SendStats() error {
 	tags := []string{
-		"hit",
+		"result:hit",
 	}
 
 	hits := r.resolverStats.cacheHits.Swap(0)
@@ -157,7 +157,7 @@ func (r *Resolver) SendStats() error {
 	_ = r.statsdClient.Count(metrics.MetricDNSResolverCnameResolverCache, cnameHits, tags, 1.0)
 
 	tags = []string{
-		"miss",
+		"result:miss",
 	}
 
 	misses := r.resolverStats.cacheMisses.Swap(0)
@@ -167,7 +167,7 @@ func (r *Resolver) SendStats() error {
 	_ = r.statsdClient.Count(metrics.MetricDNSResolverCnameResolverCache, cnameMisses, tags, 1.0)
 
 	tags = []string{
-		"insertion",
+		"result:insertion",
 	}
 
 	insertions := r.resolverStats.cacheInsertions.Swap(0)
@@ -177,7 +177,7 @@ func (r *Resolver) SendStats() error {
 	_ = r.statsdClient.Count(metrics.MetricDNSResolverCnameResolverCache, cnameInsertions, tags, 1.0)
 
 	tags = []string{
-		"eviction",
+		"result:eviction",
 	}
 
 	evictions := r.resolverStats.cacheEvictions.Swap(0)
