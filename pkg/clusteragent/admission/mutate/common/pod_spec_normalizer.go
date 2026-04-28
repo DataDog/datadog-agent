@@ -36,7 +36,7 @@ func normalizeVolumes(volumes []corev1.Volume) ([]corev1.Volume, error) {
 		if j, found := seen[vol.Name]; found {
 			// Check that the identified duplicate is an _exact_ match to the previous
 			if !reflect.DeepEqual(vol, volumes[j]) {
-				return nil, log.Errorf("detected multiple volumes with the name \"%s\" but some fields differ, cannot normalize", vol.Name)
+				return volumes, log.Errorf("detected multiple volumes with the name \"%s\" but some fields differ, cannot normalize", vol.Name)
 			}
 			log.Warnf("detected multiple entries for volume \"%s\", normalizing the pod spec", vol.Name)
 			duplicates = append(duplicates, i)

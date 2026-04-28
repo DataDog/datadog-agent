@@ -88,11 +88,11 @@ func TestNormalizeVolumes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			volumes, err := normalizeVolumes(tt.input)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("Unexpected err: %q", err)
+				t.Errorf("unexpected err: %q", err)
 			}
 
 			// assert elements match as if there is an error normalizing the volumes, no changes should occur
-			assert.ElementsMatch(t, volumes, tt.expected, "Normalization failed, volumes do not match")
+			assert.ElementsMatch(t, volumes, tt.expected, "normalization failed, volumes do not match")
 		})
 	}
 }
