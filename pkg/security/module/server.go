@@ -87,22 +87,34 @@ func (p *pendingMsg) getMaxRetry() int {
 }
 
 // tryResolve collects external tags and checks whether the message is ready to be
-// sent. Returns false when the message should be retried later.
-func (p *pendingMsg) tryResolve(isRetryAllowed bool) bool {
-	if p.extTagsCb != nil {
-		tags, retryable := p.extTagsCb()
-		if len(tags) == 0 && isRetryAllowed && retryable && p.retry < p.getMaxRetry() {
-			return false
+// sent. Returns false when the message should be retried later. Increments server
+// counters for skipped retries and missing tags.
+func (a *APIServer) tryResolve(msg *pendingMsg, isRetryAllowed bool) bool {
+	if msg.extTagsCb != nil {
+		tags, retryable := msg.extTagsCb()
+		if len(tags) == 0 && retryable && msg.retry < msg.getMaxRetry() {
+			if isRetryAllowed {
+				return false
+			}
+			a.skippedRetryCount.Inc()
+		}
+		if len(tags) == 0 {
+			a.missingTagsCount.Inc()
 		}
 		for _, tag := range tags {
-			if !slices.Contains(p.tags, tag) {
-				p.tags = append(p.tags, tag)
+			if !slices.Contains(msg.tags, tag) {
+				msg.tags = append(msg.tags, tag)
 			}
 		}
 	}
 
-	if !p.isResolved() && isRetryAllowed && p.retry < p.getMaxRetry() {
-		return false
+	if !msg.isResolved() {
+		if isRetryAllowed && msg.retry < msg.getMaxRetry() {
+			return false
+		}
+		if !isRetryAllowed && msg.retry < msg.getMaxRetry() {
+			a.skippedRetryCount.Inc()
+		}
 	}
 
 	return true
@@ -206,6 +218,11 @@ type APIServer struct {
 	envAsTags          []string
 	containerFilter    workloadfilter.FilterBundle
 
+	// retry queue metrics counters
+	retryCount        atomic.Int64
+	skippedRetryCount atomic.Int64
+	missingTagsCount  atomic.Int64
+
 	// os release data
 	kernelVersion string
 	distribution  string
@@ -305,6 +322,7 @@ func (a *APIServer) dequeue(now time.Time, sendCallback func(msg *pendingMsg, re
 		seclog.Debugf("failed to send event for rule `%s`, retry %d/%d, queue size: %d", msg.ruleID, msg.retry, msgMaxRetry, len(a.queue))
 
 		msg.sendAfter = now.Add(retryDelay)
+		a.retryCount.Inc()
 		msg.retry++
 
 		return false
@@ -385,7 +403,7 @@ func (a *APIServer) start(ctx context.Context) {
 					seclog.Debugf("queue limit reached: %d, sending event anyway", len(a.queue))
 				}
 
-				if !msg.tryResolve(isRetryAllowed) {
+				if !a.tryResolve(msg, isRetryAllowed) {
 					return false
 				}
 
@@ -633,6 +651,31 @@ func (a *APIServer) SendStats() error {
 				return err
 			}
 		}
+	}
+
+	// retry queue counters (delta since last call)
+	if val := a.retryCount.Swap(0); val > 0 {
+		if err := a.statsdClient.Count(metrics.MetricEventServerRetry, val, []string{}, 1.0); err != nil {
+			return err
+		}
+	}
+	if val := a.skippedRetryCount.Swap(0); val > 0 {
+		if err := a.statsdClient.Count(metrics.MetricEventServerSkippedRetry, val, []string{}, 1.0); err != nil {
+			return err
+		}
+	}
+	if val := a.missingTagsCount.Swap(0); val > 0 {
+		if err := a.statsdClient.Count(metrics.MetricEventServerMissingTags, val, []string{}, 1.0); err != nil {
+			return err
+		}
+	}
+
+	// current queue depth
+	a.queueLock.Lock()
+	queueSize := int64(len(a.queue))
+	a.queueLock.Unlock()
+	if err := a.statsdClient.Gauge(metrics.MetricEventServerQueueSize, float64(queueSize), []string{}, 1.0); err != nil {
+		return err
 	}
 
 	// telemetry for msg senders

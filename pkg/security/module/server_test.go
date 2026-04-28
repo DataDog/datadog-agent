@@ -240,7 +240,7 @@ func TestExtTagsCbCalledWhenQueueFull(t *testing.T) {
 	}
 	server.queue = []*pendingMsg{msg}
 
-	server.dequeue(now, (*pendingMsg).tryResolve)
+	server.dequeue(now, server.tryResolve)
 
 	if !cbCalled {
 		t.Fatal("expected extTagsCb to be called even when queue is full")
@@ -250,6 +250,13 @@ func TestExtTagsCbCalledWhenQueueFull(t *testing.T) {
 	}
 	if len(server.queue) != 0 {
 		t.Fatalf("expected message to be sent (removed from queue), got size %d", len(server.queue))
+	}
+	// tags were present, so no missing-tags or skipped-retry counter should fire
+	if v := server.missingTagsCount.Load(); v != 0 {
+		t.Fatalf("expected missingTagsCount=0, got %d", v)
+	}
+	if v := server.skippedRetryCount.Load(); v != 0 {
+		t.Fatalf("expected skippedRetryCount=0, got %d", v)
 	}
 }
 
@@ -269,7 +276,7 @@ func TestExtTagsCbRetriesWhenEmptyAndRetryAllowed(t *testing.T) {
 	}
 	server.queue = []*pendingMsg{msg}
 
-	server.dequeue(now, (*pendingMsg).tryResolve)
+	server.dequeue(now, server.tryResolve)
 
 	if cbCallCount != 1 {
 		t.Fatalf("expected extTagsCb called once, got %d", cbCallCount)
@@ -280,6 +287,16 @@ func TestExtTagsCbRetriesWhenEmptyAndRetryAllowed(t *testing.T) {
 	}
 	if msg.retry != 1 {
 		t.Fatalf("expected retry counter incremented to 1, got %d", msg.retry)
+	}
+	// a retry was scheduled → retryCount incremented; nothing sent so no missing-tags/skipped-retry
+	if v := server.retryCount.Load(); v != 1 {
+		t.Fatalf("expected retryCount=1, got %d", v)
+	}
+	if v := server.missingTagsCount.Load(); v != 0 {
+		t.Fatalf("expected missingTagsCount=0 (message not yet sent), got %d", v)
+	}
+	if v := server.skippedRetryCount.Load(); v != 0 {
+		t.Fatalf("expected skippedRetryCount=0, got %d", v)
 	}
 }
 
@@ -299,7 +316,7 @@ func TestExtTagsCbNoRetryWhenQueueFull(t *testing.T) {
 	}
 	server.queue = []*pendingMsg{msg}
 
-	server.dequeue(now, (*pendingMsg).tryResolve)
+	server.dequeue(now, server.tryResolve)
 
 	if cbCallCount != 1 {
 		t.Fatalf("expected extTagsCb called once, got %d", cbCallCount)
@@ -307,6 +324,13 @@ func TestExtTagsCbNoRetryWhenQueueFull(t *testing.T) {
 	// message must be sent despite empty tags because queue is full
 	if len(server.queue) != 0 {
 		t.Fatalf("expected message to be sent (empty queue), got size %d", len(server.queue))
+	}
+	// the forced send counts as one skipped retry and one missing-tags event
+	if v := server.skippedRetryCount.Load(); v != 1 {
+		t.Fatalf("expected skippedRetryCount=1, got %d", v)
+	}
+	if v := server.missingTagsCount.Load(); v != 1 {
+		t.Fatalf("expected missingTagsCount=1, got %d", v)
 	}
 }
 
@@ -324,9 +348,16 @@ func TestExtTagsCbNoRetryWhenNotRetryable(t *testing.T) {
 	}
 	server.queue = []*pendingMsg{msg}
 
-	server.dequeue(now, (*pendingMsg).tryResolve)
+	server.dequeue(now, server.tryResolve)
 
 	if len(server.queue) != 0 {
 		t.Fatalf("expected message to be sent when not retryable, got queue size %d", len(server.queue))
+	}
+	// not retryable → missing tags counted, but no skipped retry
+	if v := server.missingTagsCount.Load(); v != 1 {
+		t.Fatalf("expected missingTagsCount=1, got %d", v)
+	}
+	if v := server.skippedRetryCount.Load(); v != 0 {
+		t.Fatalf("expected skippedRetryCount=0 (not retryable, not a skipped retry), got %d", v)
 	}
 }
