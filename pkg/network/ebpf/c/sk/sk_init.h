@@ -55,7 +55,7 @@ static __always_inline void initialize_tcp_socket(struct sock *sk, struct task_s
 
     sk_stats->tup.pid = task ? task->tgid : GET_USER_MODE_PID(bpf_get_current_pid_tgid());
     sk_stats->tup.netns = get_netns_from_sock(sk);
-    sk_stats->start_ns = (file && file->f_inode) ? read_inode_ctime(file->f_inode) : tp->tcp_mstamp;
+    sk_stats->start_ns = (file && file->f_inode) ? read_inode_ctime(file->f_inode) : tp->tcp_mstamp * NSEC_PER_USEC;
 
     port_binding_t pb = {};
     pb.netns = sk_stats->tup.netns;
