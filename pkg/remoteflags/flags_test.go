@@ -16,8 +16,72 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
+
+// fakeConfigSetter records Set/Unset calls and reports a configurable source per key.
+type fakeConfigSetter struct {
+	mu      sync.Mutex
+	values  map[string]any
+	sources map[string]model.Source // pre-seeded source per key, defaults to SourceDefault
+	sets    []struct {
+		key    string
+		value  any
+		source model.Source
+	}
+	unsets []struct {
+		key    string
+		source model.Source
+	}
+}
+
+func newFakeConfigSetter() *fakeConfigSetter {
+	return &fakeConfigSetter{
+		values:  make(map[string]any),
+		sources: make(map[string]model.Source),
+	}
+}
+
+func (f *fakeConfigSetter) Set(key string, value any, source model.Source) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.values[key] = value
+	f.sources[key] = source
+	f.sets = append(f.sets, struct {
+		key    string
+		value  any
+		source model.Source
+	}{key, value, source})
+}
+
+func (f *fakeConfigSetter) UnsetForSource(key string, source model.Source) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.sources[key] == source {
+		delete(f.values, key)
+		delete(f.sources, key)
+	}
+	f.unsets = append(f.unsets, struct {
+		key    string
+		source model.Source
+	}{key, source})
+}
+
+func (f *fakeConfigSetter) GetSource(key string) model.Source {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if s, ok := f.sources[key]; ok {
+		return s
+	}
+	return model.SourceDefault
+}
+
+func (f *fakeConfigSetter) seedSource(key string, source model.Source) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.sources[key] = source
+}
 
 const (
 	testFlag1 FlagName = "test_feature_1"
@@ -309,6 +373,129 @@ func TestOnUpdate_VersionZeroBypassesCheck(t *testing.T) {
 	// Unversioned update with a different value: applied regardless of prior version
 	sendUpdate(client, Flag{Name: string(testFlag1), Value: false})
 	assert.False(t, bool(waitChan(t, h.onChangeCh)))
+}
+
+// configuration_field: when set, the client mirrors the value into pkg/config under SourceRC.
+func TestOnUpdate_ConfigurationFieldMirrorsValue(t *testing.T) {
+	client := NewClient()
+	setter := newFakeConfigSetter()
+	client.WithConfigSetter(setter)
+
+	h := newStubHandler(testFlag1)
+	require.NoError(t, client.SubscribeWithHandler(h))
+
+	sendUpdate(client, Flag{
+		Name:               string(testFlag1),
+		Value:              true,
+		ConfigurationField: "feature.x.enabled",
+	})
+
+	assert.True(t, bool(waitChan(t, h.onChangeCh)))
+
+	setter.mu.Lock()
+	defer setter.mu.Unlock()
+	require.Len(t, setter.sets, 1)
+	assert.Equal(t, "feature.x.enabled", setter.sets[0].key)
+	assert.Equal(t, true, setter.sets[0].value)
+	assert.Equal(t, model.SourceRC, setter.sets[0].source)
+}
+
+// override_local: with the default (false), the client must not clobber a value already
+// set by a user-facing source like SourceFile, and must skip the OnChange notification.
+func TestOnUpdate_OverrideLocalFalse_RespectsLocal(t *testing.T) {
+	client := NewClient()
+	setter := newFakeConfigSetter()
+	setter.seedSource("feature.x.enabled", model.SourceFile)
+	client.WithConfigSetter(setter)
+
+	h := newStubHandler(testFlag1)
+	require.NoError(t, client.SubscribeWithHandler(h))
+
+	sendUpdate(client, Flag{
+		Name:               string(testFlag1),
+		Value:              true,
+		ConfigurationField: "feature.x.enabled",
+		// OverrideLocal default false
+	})
+
+	time.Sleep(50 * time.Millisecond)
+
+	setter.mu.Lock()
+	defer setter.mu.Unlock()
+	assert.Empty(t, setter.sets, "Set must not be called when local source has precedence")
+	assert.Empty(t, h.onChangeCh, "OnChange must not fire when the flag is rejected")
+}
+
+// override_local: with override_local=true, even a user-facing source is overridden.
+func TestOnUpdate_OverrideLocalTrue_Overrides(t *testing.T) {
+	client := NewClient()
+	setter := newFakeConfigSetter()
+	setter.seedSource("feature.x.enabled", model.SourceFile)
+	client.WithConfigSetter(setter)
+
+	h := newStubHandler(testFlag1)
+	require.NoError(t, client.SubscribeWithHandler(h))
+
+	sendUpdate(client, Flag{
+		Name:               string(testFlag1),
+		Value:              true,
+		ConfigurationField: "feature.x.enabled",
+		OverrideLocal:      true,
+	})
+
+	assert.True(t, bool(waitChan(t, h.onChangeCh)))
+
+	setter.mu.Lock()
+	defer setter.mu.Unlock()
+	require.Len(t, setter.sets, 1)
+}
+
+// override_local: SourceAgentRuntime is treated as protected (deliberate agent decision).
+func TestOnUpdate_OverrideLocalFalse_ProtectsAgentRuntime(t *testing.T) {
+	client := NewClient()
+	setter := newFakeConfigSetter()
+	setter.seedSource("feature.x.enabled", model.SourceAgentRuntime)
+	client.WithConfigSetter(setter)
+
+	h := newStubHandler(testFlag1)
+	require.NoError(t, client.SubscribeWithHandler(h))
+
+	sendUpdate(client, Flag{
+		Name:               string(testFlag1),
+		Value:              true,
+		ConfigurationField: "feature.x.enabled",
+	})
+
+	time.Sleep(50 * time.Millisecond)
+
+	setter.mu.Lock()
+	defer setter.mu.Unlock()
+	assert.Empty(t, setter.sets)
+}
+
+// recover: on OnChange error, the configuration field must be unset before SafeRecover.
+func TestOnChange_ErrorUnsetsConfigurationField(t *testing.T) {
+	client := NewClient()
+	setter := newFakeConfigSetter()
+	client.WithConfigSetter(setter)
+
+	h := newStubHandler(testFlag1)
+	h.onChangeFn = func(FlagValue) error { return errors.New("apply failed") }
+	require.NoError(t, client.SubscribeWithHandler(h))
+
+	sendUpdate(client, Flag{
+		Name:               string(testFlag1),
+		Value:              true,
+		ConfigurationField: "feature.x.enabled",
+	})
+
+	waitChan(t, h.recoverCh)
+
+	setter.mu.Lock()
+	defer setter.mu.Unlock()
+	require.Len(t, setter.unsets, 1)
+	assert.Equal(t, "feature.x.enabled", setter.unsets[0].key)
+	assert.Equal(t, model.SourceRC, setter.unsets[0].source)
 }
 
 // Recovery monitor logs warning when component stays unhealthy through the entire probe window.

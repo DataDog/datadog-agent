@@ -16,9 +16,19 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// ConfigSetter is the minimal subset of pkg/config the Remote Flags client needs
+// to apply flags that target a configuration field. It is provided by the caller
+// to keep pkg/remoteflags a leaf package.
+type ConfigSetter interface {
+	Set(key string, value any, source model.Source)
+	UnsetForSource(key string, source model.Source)
+	GetSource(key string) model.Source
+}
 
 // Health check defaults
 var (
@@ -94,6 +104,14 @@ type RemoteFlagSubscriber interface {
 type Flag struct {
 	Name  string    `json:"name"`
 	Value FlagValue `json:"value"`
+	// ConfigurationField is the optional config key (e.g. "feature.x.enabled")
+	// the flag is bound to. When set and a ConfigSetter is configured, the
+	// client mirrors the flag value into pkg/config under SourceRC.
+	ConfigurationField string `json:"configuration_field,omitempty"`
+	// OverrideLocal controls whether the flag is allowed to overwrite a value
+	// already set by a user-provided source (file, env, fleet policies, CLI...).
+	// Defaults to false: local user configuration wins.
+	OverrideLocal bool `json:"override_local,omitempty"`
 	// Version is the sequence number of this flag value. The client only applies
 	// a flag whose Version is strictly greater than the last applied Version for
 	// that flag. A Version of 0 (omitted) is treated as unversioned and applied
@@ -142,6 +160,7 @@ type Client struct {
 	subscriptions map[FlagName][]*subscription
 	currentValues map[FlagName]FlagValue
 	lastVersions  map[FlagName]int
+	configSetter  ConfigSetter
 	ctx           context.Context
 	cancel        context.CancelFunc
 }
@@ -155,6 +174,35 @@ func NewClient() *Client {
 		lastVersions:  make(map[FlagName]int),
 		ctx:           ctx,
 		cancel:        cancel,
+	}
+}
+
+// WithConfigSetter wires a ConfigSetter into the client. When set, flags carrying
+// a ConfigurationField mirror their value into pkg/config under SourceRC, subject
+// to the OverrideLocal precedence rule.
+func (c *Client) WithConfigSetter(setter ConfigSetter) *Client {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.configSetter = setter
+	return c
+}
+
+// shouldApplyConfig reports whether a remote flag is allowed to overwrite the
+// value at a configuration field. With OverrideLocal=false the flag must not
+// clobber a value already provided by another source: user-facing ones (file,
+// env, fleet policies, CLI) carry user intent, and agent-runtime values often
+// encode deliberate context-specific decisions (e.g. a subcommand disabling a
+// feature it cannot run with). Only Default and our own SourceRC writes are
+// freely overridable.
+func shouldApplyConfig(currentSource model.Source, overrideLocal bool) bool {
+	if overrideLocal {
+		return true
+	}
+	switch currentSource {
+	case model.SourceDefault, model.SourceUnknown, model.SourceRC, "":
+		return true
+	default:
+		return false
 	}
 }
 
@@ -231,6 +279,22 @@ func (c *Client) OnUpdate(updates map[string]state.RawConfig, applyStateCallback
 				c.lastVersions[flagName] = flag.Version
 			}
 
+			// Mirror to pkg/config when a configuration_field is provided. If a
+			// non-overridable source already populates that field and the flag
+			// did not opt in via override_local, drop the flag entirely.
+			if flag.ConfigurationField != "" {
+				if c.configSetter == nil {
+					log.Debugf("Remote flag %s: configuration_field %q declared but no ConfigSetter is wired; the field will not be mirrored into pkg/config", flag.Name, flag.ConfigurationField)
+				} else {
+					currentSource := c.configSetter.GetSource(flag.ConfigurationField)
+					if !shouldApplyConfig(currentSource, flag.OverrideLocal) {
+						log.Infof("Remote flag %s: not applying to %q (source %q has precedence; set override_local=true to force)", flag.Name, flag.ConfigurationField, currentSource)
+						continue
+					}
+					c.configSetter.Set(flag.ConfigurationField, bool(flag.Value), model.SourceRC)
+				}
+			}
+
 			// Check if the value changed
 			oldValue, existed := c.currentValues[flagName]
 			if !existed || oldValue != flag.Value {
@@ -282,7 +346,7 @@ func (c *Client) notifyChange(flag Flag) {
 			go func(s *subscription, f Flag) {
 				if err := s.handler.OnChange(f.Value); err != nil {
 					applyErr := fmt.Errorf("remote flag %s (value=%v): %w", f.Name, f.Value, err)
-					s.handler.SafeRecover(applyErr, f.Value)
+					c.recoverFlag(s, f, applyErr)
 				} else {
 					successValue := f.Value
 					c.mu.Lock()
@@ -293,6 +357,16 @@ func (c *Client) notifyChange(flag Flag) {
 			}(sub, flag)
 		}
 	}
+}
+
+// recoverFlag rolls back a flag's effect on pkg/config (when applicable) and
+// then invokes the handler's SafeRecover. The Unset happens first so the handler
+// observes the reverted configuration when it runs.
+func (c *Client) recoverFlag(sub *subscription, flag Flag, err error) {
+	if flag.ConfigurationField != "" && c.configSetter != nil {
+		c.configSetter.UnsetForSource(flag.ConfigurationField, model.SourceRC)
+	}
+	sub.handler.SafeRecover(err, flag.Value)
 }
 
 // notifyNoConfig notifies all subscribers that we properly established
@@ -350,17 +424,17 @@ func (c *Client) startHealthMonitor(sub *subscription, flag Flag) {
 			case <-ticker.C:
 				if !sub.handler.IsHealthy() {
 					consecutiveFailures++
-					log.Warnf("Remote flag %s: component unhealthy (failure %d/%d)", sub.handler.FlagName(), consecutiveFailures, failuresBeforeRecover)
+					log.Debugf("Remote flag %s: component unhealthy (failure %d/%d)", sub.handler.FlagName(), consecutiveFailures, failuresBeforeRecover)
 					if consecutiveFailures >= failuresBeforeRecover {
 						err := fmt.Errorf("remote flag %s: unhealthy for %d checks", sub.handler.FlagName(), consecutiveFailures)
-						sub.handler.SafeRecover(err, flag.Value)
+						c.recoverFlag(sub, flag, err)
 						cancel()
 						c.startRecoveryMonitor(sub, flag)
 						return
 					}
 				} else {
 					if consecutiveFailures > 0 {
-						log.Infof("Remote flag %s: component healthy again after %d failures", sub.handler.FlagName(), consecutiveFailures)
+						log.Debugf("Remote flag %s: component healthy again after %d failures", sub.handler.FlagName(), consecutiveFailures)
 					}
 					consecutiveFailures = 0 // Reset on healthy check
 				}
@@ -387,15 +461,15 @@ func (c *Client) startRecoveryMonitor(sub *subscription, flag Flag) {
 		for {
 			select {
 			case <-ctx.Done():
-				log.Warnf("Remote flag %s: recovery probe ended without confirming healthy state", sub.handler.FlagName())
+				log.Debugf("Remote flag %s: recovery probe ended without confirming healthy state", sub.handler.FlagName())
 				return
 			case <-ticker.C:
 				if sub.handler.IsHealthy() {
-					log.Infof("Remote flag %s: component healthy after recovery", sub.handler.FlagName())
+					log.Debugf("Remote flag %s: component healthy after recovery", sub.handler.FlagName())
 					cancel()
 					return
 				}
-				log.Warnf("Remote flag %s: component still unhealthy after recovery", sub.handler.FlagName())
+				log.Debugf("Remote flag %s: component still unhealthy after recovery", sub.handler.FlagName())
 			}
 		}
 	}()
