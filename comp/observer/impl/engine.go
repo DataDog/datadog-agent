@@ -230,7 +230,7 @@ func (e *engine) IngestMetric(source string, m *metricObs) []advanceRequest {
 // notifies log observers, and consults the scheduler policy to determine whether
 // detectors should advance. Returns advance requests that the caller should execute.
 func (e *engine) IngestLog(source string, l *logObs) ([]advanceRequest, []observerdef.ObserverTelemetry) {
-	pkglog.Info("Ingesting log", "source", source, "content", l.content)
+	pkglog.Info("Ingesting log", "source", source, "content", string(l.GetContent()))
 	sourceTag := "observer_source:" + source
 	view := &logView{obs: l}
 	var logTelemetry = []observerdef.ObserverTelemetry{}
