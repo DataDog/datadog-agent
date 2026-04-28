@@ -34,12 +34,12 @@ generator:
             event: 5
             service_check: 5
           metric_weights:
-            count: 87
+            count: 7
             gauge: 8
             timer: 0
             distribution: 5
             set: 0
-            histogram: 0
+            histogram: 80
       # `bytes_per_second` is understood to be a high-end use case,
       # however Agent's internal telemetry differs from lading's units: UDS
       # packets per second versus bytes per second.
