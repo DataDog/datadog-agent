@@ -137,6 +137,95 @@ func TestFillDynamicValue_PreservesNonCanonicalNumericStrings(t *testing.T) {
 	assert.True(t, dv.RenderAsString)
 }
 
+func TestFillDynamicValue_AddsRepeatedStringsToDictionary(t *testing.T) {
+	mt := NewMessageTranslator("test-pipeline", rtokenizer.NewRustTokenizer())
+
+	var dv statefulpb.DynamicValue
+	var intOneof statefulpb.DynamicValue_IntValue
+	var floatOneof statefulpb.DynamicValue_FloatValue
+	var boolOneof statefulpb.DynamicValue_BoolValue
+	var dictOneof statefulpb.DynamicValue_DictIndex
+	var rawJSONOneof statefulpb.DynamicValue_RawJsonValue
+	var strOneof statefulpb.DynamicValue_StringValue
+
+	dictID, dictValue, isNew := mt.fillDynamicValue(&dv, &intOneof, &floatOneof, &boolOneof, &dictOneof, &rawJSONOneof, &strOneof, "INFO")
+	stringValue, ok := dv.Value.(*statefulpb.DynamicValue_StringValue)
+	require.True(t, ok)
+	assert.Equal(t, "INFO", stringValue.StringValue)
+	assert.Zero(t, dictID)
+	assert.Empty(t, dictValue)
+	assert.False(t, isNew)
+	assert.Equal(t, 0, mt.tagManager.Count())
+
+	dictID, dictValue, isNew = mt.fillDynamicValue(&dv, &intOneof, &floatOneof, &boolOneof, &dictOneof, &rawJSONOneof, &strOneof, "INFO")
+	dictIndex, ok := dv.Value.(*statefulpb.DynamicValue_DictIndex)
+	require.True(t, ok)
+	assert.Equal(t, dictID, dictIndex.DictIndex)
+	assert.Equal(t, "INFO", dictValue)
+	assert.True(t, isNew)
+	assert.Equal(t, 1, mt.tagManager.Count())
+
+	dictIDAgain, dictValue, isNew := mt.fillDynamicValue(&dv, &intOneof, &floatOneof, &boolOneof, &dictOneof, &rawJSONOneof, &strOneof, "INFO")
+	dictIndex, ok = dv.Value.(*statefulpb.DynamicValue_DictIndex)
+	require.True(t, ok)
+	assert.Equal(t, dictID, dictIDAgain)
+	assert.Equal(t, dictID, dictIndex.DictIndex)
+	assert.Equal(t, "INFO", dictValue)
+	assert.False(t, isNew)
+}
+
+func TestFillWildcardDynamicValue_AddsRepeatedStringsToDictionary(t *testing.T) {
+	mt := NewMessageTranslator("test-pipeline", rtokenizer.NewRustTokenizer())
+
+	var dv statefulpb.DynamicValue
+	var intOneof statefulpb.DynamicValue_IntValue
+	var dictOneof statefulpb.DynamicValue_DictIndex
+	var strOneof statefulpb.DynamicValue_StringValue
+
+	dictID, dictValue, isNew := mt.fillWildcardDynamicValue(&dv, &intOneof, &dictOneof, &strOneof, "INFO")
+	stringValue, ok := dv.Value.(*statefulpb.DynamicValue_StringValue)
+	require.True(t, ok)
+	assert.Equal(t, "INFO", stringValue.StringValue)
+	assert.Zero(t, dictID)
+	assert.Empty(t, dictValue)
+	assert.False(t, isNew)
+
+	dictID, dictValue, isNew = mt.fillWildcardDynamicValue(&dv, &intOneof, &dictOneof, &strOneof, "INFO")
+	dictIndex, ok := dv.Value.(*statefulpb.DynamicValue_DictIndex)
+	require.True(t, ok)
+	assert.Equal(t, dictID, dictIndex.DictIndex)
+	assert.Equal(t, "INFO", dictValue)
+	assert.True(t, isNew)
+}
+
+func TestFillWildcardDynamicValue_DoesNotDictionaryEncodeUUIDsOrTimestamps(t *testing.T) {
+	mt := NewMessageTranslator("test-pipeline", rtokenizer.NewRustTokenizer())
+
+	var dv statefulpb.DynamicValue
+	var intOneof statefulpb.DynamicValue_IntValue
+	var dictOneof statefulpb.DynamicValue_DictIndex
+	var strOneof statefulpb.DynamicValue_StringValue
+
+	values := []string{
+		"550e8400-e29b-41d4-a716-446655440000",
+		"2026-04-28T12:34:56Z",
+	}
+	for _, value := range values {
+		t.Run(value, func(t *testing.T) {
+			for i := 0; i < 3; i++ {
+				dictID, dictValue, isNew := mt.fillWildcardDynamicValue(&dv, &intOneof, &dictOneof, &strOneof, value)
+				stringValue, ok := dv.Value.(*statefulpb.DynamicValue_StringValue)
+				require.True(t, ok)
+				assert.Equal(t, value, stringValue.StringValue)
+				assert.Zero(t, dictID)
+				assert.Empty(t, dictValue)
+				assert.False(t, isNew)
+			}
+		})
+	}
+	assert.Equal(t, 0, mt.tagManager.Count())
+}
+
 func TestFillDynamicValue_PreservesTypedJSONValues(t *testing.T) {
 	mt := NewMessageTranslator("test-pipeline", rtokenizer.NewRustTokenizer())
 
