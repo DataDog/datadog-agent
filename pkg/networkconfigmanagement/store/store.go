@@ -84,7 +84,7 @@ func (cs *configStore) Close(_ context.Context) error {
 }
 
 // Size returns the size of the database file in bytes.
-func (cs *ConfigStore) Size() (int64, error) {
+func (cs *configStore) Size() (int64, error) {
 	var size int64
 	err := cs.view(func(tx *bbolt.Tx) error {
 		size = tx.Size()
@@ -281,12 +281,12 @@ func hashConfig(raw string) string {
 
 // buildEvictionIndex returns a count of configs per device and all metadata entries sorted
 // by LastAccessedAt ascending (oldest first), built from a single consistent view transaction.
-func (cs *ConfigStore) buildEvictionIndex() (configsPerDevice map[string]int, entries []*ConfigMetadata, err error) {
+func (cs *configStore) buildEvictionIndex() (configsPerDevice map[string]int, entries []*types.ConfigMetadata, err error) {
 	configsPerDevice = make(map[string]int)
 
 	err = cs.view(func(tx *bbolt.Tx) error {
 		return tx.Bucket([]byte(metadataBucket)).ForEach(func(_, v []byte) error {
-			var meta ConfigMetadata
+			var meta types.ConfigMetadata
 			if err := json.Unmarshal(v, &meta); err != nil {
 				return fmt.Errorf("unmarshal metadata error during eviction index build: %w", err)
 			}
@@ -307,7 +307,7 @@ func (cs *ConfigStore) buildEvictionIndex() (configsPerDevice map[string]int, en
 }
 
 // getEvictableExceedingMax returns UUIDs of configs to evict for devices that exceed maxRetainedConfigs.
-func getEvictableExceedingMax(configsPerDevice map[string]int, sortedEntries []*ConfigMetadata, maxRetainedConfigs int) []string {
+func getEvictableExceedingMax(configsPerDevice map[string]int, sortedEntries []*types.ConfigMetadata, maxRetainedConfigs int) []string {
 	var evictable []string
 	pendingEvictions := make(map[string]int)
 
@@ -325,7 +325,7 @@ func getEvictableExceedingMax(configsPerDevice map[string]int, sortedEntries []*
 }
 
 // getGlobalLRUCandidate returns the UUID of the globally oldest evictable config, or empty if none exists.
-func getGlobalLRUCandidate(configsPerDevice map[string]int, sortedEntries []*ConfigMetadata, minRetainedConfigs int) string {
+func getGlobalLRUCandidate(configsPerDevice map[string]int, sortedEntries []*types.ConfigMetadata, minRetainedConfigs int) string {
 	for _, entry := range sortedEntries {
 		if entry.IsPinned {
 			continue
@@ -339,8 +339,8 @@ func getGlobalLRUCandidate(configsPerDevice map[string]int, sortedEntries []*Con
 }
 
 // updateEvictionIndex removes the given key from the sorted entries and decrements its device count.
-func updateEvictionIndex(configsPerDevice map[string]int, sortedEntries []*ConfigMetadata, key string) (map[string]int, []*ConfigMetadata) {
-	var remaining []*ConfigMetadata
+func updateEvictionIndex(configsPerDevice map[string]int, sortedEntries []*types.ConfigMetadata, key string) (map[string]int, []*types.ConfigMetadata) {
+	var remaining []*types.ConfigMetadata
 
 	for i, entry := range sortedEntries {
 		if entry.ConfigUUID == key {
@@ -356,7 +356,7 @@ func updateEvictionIndex(configsPerDevice map[string]int, sortedEntries []*Confi
 
 // EvictConfigs evicts configs exceeding per-device caps then LRU-evicts until the DB is within maxSize.
 // Returns the UUIDs of all evicted configs; returns an error if the DB size still exceeds maxSize after eviction.
-func (cs *ConfigStore) EvictConfigs(minRetainedConfigs int, maxRetainedConfigs int, maxSize int64) ([]string, error) {
+func (cs *configStore) EvictConfigs(minRetainedConfigs int, maxRetainedConfigs int, maxSize int64) ([]string, error) {
 	evicted := make([]string, 0)
 
 	configsPerDevice, sortedEntries, err := cs.buildEvictionIndex()
