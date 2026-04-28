@@ -13,7 +13,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
@@ -416,6 +418,47 @@ func BenchmarkMaskSequences(b *testing.B) {
 		}
 	})
 
+}
+
+func newTestProcessor(mainEnc, altEnc Encoder) *Processor {
+	pm := metrics.NewNoopPipelineMonitor("test")
+	return &Processor{
+		inputChan:                 make(chan *message.Message, 10),
+		outputChan:                make(chan *message.Message, 10),
+		encoder:                   mainEnc,
+		altEncoder:                altEnc,
+		pipelineMonitor:           pm,
+		utilization:               pm.MakeUtilizationMonitor("", ""),
+		done:                      make(chan struct{}, 1),
+		configChan:                make(chan failoverConfig, 1),
+		diagnosticMessageReceiver: diagnostic.NewBufferedMessageReceiver(nil, nil),
+	}
+}
+
+func TestProcessorAltEncoderSetsAltEncoded(t *testing.T) {
+	hostTags := []string{"custom_host_tag:val"}
+	mainEnc := NewJSONEncoderWithHostTags(func() []string { return hostTags })
+	p := newTestProcessor(mainEnc, JSONEncoder)
+
+	source := newSource("", "", "")
+	msg := newMessage([]byte("hello"), &source, message.StatusInfo)
+	msg.State = message.StateRendered
+	p.processMessage(msg)
+
+	assert := assert.New(t)
+	assert.NotNil(msg.AltEncoded, "AltEncoded should be set when altEncoder is configured")
+	assert.NotEqual(msg.GetContent(), msg.AltEncoded, "AltEncoded should differ: main has host tags, alt does not")
+}
+
+func TestProcessorNoAltEncoderLeavesAltEncodedNil(t *testing.T) {
+	p := newTestProcessor(JSONEncoder, nil)
+
+	source := newSource("", "", "")
+	msg := newMessage([]byte("hello"), &source, message.StatusInfo)
+	msg.State = message.StateRendered
+	p.processMessage(msg)
+
+	assert.Nil(t, msg.AltEncoded, "AltEncoded should be nil when no altEncoder is configured")
 }
 
 func TestExcludeTruncated(t *testing.T) {

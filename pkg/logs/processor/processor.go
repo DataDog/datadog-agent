@@ -43,6 +43,10 @@ type Processor struct {
 	outputChan                chan *message.Message // strategy input
 	processingRules           []*config.ProcessingRule
 	encoder                   Encoder
+	// altEncoder, when non-nil, encodes each message without host tags and stores
+	// the result in msg.AltEncoded. This is used for per-destination encoding when
+	// send_host_tags=true and additional_endpoints are configured.
+	altEncoder                Encoder
 	done                      chan struct{}
 	diagnosticMessageReceiver diagnostic.MessageReceiver
 	mu                        sync.Mutex
@@ -58,8 +62,10 @@ type Processor struct {
 }
 
 // New returns an initialized Processor with config support for failover notifications.
+// altEncoder, when non-nil, encodes each message without host tags for delivery to
+// non-primary destinations. Pass nil when per-destination encoding is not needed.
 func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule,
-	encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component,
+	encoder Encoder, altEncoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component,
 	pipelineMonitor metrics.PipelineMonitor, instanceID string) *Processor {
 
 	p := &Processor{
@@ -68,6 +74,7 @@ func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Messa
 		outputChan:                outputChan, // strategy input
 		processingRules:           processingRules,
 		encoder:                   encoder,
+		altEncoder:                altEncoder,
 		configChan:                make(chan failoverConfig, 1),
 		done:                      make(chan struct{}),
 		diagnosticMessageReceiver: diagnosticMessageReceiver,
@@ -209,7 +216,22 @@ func (p *Processor) processMessage(msg *message.Message) {
 		}
 
 		// encode the message to its final format, it is done in-place
-		if err := p.encoder.Encode(msg, p.GetHostname(msg)); err != nil {
+		hostname := p.GetHostname(msg)
+
+		// When altEncoder is set, encode a shadow copy without host tags first.
+		// msg.State == StateRendered here; the shallow copy shares pointer fields
+		// (Origin, etc.) but has its own MessageContent value so SetEncoded on the
+		// copy does not affect msg.
+		if p.altEncoder != nil {
+			altMsg := *msg
+			if err := p.altEncoder.Encode(&altMsg, hostname); err == nil {
+				msg.AltEncoded = altMsg.GetContent()
+			} else {
+				log.Warnf("unable to alt-encode msg for additional endpoints: %v", err)
+			}
+		}
+
+		if err := p.encoder.Encode(msg, hostname); err != nil {
 			log.Error("unable to encode msg ", err)
 			return
 		}

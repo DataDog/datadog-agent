@@ -32,6 +32,14 @@ type batch struct {
 	pipelineName   string
 	serverlessMeta ServerlessMeta
 
+	// alt encoding path: populated lazily when the first message carries AltEncoded bytes.
+	// When active, altEncodedPayload holds the same messages encoded without host tags,
+	// for delivery to non-primary destinations by the worker.
+	altEncodedPayload *bytes.Buffer
+	altCompressor     compression.StreamCompressor
+	altWriteCounter   *writerCounter
+	hasAltContent     bool // true when at least one message had distinct AltEncoded bytes
+
 	// Telemetry
 	pipelineMonitor metrics.PipelineMonitor
 	utilization     metrics.UtilizationMonitor
@@ -85,6 +93,15 @@ func (b *batch) resetBatch() {
 	b.writeCounter = wc
 	b.compressor = compressor
 	b.encodedPayload = &encodedPayload
+
+	// Reset alt encoding state; alt buffer is re-initialized lazily on next use.
+	if b.altCompressor != nil {
+		b.altCompressor.Close()
+		b.altCompressor = nil
+	}
+	b.altEncodedPayload = nil
+	b.altWriteCounter = nil
+	b.hasAltContent = false
 }
 
 func (b *batch) processMessage(m *message.Message, outputChan chan *message.Payload) {
@@ -130,6 +147,36 @@ func (b *batch) addMessage(m *message.Message) (bool, error) {
 		if err != nil {
 			return false, err
 		}
+
+		// Build the alt buffer when this message (or a previous one) carries
+		// distinct alt-encoded bytes. If no alt bytes are present, copy the
+		// main encoding so both buffers always stay in sync.
+		if m.AltEncoded != nil || b.altEncodedPayload != nil {
+			altBytes := m.GetContent() // default: same as main encoding
+			if m.AltEncoded != nil {
+				altBytes = m.AltEncoded
+				b.hasAltContent = true
+			}
+			// Lazy-init alt buffer on first use.
+			isFirst := b.altEncodedPayload == nil
+			if isFirst {
+				var altBuf bytes.Buffer
+				b.altEncodedPayload = &altBuf
+				b.altCompressor = b.compression.NewStreamCompressor(b.altEncodedPayload)
+				b.altWriteCounter = newWriterWithCounter(b.altCompressor)
+				if _, err := b.altWriteCounter.Write([]byte{'['}); err != nil {
+					return false, err
+				}
+			} else {
+				if _, err := b.altWriteCounter.Write([]byte{','}); err != nil {
+					return false, err
+				}
+			}
+			if _, err := b.altWriteCounter.Write(altBytes); err != nil {
+				return false, err
+			}
+		}
+
 		return true, nil
 	}
 	return false, nil
@@ -148,6 +195,18 @@ func (b *batch) flushBuffer(outputChan chan *message.Payload, reason string) {
 		b.resetBatch()
 		b.utilization.Stop()
 		return
+	}
+
+	// Close the JSON array for the alt buffer if one was started.
+	if b.altWriteCounter != nil {
+		if _, err := b.altWriteCounter.Write([]byte{']'}); err != nil {
+			log.Warn("Alt encoding failed - will use main encoding for non-OPW destinations", err)
+			b.altCompressor.Close()
+			b.altCompressor = nil
+			b.altEncodedPayload = nil
+			b.altWriteCounter = nil
+			b.hasAltContent = false
+		}
 	}
 
 	messagesMetadata := b.buffer.GetMessages()
@@ -171,6 +230,17 @@ func (b *batch) sendMessages(messagesMetadata []*message.MessageMetadata, output
 		return
 	}
 
+	// Finalise the alt compressor if one was started.
+	var altEncoded []byte
+	if b.hasAltContent && b.altCompressor != nil {
+		if err := b.altCompressor.Close(); err != nil {
+			log.Warn("Alt encoding failed - using main encoding for non-OPW destinations", err)
+		} else {
+			altEncoded = b.altEncodedPayload.Bytes()
+		}
+		b.altCompressor = nil // prevent double-close in defer resetBatch
+	}
+
 	unencodedSize := b.writeCounter.getWrittenBytes()
 	log.Debugf("Send messages for pipeline %s (msg_count:%d, content_size=%d, avg_msg_size=%.2f)", b.pipelineName, len(messagesMetadata), unencodedSize, float64(unencodedSize)/float64(len(messagesMetadata)))
 	metrics.TlmPayloadFlushed.Inc(b.pipelineName, reason)
@@ -184,6 +254,7 @@ func (b *batch) sendMessages(messagesMetadata []*message.MessageMetadata, output
 	}
 
 	p := message.NewPayload(messagesMetadata, b.encodedPayload.Bytes(), b.compression.ContentEncoding(), unencodedSize)
+	p.AltEncoded = altEncoded
 
 	b.utilization.Stop()
 	outputChan <- p

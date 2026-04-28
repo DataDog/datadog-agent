@@ -40,6 +40,10 @@ type Payload struct {
 	Encoding string
 	// The size of the unencoded payload
 	UnencodedSize int
+	// AltEncoded, when non-nil, holds an alternative encoding of the same messages
+	// without host tags. The worker sends AltEncoded to non-primary destinations so
+	// host tags are scoped only to the OPW main endpoint.
+	AltEncoded []byte
 }
 
 // NewPayload creates a new payload with the given message metadata, encoded content, encoding type and unencoded size
@@ -50,6 +54,15 @@ func NewPayload(messageMetas []*MessageMetadata, encoded []byte, encoding string
 		Encoding:      encoding,
 		UnencodedSize: unencodedSize,
 	}
+}
+
+// WithAltEncoding returns a shallow copy of the payload with Encoded swapped for AltEncoded.
+// Used by the worker to send host-tag-free payloads to non-primary destinations.
+func (p *Payload) WithAltEncoding() *Payload {
+	copy := *p
+	copy.Encoded = p.AltEncoded
+	copy.AltEncoded = nil
+	return &copy
 }
 
 // Count returns the number of messages
@@ -70,6 +83,11 @@ func (m *Payload) Size() int64 {
 type Message struct {
 	MessageContent
 	MessageMetadata
+	// AltEncoded, when non-nil, holds the message encoded without host tags.
+	// Set by the Processor when an altEncoder is configured (send_host_tags=true
+	// with additional_endpoints present). The batch collects these into
+	// Payload.AltEncoded for per-destination routing in the worker.
+	AltEncoded []byte
 }
 
 // MessageMetadata contains metadata information about a log message
