@@ -320,6 +320,7 @@ func NewCollector(ipc ipc.Component) (workloadmeta.CollectorProvider, error) {
 			CollectorID: collectorID,
 			// TODO(components): make sure StreamHandler uses the config component not pkg/config
 			StreamHandler: &streamHandler{agentConfig: pkgconfigsetup.Datadog(), systemProbeConfig: pkgconfigsetup.SystemProbe()},
+			Config:        pkgconfigsetup.Datadog(), //nolint:depguard
 			Catalog:       workloadmeta.NodeAgent,
 			IPC:           ipc,
 		},

@@ -136,7 +136,12 @@ func main() {
 	for {
 		n, err := unix.Poll(pollfds, -1)
 		if err != nil {
-			log.Warnf("error while polling: %v", err)
+			if err == unix.EINTR {
+				// EINTR means a signal interrupted the syscall; this is not an error, retry
+				log.Warnf("Polling interrupted by signal, retrying...")
+				continue
+			}
+			log.Errorf("error while polling: %v", err)
 			break
 		}
 
