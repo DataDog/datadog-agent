@@ -89,18 +89,6 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
   // overwrite this with the entry's timestamp after call_depths_delete.
   global_ctx.stack_machine->entry_ktime_ns = start_ns;
 
-  // TODO: Move this check to after we've interacted with the call state.
-  const int64_t out_ringbuf_avail_data =
-      bpf_ringbuf_query(&out_ringbuf, BPF_RB_AVAIL_DATA);
-  const int64_t out_ringbuf_avail_space =
-      (int64_t)(RINGBUF_CAPACITY)-out_ringbuf_avail_data;
-  if (out_ringbuf_avail_space < (int64_t)SCRATCH_BUF_LEN) {
-    LOG(1, "probe_run: out_ringbuf_avail_space < SCRATCH_BUF_LEN: %lld < %d",
-        out_ringbuf_avail_space, SCRATCH_BUF_LEN);
-    // TODO: Report dropped events metric.
-    return;
-  }
-
   di_event_header_t* header = events_scratch_buf_init(&global_ctx.buf);
   if (!header) {
     return;
