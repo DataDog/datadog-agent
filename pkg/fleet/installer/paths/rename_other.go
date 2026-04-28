@@ -5,12 +5,13 @@
 
 //go:build !windows
 
-package repository
+package paths
 
 import "os"
 
-// renamePackageDir is a plain os.Rename on non-Windows platforms.
-// See rename_windows.go for the Windows implementation.
-func renamePackageDir(sourcePath, targetPath string) error {
+// Rename is a plain os.Rename on non-Windows platforms.
+// See rename_windows.go for the Windows implementation, which retries on
+// transient access-denied / sharing-violation errors.
+func Rename(sourcePath, targetPath string) error {
 	return os.Rename(sourcePath, targetPath)
 }

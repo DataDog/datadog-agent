@@ -5,7 +5,7 @@
 
 //go:build windows
 
-package repository
+package paths
 
 import (
 	"context"
@@ -18,8 +18,8 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// renamePackageDir moves sourcePath to targetPath, retrying on access-denied
-// and sharing-violation errors.
+// Rename moves sourcePath to targetPath, retrying on access-denied and
+// sharing-violation errors.
 //
 // TODO: experimental. Support cases have shown intermittent rename failures
 // during installation that look transient — the working hypothesis is that
@@ -29,10 +29,10 @@ import (
 // actually helps and revisit (tune, broaden, or remove) once we have data.
 //
 // Note: os.Rename also returns "Access is denied" when the target directory
-// already exists. That case is detected and handled separately in
-// movePackageFromSource (via os.Stat before the rename), so by the time we
-// reach here an access-denied error is not from a pre-existing target.
-func renamePackageDir(sourcePath, targetPath string) error {
+// already exists. Callers that need to handle that case must detect it
+// before calling Rename (e.g. via os.Stat); by the time we reach the retry
+// loop an access-denied error is treated as a transient lock.
+func Rename(sourcePath, targetPath string) error {
 	b := backoff.NewExponentialBackOff()
 	b.InitialInterval = 200 * time.Millisecond
 	b.MaxInterval = 5 * time.Second
