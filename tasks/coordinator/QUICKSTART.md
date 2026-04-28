@@ -19,6 +19,29 @@ Pre-requisites you must set yourself (auto-install can't):
 - `ANTHROPIC_API_KEY` env var
 - `gh auth login` once
 - Go toolchain installed (`go version` works)
+- **AWS SSO + scenario parquets** — required for `q.eval-scenarios` to
+  read scenario data from S3. On a fresh workspace:
+  ```bash
+  # 1. ~/.aws/config must include the sso-agent-sandbox-account-admin profile.
+  #    On a fresh workspace this file may be missing or incomplete; copy
+  #    it from a working workspace (e.g. coord-driver):
+  scp workspace-coord-driver:~/.aws/config ~/.aws/config
+
+  # 2. Authenticate (opens browser device-flow, ~30s):
+  aws sso login --profile sso-agent-sandbox-account-admin
+
+  # 3. Download all 12 scenario parquets (~3 GB, ~5-10 min):
+  cd ~/go/src/github.com/DataDog/datadog-agent
+  dda inv q.download-scenarios
+  ```
+  Without these, the per-iter sanity sentinel will fail with
+  `sentinel_f1_missing` because the testbench has no parquets to
+  evaluate against, even though the binary built fine.
+
+  q.coord-up does NOT auto-download because it would silently run
+  for ~10 minutes on first invocation and the AWS SSO login is
+  inherently interactive. Pre-stage these once, then coord-up is
+  fast every time.
 
 Manage a running coordinator:
 
