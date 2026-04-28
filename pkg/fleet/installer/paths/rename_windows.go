@@ -21,21 +21,33 @@ import (
 // Rename moves sourcePath to targetPath, retrying on access-denied and
 // sharing-violation errors.
 //
+// On Windows, os.Rename returns "Access is denied" both when the target
+// directory already exists and when a file is transiently locked. To give
+// callers a clearer error and to avoid burning the retry budget on a
+// non-transient failure, we os.Stat the target first and return
+// os.ErrExist if a directory already exists at that path. Files at the
+// target path are left to the underlying os.Rename to handle.
+//
 // TODO: experimental. Support cases have shown intermittent rename failures
 // during installation that look transient — the working hypothesis is that
 // antimalware scanners briefly hold handles to files in the source
 // directory, but we have not confirmed the root cause. This retry is a
 // best-effort mitigation; monitor installer telemetry to see whether it
 // actually helps and revisit (tune, broaden, or remove) once we have data.
-//
-// Note: os.Rename also returns "Access is denied" when the target directory
-// already exists. Callers that need to handle that case must detect it
-// before calling Rename (e.g. via os.Stat); by the time we reach the retry
-// loop an access-denied error is treated as a transient lock.
 func Rename(sourcePath, targetPath string) error {
+	// MoveFileEx returns "Access is denied" when the target directory already exists
+	// which is confusing. Return fs.ErrExist instead.
+	if info, err := os.Stat(targetPath); err == nil {
+		if info.IsDir() {
+			return &os.LinkError{Op: "rename", Old: sourcePath, New: targetPath, Err: fs.ErrExist}
+		}
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		return &os.LinkError{Op: "rename", Old: sourcePath, New: targetPath, Err: err}
+	}
 	b := backoff.NewExponentialBackOff()
 	b.InitialInterval = 200 * time.Millisecond
 	b.MaxInterval = 5 * time.Second
+	maxElapsedTime := time.Minute
 	_, err := backoff.Retry(context.Background(), func() (struct{}, error) {
 		err := os.Rename(sourcePath, targetPath)
 		if err == nil {
@@ -45,7 +57,7 @@ func Rename(sourcePath, targetPath string) error {
 			return struct{}{}, backoff.Permanent(err)
 		}
 		return struct{}{}, err
-	}, backoff.WithBackOff(b), backoff.WithMaxElapsedTime(time.Minute))
+	}, backoff.WithBackOff(b), backoff.WithMaxElapsedTime(maxElapsedTime))
 	return err
 }
 

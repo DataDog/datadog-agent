@@ -26,7 +26,10 @@ go_library(
 
 go_test(
     name = "paths_test",
-    srcs = ["paths_windows_test.go"],
+    srcs = [
+        "paths_windows_test.go",
+        "rename_windows_test.go",
+    ],
     embed = [":paths"],
     gotags = ["test"],
     deps = select({
