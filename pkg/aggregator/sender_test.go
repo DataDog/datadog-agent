@@ -517,12 +517,12 @@ func TestGetSenderAddCheckCustomTagsHistogramBucket(t *testing.T) {
 func TestGetSenderAddCheckCustomTagsDistributionBucket(t *testing.T) {
 	s := initSender(checkID1, "")
 
-	s.sender.DistributionBucket("my.distribution_bucket", 42, 1.0, 2.0, "my-hostname", nil)
+	s.sender.DistributionBucket("my.distribution_bucket", 42, 1.0, 2.0, true, "my-hostname", nil, false)
 	bucketSample := (<-s.itemChan).(*senderDistributionBucket)
 	assert.Nil(t, bucketSample.bucket.Tags)
 
 	checkTags := []string{"check:tag1", "check:tag2"}
-	s.sender.DistributionBucket("my.distribution_bucket", 42, 1.0, 2.0, "my-hostname", checkTags)
+	s.sender.DistributionBucket("my.distribution_bucket", 42, 1.0, 2.0, true, "my-hostname", checkTags, false)
 	bucketSample = (<-s.itemChan).(*senderDistributionBucket)
 	assert.Equal(t, checkTags, bucketSample.bucket.Tags)
 
@@ -530,11 +530,11 @@ func TestGetSenderAddCheckCustomTagsDistributionBucket(t *testing.T) {
 	s.sender.SetCheckCustomTags(customTags)
 	assert.Len(t, s.sender.checkTags, 2)
 
-	s.sender.DistributionBucket("my.distribution_bucket", 42, 1.0, 2.0, "my-hostname", nil)
+	s.sender.DistributionBucket("my.distribution_bucket", 42, 1.0, 2.0, true, "my-hostname", nil, false)
 	bucketSample = (<-s.itemChan).(*senderDistributionBucket)
 	assert.Equal(t, customTags, bucketSample.bucket.Tags)
 
-	s.sender.DistributionBucket("my.distribution_bucket", 42, 1.0, 2.0, "my-hostname", checkTags)
+	s.sender.DistributionBucket("my.distribution_bucket", 42, 1.0, 2.0, true, "my-hostname", checkTags, false)
 	bucketSample = (<-s.itemChan).(*senderDistributionBucket)
 	assert.Equal(t, append(checkTags, customTags...), bucketSample.bucket.Tags)
 }
@@ -553,7 +553,7 @@ func TestCheckSenderInterface(t *testing.T) {
 	s.sender.Histogram("my.histo_metric", 3.0, "my-hostname", []string{"foo", "bar"})
 	s.sender.HistogramBucket("my.histogram_bucket", 42, 1.0, 2.0, true, "my-hostname", []string{"foo", "bar"}, true)
 	s.sender.Distribution("my.distribution", 43.0, "my-hostname", []string{"foo", "bar"})
-	s.sender.DistributionBucket("my.distribution_bucket", 44, 5.0, 7.0, "my-hostname", []string{"foo", "bar"})
+	s.sender.DistributionBucket("my.distribution_bucket", 44, 5.0, 7.0, true, "my-hostname", []string{"foo", "bar"}, true)
 	s.sender.Commit()
 	s.sender.ServiceCheck("my_service.can_connect", servicecheck.ServiceCheckOK, "my-hostname", []string{"foo", "bar"}, "message")
 	s.sender.EventPlatformEvent([]byte("raw-event"), "dbm-sample")
@@ -627,8 +627,10 @@ func TestCheckSenderInterface(t *testing.T) {
 	assert.Equal(t, int64(44), distributionBucket.bucket.Count)
 	assert.Equal(t, 5.0, distributionBucket.bucket.LowerBound)
 	assert.Equal(t, 7.0, distributionBucket.bucket.UpperBound)
+	assert.Equal(t, true, distributionBucket.bucket.Monotonic)
 	assert.Equal(t, "my-hostname", distributionBucket.bucket.Host)
 	assert.Equal(t, []string{"foo", "bar"}, distributionBucket.bucket.Tags)
+	assert.Equal(t, true, distributionBucket.bucket.FlushFirstValue)
 
 	commitSenderSample := (<-s.itemChan).(*senderMetricSample)
 	assert.EqualValues(t, checkID1, commitSenderSample.id)

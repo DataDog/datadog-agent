@@ -130,8 +130,10 @@ func (m *MockSender) SetupAcceptAll() {
 		mock.AnythingOfType("int64"),    // count
 		mock.AnythingOfType("float64"),  // lower bound
 		mock.AnythingOfType("float64"),  // upper bound
+		mock.AnythingOfType("bool"),     // monotonic
 		mock.AnythingOfType("string"),   // hostname
 		mock.AnythingOfType("[]string"), // tags
+		mock.AnythingOfType("bool"),     // FlushFirstValue
 	).Return()
 	m.On("GetSenderStats", mock.AnythingOfType("stats.SenderStats")).Return()
 	m.On("DisableDefaultHostname", mock.AnythingOfType("bool")).Return()

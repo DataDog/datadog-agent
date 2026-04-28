@@ -90,8 +90,8 @@ func (ss *safeSender) HistogramBucket(metric string, value int64, lowerBound, up
 }
 
 // DistributionBucket implements sender.Sender#DistributionBucket.
-func (ss *safeSender) DistributionBucket(metric string, count int64, lowerBound, upperBound float64, hostname string, tags []string) {
-	ss.Sender.DistributionBucket(metric, count, lowerBound, upperBound, hostname, cloneTags(tags))
+func (ss *safeSender) DistributionBucket(metric string, count int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool) {
+	ss.Sender.DistributionBucket(metric, count, lowerBound, upperBound, monotonic, hostname, cloneTags(tags), flushFirstValue)
 }
 
 // SetCheckCustomTags implements sender.Sender#SetCheckCustomTags.
