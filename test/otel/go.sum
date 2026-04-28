@@ -5,6 +5,8 @@ github.com/DataDog/datadog-api-client-go/v2 v2.56.0 h1:HKcfvAODmJCUw7nfbDKKqkEUg
 github.com/DataDog/datadog-api-client-go/v2 v2.56.0/go.mod h1:d3tOEgUd2kfsr9uuHQdY+nXrWp4uikgTgVCPdKNK30U=
 github.com/DataDog/datadog-go/v5 v5.8.3 h1:s58CUJ9s8lezjhTNJO/SxkPBv2qZjS3ktpRSqGF5n0s=
 github.com/DataDog/datadog-go/v5 v5.8.3/go.mod h1:K9kcYBlxkcPP8tvvjZZKs/m1edNAUFzBbdpTUKfCsuw=
+github.com/DataDog/go-acl v1.0.0 h1:FL7NsVyHOfZl2b1jTrmJCVhMatG/0zYKgWS+5FbUiSA=
+github.com/DataDog/go-acl v1.0.0/go.mod h1:YJx333qSb3GUqCLIbqKeGaZS2pUYh2IYGI7+FsX18CU=
 github.com/DataDog/go-sqllexer v0.2.1 h1:al1RMRTxPoAa1P/RTu7D5yVXC6wCLwTRYLVAVH5MLjQ=
 github.com/DataDog/go-sqllexer v0.2.1/go.mod h1:3xTFXBU69vUikYpESggScvC0RKYA7ZIdVrIkLwUOWdE=
 github.com/DataDog/go-tuf v1.1.1-0.5.2 h1:YWvghV4ZvrQsPcUw8IOUMSDpqc3W5ruOIC+KJxPknv0=
