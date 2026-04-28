@@ -26,7 +26,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/core/def"
 	metadata "github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"

@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
@@ -54,10 +55,11 @@ func (m *measuringTransport) RoundTrip(req *http.Request) (rres *http.Response, 
 // be returned to the client. Responses of additional endpoints in the targets
 // slice are dropped. Errors on additional endpoints will be logged.
 type forwardingTransport struct {
-	rt      http.RoundTripper
-	targets []*url.URL
-	keys    []string
-	logger  *log.ThrottledLogger
+	rt              http.RoundTripper
+	targets         []*url.URL
+	keys            []string
+	logger          *log.ThrottledLogger
+	maxRequestBytes int64
 }
 
 // newForwardingTransport creates a new forwardingTransport, wrapping another
@@ -68,6 +70,7 @@ func newForwardingTransport(
 	mainEndpoint *url.URL,
 	mainEndpointKey string,
 	additionalEndpoints map[string][]string,
+	maxRequestBytes int64,
 ) *forwardingTransport {
 	targets := []*url.URL{mainEndpoint}
 	apiKeys := []string{mainEndpointKey}
@@ -82,7 +85,7 @@ func newForwardingTransport(
 			apiKeys = append(apiKeys, strings.TrimSpace(key))
 		}
 	}
-	return &forwardingTransport{rt, targets, apiKeys, log.NewThrottled(10, 10*time.Second)}
+	return &forwardingTransport{rt: rt, targets: targets, keys: apiKeys, logger: log.NewThrottled(10, 10*time.Second), maxRequestBytes: maxRequestBytes}
 }
 
 // RoundTrip makes an HTTP round trip forwarding one request to multiple
@@ -102,6 +105,7 @@ func (m *forwardingTransport) RoundTrip(req *http.Request) (*http.Response, erro
 
 	var body []byte
 	if req.Body != nil {
+		req.Body = apiutil.NewLimitedReader(req.Body, m.maxRequestBytes)
 		slurp, err := io.ReadAll(req.Body)
 		if err != nil {
 			return nil, err
@@ -152,10 +156,11 @@ func newMeasuringForwardingTransport(
 	mainEndpoint *url.URL,
 	mainEndpointKey string,
 	additionalEndpoints map[string][]string,
+	maxRequestBytes int64,
 	metricPrefix string,
 	metricTags []string,
 	statsd statsd.ClientInterface,
 ) http.RoundTripper {
-	forwardingTransport := newForwardingTransport(rt, mainEndpoint, mainEndpointKey, additionalEndpoints)
+	forwardingTransport := newForwardingTransport(rt, mainEndpoint, mainEndpointKey, additionalEndpoints, maxRequestBytes)
 	return newMeasuringTransport(forwardingTransport, metricPrefix, metricTags, statsd)
 }
