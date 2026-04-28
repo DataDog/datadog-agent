@@ -265,6 +265,31 @@ func (p *testPKI) issueCertWithValidity(t *testing.T, prefix string, extKeyUsage
 	return certPath, keyPath
 }
 
+// dialTLSWithRetry works around transient "first record does not look
+// like a TLS handshake" errors observed on macOS CI runners. Go has
+// known, unfixed bugs affecting TCP/TLS on macOS (golang/go#67748,
+// golang/go#70395) that can corrupt or drop data during the handshake.
+// Multiple agent packages have hit the same class of macOS-only flake.
+// A short retry absorbs the transient failure.
+func dialTLSWithRetry(t *testing.T, addr string, cfg *tls.Config) (*tls.Conn, error) {
+	t.Helper()
+	const maxAttempts = 5
+	var conn *tls.Conn
+	var err error
+	for attempt := range maxAttempts {
+		conn, err = tls.Dial("tcp", addr, cfg)
+		if err == nil {
+			return conn, nil
+		}
+		if !strings.Contains(err.Error(), "first record does not look like a TLS handshake") {
+			return nil, err
+		}
+		t.Logf("tls.Dial attempt %d/%d hit transient error, retrying: %v", attempt+1, maxAttempts, err)
+		time.Sleep(50 * time.Millisecond)
+	}
+	return nil, err
+}
+
 func TestTCPTLSRefusesToStartOnBadCert(t *testing.T) {
 	pp := mock.NewMockProvider()
 
@@ -585,7 +610,7 @@ func TestTCPMTLSOptionalAcceptsClientCert(t *testing.T) {
 	clientTLSCert, err := tls.LoadX509KeyPair(clientCert, clientKey)
 	require.NoError(t, err)
 
-	conn, err := tls.Dial("tcp", listener.listener.Addr().String(), &tls.Config{
+	conn, err := dialTLSWithRetry(t, listener.listener.Addr().String(), &tls.Config{
 		InsecureSkipVerify: true, //nolint:gosec
 		Certificates:       []tls.Certificate{clientTLSCert},
 	})

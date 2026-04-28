@@ -15,10 +15,10 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	mockTagger "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	healthplatformnoopimpl "github.com/DataDog/datadog-agent/comp/healthplatform/noop-impl"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/core/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -46,7 +46,7 @@ type mockprovides struct {
 }
 
 func newMockAutoConfig(deps mockdependencies) mockprovides {
-	ac := createNewAutoConfig(deps.Params.Scheduler, deps.Secrets, deps.WMeta, deps.TaggerComp, deps.LogsComp, deps.Telemetry, deps.FilterComp, healthplatformnoopimpl.NewComponent().Comp)
+	ac := createNewAutoConfig(deps.Params.Scheduler, deps.Secrets, deps.WMeta, deps.TaggerComp, deps.LogsComp, deps.Telemetry, deps.FilterComp, option.None[healthplatformdef.Component]())
 	return mockprovides{
 		Comp: ac,
 	}
