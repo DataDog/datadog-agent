@@ -351,6 +351,22 @@ func (r *domainResolver) GetAlternateDomains() []string {
 	return r.alternateDomainList
 }
 
+// GetAlternateDomainsOfType returns the unique set of alternate domains whose destination type
+// matches dType. Multiple endpoint names can share the same domain, so the result is deduplicated.
+func (r *domainResolver) GetAlternateDomainsOfType(dType DestinationType) []string {
+	seen := make(map[string]struct{})
+	var result []string
+	for _, d := range r.overrides {
+		if d.dType == dType {
+			if _, ok := seen[d.domain]; !ok {
+				seen[d.domain] = struct{}{}
+				result = append(result, d.domain)
+			}
+		}
+	}
+	return result
+}
+
 // RegisterAlternateDestination adds an alternate destination to a MultiDomainResolver.
 // The resolver will match transaction.Endpoint.Name against forwarderName to check if the request shall
 // be diverted.
