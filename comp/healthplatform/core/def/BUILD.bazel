@@ -8,5 +8,8 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/core/def",
     visibility = ["//visibility:public"],
-    deps = ["@com_github_datadog_agent_payload_v5//healthplatform"],
+    deps = [
+        "//comp/healthplatform/checkrunner/def",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
+    ],
 )
