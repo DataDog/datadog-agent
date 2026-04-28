@@ -41,6 +41,7 @@ func (suite *openShiftVMSuite) SetupSuite() {
 }
 
 func (suite *openShiftVMSuite) TearDownSuite() {
+	// adding a noop here to force the tests to run, because I am lazy
 	suite.k8sSuite.TearDownSuite()
 
 	color.NoColor = false
