@@ -30,6 +30,7 @@ type translatorConfig struct {
 	InstrumentationLibraryMetadataAsTags bool
 	InstrumentationScopeMetadataAsTags   bool
 	InferDeltaInterval                   bool
+	DeltaSumRateAttribute                bool
 
 	originProduct OriginProduct
 
@@ -246,6 +247,16 @@ func WithInitialCumulMonoValueMode(mode InitialCumulMonoValueMode) TranslatorOpt
 func WithInferDeltaInterval() TranslatorOption {
 	return func(t *translatorConfig) error {
 		t.InferDeltaInterval = true
+		return nil
+	}
+}
+
+// WithDeltaSumRateAttribute enables reading the "datadog.metric.as_type"
+// attribute from delta sum datapoints. When set to "rate", the delta sum
+// is sent as a Datadog Rate (value divided by interval) instead of a Count.
+func WithDeltaSumRateAttribute() TranslatorOption {
+	return func(t *translatorConfig) error {
+		t.DeltaSumRateAttribute = true
 		return nil
 	}
 }

@@ -7,6 +7,7 @@ package metrics
 
 import (
 	"context"
+	"sync"
 
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/zap"
@@ -18,8 +19,9 @@ import (
 //	This mapper emits raw values from OTLP cumulative monotonic Sums as Datadog Gauges,
 //	instead of computing deltas and reporting them as Datadog Counts.
 type lossLessMapper struct {
-	cfg    translatorConfig
-	logger *zap.Logger
+	cfg                  translatorConfig
+	logger               *zap.Logger
+	warnedRateAttrErrors sync.Map
 }
 
 // newLossLessMapper creates a new lossLessMapper without a cache.
@@ -35,8 +37,16 @@ func newLossLessMapper(cfg translatorConfig, logger *zap.Logger) mapper {
 
 // MapNumberMetrics maps number datapoints to Datadog metrics.
 func (m *lossLessMapper) MapNumberMetrics(ctx context.Context, consumer Consumer, dims *Dimensions, dt DataType, slice pmetric.NumberDataPointSlice) {
-	mapNumberMetrics(ctx, consumer, dims, dt, slice, m.logger, m.cfg.InferDeltaInterval)
+	mapNumberMetrics(ctx, consumer, dims, dt, slice, m.logger, m.cfg.InferDeltaInterval, m.cfg.DeltaSumRateAttribute, &m.warnedRateAttrErrors)
 }
+
+const (
+	// deltaSumRateAttributeKey is the datapoint-level attribute that signals
+	// a delta sum should be emitted as a Datadog rate instead of a count.
+	deltaSumRateAttributeKey = "datadog.metric.as_type"
+	// deltaSumRateAttributeValue is the attribute value that triggers rate conversion.
+	deltaSumRateAttributeValue = "rate"
+)
 
 // mapNumberMetrics maps number datapoints into Datadog metrics.
 // This is a shared implementation used by both defaultMapper and lossLessMapper.
@@ -48,12 +58,23 @@ func mapNumberMetrics(
 	slice pmetric.NumberDataPointSlice,
 	logger *zap.Logger,
 	inferInterval bool,
+	deltaSumRateAttribute bool,
+	warnedRateAttrErrors *sync.Map,
 ) {
 	for i := 0; i < slice.Len(); i++ {
 		p := slice.At(i)
 		if p.Flags().NoRecordedValue() {
 			// No recorded value, skip.
 			continue
+		}
+
+		// Check and remove the control attribute before it becomes a tag.
+		var asRateRequested bool
+		if deltaSumRateAttribute {
+			if asType, ok := p.Attributes().Get(deltaSumRateAttributeKey); ok && asType.Str() == deltaSumRateAttributeValue {
+				asRateRequested = true
+				p.Attributes().Remove(deltaSumRateAttributeKey)
+			}
 		}
 
 		pointDims := dims.WithAttributeMap(p.Attributes())
@@ -75,7 +96,23 @@ func mapNumberMetrics(
 			interval = inferDeltaInterval(uint64(p.StartTimestamp()), uint64(p.Timestamp()))
 		}
 
-		consumer.ConsumeTimeSeries(ctx, pointDims, dt, uint64(p.Timestamp()), interval, val)
+		pointDt := dt
+		if asRateRequested {
+			if dt == Count {
+				pointDt = Rate
+				if interval > 0 {
+					val = val / float64(interval)
+				}
+			} else {
+				if _, alreadyLogged := warnedRateAttrErrors.LoadOrStore(pointDims.name, struct{}{}); !alreadyLogged {
+					logger.Error("datadog.metric.as_type=rate is only supported on delta sum metrics, ignoring",
+						zap.String("metric name", pointDims.name),
+					)
+				}
+			}
+		}
+
+		consumer.ConsumeTimeSeries(ctx, pointDims, pointDt, uint64(p.Timestamp()), interval, val)
 	}
 }
 
