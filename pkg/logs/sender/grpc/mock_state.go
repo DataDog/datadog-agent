@@ -103,6 +103,7 @@ type MessageTranslator struct {
 	jsonLogsAsRaw          bool // when true, JSON logs bypass stateful encoding and are sent as RawLog
 
 	pipelineName   string
+	dictAdmission  *dictAdmission
 	lastStaleSweep time.Time
 
 	// tagCache caches the last computed tag set to avoid recomputation across messages
@@ -137,6 +138,7 @@ func NewMessageTranslator(pipelineName string, tokenizer token.Tokenizer) *Messa
 		tokenizer:              tokenizer,
 		jsonLogsAsRaw:          pkgconfigsetup.Datadog().GetBool("logs_config.patterns.json_as_raw"),
 		pipelineName:           pipelineName,
+		dictAdmission:          newDictAdmission(),
 		lastStaleSweep:         time.Now(),
 	}
 	tlmPipelineStateSize.Set(0, pipelineName)
@@ -434,7 +436,7 @@ func (mt *MessageTranslator) processPreTokenized(msg *message.Message, tokenList
 			jsonContextValuesDV[i] = &jsonContextDVBacking[i]
 		}
 		for i, val := range jsonContextValues {
-			mt.fillDynamicValue(
+			newDefine := mt.fillDynamicValue(
 				&jsonContextDVBacking[i],
 				&jsonContextTypeBacking[i].intOneof,
 				&jsonContextTypeBacking[i].floatOneof,
@@ -444,6 +446,9 @@ func (mt *MessageTranslator) processPreTokenized(msg *message.Message, tokenList
 				&jsonContextTypeBacking[i].stringOneof,
 				val,
 			)
+			if newDefine != nil {
+				mt.sendDictEntryDefine(outputChan, msg, newDefine.id, newDefine.value)
+			}
 		}
 	}
 
@@ -791,9 +796,18 @@ func (mt *MessageTranslator) encodeDynamicValue(value string) (*statefulpb.Dynam
 	}, dictID, isNew
 }
 
+// dictDefine records a new dictionary entry that the caller must send
+// as a DICT_ENTRY_DEFINE datum before the referencing log.
+type dictDefine struct {
+	id    uint64
+	value string
+}
+
 // fillDynamicValue fills a pre-allocated DynamicValue in-place for a typed JSON context value.
 // Primitive JSON types preserve their native type; nested objects/arrays arrive as JSON strings.
 // String values may use numeric or bool encodings with render_as_string when they can round-trip exactly.
+// When a string is promoted to the dictionary for the first time, a non-nil *dictDefine is returned
+// so the caller can emit the corresponding DICT_ENTRY_DEFINE.
 func (mt *MessageTranslator) fillDynamicValue(
 	dv *statefulpb.DynamicValue,
 	oneofInt *statefulpb.DynamicValue_IntValue,
@@ -803,78 +817,88 @@ func (mt *MessageTranslator) fillDynamicValue(
 	oneofRawJSON *statefulpb.DynamicValue_RawJsonValue,
 	oneofStr *statefulpb.DynamicValue_StringValue,
 	value interface{},
-) {
+) *dictDefine {
 	dv.RenderAsString = false
 	switch typed := value.(type) {
 	case nil:
 		dv.Value = nil
-		return
+		return nil
 	case string:
 		if intVal, ok := parseLosslessIntString(typed); ok {
 			oneofInt.IntValue = intVal
 			dv.Value = oneofInt
 			dv.RenderAsString = true
-			return
+			return nil
 		}
 		if floatVal, ok := parseLosslessFloatString(typed); ok {
 			oneofFloat.FloatValue = floatVal
 			dv.Value = oneofFloat
 			dv.RenderAsString = true
-			return
+			return nil
 		}
 		if boolVal, ok := parseLosslessBoolString(typed); ok {
 			oneofBool.BoolValue = boolVal
 			dv.Value = oneofBool
 			dv.RenderAsString = true
-			return
+			return nil
 		}
 		if dictID, ok := mt.tagManager.GetStringID(typed); ok {
 			oneofDict.DictIndex = dictID
 			dv.Value = oneofDict
-			return
+			return nil
+		}
+		if mt.dictAdmission.shouldAdmit(typed) {
+			dictID, isNew := mt.tagManager.AddString(typed)
+			oneofDict.DictIndex = dictID
+			dv.Value = oneofDict
+			if isNew {
+				tlmPipelineDictPromotions.Inc(mt.pipelineName)
+				return &dictDefine{id: dictID, value: typed}
+			}
+			return nil
 		}
 		oneofStr.StringValue = typed
 		dv.Value = oneofStr
-		return
+		return nil
 	case json.Number:
 		raw := typed.String()
 		if intVal, ok := parseLosslessIntString(raw); ok {
 			oneofInt.IntValue = intVal
 			dv.Value = oneofInt
-			return
+			return nil
 		}
 		if floatVal, ok := parseLosslessFloatString(raw); ok {
 			oneofFloat.FloatValue = floatVal
 			dv.Value = oneofFloat
-			return
+			return nil
 		}
 		oneofRawJSON.RawJsonValue = []byte(raw)
 		dv.Value = oneofRawJSON
-		return
+		return nil
 	case float64:
 		if !math.IsInf(typed, 0) && !math.IsNaN(typed) && math.Trunc(typed) == typed && typed >= math.MinInt64 && typed <= math.MaxInt64 {
 			oneofInt.IntValue = int64(typed)
 			dv.Value = oneofInt
-			return
+			return nil
 		}
 		oneofFloat.FloatValue = typed
 		dv.Value = oneofFloat
-		return
+		return nil
 	case bool:
 		oneofBool.BoolValue = typed
 		dv.Value = oneofBool
-		return
+		return nil
 	default:
 		rawJSON, err := json.Marshal(typed)
 		if err != nil {
 			log.Warnf("Failed to marshal nested JSON context value: %v", err)
 			oneofStr.StringValue = ""
 			dv.Value = oneofStr
-			return
+			return nil
 		}
 		oneofRawJSON.RawJsonValue = rawJSON
 		dv.Value = oneofRawJSON
-		return
+		return nil
 	}
 }
 

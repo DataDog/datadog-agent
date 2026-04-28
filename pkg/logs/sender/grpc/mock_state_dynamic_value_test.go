@@ -117,17 +117,20 @@ func TestFillDynamicValue_PreservesNonCanonicalNumericStrings(t *testing.T) {
 	var rawJSONOneof statefulpb.DynamicValue_RawJsonValue
 	var strOneof statefulpb.DynamicValue_StringValue
 
-	mt.fillDynamicValue(&dv, &intOneof, &floatOneof, &boolOneof, &dictOneof, &rawJSONOneof, &strOneof, "00123")
-	stringValue, ok := dv.Value.(*statefulpb.DynamicValue_StringValue)
-	require.True(t, ok)
-	assert.Equal(t, "00123", stringValue.StringValue)
-	assert.False(t, dv.RenderAsString)
-
-	dictID, _ := mt.tagManager.AddString("00123")
-	mt.fillDynamicValue(&dv, &intOneof, &floatOneof, &boolOneof, &dictOneof, &rawJSONOneof, &strOneof, "00123")
+	// "00123" is ≤ 8 bytes so the admission heuristic promotes it to dictionary immediately.
+	newDefine := mt.fillDynamicValue(&dv, &intOneof, &floatOneof, &boolOneof, &dictOneof, &rawJSONOneof, &strOneof, "00123")
+	require.NotNil(t, newDefine, "short non-canonical string should be promoted to dictionary")
+	assert.Equal(t, "00123", newDefine.value)
 	dictValue, ok := dv.Value.(*statefulpb.DynamicValue_DictIndex)
 	require.True(t, ok)
-	assert.Equal(t, dictID, dictValue.DictIndex)
+	assert.Equal(t, newDefine.id, dictValue.DictIndex)
+	assert.False(t, dv.RenderAsString)
+
+	// Second call should find it already in the dictionary (no new define).
+	newDefine = mt.fillDynamicValue(&dv, &intOneof, &floatOneof, &boolOneof, &dictOneof, &rawJSONOneof, &strOneof, "00123")
+	assert.Nil(t, newDefine)
+	dictValue, ok = dv.Value.(*statefulpb.DynamicValue_DictIndex)
+	require.True(t, ok)
 	assert.False(t, dv.RenderAsString)
 
 	mt.fillDynamicValue(&dv, &intOneof, &floatOneof, &boolOneof, &dictOneof, &rawJSONOneof, &strOneof, "446")
