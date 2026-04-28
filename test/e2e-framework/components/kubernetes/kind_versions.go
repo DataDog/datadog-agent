@@ -30,6 +30,7 @@ type KindConfigFlags struct {
 	NewContainerdRegistryConfig bool             // whether to use the new containerd registry mirror config format (for containerd >= 2.2, used in kubernetes >= v1.32)
 	KubeProxyReplacement        bool             // whether to set kubeProxyMode to "none" in the kind config
 	WorkerNodes                 []KindWorkerNode // additional worker nodes beyond the control-plane
+	APIServerPort               int              // optional host port for the Kubernetes API server
 }
 
 // KindWorkerNode describes a kind worker node.

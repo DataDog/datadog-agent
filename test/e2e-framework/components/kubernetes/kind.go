@@ -252,7 +252,14 @@ func NewLocalKindClusterWithConfig(env config.Env, name string, kubeVersion stri
 			return err
 		}
 
-		clusterComp.KubeConfig = kubeConfigCmd.StdoutOutput()
+		// Pulumi's Helm provider performs its own API discovery. With the local
+		// kind config bound to 0.0.0.0, that discovery can reject the generated
+		// API server certificate even though the Kubernetes provider can create
+		// resources with the same kubeconfig. Match the remote kind path above and
+		// disable TLS verification for this local-only test cluster kubeconfig.
+		clusterComp.KubeConfig = kubeConfigCmd.StdoutOutput().ApplyT(func(kubeConfig string) string {
+			return regexp.MustCompile("certificate-authority-data:.+").ReplaceAllString(kubeConfig, "insecure-skip-tls-verify: true")
+		}).(pulumi.StringOutput)
 		clusterComp.ClusterName = kindClusterName.ToStringOutput()
 
 		return nil

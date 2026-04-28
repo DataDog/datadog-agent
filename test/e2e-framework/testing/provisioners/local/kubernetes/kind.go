@@ -47,6 +47,7 @@ type ProvisionerParams struct {
 	standaloneAgentFunc StandaloneAgentDeployFunc
 	workerNodes         []kubeComp.KindWorkerNode
 	imagesToLoad        []string
+	apiServerPort       int
 }
 
 func newProvisionerParams() *ProvisionerParams {
@@ -165,6 +166,14 @@ func WithKindLoadImage(image string) ProvisionerOption {
 	}
 }
 
+// WithKindAPIServerPort sets the local host port for the kind API server.
+func WithKindAPIServerPort(port int) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.apiServerPort = port
+		return nil
+	}
+}
+
 // Provisioner creates a new provisioner
 func Provisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[environments.Kubernetes] {
 	// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
@@ -193,7 +202,8 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 	}
 
 	kindCluster, err := kubeComp.NewLocalKindClusterWithConfig(&localEnv, params.name, localEnv.KubernetesVersion(), kubeComp.KindConfigFlags{
-		WorkerNodes: params.workerNodes,
+		WorkerNodes:   params.workerNodes,
+		APIServerPort: params.apiServerPort,
 	})
 	if err != nil {
 		return err
