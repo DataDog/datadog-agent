@@ -57,8 +57,8 @@ func (m *MockSender) AssertHistogramBucket(t *testing.T, method string, metric s
 
 // AssertDistributionBucket allows to assert a distribution bucket was emitted with given parameters.
 // Additional tags over the ones specified don't make it fail.
-func (m *MockSender) AssertDistributionBucket(t *testing.T, method string, metric string, count int64, lowerBound float64, upperBound float64, hostname string, tags []string) bool {
-	return m.Mock.AssertCalled(t, method, metric, count, lowerBound, upperBound, hostname, tags)
+func (m *MockSender) AssertDistributionBucket(t *testing.T, method string, metric string, count int64, lowerBound float64, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool) bool {
+	return m.Mock.AssertCalled(t, method, metric, count, lowerBound, upperBound, monotonic, hostname, tags, flushFirstValue)
 }
 
 // AssertMetricInRange allows to assert a metric was emitted with given parameters, with a value in a given range.

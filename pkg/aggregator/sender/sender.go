@@ -34,13 +34,15 @@ type Sender interface {
 	//   - count: number of samples represented by this bucket; must be > 0
 	//   - lowerBound: lower bound of the caller-provided bucket
 	//   - upperBound: upper bound of the caller-provided bucket; must be >= lowerBound
+	//   - monotonic: if true, count is treated as cumulative and converted to a delta
 	//   - hostname: optional host override
 	//   - tags: metric tags
+	//   - flushFirstValue: if true, the first monotonic value (and reset values) are flushed as-is
 	//
 	// Use this instead of HistogramBucket when the caller wants explicit bucket
 	// counts to map to one weighted sketch value, rather than being spread across
 	// multiple internal sketch bins by interpolation.
-	DistributionBucket(metric string, count int64, lowerBound, upperBound float64, hostname string, tags []string)
+	DistributionBucket(metric string, count int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool)
 	ServiceCheck(checkName string, status servicecheck.ServiceCheckStatus, hostname string, tags []string, message string)
 	HistogramBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool)
 	// GaugeWithTimestamp reports a new gauge value to the intake with the given timestamp.

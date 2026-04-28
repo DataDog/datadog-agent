@@ -32,6 +32,7 @@ type CheckSampler struct {
 	metrics                metrics.CheckMetrics
 	sketchMap              sketchMap
 	lastBucketValue        map[ckey.ContextKey]int64
+	lastDistributionBucketValue map[ckey.ContextKey]int64
 	deregistered           bool
 	contextResolverMetrics bool
 	logThrottling          util.SimpleThrottler
@@ -55,8 +56,9 @@ func newCheckSampler(
 		sketches:               make(metrics.SketchSeriesList, 0),
 		contextResolver:        newCountBasedContextResolver(expirationCount, cache, tagger, string(id)),
 		metrics:                metrics.NewCheckMetrics(expireMetrics, statefulTimeout),
-		sketchMap:              make(sketchMap),
-		lastBucketValue:        make(map[ckey.ContextKey]int64),
+		sketchMap:                   make(sketchMap),
+		lastBucketValue:             make(map[ckey.ContextKey]int64),
+		lastDistributionBucketValue: make(map[ckey.ContextKey]int64),
 		contextResolverMetrics: contextResolverMetrics,
 		logThrottling:          util.NewSimpleThrottler(5, 5*time.Minute, ""),
 		allowSketchBucketReset: allowSketchBucketReset,
@@ -205,6 +207,32 @@ func (cs *CheckSampler) addDistributionBucket(bucket *metrics.DistributionBucket
 
 	contextKey := cs.contextResolver.trackContext(bucket, tagFilterList)
 
+	if bucket.Monotonic {
+		lastBucketValue, bucketFound := cs.lastDistributionBucketValue[contextKey]
+		rawValue := bucket.Count
+
+		cs.lastDistributionBucketValue[contextKey] = rawValue
+
+		if !bucketFound && !bucket.FlushFirstValue {
+			return
+		}
+
+		if rawValue < lastBucketValue && cs.allowSketchBucketReset {
+			if !bucket.FlushFirstValue {
+				return
+			}
+		} else {
+			bucket.Count = rawValue - lastBucketValue
+		}
+	}
+
+	if bucket.Count <= 0 {
+		if !cs.logThrottling.ShouldThrottle() {
+			log.Warnf("Non-positive distribution bucket delta %d for metric %s discarding", bucket.Count, bucket.Name)
+		}
+		return
+	}
+
 	var representativeValue float64
 	switch {
 	case math.IsInf(bucket.UpperBound, 1):
@@ -288,6 +316,7 @@ func (cs *CheckSampler) commit(timestamp float64, filterList *utilstrings.Matche
 	// garbage collect unused buckets
 	for _, ctxKey := range expiredContextKeys {
 		delete(cs.lastBucketValue, ctxKey)
+		delete(cs.lastDistributionBucketValue, ctxKey)
 	}
 
 	cs.metrics.Expire(expiredContextKeys, timestamp)

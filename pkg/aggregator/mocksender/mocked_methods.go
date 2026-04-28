@@ -69,8 +69,8 @@ func (m *MockSender) Distribution(metric string, value float64, hostname string,
 }
 
 // DistributionBucket adds a distribution bucket call to the mock calls.
-func (m *MockSender) DistributionBucket(metric string, count int64, lowerBound, upperBound float64, hostname string, tags []string) {
-	m.Called(metric, count, lowerBound, upperBound, hostname, m.tagsWithCheckTags(tags))
+func (m *MockSender) DistributionBucket(metric string, count int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool) {
+	m.Called(metric, count, lowerBound, upperBound, monotonic, hostname, m.tagsWithCheckTags(tags), flushFirstValue)
 }
 
 // GaugeNoIndex adds a gauge type to the mock calls that is not indexed.

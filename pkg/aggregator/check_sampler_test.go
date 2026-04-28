@@ -571,6 +571,198 @@ func TestCheckDistributionBucket(t *testing.T) {
 	testWithTagsStore(t, testCheckDistributionBucket)
 }
 
+func testCheckDistributionBucketSampling(t *testing.T, store *tags.Store) {
+	taggerComponent := nooptagger.NewComponent()
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
+
+	tagmatcher := filterlistimpl.NewNoopTagMatcher()
+	matcher := strings.NewMatcher([]string{}, false)
+
+	bucket1 := &metrics.DistributionBucket{
+		Name:            "my.distribution.bucket",
+		Count:           4,
+		LowerBound:      10,
+		UpperBound:      20,
+		Tags:            []string{"foo", "bar"},
+		Timestamp:       12345.0,
+		Monotonic:       true,
+		FlushFirstValue: true,
+	}
+
+	checkSampler.addDistributionBucket(bucket1, tagmatcher)
+	assert.Equal(t, len(checkSampler.lastDistributionBucketValue), 1)
+
+	checkSampler.commit(12349.0, &matcher)
+	_, flushed := checkSampler.flush()
+	require.Len(t, flushed, 1)
+	metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
+		Name: "my.distribution.bucket",
+		Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
+		Points: []metrics.SketchPoint{
+			{Ts: 12345, Sketch: sketchForValue(10, 4)},
+		},
+		ContextKey: generateContextKey(bucket1),
+	}, flushed[0])
+
+	bucket2 := &metrics.DistributionBucket{
+		Name:       "my.distribution.bucket",
+		Count:      6,
+		LowerBound: 10,
+		UpperBound: 20,
+		Tags:       []string{"foo", "bar"},
+		Timestamp:  12400.0,
+		Monotonic:  true,
+	}
+	checkSampler.addDistributionBucket(bucket2, tagmatcher)
+	assert.Equal(t, len(checkSampler.lastDistributionBucketValue), 1)
+
+	checkSampler.commit(12401.0, &matcher)
+	assert.Len(t, checkSampler.lastDistributionBucketValue, 1)
+	checkSampler.commit(12401.0, &matcher)
+	assert.Len(t, checkSampler.lastDistributionBucketValue, 0)
+	_, flushed = checkSampler.flush()
+
+	require.Len(t, flushed, 1)
+	metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
+		Name: "my.distribution.bucket",
+		Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
+		Points: []metrics.SketchPoint{
+			{Ts: 12400, Sketch: sketchForValue(10, 2)},
+		},
+		ContextKey: generateContextKey(bucket1),
+	}, flushed[0])
+}
+
+func TestCheckDistributionBucketSampling(t *testing.T) {
+	testWithTagsStore(t, testCheckDistributionBucketSampling)
+}
+
+func testCheckDistributionBucketDontFlushFirstValue(t *testing.T, store *tags.Store) {
+	taggerComponent := nooptagger.NewComponent()
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
+
+	tagmatcher := filterlistimpl.NewNoopTagMatcher()
+
+	bucket1 := &metrics.DistributionBucket{
+		Name:            "my.distribution.bucket",
+		Count:           4,
+		LowerBound:      10,
+		UpperBound:      20,
+		Tags:            []string{"foo", "bar"},
+		Timestamp:       12345.0,
+		Monotonic:       true,
+		FlushFirstValue: false,
+	}
+	checkSampler.addDistributionBucket(bucket1, tagmatcher)
+	assert.Equal(t, len(checkSampler.lastDistributionBucketValue), 1)
+
+	matcher := strings.NewMatcher([]string{}, false)
+	checkSampler.commit(12349.0, &matcher)
+	_, flushed := checkSampler.flush()
+	assert.Len(t, flushed, 0)
+
+	bucket2 := &metrics.DistributionBucket{
+		Name:       "my.distribution.bucket",
+		Count:      6,
+		LowerBound: 10,
+		UpperBound: 20,
+		Tags:       []string{"foo", "bar"},
+		Timestamp:  12400.0,
+		Monotonic:  true,
+	}
+	checkSampler.addDistributionBucket(bucket2, tagmatcher)
+	assert.Equal(t, len(checkSampler.lastDistributionBucketValue), 1)
+
+	checkSampler.commit(12401.0, &matcher)
+	_, flushed = checkSampler.flush()
+
+	require.Len(t, flushed, 1)
+	metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
+		Name: "my.distribution.bucket",
+		Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
+		Points: []metrics.SketchPoint{
+			{Ts: 12400, Sketch: sketchForValue(10, 2)},
+		},
+		ContextKey: generateContextKey(bucket1),
+	}, flushed[0])
+}
+
+func TestCheckDistributionBucketDontFlushFirstValue(t *testing.T) {
+	testWithTagsStore(t, testCheckDistributionBucketDontFlushFirstValue)
+}
+
+func testCheckDistributionBucketReset(t *testing.T, store *tags.Store) {
+	taggerComponent := nooptagger.NewComponent()
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
+
+	tagmatcher := filterlistimpl.NewNoopTagMatcher()
+
+	checkSampler.addDistributionBucket(&metrics.DistributionBucket{
+		Name:            "my.distribution.bucket",
+		Count:           6,
+		LowerBound:      10,
+		UpperBound:      20,
+		Timestamp:       12400.0,
+		Monotonic:       true,
+		FlushFirstValue: false,
+	}, tagmatcher)
+	checkSampler.commit(12401, nil)
+
+	checkSampler.addDistributionBucket(&metrics.DistributionBucket{
+		Name:            "my.distribution.bucket",
+		Count:           9,
+		LowerBound:      10,
+		UpperBound:      20,
+		Timestamp:       12410.0,
+		Monotonic:       true,
+		FlushFirstValue: true,
+	}, tagmatcher)
+	checkSampler.commit(12411, nil)
+
+	checkSampler.addDistributionBucket(&metrics.DistributionBucket{
+		Name:            "my.distribution.bucket",
+		Count:           2,
+		LowerBound:      10,
+		UpperBound:      20,
+		Timestamp:       12420.0,
+		Monotonic:       true,
+		FlushFirstValue: true,
+	}, tagmatcher)
+	checkSampler.commit(12421, nil)
+
+	checkSampler.addDistributionBucket(&metrics.DistributionBucket{
+		Name:            "my.distribution.bucket",
+		Count:           1,
+		LowerBound:      10,
+		UpperBound:      20,
+		Timestamp:       12440.0,
+		Monotonic:       true,
+		FlushFirstValue: false,
+	}, tagmatcher)
+	checkSampler.commit(12441, nil)
+
+	_, flushed := checkSampler.flush()
+	require.Len(t, flushed, 2)
+	metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
+		Name:       "my.distribution.bucket",
+		ContextKey: generateContextKey(&metrics.DistributionBucket{Name: "my.distribution.bucket"}),
+		Points: []metrics.SketchPoint{
+			{Ts: 12410, Sketch: sketchForValue(10, 3)},
+		},
+	}, flushed[0])
+	metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
+		Name:       "my.distribution.bucket",
+		ContextKey: generateContextKey(&metrics.DistributionBucket{Name: "my.distribution.bucket"}),
+		Points: []metrics.SketchPoint{
+			{Ts: 12420, Sketch: sketchForValue(10, 2)},
+		},
+	}, flushed[1])
+}
+
+func TestCheckDistributionBucketReset(t *testing.T) {
+	testWithTagsStore(t, testCheckDistributionBucketReset)
+}
+
 func testCheckDistributionBucketInfinityBounds(t *testing.T, store *tags.Store) {
 	taggerComponent := nooptagger.NewComponent()
 	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)

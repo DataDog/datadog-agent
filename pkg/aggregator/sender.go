@@ -326,35 +326,40 @@ func (s *checkSender) Distribution(metric string, value float64, hostname string
 //   - count: number of samples represented by this bucket; must be > 0
 //   - lowerBound: lower bound of the caller-provided bucket
 //   - upperBound: upper bound of the caller-provided bucket; must be >= lowerBound
+//   - monotonic: if true, count is treated as cumulative and converted to a delta
 //   - hostname: optional host override
 //   - tags: metric tags
+//   - flushFirstValue: if true, the first monotonic value (and reset values) are flushed as-is
 //
 // Use this instead of HistogramBucket when explicit caller-provided buckets
 // should remain a single weighted insert in the sketch. HistogramBucket is meant
 // for Prometheus/OpenMetrics histogram buckets and interpolates counts across the
 // sketch's internal bins, which changes the caller-provided bucket shape.
-func (s *checkSender) DistributionBucket(metric string, count int64, lowerBound, upperBound float64, hostname string, tags []string) {
+func (s *checkSender) DistributionBucket(metric string, count int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool) {
 	tags = append(tags, s.checkTags...)
 
 	log.Tracef(
-		"Distribution Bucket %s submitted: %v [%f-%f] for host %s tags: %v",
+		"Distribution Bucket %s submitted: %v [%f-%f] monotonic: %v for host %s tags: %v",
 		metric,
 		count,
 		lowerBound,
 		upperBound,
+		monotonic,
 		hostname,
 		tags,
 	)
 
 	distributionBucket := &metrics.DistributionBucket{
-		Name:       metric,
-		Count:      count,
-		LowerBound: lowerBound,
-		UpperBound: upperBound,
-		Host:       hostname,
-		Tags:       tags,
-		Timestamp:  timeNowNano(),
-		Source:     metrics.CheckNameToMetricSource(checkid.IDToCheckName(s.id)),
+		Name:            metric,
+		Count:           count,
+		LowerBound:      lowerBound,
+		UpperBound:      upperBound,
+		Monotonic:       monotonic,
+		Host:            hostname,
+		Tags:            tags,
+		Timestamp:       timeNowNano(),
+		FlushFirstValue: flushFirstValue,
+		Source:          metrics.CheckNameToMetricSource(checkid.IDToCheckName(s.id)),
 	}
 
 	if hostname == "" && !s.defaultHostnameDisabled {

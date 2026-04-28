@@ -13,14 +13,16 @@ import (
 // DistributionBucket represents an explicit bucket that should be inserted into
 // a distribution sketch as a weighted value, without interpolation.
 type DistributionBucket struct {
-	Name       string
-	Count      int64
-	LowerBound float64
-	UpperBound float64
-	Tags       []string
-	Host       string
-	Timestamp  float64
-	Source     MetricSource
+	Name            string
+	Count           int64
+	LowerBound      float64
+	UpperBound      float64
+	Monotonic       bool
+	Tags            []string
+	Host            string
+	Timestamp       float64
+	FlushFirstValue bool
+	Source          MetricSource
 }
 
 // GetName returns the bucket name.
