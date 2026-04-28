@@ -42,7 +42,7 @@ go_test(
         "params_test.go",
     ],
     embed = [":config"],
-    gotags = ["test"],  # keep
+    gotags = ["test"],
     deps = [
         "//pkg/config/model",
         "//pkg/util/defaultpaths",

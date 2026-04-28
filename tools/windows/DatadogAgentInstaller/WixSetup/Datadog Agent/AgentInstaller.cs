@@ -679,6 +679,21 @@ namespace WixSetup.Datadog_Agent
                     AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes; KeyPath=yes"
                 });
             }
+            var procmgrService = GenerateDependentServiceInstaller(
+                new Id("ddagentprocmgrservice"),
+                Constants.ProcmgrServiceName,
+                "Datadog Process Manager",
+                "Manage Datadog agent processes",
+                "LocalSystem");
+            agentBinDir.AddFile(new WixSharp.File(_agentBinaries.ProcmgrService, procmgrService));
+            agentBinDir.Add(new EventSource
+            {
+                Name = Constants.ProcmgrServiceName,
+                Log = "Application",
+                EventMessageFile = $"[AGENT]{Path.GetFileName(_agentBinaries.ProcmgrService)}",
+                AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes; KeyPath=yes"
+            });
+            agentBinDir.AddFile(new WixSharp.File(_agentBinaries.Procmgr));
             var targetBinFolder = new Dir(new Id("BIN"), "bin",
                 new WixSharp.File(_agentBinaries.Agent, agentService),
                 // Temporary binary for extracting the embedded Python - will be deleted

@@ -11,6 +11,6 @@ go_test(
     name = "trie_test",
     srcs = ["trie_test.go"],
     embed = [":trie"],
-    gotags = ["test"],  # keep - trie.go is behind //go:build test
+    gotags = ["test"],
     deps = ["@com_github_stretchr_testify//assert"],
 )
