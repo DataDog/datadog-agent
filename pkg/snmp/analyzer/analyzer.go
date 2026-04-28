@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
+// Package analyzer matches SNMP walk OIDs against device profiles and formats analysis output.
 package analyzer
 
 import (
@@ -17,7 +18,7 @@ import (
 	"github.com/gosnmp/gosnmp"
 )
 
-const _cached_sys_obj_id = ".1.3.6.1.2.1.1.2"
+const _cachedSysObjID = ".1.3.6.1.2.1.1.2"
 
 type MetricProfile struct {
 	Value       interface{} // SNMP value (e.g. string, uint32)
@@ -29,11 +30,11 @@ type MetricProfile struct {
 
 // SysObjectOID returns the OID to walk to fetch sysObjectID (e.g. for a fallback walk).
 func SysObjectOID() string {
-	return _cached_sys_obj_id
+	return _cachedSysObjID
 }
 
 func FindSysOID(pdus []gosnmp.SnmpPDU) string {
-	base := normalizeOID(_cached_sys_obj_id)
+	base := normalizeOID(_cachedSysObjID)
 	with0 := base + ".0"
 	for _, pdu := range pdus {
 		n := normalizeOID(pdu.Name)
@@ -48,7 +49,7 @@ func FindSysOID(pdus []gosnmp.SnmpPDU) string {
 func FindProfile(sysOID string) (profiledefinition.ProfileDefinition, error) {
 	var empty profiledefinition.ProfileDefinition
 	if sysOID == "" {
-		return empty, fmt.Errorf("no sys object id available")
+		return empty, errors.New("no sys object id available")
 	}
 	return snmp.BuildProfileForSysObjectID(sysOID)
 }

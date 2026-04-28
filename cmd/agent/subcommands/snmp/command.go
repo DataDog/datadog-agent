@@ -416,7 +416,7 @@ func runPager(content string) error {
 	}
 	parts := strings.Fields(pager)
 	if len(parts) == 0 {
-		return fmt.Errorf("PAGER is empty")
+		return errors.New("PAGER is empty")
 	}
 	cmd := exec.Command(parts[0], append(parts[1:], tmpPath)...)
 	cmd.Stdin = os.Stdin
