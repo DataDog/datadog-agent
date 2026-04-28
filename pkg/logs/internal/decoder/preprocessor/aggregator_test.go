@@ -390,18 +390,18 @@ func TestDetectingAggregator_TagsMultilineStartOnly(t *testing.T) {
 	// startGroup: stored as pending, nothing emitted
 	require.Empty(t, processMsg(ag, newMessage("Error: Exception"), startGroup))
 
-	// First aggregate: emits tagged startGroup + current line
+	// First aggregate: emits tagged startGroup + current line (leading spaces trimmed)
 	msgs := processMsg(ag, newMessage("  at line 1"), aggregate)
 	require.Len(t, msgs, 2)
 	assert.Equal(t, "Error: Exception", string(msgs[0].GetContent()))
 	assert.Contains(t, msgs[0].ParsingExtra.Tags, "auto_multiline_detected:true")
-	assert.Equal(t, "  at line 1", string(msgs[1].GetContent()))
+	assert.Equal(t, "at line 1", string(msgs[1].GetContent()))
 	assert.NotContains(t, msgs[1].ParsingExtra.Tags, "auto_multiline_detected:true")
 
-	// Subsequent aggregate: emitted immediately without tags
+	// Subsequent aggregate: emitted immediately without tags (leading spaces trimmed)
 	msgs = processMsg(ag, newMessage("  at line 2"), aggregate)
 	require.Len(t, msgs, 1)
-	assert.Equal(t, "  at line 2", string(msgs[0].GetContent()))
+	assert.Equal(t, "at line 2", string(msgs[0].GetContent()))
 	assert.NotContains(t, msgs[0].ParsingExtra.Tags, "auto_multiline_detected:true")
 }
 
@@ -461,12 +461,12 @@ func TestDetectingAggregator_MixedSingleAndMultiLine(t *testing.T) {
 	assert.Equal(t, "Single", string(msgs[0].GetContent()))
 	assert.NotContains(t, msgs[0].ParsingExtra.Tags, "auto_multiline_detected:true")
 
-	// aggregate: tags "Multi start" and emits + continuation
+	// aggregate: tags "Multi start" and emits + continuation (leading spaces trimmed)
 	msgs = processMsg(ag, newMessage("  continuation"), aggregate)
 	require.Len(t, msgs, 2)
 	assert.Equal(t, "Multi start", string(msgs[0].GetContent()))
 	assert.Contains(t, msgs[0].ParsingExtra.Tags, "auto_multiline_detected:true")
-	assert.Equal(t, "  continuation", string(msgs[1].GetContent()))
+	assert.Equal(t, "continuation", string(msgs[1].GetContent()))
 	assert.NotContains(t, msgs[1].ParsingExtra.Tags, "auto_multiline_detected:true")
 
 	// Another single line stored
@@ -572,6 +572,73 @@ func TestDetectingAggregator_UsesExistingTruncatedFlag(t *testing.T) {
 }
 
 // COAT telemetry tests
+
+// AGNTLOG-617: The DetectingAggregator must TrimSpace content just like SingleLineHandler,
+// PassThroughAggregator, and CombiningAggregator do. Without TrimSpace, trailing \r from
+// CRLF line endings (or other trailing whitespace) breaks anchored log_processing_rules
+// like ^\{.*\}$ because the anchor can't match past the trailing bytes.
+func TestDetectingAggregator_TrimSpaceMatchesOtherAggregators(t *testing.T) {
+	jsonPattern := regexp.MustCompile(`^\{.*\}$`)
+
+	testCases := []struct {
+		name    string
+		content string
+		label   Label
+	}{
+		{"trailing CR (noAggregate)", `{"key":"val"}` + "\r", noAggregate},
+		{"trailing space (noAggregate)", `{"key":"val"}` + " ", noAggregate},
+		{"trailing tab (noAggregate)", `{"key":"val"}` + "\t", noAggregate},
+		{"leading space (noAggregate)", " " + `{"key":"val"}`, noAggregate},
+		{"leading+trailing whitespace (noAggregate)", " \t" + `{"key":"val"}` + "\r ", noAggregate},
+		{"trailing CR (aggregate)", `{"key":"val"}` + "\r", aggregate},
+		{"trailing CR (startGroup then flush)", `{"key":"val"}` + "\r", startGroup},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ag := NewDetectingAggregator(status.NewInfoRegistry(), 100, false, false)
+
+			var msgs []*message.Message
+			msgs = processMsg(ag, newMessage(tc.content), tc.label)
+			if tc.label == startGroup {
+				require.Empty(t, msgs)
+				msgs = flushMsgs(ag)
+			}
+			require.Len(t, msgs, 1)
+
+			emitted := string(msgs[0].GetContent())
+			assert.True(t, jsonPattern.MatchString(emitted),
+				"anchored pattern should match trimmed content %q but got %q", `{"key":"val"}`, emitted)
+			assert.Equal(t, `{"key":"val"}`, emitted,
+				"content should be trimmed to match SingleLineHandler / PassThroughAggregator behavior")
+		})
+	}
+}
+
+// Verify that PassThroughAggregator and CombiningAggregator already handle trailing
+// whitespace correctly (they call bytes.TrimSpace), serving as the baseline.
+func TestPassThroughAndCombiningAggregator_TrimSpaceBaseline(t *testing.T) {
+	jsonPattern := regexp.MustCompile(`^\{.*\}$`)
+	contentWithCR := `{"key":"val"}` + "\r"
+
+	t.Run("PassThroughAggregator", func(t *testing.T) {
+		ag := NewPassThroughAggregator(100)
+		msgs := processMsg(ag, newMessage(contentWithCR), noAggregate)
+		require.Len(t, msgs, 1)
+		emitted := string(msgs[0].GetContent())
+		assert.True(t, jsonPattern.MatchString(emitted),
+			"PassThroughAggregator should trim; got %q", emitted)
+	})
+
+	t.Run("CombiningAggregator_noAggregate", func(t *testing.T) {
+		ag := NewCombiningAggregator(100, false, false, status.NewInfoRegistry())
+		msgs := processMsg(ag, newMessage(contentWithCR), noAggregate)
+		require.Len(t, msgs, 1)
+		emitted := string(msgs[0].GetContent())
+		assert.True(t, jsonPattern.MatchString(emitted),
+			"CombiningAggregator should trim; got %q", emitted)
+	})
+}
 
 func TestDetectingAggregator_COATTelemetry_WouldCombine(t *testing.T) {
 	ag := NewDetectingAggregator(status.NewInfoRegistry(), 1000, false, true)

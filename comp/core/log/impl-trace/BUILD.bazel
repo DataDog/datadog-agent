@@ -19,7 +19,7 @@ go_test(
     name = "impl-trace_test",
     srcs = ["trace_logger_test.go"],
     embed = [":impl-trace"],
-    gotags = ["test"],  # keep
+    gotags = ["test"],
     deps = [
         "//comp/core/log/def",
         "//comp/def",
