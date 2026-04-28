@@ -9,13 +9,13 @@ For each target:
     → Remove it, run gazelle + tests. Revert on failure.
 
   CARVEOUT: a parent path is excluded in root BUILD.bazel.
-    → Remove the parent exclude. Create <parent>/BUILD.bazel with
-      # gazelle:ignore + # gazelle:exclude <rel> for non-target subdirs
-      (minimal covering set so gazelle descends only into targets).
+    → Remove the parent exclude. Add # gazelle:exclude <child> lines for
+      all non-target subdirs directly to root BUILD.bazel (minimal covering
+      set so gazelle descends only into targets).
       Run gazelle + tests. Revert all changes on failure.
 
-Only REMOVES lines from root BUILD.bazel — never adds new ones.
-Local BUILD.bazel files handle subdirectory excludes for carveouts.
+Root BUILD.bazel: removes parent exclude and adds child excludes for carveouts.
+No local BUILD.bazel files are created for subdirectory excludes.
 Stops when total changed BUILD.bazel file count reaches --max-files.
 
 Usage:
@@ -395,58 +395,38 @@ def migrate_local_direct(path: str, build_dir: str, rel_excl: str, test_targets:
 
 
 def migrate_carveout(parent: str, targets: list[str], test_targets: list[str]) -> dict[str, tuple[bool, str]]:
-    """Remove parent exclude from root BUILD.bazel; create local <parent>/BUILD.bazel
-    with # gazelle:ignore and # gazelle:exclude <rel> for all non-target subdirs.
+    """Remove parent exclude from root BUILD.bazel; add # gazelle:exclude lines for
+    all non-target subdirs directly to the root BUILD.bazel.
 
-    On failure, all changes are reverted (root exclude restored, local BUILD.bazel
-    restored to its pre-operation state or deleted if it was newly created).
+    On failure, the root BUILD.bazel is restored to its pre-operation state and all
+    gazelle-generated BUILD.bazel files are reverted.
     """
     parent_abs = REPO_ROOT / parent
     targets_rel = {t[len(parent) + 1 :] for t in targets}
 
     min_excludes = get_minimal_excludes(parent_abs, targets_rel)
+    child_excludes = [f"{parent}/{rel}" for rel in min_excludes]
 
-    local_build = parent_abs / "BUILD.bazel"
-    local_existed_before = local_build.exists()
-    old_local_content = local_build.read_text() if local_existed_before else None
+    # Save root BUILD.bazel content so we can restore it exactly on failure.
+    root_content_before = BUILD_BAZEL.read_text()
 
     # Snapshot state before we touch anything
     pre_mods = get_modified_tracked_build_files()
     before = find_all_build_files()
 
-    # Remove parent (and any child entries) from root BUILD.bazel
+    # Remove parent (and any child entries) from root BUILD.bazel, then add
+    # child excludes so gazelle only descends into the target directories.
     remove_all_excludes_under(parent)
     log(f"  removed # gazelle:exclude {parent} (and children) from BUILD.bazel")
-
-    # Write the local BUILD.bazel with gazelle:ignore + minimal excludes.
-    # If a BUILD.bazel already existed with real Bazel rules (not just directives),
-    # preserve those rules rather than clobbering them — only replace the directive
-    # header so that existing targets survive a successful carveout.
-    directive_header = "# gazelle:ignore\n" + "".join(f"# gazelle:exclude {r}\n" for r in min_excludes)
-    if local_existed_before and old_local_content:
-        non_directive_lines = [
-            line
-            for line in old_local_content.splitlines(keepends=True)
-            if not re.match(r"\s*#\s*gazelle:(ignore|exclude)\b", line)
-        ]
-        local_content = directive_header + "".join(non_directive_lines)
-    else:
-        local_content = directive_header
-    local_build.write_text(local_content)
-    log(f"  wrote {local_build.relative_to(REPO_ROOT)} ({len(min_excludes)} sub-dir excludes)")
+    for child in child_excludes:
+        restore_exclude(child)
+    log(f"  added {len(child_excludes)} child excludes to BUILD.bazel")
 
     def _undo() -> None:
         """Revert all changes made by this carveout attempt."""
         revert_gazelle_changes(get_new_build_files(before), pre_mods)
-        # Restore the local BUILD.bazel explicitly, because revert_gazelle_changes
-        # skips files that were already modified before this operation (pre_mods).
-        if local_existed_before:
-            local_build.write_text(old_local_content)
-            log(f"  restored {local_build.relative_to(REPO_ROOT)}")
-        elif local_build.exists():
-            local_build.unlink()
-            log(f"  deleted {local_build.relative_to(REPO_ROOT)}")
-        restore_exclude(parent)
+        BUILD_BAZEL.write_text(root_content_before)
+        log("  restored BUILD.bazel")
 
     if not run_gazelle():
         _undo()
@@ -645,7 +625,7 @@ def main() -> int:
             targets = parent_map[par]
             log(f">>> CARVEOUT: {par}  targets={targets}")
             if args.dry_run:
-                log(f"  [dry-run] would remove {par} exclude, create local BUILD.bazel, run gazelle + tests")
+                log(f"  [dry-run] would remove {par} exclude, add child excludes to BUILD.bazel, run gazelle + tests")
                 log("")
                 processed_parents.add(par)
                 continue
