@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"maps"
 	"net/http"
 	"slices"
@@ -631,6 +632,17 @@ func (a *atel) SendEvent(eventType string, eventPayload []byte) error {
 		return err
 	}
 
+	return nil
+}
+
+// SendErrorLogs ships a batch of slog records to the COAT intake using the
+// apmtelemetry logs envelope (request_type=logs). Real wire-up lives in
+// errortracking_sender.go (added in a follow-up commit on this PR);
+// this stub keeps the Component interface satisfied at the edit boundary.
+func (a *atel) SendErrorLogs(_ context.Context, _ []slog.Record) error {
+	if !a.enabled {
+		return nil
+	}
 	return nil
 }
 
