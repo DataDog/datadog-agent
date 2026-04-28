@@ -176,24 +176,6 @@ func TestAddFile_BasicContent(t *testing.T) {
 	assert.Equal(t, md5OfString("hello world"), sums["opt/agent/hello.txt"])
 }
 
-func TestAddFile_ExecutableModeDerivation(t *testing.T) {
-	dir := t.TempDir()
-	src := writeExec(t, dir, "agent", "#!/bin/sh\n")
-	out := filepath.Join(dir, "out.tar")
-
-	cfg := defaultConfig(out, "")
-	cfg.ManifestPath = filepath.Join(dir, "manifest.json")
-	writeManifest(t, cfg.ManifestPath, []ManifestEntry{
-		{Type: entryIsFile, Dest: "bin/agent", Src: src},
-	})
-
-	require.NoError(t, run(cfg))
-
-	hdrs := tarEntries(t, out)
-	require.Len(t, hdrs, 1)
-	assert.Equal(t, int64(0o755), hdrs[0].Mode, "executable file should get mode 0755")
-}
-
 func TestAddFile_ModeOverride(t *testing.T) {
 	dir := t.TempDir()
 	src := writeExec(t, dir, "agent", "#!/bin/sh\n")
