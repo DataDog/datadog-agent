@@ -64,7 +64,6 @@ type logssourceComponent struct{}
 // The component is a no-op when any of these are true:
 //   - the observer is unavailable
 //   - workloadmeta is unavailable
-//   - logs_enabled is true (anomaly detection is only for non-log-management customers)
 //
 // The component itself has no build-tag constraints. Capability differences
 // across builds are handled transparently by the underlying launchers:
@@ -78,8 +77,7 @@ func NewComponent(deps Requires) (Provides, error) {
 
 	analysisEnabled := deps.Config.GetBool("observer.analysis.enabled")
 	recordingEnabled := deps.Config.GetBool("observer.recording.enabled")
-	if !obsOk || !wmetaOk || deps.Config.GetBool("logs_enabled") || deps.Config.GetBool("log_enabled") ||
-		(!analysisEnabled && !recordingEnabled) {
+	if !obsOk || !wmetaOk || (!analysisEnabled && !recordingEnabled) {
 		return Provides{Comp: &logssourceComponent{}}, nil
 	}
 
