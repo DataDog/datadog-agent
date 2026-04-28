@@ -7,6 +7,7 @@ This replaces datadog-agent-dependencies.rb.
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup")
 load("//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
+load("//compliance:package_licenses.bzl", "package_licenses")
 
 package(default_visibility = ["//packages:__subpackages__"])
 
@@ -100,6 +101,11 @@ pkg_filegroup(
         "@platforms//os:windows": "embedded3",
         "//conditions:default": "embedded",
     }),
+)
+
+package_licenses(
+    name = "license_files",
+    src = ":_collected_libs",
 )
 
 # Temporary during migration, to call from omnibus build.
