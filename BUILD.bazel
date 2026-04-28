@@ -468,12 +468,10 @@ exports_files(glob(
 # gazelle:exclude pkg/logs/status/status_test.go
 # gazelle:exclude pkg/logs/status/test_utils.go
 # gazelle:exclude pkg/logs/tailers
-# gazelle:exclude pkg/logs/util/testutils
 # gazelle:exclude pkg/logs/util/windowsevent
 # gazelle:exclude pkg/network/config
 # gazelle:exclude pkg/network/containers
 # gazelle:exclude pkg/network/dns
-# gazelle:exclude pkg/network/driver
 # gazelle:exclude pkg/network/ebpf
 # gazelle:exclude pkg/network/encoding
 # gazelle:exclude pkg/network/events
@@ -486,7 +484,6 @@ exports_files(glob(
 # gazelle:exclude pkg/network/go/rungo
 # gazelle:exclude pkg/network/indexedset
 # gazelle:exclude pkg/network/netlink
-# gazelle:exclude pkg/network/payload
 # gazelle:exclude pkg/network/protocols/amqp
 # gazelle:exclude pkg/network/protocols/http/debugging
 # gazelle:exclude pkg/network/protocols/http/gotls/lookup
@@ -804,7 +801,6 @@ exports_files(glob(
 # gazelle:exclude test/new-e2e/tests/windows/scripts
 # gazelle:exclude test/new-e2e/tests/windows/service-test
 # gazelle:exclude test/new-e2e/tests/windows/windows-certificate
-# gazelle:exclude test/otel
 # gazelle:exclude test/regression
 # gazelle:exclude test/required_files
 # gazelle:exclude test/static
