@@ -228,6 +228,14 @@ impl ManagedProcess {
             self.config.command
         );
 
+        // Assign the child to a Job Object so TerminateJobObject can kill
+        // the entire descendant tree.  Ideally we would assign the job
+        // *atomically at creation time* via PROC_THREAD_ATTRIBUTE_JOB_LIST,
+        // eliminating the small race window where a very fast child could
+        // fork before assignment.  Rust's CommandExt::raw_attribute() is
+        // nightly-only (rust-lang/rust#114854), so we assign post-spawn
+        // for now.  In practice the window is negligible as managed
+        // processes are long-running services that don't immediately fork.
         #[cfg(windows)]
         if let Some(pid) = self.pid {
             match platform::JobObject::new() {
