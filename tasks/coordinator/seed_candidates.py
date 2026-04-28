@@ -49,6 +49,40 @@ def _load_one(path: Path) -> Candidate:
     )
 
 
+def load_candidates_from_dir(root: Path = Path("."), overwrite: bool = False) -> tuple[int, int, int]:
+    """Load every `.coordinator/candidates/*.yaml` file into db.candidates.
+
+    Returns (added, replaced, skipped). Idempotent — runs at coord-up
+    so seed YAMLs you scp into the candidates dir are picked up
+    automatically. Without this auto-load, dropped YAMLs sit on disk
+    forever and nothing happens; the user has to remember to run
+    `python -m coordinator.seed_candidates` separately.
+    """
+    candidates_dir = state_dir(root) / CANDIDATES_DIR
+    if not candidates_dir.is_dir():
+        return 0, 0, 0
+    db = load_db(root)
+    added = replaced = skipped = 0
+    for yml in sorted(candidates_dir.glob("*.yaml")):
+        try:
+            cand = _load_one(yml)
+        except (ValueError, KeyError, yaml.YAMLError) as e:
+            print(f"skip {yml.name}: {e}", file=sys.stderr)
+            continue
+        if cand.id in db.candidates:
+            if overwrite:
+                db.candidates[cand.id] = cand
+                replaced += 1
+            else:
+                skipped += 1
+            continue
+        db.candidates[cand.id] = cand
+        added += 1
+    if added or replaced:
+        save_db(db, root)
+    return added, replaced, skipped
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="seed_candidates")
     parser.add_argument("--root", default=".")

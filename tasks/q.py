@@ -2137,6 +2137,24 @@ def coord_up(
         if bootstrap:
             print(color_message(f"  · seeded {bootstrap} (empty baseline; first-ship floor gates)", Color.BLUE))
 
+    # Auto-load any candidate YAMLs the operator dropped into
+    # .coordinator/candidates/. Without this, dropped YAMLs are visible on
+    # disk but never enter db.candidates, and the proposer just generates
+    # its own. The seed_candidates module is idempotent (skips already-
+    # present ids) so re-running coord-up on a populated db is safe.
+    try:
+        from tasks.coordinator import seed_candidates as _seed_mod
+        from pathlib import Path as _Path
+        added, replaced, skipped = _seed_mod.load_candidates_from_dir(_Path("."))
+        if added or replaced or skipped:
+            print(color_message(
+                f"\nLoaded candidate YAMLs from .coordinator/candidates/: "
+                f"added={added} replaced={replaced} skipped={skipped}",
+                Color.BLUE,
+            ))
+    except Exception as e:  # noqa: BLE001 — auto-load failure shouldn't block coord-up
+        print(color_message(f"  · candidate auto-load skipped: {e}", Color.ORANGE))
+
     pr_num = reuse_pr
     if pr_num == 0:
         ctx.run(f"git push -u origin {shlex.quote(scratch_branch)} --no-verify", warn=True)
