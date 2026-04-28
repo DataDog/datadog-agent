@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -353,6 +354,18 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 	domainForwarderSort := transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true}
 	transactionContainerSort := transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: false}
 
+	// Build OPW-specific transport options once. These are applied only to forwarders that
+	// handle Vector alternate domains, giving OPW its own isolated transport so that a custom
+	// CA or client cert does not affect the Datadog intake transport.
+	var opwMetricsTransportOpts []func(*http.Transport)
+	if certFile := config.GetString("observability_pipelines_worker.metrics.tls.cert_file"); certFile != "" {
+		keyFile := config.GetString("observability_pipelines_worker.metrics.tls.key_file")
+		opwMetricsTransportOpts = append(opwMetricsTransportOpts, httputils.WithTLSClientCert(certFile, keyFile))
+	}
+	if caFile := config.GetString("observability_pipelines_worker.metrics.tls.ca_file"); caFile != "" {
+		opwMetricsTransportOpts = append(opwMetricsTransportOpts, httputils.WithCustomRootCA(caFile))
+	}
+
 	for domain, resolver := range options.DomainResolvers {
 		domain, _ := utils.AddAgentVersionToDomain(domain, "app")
 		resolver.SetBaseDomain(domain)
@@ -397,9 +410,39 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 				domainForwarderSort,
 				pointCountTelemetry)
 			f.domainForwarders[domain] = fwd
-			// Register all alternate domains for each forwarder
+			// All alternate domains default to sharing the main forwarder.
 			for _, v := range resolver.GetAlternateDomains() {
 				f.domainForwarders[v] = fwd
+			}
+			// When OPW TLS is configured, Vector alternate domains are overridden with their own
+			// forwarder so the OPW transport is isolated from the Datadog intake transport.
+			if len(opwMetricsTransportOpts) > 0 {
+				for _, v := range resolver.GetAlternateDomainsOfType(pkgresolver.Vector) {
+					opwTelemetry := retry.NewPointCountTelemetry(v)
+					opwRetryQueue := retry.BuildTransactionRetryQueue(
+						log,
+						options.RetryQueuePayloadsTotalMaxSize,
+						flushToDiskMemRatio,
+						"", // no disk persistence for OPW forwarder in initial implementation
+						diskUsageLimit,
+						transactionContainerSort,
+						resolver,
+						opwTelemetry)
+					opwFwd := newDomainForwarder(
+						config,
+						log,
+						options.Secrets,
+						v,
+						false, // OPW is not MRF
+						false, // OPW is not a local endpoint
+						opwRetryQueue,
+						numberOfWorkers,
+						options.ConnectionResetInterval,
+						domainForwarderSort,
+						opwTelemetry,
+						opwMetricsTransportOpts...)
+					f.domainForwarders[v] = opwFwd
+				}
 			}
 		}
 	}
