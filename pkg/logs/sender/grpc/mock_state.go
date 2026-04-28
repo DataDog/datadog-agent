@@ -406,8 +406,8 @@ func (mt *MessageTranslator) processPreTokenized(msg *message.Message, tokenList
 	// (dvBacking + intBacking + dictBacking + stringBacking + dynamicValues).
 	// Each wildcard position uses exactly one field of dvTypeBackings; the unused
 	// fields consume memory but avoid per-position heap allocs.
-	// High-cardinality values (UUIDs, IPs, request IDs) that are not already in the
-	// dict are sent inline as string_value — no dict entry created, stopping unbounded
+	// Repeated low-cardinality values can enter the dictionary once they cross the
+	// admission threshold. One-off or filtered values stay inline to avoid unbounded
 	// TagManager growth.
 	n := len(wildcardValues)
 	dvBacking := make([]statefulpb.DynamicValue, n)
@@ -417,7 +417,10 @@ func (mt *MessageTranslator) processPreTokenized(msg *message.Message, tokenList
 		dynamicValues[i] = &dvBacking[i]
 	}
 	for i, val := range wildcardValues {
-		mt.fillWildcardDynamicValue(&dvBacking[i], &typeBacking[i].intOneof, &typeBacking[i].dictOneof, &typeBacking[i].stringOneof, val)
+		dictID, dictValue, isNew := mt.fillWildcardDynamicValue(&dvBacking[i], &typeBacking[i].intOneof, &typeBacking[i].dictOneof, &typeBacking[i].stringOneof, val)
+		if isNew {
+			mt.sendDictEntryDefine(outputChan, msg, dictID, dictValue)
+		}
 	}
 
 	// Encode message key as dict entry
@@ -447,7 +450,7 @@ func (mt *MessageTranslator) processPreTokenized(msg *message.Message, tokenList
 			jsonContextValuesDV[i] = &jsonContextDVBacking[i]
 		}
 		for i, val := range jsonContextValues {
-			mt.fillDynamicValue(
+			dictID, dictValue, isNew := mt.fillDynamicValue(
 				&jsonContextDVBacking[i],
 				&jsonContextTypeBacking[i].intOneof,
 				&jsonContextTypeBacking[i].floatOneof,
@@ -457,6 +460,9 @@ func (mt *MessageTranslator) processPreTokenized(msg *message.Message, tokenList
 				&jsonContextTypeBacking[i].stringOneof,
 				val,
 			)
+			if isNew {
+				mt.sendDictEntryDefine(outputChan, msg, dictID, dictValue)
+			}
 		}
 	}
 
@@ -816,78 +822,79 @@ func (mt *MessageTranslator) fillDynamicValue(
 	oneofRawJSON *statefulpb.DynamicValue_RawJsonValue,
 	oneofStr *statefulpb.DynamicValue_StringValue,
 	value interface{},
-) {
+) (dictID uint64, dictValue string, isNew bool) {
 	dv.RenderAsString = false
 	switch typed := value.(type) {
 	case nil:
 		dv.Value = nil
-		return
+		return 0, "", false
 	case string:
 		if intVal, ok := parseLosslessIntString(typed); ok {
 			oneofInt.IntValue = intVal
 			dv.Value = oneofInt
 			dv.RenderAsString = true
-			return
+			return 0, "", false
 		}
 		if floatVal, ok := parseLosslessFloatString(typed); ok {
 			oneofFloat.FloatValue = floatVal
 			dv.Value = oneofFloat
 			dv.RenderAsString = true
-			return
+			return 0, "", false
 		}
 		if boolVal, ok := parseLosslessBoolString(typed); ok {
 			oneofBool.BoolValue = boolVal
 			dv.Value = oneofBool
 			dv.RenderAsString = true
-			return
+			return 0, "", false
 		}
-		if dictID, ok := mt.tagManager.GetStringID(typed); ok {
+		typed = toValidUTF8(typed)
+		if dictID, isNew, shouldEncode := mt.tagManager.ObserveDynamicString(typed); shouldEncode {
 			oneofDict.DictIndex = dictID
 			dv.Value = oneofDict
-			return
+			return dictID, typed, isNew
 		}
 		oneofStr.StringValue = typed
 		dv.Value = oneofStr
-		return
+		return 0, "", false
 	case json.Number:
 		raw := typed.String()
 		if intVal, ok := parseLosslessIntString(raw); ok {
 			oneofInt.IntValue = intVal
 			dv.Value = oneofInt
-			return
+			return 0, "", false
 		}
 		if floatVal, ok := parseLosslessFloatString(raw); ok {
 			oneofFloat.FloatValue = floatVal
 			dv.Value = oneofFloat
-			return
+			return 0, "", false
 		}
 		oneofRawJSON.RawJsonValue = []byte(raw)
 		dv.Value = oneofRawJSON
-		return
+		return 0, "", false
 	case float64:
 		if !math.IsInf(typed, 0) && !math.IsNaN(typed) && math.Trunc(typed) == typed && typed >= math.MinInt64 && typed <= math.MaxInt64 {
 			oneofInt.IntValue = int64(typed)
 			dv.Value = oneofInt
-			return
+			return 0, "", false
 		}
 		oneofFloat.FloatValue = typed
 		dv.Value = oneofFloat
-		return
+		return 0, "", false
 	case bool:
 		oneofBool.BoolValue = typed
 		dv.Value = oneofBool
-		return
+		return 0, "", false
 	default:
 		rawJSON, err := json.Marshal(typed)
 		if err != nil {
 			log.Warnf("Failed to marshal nested JSON context value: %v", err)
 			oneofStr.StringValue = ""
 			dv.Value = oneofStr
-			return
+			return 0, "", false
 		}
 		oneofRawJSON.RawJsonValue = rawJSON
 		dv.Value = oneofRawJSON
-		return
+		return 0, "", false
 	}
 }
 
@@ -897,7 +904,7 @@ func (mt *MessageTranslator) fillWildcardDynamicValue(
 	oneofDict *statefulpb.DynamicValue_DictIndex,
 	oneofStr *statefulpb.DynamicValue_StringValue,
 	value string,
-) {
+) (dictID uint64, dictValue string, isNew bool) {
 	dv.RenderAsString = false
 	// Only canonical base-10 integers are safe to encode numerically without
 	// changing the original token's lexeme.
@@ -905,20 +912,19 @@ func (mt *MessageTranslator) fillWildcardDynamicValue(
 		oneofInt.IntValue = intVal
 		dv.Value = oneofInt
 		dv.RenderAsString = true
-		return
+		return 0, "", false
 	}
-	// Already in dict (e.g., from a previous tag encoding): reuse existing ID
-	if dictID, ok := mt.tagManager.GetStringID(value); ok {
+	value = toValidUTF8(value)
+	if dictID, isNew, shouldEncode := mt.tagManager.ObserveDynamicString(value); shouldEncode {
 		oneofDict.DictIndex = dictID
 		dv.Value = oneofDict
-		return
+		return dictID, value, isNew
 	}
-	// New value: send inline as string_value — no dict entry created.
-	// High-cardinality values (UUIDs, IPs, request IDs) never repeat,
-	// so dict encoding provides zero compression benefit for them.
-	// Proto3 requires valid UTF-8; replace invalid sequences to avoid corrupt datums.
-	oneofStr.StringValue = toValidUTF8(value)
+	// New or filtered value: send inline as string_value — no dict entry created.
+	// Proto3 requires valid UTF-8; invalid sequences were already replaced above.
+	oneofStr.StringValue = value
 	dv.Value = oneofStr
+	return 0, "", false
 }
 
 // buildStructuredLog creates a Datum containing a StructuredLog
