@@ -50,6 +50,66 @@ from tasks.tools.e2e_stacks import destroy_remote_stack_api, destroy_remote_stac
 DEFAULT_DYNTEST_BUCKET_URI = "s3://dd-ci-persistent-artefacts-build-stable/datadog-agent"
 
 
+def _load_e2e_local_config():
+    """
+    Load ~/.test_infra_config.yaml. Returns the Config or None if absent / invalid.
+    Imported lazily so we don't pay the pydantic cost on unrelated invoke tasks.
+    """
+    try:
+        from tasks.e2e_framework import config as e2e_config
+
+        return e2e_config.get_local_config()
+    except Exception:
+        return None
+
+
+def _check_e2e_local_config_or_exit():
+    """
+    Pre-flight check for `dda inv new-e2e-tests.run` on a developer machine.
+
+    Fails fast with a single actionable line if ~/.test_infra_config.yaml is missing
+    or doesn't contain the fields the runner relies on. Skipped in CI (where config
+    comes from AWS SSM via the CI profile).
+    """
+    if running_in_ci() or os.environ.get("E2E_PROFILE") == "ci":
+        return
+    cfg = _load_e2e_local_config()
+    aws = cfg.get_aws() if cfg is not None else None
+    if cfg is None or aws is None or not aws.keyPairName:
+        raise Exit(
+            "Local E2E config is missing or incomplete. "
+            "Run `dda inv e2e.setup` once to configure (~30s, opens an SSO browser flow).",
+            1,
+        )
+
+
+def _should_wrap_with_aws_vault() -> bool:
+    """
+    True when we're outside an aws-vault session and have no other AWS auth in the
+    environment, so wrapping the test command in `aws-vault exec` is helpful.
+    """
+    if running_in_ci() or os.environ.get("E2E_PROFILE") == "ci":
+        return False
+    if os.environ.get("AWS_VAULT"):
+        return False
+    if os.environ.get("AWS_PROFILE"):
+        return False
+    if shutil.which("aws-vault") is None:
+        return False
+    return True
+
+
+def _aws_vault_prefix(cfg) -> str:
+    """
+    Compute the `aws-vault exec <profile> -- ` prefix using the profile derived
+    from the local config (defaults to sso-agent-sandbox-account-admin).
+    """
+    from tasks.e2e_framework.setup.aws import get_default_aws_vault_profile
+
+    profile = get_default_aws_vault_profile(cfg)
+    return f"aws-vault exec {profile} -- "
+
+
 class TestState:
     """Describes the state of a test, if it has failed and if it is flaky."""
 
@@ -375,6 +435,7 @@ def _download_prebuilt_binaries(ctx, s3_base_uri, targets):
         "max_retries": "Maximum number of retries for failed tests, default 3",
         "impacted": "Only run tests that are impacted by the changes (only available in CI for now)",
         "keep_stack": "Keep the stack after running the test, you are responsible for destroying the stack later.",
+        "no_aws_vault": "Do not auto-wrap the test command with `aws-vault exec`. Use when you're managing AWS credentials yourself.",
     },
 )
 def run(
@@ -410,6 +471,7 @@ def run(
     osdescriptors="",
     module_name="test/new-e2e",
     recursive=True,
+    no_aws_vault=False,
 ):
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
@@ -422,6 +484,9 @@ def run(
             "pulumi CLI not found, Pulumi needs to be installed on the system (see https://github.com/DataDog/datadog-agent/blob/main/test/e2e-framework/README.md)",
             1,
         )
+
+    _check_e2e_local_config_or_exit()
+    _local_e2e_cfg = _load_e2e_local_config()
 
     e2e_module = get_default_modules()[module_name]
 
@@ -453,6 +518,15 @@ def run(
     env_vars = {}
     if profile:
         env_vars["E2E_PROFILE"] = profile
+
+    # Export PULUMI_CONFIG_PASSPHRASE from local config when not already set in the
+    # environment. Lets developers run E2E without putting the passphrase in their rc.
+    if "PULUMI_CONFIG_PASSPHRASE" not in os.environ and _local_e2e_cfg is not None:
+        from tasks.e2e_framework.config import get_pulumi_passphrase
+
+        passphrase = get_pulumi_passphrase(_local_e2e_cfg)
+        if passphrase:
+            env_vars["PULUMI_CONFIG_PASSPHRASE"] = passphrase
 
     parsed_params = {}
 
@@ -586,6 +660,11 @@ def run(
         )
 
     cmd += f'{{junit_file_flag}} {{json_flag}} --packages="{{packages}}" {raw_command} -- -ldflags="-X {{REPO_PATH}}/test/new-e2e/tests/containers.GitCommit={{commit}}" {{verbose}} -mod={{go_mod}} -vet=off -timeout {{timeout}} -tags "{{go_build_tags}}" {{nocache}} {{run}} {{skip}} {{test_run_arg}} -args {{osdescriptors}} {{flavor}} {{cws_supported_osdescriptors}} {{src_agent_version}} {{dest_agent_version}} {{extra_flags}}'
+
+    # Auto-wrap with `aws-vault exec` when running locally without a managed AWS
+    # session, so developers don't need to remember the wrapping per shell.
+    if not no_aws_vault and _should_wrap_with_aws_vault():
+        cmd = _aws_vault_prefix(_local_e2e_cfg) + cmd
     # Strinbuilt_binaries:gs can come with extra double-quotes which can break the command, remove them
     clean_run = []
     clean_skip = []
