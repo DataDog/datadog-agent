@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	cpuutil "github.com/shirou/gopsutil/v4/cpu"
@@ -432,16 +433,71 @@ func (n *NoisyNeighborCheck) emitLayer3Metrics(s sender.Sender, preemptorStats [
 		for _, ps := range entries[:limit] {
 			preemptorTags, _ := n.resolveTagsForCgroup(ps.PreemptorCgroupID)
 
-			// Combine victim tags with a preemptor identifier tag
+			// Combine victim tags with stable preemptor identifier tags.
+			// We extract specific tags by key rather than indexing the slice
+			// positionally, since tagger ordering is not stable.
 			metricTags := make([]string, len(victimTags))
 			copy(metricTags, victimTags)
-			if len(preemptorTags) > 0 {
-				metricTags = append(metricTags, "preemptor:"+preemptorTags[0])
-			} else {
-				metricTags = append(metricTags, fmt.Sprintf("preemptor_cgroup_id:%d", ps.PreemptorCgroupID))
-			}
+			metricTags = append(metricTags, preemptorIdentityTags(preemptorTags, ps.PreemptorCgroupID)...)
 
 			s.Gauge("noisy_neighbor.top_preemptor.count", float64(ps.Count), "", metricTags)
 		}
 	}
+}
+
+// preemptorIdentityTags returns a small, stable tag set identifying a
+// preempting cgroup. The primary `preemptor:` tag carries the most specific
+// identifier the tagger could provide, in order of preference:
+//
+//	container_name → pod_name → kube_deployment → kube_statefulset →
+//	kube_daemon_set → kube_job → kube_cronjob → cgroup id (fallback)
+//
+// We also emit `preemptor_kube_namespace` when available, so cluster-wide
+// dashboards can aggregate by namespace without reading the primary tag.
+//
+// Indexing the tagger's slice positionally is not safe — order is not
+// guaranteed, and the first element can be image_tag, k8s_cluster, etc.
+func preemptorIdentityTags(preemptorTags []string, cgroupID uint64) []string {
+	out := make([]string, 0, 2)
+
+	// Find the most specific identifier available.
+	preference := []string{
+		"container_name:",
+		"pod_name:",
+		"kube_deployment:",
+		"kube_statefulset:",
+		"kube_daemon_set:",
+		"kube_job:",
+		"kube_cronjob:",
+	}
+	var primary string
+	for _, prefix := range preference {
+		if v := tagValue(preemptorTags, prefix); v != "" {
+			primary = v
+			break
+		}
+	}
+	if primary != "" {
+		out = append(out, "preemptor:"+primary)
+	} else {
+		out = append(out, fmt.Sprintf("preemptor:cgroup-%d", cgroupID))
+	}
+
+	// Namespace as a secondary tag for cluster-wide aggregation.
+	if ns := tagValue(preemptorTags, "kube_namespace:"); ns != "" {
+		out = append(out, "preemptor_kube_namespace:"+ns)
+	}
+
+	return out
+}
+
+// tagValue returns the value of the first tag whose key matches prefix
+// (which must include the trailing colon), or "" if none is found.
+func tagValue(tags []string, prefix string) string {
+	for _, t := range tags {
+		if strings.HasPrefix(t, prefix) {
+			return t[len(prefix):]
+		}
+	}
+	return ""
 }

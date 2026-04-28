@@ -63,3 +63,116 @@ func TestParseConfigClampsWatchlistSize(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, hardMaxWatchlistSize, c.MaxWatchlistSize)
 }
+
+// TestPreemptorIdentityTags pins the tag-extraction order. Indexing the
+// tagger's slice positionally (the previous behavior) produced unstable
+// values like "image_tag:1.2.3" or "k8s_cluster:foo" depending on what the
+// tagger emitted first.
+func TestPreemptorIdentityTags(t *testing.T) {
+	tests := []struct {
+		name        string
+		preemptor   []string
+		cgroupID    uint64
+		wantPrimary string
+		wantNS      string
+	}{
+		{
+			name: "container_name preferred when present",
+			preemptor: []string{
+				"image_tag:1.2.3",
+				"container_name:nginx",
+				"pod_name:web-abc",
+				"kube_namespace:default",
+				"kube_deployment:web",
+			},
+			wantPrimary: "preemptor:nginx",
+			wantNS:      "preemptor_kube_namespace:default",
+		},
+		{
+			name: "pod_name fallback when no container_name",
+			preemptor: []string{
+				"image_tag:1.2.3",
+				"pod_name:web-abc",
+				"kube_namespace:default",
+				"kube_deployment:web",
+			},
+			wantPrimary: "preemptor:web-abc",
+			wantNS:      "preemptor_kube_namespace:default",
+		},
+		{
+			name: "deployment fallback when no container/pod",
+			preemptor: []string{
+				"kube_deployment:web",
+				"kube_namespace:default",
+			},
+			wantPrimary: "preemptor:web",
+			wantNS:      "preemptor_kube_namespace:default",
+		},
+		{
+			name: "statefulset fallback",
+			preemptor: []string{
+				"kube_statefulset:redis",
+				"kube_namespace:cache",
+			},
+			wantPrimary: "preemptor:redis",
+			wantNS:      "preemptor_kube_namespace:cache",
+		},
+		{
+			name:        "cgroup-id fallback when nothing matches",
+			preemptor:   []string{"image_tag:1.2.3", "k8s_cluster:foo"},
+			cgroupID:    12345,
+			wantPrimary: "preemptor:cgroup-12345",
+		},
+		{
+			name:        "empty tag list yields cgroup-id fallback",
+			preemptor:   nil,
+			cgroupID:    99,
+			wantPrimary: "preemptor:cgroup-99",
+		},
+		{
+			name: "tag order does not affect result (stable across permutations)",
+			preemptor: []string{
+				"k8s_cluster:foo",
+				"kube_namespace:default",
+				"container_name:nginx",
+				"image_name:nginx",
+			},
+			wantPrimary: "preemptor:nginx",
+			wantNS:      "preemptor_kube_namespace:default",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := preemptorIdentityTags(tt.preemptor, tt.cgroupID)
+			assert.Contains(t, got, tt.wantPrimary)
+			if tt.wantNS != "" {
+				assert.Contains(t, got, tt.wantNS)
+			}
+		})
+	}
+}
+
+// TestPreemptorIdentityTagsDoesNotPickPositionFirst is the regression test
+// for the original bug: the previous implementation used preemptorTags[0]
+// directly, so the value depended on the tagger's slice ordering.
+func TestPreemptorIdentityTagsDoesNotPickPositionFirst(t *testing.T) {
+	// All permutations of these tags should produce the same primary tag.
+	// In the buggy implementation, each permutation would yield a different
+	// preemptor: value (image_tag:..., k8s_cluster:..., kube_namespace:...).
+	tags := []string{
+		"image_tag:1.2.3",
+		"k8s_cluster:foo",
+		"kube_namespace:default",
+		"container_name:nginx",
+	}
+
+	first := preemptorIdentityTags(tags, 0)
+	for i := 0; i < len(tags); i++ {
+		// rotate
+		rotated := append([]string{}, tags[i:]...)
+		rotated = append(rotated, tags[:i]...)
+		got := preemptorIdentityTags(rotated, 0)
+		assert.Equal(t, first, got, "tag order should not affect primary preemptor: tag")
+	}
+}
