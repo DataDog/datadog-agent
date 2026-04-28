@@ -16,12 +16,13 @@ import (
 // SharedConnection holds a shared http.Client that is used by each worker.
 // Access to the client is protected by an RWMutex.
 type SharedConnection struct {
-	client          *http.Client
-	lock            *sync.RWMutex
-	log             log.Component
-	isLocal         bool
-	numberOfWorkers int
-	config          config.Component
+	client           *http.Client
+	lock             *sync.RWMutex
+	log              log.Component
+	isLocal          bool
+	numberOfWorkers  int
+	config           config.Component
+	transportOptions []func(*http.Transport)
 }
 
 // NewSharedConnection creates a new shared connection with the given
@@ -31,13 +32,15 @@ func NewSharedConnection(
 	isLocal bool,
 	numberOfWorkers int,
 	config config.Component,
+	transportOptions ...func(*http.Transport),
 ) *SharedConnection {
 	sc := &SharedConnection{
-		lock:            &sync.RWMutex{},
-		log:             log,
-		isLocal:         isLocal,
-		numberOfWorkers: numberOfWorkers,
-		config:          config,
+		lock:             &sync.RWMutex{},
+		log:              log,
+		isLocal:          isLocal,
+		numberOfWorkers:  numberOfWorkers,
+		config:           config,
+		transportOptions: transportOptions,
 	}
 
 	sc.client = sc.newClient()
@@ -67,5 +70,5 @@ func (sc *SharedConnection) newClient() *http.Client {
 		return newBearerAuthHTTPClient(sc.numberOfWorkers)
 	}
 
-	return NewHTTPClient(sc.config, sc.numberOfWorkers, sc.log)
+	return NewHTTPClient(sc.config, sc.numberOfWorkers, sc.log, sc.transportOptions...)
 }
