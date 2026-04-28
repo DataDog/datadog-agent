@@ -34,16 +34,18 @@ func (s *sampleNoSource) GetRawTags() []string    { return nil }
 func (s *sampleNoSource) GetTimestampUnix() int64 { return 0 }
 func (s *sampleNoSource) GetSampleRate() float64  { return 1 }
 
-// countingHandle records how many MetricView observations it receives.
+// countingHandle records how many MetricView, LogView, and ProfileView observations it receives.
 type countingHandle struct {
-	received int
+	received        int
+	logReceived     int
+	profileReceived int
 }
 
 func (h *countingHandle) ObserveMetric(_ observerdef.MetricView)         { h.received++ }
-func (h *countingHandle) ObserveLog(_ observerdef.LogView)               {}
+func (h *countingHandle) ObserveLog(_ observerdef.LogView)               { h.logReceived++ }
 func (h *countingHandle) ObserveTrace(_ observerdef.TraceView)           {}
 func (h *countingHandle) ObserveTraceStats(_ observerdef.TraceStatsView) {}
-func (h *countingHandle) ObserveProfile(_ observerdef.ProfileView)       {}
+func (h *countingHandle) ObserveProfile(_ observerdef.ProfileView)       { h.profileReceived++ }
 
 func makeHFHandle(sources map[metrics.MetricSource]struct{}) *hfFilteredHandle {
 	return &hfFilteredHandle{inner: &countingHandle{}, sources: sources}

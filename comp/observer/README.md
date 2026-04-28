@@ -283,6 +283,16 @@ observer:
   # Main switches
   analysis:
     enabled: true                    # Enable the anomaly detection pipeline
+  ingest_metrics:
+    enabled: true                    # When false, drops externally-ingested
+                                     # metrics (DogStatsD, check samplers,
+                                     # HF runners) at the handle factory.
+                                     # Logs and log-derived virtual metrics
+                                     # produced inside the engine by
+                                     # LogMetricsExtractors are unaffected,
+                                     # so the log -> metric detector path
+                                     # keeps working when external metric
+                                     # ingestion is disabled.
 
   # Agent internal log capture
   capture_agent_internal_logs:

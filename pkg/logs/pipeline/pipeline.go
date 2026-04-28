@@ -11,7 +11,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
@@ -42,7 +41,6 @@ func NewPipeline(
 	cfg pkgconfigmodel.Reader,
 	compression logscompression.Component,
 	instanceID string,
-	observerHandle observer.Handle,
 ) *Pipeline {
 	strategyInput := make(chan *message.Message, cfg.GetInt("logs_config.message_channel_size"))
 	flushChan := make(chan struct{})
@@ -62,7 +60,7 @@ func NewPipeline(
 	inputChan := make(chan *message.Message, cfg.GetInt("logs_config.message_channel_size"))
 
 	processor := processor.New(cfg, inputChan, strategyInput, processingRules,
-		encoder, diagnosticMessageReceiver, hostname, senderImpl.PipelineMonitor(), instanceID, observerHandle)
+		encoder, diagnosticMessageReceiver, hostname, senderImpl.PipelineMonitor(), instanceID)
 
 	return &Pipeline{
 		InputChan:       inputChan,
