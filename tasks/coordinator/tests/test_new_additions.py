@@ -35,8 +35,10 @@ def test_config_values():
     # reset the counter. ε chosen to be below real wins, above typical noise.
     assert CONFIG.plateau_epsilon == 0.01
     # Catastrophe filter replaced the statistically-dubious 3σ per-scenario
-    # gate. N=5 σ was too noisy; ΔF1 < -0.10 is a blunt but honest cliff.
-    assert CONFIG.catastrophe_f1_drop == 0.10
+    # gate. Relaxed 0.10→0.15 in PR 50011 fallout — the 0.10 cliff was
+    # auto-rejecting net-positive candidates on per-scenario noise. Gates
+    # are tripwires; the panel does the judgment.
+    assert CONFIG.catastrophe_f1_drop == 0.15
     assert 0.5 in CONFIG.budget_milestones
     assert 0.8 in CONFIG.budget_milestones
 

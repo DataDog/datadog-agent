@@ -94,6 +94,45 @@ class Candidate:
     implementation_plan: str = ""
 
 
+class RejectionStage(str, Enum):
+    """Where in the iteration pipeline a candidate was rejected.
+
+    Single enumeration of every "this candidate dies here" point so
+    "why was this rejected?" is a single-query answer instead of a
+    grep across driver.py.
+    """
+
+    REGISTRATION = "registration"          # detector not in component_catalog.go
+    EVAL_FAILED = "eval_failed"            # evaluator returned non-ok
+    EVAL_SILENT_FAILURE = "eval_silent_failure"  # all-zero metrics
+    TIER1_GATE = "tier1_gate"              # egregious gate (FPs > 3× + abs floor, first-ship)
+    REVIEW = "review"                      # 3-persona panel said no
+    REVIEW_CRASHED = "review_crashed"      # review SDK call crashed
+
+
+@dataclass
+class RejectionDecision:
+    """Structured record of why a candidate was rejected.
+
+    One per rejection. Emitted by `driver._reject_candidate()` (the
+    single rejection sink) so every decision has the same shape:
+    stage + reason + evidence dict + any tier-2 advisory signals
+    that influenced the call (or were noted but didn't fire).
+
+    `evidence` is a free-form dict for stage-specific data
+    (e.g. {"fp_observed": 87, "fp_ceiling": 60, "baseline_fps": 20}
+    for tier1 FP-egregious, or {"unregistered": [...]} for
+    registration). Persisted on the experiment via
+    `auto_reject_reason` (compact string) plus this dict via the
+    journal.
+    """
+
+    stage: RejectionStage
+    reason: str
+    evidence: dict[str, Any] = field(default_factory=dict)
+    advisory_signals: list[str] = field(default_factory=list)
+
+
 @dataclass
 class ReviewDecision:
     persona: str

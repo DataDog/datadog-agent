@@ -187,6 +187,13 @@ def _dump_sdk_error(
     return p
 
 
+# `rename_catalog_entry` was removed — it suppressed an honest signal
+# from the implementer (name mismatch correlates with off-spec work)
+# and added a silent-correctness risk (renamed-but-broken). The fix is
+# upstream: the implementer prompt now constrains catalog `name:` values
+# to one of `expected_names` as a hard requirement, not a hint.
+
+
 def tail_sdk_error_for_pr(err_msg: str, max_lines: int = 20) -> str:
     """Extract a small inlinable snippet from an sdk-errors dump.
 
@@ -711,6 +718,30 @@ def implement_candidate(
     prior_block = _format_prior_work(prior_experiments or [])
     has_plan = bool(candidate.implementation_plan and len(candidate.implementation_plan) > 50)
 
+    # Hard constraint on catalog `name:` field. The eval pipeline will
+    # request these exact strings via `q.eval-scenarios --only <NAME>` —
+    # any mismatch (snake_case shortening, dropped suffix, etc.) makes
+    # the candidate unrunnable. Embed this verbatim in every implementer
+    # prompt so the Sonnet/Opus call cannot make a stylistic choice
+    # about the literal.
+    expected_names = list(candidate.target_components or [candidate.id])
+    expected_names_block = ", ".join(f'"{n}"' for n in expected_names)
+    naming_constraint = (
+        f"## NAMING CONSTRAINT (HARD REQUIREMENT)\n\n"
+        f"Every catalog entry you add or modify in "
+        f"`comp/observer/impl/component_catalog.go` MUST use a `name:` "
+        f"value drawn EXACTLY from this allowlist (case-sensitive, no "
+        f"shortening, no snake_case translation, no dropped suffix):\n\n"
+        f"  {expected_names_block}\n\n"
+        f"Do NOT pick a 'cleaner' or 'more idiomatic' variant — the eval "
+        f"pipeline runs `q.eval-scenarios --only <NAME>` against this "
+        f"exact literal. A mismatch makes the candidate unevaluable and "
+        f"will be auto-rejected at the registration check before eval, "
+        f"wasting the entire implementation. Verify with "
+        f"`grep '\"<expected-name>\"' comp/observer/impl/component_catalog.go` "
+        f"after editing."
+    )
+
     # Plan-first prompt (Sonnet). Short and prescriptive — no design
     # framing, no "consider alternatives." Execute what's specified.
     if has_plan:
@@ -733,6 +764,8 @@ Target components: {', '.join(candidate.target_components)}
 ## Prior same-family experiments
 
 {prior_block}
+
+{naming_constraint}
 
 ## Execution rules
 
@@ -783,6 +816,8 @@ Target components: {', '.join(candidate.target_components)}
 ## Prior same-family experiments
 
 {prior_block}
+
+{naming_constraint}
 
 ## Constraints
 
@@ -851,6 +886,8 @@ Target components: {', '.join(candidate.target_components)}
 implementation. Your ONLY job in this stage is to register a stub
 detector named `{target}` in `comp/observer/impl/component_catalog.go`
 so that `q.eval-scenarios --only {target}` will recognise the name.
+
+{naming_constraint}
 
 ## What to do
 1. Read `comp/observer/impl/component_catalog.go` to see how existing
@@ -925,13 +962,15 @@ tests, per the plan below.
         )
     else:
         # Single-call path: full-mode tweaks (existing detector edit).
-        # Cheap path because all the file structure already exists; the
-        # implementer just edits the algorithm body. max_turns=25
-        # historically sufficient.
+        # Bumped 25 → 40 on 2026-04-28 after PRs 50011/50013 showed
+        # truncated `"DONE:"`-only summaries — the implementer was
+        # hitting max_turns mid-summary, plausibly mid-implementation
+        # too. 40 leaves more headroom for the read-cited-files /
+        # edit / test cycle.
         text = _run_impl(
             prompt,
             model=model,
-            max_turns=25 if has_plan else 40,
+            max_turns=40 if has_plan else 50,
             purpose_tag="implement",
         )
     # Extract the "DONE:" summary line.
@@ -1049,6 +1088,7 @@ def review_experiment(
     root: Path,
     candidate: Candidate | None = None,
     iter_num: int | None = None,
+    tier2_signals: list[dict] | None = None,
 ) -> ReviewVerdict:
     """Invoke Phase-1 review (leakage_auditor + hack_detector + algorithm_expert).
 
@@ -1057,6 +1097,11 @@ def review_experiment(
     by the proposer) alongside the actual diff — lets them check plan
     fidelity and distinguish "clean execution" from "net-positive
     deviation" from "abandoned the plan and produced bad code."
+
+    `tier2_signals` is a list of structured advisory dicts emitted by the
+    driver when sub-catastrophe gates fired (per-scenario regressions,
+    moderate FP increase, recall floor violations). The reviewer prompt
+    includes an explicit override rule for these — they are NOT decorative.
     """
     personas = PHASE1_PERSONAS if phase == Phase.ONE else PHASE2_PERSONAS
     scoring_summary = _format_scoring_for_review(scoring)
@@ -1077,6 +1122,40 @@ def review_experiment(
         else "(no implementation_plan was authored by the proposer for this candidate)"
     )
 
+    # Tier-2 advisory block. Written into prompt as STRUCTURED JSON so it's
+    # auditable, with an explicit override rule that converts the panel
+    # from "vibes-based" to "rule-based with cited overrides." This is the
+    # contract that turns "advisory to the reviewer" from a wish into a
+    # real protocol — see ad-harness persona-panel review (Hannah).
+    tier2 = tier2_signals or []
+    if tier2:
+        import json as _json
+        tier2_json = _json.dumps(tier2, indent=2)
+        tier2_block = (
+            f"## TIER-2 ADVISORY SIGNALS (sub-catastrophe gate fires)\n\n"
+            f"The deterministic gates emitted the following signals — they "
+            f"did NOT auto-reject (caught by the tier-1/tier-2 split), but "
+            f"they are evidence of concerning behavior the panel must weigh:\n\n"
+            f"```json\n{tier2_json}\n```\n\n"
+            f"### Override rule (MUST follow)\n\n"
+            f"If 2 or more tier-2 signals fired AND the candidate's mean F1 "
+            f"delta is less than +0.02 vs baseline, default your decision to "
+            f"`approve: false`. To override and approve anyway, your "
+            f"rationale field MUST cite a specific concrete reason (not "
+            f"'overall the trade looks net-positive') — e.g. an explanation "
+            f"of why the per-scenario regressions are noise rather than "
+            f"signal, or why the FP increase reflects intentional broader "
+            f"detection rather than metric gaming. Generic appeals to "
+            f"aggregate score are not sufficient under this rule.\n\n"
+            f"This rule exists because at N=5 per scenario, sub-catastrophe "
+            f"signals can mask a true regression that aggregate F1 averages "
+            f"away. The panel sees them so it can reason about them; the "
+            f"rule prevents the panel from waving them through with "
+            f"hand-wave language."
+        )
+    else:
+        tier2_block = "## TIER-2 ADVISORY SIGNALS\n\n(none — no sub-catastrophe gates fired)"
+
     decisions: list[ReviewDecision] = []
     for name, persona_prompt in personas.items():
         full_prompt = persona_prompt.format(
@@ -1086,6 +1165,7 @@ def review_experiment(
             prior_block=prior_block,
             implementation_plan=plan_block,
         )
+        full_prompt += f"\n\n{tier2_block}\n"
         full_prompt += f"\n\n--- Experiment context ---\n{scoring_summary}\n"
         text = _run_query(
             full_prompt,

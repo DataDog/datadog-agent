@@ -71,18 +71,19 @@ def test_no_change_no_regressions(tmp_path: Path):
 def test_detects_f1_regression(tmp_path: Path):
     baseline = _make_baseline()
     report = tmp_path / "r.json"
-    # 213_pagerduty drops f1 by 0.20 (well past the 0.10 catastrophe threshold).
-    # Catastrophe filter intentionally doesn't catch marginal (< 0.10) drops —
-    # the LLM reviewer is responsible for subtle regressions; this gate is
-    # for "the detector visibly broke."
+    # 213_pagerduty drops f1 from 0.655 → 0.155 (drop of 0.50). Catastrophe
+    # threshold is max(catastrophe_f1_drop=0.15, base.f1 * 0.5 = 0.3275),
+    # so this scenario must drop by > 0.3275 to trip. Drop of 0.50 trips
+    # cleanly. Catastrophe filter intentionally doesn't catch marginal
+    # drops — the LLM reviewer is responsible for subtle regressions.
     _write_report(
         report,
         {
-            "213_pagerduty": {"f1": 0.455, "precision": 0.493, "recall": 0.974, "num_baseline_fps": 1},
+            "213_pagerduty": {"f1": 0.155, "precision": 0.493, "recall": 0.974, "num_baseline_fps": 1},
             "food_delivery_redis": {"f1": 0.235, "precision": 0.143, "recall": 0.666, "num_baseline_fps": 4},
             "093_cloudflare": {"f1": 0.015, "precision": 0.008, "recall": 0.841, "num_baseline_fps": 109},
         },
-        mean_f1=0.235,
+        mean_f1=0.135,
     )
     r = score_against_baseline(report, baseline, "scanmw")
     assert "213_pagerduty" in r.strict_regressions

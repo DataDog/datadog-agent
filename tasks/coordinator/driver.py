@@ -22,6 +22,7 @@ import datetime as _dt
 import fcntl
 import sys
 from pathlib import Path
+from typing import Any
 
 from . import budget as budget_mod
 from . import coord_out, evaluator, git_ops, github_in, journal, metrics, overfit_check, scheduler, token_log, workspace_validate
@@ -37,6 +38,8 @@ from .schema import (
     ExperimentStatus,
     Iteration,
     Phase,
+    RejectionDecision,
+    RejectionStage,
     Tier,
 )
 from .scoring import score_against_baseline
@@ -406,6 +409,78 @@ def _capture_pre_revert_diff(root: Path, iter_num: int, candidate_id: str, reaso
         {"iter": iter_num, "candidate": candidate_id, "path": str(out_path), "reason": reason[:200]},
         root,
     )
+
+
+def _reject_candidate(
+    *,
+    db: Db,
+    root: Path,
+    it: Iteration,
+    candidate: Candidate,
+    experiment: Experiment,
+    decision: RejectionDecision,
+    body_md: str,
+    coord_out_kind: str,
+    requires_ack: bool = False,
+    revert_tree: bool = True,
+    pause_after: str | None = None,
+    iter_num: int,
+) -> None:
+    """Single rejection sink. All `candidate dies here` paths funnel through this.
+
+    Centralizes the side effects every rejection has historically duplicated:
+    journal append, pre-revert diff capture, coord-out comment, set
+    auto_reject_reason on the experiment, mark candidate REJECTED, revert
+    working tree, end iter, save db, regenerate metrics. Adding `pause_after`
+    handles the eval_silent_failure cooperative-pause case without duplicating
+    revert/save logic.
+
+    Replaces ~5 near-identical inline blocks scattered across iter_run.
+    """
+    # 1. Stamp the experiment with a compact reason (proposer reads this
+    # via auto_reject_reason on the next iter's research-memory context).
+    experiment.auto_reject_reason = decision.reason
+
+    # 2. Journal append — full structured record (stage, evidence, signals).
+    journal.append(
+        f"rejected_{decision.stage.value}",
+        {
+            "iter": iter_num,
+            "candidate": candidate.id,
+            "stage": decision.stage.value,
+            "reason": decision.reason,
+            "evidence": decision.evidence,
+            "advisory_signals": decision.advisory_signals,
+        },
+        root,
+    )
+
+    # 3. Capture diff BEFORE the revert wipes it.
+    if revert_tree:
+        _capture_pre_revert_diff(root, iter_num, candidate.id, decision.reason)
+
+    # 4. Operator-facing PR comment.
+    coord_out.emit(
+        coord_out_kind,
+        body_md + _budget_footer(root, iter_num, ceiling=db.budget.api_token_ceiling),
+        requires_ack=requires_ack,
+        root=root,
+    )
+
+    # 5. Mark candidate terminal + revert working tree.
+    candidate.status = CandidateStatus.REJECTED
+    if revert_tree:
+        git_ops.revert_working_tree(root)
+
+    # 6. Cooperative pause (used by eval_silent_failure path).
+    if pause_after is not None:
+        (state_dir(root) / "pause").write_text(pause_after)
+
+    # 7. End iter and persist.
+    it.ended_at = now_iso()
+    db.iterations.append(it)
+    save_db(db, root)
+    metrics.regenerate(db, root)
 
 
 def _detectors_not_registered(detectors: list[str], root: Path) -> set[str]:
@@ -1245,22 +1320,21 @@ def _run_iteration_body(
     if not dry_run:
         unregistered = _detectors_not_registered(detectors, root)
         if unregistered:
+            # No retry: the implementer prompt now constrains output names
+            # via expected_names, so a miss here means the implementer
+            # ignored a hard constraint — that's a signal worth respecting,
+            # not papering over with a Sonnet rename call (which suppresses
+            # the auditor's ability to notice the implementer went off-spec).
             reason = (
                 f"detector_not_registered: {sorted(unregistered)} — "
                 f"the implementer wrote code but did not register the "
-                f"detector(s) in comp/observer/impl/component_catalog.go, "
-                f"so eval would run with nothing to measure"
+                f"detector(s) in comp/observer/impl/component_catalog.go "
+                f"under the expected name, so eval would run with nothing "
+                f"to measure"
             )
             print(f"[iter {iter_num}] AUTO-REJECTED ({reason})", file=sys.stderr)
-            journal.append(
-                "auto_rejected_unregistered",
-                {"iter": iter_num, "candidate": candidate.id, "detectors": sorted(unregistered)},
-                root,
-            )
-            # Create a minimal Experiment record so the proposer's research
-            # memory sees this rejection on the next iter. Without it,
-            # _recent_experiments skips this iter and the proposer keeps
-            # generating candidates that fail catalog registration.
+            # Minimal Experiment record so the proposer's research memory
+            # sees this rejection on the next iter.
             experiment = Experiment(
                 id=experiment_id,
                 candidate_id=candidate.id,
@@ -1273,33 +1347,31 @@ def _run_iteration_body(
                 status=ExperimentStatus.FAILED,
                 started_at=it.started_at,
                 report_path="",
-                auto_reject_reason=reason,
             )
             db.experiments[experiment_id] = experiment
             it.experiment_ids.append(experiment_id)
-            _capture_pre_revert_diff(root, iter_num, candidate.id, reason)
-            coord_out.emit(
-                "iter_rejected",
-                (
+            _reject_candidate(
+                db=db, root=root, it=it, candidate=candidate,
+                experiment=experiment,
+                decision=RejectionDecision(
+                    stage=RejectionStage.REGISTRATION,
+                    reason=reason,
+                    evidence={
+                        "unregistered": sorted(unregistered),
+                        "expected": sorted(detectors),
+                        "impl_summary": impl_summary[:300],
+                    },
+                ),
+                body_md=(
                     f"**iter {iter_num}** · `{candidate.id}` — auto-rejected "
                     f"before eval: detector(s) `{sorted(unregistered)}` were "
-                    f"not registered in `component_catalog.go`. Likely the "
-                    f"implementer hit max_turns before finishing the catalog "
-                    f"step.\n\n"
+                    f"not registered in `component_catalog.go`.\n\n"
                     f"**Implementer summary**: `{impl_summary[:300]}`\n\n"
-                    f"Working tree reverted; moving on. The proposer will "
-                    f"see this as a rejection reason on the next iter."
-                    + _budget_footer(root, iter_num, ceiling=db.budget.api_token_ceiling)
+                    f"Working tree reverted; moving on."
                 ),
-                requires_ack=False,
-                root=root,
+                coord_out_kind="iter_rejected",
+                iter_num=iter_num,
             )
-            candidate.status = CandidateStatus.REJECTED
-            git_ops.revert_working_tree(root)
-            it.ended_at = now_iso()
-            db.iterations.append(it)
-            save_db(db, root)
-            metrics.regenerate(db, root)
             return
 
     # 4. Eval — one run per relevant detector. Reports go to per-detector
@@ -1448,10 +1520,24 @@ def _run_iteration_body(
     # (c) catches the "emit-everything" attack: rewriting a detector to
     # fire aggressively boosts recall while F1 per-scenario can stay
     # within catastrophe bounds — total FPs is the honest signal.
+    # FP ceiling split into two tiers:
+    #   - tier 1 (auto-reject):  total FPs > fp_egregious_ratio × baseline (default 3×)
+    #   - tier 2 (advisory):     1.5× < FPs ≤ 3× — flag to reviewer, don't auto-reject
     fp_ceiling = int(scoring.baseline_total_fps * CONFIG.fp_ceiling_ratio)
+    fp_egregious_ceiling = int(scoring.baseline_total_fps * 3.0)
     fp_ceiling_breached = (
         scoring.baseline_total_fps > 0
         and scoring.total_fps > fp_ceiling
+    )
+    # Tier-1 FP egregious: 3× baseline AND absolute floor of 20 FPs. The
+    # absolute floor matters because at small baselines (e.g. 2 FPs)
+    # 3× = 6, which a single noisy run can hit on a real signal — that's
+    # judgment-call territory, not catastrophe. Catastrophe-grade FP
+    # explosions are large in absolute terms.
+    fp_egregious_breached = (
+        scoring.baseline_total_fps > 0
+        and scoring.total_fps > fp_egregious_ceiling
+        and scoring.total_fps > 20
     )
 
     # Post-eval sanity: did the eval produce all-zero F1/precision/recall
@@ -1461,15 +1547,15 @@ def _run_iteration_body(
     silent_failure = _sanity_zero_detections(scoring)
     if silent_failure:
         print(f"[iter {iter_num}] SILENT EVAL FAILURE: {silent_failure}", file=sys.stderr)
-        journal.append(
-            "eval_silent_failure",
-            {"iter": iter_num, "candidate": candidate.id, "detail": silent_failure},
-            root,
-        )
-        experiment.auto_reject_reason = f"eval_silent_failure: {silent_failure}"
-        coord_out.emit(
-            "eval_silent_failure",
-            (
+        _reject_candidate(
+            db=db, root=root, it=it, candidate=candidate,
+            experiment=experiment,
+            decision=RejectionDecision(
+                stage=RejectionStage.EVAL_SILENT_FAILURE,
+                reason=f"eval_silent_failure: {silent_failure}",
+                evidence={"detail": silent_failure},
+            ),
+            body_md=(
                 f"**iter {iter_num}** · `{candidate.id}` — eval reported all-zero "
                 f"F1/precision/recall across every scenario. This is almost "
                 f"certainly a silent eval failure rather than a real regression "
@@ -1477,22 +1563,13 @@ def _run_iteration_body(
                 f"**Detail**: `{silent_failure}`\n\n"
                 f"Candidate marked REJECTED to avoid loop; iter aborted. "
                 f"Run `dda inv q.coord-status` on the workspace to inspect."
-                + _budget_footer(root, iter_num, ceiling=db.budget.api_token_ceiling)
             ),
+            coord_out_kind="eval_silent_failure",
             requires_ack=True,
-            root=root,
+            # Auto-pause: the next iter will hit the same broken eval. Stop now.
+            pause_after=f"auto-paused: eval_silent_failure at iter {iter_num}\n{silent_failure}\n",
+            iter_num=iter_num,
         )
-        candidate.status = CandidateStatus.REJECTED
-        _capture_pre_revert_diff(root, iter_num, candidate.id, f"eval_silent_failure: {silent_failure}")
-        git_ops.revert_working_tree(root)
-        # Auto-pause: the next iter will hit the same broken eval. Stop now.
-        (state_dir(root) / "pause").write_text(
-            f"auto-paused: eval_silent_failure at iter {iter_num}\n{silent_failure}\n"
-        )
-        it.ended_at = now_iso()
-        db.iterations.append(it)
-        save_db(db, root)
-        metrics.regenerate(db, root)
         return
 
     # Blank-mode quality floor for the FIRST-ever ship. Catastrophe filters
@@ -1515,45 +1592,69 @@ def _run_iteration_body(
         and scoring.mean_f1 < CONFIG.first_ship_min_mean_f1
     )
 
-    if (
-        scoring.strict_regressions
-        or scoring.recall_floor_violations
-        or fp_ceiling_breached
-        or first_ship_floor_breached
-    ):
-        fp_reason = ""
-        if fp_ceiling_breached:
-            fp_reason = (
-                f" fp_ceiling_breached={scoring.total_fps} > "
-                f"{fp_ceiling} (ratio {CONFIG.fp_ceiling_ratio}× baseline "
-                f"{scoring.baseline_total_fps})"
+    # TIER 1 — egregious gates that auto-reject without review. These are
+    # cases where there's nothing for the panel to weigh: pipeline broken,
+    # FPs exploded so badly any positive trade is implausible, or first
+    # ship of a blank run failing the quality floor.
+    tier1_reject = (
+        fp_egregious_breached  # FPs > 3× baseline → no plausible trade
+        or first_ship_floor_breached  # blank-mode quality floor
+    )
+
+    # TIER 2 — concerning per-scenario regressions or moderate FP increase.
+    # The aggregate trade may still be net-positive (e.g. PR 50011 iter 4:
+    # mean F1 +0.039, FPs cut in half, but 3 scenarios lost recall > 0.10).
+    # Don't auto-reject; route to the 3-persona review with these signals
+    # as STRUCTURED advisory context. Reviewer prompt has an explicit rule
+    # for handling them (see sdk.review_experiment).
+    tier2_signals: list[dict[str, Any]] = []
+    if scoring.strict_regressions:
+        tier2_signals.append({
+            "kind": "strict_regressions",
+            "detail": list(scoring.strict_regressions),
+        })
+    if scoring.recall_floor_violations:
+        tier2_signals.append({
+            "kind": "recall_floor_violations",
+            "detail": list(scoring.recall_floor_violations),
+        })
+    if fp_ceiling_breached and not fp_egregious_breached:
+        tier2_signals.append({
+            "kind": "fp_ceiling_breached_moderate",
+            "observed": scoring.total_fps,
+            "ceiling": fp_ceiling,
+            "baseline": scoring.baseline_total_fps,
+        })
+
+    if tier1_reject:
+        reasons: list[str] = []
+        evidence: dict[str, Any] = {
+            "mean_f1": scoring.mean_f1,
+            "baseline_mean_f1": scoring.baseline_mean_f1,
+            "mean_df1": scoring.mean_df1,
+            "total_fps": scoring.total_fps,
+            "baseline_total_fps": scoring.baseline_total_fps,
+        }
+        if fp_egregious_breached:
+            reasons.append(
+                f"fp_egregious={scoring.total_fps} > "
+                f"{fp_egregious_ceiling} (3× baseline {scoring.baseline_total_fps}) "
+                f"and absolute > 20"
             )
-        floor_reason = ""
+            evidence["fp_egregious_ceiling"] = fp_egregious_ceiling
+            evidence["fp_egregious"] = True
         if first_ship_floor_breached:
-            floor_reason = (
-                f" first_ship_floor_breached=mean_f1 {scoring.mean_f1:.4f} < "
+            reasons.append(
+                f"first_ship_floor=mean_f1 {scoring.mean_f1:.4f} < "
                 f"{CONFIG.first_ship_min_mean_f1:.2f} (no prior ship — "
                 f"quality bar for first commit on a blank-baseline run)"
             )
-        reason = (
-            f"strict_regressions={scoring.strict_regressions} "
-            f"recall_violations={scoring.recall_floor_violations}"
-            f"{fp_reason}{floor_reason}"
-        )
-        # Persist on the experiment so the proposer can see WHY this was
-        # rejected on the next iteration's research-memory context.
-        # Without this, the proposer only gets aggregate score_delta and
-        # doesn't know which specific scenarios broke.
-        experiment.auto_reject_reason = reason
+            evidence["first_ship_floor"] = True
+            evidence["first_ship_min_mean_f1"] = CONFIG.first_ship_min_mean_f1
+        reason = " ; ".join(reasons) if reasons else "tier1 (unspecified)"
         print(f"[iter {iter_num}] AUTO-REJECTED ({reason})")
-        journal.append(
-            "auto_rejected_strict_regression",
-            {"iter": iter_num, "candidate": candidate.id, "reason": reason},
-            root,
-        )
-        # Build a compact per-scenario delta summary — the biggest 5
-        # |ΔF1| swings, both helpful and harmful, so the reader sees
-        # WHY it was rejected at a glance.
+
+        # Compact per-scenario delta summary — biggest 5 |ΔF1| swings.
         top = sorted(
             scoring.per_scenario_delta.values(),
             key=lambda d: abs(d.df1),
@@ -1564,9 +1665,16 @@ def _run_iteration_body(
             f"(Δ{d.df1:+.3f}), recall Δ{d.drecall:+.3f}"
             for d in top
         )
-        coord_out.emit(
-            "strict_regression",
-            (
+        _reject_candidate(
+            db=db, root=root, it=it, candidate=candidate,
+            experiment=experiment,
+            decision=RejectionDecision(
+                stage=RejectionStage.TIER1_GATE,
+                reason=reason,
+                evidence=evidence,
+                advisory_signals=[s["kind"] for s in tier2_signals],
+            ),
+            body_md=(
                 f"**iter {iter_num}** · `{candidate.id}` — "
                 f"auto-rejected on catastrophe filter.\n\n"
                 f"**Gate failures**: {reason}\n\n"
@@ -1576,18 +1684,10 @@ def _run_iteration_body(
                 f"Total FPs {scoring.baseline_total_fps} → {scoring.total_fps} "
                 f"(Δ{scoring.total_dfps:+d}).\n\n"
                 f"Working tree reverted; no commit."
-                + _budget_footer(root, iter_num, ceiling=db.budget.api_token_ceiling)
             ),
-            requires_ack=False,
-            root=root,
+            coord_out_kind="strict_regression",
+            iter_num=iter_num,
         )
-        _capture_pre_revert_diff(root, iter_num, candidate.id, reason)
-        git_ops.revert_working_tree(root)
-        candidate.status = CandidateStatus.REJECTED
-        it.ended_at = now_iso()
-        db.iterations.append(it)
-        save_db(db, root)
-        metrics.regenerate(db, root)
         return
 
     # 6. Review
@@ -1603,6 +1703,7 @@ def _run_iteration_body(
             root=root,
             candidate=candidate,
             iter_num=iter_num,
+            tier2_signals=tier2_signals,
         )
     except Exception as e:
         print(f"[iter {iter_num}] review failed: {e}", file=sys.stderr)
@@ -1774,31 +1875,47 @@ def _run_iteration_body(
         except Exception as e:
             journal.append("overfit_check_error", {"error": str(e)}, root)
     else:
-        git_ops.revert_working_tree(root)
-        candidate.status = CandidateStatus.REJECTED
+        # Review-level reject — passed deterministic gates, failed unanimity.
+        # Show each persona's verdict for transparency.
         print(f"[iter {iter_num}] REJECTED; reverted (score {scoring.mean_f1:.4f})")
-
-        # Review-level reject (the catastrophe filter didn't fire, but the
-        # panel said no). Show each persona's verdict for transparency.
         rationale_lines = "\n".join(
             f"- **{dec.persona}** ({'approve' if dec.approve else 'reject'}): "
             f"{dec.rationale[:400]}"
             for dec in verdict.decisions
         )
-        coord_out.emit(
-            "iter_rejected",
-            (
+        _reject_candidate(
+            db=db, root=root, it=it, candidate=candidate,
+            experiment=experiment,
+            decision=RejectionDecision(
+                stage=RejectionStage.REVIEW,
+                reason=(
+                    f"review_rejected: panel non-unanimous "
+                    f"(approves={sum(1 for d in verdict.decisions if d.approve)}/"
+                    f"{len(verdict.decisions)})"
+                ),
+                evidence={
+                    "mean_f1": scoring.mean_f1,
+                    "baseline_mean_f1": scoring.baseline_mean_f1,
+                    "mean_df1": scoring.mean_df1,
+                    "decisions": [
+                        {"persona": d.persona, "approve": d.approve}
+                        for d in verdict.decisions
+                    ],
+                },
+                advisory_signals=[s["kind"] for s in tier2_signals],
+            ),
+            body_md=(
                 f"**iter {iter_num}** · `{candidate.id}` — rejected by review "
                 f"(passed deterministic gates, failed unanimity).\n\n"
                 f"Mean F1 {scoring.baseline_mean_f1:.4f} → {scoring.mean_f1:.4f} "
                 f"(Δ{scoring.mean_df1:+.4f}).\n\n"
                 f"**Reviewer verdicts**:\n{rationale_lines}\n\n"
                 f"Working tree reverted; no commit."
-                + _budget_footer(root, iter_num, ceiling=db.budget.api_token_ceiling)
             ),
-            requires_ack=False,
-            root=root,
+            coord_out_kind="iter_rejected",
+            iter_num=iter_num,
         )
+        return
 
     it.ended_at = now_iso()
     db.iterations.append(it)
