@@ -119,8 +119,12 @@ for (label, vals), errs, colour, offset in zip(
     for bar, v in zip(bars, vals):
         txt = "~0" if v < 0.1 else (f"{v/1000:.1f} µs" if v >= 1000 else
                                      f"{v:.0f} ns" if v >= 1 else f"{v:.1f} ns")
-        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() * 1.4,
-                txt, ha="center", va="bottom", fontsize=8, color="#333333")
+        # Fixed offset above bar; skip label when bar is near the top of the axis
+        # to avoid clipping outside the plot area.
+        label_y = bar.get_height() + 40
+        if label_y < 2450:
+            ax.text(bar.get_x() + bar.get_width() / 2, label_y,
+                    txt, ha="center", va="bottom", fontsize=8, color="#333333")
 
 ax.set_ylim(0, 2600)
 ax.set_xticks(x)
@@ -136,13 +140,6 @@ ax.set_axisbelow(True)
 ax.legend(fontsize=9, loc="upper left", framealpha=0.9)
 ax.spines[["top", "right"]].set_visible(False)
 
-for xpos, note in zip([1, 2], ["2 allocs/batch\n(no accumulator)",
-                                "2 allocs/sample\n(no accumulator)"]):
-    ax.annotate(note,
-        xy=(xpos + offsets[2], overhead_vals["1 subscriber"][xpos]),
-        xytext=(xpos + offsets[2] + 0.38, overhead_vals["1 subscriber"][xpos] * 2),
-        fontsize=7.5, color="#555555",
-        arrowprops=dict(arrowstyle="->", color="#888888", lw=0.8))
 
 fig.text(0.99, 0.01, SUBTITLE, ha="right", va="bottom", fontsize=7.5, color="#888888")
 save(fig, "overhead_a.png")
