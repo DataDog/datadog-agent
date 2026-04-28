@@ -126,6 +126,30 @@ def build_proposer_prompt(
         {c.approach_family for c in db.candidates.values() if c.approach_family}
     )
 
+    # Operator steering directives (from inbox_ack interpretations).
+    # These come from real-time PR comments by the human operator and
+    # are NON-NEGOTIABLE — the proposer should treat them as hard
+    # constraints, not advisory text. Earlier iterations of this
+    # codebase journaled the interpretations but never fed them back
+    # into the proposer prompt, so user steering had zero effect.
+    steering = list(getattr(db, "user_steering_active", []) or [])
+    steering_clause = ""
+    if steering:
+        joined = "\n".join(f"  - {s}" for s in steering[-5:])
+        steering_clause = (
+            "\n**OPERATOR STEERING (NON-NEGOTIABLE — read carefully)**\n"
+            "The operator has issued the following directives via PR "
+            "comments. Every candidate you propose MUST be consistent "
+            "with these directives. If a directive forbids a kind of "
+            "candidate (e.g. 'no more bocpd tweaks'), do not propose "
+            "it. If a directive demands a specific kind (e.g. 'propose "
+            "a brand-new correlator'), MAKE SURE at least one of your "
+            "candidates matches.\n\n"
+            f"{joined}\n"
+            "If a steering directive conflicts with the static prompt "
+            "guidelines below, the steering wins.\n"
+        )
+
     ban_clause = ""
     pivot_clause = ""
     if banned_families:
@@ -284,7 +308,7 @@ a genuinely different family.
 
 ## Existing approach families
 {existing_families or '(none)'}
-{ban_clause}{pivot_clause}
+{ban_clause}{pivot_clause}{steering_clause}
 ## Guidelines
 - Each candidate modifies `comp/observer/` code (and potentially
   `tasks/q.py` / `tasks/libs/q` if it needs to plumb a new detector into

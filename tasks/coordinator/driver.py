@@ -516,7 +516,39 @@ def process_inbox(db: Db, root: Path, dry_run: bool) -> list[str]:
             root,
         )
         ack_ids.append(ack_id)
+        # Feed the steering directive into db.user_steering_active so the
+        # proposer sees it on the next invocation. Without this, inbox
+        # interpretations were journaled but never reached the proposer
+        # — operator steering had no effect on candidate generation.
+        # Skip CI-noise interpretations (planned_change starts with
+        # "no action" or similar) so the steering list doesn't fill up
+        # with bot CI noise.
+        if interpretation and not _looks_like_no_op_steering(planned_change):
+            entry = f"[{ack_id}] {interpretation.strip()[:600]}"
+            db.user_steering_active.append(entry)
+            # Cap the list at the most recent 5 directives so old steering
+            # doesn't pile up indefinitely.
+            db.user_steering_active = db.user_steering_active[-5:]
     return ack_ids
+
+
+def _looks_like_no_op_steering(planned_change: str) -> bool:
+    """True if the inbox interpreter said no coordinator action is needed.
+
+    These are typically CI noise (size gates, lint comments) that the
+    interpreter correctly identified as not requiring behavioural change.
+    Don't pollute db.user_steering_active with them.
+    """
+    if not planned_change:
+        return True
+    lo = planned_change.strip().lower()
+    return (
+        lo.startswith("no action")
+        or lo.startswith("no coordinator")
+        or "no coordinator behaviour change" in lo
+        or "no coordinator behavior change" in lo
+        or "no action is needed" in lo
+    )
 
 
 # ---------------------------------------------------------------------------
