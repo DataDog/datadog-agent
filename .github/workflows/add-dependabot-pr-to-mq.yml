@@ -9,7 +9,7 @@ on:
 permissions: {}
 jobs:
   add_to_merge_queue:
-    if: github.event.pull_request.user.login == 'dependabot[bot]' || github.event.pull_request.user.login == 'renovate[bot]'
+    if: github.event.pull_request.user.login == 'dependabot[bot]' || github.event.pull_request.user.login == 'renovate[bot]' || github.event.review.user.login == 'dd-prapprover[bot]'
     runs-on: ubuntu-latest
     environment:
       name: dependabot
