@@ -63,14 +63,15 @@ pipelines = [
     "CheckSampler\nper check metric",
 ]
 overhead = {
-    "noop / 0 sub": [max(ts_0sub, 0.05), max(na_0sub, 0.05), max(cs_0sub, 0.05)],
+    "noop hook":     [max(ts_noop, 0.05), max(na_noop, 0.05), max(cs_noop, 0.05)],
+    "0 subscribers": [max(ts_0sub, 0.05), max(na_0sub, 0.05), max(cs_0sub, 0.05)],
     "1 subscriber":  [ts_1sub, na_1sub, cs_1sub],
     "5 subscribers": [ts_5sub, na_5sub, cs_5sub],
 }
-colours = [C_0SUB, C_1SUB, C_5SUB]
+colours = [C_ZERO, C_0SUB, C_1SUB, C_5SUB]
 
 x = np.arange(len(pipelines))
-w = 0.24
+w = 0.18
 offsets = np.linspace(-(len(overhead) - 1) / 2, (len(overhead) - 1) / 2, len(overhead)) * w
 
 for (label, vals), colour, offset in zip(overhead.items(), colours, offsets):
@@ -86,7 +87,7 @@ for (label, vals), colour, offset in zip(overhead.items(), colours, offsets):
         else:
             txt = f"{v:.1f} ns"
         ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() * 1.3,
-                txt, ha="center", va="bottom", fontsize=8, color="#333333")
+                txt, ha="center", va="bottom", fontsize=7.5, color="#333333")
 
 ax.set_yscale("log")
 ax.set_ylim(0.03, 12000)
@@ -95,7 +96,7 @@ ax.set_xticklabels(pipelines, fontsize=10)
 ax.set_ylabel("Overhead vs idle (ns, log scale)", fontsize=10)
 ax.set_title(
     "Hook overhead per pipeline × subscriber count\n"
-    "noop and 0-subscriber are identical — idle cost is one atomic read (~2 ns)",
+    "noop hook and 0 subscribers are nearly identical — idle cost is one atomic read (~2 ns)",
     fontsize=10, loc="left",
 )
 ax.yaxis.grid(True, which="both", linestyle="--", alpha=0.4, zorder=0)
@@ -106,8 +107,8 @@ ax.spines[["top", "right"]].set_visible(False)
 for xpos, note in zip([1, 2], ["2 allocs/batch\n(no accumulator)", "2 allocs/sample\n(no accumulator)"]):
     ax.annotate(
         note,
-        xy=(xpos + offsets[1], overhead["1 subscriber"][xpos]),
-        xytext=(xpos + offsets[1] + 0.38, overhead["1 subscriber"][xpos] * 2),
+        xy=(xpos + offsets[2], overhead["1 subscriber"][xpos]),
+        xytext=(xpos + offsets[2] + 0.38, overhead["1 subscriber"][xpos] * 2),
         fontsize=7.5, color="#555555",
         arrowprops=dict(arrowstyle="->", color="#888888", lw=0.8),
     )
