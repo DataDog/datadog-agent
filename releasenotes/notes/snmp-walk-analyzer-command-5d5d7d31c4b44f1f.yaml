@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    Add a new ``datadog-agent snmp walk --analyze`` mode that converts SNMP walk output
+    into a readable analysis report. The report summarizes matched and unmatched OIDs and
+    includes profile context to help troubleshoot profile-to-device mismatches.
