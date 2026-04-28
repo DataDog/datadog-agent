@@ -185,6 +185,157 @@ func TestLossLessMapperMapNumberMetrics(t *testing.T) {
 	}
 }
 
+func TestLossLessMapperMapNumberMetrics_DeltaSumRateAttribute(t *testing.T) {
+	tests := []struct {
+		name               string
+		inferDeltaInterval bool
+		setupSlice         func(slice pmetric.NumberDataPointSlice)
+		expectedTimeSeries []TestTimeSeries
+	}{
+		{
+			name:               "delta sum with as_type=rate and interval inference",
+			inferDeltaInterval: true,
+			setupSlice: func(slice pmetric.NumberDataPointSlice) {
+				dp := slice.AppendEmpty()
+				dp.SetIntValue(200)
+				dp.SetStartTimestamp(pcommon.Timestamp(1_000_000_000))
+				dp.SetTimestamp(pcommon.Timestamp(11_000_000_000))
+				dp.Attributes().PutStr("datadog.metric.as_type", "rate")
+				dp.Attributes().PutStr("env", "prod")
+			},
+			expectedTimeSeries: []TestTimeSeries{
+				{
+					TestDimensions: TestDimensions{
+						Name: "test.metric",
+						Tags: []string{"env:prod"},
+					},
+					Type:      Rate,
+					Timestamp: 11_000_000_000,
+					Interval:  10,
+					Value:     20, // 200 / 10
+				},
+			},
+		},
+		{
+			name:               "delta sum with as_type=rate without interval inference",
+			inferDeltaInterval: false,
+			setupSlice: func(slice pmetric.NumberDataPointSlice) {
+				dp := slice.AppendEmpty()
+				dp.SetIntValue(200)
+				dp.SetTimestamp(pcommon.Timestamp(11_000_000_000))
+				dp.Attributes().PutStr("datadog.metric.as_type", "rate")
+			},
+			expectedTimeSeries: []TestTimeSeries{
+				{
+					TestDimensions: TestDimensions{Name: "test.metric"},
+					Type:           Rate,
+					Timestamp:      11_000_000_000,
+					Interval:       0,
+					Value:          200, // no division when interval is 0
+				},
+			},
+		},
+		{
+			name:               "delta sum without as_type attribute stays count",
+			inferDeltaInterval: true,
+			setupSlice: func(slice pmetric.NumberDataPointSlice) {
+				dp := slice.AppendEmpty()
+				dp.SetIntValue(50)
+				dp.SetStartTimestamp(pcommon.Timestamp(1_000_000_000))
+				dp.SetTimestamp(pcommon.Timestamp(11_000_000_000))
+			},
+			expectedTimeSeries: []TestTimeSeries{
+				{
+					TestDimensions: TestDimensions{Name: "test.metric"},
+					Type:           Count,
+					Timestamp:      11_000_000_000,
+					Interval:       10,
+					Value:          50,
+				},
+			},
+		},
+		{
+			name:               "as_type attribute is removed from tags",
+			inferDeltaInterval: true,
+			setupSlice: func(slice pmetric.NumberDataPointSlice) {
+				dp := slice.AppendEmpty()
+				dp.SetIntValue(100)
+				dp.SetStartTimestamp(pcommon.Timestamp(1_000_000_000))
+				dp.SetTimestamp(pcommon.Timestamp(6_000_000_000))
+				dp.Attributes().PutStr("datadog.metric.as_type", "rate")
+				dp.Attributes().PutStr("service", "web")
+			},
+			expectedTimeSeries: []TestTimeSeries{
+				{
+					TestDimensions: TestDimensions{
+						Name: "test.metric",
+						Tags: []string{"service:web"},
+					},
+					Type:      Rate,
+					Timestamp: 6_000_000_000,
+					Interval:  5,
+					Value:     20, // 100 / 5
+				},
+			},
+		},
+		{
+			name:               "as_type=rate on gauge is ignored",
+			inferDeltaInterval: false,
+			setupSlice: func(slice pmetric.NumberDataPointSlice) {
+				dp := slice.AppendEmpty()
+				dp.SetIntValue(42)
+				dp.SetTimestamp(pcommon.Timestamp(1_000_000_000))
+				dp.Attributes().PutStr("datadog.metric.as_type", "rate")
+			},
+			expectedTimeSeries: []TestTimeSeries{
+				{
+					TestDimensions: TestDimensions{Name: "test.metric"},
+					Type:           Gauge,
+					Timestamp:      1_000_000_000,
+					Value:          42,
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := translatorConfig{
+				InferDeltaInterval:    tt.inferDeltaInterval,
+				DeltaSumRateAttribute: true,
+			}
+			mapper := newLossLessMapper(cfg, zap.NewNop())
+
+			slice := pmetric.NewNumberDataPointSlice()
+			tt.setupSlice(slice)
+
+			dims := &Dimensions{name: "test.metric"}
+			consumer := newTestConsumer()
+
+			// Use Gauge for the "as_type=rate on gauge" test case, Count for all others
+			dt := Count
+			if tt.name == "as_type=rate on gauge is ignored" {
+				dt = Gauge
+			}
+
+			mapper.MapNumberMetrics(context.Background(), &consumer, dims, dt, slice)
+
+			require.Len(t, consumer.data.Metrics.TimeSeries, len(tt.expectedTimeSeries))
+			for i, expected := range tt.expectedTimeSeries {
+				actual := consumer.data.Metrics.TimeSeries[i]
+				assert.Equal(t, expected.Name, actual.Name)
+				assert.Equal(t, expected.Type, actual.Type)
+				assert.Equal(t, expected.Timestamp, actual.Timestamp)
+				assert.Equal(t, expected.Value, actual.Value)
+				assert.Equal(t, expected.Interval, actual.Interval)
+				if expected.Tags != nil {
+					assert.ElementsMatch(t, expected.Tags, actual.Tags)
+				}
+			}
+		})
+	}
+}
+
 func TestLossLessMapperMapSummaryMetrics(t *testing.T) {
 	tests := []struct {
 		name               string
