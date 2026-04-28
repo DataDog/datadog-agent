@@ -123,9 +123,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
-	healthplatformfx "github.com/DataDog/datadog-agent/comp/healthplatform/fx"
-	healthplatformimpl "github.com/DataDog/datadog-agent/comp/healthplatform/impl"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/core/def"
+
 	hostProfilerFlareFx "github.com/DataDog/datadog-agent/comp/host-profiler/flare/fx"
 	langDetectionCl "github.com/DataDog/datadog-agent/comp/languagedetection/client/def"
 	langDetectionClimpl "github.com/DataDog/datadog-agent/comp/languagedetection/client/fx"
@@ -307,7 +307,7 @@ func run(log log.Component,
 	_ option.Option[gui.Component],
 	agenttelemetryComponent agenttelemetry.Component,
 	_ diagnose.Component,
-	healthplatformComp healthplatform.Component,
+	healthplatformComp healthplatformdef.Component,
 	hostname hostnameinterface.Component,
 	ipc ipc.Component,
 	snmpScanManager snmpscanmanager.Component,
@@ -576,7 +576,7 @@ func getSharedFxOption() fx.Option {
 		connectivitycheckerfx.Module(),
 		configstreamfx.Module(),
 		logondurationfx.Module(),
-		healthplatformfx.Module(),
+		healthplatform.Bundle(),
 		tracetelemetryfx.Module(),
 	)
 }
@@ -605,7 +605,7 @@ func startAgent(
 	ipc ipc.Component,
 	snmpScanManager snmpscanmanager.Component,
 	traceroute traceroute.Component,
-	healthplatformComp healthplatform.Component,
+	healthplatformComp healthplatformdef.Component,
 ) error {
 	var err error
 
@@ -737,7 +737,7 @@ func startAgent(
 		if !cfg.GetBool("health_platform.enabled") {
 			return nil
 		}
-		return healthplatformimpl.Diagnose(healthplatformComp, diagCfg)
+		return healthplatform.Diagnose(healthplatformComp, diagCfg)
 	})
 
 	// start dependent services

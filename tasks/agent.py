@@ -252,9 +252,8 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
     Clean up and refresh Collector's assets and config files
     """
     flavor = AgentFlavor[flavor]
-    # ensure BIN_PATH exists
-    if not os.path.exists(BIN_PATH):
-        os.mkdir(BIN_PATH)
+    # ensure BIN_PATH exists (makedirs handles missing parents, e.g. on AIX build hosts)
+    os.makedirs(BIN_PATH, exist_ok=True)
 
     dist_folder = os.path.join(BIN_PATH, "dist")
     if os.path.exists(dist_folder):

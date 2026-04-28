@@ -1,0 +1,44 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "healthplatform",
+    srcs = [
+        "bundle.go",
+        "diagnose.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/healthplatform",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/healthplatform/checkrunner/fx",
+        "//comp/healthplatform/core/def",
+        "//comp/healthplatform/core/fx",
+        "//comp/healthplatform/forwarder/fx",
+        "//comp/healthplatform/issues/admisconfig",
+        "//comp/healthplatform/issues/checkfailure",
+        "//comp/healthplatform/issues/dockerpermissions",
+        "//comp/healthplatform/issues/rofspermissions",
+        "//pkg/util/fxutil",
+        "@//comp/core/diagnose/def",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
+    ],
+)
+
+go_test(
+    name = "healthplatform_test",
+    srcs = ["bundle_test.go"],
+    embed = [":healthplatform"],
+    gotags = ["test"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/hostname/hostnameinterface",
+        "//comp/core/log/def",
+        "//comp/core/log/mock",
+        "//comp/core/telemetry/mock",
+        "//comp/healthplatform/core/def",
+        "//pkg/util/fxutil",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
+    ],
+)

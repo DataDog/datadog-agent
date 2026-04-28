@@ -8,6 +8,8 @@
 package model
 
 import (
+	"strings"
+
 	// AWS Karpenter provider registers some variables in shared packages
 	_ "github.com/aws/karpenter-provider-aws/pkg/apis/v1"
 
@@ -25,6 +27,41 @@ const (
 	// KarpenterNodePoolHashAnnotationKey is the annotation key that that tracks the Karpenter NodePool template hash
 	KarpenterNodePoolHashAnnotationKey = "karpenter.sh/nodepool-hash"
 )
+
+// templateMetadataBlocklistedDomains lists base domains blocked from template_metadata
+// labels and annotations.
+var templateMetadataBlocklistedDomains = []string{
+	"kubernetes.io",
+	"k8s.io",
+	"karpenter.sh",
+}
+
+// filterTemplateMetadataKeys filters out reserved keys and returns a map that can be applied
+// to the nodepool template labels or annotations.
+func filterTemplateMetadataKeys(kvs []KeyValue) map[string]string {
+	out := make(map[string]string, len(kvs))
+	for _, kv := range kvs {
+		if isBlocklistedTemplateMetadataKey(kv.Key) {
+			log.Warnf("Dropping template_metadata key %q", kv.Key)
+			continue
+		}
+		out[kv.Key] = kv.Value
+	}
+	return out
+}
+
+func isBlocklistedTemplateMetadataKey(key string) bool {
+	domain := karpenterv1.GetLabelDomain(key)
+	if domain == "" {
+		return false
+	}
+	for _, blocked := range templateMetadataBlocklistedDomains {
+		if domain == blocked || strings.HasSuffix(domain, "."+blocked) {
+			return true
+		}
+	}
+	return false
+}
 
 type NodePoolInternal struct {
 	// targetName is the user-created NodePool the Datadog-managed NodePool is derived from
@@ -66,17 +103,9 @@ func buildKarpenterNodePoolFromManifest(kv1 *KarpenterV1NodePool) *karpenterv1.N
 	// Handle template metadata labels/annotations
 	spec := *kv1.Spec
 	if kv1.TemplateMetadata != nil {
-		templateLabels := make(map[string]string, len(kv1.TemplateMetadata.Labels))
-		for _, kv := range kv1.TemplateMetadata.Labels {
-			templateLabels[kv.Key] = kv.Value
-		}
-		templateAnnotations := make(map[string]string, len(kv1.TemplateMetadata.Annotations))
-		for _, kv := range kv1.TemplateMetadata.Annotations {
-			templateAnnotations[kv.Key] = kv.Value
-		}
 		spec.Template.ObjectMeta = karpenterv1.ObjectMeta{
-			Labels:      templateLabels,
-			Annotations: templateAnnotations,
+			Labels:      filterTemplateMetadataKeys(kv1.TemplateMetadata.Labels),
+			Annotations: filterTemplateMetadataKeys(kv1.TemplateMetadata.Annotations),
 		}
 	}
 
