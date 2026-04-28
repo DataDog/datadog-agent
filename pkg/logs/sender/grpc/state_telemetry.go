@@ -29,6 +29,8 @@ var (
 	tlmPipelinePatternLogsProcessedBytes = telemetry.NewCounter("logs_sender_grpc", "pattern_logs_bytes", []string{"pipeline"}, "Bytes of patterned logs sent")
 	tlmPipelineRawLogsProcessed          = telemetry.NewCounter("logs_sender_grpc", "raw_logs", []string{"pipeline"}, "# raw logs sent")
 	tlmPipelineRawLogsProcessedBytes     = telemetry.NewCounter("logs_sender_grpc", "raw_logs_bytes", []string{"pipeline"}, "Bytes of raw logs sent")
+
+	tlmPipelineDictPromotions = telemetry.NewCounter("logs_sender_grpc", "dict_promotions", []string{"pipeline"}, "JSON context string values promoted to dictionary")
 )
 
 // Per-worker metrics
