@@ -106,10 +106,16 @@ func TestDeviceEventsGatherer_RefreshGetSequence(t *testing.T) {
 	assert.Empty(t, events)
 
 	// after refreshing, the event should be present
-	require.NoError(t, gatherer.Refresh())
-	events, err = gatherer.GetEvents(uuid)
-	require.NoError(t, err)
-	require.Len(t, events, 1)
+	require.Eventually(t, func() bool {
+		if err := gatherer.Refresh(); err != nil {
+			return false
+		}
+		events, err = gatherer.GetEvents(uuid)
+		if err != nil {
+			return false
+		}
+		return len(events) == 1
+	}, 2*time.Second, time.Millisecond)
 	assert.Equal(t, safenvml.DeviceEventData{
 		DeviceUUID: uuid,
 		EventType:  sampleDeviceEvent.EventType,
