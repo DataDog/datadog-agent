@@ -136,6 +136,12 @@ type RequestStat struct {
 	// keep-alives where a short-lived TCP connection is used for a single request.
 	FirstLatencySample float64
 
+	// LatencySum is the running sum of request latencies in nanoseconds.
+	// Populated by discovery service map mode in lieu of DDSketches; the
+	// encoder converts it to an average (sum / count) at serialization
+	// time. Unused outside of discovery mode.
+	LatencySum float64
+
 	// Tags bitfields from tags-types.h
 	StaticTags uint64
 
@@ -161,6 +167,7 @@ func (r *RequestStat) close() {
 
 	r.Count = 0
 	r.FirstLatencySample = 0
+	r.LatencySum = 0
 	r.StaticTags = 0
 	clear(r.DynamicTags)
 }
@@ -270,13 +277,8 @@ func (r *RequestStats) AddRequest(statusCode uint16, latency float64, staticTags
 // AddDiscoveryRequest records a transaction in discovery mode.
 // Status codes are collapsed to two buckets (200 = success, 500 = error)
 // and no DDSketch is created — only counters and a running latency sum
-// are tracked.
-//
-// Note: in discovery mode FirstLatencySample is repurposed as a running
-// sum of latencies. The encoder converts this to an average at serialization
-// time (sum / Count) and sends it via the existing SetFirstLatencySample
-// wire field. This avoids adding a new struct field while reusing the
-// existing zero-valued slot in this mode.
+// (LatencySum) are tracked. The encoder converts LatencySum to an average
+// (LatencySum / Count) at serialization time.
 func (r *RequestStats) AddDiscoveryRequest(statusCode uint16, latency float64, staticTags uint64, dynamicTags common.StringSet) {
 	// Collapse all status codes into two buckets
 	bucket := uint16(200)
@@ -301,7 +303,7 @@ func (r *RequestStats) AddDiscoveryRequest(statusCode uint16, latency float64, s
 	}
 
 	stats.Count++
-	stats.FirstLatencySample += latency
+	stats.LatencySum += latency
 }
 
 // HalfAllCounts sets the count of all stats for each status class to half their current value.

@@ -132,7 +132,7 @@ func TestFormatHTTPStatsDiscoveryMode(t *testing.T) {
 	localhost := util.AddressFromString("127.0.0.1")
 
 	// Discovery mode: empty path, MethodUnknown, and the in-memory
-	// FirstLatencySample is populated as a running sum.
+	// LatencySum is populated as a running sum.
 	key := http.Key{
 		ConnectionKey: types.NewConnectionKey(localhost, localhost, clientPort, serverPort),
 		Path:          http.Path{Content: http.Interner.GetString("")},

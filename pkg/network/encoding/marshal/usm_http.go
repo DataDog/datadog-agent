@@ -82,11 +82,11 @@ func (e *httpEncoder) encodeData(c network.ConnectionStats, w io.Writer) (uint64
 					w.SetValue(func(w *model.HTTPStats_DataBuilder) {
 						w.SetCount(uint32(stats.Count))
 						if e.discoveryMode {
-							// In discovery mode FirstLatencySample stores a running
-							// sum of latencies; convert it to an average and send it
-							// in the dedicated avgLatency wire field.
+							// In discovery mode LatencySum holds a running sum of
+							// latencies; convert it to an average and send it in
+							// the dedicated avgLatency wire field.
 							if stats.Count > 0 {
-								w.SetAvgLatency(stats.FirstLatencySample / float64(stats.Count))
+								w.SetAvgLatency(stats.LatencySum / float64(stats.Count))
 							}
 						} else if latencies := stats.Latencies; latencies != nil {
 							w.SetLatencies(func(b *bytes.Buffer) {
