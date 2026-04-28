@@ -25,20 +25,24 @@
             "replacement": "$1 <secret hidden>"
           },
           {
-            "regex": "enable password (\\S+) (.*)",
-            "replacement": "enable password <secret hidden> $2"
+            "regex": "(?m)^(enable password) \\S+( .*)?$",
+            "replacement": "$1 <secret hidden>$2"
           },
           {
-            "regex": "(?m)^passwd (\\S+) (.*)",
-            "replacement": "passwd <secret hidden> $2"
+            "regex": "(?m)^(passwd) \\S+( .*)?$",
+            "replacement": "$1 <secret hidden>$2"
           },
           {
-            "regex": "username (\\S+) password (\\S+) (.*)",
-            "replacement": "username $1 password <secret hidden> $3"
+            "regex": "(?m)^(username \\S+ password) \\S+( .*)?$",
+            "replacement": "$1 <secret hidden>$2"
           },
           {
             "regex": "(ikev[12] ((remote|local)-authentication )?pre-shared-key( hex)?) (\\S+)",
             "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "(?m)^(crypto isakmp key) \\S+( .*)?$",
+            "replacement": "$1 <secret hidden>$2"
           },
           {
             "regex": "(?m)^(aaa-server \\S+(?: \\(\\S+\\))? host \\S+\\n(?: [^\\n]+\\n)* +key) \\S+$",

@@ -32,6 +32,9 @@ interface GigabitEthernet0/0
  nameif outside
  security-level 0
  ip address 199.47.37.9 255.255.255.224 standby 199.47.37.12
+ ospf authentication message-digest
+ ospf message-digest-key 1 md5 itsanospfmd5key
+ ospf authentication-key itsanospfauthkey
 !
 interface GigabitEthernet0/1
  nameif inside
@@ -162,6 +165,18 @@ aaa accounting serial console NORAMISE
 aaa accounting ssh console NORAMISE
 aaa authorization exec authentication-server auto-enable
 aaa authentication login-history
+aaa-server RADIUS_GROUP protocol radius
+aaa-server RADIUS_GROUP (inside) host 10.100.50.10
+ timeout 5
+ key itsaverysecretradiuskey
+aaa-server LDAP_GROUP protocol ldap
+aaa-server LDAP_GROUP (inside) host 10.100.50.20
+ ldap-base-dn dc=acme,dc=corp
+ ldap-scope subtree
+ ldap-naming-attribute sAMAccountName
+ ldap-login-password itsasecretldappassword
+ ldap-login-dn cn=binduser,dc=acme,dc=corp
+ server-type microsoft
 http server enable
 snmp-server host inside 10.100.100.4 community itsaverysecretpassword version 2c
 snmp-server host inside 10.100.100.5 community itsaverysecretpassword version 2c
@@ -239,6 +254,7 @@ crypto ca certificate chain _SomeChainServerCA
   quit
 crypto isakmp identity address
 crypto isakmp nat-traversal 30
+crypto isakmp key itsanisakmpkey address 198.51.100.10 netmask 255.255.255.255
 crypto ikev2 policy 20
  encryption aes-256
  integrity sha256
@@ -256,6 +272,13 @@ crypto ikev1 policy 10
  hash sha
  group 14
  lifetime 86400
+!
+router bgp 65000
+ bgp log-neighbor-changes
+ address-family ipv4 unicast
+  neighbor 10.50.0.1 remote-as 65001
+  neighbor 10.50.0.1 password itsabgppassword
+ exit-address-family
 !
 track 2 rtr 20 reachability
 telnet timeout 5
