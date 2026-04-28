@@ -326,7 +326,8 @@ func (s *checkSender) Distribution(metric string, value float64, hostname string
 //   - count: number of samples represented by this bucket; must be > 0
 //   - lowerBound: lower bound of the caller-provided bucket
 //   - upperBound: upper bound of the caller-provided bucket; must be >= lowerBound
-//   - monotonic: if true, count is treated as cumulative and converted to a delta
+//   - monotonic: if true, count is treated as cumulative with respect to the previously sent bucket for this metric and converted to a delta.
+//     Note that this requires the caller to send buckets in ascending order of lowerBound.
 //   - hostname: optional host override
 //   - tags: metric tags
 //   - flushFirstValue: if true, the first monotonic value (and reset values) are flushed as-is
