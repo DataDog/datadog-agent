@@ -31,6 +31,7 @@ type CacheStats struct {
 type Resolver struct {
 	cache         *lru.Cache[netip.Addr, []string]
 	cnameCache    *lru.Cache[string, []string]
+	cnameMaxDepth int
 	statsdClient  statsd.ClientInterface
 	resolverStats *CacheStats
 	cnameStats    *CacheStats
@@ -40,6 +41,7 @@ type Resolver struct {
 func NewDNSResolver(cfg *config.Config, statsdClient statsd.ClientInterface) (*Resolver, error) {
 	ret := &Resolver{
 		statsdClient:  statsdClient,
+		cnameMaxDepth: cfg.DNSResolverCnameMaxDepth,
 		resolverStats: &CacheStats{},
 		cnameStats:    &CacheStats{},
 	}
@@ -96,7 +98,7 @@ func (r *Resolver) HostListFromIP(addr netip.Addr) []string {
 		var allHosts []string
 		for _, hostname := range hostnames {
 			allHosts = append(allHosts, hostname)
-			r.fillWithCnames(hostname, &allHosts, 2)
+			r.fillWithCnames(hostname, &allHosts, r.cnameMaxDepth)
 		}
 
 		return allHosts
