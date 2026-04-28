@@ -50,6 +50,11 @@ const (
 	// AnomalyDetectionRuleDesc is the rule description for anomaly_detection events
 	AnomalyDetectionRuleDesc = "Anomaly detection"
 
+	// ActivityEventRuleID is the rule ID for activity events streamed by the V2 security profile manager
+	ActivityEventRuleID = "activity_event"
+	// ActivityEventRuleDesc is the rule description for activity events
+	ActivityEventRuleDesc = "Activity event"
+
 	// NoProcessContextErrorRuleID is the rule ID for events without process context
 	NoProcessContextErrorRuleID = "no_process_context"
 	// NoProcessContextErrorRuleDesc is the rule description for events without process context
@@ -123,6 +128,7 @@ func AllCustomRuleIDs() []string {
 		AbnormalPathRuleID,
 		SelfTestRuleID,
 		AnomalyDetectionRuleID,
+		ActivityEventRuleID,
 		NoProcessContextErrorRuleID,
 		BrokenProcessLineageErrorRuleID,
 		InternalCoreDumpRuleID,

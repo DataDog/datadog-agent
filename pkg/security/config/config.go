@@ -30,6 +30,17 @@ const (
 	ADMinMaxDumSize = 100
 )
 
+// SecurityProfileV2Mode represents the output mode of the V2 security profile manager.
+type SecurityProfileV2Mode string
+
+const (
+	// SecurityProfileV2ModeProfile sends periodic activity dumps (legacy/default behavior).
+	SecurityProfileV2ModeProfile SecurityProfileV2Mode = "profile"
+	// SecurityProfileV2ModeEvent streams individual activity events through the rules-engine intake as
+	// they are inserted in the in-memory profile (deduplicated per profile).
+	SecurityProfileV2ModeEvent SecurityProfileV2Mode = "event"
+)
+
 var (
 	// defaultKernelCompilationFlags are the kernel compilation flags checked by CWS
 	// This list was moved here, away from the config/ package, to reduce the size of the agent metadata payload in REDAPL.
@@ -315,6 +326,9 @@ type RuntimeSecurityConfig struct {
 	SecurityProfileCleanupDelay time.Duration
 	// SecurityProfileV2EventTypes defines the list of event types that should be captured by the V2 security profile manager
 	SecurityProfileV2EventTypes []model.EventType
+	// SecurityProfileV2Mode defines the output mode of the V2 security profile manager: "profile" to send periodic
+	// activity dumps (default), or "event" to stream individual activity events as they are inserted in the profile.
+	SecurityProfileV2Mode SecurityProfileV2Mode
 
 	// AnomalyDetectionEventTypes defines the list of events that should be allowed to generate anomaly detections
 	AnomalyDetectionEventTypes []model.EventType
@@ -631,6 +645,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SecurityProfileNodeEvictionTimeout: pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.node_eviction_timeout"),
 		SecurityProfileCleanupDelay:        pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.profile_cleanup_delay"),
 		SecurityProfileV2EventTypes:        parseEventTypeStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.security_profile.v2.event_types")),
+		SecurityProfileV2Mode: SecurityProfileV2Mode(pkgconfigsetup.SystemProbe().GetString("runtime_security_config.security_profile.v2.mode")),
 
 		// anomaly detection
 		AnomalyDetectionEventTypes:                   parseEventTypeStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.security_profile.anomaly_detection.event_types")),
@@ -790,6 +805,15 @@ func (c *RuntimeSecurityConfig) sanitize() error {
 	}
 
 	c.sanitizePlatform()
+
+	switch c.SecurityProfileV2Mode {
+	case SecurityProfileV2ModeProfile, SecurityProfileV2ModeEvent:
+	case "":
+		c.SecurityProfileV2Mode = SecurityProfileV2ModeProfile
+	default:
+		seclog.Warnf("invalid value %q for runtime_security_config.security_profile.v2.mode, falling back to %q", c.SecurityProfileV2Mode, SecurityProfileV2ModeProfile)
+		c.SecurityProfileV2Mode = SecurityProfileV2ModeProfile
+	}
 
 	return c.sanitizeRuntimeSecurityConfigActivityDump()
 }

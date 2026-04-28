@@ -567,7 +567,7 @@ func (p *EBPFProbe) Init() error {
 	}
 
 	if p.config.RuntimeSecurity.SecurityProfileV2Enabled {
-		p.profileManager, err = securityprofile.NewManagerV2(p.config, p.statsdClient, p.Resolvers, p.kernelVersion, p.activityDumpHandler, p.sendAnomalyDetection, p.hostname)
+		p.profileManager, err = securityprofile.NewManagerV2(p.config, p.statsdClient, p.Resolvers, p.kernelVersion, p.activityDumpHandler, p.sendAnomalyDetection, p.sendActivityEvent, p.hostname)
 		if err != nil {
 			return err
 		}
@@ -916,6 +916,27 @@ func (p *EBPFProbe) sendAnomalyDetection(event *model.Event) {
 		rule,
 		events.NewCustomEventLazy(event.GetEventType(), p.EventMarshallerCtorWithRule(event, rule), tags...),
 	)
+}
+
+// sendActivityEvent dispatches an activity event (V2 security profile manager, "event" mode) through
+// the rules-engine intake using a dedicated custom rule ID.
+func (p *EBPFProbe) sendActivityEvent(event *model.Event) {
+	seclog.Infof("======== probe.sendActivityEvent ENTER: type=%s", event.GetEventType().String())
+
+	tags := p.probe.GetEventTags(event.ProcessContext.Process.ContainerContext.ContainerID)
+	if service := p.probe.GetService(event); service != "" {
+		tags = append(tags, "service:"+service)
+	}
+	seclog.Infof("======== probe.sendActivityEvent: tags=%v", tags)
+
+	rule := events.NewCustomRule(events.ActivityEventRuleID, events.ActivityEventRuleDesc, p.evalOpts())
+
+	seclog.Infof("======== probe.sendActivityEvent: dispatching custom event rule_id=%s", rule.ID)
+	p.probe.DispatchCustomEvent(
+		rule,
+		events.NewCustomEventLazy(event.GetEventType(), p.EventMarshallerCtorWithRule(event, rule), tags...),
+	)
+	seclog.Infof("======== probe.sendActivityEvent: DispatchCustomEvent returned")
 }
 
 // AddActivityDumpHandler set the probe activity dump handler

@@ -44,6 +44,7 @@ var (
 		InternalCoreDumpRuleID:          rate.Every(30 * time.Second),
 		FailedDNSRuleID:                 rate.Every(30 * time.Second),
 		RawPacketActionRuleID:           rate.Every(30 * time.Second),
+		ActivityEventRuleID:             rate.Inf, // No limit on activity events streamed by the V2 security profile manager
 	}
 )
 

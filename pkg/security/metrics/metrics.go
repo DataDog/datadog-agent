@@ -538,6 +538,10 @@ var (
 	// Tags: -
 	MetricSecurityProfileV2EventsDroppedMaxSize = newRuntimeMetric(".security_profile_v2.events.dropped_max_size")
 
+	// MetricSecurityProfileV2EventsStreamed is the name of the metric used to report activity events streamed through the rules-engine intake
+	// Tags: event_type
+	MetricSecurityProfileV2EventsStreamed = newRuntimeMetric(".security_profile_v2.events.streamed")
+
 	// Persistence metrics
 
 	// MetricSecurityProfileV2SizeInBytes is the name of the metric used to report the size of generated security profiles in bytes

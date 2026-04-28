@@ -53,6 +53,7 @@ type ManagerV2 struct {
 	kernelVersion *kernel.Version
 
 	sendAnomalyDetection func(*model.Event)
+	sendActivityEvent    func(*model.Event)
 
 	hostname string
 
@@ -84,7 +85,7 @@ type ManagerV2 struct {
 	pendingProfileRemovalsLock sync.Mutex
 }
 
-func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, dumpHandler backend.ActivityDumpHandler, sendAnomalyDetection func(*model.Event), hostname string) (*ManagerV2, error) {
+func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, dumpHandler backend.ActivityDumpHandler, sendAnomalyDetection func(*model.Event), sendActivityEvent func(*model.Event), hostname string) (*ManagerV2, error) {
 
 	localStorage, err := storage.NewDirectory(cfg.RuntimeSecurity.ActivityDumpLocalStorageDirectory, cfg.RuntimeSecurity.ActivityDumpLocalStorageMaxDumpsCount)
 	if err != nil {
@@ -129,6 +130,7 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resol
 		configuredStorageRequests: perFormatStorageRequests(configuredStorageRequests),
 		hostname:                  hostname,
 		sendAnomalyDetection:      sendAnomalyDetection,
+		sendActivityEvent:         sendActivityEvent,
 		eventFiltering:            make(map[eventFilteringEntry]*atomic.Uint64),
 		resolvedCgroups:           make(map[containerutils.CGroupID]struct{}),
 		pendingProfileRemovals:    make(map[cgroupModel.WorkloadSelector]time.Time),
@@ -167,7 +169,7 @@ func (m *ManagerV2) Start(ctx context.Context) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	seclog.Infof("security profile manager v2 started")
+	seclog.Infof("security profile manager v2 started (mode: %s)", m.config.RuntimeSecurity.SecurityProfileV2Mode)
 
 	for {
 		select {
@@ -188,6 +190,12 @@ func (m *ManagerV2) Start(ctx context.Context) {
 // setupPersistenceTicker creates the ticker channel for periodic profile persistence
 func (m *ManagerV2) setupPersistenceTicker() <-chan time.Time {
 	if !m.config.RuntimeSecurity.SecurityProfileEnabled {
+		return make(chan time.Time)
+	}
+
+	// In "event" mode, the V2 manager streams activity events directly through the rules-engine intake
+	// instead of persisting periodic activity dumps, so no persistence ticker is needed.
+	if m.config.RuntimeSecurity.SecurityProfileV2Mode == config.SecurityProfileV2ModeEvent {
 		return make(chan time.Time)
 	}
 
@@ -395,7 +403,7 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 
 	// Try to resolve tags for this workload
 	workloadTags, err := m.resolvers.TagsResolver.ResolveWithErr(workloadID)
-	tagsResolved := err == nil && len(workloadTags) != 0 && utils.GetTagValue("image_tag", workloadTags) != ""
+	tagsResolved := err == nil && len(workloadTags) != 0 && utils.GetTagValue("image_name", workloadTags) != ""
 
 	if tagsResolved {
 		// Set resolved tags on the event for downstream processing
@@ -517,8 +525,23 @@ func (m *ManagerV2) queueEventForTagResolution(event *model.Event, tags []string
 
 // onEventTagsResolved is called when an event has its tags resolved and is ready to be inserted into a profile
 func (m *ManagerV2) onEventTagsResolved(event *model.Event) {
+	seclog.Infof("======== onEventTagsResolved: type=%s mode=%s", event.GetEventType().String(), m.config.RuntimeSecurity.SecurityProfileV2Mode)
+
 	profile, inserted := m.insertEventIntoProfile(event)
-	if !inserted || profile == nil || !profile.HasAlreadyBeenSent() {
+	seclog.Infof("======== insertEventIntoProfile result: inserted=%v profile=%v", inserted, profile != nil)
+	if !inserted || profile == nil {
+		return
+	}
+
+	// In "event" mode, every newly-inserted event is streamed through the rules-engine intake and
+	// anomaly detection is intentionally bypassed (no profile dumps are produced).
+	if m.config.RuntimeSecurity.SecurityProfileV2Mode == config.SecurityProfileV2ModeEvent {
+		seclog.Infof("======== onEventTagsResolved: dispatching activity event (type=%s)", event.GetEventType().String())
+		m.streamActivityEvent(event)
+		return
+	}
+
+	if !profile.HasAlreadyBeenSent() {
 		return
 	}
 
@@ -536,12 +559,55 @@ func (m *ManagerV2) onEventTagsResolved(event *model.Event) {
 		imageTag = utils.GetTagValue("version", tags)
 	}
 
+	if imageTag == "" {
+		imageTag = "latest"
+	}
+
 	if workloadID != nil {
 		m.FillProfileContextFromWorkloadID(workloadID, &event.SecurityProfileContext, imageTag)
 	}
 
 	if m.config.RuntimeSecurity.AnomalyDetectionEnabled {
 		m.sendAnomalyDetection(event)
+	}
+}
+
+// streamActivityEvent fills the security profile context on the event and dispatches it through
+// the rules-engine intake using the activity_event custom rule. Used in V2 "event" mode.
+func (m *ManagerV2) streamActivityEvent(event *model.Event) {
+	seclog.Infof("======== streamActivityEvent ENTER: type=%s sendActivityEvent_set=%v", event.GetEventType().String(), m.sendActivityEvent != nil)
+
+	if m.sendActivityEvent == nil {
+		seclog.Infof("======== streamActivityEvent: sendActivityEvent callback is nil, skipping")
+		return
+	}
+
+	workloadID := getWorkloadIDFromEvent(event)
+	var imageTag string
+
+	if !event.ProcessContext.Process.ContainerContext.IsNull() {
+		imageTag = utils.GetTagValue("image_tag", event.ProcessContext.Process.ContainerContext.Tags)
+		seclog.Infof("======== streamActivityEvent: workloadID=%v imageTag=%s (from container)", workloadID, imageTag)
+	} else if event.ProcessContext.Process.CGroup.IsResolved() {
+		tags, err := m.resolvers.TagsResolver.ResolveWithErr(workloadID)
+		if err != nil {
+			seclog.Infof("======== streamActivityEvent: failed to resolve tags for cgroup %s: %v", workloadID, err)
+			return
+		}
+		imageTag = utils.GetTagValue("version", tags)
+		seclog.Infof("======== streamActivityEvent: workloadID=%v imageTag=%s (from cgroup)", workloadID, imageTag)
+	}
+
+	if workloadID != nil {
+		m.FillProfileContextFromWorkloadID(workloadID, &event.SecurityProfileContext, imageTag)
+	}
+
+	seclog.Infof("======== streamActivityEvent: calling sendActivityEvent")
+	m.sendActivityEvent(event)
+	seclog.Infof("======== streamActivityEvent: sendActivityEvent returned")
+
+	if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EventsStreamed, 1, []string{"event_type:" + event.GetEventType().String()}, 1.0); err != nil {
+		seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2EventsStreamed, err)
 	}
 }
 
