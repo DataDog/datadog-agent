@@ -54,10 +54,10 @@ import (
 
 const (
 	// defaultMaxRetry is the default maximum number of retries for a pending message
-	defaultMaxRetry = 5
+	defaultMaxRetry = 25
 
 	// retryDelay is the delay between retries, changing this value may impact the retry logic.
-	retryDelay = time.Second
+	retryDelay = 200 * time.Millisecond
 )
 
 type pendingMsg struct {
@@ -90,20 +90,27 @@ func (p *pendingMsg) getMaxRetry() int {
 // sent. Returns false when the message should be retried later. Increments server
 // counters for skipped retries and missing tags.
 func (a *APIServer) tryResolve(msg *pendingMsg, isRetryAllowed bool) bool {
+	var (
+		skippedRetry bool
+		missingTags  bool
+	)
+
 	if msg.extTagsCb != nil {
 		tags, retryable := msg.extTagsCb()
-		if len(tags) == 0 && retryable && msg.retry < msg.getMaxRetry() {
-			if isRetryAllowed {
+		if len(tags) == 0 {
+			if isRetryAllowed && retryable && msg.retry < msg.getMaxRetry() {
 				return false
 			}
-			a.skippedRetryCount.Inc()
-		}
-		if len(tags) == 0 {
-			a.missingTagsCount.Inc()
-		}
-		for _, tag := range tags {
-			if !slices.Contains(msg.tags, tag) {
-				msg.tags = append(msg.tags, tag)
+			missingTags = true
+			// skippedRetry only when queue pressure forced us past a retryable miss
+			if !isRetryAllowed && retryable && msg.retry < msg.getMaxRetry() {
+				skippedRetry = true
+			}
+		} else {
+			for _, tag := range tags {
+				if !slices.Contains(msg.tags, tag) {
+					msg.tags = append(msg.tags, tag)
+				}
 			}
 		}
 	}
@@ -113,8 +120,15 @@ func (a *APIServer) tryResolve(msg *pendingMsg, isRetryAllowed bool) bool {
 			return false
 		}
 		if !isRetryAllowed && msg.retry < msg.getMaxRetry() {
-			a.skippedRetryCount.Inc()
+			skippedRetry = true
 		}
+	}
+
+	if skippedRetry {
+		a.skippedRetryCount.Inc()
+	}
+	if missingTags {
+		a.missingTagsCount.Inc()
 	}
 
 	return true
