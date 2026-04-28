@@ -125,6 +125,14 @@ func (m *MockSender) SetupAcceptAll() {
 		mock.AnythingOfType("[]string"), // tags
 		mock.AnythingOfType("bool"),     // FlushFirstValue
 	).Return()
+	m.On("DistributionBucket",
+		mock.AnythingOfType("string"),   // metric name
+		mock.AnythingOfType("int64"),    // count
+		mock.AnythingOfType("float64"),  // lower bound
+		mock.AnythingOfType("float64"),  // upper bound
+		mock.AnythingOfType("string"),   // hostname
+		mock.AnythingOfType("[]string"), // tags
+	).Return()
 	m.On("GetSenderStats", mock.AnythingOfType("stats.SenderStats")).Return()
 	m.On("DisableDefaultHostname", mock.AnythingOfType("bool")).Return()
 	m.On("SetCheckCustomTags", mock.AnythingOfType("[]string")).Return()

@@ -165,6 +165,59 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket, tagFilterList
 	cs.sketchMap.insertInterp(int64(bucket.Timestamp), contextKey, bucket.LowerBound, bucket.UpperBound, uint(bucket.Value))
 }
 
+func (cs *CheckSampler) addDistributionBucket(bucket *metrics.DistributionBucket, tagFilterList filterlist.TagMatcher) {
+	if bucket.Count <= 0 {
+		if !cs.logThrottling.ShouldThrottle() {
+			log.Warnf("Non-positive distribution bucket count %d for metric %s discarding", bucket.Count, bucket.Name)
+		}
+		return
+	}
+
+	if math.IsNaN(bucket.LowerBound) || math.IsNaN(bucket.UpperBound) {
+		if !cs.logThrottling.ShouldThrottle() {
+			log.Warnf(
+				"NaN distribution bucket range [%f-%f] for metric %s discarding",
+				bucket.LowerBound, bucket.UpperBound, bucket.Name,
+			)
+		}
+		return
+	}
+
+	if bucket.UpperBound < bucket.LowerBound {
+		if !cs.logThrottling.ShouldThrottle() {
+			log.Warnf(
+				"Negative distribution bucket range [%f-%f] for metric %s discarding",
+				bucket.LowerBound, bucket.UpperBound, bucket.Name,
+			)
+		}
+		return
+	}
+
+	if math.IsInf(bucket.LowerBound, -1) && math.IsInf(bucket.UpperBound, 1) {
+		if !cs.logThrottling.ShouldThrottle() {
+			log.Warnf(
+				"Unbounded distribution bucket range [%f-%f] for metric %s discarding",
+				bucket.LowerBound, bucket.UpperBound, bucket.Name,
+			)
+		}
+		return
+	}
+
+	contextKey := cs.contextResolver.trackContext(bucket, tagFilterList)
+
+	var representativeValue float64
+	switch {
+	case math.IsInf(bucket.UpperBound, 1):
+		representativeValue = bucket.LowerBound
+	case math.IsInf(bucket.LowerBound, -1):
+		representativeValue = bucket.UpperBound
+	default:
+		representativeValue = bucket.LowerBound
+	}
+
+	cs.sketchMap.insertN(int64(bucket.Timestamp), contextKey, representativeValue, uint(bucket.Count))
+}
+
 func (cs *CheckSampler) commitSeries(timestamp float64, filterList *utilstrings.Matcher) {
 
 	series, errors := cs.metrics.Flush(timestamp)

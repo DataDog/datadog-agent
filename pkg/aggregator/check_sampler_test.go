@@ -450,6 +450,12 @@ func sketchOf(lower, upper float64, count uint) *quantile.Sketch {
 	return s.Finish()
 }
 
+func sketchForValue(value float64, count uint) *quantile.Sketch {
+	s := quantile.Agent{}
+	s.InsertN(value, count)
+	return s.Finish()
+}
+
 func testCheckHistogramBucketInfinityBucket(t *testing.T, store *tags.Store) {
 	taggerComponent := nooptagger.NewComponent()
 	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
@@ -525,6 +531,138 @@ func testCheckDistribution(t *testing.T, store *tags.Store) {
 
 func TestCheckDistribution(t *testing.T) {
 	testWithTagsStore(t, testCheckDistribution)
+}
+
+func testCheckDistributionBucket(t *testing.T, store *tags.Store) {
+	taggerComponent := nooptagger.NewComponent()
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
+
+	tagmatcher := filterlistimpl.NewNoopTagMatcher()
+	bucket := &metrics.DistributionBucket{
+		Name:       "my.distribution.bucket",
+		Count:      4,
+		LowerBound: 10,
+		UpperBound: 20,
+		Tags:       []string{"foo", "bar"},
+		Timestamp:  12345.0,
+	}
+
+	checkSampler.addDistributionBucket(bucket, tagmatcher)
+	matcher := strings.NewMatcher([]string{}, false)
+	checkSampler.commit(12349.0, &matcher)
+
+	_, sketches := checkSampler.flush()
+	require.Len(t, sketches, 1)
+
+	expSketch := &quantile.Sketch{}
+	expSketch.InsertMany(quantile.Default(), []float64{10, 10, 10, 10})
+
+	metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
+		Name: "my.distribution.bucket",
+		Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
+		Points: []metrics.SketchPoint{
+			{Ts: 12345.0, Sketch: expSketch},
+		},
+		ContextKey: generateContextKey(bucket),
+	}, sketches[0])
+}
+
+func TestCheckDistributionBucket(t *testing.T) {
+	testWithTagsStore(t, testCheckDistributionBucket)
+}
+
+func testCheckDistributionBucketInfinityBounds(t *testing.T, store *tags.Store) {
+	taggerComponent := nooptagger.NewComponent()
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
+
+	tagmatcher := filterlistimpl.NewNoopTagMatcher()
+	matcher := strings.NewMatcher([]string{}, false)
+
+	upperInf := &metrics.DistributionBucket{
+		Name:       "dist.upper.inf",
+		Count:      3,
+		LowerBound: 9,
+		UpperBound: math.Inf(1),
+		Timestamp:  12345,
+	}
+	lowerInf := &metrics.DistributionBucket{
+		Name:       "dist.lower.inf",
+		Count:      2,
+		LowerBound: math.Inf(-1),
+		UpperBound: 7,
+		Timestamp:  12346,
+	}
+
+	checkSampler.addDistributionBucket(upperInf, tagmatcher)
+	checkSampler.addDistributionBucket(lowerInf, tagmatcher)
+
+	checkSampler.commit(12350, &matcher)
+	_, sketches := checkSampler.flush()
+	require.Len(t, sketches, 2)
+
+	metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
+		Name:       "dist.upper.inf",
+		ContextKey: generateContextKey(upperInf),
+		Points: []metrics.SketchPoint{
+			{Ts: 12345, Sketch: sketchForValue(9, 3)},
+		},
+	}, sketches[0])
+	metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
+		Name:       "dist.lower.inf",
+		ContextKey: generateContextKey(lowerInf),
+		Points: []metrics.SketchPoint{
+			{Ts: 12346, Sketch: sketchForValue(7, 2)},
+		},
+	}, sketches[1])
+}
+
+func TestCheckDistributionBucketInfinityBounds(t *testing.T) {
+	testWithTagsStore(t, testCheckDistributionBucketInfinityBounds)
+}
+
+func testCheckDistributionBucketInvalid(t *testing.T, store *tags.Store) {
+	taggerComponent := nooptagger.NewComponent()
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
+
+	tagmatcher := filterlistimpl.NewNoopTagMatcher()
+	matcher := strings.NewMatcher([]string{}, false)
+
+	checkSampler.addDistributionBucket(&metrics.DistributionBucket{
+		Name:       "invalid.zero.count",
+		Count:      0,
+		LowerBound: 1,
+		UpperBound: 2,
+		Timestamp:  12345,
+	}, tagmatcher)
+	checkSampler.addDistributionBucket(&metrics.DistributionBucket{
+		Name:       "invalid.nan",
+		Count:      1,
+		LowerBound: math.NaN(),
+		UpperBound: 2,
+		Timestamp:  12345,
+	}, tagmatcher)
+	checkSampler.addDistributionBucket(&metrics.DistributionBucket{
+		Name:       "invalid.order",
+		Count:      1,
+		LowerBound: 3,
+		UpperBound: 2,
+		Timestamp:  12345,
+	}, tagmatcher)
+	checkSampler.addDistributionBucket(&metrics.DistributionBucket{
+		Name:       "invalid.unbounded",
+		Count:      1,
+		LowerBound: math.Inf(-1),
+		UpperBound: math.Inf(1),
+		Timestamp:  12345,
+	}, tagmatcher)
+
+	checkSampler.commit(12349, &matcher)
+	_, sketches := checkSampler.flush()
+	assert.Empty(t, sketches)
+}
+
+func TestCheckDistributionBucketInvalid(t *testing.T) {
+	testWithTagsStore(t, testCheckDistributionBucketInvalid)
 }
 
 func testFilteredMetrics(t *testing.T, store *tags.Store) {

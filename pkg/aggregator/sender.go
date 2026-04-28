@@ -70,6 +70,15 @@ func (s *senderHistogramBucket) handle(agg *BufferedAggregator) {
 	agg.handleSenderBucket(*s)
 }
 
+type senderDistributionBucket struct {
+	id     checkid.ID
+	bucket *metrics.DistributionBucket
+}
+
+func (s *senderDistributionBucket) handle(agg *BufferedAggregator) {
+	agg.handleSenderDistributionBucket(*s)
+}
+
 type senderEventPlatformEvent struct {
 	id        checkid.ID
 	rawEvent  []byte
@@ -308,6 +317,55 @@ func (s *checkSender) Historate(metric string, value float64, hostname string, t
 
 func (s *checkSender) Distribution(metric string, value float64, hostname string, tags []string) {
 	s.sendMetricSample(metric, value, hostname, tags, metrics.DistributionType, false, false, 0)
+}
+
+// DistributionBucket submits an explicit bucket into the distribution sketch path.
+//
+// Arguments:
+//   - metric: metric name
+//   - count: number of samples represented by this bucket; must be > 0
+//   - lowerBound: lower bound of the caller-provided bucket
+//   - upperBound: upper bound of the caller-provided bucket; must be >= lowerBound
+//   - hostname: optional host override
+//   - tags: metric tags
+//
+// Use this instead of HistogramBucket when explicit caller-provided buckets
+// should remain a single weighted insert in the sketch. HistogramBucket is meant
+// for Prometheus/OpenMetrics histogram buckets and interpolates counts across the
+// sketch's internal bins, which changes the caller-provided bucket shape.
+func (s *checkSender) DistributionBucket(metric string, count int64, lowerBound, upperBound float64, hostname string, tags []string) {
+	tags = append(tags, s.checkTags...)
+
+	log.Tracef(
+		"Distribution Bucket %s submitted: %v [%f-%f] for host %s tags: %v",
+		metric,
+		count,
+		lowerBound,
+		upperBound,
+		hostname,
+		tags,
+	)
+
+	distributionBucket := &metrics.DistributionBucket{
+		Name:       metric,
+		Count:      count,
+		LowerBound: lowerBound,
+		UpperBound: upperBound,
+		Host:       hostname,
+		Tags:       tags,
+		Timestamp:  timeNowNano(),
+		Source:     metrics.CheckNameToMetricSource(checkid.IDToCheckName(s.id)),
+	}
+
+	if hostname == "" && !s.defaultHostnameDisabled {
+		distributionBucket.Host = s.defaultHostname
+	}
+
+	s.itemsOut <- &senderDistributionBucket{s.id, distributionBucket}
+
+	s.statsLock.Lock()
+	s.metricStats.DistributionBuckets++
+	s.statsLock.Unlock()
 }
 
 // GaugeWithTimestamp reports a new gauge value to the intake with the given timestamp.
