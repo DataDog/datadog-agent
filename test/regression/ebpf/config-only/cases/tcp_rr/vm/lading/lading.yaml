@@ -12,3 +12,7 @@ target_metrics:
       uri: "http://127.0.0.1:7654/telemetry"
       tags:
         sub_agent: "system-probe"
+
+observer:
+  enable_smaps: false
+  enable_smaps_rollup: false
