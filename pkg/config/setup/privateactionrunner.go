@@ -85,7 +85,9 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	// the backend-injected lists. By default, they act as a no-op, allowing
 	// everything: the backend is the only filter.
 	//
-	// To allow none, use an explicit YAML empty list.
+	// To allow none, use an explicit empty list.
+	// Env vars support both CSV and JSON-array forms; the JSON form gives
+	// env/YAML parity, including the explicit kill-switch via "[]".
 	//
 	//   - allowed_paths defaults to ["/"].
 	//   - allowed_commands defaults to ["rshell:*"]. The wildcard token is
