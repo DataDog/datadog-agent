@@ -1,4 +1,4 @@
-Main module: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs
+=== yield 1 [final=true] ===
 Package: main
 	Function: HandleHTTP (main.HandleHTTP) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/rc_tester_v1/main.go [60:88] injectible: [60-60], [79-88]
 		Arg: w: net/http.ResponseWriter (declared at line 79, available: [60-88])
