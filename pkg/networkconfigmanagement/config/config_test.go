@@ -359,6 +359,8 @@ ssh:
 	ic.applyDefaults()
 	require.NotNil(t, ic.Store)
 	assert.Equal(t, defaultMinConfigsPerDevice, ic.Store.MinConfigsPerDevice)
+	assert.Equal(t, defaultMaxConfigsPerDevice, ic.Store.MaxConfigsPerDevice)
+	assert.Equal(t, defaultMaxRawConfigStoreBytes, ic.Store.MaxRawConfigStoreBytes)
 }
 
 func TestNewNcmCheckContext_WithStoreConfig(t *testing.T) {

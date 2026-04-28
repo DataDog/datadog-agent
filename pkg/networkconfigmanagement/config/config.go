@@ -26,12 +26,10 @@ import (
 	"go.yaml.in/yaml/v2"
 )
 
-var checkName = "network_config_management"
-var defaultCheckInterval = 15 * time.Minute
-var defaultSSHTimeout = 30 * time.Second
-
-// Store defaults
 var (
+	checkName = "network_config_management"
+	defaultCheckInterval = 15 * time.Minute
+	defaultSSHTimeout = 30 * time.Second
 	defaultMinConfigsPerDevice    = 5
 	defaultMaxConfigsPerDevice    = 10
 	defaultMaxRawConfigStoreBytes = int64(500 * 10 * 5000000 / 5) // 500 devices × 10 configs per device × 5 MB per config / 5 (5:1 compression ratio estimate)
@@ -86,12 +84,10 @@ type SSHConfig struct {
 }
 
 // StoreConfig holds the configuration for the local bbolt config store and its eviction policy.
-// These can be set globally in init_config to control how many configs are retained per device
-// and the maximum on-disk size of the store.
 type StoreConfig struct {
-	MinConfigsPerDevice    int   `yaml:"min_configs_per_device"`      // minimum configs retained per device even under size pressure
-	MaxConfigsPerDevice    int   `yaml:"max_configs_per_device"`      // hard cap; configs beyond this are evicted oldest-first
-	MaxRawConfigStoreBytes int64 `yaml:"max_raw_config_store_bytes"`  // maximum on-disk size of the store in bytes
+	MinConfigsPerDevice    int   `yaml:"min_configs_per_device"`      // Minimum configs retained per device even under size pressure
+	MaxConfigsPerDevice    int   `yaml:"max_configs_per_device"`      // Hard cap; configs beyond this are evicted oldest-first
+	MaxRawConfigStoreBytes int64 `yaml:"max_raw_config_store_bytes"`  // Maximum on-disk size of the store in bytes
 }
 
 // NcmCheckContext holds the processed config needed for an integration instance to run
