@@ -248,7 +248,6 @@ func (ic *InitConfig) applyDefaults() {
 	if ic.Store == nil {
 		ic.Store = &StoreConfig{}
 	}
-	ic.Store.applyDefaults()
 }
 
 // Validate checks that the InitConfig has all required fields and applies defaults where needed
@@ -367,7 +366,7 @@ func (sc *SSHConfig) hasRequiredFields() error {
 	return nil
 }
 
-func (st *StoreConfig) applyDefaults() {
+func (st *StoreConfig) validate() error {
 	if st.MinConfigsPerDevice <= 0 {
 		log.Debugf("No or invalid min_configs_per_device specified, applying default: %d", defaultMinConfigsPerDevice)
 		st.MinConfigsPerDevice = defaultMinConfigsPerDevice
@@ -376,25 +375,13 @@ func (st *StoreConfig) applyDefaults() {
 		log.Debugf("No or invalid max_configs_per_device specified, applying default: %d", defaultMaxConfigsPerDevice)
 		st.MaxConfigsPerDevice = defaultMaxConfigsPerDevice
 	}
-	if st.MaxRawConfigStoreBytes <= 0 {
-		log.Debugf("No or invalid max_raw_config_store_bytes specified, applying default: %d", defaultMaxRawConfigStoreBytes)
-		st.MaxRawConfigStoreBytes = defaultMaxRawConfigStoreBytes
-	}
-}
-
-func (st *StoreConfig) validate() error {
-	if st.MinConfigsPerDevice <= 0 {
-		return errors.New("store.min_configs_per_device must be greater than zero")
-	}
-	if st.MaxConfigsPerDevice <= 0 {
-		return errors.New("store.max_configs_per_device must be greater than zero")
-	}
 	if st.MinConfigsPerDevice > st.MaxConfigsPerDevice {
 		return fmt.Errorf("store.min_configs_per_device (%d) must not exceed store.max_configs_per_device (%d)",
 			st.MinConfigsPerDevice, st.MaxConfigsPerDevice)
 	}
 	if st.MaxRawConfigStoreBytes <= 0 {
-		return errors.New("store.max_raw_config_store_bytes must be greater than zero")
+		log.Debugf("No or invalid max_raw_config_store_bytes specified, applying default: %d", defaultMaxRawConfigStoreBytes)
+		st.MaxRawConfigStoreBytes = defaultMaxRawConfigStoreBytes
 	}
 	return nil
 }

@@ -222,13 +222,19 @@ func TestAuthCredentials_DefaultValues(t *testing.T) {
 
 func TestStoreConfig_Validation(t *testing.T) {
 	tests := []struct {
-		name   string
-		config *StoreConfig
-		errMsg string
+		name           string
+		config         *StoreConfig
+		expectedConfig *StoreConfig
+		errMsg         string
 	}{
 		{
 			name: "valid config",
 			config: &StoreConfig{
+				MinConfigsPerDevice:    2,
+				MaxConfigsPerDevice:    50,
+				MaxRawConfigStoreBytes: 512 * 1024 * 1024,
+			},
+			expectedConfig: &StoreConfig{
 				MinConfigsPerDevice:    2,
 				MaxConfigsPerDevice:    50,
 				MaxRawConfigStoreBytes: 512 * 1024 * 1024,
@@ -241,24 +247,37 @@ func TestStoreConfig_Validation(t *testing.T) {
 				MaxConfigsPerDevice:    10,
 				MaxRawConfigStoreBytes: 1024,
 			},
+			expectedConfig: &StoreConfig{
+				MinConfigsPerDevice:    10,
+				MaxConfigsPerDevice:    10,
+				MaxRawConfigStoreBytes: 1024,
+			},
 		},
 		{
-			name: "min_configs_per_device zero",
+			name: "min_configs_per_device zero falls back to default",
 			config: &StoreConfig{
 				MinConfigsPerDevice:    0,
 				MaxConfigsPerDevice:    50,
 				MaxRawConfigStoreBytes: 512 * 1024 * 1024,
 			},
-			errMsg: "store.min_configs_per_device must be greater than zero",
+			expectedConfig: &StoreConfig{
+				MinConfigsPerDevice:    defaultMinConfigsPerDevice,
+				MaxConfigsPerDevice:    50,
+				MaxRawConfigStoreBytes: 512 * 1024 * 1024,
+			},
 		},
 		{
-			name: "max_configs_per_device zero",
+			name: "max_configs_per_device zero falls back to default",
 			config: &StoreConfig{
 				MinConfigsPerDevice:    2,
 				MaxConfigsPerDevice:    0,
 				MaxRawConfigStoreBytes: 512 * 1024 * 1024,
 			},
-			errMsg: "store.max_configs_per_device must be greater than zero",
+			expectedConfig: &StoreConfig{
+				MinConfigsPerDevice:    2,
+				MaxConfigsPerDevice:    defaultMaxConfigsPerDevice,
+				MaxRawConfigStoreBytes: 512 * 1024 * 1024,
+			},
 		},
 		{
 			name: "min exceeds max",
@@ -270,22 +289,39 @@ func TestStoreConfig_Validation(t *testing.T) {
 			errMsg: "store.min_configs_per_device (100) must not exceed store.max_configs_per_device (10)",
 		},
 		{
-			name: "max_raw_config_store_bytes zero",
+			name: "max_raw_config_store_bytes zero falls back to default",
 			config: &StoreConfig{
 				MinConfigsPerDevice:    2,
 				MaxConfigsPerDevice:    50,
 				MaxRawConfigStoreBytes: 0,
 			},
-			errMsg: "store.max_raw_config_store_bytes must be greater than zero",
+			expectedConfig: &StoreConfig{
+				MinConfigsPerDevice:    2,
+				MaxConfigsPerDevice:    50,
+				MaxRawConfigStoreBytes: defaultMaxRawConfigStoreBytes,
+			},
 		},
 		{
-			name: "max_raw_config_store_bytes negative",
+			name: "max_raw_config_store_bytes negative falls back to default",
 			config: &StoreConfig{
 				MinConfigsPerDevice:    2,
 				MaxConfigsPerDevice:    50,
 				MaxRawConfigStoreBytes: -1,
 			},
-			errMsg: "store.max_raw_config_store_bytes must be greater than zero",
+			expectedConfig: &StoreConfig{
+				MinConfigsPerDevice:    2,
+				MaxConfigsPerDevice:    50,
+				MaxRawConfigStoreBytes: defaultMaxRawConfigStoreBytes,
+			},
+		},
+		{
+			name:   "all zero falls back to all defaults",
+			config: &StoreConfig{},
+			expectedConfig: &StoreConfig{
+				MinConfigsPerDevice:    defaultMinConfigsPerDevice,
+				MaxConfigsPerDevice:    defaultMaxConfigsPerDevice,
+				MaxRawConfigStoreBytes: defaultMaxRawConfigStoreBytes,
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -295,6 +331,7 @@ func TestStoreConfig_Validation(t *testing.T) {
 				assert.EqualError(t, err, tt.errMsg)
 			} else {
 				assert.NoError(t, err)
+				assert.Equal(t, tt.expectedConfig, tt.config)
 			}
 		})
 	}
@@ -302,9 +339,12 @@ func TestStoreConfig_Validation(t *testing.T) {
 
 func TestStoreConfig_Defaults(t *testing.T) {
 	ic := InitConfig{
-		Namespace: "default",
+		Namespace:             "default",
+		MinCollectionInterval: 900,
 	}
 	ic.applyDefaults()
+	err := ic.Validate()
+	require.NoError(t, err)
 
 	require.NotNil(t, ic.Store)
 	assert.Equal(t, defaultMinConfigsPerDevice, ic.Store.MinConfigsPerDevice)
@@ -314,12 +354,14 @@ func TestStoreConfig_Defaults(t *testing.T) {
 
 func TestStoreConfig_PartialDefaults(t *testing.T) {
 	ic := InitConfig{
-		Namespace: "default",
+		Namespace:             "default",
+		MinCollectionInterval: 900,
 		Store: &StoreConfig{
 			MinConfigsPerDevice: 5,
 		},
 	}
-	ic.applyDefaults()
+	err := ic.Validate()
+	require.NoError(t, err)
 
 	assert.Equal(t, 5, ic.Store.MinConfigsPerDevice)
 	assert.Equal(t, defaultMaxConfigsPerDevice, ic.Store.MaxConfigsPerDevice)
@@ -345,9 +387,55 @@ store:
 	assert.Equal(t, int64(1073741824), ic.Store.MaxRawConfigStoreBytes)
 }
 
+func TestInitConfig_PartialStoreValidatesWithoutApplyDefaults(t *testing.T) {
+	tests := []struct {
+		name string
+		yaml string
+	}{
+		{
+			name: "only max_configs_per_device set",
+			yaml: `
+namespace: production
+min_collection_interval: 900
+store:
+  max_configs_per_device: 20
+`,
+		},
+		{
+			name: "empty store block",
+			yaml: `
+namespace: production
+min_collection_interval: 900
+store: {}
+`,
+		},
+		{
+			name: "only max_raw_config_store_bytes set",
+			yaml: `
+namespace: production
+min_collection_interval: 900
+store:
+  max_raw_config_store_bytes: 1073741824
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var ic InitConfig
+			err := yaml.Unmarshal([]byte(tt.yaml), &ic)
+			require.NoError(t, err)
+
+			err = ic.Validate()
+			assert.NoError(t, err, "partial store config should be valid without calling applyDefaults() first")
+		})
+	}
+}
+
 func TestStoreConfig_YAMLUnmarshalOmitted(t *testing.T) {
 	yamlData := `
 namespace: production
+min_collection_interval: 900
 ssh:
   insecure_skip_verify: true
 `
@@ -358,6 +446,9 @@ ssh:
 
 	ic.applyDefaults()
 	require.NotNil(t, ic.Store)
+
+	err = ic.Store.validate()
+	require.NoError(t, err)
 	assert.Equal(t, defaultMinConfigsPerDevice, ic.Store.MinConfigsPerDevice)
 	assert.Equal(t, defaultMaxConfigsPerDevice, ic.Store.MaxConfigsPerDevice)
 	assert.Equal(t, defaultMaxRawConfigStoreBytes, ic.Store.MaxRawConfigStoreBytes)
