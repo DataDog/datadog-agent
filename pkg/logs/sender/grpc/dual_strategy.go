@@ -137,6 +137,7 @@ func (d *DualStrategy) Start() {
 		config.StreamLifetime(d.cfg),
 		d.comp,
 		maxInflight,
+		translator.PrepareForNewStream,
 	)
 	worker.start()
 

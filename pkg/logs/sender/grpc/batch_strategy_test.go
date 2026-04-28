@@ -753,6 +753,16 @@ func TestBatchStrategyStatefulExtra(t *testing.T) {
 	assert.Equal(t, uint64(3), extra2.StateChanges[3].GetDictEntryDefine().Id)
 	assert.Equal(t, "value3", extra2.StateChanges[3].GetDictEntryDefine().Value)
 
+	// Verify delete datums are tracked locally but not serialized on the wire.
+	var batch2DatumSeq statefulpb.DatumSequence
+	err := proto.Unmarshal(payload2.Encoded, &batch2DatumSeq)
+	require.NoError(t, err)
+	require.Len(t, batch2DatumSeq.Data, 4, "Batch 2 wire payload should omit delete datums")
+	assert.NotNil(t, batch2DatumSeq.Data[0].GetLogs())
+	assert.Equal(t, uint64(3), batch2DatumSeq.Data[1].GetPatternDefine().PatternId)
+	assert.Equal(t, uint64(3), batch2DatumSeq.Data[2].GetDictEntryDefine().Id)
+	assert.NotNil(t, batch2DatumSeq.Data[3].GetLogs())
+
 	// Batch 3 (3 entries): add p4, add d4, log
 	input <- createPatternDefineMsg(4, "pattern4")
 	input <- createDictEntryDefineMsg(4, "value4")

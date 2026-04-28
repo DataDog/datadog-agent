@@ -76,6 +76,7 @@ type provider struct {
 	routerChannels     []chan *message.Message
 	currentRouterIndex *atomic.Uint32
 	forwarderWaitGroup sync.WaitGroup
+	grpcPrepareHooks   []func()
 }
 
 // NewProvider returns a new Provider.
@@ -99,8 +100,29 @@ func NewProvider(
 	var senderImpl sender.PipelineComponent
 	serverlessMeta := sender.NewServerlessMeta(serverless)
 
+	p := &provider{
+		numberOfPipelines:         numberOfPipelines,
+		diagnosticMessageReceiver: diagnosticMessageReceiver,
+		processingRules:           processingRules,
+		endpoints:                 endpoints,
+		pipelines:                 []*Pipeline{},
+		currentPipelineIndex:      atomic.NewUint32(0),
+		serverlessMeta:            serverlessMeta,
+		hostname:                  hostname,
+		cfg:                       cfg,
+		compression:               compression,
+		failoverEnabled:           cfg.GetBool("logs_config.pipeline_failover.enabled"),
+		currentRouterIndex:        atomic.NewUint32(0),
+	}
+
 	if endpoints.UseGRPC {
-		senderImpl = grpcsender.NewSender(numberOfPipelines, cfg, sink, endpoints, destinationsContext, compression)
+		senderImpl = grpcsender.NewSender(numberOfPipelines, cfg, sink, endpoints, destinationsContext, compression, func() {
+			for _, hook := range p.grpcPrepareHooks {
+				if hook != nil {
+					hook()
+				}
+			}
+		})
 	} else if endpoints.UseHTTP {
 		if _, ok := firstGRPCAdditionalEndpoint(endpoints); ok {
 			if endpoints.Main.ExtraHTTPHeaders == nil {
@@ -117,17 +139,8 @@ func NewProvider(
 		senderImpl = tcpSender(numberOfPipelines, cfg, sink, endpoints, destinationsContext, status, serverlessMeta, legacyMode)
 	}
 
-	return newProvider(
-		numberOfPipelines,
-		diagnosticMessageReceiver,
-		processingRules,
-		endpoints,
-		hostname,
-		cfg,
-		compression,
-		serverlessMeta,
-		senderImpl,
-	)
+	p.sender = senderImpl
+	return p
 }
 
 // NewMockProvider creates a new provider that will not provide any pipelines.
@@ -274,6 +287,9 @@ func (p *provider) Start() {
 			strconv.Itoa(i),
 		)
 		pipeline.Start()
+		if pipeline.prepareForNewStream != nil {
+			p.grpcPrepareHooks = append(p.grpcPrepareHooks, pipeline.prepareForNewStream)
+		}
 		p.pipelines = append(p.pipelines, pipeline)
 	}
 

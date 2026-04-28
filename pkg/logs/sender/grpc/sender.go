@@ -88,6 +88,7 @@ type Sender struct {
 	destinationsContext *client.DestinationsContext
 	cfg                 pkgconfigmodel.Reader
 	numberOfWorkers     int
+	prepareForNewStream func()
 
 	// Pipeline integration
 	pipelineMonitor metrics.PipelineMonitor
@@ -114,6 +115,7 @@ func NewSender(
 	endpoints *config.Endpoints,
 	destinationsCtx *client.DestinationsContext,
 	compressor logscompression.Component,
+	prepareForNewStream func(),
 ) *Sender {
 
 	// For now, use the first reliable endpoint
@@ -149,6 +151,7 @@ func NewSender(
 		destinationsContext: destinationsCtx,
 		cfg:                 cfg,
 		numberOfWorkers:     numberOfWorkers,
+		prepareForNewStream: prepareForNewStream,
 		pipelineMonitor:     metrics.NewTelemetryPipelineMonitor(),
 		workers:             make([]*streamWorker, 0, numberOfWorkers),
 		queues:              make([]chan *message.Payload, numberOfWorkers),
@@ -183,6 +186,7 @@ func NewSender(
 			streamLifetime,
 			comp,
 			maxInflight,
+			sender.prepareForNewStream,
 		)
 
 		sender.workers = append(sender.workers, worker)

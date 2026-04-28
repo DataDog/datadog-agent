@@ -295,6 +295,7 @@ func (f *testFixture) createWorkerWithInflight(inflight *inflightTracker) *strea
 		f.mockClock,
 		inflight,
 		10000, // Test with 10000 inflight payloads
+		nil,
 	)
 	f.worker = worker
 	return worker
