@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -42,7 +41,7 @@ func (c *Check) Run() error {
 
 // Configure parses the OpenMetrics instance configuration.
 func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string, provider string) error {
-	if flavor.GetFlavor() == flavor.DefaultAgent && !pkgconfigsetup.Datadog().GetBool("openmetrics.use_core_loader") {
+	if !pkgconfigsetup.Datadog().GetBool("openmetrics.use_core_loader") {
 		return fmt.Errorf("%w: openmetrics core check is disabled", check.ErrSkipCheckInstance)
 	}
 
