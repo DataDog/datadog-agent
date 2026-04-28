@@ -280,13 +280,17 @@ func TestStoreConfig_Validation(t *testing.T) {
 			},
 		},
 		{
-			name: "min exceeds max",
+			name: "min exceeds max resets both to defaults",
 			config: &StoreConfig{
 				MinConfigsPerDevice:    100,
 				MaxConfigsPerDevice:    10,
 				MaxRawConfigStoreBytes: 512 * 1024 * 1024,
 			},
-			errMsg: "store.min_configs_per_device (100) must not exceed store.max_configs_per_device (10)",
+			expectedConfig: &StoreConfig{
+				MinConfigsPerDevice:    defaultMinConfigsPerDevice,
+				MaxConfigsPerDevice:    defaultMaxConfigsPerDevice,
+				MaxRawConfigStoreBytes: 512 * 1024 * 1024,
+			},
 		},
 		{
 			name: "max_raw_config_store_bytes zero falls back to default",
@@ -498,7 +502,7 @@ auth:
 	assert.Equal(t, defaultMaxRawConfigStoreBytes, cfg.Store.MaxRawConfigStoreBytes)
 }
 
-func TestNewNcmCheckContext_InvalidStoreConfig(t *testing.T) {
+func TestNewNcmCheckContext_StoreMinExceedsMaxResetsToDefaults(t *testing.T) {
 	initConfig := `
 namespace: default
 ssh:
@@ -514,9 +518,11 @@ auth:
   password: 'password'
   username: 'admin'
 `
-	_, err := NewNcmCheckContext([]byte(instanceConfig), []byte(initConfig))
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "store.min_configs_per_device (100) must not exceed store.max_configs_per_device (10)")
+	cfg, err := NewNcmCheckContext([]byte(instanceConfig), []byte(initConfig))
+	require.NoError(t, err)
+	assert.Equal(t, defaultMinConfigsPerDevice, cfg.Store.MinConfigsPerDevice)
+	assert.Equal(t, defaultMaxConfigsPerDevice, cfg.Store.MaxConfigsPerDevice)
+	assert.Equal(t, int64(1024), cfg.Store.MaxRawConfigStoreBytes)
 }
 
 func TestParsingSSHTimeoutFromYAML(t *testing.T) {

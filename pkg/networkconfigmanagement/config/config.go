@@ -376,8 +376,10 @@ func (st *StoreConfig) validate() error {
 		st.MaxConfigsPerDevice = defaultMaxConfigsPerDevice
 	}
 	if st.MinConfigsPerDevice > st.MaxConfigsPerDevice {
-		return fmt.Errorf("store.min_configs_per_device (%d) must not exceed store.max_configs_per_device (%d)",
+		log.Warnf("store.min_configs_per_device (%d) exceeds store.max_configs_per_device (%d), resetting both to defaults",
 			st.MinConfigsPerDevice, st.MaxConfigsPerDevice)
+		st.MinConfigsPerDevice = defaultMinConfigsPerDevice
+		st.MaxConfigsPerDevice = defaultMaxConfigsPerDevice
 	}
 	if st.MaxRawConfigStoreBytes <= 0 {
 		log.Debugf("No or invalid max_raw_config_store_bytes specified, applying default: %d", defaultMaxRawConfigStoreBytes)
