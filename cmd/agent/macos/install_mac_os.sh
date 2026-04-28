@@ -86,6 +86,7 @@ fi
 ai_usage_chrome_extension_id=
 if [ -n "$DD_AI_USAGE_CHROME_EXTENSION_ID" ]; then
     ai_usage_chrome_extension_id=$DD_AI_USAGE_CHROME_EXTENSION_ID
+fi
 infrastructure_mode=
 if [ -n "$DD_INFRASTRUCTURE_MODE" ]; then
     infrastructure_mode="$DD_INFRASTRUCTURE_MODE"

@@ -74,7 +74,7 @@ Request (shape used by the AI usage extension):
 }
 ```
 
-Optional fields: `provider`, `hostname`.
+Optional field: `provider`.
 
 Response:
 

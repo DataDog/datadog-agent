@@ -23,8 +23,6 @@ enum Request {
         provider: Option<String>,
         user_id: String,
         #[serde(default)]
-        hostname: Option<String>,
-        #[serde(default)]
         approved: bool,
     },
 }
@@ -42,7 +40,9 @@ enum Response {
 
 fn is_recoverable_read_error(error: &anyhow::Error) -> bool {
     let flattened = format!("{:#}", error);
-    flattened.contains("Message too large") || flattened.contains("Failed to parse JSON message")
+    // Oversized declared lengths are not recoverable: we do not drain the body, so stdin
+    // framing is desynchronized until the process exits.
+    flattened.contains("Failed to parse JSON message")
 }
 
 /// Parse `--config=PATH`, `--config PATH`, or `-c PATH` (same idea as `agent run -c` /
@@ -107,10 +107,9 @@ fn handle_message(dd_client: &DatadogClient, request: Request) -> Response {
             tool,
             provider,
             user_id,
-            hostname,
             approved,
         } => {
-            let resolved_host = resolve_hostname(hostname.as_deref());
+            let resolved_host = resolve_hostname();
             let mut event = AiUsageEvent::new("observed", tool, user_id, resolved_host, approved);
             let prov = provider
                 .as_deref()

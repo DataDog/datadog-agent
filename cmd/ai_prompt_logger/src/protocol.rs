@@ -10,10 +10,6 @@ use std::io::{self, Read, Write};
 
 /// Chrome native messaging effectively caps payloads around 1 MiB; we align with that policy.
 const MAX_MESSAGE_BYTES: usize = 1_048_576;
-/// If the peer declares a length above [`MAX_MESSAGE_BYTES`] but below this cap, we discard the
-/// body so the next read sees a fresh 4-byte length prefix. Above this cap we refuse to drain
-/// (DoS) and the host must exit so the client can reconnect.
-const MAX_DECLARED_LENGTH_TO_DRAIN: usize = 2 * 1024 * 1024;
 
 /// Read a single message from stdin.
 /// Returns Ok(None) on EOF (stdin closed).
@@ -36,27 +32,11 @@ pub(crate) fn read_message_from<R: Read>(handle: &mut R) -> Result<Option<serde_
     let message_length = u32::from_le_bytes(length_bytes) as usize;
 
     if message_length > MAX_MESSAGE_BYTES {
-        if message_length > MAX_DECLARED_LENGTH_TO_DRAIN {
-            anyhow::bail!(
-                "Declared message length exceeds host limit: {} bytes (cannot resync)",
-                message_length
-            );
-        }
-        // Must consume the frame body before returning; otherwise the next read starts mid-payload
-        // and native-messaging framing is permanently desynchronized.
-        let mut remaining = message_length;
-        let mut discard = [0u8; 8192];
-        while remaining > 0 {
-            let chunk = remaining.min(discard.len());
-            handle.read_exact(&mut discard[..chunk]).with_context(|| {
-                format!(
-                    "Failed while discarding oversized message body ({} bytes total)",
-                    message_length
-                )
-            })?;
-            remaining -= chunk;
-        }
-        anyhow::bail!("Message too large: {} bytes", message_length);
+        anyhow::bail!(
+            "Declared message length {} exceeds host maximum of {} bytes",
+            message_length,
+            MAX_MESSAGE_BYTES
+        );
     }
 
     // Read the JSON payload
@@ -108,22 +88,17 @@ mod tests {
     }
 
     #[test]
-    fn oversized_frame_is_drained_before_next_length_prefix() {
+    fn declared_length_over_max_returns_error() {
         let oversized = MAX_MESSAGE_BYTES + 7;
         let mut wire: Vec<u8> = Vec::new();
         wire.extend_from_slice(&(oversized as u32).to_le_bytes());
         wire.extend(vec![0u8; oversized]);
-        let second = br#"{"type":"HEALTH_CHECK"}"#;
-        wire.extend_from_slice(&(second.len() as u32).to_le_bytes());
-        wire.extend_from_slice(second);
 
         let mut c = Cursor::new(wire);
         let err = read_message_from(&mut c).expect_err("expected oversize rejection");
-        assert!(err.to_string().contains("Message too large"), "err={err:?}");
-
-        let v = read_message_from(&mut c)
-            .expect("second frame read")
-            .expect("second frame present");
-        assert_eq!(v["type"], "HEALTH_CHECK");
+        assert!(
+            err.to_string().contains("exceeds host maximum"),
+            "err={err:?}"
+        );
     }
 }

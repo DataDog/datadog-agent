@@ -1,5 +1,6 @@
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use chrono::Utc;
 use serde::Deserialize;
@@ -7,6 +8,10 @@ use serde::Serialize;
 use serde_json::{Map, Value, json};
 
 const CONFIG_BASENAME: &str = "ai_usage_native_host.yaml";
+
+/// Cap for connect + full request so the native host thread cannot block indefinitely
+/// on a stalled trace Agent / network path.
+const AGENT_REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Ships AI usage events to Datadog Logs via the local Agent trace receiver's
 /// EVP proxy (`/evp_proxy/v*/api/v2/logs`). The Agent adds `DD-API-KEY` and
@@ -149,6 +154,7 @@ impl DatadogClient {
         };
 
         match ureq::post(&self.intake_url)
+            .timeout(AGENT_REQUEST_TIMEOUT)
             .set("Content-Type", "application/json")
             .set("X-Datadog-EVP-Subdomain", &self.evp_subdomain)
             .send_json(&body)
@@ -201,12 +207,6 @@ pub struct AiUsageEvent {
     pub approved: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub sentiment: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub category: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub sources_accessed: Option<Vec<String>>,
 }
 
 impl AiUsageEvent {
@@ -228,20 +228,12 @@ impl AiUsageEvent {
             hostname,
             approved,
             provider: None,
-            sentiment: None,
-            category: None,
-            sources_accessed: None,
         }
     }
 }
 
-/// Resolve the hostname for the event payload.
-/// Prefers an extension-provided override (from managed storage) when present,
-/// falls back to the OS hostname via libc syscall.
-pub fn resolve_hostname(override_hostname: Option<&str>) -> String {
-    if let Some(h) = override_hostname.filter(|s| !s.is_empty()) {
-        return h.to_string();
-    }
+/// Hostname for the event payload: OS hostname of the machine running the native host.
+pub fn resolve_hostname() -> String {
     hostname::get()
         .ok()
         .and_then(|h| h.into_string().ok())
