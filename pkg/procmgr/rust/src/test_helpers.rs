@@ -322,6 +322,7 @@ pub fn grandchild_cmd(pid_file: &str) -> (&'static str, Vec<String>) {
 /// Set up a grandchild test: creates a temp dir, builds a `ProcessConfig`
 /// that spawns a grandchild writing its PID to a file, and returns both.
 /// The caller must keep the `TempDir` alive for the duration of the test.
+#[cfg(test)]
 pub fn grandchild_config(
     stop_timeout: u64,
 ) -> (
