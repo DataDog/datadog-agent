@@ -230,22 +230,59 @@ pub fn pid_is_alive(pid: u32) -> bool {
 }
 
 /// Check whether a process is still alive.
+///
+/// Uses `WaitForSingleObject` with a zero timeout instead of
+/// `GetExitCodeProcess` to avoid false positives when a process
+/// exits with code 259 (`STILL_ACTIVE`).
 #[cfg(windows)]
 pub fn pid_is_alive(pid: u32) -> bool {
     use windows_sys::Win32::Foundation::CloseHandle;
     use windows_sys::Win32::System::Threading::{
-        GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
+        OpenProcess, PROCESS_SYNCHRONIZE, WaitForSingleObject,
     };
-    const STILL_ACTIVE: u32 = 259;
+    const WAIT_TIMEOUT: u32 = 258;
     unsafe {
-        let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+        let handle = OpenProcess(PROCESS_SYNCHRONIZE, 0, pid);
         if handle.is_null() {
             return false;
         }
-        let mut exit_code: u32 = 0;
-        let ok = GetExitCodeProcess(handle, &mut exit_code);
+        let ret = WaitForSingleObject(handle, 0);
         CloseHandle(handle);
-        ok != 0 && exit_code == STILL_ACTIVE
+        ret == WAIT_TIMEOUT
+    }
+}
+
+/// RAII handle to a Windows process. Holding this keeps the kernel object
+/// alive, so `is_alive()` is immune to PID reuse.
+#[cfg(windows)]
+pub struct ProcessHandle(windows_sys::Win32::Foundation::HANDLE);
+
+#[cfg(windows)]
+impl ProcessHandle {
+    /// Open a handle to the given PID. Returns `None` if the process
+    /// doesn't exist or access is denied.
+    pub fn open(pid: u32) -> Option<Self> {
+        use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_SYNCHRONIZE};
+        let handle = unsafe { OpenProcess(PROCESS_SYNCHRONIZE, 0, pid) };
+        if handle.is_null() {
+            None
+        } else {
+            Some(Self(handle))
+        }
+    }
+
+    /// Check whether the process is still running.
+    pub fn is_alive(&self) -> bool {
+        const WAIT_TIMEOUT: u32 = 258;
+        let ret = unsafe { windows_sys::Win32::System::Threading::WaitForSingleObject(self.0, 0) };
+        ret == WAIT_TIMEOUT
+    }
+}
+
+#[cfg(windows)]
+impl Drop for ProcessHandle {
+    fn drop(&mut self) {
+        unsafe { windows_sys::Win32::Foundation::CloseHandle(self.0) };
     }
 }
 
@@ -280,6 +317,43 @@ pub fn grandchild_cmd(pid_file: &str) -> (&'static str, Vec<String>) {
             ),
         ],
     )
+}
+
+/// Set up a grandchild test: creates a temp dir, builds a `ProcessConfig`
+/// that spawns a grandchild writing its PID to a file, and returns both.
+/// The caller must keep the `TempDir` alive for the duration of the test.
+pub fn grandchild_config(
+    stop_timeout: u64,
+) -> (
+    tempfile::TempDir,
+    std::path::PathBuf,
+    crate::config::ProcessConfig,
+) {
+    let dir = tempfile::tempdir().unwrap();
+    let pid_file = dir.path().join("grandchild.pid");
+    let pid_file_str = pid_file.to_str().unwrap();
+    let (cmd, args) = grandchild_cmd(pid_file_str);
+    let mut cfg = make_config(cmd, args);
+    cfg.stop_timeout = Some(stop_timeout);
+    (dir, pid_file, cfg)
+}
+
+/// Poll a PID file until it contains a valid PID, or panic after `timeout`.
+pub async fn wait_for_pid_file(path: &std::path::Path, timeout: std::time::Duration) -> u32 {
+    let deadline = tokio::time::Instant::now() + timeout;
+    loop {
+        if let Ok(contents) = std::fs::read_to_string(path)
+            && let Ok(pid) = contents.trim().parse::<u32>()
+        {
+            return pid;
+        }
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "timed out waiting for PID file: {}",
+            path.display()
+        );
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
 }
 
 /// Build a `ProcessConfig` with null stdio, suitable for tests.

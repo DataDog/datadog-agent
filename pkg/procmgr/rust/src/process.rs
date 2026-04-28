@@ -1115,41 +1115,27 @@ runtime_success_sec: 5
     /// Verify that force-kill cleans up the entire process tree (grandchildren).
     ///
     /// On Unix this validates SIGKILL to -pgid. On Windows this validates
-    /// the Job Object path added in S25.
+    /// the Job Object
     #[tokio::test]
     async fn test_force_kill_terminates_descendants() {
-        let dir = tempfile::tempdir().unwrap();
-        let pid_file = dir.path().join("grandchild.pid");
-        let pid_file_str = pid_file.to_str().unwrap();
-
-        let (cmd, args) = test_helpers::grandchild_cmd(pid_file_str);
-        let mut cfg = test_helpers::make_config(cmd, args);
-        cfg.stop_timeout = Some(1);
-
+        let (_dir, pid_file, cfg) = test_helpers::grandchild_config(1);
         let mut proc = ManagedProcess::new_config("tree".into(), test_helpers::test_uuid(), cfg);
         proc.spawn().unwrap();
         assert!(proc.is_running());
 
-        // Wait for the grandchild PID file to appear (the shell needs a
-        // moment to spawn and write it).
-        let deadline = Instant::now() + Duration::from_secs(5);
-        let grandchild_pid: u32 = loop {
-            if let Ok(contents) = std::fs::read_to_string(&pid_file)
-                && let Ok(pid) = contents.trim().parse::<u32>()
-            {
-                break pid;
-            }
-            assert!(
-                Instant::now() < deadline,
-                "timed out waiting for grandchild PID file"
-            );
-            time::sleep(Duration::from_millis(50)).await;
-        };
+        let grandchild_pid =
+            test_helpers::wait_for_pid_file(&pid_file, Duration::from_secs(5)).await;
 
         assert!(
             test_helpers::pid_is_alive(grandchild_pid),
             "grandchild {grandchild_pid} should be alive before stop"
         );
+
+        // On Windows, hold a handle to the grandchild so the post-kill
+        // check is immune to PID reuse.
+        #[cfg(windows)]
+        let grandchild_handle = test_helpers::ProcessHandle::open(grandchild_pid)
+            .expect("should be able to open grandchild handle");
 
         // request_stop sends graceful stop (ignored by the script), then
         // wait_for_stop escalates to force-kill after stop_timeout (1s).
@@ -1160,6 +1146,13 @@ runtime_success_sec: 5
 
         // Give the OS a moment to reap.
         time::sleep(Duration::from_millis(200)).await;
+
+        #[cfg(windows)]
+        assert!(
+            !grandchild_handle.is_alive(),
+            "grandchild {grandchild_pid} should be dead after force-kill"
+        );
+        #[cfg(unix)]
         assert!(
             !test_helpers::pid_is_alive(grandchild_pid),
             "grandchild {grandchild_pid} should be dead after force-kill"
