@@ -126,6 +126,39 @@ def build_proposer_prompt(
         {c.approach_family for c in db.candidates.values() if c.approach_family}
     )
 
+    # Structural-diversity bias: scan the last 10 candidates' target
+    # components. If they're all detector-targeted (no correlator,
+    # no extractor, no new component-kind), the run has been monotonic.
+    # Push the proposer to break out by REQUIRING a correlator candidate
+    # in this batch.
+    diversity_clause = ""
+    recent_candidates = list(db.candidates.values())[-10:]
+    if recent_candidates:
+        kinds_seen: set[str] = set()
+        for c in recent_candidates:
+            for tc in (c.target_components or []):
+                low = tc.lower()
+                if "correlator" in low or "_correlator" in low or "-correlator" in low:
+                    kinds_seen.add("correlator")
+                elif "extractor" in low:
+                    kinds_seen.add("extractor")
+                else:
+                    kinds_seen.add("detector")
+        if kinds_seen and kinds_seen == {"detector"}:
+            diversity_clause = (
+                "\n**STRUCTURAL DIVERSITY REQUIRED**\n"
+                "The last 10 candidates were ALL detector-targeted. The "
+                "run is in a local minimum of detector-tweak space. "
+                f"AT LEAST ONE of your {n_candidates} candidates this "
+                "round MUST be a correlator (target_components contains "
+                "the literal substring 'correlator'). Correlators "
+                "combine detector outputs differently — they're a "
+                "structurally different surface from individual "
+                "detection algorithms. See "
+                "`comp/observer/impl/anomaly_correlator_time_cluster.go` "
+                "for the existing correlator interface contract.\n"
+            )
+
     # Operator steering directives (from inbox_ack interpretations).
     # These come from real-time PR comments by the human operator and
     # are NON-NEGOTIABLE — the proposer should treat them as hard
@@ -308,7 +341,7 @@ a genuinely different family.
 
 ## Existing approach families
 {existing_families or '(none)'}
-{ban_clause}{pivot_clause}{steering_clause}
+{ban_clause}{pivot_clause}{steering_clause}{diversity_clause}
 ## Guidelines
 - Each candidate modifies `comp/observer/` code (and potentially
   `tasks/q.py` / `tasks/libs/q` if it needs to plumb a new detector into
