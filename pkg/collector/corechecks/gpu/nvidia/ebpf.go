@@ -117,11 +117,11 @@ func (c *ebpfCollector) DeviceUUID() string {
 // Collect returns system-probe process metrics for this device with high priority.
 // Returns empty slice if cache is invalid or no metrics found for this device.
 // core.usage and core.limit metrics get higher priority from eBPF collector than from the process collector,
-func (c *ebpfCollector) Collect() ([]Metric, error) {
+func (c *ebpfCollector) Collect() ([]*Metric, error) {
 	// Check cache validity
 	if !c.cache.IsValid() {
 		log.Debugf("ebpf collector: cache not valid")
-		return []Metric{}, nil
+		return []*Metric{}, nil
 	}
 
 	// Get device info for filtering and limit metrics
@@ -264,5 +264,5 @@ func (c *ebpfCollector) Collect() ([]Metric, error) {
 		},
 	)
 
-	return deviceMetrics, nil
+	return metricValuesToPointers(deviceMetrics), nil
 }
