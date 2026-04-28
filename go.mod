@@ -404,21 +404,21 @@ require (
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
 	istio.io/api v1.27.3
 	istio.io/client-go v1.27.3
-	k8s.io/api v0.35.3
-	k8s.io/apiextensions-apiserver v0.35.3
-	k8s.io/apimachinery v0.35.3
+	k8s.io/api v0.35.4
+	k8s.io/apiextensions-apiserver v0.35.4
+	k8s.io/apimachinery v0.35.4
 	k8s.io/autoscaler/vertical-pod-autoscaler v1.6.0
-	k8s.io/cli-runtime v0.35.3
-	k8s.io/client-go v0.35.3
-	k8s.io/component-base v0.35.3
-	k8s.io/cri-api v0.35.3
-	k8s.io/cri-client v0.35.3
+	k8s.io/cli-runtime v0.35.4
+	k8s.io/client-go v0.35.4
+	k8s.io/component-base v0.35.4
+	k8s.io/cri-api v0.35.4
+	k8s.io/cri-client v0.35.4
 	k8s.io/klog/v2 v2.140.0
-	k8s.io/kube-aggregator v0.35.3
+	k8s.io/kube-aggregator v0.35.4
 	k8s.io/kube-state-metrics/v2 v2.18.0
-	k8s.io/kubectl v0.35.3
-	k8s.io/kubelet v0.35.3
-	k8s.io/metrics v0.35.3
+	k8s.io/kubectl v0.35.4
+	k8s.io/kubelet v0.35.4
+	k8s.io/metrics v0.35.4
 	k8s.io/utils v0.0.0-20260319190234-28399d86e0b5
 	pgregory.net/rapid v1.2.0
 	sigs.k8s.io/custom-metrics-apiserver v1.35.0
@@ -681,7 +681,7 @@ require (
 	github.com/mkrautz/goar v0.0.0-20150919110319-282caa8bd9da // indirect
 	github.com/moby/docker-image-spec v1.3.1
 	github.com/moby/locker v1.0.1 // indirect
-	github.com/moby/spdystream v0.5.0 // indirect
+	github.com/moby/spdystream v0.5.1 // indirect
 	github.com/moby/sys/sequential v0.6.0 // indirect
 	github.com/moby/sys/signal v0.7.1 // indirect
 	github.com/moby/sys/user v0.4.0 // indirect
@@ -923,11 +923,11 @@ require (
 	gopkg.in/ini.v1 v1.67.1
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	honnef.co/go/tools v0.6.1 // indirect
-	k8s.io/apiserver v0.35.3 // indirect
+	k8s.io/apiserver v0.35.4 // indirect
 	k8s.io/cloud-provider v0.35.3 // indirect
-	k8s.io/component-helpers v0.35.3 // indirect
+	k8s.io/component-helpers v0.35.4 // indirect
 	k8s.io/csi-translation-lib v0.35.3 // indirect
-	k8s.io/kms v0.35.3 // indirect
+	k8s.io/kms v0.35.4 // indirect
 	k8s.io/kube-openapi v0.0.0-20260330154417-16be699c7b31 // indirect
 	k8s.io/sample-controller v0.35.3 // indirect
 	mellium.im/sasl v0.3.2 // indirect
