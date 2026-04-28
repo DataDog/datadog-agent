@@ -107,6 +107,14 @@ type engine struct {
 	latePointsBySource map[string]int64 // per-source breakdown (single-goroutine access from run loop)
 	handles            []*handle        // registered handles for per-source drop collection
 	handlesMu          sync.Mutex       // protects handles slice
+
+	// sourceTagCache memoises the "observer_source:<source>" string used in
+	// IngestLog/IngestMetric. Without this we allocate a fresh string per
+	// log/metric ingest. Sources are a small bounded set (e.g. "logs",
+	// "profiles", "traces") so a single-goroutine map is plenty; access is
+	// confined to the engine run loop. Lock-free via atomic.Pointer to a
+	// copy-on-write map so we don't add a mutex to the hot path.
+	sourceTagCache atomic.Pointer[map[string]string]
 }
 
 // engineConfig holds the parameters for constructing an engine.
@@ -207,6 +215,33 @@ func (e *engine) registerHandle(h *handle) {
 	e.handlesMu.Unlock()
 }
 
+// sourceTagForIngest returns "observer_source:<source>" with memoisation so
+// IngestLog / IngestMetric don't allocate a fresh string per ingest. The
+// source set is small and bounded; a copy-on-write map indexed via an
+// atomic.Pointer keeps reads lock-free on the hot path.
+func (e *engine) sourceTagForIngest(source string) string {
+	if m := e.sourceTagCache.Load(); m != nil {
+		if tag, ok := (*m)[source]; ok {
+			return tag
+		}
+	}
+	tag := "observer_source:" + source
+	for {
+		old := e.sourceTagCache.Load()
+		newMap := make(map[string]string, 4)
+		if old != nil {
+			for k, v := range *old {
+				newMap[k] = v
+			}
+		}
+		newMap[source] = tag
+		if e.sourceTagCache.CompareAndSwap(old, &newMap) {
+			break
+		}
+	}
+	return tag
+}
+
 // IngestMetric stores a metric observation and consults the scheduler policy
 // to determine whether detectors should advance. Returns advance requests
 // that the caller should execute via Advance.
@@ -229,7 +264,7 @@ func (e *engine) IngestMetric(source string, m *metricObs) []advanceRequest {
 // notifies log observers, and consults the scheduler policy to determine whether
 // detectors should advance. Returns advance requests that the caller should execute.
 func (e *engine) IngestLog(source string, l *logObs) ([]advanceRequest, []observerdef.ObserverTelemetry) {
-	sourceTag := "observer_source:" + source
+	sourceTag := e.sourceTagForIngest(source)
 	view := &logView{obs: l}
 	var logTelemetry = []observerdef.ObserverTelemetry{}
 	for _, extractor := range e.extractors {
@@ -239,9 +274,16 @@ func (e *engine) IngestLog(source string, l *logObs) ([]advanceRequest, []observ
 		processingTime := time.Since(processingStartTime)
 		logTelemetry = append(logTelemetry, newTelemetryGauge([]string{"detector:" + extractor.Name()}, telemetryDetectorProcessingTimeNs, float64(processingTime.Nanoseconds()), l.timestampMs/1000))
 		for _, m := range out.Metrics {
-			tags := copyTags(m.Tags)
+			// Avoid copying m.Tags when sourceTag is already present: storage.Add
+			// performs its own deep copy on first-write of a series via
+			// canonicalizeTags, and seriesKey sorts a copy internally — neither
+			// mutates the input. The copy is only required when we need to
+			// append sourceTag without disturbing the extractor's slice.
+			tags := m.Tags
 			if !sliceContains(tags, sourceTag) {
-				tags = append(tags, sourceTag)
+				newTags := make([]string, len(tags), len(tags)+1)
+				copy(newTags, tags)
+				tags = append(newTags, sourceTag)
 			}
 			e.storage.Add(extractor.Name(), m.Name, m.Value, l.timestampMs/1000, tags)
 			if m.ContextKey != "" {
