@@ -1452,4 +1452,4 @@ replace (
 	github.com/DataDog/datadog-agent/test/otel => ./test/otel
 )
 
-replace github.com/DataDog/agent-payload/v5 => github.com/DataDog/agent-payload/v5 v5.0.194-0.20260421101400-c9b279fbe943
+replace github.com/DataDog/agent-payload/v5 => github.com/DataDog/agent-payload/v5 76133a4c54de0f4b1c27b5813deb041e6501837b
