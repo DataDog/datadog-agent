@@ -139,7 +139,7 @@ func (p *ProcessKiller) registerReport(report *KillActionReport, ev *model.Event
 }
 
 // checkDisarmerCache checks a single disarmer cache (container or executable) and handles
-// disarm/dismantle transitions. Returns true if the kill action is allowed to proceed.
+// disarm/dismantle transitions. Returns (kill action allowed to proceed, dismantled flag).
 func (p *ProcessKiller) checkDisarmerCache(disarmer *ruleDisarmer, dt disarmerType, key string, ruleID string) (bool, bool) {
 	var cache *disarmerCache[string, bool]
 	var params *disarmerParams
