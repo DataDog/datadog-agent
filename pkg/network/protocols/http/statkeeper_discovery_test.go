@@ -127,9 +127,10 @@ func TestDiscoveryMode_LatencySumAccumulates(t *testing.T) {
 		bucket := rs.Data[successBucket]
 		require.NotNil(t, bucket)
 		assert.Equal(t, numRequests, bucket.Count)
-		// FirstLatencySample is repurposed as a running sum in discovery mode.
-		assert.InDelta(t, perTxLatency*float64(numRequests), bucket.FirstLatencySample, 1.0,
+		assert.InDelta(t, perTxLatency*float64(numRequests), bucket.LatencySum, 1.0,
 			"latency sum should equal numRequests * per-tx latency")
+		assert.Zero(t, bucket.FirstLatencySample,
+			"FirstLatencySample should not be touched in discovery mode")
 	}
 }
 
