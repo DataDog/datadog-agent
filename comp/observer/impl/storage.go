@@ -754,7 +754,12 @@ func (s *timeSeriesStorage) ListSeries(filter observer.SeriesFilter) []observer.
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	var result []observer.SeriesMeta
+	// Preallocate to len(s.series): an upper bound under the lock that lets
+	// us avoid repeated growslice in the common case where the filter matches
+	// most series. Detectors and the adapter call this on every advance, so
+	// even after the cache-by-gen optimisations the worst-case cost matters
+	// when seriesGen does churn (e.g. cardinality blow-ups in extractors).
+	result := make([]observer.SeriesMeta, 0, len(s.series))
 listSeriesLoop:
 	for key, stats := range s.series {
 		if filter.Namespace != "" {
