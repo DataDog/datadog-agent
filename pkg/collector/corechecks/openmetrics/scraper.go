@@ -49,6 +49,8 @@ type openmetricsScraper struct {
 	flushFirstValue bool
 }
 
+var defaultBearerTokenPath = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+
 func newScraper(cfg *scraperConfig) (*openmetricsScraper, error) {
 	rawLineFilter, err := compileRegexList(cfg.rawLineFilters)
 	if err != nil {
@@ -172,17 +174,18 @@ func (s *openmetricsScraper) shouldFlushFirstValue(metrics []parsedMetric) bool 
 		return false
 	}
 	agentStart := float64(pkgconfigsetup.StartTime.Unix())
+	processStart := math.Inf(1)
 	for _, metric := range metrics {
 		if metric.Name != "process_start_time_seconds" {
 			continue
 		}
 		for _, sample := range metric.Samples {
-			if sample.Value > agentStart {
-				return true
+			if sample.Value < processStart {
+				processStart = sample.Value
 			}
 		}
 	}
-	return false
+	return processStart < math.Inf(1) && processStart > agentStart
 }
 
 func (s *openmetricsScraper) fetch(sender sender.Sender) ([]byte, string, error) {
@@ -262,7 +265,7 @@ func (s *openmetricsScraper) bearerToken() (string, error) {
 	}
 	path := s.cfg.bearerTokenPath
 	if path == "" {
-		path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+		path = defaultBearerTokenPath
 	}
 	token, err := os.ReadFile(path)
 	if err != nil {

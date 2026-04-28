@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -26,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
@@ -71,20 +73,25 @@ func configureOpenMetricsCheck(t *testing.T, instance string, handler http.Handl
 
 	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
+	return configureOpenMetricsCheckForEndpoint(t, instance, server.URL)
+}
+
+func configureOpenMetricsCheckForEndpoint(t *testing.T, instance string, endpoint string) checkRun {
+	t.Helper()
 
 	cfg := configmock.New(t)
 	cfg.Set("openmetrics.use_core_loader", true, configmodel.SourceAgentRuntime)
 
 	omCheck := newCheck().(*Check)
 	senderManager := mocksender.CreateDefaultDemultiplexer()
-	instance = strings.ReplaceAll(instance, "%%endpoint%%", server.URL)
+	instance = strings.ReplaceAll(instance, "%%endpoint%%", endpoint)
 	err := omCheck.Configure(senderManager, integration.FakeConfigHash, integration.Data([]byte(instance)), nil, "test", "provider")
 	require.NoError(t, err)
 
 	mockSender := mocksender.NewMockSenderWithSenderManager(omCheck.ID(), senderManager)
 	mockSender.SetupAcceptAll()
 
-	return checkRun{sender: mockSender, endpoint: server.URL, check: omCheck, checkID: string(omCheck.ID())}
+	return checkRun{sender: mockSender, endpoint: endpoint, check: omCheck, checkID: string(omCheck.ID())}
 }
 
 func configureOpenMetricsCheckWithoutServer(t *testing.T, instance string) checkRun {
@@ -942,6 +949,92 @@ metrics:
 	run.sender.AssertMetric(t, "Gauge", "test.dynamic_metric", 7, "", []string{"endpoint:" + run.endpoint, "foo:bar"})
 }
 
+func TestLatestCounterGaugeNativeDynamicAndTypeOverrideParity(t *testing.T) {
+	counterGauge := runOpenMetricsCheck(t, `
+openmetrics_endpoint: %%endpoint%%
+namespace: test
+metrics:
+  - go_memstats_alloc_bytes:
+      type: counter_gauge
+  - go_memstats_frees:
+      type: counter_gauge
+`, `
+# TYPE go_memstats_alloc_bytes_total counter
+go_memstats_alloc_bytes_total{foo="bar"} 9339544592
+# TYPE go_memstats_frees_total counter
+go_memstats_frees_total{bar="foo"} 128219257
+`)
+	counterGauge.sender.AssertMonotonicCount(t, "MonotonicCountWithFlushFirstValue", "test.go_memstats_alloc_bytes.count", 9339544592, "", []string{"endpoint:" + counterGauge.endpoint, "foo:bar"}, false)
+	counterGauge.sender.AssertMetric(t, "Gauge", "test.go_memstats_alloc_bytes.total", 9339544592, "", []string{"endpoint:" + counterGauge.endpoint, "foo:bar"})
+	counterGauge.sender.AssertMonotonicCount(t, "MonotonicCountWithFlushFirstValue", "test.go_memstats_frees.count", 128219257, "", []string{"endpoint:" + counterGauge.endpoint, "bar:foo"}, false)
+	counterGauge.sender.AssertMetric(t, "Gauge", "test.go_memstats_frees.total", 128219257, "", []string{"endpoint:" + counterGauge.endpoint, "bar:foo"})
+
+	nativeDynamic := runOpenMetricsCheck(t, `
+openmetrics_endpoint: %%endpoint%%
+namespace: test
+metrics:
+  - go_memstats_alloc_bytes:
+      type: native_dynamic
+`, `
+# TYPE go_memstats_alloc_bytes gauge
+go_memstats_alloc_bytes 1900688
+# TYPE go_memstats_alloc_bytes_total counter
+go_memstats_alloc_bytes_total 258684656
+`)
+	nativeDynamic.sender.AssertMetric(t, "Gauge", "test.go_memstats_alloc_bytes", 1900688, "", []string{"endpoint:" + nativeDynamic.endpoint})
+	nativeDynamic.sender.AssertMonotonicCount(t, "MonotonicCountWithFlushFirstValue", "test.go_memstats_alloc_bytes.count", 258684656, "", []string{"endpoint:" + nativeDynamic.endpoint}, false)
+
+	for _, metricType := range []string{"counter", "gauge"} {
+		t.Run("untyped override "+metricType, func(t *testing.T) {
+			run := runOpenMetricsCheck(t, `
+openmetrics_endpoint: %%endpoint%%
+namespace: test
+metrics:
+  - foo:
+      name: foo
+      type: `+metricType+`
+  - bar_total:
+      name: bar
+      type: `+metricType+`
+  - baz_total:
+      name: baz
+      type: `+metricType+`
+  - fiz:
+      name: fiz
+      type: `+metricType+`
+  - bux:
+      name: bux
+      type: `+metricType+`
+`, `
+# TYPE foo untyped
+foo 0
+# TYPE bar_total untyped
+bar_total 1
+# TYPE baz untyped
+baz_total 2
+# TYPE qux untyped
+fiz 3
+# TYPE bux histogram
+bux 4
+`)
+			expected := map[string]float64{
+				"foo": 0,
+				"bar": 1,
+				"baz": 2,
+				"fiz": 3,
+				"bux": 4,
+			}
+			for metric, value := range expected {
+				if metricType == "counter" {
+					run.sender.AssertMonotonicCount(t, "MonotonicCountWithFlushFirstValue", "test."+metric+".count", value, "", []string{"endpoint:" + run.endpoint}, false)
+				} else {
+					run.sender.AssertMetric(t, "Gauge", "test."+metric, value, "", []string{"endpoint:" + run.endpoint})
+				}
+			}
+		})
+	}
+}
+
 func TestLatestHistogramDisableBuckets(t *testing.T) {
 	payload := `
 # TYPE request_duration_seconds histogram
@@ -1221,7 +1314,7 @@ send_monotonic_counter: true
 
 	run.sender.AssertMetric(t, "Gauge", "openmetrics.renamed.metric1", 1, "", []string{"node:host1", "flavor:test"})
 	run.sender.AssertMetric(t, "Gauge", "openmetrics.metric2", 2, "", []string{"node:host2", "timestamp:123"})
-	run.sender.AssertMetric(t, "MonotonicCount", "openmetrics.counter1_total", 10, "", []string{"node:host2"})
+	run.sender.AssertMonotonicCount(t, "MonotonicCountWithFlushFirstValue", "openmetrics.counter1_total", 10, "", []string{"node:host2"}, false)
 	run.sender.AssertServiceCheck(t, "openmetrics.prometheus.health", servicecheck.ServiceCheckOK, "", nil, "")
 	run.sender.AssertMetricNotTaggedWith(t, "Gauge", "openmetrics.metric2", []string{"endpoint:" + run.endpoint})
 }
@@ -1241,7 +1334,7 @@ send_monotonic_with_gauge: true
 `, payload)
 
 	run.sender.AssertMetric(t, "Gauge", "openmetrics.counter1_total", 10, "", []string{"node:host2"})
-	run.sender.AssertMetric(t, "MonotonicCount", "openmetrics.counter1_total.total", 10, "", []string{"node:host2"})
+	run.sender.AssertMonotonicCount(t, "MonotonicCountWithFlushFirstValue", "openmetrics.counter1_total.total", 10, "", []string{"node:host2"}, false)
 }
 
 func TestLegacyInvalidMetricAndWildcardCompatibility(t *testing.T) {
@@ -1269,6 +1362,238 @@ metrics:
 `, payload)
 	wildcard.sender.AssertMetric(t, "Gauge", "openmetrics.metric1", 1, "", []string{"node:host1", "flavor:test", "matched_label:foobar"})
 	wildcard.sender.AssertMetric(t, "Gauge", "openmetrics.metric2", 2, "", []string{"node:host2", "timestamp:123", "matched_label:foobar"})
+}
+
+func TestIntegrationsCoreOpenMetricsFixtureParity(t *testing.T) {
+	payload := `
+# TYPE prometheus_target_interval_length_seconds summary
+prometheus_target_interval_length_seconds{quantile="0.5"} 10
+prometheus_target_interval_length_seconds_sum 20
+prometheus_target_interval_length_seconds_count 2
+# TYPE prometheus_http_request_duration_seconds histogram
+prometheus_http_request_duration_seconds_bucket{le="0.5"} 4
+prometheus_http_request_duration_seconds_bucket{le="+Inf"} 4
+prometheus_http_request_duration_seconds_sum 1.4
+prometheus_http_request_duration_seconds_count 4
+# TYPE go_memstats_mallocs_total counter
+go_memstats_mallocs_total 99
+# TYPE go_memstats_alloc_bytes gauge
+go_memstats_alloc_bytes 123
+`
+	run := runOpenMetricsCheck(t, `
+prometheus_url: %%endpoint%%
+namespace: openmetrics
+metrics:
+  - prometheus_target_interval_length_seconds: target_interval_seconds
+  - prometheus_http_request_duration_seconds: http_req_duration_seconds
+  - go_memstats_mallocs_total
+  - go_memstats_alloc_bytes
+`, payload)
+
+	run.sender.AssertMetric(t, "Gauge", "openmetrics.target_interval_seconds.sum", 20, "", nil)
+	run.sender.AssertMetric(t, "Gauge", "openmetrics.target_interval_seconds.count", 2, "", nil)
+	run.sender.AssertMetric(t, "Gauge", "openmetrics.target_interval_seconds.quantile", 10, "", []string{"quantile:0.5"})
+	run.sender.AssertMetric(t, "Gauge", "openmetrics.http_req_duration_seconds.sum", 1.4, "", nil)
+	run.sender.AssertMetric(t, "Gauge", "openmetrics.http_req_duration_seconds.count", 4, "", []string{"upper_bound:none"})
+	run.sender.AssertMonotonicCount(t, "MonotonicCountWithFlushFirstValue", "openmetrics.go_memstats_mallocs_total", 99, "", nil, false)
+	run.sender.AssertMetric(t, "Gauge", "openmetrics.go_memstats_alloc_bytes", 123, "", nil)
+}
+
+func TestLegacyLabelJoinsCompatibility(t *testing.T) {
+	payload := `
+# TYPE kube_global_labels gauge
+kube_global_labels{cluster="prod",leader="true"} 1
+# TYPE kube_local_labels gauge
+kube_local_labels{foo="bar",ignored="yes"} 1
+# TYPE kube_pod_info gauge
+kube_pod_info{pod="api",namespace="default",node="node-a",pod_ip="10.0.0.1"} 1
+kube_pod_info{pod="worker",namespace="default",node="node-b",pod_ip="10.0.0.2"} 1
+# TYPE kube_pod_labels gauge
+kube_pod_labels{pod="api",namespace="default",label_app="api"} 1
+kube_pod_labels{pod="worker",namespace="default",label_app="worker"} 1
+# TYPE kube_deployment_labels gauge
+kube_deployment_labels{deployment="api",namespace="default",label_k8s_app="api",label_kubernetes_io_cluster_service="true"} 1
+# TYPE kube_pod_status_ready gauge
+kube_pod_status_ready{pod="api",namespace="default",condition="true"} 1
+kube_pod_status_ready{pod="worker",namespace="default",condition="true"} 1
+# TYPE kube_deployment_status_replicas gauge
+kube_deployment_status_replicas{deployment="api",namespace="default"} 3
+`
+	run := runOpenMetricsCheck(t, `
+prometheus_url: %%endpoint%%
+namespace: ksm
+metrics:
+  - kube_pod_status_ready: pod.ready
+  - kube_deployment_status_replicas: deploy.replicas.available
+label_joins:
+  kube_global_labels:
+    label_to_match: "*"
+    labels_to_get:
+      - "*"
+  kube_local_labels:
+    labels_to_match:
+      - "*"
+    labels_to_get:
+      - foo
+  kube_pod_info:
+    label_to_match: pod
+    labels_to_get:
+      - node
+      - pod_ip
+  kube_pod_labels:
+    labels_to_match:
+      - pod
+      - namespace
+    labels_to_get:
+      - "*"
+  kube_deployment_labels:
+    label_to_match:
+      - deployment
+    labels_to_get:
+      - label_k8s_app
+      - label_kubernetes_io_cluster_service
+`, payload)
+
+	run.sender.AssertMetric(t, "Gauge", "ksm.pod.ready", 1, "", []string{
+		"pod:api",
+		"namespace:default",
+		"condition:true",
+		"cluster:prod",
+		"leader:true",
+		"foo:bar",
+		"node:node-a",
+		"pod_ip:10.0.0.1",
+		"label_app:api",
+	})
+	run.sender.AssertMetric(t, "Gauge", "ksm.pod.ready", 1, "", []string{
+		"pod:worker",
+		"namespace:default",
+		"condition:true",
+		"node:node-b",
+		"pod_ip:10.0.0.2",
+		"label_app:worker",
+	})
+	run.sender.AssertMetric(t, "Gauge", "ksm.deploy.replicas.available", 3, "", []string{
+		"deployment:api",
+		"namespace:default",
+		"label_k8s_app:api",
+		"label_kubernetes_io_cluster_service:true",
+	})
+}
+
+func TestLegacyLabelJoinsIgnoresMissingLabelsAndMetrics(t *testing.T) {
+	payload := `
+# TYPE kube_pod_info gauge
+kube_pod_info{pod="api",node="node-a",pod_ip="10.0.0.1"} 1
+# TYPE kube_pod_status_ready gauge
+kube_pod_status_ready{pod="api",namespace="default",condition="true"} 1
+`
+	run := runOpenMetricsCheck(t, `
+prometheus_url: %%endpoint%%
+namespace: ksm
+metrics:
+  - kube_pod_status_ready: pod.ready
+label_joins:
+  kube_pod_info:
+    label_to_match: not_existing
+    labels_to_get:
+      - node
+      - pod_ip
+  not_existing:
+    label_to_match: pod
+    labels_to_get:
+      - node
+`, payload)
+
+	run.sender.AssertMetric(t, "Gauge", "ksm.pod.ready", 1, "", []string{"pod:api", "namespace:default", "condition:true"})
+	run.sender.AssertMetricNotTaggedWith(t, "Gauge", "ksm.pod.ready", []string{"node:node-a"})
+	run.sender.AssertMetricNotTaggedWith(t, "Gauge", "ksm.pod.ready", []string{"pod_ip:10.0.0.1"})
+}
+
+func TestLegacyLabelJoinsUpdateWithoutStaleValues(t *testing.T) {
+	var payload atomic.Value
+	payload.Store(`
+# TYPE kube_pod_info gauge
+kube_pod_info{pod="api",node="node-a"} 1
+# TYPE kube_pod_status_phase gauge
+kube_pod_status_phase{pod="api",phase="Running"} 1
+# TYPE kube_pod_status_ready gauge
+kube_pod_status_ready{pod="api"} 1
+`)
+	run := configureOpenMetricsCheck(t, `
+prometheus_url: %%endpoint%%
+namespace: ksm
+metrics:
+  - kube_pod_status_ready: pod.ready
+label_joins:
+  kube_pod_info:
+    label_to_match: pod
+    labels_to_get:
+      - node
+  kube_pod_status_phase:
+    label_to_match: pod
+    labels_to_get:
+      - phase
+`, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+		_, err := w.Write([]byte(payload.Load().(string)))
+		require.NoError(t, err)
+	}))
+	run.run(t)
+	run.sender.AssertMetric(t, "Gauge", "ksm.pod.ready", 1, "", []string{"pod:api", "node:node-a", "phase:Running"})
+
+	payload.Store(`
+# TYPE kube_pod_info gauge
+kube_pod_info{pod="api",node="node-b"} 1
+# TYPE kube_pod_status_phase gauge
+kube_pod_status_phase{pod="api",phase="Pending"} 1
+# TYPE kube_pod_status_ready gauge
+kube_pod_status_ready{pod="api"} 1
+`)
+	run.sender.ResetCalls()
+	run.run(t)
+	run.sender.AssertMetric(t, "Gauge", "ksm.pod.ready", 1, "", []string{"pod:api", "node:node-b", "phase:Pending"})
+	run.sender.AssertMetricNotTaggedWith(t, "Gauge", "ksm.pod.ready", []string{"node:node-a"})
+	run.sender.AssertMetricNotTaggedWith(t, "Gauge", "ksm.pod.ready", []string{"phase:Running"})
+}
+
+func TestLatestLabelJoinsCompatibility(t *testing.T) {
+	payload := `
+# TYPE build_info gauge
+build_info{pod="api",version="1.0.0"} 1
+# TYPE app_up gauge
+app_up{pod="api"} 1
+`
+	run := runOpenMetricsCheck(t, `
+openmetrics_endpoint: %%endpoint%%
+namespace: test
+metrics:
+  - app_up
+label_joins:
+  build_info:
+    labels_to_match:
+      - pod
+    labels_to_get:
+      - version
+`, payload)
+
+	run.sender.AssertMetric(t, "Gauge", "test.app_up", 1, "", []string{"pod:api", "version:1.0.0", "endpoint:" + run.endpoint})
+}
+
+func TestLegacyEmptyNamespace(t *testing.T) {
+	payload := `
+# TYPE process_virtual_memory_bytes gauge
+process_virtual_memory_bytes 12
+`
+	run := runOpenMetricsCheck(t, `
+prometheus_url: %%endpoint%%
+namespace: ""
+metrics:
+  - process_virtual_memory_bytes: process.vm.bytes
+`, payload)
+
+	run.sender.AssertMetric(t, "Gauge", "process.vm.bytes", 12, "", nil)
+	run.sender.AssertMetricMissing(t, "Gauge", "openmetrics.process.vm.bytes")
 }
 
 func TestShareLabelsCacheMatchesPythonOrdering(t *testing.T) {
@@ -1450,4 +1775,282 @@ auth_token:
 	run.run(t)
 
 	run.sender.AssertMetric(t, "Gauge", "test.app_up", 1, "", []string{"endpoint:" + run.endpoint})
+}
+
+func TestLegacyBearerTokenAuthCompatibility(t *testing.T) {
+	tokenPath := filepath.Join(t.TempDir(), "token")
+	require.NoError(t, os.WriteFile(tokenPath, []byte("first-token\n"), 0o600))
+
+	payload := `
+# TYPE app_up gauge
+app_up 1
+`
+	defaultTokenPath := filepath.Join(t.TempDir(), "default-token")
+	require.NoError(t, os.WriteFile(defaultTokenPath, []byte("default-token\n"), 0o600))
+	originalDefaultBearerTokenPath := defaultBearerTokenPath
+	defaultBearerTokenPath = defaultTokenPath
+	t.Cleanup(func() {
+		defaultBearerTokenPath = originalDefaultBearerTokenPath
+	})
+
+	defaultTokenRun := configureOpenMetricsCheck(t, `
+prometheus_url: %%endpoint%%
+namespace: openmetrics
+metrics:
+  - app_up
+bearer_token_auth: true
+`, http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		require.Equal(t, "Bearer default-token", request.Header.Get("Authorization"))
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+		_, err := w.Write([]byte(payload))
+		require.NoError(t, err)
+	}))
+	defaultTokenRun.run(t)
+	defaultTokenRun.sender.AssertMetric(t, "Gauge", "openmetrics.app_up", 1, "", nil)
+
+	var requestCount atomic.Int32
+	run := configureOpenMetricsCheck(t, `
+prometheus_url: %%endpoint%%
+namespace: openmetrics
+metrics:
+  - app_up
+bearer_token_auth: true
+bearer_token_path: `+tokenPath+`
+`, http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		count := requestCount.Add(1)
+		if count == 1 {
+			require.Equal(t, "Bearer first-token", request.Header.Get("Authorization"))
+		} else {
+			require.Equal(t, "Bearer second-token", request.Header.Get("Authorization"))
+		}
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+		_, err := w.Write([]byte(payload))
+		require.NoError(t, err)
+	}))
+	run.run(t)
+	run.sender.AssertMetric(t, "Gauge", "openmetrics.app_up", 1, "", nil)
+
+	require.NoError(t, os.WriteFile(tokenPath, []byte("second-token\n"), 0o600))
+	run.sender.ResetCalls()
+	run.run(t)
+	run.sender.AssertMetric(t, "Gauge", "openmetrics.app_up", 1, "", nil)
+
+	disabled := configureOpenMetricsCheck(t, `
+prometheus_url: %%endpoint%%
+namespace: openmetrics
+metrics:
+  - app_up
+bearer_token_auth: false
+bearer_token_path: `+tokenPath+`
+`, http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		require.Empty(t, request.Header.Get("Authorization"))
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+		_, err := w.Write([]byte(payload))
+		require.NoError(t, err)
+	}))
+	disabled.run(t)
+
+	tlsOnlyHTTP := configureOpenMetricsCheck(t, `
+prometheus_url: %%endpoint%%
+namespace: openmetrics
+metrics:
+  - app_up
+bearer_token_auth: tls_only
+bearer_token_path: `+tokenPath+`
+`, http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		require.Empty(t, request.Header.Get("Authorization"))
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+		_, err := w.Write([]byte(payload))
+		require.NoError(t, err)
+	}))
+	tlsOnlyHTTP.run(t)
+
+	tlsServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		require.Equal(t, "Bearer second-token", request.Header.Get("Authorization"))
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+		_, err := w.Write([]byte(payload))
+		require.NoError(t, err)
+	}))
+	t.Cleanup(tlsServer.Close)
+
+	tlsOnlyHTTPS := configureOpenMetricsCheckForEndpoint(t, `
+prometheus_url: %%endpoint%%
+namespace: openmetrics
+metrics:
+  - app_up
+bearer_token_auth: tls_only
+bearer_token_path: `+tokenPath+`
+ssl_verify: false
+`, tlsServer.URL)
+	tlsOnlyHTTPS.run(t)
+	tlsOnlyHTTPS.sender.AssertMetric(t, "Gauge", "openmetrics.app_up", 1, "", nil)
+}
+
+func TestLegacyBearerTokenMissingFileReportsCritical(t *testing.T) {
+	missingPath := filepath.Join(t.TempDir(), "missing-token")
+	run := configureOpenMetricsCheckWithoutServer(t, `
+prometheus_url: http://127.0.0.1:1/metrics
+namespace: openmetrics
+metrics:
+  - app_up
+bearer_token_auth: true
+bearer_token_path: `+missingPath+`
+`)
+
+	require.Error(t, run.check.Run())
+	run.sender.Mock.AssertCalled(t, "ServiceCheck", "openmetrics.prometheus.health", servicecheck.ServiceCheckCritical, "", mock.AnythingOfType("[]string"), mock.AnythingOfType("string"))
+}
+
+func TestLegacyUseProcessStartTimeFlushFirstValue(t *testing.T) {
+	originalStartTime := pkgconfigsetup.StartTime
+	t.Cleanup(func() {
+		pkgconfigsetup.StartTime = originalStartTime
+	})
+
+	tests := []struct {
+		name                    string
+		useProcessStartTime     bool
+		sendDistributionBuckets bool
+		agentStartTime          int64
+		processStartTimes       []float64
+		flushFirstValue         bool
+	}{
+		{name: "disabled", useProcessStartTime: false, agentStartTime: 10, flushFirstValue: false},
+		{name: "enabled agent older", useProcessStartTime: true, agentStartTime: 10, processStartTimes: []float64{20}, flushFirstValue: true},
+		{name: "enabled agent newer", useProcessStartTime: true, agentStartTime: 20, processStartTimes: []float64{10}, flushFirstValue: false},
+		{name: "enabled no metric", useProcessStartTime: true, agentStartTime: 10, flushFirstValue: false},
+		{name: "enabled many metrics all newer", useProcessStartTime: true, agentStartTime: 10, processStartTimes: []float64{20, 30, 40}, flushFirstValue: true},
+		{name: "enabled many metrics some newer", useProcessStartTime: true, agentStartTime: 20, processStartTimes: []float64{10, 30, 40}, flushFirstValue: false},
+		{name: "with buckets disabled", useProcessStartTime: false, sendDistributionBuckets: true, agentStartTime: 10, flushFirstValue: false},
+		{name: "with buckets enabled agent older", useProcessStartTime: true, sendDistributionBuckets: true, agentStartTime: 10, processStartTimes: []float64{20}, flushFirstValue: true},
+		{name: "with buckets enabled agent newer", useProcessStartTime: true, sendDistributionBuckets: true, agentStartTime: 20, processStartTimes: []float64{10}, flushFirstValue: false},
+		{name: "with buckets enabled no metric", useProcessStartTime: true, sendDistributionBuckets: true, agentStartTime: 10, flushFirstValue: false},
+		{name: "with buckets enabled many metrics all newer", useProcessStartTime: true, sendDistributionBuckets: true, agentStartTime: 10, processStartTimes: []float64{20, 30, 40}, flushFirstValue: true},
+		{name: "with buckets enabled many metrics some newer", useProcessStartTime: true, sendDistributionBuckets: true, agentStartTime: 20, processStartTimes: []float64{10, 30, 40}, flushFirstValue: false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			pkgconfigsetup.StartTime = time.Unix(test.agentStartTime, 0)
+			var processStartPayload strings.Builder
+			for i, startedAt := range test.processStartTimes {
+				labels := ""
+				if len(test.processStartTimes) > 1 {
+					labels = `{pid="` + strconv.Itoa(i) + `"}`
+				}
+				processStartPayload.WriteString("process_start_time_seconds")
+				processStartPayload.WriteString(labels)
+				processStartPayload.WriteString(" ")
+				processStartPayload.WriteString(strconv.FormatFloat(startedAt, 'f', -1, 64))
+				processStartPayload.WriteString("\n")
+			}
+			payload := `
+# TYPE go_memstats_alloc_bytes_total counter
+go_memstats_alloc_bytes_total 9
+# TYPE request_duration_seconds histogram
+request_duration_seconds_bucket{le="0.1"} 2
+request_duration_seconds_bucket{le="+Inf"} 2
+request_duration_seconds_sum 0.2
+request_duration_seconds_count 2
+# TYPE go_gc_duration_seconds summary
+go_gc_duration_seconds{quantile="0.5"} 0.01
+go_gc_duration_seconds_sum 0.02
+go_gc_duration_seconds_count 1
+# TYPE process_start_time_seconds gauge
+` + processStartPayload.String()
+
+			run := runOpenMetricsCheck(t, `
+prometheus_url: %%endpoint%%
+namespace: ""
+metrics:
+  - go_memstats_alloc_bytes_total
+  - request_duration_seconds
+  - go_gc_duration_seconds
+send_distribution_counts_as_monotonic: true
+send_distribution_buckets: `+strconv.FormatBool(test.sendDistributionBuckets)+`
+use_process_start_time: `+strconv.FormatBool(test.useProcessStartTime)+`
+`, payload)
+
+			run.sender.AssertMonotonicCount(t, "MonotonicCountWithFlushFirstValue", "go_memstats_alloc_bytes_total", 9, "", nil, test.flushFirstValue)
+			run.sender.AssertMonotonicCount(t, "MonotonicCountWithFlushFirstValue", "go_gc_duration_seconds.count", 1, "", nil, test.flushFirstValue)
+			if test.sendDistributionBuckets {
+				run.sender.Mock.AssertCalled(t, "HistogramBucket", "request_duration_seconds", int64(2), 0.0, 0.1, true, "", mocksender.MatchTagsContains([]string{"lower_bound:0", "upper_bound:0.1"}), test.flushFirstValue)
+			} else {
+				run.sender.AssertMonotonicCount(t, "MonotonicCountWithFlushFirstValue", "request_duration_seconds.count", 2, "", []string{"upper_bound:none"}, test.flushFirstValue)
+			}
+
+			run.sender.ResetCalls()
+			run.run(t)
+			run.sender.AssertMonotonicCount(t, "MonotonicCountWithFlushFirstValue", "go_memstats_alloc_bytes_total", 9, "", nil, true)
+		})
+	}
+}
+
+func TestLatestPropertyBasedInvariantEquivalents(t *testing.T) {
+	gaugePayload := `
+# TYPE alpha gauge
+alpha 1
+# TYPE beta_value gauge
+beta_value 2
+# TYPE gamma_total gauge
+gamma_total 3
+`
+	allGauges := runOpenMetricsCheck(t, `
+openmetrics_endpoint: %%endpoint%%
+namespace: test
+metrics:
+  - ".+"
+`, gaugePayload)
+	allGauges.sender.AssertMetric(t, "Gauge", "test.alpha", 1, "", []string{"endpoint:" + allGauges.endpoint})
+	allGauges.sender.AssertMetric(t, "Gauge", "test.beta_value", 2, "", []string{"endpoint:" + allGauges.endpoint})
+	allGauges.sender.AssertMetric(t, "Gauge", "test.gamma_total", 3, "", []string{"endpoint:" + allGauges.endpoint})
+
+	subsetGauges := runOpenMetricsCheck(t, `
+openmetrics_endpoint: %%endpoint%%
+namespace: test
+metrics:
+  - alpha
+  - beta_value
+`, gaugePayload)
+	subsetGauges.sender.AssertMetric(t, "Gauge", "test.alpha", 1, "", []string{"endpoint:" + subsetGauges.endpoint})
+	subsetGauges.sender.AssertMetric(t, "Gauge", "test.beta_value", 2, "", []string{"endpoint:" + subsetGauges.endpoint})
+	subsetGauges.sender.AssertMetricMissing(t, "Gauge", "test.gamma_total")
+
+	emptyMapping := runOpenMetricsCheck(t, `
+openmetrics_endpoint: %%endpoint%%
+namespace: test
+metrics: []
+`, gaugePayload)
+	emptyMapping.sender.AssertMetricMissing(t, "Gauge", "test.alpha")
+	emptyMapping.sender.AssertMetricMissing(t, "Gauge", "test.beta_value")
+	emptyMapping.sender.AssertMetricMissing(t, "Gauge", "test.gamma_total")
+
+	prometheusCounters := runOpenMetricsCheck(t, `
+openmetrics_endpoint: %%endpoint%%
+namespace: test
+metrics:
+  - ".+"
+`, `
+# TYPE requests counter
+requests 10
+# TYPE jobs_processed counter
+jobs_processed 11
+`)
+	prometheusCounters.sender.AssertMonotonicCount(t, "MonotonicCountWithFlushFirstValue", "test.requests.count", 10, "", []string{"endpoint:" + prometheusCounters.endpoint}, false)
+	prometheusCounters.sender.AssertMonotonicCount(t, "MonotonicCountWithFlushFirstValue", "test.jobs_processed.count", 11, "", []string{"endpoint:" + prometheusCounters.endpoint}, false)
+
+	openMetricsCounters := runOpenMetricsCheckWithResponse(t, `
+openmetrics_endpoint: %%endpoint%%
+namespace: test
+metrics:
+  - requests
+  - jobs_processed
+`, `# TYPE requests counter
+requests_total 10
+# TYPE jobs_processed counter
+jobs_processed_total 11
+# EOF
+`, http.StatusOK, "application/openmetrics-text")
+	openMetricsCounters.sender.AssertMonotonicCount(t, "MonotonicCountWithFlushFirstValue", "test.requests.count", 10, "", []string{"endpoint:" + openMetricsCounters.endpoint}, false)
+	openMetricsCounters.sender.AssertMonotonicCount(t, "MonotonicCountWithFlushFirstValue", "test.jobs_processed.count", 11, "", []string{"endpoint:" + openMetricsCounters.endpoint}, false)
 }

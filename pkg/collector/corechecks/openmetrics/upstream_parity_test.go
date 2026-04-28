@@ -272,10 +272,6 @@ func upstreamOpenMetricsMigrationStatus(id string) (string, string) {
 	switch {
 	case strings.Contains(id, "/test_bench.py::"):
 		return "skip", "benchmark-only upstream test; no Go benchmark migration in this core-check unit suite yet"
-	case strings.Contains(id, "/test_property_based.py::"):
-		return "skip", "Hypothesis property test; deterministic Go equivalents cover the core behavior, property generator not ported yet"
-	case strings.Contains(id, "openmetrics/tests/test_integration.py::"):
-		return "skip", "Docker/e2e upstream integration test; not runnable as a core-check unit test"
 	case strings.Contains(id, "/test_v2/scraper/"):
 		return "skip", "Python scraper internal test seam; Go port validates behavior through scrape-level tests instead"
 	case strings.Contains(id, "test_openmetrics_base_check.py::TestSignature::"):
@@ -284,10 +280,6 @@ func upstreamOpenMetricsMigrationStatus(id string) (string, string) {
 		strings.Contains(id, "test_openmetrics_base_check.py::test_timeout_override"),
 		strings.Contains(id, "test_openmetrics_base_check.py::test_label_to_hostname_override"):
 		return "skip", "Python subclass override API; not applicable to the Go core check"
-	case strings.Contains(id, "test_openmetrics_base_check.py::test_get_"),
-		strings.Contains(id, "test_openmetrics_base_check.py::test_bearer_token_"),
-		strings.Contains(id, "test_openmetrics.py::test_refresh_bearer_token"):
-		return "skip", "Python HTTP wrapper bearer-token edge case; Go auth-token/file/OAuth paths are covered separately"
 	case strings.Contains(id, "test_v2/test_interface.py::test_custom_transformer"):
 		return "skip", "Python custom transformer extension hook; not available in the Go core check"
 	case strings.Contains(id, "test_v2/test_interface.py::test_service_check_dynamic_tags"),
@@ -301,16 +293,12 @@ func upstreamOpenMetricsMigrationStatus(id string) (string, string) {
 		strings.Contains(id, "test_legacy/test_openmetrics.py::test_compute_bucket_hash"),
 		strings.Contains(id, "test_legacy/test_openmetrics.py::test_filter_sample_on_gauge"):
 		return "skip", "Python parser/scraper internal method test; Go coverage is scrape-level"
-	case strings.Contains(id, "test_legacy/test_openmetrics.py::test_label_join"):
-		return "skip", "Legacy label_joins edge-case matrix not fully ported as direct Go tests yet"
 	case strings.Contains(id, "test_legacy/test_openmetrics.py::test_label_to_match_"):
 		return "skip", "Legacy label_joins benchmark helper test; not migrated to Go unit coverage"
 	case strings.Contains(id, "test_legacy/test_openmetrics.py::test_send_request_with_dynamic_prometheus_url"):
 		return "skip", "Python dynamic prometheus_url formatting path; not represented by the Go core check test seam"
 	case strings.Contains(id, "test_legacy/test_openmetrics.py::test_http_handler"):
 		return "skip", "Python HTTP handler implementation detail; Go HTTP client behavior is covered through endpoint tests"
-	case strings.Contains(id, "test_legacy/test_openmetrics.py::test_use_process_start_time"):
-		return "skip", "process_start_time flush policy is implemented but the upstream parameter matrix is not ported yet"
 	}
 	return "pass", "ported or covered by the Go OpenMetrics parity tests in this package"
 }
