@@ -6,6 +6,7 @@
 package logssourceimpl
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -18,7 +19,8 @@ import (
 )
 
 // newTestADSetup returns a fresh (sp, mgr, ls) triple for AD dedupe tests.
-func newTestADSetup() (*sourceProvider, *adSourceManager, *sources.LogSources) {
+func newTestADSetup(t *testing.T) (*sourceProvider, *adSourceManager, *sources.LogSources) {
+	t.Helper()
 	ls := sources.NewLogSources()
 	sp := newSourceProvider(nil, ls, nil)
 	svc := service.NewServices()
@@ -43,7 +45,7 @@ func fileADSource(name, path string) *sources.LogSource {
 // TestADSourceManager_FileConfig verifies that a file-type AD source (e.g. from
 // conf.d) is forwarded to LogSources without any suppression side-effects.
 func TestADSourceManager_FileConfig(t *testing.T) {
-	_, mgr, ls := newTestADSetup()
+	_, mgr, ls := newTestADSetup(t)
 
 	src := fileADSource("my-integration", "/var/log/app.log")
 	mgr.AddSource(src)
@@ -57,7 +59,7 @@ func TestADSourceManager_FileConfig(t *testing.T) {
 // adding a container-type AD source removes an already-active generic source
 // for the same container ID.
 func TestADSourceManager_ContainerSourceSuppressesExistingGeneric(t *testing.T) {
-	sp, mgr, ls := newTestADSetup()
+	sp, mgr, ls := newTestADSetup(t)
 
 	// Generic source added first (as if workloadmeta fired a Set event).
 	c := runningContainer("abc123", "nginx")
@@ -77,7 +79,7 @@ func TestADSourceManager_ContainerSourceSuppressesExistingGeneric(t *testing.T) 
 // that a workloadmeta Set event for a suppressed container ID does not create
 // a duplicate generic source.
 func TestADSourceManager_SuppressedIdentifierPreventsNewGenericSource(t *testing.T) {
-	sp, mgr, ls := newTestADSetup()
+	sp, mgr, ls := newTestADSetup(t)
 
 	// AD source added first — suppresses the identifier before any generic source.
 	adSrc := containerADSource("abc123")
@@ -96,7 +98,7 @@ func TestADSourceManager_SuppressedIdentifierPreventsNewGenericSource(t *testing
 // TestADSourceManager_RemoveADSourceReleasesSuppression verifies that removing
 // the AD source releases suppression so generic collection can resume.
 func TestADSourceManager_RemoveADSourceReleasesSuppression(t *testing.T) {
-	sp, mgr, ls := newTestADSetup()
+	sp, mgr, ls := newTestADSetup(t)
 
 	adSrc := containerADSource("abc123")
 	mgr.AddSource(adSrc)
@@ -189,4 +191,39 @@ func TestSourceProvider_SuppressUnknownIdentifier(t *testing.T) {
 func TestContainerRuntimeMatchesLogsConfigType(t *testing.T) {
 	assert.Equal(t, logsconfig.DockerType, string(workloadmeta.ContainerRuntimeDocker))
 	assert.Equal(t, logsconfig.ContainerdType, string(workloadmeta.ContainerRuntimeContainerd))
+}
+
+// TestSuppressAndHandleSet_Race exercises suppressIdentifier and handleSet
+// concurrently so that the -race detector can catch data races on the shared
+// suppressedIDs / activeSources maps.
+func TestSuppressAndHandleSet_Race(t *testing.T) {
+	sp, mgr, _ := newTestADSetup(t)
+	c := runningContainer("race-id", "nginx")
+	adSrc := containerADSource("race-id")
+
+	const iterations = 200
+	var wg sync.WaitGroup
+
+	// Goroutine 1: repeatedly add/remove the AD source (suppress/unsuppress path).
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < iterations; i++ {
+			mgr.AddSource(adSrc)
+			mgr.RemoveSource(adSrc)
+		}
+	}()
+
+	// Goroutine 2: repeatedly simulate workloadmeta Set events for the same container.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < iterations; i++ {
+			sp.handleSet(c)
+			sp.handleUnset(c)
+		}
+	}()
+
+	wg.Wait()
+	// No assertion on final state — the goal is for -race to find no data races.
 }

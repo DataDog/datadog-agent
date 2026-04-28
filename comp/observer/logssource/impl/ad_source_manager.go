@@ -36,23 +36,25 @@ func newADSourceManager(logSources *sources.LogSources, services *service.Servic
 }
 
 // AddSource implements schedulers.SourceManager.
-// For container-runtime sources with an identifier, it suppresses the generic
-// observer source before forwarding to LogSources.
+// For container-runtime sources with an identifier, it adds to LogSources first
+// so the AD source is always active before suppression evicts any generic source.
+// This eliminates the TOCTOU window where neither source would be active.
 func (m *adSourceManager) AddSource(src *sources.LogSource) {
+	m.logSources.AddSource(src)
 	if isContainerSource(src) {
 		m.sp.suppressIdentifier(src.Config.Identifier)
 	}
-	m.logSources.AddSource(src)
 }
 
 // RemoveSource implements schedulers.SourceManager.
 // For container-runtime sources with an identifier, it releases suppression
-// after the source is removed from LogSources.
+// before removing from LogSources so that a concurrent workloadmeta Set event
+// can immediately re-create the generic source without waiting for another event.
 func (m *adSourceManager) RemoveSource(src *sources.LogSource) {
-	m.logSources.RemoveSource(src)
 	if isContainerSource(src) {
 		m.sp.unsuppressIdentifier(src.Config.Identifier)
 	}
+	m.logSources.RemoveSource(src)
 }
 
 // GetSources implements schedulers.SourceManager.
