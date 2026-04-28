@@ -115,3 +115,66 @@ func TestPrivateActionRunnerRestrictedShellAllowedCommandsEmptyEnv(t *testing.T)
 	assert.False(t, cfg.IsConfigured(PARRestrictedShellAllowedCommands))
 	assert.Equal(t, []string{"rshell:*"}, cfg.GetStringSlice(PARRestrictedShellAllowedCommands))
 }
+
+// TestPrivateActionRunnerRestrictedShellAllowedPathsJSONArrayEnv covers the
+// JSON-array form for env vars, which gives parity with YAML and
+// — crucially — lets operators express the kill-switch via "[]".
+func TestPrivateActionRunnerRestrictedShellAllowedPathsJSONArrayEnv(t *testing.T) {
+	cases := []struct {
+		name string
+		env  string
+		want []string
+	}{
+		{"JSON array", `["/var/log","/tmp"]`, []string{"/var/log", "/tmp"}},
+		{"JSON kill-switch", `[]`, []string{}},
+		{"JSON kill-switch with whitespace", `  []  `, []string{}},
+		{"single-element JSON array", `["/var/log"]`, []string{"/var/log"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("DD_PRIVATE_ACTION_RUNNER_RESTRICTED_SHELL_ALLOWED_PATHS", tc.env)
+
+			cfg := newTestConf(t)
+
+			assert.True(t, cfg.IsConfigured(PARRestrictedShellAllowedPaths))
+			assert.Equal(t, tc.want, cfg.GetStringSlice(PARRestrictedShellAllowedPaths))
+		})
+	}
+}
+
+func TestPrivateActionRunnerRestrictedShellAllowedCommandsJSONArrayEnv(t *testing.T) {
+	cases := []struct {
+		name string
+		env  string
+		want []string
+	}{
+		{"JSON array", `["rshell:cat","rshell:ls"]`, []string{"rshell:cat", "rshell:ls"}},
+		{"JSON kill-switch", `[]`, []string{}},
+		{"single-element JSON array", `["rshell:cat"]`, []string{"rshell:cat"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("DD_PRIVATE_ACTION_RUNNER_RESTRICTED_SHELL_ALLOWED_COMMANDS", tc.env)
+
+			cfg := newTestConf(t)
+
+			assert.True(t, cfg.IsConfigured(PARRestrictedShellAllowedCommands))
+			assert.Equal(t, tc.want, cfg.GetStringSlice(PARRestrictedShellAllowedCommands))
+		})
+	}
+}
+
+// TestPrivateActionRunnerRestrictedShellAllowedPathsInvalidJSONEnv pins
+// that malformed bracketed input is rejected by the parser. The parser
+// logs an error and returns nil; the env var still counts as "set" (so
+// the registered default is bypassed), and downstream the handler treats
+// nil as the kill-switch — a fail-secure outcome consistent with the
+// rest of the contract. Operators who hit this should see the error in
+// agent logs.
+func TestPrivateActionRunnerRestrictedShellAllowedPathsInvalidJSONEnv(t *testing.T) {
+	t.Setenv("DD_PRIVATE_ACTION_RUNNER_RESTRICTED_SHELL_ALLOWED_PATHS", `[/var/log,/tmp]`) // missing quotes
+
+	cfg := newTestConf(t)
+
+	assert.Empty(t, cfg.GetStringSlice(PARRestrictedShellAllowedPaths))
+}

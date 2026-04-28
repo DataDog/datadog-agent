@@ -6,9 +6,11 @@
 package setup
 
 import (
+	"encoding/json"
 	"strings"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -91,18 +93,29 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	//     it appears in the operator list, every backend command in the
 	//     "rshell:" namespace is admitted.
 	config.BindEnvAndSetDefault(PARRestrictedShellAllowedPaths, []string{RShellPathAllowAll})
-	config.ParseEnvAsStringSlice(PARRestrictedShellAllowedPaths, func(s string) []string {
-		if s == "" {
-			return nil
-		}
-		return strings.Split(s, ",")
-	})
+	config.ParseEnvAsStringSlice(PARRestrictedShellAllowedPaths, parseAllowListEnvVar(PARRestrictedShellAllowedPaths))
 
 	config.BindEnvAndSetDefault(PARRestrictedShellAllowedCommands, []string{RShellCommandAllowAllWildcard})
-	config.ParseEnvAsStringSlice(PARRestrictedShellAllowedCommands, func(s string) []string {
+	config.ParseEnvAsStringSlice(PARRestrictedShellAllowedCommands, parseAllowListEnvVar(PARRestrictedShellAllowedCommands))
+}
+
+// parseAllowListEnvVar parses an rshell allow-list env var. Accepts both
+// CSV ("a,b") and JSON-array (["a","b"], []) forms; the JSON form gives
+// env/YAML parity, including the explicit kill-switch via "[]".
+func parseAllowListEnvVar(key string) func(string) []string {
+	return func(s string) []string {
+		s = strings.TrimSpace(s)
 		if s == "" {
 			return nil
 		}
+		if strings.HasPrefix(s, "[") && strings.HasSuffix(s, "]") {
+			res := []string{}
+			if err := json.Unmarshal([]byte(s), &res); err != nil {
+				log.Errorf("%s: invalid JSON env value %q: %v", key, s, err)
+				return nil
+			}
+			return res
+		}
 		return strings.Split(s, ",")
-	})
+	}
 }
