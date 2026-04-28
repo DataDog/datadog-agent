@@ -1080,7 +1080,7 @@ tls_ciphers:
 `), nil, "test", "provider")
 	require.NoError(t, err)
 
-	transport, ok := omCheck.scraper.httpClient.Transport.(*http.Transport)
+	transport, ok := omCheck.scraper.inner.httpClient.Transport.(*http.Transport)
 	require.True(t, ok)
 	require.Equal(t, "metrics.example.com", transport.TLSClientConfig.ServerName)
 	require.Equal(t, uint16(tls.VersionTLS12), transport.TLSClientConfig.MinVersion)

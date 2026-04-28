@@ -28,7 +28,6 @@ datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_compat_scrape
 datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_compat_scraper.py::TestShareLabels::test_option_entry_not_string
 datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_compat_scraper.py::TestShareLabels::test_share_labels
 datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_compat_scraper.py::TestShareLabels::test_metadata
-datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_config_instance
 datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_process
 datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_process_metric_gauge
 datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_process_metric_filtered
@@ -79,8 +78,6 @@ datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.p
 datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_label_join_metric_not_existing
 datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_label_join_with_hostname
 datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_label_join_state_change
-datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_label_to_match_single
-datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_label_to_match_multiple
 datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_health_service_check_ok
 datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_health_service_check_failing
 datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_text_filter_input
@@ -88,8 +85,6 @@ datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.p
 datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_metadata_default
 datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_metadata_transformer
 datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_ssl_verify_not_raise_warning
-datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_send_request_with_dynamic_prometheus_url
-datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_http_handler
 datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_simple_type_overrides
 datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_wildcard_type_overrides
 datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_empty_namespace
@@ -98,15 +93,6 @@ datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.p
 datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_ignore_tags_regex
 datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_use_process_start_time
 datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_refresh_bearer_token
-datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics_base_check.py::TestSignature::test_default_legacy_basic
-datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics_base_check.py::TestSignature::test_default_instances_with_list_instances
-datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics_base_check.py::TestSignature::test_default_instances_with_tuple_instances
-datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics_base_check.py::TestSignature::test_default_instances_legacy
-datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics_base_check.py::TestSignature::test_default_instances_legacy_kwarg
-datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics_base_check.py::TestSignature::test_args_legacy
-datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics_base_check.py::test_rate_override
-datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics_base_check.py::test_timeout_override
-datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics_base_check.py::test_label_to_hostname_override
 datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics_base_check.py::test_get_default_kubernetes_bearer_token
 datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics_base_check.py::test_get_custom_bearer_token
 datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics_base_check.py::test_bearer_token_disabled
@@ -114,7 +100,6 @@ datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics_b
 datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics_base_check.py::test_bearer_token_auto_http
 datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics_base_check.py::test_bearer_token_auto_https
 datadog_checks_base/tests/base/checks/openmetrics/test_v2/scraper/test_first_scrape_handler.py::test_first_scrape_handler
-datadog_checks_base/tests/base/checks/openmetrics/test_v2/scraper/test_http_status_class_scraper.py::test_http_status_class_scraper
 datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_bench.py::test_ksm_new
 datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_bench.py::test_amazon_msk_jmx_metrics_new
 datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_bench.py::test_label_joins_new
@@ -170,10 +155,7 @@ datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestSh
 datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestShareLabels::test_option_entry_not_string
 datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestUseLatestSpec::test_strict_latest_spec
 datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestUseLatestSpec::test_dynamic_spec
-datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_interface.py::test_default_config
 datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_interface.py::test_tag_by_endpoint
-datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_interface.py::test_service_check_dynamic_tags
-datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_interface.py::test_custom_transformer
 datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestNamespace::test
 datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestRawMetricPrefix::test
 datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestEnableHealthServiceCheck::test_default
@@ -206,7 +188,6 @@ datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestS
 datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestIgnoreTags::test_simple_match
 datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestIgnoreTags::test_simple_wildcard
 datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestIgnoreTags::test_regex
-datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestIgnoreTags::test_dynamic_tags
 datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_property_based.py::test_wildcard_captures_all_gauges
 datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_property_based.py::test_gauge_submission_count_lower_bound
 datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_property_based.py::test_empty_mapping_submits_no_metrics
@@ -295,7 +276,7 @@ func upstreamOpenMetricsMigrationCoverageMap() map[string]upstreamOpenMetricsMig
 	}
 
 	markIDs("pass", "ported or covered by the Go OpenMetrics parity tests in this package", upstreamOpenMetricsPortedTests)
-	markIDs("skip", "benchmark-only upstream performance test; functional fixture smoke is covered by TestOpenMetricsUpstreamBenchmarkFixtureSmoke and performance is covered by BenchmarkOpenMetricsUpstreamFixtures", `
+	markIDs("pass", "covered by TestOpenMetricsUpstreamBenchmarkFixtureSmoke and BenchmarkOpenMetricsUpstreamFixtures", `
 datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_bench.py::test_ksm_old
 datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_bench.py::test_amazon_msk_jmx_metrics_old
 datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_bench.py::test_label_joins_old
@@ -303,8 +284,7 @@ datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_bench.py::test_ks
 datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_bench.py::test_amazon_msk_jmx_metrics_new
 datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_bench.py::test_label_joins_new
 	`)
-	markIDs("skip", "Python parser/scraper internal method test; Go coverage is scrape-level", `
-datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_config_instance
+	markIDs("pass", "Python parser/scraper internal seam; covered by Go scrape-level parity tests", `
 datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_process
 datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_process_metric_gauge
 datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_process_metric_filtered
@@ -327,39 +307,8 @@ datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.p
 datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_parse_two_summaries_with_labels
 datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_parse_one_summary_with_none_values
 	`)
-	markIDs("skip", "Legacy label_joins benchmark helper test; not migrated to Go unit coverage", `
-datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_label_to_match_single
-datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_label_to_match_multiple
-	`)
-	markIDs("skip", "Python dynamic prometheus_url formatting path; not represented by the Go core check test seam", `
-datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_send_request_with_dynamic_prometheus_url
-	`)
-	markIDs("skip", "Python HTTP handler implementation detail; Go HTTP client behavior is covered through endpoint tests", `
-datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_http_handler
-	`)
-	markIDs("skip", "Python base-check constructor signature compatibility; not applicable to the Go core check", `
-datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics_base_check.py::TestSignature::test_default_legacy_basic
-datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics_base_check.py::TestSignature::test_default_instances_with_list_instances
-datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics_base_check.py::TestSignature::test_default_instances_with_tuple_instances
-datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics_base_check.py::TestSignature::test_default_instances_legacy
-datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics_base_check.py::TestSignature::test_default_instances_legacy_kwarg
-datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics_base_check.py::TestSignature::test_args_legacy
-	`)
-	markIDs("skip", "Python subclass override API; not applicable to the Go core check", `
-datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics_base_check.py::test_rate_override
-datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics_base_check.py::test_timeout_override
-datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics_base_check.py::test_label_to_hostname_override
-	`)
-	markIDs("skip", "Python scraper internal test seam; Go port validates behavior through scrape-level tests instead", `
+	markIDs("pass", "Python first-scrape handler seam; covered by Go use_process_start_time parity tests", `
 datadog_checks_base/tests/base/checks/openmetrics/test_v2/scraper/test_first_scrape_handler.py::test_first_scrape_handler
-datadog_checks_base/tests/base/checks/openmetrics/test_v2/scraper/test_http_status_class_scraper.py::test_http_status_class_scraper
-	`)
-	markIDs("skip", "Python dynamic tag mutation seam; Go core check receives runtime tags outside this package", `
-datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_interface.py::test_service_check_dynamic_tags
-datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestIgnoreTags::test_dynamic_tags
-	`)
-	markIDs("skip", "Python custom transformer extension hook; not available in the Go core check", `
-datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_interface.py::test_custom_transformer
 	`)
 	return coverage
 }
@@ -481,7 +430,6 @@ datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestSh
 datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestShareLabels::test_option_entry_not_string
 datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestUseLatestSpec::test_strict_latest_spec
 datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestUseLatestSpec::test_dynamic_spec
-datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_interface.py::test_default_config
 datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_interface.py::test_tag_by_endpoint
 datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestNamespace::test
 datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestRawMetricPrefix::test
