@@ -160,14 +160,16 @@ func TestSyslogOctetCountingPartialHeader(t *testing.T) {
 }
 
 func TestSyslogContentLenLimitOctetCounted(t *testing.T) {
-	// Octet-counted message exceeding content limit gets truncated.
+	// Octet-counted message exceeding content limit: the first
+	// contentLenLimit raw bytes are emitted (including the header).
 	limit := 20
 	msg := "<34>1 " + strings.Repeat("x", 30) // 36 bytes total
 	full := []byte(fmt.Sprintf("%d %s", len(msg), msg))
 
-	got, _ := processSyslog(t, limit, [][]byte{full})
+	got, rawLens := processSyslog(t, limit, [][]byte{full})
 	require.Len(t, got, 1)
-	assert.Equal(t, msg[:limit], got[0])
+	assert.Equal(t, string(full[:limit]), got[0])
+	assert.Equal(t, limit, rawLens[0])
 }
 
 func TestSyslogContentLenLimitNonTransparent(t *testing.T) {

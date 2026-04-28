@@ -95,13 +95,11 @@ func (m *syslogFrameMatcher) findOctetCounted(buf []byte) ([]byte, int, bool) {
 	}
 
 	content := buf[headerLen:totalLen]
-	wasTruncated := false
 	if len(content) > m.contentLenLimit {
-		content = content[:m.contentLenLimit]
-		wasTruncated = true
+		return buf[:m.contentLenLimit], m.contentLenLimit, true
 	}
 
-	return content, totalLen, wasTruncated
+	return content, totalLen, false
 }
 
 // findNonTransparent scans for a LF or NUL delimiter starting from seen.
@@ -117,13 +115,11 @@ func (m *syslogFrameMatcher) findNonTransparent(buf []byte, seen int) ([]byte, i
 			content := syslogTrimTrailer(buf[:i])
 			rawDataLen := i + 1 // include the delimiter
 
-			wasTruncated := false
 			if len(content) > m.contentLenLimit {
-				content = content[:m.contentLenLimit]
-				wasTruncated = true
+				return buf[:m.contentLenLimit], m.contentLenLimit, true
 			}
 
-			return content, rawDataLen, wasTruncated
+			return content, rawDataLen, false
 		}
 	}
 
@@ -131,20 +127,19 @@ func (m *syslogFrameMatcher) findNonTransparent(buf []byte, seen int) ([]byte, i
 	return nil, 0, false
 }
 
-// FlushFrame implements FrameMatcher. At end-of-stream, emit the buffer if it
-// looks like a non-transparent frame (starts with '<') whose trailing delimiter
-// was never sent. Partial octet-counted frames are genuinely incomplete, so
-// those are discarded.
+// FlushFrame implements FrameMatcher. At end-of-stream, emit any remaining
+// bytes in bounded chunks. The caller (Framer.Flush) loops until the buffer
+// is drained.
 func (m *syslogFrameMatcher) FlushFrame(buf []byte) ([]byte, int) {
 	if len(buf) == 0 {
-		return nil, 0
-	}
-	if buf[0] != '<' {
 		return nil, 0
 	}
 	content := syslogTrimTrailer(buf)
 	if len(content) == 0 {
 		return nil, 0
+	}
+	if len(content) > m.contentLenLimit {
+		return content[:m.contentLenLimit], m.contentLenLimit
 	}
 	return content, len(buf)
 }
