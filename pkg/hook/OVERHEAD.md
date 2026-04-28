@@ -148,7 +148,11 @@ benchmark — we measure delivery cost, not congestion.
 
 ## Results
 
-![Hook overhead chart](overhead.png)
+![Hook overhead per pipeline](overhead_a.png)
+
+![DogStatsD per-point CPU breakdown](overhead_b.png)
+
+![sample() cost — hookBatch append is free](overhead_c.png)
 
 > Regenerate: `uv run --with matplotlib python3 pkg/hook/plot_overhead.py`
 
