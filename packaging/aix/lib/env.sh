@@ -76,8 +76,12 @@ CXX=/opt/freeware/bin/g++-8
 NM="/usr/bin/nm -X64"
 ARFLAGS="-X64 -cru"
 OBJECT_MODE=64
+# gcc-8 checks AIX_OBJECT_MODE (not OBJECT_MODE) for startup-file selection.
+# Without it, gcc-8 passes 32-bit /lib/crt0.o to ld, which ld running in
+# 64-bit mode rejects. AIX_OBJECT_MODE=64 makes gcc-8 use /lib/crt0_64.o.
+AIX_OBJECT_MODE=64
 
-export CC CXX NM ARFLAGS OBJECT_MODE
+export CC CXX NM ARFLAGS OBJECT_MODE AIX_OBJECT_MODE
 
 # ── Compiler/linker flags ─────────────────────────────────────────────────────
 # -I and -L always reference $EMBEDDED_DESTDIR (staging), not $EMBEDDED (final path).
