@@ -376,7 +376,7 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 			},
 			values: &valuestore.ResultValueStore{},
 			expectedLogs: []logCount{
-				{"[DEBUG] reportScalarMetrics: report scalar: error getting scalar value: value for Scalar OID `1.2.3.4.5` not found in results", 1},
+				{"[DEBUG] reportScalarMetrics: report scalar: error getting scalar value: OID 1.2.3.4.5 not found", 1},
 			},
 		},
 		{

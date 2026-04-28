@@ -112,6 +112,21 @@ func installScriptInstallerEnv(env map[string]string, packagesConfig []TestPacka
 	}
 }
 
+// InstallerScriptBaseURL returns the host+path prefix (no scheme, no trailing suffix) where
+// pipeline-specific install scripts are hosted. Pipeline builds write scripts to
+// s3://installtesting.datad0g.com/pipeline-{CI_PIPELINE_ID}/scripts/, commit builds to
+// s3://installtesting.datad0g.com/{CI_COMMIT_SHA}/scripts/. Falls back to production when
+// neither variable is set.
+func InstallerScriptBaseURL() string {
+	if pipelineID, ok := os.LookupEnv("E2E_PIPELINE_ID"); ok {
+		return "s3.amazonaws.com/installtesting.datad0g.com/pipeline-" + pipelineID
+	}
+	if commitHash, ok := os.LookupEnv("CI_COMMIT_SHA"); ok {
+		return "s3.amazonaws.com/installtesting.datad0g.com/" + commitHash
+	}
+	return "install.datadoghq.com"
+}
+
 // InstallScriptEnv returns the environment variables for the install script
 func InstallScriptEnv(arch e2eos.Architecture) map[string]string {
 	return InstallScriptEnvWithPackages(arch, PackagesConfig)

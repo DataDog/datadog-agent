@@ -1,19 +1,5 @@
 # gazelle:ignore
 
-# gazelle:exclude amqp
-# gazelle:exclude http/debugging
-# gazelle:exclude http/gotls/lookup
-# gazelle:exclude http/testutil
-# gazelle:exclude kafka/debugging
-# gazelle:exclude mongo
-# gazelle:exclude mysql
-# gazelle:exclude postgres
-# gazelle:exclude postgres/debugging
-# gazelle:exclude redis/debugging
-# gazelle:exclude testutil
-# gazelle:exclude tls/gotls/testutil/gotls_server
-# gazelle:exclude tls/nodejs
-
 load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
 
 exports_files([

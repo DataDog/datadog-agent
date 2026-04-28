@@ -43,6 +43,7 @@ go_test(
         "convert_test.go",
         "decoder_bytes_test.go",
         "decoder_v05_test.go",
+        "limit_test.go",
         "span_gen_modifs_test.go",
         "span_gen_test.go",
         "stats_gen_test.go",

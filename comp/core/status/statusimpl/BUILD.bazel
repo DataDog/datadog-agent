@@ -43,7 +43,7 @@ go_test(
         "status_test.go",
     ],
     embed = [":statusimpl"],
-    gotags = ["test"],  # keep
+    gotags = ["test"],
     deps = [
         "//comp/core/config",
         "//comp/core/log/def",

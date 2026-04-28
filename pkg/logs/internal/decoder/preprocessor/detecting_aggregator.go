@@ -6,6 +6,8 @@
 package preprocessor
 
 import (
+	"bytes"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
@@ -191,6 +193,8 @@ func (d *detectingAggregator) emit(msg *message.Message, tokens []Token) {
 	lastWasTruncated := d.shouldTruncate
 	content := msg.GetContent()
 	d.shouldTruncate = len(content) > d.maxContentSize || msg.ParsingExtra.IsTruncated
+
+	content = bytes.TrimSpace(content)
 
 	if lastWasTruncated {
 		content = append(message.TruncatedFlag, content...)

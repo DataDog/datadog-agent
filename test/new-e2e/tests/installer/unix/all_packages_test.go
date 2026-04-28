@@ -238,12 +238,17 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 			time.Sleep(time.Second)
 		}
 
-		// Write the playbook
+		// Write the playbook. InstallScriptEnv sets datadog_installer_registry to the
+		// pipeline OCI registry (installtesting.datad0g.com.internal.dda-testing.com), which
+		// the role passes as DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE to install-ssi.sh.
+		// The script URL is overridden via -e (extra vars beat set_fact) so ansible fetches
+		// the pipeline-specific install-ssi.sh from S3 instead of the production script.
 		env := InstallScriptEnv(s.arch)
 		playbookPath := s.writeAnsiblePlaybook(env, params...)
+		scriptURL := "https://" + InstallerScriptBaseURL() + "/scripts/install-ssi.sh"
 
 		// Run the playbook
-		s.Env().RemoteHost.MustExecute(fmt.Sprintf("%sansible-playbook -vvv %s", ansiblePrefix, playbookPath))
+		s.Env().RemoteHost.MustExecute(fmt.Sprintf("%sansible-playbook -vvv %s -e 'datadog_installer_install_ssi_script_url=%s'", ansiblePrefix, playbookPath, scriptURL))
 
 		// touch install files for compatibility
 		s.Env().RemoteHost.MustExecute("touch /tmp/datadog-installer-stdout.log")

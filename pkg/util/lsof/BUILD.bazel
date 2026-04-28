@@ -42,7 +42,7 @@ go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":lsof"],
-    gotags = ["test"],  # keep - test_utils.go has //go:build test
+    gotags = ["test"],
     deps = [
         "@com_github_stretchr_testify//require",
     ] + select({

@@ -1,4 +1,4 @@
-Main module: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs
+=== yield 1 [final=true] ===
 Package: main
 	Function: PointerChainArg (main.PointerChainArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [366:367] injectible: [367-367]
 		Arg: ptr: *****int (declared at line 0, available: [367-367])

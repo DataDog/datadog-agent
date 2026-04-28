@@ -1,4 +1,1 @@
 # gazelle:ignore
-# gazelle:exclude ddinjector
-# gazelle:exclude include
-# gazelle:exclude procmon

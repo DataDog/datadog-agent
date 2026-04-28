@@ -403,8 +403,8 @@ func (d *DeviceCheck) getValuesAndTags(sess session.Session, deviceReachable boo
 
 	valuesStore, err := fetch.Fetch(sess, d.profileCache.scalarOIDs, d.profileCache.columnOIDs,
 		d.oidBatchSizeOptimizers, d.config.BulkMaxRepetitions)
-	if log.ShouldLog(log.DebugLvl) {
-		log.Debugf("fetched values: %v", valuestore.ResultValueStoreAsString(valuesStore))
+	if log.ShouldLog(log.TraceLvl) {
+		log.Tracef("fetched values: %v", valuestore.ResultValueStoreAsString(valuesStore))
 	}
 
 	if err != nil {

@@ -1,9 +1,0 @@
-"""test"""
-
-# gazelle:exclude benchmarks
-# gazelle:exclude files
-# gazelle:exclude integration
-# gazelle:exclude otel
-# gazelle:exclude regression
-# gazelle:exclude required_files
-# gazelle:exclude static

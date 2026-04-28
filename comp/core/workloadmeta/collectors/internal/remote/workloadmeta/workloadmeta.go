@@ -17,12 +17,12 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/grpclog"
 
+	config "github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/proto"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
@@ -58,6 +58,7 @@ type dependencies struct {
 	fx.In
 
 	Params Params
+	Config config.Component
 	IPC    ipc.Component
 }
 
@@ -96,7 +97,7 @@ type streamHandler struct {
 	port   int
 	ipc    ipc.Component
 	filter *workloadmeta.Filter
-	model.Config
+	model.Reader
 }
 
 // NewCollector returns a CollectorProvider to build a remote workloadmeta collector, and an error if any.
@@ -111,9 +112,10 @@ func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 			StreamHandler: &streamHandler{
 				filter: deps.Params.Filter,
 				ipc:    deps.IPC,
-				Config: pkgconfigsetup.Datadog(),
+				Reader: deps.Config,
 			},
 			Catalog: workloadmeta.Remote,
+			Config:  deps.Config,
 			IPC:     deps.IPC,
 		},
 	}, nil
@@ -131,7 +133,7 @@ func init() {
 
 func (s *streamHandler) Port() int {
 	if s.port == 0 {
-		return s.Config.GetInt("cmd_port")
+		return s.Reader.GetInt("cmd_port")
 	}
 	// for tests
 	return s.port

@@ -42,7 +42,7 @@ go_test(
         "processing_rules_test.go",
     ],
     embed = [":config"],
-    gotags = ["test"],  # keep
+    gotags = ["test"],
     deps = [
         "//comp/core/config",
         "//pkg/config/model",

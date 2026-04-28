@@ -7,6 +7,8 @@ package trace
 
 import "maps"
 
+//msgp:limit arrays:500000 maps:500000
+
 //go:generate go run github.com/tinylib/msgp -file=span.pb.go -o span_gen.go -io=false
 //go:generate go run github.com/tinylib/msgp -file=tracer_payload.pb.go -o tracer_payload_gen.go -io=false
 //go:generate go run github.com/tinylib/msgp -io=false

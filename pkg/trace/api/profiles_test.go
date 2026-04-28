@@ -264,6 +264,7 @@ func TestProfileProxyHandler(t *testing.T) {
 				// this should be ignored
 				"foobar": {"invalid_url"},
 			},
+			MaxRequestBytes: cfg.ProfilingProxy.MaxRequestBytes,
 		}
 
 		req, err := http.NewRequest("POST", "/some/path", bytes.NewBuffer([]byte("abc")))

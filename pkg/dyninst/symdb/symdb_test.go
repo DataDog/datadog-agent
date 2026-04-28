@@ -9,6 +9,7 @@ package symdb_test
 
 import (
 	"flag"
+	"fmt"
 	_ "net/http/pprof"
 	"os"
 	"path"
@@ -67,6 +68,10 @@ var rewrite = flag.Bool("rewrite", rewriteFromEnv, "rewrite the snapshot files")
 
 const snapshotDir = "testdata/snapshot"
 
+// TestSymDBSnapshot exercises the streaming PackagesIterator API — the
+// one used by the production uploader at pkg/dyninst/module/symdb.go —
+// and records every yield in the golden. Each yield is written as a
+// distinct "=== yield N [final=T/F] ===" section.
 func TestSymDBSnapshot(t *testing.T) {
 	cfgs := testprogs.MustGetCommonConfigs(t)
 	progs := testprogs.MustGetPrograms(t)
@@ -80,19 +85,26 @@ func TestSymDBSnapshot(t *testing.T) {
 					defer sem.Acquire()()
 					binaryPath := testprogs.MustGetBinary(t, prog, cfg)
 					t.Logf("exploring binary: %s", binaryPath)
-					symbols, err := symdb.ExtractSymbols(
+					it, err := symdb.PackagesIterator(
 						binaryPath,
 						object.NewInMemoryLoader(),
 						symdb.ExtractOptions{
 							Scope: symdb.ExtractScopeMainModuleOnly,
 						})
-					require.NoError(t, err, "failed to extract symbols from %s", binaryPath)
-					require.NotEmpty(t, symbols.Packages)
+					require.NoError(t, err, "failed to open iterator on %s", binaryPath)
 
 					var sb strings.Builder
-					symbols.Serialize(symdbutil.MakePanickingWriter(&sb))
-					out := sb.String()
+					w := symdbutil.MakePanickingWriter(&sb)
+					yieldIdx := 0
+					for pkg, err := range it {
+						require.NoError(t, err)
+						yieldIdx++
+						w.WriteString(fmt.Sprintf("=== yield %d [final=%t] ===\n", yieldIdx, pkg.Final))
+						pkg.Package.Serialize(w)
+					}
+					require.NotZero(t, yieldIdx, "expected at least one package yield")
 
+					out := sb.String()
 					outputFile := path.Join(snapshotDir, prog+".streaming."+cfg.String()+".out")
 					if *rewrite {
 						tmpFile, err := os.CreateTemp(snapshotDir, ".out")

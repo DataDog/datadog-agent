@@ -28,7 +28,7 @@ go_test(
         "transaction_test.go",
     ],
     embed = [":transaction"],
-    gotags = ["test"],  # keep
+    gotags = ["test"],
     deps = [
         "//comp/core/log/def",
         "//comp/core/log/mock",

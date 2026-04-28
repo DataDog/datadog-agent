@@ -35,7 +35,7 @@ go_test(
         "split_writer_test.go",
     ],
     embed = [":setup"],
-    gotags = ["test"],  # keep
+    gotags = ["test"],
     deps = [
         "//pkg/config/setup",
         "//pkg/util/log",

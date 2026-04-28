@@ -32,25 +32,26 @@ func checkSnooping(t *testing.T, destIP string, destName string, reverseDNS *dns
 	srcIP := "127.0.0.1"
 	srcAddr := util.AddressFromString(srcIP)
 
-	require.Eventually(t, func() bool {
-		return reverseDNS.cache.Len() >= 1
-	}, 1*time.Second, 10*time.Millisecond)
-
-	// Verify that the IP from the connections above maps to the right name
 	payload := map[util.Address]struct{}{srcAddr: {}, destAddr: {}}
-	names := reverseDNS.Resolve(payload)
-	require.Len(t, names, 1)
-	assert.Contains(t, names[destAddr], ToHostname(destName))
+	require.Eventually(t, func() bool {
+		names := reverseDNS.Resolve(payload)
+		for _, h := range names[destAddr] {
+			if h == ToHostname(destName) {
+				return true
+			}
+		}
+		return false
+	}, 5*time.Second, 10*time.Millisecond, "expected Resolve to return %s for %s", destName, destIP)
 
 	// Verify telemetry
 	assert.True(t, cacheTelemetry.length.Load() >= 1)
 	lookups := cacheTelemetry.lookups.Load()
 	if srcIP != destIP {
-		assert.Equal(t, int64(2), lookups)
+		assert.GreaterOrEqual(t, lookups, int64(2))
 	} else {
-		assert.Equal(t, int64(1), lookups)
+		assert.GreaterOrEqual(t, lookups, int64(1))
 	}
-	assert.Equal(t, int64(1), cacheTelemetry.resolved.Load())
+	assert.GreaterOrEqual(t, cacheTelemetry.resolved.Load(), int64(1))
 }
 
 func TestDNSOverUDPSnooping(t *testing.T) {

@@ -14,9 +14,9 @@ import (
 
 	"go.uber.org/fx"
 
+	config "github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
@@ -29,8 +29,15 @@ const (
 	componentName = "workloadmeta-cloudfoundry-vm"
 )
 
+type dependencies struct {
+	fx.In
+
+	Config config.Component
+}
+
 type collector struct {
 	id      string
+	cfg     config.Component
 	store   workloadmeta.Component
 	seen    map[workloadmeta.EntityID]struct{}
 	catalog workloadmeta.AgentType
@@ -43,10 +50,11 @@ type collector struct {
 }
 
 // NewCollector instantiates a CollectorProvider which can provide a CF container collector
-func NewCollector() (workloadmeta.CollectorProvider, error) {
+func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
 			id:      collectorID,
+			cfg:     deps.Config,
 			seen:    make(map[workloadmeta.EntityID]struct{}),
 			catalog: workloadmeta.NodeAgent,
 		},
@@ -72,10 +80,10 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 		return err
 	}
 
-	c.nodeName = pkgconfigsetup.Datadog().GetString("bosh_id")
+	c.nodeName = c.cfg.GetString("bosh_id")
 
 	// Check for Cluster Agent availability (will be retried at each pull)
-	c.dcaEnabled = pkgconfigsetup.Datadog().GetBool("cluster_agent.enabled")
+	c.dcaEnabled = c.cfg.GetBool("cluster_agent.enabled")
 	c.dcaClient = c.getDCAClient()
 
 	return nil

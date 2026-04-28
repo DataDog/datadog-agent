@@ -1,19 +1,1 @@
 # gazelle:ignore
-# gazelle:exclude agent
-# gazelle:exclude apiserver
-# gazelle:exclude connectionscheck
-# gazelle:exclude containercheck
-# gazelle:exclude expvars
-# gazelle:exclude forwarders/fx
-# gazelle:exclude forwarders/impl
-# gazelle:exclude forwarders/mock
-# gazelle:exclude gpusubscriber
-# gazelle:exclude hostinfo
-# gazelle:exclude processcheck
-# gazelle:exclude processdiscoverycheck
-# gazelle:exclude profiler
-# gazelle:exclude rtcontainercheck
-# gazelle:exclude runner
-# gazelle:exclude status
-# gazelle:exclude submitter
-# gazelle:exclude types

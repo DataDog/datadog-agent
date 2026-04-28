@@ -1,18 +1,1 @@
 # gazelle:ignore
-# gazelle:exclude adapters/actions
-# gazelle:exclude adapters/constants
-# gazelle:exclude adapters/modes
-# gazelle:exclude adapters/rcclient
-# gazelle:exclude adapters/regions
-# gazelle:exclude adapters/tmpl
-# gazelle:exclude adapters/workflowjsonschema
-# gazelle:exclude autoconnections
-# gazelle:exclude bundles/gitlab
-# gazelle:exclude bundles/http
-# gazelle:exclude bundles/kubernetes
-# gazelle:exclude bundles/remoteaction
-# gazelle:exclude bundles/script
-# gazelle:exclude enrollment
-# gazelle:exclude libs/connection
-# gazelle:exclude runners
-# gazelle:exclude task-verifier

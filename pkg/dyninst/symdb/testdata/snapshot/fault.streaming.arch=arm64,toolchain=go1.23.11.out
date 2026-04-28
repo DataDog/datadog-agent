@@ -1,4 +1,4 @@
-Main module: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs
+=== yield 1 [final=true] ===
 Package: main
 	Function: callMe (main.callMe) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/fault/main.go [53:55] injectible: [53-55]
 		Arg: s1: string (declared at line 53, available: [53-55])

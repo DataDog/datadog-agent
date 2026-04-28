@@ -37,6 +37,40 @@ func splitPkg(name string) (pkgpath, sym string) {
 	return "", name
 }
 
+// EscapePkg escapes a Go package import path the same way the Go toolchain
+// does when emitting linker symbol names. Specifically: control bytes,
+// space, '%', '"', non-7-bit-clean bytes, and '.' bytes that appear after
+// the last '/' are encoded as %XX (lowercase hex). Other bytes are left
+// untouched. This mirrors cmd/internal/objabi.PathToPrefix in the Go
+// source tree.
+func EscapePkg(s string) string {
+	slash := strings.LastIndex(s, "/")
+	n := 0
+	for i := 0; i < len(s); i++ {
+		if needsEscape(s[i], i, slash) {
+			n++
+		}
+	}
+	if n == 0 {
+		return s
+	}
+	const hex = "0123456789abcdef"
+	p := make([]byte, 0, len(s)+2*n)
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if needsEscape(c, i, slash) {
+			p = append(p, '%', hex[c>>4], hex[c&0xF])
+		} else {
+			p = append(p, c)
+		}
+	}
+	return string(p)
+}
+
+func needsEscape(c byte, i, lastSlash int) bool {
+	return c <= ' ' || (c == '.' && i > lastSlash) || c == '%' || c == '"' || c >= 0x7F
+}
+
 // unescapePkg unescapes a package import path, replacing %XX escape sequences
 // with the original characters. Returns the unescaped path.
 func unescapePkg(s string) (string, error) {

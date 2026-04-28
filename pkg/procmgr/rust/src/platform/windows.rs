@@ -5,11 +5,22 @@
 
 use anyhow::Result;
 use std::path::PathBuf;
+use std::sync::OnceLock;
+use tokio::sync::Notify;
 use windows_sys::Win32::Foundation::CloseHandle;
 use windows_sys::Win32::System::Console::{CTRL_BREAK_EVENT, GenerateConsoleCtrlEvent};
 use windows_sys::Win32::System::Threading::{
     CREATE_NEW_PROCESS_GROUP, OpenProcess, PROCESS_TERMINATE, TerminateProcess,
 };
+
+static SHUTDOWN_NOTIFY: OnceLock<Notify> = OnceLock::new();
+
+/// Returns the global shutdown notifier. The SCM control handler calls
+/// `notify_one()` on this from its OS thread to trigger graceful shutdown
+/// inside the tokio runtime.
+pub fn shutdown_notify() -> &'static Notify {
+    SHUTDOWN_NOTIFY.get_or_init(Notify::new)
+}
 
 /// Place the child in its own process group so `GenerateConsoleCtrlEvent`
 /// can target it without affecting the daemon.
@@ -68,10 +79,16 @@ pub fn default_config_dir() -> PathBuf {
     PathBuf::from(base).join(r"Datadog\dd-procmgr\processes.d")
 }
 
-/// Wait for a shutdown trigger (Ctrl+C or service stop event).
+/// Wait for a shutdown trigger: either Ctrl+C (console mode) or an SCM
+/// stop request relayed through [`shutdown_notify()`].
 pub async fn shutdown_signal() {
-    tokio::signal::ctrl_c()
-        .await
-        .expect("failed to register Ctrl+C handler");
-    log::info!("received Ctrl+C");
+    tokio::select! {
+        result = tokio::signal::ctrl_c() => {
+            result.expect("failed to register Ctrl+C handler");
+            log::info!("received Ctrl+C");
+        }
+        _ = shutdown_notify().notified() => {
+            log::info!("received service stop request");
+        }
+    }
 }

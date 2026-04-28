@@ -62,7 +62,7 @@ func (c *collector) convertImageToEvent(img *v1.Image, info map[string]string, n
 	imgIDAsDigest, err := parseDigests(img.GetRepoDigests())
 	if err == nil {
 		imgID = imgIDAsDigest
-	} else if sbomCollectionIsEnabled() {
+	} else if c.sbomCollectionIsEnabled() {
 		log.Warnf("Failed to parse digest for image with ID %s: %v. As a result, SBOM vulnerabilities may not be properly linked to this image.", imgID, err)
 	}
 

@@ -19,7 +19,7 @@ const DEFAULT_TIMEOUT: Duration = Duration::from_secs(10);
 // DaemonHandle
 // ---------------------------------------------------------------------------
 
-/// Handle to a running dd-procmgrd (Unix) / dd-procmgr-service (Windows) daemon.
+/// Handle to a running dd-procmgrd daemon.
 pub struct DaemonHandle {
     child: Child,
     log_lines: Arc<Mutex<Vec<String>>>,
@@ -31,10 +31,7 @@ impl DaemonHandle {
     /// Start the daemon with the given config directory and socket path.
     /// Sets `DD_PM_CONFIG_DIR` and `DD_PM_SOCKET_PATH` environment variables.
     pub fn start(config_dir: &Path, socket_path: &Path) -> Self {
-        #[cfg(unix)]
         let bin = env!("CARGO_BIN_EXE_dd-procmgrd");
-        #[cfg(windows)]
-        let bin = env!("CARGO_BIN_EXE_dd-procmgr-service");
 
         let mut cmd = Command::new(bin);
         cmd.env("DD_PM_CONFIG_DIR", config_dir)

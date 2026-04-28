@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/dbconfig"
+	"github.com/DataDog/datadog-agent/pkg/compliance/statusregistry"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
@@ -51,7 +52,9 @@ func newComplianceModule(_ *sysconfigtypes.Config, deps module.FactoryDependenci
 	runInSystemProbe := deps.CoreConfig.GetBool("compliance_config.run_in_system_probe")
 
 	if enabled && runInSystemProbe {
-		hostnameDetected, err := deps.Hostname.Get(context.Background())
+		hostnameCtx, hostnameCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer hostnameCancel()
+		hostnameDetected, err := deps.Hostname.Get(hostnameCtx)
 		if err != nil {
 			return nil, err
 		}
@@ -62,6 +65,11 @@ func newComplianceModule(_ *sysconfigtypes.Config, deps module.FactoryDependenci
 		complianceAgent, err = compliance.StartCompliance(deps.Log, deps.CoreConfig, hostnameDetected, stopper, deps.Statsd, deps.WMeta, deps.FilterStore, deps.Compression, sysProbeClient, deps.Secrets)
 		if err != nil {
 			return nil, err
+		}
+
+		if complianceAgent != nil {
+			log.Debug("compliance: registering status renderer for remote agent")
+			statusregistry.Set(complianceAgent.RenderStatusText)
 		}
 	}
 

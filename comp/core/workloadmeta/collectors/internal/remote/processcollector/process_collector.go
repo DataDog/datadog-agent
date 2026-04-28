@@ -21,11 +21,11 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/grpclog"
 
+	config "github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
@@ -120,13 +120,13 @@ func workloadmetaEventFromProcessEventUnset(protoEvent *pbgo.ProcessEventUnset) 
 }
 
 // NewCollector returns a remote process collector for workloadmeta if any
-func NewCollector(ipc ipc.Component) (workloadmeta.CollectorProvider, error) {
+func NewCollector(ipc ipc.Component, cfg config.Component) (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &remote.GenericCollector{
-			CollectorID: collectorID,
-			// TODO(components): make sure StreamHandler uses the config component not pkg/config
-			StreamHandler: &streamHandler{ipc: ipc, Reader: pkgconfigsetup.Datadog()},
+			CollectorID:   collectorID,
+			StreamHandler: &streamHandler{ipc: ipc, Reader: cfg},
 			Catalog:       workloadmeta.NodeAgent,
+			Config:        cfg,
 			IPC:           ipc,
 		},
 	}, nil

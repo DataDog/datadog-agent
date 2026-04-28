@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/mock"
+	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/core/mock"
 )
 
 func newMockStats(updateTimestamp time.Time, lastExecutionTime time.Duration, interval time.Duration) *Stats {

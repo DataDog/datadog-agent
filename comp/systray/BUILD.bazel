@@ -1,4 +1,1 @@
 # gazelle:ignore
-# gazelle:exclude systray/fx
-# gazelle:exclude systray/impl
-# gazelle:exclude systray/mock

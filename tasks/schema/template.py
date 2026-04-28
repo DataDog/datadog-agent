@@ -392,7 +392,7 @@ def generate_template(schema_file, dest, build_type, os_target):
 
     final_render = [line.strip() for line in config_template.strip().split("\n")]
     with open(dest, "w") as f:
-        f.write("\n".join(final_render))
+        f.write("\n".join(final_render) + "\n")
 
 
 @task(

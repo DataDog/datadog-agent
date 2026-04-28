@@ -237,17 +237,12 @@ use_repo(gcc_toolchains, "gcc_toolchain_aarch64")
 
 bazel_dep(name = "toolchains_llvm", version = "1.6.0")
 
-http_archive(
+sysroot = use_repo_rule("@toolchains_llvm//toolchain:sysroot.bzl", "sysroot")
+
+sysroot(
     name = "macos_sdk",
-    build_file_content = """
-filegroup(
-    name = "sysroot",
-    srcs = glob(["**"], exclude = ["usr/share/man/**"]),
-    visibility = ["//visibility:public"],
-)
-""",
     sha256 = "c15cf0f3f17d714d1aa5a642da8e118db53d79429eb015771ba816aa7c6c1cbd",
-    strip_prefix = "MacOSX15.5.sdk",
+    strip_components = 1,
     url = "https://github.com/joseluisq/macosx-sdks/releases/download/15.5/MacOSX15.5.sdk.tar.xz",
 )
 
@@ -262,7 +257,7 @@ use_repo(
 # buildifier: leave-alone
 llvm.sysroot(
     name = "llvm_toolchain",
-    label = "@macos_sdk//:sysroot",
+    label = "@macos_sdk//sysroot",
     targets = [
         "darwin-aarch64",
         "darwin-x86_64",

@@ -40,7 +40,7 @@ go_test(
         "store_test.go",
     ],
     embed = [":quantile"],
-    gotags = ["test"],  # keep
+    gotags = ["test"],
     deps = [
         "//pkg/util/quantile/sketchtest",
         "//pkg/util/quantile/summary",

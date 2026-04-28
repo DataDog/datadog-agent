@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    APM : Enforce body-size limits on trace-agent proxy endpoints (DogStatsD,
+    pipeline stats, OpenLineage, Debugger, SymDB). All endpoints are capped at
+    ``apm_config.max_request_bytes`` (default 25 MB). The profiling proxy uses
+    a separate limit configurable via ``apm_config.profiling_max_request_bytes``
+    (default 50 MB, env ``DD_APM_PROFILING_MAX_REQUEST_BYTES``).
+    The ``Traces`` and ``ClientStatsPayload`` msgpack decoders now reject
+    payloads declaring more than 500,000 elements in a single array.
