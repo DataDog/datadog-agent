@@ -380,7 +380,7 @@ bool Three::getCheck(RtLoaderPyObject *py_class, const char *init_config_str, co
         if (_setupSubInterpClass(module_name_str, sub_klass)) {
             {
                 std::ostringstream msg;
-                msg << "[SUB-INTERPRETERS][EXPERIMENTAL] created sub-interpreter (tstate="
+                msg << "[SUB-INTERPRETERS][EXPERIMENTAL][getCheck] created sub-interpreter (tstate="
                     << sub_tstate << ") for check '" << module_name_str << "'";
                 agent_log(DATADOG_AGENT_INFO, const_cast<char *>(msg.str().c_str()));
             }
@@ -392,7 +392,7 @@ bool Three::getCheck(RtLoaderPyObject *py_class, const char *init_config_str, co
             // Re-import or class lookup failed - fall back to main for this check.
             // Clear both errors: Python's so it doesn't affect later Python
             // calls, and rtloader's so Go doesn't see this as a failure.
-            std::string msg = "[SUB-INTERPRETERS][EXPERIMENTAL] sub-interp setup failed for '"
+            std::string msg = "[SUB-INTERPRETERS][EXPERIMENTAL][getCheck] sub-interp setup failed for '"
                             + module_name_str + "' - falling back to main interpreter";
             agent_log(DATADOG_AGENT_INFO, const_cast<char *>(msg.c_str()));
 

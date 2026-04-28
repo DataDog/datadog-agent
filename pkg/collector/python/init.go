@@ -464,7 +464,7 @@ func Initialize(paths ...string) error {
 		blocklist := pkgconfigsetup.Datadog().GetStringSlice("subinterpreter_blocklist")
 		for _, moduleName := range blocklist {
 			C.add_subinterp_blocklist_entry(rtloader, TrackedCString(moduleName))
-			log.Infof("[SUB-INTERPRETERS][EXPERIMENTAL] Blocklist: '%s' will run in the main interpreter", moduleName)
+			log.Infof("[SUB-INTERPRETERS][EXPERIMENTAL][Blocklist_Parsing] Blocklist: '%s' will run in the main interpreter", moduleName)
 		}
 	}
 
