@@ -604,6 +604,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if k := "apm_config.profiling_receiver_timeout"; core.IsConfigured(k) {
 		c.ProfilingProxy.ReceiverTimeout = core.GetInt(k)
 	}
+	c.ProfilingProxy.MaxRequestBytes = int64(core.GetInt("apm_config.profiling_max_request_bytes"))
 
 	c.DebuggerLogsEnabled = core.GetBool("logs_enabled") || core.GetBool("log_enabled") || core.GetBool("apm_config.debugger_logs_enabled_override")
 	if k := "apm_config.debugger_dd_url"; core.IsConfigured(k) {

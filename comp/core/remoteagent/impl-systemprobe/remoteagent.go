@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/remoteagent/helper"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	"github.com/DataDog/datadog-agent/pkg/compliance/statusregistry"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -65,6 +66,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	// Add your gRPC services implementations here:
 	pbcore.RegisterTelemetryProviderServer(remoteAgentServer.GetGRPCServer(), remoteagentImpl)
+	pbcore.RegisterStatusProviderServer(remoteAgentServer.GetGRPCServer(), remoteagentImpl)
 
 	provides := Provides{
 		Comp: remoteagentImpl,
@@ -80,6 +82,26 @@ type remoteagentImpl struct {
 
 	remoteAgentServer *helper.UnimplementedRemoteAgentServer
 	pbcore.UnimplementedTelemetryProviderServer
+	pbcore.UnimplementedStatusProviderServer
+}
+
+func (r *remoteagentImpl) GetStatusDetails(_ context.Context, _ *pbcore.GetStatusDetailsRequest) (*pbcore.GetStatusDetailsResponse, error) {
+	text, registered, err := statusregistry.GetTextOrError()
+	if !registered {
+		return &pbcore.GetStatusDetailsResponse{}, nil
+	}
+	if err != nil {
+		return &pbcore.GetStatusDetailsResponse{}, nil
+	}
+	return &pbcore.GetStatusDetailsResponse{
+		NamedSections: map[string]*pbcore.StatusSection{
+			"Compliance": {
+				Fields: map[string]string{
+					"": text,
+				},
+			},
+		},
+	}, nil
 }
 
 func (r *remoteagentImpl) GetTelemetry(_ context.Context, _ *pbcore.GetTelemetryRequest) (*pbcore.GetTelemetryResponse, error) {

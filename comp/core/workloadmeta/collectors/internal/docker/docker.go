@@ -26,6 +26,7 @@ import (
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"go.uber.org/fx"
 
+	config "github.com/DataDog/datadog-agent/comp/core/config"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/sbomutil"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
@@ -62,11 +63,13 @@ type resolveHook func(ctx context.Context, co container.InspectResponse) (string
 type dependencies struct {
 	fx.In
 
+	Config      config.Component
 	FilterStore workloadfilter.Component
 }
 
 type collector struct {
 	id      string
+	cfg     config.Component
 	store   workloadmeta.Component
 	catalog workloadmeta.AgentType
 
@@ -93,6 +96,7 @@ func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
 			id:                     collectorID,
+			cfg:                    deps.Config,
 			catalog:                workloadmeta.NodeAgent,
 			filterPausedContainers: deps.FilterStore.GetContainerPausedFilters(),
 			filterSBOMContainers:   deps.FilterStore.GetContainerSBOMFilters(),
