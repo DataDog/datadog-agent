@@ -4,7 +4,7 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        v7.34.1
-// source: comp/forwarder/defaultforwarder/internal/retry/HttpTransactionProto.proto
+// source: HttpTransactionProto.proto
 
 package retry
 
@@ -53,11 +53,11 @@ func (x TransactionPriorityProto) String() string {
 }
 
 func (TransactionPriorityProto) Descriptor() protoreflect.EnumDescriptor {
-	return file_comp_forwarder_defaultforwarder_internal_retry_HttpTransactionProto_proto_enumTypes[0].Descriptor()
+	return file_HttpTransactionProto_proto_enumTypes[0].Descriptor()
 }
 
 func (TransactionPriorityProto) Type() protoreflect.EnumType {
-	return &file_comp_forwarder_defaultforwarder_internal_retry_HttpTransactionProto_proto_enumTypes[0]
+	return &file_HttpTransactionProto_proto_enumTypes[0]
 }
 
 func (x TransactionPriorityProto) Number() protoreflect.EnumNumber {
@@ -66,7 +66,7 @@ func (x TransactionPriorityProto) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use TransactionPriorityProto.Descriptor instead.
 func (TransactionPriorityProto) EnumDescriptor() ([]byte, []int) {
-	return file_comp_forwarder_defaultforwarder_internal_retry_HttpTransactionProto_proto_rawDescGZIP(), []int{0}
+	return file_HttpTransactionProto_proto_rawDescGZIP(), []int{0}
 }
 
 type TransactionDestinationProto int32
@@ -102,11 +102,11 @@ func (x TransactionDestinationProto) String() string {
 }
 
 func (TransactionDestinationProto) Descriptor() protoreflect.EnumDescriptor {
-	return file_comp_forwarder_defaultforwarder_internal_retry_HttpTransactionProto_proto_enumTypes[1].Descriptor()
+	return file_HttpTransactionProto_proto_enumTypes[1].Descriptor()
 }
 
 func (TransactionDestinationProto) Type() protoreflect.EnumType {
-	return &file_comp_forwarder_defaultforwarder_internal_retry_HttpTransactionProto_proto_enumTypes[1]
+	return &file_HttpTransactionProto_proto_enumTypes[1]
 }
 
 func (x TransactionDestinationProto) Number() protoreflect.EnumNumber {
@@ -115,7 +115,7 @@ func (x TransactionDestinationProto) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use TransactionDestinationProto.Descriptor instead.
 func (TransactionDestinationProto) EnumDescriptor() ([]byte, []int) {
-	return file_comp_forwarder_defaultforwarder_internal_retry_HttpTransactionProto_proto_rawDescGZIP(), []int{1}
+	return file_HttpTransactionProto_proto_rawDescGZIP(), []int{1}
 }
 
 type HeaderValuesProto struct {
@@ -128,7 +128,7 @@ type HeaderValuesProto struct {
 
 func (x *HeaderValuesProto) Reset() {
 	*x = HeaderValuesProto{}
-	mi := &file_comp_forwarder_defaultforwarder_internal_retry_HttpTransactionProto_proto_msgTypes[0]
+	mi := &file_HttpTransactionProto_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -140,7 +140,7 @@ func (x *HeaderValuesProto) String() string {
 func (*HeaderValuesProto) ProtoMessage() {}
 
 func (x *HeaderValuesProto) ProtoReflect() protoreflect.Message {
-	mi := &file_comp_forwarder_defaultforwarder_internal_retry_HttpTransactionProto_proto_msgTypes[0]
+	mi := &file_HttpTransactionProto_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -153,7 +153,7 @@ func (x *HeaderValuesProto) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HeaderValuesProto.ProtoReflect.Descriptor instead.
 func (*HeaderValuesProto) Descriptor() ([]byte, []int) {
-	return file_comp_forwarder_defaultforwarder_internal_retry_HttpTransactionProto_proto_rawDescGZIP(), []int{0}
+	return file_HttpTransactionProto_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *HeaderValuesProto) GetValues() [][]byte {
@@ -174,7 +174,7 @@ type EndpointProto struct {
 
 func (x *EndpointProto) Reset() {
 	*x = EndpointProto{}
-	mi := &file_comp_forwarder_defaultforwarder_internal_retry_HttpTransactionProto_proto_msgTypes[1]
+	mi := &file_HttpTransactionProto_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -186,7 +186,7 @@ func (x *EndpointProto) String() string {
 func (*EndpointProto) ProtoMessage() {}
 
 func (x *EndpointProto) ProtoReflect() protoreflect.Message {
-	mi := &file_comp_forwarder_defaultforwarder_internal_retry_HttpTransactionProto_proto_msgTypes[1]
+	mi := &file_HttpTransactionProto_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -199,7 +199,7 @@ func (x *EndpointProto) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EndpointProto.ProtoReflect.Descriptor instead.
 func (*EndpointProto) Descriptor() ([]byte, []int) {
-	return file_comp_forwarder_defaultforwarder_internal_retry_HttpTransactionProto_proto_rawDescGZIP(), []int{1}
+	return file_HttpTransactionProto_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *EndpointProto) GetRoute() []byte {
@@ -235,7 +235,7 @@ type HttpTransactionProto struct {
 
 func (x *HttpTransactionProto) Reset() {
 	*x = HttpTransactionProto{}
-	mi := &file_comp_forwarder_defaultforwarder_internal_retry_HttpTransactionProto_proto_msgTypes[2]
+	mi := &file_HttpTransactionProto_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -247,7 +247,7 @@ func (x *HttpTransactionProto) String() string {
 func (*HttpTransactionProto) ProtoMessage() {}
 
 func (x *HttpTransactionProto) ProtoReflect() protoreflect.Message {
-	mi := &file_comp_forwarder_defaultforwarder_internal_retry_HttpTransactionProto_proto_msgTypes[2]
+	mi := &file_HttpTransactionProto_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -260,7 +260,7 @@ func (x *HttpTransactionProto) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HttpTransactionProto.ProtoReflect.Descriptor instead.
 func (*HttpTransactionProto) Descriptor() ([]byte, []int) {
-	return file_comp_forwarder_defaultforwarder_internal_retry_HttpTransactionProto_proto_rawDescGZIP(), []int{2}
+	return file_HttpTransactionProto_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *HttpTransactionProto) GetDomain() string {
@@ -350,7 +350,7 @@ type HttpTransactionProtoCollection struct {
 
 func (x *HttpTransactionProtoCollection) Reset() {
 	*x = HttpTransactionProtoCollection{}
-	mi := &file_comp_forwarder_defaultforwarder_internal_retry_HttpTransactionProto_proto_msgTypes[3]
+	mi := &file_HttpTransactionProto_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -362,7 +362,7 @@ func (x *HttpTransactionProtoCollection) String() string {
 func (*HttpTransactionProtoCollection) ProtoMessage() {}
 
 func (x *HttpTransactionProtoCollection) ProtoReflect() protoreflect.Message {
-	mi := &file_comp_forwarder_defaultforwarder_internal_retry_HttpTransactionProto_proto_msgTypes[3]
+	mi := &file_HttpTransactionProto_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -375,7 +375,7 @@ func (x *HttpTransactionProtoCollection) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HttpTransactionProtoCollection.ProtoReflect.Descriptor instead.
 func (*HttpTransactionProtoCollection) Descriptor() ([]byte, []int) {
-	return file_comp_forwarder_defaultforwarder_internal_retry_HttpTransactionProto_proto_rawDescGZIP(), []int{3}
+	return file_HttpTransactionProto_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *HttpTransactionProtoCollection) GetVersion() int32 {
@@ -392,11 +392,11 @@ func (x *HttpTransactionProtoCollection) GetValues() []*HttpTransactionProto {
 	return nil
 }
 
-var File_comp_forwarder_defaultforwarder_internal_retry_HttpTransactionProto_proto protoreflect.FileDescriptor
+var File_HttpTransactionProto_proto protoreflect.FileDescriptor
 
-const file_comp_forwarder_defaultforwarder_internal_retry_HttpTransactionProto_proto_rawDesc = "" +
+const file_HttpTransactionProto_proto_rawDesc = "" +
 	"\n" +
-	"Icomp/forwarder/defaultforwarder/internal/retry/HttpTransactionProto.proto\x12\x05retry\"+\n" +
+	"\x1aHttpTransactionProto.proto\x12\x05retry\"+\n" +
 	"\x11HeaderValuesProto\x12\x16\n" +
 	"\x06values\x18\x01 \x03(\fR\x06values\"9\n" +
 	"\rEndpointProto\x12\x14\n" +
@@ -435,20 +435,20 @@ const file_comp_forwarder_defaultforwarder_internal_retry_HttpTransactionProto_p
 	"\x0eSECONDARY_ONLY\x10\x02BQZOgithub.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retryb\x06proto3"
 
 var (
-	file_comp_forwarder_defaultforwarder_internal_retry_HttpTransactionProto_proto_rawDescOnce sync.Once
-	file_comp_forwarder_defaultforwarder_internal_retry_HttpTransactionProto_proto_rawDescData []byte
+	file_HttpTransactionProto_proto_rawDescOnce sync.Once
+	file_HttpTransactionProto_proto_rawDescData []byte
 )
 
-func file_comp_forwarder_defaultforwarder_internal_retry_HttpTransactionProto_proto_rawDescGZIP() []byte {
-	file_comp_forwarder_defaultforwarder_internal_retry_HttpTransactionProto_proto_rawDescOnce.Do(func() {
-		file_comp_forwarder_defaultforwarder_internal_retry_HttpTransactionProto_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_comp_forwarder_defaultforwarder_internal_retry_HttpTransactionProto_proto_rawDesc), len(file_comp_forwarder_defaultforwarder_internal_retry_HttpTransactionProto_proto_rawDesc)))
+func file_HttpTransactionProto_proto_rawDescGZIP() []byte {
+	file_HttpTransactionProto_proto_rawDescOnce.Do(func() {
+		file_HttpTransactionProto_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_HttpTransactionProto_proto_rawDesc), len(file_HttpTransactionProto_proto_rawDesc)))
 	})
-	return file_comp_forwarder_defaultforwarder_internal_retry_HttpTransactionProto_proto_rawDescData
+	return file_HttpTransactionProto_proto_rawDescData
 }
 
-var file_comp_forwarder_defaultforwarder_internal_retry_HttpTransactionProto_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_comp_forwarder_defaultforwarder_internal_retry_HttpTransactionProto_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
-var file_comp_forwarder_defaultforwarder_internal_retry_HttpTransactionProto_proto_goTypes = []any{
+var file_HttpTransactionProto_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_HttpTransactionProto_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_HttpTransactionProto_proto_goTypes = []any{
 	(TransactionPriorityProto)(0),          // 0: retry.TransactionPriorityProto
 	(TransactionDestinationProto)(0),       // 1: retry.TransactionDestinationProto
 	(*HeaderValuesProto)(nil),              // 2: retry.HeaderValuesProto
@@ -457,7 +457,7 @@ var file_comp_forwarder_defaultforwarder_internal_retry_HttpTransactionProto_pro
 	(*HttpTransactionProtoCollection)(nil), // 5: retry.HttpTransactionProtoCollection
 	nil,                                    // 6: retry.HttpTransactionProto.HeadersEntry
 }
-var file_comp_forwarder_defaultforwarder_internal_retry_HttpTransactionProto_proto_depIdxs = []int32{
+var file_HttpTransactionProto_proto_depIdxs = []int32{
 	3, // 0: retry.HttpTransactionProto.Endpoint:type_name -> retry.EndpointProto
 	6, // 1: retry.HttpTransactionProto.Headers:type_name -> retry.HttpTransactionProto.HeadersEntry
 	0, // 2: retry.HttpTransactionProto.priority:type_name -> retry.TransactionPriorityProto
@@ -471,27 +471,27 @@ var file_comp_forwarder_defaultforwarder_internal_retry_HttpTransactionProto_pro
 	0, // [0:6] is the sub-list for field type_name
 }
 
-func init() { file_comp_forwarder_defaultforwarder_internal_retry_HttpTransactionProto_proto_init() }
-func file_comp_forwarder_defaultforwarder_internal_retry_HttpTransactionProto_proto_init() {
-	if File_comp_forwarder_defaultforwarder_internal_retry_HttpTransactionProto_proto != nil {
+func init() { file_HttpTransactionProto_proto_init() }
+func file_HttpTransactionProto_proto_init() {
+	if File_HttpTransactionProto_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_comp_forwarder_defaultforwarder_internal_retry_HttpTransactionProto_proto_rawDesc), len(file_comp_forwarder_defaultforwarder_internal_retry_HttpTransactionProto_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_HttpTransactionProto_proto_rawDesc), len(file_HttpTransactionProto_proto_rawDesc)),
 			NumEnums:      2,
 			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_comp_forwarder_defaultforwarder_internal_retry_HttpTransactionProto_proto_goTypes,
-		DependencyIndexes: file_comp_forwarder_defaultforwarder_internal_retry_HttpTransactionProto_proto_depIdxs,
-		EnumInfos:         file_comp_forwarder_defaultforwarder_internal_retry_HttpTransactionProto_proto_enumTypes,
-		MessageInfos:      file_comp_forwarder_defaultforwarder_internal_retry_HttpTransactionProto_proto_msgTypes,
+		GoTypes:           file_HttpTransactionProto_proto_goTypes,
+		DependencyIndexes: file_HttpTransactionProto_proto_depIdxs,
+		EnumInfos:         file_HttpTransactionProto_proto_enumTypes,
+		MessageInfos:      file_HttpTransactionProto_proto_msgTypes,
 	}.Build()
-	File_comp_forwarder_defaultforwarder_internal_retry_HttpTransactionProto_proto = out.File
-	file_comp_forwarder_defaultforwarder_internal_retry_HttpTransactionProto_proto_goTypes = nil
-	file_comp_forwarder_defaultforwarder_internal_retry_HttpTransactionProto_proto_depIdxs = nil
+	File_HttpTransactionProto_proto = out.File
+	file_HttpTransactionProto_proto_goTypes = nil
+	file_HttpTransactionProto_proto_depIdxs = nil
 }
