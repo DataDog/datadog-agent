@@ -159,11 +159,10 @@ benchmark — we measure delivery cost, not congestion.
 The first reviewer question was: _"if folks aren't using anomaly detection they pay no
 resources for it."_
 
-The chart below compares four hook modes across all three tap points. The Y axis is
-logarithmic to make the idle bars visible alongside the active ones. The light blue
-(noop hook) and dark blue (0 subscribers) bars are nearly identical on every pipeline —
-both land at the bottom of the chart. The only visible difference is in the TimeSampler
-column, where 0-sub shows ~0.6 ns vs ~0 for noop: that is one atomic read.
+The chart below compares four hook modes across all three tap points. The light blue
+(noop hook) and dark blue (0 subscribers) bars are nearly invisible on every pipeline —
+both sit at the baseline. The only visible difference is in the TimeSampler column,
+where 0-sub shows ~0.6 ns vs ~0 for noop: that is one atomic read.
 
 ![Hook overhead per pipeline × subscriber count](overhead_a.png)
 

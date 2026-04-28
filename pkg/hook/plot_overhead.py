@@ -122,11 +122,10 @@ for (label, vals), errs, colour, offset in zip(
         ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() * 1.4,
                 txt, ha="center", va="bottom", fontsize=8, color="#333333")
 
-ax.set_yscale("log")
-ax.set_ylim(0.03, 12000)
+ax.set_ylim(0, 2600)
 ax.set_xticks(x)
 ax.set_xticklabels(pipelines, fontsize=10)
-ax.set_ylabel("Overhead vs idle (ns, log scale)", fontsize=10)
+ax.set_ylabel("Overhead vs idle (ns)", fontsize=10)
 ax.set_title(
     "Hook overhead per pipeline × subscriber count\n"
     "noop hook and 0 subscribers are nearly identical — idle cost is one atomic read (~2 ns)",
