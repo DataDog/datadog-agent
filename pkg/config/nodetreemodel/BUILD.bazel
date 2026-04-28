@@ -39,7 +39,7 @@ go_test(
         "reflection_node_test.go",
     ],
     embed = [":nodetreemodel"],
-    gotags = ["test"],  # keep
+    gotags = ["test"],
     deps = [
         "//pkg/config/helper",
         "//pkg/config/model",
