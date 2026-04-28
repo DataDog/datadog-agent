@@ -123,29 +123,30 @@ var (
 	flushTimeStats    = make(map[string]*Stats)
 	flushCountStats   = make(map[string]*Stats)
 
-	aggregatorSeriesFlushed                    = expvar.Int{}
-	aggregatorSeriesFlushErrors                = expvar.Int{}
-	aggregatorServiceCheckFlushErrors          = expvar.Int{}
-	aggregatorServiceCheckFlushed              = expvar.Int{}
-	aggregatorSketchesFlushErrors              = expvar.Int{}
-	aggregatorSketchesFlushed                  = expvar.Int{}
-	aggregatorEventsFlushErrors                = expvar.Int{}
-	aggregatorEventsFlushed                    = expvar.Int{}
-	aggregatorNumberOfFlush                    = expvar.Int{}
-	aggregatorDogstatsdMetricSample            = expvar.Int{}
-	aggregatorChecksMetricSample               = expvar.Int{}
-	aggregatorCheckHistogramBucketMetricSample = expvar.Int{}
-	aggregatorServiceCheck                     = expvar.Int{}
-	aggregatorEvent                            = expvar.Int{}
-	aggregatorHostnameUpdate                   = expvar.Int{}
-	aggregatorOrchestratorMetadata             = expvar.Int{}
-	aggregatorOrchestratorMetadataErrors       = expvar.Int{}
-	aggregatorOrchestratorManifests            = expvar.Int{}
-	aggregatorOrchestratorManifestsErrors      = expvar.Int{}
-	aggregatorDogstatsdContexts                = expvar.Int{}
-	aggregatorDogstatsdContextsByMtype         = []expvar.Int{}
-	aggregatorEventPlatformEvents              = expvar.Map{}
-	aggregatorEventPlatformEventsErrors        = expvar.Map{}
+	aggregatorSeriesFlushed                       = expvar.Int{}
+	aggregatorSeriesFlushErrors                   = expvar.Int{}
+	aggregatorServiceCheckFlushErrors             = expvar.Int{}
+	aggregatorServiceCheckFlushed                 = expvar.Int{}
+	aggregatorSketchesFlushErrors                 = expvar.Int{}
+	aggregatorSketchesFlushed                     = expvar.Int{}
+	aggregatorEventsFlushErrors                   = expvar.Int{}
+	aggregatorEventsFlushed                       = expvar.Int{}
+	aggregatorNumberOfFlush                       = expvar.Int{}
+	aggregatorDogstatsdMetricSample               = expvar.Int{}
+	aggregatorChecksMetricSample                  = expvar.Int{}
+	aggregatorCheckHistogramBucketMetricSample    = expvar.Int{}
+	aggregatorCheckDistributionBucketMetricSample = expvar.Int{}
+	aggregatorServiceCheck                        = expvar.Int{}
+	aggregatorEvent                               = expvar.Int{}
+	aggregatorHostnameUpdate                      = expvar.Int{}
+	aggregatorOrchestratorMetadata                = expvar.Int{}
+	aggregatorOrchestratorMetadataErrors          = expvar.Int{}
+	aggregatorOrchestratorManifests               = expvar.Int{}
+	aggregatorOrchestratorManifestsErrors         = expvar.Int{}
+	aggregatorDogstatsdContexts                   = expvar.Int{}
+	aggregatorDogstatsdContextsByMtype            = []expvar.Int{}
+	aggregatorEventPlatformEvents                 = expvar.Map{}
+	aggregatorEventPlatformEventsErrors           = expvar.Map{}
 
 	tlmFlush = telemetryimpl.GetCompatComponent().NewCounter("aggregator", "flush",
 		[]string{"data_type", "state"}, "Number of metrics/service checks/events flushed")
@@ -208,6 +209,7 @@ func init() {
 	aggregatorExpvars.Set("DogstatsdMetricSample", &aggregatorDogstatsdMetricSample)
 	aggregatorExpvars.Set("ChecksMetricSample", &aggregatorChecksMetricSample)
 	aggregatorExpvars.Set("ChecksHistogramBucketMetricSample", &aggregatorCheckHistogramBucketMetricSample)
+	aggregatorExpvars.Set("ChecksDistributionBucketMetricSample", &aggregatorCheckDistributionBucketMetricSample)
 	aggregatorExpvars.Set("ServiceCheck", &aggregatorServiceCheck)
 	aggregatorExpvars.Set("Event", &aggregatorEvent)
 	aggregatorExpvars.Set("HostnameUpdate", &aggregatorHostnameUpdate)
@@ -478,6 +480,21 @@ func (agg *BufferedAggregator) handleSenderBucket(checkBucket senderHistogramBuc
 		checkSampler.addBucket(checkBucket.bucket, agg.tagFilterList)
 	} else {
 		log.Debugf("CheckSampler with ID '%s' doesn't exist, can't handle histogram bucket", checkBucket.id)
+	}
+}
+
+func (agg *BufferedAggregator) handleSenderDistributionBucket(checkBucket senderDistributionBucket) {
+	agg.mu.Lock()
+	defer agg.mu.Unlock()
+
+	aggregatorCheckDistributionBucketMetricSample.Add(1)
+	tlmProcessed.Inc("", "distribution_bucket")
+
+	if checkSampler, ok := agg.checkSamplers[checkBucket.id]; ok {
+		checkBucket.bucket.Tags = sort.UniqInPlace(checkBucket.bucket.Tags)
+		checkSampler.addDistributionBucket(checkBucket.bucket, agg.tagFilterList)
+	} else {
+		log.Debugf("CheckSampler with ID '%s' doesn't exist, can't handle distribution bucket", checkBucket.id)
 	}
 }
 

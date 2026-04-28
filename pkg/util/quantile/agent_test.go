@@ -190,3 +190,29 @@ func TestAgentInterpolation(t *testing.T) {
 		check(t, tt)
 	}
 }
+
+func TestAgentInsertN(t *testing.T) {
+	a := &Agent{}
+
+	a.InsertN(42.0, 3)
+	require.Len(t, a.CountBuf, 1)
+	require.Equal(t, uint(3), a.CountBuf[0].n)
+	require.Equal(t, int64(3), a.Sketch.Basic.Cnt)
+	require.Equal(t, 42.0, a.Sketch.Basic.Min)
+	require.Equal(t, 42.0, a.Sketch.Basic.Max)
+	require.Equal(t, 126.0, a.Sketch.Basic.Sum)
+	require.Equal(t, 42.0, a.Sketch.Basic.Avg)
+
+	sketch := a.Finish()
+	require.NotNil(t, sketch)
+	require.Equal(t, int64(3), sketch.Basic.Cnt)
+	require.Equal(t, 42.0, sketch.Basic.Min)
+	require.Equal(t, 42.0, sketch.Basic.Max)
+	require.Equal(t, 126.0, sketch.Basic.Sum)
+	require.Equal(t, 42.0, sketch.Basic.Avg)
+
+	keys, counts := sketch.Cols()
+	require.Len(t, keys, 1)
+	require.Len(t, counts, 1)
+	require.Equal(t, uint32(3), counts[0])
+}

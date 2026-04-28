@@ -72,6 +72,8 @@ var (
 		[]string{"check_name"}, "Service checks count")
 	tlmHistogramBuckets = telemetryimpl.GetCompatComponent().NewCounter("checks", "histogram_buckets",
 		[]string{"check_name"}, "Histogram buckets count")
+	tlmDistributionBuckets = telemetryimpl.GetCompatComponent().NewCounter("checks", "distribution_buckets",
+		[]string{"check_name"}, "Distribution buckets count")
 	tlmExecutionTime = telemetryimpl.GetCompatComponent().NewGauge("checks", "execution_time",
 		[]string{"check_name", "check_loader"}, "Check execution time")
 	tlmCheckDelay = telemetryimpl.GetCompatComponent().NewGauge("checks",
@@ -89,10 +91,11 @@ var (
 
 // SenderStats contains statistics showing the count of various types of telemetry sent by a check sender
 type SenderStats struct {
-	MetricSamples    int64
-	Events           int64
-	ServiceChecks    int64
-	HistogramBuckets int64
+	MetricSamples       int64
+	Events              int64
+	ServiceChecks       int64
+	HistogramBuckets    int64
+	DistributionBuckets int64
 	// EventPlatformEvents tracks the number of events submitted for each eventType
 	EventPlatformEvents map[string]int64
 	// LongRunningCheck is a field that is only set for long running checks
@@ -134,10 +137,12 @@ type Stats struct {
 	Events                   int64
 	ServiceChecks            int64
 	HistogramBuckets         int64
+	DistributionBuckets      int64
 	TotalMetricSamples       uint64
 	TotalEvents              uint64
 	TotalServiceChecks       uint64
 	TotalHistogramBuckets    uint64
+	TotalDistributionBuckets uint64
 	EventPlatformEvents      map[string]int64
 	TotalEventPlatformEvents map[string]int64
 	ExecutionTimes           [32]int64     // circular buffer of recent run durations, most recent at [(TotalRuns+31) % 32]
@@ -280,6 +285,13 @@ func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats S
 		cs.TotalHistogramBuckets += uint64(metricStats.HistogramBuckets)
 		if cs.Telemetry {
 			tlmHistogramBuckets.Add(float64(metricStats.HistogramBuckets), cs.CheckName)
+		}
+	}
+	if metricStats.DistributionBuckets > 0 {
+		cs.DistributionBuckets = metricStats.DistributionBuckets
+		cs.TotalDistributionBuckets += uint64(metricStats.DistributionBuckets)
+		if cs.Telemetry {
+			tlmDistributionBuckets.Add(float64(metricStats.DistributionBuckets), cs.CheckName)
 		}
 	}
 	for k, v := range metricStats.EventPlatformEvents {

@@ -89,6 +89,26 @@ func (a *Agent) Insert(v float64, sampleRate float64) {
 	a.flush()
 }
 
+// InsertN inserts the same value into the sketch count times.
+func (a *Agent) InsertN(v float64, count uint) {
+	if count == 0 {
+		return
+	}
+
+	k := agentConfig.key(v)
+	a.Sketch.Basic.InsertN(v, float64(count))
+	a.CountBuf = append(a.CountBuf, KeyCount{
+		k: k,
+		n: count,
+	})
+
+	if len(a.CountBuf) < agentBufCap {
+		return
+	}
+
+	a.flush()
+}
+
 // InsertInterpolate linearly interpolates a count from the given lower to upper bounds
 func (a *Agent) InsertInterpolate(lower float64, upper float64, count uint) error {
 	keys := make([]Key, 0)

@@ -35,6 +35,15 @@ func (m sketchMap) insert(ts int64, ck ckey.ContextKey, v float64, sampleRate fl
 	return true
 }
 
+func (m sketchMap) insertN(ts int64, ck ckey.ContextKey, v float64, count uint) bool {
+	if count == 0 || math.IsInf(v, 0) || math.IsNaN(v) {
+		return false
+	}
+
+	m.getOrCreate(ts, ck).InsertN(v, count)
+	return true
+}
+
 func (m sketchMap) insertInterp(ts int64, ck ckey.ContextKey, lower float64, upper float64, count uint) bool {
 	if math.IsInf(lower, 0) || math.IsNaN(lower) {
 		return false

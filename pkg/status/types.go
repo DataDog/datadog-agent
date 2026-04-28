@@ -19,20 +19,22 @@ type CLCChecks struct {
 
 // CLCStats is used to unmarshall the stats needed from the runner expvar payload
 type CLCStats struct {
-	AverageExecutionTime int    `json:"AverageExecutionTime"`
-	MetricSamples        int    `json:"MetricSamples"`
-	HistogramBuckets     int    `json:"HistogramBuckets"`
-	Events               int    `json:"Events"`
-	ServiceChecks        int    `json:"ServiceChecks"`
-	LastExecFailed       bool   `json:"LastExecFailed"`
-	LastError            string `json:"LastError"`
-	TotalRuns            uint64 `json:"TotalRuns"`
-	TotalErrors          uint64 `json:"TotalErrors"`
-	TotalMetricSamples   uint64 `json:"TotalMetricSamples"`
-	TotalEvents          uint64 `json:"TotalEvents"`
-	TotalServiceChecks   uint64 `json:"TotalServiceChecks"`
-	LastSuccessDate      int64  `json:"LastSuccessDate"`
-	LastExecutionDate    int64  `json:"LastExecutionDate"`
+	AverageExecutionTime     int    `json:"AverageExecutionTime"`
+	MetricSamples            int    `json:"MetricSamples"`
+	HistogramBuckets         int    `json:"HistogramBuckets"`
+	DistributionBuckets      int    `json:"DistributionBuckets"`
+	Events                   int    `json:"Events"`
+	ServiceChecks            int    `json:"ServiceChecks"`
+	LastExecFailed           bool   `json:"LastExecFailed"`
+	LastError                string `json:"LastError"`
+	TotalRuns                uint64 `json:"TotalRuns"`
+	TotalErrors              uint64 `json:"TotalErrors"`
+	TotalMetricSamples       uint64 `json:"TotalMetricSamples"`
+	TotalDistributionBuckets uint64 `json:"TotalDistributionBuckets"`
+	TotalEvents              uint64 `json:"TotalEvents"`
+	TotalServiceChecks       uint64 `json:"TotalServiceChecks"`
+	LastSuccessDate          int64  `json:"LastSuccessDate"`
+	LastExecutionDate        int64  `json:"LastExecutionDate"`
 }
 
 // Workers is used to unmarshall the workers info needed from the runner expvar payload
@@ -55,6 +57,7 @@ func (d *CLCStats) UnmarshalJSON(data []byte) error {
 	d.AverageExecutionTime = int(stats.AverageExecutionTime)
 	d.MetricSamples = int(stats.MetricSamples)
 	d.HistogramBuckets = int(stats.HistogramBuckets)
+	d.DistributionBuckets = int(stats.DistributionBuckets)
 	d.Events = int(stats.Events)
 	d.ServiceChecks = int(stats.ServiceChecks)
 	d.LastError = stats.LastError
@@ -62,6 +65,7 @@ func (d *CLCStats) UnmarshalJSON(data []byte) error {
 	d.TotalRuns = stats.TotalRuns
 	d.TotalErrors = stats.TotalErrors
 	d.TotalMetricSamples = stats.TotalMetricSamples
+	d.TotalDistributionBuckets = stats.TotalDistributionBuckets
 	d.TotalEvents = stats.TotalEvents
 	d.TotalServiceChecks = stats.TotalServiceChecks
 	d.LastSuccessDate = stats.LastSuccessDate
