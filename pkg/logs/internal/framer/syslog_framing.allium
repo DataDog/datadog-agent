@@ -58,18 +58,26 @@ contract SyslogFrameDetection {
         --   Anything else → malformed recovery
 
     @invariant OctetCountedIntegrity
-        -- An octet-counted frame with declared length N yields exactly
-        -- min(N, max_frame_bytes) bytes of content. The length prefix
-        -- and separator space are not part of the content.
+        -- An octet-counted frame with declared length N:
+        --   If N <= max_frame_bytes: yields exactly N bytes of content.
+        --     The length prefix and separator space are not part of the content.
+        --   If N > max_frame_bytes: the first max_frame_bytes raw bytes
+        --     (including the length prefix) are emitted as the first frame
+        --     with was_truncated=true. The remainder stays in the buffer
+        --     and is re-processed as continuation frames via malformed
+        --     recovery. No bytes are discarded.
 
     @invariant NonTransparentDelimiters
         -- Non-transparent frames are terminated by LF or NUL.
         -- Trailing CR+LF and NUL are stripped from content.
 
-    @invariant FlushOnlyNonTransparent
-        -- flush emits a frame only when the buffer starts with a PRI
-        -- header (non-transparent frame whose delimiter was never sent).
-        -- Partial octet-counted frames are discarded.
+    @invariant FlushEmitsAllBytes
+        -- flush emits all remaining bytes at end-of-stream, regardless
+        -- of framing state. Partial octet-counted frames, non-syslog
+        -- content, and continuation bytes are all emitted rather than
+        -- discarded. When the remainder exceeds max_frame_bytes, flush
+        -- emits bounded chunks in a loop. Trailing CR, LF, and NUL
+        -- are stripped from each chunk.
 
     @invariant MalformedRecovery
         -- Bytes that do not start a valid frame are scanned forward
@@ -91,9 +99,13 @@ contract SyslogFrameDetection {
         -- Frames are emitted in stream order. The framer never reorders.
 
     @guidance
-        -- The syslog framer tracks discarded bytes via both a global
-        -- telemetry counter and a per-tailer status counter. These
-        -- counters are observable through the agent status page.
+        -- The syslog framer tracks discarded bytes and oversized frame
+        -- splits via both global telemetry counters and per-tailer
+        -- status counters. These are observable through the agent
+        -- status page:
+        --   - "Syslog Discarded Bytes": malformed/non-syslog bytes
+        --   - "Syslog Oversized Frames": frames that were split due
+        --     to exceeding max_frame_bytes
 }
 
 ------------------------------------------------------------
@@ -130,6 +142,10 @@ rule ExtractNonTransparentFrame {
         -- Scans from the previously_seen offset for LF or NUL.
         -- Trailing CR before LF is stripped. If no delimiter is
         -- found, returns nothing to wait for more data.
+        -- When the content between '<' and the delimiter exceeds
+        -- max_frame_bytes, only the first max_frame_bytes raw bytes
+        -- are emitted (was_truncated=true). The delimiter and
+        -- remaining bytes stay in the buffer for re-processing.
 }
 
 rule RecoverMalformedBytes {
@@ -174,19 +190,41 @@ rule ConsumeInterFrameWhitespace {
         -- a pragmatic extension for real-world streams.
 }
 
+rule SplitOversizedFrame {
+    when: FrameExtracted(frame) where frame.content.length > max_frame_bytes
+    ensures: OversizedSplitEmitted(first_chunk, continuations)
+
+    @guidance
+        -- Applies to all framing paths: octet-counted, non-transparent,
+        -- and malformed. When the content exceeds max_frame_bytes:
+        --   1. Emit buf[:max_frame_bytes] with was_truncated=true and
+        --      raw_bytes_consumed = max_frame_bytes.
+        --   2. The remainder stays in the buffer.
+        --   3. The framer loop re-enters; continuation bytes (which
+        --      lack a PRI header) route through malformed recovery.
+        --   4. Malformed recovery scans to the next frame start or
+        --      delimiter, emitting continuation chunks (possibly
+        --      further split if they also exceed max_frame_bytes).
+        --
+        -- An oversized_frames telemetry counter is incremented each
+        -- time a split occurs (global counter + per-tailer status).
+}
+
 rule FlushOnClose {
     when: StreamClosed(buffer)
     requires: buffer.length > 0
-    let start = FrameStart(buffer)
-    requires: start.kind = non_transparent
 
     ensures: FrameExtracted(frame)
 
     @guidance
-        -- Handles senders that write a single non-transparent message
-        -- and close the connection without appending a trailing LF
-        -- or NUL. Partial octet-counted frames are discarded because
-        -- the message body is genuinely incomplete.
+        -- At end-of-stream, all remaining bytes are emitted regardless
+        -- of framing state. This handles:
+        --   - Non-transparent frames missing their trailing delimiter
+        --   - Partial octet-counted frames (previously discarded)
+        --   - Continuation bytes from a prior oversized split
+        --   - Non-syslog content sent to a syslog listener
+        -- Trailing CR, LF, NUL are stripped. When the remainder exceeds
+        -- max_frame_bytes, the Flush loop emits bounded chunks.
 }
 
 rule DatagramFrame {
@@ -227,17 +265,22 @@ invariant MixedFramingOnSameStream {
     -- leading byte after consuming the previous frame), not per-stream.
 }
 
-invariant TruncationPreservesProgress {
-    -- When a frame exceeds max_frame_bytes, the content is truncated
-    -- but the full raw_bytes_consumed (including the truncated portion)
-    -- is reported so the next frame starts at the correct offset.
+invariant SplitPreservesData {
+    -- When a frame exceeds max_frame_bytes, only the first
+    -- max_frame_bytes raw bytes are emitted (was_truncated=true)
+    -- with raw_bytes_consumed = max_frame_bytes. The remaining
+    -- bytes stay in the buffer for re-processing. Continuation
+    -- bytes naturally route through malformed recovery (they lack
+    -- a PRI header) and are emitted as subsequent frames. This
+    -- ensures zero data loss: every byte appears in some emitted
+    -- frame.
 }
 
 ------------------------------------------------------------
 -- Open Questions
 ------------------------------------------------------------
 
-open question "ERR1: plain text with no PRI on a TCP syslog listener enters malformed recovery and scans for a PRI header that may never appear. If the entire connection is non-syslog, content accumulates until close, then FlushOnClose discards it (buffer does not start with PRI). Should the framer impose a maximum scan distance and force-emit after N bytes?"
+open question "ERR1: plain text with no PRI on a TCP syslog listener enters malformed recovery and scans for a PRI header that may never appear. If the entire connection is non-syslog, content accumulates until the generic framer fallback kicks in at max_frame_bytes (splitting at raw byte boundaries) or until close (when FlushOnClose emits all remaining bytes). The generic fallback provides a bounded safety net, but should the syslog framer itself impose a lower scan distance?"
 
 open question "ERR3: JSON sent to a syslog listener has no PRI header, so the framer enters malformed recovery. If the JSON happens to contain a digit preceded by an angle bracket, the framer may interpret that as a sync point and fragment the JSON at an arbitrary position. Should the sync heuristic require a stronger pattern?"
 
