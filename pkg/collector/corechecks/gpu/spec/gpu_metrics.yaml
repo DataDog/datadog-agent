@@ -351,6 +351,45 @@ metrics:
         mig: false
         physical: true
         vgpu: true
+  errors.ecc.sram.threshold_exceeded:
+    metadata:
+      metric_type: gauge
+      description: Whether the SRAM ECC error threshold has been exceeded
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: true
+  errors.ecc.sram.uncorrected_by_subtype.total:
+    metadata:
+      metric_type: gauge
+      description: Aggregate SRAM uncorrectable ECC errors split by subtype
+    tagsets:
+      - device
+    custom_tags:
+      - memory_location
+      - error_subtype
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: true
   ecc.repair_pending.channel:
     metadata:
       metric_type: gauge

@@ -7,6 +7,8 @@ package commands
 
 import (
 	"github.com/spf13/cobra"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
 )
 
 // ApmCommands are the APM installer daemon commands
@@ -16,7 +18,7 @@ func apmCommands() *cobra.Command {
 		Short:   "Interact with the APM auto-injector",
 		GroupID: "apm",
 	}
-	ctlCmd.AddCommand(apmInstrumentCommand(), apmUninstrumentCommand())
+	ctlCmd.AddCommand(apmInstrumentCommand(), apmUninstrumentCommand(), apmInstrumentStartCommand(), apmInstrumentStopCommand())
 	return ctlCmd
 }
 
@@ -57,6 +59,36 @@ func apmUninstrumentCommand() *cobra.Command {
 			}
 			i.span.SetTag("params.instrument", args[0])
 			return i.UninstrumentAPMInjector(i.ctx, args[0])
+		},
+	}
+	return cmd
+}
+
+func apmInstrumentStartCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "instrument-start host",
+		Short: "Add the APM injector to /etc/ld.so.preload. Called by the datadog-apm-inject systemd service on start.",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) (err error) {
+			c := newCmd("apm_instrument_start")
+			defer func() { c.stop(err) }()
+			c.span.SetTag("params.instrument", args[0])
+			return packages.InstrumentAPMInjectorStart(c.ctx)
+		},
+	}
+	return cmd
+}
+
+func apmInstrumentStopCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "instrument-stop host",
+		Short: "Remove the APM injector from /etc/ld.so.preload. Called by the datadog-apm-inject systemd service on stop.",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) (err error) {
+			c := newCmd("apm_instrument_stop")
+			defer func() { c.stop(err) }()
+			c.span.SetTag("params.instrument", args[0])
+			return packages.UninstrumentAPMInjectorStop(c.ctx)
 		},
 	}
 	return cmd

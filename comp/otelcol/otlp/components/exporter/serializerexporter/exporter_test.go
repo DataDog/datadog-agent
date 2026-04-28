@@ -209,6 +209,28 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 			}, nil),
 			instrumentationScopeMetadataAsTags: true,
 		},
+		{
+			name: "service.instance.id resource attribute becomes tag",
+			genMetrics: func(_ *testing.T) pmetric.Metrics {
+				h := pmetric.NewHistogramDataPoint()
+				h.BucketCounts().FromRaw([]uint64{100})
+				h.SetCount(100)
+				h.SetSum(0)
+
+				n := pmetric.NewNumberDataPoint()
+				n.SetIntValue(777)
+				md := newMetrics(histogramMetricName, h, numberMetricName, n)
+				md.ResourceMetrics().At(0).Resource().Attributes().PutStr("service.instance.id", "my-instance-123")
+				return md
+			},
+			extraTags: []string{},
+			wantSketchTags: tagset.NewCompositeTags([]string{
+				"service.instance.id:my-instance-123",
+			}, nil),
+			wantSerieTags: tagset.NewCompositeTags([]string{
+				"service.instance.id:my-instance-123",
+			}, nil),
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

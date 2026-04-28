@@ -21,6 +21,7 @@ go_test(
     srcs = [
         "benchmark_test.go",
         "comparison_test.go",
+        "escape_test.go",
         "fuzz_test.go",
         "generic_test.go",
         "symbol_test.go",
