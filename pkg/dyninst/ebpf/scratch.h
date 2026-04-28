@@ -29,6 +29,23 @@ typedef uint64_t buf_offset_t;
 #define RINGBUF_CAPACITY ((uint64_t)1 << 23)
 #define SCRATCH_BUF_LEN ((uint64_t)1 << 15) // 32KiB
 
+// MAX_CONTINUATION_FRAGMENTS caps the number of fragments BPF will emit
+// per probe invocation. Once we've submitted this many fragments,
+// subsequent flush attempts are rejected and probe_run takes the
+// continuation_aborted path (userspace is notified that the event is
+// truncated).
+//
+// 16 fragments × SCRATCH_BUF_LEN = 512 KiB raw payload ceiling per
+// invocation. The choice comes from the userspace upload path: snapshots
+// are JSON-serialized before upload and we expect at least ~2x size
+// blowup from binary-to-JSON encoding (escaping, base64, type tags), and
+// the serialized snapshot has a 1 MiB ceiling. Capping raw bytes at
+// 512 KiB keeps us comfortably below that limit even for the worst-case
+// blowup. This bound exists separately from the per-fragment ringbuf
+// pressure check — even a fully drained ringbuf will not accept more
+// than this many fragments for a single invocation.
+#define MAX_CONTINUATION_FRAGMENTS 16
+
 // Side-channel for drop notifications. Notifications are 32 bytes each; at
 // 16 KiB the side channel holds ~500 notifications — far more than the
 // number of concurrently-buffered events userspace can hold, so the side
@@ -144,15 +161,28 @@ static bool events_scratch_buf_submit(scratch_buf_t* scratch_buf,
 }
 
 // Flush the current scratch buffer as a continuation fragment and reinitialize
-// for the next fragment. Returns true on success, false if the ringbuf is full.
-// start_ns is the original probe invocation timestamp, used to correlate all
-// fragments of a single logical event. last_submitted_seq is updated on
-// success so probe_run can fill last_seq on any subsequent drop notification.
+// for the next fragment. Returns true on success, false if the flush couldn't
+// be submitted — either because the ringbuf is full or because we've reached
+// MAX_CONTINUATION_FRAGMENTS. start_ns is the original probe invocation
+// timestamp, used to correlate all fragments of a single logical event.
+// last_submitted_seq is updated on success so probe_run can fill last_seq on
+// any subsequent drop notification.
 static bool scratch_buf_flush_and_continue(scratch_buf_t* scratch_buf,
                                            uint16_t* continuation_seq,
                                            uint16_t* last_submitted_seq,
                                            uint64_t start_ns,
                                            uint64_t entry_ktime_ns) {
+  // Reject flushes once we'd cross the per-invocation fragment cap. The
+  // caller will set continuation_aborted and probe_run will emit the
+  // appropriate PARTIAL_* / RETURN_LOST notification — userspace already
+  // has fragments [0..MAX_CONTINUATION_FRAGMENTS-1] and is told to
+  // finalize them as a truncated event.
+  if (*continuation_seq >= MAX_CONTINUATION_FRAGMENTS) {
+    LOG(1, "flush: hit MAX_CONTINUATION_FRAGMENTS (%d), aborting continuation",
+        MAX_CONTINUATION_FRAGMENTS);
+    return false;
+  }
+
   di_event_header_t* header = (di_event_header_t*)scratch_buf;
   header->continuation_seq = *continuation_seq;
   header->continuation_flags = 1; // more fragments follow

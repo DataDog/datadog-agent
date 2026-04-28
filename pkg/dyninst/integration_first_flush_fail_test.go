@@ -601,6 +601,295 @@ func saturateRingbuf(t *testing.T, ldr *loader.Loader, doGet func(string)) {
 		maxBatches, ldr.OutputReader().AvailableBytes())
 }
 
+// TestFragmentCap exercises the per-invocation MAX_CONTINUATION_FRAGMENTS
+// cap added in the previous commit. The cap bounds the raw bytes a
+// single probe invocation can emit at MAX_CONTINUATION_FRAGMENTS *
+// SCRATCH_BUF_LEN = 16 * 32 KiB = 512 KiB, sized to keep the JSON-
+// serialized snapshot under the backend's 1 MiB ceiling even after
+// ~2x binary-to-JSON inflation.
+//
+// The trigger is a chain of nodes each carrying a string. Strings flow
+// through chased_slices (cap 128) instead of the chased-pointers trie
+// (cap 1024), so the chain can produce arbitrarily many bytes without
+// exhausting the trie. We pick 128 nodes × 4 KiB strings = ~530 KiB
+// raw, comfortably above the 512 KiB cap. (A plain Node chain can't
+// reach the cap because each Node consumes a trie slot.)
+//
+// This test uses a generously-sized output ringbuf (8 MiB — the
+// production default) so saturation isn't a confound: any fragment
+// truncation here is the cap, not ringbuf pressure.
+//
+// Diagnostic assertions:
+//
+//  1. Exactly one drop notification is observed for the trigger probe,
+//     reason=PARTIAL_ENTRY, last_seq=MAX_CONTINUATION_FRAGMENTS-1=15.
+//     This is the precise contract: 16 fragments [0..15] submitted,
+//     no more accepted.
+//
+//  2. A snapshot for capture_string_chain lands in fakeintake (the
+//     truncated event with 16 fragments).
+//
+//  3. After the trigger, a fresh smaller invocation produces a normal
+//     snapshot (recovery — the BPF state machine isn't poisoned).
+func TestFragmentCap(t *testing.T) {
+	dyninsttest.SkipIfKernelNotSupported(t)
+	current := goleak.IgnoreCurrent()
+	t.Cleanup(func() { goleak.VerifyNone(t, current) })
+
+	cfgs := testprogs.MustGetCommonConfigs(t)
+	var cfg testprogs.Config
+	var found bool
+	for _, c := range cfgs {
+		if c.GOARCH == runtime.GOARCH {
+			cfg = c
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Skipf("no drop_tester config matches runtime arch %s", runtime.GOARCH)
+	}
+	t.Logf("using config %s", cfg.String())
+
+	var collector *tracePipeCollector
+	if dontCollect, _ := strconv.ParseBool(os.Getenv("DONT_COLLECT_TRACE_PIPE")); !dontCollect {
+		collector = newTracePipeCollector(t)
+		t.Cleanup(func() { collector.Close() })
+	}
+
+	tempDir, cleanup := dyninsttest.PrepTmpDir(t, "dyninst-fragment-cap")
+	defer cleanup()
+
+	testServer := newFakeAgent(t)
+	t.Cleanup(testServer.s.Close)
+
+	modCfg, err := module.NewConfig(nil)
+	require.NoError(t, err)
+	loaderOpts := []loader.Option{
+		// Generously-sized ringbuf so saturation is not a confound;
+		// any truncation here is the cap, not ringbuf pressure.
+		loader.WithRingBufSize(8 << 20),
+		loader.WithDebugLevel(100),
+	}
+	modCfg.TestingKnobs.LoaderOptions = loaderOpts
+	modCfg.DiskCacheConfig.DirPath = filepath.Join(tempDir, "disk-cache")
+	modCfg.LogUploaderURL = testServer.getLogsURL()
+	modCfg.DiagsUploaderURL = testServer.getDiagsURL()
+
+	var sendUpdate fakeProcessSubscriber
+	modCfg.TestingKnobs.ProcessSubscriberOverride = func(
+		real module.ProcessSubscriber,
+	) module.ProcessSubscriber {
+		real.(*procsubscribe.Subscriber).Close()
+		return &sendUpdate
+	}
+	modCfg.ProbeTombstoneFilePath = filepath.Join(tempDir, "tombstone.json")
+	modCfg.TestingKnobs.TombstoneSleepKnobs = tombstone.WaitTestingKnobs{
+		BackoffPolicy: &backoff.ExpBackoffPolicy{
+			MaxBackoffTime: time.Millisecond.Seconds(),
+		},
+	}
+	modCfg.ActuatorConfig.RecompilationRateLimit = -1
+
+	// Wire up a controlledSink purely for drop-notification observability —
+	// we do NOT block events here. The sink forwards everything to the
+	// production sink (HandleEvent + HandleDropNotification).
+	var (
+		mu   sync.Mutex
+		sink *controlledSink
+		prog *loader.Program
+	)
+	modCfg.TestingKnobs.SinkOverride = func(
+		real dispatcher.Sink,
+		buf *eventbuf.Buffer,
+		budget *eventbuf.Budget,
+	) dispatcher.Sink {
+		s := newControlledSink(real, buf, budget)
+		mu.Lock()
+		sink = s
+		mu.Unlock()
+		return s
+	}
+	modCfg.TestingKnobs.OnProgramLoaded = func(p *loader.Program) {
+		mu.Lock()
+		prog = p
+		mu.Unlock()
+	}
+
+	m, err := module.NewModule(modCfg, nil)
+	require.NoError(t, err)
+	t.Cleanup(m.Close)
+
+	binPath := testprogs.MustGetBinary(t, "drop_tester", cfg)
+	require.NotEmpty(t, binPath,
+		"drop_tester binary not built; run `dda inv system-probe.build-dyninst-test-programs`")
+
+	ctx := context.Background()
+	proc, _ := dyninsttest.StartProcess(ctx, t, tempDir, binPath)
+	pid := proc.Process.Pid
+	t.Logf("launched drop_tester with pid %d", pid)
+	defer func() {
+		_ = proc.Process.Signal(os.Interrupt)
+		_ = proc.Wait()
+	}()
+
+	forceTracePipePrint, _ := strconv.ParseBool(os.Getenv("FORCE_TRACE_PIPE_PRINT"))
+	t.Cleanup(func() {
+		if collector == nil || (!t.Failed() && !forceTracePipePrint) {
+			return
+		}
+		if err := collector.Flush(); err != nil {
+			t.Logf("trace pipe flush error: %v", err)
+		}
+		f, err := collector.GetLogs(pid)
+		if err != nil {
+			t.Logf("trace pipe GetLogs error: %v", err)
+			return
+		}
+		if f == nil {
+			return
+		}
+		defer f.Close()
+		t.Logf("--- trace_pipe output for pid %d ---", pid)
+		scanner := bufio.NewScanner(f)
+		for scanner.Scan() {
+			t.Log(scanner.Text())
+		}
+		t.Logf("--- end trace_pipe output ---")
+	})
+
+	port := waitForDropTesterPort(t, filepath.Join(tempDir, "sample.out"))
+	baseURL := fmt.Sprintf("http://127.0.0.1:%d", port)
+
+	probes := testprogs.MustGetProbeDefinitions(t, "drop_tester")
+	require.NotEmpty(t, probes, "no probes registered for drop_tester")
+	exe, err := process.ResolveExecutable(kernel.ProcFSRoot(), int32(pid))
+	require.NoError(t, err)
+	sendUpdate(process.ProcessesUpdate{
+		Updates: []process.Config{
+			{
+				Info: process.Info{
+					ProcessID:   process.ID{PID: int32(pid)},
+					Executable:  exe,
+					Service:     "drop_tester",
+					ProcessTags: []string{"entrypoint.name:drop_tester"},
+				},
+				RuntimeID: "drop_tester_test",
+				Probes:    slices.Clone(probes),
+			},
+		},
+	})
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		installed := map[string]struct{}{}
+		for _, d := range testServer.getDiags() {
+			if d.diagnosticMessage.Debugger.Status == uploader.StatusInstalled {
+				installed[d.diagnosticMessage.Debugger.ProbeID] = struct{}{}
+			} else if d.diagnosticMessage.Debugger.Status == uploader.StatusError {
+				t.Fatalf("probe %s install error: %s",
+					d.diagnosticMessage.Debugger.ProbeID,
+					d.diagnosticMessage.Debugger.DiagnosticException.Message)
+			}
+		}
+		want := map[string]struct{}{}
+		for _, p := range probes {
+			want[p.GetID()] = struct{}{}
+		}
+		assert.Equal(c, want, installed)
+	}, 60*time.Second, 100*time.Millisecond,
+		"probes should install within 60s")
+
+	mu.Lock()
+	require.NotNil(t, sink, "controlledSink was not installed")
+	require.NotNil(t, prog, "loader.Program handle was not captured")
+	mu.Unlock()
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	doGet := func(path string) {
+		t.Helper()
+		resp, err := client.Get(baseURL + path)
+		require.NoError(t, err, "GET %s", path)
+		_, _ = io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode, "GET %s", path)
+	}
+
+	// Issue the trigger: a chain of 128 nodes, each with a 4 KiB string.
+	// Raw bytes ≈ 128 × (4096 + ~80) ≈ 533 KiB, well over the 512 KiB
+	// cap (16 fragments × 32 KiB). The probe will emit fragments [0..15]
+	// then refuse the 17th flush, take the continuation_aborted path,
+	// and emit PARTIAL_ENTRY(last_seq=15).
+	const triggerNodes = 128
+	const triggerStrLen = 4 << 10
+	doGet(fmt.Sprintf("/string_chain?iter=1&nodes=%d&str_len=%d",
+		triggerNodes, triggerStrLen))
+
+	// Wait for any drop notifications to land.
+	var observedDrops []output.DropNotification
+	collectTimer := time.NewTimer(2 * time.Second)
+collect:
+	for {
+		select {
+		case d := <-sink.drops:
+			observedDrops = append(observedDrops, d)
+		case <-collectTimer.C:
+			break collect
+		}
+	}
+	for i, d := range observedDrops {
+		t.Logf("observed drop notification[%d]: reason=%d last_seq=%d probe_id=%d goid=%d entry_ktime_ns=%d",
+			i, d.Drop_reason, d.Last_seq, d.Probe_id, d.Goid, d.Entry_ktime_ns)
+	}
+
+	// Filter to notifications matching the cap signature: PARTIAL_ENTRY
+	// with last_seq = MAX_CONTINUATION_FRAGMENTS - 1.
+	const expectLastSeq = uint16(15) // MAX_CONTINUATION_FRAGMENTS - 1
+	var capDrops []output.DropNotification
+	for _, d := range observedDrops {
+		if output.DropReason(d.Drop_reason) == output.DropReasonPartialEntry &&
+			d.Last_seq == expectLastSeq {
+			capDrops = append(capDrops, d)
+		}
+	}
+	require.Len(t, capDrops, 1,
+		"expected exactly one PARTIAL_ENTRY(last_seq=%d) from the trigger; "+
+			"observed %d total notifications, %d matching",
+		expectLastSeq, len(observedDrops), len(capDrops))
+
+	// Sanity: the side channel must not have lost notifications.
+	assert.Equal(t, uint64(0), prog.DropNotifyLostAt(),
+		"drop-notify side channel must not have lost notifications during the test")
+
+	// Wait for fakeintake to receive the truncated snapshot.
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		snaps := countSnapshotsForProbe(t, testServer.getLogs(), "capture_string_chain")
+		assert.Greater(c, snaps, 0,
+			"trigger snapshot for capture_string_chain should land "+
+				"(16 fragments reassembled into a truncated event)")
+	}, 10*time.Second, 100*time.Millisecond)
+
+	// Recovery: a fresh small invocation must produce a snapshot.
+	logsBeforeRecovery := len(testServer.getLogs())
+	doGet("/bytes?iter=1&size=128")
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.Greater(c, len(testServer.getLogs()), logsBeforeRecovery,
+			"recovery: fresh /bytes invocation must produce a snapshot")
+	}, 10*time.Second, 100*time.Millisecond)
+
+	// Stop the subject process and drain.
+	_ = proc.Process.Signal(os.Interrupt)
+	_ = proc.Wait()
+	sendUpdate(process.ProcessesUpdate{
+		Removals: []process.ID{{PID: int32(pid)}},
+	})
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.Empty(c, m.DiagnosticsStates())
+	}, 30*time.Second, 100*time.Millisecond,
+		"diagnostics states should drain after process exit")
+
+	t.Logf("collected %d snapshot logs total", len(testServer.getLogs()))
+}
+
 // countSnapshotsForProbe counts how many fakeintake logs are
 // snapshots emitted by the given userspace probe ID. The probe ID is
 // embedded in the snapshot JSON's debugger.snapshot.probe.id field.
