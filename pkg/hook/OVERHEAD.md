@@ -148,66 +148,73 @@ benchmark — we measure delivery cost, not congestion.
 
 ## Results
 
-![Hook overhead per pipeline](overhead_a.png)
-
-![DogStatsD per-point CPU breakdown](overhead_b.png)
-
-![sample() cost — hookBatch append is free](overhead_c.png)
-
+> All charts are generated from `bench_results.csv` (50 runs, arm64 Linux,
+> `go test -bench -benchmem -count=50 -benchtime=100ms`). Error bars show ±1 stddev.
 > Regenerate: `uv run --with matplotlib python3 pkg/hook/plot_overhead.py`
-
-### The zero-overhead principle: noop vs 0 subscribers
-
-The first question from reviewers: _"if folks aren't using anomaly detection they pay no
-resources for it."_
-
-```
-Pipeline          noop_hook           0 subscribers
-────────────────  ──────────────────  ──────────────────
-TimeSampler       82 ns   0 allocs    82 ns   0 allocs   ← identical
-no-agg worker      2 ns   0 allocs     2 ns   0 allocs   ← identical
-CheckSampler       2 ns   0 allocs     2 ns   0 allocs   ← identical
-```
-
-**The noop hook and a real hook with 0 subscribers are indistinguishable.** The 0-subscriber
-path costs one atomic read (~2 ns) and returns immediately — no lock, no allocation, no
-channel operation. This confirms the zero-overhead principle in practice.
 
 ---
 
-### All three pipelines under active observation
+### Zero overhead when idle
 
-```mermaid
-xychart-beta horizontal
-    title "Hook overhead per operation (arm64, 1 active subscriber)"
-    x-axis ["TimeSampler\n(per sample, amortized)", "no-agg worker\n(per batch of 32)", "CheckSampler\n(per check metric)"]
-    y-axis "ns" 0 --> 1600
-    bar [6.3, 1544, 405]
-```
+The first reviewer question was: _"if folks aren't using anomaly detection they pay no
+resources for it."_
 
-#### Raw benchmark output
+The chart below compares four hook modes across all three tap points. The Y axis is
+logarithmic to make the idle bars visible alongside the active ones. The light blue
+(noop hook) and dark blue (0 subscribers) bars are nearly identical on every pipeline —
+both land at the bottom of the chart. The only visible difference is in the TimeSampler
+column, where 0-sub shows ~0.6 ns vs ~0 for noop: that is one atomic read.
 
-```
-BenchmarkTimeSamplerHook/sample_only/noop_hook        82.35 ns/op    0 B/op   0 allocs/op
-BenchmarkTimeSamplerHook/sample_only/0sub             82.48 ns/op    0 B/op   0 allocs/op  ← same as noop
-BenchmarkTimeSamplerHook/sample_only/1sub             81.77 ns/op    0 B/op   0 allocs/op
-BenchmarkTimeSamplerHook/sample_only/5sub             81.93 ns/op    0 B/op   0 allocs/op
+![Hook overhead per pipeline × subscriber count](overhead_a.png)
 
-BenchmarkTimeSamplerHook/batch32_publish/noop_hook  2626 ns/op    0 B/op   0 allocs/op
-BenchmarkTimeSamplerHook/batch32_publish/0sub       2682 ns/op    0 B/op   0 allocs/op  ← same as noop
-BenchmarkTimeSamplerHook/batch32_publish/1sub       2827 ns/op    0 B/op   0 allocs/op  (+6.3 ns/sample amortized)
-BenchmarkTimeSamplerHook/batch32_publish/5sub       3363 ns/op    0 B/op   0 allocs/op  (+23 ns/sample amortized)
+The idle path returns after a single `atomic.Int32` read. No lock, no allocation, no
+channel operation. **Enabling the hook in production but not subscribing to it costs
+nothing measurable.** This holds for all three pipelines.
 
-BenchmarkNoAggWorkerHook/batch32/noop_hook           2.14 ns/op    0 B/op   0 allocs/op
-BenchmarkNoAggWorkerHook/batch32/0sub                2.17 ns/op    0 B/op   0 allocs/op  ← same as noop
-BenchmarkNoAggWorkerHook/batch32/1sub             1544   ns/op  2862 B/op   2 allocs/op
-BenchmarkNoAggWorkerHook/batch32/5sub             2300   ns/op  2918 B/op   2 allocs/op
+The no-agg worker and CheckSampler bars also carry an annotation: when a subscriber
+_is_ active, those paths allocate 2 objects per publish because they do not use the
+accumulator pattern that TimeSampler uses. The TimeSampler orange and red bars are
+significantly shorter as a result — that is the payoff of the batch accumulator design.
 
-BenchmarkCheckSamplerHook/noop_hook                  2.14 ns/op    0 B/op   0 allocs/op
-BenchmarkCheckSamplerHook/0sub                       2.17 ns/op    0 B/op   0 allocs/op  ← same as noop
-BenchmarkCheckSamplerHook/1sub                     405    ns/op  355  B/op   2 allocs/op
-BenchmarkCheckSamplerHook/5sub                     975    ns/op  368  B/op   2 allocs/op
-```
+---
+
+### Where hook overhead sits in the full pipeline
+
+To put the active overhead in context, the chart below breaks down the total CPU cost
+of processing one DogStatsD metric point (4 tags) through all stages. Each bar is a
+stacked column: blue for parsing, green for `sample()`, and orange for hook overhead.
+The orange segment is barely visible even at 5 subscribers.
+
+![DogStatsD per-point CPU breakdown — 4 tags, TimeSampler path](overhead_b.png)
+
+Parsing dominates at 273 ns (77% of total). The hook overhead at 1 subscriber adds
+5 ns — a 1.4% increase. At 5 subscribers it reaches 18 ns, or 4.8%. For metrics with
+more tags (16+ tags → 616 ns parse time), the hook's fraction drops below 1%.
+
+| Stage | Latency (ns) | % of total (1 sub) |
+|---|---|---|
+| Parse & enrich (4 tags) | 273 | 76% |
+| `sample()` — context resolution + bucket | 82 | 23% |
+| Hook overhead — 0 subscribers | 0.6 | 0.2% |
+| Hook overhead — 1 subscriber | 5.0 | 1.4% |
+| Hook overhead — 5 subscribers | 17.8 | 4.8% |
+
+---
+
+### The hookBatch append is free
+
+The third question was whether the per-sample work inside `sample()` — the `hookBatch`
+append — adds any cost even when no batch is ever published. The chart below zooms in on
+`sample_only` (which appends to the batch but never calls `publishHookBatch`). All four
+modes measure between 81 and 82 ns with overlapping error bars, confirming the append
+is indistinguishable from noise.
+
+![sample() cost — hookBatch append is free across all hook modes](overhead_c.png)
+
+The `0 allocs/op` annotation on every bar is the key result: the accumulator never
+triggers a heap allocation, regardless of whether subscribers are active. The slice
+grows to batch capacity on the first burst and is reused in-place for every subsequent
+batch.
 
 ---
 
@@ -215,34 +222,29 @@ BenchmarkCheckSamplerHook/5sub                     975    ns/op  368  B/op   2 a
 
 #### 1. TimeSampler — DogStatsD pre-aggregation
 
-The accumulator pattern (`hookBatch` slice pre-allocated, reset to `[:0]` after publish)
-achieves **0 allocations** even when subscribers are active. The publish cost is amortized
-across the full worker batch:
+The accumulator pattern achieves **0 allocations** even when subscribers are active.
+Cost is amortized over the full worker batch (typically 32 samples):
 
-| Hook mode | Per-sample cost (amortized, batch=32) | Δ vs noop |
+| Hook mode | Per-sample cost (amortized) | Δ vs noop |
 |---|---|---|
 | noop / 0 sub | 82 ns | — |
-| 1 subscriber | 88 ns | **+6.3 ns (+8%)** |
-| 5 subscribers | 105 ns | **+23 ns (+28%)** |
-
-For 4-tag metrics, the full pipeline (parse 273 ns + sample 82 ns = 355 ns), the hook
-overhead with 1 subscriber is **+6.3 ns / 355 ns = 1.8%** of the total CPU path.
+| 1 subscriber | 87 ns | **+5 ns** |
+| 5 subscribers | 100 ns | **+18 ns** |
 
 #### 2. no-agg worker — timestamped DogStatsD metrics
 
-This path allocates a fresh snapshot slice per batch (`make([]snapshot, N)`) when
-subscribers are present. The idle path is identical to noop:
+This path allocates a fresh snapshot slice per batch when subscribers are present
+(`make([]snapshot, N)`). The idle path is identical to noop:
 
 | Hook mode | Per-batch cost | Δ vs noop |
 |---|---|---|
 | noop / 0 sub | 2 ns | — |
-| 1 subscriber | 1544 ns | +1542 ns, **2 allocs** |
-| 5 subscribers | 2300 ns | +2298 ns, **2 allocs** |
+| 1 subscriber | 1406 ns | +1404 ns, **2 allocs** |
+| 5 subscribers | 2065 ns | +2063 ns, **2 allocs** |
 
-The active overhead is higher than TimeSampler because this path does not use the
-accumulator pattern — it allocates a new batch slice each time. The no-agg path handles
-a much lower volume than DogStatsD pre-aggregation, so this is acceptable in practice.
-It could be optimized with the same accumulator pattern if needed.
+The no-agg path runs at much lower volume than the DogStatsD pre-aggregation path, so
+the absolute overhead is acceptable. It could be eliminated with the same accumulator
+pattern used by TimeSampler if needed in the future.
 
 #### 3. CheckSampler — check metrics
 
@@ -251,36 +253,12 @@ One snapshot per check metric, allocated inline when subscribers are present:
 | Hook mode | Per-sample cost | Δ vs noop |
 |---|---|---|
 | noop / 0 sub | 2 ns | — |
-| 1 subscriber | 405 ns | +403 ns, **2 allocs** |
-| 5 subscribers | 975 ns | +973 ns, **2 allocs** |
+| 1 subscriber | 370 ns | +368 ns, **2 allocs** |
+| 5 subscribers | 796 ns | +794 ns, **2 allocs** |
 
-Check metrics are emitted at collection intervals (15 s or 30 s per check), not at
-DogStatsD rates. The absolute cost per sample is higher but the volume is orders of
-magnitude lower — check metrics never approach the volume that makes per-sample allocation
-significant.
-
----
-
-### Context: DogStatsD pipeline latency breakdown (4 tags)
-
-```mermaid
-xychart-beta horizontal
-    title "DogStatsD per-point CPU path (ns, arm64, 4 tags)"
-    x-axis ["Parse & enrich", "sample() context resolution", "Hook overhead (1 sub, amortized)"]
-    y-axis "nanoseconds" 0 --> 300
-    bar [272.8, 82.0, 6.3]
-```
-
-| Stage | Latency (ns) | % of total |
-|---|---|---|
-| Parse & enrich (4 tags) | 272.8 | 76% |
-| `sample()` — context resolution + bucket | 82.0 | 23% |
-| Hook overhead — 0 subscribers | 0.1 | 0.03% |
-| Hook overhead — 1 subscriber | 6.3 | 1.7% |
-| Hook overhead — 5 subscribers | 23.0 | 6.0% |
-
-Parsing dominates. As tag count grows (16+ tags → 616 ns parse), the hook's share
-shrinks below 1%.
+Check metrics are emitted at collection intervals (15–30 s per check), not at DogStatsD
+rates. The absolute cost per sample is higher but the volume is orders of magnitude lower
+— check metrics never approach the rate where per-sample allocation becomes significant.
 
 ---
 
