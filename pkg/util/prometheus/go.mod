@@ -11,6 +11,7 @@ require (
 require gopkg.in/yaml.v3 v3.0.1 // indirect
 
 require (
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1 // indirect
 	github.com/aws/aws-sdk-go-v2 v1.41.5 // indirect
 	github.com/aws/aws-sdk-go-v2/config v1.32.14 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.14 // indirect

@@ -18,6 +18,7 @@ require (
 require gopkg.in/yaml.v3 v3.0.1 // indirect
 
 require (
+	github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.72.0-rc.5 // indirect
