@@ -262,6 +262,9 @@ else
     rm -rf "$BUILD_DIR/build/openssl-${OPENSSL_VERSION}"
     extract_gz "$TARBALL" "$BUILD_DIR/build"
     cd "$BUILD_DIR/build/openssl-${OPENSSL_VERSION}"
+    # Apply OpenSSL 3.5.6 regression fix (matches deps/repos.MODULE.bazel).
+    # Upstream issue: openssl/openssl#30728 — OSSL_PARAM_BLD_push_octet_*() with buf=NULL, bsize=0 fails.
+    patch -p1 < "$SCRIPT_DIR/../../../deps/openssl/0002-OSSL_PARAM_BLD_push_octet_allow_NULL_buffer.patch"
     ./Configure aix64-gcc \
         --prefix="$EMBEDDED" \
         --openssldir="$EMBEDDED/ssl" \
