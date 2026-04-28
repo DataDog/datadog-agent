@@ -38,7 +38,7 @@ import (
 	windowseventlog "github.com/DataDog/datadog-agent/comp/checks/windowseventlog/def"
 	windowseventlogfx "github.com/DataDog/datadog-agent/comp/checks/windowseventlog/fx"
 	notableeventsfx "github.com/DataDog/datadog-agent/comp/notableevents/fx"
-	trapserver "github.com/DataDog/datadog-agent/comp/snmptraps/server"
+	trapserver "github.com/DataDog/datadog-agent/comp/snmptraps/server/def"
 	traceconfigdef "github.com/DataDog/datadog-agent/comp/trace/config/def"
 	traceconfigfx "github.com/DataDog/datadog-agent/comp/trace/config/fx"
 
