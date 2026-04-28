@@ -324,6 +324,90 @@ def _budget_footer(root: Path, iter_num: int | None = None, ceiling: int | None 
     )
 
 
+def _capture_pre_revert_diff(root: Path, iter_num: int, candidate_id: str, reason: str) -> None:
+    """Snapshot the implementer's working-tree changes + a build check
+    BEFORE git_ops.revert_working_tree wipes them.
+
+    Without this, every rejected iter destroys the implementer's actual
+    output and we can't tell whether the rejection reason was justified
+    or whether the implementer wrote something subtly broken. Stores
+    output to .coordinator/rejected-diffs/<iter>-<candidate-id>.txt.
+    """
+    import datetime as _dt, subprocess
+    out_dir = state_dir(root) / "rejected-diffs"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    ts = _dt.datetime.now().strftime("%Y%m%dT%H%M%S")
+    safe_id = candidate_id.replace("/", "_")[:80]
+    out_path = out_dir / f"iter-{iter_num:04d}-{safe_id}-{ts}.txt"
+    chunks: list[str] = [
+        f"timestamp: {_dt.datetime.now().isoformat(timespec='seconds')}",
+        f"iter: {iter_num}",
+        f"candidate: {candidate_id}",
+        f"reason: {reason}",
+        "",
+    ]
+    # 1. git status — what was modified/created
+    try:
+        r = subprocess.run(
+            ["git", "-C", str(root), "status", "--porcelain", "--", "comp/observer"],
+            capture_output=True, text=True, timeout=10,
+        )
+        chunks.append("--- git status (comp/observer) ---")
+        chunks.append(r.stdout or "(empty)")
+    except Exception as e:
+        chunks.append(f"git status failed: {e}")
+    # 2. git diff of comp/observer/impl — actual content of the changes
+    try:
+        r = subprocess.run(
+            ["git", "-C", str(root), "diff", "--", "comp/observer/impl"],
+            capture_output=True, text=True, timeout=15,
+        )
+        chunks.append("\n--- git diff (comp/observer/impl, tracked) ---")
+        # Cap at 50KB so a giant new-file diff doesn't blow up the dump
+        chunks.append((r.stdout or "(empty)")[:50_000])
+    except Exception as e:
+        chunks.append(f"git diff failed: {e}")
+    # 3. Untracked files under comp/observer/impl — usually new detector .go
+    try:
+        r = subprocess.run(
+            ["git", "-C", str(root), "ls-files", "--others", "--exclude-standard",
+             "--", "comp/observer/impl"],
+            capture_output=True, text=True, timeout=10,
+        )
+        chunks.append("\n--- untracked under comp/observer/impl ---")
+        chunks.append(r.stdout or "(none)")
+        # Inline the content of each untracked .go file (cap each at 20KB)
+        for p in (r.stdout or "").splitlines():
+            p = p.strip()
+            if not p or not p.endswith(".go"):
+                continue
+            try:
+                with open(root / p) as f:
+                    body = f.read(20_000)
+                chunks.append(f"\n=== {p} ===")
+                chunks.append(body)
+            except OSError:
+                continue
+    except Exception as e:
+        chunks.append(f"untracked listing failed: {e}")
+    # 4. Build check — compiles?
+    try:
+        r = subprocess.run(
+            ["go", "build", "./cmd/observer-testbench/"],
+            cwd=root, capture_output=True, text=True, timeout=120,
+        )
+        chunks.append(f"\n--- go build returncode={r.returncode} ---")
+        chunks.append((r.stdout + r.stderr)[-4000:])
+    except Exception as e:
+        chunks.append(f"go build failed to start: {e}")
+    out_path.write_text("\n".join(chunks))
+    journal.append(
+        "rejected_diff_captured",
+        {"iter": iter_num, "candidate": candidate_id, "path": str(out_path), "reason": reason[:200]},
+        root,
+    )
+
+
 def _detectors_not_registered(detectors: list[str], root: Path) -> set[str]:
     """Return any detector names not present in component_catalog.go.
 
@@ -388,7 +472,14 @@ def _sanity_pre_eval_sentinel(db: Db, root: Path, iter_num: int) -> tuple[bool, 
             f"skipped_blank_baseline (detector mean_f1={det_base.mean_f1:.3f}, "
             f"sentinel_scenario_f1={expected_f1:.3f})"
         )
-    min_f1 = max(CONFIG.sanity_sentinel_min_f1, expected_f1 - 0.05)
+    # Relative tolerance: sentinel must reproduce within 0.10 absolute of
+    # the baseline's recorded F1. Earlier `max(absolute_floor, expected-0.05)`
+    # broke once baselines were re-measured at lower F1 — the absolute floor
+    # of 0.90 was a leftover assumption from the original Apr-23 baseline
+    # where bocpd/703_shopify scored 0.987. Once a baseline is regenerated
+    # against drifted upstream code (eg expected_f1=0.65), the absolute floor
+    # falsely failed the sentinel every iter.
+    min_f1 = max(0.0, expected_f1 - 0.10)
 
     report_path = state_dir(root) / "sanity" / f"iter-{iter_num:04d}-sentinel.json"
     scenario_dir = state_dir(root) / "sanity" / f"iter-{iter_num:04d}"
@@ -509,7 +600,39 @@ def process_inbox(db: Db, root: Path, dry_run: bool) -> list[str]:
             root,
         )
         ack_ids.append(ack_id)
+        # Feed the steering directive into db.user_steering_active so the
+        # proposer sees it on the next invocation. Without this, inbox
+        # interpretations were journaled but never reached the proposer
+        # — operator steering had no effect on candidate generation.
+        # Skip CI-noise interpretations (planned_change starts with
+        # "no action" or similar) so the steering list doesn't fill up
+        # with bot CI noise.
+        if interpretation and not _looks_like_no_op_steering(planned_change):
+            entry = f"[{ack_id}] {interpretation.strip()[:600]}"
+            db.user_steering_active.append(entry)
+            # Cap the list at the most recent 5 directives so old steering
+            # doesn't pile up indefinitely.
+            db.user_steering_active = db.user_steering_active[-5:]
     return ack_ids
+
+
+def _looks_like_no_op_steering(planned_change: str) -> bool:
+    """True if the inbox interpreter said no coordinator action is needed.
+
+    These are typically CI noise (size gates, lint comments) that the
+    interpreter correctly identified as not requiring behavioural change.
+    Don't pollute db.user_steering_active with them.
+    """
+    if not planned_change:
+        return True
+    lo = planned_change.strip().lower()
+    return (
+        lo.startswith("no action")
+        or lo.startswith("no coordinator")
+        or "no coordinator behaviour change" in lo
+        or "no coordinator behavior change" in lo
+        or "no action is needed" in lo
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1134,7 +1257,27 @@ def _run_iteration_body(
                 {"iter": iter_num, "candidate": candidate.id, "detectors": sorted(unregistered)},
                 root,
             )
-            experiment.auto_reject_reason = reason
+            # Create a minimal Experiment record so the proposer's research
+            # memory sees this rejection on the next iter. Without it,
+            # _recent_experiments skips this iter and the proposer keeps
+            # generating candidates that fail catalog registration.
+            experiment = Experiment(
+                id=experiment_id,
+                candidate_id=candidate.id,
+                phase=candidate.phase,
+                tier=Tier.T0,
+                commit_sha=pre_sha,
+                config_path="",
+                impl_summary=impl_summary,
+                scenario_set=[],
+                status=ExperimentStatus.FAILED,
+                started_at=it.started_at,
+                report_path="",
+                auto_reject_reason=reason,
+            )
+            db.experiments[experiment_id] = experiment
+            it.experiment_ids.append(experiment_id)
+            _capture_pre_revert_diff(root, iter_num, candidate.id, reason)
             coord_out.emit(
                 "iter_rejected",
                 (
@@ -1340,6 +1483,7 @@ def _run_iteration_body(
             root=root,
         )
         candidate.status = CandidateStatus.REJECTED
+        _capture_pre_revert_diff(root, iter_num, candidate.id, f"eval_silent_failure: {silent_failure}")
         git_ops.revert_working_tree(root)
         # Auto-pause: the next iter will hit the same broken eval. Stop now.
         (state_dir(root) / "pause").write_text(
@@ -1352,15 +1496,22 @@ def _run_iteration_body(
         return
 
     # Blank-mode quality floor for the FIRST-ever ship. Catastrophe filters
-    # can't fire when baseline F1 ≈ 0 across the board, so the first
-    # candidate that compiles would otherwise ship regardless of detection
-    # quality. Once anything has shipped, effective_baseline (best-historical)
-    # takes over and provides the floor.
+    # can't fire when baseline F1 ≈ 0 across the board (blank-mode runs),
+    # so the first candidate that compiles would otherwise ship regardless
+    # of detection quality. ONLY enforce the floor when the baseline is
+    # essentially absent — for full-mode runs with a real baseline, rely
+    # on catastrophe filters + reviewer; an absolute 0.25 floor would
+    # block legitimate small improvements (e.g. baseline=0.116 + Δ=0.10
+    # is a real win but doesn't clear 0.25).
     any_prior_ship = any(
         c.status == CandidateStatus.SHIPPED for c in db.candidates.values()
     )
+    baseline_essentially_blank = (
+        scoring.baseline_mean_f1 < 0.05
+    )
     first_ship_floor_breached = (
         not any_prior_ship
+        and baseline_essentially_blank
         and scoring.mean_f1 < CONFIG.first_ship_min_mean_f1
     )
 
@@ -1430,6 +1581,7 @@ def _run_iteration_body(
             requires_ack=False,
             root=root,
         )
+        _capture_pre_revert_diff(root, iter_num, candidate.id, reason)
         git_ops.revert_working_tree(root)
         candidate.status = CandidateStatus.REJECTED
         it.ended_at = now_iso()

@@ -234,6 +234,14 @@ class Db:
     # + the hard-runaway exit check at `max_pivots_before_halt`).
     pivot_count: int = 0
 
+    # Operator steering directives, accumulated from inbox_ack interpretations.
+    # The proposer reads these on every invocation and treats them as
+    # NON-NEGOTIABLE constraints, not advisory text. Earlier the inbox loop
+    # interpreted user comments and journaled them but never fed them back
+    # into the proposer prompt — user steering disappeared into the
+    # journal. Adding this field closes the loop.
+    user_steering_active: list[str] = field(default_factory=list)
+
     # DEPRECATED — rolling-reference mechanism dropped (introduced a
     # noise-driven ratchet that let candidates strictly worse than baseline
     # ship). Field kept so old db.yaml files still load; never written.
@@ -402,6 +410,7 @@ def dict_to_db(d: dict[str, Any]) -> Db:
         protected_path_hashes=dict(d.get("protected_path_hashes") or {}),
         pivot_banned_families=list(d.get("pivot_banned_families") or []),
         pivot_count=int(d.get("pivot_count", 0) or 0),
+        user_steering_active=list(d.get("user_steering_active") or []),
     )
 
 
@@ -523,6 +532,7 @@ def db_to_dict(db: Db) -> dict[str, Any]:
         "components_eval_dispatched": db.components_eval_dispatched,
         "pivot_banned_families": list(db.pivot_banned_families),
         "pivot_count": db.pivot_count,
+        "user_steering_active": list(db.user_steering_active),
         "last_shipped_per_scenario": {
             det: {s: _s(sr) for s, sr in scens.items()}
             for det, scens in db.last_shipped_per_scenario.items()

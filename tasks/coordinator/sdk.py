@@ -830,7 +830,17 @@ Target components: {', '.join(candidate.target_components)}
     # their own max_turns budget and don't suffer KV-cache quadratic
     # growth from trying to do everything in one conversation.
     is_creation = has_plan and _is_blank_creation(candidate)
-    model = CONFIG.model_light if has_plan else CONFIG.model_deep
+    # Model routing: Sonnet works for plan-following tweaks of existing
+    # detectors. For blank-slate creation (write a new detector + tests
+    # + register in catalog), Sonnet kept hitting max_turns before the
+    # catalog edit, leaving registrations broken (PR 49954: 4 iters,
+    # all eval_silent_failure, ~$80/iter on second-stage KV blow-up).
+    # Bump blank-creation to Opus — 5x cost per token, but ~3x fewer
+    # turns and far fewer "almost worked" failures.
+    model = (
+        CONFIG.model_deep if (is_creation or not has_plan)
+        else CONFIG.model_light
+    )
 
     if is_creation:
         target = (candidate.target_components or [candidate.id])[0]
