@@ -7,6 +7,7 @@ package http
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"io"
 	"net"
@@ -245,5 +246,52 @@ func WithHTTP2() func(*http.Transport) {
 func MaxConnsPerHost(maxConns int) func(*http.Transport) {
 	return func(transport *http.Transport) {
 		transport.MaxConnsPerHost = maxConns
+	}
+}
+
+// WithTLSClientCert returns a transport option that presents a client certificate during TLS
+// handshakes (mTLS). The certificate is reloaded from disk on each handshake, enabling cert
+// rotation without an agent restart. The callback only fires when the server sends a
+// CertificateRequest, so configuring this on a transport used against servers that don't require
+// client certs is harmless.
+func WithTLSClientCert(certFile, keyFile string) func(*http.Transport) {
+	return func(t *http.Transport) {
+		if t.TLSClientConfig == nil {
+			t.TLSClientConfig = &tls.Config{}
+		}
+		t.TLSClientConfig.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+			cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+			if err != nil {
+				return nil, fmt.Errorf("failed to load TLS client certificate: %w", err)
+			}
+			return &cert, nil
+		}
+	}
+}
+
+// WithCustomRootCA returns a transport option that appends a PEM-encoded CA certificate to the
+// system cert pool. The system pool is used as the base so existing connections to public
+// endpoints (e.g. Datadog intake) continue to work. This is used when connecting to a server
+// whose cert is signed by a private CA not present in the OS trust store.
+func WithCustomRootCA(caFile string) func(*http.Transport) {
+	return func(t *http.Transport) {
+		caPEM, err := os.ReadFile(caFile)
+		if err != nil {
+			log.Warnf("OPW TLS: failed to read CA file %s: %v", caFile, err)
+			return
+		}
+		pool, err := x509.SystemCertPool()
+		if err != nil {
+			log.Warnf("OPW TLS: failed to load system cert pool, falling back to empty pool: %v", err)
+			pool = x509.NewCertPool()
+		}
+		if !pool.AppendCertsFromPEM(caPEM) {
+			log.Warnf("OPW TLS: no certificates were parsed from CA file %s", caFile)
+			return
+		}
+		if t.TLSClientConfig == nil {
+			t.TLSClientConfig = &tls.Config{}
+		}
+		t.TLSClientConfig.RootCAs = pool
 	}
 }
