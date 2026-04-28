@@ -9,5 +9,7 @@
 features:
   - |
     Add a Go implementation of the generic ``openmetrics`` check. The Python
-    implementation remains the default; the Go core check can be enabled with
-    ``openmetrics.use_core_loader``.
+    implementation remains the default; the Go core check can be enabled at the
+    Agent level with ``openmetrics.use_core_loader`` or the
+    ``DD_OPENMETRICS_USE_CORE_LOADER`` environment variable. Existing
+    autodiscovery annotations continue to use the ``openmetrics`` check name.
