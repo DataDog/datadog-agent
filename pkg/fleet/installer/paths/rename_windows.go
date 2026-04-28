@@ -34,7 +34,7 @@ import (
 // directory, but we have not confirmed the root cause. This retry is a
 // best-effort mitigation; monitor installer telemetry to see whether it
 // actually helps and revisit (tune, broaden, or remove) once we have data.
-func Rename(sourcePath, targetPath string) error {
+func Rename(ctx context.Context, sourcePath, targetPath string) error {
 	// MoveFileEx returns "Access is denied" when the target directory already exists
 	// which is confusing. Return fs.ErrExist instead.
 	if info, err := os.Stat(targetPath); err == nil {
@@ -48,7 +48,7 @@ func Rename(sourcePath, targetPath string) error {
 	b.InitialInterval = 200 * time.Millisecond
 	b.MaxInterval = 5 * time.Second
 	maxElapsedTime := time.Minute
-	_, err := backoff.Retry(context.Background(), func() (struct{}, error) {
+	_, err := backoff.Retry(ctx, func() (struct{}, error) {
 		err := os.Rename(sourcePath, targetPath)
 		if err == nil {
 			return struct{}{}, nil

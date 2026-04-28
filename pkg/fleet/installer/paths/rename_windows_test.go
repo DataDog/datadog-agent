@@ -45,7 +45,7 @@ func TestRename_TargetDirExists_ReturnsErrExist(t *testing.T) {
 	require.NoError(t, os.Mkdir(src, 0o755))
 	require.NoError(t, os.Mkdir(dst, 0o755))
 
-	err := Rename(src, dst)
+	err := Rename(t.Context(), src, dst)
 	require.ErrorIs(t, err, fs.ErrExist)
 
 	var linkErr *os.LinkError
@@ -64,7 +64,7 @@ func TestRename_TargetMissing_Succeeds(t *testing.T) {
 	dst := filepath.Join(tmp, "dst")
 	require.NoError(t, os.Mkdir(src, 0o755))
 
-	require.NoError(t, Rename(src, dst))
+	require.NoError(t, Rename(t.Context(), src, dst))
 	assert.DirExists(t, dst)
 	assert.NoDirExists(t, src)
 }
@@ -104,7 +104,7 @@ func TestRename_RetriesUntilLockReleased(t *testing.T) {
 			f.Close()
 		}()
 
-		assert.NoError(t, Rename(src, dst))
+		assert.NoError(t, Rename(t.Context(), src, dst))
 		assert.DirExists(t, dst)
 		assert.NoDirExists(t, src)
 	})
@@ -121,7 +121,7 @@ func TestRename_GivesUpWhenLockNeverReleased(t *testing.T) {
 		src, dst, f := setupLockedSrc(t)
 		defer f.Close()
 
-		err := Rename(src, dst)
+		err := Rename(t.Context(), src, dst)
 		require.Error(t, err)
 		assert.ErrorIs(t, err, windows.ERROR_ACCESS_DENIED,
 			"expected ERROR_ACCESS_DENIED, got: %v", err)
