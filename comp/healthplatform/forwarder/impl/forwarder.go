@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
@@ -49,13 +50,15 @@ const (
 
 // forwarder handles periodic sending of health reports to the Datadog intake
 type forwarder struct {
-	cfg        pkgconfigmodel.Reader
-	intakeURL  string
-	interval   time.Duration
-	hostname   string
-	provider   forwarderdef.IssueProvider
-	httpClient *http.Client
-	log        log.Component
+	cfg         pkgconfigmodel.Reader
+	intakeURL   string
+	interval    time.Duration
+	hostname    string
+	agentFlavor string
+	providerMu  sync.RWMutex
+	provider    forwarderdef.IssueProvider
+	httpClient  *http.Client
+	log         log.Component
 
 	stopCh chan struct{}
 	doneCh chan struct{}
@@ -71,6 +74,10 @@ type Requires struct {
 
 // New creates a new forwarder instance and registers its lifecycle hooks.
 func New(reqs Requires) forwarderdef.Component {
+	if !reqs.Config.GetBool("health_platform.enabled") {
+		return &forwarder{log: reqs.Log}
+	}
+
 	hostname, err := reqs.Hostname.Get(context.Background())
 	if err != nil {
 		reqs.Log.Warn("Health platform forwarder: failed to get hostname, will use empty string: " + err.Error())
@@ -83,14 +90,15 @@ func New(reqs Requires) forwarderdef.Component {
 	}
 
 	f := &forwarder{
-		cfg:        reqs.Config,
-		intakeURL:  buildIntakeURL(reqs.Config),
-		interval:   interval,
-		hostname:   hostname,
-		httpClient: buildHTTPClient(reqs.Config),
-		log:        reqs.Log,
-		stopCh:     make(chan struct{}),
-		doneCh:     make(chan struct{}),
+		cfg:         reqs.Config,
+		intakeURL:   buildIntakeURL(reqs.Config),
+		interval:    interval,
+		hostname:    hostname,
+		agentFlavor: flavor.GetFlavor(),
+		httpClient:  buildHTTPClient(reqs.Config),
+		log:         reqs.Log,
+		stopCh:      make(chan struct{}),
+		doneCh:      make(chan struct{}),
 	}
 
 	reqs.Lifecycle.Append(compdef.Hook{
@@ -114,8 +122,10 @@ func (f *forwarder) stop(_ context.Context) error {
 	return nil
 }
 
-// SetProvider wires the issue provider. Must be called before the first send fires.
+// SetProvider wires the issue provider. Safe to call concurrently with sendHealthReport.
 func (f *forwarder) SetProvider(provider forwarderdef.IssueProvider) {
+	f.providerMu.Lock()
+	defer f.providerMu.Unlock()
 	f.provider = provider
 }
 
@@ -152,11 +162,15 @@ func (f *forwarder) run() {
 
 // sendHealthReport collects issues and sends them to the intake endpoint
 func (f *forwarder) sendHealthReport() {
-	if f.provider == nil {
+	f.providerMu.RLock()
+	provider := f.provider
+	f.providerMu.RUnlock()
+
+	if provider == nil {
 		f.log.Warn("Health platform forwarder has no provider set, skipping report")
 		return
 	}
-	count, issues := f.provider.GetAllIssues()
+	count, issues := provider.GetAllIssues()
 
 	if count == 0 {
 		f.log.Info("No health issues to report")
@@ -173,23 +187,12 @@ func (f *forwarder) sendHealthReport() {
 	f.log.Info(fmt.Sprintf("Successfully sent health report with %d issues", count))
 }
 
-// safeGetFlavor returns the current agent flavor, falling back to the default
-// if flavor.GetFlavor() panics (e.g. called before main init).
-func safeGetFlavor() (f string) {
-	defer func() {
-		if r := recover(); r != nil {
-			f = flavor.DefaultAgent
-		}
-	}()
-	return flavor.GetFlavor()
-}
-
 // buildReport creates a HealthReport from the current issues
 func (f *forwarder) buildReport(issues map[string]*healthplatform.Issue) *healthplatform.HealthReport {
 	return &healthplatform.HealthReport{
 		EventType: eventType,
 		EmittedAt: time.Now().UTC().Format(time.RFC3339),
-		Service:   safeGetFlavor(),
+		Service:   f.agentFlavor,
 		Host: &healthplatform.HostInfo{
 			Hostname:     f.hostname,
 			AgentVersion: pointer.Ptr(version.AgentVersion),

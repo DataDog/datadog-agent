@@ -37,8 +37,9 @@ type registeredCheck struct {
 // Each registered check runs in its own goroutine with an independent ticker.
 // This design allows per-check intervals and prevents slow checks from blocking others.
 type checkRunner struct {
-	log      log.Component
-	reporter checkrunnerdef.IssueReporter
+	log        log.Component
+	reporterMu sync.RWMutex
+	reporter   checkrunnerdef.IssueReporter
 
 	checks   map[string]*registeredCheck
 	checkMux sync.RWMutex
@@ -89,8 +90,10 @@ func (r *checkRunner) stop(_ context.Context) error {
 	return nil
 }
 
-// SetReporter wires the issue reporter. Must be called before the first check fires.
+// SetReporter wires the issue reporter. Safe to call concurrently with executeCheck.
 func (r *checkRunner) SetReporter(reporter checkrunnerdef.IssueReporter) {
+	r.reporterMu.Lock()
+	defer r.reporterMu.Unlock()
 	r.reporter = reporter
 }
 
@@ -186,7 +189,11 @@ func (r *checkRunner) runAndScheduleCheck(check *registeredCheck) {
 
 // executeCheck runs a single health check and reports the result
 func (r *checkRunner) executeCheck(check *registeredCheck) {
-	if r.reporter == nil {
+	r.reporterMu.RLock()
+	reporter := r.reporter
+	r.reporterMu.RUnlock()
+
+	if reporter == nil {
 		r.log.Warn("Health check runner has no reporter set, skipping check: " + check.checkName)
 		return
 	}
@@ -198,7 +205,7 @@ func (r *checkRunner) executeCheck(check *registeredCheck) {
 	}
 
 	// Report the result (nil report clears any existing issue)
-	if err := r.reporter.ReportIssue(check.checkID, check.checkName, report); err != nil {
+	if err := reporter.ReportIssue(check.checkID, check.checkName, report); err != nil {
 		r.log.Warn(fmt.Sprintf("Failed to report issue for check %s: %v", check.checkName, err))
 	}
 }

@@ -58,15 +58,16 @@ func newTestForwarder(t *testing.T, cfg config.Component, provider *mockIssuePro
 		interval = defaultForwarderInterval
 	}
 	return &forwarder{
-		cfg:        cfg,
-		intakeURL:  buildIntakeURL(cfg),
-		interval:   interval,
-		hostname:   hostname,
-		provider:   provider,
-		httpClient: buildHTTPClient(cfg),
-		log:        logmock.New(t),
-		stopCh:     make(chan struct{}),
-		doneCh:     make(chan struct{}),
+		cfg:         cfg,
+		intakeURL:   buildIntakeURL(cfg),
+		interval:    interval,
+		hostname:    hostname,
+		agentFlavor: flavor.GetFlavor(),
+		provider:    provider,
+		httpClient:  buildHTTPClient(cfg),
+		log:         logmock.New(t),
+		stopCh:      make(chan struct{}),
+		doneCh:      make(chan struct{}),
 	}
 }
 
@@ -208,13 +209,13 @@ func TestForwarderStartStop(t *testing.T) {
 	fwd := newTestForwarder(t, cfg, provider, "test-host")
 
 	// Start the forwarder
-	fwd.start(context.Background()) //nolint:errcheck
+	require.NoError(t, fwd.start(context.Background()))
 
 	// Give it a moment to start the goroutine
 	time.Sleep(50 * time.Millisecond)
 
 	// Stop the forwarder - should complete gracefully
-	fwd.stop(context.Background()) //nolint:errcheck
+	require.NoError(t, fwd.stop(context.Background()))
 }
 
 // TestForwarderSendWithoutAPIKey tests that send fails gracefully without API key

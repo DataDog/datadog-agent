@@ -15,12 +15,12 @@ import (
 	"time"
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
+	checkrunnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/checkrunner/def"
 )
 
-// HealthCheckFunc is a function that checks for health issues
-// Returns an IssueReport if an issue is detected, nil if healthy
-// The function should be idempotent and safe to call repeatedly
-type HealthCheckFunc func() (*healthplatformpayload.IssueReport, error)
+// HealthCheckFunc is an alias of checkrunnerdef.HealthCheckFunc to avoid callers
+// having to import checkrunner/def directly.
+type HealthCheckFunc = checkrunnerdef.HealthCheckFunc
 
 // Component is the health platform component interface
 type Component interface {

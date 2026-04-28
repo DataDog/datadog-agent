@@ -64,6 +64,7 @@ type healthPlatformImpl struct {
 	log              log.Component               // Logger for health platform operations
 	telemetry        telemetry.Component         // Telemetry component for metrics collection
 	hostnameProvider hostnameinterface.Component // Hostname provider for runtime resolution
+	agentFlavor      string                      // Agent flavor captured at construction time
 
 	// Issue tracking
 	issues    map[string]*healthplatform.Issue // Issue detected by check ID (nil if no issue)
@@ -245,6 +246,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		log:              reqs.Log,
 		telemetry:        reqs.Telemetry,
 		hostnameProvider: reqs.Hostname,
+		agentFlavor:      flavor.GetFlavor(),
 
 		// Sub-components injected by fx
 		checkRunner: reqs.CheckRunner,
@@ -683,17 +685,6 @@ func (h *healthPlatformImpl) writeJSONResponse(w http.ResponseWriter, statusCode
 // Flare Provider
 // ============================================================================
 
-// safeGetFlavor returns the current agent flavor, falling back to the default
-// if flavor.GetFlavor() panics (e.g. called before main init).
-func safeGetFlavor() (f string) {
-	defer func() {
-		if r := recover(); r != nil {
-			f = flavor.DefaultAgent
-		}
-	}()
-	return flavor.GetFlavor()
-}
-
 // fillFlare adds health platform issues to the flare archive
 func (h *healthPlatformImpl) fillFlare(_ context.Context, fb flaretypes.FlareBuilder) error {
 	count, issues := h.GetAllIssues()
@@ -712,7 +703,7 @@ func (h *healthPlatformImpl) fillFlare(_ context.Context, fb flaretypes.FlareBui
 	report := &healthplatform.HealthReport{
 		EventType: "agent.health",
 		EmittedAt: time.Now().UTC().Format(time.RFC3339),
-		Service:   safeGetFlavor(),
+		Service:   h.agentFlavor,
 		Host: &healthplatform.HostInfo{
 			Hostname:     hostname,
 			AgentVersion: &agentVersion,
