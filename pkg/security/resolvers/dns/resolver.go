@@ -151,40 +151,56 @@ func (r *Resolver) SendStats() error {
 	}
 
 	hits := r.resolverStats.cacheHits.Swap(0)
-	_ = r.statsdClient.Count(metrics.MetricDNSResolverIPResolverCache, hits, tags, 1.0)
+	if err := r.statsdClient.Count(metrics.MetricDNSResolverIPResolverCache, hits, tags, 1.0); err != nil {
+		return fmt.Errorf("failed to send %s: %w", metrics.MetricDNSResolverIPResolverCache, err)
+	}
 
 	cnameHits := r.cnameStats.cacheHits.Swap(0)
-	_ = r.statsdClient.Count(metrics.MetricDNSResolverCnameResolverCache, cnameHits, tags, 1.0)
+	if err := r.statsdClient.Count(metrics.MetricDNSResolverCnameResolverCache, cnameHits, tags, 1.0); err != nil {
+		return fmt.Errorf("failed to send %s: %w", metrics.MetricDNSResolverCnameResolverCache, err)
+	}
 
 	tags = []string{
 		"result:miss",
 	}
 
 	misses := r.resolverStats.cacheMisses.Swap(0)
-	_ = r.statsdClient.Count(metrics.MetricDNSResolverIPResolverCache, misses, tags, 1.0)
+	if err := r.statsdClient.Count(metrics.MetricDNSResolverIPResolverCache, misses, tags, 1.0); err != nil {
+		return fmt.Errorf("failed to send %s: %w", metrics.MetricDNSResolverIPResolverCache, err)
+	}
 
 	cnameMisses := r.cnameStats.cacheMisses.Swap(0)
-	_ = r.statsdClient.Count(metrics.MetricDNSResolverCnameResolverCache, cnameMisses, tags, 1.0)
+	if err := r.statsdClient.Count(metrics.MetricDNSResolverCnameResolverCache, cnameMisses, tags, 1.0); err != nil {
+		return fmt.Errorf("failed to send %s: %w", metrics.MetricDNSResolverCnameResolverCache, err)
+	}
 
 	tags = []string{
 		"result:insertion",
 	}
 
 	insertions := r.resolverStats.cacheInsertions.Swap(0)
-	_ = r.statsdClient.Count(metrics.MetricDNSResolverIPResolverCache, insertions, tags, 1.0)
+	if err := r.statsdClient.Count(metrics.MetricDNSResolverIPResolverCache, insertions, tags, 1.0); err != nil {
+		return fmt.Errorf("failed to send %s: %w", metrics.MetricDNSResolverIPResolverCache, err)
+	}
 
 	cnameInsertions := r.cnameStats.cacheInsertions.Swap(0)
-	_ = r.statsdClient.Count(metrics.MetricDNSResolverCnameResolverCache, cnameInsertions, tags, 1.0)
+	if err := r.statsdClient.Count(metrics.MetricDNSResolverCnameResolverCache, cnameInsertions, tags, 1.0); err != nil {
+		return fmt.Errorf("failed to send %s: %w", metrics.MetricDNSResolverCnameResolverCache, err)
+	}
 
 	tags = []string{
 		"result:eviction",
 	}
 
 	evictions := r.resolverStats.cacheEvictions.Swap(0)
-	_ = r.statsdClient.Count(metrics.MetricDNSResolverIPResolverCache, evictions, tags, 1.0)
+	if err := r.statsdClient.Count(metrics.MetricDNSResolverIPResolverCache, evictions, tags, 1.0); err != nil {
+		return fmt.Errorf("failed to send %s: %w", metrics.MetricDNSResolverIPResolverCache, err)
+	}
 
 	cnameEvictions := r.cnameStats.cacheEvictions.Swap(0)
-	_ = r.statsdClient.Count(metrics.MetricDNSResolverCnameResolverCache, cnameEvictions, tags, 1.0)
+	if err := r.statsdClient.Count(metrics.MetricDNSResolverCnameResolverCache, cnameEvictions, tags, 1.0); err != nil {
+		return fmt.Errorf("failed to send %s: %w", metrics.MetricDNSResolverCnameResolverCache, err)
+	}
 
 	return nil
 }
