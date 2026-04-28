@@ -448,11 +448,36 @@ func (s *timeSeriesStorage) MaxTimestamp() int64 {
 }
 
 // seriesKey creates a unique key for a series.
+//
+// The result has the form "namespace|name|tag1,tag2,...". This function is on
+// the hot path for log ingestion and detector loops, so we build the key with
+// a single growth via strings.Builder to avoid the chained `+` and intermediate
+// joinTags allocations that the naive form produces.
 func seriesKey(namespace, name string, tags []string) string {
 	if len(tags) > 1 && !tagsSorted(tags) {
 		tags = canonicalizeTags(tags)
 	}
-	return namespace + "|" + name + "|" + joinTags(tags)
+	// Pre-compute exact length: namespace + '|' + name + '|' + joined(tags).
+	n := len(namespace) + 1 + len(name) + 1
+	for i, t := range tags {
+		if i > 0 {
+			n++ // ',' separator
+		}
+		n += len(t)
+	}
+	var b strings.Builder
+	b.Grow(n)
+	b.WriteString(namespace)
+	b.WriteByte('|')
+	b.WriteString(name)
+	b.WriteByte('|')
+	for i, t := range tags {
+		if i > 0 {
+			b.WriteByte(',')
+		}
+		b.WriteString(t)
+	}
+	return b.String()
 }
 
 // parseSeriesKey parses a series key back into its parts.
