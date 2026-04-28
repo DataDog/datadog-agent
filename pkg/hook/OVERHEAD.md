@@ -148,6 +148,10 @@ benchmark — we measure delivery cost, not congestion.
 
 ## Results
 
+![Hook overhead chart](overhead.png)
+
+> Regenerate: `uv run --with matplotlib python3 pkg/hook/plot_overhead.py`
+
 ### The zero-overhead principle: noop vs 0 subscribers
 
 The first question from reviewers: _"if folks aren't using anomaly detection they pay no
