@@ -578,6 +578,7 @@ workflow:
   - <<: *if_deploy
     variables:
       RELEASE_PROD: "true"
+      LABEL_BASED_REPLICATION_TARGET: "prod"
   - changes:
       paths:
         - .gitlab/deploy/internal_image_deploy/internal_image_deploy.yml
@@ -590,6 +591,7 @@ workflow:
     allow_failure: true
     variables:
       RELEASE_PROD: "false"
+      LABEL_BASED_REPLICATION_TARGET: "prod"
 
 .on_deploy_nightly_repo_branch:
   - <<: *if_not_nightly_or_dev_repo_branch
