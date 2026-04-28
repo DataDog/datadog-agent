@@ -69,6 +69,7 @@
 # gazelle:exclude tests/agent-subcommands/flare/fixtures
 # gazelle:exclude tests/agent-subcommands/status
 # gazelle:exclude tests/agent-subcommands/status/fixtures
+# gazelle:exclude tests/autoscaling/spot
 # gazelle:exclude tests/apm
 # gazelle:exclude tests/containers
 # gazelle:exclude tests/containers/fixtures
