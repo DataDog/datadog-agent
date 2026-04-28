@@ -19,8 +19,10 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	componentskube "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
+	scenkind "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awskindvm "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
 	localkubernetes "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/local/kubernetes"
 	e2eclient "github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
@@ -53,22 +55,30 @@ func TestKindOpenMetricsCoreLoaderSuite(t *testing.T) {
 	agentOptions := []kubernetesagentparams.Option{
 		kubernetesagentparams.WithHelmValues(openMetricsCoreLoaderHelmValues),
 	}
-	provisionerOptions := []localkubernetes.ProvisionerOption{
-		localkubernetes.WithName("openmetrics"),
-		localkubernetes.WithWorkloadApp(openMetricsK8sAppDefinition),
-	}
 
 	if localAgentImage := os.Getenv(localAgentImageEnv); localAgentImage != "" {
+		provisionerOptions := []localkubernetes.ProvisionerOption{
+			localkubernetes.WithName("openmetrics"),
+			localkubernetes.WithWorkloadApp(openMetricsK8sAppDefinition),
+		}
 		agentOptions = append(agentOptions,
 			kubernetesagentparams.WithAgentFullImagePath(localAgentImage),
 			kubernetesagentparams.WithHelmValues(openMetricsLocalAgentImageHelmValues),
 		)
 		provisionerOptions = append(provisionerOptions, localkubernetes.WithKindLoadImage(localAgentImage))
+		provisionerOptions = append(provisionerOptions, localkubernetes.WithAgentOptions(agentOptions...))
+
+		e2e.Run(t, &kindOpenMetricsSuite{}, e2e.WithProvisioner(localkubernetes.Provisioner(provisionerOptions...)))
+		return
 	}
 
-	provisionerOptions = append(provisionerOptions, localkubernetes.WithAgentOptions(agentOptions...))
-
-	e2e.Run(t, &kindOpenMetricsSuite{}, e2e.WithProvisioner(localkubernetes.Provisioner(provisionerOptions...)))
+	e2e.Run(t, &kindOpenMetricsSuite{}, e2e.WithProvisioner(awskindvm.Provisioner(
+		awskindvm.WithRunOptions(
+			scenkind.WithName("openmetrics"),
+			scenkind.WithAgentOptions(agentOptions...),
+			scenkind.WithWorkloadApp(openMetricsK8sAppDefinition),
+		),
+	)))
 }
 
 func (s *kindOpenMetricsSuite) TestAutodiscoveryInstancesUseCoreLoaderWithAgentFlag() {
