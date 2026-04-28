@@ -49,6 +49,7 @@
   extends: .bazel:defs
   variables:
     XDG_CACHE_HOME: "$RUNNER_TEMP_PROJECT_DIR"
+    FF_GITRETRIEVER_ENABLED: "true"
 
 .bazel:defs:cache:persistent:
   extends: .bazel:defs
