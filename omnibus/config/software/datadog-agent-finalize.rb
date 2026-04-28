@@ -31,7 +31,7 @@ build do
 
 	if linux_target?
                license_target = heroku_target? ? "//packages/agent/dependencies:license_files_install" : "//packages/agent/linux:license_files_install"
-               command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- #{license_target} --destdir=#{install_dir}"
+               command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} --//packages/agent:flavor=#{flavor_arg} -- #{license_target} --destdir=#{install_dir}"
         end
 
         # Conf files
