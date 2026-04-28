@@ -40,11 +40,13 @@ pub fn sleep_cmd(secs: u32) -> (&'static str, Vec<String>) {
 }
 
 /// Command + args for sleeping `secs` seconds.
+/// Uses `ping -n` instead of `timeout` because `timeout.exe` is absent in
+/// minimal Windows CI containers.
 #[cfg(windows)]
 pub fn sleep_cmd(secs: u32) -> (&'static str, Vec<String>) {
     (
-        "cmd.exe",
-        vec!["/C".into(), format!("timeout /t {secs} /nobreak >nul")],
+        "ping.exe",
+        vec!["-n".into(), (secs + 1).to_string(), "127.0.0.1".into()],
     )
 }
 
@@ -77,9 +79,11 @@ pub fn sleep_config_yaml() -> &'static str {
 }
 
 /// YAML config snippet for a process that sleeps for a long time.
+/// Uses `ping -n` instead of `timeout` because `timeout.exe` is absent in
+/// minimal Windows CI containers.
 #[cfg(windows)]
 pub fn sleep_config_yaml() -> &'static str {
-    "command: cmd.exe\nargs:\n  - '/C'\n  - 'timeout /t 300 /nobreak >nul'\n"
+    "command: ping.exe\nargs:\n  - '-n'\n  - '301'\n  - '127.0.0.1'\n"
 }
 
 /// YAML for a process that exits successfully and never restarts.
@@ -301,8 +305,13 @@ pub fn grandchild_cmd(pid_file: &str) -> (&'static str, Vec<String>) {
     )
 }
 
-/// Command that spawns a grandchild (long sleep) whose PID is written to
-/// `pid_file`, then sleeps forever while ignoring graceful-stop signals.
+/// Command that spawns a grandchild (long-running `ping`) whose PID is
+/// written to `pid_file`, then sleeps forever while ignoring graceful-stop
+/// signals.
+///
+/// Uses `ping.exe` instead of nested `powershell` to avoid a second
+/// PowerShell cold-start (~3-5 s), which caused CI timeouts in minimal
+/// Windows containers.
 #[cfg(windows)]
 pub fn grandchild_cmd(pid_file: &str) -> (&'static str, Vec<String>) {
     (
@@ -310,9 +319,9 @@ pub fn grandchild_cmd(pid_file: &str) -> (&'static str, Vec<String>) {
         vec![
             "-Command".into(),
             format!(
-                "$p = Start-Process -PassThru -NoNewWindow powershell \
-                 '-Command','Start-Sleep 3600'; \
-                 $p.Id | Out-File -Encoding ascii '{pid_file}'; \
+                "$p = Start-Process -PassThru -NoNewWindow ping.exe \
+                 '-n','3600','127.0.0.1'; \
+                 Set-Content -Path '{pid_file}' -Value $p.Id; \
                  while($true){{Start-Sleep 60}}"
             ),
         ],

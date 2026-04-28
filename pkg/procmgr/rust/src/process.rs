@@ -1124,7 +1124,7 @@ runtime_success_sec: 5
         assert!(proc.is_running());
 
         let grandchild_pid =
-            test_helpers::wait_for_pid_file(&pid_file, Duration::from_secs(5)).await;
+            test_helpers::wait_for_pid_file(&pid_file, Duration::from_secs(15)).await;
 
         assert!(
             test_helpers::pid_is_alive(grandchild_pid),
