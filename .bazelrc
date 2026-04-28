@@ -80,8 +80,10 @@ common:cache --remote_timeout=60
 # CI config ------------------------------------------------------------------------------------------------------------
 common:ci --config=adms
 common:ci --config=cache
-common:ci --remote_cache=grpc://buildbarn-edge-cache.buildbarn.local-cluster.local-dc.fabric.dog:443
 common:ci --config=lint
+# Opt-in override: only Linux CI runs in k8s and can reach the in-cluster edge cache.
+# tools/bazel adds `--config=ci-edge-cache` when `uname -s = Linux`.
+common:ci-edge-cache --remote_cache=grpc://buildbarn-edge-cache.buildbarn.local-cluster.local-dc.fabric.dog:443
 common:ci --noexperimental_convenience_symlinks # not CI-suitable: "These symlinks are only for the user's convenience"
 
 # Project/Language configs --------------------------------------------------------------------------------------
