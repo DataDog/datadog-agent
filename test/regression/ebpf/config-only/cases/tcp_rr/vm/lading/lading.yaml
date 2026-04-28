@@ -8,7 +8,7 @@ blackhole:
       no_delay: true
 
 target_metrics:
-  - prometheus: # core agent telemetry
+  - prometheus: # system-probe telemetry
       uri: "http://127.0.0.1:7654/telemetry"
       tags:
         sub_agent: "system-probe"
