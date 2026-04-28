@@ -32,12 +32,12 @@ func onlyRshellPrefixedCommands(commands []string) []string {
 }
 
 // selectBackendPathsFromEnv returns the list of allowed paths for the current environment.
-// Falls back to bare metal paths.
+// Falls back to the default (non-containerized) paths.
 func selectBackendPathsFromEnv(m map[string][]string) []string {
 	if env.IsContainerized() {
 		return m[setup.RShellPathAllowMapContainerizedKey]
 	}
-	return m[setup.RShellPathAllowMapBareMetalKey]
+	return m[setup.RShellPathAllowMapDefaultKey]
 }
 
 // cleanPathList applies path.Clean to each element of the list of paths

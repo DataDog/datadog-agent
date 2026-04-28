@@ -44,7 +44,7 @@ const (
 	RShellCommandAllowAllWildcard      = RShellCommandNamespacePrefix + "*"
 	RShellPathAllowAll                 = "/"
 	RShellPathAllowMapContainerizedKey = "containerized"
-	RShellPathAllowMapBareMetalKey     = "bare_metal"
+	RShellPathAllowMapDefaultKey       = "default"
 )
 
 // setupPrivateActionRunner registers all configuration keys for the private action runner

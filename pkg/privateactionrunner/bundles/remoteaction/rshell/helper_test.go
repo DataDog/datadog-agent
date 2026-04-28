@@ -504,10 +504,10 @@ func TestBackendPathsForEnv(t *testing.T) {
 			want:          nil,
 		},
 		{
-			name:          "bare-metal runner picks the bare_metal key",
+			name:          "bare-metal runner picks the default key",
 			containerized: false,
 			in: map[string][]string{
-				setup.RShellPathAllowMapBareMetalKey:     {"/var/log", "/etc"},
+				setup.RShellPathAllowMapDefaultKey:       {"/var/log", "/etc"},
 				setup.RShellPathAllowMapContainerizedKey: {"/host/var/log"},
 			},
 			want: []string{"/var/log", "/etc"},
@@ -516,7 +516,7 @@ func TestBackendPathsForEnv(t *testing.T) {
 			name:          "containerized runner picks the containerized key",
 			containerized: true,
 			in: map[string][]string{
-				setup.RShellPathAllowMapBareMetalKey:     {"/var/log", "/etc"},
+				setup.RShellPathAllowMapDefaultKey:       {"/var/log", "/etc"},
 				setup.RShellPathAllowMapContainerizedKey: {"/host/var/log"},
 			},
 			want: []string{"/host/var/log"},
@@ -530,10 +530,10 @@ func TestBackendPathsForEnv(t *testing.T) {
 			want: nil,
 		},
 		{
-			name:          "containerized runner with only the bare_metal key → nil (kill-switch)",
+			name:          "containerized runner with only the default key → nil (kill-switch)",
 			containerized: true,
 			in: map[string][]string{
-				setup.RShellPathAllowMapBareMetalKey: {"/var/log"},
+				setup.RShellPathAllowMapDefaultKey: {"/var/log"},
 			},
 			want: nil,
 		},
@@ -541,7 +541,7 @@ func TestBackendPathsForEnv(t *testing.T) {
 			name:          "unknown keys are ignored",
 			containerized: false,
 			in: map[string][]string{
-				setup.RShellPathAllowMapBareMetalKey: {"/var/log"},
+				setup.RShellPathAllowMapDefaultKey: {"/var/log"},
 				"some_future_env":                    {"/some/path"},
 			},
 			want: []string{"/var/log"},

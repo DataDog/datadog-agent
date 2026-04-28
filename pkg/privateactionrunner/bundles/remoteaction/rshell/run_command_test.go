@@ -33,7 +33,7 @@ func makeTask(command string, allowedCommands []string) *types.Task {
 
 // makeTaskWithPaths constructs a task whose inputs include the allowedPaths
 // field. The backend ships allowedPaths as a per-environment map keyed by
-// "bare_metal" / "containerized"; the runner picks the relevant slice based
+// "default" / "containerized"; the runner picks the relevant slice based
 // on env.IsContainerized at task time. Use makeTask (without this helper)
 // to exercise the "backend did not send the field" branch — absent JSON
 // fields and explicit null both round-trip to a nil Go map.
@@ -476,7 +476,7 @@ func TestRunCommandBackendAllowedPathsRestrictsAccess(t *testing.T) {
 
 	task := makeTaskWithPaths("cat /var/log/syslog",
 		[]string{"rshell:cat"},
-		map[string][]string{setup.RShellPathAllowMapBareMetalKey: {"/tmp"}})
+		map[string][]string{setup.RShellPathAllowMapDefaultKey: {"/tmp"}})
 
 	out, err := handler.Run(context.Background(), task, nil)
 
