@@ -5,6 +5,9 @@
   id_tokens:
     DDOCTOSTS_ID_TOKEN:
       aud: dd-octo-sts
+    # https://datadoghq.atlassian.net/wiki/spaces/DEVX/pages/6599641753/CI+Identity+Attribution+for+Depot+Requests
+    DEPOT_ATTRIBUTION_ID_TOKEN:
+      aud: depot
 
 # GitHub token setup scripts - use with !reference in before_script
 # Example: - !reference [.setup_github_token_comment_pr]

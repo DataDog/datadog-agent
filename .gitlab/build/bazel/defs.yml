@@ -3,6 +3,9 @@
   id_tokens:
     BUILDBARN_ID_TOKEN:
       aud: buildbarn.us1.ddbuild.io
+    # https://datadoghq.atlassian.net/wiki/spaces/DEVX/pages/6599641753/CI+Identity+Attribution+for+Depot+Requests
+    DEPOT_ATTRIBUTION_ID_TOKEN:
+      aud: depot
   variables:
     BAZELISK_HOME: "$XDG_CACHE_HOME/bazelisk" # not all bazelisk versions may honor $XDG_CACHE_HOME
 

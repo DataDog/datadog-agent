@@ -150,6 +150,10 @@ default:
   retry:
     max: 1 # Retry everything once on failure
     when: always
+  id_tokens:
+    # https://datadoghq.atlassian.net/wiki/spaces/DEVX/pages/6599641753/CI+Identity+Attribution+for+Depot+Requests
+    DEPOT_ATTRIBUTION_ID_TOKEN:
+      aud: depot
 
 stages:
   - .pre
