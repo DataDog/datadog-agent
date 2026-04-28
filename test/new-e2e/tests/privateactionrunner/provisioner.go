@@ -90,9 +90,9 @@ func parK8sProvisioner(runnerURN, privateKeyB64 string) provisioners.Provisioner
 				return fmt.Errorf("ec2.NewVM: %w", err)
 			}
 
-			installEcrCmd, err := docker.InstallECRCredentialsHelper(awsEnv.Namer, host)
+			installEcrCmd, err := docker.SetupECRDockerAuth(awsEnv.Namer, host)
 			if err != nil {
-				return fmt.Errorf("docker.InstallECRCredentialsHelper: %w", err)
+				return fmt.Errorf("docker.SetupECRDockerAuth: %w", err)
 			}
 
 			// 3. Create standard Kind cluster — also installs Docker
