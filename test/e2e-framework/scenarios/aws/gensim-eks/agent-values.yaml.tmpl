@@ -55,10 +55,14 @@ agents:
     tag: {{.ImageTag}}
     doNotCheckTag: true
     pullPolicy: Always
-  # When datadog.logs.enabled=false the Datadog Helm chart does NOT auto-mount
-  # /var/log/pods or /var/log/containers, but the observer logssource component
-  # still relies on the file launcher reading those paths to tail container
-  # stdout/stderr. /etc/machine-id is required by sd_journal on most distros.
+{{- if not .LogsEnabled}}
+  # When the legacy logs agent is OFF (logs_enabled=false), the chart does not
+  # auto-mount /var/log/pods or /var/log/containers — but the observer
+  # logssource component still needs them so the file launcher can tail
+  # container stdout/stderr. /etc/machine-id is required by sd_journal, and
+  # the journal paths are needed by the kubelet journald source.
+  # When the legacy logs agent is ON, the chart adds these mounts itself
+  # (with the same names), so adding them here would duplicate-collide.
   volumes:
     - name: logpodpath
       hostPath:
@@ -91,6 +95,7 @@ agents:
     - name: host-run-log-journal
       mountPath: /run/log/journal
       readOnly: true
+{{- end}}
   useConfigMap: true
   customAgentConfig:
     observer:
