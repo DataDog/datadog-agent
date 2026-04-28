@@ -50,13 +50,12 @@ func NewPipeline(
 	flushChan := make(chan struct{})
 
 	encoder := selectEncoder(endpoints, serverlessMeta, cfg, hostTagsProvider)
-	altEncoder := selectAltEncoder(endpoints, serverlessMeta, cfg, hostTagsProvider)
 	strategy := getStrategy(strategyInput, senderImpl.In(), flushChan, endpoints, serverlessMeta, senderImpl.PipelineMonitor(), compression, instanceID)
 
 	inputChan := make(chan *message.Message, cfg.GetInt("logs_config.message_channel_size"))
 
 	processor := processor.New(cfg, inputChan, strategyInput, processingRules,
-		encoder, altEncoder, diagnosticMessageReceiver, hostname, senderImpl.PipelineMonitor(), instanceID)
+		encoder, diagnosticMessageReceiver, hostname, senderImpl.PipelineMonitor(), instanceID)
 
 	return &Pipeline{
 		InputChan:       inputChan,
@@ -108,33 +107,6 @@ func selectEncoder(
 		return processor.ProtoEncoder
 	}
 	return processor.RawEncoder
-}
-
-// selectAltEncoder returns a plain JSONEncoder when per-destination encoding is
-// needed: send_host_tags is enabled AND there are additional endpoints alongside
-// the OPW main endpoint. The alt encoder produces host-tag-free payloads for
-// delivery to those additional endpoints by the worker.
-// Returns nil when per-destination encoding is not needed (common case).
-func selectAltEncoder(
-	endpoints *config.Endpoints,
-	serverlessMeta sender.ServerlessMeta,
-	cfg pkgconfigmodel.Reader,
-	hostTagsProvider func() []string,
-) processor.Encoder {
-	if serverlessMeta.IsEnabled() {
-		return nil
-	}
-	if !endpoints.UseHTTP {
-		return nil
-	}
-	if hostTagsProvider == nil || !config.SendHostTagsToOPW(cfg) {
-		return nil
-	}
-	// Endpoints[0] is always OPW main; indices 1+ are additional endpoints.
-	if len(endpoints.Endpoints) <= 1 {
-		return nil
-	}
-	return processor.JSONEncoder
 }
 
 func getStrategy(

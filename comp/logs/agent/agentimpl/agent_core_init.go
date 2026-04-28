@@ -109,17 +109,10 @@ func buildPipelineProvider(a *logAgent, processingRules []*config.ProcessingRule
 		// cold cache returns nil (no tags appended) instead of falling through
 		// to the blocking cloud-provider resolution path in hostMetadataUtils.Get.
 		hostTagsProvider = func() []string {
-			t := hostMetadataUtils.GetCached()
-			if t == nil {
-				return nil
-			}
-			if len(t.GoogleCloudPlatform) == 0 {
+			if t := hostMetadataUtils.GetCached(); t != nil {
 				return t.System
 			}
-			combined := make([]string, 0, len(t.System)+len(t.GoogleCloudPlatform))
-			combined = append(combined, t.System...)
-			combined = append(combined, t.GoogleCloudPlatform...)
-			return combined
+			return nil
 		}
 	}
 	pipelineProvider := pipeline.NewProvider(

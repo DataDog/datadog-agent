@@ -117,27 +117,9 @@ func (s *worker) run() {
 			var startInUse = time.Now()
 			senderDoneWg := &sync.WaitGroup{}
 
-			// When the payload carries a host-tag-free alt encoding, non-primary
-			// destinations receive that version so host tags are scoped only to
-			// the OPW main endpoint (reliableDestinations[0]).
-			var altPayload *message.Payload
-			if payload.AltEncoded != nil {
-				altPayload = payload.WithAltEncoding()
-			}
-
-			// payloadFor returns the correct payload for the given destination index
-			// within reliableDestinations: index 0 (OPW main) gets the tagged payload,
-			// all others get the alt payload (without host tags).
-			payloadFor := func(idx int) *message.Payload {
-				if idx > 0 && altPayload != nil {
-					return altPayload
-				}
-				return payload
-			}
-
 			sent := false
 			for !sent {
-				for i, destSender := range reliableDestinations {
+				for _, destSender := range reliableDestinations {
 					// Drop non-MRF payloads to MRF destinations
 					if destSender.destination.IsMRF() && !payload.IsMRF() {
 						log.Debugf("Dropping non-MRF payload to MRF destination: %s", destSender.destination.Target())
@@ -145,10 +127,9 @@ func (s *worker) run() {
 						continue
 					}
 
-					p := payloadFor(i)
-					if destSender.Send(p) {
+					if destSender.Send(payload) {
 						if destSender.destination.Metadata().ReportingEnabled {
-							s.pipelineMonitor.ReportComponentIngress(p, destSender.destination.Metadata().MonitorTag(), s.workerID)
+							s.pipelineMonitor.ReportComponentIngress(payload, destSender.destination.Metadata().MonitorTag(), s.workerID)
 						}
 						sent = true
 						if s.senderDoneChan != nil {
@@ -176,15 +157,14 @@ func (s *worker) run() {
 				// If an endpoint is stuck in the previous step, try to buffer the payloads if we have room to mitigate
 				// loss on intermittent failures.
 				if !destSender.lastSendSucceeded {
-					p := payloadFor(i)
-					if !destSender.NonBlockingSend(p) {
+					if !destSender.NonBlockingSend(payload) {
 						tlmPayloadsDropped.Inc("true", strconv.Itoa(i))
-						tlmMessagesDropped.Add(float64(p.Count()), "true", strconv.Itoa(i))
+						tlmMessagesDropped.Add(float64(payload.Count()), "true", strconv.Itoa(i))
 					}
 				}
 			}
 
-			// Attempt to send to unreliable destinations (always use alt payload when available)
+			// Attempt to send to unreliable destinations
 			for i, destSender := range unreliableDestinations {
 				// Drop non-MRF payloads to MRF destinations
 				if destSender.destination.IsMRF() && !payload.IsMRF() {
@@ -192,13 +172,9 @@ func (s *worker) run() {
 					sent = true
 					continue
 				}
-				p := payload
-				if altPayload != nil {
-					p = altPayload
-				}
-				if !destSender.NonBlockingSend(p) {
+				if !destSender.NonBlockingSend(payload) {
 					tlmPayloadsDropped.Inc("false", strconv.Itoa(i))
-					tlmMessagesDropped.Add(float64(p.Count()), "false", strconv.Itoa(i))
+					tlmMessagesDropped.Add(float64(payload.Count()), "false", strconv.Itoa(i))
 					if s.senderDoneChan != nil {
 						senderDoneWg.Add(1)
 						s.senderDoneChan <- senderDoneWg
