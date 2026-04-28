@@ -8,7 +8,9 @@
 package dyninst_test
 
 import (
+	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,6 +18,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -40,45 +43,63 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
-// TestFirstFlushFailDropNotification deterministically exercises the case
-// where a probe invocation overflows the per-CPU scratch buffer and its
-// very first scratch_buf_flush_and_continue call fails because the
-// output ringbuf is saturated. Exercises both:
+// TestFirstFlushFailDropNotification deterministically exercises the
+// "first flush fails" case in the BPF stack machine: a probe invocation
+// needs continuation, but its very first scratch_buf_flush_and_continue
+// call hits a saturated output ringbuf and fails before any fragment
+// reaches userspace.
 //
-//   - Variant A (PARTIAL_RETURN): entry fits in one fragment, return
-//     overflows and its first flush fails.
-//   - Variant B (PARTIAL_ENTRY): entry overflows directly, first flush
-//     fails.
+// Two variants:
 //
-// The test installs a controlledSink that blocks HandleEvent on demand.
-// While the sink is blocked, the dispatcher's output-reader goroutine
-// stalls and the output ringbuf fills up. The test polls
-// OutputReader().AvailableBytes() until the ringbuf is saturated, then
-// issues exactly one trigger request whose probe invocation will hit
-// the saturated ringbuf on its first mid-chase flush. The test reads
-// the resulting drop notification from the side channel (which has its
-// own consumer goroutine and is not blocked) and asserts on userspace
-// invariants once the sink is released and the system has drained.
+//   - Variant A (capture_chain_return, return-side): tiny entry chain
+//     (one node) — the entry's single capture record is small enough
+//     to submit cleanly into a near-saturated ringbuf. Large return
+//     chain (1000 nodes) — needs continuation; its first flush hits
+//     the saturated ringbuf with no return fragments yet in flight.
 //
-// The bug being verified: the continuation_aborted branch in event.c
-// emits PARTIAL_* with last_submitted_seq still LAST_SUBMITTED_SEQ_NONE
-// (0xFFFF) when the very first scratch_buf_flush_and_continue fails.
-// Userspace's NotePartial computes entryExpected = lastSeq + 1 with
-// uint16, which wraps to 0; per buffer.go semantics that's "still
-// assembling, total unknown", so the entry sits in the eventbuf
-// forever — defeating the notification's purpose.
+//   - Variant B (capture_chain, entry-side): a large entry chain that
+//     needs continuation directly; its first flush hits the saturated
+//     ringbuf with no fragments yet in flight.
 //
-// The test's diagnostic invariant: NO drop notification carries the
-// sentinel last_seq=0xFFFF. With the fix this holds; without the fix
-// the test fails on observed PARTIAL_*(last_seq=0xFFFF) notifications.
+// Saturation strategy: install a controlledSink that wraps the
+// production sink and blocks HandleEvent on demand. While blocking,
+// the dispatcher's output-reader goroutine stalls and the output
+// ringbuf fills up. The drop-notify reader runs on its own goroutine
+// and is never held, so the test still observes drop notifications.
+// We saturate to a target free-space window (16 KiB free in a 64 KiB
+// ringbuf) — well below SCRATCH_BUF_LEN (32 KiB) so the trigger's
+// first 32 KiB flush is guaranteed to fail, but well above the
+// trigger's small entry record size in variant A so the entry can
+// still submit.
 //
-// Skipped pending the BPF fix in the next commit. Removing the skip
-// locally and running against the unfixed BPF reproduces the bug
-// deterministically: PARTIAL_*(last_seq=65535) notifications surface
-// the failed assertion. The follow-up fix-commit removes this skip.
+// The bug being verified is in event.c's continuation_aborted branch:
+// when last_submitted_seq is still LAST_SUBMITTED_SEQ_NONE (0xFFFF) at
+// the moment the first flush fails, pre-fix BPF emits PARTIAL_*
+// carrying that sentinel as last_seq. Userspace's NotePartial then
+// computes entryExpected = lastSeq + 1 with uint16, which wraps to 0
+// — the eventbuf semantics treat that as "still assembling, total
+// unknown" and the entry sits stranded indefinitely. The fix gates
+// PARTIAL_* on a non-sentinel last_submitted_seq and falls through to
+// RETURN_LOST for return-side / suppress for entry-side when no
+// fragments were submitted.
+//
+// Diagnostic assertions, evaluated after sink.stopBlocking() and a
+// drain window:
+//
+//  1. No observed drop notification carries the sentinel last_seq=0xFFFF.
+//     This is the precise contract the BPF fix establishes; pre-fix the
+//     test fails because both variants observe such notifications.
+//
+//  2. Variant A: at least one snapshot for the capture_chain_return
+//     probe ID lands in fakeintake. With the fix, the entry submits
+//     cleanly and is finalized via the RETURN_LOST notification; pre-fix
+//     the entry is stranded with entryExpected=0 and no snapshot lands.
+//
+//  3. Both variants (recovery): after drain, a fresh non-saturating
+//     trigger invocation produces a snapshot. This confirms the system
+//     is not poisoned — neither the eventbuf nor the BPF state machine
+//     is left in a state that prevents future events.
 func TestFirstFlushFailDropNotification(t *testing.T) {
-	t.Skip("DEBUG-XXXX: pending BPF fix in the next commit; see PR review")
-
 	dyninsttest.SkipIfKernelNotSupported(t)
 	current := goleak.IgnoreCurrent()
 	t.Cleanup(func() { goleak.VerifyNone(t, current) })
@@ -96,36 +117,62 @@ func TestFirstFlushFailDropNotification(t *testing.T) {
 	if !found {
 		t.Skipf("no drop_tester config matches runtime arch %s", runtime.GOARCH)
 	}
+	t.Logf("using config %s", cfg.String())
+
+	// Collect trace_pipe output so BPF debug logs (`LOG(N, ...)` calls
+	// in event.c, scratch.h, stack_machine.h) are available for
+	// post-mortem on failure. The collector organizes output by PID;
+	// each variant gets its own subject process. Set
+	// DONT_COLLECT_TRACE_PIPE=1 to disable when running outside CI
+	// (the readLoop holds an open trace_pipe fd which is sometimes
+	// inconvenient).
+	var collector *tracePipeCollector
+	if dontCollect, _ := strconv.ParseBool(os.Getenv("DONT_COLLECT_TRACE_PIPE")); !dontCollect {
+		collector = newTracePipeCollector(t)
+		t.Cleanup(func() { collector.Close() })
+	}
 
 	t.Run("variant_A_return_side_first_flush_fails", func(t *testing.T) {
-		runFirstFlushFailScenario(t, cfg, firstFlushFailVariant{
-			// Entry fits easily; return needs continuation. While the
-			// output ringbuf is saturated the trigger's return-side
-			// flush hits the first-flush-fails path. Post-fix BPF
-			// either suppresses the notification or emits RETURN_LOST,
-			// never PARTIAL_RETURN(last_seq=0xFFFF). Pre-fix BPF emits
-			// PARTIAL_RETURN(last_seq=0xFFFF), which userspace silently
-			// strands in the eventbuf.
-			triggerPath: "/bytes_return?iter=1&size=100&return_size=40000",
+		runFirstFlushFailScenario(t, cfg, collector, firstFlushFailVariant{
+			name: "variant_A",
+			// Tiny entry chain (one node) + large return chain. Entry
+			// capture is small (single-node deref ≈ 80 bytes data + ~88
+			// header < 200 bytes ringbuf record), submits cleanly into
+			// the 16 KiB free window. Return capture chases 1000 nodes,
+			// produces multi-fragment payload; first 32 KiB flush fails
+			// against the saturated ringbuf.
+			triggerPath: "/chain_return?iter=1&entry_nodes=1&return_nodes=1000",
+			// Post-fix: the entry submits, return emits RETURN_LOST(0),
+			// eventbuf finalizes the entry alone. Snapshot lands.
+			expectTriggerSnapshot: true,
+			triggerProbeID:        "capture_chain_return",
 		})
 	})
 
 	t.Run("variant_B_entry_side_first_flush_fails", func(t *testing.T) {
-		runFirstFlushFailScenario(t, cfg, firstFlushFailVariant{
-			// Entry needs continuation directly. While the output
-			// ringbuf is saturated the trigger's entry-side flush hits
-			// the first-flush-fails path. Post-fix BPF suppresses the
-			// notification entirely (entry probe with no fragments has
-			// nothing in userspace to truncate). Pre-fix BPF emits
-			// PARTIAL_ENTRY(last_seq=0xFFFF), which userspace silently
-			// strands.
-			triggerPath: "/bytes?iter=1&size=40000",
+		runFirstFlushFailScenario(t, cfg, collector, firstFlushFailVariant{
+			name: "variant_B",
+			// Large entry chain. First flush attempts a 32 KiB submit
+			// against the 16 KiB free window — fails. No fragments in
+			// flight when continuation_aborted triggers.
+			triggerPath: "/chain?iter=1&size=1000",
+			// Post-fix: BPF suppresses the notification (entry-side, no
+			// fragments). No userspace state for this invocation; no
+			// snapshot lands. Pre-fix: BPF emits PARTIAL_ENTRY(0xFFFF),
+			// userspace strands the entry — also no snapshot, but for
+			// the wrong reason. The bug is detected by the
+			// no-sentinel-last_seq assertion.
+			expectTriggerSnapshot: false,
+			triggerProbeID:        "capture_chain",
 		})
 	})
 }
 
 type firstFlushFailVariant struct {
-	triggerPath string
+	name                  string
+	triggerPath           string
+	expectTriggerSnapshot bool
+	triggerProbeID        string
 }
 
 // controlledSink wraps a real dispatcher.Sink and, when blocking is
@@ -139,14 +186,9 @@ type controlledSink struct {
 	buffer *eventbuf.Buffer
 	budget *eventbuf.Budget
 
-	// blocking is non-zero while HandleEvent should park.
 	blocking atomic.Bool
-	// release is closed by the test to wake any parked HandleEvent
-	// callers and let new calls fall through.
-	release chan struct{}
-	// drops receives every drop notification observed. Buffered so
-	// the dispatcher's runDropNotify goroutine doesn't block.
-	drops chan output.DropNotification
+	release  chan struct{}
+	drops    chan output.DropNotification
 }
 
 func newControlledSink(real dispatcher.Sink, buffer *eventbuf.Buffer, budget *eventbuf.Budget) *controlledSink {
@@ -172,8 +214,9 @@ func (c *controlledSink) HandleDropNotification(d output.DropNotification) {
 	default:
 		// Buffer is sized for the test workload; drops past capacity
 		// would indicate either a misconfigured test or a regression
-		// in the BPF side. We ignore here and let the test's
-		// assertions surface the discrepancy.
+		// in the BPF side. The sentinel-last_seq assertion below will
+		// surface the discrepancy if a real PARTIAL_*(0xFFFF) was
+		// dropped.
 	}
 	c.real.HandleDropNotification(d)
 }
@@ -192,11 +235,8 @@ func (c *controlledSink) Close() {
 	c.real.Close()
 }
 
-// startBlocking begins parking HandleEvent callers.
 func (c *controlledSink) startBlocking() { c.blocking.Store(true) }
 
-// stopBlocking releases any parked callers and lets new calls fall
-// through. Idempotent.
 func (c *controlledSink) stopBlocking() {
 	c.blocking.Store(false)
 	select {
@@ -206,24 +246,35 @@ func (c *controlledSink) stopBlocking() {
 	}
 }
 
-func runFirstFlushFailScenario(t *testing.T, cfg testprogs.Config, variant firstFlushFailVariant) {
-	tempDir, cleanup := dyninsttest.PrepTmpDir(t, "dyninst-first-flush-fail")
-	defer cleanup()
+// ringbufBytes is the per-test output-ringbuf size. 64 KiB is the
+// smallest power-of-two that admits a single SCRATCH_BUF_LEN (32 KiB)
+// fragment with headroom. Smaller would prevent any fragment from
+// ever submitting; larger would just need more filler invocations to
+// saturate.
+const ringbufBytes = 64 << 10
 
-	// Match the existing TestDropNotifications ringbuf size so the
-	// filler-request count is predictable. 128 KiB is small enough to
-	// saturate quickly and large enough to host the trigger event's
-	// first fragment.
-	const ringbufBytes = 128 << 10
+func runFirstFlushFailScenario(
+	t *testing.T,
+	cfg testprogs.Config,
+	collector *tracePipeCollector,
+	variant firstFlushFailVariant,
+) {
+	tempDir, cleanup := dyninsttest.PrepTmpDir(t, "dyninst-first-flush-fail-"+variant.name)
+	defer cleanup()
 
 	testServer := newFakeAgent(t)
 	t.Cleanup(testServer.s.Close)
 
 	modCfg, err := module.NewConfig(nil)
 	require.NoError(t, err)
-	modCfg.TestingKnobs.LoaderOptions = []loader.Option{
+	loaderOpts := []loader.Option{
 		loader.WithRingBufSize(ringbufBytes),
 	}
+	// Enable BPF debug logging so trace_pipe captures LOG(N, ...) lines
+	// from event.c (including the "probe_run: continuation aborted at
+	// seq=%d" line we want to verify is firing).
+	loaderOpts = append(loaderOpts, loader.WithDebugLevel(100))
+	modCfg.TestingKnobs.LoaderOptions = loaderOpts
 	modCfg.DiskCacheConfig.DirPath = filepath.Join(tempDir, "disk-cache")
 	modCfg.LogUploaderURL = testServer.getLogsURL()
 	modCfg.DiagsUploaderURL = testServer.getDiagsURL()
@@ -243,12 +294,11 @@ func runFirstFlushFailScenario(t *testing.T, cfg testprogs.Config, variant first
 	}
 	modCfg.ActuatorConfig.RecompilationRateLimit = -1
 
-	// Wire up the sink override, loader-ready, and program-loaded callbacks.
 	var (
-		mu     sync.Mutex
-		sink   *controlledSink
-		prog   *loader.Program
-		ldr    *loader.Loader
+		mu   sync.Mutex
+		sink *controlledSink
+		prog *loader.Program
+		ldr  *loader.Loader
 	)
 	modCfg.TestingKnobs.SinkOverride = func(
 		real dispatcher.Sink,
@@ -276,7 +326,6 @@ func runFirstFlushFailScenario(t *testing.T, cfg testprogs.Config, variant first
 	require.NoError(t, err)
 	t.Cleanup(m.Close)
 
-	// Launch drop_tester.
 	binPath := testprogs.MustGetBinary(t, "drop_tester", cfg)
 	require.NotEmpty(t, binPath,
 		"drop_tester binary not built; run `dda inv system-probe.build-dyninst-test-programs`")
@@ -289,6 +338,36 @@ func runFirstFlushFailScenario(t *testing.T, cfg testprogs.Config, variant first
 		_ = proc.Process.Signal(os.Interrupt)
 		_ = proc.Wait()
 	}()
+
+	// On failure (or when FORCE_TRACE_PIPE_PRINT=1) dump the BPF
+	// trace_pipe output for this PID so the verifier-level reasoning
+	// is visible. Particularly useful for confirming that LOG(1)
+	// lines like "probe_run: continuation aborted at seq=%d" actually
+	// fire — i.e., the test really did hit the buggy code path.
+	forceTracePipePrint, _ := strconv.ParseBool(os.Getenv("FORCE_TRACE_PIPE_PRINT"))
+	t.Cleanup(func() {
+		if collector == nil || (!t.Failed() && !forceTracePipePrint) {
+			return
+		}
+		if err := collector.Flush(); err != nil {
+			t.Logf("trace pipe flush error: %v", err)
+		}
+		f, err := collector.GetLogs(pid)
+		if err != nil {
+			t.Logf("trace pipe GetLogs error: %v", err)
+			return
+		}
+		if f == nil {
+			return
+		}
+		defer f.Close()
+		t.Logf("--- trace_pipe output for pid %d ---", pid)
+		scanner := bufio.NewScanner(f)
+		for scanner.Scan() {
+			t.Log(scanner.Text())
+		}
+		t.Logf("--- end trace_pipe output ---")
+	})
 
 	port := waitForDropTesterPort(t, filepath.Join(tempDir, "sample.out"))
 	baseURL := fmt.Sprintf("http://127.0.0.1:%d", port)
@@ -331,12 +410,18 @@ func runFirstFlushFailScenario(t *testing.T, cfg testprogs.Config, variant first
 	}, 60*time.Second, 100*time.Millisecond,
 		"probes should install within 60s")
 
-	// At this point the sink override has run (one program loaded).
 	mu.Lock()
 	require.NotNil(t, sink, "controlledSink was not installed")
 	require.NotNil(t, prog, "loader.Program handle was not captured")
 	require.NotNil(t, ldr, "loader.Loader handle was not captured")
 	mu.Unlock()
+
+	// Make sure the sink is unparked before module shutdown runs in
+	// cleanup. Without this, a t.Fatalf mid-test would leave the sink
+	// blocking and the dispatcher's flushAndWait would hang forever
+	// waiting for the run loop to drain. Registered before
+	// startBlocking so cleanup (LIFO) unparks before anything else.
+	t.Cleanup(sink.stopBlocking)
 
 	client := &http.Client{Timeout: 30 * time.Second}
 	doGet := func(path string) {
@@ -348,43 +433,24 @@ func runFirstFlushFailScenario(t *testing.T, cfg testprogs.Config, variant first
 		require.Equal(t, http.StatusOK, resp.StatusCode, "GET %s", path)
 	}
 
-	// Step 1: Begin blocking the dispatcher's output reader. From this
-	// point forward, any probe-event records the BPF program writes
-	// will pile up in the output ringbuf without being drained.
+	// Step 1: block the dispatcher's output reader.
 	sink.startBlocking()
 
-	// Step 2: Saturate the output ringbuf with filler invocations.
-	// Each /bytes?size=512 call produces a single ~600-byte ringbuf
-	// record. We send enough requests to reach >90% of the ringbuf
-	// capacity (the kernel rejects new reservations once free space
-	// drops below the requested record size). We poll AvailableBytes
-	// after every batch to guard against either over- or under-shooting.
-	const fillerSize = 512
-	const fillerBatch = 32
-	maxBatches := (ringbufBytes / (fillerSize * fillerBatch)) + 4
-	saturated := false
-	for batch := 0; batch < maxBatches; batch++ {
-		doGet(fmt.Sprintf("/bytes?iter=%d&size=%d", fillerBatch, fillerSize))
-		// Brief pause so the BPF probes catch up.
-		time.Sleep(50 * time.Millisecond)
-		if avail := ldr.OutputReader().AvailableBytes(); avail >= ringbufBytes-(2*fillerSize) {
-			t.Logf("ringbuf saturated after %d batches (avail=%d/%d)", batch+1, avail, ringbufBytes)
-			saturated = true
-			break
-		}
-	}
-	require.True(t, saturated, "failed to saturate output ringbuf within budget")
+	// Step 2: saturate the output ringbuf to the target free-space
+	// window. We send filler invocations one batch at a time and poll
+	// AvailableBytes() between batches. Each filler probe firing
+	// produces one ringbuf record of ~600 bytes; we batch enough to
+	// converge quickly without overshooting past zero free.
+	saturateRingbuf(t, ldr, doGet)
 
-	// Step 3: Issue the trigger request. The probe invocation will need
-	// continuation; its first flush will fail because the ringbuf is
-	// full.
+	// Step 3: issue the trigger request. The probe invocation will
+	// need continuation; its first flush will fail because free space
+	// is < SCRATCH_BUF_LEN.
 	doGet(variant.triggerPath)
 
-	// Step 4: Wait briefly for any drop notifications. We collect for
-	// a fixed window rather than gating on the first arrival because
-	// some variants (entry-side first-flush-fails, post-fix) expect
-	// zero notifications, and we need to give BPF time to *not*
-	// emit one.
+	// Step 4: collect drop notifications for a fixed window. We don't
+	// gate on the first arrival because some variants expect zero
+	// trigger-side notifications post-fix (entry-side, no fragments).
 	var observedDrops []output.DropNotification
 	collectTimer := time.NewTimer(2 * time.Second)
 collect:
@@ -397,43 +463,61 @@ collect:
 		}
 	}
 
-	// Step 5: Release the sink and let the dispatcher drain. From here
-	// on, the test asserts on the userspace state.
+	// Step 5: release the sink and drain.
 	sink.stopBlocking()
-
-	// Give the dispatcher time to drain the ringbuf and the eventbuf
-	// time to apply any drop notification we observed.
 	time.Sleep(2 * time.Second)
 
 	for i, d := range observedDrops {
 		t.Logf("observed drop notification[%d]: reason=%d last_seq=%d probe_id=%d goid=%d entry_ktime_ns=%d",
 			i, d.Drop_reason, d.Last_seq, d.Probe_id, d.Goid, d.Entry_ktime_ns)
 	}
-	// Critical post-fix invariant: BPF must never send a drop
-	// notification with last_seq=LAST_SUBMITTED_SEQ_NONE (0xFFFF).
-	// PARTIAL_* with that sentinel would cause userspace's NotePartial
-	// to wrap entryExpected to 0 and strand the entry indefinitely.
-	// The fix in the continuation_aborted branch gates that path; this
-	// assertion fails on the unfixed BPF.
+
+	// Assertion 1: no drop notification carries the sentinel last_seq.
+	// This is the precise contract the BPF fix establishes.
 	for i, d := range observedDrops {
 		assert.NotEqual(t, uint16(0xFFFF), d.Last_seq,
 			"drop notification[%d] must not carry sentinel last_seq=0xFFFF (reason=%d, probe_id=%d)",
 			i, d.Drop_reason, d.Probe_id)
 	}
 
-	// Sanity: the drop-notify side channel itself must not have dropped
-	// notifications mid-test, otherwise the sentinel-last_seq assertion
-	// above is unreliable.
+	// Sanity: the side channel must not have lost notifications during
+	// the test, otherwise assertion 1 is unreliable.
 	assert.Equal(t, uint64(0), prog.DropNotifyLostAt(),
 		"drop-notify side channel must not have lost notifications during the test")
-	// The eventbuf state is intentionally not asserted here — the
-	// filler workload generates LOG_PROBE entry+return pairs whose
-	// returns naturally orphan in userspace under saturation, so the
-	// buffer is generally non-empty. The bug-detecting assertion is
-	// the "no sentinel last_seq" check above; that assertion is
-	// precise and orthogonal to the filler-induced noise.
+
+	// Snapshot the logs collected so far (before the recovery probe).
+	logsAfterDrain := testServer.getLogs()
+	t.Logf("after drain: %d snapshot logs", len(logsAfterDrain))
 	t.Logf("end-of-test eventbuf state: Len=%d Bytes=%d budget.Used=%d",
 		sink.buffer.Len(), sink.buffer.Bytes(), sink.budget.Used())
+
+	// Assertion 2 (variant-specific): trigger snapshot landed iff
+	// expected. We identify "the trigger's snapshot" by probe ID —
+	// the trigger is the only invocation of variant.triggerProbeID;
+	// fillers and recovery probes use different probes.
+	triggerSnapshots := countSnapshotsForProbe(t, logsAfterDrain, variant.triggerProbeID)
+	if variant.expectTriggerSnapshot {
+		assert.Greater(t, triggerSnapshots, 0,
+			"expected at least one snapshot for trigger probe %s "+
+				"(post-fix: entry submits cleanly and is finalized via RETURN_LOST)",
+			variant.triggerProbeID)
+	} else {
+		assert.Equal(t, 0, triggerSnapshots,
+			"expected no snapshot for trigger probe %s "+
+				"(post-fix: entry-side first-flush-fails emits no notification, no userspace state)",
+			variant.triggerProbeID)
+	}
+
+	// Assertion 3 (recovery): a fresh non-saturating invocation after
+	// the drain produces a snapshot. Verifies neither the eventbuf
+	// nor the BPF state machine is left in a state that prevents
+	// future events.
+	doGet("/bytes?iter=1&size=128")
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		recovery := len(testServer.getLogs()) - len(logsAfterDrain)
+		assert.Greater(c, recovery, 0,
+			"recovery: a fresh /bytes invocation must produce a snapshot after drain")
+	}, 10*time.Second, 100*time.Millisecond)
 
 	// Stop the subject process and drain.
 	_ = proc.Process.Signal(os.Interrupt)
@@ -446,5 +530,120 @@ collect:
 	}, 30*time.Second, 100*time.Millisecond,
 		"diagnostics states should drain after process exit")
 
-	t.Logf("collected %d snapshot logs", len(testServer.getLogs()))
+	t.Logf("collected %d snapshot logs total", len(testServer.getLogs()))
+}
+
+// saturateRingbuf sends filler /bytes invocations until
+// OutputReader().AvailableBytes() is high enough that the next
+// SCRATCH_BUF_LEN-sized flush is guaranteed to fail (free space <
+// 32 KiB), but low enough that the variant-A entry record (a few
+// hundred bytes) can still submit cleanly.
+//
+// The acceptable free-space window is conservative on both ends:
+//
+//   - Upper bound: free <= 32 KiB - 8 (so the next 32 KiB flush is
+//     guaranteed to fail, accounting for the 8-byte ringbuf record
+//     header).
+//
+//   - Lower bound: free >= 1 KiB (variant A's tiny-chain entry record
+//     is well under 1 KiB; submitting it must succeed).
+//
+// We approach the window from below: start with a few large batches
+// to get close, then switch to single-invocation steps for fine
+// control near the target. Aborts the test if the window can't be
+// hit within a generous budget.
+func saturateRingbuf(t *testing.T, ldr *loader.Loader, doGet func(string)) {
+	t.Helper()
+	const fillerSize = 512
+	// freeMin: minimum free space that variant A's small entry record
+	// can still submit into. Set well above the actual record size
+	// (~200 bytes) for headroom.
+	const freeMin = 1 << 10
+	// freeMax: maximum free space such that the next 32 KiB flush is
+	// guaranteed to fail. SCRATCH_BUF_LEN = 32 KiB, plus 8-byte ringbuf
+	// header = 32776 needed. Anything < 32776 free triggers the fail.
+	const freeMax = (32 << 10) - 8
+	const targetUsedLo = ringbufBytes - freeMax // = 32776
+	const targetUsedHi = ringbufBytes - freeMin // = 64512
+
+	step := func(batchSize int) {
+		doGet(fmt.Sprintf("/bytes?iter=%d&size=%d", batchSize, fillerSize))
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	maxBatches := 64
+	for batch := 0; batch < maxBatches; batch++ {
+		used := ldr.OutputReader().AvailableBytes()
+		if used >= targetUsedLo && used <= targetUsedHi {
+			t.Logf("ringbuf saturated to target window after %d steps (used=%d, target=[%d,%d], capacity=%d)",
+				batch, used, targetUsedLo, targetUsedHi, ringbufBytes)
+			return
+		}
+		if used > targetUsedHi {
+			t.Fatalf("overshot ringbuf saturation: used=%d > %d "+
+				"(if this fires, decrease step size near the target)",
+				used, targetUsedHi)
+		}
+		// Pick batch size based on distance from the lower bound.
+		// Far away: batch=16 to converge fast. Close: batch=1 for
+		// fine control.
+		remaining := targetUsedLo - used
+		batchSize := 16
+		if remaining < 8*1024 {
+			batchSize = 4
+		}
+		if remaining < 2*1024 {
+			batchSize = 1
+		}
+		step(batchSize)
+	}
+	t.Fatalf("failed to saturate ringbuf to target window within %d steps; final used=%d",
+		maxBatches, ldr.OutputReader().AvailableBytes())
+}
+
+// countSnapshotsForProbe counts how many fakeintake logs are
+// snapshots emitted by the given userspace probe ID. The probe ID is
+// embedded in the snapshot JSON's debugger.snapshot.probe.id field.
+func countSnapshotsForProbe(t *testing.T, logs []receivedLog, probeID string) int {
+	t.Helper()
+	var count int
+	for _, log := range logs {
+		// Each log body is a JSON array of snapshot envelopes; we
+		// match on the embedded probe ID without fully unmarshaling
+		// to avoid coupling to the schema.
+		var envelopes []struct {
+			Debugger struct {
+				Snapshot struct {
+					Probe struct {
+						ID string `json:"id"`
+					} `json:"probe"`
+				} `json:"snapshot"`
+			} `json:"debugger"`
+		}
+		if err := json.Unmarshal(log.body, &envelopes); err != nil {
+			// Some logs may not be JSON arrays (e.g., singletons).
+			// Try as a single envelope.
+			var single struct {
+				Debugger struct {
+					Snapshot struct {
+						Probe struct {
+							ID string `json:"id"`
+						} `json:"probe"`
+					} `json:"snapshot"`
+				} `json:"debugger"`
+			}
+			if err := json.Unmarshal(log.body, &single); err == nil {
+				if single.Debugger.Snapshot.Probe.ID == probeID {
+					count++
+				}
+			}
+			continue
+		}
+		for _, e := range envelopes {
+			if e.Debugger.Snapshot.Probe.ID == probeID {
+				count++
+			}
+		}
+	}
+	return count
 }

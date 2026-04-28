@@ -306,17 +306,26 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
   chase_steps = stack_machine_chase_pointers(&global_ctx);
   stack_machine_t* sm = global_ctx.stack_machine;
   if (sm->continuation_aborted) {
-    // A mid-chase flush failed. Earlier fragments reached userspace but a
-    // later fragment couldn't be written. Skip the final submit — sending
-    // it now would leave a gap in the fragment sequence — and notify
-    // userspace that it should finalize the fragments it already has as a
-    // truncated event.
-    uint8_t reason = (params->kind == EVENT_KIND_RETURN)
-                         ? DROP_REASON_PARTIAL_RETURN
-                         : DROP_REASON_PARTIAL_ENTRY;
-    send_drop_notification(
-        prog_id, params->probe_id, header->goid, header->stack_byte_depth,
-        sm->last_submitted_seq, sm->entry_ktime_ns, reason);
+    // A mid-chase flush failed. Skip the final submit — sending it now
+    // would leave a gap in the fragment sequence — and notify userspace
+    // so it can finalize whatever (if anything) reached it.
+    if (sm->last_submitted_seq != LAST_SUBMITTED_SEQ_NONE) {
+      // Earlier fragments reached userspace; tell it to emit them as
+      // truncated.
+      uint8_t reason = (params->kind == EVENT_KIND_RETURN)
+                           ? DROP_REASON_PARTIAL_RETURN
+                           : DROP_REASON_PARTIAL_ENTRY;
+      send_drop_notification(
+          prog_id, params->probe_id, header->goid, header->stack_byte_depth,
+          sm->last_submitted_seq, sm->entry_ktime_ns, reason);
+    } else if (params->kind == EVENT_KIND_RETURN) {
+      // The very first flush failed; no return fragments are in flight.
+      // Tell userspace to emit the matching entry alone.
+      send_drop_notification(
+          prog_id, params->probe_id, header->goid, header->stack_byte_depth,
+          0, sm->entry_ktime_ns, DROP_REASON_RETURN_LOST);
+    }
+    // Entry probe with no fragments: no userspace state to clean up.
     LOG(1, "probe_run: continuation aborted at seq=%d", sm->last_submitted_seq);
     return;
   }
