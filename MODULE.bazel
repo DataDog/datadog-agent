@@ -257,7 +257,7 @@ use_repo(
 # buildifier: leave-alone
 llvm.sysroot(
     name = "llvm_toolchain",
-    label = "@macos_sdk//sysroot:sysroot",
+    label = "@macos_sdk//sysroot",
     targets = [
         "darwin-aarch64",
         "darwin-x86_64",
