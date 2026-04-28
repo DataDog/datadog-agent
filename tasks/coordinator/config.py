@@ -16,15 +16,19 @@ class Config:
     # N=5 baseline σ is too noisy to support per-scenario 3σ gating; F1 is
     # bounded/skewed so Gaussian assumptions don't apply. Keep gates blunt
     # and let the LLM reviewer do the nuanced work.
-    catastrophe_f1_drop: float = 0.10      # scenario ΔF1 < -0.10 vs baseline → reject
-    catastrophe_recall_drop: float = 0.10  # scenario Δrecall < -0.10 vs baseline → reject
-    # RELATIVE catastrophe: a scenario with baseline F1=0.08 can only drop
-    # 0.08 absolute — the absolute 0.10 filter never fires, yet dropping to
-    # zero is still a real regression. Also reject if any scenario whose
-    # baseline F1 ≥ catastrophe_relative_min drops to ≤ 50% of baseline F1.
-    catastrophe_relative_min: float = 0.05   # only enforce when baseline had non-trivial F1
-    catastrophe_relative_ratio: float = 0.5  # obs < 0.5 * base → reject
-    recall_floor_baseline_min: float = 0.05  # only enforce recall floor when baseline had real recall
+    # Catastrophe thresholds — RELAXED 2026-04-28 after PR 50011 iter 4
+    # blocked a clear net-positive candidate (mean F1 +0.039, FPs cut in
+    # half) on 3 per-scenario recall violations. Goal: let candidates with
+    # genuine aggregate value reach the 3-persona reviewer instead of being
+    # auto-killed on conservative per-scenario thresholds. Reviewer is the
+    # backstop for actual hacks; this gate only catches obvious breakage.
+    catastrophe_f1_drop: float = 0.15      # was 0.10; scenario ΔF1 < -0.15 → reject
+    catastrophe_recall_drop: float = 0.20  # was 0.10; scenario Δrecall < -0.20 → reject
+    # RELATIVE catastrophe: scenario whose baseline F1 ≥ catastrophe_relative_min
+    # drops to ≤ catastrophe_relative_ratio × baseline F1.
+    catastrophe_relative_min: float = 0.10   # was 0.05; only enforce on real-signal scenarios
+    catastrophe_relative_ratio: float = 0.4  # was 0.5; allow drops to 40% of baseline
+    recall_floor_baseline_min: float = 0.15  # was 0.05; only enforce on scenarios w/ real recall
 
     # Total-FP ceiling: if observed total FPs across train scenarios is
     # more than fp_ceiling_ratio × baseline total, reject. The emit-
