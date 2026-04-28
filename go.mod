@@ -206,6 +206,7 @@ require (
 	github.com/containerd/containerd v1.7.30
 	github.com/containerd/containerd/api v1.9.0
 	github.com/containerd/errdefs v1.0.0
+	github.com/containerd/stargz-snapshotter/estargz v0.18.1
 	github.com/containerd/typeurl/v2 v2.2.3
 	github.com/containernetworking/cni v1.2.3
 	github.com/coreos/go-semver v0.3.1
@@ -542,7 +543,6 @@ require (
 	github.com/containerd/fifo v1.1.0 // indirect
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/containerd/platforms v1.0.0-rc.1 // indirect
-	github.com/containerd/stargz-snapshotter/estargz v0.18.1 // indirect
 	github.com/containerd/ttrpc v1.2.7 // indirect
 	github.com/containernetworking/plugins v1.4.1 // indirect
 	github.com/dennwc/varint v1.0.0 // indirect

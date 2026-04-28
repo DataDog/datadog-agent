@@ -63,6 +63,13 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// Otherwise, Python is loaded when the collector is initialized.
 	config.BindEnvAndSetDefault("python_lazy_loading", true)
 
+	// Experimental PoC: materialize missing bundled Python integrations from an
+	// eStargz Agent image at runtime.
+	config.BindEnvAndSetDefault("python_lazy_artifacts.enabled", false)
+	config.BindEnvAndSetDefault("python_lazy_artifacts.source_image", "")
+	config.BindEnvAndSetDefault("python_lazy_artifacts.cache_dir", filepath.Join(defaultRunPath, "lazy-artifacts"))
+	config.BindEnvAndSetDefault("python_lazy_artifacts.platform", "linux/amd64")
+
 	// If true, then the go loader will be prioritized over the python loader.
 	config.BindEnvAndSetDefault("prioritize_go_check_loader", true)
 

@@ -8,6 +8,8 @@
 package python
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"expvar"
 	"fmt"
@@ -28,6 +30,7 @@ import (
 	collectoraggregator "github.com/DataDog/datadog-agent/pkg/collector/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
+	"github.com/DataDog/datadog-agent/pkg/collector/python/lazyartifacts"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -58,6 +61,7 @@ var (
 	linterLock       sync.Mutex
 	agentVersionTags []string
 	pythonOnce       sync.Once
+	lazyPythonPaths  sync.Map
 )
 
 const (
@@ -160,36 +164,35 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 
 	// Looking for wheels first
 	modules := []string{fmt.Sprintf("%s.%s", wheelNamespace, moduleName), moduleName}
-	var loadedAsWheel bool
+	loadResult := loadPythonCheckClass(modules)
+	if loadResult.checkModule == nil || loadResult.checkClass == nil {
+		if result, err := ensureLazyPythonCheck(context.Background(), moduleName); err == nil {
+			if err := addLazyPythonPath(result.ImportPath); err == nil {
+				log.Infof(
+					"Materialized lazy Python check %s from %s into %s (cache_hit=%t, range_requests=%d, range_bytes=%d)",
+					moduleName,
+					pkgconfigsetup.Datadog().GetString("python_lazy_artifacts.source_image"),
+					result.CacheDir,
+					result.CacheHit,
+					result.Stats.RangeRequests,
+					result.Stats.RangeBytes,
+				)
 
-	loadedName := ""
-	var checkModule *C.rtloader_pyobject_t
-	var checkClass *C.rtloader_pyobject_t
-	var loadErrors []string // store errors for each module
-
-	for _, name := range modules {
-		// TrackedCStrings untracked by memory tracker currently
-		moduleName := TrackedCString(name)
-		defer C.call_free(unsafe.Pointer(moduleName))
-		if res := C.get_class(rtloader, moduleName, &checkModule, &checkClass); res != 0 {
-			if strings.HasPrefix(name, wheelNamespace+".") {
-				loadedAsWheel = true
+				retryLoadResult := loadPythonCheckClass(modules)
+				if retryLoadResult.checkModule == nil || retryLoadResult.checkClass == nil {
+					retryLoadResult.loadErrors = append(loadResult.loadErrors, retryLoadResult.loadErrors...)
+				}
+				loadResult = retryLoadResult
+			} else {
+				log.Debugf("Unable to add lazy Python import path %s for check %s: %v", result.ImportPath, moduleName, err)
 			}
-			loadedName = name
-			break
-		}
-
-		if err := getRtLoaderError(); err != nil {
-			log.Debugf("Unable to load python module - %s: %v", name, err)
-			loadErrors = append(loadErrors, fmt.Sprintf("unable to load python module %s: %v", name, err))
-		} else {
-			log.Debugf("Unable to load python module - %s", name)
-			loadErrors = append(loadErrors, "unable to load python module "+name)
+		} else if pkgconfigsetup.Datadog().GetBool("python_lazy_artifacts.enabled") {
+			log.Debugf("Unable to materialize lazy Python check %s: %v", moduleName, err)
 		}
 	}
 
-	if checkModule == nil || checkClass == nil {
-		errMsg := strings.Join(loadErrors, ", ")
+	if loadResult.checkModule == nil || loadResult.checkClass == nil {
+		errMsg := strings.Join(loadResult.loadErrors, ", ")
 		log.Debugf("Unable to load check %s: %s", moduleName, errMsg)
 		return nil, fmt.Errorf("unable to load check %s: %s", moduleName, errMsg)
 	}
@@ -202,14 +205,14 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 	versionAttr := TrackedCString("__version__")
 	defer C.call_free(unsafe.Pointer(versionAttr))
 	// get_attr_string allocation tracked by memory tracker
-	if res := C.get_attr_string(rtloader, checkModule, versionAttr, &version); res != 0 {
+	if res := C.get_attr_string(rtloader, loadResult.checkModule, versionAttr, &version); res != 0 {
 		wheelVersion = C.GoString(version)
 		C.rtloader_free(rtloader, unsafe.Pointer(version))
 	} else {
 		log.Debugf("python check '%s' doesn't have a '__version__' attribute: %s", config.Name, getRtLoaderError())
 	}
 
-	if !pkgconfigsetup.Datadog().GetBool("disable_py3_validation") && !loadedAsWheel {
+	if !pkgconfigsetup.Datadog().GetBool("disable_py3_validation") && !loadResult.loadedAsWheel {
 		// Customers, though unlikely might version their custom checks.
 		// Let's use the module namespace to try to decide if this was a
 		// custom check, check for py3 compatibility
@@ -219,7 +222,7 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 		fileAttr := TrackedCString("__file__")
 		defer C.call_free(unsafe.Pointer(fileAttr))
 		// get_attr_string allocation tracked by memory tracker
-		if res := C.get_attr_string(rtloader, checkModule, fileAttr, &checkFilePath); res != 0 {
+		if res := C.get_attr_string(rtloader, loadResult.checkModule, fileAttr, &checkFilePath); res != 0 {
 			goCheckFilePath = C.GoString(checkFilePath)
 			C.rtloader_free(rtloader, unsafe.Pointer(checkFilePath))
 		} else {
@@ -227,10 +230,10 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 		}
 
 		// Ensure we never emit an empty check_name tag
-		if loadedName == "" {
-			loadedName = moduleName // config.Name (the original check name)
+		if loadResult.loadedName == "" {
+			loadResult.loadedName = moduleName // config.Name (the original check name)
 		}
-		go reportPy3Warnings(loadedName, goCheckFilePath)
+		go reportPy3Warnings(loadResult.loadedName, goCheckFilePath)
 	}
 
 	var goHASupported bool
@@ -239,14 +242,14 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 
 		haSupportedAttr := TrackedCString("HA_SUPPORTED")
 		defer C.call_free(unsafe.Pointer(haSupportedAttr))
-		if res := C.get_attr_bool(rtloader, checkClass, haSupportedAttr, &haSupported); res != 0 {
+		if res := C.get_attr_bool(rtloader, loadResult.checkClass, haSupportedAttr, &haSupported); res != 0 {
 			goHASupported = haSupported == C.bool(true)
 		} else {
 			log.Debugf("Could not query the HA_SUPPORTED attribute for check %s: %s", moduleName, getRtLoaderError())
 		}
 	}
 
-	c, err := NewPythonCheck(senderManager, moduleName, checkClass, goHASupported)
+	c, err := NewPythonCheck(senderManager, moduleName, loadResult.checkClass, goHASupported)
 	if err != nil {
 		return c, err
 	}
@@ -257,8 +260,8 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 	}
 	// The GIL should be unlocked at this point, `check.Configure` uses its own stickyLock and stickyLocks must not be nested
 	if err := c.Configure(senderManager, configDigest, instance, config.InitConfig, configSource, config.Provider); err != nil {
-		C.rtloader_decref(rtloader, checkClass)
-		C.rtloader_decref(rtloader, checkModule)
+		C.rtloader_decref(rtloader, loadResult.checkClass)
+		C.rtloader_decref(rtloader, loadResult.checkModule)
 
 		if errors.Is(err, check.ErrSkipCheckInstance) {
 			return nil, err
@@ -274,11 +277,82 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 	}
 
 	c.version = wheelVersion
-	C.rtloader_decref(rtloader, checkClass)
-	C.rtloader_decref(rtloader, checkModule)
+	C.rtloader_decref(rtloader, loadResult.checkClass)
+	C.rtloader_decref(rtloader, loadResult.checkModule)
 
 	log.Debugf("python loader: done loading check %s (version %s)", moduleName, wheelVersion)
 	return c, nil
+}
+
+type pythonCheckClassLoadResult struct {
+	loadedName    string
+	loadedAsWheel bool
+	checkModule   *C.rtloader_pyobject_t
+	checkClass    *C.rtloader_pyobject_t
+	loadErrors    []string
+}
+
+func loadPythonCheckClass(modules []string) pythonCheckClassLoadResult {
+	var result pythonCheckClassLoadResult
+
+	for _, name := range modules {
+		// TrackedCStrings untracked by memory tracker currently
+		moduleName := TrackedCString(name)
+		defer C.call_free(unsafe.Pointer(moduleName))
+		if res := C.get_class(rtloader, moduleName, &result.checkModule, &result.checkClass); res != 0 {
+			if strings.HasPrefix(name, wheelNamespace+".") {
+				result.loadedAsWheel = true
+			}
+			result.loadedName = name
+			break
+		}
+
+		if err := getRtLoaderError(); err != nil {
+			log.Debugf("Unable to load python module - %s: %v", name, err)
+			result.loadErrors = append(result.loadErrors, fmt.Sprintf("unable to load python module %s: %v", name, err))
+		} else {
+			log.Debugf("Unable to load python module - %s", name)
+			result.loadErrors = append(result.loadErrors, "unable to load python module "+name)
+		}
+	}
+
+	return result
+}
+
+func ensureLazyPythonCheck(ctx context.Context, moduleName string) (*lazyartifacts.Result, error) {
+	if !pkgconfigsetup.Datadog().GetBool("python_lazy_artifacts.enabled") {
+		return nil, errors.New("python lazy artifacts are disabled")
+	}
+	return lazyartifacts.EnsurePythonCheck(ctx, moduleName)
+}
+
+func addLazyPythonPath(importPath string) error {
+	if importPath == "" {
+		return errors.New("empty Python import path")
+	}
+	if _, loaded := lazyPythonPaths.Load(importPath); loaded {
+		return nil
+	}
+
+	pythonPathLiteral, err := json.Marshal(importPath)
+	if err != nil {
+		return err
+	}
+	code := fmt.Sprintf(
+		"import importlib, os, sys\np = %s\nsys.path.append(p) if p not in sys.path else None\npkg = sys.modules.get('datadog_checks')\npkg_path = os.path.join(p, 'datadog_checks')\npkg.__path__.append(pkg_path) if pkg is not None and hasattr(pkg, '__path__') and pkg_path not in pkg.__path__ else None\nimportlib.invalidate_caches()\n",
+		pythonPathLiteral,
+	)
+	cCode := TrackedCString(code)
+	defer C.call_free(unsafe.Pointer(cCode))
+	if res := C.run_simple_string(rtloader, cCode); res == 0 {
+		if err := getRtLoaderError(); err != nil {
+			return err
+		}
+		return errors.New("failed to update Python sys.path")
+	}
+
+	lazyPythonPaths.Store(importPath, struct{}{})
+	return nil
 }
 
 func (cl *PythonCheckLoader) String() string {
