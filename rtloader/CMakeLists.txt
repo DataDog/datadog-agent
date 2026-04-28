@@ -25,6 +25,7 @@ endif()
 
 ## Python 3.13+ sub-interpreter support
 ## Defines RTLOADER_HAS_SUBINTERPRETERS for every target in this directory and below
+## (Build cache invalidation marker — remove if/when this becomes default)
 option(ENABLE_SUBINTERPRETERS "Enable experimental Python sub-interpreter support (requires Python 3.13+)" OFF)
 
 if(ENABLE_SUBINTERPRETERS)

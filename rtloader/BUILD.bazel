@@ -36,12 +36,16 @@ cc_library(
             "_GLIBCXX_USE_CXX11_ABI=0",
             # backtrace / execinfo.h is provided by glibc 2.1+ so we know it to be available
             "HAS_BACKTRACE_LIB",
+            # has_subinterpreter_support() in api.cpp returns 1 when this is defined.
+            # Must be set on both :rtloader (api.cpp) and :three (three.cpp).
+            "RTLOADER_HAS_SUBINTERPRETERS",
         ],
         "@platforms//os:macos": [
             "_GLIBCXX_USE_CXX11_ABI=0",
             # backtrace / execinfo.h is provided by the macOS libc since Mac OS X 10.5
             # https://manp.gs/mac/3/backtrace#HISTORY
             "HAS_BACKTRACE_LIB",
+            "RTLOADER_HAS_SUBINTERPRETERS",
         ],
         "//conditions:default": [],
     }),
@@ -143,6 +147,7 @@ cc_library(
         "three/three.cpp",
         "three/three.h",
         "three/three_mem.cpp",
+        "three/three_subinterp.cpp",
     ],
     hdrs = ["common/cgo_free.h"],
     copts = ["-O2"] + select({
@@ -171,6 +176,10 @@ cc_library(
         ],
         "//conditions:default": [
             "_GLIBCXX_USE_CXX11_ABI=0",
+            # Experimental Python sub-interpreter support (PEP 684, Python 3.13+).
+            # Activates three_subinterp.cpp and the per-check isolation path in
+            # three.cpp. Branch-only until graduation from experimental status.
+            "RTLOADER_HAS_SUBINTERPRETERS",
         ],
     }),
     visibility = ["//visibility:public"],

@@ -494,6 +494,14 @@ variables:
 workflow:
   rules:
     - <<: *if_triggered_pipeline
+    # Branch-gated overrides for the sub-interpreter testing branch.
+    # DD_ENABLE_SUBINTERPRETERS is set at the omnibus job level instead
+    # (see .agent_build_common in .gitlab/build/package_build/linux.yml).
+    # Lint/source_test containers ship Python 3.12 and would fail the
+    # rtloader CMake guard if the flag was applied here.
+    - if: $CI_COMMIT_BRANCH == "jinh-labs/subinterpreter"
+      variables:
+        SKIP_WINDOWS: "true"  # skip windows jobs to save CI time
     - <<: *if_main_branch
       variables:
         BAZEL_CACHE_POLICY_SUFFIX: "-push"

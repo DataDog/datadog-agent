@@ -358,8 +358,8 @@ bool Three::getCheck(RtLoaderPyObject *py_class, const char *init_config_str, co
         if (mod_attr != NULL) {
             char *mod_name = as_string(mod_attr);
             if (mod_name != NULL) {
-                module_name_str = mod_name;  // std::string copies into its own buffer
-                ::_free(mod_name);            // release as_string's heap copy
+                module_name_str = mod_name; // std::string copies into its own buffer
+                ::_free(mod_name); // release as_string's heap copy
             }
         }
         Py_XDECREF(mod_attr);
@@ -380,8 +380,8 @@ bool Three::getCheck(RtLoaderPyObject *py_class, const char *init_config_str, co
         if (_setupSubInterpClass(module_name_str, sub_klass)) {
             {
                 std::ostringstream msg;
-                msg << "[SUB-INTERPRETERS][EXPERIMENTAL][getCheck] created sub-interpreter (tstate="
-                    << sub_tstate << ") for check '" << module_name_str << "'";
+                msg << "[SUB-INTERPRETERS][EXPERIMENTAL][getCheck] created sub-interpreter (tstate=" << sub_tstate
+                    << ") for check '" << module_name_str << "'";
                 agent_log(DATADOG_AGENT_INFO, const_cast<char *>(msg.str().c_str()));
             }
             // Rebind klass to the sub-interpreter's class. All code below runs
@@ -393,7 +393,7 @@ bool Three::getCheck(RtLoaderPyObject *py_class, const char *init_config_str, co
             // Clear both errors: Python's so it doesn't affect later Python
             // calls, and rtloader's so Go doesn't see this as a failure.
             std::string msg = "[SUB-INTERPRETERS][EXPERIMENTAL][getCheck] sub-interp setup failed for '"
-                            + module_name_str + "' - falling back to main interpreter";
+                + module_name_str + "' - falling back to main interpreter";
             agent_log(DATADOG_AGENT_INFO, const_cast<char *>(msg.c_str()));
 
             PyErr_Clear();
@@ -1149,7 +1149,7 @@ void Three::setModuleAttrString(char *module, char *attr, char *value)
     //
     // Currently the only production caller is SetPythonPsutilProcPath
     // (pkg/collector/python/helpers.go), which sets psutil.PROCFS_PATH.
-    _moduleAttrs.push_back({std::string(module), std::string(attr), std::string(value)});
+    _moduleAttrs.push_back({ std::string(module), std::string(attr), std::string(value) });
 #endif
 }
 

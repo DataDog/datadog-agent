@@ -13,6 +13,7 @@ class IsolationCheck(AgentCheck):
     its value as a string. If two instances share the same interpreter,
     the second run() will return "2". If they're isolated, both return "1".
     """
+
     def run(self):
         global run_count
         run_count += 1

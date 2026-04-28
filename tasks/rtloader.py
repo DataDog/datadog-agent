@@ -43,6 +43,10 @@ def make(ctx, install_prefix=None, cmake_options=''):
     cmake_args = cmake_options + f" -DCMAKE_INSTALL_PREFIX:PATH={prefix}"
     if os.getenv('DD_CMAKE_TOOLCHAIN'):
         cmake_args += f' --toolchain {os.getenv("DD_CMAKE_TOOLCHAIN")}'
+    # Opt-in flag for experimental Python sub-interpreter support in rtloader.
+    # Usage: DD_ENABLE_SUBINTERPRETERS=1 dda inv agent.build
+    if os.getenv('DD_ENABLE_SUBINTERPRETERS'):
+        cmake_args += ' -DENABLE_SUBINTERPRETERS=ON'
 
     rtloader_build_path = get_rtloader_build_path()
 
@@ -177,9 +181,7 @@ def test_subinterpreters(ctx, python="/opt/homebrew/bin/python3.14"):
     ctx.run(f"rm -rf {build_path}", echo=True)
     ctx.run(f"mkdir -p {build_path}", echo=True)
     ctx.run(
-        f'cd {build_path} && cmake '
-        f'-DENABLE_SUBINTERPRETERS=ON '
-        f'-DPython3_EXECUTABLE={python} {rtloader_path}',
+        f'cd {build_path} && cmake ' f'-DENABLE_SUBINTERPRETERS=ON ' f'-DPython3_EXECUTABLE={python} {rtloader_path}',
         echo=True,
     )
     ctx.run(f"make -C {build_path} -j", echo=True)
@@ -196,8 +198,7 @@ def test_subinterpreters(ctx, python="/opt/homebrew/bin/python3.14"):
         ),
     }
     ctx.run(
-        'go test -v -tags "three,python" ./rtloader/test/rtloader/ '
-        '-run "Subinterpreter" -count=1',
+        'go test -v -tags "three,python" ./rtloader/test/rtloader/ ' '-run "Subinterpreter" -count=1',
         env=env,
         echo=True,
     )

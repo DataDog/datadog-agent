@@ -21,6 +21,13 @@
     - .rust_internal_registry  # TODO(agent-build): bazelify
   rules:
     - !reference [.except_mergequeue]
+    # Branch-gated opt-in to experimental Python sub-interpreters in rtloader.
+    # Scoped here because omnibus uses embedded Python 3.13.12 (which the
+    # rtloader CMake guard requires); lint/source_test containers ship
+    # Python 3.12 and would fail that guard if the flag was global.
+    - if: $CI_COMMIT_BRANCH == "jinh-labs/subinterpreter"
+      variables:
+        DD_ENABLE_SUBINTERPRETERS: "1"
     - when: on_success
   stage: package_build
   script:

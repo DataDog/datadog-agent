@@ -44,11 +44,11 @@
  *   the thread is detached — must use PyEval_RestoreThread instead
  *   (see _destroySubInterpreter).
  *
- * PyThreadState_Swap source: https://github.com/python/cpython/blob/22c8590e40a13070d75b1e7f9af01252b1b2e9ce/Python/pystate.c#L2593
- * PyEval_RestoreThread source: https://github.com/python/cpython/blob/22c8590e40a13070d75b1e7f9af01252b1b2e9ce/Python/ceval_gil.c#L653
+ * PyThreadState_Swap source:
+ * https://github.com/python/cpython/blob/22c8590e40a13070d75b1e7f9af01252b1b2e9ce/Python/pystate.c#L2593
+ * PyEval_RestoreThread source:
+ * https://github.com/python/cpython/blob/22c8590e40a13070d75b1e7f9af01252b1b2e9ce/Python/ceval_gil.c#L653
  */
-
-
 
 #include "three.h"
 
@@ -75,67 +75,76 @@ PyThreadState *Three::_createSubInterpreter()
     // Step 1: Save the main interpreter's thread state.
     PyThreadState *main_tstate = PyThreadState_Get();
 
-    // Step 2: Configure the sub-interpreter (Plain C struct no cleanup needed, c.f., https://github.com/python/cpython/blob/main/Include/cpython/pylifecycle.h).
-    // Field values referenced from: https://docs.python.org/3/c-api/subinterpreters.html
+    // Step 2: Configure the sub-interpreter (Plain C struct no cleanup needed, c.f.,
+    // https://github.com/python/cpython/blob/main/Include/cpython/pylifecycle.h). Field values referenced from:
+    // https://docs.python.org/3/c-api/subinterpreters.html
     PyInterpreterConfig config = {
-        .use_main_obmalloc = 0,              // separate allocator (required for OWN_GIL)
-        .allow_fork = 0,                     // fork from sub-interp is dangerous
-        .allow_exec = 0,                     // exec replaces process — not useful here
-        .allow_threads = 1,                  // needed for I/O in checks
-        .allow_daemon_threads = 0,           // daemon threads crash on shutdown
-        .check_multi_interp_extensions = 1,  // enforce Py_MOD_PER_INTERPRETER_GIL_SUPPORTED
-        .gil = PyInterpreterConfig_OWN_GIL,  // each check gets its own GIL
+        .use_main_obmalloc = 0, // separate allocator (required for OWN_GIL)
+        .allow_fork = 0, // fork from sub-interp is dangerous
+        .allow_exec = 0, // exec replaces process — not useful here
+        .allow_threads = 1, // needed for I/O in checks
+        .allow_daemon_threads = 0, // daemon threads crash on shutdown
+        .check_multi_interp_extensions = 1, // enforce Py_MOD_PER_INTERPRETER_GIL_SUPPORTED
+        .gil = PyInterpreterConfig_OWN_GIL, // each check gets its own GIL
     };
 
-    // Step 3: Create the sub-interpreter (https://docs.python.org/3/c-api/subinterpreters.html#c.Py_NewInterpreterFromConfig)
-    // On success we're attached to the new interpreter. On failure tstate_new is NULL.
+    // Step 3: Create the sub-interpreter
+    // (https://docs.python.org/3/c-api/subinterpreters.html#c.Py_NewInterpreterFromConfig) On success we're attached to
+    // the new interpreter. On failure tstate_new is NULL.
     PyThreadState *tstate_new = NULL;
     PyStatus status = Py_NewInterpreterFromConfig(&tstate_new, &config);
 
     if (PyStatus_Exception(status) || tstate_new == NULL) {
-        setError("[SUB-INTERPRETERS][EXPERIMENTAL][_createSubInterpreter] failed to create sub-interpreter" + (status.err_msg ? ": " + std::string(status.err_msg) : ""));
+        setError("[SUB-INTERPRETERS][EXPERIMENTAL][_createSubInterpreter] failed to create sub-interpreter"
+                 + (status.err_msg ? ": " + std::string(status.err_msg) : ""));
 
         /*
-         * Python doc: "If creation of the new interpreter is unsuccessful, tstate_p is set to NULL; no exception is set since the exception state is stored in the attached thread state, which might not exist."
-         * We don't know if we're attached or detached.
-         * I'm guessing that this means that failure could happen:
+         * Python doc: "If creation of the new interpreter is unsuccessful, tstate_p is set to NULL; no exception is set
+         * since the exception state is stored in the attached thread state, which might not exist." We don't know if
+         * we're attached or detached. I'm guessing that this means that failure could happen:
          *   1. Failure before detach: still attached to main
          *   2. Failure after detach: thread left detached
-         * Guessing: but not sure. PyThreadState_Swap handles both: detaches old if attached, then attaches main. Safe regardless of which state we're actually in.
+         * Guessing: but not sure. PyThreadState_Swap handles both: detaches old if attached, then attaches main. Safe
+         * regardless of which state we're actually in.
          */
         PyThreadState_Swap(main_tstate);
         return NULL;
     }
 
-
-    // Step 4: Copy _pythonPaths (agent's Python package search paths, e.g., dist/, checks.d/ - see cmd/agent/common/common.go) into the sub-interpreter's sys.path.
+    // Step 4: Copy _pythonPaths (agent's Python package search paths, e.g., dist/, checks.d/ - see
+    // cmd/agent/common/common.go) into the sub-interpreter's sys.path.
     if (_pythonPaths.empty()) {
-        setError("[SUB-INTERPRETERS][EXPERIMENTAL][_createSubInterpreter] _pythonPaths is empty — no Python sys.path search paths were added "
+        setError("[SUB-INTERPRETERS][EXPERIMENTAL][_createSubInterpreter] _pythonPaths is empty — no Python sys.path "
+                 "search paths were added "
                  "(e.g., dist/, checks.d/, additional_checksd). Imports will likely fail.");
     } else {
         // https://docs.python.org/3/c-api/sys.html#c.PySys_GetObject
-        PyObject *path = PySys_GetObject("path");  // borrowed reference so no need to Py_DECREF after
+        PyObject *path = PySys_GetObject("path"); // borrowed reference so no need to Py_DECREF after
 
         if (path == NULL) {
-            setError("[SUB-INTERPRETERS][EXPERIMENTAL][_createSubInterpreter] could not access sys.path: " + _fetchPythonError());
+            setError("[SUB-INTERPRETERS][EXPERIMENTAL][_createSubInterpreter] could not access sys.path: "
+                     + _fetchPythonError());
             _destroySubInterpreter(tstate_new, main_tstate);
             return NULL;
         }
 
         // Insert at index 0 so agent paths take priority over site-packages (Python searches sys.path front-to-back).
-        // e.g., if datadog_checks is also pip-installed in site-packages, front-insertion ensures the agent's bundled version wins.
-        // Reverse iteration so the final order in sys.path matches _pythonPaths.
+        // e.g., if datadog_checks is also pip-installed in site-packages, front-insertion ensures the agent's bundled
+        // version wins. Reverse iteration so the final order in sys.path matches _pythonPaths.
         for (int i = (int)_pythonPaths.size() - 1; i >= 0; --i) {
             // Fresh string needed - objects can't be shared across interpreters (use_main_obmalloc = 0).
             PyObject *p = PyUnicode_FromString(_pythonPaths[i].c_str());
             if (p == NULL) { // OOM
-                setError("[SUB-INTERPRETERS][EXPERIMENTAL][_createSubInterpreter] could not create path string: " + _fetchPythonError());
+                setError("[SUB-INTERPRETERS][EXPERIMENTAL][_createSubInterpreter] could not create path string: "
+                         + _fetchPythonError());
                 _destroySubInterpreter(tstate_new, main_tstate);
                 return NULL;
             }
             int rc = PyList_Insert(path, 0, p);
-            // PyList_Insert creates its own reference to p, so we must release ours. Even in case of failure, good practice to clean up before _destroySubInterpreter.
-            // https://docs.python.org/3/c-api/list.html#c.PyList_Insert --> C API that steals references are explicitly called out (e.g., PyList_SET_ITEM), not the case for PyList_Insert.
+            // PyList_Insert creates its own reference to p, so we must release ours. Even in case of failure, good
+            // practice to clean up before _destroySubInterpreter.
+            // https://docs.python.org/3/c-api/list.html#c.PyList_Insert --> C API that steals references are explicitly
+            // called out (e.g., PyList_SET_ITEM), not the case for PyList_Insert.
             Py_DECREF(p);
             if (rc == -1) {
                 setError("[SUB-INTERPRETERS][EXPERIMENTAL][_createSubInterpreter] could not insert into sys.path: "
@@ -148,11 +157,13 @@ PyThreadState *Three::_createSubInterpreter()
 
     // Step 4b: Copy module attributes set by Go via setModuleAttrString() into this sub-interpreter.
     // Each sub-interpreter has its own sys.modules, so its copies of modules start without these attributes.
-    // Currently the only production caller is SetPythonPsutilProcPath (pkg/collector/python/helpers.go) which sets psutil.PROCFS_PATH.
+    // Currently the only production caller is SetPythonPsutilProcPath (pkg/collector/python/helpers.go) which sets
+    // psutil.PROCFS_PATH.
     _copyModuleAttrs();
 
     // Step 5: Detach from sub-interpreter and re-attach to main.
-    // tstate_new remains valid but detached. getCheck stores it in _checkToInterp; later, runCheck/cancelCheck/decref/etc. use it to Swap into the sub-interpreter.
+    // tstate_new remains valid but detached. getCheck stores it in _checkToInterp; later,
+    // runCheck/cancelCheck/decref/etc. use it to Swap into the sub-interpreter.
     PyThreadState_Swap(main_tstate);
 
     return tstate_new;
@@ -164,7 +175,8 @@ PyThreadState *Three::_createSubInterpreter()
  * Destroys a sub-interpreter and re-attaches to the given interpreter.
  *
  * PRECONDITION: Caller must be attached to the sub-interpreter.
- * This is a requirement of Py_EndInterpreter (no attached thread state on return: https://docs.python.org/3.12/c-api/init.html#c.Py_EndInterpreter)
+ * This is a requirement of Py_EndInterpreter (no attached thread state on return:
+ * https://docs.python.org/3.12/c-api/init.html#c.Py_EndInterpreter)
  *
  * After this function returns, the caller is attached to restore_tstate.
  *
@@ -181,7 +193,8 @@ void Three::_destroySubInterpreter(PyThreadState *tstate, PyThreadState *restore
 
     {
         std::ostringstream msg;
-        msg << "[SUB-INTERPRETERS][EXPERIMENTAL][_destroySubInterpreter] destroying sub-interpreter (tstate=" << tstate << ")";
+        msg << "[SUB-INTERPRETERS][EXPERIMENTAL][_destroySubInterpreter] destroying sub-interpreter (tstate=" << tstate
+            << ")";
         agent_log(DATADOG_AGENT_INFO, const_cast<char *>(msg.str().c_str()));
     }
 
@@ -260,9 +273,9 @@ PyThreadState *Three::_assignInterpreter(const char *module_name)
         for (const auto &blocked : _subinterpBlocklist) {
             if (mod.find(blocked) != std::string::npos) {
                 std::string msg = "[SUB-INTERPRETERS][EXPERIMENTAL][_assignInterpreter] check '" + mod
-                                + "' is blocklisted - running in main interpreter";
+                    + "' is blocklisted - running in main interpreter";
                 agent_log(DATADOG_AGENT_INFO, const_cast<char *>(msg.c_str()));
-                return NULL;  // NULL signals getCheck to use the main interpreter.
+                return NULL; // NULL signals getCheck to use the main interpreter.
             }
         }
     }

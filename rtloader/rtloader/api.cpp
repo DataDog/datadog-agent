@@ -306,6 +306,10 @@ int has_subinterpreter_support(const rtloader_t *rtloader)
 {
     // compile-time check; rtloader unused, kept for API consistency
     (void)rtloader;
+    // Hardcoded for experimental sub-interpreter branch — bypasses the
+    // #ifdef to confirm the log path fires regardless of define state.
+    // Revert to #ifdef once BUILD.bazel define propagation is verified.
+    return 1;
 #ifdef RTLOADER_HAS_SUBINTERPRETERS
     return 1;
 #else

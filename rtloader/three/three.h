@@ -134,7 +134,6 @@ public:
     void setIsExcludedCb(cb_is_excluded_t);
 
 private:
-
 #ifdef RTLOADER_HAS_SUBINTERPRETERS
     /*
      * Sub-interpreter support (Python 3.14+)
