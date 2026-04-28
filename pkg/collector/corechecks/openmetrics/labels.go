@@ -149,6 +149,7 @@ func (a *labelAggregator) collect(metric parsedMetric, config shareLabelConfig) 
 			}
 			matchLabels := map[string]string{}
 			sharedLabels := map[string]string{}
+			matchedAllLabels := true
 			for label, value := range sample.Labels {
 				if _, ok := config.match[label]; ok {
 					matchLabels[label] = value
@@ -158,6 +159,15 @@ func (a *labelAggregator) collect(metric parsedMetric, config shareLabelConfig) 
 				} else if _, ok := config.labels[label]; ok {
 					sharedLabels[label] = value
 				}
+			}
+			for label := range config.match {
+				if _, ok := sample.Labels[label]; !ok {
+					matchedAllLabels = false
+					break
+				}
+			}
+			if !matchedAllLabels {
+				continue
 			}
 			a.labelSets = append(a.labelSets, sharedLabelSet{matchLabels: matchLabels, sharedLabels: sharedLabels})
 		}

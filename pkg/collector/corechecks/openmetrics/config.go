@@ -85,7 +85,7 @@ type instanceConfig struct {
 	ExtraHeaders               map[string]string      `yaml:"extra_headers,omitempty"`
 	Username                   string                 `yaml:"username,omitempty"`
 	Password                   string                 `yaml:"password,omitempty"`
-	BearerTokenAuth            bool                   `yaml:"bearer_token_auth,omitempty"`
+	BearerTokenAuth            interface{}            `yaml:"bearer_token_auth,omitempty"`
 	BearerTokenPath            string                 `yaml:"bearer_token_path,omitempty"`
 	BearerTokenRefreshInterval int                    `yaml:"bearer_token_refresh_interval,omitempty"`
 	Proxy                      map[string]interface{} `yaml:"proxy,omitempty"`
@@ -120,9 +120,10 @@ type instanceConfig struct {
 }
 
 type scraperConfig struct {
-	mode      openmetricsMode
-	endpoint  string
-	namespace string
+	mode         openmetricsMode
+	endpoint     string
+	namespace    string
+	namespaceSet bool
 
 	rawMetricPrefix string
 	metrics         []interface{}
@@ -210,6 +211,7 @@ func parseConfig(raw []byte) (*scraperConfig, error) {
 	if err != nil {
 		return nil, err
 	}
+	shareLabels = mergeShareLabels(shareLabels, labelJoinsToShareLabels(instance.LabelJoins))
 	authToken, err := parseAuthToken(instance.AuthToken)
 	if err != nil {
 		return nil, err
@@ -226,11 +228,16 @@ func parseConfig(raw []byte) (*scraperConfig, error) {
 		mode = legacyMode
 		endpoint = instance.PrometheusURL
 	}
+	bearerTokenAuth, err := parseBearerTokenAuth(instance.BearerTokenAuth, endpoint)
+	if err != nil {
+		return nil, err
+	}
 
 	cfg := &scraperConfig{
 		mode:                              mode,
 		endpoint:                          endpoint,
 		namespace:                         instance.Namespace,
+		namespaceSet:                      hasRawKey(rawConfig, "namespace"),
 		rawMetricPrefix:                   instance.RawPrefix,
 		metrics:                           instance.Metrics,
 		extraMetrics:                      instance.ExtraMetrics,
@@ -271,7 +278,7 @@ func parseConfig(raw []byte) (*scraperConfig, error) {
 		headers:                           mergeHeaders(instance.Headers, instance.ExtraHeaders),
 		username:                          instance.Username,
 		password:                          instance.Password,
-		bearerTokenAuth:                   instance.BearerTokenAuth,
+		bearerTokenAuth:                   bearerTokenAuth,
 		bearerTokenPath:                   instance.BearerTokenPath,
 		tlsVerify:                         boolDefaultPtr(instance.TLSVerify, true),
 		tlsCert:                           instance.TLSCert,
@@ -319,7 +326,7 @@ func (c *scraperConfig) validateLatest() error {
 	if c.endpoint == "" {
 		return errors.New("the setting `openmetrics_endpoint` is required")
 	}
-	if c.namespace == "" {
+	if c.namespace == "" && !c.namespaceSet {
 		c.namespace = "openmetrics"
 	}
 	return validateCommon(c)
@@ -329,7 +336,7 @@ func (c *scraperConfig) applyLegacyCompatibility(instance *instanceConfig) error
 	if c.endpoint == "" {
 		return errors.New("unable to find prometheus URL in config file")
 	}
-	if c.namespace == "" {
+	if c.namespace == "" && !c.namespaceSet {
 		c.namespace = "openmetrics"
 	}
 
@@ -347,7 +354,10 @@ func (c *scraperConfig) applyLegacyCompatibility(instance *instanceConfig) error
 	c.healthServiceCheckName = "prometheus.health"
 	c.excludeMetrics = globListToRegex(instance.IgnoreMetrics)
 	c.excludeMetricsByLabels = legacyExcludeByLabels(instance.IgnoreMetricsByLabels)
-	c.shareLabels = legacyShareLabels(instance.LabelJoins)
+	c.shareLabels = labelJoinsToShareLabels(instance.LabelJoins)
+	if instance.CacheSharedLabels == nil && len(instance.LabelJoins) > 0 {
+		c.cacheSharedLabels = false
+	}
 	c.collectHistogramBuckets = boolDefaultPtr(instance.SendHistogramBuckets, true)
 	c.nonCumulativeHistogramBuckets = boolDefaultPtr(instance.NonCumulativeBuckets, false)
 	c.histogramBucketsAsDistributions = instance.DistributionBuckets
@@ -370,7 +380,11 @@ func (c *scraperConfig) applyLegacyCompatibility(instance *instanceConfig) error
 		})
 	}
 	c.extraMetrics = nil
-	c.bearerTokenAuth = instance.BearerTokenAuth
+	bearerTokenAuth, err := parseBearerTokenAuth(instance.BearerTokenAuth, c.endpoint)
+	if err != nil {
+		return err
+	}
+	c.bearerTokenAuth = bearerTokenAuth
 	c.bearerTokenPath = instance.BearerTokenPath
 	c.tlsUseHostHeader = instance.TLSUseHostHeader
 	c.tlsProtocolsAllowed = append([]string(nil), instance.TLSProtocolsAllowed...)
@@ -947,6 +961,28 @@ func rawAffirmative(value interface{}) bool {
 	}
 }
 
+func parseBearerTokenAuth(raw interface{}, endpoint string) (bool, error) {
+	switch value := raw.(type) {
+	case nil:
+		return false, nil
+	case bool:
+		return value, nil
+	case string:
+		switch strings.ToLower(value) {
+		case "tls_only":
+			return strings.HasPrefix(strings.ToLower(endpoint), "https://"), nil
+		case "true", "yes", "1", "y", "on":
+			return true, nil
+		case "false", "no", "0", "n", "off", "":
+			return false, nil
+		default:
+			return false, fmt.Errorf("setting `bearer_token_auth` must be a boolean or `tls_only`, got `%s`", value)
+		}
+	default:
+		return false, errors.New("setting `bearer_token_auth` must be a boolean or `tls_only`")
+	}
+}
+
 func parseShareLabels(in map[string]interface{}) (map[string]types.ShareLabelsConfig, error) {
 	if len(in) == 0 {
 		return nil, nil
@@ -986,7 +1022,20 @@ func parseShareLabels(in map[string]interface{}) (map[string]types.ShareLabelsCo
 	return out, nil
 }
 
-func legacyShareLabels(in map[string]interface{}) map[string]types.ShareLabelsConfig {
+func mergeShareLabels(base, extra map[string]types.ShareLabelsConfig) map[string]types.ShareLabelsConfig {
+	if len(extra) == 0 {
+		return base
+	}
+	if base == nil {
+		base = map[string]types.ShareLabelsConfig{}
+	}
+	for metric, config := range extra {
+		base[metric] = config
+	}
+	return base
+}
+
+func labelJoinsToShareLabels(in map[string]interface{}) map[string]types.ShareLabelsConfig {
 	if len(in) == 0 {
 		return nil
 	}
@@ -997,12 +1046,32 @@ func legacyShareLabels(in map[string]interface{}) map[string]types.ShareLabelsCo
 			continue
 		}
 		out[metric] = types.ShareLabelsConfig{
-			Match:  interfaceSliceToStrings(config["labels_to_match"]),
-			Labels: interfaceSliceToStrings(config["labels_to_get"]),
+			Match:  labelJoinMatchLabels(config),
+			Labels: labelJoinLabelsToGet(config["labels_to_get"]),
 			Values: []string{"1"},
 		}
 	}
 	return out
+}
+
+func labelJoinMatchLabels(config map[string]interface{}) []string {
+	rawLabels, ok := config["labels_to_match"]
+	if !ok {
+		rawLabels = config["label_to_match"]
+	}
+	labels := interfaceToStrings(rawLabels)
+	if stringSliceContains(labels, "*") {
+		return nil
+	}
+	return labels
+}
+
+func labelJoinLabelsToGet(raw interface{}) []string {
+	labels := interfaceToStrings(raw)
+	if stringSliceContains(labels, "*") {
+		return nil
+	}
+	return labels
 }
 
 func legacyMetrics(metrics []interface{}, overrides map[string]string) []interface{} {
@@ -1069,7 +1138,17 @@ func hasGlob(metric string) bool {
 }
 
 func interfaceSliceToStrings(value interface{}) []string {
+	values := interfaceToStrings(value)
+	if len(values) == 0 {
+		return nil
+	}
+	return values
+}
+
+func interfaceToStrings(value interface{}) []string {
 	switch values := value.(type) {
+	case string:
+		return []string{values}
 	case []string:
 		return append([]string(nil), values...)
 	case []interface{}:

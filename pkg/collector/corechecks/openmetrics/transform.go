@@ -366,7 +366,7 @@ func (t *metricTransformer) submitHistogram(metricName string) transformerFunc {
 
 func (t *metricTransformer) legacy(metricName string, config map[string]interface{}) transformerFunc {
 	override, _ := config["legacy_type_override"].(string)
-	return func(metric parsedMetric, samples []sampleDatum, _ runtimeData, sender sender.Sender) {
+	return func(metric parsedMetric, samples []sampleDatum, runtime runtimeData, sender sender.Sender) {
 		metricType := metric.Type
 		if override != "" {
 			metricType = override
@@ -375,18 +375,18 @@ func (t *metricTransformer) legacy(metricName string, config map[string]interfac
 		case "counter":
 			for _, sample := range samples {
 				if t.cfg.sendMonotonicCounter {
-					sender.MonotonicCount(metricName, sample.sample.Value, sample.hostname, sample.tags)
+					sender.MonotonicCountWithFlushFirstValue(metricName, sample.sample.Value, sample.hostname, sample.tags, runtime.flushFirstValue)
 				} else {
 					sender.Gauge(metricName, sample.sample.Value, sample.hostname, sample.tags)
 					if t.cfg.sendMonotonicWithGauge {
-						sender.MonotonicCount(metricName+".total", sample.sample.Value, sample.hostname, sample.tags)
+						sender.MonotonicCountWithFlushFirstValue(metricName+".total", sample.sample.Value, sample.hostname, sample.tags, runtime.flushFirstValue)
 					}
 				}
 			}
 		case "histogram":
-			t.legacyHistogram(metricName, samples, sender)
+			t.legacyHistogram(metricName, samples, runtime, sender)
 		case "summary":
-			t.legacySummary(metricName, samples, sender)
+			t.legacySummary(metricName, samples, runtime, sender)
 		case "gauge":
 			for _, sample := range samples {
 				sender.Gauge(metricName, sample.sample.Value, sample.hostname, sample.tags)
@@ -395,45 +395,58 @@ func (t *metricTransformer) legacy(metricName string, config map[string]interfac
 	}
 }
 
-func (t *metricTransformer) legacyHistogram(metricName string, samples []sampleDatum, sender sender.Sender) {
+func (t *metricTransformer) legacyHistogram(metricName string, samples []sampleDatum, runtime runtimeData, sender sender.Sender) {
+	if t.cfg.sendDistributionBuckets {
+		for _, sample := range decumulateHistogramBuckets(samples) {
+			if !strings.HasSuffix(sample.sample.Name, "_bucket") {
+				continue
+			}
+			lowerBound, lowerErr := strconv.ParseFloat(sample.sample.Labels["lower_bound"], 64)
+			upperBound, upperErr := strconv.ParseFloat(sample.sample.Labels["upper_bound"], 64)
+			if lowerErr != nil || upperErr != nil || lowerBound == upperBound || math.IsInf(upperBound, 1) {
+				continue
+			}
+			sender.HistogramBucket(metricName, int64(sample.sample.Value), lowerBound, upperBound, true, sample.hostname, sample.tags, runtime.flushFirstValue)
+		}
+		return
+	}
+
 	for _, sample := range samples {
 		switch {
 		case strings.HasSuffix(sample.sample.Name, "_sum") && !t.cfg.sendDistributionBuckets:
-			t.sendLegacyDistributionCount(metricName+".sum", sample, t.cfg.sendDistributionSumsAsMonotonic, sender)
+			t.sendLegacyDistributionCount(metricName+".sum", sample, t.cfg.sendDistributionSumsAsMonotonic, runtime, sender)
 		case strings.HasSuffix(sample.sample.Name, "_count") && !t.cfg.sendDistributionBuckets:
 			if t.cfg.sendHistogramBuckets {
 				sample.tags = append(copyStringSlice(sample.tags), "upper_bound:none")
 			}
-			t.sendLegacyDistributionCount(metricName+".count", sample, t.cfg.sendDistributionCountsAsMonotonic, sender)
+			t.sendLegacyDistributionCount(metricName+".count", sample, t.cfg.sendDistributionCountsAsMonotonic, runtime, sender)
 		case strings.HasSuffix(sample.sample.Name, "_bucket") && t.cfg.sendHistogramBuckets && !strings.Contains(sample.sample.Labels["upper_bound"], "Inf") && !strings.Contains(sample.sample.Labels["upper_bound"], "inf"):
-			if !t.cfg.sendDistributionBuckets {
-				t.sendLegacyDistributionCount(metricName+".count", sample, t.cfg.sendDistributionCountsAsMonotonic, sender)
-			}
+			t.sendLegacyDistributionCount(metricName+".count", sample, t.cfg.sendDistributionCountsAsMonotonic, runtime, sender)
 		}
 	}
 }
 
-func (t *metricTransformer) legacySummary(metricName string, samples []sampleDatum, sender sender.Sender) {
+func (t *metricTransformer) legacySummary(metricName string, samples []sampleDatum, runtime runtimeData, sender sender.Sender) {
 	for _, sample := range samples {
 		switch {
 		case strings.HasSuffix(sample.sample.Name, "_sum"):
-			t.sendLegacyDistributionCount(metricName+".sum", sample, t.cfg.sendDistributionSumsAsMonotonic, sender)
+			t.sendLegacyDistributionCount(metricName+".sum", sample, t.cfg.sendDistributionSumsAsMonotonic, runtime, sender)
 		case strings.HasSuffix(sample.sample.Name, "_count"):
-			t.sendLegacyDistributionCount(metricName+".count", sample, t.cfg.sendDistributionCountsAsMonotonic, sender)
+			t.sendLegacyDistributionCount(metricName+".count", sample, t.cfg.sendDistributionCountsAsMonotonic, runtime, sender)
 		default:
 			sender.Gauge(metricName+".quantile", sample.sample.Value, sample.hostname, sample.tags)
 		}
 	}
 }
 
-func (t *metricTransformer) sendLegacyDistributionCount(metricName string, sample sampleDatum, monotonic bool, sender sender.Sender) {
+func (t *metricTransformer) sendLegacyDistributionCount(metricName string, sample sampleDatum, monotonic bool, runtime runtimeData, sender sender.Sender) {
 	if monotonic {
-		sender.MonotonicCount(metricName, sample.sample.Value, sample.hostname, sample.tags)
+		sender.MonotonicCountWithFlushFirstValue(metricName, sample.sample.Value, sample.hostname, sample.tags, runtime.flushFirstValue)
 		return
 	}
 	sender.Gauge(metricName, sample.sample.Value, sample.hostname, sample.tags)
 	if t.cfg.sendMonotonicWithGauge {
-		sender.MonotonicCount(metricName+".total", sample.sample.Value, sample.hostname, sample.tags)
+		sender.MonotonicCountWithFlushFirstValue(metricName+".total", sample.sample.Value, sample.hostname, sample.tags, runtime.flushFirstValue)
 	}
 }
 
