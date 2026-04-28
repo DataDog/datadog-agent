@@ -1,0 +1,383 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+package openmetrics
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"sort"
+	"strings"
+	"testing"
+
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
+	"github.com/DataDog/datadog-agent/pkg/serializer/types"
+)
+
+func BenchmarkOpenMetricsUpstreamFixtures(b *testing.B) {
+	fixtures := benchmarkOpenMetricsFixtures(b)
+	amazonMSK := benchmarkAmazonMSKConfig(b, fixtures.benchUtils)
+
+	benchmarks := []struct {
+		name     string
+		instance string
+		payload  string
+	}{
+		{
+			name: "legacy_ksm_wildcard",
+			instance: `
+prometheus_url: %%endpoint%%
+namespace: bar
+metrics:
+  - "*"
+`,
+			payload: fixtures.ksm,
+		},
+		{
+			name:     "legacy_amazon_msk_jmx",
+			instance: benchmarkLegacyAmazonMSKInstance(amazonMSK),
+			payload:  fixtures.amazonMSKJMX,
+		},
+		{
+			name: "legacy_ksm_label_joins",
+			instance: `
+prometheus_url: %%endpoint%%
+namespace: bar
+label_to_hostname: node
+metrics:
+  - "*"
+label_joins:
+  kube_pod_info:
+    labels_to_match:
+      - pod
+      - namespace
+    labels_to_get:
+      - node
+  "1":
+    labels_to_match: [pod, namespace]
+    labels_to_get: [node]
+  "2":
+    labels_to_match: [pod, namespace]
+    labels_to_get: [node]
+  "3":
+    labels_to_match: [pod, namespace]
+    labels_to_get: [node]
+  "4":
+    labels_to_match: [pod, namespace]
+    labels_to_get: [node]
+  "5":
+    labels_to_match: [pod, namespace]
+    labels_to_get: [node]
+  "6":
+    labels_to_match: [pod, namespace]
+    labels_to_get: [node]
+  "7":
+    labels_to_match: [pod, namespace]
+    labels_to_get: [node]
+  "8":
+    labels_to_match: [pod, namespace]
+    labels_to_get: [node]
+  "9":
+    labels_to_match: [pod, namespace]
+    labels_to_get: [node]
+`,
+			payload: fixtures.ksm,
+		},
+		{
+			name: "v2_ksm_wildcard",
+			instance: `
+openmetrics_endpoint: %%endpoint%%
+namespace: bar
+metrics:
+  - ".+"
+`,
+			payload: fixtures.ksm,
+		},
+		{
+			name:     "v2_amazon_msk_jmx",
+			instance: benchmarkV2AmazonMSKInstance(amazonMSK),
+			payload:  fixtures.amazonMSKJMX,
+		},
+		{
+			name: "v2_ksm_label_joins",
+			instance: `
+openmetrics_endpoint: %%endpoint%%
+namespace: bar
+hostname_label: node
+metrics:
+  - ".+"
+share_labels:
+  kube_pod_info:
+    match:
+      - pod
+      - namespace
+    labels:
+      - node
+    values:
+      - 1
+  "1":
+    match: [pod, namespace]
+    labels: [node]
+    values: [1]
+  "2":
+    match: [pod, namespace]
+    labels: [node]
+    values: [1]
+  "3":
+    match: [pod, namespace]
+    labels: [node]
+    values: [1]
+  "4":
+    match: [pod, namespace]
+    labels: [node]
+    values: [1]
+  "5":
+    match: [pod, namespace]
+    labels: [node]
+    values: [1]
+  "6":
+    match: [pod, namespace]
+    labels: [node]
+    values: [1]
+  "7":
+    match: [pod, namespace]
+    labels: [node]
+    values: [1]
+  "8":
+    match: [pod, namespace]
+    labels: [node]
+    values: [1]
+  "9":
+    match: [pod, namespace]
+    labels: [node]
+    values: [1]
+`,
+			payload: fixtures.ksm,
+		},
+	}
+
+	for _, benchmark := range benchmarks {
+		b.Run(benchmark.name, func(b *testing.B) {
+			benchmarkOpenMetricsRun(b, benchmark.instance, benchmark.payload)
+		})
+	}
+}
+
+type benchmarkFixtures struct {
+	ksm          string
+	amazonMSKJMX string
+	benchUtils   string
+}
+
+func benchmarkOpenMetricsFixtures(b *testing.B) benchmarkFixtures {
+	b.Helper()
+
+	root := benchmarkIntegrationsCoreRoot(b)
+	return benchmarkFixtures{
+		ksm:          benchmarkReadFixture(b, root, "datadog_checks_base/tests/fixtures/prometheus/ksm.txt"),
+		amazonMSKJMX: benchmarkReadFixture(b, root, "datadog_checks_base/tests/fixtures/prometheus/amazon_msk_jmx_metrics.txt"),
+		benchUtils:   filepath.Join(root, "datadog_checks_base/tests/base/checks/openmetrics/bench_utils.py"),
+	}
+}
+
+func benchmarkIntegrationsCoreRoot(b *testing.B) string {
+	b.Helper()
+
+	if root := os.Getenv("OPENMETRICS_BENCH_INTEGRATIONS_CORE"); root != "" {
+		if _, err := os.Stat(root); err != nil {
+			b.Skipf("OPENMETRICS_BENCH_INTEGRATIONS_CORE=%s is not readable: %v", root, err)
+		}
+		return root
+	}
+
+	dir, err := os.Getwd()
+	if err != nil {
+		b.Fatal(err)
+	}
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			candidate := filepath.Join(filepath.Dir(dir), "integrations-core")
+			if _, err := os.Stat(candidate); err == nil {
+				return candidate
+			}
+			b.Skipf("integrations-core checkout not found next to %s; set OPENMETRICS_BENCH_INTEGRATIONS_CORE", dir)
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			b.Skip("datadog-agent repository root not found")
+		}
+		dir = parent
+	}
+}
+
+func benchmarkReadFixture(b *testing.B, root string, relPath string) string {
+	b.Helper()
+
+	payload, err := os.ReadFile(filepath.Join(root, relPath))
+	if err != nil {
+		b.Fatalf("read %s: %v", relPath, err)
+	}
+	return string(payload)
+}
+
+type benchmarkAmazonMSKData struct {
+	Metrics   map[string]string `json:"metrics"`
+	Overrides map[string]string `json:"overrides"`
+}
+
+func benchmarkAmazonMSKConfig(b *testing.B, benchUtils string) benchmarkAmazonMSKData {
+	b.Helper()
+
+	script := `import importlib.util, json, sys
+spec = importlib.util.spec_from_file_location("bench_utils", sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+print(json.dumps({
+    "metrics": module.AMAZON_MSK_JMX_METRICS_MAP,
+    "overrides": module.AMAZON_MSK_JMX_METRICS_OVERRIDES,
+}, sort_keys=True))
+`
+	output, err := exec.Command("python3", "-c", script, benchUtils).Output()
+	if err != nil {
+		b.Skipf("python3 could not load %s: %v", benchUtils, err)
+	}
+
+	var data benchmarkAmazonMSKData
+	if err := json.Unmarshal(output, &data); err != nil {
+		b.Fatalf("parse Amazon MSK benchmark config: %v", err)
+	}
+	return data
+}
+
+func benchmarkLegacyAmazonMSKInstance(data benchmarkAmazonMSKData) string {
+	var builder strings.Builder
+	builder.WriteString("prometheus_url: %%endpoint%%\nnamespace: bar\nmetrics:\n")
+	for _, rawName := range sortedMapKeys(data.Metrics) {
+		fmt.Fprintf(&builder, "  - %s: %s\n", rawName, data.Metrics[rawName])
+	}
+	builder.WriteString("type_overrides:\n")
+	for _, rawName := range sortedMapKeys(data.Overrides) {
+		fmt.Fprintf(&builder, "  %s: %s\n", rawName, data.Overrides[rawName])
+	}
+	return builder.String()
+}
+
+func benchmarkV2AmazonMSKInstance(data benchmarkAmazonMSKData) string {
+	var builder strings.Builder
+	builder.WriteString("openmetrics_endpoint: %%endpoint%%\nnamespace: bar\nmetrics:\n")
+	for _, rawName := range sortedMapKeys(data.Metrics) {
+		fmt.Fprintf(&builder, "  - %s:\n      name: %s\n", rawName, data.Metrics[rawName])
+		if override, ok := data.Overrides[rawName]; ok {
+			fmt.Fprintf(&builder, "      type: %s\n", override)
+		}
+	}
+	return builder.String()
+}
+
+func sortedMapKeys[V any](data map[string]V) []string {
+	keys := make([]string, 0, len(data))
+	for key := range data {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func benchmarkOpenMetricsRun(b *testing.B, instance string, payload string) {
+	b.Helper()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+		_, _ = w.Write([]byte(payload))
+	}))
+	b.Cleanup(server.Close)
+
+	cfg := configmock.New(b)
+	cfg.Set("openmetrics.use_core_loader", true, configmodel.SourceAgentRuntime)
+
+	omCheck := newCheck().(*Check)
+	instance = strings.ReplaceAll(instance, "%%endpoint%%", server.URL)
+	senderManager := &benchmarkSenderManager{sender: benchmarkSender{}}
+	if err := omCheck.Configure(senderManager, integration.FakeConfigHash, integration.Data([]byte(instance)), nil, "benchmark", "provider"); err != nil {
+		b.Fatal(err)
+	}
+	if err := omCheck.Run(); err != nil {
+		b.Fatal(err)
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if err := omCheck.Run(); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+type benchmarkSenderManager struct {
+	sender benchmarkSender
+}
+
+func (m *benchmarkSenderManager) GetSender(checkid.ID) (sender.Sender, error) {
+	return m.sender, nil
+}
+
+func (m *benchmarkSenderManager) SetSender(sender.Sender, checkid.ID) error {
+	return nil
+}
+
+func (m *benchmarkSenderManager) DestroySender(checkid.ID) {}
+
+func (m *benchmarkSenderManager) GetDefaultSender() (sender.Sender, error) {
+	return m.sender, nil
+}
+
+type benchmarkSender struct{}
+
+func (benchmarkSender) Commit()                                                                   {}
+func (benchmarkSender) Gauge(string, float64, string, []string)                                   {}
+func (benchmarkSender) GaugeNoIndex(string, float64, string, []string)                            {}
+func (benchmarkSender) Rate(string, float64, string, []string)                                    {}
+func (benchmarkSender) Count(string, float64, string, []string)                                   {}
+func (benchmarkSender) MonotonicCount(string, float64, string, []string)                          {}
+func (benchmarkSender) MonotonicCountWithFlushFirstValue(string, float64, string, []string, bool) {}
+func (benchmarkSender) Counter(string, float64, string, []string)                                 {}
+func (benchmarkSender) Histogram(string, float64, string, []string)                               {}
+func (benchmarkSender) Historate(string, float64, string, []string)                               {}
+func (benchmarkSender) Distribution(string, float64, string, []string)                            {}
+func (benchmarkSender) ServiceCheck(string, servicecheck.ServiceCheckStatus, string, []string, string) {
+}
+func (benchmarkSender) HistogramBucket(string, int64, float64, float64, bool, string, []string, bool) {
+}
+func (benchmarkSender) OpenmetricsBucket(string, int64, float64, float64, bool, string, []string, bool) {
+}
+func (benchmarkSender) GaugeWithTimestamp(string, float64, string, []string, float64) error {
+	return nil
+}
+func (benchmarkSender) CountWithTimestamp(string, float64, string, []string, float64) error {
+	return nil
+}
+func (benchmarkSender) Event(event.Event)                                            {}
+func (benchmarkSender) EventPlatformEvent([]byte, string)                            {}
+func (benchmarkSender) GetSenderStats() stats.SenderStats                            { return stats.SenderStats{} }
+func (benchmarkSender) DisableDefaultHostname(bool)                                  {}
+func (benchmarkSender) SetCheckCustomTags([]string)                                  {}
+func (benchmarkSender) SetCheckService(string)                                       {}
+func (benchmarkSender) SetNoIndex(bool)                                              {}
+func (benchmarkSender) FinalizeCheckServiceTag()                                     {}
+func (benchmarkSender) OrchestratorMetadata([]types.ProcessMessageBody, string, int) {}
+func (benchmarkSender) OrchestratorManifest([]types.ProcessMessageBody, string)      {}

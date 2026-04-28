@@ -271,7 +271,7 @@ func TestUpstreamOpenMetricsPythonTestMigration(t *testing.T) {
 func upstreamOpenMetricsMigrationStatus(id string) (string, string) {
 	switch {
 	case strings.Contains(id, "/test_bench.py::"):
-		return "skip", "benchmark-only upstream test; no Go benchmark migration in this core-check unit suite yet"
+		return "skip", "benchmark-only upstream test; covered by BenchmarkOpenMetricsUpstreamFixtures, not by the unit parity ledger"
 	case strings.Contains(id, "/test_v2/scraper/"):
 		return "skip", "Python scraper internal test seam; Go port validates behavior through scrape-level tests instead"
 	case strings.Contains(id, "test_openmetrics_base_check.py::TestSignature::"):
