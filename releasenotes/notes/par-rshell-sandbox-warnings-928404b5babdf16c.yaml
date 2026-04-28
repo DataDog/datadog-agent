@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    Private Action Runner ``runCommand`` action no longer leaks
+    ``AllowedPaths`` skip diagnostics into the action's ``stderr`` field
+    when a configured path is missing on the host (e.g. a Unix-shaped
+    path on Windows). Diagnostics are now surfaced in a new
+    ``sandboxWarnings`` output field, leaving ``stderr`` reserved for
+    actual command output.
