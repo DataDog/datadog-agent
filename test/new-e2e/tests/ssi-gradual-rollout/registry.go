@@ -292,7 +292,7 @@ func deployMockRegistry(e config.Env, kubeProvider *kubernetes.Provider) error {
 					Containers: corev1.ContainerArray{
 						&corev1.ContainerArgs{
 							Name:    pulumi.String(mockRegistryName),
-							Image:   pulumi.String("python:3-slim"),
+							Image:   pulumi.String("public.ecr.aws/docker/library/python:3-slim"),
 							Command: pulumi.StringArray{pulumi.String("python"), pulumi.String("/scripts/server.py")},
 							Env: corev1.EnvVarArray{
 								&corev1.EnvVarArgs{
