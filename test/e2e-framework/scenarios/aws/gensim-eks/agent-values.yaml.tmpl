@@ -55,6 +55,47 @@ agents:
     tag: {{.ImageTag}}
     doNotCheckTag: true
     pullPolicy: Always
+{{- if not .LogsEnabled}}
+  # When the legacy logs agent is OFF (logs_enabled=false), the chart does not
+  # auto-mount /var/log/pods or /var/log/containers — but the observer
+  # logssource component still needs them so the file launcher can tail
+  # container stdout/stderr. /etc/machine-id is required by sd_journal, and
+  # the journal paths are needed by the kubelet journald source.
+  # When the legacy logs agent is ON, the chart adds these mounts itself
+  # (with the same names), so adding them here would duplicate-collide.
+  volumes:
+    - name: logpodpath
+      hostPath:
+        path: /var/log/pods
+    - name: logcontainerpath
+      hostPath:
+        path: /var/log/containers
+    - name: hostmachineid
+      hostPath:
+        path: /etc/machine-id
+    - name: host-var-log-journal
+      hostPath:
+        path: /var/log/journal
+    - name: host-run-log-journal
+      hostPath:
+        path: /run/log/journal
+  volumeMounts:
+    - name: logpodpath
+      mountPath: /var/log/pods
+      readOnly: true
+    - name: logcontainerpath
+      mountPath: /var/log/containers
+      readOnly: true
+    - name: hostmachineid
+      mountPath: /etc/machine-id
+      readOnly: true
+    - name: host-var-log-journal
+      mountPath: /var/log/journal
+      readOnly: true
+    - name: host-run-log-journal
+      mountPath: /run/log/journal
+      readOnly: true
+{{- end}}
   useConfigMap: true
   customAgentConfig:
     observer:
