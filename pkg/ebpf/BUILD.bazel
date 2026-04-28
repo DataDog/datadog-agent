@@ -6,6 +6,7 @@
 # gazelle:exclude features
 # gazelle:exclude kernelbugs
 # gazelle:exclude maps
+# gazelle:exclude modifiers
 # gazelle:exclude names
 # gazelle:exclude perf
 # gazelle:exclude uprobes
