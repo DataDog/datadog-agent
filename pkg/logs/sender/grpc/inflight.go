@@ -173,6 +173,18 @@ func (t *inflightTracker) getSnapshot() []byte {
 	return t.snapshot.serialize()
 }
 
+// pruneSnapshot removes evicted dict and pattern entries from the snapshot.
+// Called after PrepareForNewStream so the snapshot sent on the new stream
+// does not contain state that has been evicted from the translator.
+func (t *inflightTracker) pruneSnapshot(evicted EvictedState) {
+	for _, id := range evicted.DictIDs {
+		delete(t.snapshot.dictMap, id)
+	}
+	for _, id := range evicted.PatternIDs {
+		delete(t.snapshot.patternMap, id)
+	}
+}
+
 // snapshotState maintains the accumulated state changes for stream bootstrapping
 // It represents the state "before" the first payload in the inflight queue
 type snapshotState struct {

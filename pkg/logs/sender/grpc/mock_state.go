@@ -102,7 +102,8 @@ type MessageTranslator struct {
 	tokenizer              token.Tokenizer
 	jsonLogsAsRaw          bool // when true, JSON logs bypass stateful encoding and are sent as RawLog
 
-	pipelineName string
+	pipelineName  string
+	dictAdmission *dictAdmission
 
 	// tagCache caches the last computed tag set to avoid recomputation across messages
 	// with identical metadata (common in single-source pipelines).
@@ -136,6 +137,7 @@ func NewMessageTranslator(pipelineName string, tokenizer token.Tokenizer) *Messa
 		tokenizer:              tokenizer,
 		jsonLogsAsRaw:          pkgconfigsetup.Datadog().GetBool("logs_config.patterns.json_as_raw"),
 		pipelineName:           pipelineName,
+		dictAdmission:          newDictAdmission(),
 	}
 	tlmPipelineStateSize.Set(0, pipelineName)
 	return mt
@@ -596,12 +598,30 @@ func (mt *MessageTranslator) sendPatternDelete(patternID uint64, msg *message.Me
 	}
 }
 
+// EvictedState holds IDs evicted during PrepareForNewStream so the stream
+// worker can prune its snapshot before sending it on a new stream.
+type EvictedState struct {
+	DictIDs    []uint64
+	PatternIDs []uint64
+}
+
 // PrepareForNewStream performs local-only stale eviction before a new stream snapshot is built.
-func (mt *MessageTranslator) PrepareForNewStream() {
-	for _, evictedID := range mt.tagManager.EvictStaleEntries(staleTTL) {
-		mt.invalidateTagCache(evictedID)
+// Returns the evicted dict and pattern IDs so the caller can prune the inflight snapshot.
+func (mt *MessageTranslator) PrepareForNewStream() EvictedState {
+	evictedDictIDs := mt.tagManager.EvictStaleEntries(staleTTL)
+	for _, id := range evictedDictIDs {
+		mt.invalidateTagCache(id)
 	}
-	mt.clusterManager.EvictStalePatterns(staleTTL)
+	evictedPatterns := mt.clusterManager.EvictStalePatterns(staleTTL)
+	evictedPatternIDs := make([]uint64, len(evictedPatterns))
+	for i, p := range evictedPatterns {
+		evictedPatternIDs[i] = p.PatternID
+	}
+	mt.dictAdmission.reset()
+	return EvictedState{
+		DictIDs:    evictedDictIDs,
+		PatternIDs: evictedPatternIDs,
+	}
 }
 
 // sendDictEntryDefine creates and sends a DictEntryDefine datum

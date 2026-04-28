@@ -31,7 +31,7 @@ type Pipeline struct {
 	processor           *processor.Processor
 	strategy            sender.Strategy
 	pipelineMonitor     metrics.PipelineMonitor
-	prepareForNewStream func()
+	prepareForNewStream func() grpcsender.EvictedState
 }
 
 // NewPipeline returns a new Pipeline
@@ -107,7 +107,7 @@ func getStrategy(
 	compressor logscompression.Component,
 	instanceID string,
 	cfg pkgconfigmodel.Reader,
-) (sender.Strategy, func()) {
+) (sender.Strategy, func() grpcsender.EvictedState) {
 	if endpoints.UseGRPC || endpoints.UseHTTP || serverlessMeta.IsEnabled() {
 		var encoder compressioncommon.Compressor
 		encoder = compressor.NewCompressor(compressioncommon.NoneKind, 0)
@@ -125,7 +125,7 @@ func getStrategy(
 		}
 		if grpcEndpoint, ok := firstGRPCAdditionalEndpoint(endpoints); ok && !serverlessMeta.IsEnabled() {
 			grpcComp := buildEndpointCompressor(compressor, grpcEndpoint)
-			return grpcsender.NewDualStrategy(inputChan, outputChan, flushChan, grpcEndpoint, grpcComp, cfg, endpoints, serverlessMeta, encoder, pipelineMonitor, instanceID), nil
+			return grpcsender.NewDualStrategy(inputChan, outputChan, flushChan, grpcEndpoint, grpcComp, cfg, endpoints, serverlessMeta, encoder, pipelineMonitor, instanceID), translator.PrepareForNewStream
 		}
 		return sender.NewBatchStrategy(
 			inputChan,
