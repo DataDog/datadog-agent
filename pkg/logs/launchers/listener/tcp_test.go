@@ -265,11 +265,12 @@ func (p *testPKI) issueCertWithValidity(t *testing.T, prefix string, extKeyUsage
 	return certPath, keyPath
 }
 
-// dialTLSWithRetry works around a race between the TLS listener's
-// goroutine-based accept loop and the client's immediate tls.Dial.
-// On fast CI runners (notably macOS arm64) the TCP connection can land
-// before the TLS accept is ready, causing "first record does not look
-// like a TLS handshake". A short retry absorbs the transient failure.
+// dialTLSWithRetry works around transient "first record does not look
+// like a TLS handshake" errors observed on macOS CI runners. Go has
+// known, unfixed bugs affecting TCP/TLS on macOS (golang/go#67748,
+// golang/go#70395) that can corrupt or drop data during the handshake.
+// Multiple agent packages have hit the same class of macOS-only flake.
+// A short retry absorbs the transient failure.
 func dialTLSWithRetry(t *testing.T, addr string, cfg *tls.Config) (*tls.Conn, error) {
 	t.Helper()
 	const maxAttempts = 5
