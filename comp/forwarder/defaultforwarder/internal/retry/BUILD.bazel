@@ -48,7 +48,7 @@ go_test(
         "transaction_retry_queue_test.go",
     ],
     embed = [":retry"],
-    gotags = ["test"],  # keep
+    gotags = ["test"],
     deps = [
         "//comp/core/log/def",
         "//comp/core/log/mock",
