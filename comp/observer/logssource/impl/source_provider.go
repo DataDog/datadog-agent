@@ -27,6 +27,7 @@ type sourceProvider struct {
 
 	mu            sync.Mutex
 	activeSources map[string]*sources.LogSource // keyed by container ID
+	suppressedIDs map[string]struct{}           // container IDs with an active AD source
 
 	stopped sync.WaitGroup
 }
@@ -37,6 +38,7 @@ func newSourceProvider(wmeta workloadmeta.Component, logSources *sources.LogSour
 		logSources:    logSources,
 		pauseFilter:   pauseFilter,
 		activeSources: make(map[string]*sources.LogSource),
+		suppressedIDs: make(map[string]struct{}),
 	}
 }
 
@@ -106,6 +108,9 @@ func (sp *sourceProvider) handleSet(c *workloadmeta.Container) {
 	if _, exists := sp.activeSources[c.EntityID.ID]; exists {
 		return // idempotent: already tracked
 	}
+	if _, suppressed := sp.suppressedIDs[c.EntityID.ID]; suppressed {
+		return // an AD source already owns this container; skip generic source
+	}
 	src := sources.NewLogSource(c.EntityID.ID, &logsconfig.LogsConfig{
 		Type:       string(c.Runtime),
 		Identifier: c.EntityID.ID,
@@ -142,4 +147,28 @@ func (sp *sourceProvider) isPauseContainer(c *workloadmeta.Container) bool {
 
 func isAgentContainer(c *workloadmeta.Container) bool {
 	return strings.Contains(strings.ToLower(c.Image.ShortName), "agent")
+}
+
+// suppressIdentifier marks containerID as owned by an AD source.
+// If a generic source for that container is already active, it is removed so
+// the AD source becomes the sole collector for this container.
+// Must be called before adding the AD source to LogSources.
+func (sp *sourceProvider) suppressIdentifier(containerID string) {
+	sp.mu.Lock()
+	defer sp.mu.Unlock()
+	sp.suppressedIDs[containerID] = struct{}{}
+	if src, exists := sp.activeSources[containerID]; exists {
+		delete(sp.activeSources, containerID)
+		sp.logSources.RemoveSource(src)
+		log.Debugf("[observer/logssource] removed generic container source %s: AD source takes priority", containerID)
+	}
+}
+
+// unsuppressIdentifier releases the suppression for containerID.
+// After this call a future workloadmeta Set event may re-create the generic source.
+// Must be called after removing the AD source from LogSources.
+func (sp *sourceProvider) unsuppressIdentifier(containerID string) {
+	sp.mu.Lock()
+	defer sp.mu.Unlock()
+	delete(sp.suppressedIDs, containerID)
 }

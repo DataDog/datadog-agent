@@ -7,6 +7,7 @@ package logssourceimpl
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -66,6 +67,7 @@ func (p *observerPipeline) start() {
 	go func() {
 		defer close(p.drainDone)
 		for msg := range p.outputChan {
+			fmt.Printf("[cc] ObserveLog: %s\n", string(msg.GetContent()))
 			p.observerHandle.ObserveLog(msg)
 		}
 	}()
