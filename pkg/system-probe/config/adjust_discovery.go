@@ -31,6 +31,21 @@ func adjustDiscovery(cfg model.Config) {
 	// Windows bypasses this gate via NewWindowsMonitor, but Linux requires it.
 	cfg.Set(smNS("enabled"), true, model.SourceAgentRuntime)
 
+	// Discovery mode requires HTTP + TLS probes to observe service-to-service
+	// traffic. Force-enable them regardless of any explicit user override so
+	// discovery doesn't silently produce no data.
+	for _, key := range []string{
+		smNS("http", "enabled"),
+		smNS("tls", "native", "enabled"),
+		smNS("tls", "go", "enabled"),
+		smNS("tls", "istio", "enabled"),
+	} {
+		if !cfg.GetBool(key) {
+			log.Infof("discovery mode: enabling %s (required for service map)", key)
+		}
+		cfg.Set(key, true, model.SourceAgentRuntime)
+	}
+
 	// Discovery mode only needs HTTP + TLS probes for service map topology.
 	// Force-disable application-level protocols regardless of explicit config,
 	// to keep the eBPF surface minimal and avoid capturing data we won't use.
