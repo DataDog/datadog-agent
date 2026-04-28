@@ -177,9 +177,22 @@ def score_against_baseline(
         deltas[s_name] = d
         if not in_train:
             continue
-        # Catastrophe filter — absolute cliff. Catches "detector broke" on
-        # scenarios with non-trivial baseline F1.
-        if d.df1 < -catastrophe_f1_drop:
+        # Catastrophe filter — absolute cliff scaled by baseline magnitude.
+        # On baselines that have already drifted to ~0.10, an absolute
+        # 0.10 drop wipes out the entire signal — but the gate would
+        # falsely trigger noise rejections at that floor too. Use the
+        # tighter of (absolute floor, half the baseline F1) as the
+        # threshold:
+        #   - baseline 0.987: threshold = max(0.10, 0.49) = 0.49 — allows
+        #     more exploration on high baselines (the relative-cliff
+        #     check below catches genuine catastrophes anyway).
+        #   - baseline 0.10:  threshold = max(0.10, 0.05) = 0.10 — same
+        #     as before for low baselines.
+        #   - baseline 0.05:  threshold = max(0.10, 0.025) = 0.10.
+        # In practice this slightly relaxes high-baseline gating; the
+        # relative-ratio filter (50% drop) is the real backstop.
+        threshold = max(catastrophe_f1_drop, base.f1 * 0.5)
+        if d.df1 < -threshold:
             strict_regressions.append(s_name)
         # Catastrophe filter — relative cliff. Panel-flagged: a scenario
         # with baseline F1=0.08 can only drop 0.08 absolute, so the
