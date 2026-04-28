@@ -342,7 +342,11 @@ func (s *message) init(
 		s.Debugger.Type = payloadTypeSnapshot
 	}
 
-	header, err := firstFragment(event.EntryOrLine).Header()
+	eventOrLineFirstFragment := firstFragment(event.EntryOrLine)
+	if eventOrLineFirstFragment == nil {
+		return probe, errors.New("entry event first fragment is nil")
+	}
+	header, err := eventOrLineFirstFragment.Header()
 	if err != nil {
 		return probe, fmt.Errorf("error getting header %w", err)
 	}
@@ -371,6 +375,7 @@ func (s *message) init(
 		decoder.line.capture = &decoder.entryOrLine
 		s.Debugger.Snapshot.captures.Lines = &decoder.line
 	}
+	var returnFirstFragment output.Event
 	var returnHeader *output.EventHeader
 	var durationMissingReason *string
 	if event.Return != nil {
@@ -383,7 +388,11 @@ func (s *message) init(
 		if returnProbeEvent.instance != instance {
 			return nil, errors.New("return probe event has different instance than entry probe")
 		}
-		returnHeader, err = firstFragment(event.Return).Header()
+		returnFirstFragment = firstFragment(event.Return)
+		if returnFirstFragment == nil {
+			return nil, errors.New("return event first fragment is nil")
+		}
+		returnHeader, err = returnFirstFragment.Header()
 		if err != nil {
 			return nil, fmt.Errorf("error getting return header %w", err)
 		}
@@ -452,11 +461,11 @@ func (s *message) init(
 
 	// Unconditionally populate stackPCs map for any event with stack PCs.
 	populateStackPCsIfMissing(
-		probe, decoder, header.Stack_hash, firstFragment(event.EntryOrLine), "entry",
+		probe, decoder, header.Stack_hash, eventOrLineFirstFragment, "entry",
 	)
 	if returnHeader != nil {
 		populateStackPCsIfMissing(
-			probe, decoder, returnHeader.Stack_hash, firstFragment(event.Return), "return",
+			probe, decoder, returnHeader.Stack_hash, returnFirstFragment, "return",
 		)
 	}
 
