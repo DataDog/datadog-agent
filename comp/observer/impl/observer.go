@@ -574,7 +574,18 @@ type seriesDetectorAdapter struct {
 	// bounding per-call cost to O(windowSec) instead of O(totalPoints).
 	windowSec int64
 
-	lastVisibleCount map[string]int
+	// cachedSeries / cachedGen mirror the pattern used by BOCPDDetector,
+	// ScanWelchDetector, and ScanMWDetector: storage.SeriesGeneration() only
+	// advances when a brand-new series key is created, so we can avoid the
+	// per-Detect full-map ListSeries scan on steady-state cardinality.
+	cachedSeries []observerdef.SeriesMeta
+	cachedGen    uint64
+
+	// lastVisibleCount is keyed by the storage's compact SeriesRef so we
+	// avoid rebuilding a string key per series per Detect call. SeriesRefs
+	// are append-only (storage.go:217) so they remain stable for the lifetime
+	// of a series.
+	lastVisibleCount map[observerdef.SeriesRef]int
 }
 
 func newSeriesDetectorAdapter(detector observerdef.SeriesDetector, aggregations []observerdef.Aggregate) *seriesDetectorAdapter {
@@ -582,7 +593,7 @@ func newSeriesDetectorAdapter(detector observerdef.SeriesDetector, aggregations 
 		detector:         detector,
 		aggregations:     aggregations,
 		windowSec:        defaultDetectorWindowSec,
-		lastVisibleCount: make(map[string]int),
+		lastVisibleCount: make(map[observerdef.SeriesRef]int),
 	}
 }
 
@@ -592,25 +603,30 @@ func (a *seriesDetectorAdapter) Name() string {
 
 // Reset clears adapter-local caches and resets the wrapped detector when supported.
 func (a *seriesDetectorAdapter) Reset() {
-	a.lastVisibleCount = make(map[string]int)
+	a.lastVisibleCount = make(map[observerdef.SeriesRef]int)
+	a.cachedSeries = nil
+	a.cachedGen = 0
 	if resetter, ok := a.detector.(interface{ Reset() }); ok {
 		resetter.Reset()
 	}
 }
 
 func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTime int64) observerdef.DetectionResult {
-	allSeries := storage.ListSeries(observerdef.WorkloadSeriesFilter())
+	gen := storage.SeriesGeneration()
+	if a.cachedSeries == nil || gen != a.cachedGen {
+		a.cachedSeries = storage.ListSeries(observerdef.WorkloadSeriesFilter())
+		a.cachedGen = gen
+	}
 
 	var allAnomalies []observerdef.Anomaly
 	var allTelemetry []observerdef.ObserverTelemetry
 
-	for _, meta := range allSeries {
-		keyStr := seriesKey(meta.Namespace, meta.Name, meta.Tags)
+	for _, meta := range a.cachedSeries {
 		visibleCount := storage.PointCountUpTo(meta.Ref, dataTime)
-		if prev, ok := a.lastVisibleCount[keyStr]; ok && prev == visibleCount {
+		if prev, ok := a.lastVisibleCount[meta.Ref]; ok && prev == visibleCount {
 			continue
 		}
-		a.lastVisibleCount[keyStr] = visibleCount
+		a.lastVisibleCount[meta.Ref] = visibleCount
 
 		for _, agg := range a.aggregations {
 			start := int64(0)
