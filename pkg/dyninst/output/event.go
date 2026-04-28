@@ -19,6 +19,17 @@ const (
 	dataItemHeaderSize = int(unsafe.Sizeof(DataItemHeader{}))
 )
 
+// MaxDataItemSize is the maximum number of payload bytes the BPF
+// scratch buffer's serialize_whole dispatcher can emit in a single
+// data item (i.e., the largest entry in scratch.h's SIZE_LIST). The
+// BPF stack machine clamps to this value before serialization so an
+// oversized configured maxLength produces a truncated capture rather
+// than a silent skip. Userspace can use this constant to surface a
+// diagnostic when a probe's maxLength would be clamped at the BPF
+// boundary. Must be kept in sync with MAX_DATA_ITEM_SIZE in
+// pkg/dyninst/ebpf/scratch.h.
+const MaxDataItemSize = 8192
+
 // EventPairingExpectation returns the event pairing expectation.
 type EventPairingExpectation uint8
 

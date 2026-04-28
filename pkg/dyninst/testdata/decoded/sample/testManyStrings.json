@@ -557,7 +557,8 @@
                   {
                     "type": "string",
                     "size": "40960",
-                    "notCapturedReason": "depth"
+                    "truncated": true,
+                    "value": "<8192 byte string>"
                   },
                   {
                     "type": "string",

@@ -324,6 +324,15 @@ sm_chase_pointer(global_ctx_t* ctx, pointers_queue_item_t item) {
   if (item.di.length != ENQUEUE_LEN_SENTINEL && item.di.length < serialize_len) {
     serialize_len = item.di.length;
   }
+  // Clamp to the largest size class. scratch_buf_serialize_whole's
+  // dispatch table tops out at MAX_DATA_ITEM_SIZE; without this clamp
+  // an oversized configured maxLength (or a slice whose
+  // collection_size_limit * elem_byte_len exceeds the ceiling) would
+  // be silently skipped (serialize_whole returns 0 for any len above
+  // the largest size class) instead of producing a truncated capture.
+  if (serialize_len > MAX_DATA_ITEM_SIZE) {
+    serialize_len = MAX_DATA_ITEM_SIZE;
+  }
   sm->offset = scratch_buf_serialize(ctx->buf, &item.di, serialize_len);
   if (!sm->offset) {
     LOG(3, "chase: buffer full for type %d", item.di.type);

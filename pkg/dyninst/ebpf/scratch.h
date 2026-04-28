@@ -325,6 +325,17 @@ scratch_buf_serialize_bounded(scratch_buf_t* scratch_buf,
   X(4096)         \
   X(8192)
 
+// MAX_DATA_ITEM_SIZE is the maximum number of payload bytes the
+// scratch_buf_serialize_whole dispatcher can serialize in a single
+// data item — i.e., the largest entry in SIZE_LIST. Items larger
+// than this can't be serialized in one shot; the BPF stack machine
+// clamps serialize_len to this value before calling serialize_whole
+// so an oversized maxLength / collection size produces a truncated
+// capture rather than a silent skip (see stack_machine.h).
+//
+// Keep in sync with SIZE_LIST above.
+#define MAX_DATA_ITEM_SIZE 8192
+
 #define X(max_size)                                                          \
   buf_offset_t CONCAT(scratch_buf_serialize_, max_size)(                     \
       scratch_buf_t * scratch_buf, di_data_item_header_t * data_item_header, \
