@@ -403,7 +403,7 @@ func movePackageFromSource(packageName string, rootPath string, sourcePath strin
 	if err := paths.SetRepositoryPermissions(sourcePath); err != nil {
 		return "", fmt.Errorf("could not set permissions on package: %w", err)
 	}
-	err = os.Rename(sourcePath, targetPath)
+	err = renamePackageDir(sourcePath, targetPath)
 	if err != nil {
 		return "", fmt.Errorf("could not move source: %w", err)
 	}
