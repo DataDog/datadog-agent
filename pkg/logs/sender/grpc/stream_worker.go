@@ -108,7 +108,7 @@ type streamWorker struct {
 	// Configuration
 	workerID            string
 	destinationsContext *client.DestinationsContext
-	prepareForNewStream func()
+	prepareForNewStream func() EvictedState
 
 	// Pipeline integration
 	inputChan  chan *message.Payload
@@ -161,7 +161,7 @@ func newStreamWorker(
 	streamLifetime time.Duration,
 	compressor compression.Compressor,
 	maxInflight int,
-	prepareForNewStream func(),
+	prepareForNewStream func() EvictedState,
 ) *streamWorker {
 	return newStreamWorkerWithClock(workerID, inputChan, destinationsCtx, conn, client, sink,
 		endpoint, streamLifetime, compressor, clock.New(), nil, maxInflight, prepareForNewStream)
@@ -181,7 +181,7 @@ func newStreamWorkerWithClock(
 	clock clock.Clock,
 	inflightTracker *inflightTracker,
 	maxInflight int,
-	prepareForNewStream func(),
+	prepareForNewStream func() EvictedState,
 ) *streamWorker {
 	backoffPolicy := backoff.NewExpBackoffPolicy(
 		endpoint.BackoffFactor,
@@ -547,7 +547,8 @@ func (s *streamWorker) finishStreamRotation(streamInfo *streamInfo) {
 	s.inflight.resetOnRotation()
 
 	if s.prepareForNewStream != nil {
-		s.prepareForNewStream()
+		evicted := s.prepareForNewStream()
+		s.inflight.pruneSnapshot(evicted)
 	}
 
 	log.Infof("Worker %s: Stream rotation complete, now active", s.workerID)

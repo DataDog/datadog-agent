@@ -88,7 +88,7 @@ type Sender struct {
 	destinationsContext *client.DestinationsContext
 	cfg                 pkgconfigmodel.Reader
 	numberOfWorkers     int
-	prepareForNewStream func()
+	prepareForNewStream func() EvictedState
 
 	// Pipeline integration
 	pipelineMonitor metrics.PipelineMonitor
@@ -115,7 +115,7 @@ func NewSender(
 	endpoints *config.Endpoints,
 	destinationsCtx *client.DestinationsContext,
 	compressor logscompression.Component,
-	prepareForNewStream func(),
+	prepareForNewStream func() EvictedState,
 ) *Sender {
 
 	// For now, use the first reliable endpoint

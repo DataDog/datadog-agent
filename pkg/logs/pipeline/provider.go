@@ -76,7 +76,7 @@ type provider struct {
 	routerChannels     []chan *message.Message
 	currentRouterIndex *atomic.Uint32
 	forwarderWaitGroup sync.WaitGroup
-	grpcPrepareHooks   []func()
+	grpcPrepareHooks   []func() grpcsender.EvictedState
 }
 
 // NewProvider returns a new Provider.
@@ -116,12 +116,16 @@ func NewProvider(
 	}
 
 	if endpoints.UseGRPC {
-		senderImpl = grpcsender.NewSender(numberOfPipelines, cfg, sink, endpoints, destinationsContext, compression, func() {
+		senderImpl = grpcsender.NewSender(numberOfPipelines, cfg, sink, endpoints, destinationsContext, compression, func() grpcsender.EvictedState {
+			var merged grpcsender.EvictedState
 			for _, hook := range p.grpcPrepareHooks {
 				if hook != nil {
-					hook()
+					evicted := hook()
+					merged.DictIDs = append(merged.DictIDs, evicted.DictIDs...)
+					merged.PatternIDs = append(merged.PatternIDs, evicted.PatternIDs...)
 				}
 			}
+			return merged
 		})
 	} else if endpoints.UseHTTP {
 		if _, ok := firstGRPCAdditionalEndpoint(endpoints); ok {
