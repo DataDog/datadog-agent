@@ -222,6 +222,68 @@ pub fn cleanup_process(pid: u32) {
     let _ = crate::platform::send_force_kill(pid);
 }
 
+/// Check whether a process is still alive.
+#[cfg(unix)]
+pub fn pid_is_alive(pid: u32) -> bool {
+    // signal 0 = check existence without sending a real signal.
+    nix::sys::signal::kill(nix::unistd::Pid::from_raw(pid as i32), None).is_ok()
+}
+
+/// Check whether a process is still alive.
+#[cfg(windows)]
+pub fn pid_is_alive(pid: u32) -> bool {
+    use windows_sys::Win32::Foundation::CloseHandle;
+    use windows_sys::Win32::System::Threading::{
+        GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
+    };
+    const STILL_ACTIVE: u32 = 259;
+    unsafe {
+        let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+        if handle.is_null() {
+            return false;
+        }
+        let mut exit_code: u32 = 0;
+        let ok = GetExitCodeProcess(handle, &mut exit_code);
+        CloseHandle(handle);
+        ok != 0 && exit_code == STILL_ACTIVE
+    }
+}
+
+/// Command that spawns a grandchild (long sleep) whose PID is written to
+/// `pid_file`, then sleeps forever while ignoring graceful-stop signals.
+/// Used to verify that force-kill (Job Object / SIGKILL to pgid) cleans
+/// up the entire descendant tree.
+#[cfg(unix)]
+pub fn grandchild_cmd(pid_file: &str) -> (&'static str, Vec<String>) {
+    (
+        "/bin/sh",
+        vec![
+            "-c".into(),
+            format!(
+                "trap '' TERM; /bin/sleep 3600 & echo $! > {pid_file}; wait"
+            ),
+        ],
+    )
+}
+
+/// Command that spawns a grandchild (long sleep) whose PID is written to
+/// `pid_file`, then sleeps forever while ignoring graceful-stop signals.
+#[cfg(windows)]
+pub fn grandchild_cmd(pid_file: &str) -> (&'static str, Vec<String>) {
+    (
+        "powershell.exe",
+        vec![
+            "-Command".into(),
+            format!(
+                "$p = Start-Process -PassThru -NoNewWindow powershell \
+                 '-Command','Start-Sleep 3600'; \
+                 $p.Id | Out-File -Encoding ascii '{pid_file}'; \
+                 while($true){{Start-Sleep 60}}"
+            ),
+        ],
+    )
+}
+
 /// Build a `ProcessConfig` with null stdio, suitable for tests.
 pub fn make_config(command: &str, args: Vec<String>) -> crate::config::ProcessConfig {
     crate::config::ProcessConfig {
