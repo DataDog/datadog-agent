@@ -16,7 +16,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"reflect"
 	"strconv"
 	"sync"
 	"testing"
@@ -39,6 +38,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tinylib/msgp/msgp"
 	vmsgp "github.com/vmihailenco/msgpack/v4"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
@@ -1079,7 +1079,7 @@ func TestHandleStats(t *testing.T) {
 
 		resp.Body.Close()
 		gotp, gotlang, gotTracerVersion, containerID := mockProcessor.Got()
-		assert.True(t, reflect.DeepEqual(gotp, p), "payload did not match")
+		assert.True(t, proto.Equal(gotp, p), "payload did not match")
 		assert.Equal(t, "lang1", gotlang, "lang did not match")
 		assert.Equal(t, "0.1.0", gotTracerVersion, "tracerVersion did not match")
 		assert.Equal(t, "abcdef123789456", containerID, "containerID did not match")
@@ -1091,7 +1091,7 @@ func TestHandleStats(t *testing.T) {
 		cfg := newTestReceiverConfig()
 		cfg.ReceiverTimeoutDuration = 50 * time.Millisecond
 		rcv := newTestReceiverFromConfig(cfg)
-		mockProcessor := &mockStatsProcessor{processingLantency: 60 * time.Millisecond}
+		mockProcessor := &mockStatsProcessor{processingLantency: 500 * time.Millisecond}
 		rcv.statsProcessor = mockProcessor
 		mux := rcv.buildMux()
 		server := httptest.NewServer(mux)
@@ -1111,7 +1111,7 @@ func TestHandleStats(t *testing.T) {
 		}
 		defer resp.Body.Close()
 
-		assert.Equal(t, resp.StatusCode, http.StatusRequestTimeout)
+		assert.Equal(t, http.StatusRequestTimeout, resp.StatusCode)
 	})
 }
 

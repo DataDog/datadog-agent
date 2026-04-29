@@ -13,8 +13,8 @@ import (
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib2"
 	lib_v2 "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib2"
 )
 
 func main() {
@@ -39,6 +39,7 @@ func main() {
 	lib_v2.FooV2()
 	var t lib_v2.V2Type
 	t.MyMethod()
+	lib_v2.UseV2GenericBox()
 	var it iterExample
 	it.rangeOverIterator()
 	lib.InlinedFunc()

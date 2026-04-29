@@ -227,12 +227,73 @@ type ExprSliceBoundsCheckOp struct {
 	ExprStatusIdx uint32 // expression index for writing OOB status; ^0 = none
 }
 
+// SwissMapSetupOp reads bytecode params, computes hash, initializes probe state.
+type SwissMapSetupOp struct {
+	baseOp
+	KeyData     []byte
+	IsStringKey bool
+	KeyByteSize uint8
+	ValByteSize uint32
+
+	SeedOffset        uint8
+	DirPtrOffset      uint8
+	DirLenOffset      uint8
+	GlobalShiftOffset uint8
+
+	CtrlOffset      uint8
+	SlotsOffset     uint8
+	SlotSize        uint16
+	KeyInSlotOffset uint8
+	ValInSlotOffset uint16
+
+	TableGroupsFieldOffset   uint8
+	GroupsDataFieldOffset    uint8
+	GroupsLenMaskFieldOffset uint8
+	GroupByteSize            uint16
+
+	HeaderByteSize uint32
+	ExprStatusIdx  uint32
+}
+
+// SwissMapAesencOp performs one AESENC round; replays via PC for remaining rounds.
+type SwissMapAesencOp struct{ baseOp }
+
+// SwissMapHashFinishOp handles AES hash phase transitions and finalization.
+type SwissMapHashFinishOp struct{ baseOp }
+
+// SwissMapProbeOp reads the control word at the current group and computes match bitsets.
+type SwissMapProbeOp struct{ baseOp }
+
+// SwissMapCheckSlotOp checks one H2-matching slot against the literal key.
+type SwissMapCheckSlotOp struct{ baseOp }
+
 type ConditionBeginOp struct {
 	baseOp
 }
 
 type ConditionCheckOp struct {
 	baseOp
+}
+
+// CondNotOp flips the boolean result byte at sm->offset.
+type CondNotOp struct {
+	baseOp
+}
+
+// CondJumpOp branches past Right of a binary And/Or when the preceding leaf's
+// result matches Cond (false -> and short-circuit, true -> or short-circuit).
+// Label identifies the target, resolved at code-layout time.
+type CondJumpOp struct {
+	baseOp
+	Cond  bool
+	Label ir.LabelID
+}
+
+// CondLabelOp marks a jump target. Emits no bytes; the layout pass records
+// its PC in codeTracker.labelLoc.
+type CondLabelOp struct {
+	baseOp
+	ID ir.LabelID
 }
 
 //revive:enable:exported

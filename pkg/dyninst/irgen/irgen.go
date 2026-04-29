@@ -452,7 +452,9 @@ func generateIR(
 		MaxTypeID:        typeCatalog.idAlloc.alloc,
 		Issues:           issues,
 		GoModuledataInfo: processed.goModuledataInfo,
+		GoMapHashInfo:    processed.goMapHashInfo,
 		CommonTypes:      commonTypes,
+		IsARM64:          arch == "arm64",
 	}, nil
 }
 
@@ -482,14 +484,24 @@ type analyzedExpression struct {
 	captureExprName string
 }
 
-// analyzedCondition represents a single condition clause that has been
-// parsed and matched to a variable. For simple conditions (eq), there
-// is one of these. Future compound conditions (and/or) will decompose
-// into multiple clauses, potentially targeting different events.
+// analyzedCondition represents a parsed and resolved condition tree. The
+// tree may be a single leaf (eq / isEmpty) or a compound of and/or/not
+// over leaves. All leaves must reference variables available at the same
+// event kind; that single kind is stored here.
+//
+// Only analyzeCondition should construct values of this type: leafRoots
+// is keyed by pointer identity of the leaves reachable from expr, and
+// mixing pre- and post-@return-rewrite leaves would silently break the
+// map. Callers downstream (exploreTypesForExpressions, resolveCondition)
+// treat the struct as read-only.
 type analyzedCondition struct {
-	expr         exprlang.Expr
-	rootVariable *ir.Variable
-	eventKind    ir.EventKind
+	// expr is the @return-rewritten condition AST.
+	expr exprlang.Expr
+	// leafRoots maps each condition leaf (EqExpr / IsEmptyExpr) reachable
+	// from expr to the variable feeding its LHS.
+	leafRoots map[exprlang.Expr]*ir.Variable
+	// eventKind is the single event kind shared by every leaf's root.
+	eventKind ir.EventKind
 }
 
 // analyzedProbe holds all analyzed expressions for a single probe instance.
@@ -501,10 +513,9 @@ type analyzedProbe struct {
 	expressions []analyzedExpression
 	template    *ir.Template
 
-	// Condition clauses, one per leaf equality in the condition tree.
-	// For simple eq conditions, len == 0 or 1.
-	// For future compound conditions, may have multiple entries
-	// potentially targeting different event kinds.
+	// condition holds the analyzed condition tree, or nil if the probe
+	// has no condition (or if analysis failed, in which case
+	// conditionIssue is populated).
 	condition *analyzedCondition
 
 	// conditionIssue is set when condition analysis fails (parse error,
@@ -517,6 +528,355 @@ type analyzedProbe struct {
 
 	// Whether this is a snapshot probe (affects exploration strategy).
 	isSnapshot bool
+}
+
+// cleanReturnNames computes display names for return variables used as field
+// names under @return in multi-return snapshots. For single returns, it returns
+// nil (the caller should use "@return" directly). For multiple returns, it
+// strips the leading ~ from compiler-generated names and resolves conflicts
+// with underscore prefixing.
+func cleanReturnNames(vars []*ir.Variable) map[*ir.Variable]string {
+	if len(vars) <= 1 {
+		return nil
+	}
+	// First pass: strip ~ prefix from each name, track which are compiler-generated.
+	type entry struct {
+		cleaned   string
+		generated bool // true if original name had ~ prefix
+	}
+	entries := make([]entry, len(vars))
+	for i, v := range vars {
+		if strings.HasPrefix(v.Name, "~") {
+			entries[i] = entry{cleaned: v.Name[1:], generated: true}
+		} else {
+			entries[i] = entry{cleaned: v.Name, generated: false}
+		}
+	}
+	// Collect all names that are taken (user-chosen names always win).
+	taken := make(map[string]bool, len(vars))
+	for _, e := range entries {
+		if !e.generated {
+			taken[e.cleaned] = true
+		}
+	}
+	// Second pass: resolve conflicts for generated names.
+	result := make(map[*ir.Variable]string, len(vars))
+	for i, v := range vars {
+		e := entries[i]
+		if e.generated {
+			name := e.cleaned
+			for taken[name] {
+				name = "_" + name
+			}
+			taken[name] = true
+			result[v] = name
+		} else {
+			taken[e.cleaned] = true
+			result[v] = e.cleaned
+		}
+	}
+	return result
+}
+
+// analyzeCondition parses a when-clause expression and resolves it to an
+// analyzedCondition ready for resolveCondition. The returned condition's
+// fields are related by pointer identity — leafRoots is keyed by the
+// leaves reachable from expr — so this function is the only correct way
+// to build an analyzedCondition: callers must never assemble one by
+// hand, because it's easy to mismatch pre- vs post-@return-rewrite leaf
+// nodes and silently break the pointer-identity map.
+//
+// Returns a non-none issue when the parse fails, a leaf is malformed, a
+// referenced variable is missing/unavailable, or the leaves resolve to
+// more than one event kind. addRoot is invoked once per distinct
+// resolved variable type so type exploration covers every leaf's root.
+func analyzeCondition(
+	whenJSON []byte,
+	varByName map[string]*ir.Variable,
+	returnVars []*ir.Variable,
+	returnDisplayNames map[*ir.Variable]string,
+	conditionEventKind func(*ir.Variable) (ir.EventKind, bool),
+	addRoot func(ir.TypeID, uint32),
+	budget uint32,
+) (*analyzedCondition, ir.Issue) {
+	condExpr, err := exprlang.Parse(whenJSON)
+	if err != nil {
+		return nil, ir.Issue{
+			Kind:    ir.IssueKindUnsupportedFeature,
+			Message: fmt.Sprintf("failed to parse condition: %v", err),
+		}
+	}
+
+	// Collect every leaf of the (possibly compound) condition. A leaf
+	// here is an EqExpr or IsEmptyExpr; anything else is rejected.
+	leaves := conditionLeafExprs(condExpr)
+	if len(leaves) == 0 {
+		return nil, ir.Issue{
+			Kind:    ir.IssueKindUnsupportedFeature,
+			Message: fmt.Sprintf("unsupported condition expression type: %T", condExpr),
+		}
+	}
+	// Validate every leaf is a supported shape first so error messages
+	// are deterministic before any rewriting.
+	for _, leaf := range leaves {
+		sub, ok := conditionLeafSubExpr(leaf)
+		if !ok {
+			return nil, ir.Issue{
+				Kind:    ir.IssueKindUnsupportedFeature,
+				Message: fmt.Sprintf("unsupported condition expression type: %T", leaf),
+			}
+		}
+		// A condition leaf's LHS must be a variable-derived path
+		// (ref / getmember / index / len / isEmpty). Nesting another
+		// boolean operator inside eq's LHS — e.g. `eq(eq(x, 1), true)`
+		// — is rejected: it would work by accident because bool is a
+		// base type, but it bypasses root-variable analysis and
+		// @return rewriting, and it's semantically redundant with
+		// writing the inner condition directly.
+		if err := checkConditionLHS(sub); err != nil {
+			return nil, ir.Issue{
+				Kind:    ir.IssueKindUnsupportedFeature,
+				Message: err.Error(),
+			}
+		}
+	}
+
+	// If any leaf references @return, rewrite the entire condition tree
+	// to replace @return refs with concrete return-variable refs. Each
+	// leaf enforces "at most one @return.rN field" via rewriteReturnRefs,
+	// but distinct leaves may reference different fields — this is what
+	// makes compound conditions useful over multi-return functions.
+	//
+	// After rewriting we re-collect the leaves so every subsequent step
+	// uses the post-rewrite nodes; mixing pre- and post-rewrite leaves
+	// would silently break the leafRoots pointer-identity map.
+	if len(returnVars) > 0 {
+		rewroteAny := false
+		for _, leaf := range leaves {
+			sub, _ := conditionLeafSubExpr(leaf)
+			rootVarName, ok := extractRootVariableName(sub)
+			if !ok || rootVarName != "@return" {
+				continue
+			}
+			_, rewrittenLeaf, errMsg := rewriteReturnRefs(
+				leaf, returnVars, returnDisplayNames,
+			)
+			if errMsg != "" {
+				return nil, ir.Issue{
+					Kind:    ir.IssueKindConditionVariableUnavailable,
+					Message: errMsg,
+				}
+			}
+			origLeaf := leaf
+			condExpr = exprlang.Rewrite(condExpr, func(e exprlang.Expr) exprlang.Expr {
+				if e == origLeaf {
+					return rewrittenLeaf
+				}
+				return nil
+			})
+			rewroteAny = true
+		}
+		if rewroteAny {
+			leaves = conditionLeafExprs(condExpr)
+		}
+	}
+
+	// Resolve each leaf's root variable and event kind, and check that
+	// every leaf lands on the same event.
+	leafRoots := make(map[exprlang.Expr]*ir.Variable, len(leaves))
+	var evKind ir.EventKind
+	var evKindSet bool
+	for _, leaf := range leaves {
+		sub, _ := conditionLeafSubExpr(leaf)
+		rootVarName, ok := extractRootVariableName(sub)
+		if !ok {
+			return nil, ir.Issue{
+				Kind:    ir.IssueKindUnsupportedFeature,
+				Message: "failed to extract root variable from condition leaf",
+			}
+		}
+		rootVar := varByName[rootVarName]
+		if rootVar == nil {
+			return nil, ir.Issue{
+				Kind:    ir.IssueKindConditionVariableUnavailable,
+				Message: fmt.Sprintf("condition variable %q not found", rootVarName),
+			}
+		}
+		leafEvKind, ok := conditionEventKind(rootVar)
+		if !ok {
+			return nil, ir.Issue{
+				Kind:    ir.IssueKindConditionVariableUnavailable,
+				Message: fmt.Sprintf("condition variable %q not available at any event", rootVarName),
+			}
+		}
+		if evKindSet && leafEvKind != evKind {
+			return nil, ir.Issue{
+				Kind: ir.IssueKindConditionVariableUnavailable,
+				Message: fmt.Sprintf(
+					"compound condition references variables from multiple event kinds (%v and %v)",
+					evKind, leafEvKind,
+				),
+			}
+		}
+		evKind = leafEvKind
+		evKindSet = true
+		leafRoots[leaf] = rootVar
+		addRoot(rootVar.Type.GetID(), budget)
+	}
+
+	return &analyzedCondition{
+		expr:      condExpr,
+		leafRoots: leafRoots,
+		eventKind: evKind,
+	}, ir.Issue{}
+}
+
+// checkConditionLHS validates that expr is a legal LHS for a condition
+// leaf: a variable-derived path built from ref / getmember / index / len
+// / isEmpty nodes. Boolean operators (eq, and, or, not) are rejected
+// because they produce boolean values that would bypass the root-variable
+// and @return analysis paths, and they're semantically redundant with
+// writing the inner condition directly.
+//
+// LiteralExpr is also rejected — literals belong on the RHS of a leaf,
+// not the LHS.
+func checkConditionLHS(expr exprlang.Expr) error {
+	switch e := expr.(type) {
+	case *exprlang.RefExpr:
+		return nil
+	case *exprlang.GetMemberExpr:
+		return checkConditionLHS(e.Base)
+	case *exprlang.IndexExpr:
+		return checkConditionLHS(e.Base)
+	case *exprlang.LenExpr:
+		return checkConditionLHS(e.Operand)
+	case *exprlang.IsEmptyExpr:
+		return checkConditionLHS(e.Operand)
+	case *exprlang.EqExpr, *exprlang.AndExpr, *exprlang.OrExpr, *exprlang.NotExpr:
+		return fmt.Errorf(
+			"condition leaf LHS may not be a boolean expression (%T); "+
+				"use the inner expression directly",
+			expr,
+		)
+	case *exprlang.LiteralExpr:
+		return errors.New("condition leaf LHS may not be a literal")
+	default:
+		return fmt.Errorf("unsupported condition leaf LHS type: %T", expr)
+	}
+}
+
+// conditionLeafExprs yields every leaf of a condition tree (EqExpr /
+// IsEmptyExpr). For a non-compound condition this yields exactly one node;
+// for a compound, it yields each leaf in source order.
+func conditionLeafExprs(expr exprlang.Expr) []exprlang.Expr {
+	var leaves []exprlang.Expr
+	var walk func(exprlang.Expr)
+	walk = func(e exprlang.Expr) {
+		switch e := e.(type) {
+		case *exprlang.AndExpr:
+			walk(e.Left)
+			walk(e.Right)
+		case *exprlang.OrExpr:
+			walk(e.Left)
+			walk(e.Right)
+		case *exprlang.NotExpr:
+			walk(e.Operand)
+		default:
+			leaves = append(leaves, e)
+		}
+	}
+	walk(expr)
+	return leaves
+}
+
+// conditionLeafSubExpr returns the sub-expression a leaf's LHS descends
+// through (the part passed to resolveExpression in resolveCondition). For
+// EqExpr it's the Left side; for IsEmptyExpr it's the Operand. Any other
+// expression type is a malformed leaf (caller should have rejected earlier).
+func conditionLeafSubExpr(leaf exprlang.Expr) (exprlang.Expr, bool) {
+	switch l := leaf.(type) {
+	case *exprlang.EqExpr:
+		return l.Left, true
+	case *exprlang.IsEmptyExpr:
+		return l.Operand, true
+	default:
+		return nil, false
+	}
+}
+
+// rewriteReturnRefs rewrites every @return reference in expr to reference
+// a concrete return variable.
+//
+// For single-return functions, ref("@return") is rewritten to ref(varName).
+// For multi-return functions, getmember(ref("@return"), "field") is matched
+// against displayNames and rewritten to ref(varName); a bare @return is
+// rejected because multi-value returns require a field selector.
+//
+// The expression passed here must resolve to a single return variable —
+// if it touches two distinct @return.rN fields, the call fails with
+// "expression references multiple @return fields". Callers that want to
+// allow multiple distinct @return fields across a larger tree (e.g.
+// compound conditions) must split the tree into single-leaf expressions
+// and call this function once per leaf, then splice the rewritten leaves
+// back together.
+func rewriteReturnRefs(
+	expr exprlang.Expr,
+	returnVars []*ir.Variable,
+	displayNames map[*ir.Variable]string,
+) (rootVar *ir.Variable, rewritten exprlang.Expr, errMsg string) {
+	if len(returnVars) == 1 {
+		v := returnVars[0]
+		rewritten = exprlang.Rewrite(expr, func(e exprlang.Expr) exprlang.Expr {
+			if ref, ok := e.(*exprlang.RefExpr); ok && ref.Ref == "@return" {
+				return &exprlang.RefExpr{Ref: v.Name}
+			}
+			return nil
+		})
+		return v, rewritten, ""
+	}
+
+	// Multi-return case: the expression must identify a single field.
+	var matched *ir.Variable
+	for node := range exprlang.Children(expr) {
+		gme, ok := node.(*exprlang.GetMemberExpr)
+		if !ok {
+			continue
+		}
+		ref, ok := gme.Base.(*exprlang.RefExpr)
+		if !ok || ref.Ref != "@return" {
+			continue
+		}
+		var v *ir.Variable
+		for _, rv := range returnVars {
+			if displayNames[rv] == gme.Member {
+				v = rv
+				break
+			}
+		}
+		if v == nil {
+			return nil, nil, fmt.Sprintf(
+				"@return field %q does not match any return variable", gme.Member)
+		}
+		if matched != nil && matched != v {
+			return nil, nil, "expression references multiple @return fields"
+		}
+		matched = v
+	}
+	if matched == nil {
+		return nil, nil, "return value selector (e.g., @return.r0) must be used for multi-value returns"
+	}
+	rewritten = exprlang.Rewrite(expr, func(e exprlang.Expr) exprlang.Expr {
+		gme, ok := e.(*exprlang.GetMemberExpr)
+		if !ok {
+			return nil
+		}
+		ref, ok := gme.Base.(*exprlang.RefExpr)
+		if !ok || ref.Ref != "@return" {
+			return nil
+		}
+		return &exprlang.RefExpr{Ref: matched.Name}
+	})
+	return matched, rewritten, ""
 }
 
 // extractRootVariableName extracts the root variable name from an expression.
@@ -664,6 +1024,21 @@ func analyzeAllProbes(
 				}
 			}
 
+			// Pre-scan: collect return variables and compute display names for
+			// return events. @return is a return-point concept, so these are
+			// only used when the probe has a Return event; at line probes,
+			// named returns are treated as locals and unnamed returns are
+			// filtered out (see the switch below).
+			var returnVars []*ir.Variable
+			if haveReturn {
+				for _, v := range inst.Subprogram.Variables {
+					if v.Role == ir.VariableRoleReturn {
+						returnVars = append(returnVars, v)
+					}
+				}
+			}
+			returnDisplayNames := cleanReturnNames(returnVars) // nil for 0 or 1 returns
+
 			// Process each variable.
 			for _, v := range inst.Subprogram.Variables {
 				var evKind ir.EventKind
@@ -685,11 +1060,21 @@ func analyzeAllProbes(
 					// which would just require extending the next case to also be
 					// triggered for return variables.
 					evKind = ir.EventKindReturn
-					exprKind = ir.RootExpressionKindLocal
+					exprKind = ir.RootExpressionKindReturn
 
 				case len(inst.Events) == 1 &&
 					inst.Events[0].Kind == ir.EventKindLine:
 					// The line-probe case.
+					//
+					// Return-role vars are either filtered out (unnamed,
+					// e.g. ~r0) or treated as plain locals (named). The
+					// function hasn't returned yet, so they aren't "return
+					// values" here; unnamed slots have no user-facing value
+					// and named returns are just pre-declared locals.
+					if v.Role == ir.VariableRoleReturn &&
+						strings.HasPrefix(v.Name, "~") {
+						continue
+					}
 					ips := inst.Events[0].InjectionPoints
 					if !variableIsAvailable(ips, v) {
 						continue
@@ -709,9 +1094,21 @@ func analyzeAllProbes(
 				// Capture expression probes only capture explicitly listed
 				// expressions (handled below), not all variables.
 				if isSnapshot && !isCaptureExpression {
+					// Compute the display name for this expression. The
+					// @return wrapping is only for return events; at line
+					// probes named returns keep their original name (see
+					// switch above).
+					name := v.Name
+					if exprKind == ir.RootExpressionKindReturn {
+						if returnDisplayNames == nil {
+							name = "@return"
+						} else {
+							name = returnDisplayNames[v]
+						}
+					}
 					ap.expressions = append(ap.expressions, analyzedExpression{
 						expr:         &exprlang.RefExpr{Ref: v.Name},
-						dsl:          v.Name,
+						dsl:          name,
 						rootVariable: v,
 						eventKind:    evKind,
 						exprKind:     exprKind,
@@ -721,7 +1118,8 @@ func analyzeAllProbes(
 					addRoot(v.Type.GetID(), budget)
 				}
 
-				// Match template segments to this variable.
+				// Match template segments to this variable by its original name.
+				// Named returns (e.g., "result") remain accessible by name.
 				//
 				// Note: there's no risk of picking the wrong variable due to
 				// shadowing, but there should be! In materializePending we ensure
@@ -754,6 +1152,35 @@ func analyzeAllProbes(
 				delete(segmentRefs, v.Name)
 			}
 
+			// Handle @return references in template segments. @return is
+			// a return-point concept and only resolves at probes with a
+			// Return event.
+			if segs, ok := segmentRefs["@return"]; ok && haveReturn {
+				for _, seg := range segs {
+					rv, rewritten, errMsg := rewriteReturnRefs(
+						seg.segment.JSON, returnVars, returnDisplayNames,
+					)
+					if rv != nil {
+						ap.expressions = append(ap.expressions, analyzedExpression{
+							expr:         rewritten,
+							dsl:          seg.segment.DSL,
+							rootVariable: rv,
+							eventKind:    ir.EventKindReturn,
+							exprKind:     ir.RootExpressionKindTemplateSegment,
+							segment:      seg.segment,
+							segmentIdx:   seg.index,
+						})
+						addRoot(rv.Type.GetID(), budget)
+					} else {
+						ap.template.Segments[seg.index] = ir.InvalidSegment{
+							Error: errMsg,
+							DSL:   seg.segment.DSL,
+						}
+					}
+				}
+				delete(segmentRefs, "@return")
+			}
+
 			// Process capture expressions.
 			for _, ce := range probe.ProbeDefinition.GetCaptureExpressions() {
 				parsedExpr, err := exprlang.Parse(ce.GetJSON())
@@ -764,7 +1191,15 @@ func analyzeAllProbes(
 				if !ok {
 					continue
 				}
-				rootVar := varByName[rootVarName]
+				// Handle @return references in capture expressions.
+				var rootVar *ir.Variable
+				if rootVarName == "@return" && haveReturn {
+					rootVar, parsedExpr, _ = rewriteReturnRefs(
+						parsedExpr, returnVars, returnDisplayNames,
+					)
+				} else {
+					rootVar = varByName[rootVarName]
+				}
 				if rootVar == nil {
 					continue
 				}
@@ -832,58 +1267,18 @@ func analyzeAllProbes(
 			}
 
 			// Analyze condition expression.
-			ap.condition, ap.conditionIssue = func() (*analyzedCondition, ir.Issue) {
-				whenJSON := probe.ProbeDefinition.GetWhen()
-				if len(whenJSON) == 0 {
-					return nil, ir.Issue{}
-				}
-				condExpr, err := exprlang.Parse(whenJSON)
-				if err != nil {
-					return nil, ir.Issue{
-						Kind:    ir.IssueKindUnsupportedFeature,
-						Message: fmt.Sprintf("failed to parse condition: %v", err),
-					}
-				}
-				var rootExpr exprlang.Expr
-				switch ce := condExpr.(type) {
-				case *exprlang.EqExpr:
-					rootExpr = ce.Left
-				case *exprlang.IsEmptyExpr:
-					rootExpr = ce.Operand
-				default:
-					return nil, ir.Issue{
-						Kind:    ir.IssueKindUnsupportedFeature,
-						Message: fmt.Sprintf("unsupported condition expression type: %T", condExpr),
-					}
-				}
-				rootVarName, ok := extractRootVariableName(rootExpr)
-				if !ok {
-					return nil, ir.Issue{
-						Kind:    ir.IssueKindUnsupportedFeature,
-						Message: "failed to extract root variable from condition",
-					}
-				}
-				rootVar := varByName[rootVarName]
-				if rootVar == nil {
-					return nil, ir.Issue{
-						Kind:    ir.IssueKindConditionVariableUnavailable,
-						Message: fmt.Sprintf("condition variable %q not found", rootVarName),
-					}
-				}
-				evKind, ok := conditionEventKind(rootVar)
-				if !ok {
-					return nil, ir.Issue{
-						Kind:    ir.IssueKindConditionVariableUnavailable,
-						Message: fmt.Sprintf("condition variable %q not available at any event", rootVarName),
-					}
-				}
-				addRoot(rootVar.Type.GetID(), budget)
-				return &analyzedCondition{
-					expr:         condExpr,
-					rootVariable: rootVar,
-					eventKind:    evKind,
-				}, ir.Issue{}
-			}()
+			whenJSON := probe.ProbeDefinition.GetWhen()
+			if len(whenJSON) > 0 {
+				ap.condition, ap.conditionIssue = analyzeCondition(
+					whenJSON,
+					varByName,
+					returnVars,
+					returnDisplayNames,
+					conditionEventKind,
+					addRoot,
+					budget,
+				)
+			}
 
 			// Mark unmatched segments as invalid.
 			for name, segs := range segmentRefs {
@@ -1923,6 +2318,7 @@ func finalizeTypes(tc *typeCatalog, subprograms []*ir.Subprogram) error {
 type processedDwarf struct {
 	pendingSubprograms []*pendingSubprogram
 	goModuledataInfo   ir.GoModuledataInfo
+	goMapHashInfo      ir.GoMapHashInfo
 	interestingTypes   []dwarf.Offset
 }
 
@@ -1969,6 +2365,7 @@ func processDwarf(
 	return processedDwarf{
 		pendingSubprograms: append(v.subprograms, inlinedSubprograms...),
 		goModuledataInfo:   v.goRuntimeInformation,
+		goMapHashInfo:      v.goMapHashInfo,
 		interestingTypes:   v.interestingTypes,
 	}, nil
 }
@@ -2014,6 +2411,7 @@ type rootVisitor struct {
 	typeIndexBuilder goTypeToOffsetIndexBuilder
 
 	goRuntimeInformation ir.GoModuledataInfo
+	goMapHashInfo        ir.GoMapHashInfo
 
 	// This is used to avoid allocations of unitChildVisitor for each
 	// compile unit.
@@ -2231,38 +2629,56 @@ func (v *unitChildVisitor) push(
 		if err != nil {
 			return nil, err
 		}
-		if !ok || name != "runtime.firstmoduledata" {
+		if !ok {
 			return nil, nil
 		}
 
-		typeOffset, err := getAttr[dwarf.Offset](entry, dwarf.AttrType)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get type for runtime.firstmoduledata: %w", err)
-		}
+		switch name {
+		case "runtime.firstmoduledata":
+			typeOffset, err := getAttr[dwarf.Offset](entry, dwarf.AttrType)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get type for runtime.firstmoduledata: %w", err)
+			}
 
-		// See https://github.com/golang/go/blob/5a56d884/src/runtime/symtab.go#L414
-		byteSize, memberOffset, err := findStructSizeAndMemberOffset(v.root.dwarf, typeOffset, "types")
-		if err != nil {
-			return nil, fmt.Errorf("failed to find struct size and member offset: %w", err)
-		}
-		location, err := getAttr[[]byte](entry, dwarf.AttrLocation)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get location for runtime.firstmoduledata: %w", err)
-		}
-		instructions, err := loclist.ParseInstructions(location, v.root.pointerSize, byteSize)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse location for runtime.firstmoduledata: %w", err)
-		}
-		if len(instructions) != 1 {
-			return nil, fmt.Errorf("runtime.firstmoduledata has %d instructions, expected 1", len(instructions))
-		}
-		addr, ok := instructions[0].Op.(ir.Addr)
-		if !ok {
-			return nil, fmt.Errorf("runtime.firstmoduledata is not an address, got %T", instructions[0].Op)
-		}
-		v.root.goRuntimeInformation = ir.GoModuledataInfo{
-			FirstModuledataAddr: addr.Addr,
-			TypesOffset:         memberOffset,
+			// See https://github.com/golang/go/blob/5a56d884/src/runtime/symtab.go#L414
+			byteSize, memberOffset, err := findStructSizeAndMemberOffset(v.root.dwarf, typeOffset, "types")
+			if err != nil {
+				return nil, fmt.Errorf("failed to find struct size and member offset: %w", err)
+			}
+			location, err := getAttr[[]byte](entry, dwarf.AttrLocation)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get location for runtime.firstmoduledata: %w", err)
+			}
+			instructions, err := loclist.ParseInstructions(location, v.root.pointerSize, byteSize)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse location for runtime.firstmoduledata: %w", err)
+			}
+			if len(instructions) != 1 {
+				return nil, fmt.Errorf("runtime.firstmoduledata has %d instructions, expected 1", len(instructions))
+			}
+			addr, ok := instructions[0].Op.(ir.Addr)
+			if !ok {
+				return nil, fmt.Errorf("runtime.firstmoduledata is not an address, got %T", instructions[0].Op)
+			}
+			v.root.goRuntimeInformation = ir.GoModuledataInfo{
+				FirstModuledataAddr: addr.Addr,
+				TypesOffset:         memberOffset,
+			}
+
+		case "runtime.useAeshash", "runtime.aeskeysched":
+			// Extract addresses of hash-related globals needed for swiss
+			// table map lookups. See go_swiss_maps.md for details.
+			addr, err := extractGlobalVarAddr(entry, name, v.root.pointerSize)
+			if err != nil {
+				// Non-fatal: map index expressions will be unsupported.
+				return nil, nil
+			}
+			switch name {
+			case "runtime.useAeshash":
+				v.root.goMapHashInfo.UseAeshashAddr = addr
+			case "runtime.aeskeysched":
+				v.root.goMapHashInfo.AeskeyschedAddr = addr
+			}
 		}
 		return nil, nil
 
@@ -2278,6 +2694,33 @@ func (v *unitChildVisitor) push(
 // It doesn't match anything with a package or any of the odd internal types
 // used by the runtime like sudog<T>.
 var primitiveTypeNameRegexp = regexp.MustCompile(`^[a-z]+[0-9]*$`)
+
+// extractGlobalVarAddr extracts the DW_OP_addr from a DW_TAG_variable entry.
+// This is used for simple global variables where we only need the address.
+func extractGlobalVarAddr(
+	entry *dwarf.Entry,
+	name string,
+	pointerSize uint8,
+) (uint64, error) {
+	location, err := getAttr[[]byte](entry, dwarf.AttrLocation)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get location for %s: %w", name, err)
+	}
+	// Use pointer size as the byte size — we only need the address, not the
+	// data. The loclist parser requires a size but it doesn't affect DW_OP_addr.
+	instructions, err := loclist.ParseInstructions(location, pointerSize, uint32(pointerSize))
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse location for %s: %w", name, err)
+	}
+	if len(instructions) != 1 {
+		return 0, fmt.Errorf("%s has %d location instructions, expected 1", name, len(instructions))
+	}
+	addr, ok := instructions[0].Op.(ir.Addr)
+	if !ok {
+		return 0, fmt.Errorf("%s location is not an address, got %T", name, instructions[0].Op)
+	}
+	return addr.Addr, nil
+}
 
 // findStructMemberOffset finds the offset of a member in a struct type.
 func findStructSizeAndMemberOffset(
@@ -3323,30 +3766,38 @@ func exploreTypesForExpressions(
 			}
 		}
 
-		// Validate condition types.
+		// Validate condition types. For compound conditions this walks
+		// every leaf; the first leaf that fails exploration fails the
+		// whole probe — matches today's single-leaf semantics.
 		if cond := ap.condition; cond != nil {
-			var condExploreExpr exprlang.Expr
-			switch ce := cond.expr.(type) {
-			case *exprlang.EqExpr:
-				condExploreExpr = ce.Left
-			case *exprlang.IsEmptyExpr:
-				condExploreExpr = ce.Operand
-			default:
-				ap.conditionIssue = ir.Issue{
-					Kind:    ir.IssueKindUnsupportedFeature,
-					Message: fmt.Sprintf("unsupported condition expression type: %T", cond.expr),
+			for _, leaf := range conditionLeafExprs(cond.expr) {
+				sub, ok := conditionLeafSubExpr(leaf)
+				if !ok {
+					ap.conditionIssue = ir.Issue{
+						Kind:    ir.IssueKindUnsupportedFeature,
+						Message: fmt.Sprintf("unsupported condition expression type: %T", leaf),
+					}
+					ap.condition = nil
+					break
 				}
-				ap.condition = nil
-			}
-			if condExploreExpr != nil {
+				rootVar, ok := cond.leafRoots[leaf]
+				if !ok || rootVar == nil {
+					ap.conditionIssue = ir.Issue{
+						Kind:    ir.IssueKindConditionExpressionUnresolvable,
+						Message: "condition leaf has no resolved root variable",
+					}
+					ap.condition = nil
+					break
+				}
 				if _, err := exploreExpressionTypes(
-					condExploreExpr, cond.rootVariable.Type, tc, "",
+					sub, rootVar.Type, tc, "",
 				); err != nil {
 					ap.conditionIssue = ir.Issue{
 						Kind:    ir.IssueKindConditionExpressionUnresolvable,
 						Message: fmt.Sprintf("condition type exploration failed: %v", err),
 					}
 					ap.condition = nil
+					break
 				}
 			}
 		}
@@ -3580,23 +4031,23 @@ func exploreIndexExprTypes(
 		return nil, err
 	}
 
-	// Validate the index is a literal integer >= 0.
+	// The index must always be a literal.
 	litExpr, ok := e.Index.(*exprlang.LiteralExpr)
 	if !ok {
 		return nil, fmt.Errorf("index must be a literal, got %T", e.Index)
-	}
-	idx, ok := litExpr.Value.(int64)
-	if !ok {
-		return nil, fmt.Errorf("index must be an integer literal, got %T", litExpr.Value)
-	}
-	if idx < 0 {
-		return nil, fmt.Errorf("index must be non-negative, got %d", idx)
 	}
 
 	// Resolve the collection type to get the element type.
 	canonical := tc.typesByID[resolvedType.GetID()]
 	switch t := canonical.(type) {
 	case *ir.ArrayType:
+		idx, ok := litExpr.Value.(int64)
+		if !ok {
+			return nil, fmt.Errorf("array index must be an integer literal, got %T", litExpr.Value)
+		}
+		if idx < 0 {
+			return nil, fmt.Errorf("array index must be non-negative, got %d", idx)
+		}
 		if uint32(idx) >= t.Count {
 			return nil, fmt.Errorf("index %d out of bounds for array of length %d", idx, t.Count)
 		}
@@ -3606,14 +4057,135 @@ func exploreIndexExprTypes(
 		}
 		return elemType, nil
 	case *ir.GoSliceHeaderType:
+		idx, ok := litExpr.Value.(int64)
+		if !ok {
+			return nil, fmt.Errorf("slice index must be an integer literal, got %T", litExpr.Value)
+		}
+		if idx < 0 {
+			return nil, fmt.Errorf("slice index must be non-negative, got %d", idx)
+		}
 		elemType := t.Data.Element
 		if err := ensureTypeExplored(tc, elemType); err != nil {
 			return nil, err
 		}
 		return elemType, nil
+	case *ir.GoMapType:
+		return exploreSwissMapIndexTypes(t, litExpr, tc)
 	default:
 		return nil, fmt.Errorf("index not supported on type %T (%q)", canonical, canonical.GetName())
 	}
+}
+
+// exploreSwissMapIndexTypes validates the key literal and returns the map's
+// value element type for a swiss map index expression.
+func exploreSwissMapIndexTypes(
+	mapType *ir.GoMapType,
+	litExpr *exprlang.LiteralExpr,
+	tc *typeCatalog,
+) (ir.Type, error) {
+	// Unwrap GoMapType → header type.
+	headerType := tc.typesByID[mapType.HeaderType.GetID()]
+	swissHeader, ok := headerType.(*ir.GoSwissMapHeaderType)
+	if !ok {
+		if _, isHMap := headerType.(*ir.GoHMapHeaderType); isHMap {
+			return nil, errors.New("index not supported on old-style hmap; only swiss maps (Go 1.24+) are supported")
+		}
+		return nil, fmt.Errorf("index not supported on map header type %T", headerType)
+	}
+
+	// Navigate to key/value types via the group structure:
+	// GroupType → "slots" field → ArrayType → Element (slot struct) → "key"/"elem" fields
+	keyType, valType, err := swissMapKeyValueTypes(swissHeader, tc)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve map key/value types: %w", err)
+	}
+
+	// Validate the literal key matches the map's key type.
+	keyType = tc.typesByID[keyType.GetID()]
+	if err := validateSwissMapKeyLiteral(litExpr, keyType); err != nil {
+		return nil, err
+	}
+
+	// Ensure the value type is explored.
+	valType = tc.typesByID[valType.GetID()]
+	if err := ensureTypeExplored(tc, valType); err != nil {
+		return nil, err
+	}
+	return valType, nil
+}
+
+// swissMapKeyValueTypes extracts the key and value types from a swiss map's
+// group structure.
+func swissMapKeyValueTypes(
+	swissHeader *ir.GoSwissMapHeaderType,
+	tc *typeCatalog,
+) (keyType, valType ir.Type, err error) {
+	slotsField, err := field(tc, swissHeader.GroupType, "slots")
+	if err != nil {
+		return nil, nil, fmt.Errorf("group has no slots field: %w", err)
+	}
+	slotsFieldType := tc.typesByID[slotsField.Type.GetID()]
+	entryArray, ok := slotsFieldType.(*ir.ArrayType)
+	if !ok {
+		return nil, nil, fmt.Errorf("slots field is not an array type: %T", slotsFieldType)
+	}
+	slotStruct, ok := entryArray.Element.(*ir.StructureType)
+	if !ok {
+		return nil, nil, fmt.Errorf("slot array element is not a struct: %T", entryArray.Element)
+	}
+	keyField, err := field(tc, slotStruct, "key")
+	if err != nil {
+		return nil, nil, fmt.Errorf("slot struct has no key field: %w", err)
+	}
+	elemField, err := field(tc, slotStruct, "elem")
+	if err != nil {
+		return nil, nil, fmt.Errorf("slot struct has no elem field: %w", err)
+	}
+	return keyField.Type, elemField.Type, nil
+}
+
+// validateSwissMapKeyLiteral checks that the literal value is compatible with
+// the map's key type.
+func validateSwissMapKeyLiteral(
+	litExpr *exprlang.LiteralExpr,
+	keyType ir.Type,
+) error {
+	switch keyType.(type) {
+	case *ir.BaseType:
+		// Base type keys accept integer, float, bool, and string literals
+		// (validated further during coerceLiteral in resolveSwissMapIndex).
+		switch litExpr.Value.(type) {
+		case int64, float64, bool, string:
+			// int64 and float64 from JSON; bool for true/false keys;
+			// string for hex/octal notation.
+			// coerceLiteral handles the full validation and range checking.
+		default:
+			return fmt.Errorf(
+				"map index: base type key requires integer or bool literal, got %T",
+				litExpr.Value,
+			)
+		}
+	case *ir.GoStringHeaderType:
+		litStr, ok := litExpr.Value.(string)
+		if !ok {
+			return fmt.Errorf(
+				"map index: string key requires string literal, got %T",
+				litExpr.Value,
+			)
+		}
+		if len(litStr) > ir.MaxMapStringKeyLength {
+			return fmt.Errorf(
+				"map index: string key too long (%d bytes, max %d)",
+				len(litStr), ir.MaxMapStringKeyLength,
+			)
+		}
+	default:
+		return fmt.Errorf(
+			"map index: unsupported key type %T (%q); only base types and strings are supported",
+			keyType, keyType.GetName(),
+		)
+	}
+	return nil
 }
 
 // exploreLenExprTypes explores types for a len/isEmpty operand, resolving
@@ -3764,10 +4336,12 @@ func resolveExpression(
 		lastDerefOpIdx := -1
 
 		// Detect if the base expression already ends with a DereferenceOp
-		// (e.g., from slice index resolution). If so, initialize state so
-		// the member loop updates the correct op.
+		// or SwissMapLookupOp (e.g., from slice index or map index
+		// resolution). If so, initialize state so the member loop updates
+		// the correct op.
 		if len(operations) > 0 {
-			if _, ok := operations[len(operations)-1].(*ir.DereferenceOp); ok {
+			switch operations[len(operations)-1].(type) {
+			case *ir.DereferenceOp, *ir.SwissMapLookupOp:
 				hasDereferenced = true
 				lastDerefOpIdx = len(operations) - 1
 			}
@@ -3843,15 +4417,17 @@ func resolveExpression(
 					}
 				}
 			} else {
-				// After dereference: update the DereferenceOp that corresponds to
-				// the current pointer being dereferenced (tracked by lastDerefOpIdx).
+				// After dereference or map lookup: update the operation that
+				// corresponds to the current data read (tracked by lastDerefOpIdx).
 				if lastDerefOpIdx >= 0 && lastDerefOpIdx < len(operations) {
-					if derefOp, ok := operations[lastDerefOpIdx].(*ir.DereferenceOp); ok {
-						// Update the DereferenceOp's bias to include this field offset.
-						derefOp.Bias += field.Offset
-						// Update the byte size to match the field size.
-						derefOp.ByteSize = field.Type.GetByteSize()
-					} else {
+					switch op := operations[lastDerefOpIdx].(type) {
+					case *ir.DereferenceOp:
+						op.Bias += field.Offset
+						op.ByteSize = field.Type.GetByteSize()
+					case *ir.SwissMapLookupOp:
+						op.ValInSlotOffset += uint16(field.Offset)
+						op.ValByteSize = field.Type.GetByteSize()
+					default:
 						// Should not happen, but accumulate bias for safety.
 						bias += field.Offset
 					}
@@ -3935,7 +4511,7 @@ func resolveExpression(
 }
 
 // indexElementType returns the element type for an indexable collection type
-// (array or slice).
+// (array, slice, or map).
 func indexElementType(tc *typeCatalog, baseType ir.Type) (ir.Type, error) {
 	canonical := tc.typesByID[baseType.GetID()]
 	// Dereference pointer if needed (e.g., *[N]T or *[]T).
@@ -3947,6 +4523,17 @@ func indexElementType(tc *typeCatalog, baseType ir.Type) (ir.Type, error) {
 		return t.Element, nil
 	case *ir.GoSliceHeaderType:
 		return t.Data.Element, nil
+	case *ir.GoMapType:
+		headerType := tc.typesByID[t.HeaderType.GetID()]
+		swissHeader, ok := headerType.(*ir.GoSwissMapHeaderType)
+		if !ok {
+			return nil, fmt.Errorf("index not supported on non-swiss map type %T", headerType)
+		}
+		_, valType, err := swissMapKeyValueTypes(swissHeader, tc)
+		if err != nil {
+			return nil, err
+		}
+		return valType, nil
 	default:
 		return nil, fmt.Errorf("index not supported on type %T (%q)", canonical, canonical.GetName())
 	}
@@ -3956,6 +4543,7 @@ func indexElementType(tc *typeCatalog, baseType ir.Type) (ir.Type, error) {
 // read only the single element at the given index. For arrays, this adjusts
 // the offset on the existing LocationOp/DereferenceOp. For slices, this
 // narrows to the data pointer and adds a DereferenceOp with element offset.
+// For maps, this emits a SwissMapLookupOp that performs an O(1) hash lookup.
 func resolveIndexExpression(
 	e *exprlang.IndexExpr,
 	rootVar *ir.Variable,
@@ -3966,17 +4554,6 @@ func resolveIndexExpression(
 	if !ok {
 		return ir.Expression{}, fmt.Errorf("index must be a literal, got %T", e.Index)
 	}
-	idx, ok := litExpr.Value.(int64)
-	if !ok {
-		return ir.Expression{}, fmt.Errorf("index must be an integer literal, got %T", litExpr.Value)
-	}
-	if idx < 0 {
-		return ir.Expression{}, fmt.Errorf("index must be non-negative, got %d", idx)
-	}
-	if idx > math.MaxUint32 {
-		return ir.Expression{}, fmt.Errorf("index %d exceeds maximum (%d)", idx, math.MaxUint32)
-	}
-
 	// Resolve the base expression.
 	baseExpr, err := resolveExpression(e.Base, rootVar, tc)
 	if err != nil {
@@ -3987,9 +4564,25 @@ func resolveIndexExpression(
 	canonical := tc.typesByID[baseExpr.Type.GetID()]
 	switch t := canonical.(type) {
 	case *ir.ArrayType:
+		idx, ok := litExpr.Value.(int64)
+		if !ok || idx < 0 {
+			return ir.Expression{}, errors.New("array index must be a non-negative integer literal")
+		}
+		if idx > math.MaxUint32 {
+			return ir.Expression{}, fmt.Errorf("index %d exceeds maximum (%d)", idx, math.MaxUint32)
+		}
 		return resolveArrayIndex(baseExpr, t, idx)
 	case *ir.GoSliceHeaderType:
+		idx, ok := litExpr.Value.(int64)
+		if !ok || idx < 0 {
+			return ir.Expression{}, errors.New("slice index must be a non-negative integer literal")
+		}
+		if idx > math.MaxUint32 {
+			return ir.Expression{}, fmt.Errorf("index %d exceeds maximum (%d)", idx, math.MaxUint32)
+		}
 		return resolveSliceIndex(baseExpr, t, idx, tc)
+	case *ir.GoMapType:
+		return resolveSwissMapIndex(baseExpr, t, litExpr, tc)
 	default:
 		return ir.Expression{}, fmt.Errorf(
 			"index not supported on type %T (%q)", canonical, canonical.GetName(),
@@ -4090,6 +4683,165 @@ func resolveSliceIndex(
 
 	return ir.Expression{
 		Type:       elemType,
+		Operations: operations,
+	}, nil
+}
+
+// resolveSwissMapIndex resolves a map index expression into IR operations
+// that perform an O(1) hash lookup. The base expression evaluates to a map
+// pointer. We dereference it to read the map header, then emit a
+// SwissMapLookupOp that encodes all structural offsets and the literal key.
+func resolveSwissMapIndex(
+	baseExpr ir.Expression,
+	mapType *ir.GoMapType,
+	litExpr *exprlang.LiteralExpr,
+	tc *typeCatalog,
+) (ir.Expression, error) {
+	// Unwrap GoMapType → header type.
+	headerType := tc.typesByID[mapType.HeaderType.GetID()]
+	swissHeader, ok := headerType.(*ir.GoSwissMapHeaderType)
+	if !ok {
+		return ir.Expression{}, fmt.Errorf(
+			"map index: expected GoSwissMapHeaderType, got %T", headerType,
+		)
+	}
+
+	// The base expression gives us a map pointer (*Map). Dereference to read
+	// the full map header.
+	headerSize := swissHeader.StructureType.GetByteSize()
+	operations := baseExpr.Operations
+	operations = append(operations, &ir.DereferenceOp{
+		Bias:     0,
+		ByteSize: headerSize,
+	})
+
+	// Extract map header field offsets from DWARF.
+	seedField, err := field(tc, swissHeader.StructureType, "seed")
+	if err != nil {
+		return ir.Expression{}, fmt.Errorf("map header missing seed field: %w", err)
+	}
+	dirPtrField, err := field(tc, swissHeader.StructureType, "dirPtr")
+	if err != nil {
+		return ir.Expression{}, fmt.Errorf("map header missing dirPtr field: %w", err)
+	}
+	dirLenField, err := field(tc, swissHeader.StructureType, "dirLen")
+	if err != nil {
+		return ir.Expression{}, fmt.Errorf("map header missing dirLen field: %w", err)
+	}
+	globalShiftField, err := field(tc, swissHeader.StructureType, "globalShift")
+	if err != nil {
+		return ir.Expression{}, fmt.Errorf("map header missing globalShift field: %w", err)
+	}
+
+	// Navigate to the group structure for slot layout:
+	// GroupType → "ctrl" field, "slots" field → ArrayType → Element (slot struct)
+	ctrlField, err := field(tc, swissHeader.GroupType, "ctrl")
+	if err != nil {
+		return ir.Expression{}, fmt.Errorf("group type missing ctrl field: %w", err)
+	}
+	slotsField, err := field(tc, swissHeader.GroupType, "slots")
+	if err != nil {
+		return ir.Expression{}, fmt.Errorf("group type missing slots field: %w", err)
+	}
+	slotsFieldType := tc.typesByID[slotsField.Type.GetID()]
+	entryArray, ok := slotsFieldType.(*ir.ArrayType)
+	if !ok {
+		return ir.Expression{}, fmt.Errorf("slots field is not an array: %T", slotsFieldType)
+	}
+	slotStruct, ok := entryArray.Element.(*ir.StructureType)
+	if !ok {
+		return ir.Expression{}, fmt.Errorf("slot element is not a struct: %T", entryArray.Element)
+	}
+	keyField, err := field(tc, slotStruct, "key")
+	if err != nil {
+		return ir.Expression{}, fmt.Errorf("slot struct missing key field: %w", err)
+	}
+	elemField, err := field(tc, slotStruct, "elem")
+	if err != nil {
+		return ir.Expression{}, fmt.Errorf("slot struct missing elem field: %w", err)
+	}
+
+	// Navigate to table struct → groupsReference for data/lengthMask offsets.
+	tablePtrType, ok := swissHeader.TablePtrSliceType.Element.(*ir.PointerType)
+	if !ok {
+		return ir.Expression{}, fmt.Errorf("table ptr slice element is not a pointer: %T", swissHeader.TablePtrSliceType.Element)
+	}
+	tableType, ok := tc.typesByID[tablePtrType.Pointee.GetID()].(*ir.StructureType)
+	if !ok {
+		return ir.Expression{}, fmt.Errorf("table pointee is not a struct: %T", tc.typesByID[tablePtrType.Pointee.GetID()])
+	}
+	groupsField, err := field(tc, tableType, "groups")
+	if err != nil {
+		return ir.Expression{}, fmt.Errorf("table type missing groups field: %w", err)
+	}
+	groupsType, ok := groupsField.Type.(*ir.GoSwissMapGroupsType)
+	if !ok {
+		return ir.Expression{}, fmt.Errorf("groups field is not GoSwissMapGroupsType: %T", groupsField.Type)
+	}
+	dataField, err := field(tc, groupsType.StructureType, "data")
+	if err != nil {
+		return ir.Expression{}, fmt.Errorf("groupsReference missing data field: %w", err)
+	}
+	lengthMaskField, err := field(tc, groupsType.StructureType, "lengthMask")
+	if err != nil {
+		return ir.Expression{}, fmt.Errorf("groupsReference missing lengthMask field: %w", err)
+	}
+
+	// Encode the literal key.
+	keyType := tc.typesByID[keyField.Type.GetID()]
+	valType := tc.typesByID[elemField.Type.GetID()]
+
+	var keyData []byte
+	var isStringKey bool
+	var keyByteSize uint8
+
+	switch kt := keyType.(type) {
+	case *ir.BaseType:
+		keyByteSize = uint8(kt.GetByteSize())
+		goKind, _ := kt.GetGoKind()
+		keyData, err = coerceLiteral(litExpr.Value, goKind, uint32(keyByteSize))
+		if err != nil {
+			return ir.Expression{}, fmt.Errorf("map index: %w", err)
+		}
+	case *ir.GoStringHeaderType:
+		isStringKey = true
+		keyByteSize = uint8(kt.StructureType.GetByteSize()) // 16 on amd64
+		litStr := litExpr.Value.(string)                    // validated in explore phase
+		keyData = make([]byte, 4+len(litStr))
+		binary.LittleEndian.PutUint32(keyData[:4], uint32(len(litStr)))
+		copy(keyData[4:], litStr)
+	default:
+		return ir.Expression{}, fmt.Errorf("map index: unsupported key type %T", keyType)
+	}
+
+	operations = append(operations, &ir.SwissMapLookupOp{
+		KeyData:     keyData,
+		IsStringKey: isStringKey,
+		KeyByteSize: keyByteSize,
+		ValByteSize: valType.GetByteSize(),
+
+		SeedOffset:        uint8(seedField.Offset),
+		DirPtrOffset:      uint8(dirPtrField.Offset),
+		DirLenOffset:      uint8(dirLenField.Offset),
+		GlobalShiftOffset: uint8(globalShiftField.Offset),
+
+		CtrlOffset:      uint8(ctrlField.Offset),
+		SlotsOffset:     uint8(slotsField.Offset),
+		SlotSize:        uint16(slotStruct.GetByteSize()),
+		KeyInSlotOffset: uint8(keyField.Offset),
+		ValInSlotOffset: uint16(elemField.Offset),
+
+		TableGroupsFieldOffset:   uint8(groupsField.Offset),
+		GroupsDataFieldOffset:    uint8(dataField.Offset),
+		GroupsLenMaskFieldOffset: uint8(lengthMaskField.Offset),
+
+		GroupByteSize: uint16(swissHeader.GroupType.GetByteSize()),
+
+		HeaderByteSize: headerSize,
+	})
+
+	return ir.Expression{
+		Type:       valType,
 		Operations: operations,
 	}, nil
 }
@@ -4366,6 +5118,32 @@ func coerceLiteral(value any, targetKind reflect.Kind, byteSize uint32) ([]byte,
 	return litData, nil
 }
 
+// isNilComparable reports whether t can be compared against a null literal.
+// All supported types have a pointer at the start of their in-memory
+// representation whose zero value coincides with Go's `== nil` semantics:
+//
+//   - *T (PointerType): the pointer itself (8 bytes).
+//   - unsafe.Pointer (VoidPointerType): 8-byte pointer.
+//   - map (GoMapType): pointer to the map header (8 bytes).
+//   - slice (GoSliceHeaderType): 24-byte header; the leading 8 bytes are
+//     the data pointer, which matches Go's `s == nil` check.
+//   - interface (GoInterfaceType / GoEmptyInterfaceType): 16-byte header;
+//     the leading 8 bytes are the itab/type-descriptor pointer, which
+//     matches Go's `i == nil` rule (a typed nil pointer in an interface is
+//     not equal to nil because the type slot is populated).
+func isNilComparable(t ir.Type) bool {
+	switch t.(type) {
+	case *ir.PointerType,
+		*ir.VoidPointerType,
+		*ir.GoMapType,
+		*ir.GoSliceHeaderType,
+		*ir.GoEmptyInterfaceType,
+		*ir.GoInterfaceType:
+		return true
+	}
+	return false
+}
+
 // resolveEqComparison builds comparison ops for an equality check.
 // Returns a bool-typed Expression without ConditionCheckOp.
 func resolveEqComparison(
@@ -4375,6 +5153,31 @@ func resolveEqComparison(
 ) (ir.Expression, error) {
 	lhsType := lhsExpr.Type
 	ops := lhsExpr.Operations
+
+	// Null-literal comparison: supported for pointers, maps, slices, and
+	// interfaces. For all four we compare the first 8 bytes of the value
+	// against zero — see isNilComparable for the layout details.
+	if litExpr.Value == nil {
+		if !isNilComparable(lhsType) {
+			return ir.Expression{}, fmt.Errorf(
+				"eq: type %s cannot be compared to null",
+				lhsType.GetName(),
+			)
+		}
+		ops = append(ops, &ir.ExprPushOffsetOp{ByteSize: 8})
+		ops = append(ops, &ir.ExprLoadLiteralOp{Data: make([]byte, 8)})
+		ops = append(ops, &ir.ExprCmpEqBaseOp{ByteSize: 8})
+		boolType := tc.typesByID[tc.boolType]
+		return ir.Expression{Type: boolType, Operations: ops}, nil
+	}
+
+	// Non-null literal against a nullable-only type: reject up front.
+	if isNilComparable(lhsType) {
+		return ir.Expression{}, fmt.Errorf(
+			"eq: type %s can only be compared to null",
+			lhsType.GetName(),
+		)
+	}
 
 	// Check if LHS is a string type.
 	if _, isString := lhsType.(*ir.GoStringHeaderType); isString {
@@ -4458,30 +5261,102 @@ func resolveIsEmptyComparison(
 	return resolveEqComparison(lenExpr, zeroLit, tc)
 }
 
-// resolveCondition resolves a condition expression AST into an IR Expression
-// that evaluates to bool. Only eq comparisons with literal values are supported.
+// resolveCondition lowers an analyzed condition tree into an IR Expression
+// with a single trailing ConditionCheckOp. Compound conditions (and/or/not)
+// are emitted with short-circuit jumps — see pkg/dyninst/ir/expression.go for
+// the CondJumpOp/CondLabelOp/CondNotOp semantics.
 func resolveCondition(
 	condExpr exprlang.Expr,
-	rootVar *ir.Variable,
+	leafRoots map[exprlang.Expr]*ir.Variable,
 	tc *typeCatalog,
 ) (*ir.Expression, error) {
-	// Handle isEmpty as a standalone condition: semantically len(x) == 0.
-	if ie, ok := condExpr.(*exprlang.IsEmptyExpr); ok {
-		return resolveIsEmptyCondition(ie, rootVar, tc)
+	var la labelAllocator
+	ops, err := emitCondition(condExpr, leafRoots, tc, &la)
+	if err != nil {
+		return nil, err
 	}
+	ops = append(ops, &ir.ConditionCheckOp{})
+	boolType := tc.typesByID[tc.boolType]
+	return &ir.Expression{Type: boolType, Operations: ops}, nil
+}
 
-	eqExpr, ok := condExpr.(*exprlang.EqExpr)
-	if !ok {
-		return nil, fmt.Errorf("unsupported condition expression type: %T", condExpr)
+// labelAllocator hands out LabelIDs unique within a single condition handler.
+type labelAllocator struct {
+	next ir.LabelID
+}
+
+func (la *labelAllocator) newLabel() ir.LabelID {
+	la.next++
+	return la.next
+}
+
+// emitCondition recursively emits IR ops for a condition expression, leaving
+// the resulting boolean byte at sm->offset on execution.
+func emitCondition(
+	e exprlang.Expr,
+	leafRoots map[exprlang.Expr]*ir.Variable,
+	tc *typeCatalog,
+	la *labelAllocator,
+) ([]ir.ExpressionOp, error) {
+	switch e := e.(type) {
+	case *exprlang.EqExpr:
+		return emitEqLeaf(e, leafRoots[e], tc)
+	case *exprlang.IsEmptyExpr:
+		return emitIsEmptyLeaf(e, leafRoots[e], tc)
+	case *exprlang.NotExpr:
+		inner, err := emitCondition(e.Operand, leafRoots, tc, la)
+		if err != nil {
+			return nil, err
+		}
+		return append(inner, &ir.CondNotOp{}), nil
+	case *exprlang.AndExpr:
+		return emitShortCircuit(e.Left, e.Right, leafRoots, tc, la, false)
+	case *exprlang.OrExpr:
+		return emitShortCircuit(e.Left, e.Right, leafRoots, tc, la, true)
+	default:
+		return nil, fmt.Errorf("unsupported condition expression type: %T", e)
 	}
+}
 
-	// Resolve the LHS operand (must be a variable reference).
+// emitShortCircuit emits a binary short-circuit chain. jumpOn == false is
+// AND (jump past Right when Left is false); jumpOn == true is OR.
+func emitShortCircuit(
+	left, right exprlang.Expr,
+	leafRoots map[exprlang.Expr]*ir.Variable,
+	tc *typeCatalog,
+	la *labelAllocator,
+	jumpOn bool,
+) ([]ir.ExpressionOp, error) {
+	end := la.newLabel()
+	leftOps, err := emitCondition(left, leafRoots, tc, la)
+	if err != nil {
+		return nil, err
+	}
+	rightOps, err := emitCondition(right, leafRoots, tc, la)
+	if err != nil {
+		return nil, err
+	}
+	out := leftOps
+	out = append(out, &ir.CondJumpOp{Cond: jumpOn, Target: end})
+	out = append(out, rightOps...)
+	out = append(out, &ir.CondLabelOp{ID: end})
+	return out, nil
+}
+
+// emitEqLeaf lowers an EqExpr leaf into comparison ops that write a single
+// boolean byte at sm->offset.
+func emitEqLeaf(
+	eqExpr *exprlang.EqExpr,
+	rootVar *ir.Variable,
+	tc *typeCatalog,
+) ([]ir.ExpressionOp, error) {
+	if rootVar == nil {
+		return nil, errors.New("condition leaf has no resolved root variable")
+	}
 	lhsExpr, err := resolveExpression(eqExpr.Left, rootVar, tc)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve condition LHS: %w", err)
 	}
-
-	// Get the RHS literal.
 	litExpr, ok := eqExpr.Right.(*exprlang.LiteralExpr)
 	if !ok {
 		return nil, fmt.Errorf(
@@ -4489,27 +5364,28 @@ func resolveCondition(
 			eqExpr.Right,
 		)
 	}
-
 	expr, err := resolveEqComparison(lhsExpr, litExpr, tc)
 	if err != nil {
 		return nil, err
 	}
-	expr.Operations = append(expr.Operations, &ir.ConditionCheckOp{})
-	return &expr, nil
+	return expr.Operations, nil
 }
 
-// resolveIsEmptyCondition resolves an isEmpty condition: semantically len(x) == 0.
-func resolveIsEmptyCondition(
+// emitIsEmptyLeaf lowers an IsEmptyExpr leaf into ops that write a single
+// boolean byte at sm->offset.
+func emitIsEmptyLeaf(
 	ie *exprlang.IsEmptyExpr,
 	rootVar *ir.Variable,
 	tc *typeCatalog,
-) (*ir.Expression, error) {
+) ([]ir.ExpressionOp, error) {
+	if rootVar == nil {
+		return nil, errors.New("condition leaf has no resolved root variable")
+	}
 	expr, err := resolveIsEmptyComparison(ie, rootVar, tc)
 	if err != nil {
 		return nil, err
 	}
-	expr.Operations = append(expr.Operations, &ir.ConditionCheckOp{})
-	return &expr, nil
+	return expr.Operations, nil
 }
 
 // populateProbeEventsExpressions resolves expressions for every analyzed
@@ -4560,7 +5436,7 @@ func populateInstanceExpressions(
 	for _, event := range inst.Events {
 		// Resolve condition for the matching event only.
 		if cond := ap.condition; cond != nil && cond.eventKind == event.Kind {
-			resolved, err := resolveCondition(cond.expr, cond.rootVariable, typeCatalog)
+			resolved, err := resolveCondition(cond.expr, cond.leafRoots, typeCatalog)
 			if err != nil {
 				return ir.Issue{
 					Kind:    ir.IssueKindConditionExpressionUnresolvable,

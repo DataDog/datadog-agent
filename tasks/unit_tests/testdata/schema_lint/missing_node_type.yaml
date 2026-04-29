@@ -1,0 +1,18 @@
+properties:
+  good_setting:
+    node_type: setting
+    type: string
+    default: ok
+  no_node_type:
+    type: string
+    default: missing
+  bad_node_type:
+    node_type: unknown_value
+    type: string
+    default: bad
+  valid_section:
+    node_type: section
+    properties:
+      also_missing:
+        type: number
+        default: 0

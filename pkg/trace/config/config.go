@@ -274,6 +274,9 @@ type ProfilingProxyConfig struct {
 	AdditionalEndpoints map[string][]string
 	// ReceiverTimeout is the timeout in seconds for profile upload requests
 	ReceiverTimeout int
+	// MaxRequestBytes is the maximum body size buffered when fanning out to
+	// multiple profiling endpoints. Defaults to 50 MB.
+	MaxRequestBytes int64
 }
 
 // EVPProxy contains the settings for the EVPProxy proxy.
@@ -643,11 +646,14 @@ func New() *AgentConfig {
 
 		ErrorTrackingStandalone: false,
 
-		ReceiverEnabled:        true,
-		ReceiverHost:           "localhost",
-		ReceiverPort:           8126,
-		ReceiverIdleTimeout:    60 * time.Second,
-		MaxRequestBytes:        25 * 1024 * 1024, // 25MB
+		ReceiverEnabled:     true,
+		ReceiverHost:        "localhost",
+		ReceiverPort:        8126,
+		ReceiverIdleTimeout: 60 * time.Second,
+		MaxRequestBytes:     25 * 1024 * 1024, // 25MB
+		ProfilingProxy: ProfilingProxyConfig{
+			MaxRequestBytes: 50 * 1024 * 1024, // 50MB
+		},
 		PipeBufferSize:         1_000_000,
 		PipeSecurityDescriptor: "D:AI(A;;GA;;;WD)",
 		GUIPort:                "5002",
@@ -813,16 +819,6 @@ func (c *AgentConfig) ConfiguredPeerTags() []string {
 		return nil
 	}
 	return preparePeerTags(append(basePeerTags, c.PeerTags...))
-}
-
-// ConfiguredSpanDerivedPrimaryTagKeys returns the set of span-derived primary tag keys that should be used
-// for stats aggregation. These tag keys will be used to extract tags from spans
-// for use in aggregation keys, similar to peer tags.
-func (c *AgentConfig) ConfiguredSpanDerivedPrimaryTagKeys() []string {
-	if len(c.SpanDerivedPrimaryTagKeys) == 0 {
-		return nil
-	}
-	return preparePeerTags(c.SpanDerivedPrimaryTagKeys)
 }
 
 func inAzureAppServices() bool {

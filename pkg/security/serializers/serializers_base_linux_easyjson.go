@@ -830,6 +830,12 @@ func easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers6(i
 					*out.PPid = uint32(in.Uint32())
 				}
 			}
+		case "sid":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.SID = uint32(in.Uint32())
+			}
 		case "tid":
 			if in.IsNull() {
 				in.Skip()
@@ -1333,24 +1339,24 @@ func easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers6(o
 		}
 		out.Uint32(uint32(*in.PPid))
 	}
-	if in.Tid != 0 {
-		const prefix string = ",\"tid\":"
+	{
+		const prefix string = ",\"sid\":"
 		if first {
 			first = false
 			out.RawString(prefix[1:])
 		} else {
 			out.RawString(prefix)
 		}
+		out.Uint32(uint32(in.SID))
+	}
+	if in.Tid != 0 {
+		const prefix string = ",\"tid\":"
+		out.RawString(prefix)
 		out.Uint32(uint32(in.Tid))
 	}
 	{
 		const prefix string = ",\"fork_flags\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
+		out.RawString(prefix)
 		out.Int(int(in.ForkFlags))
 	}
 	{

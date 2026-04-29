@@ -92,8 +92,6 @@ components_to_migrate = [
     "comp/dogstatsd/server/component.go",
     "comp/forwarder/defaultforwarder/component.go",
     "comp/metadata/inventoryagent/component.go",
-    "comp/netflow/config/component.go",
-    "comp/netflow/server/component.go",
     "comp/remote-config/rcclient/component.go",
     "comp/trace/config/component.go",
     "comp/process/apiserver/component.go",
@@ -122,8 +120,6 @@ components_classic_style = [
     'comp/core/settings/settingsimpl',
     'comp/core/status/statusimpl',
     'comp/core/sysprobeconfig/sysprobeconfigimpl',
-    'comp/core/telemetry/telemetryimpl',
-    'comp/core/telemetry/noopsimpl',
     'comp/dogstatsd/pidmap/pidmapimpl',
     'comp/dogstatsd/serverDebug/serverdebugimpl',
     'comp/dogstatsd/status/statusimpl',
@@ -164,7 +160,6 @@ components_classic_style = [
     'comp/snmptraps/forwarder/forwarderimpl',
     'comp/snmptraps/listener/listenerimpl',
     'comp/snmptraps/oidresolver/oidresolverimpl',
-    'comp/snmptraps/server/serverimpl',
     'comp/snmptraps/status/statusimpl',
     'comp/systray/systray/systrayimpl',
     'comp/trace/etwtracer/etwtracerimpl',
@@ -186,15 +181,16 @@ components_missing_implementation_folder = [
 ]
 
 ignore_fx_import = [
-    "comp/core/workloadmeta",
     "comp/otelcol/logsagentpipeline",
+    "comp/core/workloadmeta",
     "comp/rdnsquerier",
     "comp/trace/agent",
+    "comp/snmptraps/server",
 ]
 
 ignore_provide_component_constructor_missing = [
-    "comp/core/workloadmeta",
     "comp/otelcol/logsagentpipeline",
+    "comp/core/workloadmeta",
     "comp/trace/agent",
 ]
 

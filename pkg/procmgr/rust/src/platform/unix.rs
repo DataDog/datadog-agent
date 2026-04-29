@@ -43,7 +43,7 @@ pub fn last_signal(status: &std::process::ExitStatus) -> Option<i32> {
 }
 
 pub fn default_config_dir() -> PathBuf {
-    PathBuf::from("/etc/datadog-agent/processes.d")
+    PathBuf::from("/opt/datadog-agent/processes.d")
 }
 
 /// Wait for a shutdown trigger (SIGTERM or SIGINT).

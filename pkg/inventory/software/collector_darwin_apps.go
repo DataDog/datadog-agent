@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -69,47 +68,26 @@ func getLocalUsers() ([]string, []*Warning) {
 	return users, warnings
 }
 
-// appPkgLookup holds info needed for parallel pkgutil lookup
+// appPkgLookup holds info needed for PKG install source lookup
 type appPkgLookup struct {
 	entry   *Entry
 	appPath string
 }
 
-// populatePkgInfoParallel queries pkgutil for multiple apps in parallel
-// Uses a worker pool to limit concurrent pkgutil processes
-func populatePkgInfoParallel(items []appPkgLookup) {
-	const maxWorkers = 10 // Limit concurrent pkgutil processes
-
+// populatePkgInfoFromIndex looks up PKG install source for each app using
+// the BOM-derived reverse index, avoiding per-app subprocess spawning.
+func populatePkgInfoFromIndex(items []appPkgLookup) {
 	if len(items) == 0 {
 		return
 	}
 
-	jobs := make(chan *appPkgLookup, len(items))
+	idx := getGlobalAppToPkgIndex()
 	for i := range items {
-		jobs <- &items[i]
+		if pkgID := idx.lookupPkgForApp(items[i].appPath); pkgID != "" {
+			items[i].entry.InstallSource = installSourcePkg
+			items[i].entry.PkgID = pkgID
+		}
 	}
-	close(jobs)
-
-	var wg sync.WaitGroup
-	workerCount := maxWorkers
-	if len(items) < maxWorkers {
-		workerCount = len(items)
-	}
-
-	for i := 0; i < workerCount; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for item := range jobs {
-				if pkgInfo := getPkgInfo(item.appPath); pkgInfo != nil {
-					item.entry.InstallSource = installSourcePkg
-					item.entry.PkgID = pkgInfo.PkgID
-				}
-			}
-		}()
-	}
-
-	wg.Wait()
 }
 
 // Collect scans the /Applications directory recursively for installed applications.
@@ -220,10 +198,8 @@ func (c *applicationsCollector) Collect() ([]*Entry, []*Warning, error) {
 				if _, err := os.Stat(masReceiptPath); err == nil {
 					source = softwareTypeMAS
 					installSource = installSourceMAS
-				} else {
-					// Not a MAS app or system app - will need to check pkgutil later (in parallel)
-					needsPkgLookup = true
 				}
+				needsPkgLookup = true
 			}
 
 			// Determine architecture
@@ -267,9 +243,8 @@ func (c *applicationsCollector) Collect() ([]*Entry, []*Warning, error) {
 		}
 	}
 
-	// Populate PKG info in parallel for non-MAS apps
-	// This queries pkgutil --file-info to determine if the app was installed via PKG
-	populatePkgInfoParallel(itemsForPkgLookup)
+	// Populate PKG install source from BOM-derived reverse index (zero subprocesses)
+	populatePkgInfoFromIndex(itemsForPkgLookup)
 
 	// Populate publisher info in parallel using Info.plist extraction
 	populatePublishersParallel(itemsForPublisher)

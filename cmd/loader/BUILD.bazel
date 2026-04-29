@@ -1,7 +1,5 @@
 """The trace loader."""
 
-# gazelle: exclude
-
 load(
     "@rules_pkg//pkg:mappings.bzl",
     "pkg_attributes",

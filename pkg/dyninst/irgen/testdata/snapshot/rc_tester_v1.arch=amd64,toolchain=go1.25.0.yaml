@@ -2584,6 +2584,10 @@ Types:
 MaxTypeID: 212
 Issues: []
 GoModuledataInfo: {FirstModuledataAddr: "0x182c9a0", TypesOffset: 296}
+GoMapHashInfo:
+    UseAeshashAddr: "0x191cd35"
+    AeskeyschedAddr: "0x191ddc0"
 CommonTypes:
     G: 22 StructureType runtime.g
     M: 29 StructureType runtime.m
+IsARM64: false

@@ -7,8 +7,11 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
+	"strings"
+	"unsafe"
 )
 
 func main() {
@@ -97,6 +100,13 @@ func main() {
 	condReturnAndLocal(5, 3)
 	condReturnAndLocal(1, 1)
 
+	// Multi-return with two distinct-typed fields. Called with "ok" (→ r0=2,
+	// r1="ok") and "other" (→ r0=5, r1="other") so compound conditions
+	// referencing both @return.r0 and @return.r1 across different leaves
+	// can be distinguished.
+	condMultiReturn("ok")
+	condMultiReturn("other")
+
 	// Condition-only probe: called twice, condition matches only one.
 	condOnly(99, "match")
 	condOnly(0, "miss")
@@ -110,6 +120,22 @@ func main() {
 	// Second call: nil pointer → condition eval error, snapshot still emitted.
 	condNilPtrStruct(&condFields{I32: 300}, "match")
 	condNilPtrStruct(nil, "nilptr")
+
+	// `== null` condition targets: each called twice — once with nil (probe
+	// matches) and once with non-nil (probe does not match). Covers all four
+	// nullable Go types: pointer, slice, map, interface.
+	condNullPtr(nil, "match")
+	v := 7
+	condNullPtr(&v, "miss")
+	condNullSlice(nil, "match")
+	condNullSlice([]int{1, 2, 3}, "miss")
+	condNullMap(nil, "match")
+	condNullMap(map[string]int{"k": 1}, "miss")
+	condNullIface(nil, "match")
+	condNullIface(errors.New("boom"), "miss")
+	condNullUnsafePtr(nil, "match")
+	u := 42
+	condNullUnsafePtr(unsafe.Pointer(&u), "miss")
 
 	// Error case targets: called once each (conditions will fail at analysis).
 	condSliceArg([]int{1, 2, 3}, "err")
@@ -199,6 +225,58 @@ func main() {
 		Arr:    &[2]indexMemberStruct{elem1, elem2},
 		PtrArr: &[2]*indexMemberStruct{&elem1, &elem2},
 	}, "wrapper")
+
+	// Map index expression tests: small maps (≤8 entries, no directory),
+	// large maps (>8 entries, uses directory + probing), and key-not-found.
+	mapIndexIntKey(map[int]string{1: "one", 2: "two", 3: "three"})
+	mapIndexStringKey(map[string]int{"alpha": 100, "beta": 200, "gamma": 300})
+	largeMap := make(map[string]int)
+	for i := 0; i < 10000; i++ {
+		largeMap[fmt.Sprintf("key%d", i)] = i * 10
+	}
+	mapIndexLargeMap(largeMap)
+	mapIndexMissing(map[string]int{"a": 1, "b": 2})
+
+	// Map index tests for different key length tiers (AES hash lanes).
+	// Each tier uses a large map (>8 entries) to exercise the full
+	// hash → table → group → slot lookup path.
+	mapIndexKeyLen8(makeLargeMapWithKeyLen(8, 1000))     // 1-16 byte tier
+	mapIndexKeyLen24(makeLargeMapWithKeyLen(24, 1000))   // 17-32 byte tier
+	mapIndexKeyLen48(makeLargeMapWithKeyLen(48, 1000))   // 33-64 byte tier
+	mapIndexKeyLen96(makeLargeMapWithKeyLen(96, 1000))   // 65-128 byte tier
+	mapIndexKeyLen200(makeLargeMapWithKeyLen(200, 1000)) // 129+ byte tier
+
+	// Map index with struct/pointer values and field access.
+	mapIndexStructVal(map[string]indexMemberStruct{
+		"a": {Val: 111, Txt: "aaa"},
+		"b": {Val: 222, Txt: "bbb"},
+	})
+	mapIndexPtrStructVal(map[string]*indexMemberStruct{
+		"x": {Val: 333, Txt: "xxx"},
+		"y": {Val: 444, Txt: "yyy"},
+	})
+	mapIndexEmptyKey(map[string]int{"": 999, "notempty": 0})
+
+	// Boundary key-length tests: exercise both sides of the <=16 AES hash tier.
+	mapIndexKeyLen16(makeLargeMapWithKeyLen(16, 1000)) // last key in 1-16 byte tier
+	mapIndexKeyLen17(makeLargeMapWithKeyLen(17, 1000)) // first key in 17-32 byte tier
+
+	// Bool key test.
+	mapIndexBoolKey(map[bool]int{true: 42, false: 99})
+
+	// Zero-value key: key exists but maps to the zero value.
+	mapIndexZeroValue(map[string]int{"zero": 0, "one": 1})
+
+	// Nil pointer value: key exists but value is nil pointer.
+	mapIndexNilPtrVal(map[string]*indexMemberStruct{
+		"nil_key": nil,
+		"ok":      {Val: 1, Txt: "ok"},
+	})
+
+	// Large value struct: field past byte offset 255, exercises uint16 ValInSlotOffset.
+	mapIndexLargeValue(map[string]largeValueStruct{
+		"k": {Val: 12345},
+	})
 
 	// Generic function called with two different shape instantiations.
 	// int and string have different GC shapes, so the compiler emits two
@@ -464,6 +542,46 @@ func condStructDirect(x condFields, tag string) {
 	fmt.Println(x, tag)
 }
 
+// condNullPtr is a target for `p == null` conditions on pointer values.
+//
+//go:noinline
+func condNullPtr(p *int, tag string) {
+	sink(p, tag)
+	fmt.Println(p, tag)
+}
+
+// condNullSlice is a target for `s == null` conditions on slice values.
+//
+//go:noinline
+func condNullSlice(s []int, tag string) {
+	sink(s, tag)
+	fmt.Println(s, tag)
+}
+
+// condNullMap is a target for `m == null` conditions on map values.
+//
+//go:noinline
+func condNullMap(m map[string]int, tag string) {
+	sink(m, tag)
+	fmt.Println(m, tag)
+}
+
+// condNullIface is a target for `i == null` conditions on interface values.
+//
+//go:noinline
+func condNullIface(i error, tag string) {
+	sink(i, tag)
+	fmt.Println(i, tag)
+}
+
+// condNullUnsafePtr is a target for `p == null` conditions on unsafe.Pointer.
+//
+//go:noinline
+func condNullUnsafePtr(p unsafe.Pointer, tag string) {
+	sink(p, tag)
+	fmt.Println(p, tag)
+}
+
 // --- len/isEmpty test functions ---
 
 //go:noinline
@@ -599,6 +717,13 @@ type indexMemberStruct struct {
 	pad [3]int16
 }
 
+// largeValueStruct has a field past byte offset 255, exercising uint16
+// ValInSlotOffset when used as a map value type.
+type largeValueStruct struct {
+	Pad [256]byte
+	Val int // offset 256
+}
+
 // indexMemberWrapper holds pointer-to-array fields for testing deep
 // dereference chains: ptr → array → struct and ptr → array → ptr → struct.
 type indexMemberWrapper struct {
@@ -645,6 +770,157 @@ func indexMemberWrapperArg(s *indexMemberWrapper, tag string) {
 	fmt.Println(s.Arr[0].Val, s.PtrArr[0].Val, tag)
 }
 
+// mapIndexIntKey takes a small map with int keys for map index tests.
+//
+//go:noinline
+func mapIndexIntKey(m map[int]string) {
+	fmt.Println(m)
+}
+
+// mapIndexStringKey takes a small map with string keys for map index tests.
+//
+//go:noinline
+func mapIndexStringKey(m map[string]int) {
+	fmt.Println(m)
+}
+
+// mapIndexLargeMap takes a map with >8 entries, forcing the runtime to use
+// directory + table indirection (dirLen > 0).
+//
+//go:noinline
+func mapIndexLargeMap(m map[string]int) {
+	fmt.Println(len(m))
+}
+
+// mapIndexMissing is used to test key-not-found cases.
+//
+//go:noinline
+func mapIndexMissing(m map[string]int) {
+	fmt.Println(m)
+}
+
+// makeLargeMapWithKeyLen creates a map with n entries where keys are
+// zero-padded strings of exactly keyLen bytes. Key "0" is padded to keyLen.
+// makeKey generates a string of exactly length bytes for map key i.
+// The key is a zero-padded hex representation, e.g. makeKey(8, 42) = "0000002a".
+func makeKey(length int, i int) string {
+	paddedDigits := min(length, 10)
+	extraPad := max(length-paddedDigits, 0)
+	pad := strings.Repeat("0", extraPad)
+	format := fmt.Sprintf("%%0%dx", paddedDigits)
+	return pad + fmt.Sprintf(format, i)
+}
+
+func makeLargeMapWithKeyLen(keyLen, n int) map[string]int {
+	m := make(map[string]int, n)
+	for i := range n {
+		m[makeKey(keyLen, i)] = i * 7
+	}
+	return m
+}
+
+// mapIndexKeyLen8 tests 1-16 byte key tier (8-byte keys).
+//
+//go:noinline
+func mapIndexKeyLen8(m map[string]int) {
+	fmt.Println(len(m))
+}
+
+// mapIndexKeyLen24 tests 17-32 byte key tier (24-byte keys).
+//
+//go:noinline
+func mapIndexKeyLen24(m map[string]int) {
+	fmt.Println(len(m))
+}
+
+// mapIndexKeyLen48 tests 33-64 byte key tier (48-byte keys).
+//
+//go:noinline
+func mapIndexKeyLen48(m map[string]int) {
+	fmt.Println(len(m))
+}
+
+// mapIndexKeyLen96 tests 65-128 byte key tier (96-byte keys).
+//
+//go:noinline
+func mapIndexKeyLen96(m map[string]int) {
+	fmt.Println(len(m))
+}
+
+// mapIndexKeyLen200 tests 129+ byte key tier (200-byte keys).
+//
+//go:noinline
+func mapIndexKeyLen200(m map[string]int) {
+	fmt.Println(len(m))
+}
+
+// mapIndexStructVal takes a map with struct values for testing
+// map-index-then-getmember (e.g., m["key"].Val).
+//
+//go:noinline
+func mapIndexStructVal(m map[string]indexMemberStruct) {
+	fmt.Println(m["a"].Val)
+}
+
+// mapIndexPtrStructVal takes a map with pointer-to-struct values for testing
+// map-index-then-deref-then-getmember (e.g., m["key"].Val).
+//
+//go:noinline
+func mapIndexPtrStructVal(m map[string]*indexMemberStruct) {
+	fmt.Println(m["x"].Val)
+}
+
+// mapIndexEmptyKey takes a map where the empty string is a valid key.
+//
+//go:noinline
+func mapIndexEmptyKey(m map[string]int) {
+	fmt.Println(m[""])
+}
+
+// mapIndexKeyLen16 tests the boundary of the 1-16 byte AES hash tier.
+//
+//go:noinline
+func mapIndexKeyLen16(m map[string]int) {
+	fmt.Println(len(m))
+}
+
+// mapIndexKeyLen17 tests the first key in the 17-32 byte AES hash tier.
+//
+//go:noinline
+func mapIndexKeyLen17(m map[string]int) {
+	fmt.Println(len(m))
+}
+
+// mapIndexBoolKey tests map index with bool keys.
+//
+//go:noinline
+func mapIndexBoolKey(m map[bool]int) {
+	fmt.Println(m)
+}
+
+// mapIndexZeroValue tests a key that exists but maps to the zero value.
+//
+//go:noinline
+func mapIndexZeroValue(m map[string]int) {
+	fmt.Println(m)
+}
+
+// mapIndexNilPtrVal tests a key that maps to a nil pointer. Accessing a
+// field through the nil pointer should produce ExprStatusNilDeref.
+//
+//go:noinline
+func mapIndexNilPtrVal(m map[string]*indexMemberStruct) {
+	fmt.Println(m)
+}
+
+// mapIndexLargeValue tests a map with a large value struct where the target
+// field sits past byte offset 255, exercising uint16 ValInSlotOffset.
+//
+//go:noinline
+func mapIndexLargeValue(m map[string]largeValueStruct) {
+	fmt.Println(m["k"].Val)
+}
+
 // genericIdentity is a generic function called with different shape types
 // (int vs string) to exercise dictionary-based type resolution and shared
 // throttling across shape instantiations.
@@ -673,4 +949,16 @@ func (m *methodValueReceiver) inlinedMethod() int {
 //go:noinline
 func methodValueSink(f func() int) {
 	fmt.Println(f())
+}
+
+// condMultiReturn has two distinct-typed named returns so compound
+// conditions can reference both @return.r0 (int) and @return.r1 (string)
+// from different leaves.
+//
+//go:noinline
+func condMultiReturn(tag string) (r0 int, r1 string) {
+	r0 = len(tag)
+	r1 = tag
+	fmt.Println("condMultiReturn", r0, r1)
+	return r0, r1
 }

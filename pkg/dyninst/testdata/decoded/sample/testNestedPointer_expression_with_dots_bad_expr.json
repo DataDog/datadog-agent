@@ -19,15 +19,15 @@
           "location": {
             "method": "main.testNestedPointer"
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "@duration",
+            "message": "not available: function has no body"
+          }
+        ]
       },
-      "type": "snapshot",
-      "evaluationErrors": [
-        {
-          "expr": "@duration",
-          "message": "not available: function has no body"
-        }
-      ]
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "message": "{error: cannot access member \"anotherInt\" on type *ir.GoStringHeaderType (\"string\") in expression \"x.nested.anotherString.anotherInt\"} {error: failed to resolve field \"notAMember\" in expression \"x.notAMember\": type \"main.anotherStruct\" has no notAMember field}",

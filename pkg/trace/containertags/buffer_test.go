@@ -55,7 +55,7 @@ func TestBuffer_DelayedSuccess(t *testing.T) {
 	resultCh := make(chan []string, 1)
 
 	var calledOnce atomic.Int64
-	onResolution := func(ctags []string, _ error) {
+	onResolution := func(ctags []string, _ error, _ *DebugInfo) {
 		calledOnce.Add(1)
 		resultCh <- ctags
 	}
@@ -131,12 +131,14 @@ func TestAsyncEnrichment_DeniedContainer(t *testing.T) {
 	ctb.deniedContainers.deny(time.Now(), cid)
 
 	called := false
-	cb := func([]string, error) { called = true }
+	var debugResult *DebugInfo
+	cb := func(_ []string, _ error, d *DebugInfo) { called = true; debugResult = d }
 
 	pending := ctb.AsyncEnrichment(cid, cb, 50)
 
 	assert.False(t, pending, "Denied container should not be pending")
 	assert.True(t, called, "Callback should be called immediately")
+	assert.Equal(t, "denied", debugResult.BufferEvictionReason, "Should report buffer denied")
 	assert.Equal(t, int64(0), ctb.memoryUsage.Load(), "Should not consume buffer memory")
 }
 
@@ -153,7 +155,7 @@ func TestAsyncEnrichment_MemoryLimit(t *testing.T) {
 	defer ctb.Stop()
 
 	// 1. Fill memory (Payload 10 fills the 10 limit)
-	ctb.AsyncEnrichment("container-1", func([]string, error) {}, 10)
+	ctb.AsyncEnrichment("container-1", func([]string, error, *DebugInfo) {}, 10)
 
 	// Wait for it to hit the map
 	require.Eventually(t, func() bool {
@@ -162,12 +164,14 @@ func TestAsyncEnrichment_MemoryLimit(t *testing.T) {
 
 	// 2. Try to add another container
 	called := false
-	cb := func([]string, error) { called = true }
+	var debugResult *DebugInfo
+	cb := func(_ []string, _ error, d *DebugInfo) { called = true; debugResult = d }
 
 	pending := ctb.AsyncEnrichment("container-2", cb, 1)
 
 	assert.False(t, pending, "Should be rejected due to memory limit")
 	assert.True(t, called, "Callback should be called immediately on rejection")
+	assert.Equal(t, "max_size", debugResult.BufferEvictionReason, "Should report buffer max size")
 	assert.Equal(t, int64(10), ctb.memoryUsage.Load())
 
 	// 3. memory cleaned post resolution
@@ -192,7 +196,7 @@ func TestAsyncEnrichment_ImmediateResolution(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	callback := func(tags []string, err error) {
+	callback := func(tags []string, err error, _ *DebugInfo) {
 		assert.Contains(t, tags, "kube_pod_name:abc")
 		assert.NoError(t, err)
 		wg.Done()
@@ -217,7 +221,7 @@ func TestAsyncEnrichment_Buffered_Expiration(t *testing.T) {
 	ctb.Start()
 
 	resultChan := make(chan []string, 1)
-	callback := func(tags []string, _ error) {
+	callback := func(tags []string, _ error, _ *DebugInfo) {
 		resultChan <- tags
 	}
 
@@ -255,7 +259,7 @@ func TestAsyncEnrichment_Buffered_HardLimit(t *testing.T) {
 	ctb.Start()
 
 	resultChan := make(chan []string, 1)
-	callback := func(tags []string, _ error) {
+	callback := func(tags []string, _ error, _ *DebugInfo) {
 		resultChan <- tags
 	}
 
@@ -318,7 +322,7 @@ func syncTestAsyncEnrichmentConcurrentMixedScenarios(t *testing.T) {
 				cid := containerIDs[rand.Intn(len(containerIDs))]
 
 				totalAsyncCalls.Add(1)
-				ctb.AsyncEnrichment(cid, func([]string, error) { totalExecuted.Add(1) }, 100)
+				ctb.AsyncEnrichment(cid, func([]string, error, *DebugInfo) { totalExecuted.Add(1) }, 100)
 			}
 		}()
 	}
