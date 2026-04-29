@@ -108,12 +108,26 @@ func TestCompileCertificateStoreRegexesRejectsEmptyPattern(t *testing.T) {
 }
 
 func TestFilterStoreNamesByRegexesDedupesAndSorts(t *testing.T) {
-	reROOT, err := regexp.Compile(`^ROOT$`)
+	reROOT, err := regexp.Compile(`(?i)^ROOT$`)
 	require.NoError(t, err)
-	reCA, err := regexp.Compile(`^CA$`)
+	reCA, err := regexp.Compile(`(?i)^CA$`)
 	require.NoError(t, err)
 	got := filterStoreNamesByRegexes([]string{"ROOT", "MY", "CA"}, []*regexp.Regexp{reROOT, reCA})
 	require.Equal(t, []string{"CA", "ROOT"}, got)
+}
+
+func TestCompileCertificateStoreRegexesCaseInsensitive(t *testing.T) {
+	re, err := compileCertificateStoreRegexes([]string{`^my`})
+	require.NoError(t, err)
+	require.Len(t, re, 1)
+	got := filterStoreNamesByRegexes([]string{"ROOT", "MY", "CA"}, re)
+	require.Equal(t, []string{"MY"}, got)
+
+	// User-supplied (?i) at the start is left as-is (no duplicate flag).
+	re2, err := compileCertificateStoreRegexes([]string{`(?i)^my$`})
+	require.NoError(t, err)
+	got2 := filterStoreNamesByRegexes([]string{"MY", "my"}, re2)
+	require.Equal(t, []string{"MY", "my"}, got2)
 }
 
 func TestWindowsCertificateWithCertificateStoreRegex(t *testing.T) {

@@ -95,7 +95,13 @@ func compileCertificateStoreRegexes(patterns []string) ([]*regexp.Regexp, error)
 		if pat == "" {
 			return nil, fmt.Errorf("certificate_store_regex[%d] must not be empty", i)
 		}
-		re, err := regexp.Compile(pat)
+		compiled := pat
+		// Windows store names are typically upper-case (MY, ROOT). Match patterns case-insensitively
+		// unless the user already enabled (?i) at the start of the pattern.
+		if !strings.HasPrefix(pat, "(?i)") {
+			compiled = "(?i)" + pat
+		}
+		re, err := regexp.Compile(compiled)
 		if err != nil {
 			return nil, fmt.Errorf("certificate_store_regex[%d]: invalid regular expression: %w", i, err)
 		}
