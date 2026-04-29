@@ -464,6 +464,133 @@ Reply in YAML with two fields:
 
 
 # ---------------------------------------------------------------------------
+# Pre-pause oracle — Opus reviews context before halting the run
+# ---------------------------------------------------------------------------
+
+
+def consult_oracle_pre_pause(
+    *,
+    trigger: str,
+    detail: str,
+    recent_journal: list[dict],
+    recent_experiments: list[dict],
+    db_summary: dict,
+    root: Path = Path("."),
+) -> tuple[str, str]:
+    """Before the harness auto-pauses, ask Opus to review the situation
+    and decide one of: continue (clear streak, keep going), pivot (ban
+    the recent approach families and continue), or stop (genuinely halt
+    for human attention).
+
+    Returns (decision, rationale) where decision is one of:
+      - "continue": reset the streak counter, do NOT pause, keep going.
+      - "pivot":    add recent families to pivot_banned_families AND
+                    do NOT pause; the proposer pivots on next iter.
+      - "stop":     pause as the harness would have anyway. Operator
+                    must remove the pause file to resume.
+
+    Rationale is a one-paragraph explanation. Logged + posted to the
+    PR comment so the operator can see WHY the harness made its call.
+
+    Failure mode: if the oracle call itself crashes, default to "stop"
+    (conservative — better to halt and ask than auto-recover into a
+    broken state).
+    """
+    journal_block = "\n".join(
+        f"  - {e.get('ts','')} {e.get('type','?')}: "
+        f"{json.dumps(e.get('payload', {}))[:200]}"
+        for e in recent_journal[-15:]
+    ) or "(no recent journal events)"
+
+    exp_block = "\n".join(
+        f"  - iter {e.get('iter','?')} candidate={e.get('candidate_id','?')} "
+        f"family={e.get('approach_family','?')} status={e.get('status','?')} "
+        f"score={e.get('score','?')} reason={e.get('auto_reject_reason','')[:120]}"
+        for e in recent_experiments[-10:]
+    ) or "(no recent experiments)"
+
+    prompt = f"""You are the coordinator's pre-pause oracle. The harness is
+about to auto-pause because of a streak-based safety trigger. Your job
+is to decide whether the situation actually warrants stopping, or
+whether the harness can recover autonomously.
+
+## Trigger
+
+{trigger}
+
+## Detail
+
+{detail}
+
+## Recent journal events (last 15)
+
+{journal_block}
+
+## Recent experiments (last 10)
+
+{exp_block}
+
+## Run summary
+
+{json.dumps(db_summary, indent=2)}
+
+## Decide
+
+Respond in YAML with these exact fields:
+
+```yaml
+decision: continue | pivot | stop
+rationale: >
+  One paragraph explaining why. Be specific — cite the recent journal
+  events or experiments that drove your call.
+```
+
+### Decision criteria
+
+- **continue**: the trigger fired but the underlying cause looks like
+  a transient or candidate-specific issue (e.g. one bad candidate,
+  fixable env condition that's already resolved, recent ship modified
+  code that the sentinel watches). The harness should reset the streak
+  and keep going.
+
+- **pivot**: the trigger reflects a structural problem with the recent
+  approach family (e.g. all recent silent_failures are correlator
+  candidates that can't eval standalone, or all recent ships modified
+  the same broken thing). Ban the recent families and let the proposer
+  generate something different.
+
+- **stop**: genuinely unrecoverable — env is broken, the harness is
+  burning compute on an irreversible problem, or the same root cause
+  has been hit too many ways for autonomous recovery to be sensible.
+  Pause and let the human investigate.
+
+Pick **continue** when in doubt — pause is reversible (`rm pause`),
+continuing through a real problem is not.
+"""
+
+    try:
+        text = _run_query(
+            prompt,
+            model=CONFIG.model_deep,  # Opus — judgment call
+            allowed_tools=[],
+            purpose="oracle_pre_pause",
+            root=root,
+            max_turns=4,
+        )
+    except Exception as e:
+        # If the oracle itself crashes, default to stop. Better to halt
+        # safely than auto-recover into a worse state.
+        return ("stop", f"oracle call failed: {type(e).__name__}: {str(e)[:200]}")
+
+    data = _parse_yaml_block(text)
+    decision = str(data.get("decision", "stop")).strip().lower()
+    if decision not in ("continue", "pivot", "stop"):
+        decision = "stop"
+    rationale = str(data.get("rationale", "(no rationale)")).strip()
+    return (decision, rationale)
+
+
+# ---------------------------------------------------------------------------
 # 2. Implementation agent
 # ---------------------------------------------------------------------------
 

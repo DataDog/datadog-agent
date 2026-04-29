@@ -91,12 +91,46 @@ def _pivot_on_plateau(db: Db, root: Path) -> bool:
     # Check if there's been any ship across the whole run; if not AND
     # we've pivoted max_pivots_before_halt times, the problem is
     # structurally un-improvable with this setup → stop asking Opus.
+    # Before actually halting, consult the oracle: it might see context
+    # (a recent partial-fix landed, threshold tweak ready to ship) that
+    # changes the call.
     any_shipped = any(
         c.status == CandidateStatus.SHIPPED for c in db.candidates.values()
     )
     hard_halt = (
         db.pivot_count >= CONFIG.max_pivots_before_halt and not any_shipped
     )
+    if hard_halt:
+        oracle_decision, oracle_rationale = _consult_oracle(
+            db=db, root=root,
+            trigger=f"plateau hard-halt after {db.pivot_count} pivots without ship",
+            detail=(
+                f"max_pivots_before_halt={CONFIG.max_pivots_before_halt} reached. "
+                f"Banned families: {db.pivot_banned_families}. "
+                f"Best score: {db.phase_state.best_score:.4f}."
+            ),
+        )
+        if oracle_decision in ("continue", "pivot"):
+            # Reset pivot_count so the next plateau triggers ban-and-pivot
+            # rather than another hard-halt attempt.
+            db.pivot_count = 0
+            hard_halt = False
+            coord_out.emit(
+                f"oracle_{oracle_decision}",
+                (
+                    f"🔮 Oracle overrode plateau hard-halt → **{oracle_decision}** "
+                    f"(resetting pivot_count to 0).\n\n"
+                    f"**Rationale**: {oracle_rationale}"
+                ),
+                requires_ack=False,
+                root=root,
+            )
+            journal.append(
+                "oracle_decision",
+                {"decision": oracle_decision, "rationale": oracle_rationale,
+                 "context": "plateau_hard_halt"},
+                root,
+            )
 
     body = (
         f"Phase {db.phase_state.current_phase.value} plateaued after "
@@ -481,6 +515,146 @@ def _reject_candidate(
     db.iterations.append(it)
     save_db(db, root)
     metrics.regenerate(db, root)
+
+
+def _consult_oracle(
+    *,
+    db: Db,
+    root: Path,
+    trigger: str,
+    detail: str,
+) -> tuple[str, str]:
+    """Build context, call the pre-pause oracle, return its decision.
+
+    Encapsulates the journal-tail / db-summary plumbing so the call sites
+    only have to provide the trigger description.
+    """
+    import json as _json
+    journal_path = state_dir(root) / "journal.jsonl"
+    recent_journal: list[dict] = []
+    try:
+        if journal_path.exists():
+            with journal_path.open() as f:
+                for line in f.readlines()[-50:]:
+                    try:
+                        recent_journal.append(_json.loads(line))
+                    except _json.JSONDecodeError:
+                        continue
+    except OSError:
+        pass
+
+    recent_experiments: list[dict] = []
+    for exp in list(db.experiments.values())[-10:]:
+        cand = db.candidates.get(exp.candidate_id)
+        recent_experiments.append({
+            "iter": exp.id,
+            "candidate_id": exp.candidate_id,
+            "approach_family": cand.approach_family if cand else "unknown",
+            "status": exp.status.value,
+            "score": exp.score,
+            "auto_reject_reason": exp.auto_reject_reason,
+        })
+
+    db_summary = {
+        "iterations": len(db.iterations),
+        "shipped": sum(
+            1 for c in db.candidates.values() if c.status == CandidateStatus.SHIPPED
+        ),
+        "rejected": sum(
+            1 for c in db.candidates.values() if c.status == CandidateStatus.REJECTED
+        ),
+        "pivot_count": db.pivot_count,
+        "banned_families": list(db.pivot_banned_families),
+        "best_score": db.phase_state.best_score,
+        "consecutive_silent_failures": db.budget.consecutive_silent_failures,
+        "consecutive_sentinel_failures": db.budget.consecutive_sentinel_failures,
+        "consecutive_cost_anomalies": db.budget.consecutive_cost_anomalies,
+    }
+
+    return sdk_mod.consult_oracle_pre_pause(
+        trigger=trigger,
+        detail=detail,
+        recent_journal=recent_journal,
+        recent_experiments=recent_experiments,
+        db_summary=db_summary,
+        root=root,
+    )
+
+
+def _apply_oracle_decision(
+    *,
+    db: Db,
+    root: Path,
+    decision: str,
+    rationale: str,
+    streak_field: str,
+) -> bool:
+    """Apply the oracle's decision. Returns True if the caller should
+    proceed to pause, False if the caller should skip the pause.
+
+    - continue: reset the streak, post comment, return False (no pause).
+    - pivot:    ban recent families, reset streak, post comment, False.
+    - stop:     post comment, return True (pause).
+    """
+    journal.append(
+        "oracle_decision",
+        {"decision": decision, "rationale": rationale, "streak_field": streak_field},
+        root,
+    )
+    if decision == "continue":
+        setattr(db.budget, streak_field, 0)
+        coord_out.emit(
+            "oracle_continue",
+            (
+                f"🔮 Oracle decided **continue** (resetting `{streak_field}` "
+                f"streak; no pause).\n\n"
+                f"**Rationale**: {rationale}"
+            ),
+            requires_ack=False,
+            root=root,
+        )
+        return False
+    if decision == "pivot":
+        # Ban recent families (same logic as plateau pivot, condensed).
+        recent = []
+        for it in db.iterations[-CONFIG.plateau_pivot_lookback:]:
+            cand_id = it.candidate_id
+            if not cand_id:
+                continue
+            cand = db.candidates.get(cand_id)
+            if cand is None or not cand.approach_family or cand.approach_family == "unspecified":
+                continue
+            recent.append(cand.approach_family)
+        newly_banned = sorted(set(recent) - set(db.pivot_banned_families))
+        for fam in newly_banned:
+            db.pivot_banned_families.append(fam)
+        db.pivot_count += 1
+        setattr(db.budget, streak_field, 0)
+        coord_out.emit(
+            "oracle_pivot",
+            (
+                f"🔮 Oracle decided **pivot** (banning recent families, "
+                f"resetting `{streak_field}` streak; no pause).\n\n"
+                f"**Newly banned**: {newly_banned or '(nothing new)'}\n"
+                f"**Cumulative banned**: {db.pivot_banned_families}\n\n"
+                f"**Rationale**: {rationale}"
+            ),
+            requires_ack=False,
+            root=root,
+        )
+        return False
+    # stop
+    coord_out.emit(
+        "oracle_stop",
+        (
+            f"🔮 Oracle decided **stop** (auto-pausing).\n\n"
+            f"**Rationale**: {rationale}\n\n"
+            f"`rm .coordinator/pause` to resume after investigating."
+        ),
+        requires_ack=True,
+        root=root,
+    )
+    return True
 
 
 def _silent_failure_diagnostics(
@@ -1248,23 +1422,34 @@ def _run_iteration_body(
             )
 
             if should_pause:
-                coord_out.emit(
-                    "eval_env_drift",
-                    (
-                        f"**iter {iter_num}** · `{candidate.id}` — sanity sentinel "
-                        f"FAILED for **{streak} consecutive** iterations.\n\n"
-                        f"**Detail**: `{detail[:600]}`\n\n"
-                        f"Auto-pausing — workspace deps likely broken (`dda` / "
-                        f"`invoke` / `go` toolchain). Run `dda inv q.coord-status` "
-                        f"and verify, then `rm .coordinator/pause` to resume."
-                        + _budget_footer(root, iter_num=None, ceiling=db.budget.api_token_ceiling)
-                    ),
-                    requires_ack=True,
-                    root=root,
+                # Streak hit threshold — consult the oracle before pausing.
+                decision, rationale = _consult_oracle(
+                    db=db, root=root,
+                    trigger=f"sentinel_failure streak {streak}/{pause_threshold}",
+                    detail=detail,
                 )
-                (state_dir(root) / "pause").write_text(
-                    f"auto-paused: sentinel streak={streak} at iter {iter_num}\n{detail}\n"
+                actually_pause = _apply_oracle_decision(
+                    db=db, root=root,
+                    decision=decision, rationale=rationale,
+                    streak_field="consecutive_sentinel_failures",
                 )
+                if actually_pause:
+                    coord_out.emit(
+                        "eval_env_drift",
+                        (
+                            f"**iter {iter_num}** · `{candidate.id}` — sentinel "
+                            f"FAILED **{streak} consecutive** iters. Oracle decided **stop**.\n\n"
+                            f"**Detail**: `{detail[:600]}`\n\n"
+                            f"**Oracle rationale**: {rationale}"
+                            + _budget_footer(root, iter_num=None, ceiling=db.budget.api_token_ceiling)
+                        ),
+                        requires_ack=True,
+                        root=root,
+                    )
+                    (state_dir(root) / "pause").write_text(
+                        f"auto-paused: sentinel streak={streak} at iter {iter_num}\n"
+                        f"oracle: {rationale}\n{detail}\n"
+                    )
             else:
                 # Skip-and-continue. The sentinel is a soft signal (it
                 # mostly fires when a recent ship modified the sentinel
@@ -1583,21 +1768,42 @@ def _run_iteration_body(
         )
 
         if should_pause:
-            body = (
-                f"**iter {iter_num}** · `{candidate.id}` — eval reported all-zero "
-                f"F1/precision/recall across every scenario, and this is the "
-                f"**{streak}th consecutive** silent failure. "
-                f"Auto-pausing — the eval environment is likely sick.\n\n"
-                f"**Detail**: `{silent_failure}`\n\n"
-                f"**Diagnostics**:\n```\n{diag}\n```\n\n"
-                f"Inspect with `dda inv q.coord-status`. Resume by removing "
-                f"`.coordinator/pause`."
+            # Streak hit threshold — consult the oracle before pausing.
+            # Opus reviews recent context and decides continue / pivot / stop.
+            decision, rationale = _consult_oracle(
+                db=db, root=root,
+                trigger=f"silent_failure streak {streak}/{pause_threshold}",
+                detail=f"{silent_failure}\n\nDIAGNOSTICS:\n{diag}",
             )
-            pause_after = (
-                f"auto-paused: eval_silent_failure streak={streak} at iter {iter_num}\n"
-                f"{silent_failure}\n\n=== DIAGNOSTICS ===\n{diag}\n"
+            actually_pause = _apply_oracle_decision(
+                db=db, root=root,
+                decision=decision, rationale=rationale,
+                streak_field="consecutive_silent_failures",
             )
-            requires_ack = True
+            if actually_pause:
+                body = (
+                    f"**iter {iter_num}** · `{candidate.id}` — eval reported all-zero "
+                    f"F1/precision/recall, **{streak}th consecutive** silent failure. "
+                    f"Oracle reviewed and decided **stop**.\n\n"
+                    f"**Detail**: `{silent_failure}`\n\n"
+                    f"**Oracle rationale**: {rationale}\n\n"
+                    f"**Diagnostics**:\n```\n{diag}\n```"
+                )
+                pause_after = (
+                    f"auto-paused: eval_silent_failure streak={streak} at iter {iter_num}\n"
+                    f"oracle: {rationale}\n{silent_failure}\n\n=== DIAGNOSTICS ===\n{diag}\n"
+                )
+                requires_ack = True
+            else:
+                # Oracle said continue or pivot — streak already reset by helper.
+                body = (
+                    f"**iter {iter_num}** · `{candidate.id}` — silent_failure streak hit "
+                    f"{streak}, oracle said **{decision}**. Rejecting candidate, NOT pausing.\n\n"
+                    f"**Detail**: `{silent_failure}`\n\n"
+                    f"**Oracle rationale**: {rationale}"
+                )
+                pause_after = None
+                requires_ack = False
         else:
             body = (
                 f"**iter {iter_num}** · `{candidate.id}` — eval reported all-zero "

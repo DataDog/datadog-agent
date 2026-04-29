@@ -131,10 +131,13 @@ class Config:
     # of bootstrapping a new detector, not an anomaly. 20M still catches
     # genuine runaway iters; streak-3 still saves you on real env issues.
     cost_anomaly_absolute_tokens: int = 20_000_000  # this iter > 20M tokens
-    # Auto-pause: after N consecutive anomalous iters, touch the
-    # cooperative-pause file (`.coordinator/pause`). Driver checks at
-    # iter boundary; sleeps until the user removes the file.
-    cost_anomaly_pause_streak: int = 3
+    # Cost anomaly is informational, never paused — the harness should
+    # surface anomalous iters via PR comments, but cost alone is not a
+    # signal worth halting on. Real cost control happens via the wall-
+    # hours ceiling and api_token_ceiling panic brake. Set extremely
+    # high to effectively disable the auto-pause path; the streak counter
+    # still increments and is visible in status, but pause never fires.
+    cost_anomaly_pause_streak: int = 999_999
 
     # Per-iter sanity gate. Detects "phantom zero" eval failures where the
     # workspace lost a dep (`dda`, `invoke`, `go` toolchain) and silently
