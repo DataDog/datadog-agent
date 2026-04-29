@@ -375,7 +375,7 @@ func (c *client) makeRequest(
 	req.Header.Set(app.ArchitectureHeaderName, runtime.GOARCH)
 	req.Header.Set(app.FlavorHeaderName, flavor.GetFlavor())
 	req.Header.Set(app.ContainerizedHeaderName, strconv.FormatBool(env.IsContainerized()))
-	for k, v := range c.config.ExtraHeaders {
+	for k, v := range c.config.OpmsExtraHeaders {
 		req.Header.Set(k, v)
 	}
 	res, err := c.httpClient.Do(req)
