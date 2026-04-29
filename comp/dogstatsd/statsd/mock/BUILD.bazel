@@ -6,7 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/mock",
     visibility = ["//visibility:public"],
     deps = [
-        "@//comp/dogstatsd/statsd/def",
+        "//comp/dogstatsd/statsd/def",
         "@com_github_datadog_datadog_go_v5//statsd",
     ],
 )
