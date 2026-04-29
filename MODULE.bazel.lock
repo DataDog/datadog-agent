@@ -314,7 +314,7 @@
   "moduleExtensions": {
     "//bazel/toolchains/linux_headers:linux_headers.bzl%linux_headers_extension": {
       "general": {
-        "bzlTransitiveDigest": "CeK/BA0wTzNFQJ9vNuYKCg8wXpdL8fZWAPwRNbkfc9g=",
+        "bzlTransitiveDigest": "st+R/ulVqPkT0R/t3yLLAqOk8EAK4MzET2sMpfW8YB4=",
         "usagesDigest": "Gkt9dniyJltedRsP9VwZgpDnbzWmq0SeOXle8DjQ96s=",
         "recordedInputs": [],
         "generatedRepoSpecs": {
@@ -339,7 +339,7 @@
     },
     "//bazel/toolchains/llvm_bpf:llvm_bpf_configure.bzl%llvm_bpf_extension": {
       "general": {
-        "bzlTransitiveDigest": "L67A58ViDXnouey/grwOU76W/Dr+mOtr9FuG9fDhK0Q=",
+        "bzlTransitiveDigest": "eOYXODssdQNOf4X8CCImpZYvyFCF/VqCz/43DBjJieA=",
         "usagesDigest": "lBRxCKYy9X03c4jyF/C6hWEAf+24zs/m6M/bS7BVXQU=",
         "recordedInputs": [],
         "generatedRepoSpecs": {
@@ -365,7 +365,7 @@
     },
     "//bazel/toolchains/otool:otool_configure.bzl%find_system_otool": {
       "general": {
-        "bzlTransitiveDigest": "1EqlvLMsXc9SmdJwuH1LmOHrKN/1VU/SzoT5jzL/dmQ=",
+        "bzlTransitiveDigest": "68iERr/kCkKOV3vSc2q4LzpEgt7vSpOMHMX9EL+4l7g=",
         "usagesDigest": "fSN6/kn8e/g7DLnxiuMteG88rd6OVfCnXR7SSOcGUdw=",
         "recordedInputs": [],
         "generatedRepoSpecs": {
@@ -378,7 +378,7 @@
     },
     "//bazel/toolchains/patchelf:patchelf_configure.bzl%find_system_patchelf": {
       "general": {
-        "bzlTransitiveDigest": "h/34iJRsppuwRgke9QA2KoAGS7yIA0wXxQxbSaS7UKU=",
+        "bzlTransitiveDigest": "LycsDwhNSFStb20EW25ZzhzQ5zgmwMvzS7gxKN0tTo0=",
         "usagesDigest": "sbh/OV5qDj0UnO59z1JQIBVtZdGEcUj1f7xDqQlvL+Y=",
         "recordedInputs": [],
         "generatedRepoSpecs": {
@@ -391,13 +391,13 @@
     },
     "//bazel/tools:bazelisk_check.bzl%bazelisk_check": {
       "general": {
-        "bzlTransitiveDigest": "wvNx8+i7P/XkPcVAF75VMwpjWhlTDPm78mV4GGE//UM=",
+        "bzlTransitiveDigest": "vIQYQXzy/Q+owB/yz0XcUOwOyn9G0aQIpTxYlBfiCcQ=",
         "usagesDigest": "CKsn1dtme4oztWA0td45Tt6oCZK6MZnpIocVVZK14sU=",
         "recordedInputs": [
-          "FILE:@@//.bazelversion a057c631bcb95ae0ff23fec4538e6366e34e028545911a188bdbd93e6f810fbd",
-          "FILE:@@//tools/bazel f61f1a2c68823c1823c70f0c0588bf346df9f864529161b3944687bed823a8fc",
+          "FILE:@@//.bazelversion 077ee5b3a3a7fc2622ceff6466fea0c28f3fb08b24653dcc7f4baab29b9aef36",
+          "FILE:@@//tools/bazel 8cd8e05bc6563f0ec312c10447f63c0d984f3bee34418ee07490e007f3ebfc3f",
           "FILE:@@//tools/bazel.bat 24c80eecf763cf0f70ef5919413247b8e3dbc9eecd41dd63bc21f7c461b8a010",
-          "FILE:@@//tools/bazelisk.md e125fa021d1d97f3e14d2641b9e2fcac85deeb90783e2480598ed5e321b552bc"
+          "FILE:@@//tools/bazelisk.md 184864dc41f9cd398f786ba7c7cd858942d19daa792203e0b18a1a3bfaf372f0"
         ],
         "generatedRepoSpecs": {}
       }
@@ -769,7 +769,7 @@
     },
     "@@rules_pkg+//toolchains/rpm:rpmbuild_configure.bzl%find_system_rpmbuild_bzlmod": {
       "general": {
-        "bzlTransitiveDigest": "RXRGyXaIh7OaREqpAZu8mNyIfJgp7mzjnti6rMs+EMg=",
+        "bzlTransitiveDigest": "9HVW2/lqcIJQiRN0QXRBEEEu4X5577GLCxN3ifPnx1I=",
         "usagesDigest": "/KxCvOG4ymMxLBcldn54pcMSEjOygkYUMlHj/fabSNE=",
         "recordedInputs": [],
         "generatedRepoSpecs": {
