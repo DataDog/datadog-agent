@@ -2446,3 +2446,34 @@ func TestNormalizeAPMMode(t *testing.T) {
 		})
 	}
 }
+
+func TestDebuggerLogsEnabled(t *testing.T) {
+	tests := []struct {
+		name     string
+		settings map[string]interface{}
+		expected bool
+	}{
+		{
+			name:     "logs_enabled_only",
+			settings: map[string]interface{}{"logs_enabled": true},
+			expected: true,
+		},
+		{
+			name:     "override_when_logs_disabled",
+			settings: map[string]interface{}{"logs_enabled": false, "apm_config.debugger_logs_enabled_override": true},
+			expected: true,
+		},
+		{
+			name:     "logs_disabled_no_override",
+			settings: map[string]interface{}{"logs_enabled": false},
+			expected: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := buildConfigComponentFromOverrides(t, true, tt.settings).Object()
+			require.NotNil(t, cfg)
+			assert.Equal(t, tt.expected, cfg.DebuggerLogsEnabled)
+		})
+	}
+}
