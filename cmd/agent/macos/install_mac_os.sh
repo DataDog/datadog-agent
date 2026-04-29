@@ -268,18 +268,6 @@ if [ "$infrastructure_mode" = "end_user_device" ]; then
         echo "infrastructure_mode: end_user_device" | $sudo_cmd tee -a "$datadog_yaml" > /dev/null
     fi
 
-    # Enable the wlan check
-    printf "${BLUE}\n    - Surpressing location permission prompt ...\n${NC}"
-    wlan_conf_dir="/opt/datadog-agent/etc/conf.d/wlan.d"
-    $sudo_cmd mkdir -p "$wlan_conf_dir"
-    $sudo_cmd tee "$wlan_conf_dir/conf.yaml" > /dev/null <<'WLAN_EOF'
-init_config:
-  request_location_permission: false
-
-instances:
-  - {}
-WLAN_EOF
-
     # Restart the Agent so the new configuration takes effect
     printf "${BLUE}\n    - Restarting the Agent ...\n${NC}"
     $sudo_cmd launchctl kickstart -k -s system/com.datadoghq.agent 2>/dev/null || true
