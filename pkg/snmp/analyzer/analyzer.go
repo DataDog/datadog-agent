@@ -177,7 +177,7 @@ func Analyze(pdus []gosnmp.SnmpPDU, sysOID string) (
 	for _, pdu := range pdus {
 		if len(foundMetrics)+len(notFoundMetrics) >= maxResults {
 			fmt.Fprintln(os.Stderr, "Analysis is limited to 1,000,000 OIDs")
-			continue
+			break
 		}
 		normalizedOID := normalizeOID(pdu.Name)
 		var matchedProfile string
