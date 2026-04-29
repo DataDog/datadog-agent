@@ -92,6 +92,8 @@ const (
 var (
 	// Microsoft certificate-template OIDs. V1 is a BMPString holding the template
 	// display name; V2 is a SEQUENCE { templateOID, majorVersion, minorVersion }.
+	//
+	// https://learn.microsoft.com/en-us/windows/win32/seccrypto/template
 	oidCertTemplateV1 = asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 311, 20, 2}
 	oidCertTemplateV2 = asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 311, 21, 7}
 	// id-ce-extKeyUsage — RFC 5280 §4.2.1.12.
@@ -117,7 +119,7 @@ type Config struct {
 	CrlDaysWarning      int                 `yaml:"crl_days_warning" json:"crl_days_warning" minimum:"0"`
 	CertChainValidation certChainValidation `yaml:"cert_chain_validation" json:"cert_chain_validation" nullable:"true"`
 
-	// Optional tags for Certifcate properties
+	// Optional tags for Certificate properties
 	CertificateTemplateTag     bool `yaml:"certificate_template_tag" json:"certificate_template_tag" default:"false"`
 	EnhancedKeyUsageTag        bool `yaml:"enhanced_key_usage_tag" json:"enhanced_key_usage_tag" default:"false"`
 	FriendlyNameTag            bool `yaml:"friendly_name_tag" json:"friendly_name_tag" default:"false"`

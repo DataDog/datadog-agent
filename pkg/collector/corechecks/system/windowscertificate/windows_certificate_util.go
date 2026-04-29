@@ -62,11 +62,30 @@ func getSubjectTags(cert *x509.Certificate) []string {
 	subjectAttributes := cert.Subject.Names
 
 	for _, subject := range subjectAttributes {
-		subjectTags = append(subjectTags, fmt.Sprintf("subject_%s:%s", getAttributeTypeName(subject.Type.String()), subject.Value))
+		subjectTags = append(subjectTags, fmt.Sprintf("subject_%s:%s", getAttributeTypeName(subject.Type.String()), attrValueToString(subject.Value)))
 	}
 
 	log.Debugf("Subject tags: %v", subjectTags)
 	return subjectTags
+}
+
+// attrValueToString renders an x509 DN attribute value as a string.
+// pkix.AttributeTypeAndValue.Value is typed `any` because RFC 5280 permits
+// several ASN.1 string encodings (PrintableString, UTF8String, BMPString,
+// etc.).
+func attrValueToString(v any) string {
+	switch x := v.(type) {
+	case string:
+		return x
+	case []byte:
+		return string(x)
+	case fmt.Stringer:
+		return x.String()
+	}
+	if der, err := asn1.Marshal(v); err == nil {
+		return "#" + hex.EncodeToString(der)
+	}
+	return fmt.Sprintf("%v", v)
 }
 
 // getCrlIssuerTags returns the tags for the CRL issuer
@@ -289,7 +308,7 @@ func getTemplateTags(cert *x509.Certificate) []string {
 		case ext.Id.Equal(oidCertTemplateV1):
 			var raw asn1.RawValue
 			if _, err := asn1.Unmarshal(ext.Value, &raw); err != nil {
-				log.Debugf("Error parsing certificate template V1 extension: %v", err)
+				log.Errorf("Error parsing certificate template V1 extension: %v", err)
 				continue
 			}
 			if decoded := decodeBMPString(raw.Bytes); decoded != "" {
@@ -383,7 +402,7 @@ func getSANTags(cert *x509.Certificate) []string {
 func getIssuerTags(cert *x509.Certificate) []string {
 	tags := []string{}
 	for _, attr := range cert.Issuer.Names {
-		tags = append(tags, fmt.Sprintf("issuer_%s:%s", getAttributeTypeName(attr.Type.String()), attr.Value))
+		tags = append(tags, fmt.Sprintf("issuer_%s:%s", getAttributeTypeName(attr.Type.String()), attrValueToString(attr.Value)))
 	}
 	return tags
 }
@@ -404,7 +423,7 @@ func getFriendlyName(certContext *windows.CertContext) (string, error) {
 	if len(pvData) == 0 {
 		return "", nil
 	}
-	return decodeUTF16LE(pvData), nil
+	return winutil.ConvertWindowsString(pvData), nil
 }
 
 // decodeBMPString decodes a BMPString (UTF-16 big-endian, UCS-2).
@@ -415,19 +434,6 @@ func decodeBMPString(b []byte) string {
 	u16 := make([]uint16, len(b)/2)
 	for i := 0; i < len(u16); i++ {
 		u16[i] = uint16(b[2*i])<<8 | uint16(b[2*i+1])
-	}
-	return strings.TrimRight(string(utf16.Decode(u16)), "\x00")
-}
-
-// decodeUTF16LE decodes UTF-16 little-endian bytes (Windows-native string
-// representation) and strips any trailing NUL terminator.
-func decodeUTF16LE(b []byte) string {
-	if len(b)%2 != 0 {
-		b = b[:len(b)-1]
-	}
-	u16 := make([]uint16, len(b)/2)
-	for i := 0; i < len(u16); i++ {
-		u16[i] = uint16(b[2*i]) | uint16(b[2*i+1])<<8
 	}
 	return strings.TrimRight(string(utf16.Decode(u16)), "\x00")
 }

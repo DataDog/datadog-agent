@@ -154,13 +154,13 @@ instances:
 
     ## @param issuer_tag - boolean - optional - default: false
     ## Set to `true` to attach an `issuer_<attr>` tag for each attribute in the certificate's issuer
-    ## distinguished name (e.g. `issuer_CN`, `issuer_O`, `issuer_OU`).
+    ## distinguished name (e.g. `issuer_cn`, `issuer_o`, `issuer_ou`).
     #
     # issuer_tag: false
 
     ## @param signature_algorithm_tag - boolean - optional - default: false
     ## Set to `true` to attach a `signature_algorithm` tag describing the
-    ## certificate's signature algorithm (e.g. `signature_algorithm:SHA256-RSA`).
+    ## certificate's signature algorithm (e.g. `signature_algorithm:sha256-rsa`).
     #
     # signature_algorithm_tag: false
 

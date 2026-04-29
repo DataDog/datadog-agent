@@ -44,15 +44,6 @@ func TestDecodeBMPString(t *testing.T) {
 	require.Equal(t, "Hi", decodeBMPString([]byte{0x00, 'H', 0x00, 'i', 0x00, 0x00}))
 }
 
-func TestDecodeUTF16LE(t *testing.T) {
-	// "Hi" encoded as UTF-16LE (Windows native): 'H' 0x00 'i' 0x00
-	b := []byte{'H', 0x00, 'i', 0x00}
-	require.Equal(t, "Hi", decodeUTF16LE(b))
-
-	// Trailing NUL terminator should be stripped
-	require.Equal(t, "Hi", decodeUTF16LE([]byte{'H', 0x00, 'i', 0x00, 0x00, 0x00}))
-}
-
 func encodeBMPString(s string) []byte {
 	out := make([]byte, 0, len(s)*2)
 	for _, r := range s {
