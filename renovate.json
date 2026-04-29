@@ -1,6 +1,6 @@
 {
     "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-    "extends": ["config:recommended", ":enablePreCommit"],
+    "extends": ["config:recommended", ":enablePreCommit", "schedule:nonOfficeHours"],
     "constraints": {
       "go": "1.25.9"
     },
@@ -93,6 +93,11 @@
       },
       {
         "matchManagers": ["gomod"],
+        "matchUpdateTypes": ["digest"],
+        "enabled": false
+      },
+      {
+        "matchManagers": ["gomod"],
         "matchDepNames": ["github.com/twmb/franz-go{,/**}"],
         "groupName": "franz-go"
       },
@@ -145,6 +150,11 @@
         "matchManagers": ["bundler"],
         "matchDepNames": ["omnibus"],
         "enabled": false
+      },
+      {
+        "matchManagers": ["bundler"],
+        "matchDatasources": ["git-refs"],
+        "registryUrls": []
       }
     ],
     "customManagers" : [

@@ -7,9 +7,11 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"strings"
+	"unsafe"
 )
 
 func main() {
@@ -118,6 +120,22 @@ func main() {
 	// Second call: nil pointer → condition eval error, snapshot still emitted.
 	condNilPtrStruct(&condFields{I32: 300}, "match")
 	condNilPtrStruct(nil, "nilptr")
+
+	// `== null` condition targets: each called twice — once with nil (probe
+	// matches) and once with non-nil (probe does not match). Covers all four
+	// nullable Go types: pointer, slice, map, interface.
+	condNullPtr(nil, "match")
+	v := 7
+	condNullPtr(&v, "miss")
+	condNullSlice(nil, "match")
+	condNullSlice([]int{1, 2, 3}, "miss")
+	condNullMap(nil, "match")
+	condNullMap(map[string]int{"k": 1}, "miss")
+	condNullIface(nil, "match")
+	condNullIface(errors.New("boom"), "miss")
+	condNullUnsafePtr(nil, "match")
+	u := 42
+	condNullUnsafePtr(unsafe.Pointer(&u), "miss")
 
 	// Error case targets: called once each (conditions will fail at analysis).
 	condSliceArg([]int{1, 2, 3}, "err")
@@ -522,6 +540,46 @@ func condMapArg(x map[string]int, tag string) {
 //go:noinline
 func condStructDirect(x condFields, tag string) {
 	fmt.Println(x, tag)
+}
+
+// condNullPtr is a target for `p == null` conditions on pointer values.
+//
+//go:noinline
+func condNullPtr(p *int, tag string) {
+	sink(p, tag)
+	fmt.Println(p, tag)
+}
+
+// condNullSlice is a target for `s == null` conditions on slice values.
+//
+//go:noinline
+func condNullSlice(s []int, tag string) {
+	sink(s, tag)
+	fmt.Println(s, tag)
+}
+
+// condNullMap is a target for `m == null` conditions on map values.
+//
+//go:noinline
+func condNullMap(m map[string]int, tag string) {
+	sink(m, tag)
+	fmt.Println(m, tag)
+}
+
+// condNullIface is a target for `i == null` conditions on interface values.
+//
+//go:noinline
+func condNullIface(i error, tag string) {
+	sink(i, tag)
+	fmt.Println(i, tag)
+}
+
+// condNullUnsafePtr is a target for `p == null` conditions on unsafe.Pointer.
+//
+//go:noinline
+func condNullUnsafePtr(p unsafe.Pointer, tag string) {
+	sink(p, tag)
+	fmt.Println(p, tag)
 }
 
 // --- len/isEmpty test functions ---

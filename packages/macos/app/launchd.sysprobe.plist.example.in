@@ -6,11 +6,6 @@
         <dict>
             <key>SuccessfulExit</key>
             <false/>
-            <key>PathState</key>
-            <dict>
-              <key>/opt/datadog-agent/etc/system-probe.yaml</key>
-              <true/>
-            </dict>
         </dict>
         <key>Label</key>
         <string>com.datadoghq.sysprobe</string>

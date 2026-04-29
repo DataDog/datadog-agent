@@ -61,13 +61,27 @@ export AGENT_VERSION AGENT_BUILD AGENT_BRANCH AGENT_VRMF
 
 # ── Toolchain ─────────────────────────────────────────────────────────────────
 
-CC=/opt/freeware/bin/gcc
-CXX=/opt/freeware/bin/g++
+# GCC 8 is required for AIX 7.2 TL2 compatibility.
+# GCC 8's libstdc++ does not reference strftime_l (added to AIX libc only at
+# TL3+); GCC 10/13 do.  Code compiled by GCC 8 also calls ostringstream
+# constructors that GCC 8's libstdc++ actually exports, so the resulting
+# binaries run on AIX 7.2 without any compatibility stubs.
+# Install on the build host with: yum install -y gcc8 gcc8-c++
+if [ ! -x /opt/freeware/bin/gcc-8 ]; then
+    printf 'ERROR: gcc-8 not found. Install it with: yum install -y gcc8 gcc8-c++\n' >&2
+    exit 1
+fi
+CC=/opt/freeware/bin/gcc-8
+CXX=/opt/freeware/bin/g++-8
 NM="/usr/bin/nm -X64"
 ARFLAGS="-X64 -cru"
 OBJECT_MODE=64
+# gcc-8 checks AIX_OBJECT_MODE (not OBJECT_MODE) for startup-file selection.
+# Without it, gcc-8 passes 32-bit /lib/crt0.o to ld, which ld running in
+# 64-bit mode rejects. AIX_OBJECT_MODE=64 makes gcc-8 use /lib/crt0_64.o.
+AIX_OBJECT_MODE=64
 
-export CC CXX NM ARFLAGS OBJECT_MODE
+export CC CXX NM ARFLAGS OBJECT_MODE AIX_OBJECT_MODE
 
 # ── Compiler/linker flags ─────────────────────────────────────────────────────
 # -I and -L always reference $EMBEDDED_DESTDIR (staging), not $EMBEDDED (final path).
@@ -94,8 +108,16 @@ GOPROXY=https://proxy.golang.org,direct
 # toolchain version (go.mod may require a newer patch than is installed).
 # Auto-download spawns extra processes and consumes significant memory on AIX.
 GOTOOLCHAIN=local
+# -p=1: one package compiled at a time; prevents multiple 3-4 GB Go compiler
+# processes from competing for RAM on the 4 GB AIX build host and causing
+# thrashing or OOM kills.
+GOFLAGS="-p=1"
+# Redirect the Go build cache off /tmp (which is only 12 GB) to the larger
+# build volume so that large packages like datadogV2 don't exhaust /tmp.
+GOCACHE=/opt/dd-build/gocache
+mkdir -p "$GOCACHE"
 
-export PATH GOPATH GOROOT CGO_ENABLED CGO_CFLAGS CGO_LDFLAGS GOPROXY GOTOOLCHAIN
+export PATH GOPATH GOROOT CGO_ENABLED CGO_CFLAGS CGO_LDFLAGS GOPROXY GOTOOLCHAIN GOFLAGS GOCACHE
 
 # ── Utility functions ─────────────────────────────────────────────────────────
 

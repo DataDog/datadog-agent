@@ -41,6 +41,7 @@ from tasks.rtloader import clean as rtloader_clean
 from tasks.rtloader import install as rtloader_install
 from tasks.rtloader import install_with_bazel as rtloader_install_with_bazel
 from tasks.rtloader import make as rtloader_make
+from tasks.schema.generate import compress as schema_compress
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 # constants
@@ -162,6 +163,9 @@ def build(
         agent_bin = os.path.join(BIN_PATH, bin_name("agent"))
 
     flavor_cmd = "iot-agent" if flavor.is_iot() else "agent"
+
+    schema_compress(ctx)
+
     with gitlab_section("Build agent", collapsed=True):
         go_build(
             ctx,
@@ -248,9 +252,8 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
     Clean up and refresh Collector's assets and config files
     """
     flavor = AgentFlavor[flavor]
-    # ensure BIN_PATH exists
-    if not os.path.exists(BIN_PATH):
-        os.mkdir(BIN_PATH)
+    # ensure BIN_PATH exists (makedirs handles missing parents, e.g. on AIX build hosts)
+    os.makedirs(BIN_PATH, exist_ok=True)
 
     dist_folder = os.path.join(BIN_PATH, "dist")
     if os.path.exists(dist_folder):

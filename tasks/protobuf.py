@@ -146,12 +146,20 @@ def generate(ctx, pre_commit=False):
         ],
         'core': [('remoteconfig.pb.go', False)],
     }
+    # Per-file extra directives, keyed by (pkg, src).
+    # stats.pb.go is protoc-generated so the limit directive cannot live in the
+    # file itself; pass it on the command line instead.
+    msgp_file_directives = {
+        ('trace', 'stats.pb.go'): '-d "limit arrays:500000 maps:500000"',
+    }
     for pkg, files in msgp_targets.items():
         for src, io_gen in files:
             dst = os.path.splitext(os.path.basename(src))[0]  # .go
             dst = os.path.splitext(dst)[0]  # .pb
+            extra_flags = msgp_file_directives.get((pkg, src), '')
             ctx.run(
-                f"{bt.msgp} -file {pbgo_dir}/{pkg}/{src} -o={pbgo_dir}/{pkg}/{dst}_gen.go -io={io_gen}", env=bt.go_env
+                f"{bt.msgp} -file {pbgo_dir}/{pkg}/{src} -o={pbgo_dir}/{pkg}/{dst}_gen.go -io={io_gen} {extra_flags}",
+                env=bt.go_env,
             )
 
     # Apply msgp patches
