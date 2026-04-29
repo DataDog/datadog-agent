@@ -305,35 +305,13 @@ pub fn grandchild_cmd(pid_file: &str) -> (&'static str, Vec<String>) {
     )
 }
 
-/// Command that spawns a grandchild (long-running `ping`) whose PID is
-/// written to `pid_file`, then sleeps forever while ignoring graceful-stop
-/// signals.
-///
-/// Uses `-NoProfile -NonInteractive` to reduce PowerShell cold-start time
-/// in minimal CI containers, and `ping.exe` via `Start-Process` to avoid a
-/// nested `powershell` launch.
-#[cfg(windows)]
-pub fn grandchild_cmd(pid_file: &str) -> (&'static str, Vec<String>) {
-    (
-        "powershell.exe",
-        vec![
-            "-NoProfile".into(),
-            "-NonInteractive".into(),
-            "-Command".into(),
-            format!(
-                "$p = Start-Process -PassThru -NoNewWindow -FilePath 'ping.exe' \
-                 -ArgumentList @('-n','3600','127.0.0.1'); \
-                 Set-Content -Path '{pid_file}' -Value $p.Id; \
-                 while($true){{Start-Sleep 60}}"
-            ),
-        ],
-    )
-}
-
 /// Set up a grandchild test: creates a temp dir, builds a `ProcessConfig`
 /// that spawns a grandchild writing its PID to a file, and returns both.
 /// The caller must keep the `TempDir` alive for the duration of the test.
-#[cfg(test)]
+///
+/// Only used on Unix — the Windows descendant-cleanup test queries the Job
+/// Object for descendant PIDs instead of relying on a PID file.
+#[cfg(all(test, unix))]
 pub fn grandchild_config(
     stop_timeout: u64,
 ) -> (
@@ -347,7 +325,6 @@ pub fn grandchild_config(
     let (cmd, args) = grandchild_cmd(pid_file_str);
     let mut cfg = make_config(cmd, args);
     cfg.stop_timeout = Some(stop_timeout);
-    cfg.stderr = "inherit".to_string();
     (dir, pid_file, cfg)
 }
 

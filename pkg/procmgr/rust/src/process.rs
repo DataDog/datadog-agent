@@ -1114,48 +1114,86 @@ runtime_success_sec: 5
 
     /// Verify that force-kill cleans up the entire process tree (grandchildren).
     ///
-    /// On Unix this validates SIGKILL to -pgid. On Windows this validates
-    /// the Job Object
+    /// On Unix this validates SIGKILL to -pgid using a PID file written by
+    /// the shell script.
+    ///
+    /// On Windows this validates Job Object cleanup by querying the job for
+    /// its process list (no PID file, no PowerShell — just cmd.exe + ping).
     #[tokio::test]
     async fn test_force_kill_terminates_descendants() {
-        let (_dir, pid_file, cfg) = test_helpers::grandchild_config(1);
-        let mut proc = ManagedProcess::new_config("tree".into(), test_helpers::test_uuid(), cfg);
-        proc.spawn().unwrap();
-        assert!(proc.is_running());
-
-        let grandchild_pid =
-            test_helpers::wait_for_pid_file(&pid_file, Duration::from_secs(45)).await;
-
-        assert!(
-            test_helpers::pid_is_alive(grandchild_pid),
-            "grandchild {grandchild_pid} should be alive before stop"
-        );
-
-        // On Windows, hold a handle to the grandchild so the post-kill
-        // check is immune to PID reuse.
-        #[cfg(windows)]
-        let grandchild_handle = test_helpers::ProcessHandle::open(grandchild_pid)
-            .expect("should be able to open grandchild handle");
-
-        // request_stop sends graceful stop (ignored by the script), then
-        // wait_for_stop escalates to force-kill after stop_timeout (1s).
-        proc.request_stop();
-        proc.wait_for_stop().await;
-
-        assert_eq!(proc.state(), ProcessState::Stopped);
-
-        // Give the OS a moment to reap.
-        time::sleep(Duration::from_millis(200)).await;
-
-        #[cfg(windows)]
-        assert!(
-            !grandchild_handle.is_alive(),
-            "grandchild {grandchild_pid} should be dead after force-kill"
-        );
         #[cfg(unix)]
-        assert!(
-            !test_helpers::pid_is_alive(grandchild_pid),
-            "grandchild {grandchild_pid} should be dead after force-kill"
-        );
+        {
+            let (_dir, pid_file, cfg) = test_helpers::grandchild_config(1);
+            let mut proc =
+                ManagedProcess::new_config("tree".into(), test_helpers::test_uuid(), cfg);
+            proc.spawn().unwrap();
+            assert!(proc.is_running());
+
+            let grandchild_pid =
+                test_helpers::wait_for_pid_file(&pid_file, Duration::from_secs(15)).await;
+
+            assert!(
+                test_helpers::pid_is_alive(grandchild_pid),
+                "grandchild {grandchild_pid} should be alive before stop"
+            );
+
+            proc.request_stop();
+            proc.wait_for_stop().await;
+
+            assert_eq!(proc.state(), ProcessState::Stopped);
+            time::sleep(Duration::from_millis(200)).await;
+
+            assert!(
+                !test_helpers::pid_is_alive(grandchild_pid),
+                "grandchild {grandchild_pid} should be dead after force-kill"
+            );
+        }
+
+        #[cfg(windows)]
+        {
+            // cmd.exe starts instantly (no PowerShell cold-start) and
+            // spawns ping.exe as a child — two processes in the job.
+            let mut cfg = test_helpers::make_config(
+                "cmd.exe",
+                vec!["/C".into(), "ping -n 3600 127.0.0.1".into()],
+            );
+            cfg.stop_timeout = Some(1);
+
+            let mut proc =
+                ManagedProcess::new_config("tree".into(), test_helpers::test_uuid(), cfg);
+            proc.spawn().unwrap();
+            assert!(proc.is_running());
+
+            let child_pid = proc.pid.unwrap();
+            let job = proc.job_object.as_ref().expect("job object should exist");
+
+            // Poll the job until cmd.exe has spawned ping.exe (>1 PID).
+            let descendant_pid = tokio::time::timeout(Duration::from_secs(30), async {
+                loop {
+                    if let Ok(pids) = job.process_ids() {
+                        if let Some(&pid) = pids.iter().find(|&&p| p != child_pid) {
+                            return pid;
+                        }
+                    }
+                    time::sleep(Duration::from_millis(50)).await;
+                }
+            })
+            .await
+            .expect("timed out waiting for descendant process in job object");
+
+            let descendant_handle = test_helpers::ProcessHandle::open(descendant_pid)
+                .expect("should be able to open descendant handle");
+
+            proc.request_stop();
+            proc.wait_for_stop().await;
+
+            assert_eq!(proc.state(), ProcessState::Stopped);
+            time::sleep(Duration::from_millis(200)).await;
+
+            assert!(
+                !descendant_handle.is_alive(),
+                "descendant {descendant_pid} should be dead after force-kill"
+            );
+        }
     }
 }
