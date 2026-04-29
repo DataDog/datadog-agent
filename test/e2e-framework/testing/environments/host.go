@@ -38,8 +38,12 @@ var _ outputs.HostOutputs = (*Host)(nil)
 
 var _ common.Initializable = (*Host)(nil)
 
-// Init initializes the environment
+// Init initializes the environment.
+// It wires up cross-component references needed for agent configuration.
 func (e *Host) Init(_ common.Context) error {
+	if e.Agent != nil {
+		e.Agent.SetComponents(e.RemoteHost, e.FakeIntake)
+	}
 	return nil
 }
 
