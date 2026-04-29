@@ -10,7 +10,7 @@ import (
 	"math"
 	"strings"
 
-	observer "github.com/DataDog/datadog-agent/comp/observer/def"
+	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
 // CUSUMConfig holds configuration for the CUSUM detector.

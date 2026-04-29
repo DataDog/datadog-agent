@@ -13,7 +13,7 @@ import (
 	"strings"
 	"unicode"
 
-	observer "github.com/DataDog/datadog-agent/comp/observer/def"
+	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
 // LogMetricsExtractorConfig holds configuration for the LogMetricsExtractor.

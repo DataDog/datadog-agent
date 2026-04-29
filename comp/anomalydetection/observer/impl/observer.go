@@ -27,8 +27,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 	workloadfilterdef "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmetadef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
-	"github.com/DataDog/datadog-agent/comp/observer/impl/hfrunner"
+	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl/hfrunner"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -749,7 +749,7 @@ func (o *observerImpl) innerHandle(name string) observerdef.Handle {
 // sourceProvider is a structural interface satisfied by *metrics.MetricSample,
 // which carries a MetricSource enum populated by the standard check sender.
 // Using a type assertion (rather than adding GetSource to MetricView) avoids
-// importing pkg/metrics into comp/observer/def.
+// importing pkg/metrics into comp/anomalydetection/observer/def.
 type sourceProvider interface {
 	GetSource() metrics.MetricSource
 }

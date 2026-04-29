@@ -8,7 +8,7 @@ package observerimpl
 import (
 	"fmt"
 
-	observer "github.com/DataDog/datadog-agent/comp/observer/def"
+	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
 // PassthroughCorrelator is a simple correlator that converts each anomaly to a report.

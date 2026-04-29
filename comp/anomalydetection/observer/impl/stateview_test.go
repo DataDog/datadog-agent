@@ -10,7 +10,7 @@ import (
 	"sync"
 	"testing"
 
-	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
+	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
 func TestStateView_StorageAccess(t *testing.T) {

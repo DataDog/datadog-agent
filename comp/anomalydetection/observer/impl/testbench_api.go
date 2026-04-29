@@ -19,7 +19,7 @@ import (
 	"strings"
 	"time"
 
-	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
+	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
 // ScoreResponse is the JSON payload for GET /api/score.

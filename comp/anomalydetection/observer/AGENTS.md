@@ -1,4 +1,4 @@
-# comp/observer — AI Agent Guide
+# comp/anomalydetection/observer — AI Agent Guide
 
 ## What This Component Does
 
@@ -166,10 +166,10 @@ whether this is intentional).
 
 ```bash
 # Run observer tests
-dda inv test --targets=./comp/observer/...
+dda inv test --targets=./comp/anomalydetection/observer/...
 
 # Run benchmarks
-dda inv test --targets=./comp/observer/impl/ -- -bench=.
+dda inv test --targets=./comp/anomalydetection/observer/impl/ -- -bench=.
 ```
 
 The testbench (`impl/testbench.go`) replays parquet scenario data through

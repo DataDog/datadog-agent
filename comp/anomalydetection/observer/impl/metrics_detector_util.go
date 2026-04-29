@@ -9,7 +9,7 @@ import (
 	"math"
 	"sort"
 
-	observer "github.com/DataDog/datadog-agent/comp/observer/def"
+	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
 // seriesStatus holds point count and write generation for a single series.

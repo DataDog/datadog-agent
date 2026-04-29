@@ -6,7 +6,7 @@
 package observerimpl
 
 import (
-	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
+	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
 // stateView provides read-only access to engine state.

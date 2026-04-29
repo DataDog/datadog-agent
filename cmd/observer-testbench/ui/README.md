@@ -35,7 +35,7 @@ cmd/observer-testbench/
     │   └── hooks/useObserver.ts        # API polling, reconnect
     └── package.json
 
-comp/observer/impl/
+comp/anomalydetection/observer/impl/
 ├── testbench.go         # Scenario loading, analysis orchestration
 ├── testbench_api.go     # REST API handlers
 ├── metrics_detector_cusum.go # CUSUM change-point detector

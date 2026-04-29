@@ -7,7 +7,7 @@ package observerimpl
 
 import (
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
-	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
+	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 

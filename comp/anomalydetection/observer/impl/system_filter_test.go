@@ -8,7 +8,7 @@ package observerimpl
 import (
 	"testing"
 
-	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
+	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 

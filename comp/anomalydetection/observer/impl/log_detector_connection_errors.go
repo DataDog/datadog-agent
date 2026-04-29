@@ -8,7 +8,7 @@ package observerimpl
 import (
 	"strings"
 
-	observer "github.com/DataDog/datadog-agent/comp/observer/def"
+	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
 // connectionErrorPatterns are the patterns we look for (all lowercase for case-insensitive matching).

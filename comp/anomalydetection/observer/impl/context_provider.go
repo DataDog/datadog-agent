@@ -8,7 +8,7 @@ package observerimpl
 import (
 	"fmt"
 
-	observer "github.com/DataDog/datadog-agent/comp/observer/def"
+	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
 // validateUniqueExtractorNames rejects duplicate runtime extractor names since

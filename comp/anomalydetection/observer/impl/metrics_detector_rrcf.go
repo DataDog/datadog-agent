@@ -12,7 +12,7 @@ import (
 	"sort"
 	"strings"
 
-	observer "github.com/DataDog/datadog-agent/comp/observer/def"
+	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
 // RRCFScoredPoint records a CoDisp score at a specific timestamp.

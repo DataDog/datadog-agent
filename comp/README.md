@@ -506,18 +506,18 @@ Package npcollector used to manage network paths
 
 Package traceroute provides the traceroute component
 
-## [comp/observer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/observer) (Component Bundle)
+## [comp/anomalydetection/observer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def) (Component Bundle)
 
 *Datadog Team*: q-branch
 
 Package observer provides a component for observing data flowing through the agent.
 
-### [comp/observer/logssource](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/observer/logssource)
+### [comp/anomalydetection/logssource](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/anomalydetection/logssource)
 
 Package logssource provides a component that feeds container logs into the
 observer without requiring the logs agent to be enabled.
 
-### [comp/observer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/observer)
+### [comp/anomalydetection/observer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def)
 
 Package observer provides a component for observing data flowing through the agent.
 

@@ -8,7 +8,7 @@ package observerimpl
 import (
 	"encoding/json"
 
-	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
+	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
 // componentKind distinguishes detectors from correlators in the catalog.

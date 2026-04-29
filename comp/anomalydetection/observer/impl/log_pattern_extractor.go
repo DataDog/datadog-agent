@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
-	"github.com/DataDog/datadog-agent/comp/observer/impl/patterns"
+	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl/patterns"
 )
 
 // LogPatternExtractorName is the canonical name for the log pattern extractor.

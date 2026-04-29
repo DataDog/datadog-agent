@@ -8,7 +8,7 @@ package observerimpl
 import (
 	"time"
 
-	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
+	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
 // ReportedEvent captures a single event that would be sent to the Datadog backend

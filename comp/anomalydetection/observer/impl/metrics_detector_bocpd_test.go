@@ -9,7 +9,7 @@ import (
 	"math"
 	"testing"
 
-	observer "github.com/DataDog/datadog-agent/comp/observer/def"
+	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

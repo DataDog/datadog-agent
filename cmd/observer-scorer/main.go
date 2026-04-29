@@ -24,12 +24,12 @@ import (
 	"fmt"
 	"os"
 
-	observerimpl "github.com/DataDog/datadog-agent/comp/observer/impl"
+	observerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl"
 )
 
 func main() {
 	outputPath := flag.String("input", "", "Path to headless output JSON to score (required)")
-	scenariosDir := flag.String("scenarios-dir", "./comp/observer/scenarios", "Directory containing scenario subdirectories (for episode.json lookup)")
+	scenariosDir := flag.String("scenarios-dir", "./comp/anomalydetection/observer/scenarios", "Directory containing scenario subdirectories (for episode.json lookup)")
 	groundTruthTS := flag.Int64("ground-truth-ts", 0, "Ground truth disruption onset timestamp in unix seconds (overrides episode.json)")
 	sigma := flag.Float64("sigma", 30.0, "Gaussian width in seconds")
 	jsonOutput := flag.Bool("json", false, "Output result as JSON")

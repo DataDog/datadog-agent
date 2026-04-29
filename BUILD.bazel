@@ -190,6 +190,7 @@ exports_files(glob(
 # gazelle:exclude comp/notableevents/impl
 # gazelle:exclude comp/offlinereporter/fx
 # gazelle:exclude comp/offlinereporter/impl
+# gazelle:exclude comp/anomalydetection/observer
 # gazelle:exclude comp/otelcol/collector
 # gazelle:exclude comp/otelcol/collector-contrib/fx
 # gazelle:exclude comp/otelcol/collector-contrib/impl

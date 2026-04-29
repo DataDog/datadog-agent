@@ -12,7 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
+	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
 // Note: stateView is defined in stateview.go and provides read-only access

@@ -10,7 +10,7 @@ import (
 	"sort"
 	"sync"
 
-	observer "github.com/DataDog/datadog-agent/comp/observer/def"
+	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
 // TimeClusterConfig configures the TimeClusterCorrelator.

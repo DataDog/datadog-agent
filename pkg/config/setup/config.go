@@ -383,7 +383,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("observer.event_reporter.sending_enabled", false)
 
 	// Observer component toggles — values must match catalog defaults in
-	// comp/observer/impl/component_catalog.go defaultCatalog().
+	// comp/anomalydetection/observer/impl/component_catalog.go defaultCatalog().
 	config.BindEnvAndSetDefault("observer.components.log_metrics_extractor.enabled", true)
 	config.BindEnvAndSetDefault("observer.components.connection_error_extractor.enabled", true)
 	config.BindEnvAndSetDefault("observer.components.log_pattern_extractor.enabled", true)

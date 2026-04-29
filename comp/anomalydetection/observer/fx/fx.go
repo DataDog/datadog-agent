@@ -9,8 +9,8 @@ package fx
 import (
 	"go.uber.org/fx"
 
-	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
-	observerimpl "github.com/DataDog/datadog-agent/comp/observer/impl"
+	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	observerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 

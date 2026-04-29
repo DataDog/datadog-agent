@@ -7,7 +7,7 @@ package observerimpl
 
 import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
+	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
 // EventReporter sends Datadog events for new correlations via eventSender.

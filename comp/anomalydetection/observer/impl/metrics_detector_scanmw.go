@@ -10,7 +10,7 @@ import (
 	"math"
 	"sort"
 
-	observer "github.com/DataDog/datadog-agent/comp/observer/def"
+	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
 // scanmwStateKey identifies per-series state by ref and aggregation.

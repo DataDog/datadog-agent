@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	observerimpl "github.com/DataDog/datadog-agent/comp/observer/impl"
+	observerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -49,7 +49,7 @@ type CLIParams struct {
 }
 
 func main() {
-	scenariosDir := flag.String("scenarios-dir", "./comp/observer/scenarios", "Directory containing scenario subdirectories")
+	scenariosDir := flag.String("scenarios-dir", "./comp/anomalydetection/observer/scenarios", "Directory containing scenario subdirectories")
 	httpAddr := flag.String("http", ":8080", "HTTP server address for the API")
 	enableStr := flag.String("enable", "", "Comma-separated components to enable (overrides defaults)")
 	disableStr := flag.String("disable", "", "Comma-separated components to disable (overrides defaults)")

@@ -9,8 +9,8 @@ package fx
 import (
 	"go.uber.org/fx"
 
-	logssource "github.com/DataDog/datadog-agent/comp/observer/logssource/def"
-	logssourceimpl "github.com/DataDog/datadog-agent/comp/observer/logssource/impl"
+	logssource "github.com/DataDog/datadog-agent/comp/anomalydetection/logssource/def"
+	logssourceimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/logssource/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 

@@ -9,7 +9,7 @@ import (
 	"math"
 	"sort"
 
-	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
+	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
 // DetectorProcessingStats holds aggregate processing-time statistics for a single

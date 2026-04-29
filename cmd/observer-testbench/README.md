@@ -26,7 +26,7 @@ The `--build` flag rebuilds the binary before launching. Omit it after the first
 dda inv -- q.build-testbench
 
 # Run the backend
-./bin/observer-testbench --scenarios-dir ./comp/observer/scenarios
+./bin/observer-testbench --scenarios-dir ./comp/anomalydetection/observer/scenarios
 
 # Start the UI (in a separate terminal)
 cd cmd/observer-testbench/ui
@@ -57,7 +57,7 @@ $ dda inv q.eval-component-workspace-report evals # This will fetch the results 
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--scenarios-dir` | `./comp/observer/scenarios` | Directory containing scenario subdirectories |
+| `--scenarios-dir` | `./comp/anomalydetection/observer/scenarios` | Directory containing scenario subdirectories |
 | `--http` | `:8080` | HTTP server address for the API (interactive mode only) |
 | `--enable` | _(empty)_ | Comma-separated components to enable (overrides defaults) |
 | `--disable` | _(empty)_ | Comma-separated components to disable (overrides defaults) |
@@ -137,14 +137,14 @@ dda inv -- q.launch-testbench --headless-scenario <scenario-name> --profile  # w
 ./bin/observer-testbench \
   --headless <scenario-name> \
   --output results.json \
-  --scenarios-dir ./comp/observer/scenarios
+  --scenarios-dir ./comp/anomalydetection/observer/scenarios
 
 # Same, but only ingest logs from parquet (ignore metrics and trace stats)
 ./bin/observer-testbench \
   --headless <scenario-name> \
   --logs-only \
   --output results-logs.json \
-  --scenarios-dir ./comp/observer/scenarios
+  --scenarios-dir ./comp/anomalydetection/observer/scenarios
 
 dda inv -- q.launch-testbench --headless-scenario <scenario-name> --logs-only
 
@@ -153,13 +153,13 @@ dda inv -- q.launch-testbench --headless-scenario <scenario-name> --logs-only
   --headless <scenario-name> \
   --output results-verbose.json \
   --verbose \
-  --scenarios-dir ./comp/observer/scenarios
+  --scenarios-dir ./comp/anomalydetection/observer/scenarios
 
 # Only BOCPD + TimeCluster in headless mode
 ./bin/observer-testbench \
   --headless <scenario-name> \
   --output results.json \
-  --scenarios-dir ./comp/observer/scenarios \
+  --scenarios-dir ./comp/anomalydetection/observer/scenarios \
   --only bocpd,time_cluster
 ```
 

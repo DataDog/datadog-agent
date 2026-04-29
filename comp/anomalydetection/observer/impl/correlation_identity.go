@@ -8,7 +8,7 @@ package observerimpl
 import (
 	"sort"
 
-	observer "github.com/DataDog/datadog-agent/comp/observer/def"
+	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
 // sortedUniqueMembers extracts unique SeriesDescriptors from anomalies' Source

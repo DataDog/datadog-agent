@@ -16,7 +16,7 @@ import (
 	"strings"
 	"sync"
 
-	observer "github.com/DataDog/datadog-agent/comp/observer/def"
+	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
 // timeSeriesStorage is an internal storage for time series data.

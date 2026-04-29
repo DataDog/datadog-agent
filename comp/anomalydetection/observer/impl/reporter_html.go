@@ -17,7 +17,7 @@ import (
 	"sync"
 	"time"
 
-	observer "github.com/DataDog/datadog-agent/comp/observer/def"
+	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
 // parseInt64 parses a string to int64.

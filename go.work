@@ -52,7 +52,7 @@ use (
 	comp/logs-library
 	comp/logs/agent/config
 	comp/netflow/payload
-	comp/observer/def
+	comp/anomalydetection/observer/def
 	comp/otelcol/collector-contrib/def
 	comp/otelcol/collector-contrib/impl
 	comp/otelcol/converter/def

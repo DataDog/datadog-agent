@@ -12,7 +12,7 @@ import (
 	"time"
 
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
-	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
+	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )

@@ -13,7 +13,7 @@ import (
 
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	observer "github.com/DataDog/datadog-agent/comp/observer/def"
+	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 

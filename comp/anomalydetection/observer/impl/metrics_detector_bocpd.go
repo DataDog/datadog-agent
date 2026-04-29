@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"math"
 
-	observer "github.com/DataDog/datadog-agent/comp/observer/def"
+	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
 // bocpdStateKey uniquely identifies a (series, aggregation) pair for BOCPD state.

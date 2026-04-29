@@ -10,7 +10,7 @@ import (
 	"math/rand"
 	"testing"
 
-	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
+	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
 // buildRealisticStorage creates storage mimicking the crash-loop scenario.
@@ -57,7 +57,7 @@ func buildRealisticEngine(numMetrics, numSeconds int, windowSec int64) *engine {
 
 // BenchmarkReplayStoredData profiles the full replay path (unbounded).
 //
-//	go test -run=^$ -bench=BenchmarkReplayStoredData -cpuprofile=/tmp/observer_cpu.prof -benchtime=1x ./comp/observer/impl/
+//	go test -run=^$ -bench=BenchmarkReplayStoredData -cpuprofile=/tmp/observer_cpu.prof -benchtime=1x ./comp/anomalydetection/observer/impl/
 //	go tool pprof -http=:8081 /tmp/observer_cpu.prof
 func BenchmarkReplayStoredData(b *testing.B) {
 	e := buildRealisticEngine(200, 576, 0)

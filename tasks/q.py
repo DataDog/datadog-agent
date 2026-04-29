@@ -55,7 +55,7 @@ def build_scorer(ctx):
 def eval_scenarios(
     ctx,
     scenario: str = "",
-    scenarios_dir: str = "./comp/observer/scenarios",
+    scenarios_dir: str = "./comp/anomalydetection/observer/scenarios",
     sigma: float = 30.0,
     only: str = "",
     build: bool = True,
@@ -227,7 +227,7 @@ def eval_scenarios(
 def eval_tp(
     ctx,
     scenario: str = "",
-    scenarios_dir: str = "./comp/observer/scenarios",
+    scenarios_dir: str = "./comp/anomalydetection/observer/scenarios",
     sigma: float = 30.0,
     only: str = "",
     build: bool = True,
@@ -353,7 +353,7 @@ def eval_combinations(
     ctx,
     n: int = 10,
     output_dir: str = "/tmp/observer-eval-combinations",
-    scenarios_dir: str = "./comp/observer/scenarios",
+    scenarios_dir: str = "./comp/anomalydetection/observer/scenarios",
     sigma: float = 30.0,
     seed: int = None,
     build: bool = True,
@@ -549,7 +549,7 @@ def eval_bayesian(
     only: str = "",
     n_trials: int = 10,
     output_dir: str = "/tmp/observer-optuna-eval",
-    scenarios_dir: str = "./comp/observer/scenarios",
+    scenarios_dir: str = "./comp/anomalydetection/observer/scenarios",
     sigma: float = 30.0,
     seed: int = None,
     build: bool = True,
@@ -921,7 +921,7 @@ def eval_pipeline(
     n_trials_tune: int = 20,
     m_runs: int = 1,
     output_dir: str = "/tmp/observer-pipeline-eval",
-    scenarios_dir: str = "./comp/observer/scenarios",
+    scenarios_dir: str = "./comp/anomalydetection/observer/scenarios",
     sigma: float = 30.0,
     seed: int = None,
     build: bool = True,
@@ -1200,7 +1200,7 @@ def eval_component(
     n_trials: int = 5,
     m_runs: int = 1,
     output_dir: str = "/tmp/observer-component-eval",
-    scenarios_dir: str = "./comp/observer/scenarios",
+    scenarios_dir: str = "./comp/anomalydetection/observer/scenarios",
     sigma: float = 30.0,
     seed: int = None,
     build: bool = True,
@@ -1549,7 +1549,7 @@ def eval_component(
 def download_scenarios(
     ctx,
     scenario: str = "",
-    scenarios_dir: str = "./comp/observer/scenarios",
+    scenarios_dir: str = "./comp/anomalydetection/observer/scenarios",
     skip_existing: bool = False,
 ):
     """
@@ -1590,7 +1590,7 @@ def download_scenarios(
 @task
 def launch_testbench(
     ctx,
-    scenarios_dir: str = "./comp/observer/scenarios",
+    scenarios_dir: str = "./comp/anomalydetection/observer/scenarios",
     build: bool = False,
     headless_scenario: str = "",
     headless_output: str = "",
@@ -1770,7 +1770,7 @@ def benchmark(ctx, bench=_BENCH_FILTER, benchtime="3s", count=1, only=""):
         dda inv q.benchmark --only bocpd,time_cluster
     """
     only_args = f" -args -only={shlex.quote(only)}" if only else ""
-    cmd = f"go test -run=^$ -bench='{bench}' -benchmem -benchtime={benchtime} -count={count} ./comp/observer/impl/{only_args}"
+    cmd = f"go test -run=^$ -bench='{bench}' -benchmem -benchtime={benchtime} -count={count} ./comp/anomalydetection/observer/impl/{only_args}"
     print(color_message(f"\nRunning: {cmd}\n", Color.BLUE))
     result = ctx.run(cmd, warn=True)
     if result and result.failed:
