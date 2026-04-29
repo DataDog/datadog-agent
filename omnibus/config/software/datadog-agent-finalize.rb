@@ -29,8 +29,11 @@ build do
         # TODO: flavor can be defaulted and set from the bazel wrapper based on the environment.
         command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} --//packages/agent:flavor=#{flavor_arg} -- //packages/install_dir:install"
 
-        license_target = linux_target? ? "//packages/agent/linux:license_files_install" : "//packages/agent/dependencies:license_files_install"
-        command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} --//packages/agent:flavor=#{flavor_arg} -- #{license_target} --destdir=#{install_dir}"
+        if linux_target?
+            command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} --//packages/agent:flavor=#{flavor_arg} -- //packages/agent/linux:license_files_install --destdir=#{install_dir}"
+        elsif osx_target?
+            command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} --//packages/agent:flavor=#{flavor_arg} -- //packages/agent/dependencies:license_files_install --destdir=#{install_dir}"
+        end
 
         # Conf files
         if windows_target?
