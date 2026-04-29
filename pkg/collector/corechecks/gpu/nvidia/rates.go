@@ -22,17 +22,17 @@ const (
 type rateKey struct {
 	metricName string
 	tagsKey    string
-	gpuUuid    string
+	gpuUUID    string
 }
 
-func buildRateKey(metric *Metric, gpuUuid string) rateKey {
+func buildRateKey(metric *Metric, gpuUUID string) rateKey {
 	sortedTags := slices.Clone(metric.Tags)
 	slices.Sort(sortedTags)
 
 	return rateKey{
 		metricName: metric.Name,
 		tagsKey:    strings.Join(sortedTags, ","),
-		gpuUuid:    gpuUuid,
+		gpuUUID:    gpuUUID,
 	}
 }
 
@@ -54,12 +54,12 @@ func NewRateCalculator() *RateCalculator {
 }
 
 // processMetric processes a single metric and returns true if the metric should be included in the output, false if it should be dropped.
-func (r *RateCalculator) processMetric(metric *Metric, timestamp time.Time, gpuUuid string) bool {
+func (r *RateCalculator) processMetric(metric *Metric, timestamp time.Time, gpuUUID string) bool {
 	if metric.RateCalculationMode == NoRateCalculation {
 		return true
 	}
 
-	key := buildRateKey(metric, gpuUuid)
+	key := buildRateKey(metric, gpuUUID)
 	previous, ok := r.previousValues[key]
 
 	r.previousValues[key] = previousValue{
@@ -96,10 +96,10 @@ func (r *RateCalculator) processMetric(metric *Metric, timestamp time.Time, gpuU
 // ProcessMetrics processes a list of metrics and calculates the rate for each
 // metric if appropriate. Metrics that require rate calculation and don't have a
 // previous value are dropped.
-func (r *RateCalculator) ProcessMetrics(metrics []*Metric, timestamp time.Time, gpuUuid string) []*Metric {
+func (r *RateCalculator) ProcessMetrics(metrics []*Metric, timestamp time.Time, gpuUUID string) []*Metric {
 	filteredMetrics := make([]*Metric, 0, len(metrics))
 	for _, metric := range metrics {
-		if r.processMetric(metric, timestamp, gpuUuid) {
+		if r.processMetric(metric, timestamp, gpuUUID) {
 			filteredMetrics = append(filteredMetrics, metric)
 		}
 	}
