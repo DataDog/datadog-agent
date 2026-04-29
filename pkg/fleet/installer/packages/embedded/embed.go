@@ -40,12 +40,6 @@ var systemdUnits embed.FS
 //go:embed tmpl/gen/debrpm/datadog-agent-ddot-sa-exp.yaml
 var processConfigs embed.FS
 
-// DDOTProcessConfig is the rendered process manager config for DDOT (deb/rpm stable layout).
-// Kept for backward compatibility; prefer GetDDOTProcessConfig for new code.
-//
-//go:embed tmpl/gen/debrpm/datadog-agent-ddot.yaml
-var DDOTProcessConfig string
-
 // SystemdUnitType is the type of systemd unit.
 type SystemdUnitType string
 
