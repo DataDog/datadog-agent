@@ -8,7 +8,7 @@ go_library(
         "token.go",
         "tokenizer.go",
     ],
-    importpath = "github.com/DataDog/datadog-agent/comp/observer/impl/patterns",
+    importpath = "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl/patterns",
     visibility = ["//visibility:public"],
 )
 
