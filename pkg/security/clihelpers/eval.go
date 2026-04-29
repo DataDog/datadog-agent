@@ -10,6 +10,7 @@ package clihelpers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"maps"
@@ -256,7 +257,7 @@ func parseVariableEntry(raw any) (any, eval.VariableOpts, error) {
 	}
 
 	if entry.Value == nil {
-		return nil, opts, fmt.Errorf("variable entry is missing required 'value' field")
+		return nil, opts, errors.New("variable entry is missing required 'value' field")
 	}
 
 	return entry.Value, entry.VariableOpts, nil
