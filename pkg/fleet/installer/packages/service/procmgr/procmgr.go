@@ -24,7 +24,7 @@ const (
 	agentInstallDebRp = "/opt/datadog-agent"
 )
 
-// WriteConfig writes a procmgrd YAML config file to destDir/configName.
+// WriteConfig writes a procmgr YAML config file to destDir/configName.
 func WriteConfig(destDir, configName, content string) error {
 	dest := filepath.Join(destDir, configName)
 	if err := os.WriteFile(dest, []byte(content), 0644); err != nil {
@@ -34,7 +34,7 @@ func WriteConfig(destDir, configName, content string) error {
 	return nil
 }
 
-// RemoveConfig removes a procmgrd YAML config file from destDir.
+// RemoveConfig removes a procmgr YAML config file from destDir.
 func RemoveConfig(destDir, configName string) {
 	dest := filepath.Join(destDir, configName)
 	if err := os.Remove(dest); err != nil && !os.IsNotExist(err) {
@@ -49,7 +49,7 @@ func RestartDaemon(ctx context.Context) error {
 }
 
 // writeMarker persists the opt-in marker so future upgrades preserve
-// procmgrd management without requiring the env var again.
+// procmgr management without requiring the env var again.
 func writeMarker() {
 	if err := os.WriteFile(markerPath, []byte{}, 0644); err != nil {
 		log.Warnf("failed to write procmgr opt-in marker %s: %s", markerPath, err)

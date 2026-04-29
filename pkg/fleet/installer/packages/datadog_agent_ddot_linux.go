@@ -70,8 +70,8 @@ var (
 		SysvinitMainService: "datadog-agent-ddot",
 		SysvinitServices:    []string{"datadog-agent-ddot"},
 
-		ProcmgrdConfigName: ddotProcessConfigName,
-		ProcmgrdStandalone: true,
+		ProcmgrConfigName: ddotProcessConfigName,
+		ProcmgrStandalone: true,
 	}
 
 	// agentDDOTExtService manages the DDOT extension (installed under the agent tree)
@@ -81,8 +81,8 @@ var (
 		SystemdUnitsStable:    []string{"datadog-agent-ddot.service"},
 		SystemdUnitsExp:       []string{"datadog-agent-ddot-exp.service"},
 
-		ProcmgrdConfigName: ddotProcessConfigName,
-		ProcmgrdStandalone: false,
+		ProcmgrConfigName: ddotProcessConfigName,
+		ProcmgrStandalone: false,
 	}
 )
 
@@ -212,7 +212,7 @@ func postInstallDatadogAgentDDOTDEBRPM(ctx HookContext) (err error) {
 
 // preRemoveDatadogAgentDDOT performs pre-removal steps for the DDOT package.
 // All the steps are allowed to fail. StopStable/StopExperiment and
-// RemoveStable/RemoveExperiment handle procmgrd config cleanup internally
+// RemoveStable/RemoveExperiment handle procmgr config cleanup internally
 // when ProcmgrType is active.
 func preRemoveDatadogAgentDDOT(ctx HookContext) error {
 	if err := agentDDOTService.StopExperiment(ctx); err != nil {
@@ -298,7 +298,7 @@ func preRemoveDDOTExtension(ctx HookContext) error {
 	span, _ := ctx.StartSpan("pre_remove_extension_ddot")
 	defer span.Finish(nil)
 
-	// StopStable handles procmgrd config removal + daemon restart for ProcmgrType
+	// StopStable handles procmgr config removal + daemon restart for ProcmgrType
 	if err := agentDDOTExtService.StopStable(ctx); err != nil {
 		log.Warnf("failed to stop DDOT extension service: %s", err)
 	}
@@ -343,7 +343,7 @@ func isStandaloneDDOTInstalled() bool {
 
 // restoreDDOTProcessConfig re-creates the DDOT procmgr YAML after an OCI
 // agent upgrade, which recreates the versioned directory (and its
-// processes.d/) from scratch. WriteStable handles writing the procmgrd
+// processes.d/) from scratch. WriteStable handles writing the procmgr
 // config, the systemd fallback unit, and restarting the daemon.
 //
 // DEB/RPM is skipped: the install path is stable across upgrades and the

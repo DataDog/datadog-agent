@@ -26,9 +26,9 @@ const (
 	UpstartType Type = "upstart"
 	// SystemdType is returned when the service manager is systemd
 	SystemdType Type = "systemd"
-	// ProcmgrType is returned when systemd is present and the procmgrd
+	// ProcmgrType is returned when systemd is present and the procmgr
 	// opt-in gate is open (DD_PROCMGR_MANAGE_DDOT=true or marker file).
-	// Services with procmgrd fields use dd-procmgrd; others fall through
+	// Services with procmgr fields use dd-procmgrd; others fall through
 	// to systemd.
 	ProcmgrType Type = "procmgr"
 
@@ -50,7 +50,7 @@ func GetServiceManagerType() Type {
 func getServiceManagerType() Type {
 	_, err := exec.LookPath("systemctl")
 	if err == nil {
-		if isProcmgrdGateOpen() {
+		if isProcmgrGateOpen() {
 			return ProcmgrType
 		}
 		return SystemdType
@@ -66,10 +66,10 @@ func getServiceManagerType() Type {
 	return UnknownType
 }
 
-// isProcmgrdGateOpen returns true when the procmgrd DDOT opt-in gate is
+// isProcmgrGateOpen returns true when the procmgr DDOT opt-in gate is
 // satisfied: either DD_PROCMGR_MANAGE_DDOT=true or the persistent marker
 // file exists from a prior opt-in.
-func isProcmgrdGateOpen() bool {
+func isProcmgrGateOpen() bool {
 	if strings.EqualFold(os.Getenv("DD_PROCMGR_MANAGE_DDOT"), "true") {
 		return true
 	}
