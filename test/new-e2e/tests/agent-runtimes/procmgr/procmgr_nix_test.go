@@ -21,6 +21,7 @@ import (
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/hostagent"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
 
@@ -56,22 +57,21 @@ type procmgrLinuxSuite struct {
 
 func TestProcmgrSmokeLinuxSuite(t *testing.T) {
 	t.Parallel()
+	// Provisioner creates infrastructure only — VM (no fakeintake, no agent).
 	e2e.Run(t, &procmgrLinuxSuite{}, e2e.WithProvisioner(
-		awshost.ProvisionerNoFakeIntake(
-			awshost.WithRunOptions(
-				scenec2.WithAgentOptions(
-					agentparams.WithFile("/etc/datadog-agent/processes.d/test-sleep.yaml", testProcessConfig, true),
-					agentparams.WithFile("/etc/datadog-agent/processes.d/datadog-agent-ddot.yaml", embedded.DDOTProcessConfig, true),
-					agentparams.WithFile("/etc/datadog-agent/processes.d/missing-binary.yaml", missingBinaryConfig, true),
-				),
-			),
-		),
+		awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(scenec2.WithoutAgent())),
 	))
 }
 
 func (s *procmgrLinuxSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 	defer s.CleanupOnSetupFailure()
+
+	hostagent.Install(s.T(), s.Env(),
+		agentparams.WithFile("/etc/datadog-agent/processes.d/test-sleep.yaml", testProcessConfig, true),
+		agentparams.WithFile("/etc/datadog-agent/processes.d/datadog-agent-ddot.yaml", embedded.DDOTProcessConfig, true),
+		agentparams.WithFile("/etc/datadog-agent/processes.d/missing-binary.yaml", missingBinaryConfig, true),
+	)
 
 	_, err := s.Env().RemoteHost.Execute("test -f " + procmgrdBin)
 	if err != nil {

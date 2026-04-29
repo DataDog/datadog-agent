@@ -24,9 +24,9 @@ import (
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	scenkindvm "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/helmagent"
 	provkindvm "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
 )
 
@@ -175,13 +175,20 @@ var expectedFindingsWorkerNode = findings{
 var values string
 
 func TestCSPM(t *testing.T) {
+	// Provisioner creates infrastructure only — KinD cluster + fakeintake, no agent.
 	e2e.Run(t, &cspmTestSuite{}, e2e.WithProvisioner(
-		provkindvm.Provisioner(
-			provkindvm.WithRunOptions(
-				scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(values)),
-			),
-		),
+		provkindvm.Provisioner(),
 	))
+}
+
+func (s *cspmTestSuite) SetupSuite() {
+	s.BaseSuite.SetupSuite()
+	defer s.CleanupOnSetupFailure()
+
+	// Install agent via Helm, decoupled from Pulumi
+	helmagent.Install(s.T(), s.Env(),
+		kubernetesagentparams.WithHelmValues(values),
+	)
 }
 
 func (s *cspmTestSuite) TestFindings() {

@@ -22,7 +22,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
@@ -32,30 +31,20 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/hostagent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	fi "github.com/DataDog/datadog-agent/test/fakeintake/client"
 )
 
+// multiFakeIntakeEnv is a custom environment with a host running Docker, an
+// Agent, and two fakeintakes. The Pulumi provisioner only sets up
+// infrastructure; the agent is installed in SetupSuite.
 type multiFakeIntakeEnv struct {
 	Host        *components.RemoteHost
 	Agent       *components.RemoteHostAgent
 	Fakeintake1 *components.FakeIntake
 	Fakeintake2 *components.FakeIntake
 	Docker      *components.RemoteHostDocker
-}
-
-func (e *multiFakeIntakeEnv) Init(ctx common.Context) error {
-	if e.Agent != nil {
-		agent, err := client.NewHostAgentClient(ctx, e.Host.HostOutput, true)
-		if err != nil {
-			return err
-		}
-		e.Agent.Client = agent
-	}
-	return nil
 }
 
 const (
@@ -106,52 +95,54 @@ func runUDSTraceGenerator(h *components.RemoteHost, service string, addSpanTags 
 	return func() { h.MustExecute(rm) }
 }
 
-func multiFakeIntakeAWS(agentOptions ...agentparams.Option) provisioners.Provisioner {
-	runFunc := func(ctx *pulumi.Context, env *multiFakeIntakeEnv) error {
-		awsEnv, err := aws.NewEnvironment(ctx)
-		if err != nil {
-			return err
-		}
+// multiFakeIntakeInfraProvisioner sets up infrastructure only — VM,
+// two fakeintakes, and a Docker manager. The agent is installed in
+// SetupSuite via hostagent.InstallOnHost.
+func multiFakeIntakeInfraProvisioner(ctx *pulumi.Context, env *multiFakeIntakeEnv) error {
+	// Mark Agent as not provisioned by Pulumi — it's installed in
+	// SetupSuite via hostagent.InstallOnHost. The framework auto-initializes
+	// all importable env fields to non-nil zero values; setting it back to
+	// nil tells the framework to skip resource import for this field.
+	env.Agent = nil
 
-		host, err := ec2.NewVM(awsEnv, "nssfailover")
-		if err != nil {
-			return err
-		}
-		host.Export(ctx, &env.Host.HostOutput)
-
-		agent, err := agent.NewHostAgent(&awsEnv, host, agentOptions...)
-		if err != nil {
-			return err
-		}
-		agent.Export(ctx, &env.Agent.HostAgentOutput)
-
-		fakeIntake1, err := fakeintake.NewECSFargateInstance(awsEnv, fakeintake1Name)
-		if err != nil {
-			return err
-		}
-		fakeIntake1.Export(ctx, &env.Fakeintake1.FakeintakeOutput)
-
-		fakeIntake2, err := fakeintake.NewECSFargateInstance(awsEnv, fakeintake2Name)
-		if err != nil {
-			return err
-		}
-		fakeIntake2.Export(ctx, &env.Fakeintake2.FakeintakeOutput)
-
-		// Create a docker manager
-		dockerManager, err := docker.NewAWSManager(&awsEnv, host)
-		if err != nil {
-			return err
-		}
-		// export the docker manager configuration to the environment, this will automatically initialize the docker client
-		err = dockerManager.Export(ctx, &env.Docker.ManagerOutput)
-		if err != nil {
-			return err
-		}
-
-		return nil
+	awsEnv, err := aws.NewEnvironment(ctx)
+	if err != nil {
+		return err
 	}
 
-	return provisioners.NewTypedPulumiProvisioner("aws-nssfailover", runFunc, nil)
+	host, err := ec2.NewVM(awsEnv, "nssfailover")
+	if err != nil {
+		return err
+	}
+	if err := host.Export(ctx, &env.Host.HostOutput); err != nil {
+		return err
+	}
+
+	fakeIntake1, err := fakeintake.NewECSFargateInstance(awsEnv, fakeintake1Name)
+	if err != nil {
+		return err
+	}
+	if err := fakeIntake1.Export(ctx, &env.Fakeintake1.FakeintakeOutput); err != nil {
+		return err
+	}
+
+	fakeIntake2, err := fakeintake.NewECSFargateInstance(awsEnv, fakeintake2Name)
+	if err != nil {
+		return err
+	}
+	if err := fakeIntake2.Export(ctx, &env.Fakeintake2.FakeintakeOutput); err != nil {
+		return err
+	}
+
+	dockerManager, err := docker.NewAWSManager(&awsEnv, host)
+	if err != nil {
+		return err
+	}
+	if err := dockerManager.Export(ctx, &env.Docker.ManagerOutput); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 type multiFakeIntakeSuite struct {
@@ -160,7 +151,28 @@ type multiFakeIntakeSuite struct {
 
 func TestMultiFakeintakeSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &multiFakeIntakeSuite{}, e2e.WithProvisioner(multiFakeIntakeAWS()))
+	e2e.Run(t, &multiFakeIntakeSuite{}, e2e.WithPulumiProvisioner(multiFakeIntakeInfraProvisioner, nil))
+}
+
+func (v *multiFakeIntakeSuite) SetupSuite() {
+	v.BaseSuite.SetupSuite()
+	defer v.CleanupOnSetupFailure()
+
+	// Both fakeintakes must use the same scheme so a single intake hostname works.
+	v.Require().Equal(v.Env().Fakeintake1.Scheme, v.Env().Fakeintake2.Scheme)
+
+	// Pre-pull the tracegen image so test runs don't pay download time.
+	pullTraceGeneratorImage(v.Env().Host)
+
+	// Ensure /etc/nsswitch.conf uses files first so /etc/hosts wins over DNS.
+	enforceNSSwitchFiles(v.T(), v.Env().Host)
+
+	// Install the agent with no intake configuration. The intake is configured
+	// in the test method itself so BeforeTest's "both intakes empty" check
+	// can pass (the agent has nowhere to send data yet).
+	// Pass nil for fakeintake — the test will set the intake via Configure
+	// using the synthetic "ddintake" hostname resolved via /etc/hosts.
+	v.Env().Agent = hostagent.InstallOnHost(v.T(), v.Env().Host, nil)
 }
 
 // BeforeTest ensures that both fakeintakes are not in use before the test starts
@@ -204,34 +216,26 @@ func (v *multiFakeIntakeSuite) BeforeTest(suiteName, testName string) {
 // it once (ie. no reload), glibc and Go reload it periodically
 // cf. https://go-review.googlesource.com/c/go/+/448075
 func (v *multiFakeIntakeSuite) TestNSSFailover() {
-	// Ensure that both fakeintakes are using the same scheme
-	v.Assert().Equal(v.Env().Fakeintake1.Scheme, v.Env().Fakeintake2.Scheme)
-
-	agentConfig, err := readTmplConfig(configTmplFile)
-	v.NoError(err)
-
-	customLogsConfig, err := readTmplConfig(customLogsConfigTmplFile)
-	v.NoError(err)
-
-	// pull tracegen docker image
-	pullTraceGeneratorImage(v.Env().Host)
-
-	// ensure host uses files for NSS
-	enforceNSSwitchFiles(v.T(), v.Env().Host)
-
-	// setup NSS entry for intake
+	// Initially point the synthetic intake hostname at fakeintake1.
 	fakeintake1IP, err := hostIPFromURL(v.Env().Fakeintake1.URL)
-	v.NoError(err)
+	v.Require().NoError(err)
 	setHostEntry(v.T(), v.Env().Host, intakeName, fakeintake1IP)
 
-	// configure agent to use the custom intake, set connection_reset_interval, use logs, and processes
-	agentOptions := []agentparams.Option{
+	// Render the agent and custom_logs configs from their templates.
+	agentConfig, err := readTmplConfig(configTmplFile)
+	v.Require().NoError(err)
+	customLogsConfig, err := readTmplConfig(customLogsConfigTmplFile)
+	v.Require().NoError(err)
+
+	// Configure the agent to use the synthetic intake hostname. This causes
+	// the agent to send data to whichever fakeintake /etc/hosts currently
+	// points "ddintake" at — fakeintake1 right now.
+	v.Env().Agent.Configure(v.T(),
 		agentparams.WithAgentConfig(agentConfig),
 		agentparams.WithLogs(),
 		agentparams.WithIntakeHostname(v.Env().Fakeintake1.Scheme, intakeName),
 		agentparams.WithIntegration("custom_logs.d", customLogsConfig),
-	}
-	v.UpdateEnv(multiFakeIntakeAWS(agentOptions...))
+	)
 
 	// check that fakeintake1 is used as intake and not fakeintake2
 	v.requireIntakeIsUsed(v.Env().Fakeintake1.Client(), intakeMaxWaitTime, intakeTick)
