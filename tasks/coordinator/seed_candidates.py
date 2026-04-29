@@ -45,7 +45,6 @@ def _load_one(path: Path) -> Candidate:
         status=CandidateStatus(data.get("status", "proposed")),
         proposed_at=data.get("proposed_at") or _dt.datetime.now().isoformat(timespec="seconds"),
         approach_family=data.get("approach_family", "unspecified"),
-        kind=data.get("kind", "detector"),
         parent_candidates=list(data.get("parent_candidates", [])),
     )
 
