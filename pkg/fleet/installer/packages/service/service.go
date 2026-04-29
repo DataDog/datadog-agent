@@ -8,7 +8,11 @@
 // Package service provides service manager utilities
 package service
 
-import "os/exec"
+import (
+	"os"
+	"os/exec"
+	"strings"
+)
 
 // Type is the service manager type
 type Type string
@@ -22,6 +26,13 @@ const (
 	UpstartType Type = "upstart"
 	// SystemdType is returned when the service manager is systemd
 	SystemdType Type = "systemd"
+	// ProcmgrType is returned when systemd is present and the procmgrd
+	// opt-in gate is open (DD_PROCMGR_MANAGE_DDOT=true or marker file).
+	// Services with procmgrd fields use dd-procmgrd; others fall through
+	// to systemd.
+	ProcmgrType Type = "procmgr"
+
+	procmgrDDOTMarkerPath = "/etc/datadog-agent/.procmgr-ddot-enabled"
 )
 
 var cachedServiceManagerType *Type
@@ -39,6 +50,9 @@ func GetServiceManagerType() Type {
 func getServiceManagerType() Type {
 	_, err := exec.LookPath("systemctl")
 	if err == nil {
+		if isProcmgrdGateOpen() {
+			return ProcmgrType
+		}
 		return SystemdType
 	}
 	_, err = exec.LookPath("initctl")
@@ -50,4 +64,15 @@ func getServiceManagerType() Type {
 		return SysvinitType
 	}
 	return UnknownType
+}
+
+// isProcmgrdGateOpen returns true when the procmgrd DDOT opt-in gate is
+// satisfied: either DD_PROCMGR_MANAGE_DDOT=true or the persistent marker
+// file exists from a prior opt-in.
+func isProcmgrdGateOpen() bool {
+	if strings.EqualFold(os.Getenv("DD_PROCMGR_MANAGE_DDOT"), "true") {
+		return true
+	}
+	_, err := os.Stat(procmgrDDOTMarkerPath)
+	return err == nil
 }

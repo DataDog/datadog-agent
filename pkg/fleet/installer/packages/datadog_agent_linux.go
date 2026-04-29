@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/packagemanager"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/selinux"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/procmgr"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/systemd"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/sysvinit"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/upstart"
@@ -551,10 +552,21 @@ type datadogAgentService struct {
 
 	SysvinitMainService string
 	SysvinitServices    []string
+
+	// ProcmgrdConfigName is the YAML filename (e.g. "datadog-agent-ddot.yaml")
+	// written to processes.d/ for dd-procmgrd. When empty the ProcmgrType case
+	// falls through to SystemdType, so services that don't use procmgrd (like
+	// the main agent) are unaffected.
+	ProcmgrdConfigName string
+	// ProcmgrdStandalone selects between the standalone and extension layout
+	// for the embedded YAML template.
+	ProcmgrdStandalone bool
 }
 
 func (s *datadogAgentService) checkPlatformSupport(ctx HookContext) error {
 	switch service.GetServiceManagerType() {
+	case service.ProcmgrType:
+		return nil
 	case service.SystemdType:
 		return nil
 	case service.UpstartType:
@@ -571,12 +583,73 @@ func (s *datadogAgentService) checkPlatformSupport(ctx HookContext) error {
 	return nil
 }
 
+// procmgrdProcessesDir returns the processes.d directory for this service.
+func (s *datadogAgentService) procmgrdProcessesDir(ctx HookContext) string {
+	if !s.ProcmgrdStandalone && ctx.PackageType == PackageTypeOCI {
+		return filepath.Join(ctx.PackagePath, "processes.d")
+	}
+	if ctx.PackageType == PackageTypeOCI {
+		return filepath.Join(paths.PackagesPath, "datadog-agent", "stable", "processes.d")
+	}
+	return filepath.Join("/opt/datadog-agent", "processes.d")
+}
+
+// procmgrdBinaryExists checks whether dd-procmgrd is installed.
+func procmgrdBinaryExists(packageType PackageType) bool {
+	var binPath string
+	if packageType == PackageTypeOCI {
+		binPath = filepath.Join(paths.PackagesPath, "datadog-agent", "stable", "embedded", "bin", "dd-procmgrd")
+	} else {
+		binPath = filepath.Join("/opt/datadog-agent", "embedded", "bin", "dd-procmgrd")
+	}
+	_, err := os.Stat(binPath)
+	return err == nil
+}
+
+// procmgrdGetConfig returns the embedded YAML content for this service's
+// procmgrd configuration. The stable parameter selects the stable vs experiment
+// variant.
+func (s *datadogAgentService) procmgrdGetConfig(ctx HookContext, stable bool) (string, error) {
+	var unitType embedded.SystemdUnitType
+	if ctx.PackageType == PackageTypeOCI {
+		unitType = embedded.SystemdUnitTypeOCI
+	} else {
+		unitType = embedded.SystemdUnitTypeDebRpm
+	}
+	return embedded.GetDDOTProcessConfig(unitType, stable, s.ProcmgrdStandalone)
+}
+
+// writeProcmgrdConfig writes the procmgrd YAML and the systemd fallback unit,
+// then restarts procmgrd. The systemd unit has ConditionPathExists=! so it
+// stays dormant while the YAML exists.
+func (s *datadogAgentService) writeProcmgrdConfig(ctx HookContext, stable bool, units []string) error {
+	if !procmgrdBinaryExists(ctx.PackageType) {
+		log.Infof("dd-procmgrd not found, skipping procmgr config; DDOT will be managed by systemd")
+		return writeEmbeddedUnitsAndReload(ctx, units...)
+	}
+	content, err := s.procmgrdGetConfig(ctx, stable)
+	if err != nil {
+		return fmt.Errorf("failed to get procmgrd config: %w", err)
+	}
+	dir := s.procmgrdProcessesDir(ctx)
+	if err := procmgr.WriteConfig(dir, s.ProcmgrdConfigName, content); err != nil {
+		return err
+	}
+	// Write systemd fallback unit (ConditionPathExists=! makes it dormant)
+	if err := writeEmbeddedUnitsAndReload(ctx, units...); err != nil {
+		return err
+	}
+	return procmgr.RestartDaemon(ctx)
+}
+
 // EnableStable enables the stable unit
 func (s *datadogAgentService) EnableStable(ctx HookContext) error {
 	if err := s.checkPlatformSupport(ctx); err != nil {
 		return err
 	}
 	switch service.GetServiceManagerType() {
+	case service.ProcmgrType:
+		return systemd.EnableUnit(ctx, s.SystemdMainUnitStable)
 	case service.SystemdType:
 		return systemd.EnableUnit(ctx, s.SystemdMainUnitStable)
 	case service.UpstartType:
@@ -594,6 +667,14 @@ func (s *datadogAgentService) DisableStable(ctx HookContext) error {
 		return err
 	}
 	switch service.GetServiceManagerType() {
+	case service.ProcmgrType:
+		if s.ProcmgrdConfigName != "" {
+			procmgr.RemoveConfig(s.procmgrdProcessesDir(ctx), s.ProcmgrdConfigName)
+			if err := procmgr.RestartDaemon(ctx); err != nil {
+				log.Warnf("failed to restart procmgrd after disable: %s", err)
+			}
+		}
+		return systemd.DisableUnits(ctx, s.SystemdUnitsStable...)
 	case service.SystemdType:
 		return systemd.DisableUnits(ctx, s.SystemdUnitsStable...)
 	case service.UpstartType:
@@ -619,6 +700,11 @@ func (s *datadogAgentService) RestartStable(ctx HookContext) error {
 		return nil
 	}
 	switch service.GetServiceManagerType() {
+	case service.ProcmgrType:
+		if s.ProcmgrdConfigName != "" {
+			return procmgr.RestartDaemon(ctx)
+		}
+		return systemd.RestartUnit(ctx, s.SystemdMainUnitStable)
 	case service.SystemdType:
 		return systemd.RestartUnit(ctx, s.SystemdMainUnitStable)
 	case service.UpstartType:
@@ -636,6 +722,15 @@ func (s *datadogAgentService) StopStable(ctx HookContext) error {
 		return err
 	}
 	switch service.GetServiceManagerType() {
+	case service.ProcmgrType:
+		if s.ProcmgrdConfigName != "" {
+			// Stop the systemd unit to prevent dual management, then
+			// remove procmgrd config and restart the daemon.
+			_ = systemd.StopUnits(ctx, reverseStringSlice(s.SystemdUnitsStable)...)
+			procmgr.RemoveConfig(s.procmgrdProcessesDir(ctx), s.ProcmgrdConfigName)
+			return procmgr.RestartDaemon(ctx)
+		}
+		return systemd.StopUnits(ctx, reverseStringSlice(s.SystemdUnitsStable)...)
 	case service.SystemdType:
 		return systemd.StopUnits(ctx, reverseStringSlice(s.SystemdUnitsStable)...)
 	case service.UpstartType:
@@ -653,6 +748,11 @@ func (s *datadogAgentService) WriteStable(ctx HookContext) error {
 		return err
 	}
 	switch service.GetServiceManagerType() {
+	case service.ProcmgrType:
+		if s.ProcmgrdConfigName != "" {
+			return s.writeProcmgrdConfig(ctx, true, s.SystemdUnitsStable)
+		}
+		return writeEmbeddedUnitsAndReload(ctx, s.SystemdUnitsStable...)
 	case service.SystemdType:
 		return writeEmbeddedUnitsAndReload(ctx, s.SystemdUnitsStable...)
 	case service.UpstartType:
@@ -669,6 +769,14 @@ func (s *datadogAgentService) RemoveStable(ctx HookContext) error {
 		return err
 	}
 	switch service.GetServiceManagerType() {
+	case service.ProcmgrType:
+		if s.ProcmgrdConfigName != "" {
+			procmgr.RemoveConfig(s.procmgrdProcessesDir(ctx), s.ProcmgrdConfigName)
+			if err := procmgr.RestartDaemon(ctx); err != nil {
+				log.Warnf("failed to restart procmgrd after remove: %s", err)
+			}
+		}
+		return removeUnits(ctx, s.SystemdUnitsStable...)
 	case service.SystemdType:
 		return removeUnits(ctx, s.SystemdUnitsStable...)
 	case service.UpstartType:
@@ -685,6 +793,11 @@ func (s *datadogAgentService) StartExperiment(ctx HookContext) error {
 		return err
 	}
 	switch service.GetServiceManagerType() {
+	case service.ProcmgrType:
+		if s.ProcmgrdConfigName != "" {
+			return procmgr.RestartDaemon(ctx)
+		}
+		return systemd.StartUnit(ctx, s.SystemdMainUnitExp)
 	case service.SystemdType:
 		return systemd.StartUnit(ctx, s.SystemdMainUnitExp)
 	case service.UpstartType:
@@ -701,6 +814,12 @@ func (s *datadogAgentService) StopExperiment(ctx HookContext) error {
 		return err
 	}
 	switch service.GetServiceManagerType() {
+	case service.ProcmgrType:
+		if s.ProcmgrdConfigName != "" {
+			procmgr.RemoveConfig(s.procmgrdProcessesDir(ctx), s.ProcmgrdConfigName)
+			return procmgr.RestartDaemon(ctx)
+		}
+		return systemd.StopUnits(ctx, s.SystemdMainUnitExp)
 	case service.SystemdType:
 		return systemd.StopUnits(ctx, s.SystemdMainUnitExp)
 	case service.UpstartType:
@@ -717,6 +836,11 @@ func (s *datadogAgentService) WriteExperiment(ctx HookContext) error {
 		return err
 	}
 	switch service.GetServiceManagerType() {
+	case service.ProcmgrType:
+		if s.ProcmgrdConfigName != "" {
+			return s.writeProcmgrdConfig(ctx, false, s.SystemdUnitsExp)
+		}
+		return writeEmbeddedUnitsAndReload(ctx, s.SystemdUnitsExp...)
 	case service.SystemdType:
 		return writeEmbeddedUnitsAndReload(ctx, s.SystemdUnitsExp...)
 	case service.UpstartType:
@@ -733,6 +857,14 @@ func (s *datadogAgentService) RemoveExperiment(ctx HookContext) error {
 		return err
 	}
 	switch service.GetServiceManagerType() {
+	case service.ProcmgrType:
+		if s.ProcmgrdConfigName != "" {
+			procmgr.RemoveConfig(s.procmgrdProcessesDir(ctx), s.ProcmgrdConfigName)
+			if err := procmgr.RestartDaemon(ctx); err != nil {
+				log.Warnf("failed to restart procmgrd after remove experiment: %s", err)
+			}
+		}
+		return removeUnits(ctx, s.SystemdUnitsExp...)
 	case service.SystemdType:
 		return removeUnits(ctx, s.SystemdUnitsExp...)
 	case service.UpstartType:
