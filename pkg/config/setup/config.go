@@ -1528,6 +1528,7 @@ func bindEnvAndSetLogsConfigKeys(config pkgconfigmodel.Setup, prefix string) {
 	config.BindEnvAndSetDefault("logs_config.patterns.saturation_threshold", 50)
 	config.BindEnvAndSetDefault("logs_config.patterns.max_patterns_per_cluster", 0)
 	config.BindEnvAndSetDefault("logs_config.patterns.pattern_scan_budget", 0)
+	config.BindEnvAndSetDefault("logs_config.patterns.stale_ttl_seconds", 300)
 	// Logs whose raw token content exceeds this size (bytes) are sent as RawLog datums
 	// instead of being pattern-encoded. Prevents huge one-off logs (e.g. AWS instance
 	// metadata dumps) from bloating snapshot state with useless large templates.

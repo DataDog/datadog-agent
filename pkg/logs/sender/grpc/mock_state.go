@@ -27,7 +27,7 @@ import (
 )
 
 const nanoToMillis = 1000000
-const staleTTL = 5 * time.Minute
+const defaultStaleTTL = 5 * time.Minute
 const staleSweepInterval = 30 * time.Second
 
 // batchEntry is a per-message sidecar used during batch tokenization.
@@ -105,6 +105,7 @@ type MessageTranslator struct {
 
 	pipelineName   string
 	lastStaleSweep time.Time
+	staleTTL       time.Duration
 
 	// tagCache caches the last computed tag set to avoid recomputation across messages
 	// with identical metadata (common in single-source pipelines).
@@ -121,8 +122,24 @@ type MessageTranslator struct {
 	}
 }
 
+// MessageTranslatorOption configures MessageTranslator behavior.
+type MessageTranslatorOption func(*MessageTranslator)
+
+// WithMessageTranslatorStaleTTL overrides how long pattern and dictionary state
+// may remain idle before the stale sweep evicts it.
+func WithMessageTranslatorStaleTTL(ttl time.Duration) MessageTranslatorOption {
+	return func(mt *MessageTranslator) {
+		mt.staleTTL = ttl
+	}
+}
+
 // NewMessageTranslator creates a new MessageTranslator instance with the specified tokenizer.
-func NewMessageTranslator(pipelineName string, tokenizer token.Tokenizer) *MessageTranslator {
+func NewMessageTranslator(pipelineName string, tokenizer token.Tokenizer, opts ...MessageTranslatorOption) *MessageTranslator {
+	staleTTL := time.Duration(pkgconfigsetup.Datadog().GetInt("logs_config.patterns.stale_ttl_seconds")) * time.Second
+	if staleTTL <= 0 {
+		staleTTL = defaultStaleTTL
+	}
+
 	mt := &MessageTranslator{
 		clusterManager: clustering.NewClusterManagerWithConfig(
 			pkgconfigsetup.Datadog().GetBool("logs_config.patterns.first_word_protection"),
@@ -139,6 +156,10 @@ func NewMessageTranslator(pipelineName string, tokenizer token.Tokenizer) *Messa
 		jsonLogsAsRaw:          pkgconfigsetup.Datadog().GetBool("logs_config.patterns.json_as_raw"),
 		pipelineName:           pipelineName,
 		lastStaleSweep:         time.Now(),
+		staleTTL:               staleTTL,
+	}
+	for _, opt := range opts {
+		opt(mt)
 	}
 	tlmPipelineStateSize.Set(0, pipelineName)
 	return mt
@@ -383,15 +404,15 @@ func (mt *MessageTranslator) processPreTokenized(msg *message.Message, tokenList
 		}
 	}
 
-	// Periodic TTL sweep: remove entries not accessed in the last 5 minutes.
+	// Periodic TTL sweep: remove entries not accessed within the configured TTL.
 	// This prevents stale entries from accumulating in state and inflating snapshot replays.
 	if time.Since(mt.lastStaleSweep) >= staleSweepInterval {
 		mt.lastStaleSweep = time.Now()
 
-		for _, evictedPattern := range mt.clusterManager.EvictStalePatterns(staleTTL) {
+		for _, evictedPattern := range mt.clusterManager.EvictStalePatterns(mt.staleTTL) {
 			mt.sendPatternDelete(evictedPattern.PatternID, msg, outputChan)
 		}
-		for _, evictedID := range mt.tagManager.EvictStaleEntries(staleTTL) {
+		for _, evictedID := range mt.tagManager.EvictStaleEntries(mt.staleTTL) {
 			mt.sendDictEntryDelete(outputChan, msg, evictedID)
 		}
 	}
