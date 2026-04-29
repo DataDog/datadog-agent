@@ -206,8 +206,6 @@ func installSingle(ctx context.Context, pkg *oci.DownloadedPackage, extension st
 	span.SetTag("package_name", pkg.Name)
 	span.SetTag("package_version", pkg.Version)
 
-	// TODO: Remove previous extension if it exists
-
 	// Pre-install hook
 	err = hooks.PreInstallExtension(ctx, pkg.Name, extension)
 	if err != nil {
@@ -254,6 +252,10 @@ func installSingle(ctx context.Context, pkg *oci.DownloadedPackage, extension st
 		}
 	}()
 
+	// Remove previous extension if it exists, os.Rename returns EEXIST if the destination directory already exists
+	if err = os.RemoveAll(extensionPath); err != nil {
+		return fmt.Errorf("could not remove existing extension %s: %w", extension, err)
+	}
 	err = os.Rename(tmpDir, extensionPath)
 	if err != nil {
 		return fmt.Errorf("could not move %s to final location: %w", extension, err)
