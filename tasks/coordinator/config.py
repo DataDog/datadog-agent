@@ -126,7 +126,11 @@ class Config:
     # north of 10M tokens gets flagged even on a quiet rolling window.
     cost_anomaly_vs_rolling_ratio: float = 2.0      # this iter > 2× rolling mean
     cost_anomaly_rolling_window: int = 5            # rolling-mean window
-    cost_anomaly_absolute_tokens: int = 10_000_000  # this iter > 10M tokens
+    # Bumped 10M → 20M 2026-04-29: blank-mode iter 0 (Opus, 50 turns,
+    # 2-stage impl) routinely lands at 10-15M tokens — that's the cost
+    # of bootstrapping a new detector, not an anomaly. 20M still catches
+    # genuine runaway iters; streak-3 still saves you on real env issues.
+    cost_anomaly_absolute_tokens: int = 20_000_000  # this iter > 20M tokens
     # Auto-pause: after N consecutive anomalous iters, touch the
     # cooperative-pause file (`.coordinator/pause`). Driver checks at
     # iter boundary; sleeps until the user removes the file.
@@ -155,6 +159,19 @@ class Config:
     # `eval_silent_failure` and the candidate is rejected with that
     # reason rather than `strict_regression`.
     sanity_zero_detections_check: bool = True
+    # Silent-failure streak-pause threshold. When eval reports all-zero
+    # F1/precision/recall, default to "this candidate was unevaluable —
+    # reject and continue" rather than auto-pausing (a single silent
+    # failure is usually a structural mismatch, e.g. correlator run
+    # standalone, not the eval pipeline being broken). Only at this
+    # many CONSECUTIVE silent failures does the driver auto-pause on
+    # the assumption the env is genuinely sick. Streak counter lives in
+    # db.budget.consecutive_silent_failures; resets on first non-zero iter.
+    silent_failure_pause_streak: int = 3
+    # Canonical detectors that correlator/filter candidates must run
+    # alongside, otherwise they have no input and produce zero detections.
+    # Driver passes these to the evaluator when candidate.kind != detector.
+    upstream_detectors: tuple[str, ...] = ("bocpd", "scanmw", "scanwelch")
 
     # Blank-mode quality floor for the FIRST ship.
     #

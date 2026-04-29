@@ -483,6 +483,76 @@ def _reject_candidate(
     metrics.regenerate(db, root)
 
 
+def _silent_failure_diagnostics(
+    *,
+    root: Path,
+    iter_num: int,
+    candidate: Candidate,
+    scoring,
+    experiment: Experiment,
+) -> str:
+    """Compose a multi-section diagnostic dump for an eval_silent_failure.
+
+    Goes into both the PR comment and (when pausing) the pause file so
+    the operator doesn't have to ssh in to figure out why every scenario
+    came back zero. Covers the four most common root causes:
+
+      1. Candidate is correlator/filter run standalone → no upstream input.
+      2. Detector not actually registered in the catalog (silently broken).
+      3. Eval pipeline missing parquets or tools (env drift).
+      4. Implementation produced zero detections (real algorithm bug).
+    """
+    import subprocess
+    parts: list[str] = []
+    parts.append(f"candidate.id   = {candidate.id}")
+    parts.append(f"candidate.kind = {candidate.kind}")
+    parts.append(f"target_components = {candidate.target_components}")
+
+    # Per-scenario zero count.
+    zero_count = sum(
+        1 for s in scoring.per_scenario.values()
+        if s.f1 == 0 and s.precision == 0 and s.recall == 0
+    )
+    total = len(scoring.per_scenario)
+    parts.append(f"zero_scenarios = {zero_count}/{total}")
+
+    # Catalog registration grep.
+    catalog = root / "comp" / "observer" / "impl" / "component_catalog.go"
+    for name in candidate.target_components or [candidate.id]:
+        try:
+            r = subprocess.run(
+                ["grep", "-c", f'"{name}"', str(catalog)],
+                capture_output=True, text=True, timeout=5,
+            )
+            count = (r.stdout or "0").strip()
+            parts.append(f"catalog grep '\"{name}\"' = {count} lines")
+        except Exception as e:
+            parts.append(f"catalog grep '\"{name}\"' failed: {e}")
+
+    # Parquet existence sample.
+    try:
+        r = subprocess.run(
+            ["bash", "-c",
+             f"ls {root}/comp/observer/scenarios/*/parquet/*.parquet 2>/dev/null | wc -l"],
+            capture_output=True, text=True, timeout=5,
+        )
+        parts.append(f"parquet count = {(r.stdout or '0').strip()}")
+    except Exception as e:
+        parts.append(f"parquet count failed: {e}")
+
+    # Implementer summary tail.
+    if experiment.impl_summary:
+        parts.append(f"impl_summary tail: {experiment.impl_summary[-300:]}")
+
+    # Hint based on kind.
+    if candidate.kind in ("correlator", "filter"):
+        parts.append(
+            f"HINT: candidate.kind={candidate.kind} requires upstream detectors; "
+            f"verify driver passed extra_components to evaluator."
+        )
+    return "\n".join(parts)
+
+
 def _detectors_not_registered(detectors: list[str], root: Path) -> set[str]:
     """Return any detector names not present in component_catalog.go.
 
@@ -1383,6 +1453,13 @@ def _run_iteration_body(
     if dry_run:
         eval_msg = "[dry-run]"
     else:
+        # Correlators/filters consume upstream detector firings; running
+        # them standalone produces zero detections. When candidate.kind
+        # is not "detector", enable the canonical detectors alongside
+        # the candidate so eval has real input to work with.
+        extras = (
+            list(CONFIG.upstream_detectors) if candidate.kind != "detector" else None
+        )
         for det in detectors:
             rp = state_dir(root) / "reports" / f"{experiment_id}-{det}.json"
             sd = state_dir(root) / "reports" / f"{experiment_id}-{det}"
@@ -1391,6 +1468,7 @@ def _run_iteration_body(
                 report_path=rp,
                 scenario_output_dir=sd,
                 root=root,
+                extra_components=extras,
             )
             journal.append(
                 "eval_done",
@@ -1541,36 +1619,93 @@ def _run_iteration_body(
     )
 
     # Post-eval sanity: did the eval produce all-zero F1/precision/recall
-    # across every scenario? That's not a real algorithmic regression,
-    # it's a silent failure (eval ran but produced nothing useful —
-    # often build silently used stale binary or a dep is missing).
+    # across every scenario? Default behavior changed 2026-04-29: instead
+    # of auto-pausing, REJECT-AND-CONTINUE. A single silent_failure is
+    # almost always a structural mismatch (e.g. correlator candidate run
+    # standalone → no upstream input → zero detections), not a sick eval
+    # pipeline. Pausing on every one blocks the run for hours waiting for
+    # human ack on what the harness should just learn from.
+    #
+    # Streak-3 protection: if THREE consecutive silent_failures stack
+    # without any iter producing real metrics, then we assume the env
+    # is genuinely broken and auto-pause with rich diagnostics. Streak
+    # resets to 0 on the first iter with non-zero metrics (below).
     silent_failure = _sanity_zero_detections(scoring)
     if silent_failure:
-        print(f"[iter {iter_num}] SILENT EVAL FAILURE: {silent_failure}", file=sys.stderr)
+        db.budget.consecutive_silent_failures += 1
+        streak = db.budget.consecutive_silent_failures
+        pause_threshold = CONFIG.silent_failure_pause_streak
+        should_pause = streak >= pause_threshold
+
+        print(
+            f"[iter {iter_num}] SILENT EVAL FAILURE: {silent_failure} "
+            f"(streak {streak}/{pause_threshold})",
+            file=sys.stderr,
+        )
+
+        # Rich diagnostics — populated regardless of pause vs continue,
+        # journalled and (if pausing) written to the pause file too.
+        diag = _silent_failure_diagnostics(
+            root=root,
+            iter_num=iter_num,
+            candidate=candidate,
+            scoring=scoring,
+            experiment=experiment,
+        )
+
+        if should_pause:
+            body = (
+                f"**iter {iter_num}** · `{candidate.id}` — eval reported all-zero "
+                f"F1/precision/recall across every scenario, and this is the "
+                f"**{streak}th consecutive** silent failure. "
+                f"Auto-pausing — the eval environment is likely sick.\n\n"
+                f"**Detail**: `{silent_failure}`\n\n"
+                f"**Diagnostics**:\n```\n{diag}\n```\n\n"
+                f"Inspect with `dda inv q.coord-status`. Resume by removing "
+                f"`.coordinator/pause`."
+            )
+            pause_after = (
+                f"auto-paused: eval_silent_failure streak={streak} at iter {iter_num}\n"
+                f"{silent_failure}\n\n=== DIAGNOSTICS ===\n{diag}\n"
+            )
+            requires_ack = True
+        else:
+            body = (
+                f"**iter {iter_num}** · `{candidate.id}` — eval reported all-zero "
+                f"F1/precision/recall across every scenario. Treating as an "
+                f"unevaluable candidate (silent_failure streak {streak}/"
+                f"{pause_threshold}); rejecting and continuing.\n\n"
+                f"**Detail**: `{silent_failure}`\n\n"
+                f"**Diagnostics**:\n```\n{diag}\n```\n\n"
+                f"Auto-pause kicks in at streak {pause_threshold}."
+            )
+            pause_after = None
+            requires_ack = False
+
         _reject_candidate(
             db=db, root=root, it=it, candidate=candidate,
             experiment=experiment,
             decision=RejectionDecision(
                 stage=RejectionStage.EVAL_SILENT_FAILURE,
                 reason=f"eval_silent_failure: {silent_failure}",
-                evidence={"detail": silent_failure},
+                evidence={
+                    "detail": silent_failure,
+                    "streak": streak,
+                    "pause_threshold": pause_threshold,
+                    "kind": candidate.kind,
+                },
             ),
-            body_md=(
-                f"**iter {iter_num}** · `{candidate.id}` — eval reported all-zero "
-                f"F1/precision/recall across every scenario. This is almost "
-                f"certainly a silent eval failure rather than a real regression "
-                f"(missing deps, stale binary, broken scenarios path).\n\n"
-                f"**Detail**: `{silent_failure}`\n\n"
-                f"Candidate marked REJECTED to avoid loop; iter aborted. "
-                f"Run `dda inv q.coord-status` on the workspace to inspect."
-            ),
+            body_md=body,
             coord_out_kind="eval_silent_failure",
-            requires_ack=True,
-            # Auto-pause: the next iter will hit the same broken eval. Stop now.
-            pause_after=f"auto-paused: eval_silent_failure at iter {iter_num}\n{silent_failure}\n",
+            requires_ack=requires_ack,
+            pause_after=pause_after,
             iter_num=iter_num,
         )
         return
+
+    # First iter past silent_failure → streak resets. Real metrics flowed.
+    if db.budget.consecutive_silent_failures > 0:
+        db.budget.consecutive_silent_failures = 0
 
     # Blank-mode quality floor for the FIRST-ever ship. Catastrophe filters
     # can't fire when baseline F1 ≈ 0 across the board (blank-mode runs),

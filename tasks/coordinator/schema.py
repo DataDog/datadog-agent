@@ -83,6 +83,16 @@ class Candidate:
     # stuck on one approach. Free-form short string, e.g. "threshold-tune",
     # "anomaly-rank-filter", "detector-swap", "correlator-new".
     approach_family: str = "unspecified"
+    # Architectural role of the component. Drives eval-pipeline composition:
+    #   "detector"   — produces detections from raw signals; eval --only <self>.
+    #   "correlator" — consumes upstream detector firings; eval needs upstream
+    #                  detectors enabled (--only <self>,bocpd,scanmw,scanwelch),
+    #                  otherwise eval produces zero detections (silent failure).
+    #   "filter"     — post-processes detector output; same upstream requirement.
+    # Default "detector" preserves prior behavior. Driver/evaluator branch on
+    # this; running a correlator/filter standalone is what made PR 50045/50046
+    # silent-fail every iter.
+    kind: str = "detector"
     # Which prior candidate IDs informed this one (proposer fills this in).
     parent_candidates: list[str] = field(default_factory=list)
     # Detailed implementation plan authored by the proposer (Opus). The
@@ -191,6 +201,13 @@ class BudgetState:
     # CONFIG.cost_anomaly_*). At cost_anomaly_pause_streak, driver
     # touches .coordinator/pause to halt cooperatively at iter boundary.
     consecutive_cost_anomalies: int = 0
+    # Streak of consecutive iterations whose eval reported all-zero metrics.
+    # Single silent_failure now rejects-and-continues (the candidate likely
+    # had a structural issue — e.g. correlator run standalone — not the
+    # eval pipeline). Only at silent_failure_pause_streak does the driver
+    # auto-pause, on the assumption the eval environment is genuinely sick.
+    # Resets to 0 on the first iter that produces non-zero metrics.
+    consecutive_silent_failures: int = 0
 
 
 @dataclass
@@ -381,6 +398,7 @@ def dict_to_db(d: dict[str, Any]) -> Db:
             status=CandidateStatus(c.get("status", "proposed")),
             proposed_at=c.get("proposed_at", ""),
             approach_family=c.get("approach_family", "unspecified"),
+            kind=c.get("kind", "detector"),
             parent_candidates=list(c.get("parent_candidates", [])),
             implementation_plan=c.get("implementation_plan", "") or "",
         )
@@ -439,6 +457,7 @@ def dict_to_db(d: dict[str, Any]) -> Db:
             api_token_ceiling=bs.get("api_token_ceiling"),
             milestones_notified=bs.get("milestones_notified", []),
             consecutive_cost_anomalies=int(bs.get("consecutive_cost_anomalies", 0) or 0),
+            consecutive_silent_failures=int(bs.get("consecutive_silent_failures", 0) or 0),
         ),
         iterations=[Iteration(**it) for it in d.get("iterations", [])],
         split=split,
@@ -529,6 +548,7 @@ def db_to_dict(db: Db) -> dict[str, Any]:
                 "status": c.status.value,
                 "proposed_at": c.proposed_at,
                 "approach_family": c.approach_family,
+                "kind": c.kind,
                 "parent_candidates": c.parent_candidates,
                 "implementation_plan": c.implementation_plan,
             }
@@ -547,6 +567,7 @@ def db_to_dict(db: Db) -> dict[str, Any]:
             "api_token_ceiling": db.budget.api_token_ceiling,
             "milestones_notified": db.budget.milestones_notified,
             "consecutive_cost_anomalies": db.budget.consecutive_cost_anomalies,
+            "consecutive_silent_failures": db.budget.consecutive_silent_failures,
         },
         "iterations": [
             {
