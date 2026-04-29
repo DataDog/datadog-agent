@@ -97,14 +97,16 @@ func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float
 	contextKey := s.contextResolver.trackContext(metricSample, int64(timestamp), filterList)
 	bucketStart := s.calculateBucketStart(timestamp)
 
-	s.hookBatch = append(s.hookBatch, hook.MetricSampleSnapshot{
-		Name:       metricSample.Name,
-		Value:      metricSample.Value,
-		RawTags:    metricSample.Tags,
-		Timestamp:  timestamp,
-		SampleRate: metricSample.SampleRate,
-		ContextKey: uint64(contextKey),
-	})
+	if s.metricHook.HasSubscribers() {
+		s.hookBatch = append(s.hookBatch, hook.MetricSampleSnapshot{
+			Name:       metricSample.Name,
+			Value:      metricSample.Value,
+			RawTags:    metricSample.Tags,
+			Timestamp:  timestamp,
+			SampleRate: metricSample.SampleRate,
+			ContextKey: uint64(contextKey),
+		})
+	}
 
 	switch metricSample.Mtype {
 	case metrics.DistributionType:
