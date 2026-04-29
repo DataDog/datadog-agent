@@ -55,6 +55,10 @@ type Params struct {
 	Integrations        map[string]*FileDefinition
 	Files               map[string]*FileDefinition
 	ExtraAgentConfig    []pulumi.StringInput
+	// ExtraAgentConfigRaw stores the same content as ExtraAgentConfig but as
+	// resolved YAML strings, for use by non-Pulumi installers (hostagent.Install)
+	// that cannot evaluate pulumi.StringInput values.
+	ExtraAgentConfigRaw []string
 	ResourceOptions     []pulumi.ResourceOption
 	// This is a list of additional installer flags that can be used to pass installer-specific
 	// parameters like the MSI flags.
@@ -266,6 +270,50 @@ func WithPulumiResourceOptions(resources ...pulumi.ResourceOption) func(*Params)
 	}
 }
 
+// intakeHostnameYAML returns the YAML config that points all agent forwarders
+// at the given intake. Used by both the Pulumi and the non-Pulumi paths.
+func intakeHostnameYAML(scheme, hostname string, port uint32) string {
+	return fmt.Sprintf(`dd_url: %[3]s://%[1]s:%[2]d
+logs_config.logs_dd_url: %[1]s:%[2]d
+logs_config.logs_no_ssl: true
+logs_config.force_use_http: true
+process_config.process_dd_url: %[3]s://%[1]s:%[2]d
+apm_config.apm_dd_url: %[3]s://%[1]s:%[2]d
+database_monitoring.metrics.logs_dd_url: %[1]s:%[2]d
+database_monitoring.metrics.logs_no_ssl: true
+database_monitoring.activity.logs_dd_url: %[1]s:%[2]d
+database_monitoring.activity.logs_no_ssl: true
+database_monitoring.samples.logs_dd_url: %[1]s:%[2]d
+database_monitoring.samples.logs_no_ssl: true
+network_devices.metadata.logs_dd_url: %[1]s:%[2]d
+network_devices.metadata.logs_no_ssl: true
+network_devices.snmp_traps.forwarder.logs_dd_url: %[1]s:%[2]d
+network_devices.snmp_traps.forwarder.logs_no_ssl: true
+network_devices.netflow.forwarder.logs_dd_url: %[1]s:%[2]d
+network_devices.netflow.forwarder.logs_no_ssl: true
+network_path.forwarder.logs_dd_url: %[1]s:%[2]d
+network_path.forwarder.logs_no_ssl: true
+network_config_management.forwarder.logs_dd_url: %[1]s:%[2]d
+network_config_management.forwarder.logs_no_ssl: true
+synthetics.forwarder.logs_dd_url: %[1]s:%[2]d
+synthetics.forwarder.logs_no_ssl: true
+container_lifecycle.logs_dd_url: %[1]s:%[2]d
+container_lifecycle.logs_no_ssl: true
+container_image.logs_dd_url: %[1]s:%[2]d
+container_image.logs_no_ssl: true
+sbom.logs_dd_url: %[1]s:%[2]d
+sbom.logs_no_ssl: true
+service_discovery.forwarder.logs_dd_url: %[1]s:%[2]d
+service_discovery.forwarder.logs_no_ssl: true
+software_inventory.forwarder.logs_dd_url: %[1]s:%[2]d
+software_inventory.forwarder.logs_no_ssl: true
+data_streams.forwarder.logs_dd_url: %[1]s:%[2]d
+data_streams.forwarder.logs_no_ssl: true
+event_management.forwarder.logs_dd_url: %[1]s:%[2]d
+event_management.forwarder.logs_no_ssl: true
+`, hostname, port, scheme)
+}
+
 func withIntakeHostname(scheme pulumi.StringInput, hostname pulumi.StringInput, port pulumi.IntInput) func(*Params) error {
 	return func(p *Params) error {
 		extraConfig := pulumi.Sprintf(`dd_url: %[3]s://%[1]s:%[2]d
@@ -325,7 +373,15 @@ func WithIntakeHostname(scheme string, hostname string) func(*Params) error {
 		port = 443
 	}
 
-	return withIntakeHostname(pulumi.String(scheme), pulumi.String(hostname), pulumi.Int(port))
+	return func(p *Params) error {
+		// Pulumi path
+		if err := withIntakeHostname(pulumi.String(scheme), pulumi.String(hostname), pulumi.Int(port))(p); err != nil {
+			return err
+		}
+		// Non-Pulumi path: also store the resolved YAML
+		p.ExtraAgentConfigRaw = append(p.ExtraAgentConfigRaw, intakeHostnameYAML(scheme, hostname, port))
+		return nil
+	}
 }
 
 // WithFakeintake installs the fake intake and configures the Agent to use it.
@@ -342,6 +398,7 @@ func WithFakeintake(fakeintake *fakeintake.Fakeintake) func(*Params) error {
 func WithLogs() func(*Params) error {
 	return func(p *Params) error {
 		p.ExtraAgentConfig = append(p.ExtraAgentConfig, pulumi.String("logs_enabled: true"))
+		p.ExtraAgentConfigRaw = append(p.ExtraAgentConfigRaw, "logs_enabled: true")
 		return nil
 	}
 }
@@ -365,7 +422,9 @@ func WithSkipAPIKeyInConfig() func(*Params) error {
 // WithTags add tags to the agent configuration
 func WithTags(tags []string) func(*Params) error {
 	return func(p *Params) error {
-		p.ExtraAgentConfig = append(p.ExtraAgentConfig, pulumi.Sprintf("tags: [%s]", strings.Join(tags, ", ")))
+		yaml := fmt.Sprintf("tags: [%s]", strings.Join(tags, ", "))
+		p.ExtraAgentConfig = append(p.ExtraAgentConfig, pulumi.String(yaml))
+		p.ExtraAgentConfigRaw = append(p.ExtraAgentConfigRaw, yaml)
 		return nil
 	}
 }
@@ -373,7 +432,9 @@ func WithTags(tags []string) func(*Params) error {
 // WithHostname add hostname to the agent configuration
 func WithHostname(hostname string) func(*Params) error {
 	return func(p *Params) error {
-		p.ExtraAgentConfig = append(p.ExtraAgentConfig, pulumi.Sprintf("hostname: %s", hostname))
+		yaml := fmt.Sprintf("hostname: %s", hostname)
+		p.ExtraAgentConfig = append(p.ExtraAgentConfig, pulumi.String(yaml))
+		p.ExtraAgentConfigRaw = append(p.ExtraAgentConfigRaw, yaml)
 		return nil
 	}
 }

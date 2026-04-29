@@ -55,8 +55,11 @@ type Params struct {
 	HelmRepoURL string
 	// HelmChartPath is the Helm chart path to use for the agent installation.
 	HelmChartPath string
-	// HelmValues is the Helm values to use for the agent installation.
+	// HelmValues is the Helm values to use for the agent installation (Pulumi path).
 	HelmValues pulumi.AssetOrArchiveArray
+	// HelmValuesRaw stores the raw YAML strings passed via WithHelmValues.
+	// Used by non-Pulumi installers (helmagent.Install) to read the values.
+	HelmValuesRaw []string
 	// PulumiDependsOn is a list of resources to depend on.
 	PulumiResourceOptions []pulumi.ResourceOption
 	// FakeIntake is the fake intake to use for the agent installation.
@@ -191,6 +194,7 @@ func WithHelmChartPath(chartPath string) func(*Params) error {
 func WithHelmValues(values string) func(*Params) error {
 	return func(p *Params) error {
 		p.HelmValues = append(p.HelmValues, pulumi.NewStringAsset(values))
+		p.HelmValuesRaw = append(p.HelmValuesRaw, values)
 		return nil
 	}
 }
