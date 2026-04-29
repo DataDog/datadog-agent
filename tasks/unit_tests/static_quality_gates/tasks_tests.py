@@ -21,11 +21,6 @@ from tasks.libs.package.size import InfraError
 from tasks.quality_gates import parse_and_trigger_gates
 from tasks.static_quality_gates.gates import ArtifactMeasurement, PackageArtifactMeasurer
 
-_PR_BRANCH_NAME = "feature/branch"
-_PR_BUCKET_BRANCH = 'dev'
-_CI_PIPELINE_ID = '999999999'
-_CI_COMMIT_SHA = '1234567890abcdef'
-
 
 def gitlab_ref_slug(git_ref):
     """
@@ -34,6 +29,12 @@ def gitlab_ref_slug(git_ref):
     (https://docs.gitlab.com/ci/variables/predefined_variables/)
     """
     return re.sub(r"[^0-9a-z]", "-", git_ref.lower())[:63]
+
+
+_PR_BRANCH_NAME = "feature/branch"
+_PR_BUCKET_BRANCH = 'dev'
+_CI_PIPELINE_ID = '999999999'
+_CI_COMMIT_SHA = '1234567890abcdef'
 
 
 _PR_ENV_VARS = {
