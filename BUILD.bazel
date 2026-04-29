@@ -425,6 +425,7 @@ exports_files(glob(
 # gazelle:exclude pkg/ebpf/features
 # gazelle:exclude pkg/ebpf/kernelbugs
 # gazelle:exclude pkg/ebpf/maps
+# gazelle:exclude pkg/ebpf/modifiers
 # gazelle:exclude pkg/ebpf/names
 # gazelle:exclude pkg/ebpf/perf
 # gazelle:exclude pkg/ebpf/uprobes

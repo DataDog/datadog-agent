@@ -9,19 +9,7 @@
 // It does not expose any public methods.
 package server
 
-import (
-	"go.uber.org/fx"
-
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-)
-
 // team: ndm-integrations
 
 // Component is the component type. It has no exposed methods.
 type Component interface{}
-
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newServer))
-}
