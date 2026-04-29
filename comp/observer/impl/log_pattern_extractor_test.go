@@ -490,3 +490,99 @@ func TestEngine_LogPatternLRUEvictionFreesStorage(t *testing.T) {
 	require.Len(t, e.contextRefs, 2,
 		"engine should keep one contextRef per surviving extractor cluster")
 }
+
+// TestEngine_LogPatternLRUEvictionFreesDetectorState extends
+// TestEngine_LogPatternLRUEvictionFreesStorage to cover the detector side.
+// Storage frees the evicted series via RemoveSeriesByKeys, but stateful
+// detectors keep parallel per-series maps (BOCPD posterior, ScanMW/ScanWelch
+// segment trackers, seriesDetectorAdapter.lastVisibleCount) keyed by the
+// SeriesRef they observed during Detect(). Without engine.fanOutSeriesRemoval
+// those maps grow with the cumulative number of series ever seen, defeating
+// the LRU caps on the upstream extractors. This test checks that BOCPD's map
+// shrinks back in lockstep with storage.
+func TestEngine_LogPatternLRUEvictionFreesDetectorState(t *testing.T) {
+	cfg := DefaultLogPatternExtractorConfig()
+	cfg.MinClusterSizeBeforeEmit = 1
+	cfg.MaxPatternsPerGroup = 2
+	cfg.MaxTagGroups = -1
+	extractor := NewLogPatternExtractor(cfg)
+
+	bocpd := NewBOCPDDetector(BOCPDConfig{})
+	scanmw := NewScanMWDetector()
+	scanwelch := NewScanWelchDetector()
+
+	storage := newTimeSeriesStorage()
+	e := newEngine(engineConfig{
+		storage:    storage,
+		extractors: []observerdef.LogMetricsExtractor{extractor},
+		detectors: []observerdef.Detector{
+			bocpd,
+			scanmw,
+			scanwelch,
+		},
+	})
+
+	tags := []string{"service:api"}
+	msgs := []string{
+		"WARN alpha",
+		"WARN beta gamma",
+	}
+	for i, m := range msgs {
+		e.IngestLog("src", &logObs{
+			content:     []byte(m),
+			status:      "warn",
+			tags:        tags,
+			timestampMs: int64(1_000_000 + i*1_000),
+		})
+	}
+
+	// Drive Detect() so the detectors observe the series and populate their
+	// per-series state maps. dataTime needs to be ahead of the last point.
+	bocpd.Detect(storage, 1_001_000)
+	scanmw.Detect(storage, 1_001_000)
+	scanwelch.Detect(storage, 1_001_000)
+
+	bocpdBefore := len(bocpd.series)
+	scanmwBefore := len(scanmw.series)
+	scanwelchBefore := len(scanwelch.series)
+	require.Greater(t, bocpdBefore, 0, "BOCPD should have observed the series before eviction")
+	require.Greater(t, scanmwBefore, 0, "ScanMW should have observed the series before eviction")
+	require.Greater(t, scanwelchBefore, 0, "ScanWelch should have observed the series before eviction")
+
+	// Trigger LRU eviction by ingesting a third pattern that pushes the
+	// oldest cluster out. After the fix, the engine fans the freed refs
+	// out to every detector and the per-series maps shrink accordingly.
+	e.IngestLog("src", &logObs{
+		content:     []byte("WARN x y z w"),
+		status:      "warn",
+		tags:        tags,
+		timestampMs: 1_002_000,
+	})
+
+	// Storage shrunk to two series (LRU cap), so detector maps must now
+	// have at most two entries per agg too. Without the fan-out, they
+	// would still hold three entries (one per series ever observed).
+	require.Equal(t, 2, storage.TotalSeriesCount(""), "LRU should keep storage bounded")
+
+	// Each detector defaults to 2 aggregations (Average, Count). Before the
+	// fan-out fix, the maps held 3 series Ã 2 aggs = 6 entries even though
+	// only 2 series remained live. After the fix the engine drops the evicted
+	// ref's entries, so we expect at most 2 Ã 2 = 4 (and certainly fewer than
+	// the pre-eviction count, which had to grow first to detect the leak).
+	// Before the fan-out fix the maps held bocpdBefore entries (2 series Ã
+	// 2 aggs = 4) and stayed there even after one of the series was evicted,
+	// because storage cleanup didn't propagate to detector state. After the
+	// fix, fanOutSeriesRemoval drops exactly the evicted ref's entries.
+	require.Less(t, len(bocpd.series), bocpdBefore,
+		"BOCPD per-series map must shrink when storage evicts a series; without the fan-out it stays at %d", bocpdBefore)
+	require.LessOrEqual(t, len(bocpd.series), 2*len(bocpd.config.Aggregations),
+		"BOCPD per-series map must not exceed live series Ã aggregations")
+	require.Less(t, len(scanmw.series), scanmwBefore,
+		"ScanMW per-series map must shrink when storage evicts a series; without the fan-out it stays at %d", scanmwBefore)
+	require.LessOrEqual(t, len(scanmw.series), 2*len(scanmw.Aggregations),
+		"ScanMW per-series map must not exceed live series Ã aggregations")
+	require.Less(t, len(scanwelch.series), scanwelchBefore,
+		"ScanWelch per-series map must shrink when storage evicts a series; without the fan-out it stays at %d", scanwelchBefore)
+	require.LessOrEqual(t, len(scanwelch.series), 2*len(scanwelch.Aggregations),
+		"ScanWelch per-series map must not exceed live series Ã aggregations")
+}

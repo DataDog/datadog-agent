@@ -673,3 +673,24 @@ type Detector interface {
 	// dataTime is the current data timestamp (for determinism - only read data <= dataTime).
 	Detect(storage StorageReader, dataTime int64) DetectionResult
 }
+
+// SeriesRemover is an optional interface that Detector implementations can
+// satisfy to receive notifications when storage drops series.
+//
+// Many detectors maintain per-series state (BOCPD posterior arrays, ScanMW
+// segment buffers, ScanWelch posterior, the seriesDetectorAdapter visible
+// point count map, etc.) keyed by SeriesRef. Storage frees the series
+// payload itself when extractors evict their LRU contexts and the engine
+// calls RemoveSeriesByKeys, but without this hook the detector-side maps
+// keep growing unbounded with the cumulative number of series ever
+// observed. The engine fans the freed refs out to every detector that
+// implements this interface immediately after RemoveSeriesByKeys returns
+// them, keeping detector state symmetric with storage state.
+//
+// Implementations should be cheap (a handful of map deletes) and tolerant
+// of refs they have never seen — adapters routinely receive refs for
+// series they were never asked to detect on (e.g. metric series on a
+// log-only detector).
+type SeriesRemover interface {
+	RemoveSeries(refs []SeriesRef)
+}

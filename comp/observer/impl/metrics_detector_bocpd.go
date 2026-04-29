@@ -256,6 +256,27 @@ func (b *BOCPDDetector) Reset() {
 	b.cachedGen = 0
 }
 
+// RemoveSeries drops posterior state for refs that storage has freed.
+// Each (ref, agg) entry in the per-series map carries six float64 arrays
+// of size MaxRunLength+2 (~9.7 KB at default config), so without this
+// teardown the map grows with the cumulative number of series ever seen
+// even after their storage payload is gone. Called by the engine right
+// after timeSeriesStorage.RemoveSeriesByKeys returns the freed refs.
+func (b *BOCPDDetector) RemoveSeries(refs []observer.SeriesRef) {
+	if len(refs) == 0 || len(b.series) == 0 {
+		return
+	}
+	for _, ref := range refs {
+		for _, agg := range b.config.Aggregations {
+			delete(b.series, bocpdStateKey{ref: ref, agg: agg})
+		}
+	}
+	// Drop the cached series snapshot so the next Detect re-lists from
+	// storage and we don't iterate over removed refs.
+	b.cachedSeries = nil
+	b.cachedGen = 0
+}
+
 // processPoint handles a single new observation for a series.
 // Returns an anomaly pointer if this point triggers a new alert onset.
 func (b *BOCPDDetector) processPoint(state *bocpdSeriesState, p observer.Point, series *observer.Series, agg observer.Aggregate) *observer.Anomaly {

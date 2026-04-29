@@ -611,6 +611,26 @@ func (a *seriesDetectorAdapter) Reset() {
 	}
 }
 
+// RemoveSeries drops adapter-local point-count tracking for the given refs
+// and forwards the call to the wrapped detector if it also tracks per-series
+// state. Without this hook lastVisibleCount grows with the cumulative number
+// of series ever observed even after storage frees them.
+func (a *seriesDetectorAdapter) RemoveSeries(refs []observerdef.SeriesRef) {
+	if len(refs) == 0 {
+		return
+	}
+	if len(a.lastVisibleCount) > 0 {
+		for _, ref := range refs {
+			delete(a.lastVisibleCount, ref)
+		}
+	}
+	a.cachedSeries = nil
+	a.cachedGen = 0
+	if remover, ok := a.detector.(observerdef.SeriesRemover); ok {
+		remover.RemoveSeries(refs)
+	}
+}
+
 func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTime int64) observerdef.DetectionResult {
 	gen := storage.SeriesGeneration()
 	if a.cachedSeries == nil || gen != a.cachedGen {
