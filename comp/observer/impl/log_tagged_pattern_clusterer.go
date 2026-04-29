@@ -152,6 +152,22 @@ type TaggedPatternClusterer struct {
 	registry            *TagGroupByKeyRegistry
 	subClusterers       map[uint64]*patterns.PatternClusterer
 	newPatternClusterer func() *patterns.PatternClusterer
+	// MaxClustersPerGroup, when > 0, is propagated as patterns.PatternClusterer.MaxClusters
+	// on each newly created sub-clusterer; existing sub-clusterers are NOT
+	// retroactively updated. Zero means unbounded.
+	MaxClustersPerGroup int
+	// MaxTagGroups, when > 0, caps the number of live sub-clusterers. When a new
+	// tag group would push subClusterers past this size, the least-recently-
+	// touched group (smallest entry in lastTouchByGroup) is evicted; all of
+	// its clusters are surfaced via DrainLRUEvictions. Zero disables the cap.
+	MaxTagGroups int
+	// lastTouchByGroup tracks the most recent unixSec passed to Process for
+	// each group; consulted only when MaxTagGroups > 0.
+	lastTouchByGroup map[uint64]int64
+	// lruEvicted accumulates per-cluster evictions from both layer-1 (per-group
+	// MaxClusters cap inside a sub-clusterer) and layer-2 (MaxTagGroups cap
+	// here) since the last DrainLRUEvictions.
+	lruEvicted []EvictedCluster
 }
 
 // NewTaggedPatternClusterer creates a TaggedPatternClusterer that writes group
@@ -176,13 +192,19 @@ func NewTaggedPatternClustererWithFactory(registry *TagGroupByKeyRegistry, newPC
 // Process extracts the tag group from tags, routes the message to the matching
 // sub-clusterer (created lazily), and returns the group hash plus the cluster.
 // unixSec is Unix seconds for timestamp tracking (use time.Now().Unix() when unknown).
+//
+// LRU evictions (if any) caused by this call — from per-group MaxClusters or
+// global MaxTagGroups caps — must be retrieved via DrainLRUEvictions before
+// the next Process call to avoid silently dropping eviction context.
 func (tc *TaggedPatternClusterer) Process(tags []string, message string, unixSec int64) (uint64, *patterns.Cluster, bool) {
 	group := extractTagGroupByKey(tags)
 	groupHash := tc.registry.Register(group)
 
 	sub, exists := tc.subClusterers[groupHash]
 	if !exists {
+		tc.evictLRUTagGroupIfOverCap(groupHash)
 		sub = tc.newPatternClusterer()
+		sub.MaxClusters = tc.MaxClustersPerGroup
 		tc.subClusterers[groupHash] = sub
 	}
 
@@ -190,7 +212,70 @@ func (tc *TaggedPatternClusterer) Process(tags []string, message string, unixSec
 	if !ok {
 		return 0, nil, false
 	}
+
+	// Drain layer-1 LRU evictions from this sub-clusterer and tag them with groupHash.
+	if evicted := sub.DrainLRUEvictedClusterIDs(); len(evicted) > 0 {
+		for _, id := range evicted {
+			tc.lruEvicted = append(tc.lruEvicted, EvictedCluster{GroupHash: groupHash, ClusterID: id})
+		}
+	}
+
+	if tc.MaxTagGroups > 0 {
+		if tc.lastTouchByGroup == nil {
+			tc.lastTouchByGroup = make(map[uint64]int64)
+		}
+		tc.lastTouchByGroup[groupHash] = unixSec
+	}
+
 	return groupHash, cluster, true
+}
+
+// evictLRUTagGroupIfOverCap removes the least-recently-touched tag group when
+// adding a new group would exceed MaxTagGroups. The about-to-be-added groupHash
+// is excluded from eviction. All clusters belonging to the evicted group are
+// surfaced via DrainLRUEvictions and the group is removed from
+// lastTouchByGroup. The group's hash remains in the registry (registry is
+// append-only by design).
+func (tc *TaggedPatternClusterer) evictLRUTagGroupIfOverCap(incoming uint64) {
+	if tc.MaxTagGroups <= 0 || len(tc.subClusterers) < tc.MaxTagGroups {
+		return
+	}
+	var victim uint64
+	var victimUnix int64
+	victimSet := false
+	for gh := range tc.subClusterers {
+		if gh == incoming {
+			continue
+		}
+		touch := tc.lastTouchByGroup[gh] // 0 default treats never-touched as oldest
+		if !victimSet || touch < victimUnix {
+			victim = gh
+			victimUnix = touch
+			victimSet = true
+		}
+	}
+	if !victimSet {
+		return
+	}
+	if sub, ok := tc.subClusterers[victim]; ok {
+		for _, c := range sub.GetClusters() {
+			tc.lruEvicted = append(tc.lruEvicted, EvictedCluster{GroupHash: victim, ClusterID: c.ID})
+		}
+	}
+	delete(tc.subClusterers, victim)
+	delete(tc.lastTouchByGroup, victim)
+}
+
+// DrainLRUEvictions returns and clears all LRU evictions accumulated since the
+// last call. Includes both per-group MaxClusters evictions and whole-group
+// MaxTagGroups evictions. GC evictions go through GarbageCollectBefore instead.
+func (tc *TaggedPatternClusterer) DrainLRUEvictions() []EvictedCluster {
+	if len(tc.lruEvicted) == 0 {
+		return nil
+	}
+	out := tc.lruEvicted
+	tc.lruEvicted = nil
+	return out
 }
 
 // GetCluster retrieves a cluster by group hash and intra-clusterer ID.
@@ -203,9 +288,12 @@ func (tc *TaggedPatternClusterer) GetCluster(groupHash uint64, clusterID int64) 
 }
 
 // Reset drops all sub-clusterers. The registry is intentionally kept so that
-// previously registered hashes remain resolvable after a reset.
+// previously registered hashes remain resolvable after a reset. LRU bookkeeping
+// (lastTouchByGroup, pending evictions) is also cleared.
 func (tc *TaggedPatternClusterer) Reset() {
 	tc.subClusterers = make(map[uint64]*patterns.PatternClusterer)
+	tc.lastTouchByGroup = nil
+	tc.lruEvicted = nil
 }
 
 // NumSubClusterers returns the number of currently active sub-clusterers.

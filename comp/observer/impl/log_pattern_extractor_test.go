@@ -333,3 +333,104 @@ func TestLogPatternExtractor_NoGCBeforeInterval(t *testing.T) {
 	res2 := e.ProcessLog(&mockLogView{content: msg, status: "warn", tags: nil, timestampMs: 2_000_000})
 	assert.Empty(t, res2.EvictedContextKeys)
 }
+
+func TestLogPatternExtractor_LRUCapEvictsAndDropsContext(t *testing.T) {
+	// Configure tight cap with MinClusterSizeBeforeEmit=1 so each new shape
+	// emits a metric (and therefore a context entry) on its first appearance.
+	cfg := DefaultLogPatternExtractorConfig()
+	cfg.MinClusterSizeBeforeEmit = 1
+	cfg.MaxPatternsPerGroup = 2
+	cfg.MaxTagGroups = -1 // disable group cap so we test only per-group LRU
+	e := NewLogPatternExtractor(cfg)
+
+	tags := []string{"service:api"}
+	// Three distinct shapes (different token counts → different signatures →
+	// different clusters; they don't merge).
+	msgs := []string{
+		"WARN alpha",
+		"WARN beta gamma",
+		"WARN x y z w",
+	}
+
+	var ctxKeys []string
+	for i, m := range msgs {
+		res := e.ProcessLog(&mockLogView{
+			content:     []byte(m),
+			status:      "warn",
+			tags:        tags,
+			timestampMs: int64(1_000_000 + i*1_000), // 1s apart so LastSeenUnix differs
+		})
+		require.Len(t, res.Metrics, 1, "each distinct shape should emit a metric (i=%d)", i)
+		ctxKeys = append(ctxKeys, res.Metrics[0].ContextKey)
+
+		switch i {
+		case 0, 1:
+			require.Empty(t, res.EvictedContextKeys, "no eviction below or at cap (i=%d)", i)
+		case 2:
+			// Third shape pushes over the cap of 2; the oldest (ctxKeys[0]) is evicted.
+			require.Equal(t, []string{ctxKeys[0]}, res.EvictedContextKeys,
+				"oldest cluster's context key surfaced for the engine to drop")
+			// Confirm the engine-side context entry was actually removed.
+			_, ok := e.GetContextByKey(ctxKeys[0])
+			require.False(t, ok, "evicted cluster's pattern context should be gone")
+			_, ok = e.GetContextByKey(ctxKeys[1])
+			require.True(t, ok, "surviving cluster's context still resolvable")
+			_, ok = e.GetContextByKey(ctxKeys[2])
+			require.True(t, ok, "newly-inserted cluster's context resolvable")
+			// Pattern_count telemetry must include a -1 decrement for the eviction.
+			var found bool
+			for _, tel := range res.Telemetry {
+				if tel.Metric == nil {
+					continue
+				}
+				if tel.Metric.GetName() == "observer.log_pattern_extractor.pattern_count" && tel.Metric.GetValue() < 0 {
+					found = true
+				}
+			}
+			require.True(t, found, "LRU eviction should emit a negative pattern_count telemetry")
+		}
+	}
+
+	require.Equal(t, 1, e.taggedClusterer.NumSubClusterers(), "single tag group across all messages")
+	require.Len(t, e.taggedClusterer.GetAllClusters(), 2, "cap holds at MaxPatternsPerGroup=2")
+}
+
+func TestLogPatternExtractor_TagGroupCapEvictsLRUGroup(t *testing.T) {
+	cfg := DefaultLogPatternExtractorConfig()
+	cfg.MinClusterSizeBeforeEmit = 1
+	cfg.MaxPatternsPerGroup = -1 // disable per-group cap
+	cfg.MaxTagGroups = 2
+	e := NewLogPatternExtractor(cfg)
+
+	processAt := func(service string, msg string, tsMs int64) string {
+		res := e.ProcessLog(&mockLogView{
+			content:     []byte(msg),
+			status:      "warn",
+			tags:        []string{"service:" + service},
+			timestampMs: tsMs,
+		})
+		require.Len(t, res.Metrics, 1)
+		return res.Metrics[0].ContextKey
+	}
+
+	// Two groups, two contexts.
+	kA := processAt("a", "WARN alpha", 1_000_000)
+	kB := processAt("b", "WARN beta", 1_001_000)
+
+	// Touch A again so B is the LRU group.
+	_ = processAt("a", "WARN alpha", 1_002_000)
+
+	// Adding a third group must evict B's lone cluster.
+	res := e.ProcessLog(&mockLogView{
+		content:     []byte("WARN gamma"),
+		status:      "warn",
+		tags:        []string{"service:c"},
+		timestampMs: 1_003_000,
+	})
+	require.Len(t, res.Metrics, 1)
+	require.Contains(t, res.EvictedContextKeys, kB, "LRU group's context key surfaced")
+	_, ok := e.GetContextByKey(kB)
+	require.False(t, ok, "evicted group's context entry removed")
+	_, ok = e.GetContextByKey(kA)
+	require.True(t, ok, "surviving group's context preserved")
+}
