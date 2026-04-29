@@ -8,7 +8,7 @@
 package dogstatsd
 
 import (
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/pidmapimpl"
+	pidmapfx "github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/fx"
 	replayfx "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	serverdebugmock "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/mock"
@@ -22,7 +22,7 @@ func MockBundle() fxutil.BundleOptions {
 		serverdebugmock.MockModule(),
 		server.MockModule(),
 		replayfx.Module(),
-		pidmapimpl.Module())
+		pidmapfx.Module())
 }
 
 // MockClientBundle defines the mock fx options for this bundle.
