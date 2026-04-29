@@ -57,7 +57,7 @@ import (
 
 // episodeSubdirs lists the subdirectories within the gensim-episodes repo
 // that may contain episode directories.
-var episodeSubdirs = []string{"postmortems", "synthetics"}
+var episodeSubdirs = []string{"agent-q-branch", "postmortems", "synthetics"}
 
 // findEpisodeDir locates an episode directory by searching known subdirectories
 // within the gensim-episodes repo root. Also supports legacy episodeDataDir
@@ -75,6 +75,23 @@ func findEpisodeDir(repoRoot, episodeName string) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("episode %q not found in %v under %s", episodeName, episodeSubdirs, repoRoot)
+}
+
+// readScenarioFile loads episodes/<scenario>.yaml or episodes/<scenario>.yml from an episode directory.
+// It prefers .yaml when both exist. The orchestrator and ConfigMap always use the key <scenario>.yaml.
+func readScenarioFile(epDir, scenario string) ([]byte, error) {
+	episodesDir := filepath.Join(epDir, "episodes")
+	for _, ext := range []string{".yaml", ".yml"} {
+		p := filepath.Join(episodesDir, scenario+ext)
+		b, err := os.ReadFile(p)
+		if err == nil {
+			return b, nil
+		}
+		if !os.IsNotExist(err) {
+			return nil, fmt.Errorf("reading scenario file %q: %w", p, err)
+		}
+	}
+	return nil, fmt.Errorf("scenario file not found for %q in %s (tried .yaml and .yml)", scenario, episodesDir)
 }
 
 // Run is the Pulumi entry point for the aws/gensim-eks scenario.
@@ -121,6 +138,14 @@ func Run(ctx *pulumi.Context) error {
 		}
 	}
 	logsEnabled := !disableLogsAgent
+
+	disableMetricsIngestion := false
+	if v := strings.TrimSpace(cfg.Get("disableMetricsIngestion")); v != "" {
+		if b, err := strconv.ParseBool(v); err == nil {
+			disableMetricsIngestion = b
+		}
+	}
+	metricsIngestionEnabled := !disableMetricsIngestion
 
 	// If no episodes are specified, stop here — cluster-only mode.
 	if episodes == "" {
@@ -204,7 +229,7 @@ func Run(ctx *pulumi.Context) error {
 	if err := deployOrchestratorJob(
 		ctx, &awsEnv, kubeProvider, sa, ddSecret,
 		episodes, agentImage, gensimSha, namespace, s3Bucket, imageRegistry, episodeDataDir, mode,
-		logsEnabled,
+		logsEnabled, metricsIngestionEnabled,
 	); err != nil {
 		return err
 	}
@@ -296,6 +321,7 @@ func deployOrchestratorJob(
 	episodeDataDir string,
 	mode string,
 	logsEnabled bool,
+	metricsIngestionEnabled bool,
 ) error {
 	kubeOpts := []pulumi.ResourceOption{pulumi.Provider(kubeProvider)}
 
@@ -332,7 +358,7 @@ func deployOrchestratorJob(
 		if err != nil {
 			return fmt.Errorf("reading play-episode.sh for episode %q: %w", ep.episode, err)
 		}
-		scenarioContent, err := os.ReadFile(filepath.Join(epDir, "episodes", ep.scenario+".yaml"))
+		scenarioContent, err := readScenarioFile(epDir, ep.scenario)
 		if err != nil {
 			return fmt.Errorf("reading scenario %q for episode %q: %w", ep.scenario, ep.episode, err)
 		}
@@ -422,7 +448,7 @@ func deployOrchestratorJob(
 	}
 
 	// ── Agent values ConfigMap ───────────────────────────────────────────────
-	renderedValues, err := renderAgentValues(agentImage, mode, logsEnabled)
+	renderedValues, err := renderAgentValues(agentImage, mode, logsEnabled, metricsIngestionEnabled)
 	if err != nil {
 		return err
 	}
@@ -538,9 +564,13 @@ var orchestratorScript string
 //go:embed agent-values.yaml.tmpl
 var agentValuesTmpl string
 
-// renderAgentValues renders the agent Helm values template with the given image and mode.
+// renderAgentValues renders the agent Helm values template with the given
+// image, mode, and feature toggles. metricsIngestionEnabled=false makes the
+// observer drop externally-ingested metrics (DogStatsD, check samplers, HF
+// runners) at the handle factory; logs and log-derived virtual metrics
+// produced inside the engine by LogMetricsExtractors keep flowing.
 // mode is one of "record-parquet" or "live-anomaly-detection".
-func renderAgentValues(agentImage, mode string, logsEnabled bool) (string, error) {
+func renderAgentValues(agentImage, mode string, logsEnabled, metricsIngestionEnabled bool) (string, error) {
 	idx := strings.LastIndex(agentImage, ":")
 	if idx < 0 {
 		return "", fmt.Errorf("invalid image reference %q: expected format repo:tag (e.g. docker.io/datadog/agent-dev:latest)", agentImage)
@@ -557,7 +587,8 @@ func renderAgentValues(agentImage, mode string, logsEnabled bool) (string, error
 	err = tmpl.Execute(&buf, struct {
 		ImageRepo, ImageTag, Mode string
 		LogsEnabled               bool
-	}{repo, tag, mode, logsEnabled})
+		MetricsIngestionEnabled   bool
+	}{repo, tag, mode, logsEnabled, metricsIngestionEnabled})
 	if err != nil {
 		return "", fmt.Errorf("rendering agent-values template: %w", err)
 	}

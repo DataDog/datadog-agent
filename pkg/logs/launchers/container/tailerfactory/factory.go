@@ -119,7 +119,11 @@ func (tf *factory) makeTailer(
 		}
 		source.Messages.AddMessage("socketTailerError", "The socket tailer could not be made, falling back to file")
 		log.Warnf("Could not make socket tailer for source %s (falling back to file): %v", source.Name, err)
-		return makeFileTailer(source)
+		t, err = makeFileTailer(source)
+		if err != nil {
+			log.Warnf("Could not make file tailer for source %s (socket fallback also failed): %v", source.Name, err)
+		}
+		return t, err
 	}
 	return nil, nil // unreachable
 }

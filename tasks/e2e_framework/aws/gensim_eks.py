@@ -100,6 +100,12 @@ _VALID_MODES = ("record-parquet", "live-anomaly-detection", "live-and-record")
         "skip_build": "Skip episode image building (use cached ECR images from a previous run)",
         "send_dd_event": "Send a Datadog event when the run is submitted (default: true)",
         "disable_logs_agent": "Disable log collection in the Helm values for the gensim Datadog Agent (default: false)",
+        "disable_metrics_ingestion": (
+            "Disable observer ingestion of externally-ingested metrics (DogStatsD, "
+            "check samplers, HF runners). Logs and log-derived virtual metrics keep "
+            "flowing through the engine, so log-only anomaly detection still works "
+            "(default: false)"
+        ),
     }
 )
 def submit_gensim_eks(
@@ -117,6 +123,7 @@ def submit_gensim_eks(
     skip_build: bool = False,
     send_dd_event: bool = True,
     disable_logs_agent: bool = False,
+    disable_metrics_ingestion: bool = False,
 ) -> None:
     """
     Submit a gensim evaluation run to an EKS cluster.
@@ -134,6 +141,7 @@ def submit_gensim_eks(
         inv aws.eks.gensim.submit --image=... --episode-manifest=./gensim-eval-scenarios.json
         inv aws.eks.gensim.submit --image=... --episodes=... --mode=live-anomaly-detection
         inv aws.eks.gensim.submit --image=... --episodes=... --disable-logs-agent
+        inv aws.eks.gensim.submit --image=... --episodes=... --mode=live-anomaly-detection --disable-metrics-ingestion
     """
     from pydantic_core._pydantic_core import ValidationError
 
@@ -188,12 +196,10 @@ def submit_gensim_eks(
     for ep_name, scen_name, pinned_sha in episode_pairs:
         ep_dir = _find_episode_dir(gensim_repo_path, ep_name)
         chart_dir = ep_dir / "chart"
-        scenario_file = ep_dir / "episodes" / f"{scen_name}.yaml"
 
         if not chart_dir.exists():
             raise Exit(f"Chart directory not found: {chart_dir}")
-        if not scenario_file.exists():
-            raise Exit(f"Scenario file not found: {scenario_file}")
+        _resolve_scenario_file(ep_dir, scen_name)
 
         if pinned_sha:
             rel_path = ep_dir.relative_to(gensim_repo_path)
@@ -336,6 +342,7 @@ def submit_gensim_eks(
         "gensim:episodeDataDir": str(gensim_repo_path),
         "gensim:mode": mode,
         "gensim:disableLogsAgent": disable_logs_agent,
+        "gensim:disableMetricsIngestion": disable_metrics_ingestion,
         # Datadog keys -- must be explicit since install_agent=False
         "ddagent:apiKey": _get_api_key(local_config),
         "ddagent:appKey": _get_app_key(local_config),
@@ -635,6 +642,37 @@ def update_manifest_shas_gensim_eks(ctx: Context) -> None:
     tool.info(f"\nUpdated {updated} SHA(s) in {_EVAL_MANIFEST_PATH}. Review and commit the changes.")
 
 
+@task(
+    help={
+        "match": "Only show episode:scenario pairs whose full id contains this substring (case-insensitive)",
+    }
+)
+def list_episodes_gensim_eks(_ctx: Context, match: str = "") -> None:
+    """
+    List all episode:scenario pairs discoverable in the local gensim-episodes checkout.
+
+    Each line is suitable for --episodes (e.g. authcore-pgbouncer:pool-saturation).
+
+    Examples:
+        inv aws.eks.gensim.list-episodes
+        inv aws.eks.gensim.list-episodes --match=pgbouncer
+    """
+    repo_path = _get_gensim_repo_path()
+    pairs = _discover_episode_scenario_pairs(repo_path)
+    needle = match.strip().lower()
+    shown = 0
+    for ep_name, scen_name in pairs:
+        line = f"{ep_name}:{scen_name}"
+        if needle and needle not in line.lower():
+            continue
+        tool.info(line)
+        shown += 1
+    if not pairs:
+        tool.warn(f"No episodes found under {repo_path}.")
+    elif shown == 0 and needle:
+        tool.warn(f"No episode:scenario pairs matched {match!r}.")
+
+
 # -- Helpers -------------------------------------------------------------------
 
 
@@ -680,7 +718,46 @@ def _get_gensim_repo_path() -> Path:
 
 
 # Episode subdirectories to search within the gensim-episodes repo.
-_EPISODE_SUBDIRS = ["postmortems", "synthetics"]
+_EPISODE_SUBDIRS = ["agent-q-branch", "postmortems", "synthetics"]
+_EPISODE_SUBDIR_SET = frozenset(_EPISODE_SUBDIRS)
+
+
+def _resolve_scenario_file(ep_dir: Path, scen_name: str) -> Path:
+    """Return episodes/<scenario>.yaml or .yml, preferring .yaml if both exist (matches submit / Pulumi)."""
+    episodes_dir = ep_dir / "episodes"
+    for ext in (".yaml", ".yml"):
+        candidate = episodes_dir / f"{scen_name}{ext}"
+        if candidate.is_file():
+            return candidate
+    raise Exit(f"Scenario file not found for {scen_name!r} under {episodes_dir} (tried .yaml and .yml).")
+
+
+def _discover_episode_scenario_pairs(repo_path: Path) -> list[tuple[str, str]]:
+    """Return sorted unique (episode_name, scenario_stem) pairs from episodes/*.yaml and *.yml."""
+    pairs: set[tuple[str, str]] = set()
+
+    def add_from_episode_dir(ep_dir: Path) -> None:
+        scen_dir = ep_dir / "episodes"
+        if not scen_dir.is_dir():
+            return
+        for pattern in ("*.yaml", "*.yml"):
+            for yml in scen_dir.glob(pattern):
+                pairs.add((ep_dir.name, yml.stem))
+
+    try:
+        for child in sorted(repo_path.iterdir()):
+            if not child.is_dir() or child.name.startswith("."):
+                continue
+            if child.name in _EPISODE_SUBDIR_SET:
+                for ep_dir in sorted(child.iterdir()):
+                    if ep_dir.is_dir() and not ep_dir.name.startswith("."):
+                        add_from_episode_dir(ep_dir)
+            else:
+                add_from_episode_dir(child)
+    except OSError as e:
+        raise Exit(f"Could not scan gensim-episodes repo {repo_path}: {e}") from e
+
+    return sorted(pairs)
 
 
 def _find_episode_dir(repo_path: Path, ep_name: str) -> Path:
