@@ -593,7 +593,8 @@ func TestTimeSeriesStorage_RemoveSeriesByKeys(t *testing.T) {
 	refC := s.seriesIDs[keyC]
 
 	removed := s.RemoveSeriesByKeys([]string{keyB, keyC, "nonexistent"})
-	require.Equal(t, 2, removed, "unknown keys are silently ignored")
+	require.Len(t, removed, 2, "unknown keys are silently ignored")
+	require.ElementsMatch(t, []observer.SeriesRef{refB, refC}, removed, "freed refs are returned for fan-out to detectors")
 	require.Equal(t, 1, s.TotalSeriesCount(""), "only series 'a' should remain")
 	require.Greater(t, s.SeriesGeneration(), genBefore, "seriesGen bumps on removal")
 
@@ -616,8 +617,8 @@ func TestTimeSeriesStorage_RemoveSeriesByKeysEmptyOrUnknown(t *testing.T) {
 	s.Add("ns", "a", 1.0, 1000, nil)
 	genBefore := s.SeriesGeneration()
 
-	require.Equal(t, 0, s.RemoveSeriesByKeys(nil))
-	require.Equal(t, 0, s.RemoveSeriesByKeys([]string{}))
-	require.Equal(t, 0, s.RemoveSeriesByKeys([]string{"unknown1", "unknown2"}))
+	require.Empty(t, s.RemoveSeriesByKeys(nil))
+	require.Empty(t, s.RemoveSeriesByKeys([]string{}))
+	require.Empty(t, s.RemoveSeriesByKeys([]string{"unknown1", "unknown2"}))
 	require.Equal(t, genBefore, s.SeriesGeneration(), "no removal → no gen bump")
 }
