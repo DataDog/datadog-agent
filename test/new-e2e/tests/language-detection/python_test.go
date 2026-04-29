@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/stretchr/testify/require"
 )
 
@@ -20,7 +19,7 @@ func (s *languageDetectionSuite) installPython() {
 }
 
 func (s *languageDetectionSuite) TestPythonDetectionCoreAgent() {
-	e2e.SetAgentConfig(s.T(), s.Env(),
+	s.Env().Agent.Configure(s.T(),
 		agentparams.WithAgentConfig(coreConfigStr),
 	)
 	pid := s.startPython()
@@ -28,7 +27,7 @@ func (s *languageDetectionSuite) TestPythonDetectionCoreAgent() {
 }
 
 func (s *languageDetectionSuite) TestPythonDetectionCoreAgentNoCheck() {
-	e2e.SetAgentConfig(s.T(), s.Env(),
+	s.Env().Agent.Configure(s.T(),
 		agentparams.WithAgentConfig(coreConfigNoCheckStr),
 	)
 	pid := s.startPython()
@@ -36,7 +35,7 @@ func (s *languageDetectionSuite) TestPythonDetectionCoreAgentNoCheck() {
 }
 
 func (s *languageDetectionSuite) TestPythonDetectionProcessAgent() {
-	e2e.SetAgentConfig(s.T(), s.Env(),
+	s.Env().Agent.Configure(s.T(),
 		agentparams.WithAgentConfig(processConfigStr),
 	)
 	pid := s.startPython()
@@ -44,7 +43,7 @@ func (s *languageDetectionSuite) TestPythonDetectionProcessAgent() {
 }
 
 func (s *languageDetectionSuite) TestPythonDetectionProcessAgentNoCheck() {
-	e2e.SetAgentConfig(s.T(), s.Env(),
+	s.Env().Agent.Configure(s.T(),
 		agentparams.WithAgentConfig(processConfigNoCheckStr),
 	)
 	pid := s.startPython()

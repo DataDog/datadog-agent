@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/stretchr/testify/require"
 )
 
@@ -20,7 +19,7 @@ func (s *languageDetectionSuite) installPHP() {
 }
 
 func (s *languageDetectionSuite) TestPHPDetectionCoreAgent() {
-	e2e.SetAgentConfig(s.T(), s.Env(),
+	s.Env().Agent.Configure(s.T(),
 		agentparams.WithAgentConfig(coreConfigStr),
 	)
 	pid := s.startPHP()

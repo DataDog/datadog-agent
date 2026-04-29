@@ -18,6 +18,7 @@ import (
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/hostagent"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
 
@@ -38,23 +39,23 @@ type processAutodiscoverySuite struct {
 }
 
 func TestProcessAutodiscoverySuite(t *testing.T) {
-	agentParams := []func(*agentparams.Params) error{
-		agentparams.WithAgentConfig(agentProcessAutodiscoveryConfigStr),
-		agentparams.WithSystemProbeConfig(processAutodiscoverySystemProbeConfigStr),
-		// Add the redis check configuration with cel_selector for process-based autodiscovery
-		agentparams.WithIntegration("redisdb.d", redisProcessAutodiscoveryConfigStr),
-		// Add the nginx check configuration with cel_selector for process-based autodiscovery
-		agentparams.WithIntegration("nginx.d", nginxProcessAutodiscoveryConfigStr),
-	}
-	options := []e2e.SuiteOption{
-		e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(agentParams...)))),
-	}
-	e2e.Run(t, &processAutodiscoverySuite{}, options...)
+	// Provisioner creates infrastructure only — VM + fakeintake, no agent.
+	e2e.Run(t, &processAutodiscoverySuite{}, e2e.WithProvisioner(
+		awshost.Provisioner(awshost.WithRunOptions(scenec2.WithoutAgent())),
+	))
 }
 
 func (s *processAutodiscoverySuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 	defer s.CleanupOnSetupFailure()
+
+	// Install the agent with process autodiscovery configuration.
+	hostagent.Install(s.T(), s.Env(),
+		agentparams.WithAgentConfig(agentProcessAutodiscoveryConfigStr),
+		agentparams.WithSystemProbeConfig(processAutodiscoverySystemProbeConfigStr),
+		agentparams.WithIntegration("redisdb.d", redisProcessAutodiscoveryConfigStr),
+		agentparams.WithIntegration("nginx.d", nginxProcessAutodiscoveryConfigStr),
+	)
 
 	// Install Redis - it starts automatically and binds to localhost:6379 by default
 	_, err := s.Env().RemoteHost.Execute("sudo apt-get update && sudo apt-get install -y redis-server")

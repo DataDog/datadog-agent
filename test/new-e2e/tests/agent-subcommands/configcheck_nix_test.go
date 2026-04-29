@@ -14,6 +14,7 @@ import (
 
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/hostagent"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
 
@@ -23,7 +24,15 @@ type linuxConfigCheckSuite struct {
 
 func TestLinuxConfigCheckSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &linuxConfigCheckSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()))
+	e2e.Run(t, &linuxConfigCheckSuite{}, e2e.WithProvisioner(
+		awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(scenec2.WithoutAgent())),
+	))
+}
+
+func (v *linuxConfigCheckSuite) SetupSuite() {
+	v.BaseSuite.SetupSuite()
+	defer v.CleanupOnSetupFailure()
+	hostagent.Install(v.T(), v.Env())
 }
 
 // cpu, disk, file_handle, io, load, memory, network, ntp, uptime, service_discovery
@@ -94,8 +103,9 @@ func (v *linuxConfigCheckSuite) TestWithBadConfigCheck() {
 	config := `instances:
 	- name: bad yaml formatting via tab
 `
-	integration := agentparams.WithIntegration("http_check.d", config)
-	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(scenec2.WithAgentOptions(integration))))
+	v.Env().Agent.Configure(v.T(),
+		agentparams.WithIntegration("http_check.d", config),
+	)
 
 	output := v.Env().Agent.Client.ConfigCheck()
 
@@ -107,8 +117,9 @@ func (v *linuxConfigCheckSuite) TestWithAddedIntegrationsCheck() {
   - name: My First Service
     url: http://some.url.example.com
 `
-	integration := agentparams.WithIntegration("http_check.d", config)
-	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(scenec2.WithAgentOptions(integration))))
+	v.Env().Agent.Configure(v.T(),
+		agentparams.WithIntegration("http_check.d", config),
+	)
 
 	output := v.Env().Agent.Client.ConfigCheck()
 

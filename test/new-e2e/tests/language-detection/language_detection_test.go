@@ -22,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/hostagent"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
 
@@ -41,36 +42,25 @@ type languageDetectionSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
-func getProvisionerOptions(agentParams []func(*agentparams.Params) error) []awshost.ProvisionerOption {
-	return []awshost.ProvisionerOption{
-		awshost.WithRunOptions(
-			ec2.WithAgentOptions(agentParams...),
-			ec2.WithEC2InstanceOptions(ec2.WithAMI("ami-090c309e8ced8ecc2", os.Ubuntu2204, os.AMD64Arch)),
-		),
-	}
-}
-
 func TestLanguageDetectionSuite(t *testing.T) {
-	agentParams := []func(*agentparams.Params) error{
-		agentparams.WithAgentConfig(processConfigStr),
-	}
-
-	options := []e2e.SuiteOption{
-		e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(
-			getProvisionerOptions(agentParams)...,
+	e2e.Run(t, &languageDetectionSuite{}, e2e.WithProvisioner(
+		awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(
+			ec2.WithoutAgent(),
+			ec2.WithEC2InstanceOptions(ec2.WithAMI("ami-090c309e8ced8ecc2", os.Ubuntu2204, os.AMD64Arch)),
 		)),
-	}
-
-	e2e.Run(t, &languageDetectionSuite{}, options...)
+	))
 }
 
 func (s *languageDetectionSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	// SetupSuite needs to defer s.CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
 	defer s.CleanupOnSetupFailure()
 
 	s.installPython()
 	s.installPHP()
+
+	hostagent.Install(s.T(), s.Env(),
+		agentparams.WithAgentConfig(processConfigStr),
+	)
 }
 
 func (s *languageDetectionSuite) checkDetectedLanguage(pid string, language string, source string) {

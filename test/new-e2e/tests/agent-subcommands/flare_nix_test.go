@@ -14,6 +14,7 @@ import (
 
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/hostagent"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	flarehelpers "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-subcommands/flare"
@@ -34,7 +35,15 @@ type linuxFlareSuite struct {
 
 func TestLinuxFlareSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &linuxFlareSuite{}, e2e.WithProvisioner(awshost.Provisioner()))
+	e2e.Run(t, &linuxFlareSuite{}, e2e.WithProvisioner(
+		awshost.Provisioner(awshost.WithRunOptions(scenec2.WithoutAgent())),
+	))
+}
+
+func (v *linuxFlareSuite) SetupSuite() {
+	v.BaseSuite.SetupSuite()
+	defer v.CleanupOnSetupFailure()
+	hostagent.Install(v.T(), v.Env())
 }
 
 // Add zz to name to run this test last in order to don't break other tests
@@ -53,18 +62,15 @@ func (v *linuxFlareSuite) TestzzzFlareWithAllConfiguration() {
 	confdPath := "/opt/datadog-agent/bin/agent/dist/conf.d/"
 	useSudo := true
 
-	withFiles := []agentparams.Option{
+	v.Env().Agent.Configure(v.T(),
+		agentparams.WithAgentConfig(string(flareAgentConfiguration)),
 		agentparams.WithSystemProbeConfig(string(systemProbeConfiguration)),
 		agentparams.WithSecurityAgentConfig(string(securityAgentConfiguration)),
 		agentparams.WithFile(confdPath+"test.yaml", "dummy content", useSudo),
 		agentparams.WithFile(confdPath+"test.yml", "dummy content", useSudo),
 		agentparams.WithFile(confdPath+"test.yml.test", "dummy content", useSudo),
 		agentparams.WithFile("/opt/datadog-agent/checks.d/test.yml", "dummy content", useSudo),
-	}
-
-	agentOptions := append(withFiles, agentparams.WithAgentConfig(string(flareAgentConfiguration)))
-
-	v.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(agentOptions...))))
+	)
 
 	flare, _ := requestAgentFlareAndFetchFromFakeIntake(&v.baseFlareSuite, agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
 

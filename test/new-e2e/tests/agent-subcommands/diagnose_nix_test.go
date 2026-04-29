@@ -11,7 +11,9 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/stretchr/testify/assert"
 
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/hostagent"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 	svcmanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/svc-manager"
 )
@@ -24,11 +26,19 @@ func TestLinuxDiagnoseSuite(t *testing.T) {
 	t.Parallel()
 	var suite linuxDiagnoseSuite
 	suite.suites = append(suite.suites, commonSuites...)
-	e2e.Run(t, &suite, e2e.WithProvisioner(awshost.Provisioner()))
+	e2e.Run(t, &suite, e2e.WithProvisioner(
+		awshost.Provisioner(awshost.WithRunOptions(scenec2.WithoutAgent())),
+	))
+}
+
+func (v *linuxDiagnoseSuite) SetupSuite() {
+	v.BaseSuite.SetupSuite()
+	defer v.CleanupOnSetupFailure()
+	hostagent.Install(v.T(), v.Env())
 }
 
 func (v *linuxDiagnoseSuite) TestDiagnoseOtherCmdPort() {
-	e2e.SetAgentConfig(v.T(), v.Env(),
+	v.Env().Agent.Configure(v.T(),
 		agentparams.WithAgentConfig("cmd_port: 4567"),
 	)
 

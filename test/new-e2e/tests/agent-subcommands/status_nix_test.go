@@ -13,6 +13,7 @@ import (
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/hostagent"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
 )
@@ -23,7 +24,15 @@ type linuxStatusSuite struct {
 
 func TestLinuxStatusSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &linuxStatusSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(scenec2.WithoutFakeIntake()))))
+	e2e.Run(t, &linuxStatusSuite{}, e2e.WithProvisioner(
+		awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(scenec2.WithoutFakeIntake(), scenec2.WithoutAgent())),
+	))
+}
+
+func (v *linuxStatusSuite) SetupSuite() {
+	v.BaseSuite.SetupSuite()
+	defer v.CleanupOnSetupFailure()
+	hostagent.Install(v.T(), v.Env())
 }
 
 func (v *linuxStatusSuite) TestStatusHostname() {
@@ -54,7 +63,7 @@ func (v *linuxStatusSuite) TestFIPSProxyStatus() {
 		shouldContains = []string{"FIPS Mode: proxy", "FIPS proxy"}
 	}
 
-	e2e.SetAgentConfig(v.T(), v.Env(),
+	v.Env().Agent.Configure(v.T(),
 		agentparams.WithAgentConfig("fips.enabled: true"),
 	)
 
@@ -72,7 +81,7 @@ func (v *linuxStatusSuite) TestFIPSProxyStatus() {
 
 // This test asserts the presence of metadata sent by Python checks in the status subcommand output.
 func (v *linuxStatusSuite) TestChecksMetadataUnix() {
-	e2e.SetAgentConfig(v.T(), v.Env(),
+	v.Env().Agent.Configure(v.T(),
 		agentparams.WithIntegration("custom_check.d", string(statusCustomCheckYaml)),
 		agentparams.WithFile("/etc/datadog-agent/checks.d/custom_check.py", string(statusCustomCheckPython), true),
 	)
