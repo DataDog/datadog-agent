@@ -97,10 +97,6 @@ type Config struct {
 	// NodeName is node name in case of an endpoint check backed by a pod
 	NodeName string `json:"node_name"` // (include in digest: true)
 
-	// TargetNodeType is the preferred node type for dispatching this check.
-	// Valid values: "node_agent", "clc_runner", or "" (any).
-	TargetNodeType string `json:"target_node_type,omitempty"` // (include in digest: false)
-
 	// Source is the source of the configuration
 	Source string `json:"source"` // (include in digest: false)
 

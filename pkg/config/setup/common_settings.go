@@ -177,9 +177,8 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("prometheus_scrape.version", 1)               // Version of the openmetrics check to be scheduled by the Prometheus auto-discovery
 
 	// HTTP Service Discovery
-	config.BindEnvAndSetDefault("http_sd.url", "")                        // URL of the HTTP SD endpoint (alternative to template_url in config_providers)
-	config.BindEnvAndSetDefault("http_sd.dispatch_target", "node_agents") // Dispatch target for HTTP SD checks: "node_agents" or "clc_runners"
-	config.BindEnvAndSetDefault("http_sd.check_template", "")             // JSON check template applied to each discovered target (e.g. '{"name":"openmetrics","init_config":{},"instances":[{"openmetrics_endpoint":"http://%%host%%:%%port%%/metrics"}]}')
+	config.BindEnvAndSetDefault("http_sd.url", "")            // URL of the HTTP SD endpoint (alternative to template_url in config_providers)
+	config.BindEnvAndSetDefault("http_sd.check_template", "") // JSON check template applied to each discovered target (e.g. '{"name":"openmetrics","init_config":{},"instances":[{"openmetrics_endpoint":"http://%%host%%:%%port%%/metrics"}]}')
 
 	// Network Devices Monitoring
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.metadata.")

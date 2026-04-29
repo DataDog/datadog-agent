@@ -12,11 +12,13 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -27,7 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup" //nolint:depguard
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -52,7 +54,6 @@ type HTTPSDConfigProvider struct {
 	url            string
 	client         *http.Client
 	checkTemplate  httpSDCheckTemplate
-	dispatchTarget string
 	configErrors   map[string]types.ErrorMsgSet
 	configErrorsMu sync.RWMutex
 }
@@ -62,34 +63,24 @@ func NewHTTPSDConfigProvider(
 	providerConfig *pkgconfigsetup.ConfigurationProviders,
 	_ *telemetry.Store,
 ) (types.ConfigProvider, error) {
-	url := ""
-	if providerConfig != nil {
-		url = providerConfig.TemplateURL
-	}
-	// Fall back to http_sd.url from the main config (useful with extra_config_providers env var)
+	url := pkgconfigsetup.Datadog().GetString("http_sd.url")
 	if url == "" {
-		url = pkgconfigsetup.Datadog().GetString("http_sd.url")
+		return nil, errors.New("http_sd provider requires a URL (set template_url in config_providers or http_sd.url)")
 	}
-	if url == "" {
-		return nil, fmt.Errorf("http_sd provider requires a URL (set template_url in config_providers or http_sd.url)")
-	}
-
 	templateJSON := pkgconfigsetup.Datadog().GetString("http_sd.check_template")
 	if templateJSON == "" {
-		return nil, fmt.Errorf("http_sd provider requires http_sd.check_template configuration")
+		return nil, errors.New("http_sd provider requires a check template (set check_template in config_providers or http_sd.check_template)")
 	}
 	var tmpl httpSDCheckTemplate
 	if err := json.Unmarshal([]byte(templateJSON), &tmpl); err != nil {
-		return nil, fmt.Errorf("cannot parse http_sd.check_template: %v", err)
+		return nil, fmt.Errorf("cannot parse check_template: %v", err)
 	}
 	if tmpl.Name == "" {
-		return nil, fmt.Errorf("http_sd.check_template must specify a check name")
+		return nil, errors.New("http_sd check_template must specify a check name")
 	}
 	if len(tmpl.Instances) == 0 {
-		return nil, fmt.Errorf("http_sd.check_template must specify at least one instance template")
+		return nil, errors.New("http_sd check_template must specify at least one instance template")
 	}
-
-	dispatchTarget := pkgconfigsetup.Datadog().GetString("http_sd.dispatch_target")
 
 	client, err := buildHTTPSDClient(providerConfig)
 	if err != nil {
@@ -97,11 +88,10 @@ func NewHTTPSDConfigProvider(
 	}
 
 	return &HTTPSDConfigProvider{
-		url:            url,
-		client:         client,
-		checkTemplate:  tmpl,
-		dispatchTarget: dispatchTarget,
-		configErrors:   make(map[string]types.ErrorMsgSet),
+		url:           url,
+		client:        client,
+		checkTemplate: tmpl,
+		configErrors:  make(map[string]types.ErrorMsgSet),
 	}, nil
 }
 
@@ -244,27 +234,19 @@ func (h *HTTPSDConfigProvider) buildConfig(host, port string, tags []string) (in
 		return integration.Config{}, fmt.Errorf("cannot marshal instance: %v", err)
 	}
 
-	var targetNodeType string
-	switch h.dispatchTarget {
-	case "clc_runners":
-		targetNodeType = "clc_runner"
-	default:
-		targetNodeType = "node_agent"
-	}
-
 	return integration.Config{
-		Name:           h.checkTemplate.Name,
-		InitConfig:     integration.Data(initConfigBytes),
-		Instances:      []integration.Data{instanceBytes},
-		ClusterCheck:   true,
-		Source:         "http_sd:" + h.url,
-		Provider:       names.HTTPSDRegisterName,
-		TargetNodeType: targetNodeType,
+		Name:         h.checkTemplate.Name,
+		InitConfig:   integration.Data(initConfigBytes),
+		Instances:    []integration.Data{instanceBytes},
+		ClusterCheck: true,
+		Source:       "http_sd:" + h.url,
+		Provider:     names.HTTPSDRegisterName,
 	}, nil
 }
 
 // labelsToTags converts HTTP SD labels to Datadog tags.
 // Internal labels (prefixed with __) except __meta_ are skipped.
+// Tags are sorted for stable config digests across polls.
 func labelsToTags(labels map[string]string) []string {
 	var tags []string
 	for k, v := range labels {
@@ -276,6 +258,7 @@ func labelsToTags(labels map[string]string) []string {
 		}
 		tags = append(tags, tagKey+":"+v)
 	}
+	sort.Strings(tags)
 	return tags
 }
 
