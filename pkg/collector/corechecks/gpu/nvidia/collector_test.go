@@ -398,7 +398,7 @@ func TestRemoveDuplicateMetrics(t *testing.T) {
 
 		result := RemoveDuplicateMetrics(allMetrics)
 
-		expected := []Metric{
+		expected := []*Metric{
 			{Name: "memory.usage", Priority: Medium, Tags: []string{"pid:1001"}},
 			{Name: "memory.usage", Priority: Medium, Tags: []string{"pid:1002"}},
 			{Name: "memory.usage", Priority: Medium, Tags: []string{"pid:1003"}},
