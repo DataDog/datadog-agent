@@ -542,7 +542,7 @@ func TestBackendPathsForEnv(t *testing.T) {
 			containerized: false,
 			in: map[string][]string{
 				setup.RShellPathAllowMapDefaultKey: {"/var/log"},
-				"some_future_env":                    {"/some/path"},
+				"some_future_env":                  {"/some/path"},
 			},
 			want: []string{"/var/log"},
 		},
