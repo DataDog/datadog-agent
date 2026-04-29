@@ -153,6 +153,7 @@ func postInstallDatadogAgentDDOTOCI(ctx HookContext) (err error) {
 	if err := agentDDOTService.WriteStable(ctx); err != nil {
 		return fmt.Errorf("failed to write stable units: %s", err)
 	}
+	// For backwards compatibility, remove "/ext/ddot" from the unit path and replace "/opt/datadog-packages/datadog-agent" by "/opt/datadog-packages/datadog-agent-ddot"
 	if err := modifyDDOTUnitFileForBackwardsCompatibility(ctx, agentDDOTService.SystemdMainUnitStable, true); err != nil {
 		return fmt.Errorf("failed to modify unit file for backwards compatibility: %s", err)
 	}
@@ -195,6 +196,7 @@ func postInstallDatadogAgentDDOTDEBRPM(ctx HookContext) (err error) {
 	if err := agentDDOTService.WriteStable(ctx); err != nil {
 		return fmt.Errorf("failed to write stable units: %s", err)
 	}
+	// For backwards compatibility, remove "/ext/ddot" from the unit path
 	if err := modifyDDOTUnitFileForBackwardsCompatibility(ctx, agentDDOTService.SystemdMainUnitStable, false); err != nil {
 		return fmt.Errorf("failed to modify unit file for backwards compatibility: %s", err)
 	}
@@ -298,7 +300,7 @@ func preRemoveDDOTExtension(ctx HookContext) error {
 	}
 
 	// Disable the DDOT IPC server in datadog.yaml.
-	// During an upgrade, this will be re-enabled by the post-install hook.
+	// During an upgrade, this will be re-enabled by the post-install hook. This gives us flexibility to change the config during upgrade.
 	if err := disableOtelCollectorConfigCommon(datadogYamlPath); err != nil {
 		log.Warnf("failed to disable otelcollector config: %s", err)
 	}
