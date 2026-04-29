@@ -233,7 +233,6 @@ func TestProviderConfigurations(t *testing.T) {
 				compression,
 				tc.legacyMode,
 				tc.serverless,
-				nil, // observer handle
 			)
 			require.NotNil(t, providerImpl)
 
@@ -302,7 +301,6 @@ func TestPipelineChannelDistribution(t *testing.T) {
 				compression,
 				false, // legacy mode
 				false, // serverless
-				nil,   // observer handle
 			)
 
 			require.NotNil(t, providerImpl)

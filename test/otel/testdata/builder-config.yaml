@@ -19,8 +19,6 @@ exporters:
 - gomod: go.opentelemetry.io/collector/exporter/otlphttpexporter v0.147.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/exporter/sapmexporter
     v0.147.0
-- gomod: github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter
-    v0.147.0
 - gomod: github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter
     v0.75.2
   path: ./comp/otelcol/otlp/components/exporter/serializerexporter

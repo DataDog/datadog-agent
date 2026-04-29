@@ -10,8 +10,6 @@ import (
 	"context"
 	"time"
 
-	"go.uber.org/fx"
-
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
@@ -44,7 +42,7 @@ import (
 type Requires struct {
 	compdef.In
 
-	Lc          fx.Lifecycle
+	Lc          compdef.Lifecycle
 	Log         log.Component
 	Config      config.Component
 	Hostname    hostname.Component
@@ -147,7 +145,7 @@ func NewComponent(deps Requires) (Provides, error) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	deps.Lc.Append(fx.Hook{
+	deps.Lc.Append(compdef.Hook{
 		OnStart: func(_ context.Context) error {
 			deps.Log.Infof("[observer/logssource] starting container log pipeline")
 			pipeline.start()

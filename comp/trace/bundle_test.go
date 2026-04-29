@@ -32,7 +32,6 @@ import (
 	zstdfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-zstd"
 	traceconfigdef "github.com/DataDog/datadog-agent/comp/trace/config/def"
 	traceconfigimpl "github.com/DataDog/datadog-agent/comp/trace/config/impl"
-	observerbufferfx "github.com/DataDog/datadog-agent/comp/trace/observerbuffer/fx"
 	payloadmodifierfx "github.com/DataDog/datadog-agent/comp/trace/payload-modifier/fx"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -54,7 +53,6 @@ func TestBundleDependencies(t *testing.T) {
 		taggerfx.Module(),
 		fx.Supply(&traceagentimpl.Params{}),
 		payloadmodifierfx.NilModule(),
-		observerbufferfx.Module(),
 		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 	)
 }
@@ -86,7 +84,6 @@ func TestMockBundleDependencies(t *testing.T) {
 		zstdfx.Module(),
 		fx.Supply(&traceagentimpl.Params{}),
 		payloadmodifierfx.NilModule(),
-		observerbufferfx.Module(),
 		fx.Invoke(func(_ traceagent.Component) {}),
 		MockBundle(),
 		taggerfx.Module(),

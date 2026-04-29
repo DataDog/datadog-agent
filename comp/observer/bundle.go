@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: agent-metric-pipelines
+// team: q-branch
 
 // Bundle defines the fx options for the observer bundle.
 func Bundle() fxutil.BundleOptions {

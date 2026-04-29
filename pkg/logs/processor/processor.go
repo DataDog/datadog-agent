@@ -48,8 +48,8 @@ type Processor struct {
 	mu                        sync.Mutex
 	hostname                  hostnameinterface.Component
 	config                    pkgconfigmodel.Reader
-	configChan     chan failoverConfig
-	failoverConfig failoverConfig
+	configChan                chan failoverConfig
+	failoverConfig            failoverConfig
 
 	// Telemetry
 	pipelineMonitor metrics.PipelineMonitor

@@ -16,7 +16,7 @@ import (
 	"strings"
 )
 
-// team: agent-metric-pipelines
+// team: q-branch
 
 // Component is the central observer that receives data via handles.
 type Component interface {
