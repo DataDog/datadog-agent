@@ -1153,9 +1153,15 @@ runtime_success_sec: 5
         {
             // cmd.exe starts instantly (no PowerShell cold-start) and
             // spawns ping.exe as a child — two processes in the job.
+            // Run a short ping first so `cmd.exe` stays single-process long enough for
+            // post-spawn job assignment; then start the long ping. Without this delay,
+            // `ping.exe` can start before `AssignProcessToJobObject` runs and escape the job.
             let mut cfg = test_helpers::make_config(
                 "cmd.exe",
-                vec!["/C".into(), "ping -n 3600 127.0.0.1".into()],
+                vec![
+                    "/C".into(),
+                    "ping -n 2 127.0.0.1 >nul & ping -n 3600 127.0.0.1".into(),
+                ],
             );
             cfg.stop_timeout = Some(1);
 
@@ -1170,10 +1176,10 @@ runtime_success_sec: 5
             // Poll the job until cmd.exe has spawned ping.exe (>1 PID).
             let descendant_pid = tokio::time::timeout(Duration::from_secs(30), async {
                 loop {
-                    if let Ok(pids) = job.process_ids() {
-                        if let Some(&pid) = pids.iter().find(|&&p| p != child_pid) {
-                            return pid;
-                        }
+                    if let Ok(pids) = job.process_ids()
+                        && let Some(&pid) = pids.iter().find(|&&p| p != child_pid)
+                    {
+                        return pid;
                     }
                     time::sleep(Duration::from_millis(50)).await;
                 }

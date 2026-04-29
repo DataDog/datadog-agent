@@ -133,12 +133,13 @@ impl JobObject {
                     std::io::Error::last_os_error()
                 );
             }
-            Ok(
-                list.process_id_list[..list.number_of_assigned_processes as usize]
-                    .iter()
-                    .map(|&pid| pid as u32)
-                    .collect(),
-            )
+            // Only indices `0..number_of_process_ids_in_list` are valid; when the
+            // buffer is too small, `number_of_assigned_processes` can exceed it.
+            let n = list.number_of_process_ids_in_list as usize;
+            Ok(list.process_id_list[..n]
+                .iter()
+                .map(|&pid| pid as u32)
+                .collect())
         }
     }
 
