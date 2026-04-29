@@ -51,16 +51,16 @@ func TestSNMPListener(t *testing.T) {
 	mockConfig.SetWithoutSource("network_devices.autodiscovery.configs", []interface{}{snmpConfig})
 	mockConfig.SetWithoutSource("network_devices.autodiscovery.workers", 1)
 
-	worker = func(_ *SNMPListener, jobs <-chan snmpJob) {
+	l, err := NewSNMPListener(ServiceListernerDeps{})
+	assert.Equal(t, nil, err)
+	snmpListener := l.(*SNMPListener)
+	snmpListener.workerFunc = func(_ *SNMPListener, jobs <-chan snmpJob) {
 		for {
 			job := <-jobs
 			testChan <- job
 		}
 	}
-
-	l, err := NewSNMPListener(ServiceListernerDeps{})
-	assert.Equal(t, nil, err)
-	l.Listen(newSvc, delSvc)
+	snmpListener.Listen(newSvc, delSvc)
 
 	job := <-testChan
 
@@ -98,7 +98,7 @@ func TestSNMPListenerSubnets(t *testing.T) {
 	mockConfig.SetWithoutSource("network_devices.autodiscovery.configs", configs)
 	mockConfig.SetWithoutSource("network_devices.autodiscovery.workers", 10)
 
-	worker = func(_ *SNMPListener, jobs <-chan snmpJob) {
+	testWorker := func(_ *SNMPListener, jobs <-chan snmpJob) {
 		for {
 			job := <-jobs
 			testChan <- job
@@ -114,6 +114,7 @@ func TestSNMPListenerSubnets(t *testing.T) {
 		stop:           make(chan struct{}),
 		config:         snmpListenerConfig,
 		sessionFactory: newGosnmpSession,
+		workerFunc:     testWorker,
 	}
 
 	l.Listen(newSvc, delSvc)
@@ -147,16 +148,16 @@ func TestSNMPListenerIgnoredAdresses(t *testing.T) {
 	mockConfig.SetWithoutSource("network_devices.autodiscovery.configs", []interface{}{snmpConfig})
 	mockConfig.SetWithoutSource("network_devices.autodiscovery.workers", 1)
 
-	worker = func(_ *SNMPListener, jobs <-chan snmpJob) {
+	l, err := NewSNMPListener(ServiceListernerDeps{})
+	assert.Equal(t, nil, err)
+	snmpListener := l.(*SNMPListener)
+	snmpListener.workerFunc = func(_ *SNMPListener, jobs <-chan snmpJob) {
 		for {
 			job := <-jobs
 			testChan <- job
 		}
 	}
-
-	l, err := NewSNMPListener(ServiceListernerDeps{})
-	assert.Equal(t, nil, err)
-	l.Listen(newSvc, delSvc)
+	snmpListener.Listen(newSvc, delSvc)
 
 	job := <-testChan
 
@@ -748,13 +749,8 @@ func TestMigrateCache(t *testing.T) {
 // Integration tests: device discovery flow with fake SNMP sessions
 // ===========================================================================
 
-var defaultWorkerFunc = worker
-
 func setupTestListener(t *testing.T, configs []interface{}, extraOpts map[string]interface{}) (*SNMPListener, *testSessionFactory) {
 	t.Helper()
-
-	// Restore worker to the default in case a previous test overrode it
-	worker = defaultWorkerFunc
 
 	testDir := t.TempDir()
 	mockConfig := configmock.New(t)
@@ -776,6 +772,7 @@ func setupTestListener(t *testing.T, configs []interface{}, extraOpts map[string
 		config:         listenerConfig,
 		deviceDeduper:  devicededuper.NewDeviceDeduper(listenerConfig),
 		sessionFactory: factory.build,
+		workerFunc:     defaultWorker,
 	}
 	return l, factory
 }

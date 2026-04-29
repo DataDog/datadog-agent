@@ -69,4 +69,12 @@
         __type(value, value_type);               \
     } name SEC(".maps");
 
+#define BPF_SK_STORAGE_MAP(name, value_type) \
+    struct {                                   \
+        __uint(type, BPF_MAP_TYPE_SK_STORAGE); \
+        __uint(map_flags, BPF_F_NO_PREALLOC);   \
+        __type(key, int);                        \
+        __type(value, value_type);               \
+    } name SEC(".maps");
+
 #endif

@@ -25,8 +25,8 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/pidmapimpl"
+	pidmap "github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/def"
+	pidmapfx "github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/fx"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	replaymock "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/fx-mock"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/def"
@@ -88,7 +88,7 @@ func fulfillDepsWithConfigOverride(t testing.TB, overrides map[string]interface{
 		hostnameimpl.MockModule(),
 		serverdebugmock.MockModule(),
 		replaymock.MockModule(),
-		pidmapimpl.Module(),
+		pidmapfx.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		logscompression.MockModule(),
@@ -110,7 +110,7 @@ func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 		replaymock.MockModule(),
 		metricscompression.MockModule(),
 		logscompression.MockModule(),
-		pidmapimpl.Module(),
+		pidmapfx.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		filterlistmock.MockModule(),
@@ -131,7 +131,7 @@ func fulfillDepsWithInactiveServer(t *testing.T, cfg map[string]interface{}) (de
 		serverdebugmock.MockModule(),
 		fx.Supply(Params{Serverless: false}),
 		replaymock.MockModule(),
-		pidmapimpl.Module(),
+		pidmapfx.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		metricscompression.MockModule(),

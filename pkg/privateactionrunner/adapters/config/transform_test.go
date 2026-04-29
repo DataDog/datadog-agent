@@ -6,6 +6,8 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -305,13 +307,16 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedPathsUnset(t *testing.T) {
+	// Unset key: the registered default is ["/"], a sentinel that admits
+	// every backend-allowed path through containment matching. The
+	// transform returns it verbatim.
 	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
 	mockConfig.SetWithoutSource(setup.PARUrn, "")
 
 	cfg, err := FromDDConfig(mockConfig)
 	require.NoError(t, err)
-	assert.Nil(t, cfg.RShellAllowedPaths)
+	assert.Equal(t, []string{"/"}, cfg.RShellAllowedPaths)
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedPathsSet(t *testing.T) {
@@ -339,15 +344,16 @@ func TestFromDDConfigPARRestrictedShellAllowedPathsEmpty(t *testing.T) {
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedCommandsUnset(t *testing.T) {
+	// Unset key: the registered default is ["rshell:*"], the wildcard
+	// sentinel that admits every backend command in the rshell namespace.
+	// The transform returns it verbatim.
 	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
 	mockConfig.SetWithoutSource(setup.PARUrn, "")
 
 	cfg, err := FromDDConfig(mockConfig)
 	require.NoError(t, err)
-	// Unset: operator opts out of filtering, handler will pass through the
-	// backend list unchanged.
-	assert.Nil(t, cfg.RShellAllowedCommands)
+	assert.Equal(t, []string{"rshell:*"}, cfg.RShellAllowedCommands)
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedCommandsSet(t *testing.T) {
@@ -373,4 +379,103 @@ func TestFromDDConfigPARRestrictedShellAllowedCommandsEmpty(t *testing.T) {
 	// Distinct from the unset case above.
 	assert.NotNil(t, cfg.RShellAllowedCommands)
 	assert.Empty(t, cfg.RShellAllowedCommands)
+}
+
+// TestFromDDConfigPARRestrictedShellAllowedPathsEmptyYAML pins the
+// kill-switch contract for `allowed_paths: []`: GetStringSlice returns a
+// nil slice for the explicit YAML empty list, and the transform forwards
+// that as-is. The handler's downstream dedup pass turns nil into a non-nil
+// empty slice, which produces an empty intersection — the kill-switch.
+// The slice value here is "no entries" regardless of nil/non-nil shape.
+func TestFromDDConfigPARRestrictedShellAllowedPathsEmptyYAML(t *testing.T) {
+	yaml := `
+private_action_runner:
+  restricted_shell:
+    allowed_paths: []
+`
+	mockConfig := configmock.NewFromYAML(t, yaml)
+
+	cfg, err := FromDDConfig(mockConfig)
+	require.NoError(t, err)
+	assert.Empty(t, cfg.RShellAllowedPaths, "YAML [] must surface as an empty slice; kill-switch is enforced by the handler intersection on this input")
+}
+
+func TestFromDDConfigPARRestrictedShellAllowedCommandsEmptyYAML(t *testing.T) {
+	yaml := `
+private_action_runner:
+  restricted_shell:
+    allowed_commands: []
+`
+	mockConfig := configmock.NewFromYAML(t, yaml)
+
+	cfg, err := FromDDConfig(mockConfig)
+	require.NoError(t, err)
+	assert.Empty(t, cfg.RShellAllowedCommands, "YAML [] must surface as an empty slice; kill-switch is enforced by the handler intersection on this input")
+}
+
+func TestFromDDConfigPARRestrictedShellAllowedPathsPassesThroughFileEntries(t *testing.T) {
+	// File entries are warned about at load time but not dropped — the
+	// intersection layer and rshell's own sandbox filter them. The
+	// transform's job is to surface the misconfiguration; it does not
+	// rewrite the operator's written list.
+	tmpDir := t.TempDir()
+	fp := filepath.Join(tmpDir, "file.txt")
+	require.NoError(t, os.WriteFile(fp, []byte("x"), 0o600))
+
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
+	mockConfig.SetWithoutSource(setup.PARUrn, "")
+	mockConfig.SetWithoutSource(setup.PARRestrictedShellAllowedPaths, []string{tmpDir, fp})
+
+	cfg, err := FromDDConfig(mockConfig)
+	require.NoError(t, err)
+	assert.Equal(t, []string{tmpDir, fp}, cfg.RShellAllowedPaths)
+}
+
+func TestFromDDConfigPARRestrictedShellAllowedPathsPassesThroughBackslash(t *testing.T) {
+	// Backslash-containing entries are preserved in the returned slice so
+	// the handler still sees what the operator wrote; the transform also
+	// logs a warning so a Windows-native path configured by mistake does
+	// not silently produce an empty intersection without feedback.
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
+	mockConfig.SetWithoutSource(setup.PARUrn, "")
+	mockConfig.SetWithoutSource(setup.PARRestrictedShellAllowedPaths, []string{`C:\Data`, "/var/log"})
+
+	cfg, err := FromDDConfig(mockConfig)
+	require.NoError(t, err)
+	assert.Equal(t, []string{`C:\Data`, "/var/log"}, cfg.RShellAllowedPaths)
+}
+
+func TestFromDDConfigPARRestrictedShellAllowedCommandsPassesThroughUnnamespaced(t *testing.T) {
+	// Unnamespaced entries are preserved in the returned slice so the
+	// intersection layer can surface them (as silent no-matches). The
+	// transform also emits a log warning about them, which is not asserted
+	// here — the point of this test is that unnamespaced entries do not
+	// cause config load to fail.
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
+	mockConfig.SetWithoutSource(setup.PARUrn, "")
+	mockConfig.SetWithoutSource(setup.PARRestrictedShellAllowedCommands, []string{"cat", "rshell:ls"})
+
+	cfg, err := FromDDConfig(mockConfig)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"cat", "rshell:ls"}, cfg.RShellAllowedCommands)
+}
+
+func TestFromDDConfigPARRestrictedShellAllowedAbsentYAML(t *testing.T) {
+	// No restricted_shell block at all: both axes fall back to their
+	// registered sentinels — ["/"] for paths, ["rshell:*"] for commands —
+	// which the operator-side intersection treats as "allow whatever the
+	// backend allowed".
+	yaml := `
+private_action_runner:
+  enabled: true
+`
+	mockConfig := configmock.NewFromYAML(t, yaml)
+
+	cfg, err := FromDDConfig(mockConfig)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"/"}, cfg.RShellAllowedPaths)
+	assert.Equal(t, []string{"rshell:*"}, cfg.RShellAllowedCommands)
 }

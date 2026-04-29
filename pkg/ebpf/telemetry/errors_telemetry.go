@@ -31,6 +31,7 @@ const (
 	skbLoadBytes
 	perfEventOutput
 	ringbufOutput
+	copyFromUser
 	mapErr = math.MaxInt
 )
 
@@ -41,6 +42,72 @@ var helperNames = map[int]string{
 	skbLoadBytes:    "bpf_skb_load_bytes",
 	perfEventOutput: "bpf_perf_event_output",
 	ringbufOutput:   "bpf_ringbuf_output",
+	copyFromUser:    "bpf_copy_from_user",
+}
+
+type remapHelpers struct {
+	mtx      sync.Mutex
+	remapped map[string]map[int]int
+}
+
+var helperRemapper remapHelpers
+
+func (r *remapHelpers) remap(oldH, newH int, tk telemetryKey) {
+	r.mtx.Lock()
+	defer r.mtx.Unlock()
+
+	key := tk.String()
+	if r.remapped == nil {
+		r.remapped = make(map[string]map[int]int)
+	}
+	if _, ok := r.remapped[key]; !ok {
+		r.remapped[key] = make(map[int]int)
+	}
+
+	r.remapped[key][oldH] = newH
+}
+
+func (r *remapHelpers) helperName(tk telemetryKey, indx int) string {
+	r.mtx.Lock()
+	defer r.mtx.Unlock()
+
+	key := tk.String()
+	if m, ok := r.remapped[key]; ok {
+		if newIndx, ok := m[indx]; ok {
+			return helperNames[newIndx]
+		}
+	}
+
+	return helperNames[indx]
+}
+
+var builtinToIndx = map[asm.BuiltinFunc]int{
+	asm.FnProbeRead:       readIndx,
+	asm.FnProbeReadUser:   readUserIndx,
+	asm.FnProbeReadKernel: readKernelIndx,
+	asm.FnSkbLoadBytes:    skbLoadBytes,
+	asm.FnPerfEventOutput: perfEventOutput,
+	asm.FnRingbufOutput:   ringbufOutput,
+	asm.FnCopyFromUser:    copyFromUser,
+}
+
+// RemapHelper records that for the given program, errors from oldHelper
+// should be reported under the name of newHelper. This is used when
+// bytecode patching replaces one helper call with another, so that
+// telemetry labels reflect the actual helper being invoked.
+func RemapHelper(progName names.ProgramName, mn names.ModuleName, oldHelper, newHelper asm.BuiltinFunc) error {
+	oldH, ok := builtinToIndx[oldHelper]
+	if !ok {
+		return fmt.Errorf("unknown helper for telemetry remapping: %v", oldHelper)
+	}
+	newH, ok := builtinToIndx[newHelper]
+	if !ok {
+		return fmt.Errorf("unknown helper for telemetry remapping: %v", newHelper)
+	}
+
+	tk := probeTelemetryKey(progName, mn)
+	helperRemapper.remap(oldH, newH, tk)
+	return nil
 }
 
 type telemetryKey struct {
@@ -208,6 +275,7 @@ func newEBPFTelemetry() ebpfErrorsTelemetry {
 		mapErrMapsByModule:    make(map[names.ModuleName]*maps.GenericMap[uint64, mapErrTelemetry]),
 		helperErrMapsByModule: make(map[names.ModuleName]*maps.GenericMap[uint64, helperErrTelemetry]),
 	}
+
 	return errorsTelemetry
 }
 

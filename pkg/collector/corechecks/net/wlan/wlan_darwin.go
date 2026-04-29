@@ -462,8 +462,13 @@ func (c *WLANCheck) fetchWiFiFromGUI(socketPath string, timeout time.Duration) (
 		}
 	}
 
-	// Send request
-	request := map[string]string{"command": "get_wifi_info"}
+	// Send request. request_location_permission comes from the WLAN check
+	// init_config; the GUI uses it to decide whether to show the macOS
+	// Location Services prompt.
+	request := map[string]any{
+		"command":                     "get_wifi_info",
+		"request_location_permission": c.requestLocationPermission,
+	}
 	requestData, err := json.Marshal(request)
 	if err != nil {
 		return wifiInfo{}, fmt.Errorf("failed to marshal request: %w", err)

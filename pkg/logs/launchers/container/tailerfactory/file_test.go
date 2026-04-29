@@ -62,6 +62,18 @@ func fileTestSetup(t *testing.T) {
 	})
 }
 
+func testAdaptiveSamplingOptions(enabled bool) *config.SourceAdaptiveSamplingOptions {
+	return &config.SourceAdaptiveSamplingOptions{
+		Enabled:                pointer.Ptr(enabled),
+		MaxPatterns:            pointer.Ptr(321),
+		RateLimit:              pointer.Ptr(2.5),
+		BurstSize:              pointer.Ptr(17.5),
+		MatchThreshold:         pointer.Ptr(0.75),
+		TokenizerMaxInputBytes: pointer.Ptr(512),
+		ProtectImportantLogs:   pointer.Ptr(false),
+	}
+}
+
 func makeTestPod() (*workloadmeta.KubernetesPod, *workloadmeta.Container) {
 	podID := "poduuid"
 	containerID := "abc"
@@ -137,18 +149,17 @@ func TestMakeFileSource_docker_success(t *testing.T) {
 		cop:              containersorpods.NewDecidedChooser(containersorpods.LogContainers),
 		dockerUtilGetter: &dockerUtilGetterImpl{},
 	}
+	adaptiveSampling := testAdaptiveSamplingOptions(true)
 	source := sources.NewLogSource("test", &config.LogsConfig{
-		Type:                        "docker",
-		Identifier:                  "abc",
-		Source:                      "src",
-		Service:                     "svc",
-		Tags:                        []string{"tag!"},
-		AutoMultiLine:               pointer.Ptr(true),
-		AutoMultiLineSampleSize:     123,
-		AutoMultiLineMatchThreshold: 0.123,
-		ExperimentalAdaptiveSampling: &config.SourceAdaptiveSamplingOptions{
-			Enabled: pointer.Ptr(true),
-		},
+		Type:                         "docker",
+		Identifier:                   "abc",
+		Source:                       "src",
+		Service:                      "svc",
+		Tags:                         []string{"tag!"},
+		AutoMultiLine:                pointer.Ptr(true),
+		AutoMultiLineSampleSize:      123,
+		AutoMultiLineMatchThreshold:  0.123,
+		ExperimentalAdaptiveSampling: adaptiveSampling,
 	})
 	child, err := tf.makeFileSource(source)
 	require.NoError(t, err)
@@ -163,9 +174,36 @@ func TestMakeFileSource_docker_success(t *testing.T) {
 	require.Equal(t, *source.Config.AutoMultiLine, true)
 	require.Equal(t, source.Config.AutoMultiLineSampleSize, 123)
 	require.Equal(t, source.Config.AutoMultiLineMatchThreshold, 0.123)
-	require.NotNil(t, child.Config.ExperimentalAdaptiveSampling)
-	require.NotNil(t, child.Config.ExperimentalAdaptiveSampling.Enabled)
-	require.True(t, *child.Config.ExperimentalAdaptiveSampling.Enabled)
+	require.Equal(t, adaptiveSampling, child.Config.ExperimentalAdaptiveSampling)
+}
+
+func TestMakeFileSource_docker_containerRestartPreservesAdaptiveSamplingConfig(t *testing.T) {
+	fileTestSetup(t)
+
+	tf := &factory{
+		pipelineProvider: pipeline.NewMockProvider(),
+		cop:              containersorpods.NewDecidedChooser(containersorpods.LogContainers),
+		dockerUtilGetter: &dockerUtilGetterImpl{},
+	}
+
+	for _, containerID := range []string{"abc", "def"} {
+		p := filepath.Join(platformDockerLogsBasePath, "containers", containerID, containerID+"-json.log")
+		require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o777))
+		require.NoError(t, os.WriteFile(p, []byte("{}"), 0o666))
+
+		adaptiveSampling := testAdaptiveSamplingOptions(true)
+		source := sources.NewLogSource("test", &config.LogsConfig{
+			Type:                         "docker",
+			Identifier:                   containerID,
+			Source:                       "src",
+			Service:                      "svc",
+			ExperimentalAdaptiveSampling: adaptiveSampling,
+		})
+		child, err := tf.makeFileSource(source)
+		require.NoError(t, err)
+		require.Equal(t, containerID, child.Config.Identifier)
+		require.Equal(t, adaptiveSampling, child.Config.ExperimentalAdaptiveSampling)
+	}
 }
 
 func TestMakeFileSource_podman_success(t *testing.T) {
@@ -474,18 +512,17 @@ func TestMakeK8sSource(t *testing.T) {
 	}
 	for _, sourceConfigType := range []string{"docker", "containerd"} {
 		t.Run("source.Config.Type="+sourceConfigType, func(t *testing.T) {
+			adaptiveSampling := testAdaptiveSamplingOptions(false)
 			source := sources.NewLogSource("test", &config.LogsConfig{
-				Type:                        sourceConfigType,
-				Identifier:                  "abc",
-				Source:                      "src",
-				Service:                     "svc",
-				Tags:                        []string{"tag!"},
-				AutoMultiLine:               pointer.Ptr(true),
-				AutoMultiLineSampleSize:     123,
-				AutoMultiLineMatchThreshold: 0.123,
-				ExperimentalAdaptiveSampling: &config.SourceAdaptiveSamplingOptions{
-					Enabled: pointer.Ptr(false),
-				},
+				Type:                         sourceConfigType,
+				Identifier:                   "abc",
+				Source:                       "src",
+				Service:                      "svc",
+				Tags:                         []string{"tag!"},
+				AutoMultiLine:                pointer.Ptr(true),
+				AutoMultiLineSampleSize:      123,
+				AutoMultiLineMatchThreshold:  0.123,
+				ExperimentalAdaptiveSampling: adaptiveSampling,
 			})
 			child, err := tf.makeK8sFileSource(source)
 			require.NoError(t, err)
@@ -499,9 +536,7 @@ func TestMakeK8sSource(t *testing.T) {
 			require.Equal(t, *child.Config.AutoMultiLine, true)
 			require.Equal(t, child.Config.AutoMultiLineSampleSize, 123)
 			require.Equal(t, child.Config.AutoMultiLineMatchThreshold, 0.123)
-			require.NotNil(t, child.Config.ExperimentalAdaptiveSampling)
-			require.NotNil(t, child.Config.ExperimentalAdaptiveSampling.Enabled)
-			require.False(t, *child.Config.ExperimentalAdaptiveSampling.Enabled)
+			require.Equal(t, adaptiveSampling, child.Config.ExperimentalAdaptiveSampling)
 			switch sourceConfigType {
 			case "docker":
 				require.Equal(t, sources.DockerSourceType, child.GetSourceType())

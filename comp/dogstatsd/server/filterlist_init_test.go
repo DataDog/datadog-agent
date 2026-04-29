@@ -27,8 +27,8 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/pidmapimpl"
+	pidmap "github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/def"
+	pidmapfx "github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/fx"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	replaymock "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/fx-mock"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/def"
@@ -69,7 +69,7 @@ func TestWorkerFilterListInitializedFromLocalConfig(t *testing.T) {
 		hostnameimpl.MockModule(),
 		serverdebugmock.MockModule(),
 		replaymock.MockModule(),
-		pidmapimpl.Module(),
+		pidmapfx.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		metricscompression.MockModule(),

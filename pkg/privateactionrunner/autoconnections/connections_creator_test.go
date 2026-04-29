@@ -40,12 +40,8 @@ func TestCreateConnection_CorrectHTTPRequest(t *testing.T) {
 	defer server.Close()
 
 	// Create client with mock server endpoint
-	client := &ConnectionsClient{
-		httpClient: &http.Client{},
-		baseUrl:    server.URL,
-		apiKey:     "test-api-key",
-		appKey:     "test-app-key",
-	}
+	client := newTestClient(server.URL)
+	client.httpClient = &http.Client{}
 
 	definition := supportedConnections["kubernetes"]
 
@@ -112,12 +108,8 @@ func TestCreateConnection_StatusCodeHandling(t *testing.T) {
 			defer server.Close()
 
 			// Create client with mock server endpoint
-			client := &ConnectionsClient{
-				httpClient: &http.Client{},
-				baseUrl:    server.URL,
-				apiKey:     "test-api-key",
-				appKey:     "test-app-key",
-			}
+			client := newTestClient(server.URL)
+			client.httpClient = &http.Client{}
 
 			definition := supportedConnections["kubernetes"]
 
@@ -152,12 +144,8 @@ func TestAutoCreateConnections_AllBundlesSuccess(t *testing.T) {
 	actionsAllowlist := []string{"com.datadoghq.http.request", "com.datadoghq.kubernetes.core.getPods", "com.datadoghq.script.runPredefinedScipt"}
 
 	// Use server's client which is pre-configured for TLS
-	testClient := &ConnectionsClient{
-		httpClient: server.Client(),
-		baseUrl:    server.URL,
-		apiKey:     "test-api-key",
-		appKey:     "test-app-key",
-	}
+	testClient := newTestClient(server.URL)
+	testClient.httpClient = server.Client()
 
 	provider := &mockTagsProvider{}
 
@@ -181,20 +169,22 @@ func TestAutoCreateConnections_AllBundlesSuccess(t *testing.T) {
 }
 
 func TestAutoCreateConnections_PartialFailures(t *testing.T) {
-	requestCount := 0
+	var k8sAttempts, scriptAttempts int
 
-	// Mock HTTPS server - fail HTTP, succeed others
+	// Mock HTTPS server - fail Kubernetes, succeed others. Kubernetes will be
+	// retried until the client's MaxElapsedTime budget is exhausted, then
+	// AutoCreateConnections moves on to the next connection.
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requestCount++
 		body, _ := io.ReadAll(r.Body)
 
-		// Fail if it's the Kubernetes
 		if strings.Contains(string(body), `"name":"Kubernetes (runner-abc123)"`) {
+			k8sAttempts++
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Write([]byte(`{"errors": ["internal error"]}`))
 			return
 		}
 
+		scriptAttempts++
 		w.WriteHeader(http.StatusCreated)
 		w.Write([]byte(`{"data": {"id": "conn-123"}}`))
 	}))
@@ -203,12 +193,8 @@ func TestAutoCreateConnections_PartialFailures(t *testing.T) {
 	actionsAllowlist := []string{"com.datadoghq.http.request", "com.datadoghq.kubernetes.core.getPods", "com.datadoghq.script.runPredefinedScipt"}
 
 	// Use server's client which is pre-configured for TLS
-	testClient := &ConnectionsClient{
-		httpClient: server.Client(),
-		baseUrl:    server.URL,
-		apiKey:     "test-api-key",
-		appKey:     "test-app-key",
-	}
+	testClient := newTestClient(server.URL)
+	testClient.httpClient = server.Client()
 
 	provider := &mockTagsProvider{}
 
@@ -224,7 +210,8 @@ func TestAutoCreateConnections_PartialFailures(t *testing.T) {
 
 	// Should return nil even with failures (non-blocking)
 	require.NoError(t, err, "AutoCreateConnections should not propagate errors")
-	assert.Equal(t, 2, requestCount, "Should attempt to create all 2 connections")
+	assert.GreaterOrEqual(t, k8sAttempts, 1, "Kubernetes should be attempted")
+	assert.Equal(t, 1, scriptAttempts, "Script should be created exactly once after k8s retries are exhausted")
 }
 
 func TestAutoCreateConnections_NoRelevantBundles(t *testing.T) {
@@ -241,12 +228,8 @@ func TestAutoCreateConnections_NoRelevantBundles(t *testing.T) {
 	actionsAllowlist := []string{"com.datadoghq.gitlab.issues.getIssue"}
 
 	// Use server's client which is pre-configured for TLS
-	testClient := &ConnectionsClient{
-		httpClient: server.Client(),
-		baseUrl:    server.URL,
-		apiKey:     "test-api-key",
-		appKey:     "test-app-key",
-	}
+	testClient := newTestClient(server.URL)
+	testClient.httpClient = server.Client()
 
 	provider := &mockTagsProvider{}
 
@@ -280,12 +263,8 @@ func TestAutoCreateConnections_PartialAllowlist(t *testing.T) {
 	actionsAllowlist := []string{"com.datadoghq.script.runPredefinedScipt"}
 
 	// Use server's client which is pre-configured for TLS
-	testClient := &ConnectionsClient{
-		httpClient: server.Client(),
-		baseUrl:    server.URL,
-		apiKey:     "test-api-key",
-		appKey:     "test-app-key",
-	}
+	testClient := newTestClient(server.URL)
+	testClient.httpClient = server.Client()
 
 	provider := &mockTagsProvider{}
 

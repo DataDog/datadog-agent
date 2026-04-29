@@ -27,7 +27,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
+	pidmap "github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/def"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"

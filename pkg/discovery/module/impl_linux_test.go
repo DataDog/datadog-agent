@@ -114,10 +114,17 @@ func setupRustDiscoveryModule(t *testing.T) *testDiscoveryModule {
 		_ = cmd.Wait()
 	})
 
+	// Dial rather than stat: the socket file becomes visible after bind(2) but
+	// before listen(2), so a stale poll can win that window and the subsequent
+	// HTTP request fails with ECONNREFUSED.
 	require.Eventually(t, func() bool {
-		_, err := os.Stat(socketPath)
-		return err == nil
-	}, 10*time.Second, 50*time.Millisecond, "system-probe-lite socket did not appear")
+		conn, err := net.Dial("unix", socketPath)
+		if err != nil {
+			return false
+		}
+		conn.Close()
+		return true
+	}, 10*time.Second, 50*time.Millisecond, "system-probe-lite socket did not become ready")
 
 	return &testDiscoveryModule{
 		url: "http://sysprobe",

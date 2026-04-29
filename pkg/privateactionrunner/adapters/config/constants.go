@@ -25,6 +25,8 @@ const (
 	defaultJwtRefreshInterval     = 15 * time.Second
 	heartbeatInterval             = 20 * time.Second
 	defaultHTTPClientTimeout      = 30 * time.Second
+	// rshell commands belong to a namespace, currently only "rshell:" is supported.
+	RshellCommandNamespacePrefix = "rshell:"
 )
 
 // BundleInheritedAllowedAction represents an action that is automatically allowed

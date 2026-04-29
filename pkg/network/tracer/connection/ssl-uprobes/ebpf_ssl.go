@@ -269,6 +269,7 @@ func (p *SSLCertsProgram) Start() error {
 
 // Stop shuts down the attacher
 func (p *SSLCertsProgram) Stop() {
+	p.sslCertInfoMapCleaner.Stop()
 	p.handshakeStateMapCleaner.Stop()
 	p.attacher.Stop()
 }

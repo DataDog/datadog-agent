@@ -39,6 +39,17 @@ type LoadedProgram interface {
 	// RuntimeStats returns the per-core runtime stats of the program.
 	RuntimeStats() []loader.RuntimeStats
 
+	// DropNotifyLostAt returns the kernel-monotonic ktime_ns of the most
+	// recent in-BPF attempt to publish a drop notification that failed
+	// because the side-channel ringbuf was full. Returns 0 if no failure
+	// has ever been recorded for this program.
+	DropNotifyLostAt() uint64
+
+	// EvictBufferOlderThan forwards an eviction request to the sink
+	// associated with this program. The sink finalizes any buffered
+	// entries whose invocation predates cutoffKtimeNs.
+	EvictBufferOlderThan(cutoffKtimeNs uint64)
+
 	// Close closes the loaded program. It will only be called after any
 	// Attach() call have returned and any AttachedProgram.Detach() call have
 	// returned.

@@ -8,11 +8,12 @@
 package telemetry
 
 import (
+	"sync"
+	"testing"
+
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"sync"
-	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/names"
 	"github.com/prometheus/client_golang/prometheus"
@@ -145,14 +146,14 @@ func TestEBPFErrorsCollector_SingleCollect(t *testing.T) {
 				resourceName: &MockProgramName{n: mockProbeName},
 				moduleName:   names.NewModuleName("m3"),
 			},
-		}: {Count: [384]uint64{helperErrorsMockValue}},
+		}: {Count: [448]uint64{helperErrorsMockValue}},
 		{
 			eBPFKey: 3,
 			tKey: telemetryKey{
 				resourceName: &MockProgramName{n: mockProbeName},
 				moduleName:   names.NewModuleName("m4"),
 			},
-		}: {Count: [384]uint64{helperErrorsMockValue}},
+		}: {Count: [448]uint64{helperErrorsMockValue}},
 	}
 
 	//check expected metrics and labels
@@ -251,14 +252,14 @@ func TestEBPFErrorsCollector_DoubleCollect(t *testing.T) {
 				resourceName: &MockProgramName{n: mockProbeName},
 				moduleName:   names.NewModuleName("m3"),
 			},
-		}: {Count: [384]uint64{helperErrorsMockValue1}},
+		}: {Count: [448]uint64{helperErrorsMockValue1}},
 		{
 			eBPFKey: 3,
 			tKey: telemetryKey{
 				resourceName: &MockProgramName{n: mockProbeName},
 				moduleName:   names.NewModuleName("m4"),
 			},
-		}: {Count: [384]uint64{helperErrorsMockValue1}},
+		}: {Count: [448]uint64{helperErrorsMockValue1}},
 	}
 
 	//in this test we expect the values to match the delta between second and first collects
@@ -318,14 +319,14 @@ func TestEBPFErrorsCollector_DoubleCollect(t *testing.T) {
 					resourceName: &MockProgramName{n: mockProbeName},
 					moduleName:   names.NewModuleName("m3"),
 				},
-			}: {Count: [384]uint64{helperErrorsMockValue2}},
+			}: {Count: [448]uint64{helperErrorsMockValue2}},
 			{
 				eBPFKey: 3,
 				tKey: telemetryKey{
 					resourceName: &MockProgramName{n: mockProbeName},
 					moduleName:   names.NewModuleName("m4"),
 				},
-			}: {Count: [384]uint64{helperErrorsMockValue2}},
+			}: {Count: [448]uint64{helperErrorsMockValue2}},
 		},
 	}
 

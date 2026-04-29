@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dispatcher"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/eventbuf"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/module/tombstone"
@@ -66,7 +67,14 @@ func NewModule(
 	if override := config.TestingKnobs.IRGeneratorOverride; override != nil {
 		deps.IRGenerator = override(deps.IRGenerator)
 	}
-	m := newUnstartedModule(deps, config.ProbeTombstoneFilePath)
+	var moduleOpts []newUnstartedModuleOption
+	if k := config.TestingKnobs; k.SinkOverride != nil || k.OnProgramLoaded != nil {
+		moduleOpts = append(moduleOpts, withRuntimeTestingKnobs(&runtimeTestingKnobs{
+			sinkOverride:    k.SinkOverride,
+			onProgramLoaded: k.OnProgramLoaded,
+		}))
+	}
+	m := newUnstartedModule(deps, config.ProbeTombstoneFilePath, moduleOpts...)
 	m.config = config
 	m.shutdown.realDependencies = realDeps
 
@@ -86,8 +94,10 @@ func NewModule(
 	return m, nil
 }
 
+// eventbufBudgetBytes is the per-process byte ceiling enforced across all
+// per-program event buffers. Matches the pre-Buffer pairing-store budget.
 // TODO: make this configurable.
-const bufferedMessagesByteLimit = 512 << 10
+const eventbufBudgetBytes = 512 << 10
 
 // tombstoneFilePath is the path to the tombstone file left behind to detect
 // crashes while loading programs. If empty, tombstone files are not
@@ -95,7 +105,17 @@ const bufferedMessagesByteLimit = 512 << 10
 //
 // tombstoneFilePath is the path to the tombstone file left behind to detect
 // crashes while loading programs. If empty, tombstone files are not created.
-func newUnstartedModule(deps dependencies, tombstoneFilePath string) *Module {
+// newUnstartedModuleOption configures a *Module / *runtimeImpl beyond
+// the dependencies threaded through dependencies. Used to keep
+// newUnstartedModule's positional arguments stable as test-only fields
+// are added.
+type newUnstartedModuleOption func(*runtimeImpl)
+
+func withRuntimeTestingKnobs(k *runtimeTestingKnobs) newUnstartedModuleOption {
+	return func(rt *runtimeImpl) { rt.testingKnobs = k }
+}
+
+func newUnstartedModule(deps dependencies, tombstoneFilePath string, opts ...newUnstartedModuleOption) *Module {
 	// A zero-value symdbManager is valid and disabled.
 	if deps.symdbManager == nil {
 		deps.symdbManager = &symdbManager{}
@@ -103,7 +123,6 @@ func newUnstartedModule(deps dependencies, tombstoneFilePath string) *Module {
 	store := newProcessStore()
 	logsUploader := logsUploaderFactoryImpl[LogsUploader]{factory: deps.LogsFactory}
 	diagnostics := newDiagnosticsManager(deps.DiagnosticsUploader)
-	bufferedMessagesTracker := newBufferedMessageTracker(bufferedMessagesByteLimit)
 	runtime := &runtimeImpl{
 		store:                    store,
 		diagnostics:              diagnostics,
@@ -116,8 +135,11 @@ func newUnstartedModule(deps dependencies, tombstoneFilePath string) *Module {
 		dispatcher:               deps.Dispatcher,
 		logsFactory:              logsUploader,
 		procRuntimeIDbyProgramID: &sync.Map{},
-		bufferedMessageTracker:   bufferedMessagesTracker,
+		eventbufBudget:           eventbuf.NewBudget(eventbufBudgetBytes),
 		tombstoneFilePath:        tombstoneFilePath,
+	}
+	for _, opt := range opts {
+		opt(runtime)
 	}
 	deps.Actuator.SetRuntime(runtime)
 	m := &Module{
@@ -236,6 +258,9 @@ func makeRealDependencies(
 	if err != nil {
 		return ret, fmt.Errorf("error creating loader: %w", err)
 	}
+	if cb := config.TestingKnobs.OnLoaderReady; cb != nil {
+		cb(ret.loader)
+	}
 	var irgenOptions []irgen.Option
 	if config.DiskCacheEnabled {
 		diskCache, err := object.NewDiskCache(config.DiskCacheConfig)
@@ -257,7 +282,8 @@ func makeRealDependencies(
 	if err = unix.ClockGettime(unix.CLOCK_MONOTONIC, &ts); err != nil {
 		return ret, fmt.Errorf("error getting monotonic time: %w", err)
 	}
-	ret.dispatcher = dispatcher.NewDispatcher(ret.loader.OutputReader())
+	ret.dispatcher = dispatcher.NewDispatcher(
+		ret.loader.OutputReader(), ret.loader.DropNotifyReader())
 	ret.procSubscriber = procsubscribe.NewSubscriber(
 		remoteConfigSubscriber,
 	)

@@ -21,8 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/pidmapimpl"
+	pidmap "github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/def"
+	pidmapfx "github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -38,7 +38,7 @@ func fulfillDepsWithConfig(t testing.TB, overrides map[string]interface{}) liste
 	return fxutil.Test[listenerDeps](t, fx.Options(
 		mocktelemetry.Module(),
 		fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
-		pidmapimpl.Module(),
+		pidmapfx.Module(),
 	))
 }
 

@@ -13,7 +13,7 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
+	pidmap "github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/def"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 

@@ -325,46 +325,48 @@ func (ce *captureEvent) clear() {
 var dataItemDecodingLogLimiter = rate.NewLimiter(rate.Every(10*time.Minute), 10)
 
 func (ce *captureEvent) init(
-	ev output.Event, types map[ir.TypeID]ir.Type, evalErrors *[]evaluationError,
+	fe output.FragmentedEvent, types map[ir.TypeID]ir.Type, evalErrors *[]evaluationError,
 ) error {
 	var rootType *ir.EventRootType
 	var rootData []byte
-	for item, err := range ev.DataItems() {
-		if err != nil {
+	for ev := range fe.Fragments() {
+		for item, err := range ev.DataItems() {
+			if err != nil {
+				if rootType == nil {
+					return fmt.Errorf("error getting first data item: %w", err)
+				}
+				// If we have trouble decoding a data item, we still want to try
+				// to emit a message. We shouldn't have this problem, but we
+				// don't know why it happens and it's better to log about it than
+				// to bail out completely.
+				if dataItemDecodingLogLimiter.Allow() {
+					log.Errorf("error getting data items (%d): %v", len(ce.dataItems), err)
+				} else {
+					log.Tracef("error getting data items (%d): %v", len(ce.dataItems), err)
+				}
+				break
+			}
 			if rootType == nil {
-				return fmt.Errorf("error getting first data item: %w", err)
+				var ok bool
+				rootData, ok = item.Data()
+				if !ok {
+					// This should never happen.
+					return errors.New("root data item marked as a failed read")
+				}
+				rootTypeID := ir.TypeID(item.Type())
+				rootType, ok = types[rootTypeID].(*ir.EventRootType)
+				if !ok {
+					return errors.New("expected event of type root first")
+				}
+				continue
 			}
-			// If we have trouble decoding a data item, we still want to try
-			// to emit a message. We shouldn't have this problem, but we
-			// don't know why it happens and it's better to log about it than
-			// to bail out completely.
-			if dataItemDecodingLogLimiter.Allow() {
-				log.Errorf("error getting data items (%d): %v", len(ce.dataItems), err)
-			} else {
-				log.Tracef("error getting data items (%d): %v", len(ce.dataItems), err)
+			key := typeAndAddr{irType: item.Type(), addr: item.Header().Address}
+			// We may capture dynamically sized objects multiple times with different lengths.
+			// Here we just pick the most data we have, decoder will look at relevant prefix.
+			prev, exists := ce.dataItems[key]
+			if !exists || prev.Header().Length < item.Header().Length {
+				ce.dataItems[key] = item
 			}
-			break
-		}
-		if rootType == nil {
-			var ok bool
-			rootData, ok = item.Data()
-			if !ok {
-				// This should never happen.
-				return errors.New("root data item marked as a failed read")
-			}
-			rootTypeID := ir.TypeID(item.Type())
-			rootType, ok = types[rootTypeID].(*ir.EventRootType)
-			if !ok {
-				return errors.New("expected event of type root first")
-			}
-			continue
-		}
-		key := typeAndAddr{irType: item.Type(), addr: item.Header().Address}
-		// We may capture dynamically sized objects multiple times with different lengths.
-		// Here we just pick the most data we have, decoder will look at relevant prefix.
-		prev, exists := ce.dataItems[key]
-		if !exists || prev.Header().Length < item.Header().Length {
-			ce.dataItems[key] = item
 		}
 	}
 	if rootType == nil {

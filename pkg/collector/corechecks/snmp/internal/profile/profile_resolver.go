@@ -113,16 +113,14 @@ func mergeProfileDefinition(targetDefinition *profiledefinition.ProfileDefinitio
 			targetDefinition.Metadata[baseResName] = profiledefinition.NewMetadataResourceConfig()
 		}
 		if resource, ok := targetDefinition.Metadata[baseResName]; ok {
-			for _, tagConfig := range baseResource.IDTags {
-				resource.IDTags = append(targetDefinition.Metadata[baseResName].IDTags, tagConfig)
-			}
+			resource.IDTags = append(resource.IDTags, baseResource.IDTags...)
 
 			if resource.Fields == nil {
 				resource.Fields = make(map[string]profiledefinition.MetadataField, len(baseResource.Fields))
 			}
-			for field, symbol := range baseResource.Fields {
-				if value, ok := resource.Fields[field]; !ok || value.IsEmpty() {
-					resource.Fields[field] = symbol
+			for fieldName, field := range baseResource.Fields {
+				if value, ok := resource.Fields[fieldName]; !ok || value.IsEmpty() {
+					resource.Fields[fieldName] = field
 				}
 			}
 

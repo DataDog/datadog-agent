@@ -13,6 +13,7 @@ package portlist
 type Port struct {
 	Proto   string // "tcp" or "udp"
 	Port    uint16 // port number
+	IP      string // listening IP address (e.g. "0.0.0.0", "127.0.0.1", "::")
 	Process string // optional process name, if found (requires suitable permissions)
 	Pid     int    // process ID, if known (requires suitable permissions)
 }
@@ -23,6 +24,7 @@ type List []Port
 func (a *Port) equal(b *Port) bool {
 	return a.Port == b.Port &&
 		a.Proto == b.Proto &&
+		a.IP == b.IP &&
 		a.Process == b.Process
 }
 

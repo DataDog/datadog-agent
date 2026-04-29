@@ -1836,7 +1836,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// Maximum number of distinct patterns the sampler tracks at once.
 	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.max_patterns", 1000)
 	// Steady-state logs per second allowed for each matched pattern.
-	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.rate_limit", 1)
+	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.rate_limit", 1.0)
 	// Maximum burst allowance per pattern, measured in accumulated credits/logs.
 	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.burst_size", 1000.0)
 	// Fraction of tokens that must match for two logs to be treated as the same pattern.

@@ -170,6 +170,16 @@
       },
       {
         "customType": "regex",
+        "managerFilePatterns": [".devcontainer/datadog/default/prebuild-devcontainer.json"],
+        "matchStrings": [
+          "\"image\":\\s*\"registry.ddbuild.io/ci/datadog-agent-buildimages/dev-env-workspace:(?<currentValue>v[^\"]+)\""
+        ],
+        "depNameTemplate": "linux-images",
+        "versioningTemplate": "loose",
+        "datasourceTemplate": "custom.linux-images"
+      },
+      {
+        "customType": "regex",
         "managerFilePatterns": [".gitlab-ci.yml"],
         "matchStrings": [
           "  CI_IMAGE_WIN_[^:]*: (?<currentValue>v.*)"

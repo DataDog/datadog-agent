@@ -26,6 +26,9 @@ import (
 
 const (
 	createPARPath = "/api/unstable/on_prem_runners"
+
+	enrollmentInitialBackoff = 1 * time.Second
+	enrollmentMaxBackoff     = 30 * time.Second
 )
 
 // PublicClient exposes endpoint that don't require JWT authentication
@@ -94,9 +97,42 @@ func (p *publicClient) EnrollWithApiKey(
 		return nil, fmt.Errorf("failed to marshal request body: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", createRunnerUrl.String(), strings.NewReader(string(requestBodyJSON)))
+	respBody, err := p.doEnrollRequestWithRetry(ctx, createRunnerUrl.String(), requestBodyJSON, apiKey, appKey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build runner creation request: %w", err)
+		return nil, err
+	}
+
+	createRunnerResponse := new(par.CreateRunnerResponse)
+	err = jsonapi.Unmarshal(respBody, createRunnerResponse)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal runner creation response: %w", err)
+	}
+	return createRunnerResponse, nil
+}
+
+// doEnrollRequestWithRetry sends the enrollment POST and retries on transport
+// errors or HTTP 5xx responses with exponential backoff. 4xx responses are
+// returned immediately. Retries are unbounded; the caller's context
+// cancellation is the only exit other than success or a permanent (4xx)
+// failure. Enrollment is required for the runner to function, so we keep
+// trying rather than crashing the agent.
+func (p *publicClient) doEnrollRequestWithRetry(ctx context.Context, url string, body []byte, apiKey, appKey string) ([]byte, error) {
+	return util.RetryHTTPRequest(ctx, func() ([]byte, int, error) {
+		return p.doEnrollRequest(ctx, url, body, apiKey, appKey)
+	}, util.RetryHTTPOptions{
+		InitialInterval: enrollmentInitialBackoff,
+		MaxInterval:     enrollmentMaxBackoff,
+		// MaxElapsedTime: 0 — retry forever until ctx is cancelled.
+	})
+}
+
+// doEnrollRequest sends a single enrollment POST. Returns the response body on
+// success. On non-2xx responses, returns the status code so the caller can
+// decide whether to retry.
+func (p *publicClient) doEnrollRequest(ctx context.Context, url string, body []byte, apiKey, appKey string) ([]byte, int, error) {
+	req, err := http.NewRequestWithContext(ctx, "POST", url, strings.NewReader(string(body)))
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to build runner creation request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/vnd.api+json")
@@ -109,28 +145,22 @@ func (p *publicClient) EnrollWithApiKey(
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to send runner creation request: %w", err)
+		return nil, 0, fmt.Errorf("failed to send runner creation request: %w", err)
 	}
 	defer func() {
-		err = resp.Body.Close()
-		if err != nil {
-			log.Error("error closing runner creation response body", log.ErrorField(err))
+		if cerr := resp.Body.Close(); cerr != nil {
+			log.Error("error closing runner creation response body", log.ErrorField(cerr))
 		}
 	}()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("runner creation failed with HTTP status code %d and failed to read HTTP response with error %w", resp.StatusCode, err)
+		return nil, resp.StatusCode, fmt.Errorf("runner creation failed with HTTP status code %d and failed to read HTTP response with error %w", resp.StatusCode, err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("runner creation failed with HTTP status code %d and response %s", resp.StatusCode, string(respBody))
+		return nil, resp.StatusCode, fmt.Errorf("runner creation failed with HTTP status code %d and response %s", resp.StatusCode, string(respBody))
 	}
 
-	createRunnerResponse := new(par.CreateRunnerResponse)
-	err = jsonapi.Unmarshal(respBody, createRunnerResponse)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal runner creation response: %w", err)
-	}
-	return createRunnerResponse, nil
+	return respBody, resp.StatusCode, nil
 }

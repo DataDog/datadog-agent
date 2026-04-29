@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    The debugger proxy no longer forwards Exception Replay and Live Debugger
+    logs when ``logs_enabled`` is ``false``. This can be overridden using the
+    new ``apm_config.debugger_logs_enabled_override`` setting (environment
+    variable ``DD_APM_DEBUGGER_LOGS_ENABLED_OVERRIDE``), which enables
+    Exception Replay and Live Debugger when ``logs_enabled`` is ``false``.

@@ -87,7 +87,7 @@
       <Version>4.6.3</Version>
     </PackageReference>
     <PackageReference Include="xunit">
-      <Version>2.9.2</Version>
+      <Version>2.9.3</Version>
     </PackageReference>
     <PackageReference Include="xunit.analyzers">
       <Version>1.27.0</Version>

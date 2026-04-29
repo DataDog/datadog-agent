@@ -315,9 +315,28 @@ sm_chase_pointer(global_ctx_t* ctx, pointers_queue_item_t item) {
     }
     break;
   }
-  sm->offset = scratch_buf_serialize(ctx->buf, &item.di, byte_len);
+  // For dynamically-sized objects (strings, slices), byte_len is the
+  // configured upper limit (e.g. maxLength). Clamp it to the actual runtime
+  // length so the size-class dispatch picks an appropriate class. Without
+  // this, a large maxLength (e.g. 65536) would fail the size-class lookup
+  // even for short strings.
+  uint32_t serialize_len = byte_len;
+  if (item.di.length != ENQUEUE_LEN_SENTINEL && item.di.length < serialize_len) {
+    serialize_len = item.di.length;
+  }
+  // Clamp to the largest size class. scratch_buf_serialize_whole's
+  // dispatch table tops out at MAX_DATA_ITEM_SIZE; without this clamp
+  // an oversized configured maxLength (or a slice whose
+  // collection_size_limit * elem_byte_len exceeds the ceiling) would
+  // be silently skipped (serialize_whole returns 0 for any len above
+  // the largest size class) instead of producing a truncated capture.
+  if (serialize_len > MAX_DATA_ITEM_SIZE) {
+    serialize_len = MAX_DATA_ITEM_SIZE;
+  }
+  sm->offset = scratch_buf_serialize(ctx->buf, &item.di, serialize_len);
   if (!sm->offset) {
-    LOG(3, "chase: failed to serialize type %d", item.di.type);
+    LOG(3, "chase: buffer full for type %d", item.di.type);
+    sm->buffer_full = true;
     return true;
   }
 
@@ -2244,6 +2263,30 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
       LOG(4, "chasing pointer @%llx", item->di.address);
       sm->pc--;
       sm_chase_pointer(ctx, *item);
+
+      if (sm->buffer_full) {
+        sm->buffer_full = false;
+        // Scratch buffer is full. Flush it as a continuation fragment
+        // and retry this item in the fresh buffer.
+        if (!scratch_buf_flush_and_continue(
+                ctx->buf, &sm->continuation_seq,
+                &sm->last_submitted_seq, sm->start_ns,
+                sm->entry_ktime_ns)) {
+          // Ringbuf is full during a mid-chase flush. probe_run will send
+          // a PARTIAL_ENTRY/PARTIAL_RETURN notification and skip the final
+          // submit so userspace can emit the fragments already in flight.
+          sm->continuation_aborted = true;
+          return 1;
+        }
+        sm_chase_pointer(ctx, *item);
+        if (sm->buffer_full) {
+          // The item itself is larger than an empty scratch buffer can hold
+          // (e.g. a slice whose collection_size_limit * element_byte_size
+          // exceeds ~32KiB minus headers). Skip it.
+          LOG(2, "chase: item too large for single buffer, skipping");
+          sm->buffer_full = false;
+        }
+      }
     }
   } break;
 

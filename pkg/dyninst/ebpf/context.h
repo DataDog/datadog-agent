@@ -49,6 +49,11 @@ typedef struct pointers_queue_item {
 
 DEFINE_QUEUE(pointers, pointers_queue_item_t, 128);
 
+// Sentinel for stack_machine_t::last_submitted_seq meaning "no fragment
+// has been submitted yet for this probe invocation". continuation_seq is
+// uint16, so 0xFFFF can never collide with a real sequence number.
+#define LAST_SUBMITTED_SEQ_NONE ((uint16_t)0xFFFF)
+
 #define ENQUEUE_STACK_DEPTH 32
 typedef struct stack_machine {
   // Initialized on every entry point.
@@ -109,11 +114,44 @@ typedef struct stack_machine {
   // condition evaluation to abort. Used together with condition_eval_error
   // to distinguish nil-caused failures from other evaluation errors.
   bool condition_nil_deref;
+  // Set to true by sm_chase_pointer when scratch_buf_serialize fails due to
+  // insufficient buffer space. Checked and cleared by SM_OP_CHASE_POINTERS
+  // to trigger a flush-and-continue.
+  bool buffer_full;
 
   // Dictionary pointer for generic shape functions. Set by
   // SM_OP_PROCESS_GO_DICT_TYPE on entry, propagated through call context
   // for return probes.
   uint64_t saved_dict_ptr;
+
+  // Continuation state. These live in stack_machine_t (which is backed by
+  // a per-CPU array map) rather than on global_ctx (which is a stack local
+  // in probe_run) because the verifier's combined stack budget across
+  // nested subprog calls is 512 bytes and we have very little slack on
+  // the probe_run_with_cookie -> sm_loop -> sm_swiss_map_aese path.
+  //
+  // continuation_seq: how many fragments have been submitted so far.
+  uint16_t continuation_seq;
+  // continuation_seq of the last *successfully* submitted fragment, or
+  // LAST_SUBMITTED_SEQ_NONE if no fragment has been submitted yet. Used to
+  // fill last_seq on drop notifications so userspace knows exactly how
+  // many fragments to expect when it reconstructs a truncated event.
+  uint16_t last_submitted_seq;
+  // Set true when a mid-chase flush failed: some fragments reached
+  // userspace but a later fragment couldn't be written. probe_run checks
+  // this flag after chasing completes and, if set, sends a PARTIAL_*
+  // notification and skips the final submit rather than emit a fragment
+  // with a gap.
+  bool continuation_aborted;
+  // Original probe invocation timestamp, shared across all continuation
+  // fragments for correlation.
+  uint64_t start_ns;
+  // Invocation ID. For entry / line / inlined / no-body probes, this is
+  // the probe's own start_ns. For return probes, it is the entry's
+  // start_ns, pulled from in_progress_calls via call_depths_delete. Drop
+  // notifications carry this so userspace can key them by the same
+  // invocation identifier as the main-channel fragments.
+  uint64_t entry_ktime_ns;
 
   // Temporary data, stored here to save on stack space.
   uint64_t value_0;
@@ -210,6 +248,10 @@ static stack_machine_t* stack_machine_ctx_load(const probe_params_t* probe_param
   stack_machine->string_size_limit = probe_params->string_size_limit;
   stack_machine->pointers_queue.len = 0;
   stack_machine->saved_dict_ptr = 0;
+  stack_machine->continuation_seq = 0;
+  stack_machine->last_submitted_seq = LAST_SUBMITTED_SEQ_NONE;
+  stack_machine->continuation_aborted = false;
+  // start_ns and entry_ktime_ns are set explicitly by probe_run before use.
   return stack_machine;
 }
 
@@ -262,6 +304,11 @@ typedef struct call_depths_entry {
   uint32_t depth;
   uint32_t probe_id;
   uint64_t dict_ptr; // dictionary pointer for generic shape functions (0 if N/A)
+  // Timestamp of the entry event that established this call. Returned to the
+  // return probe via call_depths_delete and stamped as entry_ktime_ns on the
+  // return event header so userspace can correlate entry and return for the
+  // same invocation.
+  uint64_t entry_ktime_ns;
 } call_depths_entry_t;
 
 #define CALL_DEPTHS_SIZE 8
@@ -281,12 +328,14 @@ struct {
 } in_progress_calls SEC(".maps");
 
 static inline __attribute__((always_inline)) bool call_depths_insert(
-    call_depths_t* depths, uint32_t depth, uint32_t probe_id, uint64_t dict_ptr) {
+    call_depths_t* depths, uint32_t depth, uint32_t probe_id,
+    uint64_t dict_ptr, uint64_t entry_ktime_ns) {
   for (int i = 0; i < CALL_DEPTHS_SIZE; i++) {
     if (depths->depths[i].depth == 0 && depths->depths[i].probe_id == 0) {
       depths->depths[i].depth = depth;
       depths->depths[i].probe_id = probe_id;
       depths->depths[i].dict_ptr = dict_ptr;
+      depths->depths[i].entry_ktime_ns = entry_ktime_ns;
       return true;
     }
   }
@@ -295,16 +344,20 @@ static inline __attribute__((always_inline)) bool call_depths_insert(
 
 static inline __attribute__((always_inline)) bool call_depths_delete(
     call_depths_t* depths, uint32_t depth, uint32_t probe_id,
-    int* remaining, uint64_t* out_dict_ptr) {
+    int* remaining, uint64_t* out_dict_ptr, uint64_t* out_entry_ktime_ns) {
   bool found = false;
   for (int i = 0; i < CALL_DEPTHS_SIZE; i++) {
     if (depths->depths[i].depth == depth && depths->depths[i].probe_id == probe_id) {
       if (out_dict_ptr) {
         *out_dict_ptr = depths->depths[i].dict_ptr;
       }
+      if (out_entry_ktime_ns) {
+        *out_entry_ktime_ns = depths->depths[i].entry_ktime_ns;
+      }
       depths->depths[i].depth = 0;
       depths->depths[i].probe_id = 0;
       depths->depths[i].dict_ptr = 0;
+      depths->depths[i].entry_ktime_ns = 0;
       found = true;
     } else if (depths->depths[i].depth != 0 || depths->depths[i].probe_id != 0) {
       (*remaining)++;

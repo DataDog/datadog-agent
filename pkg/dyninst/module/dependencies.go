@@ -154,6 +154,7 @@ type Actuator interface {
 type Dispatcher interface {
 	RegisterSink(progID ir.ProgramID, sink dispatcher.Sink)
 	UnregisterSink(progID ir.ProgramID)
+	EvictOlderThan(progID ir.ProgramID, cutoffKtimeNs uint64)
 	Shutdown() error
 }
 

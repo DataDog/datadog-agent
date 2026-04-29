@@ -75,10 +75,51 @@ jobs:
 
       - name: Run cherry-pick script
         id: cherry-pick
+        continue-on-error: true
         env:
             GITHUB_TOKEN: ${{ steps.octo-sts.outputs.token }}
             GITHUB_EVENT_PATH: ${{ github.event_path }}
         run: dda gh cherry-pick-pr --target-branch "${{ steps.target.outputs.target_branch }}"
+
+      - name: Comment on backport failure
+        if: steps.cherry-pick.outcome == 'failure'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          TARGET_BRANCH: ${{ steps.target.outputs.target_branch }}
+          MERGE_COMMIT_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          github-token: ${{ steps.octo-sts.outputs.token }}
+          script: |
+            const targetBranch = process.env.TARGET_BRANCH;
+            const mergeCommitSHA = process.env.MERGE_COMMIT_SHA;
+            const runUrl = process.env.RUN_URL;
+            const commentBody = `⚠️ Automatic backport to \`${targetBranch}\` failed.
+
+            This usually happens when the cherry-pick has merge conflicts and needs manual resolution.
+
+            To backport manually, run:
+            \`\`\`bash
+            git fetch
+            git worktree add .worktrees/backport-${targetBranch} ${targetBranch}
+            cd .worktrees/backport-${targetBranch}
+            git switch --create backport-${context.payload.pull_request.number}-to-${targetBranch}
+            git cherry-pick -x --mainline 1 ${mergeCommitSHA}
+            git push --set-upstream origin backport-${context.payload.pull_request.number}-to-${targetBranch}
+            \`\`\`
+
+            Workflow logs: ${runUrl}`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: commentBody,
+            });
+
+      - name: Fail workflow when cherry-pick failed
+        if: steps.cherry-pick.outcome == 'failure'
+        run: exit 1
 
       - name: Reset cherry-pick
         if: steps.cherry-pick.outputs.base != ''

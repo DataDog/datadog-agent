@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/aarzilli/whydeadcode v0.0.0-20260303092945-8d908f77de3a
-	github.com/bazelbuild/bazelisk v1.28.1
+	github.com/bazelbuild/bazelisk v1.29.0
 	github.com/frapposelli/wwhrd v0.4.0
 	github.com/go-enry/go-license-detector/v4 v4.3.1
 	github.com/golangci/golangci-lint/v2 v2.9.0
@@ -79,7 +79,8 @@ require (
 	github.com/charmbracelet/x/cellbuf v0.0.13 // indirect
 	github.com/charmbracelet/x/term v0.2.1 // indirect
 	github.com/ckaznocha/intrange v0.3.1 // indirect
-	github.com/clipperhouse/uax29/v2 v2.2.0 // indirect
+	github.com/clipperhouse/stringish v0.1.1 // indirect
+	github.com/clipperhouse/uax29/v2 v2.3.0 // indirect
 	github.com/cloudflare/circl v1.6.3 // indirect
 	github.com/curioswitch/go-reassign v0.3.0 // indirect
 	github.com/cyphar/filepath-securejoin v0.6.1 // indirect

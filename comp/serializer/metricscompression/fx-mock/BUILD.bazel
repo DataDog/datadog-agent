@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fx-mock",
+    srcs = ["fx.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/serializer/metricscompression/def",
+        "//pkg/util/compression",
+        "//pkg/util/compression/selector",
+        "//pkg/util/fxutil",
+    ],
+)

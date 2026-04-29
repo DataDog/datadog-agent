@@ -6,13 +6,17 @@ go_library(
         "installer_paths.go",
         "installer_paths_utils.go",
         "installer_paths_windows.go",
+        "rename_other.go",
+        "rename_windows.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/paths",
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:windows": [
             "//pkg/fleet/installer/env",
+            "//pkg/fleet/installer/telemetry",
             "//pkg/util/log",
+            "@com_github_cenkalti_backoff_v5//:backoff",
             "@com_github_microsoft_go_winio//:go-winio",
             "@org_golang_x_sys//windows",
             "@org_golang_x_sys//windows/registry",
@@ -23,7 +27,10 @@ go_library(
 
 go_test(
     name = "paths_test",
-    srcs = ["paths_windows_test.go"],
+    srcs = [
+        "paths_windows_test.go",
+        "rename_windows_test.go",
+    ],
     embed = [":paths"],
     gotags = ["test"],
     deps = select({
