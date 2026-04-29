@@ -27,6 +27,7 @@ type sourceProvider struct {
 
 	mu            sync.Mutex
 	activeSources map[string]*sources.LogSource // keyed by container ID
+	suppressedIDs map[string]struct{}           // container IDs with an active AD source
 
 	stopped sync.WaitGroup
 }
@@ -37,6 +38,7 @@ func newSourceProvider(wmeta workloadmeta.Component, logSources *sources.LogSour
 		logSources:    logSources,
 		pauseFilter:   pauseFilter,
 		activeSources: make(map[string]*sources.LogSource),
+		suppressedIDs: make(map[string]struct{}),
 	}
 }
 
@@ -102,27 +104,47 @@ func (sp *sourceProvider) handleSet(c *workloadmeta.Container) {
 		}
 	}
 	sp.mu.Lock()
-	defer sp.mu.Unlock()
 	if _, exists := sp.activeSources[c.EntityID.ID]; exists {
+		sp.mu.Unlock()
 		return // idempotent: already tracked
+	}
+	if _, suppressed := sp.suppressedIDs[c.EntityID.ID]; suppressed {
+		sp.mu.Unlock()
+		return // an AD source already owns this container; skip generic source
 	}
 	src := sources.NewLogSource(c.EntityID.ID, &logsconfig.LogsConfig{
 		Type:       string(c.Runtime),
 		Identifier: c.EntityID.ID,
 	})
 	sp.activeSources[c.EntityID.ID] = src
+	sp.mu.Unlock()
+
 	sp.logSources.AddSource(src)
+
+	// Guard against suppressIdentifier arriving in the window between sp.mu.Unlock()
+	// and AddSource: if activeSources no longer holds this entry, the AD source already
+	// attempted (and missed) RemoveSource, so undo the add here.
+	sp.mu.Lock()
+	_, stillTracked := sp.activeSources[c.EntityID.ID]
+	sp.mu.Unlock()
+	if !stillTracked {
+		sp.logSources.RemoveSource(src)
+		return
+	}
+
 	log.Infof("[observer/logssource] added container source: %s (runtime=%s)", c.Image.ShortName, c.Runtime)
 }
 
 func (sp *sourceProvider) handleUnset(c *workloadmeta.Container) {
 	sp.mu.Lock()
-	defer sp.mu.Unlock()
 	src, exists := sp.activeSources[c.EntityID.ID]
 	if !exists {
+		sp.mu.Unlock()
 		return
 	}
 	delete(sp.activeSources, c.EntityID.ID)
+	sp.mu.Unlock()
+
 	sp.logSources.RemoveSource(src)
 }
 
@@ -142,4 +164,32 @@ func (sp *sourceProvider) isPauseContainer(c *workloadmeta.Container) bool {
 
 func isAgentContainer(c *workloadmeta.Container) bool {
 	return strings.Contains(strings.ToLower(c.Image.ShortName), "agent")
+}
+
+// suppressIdentifier marks containerID as owned by an AD source.
+// If a generic source for that container is already active, it is removed so
+// the AD source becomes the sole collector for this container.
+// Must be called before adding the AD source to LogSources.
+func (sp *sourceProvider) suppressIdentifier(containerID string) {
+	sp.mu.Lock()
+	sp.suppressedIDs[containerID] = struct{}{}
+	evicted, exists := sp.activeSources[containerID]
+	if exists {
+		delete(sp.activeSources, containerID)
+	}
+	sp.mu.Unlock()
+
+	if exists {
+		sp.logSources.RemoveSource(evicted)
+		log.Debugf("[observer/logssource] removed generic container source %s: AD source takes priority", containerID)
+	}
+}
+
+// unsuppressIdentifier releases the suppression for containerID.
+// After this call a future workloadmeta Set event may re-create the generic source.
+// Must be called after removing the AD source from LogSources.
+func (sp *sourceProvider) unsuppressIdentifier(containerID string) {
+	sp.mu.Lock()
+	defer sp.mu.Unlock()
+	delete(sp.suppressedIDs, containerID)
 }
