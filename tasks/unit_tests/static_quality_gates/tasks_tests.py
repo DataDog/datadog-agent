@@ -4,18 +4,227 @@ Tests for static quality gates.
 Tests the top-level parse_and_trigger_gates orchestration.
 """
 
+import os
+import re
+import tempfile
 import unittest
+from contextlib import contextmanager
+from dataclasses import dataclass
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import yaml
 from invoke import MockContext, Result
 from invoke.exceptions import Exit
 
 from tasks.libs.package.size import InfraError
 from tasks.quality_gates import parse_and_trigger_gates
-from tasks.static_quality_gates.gates import PackageArtifactMeasurer
+from tasks.static_quality_gates.gates import ArtifactMeasurement, PackageArtifactMeasurer
+
+_PR_BRANCH_NAME = "feature/branch"
+_PR_BUCKET_BRANCH = 'dev'
+_CI_PIPELINE_ID = '999999999'
+_CI_COMMIT_SHA = '1234567890abcdef'
+
+
+def gitlab_ref_slug(git_ref):
+    """
+    CI_COMMIT_REF_NAME in lowercase, shortened to 63 bytes, and with everything
+    except 0-9 and a-z replaced with -. No leading / trailing -. Use in URLs, host names and domain names.
+    (https://docs.gitlab.com/ci/variables/predefined_variables/)
+    """
+    return re.sub(r"[^0-9a-z]", "-", git_ref.lower())[:63]
+
+
+class FakeGithubAPI:
+    PR = SimpleNamespace(
+        number=12345,
+        title="fix(somewhere): did something",
+        user=SimpleNamespace(login="some-author"),
+        get_reviews=lambda: [],
+    )
+
+    def get_pr_for_branch(self, branch):
+        return [self.PR] if branch == _PR_BRANCH_NAME else []
+
+    def get_pr(self, pr_id):
+        return self.PR if pr_id == self.PR.number else None
+
+
+_DEB_GATE = "static_quality_gate_agent_deb_amd64"
+_DOCKER_GATE = "static_quality_gate_docker_agent_amd64"
+
+_KiB = 1024
+_MiB = 1024 * _KiB
+
+
+@dataclass
+class GateScenario:
+    """Represents the desired state of a gate, for use with the _gate_scenarios fixture."""
+
+    name: str
+    current_disk: int
+    current_wire: int
+    ancestor_disk: int
+    ancestor_wire: int
+    max_disk: int
+    max_wire: int
+
+
+@contextmanager
+def _gate_scenarios(*scenarios: GateScenario):
+    """
+    Context manager that wires up gate scenarios for integration tests.
+
+    Yields a SimpleNamespace with:
+      - config_path: path to a temp YAML file with the gate limits
+      - ancestor_metrics: dict suitable for mocking query_gate_metrics_for_commit
+      - package_measure: side_effect for PackageArtifactMeasurer.measure
+      - docker_measure: side_effect for DockerArtifactMeasurer.measure
+    """
+    by_name = {s.name: s for s in scenarios}
+
+    config = {s.name: {"max_on_disk_size": s.max_disk, "max_on_wire_size": s.max_wire} for s in scenarios}
+    ancestor_metrics = {
+        s.name: {"current_on_disk_size": s.ancestor_disk, "current_on_wire_size": s.ancestor_wire} for s in scenarios
+    }
+
+    def _package_measure(ctx, config):
+        s = by_name[config.gate_name]
+        return ArtifactMeasurement(artifact_path='/fake/path', on_wire_size=s.current_wire, on_disk_size=s.current_disk)
+
+    def _docker_measure(ctx, config):
+        s = by_name[config.gate_name]
+        return ArtifactMeasurement(
+            artifact_path='fake-docker-image', on_wire_size=s.current_wire, on_disk_size=s.current_disk
+        )
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        config_path = os.path.join(tmpdir, 'gates.yml')
+        with open(config_path, 'w') as f:
+            yaml.dump(config, f)
+        yield SimpleNamespace(
+            config_path=config_path,
+            ancestor_metrics=ancestor_metrics,
+            package_measure=_package_measure,
+            docker_measure=_docker_measure,
+        )
 
 
 class TestQualityGatesIntegration(unittest.TestCase):
+    def _assert_gate_metrics(self, sent, gate_name, *, on_disk, on_wire, max_disk, max_wire, rel_disk, rel_wire):
+        metric_prefix = "datadog.agent.static_quality_gate."
+        self.assertEqual(sent[(metric_prefix + "on_disk_size", gate_name)], on_disk)
+        self.assertEqual(sent[(metric_prefix + "on_wire_size", gate_name)], on_wire)
+        self.assertEqual(sent[(metric_prefix + "max_allowed_on_disk_size", gate_name)], max_disk)
+        self.assertEqual(sent[(metric_prefix + "max_allowed_on_wire_size", gate_name)], max_wire)
+        self.assertEqual(sent[(metric_prefix + "relative_on_disk_size", gate_name)], rel_disk)
+        self.assertEqual(sent[(metric_prefix + "relative_on_wire_size", gate_name)], rel_wire)
+
+    @patch.dict(
+        'os.environ',
+        {
+            'BUCKET_BRANCH': _PR_BUCKET_BRANCH,
+            'CI_COMMIT_BRANCH': _PR_BRANCH_NAME,
+            'CI_COMMIT_REF_SLUG': gitlab_ref_slug(_PR_BRANCH_NAME),
+            'CI_PIPELINE_ID': _CI_PIPELINE_ID,
+            'CI_COMMIT_SHA': _CI_COMMIT_SHA,
+        },
+        clear=True,
+    )
+    def test_pr_all_gates_pass_and_send_metrics(self):
+        gate_scenarios = [
+            GateScenario(
+                name=_DEB_GATE,
+                ancestor_disk=100 * _MiB,
+                ancestor_wire=50 * _MiB,
+                current_disk=100 * _MiB + 20 * _KiB,
+                current_wire=50 * _MiB,
+                max_disk=105 * _MiB,
+                max_wire=55 * _MiB,
+            ),
+            GateScenario(
+                name=_DOCKER_GATE,
+                ancestor_disk=600 * _MiB,
+                ancestor_wire=240 * _MiB,
+                current_disk=600 * _MiB + 20 * _KiB,
+                current_wire=240 * _MiB,
+                max_disk=700 * _MiB,
+                max_wire=250 * _MiB,
+            ),
+        ]
+        with (
+            patch("tasks.quality_gates.get_ancestor", return_value="ancestor-sha"),
+            patch("tasks.quality_gates.get_commit_sha", return_value=_CI_COMMIT_SHA),
+            patch("tasks.static_quality_gates.github.GithubAPI", new=FakeGithubAPI),
+            _gate_scenarios(*gate_scenarios) as gate_fixture,
+            patch(
+                "tasks.libs.common.datadog_api.query_gate_metrics_for_commit",
+                return_value=gate_fixture.ancestor_metrics,
+            ) as mock_query_metrics,
+            patch("tasks.static_quality_gates.gates.send_metrics") as mock_send_metrics,
+            patch(
+                "tasks.static_quality_gates.gates.PackageArtifactMeasurer.measure",
+                side_effect=gate_fixture.package_measure,
+            ),
+            patch(
+                "tasks.static_quality_gates.gates.DockerArtifactMeasurer.measure",
+                side_effect=gate_fixture.docker_measure,
+            ),
+            patch("tasks.static_quality_gates.pr_comment.pr_commenter") as mock_pr_commenter,
+            patch(
+                "tasks.static_quality_gates.gates.GateMetricHandler.generate_metric_reports"
+            ) as mock_generate_reports,
+        ):
+            ctx = MockContext(
+                run={
+                    "datadog-ci tag --level job --tags static_quality_gates:\"success\"": Result("Done"),
+                }
+            )
+            parse_and_trigger_gates(ctx, gate_fixture.config_path)
+
+            # Assert on metrics sent
+            mock_send_metrics.assert_called_once()
+            series = mock_send_metrics.call_args.kwargs["series"]
+            sent = {}
+            for m in series:
+                self.assertIn(f"git_ref:{gitlab_ref_slug(_PR_BRANCH_NAME)}", m.tags)
+                self.assertIn(f"bucket_branch:{_PR_BUCKET_BRANCH}", m.tags)
+                self.assertIn(f"pipeline_id:{_CI_PIPELINE_ID}", m.tags)
+                self.assertIn(f"ci_commit_sha:{_CI_COMMIT_SHA}", m.tags)
+                gate_name = next(t.split(":", 1)[1] for t in m.tags if t.startswith("gate_name:"))
+                sent[(m.metric, gate_name)] = m.points[0].value
+
+            self._assert_gate_metrics(
+                sent,
+                _DEB_GATE,
+                on_disk=100 * _MiB + 20 * _KiB,
+                on_wire=50 * _MiB,
+                max_disk=105 * _MiB,
+                max_wire=55 * _MiB,
+                rel_disk=20 * _KiB,
+                rel_wire=0,
+            )
+            self._assert_gate_metrics(
+                sent,
+                _DOCKER_GATE,
+                on_disk=600 * _MiB + 20 * _KiB,
+                on_wire=240 * _MiB,
+                max_disk=700 * _MiB,
+                max_wire=250 * _MiB,
+                rel_disk=20 * _KiB,
+                rel_wire=0,
+            )
+
+            # Assert ancestor SHA was looked up to compute relative sizes
+            mock_query_metrics.assert_called_once_with("ancestor-sha")
+
+            mock_generate_reports.assert_called_once()
+
+            # Assert PR comment was posted for the correct PR
+            mock_pr_commenter.assert_called_once()
+            self.assertIs(mock_pr_commenter.call_args.kwargs["pr"], FakeGithubAPI.PR)
+
     @patch.dict(
         'os.environ',
         {
