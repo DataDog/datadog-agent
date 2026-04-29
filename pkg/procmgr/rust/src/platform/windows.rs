@@ -11,9 +11,8 @@ use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
 use windows_sys::Win32::System::Console::{CTRL_BREAK_EVENT, GenerateConsoleCtrlEvent};
 use windows_sys::Win32::System::JobObjects::{
     AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
-    JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectBasicProcessIdList,
-    JobObjectExtendedLimitInformation, QueryInformationJobObject, SetInformationJobObject,
-    TerminateJobObject,
+    JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
+    SetInformationJobObject, TerminateJobObject,
 };
 use windows_sys::Win32::System::Threading::{
     CREATE_NEW_PROCESS_GROUP, OpenProcess, PROCESS_SET_QUOTA, PROCESS_TERMINATE, TerminateProcess,
@@ -103,44 +102,6 @@ impl JobObject {
             }
         }
         Ok(())
-    }
-
-    /// Return the PIDs of all processes currently in the Job Object.
-    ///
-    /// Uses `QueryInformationJobObject(JobObjectBasicProcessIdList)`.
-    pub fn process_ids(&self) -> Result<Vec<u32>> {
-        const MAX_PIDS: usize = 64;
-
-        #[repr(C)]
-        struct PidList {
-            number_of_assigned_processes: u32,
-            number_of_process_ids_in_list: u32,
-            process_id_list: [usize; MAX_PIDS],
-        }
-
-        unsafe {
-            let mut list: PidList = std::mem::zeroed();
-            let ok = QueryInformationJobObject(
-                self.handle,
-                JobObjectBasicProcessIdList,
-                &mut list as *mut _ as *mut _,
-                std::mem::size_of::<PidList>() as u32,
-                std::ptr::null_mut(),
-            );
-            if ok == 0 {
-                anyhow::bail!(
-                    "QueryInformationJobObject failed: {}",
-                    std::io::Error::last_os_error()
-                );
-            }
-            // Only indices `0..number_of_process_ids_in_list` are valid; when the
-            // buffer is too small, `number_of_assigned_processes` can exceed it.
-            let n = list.number_of_process_ids_in_list as usize;
-            Ok(list.process_id_list[..n]
-                .iter()
-                .map(|&pid| pid as u32)
-                .collect())
-        }
     }
 
     /// Terminate every process in the Job Object with exit code 1.
