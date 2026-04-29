@@ -129,12 +129,13 @@ func (c *safeConfig) Set(key string, newValue interface{}, source model.Source) 
 	}
 	// Increment the sequence ID only if the value has changed
 	c.sequenceID++
+	sequenceID := c.sequenceID
 	c.Unlock()
 
 	// notifying all receiver about the updated setting
 	for _, receiver := range receivers {
 		log.Debugf("notifying %s about configuration change for '%s'", getCallerLocation(1), key)
-		receiver(key, source, oldValue, latestValue, c.sequenceID)
+		receiver(key, source, oldValue, latestValue, sequenceID)
 	}
 }
 
@@ -171,11 +172,12 @@ func (c *safeConfig) UnsetForSource(key string, source model.Source) {
 		receivers = slices.Clone(c.notificationReceivers)
 		c.sequenceID++
 	}
+	sequenceID := c.sequenceID
 	c.Unlock()
 
 	// notifying all receiver about the updated setting
 	for _, receiver := range receivers {
-		receiver(key, source, previousValue, newValue, c.sequenceID)
+		receiver(key, source, previousValue, newValue, sequenceID)
 	}
 }
 

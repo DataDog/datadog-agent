@@ -635,6 +635,8 @@ func getCOREConntracker(cfg *config.Config) (*manager.Manager, error) {
 	var m *manager.Manager
 	err = ddebpf.LoadCOREAsset(netebpf.ModuleFileName("conntrack", cfg.BPFDebug), func(ar bytecode.AssetReader, o manager.Options) error {
 		o.ConstantEditors = append(o.ConstantEditors,
+			boolConst("tcpv4_enabled", cfg.CollectTCPv4Conns),
+			boolConst("udpv4_enabled", cfg.CollectUDPv4Conns),
 			boolConst("tcpv6_enabled", cfg.CollectTCPv6Conns),
 			boolConst("udpv6_enabled", cfg.CollectUDPv6Conns),
 		)
