@@ -233,6 +233,10 @@ func (g *generator) addEventHandler(
 		ThrottlerIdx:        throttlerIdx,
 		PointerChasingLimit: captureConfig.GetMaxReferenceDepth(),
 		CollectionSizeLimit: captureConfig.GetMaxCollectionSize(),
+		// StringSizeLimit is forwarded as configured. The BPF stack
+		// machine clamps to MAX_DATA_ITEM_SIZE before serialization
+		// so an oversized maxLength produces a truncated capture
+		// rather than a silent skip; see pkg/dyninst/ebpf/stack_machine.h.
 		StringSizeLimit:     captureConfig.GetMaxLength(),
 		Frameless:           injectionPoint.Frameless,
 		HasAssociatedReturn: injectionPoint.HasAssociatedReturn,

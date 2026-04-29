@@ -285,7 +285,13 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
         shutil.copy("./cmd/agent/dist/system-probe.yaml", os.path.join(dist_folder, "system-probe.yaml"))
     shutil.copy("./cmd/agent/dist/datadog.yaml", os.path.join(dist_folder, "datadog.yaml"))
 
-    for check in core_checks.AGENT_CORECHECKS if not flavor.is_iot() else core_checks.IOT_AGENT_CORECHECKS:
+    if sys.platform.startswith('aix'):
+        checks_to_copy = core_checks.AIX_CORECHECKS
+    elif flavor.is_iot():
+        checks_to_copy = core_checks.IOT_AGENT_CORECHECKS
+    else:
+        checks_to_copy = core_checks.AGENT_CORECHECKS
+    for check in checks_to_copy:
         check_dir = os.path.join(dist_folder, f"conf.d/{check}.d/")
         shutil.copytree(
             f"./cmd/agent/dist/conf.d/{check}.d/",
