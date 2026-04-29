@@ -39,6 +39,11 @@ type RunParams struct {
 	deployDogstatsd    bool
 	deployTestWorkload bool
 	deployArgoRollout  bool
+
+	// standaloneAgentFunc, when non-nil, deploys a standalone agent DaemonSet
+	// using raw Kubernetes resources instead of the Datadog Helm chart.
+	// See StandaloneAgentDeployFunc and WithStandaloneOTelAgent.
+	standaloneAgentFunc StandaloneAgentDeployFunc
 }
 
 type RunOption = func(*RunParams) error
@@ -184,4 +189,11 @@ func WithDeployArgoRollout() RunOption {
 // WithOperatorOptions sets operator options
 func WithOperatorOptions(opts ...operatorparams.Option) RunOption {
 	return func(p *RunParams) error { p.operatorOptions = append(p.operatorOptions, opts...); return nil }
+}
+
+// WithStandaloneOTelAgent sets a callback that deploys a standalone agent DaemonSet
+// (e.g. otel-agent with DD_OTEL_STANDALONE=true) using raw Kubernetes resources,
+// bypassing the Datadog Helm chart.
+func WithStandaloneOTelAgent(fn StandaloneAgentDeployFunc) RunOption {
+	return func(p *RunParams) error { p.standaloneAgentFunc = fn; return nil }
 }

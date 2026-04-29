@@ -1,0 +1,9 @@
+# gazelle:exclude leaderelection_engine_test.go
+# gazelle:exclude leaderelection_engine.go
+# gazelle:exclude leaderelection_stub.go
+# gazelle:exclude leaderelection_test.go
+# gazelle:exclude leaderelection.go
+# gazelle:exclude metrics
+# gazelle:exclude status_templates
+# gazelle:exclude status_test.go
+# gazelle:exclude status.go

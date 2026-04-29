@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "httpclient",
+    srcs = ["adapter.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/httpclient",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/privateactionrunner/adapters/logging",
+        "@org_golang_x_net//http2",
+    ],
+)

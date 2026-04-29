@@ -13,6 +13,7 @@ import (
 
 	"k8s.io/client-go/dynamic"
 
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
@@ -26,9 +27,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
-func runCompliance(ctx context.Context, senderManager sender.SenderManager, wmeta workloadmeta.Component, filterStore workloadfilter.Component, apiCl *apiserver.APIClient, compression logscompression.Component, isLeader func() bool) error {
+func runCompliance(ctx context.Context, senderManager sender.SenderManager, wmeta workloadmeta.Component, filterStore workloadfilter.Component, apiCl *apiserver.APIClient, compression logscompression.Component, isLeader func() bool, secretsComp secrets.Component) error {
 	stopper := startstop.NewSerialStopper()
-	if err := startCompliance(ctx, senderManager, wmeta, filterStore, stopper, apiCl, isLeader, compression); err != nil {
+	if err := startCompliance(ctx, senderManager, wmeta, filterStore, stopper, apiCl, isLeader, compression, secretsComp); err != nil {
 		return err
 	}
 
@@ -38,7 +39,7 @@ func runCompliance(ctx context.Context, senderManager sender.SenderManager, wmet
 	return nil
 }
 
-func startCompliance(ctx context.Context, senderManager sender.SenderManager, wmeta workloadmeta.Component, filterStore workloadfilter.Component, stopper startstop.Stopper, apiCl *apiserver.APIClient, isLeader func() bool, compression logscompression.Component) error {
+func startCompliance(ctx context.Context, senderManager sender.SenderManager, wmeta workloadmeta.Component, filterStore workloadfilter.Component, stopper startstop.Stopper, apiCl *apiserver.APIClient, isLeader func() bool, compression logscompression.Component, secretsComp secrets.Component) error {
 	endpoints, destinationsCtx, err := seccommon.NewLogContextCompliance()
 	if err != nil {
 		log.Error(err)
@@ -53,7 +54,7 @@ func startCompliance(ctx context.Context, senderManager sender.SenderManager, wm
 		return err
 	}
 
-	reporter := compliance.NewLogReporter(hname, "compliance-agent", "compliance", endpoints, destinationsCtx, compression)
+	reporter := compliance.NewLogReporter(hname, "compliance-agent", "compliance", endpoints, destinationsCtx, compression, secretsComp)
 	statsdClient, err := simpleTelemetrySenderFromSenderManager(senderManager)
 	if err != nil {
 		return err

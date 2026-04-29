@@ -32,11 +32,15 @@ from tasks.libs.dependencies import get_effective_dependencies_env
 from tasks.libs.releasing.version import get_version
 
 
-def omnibus_run_task(ctx, task, target_project, base_dir, env, log_level="info", host_distribution=None):
+def omnibus_run_task(
+    ctx, task, target_project, base_dir, env, log_level="info", host_distribution=None, cache_dir=None
+):
     with ctx.cd("omnibus"):
         overrides = []
         if base_dir:
             overrides.append(f"--override=base_dir:{base_dir}")
+        if cache_dir:
+            overrides.append(f"--override=cache_dir:{cache_dir}")
         if host_distribution:
             overrides.append(f"--override=host_distribution:{host_distribution}")
 
@@ -80,13 +84,23 @@ def bundle_install_omnibus(ctx, gem_path=None, env=None, max_try=2):
         raise Exit('Too many failures while installing omnibus, giving up')
 
 
+def _resolve_omnibus_path_override(path, env_var):
+    path = path or os.environ.get(env_var)
+
+    if path is not None and sys.platform == 'win32':
+        # Omnibus expects forward slashes in Windows path overrides.
+        path = path.replace(os.path.sep, '/')
+
+    return path
+
+
 def get_omnibus_env(
     ctx,
     skip_sign=False,
     hardened_runtime=False,
     system_probe_bin=None,
     with_sd_agent=False,  # No-op; kept for backward compatibility
-    with_dd_procmgrd=False,
+    with_dd_procmgrd=False,  # No-op; kept for backward compatibility
     go_mod_cache=None,
     flavor=AgentFlavor.base,
     pip_config_file="pip.conf",
@@ -137,8 +151,6 @@ def get_omnibus_env(
 
     if system_probe_bin:
         env['SYSTEM_PROBE_BIN'] = system_probe_bin
-    if with_dd_procmgrd:
-        env['WITH_DD_PROCMGRD'] = 'true'
     env['AGENT_FLAVOR'] = flavor.name
 
     if custom_config_dir:
@@ -189,6 +201,7 @@ def _passthrough_env_for_os(starting_env: dict[str, str], platform: str) -> dict
 # hardened-runtime needs to be set to False to build on MacOS < 10.13.6, as the -o runtime option is not supported.
 @task(
     help={
+        'cache-dir': "Omnibus cache directory (can also be set with OMNIBUS_CACHE_DIR).",
         'skip-sign': "On macOS, use this option to build an unsigned package if you don't have Datadog's developer keys.",
         'hardened-runtime': "On macOS, use this option to enforce the hardened runtime setting, adding '-o runtime' to all codesign commands",
     }
@@ -198,13 +211,14 @@ def build(
     flavor=AgentFlavor.base.name,
     log_level="info",
     base_dir=None,
+    cache_dir=None,
     gem_path=None,
     skip_deps=False,
     skip_sign=False,
     hardened_runtime=False,
     system_probe_bin=None,
     with_sd_agent=False,  # No-op; kept for backward compatibility
-    with_dd_procmgrd=False,
+    with_dd_procmgrd=False,  # No-op; kept for backward compatibility
     go_mod_cache=None,
     python_mirror=None,
     pip_config_file="pip.conf",
@@ -224,13 +238,9 @@ def build(
         with timed(quiet=True) as durations['Deps']:
             deps(ctx)
 
-    # base dir (can be overridden through env vars, command line takes precedence)
-    base_dir = base_dir or os.environ.get("OMNIBUS_BASE_DIR")
-
-    if base_dir is not None and sys.platform == 'win32':
-        # On Windows, prevent backslashes in the base_dir path otherwise omnibus will fail with
-        # error 'no matched files for glob copy' at the end of the build.
-        base_dir = base_dir.replace(os.path.sep, '/')
+    # Omnibus path overrides can be configured by env vars, but explicit task args take precedence.
+    base_dir = _resolve_omnibus_path_override(base_dir, "OMNIBUS_BASE_DIR")
+    cache_dir = _resolve_omnibus_path_override(cache_dir, "OMNIBUS_CACHE_DIR")
 
     env = get_omnibus_env(
         ctx,
@@ -329,6 +339,7 @@ def build(
             env=env,
             log_level=log_level,
             host_distribution=host_distribution,
+            cache_dir=cache_dir,
         )
 
     # Delete the temporary pip.conf file once the build is done
@@ -378,6 +389,7 @@ def manifest(
     agent_binaries=False,
     log_level="info",
     base_dir=None,
+    cache_dir=None,
     gem_path=None,
     skip_sign=False,
     hardened_runtime=False,
@@ -387,8 +399,9 @@ def manifest(
     go_mod_cache=None,
 ):
     flavor = AgentFlavor[flavor]
-    # base dir (can be overridden through env vars, command line takes precedence)
-    base_dir = base_dir or os.environ.get("OMNIBUS_BASE_DIR")
+    # Omnibus path overrides can be configured by env vars, but explicit task args take precedence.
+    base_dir = _resolve_omnibus_path_override(base_dir, "OMNIBUS_BASE_DIR")
+    cache_dir = _resolve_omnibus_path_override(cache_dir, "OMNIBUS_CACHE_DIR")
 
     env = get_omnibus_env(
         ctx,
@@ -422,6 +435,7 @@ def manifest(
         base_dir=base_dir,
         env=env,
         log_level=log_level,
+        cache_dir=cache_dir,
     )
 
 
@@ -485,7 +499,15 @@ def build_repackaged_agent(ctx, log_level="info"):
 
     bundle_install_omnibus(ctx, None, env)
 
-    omnibus_run_task(ctx, "build", "agent", base_dir=None, env=env, log_level=log_level)
+    omnibus_run_task(
+        ctx,
+        "build",
+        "agent",
+        base_dir=None,
+        env=env,
+        log_level=log_level,
+        cache_dir=_resolve_omnibus_path_override(None, "OMNIBUS_CACHE_DIR"),
+    )
 
 
 class DebPackageInfo(NamedTuple):
@@ -662,6 +684,10 @@ def docker_build(
         "-e GIT_CONFIG_VALUE_0=/go/src/github.com/DataDog/datadog-agent",
         # Skip XZ compression - faster for local dev, use omnibus.build for CI
         "-e SKIP_PKG_COMPRESSION=true",
+        # Pass-through Go proxy env vars
+        "-e GOPROXY",
+        "-e GONOSUMDB",
+        "-e GOPRIVATE",
     ]
 
     # Build volume mounts (note: /opt/datadog-agent is a symlink created in build_cmd)
@@ -828,6 +854,8 @@ def rpath_edit(ctx, install_path, target_rpath_dd_folder, platform="linux"):
         file, file_type = line.split(":")
         file_type = file_type.strip()
 
+        modified = False
+
         if platform == "linux":
             if file_type not in ["application/x-executable", "inode/symlink", "application/x-sharedlib"]:
                 continue
@@ -847,21 +875,32 @@ def rpath_edit(ctx, install_path, target_rpath_dd_folder, platform="linux"):
             # if a dylib ID use our installation path we replace it with @rpath instead
             if install_path in dylib_id_paths:
                 _replace_dylib_id_paths_with_rpath(ctx, dylib_id_paths, install_path, file)
+                modified = True
 
             # if a dylib use our installation path we replace it with @rpath instead
             if install_path in dylib_paths:
                 _replace_dylib_paths_with_rpath(ctx, dylib_paths, install_path, file)
+                modified = True
 
         # if a binary has an rpath that use our installation path we are patching it
         if install_path in binary_rpath:
             new_rpath = os.path.relpath(target_rpath_dd_folder, os.path.dirname(file))
             _patch_binary_rpath(ctx, new_rpath, install_path, binary_rpath, platform, file)
+            modified = True
+
+        if modified and platform != "linux":
+            # Re-sign with an ad-hoc signature after install_name_tool modifications,
+            # which invalidate any existing code signature. On arm64 Macs, macOS
+            # enforces valid signatures at the kernel level (SIGKILL on tainted pages).
+            # When SIGN_MAC=true, the Developer ID signing in datadog-agent-finalize.rb
+            # overwrites these ad-hoc signatures afterward.
+            ctx.run(f"codesign --sign - --force {file}")
 
 
 @task
 def deduplicate_files(ctx, directory):
-    # Matches: .so, .so.X, .so.X.Y, .so.X.Y.Z, .bundle, .dll, .dylib, .pyd
-    LIB_PATTERN = re.compile(r"\.(bundle|dll|dylib|pyd|so(?:\.\d+)*)$")
+    # Matches: .a, .so, .so.X, .so.X.Y, .so.X.Y.Z, .bundle, .dll, .dylib, .pyd
+    LIB_PATTERN = re.compile(r"\.(a|bundle|dll|dylib|pyd|so(?:\.\d+)*)$")
 
     def hash_file(filepath):
         """Returns the SHA-256 hash of the file's contents."""

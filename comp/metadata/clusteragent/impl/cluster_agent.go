@@ -182,7 +182,7 @@ func (dca *datadogclusteragent) getConfigs(data map[string]interface{}) {
 			}
 		}
 	}
-	if yaml, err := dca.marshalAndScrub(dca.conf.AllSettings()); err == nil {
+	if yaml, err := dca.marshalAndScrub(dca.conf.AllSettingsWithoutSecrets()); err == nil {
 		data["full_configuration"] = yaml
 	}
 }

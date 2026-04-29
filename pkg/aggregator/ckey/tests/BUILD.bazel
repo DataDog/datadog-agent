@@ -4,6 +4,7 @@ go_test(
     name = "tests_test",
     srcs = ["collisions_test.go"],
     data = ["random_sorted_uniq_contexts.csv"],
+    gotags = ["test"],
     deps = [
         "//pkg/aggregator/ckey",
         "//pkg/tagset",

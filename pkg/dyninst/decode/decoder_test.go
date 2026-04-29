@@ -72,12 +72,15 @@ func FuzzDecoder(f *testing.F) {
 
 type (
 	captures struct{ Entry struct{ Arguments any } }
-	debugger struct {
-		Snapshot         struct{ Captures captures }
+	snapshot struct {
+		Captures         captures
 		EvaluationErrors []struct {
 			Expression string `json:"expr"`
 			Message    string `json:"message"`
 		} `json:"evaluationErrors,omitempty"`
+	}
+	debugger struct {
+		Snapshot snapshot
 	}
 	eventCaptures struct {
 		Debugger    debugger
@@ -258,7 +261,7 @@ func simpleStringArgEvent(t testing.TB, irProg *ir.Program) []byte {
 		return p.GetID() == "stringArg"
 	})
 	require.NotEqual(t, -1, probe)
-	events := irProg.Probes[probe].Events
+	events := irProg.Probes[probe].Instances[0].Events
 	require.GreaterOrEqual(t, len(events), 1)
 	eventType := events[0].Type
 	var stringType *ir.GoStringHeaderType
@@ -334,7 +337,7 @@ func simpleMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 		return p.GetID() == "mapArg"
 	})
 	require.NotEqual(t, -1, probe)
-	events := irProg.Probes[probe].Events
+	events := irProg.Probes[probe].Instances[0].Events
 	require.GreaterOrEqual(t, len(events), 1)
 	eventType := events[0].Type
 
@@ -391,11 +394,11 @@ func simpleMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 		strAddr     = uint64(0x300000003)
 	)
 
-	// Build root data item (presence bitset + pointers to header)
+	// Build root data item (expression status array + pointers to header)
 	rootData := make([]byte, rootLen)
-	// Set presence bits for both expressions (bit 0 for template_segment, bit 1 for argument)
-	if eventType.PresenceBitsetSize > 0 {
-		rootData[0] = 5 // presence bits: bit 0 (expr 0) and bit 2 (expr 1)
+	// Set expression status to present for both expressions.
+	if eventType.ExprStatusArraySize > 0 {
+		rootData[0] = 5 // expr status: present (1) for expr 0 at bits [0:1], present (1) for expr 1 at bits [2:3]
 	}
 	// First expression (template_segment) at offset 1
 	ptrOff := int(eventType.Expressions[0].Offset)
@@ -515,7 +518,7 @@ func simpleSwissMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 		return p.GetID() == "mapArg"
 	})
 	require.NotEqual(t, -1, probe)
-	events := irProg.Probes[probe].Events
+	events := irProg.Probes[probe].Instances[0].Events
 	require.GreaterOrEqual(t, len(events), 1)
 	eventType := events[0].Type
 
@@ -587,8 +590,8 @@ func simpleSwissMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 
 	// Build root data item
 	rootData := make([]byte, rootLen)
-	if eventType.PresenceBitsetSize > 0 {
-		rootData[0] = 5 // presence bits: bit 0 (expr 0) and bit 2 (expr 1)
+	if eventType.ExprStatusArraySize > 0 {
+		rootData[0] = 5 // expr status: present (1) for expr 0 at bits [0:1], present (1) for expr 1 at bits [2:3]
 	}
 	ptrOff := int(eventType.Expressions[0].Offset)
 	binary.NativeEndian.PutUint64(rootData[ptrOff:ptrOff+8], headerAddr)
@@ -700,7 +703,7 @@ func simpleSwissMapTablesArgEvent(t testing.TB, irProg *ir.Program) []byte {
 		return p.GetID() == "mapArg"
 	})
 	require.NotEqual(t, -1, probe)
-	events := irProg.Probes[probe].Events
+	events := irProg.Probes[probe].Instances[0].Events
 	require.GreaterOrEqual(t, len(events), 1)
 	eventType := events[0].Type
 
@@ -806,8 +809,8 @@ func simpleSwissMapTablesArgEvent(t testing.TB, irProg *ir.Program) []byte {
 
 	// Build root data item
 	rootData := make([]byte, rootLen)
-	if eventType.PresenceBitsetSize > 0 {
-		rootData[0] = 5 // presence bits: bit 0 (expr 0) and bit 2 (expr 1)
+	if eventType.ExprStatusArraySize > 0 {
+		rootData[0] = 5 // expr status: present (1) for expr 0 at bits [0:1], present (1) for expr 1 at bits [2:3]
 	}
 	ptrOff := int(eventType.Expressions[0].Offset)
 	binary.NativeEndian.PutUint64(rootData[ptrOff:ptrOff+8], headerAddr)
@@ -987,7 +990,7 @@ func simpleBigMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 		return p.GetID() == "bigMapArg"
 	})
 	require.NotEqual(t, -1, probe)
-	events := irProg.Probes[probe].Events
+	events := irProg.Probes[probe].Instances[0].Events
 	require.GreaterOrEqual(t, len(events), 1)
 	eventType := events[0].Type
 
@@ -1039,9 +1042,9 @@ func simpleBigMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	)
 
 	rootData := make([]byte, rootLen)
-	// Set presence bits for both expressions (bit 0 for template_segment, bit 1 for argument)
-	if eventType.PresenceBitsetSize > 0 {
-		rootData[0] = 5 // presence bits: bit 0 (expr 0) and bit 2 (expr 1)
+	// Set expression status to present for both expressions.
+	if eventType.ExprStatusArraySize > 0 {
+		rootData[0] = 5 // expr status: present (1) for expr 0 at bits [0:1], present (1) for expr 1 at bits [2:3]
 	}
 	// First expression (template_segment) at offset 1
 	ptrOff := int(eventType.Expressions[0].Offset)
@@ -1156,14 +1159,14 @@ func simplePointerChainArgEvent(t testing.TB, irProg *ir.Program) []byte {
 		return p.GetID() == "PointerChainArg"
 	})
 	require.NotEqual(t, -1, probe)
-	events := irProg.Probes[probe].Events
+	events := irProg.Probes[probe].Instances[0].Events
 	require.Len(t, events, 1)
 	eventType := events[0].Type
 	rootLen := int(eventType.GetByteSize())
 	rootData := make([]byte, rootLen)
-	// Set presence bits for both expressions (bit 0 for template_segment, bit 1 for argument)
-	if eventType.PresenceBitsetSize > 0 {
-		rootData[0] = 5 // presence bits: bit 0 (expr 0) and bit 2 (expr 1)
+	// Set expression status to present for both expressions.
+	if eventType.ExprStatusArraySize > 0 {
+		rootData[0] = 5 // expr status: present (1) for expr 0 at bits [0:1], present (1) for expr 1 at bits [2:3]
 	}
 	// Build a fully captured pointer chain *****int → int(17)
 	argType := eventType.Expressions[0].Expression.Type
@@ -1558,10 +1561,10 @@ func TestDecoderMissingReturnEventEvaluationError(t *testing.T) {
 			require.NoError(t, json.Unmarshal(buf, &e))
 
 			if tt.shouldHaveError {
-				require.NotEmpty(t, e.Debugger.EvaluationErrors,
+				require.NotEmpty(t, e.Debugger.Snapshot.EvaluationErrors,
 					"expected evaluation error but none found")
 				found := false
-				for _, evalErr := range e.Debugger.EvaluationErrors {
+				for _, evalErr := range e.Debugger.Snapshot.EvaluationErrors {
 					if evalErr.Expression == tt.expectedErrorExpression &&
 						evalErr.Message == tt.expectedErrorMessage {
 						found = true
@@ -1571,10 +1574,10 @@ func TestDecoderMissingReturnEventEvaluationError(t *testing.T) {
 				require.True(t, found,
 					"expected evaluation error with expression %q and message %q, got errors: %+v",
 					tt.expectedErrorExpression, tt.expectedErrorMessage,
-					e.Debugger.EvaluationErrors)
+					e.Debugger.Snapshot.EvaluationErrors)
 			} else {
 				// Check that there's no return-related error
-				require.Empty(t, e.Debugger.EvaluationErrors)
+				require.Empty(t, e.Debugger.Snapshot.EvaluationErrors)
 			}
 		})
 	}
@@ -1610,15 +1613,15 @@ func TestDecoderNilPointerCaptureExpression(t *testing.T) {
 	require.Nil(t, e.Debugger.Snapshot.Captures.Entry.Arguments)
 
 	// An evaluation error should be reported for the nil pointer.
-	require.NotEmpty(t, e.Debugger.EvaluationErrors)
+	require.NotEmpty(t, e.Debugger.Snapshot.EvaluationErrors)
 	found := false
-	for _, evalErr := range e.Debugger.EvaluationErrors {
+	for _, evalErr := range e.Debugger.Snapshot.EvaluationErrors {
 		if evalErr.Message == "nil pointer dereference" {
 			found = true
 			break
 		}
 	}
-	require.True(t, found, "expected nil pointer evaluation error, got: %+v", e.Debugger.EvaluationErrors)
+	require.True(t, found, "expected nil pointer evaluation error, got: %+v", e.Debugger.Snapshot.EvaluationErrors)
 }
 
 // TestDecoderNilPointerTemplateExpression tests that a nil pointer dereference

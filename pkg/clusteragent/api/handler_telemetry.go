@@ -11,18 +11,19 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
 	"github.com/prometheus/client_golang/prometheus"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 )
 
 var (
-	apiRequests = telemetry.NewCounterWithOpts("", "api_requests",
+	apiRequests = telemetryimpl.GetCompatComponent().NewCounterWithOpts("", "api_requests",
 		[]string{"handler", "status", "forwarded"}, "Counter of requests made to the cluster agent API.",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 
-	apiElapsed = telemetry.NewHistogramWithOpts("", "api_elapsed",
+	apiElapsed = telemetryimpl.GetCompatComponent().NewHistogramWithOpts("", "api_elapsed",
 		[]string{"handler", "status", "forwarded"}, "Poll duration distribution by config provider (in seconds).",
 		prometheus.DefBuckets,
 		telemetry.Options{NoDoubleUnderscoreSep: true})
@@ -52,8 +53,8 @@ func (t *TelemetryHandler) handle(w http.ResponseWriter, r *http.Request) {
 		tracer.Tag("http.url", r.URL.Path))
 	wrapper.setSpanTags = func(statusCode int) {
 		span.SetTag("http.status_code", statusCode)
-		if statusCode >= 400 {
-			span.SetTag("error", true)
+		if statusCode >= 400 && wrapper.capturedErr == nil {
+			wrapper.capturedErr = fmt.Errorf("HTTP %d", statusCode)
 		}
 	}
 	defer func() {
@@ -74,7 +75,7 @@ func (t *TelemetryHandler) handle(w http.ResponseWriter, r *http.Request) {
 			wrapper.setSpanTags(http.StatusOK)
 		}
 		if wrapper.forwarded {
-			span.SetTag("forwarded", true)
+			span.SetTag("forwarded", "true")
 		}
 		span.Finish(tracer.WithError(wrapper.capturedErr))
 	}()

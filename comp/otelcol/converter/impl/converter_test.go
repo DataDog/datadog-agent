@@ -12,6 +12,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -25,6 +26,8 @@ import (
 	"go.opentelemetry.io/collector/confmap/provider/httpsprovider"
 	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 type mockHostname struct {
@@ -527,4 +530,79 @@ func TestConvert_APIKeyFromEnvVar(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, confResult.ToStringMap(), conf.ToStringMap())
+}
+
+func TestHostmetricsWarning(t *testing.T) {
+	tests := []struct {
+		name        string
+		provided    string
+		agentConfig string
+		wantWarning bool
+	}{
+		{
+			name:        "hostmetrics in connected mode emits warning",
+			provided:    "receivers/hostmetrics-warning/connected/config.yaml",
+			agentConfig: "receivers/hostmetrics-warning/connected/acfg.yaml",
+			wantWarning: true,
+		},
+		{
+			name:        "hostmetrics in standalone mode no warning",
+			provided:    "receivers/hostmetrics-warning/standalone/config.yaml",
+			agentConfig: "receivers/hostmetrics-warning/standalone/acfg.yaml",
+			wantWarning: false,
+		},
+		{
+			name:        "no hostmetrics in connected mode no warning",
+			provided:    "receivers/hostmetrics-warning/no-hostmetrics/config.yaml",
+			agentConfig: "receivers/hostmetrics-warning/no-hostmetrics/acfg.yaml",
+			wantWarning: false,
+		},
+		{
+			name:        "named hostmetrics instance in connected mode emits warning",
+			provided:    "receivers/hostmetrics-warning/named-instance/config.yaml",
+			agentConfig: "receivers/hostmetrics-warning/named-instance/acfg.yaml",
+			wantWarning: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			observedCore, logs := observer.New(zapcore.WarnLevel)
+
+			f, err := os.ReadFile(uriFromFile(tc.agentConfig)[0])
+			require.NoError(t, err)
+			acfg := config.NewMockFromYAML(t, string(f))
+
+			conv := &ddConverter{
+				coreConfig: acfg,
+				hostname:   &mockHostname{hostname: "test-host"},
+				logger:     zap.New(observedCore),
+			}
+
+			resolver, err := newResolver(uriFromFile(tc.provided))
+			require.NoError(t, err)
+			conf, err := resolver.Resolve(context.Background())
+			require.NoError(t, err)
+
+			conv.Convert(context.Background(), conf)
+
+			hostmetricsWarnings := filterLogsBySubstring(logs, "hostmetrics")
+			if tc.wantWarning {
+				assert.NotEmpty(t, hostmetricsWarnings, "expected a hostmetrics warning log")
+				assert.Contains(t, hostmetricsWarnings[0].Message, "connected mode")
+			} else {
+				assert.Empty(t, hostmetricsWarnings, "expected no hostmetrics warning log")
+			}
+		})
+	}
+}
+
+func filterLogsBySubstring(logs *observer.ObservedLogs, substr string) []observer.LoggedEntry {
+	var filtered []observer.LoggedEntry
+	for _, entry := range logs.All() {
+		if entry.Level == zapcore.WarnLevel && strings.Contains(entry.Message, substr) {
+			filtered = append(filtered, entry)
+		}
+	}
+	return filtered
 }

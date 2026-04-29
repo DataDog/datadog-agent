@@ -131,15 +131,21 @@ func (l *DBMRdsListener) discoverRdsInstances() {
 }
 
 func (l *DBMRdsListener) createService(entityID string, instance aws.Instance) {
-	if _, present := l.services[entityID]; present {
-		return
-	}
 	svc := &DBMRdsService{
 		adIdentifier: engineToRdsADIdentifier[instance.Engine],
 		entityID:     entityID,
 		checkName:    engineToIntegrationType[instance.Engine],
 		instance:     &instance,
 		region:       l.config.Region,
+	}
+	if existing, present := l.services[entityID]; present {
+		if existingSvc, ok := existing.(*DBMRdsService); ok && existingSvc.Equal(svc) {
+			return
+		}
+		// If the cached service is not equal to the new service then metadata has changed
+		// Delete the cached service first and then send the updated one to the newSvc channel.
+		l.delService <- existing
+		delete(l.services, entityID)
 	}
 	l.services[entityID] = svc
 	l.newService <- svc

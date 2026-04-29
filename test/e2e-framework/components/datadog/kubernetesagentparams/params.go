@@ -85,6 +85,9 @@ type Params struct {
 	WindowsImage bool
 	// TimeoutSeconds is the timeout for Helm operations in seconds (default: 300)
 	TimeoutSeconds int
+	// HelmChartVersion overrides the default Helm chart version for this installation.
+	// When empty, the framework default HelmVersion is used.
+	HelmChartVersion string
 }
 
 type Option = func(*Params) error
@@ -174,6 +177,15 @@ func WithHostname(hostname string) func(*Params) error {
 func WithHelmRepoURL(repoURL string) func(*Params) error {
 	return func(p *Params) error {
 		p.HelmRepoURL = repoURL
+		return nil
+	}
+}
+
+// WithHelmChartVersion overrides the Helm chart version for this installation.
+// Use this to pin a specific chart version without changing the global framework default.
+func WithHelmChartVersion(version string) func(*Params) error {
+	return func(p *Params) error {
+		p.HelmChartVersion = version
 		return nil
 	}
 }

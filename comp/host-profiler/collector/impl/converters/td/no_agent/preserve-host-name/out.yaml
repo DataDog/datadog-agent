@@ -1,5 +1,6 @@
 exporters:
     otlphttp:
+        compression: zstd
         headers:
             dd-api-key: test-key
             dd-evp-origin: host-profiler

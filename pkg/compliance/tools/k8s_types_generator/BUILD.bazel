@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "k8s_types_generator_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/compliance/tools/k8s_types_generator",
+    visibility = ["//visibility:private"],
+    deps = [
+        "@org_golang_x_text//cases",
+        "@org_golang_x_text//language",
+    ],
+)
+
+go_binary(
+    name = "k8s_types_generator",
+    embed = [":k8s_types_generator_lib"],
+    visibility = ["//visibility:public"],
+)

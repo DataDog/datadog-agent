@@ -15,8 +15,6 @@
 #include "compiler.h"
 
 enum telemetry_counter {
-    unbatched_tcp_close,
-    unbatched_udp_close,
     udp_send_processed,
     udp_send_missed,
     udp_dropped_conns,
@@ -39,12 +37,6 @@ static __always_inline void __increment_telemetry_count(enum telemetry_counter c
     }
 
     switch (counter_name) {
-    case unbatched_tcp_close:
-        __sync_fetch_and_add(&val->unbatched_tcp_close, times);
-        break;
-    case unbatched_udp_close:
-        __sync_fetch_and_add(&val->unbatched_udp_close, times);
-        break;
     case udp_send_processed:
         __sync_fetch_and_add(&val->udp_sends_processed, times);
         break;

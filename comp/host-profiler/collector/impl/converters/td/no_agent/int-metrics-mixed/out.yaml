@@ -1,10 +1,12 @@
 exporters:
     otlphttp/no-ep:
+        compression: zstd
         headers:
             dd-api-key: test-api-key-2
             dd-evp-origin: host-profiler
             dd-evp-origin-version: 7.0.0-test
     otlphttp/with-ep:
+        compression: zstd
         headers:
             dd-api-key: test-api-key-1
             dd-evp-origin: host-profiler
@@ -56,7 +58,7 @@ receivers:
                     - PrometheusText0.0.4
                   static_configs:
                     - targets:
-                        - 127.0.0.1:8888
+                        - 127.0.0.1:8889
 service:
     pipelines:
         metrics:

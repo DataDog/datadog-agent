@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "pipeline",
+    srcs = ["pipeline.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/pipeline",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@org_golang_x_sync//semaphore",
+    ],
+)
+
+go_test(
+    name = "pipeline_test",
+    srcs = ["pipeline_test.go"],
+    embed = [":pipeline"],
+    deps = [
+        "@com_github_jonboulle_clockwork//:clockwork",
+        "@com_github_stretchr_testify//require",
+    ],
+)

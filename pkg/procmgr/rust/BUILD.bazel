@@ -14,53 +14,87 @@ proto_library(
     srcs = ["proto/process_manager.proto"],
 )
 
+_LINUX_OR_WINDOWS = select({
+    "@platforms//os:linux": [],
+    "@platforms//os:windows": [],
+    "//conditions:default": ["@platforms//:incompatible"],
+})
+
 rust_prost_library(
     name = "process_manager_rust_proto",
     proto = ":process_manager_proto",
-    target_compatible_with = ["@platforms//os:linux"],
+    target_compatible_with = _LINUX_OR_WINDOWS,
     visibility = ["//visibility:public"],
 )
 
 # rust_prost_library propagates CcInfo from proto_library, which transitively
 # includes abseil-cpp (C++). The Rust linker does not add libstdc++ by default,
-# so we provide it explicitly.
+# so we provide it explicitly. On Windows the MinGW toolchain links C++ runtime
+# automatically.
 cc_library(
     name = "cpp_stdlib",
-    linkopts = ["-lstdc++"],
+    linkopts = select({
+        "@platforms//os:windows": [],
+        "//conditions:default": ["-lstdc++"],
+    }),
 )
 
 # ============================================================================
 # Library
 # ============================================================================
 
+_LIB_SRCS = glob(
+    ["src/**/*.rs"],
+    exclude = ["src/bins/**"],
+)
+
+_LIB_DEPS = [
+    ":cpp_stdlib",
+    ":process_manager_rust_proto",
+    "@crates//:anyhow",
+    "@crates//:hyper-util",
+    "@crates//:log",
+    "@crates//:prost",
+    "@crates//:serde",
+    "@crates//:serde_json",
+    "@crates//:serde_yaml",
+    "@crates//:tokio",
+    "@crates//:tokio-stream",
+    "@crates//:tonic",
+    "@crates//:tonic-reflection",
+    "@crates//:tower",
+    "@crates//:uuid",
+] + select({
+    "@platforms//os:linux": [
+        "@crates//:nix",
+    ],
+    "@platforms//os:windows": [
+        "@crates//:windows-sys",
+    ],
+    "//conditions:default": [],
+})
+
 rust_library(
     name = "dd-procmgrd-lib",
-    srcs = glob(
-        ["src/**/*.rs"],
-        exclude = ["src/bins/**"],
-    ),
+    srcs = _LIB_SRCS,
     crate_name = "dd_procmgrd",
     edition = "2024",
     rustc_flags = ["--cfg=bazel"],
-    target_compatible_with = [
-        "@platforms//os:linux",
-    ],
+    target_compatible_with = _LINUX_OR_WINDOWS,
     visibility = ["//visibility:public"],
-    deps = [
-        ":cpp_stdlib",
-        ":process_manager_rust_proto",
-        "@crates//:anyhow",
-        "@crates//:log",
-        "@crates//:nix",
-        "@crates//:prost",
-        "@crates//:serde",
-        "@crates//:serde_yaml",
-        "@crates//:tokio",
-        "@crates//:tokio-stream",
-        "@crates//:tonic",
-        "@crates//:tonic-reflection",
-        "@crates//:uuid",
-    ],
+    deps = _LIB_DEPS,
+)
+
+rust_library(
+    name = "dd-procmgrd-lib-testhelpers",
+    testonly = True,
+    srcs = _LIB_SRCS,
+    crate_features = ["test-helpers"],
+    crate_name = "dd_procmgrd",
+    edition = "2024",
+    rustc_flags = ["--cfg=bazel"],
+    target_compatible_with = _LINUX_OR_WINDOWS,
+    deps = _LIB_DEPS,
 )
 
 # ============================================================================
@@ -72,9 +106,25 @@ rust_binary(
     srcs = ["src/bins/dd-procmgrd.rs"],
     edition = "2024",
     rustc_flags = ["--cfg=bazel"],
-    target_compatible_with = [
-        "@platforms//os:linux",
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":dd-procmgrd-lib",
+        "//comp/core/log/rust:dd-agent-log",
+        "@crates//:anyhow",
+        "@crates//:log",
+        "@crates//:tokio",
     ],
+)
+
+# Windows service binary — functionally identical to dd-procmgrd, different
+# name for the Windows installer.
+rust_binary(
+    name = "dd-procmgr-service",
+    srcs = ["src/bins/dd-procmgr-service.rs"],
+    edition = "2024",
+    rustc_flags = ["--cfg=bazel"],
+    target_compatible_with = ["@platforms//os:windows"],
     visibility = ["//visibility:public"],
     deps = [
         ":dd-procmgrd-lib",
@@ -90,18 +140,14 @@ rust_binary(
     srcs = ["src/bins/dd-procmgr.rs"],
     edition = "2024",
     rustc_flags = ["--cfg=bazel"],
-    target_compatible_with = [
-        "@platforms//os:linux",
-    ],
+    target_compatible_with = _LINUX_OR_WINDOWS,
     visibility = ["//visibility:public"],
     deps = [
         ":dd-procmgrd-lib",
         "@crates//:clap",
-        "@crates//:hyper-util",
         "@crates//:serde_json",
         "@crates//:tokio",
         "@crates//:tonic",
-        "@crates//:tower",
     ],
 )
 
@@ -115,11 +161,14 @@ pkg_files(
         mode = "0755",
     ),
     prefix = "embedded/bin",
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//packages:__subpackages__"],
 )
 
 pkg_install(
     name = "install",
     srcs = [":all_files"],
+    target_compatible_with = ["@platforms//os:linux"],
 )
 
 # ============================================================================
@@ -131,6 +180,7 @@ rust_test(
     crate = ":dd-procmgrd-lib",
     edition = "2024",
     rustc_flags = ["--cfg=bazel"],
+    target_compatible_with = _LINUX_OR_WINDOWS,
     deps = [
         "@crates//:hyper-util",
         "@crates//:tempfile",
@@ -148,17 +198,27 @@ rust_test(
     data = [
         ":dd-procmgr",
         ":dd-procmgrd",
-        "//pkg/fleet/installer/packages/embedded/tmpl:datadog-agent-ddot.yaml.tmpl",
+        "//pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-ddot.yaml.tmpl",
     ],
     edition = "2024",
     rustc_env = {
         "CARGO_BIN_EXE_dd-procmgr": "$(rootpath :dd-procmgr)",
         "CARGO_BIN_EXE_dd-procmgrd": "$(rootpath :dd-procmgrd)",
-        "DDOT_TEMPLATE_PATH": "$(rootpath //pkg/fleet/installer/packages/embedded/tmpl:datadog-agent-ddot.yaml.tmpl)",
+        "DDOT_TEMPLATE_PATH": "$(rootpath //pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-ddot.yaml.tmpl)",
     },
+    # E2E tests use UDS for transport and spawn the Linux daemon binary.
+    target_compatible_with = ["@platforms//os:linux"],
     deps = [
-        "@crates//:nix",
+        ":dd-procmgrd-lib-testhelpers",
         "@crates//:serde_json",
         "@crates//:tempfile",
-    ],
+    ] + select({
+        "@platforms//os:linux": [
+            "@crates//:nix",
+        ],
+        "@platforms//os:windows": [
+            "@crates//:windows-sys",
+        ],
+        "//conditions:default": [],
+    }),
 )

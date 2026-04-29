@@ -1,0 +1,4 @@
+# gazelle:exclude bundle.go
+# gazelle:exclude bundle_test.go
+# gazelle:exclude cloudfoundrycontainer/fx
+# gazelle:exclude cloudfoundrycontainer/impl

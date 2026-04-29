@@ -102,7 +102,9 @@ func (p *publicClient) EnrollWithApiKey(
 	req.Header.Set("Content-Type", "application/vnd.api+json")
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("DD-API-KEY", apiKey)
-	req.Header.Set("DD-APPLICATION-KEY", appKey)
+	if appKey != "" {
+		req.Header.Set("DD-APPLICATION-KEY", appKey)
+	}
 	req.Header.Set(app.VersionHeaderName, parversion.RunnerVersion)
 
 	resp, err := http.DefaultClient.Do(req)

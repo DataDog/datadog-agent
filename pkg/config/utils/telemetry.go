@@ -45,7 +45,7 @@ func IsTelemetryEnabled(cfg pkgconfigmodel.Reader) bool {
 
 // IsAgentTelemetryEnabled returns true if Agent Telemetry is enabled
 func IsAgentTelemetryEnabled(cfg pkgconfigmodel.Reader) bool {
-	reSite := regexp.MustCompile(`(.+\.)?ddog-gov\.(com|mil)`)
+	reSite := regexp.MustCompile(`(.+\.)?ddog-gov\.com`)
 	// Disable Agent Telemetry for GovCloud
 	if cfg.GetBool("fips.enabled") || reSite.MatchString(cfg.GetString("site")) {
 		return false

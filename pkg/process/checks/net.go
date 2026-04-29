@@ -19,7 +19,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
+	npcollector "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/def"
 	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -72,9 +72,10 @@ type ConnectionsCheck struct {
 	networkID              string
 	notInitializedLogLimit *log.Limit
 
-	dockerFilter     *parser.DockerProxy
-	serviceExtractor *parser.ServiceExtractor
-	processData      *ProcessData
+	dockerFilter         *parser.DockerProxy
+	serviceExtractor     *parser.ServiceExtractor
+	processNameExtractor *parser.ProcessNameExtractor
+	processData          *ProcessData
 
 	localresolver *resolver.LocalResolver
 	wmeta         workloadmeta.Component
@@ -113,8 +114,10 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 	useWindowsServiceName := c.sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
 	useImprovedAlgorithm := c.sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.use_improved_algorithm")
 	c.serviceExtractor = parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
+	c.processNameExtractor = parser.NewProcessNameExtractor()
 	c.processData.Register(c.dockerFilter)
 	c.processData.Register(c.serviceExtractor)
+	c.processData.Register(c.processNameExtractor)
 	c.hostTagProvider = hosttags.NewHostTagProviderWithDuration(c.sysprobeYamlConfig.GetDuration("system_probe_config.expected_tags_duration"))
 
 	// LocalResolver is a singleton LocalResolver
@@ -205,7 +208,7 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 	}
 
 	groupID := nextGroupID()
-	messages := batchConnections(c.hostInfo, c.hostTagProvider, getContainersCB, getProcessTagsCB, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor, conns.ResolvConfs, iisTags, procCacheTags, portToPID)
+	messages := batchConnections(c.hostInfo, c.hostTagProvider, getContainersCB, getProcessTagsCB, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor, c.processNameExtractor, conns.ResolvConfs, iisTags, procCacheTags, portToPID)
 	return StandardRunResult(messages), nil
 }
 
@@ -469,6 +472,7 @@ func batchConnections(
 	tags []string,
 	agentCfg *model.AgentConfiguration,
 	serviceExtractor *parser.ServiceExtractor,
+	processNameExtractor *parser.ProcessNameExtractor,
 	resolvConfs []string,
 	iisTags map[string][]string,
 	procCacheTags map[uint32][]string,
@@ -566,6 +570,12 @@ func batchConnections(
 					log.Debugf("error getting tags for process %v: %v", c.Pid, err)
 				} else {
 					tagsStr = append(tagsStr, processTags...)
+				}
+			}
+
+			if processNameExtractor != nil {
+				if name := processNameExtractor.GetProcessName(c.Pid); name != "" {
+					tagsStr = append(tagsStr, "process_name:"+name)
 				}
 			}
 

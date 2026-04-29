@@ -341,63 +341,134 @@ func TestResolveTokenizerAndLabelerMaxInputBytes(t *testing.T) {
 
 	sourceOverride20 := 20
 	sourceOverride500 := 500
+	enabledTrue := true
+	enabledFalse := false
 
 	tests := []struct {
-		name             string
-		samplerEnabled   bool
-		sourceSettings   *config.SourceAutoMultiLineOptions
-		wantTokenizerMax int
-		wantLabelerMax   int
+		name                  string
+		globalSamplerEnabled  bool
+		sourceAutoMLSettings  *config.SourceAutoMultiLineOptions
+		sourceSamplerSettings *config.SourceAdaptiveSamplingOptions
+		wantTokenizerMax      int
+		wantLabelerMax        int
 	}{
 		{
-			name:             "global defaults no sampler",
-			samplerEnabled:   false,
-			sourceSettings:   nil,
-			wantTokenizerMax: 60,
-			wantLabelerMax:   60,
+			name:                 "global defaults no sampler",
+			globalSamplerEnabled: false,
+			sourceAutoMLSettings: nil,
+			wantTokenizerMax:     60,
+			wantLabelerMax:       60,
 		},
 		{
-			name:           "source override no sampler",
-			samplerEnabled: false,
-			sourceSettings: &config.SourceAutoMultiLineOptions{
+			name:                 "source override no sampler",
+			globalSamplerEnabled: false,
+			sourceAutoMLSettings: &config.SourceAutoMultiLineOptions{
 				TokenizerMaxInputBytes: &sourceOverride20,
 			},
 			wantTokenizerMax: 20,
 			wantLabelerMax:   20,
 		},
 		{
-			name:             "sampler widens tokenizer from global",
-			samplerEnabled:   true,
-			sourceSettings:   nil,
-			wantTokenizerMax: 256,
-			wantLabelerMax:   60,
+			name:                 "global sampler widens tokenizer from global",
+			globalSamplerEnabled: true,
+			sourceAutoMLSettings: nil,
+			wantTokenizerMax:     256,
+			wantLabelerMax:       60,
 		},
 		{
-			name:           "sampler widens tokenizer while keeping source labeler limit",
-			samplerEnabled: true,
-			sourceSettings: &config.SourceAutoMultiLineOptions{
+			name:                 "global sampler widens tokenizer while keeping source labeler limit",
+			globalSamplerEnabled: true,
+			sourceAutoMLSettings: &config.SourceAutoMultiLineOptions{
 				TokenizerMaxInputBytes: &sourceOverride20,
 			},
 			wantTokenizerMax: 256,
 			wantLabelerMax:   20,
 		},
 		{
-			name:           "source override larger than sampler minimum",
-			samplerEnabled: true,
-			sourceSettings: &config.SourceAutoMultiLineOptions{
+			name:                 "source labeler override larger than sampler minimum",
+			globalSamplerEnabled: true,
+			sourceAutoMLSettings: &config.SourceAutoMultiLineOptions{
 				TokenizerMaxInputBytes: &sourceOverride500,
 			},
 			wantTokenizerMax: 500,
 			wantLabelerMax:   500,
 		},
+		{
+			name:                 "source sampler enable overrides global false",
+			globalSamplerEnabled: false,
+			sourceSamplerSettings: &config.SourceAdaptiveSamplingOptions{
+				Enabled: &enabledTrue,
+			},
+			wantTokenizerMax: 256,
+			wantLabelerMax:   60,
+		},
+		{
+			name:                 "source sampler disable overrides global true",
+			globalSamplerEnabled: true,
+			sourceSamplerSettings: &config.SourceAdaptiveSamplingOptions{
+				Enabled: &enabledFalse,
+			},
+			wantTokenizerMax: 60,
+			wantLabelerMax:   60,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockConfig.Set("logs_config.experimental_adaptive_sampling.enabled", tt.samplerEnabled, pkgconfigmodel.SourceAgentRuntime)
-			gotTokenizerMax, gotLabelerMax := resolveTokenizerAndLabelerMaxInputBytes(tt.sourceSettings)
+			mockConfig.Set("logs_config.experimental_adaptive_sampling.enabled", tt.globalSamplerEnabled, pkgconfigmodel.SourceAgentRuntime)
+			gotTokenizerMax, gotLabelerMax := resolveTokenizerAndLabelerMaxInputBytes(tt.sourceAutoMLSettings, tt.sourceSamplerSettings)
 			assert.Equal(t, tt.wantTokenizerMax, gotTokenizerMax)
 			assert.Equal(t, tt.wantLabelerMax, gotLabelerMax)
+		})
+	}
+}
+
+func TestResolveAdaptiveSamplerEnabled(t *testing.T) {
+	mockConfig := configmock.New(t)
+	enabledTrue := true
+	enabledFalse := false
+
+	tests := []struct {
+		name          string
+		globalEnabled bool
+		sourceCfg     *config.SourceAdaptiveSamplingOptions
+		want          bool
+	}{
+		{
+			name:          "falls back to global when source unset",
+			globalEnabled: true,
+			sourceCfg:     nil,
+			want:          true,
+		},
+		{
+			name:          "source disable overrides global enable",
+			globalEnabled: true,
+			sourceCfg: &config.SourceAdaptiveSamplingOptions{
+				Enabled: &enabledFalse,
+			},
+			want: false,
+		},
+		{
+			name:          "source enable overrides global disable",
+			globalEnabled: false,
+			sourceCfg: &config.SourceAdaptiveSamplingOptions{
+				Enabled: &enabledTrue,
+			},
+			want: true,
+		},
+		{
+			name:          "source block without enabled still falls back to global",
+			globalEnabled: false,
+			sourceCfg:     &config.SourceAdaptiveSamplingOptions{},
+			want:          false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockConfig.Set("logs_config.experimental_adaptive_sampling.enabled", tt.globalEnabled, pkgconfigmodel.SourceAgentRuntime)
+			got := resolveAdaptiveSamplerEnabled(tt.sourceCfg)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }

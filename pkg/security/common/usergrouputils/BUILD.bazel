@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "usergrouputils",
+    srcs = ["parser.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/common/usergrouputils",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "usergrouputils_test",
+    srcs = ["parser_test.go"],
+    embed = [":usergrouputils"],
+    embedsrcs = [
+        "group.sample",
+        "passwd.sample",
+    ],
+)

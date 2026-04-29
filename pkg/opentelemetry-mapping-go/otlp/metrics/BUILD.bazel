@@ -66,6 +66,7 @@ go_test(
     ],
     data = glob(["test/**"]),
     embed = [":metrics"],
+    gotags = ["test"],
     deps = [
         "//pkg/opentelemetry-mapping-go/otlp/attributes",
         "//pkg/opentelemetry-mapping-go/otlp/attributes/source",

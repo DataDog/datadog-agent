@@ -3385,10 +3385,12 @@ func (s *TracerSuite) TestTCPRetransmitSyncOnClose() {
 func (s *TracerSuite) TestTCPCongestionSyncOnClose() {
 	t := s.T()
 	cfg := testConfig()
-	if isPrebuilt(cfg) {
+	switch ebpftest.GetBuildMode() {
+	case ebpftest.Prebuilt:
 		t.Skip("TCP congestion signals not available on prebuilt")
+	case ebpftest.Ebpfless:
+		t.Skip("TCP congestion signals not available on ebpfless")
 	}
-	skipOnEbpflessNotSupported(t, cfg)
 	if kv < kernel.VersionCode(4, 19, 0) {
 		t.Skip("reord_seen requires kernel 4.19+")
 	}
@@ -3442,10 +3444,12 @@ func (s *TracerSuite) TestTCPCongestionSyncOnClose() {
 func (s *TracerSuite) TestTCPEventStatsSyncOnClose() {
 	t := s.T()
 	cfg := testConfig()
-	if isPrebuilt(cfg) {
+	switch ebpftest.GetBuildMode() {
+	case ebpftest.Prebuilt:
 		t.Skip("TCP congestion signals not available on prebuilt")
+	case ebpftest.Ebpfless:
+		t.Skip("TCP congestion signals not available on ebpfless")
 	}
-	skipOnEbpflessNotSupported(t, cfg)
 
 	tr := setupTracer(t, cfg)
 
@@ -3582,10 +3586,12 @@ func (env *netemTestEnv) dialInNs(t *testing.T) net.Conn {
 func (s *TracerSuite) TestTCPRTOCount() {
 	t := s.T()
 	cfg := testConfig()
-	if isPrebuilt(cfg) {
+	switch ebpftest.GetBuildMode() {
+	case ebpftest.Prebuilt:
 		t.Skip("TCP congestion signals not available on prebuilt")
+	case ebpftest.Ebpfless:
+		t.Skip("TCP congestion signals not available on ebpfless")
 	}
-	skipOnEbpflessNotSupported(t, cfg)
 
 	tr := setupTracer(t, cfg)
 
@@ -3685,56 +3691,70 @@ func runNetemCongestionTest(
 	}, 30*time.Second, 200*time.Millisecond)
 }
 
-// TestTCPRecoveryCount validates the recovery_count signal.
-// Strategy: calibrate with low loss so SACK is active and the kernel
-// has enough in-flight data, then spike loss so SACK detects gaps and
-// triggers fast recovery. Delay stays low to avoid RTO.
+// TestTCPRecoveryCount validates the recovery_count signal. To stay reliable
+// across the CI kernel matrix, the test tries a sequence of netem configs
+// until one triggers fast recovery. Each attempt runs in a fresh network
+// namespace with a fresh TCP connection, so kernel per-connection and
+// per-peer adaptive state (notably tp->reordering, which the kernel raises
+// when it sees reordering without loss) starts from defaults every time.
 func (s *TracerSuite) TestTCPRecoveryCount() {
 	t := s.T()
 	cfg := testConfig()
-	if isPrebuilt(cfg) {
+	switch ebpftest.GetBuildMode() {
+	case ebpftest.Prebuilt:
 		t.Skip("TCP congestion signals not available on prebuilt")
+	case ebpftest.Ebpfless:
+		t.Skip("TCP congestion signals not available on ebpfless")
 	}
-	skipOnEbpflessNotSupported(t, cfg)
 
 	tr := setupTracer(t, cfg)
 
-	doneCh := make(chan struct{})
-	env := setupNetemTestEnv(t, func(c net.Conn) {
-		io.Copy(io.Discard, c) //nolint:errcheck
-		<-doneCh
-	})
-	t.Cleanup(func() { close(doneCh) })
-
-	// Dial on a clean link, then apply low loss so SACK is active and
-	// the kernel builds up enough in-flight segments.
-	c := env.dialInNs(t)
-	defer c.Close()
-	env.addNetem(t, "delay", "5ms", "loss", "5%")
-
-	// Send calibration packets so the kernel has in-flight data and
-	// SACK state established.
-	for i := 0; i < 10; i++ {
-		c.SetWriteDeadline(time.Now().Add(2 * time.Second))
-		c.Write(make([]byte, 64*1024)) //nolint:errcheck
+	netemConfigs := [][]string{
+		{"delay", "20ms", "2ms"},
+		{"delay", "20ms", "10ms"},
+		{"delay", "20ms", "reorder", "3%", "25%"},
+		{"delay", "50ms", "reorder", "75%"},
+		{"delay", "50ms", "loss", "15%", "50%"},
+		{"delay", "50ms", "loss", "20%", "50%"},
 	}
 
-	// Spike loss — delay stays low so RTO doesn't fire, but frequent
-	// correlated drops trigger SACK-based fast recovery.
-	env.changeNetem(t, "delay", "5ms", "loss", "30%", "50%")
+	for i, netemArgs := range netemConfigs {
+		t.Logf("TestTCPRecoveryCount attempt %d/%d: netem %v", i+1, len(netemConfigs), netemArgs)
+		c := setupNetemCongestionTest(t, netemArgs, nil)
+		triggered := false
+		deadline := time.Now().Add(20 * time.Second)
+		for time.Now().Before(deadline) {
+			c.SetWriteDeadline(time.Now().Add(2 * time.Second))
+			c.Write(make([]byte, 64*1024)) //nolint:errcheck
 
-	require.EventuallyWithT(t, func(ct *assert.CollectT) {
-		c.SetWriteDeadline(time.Now().Add(2 * time.Second))
-		c.Write(make([]byte, 64*1024)) //nolint:errcheck
+			conns, cleanup := getConnections(t, tr)
+			conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+			if ok {
+				if conn.Last.TCPRecoveryCount > 0 {
+					triggered = true
+					cleanup()
+					break
+				}
+				// Once RTO fires cwnd collapses and fast recovery is
+				// very unlikely to fire in the remaining budget — bail
+				// out and try the next config.
+				if conn.Monotonic.TCPRTOCount > 0 {
+					t.Logf("  RTO fired, cwnd collapsed; abandoning config early")
+					cleanup()
+					break
+				}
+			}
+			cleanup()
 
-		conns, cleanup := getConnections(ct, tr)
-		defer cleanup()
-		conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
-		if !assert.True(ct, ok, "connection not found") {
+			time.Sleep(200 * time.Millisecond)
+		}
+		c.Close()
+		if triggered {
+			t.Logf("recovery_count > 0 reached with config %v", netemArgs)
 			return
 		}
-		assert.Greater(ct, conn.Last.TCPRecoveryCount, uint32(0), "recovery_count should be > 0")
-	}, 30*time.Second, 200*time.Millisecond)
+	}
+	t.Fatalf("no netem config triggered recovery_count > 0 after %d attempts", len(netemConfigs))
 }
 
 // TestTCPReordSeen validates the reord_seen signal by introducing packet
@@ -3744,10 +3764,12 @@ func (s *TracerSuite) TestTCPRecoveryCount() {
 func (s *TracerSuite) TestTCPReordSeen() {
 	t := s.T()
 	cfg := testConfig()
-	if isPrebuilt(cfg) {
+	switch ebpftest.GetBuildMode() {
+	case ebpftest.Prebuilt:
 		t.Skip("TCP congestion signals not available on prebuilt")
+	case ebpftest.Ebpfless:
+		t.Skip("TCP congestion signals not available on ebpfless")
 	}
-	skipOnEbpflessNotSupported(t, cfg)
 
 	if kv < kernel.VersionCode(4, 19, 0) {
 		t.Skip("reord_seen requires kernel 4.19+")
@@ -3767,10 +3789,12 @@ func (s *TracerSuite) TestTCPReordSeen() {
 func (s *TracerSuite) TestTCPRcvOOOPack() {
 	t := s.T()
 	cfg := testConfig()
-	if isPrebuilt(cfg) {
+	switch ebpftest.GetBuildMode() {
+	case ebpftest.Prebuilt:
 		t.Skip("TCP congestion signals not available on prebuilt")
+	case ebpftest.Ebpfless:
+		t.Skip("TCP congestion signals not available on ebpfless")
 	}
-	skipOnEbpflessNotSupported(t, cfg)
 
 	if kv < kernel.VersionCode(5, 4, 0) {
 		t.Skip("rcv_ooopack requires kernel 5.4+")
@@ -3828,10 +3852,12 @@ func (s *TracerSuite) TestTCPRcvOOOPack() {
 func (s *TracerSuite) TestTCPDeliveredCE() {
 	t := s.T()
 	cfg := testConfig()
-	if isPrebuilt(cfg) {
+	switch ebpftest.GetBuildMode() {
+	case ebpftest.Prebuilt:
 		t.Skip("TCP congestion signals not available on prebuilt")
+	case ebpftest.Ebpfless:
+		t.Skip("TCP congestion signals not available on ebpfless")
 	}
-	skipOnEbpflessNotSupported(t, cfg)
 
 	if kv < kernel.VersionCode(4, 19, 0) {
 		t.Skip("delivered_ce requires kernel 4.19+")
@@ -3860,10 +3886,12 @@ func (s *TracerSuite) TestTCPDeliveredCE() {
 func (s *TracerSuite) TestTCPZeroWindowProbe() {
 	t := s.T()
 	cfg := testConfig()
-	if isPrebuilt(cfg) {
+	switch ebpftest.GetBuildMode() {
+	case ebpftest.Prebuilt:
 		t.Skip("TCP congestion signals not available on prebuilt")
+	case ebpftest.Ebpfless:
+		t.Skip("TCP congestion signals not available on ebpfless")
 	}
-	skipOnEbpflessNotSupported(t, cfg)
 
 	tr := setupTracer(t, cfg)
 

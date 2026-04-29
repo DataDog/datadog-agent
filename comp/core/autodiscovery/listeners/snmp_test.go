@@ -111,7 +111,7 @@ func TestSNMPListenerSubnets(t *testing.T) {
 	services := map[string]*SNMPService{}
 	l := &SNMPListener{
 		services:       services,
-		stop:           make(chan bool),
+		stop:           make(chan struct{}),
 		config:         snmpListenerConfig,
 		sessionFactory: newGosnmpSession,
 	}
@@ -772,7 +772,7 @@ func setupTestListener(t *testing.T, configs []interface{}, extraOpts map[string
 
 	l := &SNMPListener{
 		services:       map[string]*SNMPService{},
-		stop:           make(chan bool),
+		stop:           make(chan struct{}),
 		config:         listenerConfig,
 		deviceDeduper:  devicededuper.NewDeviceDeduper(listenerConfig),
 		sessionFactory: factory.build,

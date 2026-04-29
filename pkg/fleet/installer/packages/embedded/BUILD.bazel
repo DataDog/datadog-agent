@@ -1,0 +1,114 @@
+"""Scripts and configuration embedded into the installer as data."""
+
+# gazelle:exclude tmpl
+load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
+
+exports_files(
+    glob(["**/*.tmpl"]),
+    visibility = ["//pkg/procmgr/rust:__pkg__"],
+)
+
+# keep
+service_srcs = [
+    "tmpl/gen/debrpm/datadog-agent-action-exp.service",
+    "tmpl/gen/debrpm/datadog-agent-action.service",
+    "tmpl/gen/debrpm/datadog-agent-data-plane-exp.service",
+    "tmpl/gen/debrpm/datadog-agent-data-plane.service",
+    "tmpl/gen/debrpm/datadog-agent-ddot-exp.service",
+    "tmpl/gen/debrpm/datadog-agent-ddot-exp.yaml",
+    "tmpl/gen/debrpm/datadog-agent-ddot.service",
+    "tmpl/gen/debrpm/datadog-agent-ddot.yaml",
+    "tmpl/gen/debrpm/datadog-agent-exp.service",
+    "tmpl/gen/debrpm/datadog-agent-installer-exp.service",
+    "tmpl/gen/debrpm/datadog-agent-installer.service",
+    "tmpl/gen/debrpm/datadog-agent-process-exp.service",
+    "tmpl/gen/debrpm/datadog-agent-process.service",
+    "tmpl/gen/debrpm/datadog-agent-procmgrd-exp.service",
+    "tmpl/gen/debrpm/datadog-agent-procmgrd.service",
+    "tmpl/gen/debrpm/datadog-agent-security-exp.service",
+    "tmpl/gen/debrpm/datadog-agent-security.service",
+    "tmpl/gen/debrpm/datadog-agent-sysprobe-exp.service",
+    "tmpl/gen/debrpm/datadog-agent-sysprobe.service",
+    "tmpl/gen/debrpm/datadog-agent-trace-exp.service",
+    "tmpl/gen/debrpm/datadog-agent-trace.service",
+    "tmpl/gen/debrpm/datadog-agent.service",
+    "tmpl/gen/oci/datadog-agent-action-exp.service",
+    "tmpl/gen/oci/datadog-agent-action.service",
+    "tmpl/gen/oci/datadog-agent-data-plane-exp.service",
+    "tmpl/gen/oci/datadog-agent-data-plane.service",
+    "tmpl/gen/oci/datadog-agent-ddot-exp.service",
+    "tmpl/gen/oci/datadog-agent-ddot-exp.yaml",
+    "tmpl/gen/oci/datadog-agent-ddot.service",
+    "tmpl/gen/oci/datadog-agent-ddot.yaml",
+    "tmpl/gen/oci/datadog-agent-exp.service",
+    "tmpl/gen/oci/datadog-agent-installer-exp.service",
+    "tmpl/gen/oci/datadog-agent-installer.service",
+    "tmpl/gen/oci/datadog-agent-process-exp.service",
+    "tmpl/gen/oci/datadog-agent-process.service",
+    "tmpl/gen/oci/datadog-agent-procmgrd-exp.service",
+    "tmpl/gen/oci/datadog-agent-procmgrd.service",
+    "tmpl/gen/oci/datadog-agent-security-exp.service",
+    "tmpl/gen/oci/datadog-agent-security.service",
+    "tmpl/gen/oci/datadog-agent-sysprobe-exp.service",
+    "tmpl/gen/oci/datadog-agent-sysprobe.service",
+    "tmpl/gen/oci/datadog-agent-trace-exp.service",
+    "tmpl/gen/oci/datadog-agent-trace.service",
+    "tmpl/gen/oci/datadog-agent.service",
+]
+
+go_library(
+    name = "embedded",
+    srcs = ["embed.go"],
+    embedsrcs = [
+        "scripts/dd-cleanup",
+        "scripts/dd-container-install",
+        "scripts/dd-host-install",
+    ] + service_srcs,  # keep
+    importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded",
+    visibility = ["//visibility:public"],
+)
+
+# keep
+go_library(
+    name = "tmpl_lib",
+    srcs = ["tmpl/main.go"],
+    embedsrcs = [
+        "tmpl/datadog-agent-action.service.tmpl",
+        "tmpl/datadog-agent-data-plane.service.tmpl",
+        "tmpl/datadog-agent-ddot.service.tmpl",
+        "tmpl/datadog-agent-ddot.yaml.tmpl",
+        "tmpl/datadog-agent-installer.service.tmpl",
+        "tmpl/datadog-agent-process.service.tmpl",
+        "tmpl/datadog-agent-procmgrd.service.tmpl",
+        "tmpl/datadog-agent-security.service.tmpl",
+        "tmpl/datadog-agent-sysprobe.service.tmpl",
+        "tmpl/datadog-agent-trace.service.tmpl",
+        "tmpl/datadog-agent.service.tmpl",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded/tmpl",
+    visibility = ["//visibility:private"],
+    deps = ["//pkg/template/text"],
+)
+
+# keep
+go_binary(
+    name = "tmpl",
+    embed = [":tmpl_lib"],
+    visibility = ["//visibility:public"],
+)
+
+# keep
+go_test(
+    name = "tmpl_test",
+    srcs = ["tmpl/main_test.go"],
+    embed = [":tmpl_lib"],
+    # keep
+    embedsrcs = service_srcs + glob([
+        "tmpl/gen/debrpm-nocap/**",
+        "tmpl/gen/oci-nocap/**",
+    ]),
+    deps = [
+        "//pkg/fleet/installer/fixtures",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

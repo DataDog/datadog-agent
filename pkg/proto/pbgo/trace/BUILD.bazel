@@ -53,6 +53,7 @@ go_test(
         "utils_test.go",
     ],
     embed = [":trace"],
+    gotags = ["test"],
     deps = [
         "//pkg/proto/pbgo/trace/idx",
         "@com_github_google_gofuzz//:gofuzz",

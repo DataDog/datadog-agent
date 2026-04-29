@@ -114,23 +114,12 @@ func adjustNetwork(cfg model.Config) {
 		cfg.Set(netNS("enable_connection_rollup"), false, model.SourceAgentRuntime)
 	}
 
-	// disable features that are not supported on certain
-	// configs/platforms
-	var disableConfigs []struct {
-		key, reason string
-	}
 	if ebpflessEnabled {
 		const notSupportedEbpfless = "not supported when ebpf-less is enabled"
-		disableConfigs = append(disableConfigs, []struct{ key, reason string }{
-			{netNS("enable_protocol_classification"), notSupportedEbpfless},
-			{evNS("network_process", "enabled"), notSupportedEbpfless}}...,
-		)
+		disableConfig(cfg, netNS("enable_protocol_classification"), notSupportedEbpfless)
+		disableConfig(cfg, evNS("network_process", "enabled"), notSupportedEbpfless)
 	}
-
-	for _, c := range disableConfigs {
-		if cfg.GetBool(c.key) {
-			log.Warnf("disabling %s: %s", c.key, c.reason)
-			cfg.Set(c.key, false, model.SourceAgentRuntime)
-		}
+	if !cfg.GetBool(spNS("enable_co_re")) {
+		disableConfig(cfg, netNS("enable_co_re"), "not supported when CO-RE is disabled in system-probe")
 	}
 }

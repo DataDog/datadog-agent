@@ -71,6 +71,25 @@ struct {
   __type(value, uint32_t);
 } go_runtime_type_ids SEC(".maps");
 
+// Like go_runtime_type_ids but without pointer-to-pointee dereferencing.
+// Used by dict resolution where we need the actual type, not the interface-
+// adjusted pointee type.
+struct {
+  __uint(type, BPF_MAP_TYPE_ARRAY);
+  __uint(max_entries, 0);
+  __type(key, uint32_t);
+  __type(value, uint32_t);
+} go_runtime_type_direct_ids SEC(".maps");
+
 volatile const uint32_t num_go_runtime_types = 0;
+
+// Swiss map hash support: addresses of runtime hash globals.
+// These are read from userspace via bpf_probe_read_user at probe time.
+volatile const uint64_t VARIABLE_runtime_dot_useAeshash = 0;
+volatile const uint64_t VARIABLE_runtime_dot_aeskeysched = 0;
+
+// Target binary architecture. Determines which AES instruction semantics
+// (x86 AESENC vs arm64 AESE+AESMC) the BPF hash emulation uses.
+volatile const uint32_t is_arm64 = 0;
 
 #endif // __PROGRAM_H__

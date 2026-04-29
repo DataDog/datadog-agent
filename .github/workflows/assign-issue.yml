@@ -78,12 +78,11 @@ jobs:
         script: |
           const fs = require('fs');
           const issue = JSON.parse(fs.readFileSync('./issue_details.json', 'utf-8'));
-          const secretRegex = /(anthropic[_-]?api[_-]?key|github[_-]?token)/i;
-          const found = (
-            secretRegex.test(issue.title || '') ||
-            secretRegex.test(issue.body || '') ||
-            secretRegex.test(issue.author || '')
-          );
+          // Match known secret keywords and actual secret patterns
+          const secretKeywordRegex = /(anthropic[_-]?api[_-]?key|github[_-]?token|slack[_-]?token|aws[_-]?secret|private[_-]?key)/i;
+          const secretPatternRegex = /(sk-ant-api[0-9]{2}-|ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{22,}|xox[bpasr]-[A-Za-z0-9\-]{10,}|AKIA[A-Z0-9]{16}|BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE KEY)/;
+          const content = [issue.title || '', issue.body || '', issue.author || ''].join(' ');
+          const found = secretKeywordRegex.test(content) || secretPatternRegex.test(content);
           core.setOutput('found', found);
 
     - name: Fail the workflow if secrets are found

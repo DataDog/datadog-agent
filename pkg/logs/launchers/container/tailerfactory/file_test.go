@@ -25,10 +25,10 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
-	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -143,6 +143,9 @@ func TestMakeFileSource_docker_success(t *testing.T) {
 		AutoMultiLine:               pointer.Ptr(true),
 		AutoMultiLineSampleSize:     123,
 		AutoMultiLineMatchThreshold: 0.123,
+		ExperimentalAdaptiveSampling: &config.SourceAdaptiveSamplingOptions{
+			Enabled: pointer.Ptr(true),
+		},
 	})
 	child, err := tf.makeFileSource(source)
 	require.NoError(t, err)
@@ -157,6 +160,9 @@ func TestMakeFileSource_docker_success(t *testing.T) {
 	require.Equal(t, *source.Config.AutoMultiLine, true)
 	require.Equal(t, source.Config.AutoMultiLineSampleSize, 123)
 	require.Equal(t, source.Config.AutoMultiLineMatchThreshold, 0.123)
+	require.NotNil(t, child.Config.ExperimentalAdaptiveSampling)
+	require.NotNil(t, child.Config.ExperimentalAdaptiveSampling.Enabled)
+	require.True(t, *child.Config.ExperimentalAdaptiveSampling.Enabled)
 }
 
 func TestMakeFileSource_podman_success(t *testing.T) {
@@ -474,6 +480,9 @@ func TestMakeK8sSource(t *testing.T) {
 				AutoMultiLine:               pointer.Ptr(true),
 				AutoMultiLineSampleSize:     123,
 				AutoMultiLineMatchThreshold: 0.123,
+				ExperimentalAdaptiveSampling: &config.SourceAdaptiveSamplingOptions{
+					Enabled: pointer.Ptr(false),
+				},
 			})
 			child, err := tf.makeK8sFileSource(source)
 			require.NoError(t, err)
@@ -487,6 +496,9 @@ func TestMakeK8sSource(t *testing.T) {
 			require.Equal(t, *child.Config.AutoMultiLine, true)
 			require.Equal(t, child.Config.AutoMultiLineSampleSize, 123)
 			require.Equal(t, child.Config.AutoMultiLineMatchThreshold, 0.123)
+			require.NotNil(t, child.Config.ExperimentalAdaptiveSampling)
+			require.NotNil(t, child.Config.ExperimentalAdaptiveSampling.Enabled)
+			require.False(t, *child.Config.ExperimentalAdaptiveSampling.Enabled)
 			switch sourceConfigType {
 			case "docker":
 				require.Equal(t, sources.DockerSourceType, child.GetSourceType())

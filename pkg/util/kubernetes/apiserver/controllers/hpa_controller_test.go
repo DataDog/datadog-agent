@@ -20,6 +20,7 @@ import (
 	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -41,8 +42,8 @@ const (
 	hpaResource      = "horizontalpodautoscalers"
 )
 
-func newClient() kubernetes.Interface {
-	client := fake.NewSimpleClientset()
+func newClient(objects ...runtime.Object) kubernetes.Interface {
+	client := fake.NewSimpleClientset(objects...)
 	client.Resources = []*metav1.APIResourceList{
 		{
 			GroupVersion: autoscalingGroup + "/v2beta1",
@@ -58,8 +59,8 @@ func newClient() kubernetes.Interface {
 	return client
 }
 
-func newFakeConfigMapStore(t *testing.T, ns, name string, metrics map[string]custommetrics.ExternalMetricValue) (custommetrics.Store, kubernetes.Interface) {
-	client := newClient()
+func newFakeConfigMapStore(t *testing.T, ns, name string, metrics map[string]custommetrics.ExternalMetricValue, objects ...runtime.Object) (custommetrics.Store, kubernetes.Interface) {
+	client := newClient(objects...)
 	store, err := custommetrics.NewConfigMapStore(client, ns, name)
 	require.NoError(t, err)
 	err = store.SetExternalMetricValues(metrics)
@@ -103,8 +104,6 @@ func newFakeAutoscalerController(t *testing.T, client kubernetes.Interface, isLe
 		dcl,
 	)
 	autoscalerController.enableHPA(client, informerFactory)
-
-	autoscalerController.autoscalersListerSynced = func() bool { return true }
 
 	return autoscalerController, informerFactory
 }
@@ -287,7 +286,20 @@ func TestAutoscalerController(t *testing.T) {
 
 	penTime := (int(time.Now().Unix()) - int(maxAge.Seconds()/2)) * 1000
 	name := custommetrics.GetConfigmapName()
-	store, client := newFakeConfigMapStore(t, "nsfoo", name, nil)
+
+	// Pre-load via the fake client tracker so the reflector's initial List
+	// surfaces the HPA. Creating after Start races with Watch registration
+	// and can drop the ADDED event.
+	mockedHPA := newFakeHorizontalPodAutoscaler(
+		"hpa_1",
+		"nsfoo",
+		"1",
+		"foo",
+		map[string]string{"foo": "bar"},
+	)
+	mockedHPA.Annotations = makeAnnotations("foo", map[string]string{"foo": "bar"})
+
+	store, client := newFakeConfigMapStore(t, "nsfoo", name, nil, mockedHPA)
 	metricName := "foo"
 	ddSeries := []datadog.Series{
 		{
@@ -322,27 +334,13 @@ func TestAutoscalerController(t *testing.T) {
 	c := client.AutoscalingV2beta1()
 	require.NotNil(t, c)
 
-	mockedHPA := newFakeHorizontalPodAutoscaler(
-		"hpa_1",
-		"nsfoo",
-		"1",
-		"foo",
-		map[string]string{"foo": "bar"},
-	)
-	mockedHPA.Annotations = makeAnnotations("foo", map[string]string{"foo": "bar"})
-
-	_, err := c.HorizontalPodAutoscalers("nsfoo").Create(context.TODO(), mockedHPA, metav1.CreateOptions{})
-	require.NoError(t, err)
-
 	timeoutDuration := 5 * time.Second
 	retryPeriod := 500 * time.Millisecond
-	timeout := time.NewTimer(10 * time.Second)
-	defer timeout.Stop()
 
 	select {
 	case key := <-hctrl.autoscalers:
 		t.Logf("hctrl process key:%s", key)
-	case <-timeout.C:
+	case <-time.After(timeoutDuration):
 		require.FailNow(t, "Timeout waiting for HPAs to update")
 	}
 
@@ -403,7 +401,7 @@ func TestAutoscalerController(t *testing.T) {
 	select {
 	case key := <-hctrl.autoscalers:
 		t.Logf("hctrl process key:%s", key)
-	case <-timeout.C:
+	case <-time.After(timeoutDuration):
 		require.FailNow(t, "Timeout waiting for HPAs to update")
 	}
 	storedHPA, err = hctrl.autoscalersLister.ByNamespace(mockedHPA.Namespace).Get(mockedHPA.Name)
@@ -453,7 +451,7 @@ func TestAutoscalerController(t *testing.T) {
 	select {
 	case key := <-hctrl.autoscalers:
 		t.Logf("hctrl process key:%s", key)
-	case <-timeout.C:
+	case <-time.After(timeoutDuration):
 		require.FailNow(t, "Timeout waiting for HPAs to update")
 	}
 
