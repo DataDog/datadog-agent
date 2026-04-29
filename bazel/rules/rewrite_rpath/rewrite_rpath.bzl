@@ -53,7 +53,14 @@ def otool_file_action(ctx, input_file, output_file, rpath):
     )
 
 def patchelf_dir_action(ctx, input_dir, output_dir, rpath):
-    """Registers a patchelf action to rewrite the rpath of all shared libraries inside a directory."""
+    """Registers a patchelf action to rewrite the rpath of all shared libraries inside a directory.
+
+    Args:
+      ctx: the rule context.
+      input_dir: the source directory artifact to patch.
+      output_dir: the output directory artifact to write.
+      rpath: the rpath string to set.
+    """
     toolchain = ctx.toolchains["@@//bazel/toolchains/patchelf:patchelf_toolchain_type"].patchelf
     ctx.actions.run_shell(
         inputs = [input_dir],
@@ -71,7 +78,14 @@ def patchelf_dir_action(ctx, input_dir, output_dir, rpath):
     )
 
 def otool_dir_action(ctx, input_dir, output_dir, rpath):
-    """Registers install_name_tool actions to rewrite the rpath of all dylibs inside a directory."""
+    """Registers install_name_tool actions to rewrite the rpath of all dylibs inside a directory.
+
+    Args:
+      ctx: the rule context.
+      input_dir: the source directory artifact to patch.
+      output_dir: the output directory artifact to write.
+      rpath: the rpath string to set.
+    """
     toolchain = ctx.toolchains["@@//bazel/toolchains/otool:otool_toolchain_type"].otool
     args = ctx.actions.args()
     args.add(ctx.file._script.path)
