@@ -48,8 +48,12 @@ func requireSampledCountTag(t *testing.T, msg *message.Message, want int64) {
 
 func requireNoSampledCountTag(t *testing.T, msg *message.Message) {
 	t.Helper()
+	// Use the production function with a sentinel value to derive the prefix,
+	// so this helper stays in sync if the tag name changes.
+	prefix := adaptiveSamplerSampledCountTag(0) // "adaptive_sampler_sampled_count:0"
+	prefix = prefix[:len(prefix)-1]             // strip the trailing "0"
 	for _, tag := range msg.ParsingExtra.Tags {
-		assert.NotContains(t, tag, "adaptive_sampler_sampled_count:")
+		assert.NotContains(t, tag, prefix)
 	}
 }
 
