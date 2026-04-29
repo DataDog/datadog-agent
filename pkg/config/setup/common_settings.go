@@ -1214,6 +1214,7 @@ func agent(config pkgconfigmodel.Setup) {
 		"agent_telemetry",
 		"agentcrashdetect",
 		"disk",
+		"directory",
 		"file_handle",
 		"filehandles",
 		"io",
@@ -1238,6 +1239,10 @@ func agent(config pkgconfigmodel.Setup) {
 		"wincrashdetect",
 		"winkmem",
 		"winproc",
+		"wmi_check",
+		"windows_certificate",
+		"windows_performance_counters",
+		"windows_registry",
 		"windows_service",
 	})
 	// Configuration for TLS for outgoing connections
@@ -1893,7 +1898,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// could happen while serializing large objects on log lines.
 	config.BindEnvAndSetDefault("logs_config.aggregation_timeout", 1000)
 	// Time in seconds
-	config.BindEnvAndSetDefault("logs_config.file_scan_period", 10.0)
+	config.BindEnvAndSetDefault("logs_config.file_scan_period", 1.0)
 
 	// Controls how wildcard file log source are prioritized when there are more files
 	// that match wildcard log configurations than the `logs_config.open_files_limit`
