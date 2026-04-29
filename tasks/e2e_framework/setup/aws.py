@@ -83,7 +83,8 @@ def setup_aws_config(ctx: Context, config: Config, account: str | None = None):
     # Team tag — single prompt, only on first setup.
     if not aws.teamTag:
         team = ask(
-            "🔖 GitHub team (used to tag AWS resources, kebab-case e.g. agent-platform) " "[default: unspecified]: "
+            "🔖 GitHub team (used to tag AWS resources, kebab-case e.g. agent-platform) " "[default: unspecified]: ",
+            color="cyan",
         ).strip()
         aws.teamTag = team or "unspecified"
         if aws.teamTag == "unspecified":
@@ -144,10 +145,16 @@ def _ensure_aws_keypair(ctx: Context, config: Config) -> None:
         return
 
     # AWS has the keypair, but local files are missing — don't auto-clobber.
+    delete_cmd = get_aws_cmd(
+        f'ec2 delete-key-pair --key-name "{keypair_name}"',
+        use_aws_vault=True,
+        aws_account=aws_account,
+    )
     error(
         f"AWS already has keypair '{keypair_name}' but the local private/public key files "
         f"({private_path}, {public_path}) are missing. Either restore the files from a backup, "
-        f"or recreate with `dda inv e2e.setup.aws-create-keypair` (will overwrite the AWS keypair)."
+        f"or delete the remote keypair and recreate with `dda inv e2e.setup.aws-create-keypair`:\n"
+        f"  {delete_cmd}"
     )
     raise Exit(code=1)
 
