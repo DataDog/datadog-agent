@@ -1,6 +1,8 @@
 ---
 clusterAgent:
   admissionController:
+    # hostip mode bypasses the CSI driver entirely; combined with our pods staying in
+    # ImagePullBackOff (we only inspect the mutated spec), CSI is irrelevant here.
     configMode: "hostip"
   # Disable the external metrics provider. The framework default enables it, which
   # registers the v1beta1.external.metrics.k8s.io APIService. On teardown, when the
@@ -11,13 +13,3 @@ clusterAgent:
   # external metrics, so disabling avoids the trap entirely.
   metricsProvider:
     enabled: false
-
-# Temporary until the Datadog CSI driver is released
-datadog-csi-driver:
-  image:
-    repository: "gcr.io/datadoghq/csi-driver"
-    tag: "1.2.0"
-
-datadog:
-  csi:
-    enabled: true

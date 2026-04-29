@@ -11,9 +11,11 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	_ "embed"
 	"encoding/pem"
 	"fmt"
 	"math/big"
+	"strconv"
 	"sync"
 	"time"
 
@@ -31,52 +33,22 @@ const (
 	mockRegistryName      = "mock-registry"
 	mockRegistryPort      = 5000
 	mockRegistryCaSecret  = "mock-registry-ca"
+
+	// fakeRegistryDigest is the digest the mock registry returns for every bucket-tagged
+	// manifest request. Tests assert the cluster-agent injects exactly this value, which
+	// proves end-to-end that our mock served the digest (vs. the resolver finding one
+	// elsewhere or fabricating a digest-shaped string). Kept in sync with server.py via
+	// the FAKE_DIGEST env var.
+	fakeRegistryDigest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 )
 
 // mockRegistryScript is a Python HTTPS server that simulates a container registry.
-// It uses self-signed TLS certs provided via TLS_CERT and TLS_KEY environment variables.
-// - HEAD /v2/*/manifests/{N}-gr{N} (bucket-tagged): returns 200 + Docker-Content-Digest header
-// - HEAD /v2/*/manifests/* (non-bucket-tagged, e.g. canonical "1.4.3"): returns 404
+// - HEAD /v2/*/manifests/{N}-gr{0-9} (bucket-tagged): returns 200 + Docker-Content-Digest
+// - HEAD /v2/*/manifests/* (anything else, e.g. canonical "1.4.3"): returns 404
 // - GET /healthz: returns 200
-const mockRegistryScript = `
-import http.server
-import ssl
-import re
-import os
-
-BUCKET_TAG_RE = re.compile(r'^/v2/[^/]+/manifests/\d+-gr\d+$')
-FAKE_DIGEST = 'sha256:' + 'a' * 64
-
-class RegistryHandler(http.server.BaseHTTPRequestHandler):
-    def do_HEAD(self):
-        if BUCKET_TAG_RE.match(self.path):
-            self.send_response(200)
-            self.send_header('Docker-Content-Digest', FAKE_DIGEST)
-            self.end_headers()
-        else:
-            self.send_response(404)
-            self.end_headers()
-
-    def do_GET(self):
-        if self.path == '/healthz':
-            self.send_response(200)
-            self.end_headers()
-            self.wfile.write(b'ok')
-        else:
-            self.send_response(404)
-            self.end_headers()
-
-    def log_message(self, format, *args):
-        pass
-
-ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-ctx.load_cert_chain(os.environ['TLS_CERT'], os.environ['TLS_KEY'])
-
-server = http.server.HTTPServer(('', 5000), RegistryHandler)
-server.socket = ctx.wrap_socket(server.socket, server_side=True)
-print('Mock registry listening on :5000', flush=True)
-server.serve_forever()
-`
+//
+//go:embed testdata/server.py
+var mockRegistryScript string
 
 // Package-level sync.Once for cert generation so certs are stable across UpdateEnv calls.
 // Pulumi won't update Secrets unnecessarily if the data hasn't changed.
@@ -302,6 +274,14 @@ func deployMockRegistry(e config.Env, kubeProvider *kubernetes.Provider) error {
 								&corev1.EnvVarArgs{
 									Name:  pulumi.String("TLS_KEY"),
 									Value: pulumi.String("/certs/tls.key"),
+								},
+								&corev1.EnvVarArgs{
+									Name:  pulumi.String("PORT"),
+									Value: pulumi.String(strconv.Itoa(mockRegistryPort)),
+								},
+								&corev1.EnvVarArgs{
+									Name:  pulumi.String("FAKE_DIGEST"),
+									Value: pulumi.String(fakeRegistryDigest),
 								},
 							},
 							VolumeMounts: corev1.VolumeMountArray{

@@ -50,12 +50,19 @@ func TestSSIGradualRolloutSuite(t *testing.T) {
 	})))
 }
 
-// TestDefaultOptIn verifies that when gradual rollout is enabled (default) and a mutable tag
-// (v4) is configured, the cluster-agent resolves the image to a digest-based reference (@sha256:...).
+// defaultSSILanguages mirrors supportedLanguages in
+// pkg/clusteragent/admission/mutate/autoinstrumentation/language_versions.go. With no
+// ddTraceVersions in the target config, the cluster-agent injects all of these at their
+// latest major versions, and gradual rollout should resolve a digest for each.
+var defaultSSILanguages = []string{"java", "js", "python", "dotnet", "ruby", "php"}
+
+// TestDefaultOptIn verifies that when gradual rollout is enabled (default) and mutable
+// major-version tags are configured (the SSI default), the cluster-agent resolves every
+// default-language lib init container to a digest-based reference.
 func (v *ssiGradualRolloutSuite) TestDefaultOptIn() {
 	const (
 		scenarioNamespace = "gradual-rollout-default"
-		appName           = "gradual-rollout-python-app"
+		appName           = "gradual-rollout-app"
 	)
 
 	// Force cluster-agent restart when the CA rotates (its cert pool is cached at
@@ -84,5 +91,7 @@ func (v *ssiGradualRolloutSuite) TestDefaultOptIn() {
 
 	k8s := v.Env().KubernetesCluster.Client()
 	pod := findMutatedPod(v.T(), k8s, scenarioNamespace, appName, "python")
-	RequireDigestBasedLibImage(v.T(), pod, "python")
+	for _, lang := range defaultSSILanguages {
+		requireDigestBasedLibImage(v.T(), pod, lang)
+	}
 }
