@@ -54,6 +54,13 @@ type bocpdSeriesState struct {
 	inAlert       bool
 	alertStart    int64
 	recoveryCount int // consecutive non-triggering points since last trigger
+
+	// Pending alert: confirmation counter for persistence gating.
+	pendingCount            int     // 0 if not pending
+	pendingFirstX           float64 // value at first trigger
+	pendingFirstTs          int64   // timestamp at first trigger
+	pendingFirstCpProb      float64
+	pendingFirstShortRunMass float64
 }
 
 // BOCPDConfig holds configuration for the BOCPD detector.
@@ -96,6 +103,11 @@ type BOCPDConfig struct {
 	// to exit alert state. Default: 10
 	RecoveryPoints int `json:"recovery_points"`
 
+	// PersistencePoints is the number of consecutive triggering ticks required
+	// before emitting an anomaly. 1 disables the gate (current behavior).
+	// Default: 2.
+	PersistencePoints int `json:"persistence_points"`
+
 	// Aggregations to run detection on. Default: [Average, Count]
 	Aggregations []observer.Aggregate `json:"-"`
 }
@@ -112,6 +124,7 @@ func DefaultBOCPDConfig() BOCPDConfig {
 		PriorVarianceScale: 10.0,
 		MinVariance:        1.0,
 		RecoveryPoints:     10,
+		PersistencePoints:  2,
 		Aggregations: []observer.Aggregate{
 			observer.AggregateAverage,
 			observer.AggregateCount,
@@ -165,6 +178,9 @@ func NewBOCPDDetector(config BOCPDConfig) *BOCPDDetector {
 	}
 	if config.RecoveryPoints <= 0 {
 		config.RecoveryPoints = defaults.RecoveryPoints
+	}
+	if config.PersistencePoints <= 0 {
+		config.PersistencePoints = defaults.PersistencePoints
 	}
 	if len(config.Aggregations) == 0 {
 		config.Aggregations = defaults.Aggregations
@@ -258,6 +274,8 @@ func (b *BOCPDDetector) Reset() {
 
 // processPoint handles a single new observation for a series.
 // Returns an anomaly pointer if this point triggers a new alert onset.
+// Anomaly emission is gated by PersistencePoints: the detector must see
+// that many consecutive triggering ticks before emitting.
 func (b *BOCPDDetector) processPoint(state *bocpdSeriesState, p observer.Point, series *observer.Series, agg observer.Aggregate) *observer.Anomaly {
 	x := p.Value
 
@@ -269,14 +287,37 @@ func (b *BOCPDDetector) processPoint(state *bocpdSeriesState, p observer.Point, 
 
 	if triggered {
 		state.recoveryCount = 0
-		if !state.inAlert {
+		if state.inAlert {
+			return nil // already alerted
+		}
+		// Pending / persistence path.
+		if state.pendingCount == 0 {
+			state.pendingFirstX = x
+			state.pendingFirstTs = p.Timestamp
+			state.pendingFirstCpProb = cpProb
+			state.pendingFirstShortRunMass = shortRunMass
+		}
+		state.pendingCount++
+		if state.pendingCount >= b.config.PersistencePoints {
 			state.inAlert = true
-			state.alertStart = p.Timestamp
-			return b.makeAnomaly(state, p, series, agg, cpProb, shortRunMass)
+			state.alertStart = state.pendingFirstTs
+			firstP := observer.Point{
+				Timestamp: state.pendingFirstTs,
+				Value:     state.pendingFirstX,
+			}
+			out := b.makeAnomaly(state, firstP, series, agg,
+				state.pendingFirstCpProb,
+				state.pendingFirstShortRunMass)
+			state.pendingCount = 0
+			return out
 		}
 		return nil
 	}
 
+	// Not triggered: clear any pending state.
+	if state.pendingCount > 0 {
+		state.pendingCount = 0
+	}
 	if state.inAlert {
 		state.recoveryCount++
 		if state.recoveryCount >= b.config.RecoveryPoints {

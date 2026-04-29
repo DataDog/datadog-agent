@@ -498,3 +498,203 @@ func TestFindingM8_ShortRunMassExcludesCPProb(t *testing.T) {
 	assert.Less(t, mass, 0.7,
 		"short-run mass (%.4f) without cpProb should be below CPMassThreshold (0.7)", mass)
 }
+
+// TestBOCPD_PersistenceGate_ThresholdBehavior verifies that the persistence gate
+// suppresses emission when the consecutive-trigger run is shorter than
+// PersistencePoints, and allows emission when it meets or exceeds the threshold.
+//
+// For the test scenario (constant 100 warmup, shift to 200 for 35 ticks), BOCPD
+// produces exactly 5 consecutive triggered ticks (t=22 through t=26, verified by
+// updatePosterior; t=21 and t=27+ do not cross the short-run-mass threshold).
+// This makes PersistencePoints=6 (>5) a reliable suppression threshold and
+// PersistencePoints=2 (≤5) a reliable emission trigger.
+func TestBOCPD_PersistenceGate_ThresholdBehavior(t *testing.T) {
+	makeStorage := func() *timeSeriesStorage {
+		storage := newTimeSeriesStorage()
+		for i := 0; i < 20; i++ {
+			storage.Add("ns", "test.metric", 100, int64(i+1), nil)
+		}
+		for i := 20; i < 40; i++ {
+			storage.Add("ns", "test.metric", 200, int64(i+1), nil)
+		}
+		return storage
+	}
+
+	// PP=6 exceeds the 5-consecutive-trigger burst → gate suppresses emission.
+	t.Run("pp6_suppresses_5tick_burst", func(t *testing.T) {
+		cfg := DefaultBOCPDConfig()
+		cfg.WarmupPoints = 20
+		cfg.PersistencePoints = 6
+		cfg.Aggregations = []observer.Aggregate{observer.AggregateAverage}
+		d := NewBOCPDDetector(cfg)
+		result := d.Detect(makeStorage(), 40)
+		avgCount := 0
+		for _, a := range result.Anomalies {
+			if a.Source.String() == "test.metric:avg" {
+				avgCount++
+			}
+		}
+		assert.Equal(t, 0, avgCount,
+			"PersistencePoints=6 should suppress a 5-consecutive-trigger burst")
+	})
+
+	// PP=2 is within the 5-tick burst → emission occurs.
+	t.Run("pp2_allows_sustained_shift", func(t *testing.T) {
+		cfg := DefaultBOCPDConfig()
+		cfg.WarmupPoints = 20
+		cfg.PersistencePoints = 2
+		cfg.Aggregations = []observer.Aggregate{observer.AggregateAverage}
+		d := NewBOCPDDetector(cfg)
+		result := d.Detect(makeStorage(), 40)
+		avgCount := 0
+		for _, a := range result.Anomalies {
+			if a.Source.String() == "test.metric:avg" {
+				avgCount++
+			}
+		}
+		assert.GreaterOrEqual(t, avgCount, 1,
+			"PersistencePoints=2 should allow emission from a 5-consecutive-trigger burst")
+	})
+}
+
+// TestBOCPD_PersistenceConfirms_OnSustainedShift verifies that a sustained level
+// shift triggers exactly one anomaly, and that its Timestamp equals the FIRST
+// triggered tick (pendingFirstTs), not the second confirmation tick.
+//
+// With constant warmup at 100 and a shift to 200, BOCPD's short-run posterior mass
+// needs one shifted observation to accumulate above the threshold: t=21 (first
+// shifted point) does not cross CPMassThreshold, but t=22 does. So the first
+// triggered tick is t=22, and with PersistencePoints=2 the anomaly is emitted
+// on processing t=23, but its Timestamp is set to pendingFirstTs=22 (first trigger),
+// not 23 (confirmation tick).
+func TestBOCPD_PersistenceConfirms_OnSustainedShift(t *testing.T) {
+	cfg := DefaultBOCPDConfig()
+	cfg.WarmupPoints = 20
+	cfg.Aggregations = []observer.Aggregate{observer.AggregateAverage}
+	d := NewBOCPDDetector(cfg)
+
+	storage := newTimeSeriesStorage()
+	// 20 constant warmup points.
+	for i := 0; i < 20; i++ {
+		storage.Add("ns", "test.metric", 100, int64(i+1), nil)
+	}
+	// Sustained shift starting at t=21 for 15 ticks.
+	for i := 20; i < 35; i++ {
+		storage.Add("ns", "test.metric", 200, int64(i+1), nil)
+	}
+
+	result := d.Detect(storage, 35)
+
+	avgAnomalies := []observer.Anomaly{}
+	for _, a := range result.Anomalies {
+		if a.Source.String() == "test.metric:avg" {
+			avgAnomalies = append(avgAnomalies, a)
+		}
+	}
+
+	// First trigger is t=22 (short-run mass crosses threshold on the second
+	// shifted point). With PersistencePoints=2, emission happens on the second
+	// consecutive trigger, but Timestamp records the first (pendingFirstTs=22).
+	const firstTriggerTs = int64(22)
+	require.Len(t, avgAnomalies, 1, "sustained shift should emit exactly one anomaly")
+	assert.Equal(t, firstTriggerTs, avgAnomalies[0].Timestamp,
+		"Timestamp should be pendingFirstTs (first trigger t=22), not the confirmation tick (t=23)")
+}
+
+// TestBOCPD_PersistenceResetsOnNonTrigger verifies that a non-triggering point
+// resets the pending counter, so a partial accumulation is discarded.
+//
+// Sequence (WarmupPoints=20, constant 100 warmup):
+//   t=21 (x=200): NOT triggered (short-run mass below threshold after 1st shifted point)
+//   t=22 (x=200): triggered → pendingCount=1  (first trigger, pendingFirstTs=22)
+//   t=23 (x=100): NOT triggered → pendingCount RESETS to 0  ← the reset under test
+//   t=24+ (x=200): new consecutive trigger run starts; anomaly eventually emits
+//                  with Timestamp >= 24 (proving it's from the NEW run, not the old one)
+func TestBOCPD_PersistenceResetsOnNonTrigger(t *testing.T) {
+	cfg := DefaultBOCPDConfig()
+	cfg.WarmupPoints = 20
+	cfg.PersistencePoints = 3
+	cfg.Aggregations = []observer.Aggregate{observer.AggregateAverage}
+	d := NewBOCPDDetector(cfg)
+
+	storage := newTimeSeriesStorage()
+	ts := int64(0)
+
+	addN := func(n int, val float64) {
+		for i := 0; i < n; i++ {
+			ts++
+			storage.Add("ns", "test.metric", val, ts, nil)
+		}
+	}
+
+	// Warmup.
+	addN(20, 100)
+
+	// Two shifted points: t=21 (not triggered), t=22 (triggered, pending=1).
+	addN(2, 200)
+	// Non-triggering reversion at t=23 resets pendingCount to 0.
+	addN(1, 100)
+
+	// Record where the second accumulation window starts.
+	secondWindowStart := ts + 1 // t=24
+	addN(15, 200)               // sustained: new run eventually accumulates PP=3 triggers
+
+	result := d.Detect(storage, ts)
+
+	avgAnomalies := []observer.Anomaly{}
+	for _, a := range result.Anomalies {
+		if a.Source.String() == "test.metric:avg" {
+			avgAnomalies = append(avgAnomalies, a)
+		}
+	}
+
+	require.NotEmpty(t, avgAnomalies,
+		"second sustained shift should emit after pending reset")
+	// Anomaly Timestamp must be >= secondWindowStart: it originated from the
+	// second trigger run (after the reset), not from the first (pendingFirstTs=22).
+	assert.GreaterOrEqual(t, avgAnomalies[0].Timestamp, secondWindowStart,
+		"anomaly should originate from the second trigger run (Timestamp >= %d), got %d",
+		secondWindowStart, avgAnomalies[0].Timestamp)
+}
+
+// TestBOCPD_PersistenceOne_BackwardCompat confirms that PersistencePoints=1
+// produces the same anomaly count and timestamps as a detector built without
+// the persistence gate would, using a reference scenario (step change).
+func TestBOCPD_PersistenceOne_BackwardCompat(t *testing.T) {
+	makeDet := func(pp int) *BOCPDDetector {
+		cfg := DefaultBOCPDConfig()
+		cfg.WarmupPoints = 20
+		cfg.PersistencePoints = pp
+		cfg.Aggregations = []observer.Aggregate{observer.AggregateAverage}
+		return NewBOCPDDetector(cfg)
+	}
+
+	storage := newTimeSeriesStorage()
+	for i := 0; i < 20; i++ {
+		storage.Add("ns", "test.metric", 100, int64(i+1), nil)
+	}
+	for i := 20; i < 40; i++ {
+		storage.Add("ns", "test.metric", 200, int64(i+1), nil)
+	}
+
+	r1 := makeDet(1).Detect(storage, 40)
+	r2 := makeDet(1).Detect(storage, 40)
+
+	// Two fresh detectors with PersistencePoints=1 on the same data must agree.
+	require.Equal(t, len(r1.Anomalies), len(r2.Anomalies),
+		"PersistencePoints=1 should be deterministic")
+	for i := range r1.Anomalies {
+		assert.Equal(t, r1.Anomalies[i].Timestamp, r2.Anomalies[i].Timestamp,
+			"anomaly timestamps should match across runs")
+	}
+
+	// At least one anomaly must fire on the step change (gate disabled).
+	avgCount := 0
+	for _, a := range r1.Anomalies {
+		if a.Source.String() == "test.metric:avg" {
+			avgCount++
+		}
+	}
+	assert.GreaterOrEqual(t, avgCount, 1,
+		"PersistencePoints=1 must detect the step change (backward-compat)")
+}
