@@ -449,6 +449,10 @@ func (a *APIServer) start(ctx context.Context) {
 				}
 				a.updateMsgService(m)
 
+				if err := a.statsdClient.Distribution(metrics.MetricEventServerRetriesBeforeSend, float64(msg.retry), []string{}, 1.0); err != nil {
+					seclog.Tracef("failed to send retries_before_send metric: %v", err)
+				}
+
 				a.msgSender.Send(m, a.expireEvent)
 
 				return true

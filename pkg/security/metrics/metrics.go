@@ -35,6 +35,9 @@ var (
 	// MetricEventServerQueueSize is the current number of events waiting in the retry queue
 	// Tags: -
 	MetricEventServerQueueSize = newRuntimeMetric(".rules.event_server.queue_size")
+	// MetricEventServerRetriesBeforeSend is a distribution of the number of retries an event required before being sent
+	// Tags: -
+	MetricEventServerRetriesBeforeSend = newRuntimeMetric(".rules.event_server.retries_before_send")
 
 	// Rate limiter metrics
 
