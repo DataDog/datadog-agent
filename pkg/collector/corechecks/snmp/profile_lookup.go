@@ -6,6 +6,8 @@
 package snmp
 
 import (
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
@@ -44,7 +46,7 @@ func GetProfileDefinition(profileName string) (profiledefinition.ProfileDefiniti
 	}
 	profileConfig := provider.GetProfile(profileName)
 	if profileConfig == nil {
-		return profiledefinition.ProfileDefinition{}, nil
+		return profiledefinition.ProfileDefinition{}, fmt.Errorf("profile %q not found", profileName)
 	}
 	return profileConfig.Definition, nil
 }

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp"
 	"github.com/gosnmp/gosnmp"
 )
 
@@ -55,6 +56,17 @@ func TestFindSysOID_NonStringValue(t *testing.T) {
 	sysOID := FindSysOID(pdus)
 	if sysOID == "" {
 		t.Fatalf("expected non-empty string, got %q", sysOID)
+	}
+}
+
+func TestGetProfileDefinition_MissingProfileReturnsError(t *testing.T) {
+	const name = "_missing-analyzer-test-profile-xyz"
+	_, err := snmp.GetProfileDefinition(name)
+	if err == nil {
+		t.Fatalf("GetProfileDefinition(%q): want error, got nil", name)
+	}
+	if !strings.Contains(err.Error(), name) {
+		t.Fatalf("GetProfileDefinition: error should mention profile name: %v", err)
 	}
 }
 
