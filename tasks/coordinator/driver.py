@@ -505,7 +505,6 @@ def _silent_failure_diagnostics(
     import subprocess
     parts: list[str] = []
     parts.append(f"candidate.id   = {candidate.id}")
-    parts.append(f"candidate.kind = {candidate.kind}")
     parts.append(f"target_components = {candidate.target_components}")
 
     # Per-scenario zero count.
@@ -544,12 +543,11 @@ def _silent_failure_diagnostics(
     if experiment.impl_summary:
         parts.append(f"impl_summary tail: {experiment.impl_summary[-300:]}")
 
-    # Hint based on kind.
-    if candidate.kind in ("correlator", "filter"):
-        parts.append(
-            f"HINT: candidate.kind={candidate.kind} requires upstream detectors; "
-            f"verify driver passed extra_components to evaluator."
-        )
+    parts.append(
+        "HINT: system-level eval expects new components to register with "
+        "defaultEnabled: true so the testbench picks them up under the "
+        "no --only invocation. Verify the catalog edit landed."
+    )
     return "\n".join(parts)
 
 
@@ -601,20 +599,18 @@ def _sanity_pre_eval_sentinel(db: Db, root: Path, iter_num: int) -> tuple[bool, 
     if not detector or not scenario:
         return True, "skipped"
     if not db.baseline:
-        # Pre-baseline run; nothing to compare against.
         return True, "no_baseline"
-    det_base = db.baseline.detectors.get(detector)
-    if det_base is None or scenario not in det_base.scenarios:
-        # Sentinel mis-configured for this run's baseline; warn but continue.
-        return True, f"sentinel_not_in_baseline ({detector}/{scenario})"
-    expected_f1 = det_base.scenarios[scenario].f1
-    # Blank-slate auto-detect: if the baseline detector itself has no
-    # signal (mean F1 < 0.05), this is a blank-mode run — there's nothing
-    # for the sentinel to verify, since "reproducing baseline" is just
-    # "reproducing zero." Skip rather than halting every iter.
-    if det_base.mean_f1 < 0.05 or expected_f1 < 0.05:
+    # System-level baseline: no per-detector lookup. Use the per-scenario F1
+    # from the system baseline as the sentinel target. On a scenario like
+    # 703_shopify where bocpd dominates, system F1 ≈ bocpd's contribution,
+    # so `--only bocpd` reproducing within tolerance still validates the
+    # eval pipeline.
+    if scenario not in db.baseline.system.scenarios:
+        return True, f"sentinel_scenario_not_in_baseline ({scenario})"
+    expected_f1 = db.baseline.system.scenarios[scenario].f1
+    if db.baseline.system.mean_f1 < 0.05 or expected_f1 < 0.05:
         return True, (
-            f"skipped_blank_baseline (detector mean_f1={det_base.mean_f1:.3f}, "
+            f"skipped_blank_baseline (system mean_f1={db.baseline.system.mean_f1:.3f}, "
             f"sentinel_scenario_f1={expected_f1:.3f})"
         )
     # Relative tolerance: sentinel must reproduce within 0.10 absolute of
@@ -918,14 +914,7 @@ def _recent_same_family(db: Db, candidate: Candidate, limit: int = 5) -> list[di
         rationales = (
             [d.rationale for d in exp.review.decisions] if exp.review else []
         )
-        base_mean = (
-            db.baseline.detectors.get(
-                next(iter(candidate.target_components), ""), None
-            ).mean_f1
-            if db.baseline
-            and next(iter(candidate.target_components), "") in db.baseline.detectors
-            else None
-        )
+        base_mean = db.baseline.system.mean_f1 if db.baseline else None
         score_delta = (exp.score - base_mean) if (exp.score is not None and base_mean is not None) else None
         out.append(
             {
@@ -943,16 +932,16 @@ def _recent_same_family(db: Db, candidate: Candidate, limit: int = 5) -> list[di
 
 
 def known_detectors(db: Db) -> tuple[str, ...]:
-    """Detectors that exist in the current run's baseline.
+    """Canonical detectors known to the current run.
 
-    Source of truth is `db.baseline.detectors`. Empty on blank-slate
-    runs — the proposer is inventing detector names from scratch; the
-    KNOWN_DETECTORS hardcoded fallback would clobber those novel names
-    with bocpd/scanmw/scanwelch, which don't exist on the blank branch.
+    Under system-level eval the baseline is one entry; this no longer
+    enumerates per-detector baseline records. Returns a static fallback
+    of canonical detector names, used for the proposer's "what's
+    already out there" hint. Empty on blank-mode runs.
     """
     if db.baseline is None:
         return ()
-    return tuple(db.baseline.detectors.keys())
+    return ("bocpd", "scanmw", "scanwelch")
 
 
 def relevant_detectors(candidate: Candidate, db: Db) -> list[str]:
@@ -997,68 +986,6 @@ def primary_detector(candidate: Candidate, db: Db) -> str:
     return relevant_detectors(candidate, db)[0]
 
 
-def _merge_scorings(scorings: dict, detectors: list[str]):
-    """Combine per-detector ScoringResults into one gate-on-worst view.
-
-    - `mean_f1` = simple average of detector means.
-    - `strict_regressions` / `recall_floor_violations` = union across
-      detectors, prefixed with `<detector>/` so the reviewer can see which
-      detector is suffering.
-    - `per_scenario` / `per_scenario_delta` keyed by `<detector>/<scenario>`
-      so downstream (review prompts, reeval_ships) sees the full surface.
-    - `total_fps` / `baseline_total_fps` = sum across detectors.
-    """
-    from .scoring import ScoringResult
-
-    if not scorings:
-        # No usable detector scores — construct an empty no-op result so the
-        # caller treats this as eval failure rather than crashing.
-        return ScoringResult(
-            detector="|".join(detectors) or "unknown",
-            mean_f1=0.0, total_fps=0, per_scenario={},
-            baseline_mean_f1=0.0, baseline_total_fps=0,
-            mean_df1=0.0, total_dfps=0, per_scenario_delta={},
-            strict_regressions=[], recall_floor_violations=[],
-            fp_reduction_pct=0.0,
-        )
-
-    means = [s.mean_f1 for s in scorings.values()]
-    base_means = [s.baseline_mean_f1 for s in scorings.values()]
-    mean_f1 = sum(means) / len(means)
-    base_mean_f1 = sum(base_means) / len(base_means)
-    total_fps = sum(s.total_fps for s in scorings.values())
-    base_total_fps = sum(s.baseline_total_fps for s in scorings.values())
-
-    merged_per_scenario = {}
-    merged_deltas = {}
-    strict = []
-    recall_v = []
-    for det, s in scorings.items():
-        for scen, sr in s.per_scenario.items():
-            merged_per_scenario[f"{det}/{scen}"] = sr
-        for scen, sd in s.per_scenario_delta.items():
-            merged_deltas[f"{det}/{scen}"] = sd
-        strict.extend(f"{det}/{n}" for n in s.strict_regressions)
-        recall_v.extend(f"{det}/{n}" for n in s.recall_floor_violations)
-
-    fp_reduction_pct = 0.0
-    if base_total_fps > 0:
-        fp_reduction_pct = (base_total_fps - total_fps) / base_total_fps
-
-    return ScoringResult(
-        detector="+".join(detectors),
-        mean_f1=mean_f1,
-        total_fps=total_fps,
-        per_scenario=merged_per_scenario,
-        baseline_mean_f1=base_mean_f1,
-        baseline_total_fps=base_total_fps,
-        mean_df1=mean_f1 - base_mean_f1,
-        total_dfps=total_fps - base_total_fps,
-        per_scenario_delta=merged_deltas,
-        strict_regressions=strict,
-        recall_floor_violations=recall_v,
-        fp_reduction_pct=fp_reduction_pct,
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -1444,57 +1371,39 @@ def _run_iteration_body(
             )
             return
 
-    # 4. Eval — one run per relevant detector. Reports go to per-detector
-    # subdirs so we keep full visibility across the set.
-    reports_by_detector: dict[str, Path] = {}
+    # 4. Eval — single system-level run per iter. The catalog's
+    # `defaultEnabled` set defines the prod-realistic pipeline; the
+    # candidate's modification (or new component with defaultEnabled:
+    # true) is picked up automatically. No per-detector loop, no --only
+    # juggling — one report describes the whole system's F1 with the
+    # change in place.
     eval_ok = True
     eval_msg = "ok"
+    report_path = state_dir(root) / "reports" / f"{experiment_id}-system.json"
+    scenario_out = state_dir(root) / "reports" / f"{experiment_id}-system"
 
     if dry_run:
         eval_msg = "[dry-run]"
     else:
-        # Correlators/filters consume upstream detector firings; running
-        # them standalone produces zero detections. When candidate.kind
-        # is not "detector", enable the canonical detectors alongside
-        # the candidate so eval has real input to work with.
-        extras = (
-            list(CONFIG.upstream_detectors) if candidate.kind != "detector" else None
+        run = evaluator.run_scenarios(
+            report_path=report_path,
+            scenario_output_dir=scenario_out,
+            root=root,
         )
-        for det in detectors:
-            rp = state_dir(root) / "reports" / f"{experiment_id}-{det}.json"
-            sd = state_dir(root) / "reports" / f"{experiment_id}-{det}"
-            run = evaluator.run_scenarios(
-                detector=det,
-                report_path=rp,
-                scenario_output_dir=sd,
-                root=root,
-                extra_components=extras,
-            )
-            journal.append(
-                "eval_done",
-                {
-                    "iter": iter_num,
-                    "candidate": candidate.id,
-                    "detector": det,
-                    "ok": run.ok,
-                    "report_path": str(rp),
-                    "rc": run.returncode,
-                },
-                root,
-            )
-            if not run.ok:
-                eval_ok = False
-                eval_msg = f"{det}: {(run.stderr or 'failed')[-500:]}"
-                break
-            reports_by_detector[det] = rp
-
-    # The Experiment record keeps one canonical report_path for UI/metrics
-    # continuity — use the first detector's report, but remember all are
-    # available via reports_by_detector for scoring.
-    report_path = next(iter(reports_by_detector.values()), None) or (
-        state_dir(root) / "reports" / f"{experiment_id}-{detectors[0]}.json"
-    )
-    scenario_out = state_dir(root) / "reports" / f"{experiment_id}-{detectors[0]}"
+        journal.append(
+            "eval_done",
+            {
+                "iter": iter_num,
+                "candidate": candidate.id,
+                "ok": run.ok,
+                "report_path": str(report_path),
+                "rc": run.returncode,
+            },
+            root,
+        )
+        if not run.ok:
+            eval_ok = False
+            eval_msg = (run.stderr or 'failed')[-500:]
 
     experiment = Experiment(
         id=experiment_id,
@@ -1551,28 +1460,15 @@ def _run_iteration_body(
     train_set = db.split.as_train_set() if db.split else None
     # Gate vs FROZEN baseline, across ALL relevant detectors. Aggregate
     # policy: gate-on-worst (any detector with a catastrophe regression
-    # or recall-floor violation rejects the candidate); combined
-    # per_scenario uses keys "<detector>/<scenario>" to preserve full
-    # visibility; combined mean_f1 is the simple mean of per-detector
-    # means. Rolling "last shipped" reference was dropped earlier (it
-    # introduced a noise ratchet).
-    scorings: dict[str, "object"] = {}
-    # Use the effective (best-historical) baseline if present so a candidate
-    # can't ratchet backwards through tolerance-bound drift. Falls back to
-    # the original frozen baseline pre-first-ship.
+    # System-level eval: one report → one ScoringResult.
+    # Use effective (best-historical) baseline if present so a candidate
+    # can't ratchet backwards through tolerance-bound drift.
     score_ref = db.effective_baseline or db.baseline
-    for det in detectors:
-        rp = reports_by_detector.get(det)
-        if rp is None:
-            continue
-        scorings[det] = score_against_baseline(
-            rp,
-            score_ref,
-            det,
-            train_scenarios=train_set,
-        )
-
-    scoring = _merge_scorings(scorings, detectors)
+    scoring = score_against_baseline(
+        report_path,
+        score_ref,
+        train_scenarios=train_set,
+    )
     experiment.score = scoring.mean_f1
     experiment.num_baseline_fps_sum = scoring.total_fps
     experiment.per_scenario = scoring.per_scenario
@@ -1692,7 +1588,6 @@ def _run_iteration_body(
                     "detail": silent_failure,
                     "streak": streak,
                     "pause_threshold": pause_threshold,
-                    "kind": candidate.kind,
                 },
             ),
             body_md=body,
@@ -1896,21 +1791,13 @@ def _run_iteration_body(
 
         commit_sha = git_ops.commit_candidate(candidate.id, experiment_id, root)
         experiment.commit_sha = commit_sha
-        # Update the effective (best-historical) baseline element-wise per
-        # detector. New floor for subsequent iters: the highest f1/precision/
-        # recall and lowest FPs we've ever achieved. No backsliding allowed.
+        # Update the effective (best-historical) baseline element-wise.
+        # Single system entry; scoring.per_scenario is keyed by bare
+        # scenario name. Best-historical can only ratchet up or sideways.
         from .scoring import merge_best_historical
         eff = db.effective_baseline or db.baseline
-        if eff is not None:
-            for det in detectors:
-                shipped_scen = {
-                    s_name.split("/", 1)[1]: sr
-                    for s_name, sr in scoring.per_scenario.items()
-                    if "/" in s_name and s_name.split("/", 1)[0] == det
-                }
-                if shipped_scen:
-                    eff = merge_best_historical(eff, shipped_scen, det)
-            db.effective_baseline = eff
+        if eff is not None and scoring.per_scenario:
+            db.effective_baseline = merge_best_historical(eff, scoring.per_scenario)
         # Persist the real sha BEFORE pushing. If push fails, db.yaml already
         # reflects the commit; startup_cleanup will push the orphan on restart.
         save_db(db, root)

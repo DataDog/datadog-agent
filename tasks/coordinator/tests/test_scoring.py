@@ -9,17 +9,15 @@ def _make_baseline(sha: str = "abc") -> Baseline:
     return Baseline(
         sha=sha,
         generated_at="2026-04-20T00:00:00",
-        detectors={
-            "scanmw": BaselineDetector(
-                mean_f1=0.121,
-                total_fps=326,
-                scenarios={
-                    "213_pagerduty": ScenarioResult(f1=0.655, precision=0.493, recall=0.974, num_baseline_fps=1),
-                    "food_delivery_redis": ScenarioResult(f1=0.235, precision=0.143, recall=0.666, num_baseline_fps=4),
-                    "093_cloudflare": ScenarioResult(f1=0.015, precision=0.008, recall=0.841, num_baseline_fps=109),
-                },
-            ),
-        },
+        system=BaselineDetector(
+            mean_f1=0.121,
+            total_fps=326,
+            scenarios={
+                "213_pagerduty": ScenarioResult(f1=0.655, precision=0.493, recall=0.974, num_baseline_fps=1),
+                "food_delivery_redis": ScenarioResult(f1=0.235, precision=0.143, recall=0.666, num_baseline_fps=4),
+                "093_cloudflare": ScenarioResult(f1=0.015, precision=0.008, recall=0.841, num_baseline_fps=109),
+            },
+        ),
     )
 
 
@@ -60,7 +58,7 @@ def test_no_change_no_regressions(tmp_path: Path):
         },
         mean_f1=0.121,
     )
-    r = score_against_baseline(report, baseline, "scanmw")
+    r = score_against_baseline(report, baseline)
     assert r.mean_df1 == 0
     assert r.total_dfps == 0
     assert r.strict_regressions == []
@@ -85,7 +83,7 @@ def test_detects_f1_regression(tmp_path: Path):
         },
         mean_f1=0.135,
     )
-    r = score_against_baseline(report, baseline, "scanmw")
+    r = score_against_baseline(report, baseline)
     assert "213_pagerduty" in r.strict_regressions
 
 
@@ -102,7 +100,7 @@ def test_detects_fp_reduction(tmp_path: Path):
         },
         mean_f1=0.302,
     )
-    r = score_against_baseline(report, baseline, "scanmw")
+    r = score_against_baseline(report, baseline)
     assert r.total_dfps == -55
     assert r.fp_reduction_pct > 0.15
 
@@ -111,7 +109,7 @@ def test_recall_floor_skipped_when_baseline_low(tmp_path: Path):
     baseline = _make_baseline()
     # Baseline food_delivery_redis has recall 0.666 > 0.05, so a drop is caught.
     # But if baseline recall were <0.05 we'd skip — test that with a custom baseline.
-    baseline.detectors["scanmw"].scenarios["food_delivery_redis"].recall = 0.02
+    baseline.system.scenarios["food_delivery_redis"].recall = 0.02
     report = tmp_path / "r.json"
     _write_report(
         report,
@@ -122,6 +120,6 @@ def test_recall_floor_skipped_when_baseline_low(tmp_path: Path):
         },
         mean_f1=0.121,
     )
-    r = score_against_baseline(report, baseline, "scanmw")
+    r = score_against_baseline(report, baseline)
     # food_delivery_redis dropped but baseline < 0.05, so not flagged
     assert "food_delivery_redis" not in r.recall_floor_violations

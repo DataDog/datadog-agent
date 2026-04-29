@@ -31,27 +31,25 @@ def test_baseline_roundtrip(tmp_path: Path):
     db.baseline = Baseline(
         sha="abc123",
         generated_at="2026-04-20T00:00:00",
-        detectors={
-            "bocpd": BaselineDetector(
-                mean_f1=0.186,
-                total_fps=41,
-                scenarios={
-                    "213_pagerduty": ScenarioResult(
-                        f1=0.0, precision=0.0, recall=0.0, num_baseline_fps=0
-                    ),
-                    "221_base": ScenarioResult(
-                        f1=0.672, precision=1.0, recall=0.506, num_baseline_fps=0
-                    ),
-                },
-            ),
-        },
+        system=BaselineDetector(
+            mean_f1=0.186,
+            total_fps=41,
+            scenarios={
+                "213_pagerduty": ScenarioResult(
+                    f1=0.0, precision=0.0, recall=0.0, num_baseline_fps=0
+                ),
+                "221_base": ScenarioResult(
+                    f1=0.672, precision=1.0, recall=0.506, num_baseline_fps=0
+                ),
+            },
+        ),
     )
     save_db(db, tmp_path)
     reloaded = load_db(tmp_path)
     assert reloaded.baseline is not None
     assert reloaded.baseline.sha == "abc123"
-    assert reloaded.baseline.detectors["bocpd"].mean_f1 == pytest.approx(0.186)
-    assert reloaded.baseline.detectors["bocpd"].scenarios["221_base"].f1 == pytest.approx(0.672)
+    assert reloaded.baseline.system.mean_f1 == pytest.approx(0.186)
+    assert reloaded.baseline.system.scenarios["221_base"].f1 == pytest.approx(0.672)
 
 
 def test_candidate_roundtrip(tmp_path: Path):

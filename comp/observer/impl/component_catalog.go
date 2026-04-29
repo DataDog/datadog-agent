@@ -173,7 +173,12 @@ func defaultCatalog() *componentCatalog {
 				kind:           componentDetector,
 				defaultConfig:  DefaultRRCFConfig(),
 				factory:        func(cfg any) any { return NewRRCFDetector(cfg.(RRCFConfig)) },
-				defaultEnabled: true,
+				// Disabled on the harness branch: rrcf was hurting more than
+				// helping in recent evals. Coordinator system-level eval uses
+				// the catalog's defaultEnabled set as the prod-realistic
+				// pipeline; flipping rrcf here keeps the candidate baseline
+				// honest. Re-enable if rrcf earns its place back.
+				defaultEnabled: false,
 				parseJSON: func(defaults any, raw []byte) (any, error) {
 					cfg := defaults.(RRCFConfig)
 					if err := json.Unmarshal(raw, &cfg); err != nil {

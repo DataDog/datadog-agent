@@ -91,18 +91,18 @@ def render(db: Db, root: Path = Path(".")) -> str:
         train_set = db.split.as_train_set() if db.split else None
         lockbox_set = db.split.as_lockbox_set() if db.split else set()
         lines.append(
-            "| Detector | Mean F1 | Total FPs | Prec floor (train) | Recall floor (train) | Lockbox mean |"
+            "| | Mean F1 | Total FPs | Prec floor (train) | Recall floor (train) | Lockbox mean |"
         )
         lines.append("|---|---:|---:|---:|---:|---:|")
-        for name, d in db.baseline.detectors.items():
-            prec_floor = _min_over(d, "precision", train_set)
-            rec_floor = _min_over(d, "recall", train_set)
-            lockbox_mean = _mean_over(d, "f1", lockbox_set) if lockbox_set else None
-            lb_str = f"{lockbox_mean:.4f}" if lockbox_mean is not None else "—"
-            lines.append(
-                f"| {name} | {d.mean_f1:.4f} | {d.total_fps} | "
-                f"{prec_floor:.3f} | {rec_floor:.3f} | {lb_str} |"
-            )
+        d = db.baseline.system
+        prec_floor = _min_over(d, "precision", train_set)
+        rec_floor = _min_over(d, "recall", train_set)
+        lockbox_mean = _mean_over(d, "f1", lockbox_set) if lockbox_set else None
+        lb_str = f"{lockbox_mean:.4f}" if lockbox_mean is not None else "—"
+        lines.append(
+            f"| system | {d.mean_f1:.4f} | {d.total_fps} | "
+            f"{prec_floor:.3f} | {rec_floor:.3f} | {lb_str} |"
+        )
         lines.append("")
 
     compact = _f1_matrix_compact(db)
@@ -215,23 +215,15 @@ def render(db: Db, root: Path = Path(".")) -> str:
 
 
 def _matrix_from_shipped(db: Db) -> dict[str, dict[str, ScenarioResult]]:
-    """Most-recent shipped value per (detector, scenario).
-
-    Walks experiments in insertion order (chronological). Only experiments
-    whose candidate is SHIPPED count — these correspond to commits that
-    landed. Per-scenario keys are `<detector>/<scenario>`; we bucket by
-    detector.
-    """
-    out: dict[str, dict[str, ScenarioResult]] = {}
+    """Most-recent shipped value per scenario, bucketed under "system"."""
+    out: dict[str, dict[str, ScenarioResult]] = {"system": {}}
     for exp in db.experiments.values():
         cand = db.candidates.get(exp.candidate_id)
         if not cand or cand.status != CandidateStatus.SHIPPED:
             continue
-        for key, sr in exp.per_scenario.items():
-            if "/" not in key:
-                continue
-            detector, scenario = key.split("/", 1)
-            out.setdefault(detector, {})[scenario] = sr
+        for scen, sr in exp.per_scenario.items():
+            scen_name = scen.split("/", 1)[1] if "/" in scen else scen
+            out["system"][scen_name] = sr
     return out
 
 
@@ -256,65 +248,60 @@ def build_f1_matrix(db: Db) -> str:
     ship_count = sum(1 for c in db.candidates.values() if c.status == CandidateStatus.SHIPPED)
     lines.append(f"Shipped candidates reflected: {ship_count}\n")
 
-    for det_name, det_base in db.baseline.detectors.items():
-        lines.append(f"## {det_name}")
-        det_current = current.get(det_name, {})
-        if not det_current:
-            lines.append("_(no shipped experiments have updated this detector; showing baseline only)_\n")
-        # Order: train first, then lockbox, then any extras.
-        all_scen = list(det_base.scenarios.keys())
-        ordered = (
-            [s for s in all_scen if s in train]
-            + [s for s in all_scen if s in lockbox]
-            + [s for s in all_scen if s not in train and s not in lockbox]
-        )
-        lines.append("| Scenario | Split | Baseline F1 | Current F1 | ΔF1 | FPs base → cur |")
-        lines.append("|---|---|---:|---:|---:|---:|")
-        for scen in ordered:
-            base_sr = det_base.scenarios[scen]
-            cur_sr = det_current.get(scen)
-            split_tag = "train" if scen in train else ("lockbox" if scen in lockbox else "other")
-            if cur_sr is None:
-                lines.append(
-                    f"| `{scen}` | {split_tag} | {base_sr.f1:.3f} | — | — | {base_sr.num_baseline_fps} → — |"
-                )
-            else:
-                df1 = cur_sr.f1 - base_sr.f1
-                lines.append(
-                    f"| `{scen}` | {split_tag} | {base_sr.f1:.3f} | {cur_sr.f1:.3f} "
-                    f"| {df1:+.3f} | {base_sr.num_baseline_fps} → {cur_sr.num_baseline_fps} |"
-                )
-        # Aggregate
-        cur_f1s = [cur_sr.f1 for cur_sr in det_current.values()]
-        if cur_f1s:
+    sys_base = db.baseline.system
+    sys_current = current.get("system", {})
+    lines.append("## system")
+    if not sys_current:
+        lines.append("_(no shipped experiments have updated the system; showing baseline only)_\n")
+    all_scen = list(sys_base.scenarios.keys())
+    ordered = (
+        [s for s in all_scen if s in train]
+        + [s for s in all_scen if s in lockbox]
+        + [s for s in all_scen if s not in train and s not in lockbox]
+    )
+    lines.append("| Scenario | Split | Baseline F1 | Current F1 | ΔF1 | FPs base → cur |")
+    lines.append("|---|---|---:|---:|---:|---:|")
+    for scen in ordered:
+        base_sr = sys_base.scenarios[scen]
+        cur_sr = sys_current.get(scen)
+        split_tag = "train" if scen in train else ("lockbox" if scen in lockbox else "other")
+        if cur_sr is None:
             lines.append(
-                f"\n**mean F1**: {det_base.mean_f1:.4f} → "
-                f"{sum(cur_f1s) / len(cur_f1s):.4f} "
-                f"(over {len(cur_f1s)}/{len(all_scen)} scenarios updated)"
+                f"| `{scen}` | {split_tag} | {base_sr.f1:.3f} | — | — | {base_sr.num_baseline_fps} → — |"
             )
-        lines.append("")
+        else:
+            df1 = cur_sr.f1 - base_sr.f1
+            lines.append(
+                f"| `{scen}` | {split_tag} | {base_sr.f1:.3f} | {cur_sr.f1:.3f} "
+                f"| {df1:+.3f} | {base_sr.num_baseline_fps} → {cur_sr.num_baseline_fps} |"
+            )
+    cur_f1s = [cur_sr.f1 for cur_sr in sys_current.values()]
+    if cur_f1s:
+        lines.append(
+            f"\n**mean F1**: {sys_base.mean_f1:.4f} → "
+            f"{sum(cur_f1s) / len(cur_f1s):.4f} "
+            f"(over {len(cur_f1s)}/{len(all_scen)} scenarios updated)"
+        )
+    lines.append("")
     return "\n".join(lines)
 
 
 def _f1_matrix_compact(db: Db) -> list[str]:
-    """One-line-per-detector summary suitable for embedding in metrics.md."""
+    """One-line system-level summary suitable for embedding in metrics.md."""
     if not db.baseline:
         return []
     current = _matrix_from_shipped(db)
-    out: list[str] = []
-    for det_name, det_base in db.baseline.detectors.items():
-        det_current = current.get(det_name, {})
-        cur_f1s = [sr.f1 for sr in det_current.values()]
-        if not cur_f1s:
-            out.append(f"- **{det_name}**: baseline mean F1 {det_base.mean_f1:.4f} (unchanged)")
-            continue
-        cur_mean = sum(cur_f1s) / len(cur_f1s)
-        d = cur_mean - det_base.mean_f1
-        out.append(
-            f"- **{det_name}**: {det_base.mean_f1:.4f} → {cur_mean:.4f} "
-            f"(Δ{d:+.4f}, {len(cur_f1s)}/{len(det_base.scenarios)} scenarios updated)"
-        )
-    return out
+    sys_base = db.baseline.system
+    sys_current = current.get("system", {})
+    cur_f1s = [sr.f1 for sr in sys_current.values()]
+    if not cur_f1s:
+        return [f"- **system**: baseline mean F1 {sys_base.mean_f1:.4f} (unchanged)"]
+    cur_mean = sum(cur_f1s) / len(cur_f1s)
+    d = cur_mean - sys_base.mean_f1
+    return [
+        f"- **system**: {sys_base.mean_f1:.4f} → {cur_mean:.4f} "
+        f"(Δ{d:+.4f}, {len(cur_f1s)}/{len(sys_base.scenarios)} scenarios updated)"
+    ]
 
 
 def _min_over(detector_baseline, attr: str, scope: set[str] | None) -> float:

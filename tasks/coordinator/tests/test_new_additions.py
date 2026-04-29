@@ -160,17 +160,15 @@ def _baseline_two_buckets() -> Baseline:
     return Baseline(
         sha="x",
         generated_at="t",
-        detectors={
-            "scanmw": BaselineDetector(
-                mean_f1=0.3,
-                total_fps=100,
-                scenarios={
-                    "train_a": ScenarioResult(f1=0.3, precision=0.5, recall=0.7, num_baseline_fps=10),
-                    "train_b": ScenarioResult(f1=0.4, precision=0.6, recall=0.9, num_baseline_fps=20),
-                    "lockbox_c": ScenarioResult(f1=0.5, precision=0.6, recall=0.9, num_baseline_fps=30),
-                },
-            )
-        },
+        system=BaselineDetector(
+            mean_f1=0.3,
+            total_fps=100,
+            scenarios={
+                "train_a": ScenarioResult(f1=0.3, precision=0.5, recall=0.7, num_baseline_fps=10),
+                "train_b": ScenarioResult(f1=0.4, precision=0.6, recall=0.9, num_baseline_fps=20),
+                "lockbox_c": ScenarioResult(f1=0.5, precision=0.6, recall=0.9, num_baseline_fps=30),
+            },
+        ),
     )
 
 
@@ -194,7 +192,6 @@ def test_scoring_gates_only_train_scenarios(tmp_path: Path):
     r = score_against_baseline(
         report,
         _baseline_two_buckets(),
-        "scanmw",
         train_scenarios={"train_a", "train_b"},
     )
     # train_a regressed by 0.30 (> 0.10 catastrophe threshold) — flagged.
@@ -221,7 +218,6 @@ def test_scoring_train_only_deltas_still_include_lockbox_view(tmp_path: Path):
     r = score_against_baseline(
         report,
         _baseline_two_buckets(),
-        "scanmw",
         train_scenarios={"train_a"},
     )
     # Both scenarios have deltas for inspection, neither regressed.

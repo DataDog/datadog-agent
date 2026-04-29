@@ -35,22 +35,12 @@ def _top_scenario_deltas(exp, baseline, k: int = 5) -> list[dict[str, Any]]:
         return []
     rows: list[tuple[float, dict[str, Any]]] = []
     for key, sr in exp.per_scenario.items():
-        # key format: "<detector>/<scenario>"; pre-multi-detector runs
-        # just stored "<scenario>" — handle both.
-        if "/" in key:
-            det, scen = key.split("/", 1)
-        else:
-            det, scen = "", key
-        base_det = baseline.detectors.get(det) if det else None
-        if base_det is None:
-            # Fall back to any detector that has this scenario (legacy rows).
-            for cand_det in baseline.detectors.values():
-                if scen in cand_det.scenarios:
-                    base_det = cand_det
-                    break
-        if base_det is None or scen not in base_det.scenarios:
+        # System-level eval: keys are bare scenario names. Strip any
+        # legacy "<detector>/" prefix from older experiments.
+        scen = key.split("/", 1)[1] if "/" in key else key
+        if scen not in baseline.system.scenarios:
             continue
-        base = base_det.scenarios[scen]
+        base = baseline.system.scenarios[scen]
         delta = sr.f1 - base.f1
         rows.append((
             abs(delta),
@@ -108,9 +98,9 @@ def _baseline_summary(db: Db) -> dict[str, Any] | None:
         return None
     return {
         "sha": db.baseline.sha,
-        "detectors": {
-            name: {"mean_f1": d.mean_f1, "total_fps": d.total_fps}
-            for name, d in db.baseline.detectors.items()
+        "system": {
+            "mean_f1": db.baseline.system.mean_f1,
+            "total_fps": db.baseline.system.total_fps,
         },
     }
 
@@ -198,7 +188,9 @@ def build_proposer_prompt(
     # exist. The static prompt body uses those names as illustrative
     # examples; without this counter-signal, Opus defaults to assuming
     # they exist.
-    known_detectors = sorted((db.baseline.detectors or {}).keys()) if db.baseline else []
+    # Static canonical names under system-level eval (baseline no longer
+    # enumerates per-detector entries). Implementer prompt enforces naming.
+    known_detectors = ["bocpd", "scanmw", "scanwelch"] if db.baseline else []
     if known_detectors:
         detector_inventory_clause = (
             f"The current branch has these registered detectors: "

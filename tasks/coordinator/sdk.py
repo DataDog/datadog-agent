@@ -727,19 +727,25 @@ def implement_candidate(
     expected_names = list(candidate.target_components or [candidate.id])
     expected_names_block = ", ".join(f'"{n}"' for n in expected_names)
     naming_constraint = (
-        f"## NAMING CONSTRAINT (HARD REQUIREMENT)\n\n"
+        f"## CATALOG REGISTRATION (HARD REQUIREMENTS)\n\n"
+        f"### 1. Name allowlist\n\n"
         f"Every catalog entry you add or modify in "
         f"`comp/observer/impl/component_catalog.go` MUST use a `name:` "
         f"value drawn EXACTLY from this allowlist (case-sensitive, no "
         f"shortening, no snake_case translation, no dropped suffix):\n\n"
         f"  {expected_names_block}\n\n"
-        f"Do NOT pick a 'cleaner' or 'more idiomatic' variant — the eval "
-        f"pipeline runs `q.eval-scenarios --only <NAME>` against this "
-        f"exact literal. A mismatch makes the candidate unevaluable and "
-        f"will be auto-rejected at the registration check before eval, "
-        f"wasting the entire implementation. Verify with "
-        f"`grep '\"<expected-name>\"' comp/observer/impl/component_catalog.go` "
-        f"after editing."
+        f"Do NOT pick a 'cleaner' or 'more idiomatic' variant.\n\n"
+        f"### 2. defaultEnabled: true\n\n"
+        f"Any NEW catalog entry MUST set `defaultEnabled: true`. The "
+        f"coordinator runs system-level eval (`dda inv q.eval-scenarios` "
+        f"with no `--only` flag) — only `defaultEnabled: true` components "
+        f"actually run. A new component with `defaultEnabled: false` is "
+        f"invisible to the eval pipeline; system F1 will show no change "
+        f"and the candidate looks like a no-op even when correct.\n\n"
+        f"Verify both with:\n"
+        f"  grep '\"<expected-name>\"' comp/observer/impl/component_catalog.go\n"
+        f"  grep -A5 '\"<expected-name>\"' comp/observer/impl/component_catalog.go | grep defaultEnabled\n"
+        f"after editing — the second should show `defaultEnabled: true`."
     )
 
     # Plan-first prompt (Sonnet). Short and prescriptive — no design

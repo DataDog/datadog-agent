@@ -126,15 +126,13 @@ def test_prompt_includes_baseline_and_bans(tmp_path: Path):
     db.baseline = Baseline(
         sha="abc",
         generated_at="2026-04-20T00:00:00",
-        detectors={
-            "scanmw": BaselineDetector(
-                mean_f1=0.12,
-                total_fps=326,
-                scenarios={
-                    "s1": ScenarioResult(f1=0.1, precision=0.1, recall=0.1, num_baseline_fps=10),
-                },
-            )
-        },
+        system=BaselineDetector(
+            mean_f1=0.12,
+            total_fps=326,
+            scenarios={
+                "s1": ScenarioResult(f1=0.1, precision=0.1, recall=0.1, num_baseline_fps=10),
+            },
+        ),
     )
     prompt = build_proposer_prompt(db, n_candidates=3, banned_families={"threshold-tune"})
     assert "abc" in prompt

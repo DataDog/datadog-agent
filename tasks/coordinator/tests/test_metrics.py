@@ -30,17 +30,15 @@ def test_render_with_baseline_and_candidate():
     db.baseline = Baseline(
         sha="abc",
         generated_at="2026-04-20T00:00:00",
-        detectors={
-            "bocpd": BaselineDetector(
-                mean_f1=0.186,
-                total_fps=41,
-                scenarios={
-                    "213_pagerduty": ScenarioResult(
-                        f1=0.0, precision=0.0, recall=0.0, num_baseline_fps=0
-                    ),
-                },
-            ),
-        },
+        system=BaselineDetector(
+            mean_f1=0.186,
+            total_fps=41,
+            scenarios={
+                "213_pagerduty": ScenarioResult(
+                    f1=0.0, precision=0.0, recall=0.0, num_baseline_fps=0
+                ),
+            },
+        ),
     )
     db.candidates["A"] = Candidate(
         id="A",

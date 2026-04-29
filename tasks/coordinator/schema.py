@@ -56,18 +56,37 @@ class ScenarioResult:
     f1_sigma: float = 0.0
 
 
+# Renamed-by-purpose: BaselineMetrics describes the system as a whole now,
+# not one detector. Kept the old `BaselineDetector` symbol as an alias so
+# existing imports / tests don't break. The internal shape is unchanged
+# (mean_f1, total_fps, per-scenario dict).
 @dataclass
-class BaselineDetector:
+class BaselineMetrics:
     mean_f1: float
     total_fps: int
     scenarios: dict[str, ScenarioResult]
 
 
+# Legacy alias.
+BaselineDetector = BaselineMetrics
+
+
 @dataclass
 class Baseline:
+    """System-level baseline. One pipeline, one eval, one record.
+
+    Previously this was a per-detector dict — scoring compared each
+    candidate against `baseline.detectors[<detector_name>]`. That model
+    doesn't generalize to correlators/filters (no standalone baseline)
+    and quietly mismeasured detector candidates too (per-detector F1
+    differs from system F1 once detectors interact). The system-level
+    pipeline (catalog defaults, run via `q.eval-scenarios` with no
+    --only) is what production actually runs and what should be compared.
+    """
+
     sha: str
     generated_at: str
-    detectors: dict[str, BaselineDetector]  # "bocpd", "scanmw", "scanwelch"
+    system: BaselineMetrics
 
 
 @dataclass
@@ -83,16 +102,6 @@ class Candidate:
     # stuck on one approach. Free-form short string, e.g. "threshold-tune",
     # "anomaly-rank-filter", "detector-swap", "correlator-new".
     approach_family: str = "unspecified"
-    # Architectural role of the component. Drives eval-pipeline composition:
-    #   "detector"   — produces detections from raw signals; eval --only <self>.
-    #   "correlator" — consumes upstream detector firings; eval needs upstream
-    #                  detectors enabled (--only <self>,bocpd,scanmw,scanwelch),
-    #                  otherwise eval produces zero detections (silent failure).
-    #   "filter"     — post-processes detector output; same upstream requirement.
-    # Default "detector" preserves prior behavior. Driver/evaluator branch on
-    # this; running a correlator/filter standalone is what made PR 50045/50046
-    # silent-fail every iter.
-    kind: str = "detector"
     # Which prior candidate IDs informed this one (proposer fills this in).
     parent_candidates: list[str] = field(default_factory=list)
     # Detailed implementation plan authored by the proposer (Opus). The
@@ -340,17 +349,39 @@ def dict_to_db(d: dict[str, Any]) -> Db:
     def _baseline_from_dict(b: dict | None) -> Baseline | None:
         if not b:
             return None
+        # New format: {"system": {mean_f1, total_fps, scenarios}}
+        # Old format: {"detectors": {<name>: {...}, ...}} — operator must
+        # re-run import_baseline after upgrade. We pick first detector as a
+        # stand-in (warning printed) so the driver doesn't crash.
+        if "system" in b:
+            sys = b["system"]
+            metrics = BaselineMetrics(
+                mean_f1=sys["mean_f1"],
+                total_fps=sys["total_fps"],
+                scenarios={s: _scenario(sr) for s, sr in sys["scenarios"].items()},
+            )
+        elif "detectors" in b:
+            import sys as _sys
+            print(
+                "WARNING: legacy per-detector baseline. Re-run "
+                "`coordinator.import_baseline --report <system_report.json>`. "
+                "Using first detector's record as a stand-in.",
+                file=_sys.stderr,
+            )
+            first_det = next(iter(b["detectors"].values()), None)
+            if first_det is None:
+                return None
+            metrics = BaselineMetrics(
+                mean_f1=first_det["mean_f1"],
+                total_fps=first_det["total_fps"],
+                scenarios={s: _scenario(sr) for s, sr in first_det["scenarios"].items()},
+            )
+        else:
+            return None
         return Baseline(
             sha=b["sha"],
             generated_at=b["generated_at"],
-            detectors={
-                name: BaselineDetector(
-                    mean_f1=v["mean_f1"],
-                    total_fps=v["total_fps"],
-                    scenarios={s: _scenario(sr) for s, sr in v["scenarios"].items()},
-                )
-                for name, v in b["detectors"].items()
-            },
+            system=metrics,
         )
 
     baseline = _baseline_from_dict(d.get("baseline"))
@@ -398,7 +429,6 @@ def dict_to_db(d: dict[str, Any]) -> Db:
             status=CandidateStatus(c.get("status", "proposed")),
             proposed_at=c.get("proposed_at", ""),
             approach_family=c.get("approach_family", "unspecified"),
-            kind=c.get("kind", "detector"),
             parent_candidates=list(c.get("parent_candidates", [])),
             implementation_plan=c.get("implementation_plan", "") or "",
         )
@@ -488,13 +518,10 @@ def db_to_dict(db: Db) -> dict[str, Any]:
         return {
             "sha": b.sha,
             "generated_at": b.generated_at,
-            "detectors": {
-                name: {
-                    "mean_f1": dd.mean_f1,
-                    "total_fps": dd.total_fps,
-                    "scenarios": {s: _s(sr) for s, sr in dd.scenarios.items()},
-                }
-                for name, dd in b.detectors.items()
+            "system": {
+                "mean_f1": b.system.mean_f1,
+                "total_fps": b.system.total_fps,
+                "scenarios": {s: _s(sr) for s, sr in b.system.scenarios.items()},
             },
         }
 
@@ -548,7 +575,6 @@ def db_to_dict(db: Db) -> dict[str, Any]:
                 "status": c.status.value,
                 "proposed_at": c.proposed_at,
                 "approach_family": c.approach_family,
-                "kind": c.kind,
                 "parent_candidates": c.parent_candidates,
                 "implementation_plan": c.implementation_plan,
             }
