@@ -124,6 +124,13 @@ func testDyninst(
 	t.Cleanup(testServer.s.Close)
 	cfg, err := module.NewConfig(nil)
 	require.NoError(t, err)
+	// In short mode (which never runs in CI), use uprobe_multi attachment to
+	// speed up integration tests on hosts that support it. Kernel feature
+	// detection is unreliable, so we opt in explicitly rather than
+	// auto-detecting in the loader.
+	if testing.Short() {
+		cfg.UseMultiAttach = true
+	}
 	loaderOpts := []loader.Option{
 		loader.WithAdditionalSerializer(&compiler.DebugSerializer{
 			Out: codeDump,
