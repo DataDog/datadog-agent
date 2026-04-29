@@ -362,12 +362,13 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 	d.resolver.resolveDestinationContainerIDs(conns)
 
 	// Build remote service resolver for intra-host connection enrichment.
-	portToPID := make(map[int32]int32)
+	listeners := make(map[remoteservice.ListenKey]int32)
 	for _, c := range conns.Conns {
 		// USM supports TCP only; skip UDP connections.
 		if c.IntraHost && c.Pid > 0 && c.SPort > 0 && c.Type == network.TCP {
-			if _, exists := portToPID[int32(c.SPort)]; !exists {
-				portToPID[int32(c.SPort)] = int32(c.Pid)
+			key := remoteservice.ListenKey{IP: c.Source.String(), Port: int32(c.SPort)}
+			if _, exists := listeners[key]; !exists {
+				listeners[key] = int32(c.Pid)
 			}
 		}
 	}
@@ -386,7 +387,7 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 			}
 			return tags
 		},
-		PortToPID: portToPID,
+		Listeners: listeners,
 	}
 
 	// Sort connections by remote IP/PID for more efficient resolution

@@ -189,26 +189,27 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 
 	// Fetch remote service tag data. On Windows these are HTTP calls to
 	// system-probe and run concurrently; on Linux they are no-ops.
-	iisTags, procCacheTags, portToPID := fetchRemoteServiceData(c.sysprobeClient)
+	iisTags, procCacheTags, listeners := fetchRemoteServiceData(c.sysprobeClient)
 
-	// Supplement portToPID from connections data. system-probe runs as root
+	// Supplement listeners from connections data. system-probe runs as root
 	// and provides both sides of intra-host connections, so server-side
 	// entries have the correct PID even when portlist.Poller (running as
 	// dd-agent) cannot read /proc/<pid>/fd/ for other users' processes.
-	if portToPID == nil {
-		portToPID = make(map[int32]int32)
+	if listeners == nil {
+		listeners = make(map[remoteservice.ListenKey]int32)
 	}
 	for _, cx := range conns.Conns {
 		// USM supports TCP only; skip UDP connections.
 		if cx.IntraHost && cx.Pid > 0 && cx.Laddr.Port > 0 && cx.Type == model.ConnectionType_tcp {
-			if _, exists := portToPID[cx.Laddr.Port]; !exists {
-				portToPID[cx.Laddr.Port] = cx.Pid
+			key := remoteservice.ListenKey{IP: cx.Laddr.Ip, Port: cx.Laddr.Port}
+			if _, exists := listeners[key]; !exists {
+				listeners[key] = cx.Pid
 			}
 		}
 	}
 
 	groupID := nextGroupID()
-	messages := batchConnections(c.hostInfo, c.hostTagProvider, getContainersCB, getProcessTagsCB, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor, c.processNameExtractor, conns.ResolvConfs, iisTags, procCacheTags, portToPID)
+	messages := batchConnections(c.hostInfo, c.hostTagProvider, getContainersCB, getProcessTagsCB, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor, c.processNameExtractor, conns.ResolvConfs, iisTags, procCacheTags, listeners)
 	return StandardRunResult(messages), nil
 }
 
@@ -476,7 +477,7 @@ func batchConnections(
 	resolvConfs []string,
 	iisTags map[string][]string,
 	procCacheTags map[uint32][]string,
-	portToPID map[int32]int32,
+	listeners map[remoteservice.ListenKey]int32,
 ) []model.MessageBody {
 	groupSize := groupSize(len(cxs), maxConnsPerMessage)
 	batches := make([]model.MessageBody, 0, groupSize)
@@ -498,7 +499,7 @@ func batchConnections(
 		GetServiceContext: serviceExtractor.GetServiceContext,
 		GetProcessTags:    func(pid int32) []string { return getRemoteProcessTags(pid, procCacheTags, processTagProvider) },
 		GetIISTags:        getIISTags,
-		PortToPID:         portToPID,
+		Listeners:         listeners,
 	}
 
 	if len(cxs) > maxConnsPerMessage {
@@ -559,7 +560,7 @@ func batchConnections(
 			c.RemoteServiceTagsIdx = -1
 			// USM supports TCP only; skip UDP connections.
 			if c.IntraHost && c.Laddr.ContainerId == "" && c.Type == model.ConnectionType_tcp {
-				if remoteTags := remoteServiceResolver.Resolve(c.Pid, c.Raddr.Port, c.Laddr.Port); len(remoteTags) > 0 {
+				if remoteTags := remoteServiceResolver.Resolve(c.Pid, c.Raddr.Ip, c.Raddr.Port, c.Laddr.Port); len(remoteTags) > 0 {
 					c.RemoteServiceTagsIdx = int32(tagsEncoder.Encode(remoteTags))
 				}
 			}

@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/network/remoteservice"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
@@ -66,19 +67,19 @@ func fetchProcessCacheTags(client *http.Client) map[uint32][]string {
 	return fetchFromSystemProbe[map[uint32][]string](client, "/process_cache_tags")
 }
 
-// fetchRemoteServiceData fetches IIS tags, process cache tags, and the listening
-// port-to-PID map concurrently, as each involves an I/O operation.
-func fetchRemoteServiceData(client *http.Client) (map[string][]string, map[uint32][]string, map[int32]int32) {
+// fetchRemoteServiceData fetches IIS tags, process cache tags, and the listener
+// map concurrently, as each involves an I/O operation.
+func fetchRemoteServiceData(client *http.Client) (map[string][]string, map[uint32][]string, map[remoteservice.ListenKey]int32) {
 	var iisTags map[string][]string
 	var procCacheTags map[uint32][]string
-	var portToPID map[int32]int32
+	var listeners map[remoteservice.ListenKey]int32
 	var wg sync.WaitGroup
 	wg.Add(3)
 	go func() { defer wg.Done(); iisTags = fetchIISTagsCache(client) }()
 	go func() { defer wg.Done(); procCacheTags = fetchProcessCacheTags(client) }()
-	go func() { defer wg.Done(); portToPID = getListeningPortToPIDMap() }()
+	go func() { defer wg.Done(); listeners = getListeningPortToPIDMap() }()
 	wg.Wait()
-	return iisTags, procCacheTags, portToPID
+	return iisTags, procCacheTags, listeners
 }
 
 // getRemoteProcessTags returns process tags for a remote PID using the system-probe process cache.

@@ -22,6 +22,7 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/hosttags"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
+	"github.com/DataDog/datadog-agent/pkg/network/remoteservice"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
@@ -919,16 +920,17 @@ func TestRemoteServiceTags(t *testing.T) {
 		conn := makeConnection(testPID + 1)
 		conn.RouteIdx = -1
 		conn.IntraHost = true
+		conn.Raddr.Ip = "127.0.0.1"
 		conn.Raddr.Port = serverPort
 
 		// Provide a port-to-PID map directly instead of relying on the OS Poller
-		portToPID := map[int32]int32{serverPort: testPID}
+		listeners := map[remoteservice.ListenKey]int32{{IP: "127.0.0.1", Port: serverPort}: testPID}
 
 		hostTagsProvider := hosttags.NewHostTagProvider()
 		chunks := batchConnections(&HostInfo{}, hostTagsProvider, nil, nil, 10, 0,
 			[]*model.Connection{conn}, nil, "nid", nil, nil,
 			model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, nil,
-			ex, nil, nil, nil, nil, portToPID)
+			ex, nil, nil, nil, nil, listeners)
 
 		require.Len(t, chunks, 1)
 		cc := chunks[0].(*model.CollectorConnections)
@@ -953,15 +955,16 @@ func TestRemoteServiceTags(t *testing.T) {
 		conn := makeConnection(testPID + 1)
 		conn.RouteIdx = -1
 		conn.IntraHost = true
+		conn.Raddr.Ip = "127.0.0.1"
 		conn.Raddr.Port = serverPort
 
-		portToPID := map[int32]int32{serverPort: testPID}
+		listeners := map[remoteservice.ListenKey]int32{{IP: "127.0.0.1", Port: serverPort}: testPID}
 
 		hostTagsProvider := hosttags.NewHostTagProvider()
 		chunks := batchConnections(&HostInfo{}, hostTagsProvider, nil, nil, 10, 0,
 			[]*model.Connection{conn}, nil, "nid", nil, nil,
 			model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, nil,
-			ex, nil, nil, nil, nil, portToPID)
+			ex, nil, nil, nil, nil, listeners)
 
 		require.Len(t, chunks, 1)
 		cc := chunks[0].(*model.CollectorConnections)
@@ -986,15 +989,16 @@ func TestRemoteServiceTags(t *testing.T) {
 		conn.RouteIdx = -1
 		conn.IntraHost = true
 		conn.Laddr.ContainerId = "abc123"
+		conn.Raddr.Ip = "127.0.0.1"
 		conn.Raddr.Port = serverPort
 
-		portToPID := map[int32]int32{serverPort: testPID}
+		listeners := map[remoteservice.ListenKey]int32{{IP: "127.0.0.1", Port: serverPort}: testPID}
 
 		hostTagsProvider := hosttags.NewHostTagProvider()
 		chunks := batchConnections(&HostInfo{}, hostTagsProvider, nil, nil, 10, 0,
 			[]*model.Connection{conn}, nil, "nid", nil, nil,
 			model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, nil,
-			ex, nil, nil, nil, nil, portToPID)
+			ex, nil, nil, nil, nil, listeners)
 
 		require.Len(t, chunks, 1)
 		cc := chunks[0].(*model.CollectorConnections)
@@ -1014,15 +1018,16 @@ func TestRemoteServiceTags(t *testing.T) {
 		conn := makeConnection(testPID + 1)
 		conn.RouteIdx = -1
 		conn.IntraHost = false
+		conn.Raddr.Ip = "127.0.0.1"
 		conn.Raddr.Port = serverPort
 
-		portToPID := map[int32]int32{serverPort: testPID}
+		listeners := map[remoteservice.ListenKey]int32{{IP: "127.0.0.1", Port: serverPort}: testPID}
 
 		hostTagsProvider := hosttags.NewHostTagProvider()
 		chunks := batchConnections(&HostInfo{}, hostTagsProvider, nil, nil, 10, 0,
 			[]*model.Connection{conn}, nil, "nid", nil, nil,
 			model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, nil,
-			ex, nil, nil, nil, nil, portToPID)
+			ex, nil, nil, nil, nil, listeners)
 
 		require.Len(t, chunks, 1)
 		cc := chunks[0].(*model.CollectorConnections)

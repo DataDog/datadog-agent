@@ -8,6 +8,24 @@
 // the system-probe direct sender to enrich connections with RemoteServiceTagsIdx.
 package remoteservice
 
+import "strings"
+
+// ListenKey identifies a listening socket by its bind IP and port. Two distinct
+// processes can listen on the same port if they bind to different interfaces
+// (e.g. one on 127.0.0.1, another on a LAN IP), so a port number alone is not
+// a unique key.
+type ListenKey struct {
+	IP   string
+	Port int32
+}
+
+// Wildcard bind addresses. A listener bound here accepts on all interfaces of
+// the corresponding family.
+const (
+	wildcardV4 = "0.0.0.0"
+	wildcardV6 = "::"
+)
+
 // Resolver resolves remote service tags for intra-host connections.
 type Resolver struct {
 	// GetServiceContext returns service context tags (e.g. DD_SERVICE) for a PID.
@@ -16,14 +34,38 @@ type Resolver struct {
 	GetProcessTags func(pid int32) []string
 	// GetIISTags returns IIS-specific tags for a (remotePort, localPort) pair. May be nil.
 	GetIISTags func(remotePort, localPort int32) []string
-	// PortToPID maps listening ports to their owning PIDs.
-	PortToPID map[int32]int32
+	// Listeners maps listening (IP, port) pairs to their owning PIDs.
+	Listeners map[ListenKey]int32
+}
+
+// listenerPID returns the PID listening on the given (ip, port). If no exact
+// match exists it falls back to wildcard listeners (0.0.0.0 for IPv4, :: for
+// IPv6, which may also serve IPv4-mapped addresses on dual-stack sockets).
+func (r *Resolver) listenerPID(ip string, port int32) (int32, bool) {
+	if pid, ok := r.Listeners[ListenKey{IP: ip, Port: port}]; ok {
+		return pid, true
+	}
+	// IPv6 addresses contain a colon; IPv4 does not.
+	if strings.Contains(ip, ":") {
+		if pid, ok := r.Listeners[ListenKey{IP: wildcardV6, Port: port}]; ok {
+			return pid, true
+		}
+	} else {
+		if pid, ok := r.Listeners[ListenKey{IP: wildcardV4, Port: port}]; ok {
+			return pid, true
+		}
+		// A dual-stack :: listener also accepts IPv4-mapped connections.
+		if pid, ok := r.Listeners[ListenKey{IP: wildcardV6, Port: port}]; ok {
+			return pid, true
+		}
+	}
+	return 0, false
 }
 
 // Resolve returns the remote service tags for an intra-host connection.
-// pid is the local PID, remotePort and localPort are the connection's remote/local ports.
-// Returns nil if no remote tags can be resolved.
-func (r *Resolver) Resolve(pid int32, remotePort, localPort int32) []string {
+// pid is the local PID, remoteIP/remotePort and localPort are the connection's
+// remote endpoint and local port. Returns nil if no remote tags can be resolved.
+func (r *Resolver) Resolve(pid int32, remoteIP string, remotePort, localPort int32) []string {
 	var remoteTags []string
 
 	// Try IIS tags first (Windows only, nil on Linux)
@@ -35,7 +77,7 @@ func (r *Resolver) Resolve(pid int32, remotePort, localPort int32) []string {
 
 	// Fallback: resolve by destination PID
 	if len(remoteTags) == 0 {
-		destPID, ok := r.PortToPID[remotePort]
+		destPID, ok := r.listenerPID(remoteIP, remotePort)
 		if !ok || destPID == pid {
 			return nil
 		}

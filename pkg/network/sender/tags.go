@@ -79,7 +79,7 @@ func (d *directSender) addRemoteServiceTags(builder *model.ConnectionBuilder, nc
 	srcContainerID := getInternedString(nc.ContainerID.Source)
 	// USM supports TCP only; skip UDP connections.
 	if nc.IntraHost && srcContainerID == "" && nc.Type == network.TCP {
-		if remoteTags := resolver.Resolve(int32(nc.Pid), int32(nc.DPort), int32(nc.SPort)); len(remoteTags) > 0 {
+		if remoteTags := resolver.Resolve(int32(nc.Pid), nc.Dest.String(), int32(nc.DPort), int32(nc.SPort)); len(remoteTags) > 0 {
 			builder.SetRemoteServiceTagsIdx(int32(tagsEncoder.Encode(remoteTags)))
 			return
 		}
