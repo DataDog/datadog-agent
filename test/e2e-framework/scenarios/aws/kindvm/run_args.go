@@ -163,6 +163,14 @@ func WithDeployTestWorkload() RunOption {
 	return func(p *RunParams) error { p.deployTestWorkload = true; return nil }
 }
 
+// WithoutDeployTestWorkload disables the default test workload deployment.
+// Use this when you install the agent and workloads outside of Pulumi
+// (e.g., via helmagent.Install in SetupSuite) so the provisioner only
+// creates infrastructure.
+func WithoutDeployTestWorkload() RunOption {
+	return func(p *RunParams) error { p.deployTestWorkload = false; return nil }
+}
+
 // WithWorkloadApp adds a workload app to the environment
 func WithWorkloadApp(appFunc kubecomp.WorkloadAppFunc) RunOption {
 	return func(p *RunParams) error { p.workloadAppFuncs = append(p.workloadAppFuncs, appFunc); return nil }
