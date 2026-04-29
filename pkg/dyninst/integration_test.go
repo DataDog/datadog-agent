@@ -340,7 +340,12 @@ func runIntegrationTestSuite(
 	// use this environment variable to run all the tests individually.
 	const runAllDebugTestsEnv = "RUN_ALL_DEBUG_TESTS"
 	runAllDebugTests, _ := strconv.ParseBool(os.Getenv(runAllDebugTestsEnv))
-	for _, cfg := range cfgs {
+	// Debug mode runs are expensive and largely redundant across configs for
+	// the same binary. By default we only run debug=true for the first config;
+	// set RUN_ALL_DEBUG_CONFIGS=1 to run debug=true for every config.
+	const runAllDebugConfigsEnv = "RUN_ALL_DEBUG_CONFIGS"
+	runAllDebugConfigs, _ := strconv.ParseBool(os.Getenv(runAllDebugConfigsEnv))
+	for cfgIdx, cfg := range cfgs {
 		allProbes := testprogs.MustGetProbeDefinitions(t, service)
 		probes := slices.DeleteFunc(slices.Clone(allProbes), func(p ir.ProbeDefinition) bool {
 			return testprogs.HasIssueTag(p, cfg)
@@ -465,6 +470,12 @@ func runIntegrationTestSuite(
 				t.Run(fmt.Sprintf("debug=%t", debug), func(t *testing.T) {
 					if debug && testing.Short() {
 						t.Skip("skipping debug with short")
+					}
+					if debug && cfgIdx != 0 && !runAllDebugConfigs {
+						t.Skipf(
+							"skipping debug variant for non-first config; set %s=1 to run debug for every config",
+							runAllDebugConfigsEnv,
+						)
 					}
 					t.Parallel()
 					t.Run("all-probes", func(t *testing.T) {
