@@ -42,6 +42,17 @@ AGENT_CORECHECKS = [
     "cloud_hostinfo",
 ]
 
+AIX_CORECHECKS = [
+    "cpu",
+    "disk",
+    "io",
+    "load",
+    "memory",
+    "ntp",
+    "oracle",
+    "uptime",
+]
+
 WINDOWS_CORECHECKS = [
     "agentcrashdetect",
     "sbom",
