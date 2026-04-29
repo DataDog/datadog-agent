@@ -143,6 +143,10 @@
       },
       {
         "matchManagers": ["bazel-module"],
+        "labels": ["dependencies", "dependencies-bazel", "changelog/no-changelog", "qa/no-code-change"]
+      },
+      {
+        "matchManagers": ["bazel-module"],
         "matchDepTypes": ["git_override"],
         "enabled": false
       },
