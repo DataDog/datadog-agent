@@ -36,7 +36,6 @@ import (
 	sysprobeConfigFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe"
 	"github.com/DataDog/datadog-agent/pkg/config/fetcher/tracers"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -171,7 +170,7 @@ func (ia *inventoryagent) initData() {
 
 	ia.data["agent_version"] = version.AgentVersion
 	ia.data["package_version"] = version.AgentPackageVersion
-	ia.data["agent_startup_time_ms"] = pkgconfigsetup.StartTime.UnixMilli()
+	ia.data["agent_startup_time_ms"] = ia.conf.StartTime().UnixMilli()
 	ia.data["flavor"] = flavor.GetFlavor()
 
 	infraMode := scrub(ia.conf.GetString("infrastructure_mode"))

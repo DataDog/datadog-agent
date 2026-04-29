@@ -152,8 +152,6 @@ linters:
             - "!**/comp/metadata/clusteragent/impl/cluster_agent.go"
             - "!**/comp/metadata/inventoryagent/inventoryagentimpl/inventoryagent.go"
             - "!**/comp/metadata/inventoryagent/inventoryagentimpl/inventoryagent_test.go"
-            - "!**/comp/metadata/inventoryagent/impl/inventoryagent.go"
-            - "!**/comp/metadata/inventoryagent/impl/inventoryagent_test.go"
             - "!**/comp/otelcol/otlp/components/exporter/serializerexporter/serializer.go"
             - "!**/comp/otelcol/otlp/components/processor/infraattributesprocessor/factory.go"
             - "!**/comp/otelcol/otlp/config.go"
