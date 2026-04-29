@@ -45,6 +45,12 @@ go_deps.gazelle_override(
     ],
     path = "github.com/hashicorp/vault-plugin-secrets-kv",
 )
+go_deps.gazelle_override(
+    directives = [
+        "gazelle:build_file_generation on",
+    ],
+    path = "github.com/coreos/etcd",
+)
 use_repo(
     go_deps,
     "cat_dario_mergo",
