@@ -32,12 +32,6 @@ func assertMessageContent(t *testing.T, m *message.Message, content string) {
 	assert.Equal(t, m.IsMultiLine, isMultiLine)
 }
 
-func assertTrailingMultiline(t *testing.T, m *message.Message, content string) {
-	t.Helper()
-	assert.Equal(t, content, string(m.GetContent()))
-	assert.Equal(t, m.IsMultiLine, true)
-}
-
 // processMsg calls Process with nil tokens and returns only the messages, for tests that
 // don't need to inspect token propagation.
 func processMsg(ag Aggregator, msg *message.Message, label Label) []*message.Message {
