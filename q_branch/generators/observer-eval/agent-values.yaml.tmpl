@@ -1,0 +1,87 @@
+fullnameOverride: datadog-agent
+
+datadog:
+  apiKeyExistingSecret: gensim-secrets
+  appKeyExistingSecret: gensim-secrets
+  apm:
+    portEnabled: true
+    instrumentation:
+      enabled: true
+  logs:
+    enabled: ${LOGS_ENABLED}
+    containerCollectAll: ${LOGS_ENABLED}
+  processAgent:
+    enabled: true
+    processCollection: true
+  dogstatsd:
+    useHostPort: true
+  kubelet:
+    tlsVerify: false
+  clusterName: gensim
+  clusterChecks:
+    enabled: true
+  env:
+    - name: DD_OBSERVER_RECORDING_ENABLED
+      value: "true"
+    - name: DD_OBSERVER_HIGH_FREQUENCY_INTERVAL
+      value: "1s"
+
+agents:
+  enabled: true
+  image:
+    repository: ${AGENT_IMAGE_REPO}
+    tag: ${AGENT_IMAGE_TAG}
+    doNotCheckTag: true
+    pullPolicy: Always
+    pullSecrets:
+      - name: gar-pull-secret
+  useConfigMap: true
+  customAgentConfig:
+    observer:
+      recording:
+        enabled: true
+        parquet_output_dir: /tmp/observer-parquet
+        parquet_flush_interval: 30s
+      components:
+        scrappy_collector:
+          enabled: ${SCRAPPY_ENABLED}
+          output_path: /tmp/scrappy-collect.jsonl
+        bocpd:
+          enabled: ${DETECTORS_ENABLED}
+        rrcf:
+          enabled: ${DETECTORS_ENABLED}
+        cusum:
+          enabled: false
+        scanmw:
+          enabled: false
+        scanwelch:
+          enabled: false
+        cross_signal:
+          enabled: false
+        time_cluster:
+          enabled: ${DETECTORS_ENABLED}
+        passthrough:
+          enabled: false
+  containers:
+    agent:
+      resources:
+        requests:
+          memory: 1500Mi
+          cpu: 500m
+        limits:
+          memory: 3000Mi
+
+clusterAgent:
+  enabled: true
+  image:
+    pullSecrets:
+      - name: gar-pull-secret
+  admissionController:
+    enabled: true
+    mutateUnlabelled: true
+
+clusterChecksRunner:
+  enabled: false
+
+datadog-operator:
+  enabled: false

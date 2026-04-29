@@ -82,7 +82,7 @@ def _send_launch_event(cfg, run_id, image, episode_pairs, mode, gensim_sha):
 #   record-parquet          - Record observer data to parquet files for offline testbench replay
 #   live-anomaly-detection  - Run live edge anomaly detection, send events to Datadog
 #   live-and-record         - Both simultaneously (for A/B comparison of testbench vs live)
-_VALID_MODES = ("record-parquet", "live-anomaly-detection", "live-and-record")
+_VALID_MODES = ("record-parquet", "live-anomaly-detection", "live-and-record", "scrappy-collect")
 
 
 @task(

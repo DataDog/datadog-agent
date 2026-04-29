@@ -388,6 +388,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("observer.components.cross_signal.enabled", false)
 	config.BindEnvAndSetDefault("observer.components.time_cluster.enabled", true)
 	config.BindEnvAndSetDefault("observer.components.time_cluster.min_cluster_size", 0)
+	config.BindEnvAndSetDefault("observer.components.scrappy_collector.enabled", false)
+	config.BindEnvAndSetDefault("observer.components.scrappy_collector.output_path", "/tmp/scrappy-collect.jsonl")
 	config.BindEnvAndSetDefault("observer.components.passthrough.enabled", false)
 
 	// -------------------------------------------------------------

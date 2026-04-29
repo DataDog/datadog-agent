@@ -205,6 +205,16 @@ for EP_SPEC in "${EP_LIST[@]}"; do
       else
         echo "ERROR: kubectl cp failed -- parquet not collected" >&2
       fi
+
+      # Collect scrappy JSONL if present
+      echo "Collecting scrappy JSONL from pod $AGENT_POD..."
+      mkdir -p /workspace/results/scrappy
+      if kubectl cp "$KUBE_NAMESPACE/$AGENT_POD:/tmp/scrappy-collect.jsonl" /workspace/results/scrappy/scrappy-collect.jsonl 2>/dev/null; then
+        SCRAPPY_LINES=$(wc -l < /workspace/results/scrappy/scrappy-collect.jsonl)
+        echo "Scrappy JSONL collected: $SCRAPPY_LINES lines"
+      else
+        echo "WARN: scrappy JSONL not found (scrappy_collector may not be enabled)" >&2
+      fi
     fi
 
     # 5. Zip and upload to S3
@@ -223,9 +233,11 @@ for EP_SPEC in "${EP_LIST[@]}"; do
       #   tmp/gensim-archive/results/<scenario>.json  (produced by play-episode.sh)
       mkdir -p /workspace/zip-staging/tmp/gensim-archive/parquet
       mkdir -p /workspace/zip-staging/tmp/gensim-archive/results
+      mkdir -p /workspace/zip-staging/tmp/gensim-archive/scrappy
       cp /workspace/results/parquet/* /workspace/zip-staging/tmp/gensim-archive/parquet/ 2>/dev/null || true
       # play-episode.sh writes results to /workspace/results/<scenario>-<cycle>.json
       cp /workspace/results/*.json /workspace/zip-staging/tmp/gensim-archive/results/ 2>/dev/null || true
+      cp /workspace/results/scrappy/* /workspace/zip-staging/tmp/gensim-archive/scrappy/ 2>/dev/null || true
 
       cd /workspace/zip-staging
       zip -r "${ZIP_PATH}" tmp/gensim-archive/ -q

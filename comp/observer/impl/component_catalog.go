@@ -196,6 +196,22 @@ func defaultCatalog() *componentCatalog {
 				factory:        func(any) any { return NewScanWelchDetector() },
 				defaultEnabled: false,
 			},
+			{
+				name:           "scrappy_collector",
+				displayName:    "Scrappy Collector",
+				kind:           componentDetector,
+				defaultConfig:  DefaultScrappyCollectorConfig(),
+				factory:        func(cfg any) any { return NewScrappyCollector(cfg.(ScrappyCollectorConfig)) },
+				defaultEnabled: false,
+				readConfig:     readScrappyCollectorConfig,
+				parseJSON: func(defaults any, raw []byte) (any, error) {
+					cfg := defaults.(ScrappyCollectorConfig)
+					if err := json.Unmarshal(raw, &cfg); err != nil {
+						return nil, err
+					}
+					return cfg, nil
+				},
+			},
 			// ---- Correlators ----
 			{
 				name:           "cross_signal",
