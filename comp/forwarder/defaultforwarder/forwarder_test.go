@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -708,27 +709,19 @@ func TestTransactionEventHandlersNotRetryable(t *testing.T) {
 }
 
 func TestProcessLikePayloadResponseTimeout(t *testing.T) {
-	requests := atomic.NewInt64(0)
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		requests.Inc()
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer ts.Close()
-	mockConfig := mock.New(t)
-	responseTimeout := defaultResponseTimeout
+	synctest.Test(t, syncTestProcessLikePayloadResponseTimeout)
+}
 
-	defaultResponseTimeout = 5 * time.Second
-	mockConfig.SetWithoutSource("dd_url", ts.URL)
+func syncTestProcessLikePayloadResponseTimeout(t *testing.T) {
+	mockConfig := mock.New(t)
 	mockConfig.SetWithoutSource("forwarder_num_workers", 0) // Set the number of workers to 0 so the txn goes nowhere
-	defer func() {
-		defaultResponseTimeout = responseTimeout
-	}()
 
 	log := logmock.New(t)
-	r, err := resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{ts.URL: {configUtils.NewAPIKeys("path", "api_key1")}})
+	r, err := resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{"http://test.invalid": {configUtils.NewAPIKeys("path", "api_key1")}})
 	require.NoError(t, err)
 	secrets := secretsmock.New(t)
 	options := NewOptionsWithResolvers(mockConfig, log, r)
+	options.DisableAPIKeyChecking = true // Disable API key checking so no health check goroutine is started
 	options.Secrets = secrets
 	f := NewDefaultForwarder(mockConfig, log, options)
 

@@ -852,6 +852,9 @@ core,github.com/circonus-labs/circonus-gometrics/api/config,BSD-3-Clause,"Copyri
 core,github.com/circonus-labs/circonus-gometrics/checkmgr,BSD-3-Clause,"Copyright (c) 2016, Circonus, Inc. All rights reserved"
 core,github.com/circonus-labs/circonusllhist,BSD-3-Clause,"Copyright (c) 2016 Circonus, Inc. All rights reserved"
 core,github.com/clbanning/mxj,MIT,Copyright (c) 2012-2016 Charles Banning <clbanning@gmail.com>.  All rights reserved | Copyright 2009 The Go Authors. All rights reserved
+core,github.com/clipperhouse/stringish,MIT,Copyright (c) 2025 Matt Sherman
+core,github.com/clipperhouse/uax29/v2/graphemes,MIT,Copyright (c) 2020 Matt Sherman
+core,github.com/clipperhouse/uax29/v2/internal/iterators,MIT,Copyright (c) 2020 Matt Sherman
 core,github.com/cloudflare/cbpfc,BSD-3-Clause,"Copyright (c) 2019, Cloudflare. All rights reserved"
 core,github.com/cloudflare/circl/dh/x25519,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2019 Cloudflare. All rights reserved
 core,github.com/cloudflare/circl/dh/x448,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2019 Cloudflare. All rights reserved
@@ -1505,8 +1508,8 @@ core,github.com/imdario/mergo,BSD-3-Clause,Copyright (c) 2012 The Go Authors. Al
 core,github.com/inconshreveable/mousetrap,Apache-2.0,Copyright 2022 Alan Shreve (@inconshreveable)
 core,github.com/invopop/jsonschema,MIT,Copyright (C) 2014 Alec Thomas
 core,github.com/ionos-cloud/sdk-go/v6,Apache-2.0,Copyright 2021 IONOS
-core,github.com/itchyny/gojq,MIT,Copyright (c) 2019-2024 itchyny
-core,github.com/itchyny/timefmt-go,MIT,Copyright (c) 2020-2022 itchyny
+core,github.com/itchyny/gojq,MIT,Copyright (c) 2019-2026 itchyny
+core,github.com/itchyny/timefmt-go,MIT,Copyright (c) 2020-2025 itchyny
 core,github.com/jackc/pgpassfile,MIT,Copyright (c) 2019 Jack Christensen
 core,github.com/jackc/pgservicefile,MIT,Copyright (c) 2020 Jack Christensen
 core,github.com/jackc/pgx/v5,MIT,Copyright (c) 2013-2021 Jack Christensen
@@ -2359,7 +2362,6 @@ core,github.com/richardartoul/molecule,MIT,Copyright (c) 2020 Richard Artoul
 core,github.com/richardartoul/molecule/src/codec,Apache-2.0,Copyright (c) 2020 Richard Artoul
 core,github.com/richardartoul/molecule/src/protowire,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved | Copyright (c) 2020 Richard Artoul
 core,github.com/rickar/props,BSD-3-Clause,Copyright (c) 2013 Rick Arnold. All rights reserved
-core,github.com/rivo/uniseg,MIT,Copyright (c) 2019 Oliver Kuederle
 core,github.com/robfig/cron,MIT,Copyright (C) 2012 Rob Figueiredo
 core,github.com/robfig/cron/v3,MIT,Copyright (C) 2012 Rob Figueiredo
 core,github.com/rogpeppe/go-internal/fmtsort,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved

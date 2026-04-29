@@ -271,6 +271,32 @@ var defaultRedactors = []jsonRedactor{
 			`[duration]ms`,
 		),
 	),
+	redactor(
+		prefixSuffixMatcher{"/debugger/snapshot/captures/", "/value"},
+		func() replacer {
+			// Replace the long string with a string that tells us how long it was.
+			re := regexp.MustCompile(`(?P<longString>\d+)x{10,}x+`)
+			return replacerFunc(func(v jsontext.Value) jsontext.Value {
+				if v.Kind() != '"' {
+					return v
+				}
+				var s string
+				if err := json.Unmarshal(v, &s); err != nil {
+					return v
+				}
+				match := re.FindStringSubmatch(s)
+				if len(match) == 0 {
+					return v
+				}
+				s = fmt.Sprintf(`<%d byte string>`, len(s))
+				buf, err := json.Marshal(s)
+				if err != nil {
+					return v
+				}
+				return jsontext.Value(buf)
+			})
+		}(),
+	),
 }
 
 const mutexInternalsRegexp = `\{state: [[:digit:]]+, sema: [[:digit:]]+\}`

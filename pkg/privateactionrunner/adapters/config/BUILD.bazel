@@ -16,6 +16,7 @@ go_library(
         "//pkg/privateactionrunner/observability",
         "//pkg/privateactionrunner/util",
         "//pkg/util/flavor",
+        "//pkg/util/log",
         "//pkg/version",
         "@//pkg/privateactionrunner/adapters/actions",
         "@//pkg/privateactionrunner/adapters/modes",

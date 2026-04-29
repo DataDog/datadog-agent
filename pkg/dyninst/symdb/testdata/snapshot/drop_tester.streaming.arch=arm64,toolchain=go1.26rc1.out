@@ -1,0 +1,137 @@
+=== yield 1 [final=true] ===
+Package: main
+	Function: CaptureBytes (main.CaptureBytes) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/drop_tester/main.go [101:104] injectible: [101-101], [103-104]
+		Arg: payload: []uint8 (declared at line 101, available: [101-103])
+		Arg: tag: string (declared at line 101, available: [101-104])
+	Function: CaptureBytesReturn (main.CaptureBytesReturn) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/drop_tester/main.go [112:119] injectible: [112-115], [118-119]
+		Arg: payload: []uint8 (declared at line 112, available: [112-114])
+		Arg: tag: string (declared at line 112, available: [112-114])
+		Arg: ~r0: []uint8 (declared at line 112, available: )
+		Arg: ~r1: error (declared at line 112, available: )
+		Var: result: []uint8 (declared at line 113, available: [112-119])
+		Scope: 113-118
+			Var: i: int (declared at line 114, available: [118-119])
+	Function: CaptureChain (main.CaptureChain) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/drop_tester/main.go [138:142] injectible: [138-139], [141-142]
+		Arg: head: *main.Node (declared at line 135, available: [138-138])
+		Var: n: int (declared at line 137, available: [138-142])
+		Scope: 138-141
+			Var: cur: *main.Node (declared at line 138, available: [138-141])
+	Function: CaptureChainReturn (main.CaptureChainReturn) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/drop_tester/main.go [210:221] injectible: [210-211], [214-215], [217-218], [220-221]
+		Arg: head: *main.Node (declared at line 210, available: [210-214])
+		Arg: returnLen: int (declared at line 210, available: [210-214])
+		Arg: ~r0: *main.Node (declared at line 210, available: )
+		Arg: ~r1: error (declared at line 210, available: )
+		Var: result: *main.Node (declared at line 211, available: [211-217])
+		Var: n: int (declared at line 213, available: [211-220], [221-221])
+		Scope: 211-215
+			Var: cur: *main.Node (declared at line 214, available: [210-217])
+		Scope: 217-220
+			Var: cur: *main.Node (declared at line 217, available: [211-221])
+	Function: CaptureStringChain (main.CaptureStringChain) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/drop_tester/main.go [168:173] injectible: [168-170], [172-173]
+		Arg: head: *main.StringNode (declared at line 163, available: [168-170])
+		Var: n: int (declared at line 166, available: [168-173])
+		Var: totalLen: int (declared at line 167, available: [168-173])
+		Scope: 168-172
+			Var: cur: *main.StringNode (declared at line 168, available: [168-172])
+	Function: buildChain (main.buildChain) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/drop_tester/main.go [306:313] injectible: [307-307], [310-310], [312-313]
+		Var: cur: *main.Node (declared at line 311, available: [310-310], [312-313])
+		Var: head: *main.Node (declared at line 310, available: [312-313])
+		Var: i: int (declared at line 312, available: [310-310], [312-313])
+		Arg: n: int (declared at line 0, available: [307-313])
+	Function: buildStringChain (main.buildStringChain) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/drop_tester/main.go [175:197] injectible: [175-177], [191-191], [193-194], [197-197]
+		Arg: n: int (declared at line 175, available: [175-197])
+		Arg: strLen: int (declared at line 175, available: [175-197])
+		Arg: ~r0: *main.StringNode (declared at line 175, available: )
+		Var: head: *main.StringNode (declared at line 191, available: [175-197])
+		Var: cur: *main.StringNode (declared at line 192, available: [193-197])
+		Var: ~r0.ptr: *uint8 (declared at line 184, available: )
+		Var: ~r0.ptr: *uint8 (declared at line 184, available: )
+		Var: ~r0.len: int (declared at line 184, available: )
+		Var: ~r0.len: int (declared at line 184, available: )
+		Scope: 193-197
+			Var: i: int (declared at line 193, available: [175-197])
+	Function: buildStringChain.func1 (main.buildStringChain.func1) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/drop_tester/main.go [184:189] injectible: [185-187], [189-189]
+		Var: buf: []uint8 (declared at line 185, available: [186-189])
+		Var: i: int (declared at line 186, available: [189-189])
+		Arg: seed: int (declared at line 0, available: [185-185], [186-189])
+	Function: handleBytes (main.handleBytes) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/drop_tester/main.go [244:252] injectible: [244-249], [251-252]
+		Arg: w: net/http.ResponseWriter (declared at line 244, available: [244-252])
+		Arg: r: *net/http.Request (declared at line 244, available: [244-252])
+		Var: size: int (declared at line 245, available: [244-252])
+		Var: iter: int (declared at line 246, available: [246-247], [248-249])
+		Var: payload: []uint8 (declared at line 247, available: [244-252])
+		Scope: 248-251
+			Var: i: int (declared at line 248, available: [244-252])
+	Function: handleBytesReturn (main.handleBytesReturn) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/drop_tester/main.go [254:272] injectible: [254-258], [264-266], [268-269], [271-272]
+		Arg: w: net/http.ResponseWriter (declared at line 254, available: [254-272])
+		Arg: r: *net/http.Request (declared at line 254, available: [254-272])
+		Var: size: int (declared at line 255, available: [254-272])
+		Var: returnSize: int (declared at line 256, available: [254-272])
+		Var: iter: int (declared at line 257, available: [254-272])
+		Var: payload: []uint8 (declared at line 258, available: [254-272])
+		Scope: 264-271
+			Var: i: int (declared at line 268, available: [256-271])
+	Function: handleChain (main.handleChain) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/drop_tester/main.go [274:282] injectible: [274-279], [281-282]
+		Arg: w: net/http.ResponseWriter (declared at line 274, available: [274-282])
+		Arg: r: *net/http.Request (declared at line 274, available: [274-282])
+		Var: length: int (declared at line 275, available: [274-282])
+		Var: iter: int (declared at line 276, available: [276-278])
+		Var: chain: *main.Node (declared at line 277, available: [274-282])
+		Scope: 278-281
+			Var: i: int (declared at line 278, available: [276-277], [278-281])
+	Function: handleChainReturn (main.handleChainReturn) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/drop_tester/main.go [284:293] injectible: [284-290], [292-293]
+		Arg: w: net/http.ResponseWriter (declared at line 284, available: [284-293])
+		Arg: r: *net/http.Request (declared at line 284, available: [284-293])
+		Var: entryNodes: int (declared at line 285, available: [284-293])
+		Var: returnNodes: int (declared at line 286, available: [284-293])
+		Var: iter: int (declared at line 287, available: [287-289])
+		Var: entryChain: *main.Node (declared at line 288, available: [284-293])
+		Scope: 289-292
+			Var: i: int (declared at line 289, available: [286-288], [289-292])
+	Function: handleStringChain (main.handleStringChain) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/drop_tester/main.go [295:304] injectible: [295-301], [303-304]
+		Arg: w: net/http.ResponseWriter (declared at line 295, available: [295-304])
+		Arg: r: *net/http.Request (declared at line 295, available: [295-304])
+		Var: nodes: int (declared at line 296, available: [295-304])
+		Var: strLen: int (declared at line 297, available: [295-304])
+		Var: iter: int (declared at line 298, available: [295-304])
+		Var: chain: *main.StringNode (declared at line 299, available: [295-304])
+		Scope: 296-303
+			Var: i: int (declared at line 300, available: [295-304])
+	Function: main (main.main) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/drop_tester/main.go [41:73] injectible: [41-44], [46-48], [50-50], [52-53], [55-61], [65-66], [68-73]
+		Var: s: *net/http.Server (declared at line 65, available: [52-73])
+		Var: stop: context.CancelFunc (declared at line 42, available: [43-46])
+		Var: cancel: context.CancelFunc (declared at line 70, available: [71-71])
+		Var: port: int (declared at line 52, available: [53-53])
+		Var: mux: *net/http.ServeMux (declared at line 55, available: [52-73])
+		Var: ctx: context.Context (declared at line 42, available: [41-73])
+		Var: ln: net.Listener (declared at line 46, available: [41-73])
+		Var: err: error (declared at line 46, available: [47-48])
+		Var: shutdownCtx: context.Context (declared at line 70, available: [71-72])
+	Function: main.Println.func3 (main.main.Println.func3) in log/log.go [416:417] injectible: [416-417]
+		Arg: b: []uint8 (declared at line 416, available: [416-417])
+		Arg: ~r0: []uint8 (declared at line 416, available: )
+		Var: v: []interface {} (declared at line 417, available: [417-417])
+	Function: main.deferwrap1.Println.1 (main.main.deferwrap1.Println.1) in log/log.go [416:417] injectible: [416-417]
+		Arg: b: []uint8 (declared at line 416, available: [416-417])
+		Arg: ~r0: []uint8 (declared at line 416, available: )
+		Var: v: []interface {} (declared at line 417, available: [417-417])
+	Function: main.func1 (main.main.func1) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/drop_tester/main.go [61:63] injectible: [61-63]
+		Arg: w: net/http.ResponseWriter (declared at line 61, available: [61-62])
+		Arg: ~p1: *net/http.Request (declared at line 61, available: )
+	Function: main.func2 (main.main.func2) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/drop_tester/main.go [66:66] injectible: [66-66]
+		Var: s: *net/http.Server (declared at line 66, available: )
+		Var: ln: net.Listener (declared at line 66, available: )
+	Function: parseIntQuery (main.parseIntQuery) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/drop_tester/main.go [75:84] injectible: [75-78], [80-82], [84-84]
+		Arg: r: *net/http.Request (declared at line 75, available: [75-77])
+		Arg: key: string (declared at line 75, available: [75-84])
+		Arg: def: int (declared at line 75, available: [75-84])
+		Arg: ~r0: int (declared at line 75, available: )
+		Var: n: int (declared at line 80, available: [81-82])
+		Var: v: string (declared at line 76, available: [77-81])
+		Var: err: error (declared at line 80, available: [78-84])
+	Type: main.Node
+		Field: Value: [64]uint8
+		Field: Next: *main.Node
+	Type: main.StringNode
+		Field: Value: string
+		Field: Next: *main.StringNode
