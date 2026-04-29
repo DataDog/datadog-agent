@@ -107,7 +107,7 @@ func (c *cfg) Warnings() *pkgconfigmodel.Warnings {
 }
 
 func (c *cfg) StartTime() time.Time {
-	return pkgconfigsetup.StartTime
+	return c.Config.StartTime()
 }
 
 // fillFlare add the Configuration files to flares.
