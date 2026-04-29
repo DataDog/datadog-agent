@@ -20,6 +20,7 @@ import (
 	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
 // ErrEmptyFingerprintConfig is returned when a fingerprint config is empty
@@ -372,6 +373,15 @@ func buildHTTPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfig
 		main.Host = host
 		main.Port = port
 		main.useSSL = useSSL
+		// Apply OPW-specific TLS transport options so only the OPW main endpoint uses them;
+		// additional Datadog endpoints on this pipeline are unaffected.
+		if certFile := coreConfig.GetString(logsConfig.getObsPipelineConfigKey("observability_pipelines_worker", "tls.cert_file")); certFile != "" {
+			keyFile := coreConfig.GetString(logsConfig.getObsPipelineConfigKey("observability_pipelines_worker", "tls.key_file"))
+			main.TransportOptions = append(main.TransportOptions, httputils.WithTLSClientCert(certFile, keyFile))
+		}
+		if caFile := coreConfig.GetString(logsConfig.getObsPipelineConfigKey("observability_pipelines_worker", "tls.ca_file")); caFile != "" {
+			main.TransportOptions = append(main.TransportOptions, httputils.WithCustomRootCA(caFile))
+		}
 	} else if logsDDURL, logsDDURLDefined := logsConfig.logsDDURL(); logsDDURLDefined {
 		host, port, pathPrefix, useSSL, err := parseAddressWithScheme(logsDDURL, defaultNoSSL, parseAddress)
 		if err != nil {

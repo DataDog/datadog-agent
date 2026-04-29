@@ -1857,6 +1857,9 @@ func vector(config pkgconfigmodel.Setup) {
 func bindVectorOptions(config pkgconfigmodel.Setup, datatype string) {
 	config.BindEnvAndSetDefault(fmt.Sprintf("observability_pipelines_worker.%s.enabled", datatype), false)
 	config.BindEnvAndSetDefault(fmt.Sprintf("observability_pipelines_worker.%s.url", datatype), "")
+	config.BindEnvAndSetDefault(fmt.Sprintf("observability_pipelines_worker.%s.tls.ca_file", datatype), "")
+	config.BindEnvAndSetDefault(fmt.Sprintf("observability_pipelines_worker.%s.tls.cert_file", datatype), "")
+	config.BindEnvAndSetDefault(fmt.Sprintf("observability_pipelines_worker.%s.tls.key_file", datatype), "")
 
 	config.BindEnvAndSetDefault(fmt.Sprintf("vector.%s.enabled", datatype), false)
 	config.BindEnvAndSetDefault(fmt.Sprintf("vector.%s.url", datatype), "")
