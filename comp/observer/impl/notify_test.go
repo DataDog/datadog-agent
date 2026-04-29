@@ -322,7 +322,7 @@ func TestIsSignificantRateChange_RateDrops(t *testing.T) {
 // identified by the end timestamp.
 func makeStorageWithRates(ts int64, prevTotal, currTotal float64) *sumRangeStorage {
 	return &sumRangeStorage{
-		fn: func(_ observerdef.SeriesRef, start, end int64, _ observerdef.Aggregate) float64 {
+		fn: func(_ observerdef.SeriesRef, _ int64, end int64, _ observerdef.Aggregate) float64 {
 			if end == ts-logPatternRateWindowSec {
 				return prevTotal
 			}

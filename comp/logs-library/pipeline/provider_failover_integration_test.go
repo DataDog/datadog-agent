@@ -55,7 +55,6 @@ func (suite *ProviderFailoverIntegrationSuite) SetupTest() {
 		compressionfx.NewMockCompressor(),
 		sender.NewServerlessMeta(false),
 		createMockSender(),
-		nil,
 	).(*provider)
 
 	suite.provider.Start()
@@ -187,7 +186,6 @@ func (suite *ProviderFailoverIntegrationSuite) TestRapidStartStopCycles() {
 			compressionfx.NewMockCompressor(),
 			sender.NewServerlessMeta(false),
 			createMockSender(),
-			nil,
 		).(*provider)
 
 		p.Start()

@@ -22,11 +22,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.72.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.73.0-rc.5 // indirect
-<<<<<<< HEAD
-	github.com/DataDog/datadog-agent/comp/observer/def v0.0.0-00010101000000-000000000000
-=======
 	github.com/DataDog/datadog-agent/comp/logs-library v0.0.0-00010101000000-000000000000 // indirect
->>>>>>> main
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/basic v0.0.0-20260211235139-a5361978c2b6 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/buildschema v0.0.0-00010101000000-000000000000 // indirect

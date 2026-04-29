@@ -69,12 +69,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
-<<<<<<< HEAD
-	github.com/DataDog/datadog-agent/comp/observer/def v0.0.0-00010101000000-000000000000 // indirect
-	github.com/DataDog/datadog-agent/comp/serializer/logscompression v0.64.0-rc.3 // indirect
-=======
 	github.com/DataDog/datadog-agent/comp/serializer/logscompression v0.75.4 // indirect
->>>>>>> main
 	github.com/DataDog/datadog-agent/comp/serializer/metricscompression v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
 	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/trace/observerbuffer/def v0.0.0-00010101000000-000000000000 // indirect
@@ -261,19 +256,11 @@ require (
 	golang.org/x/net v0.53.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
-<<<<<<< HEAD
-	golang.org/x/sys v0.42.0 // indirect
-	golang.org/x/text v0.35.0 // indirect
-	golang.org/x/time v0.14.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260209200024-4cfbd4190f57 // indirect
-	google.golang.org/grpc v1.79.3 // indirect
-=======
 	golang.org/x/sys v0.43.0 // indirect
 	golang.org/x/text v0.36.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260406210006-6f92a3bedf2d // indirect
 	google.golang.org/grpc v1.80.0 // indirect
->>>>>>> main
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
