@@ -62,10 +62,10 @@ func SetPackage(ctx context.Context, pkg string, version string, isExperiment bo
 	return db.SetPackageVersion(pkg, version, isExperiment)
 }
 
-// GetPackage returns the extensions recorded for pkg in the database.
+// GetPackageExtensions returns the extensions recorded for pkg in the database.
 // Returns nil and no error when the DB does not exist or the package
 // is not registered.
-func GetPackage(pkg string, isExperiment bool) (map[string]string, error) {
+func GetPackageExtensions(pkg string, isExperiment bool) (map[string]string, error) {
 	dbPath := filepath.Join(ExtensionsDBDir, "extensions.db")
 	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
 		return nil, nil

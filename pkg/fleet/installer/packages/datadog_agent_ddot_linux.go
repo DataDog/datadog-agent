@@ -325,7 +325,7 @@ func copyFile(src, dst string, perm os.FileMode) error {
 // in the extensions database for the agent package.
 func isDDOTExtensionInstalled(ctx HookContext) bool {
 	isExperiment := filepath.Base(ctx.PackagePath) == "experiment"
-	exts, err := extensions.GetPackage("datadog-agent", isExperiment)
+	exts, err := extensions.GetPackageExtensions("datadog-agent", isExperiment)
 	if err != nil {
 		log.Warnf("failed to query extensions db: %s", err)
 		return false
