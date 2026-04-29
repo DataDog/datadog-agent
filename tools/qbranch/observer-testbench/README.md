@@ -29,7 +29,7 @@ dda inv -- q.build-testbench
 ./bin/observer-testbench --scenarios-dir ./comp/anomalydetection/observer/scenarios
 
 # Start the UI (in a separate terminal)
-cd cmd/observer-testbench/ui
+cd tools/qbranch/observer-testbench/ui
 npm install  # first time only
 npm run dev
 ```

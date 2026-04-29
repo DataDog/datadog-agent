@@ -203,7 +203,6 @@
 /chocolatey/                            @DataDog/windows-products
 
 /cmd/                                   @DataDog/agent-configuration
-/cmd/observer-testbench/                @DataDog/q-branch
 /cmd/trace-agent/                       @DataDog/agent-apm
 /cmd/agent/subcommands/controlsvc       @DataDog/windows-products
 /cmd/agent/subcommands/otel             @DataDog/opentelemetry-agent
@@ -911,6 +910,7 @@
 /tools/windows/DatadogAgentInstaller/WixSetup/localization-en-us.wxl @DataDog/windows-products @DataDog/documentation
 /tools/agent_QA/                        @DataDog/agent-devx
 /tools/build-ddot-byoc/                 @DataDog/opentelemetry-agent
+/tools/qbranch/                         @DataDog/q-branch
 
 /internal/remote-agent                  @DataDog/agent-runtimes
 /internal/tools/                        @DataDog/agent-devx

@@ -22,7 +22,7 @@ Go Server (:8080)                 React UI (:5173)
 ## Project Layout
 
 ```
-cmd/observer-testbench/
+tools/qbranch/observer-testbench/
 ├── main.go              # Entry point, starts HTTP server
 └── ui/
     ├── src/
@@ -46,13 +46,13 @@ comp/anomalydetection/observer/impl/
 
 **Terminal 1** — Go server (auto-rebuild on changes):
 ```bash
-cd cmd/observer-testbench
+cd tools/qbranch/observer-testbench
 watchexec -r -e go -- go run . -scenarios-dir=../../scenarios
 ```
 
 **Terminal 2** — UI dev server:
 ```bash
-cd cmd/observer-testbench/ui
+cd tools/qbranch/observer-testbench/ui
 npm install
 npm run dev
 ```
