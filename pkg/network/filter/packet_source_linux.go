@@ -107,6 +107,9 @@ func NewAFPacketSource(size uint32, opts ...Option) (*AFPacketSource, error) {
 	for _, opt := range opts {
 		opt(&cfg)
 	}
+	if cfg.snapLen == 0 {
+		return nil, errors.New("SnapLen should be greater than zero")
+	}
 
 	frameSize, blockSize, numBlocks, err := afpacketComputeSize(size, cfg.snapLen, uint32(os.Getpagesize()))
 	if err != nil {
