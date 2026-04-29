@@ -65,7 +65,7 @@ import (
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/core/def"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	haagentmetadata "github.com/DataDog/datadog-agent/comp/metadata/haagent/def"
@@ -75,7 +75,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	packagesigning "github.com/DataDog/datadog-agent/comp/metadata/packagesigning/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
-	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
+	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server/def"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	processAgent "github.com/DataDog/datadog-agent/comp/process/agent"
 	publishermetadatacachefx "github.com/DataDog/datadog-agent/comp/publishermetadatacache/fx"
@@ -147,7 +147,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			ipc ipc.Component,
 			snmpScanManager snmpscanmanager.Component,
 			traceroute traceroute.Component,
-			healthplatformComp healthplatform.Component,
+			healthplatformComp healthplatformdef.Component,
 		) error {
 			defer StopAgentWithDefaults(config, sysprobeConf)
 

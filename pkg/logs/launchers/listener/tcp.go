@@ -29,6 +29,11 @@ const (
 	defaultTLSIdleTimeout = 60 * time.Second
 	defaultMaxConnections = 512
 	tlsHandshakeTimeout   = 10 * time.Second
+	// acceptDeadline controls how often the Accept loop wakes up to check
+	// for shutdown. It also works around a macOS kqueue bug where Accept
+	// can block indefinitely even with connections in the backlog
+	// (https://github.com/golang/go/issues/54529).
+	acceptDeadline = 1 * time.Second
 )
 
 // A TCPListener listens and accepts TCP connections and delegates the read operations to a tailer.
@@ -42,6 +47,7 @@ type TCPListener struct {
 	ipFilter         *ipfilter.Filter
 	denialInfo       *ipfilter.DenialInfo
 	listener         net.Listener
+	rawListener      *net.TCPListener
 	tailers          []*tailer.Tailer
 	mu               sync.Mutex
 	stopped          bool
@@ -160,40 +166,44 @@ func (l *TCPListener) run() {
 		case <-l.stop:
 			return
 		default:
-			conn, err := l.listener.Accept()
-			switch {
-			case err != nil && isClosedConnError(err):
-				return
-			case err != nil:
-				log.Warnf("Can't listen on port %d, restarting a listener: %v", l.source.Config.Port, err)
-				l.listener.Close()
-				err := l.startListener()
-				if err != nil {
-					log.Errorf("Can't restart listener on port %d: %v", l.source.Config.Port, err)
-					l.source.Status.Error(err)
-					return
-				}
-				l.source.Status.Success()
+		}
+
+		l.rawListener.SetDeadline(time.Now().Add(acceptDeadline)) //nolint:errcheck
+		conn, err := l.listener.Accept()
+		if err != nil {
+			if ne, ok := err.(net.Error); ok && ne.Timeout() {
 				continue
-			default:
-				if l.ipFilter != nil {
-					if d := l.ipFilter.Check(conn.RemoteAddr()); !d.Allowed() {
-						log.Debugf("Rejected connection from %s on port %d: %s", conn.RemoteAddr(), l.source.Config.Port, d.Reason())
-						metrics.TlmListenerIPDenied.Inc("tcp")
-						l.denialInfo.Record(d.Reason())
-						conn.Close()
-						continue
-					}
-				}
-				select {
-				case l.connSem <- struct{}{}:
-					go l.handleConnection(conn)
-				default:
-					log.Warnf("Max connections (%d) reached on port %d, rejecting connection from %s",
-						l.maxConnections, l.source.Config.Port, conn.RemoteAddr())
-					conn.Close()
-				}
 			}
+			if isClosedConnError(err) {
+				return
+			}
+			log.Warnf("Can't listen on port %d, restarting a listener: %v", l.source.Config.Port, err)
+			l.listener.Close()
+			if err := l.startListener(); err != nil {
+				log.Errorf("Can't restart listener on port %d: %v", l.source.Config.Port, err)
+				l.source.Status.Error(err)
+				return
+			}
+			l.source.Status.Success()
+			continue
+		}
+
+		if l.ipFilter != nil {
+			if d := l.ipFilter.Check(conn.RemoteAddr()); !d.Allowed() {
+				log.Debugf("Rejected connection from %s on port %d: %s", conn.RemoteAddr(), l.source.Config.Port, d.Reason())
+				metrics.TlmListenerIPDenied.Inc("tcp")
+				l.denialInfo.Record(d.Reason())
+				conn.Close()
+				continue
+			}
+		}
+		select {
+		case l.connSem <- struct{}{}:
+			go l.handleConnection(conn)
+		default:
+			log.Warnf("Max connections (%d) reached on port %d, rejecting connection from %s",
+				l.maxConnections, l.source.Config.Port, conn.RemoteAddr())
+			conn.Close()
 		}
 	}
 }
@@ -201,14 +211,16 @@ func (l *TCPListener) run() {
 // startListener starts a new listener, returns an error if it failed.
 func (l *TCPListener) startListener() error {
 	bindAddr := net.JoinHostPort(l.source.Config.BindHost, strconv.Itoa(l.source.Config.Port))
-	listener, err := net.Listen("tcp", bindAddr)
+	rawListener, err := net.Listen("tcp", bindAddr)
 	if err != nil {
 		return err
 	}
+	l.rawListener = rawListener.(*net.TCPListener)
 	if l.tlsCredentials != nil {
-		listener = tls.NewListener(listener, l.tlsCredentials)
+		l.listener = tls.NewListener(rawListener, l.tlsCredentials)
+	} else {
+		l.listener = rawListener
 	}
-	l.listener = listener
 	return nil
 }
 

@@ -21,6 +21,36 @@ go_deps.gazelle_override(
     ],
     path = "github.com/containerd/cgroups/v3",
 )
+go_deps.gazelle_override(
+    directives = [
+        "gazelle:proto disable",
+    ],
+    path = "code.cloudfoundry.org/bbs",
+)
+go_deps.gazelle_override(
+    directives = [
+        "gazelle:proto disable",
+    ],
+    path = "github.com/hashicorp/vault",
+)
+go_deps.gazelle_override(
+    directives = [
+        "gazelle:proto disable",
+    ],
+    path = "github.com/hashicorp/vault/sdk",
+)
+go_deps.gazelle_override(
+    directives = [
+        "gazelle:proto disable",
+    ],
+    path = "github.com/hashicorp/vault-plugin-secrets-kv",
+)
+go_deps.gazelle_override(
+    directives = [
+        "gazelle:build_file_generation on",
+    ],
+    path = "github.com/coreos/etcd",
+)
 use_repo(
     go_deps,
     "cat_dario_mergo",

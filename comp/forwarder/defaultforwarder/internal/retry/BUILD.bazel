@@ -3,9 +3,11 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 load("@rules_go//proto:def.bzl", "go_proto_library")
 load("//bazel/rules/write_pb_go:defs.bzl", "write_pb_go")
 
+# gazelle:proto_strip_import_prefix /comp/forwarder/defaultforwarder/internal/retry
 proto_library(
     name = "retry_proto",
     srcs = ["HttpTransactionProto.proto"],
+    strip_import_prefix = "/comp/forwarder/defaultforwarder/internal/retry",
     visibility = ["//comp/forwarder/defaultforwarder:__subpackages__"],
 )
 

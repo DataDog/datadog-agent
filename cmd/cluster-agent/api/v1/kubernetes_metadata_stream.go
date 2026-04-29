@@ -13,14 +13,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
+	"k8s.io/apimachinery/pkg/util/sets"
+
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/controllers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
-	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 const (
@@ -261,8 +262,8 @@ func (srv *KubeMetadataStreamServer) buildNamespacesSnapshot() map[string]namesp
 	snapshot := make(map[string]namespaceEntry, len(srv.namespaces))
 	for ns, entry := range srv.namespaces {
 		snapshot[ns] = namespaceEntry{
-			labels:      maps.Clone(entry.labels),
-			annotations: maps.Clone(entry.annotations),
+			labels:      entry.labels,
+			annotations: entry.annotations,
 		}
 	}
 	return snapshot
