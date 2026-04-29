@@ -24,6 +24,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/structpb"
 
+	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
@@ -97,14 +98,16 @@ func createTestConsumer(t *testing.T, serverAddr string, ipcComp *ipcmock.IPCMoc
 		log:       log,
 		ipc:       ipcComp,
 		telemetry: telemetryComp,
-		params: Params{
+		params: configstreamconsumer.Params{
 			ClientName:       "test-client",
 			CoreAgentAddress: serverAddr,
 			SessionID:        "test-session-123",
 		},
 		effectiveConfig: make(map[string]interface{}),
 		readyCh:         make(chan struct{}),
+		startTime:       time.Now(),
 	}
+	c.initMetrics()
 
 	cleanup := func() {
 		if c.cancel != nil {
@@ -150,11 +153,8 @@ func TestConsumerSnapshot(t *testing.T) {
 
 	// Start streaming in a goroutine
 	consumer.ctx, consumer.cancel = context.WithCancel(context.Background())
-	consumer.initMetrics()
 	go func() {
-		startTime := time.Now()
-		firstSnapshot := true
-		_ = consumer.connectAndStream(startTime, &firstSnapshot)
+		_ = consumer.connectAndStream()
 	}()
 
 	err := consumer.WaitReady(ctx)
@@ -194,11 +194,8 @@ func TestConsumerUpdates(t *testing.T) {
 
 	// Start streaming
 	consumer.ctx, consumer.cancel = context.WithCancel(context.Background())
-	consumer.initMetrics()
 	go func() {
-		startTime := time.Now()
-		firstSnapshot := true
-		_ = consumer.connectAndStream(startTime, &firstSnapshot)
+		_ = consumer.connectAndStream()
 	}()
 
 	err := consumer.WaitReady(ctx)
@@ -251,11 +248,8 @@ func TestConsumerStaleUpdates(t *testing.T) {
 
 	// Start streaming
 	consumer.ctx, consumer.cancel = context.WithCancel(context.Background())
-	consumer.initMetrics()
 	go func() {
-		startTime := time.Now()
-		firstSnapshot := true
-		_ = consumer.connectAndStream(startTime, &firstSnapshot)
+		_ = consumer.connectAndStream()
 	}()
 
 	err := consumer.WaitReady(ctx)
@@ -302,11 +296,8 @@ func TestConsumerAppliesUpdatesInOrder(t *testing.T) {
 
 		// Start streaming in background
 		consumer.ctx, consumer.cancel = context.WithCancel(context.Background())
-		consumer.initMetrics()
 		go func() {
-			startTime := time.Now()
-			firstSnapshot := true
-			_ = consumer.connectAndStream(startTime, &firstSnapshot)
+			_ = consumer.connectAndStream()
 		}()
 
 		// WaitReady should block
@@ -344,11 +335,8 @@ func TestConsumerAppliesUpdatesInOrder(t *testing.T) {
 
 		// Start streaming
 		consumer.ctx, consumer.cancel = context.WithCancel(context.Background())
-		consumer.initMetrics()
 		go func() {
-			startTime := time.Now()
-			firstSnapshot := true
-			_ = consumer.connectAndStream(startTime, &firstSnapshot)
+			_ = consumer.connectAndStream()
 		}()
 
 		// Send snapshot and ordered updates
