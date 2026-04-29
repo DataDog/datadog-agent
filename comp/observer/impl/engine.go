@@ -325,7 +325,10 @@ func sliceContains(items []string, want string) bool {
 }
 
 // removeContextRefsForEvictedKeys drops engine contextRefs whose extractor
-// namespace and context key match an eviction from extractor GC.
+// namespace and context key match an eviction from extractor GC, and frees
+// the corresponding storage series. Without the storage cleanup, evicted
+// patterns leak their tags + columnar arrays indefinitely (the contextRefs
+// map is just metadata; the heavy data lives in storage.series).
 func (e *engine) removeContextRefsForEvictedKeys(namespace string, evictedKeys []string) {
 	// No garbage collection done
 	if len(evictedKeys) == 0 {
@@ -340,13 +343,18 @@ func (e *engine) removeContextRefsForEvictedKeys(namespace string, evictedKeys [
 	if len(want) == 0 {
 		return
 	}
+	var storageKeys []string
 	for seriesID, ref := range e.contextRefs {
 		if ref.namespace != namespace {
 			continue
 		}
 		if _, ok := want[ref.contextKey]; ok {
 			delete(e.contextRefs, seriesID)
+			storageKeys = append(storageKeys, seriesID)
 		}
+	}
+	if len(storageKeys) > 0 {
+		e.storage.RemoveSeriesByKeys(storageKeys)
 	}
 }
 

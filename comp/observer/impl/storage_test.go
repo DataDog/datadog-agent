@@ -577,3 +577,47 @@ func TestTimeSeriesStorage_ListSeries_ExcludeNamespaces(t *testing.T) {
 	require.Len(t, onlyTel, 1)
 	assert.Equal(t, observer.TelemetryNamespace, onlyTel[0].Namespace)
 }
+
+func TestTimeSeriesStorage_RemoveSeriesByKeys(t *testing.T) {
+	s := newTimeSeriesStorage()
+
+	s.Add("ns", "a", 1.0, 1000, []string{"k:1"})
+	s.Add("ns", "b", 2.0, 1000, []string{"k:2"})
+	s.Add("ns", "c", 3.0, 1000, []string{"k:3"})
+	require.Equal(t, 3, s.TotalSeriesCount(""))
+	genBefore := s.SeriesGeneration()
+
+	keyB := seriesKey("ns", "b", []string{"k:2"})
+	keyC := seriesKey("ns", "c", []string{"k:3"})
+	refB := s.seriesIDs[keyB]
+	refC := s.seriesIDs[keyC]
+
+	removed := s.RemoveSeriesByKeys([]string{keyB, keyC, "nonexistent"})
+	require.Equal(t, 2, removed, "unknown keys are silently ignored")
+	require.Equal(t, 1, s.TotalSeriesCount(""), "only series 'a' should remain")
+	require.Greater(t, s.SeriesGeneration(), genBefore, "seriesGen bumps on removal")
+
+	require.Nil(t, s.GetSeriesMeta(refB), "removed ref resolves to nil")
+	require.Nil(t, s.GetSeriesMeta(refC), "removed ref resolves to nil")
+
+	refA := s.seriesIDs[seriesKey("ns", "a", []string{"k:1"})]
+	require.NotNil(t, s.GetSeriesMeta(refA), "surviving series still resolvable")
+
+	// A subsequent Add for the same key creates a fresh series with a new ref.
+	s.Add("ns", "b", 99.0, 1100, []string{"k:2"})
+	require.Equal(t, 2, s.TotalSeriesCount(""), "re-add re-creates the series")
+	newRefB := s.seriesIDs[keyB]
+	require.NotEqual(t, refB, newRefB, "new ref minted; old ref id is retired")
+	require.Nil(t, s.GetSeriesMeta(refB), "old ref still resolves to nil after re-add")
+}
+
+func TestTimeSeriesStorage_RemoveSeriesByKeysEmptyOrUnknown(t *testing.T) {
+	s := newTimeSeriesStorage()
+	s.Add("ns", "a", 1.0, 1000, nil)
+	genBefore := s.SeriesGeneration()
+
+	require.Equal(t, 0, s.RemoveSeriesByKeys(nil))
+	require.Equal(t, 0, s.RemoveSeriesByKeys([]string{}))
+	require.Equal(t, 0, s.RemoveSeriesByKeys([]string{"unknown1", "unknown2"}))
+	require.Equal(t, genBefore, s.SeriesGeneration(), "no removal → no gen bump")
+}
