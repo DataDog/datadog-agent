@@ -36,6 +36,15 @@ def gitlab_ref_slug(git_ref):
     return re.sub(r"[^0-9a-z]", "-", git_ref.lower())[:63]
 
 
+_PR_ENV_VARS = {
+    'BUCKET_BRANCH': _PR_BUCKET_BRANCH,
+    'CI_COMMIT_BRANCH': _PR_BRANCH_NAME,
+    'CI_COMMIT_REF_SLUG': gitlab_ref_slug(_PR_BRANCH_NAME),
+    'CI_PIPELINE_ID': _CI_PIPELINE_ID,
+    'CI_COMMIT_SHA': _CI_COMMIT_SHA,
+}
+
+
 class FakeGithubAPI:
     PR = SimpleNamespace(
         number=12345,
@@ -121,17 +130,7 @@ class TestQualityGatesIntegration(unittest.TestCase):
         self.assertEqual(sent[(metric_prefix + "relative_on_disk_size", gate_name)], rel_disk)
         self.assertEqual(sent[(metric_prefix + "relative_on_wire_size", gate_name)], rel_wire)
 
-    @patch.dict(
-        'os.environ',
-        {
-            'BUCKET_BRANCH': _PR_BUCKET_BRANCH,
-            'CI_COMMIT_BRANCH': _PR_BRANCH_NAME,
-            'CI_COMMIT_REF_SLUG': gitlab_ref_slug(_PR_BRANCH_NAME),
-            'CI_PIPELINE_ID': _CI_PIPELINE_ID,
-            'CI_COMMIT_SHA': _CI_COMMIT_SHA,
-        },
-        clear=True,
-    )
+    @patch.dict('os.environ', _PR_ENV_VARS, clear=True)
     def test_pr_all_gates_pass_and_send_metrics(self):
         gate_scenarios = [
             GateScenario(
@@ -225,17 +224,7 @@ class TestQualityGatesIntegration(unittest.TestCase):
             mock_pr_commenter.assert_called_once()
             self.assertIs(mock_pr_commenter.call_args.kwargs["pr"], FakeGithubAPI.PR)
 
-    @patch.dict(
-        'os.environ',
-        {
-            'BUCKET_BRANCH': _PR_BUCKET_BRANCH,
-            'CI_COMMIT_BRANCH': _PR_BRANCH_NAME,
-            'CI_COMMIT_REF_SLUG': gitlab_ref_slug(_PR_BRANCH_NAME),
-            'CI_PIPELINE_ID': _CI_PIPELINE_ID,
-            'CI_COMMIT_SHA': _CI_COMMIT_SHA,
-        },
-        clear=True,
-    )
+    @patch.dict('os.environ', _PR_ENV_VARS, clear=True)
     def test_gate_fails_absolute_disk_limit(self):
         gate_scenarios = [
             GateScenario(
@@ -286,17 +275,7 @@ class TestQualityGatesIntegration(unittest.TestCase):
             mock_generate_reports.assert_called_once()
             mock_pr_commenter.assert_called_once()
 
-    @patch.dict(
-        'os.environ',
-        {
-            'BUCKET_BRANCH': _PR_BUCKET_BRANCH,
-            'CI_COMMIT_BRANCH': _PR_BRANCH_NAME,
-            'CI_COMMIT_REF_SLUG': gitlab_ref_slug(_PR_BRANCH_NAME),
-            'CI_PIPELINE_ID': _CI_PIPELINE_ID,
-            'CI_COMMIT_SHA': _CI_COMMIT_SHA,
-        },
-        clear=True,
-    )
+    @patch.dict('os.environ', _PR_ENV_VARS, clear=True)
     def test_gate_fails_absolute_wire_limit(self):
         gate_scenarios = [
             GateScenario(
@@ -346,6 +325,120 @@ class TestQualityGatesIntegration(unittest.TestCase):
             mock_send_metrics.assert_called_once()
             mock_generate_reports.assert_called_once()
             mock_pr_commenter.assert_called_once()
+
+    @patch.dict('os.environ', _PR_ENV_VARS, clear=True)
+    def test_gate_fails_per_pr_disk_threshold(self):
+        """Gate passes absolute limits but on-disk delta exceeds per-PR threshold."""
+        gate_scenarios = [
+            GateScenario(
+                name=_DEB_GATE,
+                ancestor_disk=100 * _MiB,
+                ancestor_wire=50 * _MiB,
+                current_disk=100 * _MiB + 700 * _KiB,  # > PER_PR_THRESHOLD (600 KiB)
+                current_wire=50 * _MiB,
+                max_disk=105 * _MiB,
+                max_wire=55 * _MiB,
+            ),
+            GateScenario(
+                name=_DOCKER_GATE,
+                ancestor_disk=600 * _MiB,
+                ancestor_wire=240 * _MiB,
+                current_disk=600 * _MiB + 20 * _KiB,
+                current_wire=240 * _MiB,
+                max_disk=700 * _MiB,
+                max_wire=250 * _MiB,
+            ),
+        ]
+        with (
+            patch("tasks.quality_gates.get_ancestor", return_value="ancestor-sha"),
+            patch("tasks.quality_gates.get_commit_sha", return_value=_CI_COMMIT_SHA),
+            patch("tasks.static_quality_gates.github.GithubAPI", new=FakeGithubAPI),
+            _gate_scenarios(*gate_scenarios) as gate_fixture,
+            patch(
+                "tasks.libs.common.datadog_api.query_gate_metrics_for_commit",
+                return_value=gate_fixture.ancestor_metrics,
+            ),
+            patch("tasks.static_quality_gates.gates.send_metrics"),
+            patch(
+                "tasks.static_quality_gates.gates.PackageArtifactMeasurer.measure",
+                side_effect=gate_fixture.package_measure,
+            ),
+            patch(
+                "tasks.static_quality_gates.gates.DockerArtifactMeasurer.measure",
+                side_effect=gate_fixture.docker_measure,
+            ),
+            patch("tasks.static_quality_gates.pr_comment.pr_commenter") as mock_pr_commenter,
+            patch(
+                "tasks.static_quality_gates.gates.GateMetricHandler.generate_metric_reports"
+            ) as mock_generate_reports,
+        ):
+            ctx = MockContext(
+                run={"datadog-ci tag --level job --tags static_quality_gates:\"failure\"": Result("Done")}
+            )
+            with self.assertRaises(Exit):
+                parse_and_trigger_gates(ctx, gate_fixture.config_path)
+            mock_generate_reports.assert_called_once()
+            mock_pr_commenter.assert_called_once()
+
+    @patch.dict('os.environ', _PR_ENV_VARS, clear=True)
+    def test_gate_fails_per_pr_disk_threshold_exception_approval(self):
+        """Gate exceeds per-PR threshold but an exception approver has approved, making it pass"""
+        approved_pr = SimpleNamespace(
+            number=12345,
+            title="fix(somewhere): did something",
+            user=SimpleNamespace(login="some-author"),
+            get_reviews=lambda: [SimpleNamespace(state="APPROVED", user=SimpleNamespace(login="cmourot"))],
+        )
+        gate_scenarios = [
+            GateScenario(
+                name=_DEB_GATE,
+                ancestor_disk=100 * _MiB,
+                ancestor_wire=50 * _MiB,
+                current_disk=100 * _MiB + 700 * _KiB,
+                current_wire=50 * _MiB,
+                max_disk=105 * _MiB,
+                max_wire=55 * _MiB,
+            ),
+            GateScenario(
+                name=_DOCKER_GATE,
+                ancestor_disk=600 * _MiB,
+                ancestor_wire=240 * _MiB,
+                current_disk=600 * _MiB + 20 * _KiB,
+                current_wire=240 * _MiB,
+                max_disk=700 * _MiB,
+                max_wire=250 * _MiB,
+            ),
+        ]
+        with (
+            patch("tasks.quality_gates.get_ancestor", return_value="ancestor-sha"),
+            patch("tasks.quality_gates.get_commit_sha", return_value=_CI_COMMIT_SHA),
+            patch("tasks.quality_gates.get_pr_for_branch", return_value=approved_pr),
+            _gate_scenarios(*gate_scenarios) as gate_fixture,
+            patch(
+                "tasks.libs.common.datadog_api.query_gate_metrics_for_commit",
+                return_value=gate_fixture.ancestor_metrics,
+            ),
+            patch("tasks.static_quality_gates.gates.send_metrics"),
+            patch(
+                "tasks.static_quality_gates.gates.PackageArtifactMeasurer.measure",
+                side_effect=gate_fixture.package_measure,
+            ),
+            patch(
+                "tasks.static_quality_gates.gates.DockerArtifactMeasurer.measure",
+                side_effect=gate_fixture.docker_measure,
+            ),
+            patch("tasks.static_quality_gates.pr_comment.pr_commenter") as mock_pr_commenter,
+            patch(
+                "tasks.static_quality_gates.gates.GateMetricHandler.generate_metric_reports"
+            ) as mock_generate_reports,
+        ):
+            ctx = MockContext(
+                run={"datadog-ci tag --level job --tags static_quality_gates:\"failure\"": Result("Done")}
+            )
+            parse_and_trigger_gates(ctx, gate_fixture.config_path)
+            mock_generate_reports.assert_called_once()
+            mock_pr_commenter.assert_called_once()
+            self.assertIs(mock_pr_commenter.call_args.kwargs["pr"], approved_pr)
 
     @patch.dict(
         'os.environ',
