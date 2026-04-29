@@ -83,8 +83,10 @@ func (d *dispatcher) processNodeStatus(nodeName, clientIP string, status types.N
 	return false
 }
 
-// getNodeToScheduleCheck returns the node where a new check should be scheduled
-
+// getNodeToScheduleCheck returns the node where a new check should be scheduled.
+// targetNodeType filters candidates by node type ("node_agent", "clc_runner",
+// or "" for any).
+//
 // Advanced dispatching relies on the check stats fetched from the cluster check
 // runners API to distribute the checks. The stats are only updated when the
 // checks are rebalanced, they are not updated every time a check is scheduled.
@@ -95,21 +97,39 @@ func (d *dispatcher) processNodeStatus(nodeName, clientIP string, status types.N
 //
 // On the other hand, when advanced dispatching is not used, we can pick the
 // node with fewer checks. It's because the number of checks is kept up to date.
-func (d *dispatcher) getNodeToScheduleCheck() string {
+func (d *dispatcher) getNodeToScheduleCheck(targetNodeType string) string {
 	if d.advancedDispatching.Load() {
-		return d.getRandomNode()
+		return d.getRandomNode(targetNodeType)
 	}
 
-	return d.getNodeWithLessChecks()
+	return d.getNodeWithLessChecks(targetNodeType)
 }
 
-func (d *dispatcher) getRandomNode() string {
+// nodeMatchesType returns true if the node matches the requested target type.
+// An empty targetNodeType matches any node.
+func nodeMatchesType(node *nodeStore, targetNodeType string) bool {
+	if targetNodeType == "" {
+		return true
+	}
+	switch targetNodeType {
+	case "node_agent":
+		return node.nodetype == types.NodeTypeNodeAgent
+	case "clc_runner":
+		return node.nodetype == types.NodeTypeCLCRunner
+	default:
+		return true
+	}
+}
+
+func (d *dispatcher) getRandomNode(targetNodeType string) string {
 	d.store.RLock()
 	defer d.store.RUnlock()
 
 	var nodes []string
-	for name := range d.store.nodes {
-		nodes = append(nodes, name)
+	for name, node := range d.store.nodes {
+		if nodeMatchesType(node, targetNodeType) {
+			nodes = append(nodes, name)
+		}
 	}
 
 	if len(nodes) == 0 {
@@ -119,7 +139,7 @@ func (d *dispatcher) getRandomNode() string {
 	return nodes[rand.Intn(len(nodes))]
 }
 
-func (d *dispatcher) getNodeWithLessChecks() string {
+func (d *dispatcher) getNodeWithLessChecks(targetNodeType string) string {
 	d.store.RLock()
 	defer d.store.RUnlock()
 
@@ -127,6 +147,9 @@ func (d *dispatcher) getNodeWithLessChecks() string {
 	minNumChecks := 0
 
 	for name, store := range d.store.nodes {
+		if !nodeMatchesType(store, targetNodeType) {
+			continue
+		}
 		if selectedNode == "" || len(store.digestToConfig) < minNumChecks {
 			selectedNode = name
 			minNumChecks = len(store.digestToConfig)

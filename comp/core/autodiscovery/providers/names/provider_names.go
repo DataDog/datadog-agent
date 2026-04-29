@@ -61,6 +61,8 @@ const (
 	DataStreamsLiveMessages = "dsm-live-messages"
 	// DOQueryActions provides check configurations for Database Observability query-level actions.
 	DOQueryActions = "do-query-actions"
+	// HTTPSD discovers check configurations from a Prometheus HTTP Service Discovery endpoint.
+	HTTPSD = "http-sd"
 )
 
 // Internal Autodiscovery names for the config providers
@@ -81,6 +83,7 @@ const (
 	KubeCrdRegisterName            = "kube_crd"
 	PrometheusPodsRegisterName     = "prometheus_pods"
 	PrometheusServicesRegisterName = "prometheus_services"
+	HTTPSDRegisterName             = "http_sd"
 	RemoteConfigRegisterName       = "remote_config"
 	ZookeeperRegisterName          = "zookeeper"
 )
