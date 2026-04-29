@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
+	"github.com/DataDog/datadog-agent/pkg/util/compression"
 )
 
 // inflightTracker is a bounded FIFO queue that tracks payloads in two regions:
@@ -32,13 +33,14 @@ import (
 type inflightTracker struct {
 	workerID       string
 	items          []*message.Payload
-	head           int            // Index of the oldest sent item (awaiting ack)
-	sentTail       int            // Index of the first buffered item that's not yet sent
-	tail           int            // Index of the next available slot for new buffered items
-	cap            int            // Maximum total capacity of the tracker
-	headBatchID    uint32         // BatchID of the oldest sent payload (at head)
-	batchIDCounter uint32         // Next batchID to be assigned when markSent is called
-	snapshot       *snapshotState // Accumulated state for new streams
+	head           int             // Index of the oldest sent item (awaiting ack)
+	sentTail       int             // Index of the first buffered item that's not yet sent
+	tail           int             // Index of the next available slot for new buffered items
+	cap            int             // Maximum total capacity of the tracker
+	headBatchID    uint32          // BatchID of the oldest sent payload (at head)
+	batchIDCounter uint32          // Next batchID to be assigned when markSent is called
+	snapshot       *snapshotState  // Accumulated state for new streams
+	streamSent     stateReferences // State definitions already sent on the current stream
 }
 
 // newInflightTracker creates a new bounded inflight tracker with the given capacity
@@ -49,6 +51,10 @@ func newInflightTracker(workerID string, capacity int) *inflightTracker {
 		items:    make([]*message.Payload, capacity+1),
 		cap:      capacity,
 		snapshot: newSnapshotState(),
+		streamSent: stateReferences{
+			dictEntryIDs: make(map[uint64]struct{}),
+			patternIDs:   make(map[uint64]struct{}),
+		},
 	}
 }
 
@@ -126,6 +132,8 @@ func (t *inflightTracker) markSent() bool {
 		return false
 	}
 
+	t.markStateSent(t.items[t.sentTail])
+
 	// If this is the first sent item, set headBatchID
 	if t.head == t.sentTail {
 		t.headBatchID = t.batchIDCounter
@@ -143,6 +151,33 @@ func (t *inflightTracker) nextToSend() *message.Payload {
 		return nil
 	}
 	return t.items[t.sentTail]
+}
+
+func (t *inflightTracker) nextToSendEncoded(compressor compression.Compressor) ([]byte, error) {
+	payload := t.nextToSend()
+	if payload == nil {
+		return nil, nil
+	}
+
+	extra, ok := payload.StatefulExtra.(*StatefulExtra)
+	if !ok || extra == nil || len(extra.WireDatums) == 0 {
+		return payload.Encoded, nil
+	}
+
+	prefix := t.missingSnapshotDefines(extra.WireDatums)
+	if len(prefix) == 0 {
+		return payload.Encoded, nil
+	}
+
+	datums := make([]*statefulpb.Datum, 0, len(prefix)+len(extra.WireDatums))
+	datums = append(datums, prefix...)
+	datums = append(datums, extra.WireDatums...)
+
+	serialized, err := proto.Marshal(&statefulpb.DatumSequence{Data: datums})
+	if err != nil {
+		return nil, err
+	}
+	return compressor.Compress(serialized)
 }
 
 // sentCount returns the number of sent payloads awaiting ack
@@ -165,12 +200,26 @@ func (t *inflightTracker) resetOnRotation() {
 	// Make the first batchID be 1, 0 is reserved for the snapshot state
 	t.headBatchID = 1
 	t.batchIDCounter = 1
+	t.streamSent = newStateReferences()
 }
 
 // getSnapshot returns the current snapshot state for stream bootstrapping
 // Returns serialized bytes (marshaled DatumSequence) or nil if empty
 func (t *inflightTracker) getSnapshot() []byte {
-	return t.snapshot.serialize()
+	refs, ok := t.inflightReferences()
+	if !ok {
+		serialized, sent := t.snapshot.serialize(nil)
+		t.streamSent = sent
+		return serialized
+	}
+
+	serialized, sent := t.snapshot.serialize(&refs)
+	t.streamSent = sent
+	return serialized
+}
+
+func (t *inflightTracker) resetStreamSent() {
+	t.streamSent = newStateReferences()
 }
 
 // snapshotState maintains the accumulated state changes for stream bootstrapping
@@ -178,6 +227,61 @@ func (t *inflightTracker) getSnapshot() []byte {
 type snapshotState struct {
 	dictMap    map[uint64]*statefulpb.DictEntryDefine
 	patternMap map[uint64]*statefulpb.PatternDefine
+}
+
+type stateReferences struct {
+	dictEntryIDs map[uint64]struct{}
+	patternIDs   map[uint64]struct{}
+}
+
+func newStateReferences() stateReferences {
+	return stateReferences{
+		dictEntryIDs: make(map[uint64]struct{}),
+		patternIDs:   make(map[uint64]struct{}),
+	}
+}
+
+func (r stateReferences) clone() stateReferences {
+	clone := newStateReferences()
+	for id := range r.dictEntryIDs {
+		clone.dictEntryIDs[id] = struct{}{}
+	}
+	for id := range r.patternIDs {
+		clone.patternIDs[id] = struct{}{}
+	}
+	return clone
+}
+
+func (r stateReferences) hasDictEntry(id uint64) bool {
+	_, ok := r.dictEntryIDs[id]
+	return ok
+}
+
+func (r stateReferences) hasPattern(id uint64) bool {
+	_, ok := r.patternIDs[id]
+	return ok
+}
+
+func (r stateReferences) addDictEntry(id uint64) {
+	if id == 0 {
+		return
+	}
+	r.dictEntryIDs[id] = struct{}{}
+}
+
+func (r stateReferences) addPattern(id uint64) {
+	if id == 0 {
+		return
+	}
+	r.patternIDs[id] = struct{}{}
+}
+
+func (r stateReferences) deleteDictEntry(id uint64) {
+	delete(r.dictEntryIDs, id)
+}
+
+func (r stateReferences) deletePattern(id uint64) {
+	delete(r.patternIDs, id)
 }
 
 // newSnapshotState creates a new empty snapshot state
@@ -208,28 +312,34 @@ func (s *snapshotState) apply(extra *StatefulExtra) {
 	}
 }
 
-// serialize returns the current snapshot state as serialized bytes
-// Returns the marshaled DatumSequence containing all pattern and dictionary definitions
+// serialize returns the current snapshot state as serialized bytes.
+// If refs is non-nil, only definitions referenced by queued inflight data are included.
 // Used to send snapshot on new stream creation
-func (s *snapshotState) serialize() []byte {
-	// Calculate total datums needed
-	totalSize := len(s.patternMap) + len(s.dictMap)
+func (s *snapshotState) serialize(refs *stateReferences) ([]byte, stateReferences) {
+	sent := newStateReferences()
+	datums := make([]*statefulpb.Datum, 0, len(s.patternMap)+len(s.dictMap))
 
-	if totalSize == 0 {
-		return nil
-	}
-
-	datums := make([]*statefulpb.Datum, 0, totalSize)
-
-	for _, pattern := range s.patternMap {
+	for id, pattern := range s.patternMap {
+		if refs != nil && !refs.hasPattern(id) {
+			continue
+		}
 		datums = append(datums, &statefulpb.Datum{
 			Data: &statefulpb.Datum_PatternDefine{PatternDefine: pattern},
 		})
+		sent.addPattern(id)
 	}
-	for _, entry := range s.dictMap {
+	for id, entry := range s.dictMap {
+		if refs != nil && !refs.hasDictEntry(id) {
+			continue
+		}
 		datums = append(datums, &statefulpb.Datum{
 			Data: &statefulpb.Datum_DictEntryDefine{DictEntryDefine: entry},
 		})
+		sent.addDictEntry(id)
+	}
+
+	if len(datums) == 0 {
+		return nil, sent
 	}
 
 	datumSeq := &statefulpb.DatumSequence{
@@ -237,5 +347,202 @@ func (s *snapshotState) serialize() []byte {
 	}
 
 	serialized, _ := proto.Marshal(datumSeq)
-	return serialized
+	return serialized, sent
+}
+
+func (t *inflightTracker) inflightReferences() (stateReferences, bool) {
+	refs := newStateReferences()
+	for count, index := 0, t.head; count < t.totalCount(); count++ {
+		payload := t.items[index]
+		extra, ok := payload.StatefulExtra.(*StatefulExtra)
+		if !ok || extra == nil || extra.WireDatums == nil {
+			return stateReferences{}, false
+		}
+		addDatumReferences(refs, extra.WireDatums)
+		index = (index + 1) % len(t.items)
+	}
+	return refs, true
+}
+
+func (t *inflightTracker) missingSnapshotDefines(datums []*statefulpb.Datum) []*statefulpb.Datum {
+	known := t.streamSent.clone()
+	missing := newStateReferences()
+
+	for _, datum := range datums {
+		switch d := datum.Data.(type) {
+		case *statefulpb.Datum_PatternDefine:
+			known.addPattern(d.PatternDefine.PatternId)
+		case *statefulpb.Datum_PatternDelete:
+			known.deletePattern(d.PatternDelete.PatternId)
+		case *statefulpb.Datum_DictEntryDefine:
+			known.addDictEntry(d.DictEntryDefine.Id)
+		case *statefulpb.Datum_DictEntryDelete:
+			known.deleteDictEntry(d.DictEntryDelete.Id)
+		case *statefulpb.Datum_Logs:
+			t.addMissingLogReferences(missing, known, d.Logs)
+		case *statefulpb.Datum_DeltaEncodingSync:
+			t.addMissingDeltaEncodingSyncReferences(missing, known, d.DeltaEncodingSync)
+		}
+	}
+
+	prefix := make([]*statefulpb.Datum, 0, len(missing.patternIDs)+len(missing.dictEntryIDs))
+	for id := range missing.patternIDs {
+		pattern := t.snapshot.patternMap[id]
+		if pattern == nil {
+			continue
+		}
+		prefix = append(prefix, &statefulpb.Datum{
+			Data: &statefulpb.Datum_PatternDefine{PatternDefine: pattern},
+		})
+	}
+	for id := range missing.dictEntryIDs {
+		entry := t.snapshot.dictMap[id]
+		if entry == nil {
+			continue
+		}
+		prefix = append(prefix, &statefulpb.Datum{
+			Data: &statefulpb.Datum_DictEntryDefine{DictEntryDefine: entry},
+		})
+	}
+	return prefix
+}
+
+func (t *inflightTracker) addMissingLogReferences(missing stateReferences, known stateReferences, log *statefulpb.Log) {
+	if log == nil {
+		return
+	}
+	t.addMissingDynamicValueReference(missing, known, log.Status)
+	t.addMissingDynamicValueReference(missing, known, log.Service)
+	if log.Tags != nil {
+		t.addMissingDynamicValueReference(missing, known, log.Tags.Tagset)
+	}
+	if structured := log.GetStructured(); structured != nil {
+		t.addMissingPatternReference(missing, known, structured.PatternId)
+		t.addMissingDynamicValueReferences(missing, known, structured.DynamicValues)
+		t.addMissingDynamicValueReference(missing, known, structured.JsonMessageKey)
+		t.addMissingDictEntryReference(missing, known, structured.JsonContextSchemaId)
+		t.addMissingDynamicValueReferences(missing, known, structured.JsonContextValues)
+	}
+}
+
+func (t *inflightTracker) addMissingDeltaEncodingSyncReferences(missing stateReferences, known stateReferences, sync *statefulpb.DeltaEncodingSync) {
+	if sync == nil {
+		return
+	}
+	t.addMissingPatternReference(missing, known, sync.PatternId)
+	if sync.Tags != nil {
+		t.addMissingDynamicValueReference(missing, known, sync.Tags.Tagset)
+	}
+}
+
+func (t *inflightTracker) addMissingDynamicValueReferences(missing stateReferences, known stateReferences, values []*statefulpb.DynamicValue) {
+	for _, value := range values {
+		t.addMissingDynamicValueReference(missing, known, value)
+	}
+}
+
+func (t *inflightTracker) addMissingDynamicValueReference(missing stateReferences, known stateReferences, value *statefulpb.DynamicValue) {
+	if value == nil {
+		return
+	}
+	t.addMissingDictEntryReference(missing, known, value.GetDictIndex())
+}
+
+func (t *inflightTracker) addMissingDictEntryReference(missing stateReferences, known stateReferences, id uint64) {
+	if id == 0 || known.hasDictEntry(id) || t.snapshot.dictMap[id] == nil {
+		return
+	}
+	missing.addDictEntry(id)
+	known.addDictEntry(id)
+}
+
+func (t *inflightTracker) addMissingPatternReference(missing stateReferences, known stateReferences, id uint64) {
+	if id == 0 || known.hasPattern(id) || t.snapshot.patternMap[id] == nil {
+		return
+	}
+	missing.addPattern(id)
+	known.addPattern(id)
+}
+
+func (t *inflightTracker) markStateSent(payload *message.Payload) {
+	extra, ok := payload.StatefulExtra.(*StatefulExtra)
+	if !ok || extra == nil || len(extra.WireDatums) == 0 {
+		return
+	}
+	for _, datum := range t.missingSnapshotDefines(extra.WireDatums) {
+		switch d := datum.Data.(type) {
+		case *statefulpb.Datum_PatternDefine:
+			t.streamSent.addPattern(d.PatternDefine.PatternId)
+		case *statefulpb.Datum_DictEntryDefine:
+			t.streamSent.addDictEntry(d.DictEntryDefine.Id)
+		}
+	}
+	t.streamSent.applyStateChanges(extra.WireDatums)
+}
+
+func (r stateReferences) applyStateChanges(datums []*statefulpb.Datum) {
+	for _, datum := range datums {
+		switch d := datum.Data.(type) {
+		case *statefulpb.Datum_PatternDefine:
+			r.addPattern(d.PatternDefine.PatternId)
+		case *statefulpb.Datum_PatternDelete:
+			r.deletePattern(d.PatternDelete.PatternId)
+		case *statefulpb.Datum_DictEntryDefine:
+			r.addDictEntry(d.DictEntryDefine.Id)
+		case *statefulpb.Datum_DictEntryDelete:
+			r.deleteDictEntry(d.DictEntryDelete.Id)
+		}
+	}
+}
+
+func addDatumReferences(refs stateReferences, datums []*statefulpb.Datum) {
+	for _, datum := range datums {
+		switch d := datum.Data.(type) {
+		case *statefulpb.Datum_Logs:
+			addLogReferences(refs, d.Logs)
+		case *statefulpb.Datum_DeltaEncodingSync:
+			addDeltaEncodingSyncReferences(refs, d.DeltaEncodingSync)
+		}
+	}
+}
+
+func addLogReferences(refs stateReferences, log *statefulpb.Log) {
+	if log == nil {
+		return
+	}
+	addDynamicValueReference(refs, log.Status)
+	addDynamicValueReference(refs, log.Service)
+	if log.Tags != nil {
+		addDynamicValueReference(refs, log.Tags.Tagset)
+	}
+	if structured := log.GetStructured(); structured != nil {
+		refs.addPattern(structured.PatternId)
+		addDynamicValueReferences(refs, structured.DynamicValues)
+		addDynamicValueReference(refs, structured.JsonMessageKey)
+		refs.addDictEntry(structured.JsonContextSchemaId)
+		addDynamicValueReferences(refs, structured.JsonContextValues)
+	}
+}
+
+func addDeltaEncodingSyncReferences(refs stateReferences, sync *statefulpb.DeltaEncodingSync) {
+	if sync == nil {
+		return
+	}
+	refs.addPattern(sync.PatternId)
+	if sync.Tags != nil {
+		addDynamicValueReference(refs, sync.Tags.Tagset)
+	}
+}
+
+func addDynamicValueReferences(refs stateReferences, values []*statefulpb.DynamicValue) {
+	for _, value := range values {
+		addDynamicValueReference(refs, value)
+	}
+}
+
+func addDynamicValueReference(refs stateReferences, value *statefulpb.DynamicValue) {
+	if value == nil {
+		return
+	}
+	refs.addDictEntry(value.GetDictIndex())
 }
