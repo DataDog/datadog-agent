@@ -2,7 +2,10 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "slices",
-    srcs = ["map.go"],
+    srcs = [
+        "first.go",
+        "map.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/slices",
     visibility = ["//visibility:public"],
 )
