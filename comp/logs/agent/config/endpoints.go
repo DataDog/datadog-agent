@@ -283,7 +283,7 @@ func (e *Endpoint) GetStatus(prefix string, useHTTP bool) string {
 	host := e.Host
 	port := e.Port
 	pathPrefix := e.PathPrefix
-	redactedAPIKey := scrubber.HideKeyExceptLastFourChars(e.GetAPIKey())
+	redactedAPIKey := scrubber.HideKeyExceptLastChars(e.GetAPIKey())
 	var protocol string
 	if useHTTP {
 		if e.UseSSL() {
@@ -342,8 +342,8 @@ func (e *Endpoint) onConfigUpdateFromReaderMainEndpoint(config model.Reader) {
 			}
 			log.Infof("rotating API key for '%s': %s -> %s",
 				e.configSettingPath,
-				scrubber.HideKeyExceptLastFourChars(e.apiKey.Load()),
-				scrubber.HideKeyExceptLastFourChars(newAPIKey),
+				scrubber.HideKeyExceptLastChars(e.apiKey.Load()),
+				scrubber.HideKeyExceptLastChars(newAPIKey),
 			)
 			e.apiKey.Store(newAPIKey)
 		}
@@ -369,8 +369,8 @@ func (e *Endpoint) onConfigUpdateAdditionalEndpoints(l *LogsConfigKeys) {
 		log.Infof("rotating API key for '%s' endpoints number %d: %s -> %s",
 			e.configSettingPath,
 			e.additionalEndpointsIdx,
-			scrubber.HideKeyExceptLastFourChars(e.apiKey.Load()),
-			scrubber.HideKeyExceptLastFourChars(newAPIKey),
+			scrubber.HideKeyExceptLastChars(e.apiKey.Load()),
+			scrubber.HideKeyExceptLastChars(newAPIKey),
 		)
 		e.apiKey.Store(newAPIKey)
 	})

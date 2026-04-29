@@ -1072,7 +1072,7 @@ def read_content(ctx, file_path, git_ref: str | None = None):
             response.raise_for_status()
             content = response.text
         elif not git_ref:
-            with open(file_path) as f:
+            with open(file_path, encoding="utf-8") as f:
                 content = f.read()
         elif ctx.run(f"git cat-file -e '{git_ref}:{file_path}'", hide=True, warn=True).ok:
             content = ctx.run(f"git show '{git_ref}:{file_path}'", hide=True).stdout

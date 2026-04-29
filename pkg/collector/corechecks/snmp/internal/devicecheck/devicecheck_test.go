@@ -694,6 +694,105 @@ profiles:
 	assert.Equal(t, uint64(1), deviceCk.sessionCloseErrorCount.Load())
 }
 
+func TestRun_bandwidthStateSurvivesFailedCheck(t *testing.T) {
+	profile.SetConfdPathAndCleanProfiles()
+
+	// language=yaml
+	rawInstanceConfig := []byte(`
+collect_device_metadata: false
+ip_address: 1.2.3.4
+community_string: public
+min_collection_interval: 15
+metrics:
+- symbol:
+    OID: 1.2.3
+    name: myMetric
+`)
+	// language=yaml
+	rawInitConfig := []byte(`
+profiles:
+ f5-big-ip:
+   definition_file: f5-big-ip.yaml
+`)
+
+	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
+	assert.Nil(t, err)
+
+	// Use a session factory that fails to connect
+	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
+		return nil, errors.New("connection refused")
+	}
+	connMgr := NewConnectionManager(config, sessionFactory)
+	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
+	assert.Nil(t, err)
+
+	sender := mocksender.NewMockSender("123")
+	sender.SetupAcceptAll()
+
+	// Use entries from 1 interval ago (within TTL of bandwidthStateTTLChecks intervals).
+	recentTs := time.Now().Add(-config.MinCollectionInterval).UnixNano()
+	bandwidthState := report.MockInterfaceRateMap("9", 80_000_000, 80_000_000, 30.0, 5.0, recentTs)
+	deviceCk.SetSender(report.NewMetricSender(sender, "", nil, bandwidthState))
+	deviceCk.SetInterfaceBandwidthState(bandwidthState)
+
+	// Run a check that fails due to connection error
+	err = deviceCk.Run(time.Now())
+	assert.NotNil(t, err)
+
+	// Bandwidth state should be preserved despite the failed check
+	assert.Equal(t, 2, len(deviceCk.GetInterfaceBandwidthState()))
+}
+
+func TestRun_bandwidthStateCleanedUpAfterTTL(t *testing.T) {
+	profile.SetConfdPathAndCleanProfiles()
+
+	// language=yaml
+	rawInstanceConfig := []byte(`
+collect_device_metadata: false
+ip_address: 1.2.3.4
+community_string: public
+min_collection_interval: 15
+metrics:
+- symbol:
+    OID: 1.2.3
+    name: myMetric
+`)
+	// language=yaml
+	rawInitConfig := []byte(`
+profiles:
+ f5-big-ip:
+   definition_file: f5-big-ip.yaml
+`)
+
+	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
+	assert.Nil(t, err)
+
+	// Use a session factory that fails to connect
+	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
+		return nil, errors.New("connection refused")
+	}
+	connMgr := NewConnectionManager(config, sessionFactory)
+	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
+	assert.Nil(t, err)
+
+	sender := mocksender.NewMockSender("123")
+	sender.SetupAcceptAll()
+
+	// Use entries from well beyond the TTL (2x the TTL to be safe).
+	beyondTTL := 2 * bandwidthStateTTLChecks * config.MinCollectionInterval
+	oldTs := time.Now().Add(-beyondTTL).UnixNano()
+	bandwidthState := report.MockInterfaceRateMap("9", 80_000_000, 80_000_000, 30.0, 5.0, oldTs)
+	deviceCk.SetSender(report.NewMetricSender(sender, "", nil, bandwidthState))
+	deviceCk.SetInterfaceBandwidthState(bandwidthState)
+
+	// Run a check that fails due to connection error
+	err = deviceCk.Run(time.Now())
+	assert.NotNil(t, err)
+
+	// Bandwidth state should be cleaned up since entries are older than TTL
+	assert.Equal(t, 0, len(deviceCk.GetInterfaceBandwidthState()))
+}
+
 func TestDeviceCheck_WithPing(t *testing.T) {
 	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateFakeSession()

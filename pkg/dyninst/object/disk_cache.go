@@ -17,7 +17,6 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
-	"runtime/debug"
 	"strconv"
 	"sync"
 	"syscall"
@@ -189,7 +188,6 @@ func (c *DiskCache) releaseSpace(toRelease uint64) {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	log.Infof("releaseSpace: releasing %s, total bytes: %s: %s", humanize.IBytes(toRelease), humanize.IBytes(c.mu.totalBytes), debug.Stack())
 	if toRelease > c.mu.totalBytes {
 		log.Errorf(
 			"releaseSpace: invariant violation: total size underflow: %s > %s (delta: %s)",

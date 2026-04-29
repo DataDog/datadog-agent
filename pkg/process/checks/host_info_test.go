@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	ipcclientmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -239,6 +240,66 @@ func TestGetHostnameShellCmd(t *testing.T) {
 	case "agent-empty_hostname":
 		assert.EqualValues(t, []string{"hostname"}, args)
 		fmt.Fprintf(os.Stdout, "")
+	}
+}
+
+func TestGetContainerHostType(t *testing.T) {
+	tests := []struct {
+		name         string
+		awsExecEnv   string
+		ecsExecEnv   string // ECS_FARGATE or empty
+		eksExecEnv   string // ECS_FARGATE for EKS
+		deployMode   string
+		features     []env.Feature
+		expectedType model.ContainerHostType
+	}{
+		{
+			name:         "not in a container environment",
+			expectedType: model.ContainerHostType_notSpecified,
+		},
+		{
+			name:         "ECS Fargate",
+			features:     []env.Feature{env.ECSFargate},
+			expectedType: model.ContainerHostType_fargateECS,
+		},
+		{
+			name:         "EKS Fargate",
+			features:     []env.Feature{env.EKSFargate},
+			expectedType: model.ContainerHostType_fargateEKS,
+		},
+		{
+			name:       "ECS Managed Instances sidecar mode",
+			awsExecEnv: "AWS_ECS_MANAGED_INSTANCES",
+			deployMode: "sidecar",
+			features:   []env.Feature{env.ECSManagedInstances},
+			// IsSidecar() reads IsECSManagedInstances() directly from env var, so t.Setenv is also needed
+			expectedType: model.ContainerHostType_sidecar,
+		},
+		{
+			name:         "ECS Managed Instances daemon mode reports a real host",
+			awsExecEnv:   "AWS_ECS_MANAGED_INSTANCES",
+			deployMode:   "daemon",
+			features:     []env.Feature{env.ECSManagedInstances},
+			expectedType: model.ContainerHostType_notSpecified,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.awsExecEnv != "" {
+				t.Setenv("AWS_EXECUTION_ENV", tc.awsExecEnv)
+			}
+			if tc.eksExecEnv != "" {
+				t.Setenv("EKS_FARGATE", tc.eksExecEnv)
+			}
+			if tc.deployMode != "" {
+				pkgconfigsetup.Datadog().SetWithoutSource("ecs_deployment_mode", tc.deployMode)
+				defer pkgconfigsetup.Datadog().SetWithoutSource("ecs_deployment_mode", "")
+			}
+			env.SetFeatures(t, tc.features...)
+
+			assert.Equal(t, tc.expectedType, getContainerHostType())
+		})
 	}
 }
 

@@ -8,10 +8,12 @@
 package config
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
@@ -22,6 +24,7 @@ func TestValidateShouldSucceedWithValidConfigs(t *testing.T) {
 		{Type: FileType, Path: "/var/log/foo.log", FingerprintConfig: &types.FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
 		{Type: TCPType, Port: 1234, FingerprintConfig: &types.FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
 		{Type: UDPType, Port: 5678, FingerprintConfig: &types.FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
+		{Type: TCPType, Port: 6514, TLS: &TLSListenerConfig{CertFile: "/cert", KeyFile: "/key"}, FingerprintConfig: &types.FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
 		{Type: DockerType, FingerprintConfig: &types.FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
 		{Type: JournaldType, ProcessingRules: []*ProcessingRule{{Name: "foo", Type: ExcludeAtMatch, Pattern: ".*"}}, FingerprintConfig: &types.FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
 	}
@@ -38,6 +41,11 @@ func TestValidateShouldFailWithInvalidConfigs(t *testing.T) {
 		{Type: FileType},
 		{Type: TCPType},
 		{Type: UDPType},
+		{Type: TCPType, Port: 6514, TLS: &TLSListenerConfig{CertFile: "/cert"}},
+		{Type: UDPType, Port: 514, TLS: &TLSListenerConfig{CertFile: "/cert", KeyFile: "/key"}},
+		{Type: TCPType, Port: 6514, TLS: &TLSListenerConfig{CertFile: "/cert", KeyFile: "/key", ClientAuth: "bogus"}},
+		{Type: TCPType, Port: 6514, AllowedIPs: StringSliceField{"not-an-ip"}},
+		{Type: TCPType, Port: 6514, TLS: &TLSListenerConfig{CertFile: "/cert", KeyFile: "/key", MinTLSVersion: "tls1.2"}},
 		{Type: DockerType, ProcessingRules: []*ProcessingRule{{Name: "foo"}}},
 		{Type: DockerType, ProcessingRules: []*ProcessingRule{{Name: "foo", Type: "bar"}}},
 		{Type: DockerType, ProcessingRules: []*ProcessingRule{{Name: "foo", Type: ExcludeAtMatch}}},
@@ -79,6 +87,71 @@ func TestAutoMultilineEnabled(t *testing.T) {
 	mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection", false)
 	assert.False(t, decode(`{}`).AutoMultiLineEnabled(mockConfig))
 
+}
+
+func TestExperimentalAdaptiveSamplingOptionsDecode(t *testing.T) {
+	cfg := decode(`{"experimental_adaptive_sampling":{"enabled":true}}`)
+	require.NotNil(t, cfg.ExperimentalAdaptiveSampling)
+	require.NotNil(t, cfg.ExperimentalAdaptiveSampling.Enabled)
+	assert.True(t, *cfg.ExperimentalAdaptiveSampling.Enabled)
+}
+
+func TestAutoMultiLineStatus(t *testing.T) {
+	t.Run("per-source false overrides global true", func(t *testing.T) {
+		mockConfig := config.NewMock(t)
+		mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection", true)
+		enabled, isDefault := decode(`{"auto_multi_line_detection":false}`).AutoMultiLineStatus(mockConfig)
+		assert.False(t, enabled)
+		assert.False(t, isDefault)
+	})
+
+	t.Run("per-source true overrides global false", func(t *testing.T) {
+		mockConfig := config.NewMock(t)
+		mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection", false)
+		enabled, isDefault := decode(`{"auto_multi_line_detection":true}`).AutoMultiLineStatus(mockConfig)
+		assert.True(t, enabled)
+		assert.False(t, isDefault)
+	})
+
+	t.Run("global explicitly true is not default", func(t *testing.T) {
+		mockConfig := config.NewMock(t)
+		mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection", true)
+		enabled, isDefault := decode(`{}`).AutoMultiLineStatus(mockConfig)
+		assert.True(t, enabled)
+		assert.False(t, isDefault)
+	})
+
+	t.Run("global explicitly false is not default", func(t *testing.T) {
+		mockConfig := config.NewMock(t)
+		mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection", false)
+		enabled, isDefault := decode(`{}`).AutoMultiLineStatus(mockConfig)
+		assert.False(t, enabled)
+		assert.False(t, isDefault)
+	})
+
+	t.Run("nothing configured is default", func(t *testing.T) {
+		mockConfig := config.NewMock(t)
+		enabled, isDefault := decode(`{}`).AutoMultiLineStatus(mockConfig)
+		assert.False(t, enabled)
+		assert.True(t, isDefault)
+	})
+
+	t.Run("deprecated experimental true is not default", func(t *testing.T) {
+		mockConfig := config.NewMock(t)
+		mockConfig.SetWithoutSource("logs_config.experimental_auto_multi_line_detection", true)
+		enabled, isDefault := decode(`{}`).AutoMultiLineStatus(mockConfig)
+		assert.True(t, enabled)
+		assert.False(t, isDefault)
+	})
+
+	t.Run("deprecated experimental false with auto true is not default", func(t *testing.T) {
+		mockConfig := config.NewMock(t)
+		mockConfig.SetWithoutSource("logs_config.experimental_auto_multi_line_detection", false)
+		mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection", true)
+		enabled, isDefault := decode(`{}`).AutoMultiLineStatus(mockConfig)
+		assert.True(t, enabled)
+		assert.False(t, isDefault)
+	})
 }
 
 func decode(cfg string) *LogsConfig {
@@ -191,6 +264,219 @@ func TestFingerprintConfig(t *testing.T) {
 	}
 }
 
+func TestValidateTLSConfig(t *testing.T) {
+	t.Run("valid TLS with cert and key", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type: TCPType,
+			Port: 6514,
+			TLS:  &TLSListenerConfig{CertFile: "/path/to/cert.pem", KeyFile: "/path/to/key.pem"},
+		}
+		err := cfg.validateTLS()
+		assert.Nil(t, err)
+	})
+
+	t.Run("valid TLS with mutual auth", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type: TCPType,
+			Port: 6514,
+			TLS:  &TLSListenerConfig{CertFile: "/cert", KeyFile: "/key", CAFile: "/ca", ClientAuth: "required"},
+		}
+		err := cfg.validateTLS()
+		assert.Nil(t, err)
+	})
+
+	t.Run("nil TLS is valid", func(t *testing.T) {
+		cfg := &LogsConfig{Type: TCPType, Port: 1234}
+		err := cfg.validateTLS()
+		assert.Nil(t, err)
+	})
+
+	t.Run("TLS on non-TCP type fails", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type: UDPType,
+			Port: 514,
+			TLS:  &TLSListenerConfig{CertFile: "/cert", KeyFile: "/key"},
+		}
+		err := cfg.validateTLS()
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "only supported for tcp")
+	})
+
+	t.Run("TLS missing key_file fails", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type: TCPType,
+			Port: 6514,
+			TLS:  &TLSListenerConfig{CertFile: "/cert"},
+		}
+		err := cfg.validateTLS()
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "cert_file and key_file")
+	})
+
+	t.Run("TLS missing cert_file fails", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type: TCPType,
+			Port: 6514,
+			TLS:  &TLSListenerConfig{KeyFile: "/key"},
+		}
+		err := cfg.validateTLS()
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "cert_file and key_file")
+	})
+
+	t.Run("optional client_auth without ca_file fails", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type: TCPType,
+			Port: 6514,
+			TLS:  &TLSListenerConfig{CertFile: "/cert", KeyFile: "/key", ClientAuth: "optional"},
+		}
+		err := cfg.validateTLS()
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "ca_file")
+	})
+
+	t.Run("required client_auth without ca_file fails", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type: TCPType,
+			Port: 6514,
+			TLS:  &TLSListenerConfig{CertFile: "/cert", KeyFile: "/key", ClientAuth: "required"},
+		}
+		err := cfg.validateTLS()
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "ca_file")
+	})
+
+	t.Run("optional client_auth with ca_file is OK", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type: TCPType,
+			Port: 6514,
+			TLS:  &TLSListenerConfig{CertFile: "/cert", KeyFile: "/key", CAFile: "/ca", ClientAuth: "optional"},
+		}
+		err := cfg.validateTLS()
+		assert.Nil(t, err)
+	})
+
+	t.Run("unrecognized client_auth fails", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type: TCPType,
+			Port: 6514,
+			TLS:  &TLSListenerConfig{CertFile: "/cert", KeyFile: "/key", ClientAuth: "verify_client"},
+		}
+		err := cfg.validateTLS()
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "unrecognized client_auth")
+	})
+
+	t.Run("unrecognized min_tls_version fails", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type: TCPType,
+			Port: 6514,
+			TLS:  &TLSListenerConfig{CertFile: "/cert", KeyFile: "/key", MinTLSVersion: "tls1.2"},
+		}
+		err := cfg.validateTLS()
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "unrecognized min_tls_version")
+	})
+
+	t.Run("all valid client_auth values pass", func(t *testing.T) {
+		for _, auth := range []string{"", "none", "optional", "required"} {
+			cfg := &LogsConfig{
+				Type: TCPType,
+				Port: 6514,
+				TLS:  &TLSListenerConfig{CertFile: "/cert", KeyFile: "/key", CAFile: "/ca", ClientAuth: auth},
+			}
+			err := cfg.validateTLS()
+			assert.Nil(t, err, "client_auth %q should be valid", auth)
+		}
+	})
+
+	t.Run("old client_auth values are rejected", func(t *testing.T) {
+		for _, auth := range []string{"request", "require", "verify", "require_and_verify"} {
+			cfg := &LogsConfig{
+				Type: TCPType,
+				Port: 6514,
+				TLS:  &TLSListenerConfig{CertFile: "/cert", KeyFile: "/key", ClientAuth: auth},
+			}
+			err := cfg.validateTLS()
+			assert.NotNil(t, err, "client_auth %q should be rejected", auth)
+			assert.Contains(t, err.Error(), "unrecognized client_auth")
+		}
+	})
+
+	t.Run("all valid min_tls_version values pass", func(t *testing.T) {
+		for _, v := range []string{"", "tlsv1.2", "tlsv1.3"} {
+			cfg := &LogsConfig{
+				Type: TCPType,
+				Port: 6514,
+				TLS:  &TLSListenerConfig{CertFile: "/cert", KeyFile: "/key", MinTLSVersion: v},
+			}
+			err := cfg.validateTLS()
+			assert.Nil(t, err, "min_tls_version %q should be valid", v)
+		}
+	})
+
+	t.Run("deprecated TLS versions are rejected", func(t *testing.T) {
+		for _, v := range []string{"tlsv1.0", "tlsv1.1"} {
+			cfg := &LogsConfig{
+				Type: TCPType,
+				Port: 6514,
+				TLS:  &TLSListenerConfig{CertFile: "/cert", KeyFile: "/key", MinTLSVersion: v},
+			}
+			err := cfg.validateTLS()
+			assert.NotNil(t, err, "min_tls_version %q should be rejected", v)
+			assert.Contains(t, err.Error(), "unrecognized min_tls_version")
+		}
+	})
+}
+
+func TestParseTLSVersion(t *testing.T) {
+	v, err := parseTLSVersion("tlsv1.2")
+	require.NoError(t, err)
+	assert.Equal(t, uint16(0x0303), v)
+
+	v, err = parseTLSVersion("tlsv1.3")
+	require.NoError(t, err)
+	assert.Equal(t, uint16(0x0304), v)
+
+	v, err = parseTLSVersion("")
+	require.NoError(t, err)
+	assert.Equal(t, uint16(0x0303), v)
+
+	v, err = parseTLSVersion("TLSv1.3")
+	require.NoError(t, err)
+	assert.Equal(t, uint16(0x0304), v)
+
+	_, err = parseTLSVersion("invalid")
+	assert.Error(t, err)
+
+	_, err = parseTLSVersion("tlsv1.0")
+	assert.Error(t, err, "TLS 1.0 should no longer be accepted")
+
+	_, err = parseTLSVersion("tlsv1.1")
+	assert.Error(t, err, "TLS 1.1 should no longer be accepted")
+}
+
+func TestParseClientAuth(t *testing.T) {
+	v, err := parseClientAuth("")
+	require.NoError(t, err)
+	assert.Equal(t, tls.NoClientCert, v)
+
+	v, err = parseClientAuth("none")
+	require.NoError(t, err)
+	assert.Equal(t, tls.NoClientCert, v)
+
+	v, err = parseClientAuth("optional")
+	require.NoError(t, err)
+	assert.Equal(t, tls.VerifyClientCertIfGiven, v)
+
+	v, err = parseClientAuth("required")
+	require.NoError(t, err)
+	assert.Equal(t, tls.RequireAndVerifyClientCert, v)
+
+	_, err = parseClientAuth("bogus")
+	assert.Error(t, err)
+}
+
 func TestValidateWildcardWithBeginningMode(t *testing.T) {
 	validConfigs := []*LogsConfig{
 		{Type: FileType, Path: "/var/log/*.log", TailingMode: "beginning"},
@@ -204,4 +490,100 @@ func TestValidateWildcardWithBeginningMode(t *testing.T) {
 		err := config.Validate()
 		assert.Nil(t, err, "Wildcard path %s with tailing mode %s should be valid", config.Path, config.TailingMode)
 	}
+}
+
+func TestValidateIPFilter(t *testing.T) {
+	t.Run("valid CIDR entries pass", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type:       TCPType,
+			Port:       6514,
+			AllowedIPs: StringSliceField{"10.0.0.0/8", "192.168.1.0/24"},
+			DeniedIPs:  StringSliceField{"10.0.0.99"},
+		}
+		err := cfg.validateIPFilter()
+		assert.Nil(t, err)
+	})
+
+	t.Run("valid single IPs pass", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type:       UDPType,
+			Port:       514,
+			AllowedIPs: StringSliceField{"10.0.0.1", "::1"},
+		}
+		err := cfg.validateIPFilter()
+		assert.Nil(t, err)
+	})
+
+	t.Run("invalid allowed IP fails", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type:       TCPType,
+			Port:       6514,
+			AllowedIPs: StringSliceField{"not-an-ip"},
+		}
+		err := cfg.validateIPFilter()
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "allowed_ips")
+	})
+
+	t.Run("invalid denied IP fails", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type:      TCPType,
+			Port:      6514,
+			DeniedIPs: StringSliceField{"999.999.999.999"},
+		}
+		err := cfg.validateIPFilter()
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "denied_ips")
+	})
+
+	t.Run("IP filter on file type fails", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type:       FileType,
+			Path:       "/var/log/test.log",
+			AllowedIPs: StringSliceField{"10.0.0.1"},
+		}
+		err := cfg.validateIPFilter()
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "only supported for")
+	})
+
+	t.Run("empty lists pass", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type: TCPType,
+			Port: 6514,
+		}
+		err := cfg.validateIPFilter()
+		assert.Nil(t, err)
+	})
+
+	t.Run("both allowed and denied coexist", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type:       TCPType,
+			Port:       6514,
+			AllowedIPs: StringSliceField{"10.0.0.0/8"},
+			DeniedIPs:  StringSliceField{"10.0.0.0/24"},
+		}
+		err := cfg.validateIPFilter()
+		assert.Nil(t, err)
+	})
+
+	t.Run("IPv6 CIDR passes", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type:       TCPType,
+			Port:       6514,
+			AllowedIPs: StringSliceField{"fd00::/64"},
+		}
+		err := cfg.validateIPFilter()
+		assert.Nil(t, err)
+	})
+
+	t.Run("UDP type passes", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type:      UDPType,
+			Port:      514,
+			DeniedIPs: StringSliceField{"10.0.0.99"},
+		}
+		err := cfg.validateIPFilter()
+		assert.Nil(t, err)
+	})
 }

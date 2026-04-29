@@ -21,11 +21,11 @@ import (
 	"github.com/syndtr/gocapability/capability"
 	"golang.org/x/sys/unix"
 
-	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -86,25 +86,25 @@ type realConntracker struct {
 }
 
 var conntrackerTelemetry = struct {
-	getsDuration        telemetry.Histogram
-	registersDuration   telemetry.Histogram
-	unregistersDuration telemetry.Histogram
-	getsTotal           telemetry.Counter
-	registersTotal      telemetry.Counter
-	unregistersTotal    telemetry.Counter
-	evictsTotal         telemetry.Counter
-	registersDropped    telemetry.Counter
+	getsDuration        telemetryComp.Histogram
+	registersDuration   telemetryComp.Histogram
+	unregistersDuration telemetryComp.Histogram
+	getsTotal           telemetryComp.Counter
+	registersTotal      telemetryComp.Counter
+	unregistersTotal    telemetryComp.Counter
+	evictsTotal         telemetryComp.Counter
+	registersDropped    telemetryComp.Counter
 	stateSize           *prometheus.Desc
 	orphanSize          *prometheus.Desc
 }{
-	telemetry.NewHistogram(telemetryModuleName, "gets_duration_nanoseconds", []string{}, "Histogram measuring the time spent retrieving connection tuples in the map", defaultBuckets),
-	telemetry.NewHistogram(telemetryModuleName, "registers_duration_nanoseconds", []string{}, "Histogram measuring the time spent updating/creating connection tuples in the map", defaultBuckets),
-	telemetry.NewHistogram(telemetryModuleName, "unregisters_duration_nanoseconds", []string{}, "Histogram measuring the time spent removing connection tuples from the map", defaultBuckets),
-	telemetry.NewCounter(telemetryModuleName, "gets_total", []string{}, "Counter measuring the total number of attempts to get connection tuples from the map"),
-	telemetry.NewCounter(telemetryModuleName, "registers_total", []string{}, "Counter measuring the total number of attempts to update/create connection tuples in the map"),
-	telemetry.NewCounter(telemetryModuleName, "unregisters_total", []string{}, "Counter measuring the total number of attempts to delete connection tuples from the map"),
-	telemetry.NewCounter(telemetryModuleName, "evicts_total", []string{}, "Counter measuring the number of evictions from the conntrack cache"),
-	telemetry.NewCounter(telemetryModuleName, "registers_dropped", []string{}, "Counter measuring the number of skipped registers due to a non-NAT connection"),
+	telemetryimpl.GetCompatComponent().NewHistogram(telemetryModuleName, "gets_duration_nanoseconds", []string{}, "Histogram measuring the time spent retrieving connection tuples in the map", defaultBuckets),
+	telemetryimpl.GetCompatComponent().NewHistogram(telemetryModuleName, "registers_duration_nanoseconds", []string{}, "Histogram measuring the time spent updating/creating connection tuples in the map", defaultBuckets),
+	telemetryimpl.GetCompatComponent().NewHistogram(telemetryModuleName, "unregisters_duration_nanoseconds", []string{}, "Histogram measuring the time spent removing connection tuples from the map", defaultBuckets),
+	telemetryimpl.GetCompatComponent().NewCounter(telemetryModuleName, "gets_total", []string{}, "Counter measuring the total number of attempts to get connection tuples from the map"),
+	telemetryimpl.GetCompatComponent().NewCounter(telemetryModuleName, "registers_total", []string{}, "Counter measuring the total number of attempts to update/create connection tuples in the map"),
+	telemetryimpl.GetCompatComponent().NewCounter(telemetryModuleName, "unregisters_total", []string{}, "Counter measuring the total number of attempts to delete connection tuples from the map"),
+	telemetryimpl.GetCompatComponent().NewCounter(telemetryModuleName, "evicts_total", []string{}, "Counter measuring the number of evictions from the conntrack cache"),
+	telemetryimpl.GetCompatComponent().NewCounter(telemetryModuleName, "registers_dropped", []string{}, "Counter measuring the number of skipped registers due to a non-NAT connection"),
 	prometheus.NewDesc(telemetryModuleName+"__state_size", "Gauge measuring the current size of the conntrack cache", nil, nil),
 	prometheus.NewDesc(telemetryModuleName+"__orphan_size", "Gauge measuring the number of orphaned items in the conntrack cache", nil, nil),
 }

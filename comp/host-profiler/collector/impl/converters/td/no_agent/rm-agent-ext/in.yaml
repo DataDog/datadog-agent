@@ -1,7 +1,7 @@
 service:
   pipelines:
     profiles:
-      receivers: [hostprofiler]
+      receivers: [profiling]
       processors: [batch]
       exporters: [otlphttp]
   extensions:
@@ -31,7 +31,7 @@ processors:
     timeout: 10s
 
 receivers:
-  hostprofiler:
+  profiling:
     symbol_uploader:
       enabled: false
 

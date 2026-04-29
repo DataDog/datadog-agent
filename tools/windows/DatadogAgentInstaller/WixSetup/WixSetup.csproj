@@ -22,7 +22,7 @@
   <ItemGroup>
     <!-- WiX 5 migration: Replaced WixSharp.bin 1.20.3 with WixSharp_wix4 2.12.0 -->
     <!-- NineDigit.WixSharpExtensions removed - equivalent methods implemented in WixSharpCompatExtensions.cs -->
-    <PackageReference Include="WixSharp_wix4" Version="2.12.0" />
+    <PackageReference Include="WixSharp_wix4" Version="2.12.3" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\AgentCustomActions\AgentCustomActions.csproj" />

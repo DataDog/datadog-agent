@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib"
 	lib_v2 "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib2"
 )
 
 func main() {
@@ -38,9 +39,11 @@ func main() {
 	lib_v2.FooV2()
 	var t lib_v2.V2Type
 	t.MyMethod()
+	lib_v2.UseV2GenericBox()
 	var it iterExample
 	it.rangeOverIterator()
 	lib.InlinedFunc()
+	lib2.UseGenericsWithFloat64()
 
 	// unsupported for MVP, should not cause failures
 	executeEsoteric()

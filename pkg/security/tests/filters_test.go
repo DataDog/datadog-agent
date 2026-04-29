@@ -1357,3 +1357,63 @@ func TestFilterConnectAddrFamily(t *testing.T) {
 		}
 	}
 }
+
+func TestAuidDiscarder(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	// Rule that does not match (auid == 424242 is very unlikely)
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_rule_auid_discarder",
+			Expression: `open.file.path == "{{.Root}}/auid_discarder_test" && process.auid == 424242`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	testFile, _, err := test.Path("auid_discarder_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testFile)
+
+	// 1. send first event not matching the rule to create a discarder.
+	// it's expected that we receive the event
+	err = test.GetProbeEvent(func() error {
+		fd, err := openTestFile(test, testFile, syscall.O_CREAT|syscall.O_RDONLY)
+		if err != nil {
+			return err
+		}
+		return syscall.Close(fd)
+	}, func(event *model.Event) bool {
+		if event.GetEventType() != model.FileOpenEventType {
+			return false
+		}
+		v, _ := event.GetFieldValue("open.file.path")
+		return v == testFile
+	}, 3*time.Second, model.FileOpenEventType)
+
+	if err != nil {
+		t.Fatal("Failed to get the first open event for auid discarder")
+	}
+
+	// 2. Re-open testFile : event should be discarded now
+	err = test.GetProbeEvent(func() error {
+		fd, err := openTestFile(test, testFile, syscall.O_RDONLY)
+		if err != nil {
+			return err
+		}
+		return syscall.Close(fd)
+	}, func(event *model.Event) bool {
+		if event.GetEventType() != model.FileOpenEventType {
+			return false
+		}
+		v, _ := event.GetFieldValue("open.file.path")
+		return v == testFile
+	}, 3*time.Second, model.FileOpenEventType)
+	assert.Error(t, err, "Event should have been discarded by auid discarder")
+}

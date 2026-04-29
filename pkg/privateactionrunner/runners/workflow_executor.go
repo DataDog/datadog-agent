@@ -85,7 +85,7 @@ func (l *Loop) Run(parentCtx context.Context) {
 			l.publishFailure(ctx, task, err)
 			continue
 		}
-		unwrappedTask, err := l.runner.taskVerifier.UnwrapTaskFromSignedEnvelope(task.Data.Attributes.SignedEnvelope)
+		unwrappedTask, err := l.runner.taskVerifier.UnwrapTask(task)
 		if err != nil {
 			logger.Error("could not verify workflow task", log.ErrorField(err))
 			l.publishFailure(ctx, task, err)
@@ -95,6 +95,9 @@ func (l *Loop) Run(parentCtx context.Context) {
 
 		// JobId is generated on dequeue so its not part of the signature, it will be checked by the backend when publishing the result
 		unwrappedTask.Data.Attributes.JobId = task.Data.Attributes.JobId
+		// TraceId/SpanId are dequeue-time observability metadata, not part of the signed task
+		unwrappedTask.Data.Attributes.TraceId = task.Data.Attributes.TraceId
+		unwrappedTask.Data.Attributes.SpanId = task.Data.Attributes.SpanId
 		task = unwrappedTask
 
 		credential, err := l.runner.resolver.ResolveConnectionInfoToCredential(ctx, task.Data.Attributes.ConnectionInfo, nil)
@@ -123,12 +126,16 @@ func (l *Loop) handleTask(
 	taskCtx, taskCtxCancel := context.WithCancel(ctx)
 	defer taskCtxCancel()
 
-	timeoutCtx, timeoutCancel := util.CreateTimeoutContext(taskCtx, l.runner.config.TaskTimeoutSeconds)
+	timeoutSeconds := task.TimeoutSeconds()
+	if timeoutSeconds == nil {
+		timeoutSeconds = l.runner.config.TaskTimeoutSeconds
+	}
+	timeoutCtx, timeoutCancel := util.CreateTimeoutContext(taskCtx, timeoutSeconds)
 	defer timeoutCancel()
 
 	output, err := l.runner.RunTask(timeoutCtx, task, credential)
 
-	if isTimeout, timeoutErr := util.HandleTimeoutError(timeoutCtx, err, l.runner.config.TaskTimeoutSeconds, logger); isTimeout {
+	if isTimeout, timeoutErr := util.HandleTimeoutError(timeoutCtx, err, timeoutSeconds, logger); isTimeout {
 		l.publishFailure(ctx, task, timeoutErr)
 		return
 	}
@@ -159,7 +166,7 @@ func (l *Loop) Close(ctx context.Context) {
 
 func (l *Loop) publishFailure(ctx context.Context, task *types.Task, e error) {
 	logger := log.FromContext(ctx)
-	if task.Data.Attributes.JobId == "" {
+	if task == nil || task.Data.Attributes == nil || task.Data.Attributes.JobId == "" {
 		logger.Error("publish failure error: no job id was provided")
 		return
 	}

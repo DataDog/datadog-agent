@@ -1,0 +1,2 @@
+# gazelle:ignore
+# Stub: parent has .go files; only pkg/util/kubernetes/apiserver/common/namespace is migrated.

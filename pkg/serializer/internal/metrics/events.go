@@ -13,12 +13,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 const (
@@ -29,10 +29,10 @@ const (
 )
 
 var (
-	tlmEventsSent          = telemetry.NewSimpleCounter("metrics", "events_sent", "number of events successfully serialized")
-	tlmEventsDropped       = telemetry.NewSimpleCounter("metrics", "events_dropped", "number of events dropped for any reason")
-	tlmEventsPayloads      = telemetry.NewSimpleCounter("metrics", "events_payloads", "number of events payloads produced")
-	tlmEventsEmptyPayloads = telemetry.NewSimpleCounter("metrics", "events_payload_empty", "number of empty payloads produced due to too big events")
+	tlmEventsSent          = telemetryimpl.GetCompatComponent().NewSimpleCounter("metrics", "events_sent", "number of events successfully serialized")
+	tlmEventsDropped       = telemetryimpl.GetCompatComponent().NewSimpleCounter("metrics", "events_dropped", "number of events dropped for any reason")
+	tlmEventsPayloads      = telemetryimpl.GetCompatComponent().NewSimpleCounter("metrics", "events_payloads", "number of events payloads produced")
+	tlmEventsEmptyPayloads = telemetryimpl.GetCompatComponent().NewSimpleCounter("metrics", "events_payload_empty", "number of empty payloads produced due to too big events")
 )
 
 func writeEventsHeader(stream *jsoniter.Stream) {

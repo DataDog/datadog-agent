@@ -16,7 +16,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/docker/docker/api/types/container"
+	dockerclient "github.com/moby/moby/client"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -39,7 +39,7 @@ const defaultSleepDuration = 1 * time.Second
 // DockerContainerLogInterface is an interface that exposes only the required function from DockerUtil
 // located at pkg/util/docker/docker_util.go
 type DockerContainerLogInterface interface {
-	ContainerLogs(ctx context.Context, container string, options container.LogsOptions) (io.ReadCloser, error)
+	ContainerLogs(ctx context.Context, container string, options dockerclient.ContainerLogsOptions) (io.ReadCloser, error)
 }
 
 func newAPILogReader(client kubelet.KubeUtilInterface, namespace string, podName string, containerName string) func(context.Context, time.Time) (io.ReadCloser, error) {
@@ -55,7 +55,7 @@ func newAPILogReader(client kubelet.KubeUtilInterface, namespace string, podName
 
 func newDockerLogReader(docker DockerContainerLogInterface, containerID string) func(context.Context, time.Time) (io.ReadCloser, error) {
 	return func(ctx context.Context, since time.Time) (io.ReadCloser, error) {
-		options := container.LogsOptions{
+		options := dockerclient.ContainerLogsOptions{
 			ShowStdout: true,
 			ShowStderr: true,
 			Follow:     true,
@@ -416,7 +416,7 @@ func (d *dockerMessageForwarder) forward() {
 		d.tailer.done <- struct{}{}
 	}()
 	for output := range d.tailer.decoder.OutputChan() {
-		if len(output.GetContent()) > 0 {
+		if output.HasContent() {
 			msg := buildMessage(d.tailer, output)
 			d.tailer.outputChan <- msg
 		}
@@ -456,7 +456,7 @@ func (k *kubeletMessageForwarder) forward() {
 		k.tailer.done <- struct{}{}
 	}()
 	for output := range k.tailer.decoder.OutputChan() {
-		if len(output.GetContent()) > 0 {
+		if output.HasContent() {
 			// Because the kubelet API does not support sub-second granularity we run the risk of logging duplicates
 			// we check the timestamp to drop logs that have already been processed
 			logTime, _ := time.Parse(time.RFC3339Nano, output.ParsingExtra.Timestamp)

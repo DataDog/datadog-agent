@@ -12,7 +12,7 @@ import (
 	"time"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
+	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -531,9 +531,10 @@ func toProtoEntityIDFromKubernetesPod(kubernetesPod *workloadmeta.KubernetesPod)
 
 func toProtoKubernetesPodOwner(kubernetesPodOwner *workloadmeta.KubernetesPodOwner) *pb.KubernetesPodOwner {
 	return &pb.KubernetesPodOwner{
-		Kind: kubernetesPodOwner.Kind,
-		Name: kubernetesPodOwner.Name,
-		Id:   kubernetesPodOwner.ID,
+		Kind:  kubernetesPodOwner.Kind,
+		Name:  kubernetesPodOwner.Name,
+		Id:    kubernetesPodOwner.ID,
+		Group: kubernetesPodOwner.Group,
 	}
 }
 
@@ -1123,6 +1124,11 @@ func toWorkloadmetaKubernetesPod(protoKubernetesPod *pb.KubernetesPod) (*workloa
 		owners = append(owners, toWorkloadmetaPodOwner(protoPodOwner))
 	}
 
+	var initContainers []workloadmeta.OrchestratorContainer
+	for _, protoContainer := range protoKubernetesPod.InitContainers {
+		initContainers = append(initContainers, toWorkloadmetaOrchestratorContainer(protoContainer))
+	}
+
 	var containers []workloadmeta.OrchestratorContainer
 	for _, protoContainer := range protoKubernetesPod.Containers {
 		containers = append(containers, toWorkloadmetaOrchestratorContainer(protoContainer))
@@ -1138,6 +1144,7 @@ func toWorkloadmetaKubernetesPod(protoKubernetesPod *pb.KubernetesPod) (*workloa
 		EntityMeta:                 toWorkloadmetaEntityMeta(protoKubernetesPod.EntityMeta),
 		Owners:                     owners,
 		PersistentVolumeClaimNames: protoKubernetesPod.PersistentVolumeClaimNames,
+		InitContainers:             initContainers,
 		Containers:                 containers,
 		EphemeralContainers:        ephemeralContainers,
 		Ready:                      protoKubernetesPod.Ready,
@@ -1153,9 +1160,10 @@ func toWorkloadmetaKubernetesPod(protoKubernetesPod *pb.KubernetesPod) (*workloa
 
 func toWorkloadmetaPodOwner(protoPodOwner *pb.KubernetesPodOwner) workloadmeta.KubernetesPodOwner {
 	return workloadmeta.KubernetesPodOwner{
-		Kind: protoPodOwner.Kind,
-		Name: protoPodOwner.Name,
-		ID:   protoPodOwner.Id,
+		Kind:  protoPodOwner.Kind,
+		Name:  protoPodOwner.Name,
+		ID:    protoPodOwner.Id,
+		Group: protoPodOwner.Group,
 	}
 }
 

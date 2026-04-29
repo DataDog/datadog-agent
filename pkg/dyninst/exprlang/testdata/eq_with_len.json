@@ -1,0 +1,22 @@
+{
+  "type": "eq",
+  "operation": "",
+  "left": {
+    "type": "len",
+    "operation": "",
+    "left": {
+      "type": "ref",
+      "ref": "s",
+      "operation": "",
+      "error": ""
+    },
+    "error": ""
+  },
+  "right": {
+    "type": "literal",
+    "operation": "",
+    "value": 5,
+    "error": ""
+  },
+  "error": ""
+}

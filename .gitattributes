@@ -4,6 +4,10 @@
 
 # Set go source line endings to LF on all platforms so gofmt can be used
 *.go text=auto eol=lf
+# Same for gopatch (does not handle CRLF line endings)
+*.gopatch text eol=lf
+# Same for go workspace files (root and testdata)
+*go.work text eol=lf
 go.sum -diff -merge linguist-generated=true
 *.pb.go -diff -merge
 *.pb.go linguist-generated=true

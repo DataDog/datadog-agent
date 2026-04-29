@@ -6,19 +6,29 @@
 package compute
 
 import (
+	"github.com/pulumi/pulumi-gcp/sdk/v7/go/gcp/compute"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/gcp"
-	"github.com/pulumi/pulumi-gcp/sdk/v7/go/gcp/compute"
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-func NewLinuxInstance(e gcp.Environment, name string, imageName string, instanceType string, nestedVirt bool, opts ...pulumi.ResourceOption) (*compute.Instance, error) {
+func NewLinuxInstance(e gcp.Environment, name string, imageName string, startupScript string, instanceType string, nestedVirt bool, labels map[string]string, opts ...pulumi.ResourceOption) (*compute.Instance, error) {
 
 	sshPublicKey, err := utils.GetSSHPublicKey(e.DefaultPublicKeyPath())
 	if err != nil {
 		return nil, err
 	}
+
+	metadata := pulumi.StringMap{
+		"enable-oslogin": pulumi.String("false"),
+		"ssh-keys":       pulumi.Sprintf("gce:%s", sshPublicKey),
+	}
+	if startupScript != "" {
+		metadata["startup-script"] = pulumi.String(startupScript)
+	}
+
 	instance, err := compute.NewInstance(e.Ctx(), e.Namer.ResourceName(name), &compute.InstanceArgs{
 		NetworkInterfaces: compute.InstanceNetworkInterfaceArray{
 			&compute.InstanceNetworkInterfaceArgs{
@@ -33,6 +43,7 @@ func NewLinuxInstance(e gcp.Environment, name string, imageName string, instance
 		},
 		Name:        e.Namer.DisplayName(63, pulumi.String(name)),
 		MachineType: pulumi.String(instanceType),
+		Labels:      pulumi.ToStringMap(labels),
 		AdvancedMachineFeatures: &compute.InstanceAdvancedMachineFeaturesArgs{
 			EnableNestedVirtualization: pulumi.BoolPtr(nestedVirt),
 		},
@@ -49,10 +60,7 @@ func NewLinuxInstance(e gcp.Environment, name string, imageName string, instance
 				Size: pulumi.Int(100),
 			},
 		},
-		Metadata: pulumi.StringMap{
-			"enable-oslogin": pulumi.String("false"),
-			"ssh-keys":       pulumi.Sprintf("gce:%s", sshPublicKey),
-		},
+		Metadata: metadata,
 		ServiceAccount: &compute.InstanceServiceAccountArgs{
 			Email: pulumi.String(e.DefaultVMServiceAccount()),
 			Scopes: pulumi.StringArray{

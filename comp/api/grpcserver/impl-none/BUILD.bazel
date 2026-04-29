@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl-none",
+    srcs = ["grpc.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/api/grpcserver/impl-none",
+    visibility = ["//visibility:public"],
+    deps = ["//comp/api/grpcserver/def"],
+)

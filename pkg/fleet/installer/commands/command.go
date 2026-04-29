@@ -44,6 +44,17 @@ const (
 	AnnotationHumanReadableErrors = "human-readable-errors"
 )
 
+// agentConfigDir is the directory containing datadog.yaml. Overridable in tests.
+var agentConfigDir = paths.AgentConfigDir
+
+type cmdOption func(*cmdConfig)
+type cmdConfig struct{ quiet bool }
+
+// withQuiet suppresses stdout logging for the command (e.g. when outputting structured JSON).
+func withQuiet() cmdOption {
+	return func(c *cmdConfig) { c.quiet = true }
+}
+
 type cmd struct {
 	t              *telemetry.Telemetry
 	span           *telemetry.Span
@@ -66,9 +77,14 @@ func setupStdoutLogger(_ *env.Env) {
 }
 
 // newCmd creates a new command
-func newCmd(operation string) *cmd {
+func newCmd(operation string, opts ...cmdOption) *cmd {
+	cfg := &cmdConfig{}
+	for _, o := range opts {
+		o(cfg)
+	}
 	env := env.FromEnv()
-	if !env.IsFromDaemon {
+	applyDatadogYAMLRegistryConfig(env)
+	if !env.IsFromDaemon && !cfg.quiet {
 		setupStdoutLogger(env)
 	}
 	t := newTelemetry(env)
@@ -114,8 +130,8 @@ type installerCmd struct {
 	installer.Installer
 }
 
-func newInstallerCmd(operation string) (_ *installerCmd, err error) {
-	cmd := newCmd(operation)
+func newInstallerCmd(operation string, opts ...cmdOption) (_ *installerCmd, err error) {
+	cmd := newCmd(operation, opts...)
 	defer func() {
 		if err != nil {
 			cmd.stop(err)
@@ -147,6 +163,17 @@ func (i *installerCmd) stop(err error) {
 type telemetryConfigFields struct {
 	APIKey string `yaml:"api_key"`
 	Site   string `yaml:"site"`
+}
+
+type installerRegistryYAMLConfig struct {
+	Installer struct {
+		Registry struct {
+			URL      string `yaml:"url"`
+			Auth     string `yaml:"auth"`
+			Username string `yaml:"username"`
+			Password string `yaml:"password"`
+		} `yaml:"registry"`
+	} `yaml:"installer"`
 }
 
 // telemetryConfig is a best effort to get the API key / site from `datadog.yaml`.
@@ -182,6 +209,33 @@ func newTelemetry(env *env.Env) *telemetry.Telemetry {
 
 	t := telemetry.NewTelemetry(env.HTTPClient(), apiKey, site, "datadog-installer") // No sampling rules for commands
 	return t
+}
+
+// applyDatadogYAMLRegistryConfig reads installer.registry from datadog.yaml and
+// applies any values not already set by environment variables.
+func applyDatadogYAMLRegistryConfig(env *env.Env) {
+	configPath := filepath.Join(agentConfigDir, "datadog.yaml")
+	rawConfig, err := os.ReadFile(configPath)
+	if err != nil {
+		return
+	}
+	var config installerRegistryYAMLConfig
+	if err = yaml.Unmarshal(rawConfig, &config); err != nil {
+		return
+	}
+	r := config.Installer.Registry
+	if env.HasDefaultRegistryOverride() && r.Auth != "" {
+		env.RegistryOverride = r.URL
+	}
+	if env.HasDefaultRegistryAuthOverride() && r.Auth != "" {
+		env.RegistryAuthOverride = r.Auth
+	}
+	if env.HasDefaultRegistryUsername() && r.Username != "" {
+		env.RegistryUsername = r.Username
+	}
+	if env.HasDefaultRegistryPassword() && r.Password != "" {
+		env.RegistryPassword = r.Password
+	}
 }
 
 // RootCommands returns the root commands
@@ -537,8 +591,8 @@ func isInstalledCommand() *cobra.Command {
 	return cmd
 }
 
-func getState() (*repository.PackageStates, error) {
-	i, err := newInstallerCmd("get_states")
+func getState(opts ...cmdOption) (*repository.PackageStates, error) {
+	i, err := newInstallerCmd("get_states", opts...)
 	if err != nil {
 		return nil, err
 	}

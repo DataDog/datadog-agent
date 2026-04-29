@@ -376,11 +376,7 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
 
     // Authorization Status Helper
     private func getAuthorizationStatus() -> CLAuthorizationStatus {
-        if #available(macOS 11.0, *) {
-            return locationManager.authorizationStatus
-        } else {
-            return CLLocationManager.authorizationStatus()
-        }
+        return locationManager.authorizationStatus
     }
 
     // Helper Methods

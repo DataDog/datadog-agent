@@ -1,0 +1,5 @@
+ad_identifiers:
+  - csi-driver
+init_config:
+instances:
+  - openmetrics_endpoint: http://%%host%%:5000/metrics

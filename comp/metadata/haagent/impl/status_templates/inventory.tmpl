@@ -1,5 +1,4 @@
 {{ if .enabled -}}
-{{- range $key, $value := .ha_agent_metadata }}
-  {{ $key }}: {{ $value }}
-{{- end }}
+  enabled: {{ .ha_agent_metadata.Enabled }}
+  state: {{ .ha_agent_metadata.State }}
 {{- end }}

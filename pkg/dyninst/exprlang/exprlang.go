@@ -13,6 +13,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"iter"
 	"strconv"
 	"sync"
 
@@ -53,6 +54,52 @@ type LiteralExpr struct {
 
 func (le *LiteralExpr) expr() {}
 
+// LenExpr represents a len() call on a collection (string, slice, map).
+type LenExpr struct {
+	Operand Expr
+}
+
+func (le *LenExpr) expr() {}
+
+// IsEmptyExpr represents an isEmpty() call on a collection (string, slice, map).
+type IsEmptyExpr struct {
+	Operand Expr
+}
+
+func (ie *IsEmptyExpr) expr() {}
+
+// IndexExpr represents an index access expression (e.g., arr[0]).
+type IndexExpr struct {
+	Base  Expr
+	Index Expr
+}
+
+func (ie *IndexExpr) expr() {}
+
+// AndExpr represents a logical AND of exactly two sub-expressions.
+// Deeper conjunctions are expressed as right-associated nesting
+// (e.g., and(A, and(B, C))).
+type AndExpr struct {
+	Left, Right Expr
+}
+
+func (ae *AndExpr) expr() {}
+
+// OrExpr represents a logical OR of exactly two sub-expressions.
+// Deeper disjunctions are expressed as right-associated nesting.
+type OrExpr struct {
+	Left, Right Expr
+}
+
+func (oe *OrExpr) expr() {}
+
+// NotExpr represents a logical NOT of a single sub-expression.
+type NotExpr struct {
+	Operand Expr
+}
+
+func (ne *NotExpr) expr() {}
+
 // UnsupportedExpr represents an expression type that is not yet supported.
 type UnsupportedExpr struct {
 	Operation string
@@ -60,6 +107,100 @@ type UnsupportedExpr struct {
 }
 
 func (ue *UnsupportedExpr) expr() {}
+
+// Rewrite performs a bottom-up rewrite of an expression tree. For each node,
+// children are rewritten first, then f is called. If f returns a non-nil
+// replacement, that replacement is used; otherwise the (possibly rebuilt) node
+// is kept. Nodes whose children are unchanged are not reallocated.
+func Rewrite(root Expr, f func(Expr) Expr) Expr {
+	var result Expr
+	switch e := root.(type) {
+	case *GetMemberExpr:
+		newBase := Rewrite(e.Base, f)
+		if newBase != e.Base {
+			result = &GetMemberExpr{Base: newBase, Member: e.Member}
+		} else {
+			result = root
+		}
+	case *EqExpr:
+		newLeft := Rewrite(e.Left, f)
+		newRight := Rewrite(e.Right, f)
+		if newLeft != e.Left || newRight != e.Right {
+			result = &EqExpr{Left: newLeft, Right: newRight}
+		} else {
+			result = root
+		}
+	case *IndexExpr:
+		newBase := Rewrite(e.Base, f)
+		newIndex := Rewrite(e.Index, f)
+		if newBase != e.Base || newIndex != e.Index {
+			result = &IndexExpr{Base: newBase, Index: newIndex}
+		} else {
+			result = root
+		}
+	case *LenExpr:
+		newOp := Rewrite(e.Operand, f)
+		if newOp != e.Operand {
+			result = &LenExpr{Operand: newOp}
+		} else {
+			result = root
+		}
+	case *IsEmptyExpr:
+		newOp := Rewrite(e.Operand, f)
+		if newOp != e.Operand {
+			result = &IsEmptyExpr{Operand: newOp}
+		} else {
+			result = root
+		}
+	case *AndExpr:
+		newLeft := Rewrite(e.Left, f)
+		newRight := Rewrite(e.Right, f)
+		if newLeft != e.Left || newRight != e.Right {
+			result = &AndExpr{Left: newLeft, Right: newRight}
+		} else {
+			result = root
+		}
+	case *OrExpr:
+		newLeft := Rewrite(e.Left, f)
+		newRight := Rewrite(e.Right, f)
+		if newLeft != e.Left || newRight != e.Right {
+			result = &OrExpr{Left: newLeft, Right: newRight}
+		} else {
+			result = root
+		}
+	case *NotExpr:
+		newOp := Rewrite(e.Operand, f)
+		if newOp != e.Operand {
+			result = &NotExpr{Operand: newOp}
+		} else {
+			result = root
+		}
+	case *RefExpr, *LiteralExpr, *UnsupportedExpr:
+		// Leaf types: no children to rewrite.
+		result = root
+	default:
+		panic(fmt.Sprintf("exprlang.Rewrite: unhandled expression type %T", root))
+	}
+	if r := f(result); r != nil {
+		return r
+	}
+	return result
+}
+
+// Children yields every expression in the tree rooted at root, in bottom-up
+// order (children before their parent, including the root). Break in the
+// consumer terminates the walk.
+func Children(root Expr) iter.Seq[Expr] {
+	return func(yield func(Expr) bool) {
+		stopped := false
+		Rewrite(root, func(e Expr) Expr {
+			if !stopped && !yield(e) {
+				stopped = true
+			}
+			return nil
+		})
+	}
+}
 
 var decoderPool = sync.Pool{
 	New: func() any {
@@ -275,6 +416,136 @@ func Parse(dslJSON []byte) (Expr, error) {
 		}
 
 		return &GetMemberExpr{Base: baseExpr, Member: memberName}, nil
+	case "index":
+		// Index access: {"index": [<base_expr>, <index_expr>]}
+		arrStart, err := dec.ReadToken()
+		if err != nil {
+			return nil, fmt.Errorf("parse error: failed to read index array start: %w", err)
+		}
+		if kind := arrStart.Kind(); kind != '[' {
+			return nil, fmt.Errorf("parse error: malformed index: got token %v (%v), expected [", arrStart, kind)
+		}
+
+		// Read base expression.
+		baseJSON, err := dec.ReadValue()
+		if err != nil {
+			return nil, fmt.Errorf("parse error: failed to read index base expression: %w", err)
+		}
+		base, err := Parse(baseJSON)
+		if err != nil {
+			return nil, fmt.Errorf("parse error: failed to parse index base expression: %w", err)
+		}
+
+		// Read index expression.
+		indexJSON, err := dec.ReadValue()
+		if err != nil {
+			return nil, fmt.Errorf("parse error: failed to read index expression: %w", err)
+		}
+		idx, err := Parse(indexJSON)
+		if err != nil {
+			return nil, fmt.Errorf("parse error: failed to parse index expression: %w", err)
+		}
+
+		// Read array closing bracket.
+		arrEnd, err := dec.ReadToken()
+		if err != nil {
+			return nil, fmt.Errorf("parse error: failed to read index array end: %w", err)
+		}
+		if kind := arrEnd.Kind(); kind != ']' {
+			return nil, fmt.Errorf("parse error: malformed index: got token %v (%v), expected ]", arrEnd, kind)
+		}
+
+		if err := readClosingBrace(); err != nil {
+			return nil, err
+		}
+
+		return &IndexExpr{Base: base, Index: idx}, nil
+
+	case "len", "isEmpty":
+		// Read the argument value and parse it recursively.
+		argJSON, err := dec.ReadValue()
+		if err != nil {
+			return nil, fmt.Errorf("parse error: failed to read %s argument: %w", operation, err)
+		}
+		arg, err := Parse(argJSON)
+		if err != nil {
+			return nil, fmt.Errorf("parse error: failed to parse %s argument: %w", operation, err)
+		}
+		if err := readClosingBrace(); err != nil {
+			return nil, err
+		}
+		if operation == "len" {
+			return &LenExpr{Operand: arg}, nil
+		}
+		return &IsEmptyExpr{Operand: arg}, nil
+
+	case "and", "or":
+		// Binary boolean: {"and": [<lhs>, <rhs>]} or {"or": [<lhs>, <rhs>]}.
+		arrStart, err := dec.ReadToken()
+		if err != nil {
+			return nil, fmt.Errorf("parse error: failed to read %s array start: %w", operation, err)
+		}
+		if kind := arrStart.Kind(); kind != '[' {
+			return nil, fmt.Errorf("parse error: malformed %s: got token %v (%v), expected [", operation, arrStart, kind)
+		}
+
+		// Peek before each operand so arity-0 and arity-1 surface a
+		// dedicated error instead of the generic ReadValue failure.
+		if dec.PeekKind() == ']' {
+			return nil, fmt.Errorf("parse error: malformed %s: expected exactly two operands, got 0", operation)
+		}
+		lhsJSON, err := dec.ReadValue()
+		if err != nil {
+			return nil, fmt.Errorf("parse error: failed to read %s LHS expression: %w", operation, err)
+		}
+		lhs, err := Parse(lhsJSON)
+		if err != nil {
+			return nil, fmt.Errorf("parse error: failed to parse %s LHS expression: %w", operation, err)
+		}
+
+		if dec.PeekKind() == ']' {
+			return nil, fmt.Errorf("parse error: malformed %s: expected exactly two operands, got 1", operation)
+		}
+		rhsJSON, err := dec.ReadValue()
+		if err != nil {
+			return nil, fmt.Errorf("parse error: failed to read %s RHS expression: %w", operation, err)
+		}
+		rhs, err := Parse(rhsJSON)
+		if err != nil {
+			return nil, fmt.Errorf("parse error: failed to parse %s RHS expression: %w", operation, err)
+		}
+
+		arrEnd, err := dec.ReadToken()
+		if err != nil {
+			return nil, fmt.Errorf("parse error: failed to read %s array end: %w", operation, err)
+		}
+		if kind := arrEnd.Kind(); kind != ']' {
+			return nil, fmt.Errorf("parse error: malformed %s: expected exactly two operands", operation)
+		}
+
+		if err := readClosingBrace(); err != nil {
+			return nil, err
+		}
+
+		if operation == "and" {
+			return &AndExpr{Left: lhs, Right: rhs}, nil
+		}
+		return &OrExpr{Left: lhs, Right: rhs}, nil
+
+	case "not":
+		argJSON, err := dec.ReadValue()
+		if err != nil {
+			return nil, fmt.Errorf("parse error: failed to read not argument: %w", err)
+		}
+		arg, err := Parse(argJSON)
+		if err != nil {
+			return nil, fmt.Errorf("parse error: failed to parse not argument: %w", err)
+		}
+		if err := readClosingBrace(); err != nil {
+			return nil, err
+		}
+		return &NotExpr{Operand: arg}, nil
+
 	default:
 		// Read the argument for unsupported operations.
 		// We track the offset before and after reading the argument value

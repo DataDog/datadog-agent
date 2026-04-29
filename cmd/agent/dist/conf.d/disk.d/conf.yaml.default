@@ -255,4 +255,28 @@ instances:
     ## (Linux only)
     #
     # resolve_root_device: false
+
+    ## @param tag_by_physical_storage - boolean - optional - default: false
+    ## Instruct the check to tag all disk metrics with `is_physical_storage:true` or
+    ## `is_physical_storage:false` depending on whether the partition belongs to a physical
+    ## device or a pseudo/virtual filesystem.
+    ## When enabled, the check makes an additional partition enumeration syscall per run.
+    ## Requires the Go disk check v2 (disk_check.use_core_loader: true). Not available
+    ## in the Python disk check or disk check v1.
+    ## Linux only — not supported on Windows or macOS (the platform does not
+    ## distinguish physical from virtual partitions).
+    #
+    # tag_by_physical_storage: false
+
+    ## @param collect_physical_metrics - boolean - optional - default: false
+    ## Instruct the check to emit additional `system.disk.physical_*` metrics
+    ## (physical_total, physical_used, physical_free, physical_utilized, physical_in_use)
+    ## for partitions that belong to physical devices.
+    ## When enabled, the check makes an additional partition enumeration syscall per run.
+    ## Requires the Go disk check v2 (disk_check.use_core_loader: true). Not available
+    ## in the Python disk check or disk check v1.
+    ## Linux only — not supported on Windows or macOS (the platform does not
+    ## distinguish physical from virtual partitions).
+    #
+    # collect_physical_metrics: false
     

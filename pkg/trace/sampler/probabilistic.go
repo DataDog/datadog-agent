@@ -15,7 +15,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/trace/semantics"
 )
+
+var registry = semantics.DefaultRegistry()
 
 const (
 	// These constants exist to match the behavior of the OTEL probabilistic sampler.
@@ -112,8 +115,9 @@ func (ps *ProbabilisticSampler) SampleV1(traceID []byte, root *idx.InternalSpan)
 }
 
 func get128BitTraceID(span *trace.Span) ([]byte, error) {
-	// If it's an otel span the whole trace ID is in otel.trace
-	if tid, ok := span.Meta["otel.trace_id"]; ok {
+	metaAccessor := semantics.NewStringMapAccessor(span.Meta)
+	// If it's an otel span the whole trace ID is in otel.trace_id
+	if tid := semantics.LookupString(registry, metaAccessor, semantics.ConceptOTelTraceID); tid != "" {
 		bs, err := hex.DecodeString(tid)
 		if err != nil {
 			return nil, err
@@ -124,7 +128,7 @@ func get128BitTraceID(span *trace.Span) ([]byte, error) {
 	binary.BigEndian.PutUint64(tid[8:], span.TraceID)
 	// Get hex encoded upper bits for datadog spans
 	// If no value is found we can use the default `0` value as that's what will have been propagated
-	if upper, ok := span.Meta["_dd.p.tid"]; ok {
+	if upper := semantics.LookupString(registry, metaAccessor, semantics.ConceptDDTraceIDHigh); upper != "" {
 		u, err := strconv.ParseUint(upper, 16, 64)
 		if err != nil {
 			return nil, err

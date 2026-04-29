@@ -23,7 +23,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	hostComp "github.com/DataDog/datadog-agent/comp/metadata/host"
-	"github.com/DataDog/datadog-agent/comp/metadata/resources"
+	resources "github.com/DataDog/datadog-agent/comp/metadata/resources/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -174,7 +174,7 @@ func (h *host) GetPayloadAsJSON(ctx context.Context) ([]byte, error) {
 	return json.MarshalIndent(h.getPayload(ctx), "", "    ")
 }
 
-func (h *host) fillFlare(fb flaretypes.FlareBuilder) error {
+func (h *host) fillFlare(_ context.Context, fb flaretypes.FlareBuilder) error {
 	return fb.AddFileFromFunc(filepath.Join("metadata", "host.json"), func() ([]byte, error) { return h.GetPayloadAsJSON(context.Background()) })
 }
 

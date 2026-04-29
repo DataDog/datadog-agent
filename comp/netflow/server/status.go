@@ -10,7 +10,7 @@ import (
 	"io"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	nfconfig "github.com/DataDog/datadog-agent/comp/netflow/config"
+	nfconfig "github.com/DataDog/datadog-agent/comp/netflow/config/def"
 )
 
 //go:embed status_templates

@@ -7,9 +7,7 @@
 
 package safenvml
 
-import (
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
-)
+import "github.com/NVIDIA/go-nvml/pkg/nvml"
 
 // safeDeviceImpl implements the SafeDevice interface
 type safeDeviceImpl struct {
@@ -113,6 +111,15 @@ func (d *safeDeviceImpl) GetFieldValues(values []nvml.FieldValue) error {
 	}
 	ret := d.nvmlDevice.GetFieldValues(values)
 	return NewNvmlAPIErrorOrNil("GetFieldValues", ret)
+}
+
+//nolint:revive // Maintaining consistency with go-nvml API naming
+func (d *safeDeviceImpl) ReadWritePRM_v1(buffer *nvml.PRMTLV_v1) error {
+	if err := d.lib.lookup("nvmlDeviceReadWritePRM_v1"); err != nil {
+		return err
+	}
+	ret := d.nvmlDevice.ReadWritePRM_v1(buffer)
+	return NewNvmlAPIErrorOrNil("ReadWritePRM_v1", ret)
 }
 
 //nolint:revive // Maintaining consistency with go-nvml API naming
@@ -286,6 +293,14 @@ func (d *safeDeviceImpl) GetRemappedRows() (int, int, bool, bool, error) {
 	return corrRows, uncorrRows, isPending, failureOccurred, NewNvmlAPIErrorOrNil("GetRemappedRows", ret)
 }
 
+func (d *safeDeviceImpl) GetRepairStatus() (nvml.RepairStatus, error) {
+	if err := d.lib.lookup(toNativeName("GetRepairStatus")); err != nil {
+		return nvml.RepairStatus{}, err
+	}
+	repairStatus, ret := d.nvmlDevice.GetRepairStatus()
+	return repairStatus, NewNvmlAPIErrorOrNil("GetRepairStatus", ret)
+}
+
 func (d *safeDeviceImpl) GetSamples(samplingType nvml.SamplingType, lastSeenTimestamp uint64) (nvml.ValueType, []nvml.Sample, error) {
 	if err := d.lib.lookup(toNativeName("GetSamples")); err != nil {
 		return 0, nil, err
@@ -388,6 +403,14 @@ func (d *safeDeviceImpl) GetMemoryErrorCounter(errorType nvml.MemoryErrorType, e
 	}
 	count, ret := d.nvmlDevice.GetMemoryErrorCounter(errorType, eccCounterType, memoryLocation)
 	return count, NewNvmlAPIErrorOrNil("GetMemoryErrorCounter", ret)
+}
+
+func (d *safeDeviceImpl) GetSramEccErrorStatus() (nvml.EccSramErrorStatus, error) {
+	if err := d.lib.lookup(toNativeName("GetSramEccErrorStatus")); err != nil {
+		return nvml.EccSramErrorStatus{}, err
+	}
+	status, ret := d.nvmlDevice.GetSramEccErrorStatus()
+	return status, NewNvmlAPIErrorOrNil("GetSramEccErrorStatus", ret)
 }
 
 func (d *safeDeviceImpl) GetRunningProcessDetailList() (nvml.ProcessDetailList, error) {

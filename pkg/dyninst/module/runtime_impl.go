@@ -10,6 +10,7 @@ package module
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -204,6 +205,7 @@ func (rt *runtimeImpl) Load(
 		programID:    programID,
 		processID:    processID,
 		service:      runtimeID.service,
+		processTags:  strings.Join(runtimeID.processTags, ","),
 		logUploader: rt.logsFactory.GetUploader(uploader.LogsUploaderMetadata{
 			Tags:        tags,
 			EntityID:    entityID,

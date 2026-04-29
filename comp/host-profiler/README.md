@@ -91,6 +91,6 @@ Files:
 
 #### `collector/impl/receiver/`
 
-- **[`factory.go`](collector/impl/receiver/factory.go)** - Creates the factory for the custom `hostprofiler` receiver, which builds the eBPF-based profiles receiver.
+- **[`factory.go`](collector/impl/receiver/factory.go)** - Creates the factory for the custom `profiling` receiver, which builds the eBPF-based profiles receiver.
 - **[`config.go`](collector/impl/receiver/config.go)** - Defines configuration structures for the receiver including eBPF collector settings, symbol uploader options, and validation logic.
 - **[`executable_reporter.go`](collector/impl/receiver/executable_reporter.go)** - Implements the executable reporter that uploads debug symbols to Datadog for native code symbolization.

@@ -20,5 +20,5 @@ func DefaultConfPath() string {
 
 // DefaultSysProbeConfPath returns empty since system-probe is not yet supported on darwin
 func DefaultSysProbeConfPath() string {
-	return ""
+	return filepath.Join(defaultpaths.GetDefaultConfPath(), "system-probe.yaml")
 }

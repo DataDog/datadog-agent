@@ -6,6 +6,7 @@
 #include "helpers/events_predicates.h"
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
+#include "helpers/discarders.h"
 
 int __attribute__((always_inline)) trace__sys_rmdir(u8 async, const char *filename) {
     struct syscall_cache_t syscall = {
@@ -63,8 +64,18 @@ int hook_security_inode_rmdir(ctx_t *ctx) {
         syscall->rmdir.dentry = dentry;
         syscall->policy = fetch_policy(EVENT_RMDIR);
 
+        // let the cgroup event being forwarded as it is used userspace side to track the cgroups
+        if (is_cgroup2fs(syscall->rmdir.dentry) && S_ISDIR(syscall->rmdir.file.metadata.mode)) {
+            syscall->state = ACCEPTED;
+            break;
+        }
+
         if (approve_syscall(syscall, rmdir_approvers) == DISCARDED) {
             // do not pop, we want to invalidate the inode even if the syscall is discarded
+            return 0;
+        }
+        if (is_auid_discarder(EVENT_RMDIR)) {
+            syscall->state = DISCARDED;
             return 0;
         }
 
@@ -86,6 +97,12 @@ int hook_security_inode_rmdir(ctx_t *ctx) {
 
         // fake rmdir event as we will generate and rmdir event at the end
         syscall->policy = fetch_policy(EVENT_RMDIR);
+
+        // let the cgroup event being forwarded as it is used userspace side to track the cgroups
+        if (is_cgroup2fs(syscall->unlink.dentry) && S_ISDIR(syscall->unlink.file.metadata.mode)) {
+            syscall->state = ACCEPTED;
+            break;
+        }
 
         if (approve_syscall(syscall, rmdir_approvers) == DISCARDED) {
             // do not pop, we want to invalidate the inode even if the syscall is discarded
@@ -137,7 +154,7 @@ int __attribute__((always_inline)) sys_rmdir_ret(void *ctx, int retval) {
         return 0;
     }
 
-    if (syscall->state != DISCARDED && is_event_enabled(EVENT_RMDIR)) {
+    if (syscall->state != DISCARDED) {
         struct rmdir_event_t event = {
             .syscall.retval = retval,
             .syscall_ctx.id = syscall->ctx_id,

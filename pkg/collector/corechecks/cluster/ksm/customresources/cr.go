@@ -93,6 +93,10 @@ var (
 		Name: "kube_state_metrics_custom_resource_state_add_events_total",
 		Help: "Number of times that the CRD informer triggered the add event.",
 	})
+	crdsUpdateEventsCounter = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "kube_state_metrics_custom_resource_state_update_events_total",
+		Help: "Number of times that the CRD informer triggered the update event.",
+	})
 	crdsDeleteEventsCounter = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "kube_state_metrics_custom_resource_state_delete_events_total",
 		Help: "Number of times that the CRD informer triggered the remove event.",
@@ -116,6 +120,7 @@ func (d customResourceDecoder) Decode(v interface{}) error {
 func StartDiscovery() *discovery.CRDiscoverer {
 	discovererInstance := &discovery.CRDiscoverer{
 		CRDsAddEventsCounter:    crdsAddEventsCounter,
+		CRDsUpdateEventsCounter: crdsUpdateEventsCounter,
 		CRDsDeleteEventsCounter: crdsDeleteEventsCounter,
 		CRDsCacheCountGauge:     crdsCacheCountGauge,
 	}

@@ -27,7 +27,7 @@ const (
 	pipPackage            = "grpcio"
 )
 
-// TestPersistingIntegrations tests upgrading the agent from WINDOWS_AGENT_VERSION to UPGRADE_TEST_VERSION
+// TestPersistingIntegrations tests upgrading the agent from the current version to the upgrade-test version
 func TestPersistingIntegrations(t *testing.T) {
 	s := &testPersistingIntegrationsSuite{}
 	upgradeAgentPackge, err := windowsAgent.GetUpgradeTestPackageFromEnv()
@@ -106,7 +106,7 @@ func (s *testPersistingIntegrationsSuite) TestPersistingIntegrations() {
 
 }
 
-// TestDisablePersistingIntegrations tests upgrading the agent from WINDOWS_AGENT_VERSION to UPGRADE_TEST_VERSION
+// TestDisablePersistingIntegrations tests upgrading the agent from the current version to the upgrade-test version
 // with the integrations persistence flag disabled
 // verify that the third party integration and pip package are not installed
 func TestDisablePersistingIntegrations(t *testing.T) {
@@ -190,7 +190,7 @@ func (s *testDisablePersistingIntegrationsSuite) TestDisablePersistingIntegratio
 
 }
 
-// TestPersistingIntegrations tests upgrading the agent from WINDOWS_AGENT_VERSION to UPGRADE_TEST_VERSION
+// TestIntegrationInstallFailure tests upgrading the agent from the current version to the upgrade-test version
 func TestIntegrationInstallFailure(t *testing.T) {
 	s := &testIntegrationInstallFailure{}
 	Run(t, s)
@@ -235,7 +235,7 @@ func (s *testIntegrationInstallFailure) TestIntegrationInstallFailure() {
 
 }
 
-// TestIntegrationFolderPermissions tests upgrading the agent from WINDOWS_AGENT_VERSION to UPGRADE_TEST_VERSION
+// TestIntegrationFolderPermissions tests upgrading the agent from the current version to the upgrade-test version
 // this tests the agent will not install if the folder permissions are incorrect
 func TestIntegrationFolderPermissions(t *testing.T) {
 	s := &testIntegrationFolderPermissions{}
@@ -332,7 +332,7 @@ func (s *testIntegrationFolderPermissions) TestIntegrationFolderPermissions() {
 
 }
 
-// TestIntegrationRollback tests upgrading the agent from WINDOWS_AGENT_VERSION to UPGRADE_TEST_VERSION
+// TestIntegrationRollback tests upgrading the agent from the current version to the upgrade-test version
 func TestIntegrationRollback(t *testing.T) {
 	s := &testIntegrationRollback{}
 	upgradeAgentPackge, err := windowsAgent.GetUpgradeTestPackageFromEnv()
@@ -435,7 +435,7 @@ func (s *testIntegrationRollback) TestIntegrationRollback() {
 
 }
 
-// TestPersistingIntegrationsDuringUninstall tests upgrading the agent from WINDOWS_AGENT_VERSION to UPGRADE_TEST_VERSION
+// TestPersistingIntegrationsDuringUninstall tests upgrading the agent from the current version to the upgrade-test version
 // verify that the third party integration and pip package are installed after uninstall and reinstall
 // this is the workload used by fleet to upgrade the agent
 func TestPersistingIntegrationsDuringUninstall(t *testing.T) {
