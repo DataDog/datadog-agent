@@ -309,18 +309,20 @@ pub fn grandchild_cmd(pid_file: &str) -> (&'static str, Vec<String>) {
 /// written to `pid_file`, then sleeps forever while ignoring graceful-stop
 /// signals.
 ///
-/// Uses `ping.exe` instead of nested `powershell` to avoid a second
-/// PowerShell cold-start (~3-5 s), which caused CI timeouts in minimal
-/// Windows containers.
+/// Uses `-NoProfile -NonInteractive` to reduce PowerShell cold-start time
+/// in minimal CI containers, and `ping.exe` via `Start-Process` to avoid a
+/// nested `powershell` launch.
 #[cfg(windows)]
 pub fn grandchild_cmd(pid_file: &str) -> (&'static str, Vec<String>) {
     (
         "powershell.exe",
         vec![
+            "-NoProfile".into(),
+            "-NonInteractive".into(),
             "-Command".into(),
             format!(
-                "$p = Start-Process -PassThru -NoNewWindow ping.exe \
-                 '-n','3600','127.0.0.1'; \
+                "$p = Start-Process -PassThru -NoNewWindow -FilePath 'ping.exe' \
+                 -ArgumentList @('-n','3600','127.0.0.1'); \
                  Set-Content -Path '{pid_file}' -Value $p.Id; \
                  while($true){{Start-Sleep 60}}"
             ),
@@ -345,6 +347,7 @@ pub fn grandchild_config(
     let (cmd, args) = grandchild_cmd(pid_file_str);
     let mut cfg = make_config(cmd, args);
     cfg.stop_timeout = Some(stop_timeout);
+    cfg.stderr = "inherit".to_string();
     (dir, pid_file, cfg)
 }
 
