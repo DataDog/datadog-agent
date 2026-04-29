@@ -16,7 +16,7 @@ import (
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/hostagent"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
 
@@ -24,18 +24,21 @@ type autoDiscoverySuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
-func autoDiscoverySuiteProvisioner(agentConfig string) provisioners.Provisioner {
-	return awshost.Provisioner(
-		awshost.WithRunOptions(
-			scenec2.WithDocker(),
-			scenec2.WithAgentOptions(agentparams.WithAgentConfig(agentConfig)),
-		),
-	)
-}
-
 func TestAutoDiscoverySuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &autoDiscoverySuite{}, e2e.WithProvisioner(autoDiscoverySuiteProvisioner(``)))
+	// Provisioner creates infrastructure only — VM with docker, no agent.
+	e2e.Run(t, &autoDiscoverySuite{}, e2e.WithProvisioner(
+		awshost.Provisioner(awshost.WithRunOptions(
+			scenec2.WithDocker(),
+			scenec2.WithoutAgent(),
+		)),
+	))
+}
+
+func (v *autoDiscoverySuite) SetupSuite() {
+	v.BaseSuite.SetupSuite()
+	defer v.CleanupOnSetupFailure()
+	hostagent.Install(v.T(), v.Env())
 }
 
 func (v *autoDiscoverySuite) TestAutoDiscovery() {
@@ -54,7 +57,7 @@ network_devices:
         port: 1161
         community_string: 'cisco-nexus'
 `
-	v.UpdateEnv(autoDiscoverySuiteProvisioner(agentConfig))
+	v.Env().Agent.Configure(v.T(), agentparams.WithAgentConfig(agentConfig))
 
 	err := fakeIntake.Client().FlushServerAndResetAggregators()
 	v.Require().NoError(err)
@@ -89,7 +92,7 @@ network_devices:
           - community_string: 'cisco-nexus'
           - community_string: 'invalid2'
 `
-	v.UpdateEnv(autoDiscoverySuiteProvisioner(agentConfig))
+	v.Env().Agent.Configure(v.T(), agentparams.WithAgentConfig(agentConfig))
 
 	err := fakeIntake.Client().FlushServerAndResetAggregators()
 	v.Require().NoError(err)
@@ -125,7 +128,7 @@ network_devices:
           - community_string: 'cisco-nexus'
           - community_string: 'invalid2'
 `
-	v.UpdateEnv(autoDiscoverySuiteProvisioner(agentConfig))
+	v.Env().Agent.Configure(v.T(), agentparams.WithAgentConfig(agentConfig))
 
 	err := fakeIntake.Client().FlushServerAndResetAggregators()
 	v.Require().NoError(err)

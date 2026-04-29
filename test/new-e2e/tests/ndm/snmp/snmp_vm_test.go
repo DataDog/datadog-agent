@@ -17,7 +17,7 @@ import (
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/hostagent"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
@@ -32,25 +32,23 @@ type snmpVMSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
-func snmpVMProvisioner(opts ...awshost.ProvisionerOption) provisioners.Provisioner {
-	allOpts := []awshost.ProvisionerOption{
-		awshost.WithRunOptions(
-			scenec2.WithDocker(),
-			scenec2.WithAgentOptions(
-				agentparams.WithFile("/etc/datadog-agent/conf.d/snmp.d/snmp.yaml", snmpVMConfig, true),
-			),
-		),
-	}
-	allOpts = append(allOpts, opts...)
-
-	return awshost.Provisioner(
-		allOpts...,
-	)
-}
-
 func TestSnmpVMSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &snmpVMSuite{}, e2e.WithProvisioner(snmpVMProvisioner()))
+	// Provisioner creates infrastructure only — VM with docker, no agent.
+	e2e.Run(t, &snmpVMSuite{}, e2e.WithProvisioner(
+		awshost.Provisioner(awshost.WithRunOptions(
+			scenec2.WithDocker(),
+			scenec2.WithoutAgent(),
+		)),
+	))
+}
+
+func (v *snmpVMSuite) SetupSuite() {
+	v.BaseSuite.SetupSuite()
+	defer v.CleanupOnSetupFailure()
+	hostagent.Install(v.T(), v.Env(),
+		agentparams.WithFile("/etc/datadog-agent/conf.d/snmp.d/snmp.yaml", snmpVMConfig, true),
+	)
 }
 
 func (v *snmpVMSuite) TestAPIKeyRefresh() {
@@ -84,16 +82,10 @@ secret_backend_arguments:
   - /tmp/test-secret
 `
 
-	v.UpdateEnv(
-		snmpVMProvisioner(
-			awshost.WithRunOptions(
-				scenec2.WithAgentOptions(
-					agentparams.WithAgentConfig(agentConfig),
-					secretsutils.WithUnixSetupScript("/tmp/test-secret/secret-resolver.py", false),
-					agentparams.WithSkipAPIKeyInConfig(),
-				),
-			),
-		),
+	v.Env().Agent.Configure(v.T(),
+		agentparams.WithAgentConfig(agentConfig),
+		secretsutils.WithUnixSetupScript("/tmp/test-secret/secret-resolver.py", false),
+		agentparams.WithSkipAPIKeyInConfig(),
 	)
 
 	err := fakeIntake.Client().FlushServerAndResetAggregators()

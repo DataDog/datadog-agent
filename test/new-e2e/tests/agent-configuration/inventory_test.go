@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/hostagent"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 )
@@ -25,7 +26,16 @@ type inventoryAgentSuite struct {
 
 func TestInventoryAgentSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &inventoryAgentSuite{}, e2e.WithProvisioner(awshost.Provisioner()))
+	// Provisioner creates infrastructure only — VM + fakeintake, no agent.
+	e2e.Run(t, &inventoryAgentSuite{}, e2e.WithProvisioner(
+		awshost.Provisioner(awshost.WithRunOptions(scenec2.WithoutAgent())),
+	))
+}
+
+func (v *inventoryAgentSuite) SetupSuite() {
+	v.BaseSuite.SetupSuite()
+	defer v.CleanupOnSetupFailure()
+	hostagent.Install(v.T(), v.Env())
 }
 
 func (v *inventoryAgentSuite) TestInventoryDefaultConfig() {
@@ -62,12 +72,10 @@ network_config:
 traceroute:
   enabled: true`
 
-	agentOptions := []agentparams.Option{
+	v.Env().Agent.Configure(v.T(),
 		agentparams.WithAgentConfig(string(agentConfig)),
 		agentparams.WithSystemProbeConfig(string(systemProbeConfiguration)),
-	}
-
-	v.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(agentOptions...))))
+	)
 
 	inventory := v.Env().Agent.Client.Diagnose(agentclient.WithArgs([]string{"show-metadata", "inventory-agent"}))
 	assert.Contains(v.T(), inventory, `"feature_apm_enabled": true`)

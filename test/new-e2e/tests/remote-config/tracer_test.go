@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/hostagent"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
 
@@ -34,16 +35,17 @@ var tracerPayloadJSON string
 // Requires a valid Datadog API key
 func TestRcTracerSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &tracerSuite{},
-		e2e.WithProvisioner(
-			awshost.ProvisionerNoFakeIntake(
-				awshost.WithRunOptions(
-					scenec2.WithAgentOptions(
-						agentparams.WithAgentConfig(rcEnabledConfig),
-					),
-				),
-			),
-		),
+	// Provisioner creates infrastructure only — VM (no fakeintake, no agent).
+	e2e.Run(t, &tracerSuite{}, e2e.WithProvisioner(
+		awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(scenec2.WithoutAgent())),
+	))
+}
+
+func (s *tracerSuite) SetupSuite() {
+	s.BaseSuite.SetupSuite()
+	defer s.CleanupOnSetupFailure()
+	hostagent.Install(s.T(), s.Env(),
+		agentparams.WithAgentConfig(rcEnabledConfig),
 	)
 }
 
