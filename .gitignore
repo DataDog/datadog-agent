@@ -253,3 +253,8 @@ AUTO_JIRA.md
 # Zed config
 .zed
 .phoenix/
+
+# Headless observer-AD run state (see tasks/coordinator/HEADLESS_BRIEF.md)
+.headless-run/
+eval-results/
+tasks/coordinator/HEADLESS_SEEDS.md
