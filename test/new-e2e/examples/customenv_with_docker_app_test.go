@@ -7,6 +7,7 @@ package examples
 
 import (
 	_ "embed"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -16,7 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/hostagent"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
@@ -24,20 +25,20 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
+// vmPlusDockerEnv is a custom environment combining a remote host with Docker,
+// a fakeintake, and a Datadog Agent. The Pulumi provisioner only sets up
+// infrastructure (VM + fakeintake + docker manager). The agent and the
+// lighttpd workload are deployed in SetupSuite, decoupled from Pulumi.
 type vmPlusDockerEnv struct {
 	RemoteHost *components.RemoteHost
 	Agent      *components.RemoteHostAgent
 	Fakeintake *components.FakeIntake
 	Docker     *components.RemoteHostDocker
-
-	// additional resources
-	remoteHostLogsDir string
 }
 
 //go:embed testfixtures/docker-compose.lighttpd.yaml
@@ -49,111 +50,86 @@ var lighttpdConfigContent string
 //go:embed testfixtures/lighttpd_integration.conf.yaml
 var lighttpdIntegrationConfigContent string
 
-func vmPlusDockerEnvProvisioner() provisioners.PulumiEnvRunFunc[vmPlusDockerEnv] {
-	return func(ctx *pulumi.Context, env *vmPlusDockerEnv) error {
-		awsEnv, err := aws.NewEnvironment(ctx)
-		if err != nil {
-			return err
-		}
+// vmPlusDockerInfraProvisioner sets up infrastructure only — VM + Docker manager
+// + fakeintake. No agent and no workload (those are handled in SetupSuite).
+func vmPlusDockerInfraProvisioner(ctx *pulumi.Context, env *vmPlusDockerEnv) error {
+	// Mark Agent as not provisioned by Pulumi — it's installed in SetupSuite.
+	// The framework auto-initializes all importable env fields to non-nil
+	// zero values; setting it back to nil tells the framework to skip
+	// resource import for this field.
+	env.Agent = nil
 
-		// First we create a remote host with Amazon Linux ECS, that comes with Docker pre-installed
-		remoteHost, err := ec2.NewVM(awsEnv, "main", ec2.WithOS(os.AmazonLinuxECSDefault))
-		if err != nil {
-			return err
-		}
-		// we export it to env.RemoteHost, this will automatically initialize the ssh client on env.RemoteHost
-		remoteHost.Export(ctx, &env.RemoteHost.HostOutput)
-
-		// create a fakeintake instance on ECS Fargate
-		fakeIntake, err := fakeintake.NewECSFargateInstance(awsEnv, "")
-		if err != nil {
-			return err
-		}
-		// export its configuration to the environment, this will automatically initialize the fakeintake client
-		err = fakeIntake.Export(ctx, &env.Fakeintake.FakeintakeOutput)
-		if err != nil {
-			return err
-		}
-
-		// Create a docker manager
-		dockerManager, err := docker.NewAWSManager(&awsEnv, remoteHost)
-		if err != nil {
-			return err
-		}
-		// export the docker manager configurartion to the environment, this will automatically initialize the docker client
-		err = dockerManager.Export(ctx, &env.Docker.ManagerOutput)
-		if err != nil {
-			return err
-		}
-
-		// let's create a lighttpd container
-		// first we create a config file and a directory for log files
-		// that we will mount in the container
-		// files will be created eventually, our docker compose needs to wait for them
-		// we track the creation of files in an array of pulumi resources
-		mountedFilesCommands := make([]pulumi.Resource, 0, 2)
-		// create a tmp directory on the remote host, we will use it to store the configuration file
-		// and to read log files
-		// lighttpdDirCmd is the command to create the directory
-		// it will be executed on the remote host, we can run docker compose
-		// after it is done
-		remoteTmpDirCmd, lighttpdDir, err := remoteHost.OS.FileManager().TempDirectory("lighttpd")
-		if err != nil {
-			return err
-		}
-		// export the remote directory path to the environment
-		env.remoteHostLogsDir = lighttpdDir
-		mountedFilesCommands = append(mountedFilesCommands, remoteTmpDirCmd)
-		// write the lighttpd configuration file
-		lighttpdConfigFile := lighttpdDir + "/lighttpd.conf"
-		lighttpdConfigFileCmd, err := remoteHost.OS.FileManager().CopyInlineFile(pulumi.String(lighttpdConfigContent), lighttpdConfigFile)
-		if err != nil {
-			return err
-		}
-		mountedFilesCommands = append(mountedFilesCommands, lighttpdConfigFileCmd)
-
-		// the name is internal only
-		envVars := pulumi.StringMap{
-			"DD_LIGHTTPD_CONFIG":    pulumi.String(lighttpdConfigFile),
-			"DD_LIGHTTPD_LOGS_PATH": pulumi.String(lighttpdDir),
-		}
-		// compose lighttpd
-		composeLighttpdCmd, err := dockerManager.ComposeStrUp("lighttpd", []docker.ComposeInlineManifest{
-			{
-				Name:    "lighttpd",
-				Content: pulumi.String(lighttpdComposeContent),
-			},
-		}, envVars, pulumi.DependsOn(mountedFilesCommands))
-		if err != nil {
-			return err
-		}
-		// replace `ACCESS_LOG_PATH` and `ERROR_LOG_PATH` in the integration config
-		lighttpdIntegrationConfigContent = strings.ReplaceAll(lighttpdIntegrationConfigContent, "LIGHTTPD_LOG_PATH", lighttpdDir)
-		// install the agent on the remote host
-		agent, err := agent.NewHostAgent(&awsEnv, remoteHost,
-			agentparams.WithFakeintake(fakeIntake),
-			agentparams.WithIntegration("lighttpd.d", lighttpdIntegrationConfigContent),
-			agentparams.WithLogs(),
-			// agent depends on the docker compose command
-			agentparams.WithPulumiResourceOptions(pulumi.DependsOn([]pulumi.Resource{composeLighttpdCmd})),
-		)
-		if err != nil {
-			return err
-		}
-		err = agent.Export(ctx, &env.Agent.HostAgentOutput)
-		if err != nil {
-			return err
-		}
-		return nil
+	awsEnv, err := aws.NewEnvironment(ctx)
+	if err != nil {
+		return err
 	}
+
+	// Remote host with Amazon Linux ECS (Docker pre-installed)
+	remoteHost, err := ec2.NewVM(awsEnv, "main", ec2.WithOS(os.AmazonLinuxECSDefault))
+	if err != nil {
+		return err
+	}
+	if err := remoteHost.Export(ctx, &env.RemoteHost.HostOutput); err != nil {
+		return err
+	}
+
+	// Fakeintake on ECS Fargate
+	fakeIntake, err := fakeintake.NewECSFargateInstance(awsEnv, "")
+	if err != nil {
+		return err
+	}
+	if err := fakeIntake.Export(ctx, &env.Fakeintake.FakeintakeOutput); err != nil {
+		return err
+	}
+
+	// Docker manager
+	dockerManager, err := docker.NewAWSManager(&awsEnv, remoteHost)
+	if err != nil {
+		return err
+	}
+	if err := dockerManager.Export(ctx, &env.Docker.ManagerOutput); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 type vmPlusDockerEnvSuite struct {
 	e2e.BaseSuite[vmPlusDockerEnv]
+	remoteHostLogsDir string
 }
 
 func TestLighttpdOnDockerFromHost(t *testing.T) {
-	e2e.Run(t, &vmPlusDockerEnvSuite{}, e2e.WithPulumiProvisioner(vmPlusDockerEnvProvisioner(), nil))
+	e2e.Run(t, &vmPlusDockerEnvSuite{}, e2e.WithPulumiProvisioner(vmPlusDockerInfraProvisioner, nil))
+}
+
+func (v *vmPlusDockerEnvSuite) SetupSuite() {
+	v.BaseSuite.SetupSuite()
+	defer v.CleanupOnSetupFailure()
+
+	host := v.Env().RemoteHost
+
+	// Step 1: prepare a directory and config file for lighttpd on the host.
+	tmpDir := strings.TrimSpace(host.MustExecute("mktemp -d /tmp/lighttpd.XXXXXX"))
+	v.remoteHostLogsDir = tmpDir
+	host.MustExecute(fmt.Sprintf("cat > %s/lighttpd.conf << 'CONFEOF'\n%s\nCONFEOF", tmpDir, lighttpdConfigContent))
+
+	// Step 2: write the docker-compose file and start the lighttpd container.
+	composePath := tmpDir + "/docker-compose.yaml"
+	host.MustExecute(fmt.Sprintf("cat > %s << 'COMPOSEEOF'\n%s\nCOMPOSEEOF", composePath, lighttpdComposeContent))
+	host.MustExecute(fmt.Sprintf(
+		"cd %s && DD_LIGHTTPD_CONFIG=%s/lighttpd.conf DD_LIGHTTPD_LOGS_PATH=%s docker compose up -d",
+		tmpDir, tmpDir, tmpDir,
+	))
+
+	// Step 3: install the Datadog agent. The fakeintake URL is wired in
+	// automatically by InstallOnHost. The integration config references
+	// the lighttpd log directory we just created.
+	integrationConfig := strings.ReplaceAll(lighttpdIntegrationConfigContent, "LIGHTTPD_LOG_PATH", tmpDir)
+	v.Env().Agent = hostagent.InstallOnHost(v.T(), v.Env().RemoteHost, v.Env().Fakeintake,
+		agentparams.WithIntegration("lighttpd.d", integrationConfig),
+		agentparams.WithLogs(),
+	)
 }
 
 func (v *vmPlusDockerEnvSuite) TestListContainers() {

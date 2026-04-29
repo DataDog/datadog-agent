@@ -9,8 +9,10 @@ import (
 	"testing"
 	"time"
 
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/hostagent"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/fakeintake/client"
 
@@ -22,7 +24,20 @@ type fakeintakeSuiteMetrics struct {
 }
 
 func TestVMSuiteEx5(t *testing.T) {
-	e2e.Run(t, &fakeintakeSuiteMetrics{}, e2e.WithProvisioner(awshost.Provisioner()))
+	// Provisioner creates infrastructure only — VM + fakeintake, no agent.
+	e2e.Run(t, &fakeintakeSuiteMetrics{}, e2e.WithProvisioner(
+		awshost.Provisioner(awshost.WithRunOptions(scenec2.WithoutAgent())),
+	))
+}
+
+func (v *fakeintakeSuiteMetrics) SetupSuite() {
+	v.BaseSuite.SetupSuite()
+	defer v.CleanupOnSetupFailure()
+
+	// Install the agent via SSH. hostagent.Install detects the fakeintake
+	// in the environment and automatically configures the agent to send
+	// data to it.
+	hostagent.Install(v.T(), v.Env())
 }
 
 func (v *fakeintakeSuiteMetrics) Test1_FakeIntakeReceivesMetrics() {
