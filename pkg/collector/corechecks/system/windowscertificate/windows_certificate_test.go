@@ -15,6 +15,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/hex"
 	"math/big"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -77,6 +78,71 @@ days_critical: 5`)
 	m.AssertNumberOfCalls(t, "Gauge", 0)
 	m.AssertNumberOfCalls(t, "ServiceCheck", 0)
 	m.AssertNumberOfCalls(t, "Commit", 0)
+}
+
+func TestValidateCertificateStoreSelectionAllowsBoth(t *testing.T) {
+	c := Config{
+		CertificateStore:      "MY",
+		CertificateStoreRegex: []string{`^ROOT$`, `^CA$`},
+	}
+	require.NoError(t, validateCertificateStoreSelection(&c))
+}
+
+func TestMergeExplicitStoreWithRegexMatchesDedupesAndSorts(t *testing.T) {
+	require.Equal(t, []string{"CA", "MY", "ROOT"}, mergeExplicitStoreWithRegexMatches("MY", []string{"ROOT", "MY", "CA"}))
+	require.Equal(t, []string{"ROOT"}, mergeExplicitStoreWithRegexMatches("ROOT", []string{"ROOT"}))
+	require.Equal(t, []string{"ROOT"}, mergeExplicitStoreWithRegexMatches("", []string{"ROOT"}))
+	require.Equal(t, []string{"MY"}, mergeExplicitStoreWithRegexMatches("MY", nil))
+}
+
+func TestValidateCertificateStoreSelectionRequiresOne(t *testing.T) {
+	require.Error(t, validateCertificateStoreSelection(&Config{}))
+	require.Error(t, validateCertificateStoreSelection(&Config{CertificateStoreRegex: []string{}}))
+	require.NoError(t, validateCertificateStoreSelection(&Config{CertificateStore: "ROOT"}))
+	require.NoError(t, validateCertificateStoreSelection(&Config{CertificateStoreRegex: []string{`^ROOT$`}}))
+}
+
+func TestCompileCertificateStoreRegexesRejectsEmptyPattern(t *testing.T) {
+	_, err := compileCertificateStoreRegexes([]string{"  ", `^ROOT$`})
+	require.Error(t, err)
+}
+
+func TestFilterStoreNamesByRegexesDedupesAndSorts(t *testing.T) {
+	reROOT, err := regexp.Compile(`^ROOT$`)
+	require.NoError(t, err)
+	reCA, err := regexp.Compile(`^CA$`)
+	require.NoError(t, err)
+	got := filterStoreNamesByRegexes([]string{"ROOT", "MY", "CA"}, []*regexp.Regexp{reROOT, reCA})
+	require.Equal(t, []string{"CA", "ROOT"}, got)
+}
+
+func TestWindowsCertificateWithCertificateStoreRegex(t *testing.T) {
+	certCheck := new(WinCertChk)
+
+	instanceConfig := []byte(`
+certificate_store_regex:
+  - "^ROOT$"
+certificate_subjects:
+  - Microsoft
+  - Datadog
+days_warning: 10
+days_critical: 5`)
+
+	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
+	m := mocksender.NewMockSender(certCheck.ID())
+	m.On("FinalizeCheckServiceTag").Return()
+	require.NoError(t, certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider"))
+
+	m.On("Gauge", "windows_certificate.days_remaining", mock.AnythingOfType("float64"), "", mock.AnythingOfType("[]string"))
+	m.On("ServiceCheck", "windows_certificate.cert_expiration", mock.AnythingOfType("servicecheck.ServiceCheckStatus"), "", mock.AnythingOfType("[]string"), mock.AnythingOfType("string"))
+	m.On("Commit").Return()
+
+	require.NoError(t, certCheck.Run())
+
+	m.AssertExpectations(t)
+	m.AssertCalled(t, "Gauge", "windows_certificate.days_remaining", mock.AnythingOfType("float64"), "", mock.AnythingOfType("[]string"))
+	m.AssertCalled(t, "ServiceCheck", "windows_certificate.cert_expiration", mock.AnythingOfType("servicecheck.ServiceCheckStatus"), "", mock.AnythingOfType("[]string"), mock.AnythingOfType("string"))
+	m.AssertNumberOfCalls(t, "Commit", 1)
 }
 
 func TestWindowsCertificateWithInvalidStore(t *testing.T) {
