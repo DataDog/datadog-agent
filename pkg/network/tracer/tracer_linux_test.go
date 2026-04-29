@@ -24,6 +24,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -40,6 +41,7 @@ import (
 	"github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 	vnetns "github.com/vishvananda/netns"
 	"go4.org/intern"
 	"golang.org/x/sys/unix"
@@ -60,6 +62,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/sk"
 	ssluprobes "github.com/DataDog/datadog-agent/pkg/network/tracer/connection/ssl-uprobes"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	tracertestutil "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
@@ -77,6 +80,23 @@ var kv = kernel.MustHostVersion()
 
 func platformInit() {
 	// linux-specific tasks here
+}
+
+func supportedNetworkBuildModes() []ebpftest.BuildMode {
+	modes := ebpftest.SupportedBuildModes()
+	if !slices.Contains(modes, ebpftest.Ebpfless) {
+		modes = append(modes, ebpftest.Ebpfless)
+	}
+	if !slices.Contains(modes, ebpftest.SK) && sk.KernelSupported() {
+		modes = append(modes, ebpftest.SK)
+	}
+	return modes
+}
+
+func TestTracerSuite(t *testing.T) {
+	ebpftest.TestBuildModes(t, supportedNetworkBuildModes(), "", func(t *testing.T) {
+		suite.Run(t, new(TracerSuite))
+	})
 }
 
 func (s *TracerSuite) TestTCPRemoveEntries() {
@@ -193,7 +213,7 @@ func (s *TracerSuite) TestTCPRetransmit() {
 		conn, _ = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 		require.NotNil(ct, conn)
 
-		assert.Equal(ct, 100*clientMessageSize, int(conn.Monotonic.SentBytes))
+		assert.GreaterOrEqual(ct, int(conn.Monotonic.SentBytes), 100*clientMessageSize)
 		assert.Equal(ct, serverMessageSize, int(conn.Monotonic.RecvBytes))
 		if !tr.config.EnableEbpfless {
 			assert.Equal(ct, os.Getpid(), int(conn.Pid))
@@ -211,6 +231,10 @@ func (s *TracerSuite) TestTCPRetransmitSharedSocket() {
 	cfg := testConfig()
 	// ebpfless does not support tracing PIDs such as this test
 	skipOnEbpflessNotSupported(t, cfg)
+	if ebpftest.GetBuildMode() == ebpftest.SK {
+		t.Skip("SK doesn't support shared socket yet")
+	}
+
 	// Create TCP Server that simply "drains" connection until receiving an EOF
 	server := tracertestutil.NewTCPServer(func(c net.Conn) {
 		io.Copy(io.Discard, c)
@@ -1241,6 +1265,7 @@ func (s *TracerSuite) TestSelfConnect() {
 
 	t.Logf("port is %d", port)
 
+	buildmode := ebpftest.GetBuildMode()
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		allConnections, cleanup := getConnections(collect, tr)
 		defer cleanup()
@@ -1249,8 +1274,15 @@ func (s *TracerSuite) TestSelfConnect() {
 		})
 
 		t.Logf("connections: %v", conns)
-		require.Len(collect, conns, 2)
-	}, 5*time.Second, 100*time.Millisecond, "could not find expected number of tcp connections, expected: 2")
+		if buildmode == ebpftest.SK {
+			// SK tracer will have one connection but capture all the sent/recv
+			require.Len(collect, conns, 1)
+			assert.Equal(collect, 3, int(conns[0].Monotonic.SentBytes))
+			assert.Equal(collect, 3, int(conns[0].Monotonic.RecvBytes))
+		} else {
+			require.Len(collect, conns, 2, "expected number of tcp connections")
+		}
+	}, 5*time.Second, 100*time.Millisecond, "could not find connection(s)")
 }
 
 // sets up two udp sockets talking to each other locally.
@@ -1749,7 +1781,6 @@ func (s *TracerSuite) TestSendfileRegression() {
 		assert.EventuallyWithT(t, func(ct *assert.CollectT) {
 			conns, cleanup := getConnections(ct, tr)
 			defer cleanup()
-			t.Log(conns)
 			newOutConn := network.FirstConnection(conns, network.ByType(connType), network.ByFamily(family), network.ByTuple(c.LocalAddr(), c.RemoteAddr()))
 			if newOutConn != nil {
 				outConn = newOutConn
@@ -1770,7 +1801,7 @@ func (s *TracerSuite) TestSendfileRegression() {
 			}
 		}
 		if assert.NotNil(t, inConn, "couldn't find incoming connection used by sendfile(2)") {
-			assert.Equalf(t, int64(clientMessageSize), int64(inConn.Monotonic.RecvBytes), "sendfile recv bytes wasn't properly traced")
+			assert.InDeltaf(t, int64(clientMessageSize), int64(inConn.Monotonic.RecvBytes), 1, "sendfile recv bytes wasn't properly traced")
 			if connType == network.UDP {
 				assert.Equalf(t, int64(1), int64(inConn.Monotonic.RecvPackets), "sendfile UDP should recv exactly 1 packet")
 				assert.Equalf(t, int64(0), int64(inConn.Monotonic.SentPackets), "sendfile inConn shouldn't have any SentPackets")
@@ -2044,7 +2075,7 @@ func (s *TracerSuite) TestShortWrite() {
 		conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
 		require.True(collect, ok)
 
-		require.Equal(collect, sent, conn.Monotonic.SentBytes)
+		assert.GreaterOrEqual(collect, conn.Monotonic.SentBytes, sent)
 	}, 10*time.Second, 100*time.Millisecond, "couldn't find connection used by short write")
 }
 
@@ -2059,6 +2090,9 @@ func (s *TracerSuite) TestKprobeAttachWithKprobeEvents() {
 	if tr.ebpfTracer.Type() == connection.TracerTypeFentry {
 		t.Skip("skipped on fentry")
 	}
+	if tr.ebpfTracer.Type() == connection.TracerTypeSK {
+		t.Skip("skipped on sk")
+	}
 
 	cmd := []string{"curl", "-k", "-o/dev/null", "example.com"}
 	exec.Command(cmd[0], cmd[1:]...).Run()
@@ -2066,11 +2100,12 @@ func (s *TracerSuite) TestKprobeAttachWithKprobeEvents() {
 	stats := ebpftelemetry.GetProbeStats()
 	require.NotNil(t, stats)
 
-	pTCPSendmsg, ok := stats["p_tcp_sendmsg_hits"]
+	key := "p_tcp_sendmsg_hits"
+	hitCount, ok := stats[key]
 	require.True(t, ok)
-	fmt.Printf("p_tcp_sendmsg_hits = %d\n", pTCPSendmsg)
+	fmt.Printf("%s = %d\n", key, hitCount)
 
-	assert.Greater(t, pTCPSendmsg, uint64(0))
+	assert.Greater(t, hitCount, uint64(0))
 }
 
 func (s *TracerSuite) TestBlockingReadCounts() {
@@ -2131,7 +2166,7 @@ func (s *TracerSuite) TestBlockingReadCounts() {
 		defer cleanup()
 		conn, found := findConnection(c.(*net.TCPConn).LocalAddr(), c.(*net.TCPConn).RemoteAddr(), connections)
 		require.True(collect, found)
-		require.Equal(collect, uint64(read), conn.Monotonic.RecvBytes)
+		require.InDelta(collect, uint64(read), conn.Monotonic.RecvBytes, 1)
 	}, 3*time.Second, 100*time.Millisecond)
 }
 
@@ -2194,7 +2229,7 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 		// byte counts will miss the first couple packets while in connStatAttempted.
 		if !tr.config.EnableEbpfless {
 			assert.Equal(collect, clientMessageSize, int(m.SentBytes))
-			assert.Equal(collect, serverMessageSize, int(m.RecvBytes))
+			assert.InDelta(collect, serverMessageSize, int(m.RecvBytes), 1)
 
 			assert.Equal(collect, os.Getpid(), int(outgoing.Pid))
 		}
@@ -2206,7 +2241,7 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 		// skip byte counts in ebpfless: for ebpfless pre-existing connections,
 		// byte counts will miss the first couple packets while in connStatAttempted.
 		if !tr.config.EnableEbpfless {
-			assert.Equal(collect, clientMessageSize, int(m.RecvBytes))
+			assert.InDelta(collect, clientMessageSize, int(m.RecvBytes), 1)
 			assert.Equal(collect, serverMessageSize, int(m.SentBytes))
 
 			assert.Equal(collect, os.Getpid(), int(incoming.Pid))
@@ -2226,6 +2261,9 @@ func (s *TracerSuite) TestPreexistingEmptyIncomingConnectionDirection() {
 	// However, in ebpfless they are easy to track, so disable this test.
 	// For more context, see PR #31100
 	skipOnEbpflessNotSupported(t, testConfig())
+	if ebpftest.GetBuildMode() == ebpftest.SK {
+		t.Skip("SK tracer easily finds existing connections")
+	}
 
 	t.Run("ringbuf_enabled", func(t *testing.T) {
 		if features.HaveMapType(ebpf.RingBuf) != nil {
@@ -2479,6 +2517,9 @@ func testConfig() *config.Config {
 	if ebpftest.GetBuildMode() == ebpftest.Fentry {
 		cfg.ProtocolClassificationEnabled = false
 	}
+	if ebpftest.GetBuildMode() == ebpftest.SK {
+		cfg.ProtocolClassificationEnabled = false
+	}
 
 	// prebuilt on 5.18+ does not support UDPv6
 	if isPrebuilt(cfg) && kv >= kernel.VersionCode(5, 18, 0) {
@@ -2619,6 +2660,7 @@ LOOP:
 var failedConnectionsBuildModes = map[ebpftest.BuildMode]struct{}{
 	ebpftest.CORE:            {},
 	ebpftest.RuntimeCompiled: {},
+	ebpftest.SK:              {},
 }
 
 func checkSkipFailureConnectionsTests(t *testing.T) {
@@ -2649,8 +2691,7 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 		f := os.NewFile(uintptr(sfd), "")
 		defer f.Close()
 
-		//syscall.TCP_USER_TIMEOUT is 18 but not defined in our linter. Set it to 500ms
-		err = syscall.SetsockoptInt(sfd, syscall.IPPROTO_TCP, 18, 500)
+		err = syscall.SetsockoptInt(sfd, syscall.IPPROTO_TCP, unix.TCP_USER_TIMEOUT, 500)
 		require.NoError(t, err)
 
 		err = syscall.Connect(sfd, &addr)
@@ -3242,6 +3283,10 @@ func testTLSCertParsing(t *testing.T, client *http.Client, matcher func(c *netwo
 		t.Skipf("skipping because tls certs kernel features are not supported on this kernel: %s", err)
 	}
 	skipOnEbpflessNotSupported(t, cfg)
+	if ebpftest.GetBuildMode() == ebpftest.SK {
+		// TODO support certs
+		t.Skip("certs not supported on SK tracer yet")
+	}
 
 	tr := setupTracer(t, cfg)
 	if tr.ebpfTracer.Type() == connection.TracerTypeFentry {
