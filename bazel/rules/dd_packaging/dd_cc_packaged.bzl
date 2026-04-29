@@ -185,18 +185,18 @@ dd_cc_packaged = macro(
             configurable = False,
             providers = [[CcInfo], [CcSharedLibraryInfo]],
         ),
-        "installed_files": attr.label_list(
-            configurable = True,
-        ),
         "installed_executables": attr.label_keyed_string_dict(
             doc = "Dict mapping labels to installation prefixes. Each entry is rpath-patched and installed with mode 0755.",
             configurable = True,
         ),
-        "version": attr.string(
+        "installed_files": attr.label_list(
+            configurable = True,
+        ),
+        "libname": attr.string(
             default = "",
             configurable = False,
         ),
-        "libname": attr.string(
+        "version": attr.string(
             default = "",
             configurable = False,
         ),
