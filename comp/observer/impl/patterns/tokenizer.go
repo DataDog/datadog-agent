@@ -111,6 +111,12 @@ func (t *Tokenizer) matchAt(msg string, pos int) (Token, int) {
 		if tok, n := tryLocalTime(s); n > 0 {
 			return tok, n
 		}
+		// Email local-parts can start with a digit (e.g. 123@example.com)
+		// or even look IPv4-shaped (e.g. 192.168.1.1@example.com); try
+		// before tryIPv4Authority so the full address tokenizes as one email.
+		if tok, n := tryEmail(s); n > 0 {
+			return tok, n
+		}
 		if tok, n := tryIPv4Authority(s, msg, pos); n > 0 {
 			return tok, n
 		}
@@ -144,6 +150,10 @@ func (t *Tokenizer) matchAt(msg string, pos int) (Token, int) {
 		}
 
 	case cc&ccUnder != 0:
+		// Underscore is a valid email local-part start (e.g. _svc@example.com).
+		if tok, n := tryEmail(s); n > 0 {
+			return tok, n
+		}
 		// Underscore is alphanumeric-extended; falls into tryWordOrKeyword.
 		if tok, n := tryAlphanumeric(s); n > 0 {
 			return tok, n

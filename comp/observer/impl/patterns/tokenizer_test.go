@@ -202,6 +202,11 @@ func TestTokenizeEmail(t *testing.T) {
 	assertTokenTypes(t, "example-indeed@strange-example.com", []TokenType{TypeEmailAddress})
 	assertTokenTypes(t, "admin@mailserver1", []TokenType{TypeEmailAddress})
 	assertTokenTypes(t, "example@s.example", []TokenType{TypeEmailAddress})
+	// Local-parts starting with non-letter characters that the local-part
+	// scanner accepts must still tokenize as a single email.
+	assertTokenTypes(t, "123@example.com", []TokenType{TypeEmailAddress})
+	assertTokenTypes(t, "_svc@example.com", []TokenType{TypeEmailAddress})
+	assertTokenTypes(t, "192.168.1.1@example.com", []TokenType{TypeEmailAddress})
 }
 
 // --- HTTP Method ---
