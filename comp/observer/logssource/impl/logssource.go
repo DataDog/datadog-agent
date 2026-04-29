@@ -10,6 +10,7 @@ import (
 	"context"
 	"time"
 
+	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -26,6 +27,9 @@ import (
 	containerLauncher "github.com/DataDog/datadog-agent/pkg/logs/launchers/container"
 	filelauncher "github.com/DataDog/datadog-agent/pkg/logs/launchers/file"
 	journaldlauncher "github.com/DataDog/datadog-agent/pkg/logs/launchers/journald"
+	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
+	logsadscheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
+	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	fileTailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
@@ -47,6 +51,10 @@ type Requires struct {
 	Auditor     auditor.Component
 	Observer    option.Option[observer.Component]
 	FilterStore option.Option[workloadfilter.Component]
+
+	// Autodiscovery is optional: when absent the AD scheduler is simply not started
+	// and the observer falls back to generic container log collection only.
+	Autodiscovery autodiscovery.Component `fx:"optional"`
 }
 
 // Provides defines the output of the logssource component.
@@ -124,13 +132,29 @@ func NewComponent(deps Requires) (Provides, error) {
 
 	sp := newSourceProvider(wmeta, logSources, pauseFilter)
 
+	services := service.NewServices()
+	adMgr := newADSourceManager(logSources, services, sp)
+
+	// Build the AD scheduler when autodiscovery is available.
+	// adScheduler may be nil when the observer runs without AD (e.g. in tests or
+	// agent binaries that do not include the autodiscovery component).
+	var adScheduler schedulers.Scheduler
+	if deps.Autodiscovery != nil {
+		adScheduler = logsadscheduler.New(deps.Autodiscovery)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 
 	deps.Lc.Append(compdef.Hook{
 		OnStart: func(_ context.Context) error {
 			deps.Log.Infof("[observer/logssource] starting container log pipeline")
 			pipeline.start()
+			// Launchers must be ready before schedulers add sources so that tailers
+			// can be created immediately when the first AD config arrives.
 			launchersMgr.Start()
+			if adScheduler != nil {
+				adScheduler.Start(adMgr)
+			}
 			sp.run(ctx)
 			return nil
 		},
@@ -141,13 +165,17 @@ func NewComponent(deps Requires) (Provides, error) {
 			//    after the launcher has stopped reading — deadlock.
 			cancel()
 			sp.wait()
-			// 2. Stop all tailers; blocks until the last message is written to inputChan.
+			// 2. Stop the AD scheduler so it does not add more sources.
+			if adScheduler != nil {
+				adScheduler.Stop()
+			}
+			// 3. Stop all tailers; blocks until the last message is written to inputChan.
 			launchersMgr.Stop()
-			// 3. Drain inputChan; proc writes surviving messages to outputChan then exits.
+			// 4. Drain inputChan; proc writes surviving messages to outputChan then exits.
 			pipeline.proc.Stop()
-			// 4. Signal the drain goroutine to exit (safe: proc.Stop returned = no more writes).
+			// 5. Signal the drain goroutine to exit (safe: proc.Stop returned = no more writes).
 			close(pipeline.outputChan)
-			// 5. Wait for the drain goroutine to finish.
+			// 6. Wait for the drain goroutine to finish.
 			<-pipeline.drainDone
 			return nil
 		},
