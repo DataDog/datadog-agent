@@ -42,6 +42,7 @@ days_critical: 5`)
 
 	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
 	m := mocksender.NewMockSender(certCheck.ID())
+	m.On("FinalizeCheckServiceTag").Return()
 	certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider")
 
 	m.On("Gauge", "windows_certificate.days_remaining", mock.AnythingOfType("float64"), "", mock.AnythingOfType("[]string"))
@@ -68,6 +69,7 @@ days_critical: 5`)
 
 	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
 	m := mocksender.NewMockSender(certCheck.ID())
+	m.On("FinalizeCheckServiceTag").Return()
 	err := certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider")
 	require.Error(t, err)
 
@@ -85,6 +87,7 @@ certificate_store: INVALID`)
 
 	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
 	m := mocksender.NewMockSender(certCheck.ID())
+	m.On("FinalizeCheckServiceTag").Return()
 	certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider")
 	m.On("Commit").Return()
 
@@ -109,6 +112,7 @@ days_critical: 5`)
 
 	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
 	m := mocksender.NewMockSender(certCheck.ID())
+	m.On("FinalizeCheckServiceTag").Return()
 	certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider")
 	m.On("Commit").Return()
 
@@ -130,6 +134,7 @@ days_critical: 500000`)
 
 	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
 	m := mocksender.NewMockSender(certCheck.ID())
+	m.On("FinalizeCheckServiceTag").Return()
 	certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider")
 	m.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	m.On("ServiceCheck", "windows_certificate.cert_expiration", servicecheck.ServiceCheckCritical, "", mock.AnythingOfType("[]string"), mock.AnythingOfType("string"))
@@ -155,6 +160,7 @@ days_critical: 5`)
 
 	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
 	m := mocksender.NewMockSender(certCheck.ID())
+	m.On("FinalizeCheckServiceTag").Return()
 	certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider")
 	m.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	m.On("ServiceCheck", "windows_certificate.cert_expiration", mock.AnythingOfType("servicecheck.ServiceCheckStatus"), "", mock.AnythingOfType("[]string"), mock.AnythingOfType("string"))
@@ -179,6 +185,7 @@ days_critical: -1`)
 
 	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
 	m := mocksender.NewMockSender(certCheck.ID())
+	m.On("FinalizeCheckServiceTag").Return()
 	err := certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider")
 	require.Error(t, err)
 
@@ -199,6 +206,7 @@ enable_crl_monitoring: true`)
 
 	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
 	m := mocksender.NewMockSender(certCheck.ID())
+	m.On("FinalizeCheckServiceTag").Return()
 	certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider")
 
 	m.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
@@ -227,6 +235,7 @@ crl_days_warning: -1`)
 
 	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
 	m := mocksender.NewMockSender(certCheck.ID())
+	m.On("FinalizeCheckServiceTag").Return()
 	err := certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider")
 	require.Error(t, err)
 
@@ -247,6 +256,7 @@ enable_crl_monitoring: true`)
 
 	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
 	m := mocksender.NewMockSender(certCheck.ID())
+	m.On("FinalizeCheckServiceTag").Return()
 	certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider")
 	m.On("Commit").Return()
 
@@ -271,6 +281,7 @@ cert_chain_validation:
 
 	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
 	m := mocksender.NewMockSender(certCheck.ID())
+	m.On("FinalizeCheckServiceTag").Return()
 	certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider")
 
 	m.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
@@ -309,6 +320,7 @@ cert_chain_validation:
 
 	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
 	m := mocksender.NewMockSender(certCheck.ID())
+	m.On("FinalizeCheckServiceTag").Return()
 	certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider")
 
 	m.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
@@ -339,6 +351,7 @@ cert_chain_validation:
 
 	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
 	m := mocksender.NewMockSender(certCheck.ID())
+	m.On("FinalizeCheckServiceTag").Return()
 	certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider")
 
 	m.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
@@ -368,6 +381,7 @@ cert_chain_validation:
 
 	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
 	m := mocksender.NewMockSender(certCheck.ID())
+	m.On("FinalizeCheckServiceTag").Return()
 	certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider")
 	m.On("Commit").Return()
 
@@ -412,6 +426,7 @@ enable_crl_monitoring: true
 
 	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
 	m := mocksender.NewMockSender(certCheck.ID())
+	m.On("FinalizeCheckServiceTag").Return()
 	certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider")
 
 	m.On("Gauge", "windows_certificate.days_remaining", mock.AnythingOfType("float64"), "", mock.MatchedBy(func(tags []string) bool {
@@ -532,6 +547,7 @@ days_critical: 5`)
 
 	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
 	m := mocksender.NewMockSender(certCheck.ID())
+	m.On("FinalizeCheckServiceTag").Return()
 	require.NoError(t, certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider"))
 
 	// Assert that Gauge gets a non-empty certificate_thumbprint tag

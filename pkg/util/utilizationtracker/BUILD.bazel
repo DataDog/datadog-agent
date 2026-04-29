@@ -15,6 +15,7 @@ go_test(
     name = "utilizationtracker_test",
     srcs = ["utilization_tracker_test.go"],
     embed = [":utilizationtracker"],
+    gotags = ["test"],
     deps = [
         "@com_github_benbjohnson_clock//:clock",
         "@com_github_stretchr_testify//assert",

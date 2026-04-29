@@ -19,10 +19,30 @@ ARG AGENT_GIT_REF
 ARG CI
 ARG DDA_VERSION=v0.29.0
 ARG PACKAGE_TYPE
+ARG GOPROXY
+ARG GONOSUMDB
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Set the working directory
 WORKDIR /workspace
+
+# NOTE about APT mirrorlists:
+# It seems that this feature could use some improvement. If you just get mirrorlist
+# from mirrors.ubuntu.com/mirrors.txt, it might contain faulty mirrors that either
+# cause `apt update` to fail with exit code 100 or make it hang on `0% [Working]`
+# indefinitely. Therefore we create a mirrorlist with the 2 mirrors that we know
+# should be reliable enough in combination and also well maintained.
+RUN if [ "$CI" = "true" ]; then \
+  echo "http://us-east-1.ec2.archive.ubuntu.com/ubuntu\tpriority:1\nhttp://archive.ubuntu.com/ubuntu" > /etc/apt/mirrorlist.main && \
+  echo "http://us-east-1.ec2.ports.ubuntu.com/ubuntu-ports\tpriority:1\nhttp://ports.ubuntu.com/ubuntu-ports" > /etc/apt/mirrorlist.ports && \
+  for f in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do \
+    if [ -f "$f" ]; then \
+      sed -i -e 's#http://archive.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' \
+             -e 's#http://security.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' \
+             -e 's#http://ports.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g' "$f"; \
+    fi; \
+  done; \
+  fi
 
 # Update and install necessary packages
 RUN apt-get update && \
@@ -96,21 +116,21 @@ RUN ARCH=$(dpkg --print-architecture) && \
 COPY manifest.yaml /workspace/datadog-agent/comp/otelcol/collector-contrib/impl/manifest.yaml
 
 # Generate the files and clean up go cache to free space
-RUN dda inv collector.generate && \
+RUN GOPROXY=$GOPROXY GONOSUMDB=$GONOSUMDB dda inv collector.generate && \
     go clean -cache -modcache
 
 # Build the OTel agent with cleanup
 RUN if [ "$PACKAGE_TYPE" = "windows" ]; then \
-    GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CXX=x86_64-w64-mingw32-g++ CC=x86_64-w64-mingw32-gcc dda inv otel-agent.build --byoc && \
+    GOPROXY=$GOPROXY GONOSUMDB=$GONOSUMDB GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CXX=x86_64-w64-mingw32-g++ CC=x86_64-w64-mingw32-gcc dda inv otel-agent.build --byoc && \
     go clean -cache; \
     else \
-    dda inv otel-agent.build --byoc && \
+    GOPROXY=$GOPROXY GONOSUMDB=$GONOSUMDB dda inv otel-agent.build --byoc && \
     go clean -cache; \
     fi
 
 # Build the build-ddot-byoc tool (required for linux and windows PACKAGE_TYPE)
 RUN if [ "$PACKAGE_TYPE" = "linux" ] || [ "$PACKAGE_TYPE" = "windows" ]; then \
-    cd /workspace/datadog-agent/tools/build-ddot-byoc && GOWORK=off go build -o /usr/local/bin/build-ddot-byoc .; \
+    cd /workspace/datadog-agent/tools/build-ddot-byoc && GOPROXY=$GOPROXY GONOSUMDB=$GONOSUMDB GOWORK=off go build -o /usr/local/bin/build-ddot-byoc .; \
     fi
 
 # Build packages if PACKAGE_TYPE is specified, otherwise just output the binary.

@@ -129,12 +129,13 @@ func (c *safeConfig) Set(key string, newValue interface{}, source model.Source) 
 	}
 	// Increment the sequence ID only if the value has changed
 	c.sequenceID++
+	sequenceID := c.sequenceID
 	c.Unlock()
 
 	// notifying all receiver about the updated setting
 	for _, receiver := range receivers {
 		log.Debugf("notifying %s about configuration change for '%s'", getCallerLocation(1), key)
-		receiver(key, source, oldValue, latestValue, c.sequenceID)
+		receiver(key, source, oldValue, latestValue, sequenceID)
 	}
 }
 
@@ -171,11 +172,12 @@ func (c *safeConfig) UnsetForSource(key string, source model.Source) {
 		receivers = slices.Clone(c.notificationReceivers)
 		c.sequenceID++
 	}
+	sequenceID := c.sequenceID
 	c.Unlock()
 
 	// notifying all receiver about the updated setting
 	for _, receiver := range receivers {
-		receiver(key, source, previousValue, newValue, c.sequenceID)
+		receiver(key, source, previousValue, newValue, sequenceID)
 	}
 }
 
@@ -205,6 +207,11 @@ func (c *safeConfig) IsKnown(key string) bool {
 	defer c.RUnlock()
 
 	return c.Viper.IsKnown(key)
+}
+
+// IsSetting always returns true for Viper, because it doesn't have a way to tell
+func (c *safeConfig) IsSetting(_ string) bool {
+	return true
 }
 
 // checkKnownKey checks if a key is known, and if not logs a warning
@@ -317,7 +324,10 @@ func (c *safeConfig) HasSection(key string) bool {
 				return true
 			}
 		} else if c.configSources[src].HasSection(key) {
-			return true
+			// If a given layer has found a node at the given key...
+			v := c.configSources[model.SourceDefault].Get(key)
+			// it is only a section if the default layer does not have a scalar leaf there
+			return v == nil || reflect.ValueOf(v).Kind() == reflect.Map
 		}
 	}
 	return false
@@ -815,6 +825,16 @@ func (c *safeConfig) AllSettingsWithoutDefault() map[string]interface{} {
 	// AllSettingsWithoutDefault returns a fresh map, so the caller may do with it
 	// as they please without holding the lock.
 	return c.Viper.AllSettingsWithoutDefault()
+}
+
+// AllSettingsWithoutSecrets falls back to AllSettings (viper has no secrets layer).
+func (c *safeConfig) AllSettingsWithoutSecrets() map[string]interface{} {
+	return c.AllSettings()
+}
+
+// AllSettingsWithoutDefaultOrSecrets falls back to AllSettingsWithoutDefault (viper has no secrets layer).
+func (c *safeConfig) AllSettingsWithoutDefaultOrSecrets() map[string]interface{} {
+	return c.AllSettingsWithoutDefault()
 }
 
 // AllSettingsBySource returns the settings from each source (file, env vars, ...)

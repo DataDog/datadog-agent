@@ -1,0 +1,30 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "ibm",
+    srcs = [
+        "diagnosis.go",
+        "ibm.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/cloudproviders/ibm",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/setup",
+        "//pkg/config/utils",
+        "//pkg/util/cachedfetch",
+        "//pkg/util/http",
+        "//pkg/util/log",
+        "@//comp/core/diagnose/def",
+    ],
+)
+
+go_test(
+    name = "ibm_test",
+    srcs = ["ibm_test.go"],
+    embed = [":ibm"],
+    gotags = ["test"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

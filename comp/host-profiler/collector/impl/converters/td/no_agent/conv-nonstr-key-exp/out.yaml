@@ -1,10 +1,12 @@
 exporters:
     otlphttp:
+        compression: zstd
         headers:
             dd-api-key: "12345"
             dd-evp-origin: host-profiler
             dd-evp-origin-version: 7.0.0-test
 processors:
+    ddhostname/default: {}
     resource/dd-profiler-internal-metadata:
         attributes:
             - action: upsert
@@ -37,6 +39,7 @@ service:
                 - otlphttp
             processors:
                 - resourcedetection/default
+                - ddhostname/default
                 - resource/dd-profiler-internal-metadata
             receivers:
                 - profiling

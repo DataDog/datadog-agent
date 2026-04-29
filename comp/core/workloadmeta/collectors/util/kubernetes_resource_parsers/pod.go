@@ -11,6 +11,7 @@ import (
 	"regexp"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/gpu"
@@ -35,10 +36,12 @@ func (p podParser) Parse(obj interface{}) workloadmeta.Entity {
 	pod := obj.(*corev1.Pod)
 	owners := make([]workloadmeta.KubernetesPodOwner, 0, len(pod.OwnerReferences))
 	for _, o := range pod.OwnerReferences {
+		gv, _ := schema.ParseGroupVersion(o.APIVersion)
 		owners = append(owners, workloadmeta.KubernetesPodOwner{
-			Kind: o.Kind,
-			Name: o.Name,
-			ID:   string(o.UID),
+			Kind:  o.Kind,
+			Name:  o.Name,
+			ID:    string(o.UID),
+			Group: gv.Group,
 		})
 	}
 
@@ -119,5 +122,7 @@ func (p podParser) Parse(obj interface{}) workloadmeta.Entity {
 		RuntimeClass:               rtcName,
 		GPUVendorList:              gpuVendorList,
 		Containers:                 containersList,
+		CreationTimestamp:          pod.CreationTimestamp.Time,
+		NodeName:                   pod.Spec.NodeName,
 	}
 }

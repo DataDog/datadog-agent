@@ -198,7 +198,8 @@ def _linux_headers_impl(rctx):
         rctx.file("defs.bzl", 'KERNEL_HEADER_DIRS = []\nKERNEL_ARCH = ""\n')
         return
 
-    arch = rctx.os.arch
+    # Allow overriding the detected host arch for cross-compilation.
+    arch = rctx.attr.target_arch if rctx.attr.target_arch else rctx.os.arch
     kernel_arch = _ARCH_MAP.get(arch)
     if not kernel_arch:
         fail("Unsupported architecture for kernel headers: " + arch)
@@ -273,7 +274,7 @@ KERNEL_ARCH = "{kernel_arch}"
 
 linux_headers_repo = repository_rule(
     implementation = _linux_headers_impl,
-    doc = "Discover host kernel headers for eBPF prebuilt compilation.",
+    doc = "Discover kernel headers for eBPF prebuilt compilation.",
     local = True,
     attrs = {
         "min_kernel_version": attr.string(
@@ -281,9 +282,17 @@ linux_headers_repo = repository_rule(
             doc = "Minimum kernel version for header discovery (e.g. '5.8.0'). " +
                   "Headers older than this are discarded. Set to empty string to disable.",
         ),
+        "target_arch": attr.string(
+            default = "",
+            doc = "Override detected host arch (e.g. 'aarch64', 'x86_64') for cross-compilation. " +
+                  "When empty, uses the host machine's architecture.",
+        ),
     },
 )
 
-linux_headers_extension = module_extension(
-    implementation = lambda ctx: linux_headers_repo(name = NAME),
-)
+def _linux_headers_ext_impl(_ctx):
+    linux_headers_repo(name = "linux_headers")
+    linux_headers_repo(name = "linux_headers_x86_64", target_arch = "x86_64")
+    linux_headers_repo(name = "linux_headers_aarch64", target_arch = "aarch64")
+
+linux_headers_extension = module_extension(implementation = _linux_headers_ext_impl)

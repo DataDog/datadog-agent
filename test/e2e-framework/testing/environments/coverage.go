@@ -15,6 +15,30 @@ type CoverageTargetSpec struct {
 	Required        bool
 }
 
+// CoverageBase provides shared coverage override logic. Embed it in any environment
+// that implements Coverageable so the override setter and application come for free.
+type CoverageBase struct {
+	// requiredOverrides holds per-agent overrides keyed by AgentName.
+	// A nil map means "use defaults for everything".
+	requiredOverrides map[string]bool
+}
+
+// SetCoverageRequiredOverride records per-agent overrides for the Required field.
+// Each key must match a CoverageTargetSpec.AgentName. Passing a nil map clears all overrides.
+func (c *CoverageBase) SetCoverageRequiredOverride(overrides map[string]bool) {
+	c.requiredOverrides = overrides
+}
+
+// applyCoverageOverrides mutates targets in place, replacing Required for any
+// agent whose name appears in the override map.
+func (c *CoverageBase) applyCoverageOverrides(targets []CoverageTargetSpec) {
+	for i := range targets {
+		if required, ok := c.requiredOverrides[targets[i].AgentName]; ok {
+			targets[i].Required = required
+		}
+	}
+}
+
 func updateErrorOutput(target CoverageTargetSpec, outStr []string, errs []error, errorMessage string) ([]string, []error) {
 	outStr = append(outStr, fmt.Sprintf("[WARN] %s: %s", target.AgentName, errorMessage))
 	if target.Required {

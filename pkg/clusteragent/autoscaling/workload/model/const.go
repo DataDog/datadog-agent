@@ -8,6 +8,16 @@
 package model
 
 const (
+	// PreviewAnnotationKey is the annotation key used to enable preview/alpha autoscaling features.
+	// Its value is a JSON object where each key enables a specific feature flag, e.g.:
+	//   autoscaling.datadoghq.com/preview: '{"burstable":true}'
+	// WARNING: preview features are experimental. Any option may be changed or
+	// removed without notice in a future version.
+	// Known keys:
+	//   "burstable" (bool) — when true, CPU limits are removed from containers so they can burst
+	//                        beyond their CPU request when spare capacity is available on the node.
+	PreviewAnnotationKey = "autoscaling.datadoghq.com/preview"
+
 	// RecommendationIDAnnotation is the annotation key used to store the recommendation ID
 	RecommendationIDAnnotation = "autoscaling.datadoghq.com/rec-id"
 	// AutoscalerIDAnnotation is the annotation key used to store the autoscaler ID

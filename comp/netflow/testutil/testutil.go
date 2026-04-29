@@ -26,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder"
+	forwardermock "github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/mock"
 	"github.com/DataDog/datadog-agent/comp/netflow/payload"
 )
 
@@ -52,7 +52,7 @@ func SendUDPPacket(port uint16, data []byte) error {
 
 // ExpectNetflow5Payloads expects the payloads that should result from our
 // recorded pcap files.
-func ExpectNetflow5Payloads(t *testing.T, mockEpForwarder forwarder.MockComponent) {
+func ExpectNetflow5Payloads(t *testing.T, mockEpForwarder forwardermock.MockComponent) {
 	events := [][]byte{
 		[]byte(`
 {
@@ -166,7 +166,7 @@ func ExpectNetflow5Payloads(t *testing.T, mockEpForwarder forwarder.MockComponen
 
 // ExpectPayloadWithAdditionalFields expects the payloads that should result from our
 // recorded Netflow9 pcap file with inverted source and destination ports and icmp_type custom field.
-func ExpectPayloadWithAdditionalFields(t *testing.T, mockEpForwarder forwarder.MockComponent) {
+func ExpectPayloadWithAdditionalFields(t *testing.T, mockEpForwarder forwardermock.MockComponent) {
 	events := [][]byte{
 		[]byte(`
 {

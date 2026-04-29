@@ -30,6 +30,8 @@ import (
 type ContainerContextSerializer struct {
 	// Container ID
 	ID string `json:"id,omitempty"`
+	// Source of the container entry (event or procfs)
+	Source string `json:"source,omitempty"`
 	// Creation time of the container
 	CreatedAt *utils.EasyjsonTime `json:"created_at,omitempty"`
 	// Variable values
@@ -43,6 +45,10 @@ type CGroupContextSerializer struct {
 	ID string `json:"id,omitempty"`
 	// CGroup manager
 	Manager string `json:"manager,omitempty"`
+	// Source of the cgroup entry (event or procfs)
+	Source string `json:"source,omitempty"`
+	// Timestamp of the creation of the cgroup
+	CreatedAt *utils.EasyjsonTime `json:"created_at,omitempty"`
 	// Variable values
 	Variables Variables `json:"variables,omitempty"`
 }

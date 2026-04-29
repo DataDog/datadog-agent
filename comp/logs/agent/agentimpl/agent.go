@@ -23,9 +23,11 @@ import (
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
 	"github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
@@ -39,7 +41,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
-	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -83,8 +84,14 @@ type dependencies struct {
 	Auditor            auditor.Component
 	WMeta              option.Option[workloadmeta.Component]
 	SchedulerProviders []schedulers.Scheduler `group:"log-agent-scheduler"`
+<<<<<<< HEAD
 	Tagger      tagger.Component
 	Compression logscompression.Component
+=======
+	Tagger             tagger.Component
+	Compression        logscompression.Component
+	Secrets            secrets.Component
+>>>>>>> main
 }
 
 type provides struct {
@@ -106,6 +113,7 @@ type logAgent struct {
 	inventoryAgent inventoryagent.Component
 	hostname       hostname.Component
 	tagger         tagger.Component
+	secrets        secrets.Component
 
 	sources                   *sources.LogSources
 	services                  *service.Services
@@ -160,8 +168,14 @@ func newLogsAgent(deps dependencies) provides {
 			wmeta:              deps.WMeta,
 			schedulerProviders: deps.SchedulerProviders,
 			integrationsLogs:   integrationsLogs,
+<<<<<<< HEAD
 			tagger:      deps.Tagger,
 			compression: deps.Compression,
+=======
+			tagger:             deps.Tagger,
+			compression:        deps.Compression,
+			secrets:            deps.Secrets,
+>>>>>>> main
 		}
 		deps.Lc.Append(fx.Hook{
 			OnStart: logsAgent.start,

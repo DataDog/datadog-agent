@@ -1,5 +1,20 @@
 load("@rules_go//go:def.bzl", "go_binary")
 
+exports_files(
+    [
+        "oom-kill.go",
+        "tcp-queue-length.go",
+        "usm.go",
+        "shared-libraries.go",
+        "conntrack.go",
+        "tracer.go",
+        "offsetguess-test.go",
+        "runtime-security.go",
+        "gpu.go",
+    ],
+    visibility = ["//pkg/ebpf/bytecode:__pkg__"],
+)
+
 # Hand-written: rules_go respects //go:build ignore, so strip it before compiling.
 genrule(
     name = "integrity_src",

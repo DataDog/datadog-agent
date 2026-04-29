@@ -1,6 +1,7 @@
 ---
 .cws_instrumentation-build_common:
   stage: binary_build
+  timeout: 20m
   needs: []
   script:
     - dda inv -- check-go-version
@@ -41,6 +42,7 @@ cws_instrumentation-build_arm64:
 
 .cws_instrumentation-build_injector_common:
   stage: binary_build
+  timeout: 20m
   needs: []
   script:
     - dda inv -- check-go-version

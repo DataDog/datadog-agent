@@ -26,13 +26,15 @@ import (
 
 const (
 	eventSetMask                  = uint64(nvml.EventTypeXidCriticalError)
-	eventSetWaitTimeout           = 1000 * time.Millisecond
+	defaultEventSetWaitTimeout    = 1000 * time.Millisecond
 	devicePendingEventQueueSize   = 1000
 	deviceMaxRegistrationAttempts = 5
 	xidOriginDriver               = "driver"
 	xidOriginHardware             = "hardware"
 	xidOriginUnknown              = "unknown"
 )
+
+var eventSetWaitTimeout = defaultEventSetWaitTimeout
 
 // helps mocking an actual events gatherer in tests
 type deviceEventsCollectorCache interface {

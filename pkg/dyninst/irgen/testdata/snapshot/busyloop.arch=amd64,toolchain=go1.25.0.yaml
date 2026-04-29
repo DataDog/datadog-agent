@@ -7,18 +7,20 @@ Probes:
       template: ""
       segments: []
       captureSnapshot: true
-      subprogram: {subprogram: 1}
-      events:
-        - Kind: Entry
-          Type: 115 EventRootType Probe[main.noop]
-          InjectionPoints: [{PC: "0x4ae5e0", Frameless: true}]
-          Condition: null
+      instances:
+        - subprogram: {subprogram: 1}
+          events:
+            - Kind: Entry
+              Type: 115 EventRootType Probe[main.noop]
+              InjectionPoints: [{PC: "0x4ae5e0", Frameless: true}]
+              Condition: null
 Subprograms:
     - ID: 1
       Name: main.noop
       OutOfLinePCRanges: [0x4ae5e0..0x4ae5e1]
       InlinePCRanges: []
       Variables: []
+      DictRegister: null
 Types:
     - __kind: PointerType
       ID: 63
@@ -1406,6 +1408,8 @@ Types:
 MaxTypeID: 115
 Issues: []
 GoModuledataInfo: {FirstModuledataAddr: "0x58b3a0", TypesOffset: 296}
+GoMapHashInfo: {UseAeshashAddr: "0x5b4dca", AeskeyschedAddr: "0x5b5460"}
 CommonTypes:
     G: 22 StructureType runtime.g
     M: 29 StructureType runtime.m
+IsARM64: false
