@@ -34,6 +34,56 @@ type BundleInheritedAllowedAction struct {
 	ExpectedPrefix string
 }
 
+// defaultCommonActionFQNs is a list of action FQNs that are enabled by default
+// regardless of the agent flavor.
+var defaultCommonActionFQNs = []string{
+	// Network path
+	"com.datadoghq.remoteaction.networks.runNetworkPath",
+	// Remote shell
+	"com.datadoghq.remoteaction.rshell.runCommand",
+}
+
+// DefaultClusterAgentActionFQNs is a list of action FQNs that are enabled by default
+// when the agent runs as a Cluster Agent flavor.
+// Users can opt out by setting private_action_runner.default_actions_enabled to false.
+var DefaultClusterAgentActionFQNs = append([]string{
+	// k8s apps — Deployments
+	"com.datadoghq.kubernetes.apps.listDeployment",
+	"com.datadoghq.kubernetes.apps.getDeployment",
+	// k8s apps — DaemonSets
+	"com.datadoghq.kubernetes.apps.getDaemonSet",
+	"com.datadoghq.kubernetes.apps.listDaemonSet",
+	// k8s apps — StatefulSets
+	"com.datadoghq.kubernetes.apps.getStatefulSet",
+	"com.datadoghq.kubernetes.apps.listStatefulSet",
+	// k8s core — Pods
+	"com.datadoghq.kubernetes.core.getPod",
+	"com.datadoghq.kubernetes.core.listPod",
+	// k8s core — ConfigMaps
+	"com.datadoghq.kubernetes.core.getConfigMap",
+	"com.datadoghq.kubernetes.core.listConfigMap",
+	// k8s core — Services
+	"com.datadoghq.kubernetes.core.getService",
+	"com.datadoghq.kubernetes.core.listService",
+	// k8s core — Nodes
+	"com.datadoghq.kubernetes.core.getNode",
+	"com.datadoghq.kubernetes.core.listNode",
+	// k8s core — Events (diagnostic context)
+	"com.datadoghq.kubernetes.core.listEvent",
+	// k8s core — Namespaces
+	"com.datadoghq.kubernetes.core.listNamespace",
+	// k8s batch — Jobs
+	"com.datadoghq.kubernetes.batch.getJob",
+	"com.datadoghq.kubernetes.batch.listJob",
+	"com.datadoghq.kubernetes.batch.getCronJob",
+	"com.datadoghq.kubernetes.batch.listCronJob",
+}, defaultCommonActionFQNs...)
+
+// DefaultActionFQNs is a list of action FQNs that are enabled by default
+// for non-Cluster-Agent flavors.
+// Users can opt out by setting private_action_runner.default_actions_enabled to false.
+var DefaultActionFQNs = append([]string{}, defaultCommonActionFQNs...)
+
 // BundleInheritedAllowedActions is a list of actions that are automatically allowed
 // if at least one other action matching their expected prefix is allowed
 var BundleInheritedAllowedActions = []BundleInheritedAllowedAction{
@@ -41,7 +91,6 @@ var BundleInheritedAllowedActions = []BundleInheritedAllowedAction{
 	{ActionFQN: "com.datadoghq.kubernetes.core.testConnection", ExpectedPrefix: "com.datadoghq.kubernetes"},
 	{ActionFQN: "com.datadoghq.script.testConnection", ExpectedPrefix: "com.datadoghq.script"},
 	{ActionFQN: "com.datadoghq.script.enrichScript", ExpectedPrefix: "com.datadoghq.script"},
-	{ActionFQN: "com.datadoghq.ddagent.testConnection", ExpectedPrefix: "com.datadoghq.ddagent"},
 	{ActionFQN: "com.datadoghq.http.testConnection", ExpectedPrefix: "com.datadoghq.http"},
 	{ActionFQN: "com.datadoghq.remoteaction.testConnection", ExpectedPrefix: "com.datadoghq.remoteaction"},
 }

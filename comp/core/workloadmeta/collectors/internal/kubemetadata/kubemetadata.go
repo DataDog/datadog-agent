@@ -15,10 +15,10 @@ import (
 	"go.uber.org/fx"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
+	config "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
@@ -34,8 +34,15 @@ const (
 	namespaceMetadataTTL = 1 * time.Hour
 )
 
+type dependencies struct {
+	fx.In
+
+	Config config.Component
+}
+
 type collector struct {
 	id                          string
+	cfg                         config.Component
 	store                       workloadmeta.Component
 	catalog                     workloadmeta.AgentType
 	seen                        map[workloadmeta.EntityID]struct{}
@@ -53,10 +60,11 @@ type collector struct {
 }
 
 // NewCollector returns a CollectorProvider to build a kubemetadata collector, and an error if any.
-func NewCollector() (workloadmeta.CollectorProvider, error) {
+func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
 			id:                collectorID,
+			cfg:               deps.Config,
 			seen:              make(map[workloadmeta.EntityID]struct{}),
 			namespaceLastSeen: make(map[string]time.Time),
 			catalog:           workloadmeta.NodeAgent,
@@ -85,7 +93,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 
 	// If DCA is enabled and can't communicate with the DCA, let worloadmeta retry.
 	var errDCA error
-	if pkgconfigsetup.Datadog().GetBool("cluster_agent.enabled") {
+	if c.cfg.GetBool("cluster_agent.enabled") {
 		c.dcaEnabled = false
 		c.dcaClient, errDCA = clusteragent.GetClusterAgentClient()
 		if errDCA != nil {
@@ -97,7 +105,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 			}
 
 			// We return the permanent fail only if fallback is disabled
-			if retry.IsErrPermaFail(errDCA) && !pkgconfigsetup.Datadog().GetBool("cluster_agent.tagging_fallback") {
+			if retry.IsErrPermaFail(errDCA) && !c.cfg.GetBool("cluster_agent.tagging_fallback") {
 				return errDCA
 			}
 
@@ -108,7 +116,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 	}
 
 	// Fallback to local metamapper if DCA not enabled, or in permafail state with fallback enabled.
-	if !pkgconfigsetup.Datadog().GetBool("cluster_agent.enabled") || errDCA != nil {
+	if !c.cfg.GetBool("cluster_agent.enabled") || errDCA != nil {
 		// Using GetAPIClient as error returned follows the IsErrWillRetry/IsErrPermaFail
 		// Workloadmeta will retry calling this method until permafail
 		c.apiClient, err = apiserver.GetAPIClient()
@@ -117,21 +125,21 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 		}
 	}
 
-	c.updateFreq = time.Duration(pkgconfigsetup.Datadog().GetInt("kubernetes_metadata_tag_update_freq")) * time.Second
+	c.updateFreq = time.Duration(c.cfg.GetInt("kubernetes_metadata_tag_update_freq")) * time.Second
 
-	metadataAsTags := configutils.GetMetadataAsTags(pkgconfigsetup.Datadog())
+	metadataAsTags := configutils.GetMetadataAsTags(c.cfg)
 	c.collectNamespaceLabels = len(metadataAsTags.GetNamespaceLabelsAsTags()) > 0
 	c.collectNamespaceAnnotations = len(metadataAsTags.GetNamespaceAnnotationsAsTags()) > 0
-	c.ignoreServiceReadiness = pkgconfigsetup.Datadog().GetBool("kubernetes_kube_service_ignore_readiness")
+	c.ignoreServiceReadiness = c.cfg.GetBool("kubernetes_kube_service_ignore_readiness")
 
-	if c.dcaEnabled && pkgconfigsetup.Datadog().GetBool("kubernetes_metadata_streaming") {
+	if c.dcaEnabled && c.cfg.GetBool("kubernetes_metadata_streaming") {
 		nodeName, nodeNameErr := c.kubeUtil.GetNodename(ctx)
 		if nodeNameErr != nil {
 			log.Warnf("Could not get node name, kube metadata streaming disabled: %v", nodeNameErr)
 		} else {
 			c.streaming = newStreamingProvider(
 				nodeName,
-				pkgconfigsetup.Datadog(),
+				c.cfg,
 				c.store,
 				c.ignoreServiceReadiness,
 				c.collectNamespaceLabels,

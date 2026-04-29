@@ -16,9 +16,10 @@ import (
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	logutil "github.com/DataDog/datadog-agent/pkg/util/log"
 	ddos "github.com/DataDog/datadog-agent/pkg/util/os"
@@ -30,8 +31,8 @@ var eventConsumerTelemetry = struct {
 	eventsReceived telemetry.Counter
 	processCount   telemetry.Gauge
 }{
-	telemetry.NewCounter(eventConsumerSubsystem, "events_received", []string{"event_type"}, ""),
-	telemetry.NewGauge(eventConsumerSubsystem, "process_count", nil, ""),
+	telemetryimpl.GetCompatComponent().NewCounter(eventConsumerSubsystem, "events_received", []string{"event_type"}, ""),
+	telemetryimpl.GetCompatComponent().NewGauge(eventConsumerSubsystem, "process_count", nil, ""),
 }
 
 var _ eventmonitor.EventConsumerHandler = &directSenderConsumer{}

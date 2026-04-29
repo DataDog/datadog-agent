@@ -48,6 +48,7 @@ go_test(
         "users_test.go",
     ],
     embed = [":winutil"],
+    gotags = ["test"],
     target_compatible_with = ["@platforms//os:windows"],  # keep
     deps = select({
         "@rules_go//go/platform:windows": [

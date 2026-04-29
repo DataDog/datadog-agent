@@ -16,5 +16,5 @@ procmgr_rust_tests:
   script:
     - cd pkg/procmgr/rust
     - cargo fmt --check
-    - cargo clippy --all-targets -- -D warnings
-    - cargo test --all-targets
+    - cargo clippy --all-targets --features test-helpers -- -D warnings
+    - cargo test --all-targets --features test-helpers

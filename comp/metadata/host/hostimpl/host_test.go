@@ -7,6 +7,7 @@ package hostimpl
 
 import (
 	"bytes"
+	"context"
 	"path/filepath"
 	"testing"
 	"time"
@@ -20,8 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/metadata/resources"
-	"github.com/DataDog/datadog-agent/comp/metadata/resources/resourcesimpl"
+	resourcesmock "github.com/DataDog/datadog-agent/comp/metadata/resources/mock"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -32,8 +32,8 @@ func TestNewHostProviderDefaultIntervals(t *testing.T) {
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMock(t) }),
-			resourcesimpl.MockModule(),
-			fx.Replace(resources.MockParams{Data: nil}),
+			resourcesmock.MockModule(),
+			fx.Replace(resourcesmock.MockParams{Data: nil}),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
 			hostnameimpl.MockModule(),
 		),
@@ -119,8 +119,8 @@ func TestNewHostProviderIntervalValidation(t *testing.T) {
 					t,
 					fx.Provide(func() log.Component { return logmock.New(t) }),
 					fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
-					resourcesimpl.MockModule(),
-					fx.Replace(resources.MockParams{Data: nil}),
+					resourcesmock.MockModule(),
+					fx.Replace(resourcesmock.MockParams{Data: nil}),
 					fx.Provide(func() serializer.MetricSerializer { return nil }),
 					hostnameimpl.MockModule(),
 				),
@@ -146,8 +146,8 @@ func TestBackoffWhenEarlyIntervalEqualsCollectionInterval(t *testing.T) {
 	ret := newHostProvider(fxutil.Test[dependencies](t,
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
-		resourcesimpl.MockModule(),
-		fx.Replace(resources.MockParams{Data: nil}),
+		resourcesmock.MockModule(),
+		fx.Replace(resourcesmock.MockParams{Data: nil}),
 		fx.Provide(func() serializer.MetricSerializer { return nil }),
 		hostnameimpl.MockModule(),
 	))
@@ -165,8 +165,8 @@ func TestFlareProvider(t *testing.T) {
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMock(t) }),
-			resourcesimpl.MockModule(),
-			fx.Replace(resources.MockParams{Data: nil}),
+			resourcesmock.MockModule(),
+			fx.Replace(resourcesmock.MockParams{Data: nil}),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
 			hostnameimpl.MockModule(),
 		),
@@ -174,7 +174,7 @@ func TestFlareProvider(t *testing.T) {
 
 	hostProvider := ret.Comp.(*host)
 	fbMock := flarehelpers.NewFlareBuilderMock(t, false)
-	hostProvider.fillFlare(fbMock)
+	hostProvider.fillFlare(context.Background(), fbMock)
 
 	fbMock.AssertFileExists(filepath.Join("metadata", "host.json"))
 }
@@ -185,8 +185,8 @@ func TestStatusHeaderProvider(t *testing.T) {
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMock(t) }),
-			resourcesimpl.MockModule(),
-			fx.Replace(resources.MockParams{Data: nil}),
+			resourcesmock.MockModule(),
+			fx.Replace(resourcesmock.MockParams{Data: nil}),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
 			hostnameimpl.MockModule(),
 		),

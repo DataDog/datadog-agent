@@ -89,9 +89,13 @@ func (pa podPatcher) ApplyRecommendations(pod *corev1.Pod) (bool, error) {
 		return patched, nil
 	}
 
-	// Patching the pod with the recommendations
-	if pod.Annotations[model.RecommendationIDAnnotation] != autoscaler.ScalingValues().Vertical.ResourcesHash {
-		pod.Annotations[model.RecommendationIDAnnotation] = autoscaler.ScalingValues().Vertical.ResourcesHash
+	// Patching the pod with the recommendations.
+	// In burstable mode, applyVerticalConstraints has already stamped the CPU-limit remove
+	// sentinel (-1) on each container recommendation, so ResourcesHash naturally encodes the
+	// burstable state — no extra suffix is needed here.
+	effectiveRecommendationID := autoscaler.ScalingValues().Vertical.ResourcesHash
+	if pod.Annotations[model.RecommendationIDAnnotation] != effectiveRecommendationID {
+		pod.Annotations[model.RecommendationIDAnnotation] = effectiveRecommendationID
 		patched = true
 	}
 
@@ -233,15 +237,22 @@ func patchContainerResources(reco datadoghqcommon.DatadogPodAutoscalerContainerR
 	if cont.Resources.Requests == nil {
 		cont.Resources.Requests = corev1.ResourceList{}
 	}
-	for resource, limit := range reco.Limits {
-		if limit != cont.Resources.Limits[resource] {
-			cont.Resources.Limits[resource] = limit
+	for resourceName, limit := range reco.Limits {
+		if limit.Sign() < 0 {
+			// Negative value (removeLimitSentinel) is set by applyVerticalConstraints in burstable
+			// mode, meaning "remove this limit from the container".
+			if _, hasCurrent := cont.Resources.Limits[resourceName]; hasCurrent {
+				delete(cont.Resources.Limits, resourceName)
+				patched = true
+			}
+		} else if cont.Resources.Limits[resourceName] != limit {
+			cont.Resources.Limits[resourceName] = limit
 			patched = true
 		}
 	}
-	for resource, request := range reco.Requests {
-		if request != cont.Resources.Requests[resource] {
-			cont.Resources.Requests[resource] = request
+	for resourceName, request := range reco.Requests {
+		if cont.Resources.Requests[resourceName] != request {
+			cont.Resources.Requests[resourceName] = request
 			patched = true
 		}
 	}

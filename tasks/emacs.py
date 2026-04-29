@@ -31,7 +31,8 @@ def set_buildtags(
         build_include=build_include,
         build_exclude=build_exclude,
         flavor=flavor,
+        platform="linux",
     )
 
     with open(".dir-locals.el", "w") as f:
-        f.write(f'((go-mode . ((lsp-go-build-flags . ["-tags" "{",".join(sorted(use_tags))}"]))))\n')
+        f.write(f'((go-mode . ((lsp-go-build-flags . ["-tags" "{",".join(sorted(use_tags))}" "-buildvcs=false"]))))\n')

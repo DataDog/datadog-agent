@@ -241,6 +241,46 @@ def submit_gensim_eks(
         if answer != "y":
             raise Exit("Aborted.")
 
+        if pinned_sha:
+            rel_path = ep_dir.relative_to(gensim_repo_path)
+            sha_buf = StringIO()
+            result = ctx.run(
+                f"git -C {gensim_repo_path} rev-parse HEAD:{rel_path}",
+                out_stream=sha_buf,
+                hide="out",
+                warn=True,
+            )
+            if not result.ok:
+                tool.warn(f"Could not resolve SHA for '{ep_name}' (directory may have moved). Skipping SHA check.")
+            else:
+                actual_sha = sha_buf.getvalue().strip()
+                if actual_sha != pinned_sha:
+                    changed_episodes.append((ep_name, pinned_sha, actual_sha, rel_path))
+
+    if changed_episodes:
+        tool.warn("\nThe following episodes have changed since the manifest was pinned:")
+        for ep_name, pinned_sha, actual_sha, _ in changed_episodes:
+            tool.warn(f"\n  {ep_name}")
+            diff_buf = StringIO()
+            ctx.run(
+                f"git -C {gensim_repo_path} diff-tree -r {pinned_sha} {actual_sha}",
+                out_stream=diff_buf,
+                hide="out",
+                warn=True,
+            )
+            for line in diff_buf.getvalue().strip().splitlines():
+                # Format: :<old_mode> <new_mode> <old_sha> <new_sha> <status>\t<path>
+                parts = line.split("\t", 1)
+                if len(parts) == 2:
+                    tool.warn(f"    modified: {parts[1]}")
+        tool.warn(
+            "\nResults may not be comparable to previous runs. "
+            "Run `inv aws.eks.gensim.update-manifest-shas` after a successful run to re-pin."
+        )
+        answer = input("\nContinue anyway? [y/N]: ").strip().lower()
+        if answer != "y":
+            raise Exit("Aborted.")
+
     # ── 3. Capture gensim-episodes git SHA ────────────────────────────────
     sha_buf = StringIO()
     ctx.run(
@@ -314,14 +354,15 @@ def submit_gensim_eks(
 
     # ── 7. Compute ECR registry URL if any episode has docker-compose.yaml
     ecr_registry = ""
-    for ep_name, _, _sha in episode_pairs:
-        ep_dir = _find_episode_dir(gensim_repo_path, ep_name)
-        if (ep_dir / "docker-compose.yaml").exists():
-            ecr_registry, _ = _get_ecr_registry(ctx, aws_wrapper)
-            tool.info(f"ECR registry: {ecr_registry}")
-            if skip_build:
-                tool.info("Skipping episode image build (--skip-build). Using cached ECR images.")
-            break
+    if skip_build:
+        tool.info("Skipping episode image build (--skip-build). Using cached ECR images.")
+    else:
+        for ep_name, _, _sha in episode_pairs:
+            ep_dir = _find_episode_dir(gensim_repo_path, ep_name)
+            if (ep_dir / "docker-compose.yaml").exists():
+                ecr_registry, _ = _get_ecr_registry(ctx, aws_wrapper)
+                tool.info(f"ECR registry: {ecr_registry}")
+                break
 
     # ── 8. Deploy via Pulumi ──────────────────────────────────────────────
     extra_flags = {

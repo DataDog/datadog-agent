@@ -176,13 +176,27 @@ func TestMultilineParserLimit(t *testing.T) {
 	logMessage := message.NewMessage([]byte(header+"aaaa\\n"), nil, "", 0)
 	lineParser.process(logMessage, 13)
 
+	// oversized chunks: raw content (no flag bytes), IsTruncated=true
+	// SingleLineHandler adds ...TRUNCATED... markers downstream
 	for i := 0; i < 10; i++ {
-		message := <-lineHandler.ch
-		assert.Equal(t, line, string(message.GetContent()))
-		assert.Equal(t, message.RawDataLen, 7+len(line))
+		msg := <-lineHandler.ch
+		assert.Equal(t, line, string(msg.GetContent()))
+		assert.True(t, msg.ParsingExtra.IsTruncated)
+		assert.Equal(t, msg.RawDataLen, 7+len(line))
 	}
 
-	message := <-lineHandler.ch
-	assert.Equal(t, "aaaa", string(message.GetContent()))
-	assert.Equal(t, message.RawDataLen, 13)
+	// final short chunk: raw content, IsTruncated=false (not oversized itself)
+	msg := <-lineHandler.ch
+	assert.Equal(t, "aaaa", string(msg.GetContent()))
+	assert.False(t, msg.ParsingExtra.IsTruncated)
+	assert.Equal(t, msg.RawDataLen, 13)
+
+	// next normal message stays clean
+	logMessage = message.NewMessage([]byte(header+"clean\\n"), nil, "", 0)
+	lineParser.process(logMessage, 14)
+
+	msg = <-lineHandler.ch
+	assert.Equal(t, "clean", string(msg.GetContent()))
+	assert.False(t, msg.ParsingExtra.IsTruncated)
+	assert.Equal(t, msg.RawDataLen, 14)
 }

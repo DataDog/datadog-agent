@@ -44,24 +44,19 @@ typedef struct {
     tls_info_t info;
 } tls_info_wrapper_t;
 
-// 48-bit milliseconds timestamp
-typedef struct {
-    __u16 timestamp[3];
-} time_ms_t;
-
 typedef struct {
     __u64 sent_bytes;
     __u64 recv_bytes;
     __u32 sent_packets;
     __u32 recv_packets;
-    time_ms_t timestamp_ms;
+    __u64 timestamp;
     // duration of the connection.
     // this is initialized to the current unix
     // timestamp when a conn_stats_ts_t is created.
     // the field remains unchanged until this object
     // is removed from the conn_stats map when it
     // is updated with (CURRENT_TIME - duration)
-    time_ms_t duration_ms;
+    __u64 duration;
     // "cookie" that uniquely identifies
     // a conn_stas_ts_t. This is used
     // in user space to distinguish between
@@ -130,36 +125,9 @@ typedef struct {
     conn_stats_ts_t conn_stats;
 } conn_t;
 
-// Must match the number of conn_t objects embedded in the batch_t struct
-#ifndef CONN_CLOSED_BATCH_SIZE
-#define CONN_CLOSED_BATCH_SIZE 4
-#endif
-
-// Container for batching closed connection writes to perf/ring buffer.
-// Metadata is at the front so the perf buffer path (older kernels) can send a
-// prefix of metadata + 3 connections without including the unused 4th slot.
-// The eBPF verifier doesn't allow arbitrary index access, hence the named fields.
-typedef struct {
-    __u64 id;
-    __u32 cpu;
-    __u16 len;
-    __u16 _pad;
-    conn_t c0;
-    conn_t c1;
-    conn_t c2;
-    conn_t c3;
-} batch_t;
-
-// Size of batch metadata prefix plus 3 connections. Used for stack-copy on
-// the perf buffer path where the full batch (4 conns) exceeds 512 bytes.
-// Must equal offsetof(batch_t, c3): header (16) + 3 * sizeof(conn_t).
-#define PERF_BATCH_COPY_SIZE (16 + 3 * sizeof(conn_t))
-
 // Telemetry names
 typedef struct {
     __u64 tcp_sent_miscounts;
-    __u64 unbatched_tcp_close;
-    __u64 unbatched_udp_close;
     __u64 udp_sends_processed;
     __u64 udp_sends_missed;
     __u64 udp_dropped_conns;

@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/dwarfutil"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/loclist"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gosym"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/gosymname"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/network/go/dwarfutils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -384,8 +385,6 @@ type packagesIterator struct {
 	// The compile unit currently being processed by explore* functions.
 	currentCompileUnit compileUnitInfo
 
-	abstractFunctions map[dwarf.Offset]*abstractFunction
-
 	// typesCache will accumulate types as we look them up to resolve variables
 	// and functions. The cache is indexed by DWARF offset.
 	typesCache *dwarfutils.TypeFinder
@@ -402,6 +401,77 @@ type packagesIterator struct {
 	// Information about compile units, indexed by the unit's offset (the offset
 	// of the corresponding DIE).
 	offsetToUnit map[dwarf.Offset]dwarfutil.CompileUnitHeader
+	// sortedCUOffsets is the sorted slice of CU offsets from offsetToUnit,
+	// used for binary search to find which CU contains a given DWARF offset.
+	sortedCUOffsets []dwarf.Offset
+
+	// indexes are built during a lightweight pre-scan of all DWARF
+	// compile units. They let us find displaced generic shape functions,
+	// struct types, and inline abstract definitions and their instances
+	// regardless of compile-unit ordering. See prePassIndexes for the
+	// per-index details.
+	indexes prePassIndexes
+	// cuContextCache caches compile-unit context (file table, etc.) for
+	// compile units other than the one currently being walked. Populated
+	// lazily when a foreign compile unit is needed — to process a
+	// displaced generic function, to parse an abstract inline definition
+	// that lives in a different compile unit than its owning package, or
+	// to replay an inline instance whose compile unit has already been
+	// walked.
+	cuContextCache map[dwarf.Offset]*cachedCUContext
+}
+
+// prePassIndexes bundles the four indexes built by buildPrePassIndexes
+// during a lightweight pre-scan of the DWARF, used at iteration time to
+// resolve functions and types that the compiler placed in a different CU
+// than their source package.
+//
+// The name-keyed indexes (genericFuncs, genericTypes, inlineDefs) filter
+// by interestingPackage at collection time since the qualified name
+// encodes the owning package. inlineInstances cannot filter at
+// collection time — its key is a raw DWARF offset — so it records every
+// inline instance; lookups only ever originate from abstract-origin
+// offsets that appear in inlineDefs, so uninteresting packages are
+// never reached.
+type prePassIndexes struct {
+	// genericFuncs maps canonicalized qualified names to DWARF offsets
+	// for generic shape Subprograms whose body is out-of-line (not
+	// DW_AT_inline). Used to find generic functions placed in a foreign
+	// CU by the compiler.
+	genericFuncs funcOffsetByNameIndex
+	// genericTypes maps canonicalized qualified type names to DWARF
+	// offsets for generic struct type instantiations. Used to populate
+	// fields on displaced generic types.
+	genericTypes funcOffsetByNameIndex
+	// inlineDefs maps canonicalized qualified names to DWARF offsets for
+	// every Subprogram with DW_AT_inline = DW_INL_inlined (both generic
+	// and non-generic). Used to find a package's abstract function
+	// definitions at emission time.
+	inlineDefs funcOffsetByNameIndex
+	// inlineInstances maps abstract-origin DWARF offsets to instance
+	// DWARF offsets for every DW_TAG_inlined_subroutine and every
+	// out-of-line Subprogram with DW_AT_abstract_origin. Used at emission
+	// time to replay every instance of an abstract function regardless of
+	// which CU it lives in.
+	inlineInstances funcOffsetByOriginIndex
+}
+
+// close releases any resources owned by the indexes (e.g. mmap regions
+// for on-disk variants). Safe to call multiple times.
+func (p *prePassIndexes) close() {
+	if p.genericFuncs != nil {
+		_ = p.genericFuncs.Close()
+	}
+	if p.genericTypes != nil {
+		_ = p.genericTypes.Close()
+	}
+	if p.inlineDefs != nil {
+		_ = p.inlineDefs.Close()
+	}
+	if p.inlineInstances != nil {
+		_ = p.inlineInstances.Close()
+	}
+	*p = prePassIndexes{}
 }
 
 type compileUnitInfo struct {
@@ -415,6 +485,41 @@ type compileUnitInfo struct {
 	outputPkg *Package
 }
 
+// cachedCUContext stores a compile unit's context (file table, name,
+// length, header entry) so that we can swap b.currentCompileUnit to a
+// foreign compile unit when parsing displaced generic functions,
+// abstract inline definitions, or inline instances that live in a
+// different compile unit than the one currently being walked.
+type cachedCUContext struct {
+	entry  *dwarf.Entry
+	name   string
+	length uint64
+	files  []string
+}
+
+// hasFunctionQName returns true if the compile unit's output package already
+// has a function with the given qualified name. Used to dedup generic shape
+// instantiations that canonicalize to the same name.
+func (c *compileUnitInfo) hasFunctionQName(qname string) bool {
+	return slices.ContainsFunc(c.outputPkg.Functions, func(f Function) bool {
+		return f.QualifiedName == qname
+	})
+}
+
+// addFunctionToPackage adds a function to the current compile unit's output
+// package if the function's package matches. Functions belonging to a
+// different package are dropped; generic shape functions whose out-of-line
+// body lives in a foreign CU are picked up by augmentWithDisplacedGenerics.
+func (b *packagesIterator) addFunctionToPackage(function Function) {
+	sym := gosymname.Parse(function.QualifiedName, gosymname.SourceDWARF)
+	funcPkg := sym.Package()
+	if funcPkg != "" && funcPkg != b.currentCompileUnit.name {
+		return
+	}
+	b.currentCompileUnit.outputPkg.Functions = append(
+		b.currentCompileUnit.outputPkg.Functions, function)
+}
+
 // abstractFunction aggregates data for an inlined function.
 type abstractFunction struct {
 	// Set on initialization, by parsing abstract definition.
@@ -425,14 +530,14 @@ type abstractFunction struct {
 	qualifiedName string
 	startLine     int
 
-	// Updated when inlined instances are encountered.
+	// Updated as inline instances are replayed.
 	file            string
 	endLine         uint32
 	injectibleLines []LineRange
 
-	// The variables map is generated by parsing abstract definition.
-	// The AvailableLineRanges field is updated when inlined instances are
-	// encountered.
+	// The variables map is generated by parsing the abstract definition.
+	// The AvailableLineRanges field is updated as inline instances are
+	// replayed.
 	variables map[dwarf.Offset]*abstractVariable
 }
 
@@ -504,12 +609,25 @@ func (p *Package) maybeAddType(t godwarf.Type) error {
 		unescapedName = t.Common().Name
 	}
 
-	// Check if the type is already present.
-	if _, ok := p.Types[unescapedName]; ok {
+	canonicalName := gosymname.CanonicalizeGenerics(unescapedName)
+
+	if existing, ok := p.Types[canonicalName]; ok {
+		if s, isStruct := t.(*godwarf.StructType); isStruct {
+			newFields := structFields(s)
+			if len(existing.Fields) == 0 {
+				// Type was created bare (e.g. by method-receiver fallback).
+				existing.Fields = newFields
+			} else {
+				// Merge: compare fields from this instantiation with existing.
+				// Any field whose type differs is a type-parameter-dependent
+				// field — mark it with a generic placeholder.
+				mergeStructFields(existing.Fields, newFields)
+			}
+		}
 		return nil
 	}
 
-	// We don't support parametric types (generics).
+	// Skip parametric types (uninstantiated generics with type params).
 	if _, ok := t.(*godwarf.ParametricType); ok {
 		return nil
 	}
@@ -522,30 +640,67 @@ func (p *Package) maybeAddType(t godwarf.Type) error {
 		return fmt.Errorf("type unescapedName for non-pointer unexpectedly starting with '*': %s", unescapedName)
 	}
 
-	// Skip anonymous types, generic types, array types and structs
-	// corresponding to slices.
-	if strings.ContainsAny(unescapedName, "{<[") {
+	// Skip anonymous types, array types, and structs corresponding to slices.
+	if strings.ContainsAny(unescapedName, "{<") {
 		return nil
 	}
 
 	typ := &Type{
-		Name:   unescapedName,
+		Name:   canonicalName,
 		Fields: nil,
 		// Methods will be populated later, as we discover them in DWARF.
 		Methods: nil,
 	}
 	if s, isStruct := t.(*godwarf.StructType); isStruct {
-		for _, field := range s.Field {
-			typ.Fields = append(typ.Fields, Field{
-				Name: field.Name,
-				Type: field.Type.Common().Name,
-			})
-		}
+		typ.Fields = structFields(s)
 	}
 
-	p.Types[unescapedName] = typ
+	p.Types[canonicalName] = typ
 	return nil
 }
+
+// structFields extracts fields from a DWARF struct type, canonicalizing
+// generic type names in field types so that fields from a specific
+// instantiation (e.g. lib.Box[float64]) show as lib.Box[...].
+func structFields(s *godwarf.StructType) []Field {
+	fields := make([]Field, 0, len(s.Field))
+	for _, field := range s.Field {
+		fieldType := field.Type.Common().Name
+		// Only canonicalize names containing generic shape instantiations.
+		// DWARF type names can also contain brackets for slices ([]T),
+		// arrays ([N]T), and maps (map[K]V) which should not be touched.
+		if strings.Contains(fieldType, "[go.shape.") {
+			fieldType = gosymname.CanonicalizeGenerics(fieldType)
+		}
+		fields = append(fields, Field{
+			Name: field.Name,
+			Type: fieldType,
+		})
+	}
+	return fields
+}
+
+// mergeStructFields compares two field lists from different instantiations of
+// the same generic type. For each field, if the type differs between
+// instantiations, the field type is replaced with a generic placeholder.
+// This lets us deduce which fields are type-parameter-dependent by observing
+// multiple concrete instantiations.
+func mergeStructFields(existing, incoming []Field) {
+	n := min(len(existing), len(incoming))
+	for i := 0; i < n; i++ {
+		if existing[i].Type == genericFieldType {
+			continue // already marked as generic
+		}
+		if existing[i].Type != incoming[i].Type {
+			existing[i].Type = genericFieldType
+		}
+	}
+}
+
+// genericFieldType is the placeholder used for struct fields whose type
+// varies across instantiations, indicating the field depends on a type
+// parameter.
+const genericFieldType = "<T>"
 
 // codeBlock abstracts LexicalBlocks and Subprograms. They all correspond to a
 // list of PC ranges.
@@ -658,19 +813,23 @@ func newPackagesIterator(bin binaryInfo, opt ExtractOptions) *packagesIterator {
 		mainModule:          bin.mainModule,
 		firstPartyPkgPrefix: bin.firstPartyPkgPrefix,
 		filesFilter:         bin.filesFilter,
-		abstractFunctions:   make(map[dwarf.Offset]*abstractFunction),
 		typesCache:          dwarfutils.NewTypeFinder(bin.obj.DwarfData()),
 		types: typesCollection{
 			scopeFilter:         opt.Scope,
 			mainModule:          bin.mainModule,
 			firstPartyPkgPrefix: bin.firstPartyPkgPrefix,
 		},
-		cleanupFuncs: []func(){func() { _ = bin.goDebugSections.Close() }, func() { _ = bin.obj.Close() }},
-		offsetToUnit: make(map[dwarf.Offset]dwarfutil.CompileUnitHeader), // filled in below
+		cleanupFuncs:   []func(){func() { _ = bin.goDebugSections.Close() }, func() { _ = bin.obj.Close() }},
+		offsetToUnit:   make(map[dwarf.Offset]dwarfutil.CompileUnitHeader), // filled in below
+		cuContextCache: make(map[dwarf.Offset]*cachedCUContext),
 	}
-	for _, h := range bin.obj.UnitHeaders() {
+	headers := bin.obj.UnitHeaders()
+	b.sortedCUOffsets = make([]dwarf.Offset, 0, len(headers))
+	for _, h := range headers {
 		b.offsetToUnit[h.Offset] = h
+		b.sortedCUOffsets = append(b.sortedCUOffsets, h.Offset)
 	}
+	slices.Sort(b.sortedCUOffsets)
 	return b
 }
 
@@ -759,28 +918,41 @@ type PackageWithFinal struct {
 func (b *packagesIterator) iterator() iter.Seq2[PackageWithFinal, error] {
 	return func(yield func(pkg PackageWithFinal, err error) bool) {
 		var prev *Package
-		var err error
-		for pkg, err := range b.innerIterator() {
+		var iterErr error
+		var stopped bool
+		// Call innerIterator's closure directly instead of using range-over-func
+		// to avoid nested range-over-func, which can panic when the consumer
+		// breaks out of the outer range loop mid-iteration (Go runtime issue
+		// with nested iterator coroutine teardown).
+		b.innerIterator()(func(pkg Package, err error) bool {
 			if err != nil {
-				break
+				iterErr = err
+				return false
 			}
 			if prev != nil {
-				if !yield(PackageWithFinal{Package: *prev, Final: false}, nil /* err */) {
-					return
+				if !yield(PackageWithFinal{Package: *prev, Final: false}, nil) {
+					stopped = true
+					return false
 				}
 			}
 			prev = &pkg
+			return true
+		})
+		if stopped {
+			return
 		}
 		if prev != nil {
-			yield(PackageWithFinal{
+			if !yield(PackageWithFinal{
 				Package: *prev,
 				// NOTE: We set the Final field even if the iteration terminated
 				// because of an error.
 				Final: true,
-			}, nil /* err */)
+			}, nil) {
+				return
+			}
 		}
-		if err != nil {
-			yield(PackageWithFinal{}, err)
+		if iterErr != nil {
+			yield(PackageWithFinal{}, iterErr)
 		}
 	}
 }
@@ -803,6 +975,18 @@ func (b *packagesIterator) innerIterator() iter.Seq2[Package, error] {
 	seenPackages := make(map[string]struct{})
 	return func(yield func(pkg Package, err error) bool) {
 		defer b.close()
+
+		// Build pre-pass indexes via a lightweight pre-scan of all DWARF
+		// compile units. These indexes let us find displaced generic shape
+		// functions, struct types, and inline abstract definitions and
+		// their instances regardless of CU ordering.
+		b.indexes, err = b.buildPrePassIndexes()
+		if err != nil {
+			yield(Package{}, fmt.Errorf("failed to build pre-pass indexes: %w", err))
+			return
+		}
+		defer b.indexes.close()
+
 		entryReader := b.dwarfData.Reader()
 
 		// Recognize compile units, which are the top-level entries in the DWARF
@@ -830,26 +1014,62 @@ func (b *packagesIterator) innerIterator() iter.Seq2[Package, error] {
 				continue
 			}
 
-			// Move all accumulated abstract functions to the output package.
-			// Note that we may have discovered abstract functions belonging to
-			// different packages while exploring this compile unit; we pretend
-			// that they're part of this package since that seems better than
-			// the alternative (i.e. not reporting those functions to SymDB at
-			// all).
-			b.addAbstractFunctions(pkg)
+			unitHeader := b.offsetToUnit[entry.Offset]
+
+			// Emit every abstract (inline) function owned by this
+			// package by driving from inlineDefs and inlineInstances.
+			if err = b.emitAbstractFunctionsForPackage(pkg); err != nil {
+				break
+			}
+
+			// Augment the package with displaced generic shape functions
+			// (the out-of-line subprogram variant) found in other compile
+			// units via the pre-built index.
+			if err = b.augmentWithDisplacedGenerics(pkg, entry.Offset, unitHeader.Length); err != nil {
+				break
+			}
 
 			// Yield the package if it's not empty.
 			pkgEmpty := len(pkg.Functions) == 0 && len(pkg.Types) == 0
 			if !pkgEmpty {
 				if !yield(*pkg, nil /* error */) {
-					break
+					return
 				}
 				seenPackages[pkg.Name] = struct{}{}
 			}
 		}
 		if err != nil {
 			yield(Package{}, err)
+			return
 		}
+	}
+}
+
+// buildFunctionFromAbstract converts an abstractFunction into a Function
+// with coalesced and sorted variable line ranges.
+func buildFunctionFromAbstract(af *abstractFunction) Function {
+	variables := make([]Variable, 0, len(af.variables))
+	for _, v := range af.variables {
+		v.Variable.AvailableLineRanges = coalesceLineRanges(v.AvailableLineRanges)
+		variables = append(variables, v.Variable)
+	}
+	slices.SortFunc(variables, func(a, b Variable) int {
+		return cmp.Or(
+			cmp.Compare(a.Name, b.Name),
+			cmp.Compare(a.DeclLine, b.DeclLine),
+		)
+	})
+	return Function{
+		Name:            af.name,
+		QualifiedName:   af.qualifiedName,
+		File:            af.file,
+		InjectibleLines: af.injectibleLines,
+		Scope: Scope{
+			StartLine: af.startLine,
+			EndLine:   int(af.endLine),
+			Scopes:    nil,
+			Variables: variables,
+		},
 	}
 }
 
@@ -873,81 +1093,588 @@ func interestingPackage(pkgName string, mainModule string, firstPartyPkgPrefix s
 	}
 }
 
-// addAbstractFunctions takes the aggregated data about inlined functions
-// accumulated in b.abstractFunctions and adds the functions to targetPackage
-// and methods to types in `b.types`. `b.abstractFunctions` is reset.
-//
-// targetPackage is the package in which all freestanding abstract functions
-// will go, regardless of the package they really belong to. Abstract *methods*
-// that don't belong to this single package are ignored: methods are added to
-// types, and we only ever report a type in the package that it belongs to -- we
-// don't move types to the a different package as we do with freestanding
-// functions. That's because types might not be complete yet (they might have
-// methods that can only be discovered when exploring other packages in which
-// they were inlined) and we don't want to report incomplete types or report a
-// type multiple times.
-func (b *packagesIterator) addAbstractFunctions(targetPackage *Package) {
-	// Sort abstract functions so that output is stable.
-	abstractFunctions := make([]*abstractFunction, 0, len(b.abstractFunctions))
-	for _, af := range b.abstractFunctions {
-		if !af.interesting {
-			continue
-		}
-		abstractFunctions = append(abstractFunctions, af)
+// findCUForOffset returns the CU offset of the compile unit that contains the
+// given DWARF offset. It binary searches the sorted CU offsets for the largest
+// CU offset ≤ the given offset.
+func (b *packagesIterator) findCUForOffset(offset dwarf.Offset) (dwarf.Offset, bool) {
+	// Find the rightmost CU offset that is ≤ offset.
+	i, _ := slices.BinarySearch(b.sortedCUOffsets, offset)
+	// BinarySearch returns the insertion point. If offset matches exactly, i
+	// points at it. Otherwise i points one past the last element < offset.
+	if i < len(b.sortedCUOffsets) && b.sortedCUOffsets[i] == offset {
+		return b.sortedCUOffsets[i], true
 	}
-	// Reset the map.
-	clear(b.abstractFunctions)
-	sort.Slice(abstractFunctions, func(i, j int) bool {
-		return abstractFunctions[i].name < abstractFunctions[j].name
-	})
-	for _, af := range abstractFunctions {
-		// Ignore methods that don't belong to the target package; see function
-		// comment.
-		if af.pkg != targetPackage.Name && af.receiver != "" {
+	if i == 0 {
+		return 0, false
+	}
+	return b.sortedCUOffsets[i-1], true
+}
+
+// getCUContext returns the cached CU context for the given CU offset, building
+// it if necessary by seeking to the CU and reading its file table.
+func (b *packagesIterator) getCUContext(cuOffset dwarf.Offset) (*cachedCUContext, error) {
+	if ctx, ok := b.cuContextCache[cuOffset]; ok {
+		return ctx, nil
+	}
+
+	reader := b.dwarfData.Reader()
+	reader.Seek(cuOffset)
+	entry, err := reader.Next()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read CU entry at 0x%x: %w", cuOffset, err)
+	}
+	if entry == nil || entry.Tag != dwarf.TagCompileUnit {
+		return nil, fmt.Errorf("expected TagCompileUnit at 0x%x, got %v", cuOffset, entry)
+	}
+
+	name, _ := entry.Val(dwarf.AttrName).(string)
+
+	unitHeader, ok := b.offsetToUnit[cuOffset]
+	if !ok {
+		return nil, fmt.Errorf("header missing for CU at 0x%x", cuOffset)
+	}
+
+	cuLineReader, err := b.dwarfData.LineReader(entry)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get line reader for CU at 0x%x: %w", cuOffset, err)
+	}
+	var files []string
+	if cuLineReader != nil {
+		files = make([]string, 0, len(cuLineReader.Files()))
+		for i, file := range cuLineReader.Files() {
+			if file == nil {
+				if i != 0 {
+					return nil, fmt.Errorf("CU at 0x%x has invalid nil file entry at index %d", cuOffset, i)
+				}
+				files = append(files, "")
+				continue
+			}
+			files = append(files, file.Name)
+		}
+	}
+
+	ctx := &cachedCUContext{
+		entry:  entry,
+		name:   name,
+		length: unitHeader.Length,
+		files:  files,
+	}
+	b.cuContextCache[cuOffset] = ctx
+	return ctx, nil
+}
+
+// buildPrePassIndexes performs one top-to-bottom walk of the DWARF and
+// populates the four indexes bundled in prePassIndexes. The walk
+// recurses into subprograms and lexical blocks to find nested
+// DW_TAG_inlined_subroutine DIEs.
+func (b *packagesIterator) buildPrePassIndexes() (idx prePassIndexes, retErr error) {
+	newNameBuilder := func(suffix string) (funcOffsetByNameIndexBuilder, error) {
+		if b.options.DiskCache != nil {
+			return newOnDiskFuncOffsetByNameIndexBuilder(b.options.DiskCache, suffix)
+		}
+		return &inMemFuncOffsetByNameIndexBuilder{}, nil
+	}
+	newOriginBuilder := func(suffix string) (funcOffsetByOriginIndexBuilder, error) {
+		if b.options.DiskCache != nil {
+			return newOnDiskFuncOffsetByOriginIndexBuilder(b.options.DiskCache, suffix)
+		}
+		return &inMemFuncOffsetByOriginIndexBuilder{}, nil
+	}
+
+	genericFuncBuilder, err := newNameBuilder("genericFuncs")
+	if err != nil {
+		return prePassIndexes{}, fmt.Errorf("failed to create generic func index builder: %w", err)
+	}
+	defer genericFuncBuilder.Close()
+
+	genericTypeBuilder, err := newNameBuilder("genericTypes")
+	if err != nil {
+		return prePassIndexes{}, fmt.Errorf("failed to create generic type index builder: %w", err)
+	}
+	defer genericTypeBuilder.Close()
+
+	inlineDefBuilder, err := newNameBuilder("inlineDefs")
+	if err != nil {
+		return prePassIndexes{}, fmt.Errorf("failed to create inline def index builder: %w", err)
+	}
+	defer inlineDefBuilder.Close()
+
+	inlineInstanceBuilder, err := newOriginBuilder("inlineInstances")
+	if err != nil {
+		return prePassIndexes{}, fmt.Errorf("failed to create inline instance index builder: %w", err)
+	}
+	defer inlineInstanceBuilder.Close()
+
+	reader := b.dwarfData.Reader()
+	for {
+		entry, err := reader.Next()
+		if err != nil {
+			return prePassIndexes{}, fmt.Errorf("pre-pass scan: %w", err)
+		}
+		if entry == nil {
+			break
+		}
+
+		switch entry.Tag {
+		case dwarf.TagCompileUnit:
+			// Process children of all CUs — don't skip any.
+			continue
+
+		case dwarf.TagSubprogram:
+			if err := b.preScanSubprogram(reader, entry, genericFuncBuilder, inlineDefBuilder, inlineInstanceBuilder); err != nil {
+				return prePassIndexes{}, err
+			}
+
+		case dwarf.TagStructType:
+			name, ok := entry.Val(dwarf.AttrName).(string)
+			if !ok || !strings.Contains(name, "[go.shape.") {
+				reader.SkipChildren()
+				continue
+			}
+
+			// Extract the package from the struct type name.
+			typePkg, _, _, err := parseLinkFuncName(name)
+			if err != nil || typePkg == "" {
+				reader.SkipChildren()
+				continue
+			}
+			if !interestingPackage(typePkg, b.mainModule, b.firstPartyPkgPrefix, b.options.Scope) {
+				reader.SkipChildren()
+				continue
+			}
+
+			// Store the canonical name in DWARF (escaped) form,
+			// matching genericFuncs and inlineDefs. forPackage handles
+			// the escape on lookup; storing here in unescaped form
+			// would make lookups for packages whose last path segment
+			// contains a dot (e.g. "gopkg.in/foo.v2") miss this entry.
+			canonicalName := gosymname.CanonicalizeGenerics(name)
+			if err := genericTypeBuilder.add(canonicalName, entry.Offset); err != nil {
+				return prePassIndexes{}, err
+			}
+			reader.SkipChildren()
+
+		default:
+			reader.SkipChildren()
+		}
+	}
+
+	defer func() {
+		if retErr != nil {
+			idx.close()
+		}
+	}()
+	if idx.genericFuncs, err = genericFuncBuilder.build(); err != nil {
+		return prePassIndexes{}, err
+	}
+	if idx.genericTypes, err = genericTypeBuilder.build(); err != nil {
+		return prePassIndexes{}, err
+	}
+	if idx.inlineDefs, err = inlineDefBuilder.build(); err != nil {
+		return prePassIndexes{}, err
+	}
+	if idx.inlineInstances, err = inlineInstanceBuilder.build(); err != nil {
+		return prePassIndexes{}, err
+	}
+	return idx, nil
+}
+
+// preScanSubprogram processes a top-level Subprogram DIE during the pre-pass.
+// It indexes generic shape functions, abstract inline definitions, and
+// out-of-line instances, then recurses into the subprogram's children to
+// find inlined subroutines.
+func (b *packagesIterator) preScanSubprogram(
+	reader *dwarf.Reader,
+	entry *dwarf.Entry,
+	genericFuncBuilder funcOffsetByNameIndexBuilder,
+	inlineDefBuilder funcOffsetByNameIndexBuilder,
+	inlineInstanceBuilder funcOffsetByOriginIndexBuilder,
+) error {
+	// Skip trampolines entirely — they're compiler-generated and never
+	// contain inline instances we care about.
+	if entry.AttrField(dwarf.AttrTrampoline) != nil {
+		reader.SkipChildren()
+		return nil
+	}
+
+	// Out-of-line subprogram instances have DW_AT_abstract_origin pointing
+	// at the abstract definition.
+	if originOffset, ok := entry.Val(dwarf.AttrAbstractOrigin).(dwarf.Offset); ok {
+		if err := inlineInstanceBuilder.add(originOffset, entry.Offset); err != nil {
+			return err
+		}
+		// Out-of-line instances can still contain inlined subroutines
+		// nested inside them (e.g. calls that got further inlined).
+		if entry.Children {
+			if err := b.preScanChildrenForInlines(reader, inlineInstanceBuilder); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	name, _ := entry.Val(dwarf.AttrName).(string)
+	// Abstract inline definition: index in inlineDefs.
+	if inlineAttr, hasInline := entry.Val(dwarf.AttrInline).(int64); hasInline &&
+		inlineAttr == dwarf2.DW_INL_inlined {
+		if name != "" {
+			if err := indexIfInteresting(b, name, entry.Offset, inlineDefBuilder); err != nil {
+				return err
+			}
+		}
+		// An abstract definition never has PC ranges itself, but it may
+		// syntactically contain inlined subroutines in rare edge cases
+		// produced by Go toolchains. Recurse to be safe.
+		if entry.Children {
+			if err := b.preScanChildrenForInlines(reader, inlineInstanceBuilder); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	// Generic shape Subprogram: index in genericFuncs.
+	if name != "" && strings.Contains(name, "[go.shape.") {
+		if err := indexIfInteresting(b, name, entry.Offset, genericFuncBuilder); err != nil {
+			return err
+		}
+	}
+
+	// Recurse into children to pick up inlined subroutines.
+	if entry.Children {
+		if err := b.preScanChildrenForInlines(reader, inlineInstanceBuilder); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// preScanChildrenForInlines walks the children of a subprogram or lexical
+// block entry, recording inlined-subroutine instances and recursing through
+// nested lexical blocks and further inlined subroutines. The reader is
+// positioned immediately after the parent entry on entry and is advanced to
+// just past the parent's null terminator on exit.
+//
+// Children tags we skip without recursing: TagFormalParameter, TagVariable,
+// TagTypedef, and any unknown tag (we still consume their children via
+// SkipChildren). Only TagLexDwarfBlock and TagInlinedSubroutine can
+// transitively contain more inlined subroutines.
+func (b *packagesIterator) preScanChildrenForInlines(
+	reader *dwarf.Reader,
+	inlineInstanceBuilder funcOffsetByOriginIndexBuilder,
+) error {
+	for {
+		child, err := reader.Next()
+		if err != nil {
+			return err
+		}
+		if child == nil {
+			return nil
+		}
+		if dwarfutil.IsEntryNull(child) {
+			return nil
+		}
+		switch child.Tag {
+		case dwarf.TagInlinedSubroutine:
+			if originOffset, ok := child.Val(dwarf.AttrAbstractOrigin).(dwarf.Offset); ok {
+				if err := inlineInstanceBuilder.add(originOffset, child.Offset); err != nil {
+					return err
+				}
+			}
+			if child.Children {
+				if err := b.preScanChildrenForInlines(reader, inlineInstanceBuilder); err != nil {
+					return err
+				}
+			}
+		case dwarf.TagLexDwarfBlock:
+			if child.Children {
+				if err := b.preScanChildrenForInlines(reader, inlineInstanceBuilder); err != nil {
+					return err
+				}
+			}
+		default:
+			// TagFormalParameter, TagVariable, TagTypedef, and anything
+			// unexpected: never contains inlined subroutines. Skip.
+			reader.SkipChildren()
+		}
+	}
+}
+
+// indexIfInteresting parses name via parseFuncName, filters by interesting
+// package, and adds the canonical qualified name → offset entry to builder.
+func indexIfInteresting(
+	b *packagesIterator,
+	name string,
+	offset dwarf.Offset,
+	builder funcOffsetByNameIndexBuilder,
+) error {
+	result, err := parseFuncName(name)
+	if err != nil || result.failureReason != parseFuncNameFailureReasonUndefined {
+		return nil
+	}
+	pkg := result.funcName.Package
+	if !interestingPackage(pkg, b.mainModule, b.firstPartyPkgPrefix, b.options.Scope) {
+		return nil
+	}
+	return builder.add(result.funcName.QualifiedName, offset)
+}
+
+// augmentWithDisplacedGenerics queries the generic index for all shape
+// functions belonging to pkg and processes any that weren't already found in
+// the compile unit identified by cuOffset/cuLength.
+func (b *packagesIterator) augmentWithDisplacedGenerics(pkg *Package, cuOffset dwarf.Offset, cuLength uint64) error {
+	if b.indexes.genericFuncs == nil {
+		return nil
+	}
+
+	cuEnd := uint64(cuOffset) + cuLength
+
+	for name, funcOffset := range b.indexes.genericFuncs.forPackage(pkg.Name) {
+		// Skip functions that are within the current CU — they were already
+		// processed during normal exploration.
+		if uint64(funcOffset) >= uint64(cuOffset) && uint64(funcOffset) < cuEnd {
 			continue
 		}
 
-		variables := make([]Variable, 0, len(af.variables))
-		for _, v := range af.variables {
-			v.Variable.AvailableLineRanges = coalesceLineRanges(v.AvailableLineRanges)
-			variables = append(variables, v.Variable)
+		// Skip if the package already has this function.
+		if packageHasFunctionQName(pkg, name) {
+			continue
 		}
-		// Sort variables so that output is stable.
-		sort.Slice(variables, func(i, j int) bool {
-			if variables[i].Name != variables[j].Name {
-				return variables[i].Name < variables[j].Name
-			}
-			return variables[i].DeclLine < variables[j].DeclLine
-		})
-		f := Function{
-			Name:            af.name,
-			QualifiedName:   af.qualifiedName,
-			File:            af.file,
-			InjectibleLines: af.injectibleLines,
-			Scope: Scope{
-				StartLine: af.startLine,
-				EndLine:   int(af.endLine),
-				Scopes:    nil,
-				Variables: variables,
-			},
+
+		// Find the CU containing this function.
+		foreignCUOffset, ok := b.findCUForOffset(funcOffset)
+		if !ok {
+			continue
 		}
-		if af.receiver != "" {
-			t, ok := targetPackage.Types[af.receiver]
-			if !ok {
-				// Some types are empty structures, and functions that
-				// use them as receivers don't actually have a parameter
-				// of the receiver type. Thus, we end up without a type.
-				// Just make one up.
-				t = &Type{
-					Name: af.receiver,
-				}
-				targetPackage.Types[af.receiver] = t
-			}
-			t.Methods = append(t.Methods, f)
-		} else {
-			targetPackage.Functions = append(targetPackage.Functions, f)
+
+		// Get or build the foreign CU context.
+		foreignCU, err := b.getCUContext(foreignCUOffset)
+		if err != nil {
+			return fmt.Errorf("augmentWithDisplacedGenerics: %w", err)
+		}
+
+		// Save the current CU context and set up the foreign one.
+		savedCU := b.currentCompileUnit
+		b.currentCompileUnit = compileUnitInfo{
+			entry:     foreignCU.entry,
+			name:      foreignCU.name,
+			length:    foreignCU.length,
+			files:     foreignCU.files,
+			outputPkg: pkg, // methods land in the target package's types
+		}
+
+		// Seek to the function and process it.
+		funcReader := b.dwarfData.Reader()
+		funcReader.Seek(funcOffset)
+		funcEntry, err := funcReader.Next()
+		if err != nil {
+			b.currentCompileUnit = savedCU
+			return fmt.Errorf("augmentWithDisplacedGenerics: failed to read entry at 0x%x: %w", funcOffset, err)
+		}
+
+		function, err := b.exploreSubprogram(funcEntry, funcReader)
+
+		// Restore the original CU context.
+		b.currentCompileUnit = savedCU
+
+		if err != nil {
+			return fmt.Errorf("augmentWithDisplacedGenerics: %w", err)
+		}
+
+		// Methods return an empty Function since they're added to Types
+		// inside exploreSubprogram. Freestanding functions are returned.
+		if !function.empty() && !packageHasFunctionQName(pkg, function.QualifiedName) {
+			pkg.Functions = append(pkg.Functions, function)
 		}
 	}
+
+	// Process displaced generic struct types. Multiple instantiations of
+	// the same type (e.g. lib.Box[go.shape.int] and lib.Box[go.shape.float64])
+	// are compared field-by-field in maybeAddType to deduce which fields are
+	// type-parameter-dependent.
+	if b.indexes.genericTypes != nil {
+		for _, typeOffset := range b.indexes.genericTypes.forPackage(pkg.Name) {
+			// Skip types within the current compile unit.
+			if uint64(typeOffset) >= uint64(cuOffset) && uint64(typeOffset) < cuEnd {
+				continue
+			}
+
+			// Resolve the DWARF type and call maybeAddType which will either
+			// create the type, populate fields on a bare type, or merge
+			// fields from a different instantiation.
+			typ, err := b.typesCache.FindTypeByOffset(typeOffset)
+			if err != nil {
+				continue // type resolution can fail for unsupported types
+			}
+			if err := pkg.maybeAddType(typ); err != nil {
+				return fmt.Errorf("augmentWithDisplacedGenerics type: %w", err)
+			}
+		}
+	}
+
+	return nil
+}
+
+// packageHasFunctionQName returns true if the package already has a function
+// with the given qualified name.
+func packageHasFunctionQName(pkg *Package, qname string) bool {
+	return slices.ContainsFunc(pkg.Functions, func(f Function) bool {
+		return f.QualifiedName == qname
+	})
+}
+
+// typeHasMethodQName returns true if the type already has a method with the
+// given qualified name.
+func typeHasMethodQName(t *Type, qname string) bool {
+	return slices.ContainsFunc(t.Methods, func(f Function) bool {
+		return f.QualifiedName == qname
+	})
+}
+
+// emitAbstractFunctionsForPackage emits every abstract (inlined) function
+// that inlineDefs attributes to pkg. Each abstract DIE is parsed
+// fresh, its inline instances are replayed from inlineInstances to
+// accumulate file/endLine/injectibleLines and per-variable availability,
+// and the resulting Function is attached to pkg (or the receiver type's
+// Methods). Because emission is driven from the pre-pass indexes rather
+// than from per-CU walk state, it is independent of CU iteration order.
+func (b *packagesIterator) emitAbstractFunctionsForPackage(pkg *Package) error {
+	if b.indexes.inlineDefs == nil || b.indexes.inlineInstances == nil {
+		return nil
+	}
+
+	for _, defOffset := range b.indexes.inlineDefs.forPackage(pkg.Name) {
+		defCUOffset, ok := b.findCUForOffset(defOffset)
+		if !ok {
+			continue
+		}
+		defCU, err := b.getCUContext(defCUOffset)
+		if err != nil {
+			return fmt.Errorf("emitAbstractFunctionsForPackage: get CU context for 0x%x: %w", defOffset, err)
+		}
+
+		// Swap the current CU to the abstract's CU so that resolveType's
+		// maybeAddType sees the right outputPkg and file table.
+		savedCU := b.currentCompileUnit
+		b.currentCompileUnit = compileUnitInfo{
+			entry:     defCU.entry,
+			name:      defCU.name,
+			length:    defCU.length,
+			files:     defCU.files,
+			outputPkg: pkg,
+		}
+		af, err := b.parseAbstractFunction(defOffset, b.dwarfData.Reader())
+		b.currentCompileUnit = savedCU
+		if err != nil {
+			return fmt.Errorf("emitAbstractFunctionsForPackage: parse abstract at 0x%x: %w", defOffset, err)
+		}
+		if !af.interesting {
+			continue
+		}
+
+		for instanceOffset := range b.indexes.inlineInstances.forOrigin(defOffset) {
+			if err := b.replayInlineInstance(instanceOffset, pkg, af); err != nil {
+				return fmt.Errorf("emitAbstractFunctionsForPackage: instance 0x%x of 0x%x: %w",
+					instanceOffset, defOffset, err)
+			}
+		}
+
+		f := buildFunctionFromAbstract(af)
+		// Dedup against entries the per-compile-unit walk already
+		// emitted: the Go compiler sometimes emits both an abstract
+		// inline DIE and an out-of-line Subprogram for the same
+		// function, in which case the out-of-line copy is processed
+		// first by the normal compile-unit walk and we'd otherwise
+		// emit the function a second time here.
+		if af.receiver != "" {
+			t, ok := pkg.Types[af.receiver]
+			if !ok {
+				t = &Type{Name: af.receiver}
+				pkg.Types[af.receiver] = t
+			}
+			if !typeHasMethodQName(t, f.QualifiedName) {
+				t.Methods = append(t.Methods, f)
+			}
+		} else if !packageHasFunctionQName(pkg, f.QualifiedName) {
+			pkg.Functions = append(pkg.Functions, f)
+		}
+	}
+	return nil
+}
+
+// replayInlineInstance seeks to an inline-instance DIE and calls
+// exploreInlinedInstance with b.currentCompileUnit set to the instance's
+// CU. outputPkg is the owning package being emitted; types resolved
+// during replay are routed to it via maybeAddType.
+func (b *packagesIterator) replayInlineInstance(instanceOffset dwarf.Offset, outputPkg *Package, af *abstractFunction) error {
+	instanceCUOffset, ok := b.findCUForOffset(instanceOffset)
+	if !ok {
+		return nil
+	}
+	instanceCU, err := b.getCUContext(instanceCUOffset)
+	if err != nil {
+		return fmt.Errorf("get CU context for 0x%x: %w", instanceOffset, err)
+	}
+
+	savedCU := b.currentCompileUnit
+	savedBlockStack := b.blockStack
+	defer func() {
+		b.currentCompileUnit = savedCU
+		b.blockStack = savedBlockStack
+	}()
+
+	b.currentCompileUnit = compileUnitInfo{
+		entry:     instanceCU.entry,
+		name:      instanceCU.name,
+		length:    instanceCU.length,
+		files:     instanceCU.files,
+		outputPkg: outputPkg,
+	}
+	// exploreInlinedCode pushes a block derived from the instance DIE; start
+	// from a fresh block stack so the instance is treated as a top-level.
+	b.blockStack = nil
+
+	reader := b.dwarfData.Reader()
+	reader.Seek(instanceOffset)
+	entry, err := reader.Next()
+	if err != nil {
+		return err
+	}
+	if entry == nil {
+		return fmt.Errorf("no entry at 0x%x", instanceOffset)
+	}
+
+	// exploreInlinedInstance needs FunctionLines keyed by qualified name,
+	// which comes from the containing physical function's pclntab entry.
+	// Address into it via the instance's PC.
+	lowpc, ok := resolveInstanceLowPC(entry, b.dwarfData)
+	if !ok {
+		return nil
+	}
+	lines, err := b.sym.FunctionLines(lowpc)
+	if err != nil {
+		return nil
+	}
+	// Best-effort: a single bad instance shouldn't fail the whole
+	// extraction. DWARF and pclntab can disagree on inlining.
+	_ = b.exploreInlinedInstance(entry, reader, lines, af)
+	return nil
+}
+
+// resolveInstanceLowPC returns a representative PC for an inline instance
+// DIE, either from DW_AT_low_pc or the first PC of DW_AT_ranges.
+func resolveInstanceLowPC(entry *dwarf.Entry, dwarfData *dwarf.Data) (uint64, bool) {
+	if v, ok := entry.Val(dwarf.AttrLowpc).(uint64); ok {
+		return v, true
+	}
+	// TagInlinedSubroutine can use DW_AT_ranges instead of low_pc/high_pc.
+	if entry.AttrField(dwarf.AttrRanges) != nil {
+		pcRanges, err := dwarfData.Ranges(entry)
+		if err == nil && len(pcRanges) > 0 {
+			return pcRanges[0][0], true
+		}
+	}
+	return 0, false
 }
 
 func (b *packagesIterator) currentBlock() codeBlock {
@@ -976,6 +1703,10 @@ type typeInfo struct {
 // binary.
 type ExtractOptions struct {
 	Scope ExtractScope
+	// DiskCache, if non-nil, enables the on-disk generic function index which
+	// reduces memory usage for large binaries. When nil, the in-memory index
+	// is used instead.
+	DiskCache *object.DiskCache
 }
 
 // exploreCompileUnit processes a compile unit entry (entry's tag is
@@ -1075,8 +1806,8 @@ func (b *packagesIterator) exploreCompileUnit(
 			if err != nil {
 				return nil, err
 			}
-			if !function.empty() {
-				b.currentCompileUnit.outputPkg.Functions = append(b.currentCompileUnit.outputPkg.Functions, function)
+			if !function.empty() && !b.currentCompileUnit.hasFunctionQName(function.QualifiedName) {
+				b.addFunctionToPackage(function)
 			}
 		default:
 			reader.SkipChildren()
@@ -1126,37 +1857,14 @@ func (b *packagesIterator) exploreSubprogram(
 		return earlyExit()
 	}
 
-	inlineAttr, ok := entry.Val(dwarf.AttrInline).(int64)
-	// The attribute DW_AT_inline with a value of DW_INL_inlined means that
-	// this is an "abstract definition" of the function, which is then
-	// referenced by inlined instances (and also possibly by an out-of-line
-	// instance) through their AttrAbstractOrigin attribute which will point
-	// to this entry.
-	if abstractFunc := ok && inlineAttr == dwarf2.DW_INL_inlined; abstractFunc {
-		if _, ok := b.abstractFunctions[entry.Offset]; !ok {
-			af, err := b.parseAbstractFunction(entry.Offset, reader)
-			if err != nil {
-				return Function{}, err
-			}
-			// Keep around information about this abstract function. It will be
-			// updated by every subsequent inlined instance of the function.
-			b.abstractFunctions[entry.Offset] = af
-		}
-
+	// Abstract inline definitions and out-of-line inline instances are
+	// both handled via inlineDefs / inlineInstances at emission
+	// time in emitAbstractFunctionsForPackage.
+	if inlineAttr, hasInline := entry.Val(dwarf.AttrInline).(int64); hasInline && inlineAttr == dwarf2.DW_INL_inlined {
 		return earlyExit()
 	}
-
 	if entry.AttrField(dwarf.AttrAbstractOrigin) != nil {
-		// "out-of-line" instance of an abstract subprogram.
-		lowpc, ok := entry.Val(dwarf.AttrLowpc).(uint64)
-		if !ok {
-			return Function{}, fmt.Errorf("subprogram without lowpc at 0x%x", entry.Offset)
-		}
-		lines, err := b.sym.FunctionLines(lowpc)
-		if err != nil {
-			return Function{}, fmt.Errorf("failed to resolve function lines for function pc 0x%x: %w", lowpc, err)
-		}
-		return Function{}, b.exploreInlinedInstance(entry, reader, lines)
+		return earlyExit()
 	}
 
 	funcQualifiedName, funcName, recognized, err := b.parseFunctionName(entry)
@@ -1164,6 +1872,15 @@ func (b *packagesIterator) exploreSubprogram(
 		return Function{}, err
 	}
 	if !recognized {
+		return earlyExit()
+	}
+
+	// Check if the function's own package is interesting. This is needed
+	// because generic shape functions can appear in a compile unit different
+	// from where they are defined (they end up in the instantiating package's
+	// compile unit). Without this check, a dependency's generic function
+	// instantiated in first-party code would be incorrectly included.
+	if !interestingPackage(funcName.Package, b.mainModule, b.firstPartyPkgPrefix, b.options.Scope) {
 		return earlyExit()
 	}
 
@@ -1245,7 +1962,7 @@ func (b *packagesIterator) exploreSubprogram(
 
 	res := Function{
 		Name:            funcName.Name,
-		QualifiedName:   funcQualifiedName,
+		QualifiedName:   funcName.QualifiedName,
 		File:            fileName,
 		InjectibleLines: lineRanges,
 		Scope: Scope{
@@ -1260,6 +1977,17 @@ func (b *packagesIterator) exploreSubprogram(
 	// respective type instead of returning it as a stand-alone function.
 	if funcName.Type != "" {
 		typeQualifiedName := funcName.Package + "." + funcName.Type
+
+		// Skip displaced generic methods — they belong to a different
+		// package and will be processed by augmentWithDisplacedGenerics
+		// when that package is yielded. This prevents creating a foreign
+		// type (e.g. lib.Box[...]) under the wrong package (e.g. main).
+		if b.indexes.genericFuncs != nil &&
+			funcName.Package != b.currentCompileUnit.outputPkg.Name &&
+			strings.Contains(typeQualifiedName, "[...]") {
+			return Function{}, nil
+		}
+
 		// We generally expect the type of the receiver to have been populated
 		// by the exploreCode() call above.
 		t, ok := b.currentCompileUnit.outputPkg.Types[typeQualifiedName]
@@ -1272,6 +2000,12 @@ func (b *packagesIterator) exploreSubprogram(
 			}
 			b.currentCompileUnit.outputPkg.Types[typeQualifiedName] = t
 		}
+		// For generic types, dedup methods by name (first shape wins).
+		for _, m := range t.Methods {
+			if m.Name == res.Name {
+				return Function{}, nil
+			}
+		}
 		t.Methods = append(t.Methods, res)
 		// We don't return a Function for methods.
 		return Function{}, nil
@@ -1279,60 +2013,18 @@ func (b *packagesIterator) exploreSubprogram(
 	return res, nil
 }
 
-// Explores inlined instances of an abstract function (both InlinedSubroutines
-// and out-of-line Subprogram instances). Modify the data associated with the
-// abstract function definition based on the variable availability in this
-// instance.
+// exploreInlinedInstance updates af with per-instance data from an
+// inlined-subroutine (or out-of-line subprogram) DIE at the reader's
+// current position.
 func (b *packagesIterator) exploreInlinedInstance(
 	entry *dwarf.Entry,
 	reader *dwarf.Reader,
 	lines map[string]gosym.FunctionLines,
+	af *abstractFunction,
 ) error {
 	earlyExit := func() error {
 		reader.SkipChildren()
 		return nil
-	}
-	// resetReader repositions the reader back to entry after parseAbstractFunction
-	// has moved it.
-	resetReader := func() error {
-		reader.Seek(entry.Offset)
-		e, err := reader.Next()
-		if err != nil {
-			return err
-		}
-		if e.Tag != dwarf.TagSubprogram && e.Tag != dwarf.TagInlinedSubroutine {
-			return fmt.Errorf("unexpected tag %v at 0x%x, expected TagSubprogram or TagInlinedSubroutine", e.Tag, entry.Offset)
-		}
-		return nil
-	}
-
-	// Lookup the abstract function definition referenced by this inlined
-	// instance.
-	originOffset, ok := entry.Val(dwarf.AttrAbstractOrigin).(dwarf.Offset)
-	if !ok {
-		return fmt.Errorf("inlined instance without abstract origin at 0x%x", entry.Offset)
-	}
-
-	af, ok := b.abstractFunctions[originOffset]
-	if !ok {
-		// We only explore the abstract definition if it's in the current
-		// compilation unit; we don't accumulate data across compile units in
-		// b.abstractFunctions.
-		inCurrentUnit := originOffset >= b.currentCompileUnit.entry.Offset &&
-			uint64(originOffset) < uint64(b.currentCompileUnit.entry.Offset)+b.currentCompileUnit.length
-		if !inCurrentUnit {
-			return earlyExit()
-		}
-
-		var err error
-		af, err = b.parseAbstractFunction(originOffset, reader)
-		if err != nil {
-			return err
-		}
-		b.abstractFunctions[originOffset] = af
-		if err := resetReader(); err != nil {
-			return err
-		}
 	}
 	if !af.interesting {
 		return earlyExit()
@@ -1409,10 +2101,12 @@ func (b *packagesIterator) exploreInlinedCode(
 			}
 
 		case dwarf.TagInlinedSubroutine:
-			err := b.exploreInlinedInstance(child, reader, lines)
-			if err != nil {
-				return err
-			}
+			// Nested inline instances are handled by their own abstract
+			// function's emission in emitAbstractFunctionsForPackage.
+			reader.SkipChildren()
+		case dwarf.TagTypedef:
+			// Typedefs in generic shape functions for dictionary type
+			// parameters (.param0, .param1). Skip.
 		default:
 			return fmt.Errorf("unexpected child tag %s in inlined instance at 0x%x", child.Tag, child.Offset)
 		}
@@ -1594,6 +2288,9 @@ func (b *packagesIterator) parseAbstractFunction(offset dwarf.Offset, reader *dw
 				Variable: v,
 				typeSize: uint32(typ.size),
 			}
+		case dwarf.TagTypedef:
+			// Typedefs in generic shape functions for dictionary type
+			// parameters (.param0, .param1). Skip.
 		default:
 			return nil, fmt.Errorf("unexpected child tag %s in abstract function at 0x%x", child.Tag, child.Offset)
 		}
@@ -1847,10 +2544,9 @@ func (b *packagesIterator) exploreCode(
 			}
 			res.scopes = append(res.scopes, scopes...)
 		case dwarf.TagInlinedSubroutine:
-			err := b.exploreInlinedInstance(child, reader, lines)
-			if err != nil {
-				return exploreCodeResult{}, err
-			}
+			// Inline instances are processed at emission time in
+			// emitAbstractFunctionsForPackage via inlineInstances.
+			reader.SkipChildren()
 		}
 	}
 	return res, nil

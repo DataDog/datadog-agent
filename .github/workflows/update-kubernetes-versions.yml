@@ -90,7 +90,7 @@ jobs:
 
       - name: Log in to AWS ECR
         if: steps.fetch-versions.outputs.has_new_rc_versions == 'true' && steps.build-rc-images.outputs.built_count > 0
-        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
           registry: ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.ECR_REGION }}.amazonaws.com
 
@@ -104,6 +104,9 @@ jobs:
 
           new_versions='${{ steps.fetch-versions.outputs.new_versions }}'
 
+          # Capture the kind version used to build these RC images
+          kind_version=$(kind version | awk '{print $2}')
+
           for image in ${{ steps.build-rc-images.outputs.built_images }}; do
             tag="${image##*:}"
             ecr_image="$ECR_REGISTRY/$ECR_REPOSITORY:$tag"
@@ -116,9 +119,10 @@ jobs:
 
             [ -n "$digest" ] || { echo "Error: Could not get digest for $tag"; exit 1; }
 
-            # Append the digest into the new versions JSON
+            # Append digest and kind_version into the new versions JSON
             # Must use the -c option (compact) to keep the jq output to a single-line
-            new_versions=$(jq -c --arg tag "$tag" --arg digest "$digest" '.[$tag].digest = $digest' <<< "$new_versions")
+            new_versions=$(jq -c --arg tag "$tag" --arg digest "$digest" --arg kind_version "$kind_version" \
+              '.[$tag].digest = $digest | .[$tag].kind_version = $kind_version' <<< "$new_versions")
           done
 
           echo "new_versions=$new_versions" >> "$GITHUB_OUTPUT"
@@ -130,6 +134,10 @@ jobs:
           # Otherwise use fetch-versions output (includes digests from Docker Hub for final releases)
           VERSIONS='${{ steps.push-rc-images.outputs.new_versions || steps.fetch-versions.outputs.new_versions }}'
           dda inv k8s-versions.save-versions --versions="$VERSIONS"
+
+      - name: Update kind_versions.json
+        if: steps.fetch-versions.outputs.has_new_versions == 'true'
+        run: dda inv k8s-versions.update-kind-versions-file
 
       - name: Update e2e.yml with new version
         id: update-yaml

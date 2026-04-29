@@ -1,22 +1,37 @@
-- offset: "0x00013140"
+- offset: "0x00013d00"
   size: 8
   kind: struct
   nameEntry: main.aStructNotUsedAsAnArgument
   name: main.aStructNotUsedAsAnArgument
   pkg: main
-  ptrToThis: "0x000075a0"
+  ptrToThis: "0x00007960"
   struct:
     fields:
         - name: a
           type: int
           offset: 0
-- offset: "0x00021220"
+- offset: "0x00017b60"
+  size: 1048584
+  kind: struct
+  nameEntry: main.bigArrayStruct
+  name: main.bigArrayStruct
+  pkg: main
+  ptrToThis: "0x00007a60"
+  struct:
+    fields:
+        - name: tag
+          type: int
+          offset: 0
+        - name: data
+          type: '[131072]int64'
+          offset: 8
+- offset: "0x000224e0"
   size: 184
   kind: struct
   nameEntry: main.bigStruct
   name: main.bigStruct
   pkg: main
-  ptrToThis: "0x000075e0"
+  ptrToThis: "0x000079e0"
   struct:
     fields:
         - name: Field1 (exported)
@@ -43,13 +58,13 @@
         - name: data
           type: '[128]uint8'
           offset: 56
-- offset: "0x00022fa0"
+- offset: "0x00024260"
   size: 80
   kind: struct
   nameEntry: main.condFields
   name: main.condFields
   pkg: main
-  ptrToThis: "0x00007520"
+  ptrToThis: "0x000078e0"
   struct:
     fields:
         - name: I8 (exported)
@@ -91,13 +106,46 @@
         - name: arr
           type: '[3]int16'
           offset: 72
-- offset: "0x0001f7e0"
+- offset: "0x0001b100"
+  size: 32
+  kind: struct
+  nameEntry: main.indexMemberStruct
+  name: main.indexMemberStruct
+  pkg: main
+  ptrToThis: "0x000079a0"
+  struct:
+    fields:
+        - name: Val (exported)
+          type: int32
+          offset: 0
+        - name: Txt (exported)
+          type: string
+          offset: 8
+        - name: pad
+          type: '[3]int16'
+          offset: 24
+- offset: "0x00017ac0"
+  size: 264
+  kind: struct
+  nameEntry: main.largeValueStruct
+  name: main.largeValueStruct
+  pkg: main
+  ptrToThis: "0x00007a20"
+  struct:
+    fields:
+        - name: Pad (exported)
+          type: '[256]uint8'
+          offset: 0
+        - name: Val (exported)
+          type: int
+          offset: 256
+- offset: "0x00020aa0"
   size: 72
   kind: struct
   nameEntry: main.lenFields
   name: main.lenFields
   pkg: main
-  ptrToThis: "0x00007560"
+  ptrToThis: "0x00007920"
   struct:
     fields:
         - name: S (exported)

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:generate stringer -type=HashState -linecomment -output model_string.go
+//go:generate go run golang.org/x/tools/cmd/stringer -type=HashState -linecomment -output model_string.go
 
 // Package model holds model related files
 package model
@@ -94,12 +94,37 @@ func (r *Releasable) AppendReleaseCallback(callback func()) {
 	}
 }
 
+// ContainerSource indicates the origin of a container entry
+type ContainerSource uint64
+
+const (
+	// ContainerSourceUnknown defines a container entry from an unknown source
+	ContainerSourceUnknown ContainerSource = iota
+	// ContainerSourceEvent defines a container entry populated from a kernel event
+	ContainerSourceEvent
+	// ContainerSourceProcFS defines a container entry populated from the procfs fallback
+	ContainerSourceProcFS
+)
+
+// String returns a string representation of the container source
+func (s ContainerSource) String() string {
+	switch s {
+	case ContainerSourceEvent:
+		return "event"
+	case ContainerSourceProcFS:
+		return "procfs"
+	default:
+		return "unknown"
+	}
+}
+
 // ContainerContext holds the container context of an event
 type ContainerContext struct {
 	*Releasable
-	ContainerID containerutils.ContainerID `field:"id,opts:gen_getters"`                                        // SECLDoc[id] Definition:`ID of the container`
-	CreatedAt   uint64                     `field:"created_at,opts:gen_getters"`                                // SECLDoc[created_at] Definition:`Timestamp of the creation of the container``
-	Tags        []string                   `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // SECLDoc[tags] Definition:`Tags of the container`
+	ContainerID     containerutils.ContainerID `field:"id,opts:gen_getters"`                                        // SECLDoc[id] Definition:`ID of the container`
+	CreatedAt       uint64                     `field:"created_at,opts:gen_getters"`                                // SECLDoc[created_at] Definition:`Timestamp of the creation of the container``
+	Tags            []string                   `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // SECLDoc[tags] Definition:`Tags of the container`
+	ContainerSource ContainerSource            `field:"-"`
 }
 
 // Hash returns a unique key for the entity
