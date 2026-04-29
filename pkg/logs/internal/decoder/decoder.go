@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/preprocessor"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
@@ -175,12 +176,18 @@ func resolveAdaptiveSamplerEnabled(sourceAdaptiveSampling *config.SourceAdaptive
 }
 
 func resolveAdaptiveSamplerConfig(sourceAdaptiveSampling *config.SourceAdaptiveSamplingOptions, tok *preprocessor.Tokenizer) preprocessor.AdaptiveSamplerConfig {
+	includeFilters, includeConfigured := resolveGlobalAdaptiveSamplerFilters("logs_config.experimental_adaptive_sampling.include", tok)
+	excludeFilters, _ := resolveGlobalAdaptiveSamplerFilters("logs_config.experimental_adaptive_sampling.exclude", tok)
+
 	c := preprocessor.AdaptiveSamplerConfig{
 		MaxPatterns:          pkgconfigsetup.Datadog().GetInt("logs_config.experimental_adaptive_sampling.max_patterns"),
 		RateLimit:            pkgconfigsetup.Datadog().GetFloat64("logs_config.experimental_adaptive_sampling.rate_limit"),
 		BurstSize:            pkgconfigsetup.Datadog().GetFloat64("logs_config.experimental_adaptive_sampling.burst_size"),
 		MatchThreshold:       pkgconfigsetup.Datadog().GetFloat64("logs_config.experimental_adaptive_sampling.match_threshold"),
 		ProtectImportantLogs: pkgconfigsetup.Datadog().GetBool("logs_config.experimental_adaptive_sampling.protect_important_logs"),
+		Include:              includeFilters,
+		IncludeConfigured:    includeConfigured,
+		Exclude:              excludeFilters,
 	}
 
 	if sourceAdaptiveSampling != nil {
@@ -199,12 +206,31 @@ func resolveAdaptiveSamplerConfig(sourceAdaptiveSampling *config.SourceAdaptiveS
 		if sourceAdaptiveSampling.ProtectImportantLogs != nil {
 			c.ProtectImportantLogs = *sourceAdaptiveSampling.ProtectImportantLogs
 		}
-		c.Include = resolveAdaptiveSamplerFilters(sourceAdaptiveSampling.Include, tok)
-		c.IncludeConfigured = sourceAdaptiveSampling.Include != nil
-		c.Exclude = resolveAdaptiveSamplerFilters(sourceAdaptiveSampling.Exclude, tok)
+		if sourceAdaptiveSampling.Include != nil {
+			c.Include = resolveAdaptiveSamplerFilters(sourceAdaptiveSampling.Include, tok)
+			c.IncludeConfigured = true
+		}
+		if sourceAdaptiveSampling.Exclude != nil {
+			c.Exclude = resolveAdaptiveSamplerFilters(sourceAdaptiveSampling.Exclude, tok)
+		}
 	}
 
 	return validateAdaptiveSamplerConfig(c)
+}
+
+func resolveGlobalAdaptiveSamplerFilters(key string, tok *preprocessor.Tokenizer) ([]preprocessor.AdaptiveSamplerFilter, bool) {
+	cfg := pkgconfigsetup.Datadog()
+	if !cfg.IsConfigured(key) {
+		return nil, false
+	}
+
+	var rules []*config.AdaptiveSamplingRule
+	if err := structure.UnmarshalKey(cfg, key, &rules, structure.EnableStringUnmarshal); err != nil {
+		log.Warnf("Failed to unmarshal adaptive sampler filters from %s, skipping: %v", key, err)
+		return nil, true
+	}
+
+	return resolveAdaptiveSamplerFilters(rules, tok), true
 }
 
 func resolveAdaptiveSamplerFilters(rules []*config.AdaptiveSamplingRule, tok *preprocessor.Tokenizer) []preprocessor.AdaptiveSamplerFilter {

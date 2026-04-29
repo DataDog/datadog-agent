@@ -564,6 +564,37 @@ func TestResolveAdaptiveSamplerConfig(t *testing.T) {
 		assert.NotEmpty(t, got.Exclude[1].SampleTokens)
 		assert.Equal(t, "error", got.Exclude[2].Status)
 	})
+
+	t.Run("global filters are resolved", func(t *testing.T) {
+		mockConfig.Set("logs_config.experimental_adaptive_sampling.include", []map[string]interface{}{
+			{"status": "info"},
+		}, pkgconfigmodel.SourceAgentRuntime)
+		mockConfig.Set("logs_config.experimental_adaptive_sampling.exclude", []map[string]interface{}{
+			{"status": "error"},
+		}, pkgconfigmodel.SourceAgentRuntime)
+
+		got := resolveAdaptiveSamplerConfig(nil, preprocessor.NewTokenizer(0))
+
+		assert.True(t, got.IncludeConfigured)
+		require.Len(t, got.Include, 1)
+		assert.Equal(t, "info", got.Include[0].Status)
+		require.Len(t, got.Exclude, 1)
+		assert.Equal(t, "error", got.Exclude[0].Status)
+	})
+
+	t.Run("source filters override global filters", func(t *testing.T) {
+		got := resolveAdaptiveSamplerConfig(&config.SourceAdaptiveSamplingOptions{
+			Include: []*config.AdaptiveSamplingRule{
+				{Status: "debug"},
+			},
+			Exclude: []*config.AdaptiveSamplingRule{},
+		}, preprocessor.NewTokenizer(0))
+
+		assert.True(t, got.IncludeConfigured)
+		require.Len(t, got.Include, 1)
+		assert.Equal(t, "debug", got.Include[0].Status)
+		assert.Empty(t, got.Exclude)
+	})
 }
 
 func TestDecoderWithDockerJSONPartialLineDetectionOnlyMarksOversizedLogicalLineTruncated(t *testing.T) {
