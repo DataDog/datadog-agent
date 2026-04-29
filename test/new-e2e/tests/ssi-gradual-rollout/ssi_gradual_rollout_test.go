@@ -8,14 +8,16 @@
 package ssigradualrollout
 
 import (
+	"crypto/sha256"
 	_ "embed"
+	"fmt"
 	"testing"
 
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/singlestep"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	compkube "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
@@ -56,28 +58,27 @@ func (v *ssiGradualRolloutSuite) TestDefaultOptIn() {
 		appName           = "gradual-rollout-python-app"
 	)
 
+	// Force cluster-agent restart when the CA rotates (its cert pool is cached at
+	// startup). Only matters in E2E_DEV_MODE: sync.Once regenerates certs per
+	// binary invocation while the cluster persists. No-op in CI (fresh cluster).
+	caCertPEM, _, _, err := getCerts()
+	require.NoError(v.T(), err)
+	certHash := fmt.Sprintf("%x", sha256.Sum256(caCertPEM))
+
 	v.UpdateEnv(ssi.Provisioner(ssi.ProvisionerOptions{
 		AgentOptions: []kubernetesagentparams.Option{
 			kubernetesagentparams.WithHelmValues(baseHelmValues),
 			kubernetesagentparams.WithHelmValues(defaultOptInHelmValues),
+			kubernetesagentparams.WithHelmValues(fmt.Sprintf(
+				"clusterAgent:\n  podAnnotations:\n    checksum/mock-registry-ca: %q\n",
+				certHash[:16],
+			)),
 		},
 		WorkloadAppFunc: func(e config.Env, kubeProvider *kubernetes.Provider) (*compkube.Workload, error) {
 			return nil, deployMockRegistry(e, kubeProvider)
 		},
 		AgentDependentWorkloadAppFunc: func(e config.Env, kubeProvider *kubernetes.Provider, dependsOnAgent pulumi.ResourceOption) (*compkube.Workload, error) {
-			return singlestep.Scenario(e, kubeProvider, "gradual-rollout-default", []singlestep.Namespace{
-				{
-					Name: scenarioNamespace,
-					Apps: []singlestep.App{
-						{
-							Name:    appName,
-							Image:   "gcr.io/datadoghq/injector-dev/python",
-							Version: "d425e7df",
-							Port:    8080,
-						},
-					},
-				},
-			}, dependsOnAgent)
+			return nil, deployTestWorkload(e, kubeProvider, scenarioNamespace, appName, dependsOnAgent)
 		},
 	}))
 

@@ -12,14 +12,77 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
+	appsv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/apps/v1"
+	corev1k8s "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/core/v1"
+	metav1k8s "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/meta/v1"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubeClient "k8s.io/client-go/kubernetes"
 
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 )
+
+// deployTestWorkload creates a namespace and a minimal Deployment in it to trigger
+// the admission webhook. The Deployment uses pulumi.com/skipAwait so Pulumi does
+// not wait for pods to become Ready — the pods will be stuck in ImagePullBackOff
+// (the mock registry serves HEAD requests only, not actual image data), but the
+// admission webhook still mutates the pod spec at creation time, which is all the
+// gradual rollout tests need to inspect.
+func deployTestWorkload(e config.Env, kubeProvider *kubernetes.Provider, namespace, appName string, opts ...pulumi.ResourceOption) error {
+	baseOpts := append([]pulumi.ResourceOption{pulumi.Provider(kubeProvider)}, opts...)
+
+	ns, err := corev1k8s.NewNamespace(e.Ctx(), e.CommonNamer().ResourceName(namespace+"-ns"), &corev1k8s.NamespaceArgs{
+		Metadata: &metav1k8s.ObjectMetaArgs{
+			Name: pulumi.String(namespace),
+		},
+	}, baseOpts...)
+	if err != nil {
+		return fmt.Errorf("failed to create namespace %s: %w", namespace, err)
+	}
+
+	nsOpts := append(baseOpts, pulumi.DependsOn([]pulumi.Resource{ns}))
+	_, err = appsv1.NewDeployment(e.Ctx(), e.CommonNamer().ResourceName(appName+"-deployment"), &appsv1.DeploymentArgs{
+		Metadata: &metav1k8s.ObjectMetaArgs{
+			Name:      pulumi.String(appName),
+			Namespace: pulumi.String(namespace),
+			// Skip Pulumi's rollout-readiness wait: pods will be stuck in
+			// ImagePullBackOff on the fake-digest init container image, but
+			// the pod spec (with the @sha256: image) is set immediately.
+			Annotations: pulumi.StringMap{
+				"pulumi.com/skipAwait": pulumi.String("true"),
+			},
+		},
+		Spec: &appsv1.DeploymentSpecArgs{
+			Replicas: pulumi.Int(1),
+			Selector: &metav1k8s.LabelSelectorArgs{
+				MatchLabels: pulumi.StringMap{"app": pulumi.String(appName)},
+			},
+			Template: &corev1k8s.PodTemplateSpecArgs{
+				Metadata: &metav1k8s.ObjectMetaArgs{
+					Labels: pulumi.StringMap{"app": pulumi.String(appName)},
+				},
+				Spec: &corev1k8s.PodSpecArgs{
+					Containers: corev1k8s.ContainerArray{
+						&corev1k8s.ContainerArgs{
+							Name:  pulumi.String(appName),
+							Image: pulumi.String("gcr.io/datadoghq/injector-dev/python:d425e7df"),
+						},
+					},
+				},
+			},
+		},
+	}, nsOpts...)
+	if err != nil {
+		return fmt.Errorf("failed to create deployment %s: %w", appName, err)
+	}
+
+	return nil
+}
 
 // GetPodsInNamespace returns all pods in the given namespace.
 func GetPodsInNamespace(t *testing.T, client kubeClient.Interface, namespace string) []corev1.Pod {
