@@ -600,11 +600,17 @@ def _sanity_pre_eval_sentinel(db: Db, root: Path, iter_num: int) -> tuple[bool, 
         return True, "skipped"
     if not db.baseline:
         return True, "no_baseline"
-    # System-level baseline: no per-detector lookup. Use the per-scenario F1
-    # from the system baseline as the sentinel target. On a scenario like
-    # 703_shopify where bocpd dominates, system F1 ≈ bocpd's contribution,
-    # so `--only bocpd` reproducing within tolerance still validates the
-    # eval pipeline.
+    # Sentinel only meaningful pre-first-ship: once any candidate has
+    # modified detector code in-tree, "vanilla bocpd reproduces baseline
+    # F1" stops being a valid invariant. Post-ship, the in-tree bocpd is
+    # not the bocpd that was baselined, so divergence is expected, not a
+    # signal of broken eval. Silent_failure detection (post-eval all-zero
+    # check) covers the env-broken case after first ship.
+    any_ship = any(
+        c.status == CandidateStatus.SHIPPED for c in db.candidates.values()
+    )
+    if any_ship:
+        return True, "skipped_post_first_ship"
     if scenario not in db.baseline.system.scenarios:
         return True, f"sentinel_scenario_not_in_baseline ({scenario})"
     expected_f1 = db.baseline.system.scenarios[scenario].f1
