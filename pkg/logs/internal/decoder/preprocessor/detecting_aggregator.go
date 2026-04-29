@@ -92,7 +92,7 @@ func (d *detectingAggregator) Process(msg *message.Message, label Label, tokens 
 			d.previousWasStartGroup = false
 		}
 		d.emit(msg, tokens)
-		d.resetSimulatedGroup()
+		d.finalizeSimulatedGroup()
 		return d.collected
 	}
 
@@ -121,7 +121,7 @@ func (d *detectingAggregator) Flush() []AggregatedMessageWithTokens {
 		d.previousMsgTokens = nil
 		d.previousWasStartGroup = false
 	}
-	d.resetSimulatedGroup()
+	d.finalizeSimulatedGroup()
 	return d.collected
 }
 
@@ -135,8 +135,8 @@ func (d *detectingAggregator) processSimulatedStartGroup(msg *message.Message) {
 	if !d.isDefaultPath {
 		return
 	}
-	// Finalize any previous group (no truncation on normal finalize)
-	d.resetSimulatedGroup()
+	// Finalize any previous group before starting a new candidate.
+	d.finalizeSimulatedGroup()
 
 	// A startGroup that is already >= maxContentSize would be flushed immediately
 	// by the combining aggregator. That's a single oversized line -- excluded from
@@ -169,16 +169,20 @@ func (d *detectingAggregator) processSimulatedAggregate(msg *message.Message) {
 		return
 	}
 
-	// This line would be combined in combining mode.
-	metrics.TlmAutoMultilineWouldCombine.Inc()
-
-	// When the first aggregate arrives, also count the startGroup line that anchors this group.
-	if d.linesInCurrentGroup == 1 {
-		metrics.TlmAutoMultilineWouldCombine.Inc()
-	}
-
 	d.simulatedBufLen += len(message.EscapedLineFeed) + len(msg.GetContent())
 	d.linesInCurrentGroup++
+}
+
+// finalizeSimulatedGroup reports a simulated multiline group that would survive
+// aggregation without overflowing the size limit.
+func (d *detectingAggregator) finalizeSimulatedGroup() {
+	if !d.inGroup {
+		return
+	}
+	if d.linesInCurrentGroup > 1 {
+		metrics.TlmAutoMultilineWouldCombine.Add(float64(d.linesInCurrentGroup))
+	}
+	d.resetSimulatedGroup()
 }
 
 // resetSimulatedGroup resets the COAT simulation state.

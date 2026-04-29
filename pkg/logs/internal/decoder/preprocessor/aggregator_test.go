@@ -672,6 +672,7 @@ func TestDetectingAggregator_COATTelemetry_WouldCombine(t *testing.T) {
 	ag.Process(newMessage("timestamp line"), startGroup, nil)
 	ag.Process(newMessage("  continuation 1"), aggregate, nil)
 	ag.Process(newMessage("  continuation 2"), aggregate, nil)
+	ag.Flush()
 
 	totalAfter := metrics.TlmAutoMultilineTotalLines.WithValues().Get()
 	combineAfter := metrics.TlmAutoMultilineWouldCombine.WithValues().Get()
@@ -721,6 +722,29 @@ func TestDetectingAggregator_COATTelemetry_OverflowingGroupsAreNotCombined(t *te
 	assert.Equal(t, float64(0), truncAfter-truncBefore)
 	assert.Equal(t, float64(2), totalAfter-totalBefore)
 	assert.Equal(t, float64(0), combineAfter-combineBefore)
+}
+
+func TestDetectingAggregator_COATTelemetry_LateOverflowDropsWholeGroup(t *testing.T) {
+	// The first three lines fit together, but the fourth would overflow and cause
+	// combining mode to abandon aggregation for the whole group.
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 15, false, true)
+
+	totalBefore := metrics.TlmAutoMultilineTotalLines.WithValues().Get()
+	combineBefore := metrics.TlmAutoMultilineWouldCombine.WithValues().Get()
+	truncBefore := metrics.TlmAutoMultilineWouldTruncate.WithValues().Get()
+
+	ag.Process(newMessage("1234"), startGroup, nil) // 4
+	ag.Process(newMessage("12"), aggregate, nil)    // 4+2+2 = 8
+	ag.Process(newMessage("12"), aggregate, nil)    // 8+2+2 = 12
+	ag.Process(newMessage("12"), aggregate, nil)    // 12+2+2 = 16 >= 15, abandon group
+
+	totalAfter := metrics.TlmAutoMultilineTotalLines.WithValues().Get()
+	combineAfter := metrics.TlmAutoMultilineWouldCombine.WithValues().Get()
+	truncAfter := metrics.TlmAutoMultilineWouldTruncate.WithValues().Get()
+
+	assert.Equal(t, float64(4), totalAfter-totalBefore)
+	assert.Equal(t, float64(0), combineAfter-combineBefore)
+	assert.Equal(t, float64(0), truncAfter-truncBefore)
 }
 
 func TestDetectingAggregator_COATTelemetry_NoTruncateForOversizedSingleLine(t *testing.T) {
