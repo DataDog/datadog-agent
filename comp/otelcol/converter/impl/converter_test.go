@@ -145,6 +145,12 @@ func TestConvert(t *testing.T) {
 			agentConfig:    "extensions/other-extensions/datadog-site/acfg.yaml",
 		},
 		{
+			name:           "extensions/other-extensions/datadog-wired",
+			provided:       "extensions/other-extensions/datadog-wired/config.yaml",
+			expectedResult: "extensions/other-extensions/datadog-wired/config-result.yaml",
+			agentConfig:    "extensions/other-extensions/datadog-wired/acfg.yaml",
+		},
+		{
 			name:           "extensions/no-changes/datadog",
 			provided:       "extensions/no-changes/datadog/config.yaml",
 			expectedResult: "extensions/no-changes/datadog/config.yaml",
