@@ -31,10 +31,11 @@ jobs:
 
     - name: Intelligent Issue Triage
       id: claude
-      uses: anthropics/claude-code-action@0432df8bfe0572278dd19bca33be32cdc8061ebb # v1.0.87
+      uses: anthropics/claude-code-action@4e5d8b13ca281a6d163cdb287d8917b216e00d6f # v1.0.103
       with:
         anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
         claude_args : --allowedTools "Read(issue_details.json),Edit(claude.txt)"
+        github_token: ${{ github.token }}
         prompt: |
           # Datadog Agent - Intelligent Issue Triage System
 

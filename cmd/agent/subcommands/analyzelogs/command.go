@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -35,7 +36,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -45,7 +46,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const defaultCoreConfigPath = "bin/agent/dist/datadog.yaml"
@@ -89,10 +89,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				dualTaggerfx.Module(common.DualTaggerParams()),
 				workloadmetafx.Module(defaults.DefaultParams()),
 				workloadfilterfx.Module(),
+				hostnameimpl.Module(),
 				autodiscoveryimpl.Module(),
-				fx.Provide(func() option.Option[healthplatform.Component] {
-					return option.None[healthplatform.Component]()
-				}),
+				healthplatform.Bundle(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},

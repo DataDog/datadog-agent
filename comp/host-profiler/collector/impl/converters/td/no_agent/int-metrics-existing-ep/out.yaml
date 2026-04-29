@@ -9,6 +9,7 @@ exporters:
         profiles_endpoint: https://intake.profile.datadoghq.com/v1development/profiles
 processors:
     cumulativetodelta/dd-hp-internal: {}
+    ddhostname/default: {}
     filter/dd-hp-drop-internal:
         metrics:
             exclude:
@@ -64,6 +65,7 @@ service:
                 - filter/dd-hp-drop-internal
                 - cumulativetodelta/dd-hp-internal
                 - resourcedetection/default
+                - ddhostname/default
                 - resource/dd-profiler-internal-metadata
             receivers:
                 - prometheus/dd-hp-internal
@@ -72,6 +74,7 @@ service:
                 - otlphttp
             processors:
                 - resourcedetection/default
+                - ddhostname/default
                 - resource/dd-profiler-internal-metadata
             receivers:
                 - profiling

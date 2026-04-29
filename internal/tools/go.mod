@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/aarzilli/whydeadcode v0.0.0-20260303092945-8d908f77de3a
-	github.com/bazelbuild/bazelisk v1.28.1
+	github.com/bazelbuild/bazelisk v1.29.0
 	github.com/frapposelli/wwhrd v0.4.0
 	github.com/go-enry/go-license-detector/v4 v4.3.1
 	github.com/golangci/golangci-lint/v2 v2.9.0

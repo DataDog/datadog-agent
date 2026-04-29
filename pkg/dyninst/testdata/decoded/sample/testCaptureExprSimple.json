@@ -60,14 +60,14 @@
               }
             }
           }
-        }
-      },
-      "evaluationErrors": [
-        {
-          "expr": "@duration",
-          "message": "not available: function has no body"
-        }
-      ]
+        },
+        "evaluationErrors": [
+          {
+            "expr": "@duration",
+            "message": "not available: function has no body"
+          }
+        ]
+      }
     },
     "timestamp": "[ts]",
     "process_tags": "entrypoint.name:sample,svc.user:sample"

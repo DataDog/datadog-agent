@@ -151,6 +151,87 @@ func TestGetTracerouteInvalidJSON(t *testing.T) {
 	assert.Contains(t, err.Error(), "error unmarshalling response")
 }
 
+func TestGetTracerouteStructuredError(t *testing.T) {
+	tests := []struct {
+		name         string
+		errorCode    payload.TracerouteErrorCode
+		errorMessage string
+		expectedCode payload.TracerouteErrorCode
+	}{
+		{"DNS error", payload.TracerouteErrCodeDNS, "Failed to resolve the host name.", payload.TracerouteErrCodeDNS},
+		{"timeout error", payload.TracerouteErrCodeTimeout, "The request timed out.", payload.TracerouteErrCodeTimeout},
+		{"connection refused", payload.TracerouteErrCodeConnRefused, "The connection was refused by the remote host.", payload.TracerouteErrCodeConnRefused},
+		{"host unreachable", payload.TracerouteErrCodeHostUnreach, "The remote host is unreachable.", payload.TracerouteErrCodeHostUnreach},
+		{"network unreachable", payload.TracerouteErrCodeNetUnreach, "The remote server network is unreachable.", payload.TracerouteErrCodeNetUnreach},
+		{"unknown error", payload.TracerouteErrCodeUnknown, "An unknown error occurred.", payload.TracerouteErrCodeUnknown},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			hostnameComponent, _ := hostnameinterface.NewMock("test-agent-hostname")
+
+			errResp := payload.TracerouteErrorResponse{Code: tt.errorCode, Message: tt.errorMessage}
+			jsonBytes, err := json.Marshal(errResp)
+			require.NoError(t, err)
+
+			client := &http.Client{
+				Transport: &mockTransport{
+					RoundTripFunc: func(_ *http.Request) (*http.Response, error) {
+						return &http.Response{
+							StatusCode: http.StatusInternalServerError,
+							Body:       io.NopCloser(bytes.NewReader(jsonBytes)),
+							Header:     make(http.Header),
+						}, nil
+					},
+				},
+			}
+
+			cfg := config.Config{
+				DestHostname: "example.com",
+				DestPort:     80,
+				Protocol:     payload.ProtocolTCP,
+			}
+
+			rt := &remoteTraceroute{sysprobeClient: client, log: logmock.New(t), hostname: hostnameComponent}
+			_, err = rt.Run(context.Background(), cfg)
+			require.Error(t, err)
+
+			var trErr *payload.TracerouteError
+			require.ErrorAs(t, err, &trErr)
+			assert.Equal(t, tt.expectedCode, trErr.Code)
+			assert.Equal(t, tt.errorMessage, trErr.Message)
+		})
+	}
+}
+
+func TestGetTraceroutePlainTextErrorFallback(t *testing.T) {
+	hostnameComponent, _ := hostnameinterface.NewMock("test-agent-hostname")
+
+	client := &http.Client{
+		Transport: &mockTransport{
+			RoundTripFunc: func(_ *http.Request) (*http.Response, error) {
+				return &http.Response{
+					StatusCode: http.StatusInternalServerError,
+					Body:       io.NopCloser(bytes.NewReader([]byte("plain text error"))),
+					Header:     make(http.Header),
+				}, nil
+			},
+		},
+	}
+
+	cfg := config.Config{
+		DestHostname: "example.com",
+		DestPort:     80,
+		Protocol:     payload.ProtocolTCP,
+	}
+
+	rt := &remoteTraceroute{sysprobeClient: client, log: logmock.New(t), hostname: hostnameComponent}
+	_, err := rt.Run(context.Background(), cfg)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "traceroute request failed")
+	assert.Contains(t, err.Error(), "plain text error")
+}
+
 func TestGetTracerouteURL(t *testing.T) {
 	tests := []struct {
 		name                      string

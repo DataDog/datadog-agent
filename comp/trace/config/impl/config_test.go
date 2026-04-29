@@ -38,7 +38,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
-	noopTelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	noopTelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/fx-noop"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -2061,9 +2061,9 @@ func TestGenerateInstallSignature(t *testing.T) {
 	cfg := c.Object()
 	assert.NotNil(t, cfg)
 
-	assert.False(t, coreConfig.IsSet("apm_config.install_id"))
-	assert.False(t, coreConfig.IsSet("apm_config.install_type"))
-	assert.False(t, coreConfig.IsSet("apm_config.install_time"))
+	assert.False(t, coreConfig.IsConfigured("apm_config.install_id"))
+	assert.False(t, coreConfig.IsConfigured("apm_config.install_type"))
+	assert.False(t, coreConfig.IsConfigured("apm_config.install_time"))
 
 	assert.True(t, cfg.InstallSignature.Found)
 	installFilePath := filepath.Join(cfgDir, "install.json")

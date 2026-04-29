@@ -291,6 +291,16 @@ func InstrumentAPMInjector(ctx context.Context, method string) (err error) {
 	return nil
 }
 
+// InstrumentAPMInjectorStart is a no-op on windows
+func InstrumentAPMInjectorStart(_ context.Context) error {
+	return nil
+}
+
+// UninstrumentAPMInjectorStop is a no-op on windows
+func UninstrumentAPMInjectorStop(_ context.Context) error {
+	return nil
+}
+
 // UninstrumentAPMInjector un-instruments the APM injector for IIS on Windows
 func UninstrumentAPMInjector(ctx context.Context, method string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "uninstrument_injector")
