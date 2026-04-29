@@ -354,7 +354,30 @@ func (e *engine) removeContextRefsForEvictedKeys(namespace string, evictedKeys [
 		}
 	}
 	if len(storageKeys) > 0 {
-		e.storage.RemoveSeriesByKeys(storageKeys)
+		freedRefs := e.storage.RemoveSeriesByKeys(storageKeys)
+		e.fanOutSeriesRemoval(freedRefs)
+	}
+}
+
+// fanOutSeriesRemoval notifies every detector that implements the optional
+// SeriesRemover interface that the listed SeriesRefs have been freed by
+// storage. This keeps detector-side per-series state (BOCPD posterior maps,
+// ScanMW/ScanWelch segment trackers, seriesDetectorAdapter visible-count
+// maps) symmetric with storage so the LRU caps placed on extractorsâ
+// contexts actually translate into bounded heap usage end-to-end.
+//
+// The caller (removeContextRefsForEvictedKeys / Reset / future GC paths)
+// is responsible for invoking this with whatever refs storage actually
+// freed. Detectors are expected to ignore unknown refs, so itâs safe to
+// broadcast the same ref list to all of them.
+func (e *engine) fanOutSeriesRemoval(refs []observerdef.SeriesRef) {
+	if len(refs) == 0 || len(e.detectors) == 0 {
+		return
+	}
+	for _, d := range e.detectors {
+		if remover, ok := d.(observerdef.SeriesRemover); ok {
+			remover.RemoveSeries(refs)
+		}
 	}
 }
 

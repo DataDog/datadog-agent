@@ -719,21 +719,28 @@ func (s *timeSeriesStorage) SeriesGeneration() uint64 {
 // series are retired but NEVER reused: their slot in seriesIDStats is set to
 // nil so any stale SeriesRef resolves to nil via resolveByID, and the slot in
 // seriesIDKeys is left in place so subsequent index lookups remain bounds-safe.
-// Returns the number of series actually removed. seriesGen is bumped iff at
-// least one series was removed so cached ListSeries results are invalidated.
+// Returns the SeriesRefs that were actually freed (one per successful removal,
+// in input order; unknown keys are silently skipped). seriesGen is bumped iff
+// at least one series was removed so cached ListSeries results are invalidated.
+//
+// Callers use the returned refs to fan out per-series teardown to detector
+// state that's keyed by SeriesRef (BOCPD, ScanMW, ScanWelch posterior maps,
+// seriesDetectorAdapter.lastVisibleCount, etc.). Without that fan-out, those
+// maps grow with the cumulative number of series ever observed even though
+// storage shrinks â defeating the LRU caps put on the upstream extractors.
 //
 // This is the storage-side counterpart to engine.removeContextRefsForEvictedKeys:
 // the engine's contextRefs index keeps track of which storage key was created
 // for which extractor context key, so when an extractor evicts a context the
 // engine can pass the corresponding storage keys here to free their tags +
 // columnar arrays. Without this path, evicted patterns leak indefinitely.
-func (s *timeSeriesStorage) RemoveSeriesByKeys(keys []string) int {
+func (s *timeSeriesStorage) RemoveSeriesByKeys(keys []string) []observer.SeriesRef {
 	if len(keys) == 0 {
-		return 0
+		return nil
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	removed := 0
+	var removed []observer.SeriesRef
 	for _, key := range keys {
 		if _, exists := s.series[key]; !exists {
 			continue
@@ -744,10 +751,10 @@ func (s *timeSeriesStorage) RemoveSeriesByKeys(keys []string) int {
 				s.seriesIDStats[id] = nil
 			}
 			delete(s.seriesIDs, key)
+			removed = append(removed, id)
 		}
-		removed++
 	}
-	if removed > 0 {
+	if len(removed) > 0 {
 		s.seriesGen++
 	}
 	return removed
