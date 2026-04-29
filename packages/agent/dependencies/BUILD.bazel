@@ -75,6 +75,7 @@ dd_collect_dependencies(
         ],
         "//packages/agent:linux_heroku": [
             "@curl//:curl_pkg",
+            "@freetds//:tdsodbc_pkg",
         ],
         "//conditions:default": [],
     }),
