@@ -8,7 +8,6 @@ package remoteflags
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/remoteflags"
-	"go.uber.org/fx"
 )
 
 // team: agent-metric-pipelines
@@ -17,21 +16,4 @@ import (
 type Component interface {
 	// GetClient returns the remote flags client for subscribing to feature flags.
 	GetClient() *remoteflags.Client
-}
-
-// RemoteFlagSubscriber is the fx wrapper for components that subscribe to remote flags.
-// Components that want to subscribe to remote flags should return this from their
-// fx.Provide function.
-type RemoteFlagSubscriber struct {
-	fx.Out
-
-	Subscriber remoteflags.RemoteFlagSubscriber `group:"remoteFlagSubscriber"`
-}
-
-// NewRemoteFlagSubscriber creates a RemoteFlagSubscriber for fx registration.
-// Pass a component that implements remoteflags.RemoteFlagSubscriber.
-func NewRemoteFlagSubscriber(subscriber remoteflags.RemoteFlagSubscriber) RemoteFlagSubscriber {
-	return RemoteFlagSubscriber{
-		Subscriber: subscriber,
-	}
 }
