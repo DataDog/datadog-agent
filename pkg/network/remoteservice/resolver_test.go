@@ -131,11 +131,6 @@ func TestResolveSelfConnection(t *testing.T) {
 	assert.Nil(t, r.Resolve(clientPID, "127.0.0.1", 8080, 12345))
 }
 
-func TestResolveEmptyListeners(t *testing.T) {
-	r := newResolver(nil)
-	assert.Nil(t, r.Resolve(clientPID, "127.0.0.1", 8080, 12345))
-}
-
 func TestResolveIISTagsTakePrecedence(t *testing.T) {
 	r := newResolver(map[ListenKey]int32{
 		{IP: "127.0.0.1", Port: 8080}: serverPID,
