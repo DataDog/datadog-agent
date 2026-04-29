@@ -126,6 +126,44 @@ func TestRateCalculatorPerSecondNonPositiveTimeDiff(t *testing.T) {
 	require.Equal(t, 0.0, earlierTimestamp.Value)
 }
 
+func TestRateCalculatorNegativeDeltaIsClampedToZero(t *testing.T) {
+	calculator := NewRateCalculator()
+	t1 := time.Unix(100, 0)
+	t2 := time.Unix(104, 0)
+
+	firstAbsolute := &Metric{
+		Name:                "errors.total",
+		Value:               20,
+		Tags:                []string{"gpu_uuid:abc"},
+		RateCalculationMode: AbsoluteDeltaRateCalculation,
+	}
+	secondAbsolute := &Metric{
+		Name:                "errors.total",
+		Value:               15,
+		Tags:                []string{"gpu_uuid:abc"},
+		RateCalculationMode: AbsoluteDeltaRateCalculation,
+	}
+
+	firstPerSecond := &Metric{
+		Name:                "bytes.transferred",
+		Value:               40,
+		Tags:                []string{"gpu_uuid:abc"},
+		RateCalculationMode: PerSecondRateCalculation,
+	}
+	secondPerSecond := &Metric{
+		Name:                "bytes.transferred",
+		Value:               30,
+		Tags:                []string{"gpu_uuid:abc"},
+		RateCalculationMode: PerSecondRateCalculation,
+	}
+
+	calculator.ProcessMetrics([]*Metric{firstAbsolute, firstPerSecond}, t1)
+	calculator.ProcessMetrics([]*Metric{secondAbsolute, secondPerSecond}, t2)
+
+	require.Equal(t, 0.0, secondAbsolute.Value)
+	require.Equal(t, 0.0, secondPerSecond.Value)
+}
+
 func TestRateCalculatorDifferentRateKeysDoNotConflict(t *testing.T) {
 	calculator := NewRateCalculator()
 	t1 := time.Unix(100, 0)

@@ -71,6 +71,9 @@ func (r *RateCalculator) processMetric(metric *Metric, timestamp time.Time) {
 	}
 
 	delta := metric.Value - previous.value
+	if delta < 0 {
+		delta = 0
+	}
 
 	if metric.RateCalculationMode == AbsoluteDeltaRateCalculation {
 		metric.Value = delta
