@@ -229,6 +229,35 @@ Then the decision line: `→ SHIPPED` or `→ REJECTED (<filter that fired>)`.
 
 ---
 
+## 10a. Live activity log
+
+In addition to the journal (one entry per iter, at iter end) and PR comments (rendered async), maintain a **tail-friendly activity log** at `.headless-run/activity.md`. Append one line per notable transition, in real time, so a human running `tail -f .headless-run/activity.md` sees what you are doing right now.
+
+Format: `HH:MMZ — <phase> — <one short sentence>`. Use UTC. Examples:
+
+```
+18:04Z — startup — pinned lockbox to .headless-run/lockbox.json (10 train, 2 lockbox)
+18:05Z — startup — opened draft PR #50125
+18:14Z — bootstrap — running bocpd rep 1/3 (~6min)
+18:20Z — bootstrap — bocpd rep 1/3 done; rep 2/3 starting
+...
+19:34Z — iter 3 — picked candidate B-anomaly-rank, implementing
+19:42Z — iter 3 — go build OK, starting scanmw rep 1/3
+19:50Z — iter 3 — eval done, scoring
+19:51Z — iter 3 — SHIPPED (commit a1b2c3d, score +0.018, SE 0.004)
+20:05Z — iter 4 — picked candidate proposed-cooldown-tweak, implementing
+20:09Z — iter 4 — REJECTED (absolute cliff on 211_doordash, ΔF1 -0.13)
+```
+
+Rules:
+- One line, no wrapping, ≤120 chars. If you have more to say, that goes in the per-iter PR comment (§10), not here.
+- Append on every: phase transition (startup → bootstrap → iter loop → exit), every detector-rep boundary during eval, every implementation start/done, every ship/reject, every alarm, every seed accepted.
+- Timestamp uses `datetime.now(timezone.utc).strftime("%H:%MZ")` — minute resolution is enough.
+- Never edit prior lines, only append. If a line was wrong, append a corrected one.
+- This log is for live observation; the journal (§6) remains the source of truth for post-mortem.
+
+---
+
 ## 11. End state
 
 Exit on whichever fires first:
