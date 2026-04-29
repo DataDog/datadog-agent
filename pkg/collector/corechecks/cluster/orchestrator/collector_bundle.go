@@ -427,7 +427,9 @@ func (cb *CollectorBundle) Run(sender sender.Sender) {
 
 		if cb.runCfg.Config.IsManifestCollectionEnabled {
 			if cb.manifestBuffer.Cfg.BufferedManifestEnabled && collector.Metadata().SupportsManifestBuffering {
-				BufferManifestProcessResult(result.Result.ManifestMessages, cb.manifestBuffer)
+				if !BufferManifestProcessResult(result.Result.ManifestMessages, cb.manifestBuffer) {
+					sender.OrchestratorManifest(result.Result.ManifestMessages, cb.check.clusterID)
+				}
 			} else {
 				sender.OrchestratorManifest(result.Result.ManifestMessages, cb.check.clusterID)
 			}

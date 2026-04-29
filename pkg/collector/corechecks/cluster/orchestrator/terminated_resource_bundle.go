@@ -102,7 +102,9 @@ func (tb *TerminatedResourceBundle) Run() {
 		}
 
 		if collector.Metadata().SupportsManifestBuffering {
-			BufferManifestProcessResult(result.Result.ManifestMessages, tb.manifestBuffer)
+			if !BufferManifestProcessResult(result.Result.ManifestMessages, tb.manifestBuffer) {
+				orchSender.OrchestratorManifest(result.Result.ManifestMessages, tb.runCfg.ClusterID)
+			}
 		} else {
 			orchSender.OrchestratorManifest(result.Result.ManifestMessages, tb.runCfg.ClusterID)
 		}

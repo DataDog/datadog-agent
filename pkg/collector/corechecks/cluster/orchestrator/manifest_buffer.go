@@ -63,6 +63,8 @@ type ManifestBuffer struct {
 	bufferedManifests []interface{}
 	stopCh            chan struct{}
 	wg                sync.WaitGroup
+	lifecycleMu       sync.RWMutex
+	running           bool
 }
 
 // NewManifestBuffer returns a new ManifestBuffer
@@ -121,7 +123,17 @@ func (cb *ManifestBuffer) appendManifest(m interface{}, sender sender.Sender) {
 // Start is to start a thread to buffer manifest and send them
 // It flushes manifests every defaultFlushManifestTime
 func (cb *ManifestBuffer) Start(sender sender.Sender) {
+	cb.lifecycleMu.Lock()
+	if cb.running {
+		cb.lifecycleMu.Unlock()
+		return
+	}
+
+	cb.ManifestChan = make(chan interface{})
+	cb.stopCh = make(chan struct{})
+	cb.running = true
 	cb.wg.Add(1)
+	cb.lifecycleMu.Unlock()
 
 	go func() {
 		ticker := time.NewTicker(cb.Cfg.ManifestBufferFlushInterval)
@@ -150,18 +162,37 @@ func (cb *ManifestBuffer) Start(sender sender.Sender) {
 
 // Stop is to kill the thread collecting manifest
 func (cb *ManifestBuffer) Stop() {
-	cb.stopCh <- struct{}{}
+	cb.lifecycleMu.Lock()
+	defer cb.lifecycleMu.Unlock()
+
+	if !cb.running {
+		return
+	}
+
+	close(cb.stopCh)
+	cb.running = false
 	cb.wg.Wait()
 }
 
-// BufferManifestProcessResult is to add process result to the buffer
-func BufferManifestProcessResult(messages []model.MessageBody, buffer *ManifestBuffer) {
+// BufferManifestProcessResult adds a process result to the buffer.
+// It returns false when the buffer is not running, allowing callers to send the
+// result directly instead of blocking forever on a stopped buffer.
+func BufferManifestProcessResult(messages []model.MessageBody, buffer *ManifestBuffer) bool {
+	buffer.lifecycleMu.RLock()
+	defer buffer.lifecycleMu.RUnlock()
+
+	if !buffer.running {
+		return false
+	}
+
 	for _, message := range messages {
 		m := message.(*model.CollectorManifest)
 		for _, manifest := range m.Manifests {
 			buffer.ManifestChan <- manifest
 		}
 	}
+
+	return true
 }
 
 func setManifestStats(manifests []interface{}) {

@@ -62,7 +62,7 @@ func TestOrchestratorManifestBuffer(t *testing.T) {
 		Tags:        []string{"dropped:tag"},
 		ClusterName: "dropped-cluster",
 	}
-	BufferManifestProcessResult([]model.MessageBody{body}, mb)
+	assert.True(t, BufferManifestProcessResult([]model.MessageBody{body}, mb))
 	mb.Stop()
 
 	// Buffer size is 2, as we have 5 manifests, the buffer needs to be flushed 3 times
@@ -100,6 +100,32 @@ func TestOrchestratorManifestBuffer(t *testing.T) {
 	}, manifestToSend[2].Manifests)
 	assert.EqualValues(t, bufferCluster, manifestToSend[2].ClusterName)
 	assert.EqualValues(t, expectedTags, manifestToSend[2].Tags)
+}
+
+func TestBufferManifestProcessResultWhenBufferNotRunning(t *testing.T) {
+	mb := getManifestBuffer(t)
+
+	body := model.MessageBody(&model.CollectorManifest{
+		Manifests: []*model.Manifest{{Type: int32(1)}},
+	})
+
+	assert.False(t, BufferManifestProcessResult([]model.MessageBody{body}, mb))
+}
+
+func TestBufferManifestProcessResultWhenBufferStopped(t *testing.T) {
+	manifestToSend = []*model.CollectorManifest{}
+	mb := getManifestBuffer(t)
+	mb.Start(getSender(t))
+
+	body := model.MessageBody(&model.CollectorManifest{
+		Manifests: []*model.Manifest{{Type: int32(1)}},
+	})
+
+	assert.True(t, BufferManifestProcessResult([]model.MessageBody{body}, mb))
+	mb.Stop()
+
+	require.Len(t, manifestToSend, 1)
+	assert.False(t, BufferManifestProcessResult([]model.MessageBody{body}, mb))
 }
 
 func TestNewManifestBuffer(t *testing.T) {
