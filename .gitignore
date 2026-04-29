@@ -256,5 +256,6 @@ AUTO_JIRA.md
 
 # Headless observer-AD run state (see tasks/coordinator/HEADLESS_BRIEF.md)
 .headless-run/
+.coordinator/
 eval-results/
 tasks/coordinator/HEADLESS_SEEDS.md
