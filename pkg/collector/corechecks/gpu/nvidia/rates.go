@@ -22,15 +22,17 @@ const (
 type rateKey struct {
 	metricName string
 	tagsKey    string
+	gpuUuid    string
 }
 
-func buildRateKey(metric *Metric) rateKey {
+func buildRateKey(metric *Metric, gpuUuid string) rateKey {
 	sortedTags := slices.Clone(metric.Tags)
 	slices.Sort(sortedTags)
 
 	return rateKey{
 		metricName: metric.Name,
 		tagsKey:    strings.Join(sortedTags, ","),
+		gpuUuid:    gpuUuid,
 	}
 }
 
@@ -51,12 +53,13 @@ func NewRateCalculator() *RateCalculator {
 	}
 }
 
-func (r *RateCalculator) processMetric(metric *Metric, timestamp time.Time) {
+// processMetric processes a single metric and returns true if the metric should be included in the output, false if it should be dropped.
+func (r *RateCalculator) processMetric(metric *Metric, timestamp time.Time, gpuUuid string) bool {
 	if metric.RateCalculationMode == NoRateCalculation {
-		return
+		return true
 	}
 
-	key := buildRateKey(metric)
+	key := buildRateKey(metric, gpuUuid)
 	previous, ok := r.previousValues[key]
 
 	r.previousValues[key] = previousValue{
@@ -65,9 +68,8 @@ func (r *RateCalculator) processMetric(metric *Metric, timestamp time.Time) {
 	}
 
 	if !ok {
-		// No previous value, so no rate at all.
-		metric.Value = 0
-		return
+		// No previous value, so no rate yet.
+		return false
 	}
 
 	delta := metric.Value - previous.value
@@ -77,24 +79,29 @@ func (r *RateCalculator) processMetric(metric *Metric, timestamp time.Time) {
 
 	if metric.RateCalculationMode == AbsoluteDeltaRateCalculation {
 		metric.Value = delta
-		return
+		return true
 	}
 
 	timeDiff := timestamp.Sub(previous.timestamp).Seconds()
 	if timeDiff <= 0 {
 		// Time difference is negative or zero, so no rate at all.
 		metric.Value = 0
-		return
+		return true
 	}
 
 	metric.Value = delta / timeDiff
+	return true
 }
 
 // ProcessMetrics processes a list of metrics and calculates the rate for each
-// metric if appropriate. Leaves unmodified the metrics that do not require rate
-// calculation
-func (r *RateCalculator) ProcessMetrics(metrics []*Metric, timestamp time.Time) {
+// metric if appropriate. Metrics that require rate calculation and don't have a
+// previous value are dropped.
+func (r *RateCalculator) ProcessMetrics(metrics []*Metric, timestamp time.Time, gpuUuid string) []*Metric {
+	filteredMetrics := make([]*Metric, 0, len(metrics))
 	for _, metric := range metrics {
-		r.processMetric(metric, timestamp)
+		if r.processMetric(metric, timestamp, gpuUuid) {
+			filteredMetrics = append(filteredMetrics, metric)
+		}
 	}
+	return filteredMetrics
 }

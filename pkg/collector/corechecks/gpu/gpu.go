@@ -379,7 +379,7 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*
 		deviceContainers := gpuToContainersMap[deviceUUID]
 		deviceTags := c.deviceTags[deviceUUID]
 
-		c.rateCalculator.ProcessMetrics(deduplicatedMetrics, currentExecutionTime)
+		deduplicatedMetrics = c.rateCalculator.ProcessMetrics(deduplicatedMetrics, currentExecutionTime, deviceUUID)
 
 		// iterate through filtered metrics and emit them with the tags
 		for _, metric := range deduplicatedMetrics {

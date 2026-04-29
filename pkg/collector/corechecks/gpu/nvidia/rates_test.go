@@ -22,7 +22,7 @@ func TestBuildRateKeySortsTags(t *testing.T) {
 		Tags: []string{"a:1", "b:2"},
 	}
 
-	require.Equal(t, buildRateKey(metricA), buildRateKey(metricB))
+	require.Equal(t, buildRateKey(metricA, "gpu-1"), buildRateKey(metricB, "gpu-1"))
 	require.Equal(t, []string{"b:2", "a:1"}, metricA.Tags, "input tags should not be mutated")
 }
 
@@ -36,9 +36,11 @@ func TestRateCalculatorNoRateCalculationLeavesMetricUntouched(t *testing.T) {
 		RateCalculationMode: NoRateCalculation,
 	}
 
-	calculator.ProcessMetrics([]*Metric{metric}, now)
+	result := calculator.ProcessMetrics([]*Metric{metric}, now, "gpu-1")
 
 	require.Equal(t, 42.0, metric.Value)
+	require.Len(t, result, 1)
+	require.Same(t, metric, result[0])
 	require.Empty(t, calculator.previousValues)
 }
 
@@ -61,10 +63,12 @@ func TestRateCalculatorAbsoluteDelta(t *testing.T) {
 		RateCalculationMode: AbsoluteDeltaRateCalculation,
 	}
 
-	calculator.ProcessMetrics([]*Metric{first}, t1)
-	require.Equal(t, 0.0, first.Value)
+	firstResult := calculator.ProcessMetrics([]*Metric{first}, t1, "gpu-1")
+	require.Empty(t, firstResult)
 
-	calculator.ProcessMetrics([]*Metric{second}, t2)
+	secondResult := calculator.ProcessMetrics([]*Metric{second}, t2, "gpu-1")
+	require.Len(t, secondResult, 1)
+	require.Same(t, second, secondResult[0])
 	require.Equal(t, 6.0, second.Value)
 }
 
@@ -86,10 +90,12 @@ func TestRateCalculatorPerSecond(t *testing.T) {
 		RateCalculationMode: PerSecondRateCalculation,
 	}
 
-	calculator.ProcessMetrics([]*Metric{first}, t1)
-	require.Equal(t, 0.0, first.Value)
+	firstResult := calculator.ProcessMetrics([]*Metric{first}, t1, "gpu-1")
+	require.Empty(t, firstResult)
 
-	calculator.ProcessMetrics([]*Metric{second}, t2)
+	secondResult := calculator.ProcessMetrics([]*Metric{second}, t2, "gpu-1")
+	require.Len(t, secondResult, 1)
+	require.Same(t, second, secondResult[0])
 	require.Equal(t, 4.0, second.Value)
 }
 
@@ -118,10 +124,13 @@ func TestRateCalculatorPerSecondNonPositiveTimeDiff(t *testing.T) {
 		RateCalculationMode: PerSecondRateCalculation,
 	}
 
-	calculator.ProcessMetrics([]*Metric{first}, t1)
-	calculator.ProcessMetrics([]*Metric{sameTimestamp}, t2)
-	calculator.ProcessMetrics([]*Metric{earlierTimestamp}, t3)
+	firstResult := calculator.ProcessMetrics([]*Metric{first}, t1, "gpu-1")
+	sameTimestampResult := calculator.ProcessMetrics([]*Metric{sameTimestamp}, t2, "gpu-1")
+	earlierTimestampResult := calculator.ProcessMetrics([]*Metric{earlierTimestamp}, t3, "gpu-1")
 
+	require.Empty(t, firstResult)
+	require.Len(t, sameTimestampResult, 1)
+	require.Len(t, earlierTimestampResult, 1)
 	require.Equal(t, 0.0, sameTimestamp.Value)
 	require.Equal(t, 0.0, earlierTimestamp.Value)
 }
@@ -157,9 +166,11 @@ func TestRateCalculatorNegativeDeltaIsClampedToZero(t *testing.T) {
 		RateCalculationMode: PerSecondRateCalculation,
 	}
 
-	calculator.ProcessMetrics([]*Metric{firstAbsolute, firstPerSecond}, t1)
-	calculator.ProcessMetrics([]*Metric{secondAbsolute, secondPerSecond}, t2)
+	firstResult := calculator.ProcessMetrics([]*Metric{firstAbsolute, firstPerSecond}, t1, "gpu-1")
+	secondResult := calculator.ProcessMetrics([]*Metric{secondAbsolute, secondPerSecond}, t2, "gpu-1")
 
+	require.Empty(t, firstResult)
+	require.Len(t, secondResult, 2)
 	require.Equal(t, 0.0, secondAbsolute.Value)
 	require.Equal(t, 0.0, secondPerSecond.Value)
 }
@@ -211,10 +222,59 @@ func TestRateCalculatorDifferentRateKeysDoNotConflict(t *testing.T) {
 		},
 	}
 
-	calculator.ProcessMetrics(firstBatch, t1)
-	calculator.ProcessMetrics(secondBatch, t2)
+	firstResult := calculator.ProcessMetrics(firstBatch, t1, "gpu-1")
+	secondResult := calculator.ProcessMetrics(secondBatch, t2, "gpu-1")
 
+	require.Empty(t, firstResult)
+	require.Len(t, secondResult, 3)
 	require.Equal(t, 5.0, secondBatch[0].Value)
 	require.Equal(t, 8.0, secondBatch[1].Value)
 	require.Equal(t, 30.0, secondBatch[2].Value)
+}
+
+func TestRateCalculatorDifferentGPUUUIDsUseIndependentRateKeys(t *testing.T) {
+	calculator := NewRateCalculator()
+	t1 := time.Unix(100, 0)
+	t2 := time.Unix(104, 0)
+
+	gpu1First := &Metric{
+		Name:                "bytes.transferred",
+		Value:               10,
+		Tags:                []string{"process:1234"},
+		RateCalculationMode: AbsoluteDeltaRateCalculation,
+	}
+	gpu2First := &Metric{
+		Name:                "bytes.transferred",
+		Value:               100,
+		Tags:                []string{"process:1234"},
+		RateCalculationMode: AbsoluteDeltaRateCalculation,
+	}
+
+	gpu1FirstResult := calculator.ProcessMetrics([]*Metric{gpu1First}, t1, "gpu-1")
+	gpu2FirstResult := calculator.ProcessMetrics([]*Metric{gpu2First}, t1, "gpu-2")
+
+	gpu1Second := &Metric{
+		Name:                "bytes.transferred",
+		Value:               15,
+		Tags:                []string{"process:1234"},
+		RateCalculationMode: AbsoluteDeltaRateCalculation,
+	}
+	gpu2Second := &Metric{
+		Name:                "bytes.transferred",
+		Value:               130,
+		Tags:                []string{"process:1234"},
+		RateCalculationMode: AbsoluteDeltaRateCalculation,
+	}
+
+	gpu1SecondResult := calculator.ProcessMetrics([]*Metric{gpu1Second}, t2, "gpu-1")
+	gpu2SecondResult := calculator.ProcessMetrics([]*Metric{gpu2Second}, t2, "gpu-2")
+
+	require.Empty(t, gpu1FirstResult)
+	require.Empty(t, gpu2FirstResult)
+	require.Len(t, gpu1SecondResult, 1)
+	require.Len(t, gpu2SecondResult, 1)
+	require.Equal(t, 5.0, gpu1Second.Value)
+	require.Equal(t, 30.0, gpu2Second.Value)
+	require.Len(t, calculator.previousValues, 2)
+	require.NotEqual(t, buildRateKey(gpu1Second, "gpu-1"), buildRateKey(gpu2Second, "gpu-2"))
 }
