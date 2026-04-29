@@ -199,3 +199,77 @@ func TestExtractTagGroupByKey_MalformedTagsIgnored(t *testing.T) {
 	g := extractTagGroupByKey([]string{"nocolon", "service:api"})
 	assert.Equal(t, TagGroupByKey{Service: "api"}, g)
 }
+
+func TestTaggedPatternClusterer_MaxClustersPerGroupPropagated(t *testing.T) {
+	tc := NewTaggedPatternClusterer(NewTagGroupByKeyRegistry())
+	tc.MaxClustersPerGroup = 2
+	tags := []string{"source:s", "service:svc", "env:prod", "host:h"}
+
+	// 3 distinct (length-varying) shapes → first eviction surfaces via DrainLRUEvictions.
+	tc.Process(tags, "alpha", 1000)
+	tc.Process(tags, "beta gamma", 1001)
+	require.Empty(t, tc.DrainLRUEvictions(), "no eviction at cap")
+
+	_, _, ok := tc.Process(tags, "x y z", 1002)
+	require.True(t, ok)
+	evicted := tc.DrainLRUEvictions()
+	require.Len(t, evicted, 1, "one cluster evicted by per-group cap")
+	require.Equal(t, int64(0), evicted[0].ClusterID)
+}
+
+func TestTaggedPatternClusterer_MaxTagGroupsEvictsLRUGroup(t *testing.T) {
+	tc := NewTaggedPatternClusterer(NewTagGroupByKeyRegistry())
+	tc.MaxTagGroups = 2
+
+	tagsA := []string{"service:a"}
+	tagsB := []string{"service:b"}
+	tagsC := []string{"service:c"}
+
+	// Touch group A first (oldest), then B; then route to C and expect A evicted.
+	hashA, _, _ := tc.Process(tagsA, "alpha one", 1000)
+	hashA2, _, _ := tc.Process(tagsA, "two distinct shape pattern", 1001) // second cluster within A
+	require.Equal(t, hashA, hashA2)
+	require.Equal(t, 1, tc.NumSubClusterers())
+
+	hashB, _, _ := tc.Process(tagsB, "beta", 1100)
+	require.NotEqual(t, hashA, hashB)
+	require.Equal(t, 2, tc.NumSubClusterers())
+	require.Empty(t, tc.DrainLRUEvictions(), "at cap, no eviction yet")
+
+	// Now touch A again to make B the LRU group.
+	tc.Process(tagsA, "alpha one", 1200)
+	require.Empty(t, tc.DrainLRUEvictions())
+
+	// Adding C must evict B (least-recently touched at unixSec=1100).
+	hashC, _, _ := tc.Process(tagsC, "gamma", 1300)
+	require.NotEqual(t, hashB, hashC)
+	require.Equal(t, 2, tc.NumSubClusterers(), "cap holds at MaxTagGroups")
+	evicted := tc.DrainLRUEvictions()
+	require.NotEmpty(t, evicted, "the LRU group's clusters are surfaced as evictions")
+	for _, ev := range evicted {
+		require.Equal(t, hashB, ev.GroupHash, "all evictions tagged with the evicted group's hash")
+	}
+}
+
+func TestTaggedPatternClusterer_DrainLRUEvictionsIsOneShot(t *testing.T) {
+	tc := NewTaggedPatternClusterer(NewTagGroupByKeyRegistry())
+	tc.MaxClustersPerGroup = 1
+	tags := []string{"service:s"}
+	tc.Process(tags, "alpha", 1000)
+	tc.Process(tags, "beta gamma", 1001) // triggers eviction of cluster id=0
+	first := tc.DrainLRUEvictions()
+	require.Len(t, first, 1)
+	second := tc.DrainLRUEvictions()
+	require.Empty(t, second, "drain returns nothing on the second call")
+}
+
+func TestTaggedPatternClusterer_ResetClearsLRUState(t *testing.T) {
+	tc := NewTaggedPatternClusterer(NewTagGroupByKeyRegistry())
+	tc.MaxClustersPerGroup = 1
+	tc.MaxTagGroups = 1
+	tc.Process([]string{"service:a"}, "alpha", 1000)
+	tc.Process([]string{"service:b"}, "beta", 1001)  // evicts service:a's group
+	tc.Reset()
+	require.Empty(t, tc.DrainLRUEvictions(), "Reset must clear pending evictions")
+	require.Equal(t, 0, tc.NumSubClusterers())
+}
