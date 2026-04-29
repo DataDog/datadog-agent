@@ -22,8 +22,8 @@ type bucket struct {
 	originalDataLen int
 	contentLen      int
 	lines           []AggregatedMessageWithTokens
-	// shouldTruncate only tracks single-line truncation carry between emitted frames of
-	// one oversized log line. Multiline aggregation no longer sets this state.
+	// shouldTruncate carries truncation state between emitted frames of one oversized
+	// single-line log.
 	shouldTruncate bool
 }
 
@@ -97,12 +97,9 @@ func (b *bucket) flush() AggregatedMessageWithTokens {
 		truncatedReason = "auto_multiline"
 	}
 
-	// A multiline bucket is never truncated because of aggregation. If appending
-	// another aggregate line would make the bucket reach the limit, Process explodes the
-	// bucket back into individual events before that line is added. That means the only
-	// truncation that can happen here is the single-line case: this event is already at
-	// the size limit on its own, or it is the remainder of a previously split oversized
-	// single-line log carried by shouldTruncate.
+	// Process flushes multiline buckets before an additional aggregate line can push the
+	// combined content over the limit. Truncation in this path therefore comes from a
+	// single oversized line or a continuation frame tracked by shouldTruncate.
 	content, isTruncated := b.applyTruncation(msg, content, b.contentLen >= b.maxContentSize, truncatedReason)
 	msg.SetContent(content)
 	msg.RawDataLen = b.originalDataLen
@@ -127,11 +124,9 @@ func (b *bucket) flush() AggregatedMessageWithTokens {
 func (b *bucket) emitSingle(msg *message.Message, tokens []Token) AggregatedMessageWithTokens {
 	content := bytes.TrimSpace(msg.GetContent())
 
-	// Once a bucket is exploded, each emitted event is treated like a standalone line.
-	// Since multiline aggregation no longer causes truncation, the only truncation that
-	// can happen here is the normal single-line case: this specific line is oversized on
-	// its own, or the decoder already marked it truncated because it is one chunk of a
-	// split oversized line.
+	// Once a bucket is exploded, each emitted event follows the normal single-line
+	// truncation path. This specific line may be oversized on its own, or it may
+	// already be marked truncated because it is one chunk of a split oversized line.
 	content, _ = b.applyTruncation(msg, content, len(content) > b.maxContentSize || msg.ParsingExtra.IsTruncated, "single_line")
 	msg.SetContent(content)
 	return AggregatedMessageWithTokens{Msg: msg, Tokens: tokens}
@@ -177,9 +172,8 @@ func NewCombiningAggregator(maxContentSize int, tagTruncatedLogs bool, tagMultiL
 }
 
 func (a *combiningAggregator) wouldOverflowBucket(msg *message.Message) bool {
-	// This is only an aggregation guard. Crossing this boundary no longer truncates
-	// the combined message; it forces us to abandon aggregation and emit the original
-	// lines individually instead.
+	// This guard decides when to abandon aggregation and emit the buffered lines
+	// individually.
 	projectedLen := a.bucket.contentLen + len(msg.GetContent())
 	if a.bucket.originalDataLen > 0 {
 		projectedLen += len(message.EscapedLineFeed)
@@ -247,7 +241,7 @@ func (a *combiningAggregator) Process(msg *message.Message, label Label, tokens 
 
 	// If appending the current aggregate line would make the combined message too large,
 	// emit all buffered lines as standalone messages and emit the current line on its
-	// own instead of truncating because of multiline aggregation.
+	// own on the normal single-line path.
 	if a.wouldOverflowBucket(msg) {
 		a.explodeBucketToCollected()
 		a.emitSingleToCollected(msg, tokens)
