@@ -14,6 +14,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -682,6 +683,7 @@ func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component,
 
 	sanitizeAPIKeyConfig(config, "api_key")
 	sanitizeAPIKeyConfig(config, "logs_config.api_key")
+	sanitizeDataPlaneConfig(config, runtime.GOOS)
 	setNumWorkers(config)
 
 	flareStrippedKeys := config.GetStringSlice("flare_stripped_keys")
@@ -1183,6 +1185,22 @@ func sanitizeAPIKeyConfig(config pkgconfigmodel.Config, key string) {
 		return
 	}
 	config.Set(key, trimmed, pkgconfigmodel.SourceAgentRuntime)
+}
+
+// sanitizeDataPlaneConfig gates data_plane.enabled to Linux only.
+// The Agent Data Plane (ADP) is a Linux-only component. If a user sets
+// data_plane.enabled: true on any other OS, this function emits a warning and
+// resets the flag to false so that downstream consumers automatically see the
+// correct value without each of them needing their own platform check.
+//
+// The goos parameter is the target OS string (normally runtime.GOOS). It is
+// exposed as a parameter so that tests can exercise both branches without
+// needing to cross-compile.
+func sanitizeDataPlaneConfig(config pkgconfigmodel.Config, goos string) {
+	if goos != "linux" && config.GetBool("data_plane.enabled") {
+		log.Warnf("data_plane.enabled is not supported on %s and will be ignored", goos)
+		config.Set("data_plane.enabled", false, pkgconfigmodel.SourceAgentRuntime)
+	}
 }
 
 // sanitizeExternalMetricsProviderChunkSize ensures the value of `external_metrics_provider.chunk_size` is within an acceptable range

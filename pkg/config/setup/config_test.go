@@ -1534,3 +1534,42 @@ func TestLoadProxyFromEnv(t *testing.T) {
 	assert.Equal(t, "http://www.example.com/", cfg.Get("proxy.http"))
 	assert.Equal(t, pkgconfigmodel.SourceConfigPostInit, cfg.GetSource("proxy.http"))
 }
+
+func TestSanitizeDataPlaneConfigLinux(t *testing.T) {
+	// On Linux, data_plane.enabled=true must be preserved unchanged.
+	cfg := newTestConf(t)
+	cfg.Set("data_plane.enabled", true, pkgconfigmodel.SourceFile)
+
+	sanitizeDataPlaneConfig(cfg, "linux")
+
+	assert.True(t, cfg.GetBool("data_plane.enabled"), "data_plane.enabled should remain true on linux")
+}
+
+func TestSanitizeDataPlaneConfigNonLinux(t *testing.T) {
+	// On non-Linux platforms, data_plane.enabled=true must be reset to false
+	// and a warning is emitted. We verify the config value side-effect; log
+	// output is not captured here because no log-capture infrastructure exists
+	// in this test package.
+	for _, goos := range []string{"windows", "darwin"} {
+		t.Run(goos, func(t *testing.T) {
+			cfg := newTestConf(t)
+			cfg.Set("data_plane.enabled", true, pkgconfigmodel.SourceFile)
+
+			sanitizeDataPlaneConfig(cfg, goos)
+
+			assert.False(t, cfg.GetBool("data_plane.enabled"),
+				"data_plane.enabled should be reset to false on %s", goos)
+		})
+	}
+}
+
+func TestSanitizeDataPlaneConfigNonLinuxAlreadyFalse(t *testing.T) {
+	// When data_plane.enabled is already false, sanitize should be a no-op on
+	// any platform (no panic, no spurious log entry).
+	cfg := newTestConf(t)
+	// default is false; leave it that way
+
+	sanitizeDataPlaneConfig(cfg, "windows")
+
+	assert.False(t, cfg.GetBool("data_plane.enabled"))
+}
