@@ -46,6 +46,7 @@ const (
 	RShellPathAllowMapContainerizedKey = "containerized"
 	RShellPathAllowMapDefaultKey       = "default"
 
+	// Meant for internal usage
 	PAROpmsExtraHeaders = "private_action_runner.opms_extra_headers"
 )
 
