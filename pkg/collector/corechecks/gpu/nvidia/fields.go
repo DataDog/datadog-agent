@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"math"
 	"slices"
-	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/hashicorp/go-multierror"
@@ -21,23 +20,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type lastPoint struct {
-	value     float64
-	timestamp time.Time
-}
-
 type fieldsCollector struct {
 	device       ddnvml.Device
 	fieldMetrics []fieldValueMetric
-	lastPoints   map[string]lastPoint
-	now          func() time.Time
 }
 
 func newFieldsCollector(device ddnvml.Device, _ *CollectorDependencies) (Collector, error) {
 	c := &fieldsCollector{
-		device:     device,
-		lastPoints: make(map[string]lastPoint),
-		now:        time.Now,
+		device: device,
 	}
 	c.fieldMetrics = append(c.fieldMetrics, allFieldMetrics...) // copy all metrics to avoid modifying the original slice
 
