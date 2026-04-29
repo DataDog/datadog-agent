@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -149,8 +150,8 @@ type FlagConfig struct {
 // subscription represents an active subscription to a remote flag.
 type subscription struct {
 	handler           FlagHandler
-	lastValue         *FlagValue         // Track last known value to detect changes
-	cancelHealthCheck context.CancelFunc // Cancel ongoing health check if any
+	lastValue         atomic.Pointer[FlagValue] // nil means no value has been applied yet
+	cancelHealthCheck context.CancelFunc        // Cancel ongoing health check if any
 }
 
 // Client is the Remote Flags client that manages flag subscriptions
@@ -325,7 +326,7 @@ func (c *Client) OnUpdate(updates map[string]state.RawConfig, applyStateCallback
 
 			// go through all subs of this flag name and remove their last value.
 			for _, sub := range c.subscriptions[flagName] {
-				sub.lastValue = nil
+				sub.lastValue.Store(nil)
 			}
 		}
 	}
@@ -342,16 +343,15 @@ func (c *Client) notifyChange(flag Flag) {
 
 	for _, sub := range subs {
 		// only notify if the value actually changed from last known value
-		if sub.lastValue == nil || *sub.lastValue != flag.Value {
+		last := sub.lastValue.Load()
+		if last == nil || *last != flag.Value {
 			go func(s *subscription, f Flag) {
 				if err := s.handler.OnChange(f.Value); err != nil {
 					applyErr := fmt.Errorf("remote flag %s (value=%v): %w", f.Name, f.Value, err)
 					c.recoverFlag(s, f, applyErr)
 				} else {
 					successValue := f.Value
-					c.mu.Lock()
-					s.lastValue = &successValue
-					c.mu.Unlock()
+					s.lastValue.Store(&successValue)
 					c.startHealthMonitor(s, f)
 				}
 			}(sub, flag)
