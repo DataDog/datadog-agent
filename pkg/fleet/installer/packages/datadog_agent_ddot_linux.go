@@ -150,8 +150,6 @@ func postInstallDatadogAgentDDOTOCI(ctx HookContext) (err error) {
 		return fmt.Errorf("failed to restart agent after enabling otelcollector: %v", err)
 	}
 
-	// WriteStable handles procmgr YAML + systemd fallback unit + daemon restart
-	// when ProcmgrType is active; otherwise just writes the systemd unit.
 	if err := agentDDOTService.WriteStable(ctx); err != nil {
 		return fmt.Errorf("failed to write stable units: %s", err)
 	}
@@ -211,9 +209,7 @@ func postInstallDatadogAgentDDOTDEBRPM(ctx HookContext) (err error) {
 }
 
 // preRemoveDatadogAgentDDOT performs pre-removal steps for the DDOT package.
-// All the steps are allowed to fail. StopStable/StopExperiment and
-// RemoveStable/RemoveExperiment handle procmgr config cleanup internally
-// when ProcmgrType is active.
+// All the steps are allowed to fail.
 func preRemoveDatadogAgentDDOT(ctx HookContext) error {
 	if err := agentDDOTService.StopExperiment(ctx); err != nil {
 		log.Warnf("failed to stop experiment unit: %s", err)
@@ -285,7 +281,6 @@ func postInstallDDOTExtension(ctx HookContext) (err error) {
 		return fmt.Errorf("failed to set DDOT config ownerships: %v", err)
 	}
 
-	// WriteStable handles procmgr YAML + daemon restart when ProcmgrType is active
 	if err = agentDDOTExtService.WriteStable(ctx); err != nil {
 		return fmt.Errorf("failed to write DDOT extension service config: %v", err)
 	}
@@ -298,7 +293,6 @@ func preRemoveDDOTExtension(ctx HookContext) error {
 	span, _ := ctx.StartSpan("pre_remove_extension_ddot")
 	defer span.Finish(nil)
 
-	// StopStable handles procmgr config removal + daemon restart for ProcmgrType
 	if err := agentDDOTExtService.StopStable(ctx); err != nil {
 		log.Warnf("failed to stop DDOT extension service: %s", err)
 	}
@@ -341,13 +335,11 @@ func isStandaloneDDOTInstalled() bool {
 	return err == nil
 }
 
-// restoreDDOTProcessConfig re-creates the DDOT procmgr YAML after an OCI
-// agent upgrade, which recreates the versioned directory (and its
-// processes.d/) from scratch. WriteStable handles writing the procmgr
-// config, the systemd fallback unit, and restarting the daemon.
+// restoreDDOTProcessConfig re-creates the DDOT service configuration after
+// an OCI agent upgrade, which recreates the versioned directory from scratch.
 //
 // DEB/RPM is skipped: the install path is stable across upgrades and the
-// YAML file (untracked by dpkg/rpm) survives without a restore step.
+// config survives without a restore step.
 func restoreDDOTProcessConfig(ctx HookContext) error {
 	if ctx.PackageType != PackageTypeOCI {
 		return nil
