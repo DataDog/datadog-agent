@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/hostagent"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
 
@@ -30,16 +31,22 @@ var writeTenLogsConfig string
 
 // TestLinuxFakeIntakeSuite
 func TestIntegrationsLogsSuite(t *testing.T) {
-	suiteParams := []e2e.SuiteOption{
-		e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(
-			scenec2.WithAgentOptions(
-				agentparams.WithLogs(),
-				// set the integration log file max size to 1MB
-				agentparams.WithAgentConfig("logs_config.integrations_logs_files_max_size: 1"),
-				agentparams.WithFile("/etc/datadog-agent/checks.d/writeTenLogs.py", writeTenLogsCheck, true),
-				agentparams.WithFile("/etc/datadog-agent/conf.d/writeTenLogs.yaml", writeTenLogsConfig, true)))))}
+	// Provisioner creates infrastructure only — VM + fakeintake, no agent.
+	e2e.Run(t, &IntegrationsLogsSuite{}, e2e.WithProvisioner(
+		awshost.Provisioner(awshost.WithRunOptions(scenec2.WithoutAgent())),
+	))
+}
 
-	e2e.Run(t, &IntegrationsLogsSuite{}, suiteParams...)
+func (v *IntegrationsLogsSuite) SetupSuite() {
+	v.BaseSuite.SetupSuite()
+	defer v.CleanupOnSetupFailure()
+	hostagent.Install(v.T(), v.Env(),
+		agentparams.WithLogs(),
+		// set the integration log file max size to 1MB
+		agentparams.WithAgentConfig("logs_config.integrations_logs_files_max_size: 1"),
+		agentparams.WithFile("/etc/datadog-agent/checks.d/writeTenLogs.py", writeTenLogsCheck, true),
+		agentparams.WithFile("/etc/datadog-agent/conf.d/writeTenLogs.yaml", writeTenLogsConfig, true),
+	)
 }
 
 // TestWriteTenLogsCheck ensures a check that logs are written to the file ten

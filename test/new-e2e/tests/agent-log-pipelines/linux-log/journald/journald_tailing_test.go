@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/hostagent"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-log-pipelines/utils"
 
@@ -41,16 +42,19 @@ var randomLogger []byte
 
 // TestVMJournaldTailingSuite returns the stack definition required for the log agent test suite.
 func TestVMJournaldTailingSuite(t *testing.T) {
-	options := []e2e.SuiteOption{
-		e2e.WithProvisioner(awshost.Provisioner(
-			awshost.WithRunOptions(
-				ec2.WithAgentOptions(
-					agentparams.WithLogs(),
-					agentparams.WithIntegration("custom_logs.d", string(logIncludeConfig))))),
-		),
-	}
+	// Provisioner creates infrastructure only — VM + fakeintake, no agent.
+	e2e.Run(t, &LinuxJournaldFakeintakeSuite{}, e2e.WithProvisioner(
+		awshost.Provisioner(awshost.WithRunOptions(ec2.WithoutAgent())),
+	))
+}
 
-	e2e.Run(t, &LinuxJournaldFakeintakeSuite{}, options...)
+func (s *LinuxJournaldFakeintakeSuite) SetupSuite() {
+	s.BaseSuite.SetupSuite()
+	defer s.CleanupOnSetupFailure()
+	hostagent.Install(s.T(), s.Env(),
+		agentparams.WithLogs(),
+		agentparams.WithIntegration("custom_logs.d", string(logIncludeConfig)),
+	)
 }
 
 func (s *LinuxJournaldFakeintakeSuite) BeforeTest(suiteName, testName string) {
@@ -70,12 +74,6 @@ func (s *LinuxJournaldFakeintakeSuite) TestJournald() {
 }
 
 func (s *LinuxJournaldFakeintakeSuite) journaldIncludeServiceLogCollection() {
-	s.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(
-		ec2.WithAgentOptions(
-			agentparams.WithLogs(),
-			agentparams.WithIntegration("custom_logs.d", string(logIncludeConfig)))),
-	))
-
 	vm := s.Env().RemoteHost
 	t := s.T()
 

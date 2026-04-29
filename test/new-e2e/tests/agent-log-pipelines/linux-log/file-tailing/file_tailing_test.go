@@ -23,6 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/hostagent"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
 
@@ -41,17 +42,21 @@ const (
 
 // TestLinuxVMFileTailingSuite runs the E2E test suite for the log agent with a Linux VM and fake intake.
 func TestLinuxVMFileTailingSuite(t *testing.T) {
-	options := []e2e.SuiteOption{
-		e2e.WithProvisioner(
-			awshost.Provisioner(
-				awshost.WithRunOptions(
-					scenec2.WithAgentOptions(
-						agentparams.WithLogs(),
-						agentparams.WithIntegration("custom_logs.d", logConfig),
-					)))),
-	}
 	t.Parallel()
-	e2e.Run(t, &LinuxFakeintakeSuite{}, options...)
+	// Provisioner creates infrastructure only — VM + fakeintake, no agent.
+	e2e.Run(t, &LinuxFakeintakeSuite{}, e2e.WithProvisioner(
+		awshost.Provisioner(awshost.WithRunOptions(scenec2.WithoutAgent())),
+	))
+}
+
+func (s *LinuxFakeintakeSuite) SetupSuite() {
+	s.BaseSuite.SetupSuite()
+	defer s.CleanupOnSetupFailure()
+	// Install the agent via SSH with logs enabled and the custom_logs.d integration.
+	hostagent.Install(s.T(), s.Env(),
+		agentparams.WithLogs(),
+		agentparams.WithIntegration("custom_logs.d", logConfig),
+	)
 }
 
 func (s *LinuxFakeintakeSuite) BeforeTest(suiteName, testName string) {
