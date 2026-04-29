@@ -120,6 +120,18 @@ func (sp *sourceProvider) handleSet(c *workloadmeta.Container) {
 	sp.mu.Unlock()
 
 	sp.logSources.AddSource(src)
+
+	// Guard against suppressIdentifier arriving in the window between sp.mu.Unlock()
+	// and AddSource: if activeSources no longer holds this entry, the AD source already
+	// attempted (and missed) RemoveSource, so undo the add here.
+	sp.mu.Lock()
+	_, stillTracked := sp.activeSources[c.EntityID.ID]
+	sp.mu.Unlock()
+	if !stillTracked {
+		sp.logSources.RemoveSource(src)
+		return
+	}
+
 	log.Infof("[observer/logssource] added container source: %s (runtime=%s)", c.Image.ShortName, c.Runtime)
 }
 
