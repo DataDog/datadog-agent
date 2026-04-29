@@ -3,7 +3,6 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "impl",
     srcs = [
-        "compat_serverless.go",
         "prom_counter.go",
         "prom_gauge.go",
         "prom_histogram.go",
@@ -17,7 +16,6 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/telemetry/def",
-        "//comp/core/telemetry/impl/noops",
         "//comp/def",
         "@com_github_prometheus_client_golang//prometheus",
         "@com_github_prometheus_client_golang//prometheus/collectors",

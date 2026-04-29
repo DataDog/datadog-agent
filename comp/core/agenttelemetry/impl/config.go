@@ -361,6 +361,20 @@ var defaultProfiles = `
     schedule:
       start_after: 5
       iterations: 1
+  - name: serverless-init-started
+    metric:
+      exclude:
+        zero_metric: true
+      metrics:
+        - name: serverless_init.started
+          aggregate_tags:
+            - init_mode
+            - init_version
+            - init_platform
+            - arch
+    schedule:
+      start_after: 5
+      iterations: 1
   - name: runtime-running
     metric:
       exclude:

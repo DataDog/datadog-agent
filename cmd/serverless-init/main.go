@@ -15,8 +15,11 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/exitcode"
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/launchmetrics"
 	serverlessInitLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
+	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
+	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
@@ -32,7 +35,7 @@ import (
 	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	localTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
-	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/fx-noop"
+	telemetryfx "github.com/DataDog/datadog-agent/comp/core/telemetry/fx"
 	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
@@ -91,7 +94,8 @@ func main() {
 		secretsfx.Module(),
 		fx.Supply(logdef.ForOneShot(modeConf.LoggerName, "error", true)),
 		logfx.Module(),
-		nooptelemetry.Module(),
+		telemetryfx.Module(),
+		agenttelemetryfx.Module(),
 		hostnameimpl.Module(),
 	)
 
@@ -105,7 +109,7 @@ func main() {
 }
 
 // removing these unused dependencies will cause silent crash due to fx framework
-func run(secretComp secrets.Component, delegatedAuthComp delegatedauth.Component, _ autodiscovery.Component, _ healthprobeDef.Component, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) error {
+func run(secretComp secrets.Component, delegatedAuthComp delegatedauth.Component, _ autodiscovery.Component, _ healthprobeDef.Component, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component, _ agenttelemetry.Component) error {
 	cloudService, logConfig, tracingCtx, metricAgent, logsAgent, enhancedMetricsCollector, enhancedMetricsEnabled := setup(secretComp, delegatedAuthComp, modeConf, tagger, compression, hostname)
 
 	err := modeConf.Runner(logConfig)
@@ -135,6 +139,9 @@ func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Compone
 	cloudService := cloudservice.GetCloudServiceType()
 
 	log.Debugf("Detected cloud service: %s", cloudService.GetOrigin())
+
+	// Set the launch gauge before any agent telemetry scrape runs.
+	launchmetrics.Emit(cloudService, modeConf.SidecarMode)
 
 	tagConfig := configureTags(cloudService)
 

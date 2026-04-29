@@ -3,10 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-//go:build !serverless
-
 // Package fx provides the fx module for the telemetry component.
-// On serverless builds, use comp/core/telemetry/fx-noop instead.
 package fx
 
 import (

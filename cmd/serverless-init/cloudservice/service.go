@@ -93,17 +93,17 @@ type CloudService interface {
 }
 
 //nolint:revive // TODO(SERV) Fix revive linter
-type LocalService struct{}
+type UnknownService struct{}
 
 const defaultPrefix = "datadog.serverless_agent."
 
-const localServiceShutdownMetricName = "datadog.serverless_agent.enhanced.shutdown"
-const localServiceStartMetricName = "datadog.serverless_agent.enhanced.cold_start"
+const unknownServiceShutdownMetricName = "datadog.serverless_agent.enhanced.shutdown"
+const unknownServiceStartMetricName = "datadog.serverless_agent.enhanced.cold_start"
 
 const defaultUsageMetricSuffix = "instance"
 
 // GetTags is a default implementation that returns a local empty tag set
-func (l *LocalService) GetTags() map[string]string {
+func (l *UnknownService) GetTags() map[string]string {
 	hostname, err := os.Hostname()
 	if err != nil {
 		log.Warnf("failed to get hostname for local usage metric instance tag: %v", err)
@@ -117,7 +117,7 @@ func (l *LocalService) GetTags() map[string]string {
 }
 
 // GetEnhancedMetricTags is a default implementation that returns an empty tag set
-func (l *LocalService) GetEnhancedMetricTags(tags map[string]string) EnhancedMetricTags {
+func (l *UnknownService) GetEnhancedMetricTags(tags map[string]string) EnhancedMetricTags {
 	baseTags := map[string]string{
 		"local": tagValueOrUnknown(tags["local"]),
 	}
@@ -129,49 +129,49 @@ func (l *LocalService) GetEnhancedMetricTags(tags map[string]string) EnhancedMet
 }
 
 // GetDefaultLogsSource is a default implementation that returns an empty logs source
-func (l *LocalService) GetDefaultLogsSource() string {
+func (l *UnknownService) GetDefaultLogsSource() string {
 	return "unknown"
 }
 
 // GetMetrixPrefix is a default implementation that returns the default prefix
-func (l *LocalService) GetMetricPrefix() string {
+func (l *UnknownService) GetMetricPrefix() string {
 	return defaultPrefix
 }
 
 // GetUsageMetricSuffix is a default implementation that returns the default usage metric suffix
-func (l *LocalService) GetUsageMetricSuffix() string {
+func (l *UnknownService) GetUsageMetricSuffix() string {
 	return defaultUsageMetricSuffix
 }
 
 // GetOrigin is a default implementation that returns a local empty origin
-func (l *LocalService) GetOrigin() string {
+func (l *UnknownService) GetOrigin() string {
 	return "local"
 }
 
 // GetSource is a default implementation that returns a metrics source
-func (l *LocalService) GetSource() metrics.MetricSource {
+func (l *UnknownService) GetSource() metrics.MetricSource {
 	return metrics.MetricSourceServerless
 }
 
-// Init is not necessary for LocalService
-func (l *LocalService) Init(_ *TracingContext) error {
+// Init is not necessary for UnknownService
+func (l *UnknownService) Init(_ *TracingContext) error {
 	return nil
 }
 
-// Shutdown emits the shutdown metric for LocalService
-func (l *LocalService) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, enhancedMetricsEnabled bool, _ error) {
+// Shutdown emits the shutdown metric for UnknownService
+func (l *UnknownService) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, enhancedMetricsEnabled bool, _ error) {
 	if enhancedMetricsEnabled {
-		metricAgent.AddEnhancedMetric(localServiceShutdownMetricName, 1.0, l.GetSource(), 0)
+		metricAgent.AddEnhancedMetric(unknownServiceShutdownMetricName, 1.0, l.GetSource(), 0)
 	}
 }
 
-// AddStartMetric adds the start metric for LocalService
-func (l *LocalService) AddStartMetric(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
-	metricAgent.AddEnhancedMetric(localServiceStartMetricName, 1.0, l.GetSource(), 0)
+// AddStartMetric adds the start metric for UnknownService
+func (l *UnknownService) AddStartMetric(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
+	metricAgent.AddEnhancedMetric(unknownServiceStartMetricName, 1.0, l.GetSource(), 0)
 }
 
 // ShouldForceFlushAllOnForceFlushToSerializer is false usually.
-func (l *LocalService) ShouldForceFlushAllOnForceFlushToSerializer() bool {
+func (l *UnknownService) ShouldForceFlushAllOnForceFlushToSerializer() bool {
 	return false
 }
 
@@ -205,7 +205,7 @@ func GetCloudServiceType() CloudService {
 
 	log.Warnf("serverless-init could not detect a supported service. Monitoring may be limited.")
 
-	return &LocalService{}
+	return &UnknownService{}
 }
 
 func tagValueOrUnknown(val string) string {

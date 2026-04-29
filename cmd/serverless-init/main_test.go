@@ -42,7 +42,7 @@ func TestTagsSetup(t *testing.T) {
 	t.Setenv("DD_ENV", "test-env")
 	t.Setenv("DD_VERSION", "1.0.0")
 
-	cloudService := &cloudservice.LocalService{}
+	cloudService := &cloudservice.UnknownService{}
 	tagConfig := configureTags(cloudService)
 
 	baseTags := serverlessTag.MapToArray(serverlessInitTag.GetBaseTagsMap())
