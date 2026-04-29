@@ -59,9 +59,9 @@ def patchelf_dir_action(ctx, input_dir, output_dir, rpath):
         inputs = [input_dir],
         outputs = [output_dir],
         command = (
-            'cp -rL "{input}" "{output}" && ' +
-            'find "{output}" -type f \\( -name "*.so" -o -name "*.so.*" \\) ' +
-            '-exec "{patchelf}" --set-rpath "{rpath}" --force-rpath {{}} \\;'
+            "cp -rL '{input}' '{output}' && " +
+            "find '{output}' -type f \\( -name '*.so' -o -name '*.so.*' \\) " +
+            "-exec '{patchelf}' --set-rpath '{rpath}' --force-rpath {{}} \\;"
         ).format(
             input = input_dir.path,
             output = output_dir.path,
@@ -77,16 +77,19 @@ def otool_dir_action(ctx, input_dir, output_dir, rpath):
         inputs = [input_dir],
         outputs = [output_dir],
         command = (
-            'cp -rL "{input}" "{output}" && ' +
-            'find "{output}" -type f -name "*.dylib" | while read -r f; do ' +
-            '  install_name_tool -add_rpath "{rpath}" "$f" 2>/dev/null || true; ' +
-            '  install_name_tool -id "{rpath}/$(basename "$f")" "$f"; ' +
-            '  "{otool}" -L "$f" | tail -n +2 | awk \'{{print $1}}\' | while read -r dep; do ' +
-            '    case "$dep" in *sandbox*|*bazel-out*) ' +
-            '      install_name_tool -change "$dep" "{rpath}/$(basename "$dep")" "$f" 2>/dev/null || true ;; ' +
+            "cp -rL '{input}' '{output}' && " +
+            "rpath='{rpath}' && " +
+            "find '{output}' -type f -name '*.dylib' | while read -r f; do " +
+            "  dylib_name=$(basename \"$f\"); " +
+            "  install_name_tool -add_rpath \"$rpath\" \"$f\" 2>/dev/null || true; " +
+            "  install_name_tool -id \"$rpath/$dylib_name\" \"$f\"; " +
+            "  '{otool}' -L \"$f\" | tail -n +2 | awk '{{print $1}}' | while read -r dep; do " +
+            "    case \"$dep\" in *sandbox*|*bazel-out*) " +
+            "      dep_name=$(basename \"$dep\"); " +
+            "      install_name_tool -change \"$dep\" \"$rpath/$dep_name\" \"$f\" 2>/dev/null || true ;; " +
             "    esac; " +
             "  done; " +
-            '  codesign --sign - --force "$f"; ' +
+            "  codesign --sign - --force \"$f\"; " +
             "done"
         ).format(
             otool = toolchain.path,
