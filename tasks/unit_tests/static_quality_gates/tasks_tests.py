@@ -70,7 +70,7 @@ _MiB = 1024 * _KiB
 
 @dataclass
 class GateScenario:
-    """Represents the desired state of a gate, for use with the _gate_scenarios fixture."""
+    """Represents the desired state of a gate, for use with the _gate_scenarios_fixture fixture."""
 
     name: str
     current_disk: int
@@ -82,7 +82,7 @@ class GateScenario:
 
 
 @contextmanager
-def _gate_scenarios(*scenarios: GateScenario, ancestor_sha="ancestor-sha"):
+def _gate_scenarios_fixture(*scenarios: GateScenario, ancestor_sha="ancestor-sha"):
     """
     Context manager that wires up gate scenarios for integration tests.
 
@@ -168,10 +168,10 @@ class TestQualityGatesIntegration(unittest.TestCase):
             ),
         ]
         with (
+            _gate_scenarios_fixture(*gate_scenarios) as config_path,
             patch("tasks.quality_gates.get_ancestor", return_value="ancestor-sha"),
             patch("tasks.quality_gates.get_commit_sha", return_value=_CI_COMMIT_SHA),
             patch("tasks.static_quality_gates.github.GithubAPI", new=FakeGithubAPI),
-            _gate_scenarios(*gate_scenarios) as config_path,
             patch("tasks.static_quality_gates.gates.send_metrics") as mock_send_metrics,
             patch("tasks.static_quality_gates.pr_comment.pr_commenter") as mock_pr_commenter,
             patch(
@@ -247,10 +247,10 @@ class TestQualityGatesIntegration(unittest.TestCase):
             ),
         ]
         with (
+            _gate_scenarios_fixture(*gate_scenarios) as config_path,
             patch("tasks.quality_gates.get_ancestor", return_value="ancestor-sha"),
             patch("tasks.quality_gates.get_commit_sha", return_value=_CI_COMMIT_SHA),
             patch("tasks.static_quality_gates.github.GithubAPI", new=FakeGithubAPI),
-            _gate_scenarios(*gate_scenarios) as config_path,
             patch("tasks.static_quality_gates.gates.GateMetricHandler.generate_relative_size"),
             patch(
                 "tasks.static_quality_gates.gates.GateMetricHandler.generate_metric_reports"
@@ -290,10 +290,10 @@ class TestQualityGatesIntegration(unittest.TestCase):
             ),
         ]
         with (
+            _gate_scenarios_fixture(*gate_scenarios) as config_path,
             patch("tasks.quality_gates.get_ancestor", return_value="ancestor-sha"),
             patch("tasks.quality_gates.get_commit_sha", return_value=_CI_COMMIT_SHA),
             patch("tasks.static_quality_gates.github.GithubAPI", new=FakeGithubAPI),
-            _gate_scenarios(*gate_scenarios) as config_path,
             patch("tasks.static_quality_gates.gates.GateMetricHandler.generate_relative_size"),
             patch(
                 "tasks.static_quality_gates.gates.GateMetricHandler.generate_metric_reports"
@@ -334,10 +334,10 @@ class TestQualityGatesIntegration(unittest.TestCase):
             ),
         ]
         with (
+            _gate_scenarios_fixture(*gate_scenarios) as config_path,
             patch("tasks.quality_gates.get_ancestor", return_value="ancestor-sha"),
             patch("tasks.quality_gates.get_commit_sha", return_value=_CI_COMMIT_SHA),
             patch("tasks.static_quality_gates.github.GithubAPI", new=FakeGithubAPI),
-            _gate_scenarios(*gate_scenarios) as config_path,
             patch("tasks.static_quality_gates.gates.send_metrics"),
             patch("tasks.static_quality_gates.pr_comment.pr_commenter") as mock_pr_commenter,
             patch(
@@ -382,10 +382,10 @@ class TestQualityGatesIntegration(unittest.TestCase):
             ),
         ]
         with (
+            _gate_scenarios_fixture(*gate_scenarios) as config_path,
             patch("tasks.quality_gates.get_ancestor", return_value="ancestor-sha"),
             patch("tasks.quality_gates.get_commit_sha", return_value=_CI_COMMIT_SHA),
             patch("tasks.quality_gates.get_pr_for_branch", return_value=approved_pr),
-            _gate_scenarios(*gate_scenarios) as config_path,
             patch("tasks.static_quality_gates.gates.send_metrics"),
             patch("tasks.static_quality_gates.pr_comment.pr_commenter") as mock_pr_commenter,
             patch(
