@@ -704,12 +704,53 @@ func (s *timeSeriesStorage) DataTimestamps() []int64 {
 	return timestamps
 }
 
-// SeriesGeneration returns a counter that increments whenever a new series key
-// is created. Callers can use this to safely cache ListSeries results.
+// SeriesGeneration returns a counter that increments whenever the series
+// catalog changes — either when a new series key is created or when an
+// existing key is removed via RemoveSeriesByKeys. Callers can use this to
+// safely cache ListSeries results.
 func (s *timeSeriesStorage) SeriesGeneration() uint64 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.seriesGen
+}
+
+// RemoveSeriesByKeys deletes the listed internal series keys (as produced by
+// seriesKey). The compact numeric SeriesRef IDs assigned to each removed
+// series are retired but NEVER reused: their slot in seriesIDStats is set to
+// nil so any stale SeriesRef resolves to nil via resolveByID, and the slot in
+// seriesIDKeys is left in place so subsequent index lookups remain bounds-safe.
+// Returns the number of series actually removed. seriesGen is bumped iff at
+// least one series was removed so cached ListSeries results are invalidated.
+//
+// This is the storage-side counterpart to engine.removeContextRefsForEvictedKeys:
+// the engine's contextRefs index keeps track of which storage key was created
+// for which extractor context key, so when an extractor evicts a context the
+// engine can pass the corresponding storage keys here to free their tags +
+// columnar arrays. Without this path, evicted patterns leak indefinitely.
+func (s *timeSeriesStorage) RemoveSeriesByKeys(keys []string) int {
+	if len(keys) == 0 {
+		return 0
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	removed := 0
+	for _, key := range keys {
+		if _, exists := s.series[key]; !exists {
+			continue
+		}
+		delete(s.series, key)
+		if id, ok := s.seriesIDs[key]; ok {
+			if int(id) < len(s.seriesIDStats) {
+				s.seriesIDStats[id] = nil
+			}
+			delete(s.seriesIDs, key)
+		}
+		removed++
+	}
+	if removed > 0 {
+		s.seriesGen++
+	}
+	return removed
 }
 
 // CompactSeriesID translates a full series key to its compact numeric ID string.

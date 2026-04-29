@@ -11,6 +11,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
 func TestLogPatternExtractor_GetContextByKeyUsesOutputContextKey(t *testing.T) {
@@ -433,4 +435,58 @@ func TestLogPatternExtractor_TagGroupCapEvictsLRUGroup(t *testing.T) {
 	require.False(t, ok, "evicted group's context entry removed")
 	_, ok = e.GetContextByKey(kA)
 	require.True(t, ok, "surviving group's context preserved")
+}
+
+// TestEngine_LogPatternLRUEvictionFreesStorage is the end-to-end proof that
+// the structural leak is fixed: when the extractor's LRU evicts a cluster,
+// the engine no longer just drops its contextRefs entry — it also calls
+// storage.RemoveSeriesByKeys so the per-series tags slice + columnar arrays
+// + sample buffer are actually freed. Before this fix, timeSeriesStorage.series
+// grew monotonically for the lifetime of the agent, regardless of LRU caps.
+func TestEngine_LogPatternLRUEvictionFreesStorage(t *testing.T) {
+	cfg := DefaultLogPatternExtractorConfig()
+	cfg.MinClusterSizeBeforeEmit = 1
+	cfg.MaxPatternsPerGroup = 2
+	cfg.MaxTagGroups = -1
+	extractor := NewLogPatternExtractor(cfg)
+
+	storage := newTimeSeriesStorage()
+	e := newEngine(engineConfig{
+		storage:    storage,
+		extractors: []observerdef.LogMetricsExtractor{extractor},
+	})
+
+	tags := []string{"service:api"}
+	msgs := []string{
+		"WARN alpha",
+		"WARN beta gamma",
+		"WARN x y z w",
+	}
+
+	for i, m := range msgs {
+		e.IngestLog("src", &logObs{
+			content:     []byte(m),
+			status:      "warn",
+			tags:        tags,
+			timestampMs: int64(1_000_000 + i*1_000),
+		})
+	}
+
+	// Without the storage-side eviction, count would be 3 (every shape ever
+	// seen leaves a series behind). With it, the LRU eviction during the 3rd
+	// ingest removes cluster #1 from storage before cluster #3's series is
+	// added, so count is 2.
+	require.Equal(t, 2, storage.TotalSeriesCount(""),
+		"LRU eviction must shrink storage; before the fix storage grew unboundedly")
+
+	// All surviving contextRefs must resolve to live storage series — i.e.
+	// nothing dangling on the engine side either.
+	for key := range e.contextRefs {
+		ref, ok := storage.seriesIDs[key]
+		require.True(t, ok, "engine contextRef without storage series for key %q", key)
+		require.NotNil(t, storage.GetSeriesMeta(ref),
+			"engine contextRef points at a retired storage ref for key %q", key)
+	}
+	require.Len(t, e.contextRefs, 2,
+		"engine should keep one contextRef per surviving extractor cluster")
 }
