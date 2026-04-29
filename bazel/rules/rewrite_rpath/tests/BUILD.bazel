@@ -1,0 +1,31 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary")
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
+
+cc_binary(
+    name = "foo",
+    srcs = ["foo.c"],
+    linkshared = True,
+    target_compatible_with = ["@platforms//os:macos"],
+)
+
+cc_binary(
+    name = "bar",
+    srcs = [
+        "bar.c",
+        "foo.c",
+    ],
+    linkshared = True,
+    target_compatible_with = ["@platforms//os:macos"],
+)
+
+sh_test(
+    name = "macos_dir_test",
+    srcs = ["macos_dir_test.sh"],
+    data = [
+        ":bar",
+        ":foo",
+        "//bazel/rules/rewrite_rpath:macos.sh",
+        "//bazel/rules/rewrite_rpath:macos_dir.sh",
+    ],
+    target_compatible_with = ["@platforms//os:macos"],
+)

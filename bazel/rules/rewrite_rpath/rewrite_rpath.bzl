@@ -73,30 +73,17 @@ def patchelf_dir_action(ctx, input_dir, output_dir, rpath):
 def otool_dir_action(ctx, input_dir, output_dir, rpath):
     """Registers install_name_tool actions to rewrite the rpath of all dylibs inside a directory."""
     toolchain = ctx.toolchains["@@//bazel/toolchains/otool:otool_toolchain_type"].otool
-    ctx.actions.run_shell(
-        inputs = [input_dir],
+    args = ctx.actions.args()
+    args.add(ctx.file._script.path)
+    args.add(toolchain.path)
+    args.add(rpath)
+    args.add(input_dir.path)
+    args.add(output_dir.path)
+    ctx.actions.run(
+        inputs = [input_dir, ctx.file._script],
         outputs = [output_dir],
-        command = (
-            "cp -rL '{input}' '{output}' && " +
-            "rpath='{rpath}' && " +
-            "find '{output}' -type f -name '*.dylib' | while read -r f; do " +
-            "  dylib_name=$(basename \"$f\"); " +
-            "  install_name_tool -add_rpath \"$rpath\" \"$f\" 2>/dev/null || true; " +
-            "  install_name_tool -id \"$rpath/$dylib_name\" \"$f\"; " +
-            "  '{otool}' -L \"$f\" | tail -n +2 | awk '{{print $1}}' | while read -r dep; do " +
-            "    case \"$dep\" in *sandbox*|*bazel-out*) " +
-            "      dep_name=$(basename \"$dep\"); " +
-            "      install_name_tool -change \"$dep\" \"$rpath/$dep_name\" \"$f\" 2>/dev/null || true ;; " +
-            "    esac; " +
-            "  done; " +
-            "  codesign --sign - --force \"$f\"; " +
-            "done"
-        ).format(
-            otool = toolchain.path,
-            input = input_dir.path,
-            output = output_dir.path,
-            rpath = rpath,
-        ),
+        executable = ctx.file._dir_script,
+        arguments = [args],
     )
 
 def _rewrite_rpath_impl(ctx):

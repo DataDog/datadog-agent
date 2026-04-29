@@ -65,6 +65,11 @@ _dd_packaged_files_rule = rule(
             allow_single_file = True,
             cfg = "exec",
         ),
+        "_dir_script": attr.label(
+            default = "@@//bazel/rules/rewrite_rpath:macos_dir.sh",
+            allow_single_file = True,
+            cfg = "exec",
+        ),
         "_install_dir": attr.label(default = "@@//:install_dir"),
     },
     toolchains = [
