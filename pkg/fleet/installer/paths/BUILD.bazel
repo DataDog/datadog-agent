@@ -14,6 +14,7 @@ go_library(
     deps = select({
         "@rules_go//go/platform:windows": [
             "//pkg/fleet/installer/env",
+            "//pkg/fleet/installer/telemetry",
             "//pkg/util/log",
             "@com_github_cenkalti_backoff_v5//:backoff",
             "@com_github_microsoft_go_winio//:go-winio",

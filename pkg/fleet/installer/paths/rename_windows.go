@@ -16,6 +16,8 @@ import (
 
 	"github.com/cenkalti/backoff/v5"
 	"golang.org/x/sys/windows"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 )
 
 // Rename moves sourcePath to targetPath, retrying on access-denied and
@@ -48,7 +50,10 @@ func Rename(ctx context.Context, sourcePath, targetPath string) error {
 	b.InitialInterval = 200 * time.Millisecond
 	b.MaxInterval = 5 * time.Second
 	maxElapsedTime := time.Minute
+	start := time.Now()
+	attempts := 0
 	_, err := backoff.Retry(ctx, func() (struct{}, error) {
+		attempts++
 		err := os.Rename(sourcePath, targetPath)
 		if err == nil {
 			return struct{}{}, nil
@@ -58,6 +63,12 @@ func Rename(ctx context.Context, sourcePath, targetPath string) error {
 		}
 		return struct{}{}, err
 	}, backoff.WithBackOff(b), backoff.WithMaxElapsedTime(maxElapsedTime))
+	if attempts > 1 {
+		if span, ok := telemetry.SpanFromContext(ctx); ok {
+			span.SetTag("paths.rename.attempts", attempts)
+			span.SetTag("paths.rename.retry_duration_ms", time.Since(start).Milliseconds())
+		}
+	}
 	return err
 }
 
