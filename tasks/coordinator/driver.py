@@ -1231,29 +1231,56 @@ def _run_iteration_body(
     if not dry_run:
         ok, detail = _sanity_pre_eval_sentinel(db, root, iter_num)
         journal.append("sanity_check_pre", {"iter": iter_num, "ok": ok, "detail": detail}, root)
-        if not ok:
-            print(f"[iter {iter_num}] SANITY FAILED: {detail}", file=sys.stderr)
-            coord_out.emit(
-                "eval_env_drift",
-                (
-                    f"**iter {iter_num}** · `{candidate.id}` — eval pipeline "
-                    f"sanity check FAILED before implementation.\n\n"
-                    f"**Detail**: `{detail[:600]}`\n\n"
-                    f"This usually means workspace deps are broken (`dda` / "
-                    f"`invoke` / `go` toolchain). Run `dda inv q.coord-status` "
-                    f"on the workspace and verify; once fixed, "
-                    f"`rm .coordinator/pause` to resume.\n\n"
-                    f"Iteration aborted; no SDK tokens spent."
-                    + _budget_footer(root, iter_num=None, ceiling=db.budget.api_token_ceiling)
-                ),
-                requires_ack=True,
-                root=root,
+        if ok:
+            # Reset streak on first successful sentinel.
+            if db.budget.consecutive_sentinel_failures > 0:
+                db.budget.consecutive_sentinel_failures = 0
+        else:
+            db.budget.consecutive_sentinel_failures += 1
+            streak = db.budget.consecutive_sentinel_failures
+            pause_threshold = CONFIG.silent_failure_pause_streak  # share same threshold
+            should_pause = streak >= pause_threshold
+
+            print(
+                f"[iter {iter_num}] SANITY FAILED: {detail} "
+                f"(streak {streak}/{pause_threshold})",
+                file=sys.stderr,
             )
-            # Self-pause so the run halts at the iter boundary instead of
-            # burning more iters on a broken workspace.
-            (state_dir(root) / "pause").write_text(
-                f"auto-paused: sanity sentinel failed at iter {iter_num}\n{detail}\n"
-            )
+
+            if should_pause:
+                coord_out.emit(
+                    "eval_env_drift",
+                    (
+                        f"**iter {iter_num}** · `{candidate.id}` — sanity sentinel "
+                        f"FAILED for **{streak} consecutive** iterations.\n\n"
+                        f"**Detail**: `{detail[:600]}`\n\n"
+                        f"Auto-pausing — workspace deps likely broken (`dda` / "
+                        f"`invoke` / `go` toolchain). Run `dda inv q.coord-status` "
+                        f"and verify, then `rm .coordinator/pause` to resume."
+                        + _budget_footer(root, iter_num=None, ceiling=db.budget.api_token_ceiling)
+                    ),
+                    requires_ack=True,
+                    root=root,
+                )
+                (state_dir(root) / "pause").write_text(
+                    f"auto-paused: sentinel streak={streak} at iter {iter_num}\n{detail}\n"
+                )
+            else:
+                # Skip-and-continue. The sentinel is a soft signal (it
+                # mostly fires when a recent ship modified the sentinel
+                # detector). Burning a full iter on it isn't worth it;
+                # streak-3 protects against actual env breakage.
+                coord_out.emit(
+                    "sanity_skipped",
+                    (
+                        f"**iter {iter_num}** · `{candidate.id}` — sanity sentinel "
+                        f"failed (streak {streak}/{pause_threshold}); skipping "
+                        f"this iter and continuing.\n\n"
+                        f"**Detail**: `{detail[:300]}`"
+                    ),
+                    requires_ack=False,
+                    root=root,
+                )
             it.ended_at = now_iso()
             db.iterations.append(it)
             save_db(db, root)

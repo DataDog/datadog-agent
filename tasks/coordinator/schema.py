@@ -217,6 +217,11 @@ class BudgetState:
     # auto-pause, on the assumption the eval environment is genuinely sick.
     # Resets to 0 on the first iter that produces non-zero metrics.
     consecutive_silent_failures: int = 0
+    # Streak of consecutive iterations where the pre-eval sanity sentinel
+    # failed. Single failure skips the iter and continues (the candidate
+    # likely modified the sentinel detector). Only at streak-3 does the
+    # driver auto-pause on the assumption the env is genuinely broken.
+    consecutive_sentinel_failures: int = 0
 
 
 @dataclass
@@ -488,6 +493,7 @@ def dict_to_db(d: dict[str, Any]) -> Db:
             milestones_notified=bs.get("milestones_notified", []),
             consecutive_cost_anomalies=int(bs.get("consecutive_cost_anomalies", 0) or 0),
             consecutive_silent_failures=int(bs.get("consecutive_silent_failures", 0) or 0),
+            consecutive_sentinel_failures=int(bs.get("consecutive_sentinel_failures", 0) or 0),
         ),
         iterations=[Iteration(**it) for it in d.get("iterations", [])],
         split=split,
@@ -594,6 +600,7 @@ def db_to_dict(db: Db) -> dict[str, Any]:
             "milestones_notified": db.budget.milestones_notified,
             "consecutive_cost_anomalies": db.budget.consecutive_cost_anomalies,
             "consecutive_silent_failures": db.budget.consecutive_silent_failures,
+            "consecutive_sentinel_failures": db.budget.consecutive_sentinel_failures,
         },
         "iterations": [
             {
