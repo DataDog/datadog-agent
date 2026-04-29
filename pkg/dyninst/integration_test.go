@@ -86,6 +86,7 @@ func TestDyninst(t *testing.T) {
 			continue
 		}
 		t.Run(svc, func(t *testing.T) {
+			t.Parallel()
 			runIntegrationTestSuite(
 				t, svc, rewrite, sem, collector, cfgs...,
 			)
