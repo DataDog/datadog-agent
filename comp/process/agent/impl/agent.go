@@ -14,6 +14,7 @@ import (
 	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	agentpkg "github.com/DataDog/datadog-agent/comp/process/agent"
 	agent "github.com/DataDog/datadog-agent/comp/process/agent/def"
 	expvars "github.com/DataDog/datadog-agent/comp/process/expvars/impl"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo/def"
@@ -69,7 +70,7 @@ type Provides struct {
 }
 
 func newProcessAgent(deps dependencies) (Provides, error) {
-	if !Enabled(deps.Config, deps.Checks, deps.Log) {
+	if !agentpkg.Enabled(deps.Config, deps.Checks, deps.Log) {
 		return Provides{
 			Comp: processAgent{
 				enabled: false,

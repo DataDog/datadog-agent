@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build !linux && test
+//go:build !linux && !aix && test
 
 package agentimpl
 
@@ -71,7 +71,7 @@ func TestProcessAgentComponent(t *testing.T) {
 				submittermock.MockModule(),
 				taggerfxmock.MockModule(),
 				statsdimpl.MockModule(),
-				fx.Provide(NewComponent),
+				fxutil.ProvideComponentConstructor(NewComponent),
 				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 				fx.Provide(func(t testing.TB) config.Component { return config.NewMock(t) }),
 				fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),

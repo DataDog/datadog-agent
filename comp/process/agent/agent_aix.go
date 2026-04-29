@@ -5,7 +5,7 @@
 
 //go:build aix
 
-package agentimpl
+package agent
 
 import (
 	"sync"
