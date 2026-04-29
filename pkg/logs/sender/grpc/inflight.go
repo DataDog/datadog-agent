@@ -169,8 +169,12 @@ func (t *inflightTracker) nextToSendEncoded(compressor compression.Compressor) (
 		return payload.Encoded, nil
 	}
 
-	datums := make([]*statefulpb.Datum, 0, len(prefix)+len(extra.WireDatums))
+	sync := replayDeltaEncodingSync(extra.WireDatums)
+	datums := make([]*statefulpb.Datum, 0, len(prefix)+len(extra.WireDatums)+1)
 	datums = append(datums, prefix...)
+	if sync != nil {
+		datums = append(datums, sync)
+	}
 	datums = append(datums, extra.WireDatums...)
 
 	serialized, err := proto.Marshal(&statefulpb.DatumSequence{Data: datums})
@@ -178,6 +182,79 @@ func (t *inflightTracker) nextToSendEncoded(compressor compression.Compressor) (
 		return nil, err
 	}
 	return compressor.Compress(serialized)
+}
+
+func replayDeltaEncodingSync(datums []*statefulpb.Datum) *statefulpb.Datum {
+	var sync statefulpb.DeltaEncodingSync
+	var hasSync bool
+	var currentPatternID uint64
+	var currentTags *statefulpb.TagSet
+	var syncedPattern bool
+	var syncedTags bool
+
+	for _, datum := range datums {
+		if datum == nil {
+			continue
+		}
+		switch d := datum.Data.(type) {
+		case *statefulpb.Datum_PatternDefine:
+			if d.PatternDefine == nil {
+				continue
+			}
+			currentPatternID = d.PatternDefine.PatternId
+		case *statefulpb.Datum_DeltaEncodingSync:
+			if d.DeltaEncodingSync == nil {
+				continue
+			}
+			if d.DeltaEncodingSync.PatternId != 0 {
+				currentPatternID = d.DeltaEncodingSync.PatternId
+			}
+			if d.DeltaEncodingSync.Tags != nil {
+				currentTags = d.DeltaEncodingSync.Tags
+			}
+		case *statefulpb.Datum_Logs:
+			logDatum := d.Logs
+			if logDatum == nil {
+				continue
+			}
+			if !syncedPattern {
+				if structured := logDatum.GetStructured(); structured != nil {
+					if structured.PatternId == 0 {
+						if currentPatternID != 0 {
+							sync.PatternId = currentPatternID
+							hasSync = true
+							syncedPattern = true
+						}
+					} else {
+						currentPatternID = structured.PatternId
+					}
+				}
+			}
+			if !syncedTags {
+				if logDatum.Tags == nil || logDatum.Tags.Tagset == nil {
+					if currentTags != nil {
+						sync.Tags = currentTags
+						hasSync = true
+						syncedTags = true
+					}
+				} else {
+					currentTags = logDatum.Tags
+				}
+			}
+		}
+		if syncedPattern && syncedTags {
+			break
+		}
+	}
+
+	if !hasSync {
+		return nil
+	}
+	return &statefulpb.Datum{
+		Data: &statefulpb.Datum_DeltaEncodingSync{
+			DeltaEncodingSync: &sync,
+		},
+	}
 }
 
 // sentCount returns the number of sent payloads awaiting ack

@@ -55,6 +55,53 @@ func createTestStatefulMessageWithService(content string, serviceDictID uint64) 
 	return msg
 }
 
+func createTestPatternDefineStatefulMessage(patternID uint64, template string) *message.StatefulMessage {
+	msg := message.NewMessage(nil, nil, "", 0)
+	return &message.StatefulMessage{
+		Metadata: &msg.MessageMetadata,
+		Datum: &statefulpb.Datum{
+			Data: &statefulpb.Datum_PatternDefine{
+				PatternDefine: &statefulpb.PatternDefine{
+					PatternId:  patternID,
+					Template:   template,
+					ParamCount: 1,
+				},
+			},
+		},
+	}
+}
+
+func createTestStructuredStatefulMessage(patternID uint64, dynamicValueCount int) *message.StatefulMessage {
+	msg := message.NewMessage([]byte("structured"), nil, "", 0)
+	msg.MessageMetadata.RawDataLen = len("structured")
+
+	dynamicValues := make([]*statefulpb.DynamicValue, dynamicValueCount)
+	for i := range dynamicValues {
+		dynamicValues[i] = &statefulpb.DynamicValue{
+			Value: &statefulpb.DynamicValue_StringValue{
+				StringValue: "value",
+			},
+		}
+	}
+
+	return &message.StatefulMessage{
+		Metadata: &msg.MessageMetadata,
+		Datum: &statefulpb.Datum{
+			Data: &statefulpb.Datum_Logs{
+				Logs: &statefulpb.Log{
+					Timestamp: 12345,
+					Content: &statefulpb.Log_Structured{
+						Structured: &statefulpb.StructuredLog{
+							PatternId:     patternID,
+							DynamicValues: dynamicValues,
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
 func TestBatchStrategySendsPayloadWhenBufferIsFull(t *testing.T) {
 	input := make(chan *message.StatefulMessage)
 	output := make(chan *message.Payload)
@@ -504,6 +551,125 @@ func TestBatchStrategyDeltaEncodesRepeatedService(t *testing.T) {
 	require.NotNil(t, datumSeq.Data[0].GetLogs().Service)
 	assert.EqualValues(t, 42, datumSeq.Data[0].GetLogs().Service.GetDictIndex())
 	assert.Nil(t, datumSeq.Data[1].GetLogs().Service)
+
+	strategy.Stop()
+}
+
+func TestBatchStrategyDeltaEncodesPatternIDFromPatternDefine(t *testing.T) {
+	input := make(chan *message.StatefulMessage)
+	output := make(chan *message.Payload, 10)
+	flushChan := make(chan struct{})
+
+	strategy := NewBatchStrategy(
+		input,
+		output,
+		flushChan,
+		time.Hour,
+		100,
+		10000,
+		"test",
+		compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1),
+		metrics.NewNoopPipelineMonitor(""),
+		"test")
+	strategy.Start()
+
+	input <- createTestPatternDefineStatefulMessage(12, "pattern")
+	input <- createTestStructuredStatefulMessage(12, 1)
+	flushChan <- struct{}{}
+
+	payload := <-output
+	var datumSeq statefulpb.DatumSequence
+	err := proto.Unmarshal(payload.Encoded, &datumSeq)
+	require.NoError(t, err)
+	require.Len(t, datumSeq.Data, 2)
+
+	require.NotNil(t, datumSeq.Data[0].GetPatternDefine())
+	require.NotNil(t, datumSeq.Data[1].GetLogs().GetStructured())
+	assert.EqualValues(t, 0, datumSeq.Data[1].GetLogs().GetStructured().PatternId)
+
+	strategy.Stop()
+}
+
+func TestBatchStrategyDeltaEncodesRepeatedPatternID(t *testing.T) {
+	input := make(chan *message.StatefulMessage)
+	output := make(chan *message.Payload, 10)
+	flushChan := make(chan struct{})
+
+	strategy := NewBatchStrategy(
+		input,
+		output,
+		flushChan,
+		time.Hour,
+		100,
+		10000,
+		"test",
+		compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1),
+		metrics.NewNoopPipelineMonitor(""),
+		"test")
+	strategy.Start()
+
+	input <- createTestStructuredStatefulMessage(12, 1)
+	input <- createTestStructuredStatefulMessage(12, 1)
+	flushChan <- struct{}{}
+
+	payload := <-output
+	var datumSeq statefulpb.DatumSequence
+	err := proto.Unmarshal(payload.Encoded, &datumSeq)
+	require.NoError(t, err)
+	require.Len(t, datumSeq.Data, 2)
+
+	assert.EqualValues(t, 12, datumSeq.Data[0].GetLogs().GetStructured().PatternId)
+	assert.EqualValues(t, 0, datumSeq.Data[1].GetLogs().GetStructured().PatternId)
+
+	strategy.Stop()
+}
+
+func TestBatchStrategyDoesNotMutateDeltaStateWhenAddFails(t *testing.T) {
+	input := make(chan *message.StatefulMessage)
+	output := make(chan *message.Payload, 10)
+	flushChan := make(chan struct{})
+
+	strategy := NewBatchStrategy(
+		input,
+		output,
+		flushChan,
+		time.Hour,
+		100,
+		10,
+		"test",
+		compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1),
+		metrics.NewNoopPipelineMonitor(""),
+		"test")
+	strategy.Start()
+
+	input <- createTestPatternDefineStatefulMessage(12, "pattern")
+
+	firstLog := createTestStructuredStatefulMessage(12, 1)
+	firstLog.Metadata.RawDataLen = 5
+	input <- firstLog
+
+	secondLog := createTestStructuredStatefulMessage(12, 1)
+	secondLog.Metadata.RawDataLen = 6
+	input <- secondLog
+
+	firstPayload := <-output
+	var firstDatumSeq statefulpb.DatumSequence
+	err := proto.Unmarshal(firstPayload.Encoded, &firstDatumSeq)
+	require.NoError(t, err)
+	require.Len(t, firstDatumSeq.Data, 2)
+	require.NotNil(t, firstDatumSeq.Data[0].GetPatternDefine())
+	require.NotNil(t, firstDatumSeq.Data[1].GetLogs().GetStructured())
+	assert.EqualValues(t, 0, firstDatumSeq.Data[1].GetLogs().GetStructured().PatternId)
+
+	flushChan <- struct{}{}
+
+	secondPayload := <-output
+	var secondDatumSeq statefulpb.DatumSequence
+	err = proto.Unmarshal(secondPayload.Encoded, &secondDatumSeq)
+	require.NoError(t, err)
+	require.Len(t, secondDatumSeq.Data, 1)
+	require.NotNil(t, secondDatumSeq.Data[0].GetLogs().GetStructured())
+	assert.EqualValues(t, 12, secondDatumSeq.Data[0].GetLogs().GetStructured().PatternId)
 
 	strategy.Stop()
 }

@@ -544,6 +544,39 @@ func TestInflightTrackerNextToSendPrependsLazySnapshotState(t *testing.T) {
 	assert.True(t, tracker.streamSent.hasDictEntry(20))
 }
 
+func TestInflightTrackerNextToSendPrependsDeltaEncodingSyncBeforeReplayedDatums(t *testing.T) {
+	tracker := newInflightTracker("test", 5)
+	tracker.snapshot.apply(&StatefulExtra{
+		StateChanges: []*statefulpb.Datum{
+			createInflightPatternDefine(2, "pattern2"),
+			createInflightDictEntryDefine(20, "value20"),
+		},
+	})
+	tracker.streamSent = newStateReferences()
+
+	require.True(t, tracker.append(createInflightPayloadWithWireDatums(
+		createInflightLogDatum(2, 20),
+		createInflightLogDatum(0, 20),
+	)))
+
+	encoded, err := tracker.nextToSendEncoded(noopimpl.New())
+	require.NoError(t, err)
+
+	datumSeq := decodeInflightDatumSequence(t, encoded)
+	require.Len(t, datumSeq.Data, 5)
+	assert.Equal(t, map[uint64]string{2: "pattern2"}, collectInflightPatterns(datumSeq.Data[:2]))
+	assert.Equal(t, map[uint64]string{20: "value20"}, collectInflightDictEntries(datumSeq.Data[:2]))
+
+	sync := datumSeq.Data[2].GetDeltaEncodingSync()
+	require.NotNil(t, sync)
+	assert.EqualValues(t, 2, sync.PatternId)
+
+	require.NotNil(t, datumSeq.Data[3].GetLogs())
+	assert.EqualValues(t, 2, datumSeq.Data[3].GetLogs().GetStructured().PatternId)
+	require.NotNil(t, datumSeq.Data[4].GetLogs())
+	assert.EqualValues(t, 0, datumSeq.Data[4].GetLogs().GetStructured().PatternId)
+}
+
 func TestInflightTrackerNextToSendDoesNotPrependStateDefinedInSamePayload(t *testing.T) {
 	tracker := newInflightTracker("test", 5)
 	tracker.snapshot.apply(&StatefulExtra{
