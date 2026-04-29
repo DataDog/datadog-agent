@@ -82,22 +82,27 @@ class GateScenario:
 
 
 @contextmanager
-def _gate_scenarios(*scenarios: GateScenario):
+def _gate_scenarios(*scenarios: GateScenario, ancestor_sha="ancestor-sha"):
     """
     Context manager that wires up gate scenarios for integration tests.
 
-    Yields a SimpleNamespace with:
-      - config_path: path to a temp YAML file with the gate limits
-      - ancestor_metrics: dict suitable for mocking query_gate_metrics_for_commit
-      - package_measure: side_effect for PackageArtifactMeasurer.measure
-      - docker_measure: side_effect for DockerArtifactMeasurer.measure
+    Patches PackageArtifactMeasurer.measure, DockerArtifactMeasurer.measure, and
+    query_gate_metrics_for_commit for the duration of the test.
+
+    Yields the path to a temp YAML file with the gate limits.
     """
     by_name = {s.name: s for s in scenarios}
+    by_ancestor_sha = {
+        ancestor_sha: {
+            s.name: {"current_on_disk_size": s.ancestor_disk, "current_on_wire_size": s.ancestor_wire}
+            for s in scenarios
+        }
+    }
 
     config = {s.name: {"max_on_disk_size": s.max_disk, "max_on_wire_size": s.max_wire} for s in scenarios}
-    ancestor_metrics = {
-        s.name: {"current_on_disk_size": s.ancestor_disk, "current_on_wire_size": s.ancestor_wire} for s in scenarios
-    }
+
+    def _query_metrics(sha):
+        return by_ancestor_sha[sha]
 
     def _package_measure(ctx, config):
         s = by_name[config.gate_name]
@@ -113,12 +118,21 @@ def _gate_scenarios(*scenarios: GateScenario):
         config_path = os.path.join(tmpdir, 'gates.yml')
         with open(config_path, 'w') as f:
             yaml.dump(config, f)
-        yield SimpleNamespace(
-            config_path=config_path,
-            ancestor_metrics=ancestor_metrics,
-            package_measure=_package_measure,
-            docker_measure=_docker_measure,
-        )
+        with (
+            patch(
+                "tasks.libs.common.datadog_api.query_gate_metrics_for_commit",
+                side_effect=_query_metrics,
+            ),
+            patch(
+                "tasks.static_quality_gates.gates.PackageArtifactMeasurer.measure",
+                side_effect=_package_measure,
+            ),
+            patch(
+                "tasks.static_quality_gates.gates.DockerArtifactMeasurer.measure",
+                side_effect=_docker_measure,
+            ),
+        ):
+            yield config_path
 
 
 class TestQualityGatesIntegration(unittest.TestCase):
@@ -157,20 +171,8 @@ class TestQualityGatesIntegration(unittest.TestCase):
             patch("tasks.quality_gates.get_ancestor", return_value="ancestor-sha"),
             patch("tasks.quality_gates.get_commit_sha", return_value=_CI_COMMIT_SHA),
             patch("tasks.static_quality_gates.github.GithubAPI", new=FakeGithubAPI),
-            _gate_scenarios(*gate_scenarios) as gate_fixture,
-            patch(
-                "tasks.libs.common.datadog_api.query_gate_metrics_for_commit",
-                return_value=gate_fixture.ancestor_metrics,
-            ) as mock_query_metrics,
+            _gate_scenarios(*gate_scenarios) as config_path,
             patch("tasks.static_quality_gates.gates.send_metrics") as mock_send_metrics,
-            patch(
-                "tasks.static_quality_gates.gates.PackageArtifactMeasurer.measure",
-                side_effect=gate_fixture.package_measure,
-            ),
-            patch(
-                "tasks.static_quality_gates.gates.DockerArtifactMeasurer.measure",
-                side_effect=gate_fixture.docker_measure,
-            ),
             patch("tasks.static_quality_gates.pr_comment.pr_commenter") as mock_pr_commenter,
             patch(
                 "tasks.static_quality_gates.gates.GateMetricHandler.generate_metric_reports"
@@ -181,7 +183,7 @@ class TestQualityGatesIntegration(unittest.TestCase):
                     "datadog-ci tag --level job --tags static_quality_gates:\"success\"": Result("Done"),
                 }
             )
-            parse_and_trigger_gates(ctx, gate_fixture.config_path)
+            parse_and_trigger_gates(ctx, config_path)
 
             # Assert on metrics sent
             mock_send_metrics.assert_called_once()
@@ -216,9 +218,6 @@ class TestQualityGatesIntegration(unittest.TestCase):
                 rel_wire=0,
             )
 
-            # Assert ancestor SHA was looked up to compute relative sizes
-            mock_query_metrics.assert_called_once_with("ancestor-sha")
-
             mock_generate_reports.assert_called_once()
 
             # Assert PR comment was posted for the correct PR
@@ -251,27 +250,19 @@ class TestQualityGatesIntegration(unittest.TestCase):
             patch("tasks.quality_gates.get_ancestor", return_value="ancestor-sha"),
             patch("tasks.quality_gates.get_commit_sha", return_value=_CI_COMMIT_SHA),
             patch("tasks.static_quality_gates.github.GithubAPI", new=FakeGithubAPI),
-            _gate_scenarios(*gate_scenarios) as gate_fixture,
+            _gate_scenarios(*gate_scenarios) as config_path,
             patch("tasks.static_quality_gates.gates.GateMetricHandler.generate_relative_size"),
             patch(
                 "tasks.static_quality_gates.gates.GateMetricHandler.generate_metric_reports"
             ) as mock_generate_reports,
             patch("tasks.static_quality_gates.gates.send_metrics") as mock_send_metrics,
             patch("tasks.static_quality_gates.pr_comment.pr_commenter") as mock_pr_commenter,
-            patch(
-                "tasks.static_quality_gates.gates.PackageArtifactMeasurer.measure",
-                side_effect=gate_fixture.package_measure,
-            ),
-            patch(
-                "tasks.static_quality_gates.gates.DockerArtifactMeasurer.measure",
-                side_effect=gate_fixture.docker_measure,
-            ),
         ):
             ctx = MockContext(
                 run={"datadog-ci tag --level job --tags static_quality_gates:\"failure\"": Result("Done")}
             )
             with self.assertRaises(Exit):
-                parse_and_trigger_gates(ctx, gate_fixture.config_path)
+                parse_and_trigger_gates(ctx, config_path)
             mock_send_metrics.assert_called_once()
             mock_generate_reports.assert_called_once()
             mock_pr_commenter.assert_called_once()
@@ -302,27 +293,19 @@ class TestQualityGatesIntegration(unittest.TestCase):
             patch("tasks.quality_gates.get_ancestor", return_value="ancestor-sha"),
             patch("tasks.quality_gates.get_commit_sha", return_value=_CI_COMMIT_SHA),
             patch("tasks.static_quality_gates.github.GithubAPI", new=FakeGithubAPI),
-            _gate_scenarios(*gate_scenarios) as gate_fixture,
+            _gate_scenarios(*gate_scenarios) as config_path,
             patch("tasks.static_quality_gates.gates.GateMetricHandler.generate_relative_size"),
             patch(
                 "tasks.static_quality_gates.gates.GateMetricHandler.generate_metric_reports"
             ) as mock_generate_reports,
             patch("tasks.static_quality_gates.gates.send_metrics") as mock_send_metrics,
             patch("tasks.static_quality_gates.pr_comment.pr_commenter") as mock_pr_commenter,
-            patch(
-                "tasks.static_quality_gates.gates.PackageArtifactMeasurer.measure",
-                side_effect=gate_fixture.package_measure,
-            ),
-            patch(
-                "tasks.static_quality_gates.gates.DockerArtifactMeasurer.measure",
-                side_effect=gate_fixture.docker_measure,
-            ),
         ):
             ctx = MockContext(
                 run={"datadog-ci tag --level job --tags static_quality_gates:\"failure\"": Result("Done")}
             )
             with self.assertRaises(Exit):
-                parse_and_trigger_gates(ctx, gate_fixture.config_path)
+                parse_and_trigger_gates(ctx, config_path)
             mock_send_metrics.assert_called_once()
             mock_generate_reports.assert_called_once()
             mock_pr_commenter.assert_called_once()
@@ -354,20 +337,8 @@ class TestQualityGatesIntegration(unittest.TestCase):
             patch("tasks.quality_gates.get_ancestor", return_value="ancestor-sha"),
             patch("tasks.quality_gates.get_commit_sha", return_value=_CI_COMMIT_SHA),
             patch("tasks.static_quality_gates.github.GithubAPI", new=FakeGithubAPI),
-            _gate_scenarios(*gate_scenarios) as gate_fixture,
-            patch(
-                "tasks.libs.common.datadog_api.query_gate_metrics_for_commit",
-                return_value=gate_fixture.ancestor_metrics,
-            ),
+            _gate_scenarios(*gate_scenarios) as config_path,
             patch("tasks.static_quality_gates.gates.send_metrics"),
-            patch(
-                "tasks.static_quality_gates.gates.PackageArtifactMeasurer.measure",
-                side_effect=gate_fixture.package_measure,
-            ),
-            patch(
-                "tasks.static_quality_gates.gates.DockerArtifactMeasurer.measure",
-                side_effect=gate_fixture.docker_measure,
-            ),
             patch("tasks.static_quality_gates.pr_comment.pr_commenter") as mock_pr_commenter,
             patch(
                 "tasks.static_quality_gates.gates.GateMetricHandler.generate_metric_reports"
@@ -377,7 +348,7 @@ class TestQualityGatesIntegration(unittest.TestCase):
                 run={"datadog-ci tag --level job --tags static_quality_gates:\"failure\"": Result("Done")}
             )
             with self.assertRaises(Exit):
-                parse_and_trigger_gates(ctx, gate_fixture.config_path)
+                parse_and_trigger_gates(ctx, config_path)
             mock_generate_reports.assert_called_once()
             mock_pr_commenter.assert_called_once()
 
@@ -414,20 +385,8 @@ class TestQualityGatesIntegration(unittest.TestCase):
             patch("tasks.quality_gates.get_ancestor", return_value="ancestor-sha"),
             patch("tasks.quality_gates.get_commit_sha", return_value=_CI_COMMIT_SHA),
             patch("tasks.quality_gates.get_pr_for_branch", return_value=approved_pr),
-            _gate_scenarios(*gate_scenarios) as gate_fixture,
-            patch(
-                "tasks.libs.common.datadog_api.query_gate_metrics_for_commit",
-                return_value=gate_fixture.ancestor_metrics,
-            ),
+            _gate_scenarios(*gate_scenarios) as config_path,
             patch("tasks.static_quality_gates.gates.send_metrics"),
-            patch(
-                "tasks.static_quality_gates.gates.PackageArtifactMeasurer.measure",
-                side_effect=gate_fixture.package_measure,
-            ),
-            patch(
-                "tasks.static_quality_gates.gates.DockerArtifactMeasurer.measure",
-                side_effect=gate_fixture.docker_measure,
-            ),
             patch("tasks.static_quality_gates.pr_comment.pr_commenter") as mock_pr_commenter,
             patch(
                 "tasks.static_quality_gates.gates.GateMetricHandler.generate_metric_reports"
@@ -436,7 +395,7 @@ class TestQualityGatesIntegration(unittest.TestCase):
             ctx = MockContext(
                 run={"datadog-ci tag --level job --tags static_quality_gates:\"failure\"": Result("Done")}
             )
-            parse_and_trigger_gates(ctx, gate_fixture.config_path)
+            parse_and_trigger_gates(ctx, config_path)
             mock_generate_reports.assert_called_once()
             mock_pr_commenter.assert_called_once()
             self.assertIs(mock_pr_commenter.call_args.kwargs["pr"], approved_pr)
