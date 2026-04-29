@@ -1,0 +1,630 @@
+# Coordinator Quickstart
+
+Zero-to-running in under 20 minutes. For full architecture and design notes
+see [README.md](./README.md).
+
+---
+
+## Prereqs
+
+- Repo access; you can `git push origin`.
+- AWS SSO / `dda inv workspaces.*` working locally.
+- One `workspace-evals-<detector>` workspace per detector you want
+  plateau-gated `eval-component` validation for. Currently:
+  `evals-bocpd`, `evals-scanmw`, `evals-scanwelch`. Adding a detector
+  later = provision one more workspace with the matching name; no code
+  change required (the coordinator derives the ssh alias by convention
+  from `workspace_for_detector()`).
+  ```bash
+  # If a convention-named workspace is missing:
+  dda inv workspaces.create evals-bocpd
+  # ... same pattern for any new detector.
+  ```
+- An Anthropic API key.
+- (Optional but recommended) a long-lived draft PR to use as the run-log
+  (GitHub mobile + desktop notifications for free). PR #49678 is
+  already set up for this; see **GitHub run-log PR** below.
+
+---
+
+## 1. Create the driver workspace
+
+This is where the Python loop lives for days. It does only short ops
+(SDK calls, `q.eval-scenarios`, git, ssh dispatch) — compute budget is
+modest. The long-running `q.eval-component` jobs run on the three
+detector workspaces, not here.
+
+```bash
+dda inv workspaces.create coord-driver
+dda inv workspaces.tmux-new coord-driver
+```
+
+You should now be inside a tmux session on the driver workspace.
+
+---
+
+## 2. Install deps on the driver
+
+```bash
+# inside the driver workspace
+pip install claude-agent-sdk pyyaml invoke requests
+export ANTHROPIC_API_KEY=sk-…
+
+# optional — bidirectional GitHub PR comments (recommended; see below)
+export COORD_GITHUB_PR_NUMBER=49678
+```
+
+Persist the env vars across tmux detach by adding them to `~/.bashrc` (or
+equivalent) on the workspace.
+
+### GitHub run-log PR (recommended interaction channel)
+
+PR #49678 is the long-lived "coordinator run log" draft PR. It never
+merges. Setup is one line because `gh` is pre-authed on DD workspaces.
+
+1. Confirm `gh` works on the driver workspace:
+   ```bash
+   gh auth status
+   gh pr view 49678 --json number,title
+   ```
+2. Set the env var:
+   ```bash
+   export COORD_GITHUB_PR_NUMBER=49678
+   ```
+3. Smoke-test outbound:
+   ```bash
+   PYTHONPATH=tasks python -c "from coordinator import github_out; print(github_out.post('validation_completed','hello from coordinator'))"
+   ```
+   Expect `(True, 'ok')` and a new comment on https://github.com/DataDog/datadog-agent/pull/49678.
+4. Smoke-test inbound: drop a comment on PR #49678 from the GitHub web/mobile UI (any plain text), then:
+   ```bash
+   PYTHONPATH=tasks python -c "from pathlib import Path; from coordinator import github_in; print(github_in.poll(Path('.')))"
+   cat .coordinator/inbox.md
+   ```
+   Your comment should appear in `inbox.md`. Re-running `poll` is
+   idempotent (state file `github_state.json` tracks the last-seen
+   comment ID).
+5. Enable GitHub mobile notifications for PR #49678: on phone, open the
+   PR → tap **Watch** → **All Activity**. You now get a push for every
+   coordinator event.
+
+### Interacting while the coordinator runs
+
+- **Read**: watch PR #49678 — the **Conversation** tab shows coordinator
+  status comments intermixed with every approved candidate's commit.
+- **Steer**: drop a PR comment in plain English. Polled at iteration start,
+  routed through `inbox.md` → SDK interpretation → ACK comment back on
+  the PR. E.g.:
+  > stop tuning thresholds, try a correlator change
+- **Commits**: the **Commits** tab shows every approved candidate as a
+  separate commit (message includes iteration + candidate + score).
+- **Don't approve/merge** this PR. It's a run log, not a review target.
+
+---
+
+## 3. Check out the harness branch (and understand the branch model)
+
+Four branches are involved. Two you maintain, two the coordinator manages:
+
+```
+main                                upstream agent default (never touched)
+│
+├─ q-branch-observer                upstream observer feature branch
+│   │                               (others' observer work lands here; the
+│   │                                coordinator MERGES from it, never pushes)
+│   │
+│   └─ claude/observer-improvements SCRATCH: coordinator commits here
+│                                   (draft PR #49678; force-push allowed;
+│                                    not mergeable as-is — audit log only)
+│
+└─ ella/claude-coordinator-harness  the coordinator's own code
+                                    (you edit tasks/coordinator/ here)
+```
+
+**Key invariant:** `claude/observer-improvements` MUST contain the
+coordinator's own `tasks/coordinator/` code. Otherwise the driver checks
+itself out mid-iteration and its own Python modules disappear, breaking
+lazy imports (e.g. `proposer`). The scratch branch is therefore seeded
+from `ella/claude-coordinator-harness`, NOT from `q-branch-observer` —
+upstream observer work arrives via `sync_from_upstream` merges every
+iteration, but harness code is always present.
+
+```bash
+# inside the driver workspace
+cd ~/datadog-agent
+git fetch origin
+git checkout ella/claude-coordinator-harness
+```
+
+**First-time scratch-branch setup** (only if `claude/observer-improvements`
+doesn't already track `ella/claude-coordinator-harness`):
+
+```bash
+git branch -f claude/observer-improvements ella/claude-coordinator-harness
+git push --force-with-lease --no-verify origin claude/observer-improvements
+```
+
+**When you edit coordinator code during a run:**
+
+```bash
+# 1. Commit your edits to ella/claude-coordinator-harness
+git checkout ella/claude-coordinator-harness
+# edit tasks/coordinator/..., commit, push
+git push origin ella/claude-coordinator-harness
+
+# 2. Fast-forward the scratch branch so the RUNNING coordinator picks it up
+git branch -f claude/observer-improvements ella/claude-coordinator-harness
+git push --force-with-lease --no-verify origin claude/observer-improvements
+
+# 3. Restart the driver (Python caches module imports; only a new process
+#    sees the new code). startup_cleanup reconciles in-flight state safely.
+tmux attach -t coord
+# Ctrl-C, then re-run `python -u -m coordinator.driver --forever ...`
+```
+
+**If you don't do step 2**, the coordinator keeps running the OLD code —
+its Python modules were loaded from whatever `claude/observer-improvements`
+was at process start.
+
+**Why force-push is safe on the scratch branch:** PR #49678 is a draft
+audit log, never merged. Real merge workflow (at end of run) cherry-picks
+surviving ships onto a fresh clean branch — see section 11.
+
+---
+
+## 4. Pre-download scenarios
+
+```bash
+dda inv q.download-scenarios
+```
+
+(The driver runs `q.eval-scenarios` for every T0 evaluation, so the
+parquets need to be local.)
+
+---
+
+## 5. Verify ssh to the detector workspaces
+
+```bash
+ssh workspace-evals-bocpd    "echo ok"
+ssh workspace-evals-scanmw   "echo ok"
+ssh workspace-evals-scanwelch "echo ok"
+```
+
+All three should print `ok`. If any fails, add a matching entry to
+`~/.ssh/config` on the driver workspace or debug with `dda inv
+workspaces.cmd --workspace-name evals-bocpd --command "echo ok"`.
+
+---
+
+## 6. Seed state
+
+Run the bootstrap scripts in order. Each is safe to re-run (they
+`--overwrite` or skip-existing).
+
+```bash
+cd ~/datadog-agent
+
+# 6a. Import a fresh q.eval-scenarios baseline (uses prior rebench).
+# Repeatable --detector NAME=PATH; add one flag per detector.
+PYTHONPATH=tasks python -m coordinator.import_baseline \
+    --detector bocpd=eval-results/bocpd/report.json \
+    --detector scanmw=eval-results/scanmw/report.json \
+    --detector scanwelch=eval-results/scanwelch/report.json \
+    --sha $(git rev-parse --short HEAD)
+
+# 6b. (optional) Populate per-scenario σ in db.yaml for post-run
+# diagnostics. The live gate is a catastrophe filter (ΔF1 < -0.10 vs
+# frozen baseline) — σ is no longer used at gate time because N=5 σ
+# estimation is too noisy to support per-scenario 3σ gating. σ data
+# is still useful for offline audits of shipped candidates.
+PYTHONPATH=tasks python -m coordinator.measure_sigma --seeds 5
+
+# 6c. Seed the 6/4 train/lockbox split.
+PYTHONPATH=tasks python -m coordinator.seed_split
+
+# 6d. Load seed candidates A + B (tighten-gate and anomaly-rank).
+PYTHONPATH=tasks python -m coordinator.seed_candidates
+
+# 6e. Backfill existing eval-component reports as historical audit
+# (into db.validations). Does NOT seed components_eval_dispatched —
+# the coordinator will re-run eval-component on first plateau of a
+# family targeting each component, because branch-modified code is
+# different from the baseline-measured version.
+PYTHONPATH=tasks python -m coordinator.import_validations
+
+# 6f. Token ceiling is now a PANIC BRAKE, not a budget. Default is
+# 500M tokens (≈ $2.5k-7.5k Opus list price) — deliberately set very
+# high so a 72h run finishes without nagging halts. Actual cost control
+# is wall-hours + per-iter cost-anomaly tripwire + autopilot pause on
+# consecutive-anomaly streak (see §Autopilot behaviors below).
+#
+# To tighten the ceiling for a specific cost-bounded run, pass
+# --token-ceiling N to the driver CLI. Same for wall hours:
+# --wall-hours-ceiling H. Both persist to db.budget on first save.
+```
+
+If `eval-results/` doesn't exist on this driver workspace yet, pull it
+from the detector workspaces:
+
+```bash
+mkdir -p eval-results/{bocpd,scanmw,scanwelch}
+scp -r workspace-evals-bocpd:/tmp/observer-component-eval/.    eval-results/bocpd/
+scp -r workspace-evals-scanmw:/tmp/observer-component-eval/.   eval-results/scanmw/
+scp -r workspace-evals-scanwelch:/tmp/observer-component-eval/. eval-results/scanwelch/
+```
+
+---
+
+## 7. Smoke-test
+
+```bash
+PYTHONPATH=tasks python -m coordinator.driver --once --dry-run
+```
+
+Expected output: one-line iteration summary, no side effects. If this
+errors you have a setup problem — fix before launching the real loop.
+
+Then a real one-iteration run:
+
+```bash
+PYTHONPATH=tasks python -m coordinator.driver --once
+```
+
+Expected flow:
+1. polls empty validations dict
+2. drains empty inbox
+3. syncs from `origin/q-branch-observer` (first run forks `claude/observer-improvements`)
+4. picks candidate `A-tighten-scan-gate`
+5. SDK implementation agent edits scan detector thresholds
+6. `q.eval-scenarios --only scanmw` runs (~6 min)
+7. scoring + review happen
+8. approve → commit + push + dispatch post-ship validation, OR reject → revert
+
+---
+
+## 8. Launch the forever loop
+
+```bash
+PYTHONPATH=tasks python -u -m coordinator.driver --forever 2>&1 | tee -a .coordinator/driver.log
+```
+
+`-u` is important — unbuffered Python output so `tail -f driver.log` updates live.
+
+Optional CLI overrides (both persist to `db.budget` so you don't need to re-pass on restart):
+
+```bash
+# Tighten the panic-brake for a bounded run
+PYTHONPATH=tasks python -u -m coordinator.driver --forever \
+    --token-ceiling 50000000 \
+    --wall-hours-ceiling 48 \
+    2>&1 | tee -a .coordinator/driver.log
+```
+
+Detach from tmux with `Ctrl-b d`. The loop keeps running.
+
+---
+
+## 8a. Autopilot behaviors (you don't need to do anything for these)
+
+Three autonomous reactions the coordinator takes without user input:
+
+**Phase plateau → pivot.** After `plateau_patience` (5) consecutive
+non-improving iterations, the driver auto-bans every `approach_family`
+from the last 5 iters into `db.pivot_banned_families` (persistent),
+resets the plateau counter, fires a `phase_pivot` PR comment, and
+keeps running. The proposer's next call sees a "this is a pivot"
+block in its prompt and generates structurally-different candidates.
+Only hard-halts (requires_ack) after `max_pivots_before_halt` (4)
+pivots without any ship — "structurally un-improvable."
+
+**Per-iter cost anomaly tripwire.** At iteration end, driver compares
+this iter's token cost to the rolling mean of the last 5. If
+`this_cost > 2× rolling_mean` OR `this_tokens > 10M`, a `cost_anomaly`
+PR comment fires with the triggers enumerated. After 3 consecutive
+anomalous iters, driver writes `.coordinator/pause` to cooperatively
+halt at the next iter boundary — user must `rm .coordinator/pause`
+to resume. Nothing in flight is wasted (iter finishes normally first).
+
+**Cooperative pause.** Touch `.coordinator/pause` at any time to stop
+the loop at the next iter boundary. Safer than Ctrl-C (doesn't lose
+mid-iter implementation work). Remove the file to resume. Used by the
+auto-pause above; also usable manually for "let me look at recent
+comments before you spend more money."
+
+**SDK error capture.** When an SDK call crashes (claude CLI subprocess
+exits non-zero, which unfortunately surfaces as bare "exit code 1"
+through the SDK), the driver dumps full context to
+`.coordinator/sdk-errors/<ts>-<purpose>.txt`: exception repr, cause
+chain, traceback, plus enrichment (token-log stats for the iter, last
+N SDK message types, git state at crash, SDK versions). Referenced
+in the `iter_impl_failed` PR comment.
+
+---
+
+## 9. Watch it
+
+From the driver workspace (or by sshing in from your laptop):
+
+```bash
+# dashboard — regenerated every iteration
+watch -n 5 cat .coordinator/metrics.md
+
+# structured event stream
+tail -f .coordinator/journal.jsonl | jq .
+
+# coordinator → user signals
+tail -f .coordinator/coord-out.md
+
+# if GitHub PR configured: watch PR #49678 on github.com or the GitHub mobile app
+```
+
+---
+
+## 10. Steer
+
+### Send the coordinator a message
+
+```bash
+echo "stop tuning thresholds; try filtering 093_cloudflare only" \
+  >> .coordinator/inbox.md
+```
+
+Coordinator picks it up at the next iteration start, writes an ACK to
+`ack.log`, archives the original under `inbox-archive/`.
+
+### Drop a fresh candidate idea
+
+```bash
+cat > .coordinator/candidates/C-my-idea.yaml <<'EOF'
+id: C-my-idea
+description: |
+  What to try, why, expected outcome.
+source: seed
+target_components: [scanmw]   # must be exactly one component
+phase: "1"
+approach_family: my-approach-family
+EOF
+
+PYTHONPATH=tasks python -m coordinator.seed_candidates
+```
+
+One-component invariant: `seed_candidates` rejects 0 or 2+ components with
+`ValueError`. Makes every ship a single-component commit on a linear
+branch, so `reeval_ships` can attribute marginal ΔF1 to each candidate.
+
+Coordinator picks it up when its turn arrives (diversity policy may
+prefer it if you've been stuck on one family).
+
+---
+
+## 11. Stop it
+
+```bash
+dda inv workspaces.tmux-attach coord-driver
+# inside tmux, stop the loop with Ctrl-C
+```
+
+The state in `.coordinator/db.yaml` persists. Restart any time with
+`python -m coordinator.driver --forever` — `startup_cleanup` reconciles
+any mid-iteration crash state.
+
+---
+
+## Status cheat sheet
+
+All of these run from your laptop via `ssh workspace-coord-driver "..."`.
+Source of truth is `.coordinator/journal.jsonl` (append-only structured
+events). Commands are pipe-friendly so you can chain `| tail -N` etc.
+
+```bash
+# Process + branch state
+ssh workspace-coord-driver "pgrep -af 'coordinator.driver'; cd ~/dd/datadog-agent && git rev-parse --short HEAD"
+
+# Last 5 events (whatever just happened)
+ssh workspace-coord-driver "tail -5 ~/dd/datadog-agent/.coordinator/journal.jsonl"
+
+# Did the coordinator read my PR comment yet?
+ssh workspace-coord-driver "grep '\"inbox_ack\"' ~/dd/datadog-agent/.coordinator/journal.jsonl | tail -1 | python3 -m json.tool"
+
+# Full inbox history (all user comments ever interpreted)
+ssh workspace-coord-driver "grep '\"inbox_ack\"' ~/dd/datadog-agent/.coordinator/journal.jsonl | tail -10"
+
+# Has the driver autopilot-pivoted on plateau?
+ssh workspace-coord-driver "grep '\"phase_pivot\"' ~/dd/datadog-agent/.coordinator/journal.jsonl"
+
+# Current pivot state (banned families + count)
+ssh workspace-coord-driver "grep -E 'pivot_banned_families|pivot_count' ~/dd/datadog-agent/.coordinator/db.yaml"
+
+# Cost anomalies fired this run
+ssh workspace-coord-driver "grep '\"cost_anomaly\"' ~/dd/datadog-agent/.coordinator/journal.jsonl"
+
+# What was the LAST candidate tried, and what happened to it?
+ssh workspace-coord-driver "grep -E '\"implementation_done\"|\"implementation_failed\"|\"review_done\"|\"auto_rejected_strict_regression\"|\"iter_shipped\"' ~/dd/datadog-agent/.coordinator/journal.jsonl | tail -5"
+
+# Tokens + cost this run (live, durable)
+ssh workspace-coord-driver "wc -l ~/dd/datadog-agent/.coordinator/tokens.jsonl; cat ~/dd/datadog-agent/.coordinator/tokens.jsonl | python3 -c 'import json,sys; rs=[json.loads(l) for l in sys.stdin]; tok_i=sum(r[\"input\"] for r in rs); tok_o=sum(r[\"output\"] for r in rs); print(f\"{tok_i:,} in / {tok_o:,} out = {tok_i+tok_o:,} total\")'"
+
+# Was the current iteration expensive vs its peers?
+ssh workspace-coord-driver "tail -20 ~/dd/datadog-agent/.coordinator/tokens.jsonl | python3 -c 'import json,sys; rs=[json.loads(l) for l in sys.stdin]; last_iter=max(r[\"iter\"] for r in rs if r[\"iter\"] is not None); print(f\"last iter {last_iter} so far:\", sum(r[\"input\"]+r[\"output\"] for r in rs if r[\"iter\"]==last_iter), \"tokens\")'"
+
+# Is the coordinator paused (auto or manual)?
+ssh workspace-coord-driver "ls -la ~/dd/datadog-agent/.coordinator/pause 2>&1"
+
+# SDK errors captured (one file per failed call; useful when impl_failed)
+ssh workspace-coord-driver "ls -la ~/dd/datadog-agent/.coordinator/sdk-errors/ 2>&1 | tail -10"
+
+# Read the most recent SDK-error capture
+ssh workspace-coord-driver "ls -t ~/dd/datadog-agent/.coordinator/sdk-errors/*.txt | head -1 | xargs cat" 2>&1 | head -60
+
+# Shipped candidates (commits on the scratch branch)
+ssh workspace-coord-driver "cd ~/dd/datadog-agent && git log --oneline claude/observer-improvements ^origin/q-branch-observer | grep 'coord: '"
+
+# Latest iteration's status as seen in metrics.md
+ssh workspace-coord-driver "head -30 ~/dd/datadog-agent/.coordinator/metrics.md"
+
+# gh auth health (budget for the user-facing channel)
+ssh workspace-coord-driver "grep '\"gh_error\"\\|\"github_inbox_pulled\"' ~/dd/datadog-agent/.coordinator/journal.jsonl | tail -5"
+
+# Is anything growing right now? (tokens.jsonl + journal last-modified)
+ssh workspace-coord-driver "stat -c 'tokens:  %y' ~/dd/datadog-agent/.coordinator/tokens.jsonl; stat -c 'journal: %y' ~/dd/datadog-agent/.coordinator/journal.jsonl; date"
+```
+
+**Interpreting**: during an Opus implementation (~20 min), `tokens.jsonl`
+mtime ticks every few seconds but `journal.jsonl` stays quiet. That's
+normal — journal only updates at pipeline milestones (`implementation_done`,
+`eval_done`, `review_done`, etc.). Both files silent for >15 min = either
+stuck or between iterations; check the process pid.
+
+---
+
+## Fetch results locally
+
+From your laptop at any point:
+
+```bash
+# dashboard snapshot
+ssh workspace-coord-driver "cat ~/datadog-agent/.coordinator/metrics.md"
+
+# db dump
+scp workspace-coord-driver:~/datadog-agent/.coordinator/db.yaml ./db-snapshot.yaml
+```
+
+Or view the branch directly on GitHub:
+`origin/claude/observer-improvements` — every commit there is a
+reviewed, approved candidate with its experiment id in the message.
+
+---
+
+## End-of-run merge workflow
+
+`claude/observer-improvements` is NOT a merge candidate. It's a draft
+audit log of every shipped candidate — mid-run "shipped" means "passed
+gates + 3-persona review", not "proved to be better." The real merge
+flow identifies survivors via offline re-eval and cherry-picks them onto
+a clean branch.
+
+```bash
+# 1. Offline N=20 re-eval: per shipped candidate, checkout ship sha AND
+#    parent sha, run q.eval-scenarios at 20 seeds on each, report marginal
+#    ΔF1 with 95% CIs, flag which generalize to lockbox scenarios.
+cd ~/datadog-agent
+PYTHONPATH=tasks python -m coordinator.reeval_ships \
+    --seeds 20 --out ./reeval-ships.json
+
+# 2. Read reeval-ships.json — the `per_candidate` list shows per-scenario
+#    CI_low. Success criterion: ≥3 shipped candidates with ANY lockbox
+#    scenario's ci_low > 0 = real generalization.
+
+# 3. Start a REAL branch for the merge PR
+git fetch origin q-branch-observer
+git checkout -b observer-ad-improvements origin/q-branch-observer
+
+# 4. Cherry-pick ONLY the survivors
+git cherry-pick <sha-1> <sha-2> <sha-3>  # etc
+
+# 5. Open a real PR against q-branch-observer
+gh pr create --base q-branch-observer --head observer-ad-improvements \
+    --title "Observer AD: shipped <N> candidates validated at N=20 seeds"
+```
+
+The audit PR #49678 stays open as an archive of the full run.
+
+---
+
+## Model routing (already configured)
+
+- **Opus** — implementation agent, hack-detector reviewer, proposer (deep thinking).
+- **Sonnet** — inbox message interpretation (lightweight).
+
+Override in `tasks/coordinator/config.py`:
+
+```python
+model_deep: str = "claude-opus-4-7"
+model_light: str = "claude-sonnet-4-6"
+```
+
+Set to `""` to use SDK default.
+
+---
+
+## What to expect
+
+- First iteration: 6–15 min (eval + review + any post-ship dispatch).
+- Steady state: one iteration every ~8–15 min.
+- **Regression gates** — four catastrophe filters vs the **frozen
+  baseline**, applied union across all relevant detectors (a candidate
+  that modifies shared code is scored against every detector it could
+  affect; gate on worst):
+  - ΔF1 < -0.10 absolute on any train scenario
+  - obs.f1 < 0.5 × base.f1 where base.f1 ≥ 0.05 (relative cliff)
+  - Δrecall < -0.10 where baseline recall > 0.05
+  - total_fps > 1.5 × baseline FPs (stops emit-everything reward-hack)
+  Blunt by design — statistically-valid per-scenario gating would need
+  N=20+ σ runs; LLM reviewers handle subtle regressions.
+- **Review** is 3 personas in parallel, unanimity required:
+  `leakage_auditor` (name/metric/ID leakage), `hack_detector` (gain
+  concentration, complexity, proxy-gaming, prior-retread),
+  `algorithm_expert` (interface compliance, non-blocking Detect,
+  state-key pattern, filename+header, test coverage, helper reuse).
+  All get `git diff HEAD -- comp/observer`. Scenario names in the
+  review rationale are redacted before persistence to prevent
+  lockbox-membership leakage into future-iteration prompts. Every check
+  needs cited evidence — vibe approvals auto-reject.
+- **Ground truth is sealed.** `comp/observer/scenarios/` (labels +
+  disruption windows) is excluded from commits, hash-verified every
+  iteration, AND blocked from modification by the agent's write hook.
+  The eval framework (`tasks/q.py`, `tasks/libs/q/`), coordinator
+  state (`.coordinator/`), and git internals (`.git/`) are likewise
+  off-limits.
+- **Plateau** is effect-size aware: a score only counts as improvement
+  when it clears best + ε (ε = 0.01). Noisy +0.001 bumps no longer
+  reset the counter.
+- **Eval-component** runs once per new component, only when the family
+  iterating on that component plateaus (K=5 consecutive non-improving).
+  Takes 2–4h on the detector workspace; result is lagging audit, never
+  gates.
+- **Overfit tripwire** (kept for audit, but *decorative* at 2-scenario
+  lockbox — Spearman ρ's CI at N<10 ships is too wide to fire reliably).
+  Lockbox scores never appear in agent prompts.
+- **Claims require offline re-eval.** Mid-run "shipped" ≠ "better."
+  After the run, run:
+  ```bash
+  PYTHONPATH=tasks python -m coordinator.reeval_ships --seeds 20 \
+      --out ./reeval-ships.json
+  ```
+  Checks out each ship's sha + its parent sha, runs q.eval-scenarios at
+  N seeds on each, reports per-scenario marginal ΔF1 with 95% CIs.
+  Success criterion: ≥3 shipped candidates with *any* lockbox scenario's
+  `ci_low > 0` (real generalization). Below that, the harness produced
+  noise — don't claim improvements.
+- **Halt events** (exit the `--forever` loop):
+  - Phase plateau (5 consecutive non-improving iterations)
+  - Upstream sync conflict (manual rebase required)
+  - Token ceiling exceeded (raise `CONFIG.api_token_ceiling` or halt)
+- GitHub PR comments (if `COORD_GITHUB_PR_NUMBER` configured): budget
+  milestones, phase exit, strict-regression auto-reject, validation
+  completion/abandonment, overfit tripwire, upstream conflict,
+  budget halt. Watch PR #49678 on mobile for push notifications.
+
+---
+
+## Troubleshooting
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `claude-agent-sdk not installed` | missing dep | `pip install claude-agent-sdk` |
+| `ssh: host unreachable` on dispatch | ssh config missing on driver | add to `~/.ssh/config` or `dda inv workspaces.cmd` |
+| Coordinator exits with "upstream conflict: halting" | someone pushed to `q-branch-observer` conflicting with the scratch branch | rebase `claude/observer-improvements` onto new upstream tip manually, re-run |
+| Coordinator exits with "budget halt" | token ceiling reached | inspect spend (journal `tokens_used` entries), raise `CONFIG.api_token_ceiling`, re-run |
+| `overfit tripwire` posted on PR | Spearman ρ between train and lockbox rankings < 0.5 across shipped candidates | investigate most-recently-shipped candidates — coordinator may be overfitting to train noise |
+| Every candidate auto-rejected with strict_regression | the detector actually regressed (ΔF1 < -0.10 on a train scenario) — the catastrophe filter doesn't fire on noise | inspect scoring in journal; if the drop is real, revise candidate; if the baseline itself was wrong, re-run `import_baseline` |
+| Reviewer auto-rejects with "structured output missing checks block" | the model emitted `approve: true` without filling evidence fields | inspect review rationale in journal — reviewer may be taking shortcuts; if persistent, check prompt or model config |
+| `metrics.md` shows ⚠ LIVENESS banner | no journal event in > 30 min; coordinator stuck | `ssh workspace-coord-driver "tmux attach -t coord-driver"` to see what it's doing |
+| `working tree dirty; aborting iteration` | stray edits or orphan from prior crash | normally auto-handled by `startup_cleanup`; if not, `git checkout -- comp/observer tasks/q.py` |
+| `upstream sync CONFIG` halts | someone pushed to `q-branch-observer` conflicting with `claude/observer-improvements` | rebase manually or reset scratch branch to new upstream tip |
+| Bayesian / eval-bayesian appearing | it shouldn't — driver never invokes it | grep `journal.jsonl` for context |
+| SDK retrying repeatedly | API rate limit or network | journal logs `github_post_failed` or SDK transient; auto-recovers |
+
+Full design / flow diagrams in [README.md](./README.md). Spec:
+`~/.claude/plans/ad-harness.allium`. Plan: `~/.claude/plans/ad-harness-plan.md`.

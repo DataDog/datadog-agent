@@ -19,6 +19,8 @@ type bocpdStateKey struct {
 }
 
 // bocpdSeriesState holds per-series streaming BOCPD state.
+// Sufficient statistics are Normal-Inverse-Gamma (NIG) parameters so that
+// the per-hypothesis predictive is Student-t (robust to outliers).
 type bocpdSeriesState struct {
 
 	// Cursor: how many points we've processed so far (count-based for safety).
@@ -33,22 +35,29 @@ type bocpdSeriesState struct {
 	warmupM2     float64   // sum of squared deviations (Welford)
 	warmupBuffer []float64 // buffered values for posterior replay after init
 
-	// Baseline (set once after warmup).
+	// Baseline (set once after warmup, used for AnomalyDebugInfo).
 	baselineMean   float64
 	baselineStddev float64
-	obsVar         float64
-	priorMean      float64
-	priorPrecision float64
 
-	// BOCPD posterior state (persists across advances).
-	runProbs   []float64
-	means      []float64
-	precisions []float64
+	// NIG prior parameters (fixed after warmup initialisation).
+	priorMu    float64
+	priorKappa float64
+	priorAlpha float64
+	priorBeta  float64
+
+	// BOCPD posterior state: one NIG entry per run-length hypothesis.
+	runProbs []float64
+	mus      []float64
+	kappas   []float64
+	alphas   []float64
+	betas    []float64
 
 	// Pre-allocated swap buffers to avoid per-point allocation.
-	newRunProbs   []float64
-	newMeans      []float64
-	newPrecisions []float64
+	newRunProbs []float64
+	newMus      []float64
+	newKappas   []float64
+	newAlphas   []float64
+	newBetas    []float64
 
 	// Alert lifecycle.
 	inAlert       bool
@@ -84,6 +93,7 @@ type BOCPDConfig struct {
 	MaxRunLength int `json:"max_run_length"`
 
 	// PriorVarianceScale controls prior variance over the mean relative to observed variance.
+	// Retained for backwards-compatibility; not used in the NIG formulation.
 	// Default: 10.0
 	PriorVarianceScale float64 `json:"prior_variance_scale"`
 
@@ -96,6 +106,17 @@ type BOCPDConfig struct {
 	// to exit alert state. Default: 10
 	RecoveryPoints int `json:"recovery_points"`
 
+	// PriorKappa is the NIG prior pseudo-count on the mean. It controls how
+	// diffuse the prior on mu is. Larger values shrink the predictive scale.
+	// Default: 1.0
+	PriorKappa float64 `json:"prior_kappa"`
+
+	// DegreesOfFreedomFloor is the minimum degrees of freedom (ν = 2α) for the
+	// Student-t predictive distribution. Values ≤ 2 give effectively uncapped
+	// variance (very heavy tails). Must be > 0.
+	// Default: 3.0
+	DegreesOfFreedomFloor float64 `json:"degrees_of_freedom_floor"`
+
 	// Aggregations to run detection on. Default: [Average, Count]
 	Aggregations []observer.Aggregate `json:"-"`
 }
@@ -103,15 +124,17 @@ type BOCPDConfig struct {
 // DefaultBOCPDConfig returns a BOCPDConfig with default values.
 func DefaultBOCPDConfig() BOCPDConfig {
 	return BOCPDConfig{
-		WarmupPoints:       120,
-		Hazard:             0.05,
-		CPThreshold:        0.6,
-		ShortRunLength:     5,
-		CPMassThreshold:    0.7,
-		MaxRunLength:       200,
-		PriorVarianceScale: 10.0,
-		MinVariance:        1.0,
-		RecoveryPoints:     10,
+		WarmupPoints:          120,
+		Hazard:                0.05,
+		CPThreshold:           0.6,
+		ShortRunLength:        5,
+		CPMassThreshold:       0.7,
+		MaxRunLength:          200,
+		PriorVarianceScale:    10.0,
+		MinVariance:           1.0,
+		RecoveryPoints:        10,
+		PriorKappa:            1.0,
+		DegreesOfFreedomFloor: 3.0,
 		Aggregations: []observer.Aggregate{
 			observer.AggregateAverage,
 			observer.AggregateCount,
@@ -165,6 +188,12 @@ func NewBOCPDDetector(config BOCPDConfig) *BOCPDDetector {
 	}
 	if config.RecoveryPoints <= 0 {
 		config.RecoveryPoints = defaults.RecoveryPoints
+	}
+	if config.PriorKappa <= 0 {
+		config.PriorKappa = defaults.PriorKappa
+	}
+	if config.DegreesOfFreedomFloor <= 0 {
+		config.DegreesOfFreedomFloor = defaults.DegreesOfFreedomFloor
 	}
 	if len(config.Aggregations) == 0 {
 		config.Aggregations = defaults.Aggregations
@@ -302,7 +331,8 @@ func (b *BOCPDDetector) warmupPoint(state *bocpdSeriesState, x float64) *observe
 	return nil
 }
 
-// initializeFromWarmup computes baseline parameters and initializes BOCPD posterior state.
+// initializeFromWarmup computes NIG prior parameters from warmup statistics and
+// initialises the BOCPD posterior state.
 func (b *BOCPDDetector) initializeFromWarmup(state *bocpdSeriesState) {
 	variance := state.warmupM2 / float64(state.warmupCount-1) // sample variance (Bessel's correction)
 	stddev := math.Sqrt(variance)
@@ -314,22 +344,35 @@ func (b *BOCPDDetector) initializeFromWarmup(state *bocpdSeriesState) {
 
 	state.baselineMean = state.warmupMean
 	state.baselineStddev = stddev
-	state.obsVar = variance
-	state.priorMean = state.warmupMean
-	state.priorPrecision = 1.0 / (variance * b.config.PriorVarianceScale)
 
-	// Initialize posterior arrays.
+	// NIG prior: parameterised so E[sigma^2] ≈ observed variance for large α.
+	//   μ₀  = warmup sample mean
+	//   κ₀  = PriorKappa (pseudo-count on the mean; ≥ 1)
+	//   α₀  = warmupCount / 2   (shape; encodes "we saw N/2 variance samples")
+	//   β₀  = variance * α₀    (rate; E[σ²] = β/(α-1) ≈ variance for large α)
+	state.priorMu = state.warmupMean
+	state.priorKappa = math.Max(b.config.PriorKappa, 1.0)
+	state.priorAlpha = float64(state.warmupCount) / 2.0
+	state.priorBeta = variance * state.priorAlpha
+
+	// Allocate posterior arrays.
 	bufSize := b.config.MaxRunLength + 2
 	state.runProbs = make([]float64, 1, bufSize)
-	state.means = make([]float64, 1, bufSize)
-	state.precisions = make([]float64, 1, bufSize)
+	state.mus = make([]float64, 1, bufSize)
+	state.kappas = make([]float64, 1, bufSize)
+	state.alphas = make([]float64, 1, bufSize)
+	state.betas = make([]float64, 1, bufSize)
 	state.runProbs[0] = 1.0
-	state.means[0] = state.priorMean
-	state.precisions[0] = state.priorPrecision
+	state.mus[0] = state.priorMu
+	state.kappas[0] = state.priorKappa
+	state.alphas[0] = state.priorAlpha
+	state.betas[0] = state.priorBeta
 
 	state.newRunProbs = make([]float64, 0, bufSize)
-	state.newMeans = make([]float64, 0, bufSize)
-	state.newPrecisions = make([]float64, 0, bufSize)
+	state.newMus = make([]float64, 0, bufSize)
+	state.newKappas = make([]float64, 0, bufSize)
+	state.newAlphas = make([]float64, 0, bufSize)
+	state.newBetas = make([]float64, 0, bufSize)
 
 	// Replay warmup points through the posterior to build up run-length
 	// hypotheses. This ensures the detector has context when it starts
@@ -342,21 +385,25 @@ func (b *BOCPDDetector) initializeFromWarmup(state *bocpdSeriesState) {
 	state.initialized = true
 }
 
-// updatePosterior performs one step of the BOCPD recurrence.
+// updatePosterior performs one step of the BOCPD recurrence using NIG
+// sufficient statistics and a Student-t predictive distribution.
 // Returns (triggered, cpProb, shortRunMass).
 func (b *BOCPDDetector) updatePosterior(state *bocpdSeriesState, x float64) (bool, float64, float64) {
 	hazard := b.config.Hazard
+	dfFloor := b.config.DegreesOfFreedomFloor
 
-	// Standard BOCPD recurrence (Adams & MacKay 2007):
+	// Standard BOCPD recurrence (Adams & MacKay 2007) with Student-t predictive:
 	// cpMass = hazard * sum_r(runProbs[r] * pred(x|r))
-	// This weighs the observation against all run-length hypotheses so the
-	// detector can catch cascading shifts, not just the first deviation from
-	// the warmup baseline.
 	newLen := len(state.runProbs) + 1
 	state.newRunProbs = state.newRunProbs[:newLen]
+	state.newMus = state.newMus[:newLen]
+	state.newKappas = state.newKappas[:newLen]
+	state.newAlphas = state.newAlphas[:newLen]
+	state.newBetas = state.newBetas[:newLen]
+
 	var cpMass float64
 	for r := range state.runProbs {
-		pred := gaussianPDF(x, state.means[r], state.obsVar+1.0/state.precisions[r])
+		pred := studentTPredictivePDF(x, state.mus[r], state.kappas[r], state.alphas[r], state.betas[r], dfFloor)
 		state.newRunProbs[r+1] = state.runProbs[r] * (1.0 - hazard) * pred
 		cpMass += state.runProbs[r] * pred
 	}
@@ -366,27 +413,32 @@ func (b *BOCPDDetector) updatePosterior(state *bocpdSeriesState, x float64) (boo
 	cpProb := state.newRunProbs[0]
 	shortRunMass := shortRunLengthMass(state.newRunProbs, b.config.ShortRunLength)
 
-	// Update posterior means and precisions.
-	state.newMeans = state.newMeans[:newLen]
-	state.newPrecisions = state.newPrecisions[:newLen]
-	state.newMeans[0], state.newPrecisions[0] = normalPosterior(state.priorMean, state.priorPrecision, x, state.obsVar)
-	for r := range state.means {
-		state.newMeans[r+1], state.newPrecisions[r+1] = normalPosterior(state.means[r], state.precisions[r], x, state.obsVar)
+	// NIG posterior update for each hypothesis.
+	// Index 0: fresh segment — updated from the fixed prior.
+	state.newMus[0], state.newKappas[0], state.newAlphas[0], state.newBetas[0] =
+		nigUpdate(state.priorMu, state.priorKappa, state.priorAlpha, state.priorBeta, x)
+	for r := range state.mus {
+		state.newMus[r+1], state.newKappas[r+1], state.newAlphas[r+1], state.newBetas[r+1] =
+			nigUpdate(state.mus[r], state.kappas[r], state.alphas[r], state.betas[r], x)
 	}
 
 	// Truncate to MaxRunLength.
 	if newLen > b.config.MaxRunLength+1 {
 		newLen = b.config.MaxRunLength + 1
 		state.newRunProbs = state.newRunProbs[:newLen]
-		state.newMeans = state.newMeans[:newLen]
-		state.newPrecisions = state.newPrecisions[:newLen]
+		state.newMus = state.newMus[:newLen]
+		state.newKappas = state.newKappas[:newLen]
+		state.newAlphas = state.newAlphas[:newLen]
+		state.newBetas = state.newBetas[:newLen]
 		normalizeProbs(state.newRunProbs)
 	}
 
 	// Swap buffers.
 	state.runProbs, state.newRunProbs = state.newRunProbs, state.runProbs
-	state.means, state.newMeans = state.newMeans, state.means
-	state.precisions, state.newPrecisions = state.newPrecisions, state.precisions
+	state.mus, state.newMus = state.newMus, state.mus
+	state.kappas, state.newKappas = state.newKappas, state.kappas
+	state.alphas, state.newAlphas = state.newAlphas, state.alphas
+	state.betas, state.newBetas = state.newBetas, state.betas
 
 	// Check trigger conditions.
 	// Short-run mass is only meaningful when there are run-length hypotheses
@@ -435,6 +487,46 @@ func (b *BOCPDDetector) makeAnomaly(state *bocpdSeriesState, p observer.Point, s
 	}
 }
 
+// nigUpdate returns the NIG posterior parameters after observing a single point x.
+// The update is the standard NIG conjugate update:
+//
+//	κₙ = κ + 1
+//	μₙ = (κ·μ + x) / κₙ
+//	αₙ = α + 0.5
+//	βₙ = β + κ·(x−μ)² / (2·κₙ)
+func nigUpdate(mu, kappa, alpha, beta, x float64) (muN, kappaN, alphaN, betaN float64) {
+	kappaN = kappa + 1.0
+	muN = (kappa*mu + x) / kappaN
+	alphaN = alpha + 0.5
+	betaN = beta + (kappa*(x-mu)*(x-mu))/(2.0*kappaN)
+	return
+}
+
+// studentTPredictivePDF evaluates the NIG marginal predictive density at x.
+// The predictive is a Student-t with:
+//
+//	ν     = max(2α, dfFloor)
+//	scale² = β·(κ+1) / (α·κ)
+//
+// Using the log-space computation for numerical stability.
+func studentTPredictivePDF(x, mu, kappa, alpha, beta, dfFloor float64) float64 {
+	nu := 2 * alpha
+	if nu < dfFloor {
+		nu = dfFloor
+	}
+	scale2 := beta * (kappa + 1.0) / (alpha * kappa)
+	if scale2 < 1e-18 {
+		scale2 = 1e-18
+	}
+	z2 := (x - mu) * (x - mu) / scale2
+	logG1, _ := math.Lgamma((nu + 1.0) / 2.0)
+	logG2, _ := math.Lgamma(nu / 2.0)
+	logPdf := logG1 - logG2 -
+		0.5*math.Log(nu*math.Pi*scale2) -
+		((nu+1.0)/2.0)*math.Log1p(z2/nu)
+	return math.Exp(logPdf)
+}
+
 func shortRunLengthMass(runProbs []float64, shortRunLength int) float64 {
 	maxIdx := shortRunLength
 	if maxIdx > len(runProbs)-1 {
@@ -448,13 +540,6 @@ func shortRunLengthMass(runProbs []float64, shortRunLength int) float64 {
 		mass += runProbs[i]
 	}
 	return mass
-}
-
-func normalPosterior(priorMean, priorPrecision, x, obsVar float64) (mean, precision float64) {
-	obsPrecision := 1.0 / obsVar
-	precision = priorPrecision + obsPrecision
-	mean = (priorPrecision*priorMean + obsPrecision*x) / precision
-	return mean, precision
 }
 
 func normalizeProbs(probs []float64) {
@@ -472,14 +557,4 @@ func normalizeProbs(probs []float64) {
 	for i := range probs {
 		probs[i] /= total
 	}
-}
-
-func gaussianPDF(x, mean, variance float64) float64 {
-	const minVariance = 1e-12
-	if variance < minVariance {
-		variance = minVariance
-	}
-	z := x - mean
-	denom := math.Sqrt(2 * math.Pi * variance)
-	return math.Exp(-(z*z)/(2*variance)) / denom
 }
