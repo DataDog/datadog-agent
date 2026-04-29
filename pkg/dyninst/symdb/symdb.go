@@ -1032,17 +1032,6 @@ func (b *packagesIterator) innerIterator() iter.Seq2[Package, error] {
 			yield(Package{}, err)
 			return
 		}
-
-		// Yield packages for functions that were found in a compile unit
-		// different from their defining package (e.g. abstract inlined
-		// functions from other packages).
-		for _, pkg := range b.displacedFunctions {
-			if len(pkg.Functions) > 0 {
-				if !yield(*pkg, nil) {
-					return
-				}
-			}
-		}
 	}
 }
 
