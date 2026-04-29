@@ -35,6 +35,7 @@ _PR_BRANCH_NAME = "feature/branch"
 _PR_BUCKET_BRANCH = 'dev'
 _CI_PIPELINE_ID = '999999999'
 _CI_COMMIT_SHA = '1234567890abcdef'
+_ANCESTOR_SHA = 'ancestor-sha'
 
 
 _PR_ENV_VARS = {
@@ -82,7 +83,7 @@ class GateScenario:
 
 
 @contextmanager
-def _gate_scenarios_fixture(*scenarios: GateScenario, ancestor_sha="ancestor-sha"):
+def _gate_scenarios_fixture(*scenarios: GateScenario, ancestor_sha: str):
     """
     Context manager that wires up gate scenarios for integration tests.
 
@@ -168,8 +169,8 @@ class TestQualityGatesIntegration(unittest.TestCase):
             ),
         ]
         with (
-            _gate_scenarios_fixture(*gate_scenarios) as config_path,
-            patch("tasks.quality_gates.get_ancestor", return_value="ancestor-sha"),
+            _gate_scenarios_fixture(*gate_scenarios, ancestor_sha=_ANCESTOR_SHA) as config_path,
+            patch("tasks.quality_gates.get_ancestor", return_value=_ANCESTOR_SHA),
             patch("tasks.quality_gates.get_commit_sha", return_value=_CI_COMMIT_SHA),
             patch("tasks.static_quality_gates.github.GithubAPI", new=FakeGithubAPI),
             patch("tasks.static_quality_gates.gates.send_metrics") as mock_send_metrics,
@@ -247,8 +248,8 @@ class TestQualityGatesIntegration(unittest.TestCase):
             ),
         ]
         with (
-            _gate_scenarios_fixture(*gate_scenarios) as config_path,
-            patch("tasks.quality_gates.get_ancestor", return_value="ancestor-sha"),
+            _gate_scenarios_fixture(*gate_scenarios, ancestor_sha=_ANCESTOR_SHA) as config_path,
+            patch("tasks.quality_gates.get_ancestor", return_value=_ANCESTOR_SHA),
             patch("tasks.quality_gates.get_commit_sha", return_value=_CI_COMMIT_SHA),
             patch("tasks.static_quality_gates.github.GithubAPI", new=FakeGithubAPI),
             patch("tasks.static_quality_gates.gates.GateMetricHandler.generate_relative_size"),
@@ -290,8 +291,8 @@ class TestQualityGatesIntegration(unittest.TestCase):
             ),
         ]
         with (
-            _gate_scenarios_fixture(*gate_scenarios) as config_path,
-            patch("tasks.quality_gates.get_ancestor", return_value="ancestor-sha"),
+            _gate_scenarios_fixture(*gate_scenarios, ancestor_sha=_ANCESTOR_SHA) as config_path,
+            patch("tasks.quality_gates.get_ancestor", return_value=_ANCESTOR_SHA),
             patch("tasks.quality_gates.get_commit_sha", return_value=_CI_COMMIT_SHA),
             patch("tasks.static_quality_gates.github.GithubAPI", new=FakeGithubAPI),
             patch("tasks.static_quality_gates.gates.GateMetricHandler.generate_relative_size"),
@@ -334,8 +335,8 @@ class TestQualityGatesIntegration(unittest.TestCase):
             ),
         ]
         with (
-            _gate_scenarios_fixture(*gate_scenarios) as config_path,
-            patch("tasks.quality_gates.get_ancestor", return_value="ancestor-sha"),
+            _gate_scenarios_fixture(*gate_scenarios, ancestor_sha=_ANCESTOR_SHA) as config_path,
+            patch("tasks.quality_gates.get_ancestor", return_value=_ANCESTOR_SHA),
             patch("tasks.quality_gates.get_commit_sha", return_value=_CI_COMMIT_SHA),
             patch("tasks.static_quality_gates.github.GithubAPI", new=FakeGithubAPI),
             patch("tasks.static_quality_gates.gates.send_metrics"),
@@ -382,8 +383,8 @@ class TestQualityGatesIntegration(unittest.TestCase):
             ),
         ]
         with (
-            _gate_scenarios_fixture(*gate_scenarios) as config_path,
-            patch("tasks.quality_gates.get_ancestor", return_value="ancestor-sha"),
+            _gate_scenarios_fixture(*gate_scenarios, ancestor_sha=_ANCESTOR_SHA) as config_path,
+            patch("tasks.quality_gates.get_ancestor", return_value=_ANCESTOR_SHA),
             patch("tasks.quality_gates.get_commit_sha", return_value=_CI_COMMIT_SHA),
             patch("tasks.quality_gates.get_pr_for_branch", return_value=approved_pr),
             patch("tasks.static_quality_gates.gates.send_metrics"),
