@@ -228,6 +228,128 @@ class TestQualityGatesIntegration(unittest.TestCase):
     @patch.dict(
         'os.environ',
         {
+            'BUCKET_BRANCH': _PR_BUCKET_BRANCH,
+            'CI_COMMIT_BRANCH': _PR_BRANCH_NAME,
+            'CI_COMMIT_REF_SLUG': gitlab_ref_slug(_PR_BRANCH_NAME),
+            'CI_PIPELINE_ID': _CI_PIPELINE_ID,
+            'CI_COMMIT_SHA': _CI_COMMIT_SHA,
+        },
+        clear=True,
+    )
+    def test_gate_fails_absolute_disk_limit(self):
+        gate_scenarios = [
+            GateScenario(
+                name=_DEB_GATE,
+                ancestor_disk=100 * _MiB,
+                ancestor_wire=50 * _MiB,
+                current_disk=110 * _MiB,  # exceeds max_disk
+                current_wire=50 * _MiB,
+                max_disk=105 * _MiB,
+                max_wire=55 * _MiB,
+            ),
+            GateScenario(
+                name=_DOCKER_GATE,
+                ancestor_disk=600 * _MiB,
+                ancestor_wire=240 * _MiB,
+                current_disk=600 * _MiB + 20 * _KiB,
+                current_wire=240 * _MiB,
+                max_disk=700 * _MiB,
+                max_wire=250 * _MiB,
+            ),
+        ]
+        with (
+            patch("tasks.quality_gates.get_ancestor", return_value="ancestor-sha"),
+            patch("tasks.quality_gates.get_commit_sha", return_value=_CI_COMMIT_SHA),
+            patch("tasks.static_quality_gates.github.GithubAPI", new=FakeGithubAPI),
+            _gate_scenarios(*gate_scenarios) as gate_fixture,
+            patch("tasks.static_quality_gates.gates.GateMetricHandler.generate_relative_size"),
+            patch(
+                "tasks.static_quality_gates.gates.GateMetricHandler.generate_metric_reports"
+            ) as mock_generate_reports,
+            patch("tasks.static_quality_gates.gates.send_metrics") as mock_send_metrics,
+            patch("tasks.static_quality_gates.pr_comment.pr_commenter") as mock_pr_commenter,
+            patch(
+                "tasks.static_quality_gates.gates.PackageArtifactMeasurer.measure",
+                side_effect=gate_fixture.package_measure,
+            ),
+            patch(
+                "tasks.static_quality_gates.gates.DockerArtifactMeasurer.measure",
+                side_effect=gate_fixture.docker_measure,
+            ),
+        ):
+            ctx = MockContext(
+                run={"datadog-ci tag --level job --tags static_quality_gates:\"failure\"": Result("Done")}
+            )
+            with self.assertRaises(Exit):
+                parse_and_trigger_gates(ctx, gate_fixture.config_path)
+            mock_send_metrics.assert_called_once()
+            mock_generate_reports.assert_called_once()
+            mock_pr_commenter.assert_called_once()
+
+    @patch.dict(
+        'os.environ',
+        {
+            'BUCKET_BRANCH': _PR_BUCKET_BRANCH,
+            'CI_COMMIT_BRANCH': _PR_BRANCH_NAME,
+            'CI_COMMIT_REF_SLUG': gitlab_ref_slug(_PR_BRANCH_NAME),
+            'CI_PIPELINE_ID': _CI_PIPELINE_ID,
+            'CI_COMMIT_SHA': _CI_COMMIT_SHA,
+        },
+        clear=True,
+    )
+    def test_gate_fails_absolute_wire_limit(self):
+        gate_scenarios = [
+            GateScenario(
+                name=_DEB_GATE,
+                ancestor_disk=100 * _MiB,
+                ancestor_wire=50 * _MiB,
+                current_disk=100 * _MiB + 20 * _KiB,
+                current_wire=60 * _MiB,  # exceeds max_wire
+                max_disk=105 * _MiB,
+                max_wire=55 * _MiB,
+            ),
+            GateScenario(
+                name=_DOCKER_GATE,
+                ancestor_disk=600 * _MiB,
+                ancestor_wire=240 * _MiB,
+                current_disk=600 * _MiB + 20 * _KiB,
+                current_wire=240 * _MiB,
+                max_disk=700 * _MiB,
+                max_wire=250 * _MiB,
+            ),
+        ]
+        with (
+            patch("tasks.quality_gates.get_ancestor", return_value="ancestor-sha"),
+            patch("tasks.quality_gates.get_commit_sha", return_value=_CI_COMMIT_SHA),
+            patch("tasks.static_quality_gates.github.GithubAPI", new=FakeGithubAPI),
+            _gate_scenarios(*gate_scenarios) as gate_fixture,
+            patch("tasks.static_quality_gates.gates.GateMetricHandler.generate_relative_size"),
+            patch(
+                "tasks.static_quality_gates.gates.GateMetricHandler.generate_metric_reports"
+            ) as mock_generate_reports,
+            patch("tasks.static_quality_gates.gates.send_metrics") as mock_send_metrics,
+            patch("tasks.static_quality_gates.pr_comment.pr_commenter") as mock_pr_commenter,
+            patch(
+                "tasks.static_quality_gates.gates.PackageArtifactMeasurer.measure",
+                side_effect=gate_fixture.package_measure,
+            ),
+            patch(
+                "tasks.static_quality_gates.gates.DockerArtifactMeasurer.measure",
+                side_effect=gate_fixture.docker_measure,
+            ),
+        ):
+            ctx = MockContext(
+                run={"datadog-ci tag --level job --tags static_quality_gates:\"failure\"": Result("Done")}
+            )
+            with self.assertRaises(Exit):
+                parse_and_trigger_gates(ctx, gate_fixture.config_path)
+            mock_send_metrics.assert_called_once()
+            mock_generate_reports.assert_called_once()
+            mock_pr_commenter.assert_called_once()
+
+    @patch.dict(
+        'os.environ',
+        {
             'CI_COMMIT_REF_NAME': 'pikachu',
             'CI_COMMIT_BRANCH': 'sequoia',
             'CI_COMMIT_REF_SLUG': 'pikachu',
