@@ -113,7 +113,7 @@ import (
 	dogstatsdhttpfx "github.com/DataDog/datadog-agent/comp/dogstatsd/http/fx"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
-	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/def"
 	statsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
 	statsdFx "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/fx"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/fx"
@@ -123,9 +123,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
-	healthplatformfx "github.com/DataDog/datadog-agent/comp/healthplatform/fx"
-	healthplatformimpl "github.com/DataDog/datadog-agent/comp/healthplatform/impl"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/core/def"
+
 	hostProfilerFlareFx "github.com/DataDog/datadog-agent/comp/host-profiler/flare/fx"
 	langDetectionCl "github.com/DataDog/datadog-agent/comp/languagedetection/client/def"
 	langDetectionClimpl "github.com/DataDog/datadog-agent/comp/languagedetection/client/fx"
@@ -139,13 +139,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
-	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
+	packagesigning "github.com/DataDog/datadog-agent/comp/metadata/packagesigning/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	securityagentmetadata "github.com/DataDog/datadog-agent/comp/metadata/securityagent/def"
 	systemprobemetadata "github.com/DataDog/datadog-agent/comp/metadata/systemprobe/def"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp"
 	"github.com/DataDog/datadog-agent/comp/netflow"
-	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
+	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server/def"
 	"github.com/DataDog/datadog-agent/comp/networkpath"
 	"github.com/DataDog/datadog-agent/comp/otelcol"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
@@ -154,7 +154,7 @@ import (
 	parStatusImpl "github.com/DataDog/datadog-agent/comp/privateactionrunner/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/process"
 	processAgent "github.com/DataDog/datadog-agent/comp/process/agent"
-	processagentStatusImpl "github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
+	processagentstatusfx "github.com/DataDog/datadog-agent/comp/process/status/fx"
 	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
 	remoteconfig "github.com/DataDog/datadog-agent/comp/remote-config"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
@@ -307,7 +307,7 @@ func run(log log.Component,
 	_ option.Option[gui.Component],
 	agenttelemetryComponent agenttelemetry.Component,
 	_ diagnose.Component,
-	healthplatformComp healthplatform.Component,
+	healthplatformComp healthplatformdef.Component,
 	hostname hostnameinterface.Component,
 	ipc ipc.Component,
 	snmpScanManager snmpscanmanager.Component,
@@ -451,7 +451,7 @@ func getSharedFxOption() fx.Option {
 		),
 		otelagentStatusfx.Module(),
 		traceagentStatusImpl.Module(),
-		processagentStatusImpl.Module(),
+		processagentstatusfx.Module(),
 		parStatusImpl.Module(),
 		statsdFx.Module(),
 		statusimpl.Module(),
@@ -576,7 +576,7 @@ func getSharedFxOption() fx.Option {
 		connectivitycheckerfx.Module(),
 		configstreamfx.Module(),
 		logondurationfx.Module(),
-		healthplatformfx.Module(),
+		healthplatform.Bundle(),
 		tracetelemetryfx.Module(),
 	)
 }
@@ -605,7 +605,7 @@ func startAgent(
 	ipc ipc.Component,
 	snmpScanManager snmpscanmanager.Component,
 	traceroute traceroute.Component,
-	healthplatformComp healthplatform.Component,
+	healthplatformComp healthplatformdef.Component,
 ) error {
 	var err error
 
@@ -737,7 +737,7 @@ func startAgent(
 		if !cfg.GetBool("health_platform.enabled") {
 			return nil
 		}
-		return healthplatformimpl.Diagnose(healthplatformComp, diagCfg)
+		return healthplatform.Diagnose(healthplatformComp, diagCfg)
 	})
 
 	// start dependent services
