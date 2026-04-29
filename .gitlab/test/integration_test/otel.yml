@@ -21,16 +21,28 @@ integration_tests_otel:
 
 docker_image_build_otel:
   stage: integration_test
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   needs: ["integration_tests_otel"]
-  tags: ["docker-in-docker:amd64"]
+  extends: [.docker_build_amd64, .docker_build_job_definition]
   variables:
     KUBERNETES_MEMORY_REQUEST: 32Gi
     KUBERNETES_MEMORY_LIMIT: 32Gi
+    BUILD_ARG: |
+      --build-arg AGENT_VERSION=$CI_COMMIT_REF_NAME \
+      --build-arg AGENT_GIT_REF=$CI_COMMIT_REF_NAME \
+      --build-arg AGENT_DOCKER_REPO=datadog/agent-dev \
+      --build-arg AGENT_DOCKER_TAG=nightly-full-main-jmx \
+      --build-arg BASE_IMAGE_REGISTRY=registry.ddbuild.io/images/mirror \
+      --build-arg CI \
+      --build-arg DDA_VERSION=$DDA_VERSION \
+      --build-arg GOPROXY \
+      --build-arg GONOSUMDB \
+    BUILD_CONTEXT: /tmp/otel-ci
+    TARGET_TAG: agent-byoc:latest
+    CACHE_TARGET: builder_base
   before_script:
     - mkdir -p /tmp/otel-ci
     - cp comp/otelcol/collector-contrib/impl/manifest.yaml /tmp/otel-ci/
-    - cp Dockerfiles/agent-ddot/Dockerfile.agent-otel /tmp/otel-ci/
+    - cp Dockerfiles/agent-ddot/Dockerfile.agent-otel /tmp/otel-ci/Dockerfile
     - cp test/integration/docker/otel_agent_build_tests.py /tmp/otel-ci/
     - export OTELCOL_VERSION=$(yq eval '.processors[] | select(.gomod | test("opentelemetry-collector-contrib")) | .gomod' /tmp/otel-ci/manifest.yaml | head -1 | awk '{print $NF}')
     - >-
@@ -41,28 +53,15 @@ docker_image_build_otel:
       yq eval -i
       '.processors += [{"gomod": "github.com/open-telemetry/opentelemetry-collector-contrib/processor/metricstransformprocessor " + env(OTELCOL_VERSION)}]'
       /tmp/otel-ci/manifest.yaml
-  script:
     - !reference [.login_to_docker_readonly]
     - export BUILDIMAGES_COMMIT="${CI_IMAGE_LINUX#*-}"
     - export DDA_VERSION="$(curl -s https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/${BUILDIMAGES_COMMIT}/dda.env | awk -F= '/^DDA_VERSION=/ {print $2}')"
+  after_script:
     - |
-      docker build \
-      --build-arg AGENT_VERSION=$CI_COMMIT_REF_NAME \
-      --build-arg AGENT_GIT_REF=$CI_COMMIT_REF_NAME \
-      --build-arg AGENT_DOCKER_REPO=datadog/agent-dev \
-      --build-arg AGENT_DOCKER_TAG=nightly-full-main-jmx \
-      --build-arg BASE_IMAGE_REGISTRY=registry.ddbuild.io/images/mirror \
-      --build-arg CI \
-      --build-arg DDA_VERSION=$DDA_VERSION \
-      --build-arg GOPROXY \
-      --build-arg GONOSUMDB \
-      --tag agent-byoc:latest \
-      -f /tmp/otel-ci/Dockerfile.agent-otel \
-      /tmp/otel-ci
-    - |
-      OT_AGENT_IMAGE_NAME=agent-byoc \
-      OT_AGENT_TAG=latest python3 \
-      /tmp/otel-ci/otel_agent_build_tests.py
+    OT_AGENT_IMAGE_NAME=agent-byoc \
+    OT_AGENT_TAG=latest python3 \
+    /tmp/otel-ci/otel_agent_build_tests.py
+
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
