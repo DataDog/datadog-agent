@@ -8,14 +8,16 @@ package observer
 
 import (
 	observerfx "github.com/DataDog/datadog-agent/comp/observer/fx"
+	logssourcefx "github.com/DataDog/datadog-agent/comp/observer/logssource/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: agent-metric-pipelines
+// team: q-branch
 
 // Bundle defines the fx options for the observer bundle.
 func Bundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
 		observerfx.Module(),
+		logssourcefx.Module(),
 	)
 }

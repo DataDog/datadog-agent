@@ -16,7 +16,7 @@ import (
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
-// team: agent-metric-pipelines
+// team: q-branch
 
 // Component is the recorder middleware component.
 // It wraps observer handles to intercept and optionally record observations.

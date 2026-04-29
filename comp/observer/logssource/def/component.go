@@ -3,8 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build serverless
+// Package logssource provides a component that feeds container logs into the
+// observer without requiring the logs agent to be enabled.
+package logssource
 
-package listeners
+// team: q-branch
 
-var NewProcessListener func(ServiceListernerDeps) (ServiceListener, error)
+// Component is the component type.
+type Component interface{}
