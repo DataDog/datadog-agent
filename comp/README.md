@@ -508,9 +508,14 @@ Package traceroute provides the traceroute component
 
 ## [comp/observer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/observer) (Component Bundle)
 
-*Datadog Team*: agent-metric-pipelines
+*Datadog Team*: q-branch
 
 Package observer provides a component for observing data flowing through the agent.
+
+### [comp/observer/logssource](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/observer/logssource)
+
+Package logssource provides a component that feeds container logs into the
+observer without requiring the logs agent to be enabled.
 
 ### [comp/observer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/observer)
 
@@ -786,7 +791,7 @@ Package updater is the updater component.
 
 ### [comp/anomalydetection/recorder](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/anomalydetection/recorder)
 
-*Datadog Team*: agent-metric-pipelines
+*Datadog Team*: q-branch
 
 Package recorder provides a middleware component for recording and replaying observer data.
 

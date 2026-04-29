@@ -236,11 +236,7 @@ func TestProviderConfigurations(t *testing.T) {
 				compression,
 				tc.legacyMode,
 				tc.serverless,
-<<<<<<< HEAD:pkg/logs/pipeline/provider_test.go
-				nil, // observer handle
-=======
 				secretsnoopimpl.NewComponent().Comp,
->>>>>>> main:comp/logs-library/pipeline/provider_test.go
 			)
 			require.NotNil(t, providerImpl)
 
@@ -309,11 +305,7 @@ func TestPipelineChannelDistribution(t *testing.T) {
 				compression,
 				false, // legacy mode
 				false, // serverless
-<<<<<<< HEAD:pkg/logs/pipeline/provider_test.go
-				nil,   // observer handle
-=======
 				secretsnoopimpl.NewComponent().Comp,
->>>>>>> main:comp/logs-library/pipeline/provider_test.go
 			)
 
 			require.NotNil(t, providerImpl)
