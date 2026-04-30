@@ -11,10 +11,14 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/file"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/packagemanager"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/procmgr"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/systemd"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -29,6 +33,9 @@ const (
 	datadogYamlPath       = "/etc/datadog-agent/datadog.yaml"
 	otelConfigPath        = "/etc/datadog-agent/otel-config.yaml"
 	otelConfigExamplePath = "/etc/datadog-agent/otel-config.yaml.example"
+
+	ddotProcmgrYAMLStable     = "datadog-agent-ddot.yaml"
+	ddotProcmgrYAMLExperiment = "datadog-agent-ddot-exp.yaml"
 )
 
 var (
@@ -53,7 +60,9 @@ var (
 		{Path: ".", Owner: "dd-agent", Group: "dd-agent", Recursive: true},
 	}
 
-	// agentDDOTService are the services that are part of the DDOT package
+	// agentDDOTService are the services that are part of the standalone DDOT
+	// package (deprecated). It uses systemd only; procmgr integration applies
+	// solely to the DDOT extension (processes.d / markers below).
 	agentDDOTService = datadogAgentService{
 		SystemdMainUnitStable: "datadog-agent-ddot.service",
 		SystemdMainUnitExp:    "datadog-agent-ddot-exp.service",
@@ -228,6 +237,153 @@ func writeOTelConfig(ctx HookContext) error {
 /// DDOT EXTENSION METHODS ///
 //////////////////////////////
 
+// processes.d and marker files: GetServiceManagerType == ProcmgrType requires the
+// global gate (DD_PROCMGR_ENABLED or .procmgr-enabled); writing DDOT YAML also
+// requires the DDOT gate (DD_PROCMGR_DDOT_ENABLED or .procmgr-ddot-enabled).
+// Otherwise the ddot systemd unit owns DDOT (ConditionPathExists=! when YAML is absent).
+
+func ddotProcmgrProcessesDir(ctx HookContext, stable bool) string {
+	if ctx.PackageType == PackageTypeOCI {
+		ver := "stable"
+		if !stable {
+			ver = "experiment"
+		}
+		return filepath.Join(paths.PackagesPath, "datadog-agent", ver, "processes.d")
+	}
+	return filepath.Join("/opt/datadog-agent", "processes.d")
+}
+
+func procmgrBinaryExists(ctx HookContext, stable bool) bool {
+	var binPath string
+	if ctx.PackageType == PackageTypeOCI {
+		ver := "stable"
+		if !stable {
+			ver = "experiment"
+		}
+		binPath = filepath.Join(paths.PackagesPath, "datadog-agent", ver, "embedded", "bin", "dd-procmgrd")
+	} else {
+		binPath = filepath.Join("/opt/datadog-agent", "embedded", "bin", "dd-procmgrd")
+	}
+	_, err := os.Stat(binPath)
+	return err == nil
+}
+
+// adjustDDOTExtensionProcessYAML tweaks embedded YAML for DEB/RPM extension
+// layout. OCI extension uses the generated paths as-is (ext/ddot under the
+// agent package tree).
+func adjustDDOTExtensionProcessYAML(content string, ctx HookContext) string {
+	if ctx.PackageType == PackageTypeDEB || ctx.PackageType == PackageTypeRPM {
+		return strings.ReplaceAll(content, "/ext/ddot", "")
+	}
+	return content
+}
+
+func ddotEmbeddedUnitType(ctx HookContext) embedded.SystemdUnitType {
+	if ctx.PackageType == PackageTypeOCI {
+		return embedded.SystemdUnitTypeOCI
+	}
+	return embedded.SystemdUnitTypeDebRpm
+}
+
+func syncDDOTProcmgrState(ctx HookContext, stable bool) error {
+	if service.BaseServiceManagerType() != service.SystemdType {
+		return nil
+	}
+	dir := ddotProcmgrProcessesDir(ctx, stable)
+	yamlName := ddotProcmgrYAMLStable
+	if !stable {
+		yamlName = ddotProcmgrYAMLExperiment
+	}
+	if service.GetServiceManagerType() != service.ProcmgrType ||
+		!procmgr.ProcessGateOpen(procmgr.DDOTEnvVar, procmgr.DDOTMarkerPath) ||
+		!procmgrBinaryExists(ctx, stable) {
+		procmgr.RemoveConfig(dir, yamlName)
+		if procmgrBinaryExists(ctx, stable) {
+			if err := procmgr.RestartDaemon(ctx, !stable); err != nil {
+				log.Warnf("failed to restart dd-procmgrd after dropping DDOT config: %v", err)
+			}
+		}
+		return nil
+	}
+	ambiantCapabilitiesSupported, err := isAmbiantCapabilitiesSupported()
+	if err != nil {
+		log.Errorf("failed to check if ambiant capabilities are supported: %v", err)
+		ambiantCapabilitiesSupported = true // Assume true if we can't check
+	}
+	raw, err := embedded.GetDDOTProcessConfig(ddotEmbeddedUnitType(ctx), stable, ambiantCapabilitiesSupported)
+	if err != nil {
+		return fmt.Errorf("ddot procmgr yaml: %w", err)
+	}
+	content := adjustDDOTExtensionProcessYAML(string(raw), ctx)
+	if err := procmgr.WriteConfig(dir, yamlName, content); err != nil {
+		return err
+	}
+	return procmgr.RestartDaemon(ctx, !stable)
+}
+
+func syncDDOTProcmgrStop(ctx HookContext, stable bool) error {
+	if service.BaseServiceManagerType() != service.SystemdType {
+		return nil
+	}
+	dir := ddotProcmgrProcessesDir(ctx, stable)
+	yamlName := ddotProcmgrYAMLStable
+	if !stable {
+		yamlName = ddotProcmgrYAMLExperiment
+	}
+	procmgr.RemoveConfig(dir, yamlName)
+	if !procmgrBinaryExists(ctx, stable) {
+		return nil
+	}
+	return procmgr.RestartDaemon(ctx, !stable)
+}
+
+// writeProcmgrDDOTEnabledMarkerIfSystemd writes the global and DDOT procmgr
+// marker files on systemd hosts (same env-or-marker semantics as service gates).
+func writeProcmgrDDOTEnabledMarkerIfSystemd(ctx HookContext) error {
+	if err := writeProcmgrGlobalMarkerIfSystemd(ctx); err != nil {
+		return err
+	}
+	if service.BaseServiceManagerType() != service.SystemdType {
+		return nil
+	}
+	if err := writeProcmgrMarker(ctx, procmgr.DDOTMarkerPath); err != nil {
+		return fmt.Errorf("write ddot procmgr marker: %w", err)
+	}
+	return nil
+}
+
+func removeProcmgrDDOTMarker() {
+	_ = os.Remove(procmgr.DDOTMarkerPath)
+}
+
+// syncDDOTProcmgrAfterExtension writes processes.d DDOT config after the DDOT
+// extension is installed. The standalone datadog-agent-ddot package does not
+// use this path (systemd-only).
+func syncDDOTProcmgrAfterExtension(ctx HookContext) error {
+	if err := writeProcmgrDDOTEnabledMarkerIfSystemd(ctx); err != nil {
+		return err
+	}
+	switch ctx.PackageType {
+	case PackageTypeOCI:
+		stable := filepath.Base(ctx.PackagePath) != "experiment"
+		return syncDDOTProcmgrState(ctx, stable)
+	case PackageTypeDEB, PackageTypeRPM:
+		return syncDDOTProcmgrState(ctx, true)
+	default:
+		return nil
+	}
+}
+
+// removeDDOTExtensionProcmgrYAML drops DDOT process definitions from processes.d
+// when the extension is removed.
+func removeDDOTExtensionProcmgrYAML(ctx HookContext) {
+	if service.BaseServiceManagerType() != service.SystemdType {
+		return
+	}
+	_ = syncDDOTProcmgrStop(ctx, true)
+	_ = syncDDOTProcmgrStop(ctx, false)
+}
+
 // preInstallDDOTExtension stops and removes the existing DDOT service and package before extension installation
 func preInstallDDOTExtension(ctx HookContext) error {
 	span, ctx := ctx.StartSpan("pre_install_extension_ddot")
@@ -270,6 +426,11 @@ func postInstallDDOTExtension(ctx HookContext) (err error) {
 		return fmt.Errorf("failed to set DDOT config ownerships: %v", err)
 	}
 
+	// Sync processes.d / procmgr markers and restart dd-procmgrd when gates allow.
+	if err := syncDDOTProcmgrAfterExtension(ctx); err != nil {
+		return fmt.Errorf("failed to sync ddot process manager config: %w", err)
+	}
+
 	return nil
 }
 
@@ -283,6 +444,9 @@ func preRemoveDDOTExtension(ctx HookContext) error {
 	if err := disableOtelCollectorConfigCommon(datadogYamlPath); err != nil {
 		log.Warnf("failed to disable otelcollector config: %s", err)
 	}
+
+	removeDDOTExtensionProcmgrYAML(ctx)
+	removeProcmgrDDOTMarker()
 
 	return nil
 }

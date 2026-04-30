@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
@@ -29,7 +28,7 @@ const (
 	linuxSocket    = "/var/run/datadog-procmgrd/dd-procmgrd.sock"
 	linuxConfigDir = "/opt/datadog-agent/processes.d"
 
-	ddotPkgBinaryPath = "/opt/datadog-agent/embedded/bin/otel-agent"
+	// Binary path after DDOT is installed as an extension under ext/ddot (same as fleet / datadog-agent otel install).
 	ddotExtBinaryPath = "/opt/datadog-agent/ext/ddot/embedded/bin/otel-agent"
 
 	linuxTestProcessConfig = `command: /bin/sleep
@@ -75,7 +74,6 @@ func TestProcmgrSmokeLinuxSuite(t *testing.T) {
 			awshost.WithRunOptions(
 				scenec2.WithAgentOptions(
 					agentparams.WithFile(linuxConfigDir+"/test-sleep.yaml", linuxTestProcessConfig, true),
-					agentparams.WithFile(linuxConfigDir+"/datadog-agent-ddot.yaml", embedded.DDOTProcessConfig, true),
 					agentparams.WithFile(linuxConfigDir+"/missing-binary.yaml", linuxMissingBinaryConfig, true),
 				),
 			),
@@ -87,7 +85,7 @@ func (s *procmgrLinuxSuite) SetupSuite() {
 	s.baseProcmgrSuite.SetupSuite()
 	defer s.CleanupOnSetupFailure()
 
-	s.hasDDOT = s.installRealDDOT()
+	s.hasDDOT = s.installDDOTExtension()
 
 	if s.hasCLI {
 		require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
@@ -101,44 +99,44 @@ func (s *procmgrLinuxSuite) SetupSuite() {
 // Linux-only: DDOT tests
 // ---------------------------------------------------------------------------
 
-func ddotPackageName() string {
+// datadogAgentCLI returns the on-host agent binary name used for `otel install`
+// (matches installer unix DDOT tests and FIPS CI when E2E_FIPS is set).
+func datadogAgentCLI() string {
 	if os.Getenv("E2E_FIPS") != "" {
-		return "datadog-fips-agent-ddot"
+		return "datadog-fips-agent"
 	}
-	return "datadog-agent-ddot"
+	return "datadog-agent"
 }
 
-func (s *procmgrLinuxSuite) installRealDDOT() bool {
-	pkg := ddotPackageName()
-
-	s.Env().RemoteHost.MustExecute(
-		"(sudo apt-get update -qq) || (sudo yum makecache -q)")
-
-	_, err := s.Env().RemoteHost.Execute(
-		"(apt-cache show " + pkg + " >/dev/null 2>&1) || " +
-			"(yum info " + pkg + " >/dev/null 2>&1)")
-	if err != nil {
-		s.T().Logf("%s package not found in repos; DDOT tests will be skipped", pkg)
+// installDDOTExtension installs the DDOT extension the same way as production:
+// `datadog-agent otel install` pulling the pipeline agent-package OCI (see
+// test/new-e2e/tests/installer/unix/package_ddot_test.go). The installer already
+// restarts datadog-agent after extension install (pkg/fleet/installer/installer.go
+// InstallExtensions); procmgrd follows via unit dependencies.
+func (s *procmgrLinuxSuite) installDDOTExtension() bool {
+	pipelineID := os.Getenv("E2E_PIPELINE_ID")
+	if pipelineID == "" {
+		s.T().Log("E2E_PIPELINE_ID unset; skipping DDOT tests (OCI URL for otel install is unavailable)")
 		return false
 	}
 
-	s.Env().RemoteHost.MustExecute(
-		"(sudo apt-get install -y " + pkg + ") || " +
-			"(sudo yum install -y " + pkg + ")")
+	agent := datadogAgentCLI()
+	_, err := s.Env().RemoteHost.Execute("command -v " + agent + " >/dev/null 2>&1")
+	if err != nil {
+		s.T().Logf("%s not on PATH; skipping DDOT tests", agent)
+		return false
+	}
 
-	s.Env().RemoteHost.Execute("sudo systemctl stop datadog-agent-ddot.service || true")
-	s.Env().RemoteHost.Execute("sudo systemctl reset-failed datadog-agent-ddot.service || true")
-	s.Env().RemoteHost.Execute("sudo systemctl disable datadog-agent-ddot.service || true")
-
-	s.Env().RemoteHost.MustExecute("sudo mkdir -p /opt/datadog-agent/ext/ddot/embedded/bin")
-	s.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo cp %s %s", ddotPkgBinaryPath, ddotExtBinaryPath))
-
-	s.Env().RemoteHost.MustExecute(`sudo sh -c "printf 'otelcollector:\n  enabled: true\n' >> /etc/datadog-agent/datadog.yaml"`)
-	s.Env().RemoteHost.MustExecute(`sudo sh -c "sed -e 's/\${env:DD_API_KEY}/aaaaaaaaaaaaaaaa/' -e 's/\${env:DD_SITE}/datadoghq.com/' /etc/datadog-agent/otel-config.yaml.example > /etc/datadog-agent/otel-config.yaml"`)
-	s.Env().RemoteHost.MustExecute("sudo chown dd-agent:dd-agent /etc/datadog-agent/otel-config.yaml && sudo chmod 640 /etc/datadog-agent/otel-config.yaml")
-
-	s.Env().RemoteHost.MustExecute("sudo systemctl restart datadog-agent.service")
-	s.Env().RemoteHost.MustExecute("sudo systemctl restart datadog-agent-procmgrd")
+	agentPackageURL := fmt.Sprintf(
+		"oci://installtesting.datad0g.com.internal.dda-testing.com/agent-package:pipeline-%s",
+		pipelineID,
+	)
+	out, err := s.Env().RemoteHost.Execute(
+		fmt.Sprintf("sudo %s otel install --url %s", agent, agentPackageURL))
+	if err != nil {
+		s.T().Logf("DDOT extension install failed: %v\n%s", err, strings.TrimSpace(out))
+		return false
+	}
 
 	return true
 }
@@ -155,6 +153,32 @@ func (s *procmgrLinuxSuite) TestDDOTProcessRunning() {
 	unitState := strings.TrimSpace(
 		s.Env().RemoteHost.MustExecute("systemctl is-active datadog-agent-ddot.service || true"))
 	assert.NotEqual(s.T(), "active", unitState, "systemd unit should not be active; procmgrd manages DDOT")
+}
+
+// TestDDOTManagedByProcmgrNotSystemdByDefault checks that when processes.d
+// contains the DDOT definition (default when procmgr gates are on), systemd
+// skips the datadog-agent-ddot unit and dd-procmgr runs the collector instead.
+func (s *procmgrLinuxSuite) TestDDOTManagedByProcmgrNotSystemdByDefault() {
+	s.requireDDOT()
+
+	_, err := s.Env().RemoteHost.Execute("test -f " + linuxConfigDir + "/datadog-agent-ddot.yaml")
+	require.NoError(s.T(), err, "processes.d DDOT YAML should be present after extension install (fleet sync hook)")
+
+	_, err = s.Env().RemoteHost.Execute("test -f /etc/datadog-agent/.procmgr-enabled")
+	require.NoError(s.T(), err, "fleet post-install should create the global procmgr marker on systemd hosts")
+
+	cond := strings.TrimSpace(s.Env().RemoteHost.MustExecute(
+		"systemctl show datadog-agent-ddot.service -p ConditionResult --value"))
+	assert.Equal(s.T(), "no", cond,
+		"ConditionPathExists=!…/processes.d/datadog-agent-ddot.yaml should fail so systemd does not own DDOT")
+
+	s.requireCLI()
+	require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
+		out := s.Env().RemoteHost.MustExecute(s.platform.cliCmd("list"))
+		assertTableRow(t, out, "datadog-agent-ddot", map[string]string{
+			"STATE": "Running",
+		})
+	}, 60*time.Second, 2*time.Second)
 }
 
 func (s *procmgrLinuxSuite) TestDDOTRestartAfterKill() {
@@ -228,7 +252,7 @@ func (s *procmgrLinuxSuite) assertProcessBinary(t assert.TestingT, pid, expected
 func (s *procmgrLinuxSuite) requireDDOT() {
 	s.T().Helper()
 	if !s.hasDDOT {
-		s.T().Skipf("%s package not available", ddotPackageName())
+		s.T().Skip("DDOT extension not installed (set E2E_PIPELINE_ID and ensure datadog-agent otel install succeeds)")
 	}
 	s.requireCLI()
 }
