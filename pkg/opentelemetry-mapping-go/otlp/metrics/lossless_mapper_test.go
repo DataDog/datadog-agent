@@ -326,8 +326,7 @@ func TestLossLessMapperMapNumberMetrics_DeltaSumRateAttribute(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := translatorConfig{
-				InferDeltaInterval:    tt.inferDeltaInterval,
-				DeltaSumRateAttribute: true,
+				InferDeltaInterval: tt.inferDeltaInterval,
 			}
 			mapper := newLossLessMapper(cfg, zap.NewNop())
 
@@ -366,8 +365,7 @@ func TestMapNumberMetrics_RateAttributeWarnings(t *testing.T) {
 		core, logs := observer.New(zapcore.ErrorLevel)
 		logger := zap.New(core)
 		cfg := translatorConfig{
-			InferDeltaInterval:    true,
-			DeltaSumRateAttribute: true,
+			InferDeltaInterval: true,
 		}
 		mapper := newLossLessMapper(cfg, logger)
 
@@ -393,8 +391,7 @@ func TestMapNumberMetrics_RateAttributeWarnings(t *testing.T) {
 		core, logs := observer.New(zapcore.ErrorLevel)
 		logger := zap.New(core)
 		cfg := translatorConfig{
-			InferDeltaInterval:    false,
-			DeltaSumRateAttribute: true,
+			InferDeltaInterval: false,
 		}
 		mapper := newLossLessMapper(cfg, logger)
 
@@ -422,9 +419,7 @@ func TestMapNumberMetrics_RateAttributeWarnings(t *testing.T) {
 	t.Run("one-shot error fires only once for repeated misuse", func(t *testing.T) {
 		core, logs := observer.New(zapcore.ErrorLevel)
 		logger := zap.New(core)
-		cfg := translatorConfig{
-			DeltaSumRateAttribute: true,
-		}
+		cfg := translatorConfig{}
 		mapper := newLossLessMapper(cfg, logger)
 
 		slice := pmetric.NewNumberDataPointSlice()

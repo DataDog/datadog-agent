@@ -17,7 +17,6 @@ import (
 	"go.opentelemetry.io/collector/consumer"
 	exp "go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
-	"go.opentelemetry.io/collector/featuregate"
 	"go.uber.org/zap"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/featuregates"
@@ -35,19 +34,6 @@ const (
 	// TypeStr defines the serializer exporter type string.
 	TypeStr   = "serializer"
 	stability = component.StabilityLevelStable
-)
-
-// deltaSumAsRateAttributeFeatureGate enables reading the "datadog.metric.as_type"
-// datapoint attribute on OTLP delta sums. When the attribute is set to "rate",
-// the metric is sent as a Datadog Rate instead of a Count.
-var deltaSumAsRateAttributeFeatureGate = featuregate.GlobalRegistry().MustRegister(
-	"exporter.datadogexporter.DeltaSumAsRateAttribute",
-	featuregate.StageAlpha,
-	featuregate.WithRegisterDescription(
-		"When enabled, the exporter reads the datadog.metric.as_type attribute on delta sum "+
-			"datapoints. If set to 'rate', the metric is sent as a Datadog rate (value/interval) "+
-			"instead of a count.",
-	),
 )
 
 type factory struct {
@@ -125,10 +111,6 @@ func newFactoryForAgentWithType(
 		options = append(options, otlpmetrics.WithInferDeltaInterval())
 	}
 
-	if deltaSumAsRateAttributeFeatureGate.IsEnabled() {
-		options = append(options, otlpmetrics.WithDeltaSumRateAttribute())
-	}
-
 	f := &factory{
 		s:            s,
 		hostProvider: hostGetter,
@@ -178,10 +160,6 @@ func NewFactoryForOSSExporter(typ component.Type, statsIn chan []byte) exp.Facto
 
 	if featuregates.InferIntervalDeltaFeatureGate.IsEnabled() {
 		options = append(options, otlpmetrics.WithInferDeltaInterval())
-	}
-
-	if deltaSumAsRateAttributeFeatureGate.IsEnabled() {
-		options = append(options, otlpmetrics.WithDeltaSumRateAttribute())
 	}
 
 	f := &factory{

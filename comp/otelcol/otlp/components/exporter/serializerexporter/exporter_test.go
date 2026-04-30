@@ -826,13 +826,6 @@ func TestMetricRemapping(t *testing.T) {
 }
 
 func TestDeltaSumAsRateAttribute(t *testing.T) {
-	reg := featuregate.GlobalRegistry()
-	prevVal := deltaSumAsRateAttributeFeatureGate.IsEnabled()
-	require.NoError(t, reg.Set(deltaSumAsRateAttributeFeatureGate.ID(), true))
-	defer func() {
-		require.NoError(t, reg.Set(deltaSumAsRateAttributeFeatureGate.ID(), prevVal))
-	}()
-
 	tests := []struct {
 		name          string
 		genMetrics    func() pmetric.Metrics

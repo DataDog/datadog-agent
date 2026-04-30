@@ -39,7 +39,7 @@ func newLossLessMapper(cfg translatorConfig, logger *zap.Logger) mapper {
 
 // MapNumberMetrics maps number datapoints to Datadog metrics.
 func (m *lossLessMapper) MapNumberMetrics(ctx context.Context, consumer Consumer, dims *Dimensions, dt DataType, slice pmetric.NumberDataPointSlice) {
-	mapNumberMetrics(ctx, consumer, dims, dt, slice, m.logger, m.cfg.InferDeltaInterval, m.cfg.DeltaSumRateAttribute, &m.warnedRateAttrErrors)
+	mapNumberMetrics(ctx, consumer, dims, dt, slice, m.logger, m.cfg.InferDeltaInterval, &m.warnedRateAttrErrors)
 }
 
 const (
@@ -66,7 +66,6 @@ func mapNumberMetrics(
 	slice pmetric.NumberDataPointSlice,
 	logger *zap.Logger,
 	inferInterval bool,
-	deltaSumRateAttribute bool,
 	warnedRateAttrErrors *sync.Map,
 ) {
 	for i := 0; i < slice.Len(); i++ {
