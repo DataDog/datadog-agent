@@ -51,7 +51,8 @@ On startup:
 | Eval scenario manifest | `q_branch/gensim-eval-scenarios.json` (12 scenarios) |
 | Sealed ground truth | `comp/observer/scenarios/` — **DO NOT READ OR MODIFY** |
 | Eval reports | `eval-results/<detector>/report.json` after each `q.eval-scenarios` |
-| Existing seed candidates | `.coordinator/candidates/*.yaml` (read on startup as starting hypotheses) |
+| Harness seed candidates | `.coordinator/candidates/*.yaml` (may already be assigned to SDK harness runs; read for awareness, not as a required queue) |
+| Headless seed candidates | `tasks/coordinator/HEADLESS_SEEDS.md` (tracked markdown guidance for this headless run) |
 | Prior baseline (if seeded) | `.coordinator/db.yaml :: baseline.detectors.<d>.scenarios.<s>.{f1,precision,recall,fps}` |
 
 Search broadly. `grep -r` across `comp/observer/`. Look at correlator interfaces, log extractors, the engine wiring, the recorder. The improvement may not be in a detector at all.
@@ -85,6 +86,24 @@ A candidate is **shippable** iff for at least one targeted detector:
 Multi-detector candidates are gated on the worst-affected detector.
 
 **No "pure FP-reduction" path.** A candidate must clear the variance-aware F1 floor; FP reductions that come with measurable recall loss don't ship. Total-FP reduction is incentivized through `score` (an FP drop with flat recall lifts precision and therefore F1).
+
+**Borderline-but-informative results.** The previous headless run found real
+improvements that still failed the ship rule because gains were concentrated or
+one scenario hit a hard recall cliff. Do not ship those, but do not discard the
+signal. In the PR comment and final summary, explicitly tag candidates as
+`blocked-concentrated-lift`, `blocked-recall-cliff`, or `blocked-rubric` when
+that is the true failure mode. Include the scenario names and deltas so a human
+can decide whether the rubric or candidate should be revisited.
+
+**Known rubric pressure points from the prior run.**
+
+- Concentrated gains can fail `score >= max(2 * SE_paired, 0.01)` even when the
+  per-scenario lift is large and repeatable.
+- The universal recall floor is especially binding on `546_cloudflare` for
+  `scanmw` and on `213_pagerduty` for `scanwelch`.
+- If a candidate has `Delta mean F1 > 0`, no FP increase, and only one small
+  recall-floor miss, report it as a serious borderline result instead of just a
+  generic reject.
 
 **Periodic bootstrap re-eval.** Every 5 ships, re-run k=3 evals on the *bootstrap* config (the iter-0 baseline tree, looked up via the bootstrap commit SHA) under the current eval harness, and re-eval the current head k=3 times. If `head.mean_f1 − bootstrap.mean_f1 < 2 · SE_paired`, the run has accumulated noise as ships — halt, post an alarm PR comment, exit. This catches stacked-noise drift that per-iter "vs previous best" comparisons can't see.
 
@@ -189,24 +208,63 @@ def time_remaining():
 
 Non-exhaustive — survey for yourself:
 
-- **New detectors** (preferred). The current set (BOCPD, ScanMW, ScanWelch) is narrow. Candidates: matrix-profile-based novelty, robust-z with seasonal decomposition, EWMA + Page-Hinkley, online quantile drift, isolation-forest-on-features, log-pattern-frequency surprise.
-- **New correlators**. Time-cluster is the only multi-series stage. Try: graph-based co-firing, lead-lag with bounded windows, mutual-information-on-symbolized-streams.
-- **Pre-detector filters**. Magnitude-rank gates, seasonal-baseline subtraction, per-series volatility normalization.
-- **Post-detector ranking / suppression**. Once-per-series cooldowns, multi-series confirmation, severity scoring before emit.
+- **New detectors** (preferred). The current set (BOCPD, ScanMW, ScanWelch) is narrow. Higher-priority directions after the prior run: spectral residual; residual-first changepoint detection; two-stage/cascade detectors with cheap nomination then selective confirmation. Lower priority: Page-Hinkley, Matrix Profile, and Mann-Kendall already produced weak or negative results in recent runs unless you have a materially different design.
+- **New correlators**. Time-cluster is the only multi-series stage. Prior runs repeatedly miswired correlator ideas as detectors; if you add a correlator, verify `componentCatalog` uses `componentCorrelator` and do not add a no-op `Detect()` stub. Preferred direction: score-aware cluster confidence using existing anomaly `Score` / `DeviationSigma` rather than a hard fixed severity gate.
+- **Pre-detector normalization**. Prefer residualization or per-series volatility normalization over global threshold bumps. A lightweight online residual model can separate baseline shape from the anomaly decision.
+- **Post-detector ranking / suppression**. Avoid raw-anomaly cooldowns in `captureRawAnomaly`: the prior run found they are often eval no-ops because scoring counts `time_cluster` correlation periods, not raw anomaly count. If suppressing, suppress at the stage that changes emitted clusters.
 - **Engine-level**. Check the wiring in `comp/observer/impl/observer.go` — sometimes the bug is in how detectors are composed, not in any single detector.
 - **Resource fixes that incidentally improve quality**. Bounded state, GC of cold series, tighter memory footprints — sometimes unlock more aggressive parameters.
 
 For each candidate, write down (in the PR comment): *what changed, expected effect on FPs vs recall, expected scenarios most affected, complexity + per-point cost.*
 
+### 8a. Prior-run lessons to apply immediately
+
+The 2026-04-29 headless run shipped no detector changes, but it produced useful
+negative evidence. Use these lessons before proposing:
+
+- `time_cluster` eval uses `CorrelationHistory()`, so filters applied before
+  clustering only help if they change which correlation periods are emitted.
+- `scanmw` and `scanwelch` have stateful `segmentStartTime` behavior. Tightening
+  a threshold can reduce early detections, widen later scan windows, and
+  paradoxically increase future false positives.
+- `scanmw` global `MinSegment > 12` repeatedly loses `546_cloudflare` recall.
+  Retrying this family should be adaptive per series, not another global bump.
+- `scanwelch` global threshold tightening repeatedly loses `213_pagerduty`
+  recall. Treat global `MinTStatistic` / `MinSegment` bumps as already tested.
+- BOCPD appears to have zero recall on several train scenarios. More scalar
+  tuning may be capped unless you change the input representation, residualize,
+  or alter the predictive model in a substantive way.
+
+### 8b. Seeded directions for the restart
+
+Read `.coordinator/candidates/*.yaml` for awareness, but assume those YAMLs may
+already be assigned to SDK harness runs. Do not spend the headless run simply
+duplicating that queue. Treat `tasks/coordinator/HEADLESS_SEEDS.md` as the
+headless-specific queue: it should bias toward complementary exploration,
+rubric diagnosis, and ideas not already being exercised by the harness runs.
+
+Deprioritize or avoid:
+
+- raw-anomaly cooldown in `captureRawAnomaly`;
+- global ScanMW / ScanWelch threshold bumps;
+- Mann-Kendall trend detector;
+- Student-t BOCPD likelihood swap;
+- fixed `time_cluster` severity gates;
+- correlator ideas unless the implementation validates `componentCorrelator`
+  registration before evaluation.
+
 ---
 
 ## 9. Live human seeding
 
-- File: `tasks/coordinator/HEADLESS_SEEDS.md` (create on first iter if missing).
+- File: `tasks/coordinator/HEADLESS_SEEDS.md`.
 - Format: one markdown section per idea, headed `## <id>`. Free prose. Optional fenced YAML block with `target_detector`, `approach_family`.
 - Re-read at the top of every iteration. Track seen IDs in `.coordinator/headless-seeds-seen.json`.
 - New idea → enqueue, post a PR comment: `seed accepted: <id> — queued at iter <n>`.
 - If a seed violates §5, reject with a PR comment explaining why.
+- If the same idea is already being actively tested by an SDK harness run, do
+  not run it headlessly unless you are explicitly testing a different rubric,
+  implementation strategy, or component boundary.
 
 ---
 
