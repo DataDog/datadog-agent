@@ -47,6 +47,7 @@ build do
     copy 'bin/installer', "#{install_dir}/bin/"
 
     # Build both packages and dump them where gitlab will upload them.
+    command_on_repo_root "bazelisk clean --expunge", :live_stream => Omnibus.logger.live_stream(:info)
     command_on_repo_root "bazelisk build #{bazel_flags} //packages/installer/linux:whole_distro_tar_deb", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     # There are no convenience symlinks, so we need to do some path manipulations to get the absolute path.
     command_on_repo_root "bazelisk cquery #{bazel_flags} --output=files //packages/installer/linux:whole_distro_tar_deb | sed -e 's@bazel-out/@@' >/tmp/installer_linux_tar_deb_file.txt"
@@ -56,7 +57,6 @@ build do
     # In the package job, we'll compare these to the omnibus built packages and report the diffs
     # When the diffs go away, we delete the package job and just use this one.
     mkdir "omnibus/pkg"
-    command_on_repo_root "bazelisk clean --expunge", :live_stream => Omnibus.logger.live_stream(:info)
     command_on_repo_root "bazelisk run #{bazel_flags} -- //packages/installer/linux:copy_out --destdir=omnibus/pkg", :live_stream => Omnibus.logger.live_stream(:info)
   elsif windows_target?
     command "dda inv -- -e installer.build --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
