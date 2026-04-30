@@ -1,0 +1,5 @@
+other:
+  - |
+    NetFlow: Flares now include NetFlow9/IPFIX templates cached on the agent. This allows for easier
+    support when using PCAP files that do not include the template records, as well as providing more context for the
+    data being processed
