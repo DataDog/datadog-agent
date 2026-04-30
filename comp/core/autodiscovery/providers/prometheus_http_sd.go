@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup" //nolint:depguard
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -65,21 +66,21 @@ func NewPrometheusHTTPSDConfigProvider(
 ) (types.ConfigProvider, error) {
 	url := pkgconfigsetup.Datadog().GetString("prometheus_http_sd.url")
 	if url == "" {
-		return nil, errors.New("http_sd provider requires a URL (set prometheus_http_sd.url)")
+		return nil, errors.New("prometheus_http_sd provider requires a URL (set prometheus_http_sd.url)")
 	}
 	templateJSON := pkgconfigsetup.Datadog().GetString("prometheus_http_sd.check_template")
 	if templateJSON == "" {
-		return nil, errors.New("http_sd provider requires a check template (set prometheus_http_sd.check_template)")
+		return nil, errors.New("prometheus_http_sd provider requires a check template (set prometheus_http_sd.check_template)")
 	}
 	var tmpl httpSDCheckTemplate
 	if err := json.Unmarshal([]byte(templateJSON), &tmpl); err != nil {
 		return nil, fmt.Errorf("cannot parse check_template: %v", err)
 	}
 	if tmpl.Name == "" {
-		return nil, errors.New("http_sd check_template must specify a check name")
+		return nil, errors.New("prometheus_http_sd check_template must specify a check name")
 	}
 	if len(tmpl.Instances) == 0 {
-		return nil, errors.New("http_sd check_template must specify at least one instance template")
+		return nil, errors.New("prometheus_http_sd check_template must specify one instance template")
 	}
 
 	client, err := buildHTTPSDClient(providerConfig)
@@ -96,8 +97,9 @@ func NewPrometheusHTTPSDConfigProvider(
 }
 
 func buildHTTPSDClient(providerConfig *pkgconfigsetup.ConfigurationProviders) (*http.Client, error) {
-	tlsConfig := &tls.Config{}
+	transport := httputils.CreateHTTPTransport(pkgconfigsetup.Datadog())
 
+	// Layer on provider-specific TLS configuration (custom CA, mTLS)
 	if providerConfig != nil && providerConfig.CAFile != "" {
 		caCert, err := os.ReadFile(providerConfig.CAFile)
 		if err != nil {
@@ -107,18 +109,18 @@ func buildHTTPSDClient(providerConfig *pkgconfigsetup.ConfigurationProviders) (*
 		if ok := caCertPool.AppendCertsFromPEM(caCert); !ok {
 			return nil, fmt.Errorf("cannot parse any certificates from ca_file %s", providerConfig.CAFile)
 		}
-		tlsConfig.RootCAs = caCertPool
+		transport.TLSClientConfig.RootCAs = caCertPool
 	}
 	if providerConfig != nil && providerConfig.CertFile != "" && providerConfig.KeyFile != "" {
 		cert, err := tls.LoadX509KeyPair(providerConfig.CertFile, providerConfig.KeyFile)
 		if err != nil {
 			return nil, fmt.Errorf("cannot load client certificate: %v", err)
 		}
-		tlsConfig.Certificates = []tls.Certificate{cert}
+		transport.TLSClientConfig.Certificates = []tls.Certificate{cert}
 	}
 
 	return &http.Client{
-		Transport: &http.Transport{TLSClientConfig: tlsConfig},
+		Transport: transport,
 		Timeout:   30 * time.Second,
 	}, nil
 }
@@ -157,7 +159,7 @@ func (h *PrometheusHTTPSDConfigProvider) Collect(_ context.Context) ([]integrati
 		h.configErrorsMu.Lock()
 		h.configErrors["fetch"] = types.ErrorMsgSet{err.Error(): struct{}{}}
 		h.configErrorsMu.Unlock()
-		return nil, fmt.Errorf("http_sd: failed to fetch targets from %s: %v", h.url, err)
+		return nil, fmt.Errorf("prometheus_http_sd: failed to fetch targets from %s: %v", h.url, err)
 	}
 
 	var configs []integration.Config
@@ -264,26 +266,14 @@ func labelsToTags(labels map[string]string) []string {
 	return tags
 }
 
-// substituteTemplateVars replaces %%host%% and %%port%% placeholders in values.
+// substituteTemplateVars replaces %%host%% and %%port%% placeholders in a value.
+// Only string values are substituted; all other types are returned as-is.
 func substituteTemplateVars(v interface{}, host, port string) interface{} {
-	switch val := v.(type) {
-	case string:
-		result := strings.ReplaceAll(val, "%%host%%", host)
-		result = strings.ReplaceAll(result, "%%port%%", port)
-		return result
-	case []interface{}:
-		result := make([]interface{}, len(val))
-		for i, item := range val {
-			result[i] = substituteTemplateVars(item, host, port)
-		}
-		return result
-	case map[string]interface{}:
-		result := make(map[string]interface{}, len(val))
-		for k, item := range val {
-			result[k] = substituteTemplateVars(item, host, port)
-		}
-		return result
-	default:
+	s, ok := v.(string)
+	if !ok {
 		return v
 	}
+	s = strings.ReplaceAll(s, "%%host%%", host)
+	s = strings.ReplaceAll(s, "%%port%%", port)
+	return s
 }
