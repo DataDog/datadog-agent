@@ -189,6 +189,7 @@ func (m *Monitor) GetUSMStats() map[string]any {
 
 	if m != nil {
 		response["last_check"] = m.lastUpdateTime
+		response["discovery_service_map_enabled"] = m.cfg.DiscoveryServiceMapEnabled
 	}
 	return response
 }
