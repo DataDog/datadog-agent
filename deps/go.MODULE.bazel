@@ -11,7 +11,11 @@ use_repo_rule("//bazel/repo:bazelify_go_work.bzl", "bazelify_go_work")(name = "b
 go_deps.from_file(go_work = "@bazelify_go_work//:go.work")
 go_deps.gazelle_default_attributes(
     directives = [
+        # Using default attributes causes build_file_generation to change to `on`,
+        # potentially overwriting existing BUILD files. We prefer the default `auto` behaviour
         "gazelle:build_file_generation auto",
+        # We don't want to generate code from protos from dependencies, as this most often fails
+        # and is different behavior from the default with go tooling
         "gazelle:proto disable",
     ],
 )
