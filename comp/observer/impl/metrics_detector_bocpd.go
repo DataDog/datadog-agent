@@ -105,6 +105,16 @@ type BOCPDConfig struct {
 	// to isolated outliers per Knoblauch & Damoulas 2018. Any unrecognized
 	// value falls back to "student_t".
 	LikelihoodKind string `json:"likelihood_kind"`
+
+	// MaxEntropyBits gates emission on posterior decisiveness.
+	// Shannon entropy of the run-length posterior in bits. Lower
+	// = more concentrated = higher detection confidence. Triggers
+	// are suppressed when entropy exceeds this bound, removing the
+	// diffuse-posterior false alarms typical of jittery stable
+	// streams. Default: 3.5 (≈ posterior mass concentrated within
+	// ~12 of MaxRunLength=200 hypotheses; conservative). Set to a
+	// very large value (e.g. 100) to disable.
+	MaxEntropyBits float64 `json:"max_entropy_bits"`
 }
 
 // DefaultBOCPDConfig returns a BOCPDConfig with default values.
@@ -120,6 +130,7 @@ func DefaultBOCPDConfig() BOCPDConfig {
 		MinVariance:        1.0,
 		RecoveryPoints:     10,
 		LikelihoodKind:     "student_t",
+		MaxEntropyBits:     3.5,
 		Aggregations: []observer.Aggregate{
 			observer.AggregateAverage,
 			observer.AggregateCount,
@@ -179,6 +190,9 @@ func NewBOCPDDetector(config BOCPDConfig) *BOCPDDetector {
 	}
 	if config.LikelihoodKind == "" {
 		config.LikelihoodKind = defaults.LikelihoodKind
+	}
+	if config.MaxEntropyBits <= 0 {
+		config.MaxEntropyBits = defaults.MaxEntropyBits
 	}
 	return &BOCPDDetector{
 		config: config,
@@ -276,14 +290,14 @@ func (b *BOCPDDetector) processPoint(state *bocpdSeriesState, p observer.Point, 
 		return b.warmupPoint(state, x)
 	}
 
-	triggered, cpProb, shortRunMass := b.updatePosterior(state, x)
+	triggered, cpProb, shortRunMass, entropy := b.updatePosterior(state, x)
 
 	if triggered {
 		state.recoveryCount = 0
 		if !state.inAlert {
 			state.inAlert = true
 			state.alertStart = p.Timestamp
-			return b.makeAnomaly(state, p, series, agg, cpProb, shortRunMass)
+			return b.makeAnomaly(state, p, series, agg, cpProb, shortRunMass, entropy)
 		}
 		return nil
 	}
@@ -354,8 +368,8 @@ func (b *BOCPDDetector) initializeFromWarmup(state *bocpdSeriesState) {
 }
 
 // updatePosterior performs one step of the BOCPD recurrence.
-// Returns (triggered, cpProb, shortRunMass).
-func (b *BOCPDDetector) updatePosterior(state *bocpdSeriesState, x float64) (bool, float64, float64) {
+// Returns (triggered, cpProb, shortRunMass, entropy).
+func (b *BOCPDDetector) updatePosterior(state *bocpdSeriesState, x float64) (bool, float64, float64, float64) {
 	hazard := b.config.Hazard
 
 	// Standard BOCPD recurrence (Adams & MacKay 2007):
@@ -381,6 +395,16 @@ func (b *BOCPDDetector) updatePosterior(state *bocpdSeriesState, x float64) (boo
 	normalizeProbs(state.newRunProbs)
 	cpProb := state.newRunProbs[0]
 	shortRunMass := shortRunLengthMass(state.newRunProbs, b.config.ShortRunLength)
+
+	// Compute Shannon entropy of the run-length posterior (in bits).
+	// A concentrated posterior (real changepoint) yields low entropy;
+	// a diffuse posterior (jittery stable data) yields high entropy.
+	var entropy float64
+	for _, p := range state.newRunProbs {
+		if p > 1e-12 {
+			entropy -= p * math.Log2(p)
+		}
+	}
 
 	// Update posterior means and precisions.
 	state.newMeans = state.newMeans[:newLen]
@@ -409,12 +433,16 @@ func (b *BOCPDDetector) updatePosterior(state *bocpdSeriesState, x float64) (boo
 	// beyond the short-run window; otherwise all mass is trivially "short."
 	triggeredByPeak := cpProb >= b.config.CPThreshold
 	triggeredByShift := shortRunMass >= b.config.CPMassThreshold && len(state.runProbs) > b.config.ShortRunLength+1
-	triggered := triggeredByPeak || triggeredByShift
-	return triggered, cpProb, shortRunMass
+	passShape := triggeredByPeak || triggeredByShift
+	// Posterior-decisiveness gate: suppress triggers when the run-length
+	// posterior is too diffuse (high entropy), which indicates the model is
+	// not confident about where a changepoint occurred.
+	triggered := passShape && entropy <= b.config.MaxEntropyBits
+	return triggered, cpProb, shortRunMass, entropy
 }
 
 // makeAnomaly constructs an Anomaly for a new alert onset.
-func (b *BOCPDDetector) makeAnomaly(state *bocpdSeriesState, p observer.Point, series *observer.Series, agg observer.Aggregate, cpProb, shortRunMass float64) *observer.Anomaly {
+func (b *BOCPDDetector) makeAnomaly(state *bocpdSeriesState, p observer.Point, series *observer.Series, agg observer.Aggregate, cpProb, shortRunMass, entropy float64) *observer.Anomaly {
 	source := observer.SeriesDescriptor{
 		Namespace: series.Namespace,
 		Name:      series.Name,
@@ -438,8 +466,8 @@ func (b *BOCPDDetector) makeAnomaly(state *bocpdSeriesState, p observer.Point, s
 		Source:       source,
 		DetectorName: b.Name(),
 		Title:        "BOCPD changepoint detected: " + displayName,
-		Description: fmt.Sprintf("%s %s %.2f exceeded threshold %.2f (cp=%.2f, short-run<=%d mass=%.2f)",
-			displayName, triggerType, triggerValue, triggerThreshold, cpProb, b.config.ShortRunLength, shortRunMass),
+		Description: fmt.Sprintf("%s %s %.2f exceeded threshold %.2f (cp=%.2f, short-run<=%d mass=%.2f, entropy=%.2f bits)",
+			displayName, triggerType, triggerValue, triggerThreshold, cpProb, b.config.ShortRunLength, shortRunMass, entropy),
 		Timestamp: p.Timestamp,
 		DebugInfo: &observer.AnomalyDebugInfo{
 			BaselineMean:   state.baselineMean,

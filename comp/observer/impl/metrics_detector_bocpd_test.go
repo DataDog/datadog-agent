@@ -298,7 +298,7 @@ func TestFindingH3_CPProbUsesOnlyPriorPredictiveNotSumOverRunLengths(t *testing.
 	copy(snapPrecisions, state.precisions)
 
 	// Call the implementation.
-	_, implCpProb, _ := d.updatePosterior(state, x)
+	_, implCpProb, _, _ := d.updatePosterior(state, x)
 
 	// Independently compute the standard BOCPD formula from the snapshot.
 	// Use studentTPDF (df=4) to match the default LikelihoodKind="student_t".
@@ -660,4 +660,60 @@ func TestFindingM8_ShortRunMassExcludesCPProb(t *testing.T) {
 	// trigger would NOT fire on its own without cpProb inflating it.
 	assert.Less(t, mass, 0.7,
 		"short-run mass (%.4f) without cpProb should be below CPMassThreshold (0.7)", mass)
+}
+
+func TestBOCPDDetector_HighEntropyGate(t *testing.T) {
+	// Oscillating large/small spikes keep the run-length posterior diffuse
+	// across many short-run hypotheses (high Shannon entropy). The entropy gate
+	// should suppress emission even though cpProb or shortRunMass may briefly
+	// pass their individual thresholds.
+	//
+	// Data: 30 stable points at 100, then 5 alternating spikes {200, 50, 200, 50, 200}.
+	// The alternation prevents any single run-length hypothesis from dominating
+	// the posterior → high entropy → gate fires → no anomaly.
+	config := DefaultBOCPDConfig()
+	config.WarmupPoints = 20
+	// Keep MaxEntropyBits at default (3.5) — the gate under test.
+	d := NewBOCPDDetector(config)
+
+	storage := newTimeSeriesStorage()
+	for i := 0; i < 30; i++ {
+		storage.Add("ns", "test.metric", 100.0, int64(i+1), nil)
+	}
+	// Alternating spikes: the rapid oscillation keeps the BOCPD posterior spread
+	// across multiple short run-length hypotheses rather than concentrated at r=0.
+	spikes := []float64{200, 50, 200, 50, 200}
+	for i, v := range spikes {
+		storage.Add("ns", "test.metric", v, int64(31+i), nil)
+	}
+
+	result := d.Detect(storage, 35)
+	assert.Empty(t, result.Anomalies,
+		"alternating spike pattern should be suppressed by the entropy gate (diffuse posterior)")
+}
+
+func TestBOCPDDetector_LowEntropyStepStillFires(t *testing.T) {
+	// A clean sustained step change concentrates the run-length posterior near
+	// r=0 (low Shannon entropy). The entropy gate must NOT suppress this — a
+	// genuine changepoint should still emit an anomaly.
+	//
+	// Data: 20 stable points at 100, then 20 at 140.
+	config := DefaultBOCPDConfig()
+	config.WarmupPoints = 20
+	// MaxEntropyBits at default (3.5). A clean step produces H << 3.5 bits.
+	d := NewBOCPDDetector(config)
+
+	storage := newTimeSeriesStorage()
+	for i := 0; i < 20; i++ {
+		storage.Add("ns", "test.metric", 100.0, int64(i+1), nil)
+	}
+	for i := 20; i < 40; i++ {
+		storage.Add("ns", "test.metric", 140.0, int64(i+1), nil)
+	}
+
+	result := d.Detect(storage, 40)
+	require.NotEmpty(t, result.Anomalies, "clean step change should still fire through the entropy gate")
+	assert.Contains(t, result.Anomalies[0].Title, "BOCPD")
+	assert.Contains(t, result.Anomalies[0].Description, "entropy=")
+	assert.GreaterOrEqual(t, result.Anomalies[0].Timestamp, int64(21))
 }
