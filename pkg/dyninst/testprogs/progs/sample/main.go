@@ -39,10 +39,14 @@ func main() {
 	lib_v2.FooV2()
 	var t lib_v2.V2Type
 	t.MyMethod()
+	lib_v2.UseV2GenericBox()
 	var it iterExample
 	it.rangeOverIterator()
 	lib.InlinedFunc()
 	lib2.UseGenericsWithFloat64()
+
+	executeContinuationFuncs()
+	executeContinuationStringFuncs()
 
 	// unsupported for MVP, should not cause failures
 	executeEsoteric()

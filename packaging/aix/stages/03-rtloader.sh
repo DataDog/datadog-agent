@@ -87,6 +87,7 @@ _embedded_real=$(cd "$EMBEDDED" 2>/dev/null && pwd -P)
 _destdir_real=$(cd "$EMBEDDED_DESTDIR" 2>/dev/null && pwd -P)
 if [ "$_embedded_real" != "$_destdir_real" ]; then
     ln -sf "$EMBEDDED_DESTDIR/lib/libpython${PYTHON_MAJ_MIN}.so" "$EMBEDDED/lib/libpython${PYTHON_MAJ_MIN}.so" 2>/dev/null || true
+    ln -sf "$EMBEDDED_DESTDIR/lib/libpython${PYTHON_MAJ_MIN}.a"  "$EMBEDDED/lib/libpython${PYTHON_MAJ_MIN}.a"  2>/dev/null || true
 fi
 
 log "Running cmake for rtloader"
@@ -98,6 +99,8 @@ OBJECT_MODE=64 cmake \
     -DCMAKE_C_FLAGS="$CFLAGS" \
     -DCMAKE_CXX_FLAGS="$CXXFLAGS" \
     -DCMAKE_SHARED_LINKER_FLAGS="$LDFLAGS" \
+    -DCMAKE_INSTALL_RPATH="/opt/datadog-agent/embedded/lib:/opt/datadog-agent/rtloader:/opt/freeware/lib:/usr/lib:/lib" \
+    -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON \
     -DBUILD_DEMO=OFF \
     -DDISABLE_PYTHON2=ON \
     -DPython3_INCLUDE_DIR="$EMBEDDED_DESTDIR/include/python${PYTHON_MAJ_MIN}" \
@@ -150,6 +153,38 @@ if dump -X64 -Hv libdatadog-agent-three.so 2>/dev/null | grep "libpython${PYTHON
     exit 1
 fi
 log "Verified: libdatadog-agent-three.so depends on libpython${PYTHON_MAJ_MIN}.a(shr_64.o)"
+
+# ─── Step 3c: Bundle GCC 8 runtime libraries ──────────────────────────────────
+#
+# The rtloader was compiled with GCC 8 and dynamically imports libstdc++ and
+# libgcc_s at runtime.  Bundling these into the package's embedded/lib makes
+# the agent self-contained — no GCC installation is required on the target host.
+#
+# The pthread variant is used because the agent is multi-threaded and needs the
+# thread-safe C++ runtime.  The compiler's own library directory is used to
+# locate the files so this step works regardless of the exact GCC 8 install path.
+#
+# The LIBPATH baked into the rtloader .so files (via CMAKE_INSTALL_RPATH) already
+# lists /opt/datadog-agent/embedded/lib first, so the bundled libraries are
+# preferred over any system GCC installation on the target host.
+#
+# Distribution of these libraries is permitted by the GCC Runtime Library
+# Exception (https://www.gnu.org/licenses/gcc-exception-3.1.html).
+
+# Derive the GCC base dir from print-file-name:
+#   gcc-8 -maix64 -print-file-name=libgcc_s.a → .../8/ppc64/libgcc_s.a
+#   dirname twice → .../8
+# The -maix64 flag is required: without it gcc returns .../8/libgcc_s.a (no ppc64/
+# component) and the second dirname would strip the version number instead.
+GCC8_LIB_PATH=$("$CC" -maix64 -print-file-name=libgcc_s.a)
+GCC8_BASE_DIR=$(dirname "$(dirname "$GCC8_LIB_PATH")")
+GCC8_PTHREAD_DIR="${GCC8_BASE_DIR}/pthread"
+
+log "Bundling GCC 8 runtime libraries from ${GCC8_PTHREAD_DIR}"
+mkdir -p "$STAGING/opt/datadog-agent/embedded/lib"
+cp "$GCC8_PTHREAD_DIR/libstdc++.a" "$STAGING/opt/datadog-agent/embedded/lib/"
+cp "$GCC8_PTHREAD_DIR/libgcc_s.a"  "$STAGING/opt/datadog-agent/embedded/lib/"
+log "Bundled libstdc++.a and libgcc_s.a into embedded/lib"
 
 # ─── Step 4: Copy outputs to staging ──────────────────────────────────────────
 #

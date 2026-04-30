@@ -93,6 +93,11 @@
       },
       {
         "matchManagers": ["gomod"],
+        "matchUpdateTypes": ["digest"],
+        "enabled": false
+      },
+      {
+        "matchManagers": ["gomod"],
         "matchDepNames": ["github.com/twmb/franz-go{,/**}"],
         "groupName": "franz-go"
       },
@@ -158,6 +163,16 @@
         "managerFilePatterns": [".gitlab-ci.yml"],
         "matchStrings": [
           "  CI_IMAGE_[^W][^:]*: (?<currentValue>v.*)"
+        ],
+        "depNameTemplate": "linux-images",
+        "versioningTemplate": "loose",
+        "datasourceTemplate": "custom.linux-images"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": [".devcontainer/datadog/default/prebuild-devcontainer.json"],
+        "matchStrings": [
+          "\"image\":\\s*\"registry.ddbuild.io/ci/datadog-agent-buildimages/dev-env-workspace:(?<currentValue>v[^\"]+)\""
         ],
         "depNameTemplate": "linux-images",
         "versioningTemplate": "loose",
