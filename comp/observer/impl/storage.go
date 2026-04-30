@@ -53,10 +53,11 @@ type timeSeriesStorage struct {
 	droppedByMetric       map[string]int64
 	sampledDrops          map[string]int
 
-	// idMu protects the global compact-ID tables. Held only on the cold
-	// path (first occurrence of a series) and on lookup-by-string-key
-	// (CompactSeriesID).
-	idMu          sync.Mutex
+	// idMu protects the global compact-ID tables. Append-only writes (new
+	// series creation, the cold path) take Lock(); ref-resolution reads
+	// (resolveByID, CompactSeriesID, BulkSeriesStatus's ref-grouping) take
+	// RLock so detector read paths don't serialize through one mutex.
+	idMu          sync.RWMutex
 	seriesIDs     map[string]observer.SeriesRef // string key → numeric ref
 	seriesIDKeys  []string                      // numeric ID → string key
 	seriesIDStats []*seriesStats                // numeric ID → *seriesStats
@@ -637,13 +638,14 @@ func hashSeriesIdentity(namespace, name string, tags []string) uint64 {
 	return h
 }
 
-// resolveByID returns the seriesStats for a numeric series ID without
-// taking any lock. The seriesIDStats slice is append-only after a series is
-// created; the *seriesStats pointer is stable for the storage's lifetime.
-// Callers that read the stats' column data must RLock the owning shard.
+// resolveByID returns the seriesStats for a numeric series ID. Held under
+// idMu.RLock so detector reads don't serialize against each other; the
+// append-only slice can be safely read concurrently while writers
+// (assignID) take Lock(). Callers that read the stats' column data must
+// then RLock the owning shard.
 func (s *timeSeriesStorage) resolveByID(ref observer.SeriesRef) *seriesStats {
-	s.idMu.Lock()
-	defer s.idMu.Unlock()
+	s.idMu.RLock()
+	defer s.idMu.RUnlock()
 	if ref < 0 || int(ref) >= len(s.seriesIDStats) {
 		return nil
 	}
@@ -706,7 +708,7 @@ func (s *timeSeriesStorage) ListSeriesMetadata(namespace string) []seriesMeta {
 	}
 
 	// Resolve refs from the global ID table.
-	s.idMu.Lock()
+	s.idMu.RLock()
 	result := make([]seriesMeta, len(entries))
 	for i, e := range entries {
 		result[i] = seriesMeta{
@@ -717,7 +719,7 @@ func (s *timeSeriesStorage) ListSeriesMetadata(namespace string) []seriesMeta {
 			PointCount: e.count,
 		}
 	}
-	s.idMu.Unlock()
+	s.idMu.RUnlock()
 
 	sort.Slice(result, func(i, j int) bool {
 		if result[i].Ref != result[j].Ref {
@@ -863,9 +865,9 @@ func (s *timeSeriesStorage) CompactSeriesID(fullKey string) string {
 
 	storageKey := seriesKey(namespace, baseName, tags)
 
-	s.idMu.Lock()
+	s.idMu.RLock()
 	numID, found := s.seriesIDs[storageKey]
-	s.idMu.Unlock()
+	s.idMu.RUnlock()
 	if !found {
 		return fullKey
 	}
@@ -917,7 +919,7 @@ func (s *timeSeriesStorage) ListSeries(filter observer.SeriesFilter) []observer.
 	}
 
 	result := make([]observer.SeriesMeta, len(entries))
-	s.idMu.Lock()
+	s.idMu.RLock()
 	for i, e := range entries {
 		result[i] = observer.SeriesMeta{
 			Ref:       s.seriesIDs[e.key],
@@ -926,7 +928,7 @@ func (s *timeSeriesStorage) ListSeries(filter observer.SeriesFilter) []observer.
 			Tags:      e.stats.Tags,
 		}
 	}
-	s.idMu.Unlock()
+	s.idMu.RUnlock()
 	return result
 }
 
@@ -1026,7 +1028,7 @@ func (s *timeSeriesStorage) BulkSeriesStatus(refs []observer.SeriesRef, endTime 
 	// Group refs by shard to take each shard's RLock once.
 	var byShard [numStorageShards][]int
 	statsByRef := make([]*seriesStats, len(refs))
-	s.idMu.Lock()
+	s.idMu.RLock()
 	for i, ref := range refs {
 		if ref < 0 || int(ref) >= len(s.seriesIDStats) {
 			continue
@@ -1035,7 +1037,7 @@ func (s *timeSeriesStorage) BulkSeriesStatus(refs []observer.SeriesRef, endTime 
 		statsByRef[i] = stats
 		byShard[stats.shardIdx] = append(byShard[stats.shardIdx], i)
 	}
-	s.idMu.Unlock()
+	s.idMu.RUnlock()
 
 	for shardIdx := range byShard {
 		idxs := byShard[shardIdx]

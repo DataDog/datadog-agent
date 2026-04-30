@@ -38,13 +38,12 @@ type seriesContextRef struct {
 // The engine does not own reporters or scheduling policy. It accepts explicit
 // Advance calls and returns results that callers route to their own outputs.
 type engine struct {
-	// mu protects detectors, correlators, extractors, logObservers, and
-	// contextRefs from concurrent access. Writers (Advance, Reset,
-	// SetDetectors, SetCorrelators, SetExtractors) take a write lock; readers
-	// (stateView methods) take a read lock. lastAnalyzedDataTime and
-	// latestDataTime are stored as atomics so producers calling
-	// IngestMetricSync from arbitrary goroutines do not need to synchronize on
-	// engine state.
+	// mu protects detectors, correlators, extractors, and logObservers from
+	// concurrent access. Writers (Advance, Reset, SetDetectors,
+	// SetCorrelators, SetExtractors) take a write lock; readers (stateView
+	// methods) take a read lock. lastAnalyzedDataTime and latestDataTime are
+	// stored as atomics so producers calling IngestMetricSync from arbitrary
+	// goroutines do not need to synchronize on engine state.
 	mu sync.RWMutex
 
 	storage          *timeSeriesStorage
@@ -52,7 +51,14 @@ type engine struct {
 	detectors        []observerdef.Detector
 	correlators      []observerdef.Correlator
 	contextProviders map[string]observerdef.ContextProvider // namespace → provider
-	contextRefs      map[string]seriesContextRef
+
+	// contextRefs maps a stored series key to its originating extractor's
+	// context. Written by IngestLog (run-loop goroutine) and read by
+	// enrichAnomaly (scheduler-ticker goroutine via advance). Protected by
+	// its own mutex so reads don't contend with detector/correlator config
+	// changes on engine.mu.
+	contextRefs   map[string]seriesContextRef
+	contextRefsMu sync.RWMutex
 
 	// scheduler decides when the engine should advance analysis.
 	scheduler schedulerPolicy
@@ -323,10 +329,12 @@ func (e *engine) IngestLog(source string, l *logObs) ([]advanceRequest, []observ
 			e.storage.Add(extractor.Name(), m.Name, m.Value, l.timestampMs/1000, tags)
 			if m.ContextKey != "" {
 				sk := seriesKey(extractor.Name(), m.Name, tags)
+				e.contextRefsMu.Lock()
 				e.contextRefs[sk] = seriesContextRef{
 					namespace:  extractor.Name(),
 					contextKey: m.ContextKey,
 				}
+				e.contextRefsMu.Unlock()
 			}
 		}
 		if len(out.Telemetry) > 0 {
@@ -375,6 +383,8 @@ func (e *engine) removeContextRefsForEvictedKeys(namespace string, evictedKeys [
 	if len(want) == 0 {
 		return
 	}
+	e.contextRefsMu.Lock()
+	defer e.contextRefsMu.Unlock()
 	for seriesID, ref := range e.contextRefs {
 		if ref.namespace != namespace {
 			continue
@@ -588,7 +598,9 @@ func (e *engine) enrichAnomaly(a *observerdef.Anomaly) {
 	}
 	fullKey := seriesKey(a.Source.Namespace, a.Source.Name, a.Source.Tags)
 
+	e.contextRefsMu.RLock()
 	ref, ok := e.contextRefs[fullKey]
+	e.contextRefsMu.RUnlock()
 	if !ok {
 		return
 	}
@@ -801,7 +813,9 @@ func (e *engine) SetExtractors(extractors []observerdef.LogMetricsExtractor) {
 	validateUniqueExtractorNames(extractors)
 	e.extractors = extractors
 	e.contextProviders = collectContextProviders(extractors)
+	e.contextRefsMu.Lock()
 	e.contextRefs = make(map[string]seriesContextRef)
+	e.contextRefsMu.Unlock()
 }
 
 // Reset clears analysis state so detectors will re-analyze from scratch.
@@ -829,7 +843,9 @@ func (e *engine) Reset() {
 		}
 	}
 
+	e.contextRefsMu.Lock()
 	e.contextRefs = make(map[string]seriesContextRef)
+	e.contextRefsMu.Unlock()
 }
 
 // resetRawAnomalies clears the raw anomaly tracking state.
