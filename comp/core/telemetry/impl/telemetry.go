@@ -270,7 +270,10 @@ func (t *telemetryImpl) Gather(defaultGather bool) ([]*telemetry.MetricFamily, e
 }
 
 func (t *telemetryImpl) fillFlare(_ context.Context, fb flaretypes.FlareBuilder) error {
-	text, err := t.GatherText(true, telemetry.NoFilter)
+	// Use defaultGather=false to match the /telemetry HTTP endpoint (Handler), which
+	// serves t.registry. Most agent metrics use DefaultOptions and go to t.registry;
+	// only metrics with Options{DefaultMetric:true} go to defaultRegistry (defaultGather=true).
+	text, err := t.GatherText(false, telemetry.NoFilter)
 	if err != nil {
 		return err
 	}
