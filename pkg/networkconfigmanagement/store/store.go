@@ -450,3 +450,22 @@ func (cs *ConfigStore) EvictConfigs(minRetainedConfigs int, maxRetainedConfigs i
 	}
 	return evicted, nil
 }
+
+// GetAllConfigMetadata retrieves all config metadata available - helpful as a inventory reporting snapshot
+func (cs *ConfigStore) GetAllConfigMetadata() ([]*ConfigMetadata, error) {
+	var configMeta []*ConfigMetadata
+	err := cs.view(func(tx *bbolt.Tx) error {
+		return tx.Bucket([]byte(metadataBucket)).ForEach(func(_, v []byte) error {
+			var meta ConfigMetadata
+			if err := json.Unmarshal(v, &meta); err != nil {
+				return err
+			}
+			configMeta = append(configMeta, &meta)
+			return nil
+		})
+	})
+	if err != nil {
+		return nil, err
+	}
+	return configMeta, nil
+}

@@ -13,8 +13,10 @@ import (
 	"slices"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 	"github.com/benbjohnson/clock"
+
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/store"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -35,12 +37,13 @@ const CheckName = "network_config_management"
 // Check is the main struct for the network configuration management check
 type Check struct {
 	core.CheckBase
-	checkContext  *ncmconfig.NcmCheckContext
-	sender        *ncmsender.NCMSender
-	agentConfig   config.Component
-	remoteClient  ncmremote.Client
-	clock         clock.Clock
-	lastCheckTime time.Time
+	checkContext        *ncmconfig.NcmCheckContext
+	sender              *ncmsender.NCMSender
+	agentConfig         config.Component
+	remoteClient        ncmremote.Client
+	clock               clock.Clock
+	lastCheckTime       time.Time
+	inventoryRunCounter int
 }
 
 // Run executes the check to retrieve network device configurations from a device
@@ -110,6 +113,37 @@ func (c *Check) Run() error {
 	checkErr = c.sender.SendNCMConfig(ncmreport.ToNCMPayload(c.checkContext.Namespace, configs, c.clock.Now().Unix()))
 	if checkErr != nil {
 		return checkErr
+	}
+
+	var store store.ConfigStore
+	// send inventory payload if we sent new configs
+	c.inventoryRunCounter++
+	if c.inventoryRunCounter >= int(c.checkContext.InventoryReportEveryN) {
+		c.inventoryRunCounter = 0
+		configMeta, err := store.GetAllConfigMetadata()
+		if err != nil {
+			return err
+		}
+		var inventoryEntries []ncmreport.InventoryEntry
+		// convert meta to inventory entry
+		for _, metadata := range configMeta {
+			entry := ncmreport.InventoryEntry{
+				RawConfigID: metadata.ConfigUUID,
+				ConfigType:  metadata.ConfigType,
+				DeviceID:    metadata.DeviceID,
+				CapturedAt:  metadata.CapturedAt,
+				RawHash:     metadata.RawHash,
+			}
+			inventoryEntries = append(inventoryEntries, entry)
+		}
+		err = c.sender.SendNCMInventory(ncmreport.NCMInventory{
+			Namespace:  c.checkContext.Namespace,
+			ReportedAt: c.clock.Now().Unix(),
+			Entries:    inventoryEntries,
+		})
+		if err != nil {
+			return err
+		}
 	}
 
 	c.sender.SendNCMCheckMetrics(checkStartTime, c.lastCheckTime)
