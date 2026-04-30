@@ -10,6 +10,7 @@ package externalmetrics
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -48,6 +49,7 @@ type AutoscalerWatcher struct {
 	autogenEnabled          bool
 	autogenExpirationPeriod time.Duration
 	autogenNamespace        string
+	autogenExcludeRegex     *regexp.Regexp
 	autoscalerLister        cache.GenericLister
 	autoscalerListerSynced  cache.InformerSynced
 	wpaLister               cache.GenericLister
@@ -75,6 +77,7 @@ func NewAutoscalerWatcher(
 	autogenEnabled bool,
 	autogenExpirationPeriodHours int64,
 	autogenNamespace string,
+	autogenExcludeRegex *regexp.Regexp,
 	client kubernetes.Interface,
 	informer informers.SharedInformerFactory,
 	wpaInformer dynamic_informer.DynamicSharedInformerFactory,
@@ -122,6 +125,7 @@ func NewAutoscalerWatcher(
 		autogenEnabled:          autogenEnabled,
 		autogenExpirationPeriod: time.Duration(autogenExpirationPeriodHours) * time.Hour,
 		autogenNamespace:        autogenNamespace,
+		autogenExcludeRegex:     autogenExcludeRegex,
 		autoscalerLister:        autoscalerLister,
 		autoscalerListerSynced:  autoscalerListerSynced,
 		wpaLister:               wpaLister,
@@ -393,9 +397,11 @@ func (w *AutoscalerWatcher) extractAutoscalerReference(
 	if parsed {
 		return ddMetricID, "", nil, true
 	} else if !hasPrefix && w.autogenEnabled {
-		// We were not able to parse name as DatadogMetric ID.
-		// It will be considered as a normal metricName +
-		// labels
+		if w.autogenExcludeRegex != nil && w.autogenExcludeRegex.MatchString(externalMetricName) {
+			log.Debugf("Skipping autogeneration for metric %q: matches autogen_exclude_regex", externalMetricName)
+			return "", "", nil, false
+		}
+
 		var labels map[string]string
 		if externalMetricSelector != nil {
 			labels = externalMetricSelector.MatchLabels

@@ -12241,6 +12241,10 @@ properties:
         node_type: setting
         type: string
         default: ''
+      autogen_exclude_regex:
+        node_type: setting
+        type: string
+        default: ''
       batch_window:
         node_type: setting
         type: number

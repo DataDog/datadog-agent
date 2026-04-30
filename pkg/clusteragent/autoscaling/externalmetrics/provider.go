@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"regexp"
 	"strings"
 	"time"
 
@@ -70,6 +71,14 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient, d
 	splitBatchBackoffOnErrors := pkgconfigsetup.Datadog().GetBool("external_metrics_provider.split_batches_with_backoff")
 	autogenNamespace := namespace.GetResourcesNamespace()
 	autogenEnabled := pkgconfigsetup.Datadog().GetBool("external_metrics_provider.enable_datadogmetric_autogen")
+	var autogenExcludeRegex *regexp.Regexp
+	if autogenExcludePattern := pkgconfigsetup.Datadog().GetString("external_metrics_provider.autogen_exclude_regex"); autogenExcludePattern != "" {
+		autogenExcludeRegex, err = regexp.Compile(autogenExcludePattern)
+		if err != nil {
+			return nil, fmt.Errorf("invalid autogen_exclude_regex %q: %v", autogenExcludePattern, err)
+		}
+		log.Infof("DatadogMetric autogeneration will exclude metrics matching: %s", autogenExcludePattern)
+	}
 	wpaEnabled := pkgconfigsetup.Datadog().GetBool("external_metrics_provider.wpa_controller")
 	numWorkers := pkgconfigsetup.Datadog().GetInt("external_metrics_provider.num_workers")
 
@@ -98,6 +107,7 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient, d
 		autogenEnabled,
 		autogenExpirationPeriodHours,
 		autogenNamespace,
+		autogenExcludeRegex,
 		apiCl.Cl,
 		apiCl.InformerFactory,
 		wpaInformer,
