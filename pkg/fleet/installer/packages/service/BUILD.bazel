@@ -1,24 +1,14 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "service",
     srcs = ["service.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service",
     visibility = ["//visibility:public"],
-    deps = [
-        "//pkg/fleet/installer/packages/service/procmgr",
-    ],
-)
-
-go_test(
-    name = "service_test",
-    srcs = ["ddot_procmgr_gate_linux_test.go"],
-    embed = [":service"],
-    deps = [
-        "//pkg/fleet/installer/packages/service/procmgr",
-        "@com_github_stretchr_testify//assert",
-    ],
-    target_compatible_with = [
-        "@platforms//os:linux",
-    ],
+    deps = select({
+        "@rules_go//go/platform:windows": [],
+        "//conditions:default": [
+            "//pkg/fleet/installer/packages/service/procmgr",
+        ],
+    }),
 )
