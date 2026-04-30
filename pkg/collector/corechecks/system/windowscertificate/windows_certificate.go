@@ -9,7 +9,6 @@
 package windowscertificate
 
 import (
-	"bytes"
 	"crypto/x509"
 	"encoding/asn1"
 	"encoding/json"
@@ -140,12 +139,18 @@ type crlInfoCopy struct {
 	Thumbprint string
 }
 
+// certInfo holds the per-certificate values needed by the check's reporting
+// loop. All fields are independently allocated Go values; the parsed
+// *x509.Certificate is intentionally NOT retained, so consumers cannot reach
+// into the Windows-owned encoded-cert bytes after enumeration advances or
+// frees the source CertContext.
 type certInfo struct {
-	Certificate      *x509.Certificate
-	TrustStatusError uint32 // windows.TrustStatus.ErrorStatus
-	ChainPolicyError uint32 // windows.CertChainPolicyStatus.Error
-	Thumbprint       string
-	FriendlyName     string
+	SubjectString    string    // human-readable subject DN, used in log messages
+	NotAfter         time.Time // certificate expiration
+	Tags             []string  // cert-derived tags (subject, thumbprint, serial, optional groups)
+	Thumbprint       string    // SHA-1 hex
+	TrustStatusError uint32    // windows.TrustStatus.ErrorStatus
+	ChainPolicyError uint32    // windows.CertChainPolicyStatus.Error
 }
 
 // Factory creates a new check factory
@@ -271,18 +276,16 @@ func (w *WinCertChk) Run() error {
 	}
 
 	for _, cert := range certificates {
-		log.Debugf("Found certificate: %s", cert.Certificate.Subject.String())
-		daysRemaining := getExpiration(cert.Certificate.NotAfter)
-		expirationDate := cert.Certificate.NotAfter.Format(time.RFC3339)
+		log.Debugf("Found certificate: %s", cert.SubjectString)
+		daysRemaining := getExpiration(cert.NotAfter)
+		expirationDate := cert.NotAfter.Format(time.RFC3339)
 
-		// Adding Subject and Certificate Store as tags
-		tags := getSubjectTags(cert.Certificate)
-		tags = append(tags, "certificate_store:"+w.config.CertificateStore)
-		tags = append(tags, serverTag)
-		tags = append(tags, "certificate_thumbprint:"+cert.Thumbprint)
-		// Need to use hex format for serial numbers as they are typically displayed in hex format in the UI
-		tags = append(tags, "certificate_serial_number:"+cert.Certificate.SerialNumber.Text(16))
-		tags = appendOptionalTags(tags, cert.Certificate, cert.FriendlyName, w.config)
+		// cert.Tags carries the cert-derived tags (subject, thumbprint, serial,
+		// optional groups) pre-built in buildCertInfo. Allocate a fresh slice
+		// here so we don't extend cert.Tags' backing array across iterations.
+		tags := make([]string, 0, len(cert.Tags)+2)
+		tags = append(tags, cert.Tags...)
+		tags = append(tags, "certificate_store:"+w.config.CertificateStore, serverTag)
 		sender.Gauge("windows_certificate.days_remaining", daysRemaining, "", tags)
 
 		if daysRemaining <= 0 {
@@ -316,7 +319,7 @@ func (w *WinCertChk) Run() error {
 		if w.config.CertChainValidation.EnableCertChainValidation {
 			// Report both the trust status and chain policy errors if they exist
 			if cert.TrustStatusError != 0 {
-				log.Debugf("Certificate %s has trust status error: %d", cert.Certificate.Subject.String(), cert.TrustStatusError)
+				log.Debugf("Certificate %s has trust status error: %d", cert.SubjectString, cert.TrustStatusError)
 				trustStatusErrors := getCertChainTrustStatusErrors(cert.TrustStatusError)
 				message := "Certificate Validation failed. The certificates in the certificate chain have the following errors: " + strings.Join(trustStatusErrors, ", ")
 				if cert.ChainPolicyError != 0 {
@@ -331,7 +334,7 @@ func (w *WinCertChk) Run() error {
 				)
 				// Report the chain policy error only if it exists
 			} else if cert.ChainPolicyError != 0 {
-				log.Debugf("Certificate %s has chain policy error: %d", cert.Certificate.Subject.String(), cert.ChainPolicyError)
+				log.Debugf("Certificate %s has chain policy error: %d", cert.SubjectString, cert.ChainPolicyError)
 				chainPolicyError := getCertChainPolicyErrors(cert.ChainPolicyError)
 				sender.ServiceCheck("windows_certificate.cert_chain_validation",
 					servicecheck.ServiceCheckCritical,
@@ -419,11 +422,9 @@ func (w *WinCertChk) enumerateStoreContents(storeHandle windows.Handle, store st
 	var certificates []certInfo
 	var err error
 	if len(certFilters) == 0 {
-		certificates, err = getEnumCertificatesInStore(storeHandle,
-			w.config.CertChainValidation, w.config.FriendlyNameTag)
+		certificates, err = getEnumCertificatesInStore(storeHandle, w.config)
 	} else {
-		certificates, err = findCertificatesInStore(storeHandle, certFilters,
-			w.config.CertChainValidation, w.config.FriendlyNameTag)
+		certificates, err = findCertificatesInStore(storeHandle, certFilters, w.config)
 	}
 	if err != nil {
 		log.Errorf("Error getting certificates: %v", err)
@@ -522,24 +523,29 @@ func closeCertificateStore(storeHandle windows.Handle, store string) {
 	}
 }
 
-// buildCertInfo parses a CertContext and collects the per-cert metadata that
-// is common to both the enumerate and find code paths. Returns an error only
-// when parsing or required-property reads fail; optional lookups (friendly
-// name) are logged and left empty on failure.
-func buildCertInfo(certContext *windows.CertContext, storeHandle windows.Handle,
-	chainValidation certChainValidation, collectFriendlyName bool) (certInfo, error) {
-
-	// Clone the encoded certificate to avoid dangling reads during tag extraction.
-	encodedCert := bytes.Clone(unsafe.Slice(certContext.EncodedCert, certContext.Length))
+// buildCertInfo parses a CertContext and extracts everything the reporting
+// loop will need into Go-owned values. The parsed *x509.Certificate stays
+// scope-local so the returned certInfo holds no references into the
+// Windows-owned encoded-cert bytes — the caller is free to advance / free the
+// CertContext as soon as this function returns.
+//
+// Returns an error only when parsing or required-property reads fail;
+// optional lookups (friendly name) are logged and left empty on failure.
+func buildCertInfo(certContext *windows.CertContext, storeHandle windows.Handle, cfg Config) (certInfo, error) {
+	// The encoded cert bytes are owned by Windows and only valid until the
+	// CertContext is freed or the enumeration advances. We read everything we
+	// need from `cert` while still in this scope; nothing in the returned
+	// certInfo aliases these bytes.
+	encodedCert := unsafe.Slice(certContext.EncodedCert, certContext.Length)
 	cert, err := parseCertificate(encodedCert)
 	if err != nil {
 		return certInfo{}, fmt.Errorf("parsing certificate: %w", err)
 	}
 
 	var trustStatusError, chainPolicyError uint32
-	if chainValidation.EnableCertChainValidation {
+	if cfg.CertChainValidation.EnableCertChainValidation {
 		trustStatusError, chainPolicyError, err = validateCertificateChain(
-			certContext, storeHandle, chainValidation.CertChainPolicyValidationFlags)
+			certContext, storeHandle, cfg.CertChainValidation.CertChainPolicyValidationFlags)
 		if err != nil {
 			return certInfo{}, fmt.Errorf("validating certificate chain: %w", err)
 		}
@@ -551,24 +557,33 @@ func buildCertInfo(certContext *windows.CertContext, storeHandle windows.Handle,
 	}
 
 	var friendlyName string
-	if collectFriendlyName {
+	if cfg.FriendlyNameTag {
 		friendlyName, err = getFriendlyName(certContext)
 		if err != nil {
 			log.Debugf("Error getting friendly name for %s: %v", cert.Subject.String(), err)
 		}
 	}
 
+	// Build cert-derived tags here, while the cert bytes are still valid.
+	// Per-store static tags (certificate_store, server) are appended by the
+	// caller since they don't depend on the cert.
+	tags := getSubjectTags(cert)
+	tags = append(tags, "certificate_thumbprint:"+thumbprint)
+	tags = append(tags, "certificate_serial_number:"+cert.SerialNumber.Text(16))
+	tags = appendOptionalTags(tags, cert, friendlyName, cfg)
+
 	return certInfo{
-		Certificate:      cert,
+		SubjectString:    cert.Subject.String(),
+		NotAfter:         cert.NotAfter,
+		Tags:             tags,
+		Thumbprint:       thumbprint,
 		TrustStatusError: trustStatusError,
 		ChainPolicyError: chainPolicyError,
-		Thumbprint:       thumbprint,
-		FriendlyName:     friendlyName,
 	}, nil
 }
 
 // getEnumCertificatesInStore retrieves all certificates in a certificate store
-func getEnumCertificatesInStore(storeHandle windows.Handle, certChainValidation certChainValidation, collectFriendlyName bool) ([]certInfo, error) {
+func getEnumCertificatesInStore(storeHandle windows.Handle, cfg Config) ([]certInfo, error) {
 	var err error
 	certificates := []certInfo{}
 
@@ -590,7 +605,7 @@ func getEnumCertificatesInStore(storeHandle windows.Handle, certChainValidation 
 			}
 		}
 
-		info, err := buildCertInfo(certContext, storeHandle, certChainValidation, collectFriendlyName)
+		info, err := buildCertInfo(certContext, storeHandle, cfg)
 		if err != nil {
 			log.Errorf("Error building cert info: %v", err)
 			continue
@@ -602,7 +617,7 @@ func getEnumCertificatesInStore(storeHandle windows.Handle, certChainValidation 
 }
 
 // findCertificatesInStore finds certificates in a store with a given subject string
-func findCertificatesInStore(storeHandle windows.Handle, subjectFilters []string, certChainValidation certChainValidation, collectFriendlyName bool) ([]certInfo, error) {
+func findCertificatesInStore(storeHandle windows.Handle, subjectFilters []string, cfg Config) ([]certInfo, error) {
 	var err error
 	certificates := []certInfo{}
 
@@ -634,7 +649,7 @@ func findCertificatesInStore(storeHandle windows.Handle, subjectFilters []string
 				}
 			}
 
-			info, err := buildCertInfo(certContext, storeHandle, certChainValidation, collectFriendlyName)
+			info, err := buildCertInfo(certContext, storeHandle, cfg)
 			if err != nil {
 				log.Errorf("Error building cert info: %v", err)
 				continue
