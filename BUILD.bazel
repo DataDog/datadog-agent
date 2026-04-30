@@ -7,14 +7,6 @@ load("@gazelle//:def.bzl", "DEFAULT_LANGUAGES", "gazelle", "gazelle_binary")
 
 package(default_visibility = ["//visibility:public"])
 
-# The list of go tags to be used by gazelle
-ALL_BUILD_TAGS = [
-    "otlp",
-    "test",
-    "seclmax",
-    "serverless",
-]
-
 # Temporary export for hybrid omnibus/bazel build.
 # This glob is empty running bazel alone in a pipeline job.
 # It covers real files in the omnibus build after dda commands have run.

@@ -416,6 +416,7 @@
 # END COMPONENTS
 
 /comp/core/agenttelemetry               @DataDog/agent-health
+/pkg/telemetry                          @DataDog/agent-runtimes
 
 # ebpf-platform also owns the stat wrappers in telemetry (previously pkg/telemetry/stat_*_wrapper.go)
 /comp/core/telemetry/def/stat_gauge_wrapper.go   @DataDog/agent-runtimes @DataDog/ebpf-platform

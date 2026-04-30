@@ -24,8 +24,8 @@ from invoke import MockContext, Result
 from invoke.exceptions import Exit
 
 from tasks.libs.package.size import InfraError
+from tasks.static_quality_gates.thresholds import SIZE_INCREASE_THRESHOLD_BYTES
 from tasks.quality_gates import (
-    SIZE_INCREASE_THRESHOLD_BYTES,
     ExceptionApprovalChecker,
     GateMetricsData,
     _extract_gate_name_from_scope,

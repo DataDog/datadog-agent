@@ -82,7 +82,7 @@ disable_error_code = []
 
 [tool.vulture]
 ignore_decorators = ["@task", "@field_validator"]
-ignore_names = ["test_*", "Test*", "model_config"]
+ignore_names = ["test_*", "Test*", "model_config", "compute_validation", "require_api_keys", "resolve_spec_paths"]
 paths = ["tasks"]
 
 [tool.ddev]
