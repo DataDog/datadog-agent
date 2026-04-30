@@ -46,6 +46,17 @@ type engine struct {
 	// goroutines do not need to synchronize on engine state.
 	mu sync.RWMutex
 
+	// advanceMu serializes log ingestion and analysis advance against each
+	// other. Pre-redesign these ran on a single run-loop goroutine; the
+	// scheduler-ticker now runs advanceWithReason on its own goroutine, so
+	// it can race with IngestLog (called from the run loop) for shared
+	// mutable state — extractor pattern maps, detector adapter caches,
+	// correlator state — that is not internally thread-safe. Take this
+	// mutex around the full IngestLog body and the full advanceWithReason
+	// body. The producer-side metric ingest path (IngestMetricSync) does
+	// NOT take this lock; it goes straight into sharded storage.
+	advanceMu sync.Mutex
+
 	storage          *timeSeriesStorage
 	extractors       []observerdef.LogMetricsExtractor
 	detectors        []observerdef.Detector
@@ -311,7 +322,14 @@ func (e *engine) drainLatePointsBySource() map[string]int64 {
 // IngestLog processes a log observation: runs extractors to produce virtual metrics,
 // notifies log observers, and consults the scheduler policy to determine whether
 // detectors should advance. Returns advance requests that the caller should execute.
+//
+// Holds advanceMu for its full body so concurrent ticker-driven advances cannot
+// race with extractor.ProcessLog or logObserver.ProcessLog — both mutate
+// state that is also read by enrichAnomaly via context providers and by
+// detector Detect() calls.
 func (e *engine) IngestLog(source string, l *logObs) ([]advanceRequest, []observerdef.ObserverTelemetry) {
+	e.advanceMu.Lock()
+	defer e.advanceMu.Unlock()
 	sourceTag := "observer_source:" + source
 	view := &logView{obs: l}
 	var logTelemetry = []observerdef.ObserverTelemetry{}
@@ -432,7 +450,15 @@ func (e *engine) Advance(upToSec int64) advanceResult {
 
 // advanceWithReason runs detectors and correlators up to the given event time,
 // recording the reason for the advance in the emitted event.
+//
+// Holds advanceMu for the full body so concurrent log ingestion cannot race
+// with detector/correlator state. emit() callbacks run inside this lock; they
+// must not take advanceMu reentrantly. They may take e.mu.RLock via
+// stateView methods — that's fine because we release e.mu before emit/detect.
 func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceResult {
+	e.advanceMu.Lock()
+	defer e.advanceMu.Unlock()
+
 	// Snapshot mutable fields under the lock. We cannot hold mu during
 	// runDetectorsAndCorrelators because emit() callbacks may re-enter
 	// stateView methods that take mu.RLock, causing a deadlock.
