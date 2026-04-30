@@ -24,46 +24,40 @@ from invoke import MockContext, Result
 from invoke.exceptions import Exit
 
 from tasks.libs.package.size import InfraError
-from tasks.static_quality_gates.thresholds import SIZE_INCREASE_THRESHOLD_BYTES
-from tasks.quality_gates import (
-    ExceptionApprovalChecker,
-    GateMetricsData,
-    _extract_gate_name_from_scope,
-    _get_latest_value_from_pointlist,
-    display_pr_comment,
-    fetch_main_headroom,
-    fetch_pr_metrics,
-    generate_new_quality_gate_config,
-    get_change_metrics,
-    get_pr_author,
-    get_pr_number_from_commit,
-    identify_failing_gates,
-    identify_gates_exceeding_pr_threshold,
-    identify_gates_with_size_increase,
-    parse_and_trigger_gates,
-)
+from tasks.quality_gates import parse_and_trigger_gates
+from tasks.static_quality_gates.decisions import ExceptionApprovalChecker, identify_gates_exceeding_pr_threshold
 from tasks.static_quality_gates.gates import (
-    # Data classes
     ArtifactMeasurement,
     DockerArtifactMeasurer,
     GateMetricHandler,
     GateResult,
-    # Strategy pattern classes
     PackageArtifactMeasurer,
     QualityGateConfig,
     QualityGateFactory,
     SizeViolation,
-    # Main quality gate class
     StaticQualityGate,
-    # Exceptions
     StaticQualityGateError,
     _extract_arch_from_gate_name,
     _extract_os_from_gate_name,
     byte_to_string,
-    # Utility functions
     create_quality_gate_config,
     read_byte_input,
     string_to_byte,
+)
+from tasks.static_quality_gates.github import get_pr_author, get_pr_number_from_commit
+from tasks.static_quality_gates.metrics import (
+    GateMetricsData,
+    _extract_gate_name_from_scope,
+    _get_latest_value_from_pointlist,
+    fetch_main_headroom,
+    fetch_pr_metrics,
+)
+from tasks.static_quality_gates.pr_comment import display_pr_comment, get_change_metrics
+from tasks.static_quality_gates.thresholds import (
+    SIZE_INCREASE_THRESHOLD_BYTES,
+    generate_new_quality_gate_config,
+    identify_failing_gates,
+    identify_gates_with_size_increase,
 )
 
 

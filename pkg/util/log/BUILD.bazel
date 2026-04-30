@@ -11,6 +11,7 @@ go_library(
         "log_test_init.go",
         "logger.go",
         "logger_test_utils.go",
+        "observer_tap.go",
         "wrapper.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/log",

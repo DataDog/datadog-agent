@@ -22,7 +22,7 @@ go_test(
     embed = [":metricsclient"],
     gotags = ["test"],
     deps = [
-        "//pkg/trace/timing",
+        "@com_github_datadog_datadog_agent_pkg_trace//timing",
         "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

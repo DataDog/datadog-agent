@@ -6,7 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/process/forwarders/def",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/forwarder/connectionsforwarder/def",
-        "//comp/forwarder/defaultforwarder",
+        "@//comp/forwarder/connectionsforwarder/def",
+        "@com_github_datadog_datadog_agent_comp_forwarder_defaultforwarder//:defaultforwarder",
     ],
 )

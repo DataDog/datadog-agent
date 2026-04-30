@@ -10,9 +10,9 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
-        "//comp/core/log/def",
         "//comp/def",
         "//comp/snmptraps/oidresolver/def",
+        "@com_github_datadog_datadog_agent_comp_core_log_def//:def",
         "@in_yaml_go_yaml_v2//:yaml",
     ],
 )
@@ -23,8 +23,8 @@ go_test(
     embed = [":impl"],
     gotags = ["test"],
     deps = [
-        "//comp/core/log/mock",
         "//comp/snmptraps/oidresolver/def",
+        "@com_github_datadog_datadog_agent_comp_core_log_mock//:mock",
         "@com_github_stretchr_testify//require",
         "@in_yaml_go_yaml_v2//:yaml",
     ],

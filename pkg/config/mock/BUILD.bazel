@@ -8,7 +8,7 @@ go_library(
     deps = [
         "//pkg/config/create",
         "//pkg/config/model",
-        "//pkg/config/setup",
+        "@com_github_datadog_datadog_agent_pkg_config_setup//:setup",
         "@com_github_stretchr_testify//require",
     ],
 )

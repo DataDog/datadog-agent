@@ -14,43 +14,43 @@ go_library(
     deps = select({
         "@rules_go//go/platform:aix": [
             "//pkg/util/executable",
-            "//pkg/util/flavor",
+            "@com_github_datadog_datadog_agent_pkg_util_flavor//:flavor",
         ],
         "@rules_go//go/platform:android": [
             "//pkg/util/executable",
-            "//pkg/util/flavor",
+            "@com_github_datadog_datadog_agent_pkg_util_flavor//:flavor",
         ],
         "@rules_go//go/platform:darwin": [
             "//pkg/util/executable",
-            "//pkg/util/flavor",
+            "@com_github_datadog_datadog_agent_pkg_util_flavor//:flavor",
         ],
         "@rules_go//go/platform:dragonfly": [
             "//pkg/util/executable",
-            "//pkg/util/flavor",
+            "@com_github_datadog_datadog_agent_pkg_util_flavor//:flavor",
         ],
         "@rules_go//go/platform:freebsd": [
             "//pkg/util/executable",
-            "//pkg/util/flavor",
+            "@com_github_datadog_datadog_agent_pkg_util_flavor//:flavor",
         ],
         "@rules_go//go/platform:ios": [
             "//pkg/util/executable",
-            "//pkg/util/flavor",
+            "@com_github_datadog_datadog_agent_pkg_util_flavor//:flavor",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/util/executable",
-            "//pkg/util/flavor",
+            "@com_github_datadog_datadog_agent_pkg_util_flavor//:flavor",
         ],
         "@rules_go//go/platform:netbsd": [
             "//pkg/util/executable",
-            "//pkg/util/flavor",
+            "@com_github_datadog_datadog_agent_pkg_util_flavor//:flavor",
         ],
         "@rules_go//go/platform:openbsd": [
             "//pkg/util/executable",
-            "//pkg/util/flavor",
+            "@com_github_datadog_datadog_agent_pkg_util_flavor//:flavor",
         ],
         "@rules_go//go/platform:solaris": [
             "//pkg/util/executable",
-            "//pkg/util/flavor",
+            "@com_github_datadog_datadog_agent_pkg_util_flavor//:flavor",
         ],
         "@rules_go//go/platform:windows": [
             "//pkg/util/log",

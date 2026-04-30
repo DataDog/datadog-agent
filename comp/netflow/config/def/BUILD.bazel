@@ -10,10 +10,10 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
-        "//comp/core/log/def",
         "//comp/netflow/common",
-        "//pkg/config/structure",
         "@//pkg/snmp/utils",
+        "@com_github_datadog_datadog_agent_comp_core_log_def//:def",
+        "@com_github_datadog_datadog_agent_pkg_config_structure//:structure",
     ],
 )
 
@@ -23,9 +23,9 @@ go_test(
     embed = [":def"],
     gotags = ["test"],
     deps = [
-        "//comp/core/log/mock",
         "//comp/netflow/common",
         "//pkg/config/mock",
+        "@com_github_datadog_datadog_agent_comp_core_log_mock//:mock",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

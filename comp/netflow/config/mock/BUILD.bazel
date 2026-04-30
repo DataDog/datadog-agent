@@ -6,11 +6,11 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/netflow/config/mock",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/log/def",
         "//comp/def",
         "//comp/netflow/config/def",
         "//comp/netflow/config/impl",
         "//pkg/util/fxutil",
+        "@com_github_datadog_datadog_agent_comp_core_log_def//:def",
         "@org_uber_go_fx//:fx",
     ],
 )

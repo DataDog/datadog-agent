@@ -19,7 +19,7 @@ go_library(
     deps = [
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/impl",
-        "//pkg/system-probe/utils",
+        "@//pkg/system-probe/utils",
         "@com_github_datadog_datadog_go_v5//statsd",
         "@io_k8s_apimachinery//pkg/util/sets",
         "@org_uber_go_atomic//:atomic",

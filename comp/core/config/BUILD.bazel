@@ -23,9 +23,9 @@ go_library(
         "//comp/core/secrets/noop-impl/types",
         "//pkg/config/mock",
         "//pkg/config/model",
-        "//pkg/config/setup",
         "//pkg/util/defaultpaths",
         "//pkg/util/fxutil",
+        "@com_github_datadog_datadog_agent_pkg_config_setup//:setup",
         "@org_uber_go_fx//:fx",
     ] + select({
         "@rules_go//go/platform:windows": [

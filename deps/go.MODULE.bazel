@@ -219,7 +219,6 @@ use_repo(
     "com_github_datadog_datadog_agent_pkg_networkdevice_profile",
     "com_github_datadog_datadog_agent_pkg_networkpath_payload",
     "com_github_datadog_datadog_agent_pkg_obfuscate",
-    "com_github_datadog_datadog_agent_pkg_opentelemetry_mapping_go_inframetadata",
     "com_github_datadog_datadog_agent_pkg_opentelemetry_mapping_go_otlp_attributes",
     "com_github_datadog_datadog_agent_pkg_opentelemetry_mapping_go_otlp_rum",
     "com_github_datadog_datadog_agent_pkg_orchestrator_model",

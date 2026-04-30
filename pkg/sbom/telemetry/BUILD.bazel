@@ -8,6 +8,6 @@ go_library(
     deps = [
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/impl",
-        "//pkg/util/workqueue/telemetry",
+        "@//pkg/util/workqueue/telemetry",
     ],
 )

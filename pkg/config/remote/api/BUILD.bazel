@@ -8,9 +8,9 @@ go_library(
     deps = [
         "//pkg/config/model",
         "//pkg/proto/pbgo/core",
-        "//pkg/util/http",
         "//pkg/util/log",
         "//pkg/version",
+        "@com_github_datadog_datadog_agent_pkg_util_http//:http",
         "@org_golang_google_protobuf//proto",
     ],
 )
