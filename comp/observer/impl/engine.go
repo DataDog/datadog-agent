@@ -219,6 +219,22 @@ func (e *engine) registerHandle(h *handle) {
 // IngestLog / IngestMetric don't allocate a fresh string per ingest. The
 // source set is small and bounded; a copy-on-write map indexed via an
 // atomic.Pointer keeps reads lock-free on the hot path.
+//
+// The bounded-source assumption: every production caller of obs.GetHandle()
+// passes a statically-defined string constant. As of this writing the full
+// set is:
+//   - "all-metrics"          (pkg/aggregator/demultiplexer_agent.go)
+//   - "dogstatsd"            (comp/dogstatsd/server/server.go)
+//   - "logs"                 (comp/observer/logssource/impl/component.go)
+//   - "agent-internal-logs"  (comp/observer/impl/observer.go)
+//   - "profile-agent"        (comp/observer/impl/observer.go)
+//   - hfrunner.HFSource      (comp/observer/impl/observer.go)
+//   - hfrunner.HFContainerSource (comp/observer/impl/observer.go)
+//
+// If a future caller ever passes a user-controlled or per-container source
+// string, the COW map becomes unbounded and this memoisation strategy is
+// the wrong shape (use sync.Map or a bounded LRU). Adding an entry to that
+// list above means revisiting this function.
 func (e *engine) sourceTagForIngest(source string) string {
 	if m := e.sourceTagCache.Load(); m != nil {
 		if tag, ok := (*m)[source]; ok {
@@ -285,13 +301,13 @@ func (e *engine) IngestLog(source string, l *logObs) ([]advanceRequest, []observ
 				copy(newTags, tags)
 				tags = append(newTags, sourceTag)
 			}
-			_, storageKey := e.storage.Add(extractor.Name(), m.Name, m.Value, l.timestampMs/1000, tags)
-			if m.ContextKey != "" && storageKey != "" {
-				// Reuse the storageKey computed inside storage.Add instead of
+			res := e.storage.Add(extractor.Name(), m.Name, m.Value, l.timestampMs/1000, tags)
+			if m.ContextKey != "" && res.StorageKey != "" {
+				// Reuse the storage key computed inside storage.Add instead of
 				// recomputing seriesKey here. seriesKey is hot enough that this
 				// duplicate accounted for ~14.5 MiB heap-live in the
 				// quality_gate_container_logs SMP profile.
-				e.contextRefs[storageKey] = seriesContextRef{
+				e.contextRefs[res.StorageKey] = seriesContextRef{
 					namespace:  extractor.Name(),
 					contextKey: m.ContextKey,
 				}
@@ -373,6 +389,14 @@ func (e *engine) removeContextRefsForEvictedKeys(namespace string, evictedKeys [
 // is responsible for invoking this with whatever refs storage actually
 // freed. Detectors are expected to ignore unknown refs, so itâs safe to
 // broadcast the same ref list to all of them.
+//
+// Concurrency invariant: this method, like every method on engine and
+// every detector RemoveSeries / Detect callback, runs only on the single
+// goroutine driving observerImpl.run() (observer.go). Ingest, advance,
+// detection, and these eviction fan-outs are all serialised through that
+// loop, so detector implementations may mutate per-series state without
+// taking their own locks. Adding a new caller of this function from a
+// different goroutine would break that invariant for every detector.
 func (e *engine) fanOutSeriesRemoval(refs []observerdef.SeriesRef) {
 	if len(refs) == 0 || len(e.detectors) == 0 {
 		return
