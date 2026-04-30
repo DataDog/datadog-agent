@@ -262,7 +262,8 @@ func (s *checkSender) Histogram(metric string, value float64, hostname string, t
 	s.sendMetricSample(metric, value, hostname, tags, metrics.HistogramType, false, false, 0)
 }
 
-// HistogramBucket should be called to send pre-aggregated histogram observations as a sketch.
+// HistogramBucket should be called to send pre-aggregated histogram observations as a sketch,
+// providing compact, aggregatable representation for histograms with bounded error.
 //
 // value is the number of observations that fall between lowerBound and upperBound. Observations
 // will be spread proportionally over a range of sketch buckets.
