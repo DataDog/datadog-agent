@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"go.uber.org/fx"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
@@ -22,9 +21,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/autoscalinggate"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -37,18 +38,26 @@ const (
 type dependencies struct {
 	fx.In
 
-	Config config.Component
+	Config          config.Component
+	AutoscalingGate *autoscalinggate.Gate
 }
 
 // storeGenerator returns a new store specific to a given resource
 type storeGenerator func(context.Context, workloadmeta.Component, config.Reader, kubernetes.Interface) (*cache.Reflector, *reflectorStore)
 
 func shouldHavePodStore(cfg config.Reader) bool {
-	metadataAsTags := configutils.GetMetadataAsTags(cfg)
-	hasPodLabelsAsTags := len(metadataAsTags.GetPodLabelsAsTags()) > 0
-	hasPodAnnotationsAsTags := len(metadataAsTags.GetPodAnnotationsAsTags()) > 0
+	return podsRequiredAtStartup(cfg) || cfg.GetBool("autoscaling.workload.enabled")
+}
 
-	return cfg.GetBool("cluster_agent.collect_kubernetes_tags") || cfg.GetBool("autoscaling.workload.enabled") || cfg.GetBool("autoscaling.cluster.spot.enabled") || hasPodLabelsAsTags || hasPodAnnotationsAsTags
+// podsRequiredAtStartup returns true when some feature needs the pod store to
+// be available from startup. Workload autoscaling does not. It can defer the
+// start via the autoscaling gate.
+func podsRequiredAtStartup(cfg config.Reader) bool {
+	metadataAsTags := configutils.GetMetadataAsTags(cfg)
+	return cfg.GetBool("cluster_agent.collect_kubernetes_tags") ||
+		cfg.GetBool("autoscaling.cluster.spot.enabled") ||
+		len(metadataAsTags.GetPodLabelsAsTags()) > 0 ||
+		len(metadataAsTags.GetPodAnnotationsAsTags()) > 0
 }
 
 func shouldHaveDeploymentStore(cfg config.Reader) bool {
@@ -57,20 +66,6 @@ func shouldHaveDeploymentStore(cfg config.Reader) bool {
 	hasDeploymentsAnnotationsAsTags := len(metadataAsTags.GetResourcesAnnotationsAsTags()["deployments.apps"]) > 0
 
 	return cfg.GetBool("language_detection.enabled") && cfg.GetBool("language_detection.reporting.enabled") || hasDeploymentsLabelsAsTags || hasDeploymentsAnnotationsAsTags
-}
-
-func storeGenerators(cfg config.Reader) []storeGenerator {
-	var generators []storeGenerator
-
-	if shouldHavePodStore(cfg) {
-		generators = append(generators, newPodStore)
-	}
-
-	if shouldHaveDeploymentStore(cfg) {
-		generators = append(generators, newDeploymentStore)
-	}
-
-	return generators
 }
 
 func metadataCollectionGVRs(cfg config.Reader, discoveryClient discovery.DiscoveryInterface) ([]schema.GroupVersionResource, error) {
@@ -194,18 +189,20 @@ func resourcesForCSIDetection(cfg config.Reader) []string {
 }
 
 type collector struct {
-	id      string
-	catalog workloadmeta.AgentType
-	config  config.Reader
+	id              string
+	catalog         workloadmeta.AgentType
+	config          config.Reader
+	autoscalingGate *autoscalinggate.Gate
 }
 
 // NewCollector returns a kubeapiserver CollectorProvider that instantiates its colletor
 func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
-			id:      collectorID,
-			catalog: workloadmeta.ClusterAgent,
-			config:  deps.Config,
+			id:              collectorID,
+			catalog:         workloadmeta.ClusterAgent,
+			config:          deps.Config,
+			autoscalingGate: deps.AutoscalingGate,
 		},
 	}, nil
 }
@@ -242,8 +239,26 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 		}
 	}
 
-	for _, storeBuilder := range storeGenerators(c.config) {
-		reflector, store := storeBuilder(ctx, wlmetaStore, c.config, client)
+	if shouldHavePodStore(c.config) {
+		autoscalingEnabled := c.config.GetBool("autoscaling.workload.enabled")
+		lazyStart := !podsRequiredAtStartup(c.config) && autoscalingEnabled
+
+		if lazyStart {
+			// The store is intentionally not added to objectStores. It would
+			// block the startup readiness check.
+			go c.startPodStoreOnGate(ctx, wlmetaStore, client, newPodStore)
+		} else {
+			reflector, store := newPodStore(ctx, wlmetaStore, c.config, client)
+			objectStores = append(objectStores, store)
+			go reflector.Run(ctx.Done())
+			if autoscalingEnabled {
+				go c.markPodCollectionSyncedWhenReady(ctx, store)
+			}
+		}
+	}
+
+	if shouldHaveDeploymentStore(c.config) {
+		reflector, store := newDeploymentStore(ctx, wlmetaStore, c.config, client)
 		objectStores = append(objectStores, store)
 		go reflector.Run(ctx.Done())
 	}
@@ -263,6 +278,27 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 	go runStartupCheck(ctx, objectStores)
 
 	return nil
+}
+
+// startPodStoreOnGate blocks until the autoscaling gate is enabled or the
+// context is cancelled. On gate enable, it starts the pod reflector.
+func (c *collector) startPodStoreOnGate(ctx context.Context, wlmetaStore workloadmeta.Component, client kubernetes.Interface, newStore storeGenerator) {
+	if !c.autoscalingGate.WaitForEnable(ctx) {
+		return
+	}
+
+	log.Debug("Autoscaling gate enabled, starting workloadmeta pod reflector lazily")
+	reflector, store := newStore(ctx, wlmetaStore, c.config, client)
+	go reflector.Run(ctx.Done())
+
+	c.markPodCollectionSyncedWhenReady(ctx, store)
+}
+
+func (c *collector) markPodCollectionSyncedWhenReady(ctx context.Context, store *reflectorStore) {
+	if !cache.WaitForCacheSync(ctx.Done(), store.HasSynced) {
+		return
+	}
+	c.autoscalingGate.MarkPodCollectionSynced()
 }
 
 func (c *collector) Pull(_ context.Context) error {

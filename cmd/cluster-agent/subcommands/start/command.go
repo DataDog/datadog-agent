@@ -91,6 +91,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
 	admissionpatch "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 	apidca "github.com/DataDog/datadog-agent/pkg/clusteragent/api"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/autoscalinggate"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster"
 	clusterspot "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/spot"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
@@ -180,6 +181,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					InitHelper: workloadmetainit.GetWorkloadmetaInit(),
 					AgentType:  workloadmeta.ClusterAgent,
 				}), // TODO(components): check what this must be for cluster-agent-cloudfoundry
+				fx.Supply(autoscalinggate.New()),
 				fx.Supply(context.Background()),
 				localTaggerfx.Module(),
 				workloadfilterfx.Module(),
@@ -290,6 +292,7 @@ func start(log log.Component,
 	tracerouteComp traceroute.Component,
 	eventPlatform eventplatform.Component,
 	healthPlatform option.Option[healthplatformdef.Component],
+	autoscalingGate *autoscalinggate.Gate,
 ) error {
 	stopCh := make(chan struct{})
 	validatingStopCh := make(chan struct{})
