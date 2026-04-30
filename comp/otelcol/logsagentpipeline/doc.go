@@ -3,16 +3,5 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-<<<<<<<< HEAD:comp/observer/logssource/def/component.go
-// Package logssource provides a component that feeds container logs into the
-// observer without requiring the logs agent to be enabled.
-package logssource
-
-// team: q-branch
-
-// Component is the component type.
-type Component interface{}
-========
 // Package logsagentpipeline provides the logs agent pipeline component.
 package logsagentpipeline
->>>>>>>> main:comp/otelcol/logsagentpipeline/doc.go
