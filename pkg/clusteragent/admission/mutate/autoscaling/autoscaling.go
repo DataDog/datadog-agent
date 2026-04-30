@@ -9,6 +9,8 @@
 package autoscaling
 
 import (
+	"sync"
+
 	admiv1 "k8s.io/api/admission/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -35,11 +37,17 @@ type Webhook struct {
 	resources       []common.WebhookResourceRule
 	operations      []admissionregistrationv1.OperationType
 	matchConditions []admissionregistrationv1.MatchCondition
-	patcher         workload.PodPatcher
+
+	// the patcher is installed lazily via SetPatcher because the workload
+	// autoscaling stack starts lazily when the first DatadogPodAutoscaler is
+	// detected
+	patcherMutex sync.RWMutex
+	patcher      workload.PodPatcher
 }
 
-// NewWebhook returns a new Webhook
-func NewWebhook(patcher workload.PodPatcher, datadogConfig config.Component) *Webhook {
+// NewWebhook returns a new Webhook with no patcher installed. Call SetPatcher
+// once the workload autoscaling stack is up.
+func NewWebhook(datadogConfig config.Component) *Webhook {
 	return &Webhook{
 		name:            webhookName,
 		isEnabled:       datadogConfig.GetBool("autoscaling.workload.enabled"),
@@ -47,8 +55,14 @@ func NewWebhook(patcher workload.PodPatcher, datadogConfig config.Component) *We
 		resources:       []common.WebhookResourceRule{{APIGroup: "", APIVersion: "v1", Resources: []string{"pods"}}},
 		operations:      []admissionregistrationv1.OperationType{admissionregistrationv1.Create},
 		matchConditions: []admissionregistrationv1.MatchCondition{},
-		patcher:         patcher,
 	}
+}
+
+// SetPatcher installs the PodPatcher used to apply recommendations.
+func (w *Webhook) SetPatcher(p workload.PodPatcher) {
+	w.patcherMutex.Lock()
+	defer w.patcherMutex.Unlock()
+	w.patcher = p
 }
 
 // Name returns the name of the webhook
@@ -105,11 +119,19 @@ func (w *Webhook) MatchConditions() []admissionregistrationv1.MatchCondition {
 // WebhookFunc returns the function that mutates the resources
 func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 	return func(request *admission.Request) *admiv1.AdmissionResponse {
-		return common.MutationResponse(mutatecommon.Mutate(request.Object, request.Namespace, w.Name(), w.updateResources, request.DynamicClient))
-	}
-}
+		w.patcherMutex.RLock()
+		p := w.patcher
+		w.patcherMutex.RUnlock()
+		if p == nil {
+			// No patcher means there's nothing to do. Skip parsing the pod to
+			// avoid the cost of unmarshalling and re-marshalling.
+			return &admiv1.AdmissionResponse{Allowed: true}
+		}
 
-// updateResources finds the owner of a pod, calls the recommender to retrieve the recommended CPU and Memory requests
-func (w *Webhook) updateResources(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
-	return w.patcher.ApplyRecommendations(pod)
+		mutator := func(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
+			return p.ApplyRecommendations(pod)
+		}
+
+		return common.MutationResponse(mutatecommon.Mutate(request.Object, request.Namespace, w.Name(), mutator, request.DynamicClient))
+	}
 }

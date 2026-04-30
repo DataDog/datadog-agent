@@ -32,7 +32,6 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	clusterspot "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/spot"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
@@ -52,7 +51,7 @@ type ControllerV1beta1 struct {
 }
 
 // NewControllerV1beta1 returns a new Webhook Controller using admissionregistration/v1beta1.
-func NewControllerV1beta1(client kubernetes.Interface, secretInformer coreinformers.SecretInformer, validatingWebhookInformer admissioninformers.ValidatingWebhookConfigurationInformer, mutatingWebhookInformer admissioninformers.MutatingWebhookConfigurationInformer, isLeaderFunc func() bool, leadershipStateNotif <-chan struct{}, config Config, wmeta workloadmeta.Component, pp workload.PodPatcher, sh clusterspot.PodHandler, datadogConfig config.Component, demultiplexer demultiplexer.Component, filterStore workloadfilter.Component, handlers []instrumentation.Handler, informerFactory dynamicinformer.DynamicSharedInformerFactory) *ControllerV1beta1 {
+func NewControllerV1beta1(client kubernetes.Interface, secretInformer coreinformers.SecretInformer, validatingWebhookInformer admissioninformers.ValidatingWebhookConfigurationInformer, mutatingWebhookInformer admissioninformers.MutatingWebhookConfigurationInformer, isLeaderFunc func() bool, leadershipStateNotif <-chan struct{}, config Config, wmeta workloadmeta.Component, sh clusterspot.PodHandler, datadogConfig config.Component, demultiplexer demultiplexer.Component, filterStore workloadfilter.Component, handlers []instrumentation.Handler, informerFactory dynamicinformer.DynamicSharedInformerFactory) *ControllerV1beta1 {
 	controller := &ControllerV1beta1{}
 	controller.clientSet = client
 	controller.config = config
@@ -69,7 +68,7 @@ func NewControllerV1beta1(client kubernetes.Interface, secretInformer coreinform
 	)
 	controller.isLeaderFunc = isLeaderFunc
 	controller.leadershipStateNotif = leadershipStateNotif
-	controller.webhooks = controller.generateWebhooks(datadogConfig, wmeta, demultiplexer, pp, sh, filterStore, handlers, informerFactory)
+	controller.webhooks = controller.generateWebhooks(datadogConfig, wmeta, demultiplexer, sh, filterStore, handlers, informerFactory)
 	controller.generateTemplates()
 
 	if _, err := secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{

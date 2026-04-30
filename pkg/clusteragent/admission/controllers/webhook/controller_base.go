@@ -43,7 +43,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/validate/datadoginstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/validate/kubernetesadmissionevents"
 	clusterspot "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/spot"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
 	kubecommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -56,11 +55,11 @@ type Controller interface {
 }
 
 // NewController returns the adequate implementation of the Controller interface.
-func NewController(client kubernetes.Interface, secretInformer coreinformers.SecretInformer, validatingInformers admissionregistration.Interface, mutatingInformers admissionregistration.Interface, isLeaderFunc func() bool, leadershipStateNotif <-chan struct{}, config Config, wmeta workloadmeta.Component, pp workload.PodPatcher, sh clusterspot.PodHandler, datadogConfig config.Component, demultiplexer demultiplexer.Component, filterStore workloadfilter.Component, handlers []instrumentation.Handler, informerFactory dynamicinformer.DynamicSharedInformerFactory) Controller {
+func NewController(client kubernetes.Interface, secretInformer coreinformers.SecretInformer, validatingInformers admissionregistration.Interface, mutatingInformers admissionregistration.Interface, isLeaderFunc func() bool, leadershipStateNotif <-chan struct{}, config Config, wmeta workloadmeta.Component, sh clusterspot.PodHandler, datadogConfig config.Component, demultiplexer demultiplexer.Component, filterStore workloadfilter.Component, handlers []instrumentation.Handler, informerFactory dynamicinformer.DynamicSharedInformerFactory) Controller {
 	if config.useAdmissionV1() {
-		return NewControllerV1(client, secretInformer, validatingInformers.V1().ValidatingWebhookConfigurations(), mutatingInformers.V1().MutatingWebhookConfigurations(), isLeaderFunc, leadershipStateNotif, config, wmeta, pp, sh, datadogConfig, demultiplexer, filterStore, handlers, informerFactory)
+		return NewControllerV1(client, secretInformer, validatingInformers.V1().ValidatingWebhookConfigurations(), mutatingInformers.V1().MutatingWebhookConfigurations(), isLeaderFunc, leadershipStateNotif, config, wmeta, sh, datadogConfig, demultiplexer, filterStore, handlers, informerFactory)
 	}
-	return NewControllerV1beta1(client, secretInformer, validatingInformers.V1beta1().ValidatingWebhookConfigurations(), mutatingInformers.V1beta1().MutatingWebhookConfigurations(), isLeaderFunc, leadershipStateNotif, config, wmeta, pp, sh, datadogConfig, demultiplexer, filterStore, handlers, informerFactory)
+	return NewControllerV1beta1(client, secretInformer, validatingInformers.V1beta1().ValidatingWebhookConfigurations(), mutatingInformers.V1beta1().MutatingWebhookConfigurations(), isLeaderFunc, leadershipStateNotif, config, wmeta, sh, datadogConfig, demultiplexer, filterStore, handlers, informerFactory)
 }
 
 // Webhook represents an admission webhook
@@ -96,7 +95,7 @@ type Webhook interface {
 // The reason is that the volume mount for the APM socket added by the configWebhook webhook
 // doesn't always work on Fargate (one of the envs where we use an agent sidecar), and
 // the agent sidecar webhook needs to remove it.
-func (c *controllerBase) generateWebhooks(datadogConfig config.Component, wmeta workloadmeta.Component, demultiplexer demultiplexer.Component, pp workload.PodPatcher, sh clusterspot.PodHandler, filterStore workloadfilter.Component, handlers []instrumentation.Handler, informerFactory dynamicinformer.DynamicSharedInformerFactory) []Webhook {
+func (c *controllerBase) generateWebhooks(datadogConfig config.Component, wmeta workloadmeta.Component, demultiplexer demultiplexer.Component, sh clusterspot.PodHandler, filterStore workloadfilter.Component, handlers []instrumentation.Handler, informerFactory dynamicinformer.DynamicSharedInformerFactory) []Webhook {
 	var webhooks []Webhook
 	var validatingWebhooks []Webhook
 
@@ -134,8 +133,10 @@ func (c *controllerBase) generateWebhooks(datadogConfig config.Component, wmeta 
 	agentsWebhook := agentsidecar.NewWebhook(datadogConfig)
 	webhooks = append(webhooks, agentsWebhook)
 
-	// Setup autoscaling webhook.
-	autoscalingWebhook := autoscaling.NewWebhook(pp, datadogConfig)
+	// Setup autoscaling webhook. The pod patcher is set when the workload
+	// autoscaling stack starts on first DPA observation, until then the webhook
+	// is a no-op.
+	autoscalingWebhook := autoscaling.NewWebhook(datadogConfig)
 	webhooks = append(webhooks, autoscalingWebhook)
 
 	// Setup spot scheduling webhook.
