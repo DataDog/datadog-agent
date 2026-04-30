@@ -60,7 +60,7 @@ func (*lang) GenerateRules(args language.GenerateArgs) language.GenerateResult {
 			copyAttr(r, nr, "embed")
 			copyAttr(r, nr, "deps")
 			nr.SetAttr("gotags", flavorGotagsExpr(flavor))
-			nr.SetAttr("tags", []string{"flavor_" + flavor})
+			nr.SetAttr("tags", []string{"go_tests", "flavor_" + flavor})
 			gen = append(gen, nr)
 			flavorTestNames = append(flavorTestNames, ":"+r.Name()+"_"+flavor)
 		}

@@ -54,9 +54,11 @@ func TestGenerateRules_SingleGoTest(t *testing.T) {
 		if r.Attr("gotags") == nil {
 			t.Errorf("Gen[%d]: missing gotags attr", i)
 		}
-		wantTag := "flavor_" + flavor
-		if tags := r.AttrStrings("tags"); !containsString(tags, wantTag) {
-			t.Errorf("Gen[%d]: tags %v missing %q", i, tags, wantTag)
+		tags := r.AttrStrings("tags")
+		for _, wantTag := range []string{"go_tests", "flavor_" + flavor} {
+			if !containsString(tags, wantTag) {
+				t.Errorf("Gen[%d]: tags %v missing %q", i, tags, wantTag)
+			}
 		}
 	}
 
@@ -147,10 +149,11 @@ func TestGenerateRules_FlavorTags(t *testing.T) {
 	result := new(lang).GenerateRules(language.GenerateArgs{OtherGen: []*rule.Rule{orig}})
 
 	for i, flavor := range flavorNames {
-		wantTag := "flavor_" + flavor
 		tags := result.Gen[i].AttrStrings("tags")
-		if !containsString(tags, wantTag) {
-			t.Errorf("Gen[%d] (%s): tags %v missing %q", i, flavor, tags, wantTag)
+		for _, wantTag := range []string{"go_tests", "flavor_" + flavor} {
+			if !containsString(tags, wantTag) {
+				t.Errorf("Gen[%d] (%s): tags %v missing %q", i, flavor, tags, wantTag)
+			}
 		}
 	}
 }
