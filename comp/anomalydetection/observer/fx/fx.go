@@ -7,8 +7,6 @@
 package fx
 
 import (
-	"go.uber.org/fx"
-
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	observerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -17,8 +15,6 @@ import (
 // Module defines the fx options for the observer component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		// Provide default (empty) config - values come from datadog.yaml via pkgconfigsetup
-		fx.Supply(observerimpl.AgentInternalLogTapConfig{}),
 		fxutil.ProvideComponentConstructor(
 			observerimpl.NewComponent,
 		),

@@ -144,8 +144,6 @@ modules:
     used_by_otel: true
   comp/trace/compression/impl-zstd:
     used_by_otel: true
-  comp/trace/observerbuffer/def:
-    used_by_otel: true
   internal/tools:
     independent: false
     should_tag: false

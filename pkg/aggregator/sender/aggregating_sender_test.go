@@ -25,11 +25,8 @@ type capturingHandle struct {
 	samples []observerdef.MetricView
 }
 
-func (h *capturingHandle) ObserveMetric(s observerdef.MetricView)         { h.samples = append(h.samples, s) }
-func (h *capturingHandle) ObserveLog(_ observerdef.LogView)               {}
-func (h *capturingHandle) ObserveTrace(_ observerdef.TraceView)           {}
-func (h *capturingHandle) ObserveTraceStats(_ observerdef.TraceStatsView) {}
-func (h *capturingHandle) ObserveProfile(_ observerdef.ProfileView)       {}
+func (h *capturingHandle) ObserveMetric(s observerdef.MetricView) { h.samples = append(h.samples, s) }
+func (h *capturingHandle) ObserveLog(_ observerdef.LogView)       {}
 
 // noopSender satisfies Sender and discards everything.
 type noopSender struct{}

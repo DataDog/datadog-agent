@@ -41,11 +41,8 @@ type countingHandle struct {
 	profileReceived int
 }
 
-func (h *countingHandle) ObserveMetric(_ observerdef.MetricView)         { h.received++ }
-func (h *countingHandle) ObserveLog(_ observerdef.LogView)               { h.logReceived++ }
-func (h *countingHandle) ObserveTrace(_ observerdef.TraceView)           {}
-func (h *countingHandle) ObserveTraceStats(_ observerdef.TraceStatsView) {}
-func (h *countingHandle) ObserveProfile(_ observerdef.ProfileView)       { h.profileReceived++ }
+func (h *countingHandle) ObserveMetric(_ observerdef.MetricView) { h.received++ }
+func (h *countingHandle) ObserveLog(_ observerdef.LogView)       { h.logReceived++ }
 
 func makeHFHandle(sources map[metrics.MetricSource]struct{}) *hfFilteredHandle {
 	return &hfFilteredHandle{inner: &countingHandle{}, sources: sources}

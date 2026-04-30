@@ -102,7 +102,7 @@ func TestAgentExtension(t *testing.T) {
 	tcfg.DecoderTimeout = 10000
 	tcfg.ProfilingProxy = config.ProfilingProxyConfig{DDURL: server.URL}
 	ctx := context.Background()
-	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, gzip.NewComponent(), nil)
+	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, gzip.NewComponent())
 
 	// create extension
 	ext, err := NewExtension(&Config{

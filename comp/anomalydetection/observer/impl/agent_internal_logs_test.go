@@ -10,17 +10,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/stretchr/testify/require"
 )
 
 func TestAgentInternalLogsFlowIntoObserver(t *testing.T) {
-	// Disable sampling for this test so the log is guaranteed to be forwarded.
-	one := 1.0
-	enabled := true
-
 	// Ensure util/log is initialized so log calls actually emit (otherwise they buffer pre-init).
 	pkglog.SetupLogger(pkglog.Disabled(), "info")
 	pkglog.SetLoggerName("CORE")
@@ -28,15 +27,14 @@ func TestAgentInternalLogsFlowIntoObserver(t *testing.T) {
 	// Enable analysis pipeline so GetHandle returns a real handle (not noop).
 	cfg := configmock.New(t)
 	cfg.Set("observer.analysis.enabled", true, model.SourceAgentRuntime)
+	cfg.SetWithoutSource("observer.capture_agent_internal_logs.enabled", true)
+	cfg.SetWithoutSource("observer.capture_agent_internal_logs.sample_rate_info", 1.0)
+	cfg.SetWithoutSource("observer.capture_agent_internal_logs.sample_rate_debug", 1.0)
+	cfg.SetWithoutSource("observer.capture_agent_internal_logs.sample_rate_trace", 1.0)
 
 	provides := NewComponent(Requires{
-		Config: cfg,
-		AgentInternalLogTap: AgentInternalLogTapConfig{
-			Enabled:         &enabled,
-			SampleRateInfo:  &one,
-			SampleRateDebug: &one,
-			SampleRateTrace: &one,
-		},
+		Telemetry: nooptelemetry.GetCompatComponent(),
+		Config:    cfg,
 	})
 	obs, ok := provides.Comp.(*observerImpl)
 	require.True(t, ok)
@@ -55,15 +53,11 @@ func TestAgentInternalLogsFlowIntoObserver(t *testing.T) {
 
 	// Poll briefly since observer processes asynchronously.
 	// Namespace is the extractor component name (log_metrics_extractor).
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		if s := obs.engine.Storage().GetSeries("log_metrics_extractor", metricName, tags, AggregateSum); s != nil && len(s.Points) > 0 {
-			return
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-
-	t.Fatalf("expected series not found for agent internal logs: %s", metricName)
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		s := obs.engine.Storage().GetSeries("log_metrics_extractor", metricName, tags, AggregateSum)
+		require.NotNil(collect, s)
+		require.Greater(collect, len(s.Points), 0)
+	}, time.Second*5, time.Millisecond*10)
 }
 
 func toHex64(v uint64) string {

@@ -11,13 +11,14 @@ import (
 	"context"
 	"testing"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	zstd "github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd"
 	pkgagent "github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 type noopTraceWriter struct{}
@@ -52,7 +53,6 @@ func NewMock(deps dependencies, _ testing.TB) traceagent.Component {
 			telemetryCollector,
 			&statsd.NoOpClient{},
 			zstd.NewComponent(),
-			nil,
 		),
 		cancel:             cancel,
 		config:             deps.Config,

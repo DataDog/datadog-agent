@@ -14,7 +14,6 @@ package trace
 import (
 	traceagentfx "github.com/DataDog/datadog-agent/comp/trace/agent/fx"
 	traceconfigfx "github.com/DataDog/datadog-agent/comp/trace/config/fx"
-	observerbufferfx "github.com/DataDog/datadog-agent/comp/trace/observerbuffer/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -25,5 +24,5 @@ func Bundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
 		traceconfigfx.Module(),
 		traceagentfx.Module(),
-		observerbufferfx.Module())
+	)
 }

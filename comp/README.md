@@ -735,11 +735,6 @@ Package config implements a component to handle trace-agent configuration.
 
 Package etwtracer provides ETW events to the .Net tracer
 
-### [comp/trace/observerbuffer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace/observerbuffer)
-
-Package observerbuffer provides a ring buffer for trace and profile data
-that will be fetched by the core-agent's observer component.
-
 ### [comp/trace/payload-modifier](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace/payload-modifier)
 
 Package payloadmodifier defines the trace payload modifier component interface
