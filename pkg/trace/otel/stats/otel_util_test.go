@@ -117,6 +117,24 @@ func TestProcessOTLPTraces(t *testing.T) {
 			expected: createStatsPayload(agentEnv, agentHost, "svc", "spring.server", "web", "server", "spanname", agentHost, agentEnv, "", "", nil, nil, true, false),
 		},
 		{
+			name:     "gRPC status code is included in trace metrics",
+			spanName: "grpc_span",
+			rattrs:   map[string]string{"service.name": "grpc-svc"},
+			sattrs: map[string]any{
+				"rpc.grpc.status_code": int64(10),
+				"rpc.method":           "Baseline",
+				"rpc.service":          "otel2718.Repro",
+				"rpc.system":           "grpc",
+			},
+			spanKind: ptrace.SpanKindServer,
+			libname:  "otelgrpc",
+			expected: func() *pb.StatsPayload {
+				payload := createStatsPayload(agentEnv, agentHost, "grpc-svc", "otelgrpc.server", "web", "server", "Baseline otel2718.Repro", agentHost, agentEnv, "", "", nil, nil, true, false)
+				payload.Stats[0].Stats[0].Stats[0].GRPCStatusCode = "10"
+				return payload
+			}(),
+		},
+		{
 			name:     "span with operation name, resource name and env attributes",
 			spanName: "spanname2",
 			rattrs:   map[string]string{"service.name": "svc", string(semconv.DeploymentEnvironmentKey): "tracer-env"},
