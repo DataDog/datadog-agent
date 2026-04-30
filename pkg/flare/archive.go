@@ -248,7 +248,6 @@ func (r *RemoteFlareProvider) provideExtraFiles(_ context.Context, fb flaretypes
 		fb.AddFile("status.log", []byte("unable to get the status of the agent, is it running?"))           //nolint:errcheck
 		fb.AddFile("config-check.log", []byte("unable to get loaded checks config, is the agent running?")) //nolint:errcheck
 	} else {
-		fb.AddFileFromFunc("tagger-list.json", r.getAgentTaggerList)    //nolint:errcheck
 		fb.AddFileFromFunc("workload-list.log", r.getAgentWorkloadList) //nolint:errcheck
 		if !coreagent.ProcessChecksRunInCoreAgent() {
 			fb.AddFileFromFunc("process-agent_tagger-list.json", r.getProcessAgentTaggerList) //nolint:errcheck
@@ -374,17 +373,6 @@ func (r *RemoteFlareProvider) getChecksFromProcessAgent(fb flaretypes.FlareBuild
 	getCheck("process", "process_config.process_collection.enabled")
 	getCheck("container", "process_config.container_collection.enabled")
 	getCheck("process_discovery", "process_config.process_discovery.enabled")
-}
-
-func (r *RemoteFlareProvider) getAgentTaggerList() ([]byte, error) {
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
-	if err != nil {
-		return nil, err
-	}
-
-	taggerListURL := fmt.Sprintf("https://%v:%v/agent/tagger-list", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port"))
-
-	return r.GetTaggerList(taggerListURL)
 }
 
 func (r *RemoteFlareProvider) getProcessAgentTaggerList() ([]byte, error) {
