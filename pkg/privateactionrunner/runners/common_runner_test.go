@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
+	testopms "github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms/testing"
 )
 
 // TestHealthCheckLoop_HonorsRetryAfterMs verifies that the health check loop
@@ -28,10 +29,10 @@ func TestHealthCheckLoop_HonorsRetryAfterMs(t *testing.T) {
 	callTimes := make(chan time.Time, 10)
 
 	runner := &CommonRunner{
-		opmsClient: &fakeOpmsClient{
-			healthCheckFn: func(_ context.Context) (*opms.HealthCheckData, error) {
+		opmsClient: &testopms.FakeOpmsClient{
+			HealthCheckFn: func(_ context.Context) (*opms.HealthCheckData, error) {
 				callTimes <- time.Now()
-				return &opms.HealthCheckData{RetryAfterMs: retryAfterMs * time.Millisecond}, nil
+				return &opms.HealthCheckData{RetryAfter: retryAfterMs * time.Millisecond}, nil
 			},
 		},
 		config: &config.Config{HealthCheckInterval: defaultIntervalMs},
@@ -66,10 +67,10 @@ func TestHealthCheckLoop_DefaultIntervalWhenRetryAfterIsZero(t *testing.T) {
 	callTimes := make(chan time.Time, 10)
 
 	runner := &CommonRunner{
-		opmsClient: &fakeOpmsClient{
-			healthCheckFn: func(_ context.Context) (*opms.HealthCheckData, error) {
+		opmsClient: &testopms.FakeOpmsClient{
+			HealthCheckFn: func(_ context.Context) (*opms.HealthCheckData, error) {
 				callTimes <- time.Now()
-				return &opms.HealthCheckData{RetryAfterMs: 0}, nil
+				return &opms.HealthCheckData{RetryAfter: 0}, nil
 			},
 		},
 		config: &config.Config{HealthCheckInterval: defaultIntervalMs},

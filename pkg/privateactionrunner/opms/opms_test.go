@@ -150,7 +150,7 @@ func TestHealthCheck_RetryAfterMs(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, data)
-	assert.Equal(t, 1500*time.Millisecond, data.RetryAfterMs)
+	assert.Equal(t, 1500*time.Millisecond, data.RetryAfter)
 	require.NotNil(t, data.ServerTime)
 }
 
@@ -165,7 +165,7 @@ func TestHealthCheck_RetryAfterMs_ZeroMeansDefault(t *testing.T) {
 	data, err := c.HealthCheck(context.Background())
 
 	require.NoError(t, err)
-	assert.Equal(t, time.Duration(0), data.RetryAfterMs)
+	assert.Equal(t, time.Duration(0), data.RetryAfter)
 }
 
 func TestHealthCheck_RetryAfterMs_PopulatedOnError(t *testing.T) {
@@ -181,5 +181,5 @@ func TestHealthCheck_RetryAfterMs_PopulatedOnError(t *testing.T) {
 
 	require.Error(t, err)
 	require.NotNil(t, data)
-	assert.Equal(t, 3000*time.Millisecond, data.RetryAfterMs)
+	assert.Equal(t, 3000*time.Millisecond, data.RetryAfter)
 }

@@ -87,8 +87,8 @@ type HeartbeatJSONRequest struct {
 }
 
 type HealthCheckData struct {
-	ServerTime   *time.Time    `json:"server_time,omitempty"`
-	RetryAfterMs time.Duration `json:"retry_after_ms,omitempty"`
+	ServerTime *time.Time    `json:"server_time,omitempty"`
+	RetryAfter time.Duration `json:"retry_after_ms,omitempty"`
 }
 
 // Client is the OPMS client interface
@@ -301,7 +301,7 @@ func createHealthCheckData(headers http.Header) *HealthCheckData {
 				response.ServerTime = &serverTime
 			}
 		}
-		response.RetryAfterMs = parseRetryAfterMs(headers)
+		response.RetryAfter = parseRetryAfterMs(headers)
 	}
 
 	return response
