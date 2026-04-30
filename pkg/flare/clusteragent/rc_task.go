@@ -8,6 +8,7 @@ package clusteragent
 import (
 	"errors"
 	"fmt"
+	"os"
 
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
@@ -70,5 +71,13 @@ func HandleRCFlareTask(
 		configUtils.GetInfraEndpoint(cfg),
 		flarehelpers.NewRemoteConfigFlareSource(task.Config.UUID),
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	if removeErr := os.Remove(filePath); removeErr != nil {
+		log.Warnf("[RemoteFlare] Could not remove local flare archive %s: %v", filePath, removeErr)
+	} else {
+		log.Infof("[RemoteFlare] Removed local flare archive %s", filePath)
+	}
+	return nil
 }

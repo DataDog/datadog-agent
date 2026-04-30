@@ -7,6 +7,7 @@ package clusteragent
 
 import (
 	"errors"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -111,11 +112,17 @@ func TestHandleRCFlareTask_HappyPath(t *testing.T) {
 		sendFlareFunc = origSend
 	})
 
+	// Use a real temp file to verify it gets removed after successful upload.
+	tmpFile, err := os.CreateTemp("", "flare-*.zip")
+	require.NoError(t, err)
+	tmpFile.Close()
+	tmpPath := tmpFile.Name()
+
 	var capturedCaseID, capturedUserHandle string
 	var capturedSource flarehelpers.FlareSource
 
 	createDCAArchiveFunc = func(_ bool, _, _ string, _ ProfileData, _ status.Component, _ diagnose.Component, _ ipc.Component) (string, error) {
-		return "/tmp/fake-flare.zip", nil
+		return tmpPath, nil
 	}
 	sendFlareFunc = func(_ pkgconfigmodel.Reader, _, caseID, userHandle, _, _ string, source flarehelpers.FlareSource) (string, error) {
 		capturedCaseID = caseID
@@ -130,9 +137,44 @@ func TestHandleRCFlareTask_HappyPath(t *testing.T) {
 		"user_handle": "support@example.com",
 	})
 
-	err := HandleRCFlareTask(task, cfg, nil, nil, nil)
+	err = HandleRCFlareTask(task, cfg, nil, nil, nil)
 	require.NoError(t, err)
 	assert.Equal(t, "99999", capturedCaseID)
 	assert.Equal(t, "support@example.com", capturedUserHandle)
 	assert.Equal(t, flarehelpers.NewRemoteConfigFlareSource("uuid-5"), capturedSource)
+	_, statErr := os.Stat(tmpPath)
+	assert.True(t, os.IsNotExist(statErr), "flare archive should be removed after successful upload")
+}
+
+func TestHandleRCFlareTask_NoCleanupOnSendError(t *testing.T) {
+	origCreate := createDCAArchiveFunc
+	origSend := sendFlareFunc
+	t.Cleanup(func() {
+		createDCAArchiveFunc = origCreate
+		sendFlareFunc = origSend
+	})
+
+	tmpFile, err := os.CreateTemp("", "flare-*.zip")
+	require.NoError(t, err)
+	tmpFile.Close()
+	tmpPath := tmpFile.Name()
+	t.Cleanup(func() { os.Remove(tmpPath) })
+
+	createDCAArchiveFunc = func(_ bool, _, _ string, _ ProfileData, _ status.Component, _ diagnose.Component, _ ipc.Component) (string, error) {
+		return tmpPath, nil
+	}
+	sendFlareFunc = func(_ pkgconfigmodel.Reader, _, _, _, _, _ string, _ flarehelpers.FlareSource) (string, error) {
+		return "", errors.New("send failed")
+	}
+
+	cfg := configmock.New(t)
+	task := buildAgentTaskConfig(t, "flare", "uuid-6", map[string]string{
+		"case_id":     "12345",
+		"user_handle": "test@example.com",
+	})
+
+	err = HandleRCFlareTask(task, cfg, nil, nil, nil)
+	assert.ErrorContains(t, err, "send failed")
+	_, statErr := os.Stat(tmpPath)
+	assert.NoError(t, statErr, "flare archive should be kept when upload fails")
 }
