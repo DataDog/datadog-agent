@@ -137,6 +137,14 @@ func main() {
 	condNilPtrStruct(&condFields{I32: 300}, "match")
 	condNilPtrStruct(nil, "nilptr")
 
+	// condGuarded for split-condition short-circuit tests. Calls cover
+	// match, no-match, and nil-pointer paths so probes can verify the
+	// guard `(x != nil && x.I32 == 1)` correctly short-circuits without
+	// nil-derefing.
+	condGuarded(&condFields{I32: 1}, "match")
+	condGuarded(&condFields{I32: 99}, "miss")
+	condGuarded(nil, "nilptr")
+
 	// `== null` condition targets: each called twice — once with nil (probe
 	// matches) and once with non-nil (probe does not match). Covers all four
 	// nullable Go types: pointer, slice, map, interface.
@@ -517,6 +525,22 @@ func condPtrStructArg(x *condFields, tag string) {
 //go:noinline
 func condNilPtrStruct(x *condFields, tag string) {
 	fmt.Println("condNilPtrStruct", x, tag)
+}
+
+// condGuarded mixes a pointer arg (may be nil) with a return value so a
+// split-event-kind condition can guard a potentially-nil-derefing entry
+// leaf with another entry leaf, e.g. (x != nil && x.I32 == 1) and pair
+// it with a return-side leaf like @return == 0. Used by tests that
+// verify the guard short-circuits correctly when x is nil.
+//
+//go:noinline
+func condGuarded(x *condFields, tag string) int {
+	if x == nil {
+		fmt.Println("condGuarded nil", tag)
+		return 0
+	}
+	fmt.Println("condGuarded", x.I32, tag)
+	return int(x.I32)
 }
 
 // condReturnAndLocal has parameters a and b, a local (sum), and a return

@@ -2288,7 +2288,10 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
         expr_status_write(buf, sm->expr_results_offset, expr_status_idx, EXPR_STATUS_NIL_DEREF);
       }
       sm->condition_nil_deref = true;
-      // Abort expression evaluation.
+      // Abort expression evaluation. For split-event-kind conditions the
+      // entry-side driver invokes each leaf as its own SM function, so
+      // sm_return here lands back in the driver, which captures the
+      // error flavor via SM_OP_CONDITION_LEAF_RECORD.
       scratch_buf_set_len(buf, sm->expr_results_end_offset);
       if (!sm_return(sm)) {
         return 1;
@@ -3141,9 +3144,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
 
   case SM_OP_CONDITION_BEGIN: {
     // Arm the eval-error flag. See the lifecycle comment on
-    // condition_eval_error in context.h: this is one of three ops that
-    // touch the flag (BEGIN arms, JUMP_IF_* leave untouched, CHECK
-    // clears on success).
+    // condition_eval_error in context.h.
     sm->condition_eval_error = true;
   } break;
 
@@ -3189,6 +3190,103 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     if ((*buf)[sm->offset] != 0) {
       sm->pc = target_pc;
     }
+  } break;
+
+  // --- Split-event-kind condition ops (per-leaf 2-bit status + AST replay) ---
+
+  // CONDITION_STATE_INIT: clears condition_state at the start of the
+  // entry-side driver. stack_machine_ctx_load already zeroes
+  // condition_state on every probe entry, but this op makes the driver
+  // self-contained against future changes.
+  case SM_OP_CONDITION_STATE_INIT: {
+    sm->condition_state = 0;
+  } break;
+
+  // CONDITION_LEAF_RECORD: captures the outcome of an entry-side leaf
+  // (called via SM_OP_CALL just before this op) into the 2-bit slot for
+  // leaf Index in condition_state. Reads condition_eval_error /
+  // condition_nil_deref to derive the error flavor; if neither is set,
+  // reads the boolean byte at sm->offset to derive false/true. Clears
+  // both error flags so the next leaf starts clean. Index is 0..7.
+  case SM_OP_CONDITION_LEAF_RECORD: {
+    uint8_t leaf_idx = sm_read_program_uint8(sm) & 7;
+    uint16_t status;
+    if (sm->condition_eval_error) {
+      status = sm->condition_nil_deref ? LEAF_STATUS_NIL_DEREF
+                                       : LEAF_STATUS_EVAL_ERROR;
+    } else {
+      if (!scratch_buf_bounds_check(&sm->offset, 1)) {
+        return 1;
+      }
+      status = (*buf)[sm->offset] & 1; // FALSE=0, TRUE=1
+    }
+    uint16_t mask = (uint16_t)(3u << (2u * leaf_idx));
+    sm->condition_state =
+        (uint16_t)((sm->condition_state & ~mask)
+                   | (uint16_t)(status << (2u * leaf_idx)));
+    // Clear per-leaf error flags so the next leaf's record sees fresh
+    // state.
+    sm->condition_eval_error = false;
+    sm->condition_nil_deref = false;
+  } break;
+
+  // CONDITION_LEAF_LOAD: read leaf Index's 2-bit status and dispatch.
+  // FALSE/TRUE writes 0/1 at sm->offset and continues. EVAL_ERROR /
+  // NIL_DEREF set condition_eval_error (and nil_deref for the latter),
+  // write 1 at sm->offset (so the surrounding ConditionCheck passes),
+  // and jump to ErrorTarget — bypassing surrounding short-circuit and
+  // Not ops so the error flag survives to event.c surfacing.
+  case SM_OP_CONDITION_LEAF_LOAD: {
+    uint8_t leaf_idx = sm_read_program_uint8(sm) & 7;
+    uint32_t error_target = sm_read_program_uint32(sm);
+    uint16_t status =
+        (uint16_t)((sm->condition_state >> (2u * leaf_idx)) & 3u);
+    if (!scratch_buf_bounds_check(&sm->offset, 1)) {
+      return 1;
+    }
+    if (status == LEAF_STATUS_FALSE) {
+      (*buf)[sm->offset] = 0;
+    } else if (status == LEAF_STATUS_TRUE) {
+      (*buf)[sm->offset] = 1;
+    } else {
+      // EVAL_ERROR or NIL_DEREF: surface as fail-open and short-circuit
+      // to the tail.
+      sm->condition_eval_error = true;
+      if (status == LEAF_STATUS_NIL_DEREF) {
+        sm->condition_nil_deref = true;
+      }
+      (*buf)[sm->offset] = 1;
+      sm->pc = error_target;
+    }
+  } break;
+
+  // CONDITION_CHECK_PRESERVE_ERROR: like SM_OP_CONDITION_CHECK but does
+  // NOT clear condition_eval_error. Used at the tail of split-event-kind
+  // condition drivers so that an eval-error surfaced by
+  // SM_OP_CONDITION_LEAF_LOAD during AST replay survives to event.c's
+  // header surfacing.
+  case SM_OP_CONDITION_CHECK_PRESERVE_ERROR: {
+    if (!scratch_buf_bounds_check(&sm->offset, 1)) {
+      return 1;
+    }
+    uint8_t val = (*buf)[sm->offset];
+    if (val == 0) {
+      sm->condition_failed = true;
+      LOG(1, "condition check failed");
+      return 1; // Abort stack machine.
+    }
+  } break;
+
+  // CONDITION_LEAF_COMPLETE: emitted at the tail of a per-leaf SM
+  // sub-function on the success path. Clears condition_eval_error so
+  // the driver's CONDITION_LEAF_RECORD can distinguish success
+  // (eval_error == false → read boolean byte at sm->offset) from abort
+  // (eval_error == true → encode error flavor from condition_nil_deref).
+  // Abort paths inside the leaf bypass this op via sm_return, leaving
+  // condition_eval_error armed by SM_OP_CONDITION_BEGIN at the leaf's
+  // prelude.
+  case SM_OP_CONDITION_LEAF_COMPLETE: {
+    sm->condition_eval_error = false;
   } break;
 
   // ---------------------------------------------------------------------------

@@ -152,6 +152,7 @@ Probes:
                       Kind: Int
                       ByteSize: 8
                     - __kind: ConditionCheckOp
+                LeafBodies: []
           probeTemplate:
             TemplateString: ms={ms}
             Segments:
@@ -3281,6 +3282,7 @@ Types:
                   Variable: {subprogram: 2, index: 0, name: payload}
                   Offset: 0
                   ByteSize: 24
+            LeafBodies: []
           DictIndex: -1
         - Name: tag
           Offset: 25
@@ -3292,6 +3294,7 @@ Types:
                   Variable: {subprogram: 2, index: 1, name: tag}
                   Offset: 0
                   ByteSize: 16
+            LeafBodies: []
           DictIndex: -1
     - __kind: EventRootType
       ID: 1211
@@ -3309,6 +3312,7 @@ Types:
                   Variable: {subprogram: 2, index: 2, name: ~r0}
                   Offset: 0
                   ByteSize: 24
+            LeafBodies: []
           DictIndex: -1
         - Name: r1
           Offset: 25
@@ -3320,6 +3324,7 @@ Types:
                   Variable: {subprogram: 2, index: 3, name: ~r1}
                   Offset: 0
                   ByteSize: 16
+            LeafBodies: []
           DictIndex: -1
     - __kind: EventRootType
       ID: 1208
@@ -3337,6 +3342,7 @@ Types:
                   Variable: {subprogram: 1, index: 0, name: payload}
                   Offset: 0
                   ByteSize: 24
+            LeafBodies: []
           DictIndex: -1
         - Name: tag
           Offset: 25
@@ -3348,6 +3354,7 @@ Types:
                   Variable: {subprogram: 1, index: 1, name: tag}
                   Offset: 0
                   ByteSize: 16
+            LeafBodies: []
           DictIndex: -1
     - __kind: EventRootType
       ID: 1209
@@ -3368,6 +3375,7 @@ Types:
                   Variable: {subprogram: 6, index: 0, name: head}
                   Offset: 0
                   ByteSize: 8
+            LeafBodies: []
           DictIndex: -1
         - Name: returnLen
           Offset: 9
@@ -3379,6 +3387,7 @@ Types:
                   Variable: {subprogram: 6, index: 1, name: returnLen}
                   Offset: 0
                   ByteSize: 8
+            LeafBodies: []
           DictIndex: -1
     - __kind: EventRootType
       ID: 1219
@@ -3396,6 +3405,7 @@ Types:
                   Variable: {subprogram: 6, index: 2, name: ~r0}
                   Offset: 0
                   ByteSize: 8
+            LeafBodies: []
           DictIndex: -1
         - Name: r1
           Offset: 9
@@ -3407,6 +3417,7 @@ Types:
                   Variable: {subprogram: 6, index: 3, name: ~r1}
                   Offset: 0
                   ByteSize: 16
+            LeafBodies: []
           DictIndex: -1
     - __kind: EventRootType
       ID: 1214
@@ -3424,6 +3435,7 @@ Types:
                   Variable: {subprogram: 4, index: 0, name: head}
                   Offset: 0
                   ByteSize: 8
+            LeafBodies: []
           DictIndex: -1
     - __kind: EventRootType
       ID: 1215
@@ -3444,6 +3456,7 @@ Types:
                   Variable: {subprogram: 3, index: 0, name: ms}
                   Offset: 0
                   ByteSize: 8
+            LeafBodies: []
           DictIndex: -1
     - __kind: EventRootType
       ID: 1213
@@ -3464,6 +3477,7 @@ Types:
                   Variable: {subprogram: 5, index: 0, name: head}
                   Offset: 0
                   ByteSize: 8
+            LeafBodies: []
           DictIndex: -1
     - __kind: EventRootType
       ID: 1217

@@ -619,6 +619,7 @@ Types:
                   Variable: {subprogram: 1, index: 0, name: w}
                   Offset: 0
                   ByteSize: 16
+            LeafBodies: []
           DictIndex: -1
         - Name: r
           Offset: 17
@@ -630,6 +631,7 @@ Types:
                   Variable: {subprogram: 1, index: 1, name: r}
                   Offset: 0
                   ByteSize: 8
+            LeafBodies: []
           DictIndex: -1
     - __kind: EventRootType
       ID: 217
@@ -650,6 +652,7 @@ Types:
                   Variable: {subprogram: 2, index: 0, name: path}
                   Offset: 0
                   ByteSize: 16
+            LeafBodies: []
           DictIndex: -1
     - __kind: EventRootType
       ID: 219

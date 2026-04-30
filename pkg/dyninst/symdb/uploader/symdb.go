@@ -32,7 +32,7 @@ import (
 
 // DefaultFlushThresholdBytes is the default compressed-size threshold at which
 // a BatchEncoder will flush an HTTP chunk.
-const DefaultFlushThresholdBytes = 2 * 1024 * 1024
+const DefaultFlushThresholdBytes = 512 * 1024
 
 // ErrUpload is returned (wrapped) by BatchEncoder.Flush when the HTTP upload
 // step fails. Callers can use errors.Is(err, ErrUpload) to distinguish
