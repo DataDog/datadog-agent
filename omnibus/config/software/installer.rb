@@ -52,18 +52,11 @@ build do
     command_on_repo_root "bazelisk cquery #{bazel_flags} --output=files //packages/installer/linux:whole_distro_tar_deb | sed -e 's@bazel-out/@@' >/tmp/installer_linux_tar_deb_file.txt"
     command_on_repo_root "tar tvf $(bazelisk info output_path)/$(cat /tmp/installer_linux_tar_deb_file.txt)", :live_stream => Omnibus.logger.live_stream(:info)
 
-    # Copy both the .deb and .rpm out to artifact outputs
+    # Copy both the .deb and .rpm out to the artifact outputs
     # In the package job, we'll compare these to the omnibus built packages and report the diffs
     # When the diffs go away, we delete the package job and just use this one.
-    omnibus_package_dir = ""
-    if ENV["OMNIBUS_PACKAGE_DIR"]
-      omnibus_package_dir = ENV["OMNIBUS_PACKAGE_DIR"]
-    elsif ENV["CI_PROJECT_DIR"]
-      ci_project_dir = ENV["CI_PROJECT_DIR"]
-      omnibus_package_dir = "#{ci_project_dir}/omnibus/pkg"
-    end
-    command "echo OMNIBUS_PACKAGE_DIR is '#{omnibus_package_dir}'", :live_stream => Omnibus.logger.live_stream(:info)
-    command_on_repo_root "bazelisk run #{bazel_flags} -- //packages/installer/linux:copy_out --destdir=#{install_dir}/..", :live_stream => Omnibus.logger.live_stream(:info)
+    omnibus_package_dir = Omnibus::Config.package_dir()
+    command_on_repo_root "bazelisk run #{bazel_flags} -- //packages/installer/linux:copy_out --destdir=#{omnibus_package_dir}", :live_stream => Omnibus.logger.live_stream(:info)
   elsif windows_target?
     command "dda inv -- -e installer.build --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     copy 'bin/installer/installer.exe', "#{install_dir}/datadog-installer.exe"
