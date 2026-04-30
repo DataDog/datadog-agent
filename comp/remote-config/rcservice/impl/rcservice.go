@@ -14,6 +14,7 @@ import (
 	"time"
 
 	cfgcomp "github.com/DataDog/datadog-agent/comp/core/config"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -57,7 +58,8 @@ type Dependencies struct {
 type Provides struct {
 	compdef.Out
 
-	Comp option.Option[rcservice.Component]
+	Comp          option.Option[rcservice.Component]
+	FlareProvider flaretypes.Provider
 }
 
 // NewRemoteConfigServiceOptional conditionally creates and configures a new remote config service, based on whether RC is enabled.
@@ -73,7 +75,10 @@ func NewRemoteConfigServiceOptional(deps Dependencies) Provides {
 		return Provides{Comp: none}
 	}
 
-	return Provides{Comp: option.New[rcservice.Component](configService)}
+	return Provides{
+		Comp:          option.New[rcservice.Component](configService),
+		FlareProvider: flaretypes.NewProvider(rcFillFlare(configService, deps.Cfg.GetString("run_path"))),
+	}
 }
 
 // newRemoteConfigService creates and configures a new remote config service

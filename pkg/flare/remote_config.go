@@ -6,141 +6,15 @@
 package flare
 
 import (
-	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"io"
-	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/fatih/color"
-	"go.etcd.io/bbolt"
-	"google.golang.org/grpc/metadata"
-	"google.golang.org/protobuf/types/known/emptypb"
 
-	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
-	agentgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
-
-func (r *RemoteFlareProvider) exportRemoteConfig(parent context.Context, fb flaretypes.FlareBuilder) error {
-	// Dump the DB
-	if err := getRemoteConfigDB(fb); err != nil {
-		return err
-	}
-
-	// Dump the state
-	if parent == nil {
-		parent = context.Background()
-	}
-	ctx, cancel := context.WithCancel(parent)
-	defer cancel()
-	md := metadata.MD{
-		"authorization": []string{"Bearer " + r.IPC.GetAuthToken()}, // TODO IPC: Implement a GRPC secure client
-	}
-	ctx = metadata.NewOutgoingContext(ctx, md)
-
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
-	if err != nil {
-		return err
-	}
-
-	cli, err := agentgrpc.GetDDAgentSecureClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort(), r.IPC.GetTLSClientConfig())
-	if err != nil {
-		return err
-	}
-	in := new(emptypb.Empty)
-
-	s, err := cli.GetConfigState(ctx, in)
-	if err != nil {
-		return fmt.Errorf("couldn't get the repositories state: %v", err)
-	}
-
-	var haState *pbgo.GetStateConfigResponse
-	if pkgconfigsetup.Datadog().GetBool("multi_region_failover.enabled") {
-		if haState, err = cli.GetConfigStateHA(ctx, in); err != nil {
-			return fmt.Errorf("couldn't get the MRF repositories state: %v", err)
-		}
-	}
-
-	err = fb.AddFileFromFunc("remote-config-state.log", func() ([]byte, error) {
-		fct := func(w io.Writer) error {
-			PrintRemoteConfigStates(w, s, haState)
-
-			return nil
-		}
-
-		return functionOutputToBytes(fct), nil
-	})
-	if err != nil {
-		return fmt.Errorf("couldn't add the remote-config-state.log file: %v", err)
-	}
-
-	return nil
-}
-
-func hashRCTargets(raw []byte) []byte {
-	hash := sha256.Sum256(raw)
-	// Convert it to readable hex
-	s := hex.EncodeToString(hash[:])
-
-	return []byte(s)
-}
-
-func getRemoteConfigDB(fb flaretypes.FlareBuilder) error {
-	dstPath, err := fb.PrepareFilePath("remote-config.db")
-	if err != nil {
-		return err
-	}
-	tempPath, err := fb.PrepareFilePath("remote-config.temp.db")
-	if err != nil {
-		return err
-	}
-	srcPath := filepath.Join(pkgconfigsetup.Datadog().GetString("run_path"), "remote-config.db")
-
-	// Copies the db so it avoids bbolt from being locked
-	// Also avoid concurrent modifications
-	err = filesystem.CopyFileAll(srcPath, tempPath)
-	// Delete the db at the end to avoid having target files content
-	defer os.Remove(tempPath)
-	if err != nil {
-		// Prevent from having a clear db here
-		return err
-	}
-
-	tempDB, err := bbolt.Open(tempPath, 0400, &bbolt.Options{ReadOnly: true})
-	if err != nil {
-		return err
-	}
-	defer tempDB.Close()
-	dstDB, err := bbolt.Open(dstPath, 0600, &bbolt.Options{})
-	if err != nil {
-		return err
-	}
-	defer dstDB.Close()
-
-	return tempDB.View(func(tempTx *bbolt.Tx) error {
-		return tempTx.ForEach(func(bucketName []byte, tempBucket *bbolt.Bucket) error {
-			return dstDB.Update(func(dstTx *bbolt.Tx) error {
-				dstBucket, err := dstTx.CreateBucket(bucketName)
-				if err != nil {
-					return err
-				}
-				return tempBucket.ForEach(func(k, v []byte) error {
-					if strings.HasSuffix(string(bucketName), "_targets") {
-						return dstBucket.Put(k, hashRCTargets(v))
-					}
-					return dstBucket.Put(k, v)
-				})
-			})
-		})
-	})
-}
 
 func getStateString(state *pbgo.FileMetaState, padding int) string {
 	if state == nil {

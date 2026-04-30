@@ -73,7 +73,6 @@ func ExtraFlareProviders(workloadmeta option.Option[workloadmeta.Component], ipc
 		flaretypes.NewFiller(remote.provideExtraFiles),
 		flaretypes.NewFiller(provideSystemProbe),
 		flaretypes.NewFiller(remote.provideConfigDump),
-		flaretypes.NewFiller(remote.provideRemoteConfig),
 		flaretypes.NewFiller(getRegistryJSON),
 		flaretypes.NewFiller(getVersionHistory),
 		flaretypes.NewFiller(getWindowsData),
@@ -187,15 +186,6 @@ func provideAuthTokenPerm(_ context.Context, fb flaretypes.FlareBuilder) error {
 
 func provideInstallInfo(_ context.Context, fb flaretypes.FlareBuilder) error {
 	fb.CopyFileTo(installinfo.GetFilePath(pkgconfigsetup.Datadog()), "install_info.log") //nolint:errcheck
-	return nil
-}
-
-func (r *RemoteFlareProvider) provideRemoteConfig(ctx context.Context, fb flaretypes.FlareBuilder) error {
-	if configUtils.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
-		if err := r.exportRemoteConfig(ctx, fb); err != nil {
-			log.Errorf("Could not export remote-config state: %s", err)
-		}
-	}
 	return nil
 }
 

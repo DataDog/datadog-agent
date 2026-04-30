@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
 
 	cfgcomp "github.com/DataDog/datadog-agent/comp/core/config"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	rcservicemrf "github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf/def"
@@ -41,7 +42,8 @@ type Dependencies struct {
 type Provides struct {
 	compdef.Out
 
-	Comp option.Option[rcservicemrf.Component]
+	Comp          option.Option[rcservicemrf.Component]
+	FlareProvider flaretypes.Provider
 }
 
 // NewMrfRemoteConfigServiceOptional conditionally creates and configures a new MRF remote config service, based on whether RC is enabled.
@@ -57,7 +59,10 @@ func NewMrfRemoteConfigServiceOptional(deps Dependencies) Provides {
 		return Provides{Comp: none}
 	}
 
-	return Provides{Comp: option.New[rcservicemrf.Component](mrfConfigService)}
+	return Provides{
+		Comp:          option.New[rcservicemrf.Component](mrfConfigService),
+		FlareProvider: flaretypes.NewProvider(mrfFillFlare(mrfConfigService)),
+	}
 }
 
 // newMrfRemoteConfigService creates and configures a new service that receives remote config updates from the configured DD failover DC
