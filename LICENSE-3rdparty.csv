@@ -252,6 +252,8 @@ core,github.com/DataDog/ddtrivy/walker,Apache-2.0,"Copyright 2025-Present Datado
 core,github.com/DataDog/ebpf-manager,MIT,Copyright (c) 2021 Authors of Datadog
 core,github.com/DataDog/ebpf-manager/internal,MIT,Copyright (c) 2021 Authors of Datadog
 core,github.com/DataDog/ebpf-manager/tracefs,MIT,Copyright (c) 2021 Authors of Datadog
+core,github.com/DataDog/go-acl,MIT,Copyright (c) 2015 Nathan Osman
+core,github.com/DataDog/go-acl/api,MIT,Copyright (c) 2015 Nathan Osman
 core,github.com/DataDog/go-libddwaf/v4,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/go-libddwaf/v4/internal/bindings,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/go-libddwaf/v4/internal/lib,Apache-2.0,"Copyright 2016-present Datadog, Inc"
@@ -1494,8 +1496,6 @@ core,github.com/hashicorp/vault/api/auth/approle,MPL-2.0,"Copyright © 2014-2018
 core,github.com/hashicorp/vault/api/auth/aws,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/vault/api/auth/ldap,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/vault/api/auth/userpass,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
-core,github.com/hectane/go-acl,MIT,Copyright (c) 2015 Nathan Osman
-core,github.com/hectane/go-acl/api,MIT,Copyright (c) 2015 Nathan Osman
 core,github.com/hetznercloud/hcloud-go/v2/hcloud,MIT,Copyright (c) 2018-2020 Hetzner Cloud GmbH
 core,github.com/hetznercloud/hcloud-go/v2/hcloud/exp/ctxutil,MIT,Copyright (c) 2018-2020 Hetzner Cloud GmbH
 core,github.com/hetznercloud/hcloud-go/v2/hcloud/internal/instrumentation,MIT,Copyright (c) 2018-2020 Hetzner Cloud GmbH
