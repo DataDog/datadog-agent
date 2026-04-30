@@ -75,8 +75,8 @@ func (n *CommonRunner) healthCheckLoop(ctx context.Context) {
 			}
 
 			nextInterval := defaultInterval
-			if healthResponse != nil && healthResponse.RetryAfterMs > 0 {
-				nextInterval = healthResponse.RetryAfterMs
+			if healthResponse != nil && healthResponse.RetryAfter > 0 {
+				nextInterval = healthResponse.RetryAfter
 			}
 			timer.Reset(nextInterval)
 		}

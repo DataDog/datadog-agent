@@ -41,6 +41,11 @@ const (
 
 	serverTimeHeader   = "X-Server-Time"
 	retryAfterMsHeader = "X-Retry-After-Ms"
+
+	// maxRetryAfter caps the X-Retry-After-Ms value the server can request, so
+	// a misconfigured or malicious server cannot push the runner into long
+	// idle stretches.
+	maxRetryAfter = 2 * time.Minute
 )
 
 type PublishTaskUpdateJSONRequestPayload struct {
@@ -289,7 +294,7 @@ func parseRetryAfterMs(headers http.Header) time.Duration {
 	if err != nil || ms <= 0 {
 		return 0
 	}
-	return time.Duration(ms) * time.Millisecond
+	return min(time.Duration(ms)*time.Millisecond, maxRetryAfter)
 }
 
 func createHealthCheckData(headers http.Header) *HealthCheckData {

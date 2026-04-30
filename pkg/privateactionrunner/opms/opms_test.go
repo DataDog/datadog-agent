@@ -62,7 +62,8 @@ func TestParseRetryAfterMs(t *testing.T) {
 		{"non-numeric value", http.Header{retryAfterMsHeader: []string{"soon"}}, 0},
 		{"500 ms", http.Header{retryAfterMsHeader: []string{"500"}}, 500 * time.Millisecond},
 		{"1000 ms", http.Header{retryAfterMsHeader: []string{"1000"}}, time.Second},
-		{"large value", http.Header{retryAfterMsHeader: []string{"300000"}}, 300 * time.Second},
+		{"at clamp", http.Header{retryAfterMsHeader: []string{"120000"}}, maxRetryAfter},
+		{"above clamp is capped", http.Header{retryAfterMsHeader: []string{"300000"}}, maxRetryAfter},
 	}
 
 	for _, tt := range tests {
