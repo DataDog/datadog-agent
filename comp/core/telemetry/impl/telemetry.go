@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"sync"
 
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 
@@ -56,21 +57,29 @@ type Requires struct {
 type Provides struct {
 	compdef.Out
 
-	Comp telemetry.Component
+	Comp          telemetry.Component
+	FlareProvider flaretypes.Provider
 }
 
 // NewComponent creates a new telemetry component.
 func NewComponent(deps Requires) Provides {
-	comp := newTelemetry()
+	impl := &telemetryImpl{
+		mutex:           &mutex,
+		registry:        registry,
+		defaultRegistry: defaultRegistry,
+	}
 	// Since we are in the middle of a migration to components, we need to ensure that the global variables are reset
 	// when the component is stopped.
 	deps.Lc.Append(compdef.Hook{
 		OnStop: func(_ context.Context) error {
-			comp.Reset()
+			impl.Reset()
 			return nil
 		},
 	})
-	return Provides{Comp: comp}
+	return Provides{
+		Comp:          impl,
+		FlareProvider: flaretypes.NewProvider(impl.fillFlare),
+	}
 }
 
 func newTelemetry() telemetry.Component {
@@ -262,6 +271,14 @@ func (t *telemetryImpl) Gather(defaultGather bool) ([]*telemetry.MetricFamily, e
 	defer t.mutex.Unlock()
 
 	return t.registry.Gather()
+}
+
+func (t *telemetryImpl) fillFlare(_ context.Context, fb flaretypes.FlareBuilder) error {
+	text, err := t.GatherText(true, telemetry.NoFilter)
+	if err != nil {
+		return err
+	}
+	return fb.AddFile("telemetry.log", []byte(text))
 }
 
 func (t *telemetryImpl) GatherText(defaultGather bool, filter telemetry.MetricFilter) (string, error) {
