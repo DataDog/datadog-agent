@@ -29,12 +29,20 @@ const (
 	PrometheusPods                   = "prometheus-pods"
 	PrometheusServices               = "prometheus-services"
 	PrometheusServicesEndpointSlices = "prometheus-services-endpointslices"
-	RemoteConfig                     = "remote-config"
-	SNMP                             = "snmp"
-	Zookeeper                        = "zookeeper"
-	GPU                              = "gpu"
-	DataStreamsLiveMessages          = "dsm-live-messages"
-	DOQueryActions                   = "do-query-actions"
+	// RemoteConfig delivers check configurations pushed from the Datadog backend via Remote Configuration.
+	RemoteConfig = "remote-config"
+	// SNMP autodiscovers SNMP devices on configured subnets.
+	SNMP = "snmp"
+	// Zookeeper discovers check configurations stored in a Zookeeper ZNode tree.
+	Zookeeper = "zookeeper"
+	// GPU discovers GPU devices and generates check configurations for GPU monitoring.
+	GPU = "gpu"
+	// DataStreamsLiveMessages provides live message sampling configurations for Data Streams Monitoring.
+	DataStreamsLiveMessages = "dsm-live-messages"
+	// DOQueryActions provides check configurations for Database Observability query-level actions.
+	DOQueryActions = "do-query-actions"
+	// PrometheusHTTPSD discovers check configurations from a Prometheus HTTP Service Discovery endpoint.
+	PrometheusHTTPSD = "prometheus-http-sd"
 )
 
 // Internal Autodiscovery names for the config providers
@@ -55,6 +63,7 @@ const (
 	KubeCrdRegisterName            = "kube_crd"
 	PrometheusPodsRegisterName     = "prometheus_pods"
 	PrometheusServicesRegisterName = "prometheus_services"
+	PrometheusHTTPSDRegisterName   = "prometheus_http_sd"
 	RemoteConfigRegisterName       = "remote_config"
 	ZookeeperRegisterName          = "zookeeper"
 )
