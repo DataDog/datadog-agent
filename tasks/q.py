@@ -2145,6 +2145,22 @@ def coord_up(
         if bootstrap:
             print(color_message(f"  · seeded {bootstrap} (empty baseline; first-ship floor gates)", Color.BLUE))
 
+    # Clear any leftover pause file. q.coord-down creates `.coordinator/
+    # pause` as part of its graceful shutdown; without removing it here,
+    # the new driver immediately sees the pause file and sleeps, which
+    # silently breaks the down→up cycle (operator thinks the run is
+    # alive but it's just spinning in the pause loop).
+    pause_path = os.path.join(".coordinator", "pause")
+    if os.path.exists(pause_path):
+        try:
+            os.remove(pause_path)
+            print(color_message(
+                f"  · cleared stale pause file at {pause_path}",
+                Color.BLUE,
+            ))
+        except OSError as e:
+            print(color_message(f"  · could not remove {pause_path}: {e}", Color.ORANGE))
+
     # Auto-load any candidate YAMLs the operator dropped into
     # .coordinator/candidates/. Without this, dropped YAMLs are visible on
     # disk but never enter db.candidates, and the proposer just generates
