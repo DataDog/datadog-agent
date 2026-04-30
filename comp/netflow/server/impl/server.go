@@ -15,6 +15,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -45,6 +46,7 @@ type Provides struct {
 
 	Comp           server.Component
 	StatusProvider status.InformationProvider
+	FlareProvider  flaretypes.Provider
 }
 
 // NewComponent configures a netflow server.
@@ -98,6 +100,7 @@ func NewComponent(deps Requires) (Provides, error) {
 	return Provides{
 		Comp:           srv,
 		StatusProvider: status.NewInformationProvider(statusProvider),
+		FlareProvider:  flaretypes.NewProvider(srv.fillFlare),
 	}, nil
 }
 
