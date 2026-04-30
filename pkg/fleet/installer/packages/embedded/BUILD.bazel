@@ -18,8 +18,6 @@ service_srcs = [
     "tmpl/gen/debrpm/datadog-agent-ddot-exp.yaml",
     "tmpl/gen/debrpm/datadog-agent-ddot.service",
     "tmpl/gen/debrpm/datadog-agent-ddot.yaml",
-    "tmpl/gen/debrpm-nocap/datadog-agent-ddot-exp.yaml",
-    "tmpl/gen/debrpm-nocap/datadog-agent-ddot.yaml",
     "tmpl/gen/debrpm/datadog-agent-exp.service",
     "tmpl/gen/debrpm/datadog-agent-installer-exp.service",
     "tmpl/gen/debrpm/datadog-agent-installer.service",
@@ -42,8 +40,6 @@ service_srcs = [
     "tmpl/gen/oci/datadog-agent-ddot-exp.yaml",
     "tmpl/gen/oci/datadog-agent-ddot.service",
     "tmpl/gen/oci/datadog-agent-ddot.yaml",
-    "tmpl/gen/oci-nocap/datadog-agent-ddot-exp.yaml",
-    "tmpl/gen/oci-nocap/datadog-agent-ddot.yaml",
     "tmpl/gen/oci/datadog-agent-exp.service",
     "tmpl/gen/oci/datadog-agent-installer-exp.service",
     "tmpl/gen/oci/datadog-agent-installer.service",
@@ -60,6 +56,16 @@ service_srcs = [
     "tmpl/gen/oci/datadog-agent.service",
 ]
 
+# Only :embedded embeds these; keep them out of service_srcs so tmpl_test's
+# service_srcs + glob(nocap/**) does not list duplicate embedsrc labels.
+# keep
+ddot_nocap_yaml_embedsrcs = [
+    "tmpl/gen/debrpm-nocap/datadog-agent-ddot-exp.yaml",
+    "tmpl/gen/debrpm-nocap/datadog-agent-ddot.yaml",
+    "tmpl/gen/oci-nocap/datadog-agent-ddot-exp.yaml",
+    "tmpl/gen/oci-nocap/datadog-agent-ddot.yaml",
+]
+
 go_library(
     name = "embedded",
     srcs = ["embed.go"],
@@ -67,7 +73,7 @@ go_library(
         "scripts/dd-cleanup",
         "scripts/dd-container-install",
         "scripts/dd-host-install",
-    ] + service_srcs,  # keep
+    ] + service_srcs + ddot_nocap_yaml_embedsrcs,  # keep
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded",
     visibility = ["//visibility:public"],
 )
