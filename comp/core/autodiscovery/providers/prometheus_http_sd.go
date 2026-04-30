@@ -48,9 +48,9 @@ type httpSDCheckTemplate struct {
 	Instances  []map[string]interface{} `json:"instances"`
 }
 
-// HTTPSDConfigProvider polls a Prometheus HTTP Service Discovery endpoint
+// PrometheusHTTPSDConfigProvider polls a Prometheus HTTP Service Discovery endpoint
 // and generates check configurations for each discovered target.
-type HTTPSDConfigProvider struct {
+type PrometheusHTTPSDConfigProvider struct {
 	url            string
 	client         *http.Client
 	checkTemplate  httpSDCheckTemplate
@@ -58,16 +58,16 @@ type HTTPSDConfigProvider struct {
 	configErrorsMu sync.RWMutex
 }
 
-// NewHTTPSDConfigProvider creates a new HTTPSDConfigProvider.
-func NewHTTPSDConfigProvider(
+// NewPrometheusHTTPSDConfigProvider creates a new PrometheusHTTPSDConfigProvider.
+func NewPrometheusHTTPSDConfigProvider(
 	providerConfig *pkgconfigsetup.ConfigurationProviders,
 	_ *telemetry.Store,
 ) (types.ConfigProvider, error) {
-	url := pkgconfigsetup.Datadog().GetString("http_sd.url")
+	url := pkgconfigsetup.Datadog().GetString("prometheus_http_sd.url")
 	if url == "" {
 		return nil, errors.New("http_sd provider requires a URL (set template_url in config_providers or http_sd.url)")
 	}
-	templateJSON := pkgconfigsetup.Datadog().GetString("http_sd.check_template")
+	templateJSON := pkgconfigsetup.Datadog().GetString("prometheus_http_sd.check_template")
 	if templateJSON == "" {
 		return nil, errors.New("http_sd provider requires a check template (set check_template in config_providers or http_sd.check_template)")
 	}
@@ -87,7 +87,7 @@ func NewHTTPSDConfigProvider(
 		return nil, err
 	}
 
-	return &HTTPSDConfigProvider{
+	return &PrometheusHTTPSDConfigProvider{
 		url:           url,
 		client:        client,
 		checkTemplate: tmpl,
@@ -122,12 +122,12 @@ func buildHTTPSDClient(providerConfig *pkgconfigsetup.ConfigurationProviders) (*
 }
 
 // String returns the provider name.
-func (h *HTTPSDConfigProvider) String() string {
-	return names.HTTPSD
+func (h *PrometheusHTTPSDConfigProvider) String() string {
+	return names.PrometheusHTTPSD
 }
 
 // GetConfigErrors returns a map of config errors.
-func (h *HTTPSDConfigProvider) GetConfigErrors() map[string]types.ErrorMsgSet {
+func (h *PrometheusHTTPSDConfigProvider) GetConfigErrors() map[string]types.ErrorMsgSet {
 	h.configErrorsMu.RLock()
 	defer h.configErrorsMu.RUnlock()
 	result := make(map[string]types.ErrorMsgSet, len(h.configErrors))
@@ -139,13 +139,13 @@ func (h *HTTPSDConfigProvider) GetConfigErrors() map[string]types.ErrorMsgSet {
 
 // IsUpToDate always returns false to force re-polling on every interval.
 // The autodiscovery infrastructure diffs against the previous Collect result.
-func (h *HTTPSDConfigProvider) IsUpToDate(_ context.Context) (bool, error) {
+func (h *PrometheusHTTPSDConfigProvider) IsUpToDate(_ context.Context) (bool, error) {
 	return false, nil
 }
 
 // Collect fetches the HTTP SD endpoint and returns check configurations
 // for each discovered target.
-func (h *HTTPSDConfigProvider) Collect(_ context.Context) ([]integration.Config, error) {
+func (h *PrometheusHTTPSDConfigProvider) Collect(_ context.Context) ([]integration.Config, error) {
 	h.configErrorsMu.Lock()
 	h.configErrors = make(map[string]types.ErrorMsgSet)
 	h.configErrorsMu.Unlock()
@@ -182,7 +182,7 @@ func (h *HTTPSDConfigProvider) Collect(_ context.Context) ([]integration.Config,
 	return configs, nil
 }
 
-func (h *HTTPSDConfigProvider) fetchTargets() ([]httpSDTargetGroup, error) {
+func (h *PrometheusHTTPSDConfigProvider) fetchTargets() ([]httpSDTargetGroup, error) {
 	req, err := http.NewRequest(http.MethodGet, h.url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create request: %v", err)
@@ -207,7 +207,7 @@ func (h *HTTPSDConfigProvider) fetchTargets() ([]httpSDTargetGroup, error) {
 	return targetGroups, nil
 }
 
-func (h *HTTPSDConfigProvider) buildConfig(host, port string, tags []string) (integration.Config, error) {
+func (h *PrometheusHTTPSDConfigProvider) buildConfig(host, port string, tags []string) (integration.Config, error) {
 	initConfigBytes, err := yaml.Marshal(h.checkTemplate.InitConfig)
 	if err != nil {
 		return integration.Config{}, fmt.Errorf("cannot marshal init_config: %v", err)
@@ -239,8 +239,8 @@ func (h *HTTPSDConfigProvider) buildConfig(host, port string, tags []string) (in
 		InitConfig:   integration.Data(initConfigBytes),
 		Instances:    []integration.Data{instanceBytes},
 		ClusterCheck: true,
-		Source:       "http_sd:" + h.url,
-		Provider:     names.HTTPSDRegisterName,
+		Source:       "prometheus_http_sd:" + h.url,
+		Provider:     names.PrometheusHTTPSDRegisterName,
 	}, nil
 }
 
