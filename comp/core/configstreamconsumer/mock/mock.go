@@ -9,7 +9,6 @@
 package mock
 
 import (
-	"context"
 	"testing"
 
 	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
@@ -17,28 +16,10 @@ import (
 
 // Mock is a mock implementation of configstreamconsumer.Component
 type Mock struct {
-	t     *testing.T
-	ready bool
+	t *testing.T
 }
 
 // New creates a new mock configstreamconsumer component
 func New(t *testing.T) configstreamconsumer.Component {
-	return &Mock{
-		t:     t,
-		ready: true,
-	}
-}
-
-// WaitReady implements configstreamconsumer.Component
-func (m *Mock) WaitReady(ctx context.Context) error {
-	if !m.ready {
-		<-ctx.Done()
-		return ctx.Err()
-	}
-	return nil
-}
-
-// SetReady sets the ready state for testing
-func (m *Mock) SetReady(ready bool) {
-	m.ready = ready
+	return &Mock{t: t}
 }

@@ -157,7 +157,7 @@ func TestConsumerSnapshot(t *testing.T) {
 		_ = consumer.connectAndStream()
 	}()
 
-	err := consumer.WaitReady(ctx)
+	err := consumer.waitReady(ctx)
 	require.NoError(t, err)
 
 	// Verify config was applied to the effective config map
@@ -198,7 +198,7 @@ func TestConsumerUpdates(t *testing.T) {
 		_ = consumer.connectAndStream()
 	}()
 
-	err := consumer.WaitReady(ctx)
+	err := consumer.waitReady(ctx)
 	require.NoError(t, err)
 
 	// Send an update
@@ -252,7 +252,7 @@ func TestConsumerStaleUpdates(t *testing.T) {
 		_ = consumer.connectAndStream()
 	}()
 
-	err := consumer.WaitReady(ctx)
+	err := consumer.waitReady(ctx)
 	require.NoError(t, err)
 
 	// Send a stale update (seq_id <= current)
@@ -302,7 +302,7 @@ func TestConsumerAppliesUpdatesInOrder(t *testing.T) {
 
 		// WaitReady should block
 		readyCtx, readyCancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-		err := consumer.WaitReady(readyCtx)
+		err := consumer.waitReady(readyCtx)
 		readyCancel()
 		assert.Error(t, err, "should timeout before snapshot")
 
@@ -321,7 +321,7 @@ func TestConsumerAppliesUpdatesInOrder(t *testing.T) {
 		// Now WaitReady should succeed
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
-		err = consumer.WaitReady(ctx)
+		err = consumer.waitReady(ctx)
 		assert.NoError(t, err, "should unblock after snapshot")
 	})
 
@@ -351,7 +351,7 @@ func TestConsumerAppliesUpdatesInOrder(t *testing.T) {
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		err := consumer.WaitReady(ctx)
+		err := consumer.waitReady(ctx)
 		require.NoError(t, err)
 
 		// Send ordered updates
@@ -378,7 +378,7 @@ func TestConsumerAppliesUpdatesInOrder(t *testing.T) {
 	})
 }
 
-// TestStartBlocksUntilSnapshot verifies that Start blocks until the first snapshot is received,
+// TestStartBlocksUntilSnapshot verifies that start blocks until the first snapshot is received,
 // so the binary's run function sees a fully-populated config without calling WaitReady.
 func TestStartBlocksUntilSnapshot(t *testing.T) {
 	ipcComp := ipcmock.New(t)
@@ -405,7 +405,7 @@ func TestStartBlocksUntilSnapshot(t *testing.T) {
 	}()
 
 	startTime := time.Now()
-	err := consumer.Start(context.Background())
+	err := consumer.start(context.Background())
 	startDuration := time.Since(startTime)
 
 	require.NoError(t, err, "Start should succeed once snapshot is received")
@@ -420,7 +420,7 @@ func TestStartBlocksUntilSnapshot(t *testing.T) {
 	consumer.stop(context.Background())
 }
 
-// TestStartTimeoutFailsStartup verifies that Start returns an error when the first snapshot
+// TestStartTimeoutFailsStartup verifies that start returns an error when the first snapshot
 // is not received within ReadyTimeout, aborting FX startup.
 func TestStartTimeoutFailsStartup(t *testing.T) {
 	ipcComp := ipcmock.New(t)
@@ -434,7 +434,7 @@ func TestStartTimeoutFailsStartup(t *testing.T) {
 	consumer.params.ReadyTimeout = 200 * time.Millisecond
 
 	startTime := time.Now()
-	err := consumer.Start(context.Background())
+	err := consumer.start(context.Background())
 	startDuration := time.Since(startTime)
 
 	require.Error(t, err, "Start should fail when no snapshot received within timeout")

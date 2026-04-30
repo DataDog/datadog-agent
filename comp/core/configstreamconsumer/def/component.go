@@ -39,8 +39,5 @@ type Params struct {
 // Its sole purpose is to receive configuration from the core agent stream and write it
 // into the local config.Component via the model.Writer provided at construction.
 // Callers that need to read config or subscribe to changes should use config.Component directly.
-type Component interface {
-	// WaitReady blocks until the first config snapshot has been received and applied.
-	// This ensures the consumer has a consistent config view before proceeding.
-	WaitReady(ctx context.Context) error
-}
+// Readiness is guaranteed by the FX lifecycle: start blocks until the first snapshot is received.
+type Component interface{}

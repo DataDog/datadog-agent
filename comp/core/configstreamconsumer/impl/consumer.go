@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"sync"
 	"time"
 
@@ -110,18 +111,18 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	// Register lifecycle hooks
 	reqs.Lifecycle.Append(compdef.Hook{
-		OnStart: c.Start,
+		OnStart: c.start,
 		OnStop:  c.stop,
 	})
 
 	return Provides{Comp: c}, nil
 }
 
-// Start initiates the config stream connection and blocks until the first config snapshot is
+// start initiates the config stream connection and blocks until the first config snapshot is
 // received. Blocking here ensures all components initialized after this one (and the binary's
 // run function) see a fully-populated config. Returns an error if the snapshot is not received
 // within ReadyTimeout (default 60s), which aborts FX startup.
-func (c *consumer) Start(_ context.Context) error {
+func (c *consumer) start(_ context.Context) error {
 	// Use context.Background() so the stream lifetime is not bounded by the
 	// Fx startup context, which expires after app.StartTimeout (~5 minutes).
 	c.ctx, c.cancel = context.WithCancel(context.Background())
@@ -137,7 +138,7 @@ func (c *consumer) Start(_ context.Context) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	c.log.Infof("Waiting for initial configuration from core agent (timeout: %v)...", timeout)
-	if err := c.WaitReady(ctx); err != nil {
+	if err := c.waitReady(ctx); err != nil {
 		c.cancel()
 		c.wg.Wait()
 		return fmt.Errorf("waiting for initial config snapshot: %w", err)
@@ -161,8 +162,8 @@ func (c *consumer) stop(_ context.Context) error {
 	return nil
 }
 
-// WaitReady blocks until the first config snapshot has been received and applied
-func (c *consumer) WaitReady(ctx context.Context) error {
+// waitReady blocks until the first config snapshot has been received and applied
+func (c *consumer) waitReady(ctx context.Context) error {
 	select {
 	case <-c.readyCh:
 		return nil
@@ -390,13 +391,10 @@ func pbValueToGo(pbValue *structpb.Value) interface{} {
 	result := pbValue.AsInterface()
 
 	if f, ok := result.(float64); ok {
-		// Check if this float represents an integer value
-		// Only convert if within the safe integer range for float64
-		const maxSafeInteger = 1 << 53 // 2^53
-		const minSafeInteger = -maxSafeInteger
-
-		if f >= minSafeInteger && f <= maxSafeInteger && f == float64(int64(f)) {
-			// No fractional part and within safe range - convert to int64
+		// Only convert integers within float64's exact range (2^53); beyond that,
+		// float64 can't represent consecutive integers, so int64 conversion loses precision.
+		const maxExact float64 = 1 << 53
+		if f >= -maxExact && f <= maxExact && f == math.Trunc(f) {
 			return int64(f)
 		}
 	}
