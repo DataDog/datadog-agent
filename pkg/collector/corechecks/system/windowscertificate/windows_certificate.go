@@ -140,15 +140,12 @@ type crlInfoCopy struct {
 }
 
 // certInfo holds the per-certificate values needed by the check's reporting
-// loop. All fields are independently allocated Go values; the parsed
-// *x509.Certificate is intentionally NOT retained, so consumers cannot reach
-// into the Windows-owned encoded-cert bytes after enumeration advances or
-// frees the source CertContext.
+// loop.
 type certInfo struct {
-	SubjectString    string    // human-readable subject DN, used in log messages
+	SubjectString    string    
 	NotAfter         time.Time // certificate expiration
-	Tags             []string  // cert-derived tags (subject, thumbprint, serial, optional groups)
-	Thumbprint       string    // SHA-1 hex
+	Tags             []string  // cert-derived tags
+	Thumbprint       string    
 	TrustStatusError uint32    // windows.TrustStatus.ErrorStatus
 	ChainPolicyError uint32    // windows.CertChainPolicyStatus.Error
 }
@@ -281,8 +278,7 @@ func (w *WinCertChk) Run() error {
 		expirationDate := cert.NotAfter.Format(time.RFC3339)
 
 		// cert.Tags carries the cert-derived tags (subject, thumbprint, serial,
-		// optional groups) pre-built in buildCertInfo. Allocate a fresh slice
-		// here so we don't extend cert.Tags' backing array across iterations.
+		// optional groups) pre-built in buildCertInfo.
 		tags := make([]string, 0, len(cert.Tags)+2)
 		tags = append(tags, cert.Tags...)
 		tags = append(tags, "certificate_store:"+w.config.CertificateStore, serverTag)
@@ -524,18 +520,10 @@ func closeCertificateStore(storeHandle windows.Handle, store string) {
 }
 
 // buildCertInfo parses a CertContext and extracts everything the reporting
-// loop will need into Go-owned values. The parsed *x509.Certificate stays
-// scope-local so the returned certInfo holds no references into the
-// Windows-owned encoded-cert bytes — the caller is free to advance / free the
-// CertContext as soon as this function returns.
-//
+// loop will need into Go-owned values. 
 // Returns an error only when parsing or required-property reads fail;
 // optional lookups (friendly name) are logged and left empty on failure.
 func buildCertInfo(certContext *windows.CertContext, storeHandle windows.Handle, cfg Config) (certInfo, error) {
-	// The encoded cert bytes are owned by Windows and only valid until the
-	// CertContext is freed or the enumeration advances. We read everything we
-	// need from `cert` while still in this scope; nothing in the returned
-	// certInfo aliases these bytes.
 	encodedCert := unsafe.Slice(certContext.EncodedCert, certContext.Length)
 	cert, err := parseCertificate(encodedCert)
 	if err != nil {
@@ -565,8 +553,6 @@ func buildCertInfo(certContext *windows.CertContext, storeHandle windows.Handle,
 	}
 
 	// Build cert-derived tags here, while the cert bytes are still valid.
-	// Per-store static tags (certificate_store, server) are appended by the
-	// caller since they don't depend on the cert.
 	tags := getSubjectTags(cert)
 	tags = append(tags, "certificate_thumbprint:"+thumbprint)
 	tags = append(tags, "certificate_serial_number:"+cert.SerialNumber.Text(16))
