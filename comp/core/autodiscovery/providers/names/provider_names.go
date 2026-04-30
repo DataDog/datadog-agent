@@ -33,6 +33,8 @@ const (
 	Zookeeper                        = "zookeeper"
 	GPU                              = "gpu"
 	DataStreamsLiveMessages          = "dsm-live-messages"
+	// PrometheusHTTPSD discovers check configurations from a Prometheus HTTP Service Discovery endpoint.
+	PrometheusHTTPSD = "prometheus-http-sd"
 )
 
 // Internal Autodiscovery names for the config providers
@@ -52,6 +54,7 @@ const (
 	KubeEndpointsFileRegisterName  = "kube_endpoints_file"
 	PrometheusPodsRegisterName     = "prometheus_pods"
 	PrometheusServicesRegisterName = "prometheus_services"
+	PrometheusHTTPSDRegisterName   = "prometheus_http_sd"
 	RemoteConfigRegisterName       = "remote_config"
 	ZookeeperRegisterName          = "zookeeper"
 )
