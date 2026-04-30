@@ -1618,7 +1618,7 @@ func (tb *TestBench) GetReportedEvents() []ReportedEvent {
 }
 
 // SendReportedEvent finds the ReportedEvent matching pattern+firstSeen and
-// posts it to the Datadog backend, tagging it with source:observer-testbench,
+// posts it to the Datadog backend, tagging it with source:anomalydetection-testbench,
 // the active scenario name, and the OS user.
 func (tb *TestBench) SendReportedEvent(pattern string, firstSeen int64) error {
 	tb.mu.RLock()

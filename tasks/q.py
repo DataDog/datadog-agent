@@ -37,17 +37,17 @@ from tasks.libs.q.eval import (
 @task
 def build_testbench(ctx):
     """
-    Builds the observer-testbench binary.
+    Builds the anomalydetection-testbench binary.
     """
-    ctx.run("go build -o bin/observer-testbench ./tools/qbranch/observer-testbench")
+    ctx.run("go build -o bin/anomalydetection-testbench ./tools/qbranch/anomalydetection-testbench")
 
 
 @task
 def build_scorer(ctx):
     """
-    Builds the observer-scorer binary.
+    Builds the anomalydetection-scorer binary.
     """
-    ctx.run("go build -o bin/observer-scorer ./tools/qbranch/observer-scorer")
+    ctx.run("go build -o bin/anomalydetection-scorer ./tools/qbranch/anomalydetection-scorer")
 
 
 # --- Eval ---
@@ -89,9 +89,9 @@ def eval_scenarios(
         scenarios_dir: Directory containing scenario subdirectories.
         sigma: Gaussian width in seconds for scoring.
         only: Comma-separated components to enable (passed as --only to testbench). Auto-adds time_cluster.
-        build: Whether to build the observer-testbench and observer-scorer binaries.
+        build: Whether to build the anomalydetection-testbench and anomalydetection-scorer binaries.
         main_report_path: Path for the aggregated JSON report.
-        config: Path to observer-testbench JSON params file (--config). Empty: omit flag.
+        config: Path to anomalydetection-testbench JSON params file (--config). Empty: omit flag.
         scenario_output_dir: Directory where per-scenario testbench JSON outputs are written.
             Defaults to /tmp. Set to a combo-specific folder to keep outputs co-located.
         timeout: Per-scenario time budget in seconds. A total budget of
@@ -149,7 +149,7 @@ def eval_scenarios(
         scenario_start = time.monotonic()
         try:
             ctx.run(
-                f"bin/observer-testbench --headless {shlex.quote(name)} --output {shlex.quote(output_path)} --scenarios-dir {shlex.quote(scenarios_dir)}{only_part}{config_part}",
+                f"bin/anomalydetection-testbench --headless {shlex.quote(name)} --output {shlex.quote(output_path)} --scenarios-dir {shlex.quote(scenarios_dir)}{only_part}{config_part}",
                 timeout=None if timeout == 0 else max(1, int(budget_remaining)),
             )
         except Exception as e:
@@ -189,7 +189,7 @@ def eval_scenarios(
             continue
 
         scorer_result = ctx.run(
-            f"bin/observer-scorer --input {shlex.quote(output_path)} --scenarios-dir {shlex.quote(scenarios_dir)} --sigma {sigma} --json",
+            f"bin/anomalydetection-scorer --input {shlex.quote(output_path)} --scenarios-dir {shlex.quote(scenarios_dir)} --sigma {sigma} --json",
             hide=True,
             warn=True,
         )
@@ -282,7 +282,7 @@ def eval_tp(
         print(color_message(f"{'=' * 60}", Color.BLUE))
 
         ctx.run(
-            f"bin/observer-testbench --headless {shlex.quote(name)} --output {shlex.quote(output_path)}"
+            f"bin/anomalydetection-testbench --headless {shlex.quote(name)} --output {shlex.quote(output_path)}"
             f" --scenarios-dir {shlex.quote(scenarios_dir)}"
             f" --only {shlex.quote(only_flag)}"
             f" --verbose"
@@ -293,7 +293,7 @@ def eval_tp(
             continue
 
         scorer_result = ctx.run(
-            f"bin/observer-scorer --input {shlex.quote(output_path)} --scenarios-dir {shlex.quote(scenarios_dir)} --sigma {sigma} --score-tp --json",
+            f"bin/anomalydetection-scorer --input {shlex.quote(output_path)} --scenarios-dir {shlex.quote(scenarios_dir)} --sigma {sigma} --score-tp --json",
             hide=True,
             warn=True,
         )
@@ -386,7 +386,7 @@ def eval_combinations(
         scenarios_dir: Directory containing scenario subdirectories.
         sigma: Gaussian width in seconds for F1 scoring.
         seed: Random seed for reproducibility (default: None = random).
-        build: Whether to build observer-testbench and observer-scorer first.
+        build: Whether to build anomalydetection-testbench and anomalydetection-scorer first.
         force_enable: Comma-separated components always present in every combination.
         force_disable: Comma-separated components never included in any combination
             (detectors/correlators removed from the random pool; extractors in
@@ -586,7 +586,7 @@ def eval_bayesian(
         scenarios_dir: Directory containing scenario subdirectories.
         sigma: Gaussian width in seconds for F1 scoring.
         seed: Random seed for TPE sampler reproducibility (default: None = random).
-        build: Whether to build observer-testbench and observer-scorer first.
+        build: Whether to build anomalydetection-testbench and anomalydetection-scorer first.
         timeout: Per-scenario time budget in seconds, forwarded to eval_scenarios.
             Total budget per trial = ``timeout × #scenarios``; unused time rolls over.
             0 = no limit.
@@ -1605,12 +1605,12 @@ def launch_testbench(
     logs_only: bool = False,
 ):
     """
-    Will launch both the observer-testbench backend and UI.
+    Will launch both the anomalydetection-testbench backend and UI.
 
     Args:
         scenarios_dir: The directory containing the scenarios to load.
-        build: Whether to build the observer-testbench binary.
-        profile: Whether to profile the observer-testbench binary (only in testbench headless mode).
+        build: Whether to build the anomalydetection-testbench binary.
+        profile: Whether to profile the anomalydetection-testbench binary (only in testbench headless mode).
         config: JSON params file; if set, overrides --enable/--disable/--only (testbench behavior).
         enable: Comma-separated components to enable (passed to testbench ``--enable``).
         disable: Comma-separated components to disable (passed to testbench ``--disable``).
@@ -1619,7 +1619,7 @@ def launch_testbench(
         logs_only: If true, pass ``--logs-only`` (load log rows only; skip parquet metrics and trace stats).
     """
     if build:
-        print("Building observer-testbench...")
+        print("Building anomalydetection-testbench...")
         build_testbench(ctx)
 
     flags = ""
@@ -1637,17 +1637,17 @@ def launch_testbench(
 
     if headless_scenario:
         if not headless_output:
-            headless_output = f"/tmp/observer-testbench-headless-{headless_scenario}.json"
+            headless_output = f"/tmp/anomalydetection-testbench-headless-{headless_scenario}.json"
         if profile:
             if not profile_path:
-                profile_path = f"/tmp/observer-testbench-headless-{headless_scenario}.prof"
+                profile_path = f"/tmp/anomalydetection-testbench-headless-{headless_scenario}.prof"
             flags += f" --memprofile {profile_path}"
         print(
-            f"Launching observer-testbench in headless mode for scenario {headless_scenario}, output to {headless_output}"
+            f"Launching anomalydetection-testbench in headless mode for scenario {headless_scenario}, output to {headless_output}"
         )
         try:
             ctx.run(
-                f"bin/observer-testbench --headless {headless_scenario} --scenarios-dir {scenarios_dir} --output {headless_output} {flags}",
+                f"bin/anomalydetection-testbench --headless {headless_scenario} --scenarios-dir {scenarios_dir} --output {headless_output} {flags}",
                 timeout=None if timeout == 0 else timeout,
             )
         except Exception as e:
@@ -1664,12 +1664,12 @@ def launch_testbench(
     else:
         if not config and not enable and not disable:
             flags += " --only scanmw,scanwelch,bocpd"
-        print("Launching observer-testbench backend and UI, use ^C to exit")
+        print("Launching anomalydetection-testbench backend and UI, use ^C to exit")
         print(
             "To profile, run: go tool pprof -http=:8081 http://localhost:8080/debug/pprof/heap (8080 is the testbench API port)"
         )
         ctx.run(
-            f"bin/observer-testbench --scenarios-dir {scenarios_dir} {flags} & ( cd tools/qbranch/observer-testbench/ui && npm install && npm run dev ) &"
+            f"bin/anomalydetection-testbench --scenarios-dir {scenarios_dir} {flags} & ( cd tools/qbranch/anomalydetection-testbench/ui && npm install && npm run dev ) &"
         )
 
 

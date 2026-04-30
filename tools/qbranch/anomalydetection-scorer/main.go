@@ -37,7 +37,7 @@ func main() {
 	flag.Parse()
 
 	if *outputPath == "" {
-		fmt.Fprintf(os.Stderr, "Usage: observer-scorer --input <path> [--scenarios-dir <dir>] [--ground-truth-ts <unix>] [--sigma <seconds>] [--score-tp] [--json]\n")
+		fmt.Fprintf(os.Stderr, "Usage: anomalydetection-scorer --input <path> [--scenarios-dir <dir>] [--ground-truth-ts <unix>] [--sigma <seconds>] [--score-tp] [--json]\n")
 		os.Exit(1)
 	}
 

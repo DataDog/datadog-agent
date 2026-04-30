@@ -324,7 +324,7 @@ function EmptyState({
         <div className="text-center py-20">
           <div className="text-slate-400 text-lg">Waiting for observer connection...</div>
           <div className="text-slate-500 mt-2">
-            Start the observer: <code className="bg-slate-800 px-2 py-1 rounded">./bin/observer-testbench</code>
+            Start the observer: <code className="bg-slate-800 px-2 py-1 rounded">./bin/anomalydetection-testbench</code>
           </div>
         </div>
       )}

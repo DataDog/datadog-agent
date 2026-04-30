@@ -26,10 +26,10 @@ The `--build` flag rebuilds the binary before launching. Omit it after the first
 dda inv -- q.build-testbench
 
 # Run the backend
-./bin/observer-testbench --scenarios-dir ./comp/anomalydetection/observer/scenarios
+./bin/anomalydetection-testbench --scenarios-dir ./comp/anomalydetection/observer/scenarios
 
 # Start the UI (in a separate terminal)
-cd tools/qbranch/observer-testbench/ui
+cd tools/qbranch/anomalydetection-testbench/ui
 npm install  # first time only
 npm run dev
 ```
@@ -134,13 +134,13 @@ dda inv -- q.launch-testbench --headless-scenario <scenario-name> --headless-out
 dda inv -- q.launch-testbench --headless-scenario <scenario-name> --profile  # write heap profile
 
 # Direct binary
-./bin/observer-testbench \
+./bin/anomalydetection-testbench \
   --headless <scenario-name> \
   --output results.json \
   --scenarios-dir ./comp/anomalydetection/observer/scenarios
 
 # Same, but only ingest logs from parquet (ignore metrics and trace stats)
-./bin/observer-testbench \
+./bin/anomalydetection-testbench \
   --headless <scenario-name> \
   --logs-only \
   --output results-logs.json \
@@ -149,14 +149,14 @@ dda inv -- q.launch-testbench --headless-scenario <scenario-name> --profile  # w
 dda inv -- q.launch-testbench --headless-scenario <scenario-name> --logs-only
 
 # Verbose output (includes anomaly detail, member series, titles)
-./bin/observer-testbench \
+./bin/anomalydetection-testbench \
   --headless <scenario-name> \
   --output results-verbose.json \
   --verbose \
   --scenarios-dir ./comp/anomalydetection/observer/scenarios
 
 # Only BOCPD + TimeCluster in headless mode
-./bin/observer-testbench \
+./bin/anomalydetection-testbench \
   --headless <scenario-name> \
   --output results.json \
   --scenarios-dir ./comp/anomalydetection/observer/scenarios \
@@ -211,7 +211,7 @@ dda inv -- q.launch-testbench --headless-scenario <scenario-name> --logs-only
 
 ## Params File (`--config`)
 
-The `--config` flag accepts a JSON file that controls both enabled/disabled state and hyperparameters for any component. This is the recommended interface for **Bayesian hyperparameter optimization** — the optimizer writes a params file, runs the testbench in headless mode, and scores the output with `observer-scorer`.
+The `--config` flag accepts a JSON file that controls both enabled/disabled state and hyperparameters for any component. This is the recommended interface for **Bayesian hyperparameter optimization** — the optimizer writes a params file, runs the testbench in headless mode, and scores the output with `anomalydetection-scorer`.
 
 When `--config` is provided it takes full precedence over `--enable`/`--disable`/`--only`. Components not mentioned in the file use their catalog defaults.
 

@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "anomalydetection-scorer_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/DataDog/datadog-agent/tools/qbranch/anomalydetection-scorer",
+    visibility = ["//visibility:private"],
+)
+
+go_binary(
+    name = "anomalydetection-scorer",
+    embed = [":anomalydetection-scorer_lib"],
+    visibility = ["//visibility:public"],
+)

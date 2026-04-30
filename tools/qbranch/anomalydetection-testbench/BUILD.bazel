@@ -1,9 +1,9 @@
 load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
 
 go_library(
-    name = "observer-testbench_lib",
+    name = "anomalydetection-testbench_lib",
     srcs = ["main.go"],
-    importpath = "github.com/DataDog/datadog-agent/tools/qbranch/observer-testbench",
+    importpath = "github.com/DataDog/datadog-agent/tools/qbranch/anomalydetection-testbench",
     visibility = ["//visibility:private"],
     deps = [
         "//pkg/util/fxutil",
@@ -14,15 +14,15 @@ go_library(
 )
 
 go_binary(
-    name = "observer-testbench",
-    embed = [":observer-testbench_lib"],
+    name = "anomalydetection-testbench",
+    embed = [":anomalydetection-testbench_lib"],
     visibility = ["//visibility:public"],
 )
 
 go_test(
-    name = "observer-testbench_test",
+    name = "anomalydetection-testbench_test",
     srcs = ["main_test.go"],
-    embed = [":observer-testbench_lib"],
+    embed = [":anomalydetection-testbench_lib"],
     deps = [
         "//pkg/util/fxutil",
         "@com_github_datadog_datadog_agent_comp_core_config//:config",

@@ -501,11 +501,11 @@ func newLiveEventSender(cfg config.Component, logger log.Component, storage obse
 }
 
 // sendReportedEvent posts a single ReportedEvent to the Datadog backend.
-// It replaces the original source tag with "source:observer-testbench" and
+// It replaces the original source tag with "source:anomalydetection-testbench" and
 // appends the provided extraTags (e.g. scenario and user).
 func (s *eventSender) sendReportedEvent(event ReportedEvent, extraTags []string) error {
 	// Rebuild tags: drop original source, replace with testbench source, add extras.
-	tags := []string{"source:observer-testbench"}
+	tags := []string{"source:anomalydetection-testbench"}
 	for _, t := range event.Tags {
 		if strings.HasPrefix(t, "source:") {
 			continue
@@ -513,7 +513,7 @@ func (s *eventSender) sendReportedEvent(event ReportedEvent, extraTags []string)
 		tags = append(tags, t)
 	}
 	tags = append(tags, extraTags...)
-	sort.Strings(tags[1:]) // keep source:observer-testbench first
+	sort.Strings(tags[1:]) // keep source:anomalydetection-testbench first
 
 	// Use current time: replay scenario timestamps are often hours/days old and
 	// the Datadog API rejects events with timestamps outside its acceptance window.
@@ -539,7 +539,7 @@ func (s *eventSender) sendReportedEvent(event ReportedEvent, extraTags []string)
 	)
 	changeAttrs := *datadogV2.NewChangeEventCustomAttributes(changedResource)
 	changeAttrs.SetAuthor(*datadogV2.NewChangeEventCustomAttributesAuthor(
-		"datadog-agent-observer-testbench",
+		"datadog-agent-anomalydetection-testbench",
 		datadogV2.CHANGEEVENTCUSTOMATTRIBUTESAUTHORTYPE_AUTOMATION,
 	))
 	attrs := datadogV2.ChangeEventCustomAttributesAsEventPayloadAttributes(&changeAttrs)
