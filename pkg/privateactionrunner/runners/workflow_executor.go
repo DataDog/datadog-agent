@@ -82,13 +82,11 @@ func (l *Loop) Run(parentCtx context.Context) {
 			if retryAfterDuration > 0 {
 				sleepDuration = retryAfterDuration
 			}
-			timer := time.NewTimer(sleepDuration)
 			select {
 			case <-l.shutdownChannel:
-				timer.Stop()
 				logger.Info("Stopping loop")
 				return
-			case <-timer.C:
+			case <-time.After(sleepDuration):
 			}
 			continue
 		}
