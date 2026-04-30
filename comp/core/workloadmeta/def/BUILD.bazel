@@ -19,6 +19,7 @@ go_library(
         "//pkg/discovery/tracermetadata/model",
         "//pkg/languagedetection/languagemodels",
         "//pkg/util/containers/image",
+        "//pkg/util/log",
         "//pkg/util/scrubber",
         "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",
         "@com_github_fatih_color//:color",
@@ -27,6 +28,7 @@ go_library(
         "@com_github_opencontainers_image_spec//specs-go/v1:specs-go",
         "@io_k8s_apimachinery//pkg/runtime/schema",
         "@io_k8s_apimachinery//pkg/version",
+        "@org_golang_google_protobuf//proto",
         "@org_uber_go_fx//:fx",
     ],
 )
@@ -47,6 +49,7 @@ go_test(
         "//pkg/discovery/tracermetadata/model",
         "//pkg/languagedetection/languagemodels",
         "//pkg/util/pointer",
+        "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@io_k8s_apimachinery//pkg/runtime/schema",

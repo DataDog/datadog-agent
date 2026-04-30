@@ -6,6 +6,8 @@
 package workloadmeta
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -15,6 +17,7 @@ import (
 
 	"github.com/mohae/deepcopy"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
+	"google.golang.org/protobuf/proto"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/version"
 
@@ -24,6 +27,7 @@ import (
 	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pkgcontainersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // TODO(component): it might make more sense to move the store into its own
@@ -118,6 +122,15 @@ const (
 
 	// SourceKubeAPIServer represents metadata collected from the Kubernetes API Server
 	SourceKubeAPIServer Source = "kubeapiserver"
+)
+
+// Runtime SBOM property names injected by system-probe via the remote SBOM collector.
+// These properties are always overwritten by the secondary (system-probe) source during
+// SBOM merges so that updates from system-probe are never silently dropped.
+const (
+	SBOMLastSeenRunningProperty = "LastSeenRunning"
+	SBOMHasSetSuidBitProperty   = "HasSetSuidBit"
+	SBOMRunningAsRootProperty   = "RunningAsRoot"
 )
 
 // ContainerRuntime is the container runtime used by a container.
@@ -1570,6 +1583,211 @@ func (i ContainerImageMetadata) GetID() EntityID {
 	return i.EntityID
 }
 
+// sbomStatusPriority returns a numeric rank for a CompressedSBOM's Status,
+// used to decide which SBOM provides the authoritative scan metadata when
+// merging two sources.
+func sbomStatusPriority(s *CompressedSBOM) int {
+	if s == nil {
+		return -1
+	}
+	switch s.Status {
+	case Success:
+		return 3
+	case Failed:
+		return 2
+	case Pending:
+		return 1
+	default: // "" — remote_sbom_collector fired before the scan completed
+		return 0
+	}
+}
+
+// normalizeComponentVersion strips the epoch prefix from a package version
+// (e.g. "1:4.4.36-4build1" → "4.4.36-4build1") for component key matching.
+func normalizeComponentVersion(v string) string {
+	if idx := strings.Index(v, ":"); idx > 0 {
+		return v[idx+1:]
+	}
+	return v
+}
+
+func decompressSBOMBom(data []byte) (*cyclonedx_v1_4.Bom, error) {
+	if len(data) == 0 {
+		return &cyclonedx_v1_4.Bom{}, nil
+	}
+	r, err := gzip.NewReader(bytes.NewReader(data))
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close()
+	raw, err := io.ReadAll(r)
+	if err != nil {
+		return nil, err
+	}
+	var bom cyclonedx_v1_4.Bom
+	if err := proto.Unmarshal(raw, &bom); err != nil {
+		return nil, err
+	}
+	return &bom, nil
+}
+
+func compressSBOMBom(bom *cyclonedx_v1_4.Bom) ([]byte, error) {
+	raw, err := proto.Marshal(bom)
+	if err != nil {
+		return nil, err
+	}
+	var buf bytes.Buffer
+	w := gzip.NewWriter(&buf)
+	if _, err := w.Write(raw); err != nil {
+		return nil, err
+	}
+	if err := w.Close(); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+func copyComponentForMerge(c *cyclonedx_v1_4.Component) *cyclonedx_v1_4.Component {
+	return &cyclonedx_v1_4.Component{
+		Type:               c.Type,
+		MimeType:           c.MimeType,
+		BomRef:             c.BomRef,
+		Supplier:           c.Supplier,
+		Author:             c.Author,
+		Publisher:          c.Publisher,
+		Group:              c.Group,
+		Name:               c.Name,
+		Version:            c.Version,
+		Description:        c.Description,
+		Scope:              c.Scope,
+		Hashes:             c.Hashes,
+		Licenses:           c.Licenses,
+		Copyright:          c.Copyright,
+		Cpe:                c.Cpe,
+		Purl:               c.Purl,
+		Swid:               c.Swid,
+		Modified:           c.Modified,
+		Pedigree:           c.Pedigree,
+		ExternalReferences: c.ExternalReferences,
+		Components:         c.Components,
+		Properties:         append([]*cyclonedx_v1_4.Property(nil), c.Properties...),
+		Evidence:           c.Evidence,
+		ReleaseNotes:       c.ReleaseNotes,
+	}
+}
+
+func isRuntimeSBOMProperty(name string) bool {
+	return name == SBOMLastSeenRunningProperty ||
+		name == SBOMHasSetSuidBitProperty ||
+		name == SBOMRunningAsRootProperty
+}
+
+// mergeCompressedSBOMs combines two CompressedSBOM values into one:
+//   - scan metadata (Status, GenerationTime, …) comes from whichever input has
+//     the strictly higher status; when equal, dst wins (it is the alphabetically
+//     first source in computeCache and already holds any previously-merged result);
+//   - the component list is built from the primary BOM's components, enriched with
+//     properties from matching secondary components; runtime properties
+//     (LastSeenRunning, HasSetSuidBit, RunningAsRoot) are always overwritten by the
+//     secondary so that system-probe updates are never silently dropped even when the
+//     primary already carries a stale copy from a previous merge.
+//
+// This lets Trivy's package list and scan metadata coexist with system-probe's
+// runtime properties regardless of which source fires first.
+func mergeCompressedSBOMs(dst, src *CompressedSBOM) *CompressedSBOM {
+	if dst == nil {
+		return src
+	}
+	if src == nil {
+		return dst
+	}
+
+	primary, secondary := dst, src
+	if sbomStatusPriority(src) > sbomStatusPriority(dst) {
+		primary, secondary = src, dst
+	}
+
+	primaryBOM, err := decompressSBOMBom(primary.Bom)
+	if err != nil {
+		log.Warnf("workloadmeta: SBOM merge: failed to decompress primary BOM: %v", err)
+		return primary
+	}
+
+	secondaryBOM, err := decompressSBOMBom(secondary.Bom)
+	if err != nil || len(secondaryBOM.GetComponents()) == 0 {
+		return primary
+	}
+
+	secondaryIndex := make(map[string]*cyclonedx_v1_4.Component, len(secondaryBOM.Components))
+	for _, c := range secondaryBOM.Components {
+		if c != nil {
+			secondaryIndex[c.Name+"@"+normalizeComponentVersion(c.Version)] = c
+		}
+	}
+
+	mergedBOM := &cyclonedx_v1_4.Bom{
+		SpecVersion:        primaryBOM.SpecVersion,
+		Version:            primaryBOM.Version,
+		SerialNumber:       primaryBOM.SerialNumber,
+		Metadata:           primaryBOM.Metadata,
+		Services:           primaryBOM.Services,
+		ExternalReferences: primaryBOM.ExternalReferences,
+		Dependencies:       primaryBOM.Dependencies,
+		Compositions:       primaryBOM.Compositions,
+		Vulnerabilities:    primaryBOM.Vulnerabilities,
+		Components:         make([]*cyclonedx_v1_4.Component, 0, len(primaryBOM.Components)),
+	}
+
+	seen := make(map[string]struct{}, len(primaryBOM.Components))
+	for _, pc := range primaryBOM.Components {
+		if pc == nil {
+			continue
+		}
+		key := pc.Name + "@" + normalizeComponentVersion(pc.Version)
+		if _, already := seen[key]; already {
+			continue
+		}
+		seen[key] = struct{}{}
+
+		mc := copyComponentForMerge(pc)
+		if sc, ok := secondaryIndex[key]; ok {
+			for _, sp := range sc.Properties {
+				if sp == nil {
+					continue
+				}
+				existingIdx := -1
+				for i, pp := range mc.Properties {
+					if pp != nil && pp.Name == sp.Name {
+						existingIdx = i
+						break
+					}
+				}
+				if existingIdx == -1 {
+					mc.Properties = append(mc.Properties, sp)
+				} else if isRuntimeSBOMProperty(sp.Name) {
+					mc.Properties[existingIdx] = sp
+				}
+			}
+		}
+		mergedBOM.Components = append(mergedBOM.Components, mc)
+	}
+
+	compressedBOM, err := compressSBOMBom(mergedBOM)
+	if err != nil {
+		log.Warnf("workloadmeta: SBOM merge: failed to recompress merged BOM: %v", err)
+		return primary
+	}
+
+	return &CompressedSBOM{
+		Bom:                compressedBOM,
+		Status:             primary.Status,
+		GenerationTime:     primary.GenerationTime,
+		GenerationDuration: primary.GenerationDuration,
+		GenerationMethod:   primary.GenerationMethod,
+		Error:              primary.Error,
+	}
+}
+
 // Merge implements Entity#Merge.
 func (i *ContainerImageMetadata) Merge(e Entity) error {
 	otherImage, ok := e.(*ContainerImageMetadata)
@@ -1578,12 +1796,9 @@ func (i *ContainerImageMetadata) Merge(e Entity) error {
 	}
 
 	// Save SBOM pointers before the generic merge to prevent mergo from
-	// concatenating the compressed Bom []byte fields across sources. Two
-	// gzip-encoded protobufs appended byte-for-byte form a valid multistream
-	// gzip that decodes to a concatenated protobuf, which duplicates all
-	// repeated Components.  We apply our own "prefer dst if non-nil" rule
-	// instead: the remote SBOM collector (alphabetically first) always
-	// produces an already-enriched SBOM that supersedes the raw Trivy SBOM.
+	// touching the compressed Bom []byte fields. We rebuild the SBOM ourselves
+	// via mergeCompressedSBOMs, which decompresses both sides, unions runtime
+	// properties into the higher-status BOM's component list, and recompresses.
 	dstSBOM := i.SBOM
 	srcSBOM := otherImage.SBOM
 
@@ -1594,12 +1809,7 @@ func (i *ContainerImageMetadata) Merge(e Entity) error {
 
 	err := merge(i, &otherImageCopy)
 
-	// Restore SBOM: keep dst's enriched SBOM when available, else fall back to src.
-	if dstSBOM != nil {
-		i.SBOM = dstSBOM
-	} else {
-		i.SBOM = srcSBOM
-	}
+	i.SBOM = mergeCompressedSBOMs(dstSBOM, srcSBOM)
 
 	return err
 }

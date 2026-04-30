@@ -37,22 +37,10 @@ import (
 
 const (
 	collectorID           = "sbom-collector"
-	LastAccessProperty    = "LastSeenRunning"
-	HasSetSuidBitProperty = "HasSetSuidBit"
-	RunningAsRootProperty = "RunningAsRoot"
+	LastAccessProperty    = workloadmeta.SBOMLastSeenRunningProperty
+	HasSetSuidBitProperty = workloadmeta.SBOMHasSetSuidBitProperty
+	RunningAsRootProperty = workloadmeta.SBOMRunningAsRootProperty
 )
-
-// normalizeVersion normalizes version strings to handle epoch differences
-// e.g., "1:4.4.36-4build1" and "4.4.36-4build1" should both map to "4.4.36-4build1"
-// Returns both the normalized version (without epoch) and the original version
-func normalizeVersion(version string) (normalized string, hasEpoch bool) {
-	// Check if version has epoch prefix (e.g., "1:4.4.36-4build1")
-	if idx := strings.Index(version, ":"); idx > 0 {
-		// Extract the part after the epoch
-		return version[idx+1:], true
-	}
-	return version, false
-}
 
 type client struct {
 	cl sbompb.SBOMCollectorClient
@@ -84,77 +72,47 @@ type streamHandler struct {
 	systemProbeConfig model.Reader
 }
 
-// workloadmetaEventFromSBOMEventSet converts the given SBOM message into a workloadmeta event
+// workloadmetaEventFromSBOMEventSet converts the given SBOM message into a workloadmeta event.
+// The raw system-probe BOM is stored as-is under the remote_sbom_collector source; merging
+// its runtime properties into the Trivy BOM happens in ContainerImageMetadata.Merge via
+// mergeCompressedSBOMs, so the correct result is produced regardless of arrival order.
 func workloadmetaEventFromSBOMEventSet(store workloadmeta.Component, event *sbompb.SBOMMessage) (workloadmeta.Event, error) {
 	if event == nil {
 		return workloadmeta.Event{}, nil
 	}
 
-	var newBom cyclonedx_v1_4.Bom
-	err := proto.Unmarshal(event.Data, &newBom)
-	if err != nil {
+	var finalBom cyclonedx_v1_4.Bom
+	if err := proto.Unmarshal(event.Data, &finalBom); err != nil {
 		return workloadmeta.Event{}, fmt.Errorf("failed to unmarshal SBOM: %w", err)
 	}
 
 	if event.Kind != string(workloadmeta.KindContainer) {
 		return workloadmeta.Event{}, fmt.Errorf("expected KindContainer, got %s", event.Kind)
 	}
-
 	if event.ID == "" {
 		return workloadmeta.Event{}, errors.New("expected container ID, got empty")
 	}
 
 	log.Debugf("Received forwarded SBOM for container %s", event.ID)
 
-	// Get container to find its image
 	container, err := store.GetContainer(event.ID)
 	if err != nil || container == nil {
 		return workloadmeta.Event{}, fmt.Errorf("container %s not found in workloadmeta: %w", event.ID, err)
 	}
-
-	// Get the image ID from the container
 	imageID := container.Image.ID
 	if imageID == "" {
 		return workloadmeta.Event{}, fmt.Errorf("container %s has no image ID", event.ID)
 	}
 
-	log.Debugf("Container %s uses image %s, updating image SBOM", event.ID, imageID)
-
-	// Get existing image to merge SBOM data
-	var finalBom *cyclonedx_v1_4.Bom
-	var finalCompressedSBOM *workloadmeta.CompressedSBOM
-
 	existingImage, err := store.GetImage(imageID)
-	if err == nil && existingImage != nil && existingImage.SBOM != nil {
-		// Decompress existing image SBOM to get CycloneDXBOM
-		existingSBOM, err := sbomutil.UncompressSBOM(existingImage.SBOM)
-		if err == nil && existingSBOM != nil && existingSBOM.CycloneDXBOM != nil {
-			// Merge runtime properties from new BOM into existing image SBOM
-			finalBom = mergeRuntimeProperties(existingSBOM.CycloneDXBOM, &newBom)
-			log.Debugf("Merged runtime properties for image %s SBOM", imageID)
-		} else {
-			// Decompression failed or no CycloneDXBOM, use the new one directly
-			finalBom = &newBom
-			if err != nil {
-				log.Warnf("Failed to decompress existing SBOM for image %s: %v, using new SBOM", imageID, err)
-			} else {
-				log.Debugf("No existing CycloneDXBOM for image %s, using new SBOM", imageID)
-			}
-		}
-	} else {
-		// No existing SBOM on image, use the new one directly
-		finalBom = &newBom
-		if err != nil {
-			log.Debugf("Could not get image %s from store: %v, using new SBOM", imageID, err)
-		} else {
-			log.Debugf("No existing SBOM for image %s, using new SBOM", imageID)
-		}
+	if err != nil || existingImage == nil {
+		log.Infof("Image %s not found in workloadmeta, will create new entity with SBOM", imageID)
 	}
 
 	// Compress the final merged SBOM, preserving scan metadata from the existing
 	// SBOM so Status/GenerationTime/etc. survive the runtime-enrichment update.
 	sbomToCompress := &workloadmeta.SBOM{
-		CycloneDXBOM: finalBom,
+		CycloneDXBOM: &finalBom,
 	}
 	if existingImage != nil && existingImage.SBOM != nil {
 		sbomToCompress.Status = existingImage.SBOM.Status
@@ -163,7 +121,7 @@ func workloadmetaEventFromSBOMEventSet(store workloadmeta.Component, event *sbom
 		sbomToCompress.GenerationMethod = existingImage.SBOM.GenerationMethod
 		sbomToCompress.Error = existingImage.SBOM.Error
 	}
-	finalCompressedSBOM, err = sbomutil.CompressSBOM(sbomToCompress)
+	finalCompressedSBOM, err := sbomutil.CompressSBOM(sbomToCompress)
 	if err != nil {
 		return workloadmeta.Event{}, fmt.Errorf("failed to compress SBOM for image %s: %w", imageID, err)
 	}
@@ -179,147 +137,6 @@ func workloadmetaEventFromSBOMEventSet(store workloadmeta.Component, event *sbom
 			SBOM: finalCompressedSBOM,
 		},
 	}, nil
-}
-
-// mergeRuntimeProperties merges runtime properties from newBom into existingBom.
-// Returns a new BOM whose component list is deduplicated (by name+normalised version) and
-// enriched with runtime properties (LastSeenRunning / HasSetSuidBit / RunningAsRoot) taken
-// from newBom.  Deduplication is necessary because a previously-merged SBOM stored in the
-// image entity may already carry both an original Trivy entry and a runtime-enriched copy of
-// the same package; without it every merge round would re-emit both copies.
-func mergeRuntimeProperties(existingBom, newBom *cyclonedx_v1_4.Bom) *cyclonedx_v1_4.Bom {
-	if newBom == nil || len(newBom.Components) == 0 {
-		return existingBom
-	}
-
-	// Build a lookup map from newBom (system-probe) components by name+normalised version.
-	// We normalise versions to handle epoch differences (e.g. "1:4.4.36" vs "4.4.36").
-	newComponentsMap := make(map[string]*cyclonedx_v1_4.Component)
-	for _, comp := range newBom.Components {
-		if comp != nil {
-			normalizedVersion, _ := normalizeVersion(comp.Version)
-			key := comp.Name + "@" + normalizedVersion
-			newComponentsMap[key] = comp
-		}
-	}
-
-	// Shallow-copy the BOM envelope; Components is rebuilt below.
-	mergedBom := &cyclonedx_v1_4.Bom{
-		SpecVersion:        existingBom.SpecVersion,
-		Version:            existingBom.Version,
-		SerialNumber:       existingBom.SerialNumber,
-		Metadata:           existingBom.Metadata,
-		Services:           existingBom.Services,
-		ExternalReferences: existingBom.ExternalReferences,
-		Dependencies:       existingBom.Dependencies,
-		Compositions:       existingBom.Compositions,
-		Vulnerabilities:    existingBom.Vulnerabilities,
-	}
-
-	// seen tracks which name@version keys have already been emitted so that duplicate
-	// entries for the same package (which can accumulate across merge rounds) are dropped.
-	seen := make(map[string]struct{}, len(existingBom.Components))
-
-	for _, existingComp := range existingBom.Components {
-		if existingComp == nil {
-			continue
-		}
-
-		normalizedVersion, _ := normalizeVersion(existingComp.Version)
-		key := existingComp.Name + "@" + normalizedVersion
-
-		// Emit only the first occurrence of each package.
-		if _, already := seen[key]; already {
-			continue
-		}
-		seen[key] = struct{}{}
-
-		// Copy all fields so we do not mutate the original BOM.
-		mergedComp := &cyclonedx_v1_4.Component{
-			Type:               existingComp.Type,
-			MimeType:           existingComp.MimeType,
-			BomRef:             existingComp.BomRef,
-			Supplier:           existingComp.Supplier,
-			Author:             existingComp.Author,
-			Publisher:          existingComp.Publisher,
-			Group:              existingComp.Group,
-			Name:               existingComp.Name,
-			Version:            existingComp.Version,
-			Description:        existingComp.Description,
-			Scope:              existingComp.Scope,
-			Hashes:             existingComp.Hashes,
-			Licenses:           existingComp.Licenses,
-			Copyright:          existingComp.Copyright,
-			Cpe:                existingComp.Cpe,
-			Purl:               existingComp.Purl,
-			Swid:               existingComp.Swid,
-			Modified:           existingComp.Modified,
-			Pedigree:           existingComp.Pedigree,
-			ExternalReferences: existingComp.ExternalReferences,
-			Components:         existingComp.Components,
-			Properties:         existingComp.Properties,
-			Evidence:           existingComp.Evidence,
-			ReleaseNotes:       existingComp.ReleaseNotes,
-		}
-
-		// Add or update runtime properties from newBom.
-		if newComp, exists := newComponentsMap[key]; exists && newComp.Properties != nil {
-			updateProperty := func(propertyName string) {
-				var newProp *cyclonedx_v1_4.Property
-				for _, prop := range newComp.Properties {
-					if prop != nil && prop.Name == propertyName {
-						newProp = prop
-						break
-					}
-				}
-				if newProp == nil {
-					return
-				}
-				if mergedComp.Properties == nil {
-					mergedComp.Properties = []*cyclonedx_v1_4.Property{}
-				}
-				for j, prop := range mergedComp.Properties {
-					if prop != nil && prop.Name == propertyName {
-						mergedComp.Properties[j] = newProp
-						log.Tracef("Updated %s for component %s@%s", propertyName, existingComp.Name, existingComp.Version)
-						return
-					}
-				}
-				mergedComp.Properties = append(mergedComp.Properties, newProp)
-				log.Tracef("Added %s for component %s@%s", propertyName, existingComp.Name, existingComp.Version)
-			}
-
-			updateProperty(LastAccessProperty)
-			updateProperty(HasSetSuidBitProperty)
-			updateProperty(RunningAsRootProperty)
-		}
-
-		// If LastAccessProperty is not present in the merged component (neither from
-		// existingBom nor from newBom), set it to zero so downstream consumers can
-		// distinguish "never seen running" from "unknown".
-		hasLastAccess := false
-		for _, prop := range mergedComp.Properties {
-			if prop != nil && prop.Name == LastAccessProperty {
-				hasLastAccess = true
-				break
-			}
-		}
-		if !hasLastAccess {
-			if mergedComp.Properties == nil {
-				mergedComp.Properties = []*cyclonedx_v1_4.Property{}
-			}
-			zeroValue := "0"
-			mergedComp.Properties = append(mergedComp.Properties, &cyclonedx_v1_4.Property{
-				Name:  LastAccessProperty,
-				Value: &zeroValue,
-			})
-			log.Tracef("Set %s to zero for component %s@%s", LastAccessProperty, existingComp.Name, existingComp.Version)
-		}
-
-		mergedBom.Components = append(mergedBom.Components, mergedComp)
-	}
-
-	return mergedBom
 }
 
 // NewCollector returns a remote process collector for workloadmeta if any

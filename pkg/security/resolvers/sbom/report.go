@@ -12,15 +12,16 @@ import (
 	"strconv"
 
 	cyclonedx_v1_4 "github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	sbomtypes "github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom/types"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 const (
-	LastAccessProperty    = "LastSeenRunning"
-	HasSetSuidBitProperty = "HasSetSuidBit"
-	RunningAsRootProperty = "RunningAsRoot"
+	LastAccessProperty    = workloadmeta.SBOMLastSeenRunningProperty
+	HasSetSuidBitProperty = workloadmeta.SBOMHasSetSuidBitProperty
+	RunningAsRootProperty = workloadmeta.SBOMRunningAsRootProperty
 )
 
 // PackagesReport wraps package data and implements the sbom.Report interface
