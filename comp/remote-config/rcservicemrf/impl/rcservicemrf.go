@@ -7,6 +7,7 @@
 package rcservicemrfimpl
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"time"
@@ -18,6 +19,7 @@ import (
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
 	rcservicemrf "github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf/def"
 	rctelemetryreporter "github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/def"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
@@ -127,6 +129,18 @@ func newMrfRemoteConfigService(deps Dependencies) (rcservicemrf.Component, error
 	}})
 
 	return mrfConfigService, nil
+}
+
+func mrfFillFlare(svc rcservicemrf.Component) func(context.Context, flaretypes.FlareBuilder) error {
+	return func(_ context.Context, fb flaretypes.FlareBuilder) error {
+		state, err := svc.ConfigGetState()
+		if err != nil {
+			return fmt.Errorf("couldn't get the MRF repositories state: %v", err)
+		}
+		var buf bytes.Buffer
+		rcservice.PrintRemoteConfigStates(&buf, nil, state)
+		return fb.AddFile("remote-config-state-ha.log", buf.Bytes())
+	}
 }
 
 func getHostTags(config cfgcomp.Component) func() []string {
