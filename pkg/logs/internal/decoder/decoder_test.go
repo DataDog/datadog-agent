@@ -6,7 +6,9 @@
 package decoder
 
 import (
+	"fmt"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -339,6 +341,7 @@ func TestResolveTokenizerAndLabelerMaxInputBytes(t *testing.T) {
 
 	sourceOverride20 := 20
 	sourceOverride500 := 500
+<<<<<<< HEAD
 
 	tests := []struct {
 		name             string
@@ -358,12 +361,38 @@ func TestResolveTokenizerAndLabelerMaxInputBytes(t *testing.T) {
 			name:           "source override no sampler",
 			samplerEnabled: false,
 			sourceSettings: &config.SourceAutoMultiLineOptions{
+=======
+	sourceSamplerTokenizerOverride128 := 128
+	enabledTrue := true
+	enabledFalse := false
+
+	tests := []struct {
+		name                  string
+		globalSamplerEnabled  bool
+		sourceAutoMLSettings  *config.SourceAutoMultiLineOptions
+		sourceSamplerSettings *config.SourceAdaptiveSamplingOptions
+		wantTokenizerMax      int
+		wantLabelerMax        int
+	}{
+		{
+			name:                 "global defaults no sampler",
+			globalSamplerEnabled: false,
+			sourceAutoMLSettings: nil,
+			wantTokenizerMax:     60,
+			wantLabelerMax:       60,
+		},
+		{
+			name:                 "source override no sampler",
+			globalSamplerEnabled: false,
+			sourceAutoMLSettings: &config.SourceAutoMultiLineOptions{
+>>>>>>> main
 				TokenizerMaxInputBytes: &sourceOverride20,
 			},
 			wantTokenizerMax: 20,
 			wantLabelerMax:   20,
 		},
 		{
+<<<<<<< HEAD
 			name:             "sampler widens tokenizer from global",
 			samplerEnabled:   true,
 			sourceSettings:   nil,
@@ -374,28 +403,215 @@ func TestResolveTokenizerAndLabelerMaxInputBytes(t *testing.T) {
 			name:           "sampler widens tokenizer while keeping source labeler limit",
 			samplerEnabled: true,
 			sourceSettings: &config.SourceAutoMultiLineOptions{
+=======
+			name:                 "global sampler widens tokenizer from global",
+			globalSamplerEnabled: true,
+			sourceAutoMLSettings: nil,
+			wantTokenizerMax:     256,
+			wantLabelerMax:       60,
+		},
+		{
+			name:                 "global sampler widens tokenizer while keeping source labeler limit",
+			globalSamplerEnabled: true,
+			sourceAutoMLSettings: &config.SourceAutoMultiLineOptions{
+>>>>>>> main
 				TokenizerMaxInputBytes: &sourceOverride20,
 			},
 			wantTokenizerMax: 256,
 			wantLabelerMax:   20,
 		},
 		{
+<<<<<<< HEAD
 			name:           "source override larger than sampler minimum",
 			samplerEnabled: true,
 			sourceSettings: &config.SourceAutoMultiLineOptions{
+=======
+			name:                 "source labeler override larger than sampler minimum",
+			globalSamplerEnabled: true,
+			sourceAutoMLSettings: &config.SourceAutoMultiLineOptions{
+>>>>>>> main
 				TokenizerMaxInputBytes: &sourceOverride500,
 			},
 			wantTokenizerMax: 500,
 			wantLabelerMax:   500,
 		},
+<<<<<<< HEAD
+=======
+		{
+			name:                 "source sampler enable overrides global false",
+			globalSamplerEnabled: false,
+			sourceSamplerSettings: &config.SourceAdaptiveSamplingOptions{
+				Enabled: &enabledTrue,
+			},
+			wantTokenizerMax: 256,
+			wantLabelerMax:   60,
+		},
+		{
+			name:                 "source sampler disable overrides global true",
+			globalSamplerEnabled: true,
+			sourceSamplerSettings: &config.SourceAdaptiveSamplingOptions{
+				Enabled: &enabledFalse,
+			},
+			wantTokenizerMax: 60,
+			wantLabelerMax:   60,
+		},
+		{
+			name:                 "source sampler tokenizer override wins over global sampler tokenizer",
+			globalSamplerEnabled: true,
+			sourceSamplerSettings: &config.SourceAdaptiveSamplingOptions{
+				TokenizerMaxInputBytes: &sourceSamplerTokenizerOverride128,
+			},
+			wantTokenizerMax: 128,
+			wantLabelerMax:   60,
+		},
+>>>>>>> main
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+<<<<<<< HEAD
 			mockConfig.Set("logs_config.experimental_adaptive_sampling.enabled", tt.samplerEnabled, pkgconfigmodel.SourceAgentRuntime)
 			gotTokenizerMax, gotLabelerMax := resolveTokenizerAndLabelerMaxInputBytes(tt.sourceSettings)
+=======
+			mockConfig.Set("logs_config.experimental_adaptive_sampling.enabled", tt.globalSamplerEnabled, pkgconfigmodel.SourceAgentRuntime)
+			gotTokenizerMax, gotLabelerMax := resolveTokenizerAndLabelerMaxInputBytes(tt.sourceAutoMLSettings, tt.sourceSamplerSettings)
+>>>>>>> main
 			assert.Equal(t, tt.wantTokenizerMax, gotTokenizerMax)
 			assert.Equal(t, tt.wantLabelerMax, gotLabelerMax)
 		})
 	}
 }
+<<<<<<< HEAD
+=======
+
+func TestResolveAdaptiveSamplerEnabled(t *testing.T) {
+	mockConfig := configmock.New(t)
+	enabledTrue := true
+	enabledFalse := false
+
+	tests := []struct {
+		name          string
+		globalEnabled bool
+		sourceCfg     *config.SourceAdaptiveSamplingOptions
+		want          bool
+	}{
+		{
+			name:          "falls back to global when source unset",
+			globalEnabled: true,
+			sourceCfg:     nil,
+			want:          true,
+		},
+		{
+			name:          "source disable overrides global enable",
+			globalEnabled: true,
+			sourceCfg: &config.SourceAdaptiveSamplingOptions{
+				Enabled: &enabledFalse,
+			},
+			want: false,
+		},
+		{
+			name:          "source enable overrides global disable",
+			globalEnabled: false,
+			sourceCfg: &config.SourceAdaptiveSamplingOptions{
+				Enabled: &enabledTrue,
+			},
+			want: true,
+		},
+		{
+			name:          "source block without enabled still falls back to global",
+			globalEnabled: false,
+			sourceCfg:     &config.SourceAdaptiveSamplingOptions{},
+			want:          false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockConfig.Set("logs_config.experimental_adaptive_sampling.enabled", tt.globalEnabled, pkgconfigmodel.SourceAgentRuntime)
+			got := resolveAdaptiveSamplerEnabled(tt.sourceCfg)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestResolveAdaptiveSamplerConfig(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.Set("logs_config.experimental_adaptive_sampling.max_patterns", 100, pkgconfigmodel.SourceAgentRuntime)
+	mockConfig.Set("logs_config.experimental_adaptive_sampling.rate_limit", 2.5, pkgconfigmodel.SourceAgentRuntime)
+	mockConfig.Set("logs_config.experimental_adaptive_sampling.burst_size", 50.0, pkgconfigmodel.SourceAgentRuntime)
+	mockConfig.Set("logs_config.experimental_adaptive_sampling.match_threshold", 0.8, pkgconfigmodel.SourceAgentRuntime)
+	mockConfig.Set("logs_config.experimental_adaptive_sampling.protect_important_logs", true, pkgconfigmodel.SourceAgentRuntime)
+
+	t.Run("falls back to global config", func(t *testing.T) {
+		got := resolveAdaptiveSamplerConfig(nil)
+		assert.Equal(t, 100, got.MaxPatterns)
+		assert.Equal(t, 2.5, got.RateLimit)
+		assert.Equal(t, 50.0, got.BurstSize)
+		assert.Equal(t, 0.8, got.MatchThreshold)
+		assert.True(t, got.ProtectImportantLogs)
+	})
+
+	t.Run("source overrides global config", func(t *testing.T) {
+		maxPatterns := 200
+		rateLimit := 3.5
+		burstSize := 75.0
+		matchThreshold := 0.65
+		protectImportantLogs := false
+
+		got := resolveAdaptiveSamplerConfig(&config.SourceAdaptiveSamplingOptions{
+			MaxPatterns:          &maxPatterns,
+			RateLimit:            &rateLimit,
+			BurstSize:            &burstSize,
+			MatchThreshold:       &matchThreshold,
+			ProtectImportantLogs: &protectImportantLogs,
+		})
+
+		assert.Equal(t, 200, got.MaxPatterns)
+		assert.Equal(t, 3.5, got.RateLimit)
+		assert.Equal(t, 75.0, got.BurstSize)
+		assert.Equal(t, 0.65, got.MatchThreshold)
+		assert.False(t, got.ProtectImportantLogs)
+	})
+
+	t.Run("source partial override preserves global values", func(t *testing.T) {
+		rateLimit := 9.5
+
+		got := resolveAdaptiveSamplerConfig(&config.SourceAdaptiveSamplingOptions{
+			RateLimit: &rateLimit,
+		})
+
+		assert.Equal(t, 100, got.MaxPatterns)
+		assert.Equal(t, 9.5, got.RateLimit)
+		assert.Equal(t, 50.0, got.BurstSize)
+		assert.Equal(t, 0.8, got.MatchThreshold)
+		assert.True(t, got.ProtectImportantLogs)
+	})
+}
+
+func TestDecoderWithDockerJSONPartialLineDetectionOnlyMarksOversizedLogicalLineTruncated(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.Set("logs_config.max_message_size_bytes", 1000, pkgconfigmodel.SourceAgentRuntime)
+	mockConfig.Set("logs_config.tag_truncated_logs", true, pkgconfigmodel.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_multi_line_detection_tagging", true, pkgconfigmodel.SourceAgentRuntime)
+
+	source := sources.NewLogSource("", &config.LogsConfig{})
+	d := InitializeDecoderForTest(source, dockerfile.New())
+	d.Start()
+	defer d.Stop()
+
+	part1 := strings.Repeat("a", 600)
+	part2 := strings.Repeat("b", 600)
+
+	line1 := []byte(fmt.Sprintf(`{"log":"%s","stream":"stdout","time":"2019-06-06T16:35:55.930852911Z"}`+"\n", part1))
+	line2 := []byte(fmt.Sprintf(`{"log":"%s\n","stream":"stdout","time":"2019-06-06T16:35:55.930852912Z"}`+"\n", part2))
+
+	d.InputChan() <- NewInput(line1)
+	d.InputChan() <- NewInput(line2)
+
+	output := <-d.OutputChan()
+	assert.Equal(t, part1+part2+string(message.TruncatedFlag), string(output.GetContent()))
+	assert.True(t, output.ParsingExtra.IsTruncated)
+	assert.Contains(t, output.ParsingExtra.Tags, message.TruncatedReasonTag("single_line"))
+	assert.Equal(t, len(line1)+len(line2), output.RawDataLen)
+}
+>>>>>>> main

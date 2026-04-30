@@ -33,8 +33,9 @@ import (
 var symbolicateErrorLogLimiter = rate.NewLimiter(rate.Every(1*time.Minute), 10)
 
 type probeEvent struct {
-	event *ir.Event
-	probe *ir.Probe
+	event    *ir.Event
+	probe    *ir.Probe
+	instance *ir.ProbeInstance
 }
 
 // TypeNameResolver resolves type names from type IDs as communicated by the
@@ -125,10 +126,14 @@ func NewDecoder(
 		message: message{},
 	}
 	for _, probe := range program.Probes {
-		for _, event := range probe.Events {
-			decoder.probeEvents[event.Type.ID] = probeEvent{
-				event: event,
-				probe: probe,
+		for i := range probe.Instances {
+			inst := &probe.Instances[i]
+			for _, event := range inst.Events {
+				decoder.probeEvents[event.Type.ID] = probeEvent{
+					event:    event,
+					probe:    probe,
+					instance: inst,
+				}
 			}
 		}
 	}
@@ -238,12 +243,33 @@ func (d *Decoder) resetForNextMessage() {
 }
 
 // Event wraps the output Event from the BPF program. It also adds fields
-// that are not present in the BPF program.
+// that are not present in the BPF program. EntryOrLine and Return are
+// FragmentedEvent values that may represent one or more ringbuf fragments
+// for a single logical event.
 type Event struct {
-	EntryOrLine output.Event
-	Return      output.Event
+	EntryOrLine output.FragmentedEvent
+	Return      output.FragmentedEvent
 	ServiceName string
 	ProcessTags string
+<<<<<<< HEAD
+=======
+	// Truncated is true when the event is known to be incomplete: some
+	// fragments were dropped before reaching userspace. The decoder is still
+	// expected to emit whatever data is available; the sink surfaces the
+	// flag in the emitted snapshot JSON so users know the capture is not
+	// full.
+	Truncated bool
+}
+
+// firstFragment returns the first event from a FragmentedEvent. This is used
+// to access the event header and stack trace which are only present in the
+// first fragment.
+func firstFragment(fe output.FragmentedEvent) output.Event {
+	for ev := range fe.Fragments() {
+		return ev
+	}
+	return nil
+>>>>>>> main
 }
 
 type message struct {
@@ -298,27 +324,32 @@ func (s *message) init(
 	s.ProcessTags = event.ProcessTags
 	s.Debugger = debuggerData{
 		Snapshot: snapshotData{
-			ID:       uuid.New(),
-			Language: "go",
+			ID:               uuid.New(),
+			Language:         "go",
+			EvaluationErrors: []evaluationError{},
 		},
-		EvaluationErrors: []evaluationError{},
 	}
 	if event.EntryOrLine == nil {
 		return nil, errors.New("entry event is nil")
 	}
 	if err := decoder.entryOrLine.init(
-		event.EntryOrLine, decoder.program.Types, &s.Debugger.EvaluationErrors,
+		event.EntryOrLine, decoder.program.Types, &s.Debugger.Snapshot.EvaluationErrors,
 	); err != nil {
 		return nil, err
 	}
 	probeEvent := decoder.probeEvents[decoder.entryOrLine.rootType.ID]
 	probe := probeEvent.probe
+	instance := probeEvent.instance
 
 	if probe.GetKind() == ir.ProbeKindSnapshot || probe.GetKind() == ir.ProbeKindLog {
 		s.Debugger.Type = payloadTypeSnapshot
 	}
 
-	header, err := event.EntryOrLine.Header()
+	eventOrLineFirstFragment := firstFragment(event.EntryOrLine)
+	if eventOrLineFirstFragment == nil {
+		return probe, errors.New("entry event first fragment is nil")
+	}
+	header, err := eventOrLineFirstFragment.Header()
 	if err != nil {
 		return probe, fmt.Errorf("error getting header %w", err)
 	}
@@ -331,8 +362,8 @@ func (s *message) init(
 		if header.Condition_eval_error == 2 {
 			msg = errNilPointerEvaluating.Error()
 		}
-		s.Debugger.EvaluationErrors = append(
-			s.Debugger.EvaluationErrors,
+		s.Debugger.Snapshot.EvaluationErrors = append(
+			s.Debugger.Snapshot.EvaluationErrors,
 			evaluationError{
 				Expression: whenDSL,
 				Message:    msg,
@@ -347,19 +378,24 @@ func (s *message) init(
 		decoder.line.capture = &decoder.entryOrLine
 		s.Debugger.Snapshot.captures.Lines = &decoder.line
 	}
+	var returnFirstFragment output.Event
 	var returnHeader *output.EventHeader
 	var durationMissingReason *string
 	if event.Return != nil {
 		if err := decoder._return.init(
-			event.Return, decoder.program.Types, &s.Debugger.EvaluationErrors,
+			event.Return, decoder.program.Types, &s.Debugger.Snapshot.EvaluationErrors,
 		); err != nil {
 			return nil, fmt.Errorf("error initializing return event: %w", err)
 		}
 		returnProbeEvent := decoder.probeEvents[decoder._return.rootType.ID]
-		if returnProbeEvent.probe != probe {
-			return nil, errors.New("return probe event has different probe than entry probe")
+		if returnProbeEvent.instance != instance {
+			return nil, errors.New("return probe event has different instance than entry probe")
 		}
-		returnHeader, err = event.Return.Header()
+		returnFirstFragment = firstFragment(event.Return)
+		if returnFirstFragment == nil {
+			return nil, errors.New("return event first fragment is nil")
+		}
+		returnHeader, err = returnFirstFragment.Header()
 		if err != nil {
 			return nil, fmt.Errorf("error getting return header %w", err)
 		}
@@ -372,8 +408,8 @@ func (s *message) init(
 			if returnHeader.Condition_eval_error == 2 {
 				msg = errNilPointerEvaluating.Error()
 			}
-			s.Debugger.EvaluationErrors = append(
-				s.Debugger.EvaluationErrors,
+			s.Debugger.Snapshot.EvaluationErrors = append(
+				s.Debugger.Snapshot.EvaluationErrors,
 				evaluationError{
 					Expression: whenDSL,
 					Message:    msg,
@@ -410,8 +446,8 @@ func (s *message) init(
 		const missingReturnReasonExpression = "@duration"
 		if reason != "" {
 			message := "not available: " + reason
-			s.Debugger.EvaluationErrors = append(
-				s.Debugger.EvaluationErrors,
+			s.Debugger.Snapshot.EvaluationErrors = append(
+				s.Debugger.Snapshot.EvaluationErrors,
 				evaluationError{
 					Expression: missingReturnReasonExpression,
 					Message:    message,
@@ -428,11 +464,11 @@ func (s *message) init(
 
 	// Unconditionally populate stackPCs map for any event with stack PCs.
 	populateStackPCsIfMissing(
-		probe, decoder, header.Stack_hash, event.EntryOrLine, "entry",
+		probe, decoder, header.Stack_hash, eventOrLineFirstFragment, "entry",
 	)
 	if returnHeader != nil {
 		populateStackPCsIfMissing(
-			probe, decoder, returnHeader.Stack_hash, event.Return, "return",
+			probe, decoder, returnHeader.Stack_hash, returnFirstFragment, "return",
 		)
 	}
 
@@ -443,7 +479,7 @@ func (s *message) init(
 		}
 		stackPCs, ok := decoder.stackPCs[stackHeader.Stack_hash]
 		if !ok {
-			s.Debugger.EvaluationErrors = append(s.Debugger.EvaluationErrors,
+			s.Debugger.Snapshot.EvaluationErrors = append(s.Debugger.Snapshot.EvaluationErrors,
 				evaluationError{
 					Expression: "Stacktrace",
 					Message:    "no stack pcs found",
@@ -458,7 +494,7 @@ func (s *message) init(
 				} else {
 					log.Tracef("error symbolicating stack for probe %s: %v", probe.GetID(), err)
 				}
-				s.Debugger.EvaluationErrors = append(s.Debugger.EvaluationErrors,
+				s.Debugger.Snapshot.EvaluationErrors = append(s.Debugger.Snapshot.EvaluationErrors,
 					evaluationError{
 						Expression: "Stacktrace",
 						Message:    err.Error(),
@@ -497,11 +533,11 @@ func (s *message) init(
 	s.Logger.ThreadID = int(header.Goid)
 	s.Debugger.Snapshot.Probe.ID = probe.GetID()
 
-	if probe.Template != nil {
+	if instance.Template != nil {
 		decoder.messageData = messageData{
 			entryOrLine: &decoder.entryOrLine,
 			_return:     &decoder._return,
-			template:    probe.Template,
+			template:    instance.Template,
 		}
 		s.Message = &decoder.messageData
 		if s.Duration != 0 {

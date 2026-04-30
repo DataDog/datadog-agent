@@ -6,15 +6,9 @@
 // Package ddprofilingextensionimpl defines the OpenTelemetry Extension implementation.
 package ddprofilingextensionimpl
 
-import "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
-
 // Config contains the config of the profiler.
 type Config struct {
-	// API contains the configuration for the api for the case of agentless uploads.
-	// api site is used in non agentless upload setups as well.
-	// Not setting API section leads to upload to an agent with.
-	API             config.APIConfig `mapstructure:"api"`
-	ProfilerOptions ProfilerOptions  `mapstructure:"profiler_options"`
+	ProfilerOptions ProfilerOptions `mapstructure:"profiler_options"`
 	// Endpoint reports the endpoint used for profiles.
 	// Default: BuildInfo.Version (e.g. v0.117.0)
 	Endpoint string `mapstructure:"endpoint"`

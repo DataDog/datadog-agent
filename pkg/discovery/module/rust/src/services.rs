@@ -3,16 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+use std::path::PathBuf;
+
 use serde::Serialize;
 
 use crate::apm;
 use crate::comm;
 use crate::envs;
 use crate::fs::SubDirFs;
-use crate::injector::is_apm_injector_in_process_maps;
 use crate::language::Language;
 use crate::params::Params;
 use crate::ports::{self, ParsingContext};
+use crate::procfs::maps::MapsInfo;
 use crate::procfs::{self, Cmdline, Exe, fd::OpenFilesInfo};
 use crate::service_name::ServiceNameSource;
 use crate::tracer_metadata::TracerMetadata;
@@ -62,9 +64,14 @@ pub fn get_services(params: Params) -> ServicesResponse {
 
     // Process new PIDs with full service info collection
     if let Some(new_pids) = &params.new_pids {
-        // Check for APM injector even if process is not detected as a service.
         for pid in new_pids {
-            if is_apm_injector_in_process_maps(*pid) {
+            // Read /proc/pid/maps once and extract all information in one pass.
+            // On failure, use defaults so the PID still tries port/service
+            // detection; only maps-dependent information is potentially lost.
+            let maps_info = procfs::maps::read_maps_info(*pid).unwrap_or_default();
+
+            // Check for APM injector even if process is not detected as a service.
+            if maps_info.has_apm_injector {
                 resp.injected_pids.push(*pid);
             }
 
@@ -76,11 +83,11 @@ pub fn get_services(params: Params) -> ServicesResponse {
                 continue;
             };
 
-            if is_using_gpu(*pid, &open_files_info) {
+            if open_files_info.has_gpu_device || maps_info.has_gpu_nvidia {
                 resp.gpu_pids.push(*pid);
             }
 
-            if let Some(service) = get_service(*pid, &mut context, &open_files_info) {
+            if let Some(service) = get_service(*pid, &mut context, &open_files_info, &maps_info) {
                 resp.services.push(service);
             }
         }
@@ -101,14 +108,40 @@ pub fn get_services(params: Params) -> ServicesResponse {
     resp
 }
 
-fn is_using_gpu(pid: i32, open_files_info: &OpenFilesInfo) -> bool {
-    open_files_info.has_gpu_device || procfs::maps::has_gpu_nvidia_libraries(pid)
+/// Reads tracer metadata from memfd paths and returns only the newest one
+/// (by file modification time). When there is only one memfd, skips the stat
+/// call. When mtimes are equal, runtime_id is used as a tie-breaker so that
+/// both Go and Rust implementations select the same metadata regardless of
+/// /proc/pid/fd iteration order.
+fn get_newest_tracer_metadata(memfd_paths: &[PathBuf]) -> Option<TracerMetadata> {
+    if memfd_paths.len() <= 1 {
+        return memfd_paths
+            .first()
+            .and_then(|path| tracer_metadata::get_tracer_metadata_from_path(path).ok());
+    }
+
+    memfd_paths
+        .iter()
+        .filter_map(|path| {
+            let mtime = std::fs::metadata(path).ok()?.modified().ok()?;
+            let tm = tracer_metadata::get_tracer_metadata_from_path(path).ok()?;
+            Some((tm, mtime))
+        })
+        .max_by(|(tm_a, t_a), (tm_b, t_b)| {
+            // Normalize None to "" to match Go, where a missing runtime_id
+            // unmarshals as "" (the zero value for string).
+            let rid_a = tm_a.runtime_id.as_deref().unwrap_or("");
+            let rid_b = tm_b.runtime_id.as_deref().unwrap_or("");
+            (t_a, rid_a).cmp(&(t_b, rid_b))
+        })
+        .map(|(m, _)| m)
 }
 
 fn get_service(
     pid: i32,
     context: &mut ParsingContext,
     open_files_info: &OpenFilesInfo,
+    maps_info: &MapsInfo,
 ) -> Option<Service> {
     let log_files = procfs::fd::get_log_files(pid, &open_files_info.logs);
 
@@ -118,7 +151,7 @@ fn get_service(
 
     if tcp_ports.is_none()
         && udp_ports.is_none()
-        && open_files_info.tracer_memfd.is_none()
+        && open_files_info.tracer_memfds.is_empty()
         && !has_log_candidates
     {
         return None;
@@ -126,14 +159,11 @@ fn get_service(
 
     let cmdline = Cmdline::get(pid).ok()?;
     let exe = Exe::get(pid).ok()?;
-    let tracer_metadata = match &open_files_info.tracer_memfd {
-        None => None,
-        Some(path) => tracer_metadata::get_tracer_metadata_from_path(path).ok(),
-    };
+    let tracer_metadata = get_newest_tracer_metadata(&open_files_info.tracer_memfds);
     let language = tracer_metadata
         .as_ref()
         .and_then(|m| Language::from_tracer_str(&m.tracer_language))
-        .or_else(|| Language::detect(pid, &exe, &cmdline, open_files_info));
+        .or_else(|| Language::detect(pid, &exe, &cmdline, open_files_info, maps_info));
 
     // Collect environment variables
     let envs = envs::get_target_envs(pid).ok()?;
@@ -149,7 +179,7 @@ fn get_service(
     // Detect APM instrumentation
     // If tracer metadata exists, the service is definitely instrumented
     let apm_instrumentation =
-        tracer_metadata.is_some() || apm::detect(language.as_ref(), pid, &cmdline, &envs);
+        tracer_metadata.is_some() || apm::detect(language.as_ref(), &cmdline, &envs, maps_info);
 
     Some(Service {
         pid,
@@ -178,7 +208,7 @@ fn get_heartbeat_service(pid: i32, context: &mut ParsingContext) -> Option<Servi
 
     if tcp_ports.is_none()
         && udp_ports.is_none()
-        && open_files_info.tracer_memfd.is_none()
+        && open_files_info.tracer_memfds.is_empty()
         && open_files_info.logs.is_empty()
     {
         return None;

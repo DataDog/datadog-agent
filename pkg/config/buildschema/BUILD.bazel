@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "buildschema",
+    srcs = [
+        "builder.go",
+        "config.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/config/buildschema",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/config/model"],
+)
+
+go_test(
+    name = "buildschema_test",
+    srcs = ["builder_test.go"],
+    embed = [":buildschema"],
+    gotags = ["test"],
+)

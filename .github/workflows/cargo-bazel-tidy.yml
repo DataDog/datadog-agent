@@ -16,9 +16,14 @@ jobs:
   repin_and_generate_licenses:
     if: ${{ github.repository == 'DataDog/datadog-agent' && github.event.pull_request.user.login == 'renovate[bot]' && contains(github.event.pull_request.labels.*.name, 'dependencies-cargo') }}
     permissions:
-      contents: write
+      id-token: write # Required for dd-octo-sts OIDC token
     runs-on: ubuntu-latest
     steps:
+      - uses: DataDog/dd-octo-sts-action@96a25462dbcb10ebf0bfd6e2ccc917d2ab235b9a # v1.0.4
+        id: octo-sts
+        with:
+          scope: DataDog/datadog-agent
+          policy: self.cargo-bazel-tidy.push-branch
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: ${{ github.head_ref }}
@@ -32,7 +37,7 @@ jobs:
       - name: Generate Rust licenses
         run: |
           cargo install --git https://github.com/DataDog/rust-license-tool dd-rust-license-tool
-          cd pkg/discovery/module/rust && dd-rust-license-tool write
+          cd rust && dd-rust-license-tool --manifest-path ../Cargo.toml write
       - name: Create commit
         id: commit
         run: |
@@ -49,7 +54,7 @@ jobs:
         if: steps.commit.outputs.has_changes == 'true'
         uses: chouetz/push-signed-commits@9b123e8898e6176af65b9427b434e07aebe7f72f
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ steps.octo-sts.outputs.token }}
           local_branch_name: ${{ github.head_ref }}
           remote_name: "origin"
           remote_branch_name: ${{ github.head_ref }}

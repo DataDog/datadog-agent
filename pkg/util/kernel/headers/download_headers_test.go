@@ -13,8 +13,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/nikos/apt"
-	"github.com/DataDog/nikos/types"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel/headers/download/apt"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel/headers/download/types"
 )
 
 const reposSource = "%s/sources.list"

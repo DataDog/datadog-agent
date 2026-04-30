@@ -39,34 +39,60 @@ const (
 
 	// NoExpiration maps to go-cache corresponding value
 	NoExpiration = cache.NoExpiration
-	// maxAttempts is the maximum number of times we try to get the hostname
-	// from the core-agent before bailing out.
-	maxAttempts = 6
+	// defaultMaxAttempts is the default number of times we try to get the
+	// hostname from the core-agent before bailing out.
+	defaultMaxAttempts = 6
 )
 
+// Option configures the remote hostname component retry behavior.
+type Option func(*remotehostimpl)
+
+// WithMaxAttempts sets the maximum number of retry attempts to reach
+// the core-agent for hostname resolution.
+func WithMaxAttempts(maxAttempts uint) Option {
+	return func(r *remotehostimpl) { r.maxAttempts = maxAttempts }
+}
+
+// WithMaxRetryDelay caps the exponential backoff between retry attempts.
+func WithMaxRetryDelay(maxRetryDelay time.Duration) Option {
+	return func(r *remotehostimpl) { r.maxRetryDelay = maxRetryDelay }
+}
+
+// options wraps []Option for fx injection.
+type options []Option
+
 // Module defines the fx options for this component.
-func Module() fxutil.Module {
+func Module(opts ...Option) fxutil.Module {
 	return fxutil.Component(
+		fx.Supply(options(opts)),
 		fx.Provide(newRemoteHostImpl))
 }
 
 var cachKey = "hostname"
 
 type remotehostimpl struct {
-	cache *cache.Cache
-	ipc   ipc.Component
+	cache         *cache.Cache
+	ipc           ipc.Component
+	maxAttempts   uint
+	maxRetryDelay time.Duration
 }
 
 type dependencies struct {
 	fx.In
-	IPC ipc.Component
+	IPC  ipc.Component
+	Opts options
 }
 
 func newRemoteHostImpl(deps dependencies) hostnameinterface.Component {
-	return &remotehostimpl{
-		cache: cache.New(defaultExpire, defaultPurge),
-		ipc:   deps.IPC,
+	r := &remotehostimpl{
+		cache:       cache.New(defaultExpire, defaultPurge),
+		ipc:         deps.IPC,
+		maxAttempts: defaultMaxAttempts,
 	}
+	for _, o := range deps.Opts {
+		o(r)
+	}
+	return r
 }
 
 func (r *remotehostimpl) Get(ctx context.Context) (string, error) {
@@ -109,6 +135,16 @@ func (r *remotehostimpl) getHostnameWithContext(ctx context.Context) (string, er
 	}
 
 	var hostname string
+
+	retryOpts := []retry.Option{
+		retry.LastErrorOnly(true),
+		retry.Attempts(r.maxAttempts),
+		retry.Context(ctx),
+	}
+	if r.maxRetryDelay > 0 {
+		retryOpts = append(retryOpts, retry.MaxDelay(r.maxRetryDelay))
+	}
+
 	err = retry.Do(func() error {
 		ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
 		defer cancel()
@@ -132,7 +168,7 @@ func (r *remotehostimpl) getHostnameWithContext(ctx context.Context) (string, er
 
 		hostname = reply.Hostname
 		return nil
-	}, retry.LastErrorOnly(true), retry.Attempts(maxAttempts), retry.Context(ctx))
+	}, retryOpts...)
 	return hostname, err
 }
 
