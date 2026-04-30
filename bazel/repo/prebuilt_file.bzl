@@ -73,6 +73,7 @@ def _prebuilt_file(rctx):
             target_path = str(actual_label),
         ))
     else:
+        rctx.report_progress("=== NO built file: %s" % str(actual_label))
         rctx.file("BUILD", _BUILD_FILE_NOT_FOUND.format(
             target_name = rctx.attr.target_name,
             target_path = target_path,
