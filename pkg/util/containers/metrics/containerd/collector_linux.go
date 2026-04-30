@@ -63,14 +63,21 @@ func fillStatsFromSpec(outContainerStats *provider.ContainerStats, spec *oci.Spe
 }
 
 func computeCPULimit(containerStats *provider.ContainerStats, spec *specs.LinuxCPU) {
-	switch {
-	case spec.Cpus != "":
-		containerStats.CPU.Limit = pointer.Ptr(100 * float64(cgroups.ParseCPUSetFormat(spec.Cpus)))
-	case spec.Quota != nil && *spec.Quota > 0:
-		period := 100000 // Default CFS Period
-		if spec.Period != nil && *spec.Period > 0 {
-			period = int(*spec.Period)
-		}
-		containerStats.CPU.Limit = pointer.Ptr(100 * float64(*spec.Quota) / float64(period))
+	var limitPct *float64
+
+	if spec.Cpus != "" {
+		v := 100 * float64(cgroups.ParseCPUSetFormat(spec.Cpus))
+		limitPct = &v
 	}
+	if spec.Quota != nil && *spec.Quota > 0 {
+		period := int64(100000)
+		if spec.Period != nil && *spec.Period > 0 {
+			period = int64(*spec.Period)
+		}
+		quotaPct := 100 * float64(*spec.Quota) / float64(period)
+		if limitPct == nil || quotaPct < *limitPct {
+			limitPct = &quotaPct
+		}
+	}
+	containerStats.CPU.Limit = limitPct
 }
