@@ -755,7 +755,7 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             'CI_COMMIT_BRANCH': 'sequoia',
         },
     )
-    @patch("tasks.quality_gates.pr_commenter")
+    @patch("tasks.static_quality_gates.pr_comment.pr_commenter")
     def test_no_error_with_significant_changes(self, pr_commenter_mock):
         """Test PR comment with successful gates that have significant changes (>= 2 KiB)."""
         c = MockContext()
@@ -813,7 +813,7 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             'CI_COMMIT_BRANCH': 'sequoia',
         },
     )
-    @patch("tasks.quality_gates.pr_commenter")
+    @patch("tasks.static_quality_gates.pr_comment.pr_commenter")
     def test_neutral_changes_collapsed(self, pr_commenter_mock):
         """Test that gates with neutral changes (< 2 KiB) are collapsed."""
         c = MockContext()
@@ -867,7 +867,7 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             'CI_COMMIT_BRANCH': 'sequoia',
         },
     )
-    @patch("tasks.quality_gates.pr_commenter")
+    @patch("tasks.static_quality_gates.pr_comment.pr_commenter")
     def test_mixed_significant_and_neutral(self, pr_commenter_mock):
         """Test PR comment with both significant and neutral changes."""
         c = MockContext()
@@ -919,7 +919,7 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             'CI_COMMIT_BRANCH': 'sequoia',
         },
     )
-    @patch("tasks.quality_gates.pr_commenter")
+    @patch("tasks.static_quality_gates.pr_comment.pr_commenter")
     def test_no_info(self, pr_commenter_mock):
         c = MockContext()
         gate_metric_handler = GateMetricHandler("main", "dev")
@@ -959,7 +959,7 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             'CI_COMMIT_BRANCH': 'sequoia',
         },
     )
-    @patch("tasks.quality_gates.pr_commenter")
+    @patch("tasks.static_quality_gates.pr_comment.pr_commenter")
     def test_one_of_each(self, pr_commenter_mock):
         c = MockContext()
         gate_metric_handler = GateMetricHandler("main", "dev")
@@ -1006,7 +1006,7 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             'CI_COMMIT_BRANCH': 'sequoia',
         },
     )
-    @patch("tasks.quality_gates.pr_commenter")
+    @patch("tasks.static_quality_gates.pr_comment.pr_commenter")
     def test_missing_data(self, pr_commenter_mock):
         c = MockContext()
         gate_metric_handler = GateMetricHandler("main", "dev")
@@ -1035,7 +1035,7 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             'CI_COMMIT_BRANCH': 'sequoia',
         },
     )
-    @patch("tasks.quality_gates.pr_commenter")
+    @patch("tasks.static_quality_gates.pr_comment.pr_commenter")
     def test_wire_table_separate(self, pr_commenter_mock):
         """Test that on-wire sizes appear in a separate collapsed section."""
         c = MockContext()
@@ -1070,7 +1070,7 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         wire_section_start = body.find('On-wire sizes (compressed)')
         self.assertIn('gateA', body[wire_section_start:])
 
-    @patch("tasks.quality_gates.pr_commenter")
+    @patch("tasks.static_quality_gates.pr_comment.pr_commenter")
     def test_error_on_wire_displays_uncollapsed_on_error_section(self, pr_commenter_mock):
         """Test that when only the on-wire size is violating a specific gate
         (and not the on-disk size for that same gate),
@@ -1317,7 +1317,7 @@ class TestNonBlockingPrComment(unittest.TestCase):
             'CI_COMMIT_BRANCH': 'sequoia',
         },
     )
-    @patch("tasks.quality_gates.pr_commenter")
+    @patch("tasks.static_quality_gates.pr_comment.pr_commenter")
     def test_non_blocking_failure_shows_warning_indicator(self, pr_commenter_mock):
         """Non-blocking failures should show warning indicator, not error."""
         c = MockContext()
@@ -1356,7 +1356,7 @@ class TestNonBlockingPrComment(unittest.TestCase):
             'CI_COMMIT_BRANCH': 'sequoia',
         },
     )
-    @patch("tasks.quality_gates.pr_commenter")
+    @patch("tasks.static_quality_gates.pr_comment.pr_commenter")
     def test_blocking_failure_shows_error_indicator(self, pr_commenter_mock):
         """Blocking failures should show error indicator and blocking message."""
         c = MockContext()
@@ -1393,7 +1393,7 @@ class TestNonBlockingPrComment(unittest.TestCase):
             'CI_COMMIT_BRANCH': 'sequoia',
         },
     )
-    @patch("tasks.quality_gates.pr_commenter")
+    @patch("tasks.static_quality_gates.pr_comment.pr_commenter")
     def test_mixed_blocking_and_non_blocking(self, pr_commenter_mock):
         """Mixed blocking and non-blocking failures should show both indicators."""
         c = MockContext()
@@ -1659,7 +1659,7 @@ class TestGetWireChangeMetrics(unittest.TestCase):
 class TestGetPrForBranch(unittest.TestCase):
     """Test the get_pr_for_branch helper function."""
 
-    @patch("tasks.quality_gates.GithubAPI")
+    @patch("tasks.static_quality_gates.github.GithubAPI")
     def test_returns_pr_when_found(self, mock_github_class):
         """Should return PR object when a PR exists for the branch."""
         from tasks.quality_gates import get_pr_for_branch
@@ -1677,7 +1677,7 @@ class TestGetPrForBranch(unittest.TestCase):
         self.assertEqual(result.number, 12345)
         mock_github.get_pr_for_branch.assert_called_once_with("test-branch")
 
-    @patch("tasks.quality_gates.GithubAPI")
+    @patch("tasks.static_quality_gates.github.GithubAPI")
     def test_returns_none_when_no_pr(self, mock_github_class):
         """Should return None when no PR exists for the branch."""
         from tasks.quality_gates import get_pr_for_branch
@@ -1690,7 +1690,7 @@ class TestGetPrForBranch(unittest.TestCase):
 
         self.assertIsNone(result)
 
-    @patch("tasks.quality_gates.GithubAPI")
+    @patch("tasks.static_quality_gates.github.GithubAPI")
     def test_returns_none_on_exception(self, mock_github_class):
         """Should return None and not raise when GitHub API fails."""
         from tasks.quality_gates import get_pr_for_branch
@@ -1701,7 +1701,7 @@ class TestGetPrForBranch(unittest.TestCase):
 
         self.assertIsNone(result)
 
-    @patch("tasks.quality_gates.GithubAPI")
+    @patch("tasks.static_quality_gates.github.GithubAPI")
     def test_returns_first_pr_when_multiple(self, mock_github_class):
         """Should return first PR when multiple PRs exist for branch."""
         from tasks.quality_gates import get_pr_for_branch
@@ -1815,7 +1815,7 @@ class TestGetPrNumberFromCommit(unittest.TestCase):
 class TestGetPrAuthor(unittest.TestCase):
     """Test the get_pr_author helper function."""
 
-    @patch("tasks.quality_gates.GithubAPI")
+    @patch("tasks.static_quality_gates.github.GithubAPI")
     def test_returns_author_when_found(self, mock_github_class):
         """Should return PR author login when a PR exists."""
         mock_pr = MagicMock()
@@ -1830,7 +1830,7 @@ class TestGetPrAuthor(unittest.TestCase):
         self.assertEqual(result, "octocat")
         mock_github.get_pr.assert_called_once_with(12345)
 
-    @patch("tasks.quality_gates.GithubAPI")
+    @patch("tasks.static_quality_gates.github.GithubAPI")
     def test_returns_none_when_pr_not_found(self, mock_github_class):
         """Should return None when PR is not found."""
         mock_github = MagicMock()
@@ -1841,7 +1841,7 @@ class TestGetPrAuthor(unittest.TestCase):
 
         self.assertIsNone(result)
 
-    @patch("tasks.quality_gates.GithubAPI")
+    @patch("tasks.static_quality_gates.github.GithubAPI")
     def test_returns_none_when_user_is_none(self, mock_github_class):
         """Should return None when PR exists but user is None."""
         mock_pr = MagicMock()
@@ -1854,7 +1854,7 @@ class TestGetPrAuthor(unittest.TestCase):
 
         self.assertIsNone(result)
 
-    @patch("tasks.quality_gates.GithubAPI")
+    @patch("tasks.static_quality_gates.github.GithubAPI")
     def test_returns_none_on_exception(self, mock_github_class):
         """Should return None and not raise when GitHub API fails."""
         mock_github_class.side_effect = Exception("API error")
@@ -1863,7 +1863,7 @@ class TestGetPrAuthor(unittest.TestCase):
 
         self.assertIsNone(result)
 
-    @patch("tasks.quality_gates.GithubAPI")
+    @patch("tasks.static_quality_gates.github.GithubAPI")
     def test_handles_string_pr_number(self, mock_github_class):
         """Should correctly convert string PR number to int."""
         mock_pr = MagicMock()
@@ -2170,7 +2170,7 @@ class TestIdentifyGatesWithSizeIncrease(unittest.TestCase):
 class TestFetchPrMetrics(unittest.TestCase):
     """Test the fetch_pr_metrics function."""
 
-    @patch("tasks.quality_gates.query_metrics")
+    @patch("tasks.static_quality_gates.metrics.query_metrics")
     def test_fetches_and_parses_metrics(self, mock_query):
         """Should fetch metrics and parse them correctly with single API call."""
         # Single API call returns all 4 metrics
@@ -2209,7 +2209,7 @@ class TestFetchPrMetrics(unittest.TestCase):
         self.assertEqual(gate.max_on_disk_size, 150 * 1024 * 1024)
         self.assertEqual(gate.max_on_wire_size, 75 * 1024 * 1024)
 
-    @patch("tasks.quality_gates.query_metrics")
+    @patch("tasks.static_quality_gates.metrics.query_metrics")
     def test_returns_empty_when_no_metrics(self, mock_query):
         """Should return empty dict when no metrics found."""
         mock_query.return_value = []
@@ -2218,7 +2218,7 @@ class TestFetchPrMetrics(unittest.TestCase):
 
         self.assertEqual(len(result), 0)
 
-    @patch("tasks.quality_gates.query_metrics")
+    @patch("tasks.static_quality_gates.metrics.query_metrics")
     def test_handles_multiple_gates(self, mock_query):
         """Should handle metrics for multiple gates in single API call."""
         # Single API call returns metrics for multiple gates
@@ -2253,7 +2253,7 @@ class TestFetchPrMetrics(unittest.TestCase):
         self.assertIn("static_quality_gate_agent_deb_amd64", result)
         self.assertIn("static_quality_gate_docker_agent_amd64", result)
 
-    @patch("tasks.quality_gates.query_metrics")
+    @patch("tasks.static_quality_gates.metrics.query_metrics")
     def test_fetches_relative_size_metrics(self, mock_query):
         """Should fetch and parse relative_on_disk_size and relative_on_wire_size."""
         # API call includes all 6 metrics including relative sizes
@@ -2305,7 +2305,7 @@ class TestFetchPrMetrics(unittest.TestCase):
 class TestFetchMainHeadroom(unittest.TestCase):
     """Test the fetch_main_headroom function."""
 
-    @patch("tasks.quality_gates.query_metrics")
+    @patch("tasks.static_quality_gates.metrics.query_metrics")
     def test_calculates_headroom_correctly(self, mock_query):
         """Should calculate headroom as max - current."""
         # Single API call returns all 4 metrics for the gate
@@ -2342,7 +2342,7 @@ class TestFetchMainHeadroom(unittest.TestCase):
         # wire_headroom = 75 - 50 = 25 MiB
         self.assertEqual(headroom["wire_headroom"], 25 * 1024 * 1024)
 
-    @patch("tasks.quality_gates.query_metrics")
+    @patch("tasks.static_quality_gates.metrics.query_metrics")
     def test_headroom_never_negative(self, mock_query):
         """Headroom should never be negative (clamped to 0)."""
         # Single API call with current > max
@@ -2718,7 +2718,7 @@ class TestExceptionApprovalChecker(unittest.TestCase):
 
     def test_accepts_any_authorized_approver(self):
         """Both authorized approvers (cmourot and dd-ddamien) grant an exception."""
-        from tasks.quality_gates import EXCEPTION_APPROVERS
+        from tasks.static_quality_gates.decisions import EXCEPTION_APPROVERS
 
         for approver in EXCEPTION_APPROVERS:
             with self.subTest(approver=approver):

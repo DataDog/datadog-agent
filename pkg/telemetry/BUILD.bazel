@@ -21,8 +21,8 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/telemetry",
-        "@com_github_datadog_datadog_agent_comp_core_telemetry//noopsimpl",
-        "@com_github_datadog_datadog_agent_comp_core_telemetry//telemetryimpl",
+        "//comp/core/telemetry/impl",
+        "//comp/core/telemetry/impl/noops",
         "@org_uber_go_atomic//:atomic",
     ],
 )
