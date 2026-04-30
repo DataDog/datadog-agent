@@ -522,7 +522,8 @@ def generate_cws_documentation(ctx):
 @task
 def cws_go_generate(ctx, verbose=False):
     # run different `go generate` for pkg/security/secl and pkg/security
-    ctx.run("go install github.com/mailru/easyjson/easyjson")
+    ctx.run("go install golang.org/x/tools/cmd/stringer@v0.44.0")
+    ctx.run("go install github.com/mailru/easyjson/easyjson@v0.9.1")
     ctx.run("go install github.com/DataDog/datadog-agent/pkg/security/generators/accessors")
     ctx.run("go install github.com/DataDog/datadog-agent/pkg/security/generators/event_deep_copy")
     # operators codegen is driven by Bazel via //bazel/rules/cws_codegen:defs.bzl%operators.
