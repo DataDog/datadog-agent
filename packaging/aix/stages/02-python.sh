@@ -107,8 +107,11 @@ log "Applying AIX-specific patches to Python ${PYTHON_VERSION} source"
 
 cd "$PYTHON_SRC"
 
-# Patch: remove libintl dependency from Modules/getpath.c
-# libintl (GNU message catalog library) is not present on stock AIX.
+# Patch: remove libintl header from Modules/getpath.c
+# libintl.h is absent on stock AIX. Comment it out so the compile doesn't fail.
+# Note: Python's configure still detects ngettext() in /opt/freeware/lib/libintl.a
+# and links libpython3.13.so against it at build time. libintl.a is therefore
+# bundled in the embedded tree by stage 01 so the package is self-contained.
 # The unix-agent carries this patch for Python 3.8; the include may or may
 # not still be present in 3.13 — apply defensively.
 if grep -q 'libintl\.h' Modules/getpath.c 2>/dev/null; then
