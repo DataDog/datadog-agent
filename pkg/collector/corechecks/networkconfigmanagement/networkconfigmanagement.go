@@ -9,6 +9,7 @@
 package networkconfigmanagement
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/benbjohnson/clock"
 
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/store"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -45,6 +47,14 @@ type Check struct {
 	remoteClient  ncmremote.Client
 	clock         clock.Clock
 	lastCheckTime time.Time
+}
+
+// saveConfig saves the config if store is non-nil, and returns an error about manual check mode otherwise.
+func saveConfig(store store.ConfigStore, deviceID string, cType types.ConfigType, rawConfig []byte) (string, error) {
+	if store == nil {
+		return "", errors.New("local config store is unavailable in manual check mode")
+	}
+	return store.StoreConfig(deviceID, cType, string(rawConfig))
 }
 
 // Run executes the check to retrieve network device configurations from a device
@@ -86,23 +96,24 @@ func (c *Check) Run() error {
 		log.Warnf("failed to send device metadata for %s: %s", deviceID, err)
 	}
 
+	var configStore store.ConfigStore
+	if c.ncmComp != nil {
+		configStore = c.ncmComp.GetConfigStore()
+	}
+
 	rawRunningConfig, checkErr := c.remoteClient.RetrieveRunningConfig()
 	if checkErr != nil {
 		return checkErr
 	}
-	store := c.ncmComp.GetConfigStore()
-
 	runningConfig, metadata, checkErr := c.checkContext.ProfileCache.Profile.ProcessCommandOutput(profile.Running, rawRunningConfig)
 	if checkErr != nil {
 		log.Warnf("unable to process rules for running config for device %s, using agent collection ts: %s", deviceID, checkErr)
-	}
-	// TODO: helper fn to take metadata that needs to be emitted as metrics + emit them
-	_, err := store.StoreConfig(deviceID, types.RUNNING, string(runningConfig))
-	if err != nil {
-		log.Warnf("unable to store running config: %v", err)
 	} else {
-		// only report config if we were able to store it
+		// TODO: helper fn to take metadata that needs to be emitted as metrics + emit them
 		configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.checkContext.Device.IPAddress, types.RUNNING, metadata, deviceTags, runningConfig))
+		if _, err := saveConfig(configStore, deviceID, types.RUNNING, runningConfig); err != nil {
+			log.Warnf("unable to store running config: %v", err)
+		}
 	}
 
 	rawStartupConfig, checkErr := c.remoteClient.RetrieveStartupConfig()
@@ -113,13 +124,12 @@ func (c *Check) Run() error {
 		startupConfig, metadata, checkErr := c.checkContext.ProfileCache.Profile.ProcessCommandOutput(profile.Startup, rawStartupConfig)
 		if checkErr != nil {
 			log.Warnf("unable to process rules for startup config for device %s, using agent collection ts: %s", deviceID, checkErr)
-		}
-		// add the startup config to the payload if it was retrieved successfully
-		_, err := store.StoreConfig(deviceID, types.STARTUP, string(startupConfig))
-		if err != nil {
-			log.Warnf("unable to store startup config: %v", err)
 		} else {
+			// add the startup config to the payload if it was retrieved successfully
 			configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.checkContext.Device.IPAddress, types.STARTUP, metadata, deviceTags, startupConfig))
+			if _, err := saveConfig(configStore, deviceID, types.STARTUP, startupConfig); err != nil {
+				log.Warnf("unable to store startup config: %v", err)
+			}
 		}
 	}
 
@@ -179,9 +189,6 @@ func (c *Check) Interval() time.Duration {
 
 // Factory creates a new check factory
 func Factory(agentConfig config.Component, ncmComp networkconfigmanagement.Component) option.Option[func() check.Check] {
-	if ncmComp == nil {
-		return option.None[func() check.Check]()
-	}
 	return option.New(func() check.Check {
 		return newCheck(agentConfig, ncmComp)
 	})
