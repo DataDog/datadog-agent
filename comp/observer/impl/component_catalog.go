@@ -380,3 +380,91 @@ func catalogEnabledCorrelators(components map[string]*componentInstance, catalog
 	}
 	return result
 }
+
+// statelessDetectorAllowlist enumerates catalog detectors that are explicitly
+// permitted to NOT implement observerdef.SeriesRemover. A stateless detector
+// keeps no per-series state (no posterior maps, no segment trackers, no
+// visible-count tracking) and therefore needs nothing freed when storage
+// evicts a series; the engine's fanOutSeriesRemoval safely no-ops on it.
+//
+// Any new entry added here is asserting "this detector is genuinely stateless
+// across detect calls". If a detector ever grows per-series memory (cache,
+// tracker, accumulator keyed by SeriesRef), it must implement SeriesRemover
+// and be removed from this list — otherwise its memory grows with the
+// cumulative number of series ever observed even after storage evicts them.
+var statelessDetectorAllowlist = map[string]struct{}{
+	// SeriesDetector implementations are wrapped at instantiation time by
+	// seriesDetectorAdapter, which itself implements SeriesRemover — so the
+	// raw SeriesDetector struct doesn't need to. The adapter handles teardown
+	// of its own lastVisibleCount cache and forwards to the wrapped detector
+	// only if it also satisfies SeriesRemover.
+	//
+	// Truly-stateless catalog Detectors are listed below.
+
+	// RRCF tracks a FIXED set of metric definitions configured at construction
+	// (RRCFConfig.Metrics, with DefaultRRCFMetrics() as the fallback). Its
+	// resolvedKeys / cursors maps are keyed by cursorKey (a metric definition
+	// identifier), not by ingested SeriesRef — so the map size is bounded by
+	// the configured metrics, not by storage cardinality. Adding storage-eviction
+	// fan-out would not free anything because RRCF state isn't keyed by SeriesRef.
+	// If RRCF is ever extended to track per-tag-combination state keyed by
+	// SeriesRef, this entry must be removed and RRCF must implement
+	// SeriesRemover.
+	"rrcf": {},
+}
+
+// validateDetectorTeardownContract checks that every detector entry in the
+// catalog either implements observerdef.SeriesRemover (so engine eviction
+// fan-out can free its per-series state) or is explicitly listed in
+// statelessDetectorAllowlist. Returns nil on success and a descriptive error
+// on the first violator.
+//
+// Intended use: a unit test calls this against defaultCatalog() so any new
+// detector added to the catalog without a teardown story fails CI before it
+// can leak memory in production. SeriesDetector entries are validated against
+// the SeriesRemover interface on the wrapping adapter (newSeriesDetectorAdapter
+// always returns a *seriesDetectorAdapter, which implements SeriesRemover),
+// matching what Instantiate produces at runtime.
+func (c *componentCatalog) validateDetectorTeardownContract() error {
+	for _, entry := range c.entries {
+		if entry.kind != componentDetector {
+			continue
+		}
+		if _, allowed := statelessDetectorAllowlist[entry.name]; allowed {
+			continue
+		}
+		// Build the same instance Instantiate would. We use defaultConfig
+		// because the contract under test is structural, not config-dependent.
+		instance := entry.factory(entry.defaultConfig)
+
+		// Mirror Instantiate's wrapping logic: SeriesDetector is wrapped
+		// in seriesDetectorAdapter, which is a SeriesRemover. A direct
+		// Detector implementation must be a SeriesRemover itself.
+		if sd, ok := instance.(observerdef.SeriesDetector); ok {
+			wrapped := newSeriesDetectorAdapter(sd, defaultAggregations)
+			if _, ok := any(wrapped).(observerdef.SeriesRemover); !ok {
+				return &detectorTeardownContractError{name: entry.name, reason: "seriesDetectorAdapter no longer implements SeriesRemover \u2014 the wrapping invariant has regressed"}
+			}
+			continue
+		}
+		if d, ok := instance.(observerdef.Detector); ok {
+			if _, ok := d.(observerdef.SeriesRemover); ok {
+				continue
+			}
+			return &detectorTeardownContractError{name: entry.name, reason: "detector neither implements observerdef.SeriesRemover nor is listed in statelessDetectorAllowlist"}
+		}
+		return &detectorTeardownContractError{name: entry.name, reason: "factory product is neither observerdef.Detector nor observerdef.SeriesDetector"}
+	}
+	return nil
+}
+
+// detectorTeardownContractError marks a catalog entry that violates the
+// SeriesRemover contract.
+type detectorTeardownContractError struct {
+	name   string
+	reason string
+}
+
+func (e *detectorTeardownContractError) Error() string {
+	return "detector \"" + e.name + "\" violates teardown contract: " + e.reason
+}

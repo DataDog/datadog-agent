@@ -6,6 +6,7 @@
 package observerimpl
 
 import (
+	"container/heap"
 	"encoding/binary"
 	"fmt"
 	"hash/fnv"
@@ -164,6 +165,19 @@ type TaggedPatternClusterer struct {
 	// lastTouchByGroup tracks the most recent unixSec passed to Process for
 	// each group; consulted only when MaxTagGroups > 0.
 	lastTouchByGroup map[uint64]int64
+	// touchHeap is a lazy-deletion min-heap of (touch, groupHash) entries.
+	// Each Process call that updates lastTouchByGroup pushes a new entry rather
+	// than performing an in-place decrease-key (which would be O(N) in
+	// container/heap). On eviction we pop until the top entry's touch matches
+	// the current lastTouchByGroup value for its hash — stale entries (older
+	// touch than the current map value, or a hash already deleted from the map)
+	// are silently dropped. This replaces an O(N) full scan over subClusterers
+	// with amortised O(log N) eviction.
+	//
+	// Bounded growth: the heap can accumulate at most one entry per touch;
+	// when it exceeds heapCompactionThreshold * len(subClusterers) we rebuild
+	// it from lastTouchByGroup so memory stays O(MaxTagGroups).
+	touchHeap *groupTouchHeap
 	// lruEvicted accumulates per-cluster evictions from both layer-1 (per-group
 	// MaxClusters cap inside a sub-clusterer) and layer-2 (MaxTagGroups cap
 	// here) since the last DrainLRUEvictions.
@@ -225,6 +239,12 @@ func (tc *TaggedPatternClusterer) Process(tags []string, message string, unixSec
 			tc.lastTouchByGroup = make(map[uint64]int64)
 		}
 		tc.lastTouchByGroup[groupHash] = unixSec
+		if tc.touchHeap == nil {
+			tc.touchHeap = &groupTouchHeap{}
+			heap.Init(tc.touchHeap)
+		}
+		heap.Push(tc.touchHeap, groupTouchEntry{touch: unixSec, hash: groupHash})
+		tc.maybeCompactTouchHeap()
 	}
 
 	return groupHash, cluster, true
@@ -236,10 +256,49 @@ func (tc *TaggedPatternClusterer) Process(tags []string, message string, unixSec
 // surfaced via DrainLRUEvictions and the group is removed from
 // lastTouchByGroup. The group's hash remains in the registry (registry is
 // append-only by design).
+//
+// Implementation: pops stale entries off touchHeap (entries whose touch no
+// longer matches lastTouchByGroup, or whose hash has already been deleted)
+// until the top is a valid victim, then evicts it. Groups never touched by
+// Process (i.e. absent from lastTouchByGroup) cannot be victims because their
+// hash never appears in the heap; in that pathological case we fall back to
+// the original O(N) scan so behaviour matches the pre-heap implementation.
 func (tc *TaggedPatternClusterer) evictLRUTagGroupIfOverCap(incoming uint64) {
 	if tc.MaxTagGroups <= 0 || len(tc.subClusterers) < tc.MaxTagGroups {
 		return
 	}
+	if tc.touchHeap != nil {
+		for tc.touchHeap.Len() > 0 {
+			top := (*tc.touchHeap)[0]
+			if top.hash == incoming {
+				// Skip the incoming group: it would be re-pushed and we don't
+				// want to evict it. Pop the stale entry and try the next.
+				heap.Pop(tc.touchHeap)
+				continue
+			}
+			current, present := tc.lastTouchByGroup[top.hash]
+			if !present || current != top.touch {
+				// Stale entry: the hash was either evicted earlier or has a
+				// newer touch already in the heap. Drop it and continue.
+				heap.Pop(tc.touchHeap)
+				continue
+			}
+			// Valid victim.
+			heap.Pop(tc.touchHeap)
+			if sub, ok := tc.subClusterers[top.hash]; ok {
+				for _, c := range sub.GetClusters() {
+					tc.lruEvicted = append(tc.lruEvicted, EvictedCluster{GroupHash: top.hash, ClusterID: c.ID})
+				}
+			}
+			delete(tc.subClusterers, top.hash)
+			delete(tc.lastTouchByGroup, top.hash)
+			return
+		}
+	}
+	// Fallback: heap was empty (e.g. groups never touched while MaxTagGroups
+	// was 0) but we are now over cap. Use the original O(N) scan to find a
+	// victim. This path is exercised only when MaxTagGroups is enabled
+	// retroactively after Process was already called with it disabled.
 	var victim uint64
 	var victimUnix int64
 	victimSet := false
@@ -247,7 +306,7 @@ func (tc *TaggedPatternClusterer) evictLRUTagGroupIfOverCap(incoming uint64) {
 		if gh == incoming {
 			continue
 		}
-		touch := tc.lastTouchByGroup[gh] // 0 default treats never-touched as oldest
+		touch := tc.lastTouchByGroup[gh]
 		if !victimSet || touch < victimUnix {
 			victim = gh
 			victimUnix = touch
@@ -264,6 +323,55 @@ func (tc *TaggedPatternClusterer) evictLRUTagGroupIfOverCap(incoming uint64) {
 	}
 	delete(tc.subClusterers, victim)
 	delete(tc.lastTouchByGroup, victim)
+}
+
+// heapCompactionThreshold sets when maybeCompactTouchHeap rebuilds touchHeap
+// from scratch: when the heap has more than threshold * len(subClusterers)
+// entries the cost of rebuilding is amortised against the savings from no
+// longer carrying stale entries through future heap operations. Tuned so
+// rebuilds happen rarely under steady-state churn but reliably under heavy
+// per-group re-touching.
+const heapCompactionThreshold = 4
+
+func (tc *TaggedPatternClusterer) maybeCompactTouchHeap() {
+	if tc.touchHeap == nil {
+		return
+	}
+	if tc.touchHeap.Len() <= heapCompactionThreshold*len(tc.lastTouchByGroup) {
+		return
+	}
+	rebuilt := make(groupTouchHeap, 0, len(tc.lastTouchByGroup))
+	for hash, touch := range tc.lastTouchByGroup {
+		rebuilt = append(rebuilt, groupTouchEntry{touch: touch, hash: hash})
+	}
+	heap.Init(&rebuilt)
+	tc.touchHeap = &rebuilt
+}
+
+// groupTouchEntry is one entry in the lazy-deletion min-heap used by
+// evictLRUTagGroupIfOverCap. Entries become stale when the matching hash
+// receives a newer touch (a fresh entry is pushed; the old one is left to be
+// skipped at the top of the heap) or when the hash is evicted entirely
+// (no longer present in lastTouchByGroup).
+type groupTouchEntry struct {
+	touch int64
+	hash  uint64
+}
+
+// groupTouchHeap is a min-heap of groupTouchEntry ordered by touch ascending.
+// Implements heap.Interface.
+type groupTouchHeap []groupTouchEntry
+
+func (h groupTouchHeap) Len() int           { return len(h) }
+func (h groupTouchHeap) Less(i, j int) bool { return h[i].touch < h[j].touch }
+func (h groupTouchHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
+func (h *groupTouchHeap) Push(x any)        { *h = append(*h, x.(groupTouchEntry)) }
+func (h *groupTouchHeap) Pop() any {
+	old := *h
+	n := len(old)
+	x := old[n-1]
+	*h = old[:n-1]
+	return x
 }
 
 // DrainLRUEvictions returns and clears all LRU evictions accumulated since the
@@ -293,6 +401,7 @@ func (tc *TaggedPatternClusterer) GetCluster(groupHash uint64, clusterID int64) 
 func (tc *TaggedPatternClusterer) Reset() {
 	tc.subClusterers = make(map[uint64]*patterns.PatternClusterer)
 	tc.lastTouchByGroup = nil
+	tc.touchHeap = nil
 	tc.lruEvicted = nil
 }
 

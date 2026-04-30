@@ -615,6 +615,11 @@ func (a *seriesDetectorAdapter) Reset() {
 // and forwards the call to the wrapped detector if it also tracks per-series
 // state. Without this hook lastVisibleCount grows with the cumulative number
 // of series ever observed even after storage frees them.
+//
+// Concurrency invariant: this method runs on the single observerImpl.run()
+// goroutine that drives every other adapter callback (Detect, Reset). The
+// engine's fanOutSeriesRemoval is the only caller. Mutating lastVisibleCount
+// and cachedSeries without a lock is safe under that invariant only.
 func (a *seriesDetectorAdapter) RemoveSeries(refs []observerdef.SeriesRef) {
 	if len(refs) == 0 {
 		return

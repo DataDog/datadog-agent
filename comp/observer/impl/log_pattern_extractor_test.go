@@ -511,6 +511,13 @@ func TestEngine_LogPatternLRUEvictionFreesDetectorState(t *testing.T) {
 	scanmw := NewScanMWDetector()
 	scanwelch := NewScanWelchDetector()
 
+	// Stateless detector that does NOT implement SeriesRemover. Registering it
+	// alongside the stateful ones exercises the fanOutSeriesRemoval type-assertion
+	// fast-path: detectors without per-series state must be silently skipped, never
+	// invoked with RemoveSeries (which would panic since they don't implement it),
+	// and never block the eviction broadcast to the stateful detectors that follow.
+	stateless := &statelessTestDetector{name: "stateless"}
+
 	storage := newTimeSeriesStorage()
 	e := newEngine(engineConfig{
 		storage:    storage,
@@ -519,6 +526,7 @@ func TestEngine_LogPatternLRUEvictionFreesDetectorState(t *testing.T) {
 			bocpd,
 			scanmw,
 			scanwelch,
+			stateless,
 		},
 	})
 
@@ -584,5 +592,26 @@ func TestEngine_LogPatternLRUEvictionFreesDetectorState(t *testing.T) {
 	require.Less(t, len(scanwelch.series), scanwelchBefore,
 		"ScanWelch per-series map must shrink when storage evicts a series; without the fan-out it stays at %d", scanwelchBefore)
 	require.LessOrEqual(t, len(scanwelch.series), 2*len(scanwelch.Aggregations),
-		"ScanWelch per-series map must not exceed live series Ã aggregations")
+		"ScanWelch per-series map must not exceed live series \u00d7 aggregations")
+
+	// Sanity check the stateless detector: registering it alongside the
+	// stateful ones means the eviction fan-out above iterated over it. The
+	// SeriesRemover type-assertion in fanOutSeriesRemoval is what keeps that
+	// safe — if it ever regresses (e.g. someone replaces the optional check
+	// with a hard call), this test panics on the runtime type-assertion
+	// failure during the eviction triggered above.
+	_ = stateless
+}
+
+// statelessTestDetector is a minimal observerdef.Detector that intentionally
+// does NOT implement observerdef.SeriesRemover. Used to verify that the
+// engine's eviction fan-out doesn't assume every detector tracks per-series
+// state.
+type statelessTestDetector struct {
+	name string
+}
+
+func (s *statelessTestDetector) Name() string { return s.name }
+func (s *statelessTestDetector) Detect(_ observerdef.StorageReader, _ int64) observerdef.DetectionResult {
+	return observerdef.DetectionResult{}
 }

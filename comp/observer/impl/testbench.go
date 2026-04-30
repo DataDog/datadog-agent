@@ -514,7 +514,7 @@ func (tb *TestBench) loadParquetDir(dir string) error {
 
 			byTimestampCounter[m.Timestamp]++
 
-			if isNew, _ := storage.Add("parquet", metricName, m.Value, m.Timestamp, m.Tags); isNew {
+			if res := storage.Add("parquet", metricName, m.Value, m.Timestamp, m.Tags); res.IsNew {
 				byTimestampCardinality[m.Timestamp]++
 			}
 		}
