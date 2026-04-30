@@ -142,12 +142,12 @@ type crlInfoCopy struct {
 // certInfo holds the per-certificate values needed by the check's reporting
 // loop.
 type certInfo struct {
-	SubjectString    string    
+	SubjectString    string
 	NotAfter         time.Time // certificate expiration
 	Tags             []string  // cert-derived tags
-	Thumbprint       string    
-	TrustStatusError uint32    // windows.TrustStatus.ErrorStatus
-	ChainPolicyError uint32    // windows.CertChainPolicyStatus.Error
+	Thumbprint       string
+	TrustStatusError uint32 // windows.TrustStatus.ErrorStatus
+	ChainPolicyError uint32 // windows.CertChainPolicyStatus.Error
 }
 
 // Factory creates a new check factory
@@ -520,7 +520,7 @@ func closeCertificateStore(storeHandle windows.Handle, store string) {
 }
 
 // buildCertInfo parses a CertContext and extracts everything the reporting
-// loop will need into Go-owned values. 
+// loop will need into Go-owned values.
 // Returns an error only when parsing or required-property reads fail;
 // optional lookups (friendly name) are logged and left empty on failure.
 func buildCertInfo(certContext *windows.CertContext, storeHandle windows.Handle, cfg Config) (certInfo, error) {
