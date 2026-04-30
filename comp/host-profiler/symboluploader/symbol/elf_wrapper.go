@@ -79,7 +79,7 @@ func (e *elfWrapper) Close() error {
 	return e.elfFile.Close()
 }
 
-func newElfWrapperFromVDSO(m *process.Mapping, pr process.Process) (ef *elfWrapper, err error) {
+func newElfWrapperFromVDSO(m *process.RawMapping, pr process.Process) (ef *elfWrapper, err error) {
 	// vdso is not backed by a file
 	data := make([]byte, m.Length)
 	_, err = pr.GetRemoteMemory().ReadAt(data, int64(m.Vaddr))
@@ -94,14 +94,14 @@ func newElfWrapperFromVDSO(m *process.Mapping, pr process.Process) (ef *elfWrapp
 	return &elfWrapper{elfFile: elfFile, data: data, helper: &ProcessFileHelper{pid: pr.PID()}}, nil
 }
 
-func newElfWrapperFromMapping(m *process.Mapping, pr process.Process) (ef *elfWrapper, err error) {
+func newElfWrapperFromMapping(m *process.RawMapping, pr process.Process) (ef *elfWrapper, err error) {
 	if m.IsVDSO() {
 		return newElfWrapperFromVDSO(m, pr)
 	}
 
-	elfFile, err := pr.OpenELF(m.Path.String())
+	elfFile, err := pr.OpenELF(m.Path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open ELF file %s for PID %d: %w", m.Path.String(), pr.PID(), err)
+		return nil, fmt.Errorf("failed to open ELF file %s for PID %d: %w", m.Path, pr.PID(), err)
 	}
 	defer func() {
 		if err != nil {
@@ -111,7 +111,7 @@ func newElfWrapperFromMapping(m *process.Mapping, pr process.Process) (ef *elfWr
 
 	r, err := pr.OpenMappingFile(m)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open mapping file %s for PID %d: %w", m.Path.String(), pr.PID(), err)
+		return nil, fmt.Errorf("failed to open mapping file %s for PID %d: %w", m.Path, pr.PID(), err)
 	}
 	defer func() {
 		if err != nil {
@@ -121,10 +121,10 @@ func newElfWrapperFromMapping(m *process.Mapping, pr process.Process) (ef *elfWr
 
 	f, ok := r.(*os.File)
 	if !ok {
-		return nil, fmt.Errorf("failed to cast mapping file %s to *os.File for PID %d", m.Path.String(), pr.PID())
+		return nil, fmt.Errorf("failed to cast mapping file %s to *os.File for PID %d", m.Path, pr.PID())
 	}
 
-	return newElfWrapper(elfFile, m.Path.String(), f, &ProcessFileHelper{pid: pr.PID()}, nil)
+	return newElfWrapper(elfFile, m.Path, f, &ProcessFileHelper{pid: pr.PID()}, nil)
 }
 
 func newElfWrapperFromFile(filePath string, helper FileHelper) (ef *elfWrapper, err error) {

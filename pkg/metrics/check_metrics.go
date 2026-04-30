@@ -9,18 +9,18 @@ package metrics
 import (
 	"time"
 
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 var (
-	tlmCheckMetricsTotal   = telemetry.NewGauge("check_metrics", "total_metrics", []string{"stateful"}, "Gauge of all check metrics")
-	tlmCheckMetricsActive  = telemetry.NewGauge("check_metrics", "active_metrics", []string{"stateful"}, "Gauge of non-expired check metrics (total - waiting)")
-	tlmCheckMetricsWaiting = telemetry.NewGauge("check_metrics", "waiting_metrics", []string{"stateful"}, "Gauge of expired check metrics waiting for timeout")
-	tlmCheckMetricsAdded   = telemetry.NewCounter("check_metrics", "created_total", []string{"stateful"}, "Count of new check metrics added")
-	tlmCheckMetricsExpired = telemetry.NewCounter("check_metrics", "expired_total", []string{"stateful"}, "Count of expired metrics")
-	tlmCheckMetricsRemoved = telemetry.NewCounter("check_metrics", "removed_total", []string{"stateful"}, "Count of removed metrics")
+	tlmCheckMetricsTotal   = telemetryimpl.GetCompatComponent().NewGauge("check_metrics", "total_metrics", []string{"stateful"}, "Gauge of all check metrics")
+	tlmCheckMetricsActive  = telemetryimpl.GetCompatComponent().NewGauge("check_metrics", "active_metrics", []string{"stateful"}, "Gauge of non-expired check metrics (total - waiting)")
+	tlmCheckMetricsWaiting = telemetryimpl.GetCompatComponent().NewGauge("check_metrics", "waiting_metrics", []string{"stateful"}, "Gauge of expired check metrics waiting for timeout")
+	tlmCheckMetricsAdded   = telemetryimpl.GetCompatComponent().NewCounter("check_metrics", "created_total", []string{"stateful"}, "Count of new check metrics added")
+	tlmCheckMetricsExpired = telemetryimpl.GetCompatComponent().NewCounter("check_metrics", "expired_total", []string{"stateful"}, "Count of expired metrics")
+	tlmCheckMetricsRemoved = telemetryimpl.GetCompatComponent().NewCounter("check_metrics", "removed_total", []string{"stateful"}, "Count of removed metrics")
 
 	checkMetricsAddSampleTelemetry = &AddSampleTelemetry{
 		Total:     tlmCheckMetricsAdded.WithValues("sum"),

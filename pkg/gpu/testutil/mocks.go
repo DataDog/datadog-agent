@@ -20,8 +20,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -415,6 +415,12 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 				return 0, nvml.ERROR_NOT_SUPPORTED
 			}
 			return 0, nvml.SUCCESS
+		},
+		GetSramEccErrorStatusFunc: func() (nvml.EccSramErrorStatus, nvml.Return) {
+			if isMIGUnsupported || arch < nvml.DEVICE_ARCH_AMPERE {
+				return nvml.EccSramErrorStatus{}, nvml.ERROR_NOT_SUPPORTED
+			}
+			return nvml.EccSramErrorStatus{}, nvml.SUCCESS
 		},
 		GetIndexFunc: func() (int, nvml.Return) {
 			return deviceIdx, nvml.SUCCESS
@@ -904,7 +910,7 @@ func GetWorkloadMetaMockWithDefaultGPUs(t testing.TB) workloadmetamock.Mock {
 
 // GetTelemetryMock returns a mock of the telemetry.Component.
 func GetTelemetryMock(t testing.TB) telemetry.Mock {
-	return fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
+	return fxutil.Test[telemetry.Mock](t, mocktelemetry.Module())
 }
 
 // GetTotalExpectedDevices calculates the total number of devices (physical + MIG)

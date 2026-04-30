@@ -8,6 +8,7 @@ package rcprotocoltestimpl
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"path"
 	"strconv"
@@ -25,8 +26,28 @@ import (
 // messageTimeout interval or the test times out.
 const messageTimeout = 5 * time.Minute
 
-func runEchoLoop(ctx context.Context, client *api.HTTPClient, runCount uint64) (uint, error) {
-	conn, err := newWebSocketClient(ctx, "/api/v0.2/echo-test", client, runCount)
+// ALPNMode specifies the ALPN protocol mode for WebSocket connections.
+type ALPNMode int
+
+const (
+	// ALPNDefault uses no ALPN protocol negotiation.
+	ALPNDefault ALPNMode = 0
+	// ALPNDDRC uses the dd-rc-v1 ALPN protocol.
+	ALPNDDRC ALPNMode = 1
+)
+
+// alpnProtocolDDRC is the ALPN protocol identifier for Datadog Remote Config
+// WebSocket connections. This protocol enables optimized routing and handling
+// of remote config traffic at the load balancer and backend level.
+const alpnProtocolDDRC = "dd-rc-v1"
+
+func runEchoLoop(ctx context.Context, client *api.HTTPClient, runCount uint64, alpnMode ALPNMode) (uint, error) {
+	endpointPath := "/api/v0.2/echo-test"
+	if alpnMode == ALPNDDRC {
+		endpointPath = "/api/v0.2/echo-test-alpn"
+	}
+
+	conn, err := newWebSocketClient(ctx, endpointPath, client, runCount, alpnMode)
 	if err != nil {
 		return 0, err
 	}
@@ -115,16 +136,39 @@ func gracefulAbort(conn *websocket.Conn) {
 //
 // The "endpointPath" specifies the resource path to connect to, which is
 // appended to the client baseURL.
-func newWebSocketClient(ctx context.Context, endpointPath string, httpClient *api.HTTPClient, runCount uint64) (*websocket.Conn, error) {
+//
+// The "alpnMode" specifies the ALPN protocol mode. Use ALPNDefault for no ALPN
+// or ALPNDDRC for dd-rc-v1 ALPN protocol.
+func newWebSocketClient(ctx context.Context, endpointPath string, httpClient *api.HTTPClient, runCount uint64, alpnMode ALPNMode) (*websocket.Conn, error) {
 	// Extract the TLS & Proxy configuration from the HTTP client.
 	transport, err := httpClient.Transport()
 	if err != nil {
 		return nil, err
 	}
 
+	tlsConfig := transport.TLSClientConfig
+
+	// Parse the "base URL" the client uses to connect to RC.
+	url, err := httpClient.BaseURL()
+	if err != nil {
+		return nil, err
+	}
+
+	// Handle ALPN if requested.
+	if alpnMode == ALPNDDRC {
+		// ALPN requires TLS, so this test cannot run with plain HTTP.
+		if strings.ToLower(url.Scheme) == "http" {
+			return nil, errors.New("ALPN websocket test requires TLS (remote_configuration.no_tls must be false)")
+		}
+
+		// Clone and configure TLS for ALPN.
+		tlsConfig = tlsConfig.Clone()
+		tlsConfig.NextProtos = []string{alpnProtocolDDRC}
+	}
+
 	dialer := &websocket.Dialer{
 		HandshakeTimeout: 30 * time.Second,
-		TLSClientConfig:  transport.TLSClientConfig,
+		TLSClientConfig:  tlsConfig,
 		Proxy:            transport.Proxy,
 	}
 
@@ -135,11 +179,6 @@ func newWebSocketClient(ctx context.Context, endpointPath string, httpClient *ap
 	headers.Set("X-Echo-Run-Count", strconv.FormatUint(runCount, 10))
 	headers.Set("X-Agent-UUID", uuid.GetUUID())
 
-	// Parse the "base URL" the client uses to connect to RC.
-	url, err := httpClient.BaseURL()
-	if err != nil {
-		return nil, err
-	}
 	// Append the specific path to the WebSocket resource.
 	url.Path = path.Join(url.Path, endpointPath)
 	// Change the protocol to use websockets.
@@ -150,7 +189,11 @@ func newWebSocketClient(ctx context.Context, endpointPath string, httpClient *ap
 		url.Scheme = "wss"
 	}
 
-	log.Debugf("connecting to websocket endpoint %s", url.String())
+	logMsg := "connecting to websocket endpoint " + url.String()
+	if alpnMode == ALPNDDRC {
+		logMsg += " with ALPN " + alpnProtocolDDRC
+	}
+	log.Debug(logMsg)
 
 	// Send the HTTP request, wait for the upgrade response and then perform the
 	// WebSocket handshake.
@@ -160,7 +203,11 @@ func newWebSocketClient(ctx context.Context, endpointPath string, httpClient *ap
 	}
 	_ = resp.Body.Close()
 
-	log.Debug("websocket connected")
+	logMsg = "websocket connected"
+	if alpnMode == ALPNDDRC {
+		logMsg += " with ALPN " + alpnProtocolDDRC
+	}
+	log.Debug(logMsg)
 
 	return conn, nil
 }

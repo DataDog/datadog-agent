@@ -186,7 +186,9 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 // computeThrottleMode determines the throttle mode for an event based on
 // whether this event or its sibling has a condition.
 //
-// Note importantly at time of writing only one event can have a condition!
+// Condition evaluation (including compound and/or/not conditions) is
+// constrained to a single event kind per probe (see irgen's event-kind
+// unification), so at most one event per probe carries a condition.
 func computeThrottleMode(event *ir.Event, conditionEventKind ir.EventKind) ThrottleMode {
 	hasCond := event.Condition != nil
 	isReturn := event.Kind == ir.EventKindReturn
@@ -231,6 +233,10 @@ func (g *generator) addEventHandler(
 		ThrottlerIdx:        throttlerIdx,
 		PointerChasingLimit: captureConfig.GetMaxReferenceDepth(),
 		CollectionSizeLimit: captureConfig.GetMaxCollectionSize(),
+		// StringSizeLimit is forwarded as configured. The BPF stack
+		// machine clamps to MAX_DATA_ITEM_SIZE before serialization
+		// so an oversized maxLength produces a truncated capture
+		// rather than a silent skip; see pkg/dyninst/ebpf/stack_machine.h.
 		StringSizeLimit:     captureConfig.GetMaxLength(),
 		Frameless:           injectionPoint.Frameless,
 		HasAssociatedReturn: injectionPoint.HasAssociatedReturn,
@@ -339,6 +345,12 @@ func (g *generator) addConditionHandler(
 			ops = append(ops, swissMapOps(op, ^uint32(0))...) // conditions don't have per-expression status
 		case *ir.ConditionCheckOp:
 			ops = append(ops, ConditionCheckOp{})
+		case *ir.CondNotOp:
+			ops = append(ops, CondNotOp{})
+		case *ir.CondJumpOp:
+			ops = append(ops, CondJumpOp{Cond: op.Cond, Label: op.Target})
+		case *ir.CondLabelOp:
+			ops = append(ops, CondLabelOp{ID: op.ID})
 		default:
 			panic(fmt.Sprintf("unexpected ir.Operation in condition: %#v", op))
 		}

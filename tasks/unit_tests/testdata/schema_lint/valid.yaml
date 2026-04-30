@@ -1,0 +1,42 @@
+properties:
+  simple_setting:
+    node_type: setting
+    type: string
+    default: hello
+    description: A simple public setting.
+    visibility: public
+    env_vars:
+      - DD_SIMPLE_SETTING
+  private_setting:
+    node_type: setting
+    type: number
+    default: 42
+  array_setting:
+    node_type: setting
+    type: array
+    items:
+      type: string
+    default: []
+  platform_setting:
+    node_type: setting
+    type: number
+    platform_default:
+      other: 5002
+  platform_setting_all_platforms:
+    node_type: setting
+    type: number
+    platform_default:
+      darwin: 1
+      windows: 2
+      linux: 3
+  public_section:
+    node_type: section
+    description: A public section.
+    visibility: public
+    properties:
+      nested_setting:
+        node_type: setting
+        type: boolean
+        default: false
+        description: A nested public setting.
+        visibility: public

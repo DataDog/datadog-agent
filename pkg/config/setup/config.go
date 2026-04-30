@@ -14,6 +14,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -682,6 +683,7 @@ func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component,
 
 	sanitizeAPIKeyConfig(config, "api_key")
 	sanitizeAPIKeyConfig(config, "logs_config.api_key")
+	sanitizeDataPlaneConfig(config, runtime.GOOS)
 	setNumWorkers(config)
 
 	flareStrippedKeys := config.GetStringSlice("flare_stripped_keys")
@@ -1185,6 +1187,25 @@ func sanitizeAPIKeyConfig(config pkgconfigmodel.Config, key string) {
 	config.Set(key, trimmed, pkgconfigmodel.SourceAgentRuntime)
 }
 
+// sanitizeDataPlaneConfig gates data_plane.enabled to Linux only.
+// The Agent Data Plane (ADP) is a Linux-only component. On non-Linux platforms
+// this function always installs a SourceAgentRuntime override of false, which
+// beats file and fleet-policy sources and prevents them from re-enabling ADP
+// after this call returns. A warning is emitted only when the value was
+// explicitly set to true at call time.
+//
+// The goos parameter is the target OS string (normally runtime.GOOS). It is
+// exposed as a parameter so that tests can exercise both branches without
+// needing to cross-compile.
+func sanitizeDataPlaneConfig(config pkgconfigmodel.Config, goos string) {
+	if goos != "linux" {
+		if config.GetBool(DataPlaneEnabled) {
+			log.Warnf("%s is not supported on %s and will be ignored", DataPlaneEnabled, goos)
+		}
+		config.Set(DataPlaneEnabled, false, pkgconfigmodel.SourceAgentRuntime)
+	}
+}
+
 // sanitizeExternalMetricsProviderChunkSize ensures the value of `external_metrics_provider.chunk_size` is within an acceptable range
 func sanitizeExternalMetricsProviderChunkSize(config pkgconfigmodel.Config) {
 	if !config.IsKnown("external_metrics_provider.chunk_size") {
@@ -1425,24 +1446,16 @@ func applyInfrastructureModeOverrides(config pkgconfigmodel.Config) {
 			{"match_domain": "claude.ai", "type": "include"},
 		}
 
-		// Append user-defined filters to the defaults
-		if userFilters := config.Get("network_path.collector.filters"); userFilters != nil {
-			if userFiltersList, ok := userFilters.([]interface{}); ok {
-				for _, f := range userFiltersList {
-					if filterMap, ok := f.(map[string]interface{}); ok {
-						converted := make(map[string]string)
-						for k, v := range filterMap {
-							if strVal, ok := v.(string); ok {
-								converted[k] = strVal
-							}
-						}
-						// Always append the user defined filters to the defaults at the end of the list to get the higher priority than the default configuration
-						defaultNetworkPathCollectorFilters = append(defaultNetworkPathCollectorFilters, converted)
-					}
-				}
-			}
+		// Append user-defined filters after the defaults so they win (last matching filter wins).
+		// On unmarshal error, skip the override entirely: the user's (malformed) config is left
+		// in place so downstream surfaces it, rather than silently replacing it with defaults.
+		var userFilters []map[string]string
+		if err := structure.UnmarshalKey(config, "network_path.collector.filters", &userFilters); err != nil {
+			log.Errorf("Failed to unmarshal network_path.collector.filters, skipping EUDM filter override: %v", err)
+		} else {
+			defaultNetworkPathCollectorFilters = append(defaultNetworkPathCollectorFilters, userFilters...)
+			config.Set("network_path.collector.filters", defaultNetworkPathCollectorFilters, pkgconfigmodel.SourceAgentRuntime) // Agent runtime source is required to override customer defined filters with default configuration
 		}
-		config.Set("network_path.collector.filters", defaultNetworkPathCollectorFilters, pkgconfigmodel.SourceAgentRuntime) // Agent runtime source is required to override customer defined filters with default configuration
 
 		// Enable features for end_user_device mode
 		config.Set("process_config.process_collection.enabled", true, pkgconfigmodel.SourceInfraMode)
@@ -1451,6 +1464,8 @@ func applyInfrastructureModeOverrides(config pkgconfigmodel.Config) {
 	} else if infraMode == "none" {
 		// Disable integrations (no host metrics collection)
 		config.Set("integration.enabled", false, pkgconfigmodel.SourceInfraMode)
+		// Avoid detailed ECS task metadata collection when not collecting infrastructure.
+		config.Set("ecs_task_collection_enabled", false, pkgconfigmodel.SourceInfraMode)
 	}
 }
 

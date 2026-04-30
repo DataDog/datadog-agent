@@ -19,10 +19,10 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
 
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -52,8 +52,8 @@ const keepaliveInterval = 10 * time.Second
 const streamSendTimeout = 1 * time.Minute
 
 var (
-	invalidVersionError = telemetry.NewSimpleCounter(subsystem, "invalid_version_errors", "The number of times the grpc server receives an entity diff that has an invalid version.")
-	streamServerError   = telemetry.NewSimpleCounter(subsystem, "stream_send_errors", "The number of times the grpc server has failed to send an entity diff to the core agent.")
+	invalidVersionError = telemetryimpl.GetCompatComponent().NewSimpleCounter(subsystem, "invalid_version_errors", "The number of times the grpc server receives an entity diff that has an invalid version.")
+	streamServerError   = telemetryimpl.GetCompatComponent().NewSimpleCounter(subsystem, "stream_send_errors", "The number of times the grpc server has failed to send an entity diff to the core agent.")
 )
 
 // NewGRPCServer creates a new instance of a GRPCServer
