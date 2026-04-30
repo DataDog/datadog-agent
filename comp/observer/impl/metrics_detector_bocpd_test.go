@@ -301,11 +301,12 @@ func TestFindingH3_CPProbUsesOnlyPriorPredictiveNotSumOverRunLengths(t *testing.
 	_, implCpProb, _ := d.updatePosterior(state, x)
 
 	// Independently compute the standard BOCPD formula from the snapshot.
+	// Use studentTPDF (df=4) to match the default LikelihoodKind="student_t".
 	newLen := len(snapRunProbs) + 1
 	standardProbs := make([]float64, newLen)
 	var cpMass float64
 	for r := range snapRunProbs {
-		pred := gaussianPDF(x, snapMeans[r], state.obsVar+1.0/snapPrecisions[r])
+		pred := studentTPDF(x, snapMeans[r], state.obsVar+1.0/snapPrecisions[r], 4.0)
 		standardProbs[r+1] = snapRunProbs[r] * (1.0 - hazard) * pred
 		cpMass += snapRunProbs[r] * pred
 	}
@@ -314,10 +315,12 @@ func TestFindingH3_CPProbUsesOnlyPriorPredictiveNotSumOverRunLengths(t *testing.
 	expectedCpProb := standardProbs[0]
 
 	// Independently compute the prior-only formula from the snapshot.
+	// Uses the same likelihood (student_t) so the structural difference
+	// (sum-over-run-lengths vs prior-only) is isolated.
 	priorProbs := make([]float64, newLen)
-	predPrior := gaussianPDF(x, state.priorMean, state.obsVar+1.0/state.priorPrecision)
+	predPrior := studentTPDF(x, state.priorMean, state.obsVar+1.0/state.priorPrecision, 4.0)
 	for r := range snapRunProbs {
-		pred := gaussianPDF(x, snapMeans[r], state.obsVar+1.0/snapPrecisions[r])
+		pred := studentTPDF(x, snapMeans[r], state.obsVar+1.0/snapPrecisions[r], 4.0)
 		priorProbs[r+1] = snapRunProbs[r] * (1.0 - hazard) * pred
 	}
 	priorProbs[0] = hazard * predPrior
@@ -462,6 +465,166 @@ func TestFindingM7_WarmupPointsOneCausesNaN(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestBOCPDDetector_StudentT_IgnoresIsolatedOutlier(t *testing.T) {
+	// Isolated single-point outlier at +12σ should NOT trigger Student-t BOCPD
+	// (df=4 heavy tail assigns non-negligible density, preserving run-length).
+	// The same spike should trigger Gaussian BOCPD, demonstrating the contrast.
+	//
+	// Data: 35 stable jittered points (±2 around 100, σ≈1.63), one outlier at
+	// value 120 (~12σ), then 20 more stable points.
+
+	buildStorage := func() *timeSeriesStorage {
+		st := newTimeSeriesStorage()
+		for i := 0; i < 35; i++ {
+			jitter := float64(i%3-1) * 2.0 // -2, 0, +2 cycling; σ≈1.63
+			st.Add("ns", "test.metric", 100.0+jitter, int64(i+1), nil)
+		}
+		// Isolated outlier at point 36 (~12σ above baseline mean).
+		st.Add("ns", "test.metric", 120.0, 36, nil)
+		for i := 36; i < 56; i++ {
+			jitter := float64(i%3-1) * 2.0
+			st.Add("ns", "test.metric", 100.0+jitter, int64(i+1), nil)
+		}
+		return st
+	}
+
+	// Student-t detector (default): should ignore the isolated outlier.
+	stConfig := DefaultBOCPDConfig()
+	stConfig.WarmupPoints = 20
+	stConfig.LikelihoodKind = "student_t"
+	stDetector := NewBOCPDDetector(stConfig)
+	stResult := stDetector.Detect(buildStorage(), 56)
+	assert.Empty(t, stResult.Anomalies,
+		"student_t BOCPD should not flag an isolated outlier; got %d anomalies", len(stResult.Anomalies))
+
+	// Gaussian detector (legacy): should fire on the same spike.
+	gConfig := DefaultBOCPDConfig()
+	gConfig.WarmupPoints = 20
+	gConfig.LikelihoodKind = "gaussian"
+	gDetector := NewBOCPDDetector(gConfig)
+	gResult := gDetector.Detect(buildStorage(), 56)
+	assert.NotEmpty(t, gResult.Anomalies,
+		"gaussian BOCPD should flag the isolated +12σ outlier (contrast check)")
+}
+
+func TestBOCPDDetector_StudentT_StillCatchesSustainedShift(t *testing.T) {
+	// Student-t robustness should not prevent detection of a genuine sustained
+	// step change. A +5σ shift maintained for 30 points accumulates enough
+	// run-length posterior mass to trigger within the first 8 shifted points.
+	//
+	// Data: 30 stable jittered ±2 points (σ≈1.63), then 30 points at 108
+	// (~+5σ above baseline).
+
+	config := DefaultBOCPDConfig()
+	config.WarmupPoints = 20
+	config.LikelihoodKind = "student_t"
+	d := NewBOCPDDetector(config)
+
+	storage := newTimeSeriesStorage()
+	for i := 0; i < 30; i++ {
+		jitter := float64(i%3-1) * 2.0
+		storage.Add("ns", "test.metric", 100.0+jitter, int64(i+1), nil)
+	}
+	shiftStart := int64(31)
+	for i := 0; i < 30; i++ {
+		storage.Add("ns", "test.metric", 108.0, int64(30+i+1), nil)
+	}
+
+	result := d.Detect(storage, 60)
+
+	require.NotEmpty(t, result.Anomalies, "student_t BOCPD should detect a sustained +5σ step change")
+	// Anomaly should fire within the first 8 points of the shifted segment.
+	assert.LessOrEqual(t, result.Anomalies[0].Timestamp, shiftStart+7,
+		"anomaly should fire within first 8 shifted points (got timestamp %d, shift started at %d)",
+		result.Anomalies[0].Timestamp, shiftStart)
+}
+
+func TestBOCPDDetector_GaussianBackcompat(t *testing.T) {
+	// Verify the legacy "gaussian" likelihood path remains functional.
+	// Uses the same 100→140 step-change data as TestBOCPDDetector_DetectsStepChange,
+	// but with an explicit LikelihoodKind="gaussian" override.
+
+	config := DefaultBOCPDConfig()
+	config.WarmupPoints = 20
+	config.LikelihoodKind = "gaussian"
+	d := NewBOCPDDetector(config)
+
+	storage := newTimeSeriesStorage()
+	for i := 0; i < 20; i++ {
+		storage.Add("ns", "test.metric", 100, int64(i+1), nil)
+	}
+	for i := 20; i < 40; i++ {
+		storage.Add("ns", "test.metric", 140, int64(i+1), nil)
+	}
+
+	result := d.Detect(storage, 40)
+
+	require.NotEmpty(t, result.Anomalies, "gaussian BOCPD should detect 100→140 step change")
+	assert.Contains(t, result.Anomalies[0].Title, "BOCPD",
+		"anomaly title should identify the BOCPD detector")
+	assert.GreaterOrEqual(t, result.Anomalies[0].Timestamp, int64(21),
+		"anomaly should fire after the warmup period ends")
+}
+
+func TestBOCPDDetector_StudentTPDF_Basic(t *testing.T) {
+	// Sanity check studentTPDF: at the mean, value should equal the normalizing
+	// constant, and the pdf should decrease as x moves away from mean.
+	df := 4.0
+	mean := 0.0
+	scale2 := 1.0
+
+	atMean := studentTPDF(mean, mean, scale2, df)
+	atOneSigma := studentTPDF(mean+1.0, mean, scale2, df)
+	atTenSigma := studentTPDF(mean+10.0, mean, scale2, df)
+
+	assert.Greater(t, atMean, 0.0, "pdf at mean should be positive")
+	assert.Greater(t, atMean, atOneSigma, "pdf should decrease away from mean")
+	assert.Greater(t, atOneSigma, atTenSigma, "pdf should decrease further at 10σ")
+
+	// Heavy tail: Student-t at 10σ should be orders of magnitude larger than Gaussian at 10σ.
+	gaussianAt10Sigma := gaussianPDF(mean+10.0, mean, scale2)
+	assert.Greater(t, atTenSigma, gaussianAt10Sigma*100,
+		"student_t df=4 tail should be much heavier than Gaussian at 10σ")
+}
+
+func TestBOCPDDetector_StudentTPDF_MinScale2Clamp(t *testing.T) {
+	// Degenerate scale2 should not produce NaN or Inf.
+	result := studentTPDF(0.0, 0.0, 0.0, 4.0)
+	assert.False(t, math.IsNaN(result), "studentTPDF with scale2=0 should not return NaN")
+	assert.False(t, math.IsInf(result, 0), "studentTPDF with scale2=0 should not return Inf")
+	assert.Greater(t, result, 0.0, "studentTPDF with scale2=0 should return positive value")
+}
+
+func TestBOCPDDetector_LikelihoodKindDefault(t *testing.T) {
+	// Empty LikelihoodKind should default to "student_t" via NewBOCPDDetector.
+	config := DefaultBOCPDConfig()
+	config.LikelihoodKind = ""
+	d := NewBOCPDDetector(config)
+	assert.Equal(t, "student_t", d.config.LikelihoodKind,
+		"empty LikelihoodKind should default to student_t")
+}
+
+func TestBOCPDDetector_UnknownLikelihoodKindFallsBackToStudentT(t *testing.T) {
+	// An unrecognized LikelihoodKind should silently fall through the else
+	// branch in updatePosterior, which is the student_t path.
+	config := DefaultBOCPDConfig()
+	config.WarmupPoints = 20
+	config.LikelihoodKind = "laplace" // unrecognized
+	d := NewBOCPDDetector(config)
+
+	storage := newTimeSeriesStorage()
+	for i := 0; i < 20; i++ {
+		storage.Add("ns", "test.metric", 100, int64(i+1), nil)
+	}
+	for i := 20; i < 40; i++ {
+		storage.Add("ns", "test.metric", 140, int64(i+1), nil)
+	}
+
+	// Should still detect the step change (student_t path), not panic or NaN.
+	result := d.Detect(storage, 40)
+	require.NotEmpty(t, result.Anomalies, "unknown LikelihoodKind should fall through to student_t and still detect step change")
 }
 
 func TestFindingM8_ShortRunMassExcludesCPProb(t *testing.T) {
