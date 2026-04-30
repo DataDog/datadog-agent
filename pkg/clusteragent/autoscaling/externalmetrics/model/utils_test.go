@@ -31,7 +31,7 @@ func Test_resolveQuery(t *testing.T) {
 			q:             "avg:nginx.net.request_per_s{kube_container_name:nginx}.rollup(60)",
 			templatedTags: templatedTagsStub,
 			loadFunc:      func(*testing.T) {},
-			want:          "",
+			want:          "avg:nginx.net.request_per_s{kube_container_name:nginx}.rollup(60)",
 			wantErr:       false,
 		},
 		{
@@ -132,7 +132,7 @@ func Test_resolveQuery(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			templatedTags = tt.templatedTags
 			tt.loadFunc(t)
-			got, err := resolveQuery(tt.q)
+			got, err := ResolveMetricQuery(tt.q)
 			assert.Equal(t, tt.wantErr, err != nil)
 			assert.Equal(t, tt.want, got)
 		})

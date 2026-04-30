@@ -150,6 +150,10 @@ func (c *controllerBase) generateWebhooks(datadogConfig config.Component, wmeta 
 	autoscalingWebhook := autoscaling.NewWebhook(pp, datadogConfig)
 	webhooks = append(webhooks, autoscalingWebhook)
 
+	// Setup HPA migration webhook (protects HPAs neutralised by a DatadogPodAutoscaler).
+	hpaWebhook := autoscaling.NewHPAWebhook(datadogConfig)
+	webhooks = append(webhooks, hpaWebhook)
+
 	// Setup spot scheduling webhook.
 	spotWebhook := admspot.NewWebhook(datadogConfig, sh)
 	webhooks = append(webhooks, spotWebhook)

@@ -642,6 +642,60 @@ func TestProfileManagedPodAutoscaler(t *testing.T) {
 		pai.UpdateFromProfile("high-cpu", template, targetRef, "hash1-v3", "")
 		assert.False(t, pai.IsBurstable())
 	})
+
+	t.Run("RestoreHPAImportedSpec preserves objectives and constraints after profile update", func(t *testing.T) {
+		// Simulate a profile template that intentionally has no objectives/constraints
+		// (the common case for HPA-migration profiles).
+		emptyTemplate := &datadoghq.DatadogPodAutoscalerTemplate{}
+		pai := NewPodAutoscalerFromProfile("prod", "webapp-abc1", "hpa-migration", emptyTemplate, targetRef, "hash1", "")
+		assert.Empty(t, pai.Spec().Objectives)
+		assert.Nil(t, pai.Spec().Constraints)
+
+		// Simulate what the migration controller writes to Kubernetes:
+		// objectives and constraints imported from the HPA.
+		importedMinReplicas := int32(2)
+		importedMaxReplicas := int32(10)
+		absVal := resource.MustParse("10")
+		importedSpec := datadoghq.DatadogPodAutoscalerSpec{
+			Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
+				{
+					Type: datadoghqcommon.DatadogPodAutoscalerCustomQueryObjectiveType,
+					CustomQuery: &datadoghqcommon.DatadogPodAutoscalerCustomQueryObjective{
+						Value: datadoghqcommon.DatadogPodAutoscalerObjectiveValue{
+							Type:          datadoghqcommon.DatadogPodAutoscalerAbsoluteValueObjectiveValueType,
+							AbsoluteValue: &absVal,
+						},
+					},
+				},
+			},
+			Constraints: &datadoghqcommon.DatadogPodAutoscalerConstraints{
+				MinReplicas: &importedMinReplicas,
+				MaxReplicas: &importedMaxReplicas,
+			},
+		}
+
+		// Profile template changes (new hash). The syncer calls UpdateFromProfile,
+		// which replaces the spec with the new profile template (clearing objectives/constraints).
+		pai.UpdateFromProfile("hpa-migration", emptyTemplate, targetRef, "hash2", "")
+		assert.Empty(t, pai.Spec().Objectives)
+		assert.Nil(t, pai.Spec().Constraints)
+
+		// RestoreHPAImportedSpec must put back the imported objectives and constraints
+		// before updatePodAutoscalerSpec writes to Kubernetes.
+		pai.RestoreHPAImportedSpec(&importedSpec)
+		assert.Equal(t, importedSpec.Objectives, pai.Spec().Objectives)
+		assert.Equal(t, importedSpec.Constraints, pai.Spec().Constraints)
+	})
+
+	t.Run("RestoreHPAImportedSpec is no-op when k8s spec has no objectives", func(t *testing.T) {
+		emptyTemplate := &datadoghq.DatadogPodAutoscalerTemplate{}
+		pai := NewPodAutoscalerFromProfile("prod", "webapp-abc1", "hpa-migration", emptyTemplate, targetRef, "hash1", "")
+
+		// k8s spec also has no objectives — nothing to restore
+		pai.RestoreHPAImportedSpec(&datadoghq.DatadogPodAutoscalerSpec{})
+		assert.Empty(t, pai.Spec().Objectives)
+		assert.Nil(t, pai.Spec().Constraints)
+	})
 }
 
 func TestContainerResourcesForStatus(t *testing.T) {

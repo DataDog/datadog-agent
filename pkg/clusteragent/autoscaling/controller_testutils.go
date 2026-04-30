@@ -68,14 +68,17 @@ func CheckAction(t *testing.T, expected, actual core.Action) {
 
 // FilterInformerActions filters list and watch actions for testing resources.
 // Since list and watch don't change resource state we can filter it to lower
-// nose level in our tests.
-func FilterInformerActions(actions []core.Action, resourceName string) []core.Action {
+// noise level in our tests. All cluster-scoped list/watch actions are filtered
+// because they originate exclusively from informer cache sync and are never
+// meaningful assertions in unit tests.
+func FilterInformerActions(actions []core.Action, _ string) []core.Action {
 	ret := []core.Action{}
 	for _, action := range actions {
-		if len(action.GetNamespace()) == 0 &&
-			(action.Matches("list", resourceName) ||
-				action.Matches("watch", resourceName)) {
-			continue
+		if len(action.GetNamespace()) == 0 {
+			verb := action.GetVerb()
+			if verb == "list" || verb == "watch" {
+				continue
+			}
 		}
 		ret = append(ret, action)
 	}

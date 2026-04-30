@@ -50,6 +50,12 @@ const (
 	ConditionReasonLimitedByScalingBehavior ConditionReasonType = "LimitedByScalingBehavior"
 	// ConditionReasonFailedToEvict indicates a failure when evicting a pod.
 	ConditionReasonFailedToEvict ConditionReasonType = "FailedToEvict"
+	// ConditionReasonAmbiguousHPA indicates multiple HPAs target the same Deployment, making migration ambiguous.
+	ConditionReasonAmbiguousHPA ConditionReasonType = "AmbiguousHPA"
+	// ConditionReasonUnsupportedHPAMetric indicates the HPA uses a metric type not supported for DPA migration.
+	ConditionReasonUnsupportedHPAMetric ConditionReasonType = "UnsupportedHPAMetric"
+	// ConditionReasonDatadogMetricNotFound indicates a DatadogMetric CRD referenced by an HPA external metric was not found.
+	ConditionReasonDatadogMetricNotFound ConditionReasonType = "DatadogMetricNotFound"
 )
 
 // ConditionReason is an interface that errors can implement to provide
