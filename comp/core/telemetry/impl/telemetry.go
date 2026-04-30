@@ -63,11 +63,7 @@ type Provides struct {
 
 // NewComponent creates a new telemetry component.
 func NewComponent(deps Requires) Provides {
-	impl := &telemetryImpl{
-		mutex:           &mutex,
-		registry:        registry,
-		defaultRegistry: defaultRegistry,
-	}
+	impl := newTelemetry()
 	// Since we are in the middle of a migration to components, we need to ensure that the global variables are reset
 	// when the component is stopped.
 	deps.Lc.Append(compdef.Hook{
@@ -82,7 +78,7 @@ func NewComponent(deps Requires) Provides {
 	}
 }
 
-func newTelemetry() telemetry.Component {
+func newTelemetry() *telemetryImpl {
 	return &telemetryImpl{
 		mutex:    &mutex,
 		registry: registry,
