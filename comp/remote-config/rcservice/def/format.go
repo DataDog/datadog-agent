@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-package flare
+package rcservice
 
 import (
 	"fmt"
@@ -15,6 +15,19 @@ import (
 
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
+
+// PrintRemoteConfigStates dumps the whole remote-config state to w.
+func PrintRemoteConfigStates(w io.Writer, state *pbgo.GetStateConfigResponse, stateHA *pbgo.GetStateConfigResponse) {
+	if state != nil {
+		fmt.Fprintln(w, "\n=== Remote config DB state ===")
+		printRemoteConfigStateContents(w, state)
+	}
+
+	if stateHA != nil {
+		fmt.Fprintln(w, "\n=== Remote config HA DB state ===")
+		printRemoteConfigStateContents(w, stateHA)
+	}
+}
 
 func getStateString(state *pbgo.FileMetaState, padding int) string {
 	if state == nil {
@@ -37,7 +50,6 @@ func printTUFRepo(w io.Writer, repo map[string]*pbgo.FileMetaState) {
 	printAndRemoveFile(w, repo, "snapshot.json", "|- ", 13)
 	printAndRemoveFile(w, repo, "targets.json", "|- ", 14)
 
-	// Sort the keys to display the delegated targets in order
 	keys := make([]string, 0, len(repo))
 	for k := range repo {
 		keys = append(keys, k)
@@ -46,19 +58,6 @@ func printTUFRepo(w io.Writer, repo map[string]*pbgo.FileMetaState) {
 
 	for _, name := range keys {
 		fmt.Fprintf(w, "    |- %s %s\n", name, getStateString(repo[name], 4))
-	}
-}
-
-// PrintRemoteConfigStates dump the whole remote-config state
-func PrintRemoteConfigStates(w io.Writer, state *pbgo.GetStateConfigResponse, stateHA *pbgo.GetStateConfigResponse) {
-	if state != nil {
-		fmt.Fprintln(w, "\n=== Remote config DB state ===")
-		printRemoteConfigStateContents(w, state)
-	}
-
-	if stateHA != nil {
-		fmt.Fprintln(w, "\n=== Remote config HA DB state ===")
-		printRemoteConfigStateContents(w, stateHA)
 	}
 }
 
@@ -84,7 +83,6 @@ func printRemoteConfigStateContents(w io.Writer, state *pbgo.GetStateConfigRespo
 	fmt.Fprintln(w, strings.Repeat("-", 29))
 	for _, client := range state.ActiveClients {
 		fmt.Fprintf(w, "\n- Client %s\n%+v", client.Id, client)
-		// Additional print of capabilities so it's more readable
 		fmt.Fprintf(w, "\n    - Capabilities: ")
 		for _, n := range client.Capabilities {
 			fmt.Printf("% 08b", n)

@@ -11,8 +11,8 @@ import (
 	"fmt"
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
 	rcservicemrf "github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf/def"
-	pkgflare "github.com/DataDog/datadog-agent/pkg/flare"
 )
 
 func mrfFillFlare(svc rcservicemrf.Component) func(context.Context, flaretypes.FlareBuilder) error {
@@ -23,7 +23,7 @@ func mrfFillFlare(svc rcservicemrf.Component) func(context.Context, flaretypes.F
 		}
 
 		var buf bytes.Buffer
-		pkgflare.PrintRemoteConfigStates(&buf, nil, state)
+		rcservice.PrintRemoteConfigStates(&buf, nil, state)
 		return fb.AddFile("remote-config-state-ha.log", buf.Bytes())
 	}
 }

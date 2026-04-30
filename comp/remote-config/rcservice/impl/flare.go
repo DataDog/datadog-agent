@@ -19,7 +19,6 @@ import (
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
-	pkgflare "github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
@@ -35,7 +34,7 @@ func rcFillFlare(svc rcservice.Component, runPath string) func(context.Context, 
 		}
 
 		var buf bytes.Buffer
-		pkgflare.PrintRemoteConfigStates(&buf, state, nil)
+		rcservice.PrintRemoteConfigStates(&buf, state, nil)
 		return fb.AddFile("remote-config-state.log", buf.Bytes())
 	}
 }
