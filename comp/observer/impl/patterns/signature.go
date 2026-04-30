@@ -8,58 +8,57 @@ package patterns
 import "strings"
 
 // TokenListSignature computes the signature of a list of tokens.
-// Sequences of word-like tokens separated by single '.' or ':' are collapsed into "specialWord".
+// Sequences of word-like tokens separated by single '.' or ':' are collapsed
+// into "specialWord". A single pass over the tokens emits directly into a
+// builder, with a small lookahead state for chain detection — no per-token
+// signature string slice is allocated.
 func TokenListSignature(tokens []Token) string {
 	n := len(tokens)
 	if n == 0 {
 		return ""
 	}
 
-	sigs := make([]string, n)
-	for i, t := range tokens {
-		sigs[i] = t.Signature()
-	}
+	var b strings.Builder
+	// Most token signatures are short; this is a generous estimate.
+	b.Grow(n * 6)
 
-	// In-place collapse: chains of word-like tokens separated by '.' or ':' become "specialWord".
-	// Reading always moves forward (lookahead at j+1 is never behind any write position),
-	// so mutating sigs in place is safe.
 	i := 0
 	for i < n {
-		if !isWordLikeForConcat(sigs[i]) {
+		t := tokens[i]
+		if !isTokenWordLikeForConcat(t) {
+			b.WriteString(t.Signature())
 			i++
 			continue
 		}
-		chainStart := i
+		// Probe forward for a chain `word ('.'|':') word ...`. We require at
+		// least one separator+word to flip to "specialWord"; otherwise emit the
+		// single word's normal signature.
 		j := i + 1
-		for j+1 < n {
-			if tokens[j].Type == TypeSpecialCharacter &&
-				(tokens[j].Value == "." || tokens[j].Value == ":") &&
-				isWordLikeForConcat(sigs[j+1]) {
-				j += 2
-			} else {
-				break
-			}
+		chained := false
+		for j+1 < n &&
+			tokens[j].Type == TypeSpecialCharacter &&
+			(tokens[j].Value == "." || tokens[j].Value == ":") &&
+			isTokenWordLikeForConcat(tokens[j+1]) {
+			j += 2
+			chained = true
 		}
-		if j > chainStart+1 {
-			sigs[chainStart] = "specialWord"
-			for k := chainStart + 1; k < j; k++ {
-				sigs[k] = ""
-			}
+		if chained {
+			b.WriteString("specialWord")
+			i = j
+			continue
 		}
-		i = j
+		b.WriteString(t.Signature())
+		i++
 	}
 
-	var b strings.Builder
-	for _, s := range sigs {
-		if s != "" {
-			b.WriteString(s)
-		}
-	}
 	return b.String()
 }
 
-func isWordLikeForConcat(sig string) bool {
-	return sig == "word" || sig == "specialWord"
+// isTokenWordLikeForConcat is true when a token participates in the
+// "specialWord" chain collapse. Word tokens always qualify; the chained form
+// becomes "specialWord" via the caller.
+func isTokenWordLikeForConcat(t Token) bool {
+	return t.Type == TypeWord
 }
 
 // Parse tokenizes a message and returns the token list.
