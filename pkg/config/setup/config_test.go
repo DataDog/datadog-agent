@@ -1565,18 +1565,20 @@ func TestSanitizeDataPlaneConfig(t *testing.T) {
 			wantSource:   pkgconfigmodel.SourceAgentRuntime,
 		},
 		{
-			name:         "windows no-op when already false",
+			// Even when already false, non-Linux writes SourceAgentRuntime so that
+			// lower-priority sources (e.g. fleet policies) cannot re-enable ADP later.
+			name:         "windows locks false via SourceAgentRuntime",
 			goos:         "windows",
 			initialValue: false,
 			wantValue:    false,
-			wantSource:   pkgconfigmodel.SourceFile,
+			wantSource:   pkgconfigmodel.SourceAgentRuntime,
 		},
 		{
-			name:         "darwin no-op when already false",
+			name:         "darwin locks false via SourceAgentRuntime",
 			goos:         "darwin",
 			initialValue: false,
 			wantValue:    false,
-			wantSource:   pkgconfigmodel.SourceFile,
+			wantSource:   pkgconfigmodel.SourceAgentRuntime,
 		},
 	}
 

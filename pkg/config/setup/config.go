@@ -1188,17 +1188,20 @@ func sanitizeAPIKeyConfig(config pkgconfigmodel.Config, key string) {
 }
 
 // sanitizeDataPlaneConfig gates data_plane.enabled to Linux only.
-// The Agent Data Plane (ADP) is a Linux-only component. If a user sets
-// data_plane.enabled: true on any other OS, this function emits a warning and
-// resets the flag to false so that downstream consumers automatically see the
-// correct value without each of them needing their own platform check.
+// The Agent Data Plane (ADP) is a Linux-only component. On non-Linux platforms
+// this function always installs a SourceAgentRuntime override of false, which
+// beats file and fleet-policy sources and prevents them from re-enabling ADP
+// after this call returns. A warning is emitted only when the value was
+// explicitly set to true at call time.
 //
 // The goos parameter is the target OS string (normally runtime.GOOS). It is
 // exposed as a parameter so that tests can exercise both branches without
 // needing to cross-compile.
 func sanitizeDataPlaneConfig(config pkgconfigmodel.Config, goos string) {
-	if goos != "linux" && config.GetBool(DataPlaneEnabled) {
-		log.Warnf("%s is not supported on %s and will be ignored", DataPlaneEnabled, goos)
+	if goos != "linux" {
+		if config.GetBool(DataPlaneEnabled) {
+			log.Warnf("%s is not supported on %s and will be ignored", DataPlaneEnabled, goos)
+		}
 		config.Set(DataPlaneEnabled, false, pkgconfigmodel.SourceAgentRuntime)
 	}
 }
