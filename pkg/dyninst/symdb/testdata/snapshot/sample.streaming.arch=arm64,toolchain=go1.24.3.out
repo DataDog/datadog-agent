@@ -11,6 +11,14 @@ Package: main
 		Var: s1: main.stringType1 (declared at line 307, available: [302-314])
 		Var: s2: main.stringType2 (declared at line 308, available: [302-314])
 		Var: s2p: *main.stringType2 (declared at line 309, available: [302-314])
+	Function: executeContinuationFuncs (main.executeContinuationFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/continuation.go [113:187] injectible: [113-113], [115-184], [186-187]
+		Var: m: main.manyPointers (declared at line 114, available: [113-187])
+	Function: executeContinuationStringFuncs (main.executeContinuationStringFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/continuation_strings.go [36:50] injectible: [36-36], [39-40], [42-42], [44-45], [47-47], [49-50]
+		Var: ss: []string (declared at line 39, available: [36-50])
+		Scope: 40-44
+			Var: i: int (declared at line 40, available: [40-42], [44-44])
+		Scope: 45-49
+			Var: i: int (declared at line 45, available: [45-49])
 	Function: executeEsoteric (main.executeEsoteric) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/esoteric.go [51:69] injectible: [51-52], [55-58], [60-62], [68-69]
 		Var: &capture: *int (declared at line 52, available: [51-69])
 		Var: esotericHeap: *main.esotericHeap (declared at line 61, available: [61-62], [68-69])
@@ -244,12 +252,22 @@ Package: main
 	Function: iterExample.rangeOverIterator.Values[...].func1 (main.iterExample.rangeOverIterator.Values[go.shape.[]int,go.shape.int].func1) in slices/iter.go [38:40] injectible: [39-40]
 		Var: v: go.shape.int (declared at line 39, available: [40-40])
 		Arg: yield: func(go.shape.int) bool (declared at line 0, available: )
-	Function: main (main.main) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go [20:55] injectible: [20-21], [24-25], [27-39], [41-42], [44-46], [49-55]
-		Var: it: main.iterExample (declared at line 43, available: [20-55])
-		Var: t: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2.V2Type (declared at line 40, available: [20-55])
+	Function: main (main.main) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go [20:58] injectible: [20-21], [24-25], [27-39], [41-42], [44-46], [48-49], [52-58]
+		Var: it: main.iterExample (declared at line 43, available: [20-58])
+		Var: t: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2.V2Type (declared at line 40, available: [20-58])
 	Function: main.WithService.func1 (main.main.WithService.func1) in github.com/DataDog/dd-trace-go/v2@v2.2.3-rc.1/ddtrace/tracer/option.go [986:989] injectible: [986-989]
 		Arg: c: *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.config (declared at line 986, available: [986-988])
 		Var: name: string (declared at line 987, available: [987-989])
+	Function: makePaddedData (main.makePaddedData) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/continuation.go [104:107] injectible: [105-107]
+		Var: i: int (declared at line 106, available: [105-105])
+		Arg: id: int (declared at line 0, available: )
+		Var: p: *main.paddedData (declared at line 105, available: )
+	Function: makeTestString (main.makeTestString) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/continuation_strings.go [23:28] injectible: [23-26], [28-28]
+		Arg: n: int (declared at line 23, available: [23-28])
+		Arg: ~r0: string (declared at line 23, available: )
+		Var: prefix: string (declared at line 24, available: [25-26], [28-28])
+		Var: ~r0.ptr: *uint8 (declared at line 34, available: )
+		Var: ~r0.len: int (declared at line 34, available: )
 	Function: nestedGeneric[...] (main.nestedGeneric[...]) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go [203:203] injectible: [203-203]
 		Arg: box: .param0 (declared at line 202, available: [203-203])
 		Arg: ~r0: .param1 (declared at line 202, available: )
@@ -478,6 +496,10 @@ Package: main
 		Arg: h: int (declared at line 328, available: [328-330])
 		Arg: i: int (declared at line 328, available: [328-330])
 		Arg: ~r0: [2]int (declared at line 328, available: )
+	Function: testManyPointers (main.testManyPointers) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/continuation.go [102:102] injectible: [102-102]
+		Arg: m: main.manyPointers (declared at line 102, available: [102-102])
+	Function: testManyStrings (main.testManyStrings) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/continuation_strings.go [33:33] injectible: [33-33]
+		Arg: ss: []string (declared at line 33, available: [33-33])
 	Function: testMapArrayToArray (main.testMapArrayToArray) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go [34:34] injectible: [34-34]
 		Arg: m: map[[4]string][2]int (declared at line 34, available: [34-34])
 	Function: testMapEmbeddedMaps (main.testMapEmbeddedMaps) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go [58:58] injectible: [58-58]
@@ -1045,6 +1067,77 @@ Package: main
 		Field: x: uint8
 		Field: y: uint8
 		Field: z: uint8
+	Type: main.manyPointers
+		Field: p00: *main.paddedData
+		Field: p01: *main.paddedData
+		Field: p02: *main.paddedData
+		Field: p03: *main.paddedData
+		Field: p04: *main.paddedData
+		Field: p05: *main.paddedData
+		Field: p06: *main.paddedData
+		Field: p07: *main.paddedData
+		Field: p08: *main.paddedData
+		Field: p09: *main.paddedData
+		Field: p10: *main.paddedData
+		Field: p11: *main.paddedData
+		Field: p12: *main.paddedData
+		Field: p13: *main.paddedData
+		Field: p14: *main.paddedData
+		Field: p15: *main.paddedData
+		Field: p16: *main.paddedData
+		Field: p17: *main.paddedData
+		Field: p18: *main.paddedData
+		Field: p19: *main.paddedData
+		Field: p20: *main.paddedData
+		Field: p21: *main.paddedData
+		Field: p22: *main.paddedData
+		Field: p23: *main.paddedData
+		Field: p24: *main.paddedData
+		Field: p25: *main.paddedData
+		Field: p26: *main.paddedData
+		Field: p27: *main.paddedData
+		Field: p28: *main.paddedData
+		Field: p29: *main.paddedData
+		Field: p30: *main.paddedData
+		Field: p31: *main.paddedData
+		Field: p32: *main.paddedData
+		Field: p33: *main.paddedData
+		Field: p34: *main.paddedData
+		Field: p35: *main.paddedData
+		Field: p36: *main.paddedData
+		Field: p37: *main.paddedData
+		Field: p38: *main.paddedData
+		Field: p39: *main.paddedData
+		Field: p40: *main.paddedData
+		Field: p41: *main.paddedData
+		Field: p42: *main.paddedData
+		Field: p43: *main.paddedData
+		Field: p44: *main.paddedData
+		Field: p45: *main.paddedData
+		Field: p46: *main.paddedData
+		Field: p47: *main.paddedData
+		Field: p48: *main.paddedData
+		Field: p49: *main.paddedData
+		Field: p50: *main.paddedData
+		Field: p51: *main.paddedData
+		Field: p52: *main.paddedData
+		Field: p53: *main.paddedData
+		Field: p54: *main.paddedData
+		Field: p55: *main.paddedData
+		Field: p56: *main.paddedData
+		Field: p57: *main.paddedData
+		Field: p58: *main.paddedData
+		Field: p59: *main.paddedData
+		Field: p60: *main.paddedData
+		Field: p61: *main.paddedData
+		Field: p62: *main.paddedData
+		Field: p63: *main.paddedData
+		Field: p64: *main.paddedData
+		Field: p65: *main.paddedData
+		Field: p66: *main.paddedData
+		Field: p67: *main.paddedData
+		Field: p68: *main.paddedData
+		Field: p69: *main.paddedData
 	Type: main.mixedStruct
 		Field: a: int
 		Field: b: float64
@@ -1060,6 +1153,9 @@ Package: main
 		Field: a: string
 	Type: main.outer
 		Field: A: *main.middle
+	Type: main.paddedData
+		Field: id: int
+		Field: data: [63]uint64
 	Type: main.reallyComplexType
 		Field: pointerToStructWithAPointerToAStruct: *main.swsp
 		Field: anArray: [1]main.nStruct

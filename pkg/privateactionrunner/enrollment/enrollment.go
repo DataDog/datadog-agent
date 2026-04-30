@@ -83,6 +83,7 @@ func SelfEnroll(
 	apiKey,
 	appKey string,
 	agentIdentifier *AgentIdentifier,
+	extraHeaders map[string]string,
 ) (*Result, error) {
 	agentFlavor := flavor.GetFlavor()
 
@@ -96,7 +97,7 @@ func SelfEnroll(
 	}
 
 	ddBaseURL := "https://api." + ddSite
-	publicClient := opms.NewPublicClient(ddBaseURL)
+	publicClient := opms.NewPublicClient(ddBaseURL, extraHeaders)
 
 	runnerModes := []modes.Mode{modes.ModePull}
 

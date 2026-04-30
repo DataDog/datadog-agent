@@ -11,3 +11,4 @@ export DDA_NO_DYNAMIC_DEPS=0
 unset GOPATH
 
 dda inv install-tools 2>&1 | tee "/home/bits/.install-tools.log"
+dda inv vscode.setup 2>&1 | tee "/home/bits/.vscode-setup.log"
