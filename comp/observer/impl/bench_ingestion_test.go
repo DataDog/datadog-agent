@@ -59,3 +59,39 @@ func BenchmarkIngestion_SeriesCount(b *testing.B) {
 		})
 	}
 }
+
+// BenchmarkIngestion_SteadyState measures the per-Add cost on series that
+// already exist in storage — the dominant case during live ingestion. Each
+// iteration sends one new sample per series at a fresh timestamp.
+func BenchmarkIngestion_SteadyState(b *testing.B) {
+	for _, numSeries := range []int{50, 200, 500, 2000} {
+		numSeries := numSeries
+		b.Run(fmt.Sprintf("series=%d", numSeries), func(b *testing.B) {
+			rng := rand.New(rand.NewSource(42))
+			obs := make([]*metricObs, numSeries)
+			for s := 0; s < numSeries; s++ {
+				obs[s] = &metricObs{
+					name:      fmt.Sprintf("metric_%d", s),
+					value:     100.0 + rng.Float64()*10,
+					tags:      []string{fmt.Sprintf("series:%d", s), "env:prod", "host:host-1"},
+					timestamp: 0,
+				}
+			}
+			storage := newTimeSeriesStorage()
+			e := newEngine(engineConfig{storage: storage})
+			// Warm up: register all series.
+			for _, o := range obs {
+				e.IngestMetric("ns", o)
+			}
+
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				ts := int64(i + 1)
+				for _, o := range obs {
+					o.timestamp = ts
+					e.IngestMetric("ns", o)
+				}
+			}
+		})
+	}
+}

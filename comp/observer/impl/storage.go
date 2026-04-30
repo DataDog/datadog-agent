@@ -24,6 +24,13 @@ type timeSeriesStorage struct {
 	mu     sync.RWMutex
 	series map[string]*seriesStats
 
+	// seriesByHash is a fast-path index from a 64-bit identity hash of
+	// (namespace, name, canonical tags) to the same *seriesStats stored in
+	// `series`. The Add hot path looks up here first, avoiding the per-call
+	// allocation of a string key. On collision (extremely rare with FNV-64),
+	// the slow path verifies via the string key.
+	seriesByHash map[uint64]*seriesStats
+
 	// observationTimestamps tracks all timestamps where observations occurred,
 	// even if no metric series was written for that timestamp.
 	observationTimestamps map[int64]struct{}
@@ -174,6 +181,7 @@ func searchAfter(timestamps []int64, value int64) int {
 func newTimeSeriesStorage() *timeSeriesStorage {
 	return &timeSeriesStorage{
 		series:                make(map[string]*seriesStats),
+		seriesByHash:          make(map[uint64]*seriesStats),
 		observationTimestamps: make(map[int64]struct{}),
 		seriesIDs:             make(map[string]observer.SeriesRef),
 		droppedByMetric:       make(map[string]int64),
@@ -200,25 +208,42 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 		s.recordDroppedValue("extreme", namespace, name, value, timestamp, tags)
 		return false
 	}
-	key := seriesKey(namespace, name, tags)
 
-	stats, exists := s.series[key]
-	if !exists {
-		stats = &seriesStats{
-			Namespace:   namespace,
-			Name:        name,
-			Tags:        canonicalizeTags(tags),
-			internalKey: key,
-		}
-		s.series[key] = stats
-		// Assign a compact numeric ID.
-		id := observer.SeriesRef(len(s.seriesIDKeys))
-		s.seriesIDs[key] = id
-		s.seriesIDKeys = append(s.seriesIDKeys, key)
-		s.seriesIDStats = append(s.seriesIDStats, stats)
-		s.seriesGen++
+	// Fast path: hash (namespace, name, canonical tags) without materializing
+	// a string key. Existing series hit here on every subsequent observation,
+	// avoiding the seriesKey allocation entirely.
+	h := hashSeriesIdentity(namespace, name, tags)
+	stats, exists := s.seriesByHash[h]
+	if exists && !sameSeriesIdentity(stats, namespace, name, tags) {
+		// Hash collision (extremely rare with FNV-64). Fall through to the
+		// string-keyed map; the colliding series stays resolvable there.
+		exists = false
 	}
-	isNew := !exists
+	if !exists {
+		key := seriesKey(namespace, name, tags)
+		stats = s.series[key]
+		if stats == nil {
+			stats = &seriesStats{
+				Namespace:   namespace,
+				Name:        name,
+				Tags:        canonicalizeTags(tags),
+				internalKey: key,
+			}
+			s.series[key] = stats
+			// Assign a compact numeric ID.
+			id := observer.SeriesRef(len(s.seriesIDKeys))
+			s.seriesIDs[key] = id
+			s.seriesIDKeys = append(s.seriesIDKeys, key)
+			s.seriesIDStats = append(s.seriesIDStats, stats)
+			s.seriesGen++
+		}
+		// Only register in the hash index when no collision exists; otherwise
+		// the hash bucket stays bound to the first inserted series.
+		if _, occupied := s.seriesByHash[h]; !occupied {
+			s.seriesByHash[h] = stats
+		}
+	}
+	isNew := stats.writeGeneration == 0
 	stats.writeGeneration++
 
 	// Bucket by second.
@@ -453,6 +478,127 @@ func seriesKey(namespace, name string, tags []string) string {
 		tags = canonicalizeTags(tags)
 	}
 	return namespace + "|" + name + "|" + joinTags(tags)
+}
+
+// FNV-1a 64-bit constants, inlined to avoid sync.Pool / hash.Hash allocation.
+const (
+	fnvOffset64 = 14695981039346656037
+	fnvPrime64  = 1099511628211
+)
+
+func fnvUpdate(h uint64, b byte) uint64 {
+	return (h ^ uint64(b)) * fnvPrime64
+}
+
+func fnvUpdateString(h uint64, s string) uint64 {
+	for i := 0; i < len(s); i++ {
+		h = (h ^ uint64(s[i])) * fnvPrime64
+	}
+	return h
+}
+
+// hashSeriesIdentity hashes (namespace, name, canonicalized tags) into a
+// 64-bit identity that matches across equivalent tag orderings. It allocates
+// nothing for the common case (≤16 tags, already sorted or unsorted), so it
+// can be called on the storage write hot path without allocating a string key.
+func hashSeriesIdentity(namespace, name string, tags []string) uint64 {
+	h := uint64(fnvOffset64)
+	h = fnvUpdateString(h, namespace)
+	h = fnvUpdate(h, '|')
+	h = fnvUpdateString(h, name)
+	h = fnvUpdate(h, '|')
+
+	n := len(tags)
+	switch n {
+	case 0:
+		return h
+	case 1:
+		return fnvUpdateString(h, tags[0])
+	}
+
+	if tagsSorted(tags) {
+		for i, t := range tags {
+			if i > 0 {
+				h = fnvUpdate(h, ',')
+			}
+			h = fnvUpdateString(h, t)
+		}
+		return h
+	}
+
+	// Sort an index buffer rather than the caller's slice; for typical tag
+	// counts the buffer is stack-allocated.
+	var idxBuf [16]int
+	var idx []int
+	if n <= len(idxBuf) {
+		idx = idxBuf[:n]
+	} else {
+		idx = make([]int, n)
+	}
+	for i := range idx {
+		idx[i] = i
+	}
+	// Insertion sort — typical tag counts are small (<16).
+	for i := 1; i < n; i++ {
+		for j := i; j > 0 && tags[idx[j-1]] > tags[idx[j]]; j-- {
+			idx[j], idx[j-1] = idx[j-1], idx[j]
+		}
+	}
+	for i, k := range idx {
+		if i > 0 {
+			h = fnvUpdate(h, ',')
+		}
+		h = fnvUpdateString(h, tags[k])
+	}
+	return h
+}
+
+// sameSeriesIdentity verifies that the seriesStats hashed at a particular
+// bucket actually corresponds to (namespace, name, tags). Used as a guard
+// against the rare hash collision case in seriesByHash.
+func sameSeriesIdentity(stats *seriesStats, namespace, name string, tags []string) bool {
+	if stats.Namespace != namespace || stats.Name != name {
+		return false
+	}
+	stored := stats.Tags
+	if len(stored) != len(tags) {
+		return false
+	}
+	if len(stored) == 0 {
+		return true
+	}
+	// stored is canonical (sorted). If `tags` is sorted, do a positional compare;
+	// otherwise compare as multisets via sorted index buffer.
+	if tagsSorted(tags) {
+		for i := range stored {
+			if stored[i] != tags[i] {
+				return false
+			}
+		}
+		return true
+	}
+	n := len(tags)
+	var idxBuf [16]int
+	var idx []int
+	if n <= len(idxBuf) {
+		idx = idxBuf[:n]
+	} else {
+		idx = make([]int, n)
+	}
+	for i := range idx {
+		idx[i] = i
+	}
+	for i := 1; i < n; i++ {
+		for j := i; j > 0 && tags[idx[j-1]] > tags[idx[j]]; j-- {
+			idx[j], idx[j-1] = idx[j-1], idx[j]
+		}
+	}
+	for i, k := range idx {
+		if stored[i] != tags[k] {
+			return false
+		}
+	}
+	return true
 }
 
 // parseSeriesKey parses a series key back into its parts.
