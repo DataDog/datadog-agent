@@ -6,6 +6,7 @@
 package workloadmetaimpl
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -61,4 +62,21 @@ var invalidChars = regexp.MustCompile(`[^a-zA-Z0-9_-]+`)
 func idToFileSafe(id string) string {
 	// replace invalid characters with underscores
 	return invalidChars.ReplaceAllString(id, "_")
+}
+
+func (w *workloadmeta) workloadListFlareProvider(_ context.Context, fb flaretypes.FlareBuilder) error {
+	dump := w.Dump(true)
+	var buf bytes.Buffer
+	dump.Write(&buf)
+	return fb.AddFile("workload-list.log", buf.Bytes())
+}
+
+// fillFlare collects workloadmeta data for the flare archive.
+func (w *workloadmeta) fillFlare(ctx context.Context, fb flaretypes.FlareBuilder) error {
+	sbomErr := w.sbomFlareProvider(ctx, fb)
+	listErr := w.workloadListFlareProvider(ctx, fb)
+	if sbomErr != nil {
+		return sbomErr
+	}
+	return listErr
 }
