@@ -584,13 +584,9 @@ def generate_syscall_table(ctx):
 
 @task
 def generate_utils_syscall_table(ctx):
-    linux_version = "v6.13"
-    ctx.run(
-        f"go run github.com/DataDog/datadog-agent/pkg/security/generators/utils_syscall_table_generator"
-        f" -amd64-table-url https://raw.githubusercontent.com/torvalds/linux/{linux_version}/arch/x86/entry/syscalls/syscall_64.tbl"
-        f" -arm64-table-url https://raw.githubusercontent.com/torvalds/linux/{linux_version}/include/uapi/asm-generic/unistd.h"
-        f" -output pkg/security/utils/syscalls.go"
-    )
+    # The kernel files are fetched as `http_file` repos pinned in MODULE.bazel;
+    # bumping the kernel version means updating those URLs and sha256 entries.
+    bazel(ctx, "run", "//pkg/security/utils:utils_syscall_table")
 
 
 DEFAULT_BTFHUB_CONSTANTS_PATH = "./pkg/security/probe/constantfetch/btfhub/constants.json"

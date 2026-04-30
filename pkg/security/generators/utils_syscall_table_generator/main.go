@@ -13,10 +13,9 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"net/http"
+	"go/format"
+	"io"
 	"os"
-	"os/exec"
-	"path"
 	"regexp"
 	"slices"
 	"strconv"
@@ -26,29 +25,29 @@ import (
 
 func main() {
 	var (
-		amd64TableURL string
-		arm64TableURL string
-		outputPath    string
+		amd64TablePath string
+		arm64TablePath string
+		outputPath     string
 	)
 
-	flag.StringVar(&amd64TableURL, "amd64-table-url", "", "URL of the x86_64 .tbl syscall table")
-	flag.StringVar(&arm64TableURL, "arm64-table-url", "", "URL of the arm64 unistd.h syscall table")
+	flag.StringVar(&amd64TablePath, "amd64-table", "", "Path to the x86_64 .tbl syscall table")
+	flag.StringVar(&arm64TablePath, "arm64-table", "", "Path to the arm64 unistd.h syscall table")
 	flag.StringVar(&outputPath, "output", "", "Output path of the generated Go file")
 	flag.Parse()
 
-	if amd64TableURL == "" || arm64TableURL == "" || outputPath == "" {
+	if amd64TablePath == "" || arm64TablePath == "" || outputPath == "" {
 		fmt.Fprintf(os.Stderr, "Please provide all required flags\n")
 		flag.Usage()
 		os.Exit(1)
 	}
 
-	amd64Syscalls, err := parseSyscallTable(amd64TableURL, []string{"common", "64"})
+	amd64Syscalls, err := parseFile(amd64TablePath, parseSyscallTableLine([]string{"common", "64"}))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to parse amd64 table: %v\n", err)
 		os.Exit(1)
 	}
 
-	arm64Syscalls, err := parseUnistdTable(arm64TableURL)
+	arm64Syscalls, err := parseFile(arm64TablePath, parseUnistdTableLine)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to parse arm64 table: %v\n", err)
 		os.Exit(1)
@@ -60,7 +59,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := writeFileAndFormat(outputPath, content); err != nil {
+	if err := os.WriteFile(outputPath, content, 0o644); err != nil {
 		fmt.Fprintf(os.Stderr, "failed to write output: %v\n", err)
 		os.Exit(1)
 	}
@@ -72,14 +71,17 @@ type syscallEntry struct {
 	Name   string
 }
 
-func parseLinuxFile(url string, perLine func(string) (*syscallEntry, error)) ([]*syscallEntry, error) {
-	resp, err := http.Get(url)
+func parseFile(path string, perLine func(string) (*syscallEntry, error)) ([]*syscallEntry, error) {
+	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer f.Close()
+	return parseReader(f, perLine)
+}
 
-	scanner := bufio.NewScanner(resp.Body)
+func parseReader(r io.Reader, perLine func(string) (*syscallEntry, error)) ([]*syscallEntry, error) {
+	scanner := bufio.NewScanner(r)
 	var syscalls []*syscallEntry
 
 	for scanner.Scan() {
@@ -96,8 +98,8 @@ func parseLinuxFile(url string, perLine func(string) (*syscallEntry, error)) ([]
 	return syscalls, scanner.Err()
 }
 
-func parseSyscallTable(url string, abis []string) ([]*syscallEntry, error) {
-	return parseLinuxFile(url, func(line string) (*syscallEntry, error) {
+func parseSyscallTableLine(abis []string) func(string) (*syscallEntry, error) {
+	return func(line string) (*syscallEntry, error) {
 		if line == "" || strings.HasPrefix(line, "#") {
 			return nil, nil
 		}
@@ -118,23 +120,21 @@ func parseSyscallTable(url string, abis []string) ([]*syscallEntry, error) {
 			return &syscallEntry{Arch: "amd64", Number: int(number), Name: name}, nil
 		}
 		return nil, nil
-	})
+	}
 }
 
 var unistdDefinedRe = regexp.MustCompile(`#define __NR(3264)?_([0-9a-zA-Z_]+)\s+([0-9]+)`)
 
-func parseUnistdTable(url string) ([]*syscallEntry, error) {
-	return parseLinuxFile(url, func(line string) (*syscallEntry, error) {
-		subs := unistdDefinedRe.FindStringSubmatch(line)
-		if subs == nil {
-			return nil, nil
-		}
-		nr, err := strconv.ParseInt(subs[3], 10, 0)
-		if err != nil {
-			return nil, err
-		}
-		return &syscallEntry{Arch: "arm64", Number: int(nr), Name: subs[2]}, nil
-	})
+func parseUnistdTableLine(line string) (*syscallEntry, error) {
+	subs := unistdDefinedRe.FindStringSubmatch(line)
+	if subs == nil {
+		return nil, nil
+	}
+	nr, err := strconv.ParseInt(subs[3], 10, 0)
+	if err != nil {
+		return nil, err
+	}
+	return &syscallEntry{Arch: "arm64", Number: int(nr), Name: subs[2]}, nil
 }
 
 const outputTemplate = `// Code generated - DO NOT EDIT.
@@ -188,10 +188,10 @@ type templateData struct {
 	Arm64 []*syscallEntry
 }
 
-func generateMapCode(amd64, arm64 []*syscallEntry) (string, error) {
+func generateMapCode(amd64, arm64 []*syscallEntry) ([]byte, error) {
 	tmpl, err := template.New("utils-syscalls").Parse(outputTemplate)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	var buf bytes.Buffer
@@ -199,30 +199,8 @@ func generateMapCode(amd64, arm64 []*syscallEntry) (string, error) {
 		Amd64: deduplicateByID(amd64),
 		Arm64: deduplicateByID(arm64),
 	}); err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return buf.String(), nil
-}
-
-func writeFileAndFormat(outputPath, content string) error {
-	tmpfile, err := os.CreateTemp(path.Dir(outputPath), "utils-syscalls-*")
-	if err != nil {
-		return err
-	}
-
-	if _, err := tmpfile.WriteString(content); err != nil {
-		return err
-	}
-
-	if err := tmpfile.Close(); err != nil {
-		return err
-	}
-
-	cmd := exec.Command("gofmt", "-s", "-w", tmpfile.Name())
-	if err := cmd.Run(); err != nil {
-		return err
-	}
-
-	return os.Rename(tmpfile.Name(), outputPath)
+	return format.Source(buf.Bytes())
 }
