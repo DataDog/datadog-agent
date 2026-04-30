@@ -1,5 +1,6 @@
 ---
 # Windows OCI packaging jobs extracted from .gitlab/build/packaging/oci.yml
+# Ephemeral: no-op comment to run Windows CI (SKIP_WINDOWS off); remove before merging real work.
 
 .package_oci_win:
   extends: .package_oci
