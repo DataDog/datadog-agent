@@ -97,6 +97,17 @@ func (s *NCMSender) SendNCMConfig(payload ncmreport.NCMPayload) error {
 	return nil
 }
 
+// SendNCMInventory sends the network config inventory payload to event platform
+func (s *NCMSender) SendNCMInventory(payload ncmreport.NCMInventory) error {
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	s.Sender.EventPlatformEvent(payloadBytes, eventplatform.EventTypeNetworkConfigManagement)
+	// TODO: send metrics about inventory payloads?
+	return nil
+}
+
 // SendDeviceMetadata sends device metadata to NDM intake
 func (s *NCMSender) SendDeviceMetadata(deviceID string, deviceIP string) error {
 	payload := devicemetadata.NetworkDevicesMetadata{

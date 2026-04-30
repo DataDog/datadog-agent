@@ -48,6 +48,20 @@ type NetworkDeviceConfig struct {
 	Content      string   `json:"content"`
 }
 
+type NCMInventory struct {
+	Namespace  string           `json:"namespace"`
+	ReportedAt int64            `json:"reported_at"`
+	Entries    []InventoryEntry `json:"entries"`
+}
+
+type InventoryEntry struct {
+	RawConfigID string `json:"raw_config_id"`
+	ConfigType  string `json:"config_type"`
+	DeviceID    string `json:"device_id"`
+	CapturedAt  int64  `json:"captured_at"`
+	RawHash     string `json:"raw_hash"`
+}
+
 // ToNCMPayload converts the given parameters into a NCMPayload (sent to event platform / backend).
 func ToNCMPayload(namespace string, configs []NetworkDeviceConfig, timestamp int64) NCMPayload {
 	for i := range configs {
