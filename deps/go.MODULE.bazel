@@ -21,8 +21,6 @@ go_deps.gazelle_override(
     ],
     path = "github.com/containerd/cgroups/v3",
 )
-<<<<<<< HEAD
-=======
 go_deps.gazelle_override(
     directives = [
         "gazelle:proto disable",
@@ -53,7 +51,6 @@ go_deps.gazelle_override(
     ],
     path = "github.com/coreos/etcd",
 )
->>>>>>> main
 use_repo(
     go_deps,
     "cat_dario_mergo",
@@ -62,11 +59,8 @@ use_repo(
     "com_github_acobaugh_osrelease",
     "com_github_alecthomas_participle",
     "com_github_alecthomas_units",
-<<<<<<< HEAD
-    "com_github_apache_arrow_go_v18",
-=======
     "com_github_alessio_shellescape",
->>>>>>> main
+    "com_github_apache_arrow_go_v18",
     "com_github_aquasecurity_trivy",
     "com_github_aquasecurity_trivy_db",
     "com_github_avast_retry_go_v4",
@@ -190,10 +184,7 @@ use_repo(
     "com_github_datadog_datadog_agent_pkg_api",
     "com_github_datadog_datadog_agent_pkg_collector_check_defaults",
     "com_github_datadog_datadog_agent_pkg_config_basic",
-<<<<<<< HEAD
-=======
     "com_github_datadog_datadog_agent_pkg_config_buildschema",
->>>>>>> main
     "com_github_datadog_datadog_agent_pkg_config_create",
     "com_github_datadog_datadog_agent_pkg_config_env",
     "com_github_datadog_datadog_agent_pkg_config_helper",
@@ -284,12 +275,9 @@ use_repo(
     "com_github_datadog_datadog_agent_pkg_util_uuid",
     "com_github_datadog_datadog_agent_pkg_util_winutil",
     "com_github_datadog_datadog_agent_pkg_version",
-<<<<<<< HEAD
-=======
     "com_github_datadog_datadog_agent_test_e2e_framework",
     "com_github_datadog_datadog_agent_test_fakeintake",
     "com_github_datadog_datadog_api_client_go",
->>>>>>> main
     "com_github_datadog_datadog_api_client_go_v2",
     "com_github_datadog_datadog_go_v5",
     "com_github_datadog_datadog_operator_api",
@@ -521,14 +509,11 @@ use_repo(
     "com_github_xor_gate_ar",
     "com_github_yusufpapurcu_wmi",
     "com_gitlab_gitlab_org_api_client_go",
-<<<<<<< HEAD
-    "in_gopkg_datadog_dd_trace_go_v1",
-=======
     "com_google_cloud_go_compute",
     "com_google_cloud_go_compute_metadata",
+    "in_gopkg_datadog_dd_trace_go_v1",
     "in_gopkg_evanphx_json_patch_v4",
     "in_gopkg_ini_v1",
->>>>>>> main
     "in_gopkg_yaml_v3",
     "in_gopkg_zorkian_go_datadog_api_v2",
     "in_yaml_go_yaml_v2",

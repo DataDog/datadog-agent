@@ -131,11 +131,7 @@ func TestDecoderProcessTags(t *testing.T) {
 		decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
 		require.NoError(t, err)
 		buf, _, err := decoder.Decode(Event{
-<<<<<<< HEAD
-			EntryOrLine: output.Event(item),
-=======
 			EntryOrLine: output.SingleEvent(item),
->>>>>>> main
 			ServiceName: "foo",
 			ProcessTags: "entrypoint.name:myapp,svc.user:my-service",
 		}, &noopSymbolicator{}, nil, []byte{})
@@ -149,11 +145,7 @@ func TestDecoderProcessTags(t *testing.T) {
 		decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
 		require.NoError(t, err)
 		buf, _, err := decoder.Decode(Event{
-<<<<<<< HEAD
-			EntryOrLine: output.Event(item),
-=======
 			EntryOrLine: output.SingleEvent(item),
->>>>>>> main
 			ServiceName: "foo",
 		}, &noopSymbolicator{}, nil, []byte{})
 		require.NoError(t, err)

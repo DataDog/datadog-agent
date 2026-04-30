@@ -158,8 +158,6 @@
     "timestamp": "[ts]",
     "message": "testWhollyInlinedSubroutine",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
-<<<<<<< HEAD
-=======
   },
   {
     "service": "sample",
@@ -236,6 +234,5 @@
     "timestamp": "[ts]",
     "message": "testWhollyInlinedSubroutine",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
->>>>>>> main
   }
 ]

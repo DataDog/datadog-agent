@@ -251,8 +251,6 @@ type Event struct {
 	Return      output.FragmentedEvent
 	ServiceName string
 	ProcessTags string
-<<<<<<< HEAD
-=======
 	// Truncated is true when the event is known to be incomplete: some
 	// fragments were dropped before reaching userspace. The decoder is still
 	// expected to emit whatever data is available; the sink surfaces the
@@ -269,7 +267,6 @@ func firstFragment(fe output.FragmentedEvent) output.Event {
 		return ev
 	}
 	return nil
->>>>>>> main
 }
 
 type message struct {

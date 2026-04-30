@@ -57,19 +57,12 @@ type SNMPListener struct {
 	sync.RWMutex
 	newService     chan<- Service
 	delService     chan<- Service
-<<<<<<< HEAD
-	stop           chan bool
-=======
 	stop           chan struct{}
->>>>>>> main
 	config         snmp.ListenerConfig
 	services       map[string]*SNMPService
 	deviceDeduper  devicededuper.DeviceDeduper
 	sessionFactory snmpSessionFactory
-<<<<<<< HEAD
-=======
 	workerFunc     snmpWorkerFunc
->>>>>>> main
 }
 
 // SNMPService implements and store results from the Service interface for the SNMP listener
@@ -117,18 +110,11 @@ func NewSNMPListener(ServiceListernerDeps) (ServiceListener, error) {
 	}
 	return &SNMPListener{
 		services:       map[string]*SNMPService{},
-<<<<<<< HEAD
-		stop:           make(chan bool),
-		config:         snmpConfig,
-		deviceDeduper:  devicededuper.NewDeviceDeduper(snmpConfig),
-		sessionFactory: newGosnmpSession,
-=======
 		stop:           make(chan struct{}),
 		config:         snmpConfig,
 		deviceDeduper:  devicededuper.NewDeviceDeduper(snmpConfig),
 		sessionFactory: newGosnmpSession,
 		workerFunc:     defaultWorker,
->>>>>>> main
 	}, nil
 }
 

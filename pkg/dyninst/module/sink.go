@@ -262,10 +262,7 @@ func (s *sink) emit(ready eventbuf.Ready) {
 		Return:      ret,
 		ServiceName: s.service,
 		ProcessTags: s.processTags,
-<<<<<<< HEAD
-=======
 		Truncated:   ready.EntryTruncated || ready.ReturnTruncated,
->>>>>>> main
 	}, s.symbolicator, &s.missingTypes, decodedBytes)
 	if err != nil {
 		if probe != nil {

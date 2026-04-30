@@ -20,14 +20,10 @@ type RshellBundle struct {
 func NewRshellBundle(cfg *config.Config) types.Bundle {
 	return &RshellBundle{
 		actions: map[string]types.Action{
-<<<<<<< HEAD
-			"runCommand": NewRunCommandHandler(allowedPaths),
-=======
 			"runCommand": NewRunCommandHandler(
 				cfg.RShellAllowedPaths,
 				cfg.RShellAllowedCommands,
 			),
->>>>>>> main
 		},
 	}
 }

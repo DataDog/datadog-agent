@@ -169,22 +169,15 @@ func (h *RunCommandHandler) Run(
 		}
 	}
 	var stdout, stderr bytes.Buffer
-<<<<<<< HEAD
-=======
 	// Route sandbox diagnostics to a dedicated sink so they do not leak
 	// into the action's stderr field. We discard the streaming output and
 	// read the messages back via runner.Warnings() into SandboxWarnings.
->>>>>>> main
 	runner, err := interp.New(
 		interp.StdIO(nil, &stdout, &stderr),
 		interp.WarningsWriter(io.Discard),
 		interp.AllowedPaths(effectiveAllowedPaths),
 		interp.ProcPath(resolveProcPath()),
-<<<<<<< HEAD
-		interp.AllowedCommands(inputs.AllowedCommands),
-=======
 		interp.AllowedCommands(effectiveAllowedCommands),
->>>>>>> main
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create runner: %w", err)
