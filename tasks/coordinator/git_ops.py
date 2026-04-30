@@ -156,7 +156,20 @@ def commit_candidate(
     # working tree dirty, startup_cleanup would revert and lose the code).
     # Claude/observer-improvements is a draft audit branch; CI runs
     # against the merged main branch separately.
-    _run(["commit", "-m", msg, "--allow-empty", "--no-verify"], root)
+    #
+    # `-c commit.gpgsign=false`: workspaces with `commit.gpgsign = true`
+    # and SSH-key signing (`gpg.format = ssh`) hit transient git exit 128
+    # when the SSH agent is unavailable / key not loaded / socket
+    # contention. The driver crashed two workspaces this way after 15h
+    # of running. Scratch-branch commits are draft-PR audit-log entries,
+    # never merged — signing adds zero value here. CI / merge flow signs
+    # at the consolidation step (cherry-pick onto a clean branch), not
+    # here.
+    _run(
+        ["-c", "commit.gpgsign=false", "commit", "-m", msg,
+         "--allow-empty", "--no-verify"],
+        root,
+    )
     return head_sha(root)
 
 

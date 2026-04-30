@@ -2122,7 +2122,7 @@ def coord_up(
             warn=False,
         )
         ctx.run(
-            f"git commit --allow-empty --no-verify -m "
+            f"git -c commit.gpgsign=false commit --allow-empty --no-verify -m "
             f"{shlex.quote(f'coord: run-log start ({mode}, {run_ts})')}",
             warn=False,
         )
