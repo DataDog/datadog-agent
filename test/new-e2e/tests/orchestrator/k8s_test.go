@@ -23,6 +23,7 @@ import (
 	scenariokindvm "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/workloads"
 	awskindvm "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
@@ -42,7 +43,6 @@ func TestKindSuite(t *testing.T) {
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awskindvm.Provisioner(
 			awskindvm.WithRunOptions(
-				scenariokindvm.WithDeployTestWorkload(),
 				scenariokindvm.WithAgentOptions(
 					kubernetesagentparams.WithDualShipping(),
 					kubernetesagentparams.WithHelmValues(agentCustomValuesFmt),
@@ -51,6 +51,11 @@ func TestKindSuite(t *testing.T) {
 		)),
 	}
 	e2e.Run(t, &k8sSuite{}, options...)
+}
+
+func (suite *k8sSuite) SetupSuite() {
+	suite.BaseSuite.SetupSuite()
+	workloads.DeployTestWorkload(suite.T(), suite.Env())
 }
 
 func (suite *k8sSuite) TestRedisPod() {

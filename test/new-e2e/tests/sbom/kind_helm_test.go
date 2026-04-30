@@ -14,6 +14,7 @@ import (
 	scenkind "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/workloads"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	provkind "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
 )
@@ -32,7 +33,6 @@ func TestSBOMKindSuite(t *testing.T) {
 				scenkind.WithFakeintakeOptions(
 					fakeintake.WithMemory(2048),
 				),
-				scenkind.WithDeployTestWorkload(),
 				scenkind.WithAgentOptions(
 					kubernetesagentparams.WithDualShipping(),
 					kubernetesagentparams.WithHelmValues(helmValues),
@@ -48,4 +48,5 @@ func TestSBOMKindSuite(t *testing.T) {
 func (suite *kindSuite) SetupSuite() {
 	suite.k8sSuite.SetupSuite()
 	suite.Fakeintake = suite.Env().FakeIntake.Client()
+	workloads.DeployTestWorkload(suite.T(), suite.Env())
 }
