@@ -385,7 +385,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// - nodes
 	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.resources", []string{})
 	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.resource_annotations_exclude", []string{})
-	config.BindEnvAndSetDefault("cluster_agent.cluster_tagger.grpc_max_message_size", 4<<20) // 4 MB
+	config.BindEnvAndSetDefault("cluster_agent.cluster_tagger.grpc_max_message_size", 4<<20) // deprecated: use `agent_ipc.grpc_max_message_size` instead. Still honoured by the agent gRPC server, which uses the larger of this and `agent_ipc.grpc_max_message_size`.
 
 	// Check that the trust chain is valid for Agent cross-node communications (NodeAgent->DCA / CLC->DCA / DCA->CLC).
 	config.BindEnvAndSetDefault("cluster_trust_chain.enable_tls_verification", false)
@@ -1148,6 +1148,8 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("agent_ipc.host", "localhost")
 	config.BindEnvAndSetDefault("agent_ipc.port", 0)
 	config.BindEnvAndSetDefault("agent_ipc.config_refresh_interval", 0)
+	config.BindEnvAndSetDefault("agent_ipc.grpc_max_message_size", 128<<20)
+	config.BindEnvAndSetDefault("agent_ipc.grpc_warning_message_size", 32<<20)
 	config.BindEnvAndSetDefault("default_integration_http_timeout", 9)
 	config.BindEnvAndSetDefault("integration_tracing", false)
 	config.BindEnvAndSetDefault("integration_tracing_exhaustive", false)
