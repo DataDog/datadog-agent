@@ -261,9 +261,6 @@ func TestIdentiferFromCgroupReferences(t *testing.T) {
 			expectedID:  "a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015f",
 		},
 		{
-			// Pins the walk-up direction: leaf is `sensor.falcon`, ancestors hold both
-			// an outer (docker) and an inner (kubepod) container id. Leaf→root must
-			// return the inner id; root→leaf would return the outer one.
 			name:        "cgroupv2 docker-in-docker with sensor.falcon sub-cgroup picks innermost",
 			fileContent: dindCgroupV2WithSubcgroup,
 			controller:  "",
