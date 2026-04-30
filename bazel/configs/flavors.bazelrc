@@ -1,0 +1,7 @@
+# Flavor configs — run only the test variants for a specific agent flavor.
+# Usage: bazel test --config=iot //...
+test:datadog-agent  --test_tag_filters=flavor_base
+test:dogstatsd      --test_tag_filters=flavor_dogstatsd
+test:fips           --test_tag_filters=flavor_fips
+test:heroku         --test_tag_filters=flavor_heroku
+test:iot            --test_tag_filters=flavor_iot
