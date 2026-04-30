@@ -55,7 +55,24 @@ type windowsAWSCLI struct {
 	sshExecutor *sshExecutor
 }
 
+// ensureInstalled installs AWS CLI v2 if it isn't already present on the host.
+//
+// TEMPORARY: Linux e2e AMIs have AWS CLI v2 pre-baked, but the Windows Server
+// AMIs we use have not yet been re-baked with it. Once ami-builder ships
+// Windows e2e AMI variants with AWS CLI pre-installed, delete this method and
+// the call from download() below. Tracked in ACIX-1305.
+func (c *windowsAWSCLI) ensureInstalled() error {
+	if _, err := c.sshExecutor.Execute("& \"c:\\Program Files\\Amazon\\AWSCLIV2\\aws.exe\" --version"); err == nil {
+		return nil
+	}
+	_, err := c.sshExecutor.Execute("Start-Process msiexec.exe -Wait -ArgumentList \"/i https://awscli.amazonaws.com/AWSCLIV2.msi /qn /norestart /L*V ./awscli-install.log\" ")
+	return err
+}
+
 func (c *windowsAWSCLI) download(path string, destPath string) error {
+	if err := c.ensureInstalled(); err != nil {
+		return err
+	}
 	_, err := c.sshExecutor.Execute(fmt.Sprintf("& \"c:\\Program Files\\Amazon\\AWSCLIV2\\aws.exe\" s3 cp \"%s\" \"%s\"", path, destPath))
 	return err
 }

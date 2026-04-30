@@ -191,8 +191,15 @@ func gpuHostProvisioner(params *provisionerParams) provisioners.Provisioner {
 			return fmt.Errorf("validateGPUDevices: %w", err)
 		}
 
+		// TEMPORARY: install runtime deps missing from GPU AMIs. Remove once
+		// GPU-e2e AMI variants ship with these tools pre-baked. See runtime_installs.go.
+		runtimeDeps, err := installGPURuntimeDeps(&awsEnv, host)
+		if err != nil {
+			return fmt.Errorf("installGPURuntimeDeps: %w", err)
+		}
+
 		// Install Docker (after GPU devices are validated); NewAWSManager ensures the ECR credentials helper is installed first
-		dockerManager, err := docker.NewAWSManager(&awsEnv, host)
+		dockerManager, err := docker.NewAWSManager(&awsEnv, host, utils.PulumiDependsOn(runtimeDeps))
 		if err != nil {
 			return fmt.Errorf("docker.NewAWSManager: %w", err)
 		}
@@ -251,7 +258,14 @@ func gpuK8sProvisioner(params *provisionerParams) provisioners.Provisioner {
 			return fmt.Errorf("ec2.NewVM: %w", err)
 		}
 
-		installEcrCredsHelperCmd, err := docker.SetupECRDockerAuth(awsEnv.Namer, host)
+		// TEMPORARY: install runtime deps missing from GPU AMIs. Remove once
+		// GPU-e2e AMI variants ship with these tools pre-baked. See runtime_installs.go.
+		runtimeDeps, err := installGPURuntimeDeps(&awsEnv, host)
+		if err != nil {
+			return fmt.Errorf("installGPURuntimeDeps: %w", err)
+		}
+
+		installEcrCredsHelperCmd, err := docker.SetupECRDockerAuth(awsEnv.Namer, host, utils.PulumiDependsOn(runtimeDeps))
 		if err != nil {
 			return fmt.Errorf("docker.SetupECRDockerAuth %w", err)
 		}
