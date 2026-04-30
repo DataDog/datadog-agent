@@ -8,6 +8,7 @@ package embedded
 
 import (
 	"embed"
+	"fmt"
 	"path/filepath"
 )
 
@@ -30,10 +31,43 @@ var ScriptDDHostInstall []byte
 //go:embed tmpl/gen/debrpm/*.service
 var systemdUnits embed.FS
 
-// DDOTProcessConfig is the rendered process manager config for DDOT (deb/rpm layout).
-//
 //go:embed tmpl/gen/debrpm/datadog-agent-ddot.yaml
+//go:embed tmpl/gen/debrpm/datadog-agent-ddot-exp.yaml
+//go:embed tmpl/gen/debrpm-nocap/datadog-agent-ddot.yaml
+//go:embed tmpl/gen/debrpm-nocap/datadog-agent-ddot-exp.yaml
+//go:embed tmpl/gen/oci/datadog-agent-ddot.yaml
+//go:embed tmpl/gen/oci/datadog-agent-ddot-exp.yaml
+//go:embed tmpl/gen/oci-nocap/datadog-agent-ddot.yaml
+//go:embed tmpl/gen/oci-nocap/datadog-agent-ddot-exp.yaml
+var ddotProcessYAML embed.FS
+
+// DDOTProcessConfig is the stable deb/rpm DDOT process definition (tests and
+// callers that only need that variant).
 var DDOTProcessConfig string
+
+func init() {
+	b, err := ddotProcessYAML.ReadFile("tmpl/gen/debrpm/datadog-agent-ddot.yaml")
+	if err != nil {
+		panic(fmt.Sprintf("embedded DDOT process config: %v", err))
+	}
+	DDOTProcessConfig = string(b)
+}
+
+// GetDDOTProcessConfig returns the embedded DDOT process YAML bytes for the
+// given systemd layout (OCI vs deb/rpm), stable vs experiment channel, and
+// ambient capabilities support (same directory convention as GetSystemdUnit).
+func GetDDOTProcessConfig(unitType SystemdUnitType, stable bool, ambiantCapabilitiesSupported bool) ([]byte, error) {
+	dir := string(unitType)
+	if !ambiantCapabilitiesSupported {
+		dir += "-nocap"
+	}
+	exp := ""
+	if !stable {
+		exp = "-exp"
+	}
+	name := "datadog-agent-ddot" + exp + ".yaml"
+	return ddotProcessYAML.ReadFile(filepath.Join("tmpl/gen", dir, name))
+}
 
 // SystemdUnitType is the type of systemd unit.
 type SystemdUnitType string
