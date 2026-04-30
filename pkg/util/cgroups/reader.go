@@ -61,21 +61,21 @@ func DefaultFilter(path, _ string) (string, error) {
 var ContainerRegexp = regexp.MustCompile(ContainerRegexpStr)
 
 // matchContainerID returns the container id contained in a single cgroup folder
-// name, or "" if the name should be excluded
-func matchContainerID(name string) string {
+// name, or "" if the name should be excluded and a boolean indicating if the name should be excluded
+func matchContainerID(name string) (string, bool) {
 	match := ContainerRegexp.FindString(name)
 	if match == "" {
-		return ""
+		return "", false
 	}
 
 	// With systemd cgroup driver, there may be a `.mount` cgroup on top of the normal one
 	// While existing, no process is attached to it and thus holds no stats
 	// Also filter out conmon monitor processes for CRI-O and Podman
 	if strings.HasSuffix(name, ".mount") || strings.HasPrefix(name, "crio-conmon-") || strings.HasPrefix(name, "libpod-conmon-") {
-		return ""
+		return "", true
 	}
 
-	return match
+	return match, false
 }
 
 // ContainerFilter returns a filter that will match cgroup folders containing a
@@ -83,14 +83,16 @@ func matchContainerID(name string) string {
 // directly (the common case). Otherwise we walk up the path looking for the
 // deepest ancestor whose folder name is a container id.
 func ContainerFilter(path, name string) (string, error) {
-	if id := matchContainerID(name); id != "" {
+	if id, shouldExclude := matchContainerID(name); id != "" {
 		return id, nil
+	} else if shouldExclude {
+		return "", nil
 	}
 
 	// Walk segments of `path` from leaf to root, returning
 	// the first folder name for which matchContainerID returns a non-empty id.
 	for _, part := range slices.Backward(strings.Split(path, "/")) {
-		if id := matchContainerID(part); id != "" {
+		if id, _ := matchContainerID(part); id != "" {
 			return id, nil
 		}
 	}
