@@ -256,7 +256,7 @@ func installSingle(ctx context.Context, pkg *oci.DownloadedPackage, extension st
 	if err = os.RemoveAll(extensionPath); err != nil {
 		return fmt.Errorf("could not remove existing extension %s: %w", extension, err)
 	}
-	err = os.Rename(tmpDir, extensionPath)
+	err = paths.Rename(ctx, tmpDir, extensionPath)
 	if err != nil {
 		return fmt.Errorf("could not move %s to final location: %w", extension, err)
 	}

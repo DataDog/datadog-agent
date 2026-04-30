@@ -558,22 +558,24 @@ pub fn pid_is_alive(pid: u32) -> bool {
     signal::kill(Pid::from_raw(pid as i32), None).is_ok()
 }
 
+/// Uses `WaitForSingleObject` with a zero timeout instead of
+/// `GetExitCodeProcess` to avoid false positives when a process
+/// exits with code 259 (`STILL_ACTIVE`).
 #[cfg(windows)]
 pub fn pid_is_alive(pid: u32) -> bool {
     use windows_sys::Win32::Foundation::CloseHandle;
     use windows_sys::Win32::System::Threading::{
-        GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
+        OpenProcess, PROCESS_SYNCHRONIZE, WaitForSingleObject,
     };
-    const STILL_ACTIVE: u32 = 259;
+    const WAIT_TIMEOUT: u32 = 258;
     unsafe {
-        let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+        let handle = OpenProcess(PROCESS_SYNCHRONIZE, 0, pid);
         if handle.is_null() {
             return false;
         }
-        let mut exit_code: u32 = 0;
-        let ok = GetExitCodeProcess(handle, &mut exit_code);
+        let ret = WaitForSingleObject(handle, 0);
         CloseHandle(handle);
-        ok != 0 && exit_code == STILL_ACTIVE
+        ret == WAIT_TIMEOUT
     }
 }
 

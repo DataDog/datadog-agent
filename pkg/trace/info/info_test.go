@@ -259,6 +259,39 @@ func TestProbabilisticSampler(t *testing.T) {
 	assert.Equal(expectedInfoString, info)
 }
 
+func TestUDSInfo(t *testing.T) {
+	if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" {
+		t.Skip("TestUDSInfo is known to fail on the macOS Gitlab runners.")
+	}
+
+	assert := assert.New(t)
+	server := testServer(t, "./testdata/uds.json")
+	assert.NotNil(server)
+	defer server.Close()
+
+	conf := testInit(t, server.TLS)
+	assert.NotNil(conf)
+
+	url, err := url.Parse(server.URL)
+	assert.NotNil(url)
+	assert.NoError(err)
+
+	hostPort := strings.Split(url.Host, ":")
+	assert.Equal(2, len(hostPort))
+	port, err := strconv.Atoi(hostPort[1])
+	assert.NoError(err)
+	conf.DebugServerPort = port
+
+	info, err := retryInfoCall(t, conf)
+	assert.NoError(err)
+	assert.NotEmpty(info)
+	t.Logf("Info:\n%s\n", info)
+
+	assert.Contains(info, "UDS receiver: /var/run/datadog/apm.socket")
+	assert.Contains(info, "via tcp")
+	assert.Contains(info, "via uds")
+}
+
 func TestHideAPIKeys(t *testing.T) {
 	assert := assert.New(t)
 	conf := testInit(t, nil)
