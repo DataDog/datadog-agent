@@ -1160,6 +1160,19 @@ new-e2e-gpu:
       - EXTRA_PARAMS: "--run TestGPUHostSuiteUbuntu1804Driver430" # This driver is not supported by the agent, but we can check that the agent does not crash. No need to test in k8s this one.
   retry: !reference [.retry_only_infra_failure, retry]
 
+new-e2e-autoscaling:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_dca
+  rules:
+    - !reference [.on_autoscaling_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/autoscaling
+    TEAM: container-autoscaling
+  retry: !reference [.retry_only_infra_failure, retry]
+
 all-artifacts: # This job is used to collect all artifacts needed in the flake finder pipeline, because we are limited to 5 cross pipelines needs: https://forum.gitlab.com/t/needs-pipeline-job-limit-on-premise/88731
   stage: e2e
   tags: ["arch:amd64", "specific:true"]
