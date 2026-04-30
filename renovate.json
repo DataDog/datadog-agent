@@ -81,6 +81,7 @@
           "golang.org/x/**",
           "go.opentelemetry.io/**",
           "github.com/open-telemetry/opentelemetry-collector-contrib/**",
+          "github.com/prometheus/prometheus",
           "github.com/spf13/cast",
           "github.com/mailru/easyjson"
         ],
