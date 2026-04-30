@@ -19,7 +19,8 @@ import (
 
 // stubContextExtractor is a minimal LogMetricsExtractor that emits one
 // metric per ProcessLog with a stable ContextKey so the engine populates
-// contextRefs.
+// contextRefs. It also implements ContextProvider so the engine has a
+// non-nil entry in contextProviders for enrichAnomaly to look up.
 type stubContextExtractor struct {
 	name string
 }
@@ -37,6 +38,30 @@ func (e *stubContextExtractor) ProcessLog(_ observerdef.LogView) observerdef.Log
 		},
 	}
 }
+func (e *stubContextExtractor) GetContextByKey(_ string) (observerdef.MetricContext, bool) {
+	return observerdef.MetricContext{Pattern: "stub-pattern"}, true
+}
+
+// stubAnomalyDetector emits one anomaly per Detect() with a Source that
+// matches the contextRef key the stub extractor writes. This drives
+// enrichAnomaly, which reads contextRefs and contextProviders.
+type stubAnomalyDetector struct{ extractorName string }
+
+func (d *stubAnomalyDetector) Name() string { return "stub_detector" }
+func (d *stubAnomalyDetector) Detect(_ observerdef.StorageReader, dataTime int64) observerdef.DetectionResult {
+	return observerdef.DetectionResult{
+		Anomalies: []observerdef.Anomaly{{
+			Type:         observerdef.AnomalyTypeMetric,
+			DetectorName: d.Name(),
+			Source: observerdef.SeriesDescriptor{
+				Namespace: d.extractorName,
+				Name:      "stub.count",
+				Tags:      []string{"k:v", "observer_source:source-a"},
+			},
+			Timestamp: dataTime,
+		}},
+	}
+}
 
 // TestEngine_ConcurrentLogIngestAndAdvance interleaves IngestLog (which
 // writes contextRefs) with advanceWithReason (which reads contextRefs
@@ -46,9 +71,14 @@ func (e *stubContextExtractor) ProcessLog(_ observerdef.LogView) observerdef.Log
 func TestEngine_ConcurrentLogIngestAndAdvance(t *testing.T) {
 	storage := newTimeSeriesStorage()
 	extractor := &stubContextExtractor{name: "stub_ext"}
+	detector := &stubAnomalyDetector{extractorName: extractor.Name()}
 	eng := newEngine(engineConfig{
 		storage:    storage,
 		extractors: []observerdef.LogMetricsExtractor{extractor},
+		detectors:  []observerdef.Detector{detector},
+		contextProviders: map[string]observerdef.ContextProvider{
+			extractor.Name(): extractor,
+		},
 	})
 
 	const ingestIters = 500
