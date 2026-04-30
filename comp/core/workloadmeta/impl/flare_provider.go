@@ -74,8 +74,11 @@ func (w *workloadmeta) workloadListFlareProvider(_ context.Context, fb flaretype
 
 // fillFlare collects workloadmeta data for the flare archive.
 func (w *workloadmeta) fillFlare(ctx context.Context, fb flaretypes.FlareBuilder) error {
+	// workloadListFlareProvider runs first: it is fast (in-memory dump) and
+	// must not be starved by sbomFlareProvider, which can be slow when many
+	// or large image SBOMs are present and may exhaust the provider timeout.
 	return errors.Join(
-		w.sbomFlareProvider(ctx, fb),
 		w.workloadListFlareProvider(ctx, fb),
+		w.sbomFlareProvider(ctx, fb),
 	)
 }
