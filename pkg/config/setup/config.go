@@ -1197,9 +1197,9 @@ func sanitizeAPIKeyConfig(config pkgconfigmodel.Config, key string) {
 // exposed as a parameter so that tests can exercise both branches without
 // needing to cross-compile.
 func sanitizeDataPlaneConfig(config pkgconfigmodel.Config, goos string) {
-	if goos != "linux" && config.GetBool("data_plane.enabled") {
-		log.Warnf("data_plane.enabled is not supported on %s and will be ignored", goos)
-		config.Set("data_plane.enabled", false, pkgconfigmodel.SourceAgentRuntime)
+	if goos != "linux" && config.GetBool(DataPlaneEnabled) {
+		log.Warnf("%s is not supported on %s and will be ignored", DataPlaneEnabled, goos)
+		config.Set(DataPlaneEnabled, false, pkgconfigmodel.SourceAgentRuntime)
 	}
 }
 

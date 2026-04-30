@@ -1559,6 +1559,7 @@ func TestSanitizeDataPlaneConfigNonLinux(t *testing.T) {
 
 			assert.False(t, cfg.GetBool("data_plane.enabled"),
 				"data_plane.enabled should be reset to false on %s", goos)
+			assert.Equal(t, pkgconfigmodel.SourceAgentRuntime, cfg.GetSource("data_plane.enabled"))
 		})
 	}
 }
