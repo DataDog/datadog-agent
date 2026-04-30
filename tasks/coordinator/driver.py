@@ -2197,6 +2197,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--forever", action="store_true")
     parser.add_argument(
         "--token-ceiling", type=int, default=None,
+        # `--token-ceiling 0` disables the panic-brake entirely; only
+        # wall-hours halts the run.
         help=(
             "Override CONFIG.api_token_ceiling for THIS run only. "
             "Useful after a budget_halt to bump the cap without a code "
@@ -2252,12 +2254,16 @@ def main(argv: list[str] | None = None) -> int:
     # restarts (without the flag) keep the same value; pass the flag again
     # to bump further.
     if args.token_ceiling is not None:
+        # 0 = disable (only wall-hours halts the run). Useful when the
+        # operator only cares about a time-bounded run, not a cost-bounded
+        # one. Sets api_token_ceiling=None which the halt-check skips.
+        new_ceiling = None if args.token_ceiling == 0 else args.token_ceiling
         print(
             f"[startup] --token-ceiling override: {db.budget.api_token_ceiling} "
-            f"→ {args.token_ceiling}",
+            f"→ {new_ceiling if new_ceiling is not None else 'disabled (wall-hours only)'}",
             file=sys.stderr,
         )
-        db.budget.api_token_ceiling = args.token_ceiling
+        db.budget.api_token_ceiling = new_ceiling
     if args.wall_hours_ceiling is not None:
         print(
             f"[startup] --wall-hours-ceiling override: {db.budget.wall_hours_ceiling} "
