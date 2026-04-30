@@ -8,7 +8,10 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/procmgr",
     visibility = ["//visibility:public"],
-    deps = [
-        "//pkg/fleet/installer/packages/service/systemd",
-    ],
+    deps = select({
+        "@rules_go//go/platform:windows": [],
+        "//conditions:default": [
+            "//pkg/fleet/installer/packages/service/systemd",
+        ],
+    }),
 )
