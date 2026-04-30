@@ -67,6 +67,14 @@ func WithAdditionalSerializer(serializer compiler.CodeSerializer) Option {
 	return additionalSerializerOption{serializer}
 }
 
+// WithUseMultiAttach configures the loader to load programs for attachment
+// via the uprobe_multi link type (BPF_LINK_TYPE_UPROBE_MULTI). The caller is
+// responsible for ensuring the running kernel supports this link type
+// (Linux 6.6+); the loader does not probe for support.
+func WithUseMultiAttach(enabled bool) Option {
+	return useMultiAttachOption(enabled)
+}
+
 // NewLoader creates a new Loader.
 func NewLoader(opts ...Option) (*Loader, error) {
 	l := &Loader{}
@@ -106,6 +114,14 @@ func (l *Loader) Load(program compiler.Program) (*Program, error) {
 	}
 	ringbufMapSpec.MaxEntries = uint32(l.config.ringBufSize)
 
+	if l.config.useMultiAttach {
+		progSpec, ok := spec.Programs["probe_run_with_cookie"]
+		if !ok {
+			return nil, errors.New("probe_run_with_cookie program not found in eBPF spec")
+		}
+		progSpec.AttachType = ebpf.AttachTraceUprobeMulti
+	}
+
 	opts := ebpf.CollectionOptions{}
 	opts.MapReplacements = maps
 	opts.MapReplacements[ringbufMapName] = l.ringbufMap
@@ -125,9 +141,10 @@ func (l *Loader) Load(program compiler.Program) (*Program, error) {
 
 	maps = nil
 	return &Program{
-		Collection:   collection,
-		BpfProgram:   bpfProgram,
-		Attachpoints: serialized.bpfAttachPoints,
+		Collection:     collection,
+		BpfProgram:     bpfProgram,
+		Attachpoints:   serialized.bpfAttachPoints,
+		UseMultiAttach: l.config.useMultiAttach,
 	}, nil
 }
 
@@ -194,6 +211,10 @@ type Program struct {
 	Collection   *ebpf.Collection
 	BpfProgram   *ebpf.Program
 	Attachpoints []BPFAttachPoint
+	// UseMultiAttach indicates that the program was loaded with
+	// AttachTraceUprobeMulti and should be attached using
+	// link.Executable.UprobeMulti rather than per-address Uprobe calls.
+	UseMultiAttach bool
 }
 
 // Close releases the program resources.
@@ -271,6 +292,8 @@ type config struct {
 	dyninstDebugLevel   uint8
 	dyninstDebugEnabled bool
 
+	useMultiAttach bool
+
 	additionalSerializer compiler.CodeSerializer
 }
 
@@ -304,6 +327,12 @@ type additionalSerializerOption struct {
 
 func (o additionalSerializerOption) apply(c *config) {
 	c.additionalSerializer = o
+}
+
+type useMultiAttachOption bool
+
+func (o useMultiAttachOption) apply(c *config) {
+	c.useMultiAttach = bool(o)
 }
 
 func (l *Loader) init(opts ...Option) error {

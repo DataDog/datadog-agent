@@ -3,10 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package runner implements a component to generate metadata payload at the right interval.
-package runner
-
-// team: agent-configuration
-
-// Component is the component type.
-type Component interface{}
+// Package dogstatsdunit contains e2e tests verifying that DogStatsD timing (ms)
+// metrics carry a "millisecond" unit through the Agent pipeline, while plain
+// counter and histogram metrics do not.
+package dogstatsdunit
