@@ -182,30 +182,39 @@ func newTimeSeriesStorage() *timeSeriesStorage {
 }
 
 // Add records a data point for a named metric in a namespace.
+// AddResult bundles the outputs of timeSeriesStorage.Add. Wrapping these
+// in a named struct keeps call sites self-documenting (`res.IsNew` /
+// `res.StorageKey` rather than two anonymous booleans/strings) and gives
+// us a single point to extend if future callers need additional metadata
+// (e.g. ID, eviction signal) without breaking every existing caller.
+type AddResult struct {
+	// IsNew is true if this Add created a brand-new series (cardinality +1).
+	IsNew bool
+	// StorageKey is the canonical seriesKey for this point. Callers that
+	// need to index further state by the same key (e.g. engine.contextRefs)
+	// can reuse this value instead of recomputing seriesKey(...) themselves.
+	// Empty string is returned when the point is dropped pre-key-compute
+	// (non-finite or sentinel values).
+	StorageKey string
+}
+
+// Add inserts a (namespace, name, value, timestamp, tags) point into storage.
 // Invalid values are dropped at ingest with accounting and sampled logging.
 // Timestamps are maintained in sorted order so replay and live ingestion remain
 // correct even when data arrives out of order.
-//
-// Returns:
-//   - isNew: true if this point created a new series (cardinality +1)
-//   - storageKey: the canonical seriesKey for this point. Callers that need
-//     to index further state by the same key (e.g. engine.contextRefs) can
-//     reuse this value instead of recomputing seriesKey(...) themselves.
-//     Empty string is returned when the point is dropped pre-key-compute
-//     (non-finite or sentinel values).
-func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp int64, tags []string) (isNew bool, storageKey string) {
+func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp int64, tags []string) AddResult {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if math.IsInf(value, 0) || math.IsNaN(value) {
 		s.recordDroppedValue("non_finite", namespace, name, value, timestamp, tags)
-		return false, ""
+		return AddResult{}
 	}
 	// Guard against known finite sentinel values (MaxFloat64 used as "unlimited")
 	// that overflow downstream aggregation math when summed.
 	if value == math.MaxFloat64 || value == -math.MaxFloat64 {
 		s.recordDroppedValue("extreme", namespace, name, value, timestamp, tags)
-		return false, ""
+		return AddResult{}
 	}
 	key := seriesKey(namespace, name, tags)
 
@@ -225,7 +234,7 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 		s.seriesIDStats = append(s.seriesIDStats, stats)
 		s.seriesGen++
 	}
-	isNew = !exists
+	res := AddResult{IsNew: !exists, StorageKey: key}
 	stats.writeGeneration++
 
 	// Bucket by second.
@@ -246,7 +255,7 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 		if value > stats.maxes[idx] {
 			stats.maxes[idx] = value
 		}
-		return isNew, key
+		return res
 	}
 
 	stats.timestamps = insertInt64(stats.timestamps, idx, bucket)
@@ -254,7 +263,7 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 	stats.counts = insertInt64(stats.counts, idx, 1)
 	stats.mins = insertFloat64(stats.mins, idx, value)
 	stats.maxes = insertFloat64(stats.maxes, idx, value)
-	return isNew, key
+	return res
 }
 
 // insertInt64 inserts v at position idx in s, maintaining order.
@@ -723,9 +732,12 @@ func (s *timeSeriesStorage) SeriesGeneration() uint64 {
 
 // RemoveSeriesByKeys deletes the listed internal series keys (as produced by
 // seriesKey). The compact numeric SeriesRef IDs assigned to each removed
-// series are retired but NEVER reused: their slot in seriesIDStats is set to
-// nil so any stale SeriesRef resolves to nil via resolveByID, and the slot in
-// seriesIDKeys is left in place so subsequent index lookups remain bounds-safe.
+// series are retired but NEVER reused: the slot in seriesIDStats is set to
+// nil so any stale SeriesRef resolves to nil via resolveByID, and the slot
+// in seriesIDKeys is set to "" — the slice length is preserved so subsequent
+// index lookups remain bounds-safe, but the original key string is no longer
+// referenced and can be garbage-collected. GetSeriesByNumericID's nil-stats
+// guard handles the empty-string lookup safely (s.series[""] is always nil).
 // Returns the SeriesRefs that were actually freed (one per successful removal,
 // in input order; unknown keys are silently skipped). seriesGen is bumped iff
 // at least one series was removed so cached ListSeries results are invalidated.
@@ -756,6 +768,11 @@ func (s *timeSeriesStorage) RemoveSeriesByKeys(keys []string) []observer.SeriesR
 		if id, ok := s.seriesIDs[key]; ok {
 			if int(id) < len(s.seriesIDStats) {
 				s.seriesIDStats[id] = nil
+			}
+			if int(id) < len(s.seriesIDKeys) {
+				// Free the key string so it can be GC'd; keep the slot so
+				// seriesIDKeys remains addressable for stale-ref reads.
+				s.seriesIDKeys[id] = ""
 			}
 			delete(s.seriesIDs, key)
 			removed = append(removed, id)

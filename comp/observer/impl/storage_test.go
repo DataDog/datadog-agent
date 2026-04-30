@@ -604,6 +604,13 @@ func TestTimeSeriesStorage_RemoveSeriesByKeys(t *testing.T) {
 	refA := s.seriesIDs[seriesKey("ns", "a", []string{"k:1"})]
 	require.NotNil(t, s.GetSeriesMeta(refA), "surviving series still resolvable")
 
+	// Evicted slots in seriesIDKeys are cleared to "" so the original key
+	// string can be GC'd. Slot is kept in place (slice length unchanged) so
+	// subsequent stale-ref index lookups stay bounds-safe.
+	require.Equal(t, "", s.seriesIDKeys[refB], "evicted seriesIDKeys slot must be empty so the key string can be GC'd")
+	require.Equal(t, "", s.seriesIDKeys[refC], "evicted seriesIDKeys slot must be empty so the key string can be GC'd")
+	require.NotEqual(t, "", s.seriesIDKeys[refA], "surviving seriesIDKeys slot must be intact")
+
 	// A subsequent Add for the same key creates a fresh series with a new ref.
 	s.Add("ns", "b", 99.0, 1100, []string{"k:2"})
 	require.Equal(t, 2, s.TotalSeriesCount(""), "re-add re-creates the series")
@@ -645,34 +652,34 @@ func TestTimeSeriesStorage_AddReturnsCanonicalKey(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			isNew, gotKey := s.Add(tc.namespace, tc.metric, 1.0, 1000, tc.tags)
-			assert.True(t, isNew, "first write should report isNew=true")
+			res := s.Add(tc.namespace, tc.metric, 1.0, 1000, tc.tags)
+			assert.True(t, res.IsNew, "first write should report IsNew=true")
 			wantKey := seriesKey(tc.namespace, tc.metric, tc.tags)
-			assert.Equal(t, wantKey, gotKey, "Add must return seriesKey-equivalent storage key")
+			assert.Equal(t, wantKey, res.StorageKey, "Add must return seriesKey-equivalent storage key")
 
-			// Second write of the same series returns the same key and isNew=false.
-			isNew2, gotKey2 := s.Add(tc.namespace, tc.metric, 2.0, 1001, tc.tags)
-			assert.False(t, isNew2, "second write should report isNew=false")
-			assert.Equal(t, wantKey, gotKey2, "Add must return the same key on subsequent writes")
+			// Second write of the same series returns the same key and IsNew=false.
+			res2 := s.Add(tc.namespace, tc.metric, 2.0, 1001, tc.tags)
+			assert.False(t, res2.IsNew, "second write should report IsNew=false")
+			assert.Equal(t, wantKey, res2.StorageKey, "Add must return the same key on subsequent writes")
 		})
 	}
 }
 
 func TestTimeSeriesStorage_AddDroppedReturnsEmptyKey(t *testing.T) {
 	// Pre-key-compute drops (non-finite, sentinel values) return empty key.
-	// Callers must check storageKey != "" before reusing it for downstream
+	// Callers must check StorageKey != "" before reusing it for downstream
 	// state (e.g. contextRefs).
 	s := newTimeSeriesStorage()
 
-	isNew, key := s.Add("ns", "m", math.NaN(), 1000, nil)
-	assert.False(t, isNew)
-	assert.Empty(t, key, "NaN drop must return empty key")
+	res := s.Add("ns", "m", math.NaN(), 1000, nil)
+	assert.False(t, res.IsNew)
+	assert.Empty(t, res.StorageKey, "NaN drop must return empty key")
 
-	isNew, key = s.Add("ns", "m", math.Inf(1), 1000, nil)
-	assert.False(t, isNew)
-	assert.Empty(t, key, "+Inf drop must return empty key")
+	res = s.Add("ns", "m", math.Inf(1), 1000, nil)
+	assert.False(t, res.IsNew)
+	assert.Empty(t, res.StorageKey, "+Inf drop must return empty key")
 
-	isNew, key = s.Add("ns", "m", math.MaxFloat64, 1000, nil)
-	assert.False(t, isNew)
-	assert.Empty(t, key, "MaxFloat64 sentinel drop must return empty key")
+	res = s.Add("ns", "m", math.MaxFloat64, 1000, nil)
+	assert.False(t, res.IsNew)
+	assert.Empty(t, res.StorageKey, "MaxFloat64 sentinel drop must return empty key")
 }
