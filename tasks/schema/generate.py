@@ -8,6 +8,7 @@ import yaml
 from invoke import task
 from invoke.exceptions import Exit
 
+from tasks.libs.build.bazel import bazel
 from tasks.schema.fixes import fix_schema
 from tasks.schema.template_parser import parse_template
 
@@ -29,30 +30,11 @@ yaml.add_representer(str, str_presenter)
 
 @task
 def compress(ctx, output_dir=SCHEMA_DIR):
-    compressed_dir = os.path.join(output_dir, "compressed")
-    if not os.path.exists(compressed_dir):
-        os.mkdir(compressed_dir)
-
-    core = os.path.join(output_dir, "core_schema.yaml")
-    sysprobe = os.path.join(output_dir, "system-probe_schema.yaml")
-    coreCompressed = os.path.join(output_dir, "compressed", "core_schema.yaml.zstd")
-    sysprobeCompressed = os.path.join(output_dir, "compressed", "system-probe_schema.yaml.zstd")
-    compressor = os.path.join(output_dir, "compressor", "compress_schema.go")
-
-    core_size_before = os.path.getsize(core)
-    sysprobe_size_before = os.path.getsize(sysprobe)
-
-    ctx.run(f"go run {compressor} {core} {coreCompressed} {sysprobe} {sysprobeCompressed}")
-
-    core_size_after = os.path.getsize(f"{coreCompressed}")
-    sysprobe_size_after = os.path.getsize(f"{sysprobeCompressed}")
-
-    print(
-        f"core_schema.yaml:        {core_size_before:>8,} B -> {core_size_after:>8,} B ({core_size_after / core_size_before * 100:.1f}%)"
-    )
-    print(
-        f"system-probe_schema.yaml:{sysprobe_size_before:>8,} B -> {sysprobe_size_after:>8,} B ({sysprobe_size_after / sysprobe_size_before * 100:.1f}%)"
-    )
+    bazel(ctx, "run", "//pkg/config/schema:install_compressed", "--", f"--destdir={os.path.abspath(output_dir)}")
+    for name in ("core_schema.yaml", "system-probe_schema.yaml"):
+        size_before = os.path.getsize(os.path.join(SCHEMA_DIR, name))
+        size_after = os.path.getsize(os.path.join(output_dir, "compressed", f"{name}.zstd"))
+        print(f"{name:<24}:{size_before:>8,} B -> {size_after:>8,} B ({size_after / size_before * 100:.1f}%)")
 
 
 @task

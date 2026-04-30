@@ -36,7 +36,7 @@ jobs:
         run: bazel mod tidy
       - name: Generate Rust licenses
         run: |
-          cargo install --git https://github.com/DataDog/rust-license-tool dd-rust-license-tool
+          cargo install dd-rust-license-tool@1.0.6 --locked
           cd rust && dd-rust-license-tool --manifest-path ../Cargo.toml write
       - name: Create commit
         id: commit

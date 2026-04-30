@@ -91,6 +91,9 @@ type MetricSampleContext interface {
 	GetSource() MetricSource
 }
 
+// UnitMilliseconds is the unit string for timing metrics, as defined by the Datadog API.
+const UnitMilliseconds = "millisecond"
+
 // MetricSample represents a raw metric sample
 type MetricSample struct {
 	Name            string
@@ -106,6 +109,7 @@ type MetricSample struct {
 	ListenerID      string
 	NoIndex         bool
 	Source          MetricSource
+	Unit            string
 }
 
 // Implement the MetricSampleContext interface

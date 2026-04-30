@@ -5,8 +5,8 @@ go 1.25.0
 require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.61.0
+	github.com/DataDog/go-acl v1.0.1
 	github.com/gofrs/flock v0.13.0
-	github.com/hectane/go-acl v0.0.0-20230225031251-cdfc9e3acf94
 	github.com/shirou/gopsutil/v4 v4.26.3
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/sync v0.20.0

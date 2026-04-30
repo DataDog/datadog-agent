@@ -61,6 +61,8 @@ type Config struct {
 
 	Version string
 
+	OpmsExtraHeaders map[string]string
+
 	MetricsClient statsd.ClientInterface
 }
 

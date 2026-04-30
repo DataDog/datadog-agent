@@ -261,7 +261,8 @@ test_ebpf_complexity_changes      @DataDog/ebpf-platform
 pull_test_dockers*                @DataDog/universal-service-monitoring
 
 # Single machine performance
-single_machine_performance*       @DataDog/single-machine-performance
+single_machine_performance*                                   @DataDog/single-machine-performance
+single-machine-performance-metal-runners-regression_detector* @DataDog/ebpf-platform
 
 # Dependency Security
 software_composition_analysis*    @DataDog/sdlc-security

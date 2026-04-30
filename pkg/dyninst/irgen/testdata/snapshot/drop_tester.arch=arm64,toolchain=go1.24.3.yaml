@@ -282,7 +282,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
-        - Name: n
+        - Name: "n"
           Type: 7 BaseType int
           Locations:
             - Range: 0x1f7960..0x1f7960
@@ -311,7 +311,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
-        - Name: n
+        - Name: "n"
           Type: 7 BaseType int
           Locations:
             - Range: 0x1f7998..0x1f799c
@@ -397,7 +397,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 1, Shift: 0}}]
           Role: Local
           DictIndex: -1
-        - Name: n
+        - Name: "n"
           Type: 7 BaseType int
           Locations:
             - Range: 0x1f7c74..0x1f7c74
@@ -4880,7 +4880,7 @@ Types:
         - Name: buf
           Offset: 16
           Type: 38 GoSliceHeaderType []uint8
-        - Name: n
+        - Name: "n"
           Offset: 40
           Type: 7 BaseType int
         - Name: wr
@@ -4896,7 +4896,7 @@ Types:
         - Name: buf
           Offset: 0
           Type: 38 GoSliceHeaderType []uint8
-        - Name: off
+        - Name: "off"
           Offset: 24
           Type: 7 BaseType int
         - Name: lastRead
@@ -5221,7 +5221,7 @@ Types:
         - Name: a
           Offset: 0
           Type: 1054 ArrayType [200]uint8
-        - Name: n
+        - Name: "n"
           Offset: 200
           Type: 7 BaseType int
         - Name: rate
@@ -5888,7 +5888,7 @@ Types:
         - Name: R
           Offset: 0
           Type: 490 GoInterfaceType io.Reader
-        - Name: N
+        - Name: "N"
           Offset: 16
           Type: 13 BaseType int64
     - __kind: GoInterfaceType
@@ -7280,7 +7280,7 @@ Types:
         - Name: i
           Offset: 288
           Type: 2 BaseType uint32
-        - Name: n
+        - Name: "n"
           Offset: 292
           Type: 2 BaseType uint32
         - Name: c
@@ -7487,7 +7487,7 @@ Types:
         - Name: R
           Offset: 0
           Type: 490 GoInterfaceType io.Reader
-        - Name: N
+        - Name: "N"
           Offset: 16
           Type: 13 BaseType int64
     - __kind: GoInterfaceType
@@ -10229,7 +10229,7 @@ Types:
         - Name: _
           Offset: 0
           Type: 861 ArrayType net/http.http2incomparable
-        - Name: n
+        - Name: "n"
           Offset: 0
           Type: 12 BaseType int32
         - Name: conn
@@ -10919,7 +10919,7 @@ Types:
         - Name: streamID
           Offset: 0
           Type: 2 BaseType uint32
-        - Name: n
+        - Name: "n"
           Offset: 4
           Type: 2 BaseType uint32
     - __kind: StructureType
@@ -10967,7 +10967,7 @@ Types:
         - Name: i
           Offset: 32
           Type: 13 BaseType int64
-        - Name: n
+        - Name: "n"
           Offset: 40
           Type: 13 BaseType int64
         - Name: err
@@ -11293,7 +11293,7 @@ Types:
         - Name: r
           Offset: 0
           Type: 563 PointerType *bufio.Reader
-        - Name: n
+        - Name: "n"
           Offset: 8
           Type: 8 BaseType uint64
         - Name: err
@@ -12392,7 +12392,7 @@ Types:
         - Name: x
           Offset: 0
           Type: 13 BaseType int64
-        - Name: y
+        - Name: "y"
           Offset: 8
           Type: 7 BaseType int
         - Name: signed
@@ -12733,7 +12733,7 @@ Types:
         - Name: fn
           Offset: 0
           Type: 1 BaseType uintptr
-        - Name: n
+        - Name: "n"
           Offset: 8
           Type: 1 BaseType uintptr
         - Name: args
@@ -13095,7 +13095,7 @@ Types:
         - Name: targetpc
           Offset: 0
           Type: 1 BaseType uintptr
-        - Name: off
+        - Name: "off"
           Offset: 8
           Type: 2 BaseType uint32
         - Name: val
@@ -14209,7 +14209,7 @@ Types:
         - Name: section
           Offset: 36
           Type: 292 BaseType vendor/golang.org/x/net/dns/dnsmessage.section
-        - Name: off
+        - Name: "off"
           Offset: 40
           Type: 7 BaseType int
         - Name: index

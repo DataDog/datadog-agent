@@ -20,10 +20,28 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/metadata/runner"
+	runner "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
+
+// testDeps is a subset of Requires that uses fx.In for testing createRunner directly.
+type testDeps struct {
+	fx.In
+
+	Log    log.Component
+	Config config.Component
+
+	Providers []runner.MetadataProvider `group:"metadata_provider"`
+}
+
+func makeRequires(_ *testing.T, deps testDeps) Requires {
+	return Requires{
+		Log:       deps.Log,
+		Config:    deps.Config,
+		Providers: deps.Providers,
+	}
+}
 
 func TestHandleProvider(t *testing.T) {
 	wg := sync.WaitGroup{}
@@ -36,12 +54,12 @@ func TestHandleProvider(t *testing.T) {
 	wg.Add(1)
 
 	r := createRunner(
-		fxutil.Test[dependencies](
+		makeRequires(t, fxutil.Test[testDeps](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMock(t) }),
-			fx.Supply(NewProvider(provider)),
-		))
+			fx.Supply(runner.NewProvider(provider)),
+		)))
 
 	r.start()
 	// either the provider call wg.Done() or the test will fail as a timeout
@@ -56,12 +74,12 @@ func TestHandleProviderShortTimeout(t *testing.T) {
 	}
 
 	r := createRunner(
-		fxutil.Test[dependencies](
+		makeRequires(t, fxutil.Test[testDeps](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMock(t) }),
-			fx.Supply(NewProvider(provider)),
-		))
+			fx.Supply(runner.NewProvider(provider)),
+		)))
 
 	r.config.Set("metadata_provider_stop_timeout", time.Duration(0), model.SourceFile)
 	require.NoError(t, r.start())
@@ -86,12 +104,12 @@ func TestHandleProviderLongTimeout(t *testing.T) {
 	}
 
 	r := createRunner(
-		fxutil.Test[dependencies](
+		makeRequires(t, fxutil.Test[testDeps](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMock(t) }),
-			fx.Supply(NewProvider(provider)),
-		))
+			fx.Supply(runner.NewProvider(provider)),
+		)))
 
 	r.config.Set("metadata_provider1_stop_timeout", 1*time.Minute, model.SourceFile)
 	require.NoError(t, r.start())
@@ -125,9 +143,9 @@ func TestRunnerCreation(t *testing.T) {
 		fx.Supply(lc),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() config.Component { return config.NewMock(t) }),
-		Module(),
+		fxutil.ProvideComponentConstructor(NewComponent),
 		// Supplying our provider by using the helper function
-		fx.Supply(NewProvider(provider)),
+		fx.Supply(runner.NewProvider(provider)),
 	)
 
 	ctx := context.Background()

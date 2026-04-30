@@ -78,6 +78,9 @@ const (
 
   Hostname: {{.Status.Config.Hostname}}
   Receiver: {{.Status.Config.ReceiverHost}}:{{.Status.Config.ReceiverPort}}
+  {{- if .Status.Config.ReceiverSocket}}
+  UDS receiver: {{.Status.Config.ReceiverSocket}}
+  {{- end}}
   Endpoints:
     {{ range $i, $e := .Status.Config.Endpoints}}
     {{ $e.Host }}
@@ -86,7 +89,7 @@ const (
   --- Receiver stats (1 min) ---
 
   {{ range $i, $ts := .Status.Receiver }}
-  From {{if $ts.Tags.Lang}}{{ $ts.Tags.Lang }} {{ $ts.Tags.LangVersion }} ({{ $ts.Tags.Interpreter }}), client {{ $ts.Tags.TracerVersion }}{{else}}unknown clients{{end}}
+  From {{if $ts.Tags.Lang}}{{ $ts.Tags.Lang }} {{ $ts.Tags.LangVersion }} ({{ $ts.Tags.Interpreter }}), client {{ $ts.Tags.TracerVersion }}{{else}}unknown clients{{end}}{{if $ts.Tags.ConnectionType}} via {{$ts.Tags.ConnectionType}}{{end}}
     Traces received: {{ $ts.Stats.TracesReceived }} ({{ $ts.Stats.TracesBytes }} bytes)
     Spans received: {{ $ts.Stats.SpansReceived }}
     {{ with WarnString $ts }}

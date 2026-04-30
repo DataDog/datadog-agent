@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	resources "github.com/DataDog/datadog-agent/comp/metadata/resources/def"
-	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
+	runnerdef "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/gohai/processes"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -60,7 +60,7 @@ type Provides struct {
 	compdef.Out
 
 	Comp     resources.Component
-	Provider runnerimpl.Provider
+	Provider runnerdef.Provider
 }
 
 // NewComponent creates a new resources metadata component.
@@ -103,7 +103,7 @@ func NewComponent(deps Requires) Provides {
 		deps.Log.Infof("Collection interval for 'resources' metadata provider is set to 0: disabling it")
 	} else {
 		deps.Log.Debugf("Collection interval for 'resources' metadata provider is set to %s", collectInterval)
-		res.Provider = runnerimpl.NewProvider(r.collect)
+		res.Provider = runnerdef.NewProvider(r.collect)
 	}
 
 	return res

@@ -1,10 +1,14 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("//bazel/rules/cws_codegen:defs.bzl", "bpf_maps_generator")
 load("//bazel/rules/go_stringer:defs.bzl", "go_stringer")
 
 exports_files(
     glob(
         ["*.go"],
-        exclude = ["model_string.go"],
+        exclude = [
+            "consts_map_names_linux.go",
+            "model_string.go",
+        ],
     ),
     visibility = ["//pkg/security/seclwin/model:__pkg__"],
 )
@@ -15,6 +19,18 @@ go_stringer(
     linecomment = True,
     output = "model_string.go",
     types = ["HashState"],
+)
+
+# TODO(ABLD-420): hand-wired because the matching //go:generate directive lives
+# in pkg/security/ebpf/map.go, which is currently gazelle-excluded. Once
+# pkg/security/ebpf is gazelle-managed, teach the //bazel/rules/cws_codegen
+# extension to parse this directive (and either emit the rule here, or move the
+# directive into this package) and drop this manual call.
+bpf_maps_generator(
+    name = "consts_map_names_linux",
+    package_name = "model",
+    header = "//pkg/security/ebpf/c/include:maps.h",
+    output = "consts_map_names_linux.go",
 )
 
 go_library(

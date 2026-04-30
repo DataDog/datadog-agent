@@ -587,7 +587,7 @@ RUN patchelf --set-rpath /opt/datadog-agent/embedded/lib /opt/datadog-agent/embe
 
 FROM golang:latest AS dlv
 
-RUN go install github.com/go-delve/delve/cmd/dlv@latest
+RUN go install github.com/go-delve/delve/cmd/dlv@v1.26.0
 
 FROM {base_image} AS bash_completion
 

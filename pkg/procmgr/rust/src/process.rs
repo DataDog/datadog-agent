@@ -99,6 +99,8 @@ pub struct ManagedProcess {
     stop_requested: bool,
     origin: ProcessOrigin,
     last_exit_status: Option<std::process::ExitStatus>,
+    #[cfg(windows)]
+    job_object: Option<platform::JobObject>,
 }
 
 impl ManagedProcess {
@@ -126,6 +128,8 @@ impl ManagedProcess {
             stop_requested: false,
             origin,
             last_exit_status: None,
+            #[cfg(windows)]
+            job_object: None,
         }
     }
 
@@ -223,6 +227,32 @@ impl ManagedProcess {
             self.pid.map_or("unknown".to_string(), |p| p.to_string()),
             self.config.command
         );
+
+        // Assign the child to a Job Object so TerminateJobObject can kill
+        // the entire descendant tree.  Ideally we would assign the job
+        // *atomically at creation time* via PROC_THREAD_ATTRIBUTE_JOB_LIST,
+        // eliminating the small race window where a very fast child could
+        // fork before assignment.  Rust's CommandExt::raw_attribute() is
+        // nightly-only (rust-lang/rust#114854), so we assign post-spawn
+        // for now.  In practice the window is negligible as managed
+        // processes are long-running services that don't immediately fork.
+        #[cfg(windows)]
+        if let Some(pid) = self.pid {
+            match platform::JobObject::new() {
+                Ok(job) => match job.assign_process(pid) {
+                    Ok(()) => {
+                        self.job_object = Some(job);
+                    }
+                    Err(e) => {
+                        warn!("[{}] failed to assign to job object: {e:#}", self.name);
+                    }
+                },
+                Err(e) => {
+                    warn!("[{}] failed to create job object: {e:#}", self.name);
+                }
+            }
+        }
+
         self.child = Some(child);
         self.transition_to(ProcessState::Running);
         self.restarts.mark_spawned();
@@ -298,6 +328,10 @@ impl ManagedProcess {
     pub fn set_last_status(&mut self, status: std::process::ExitStatus) {
         self.last_exit_status = Some(status);
         self.pid = None;
+        #[cfg(windows)]
+        {
+            self.job_object = None;
+        }
         if self.stop_requested {
             self.stop_requested = false;
             self.transition_to(ProcessState::Stopped);
@@ -327,8 +361,22 @@ impl ManagedProcess {
         }
     }
 
-    /// Force-kill the process and all descendants (SIGKILL / TerminateProcess).
-    fn force_kill(&self) {
+    /// Force-kill the process and all descendants.
+    ///
+    /// On Unix this sends SIGKILL to the entire process group.
+    /// On Windows this terminates the Job Object (all descendants), falling
+    /// back to `TerminateProcess` on the direct child if no job is available.
+    fn force_kill(&mut self) {
+        #[cfg(windows)]
+        if let Some(ref job) = self.job_object {
+            if let Err(e) = job.terminate() {
+                warn!("[{}] job object terminate failed: {e}", self.name);
+            } else {
+                self.job_object = None;
+                return;
+            }
+        }
+
         if let Some(pid) = self.pid
             && let Err(e) = platform::send_force_kill(pid)
         {
@@ -410,6 +458,10 @@ impl ManagedProcess {
     fn mark_stopped(&mut self) {
         self.transition_to(ProcessState::Stopped);
         self.pid = None;
+        #[cfg(windows)]
+        {
+            self.job_object = None;
+        }
     }
 
     #[cfg(test)]

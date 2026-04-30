@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
@@ -40,9 +41,32 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
+// testDeps bridges fx injection for tests since Requires has no fx.In marker.
+type testDeps struct {
+	fx.In
+
+	Log        log.Component
+	Config     config.Component
+	Serializer serializer.MetricSerializer
+	Coll       option.Option[collector.Component]
+	LogAgent   option.Option[logagent.Component]
+	Hostname   hostnameinterface.Component
+}
+
+func makeRequires(deps testDeps) Requires {
+	return Requires{
+		Log:        deps.Log,
+		Config:     deps.Config,
+		Serializer: deps.Serializer,
+		Coll:       deps.Coll,
+		LogAgent:   deps.LogAgent,
+		Hostname:   deps.Hostname,
+	}
+}
+
 func getTestInventoryChecks(t *testing.T, coll option.Option[collector.Component], logAgent option.Option[logagent.Component], overrides map[string]any) *inventorychecksImpl {
-	p := newInventoryChecksProvider(
-		fxutil.Test[dependencies](
+	p := NewComponent(
+		makeRequires(fxutil.Test[testDeps](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
@@ -54,7 +78,7 @@ func getTestInventoryChecks(t *testing.T, coll option.Option[collector.Component
 				return logAgent
 			}),
 			hostnameimpl.MockModule(),
-		),
+		)),
 	)
 	return p.Comp.(*inventorychecksImpl)
 }

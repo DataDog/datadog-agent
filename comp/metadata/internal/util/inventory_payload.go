@@ -64,7 +64,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
+	runnerdef "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -179,11 +179,11 @@ func (i *InventoryPayload) FlareProvider() flaretypes.Provider {
 
 // MetadataProvider returns a metadata 'runner.Provider' for the current inventory payload (taking into account if
 // invnetory is enabled or not).
-func (i *InventoryPayload) MetadataProvider() runnerimpl.Provider {
+func (i *InventoryPayload) MetadataProvider() runnerdef.Provider {
 	if i.Enabled {
-		return runnerimpl.NewProvider(i.collect)
+		return runnerdef.NewProvider(i.collect)
 	}
-	return runnerimpl.NewProvider(nil)
+	return runnerdef.NewProvider(nil)
 }
 
 // collect is the callback expected by the metadata runner.Provider. It will send a new payload and return the next

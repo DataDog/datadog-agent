@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	packagesigning "github.com/DataDog/datadog-agent/comp/metadata/packagesigning/def"
 	pkgUtils "github.com/DataDog/datadog-agent/comp/metadata/packagesigning/utils"
-	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
+	runnerdef "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -70,7 +70,7 @@ type Requires struct {
 // Provides defines the output of the packagesigning component
 type Provides struct {
 	Comp          packagesigning.Component
-	Provider      runnerimpl.Provider
+	Provider      runnerdef.Provider
 	FlareProvider flaretypes.Provider
 	Endpoint      api.AgentEndpointProvider
 }
@@ -99,7 +99,7 @@ func NewComponent(deps Requires) Provides {
 	is.InventoryPayload.MaxInterval = defaultCollectInterval
 	is.InventoryPayload.MinInterval = defaultCollectInterval
 	is.InventoryPayload.Enabled = isPackageSigningEnabled(deps.Config, is.log)
-	var provider runnerimpl.Provider
+	var provider runnerdef.Provider
 	if is.InventoryPayload.Enabled {
 		if getPkgManager() != "" {
 			// Package signing telemetry is only valid on Linux and DEB/RPM based distros (including SUSE)

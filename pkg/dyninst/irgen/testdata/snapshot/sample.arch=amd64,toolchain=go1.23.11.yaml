@@ -576,8 +576,8 @@ Probes:
         - json: {ref: x}
           dsl: x
         - ', '
-        - json: {ref: y}
-          dsl: y
+        - json: {ref: "y"}
+          dsl: "y"
       captureSnapshot: true
       instances:
         - subprogram: {subprogram: 86}
@@ -600,7 +600,7 @@ Probes:
                   EventExpressionIndex: 1
                 - ', '
                 - Error: failed to resolve reference "y"
-                  DSL: y
+                  DSL: "y"
     - id: testConflictingReturn
       version: 0
       type: LOG_PROBE
@@ -1713,8 +1713,8 @@ Probes:
         - json: {ref: x}
           dsl: x
         - ', '
-        - json: {ref: y}
-          dsl: y
+        - json: {ref: "y"}
+          dsl: "y"
       captureSnapshot: true
       instances:
         - subprogram: {subprogram: 53}
@@ -1735,8 +1735,8 @@ Probes:
                   EventKind: Entry
                   EventExpressionIndex: 0
                 - ', '
-                - JSON: {Ref: y}
-                  DSL: y
+                - JSON: {Ref: "y"}
+                  DSL: "y"
                   EventKind: Entry
                   EventExpressionIndex: 1
     - id: testInlinedBBA
@@ -5475,8 +5475,8 @@ Probes:
         - json: {ref: x}
           dsl: x
         - ', '
-        - json: {ref: y}
-          dsl: y
+        - json: {ref: "y"}
+          dsl: "y"
         - ', '
         - json: {ref: z}
           dsl: z
@@ -5496,8 +5496,8 @@ Probes:
                   EventKind: Entry
                   EventExpressionIndex: 0
                 - ', '
-                - JSON: {Ref: y}
-                  DSL: y
+                - JSON: {Ref: "y"}
+                  DSL: "y"
                   EventKind: Entry
                   EventExpressionIndex: 1
                 - ', '
@@ -6832,7 +6832,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
-        - Name: y
+        - Name: "y"
           Type: 9 BaseType int
           Locations:
             - Range: 0xd08640..0xd08667
@@ -7371,7 +7371,7 @@ Subprograms:
               Pieces: [{Size: 1, Op: {RegNo: 3, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
-        - Name: y
+        - Name: "y"
           Type: 16 BaseType float32
           Locations:
             - Range: 0xd0ad60..0xd0ad61
@@ -7402,7 +7402,7 @@ Subprograms:
                   Op: {RegNo: 2, Shift: 0}
           Role: Parameter
           DictIndex: -1
-        - Name: y
+        - Name: "y"
           Type: 16 BaseType float32
           Locations:
             - Range: 0xd0ada0..0xd0ada1
@@ -9580,7 +9580,7 @@ Subprograms:
                   Op: {RegNo: 3, Shift: 0}
           Role: Parameter
           DictIndex: -1
-        - Name: y
+        - Name: "y"
           Type: 11 GoStringHeaderType string
           Locations:
             - Range: 0xd0e7e0..0xd0e7e1
@@ -11214,7 +11214,7 @@ Types:
       ID: 1025
       Name: '*archive/tar.Writer'
       ByteSize: 8
-      GoRuntimeType: 1.85776e+06
+      GoRuntimeType: 1857760
       GoKind: 22
       Pointee: 1026 UnresolvedPointeeType archive/tar.Writer
     - __kind: PointerType
@@ -11233,7 +11233,7 @@ Types:
       ID: 965
       Name: '*archive/tar.regFileWriter'
       ByteSize: 8
-      GoRuntimeType: 1.258944e+06
+      GoRuntimeType: 1258944
       GoKind: 22
       Pointee: 966 UnresolvedPointeeType archive/tar.regFileWriter
     - __kind: PointerType
@@ -11254,21 +11254,21 @@ Types:
       ID: 1012
       Name: '*archive/zip.fileWriter'
       ByteSize: 8
-      GoRuntimeType: 1.782048e+06
+      GoRuntimeType: 1782048
       GoKind: 22
       Pointee: 1013 UnresolvedPointeeType archive/zip.fileWriter
     - __kind: PointerType
       ID: 941
       Name: '*archive/zip.nopCloser'
       ByteSize: 8
-      GoRuntimeType: 1.021184e+06
+      GoRuntimeType: 1021184
       GoKind: 22
       Pointee: 942 StructureType archive/zip.nopCloser
     - __kind: PointerType
       ID: 943
       Name: '*archive/zip.pooledFlateWriter'
       ByteSize: 8
-      GoRuntimeType: 1.02144e+06
+      GoRuntimeType: 1021440
       GoKind: 22
       Pointee: 944 UnresolvedPointeeType archive/zip.pooledFlateWriter
     - __kind: PointerType
@@ -11417,21 +11417,21 @@ Types:
       ID: 989
       Name: '*bufio.Reader'
       ByteSize: 8
-      GoRuntimeType: 2.038944e+06
+      GoRuntimeType: 2038944
       GoKind: 22
       Pointee: 990 UnresolvedPointeeType bufio.Reader
     - __kind: PointerType
       ID: 1016
       Name: '*bufio.Writer'
       ByteSize: 8
-      GoRuntimeType: 1.824e+06
+      GoRuntimeType: 1824000
       GoKind: 22
       Pointee: 1017 UnresolvedPointeeType bufio.Writer
     - __kind: PointerType
       ID: 1061
       Name: '*bytes.Buffer'
       ByteSize: 8
-      GoRuntimeType: 2.131904e+06
+      GoRuntimeType: 2131904
       GoKind: 22
       Pointee: 1062 UnresolvedPointeeType bytes.Buffer
     - __kind: PointerType
@@ -11457,7 +11457,7 @@ Types:
       ID: 963
       Name: '*compress/flate.Writer'
       ByteSize: 8
-      GoRuntimeType: 1.249184e+06
+      GoRuntimeType: 1249184
       GoKind: 22
       Pointee: 964 UnresolvedPointeeType compress/flate.Writer
     - __kind: PointerType
@@ -11471,14 +11471,14 @@ Types:
       ID: 985
       Name: '*compress/gzip.Writer'
       ByteSize: 8
-      GoRuntimeType: 1.608672e+06
+      GoRuntimeType: 1608672
       GoKind: 22
       Pointee: 986 UnresolvedPointeeType compress/gzip.Writer
     - __kind: PointerType
       ID: 821
       Name: '*context.deadlineExceededError'
       ByteSize: 8
-      GoRuntimeType: 1.12336e+06
+      GoRuntimeType: 1123360
       GoKind: 22
       Pointee: 822 StructureType context.deadlineExceededError
     - __kind: PointerType
@@ -11499,14 +11499,14 @@ Types:
       ID: 975
       Name: '*crypto/hmac.hmac'
       ByteSize: 8
-      GoRuntimeType: 1.380576e+06
+      GoRuntimeType: 1380576
       GoKind: 22
       Pointee: 976 UnresolvedPointeeType crypto/hmac.hmac
     - __kind: PointerType
       ID: 1000
       Name: '*crypto/md5.digest'
       ByteSize: 8
-      GoRuntimeType: 1.68768e+06
+      GoRuntimeType: 1687680
       GoKind: 22
       Pointee: 1001 UnresolvedPointeeType crypto/md5.digest
     - __kind: PointerType
@@ -11520,21 +11520,21 @@ Types:
       ID: 1008
       Name: '*crypto/sha1.digest'
       ByteSize: 8
-      GoRuntimeType: 1.779232e+06
+      GoRuntimeType: 1779232
       GoKind: 22
       Pointee: 1009 UnresolvedPointeeType crypto/sha1.digest
     - __kind: PointerType
       ID: 1002
       Name: '*crypto/sha256.digest'
       ByteSize: 8
-      GoRuntimeType: 1.688128e+06
+      GoRuntimeType: 1688128
       GoKind: 22
       Pointee: 1003 UnresolvedPointeeType crypto/sha256.digest
     - __kind: PointerType
       ID: 1004
       Name: '*crypto/sha512.digest'
       ByteSize: 8
-      GoRuntimeType: 1.688576e+06
+      GoRuntimeType: 1688576
       GoKind: 22
       Pointee: 1005 UnresolvedPointeeType crypto/sha512.digest
     - __kind: PointerType
@@ -11548,14 +11548,14 @@ Types:
       ID: 761
       Name: '*crypto/tls.CertificateVerificationError'
       ByteSize: 8
-      GoRuntimeType: 1.009024e+06
+      GoRuntimeType: 1009024
       GoKind: 22
       Pointee: 762 UnresolvedPointeeType crypto/tls.CertificateVerificationError
     - __kind: PointerType
       ID: 1087
       Name: '*crypto/tls.Conn'
       ByteSize: 8
-      GoRuntimeType: 2.241024e+06
+      GoRuntimeType: 2241024
       GoKind: 22
       Pointee: 1088 UnresolvedPointeeType crypto/tls.Conn
     - __kind: PointerType
@@ -11576,35 +11576,35 @@ Types:
       ID: 760
       Name: '*crypto/tls.alert'
       ByteSize: 8
-      GoRuntimeType: 1.00736e+06
+      GoRuntimeType: 1007360
       GoKind: 22
       Pointee: 717 BaseType crypto/tls.alert
     - __kind: PointerType
       ID: 973
       Name: '*crypto/tls.cthWrapper'
       ByteSize: 8
-      GoRuntimeType: 1.377696e+06
+      GoRuntimeType: 1377696
       GoKind: 22
       Pointee: 974 UnresolvedPointeeType crypto/tls.cthWrapper
     - __kind: PointerType
       ID: 980
       Name: '*crypto/tls.finishedHash'
       ByteSize: 8
-      GoRuntimeType: 1.45824e+06
+      GoRuntimeType: 1458240
       GoKind: 22
       Pointee: 981 UnresolvedPointeeType crypto/tls.finishedHash
     - __kind: PointerType
       ID: 856
       Name: '*crypto/tls.permanentError'
       ByteSize: 8
-      GoRuntimeType: 1.249504e+06
+      GoRuntimeType: 1249504
       GoKind: 22
       Pointee: 857 UnresolvedPointeeType crypto/tls.permanentError
     - __kind: PointerType
       ID: 871
       Name: '*crypto/x509.Certificate'
       ByteSize: 8
-      GoRuntimeType: 1.914912e+06
+      GoRuntimeType: 1914912
       GoKind: 22
       Pointee: 872 UnresolvedPointeeType crypto/x509.Certificate
     - __kind: PointerType
@@ -11639,7 +11639,7 @@ Types:
       ID: 766
       Name: '*crypto/x509.SystemRootsError'
       ByteSize: 8
-      GoRuntimeType: 1.014912e+06
+      GoRuntimeType: 1014912
       GoKind: 22
       Pointee: 767 StructureType crypto/x509.SystemRootsError
     - __kind: PointerType
@@ -11688,7 +11688,7 @@ Types:
       ID: 931
       Name: '*encoding/base64.encoder'
       ByteSize: 8
-      GoRuntimeType: 1.004544e+06
+      GoRuntimeType: 1004544
       GoKind: 22
       Pointee: 932 UnresolvedPointeeType encoding/base64.encoder
     - __kind: PointerType
@@ -11709,7 +11709,7 @@ Types:
       ID: 752
       Name: '*encoding/json.MarshalerError'
       ByteSize: 8
-      GoRuntimeType: 1.000192e+06
+      GoRuntimeType: 1000192
       GoKind: 22
       Pointee: 753 UnresolvedPointeeType encoding/json.MarshalerError
     - __kind: PointerType
@@ -11744,7 +11744,7 @@ Types:
       ID: 1067
       Name: '*encoding/json.encodeState'
       ByteSize: 8
-      GoRuntimeType: 2.157472e+06
+      GoRuntimeType: 2157472
       GoKind: 22
       Pointee: 1068 UnresolvedPointeeType encoding/json.encodeState
     - __kind: PointerType
@@ -11758,7 +11758,7 @@ Types:
       ID: 939
       Name: '*encoding/pem.lineBreaker'
       ByteSize: 8
-      GoRuntimeType: 1.017728e+06
+      GoRuntimeType: 1017728
       GoKind: 22
       Pointee: 940 UnresolvedPointeeType encoding/pem.lineBreaker
     - __kind: PointerType
@@ -11798,7 +11798,7 @@ Types:
       ID: 1045
       Name: '*encoding/xml.printer'
       ByteSize: 8
-      GoRuntimeType: 2.027424e+06
+      GoRuntimeType: 2027424
       GoKind: 22
       Pointee: 1046 UnresolvedPointeeType encoding/xml.printer
     - __kind: PointerType
@@ -11840,7 +11840,7 @@ Types:
       ID: 1055
       Name: '*fmt.pp'
       ByteSize: 8
-      GoRuntimeType: 2.1232e+06
+      GoRuntimeType: 2123200
       GoKind: 22
       Pointee: 1056 UnresolvedPointeeType fmt.pp
     - __kind: PointerType
@@ -11939,14 +11939,14 @@ Types:
       ID: 953
       Name: '*github.com/DataDog/datadog-go/v5/statsd.udpWriter'
       ByteSize: 8
-      GoRuntimeType: 1.12912e+06
+      GoRuntimeType: 1129120
       GoKind: 22
       Pointee: 954 UnresolvedPointeeType github.com/DataDog/datadog-go/v5/statsd.udpWriter
     - __kind: PointerType
       ID: 1033
       Name: '*github.com/DataDog/datadog-go/v5/statsd.udsWriter'
       ByteSize: 8
-      GoRuntimeType: 1.93024e+06
+      GoRuntimeType: 1930240
       GoKind: 22
       Pointee: 1034 UnresolvedPointeeType github.com/DataDog/datadog-go/v5/statsd.udsWriter
     - __kind: PointerType
@@ -11960,14 +11960,14 @@ Types:
       ID: 830
       Name: '*github.com/DataDog/dd-trace-go/v2/instrumentation/errortrace.TracerError'
       ByteSize: 8
-      GoRuntimeType: 1.132448e+06
+      GoRuntimeType: 1132448
       GoKind: 22
       Pointee: 831 UnresolvedPointeeType github.com/DataDog/dd-trace-go/v2/instrumentation/errortrace.TracerError
     - __kind: PointerType
       ID: 1063
       Name: '*github.com/DataDog/dd-trace-go/v2/internal/appsec.limitedBuffer'
       ByteSize: 8
-      GoRuntimeType: 2.13344e+06
+      GoRuntimeType: 2133440
       GoKind: 22
       Pointee: 1064 UnresolvedPointeeType github.com/DataDog/dd-trace-go/v2/internal/appsec.limitedBuffer
     - __kind: PointerType
@@ -12119,7 +12119,7 @@ Types:
       ID: 992
       Name: '*github.com/cihub/seelog.bufferedWriter'
       ByteSize: 8
-      GoRuntimeType: 1.684768e+06
+      GoRuntimeType: 1684768
       GoKind: 22
       Pointee: 993 UnresolvedPointeeType github.com/cihub/seelog.bufferedWriter
     - __kind: PointerType
@@ -12133,21 +12133,21 @@ Types:
       ID: 971
       Name: '*github.com/cihub/seelog.connWriter'
       ByteSize: 8
-      GoRuntimeType: 1.376576e+06
+      GoRuntimeType: 1376576
       GoKind: 22
       Pointee: 972 UnresolvedPointeeType github.com/cihub/seelog.connWriter
     - __kind: PointerType
       ID: 927
       Name: '*github.com/cihub/seelog.consoleWriter'
       ByteSize: 8
-      GoRuntimeType: 1.00352e+06
+      GoRuntimeType: 1003520
       GoKind: 22
       Pointee: 928 UnresolvedPointeeType github.com/cihub/seelog.consoleWriter
     - __kind: PointerType
       ID: 961
       Name: '*github.com/cihub/seelog.fileWriter'
       ByteSize: 8
-      GoRuntimeType: 1.247264e+06
+      GoRuntimeType: 1247264
       GoKind: 22
       Pointee: 962 UnresolvedPointeeType github.com/cihub/seelog.fileWriter
     - __kind: PointerType
@@ -12161,28 +12161,28 @@ Types:
       ID: 1023
       Name: '*github.com/cihub/seelog.rollingFileWriter'
       ByteSize: 8
-      GoRuntimeType: 1.848256e+06
+      GoRuntimeType: 1848256
       GoKind: 22
       Pointee: 1024 UnresolvedPointeeType github.com/cihub/seelog.rollingFileWriter
     - __kind: PointerType
       ID: 1038
       Name: '*github.com/cihub/seelog.rollingFileWriterSize'
       ByteSize: 8
-      GoRuntimeType: 2.002464e+06
+      GoRuntimeType: 2002464
       GoKind: 22
       Pointee: 1035 StructureType github.com/cihub/seelog.rollingFileWriterSize
     - __kind: PointerType
       ID: 1037
       Name: '*github.com/cihub/seelog.rollingFileWriterTime'
       ByteSize: 8
-      GoRuntimeType: 2.00208e+06
+      GoRuntimeType: 2002080
       GoKind: 22
       Pointee: 1036 StructureType github.com/cihub/seelog.rollingFileWriterTime
     - __kind: PointerType
       ID: 929
       Name: '*github.com/cihub/seelog.smtpWriter'
       ByteSize: 8
-      GoRuntimeType: 1.003648e+06
+      GoRuntimeType: 1003648
       GoKind: 22
       Pointee: 930 UnresolvedPointeeType github.com/cihub/seelog.smtpWriter
     - __kind: PointerType
@@ -12203,70 +12203,70 @@ Types:
       ID: 996
       Name: '*github.com/cihub/seelog/archive/gzip.Writer'
       ByteSize: 8
-      GoRuntimeType: 1.686336e+06
+      GoRuntimeType: 1686336
       GoKind: 22
       Pointee: 997 UnresolvedPointeeType github.com/cihub/seelog/archive/gzip.Writer
     - __kind: PointerType
       ID: 1029
       Name: '*github.com/cihub/seelog/archive/tar.Writer'
       ByteSize: 8
-      GoRuntimeType: 1.88384e+06
+      GoRuntimeType: 1883840
       GoKind: 22
       Pointee: 1030 UnresolvedPointeeType github.com/cihub/seelog/archive/tar.Writer
     - __kind: PointerType
       ID: 1031
       Name: '*github.com/cihub/seelog/archive/zip.Writer'
       ByteSize: 8
-      GoRuntimeType: 1.914592e+06
+      GoRuntimeType: 1914592
       GoKind: 22
       Pointee: 1032 UnresolvedPointeeType github.com/cihub/seelog/archive/zip.Writer
     - __kind: PointerType
       ID: 861
       Name: '*github.com/go-viper/mapstructure/v2.DecodeError'
       ByteSize: 8
-      GoRuntimeType: 1.261344e+06
+      GoRuntimeType: 1261344
       GoKind: 22
       Pointee: 862 UnresolvedPointeeType github.com/go-viper/mapstructure/v2.DecodeError
     - __kind: PointerType
       ID: 774
       Name: '*github.com/go-viper/mapstructure/v2.ParseError'
       ByteSize: 8
-      GoRuntimeType: 1.02912e+06
+      GoRuntimeType: 1029120
       GoKind: 22
       Pointee: 775 UnresolvedPointeeType github.com/go-viper/mapstructure/v2.ParseError
     - __kind: PointerType
       ID: 772
       Name: '*github.com/go-viper/mapstructure/v2.UnconvertibleTypeError'
       ByteSize: 8
-      GoRuntimeType: 1.028992e+06
+      GoRuntimeType: 1028992
       GoKind: 22
       Pointee: 773 UnresolvedPointeeType github.com/go-viper/mapstructure/v2.UnconvertibleTypeError
     - __kind: PointerType
       ID: 776
       Name: '*github.com/gogo/protobuf/proto.RequiredNotSetError'
       ByteSize: 8
-      GoRuntimeType: 1.033088e+06
+      GoRuntimeType: 1033088
       GoKind: 22
       Pointee: 777 UnresolvedPointeeType github.com/gogo/protobuf/proto.RequiredNotSetError
     - __kind: PointerType
       ID: 778
       Name: '*github.com/gogo/protobuf/proto.invalidUTF8Error'
       ByteSize: 8
-      GoRuntimeType: 1.033216e+06
+      GoRuntimeType: 1033216
       GoKind: 22
       Pointee: 779 UnresolvedPointeeType github.com/gogo/protobuf/proto.invalidUTF8Error
     - __kind: PointerType
       ID: 982
       Name: '*github.com/gogo/protobuf/proto.textWriter'
       ByteSize: 8
-      GoRuntimeType: 1.485888e+06
+      GoRuntimeType: 1485888
       GoKind: 22
       Pointee: 983 UnresolvedPointeeType github.com/gogo/protobuf/proto.textWriter
     - __kind: PointerType
       ID: 768
       Name: '*github.com/golang/protobuf/proto.RequiredNotSetError'
       ByteSize: 8
-      GoRuntimeType: 1.01568e+06
+      GoRuntimeType: 1015680
       GoKind: 22
       Pointee: 769 UnresolvedPointeeType github.com/golang/protobuf/proto.RequiredNotSetError
     - __kind: PointerType
@@ -12280,28 +12280,28 @@ Types:
       ID: 1079
       Name: '*github.com/json-iterator/go.Stream'
       ByteSize: 8
-      GoRuntimeType: 2.220128e+06
+      GoRuntimeType: 2220128
       GoKind: 22
       Pointee: 1080 UnresolvedPointeeType github.com/json-iterator/go.Stream
     - __kind: PointerType
       ID: 832
       Name: '*github.com/pkg/errors.fundamental'
       ByteSize: 8
-      GoRuntimeType: 1.14064e+06
+      GoRuntimeType: 1140640
       GoKind: 22
       Pointee: 833 UnresolvedPointeeType github.com/pkg/errors.fundamental
     - __kind: PointerType
       ID: 805
       Name: '*github.com/tinylib/msgp/msgp.ArrayError'
       ByteSize: 8
-      GoRuntimeType: 1.11952e+06
+      GoRuntimeType: 1119520
       GoKind: 22
       Pointee: 806 StructureType github.com/tinylib/msgp/msgp.ArrayError
     - __kind: PointerType
       ID: 799
       Name: '*github.com/tinylib/msgp/msgp.ErrUnsupportedType'
       ByteSize: 8
-      GoRuntimeType: 1.119136e+06
+      GoRuntimeType: 1119136
       GoKind: 22
       Pointee: 800 UnresolvedPointeeType github.com/tinylib/msgp/msgp.ErrUnsupportedType
     - __kind: PointerType
@@ -12315,7 +12315,7 @@ Types:
       ID: 811
       Name: '*github.com/tinylib/msgp/msgp.IntOverflow'
       ByteSize: 8
-      GoRuntimeType: 1.119904e+06
+      GoRuntimeType: 1119904
       GoKind: 22
       Pointee: 812 StructureType github.com/tinylib/msgp/msgp.IntOverflow
     - __kind: PointerType
@@ -12329,42 +12329,42 @@ Types:
       ID: 803
       Name: '*github.com/tinylib/msgp/msgp.InvalidTimestamp'
       ByteSize: 8
-      GoRuntimeType: 1.119392e+06
+      GoRuntimeType: 1119392
       GoKind: 22
       Pointee: 804 StructureType github.com/tinylib/msgp/msgp.InvalidTimestamp
     - __kind: PointerType
       ID: 801
       Name: '*github.com/tinylib/msgp/msgp.TypeError'
       ByteSize: 8
-      GoRuntimeType: 1.119264e+06
+      GoRuntimeType: 1119264
       GoKind: 22
       Pointee: 802 StructureType github.com/tinylib/msgp/msgp.TypeError
     - __kind: PointerType
       ID: 809
       Name: '*github.com/tinylib/msgp/msgp.UintBelowZero'
       ByteSize: 8
-      GoRuntimeType: 1.119776e+06
+      GoRuntimeType: 1119776
       GoKind: 22
       Pointee: 810 StructureType github.com/tinylib/msgp/msgp.UintBelowZero
     - __kind: PointerType
       ID: 807
       Name: '*github.com/tinylib/msgp/msgp.UintOverflow'
       ByteSize: 8
-      GoRuntimeType: 1.119648e+06
+      GoRuntimeType: 1119648
       GoKind: 22
       Pointee: 808 StructureType github.com/tinylib/msgp/msgp.UintOverflow
     - __kind: PointerType
       ID: 1083
       Name: '*github.com/tinylib/msgp/msgp.Writer'
       ByteSize: 8
-      GoRuntimeType: 2.231168e+06
+      GoRuntimeType: 2231168
       GoKind: 22
       Pointee: 1084 UnresolvedPointeeType github.com/tinylib/msgp/msgp.Writer
     - __kind: PointerType
       ID: 815
       Name: '*github.com/tinylib/msgp/msgp.errFatal'
       ByteSize: 8
-      GoRuntimeType: 1.120288e+06
+      GoRuntimeType: 1120288
       GoKind: 22
       Pointee: 816 StructureType github.com/tinylib/msgp/msgp.errFatal
     - __kind: PointerType
@@ -12385,7 +12385,7 @@ Types:
       ID: 813
       Name: '*github.com/tinylib/msgp/msgp.errWrapped'
       ByteSize: 8
-      GoRuntimeType: 1.12016e+06
+      GoRuntimeType: 1120160
       GoKind: 22
       Pointee: 814 StructureType github.com/tinylib/msgp/msgp.errWrapped
     - __kind: PointerType
@@ -12448,35 +12448,35 @@ Types:
       ID: 874
       Name: '*go.uber.org/multierr.multiError'
       ByteSize: 8
-      GoRuntimeType: 1.484352e+06
+      GoRuntimeType: 1484352
       GoKind: 22
       Pointee: 875 UnresolvedPointeeType go.uber.org/multierr.multiError
     - __kind: PointerType
       ID: 782
       Name: '*go.uber.org/zap.errArrayElem'
       ByteSize: 8
-      GoRuntimeType: 1.048064e+06
+      GoRuntimeType: 1048064
       GoKind: 22
       Pointee: 783 StructureType go.uber.org/zap.errArrayElem
     - __kind: PointerType
       ID: 959
       Name: '*go.uber.org/zap.nopCloserSink'
       ByteSize: 8
-      GoRuntimeType: 1.179552e+06
+      GoRuntimeType: 1179552
       GoKind: 22
       Pointee: 960 StructureType go.uber.org/zap.nopCloserSink
     - __kind: PointerType
       ID: 1043
       Name: '*go.uber.org/zap/buffer.Buffer'
       ByteSize: 8
-      GoRuntimeType: 2.017056e+06
+      GoRuntimeType: 2017056
       GoKind: 22
       Pointee: 1044 UnresolvedPointeeType go.uber.org/zap/buffer.Buffer
     - __kind: PointerType
       ID: 945
       Name: '*go.uber.org/zap/zapcore.writerWrapper'
       ByteSize: 8
-      GoRuntimeType: 1.050368e+06
+      GoRuntimeType: 1050368
       GoKind: 22
       Pointee: 946 StructureType go.uber.org/zap/zapcore.writerWrapper
     - __kind: PointerType
@@ -12490,7 +12490,7 @@ Types:
       ID: 840
       Name: '*golang.org/x/net/http2.StreamError'
       ByteSize: 8
-      GoRuntimeType: 1.181216e+06
+      GoRuntimeType: 1181216
       GoKind: 22
       Pointee: 841 StructureType golang.org/x/net/http2.StreamError
     - __kind: PointerType
@@ -12552,7 +12552,7 @@ Types:
       ID: 1041
       Name: '*golang.org/x/net/http2/hpack.Decoder'
       ByteSize: 8
-      GoRuntimeType: 2.015136e+06
+      GoRuntimeType: 2015136
       GoKind: 22
       Pointee: 1042 UnresolvedPointeeType golang.org/x/net/http2/hpack.Decoder
     - __kind: PointerType
@@ -12580,14 +12580,14 @@ Types:
       ID: 838
       Name: '*google.golang.org/grpc/internal/status.Error'
       ByteSize: 8
-      GoRuntimeType: 1.178144e+06
+      GoRuntimeType: 1178144
       GoKind: 22
       Pointee: 839 UnresolvedPointeeType google.golang.org/grpc/internal/status.Error
     - __kind: PointerType
       ID: 863
       Name: '*google.golang.org/grpc/internal/transport.ConnectionError'
       ByteSize: 8
-      GoRuntimeType: 1.268704e+06
+      GoRuntimeType: 1268704
       GoKind: 22
       Pointee: 864 StructureType google.golang.org/grpc/internal/transport.ConnectionError
     - __kind: PointerType
@@ -12601,21 +12601,21 @@ Types:
       ID: 1006
       Name: '*google.golang.org/grpc/internal/transport.bufConn'
       ByteSize: 8
-      GoRuntimeType: 1.693056e+06
+      GoRuntimeType: 1693056
       GoKind: 22
       Pointee: 1007 StructureType google.golang.org/grpc/internal/transport.bufConn
     - __kind: PointerType
       ID: 957
       Name: '*google.golang.org/grpc/internal/transport.bufWriter'
       ByteSize: 8
-      GoRuntimeType: 1.174688e+06
+      GoRuntimeType: 1174688
       GoKind: 22
       Pointee: 958 UnresolvedPointeeType google.golang.org/grpc/internal/transport.bufWriter
     - __kind: PointerType
       ID: 780
       Name: '*google.golang.org/grpc/internal/transport.ioError'
       ByteSize: 8
-      GoRuntimeType: 1.042304e+06
+      GoRuntimeType: 1042304
       GoKind: 22
       Pointee: 781 StructureType google.golang.org/grpc/internal/transport.ioError
     - __kind: PointerType
@@ -12636,21 +12636,21 @@ Types:
       ID: 770
       Name: '*google.golang.org/protobuf/internal/errors.prefixError'
       ByteSize: 8
-      GoRuntimeType: 1.019136e+06
+      GoRuntimeType: 1019136
       GoKind: 22
       Pointee: 771 UnresolvedPointeeType google.golang.org/protobuf/internal/errors.prefixError
     - __kind: PointerType
       ID: 836
       Name: '*google.golang.org/protobuf/internal/errors.wrapError'
       ByteSize: 8
-      GoRuntimeType: 1.1464e+06
+      GoRuntimeType: 1146400
       GoKind: 22
       Pointee: 837 UnresolvedPointeeType google.golang.org/protobuf/internal/errors.wrapError
     - __kind: PointerType
       ID: 834
       Name: '*google.golang.org/protobuf/internal/impl.errInvalidUTF8'
       ByteSize: 8
-      GoRuntimeType: 1.146144e+06
+      GoRuntimeType: 1146144
       GoKind: 22
       Pointee: 835 StructureType google.golang.org/protobuf/internal/impl.errInvalidUTF8
     - __kind: PointerType
@@ -12678,7 +12678,7 @@ Types:
       ID: 994
       Name: '*hash/crc32.digest'
       ByteSize: 8
-      GoRuntimeType: 1.68544e+06
+      GoRuntimeType: 1685440
       GoKind: 22
       Pointee: 995 UnresolvedPointeeType hash/crc32.digest
     - __kind: PointerType
@@ -12883,21 +12883,21 @@ Types:
       ID: 797
       Name: '*internal/poll.DeadlineExceededError'
       ByteSize: 8
-      GoRuntimeType: 1.118368e+06
+      GoRuntimeType: 1118368
       GoKind: 22
       Pointee: 798 UnresolvedPointeeType internal/poll.DeadlineExceededError
     - __kind: PointerType
       ID: 1085
       Name: '*internal/poll.FD'
       ByteSize: 8
-      GoRuntimeType: 2.23584e+06
+      GoRuntimeType: 2235840
       GoKind: 22
       Pointee: 1086 UnresolvedPointeeType internal/poll.FD
     - __kind: PointerType
       ID: 795
       Name: '*internal/poll.errNetClosing'
       ByteSize: 8
-      GoRuntimeType: 1.11824e+06
+      GoRuntimeType: 1118240
       GoKind: 22
       Pointee: 796 StructureType internal/poll.errNetClosing
     - __kind: PointerType
@@ -12911,14 +12911,14 @@ Types:
       ID: 949
       Name: '*io.PipeWriter'
       ByteSize: 8
-      GoRuntimeType: 1.109664e+06
+      GoRuntimeType: 1109664
       GoKind: 22
       Pointee: 950 UnresolvedPointeeType io.PipeWriter
     - __kind: PointerType
       ID: 947
       Name: '*io.discard'
       ByteSize: 8
-      GoRuntimeType: 1.10928e+06
+      GoRuntimeType: 1109280
       GoKind: 22
       Pointee: 948 StructureType io.discard
     - __kind: PointerType
@@ -12932,14 +12932,14 @@ Types:
       ID: 793
       Name: '*io/fs.PathError'
       ByteSize: 8
-      GoRuntimeType: 1.117984e+06
+      GoRuntimeType: 1117984
       GoKind: 22
       Pointee: 794 UnresolvedPointeeType io/fs.PathError
     - __kind: PointerType
       ID: 998
       Name: '*log/slog/internal/buffer.Buffer'
       ByteSize: 8
-      GoRuntimeType: 1.68656e+06
+      GoRuntimeType: 1686560
       GoKind: 22
       Pointee: 999 UnresolvedPointeeType log/slog/internal/buffer.Buffer
     - __kind: PointerType
@@ -13211,63 +13211,63 @@ Types:
       ID: 824
       Name: '*net.AddrError'
       ByteSize: 8
-      GoRuntimeType: 1.126688e+06
+      GoRuntimeType: 1126688
       GoKind: 22
       Pointee: 825 UnresolvedPointeeType net.AddrError
     - __kind: PointerType
       ID: 850
       Name: '*net.DNSError'
       ByteSize: 8
-      GoRuntimeType: 1.245504e+06
+      GoRuntimeType: 1245504
       GoKind: 22
       Pointee: 851 UnresolvedPointeeType net.DNSError
     - __kind: PointerType
       ID: 1049
       Name: '*net.IPConn'
       ByteSize: 8
-      GoRuntimeType: 2.095872e+06
+      GoRuntimeType: 2095872
       GoKind: 22
       Pointee: 1050 UnresolvedPointeeType net.IPConn
     - __kind: PointerType
       ID: 848
       Name: '*net.OpError'
       ByteSize: 8
-      GoRuntimeType: 1.245184e+06
+      GoRuntimeType: 1245184
       GoKind: 22
       Pointee: 849 UnresolvedPointeeType net.OpError
     - __kind: PointerType
       ID: 826
       Name: '*net.ParseError'
       ByteSize: 8
-      GoRuntimeType: 1.126816e+06
+      GoRuntimeType: 1126816
       GoKind: 22
       Pointee: 827 UnresolvedPointeeType net.ParseError
     - __kind: PointerType
       ID: 1059
       Name: '*net.TCPConn'
       ByteSize: 8
-      GoRuntimeType: 2.125248e+06
+      GoRuntimeType: 2125248
       GoKind: 22
       Pointee: 1060 UnresolvedPointeeType net.TCPConn
     - __kind: PointerType
       ID: 1069
       Name: '*net.UDPConn'
       ByteSize: 8
-      GoRuntimeType: 2.170208e+06
+      GoRuntimeType: 2170208
       GoKind: 22
       Pointee: 1070 UnresolvedPointeeType net.UDPConn
     - __kind: PointerType
       ID: 1057
       Name: '*net.UnixConn'
       ByteSize: 8
-      GoRuntimeType: 2.124736e+06
+      GoRuntimeType: 2124736
       GoKind: 22
       Pointee: 1058 UnresolvedPointeeType net.UnixConn
     - __kind: PointerType
       ID: 823
       Name: '*net.UnknownNetworkError'
       ByteSize: 8
-      GoRuntimeType: 1.12592e+06
+      GoRuntimeType: 1125920
       GoKind: 22
       Pointee: 786 GoStringHeaderType net.UnknownNetworkError
     - __kind: PointerType
@@ -13279,28 +13279,28 @@ Types:
       ID: 754
       Name: '*net.canceledError'
       ByteSize: 8
-      GoRuntimeType: 1.00096e+06
+      GoRuntimeType: 1000960
       GoKind: 22
       Pointee: 755 StructureType net.canceledError
     - __kind: PointerType
       ID: 1027
       Name: '*net.conn'
       ByteSize: 8
-      GoRuntimeType: 1.881536e+06
+      GoRuntimeType: 1881536
       GoKind: 22
       Pointee: 1028 UnresolvedPointeeType net.conn
     - __kind: PointerType
       ID: 892
       Name: '*net.dialResult·1'
       ByteSize: 8
-      GoRuntimeType: 1.726208e+06
+      GoRuntimeType: 1726208
       GoKind: 22
       Pointee: 893 StructureType net.dialResult·1
     - __kind: PointerType
       ID: 1071
       Name: '*net.netFD'
       ByteSize: 8
-      GoRuntimeType: 2.174464e+06
+      GoRuntimeType: 2174464
       GoKind: 22
       Pointee: 1072 UnresolvedPointeeType net.netFD
     - __kind: PointerType
@@ -13321,28 +13321,28 @@ Types:
       ID: 1053
       Name: '*net.tcpConnWithoutReadFrom'
       ByteSize: 8
-      GoRuntimeType: 2.11024e+06
+      GoRuntimeType: 2110240
       GoKind: 22
       Pointee: 1054 StructureType net.tcpConnWithoutReadFrom
     - __kind: PointerType
       ID: 1051
       Name: '*net.tcpConnWithoutWriteTo'
       ByteSize: 8
-      GoRuntimeType: 2.10976e+06
+      GoRuntimeType: 2109760
       GoKind: 22
       Pointee: 1052 StructureType net.tcpConnWithoutWriteTo
     - __kind: PointerType
       ID: 828
       Name: '*net.temporaryError'
       ByteSize: 8
-      GoRuntimeType: 1.127456e+06
+      GoRuntimeType: 1127456
       GoKind: 22
       Pointee: 829 UnresolvedPointeeType net.temporaryError
     - __kind: PointerType
       ID: 852
       Name: '*net.timeoutError'
       ByteSize: 8
-      GoRuntimeType: 1.245664e+06
+      GoRuntimeType: 1245664
       GoKind: 22
       Pointee: 853 UnresolvedPointeeType net.timeoutError
     - __kind: PointerType
@@ -13377,7 +13377,7 @@ Types:
       ID: 844
       Name: '*net/http.http2StreamError'
       ByteSize: 8
-      GoRuntimeType: 1.241344e+06
+      GoRuntimeType: 1241344
       GoKind: 22
       Pointee: 845 StructureType net/http.http2StreamError
     - __kind: PointerType
@@ -13391,7 +13391,7 @@ Types:
       ID: 967
       Name: '*net/http.http2dataBuffer'
       ByteSize: 8
-      GoRuntimeType: 1.373216e+06
+      GoRuntimeType: 1373216
       GoKind: 22
       Pointee: 968 UnresolvedPointeeType net/http.http2dataBuffer
     - __kind: PointerType
@@ -13434,7 +13434,7 @@ Types:
       ID: 819
       Name: '*net/http.http2httpError'
       ByteSize: 8
-      GoRuntimeType: 1.122464e+06
+      GoRuntimeType: 1122464
       GoKind: 22
       Pointee: 820 UnresolvedPointeeType net/http.http2httpError
     - __kind: PointerType
@@ -13448,7 +13448,7 @@ Types:
       ID: 1018
       Name: '*net/http.http2pipe'
       ByteSize: 8
-      GoRuntimeType: 1.825536e+06
+      GoRuntimeType: 1825536
       GoKind: 22
       Pointee: 1019 UnresolvedPointeeType net/http.http2pipe
     - __kind: PointerType
@@ -13481,7 +13481,7 @@ Types:
       ID: 969
       Name: '*net/http.persistConn'
       ByteSize: 8
-      GoRuntimeType: 2.040608e+06
+      GoRuntimeType: 2040608
       GoKind: 22
       Pointee: 970 UnresolvedPointeeType net/http.persistConn
     - __kind: PointerType
@@ -13495,7 +13495,7 @@ Types:
       ID: 951
       Name: '*net/http.readWriteCloserBody'
       ByteSize: 8
-      GoRuntimeType: 1.12144e+06
+      GoRuntimeType: 1121440
       GoKind: 22
       Pointee: 952 StructureType net/http.readWriteCloserBody
     - __kind: PointerType
@@ -13509,14 +13509,14 @@ Types:
       ID: 846
       Name: '*net/http.timeoutError'
       ByteSize: 8
-      GoRuntimeType: 1.242464e+06
+      GoRuntimeType: 1242464
       GoKind: 22
       Pointee: 847 UnresolvedPointeeType net/http.timeoutError
     - __kind: PointerType
       ID: 817
       Name: '*net/http.tlsHandshakeTimeoutError'
       ByteSize: 8
-      GoRuntimeType: 1.122336e+06
+      GoRuntimeType: 1122336
       GoKind: 22
       Pointee: 818 StructureType net/http.tlsHandshakeTimeoutError
     - __kind: PointerType
@@ -13537,14 +13537,14 @@ Types:
       ID: 1020
       Name: '*net/http/internal.FlushAfterChunkWriter'
       ByteSize: 8
-      GoRuntimeType: 1.827072e+06
+      GoRuntimeType: 1827072
       GoKind: 22
       Pointee: 1021 StructureType net/http/internal.FlushAfterChunkWriter
     - __kind: PointerType
       ID: 935
       Name: '*net/http/internal.chunkedWriter'
       ByteSize: 8
-      GoRuntimeType: 1.010048e+06
+      GoRuntimeType: 1010048
       GoKind: 22
       Pointee: 936 UnresolvedPointeeType net/http/internal.chunkedWriter
     - __kind: PointerType
@@ -13565,14 +13565,14 @@ Types:
       ID: 977
       Name: '*net/smtp.Client'
       ByteSize: 8
-      GoRuntimeType: 1.989856e+06
+      GoRuntimeType: 1989856
       GoKind: 22
       Pointee: 978 UnresolvedPointeeType net/smtp.Client
     - __kind: PointerType
       ID: 937
       Name: '*net/smtp.dataCloser'
       ByteSize: 8
-      GoRuntimeType: 1.015168e+06
+      GoRuntimeType: 1015168
       GoKind: 22
       Pointee: 938 StructureType net/smtp.dataCloser
     - __kind: PointerType
@@ -13598,14 +13598,14 @@ Types:
       ID: 933
       Name: '*net/textproto.dotWriter'
       ByteSize: 8
-      GoRuntimeType: 1.009408e+06
+      GoRuntimeType: 1009408
       GoKind: 22
       Pointee: 934 UnresolvedPointeeType net/textproto.dotWriter
     - __kind: PointerType
       ID: 854
       Name: '*net/url.Error'
       ByteSize: 8
-      GoRuntimeType: 1.245984e+06
+      GoRuntimeType: 1245984
       GoKind: 22
       Pointee: 855 UnresolvedPointeeType net/url.Error
     - __kind: PointerType
@@ -13636,7 +13636,7 @@ Types:
       ID: 1077
       Name: '*os.File'
       ByteSize: 8
-      GoRuntimeType: 2.211712e+06
+      GoRuntimeType: 2211712
       GoKind: 22
       Pointee: 1078 UnresolvedPointeeType os.File
     - __kind: PointerType
@@ -13650,49 +13650,49 @@ Types:
       ID: 789
       Name: '*os.SyscallError'
       ByteSize: 8
-      GoRuntimeType: 1.111072e+06
+      GoRuntimeType: 1111072
       GoKind: 22
       Pointee: 790 UnresolvedPointeeType os.SyscallError
     - __kind: PointerType
       ID: 1075
       Name: '*os.fileWithoutReadFrom'
       ByteSize: 8
-      GoRuntimeType: 2.208768e+06
+      GoRuntimeType: 2208768
       GoKind: 22
       Pointee: 1076 StructureType os.fileWithoutReadFrom
     - __kind: PointerType
       ID: 1073
       Name: '*os.fileWithoutWriteTo'
       ByteSize: 8
-      GoRuntimeType: 2.208032e+06
+      GoRuntimeType: 2208032
       GoKind: 22
       Pointee: 1074 StructureType os.fileWithoutWriteTo
     - __kind: PointerType
       ID: 756
       Name: '*os/exec.Error'
       ByteSize: 8
-      GoRuntimeType: 1.00608e+06
+      GoRuntimeType: 1006080
       GoKind: 22
       Pointee: 757 UnresolvedPointeeType os/exec.Error
     - __kind: PointerType
       ID: 895
       Name: '*os/exec.ExitError'
       ByteSize: 8
-      GoRuntimeType: 1.96112e+06
+      GoRuntimeType: 1961120
       GoKind: 22
       Pointee: 896 UnresolvedPointeeType os/exec.ExitError
     - __kind: PointerType
       ID: 955
       Name: '*os/exec.prefixSuffixSaver'
       ByteSize: 8
-      GoRuntimeType: 1.133472e+06
+      GoRuntimeType: 1133472
       GoKind: 22
       Pointee: 956 UnresolvedPointeeType os/exec.prefixSuffixSaver
     - __kind: PointerType
       ID: 758
       Name: '*os/exec.wrappedError'
       ByteSize: 8
-      GoRuntimeType: 1.006208e+06
+      GoRuntimeType: 1006208
       GoKind: 22
       Pointee: 759 StructureType os/exec.wrappedError
     - __kind: PointerType
@@ -13753,7 +13753,7 @@ Types:
       ID: 24
       Name: '*runtime._panic'
       ByteSize: 8
-      GoRuntimeType: 1.239584e+06
+      GoRuntimeType: 1239584
       GoKind: 22
       Pointee: 25 UnresolvedPointeeType runtime._panic
     - __kind: PointerType
@@ -13781,7 +13781,7 @@ Types:
       ID: 791
       Name: '*runtime.errorAddressString'
       ByteSize: 8
-      GoRuntimeType: 1.116448e+06
+      GoRuntimeType: 1116448
       GoKind: 22
       Pointee: 792 StructureType runtime.errorAddressString
     - __kind: PointerType
@@ -13840,14 +13840,14 @@ Types:
       ID: 44
       Name: '*runtime.timer'
       ByteSize: 8
-      GoRuntimeType: 1.9264e+06
+      GoRuntimeType: 1926400
       GoKind: 22
       Pointee: 45 UnresolvedPointeeType runtime.timer
     - __kind: PointerType
       ID: 72
       Name: '*runtime.traceBuf'
       ByteSize: 8
-      GoRuntimeType: 1.435584e+06
+      GoRuntimeType: 1435584
       GoKind: 22
       Pointee: 73 UnresolvedPointeeType runtime.traceBuf
     - __kind: PointerType
@@ -13873,7 +13873,7 @@ Types:
       ID: 1014
       Name: '*strings.Builder'
       ByteSize: 8
-      GoRuntimeType: 1.823488e+06
+      GoRuntimeType: 1823488
       GoKind: 22
       Pointee: 1015 UnresolvedPointeeType strings.Builder
     - __kind: PointerType
@@ -13899,28 +13899,28 @@ Types:
       ID: 843
       Name: '*syscall.Errno'
       ByteSize: 8
-      GoRuntimeType: 1.240704e+06
+      GoRuntimeType: 1240704
       GoKind: 22
       Pointee: 842 BaseType syscall.Errno
     - __kind: PointerType
       ID: 1047
       Name: '*text/tabwriter.Writer'
       ByteSize: 8
-      GoRuntimeType: 2.027808e+06
+      GoRuntimeType: 2027808
       GoKind: 22
       Pointee: 1048 UnresolvedPointeeType text/tabwriter.Writer
     - __kind: PointerType
       ID: 784
       Name: '*text/template.ExecError'
       ByteSize: 8
-      GoRuntimeType: 1.051904e+06
+      GoRuntimeType: 1051904
       GoKind: 22
       Pointee: 785 StructureType text/template.ExecError
     - __kind: PointerType
       ID: 859
       Name: '*time.Location'
       ByteSize: 8
-      GoRuntimeType: 1.441152e+06
+      GoRuntimeType: 1441152
       GoKind: 22
       Pointee: 860 UnresolvedPointeeType time.Location
     - __kind: PointerType
@@ -13988,7 +13988,7 @@ Types:
       ID: 1010
       Name: '*vendor/golang.org/x/crypto/sha3.state'
       ByteSize: 8
-      GoRuntimeType: 1.780512e+06
+      GoRuntimeType: 1780512
       GoKind: 22
       Pointee: 1011 UnresolvedPointeeType vendor/golang.org/x/crypto/sha3.state
     - __kind: PointerType
@@ -14002,7 +14002,7 @@ Types:
       ID: 1039
       Name: '*vendor/golang.org/x/net/http2/hpack.Decoder'
       ByteSize: 8
-      GoRuntimeType: 2.004384e+06
+      GoRuntimeType: 2004384
       GoKind: 22
       Pointee: 1040 UnresolvedPointeeType vendor/golang.org/x/net/http2/hpack.Decoder
     - __kind: PointerType
@@ -14023,14 +14023,14 @@ Types:
       ID: 763
       Name: '*vendor/golang.org/x/net/idna.labelError'
       ByteSize: 8
-      GoRuntimeType: 1.009792e+06
+      GoRuntimeType: 1009792
       GoKind: 22
       Pointee: 764 StructureType vendor/golang.org/x/net/idna.labelError
     - __kind: PointerType
       ID: 765
       Name: '*vendor/golang.org/x/net/idna.runeError'
       ByteSize: 8
-      GoRuntimeType: 1.00992e+06
+      GoRuntimeType: 1009920
       GoKind: 22
       Pointee: 718 BaseType vendor/golang.org/x/net/idna.runeError
     - __kind: EventRootType
@@ -16598,14 +16598,14 @@ Types:
                   Offset: 0
                   ByteSize: 8
           DictIndex: -1
-        - Name: y
+        - Name: "y"
           Offset: 9
           Kind: template_segment
           Expression:
             Type: 9 BaseType int
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 53, index: 1, name: y}
+                  Variable: {subprogram: 53, index: 1, name: "y"}
                   Offset: 0
                   ByteSize: 8
           DictIndex: -1
@@ -16620,14 +16620,14 @@ Types:
                   Offset: 0
                   ByteSize: 8
           DictIndex: -1
-        - Name: y
+        - Name: "y"
           Offset: 25
           Kind: argument
           Expression:
             Type: 9 BaseType int
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 53, index: 1, name: y}
+                  Variable: {subprogram: 53, index: 1, name: "y"}
                   Offset: 0
                   ByteSize: 8
           DictIndex: -1
@@ -22361,14 +22361,14 @@ Types:
                   Offset: 0
                   ByteSize: 16
           DictIndex: -1
-        - Name: y
+        - Name: "y"
           Offset: 18
           Kind: template_segment
           Expression:
             Type: 11 GoStringHeaderType string
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 149, index: 1, name: y}
+                  Variable: {subprogram: 149, index: 1, name: "y"}
                   Offset: 0
                   ByteSize: 16
           DictIndex: -1
@@ -22394,14 +22394,14 @@ Types:
                   Offset: 0
                   ByteSize: 16
           DictIndex: -1
-        - Name: y
+        - Name: "y"
           Offset: 66
           Kind: argument
           Expression:
             Type: 11 GoStringHeaderType string
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 149, index: 1, name: y}
+                  Variable: {subprogram: 149, index: 1, name: "y"}
                   Offset: 0
                   ByteSize: 16
           DictIndex: -1
@@ -24378,7 +24378,7 @@ Types:
     - __kind: StructureType
       ID: 916
       Name: archive/zip.dirWriter
-      GoRuntimeType: 1.083904e+06
+      GoRuntimeType: 1083904
       GoKind: 25
       RawFields: []
     - __kind: UnresolvedPointeeType
@@ -24389,7 +24389,7 @@ Types:
       ID: 942
       Name: archive/zip.nopCloser
       ByteSize: 16
-      GoRuntimeType: 1.383296e+06
+      GoRuntimeType: 1383296
       GoKind: 25
       RawFields:
         - Name: Writer
@@ -24992,7 +24992,7 @@ Types:
     - __kind: StructureType
       ID: 822
       Name: context.deadlineExceededError
-      GoRuntimeType: 1.303392e+06
+      GoRuntimeType: 1303392
       GoKind: 25
       RawFields: []
     - __kind: BaseType
@@ -25055,7 +25055,7 @@ Types:
       ID: 593
       Name: crypto/tls.RecordHeaderError
       ByteSize: 40
-      GoRuntimeType: 1.613856e+06
+      GoRuntimeType: 1613856
       GoKind: 25
       RawFields:
         - Name: Msg
@@ -25093,7 +25093,7 @@ Types:
       ID: 667
       Name: crypto/x509.CertificateInvalidError
       ByteSize: 32
-      GoRuntimeType: 1.616928e+06
+      GoRuntimeType: 1616928
       GoKind: 25
       RawFields:
         - Name: Cert
@@ -25108,14 +25108,14 @@ Types:
     - __kind: StructureType
       ID: 661
       Name: crypto/x509.ConstraintViolationError
-      GoRuntimeType: 1.081216e+06
+      GoRuntimeType: 1081216
       GoKind: 25
       RawFields: []
     - __kind: StructureType
       ID: 663
       Name: crypto/x509.HostnameError
       ByteSize: 24
-      GoRuntimeType: 1.415648e+06
+      GoRuntimeType: 1415648
       GoKind: 25
       RawFields:
         - Name: Certificate
@@ -25140,7 +25140,7 @@ Types:
       ID: 767
       Name: crypto/x509.SystemRootsError
       ByteSize: 16
-      GoRuntimeType: 1.379616e+06
+      GoRuntimeType: 1379616
       GoKind: 25
       RawFields:
         - Name: Err
@@ -25149,14 +25149,14 @@ Types:
     - __kind: StructureType
       ID: 669
       Name: crypto/x509.UnhandledCriticalExtension
-      GoRuntimeType: 1.081472e+06
+      GoRuntimeType: 1081472
       GoKind: 25
       RawFields: []
     - __kind: StructureType
       ID: 665
       Name: crypto/x509.UnknownAuthorityError
       ByteSize: 32
-      GoRuntimeType: 1.616736e+06
+      GoRuntimeType: 1616736
       GoKind: 25
       RawFields:
         - Name: Cert
@@ -25172,7 +25172,7 @@ Types:
       ID: 682
       Name: encoding/asn1.StructuralError
       ByteSize: 16
-      GoRuntimeType: 1.259584e+06
+      GoRuntimeType: 1259584
       GoKind: 25
       RawFields:
         - Name: Msg
@@ -25182,7 +25182,7 @@ Types:
       ID: 686
       Name: encoding/asn1.SyntaxError
       ByteSize: 16
-      GoRuntimeType: 1.259744e+06
+      GoRuntimeType: 1259744
       GoKind: 25
       RawFields:
         - Name: Msg
@@ -25240,7 +25240,7 @@ Types:
       ID: 556
       Name: encoding/json.jsonError
       ByteSize: 16
-      GoRuntimeType: 1.244224e+06
+      GoRuntimeType: 1244224
       GoKind: 25
       RawFields:
         - Name: error
@@ -25383,7 +25383,7 @@ Types:
       ID: 565
       Name: github.com/DataDog/datadog-go/v5/statsd.ErrorInputChannelFull
       ByteSize: 216
-      GoRuntimeType: 1.612128e+06
+      GoRuntimeType: 1612128
       GoKind: 25
       RawFields:
         - Name: Metric
@@ -25406,7 +25406,7 @@ Types:
     - __kind: StructureType
       ID: 571
       Name: github.com/DataDog/datadog-go/v5/statsd.MessageTooLongError
-      GoRuntimeType: 1.077632e+06
+      GoRuntimeType: 1077632
       GoKind: 25
       RawFields: []
     - __kind: UnresolvedPointeeType
@@ -25436,7 +25436,7 @@ Types:
       ID: 880
       Name: github.com/DataDog/datadog-go/v5/statsd.metric
       ByteSize: 192
-      GoRuntimeType: 2.083648e+06
+      GoRuntimeType: 2083648
       GoKind: 25
       RawFields:
         - Name: metricType
@@ -25552,7 +25552,7 @@ Types:
     - __kind: StructureType
       ID: 611
       Name: github.com/DataDog/go-libddwaf/v4/waferrors.CgoDisabledError
-      GoRuntimeType: 1.080448e+06
+      GoRuntimeType: 1080448
       GoKind: 25
       RawFields: []
     - __kind: BaseType
@@ -25564,14 +25564,14 @@ Types:
     - __kind: StructureType
       ID: 609
       Name: github.com/DataDog/go-libddwaf/v4/waferrors.UnsupportedGoVersionError
-      GoRuntimeType: 1.08032e+06
+      GoRuntimeType: 1080320
       GoKind: 25
       RawFields: []
     - __kind: StructureType
       ID: 607
       Name: github.com/DataDog/go-libddwaf/v4/waferrors.UnsupportedOSArchError
       ByteSize: 32
-      GoRuntimeType: 1.413728e+06
+      GoRuntimeType: 1413728
       GoKind: 25
       RawFields:
         - Name: OS
@@ -25584,7 +25584,7 @@ Types:
       ID: 627
       Name: github.com/DataDog/go-tuf/client.ErrDownloadFailed
       ByteSize: 32
-      GoRuntimeType: 1.414528e+06
+      GoRuntimeType: 1414528
       GoKind: 25
       RawFields:
         - Name: File
@@ -25597,7 +25597,7 @@ Types:
       ID: 631
       Name: github.com/DataDog/go-tuf/client.ErrMetaTooLarge
       ByteSize: 32
-      GoRuntimeType: 1.61616e+06
+      GoRuntimeType: 1616160
       GoKind: 25
       RawFields:
         - Name: Name
@@ -25613,7 +25613,7 @@ Types:
       ID: 629
       Name: github.com/DataDog/go-tuf/client.ErrMissingRemoteMetadata
       ByteSize: 16
-      GoRuntimeType: 1.253984e+06
+      GoRuntimeType: 1253984
       GoKind: 25
       RawFields:
         - Name: Name
@@ -25623,7 +25623,7 @@ Types:
       ID: 625
       Name: github.com/DataDog/go-tuf/client.ErrNotFound
       ByteSize: 16
-      GoRuntimeType: 1.253664e+06
+      GoRuntimeType: 1253664
       GoKind: 25
       RawFields:
         - Name: File
@@ -25633,14 +25633,14 @@ Types:
       ID: 866
       Name: github.com/DataDog/go-tuf/data.Hashes
       ByteSize: 8
-      GoRuntimeType: 1.140896e+06
+      GoRuntimeType: 1140896
       GoKind: 21
       HeaderType: 868 GoHMapHeaderType hash<string,github.com/DataDog/go-tuf/data.HexBytes>
     - __kind: GoSliceHeaderType
       ID: 889
       Name: github.com/DataDog/go-tuf/data.HexBytes
       ByteSize: 24
-      GoRuntimeType: 1.013504e+06
+      GoRuntimeType: 1013504
       GoKind: 23
       RawFields:
         - Name: array
@@ -25663,7 +25663,7 @@ Types:
       ID: 639
       Name: github.com/DataDog/go-tuf/util.ErrNoCommonHash
       ByteSize: 16
-      GoRuntimeType: 1.414848e+06
+      GoRuntimeType: 1414848
       GoKind: 25
       RawFields:
         - Name: Expected
@@ -25676,7 +25676,7 @@ Types:
       ID: 633
       Name: github.com/DataDog/go-tuf/util.ErrUnknownHashAlgorithm
       ByteSize: 16
-      GoRuntimeType: 1.254144e+06
+      GoRuntimeType: 1254144
       GoKind: 25
       RawFields:
         - Name: Name
@@ -25686,7 +25686,7 @@ Types:
       ID: 637
       Name: github.com/DataDog/go-tuf/util.ErrWrongHash
       ByteSize: 64
-      GoRuntimeType: 1.616352e+06
+      GoRuntimeType: 1616352
       GoKind: 25
       RawFields:
         - Name: Type
@@ -25702,7 +25702,7 @@ Types:
       ID: 635
       Name: github.com/DataDog/go-tuf/util.ErrWrongLength
       ByteSize: 16
-      GoRuntimeType: 1.414688e+06
+      GoRuntimeType: 1414688
       GoKind: 25
       RawFields:
         - Name: Expected
@@ -25715,7 +25715,7 @@ Types:
       ID: 641
       Name: github.com/DataDog/go-tuf/verify.ErrExpired
       ByteSize: 24
-      GoRuntimeType: 1.254304e+06
+      GoRuntimeType: 1254304
       GoKind: 25
       RawFields:
         - Name: Expired
@@ -25725,7 +25725,7 @@ Types:
       ID: 647
       Name: github.com/DataDog/go-tuf/verify.ErrLowVersion
       ByteSize: 16
-      GoRuntimeType: 1.415168e+06
+      GoRuntimeType: 1415168
       GoKind: 25
       RawFields:
         - Name: Actual
@@ -25738,7 +25738,7 @@ Types:
       ID: 649
       Name: github.com/DataDog/go-tuf/verify.ErrRepeatID
       ByteSize: 16
-      GoRuntimeType: 1.254624e+06
+      GoRuntimeType: 1254624
       GoKind: 25
       RawFields:
         - Name: KeyID
@@ -25748,7 +25748,7 @@ Types:
       ID: 645
       Name: github.com/DataDog/go-tuf/verify.ErrRoleThreshold
       ByteSize: 16
-      GoRuntimeType: 1.415008e+06
+      GoRuntimeType: 1415008
       GoKind: 25
       RawFields:
         - Name: Expected
@@ -25761,7 +25761,7 @@ Types:
       ID: 643
       Name: github.com/DataDog/go-tuf/verify.ErrUnknownRole
       ByteSize: 16
-      GoRuntimeType: 1.254464e+06
+      GoRuntimeType: 1254464
       GoKind: 25
       RawFields:
         - Name: Role
@@ -25771,7 +25771,7 @@ Types:
       ID: 651
       Name: github.com/DataDog/go-tuf/verify.ErrWrongVersion
       ByteSize: 16
-      GoRuntimeType: 1.415328e+06
+      GoRuntimeType: 1415328
       GoKind: 25
       RawFields:
         - Name: Given
@@ -25784,7 +25784,7 @@ Types:
       ID: 573
       Name: github.com/cihub/seelog.baseError
       ByteSize: 16
-      GoRuntimeType: 1.246464e+06
+      GoRuntimeType: 1246464
       GoKind: 25
       RawFields:
         - Name: message
@@ -25798,7 +25798,7 @@ Types:
       ID: 575
       Name: github.com/cihub/seelog.cannotOpenFileError
       ByteSize: 16
-      GoRuntimeType: 1.246624e+06
+      GoRuntimeType: 1246624
       GoKind: 25
       RawFields:
         - Name: baseError
@@ -25820,7 +25820,7 @@ Types:
       ID: 579
       Name: github.com/cihub/seelog.missingArgumentError
       ByteSize: 16
-      GoRuntimeType: 1.246944e+06
+      GoRuntimeType: 1246944
       GoKind: 25
       RawFields:
         - Name: baseError
@@ -25834,7 +25834,7 @@ Types:
       ID: 1035
       Name: github.com/cihub/seelog.rollingFileWriterSize
       ByteSize: 16
-      GoRuntimeType: 1.97792e+06
+      GoRuntimeType: 1977920
       GoKind: 25
       RawFields:
         - Name: rollingFileWriter
@@ -25847,7 +25847,7 @@ Types:
       ID: 1036
       Name: github.com/cihub/seelog.rollingFileWriterTime
       ByteSize: 40
-      GoRuntimeType: 2.001696e+06
+      GoRuntimeType: 2001696
       GoKind: 25
       RawFields:
         - Name: rollingFileWriter
@@ -25867,7 +25867,7 @@ Types:
       ID: 577
       Name: github.com/cihub/seelog.unexpectedAttributeError
       ByteSize: 16
-      GoRuntimeType: 1.246784e+06
+      GoRuntimeType: 1246784
       GoKind: 25
       RawFields:
         - Name: baseError
@@ -25877,7 +25877,7 @@ Types:
       ID: 581
       Name: github.com/cihub/seelog.unexpectedChildElementError
       ByteSize: 16
-      GoRuntimeType: 1.247104e+06
+      GoRuntimeType: 1247104
       GoKind: 25
       RawFields:
         - Name: baseError
@@ -25927,7 +25927,7 @@ Types:
       ID: 587
       Name: github.com/google/uuid.invalidLengthError
       ByteSize: 8
-      GoRuntimeType: 1.248064e+06
+      GoRuntimeType: 1248064
       GoKind: 25
       RawFields: [{Name: len, Offset: 0, Type: 9 BaseType int}]
     - __kind: UnresolvedPointeeType
@@ -25942,7 +25942,7 @@ Types:
       ID: 806
       Name: github.com/tinylib/msgp/msgp.ArrayError
       ByteSize: 24
-      GoRuntimeType: 1.72128e+06
+      GoRuntimeType: 1721280
       GoKind: 25
       RawFields:
         - Name: Wanted
@@ -25962,7 +25962,7 @@ Types:
       ID: 739
       Name: github.com/tinylib/msgp/msgp.ExtensionTypeError
       ByteSize: 2
-      GoRuntimeType: 1.517856e+06
+      GoRuntimeType: 1517856
       GoKind: 25
       RawFields:
         - Name: Got
@@ -25975,7 +25975,7 @@ Types:
       ID: 812
       Name: github.com/tinylib/msgp/msgp.IntOverflow
       ByteSize: 32
-      GoRuntimeType: 1.721728e+06
+      GoRuntimeType: 1721728
       GoKind: 25
       RawFields:
         - Name: Value
@@ -25997,7 +25997,7 @@ Types:
       ID: 804
       Name: github.com/tinylib/msgp/msgp.InvalidTimestamp
       ByteSize: 32
-      GoRuntimeType: 1.721056e+06
+      GoRuntimeType: 1721056
       GoKind: 25
       RawFields:
         - Name: Nanos
@@ -26019,7 +26019,7 @@ Types:
       ID: 802
       Name: github.com/tinylib/msgp/msgp.TypeError
       ByteSize: 24
-      GoRuntimeType: 1.720832e+06
+      GoRuntimeType: 1720832
       GoKind: 25
       RawFields:
         - Name: Method
@@ -26035,7 +26035,7 @@ Types:
       ID: 810
       Name: github.com/tinylib/msgp/msgp.UintBelowZero
       ByteSize: 24
-      GoRuntimeType: 1.639744e+06
+      GoRuntimeType: 1639744
       GoKind: 25
       RawFields:
         - Name: Value
@@ -26048,7 +26048,7 @@ Types:
       ID: 808
       Name: github.com/tinylib/msgp/msgp.UintOverflow
       ByteSize: 32
-      GoRuntimeType: 1.721504e+06
+      GoRuntimeType: 1721504
       GoKind: 25
       RawFields:
         - Name: Value
@@ -26068,7 +26068,7 @@ Types:
       ID: 816
       Name: github.com/tinylib/msgp/msgp.errFatal
       ByteSize: 16
-      GoRuntimeType: 1.442112e+06
+      GoRuntimeType: 1442112
       GoKind: 25
       RawFields:
         - Name: ctx
@@ -26077,20 +26077,20 @@ Types:
     - __kind: StructureType
       ID: 743
       Name: github.com/tinylib/msgp/msgp.errRecursion
-      GoRuntimeType: 1.200992e+06
+      GoRuntimeType: 1200992
       GoKind: 25
       RawFields: []
     - __kind: StructureType
       ID: 741
       Name: github.com/tinylib/msgp/msgp.errShort
-      GoRuntimeType: 1.200864e+06
+      GoRuntimeType: 1200864
       GoKind: 25
       RawFields: []
     - __kind: StructureType
       ID: 814
       Name: github.com/tinylib/msgp/msgp.errWrapped
       ByteSize: 32
-      GoRuntimeType: 1.639936e+06
+      GoRuntimeType: 1639936
       GoKind: 25
       RawFields:
         - Name: cause
@@ -26173,7 +26173,7 @@ Types:
         - Name: X
           Offset: 0
           Type: 9 BaseType int
-        - Name: Y
+        - Name: "Y"
           Offset: 8
           Type: 9 BaseType int
     - __kind: StructureType
@@ -26214,7 +26214,7 @@ Types:
       ID: 783
       Name: go.uber.org/zap.errArrayElem
       ByteSize: 16
-      GoRuntimeType: 1.271424e+06
+      GoRuntimeType: 1271424
       GoKind: 25
       RawFields:
         - Name: error
@@ -26224,7 +26224,7 @@ Types:
       ID: 960
       Name: go.uber.org/zap.nopCloserSink
       ByteSize: 16
-      GoRuntimeType: 1.49472e+06
+      GoRuntimeType: 1494720
       GoKind: 25
       RawFields:
         - Name: WriteSyncer
@@ -26238,7 +26238,7 @@ Types:
       ID: 984
       Name: go.uber.org/zap/zapcore.WriteSyncer
       ByteSize: 16
-      GoRuntimeType: 1.091328e+06
+      GoRuntimeType: 1091328
       GoKind: 20
       RawFields:
         - Name: tab
@@ -26251,7 +26251,7 @@ Types:
       ID: 946
       Name: go.uber.org/zap/zapcore.writerWrapper
       ByteSize: 16
-      GoRuntimeType: 1.388096e+06
+      GoRuntimeType: 1388096
       GoKind: 25
       RawFields:
         - Name: Writer
@@ -26273,7 +26273,7 @@ Types:
       ID: 841
       Name: golang.org/x/net/http2.StreamError
       ByteSize: 24
-      GoRuntimeType: 1.75936e+06
+      GoRuntimeType: 1759360
       GoKind: 25
       RawFields:
         - Name: StreamID
@@ -26289,7 +26289,7 @@ Types:
       ID: 702
       Name: golang.org/x/net/http2.connError
       ByteSize: 24
-      GoRuntimeType: 1.422528e+06
+      GoRuntimeType: 1422528
       GoKind: 25
       RawFields:
         - Name: Code
@@ -26382,7 +26382,7 @@ Types:
       ID: 706
       Name: golang.org/x/net/http2/hpack.DecodingError
       ByteSize: 16
-      GoRuntimeType: 1.272064e+06
+      GoRuntimeType: 1272064
       GoKind: 25
       RawFields:
         - Name: Err
@@ -26398,7 +26398,7 @@ Types:
       ID: 694
       Name: google.golang.org/grpc.dropError
       ByteSize: 16
-      GoRuntimeType: 1.267104e+06
+      GoRuntimeType: 1267104
       GoKind: 25
       RawFields:
         - Name: error
@@ -26412,7 +26412,7 @@ Types:
       ID: 864
       Name: google.golang.org/grpc/internal/transport.ConnectionError
       ByteSize: 40
-      GoRuntimeType: 1.78512e+06
+      GoRuntimeType: 1785120
       GoKind: 25
       RawFields:
         - Name: Desc
@@ -26428,7 +26428,7 @@ Types:
       ID: 696
       Name: google.golang.org/grpc/internal/transport.NewStreamError
       ByteSize: 24
-      GoRuntimeType: 1.422048e+06
+      GoRuntimeType: 1422048
       GoKind: 25
       RawFields:
         - Name: Err
@@ -26441,7 +26441,7 @@ Types:
       ID: 1007
       Name: google.golang.org/grpc/internal/transport.bufConn
       ByteSize: 32
-      GoRuntimeType: 1.838592e+06
+      GoRuntimeType: 1838592
       GoKind: 25
       RawFields:
         - Name: Conn
@@ -26458,7 +26458,7 @@ Types:
       ID: 781
       Name: google.golang.org/grpc/internal/transport.ioError
       ByteSize: 16
-      GoRuntimeType: 1.385696e+06
+      GoRuntimeType: 1385696
       GoKind: 25
       RawFields:
         - Name: error
@@ -26483,14 +26483,14 @@ Types:
     - __kind: StructureType
       ID: 835
       Name: google.golang.org/protobuf/internal/impl.errInvalidUTF8
-      GoRuntimeType: 1.332512e+06
+      GoRuntimeType: 1332512
       GoKind: 25
       RawFields: []
     - __kind: StructureType
       ID: 688
       Name: gopkg.in/ini%2ev1.ErrDelimiterNotFound
       ByteSize: 16
-      GoRuntimeType: 1.260384e+06
+      GoRuntimeType: 1260384
       GoKind: 25
       RawFields:
         - Name: Line
@@ -26500,7 +26500,7 @@ Types:
       ID: 690
       Name: gopkg.in/ini%2ev1.ErrEmptyKeyName
       ByteSize: 16
-      GoRuntimeType: 1.260544e+06
+      GoRuntimeType: 1260544
       GoKind: 25
       RawFields:
         - Name: Line
@@ -27487,7 +27487,7 @@ Types:
       ID: 82
       Name: internal/chacha8rand.State
       ByteSize: 304
-      GoRuntimeType: 1.729344e+06
+      GoRuntimeType: 1729344
       GoKind: 25
       RawFields:
         - Name: buf
@@ -27499,7 +27499,7 @@ Types:
         - Name: i
           Offset: 288
           Type: 2 BaseType uint32
-        - Name: n
+        - Name: "n"
           Offset: 292
           Type: 2 BaseType uint32
         - Name: c
@@ -27520,7 +27520,7 @@ Types:
     - __kind: StructureType
       ID: 796
       Name: internal/poll.errNetClosing
-      GoRuntimeType: 1.300352e+06
+      GoRuntimeType: 1300352
       GoKind: 25
       RawFields: []
     - __kind: UnresolvedPointeeType
@@ -27531,7 +27531,7 @@ Types:
       ID: 35
       Name: internal/runtime/atomic.Bool
       ByteSize: 1
-      GoRuntimeType: 1.133088e+06
+      GoRuntimeType: 1133088
       GoKind: 25
       RawFields:
         - Name: u
@@ -27541,7 +27541,7 @@ Types:
       ID: 65
       Name: internal/runtime/atomic.Int64
       ByteSize: 8
-      GoRuntimeType: 1.45632e+06
+      GoRuntimeType: 1456320
       GoKind: 25
       RawFields:
         - Name: noCopy
@@ -27557,7 +27557,7 @@ Types:
       ID: 32
       Name: internal/runtime/atomic.Uint32
       ByteSize: 4
-      GoRuntimeType: 1.313632e+06
+      GoRuntimeType: 1313632
       GoKind: 25
       RawFields:
         - Name: noCopy
@@ -27570,7 +27570,7 @@ Types:
       ID: 36
       Name: internal/runtime/atomic.Uint8
       ByteSize: 1
-      GoRuntimeType: 1.313472e+06
+      GoRuntimeType: 1313472
       GoKind: 25
       RawFields:
         - Name: noCopy
@@ -27583,7 +27583,7 @@ Types:
       ID: 70
       Name: internal/runtime/atomic.Uintptr
       ByteSize: 8
-      GoRuntimeType: 1.313792e+06
+      GoRuntimeType: 1313792
       GoKind: 25
       RawFields:
         - Name: noCopy
@@ -27612,7 +27612,7 @@ Types:
       ID: 991
       Name: io.ReadWriteCloser
       ByteSize: 16
-      GoRuntimeType: 1.109408e+06
+      GoRuntimeType: 1109408
       GoKind: 20
       RawFields:
         - Name: tab
@@ -27638,7 +27638,7 @@ Types:
       ID: 979
       Name: io.WriteCloser
       ByteSize: 16
-      GoRuntimeType: 1.074048e+06
+      GoRuntimeType: 1074048
       GoKind: 20
       RawFields:
         - Name: tab
@@ -27663,7 +27663,7 @@ Types:
     - __kind: StructureType
       ID: 948
       Name: io.discard
-      GoRuntimeType: 1.287712e+06
+      GoRuntimeType: 1287712
       GoKind: 25
       RawFields: []
     - __kind: UnresolvedPointeeType
@@ -27746,7 +27746,7 @@ Types:
       ID: 121
       Name: main.bigStruct
       ByteSize: 48
-      GoRuntimeType: 1.428864e+06
+      GoRuntimeType: 1428864
       GoKind: 25
       RawFields:
         - Name: x
@@ -27762,7 +27762,7 @@ Types:
       ID: 136
       Name: main.deepMap1
       ByteSize: 8
-      GoRuntimeType: 1.105696e+06
+      GoRuntimeType: 1105696
       GoKind: 25
       RawFields:
         - Name: a
@@ -27772,7 +27772,7 @@ Types:
       ID: 368
       Name: main.deepMap2
       ByteSize: 8
-      GoRuntimeType: 1.105568e+06
+      GoRuntimeType: 1105568
       GoKind: 25
       RawFields:
         - Name: a
@@ -27786,7 +27786,7 @@ Types:
       ID: 145
       Name: main.deepMap7
       ByteSize: 8
-      GoRuntimeType: 1.104928e+06
+      GoRuntimeType: 1104928
       GoKind: 25
       RawFields:
         - Name: a
@@ -27796,7 +27796,7 @@ Types:
       ID: 1153
       Name: main.deepMap8
       ByteSize: 8
-      GoRuntimeType: 1.1048e+06
+      GoRuntimeType: 1104800
       GoKind: 25
       RawFields:
         - Name: a
@@ -27806,7 +27806,7 @@ Types:
       ID: 1162
       Name: main.deepMap9
       ByteSize: 8
-      GoRuntimeType: 1.104672e+06
+      GoRuntimeType: 1104672
       GoKind: 25
       RawFields:
         - Name: a
@@ -27816,7 +27816,7 @@ Types:
       ID: 125
       Name: main.deepPtr1
       ByteSize: 8
-      GoRuntimeType: 1.106848e+06
+      GoRuntimeType: 1106848
       GoKind: 25
       RawFields:
         - Name: a
@@ -27826,7 +27826,7 @@ Types:
       ID: 127
       Name: main.deepPtr2
       ByteSize: 8
-      GoRuntimeType: 1.10672e+06
+      GoRuntimeType: 1106720
       GoKind: 25
       RawFields:
         - Name: a
@@ -27840,7 +27840,7 @@ Types:
       ID: 129
       Name: main.deepPtr7
       ByteSize: 8
-      GoRuntimeType: 1.10608e+06
+      GoRuntimeType: 1106080
       GoKind: 25
       RawFields:
         - Name: a
@@ -27850,7 +27850,7 @@ Types:
       ID: 1128
       Name: main.deepPtr8
       ByteSize: 8
-      GoRuntimeType: 1.105952e+06
+      GoRuntimeType: 1105952
       GoKind: 25
       RawFields:
         - Name: a
@@ -27860,7 +27860,7 @@ Types:
       ID: 1130
       Name: main.deepPtr9
       ByteSize: 16
-      GoRuntimeType: 1.105824e+06
+      GoRuntimeType: 1105824
       GoKind: 25
       RawFields:
         - Name: a
@@ -27870,7 +27870,7 @@ Types:
       ID: 130
       Name: main.deepSlice1
       ByteSize: 24
-      GoRuntimeType: 1.108e+06
+      GoRuntimeType: 1108000
       GoKind: 25
       RawFields:
         - Name: a
@@ -27880,7 +27880,7 @@ Types:
       ID: 361
       Name: main.deepSlice2
       ByteSize: 24
-      GoRuntimeType: 1.107872e+06
+      GoRuntimeType: 1107872
       GoKind: 25
       RawFields:
         - Name: a
@@ -27894,7 +27894,7 @@ Types:
       ID: 135
       Name: main.deepSlice7
       ByteSize: 24
-      GoRuntimeType: 1.107232e+06
+      GoRuntimeType: 1107232
       GoKind: 25
       RawFields:
         - Name: a
@@ -27904,7 +27904,7 @@ Types:
       ID: 1134
       Name: main.deepSlice8
       ByteSize: 24
-      GoRuntimeType: 1.107104e+06
+      GoRuntimeType: 1107104
       GoKind: 25
       RawFields:
         - Name: a
@@ -27914,7 +27914,7 @@ Types:
       ID: 1140
       Name: main.deepSlice9
       ByteSize: 24
-      GoRuntimeType: 1.106976e+06
+      GoRuntimeType: 1106976
       GoKind: 25
       RawFields:
         - Name: a
@@ -27929,7 +27929,7 @@ Types:
       ID: 159
       Name: main.esotericHeap
       ByteSize: 112
-      GoRuntimeType: 1.71344e+06
+      GoRuntimeType: 1713440
       GoKind: 25
       RawFields:
         - Name: esotericStack
@@ -27951,7 +27951,7 @@ Types:
       ID: 154
       Name: main.esotericStack
       ByteSize: 64
-      GoRuntimeType: 1.839904e+06
+      GoRuntimeType: 1839904
       GoKind: 25
       RawFields:
         - Name: _
@@ -27979,7 +27979,7 @@ Types:
       ID: 352
       Name: main.firstBehavior
       ByteSize: 16
-      GoRuntimeType: 1.237504e+06
+      GoRuntimeType: 1237504
       GoKind: 25
       RawFields:
         - Name: s
@@ -28322,7 +28322,7 @@ Types:
       ID: 116
       Name: main.nestedStruct
       ByteSize: 24
-      GoRuntimeType: 1.286752e+06
+      GoRuntimeType: 1286752
       GoKind: 25
       RawFields:
         - Name: anotherInt
@@ -28335,7 +28335,7 @@ Types:
       ID: 245
       Name: main.node
       ByteSize: 16
-      GoRuntimeType: 1.286432e+06
+      GoRuntimeType: 1286432
       GoKind: 25
       RawFields:
         - Name: val
@@ -28369,7 +28369,7 @@ Types:
       ID: 1108
       Name: main.secondBehavior
       ByteSize: 8
-      GoRuntimeType: 1.237664e+06
+      GoRuntimeType: 1237664
       GoKind: 25
       RawFields: [{Name: i, Offset: 0, Type: 9 BaseType int}]
     - __kind: GoInterfaceType
@@ -28429,7 +28429,7 @@ Types:
       ID: 163
       Name: main.structWithAny
       ByteSize: 16
-      GoRuntimeType: 1.104416e+06
+      GoRuntimeType: 1104416
       GoKind: 25
       RawFields:
         - Name: a
@@ -28499,7 +28499,7 @@ Types:
       ID: 164
       Name: main.structWithMap
       ByteSize: 8
-      GoRuntimeType: 1.104544e+06
+      GoRuntimeType: 1104544
       GoKind: 25
       RawFields:
         - Name: m
@@ -28844,7 +28844,7 @@ Types:
       ID: 623
       Name: math/big.ErrNaN
       ByteSize: 16
-      GoRuntimeType: 1.253344e+06
+      GoRuntimeType: 1253344
       GoKind: 25
       RawFields:
         - Name: msg
@@ -28854,7 +28854,7 @@ Types:
       ID: 912
       Name: mime/multipart.writerOnly·1
       ByteSize: 16
-      GoRuntimeType: 1.250144e+06
+      GoRuntimeType: 1250144
       GoKind: 25
       RawFields:
         - Name: Writer
@@ -28868,7 +28868,7 @@ Types:
       ID: 888
       Name: net.Conn
       ByteSize: 16
-      GoRuntimeType: 1.412448e+06
+      GoRuntimeType: 1412448
       GoKind: 20
       RawFields:
         - Name: tab
@@ -28909,7 +28909,7 @@ Types:
       ID: 786
       Name: net.UnknownNetworkError
       ByteSize: 16
-      GoRuntimeType: 1.077248e+06
+      GoRuntimeType: 1077248
       GoKind: 24
       RawFields:
         - Name: str
@@ -28927,7 +28927,7 @@ Types:
     - __kind: StructureType
       ID: 755
       Name: net.canceledError
-      GoRuntimeType: 1.201888e+06
+      GoRuntimeType: 1201888
       GoKind: 25
       RawFields: []
     - __kind: UnresolvedPointeeType
@@ -28938,7 +28938,7 @@ Types:
       ID: 893
       Name: net.dialResult·1
       ByteSize: 40
-      GoRuntimeType: 1.977216e+06
+      GoRuntimeType: 1977216
       GoKind: 25
       RawFields:
         - Name: Conn
@@ -28960,13 +28960,13 @@ Types:
     - __kind: StructureType
       ID: 1066
       Name: net.noReadFrom
-      GoRuntimeType: 1.077504e+06
+      GoRuntimeType: 1077504
       GoKind: 25
       RawFields: []
     - __kind: StructureType
       ID: 1065
       Name: net.noWriteTo
-      GoRuntimeType: 1.077376e+06
+      GoRuntimeType: 1077376
       GoKind: 25
       RawFields: []
     - __kind: UnresolvedPointeeType
@@ -28977,7 +28977,7 @@ Types:
       ID: 560
       Name: net.result·2
       ByteSize: 112
-      GoRuntimeType: 1.611936e+06
+      GoRuntimeType: 1611936
       GoKind: 25
       RawFields:
         - Name: p
@@ -28993,7 +28993,7 @@ Types:
       ID: 1054
       Name: net.tcpConnWithoutReadFrom
       ByteSize: 8
-      GoRuntimeType: 2.153536e+06
+      GoRuntimeType: 2153536
       GoKind: 25
       RawFields:
         - Name: noReadFrom
@@ -29006,7 +29006,7 @@ Types:
       ID: 1052
       Name: net.tcpConnWithoutWriteTo
       ByteSize: 8
-      GoRuntimeType: 2.152992e+06
+      GoRuntimeType: 2152992
       GoKind: 25
       RawFields:
         - Name: noWriteTo
@@ -29031,7 +29031,7 @@ Types:
       ID: 906
       Name: net/http.bufioFlushWriter
       ByteSize: 16
-      GoRuntimeType: 1.241664e+06
+      GoRuntimeType: 1241664
       GoKind: 25
       RawFields:
         - Name: w
@@ -29053,7 +29053,7 @@ Types:
       ID: 536
       Name: net/http.http2GoAwayError
       ByteSize: 24
-      GoRuntimeType: 1.610016e+06
+      GoRuntimeType: 1610016
       GoKind: 25
       RawFields:
         - Name: LastStreamID
@@ -29069,7 +29069,7 @@ Types:
       ID: 845
       Name: net/http.http2StreamError
       ByteSize: 24
-      GoRuntimeType: 1.775392e+06
+      GoRuntimeType: 1775392
       GoKind: 25
       RawFields:
         - Name: StreamID
@@ -29085,7 +29085,7 @@ Types:
       ID: 540
       Name: net/http.http2connError
       ByteSize: 24
-      GoRuntimeType: 1.411968e+06
+      GoRuntimeType: 1411968
       GoKind: 25
       RawFields:
         - Name: Code
@@ -29162,7 +29162,7 @@ Types:
     - __kind: StructureType
       ID: 751
       Name: net/http.http2noCachedConnError
-      GoRuntimeType: 1.201248e+06
+      GoRuntimeType: 1201248
       GoKind: 25
       RawFields: []
     - __kind: UnresolvedPointeeType
@@ -29192,7 +29192,7 @@ Types:
       ID: 908
       Name: net/http.http2stickyErrWriter
       ByteSize: 32
-      GoRuntimeType: 1.610784e+06
+      GoRuntimeType: 1610784
       GoKind: 25
       RawFields:
         - Name: conn
@@ -29215,7 +29215,7 @@ Types:
       ID: 747
       Name: net/http.nothingWrittenError
       ByteSize: 16
-      GoRuntimeType: 1.373856e+06
+      GoRuntimeType: 1373856
       GoKind: 25
       RawFields:
         - Name: error
@@ -29229,7 +29229,7 @@ Types:
       ID: 926
       Name: net/http.persistConnWriter
       ByteSize: 8
-      GoRuntimeType: 1.373696e+06
+      GoRuntimeType: 1373696
       GoKind: 25
       RawFields:
         - Name: pc
@@ -29239,7 +29239,7 @@ Types:
       ID: 952
       Name: net/http.readWriteCloserBody
       ByteSize: 24
-      GoRuntimeType: 1.68208e+06
+      GoRuntimeType: 1682080
       GoKind: 25
       RawFields:
         - Name: _
@@ -29255,7 +29255,7 @@ Types:
       ID: 544
       Name: net/http.requestBodyReadError
       ByteSize: 16
-      GoRuntimeType: 1.242624e+06
+      GoRuntimeType: 1242624
       GoKind: 25
       RawFields:
         - Name: error
@@ -29268,14 +29268,14 @@ Types:
     - __kind: StructureType
       ID: 818
       Name: net/http.tlsHandshakeTimeoutError
-      GoRuntimeType: 1.303072e+06
+      GoRuntimeType: 1303072
       GoKind: 25
       RawFields: []
     - __kind: StructureType
       ID: 749
       Name: net/http.transportReadFromServerError
       ByteSize: 16
-      GoRuntimeType: 1.374016e+06
+      GoRuntimeType: 1374016
       GoKind: 25
       RawFields:
         - Name: err
@@ -29289,7 +29289,7 @@ Types:
       ID: 1021
       Name: net/http/internal.FlushAfterChunkWriter
       ByteSize: 8
-      GoRuntimeType: 1.913632e+06
+      GoRuntimeType: 1913632
       GoKind: 25
       RawFields:
         - Name: Writer
@@ -29303,7 +29303,7 @@ Types:
       ID: 615
       Name: net/netip.parseAddrError
       ByteSize: 48
-      GoRuntimeType: 1.615776e+06
+      GoRuntimeType: 1615776
       GoKind: 25
       RawFields:
         - Name: in
@@ -29319,7 +29319,7 @@ Types:
       ID: 613
       Name: net/netip.parsePrefixError
       ByteSize: 32
-      GoRuntimeType: 1.413888e+06
+      GoRuntimeType: 1413888
       GoKind: 25
       RawFields:
         - Name: in
@@ -29336,7 +29336,7 @@ Types:
       ID: 938
       Name: net/smtp.dataCloser
       ByteSize: 24
-      GoRuntimeType: 1.415808e+06
+      GoRuntimeType: 1415808
       GoKind: 25
       RawFields:
         - Name: c
@@ -29430,7 +29430,7 @@ Types:
       ID: 1076
       Name: os.fileWithoutReadFrom
       ByteSize: 8
-      GoRuntimeType: 2.221728e+06
+      GoRuntimeType: 2221728
       GoKind: 25
       RawFields:
         - Name: noReadFrom
@@ -29443,7 +29443,7 @@ Types:
       ID: 1074
       Name: os.fileWithoutWriteTo
       ByteSize: 8
-      GoRuntimeType: 2.220928e+06
+      GoRuntimeType: 2220928
       GoKind: 25
       RawFields:
         - Name: noWriteTo
@@ -29455,13 +29455,13 @@ Types:
     - __kind: StructureType
       ID: 1082
       Name: os.noReadFrom
-      GoRuntimeType: 1.075072e+06
+      GoRuntimeType: 1075072
       GoKind: 25
       RawFields: []
     - __kind: StructureType
       ID: 1081
       Name: os.noWriteTo
-      GoRuntimeType: 1.074944e+06
+      GoRuntimeType: 1074944
       GoKind: 25
       RawFields: []
     - __kind: UnresolvedPointeeType
@@ -29480,7 +29480,7 @@ Types:
       ID: 759
       Name: os/exec.wrappedError
       ByteSize: 32
-      GoRuntimeType: 1.518432e+06
+      GoRuntimeType: 1518432
       GoKind: 25
       RawFields:
         - Name: prefix
@@ -29542,13 +29542,13 @@ Types:
       ID: 733
       Name: runtime.boundsError
       ByteSize: 24
-      GoRuntimeType: 1.76496e+06
+      GoRuntimeType: 1764960
       GoKind: 25
       RawFields:
         - Name: x
           Offset: 0
           Type: 13 BaseType int64
-        - Name: y
+        - Name: "y"
           Offset: 8
           Type: 9 BaseType int
         - Name: signed
@@ -29581,7 +29581,7 @@ Types:
       ID: 792
       Name: runtime.errorAddressString
       ByteSize: 24
-      GoRuntimeType: 1.635904e+06
+      GoRuntimeType: 1635904
       GoKind: 25
       RawFields:
         - Name: msg
@@ -29613,7 +29613,7 @@ Types:
       ID: 22
       Name: runtime.g
       ByteSize: 432
-      GoRuntimeType: 2.26496e+06
+      GoRuntimeType: 2264960
       GoKind: 25
       RawFields:
         - Name: stack
@@ -29788,7 +29788,7 @@ Types:
       ID: 49
       Name: runtime.gTraceState
       ByteSize: 32
-      GoRuntimeType: 1.116192e+06
+      GoRuntimeType: 1116192
       GoKind: 25
       RawFields:
         - Name: traceSchedResourceState
@@ -29798,7 +29798,7 @@ Types:
       ID: 30
       Name: runtime.gobuf
       ByteSize: 56
-      GoRuntimeType: 1.842208e+06
+      GoRuntimeType: 1842208
       GoKind: 25
       RawFields:
         - Name: sp
@@ -29826,7 +29826,7 @@ Types:
       ID: 46
       Name: runtime.goroutineProfileStateHolder
       ByteSize: 4
-      GoRuntimeType: 1.295392e+06
+      GoRuntimeType: 1295392
       GoKind: 25
       RawFields:
         - Name: noCopy
@@ -29839,7 +29839,7 @@ Types:
       ID: 54
       Name: runtime.gsignalStack
       ByteSize: 40
-      GoRuntimeType: 1.634944e+06
+      GoRuntimeType: 1634944
       GoKind: 25
       RawFields:
         - Name: stack
@@ -29864,7 +29864,7 @@ Types:
       ID: 86
       Name: runtime.heldLockInfo
       ByteSize: 16
-      GoRuntimeType: 1.295232e+06
+      GoRuntimeType: 1295232
       GoKind: 25
       RawFields:
         - Name: lockAddr
@@ -29877,13 +29877,13 @@ Types:
       ID: 74
       Name: runtime.libcall
       ByteSize: 48
-      GoRuntimeType: 1.790464e+06
+      GoRuntimeType: 1790464
       GoKind: 25
       RawFields:
         - Name: fn
           Offset: 0
           Type: 1 BaseType uintptr
-        - Name: n
+        - Name: "n"
           Offset: 8
           Type: 1 BaseType uintptr
         - Name: args
@@ -29908,7 +29908,7 @@ Types:
       ID: 29
       Name: runtime.m
       ByteSize: 1760
-      GoRuntimeType: 2.271072e+06
+      GoRuntimeType: 2271072
       GoKind: 25
       RawFields:
         - Name: g0
@@ -30128,7 +30128,7 @@ Types:
       ID: 64
       Name: runtime.mLockProfile
       ByteSize: 64
-      GoRuntimeType: 1.790208e+06
+      GoRuntimeType: 1790208
       GoKind: 25
       RawFields:
         - Name: waitTime
@@ -30153,7 +30153,7 @@ Types:
       ID: 81
       Name: runtime.mOS
       ByteSize: 8
-      GoRuntimeType: 1.435968e+06
+      GoRuntimeType: 1435968
       GoKind: 25
       RawFields:
         - Name: profileTimer
@@ -30169,7 +30169,7 @@ Types:
       ID: 69
       Name: runtime.mTraceState
       ByteSize: 32
-      GoRuntimeType: 1.435776e+06
+      GoRuntimeType: 1435776
       GoKind: 25
       RawFields:
         - Name: seqlock
@@ -30195,14 +30195,14 @@ Types:
       ID: 62
       Name: runtime.note
       ByteSize: 8
-      GoRuntimeType: 1.115808e+06
+      GoRuntimeType: 1115808
       GoKind: 25
       RawFields: [{Name: key, Offset: 0, Type: 1 BaseType uintptr}]
     - __kind: StructureType
       ID: 76
       Name: runtime.pcvalueCache
       ByteSize: 392
-      GoRuntimeType: 1.295072e+06
+      GoRuntimeType: 1295072
       GoKind: 25
       RawFields:
         - Name: entries
@@ -30215,13 +30215,13 @@ Types:
       ID: 79
       Name: runtime.pcvalueCacheEnt
       ByteSize: 24
-      GoRuntimeType: 1.635712e+06
+      GoRuntimeType: 1635712
       GoKind: 25
       RawFields:
         - Name: targetpc
           Offset: 0
           Type: 1 BaseType uintptr
-        - Name: off
+        - Name: "off"
           Offset: 8
           Type: 2 BaseType uint32
         - Name: val
@@ -30268,7 +30268,7 @@ Types:
       ID: 23
       Name: runtime.stack
       ByteSize: 16
-      GoRuntimeType: 1.293472e+06
+      GoRuntimeType: 1293472
       GoKind: 25
       RawFields:
         - Name: lo
@@ -30305,7 +30305,7 @@ Types:
       ID: 50
       Name: runtime.traceSchedResourceState
       ByteSize: 32
-      GoRuntimeType: 1.294432e+06
+      GoRuntimeType: 1294432
       GoKind: 25
       RawFields:
         - Name: statusTraced
@@ -30318,7 +30318,7 @@ Types:
       ID: 34
       Name: runtime.waitReason
       ByteSize: 1
-      GoRuntimeType: 1.075456e+06
+      GoRuntimeType: 1075456
       GoKind: 8
     - __kind: StructureType
       ID: 75
@@ -30361,7 +30361,7 @@ Types:
       ID: 920
       Name: struct { io.Writer }
       ByteSize: 16
-      GoRuntimeType: 1.279232e+06
+      GoRuntimeType: 1279232
       GoKind: 25
       RawFields:
         - Name: Writer
@@ -30377,7 +30377,7 @@ Types:
       ID: 1097
       Name: sync.Mutex
       ByteSize: 8
-      GoRuntimeType: 1.288672e+06
+      GoRuntimeType: 1288672
       GoKind: 25
       RawFields:
         - Name: state
@@ -30390,7 +30390,7 @@ Types:
       ID: 1098
       Name: sync.Once
       ByteSize: 12
-      GoRuntimeType: 1.289792e+06
+      GoRuntimeType: 1289792
       GoKind: 25
       RawFields:
         - Name: done
@@ -30403,7 +30403,7 @@ Types:
       ID: 1101
       Name: sync.WaitGroup
       ByteSize: 16
-      GoRuntimeType: 1.430592e+06
+      GoRuntimeType: 1430592
       GoKind: 25
       RawFields:
         - Name: noCopy
@@ -30425,7 +30425,7 @@ Types:
       ID: 1105
       Name: sync/atomic.Int32
       ByteSize: 4
-      GoRuntimeType: 1.290112e+06
+      GoRuntimeType: 1290112
       GoKind: 25
       RawFields:
         - Name: _
@@ -30438,7 +30438,7 @@ Types:
       ID: 1099
       Name: sync/atomic.Uint32
       ByteSize: 4
-      GoRuntimeType: 1.290272e+06
+      GoRuntimeType: 1290272
       GoKind: 25
       RawFields:
         - Name: _
@@ -30451,7 +30451,7 @@ Types:
       ID: 1103
       Name: sync/atomic.Uint64
       ByteSize: 8
-      GoRuntimeType: 1.430976e+06
+      GoRuntimeType: 1430976
       GoKind: 25
       RawFields:
         - Name: _
@@ -30479,7 +30479,7 @@ Types:
       ID: 842
       Name: syscall.Errno
       ByteSize: 8
-      GoRuntimeType: 1.20048e+06
+      GoRuntimeType: 1200480
       GoKind: 12
     - __kind: UnresolvedPointeeType
       ID: 1048
@@ -30489,7 +30489,7 @@ Types:
       ID: 785
       Name: text/template.ExecError
       ByteSize: 32
-      GoRuntimeType: 1.522848e+06
+      GoRuntimeType: 1522848
       GoKind: 25
       RawFields:
         - Name: Name
@@ -30502,7 +30502,7 @@ Types:
       ID: 987
       Name: time.Duration
       ByteSize: 8
-      GoRuntimeType: 1.791232e+06
+      GoRuntimeType: 1791232
       GoKind: 6
     - __kind: UnresolvedPointeeType
       ID: 860
@@ -30516,7 +30516,7 @@ Types:
       ID: 858
       Name: time.Time
       ByteSize: 24
-      GoRuntimeType: 2.233952e+06
+      GoRuntimeType: 2233952
       GoKind: 25
       RawFields:
         - Name: wall
@@ -30597,7 +30597,7 @@ Types:
       ID: 876
       Name: vendor/golang.org/x/net/dns/dnsmessage.Parser
       ByteSize: 80
-      GoRuntimeType: 1.93536e+06
+      GoRuntimeType: 1935360
       GoKind: 25
       RawFields:
         - Name: msg
@@ -30609,7 +30609,7 @@ Types:
         - Name: section
           Offset: 36
           Type: 878 BaseType vendor/golang.org/x/net/dns/dnsmessage.section
-        - Name: off
+        - Name: "off"
           Offset: 40
           Type: 9 BaseType int
         - Name: index
@@ -30637,7 +30637,7 @@ Types:
       ID: 877
       Name: vendor/golang.org/x/net/dns/dnsmessage.header
       ByteSize: 12
-      GoRuntimeType: 1.801728e+06
+      GoRuntimeType: 1801728
       GoKind: 25
       RawFields:
         - Name: id
@@ -30676,7 +30676,7 @@ Types:
       ID: 601
       Name: vendor/golang.org/x/net/http2/hpack.DecodingError
       ByteSize: 16
-      GoRuntimeType: 1.250464e+06
+      GoRuntimeType: 1250464
       GoKind: 25
       RawFields:
         - Name: Err
@@ -30692,7 +30692,7 @@ Types:
       ID: 764
       Name: vendor/golang.org/x/net/idna.labelError
       ByteSize: 32
-      GoRuntimeType: 1.518624e+06
+      GoRuntimeType: 1518624
       GoKind: 25
       RawFields:
         - Name: label

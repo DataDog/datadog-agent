@@ -12,6 +12,9 @@
         Mem alloc: {{humanize .memstats.Alloc}} bytes<br>
         Hostname: {{.config.Hostname}}<br>
         Receiver: {{.config.ReceiverHost}}:{{.config.ReceiverPort}}<br>
+        {{- if .config.ReceiverSocket}}
+        UDS receiver: {{.config.ReceiverSocket}}<br>
+        {{- end}}
         Endpoints:
         <span class="stat_subdata">
           {{- range $i, $e := .config.Endpoints}}
@@ -24,7 +27,7 @@
             No traces received in the previous minute.<br>
           {{ else }}
             {{ range $i, $ts := .receiver }}
-              From {{if $ts.Lang}}{{ $ts.Lang }} {{ $ts.LangVersion }} ({{ $ts.Interpreter }}), client {{ $ts.TracerVersion }}{{else}}unknown clients{{end}}
+              From {{if $ts.Lang}}{{ $ts.Lang }} {{ $ts.LangVersion }} ({{ $ts.Interpreter }}), client {{ $ts.TracerVersion }}{{else}}unknown clients{{end}}{{if $ts.ConnectionType}} via {{$ts.ConnectionType}}{{end}}
               <span class="stat_subdata">
                 Traces received: {{ $ts.TracesReceived }} ({{ humanize $ts.TracesBytes }} bytes)<br>
                 Spans received: {{ $ts.SpansReceived }}

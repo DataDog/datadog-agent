@@ -3,14 +3,20 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package inventorychecksimpl
+// Package mock provides a mock for the inventorychecks component
+package mock
 
 import (
 	"go.uber.org/fx"
 
-	icinterface "github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
+	icinterface "github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
+
+// Mock implements mock-specific methods for the inventorychecks component.
+type Mock interface {
+	icinterface.Component
+}
 
 // MockProvides is the mock component output
 type MockProvides struct {
