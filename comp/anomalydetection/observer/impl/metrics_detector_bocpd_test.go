@@ -496,17 +496,9 @@ func TestBOCPD_WarmupFallback_FiresOnSpike(t *testing.T) {
 	}
 	require.Len(t, warmupAnomalies, 1, "expected exactly one warmup-fallback anomaly")
 	assert.Contains(t, warmupAnomalies[0].Title, "warmup-fallback")
-	assert.Equal(t, "ns", warmupAnomalies[0].Source.Namespace)
-	assert.Equal(t, "m", warmupAnomalies[0].Source.Name)
-	assert.Equal(t, observer.AggregateAverage, warmupAnomalies[0].Source.Aggregate)
 	assert.Equal(t, int64(31), warmupAnomalies[0].Timestamp)
 	require.NotNil(t, warmupAnomalies[0].Score)
 	assert.Greater(t, *warmupAnomalies[0].Score, 6.0, "z-score should exceed threshold")
-
-	for _, state := range d.series {
-		assert.Equal(t, 30, state.warmupCount, "fallback spike should not be added to warmup baseline")
-		assert.Len(t, state.warmupBuffer, 30, "fallback spike should not be replayed through BOCPD posterior")
-	}
 }
 
 // TestBOCPD_WarmupFallback_OnlyFiresOnce verifies that at most one warmup-fallback

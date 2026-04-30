@@ -313,7 +313,7 @@ func (b *BOCPDDetector) processPoint(state *bocpdSeriesState, p observer.Point, 
 	x := p.Value
 
 	if !state.initialized {
-		return b.warmupPoint(state, p, series, agg)
+		return b.warmupPoint(state, p)
 	}
 
 	triggered, cpProb, shortRunMass := b.updatePosterior(state, x)
@@ -343,7 +343,7 @@ func (b *BOCPDDetector) processPoint(state *bocpdSeriesState, p observer.Point, 
 // collected, each new point is evaluated against the running statistics computed
 // BEFORE including that point. If the deviation exceeds WarmupZThreshold, a single
 // warmup-fallback anomaly is emitted and the flag is set to prevent further fires.
-func (b *BOCPDDetector) warmupPoint(state *bocpdSeriesState, p observer.Point, series *observer.Series, agg observer.Aggregate) *observer.Anomaly {
+func (b *BOCPDDetector) warmupPoint(state *bocpdSeriesState, p observer.Point) *observer.Anomaly {
 	x := p.Value
 
 	// Snapshot pre-update statistics so the z-score is computed against the
@@ -352,9 +352,16 @@ func (b *BOCPDDetector) warmupPoint(state *bocpdSeriesState, p observer.Point, s
 	prevMean := state.warmupMean
 	prevM2 := state.warmupM2
 
-	// Z-score fallback while warmup data is being collected. Evaluate before
-	// updating warmup statistics so the candidate spike is compared against the
-	// existing baseline and does not contaminate the later BOCPD replay.
+	state.warmupCount++
+	state.warmupBuffer = append(state.warmupBuffer, x)
+	delta := x - state.warmupMean
+	state.warmupMean += delta / float64(state.warmupCount)
+	delta2 := x - state.warmupMean
+	state.warmupM2 += delta * delta2
+
+	// Z-score fallback while warmup data is being collected. Fires once per
+	// series during warmup so anomalies in the first ~2 minutes are not
+	// silently dropped.
 	if b.config.WarmupFallbackEnabled &&
 		!state.warmupFallbackFired &&
 		prevCount >= b.config.WarmupMinSamples &&
@@ -369,19 +376,12 @@ func (b *BOCPDDetector) warmupPoint(state *bocpdSeriesState, p observer.Point, s
 			if z >= b.config.WarmupZThreshold {
 				state.warmupFallbackFired = true
 				score := z
-				source := observer.SeriesDescriptor{
-					Namespace: series.Namespace,
-					Name:      series.Name,
-					Tags:      series.Tags,
-					Aggregate: agg,
-				}
 				return &observer.Anomaly{
 					Type:         observer.AnomalyTypeMetric,
-					Source:       source,
 					DetectorName: b.Name(),
-					Title:        "BOCPD warmup-fallback spike: " + source.String(),
-					Description: fmt.Sprintf("%s warmup z=%.2f (mean=%.4f, std=%.4f, x=%.4f, n=%d)",
-						source.String(), z, prevMean, stddev, x, prevCount),
+					Title:        "BOCPD warmup-fallback: spike",
+					Description: fmt.Sprintf("warmup z=%.2f (mean=%.4f, std=%.4f, x=%.4f, n=%d)",
+						z, prevMean, stddev, x, prevCount),
 					Timestamp: p.Timestamp,
 					Score:     &score,
 					DebugInfo: &observer.AnomalyDebugInfo{
@@ -394,13 +394,6 @@ func (b *BOCPDDetector) warmupPoint(state *bocpdSeriesState, p observer.Point, s
 			}
 		}
 	}
-
-	state.warmupCount++
-	state.warmupBuffer = append(state.warmupBuffer, x)
-	delta := x - state.warmupMean
-	state.warmupMean += delta / float64(state.warmupCount)
-	delta2 := x - state.warmupMean
-	state.warmupM2 += delta * delta2
 
 	if state.warmupCount >= b.config.WarmupPoints {
 		b.initializeFromWarmup(state)
