@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"regexp"
@@ -73,10 +74,8 @@ func (w *workloadmeta) workloadListFlareProvider(_ context.Context, fb flaretype
 
 // fillFlare collects workloadmeta data for the flare archive.
 func (w *workloadmeta) fillFlare(ctx context.Context, fb flaretypes.FlareBuilder) error {
-	sbomErr := w.sbomFlareProvider(ctx, fb)
-	listErr := w.workloadListFlareProvider(ctx, fb)
-	if sbomErr != nil {
-		return sbomErr
-	}
-	return listErr
+	return errors.Join(
+		w.sbomFlareProvider(ctx, fb),
+		w.workloadListFlareProvider(ctx, fb),
+	)
 }
