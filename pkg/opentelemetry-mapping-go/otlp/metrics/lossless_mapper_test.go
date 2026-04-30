@@ -14,6 +14,8 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 func TestLossLessMapperMapNumberMetrics(t *testing.T) {
@@ -207,7 +209,7 @@ func TestLossLessMapperMapNumberMetrics_DeltaSumRateAttribute(t *testing.T) {
 				{
 					TestDimensions: TestDimensions{
 						Name: "test.metric",
-						Tags: []string{"env:prod"},
+						Tags: []string{"env:prod", "datadog.metric.as_type:rate"},
 					},
 					Type:      Rate,
 					Timestamp: 11_000_000_000,
@@ -255,7 +257,7 @@ func TestLossLessMapperMapNumberMetrics_DeltaSumRateAttribute(t *testing.T) {
 			},
 		},
 		{
-			name:               "as_type attribute is removed from tags",
+			name:               "as_type attribute is kept in tags",
 			inferDeltaInterval: true,
 			setupSlice: func(slice pmetric.NumberDataPointSlice) {
 				dp := slice.AppendEmpty()
@@ -269,7 +271,7 @@ func TestLossLessMapperMapNumberMetrics_DeltaSumRateAttribute(t *testing.T) {
 				{
 					TestDimensions: TestDimensions{
 						Name: "test.metric",
-						Tags: []string{"service:web"},
+						Tags: []string{"service:web", "datadog.metric.as_type:rate"},
 					},
 					Type:      Rate,
 					Timestamp: 6_000_000_000,
@@ -293,6 +295,29 @@ func TestLossLessMapperMapNumberMetrics_DeltaSumRateAttribute(t *testing.T) {
 					Type:           Gauge,
 					Timestamp:      1_000_000_000,
 					Value:          42,
+				},
+			},
+		},
+		{
+			name:               "unknown as_type value is ignored",
+			inferDeltaInterval: true,
+			setupSlice: func(slice pmetric.NumberDataPointSlice) {
+				dp := slice.AppendEmpty()
+				dp.SetIntValue(100)
+				dp.SetStartTimestamp(pcommon.Timestamp(1_000_000_000))
+				dp.SetTimestamp(pcommon.Timestamp(11_000_000_000))
+				dp.Attributes().PutStr("datadog.metric.as_type", "histogram")
+			},
+			expectedTimeSeries: []TestTimeSeries{
+				{
+					TestDimensions: TestDimensions{
+						Name: "test.metric",
+						Tags: []string{"datadog.metric.as_type:histogram"},
+					},
+					Type:      Count,
+					Timestamp: 11_000_000_000,
+					Interval:  10,
+					Value:     100,
 				},
 			},
 		},
@@ -334,6 +359,95 @@ func TestLossLessMapperMapNumberMetrics_DeltaSumRateAttribute(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMapNumberMetrics_RateAttributeWarnings(t *testing.T) {
+	t.Run("unknown as_type value logs error", func(t *testing.T) {
+		core, logs := observer.New(zapcore.ErrorLevel)
+		logger := zap.New(core)
+		cfg := translatorConfig{
+			InferDeltaInterval:    true,
+			DeltaSumRateAttribute: true,
+		}
+		mapper := newLossLessMapper(cfg, logger)
+
+		slice := pmetric.NewNumberDataPointSlice()
+		dp := slice.AppendEmpty()
+		dp.SetIntValue(100)
+		dp.SetStartTimestamp(pcommon.Timestamp(1_000_000_000))
+		dp.SetTimestamp(pcommon.Timestamp(11_000_000_000))
+		dp.Attributes().PutStr("datadog.metric.as_type", "histogram")
+
+		dims := &Dimensions{name: "test.metric"}
+		consumer := newTestConsumer()
+		mapper.MapNumberMetrics(context.Background(), &consumer, dims, Count, slice)
+
+		require.Equal(t, 1, logs.Len())
+		entry := logs.All()[0]
+		assert.Contains(t, entry.Message, "unsupported datadog.metric.as_type value")
+		assert.Equal(t, "test.metric", entry.ContextMap()["metric name"])
+		assert.Equal(t, "histogram", entry.ContextMap()["value"])
+	})
+
+	t.Run("zero interval logs warning when as_type=rate", func(t *testing.T) {
+		core, logs := observer.New(zapcore.ErrorLevel)
+		logger := zap.New(core)
+		cfg := translatorConfig{
+			InferDeltaInterval:    false,
+			DeltaSumRateAttribute: true,
+		}
+		mapper := newLossLessMapper(cfg, logger)
+
+		slice := pmetric.NewNumberDataPointSlice()
+		dp := slice.AppendEmpty()
+		dp.SetIntValue(200)
+		dp.SetTimestamp(pcommon.Timestamp(11_000_000_000))
+		dp.Attributes().PutStr("datadog.metric.as_type", "rate")
+
+		dims := &Dimensions{name: "test.metric"}
+		consumer := newTestConsumer()
+		mapper.MapNumberMetrics(context.Background(), &consumer, dims, Count, slice)
+
+		require.Len(t, consumer.data.Metrics.TimeSeries, 1)
+		ts := consumer.data.Metrics.TimeSeries[0]
+		assert.Equal(t, Rate, ts.Type)
+		assert.Equal(t, float64(200), ts.Value, "value should not be divided when interval is 0")
+
+		require.Equal(t, 1, logs.Len())
+		entry := logs.All()[0]
+		assert.Contains(t, entry.Message, "interval is 0")
+		assert.Equal(t, "test.metric", entry.ContextMap()["metric name"])
+	})
+
+	t.Run("one-shot error fires only once for repeated misuse", func(t *testing.T) {
+		core, logs := observer.New(zapcore.ErrorLevel)
+		logger := zap.New(core)
+		cfg := translatorConfig{
+			DeltaSumRateAttribute: true,
+		}
+		mapper := newLossLessMapper(cfg, logger)
+
+		slice := pmetric.NewNumberDataPointSlice()
+		for i := 0; i < 3; i++ {
+			dp := slice.AppendEmpty()
+			dp.SetIntValue(int64(i + 1))
+			dp.SetTimestamp(pcommon.Timestamp(uint64(i+1) * 1_000_000_000))
+			dp.Attributes().PutStr("datadog.metric.as_type", "rate")
+		}
+
+		dims := &Dimensions{name: "test.metric"}
+		consumer := newTestConsumer()
+		mapper.MapNumberMetrics(context.Background(), &consumer, dims, Gauge, slice)
+
+		require.Len(t, consumer.data.Metrics.TimeSeries, 3, "all datapoints should still be emitted")
+		for _, ts := range consumer.data.Metrics.TimeSeries {
+			assert.Equal(t, Gauge, ts.Type, "type should remain Gauge")
+		}
+
+		assert.Equal(t, 1, logs.Len(),
+			"wrongType error should be logged exactly once despite 3 datapoints")
+		assert.Contains(t, logs.All()[0].Message, "only supported on delta sum metrics")
+	})
 }
 
 func TestLossLessMapperMapSummaryMetrics(t *testing.T) {

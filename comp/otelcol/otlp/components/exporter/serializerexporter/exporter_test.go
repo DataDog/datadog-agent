@@ -834,11 +834,11 @@ func TestDeltaSumAsRateAttribute(t *testing.T) {
 	}()
 
 	tests := []struct {
-		name         string
-		genMetrics   func() pmetric.Metrics
-		wantType     metrics.APIMetricType
-		wantName     string
-		checkNoAsTag bool
+		name          string
+		genMetrics    func() pmetric.Metrics
+		wantType      metrics.APIMetricType
+		wantName      string
+		checkHasAsTag bool
 	}{
 		{
 			name: "delta sum with as_type=rate becomes rate",
@@ -857,9 +857,9 @@ func TestDeltaSumAsRateAttribute(t *testing.T) {
 				dp.Attributes().PutStr("env", "test")
 				return md
 			},
-			wantType:     metrics.APIRateType,
-			wantName:     "test.delta.sum",
-			checkNoAsTag: true,
+			wantType:      metrics.APIRateType,
+			wantName:      "test.delta.sum",
+			checkHasAsTag: true,
 		},
 		{
 			name: "delta sum without attribute stays count",
@@ -903,11 +903,15 @@ func TestDeltaSumAsRateAttribute(t *testing.T) {
 				if s.Name == tt.wantName {
 					found = true
 					assert.Equal(t, tt.wantType, s.MType, "metric type mismatch for %s", s.Name)
-					if tt.checkNoAsTag {
+					if tt.checkHasAsTag {
+						hasAsTag := false
 						s.Tags.ForEach(func(tag string) {
-							assert.NotContains(t, tag, "datadog.metric.as_type",
-								"control attribute should not appear as a tag")
+							if tag == "datadog.metric.as_type:rate" {
+								hasAsTag = true
+							}
 						})
+						assert.True(t, hasAsTag,
+							"control attribute should be present as a tag for debugging")
 					}
 					break
 				}
