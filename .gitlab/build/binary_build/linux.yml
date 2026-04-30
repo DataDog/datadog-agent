@@ -86,6 +86,7 @@ build_iot_agent-binary_x64:
     - $S3_CP_CMD $CI_PROJECT_DIR/$AGENT_BINARIES_DIR/agent $S3_ARTIFACTS_URI/iot/agent
 
 build_iot_agent-binary_arm64:
+  extends: .bazel:defs:cache:progressive
   rules: !reference [.on_all_builds]
   stage: binary_build
   timeout: 20m
