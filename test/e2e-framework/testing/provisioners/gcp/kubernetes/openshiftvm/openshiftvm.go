@@ -89,7 +89,7 @@ func OpenShiftVMRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, param
 	osDesc := os.DescriptorFromString("redhat:9", os.RedHat9)
 	vm, err := compute.NewVM(gcpEnv, "openshift",
 		compute.WithOS(osDesc),
-		compute.WithInstancetype("n2-standard-8"),
+		compute.WithInstancetype("n4-standard-16"),
 		compute.WithNestedVirt(true),
 		// this is used by the dumpCluster debug function
 		compute.WithLabels(map[string]string{"kube-provider": "openshift"}),
