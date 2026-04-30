@@ -488,13 +488,13 @@ func TestGetSenderAddCheckCustomTagsHistogramBucket(t *testing.T) {
 	s := initSender(checkID1, "")
 
 	// no custom tags
-	s.sender.HistogramBucket("my.histogram_bucket", 42, 1.0, 2.0, true, "my-hostname", nil, false)
+	s.sender.OpenmetricsBucket("my.histogram_bucket", 42, 1.0, 2.0, true, "my-hostname", nil, false)
 	bucketSample := (<-s.itemChan).(*senderHistogramBucket)
 	assert.Nil(t, bucketSample.bucket.Tags)
 
 	// only tags added by the check
 	checkTags := []string{"check:tag1", "check:tag2"}
-	s.sender.HistogramBucket("my.histogram_bucket", 42, 1.0, 2.0, true, "my-hostname", checkTags, false)
+	s.sender.OpenmetricsBucket("my.histogram_bucket", 42, 1.0, 2.0, true, "my-hostname", checkTags, false)
 	bucketSample = (<-s.itemChan).(*senderHistogramBucket)
 	assert.Equal(t, checkTags, bucketSample.bucket.Tags)
 
@@ -504,12 +504,12 @@ func TestGetSenderAddCheckCustomTagsHistogramBucket(t *testing.T) {
 	assert.Len(t, s.sender.checkTags, 2)
 
 	// only tags coming from the configuration file
-	s.sender.HistogramBucket("my.histogram_bucket", 42, 1.0, 2.0, true, "my-hostname", nil, false)
+	s.sender.OpenmetricsBucket("my.histogram_bucket", 42, 1.0, 2.0, true, "my-hostname", nil, false)
 	bucketSample = (<-s.itemChan).(*senderHistogramBucket)
 	assert.Equal(t, customTags, bucketSample.bucket.Tags)
 
 	// tags added by the check + tags coming from the configuration file
-	s.sender.HistogramBucket("my.histogram_bucket", 42, 1.0, 2.0, true, "my-hostname", checkTags, false)
+	s.sender.OpenmetricsBucket("my.histogram_bucket", 42, 1.0, 2.0, true, "my-hostname", checkTags, false)
 	bucketSample = (<-s.itemChan).(*senderHistogramBucket)
 	assert.Equal(t, append(checkTags, customTags...), bucketSample.bucket.Tags)
 }
@@ -526,7 +526,7 @@ func TestCheckSenderInterface(t *testing.T) {
 	s.sender.MonotonicCountWithFlushFirstValue("my.monotonic_count_metric", 12.0, "my-hostname", []string{"foo", "bar"}, true)
 	s.sender.Counter("my.counter_metric", 1.0, "my-hostname", []string{"foo", "bar"})
 	s.sender.Histogram("my.histo_metric", 3.0, "my-hostname", []string{"foo", "bar"})
-	s.sender.HistogramBucket("my.histogram_bucket", 42, 1.0, 2.0, true, "my-hostname", []string{"foo", "bar"}, true)
+	s.sender.OpenmetricsBucket("my.histogram_bucket", 42, 1.0, 2.0, true, "my-hostname", []string{"foo", "bar"}, true)
 	s.sender.Distribution("my.distribution", 43.0, "my-hostname", []string{"foo", "bar"})
 	s.sender.Commit()
 	s.sender.ServiceCheck("my_service.can_connect", servicecheck.ServiceCheckOK, "my-hostname", []string{"foo", "bar"}, "message")

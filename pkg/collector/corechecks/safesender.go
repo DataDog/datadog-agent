@@ -84,9 +84,9 @@ func (ss *safeSender) ServiceCheck(checkName string, status servicecheck.Service
 	ss.Sender.ServiceCheck(checkName, status, hostname, cloneTags(tags), message)
 }
 
-// HistogramBucket implements sender.Sender#HistogramBucket.
-func (ss *safeSender) HistogramBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool) {
-	ss.Sender.HistogramBucket(metric, value, lowerBound, upperBound, monotonic, hostname, cloneTags(tags), flushFirstValue)
+// OpenmetricsBucket implements sender.Sender#OpenmetricsBucket.
+func (ss *safeSender) OpenmetricsBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool) {
+	ss.Sender.OpenmetricsBucket(metric, value, lowerBound, upperBound, monotonic, hostname, cloneTags(tags), flushFirstValue)
 }
 
 // SetCheckCustomTags implements sender.Sender#SetCheckCustomTags.

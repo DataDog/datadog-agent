@@ -28,7 +28,7 @@ type Sender interface {
 	Historate(metric string, value float64, hostname string, tags []string)
 	Distribution(metric string, value float64, hostname string, tags []string)
 	ServiceCheck(checkName string, status servicecheck.ServiceCheckStatus, hostname string, tags []string, message string)
-	HistogramBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool)
+	OpenmetricsBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool)
 	// GaugeWithTimestamp reports a new gauge value to the intake with the given timestamp.
 	// Gauge time series measure a simple value over time.
 	// Unlike Gauge(), each submitted value will be passed to the intake as is, without aggregation. Each time series can have only one value per timestamp.

@@ -262,8 +262,8 @@ func (s *checkSender) Histogram(metric string, value float64, hostname string, t
 	s.sendMetricSample(metric, value, hostname, tags, metrics.HistogramType, false, false, 0)
 }
 
-// HistogramBucket should be called to directly send raw buckets to be submitted as distribution metrics
-func (s *checkSender) HistogramBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool) {
+// OpenmetricsBucket should be called to directly send raw buckets to be submitted as distribution metrics
+func (s *checkSender) OpenmetricsBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool) {
 	tags = append(tags, s.checkTags...)
 
 	log.Tracef(

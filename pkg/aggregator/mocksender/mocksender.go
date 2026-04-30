@@ -115,7 +115,7 @@ func (m *MockSender) SetupAcceptAll() {
 	// The second argument should have been `mock.AnythingOfType("[]byte")` instead of `mock.AnythingOfType("[]uint8")`
 	// See https://github.com/stretchr/testify/issues/387
 	m.On("EventPlatformEvent", mock.AnythingOfType("[]uint8"), mock.AnythingOfType("string")).Return()
-	m.On("HistogramBucket",
+	m.On("OpenmetricsBucket",
 		mock.AnythingOfType("string"),   // metric name
 		mock.AnythingOfType("int64"),    // value
 		mock.AnythingOfType("float64"),  // lower bound

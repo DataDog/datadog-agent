@@ -93,8 +93,8 @@ func (m *MockSender) EventPlatformEvent(rawEvent []byte, eventType string) {
 	m.Called(rawEvent, eventType)
 }
 
-// HistogramBucket enables the histogram bucket mock call.
-func (m *MockSender) HistogramBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool) {
+// OpenmetricsBucket enables the openmetrics bucket mock call.
+func (m *MockSender) OpenmetricsBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool) {
 	m.Called(metric, value, lowerBound, upperBound, monotonic, hostname, tags, flushFirstValue)
 }
 
