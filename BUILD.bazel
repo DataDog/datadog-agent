@@ -890,9 +890,6 @@ exports_files(glob(
 # gazelle:exclude tools/host-profiler
 # gazelle:exclude tools/retry_file_dump
 # gazelle:exclude tools/windows
-gazelle(
-    name = "gazelle",
-    build_tags = ALL_BUILD_TAGS,
 # Proto definitions under pkg/proto/datadog/ use pre-generated Go code checked
 # into pkg/proto/pbgo/. Gazelle's proto mode is disabled because multiple proto
 # directories share the same go_package ("pkg/proto/pbgo/core"), making
@@ -955,6 +952,9 @@ _GAZELLE_BUILD_TAGS = [
     "zlib",
     "zstd",
 ]
+
+gazelle(
+    name = "gazelle",
     build_tags = _GAZELLE_BUILD_TAGS,
     external = "static",  # don't use the network: https://github.com/bazel-contrib/bazel-gazelle/issues/1385
     extra_args = [
