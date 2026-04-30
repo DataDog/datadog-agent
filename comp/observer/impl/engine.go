@@ -38,10 +38,13 @@ type seriesContextRef struct {
 // The engine does not own reporters or scheduling policy. It accepts explicit
 // Advance calls and returns results that callers route to their own outputs.
 type engine struct {
-	// mu protects detectors, correlators, extractors, logObservers,
-	// lastAnalyzedDataTime, and latestDataTime from concurrent access.
-	// Writers (Advance, Reset, SetDetectors, SetCorrelators, SetExtractors)
-	// take a write lock; readers (stateView methods) take a read lock.
+	// mu protects detectors, correlators, extractors, logObservers, and
+	// contextRefs from concurrent access. Writers (Advance, Reset,
+	// SetDetectors, SetCorrelators, SetExtractors) take a write lock; readers
+	// (stateView methods) take a read lock. lastAnalyzedDataTime and
+	// latestDataTime are stored as atomics so producers calling
+	// IngestMetricSync from arbitrary goroutines do not need to synchronize on
+	// engine state.
 	mu sync.RWMutex
 
 	storage          *timeSeriesStorage
@@ -59,10 +62,14 @@ type engine struct {
 	logObservers []observerdef.LogObserver
 
 	// lastAnalyzedDataTime is the data timestamp up to which detection has run.
-	lastAnalyzedDataTime int64
+	// Updated by advanceWithReason; read by IngestMetricSync, IngestLog, and
+	// the scheduler ticker. Stored as atomic so the metric ingest hot path
+	// stays lock-free.
+	lastAnalyzedDataTime atomic.Int64
 
-	// latestDataTime is the latest data timestamp seen across all ingested observations.
-	latestDataTime int64
+	// latestDataTime is the latest data timestamp seen across all ingested
+	// observations. Monotonic; updated via CompareAndSwap loop.
+	latestDataTime atomic.Int64
 
 	// Raw anomaly tracking (for telemetry and testbench display).
 	rawAnomalies         []observerdef.Anomaly
@@ -103,10 +110,13 @@ type engine struct {
 	onAdvance      func(advanceEntry) // scheduler trace
 
 	// Counters for data ingestion anomalies, reset after each advance.
-	latePoints         atomic.Int64     // points ingested after their timestamp was already analyzed
-	latePointsBySource map[string]int64 // per-source breakdown (single-goroutine access from run loop)
-	handles            []*handle        // registered handles for per-source drop collection
-	handlesMu          sync.Mutex       // protects handles slice
+	latePoints           atomic.Int64 // points ingested after their timestamp was already analyzed
+	latePointsBySource   sync.Map     // string source → *atomic.Int64; concurrent-safe
+	latePointsSourceKeys []string     // tracked keys so advance can drain & reset
+	latePointsKeysMu     sync.Mutex   // protects latePointsSourceKeys append-only growth
+
+	handles   []*handle  // registered handles for per-source drop collection
+	handlesMu sync.Mutex // protects handles slice
 }
 
 // engineConfig holds the parameters for constructing an engine.
@@ -210,19 +220,86 @@ func (e *engine) registerHandle(h *handle) {
 // IngestMetric stores a metric observation and consults the scheduler policy
 // to determine whether detectors should advance. Returns advance requests
 // that the caller should execute via Advance.
+//
+// Used by tests, the testbench, and the engine's own log-derived metric path.
+// The live ingest path uses IngestMetricSync which avoids the metricObs heap
+// box and does not invoke the scheduler synchronously.
 func (e *engine) IngestMetric(source string, m *metricObs) []advanceRequest {
 	e.storage.Add(source, m.name, m.value, m.timestamp, m.tags)
-	// Track points that arrive after their timestamp was already analyzed.
-	// These points are in storage but were invisible to detectors at analysis time.
-	if m.timestamp <= e.lastAnalyzedDataTime {
-		e.latePoints.Add(1)
-		if e.latePointsBySource == nil {
-			e.latePointsBySource = make(map[string]int64)
-		}
-		e.latePointsBySource[source]++
-	}
-	e.trackLatestDataTime(m.timestamp)
+	e.recordIngestion(source, m.timestamp)
 	return e.scheduler.onObservation(m.timestamp, e.schedulerState())
+}
+
+// IngestMetricSync is the live-ingest entry point for metric handles. It is
+// called synchronously from producer goroutines (DogStatsD, HF runners, the
+// aggregator). It writes through to storage and bumps the engine's data-time
+// trackers but does NOT call into the scheduler — advance scheduling is
+// driven by the scheduler ticker on a separate goroutine.
+//
+// Lifetime contract: the storage write completes before this function
+// returns, so the caller may reuse name/tags/sample memory immediately. No
+// references are retained beyond the synchronous storage.Add call (storage
+// canonicalizes tags and aliases name internally only on first occurrence).
+func (e *engine) IngestMetricSync(source, name string, value float64, timestamp int64, tags []string) {
+	e.storage.Add(source, name, value, timestamp, tags)
+	e.recordIngestion(source, timestamp)
+}
+
+// recordIngestion updates late-point counters and latestDataTime for an
+// observation at the given source/timestamp. Safe to call from any goroutine.
+func (e *engine) recordIngestion(source string, timestamp int64) {
+	if timestamp <= e.lastAnalyzedDataTime.Load() {
+		e.latePoints.Add(1)
+		e.bumpLatePointsBySource(source)
+	}
+	e.trackLatestDataTime(timestamp)
+}
+
+// bumpLatePointsBySource increments the per-source late-point counter
+// concurrently. The first observation for a source allocates the atomic and
+// records the key for drain at advance time.
+func (e *engine) bumpLatePointsBySource(source string) {
+	if v, ok := e.latePointsBySource.Load(source); ok {
+		v.(*atomic.Int64).Add(1)
+		return
+	}
+	cnt := new(atomic.Int64)
+	cnt.Add(1)
+	if existing, loaded := e.latePointsBySource.LoadOrStore(source, cnt); loaded {
+		existing.(*atomic.Int64).Add(1)
+		return
+	}
+	e.latePointsKeysMu.Lock()
+	e.latePointsSourceKeys = append(e.latePointsSourceKeys, source)
+	e.latePointsKeysMu.Unlock()
+}
+
+// drainLatePointsBySource atomically swaps each per-source counter to zero
+// and returns a snapshot of non-zero counts. Used by advanceWithReason.
+func (e *engine) drainLatePointsBySource() map[string]int64 {
+	e.latePointsKeysMu.Lock()
+	keys := e.latePointsSourceKeys
+	e.latePointsKeysMu.Unlock()
+
+	if len(keys) == 0 {
+		return nil
+	}
+	var out map[string]int64
+	for _, k := range keys {
+		v, ok := e.latePointsBySource.Load(k)
+		if !ok {
+			continue
+		}
+		n := v.(*atomic.Int64).Swap(0)
+		if n == 0 {
+			continue
+		}
+		if out == nil {
+			out = make(map[string]int64)
+		}
+		out[k] = n
+	}
+	return out
 }
 
 // IngestLog processes a log observation: runs extractors to produce virtual metrics,
@@ -309,17 +386,24 @@ func (e *engine) removeContextRefsForEvictedKeys(namespace string, evictedKeys [
 }
 
 // trackLatestDataTime updates latestDataTime if the given timestamp is newer.
+// Concurrent-safe via CompareAndSwap; monotonic.
 func (e *engine) trackLatestDataTime(dataTimeSec int64) {
-	if dataTimeSec > e.latestDataTime {
-		e.latestDataTime = dataTimeSec
+	for {
+		cur := e.latestDataTime.Load()
+		if dataTimeSec <= cur {
+			return
+		}
+		if e.latestDataTime.CompareAndSwap(cur, dataTimeSec) {
+			return
+		}
 	}
 }
 
 // schedulerState returns the current scheduler-relevant state.
 func (e *engine) schedulerState() schedulerState {
 	return schedulerState{
-		lastAnalyzedDataTime: e.lastAnalyzedDataTime,
-		latestDataTime:       e.latestDataTime,
+		lastAnalyzedDataTime: e.lastAnalyzedDataTime.Load(),
+		latestDataTime:       e.latestDataTime.Load(),
 	}
 }
 
@@ -343,21 +427,17 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 	// runDetectorsAndCorrelators because emit() callbacks may re-enter
 	// stateView methods that take mu.RLock, causing a deadlock.
 	e.mu.Lock()
-	if upToSec <= e.lastAnalyzedDataTime {
+	if upToSec <= e.lastAnalyzedDataTime.Load() {
 		e.mu.Unlock()
 		return advanceResult{}
 	}
 	detectors := e.detectors
 	correlators := e.correlators
-	e.lastAnalyzedDataTime = upToSec
+	e.lastAnalyzedDataTime.Store(upToSec)
 	e.mu.Unlock()
 
 	if e.onAdvance != nil {
-		var lateBySource map[string]int64
-		if len(e.latePointsBySource) > 0 {
-			lateBySource = e.latePointsBySource
-			e.latePointsBySource = nil
-		}
+		lateBySource := e.drainLatePointsBySource()
 		var totalDrops int64
 		var dropsBySource map[string]int64
 		e.handlesMu.Lock()
@@ -730,8 +810,8 @@ func (e *engine) Reset() {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	e.lastAnalyzedDataTime = 0
-	e.latestDataTime = 0
+	e.lastAnalyzedDataTime.Store(0)
+	e.latestDataTime.Store(0)
 
 	for _, detector := range e.detectors {
 		if resetter, ok := detector.(interface{ Reset() }); ok {

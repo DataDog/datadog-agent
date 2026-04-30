@@ -75,10 +75,12 @@ type Provides struct {
 	Comp observerdef.Component
 }
 
-// observation is a message sent from handles to the observer.
+// observation is a message sent from log/profile handles to the observer's
+// run loop. Metric handles bypass this channel entirely and call the engine
+// synchronously; only logs and profiles still need the buffered hand-off so
+// extractor work runs off the producer's goroutine.
 type observation struct {
 	source  string
-	metric  *metricObs
 	log     *logObs
 	profile *profileObs
 }
@@ -242,6 +244,7 @@ func NewComponent(deps Requires) Provides {
 		hfContainerEnabled:   hfContainerEnabled,
 		hfFilterSources:      hfFilterSources,
 		ingestMetricsEnabled: cfg.GetBool("observer.ingest_metrics.enabled"),
+		schedulerStop:        make(chan struct{}),
 	}
 
 	if !obs.ingestMetricsEnabled {
@@ -303,6 +306,15 @@ func NewComponent(deps Requires) Provides {
 	}
 
 	go obs.run()
+	go obs.runScheduler(obs.schedulerStop)
+	if deps.Lifecycle != nil {
+		deps.Lifecycle.Append(compdef.Hook{
+			OnStop: func(_ context.Context) error {
+				close(obs.schedulerStop)
+				return nil
+			},
+		})
+	}
 
 	// Start high-frequency system check runner if enabled.
 	// Checks run at 1s and route metrics into the observer via a dedicated
@@ -522,15 +534,23 @@ type observerImpl struct {
 	// and log-derived virtual metrics produced inside the engine by
 	// LogMetricsExtractors are unaffected because they bypass the handle.
 	ingestMetricsEnabled bool
+
+	// schedulerStop signals the scheduler ticker goroutine to exit. Closed
+	// from the lifecycle OnStop hook.
+	schedulerStop chan struct{}
 }
 
-// run is the main dispatch loop, processing all observations sequentially.
+// run is the dispatch loop for log and profile observations. Metric
+// observations bypass this channel and write directly into storage from the
+// producer goroutine; advance scheduling for the metric path is driven by
+// runScheduler on a separate goroutine.
+//
+// Logs still trigger advance synchronously here because log ingestion is
+// rare relative to metrics and the per-call scheduler check costs nothing
+// compared to extractor work.
 func (o *observerImpl) run() {
 	for obs := range o.obsCh {
 		var requests []advanceRequest
-		if obs.metric != nil {
-			requests = o.engine.IngestMetric(obs.source, obs.metric)
-		}
 		if obs.log != nil {
 			logRequests, logTelemetry := o.engine.IngestLog(obs.source, obs.log)
 			requests = append(requests, logRequests...)
@@ -544,6 +564,38 @@ func (o *observerImpl) run() {
 		for _, req := range requests {
 			result := o.engine.advanceWithReason(req.upToSec, req.reason)
 			o.telemetryHandler.handleTelemetry(result.telemetry)
+		}
+	}
+}
+
+// schedulerTickInterval is how often the scheduler ticker checks whether an
+// advance is due. Short enough to keep advance latency comparable to
+// per-sample scheduling under typical 1s-bucket ingest, long enough not to
+// burn CPU spinning on the scheduler when no data is arriving.
+const schedulerTickInterval = 100 * time.Millisecond
+
+// runScheduler drives the analysis scheduler off the metric ingest path. It
+// ticks at a small interval, asks the scheduler whether the latest data time
+// warrants an advance, and runs the detectors if so. This replaces the
+// per-sample scheduler.onObservation call that used to happen inside the
+// run loop.
+func (o *observerImpl) runScheduler(stop <-chan struct{}) {
+	t := time.NewTicker(schedulerTickInterval)
+	defer t.Stop()
+	for {
+		select {
+		case <-stop:
+			return
+		case <-t.C:
+			latest := o.engine.latestDataTime.Load()
+			if latest == 0 {
+				continue
+			}
+			requests := o.engine.scheduler.onObservation(latest, o.engine.schedulerState())
+			for _, req := range requests {
+				result := o.engine.advanceWithReason(req.upToSec, req.reason)
+				o.telemetryHandler.handleTelemetry(result.telemetry)
+			}
 		}
 	}
 }
@@ -693,7 +745,7 @@ func (o *observerImpl) GetHandle(name string) observerdef.Handle {
 // wrapped with metricDropHandle so external metrics are dropped at the edge,
 // while ObserveLog/ObserveProfile pass through.
 func (o *observerImpl) innerHandle(name string) observerdef.Handle {
-	h := &handle{ch: o.obsCh, source: name, dropCounter: o.dropCounter}
+	h := &handle{engine: o.engine, ch: o.obsCh, source: name, dropCounter: o.dropCounter}
 	o.engine.registerHandle(h)
 	var out observerdef.Handle = h
 	if len(o.hfFilterSources) > 0 && name == "all-metrics" {
@@ -817,11 +869,14 @@ func (o *observerImpl) DumpMetrics(path string) error {
 }
 
 // handle is the lightweight observation interface passed to other components.
-// It only holds a channel and source name - all processing happens in the observer.
+// Metric writes call into the engine synchronously (no channel, no copy).
+// Logs and profiles still go through the buffered observation channel because
+// extractor work on logs is too slow to run on producer threads.
 type handle struct {
+	engine      *engine
 	ch          chan<- observation
 	source      string
-	dropCount   atomic.Int64      // per-handle drop counter, collected by engine at advance time
+	dropCount   atomic.Int64      // log/profile drops on channel-full; metric path is sync and never drops
 	dropCounter telemetry.Counter // tagged by source for Prometheus visibility; may be nil
 }
 
@@ -830,8 +885,10 @@ func (h *handle) ObserveMetric(sample observerdef.MetricView) {
 	_ = h.ObserveMetricAndReportDrop(sample)
 }
 
-// ObserveMetricAndReportDrop observes a metric and reports whether this
-// specific call was dropped by the observer channel.
+// ObserveMetricAndReportDrop observes a metric synchronously. The metric
+// path is lock-stepped with storage so it never drops on backpressure; the
+// boolean return is retained for compatibility with the recordingHandle
+// (parquet recorder) interface and always reports false.
 func (h *handle) ObserveMetricAndReportDrop(sample observerdef.MetricView) bool {
 	timestamp := sample.GetTimestampUnix()
 	if timestamp == 0 {
@@ -845,27 +902,12 @@ func (h *handle) ObserveMetricAndReportDrop(sample observerdef.MetricView) bool 
 		return false
 	}
 
-	obs := observation{
-		source: h.source,
-		metric: &metricObs{
-			name:      name,
-			value:     sample.GetValue(),
-			tags:      copyTags(sample.GetRawTags()),
-			timestamp: timestamp,
-		},
-	}
-
-	// Non-blocking send - drop if channel is full.
-	select {
-	case h.ch <- obs:
-		return false
-	default:
-		h.dropCount.Add(1)
-		if h.dropCounter != nil {
-			h.dropCounter.Add(1, h.source)
-		}
-		return true
-	}
+	// Borrowed reference: storage.Add hashes name+tags and updates the bucket
+	// synchronously. On cold path (first occurrence of a series) storage
+	// canonicalizes its own copy of tags and aliases the name string. The
+	// caller may reuse name/tags slice memory immediately after this returns.
+	h.engine.IngestMetricSync(h.source, name, sample.GetValue(), timestamp, sample.GetRawTags())
+	return false
 }
 
 // ObserveLog observes a log message.

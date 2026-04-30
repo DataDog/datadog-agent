@@ -195,14 +195,10 @@ func (sv *stateView) Telemetry() []observerdef.ObserverTelemetry {
 
 // LastAnalyzedTime returns the data timestamp up to which detection has run.
 func (sv *stateView) LastAnalyzedTime() int64 {
-	sv.engine.mu.RLock()
-	defer sv.engine.mu.RUnlock()
-	return sv.engine.lastAnalyzedDataTime
+	return sv.engine.lastAnalyzedDataTime.Load()
 }
 
 // LatestDataTime returns the latest data timestamp seen across all ingested observations.
 func (sv *stateView) LatestDataTime() int64 {
-	sv.engine.mu.RLock()
-	defer sv.engine.mu.RUnlock()
-	return sv.engine.latestDataTime
+	return sv.engine.latestDataTime.Load()
 }
