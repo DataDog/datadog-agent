@@ -14,10 +14,10 @@ require (
 	github.com/philhofer/fwd v1.2.0 // indirect
 	github.com/tinylib/msgp v1.6.3 // indirect
 	github.com/weppos/publicsuffix-go v0.50.3 // indirect
-	golang.org/x/net v0.52.0 // indirect
+	golang.org/x/net v0.53.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
-	golang.org/x/sys v0.42.0 // indirect
-	golang.org/x/text v0.35.0 // indirect
+	golang.org/x/sys v0.43.0 // indirect
+	golang.org/x/text v0.36.0 // indirect
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
@@ -99,6 +99,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/api => ../../../pkg/api
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../pkg/collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/basic => ../../../pkg/config/basic
+	github.com/DataDog/datadog-agent/pkg/config/buildschema => ../../../pkg/config/buildschema
 	github.com/DataDog/datadog-agent/pkg/config/create => ../../../pkg/config/create
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../../pkg/config/env
 	github.com/DataDog/datadog-agent/pkg/config/helper => ../../../pkg/config/helper
@@ -107,6 +108,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ../../../pkg/config/nodetreemodel
 	github.com/DataDog/datadog-agent/pkg/config/remote => ../../../pkg/config/remote
 	github.com/DataDog/datadog-agent/pkg/config/render_config => ../../../pkg/config/render_config
+	github.com/DataDog/datadog-agent/pkg/config/schema => ../../../pkg/config/schema
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../../../pkg/config/setup
 	github.com/DataDog/datadog-agent/pkg/config/structure => ../../../pkg/config/structure
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig => ../../../pkg/config/teeconfig

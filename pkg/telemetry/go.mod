@@ -114,6 +114,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/api => ../../pkg/api
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../pkg/collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/basic => ../../pkg/config/basic
+	github.com/DataDog/datadog-agent/pkg/config/buildschema => ../../pkg/config/buildschema
 	github.com/DataDog/datadog-agent/pkg/config/create => ../../pkg/config/create
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../pkg/config/env
 	github.com/DataDog/datadog-agent/pkg/config/helper => ../../pkg/config/helper
@@ -122,6 +123,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ../../pkg/config/nodetreemodel
 	github.com/DataDog/datadog-agent/pkg/config/remote => ../../pkg/config/remote
 	github.com/DataDog/datadog-agent/pkg/config/render_config => ../../pkg/config/render_config
+	github.com/DataDog/datadog-agent/pkg/config/schema => ../../pkg/config/schema
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../../pkg/config/setup
 	github.com/DataDog/datadog-agent/pkg/config/structure => ../../pkg/config/structure
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig => ../../pkg/config/teeconfig
