@@ -1,0 +1,49 @@
+name: "CI KPI: time-to-trustworthy-green"
+
+on:
+  workflow_dispatch:
+    inputs:
+      window:
+        description: "Lookback window in days"
+        required: false
+        default: "14"
+        type: string
+      dry_run:
+        description: "Print metrics instead of submitting"
+        required: false
+        default: "false"
+        type: string
+  schedule:
+    - cron: "17 * * * *"  # hourly, offset to avoid the top-of-hour rush
+
+permissions: {}
+
+jobs:
+  compute:
+    runs-on: ubuntu-24.04
+    permissions:
+      id-token: write
+    env:
+      DD_API_KEY: ${{ secrets.DD_API_KEY }}
+      DD_APP_KEY: ${{ secrets.DD_APP_KEY }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Checkout datadog-agent repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Install dda
+        uses: ./.github/actions/install-dda
+        with:
+          features: legacy-tasks
+
+      - name: Compute and emit time-to-trustworthy-green
+        run: |
+          window="${{ inputs.window || '14' }}"
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            dda inv -- ci-kpi.compute --window="$window" --dry-run
+          else
+            dda inv -- ci-kpi.compute --window="$window"
+          fi
