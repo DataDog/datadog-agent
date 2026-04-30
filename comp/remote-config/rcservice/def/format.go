@@ -50,6 +50,7 @@ func printTUFRepo(w io.Writer, repo map[string]*pbgo.FileMetaState) {
 	printAndRemoveFile(w, repo, "snapshot.json", "|- ", 13)
 	printAndRemoveFile(w, repo, "targets.json", "|- ", 14)
 
+	// Sort the keys to display the delegated targets in order
 	keys := make([]string, 0, len(repo))
 	for k := range repo {
 		keys = append(keys, k)
@@ -83,6 +84,7 @@ func printRemoteConfigStateContents(w io.Writer, state *pbgo.GetStateConfigRespo
 	fmt.Fprintln(w, strings.Repeat("-", 29))
 	for _, client := range state.ActiveClients {
 		fmt.Fprintf(w, "\n- Client %s\n%+v", client.Id, client)
+		// Additional print of capabilities so it's more readable
 		fmt.Fprintf(w, "\n    - Capabilities: ")
 		for _, n := range client.Capabilities {
 			fmt.Printf("% 08b", n)
