@@ -2358,6 +2358,54 @@ def main(argv: list[str] | None = None) -> int:
         except ProtectedPathTamperHalt as e:
             print(f"protected-path tamper: {e}", file=sys.stderr)
             break
+        except KeyboardInterrupt:
+            # Operator hit Ctrl-C; let it propagate.
+            raise
+        except Exception as e:  # noqa: BLE001
+            # Catch-all so a single iter's crash doesn't kill the driver.
+            # Without this, transient errors (git lock, subprocess hiccup,
+            # JSON parse fail mid-iter, etc.) tear down the whole run and
+            # the operator wakes up to a dead workspace 15 hours later.
+            # Log + journal + post a PR comment + continue to next iter.
+            import traceback
+            tb = traceback.format_exc()
+            print(f"[iter {before}] DRIVER EXCEPTION: {type(e).__name__}: {e}", file=sys.stderr)
+            print(tb, file=sys.stderr)
+            # Capture stderr from CalledProcessError if present.
+            extra = ""
+            if hasattr(e, "stderr") and getattr(e, "stderr", None):
+                extra = f"\n\n**stderr**:\n```\n{str(e.stderr)[-2000:]}\n```"
+            try:
+                journal.append(
+                    "iter_driver_exception",
+                    {"iter": before, "exc_type": type(e).__name__,
+                     "exc": str(e)[:500], "traceback": tb[-2000:]},
+                    root,
+                )
+                coord_out.emit(
+                    "iter_driver_exception",
+                    (
+                        f"**iter {before}** — driver hit `{type(e).__name__}` "
+                        f"and would normally crash; harness recovered, "
+                        f"continuing to next iter.\n\n"
+                        f"**Error**: `{str(e)[:400]}`{extra}"
+                    ),
+                    requires_ack=False,
+                    root=root,
+                )
+                # Best-effort: revert any half-applied working tree from this iter.
+                try:
+                    git_ops.revert_working_tree(root)
+                except Exception:
+                    pass
+                # Reload db from disk in case the in-memory copy is stale
+                # (the iter may have been mid-write when it crashed).
+                db = load_db(root)
+            except Exception:
+                # If even the recovery path fails, just keep going — better
+                # to lose one iter's bookkeeping than halt the driver.
+                pass
+            continue
         if len(db.iterations) == before:
             break
         if db.phase_state.plateau_counter >= CONFIG.plateau_patience:
