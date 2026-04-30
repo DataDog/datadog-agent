@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
@@ -43,12 +44,7 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 	opts.ProbeOpts.FilterStore = deps.FilterStore
 	secmoduleOpts := secmodule.Opts{}
 
-	// adapt options
-	if secconfig.RuntimeSecurity.IsRuntimeEnabled() {
-		secmodule.UpdateEventMonitorOpts(&opts, secconfig)
-	} else {
-		secmodule.DisableRuntimeSecurity(secconfig)
-	}
+	secmodule.UpdateEventMonitorOpts(&opts, secconfig)
 
 	hostname, err := deps.Hostname.Get(context.Background())
 	if err != nil {
@@ -67,7 +63,7 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 	}
 
 	cwsEnabled := secconfig.RuntimeSecurity.IsRuntimeEnabled()
-	runtimeUsageEnabled := secconfig.RuntimeSecurity.SBOMResolverEnabled
+	runtimeUsageEnabled := pkgconfigsetup.Datadog().GetBool("sbom.enrichment.usage.enabled")
 
 	if cwsEnabled || runtimeUsageEnabled {
 		stopChan := make(chan struct{})

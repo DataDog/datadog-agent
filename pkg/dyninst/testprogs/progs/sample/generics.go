@@ -46,7 +46,7 @@ type doer interface {
 // See src/cmd/compile/abi-internal.md, step 4 of the assignment algorithm.
 type largeGenericType[V comparable] struct {
 	A, B, C, D, E, F, G, H [16]byte // 128 bytes
-	Value                   V        // pushes total over 128 bytes
+	Value                  V        // pushes total over 128 bytes
 }
 
 // --- Methods on generic types ---

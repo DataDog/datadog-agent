@@ -11,10 +11,11 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/perf"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
@@ -26,8 +27,8 @@ var closeConsumerTelemetry = struct {
 	perfReceived  telemetry.Counter
 	flushReceived telemetry.Counter
 }{
-	telemetry.NewCounter(closeConsumerModuleName, "closed_conn_polling_received", []string{}, "Counter measuring the number of closed connections received"),
-	telemetry.NewCounter(closeConsumerModuleName, "closed_conn_flush_received", []string{}, "Counter measuring the number of closed connections received during flush"),
+	telemetryimpl.GetCompatComponent().NewCounter(closeConsumerModuleName, "closed_conn_polling_received", []string{}, "Counter measuring the number of closed connections received"),
+	telemetryimpl.GetCompatComponent().NewCounter(closeConsumerModuleName, "closed_conn_flush_received", []string{}, "Counter measuring the number of closed connections received during flush"),
 }
 
 type tcpCloseConsumer struct {

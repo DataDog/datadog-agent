@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
@@ -58,19 +58,19 @@ var (
 	transactionsHTTPErrors             = expvar.Int{}
 	transactionsHTTPErrorsByCode       = expvar.Map{}
 
-	tlmConnectEvents = telemetry.NewCounter("transactions", "connection_events",
+	tlmConnectEvents = telemetryimpl.GetCompatComponent().NewCounter("transactions", "connection_events",
 		[]string{"connection_event_type"}, "Count of new connection events grouped by type of event")
 
 	// TlmTxDropped is a telemetry counter that counts the number transaction dropped.
-	TlmTxDropped = telemetry.NewCounter("transactions", "dropped",
+	TlmTxDropped = telemetryimpl.GetCompatComponent().NewCounter("transactions", "dropped",
 		[]string{"domain", "endpoint"}, "Transaction drop count")
-	tlmTxSuccessCount = telemetry.NewCounter("transactions", "success",
+	tlmTxSuccessCount = telemetryimpl.GetCompatComponent().NewCounter("transactions", "success",
 		[]string{"domain", "endpoint", "proto_version"}, "Successful transaction count")
-	tlmTxSuccessBytes = telemetry.NewCounter("transactions", "success_bytes",
+	tlmTxSuccessBytes = telemetryimpl.GetCompatComponent().NewCounter("transactions", "success_bytes",
 		[]string{"domain", "endpoint"}, "Successful transaction sizes in bytes")
-	tlmTxErrors = telemetry.NewCounter("transactions", "errors",
+	tlmTxErrors = telemetryimpl.GetCompatComponent().NewCounter("transactions", "errors",
 		[]string{"domain", "endpoint", "error_type"}, "Count of transactions errored grouped by type of error")
-	tlmTxHTTPErrors = telemetry.NewCounter("transactions", "http_errors",
+	tlmTxHTTPErrors = telemetryimpl.GetCompatComponent().NewCounter("transactions", "http_errors",
 		[]string{"domain", "endpoint", "code"}, "Count of transactions http errors per http code")
 )
 

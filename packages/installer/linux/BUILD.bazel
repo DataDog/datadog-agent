@@ -1,0 +1,209 @@
+"""Installer package components specific to Linux."""
+
+load("@rules_pkg//pkg:deb.bzl", "pkg_deb")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load(
+    "@rules_pkg//pkg:mappings.bzl",
+    "pkg_attributes",
+    "pkg_filegroup",
+    "pkg_files",
+    "pkg_mkdirs",
+)
+load("@rules_pkg//pkg:rpm.bzl", "pkg_rpm")
+load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
+load("//bazel/rules:compression.bzl", "get_compression_level")
+load("//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
+load("//compliance:package_licenses.bzl", "package_licenses")
+load("//packages/rules:package_naming.bzl", "package_name_variables")
+
+package(default_visibility = ["//packages:__subpackages__"])
+
+package_name_variables(
+    name = "variables",
+    product_name = "datadog-installer",
+)
+
+# The installer binary, placed at bin/installer/ within the install dir.
+pkg_files(
+    name = "installer_binary",
+    srcs = ["@installer_binary//:installer"],
+    prefix = "bin/installer",
+)
+
+# Empty dirs required at runtime by the installer.
+# Paths are relative so the pkg_filegroup prefix below resolves them correctly.
+pkg_mkdirs(
+    name = "embedded_dirs",
+    attributes = pkg_attributes(mode = "0755"),
+    dirs = [
+        "embedded/bin",
+        "embedded/lib",
+    ],
+)
+
+# Version manifest files.  The templates live in the parent package so they
+# can be shared if other platforms ever need them.
+# No prefix here — installer_components applies /opt/datadog-installer below.
+dd_agent_expand_template(
+    name = "version_manifest_json",
+    out = "version-manifest.json",
+    template = "//packages/installer:version-manifest.json.in",
+)
+
+dd_agent_expand_template(
+    name = "version_manifest_txt",
+    out = "version-manifest.txt",
+    template = "//packages/installer:version-manifest.txt.in",
+)
+
+# Everything that belongs under /opt/datadog-installer/
+pkg_filegroup(
+    name = "installer_components",
+    srcs = [
+        ":embedded_dirs",
+        ":installer_binary",
+        ":version_manifest_json",
+        ":version_manifest_txt",
+    ],
+    prefix = "/opt/datadog-installer",
+)
+
+# Intermediate node for the license-gathering aspect.
+pkg_filegroup(
+    name = "everything",
+    srcs = [":installer_components"],
+)
+
+package_licenses(
+    name = "license_files",
+    src = ":everything",
+)
+
+pkg_filegroup(
+    name = "whole_distro",
+    srcs = [
+        ":everything",
+        ":license_files",
+    ],
+)
+
+pkg_tar(
+    name = "whole_distro_tar",
+    srcs = [":whole_distro"],
+    compression_level = get_compression_level(),
+    extension = "tar.xz",
+    owner = "0.0",
+)
+
+# README.md generation — platform-specific uninstall command substituted into the template.
+dd_agent_expand_template(
+    name = "readme_deb_gen",
+    out = "README_deb.md",
+    substitutions = {"{uninstall_command}": "sudo apt-get remove datadog-installer"},
+    template = "//packages/installer:README.md.in",
+)
+
+dd_agent_expand_template(
+    name = "readme_rpm_gen",
+    out = "README_rpm.md",
+    substitutions = {"{uninstall_command}": "sudo yum remove datadog-installer"},
+    template = "//packages/installer:README.md.in",
+)
+
+# Wrap in pkg_files so the output is renamed to README.md at the install prefix.
+pkg_files(
+    name = "readme_deb",
+    srcs = [":readme_deb_gen"],
+    prefix = "/opt/datadog-installer",
+    renames = {":readme_deb_gen": "README.md"},
+)
+
+pkg_files(
+    name = "readme_rpm",
+    srcs = [":readme_rpm_gen"],
+    prefix = "/opt/datadog-installer",
+    renames = {":readme_rpm_gen": "README.md"},
+)
+
+# Deb-specific tarball that includes README.md.
+# whole_distro_tar (without README) remains as the XZ artifact passed to packaging stage.
+pkg_tar(
+    name = "whole_distro_tar_deb",
+    srcs = [
+        ":readme_deb",
+        ":whole_distro",
+    ],
+    compression_level = get_compression_level(),
+    extension = "tar.xz",
+    owner = "0.0",
+)
+
+_DESCRIPTION = """Datadog Installer
+The Datadog Installer is a lightweight process that installs and updates
+the Datadog Agent and Tracers.
+
+See http://www.datadoghq.com/ for more information
+"""
+
+pkg_deb(
+    name = "debian",
+    data = ":whole_distro_tar_deb",
+    description = _DESCRIPTION,
+    homepage = "http://www.datadoghq.com",
+    license = "Apache License Version 2.0",
+    maintainer = "Datadog Packages <package@datadoghq.com>",
+    package = "datadog-installer",
+    package_file_name = "datadog-installer_{version}-1_{arch_deb}.deb",
+    package_variables = ":variables",
+    postinst = "//omnibus:package-scripts/installer-deb/postinst",
+    postrm = "//omnibus:package-scripts/installer-deb/postrm",
+    priority = "extra",
+    recommends = ["datadog-signing-keys (>= 1:1.4.0)"],
+    section = "utils",
+    version = "7",  # TODO: stamp from pipeline (ABLD-364)
+)
+
+pkg_rpm(
+    name = "rpm",
+    package_name = "datadog-installer",
+    srcs = [
+        ":readme_rpm",
+        ":whole_distro",
+    ],
+    description = _DESCRIPTION,
+    epoch = "1",
+    group = "System Environment/Daemons",
+    license = "Apache License Version 2.0",
+    package_file_name = "datadog-installer-{version}-1.{arch_rpm}.rpm",
+    package_variables = ":variables",
+    posttrans_scriptlet_file = "//omnibus:package-scripts/installer-rpm/posttrans",
+    postun_scriptlet_file = "//omnibus:package-scripts/installer-rpm/postrm",
+    release = "1",
+    # TODO: use select() for RHEL vs SUSE when a platform constraint is defined.
+    requires_contextual = {
+        "pre": [
+            "coreutils",
+            "findutils",
+            "glibc-common",
+            "grep",
+            "shadow-utils",
+        ],
+    },
+    summary = "Datadog Installer",
+    url = "http://www.datadoghq.com",
+    version = "7",  # TODO: pick up from pipeline
+)
+
+# Temporary for omnibus script to copy the built packages out to the artifact dir
+pkg_files(
+    name = "all_packages",
+    srcs = [
+        ":debian",
+        ":rpm",
+    ],
+)
+
+pkg_install(
+    name = "copy_out",
+    srcs = [":all_packages"],
+)

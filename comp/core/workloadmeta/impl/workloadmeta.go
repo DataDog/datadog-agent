@@ -8,7 +8,6 @@ package workloadmetaimpl
 import (
 	"context"
 	"net/http"
-	"slices"
 	"sync"
 	"time"
 
@@ -18,7 +17,6 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -59,14 +57,7 @@ type workloadmeta struct {
 	pullsMut sync.Mutex
 	pulls    map[string]*pullInfo
 
-	// expectedSources maps entity kinds to the sources that are expected to
-	// report data for them. This is used to determine if an entity is
-	// "complete" (all expected collectors have reported).
-	//
-	// TODO: For now, this map is static and not updated when a collector
-	// permanently fails. A permanent failure means entities waiting on that
-	// source will never be considered complete.
-	expectedSources map[wmdef.Kind][]wmdef.Source
+	completeness *completenessTracker
 }
 
 // Dependencies defines the dependencies of the workloadmeta component.
@@ -106,7 +97,7 @@ func NewWorkloadMeta(deps Dependencies) Provider {
 		eventCh:               make(chan []wmdef.CollectorEvent, eventChBufferSize),
 		pulls:                 make(map[string]*pullInfo),
 		collectorsInitialized: wmdef.CollectorsNotStarted,
-		expectedSources:       initExpectedSources(deps.Params.AgentType),
+		completeness:          newCompletenessTracker(deps.Params.AgentType, deps.Config),
 	}
 
 	deps.Lc.Append(compdef.Hook{OnStart: func(_ context.Context) error {
@@ -155,52 +146,4 @@ func (w *workloadmeta) writeResponse(writer http.ResponseWriter, r *http.Request
 
 	writer.Header().Set("Content-Type", "application/json")
 	writer.Write(jsonDump)
-}
-
-// initExpectedSources initializes the expected sources map based on the
-// detected environment features. This determines which collectors are expected
-// to report data for each entity kind.
-//
-// For now, it only supports Kubernetes. Other cases with multiple collectors
-// reporting the same entity kind:
-// - ECS EC2: containers are reported by both the ECS and Docker collectors.
-// TODO: This will be handled later.
-// - Kubernetes Deployments: reported by the kubeapiserver collector and
-// language detection code. Completeness tracking is not needed for deployments.
-func initExpectedSources(agentType wmdef.AgentType) map[wmdef.Kind][]wmdef.Source {
-	expectedSources := make(map[wmdef.Kind][]wmdef.Source)
-
-	if !env.IsFeaturePresent(env.Kubernetes) {
-		return expectedSources
-	}
-
-	// Only the Node Agent runs multiple collectors that need to report
-	// for an entity to be complete
-	if agentType != wmdef.NodeAgent {
-		return expectedSources
-	}
-
-	// In Kubernetes, pods are reported by:
-	// - kubelet collector (SourceNodeOrchestrator)
-	// - kubemetadata collector (SourceClusterOrchestrator)
-	expectedSources[wmdef.KindKubernetesPod] = []wmdef.Source{
-		wmdef.SourceNodeOrchestrator,
-		wmdef.SourceClusterOrchestrator,
-	}
-
-	// In Kubernetes, containers are reported by:
-	// - kubelet collector (SourceNodeOrchestrator)
-	// - container runtime collector if accessible (SourceRuntime)
-	containerSources := []wmdef.Source{wmdef.SourceNodeOrchestrator}
-	if containerRuntimeIsAccessible() {
-		containerSources = append(containerSources, wmdef.SourceRuntime)
-	}
-	expectedSources[wmdef.KindContainer] = containerSources
-
-	return expectedSources
-}
-
-func containerRuntimeIsAccessible() bool {
-	runtimes := []env.Feature{env.Docker, env.Containerd, env.Crio, env.Podman}
-	return slices.ContainsFunc(runtimes, env.IsFeaturePresent)
 }

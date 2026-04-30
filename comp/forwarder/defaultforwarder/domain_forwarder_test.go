@@ -9,6 +9,7 @@ package defaultforwarder
 
 import (
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -121,6 +122,10 @@ func TestDomainForwarderSendHTTPTransactions(t *testing.T) {
 }
 
 func TestDomainForwarderHAPreFailover(t *testing.T) {
+	synctest.Test(t, syncTestDomainForwarderHAPreFailover)
+}
+
+func syncTestDomainForwarderHAPreFailover(t *testing.T) {
 	mockConfig := mock.New(t)
 	mockConfig.SetWithoutSource("multi_region_failover.enabled", "true")
 	mockConfig.SetWithoutSource("multi_region_failover.failover_metrics", "false")

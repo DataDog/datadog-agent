@@ -163,12 +163,12 @@ func (p *InitContainerProvider) InjectLibrary(pod *corev1.Pod, cfg LibraryConfig
 	patcher.AddInitContainer(initContainer)
 
 	// Volume mount for application containers
-	patcher.AddVolumeMount(corev1.VolumeMount{
+	patcher.AddVolumeMountWithTarget(corev1.VolumeMount{
 		Name:      InstrumentationVolumeName,
 		MountPath: asAbsPath(libraryPackagesDir),
 		SubPath:   libraryPackagesDir,
 		ReadOnly:  true,
-	})
+	}, cfg.ContainerName)
 
 	return MutationResult{
 		Status: MutationStatusInjected,

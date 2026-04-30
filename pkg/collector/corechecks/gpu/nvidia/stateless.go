@@ -24,21 +24,9 @@ import (
 
 // nvlinkSample handles NVLink metrics collection logic
 func nvlinkSample(device ddnvml.Device) ([]Metric, uint64, error) {
-	// Get total number of NVLinks dynamically
-	fields := []nvml.FieldValue{
-		{
-			FieldId: nvml.FI_DEV_NVLINK_LINK_COUNT,
-			ScopeId: 0,
-		},
-	}
-
-	if err := device.GetFieldValues(fields); err != nil {
+	totalNVLinks, err := getNVLinkCount(device)
+	if err != nil {
 		return nil, 0, fmt.Errorf("failed to get nvlink count: %w", err)
-	}
-
-	totalNVLinks, convErr := fieldValueToNumber[int](nvml.ValueType(fields[0].ValueType), fields[0].Value)
-	if convErr != nil {
-		return nil, 0, fmt.Errorf("failed to convert number of nvlinks to integer: %w", convErr)
 	}
 
 	// Collect NVLink states
@@ -208,6 +196,89 @@ func processDetailListSample(device ddnvml.Device) ([]Metric, uint64, error) {
 	}
 
 	return processMemoryUsage(device, usage, High), 0, err
+}
+
+func shouldSkipLegacyEccMetric(device ddnvml.Device, errorType nvml.MemoryErrorType, memoryLocation nvml.MemoryLocation) bool {
+	if device.GetDeviceInfo().Architecture < nvml.DEVICE_ARCH_AMPERE {
+		return false
+	}
+
+	if memoryLocation == nvml.MEMORY_LOCATION_SRAM {
+		return true
+	}
+
+	return errorType == nvml.MEMORY_ERROR_TYPE_UNCORRECTED && memoryLocation == nvml.MEMORY_LOCATION_L2_CACHE
+}
+
+func sramEccErrorStatusSample(device ddnvml.Device) ([]Metric, uint64, error) {
+	// SRAM ECC error status is only supported on Ampere and later. Some of the metrics
+	// overlap with the legacy ECC metrics, so we need to check the architecture and return an error
+	if device.GetDeviceInfo().Architecture < nvml.DEVICE_ARCH_AMPERE {
+		return nil, 0, ddnvml.NewNvmlAPIErrorOrNil("GetSramEccErrorStatus", nvml.ERROR_NOT_SUPPORTED)
+	}
+
+	status, err := device.GetSramEccErrorStatus()
+	if err != nil {
+		return nil, 0, err
+	}
+
+	metricsOut := []Metric{
+		{
+			Name:  "errors.ecc.corrected.total",
+			Value: float64(status.AggregateCor),
+			Type:  metrics.GaugeType,
+			Tags:  []string{"memory_location:sram"},
+		},
+		{
+			Name:  "errors.ecc.sram.uncorrected_by_subtype.total",
+			Value: float64(status.AggregateUncParity),
+			Type:  metrics.GaugeType,
+			Tags:  []string{"memory_location:sram", "error_subtype:parity"},
+		},
+		{
+			Name:  "errors.ecc.sram.uncorrected_by_subtype.total",
+			Value: float64(status.AggregateUncSecDed),
+			Type:  metrics.GaugeType,
+			Tags:  []string{"memory_location:sram", "error_subtype:secded"},
+		},
+		{
+			Name:  "errors.ecc.uncorrected.total",
+			Value: float64(status.AggregateUncBucketL2),
+			Type:  metrics.GaugeType,
+			Tags:  []string{"memory_location:l2_cache"},
+		},
+		{
+			Name:  "errors.ecc.uncorrected.total",
+			Value: float64(status.AggregateUncBucketSm),
+			Type:  metrics.GaugeType,
+			Tags:  []string{"memory_location:sm"},
+		},
+		{
+			Name:  "errors.ecc.uncorrected.total",
+			Value: float64(status.AggregateUncBucketPcie),
+			Type:  metrics.GaugeType,
+			Tags:  []string{"memory_location:pcie"},
+		},
+		{
+			Name:  "errors.ecc.uncorrected.total",
+			Value: float64(status.AggregateUncBucketMcu),
+			Type:  metrics.GaugeType,
+			Tags:  []string{"memory_location:microcontroller"},
+		},
+		{
+			Name:  "errors.ecc.uncorrected.total",
+			Value: float64(status.AggregateUncBucketOther),
+			Type:  metrics.GaugeType,
+			Tags:  []string{"memory_location:other"},
+		},
+		{
+			Name:  "errors.ecc.sram.threshold_exceeded",
+			Value: boolToFloat(status.BThresholdExceeded != 0),
+			Type:  metrics.GaugeType,
+		},
+	}
+
+	return metricsOut, 0, nil
 }
 
 // createStatelessAPIs creates API call definitions for all stateless metrics on demand
@@ -536,6 +607,12 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 				}, 0, nil
 			},
 		},
+		{
+			Name: "sram_ecc_error_status",
+			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+				return sramEccErrorStatusSample(device)
+			},
+		},
 		// Process memory APIs (stateless - just current snapshot)
 		{
 			Name: "process_memory_usage",
@@ -565,6 +642,10 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 			apis = append(apis, apiCallInfo{
 				Name: fmt.Sprintf("ecc_errors.%s.%s", errorTypeName, memoryLocationName),
 				Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+					if shouldSkipLegacyEccMetric(device, errorType, memoryLocation) {
+						return nil, 0, ddnvml.NewNvmlAPIErrorOrNil("GetMemoryErrorCounter", nvml.ERROR_NOT_SUPPORTED)
+					}
+
 					count, err := device.GetMemoryErrorCounter(errorType, nvml.AGGREGATE_ECC, memoryLocation)
 					if err != nil {
 						return nil, 0, err

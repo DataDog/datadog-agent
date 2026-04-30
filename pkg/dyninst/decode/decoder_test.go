@@ -72,12 +72,15 @@ func FuzzDecoder(f *testing.F) {
 
 type (
 	captures struct{ Entry struct{ Arguments any } }
-	debugger struct {
-		Snapshot         struct{ Captures captures }
+	snapshot struct {
+		Captures         captures
 		EvaluationErrors []struct {
 			Expression string `json:"expr"`
 			Message    string `json:"message"`
 		} `json:"evaluationErrors,omitempty"`
+	}
+	debugger struct {
+		Snapshot snapshot
 	}
 	eventCaptures struct {
 		Debugger    debugger
@@ -1558,10 +1561,10 @@ func TestDecoderMissingReturnEventEvaluationError(t *testing.T) {
 			require.NoError(t, json.Unmarshal(buf, &e))
 
 			if tt.shouldHaveError {
-				require.NotEmpty(t, e.Debugger.EvaluationErrors,
+				require.NotEmpty(t, e.Debugger.Snapshot.EvaluationErrors,
 					"expected evaluation error but none found")
 				found := false
-				for _, evalErr := range e.Debugger.EvaluationErrors {
+				for _, evalErr := range e.Debugger.Snapshot.EvaluationErrors {
 					if evalErr.Expression == tt.expectedErrorExpression &&
 						evalErr.Message == tt.expectedErrorMessage {
 						found = true
@@ -1571,10 +1574,10 @@ func TestDecoderMissingReturnEventEvaluationError(t *testing.T) {
 				require.True(t, found,
 					"expected evaluation error with expression %q and message %q, got errors: %+v",
 					tt.expectedErrorExpression, tt.expectedErrorMessage,
-					e.Debugger.EvaluationErrors)
+					e.Debugger.Snapshot.EvaluationErrors)
 			} else {
 				// Check that there's no return-related error
-				require.Empty(t, e.Debugger.EvaluationErrors)
+				require.Empty(t, e.Debugger.Snapshot.EvaluationErrors)
 			}
 		})
 	}
@@ -1610,15 +1613,15 @@ func TestDecoderNilPointerCaptureExpression(t *testing.T) {
 	require.Nil(t, e.Debugger.Snapshot.Captures.Entry.Arguments)
 
 	// An evaluation error should be reported for the nil pointer.
-	require.NotEmpty(t, e.Debugger.EvaluationErrors)
+	require.NotEmpty(t, e.Debugger.Snapshot.EvaluationErrors)
 	found := false
-	for _, evalErr := range e.Debugger.EvaluationErrors {
+	for _, evalErr := range e.Debugger.Snapshot.EvaluationErrors {
 		if evalErr.Message == "nil pointer dereference" {
 			found = true
 			break
 		}
 	}
-	require.True(t, found, "expected nil pointer evaluation error, got: %+v", e.Debugger.EvaluationErrors)
+	require.True(t, found, "expected nil pointer evaluation error, got: %+v", e.Debugger.Snapshot.EvaluationErrors)
 }
 
 // TestDecoderNilPointerTemplateExpression tests that a nil pointer dereference

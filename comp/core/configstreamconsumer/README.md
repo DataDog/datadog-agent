@@ -6,7 +6,7 @@ A shared Go library for remote agents (system-probe, trace-agent, process-agent,
 
 - **Real-time config**: Receive full snapshot then incremental updates from the core agent over gRPC.
 - **RAR-gated**: Only registered remote agents can subscribe; session ID is required (fixed or via `SessionIDProvider`).
-- **Readiness gating**: `OnStart` blocks until the first config snapshot is received, aborting startup if `Params.ReadyTimeout` (default: 60s) is exceeded.
+- **Readiness gating**: `Start` blocks until the first config snapshot is received, aborting startup if `Params.ReadyTimeout` (default: 60s) is exceeded.
 - **Single source of truth**: Streamed config is written into `config.Component` via `model.Writer`. Callers read config through `config.Component` directly — not through this component.
 - **Ordered updates**: Sequential application by sequence ID; stale updates dropped, discontinuities trigger resync.
 - **Restart safety**: `lastSeqID` is never reset on reconnect. If the core agent restarts and its sequence counter resets, the consumer logs an error and refuses the new snapshot until the sub-process itself restarts.
@@ -90,7 +90,7 @@ func configstreamFxOptions() fx.Option {
         }),
 
         configstreamconsumerfx.Module(),
-        // Force instantiation so OnStart runs and blocks until the first snapshot.
+        // Force instantiation so Start runs and blocks until the first snapshot.
         fx.Invoke(func(_ configstreamconsumer.Component) {}),
     )
 }
@@ -128,7 +128,7 @@ func configstreamFxOptions() fx.Option {
 - **session_id required in metadata**
   Ensure the remote agent registers with RAR first and that the consumer is given either a fixed `SessionID` or a `SessionIDProvider` that returns the session ID.
 
-- **WaitReady timeout**
+- **Startup timeout (no snapshot received within `ReadyTimeout`)**
   Core agent must be running, config stream enabled, and RAR returning a valid session. Check core agent logs for config stream and RAR errors.
 
 - **"core agent may have restarted" error in logs**

@@ -40,7 +40,9 @@ type Program struct {
 	Types            []ir.Type
 	Throttlers       []Throttler
 	GoModuledataInfo ir.GoModuledataInfo
+	GoMapHashInfo    ir.GoMapHashInfo
 	CommonTypes      ir.CommonTypes
+	IsARM64          bool
 }
 
 type generator struct {
@@ -175,14 +177,18 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 		Types:            types,
 		Throttlers:       throttlers,
 		GoModuledataInfo: program.GoModuledataInfo,
+		GoMapHashInfo:    program.GoMapHashInfo,
 		CommonTypes:      program.CommonTypes,
+		IsARM64:          program.IsARM64,
 	}, nil
 }
 
 // computeThrottleMode determines the throttle mode for an event based on
 // whether this event or its sibling has a condition.
 //
-// Note importantly at time of writing only one event can have a condition!
+// Condition evaluation (including compound and/or/not conditions) is
+// constrained to a single event kind per probe (see irgen's event-kind
+// unification), so at most one event per probe carries a condition.
 func computeThrottleMode(event *ir.Event, conditionEventKind ir.EventKind) ThrottleMode {
 	hasCond := event.Condition != nil
 	isReturn := event.Kind == ir.EventKindReturn
@@ -331,8 +337,16 @@ func (g *generator) addConditionHandler(
 				Index:         op.Index,
 				ExprStatusIdx: ^uint32(0), // conditions don't have per-expression status
 			})
+		case *ir.SwissMapLookupOp:
+			ops = append(ops, swissMapOps(op, ^uint32(0))...) // conditions don't have per-expression status
 		case *ir.ConditionCheckOp:
 			ops = append(ops, ConditionCheckOp{})
+		case *ir.CondNotOp:
+			ops = append(ops, CondNotOp{})
+		case *ir.CondJumpOp:
+			ops = append(ops, CondJumpOp{Cond: op.Cond, Label: op.Target})
+		case *ir.CondLabelOp:
+			ops = append(ops, CondLabelOp{ID: op.ID})
 		default:
 			panic(fmt.Sprintf("unexpected ir.Operation in condition: %#v", op))
 		}
@@ -429,6 +443,10 @@ func (g *generator) addExpressionHandler(injectionPC uint64, rootType *ir.EventR
 				Index:         op.Index,
 				ExprStatusIdx: exprIdx,
 			})
+		case *ir.SwissMapLookupOp:
+			// The lookup writes the value element at sm->offset on success.
+			lastOpSize = op.ValByteSize
+			ops = append(ops, swissMapOps(op, exprIdx)...)
 		default:
 			panic(fmt.Sprintf("unexpected ir.Operation: %#v", op))
 		}
@@ -975,6 +993,37 @@ outer:
 	// Variable is not available, just return. Expression ops are allowed to "return early" on error.
 	ops = append(ops, ReturnOp{})
 	return ops, nil
+}
+
+// swissMapOps returns the 5-opcode sequence for a swiss map lookup.
+func swissMapOps(op *ir.SwissMapLookupOp, exprStatusIdx uint32) []Op {
+	return []Op{
+		SwissMapSetupOp{
+			KeyData:                  op.KeyData,
+			IsStringKey:              op.IsStringKey,
+			KeyByteSize:              op.KeyByteSize,
+			ValByteSize:              op.ValByteSize,
+			SeedOffset:               op.SeedOffset,
+			DirPtrOffset:             op.DirPtrOffset,
+			DirLenOffset:             op.DirLenOffset,
+			GlobalShiftOffset:        op.GlobalShiftOffset,
+			CtrlOffset:               op.CtrlOffset,
+			SlotsOffset:              op.SlotsOffset,
+			SlotSize:                 op.SlotSize,
+			KeyInSlotOffset:          op.KeyInSlotOffset,
+			ValInSlotOffset:          op.ValInSlotOffset,
+			TableGroupsFieldOffset:   op.TableGroupsFieldOffset,
+			GroupsDataFieldOffset:    op.GroupsDataFieldOffset,
+			GroupsLenMaskFieldOffset: op.GroupsLenMaskFieldOffset,
+			GroupByteSize:            op.GroupByteSize,
+			HeaderByteSize:           op.HeaderByteSize,
+			ExprStatusIdx:            exprStatusIdx,
+		},
+		SwissMapAesencOp{},
+		SwissMapHashFinishOp{},
+		SwissMapProbeOp{},
+		SwissMapCheckSlotOp{},
+	}
 }
 
 var errUnsupportedAddrLocationOp = errors.New("unsupported addr location op")

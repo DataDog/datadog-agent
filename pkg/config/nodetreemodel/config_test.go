@@ -17,6 +17,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/spf13/cast"
 	"github.com/stretchr/testify/assert"
@@ -1505,6 +1506,40 @@ func TestOnUpdate(t *testing.T) {
 	assert.Equal(t, "a", gotSetting)
 	assert.Equal(t, 1, gotOldValue)
 	assert.Equal(t, 2, gotNewValue)
+}
+
+// TestUnsetForSourceListenerCanReadConfig reproduces a deadlock where
+// UnsetForSource notified OnUpdate subscribers while still holding the
+// write lock. Any subscriber that read the config (via the read side of
+// the RWMutex) would block against the held write lock forever.
+func TestUnsetForSourceListenerCanReadConfig(t *testing.T) {
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg.SetDefault("log_level", "info")
+	cfg.BuildSchema()
+
+	observed := []string{}
+	cfg.OnUpdate(func(_ string, _ model.Source, _, _ any, _ uint64) {
+		// A realistic listener reads the current config. Before the fix
+		// this call deadlocked because UnsetForSource still held the
+		// config write lock.
+		observed = append(observed, cfg.GetString("log_level"))
+	})
+
+	cfg.Set("log_level", "debug", model.SourceRC)
+
+	done := make(chan struct{})
+	go func() {
+		cfg.UnsetForSource("log_level", model.SourceRC)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("UnsetForSource deadlocked while notifying listeners")
+	}
+
+	assert.Equal(t, []string{"debug", "info"}, observed)
 }
 
 func TestSetInvalidSource(t *testing.T) {

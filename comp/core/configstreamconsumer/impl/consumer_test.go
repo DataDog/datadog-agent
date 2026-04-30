@@ -24,9 +24,10 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/structpb"
 
+	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
@@ -97,14 +98,16 @@ func createTestConsumer(t *testing.T, serverAddr string, ipcComp *ipcmock.IPCMoc
 		log:       log,
 		ipc:       ipcComp,
 		telemetry: telemetryComp,
-		params: Params{
+		params: configstreamconsumer.Params{
 			ClientName:       "test-client",
 			CoreAgentAddress: serverAddr,
 			SessionID:        "test-session-123",
 		},
 		effectiveConfig: make(map[string]interface{}),
 		readyCh:         make(chan struct{}),
+		startTime:       time.Now(),
 	}
+	c.initMetrics()
 
 	cleanup := func() {
 		if c.cancel != nil {
@@ -150,14 +153,11 @@ func TestConsumerSnapshot(t *testing.T) {
 
 	// Start streaming in a goroutine
 	consumer.ctx, consumer.cancel = context.WithCancel(context.Background())
-	consumer.initMetrics()
 	go func() {
-		startTime := time.Now()
-		firstSnapshot := true
-		_ = consumer.connectAndStream(startTime, &firstSnapshot)
+		_ = consumer.connectAndStream()
 	}()
 
-	err := consumer.WaitReady(ctx)
+	err := consumer.waitReady(ctx)
 	require.NoError(t, err)
 
 	// Verify config was applied to the effective config map
@@ -194,14 +194,11 @@ func TestConsumerUpdates(t *testing.T) {
 
 	// Start streaming
 	consumer.ctx, consumer.cancel = context.WithCancel(context.Background())
-	consumer.initMetrics()
 	go func() {
-		startTime := time.Now()
-		firstSnapshot := true
-		_ = consumer.connectAndStream(startTime, &firstSnapshot)
+		_ = consumer.connectAndStream()
 	}()
 
-	err := consumer.WaitReady(ctx)
+	err := consumer.waitReady(ctx)
 	require.NoError(t, err)
 
 	// Send an update
@@ -251,14 +248,11 @@ func TestConsumerStaleUpdates(t *testing.T) {
 
 	// Start streaming
 	consumer.ctx, consumer.cancel = context.WithCancel(context.Background())
-	consumer.initMetrics()
 	go func() {
-		startTime := time.Now()
-		firstSnapshot := true
-		_ = consumer.connectAndStream(startTime, &firstSnapshot)
+		_ = consumer.connectAndStream()
 	}()
 
-	err := consumer.WaitReady(ctx)
+	err := consumer.waitReady(ctx)
 	require.NoError(t, err)
 
 	// Send a stale update (seq_id <= current)
@@ -302,16 +296,13 @@ func TestConsumerAppliesUpdatesInOrder(t *testing.T) {
 
 		// Start streaming in background
 		consumer.ctx, consumer.cancel = context.WithCancel(context.Background())
-		consumer.initMetrics()
 		go func() {
-			startTime := time.Now()
-			firstSnapshot := true
-			_ = consumer.connectAndStream(startTime, &firstSnapshot)
+			_ = consumer.connectAndStream()
 		}()
 
 		// WaitReady should block
 		readyCtx, readyCancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-		err := consumer.WaitReady(readyCtx)
+		err := consumer.waitReady(readyCtx)
 		readyCancel()
 		assert.Error(t, err, "should timeout before snapshot")
 
@@ -330,7 +321,7 @@ func TestConsumerAppliesUpdatesInOrder(t *testing.T) {
 		// Now WaitReady should succeed
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
-		err = consumer.WaitReady(ctx)
+		err = consumer.waitReady(ctx)
 		assert.NoError(t, err, "should unblock after snapshot")
 	})
 
@@ -344,11 +335,8 @@ func TestConsumerAppliesUpdatesInOrder(t *testing.T) {
 
 		// Start streaming
 		consumer.ctx, consumer.cancel = context.WithCancel(context.Background())
-		consumer.initMetrics()
 		go func() {
-			startTime := time.Now()
-			firstSnapshot := true
-			_ = consumer.connectAndStream(startTime, &firstSnapshot)
+			_ = consumer.connectAndStream()
 		}()
 
 		// Send snapshot and ordered updates
@@ -363,7 +351,7 @@ func TestConsumerAppliesUpdatesInOrder(t *testing.T) {
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		err := consumer.WaitReady(ctx)
+		err := consumer.waitReady(ctx)
 		require.NoError(t, err)
 
 		// Send ordered updates
@@ -390,7 +378,7 @@ func TestConsumerAppliesUpdatesInOrder(t *testing.T) {
 	})
 }
 
-// TestStartBlocksUntilSnapshot verifies that Start blocks until the first snapshot is received,
+// TestStartBlocksUntilSnapshot verifies that start blocks until the first snapshot is received,
 // so the binary's run function sees a fully-populated config without calling WaitReady.
 func TestStartBlocksUntilSnapshot(t *testing.T) {
 	ipcComp := ipcmock.New(t)
@@ -417,7 +405,7 @@ func TestStartBlocksUntilSnapshot(t *testing.T) {
 	}()
 
 	startTime := time.Now()
-	err := consumer.Start(context.Background())
+	err := consumer.start(context.Background())
 	startDuration := time.Since(startTime)
 
 	require.NoError(t, err, "Start should succeed once snapshot is received")
@@ -432,7 +420,7 @@ func TestStartBlocksUntilSnapshot(t *testing.T) {
 	consumer.stop(context.Background())
 }
 
-// TestStartTimeoutFailsStartup verifies that Start returns an error when the first snapshot
+// TestStartTimeoutFailsStartup verifies that start returns an error when the first snapshot
 // is not received within ReadyTimeout, aborting FX startup.
 func TestStartTimeoutFailsStartup(t *testing.T) {
 	ipcComp := ipcmock.New(t)
@@ -446,7 +434,7 @@ func TestStartTimeoutFailsStartup(t *testing.T) {
 	consumer.params.ReadyTimeout = 200 * time.Millisecond
 
 	startTime := time.Now()
-	err := consumer.Start(context.Background())
+	err := consumer.start(context.Background())
 	startDuration := time.Since(startTime)
 
 	require.Error(t, err, "Start should fail when no snapshot received within timeout")

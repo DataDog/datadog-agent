@@ -18,12 +18,12 @@
           {
             "function": "main.condUint64",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 364
+            "lineNumber": 442
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 60
+            "lineNumber": 63
           },
           {
             "function": "runtime.main",
@@ -82,12 +82,12 @@
           {
             "function": "main.condUint64",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 364
+            "lineNumber": 442
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 61
+            "lineNumber": 64
           },
           {
             "function": "runtime.main",

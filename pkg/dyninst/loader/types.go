@@ -97,6 +97,22 @@ func opcodeByte(opcode compiler.Opcode) uint8 {
 		return C.SM_OP_CALL_DICT_RESOLVED
 	case compiler.OpcodeExprSliceBoundsCheck:
 		return C.SM_OP_EXPR_SLICE_BOUNDS_CHECK
+	case compiler.OpcodeSwissMapSetup:
+		return C.SM_OP_SWISS_MAP_SETUP
+	case compiler.OpcodeSwissMapAesenc:
+		return C.SM_OP_SWISS_MAP_AESENC
+	case compiler.OpcodeSwissMapHashFinish:
+		return C.SM_OP_SWISS_MAP_HASH_FINISH
+	case compiler.OpcodeSwissMapProbe:
+		return C.SM_OP_SWISS_MAP_PROBE
+	case compiler.OpcodeSwissMapCheckSlot:
+		return C.SM_OP_SWISS_MAP_CHECK_SLOT
+	case compiler.OpcodeCondNot:
+		return C.SM_OP_COND_NOT
+	case compiler.OpcodeCondJumpIfFalse:
+		return C.SM_OP_COND_JUMP_IF_FALSE
+	case compiler.OpcodeCondJumpIfTrue:
+		return C.SM_OP_COND_JUMP_IF_TRUE
 	default:
 		panic(fmt.Sprintf("unknown opcode: %s", opcode))
 	}

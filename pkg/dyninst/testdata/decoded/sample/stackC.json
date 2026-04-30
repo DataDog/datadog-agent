@@ -60,7 +60,7 @@
         "captures": {
           "return": {
             "locals": {
-              "~r0": {
+              "@return": {
                 "type": "string",
                 "value": "hello 1!"
               }

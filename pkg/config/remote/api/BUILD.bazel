@@ -11,7 +11,6 @@ go_library(
         "//pkg/util/http",
         "//pkg/util/log",
         "//pkg/version",
-        "@com_github_gorilla_websocket//:websocket",
         "@org_golang_google_protobuf//proto",
     ],
 )
@@ -20,11 +19,10 @@ go_test(
     name = "api_test",
     srcs = ["http_test.go"],
     embed = [":api"],
-    gotags = ["test"],  # keep: pkg/config/nodetreemodel SetWithoutSource / assert_testonly
+    gotags = ["test"],
     deps = [
         "//pkg/config/mock",
         "@com_github_coreos_go_semver//semver",
-        "@com_github_gorilla_websocket//:websocket",
         "@com_github_stretchr_testify//assert",
     ],
 )

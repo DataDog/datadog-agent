@@ -380,7 +380,15 @@ func makeOperationMarshaler(
 			toMarshal = newWithKind(op)
 		case *ir.SliceBoundsCheckOp:
 			toMarshal = newWithKind(op)
+		case *ir.SwissMapLookupOp:
+			toMarshal = newWithKind(op)
 		case *ir.ConditionCheckOp:
+			toMarshal = newWithKind(op)
+		case *ir.CondNotOp:
+			toMarshal = newWithKind(op)
+		case *ir.CondJumpOp:
+			toMarshal = newWithKind(op)
+		case *ir.CondLabelOp:
 			toMarshal = newWithKind(op)
 		default:
 			return fmt.Errorf("unknown operation: %T", op)

@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "event_copy_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/generators/event_copy",
+    visibility = ["//visibility:private"],
+    deps = [
+        "@com_github_fatih_structtag//:structtag",
+        "@org_golang_x_tools//go/packages",
+    ],
+)
+
+go_binary(
+    name = "event_copy",
+    embed = [":event_copy_lib"],
+    visibility = ["//visibility:public"],
+)

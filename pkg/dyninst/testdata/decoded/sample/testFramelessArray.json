@@ -80,7 +80,7 @@
           },
           "return": {
             "locals": {
-              "~r0": {
+              "@return": {
                 "type": "int",
                 "value": "15"
               }

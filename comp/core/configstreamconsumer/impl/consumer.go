@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"sync"
 	"time"
 
@@ -22,7 +23,7 @@ import (
 	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -38,29 +39,7 @@ type Requires struct {
 	IPC          ipc.Component
 	Telemetry    telemetry.Component
 	ConfigWriter model.Writer
-	Params       Params
-}
-
-// SessionIDProvider supplies the RAR session ID, typically after registration completes.
-// When set, the consumer will call WaitSessionID at connect time instead of using Params.SessionID.
-type SessionIDProvider interface {
-	WaitSessionID(ctx context.Context) (string, error)
-}
-
-// Params defines the parameters for the configstreamconsumer component
-type Params struct {
-	// ClientName is the identity of this remote agent (e.g., "system-probe", "trace-agent")
-	ClientName string
-	// CoreAgentAddress is the address of the core agent IPC endpoint
-	CoreAgentAddress string
-	// SessionID is the RAR session ID for authorization. Required if SessionIDProvider is nil.
-	SessionID string
-	// SessionIDProvider supplies the session ID at connect time (e.g. from remote agent component).
-	// When set, SessionID may be empty; the consumer will block on WaitSessionID before connecting.
-	SessionIDProvider SessionIDProvider
-	// ReadyTimeout is how long OnStart blocks waiting for the first config snapshot before
-	// returning an error and aborting startup. Defaults to 60s when zero.
-	ReadyTimeout time.Duration
+	Params       configstreamconsumer.Params
 }
 
 // Provides defines the output of the configstreamconsumer component
@@ -75,7 +54,7 @@ type consumer struct {
 	log          log.Component
 	ipc          ipc.Component
 	telemetry    telemetry.Component
-	params       Params
+	params       configstreamconsumer.Params
 	configWriter model.Writer // writes streamed config into the local config.Component
 
 	conn       *grpc.ClientConn
@@ -91,11 +70,11 @@ type consumer struct {
 	readyCh   chan struct{}
 	readyOnce sync.Once
 
-	ctx    context.Context
-	cancel context.CancelFunc
-	wg     sync.WaitGroup
+	ctx       context.Context
+	cancel    context.CancelFunc
+	wg        sync.WaitGroup
+	startTime time.Time
 
-	metricsInitOnce      sync.Once
 	timeToFirstSnapshot  telemetry.Gauge
 	streamReconnectCount telemetry.Counter
 	lastSeqIDMetric      telemetry.Gauge
@@ -112,12 +91,9 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, errors.New("CoreAgentAddress is required")
 	}
 	if p.SessionID == "" && p.SessionIDProvider == nil {
-		reqs.Log.Errorf("configstreamconsumer: neither SessionID nor SessionIDProvider set for client %s; component will not connect", p.ClientName)
-		return Provides{}, nil
+		return Provides{}, fmt.Errorf("configstreamconsumer: neither SessionID nor SessionIDProvider set for client %s", p.ClientName)
 	}
-	hasID := p.SessionID != ""
-	hasProvider := p.SessionIDProvider != nil
-	if hasID == hasProvider {
+	if p.SessionID != "" && p.SessionIDProvider != nil {
 		return Provides{}, errors.New("exactly one of SessionID or SessionIDProvider must be set")
 	}
 
@@ -131,25 +107,26 @@ func NewComponent(reqs Requires) (Provides, error) {
 		readyCh:         make(chan struct{}),
 	}
 
+	c.initMetrics()
+
 	// Register lifecycle hooks
 	reqs.Lifecycle.Append(compdef.Hook{
-		OnStart: c.Start,
+		OnStart: c.start,
 		OnStop:  c.stop,
 	})
 
 	return Provides{Comp: c}, nil
 }
 
-// Start initiates the config stream connection and blocks until the first config snapshot is
+// start initiates the config stream connection and blocks until the first config snapshot is
 // received. Blocking here ensures all components initialized after this one (and the binary's
 // run function) see a fully-populated config. Returns an error if the snapshot is not received
 // within ReadyTimeout (default 60s), which aborts FX startup.
-func (c *consumer) Start(_ context.Context) error {
+func (c *consumer) start(_ context.Context) error {
 	// Use context.Background() so the stream lifetime is not bounded by the
 	// Fx startup context, which expires after app.StartTimeout (~5 minutes).
 	c.ctx, c.cancel = context.WithCancel(context.Background())
-
-	c.initMetrics()
+	c.startTime = time.Now()
 
 	c.wg.Add(1)
 	go c.streamLoop()
@@ -161,7 +138,7 @@ func (c *consumer) Start(_ context.Context) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	c.log.Infof("Waiting for initial configuration from core agent (timeout: %v)...", timeout)
-	if err := c.WaitReady(ctx); err != nil {
+	if err := c.waitReady(ctx); err != nil {
 		c.cancel()
 		c.wg.Wait()
 		return fmt.Errorf("waiting for initial config snapshot: %w", err)
@@ -185,8 +162,8 @@ func (c *consumer) stop(_ context.Context) error {
 	return nil
 }
 
-// WaitReady blocks until the first config snapshot has been received and applied
-func (c *consumer) WaitReady(ctx context.Context) error {
+// waitReady blocks until the first config snapshot has been received and applied
+func (c *consumer) waitReady(ctx context.Context) error {
 	select {
 	case <-c.readyCh:
 		return nil
@@ -199,9 +176,6 @@ func (c *consumer) WaitReady(ctx context.Context) error {
 func (c *consumer) streamLoop() {
 	defer c.wg.Done()
 
-	startTime := time.Now()
-	firstSnapshot := true
-
 	for {
 		select {
 		case <-c.ctx.Done():
@@ -210,7 +184,7 @@ func (c *consumer) streamLoop() {
 		}
 
 		// Establish connection and stream
-		if err := c.connectAndStream(startTime, &firstSnapshot); err != nil {
+		if err := c.connectAndStream(); err != nil {
 			if err == context.Canceled || c.ctx.Err() != nil {
 				return
 			}
@@ -228,7 +202,7 @@ func (c *consumer) streamLoop() {
 }
 
 // connectAndStream establishes a gRPC connection and processes the config stream
-func (c *consumer) connectAndStream(startTime time.Time, firstSnapshot *bool) error {
+func (c *consumer) connectAndStream() error {
 	conn, err := grpc.NewClient(c.params.CoreAgentAddress,
 		grpc.WithTransportCredentials(credentials.NewTLS(c.ipc.GetTLSClientConfig())),
 		grpc.WithPerRPCCredentials(grpcutil.NewBearerTokenAuth(c.ipc.GetAuthToken())),
@@ -281,17 +255,17 @@ func (c *consumer) connectAndStream(startTime time.Time, firstSnapshot *bool) er
 			return fmt.Errorf("stream receive error: %w", err)
 		}
 
-		if err := c.handleConfigEvent(event, startTime, firstSnapshot); err != nil {
+		if err := c.handleConfigEvent(event); err != nil {
 			c.log.Errorf("Failed to handle config event: %v", err)
 		}
 	}
 }
 
 // handleConfigEvent processes a single config event from the stream
-func (c *consumer) handleConfigEvent(event *pb.ConfigEvent, startTime time.Time, firstSnapshot *bool) error {
+func (c *consumer) handleConfigEvent(event *pb.ConfigEvent) error {
 	switch e := event.Event.(type) {
 	case *pb.ConfigEvent_Snapshot:
-		return c.applySnapshot(e.Snapshot, startTime, firstSnapshot)
+		return c.applySnapshot(e.Snapshot)
 	case *pb.ConfigEvent_Update:
 		return c.applyUpdate(e.Update)
 	default:
@@ -300,7 +274,7 @@ func (c *consumer) handleConfigEvent(event *pb.ConfigEvent, startTime time.Time,
 }
 
 // applySnapshot applies a complete config snapshot
-func (c *consumer) applySnapshot(snapshot *pb.ConfigSnapshot, startTime time.Time, firstSnapshot *bool) error {
+func (c *consumer) applySnapshot(snapshot *pb.ConfigSnapshot) error {
 	// Reject out-of-order or server-restart snapshots. lastSeqID is never reset between
 	// reconnects: if the server restarts and its sequence counter resets to a lower value,
 	// we refuse the new snapshot and log an error. Sub-processes are expected to restart
@@ -334,17 +308,14 @@ func (c *consumer) applySnapshot(snapshot *pb.ConfigSnapshot, startTime time.Tim
 		}
 	}
 
-	// Signal readiness only after the snapshot is fully applied and config mirrored.
-	if *firstSnapshot {
-		*firstSnapshot = false
-		c.readyOnce.Do(func() {
-			close(c.readyCh)
-			c.ready = true
-			duration := time.Since(startTime)
-			c.timeToFirstSnapshot.Set(duration.Seconds())
-			c.log.Infof("Received first config snapshot after %v", duration)
-		})
-	}
+	// Signal readiness once the snapshot is fully applied and config mirrored.
+	c.readyOnce.Do(func() {
+		close(c.readyCh)
+		c.ready = true
+		duration := time.Since(c.startTime)
+		c.timeToFirstSnapshot.Set(duration.Seconds())
+		c.log.Infof("Received first config snapshot after %v", duration)
+	})
 
 	return nil
 }
@@ -358,11 +329,9 @@ func (c *consumer) applyUpdate(update *pb.ConfigUpdate) error {
 		return nil
 	}
 
-	// Detect discontinuity
+	// Detect discontinuity: trigger reconnect so the server sends a fresh snapshot.
 	if update.SequenceId != c.lastSeqID+1 {
-		c.log.Warnf("Discontinuity detected: expected seq_id %d, got %d", c.lastSeqID+1, update.SequenceId)
-		// The server should automatically send a snapshot to resync
-		return nil
+		return fmt.Errorf("seq_id discontinuity: expected %d, got %d", c.lastSeqID+1, update.SequenceId)
 	}
 
 	c.log.Debugf("Applying config update (seq_id: %d, key: %s)", update.SequenceId, update.Setting.Key)
@@ -385,32 +354,30 @@ func (c *consumer) applyUpdate(update *pb.ConfigUpdate) error {
 
 // initMetrics initializes telemetry metrics
 func (c *consumer) initMetrics() {
-	c.metricsInitOnce.Do(func() {
-		c.timeToFirstSnapshot = c.telemetry.NewGauge(
-			"configstream_consumer",
-			"time_to_first_snapshot_seconds",
-			[]string{},
-			"Time taken to receive the first config snapshot",
-		)
-		c.streamReconnectCount = c.telemetry.NewCounter(
-			"configstream_consumer",
-			"reconnect_count",
-			[]string{},
-			"Number of times the config stream has reconnected",
-		)
-		c.lastSeqIDMetric = c.telemetry.NewGauge(
-			"configstream_consumer",
-			"last_sequence_id",
-			[]string{},
-			"Last received config sequence ID",
-		)
-		c.droppedStaleUpdates = c.telemetry.NewCounter(
-			"configstream_consumer",
-			"dropped_stale_updates",
-			[]string{},
-			"Number of stale config updates dropped",
-		)
-	})
+	c.timeToFirstSnapshot = c.telemetry.NewGauge(
+		"configstream_consumer",
+		"time_to_first_snapshot_seconds",
+		[]string{},
+		"Time taken to receive the first config snapshot",
+	)
+	c.streamReconnectCount = c.telemetry.NewCounter(
+		"configstream_consumer",
+		"reconnect_count",
+		[]string{},
+		"Number of times the config stream has reconnected",
+	)
+	c.lastSeqIDMetric = c.telemetry.NewGauge(
+		"configstream_consumer",
+		"last_sequence_id",
+		[]string{},
+		"Last received config sequence ID",
+	)
+	c.droppedStaleUpdates = c.telemetry.NewCounter(
+		"configstream_consumer",
+		"dropped_stale_updates",
+		[]string{},
+		"Number of stale config updates dropped",
+	)
 }
 
 // pbValueToGo converts a protobuf Value to a Go value
@@ -424,13 +391,10 @@ func pbValueToGo(pbValue *structpb.Value) interface{} {
 	result := pbValue.AsInterface()
 
 	if f, ok := result.(float64); ok {
-		// Check if this float represents an integer value
-		// Only convert if within the safe integer range for float64
-		const maxSafeInteger = 1 << 53 // 2^53
-		const minSafeInteger = -maxSafeInteger
-
-		if f >= minSafeInteger && f <= maxSafeInteger && f == float64(int64(f)) {
-			// No fractional part and within safe range - convert to int64
+		// Only convert integers within float64's exact range (2^53); beyond that,
+		// float64 can't represent consecutive integers, so int64 conversion loses precision.
+		const maxExact float64 = 1 << 53
+		if f >= -maxExact && f <= maxExact && f == math.Trunc(f) {
 			return int64(f)
 		}
 	}

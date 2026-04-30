@@ -1469,6 +1469,7 @@ type KubernetesPodOwner struct {
 	Kind          string                 `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	Id            string                 `protobuf:"bytes,3,opt,name=id,proto3" json:"id,omitempty"`
+	Group         string                 `protobuf:"bytes,4,opt,name=group,proto3" json:"group,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1520,6 +1521,13 @@ func (x *KubernetesPodOwner) GetName() string {
 func (x *KubernetesPodOwner) GetId() string {
 	if x != nil {
 		return x.Id
+	}
+	return ""
+}
+
+func (x *KubernetesPodOwner) GetGroup() string {
+	if x != nil {
+		return x.Group
 	}
 	return ""
 }
@@ -2477,10 +2485,15 @@ func (x *WorkloadmetaEvent) GetContainerImageMetadata() *ContainerImageMetadata 
 }
 
 type WorkloadmetaStreamResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Events        []*WorkloadmetaEvent   `protobuf:"bytes,1,rep,name=events,proto3" json:"events,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Events []*WorkloadmetaEvent   `protobuf:"bytes,1,rep,name=events,proto3" json:"events,omitempty"`
+	// When true, this message is the last chunk of the initial full-state
+	// snapshot sent after a (re)connection. Clients that need to resync should
+	// accumulate events until they receive a response with this flag set, then
+	// apply the complete set atomically.
+	InitialSnapshotComplete bool `protobuf:"varint,2,opt,name=initial_snapshot_complete,json=initialSnapshotComplete,proto3" json:"initial_snapshot_complete,omitempty"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
 }
 
 func (x *WorkloadmetaStreamResponse) Reset() {
@@ -2518,6 +2531,13 @@ func (x *WorkloadmetaStreamResponse) GetEvents() []*WorkloadmetaEvent {
 		return x.Events
 	}
 	return nil
+}
+
+func (x *WorkloadmetaStreamResponse) GetInitialSnapshotComplete() bool {
+	if x != nil {
+		return x.InitialSnapshotComplete
+	}
+	return false
 }
 
 var File_datadog_workloadmeta_workloadmeta_proto protoreflect.FileDescriptor
@@ -2638,11 +2658,12 @@ const file_datadog_workloadmeta_workloadmeta_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a=\n" +
 	"\x0fNetworkIpsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"L\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"b\n" +
 	"\x12KubernetesPodOwner\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x0e\n" +
-	"\x02id\x18\x03 \x01(\tR\x02id\"w\n" +
+	"\x02id\x18\x03 \x01(\tR\x02id\x12\x14\n" +
+	"\x05group\x18\x04 \x01(\tR\x05group\"w\n" +
 	"\x15OrchestratorContainer\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12:\n" +
@@ -2749,9 +2770,10 @@ const file_datadog_workloadmeta_workloadmeta_proto_rawDesc = "" +
 	"\aecsTask\x18\x04 \x01(\v2\x1d.datadog.workloadmeta.ECSTaskR\aecsTask\x127\n" +
 	"\aprocess\x18\x05 \x01(\v2\x1d.datadog.workloadmeta.ProcessR\aprocess\x12+\n" +
 	"\x03crd\x18\x06 \x01(\v2\x19.datadog.workloadmeta.CrdR\x03crd\x12d\n" +
-	"\x16containerImageMetadata\x18\a \x01(\v2,.datadog.workloadmeta.ContainerImageMetadataR\x16containerImageMetadata\"]\n" +
+	"\x16containerImageMetadata\x18\a \x01(\v2,.datadog.workloadmeta.ContainerImageMetadataR\x16containerImageMetadata\"\x99\x01\n" +
 	"\x1aWorkloadmetaStreamResponse\x12?\n" +
-	"\x06events\x18\x01 \x03(\v2'.datadog.workloadmeta.WorkloadmetaEventR\x06events*w\n" +
+	"\x06events\x18\x01 \x03(\v2'.datadog.workloadmeta.WorkloadmetaEventR\x06events\x12:\n" +
+	"\x19initial_snapshot_complete\x18\x02 \x01(\bR\x17initialSnapshotComplete*w\n" +
 	"\x10WorkloadmetaKind\x12\r\n" +
 	"\tCONTAINER\x10\x00\x12\x12\n" +
 	"\x0eKUBERNETES_POD\x10\x01\x12\f\n" +
