@@ -17,18 +17,20 @@ import (
 	"strconv"
 	"time"
 
+	"go.yaml.in/yaml/v2"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 	"github.com/DataDog/datadog-agent/pkg/snmp/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"go.yaml.in/yaml/v2"
 )
 
 var checkName = "network_config_management"
 var defaultCheckInterval = 15 * time.Minute
 var defaultSSHTimeout = 30 * time.Second
+var defaultInventoryReportEveryN = 1
 
 // AuthCredentials holds the authentication credentials to connect to a network device.
 type AuthCredentials struct { // auth_credentials
@@ -55,9 +57,10 @@ type DeviceInstance struct {
 
 // InitConfig holds the initial configuration for the NCM component, including the namespace and check interval.
 type InitConfig struct {
-	Namespace             string     `yaml:"namespace"`               // Namespace for the NCM devices where configs are retrieved from, to help match a device on DD
-	MinCollectionInterval int        `yaml:"min_collection_interval"` // Interval in seconds to check for config changes
-	SSH                   *SSHConfig `yaml:"ssh"`                     // SSH holds global connection configurations that can apply to all devices if pertinent
+	Namespace             string     `yaml:"namespace"`                // Namespace for the NCM devices where configs are retrieved from, to help match a device on DD
+	MinCollectionInterval int        `yaml:"min_collection_interval"`  // Interval in seconds to check for config changes
+	InventoryReportEveryN int        `yaml:"inventory_report_every_n"` // Cadence for sending an inventory report to see which configs are still available to rollback to on the agent
+	SSH                   *SSHConfig `yaml:"ssh"`                      // SSH holds global connection configurations that can apply to all devices if pertinent
 }
 
 // SSHConfig holds the configuration (either globally if in init config or for the specific device instance) to use when connecting to the configured device via SSH
@@ -82,6 +85,7 @@ type NcmCheckContext struct {
 	Namespace             string
 	Device                *DeviceInstance
 	MinCollectionInterval time.Duration
+	InventoryReportEveryN int
 	ProfileMap            profile.Map
 	ProfileCache          *profile.Cache
 }
@@ -142,6 +146,7 @@ func NewNcmCheckContext(rawInstance integration.Data, rawInitConfig integration.
 	ncc := &NcmCheckContext{
 		Namespace:             initConfig.Namespace,
 		MinCollectionInterval: time.Duration(initConfig.MinCollectionInterval) * time.Second,
+		InventoryReportEveryN: initConfig.InventoryReportEveryN,
 		Device:                &deviceInstance,
 		ProfileMap:            profMap,
 		ProfileCache:          profileCache,
@@ -230,6 +235,10 @@ func (ic *InitConfig) applyDefaults() {
 		log.Debugf("No or invalid min_collection_interval specified in init config, applying default: %d", defaultCheckInterval)
 		ic.MinCollectionInterval = int(defaultCheckInterval.Seconds()) // Default to 15 minutes
 	}
+	if ic.InventoryReportEveryN <= 0 {
+		log.Debugf("No or invalid inventory report every N was specified, applying default %d", defaultInventoryReportEveryN)
+		ic.InventoryReportEveryN = 1 // Default to every check run
+	}
 }
 
 // Validate checks that the InitConfig has all required fields and applies defaults where needed
@@ -242,6 +251,10 @@ func (ic *InitConfig) Validate() error {
 
 	if ic.MinCollectionInterval <= 0 {
 		return errors.New("min_collection_interval must be greater than zero")
+	}
+
+	if ic.InventoryReportEveryN <= 0 {
+		return errors.New("minimum reporting of inventory must be greater than 0")
 	}
 
 	// if SSH configs exist, ensure they're valid
