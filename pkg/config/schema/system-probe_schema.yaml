@@ -672,10 +672,6 @@ properties:
         node_type: setting
         type: boolean
         default: true
-      enable_co_re:
-        node_type: setting
-        type: boolean
-        default: true
       enable_connection_rollup:
         node_type: setting
         type: boolean
@@ -739,10 +735,6 @@ properties:
         node_type: setting
         type: boolean
         default: true
-      enable_sk_tracer:
-        node_type: setting
-        type: boolean
-        default: false
       enable_tcp_failed_connections:
         node_type: setting
         type: boolean
@@ -2527,7 +2519,7 @@ properties:
       enabled:
         node_type: setting
         type: boolean
-        default: false
+        default: true
       service_collection_interval:
         node_type: setting
         type: string
@@ -2535,7 +2527,7 @@ properties:
       use_system_probe_lite:
         node_type: setting
         type: boolean
-        default: false
+        default: true
   dogstatsd_port:
     node_type: setting
     type: number
