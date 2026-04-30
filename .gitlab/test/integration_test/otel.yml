@@ -66,41 +66,65 @@ docker_image_build_otel:
     - !reference [.except_mergequeue]
     - when: on_success
 
+# Shared caching logic for all DDOT BYOC build jobs.
+# Expects BUILD_ARGS and IMAGE to be set before referencing.
+# Defines CACHE_FROM and CACHE_TO for use in subsequent build steps.
+.ddot_byoc_build_cache_setup:
+  script:
+    - |
+      CACHE_REGISTRY="${IMAGE}-amd64:cache"
+      CACHE_FROM="--cache-from type=registry,ref=${CACHE_REGISTRY}"
+      CACHE_TO=""
+      if [[ "$CI_COMMIT_BRANCH" == "$CI_DEFAULT_BRANCH" || "$BUCKET_BRANCH" == "nightly" ]]; then
+        CACHE_TO="--cache-to type=registry,ref=${CACHE_REGISTRY},mode=max"
+      fi
+      docker buildx build \
+        --target builder_base \
+        ${CACHE_FROM} \
+        ${CACHE_TO} \
+        ${BUILD_ARGS} \
+        -f /tmp/otel-ci/Dockerfile \
+        /tmp/otel-ci
+
 # Test that the BYOC packages can be built with the existing Dockerfile
 .ddot_byoc_oci_build_test:
   stage: integration_test
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   needs: ["integration_tests_otel"]
   tags: ["docker-in-docker:amd64"]
+  variables:
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/$DDOT_BYOC_OCI_REPO-builder
   before_script:
     - !reference [docker_image_build_otel, before_script]
     - apt-get update && apt-get install -y --no-install-recommends zstd
-  script:
-    - !reference [.login_to_docker_readonly]
-    - AGENT_VERSION=$(dda inv -- agent.version --no-include-git --no-include-pre)
-    - export BUILDIMAGES_COMMIT="${CI_IMAGE_LINUX#*-}"
-    - export DDA_VERSION="$(curl -s https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/${BUILDIMAGES_COMMIT}/dda.env | awk -F= '/^DDA_VERSION=/ {print $2}')"
     # Start a local OCI registry to receive both the source agent OCI and the output image
     - docker run -d -p 5000:5000 --name local-registry registry:2
-    - OUTPUT_OCI="localhost:5000/${DDOT_BYOC_OCI_REPO}:${AGENT_VERSION}"
+    - export AGENT_VERSION=$(dda inv -- agent.version --no-include-git --no-include-pre)
+    - export OUTPUT_OCI="localhost:5000/${DDOT_BYOC_OCI_REPO}:${AGENT_VERSION}"
+  script:
+    - |
+      BUILD_ARGS="\
+        --build-arg AGENT_VERSION=$AGENT_VERSION \
+        --build-arg AGENT_GIT_REF=$CI_COMMIT_REF_NAME \
+        --build-arg AGENT_DOCKER_REPO=datadog/agent-dev \
+        --build-arg AGENT_DOCKER_TAG=nightly-full-main-jmx \
+        --build-arg PACKAGE_TYPE=$DDOT_BYOC_PACKAGE_TYPE \
+        --build-arg AGENT_OCI=registry.ddbuild.io/ci/remote-updates/datadog-agent:7.78.0-beta-byoc-integration-test-1 \
+        --build-arg OUTPUT_OCI=$OUTPUT_OCI \
+        --build-arg CI \
+        --build-arg DDA_VERSION=$DDA_VERSION \
+        --build-arg GOPROXY=$GOPROXY \
+        --build-arg GONOSUMDB=$GONOSUMDB"
+    - !reference [.ddot_byoc_build_cache_setup, script]
     # TODO: use staging package for AGENT_OCI until DDOT extension is released in 7.78.0
     - |
-      docker build \
-      --target builder \
-      --network=host \
-      --build-arg AGENT_VERSION=$AGENT_VERSION \
-      --build-arg AGENT_GIT_REF=$CI_COMMIT_REF_NAME \
-      --build-arg AGENT_DOCKER_REPO=datadog/agent-dev \
-      --build-arg AGENT_DOCKER_TAG=nightly-full-main-jmx \
-      --build-arg PACKAGE_TYPE=$DDOT_BYOC_PACKAGE_TYPE \
-      --build-arg AGENT_OCI=registry.ddbuild.io/ci/remote-updates/datadog-agent:7.78.0-beta-byoc-integration-test-1 \
-      --build-arg OUTPUT_OCI=$OUTPUT_OCI \
-      --build-arg CI \
-      --build-arg DDA_VERSION=$DDA_VERSION \
-      --build-arg GOPROXY=$GOPROXY \
-      --build-arg GONOSUMDB=$GONOSUMDB \
-      -f /tmp/otel-ci/Dockerfile.agent-otel \
-      /tmp/otel-ci
+      docker buildx build \
+        --target builder \
+        --network=host \
+        ${CACHE_FROM} \
+        ${BUILD_ARGS} \
+        -f /tmp/otel-ci/Dockerfile \
+        /tmp/otel-ci
     # Verify the OCI image index was pushed and the replaced binary is present in the ddot layer
     - |
       REGISTRY_BASE="http://localhost:5000/v2/${DDOT_BYOC_OCI_REPO}"
@@ -141,28 +165,33 @@ ddot_byoc_binary_build_test_ubuntu2004:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   needs: ["integration_tests_otel"]
   tags: ["docker-in-docker:amd64"]
+  variables:
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/ddot-byoc-ubuntu2004-builder
   before_script:
     - !reference [docker_image_build_otel, before_script]
+    - export AGENT_VERSION=$(dda inv -- agent.version --no-include-git --no-include-pre)
   script:
-    - !reference [.login_to_docker_readonly]
-    - AGENT_VERSION=$(dda inv -- agent.version --no-include-git --no-include-pre)
-    - export BUILDIMAGES_COMMIT="${CI_IMAGE_LINUX#*-}"
-    - export DDA_VERSION="$(curl -s https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/${BUILDIMAGES_COMMIT}/dda.env | awk -F= '/^DDA_VERSION=/ {print $2}')"
     - |
-      docker build \
-      --target builder \
-      --tag otel-builder-tmp \
-      --build-arg AGENT_VERSION=$AGENT_VERSION \
-      --build-arg AGENT_GIT_REF=$CI_COMMIT_REF_NAME \
-      --build-arg AGENT_DOCKER_REPO=datadog/agent-dev \
-      --build-arg AGENT_DOCKER_TAG=nightly-full-main-jmx \
-      --build-arg UBUNTU_VERSION=20.04 \
-      --build-arg CI \
-      --build-arg DDA_VERSION=$DDA_VERSION \
-      --build-arg GOPROXY=$GOPROXY \
-      --build-arg GONOSUMDB=$GONOSUMDB \
-      -f /tmp/otel-ci/Dockerfile.agent-otel \
-      /tmp/otel-ci
+      BUILD_ARGS="\
+        --build-arg AGENT_VERSION=$AGENT_VERSION \
+        --build-arg AGENT_GIT_REF=$CI_COMMIT_REF_NAME \
+        --build-arg AGENT_DOCKER_REPO=datadog/agent-dev \
+        --build-arg AGENT_DOCKER_TAG=nightly-full-main-jmx \
+        --build-arg UBUNTU_VERSION=20.04 \
+        --build-arg CI \
+        --build-arg DDA_VERSION=$DDA_VERSION \
+        --build-arg GOPROXY=$GOPROXY \
+        --build-arg GONOSUMDB=$GONOSUMDB"
+    - !reference [.ddot_byoc_build_cache_setup, script]
+    - |
+      docker buildx build \
+        --target builder \
+        --load \
+        --tag otel-builder-tmp \
+        ${CACHE_FROM} \
+        ${BUILD_ARGS} \
+        -f /tmp/otel-ci/Dockerfile \
+        /tmp/otel-ci
     - mkdir -p ddot-byoc
     - docker run --rm -v "$(pwd)/ddot-byoc:/out" otel-builder-tmp cp /workspace/datadog-agent/bin/otel-agent/otel-agent /out/otel-agent
     - BIN_PATH=ddot-byoc/otel-agent
