@@ -506,21 +506,6 @@ Package npcollector used to manage network paths
 
 Package traceroute provides the traceroute component
 
-## [comp/anomalydetection/observer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def) (Component Bundle)
-
-*Datadog Team*: q-branch
-
-Package observer provides a component for observing data flowing through the agent.
-
-### [comp/anomalydetection/logssource](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/anomalydetection/logssource)
-
-Package logssource provides a component that feeds container logs into the
-observer without requiring the logs agent to be enabled.
-
-### [comp/anomalydetection/observer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def)
-
-Package observer provides a component for observing data flowing through the agent.
-
 ## [comp/otelcol](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol) (Component Bundle)
 
 *Datadog Team*: opentelemetry-agent
@@ -783,6 +768,19 @@ Package telemetry provides the installer telemetry component.
 ### [comp/updater/updater](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/updater)
 
 Package updater is the updater component.
+
+### [comp/anomalydetection/logssource](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/anomalydetection/logssource)
+
+*Datadog Team*: q-branch
+
+Package logssource provides a component that feeds container logs into the
+observer without requiring the logs agent to be enabled.
+
+### [comp/anomalydetection/observer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/anomalydetection/observer)
+
+*Datadog Team*: q-branch
+
+Package observer provides a component for observing data flowing through the agent.
 
 ### [comp/anomalydetection/recorder](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/anomalydetection/recorder)
 

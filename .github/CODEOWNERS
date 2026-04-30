@@ -347,7 +347,6 @@
 /comp/ndmtmp @DataDog/network-device-monitoring-core
 /comp/netflow @DataDog/ndm-integrations
 /comp/networkpath @DataDog/network-path
-/comp/anomalydetection @DataDog/q-branch
 /comp/otelcol @DataDog/opentelemetry-agent
 /comp/process @DataDog/container-experiences
 /comp/remote-config @DataDog/remote-config
@@ -389,6 +388,9 @@
 /comp/trace-telemetry @DataDog/agent-runtimes
 /comp/updater/daemonchecker @DataDog/fleet
 /comp/updater/ssistatus @DataDog/fleet
+/comp/anomalydetection/logssource @DataDog/q-branch
+/comp/anomalydetection/observer @DataDog/q-branch
+/comp/anomalydetection/recorder @DataDog/q-branch
 /comp/autoscaling/datadogclient @DataDog/container-integrations
 /comp/connectivitychecker @DataDog/fleet
 /comp/dataobs/queryactions @DataDog/data-observability
