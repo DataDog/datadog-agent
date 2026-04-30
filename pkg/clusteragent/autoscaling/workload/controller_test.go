@@ -64,7 +64,7 @@ func newFixture(t *testing.T, testTime time.Time) *fixture {
 	podWatcher := newFakePodWatcher()
 	return &fixture{
 		ControllerFixture: autoscaling.NewFixture(
-			t, podAutoscalerGVR,
+			t, PodAutoscalerGVR,
 			func(fakeClient *fake.FakeDynamicClient, informer dynamicinformer.DynamicSharedInformerFactory, isLeader func() bool) (*autoscaling.Controller, error) {
 				c, err := NewController(clock, "cluster-id1", recorder, nil, nil, nil, fakeClient, informer, isLeader, store, podWatcher, nil, hashHeap, nil)
 				if err != nil {

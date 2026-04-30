@@ -50,13 +50,13 @@ const (
 	defaultStaleTimestampThreshold = 30 * time.Minute // time to wait before considering a recommendation stale
 )
 
-var (
-	podAutoscalerGVR  = datadoghq.GroupVersion.WithResource("datadogpodautoscalers")
-	podAutoscalerMeta = metav1.TypeMeta{
-		Kind:       "DatadogPodAutoscaler",
-		APIVersion: "datadoghq.com/v1alpha2",
-	}
-)
+// PodAutoscalerGVR identifies the DatadogPodAutoscaler resource.
+var PodAutoscalerGVR = datadoghq.GroupVersion.WithResource("datadogpodautoscalers")
+
+var podAutoscalerMeta = metav1.TypeMeta{
+	Kind:       "DatadogPodAutoscaler",
+	APIVersion: "datadoghq.com/v1alpha2",
+}
 
 type (
 	store     = autoscaling.Store[model.PodAutoscalerInternal]
@@ -120,7 +120,7 @@ func NewController(
 		},
 	)
 
-	baseController, err := autoscaling.NewController(controllerID, c, dynamicClient, dynamicInformer, podAutoscalerGVR, isLeader, store, autoscalingWorkqueue)
+	baseController, err := autoscaling.NewController(controllerID, c, dynamicClient, dynamicInformer, PodAutoscalerGVR, isLeader, store, autoscalingWorkqueue)
 	if err != nil {
 		return nil, err
 	}
@@ -157,7 +157,7 @@ func NewController(
 
 // PreStart is called before the controller starts
 func (c *Controller) PreStart(ctx context.Context) {
-	autoscaling.StartLocalTelemetry(ctx, c.localSender, "workload", []string{"kube_cluster_id:" + c.clusterID, "crd_api_version:" + podAutoscalerGVR.Version})
+	autoscaling.StartLocalTelemetry(ctx, c.localSender, "workload", []string{"kube_cluster_id:" + c.clusterID, "crd_api_version:" + PodAutoscalerGVR.Version})
 
 	// Start periodic metrics submission (every 30 seconds)
 	go c.metricsStore.WriteAllPeriodically(ctx, 30*time.Second)
@@ -510,7 +510,7 @@ func (c *Controller) createPodAutoscaler(ctx context.Context, podAutoscalerInter
 		return 0, time.Time{}, err
 	}
 
-	createdObj, err := c.Client.Resource(podAutoscalerGVR).Namespace(podAutoscalerInternal.Namespace()).Create(ctx, obj, metav1.CreateOptions{})
+	createdObj, err := c.Client.Resource(PodAutoscalerGVR).Namespace(podAutoscalerInternal.Namespace()).Create(ctx, obj, metav1.CreateOptions{})
 	if err != nil {
 		return 0, time.Time{}, fmt.Errorf("Unable to create PodAutoscaler: %s/%s, err: %v", podAutoscalerInternal.Namespace(), podAutoscalerInternal.Name(), err)
 	}
@@ -554,7 +554,7 @@ func (c *Controller) updatePodAutoscalerSpec(ctx context.Context, podAutoscalerI
 		return 0, err
 	}
 
-	updatedObj, err := c.Client.Resource(podAutoscalerGVR).Namespace(podAutoscalerInternal.Namespace()).Update(ctx, obj, metav1.UpdateOptions{})
+	updatedObj, err := c.Client.Resource(PodAutoscalerGVR).Namespace(podAutoscalerInternal.Namespace()).Update(ctx, obj, metav1.UpdateOptions{})
 	if err != nil {
 		return 0, fmt.Errorf("Unable to update PodAutoscaler Spec: %s/%s, err: %w", podAutoscalerInternal.Namespace(), podAutoscalerInternal.Name(), err)
 	}
@@ -581,7 +581,7 @@ func (c *Controller) updatePodAutoscalerStatus(ctx context.Context, podAutoscale
 		return err
 	}
 
-	_, err = c.Client.Resource(podAutoscalerGVR).Namespace(podAutoscalerInternal.Namespace()).UpdateStatus(ctx, obj, metav1.UpdateOptions{})
+	_, err = c.Client.Resource(PodAutoscalerGVR).Namespace(podAutoscalerInternal.Namespace()).UpdateStatus(ctx, obj, metav1.UpdateOptions{})
 	if err != nil {
 		return fmt.Errorf("Unable to update PodAutoscaler Status: %s/%s, err: %w", podAutoscalerInternal.Namespace(), podAutoscalerInternal.Name(), err)
 	}
@@ -591,7 +591,7 @@ func (c *Controller) updatePodAutoscalerStatus(ctx context.Context, podAutoscale
 
 func (c *Controller) deletePodAutoscaler(ns, name string) error {
 	log.Infof("Deleting PodAutoscaler: %s/%s", ns, name)
-	err := c.Client.Resource(podAutoscalerGVR).Namespace(ns).Delete(context.TODO(), name, metav1.DeleteOptions{})
+	err := c.Client.Resource(PodAutoscalerGVR).Namespace(ns).Delete(context.TODO(), name, metav1.DeleteOptions{})
 	if err != nil {
 		return fmt.Errorf("Unable to delete PodAutoscaler: %s/%s, err: %v", ns, name, err)
 	}
