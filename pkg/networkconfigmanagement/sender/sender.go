@@ -13,6 +13,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/benbjohnson/clock"
+
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
@@ -20,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
 	devicemetadata "github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
-	"github.com/benbjohnson/clock"
 )
 
 const (
@@ -88,7 +89,6 @@ func (s *NCMSender) SendMetricsFromExtractedMetadata(metadata profile.ExtractedM
 // SendNCMConfig sends the network device configuration payload to event platform
 func (s *NCMSender) SendNCMConfig(payload ncmreport.NCMPayload) error {
 	payloadBytes, err := json.Marshal(payload)
-	fmt.Println(string(payloadBytes))
 	if err != nil {
 		return err
 	}
