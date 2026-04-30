@@ -24,7 +24,6 @@
     # NOTE: for now, we consider "ociru" to be a "redhat_target" in omnibus/lib/ostools.rb
     # if we ever start building on a different platform, that might need to change
     - dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe --host-distribution=ociru --install-directory="$INSTALL_DIR"
-    - echo $OMNIBUS_PACKAGE_DIR
     - ls -la $OMNIBUS_PACKAGE_DIR
     - !reference [.upload_sbom_artifacts]
   variables:
@@ -126,6 +125,8 @@ installer-install-scripts:
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
     - dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --target-project="installer" ${INSTALL_DIR_PARAM}
+    - bazelisk run --config=release --//:install_dir=${INSTALL_DIR}  -- //packages/installer/linux:copy_out --destdir=${OMNIBUS_PACKAGE_DIR}
+    - echo $OMNIBUS_PACKAGE_DIR
     - ls -la $OMNIBUS_PACKAGE_DIR
     - !reference [.upload_sbom_artifacts]
   variables:
