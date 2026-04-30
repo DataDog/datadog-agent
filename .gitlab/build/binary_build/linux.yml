@@ -87,7 +87,9 @@ build_iot_agent-binary_x64:
 
 build_iot_agent-binary_arm64:
   extends: .bazel:defs:cache:progressive
-  rules: !reference [.on_all_builds]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   stage: binary_build
   timeout: 20m
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
