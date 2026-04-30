@@ -4,11 +4,13 @@ go_library(
     name = "payload",
     srcs = [
         "pathevent.go",
+        "traceroute_errors.go",
         "utils.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/networkpath/payload",
     visibility = ["//visibility:public"],
-    deps = ["//pkg/network/payload"],
+    # gazelle keeps reverting this to @com_github_datadog_datadog_agent_pkg_network_payload
+    deps = ["//pkg/network/payload"],  # keep
 )
 
 go_test(

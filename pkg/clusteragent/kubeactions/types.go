@@ -15,14 +15,17 @@ import (
 
 // Action type constants
 const (
-	ActionTypeDeletePod         = "delete_pod"
-	ActionTypeRestartDeployment = "restart_deployment"
-	ActionTypePatchDeployment   = "patch_deployment"
-	ActionTypeUnknown           = "unknown"
+	ActionTypeUnknown            = "unknown"
+	ActionTypeDeletePod          = "delete_pod"
+	ActionTypeRestartDeployment  = "restart_deployment"
+	ActionTypePatchDeployment    = "patch_deployment"
+	ActionTypeRollbackDeployment = "rollback_deployment"
+	ActionTypeGetResource        = "get_resource"
 )
 
 // Execution status constants
 const (
+	StatusClaimed = "claimed"
 	StatusSuccess = "success"
 	StatusFailed  = "failed"
 	StatusSkipped = "skipped"
@@ -31,8 +34,9 @@ const (
 
 // ExecutionResult represents the result of executing an action
 type ExecutionResult struct {
-	Status  string
-	Message string
+	Status   string
+	Message  string
+	Payloads map[string][]byte
 }
 
 // ActionExecutor is the interface that all action executors must implement
@@ -55,6 +59,10 @@ func GetActionType(action *kubeactions.KubeAction) string {
 		return ActionTypeRestartDeployment
 	case *kubeactions.KubeAction_PatchDeployment:
 		return ActionTypePatchDeployment
+	case *kubeactions.KubeAction_RollbackDeployment:
+		return ActionTypeRollbackDeployment
+	case *kubeactions.KubeAction_GetResource_:
+		return ActionTypeGetResource
 	default:
 		return ActionTypeUnknown
 	}

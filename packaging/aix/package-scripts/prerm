@@ -1,0 +1,28 @@
+#!/bin/sh
+# Pre_rm Script — runs ONLY during deinstallation (installp -u), before files
+# are removed. This is the right place for user/directory cleanup because:
+#   1. The script file is still present (not yet removed by installp).
+#   2. The agent has already been stopped by the Unconfiguration Script.
+#   3. Pre_rm does NOT run during upgrades (only -u deinstall).
+
+# Belt-and-suspenders: stop services in case unconfig did not run.
+stopsrc -s datadog-agent 2>/dev/null || true
+stopsrc -s datadog-trace-agent 2>/dev/null || true
+
+# Wait up to 30 s for dd-agent processes to fully exit before cleanup.
+i=0
+while [ $i -lt 30 ]; do
+    ps -fu dd-agent 2>/dev/null | awk 'NR>1{f=1}END{exit !f}' || break
+    sleep 1; i=$((i+1))
+done
+
+# Remove compiled bytecode files before the package files are deleted.
+COMPILED_LIST=/opt/datadog-agent/embedded/.pyc_compiled_files.txt
+if [ -f "$COMPILED_LIST" ]; then
+    while IFS= read -r f; do rm -f "$f" 2>/dev/null; done < "$COMPILED_LIST"
+fi
+
+# Remove user, home directory, group, and runtime directories.
+rmuser dd-agent 2>/dev/null || true
+rmgroup dd-agent 2>/dev/null || true
+rm -rf /var/log/datadog /var/run/datadog 2>/dev/null || true

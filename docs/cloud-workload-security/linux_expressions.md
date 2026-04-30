@@ -285,6 +285,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`process.ancestors.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`process.ancestors.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
+| [`process.ancestors.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`process.ancestors.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`process.ancestors.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`process.ancestors.uid`](#common-credentials-uid-doc) | UID of the process |
@@ -489,6 +490,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`process.parent.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`process.parent.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
+| [`process.parent.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`process.parent.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`process.parent.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`process.parent.uid`](#common-credentials-uid-doc) | UID of the process |
@@ -507,6 +509,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.user_session.ssh_session_id`](#common-sshsessioncontext-ssh_session_id-doc) | Unique identifier of the SSH user session on the host |
 | [`process.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`process.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
+| [`process.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`process.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`process.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`process.uid`](#common-credentials-uid-doc) | UID of the process |
@@ -896,6 +899,7 @@ A process was executed (does not trigger on fork syscalls).
 | [`exec.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`exec.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`exec.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
+| [`exec.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`exec.syscall.path`](#exec-syscall-path-doc) | path argument of the syscall |
 | [`exec.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`exec.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
@@ -1017,6 +1021,7 @@ A process was terminated
 | [`exit.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`exit.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`exit.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
+| [`exit.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`exit.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`exit.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`exit.uid`](#common-credentials-uid-doc) | UID of the process |
@@ -1483,6 +1488,7 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`ptrace.tracee.ancestors.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`ptrace.tracee.ancestors.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
+| [`ptrace.tracee.ancestors.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`ptrace.tracee.ancestors.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`ptrace.tracee.ancestors.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`ptrace.tracee.ancestors.uid`](#common-credentials-uid-doc) | UID of the process |
@@ -1687,6 +1693,7 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`ptrace.tracee.parent.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`ptrace.tracee.parent.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
+| [`ptrace.tracee.parent.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`ptrace.tracee.parent.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`ptrace.tracee.parent.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`ptrace.tracee.parent.uid`](#common-credentials-uid-doc) | UID of the process |
@@ -1705,6 +1712,7 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.user_session.ssh_session_id`](#common-sshsessioncontext-ssh_session_id-doc) | Unique identifier of the SSH user session on the host |
 | [`ptrace.tracee.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`ptrace.tracee.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
+| [`ptrace.tracee.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`ptrace.tracee.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`ptrace.tracee.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`ptrace.tracee.uid`](#common-credentials-uid-doc) | UID of the process |
@@ -1989,6 +1997,7 @@ A setrlimit command was executed
 | [`setrlimit.target.ancestors.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`setrlimit.target.ancestors.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`setrlimit.target.ancestors.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
+| [`setrlimit.target.ancestors.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`setrlimit.target.ancestors.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`setrlimit.target.ancestors.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`setrlimit.target.ancestors.uid`](#common-credentials-uid-doc) | UID of the process |
@@ -2193,6 +2202,7 @@ A setrlimit command was executed
 | [`setrlimit.target.parent.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`setrlimit.target.parent.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`setrlimit.target.parent.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
+| [`setrlimit.target.parent.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`setrlimit.target.parent.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`setrlimit.target.parent.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`setrlimit.target.parent.uid`](#common-credentials-uid-doc) | UID of the process |
@@ -2211,6 +2221,7 @@ A setrlimit command was executed
 | [`setrlimit.target.parent.user_session.ssh_session_id`](#common-sshsessioncontext-ssh_session_id-doc) | Unique identifier of the SSH user session on the host |
 | [`setrlimit.target.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`setrlimit.target.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
+| [`setrlimit.target.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`setrlimit.target.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`setrlimit.target.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`setrlimit.target.uid`](#common-credentials-uid-doc) | UID of the process |
@@ -2400,6 +2411,7 @@ A signal was sent
 | [`signal.target.ancestors.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`signal.target.ancestors.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`signal.target.ancestors.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
+| [`signal.target.ancestors.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`signal.target.ancestors.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`signal.target.ancestors.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`signal.target.ancestors.uid`](#common-credentials-uid-doc) | UID of the process |
@@ -2604,6 +2616,7 @@ A signal was sent
 | [`signal.target.parent.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`signal.target.parent.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`signal.target.parent.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
+| [`signal.target.parent.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`signal.target.parent.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`signal.target.parent.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`signal.target.parent.uid`](#common-credentials-uid-doc) | UID of the process |
@@ -2622,6 +2635,7 @@ A signal was sent
 | [`signal.target.parent.user_session.ssh_session_id`](#common-sshsessioncontext-ssh_session_id-doc) | Unique identifier of the SSH user session on the host |
 | [`signal.target.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`signal.target.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
+| [`signal.target.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`signal.target.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`signal.target.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`signal.target.uid`](#common-credentials-uid-doc) | UID of the process |
@@ -3616,6 +3630,15 @@ Definition: Type of the user session
 
 `*.session_type` has 14 possible prefixes:
 `exec.user_session` `exit.user_session` `process.ancestors.user_session` `process.parent.user_session` `process.user_session` `ptrace.tracee.ancestors.user_session` `ptrace.tracee.parent.user_session` `ptrace.tracee.user_session` `setrlimit.target.ancestors.user_session` `setrlimit.target.parent.user_session` `setrlimit.target.user_session` `signal.target.ancestors.user_session` `signal.target.parent.user_session` `signal.target.user_session`
+
+
+### `*.sid` {#common-pidcontext-sid-doc}
+Type: int
+
+Definition: Session ID of the process
+
+`*.sid` has 14 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
 ### `*.size` {#common-networkcontext-size-doc}
@@ -5856,7 +5879,9 @@ MMap flags are the supported flags for the mmap syscall.
 | `MAP_ANON` | all |
 | `MAP_ANONYMOUS` | all |
 | `MAP_DENYWRITE` | all |
+| `MAP_DROPPABLE` | all |
 | `MAP_EXECUTABLE` | all |
+| `MAP_FILE` | all |
 | `MAP_FIXED` | all |
 | `MAP_FIXED_NOREPLACE` | all |
 | `MAP_GROWSDOWN` | all |
@@ -5936,6 +5961,7 @@ Network Address Family constants are the supported network address families.
 | `AF_QIPCRTR` | all |
 | `AF_SMC` | all |
 | `AF_XDP` | all |
+| `AF_MCTP` | all |
 | `AF_MAX` | all |
 
 ### `Network Protocol Types` {#network-protocol-types}
@@ -5989,7 +6015,9 @@ Open flags are the supported flags for the open syscall.
 | `O_NOCTTY` | all |
 | `O_NOFOLLOW` | all |
 | `O_NONBLOCK` | all |
+| `O_PATH` | all |
 | `O_RSYNC` | all |
+| `O_TMPFILE` | all |
 
 ### `Pipe buffer flags` {#pipe-buffer-flags}
 Pipe buffer flags are the supported flags for a pipe buffer.
@@ -6039,6 +6067,8 @@ PrCtl Options are the supported options for the prctl event
 | `PR_SET_NO_NEW_PRIVS` | all |
 | `PR_GET_NO_NEW_PRIVS` | all |
 | `PR_PAC_RESET_KEYS` | all |
+| `PR_PAC_GET_ENABLED_KEYS` | all |
+| `PR_PAC_SET_ENABLED_KEYS` | all |
 | `PR_SET_PDEATHSIG` | all |
 | `PR_GET_PDEATHSIG` | all |
 | `PR_SET_PTRACER` | all |
@@ -6046,10 +6076,13 @@ PrCtl Options are the supported options for the prctl event
 | `PR_GET_SECCOMP` | all |
 | `PR_SET_SECUREBITS` | all |
 | `PR_GET_SECUREBITS` | all |
+| `PR_SCHED_CORE` | all |
 | `PR_GET_SPECULATION_CTRL` | all |
 | `PR_SET_SPECULATION_CTRL` | all |
 | `PR_SVE_SET_VL` | all |
 | `PR_SVE_GET_VL` | all |
+| `PR_SME_SET_VL` | all |
+| `PR_SME_GET_VL` | all |
 | `PR_SET_SYSCALL_USER_DISPATCH` | all |
 | `PR_SET_TAGGED_ADDR_CTRL` | all |
 | `PR_GET_TAGGED_ADDR_CTRL` | all |
@@ -6062,6 +6095,7 @@ PrCtl Options are the supported options for the prctl event
 | `PR_GET_TIMERSLACK` | all |
 | `PR_SET_TIMING` | all |
 | `PR_GET_TIMING` | all |
+| `PR_TIMER_CREATE_RESTORE_IDS` | all |
 | `PR_SET_TSC` | all |
 | `PR_GET_TSC` | all |
 | `PR_SET_UNALIGN` | all |
@@ -6069,6 +6103,16 @@ PrCtl Options are the supported options for the prctl event
 | `PR_GET_AUXV` | all |
 | `PR_SET_MDWE` | all |
 | `PR_GET_MDWE` | all |
+| `PR_SET_MEMORY_MERGE` | all |
+| `PR_GET_MEMORY_MERGE` | all |
+| `PR_SET_SHADOW_STACK_STATUS` | all |
+| `PR_GET_SHADOW_STACK_STATUS` | all |
+| `PR_LOCK_SHADOW_STACK_STATUS` | all |
+| `PR_FUTEX_HASH` | all |
+| `PR_PPC_GET_DEXCR` | all |
+| `PR_PPC_SET_DEXCR` | all |
+| `PR_RISCV_V_GET_CONTROL` | all |
+| `PR_RISCV_V_SET_CONTROL` | all |
 | `PR_RISCV_SET_ICACHE_FLUSH_CTX` | all |
 
 ### `Protection constants` {#protection-constants}
@@ -6101,6 +6145,8 @@ Ptrace constants are the supported ptrace commands for the ptrace syscall.
 | `PTRACE_ATTACH` | all |
 | `PTRACE_DETACH` | all |
 | `PTRACE_SYSCALL` | all |
+| `PTRACE_GETREGS` | all |
+| `PTRACE_SETREGS` | all |
 | `PTRACE_SETOPTIONS` | all |
 | `PTRACE_GETEVENTMSG` | all |
 | `PTRACE_GETSIGINFO` | all |
@@ -6116,6 +6162,10 @@ Ptrace constants are the supported ptrace commands for the ptrace syscall.
 | `PTRACE_SECCOMP_GET_FILTER` | all |
 | `PTRACE_SECCOMP_GET_METADATA` | all |
 | `PTRACE_GET_SYSCALL_INFO` | all |
+| `PTRACE_SET_SYSCALL_INFO` | all |
+| `PTRACE_GET_RSEQ_CONFIGURATION` | all |
+| `PTRACE_GET_SYSCALL_USER_DISPATCH_CONFIG` | all |
+| `PTRACE_SET_SYSCALL_USER_DISPATCH_CONFIG` | all |
 | `PTRACE_GETFPREGS` | amd64, arm |
 | `PTRACE_SETFPREGS` | amd64, arm |
 | `PTRACE_GETFPXREGS` | amd64 |

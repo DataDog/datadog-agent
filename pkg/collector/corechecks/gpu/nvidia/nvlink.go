@@ -216,7 +216,10 @@ func packDWord(value uint32) []byte {
 }
 
 func makeTLVHeader(tType, length uint32) uint32 {
-	return ((length & 0x7FF) << 5) | (tType & 0x1F)
+	// Match ctypes bitfield layout
+	// struct TLV { res1:16, len:11, tType:5 } packed into uint32.
+	// This places tType in the highest 5 bits and len in bits [16..26].
+	return ((tType & 0x1F) << 27) | ((length & 0x7FF) << 16)
 }
 
 func makeOpMethodAndReg(regID uint32) uint32 {
@@ -233,7 +236,7 @@ func unpackTLV(buffer []byte) (map[string]uint64, error) {
 	}
 
 	regHeader := binary.BigEndian.Uint32(buffer[offset : offset+dwordSizeBytes])
-	regLenDwords := (regHeader >> 5) & 0x7FF
+	regLenDwords := (regHeader >> 16) & 0x7FF
 	if regLenDwords < regTLVHeaderLenDwords {
 		return nil, fmt.Errorf("invalid register TLV length: %d", regLenDwords)
 	}

@@ -23,6 +23,7 @@ go_test(
     name = "debug_test",
     srcs = ["handlers_linux_test.go"],
     embed = [":debug"],
+    gotags = ["test"],
     deps = select({
         "@rules_go//go/platform:android": [
             "@com_github_stretchr_testify//require",

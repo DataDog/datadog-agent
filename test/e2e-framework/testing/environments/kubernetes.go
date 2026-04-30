@@ -27,6 +27,7 @@ import (
 
 // Kubernetes is an environment that contains a Kubernetes cluster, the Agent and a FakeIntake.
 type Kubernetes struct {
+	CoverageBase
 	// Components
 	KubernetesCluster *components.KubernetesCluster
 	FakeIntake        *components.FakeIntake
@@ -188,8 +189,10 @@ const (
 
 // Should return the coverage commands for each pod and each container
 func (e *Kubernetes) getAgentCoverageCommands(podType podType) []CoverageTargetSpec {
-	if podType == podTypeWindows {
-		return []CoverageTargetSpec{
+	var targets []CoverageTargetSpec
+	switch podType {
+	case podTypeWindows:
+		targets = []CoverageTargetSpec{
 			{
 				AgentName:       "agent",
 				CoverageCommand: []string{"agent.exe", "coverage", "generate"},
@@ -221,47 +224,50 @@ func (e *Kubernetes) getAgentCoverageCommands(podType podType) []CoverageTargetS
 				Required:        false,
 			},
 		}
-	} else if podType == podTypeClusterAgent {
-		return []CoverageTargetSpec{
+	case podTypeClusterAgent:
+		targets = []CoverageTargetSpec{
 			{
 				AgentName:       "cluster-agent",
 				CoverageCommand: []string{"datadog-cluster-agent", "coverage", "generate"},
 				Required:        true,
 			},
 		}
+	default:
+		targets = []CoverageTargetSpec{
+			{
+				AgentName:       "agent",
+				CoverageCommand: []string{"agent", "coverage", "generate"},
+				Required:        true,
+			},
+			{
+				AgentName:       "trace-agent",
+				CoverageCommand: []string{"trace-agent", "coverage", "generate", "-c", "/etc/datadog-agent/datadog.yaml"},
+				Required:        false,
+			},
+			{
+				AgentName:       "process-agent",
+				CoverageCommand: []string{"process-agent", "coverage", "generate"},
+				Required:        false,
+			},
+			{
+				AgentName:       "security-agent",
+				CoverageCommand: []string{"security-agent", "coverage", "generate"},
+				Required:        false,
+			},
+			{
+				AgentName:       "system-probe",
+				CoverageCommand: []string{"system-probe", "coverage", "generate"},
+				Required:        false,
+			},
+			{
+				AgentName:       "otel-agent",
+				CoverageCommand: []string{"otel-agent", "coverage"},
+				Required:        false,
+			},
+		}
 	}
-	return []CoverageTargetSpec{
-		{
-			AgentName:       "agent",
-			CoverageCommand: []string{"agent", "coverage", "generate"},
-			Required:        true,
-		},
-		{
-			AgentName:       "trace-agent",
-			CoverageCommand: []string{"trace-agent", "coverage", "generate", "-c", "/etc/datadog-agent/datadog.yaml"},
-			Required:        false,
-		},
-		{
-			AgentName:       "process-agent",
-			CoverageCommand: []string{"process-agent", "coverage", "generate"},
-			Required:        false,
-		},
-		{
-			AgentName:       "security-agent",
-			CoverageCommand: []string{"security-agent", "coverage", "generate"},
-			Required:        false,
-		},
-		{
-			AgentName:       "system-probe",
-			CoverageCommand: []string{"system-probe", "coverage", "generate"},
-			Required:        false,
-		},
-		{
-			AgentName:       "otel-agent",
-			CoverageCommand: []string{"otel-agent", "coverage"},
-			Required:        false,
-		},
-	}
+	e.applyCoverageOverrides(targets)
+	return targets
 }
 
 // Coverage generates a coverage report for each pod and container

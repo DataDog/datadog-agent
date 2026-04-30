@@ -22,7 +22,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"golang.org/x/exp/maps"
 
-	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
@@ -1104,7 +1104,7 @@ func (ua *UprobeAttacher) attachToLibrariesOfPID(pid uint32) error {
 
 		if err == nil {
 			successfulMatches = append(successfulMatches, libpath)
-		} else if !errors.Is(err, ErrNoMatchingRule) {
+		} else if !errors.Is(err, ErrNoMatchingRule) && !errors.Is(err, utils.ErrPathIsAlreadyRegistered) {
 			registerErrors = append(registerErrors, err)
 		}
 	}

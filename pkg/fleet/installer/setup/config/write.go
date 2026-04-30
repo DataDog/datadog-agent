@@ -164,6 +164,85 @@ func copyNodeComments(dst *yaml.Node, src *yaml.Node) {
 	}
 }
 
+// BackfillFromTemplate enriches configPath with comments and structure from templatePath,
+// while preserving all existing config values. This allows fleet-installed configs to
+// include the rich commented-out examples from the .example template files.
+//
+// If either file doesn't exist, the function is a no-op and returns nil.
+//
+// NOTE: Currently intended to only be used on fresh installs, not for updating existing configs from customers.
+func BackfillFromTemplate(configPath, templatePath string, perms os.FileMode) error {
+	templateBytes, err := readConfig(templatePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("could not read template %s: %w", templatePath, err)
+	}
+	if len(templateBytes) == 0 {
+		return nil
+	}
+
+	currentBytes, err := readConfig(configPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("could not read config %s: %w", configPath, err)
+	}
+	if len(currentBytes) == 0 {
+		return nil
+	}
+
+	// Parse the template as the base (has comments and structure)
+	var templateRoot yaml.Node
+	if err := yaml.Unmarshal(templateBytes, &templateRoot); err != nil {
+		return fmt.Errorf("could not parse template %s: %w", templatePath, err)
+	}
+
+	// Parse the current config as the overlay (has actual values)
+	var currentRoot yaml.Node
+	if err := yaml.Unmarshal(currentBytes, &currentRoot); err != nil {
+		return fmt.Errorf("could not parse config %s: %w", configPath, err)
+	}
+
+	// Merge current config values into the template base.
+	// The template may contain only comments (no YAML nodes), in which case
+	// templateRoot.Content will be empty — yaml.Node does not preserve
+	// free-standing comments. We handle that below by writing the raw template
+	// bytes so comments are not lost.
+	templateIsEmpty := len(templateRoot.Content) == 0
+	if !templateIsEmpty && len(currentRoot.Content) > 0 {
+		mergeNodes(&templateRoot, &currentRoot)
+	} else if templateIsEmpty {
+		templateRoot = currentRoot
+	}
+
+	var buf bytes.Buffer
+	// Add the generated disclaimer unless the template already contains it.
+	// The disclaimer from the current config is lost during yaml.Node
+	// parsing (it becomes a HeadComment on the first key), so we always
+	// re-add it here to ensure the backfilled file retains it.
+	if disclaimerGenerated != "" && !bytes.HasPrefix(templateBytes, []byte(disclaimerGenerated)) {
+		buf.WriteString(disclaimerGenerated + "\n\n")
+	}
+	if templateIsEmpty {
+		// Template file may contain only comments which are not preserved by
+		// yaml.Node. Write the raw template bytes so comments are kept, then
+		// append the config values after.
+		buf.Write(templateBytes)
+		if !bytes.HasSuffix(templateBytes, []byte("\n")) {
+			buf.WriteString("\n")
+		}
+	}
+	enc := yaml.NewEncoder(&buf)
+	enc.SetIndent(2)
+	if err := enc.Encode(&templateRoot); err != nil {
+		return fmt.Errorf("could not encode merged config: %w", err)
+	}
+	return os.WriteFile(configPath, buf.Bytes(), perms)
+}
+
 // readConfig returns the Agent config bytes from path and performs the following normalizations:
 //   - Converts from UTF-16 to UTF-8
 //   - Removes CR (\r) bytes

@@ -95,6 +95,9 @@ func (l *Loop) Run(parentCtx context.Context) {
 
 		// JobId is generated on dequeue so its not part of the signature, it will be checked by the backend when publishing the result
 		unwrappedTask.Data.Attributes.JobId = task.Data.Attributes.JobId
+		// TraceId/SpanId are dequeue-time observability metadata, not part of the signed task
+		unwrappedTask.Data.Attributes.TraceId = task.Data.Attributes.TraceId
+		unwrappedTask.Data.Attributes.SpanId = task.Data.Attributes.SpanId
 		task = unwrappedTask
 
 		credential, err := l.runner.resolver.ResolveConnectionInfoToCredential(ctx, task.Data.Attributes.ConnectionInfo, nil)

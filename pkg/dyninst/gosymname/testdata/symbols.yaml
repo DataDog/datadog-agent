@@ -717,3 +717,18 @@
           function: Handle
           closure: func1
           depth: 1
+  - name: promoted method from embedded type in different package
+    input:
+      symbol: github.com/google/cel-go/parser/gen.(*CELParser).github.com/antlr4-go/antlr/v4.reset
+      source: pclntab
+    output:
+      pkg: github.com/google/cel-go/parser/gen
+      local: (*CELParser).github.com/antlr4-go/antlr/v4.reset
+      class: function
+      interps:
+        - qualified_name: (*CELParser).github
+          receiver: "*CELParser"
+          function: github
+          inlined:
+            - com/antlr4-go/antlr/v4
+            - reset

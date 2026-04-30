@@ -8,6 +8,7 @@ exporters:
 processors:
     batch:
         timeout: 10s
+    ddhostname/default: {}
     infraattributes_custom:
         other_config: value
     myinfraat tributes:
@@ -47,6 +48,7 @@ service:
                 - infraattributes_custom
                 - batch
                 - resourcedetection/default
+                - ddhostname/default
                 - resource/dd-profiler-internal-metadata
             receivers:
                 - profiling
