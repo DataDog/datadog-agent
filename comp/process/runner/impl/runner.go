@@ -49,7 +49,7 @@ type dependencies struct {
 
 // NewComponent creates a new runner component.
 func NewComponent(deps dependencies) (runner.Component, error) {
-	checks := filterNilChecks(deps.Checks)
+	checks := runner.FilterNilChecks(deps.Checks)
 	c, err := processRunner.NewRunner(deps.Config, deps.SysCfg.SysProbeObject(), deps.HostInfo.Object(), filterEnabledChecks(checks), deps.RTNotifier)
 	if err != nil {
 		return nil, err
@@ -78,17 +78,6 @@ func (r *runnerImpl) Run(context.Context) error {
 func (r *runnerImpl) stop(context.Context) error {
 	r.checkRunner.Stop()
 	return nil
-}
-
-// filterNilChecks removes nil values from an fx group of CheckComponent.
-func filterNilChecks(group []types.CheckComponent) []types.CheckComponent {
-	result := make([]types.CheckComponent, 0, len(group))
-	for _, item := range group {
-		if item != nil {
-			result = append(result, item)
-		}
-	}
-	return result
 }
 
 func filterEnabledChecks(providedChecks []types.CheckComponent) []checks.Check {

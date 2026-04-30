@@ -79,10 +79,7 @@ func newProcessAgent(deps dependencies) (Provides, error) {
 	}
 
 	enabledChecks := make([]checks.Check, 0, len(deps.Checks))
-	for _, c := range deps.Checks {
-		if c == nil {
-			continue
-		}
+	for _, c := range runner.FilterNilChecks(deps.Checks) {
 		check := c.Object()
 		if check.IsEnabled() {
 			enabledChecks = append(enabledChecks, check)
