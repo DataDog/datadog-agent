@@ -1,15 +1,14 @@
 load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
-    name = "runnerimpl",
+    name = "impl",
     srcs = ["runner.go"],
-    importpath = "github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl",
+    importpath = "github.com/DataDog/datadog-agent/comp/metadata/runner/impl",
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
         "//comp/core/log/def",
-        "//comp/metadata/runner",
-        "//pkg/util/fxutil",
-        "@org_uber_go_fx//:fx",
+        "//comp/def",
+        "//comp/metadata/runner/def",
     ],
 )
