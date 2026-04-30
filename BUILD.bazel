@@ -578,7 +578,6 @@ exports_files(glob(
 # gazelle:exclude pkg/trace/event
 # gazelle:exclude pkg/trace/filters
 # gazelle:exclude pkg/trace/otel
-# gazelle:exclude pkg/trace/telemetry
 # gazelle:exclude pkg/trace/testutil
 # gazelle:exclude pkg/trace/transform
 # gazelle:exclude pkg/trace/writer
