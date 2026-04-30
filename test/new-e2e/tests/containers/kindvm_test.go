@@ -14,22 +14,36 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	scenkind "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/helmagent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/workloads"
 	provkind "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
 )
 
-type kindSuite struct {
-	k8sSuite
-}
+// kindAgentHelmValues are the KinD-specific overrides that the scenario
+// provisioner would normally add — kubelet TLS skip, CSI driver, host network.
+const kindAgentHelmValues = `
+datadog:
+  kubelet:
+    tlsVerify: false
+  csi:
+    enabled: true
+agents:
+  useHostNetwork: true
+`
 
-func TestKindSuite(t *testing.T) {
-	helmValues := `
+const kindHelmValues = `
 datadog:
     logLevel: DEBUG
 clusterAgent:
     envDict:
         DD_CLUSTER_AGENT_LANGUAGE_DETECTION_PATCHER_BASE_BACKOFF: "10s"
 `
+
+type kindSuite struct {
+	k8sSuite
+}
+
+func TestKindSuite(t *testing.T) {
 	e2e.Run(t, &kindSuite{}, e2e.WithProvisioner(provkind.Provisioner(
 		provkind.WithRunOptions(
 			scenkind.WithVMOptions(
@@ -40,15 +54,6 @@ clusterAgent:
 				fakeintake.WithRetentionPeriod("31m"),
 			),
 			scenkind.WithDeployDogstatsd(),
-			scenkind.WithAgentOptions(
-				kubernetesagentparams.WithDualShipping(),
-				kubernetesagentparams.WithHelmValues(helmValues),
-				kubernetesagentparams.WithHelmValues(containerHelmValues),
-				// Kind suite uses EndpointSlices backed providers while the EKS suite uses the default
-				// (legacy) Endpoints providers. This covers tests for both without having to create
-				// independent test suites for both configurations or modify providers at test runtime.
-				kubernetesagentparams.WithKubernetesUseEndpointSlices(),
-			),
 			scenkind.WithDeployArgoRollout(),
 		),
 	)))
@@ -57,6 +62,19 @@ clusterAgent:
 func (suite *kindSuite) SetupSuite() {
 	suite.k8sSuite.SetupSuite()
 	suite.Fakeintake = suite.Env().FakeIntake.Client()
+	helmagent.Install(suite.T(), suite.Env(),
+		// KinD-specific: skip kubelet TLS verification, enable CSI driver, use host network
+		kubernetesagentparams.WithHelmValues(kindAgentHelmValues),
+		// Stack ID tag mirrors what Pulumi kindvm/run.go adds via ctx.Stack()
+		kubernetesagentparams.WithTags([]string{"stackid:" + suite.Env().KubernetesCluster.ClusterName}),
+		kubernetesagentparams.WithDualShipping(),
+		kubernetesagentparams.WithHelmValues(kindHelmValues),
+		kubernetesagentparams.WithHelmValues(containerHelmValues),
+		// Kind suite uses EndpointSlices backed providers while the EKS suite uses the default
+		// (legacy) Endpoints providers. This covers tests for both without having to create
+		// independent test suites for both configurations or modify providers at test runtime.
+		kubernetesagentparams.WithKubernetesUseEndpointSlices(),
+	)
 	workloads.DeployTestWorkload(suite.T(), suite.Env())
 }
 

@@ -137,6 +137,9 @@ func Install(t *testing.T, env *environments.Kubernetes, opts ...kubernetesagent
 	env.Agent.LinuxClusterAgent.LabelSelectors = map[string]string{
 		"app": defaultReleaseName + "-datadog-cluster-agent",
 	}
+	env.Agent.LinuxClusterChecks.LabelSelectors = map[string]string{
+		"app": defaultReleaseName + "-datadog-clusterchecks",
+	}
 
 	// Store baseline options and set the Helm installer for Configure
 	env.Agent.SetBaseOptions(opts...)
