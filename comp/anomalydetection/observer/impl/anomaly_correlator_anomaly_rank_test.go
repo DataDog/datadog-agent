@@ -233,7 +233,8 @@ func TestAnomalyRank_Empty(t *testing.T) {
 }
 
 // CatalogRegistration: anomaly_rank is wired into the default catalog as a
-// correlator and is enabled by default.
+// correlator, but it is disabled by default because it is additive rather than
+// a true post-filter.
 func TestAnomalyRank_CatalogRegistration(t *testing.T) {
 	cat := defaultCatalog()
 	var found *componentEntry
@@ -245,7 +246,7 @@ func TestAnomalyRank_CatalogRegistration(t *testing.T) {
 	}
 	require.NotNil(t, found, "anomaly_rank must be registered in the default catalog")
 	assert.Equal(t, componentCorrelator, found.kind)
-	assert.True(t, found.defaultEnabled)
+	assert.False(t, found.defaultEnabled)
 	// Factory must accept the typed config and return a Correlator.
 	inst := found.factory(found.defaultConfig)
 	_, ok := inst.(observer.Correlator)

@@ -198,12 +198,15 @@ func defaultCatalog() *componentCatalog {
 			},
 			// ---- Correlators ----
 			{
-				name:           "anomaly_rank",
-				displayName:    "AnomalyRank",
-				kind:           componentCorrelator,
-				defaultConfig:  DefaultAnomalyRankConfig(),
-				factory:        func(cfg any) any { return NewAnomalyRankCorrelator(cfg.(AnomalyRankConfig)) },
-				defaultEnabled: true,
+				name:          "anomaly_rank",
+				displayName:   "AnomalyRank",
+				kind:          componentCorrelator,
+				defaultConfig: DefaultAnomalyRankConfig(),
+				factory:       func(cfg any) any { return NewAnomalyRankCorrelator(cfg.(AnomalyRankConfig)) },
+				// Disabled for manual eval: this component is an additive
+				// correlator, not a true post-filter, so enabling it beside
+				// time_cluster cannot suppress existing scored correlations.
+				defaultEnabled: false,
 				parseJSON: func(defaults any, raw []byte) (any, error) {
 					cfg := defaults.(AnomalyRankConfig)
 					if err := json.Unmarshal(raw, &cfg); err != nil {
