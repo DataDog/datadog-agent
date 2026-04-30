@@ -39,6 +39,7 @@ func adjustDiscovery(cfg model.Config) {
 		smNS("tls", "native", "enabled"),
 		smNS("tls", "go", "enabled"),
 		smNS("tls", "istio", "enabled"),
+		smNS("tls", "nodejs", "enabled"),
 	} {
 		if !cfg.GetBool(key) {
 			log.Infof("discovery mode: enabling %s (required for service map)", key)
