@@ -344,26 +344,26 @@ func TestStoreConfig_Defaults(t *testing.T) {
 	err := ic.Validate()
 	require.NoError(t, err)
 
-	require.NotNil(t, ic.Store)
-	assert.Equal(t, defaultMinConfigsPerDevice, ic.Store.MinConfigsPerDevice)
-	assert.Equal(t, defaultMaxConfigsPerDevice, ic.Store.MaxConfigsPerDevice)
-	assert.Equal(t, defaultMaxRawConfigStoreBytes, ic.Store.MaxRawConfigStoreBytes)
+	require.NotNil(t, ic.StoreConfig)
+	assert.Equal(t, defaultMinConfigsPerDevice, ic.StoreConfig.MinConfigsPerDevice)
+	assert.Equal(t, defaultMaxConfigsPerDevice, ic.StoreConfig.MaxConfigsPerDevice)
+	assert.Equal(t, defaultMaxRawConfigStoreBytes, ic.StoreConfig.MaxRawConfigStoreBytes)
 }
 
 func TestStoreConfig_PartialDefaults(t *testing.T) {
 	ic := InitConfig{
 		Namespace:             "default",
 		MinCollectionInterval: 900,
-		Store: &StoreConfig{
+		StoreConfig: &StoreConfig{
 			MinConfigsPerDevice: 5,
 		},
 	}
 	err := ic.Validate()
 	require.NoError(t, err)
 
-	assert.Equal(t, 5, ic.Store.MinConfigsPerDevice)
-	assert.Equal(t, defaultMaxConfigsPerDevice, ic.Store.MaxConfigsPerDevice)
-	assert.Equal(t, defaultMaxRawConfigStoreBytes, ic.Store.MaxRawConfigStoreBytes)
+	assert.Equal(t, 5, ic.StoreConfig.MinConfigsPerDevice)
+	assert.Equal(t, defaultMaxConfigsPerDevice, ic.StoreConfig.MaxConfigsPerDevice)
+	assert.Equal(t, defaultMaxRawConfigStoreBytes, ic.StoreConfig.MaxRawConfigStoreBytes)
 }
 
 func TestStoreConfig_YAMLUnmarshal(t *testing.T) {
@@ -379,10 +379,10 @@ store:
 	var ic InitConfig
 	err := yaml.Unmarshal([]byte(yamlData), &ic)
 	require.NoError(t, err)
-	require.NotNil(t, ic.Store)
-	assert.Equal(t, 3, ic.Store.MinConfigsPerDevice)
-	assert.Equal(t, 100, ic.Store.MaxConfigsPerDevice)
-	assert.Equal(t, int64(1073741824), ic.Store.MaxRawConfigStoreBytes)
+	require.NotNil(t, ic.StoreConfig)
+	assert.Equal(t, 3, ic.StoreConfig.MinConfigsPerDevice)
+	assert.Equal(t, 100, ic.StoreConfig.MaxConfigsPerDevice)
+	assert.Equal(t, int64(1073741824), ic.StoreConfig.MaxRawConfigStoreBytes)
 }
 
 func TestInitConfig_PartialStoreValidatesWithoutApplyDefaults(t *testing.T) {
@@ -440,15 +440,15 @@ ssh:
 	var ic InitConfig
 	err := yaml.Unmarshal([]byte(yamlData), &ic)
 	require.NoError(t, err)
-	assert.Nil(t, ic.Store)
+	assert.Nil(t, ic.StoreConfig)
 
 	ic.applyDefaults()
-	require.NotNil(t, ic.Store)
+	require.NotNil(t, ic.StoreConfig)
 
-	ic.Store.validate()
-	assert.Equal(t, defaultMinConfigsPerDevice, ic.Store.MinConfigsPerDevice)
-	assert.Equal(t, defaultMaxConfigsPerDevice, ic.Store.MaxConfigsPerDevice)
-	assert.Equal(t, defaultMaxRawConfigStoreBytes, ic.Store.MaxRawConfigStoreBytes)
+	ic.StoreConfig.validate()
+	assert.Equal(t, defaultMinConfigsPerDevice, ic.StoreConfig.MinConfigsPerDevice)
+	assert.Equal(t, defaultMaxConfigsPerDevice, ic.StoreConfig.MaxConfigsPerDevice)
+	assert.Equal(t, defaultMaxRawConfigStoreBytes, ic.StoreConfig.MaxRawConfigStoreBytes)
 }
 
 func TestNewNcmCheckContext_WithStoreConfig(t *testing.T) {
@@ -469,10 +469,10 @@ auth:
 `
 	cfg, err := NewNcmCheckContext([]byte(instanceConfig), []byte(initConfig))
 	require.NoError(t, err)
-	require.NotNil(t, cfg.Store)
-	assert.Equal(t, 5, cfg.Store.MinConfigsPerDevice)
-	assert.Equal(t, 200, cfg.Store.MaxConfigsPerDevice)
-	assert.Equal(t, int64(2147483648), cfg.Store.MaxRawConfigStoreBytes)
+	require.NotNil(t, cfg.StoreConfig)
+	assert.Equal(t, 5, cfg.StoreConfig.MinConfigsPerDevice)
+	assert.Equal(t, 200, cfg.StoreConfig.MaxConfigsPerDevice)
+	assert.Equal(t, int64(2147483648), cfg.StoreConfig.MaxRawConfigStoreBytes)
 }
 
 func TestNewNcmCheckContext_StoreDefaultsApplied(t *testing.T) {
@@ -489,10 +489,10 @@ auth:
 `
 	cfg, err := NewNcmCheckContext([]byte(instanceConfig), []byte(initConfig))
 	require.NoError(t, err)
-	require.NotNil(t, cfg.Store)
-	assert.Equal(t, defaultMinConfigsPerDevice, cfg.Store.MinConfigsPerDevice)
-	assert.Equal(t, defaultMaxConfigsPerDevice, cfg.Store.MaxConfigsPerDevice)
-	assert.Equal(t, defaultMaxRawConfigStoreBytes, cfg.Store.MaxRawConfigStoreBytes)
+	require.NotNil(t, cfg.StoreConfig)
+	assert.Equal(t, defaultMinConfigsPerDevice, cfg.StoreConfig.MinConfigsPerDevice)
+	assert.Equal(t, defaultMaxConfigsPerDevice, cfg.StoreConfig.MaxConfigsPerDevice)
+	assert.Equal(t, defaultMaxRawConfigStoreBytes, cfg.StoreConfig.MaxRawConfigStoreBytes)
 }
 
 func TestNewNcmCheckContext_StoreMinExceedsMaxResetsToDefaults(t *testing.T) {
@@ -513,9 +513,9 @@ auth:
 `
 	cfg, err := NewNcmCheckContext([]byte(instanceConfig), []byte(initConfig))
 	require.NoError(t, err)
-	assert.Equal(t, defaultMinConfigsPerDevice, cfg.Store.MinConfigsPerDevice)
-	assert.Equal(t, defaultMaxConfigsPerDevice, cfg.Store.MaxConfigsPerDevice)
-	assert.Equal(t, int64(1024), cfg.Store.MaxRawConfigStoreBytes)
+	assert.Equal(t, defaultMinConfigsPerDevice, cfg.StoreConfig.MinConfigsPerDevice)
+	assert.Equal(t, defaultMaxConfigsPerDevice, cfg.StoreConfig.MaxConfigsPerDevice)
+	assert.Equal(t, int64(1024), cfg.StoreConfig.MaxRawConfigStoreBytes)
 }
 
 func TestParsingSSHTimeoutFromYAML(t *testing.T) {

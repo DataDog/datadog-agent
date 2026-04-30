@@ -63,7 +63,7 @@ type InitConfig struct {
 	Namespace             string       `yaml:"namespace"`               // Namespace for the NCM devices where configs are retrieved from, to help match a device on DD
 	MinCollectionInterval int          `yaml:"min_collection_interval"` // Interval in seconds to check for config changes
 	SSH                   *SSHConfig   `yaml:"ssh"`                     // SSH holds global connection configurations that can apply to all devices if pertinent
-	Store                 *StoreConfig `yaml:"store"`                   // Store holds configuration for the local config store and its eviction policy
+	StoreConfig           *StoreConfig `yaml:"store"`                   // StoreConfig holds configuration for the local config store and its eviction policy
 }
 
 // SSHConfig holds the configuration (either globally if in init config or for the specific device instance) to use when connecting to the configured device via SSH
@@ -95,7 +95,7 @@ type NcmCheckContext struct {
 	Namespace             string
 	Device                *DeviceInstance
 	MinCollectionInterval time.Duration
-	Store                 *StoreConfig
+	StoreConfig           *StoreConfig
 	ProfileMap            profile.Map
 	ProfileCache          *profile.Cache
 }
@@ -157,7 +157,7 @@ func NewNcmCheckContext(rawInstance integration.Data, rawInitConfig integration.
 		Namespace:             initConfig.Namespace,
 		MinCollectionInterval: time.Duration(initConfig.MinCollectionInterval) * time.Second,
 		Device:                &deviceInstance,
-		Store:                 initConfig.Store,
+		StoreConfig:           initConfig.StoreConfig,
 		ProfileMap:            profMap,
 		ProfileCache:          profileCache,
 	}
@@ -245,8 +245,8 @@ func (ic *InitConfig) applyDefaults() {
 		log.Debugf("No or invalid min_collection_interval specified in init config, applying default: %d", defaultCheckInterval)
 		ic.MinCollectionInterval = int(defaultCheckInterval.Seconds()) // Default to 15 minutes
 	}
-	if ic.Store == nil {
-		ic.Store = &StoreConfig{}
+	if ic.StoreConfig == nil {
+		ic.StoreConfig = &StoreConfig{}
 	}
 }
 
@@ -269,8 +269,8 @@ func (ic *InitConfig) Validate() error {
 		}
 	}
 
-	if ic.Store != nil {
-		ic.Store.validate()
+	if ic.StoreConfig != nil {
+		ic.StoreConfig.validate()
 	}
 
 	return nil
