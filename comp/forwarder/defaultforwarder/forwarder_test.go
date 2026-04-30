@@ -783,7 +783,7 @@ func syncTestHighPriorityTransactionTendency(t *testing.T) {
 	options := NewOptionsWithResolvers(mockConfig, log, r)
 	options.DisableAPIKeyChecking = true // Disable API key checking so no health check goroutine is started
 	options.Secrets = secrets
-	options.Transport = transport
+	options.transport = transport
 	f := NewDefaultForwarder(mockConfig, log, options)
 
 	f.Start()
