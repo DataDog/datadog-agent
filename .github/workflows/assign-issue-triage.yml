@@ -31,7 +31,7 @@ jobs:
 
     - name: Intelligent Issue Triage
       id: claude
-      uses: anthropics/claude-code-action@4e5d8b13ca281a6d163cdb287d8917b216e00d6f # v1.0.103
+      uses: anthropics/claude-code-action@b4d67413279fc18c6e5de930ae307c4f108714eb # v1.0.104
       with:
         anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
         claude_args : --allowedTools "Read(issue_details.json),Edit(claude.txt)"
