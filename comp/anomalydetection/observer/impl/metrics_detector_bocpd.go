@@ -98,6 +98,13 @@ type BOCPDConfig struct {
 
 	// Aggregations to run detection on. Default: [Average, Count]
 	Aggregations []observer.Aggregate `json:"-"`
+
+	// LikelihoodKind controls the predictive likelihood used in the BOCPD
+	// recurrence. "gaussian" uses the standard Gaussian emission (legacy).
+	// "student_t" (default) uses a Student-t with df=4, which is more robust
+	// to isolated outliers per Knoblauch & Damoulas 2018. Any unrecognized
+	// value falls back to "student_t".
+	LikelihoodKind string `json:"likelihood_kind"`
 }
 
 // DefaultBOCPDConfig returns a BOCPDConfig with default values.
@@ -112,6 +119,7 @@ func DefaultBOCPDConfig() BOCPDConfig {
 		PriorVarianceScale: 10.0,
 		MinVariance:        1.0,
 		RecoveryPoints:     10,
+		LikelihoodKind:     "student_t",
 		Aggregations: []observer.Aggregate{
 			observer.AggregateAverage,
 			observer.AggregateCount,
@@ -168,6 +176,9 @@ func NewBOCPDDetector(config BOCPDConfig) *BOCPDDetector {
 	}
 	if len(config.Aggregations) == 0 {
 		config.Aggregations = defaults.Aggregations
+	}
+	if config.LikelihoodKind == "" {
+		config.LikelihoodKind = defaults.LikelihoodKind
 	}
 	return &BOCPDDetector{
 		config: config,
@@ -377,7 +388,12 @@ func (b *BOCPDDetector) updatePosterior(state *bocpdSeriesState, x float64) (boo
 	state.newRunProbs = state.newRunProbs[:newLen]
 	var cpMass float64
 	for r := range state.runProbs {
-		pred := gaussianPDF(x, state.means[r], state.obsVar+1.0/state.precisions[r])
+		var pred float64
+		if b.config.LikelihoodKind == "gaussian" {
+			pred = gaussianPDF(x, state.means[r], state.obsVar+1.0/state.precisions[r])
+		} else {
+			pred = studentTPDF(x, state.means[r], state.obsVar+1.0/state.precisions[r], 4.0)
+		}
 		state.newRunProbs[r+1] = state.runProbs[r] * (1.0 - hazard) * pred
 		cpMass += state.runProbs[r] * pred
 	}
@@ -503,4 +519,29 @@ func gaussianPDF(x, mean, variance float64) float64 {
 	z := x - mean
 	denom := math.Sqrt(2 * math.Pi * variance)
 	return math.Exp(-(z*z)/(2*variance)) / denom
+}
+
+// studentTPDF computes the Student-t probability density with location mean,
+// scale² parameter scale2, and degrees-of-freedom df.
+//
+// Formula (Knoblauch & Damoulas 2018, eq. robust-BOCPD):
+//
+//	StudentT(x; μ, σ², ν) = Γ((ν+1)/2) / (Γ(ν/2)·√(νπσ²)) · (1+(x−μ)²/(νσ²))^(−(ν+1)/2)
+//
+// Evaluated in log-space for numerical stability. scale2 is clamped to a
+// minimum of 1e-12 to guard against degenerate posteriors. For df=4 (the
+// literature default for anomaly detection), the heavy-tailed density assigns
+// meaningful probability to isolated outliers, preventing run-length posterior
+// collapse on single-point spikes.
+func studentTPDF(x, mean, scale2, df float64) float64 {
+	const minScale2 = 1e-12
+	if scale2 < minScale2 {
+		scale2 = minScale2
+	}
+	z := (x - mean) * (x - mean) / (df * scale2)
+	lgNum, _ := math.Lgamma((df + 1) / 2)
+	lgDen, _ := math.Lgamma(df / 2)
+	logNorm := lgNum - lgDen - 0.5*math.Log(df*math.Pi*scale2)
+	logPdf := logNorm - ((df+1)/2)*math.Log1p(z)
+	return math.Exp(logPdf)
 }
