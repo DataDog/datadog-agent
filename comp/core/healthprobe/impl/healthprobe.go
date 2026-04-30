@@ -187,9 +187,6 @@ func healthHandler(logsGoroutines bool, log log.Component, getStatusNonBlocking 
 }
 
 func fillHealthFlare(_ context.Context, fb flaretypes.FlareBuilder) error {
-	if fb.IsLocal() {
-		return nil
-	}
 	s := health.GetReady()
 	sort.Strings(s.Healthy)
 	sort.Strings(s.Unhealthy)
