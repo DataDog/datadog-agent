@@ -63,18 +63,18 @@ type Provides struct {
 
 // NewComponent creates a new telemetry component.
 func NewComponent(deps Requires) Provides {
-	impl := newTelemetry()
+	comp := newTelemetry()
 	// Since we are in the middle of a migration to components, we need to ensure that the global variables are reset
 	// when the component is stopped.
 	deps.Lc.Append(compdef.Hook{
 		OnStop: func(_ context.Context) error {
-			impl.Reset()
+			comp.Reset()
 			return nil
 		},
 	})
 	return Provides{
-		Comp:          impl,
-		FlareProvider: flaretypes.NewProvider(impl.fillFlare),
+		Comp:          comp,
+		FlareProvider: flaretypes.NewProvider(comp.fillFlare),
 	}
 }
 
