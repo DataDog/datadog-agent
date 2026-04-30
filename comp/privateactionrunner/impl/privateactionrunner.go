@@ -319,7 +319,7 @@ func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *pa
 		}
 	}
 
-	enrollmentResult, err := enrollment.SelfEnroll(ctx, ddSite, runnerNamePrefix, apiKey, appKey, agentIdentifier)
+	enrollmentResult, err := enrollment.SelfEnroll(ctx, ddSite, runnerNamePrefix, apiKey, appKey, agentIdentifier, cfg.OpmsExtraHeaders)
 	if err != nil {
 		return nil, fmt.Errorf("enrollment API call failed: %w", err)
 	}

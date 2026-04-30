@@ -56,7 +56,7 @@ jobs:
           features: legacy-tasks
 
       - name: Install Python dependencies
-        run: pip install requests pyyaml semver
+        run: pip install requests==2.33.1 pyyaml==6.0.3 semver==3.0.4
 
       - name: Install kind
         uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc #v1.14.0

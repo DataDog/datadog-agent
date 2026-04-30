@@ -72,6 +72,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.72.2
+	github.com/DataDog/go-acl v1.0.1 // indirect
 	github.com/DataDog/viper v1.15.1 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/ebitengine/purego v0.10.0 // indirect
@@ -85,7 +86,6 @@ require (
 	github.com/googleapis/enterprise-certificate-proxy v0.3.14 // indirect
 	github.com/googleapis/gax-go/v2 v2.20.0 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0 // indirect
-	github.com/hectane/go-acl v0.0.0-20230225031251-cdfc9e3acf94 // indirect
 	github.com/lufia/plan9stats v0.0.0-20251013123823-9fd1530e3ec3 // indirect
 	github.com/magiconair/properties v1.8.10 // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
