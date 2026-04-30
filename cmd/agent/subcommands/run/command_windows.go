@@ -38,7 +38,7 @@ import (
 	windowseventlog "github.com/DataDog/datadog-agent/comp/checks/windowseventlog/def"
 	windowseventlogfx "github.com/DataDog/datadog-agent/comp/checks/windowseventlog/fx"
 	notableeventsfx "github.com/DataDog/datadog-agent/comp/notableevents/fx"
-	trapserver "github.com/DataDog/datadog-agent/comp/snmptraps/server"
+	trapserver "github.com/DataDog/datadog-agent/comp/snmptraps/server/def"
 	traceconfigdef "github.com/DataDog/datadog-agent/comp/trace/config/def"
 	traceconfigfx "github.com/DataDog/datadog-agent/comp/trace/config/fx"
 
@@ -65,17 +65,17 @@ import (
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/core/def"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	haagentmetadata "github.com/DataDog/datadog-agent/comp/metadata/haagent/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
+	inventorychecks "github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
-	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
-	"github.com/DataDog/datadog-agent/comp/metadata/runner"
-	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
+	packagesigning "github.com/DataDog/datadog-agent/comp/metadata/packagesigning/def"
+	runner "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
+	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server/def"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	processAgent "github.com/DataDog/datadog-agent/comp/process/agent"
 	publishermetadatacachefx "github.com/DataDog/datadog-agent/comp/publishermetadatacache/fx"
@@ -147,7 +147,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			ipc ipc.Component,
 			snmpScanManager snmpscanmanager.Component,
 			traceroute traceroute.Component,
-			healthplatformComp healthplatform.Component,
+			healthplatformComp healthplatformdef.Component,
 		) error {
 			defer StopAgentWithDefaults(config, sysprobeConf)
 

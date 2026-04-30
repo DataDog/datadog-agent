@@ -52,7 +52,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	localTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
@@ -67,15 +67,15 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
-	healthplatformnoopfx "github.com/DataDog/datadog-agent/comp/healthplatform/fx-noop"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	remotetraceroutefx "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/mcp"
 
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
-	metadatarunner "github.com/DataDog/datadog-agent/comp/metadata/runner"
-	metadatarunnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
+	metadatarunner "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
+	metadatarunnerfx "github.com/DataDog/datadog-agent/comp/metadata/runner/fx"
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/impl"
 	rccomp "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
 	rcservicefx "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/fx"
@@ -199,7 +199,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					return option.None[integrations.Component]()
 				}),
 				agenttelemetryfx.Module(),
-				healthplatformnoopfx.Module(),
+				healthplatform.Bundle(),
 
 				statusimpl.Module(),
 				collectorimpl.Module(),
@@ -246,7 +246,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {
 					return demuxInstance.Serializer()
 				}),
-				metadatarunnerimpl.Module(),
+				metadatarunnerfx.Module(),
 				dcametadatafx.Module(),
 
 				clusterchecksmetadatafx.Module(),

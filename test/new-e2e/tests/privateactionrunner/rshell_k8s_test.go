@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
@@ -61,14 +62,16 @@ func (s *parK8sSuite) BeforeTest(suiteName, testName string) {
 
 // TestRshellHappyFlow verifies PAR can execute a simple rshell command that reads the
 // planted test file. allowedCommands must include "rshell:cat" because rshell blocks
-// all commands unless explicitly listed. allowedPaths must explicitly include the
-// target file because a nil backend allowedPaths blocks all path access.
+// all commands unless explicitly listed. allowedPaths is a per-environment map; the
+// PAR container runs containerized so the runner consumes the "containerized" slice.
 func (s *parK8sSuite) TestRshellHappyFlow() {
 	taskID := uuid.New().String()
 	err := s.Env().FakeIntake.Client().EnqueuePARTask(taskID, runCommandAction, map[string]interface{}{
 		"command":         "cat " + testDataFile,
 		"allowedCommands": []string{"rshell:cat"},
-		"allowedPaths":    []string{"/host/var/log"},
+		"allowedPaths": map[string][]string{
+			setup.RShellPathAllowMapContainerizedKey: {"/host/var/log"},
+		},
 	})
 	s.Require().NoError(err)
 

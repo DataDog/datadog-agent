@@ -276,8 +276,8 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 
 	// Exact key matches for specific API keys and auth tokens
 	exactKeyReplacer := matchYAMLKey(
-		`(auth-tenantid|authority|cainzapp-api-key|cms-svc-api-key|lodauth|sec-websocket-key|statuskey|cookie|private-token|kong-admin-token|accesstoken|session_token)`,
-		[]string{"auth-tenantid", "authority", "cainzapp-api-key", "cms-svc-api-key", "lodauth", "sec-websocket-key", "statuskey", "cookie", "private-token", "kong-admin-token", "accesstoken", "session_token"},
+		`(auth-tenantid|authority|cainzapp-api-key|cms-svc-api-key|dd-api-key|lodauth|sec-websocket-key|statuskey|cookie|private-token|kong-admin-token|accesstoken|session_token)`,
+		[]string{"auth-tenantid", "authority", "cainzapp-api-key", "cms-svc-api-key", "dd-api-key", "lodauth", "sec-websocket-key", "statuskey", "cookie", "private-token", "kong-admin-token", "accesstoken", "session_token"},
 		[]byte(`$1 "********"`),
 	)
 	exactKeyReplacer.LastUpdated = parseVersion("7.70.2")

@@ -27,12 +27,12 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/pidmapimpl"
+	pidmap "github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/def"
+	pidmapfx "github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/fx"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	replaymock "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/fx-mock"
-	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
+	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/def"
+	serverdebugmock "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/mock"
 	filterlistimpl "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
@@ -67,9 +67,9 @@ func TestWorkerFilterListInitializedFromLocalConfig(t *testing.T) {
 		fx.Provide(func() configComponent.Component { return configComponent.NewMockWithOverrides(t, cfg) }),
 		mocktelemetry.Module(),
 		hostnameimpl.MockModule(),
-		serverdebugimpl.MockModule(),
+		serverdebugmock.MockModule(),
 		replaymock.MockModule(),
-		pidmapimpl.Module(),
+		pidmapfx.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		metricscompression.MockModule(),

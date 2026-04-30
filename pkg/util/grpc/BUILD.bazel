@@ -10,6 +10,7 @@ go_library(
         "agent_client.go",
         "auth.go",
         "cert.go",
+        "chunks.go",
         "hack.go",
         "interceptors.go",
         "logger.go",
@@ -44,7 +45,7 @@ go_test(
     name = "grpc_test",
     srcs = ["agent_client_test.go"],
     embed = [":grpc"],
-    gotags = ["test"],  # keep: log.Default from pkg/util/log; nodetreemodel test-only assert
+    gotags = ["test"],
     deps = [
         "//pkg/util/log",
         "@com_github_stretchr_testify//assert",

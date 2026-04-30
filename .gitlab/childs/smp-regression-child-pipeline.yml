@@ -14,6 +14,39 @@
 stages:
   - functional_test
 
+
+.smp_config_only_job_submit:
+  - |
+    RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE} \
+    job submit-experimental-config-only \
+    --target-image ${COMPARISON_IMAGE} \
+    --target-sha ${CI_COMMIT_SHA} \
+    --target-config-dir ${CONFIG_DIR} \
+    --submission-metadata submission_metadata \
+    --tags ${SMP_TAGS} || {
+      exit_code=$?
+      echo "smp job submit command failed with code $exit_code"
+      datadog-ci tag --level job --tags smp_failure_mode:"job-submission"
+      exit $exit_code
+    } 
+
+.smp_job_submit:
+  - |
+    RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE} \
+    job submit \
+    --baseline-image ${BASELINE_IMAGE} \
+    --comparison-image ${COMPARISON_IMAGE} \
+    --baseline-sha ${BASELINE_SHA} \
+    --comparison-sha ${CI_COMMIT_SHA} \
+    --target-config-dir ${CONFIG_DIR} \
+    --submission-metadata submission_metadata \
+    --tags ${SMP_TAGS} || {
+      exit_code=$?
+      echo "smp job submit command failed with code $exit_code"
+      datadog-ci tag --level job --tags smp_failure_mode:"job-submission"
+      exit $exit_code
+    } 
+
 # Base template shared by all SMP run jobs.
 # BASELINE_SHA is written to regression_detector.env in before_script so the
 # script can source it the same way as if it were a job artifact.
@@ -116,21 +149,11 @@ stages:
     - echo "Tags passed through SMP are ${SMP_TAGS}"
     - RUST_LOG="info,aws_config::profile::credentials=error"
     - RUST_LOG_DEBUG="debug,aws_config::profile::credentials=error"
-    - |
-      RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE} \
-      job submit \
-      --baseline-image ${BASELINE_IMAGE} \
-      --comparison-image ${COMPARISON_IMAGE} \
-      --baseline-sha ${BASELINE_SHA} \
-      --comparison-sha ${CI_COMMIT_SHA} \
-      --target-config-dir test/regression/ \
-      --submission-metadata submission_metadata \
-      --tags ${SMP_TAGS} || {
-        exit_code=$?
-        echo "smp job submit command failed with code $exit_code"
-        datadog-ci tag --level job --tags smp_failure_mode:"job-submission"
-        exit $exit_code
-      }
+    - if [ "$RUN_CONFIG_ONLY" == "true" ]; then
+    - !reference [.smp_config_only_job_submit]
+    - else
+    - !reference [.smp_job_submit]
+    - fi
     # Get the SMP Job Id from 'submission-metadata' and use 'datadog-ci'
     # to tag the gitlab job seen in CI Visibility with the SMP Job Id.
     - SMP_JOB_ID=$(jq -r '.jobId' submission_metadata)
@@ -270,6 +293,7 @@ single-machine-performance-regression_detector:
     SMP_VERSION: v0.25.1
     BOT_LOGIN: bot_login
     BOT_TOKEN: bot_token
+    CONFIG_DIR: test/regression
 
 single-machine-performance-metal-runners-regression_detector:
   extends:
@@ -279,9 +303,25 @@ single-machine-performance-metal-runners-regression_detector:
   variables:
     SMP_TEAM_NAME: metal-runners
     SMP_API_URL: metal-runners_api_url
-    SMP_VERSION: dev-pr3796-e7f7a988
+    SMP_VERSION: v0.27.0-nightly.20260423T145046Z
     BOT_LOGIN: bot_login_metal-runners
     BOT_TOKEN: bot_token_metal-runners
+    CONFIG_DIR: test/regression/ebpf
+
+single-machine-performance-metal-runners-regression_detector_cfg:
+  extends:
+    - .single-machine-performance-run_regression_detector
+  when: manual
+  allow_failure: true
+  variables:
+    SMP_TEAM_NAME: metal-runners
+    SMP_API_URL: metal-runners_api_url
+    SMP_VERSION: v0.27.0-nightly.20260423T145046Z
+    BOT_LOGIN: bot_login_metal-runners
+    BOT_TOKEN: bot_token_metal-runners
+    RUN_CONFIG_ONLY: "true"
+    CONFIG_DIR: test/regression/ebpf/config-only
+
 
 # Shamelessly adapted from golang_deps_commenter job config in
 # golang_deps_diff.yml at commit 01da274032e510d617161cf4e264a53292f44e55.
