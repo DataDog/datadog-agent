@@ -285,10 +285,13 @@ func (e *engine) IngestLog(source string, l *logObs) ([]advanceRequest, []observ
 				copy(newTags, tags)
 				tags = append(newTags, sourceTag)
 			}
-			e.storage.Add(extractor.Name(), m.Name, m.Value, l.timestampMs/1000, tags)
-			if m.ContextKey != "" {
-				sk := seriesKey(extractor.Name(), m.Name, tags)
-				e.contextRefs[sk] = seriesContextRef{
+			_, storageKey := e.storage.Add(extractor.Name(), m.Name, m.Value, l.timestampMs/1000, tags)
+			if m.ContextKey != "" && storageKey != "" {
+				// Reuse the storageKey computed inside storage.Add instead of
+				// recomputing seriesKey here. seriesKey is hot enough that this
+				// duplicate accounted for ~14.5 MiB heap-live in the
+				// quality_gate_container_logs SMP profile.
+				e.contextRefs[storageKey] = seriesContextRef{
 					namespace:  extractor.Name(),
 					contextKey: m.ContextKey,
 				}

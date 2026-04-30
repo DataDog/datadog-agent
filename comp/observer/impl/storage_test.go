@@ -622,3 +622,57 @@ func TestTimeSeriesStorage_RemoveSeriesByKeysEmptyOrUnknown(t *testing.T) {
 	require.Empty(t, s.RemoveSeriesByKeys([]string{"unknown1", "unknown2"}))
 	require.Equal(t, genBefore, s.SeriesGeneration(), "no removal → no gen bump")
 }
+func TestTimeSeriesStorage_AddReturnsCanonicalKey(t *testing.T) {
+	// Add returns the same string seriesKey would compute from the same
+	// inputs, including under tag canonicalization. Callers (e.g. the engine
+	// populating contextRefs) rely on this so they can skip a second
+	// seriesKey call. If this contract drifts, the optimisation silently
+	// produces wrong-keyed entries.
+	s := newTimeSeriesStorage()
+
+	cases := []struct {
+		name      string
+		namespace string
+		metric    string
+		tags      []string
+	}{
+		{"no_tags", "ns", "m1", nil},
+		{"single_tag", "ns", "m2", []string{"env:prod"}},
+		{"sorted_tags", "ns", "m3", []string{"a:1", "b:2", "c:3"}},
+		{"unsorted_tags", "ns", "m4", []string{"c:3", "a:1", "b:2"}},
+		{"empty_namespace", "", "m5", []string{"env:prod"}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			isNew, gotKey := s.Add(tc.namespace, tc.metric, 1.0, 1000, tc.tags)
+			assert.True(t, isNew, "first write should report isNew=true")
+			wantKey := seriesKey(tc.namespace, tc.metric, tc.tags)
+			assert.Equal(t, wantKey, gotKey, "Add must return seriesKey-equivalent storage key")
+
+			// Second write of the same series returns the same key and isNew=false.
+			isNew2, gotKey2 := s.Add(tc.namespace, tc.metric, 2.0, 1001, tc.tags)
+			assert.False(t, isNew2, "second write should report isNew=false")
+			assert.Equal(t, wantKey, gotKey2, "Add must return the same key on subsequent writes")
+		})
+	}
+}
+
+func TestTimeSeriesStorage_AddDroppedReturnsEmptyKey(t *testing.T) {
+	// Pre-key-compute drops (non-finite, sentinel values) return empty key.
+	// Callers must check storageKey != "" before reusing it for downstream
+	// state (e.g. contextRefs).
+	s := newTimeSeriesStorage()
+
+	isNew, key := s.Add("ns", "m", math.NaN(), 1000, nil)
+	assert.False(t, isNew)
+	assert.Empty(t, key, "NaN drop must return empty key")
+
+	isNew, key = s.Add("ns", "m", math.Inf(1), 1000, nil)
+	assert.False(t, isNew)
+	assert.Empty(t, key, "+Inf drop must return empty key")
+
+	isNew, key = s.Add("ns", "m", math.MaxFloat64, 1000, nil)
+	assert.False(t, isNew)
+	assert.Empty(t, key, "MaxFloat64 sentinel drop must return empty key")
+}
