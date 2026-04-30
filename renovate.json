@@ -51,6 +51,8 @@
       {
         "matchManagers": ["github-actions"],
         "labels": ["dependencies", "dependencies-github-actions", "changelog/no-changelog", "qa/no-code-change"],
+        "groupName": "github-actions",
+        "schedule": ["before 9am on monday"]
       },
       {
         "matchManagers": ["docker-compose"],
