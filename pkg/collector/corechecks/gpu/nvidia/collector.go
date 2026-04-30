@@ -87,7 +87,7 @@ func buildCollectors(devices []ddnvml.Device, deps *CollectorDependencies, build
 
 	// Check that the disabled collectors are valid
 	for _, disabled := range disabledCollectors {
-		if _, ok := builders[CollectorName(disabled)]; !ok {
+		if _, ok := builders[CollectorName(disabled)]; !ok && CollectorName(disabled) != ebpf {
 			log.Warnf("invalid disabled collector: %s", disabled)
 			continue
 		}

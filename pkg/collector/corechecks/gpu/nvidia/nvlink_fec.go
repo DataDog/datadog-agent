@@ -42,7 +42,7 @@ var nvlinkFECHistoryFieldIDs = []uint32{
 
 type nvlinkFECCollector struct {
 	device ddnvml.Device
-	ports []int
+	ports  []int
 }
 
 func newNVLinkFECCollector(device ddnvml.Device, _ *CollectorDependencies) (Collector, error) {
@@ -69,6 +69,10 @@ func (c *nvlinkFECCollector) Name() CollectorName {
 }
 
 func (c *nvlinkFECCollector) Collect() ([]Metric, error) {
+	var (
+		allMetrics []Metric
+		multiErr   error
+	)
 
 	for _, port := range c.ports {
 		metrics, err := c.getPortMetrics(port)
@@ -83,7 +87,6 @@ func (c *nvlinkFECCollector) Collect() ([]Metric, error) {
 }
 
 func (c *nvlinkFECCollector) getPortMetrics(port int) ([]Metric, error) {
-	var allMetrics []Metric
 	fields := make([]nvml.FieldValue, len(nvlinkFECHistoryFieldIDs))
 	scopeID := uint32(port - 1)
 	for i, fieldID := range nvlinkFECHistoryFieldIDs {
@@ -120,6 +123,7 @@ func (c *nvlinkFECCollector) getPortMetrics(port int) ([]Metric, error) {
 			Type:     metrics.HistogramType,
 			Value:    float64(count),
 			Priority: Medium,
+			Tags:     []string{nvlinkPortTag(port)},
 			HistogramBucket: &Bucket{
 				Bounds:          [2]float64{float64(bucket), float64(bucket + 1)},
 				Monotonic:       true,
