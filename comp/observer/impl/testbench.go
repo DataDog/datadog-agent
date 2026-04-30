@@ -1096,7 +1096,7 @@ func (tb *TestBench) seriesCount() int {
 	if storage == nil {
 		return 0
 	}
-	return len(storage.series)
+	return storage.TotalSeriesCount("")
 }
 
 // GetCorrelatorStats returns stats from all correlators (enabled or not).
