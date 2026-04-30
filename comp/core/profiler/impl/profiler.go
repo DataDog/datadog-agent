@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/url"
 	"path/filepath"
+	"runtime/pprof"
 	"strconv"
 	"time"
 
@@ -219,6 +220,11 @@ func (p profiler) setProfilerSetting(settingName string, newValue int, fb flaret
 // example, the flare api call must be expanded to take in an optional profile duration
 // before the cli command can be fully ported over.
 func (p profiler) fillFlare(_ context.Context, fb flaretypes.FlareBuilder) error {
+	var goroutineBuf bytes.Buffer
+	if err := pprof.Lookup("goroutine").WriteTo(&goroutineBuf, 2); err == nil {
+		fb.AddFile("go-routine-dump.log", goroutineBuf.Bytes()) //nolint:errcheck
+	}
+
 	duration := fb.GetFlareArgs().ProfileDuration
 
 	if duration <= 0 {
