@@ -1534,3 +1534,63 @@ func TestLoadProxyFromEnv(t *testing.T) {
 	assert.Equal(t, "http://www.example.com/", cfg.Get("proxy.http"))
 	assert.Equal(t, pkgconfigmodel.SourceConfigPostInit, cfg.GetSource("proxy.http"))
 }
+
+func TestSanitizeDataPlaneConfig(t *testing.T) {
+	tests := []struct {
+		name         string
+		goos         string
+		initialValue bool
+		wantValue    bool
+		wantSource   pkgconfigmodel.Source
+	}{
+		{
+			name:         "linux preserves true",
+			goos:         "linux",
+			initialValue: true,
+			wantValue:    true,
+			wantSource:   pkgconfigmodel.SourceFile,
+		},
+		{
+			name:         "windows resets true to false",
+			goos:         "windows",
+			initialValue: true,
+			wantValue:    false,
+			wantSource:   pkgconfigmodel.SourceAgentRuntime,
+		},
+		{
+			name:         "darwin resets true to false",
+			goos:         "darwin",
+			initialValue: true,
+			wantValue:    false,
+			wantSource:   pkgconfigmodel.SourceAgentRuntime,
+		},
+		{
+			// Even when already false, non-Linux writes SourceAgentRuntime so that
+			// lower-priority sources (e.g. fleet policies) cannot re-enable ADP later.
+			name:         "windows locks false via SourceAgentRuntime",
+			goos:         "windows",
+			initialValue: false,
+			wantValue:    false,
+			wantSource:   pkgconfigmodel.SourceAgentRuntime,
+		},
+		{
+			name:         "darwin locks false via SourceAgentRuntime",
+			goos:         "darwin",
+			initialValue: false,
+			wantValue:    false,
+			wantSource:   pkgconfigmodel.SourceAgentRuntime,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := newTestConf(t)
+			cfg.Set("data_plane.enabled", tt.initialValue, pkgconfigmodel.SourceFile)
+
+			sanitizeDataPlaneConfig(cfg, tt.goos)
+
+			assert.Equal(t, tt.wantValue, cfg.GetBool("data_plane.enabled"))
+			assert.Equal(t, tt.wantSource, cfg.GetSource("data_plane.enabled"))
+		})
+	}
+}
