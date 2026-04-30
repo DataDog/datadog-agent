@@ -11,6 +11,7 @@ use_repo_rule("//bazel/repo:bazelify_go_work.bzl", "bazelify_go_work")(name = "b
 go_deps.from_file(go_work = "@bazelify_go_work//:go.work")
 go_deps.gazelle_default_attributes(
     directives = [
+        "gazelle:build_file_generation auto",
         "gazelle:proto disable",
     ],
 )
