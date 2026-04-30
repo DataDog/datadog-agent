@@ -34,7 +34,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
 	configstreamconsumerfx "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/fx"
-	configstreamconsumerimpl "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/impl"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
 	delegatedauthnoopfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
@@ -215,25 +214,25 @@ func configstreamFxOptions() fx.Option {
 			return c
 		}),
 		// SessionIDProvider from RAR: only system-probe's remote agent implements this.
-		fx.Provide(func(ra remoteagent.Component) configstreamconsumerimpl.SessionIDProvider {
+		fx.Provide(func(ra remoteagent.Component) configstreamconsumer.SessionIDProvider {
 			if ra == nil {
 				return nil
 			}
-			if p, ok := ra.(configstreamconsumerimpl.SessionIDProvider); ok {
+			if p, ok := ra.(configstreamconsumer.SessionIDProvider); ok {
 				return p
 			}
 			return nil
 		}),
 		fx.Provide(func(c config.Component, deps struct {
 			fx.In
-			SessionProvider configstreamconsumerimpl.SessionIDProvider `optional:"true"`
-		}) configstreamconsumerimpl.Params {
+			SessionProvider configstreamconsumer.SessionIDProvider `optional:"true"`
+		}) configstreamconsumer.Params {
 			host := c.GetString("cmd_host")
 			port := c.GetInt("cmd_port")
 			if port <= 0 {
 				port = 5001
 			}
-			return configstreamconsumerimpl.Params{
+			return configstreamconsumer.Params{
 				ClientName:        "system-probe",
 				CoreAgentAddress:  net.JoinHostPort(host, strconv.Itoa(port)),
 				SessionIDProvider: deps.SessionProvider,

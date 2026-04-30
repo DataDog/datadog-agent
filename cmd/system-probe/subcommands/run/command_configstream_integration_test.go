@@ -29,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
 	configstreamconsumerfx "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/fx"
-	configstreamconsumerimpl "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/impl"
 	delegatedauthnoopfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
@@ -37,7 +36,7 @@ import (
 	systemprobeloggerfx "github.com/DataDog/datadog-agent/comp/core/log/fx-systemprobe"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	telemetryfx "github.com/DataDog/datadog-agent/comp/core/telemetry/fx"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -146,11 +145,11 @@ system_probe_config:
 		sysprobeconfigimpl.Module(),
 		fx.Supply(log.ForDaemon("SP", "log_file", "")),
 		systemprobeloggerfx.Module(),
-		telemetryimpl.Module(),
+		telemetryfx.Module(),
 		fx.Provide(func() ipc.Component { return ipcComp }),
 		fx.Provide(func(c config.Component) model.Writer { return c }),
-		fx.Provide(func() configstreamconsumerimpl.Params {
-			return configstreamconsumerimpl.Params{
+		fx.Provide(func() configstreamconsumer.Params {
+			return configstreamconsumer.Params{
 				ClientName:        "system-probe",
 				CoreAgentAddress:  serverAddr,
 				SessionIDProvider: &mockRAR{},
