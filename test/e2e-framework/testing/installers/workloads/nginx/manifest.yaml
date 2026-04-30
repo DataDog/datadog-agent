@@ -1,0 +1,161 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{.Namespace}}
+  labels:
+    related_team: contp
+    related_org: agent-org
+  annotations:
+    related_email: team-container-platform@datadoghq.com
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nginx-sa
+  namespace: {{.Namespace}}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx
+  namespace: {{.Namespace}}
+data:
+  nginx.conf: |
+    worker_processes  auto;
+    events {
+        worker_connections  4096;
+    }
+    http {
+        server {
+            listen [::]:{{.NginxPort}} ipv6only=off reuseport fastopen=32 default_server;
+
+            location /nginx_status {
+              stub_status on;
+              access_log  /dev/stdout;
+              allow all;
+            }
+        }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx
+  namespace: {{.Namespace}}
+  labels:
+    app: nginx
+    x-team: contp
+  annotations:
+    x-sub-team: contint
+spec:
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+        x-parent-type: deployment
+      annotations:
+        x-parent-name: nginx
+        ad.datadoghq.com/nginx.checks: |
+          {"nginx":{"instances":[{"nginx_status_url":"http://%%host%%:{{.NginxPort}}/nginx_status","tags":["check_tag_cardinality:high"]}]}}
+    spec:
+      serviceAccountName: nginx-sa
+      containers:
+      - name: nginx
+        image: ghcr.io/datadog/apps-nginx-server:{{.Version}}
+        ports:
+        - containerPort: {{.NginxPort}}
+          name: http
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            cpu: 100m
+            memory: 32Mi
+        livenessProbe:
+          httpGet:
+            path: /nginx_status
+            port: {{.NginxPort}}
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /nginx_status
+            port: {{.NginxPort}}
+          timeoutSeconds: 5
+        volumeMounts:
+        - name: config
+          mountPath: /etc/nginx/nginx.conf
+          subPath: nginx.conf
+        - name: cache
+          mountPath: /var/cache/nginx
+        - name: var-run
+          mountPath: /var/run
+      volumes:
+      - name: config
+        configMap:
+          name: nginx
+      - name: cache
+        emptyDir: {}
+      - name: var-run
+        emptyDir: {}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: nginx
+  namespace: {{.Namespace}}
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: nginx
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx
+  namespace: {{.Namespace}}
+  labels:
+    app: nginx
+  annotations:
+    ad.datadoghq.com/service.checks: |
+      {"http_check":{"instances":[{"name":"nginx","url":"http://%%host%%/","tags":["check_tag_cardinality:high"]}]}}
+spec:
+  selector:
+    app: nginx
+  ports:
+  - port: 80
+    targetPort: http
+    protocol: TCP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-query
+  namespace: {{.Namespace}}
+  labels:
+    app: nginx-query
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx-query
+  template:
+    metadata:
+      labels:
+        app: nginx-query
+    spec:
+      containers:
+      - name: nginx-query
+        image: ghcr.io/datadog/apps-http-client:{{.Version}}
+        args: ["-url", "http://nginx", "-min-tps", "1", "-max-tps", "60", "-period", "20m"]
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            cpu: 100m
+            memory: 64Mi

@@ -1,0 +1,107 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{.Namespace}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: {{.Namespace}}
+  labels:
+    app: redis
+spec:
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+        team: container-integrations
+    spec:
+      containers:
+      - name: redis
+        image: ghcr.io/datadog/redis:{{.Version}}
+        args: ["--loglevel", "verbose"]
+        ports:
+        - containerPort: 6379
+          name: redis
+          protocol: TCP
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            cpu: 100m
+            memory: 32Mi
+        livenessProbe:
+          tcpSocket:
+            port: 6379
+        readinessProbe:
+          tcpSocket:
+            port: 6379
+        volumeMounts:
+        - name: redis-data
+          mountPath: /data
+      volumes:
+      - name: redis-data
+        emptyDir: {}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: redis
+  namespace: {{.Namespace}}
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: redis
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: {{.Namespace}}
+  labels:
+    app: redis
+  annotations:
+    ad.datadoghq.com/endpoints.checks: |
+      {"redisdb":{"instances":[{"host":"%%host%%","port":"6379","tags":["check_tag_cardinality:high"]}]}}
+spec:
+  selector:
+    app: redis
+  ports:
+  - port: 6379
+    targetPort: redis
+    protocol: TCP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-query
+  namespace: {{.Namespace}}
+  labels:
+    app: redis-query
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis-query
+  template:
+    metadata:
+      labels:
+        app: redis-query
+    spec:
+      containers:
+      - name: redis-query
+        image: ghcr.io/datadog/apps-redis-client:{{.Version}}
+        args: ["-min-tps", "1", "-max-tps", "60", "-period", "20m"]
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            cpu: 100m
+            memory: 32Mi

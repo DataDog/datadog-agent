@@ -1,0 +1,110 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{.NamespaceWithoutLib}}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mutated-sa
+  namespace: {{.NamespaceWithoutLib}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mutated
+  namespace: {{.NamespaceWithoutLib}}
+  labels:
+    app: mutated
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mutated
+  template:
+    metadata:
+      labels:
+        app: mutated
+        admission.datadoghq.com/enabled: "true"
+        tags.datadoghq.com/env: e2e
+        tags.datadoghq.com/service: mutated
+        tags.datadoghq.com/version: v0.0.1
+      annotations:
+        openshift.io/required-scc: hostaccess
+    spec:
+      serviceAccountName: mutated-sa
+      containers:
+      - name: mutated
+        image: ghcr.io/datadog/apps-mutated:{{.Version}}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{.NamespaceWithLib}}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mutated-with-lib-sa
+  namespace: {{.NamespaceWithLib}}
+---
+# mutated-with-lib-annotation: lib injection via explicit annotation
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mutated-with-lib-annotation
+  namespace: {{.NamespaceWithLib}}
+  labels:
+    app: mutated-with-lib-annotation
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mutated-with-lib-annotation
+  template:
+    metadata:
+      labels:
+        app: mutated-with-lib-annotation
+        admission.datadoghq.com/enabled: "true"
+        tags.datadoghq.com/env: e2e
+        tags.datadoghq.com/service: mutated-with-lib-annotation
+        tags.datadoghq.com/version: v0.0.1
+      annotations:
+        openshift.io/required-scc: hostaccess
+        admission.datadoghq.com/python-lib.version: v2.7.3
+    spec:
+      serviceAccountName: mutated-with-lib-sa
+      containers:
+      - name: mutated-with-lib-annotation
+        image: python:3.12-slim
+        command: ["python", "-c", "while True: import time; time.sleep(60)"]
+---
+# mutated-with-auto-detected-language: lib injection with auto-detected language
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mutated-with-auto-detected-language
+  namespace: {{.NamespaceWithLib}}
+  labels:
+    app: mutated-with-auto-detected-language
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mutated-with-auto-detected-language
+  template:
+    metadata:
+      labels:
+        app: mutated-with-auto-detected-language
+        admission.datadoghq.com/enabled: "true"
+        tags.datadoghq.com/env: e2e
+        tags.datadoghq.com/service: mutated-with-auto-detected-language
+        tags.datadoghq.com/version: v0.0.1
+      annotations:
+        openshift.io/required-scc: hostaccess
+    spec:
+      serviceAccountName: mutated-with-lib-sa
+      containers:
+      - name: mutated-with-auto-detected-language
+        image: python:3.12-slim
+        command: ["python", "-c", "while True: import time; time.sleep(60)"]
