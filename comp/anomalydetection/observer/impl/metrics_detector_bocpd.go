@@ -33,10 +33,6 @@ type bocpdSeriesState struct {
 	warmupM2     float64   // sum of squared deviations (Welford)
 	warmupBuffer []float64 // buffered values for posterior replay after init
 
-	// warmupFallbackFired is set to true after the z-score warmup fallback has
-	// fired once for this series. Only one warmup anomaly is emitted per series.
-	warmupFallbackFired bool
-
 	// Baseline (set once after warmup).
 	baselineMean   float64
 	baselineStddev float64
@@ -100,21 +96,6 @@ type BOCPDConfig struct {
 	// to exit alert state. Default: 10
 	RecoveryPoints int `json:"recovery_points"`
 
-	// WarmupFallbackEnabled enables the z-score fallback during warmup. When
-	// true, a single anomaly is emitted if a point deviates more than
-	// WarmupZThreshold standard deviations from the running warmup mean once at
-	// least WarmupMinSamples have been collected. Default: true
-	WarmupFallbackEnabled bool `json:"warmup_fallback_enabled"`
-
-	// WarmupMinSamples is the minimum number of warmup points that must be
-	// accumulated before the z-score fallback becomes active. Default: 30
-	WarmupMinSamples int `json:"warmup_min_samples"`
-
-	// WarmupZThreshold is the z-score threshold for the warmup fallback. Only
-	// points deviating at least this many standard deviations from the warmup
-	// mean will trigger the fallback anomaly. Default: 6.0
-	WarmupZThreshold float64 `json:"warmup_z_threshold"`
-
 	// Aggregations to run detection on. Default: [Average, Count]
 	Aggregations []observer.Aggregate `json:"-"`
 }
@@ -122,18 +103,15 @@ type BOCPDConfig struct {
 // DefaultBOCPDConfig returns a BOCPDConfig with default values.
 func DefaultBOCPDConfig() BOCPDConfig {
 	return BOCPDConfig{
-		WarmupPoints:          120,
-		Hazard:                0.05,
-		CPThreshold:           0.6,
-		ShortRunLength:        5,
-		CPMassThreshold:       0.7,
-		MaxRunLength:          200,
-		PriorVarianceScale:    10.0,
-		MinVariance:           1.0,
-		RecoveryPoints:        10,
-		WarmupFallbackEnabled: true,
-		WarmupMinSamples:      30,
-		WarmupZThreshold:      6.0,
+		WarmupPoints:       120,
+		Hazard:             0.05,
+		CPThreshold:        0.6,
+		ShortRunLength:     5,
+		CPMassThreshold:    0.7,
+		MaxRunLength:       200,
+		PriorVarianceScale: 10.0,
+		MinVariance:        1.0,
+		RecoveryPoints:     10,
 		Aggregations: []observer.Aggregate{
 			observer.AggregateAverage,
 			observer.AggregateCount,
@@ -188,14 +166,6 @@ func NewBOCPDDetector(config BOCPDConfig) *BOCPDDetector {
 	if config.RecoveryPoints <= 0 {
 		config.RecoveryPoints = defaults.RecoveryPoints
 	}
-	if config.WarmupMinSamples <= 0 {
-		config.WarmupMinSamples = defaults.WarmupMinSamples
-	}
-	if config.WarmupZThreshold <= 0 {
-		config.WarmupZThreshold = defaults.WarmupZThreshold
-	}
-	// WarmupFallbackEnabled is stored as-is; caller must set it explicitly to
-	// false to disable. DefaultBOCPDConfig() initialises it to true.
 	if len(config.Aggregations) == 0 {
 		config.Aggregations = defaults.Aggregations
 	}
@@ -313,7 +283,7 @@ func (b *BOCPDDetector) processPoint(state *bocpdSeriesState, p observer.Point, 
 	x := p.Value
 
 	if !state.initialized {
-		return b.warmupPoint(state, p)
+		return b.warmupPoint(state, x)
 	}
 
 	triggered, cpProb, shortRunMass := b.updatePosterior(state, x)
@@ -339,61 +309,13 @@ func (b *BOCPDDetector) processPoint(state *bocpdSeriesState, p observer.Point, 
 }
 
 // warmupPoint accumulates a point during the warmup phase using Welford's algorithm.
-// It also applies a one-shot z-score fallback: once WarmupMinSamples have been
-// collected, each new point is evaluated against the running statistics computed
-// BEFORE including that point. If the deviation exceeds WarmupZThreshold, a single
-// warmup-fallback anomaly is emitted and the flag is set to prevent further fires.
-func (b *BOCPDDetector) warmupPoint(state *bocpdSeriesState, p observer.Point) *observer.Anomaly {
-	x := p.Value
-
-	// Snapshot pre-update statistics so the z-score is computed against the
-	// running baseline, not the statistics that already include the spike.
-	prevCount := state.warmupCount
-	prevMean := state.warmupMean
-	prevM2 := state.warmupM2
-
+func (b *BOCPDDetector) warmupPoint(state *bocpdSeriesState, x float64) *observer.Anomaly {
 	state.warmupCount++
 	state.warmupBuffer = append(state.warmupBuffer, x)
 	delta := x - state.warmupMean
 	state.warmupMean += delta / float64(state.warmupCount)
 	delta2 := x - state.warmupMean
 	state.warmupM2 += delta * delta2
-
-	// Z-score fallback while warmup data is being collected. Fires once per
-	// series during warmup so anomalies in the first ~2 minutes are not
-	// silently dropped.
-	if b.config.WarmupFallbackEnabled &&
-		!state.warmupFallbackFired &&
-		prevCount >= b.config.WarmupMinSamples &&
-		prevCount >= 2 { // need at least 2 for Bessel's correction
-		variance := prevM2 / float64(prevCount-1)
-		if variance < b.config.MinVariance {
-			variance = b.config.MinVariance
-		}
-		stddev := math.Sqrt(variance)
-		if stddev > 1e-12 {
-			z := math.Abs(x-prevMean) / stddev
-			if z >= b.config.WarmupZThreshold {
-				state.warmupFallbackFired = true
-				score := z
-				return &observer.Anomaly{
-					Type:         observer.AnomalyTypeMetric,
-					DetectorName: b.Name(),
-					Title:        "BOCPD warmup-fallback: spike",
-					Description: fmt.Sprintf("warmup z=%.2f (mean=%.4f, std=%.4f, x=%.4f, n=%d)",
-						z, prevMean, stddev, x, prevCount),
-					Timestamp: p.Timestamp,
-					Score:     &score,
-					DebugInfo: &observer.AnomalyDebugInfo{
-						BaselineMean:   prevMean,
-						BaselineStddev: stddev,
-						CurrentValue:   x,
-						DeviationSigma: z,
-					},
-				}
-			}
-		}
-	}
 
 	if state.warmupCount >= b.config.WarmupPoints {
 		b.initializeFromWarmup(state)
