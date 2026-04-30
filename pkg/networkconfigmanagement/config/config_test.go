@@ -225,7 +225,6 @@ func TestStoreConfig_Validation(t *testing.T) {
 		name           string
 		config         *StoreConfig
 		expectedConfig *StoreConfig
-		errMsg         string
 	}{
 		{
 			name: "valid config",
@@ -330,13 +329,8 @@ func TestStoreConfig_Validation(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.config.validate()
-			if tt.errMsg != "" {
-				assert.EqualError(t, err, tt.errMsg)
-			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, tt.expectedConfig, tt.config)
-			}
+			tt.config.validate()
+			assert.Equal(t, tt.expectedConfig, tt.config)
 		})
 	}
 }
@@ -451,8 +445,7 @@ ssh:
 	ic.applyDefaults()
 	require.NotNil(t, ic.Store)
 
-	err = ic.Store.validate()
-	require.NoError(t, err)
+	ic.Store.validate()
 	assert.Equal(t, defaultMinConfigsPerDevice, ic.Store.MinConfigsPerDevice)
 	assert.Equal(t, defaultMaxConfigsPerDevice, ic.Store.MaxConfigsPerDevice)
 	assert.Equal(t, defaultMaxRawConfigStoreBytes, ic.Store.MaxRawConfigStoreBytes)
