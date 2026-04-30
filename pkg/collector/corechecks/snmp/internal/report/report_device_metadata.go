@@ -8,7 +8,6 @@ package report
 import (
 	"encoding/json"
 	"fmt"
-	"net"
 	"sort"
 	"strconv"
 	"strings"
@@ -520,7 +519,7 @@ func getRemDeviceAddressByCDPRemIndex(store *metadata.Store, strIndex string) st
 func getRemDeviceAddressIfIPType(store *metadata.Store, strIndex string, addressTypeField string, addressField string) string {
 	remoteDeviceAddressType := store.GetColumnAsString("cdp_remote."+addressTypeField, strIndex)
 	if remoteDeviceAddressType == ciscoNetworkProtocolIPv4 || remoteDeviceAddressType == ciscoNetworkProtocolIPv6 {
-		return net.IP(store.GetColumnAsByteArray("cdp_remote."+addressField, strIndex)).String()
+		return store.GetColumnAsIPString("cdp_remote."+addressField, strIndex)
 	}
 	return ""
 }
@@ -656,8 +655,8 @@ func buildCiscoIPsecVPNTunnelsMetadata(vpnTunnelIndexes []string, deviceID strin
 			continue
 		}
 
-		localOutsideIP := net.IP(store.GetColumnAsByteArray("cisco_ipsec_tunnel.local_outside_ip", strIndex)).String()
-		remoteOutsideIP := net.IP(store.GetColumnAsByteArray("cisco_ipsec_tunnel.remote_outside_ip", strIndex)).String()
+		localOutsideIP := store.GetColumnAsIPString("cisco_ipsec_tunnel.local_outside_ip", strIndex)
+		remoteOutsideIP := store.GetColumnAsIPString("cisco_ipsec_tunnel.remote_outside_ip", strIndex)
 
 		statusValue := store.GetColumnAsString("cisco_ipsec_tunnel.status", strIndex)
 		status, exists := ciscoIPsecStatusByValue[statusValue]
