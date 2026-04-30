@@ -65,11 +65,11 @@ func NewPrometheusHTTPSDConfigProvider(
 ) (types.ConfigProvider, error) {
 	url := pkgconfigsetup.Datadog().GetString("prometheus_http_sd.url")
 	if url == "" {
-		return nil, errors.New("http_sd provider requires a URL (set template_url in config_providers or http_sd.url)")
+		return nil, errors.New("http_sd provider requires a URL (set prometheus_http_sd.url)")
 	}
 	templateJSON := pkgconfigsetup.Datadog().GetString("prometheus_http_sd.check_template")
 	if templateJSON == "" {
-		return nil, errors.New("http_sd provider requires a check template (set check_template in config_providers or http_sd.check_template)")
+		return nil, errors.New("http_sd provider requires a check template (set prometheus_http_sd.check_template)")
 	}
 	var tmpl httpSDCheckTemplate
 	if err := json.Unmarshal([]byte(templateJSON), &tmpl); err != nil {
@@ -104,7 +104,9 @@ func buildHTTPSDClient(providerConfig *pkgconfigsetup.ConfigurationProviders) (*
 			return nil, fmt.Errorf("cannot read ca_file %s: %v", providerConfig.CAFile, err)
 		}
 		caCertPool := x509.NewCertPool()
-		caCertPool.AppendCertsFromPEM(caCert)
+		if ok := caCertPool.AppendCertsFromPEM(caCert); !ok {
+			return nil, fmt.Errorf("cannot parse any certificates from ca_file %s", providerConfig.CAFile)
+		}
 		tlsConfig.RootCAs = caCertPool
 	}
 	if providerConfig != nil && providerConfig.CertFile != "" && providerConfig.KeyFile != "" {
