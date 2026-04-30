@@ -16,13 +16,14 @@ type RshellBundle struct {
 }
 
 // NewRshellBundle creates the rshell bundle with its registered actions.
-// It reads the operator-configured allowlists (paths and commands) from
-// cfg; each is optional — nil means no operator filtering on that axis,
-// and the backend-injected list is used as-is.
+// It reads the operator-configured allowlists (paths and commands) from the config.
 func NewRshellBundle(cfg *config.Config) types.Bundle {
 	return &RshellBundle{
 		actions: map[string]types.Action{
-			"runCommand": NewRunCommandHandler(cfg.RShellAllowedPaths, cfg.RShellAllowedCommands),
+			"runCommand": NewRunCommandHandler(
+				cfg.RShellAllowedPaths,
+				cfg.RShellAllowedCommands,
+			),
 		},
 	}
 }

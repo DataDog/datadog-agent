@@ -70,7 +70,7 @@ common:windows --extra_toolchains=@rust_toolchains//:rw-2070622084
 # Remote cache config --------------------------------------------------------------------------------------------------
 # datadog-agent virtually isolates caching instance from its parent (which is remote-caching).
 # If entry isn't found in datadog-agent, it will be searched in remote-caching.
-common:cache --remote_cache=grpc://buildbarn-edge-cache.buildbarn.local-cluster.local-dc.fabric.dog:443
+common:cache --remote_cache=grpcs://buildbarn-frontend-datadog-agent.us1.ddbuild.io:443
 common:cache --remote_instance_name=ci/datadog-agent
 common:cache --remote_local_fallback # best-effort on transient connection errors (no such host)
 common:cache --incompatible_remote_local_fallback_for_remote_cache # works only if --remote_local_fallback is also set
@@ -81,6 +81,9 @@ common:cache --remote_timeout=60
 common:ci --config=adms
 common:ci --config=cache
 common:ci --config=lint
+# Opt-in override: only Linux CI runs in k8s and can reach the in-cluster edge cache.
+# tools/bazel adds `--config=ci-edge-cache` when `uname -s = Linux`.
+common:ci-edge-cache --remote_cache=grpc://buildbarn-edge-cache.buildbarn.local-cluster.local-dc.fabric.dog:443
 common:ci --noexperimental_convenience_symlinks # not CI-suitable: "These symlinks are only for the user's convenience"
 
 # Project/Language configs --------------------------------------------------------------------------------------

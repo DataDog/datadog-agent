@@ -522,16 +522,20 @@ def generate_cws_documentation(ctx):
 @task
 def cws_go_generate(ctx, verbose=False):
     # run different `go generate` for pkg/security/secl and pkg/security
-    ctx.run("go install github.com/mailru/easyjson/easyjson")
+    ctx.run("go install golang.org/x/tools/cmd/stringer@v0.44.0")
+    ctx.run("go install github.com/mailru/easyjson/easyjson@v0.9.1")
     ctx.run("go install github.com/DataDog/datadog-agent/pkg/security/generators/accessors")
     ctx.run("go install github.com/DataDog/datadog-agent/pkg/security/generators/event_deep_copy")
-    ctx.run("go install github.com/DataDog/datadog-agent/pkg/security/generators/operators")
+    # operators codegen is driven by Bazel via //bazel/rules/cws_codegen:defs.bzl%operators.
+    # Run it first so eval_operators.go is fresh for subsequent generators, then skip
+    # the //go:generate directive in `go generate` calls below. See ABLD-420.
+    bazel(ctx, "run", "//pkg/security/secl/compiler/eval:eval_operators")
     with ctx.cd("./pkg/security/secl"):
         if sys.platform == "linux":
             ctx.run("GOOS=windows go generate -run=-tag.+windows ./...")
         elif is_windows:
             ctx.run('set "GOOS=linux" && go generate -run=-tag.+unix ./...')
-        cmd = "go generate"
+        cmd = "go generate -skip=operators"
         if verbose:
             cmd += " -v"
         ctx.run(cmd + " ./...")
@@ -544,7 +548,7 @@ def cws_go_generate(ctx, verbose=False):
 
     ctx.run("go generate ./pkg/security/probe/remediations_linux.go")
     ctx.run("go generate ./pkg/security/probe/custom_events.go")
-    ctx.run("go generate -tags=linux_bpf,cws_go_generate ./pkg/security/...")
+    ctx.run("go generate -skip=operators -tags=linux_bpf,cws_go_generate ./pkg/security/...")
 
     # synchronize the seclwin package from the secl package
     bazel(ctx, "run", "//pkg/security/seclwin:sync")
