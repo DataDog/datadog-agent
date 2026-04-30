@@ -25,7 +25,7 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	haagentimpl "github.com/DataDog/datadog-agent/comp/haagent/impl"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
-	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/mock"
+	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/core/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"

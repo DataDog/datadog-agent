@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "def",
+    srcs = [
+        "component.go",
+        "constants.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/core/def",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/healthplatform/checkrunner/def",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
+    ],
+)

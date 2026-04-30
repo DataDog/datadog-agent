@@ -218,6 +218,20 @@ func Test_mergeProfileDefinition(t *testing.T) {
 							Name: "ifAlias",
 						},
 					},
+					{
+						Tag: "idTag1",
+						Symbol: profiledefinition.SymbolConfigCompat{
+							OID:  "1.2.3.4.5.6.1",
+							Name: "idTag1",
+						},
+					},
+					{
+						Tag: "idTag2",
+						Symbol: profiledefinition.SymbolConfigCompat{
+							OID:  "1.2.3.4.5.6.2",
+							Name: "idTag2",
+						},
+					},
 				},
 			},
 		},
@@ -341,6 +355,20 @@ func Test_mergeProfileDefinition(t *testing.T) {
 									Name: "ifAlias",
 								},
 							},
+							{
+								Tag: "idTag1",
+								Symbol: profiledefinition.SymbolConfigCompat{
+									OID:  "1.2.3.4.5.6.1",
+									Name: "idTag1",
+								},
+							},
+							{
+								Tag: "idTag2",
+								Symbol: profiledefinition.SymbolConfigCompat{
+									OID:  "1.2.3.4.5.6.2",
+									Name: "idTag2",
+								},
+							},
 						},
 					},
 				},
@@ -437,6 +465,20 @@ func Test_mergeProfileDefinition(t *testing.T) {
 								Symbol: profiledefinition.SymbolConfigCompat{
 									OID:  "1.3.6.1.2.1.31.1.1.1.1",
 									Name: "ifAlias",
+								},
+							},
+							{
+								Tag: "idTag1",
+								Symbol: profiledefinition.SymbolConfigCompat{
+									OID:  "1.2.3.4.5.6.1",
+									Name: "idTag1",
+								},
+							},
+							{
+								Tag: "idTag2",
+								Symbol: profiledefinition.SymbolConfigCompat{
+									OID:  "1.2.3.4.5.6.2",
+									Name: "idTag2",
 								},
 							},
 						},
