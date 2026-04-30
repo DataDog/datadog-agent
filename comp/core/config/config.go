@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 
 	"go.uber.org/fx"
+	"go.yaml.in/yaml/v2"
 
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	delegatedauthnooptypes "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl/types"
@@ -129,5 +130,9 @@ func (c *cfg) fillFlare(_ context.Context, fb flaretypes.FlareBuilder) error {
 		fb.CopyFileTo(path, filepath.Join("etc/extra_conf/", path)) //nolint:errcheck
 	}
 
-	return nil
+	yamlData, err := yaml.Marshal(c.AllSettingsWithoutSecrets())
+	if err != nil {
+		return err
+	}
+	return fb.AddFile("runtime_config_dump.yaml", yamlData)
 }
