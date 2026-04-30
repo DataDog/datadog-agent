@@ -448,6 +448,8 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 
 	if e.onAdvance != nil {
 		lateBySource := e.drainLatePointsBySource()
+		// h.dropCount counts only log/profile observations dropped on
+		// channel-full; metric ingest is synchronous and does not drop.
 		var totalDrops int64
 		var dropsBySource map[string]int64
 		e.handlesMu.Lock()
@@ -604,7 +606,12 @@ func (e *engine) enrichAnomaly(a *observerdef.Anomaly) {
 	if !ok {
 		return
 	}
+	// contextProviders is replaced wholesale by SetExtractors (testbench
+	// component toggling) under e.mu — RLock here so the read does not
+	// race with that swap.
+	e.mu.RLock()
 	provider, ok := e.contextProviders[ref.namespace]
+	e.mu.RUnlock()
 	if !ok {
 		return
 	}
