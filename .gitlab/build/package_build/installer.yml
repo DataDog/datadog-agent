@@ -125,7 +125,7 @@ installer-install-scripts:
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
     - dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --target-project="installer" ${INSTALL_DIR_PARAM}
-    - bazelisk run --config=release --//:install_dir=${INSTALL_DIR}  -- //packages/installer/linux:copy_out --destdir=${OMNIBUS_PACKAGE_DIR}
+    - PACKAGE_VERSION=$CI_PIPELINE_ID bazelisk run --config=release --//:install_dir=${INSTALL_DIR}  -- //packages/installer/linux:copy_out --destdir=${OMNIBUS_PACKAGE_DIR}
     - echo $OMNIBUS_PACKAGE_DIR
     - ls -la $OMNIBUS_PACKAGE_DIR
     - !reference [.upload_sbom_artifacts]
