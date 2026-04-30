@@ -1,7 +1,6 @@
 ---
-# Default opt-in scenario: no ddTraceVersions means the cluster-agent defaults to
-# all languages at their latest major versions (Python: v4, Java: v1, etc.).
-# v4 is a mutable major-version tag, so the gradual rollout resolver applies.
+# No ddTraceVersions: cluster-agent injects every default language at its latest major
+# tag (mutable, so the gradual rollout resolver applies to each).
 clusterAgent:
   volumes:
     - name: mock-registry-ca

@@ -25,12 +25,10 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 )
 
-// deployTestWorkload creates a namespace and a minimal Deployment in it to trigger
-// the admission webhook. The Deployment uses pulumi.com/skipAwait so Pulumi does
-// not wait for pods to become Ready — the pods will be stuck in ImagePullBackOff
-// (the mock registry serves HEAD requests only, not actual image data), but the
-// admission webhook still mutates the pod spec at creation time, which is all the
-// gradual rollout tests need to inspect.
+// deployTestWorkload creates a workload that triggers the admission webhook but never
+// actually runs: pulumi.com/skipAwait lets Pulumi return without waiting for readiness,
+// since the injected lib init containers reference a fake digest the mock registry can't
+// serve. The mutated pod spec — the only thing the test inspects — is set at create time.
 func deployTestWorkload(e config.Env, kubeProvider *kubernetes.Provider, namespace, appName string, opts ...pulumi.ResourceOption) error {
 	baseOpts := append([]pulumi.ResourceOption{pulumi.Provider(kubeProvider)}, opts...)
 
@@ -48,9 +46,6 @@ func deployTestWorkload(e config.Env, kubeProvider *kubernetes.Provider, namespa
 		Metadata: &metav1k8s.ObjectMetaArgs{
 			Name:      pulumi.String(appName),
 			Namespace: pulumi.String(namespace),
-			// Skip Pulumi's rollout-readiness wait: pods will be stuck in
-			// ImagePullBackOff on the fake-digest init container image, but
-			// the pod spec (with the @sha256: image) is set immediately.
 			Annotations: pulumi.StringMap{
 				"pulumi.com/skipAwait": pulumi.String("true"),
 			},
@@ -68,11 +63,8 @@ func deployTestWorkload(e config.Env, kubeProvider *kubernetes.Provider, namespa
 					Containers: corev1k8s.ContainerArray{
 						&corev1k8s.ContainerArgs{
 							Name: pulumi.String(appName),
-							// pause is a stable, language-neutral placeholder. SSI's webhook
-							// injects lib init containers based on the namespace/target match,
-							// not the workload image, so any image works here. Pods stay in
-							// ImagePullBackOff (skipAwait above), but the mutated spec is set
-							// at create.
+							// pause is a stable language-neutral placeholder; SSI targets
+							// match by namespace, not by workload image.
 							Image: pulumi.String("registry.k8s.io/pause:3.9"),
 						},
 					},
@@ -87,14 +79,12 @@ func deployTestWorkload(e config.Env, kubeProvider *kubernetes.Provider, namespa
 	return nil
 }
 
-// getPodsInNamespace returns all pods in the given namespace.
 func getPodsInNamespace(t *testing.T, client kubeClient.Interface, namespace string) []corev1.Pod {
 	res, err := client.CoreV1().Pods(namespace).List(context.Background(), metav1.ListOptions{})
 	require.NoError(t, err, "received an error fetching pods")
 	return res.Items
 }
 
-// findLibInitContainer returns the init container whose image contains "dd-lib-{language}-init".
 func findLibInitContainer(pod *corev1.Pod, language string) (*corev1.Container, bool) {
 	needle := fmt.Sprintf("dd-lib-%s-init", language)
 	for i := range pod.Spec.InitContainers {
@@ -105,11 +95,8 @@ func findLibInitContainer(pod *corev1.Pod, language string) (*corev1.Container, 
 	return nil, false
 }
 
-// requireDigestBasedLibImage asserts that the lib init container for the given language
-// uses the exact digest the mock registry returned. Matching the precise digest (rather
-// than just any "@sha256:..." string) proves the cluster-agent contacted *our* mock and
-// used the response, ruling out a regression where the digest came from somewhere else
-// or was fabricated without ever calling the resolver.
+// Asserts the exact mock digest (not just any "@sha256:..." string) so the test can't
+// silently pass if the digest came from somewhere other than our mock.
 func requireDigestBasedLibImage(t *testing.T, pod *corev1.Pod, language string) {
 	t.Helper()
 	container, found := findLibInitContainer(pod, language)
@@ -118,8 +105,6 @@ func requireDigestBasedLibImage(t *testing.T, pod *corev1.Pod, language string) 
 		"expected mock-registry digest for dd-lib-%s-init in pod %s, got: %s", language, pod.Name, container.Image)
 }
 
-// findMutatedPod waits up to 2 minutes for a pod in the namespace whose name contains
-// appName and which has a lib init container for the given language, then returns it.
 func findMutatedPod(t *testing.T, k8s kubeClient.Interface, namespace, appName, language string) *corev1.Pod {
 	t.Helper()
 	var result *corev1.Pod

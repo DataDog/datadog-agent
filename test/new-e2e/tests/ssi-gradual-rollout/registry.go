@@ -42,16 +42,11 @@ const (
 	fakeRegistryDigest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 )
 
-// mockRegistryScript is a Python HTTPS server that simulates a container registry.
-// - HEAD /v2/*/manifests/{N}-gr{0-9} (bucket-tagged): returns 200 + Docker-Content-Digest
-// - HEAD /v2/*/manifests/* (anything else, e.g. canonical "1.4.3"): returns 404
-// - GET /healthz: returns 200
-//
 //go:embed testdata/server.py
 var mockRegistryScript string
 
-// Package-level sync.Once for cert generation so certs are stable across UpdateEnv calls.
-// Pulumi won't update Secrets unnecessarily if the data hasn't changed.
+// Cached at package scope so cert bytes are stable across UpdateEnv calls — without
+// this, every reprovision would diff the Secrets and trigger pod restarts.
 var (
 	registryCertsOnce sync.Once
 	cachedCACert      []byte
@@ -60,8 +55,6 @@ var (
 	cachedCertErr     error
 )
 
-// getCerts returns the cached CA cert, server cert, and server key PEM bytes,
-// generating them on first call.
 func getCerts() (caCertPEM, serverCertPEM, serverKeyPEM []byte, err error) {
 	registryCertsOnce.Do(func() {
 		cachedCACert, cachedServerCert, cachedServerKey, cachedCertErr = generateRegistryCerts()
@@ -69,17 +62,12 @@ func getCerts() (caCertPEM, serverCertPEM, serverKeyPEM []byte, err error) {
 	return cachedCACert, cachedServerCert, cachedServerKey, cachedCertErr
 }
 
-// generateRegistryCerts generates a self-signed CA and a server certificate for the mock registry.
-// Uses P-256 ECDSA keys. The server cert has DNSNames covering the in-cluster service FQDNs.
-// Certs are valid for 24 hours.
 func generateRegistryCerts() (caCertPEM, serverCertPEM, serverKeyPEM []byte, err error) {
-	// Generate CA key.
 	caKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to generate CA key: %w", err)
 	}
 
-	// Create CA certificate template.
 	caTemplate := &x509.Certificate{
 		SerialNumber: big.NewInt(1),
 		Subject: pkix.Name{
@@ -93,7 +81,6 @@ func generateRegistryCerts() (caCertPEM, serverCertPEM, serverKeyPEM []byte, err
 		IsCA:                  true,
 	}
 
-	// Self-sign the CA certificate.
 	caCertDER, err := x509.CreateCertificate(rand.Reader, caTemplate, caTemplate, &caKey.PublicKey, caKey)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to create CA certificate: %w", err)
@@ -104,13 +91,11 @@ func generateRegistryCerts() (caCertPEM, serverCertPEM, serverKeyPEM []byte, err
 		return nil, nil, nil, fmt.Errorf("failed to parse CA certificate: %w", err)
 	}
 
-	// Generate server key.
 	serverKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to generate server key: %w", err)
 	}
 
-	// Create server certificate template.
 	serverTemplate := &x509.Certificate{
 		SerialNumber: big.NewInt(2),
 		Subject: pkix.Name{
@@ -131,19 +116,14 @@ func generateRegistryCerts() (caCertPEM, serverCertPEM, serverKeyPEM []byte, err
 		},
 	}
 
-	// Sign the server certificate with the CA.
 	serverCertDER, err := x509.CreateCertificate(rand.Reader, serverTemplate, caCert, &serverKey.PublicKey, caKey)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to create server certificate: %w", err)
 	}
 
-	// Encode CA cert to PEM.
 	caCertPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: caCertDER})
-
-	// Encode server cert to PEM.
 	serverCertPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: serverCertDER})
 
-	// Encode server key to PEM.
 	serverKeyDER, err := x509.MarshalECPrivateKey(serverKey)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to marshal server key: %w", err)
@@ -153,15 +133,6 @@ func generateRegistryCerts() (caCertPEM, serverCertPEM, serverKeyPEM []byte, err
 	return caCertPEM, serverCertPEM, serverKeyPEM, nil
 }
 
-// deployMockRegistry deploys the mock container registry into the cluster.
-// It creates:
-//   - A "mock-registry" namespace for the registry pod and its secrets/configmap
-//   - A "datadog" namespace (SSA handles conflict if the Helm chart also creates it)
-//   - A CA Secret in the "datadog" namespace, mounted into the cluster-agent pod
-//   - A TLS Secret in the "mock-registry" namespace for the Python server
-//   - A ConfigMap in the "mock-registry" namespace containing server.py
-//   - A Deployment running the Python HTTPS server
-//   - A Service exposing port 5000
 func deployMockRegistry(e config.Env, kubeProvider *kubernetes.Provider) error {
 	caCertPEM, serverCertPEM, serverKeyPEM, err := getCerts()
 	if err != nil {
@@ -172,7 +143,6 @@ func deployMockRegistry(e config.Env, kubeProvider *kubernetes.Provider) error {
 		pulumi.Provider(kubeProvider),
 	}
 
-	// Create the mock-registry namespace.
 	mockRegistryNs, err := corev1.NewNamespace(e.Ctx(), e.CommonNamer().ResourceName("mock-registry-ns"), &corev1.NamespaceArgs{
 		Metadata: &metav1.ObjectMetaArgs{
 			Name: pulumi.String(mockRegistryNamespace),
@@ -182,8 +152,8 @@ func deployMockRegistry(e config.Env, kubeProvider *kubernetes.Provider) error {
 		return fmt.Errorf("failed to create mock-registry namespace: %w", err)
 	}
 
-	// The datadog namespace is also created by the Helm chart. Pulumi's server-side apply
-	// (SDK v4 default) handles the conflict gracefully.
+	// The Helm chart also creates the datadog namespace; Pulumi's server-side apply
+	// (SDK v4 default) reconciles the shared ownership without conflict.
 	datadogNs, err := corev1.NewNamespace(e.Ctx(), e.CommonNamer().ResourceName("datadog-ns"), &corev1.NamespaceArgs{
 		Metadata: &metav1.ObjectMetaArgs{
 			Name: pulumi.String("datadog"),
@@ -193,9 +163,10 @@ func deployMockRegistry(e config.Env, kubeProvider *kubernetes.Provider) error {
 		return fmt.Errorf("failed to create datadog namespace: %w", err)
 	}
 
-	// Mounted into the cluster-agent pod at /etc/ssl/certs/mock-registry-ca.crt (see base.yaml).
-	// Go's x509.SystemCertPool() on Debian/Ubuntu scans /etc/ssl/certs/ and trusts all .crt files,
-	// allowing the cluster-agent to verify the mock registry's TLS certificate.
+	// Mounted into the cluster-agent at /etc/ssl/certs/mock-registry-ca.crt (see
+	// default_opt_in.yaml). Go's x509.SystemCertPool() on the cluster-agent's Debian
+	// base image scans that dir and trusts every .crt, so no Go-side cert plumbing
+	// is needed for the resolver to verify the mock's TLS cert.
 	_, err = corev1.NewSecret(e.Ctx(), e.CommonNamer().ResourceName("mock-registry-ca-secret"), &corev1.SecretArgs{
 		Metadata: &metav1.ObjectMetaArgs{
 			Name:      pulumi.String(mockRegistryCaSecret),
@@ -209,7 +180,6 @@ func deployMockRegistry(e config.Env, kubeProvider *kubernetes.Provider) error {
 		return fmt.Errorf("failed to create mock-registry CA secret: %w", err)
 	}
 
-	// TLS Secret for the mock registry server in the mock-registry namespace.
 	tlsSecret, err := corev1.NewSecret(e.Ctx(), e.CommonNamer().ResourceName("mock-registry-tls-secret"), &corev1.SecretArgs{
 		Metadata: &metav1.ObjectMetaArgs{
 			Name:      pulumi.String("mock-registry-tls"),
@@ -224,7 +194,6 @@ func deployMockRegistry(e config.Env, kubeProvider *kubernetes.Provider) error {
 		return fmt.Errorf("failed to create mock-registry TLS secret: %w", err)
 	}
 
-	// ConfigMap containing the Python server script.
 	scriptCM, err := corev1.NewConfigMap(e.Ctx(), e.CommonNamer().ResourceName("mock-registry-script-cm"), &corev1.ConfigMapArgs{
 		Metadata: &metav1.ObjectMetaArgs{
 			Name:      pulumi.String("mock-registry-script"),
@@ -238,7 +207,6 @@ func deployMockRegistry(e config.Env, kubeProvider *kubernetes.Provider) error {
 		return fmt.Errorf("failed to create mock-registry script configmap: %w", err)
 	}
 
-	// Deployment running the Python HTTPS mock registry server.
 	_, err = appsv1.NewDeployment(e.Ctx(), e.CommonNamer().ResourceName("mock-registry-deployment"), &appsv1.DeploymentArgs{
 		Metadata: &metav1.ObjectMetaArgs{
 			Name:      pulumi.String(mockRegistryName),
@@ -326,7 +294,6 @@ func deployMockRegistry(e config.Env, kubeProvider *kubernetes.Provider) error {
 		return fmt.Errorf("failed to create mock-registry deployment: %w", err)
 	}
 
-	// Service exposing port 5000 for the mock registry.
 	_, err = corev1.NewService(e.Ctx(), e.CommonNamer().ResourceName("mock-registry-service"), &corev1.ServiceArgs{
 		Metadata: &metav1.ObjectMetaArgs{
 			Name:      pulumi.String(mockRegistryName),

@@ -3,8 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package ssigradualrollout: This test suite is to E2E test the gradual rollout feature in SSI.
-// It will test that the gradual rollout feature is enabled by default.
+// Package ssigradualrollout provides end-to-end tests for the SSI gradual rollout image
+// resolver. It deploys an in-cluster mock container registry and asserts that the
+// cluster-agent's admission webhook injects digest-based lib init containers for every
+// default-language target when gradual rollout is enabled (the default).
 package ssigradualrollout
 
 import (
@@ -31,14 +33,10 @@ var baseHelmValues string
 //go:embed testdata/default_opt_in.yaml
 var defaultOptInHelmValues string
 
-// ssiGradualRolloutSuite runs all gradual rollout test scenarios on a single cluster,
-// calling UpdateEnv at the start of each test to switch Helm values and workloads.
 type ssiGradualRolloutSuite struct {
 	e2e.BaseSuite[environments.Kubernetes]
 }
 
-// TestSSIGradualRolloutSuite is the single entry point. One cluster is provisioned with only
-// the mock registry deployed initially, then UpdateEnv is called at the start of each test.
 func TestSSIGradualRolloutSuite(t *testing.T) {
 	e2e.Run(t, &ssiGradualRolloutSuite{}, e2e.WithProvisioner(ssi.Provisioner(ssi.ProvisionerOptions{
 		AgentOptions: []kubernetesagentparams.Option{
@@ -50,24 +48,20 @@ func TestSSIGradualRolloutSuite(t *testing.T) {
 	})))
 }
 
-// defaultSSILanguages mirrors supportedLanguages in
+// Mirrors supportedLanguages in
 // pkg/clusteragent/admission/mutate/autoinstrumentation/language_versions.go. With no
-// ddTraceVersions in the target config, the cluster-agent injects all of these at their
-// latest major versions, and gradual rollout should resolve a digest for each.
+// ddTraceVersions in the target config, the cluster-agent injects all of these.
 var defaultSSILanguages = []string{"java", "js", "python", "dotnet", "ruby", "php"}
 
-// TestDefaultOptIn verifies that when gradual rollout is enabled (default) and mutable
-// major-version tags are configured (the SSI default), the cluster-agent resolves every
-// default-language lib init container to a digest-based reference.
 func (v *ssiGradualRolloutSuite) TestDefaultOptIn() {
 	const (
 		scenarioNamespace = "gradual-rollout-default"
 		appName           = "gradual-rollout-app"
 	)
 
-	// Force cluster-agent restart when the CA rotates (its cert pool is cached at
-	// startup). Only matters in E2E_DEV_MODE: sync.Once regenerates certs per
-	// binary invocation while the cluster persists. No-op in CI (fresh cluster).
+	// Force a cluster-agent restart when the CA rotates: its cert pool is snapshotted
+	// at startup, and in E2E_DEV_MODE the cluster persists across binary invocations
+	// while sync.Once regenerates certs each run. No-op in CI.
 	caCertPEM, _, _, err := getCerts()
 	require.NoError(v.T(), err)
 	certHash := fmt.Sprintf("%x", sha256.Sum256(caCertPEM))
