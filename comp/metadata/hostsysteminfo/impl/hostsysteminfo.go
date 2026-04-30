@@ -20,7 +20,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	hostsysteminfo "github.com/DataDog/datadog-agent/comp/metadata/hostsysteminfo/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
-	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
+	runnerdef "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/inventory/systeminfo"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -69,7 +69,7 @@ type Requires struct {
 
 type Provides struct {
 	Comp          hostsysteminfo.Component
-	Provider      runnerimpl.Provider
+	Provider      runnerdef.Provider
 	FlareProvider flaretypes.Provider
 	Endpoint      api.AgentEndpointProvider
 }
@@ -95,7 +95,7 @@ func NewSystemInfoProvider(deps Requires) Provides {
 	isSupportedOS := runtime.GOOS == "windows" || runtime.GOOS == "darwin"
 	hh.InventoryPayload.Enabled = hh.InventoryPayload.Enabled && isEndUserDevice && isSupportedOS
 
-	var provider runnerimpl.Provider
+	var provider runnerdef.Provider
 	if hh.InventoryPayload.Enabled {
 		provider = hh.MetadataProvider()
 		deps.Log.Info("System info metadata collection enabled for end user device mode")
