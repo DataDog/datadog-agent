@@ -48,8 +48,8 @@ import (
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
+	inventoryagentfx "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/fx"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/inventoryhostimpl"
 	resources "github.com/DataDog/datadog-agent/comp/metadata/resources/def"
@@ -163,7 +163,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		metadatarunnerfx.Module(),
 		resourcesfx.Module(),
 		hostimpl.Module(),
-		inventoryagentimpl.Module(),
+		inventoryagentfx.Module(),
 		ipcfx.ModuleReadWrite(),
 		// sysprobeconfig is optionally required by inventoryagent
 		sysprobeconfig.NoneModule(),

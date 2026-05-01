@@ -23,6 +23,10 @@ import (
 
 const checksSourceTypeName = "System"
 
+type bucketBounds struct {
+	lower, upper float64
+}
+
 // CheckSampler aggregates metrics from one Check instance
 type CheckSampler struct {
 	id                     checkid.ID
@@ -32,6 +36,7 @@ type CheckSampler struct {
 	metrics                metrics.CheckMetrics
 	sketchMap              sketchMap
 	lastBucketValue        map[ckey.ContextKey]int64
+	lastBucketValueByBound map[ckey.ContextKey]map[bucketBounds]int64
 	deregistered           bool
 	contextResolverMetrics bool
 	logThrottling          util.SimpleThrottler
@@ -120,10 +125,30 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket, tagFilterList
 
 	// if the bucket is monotonic and we have already seen the bucket we only send the delta
 	if bucket.Monotonic {
-		lastBucketValue, bucketFound := cs.lastBucketValue[contextKey]
+		lastBucketValue := int64(0)
+		bucketFound := false
 		rawValue := bucket.Value
 
-		cs.lastBucketValue[contextKey] = rawValue
+		// Openmetrics checks can send lots of metrics with lots of
+		// buckets, but include bucket bounds in the tags and only have
+		// one bucket per context key. It pays to use a simpler map to
+		// track bucket values for such metrics.
+		if !bucket.MultipleBuckets {
+			lastBucketValue, bucketFound = cs.lastBucketValue[contextKey]
+			cs.lastBucketValue[contextKey] = rawValue
+		} else {
+			if cs.lastBucketValueByBound == nil {
+				cs.lastBucketValueByBound = make(map[ckey.ContextKey]map[bucketBounds]int64)
+			}
+			lastBucketValues := cs.lastBucketValueByBound[contextKey]
+			if lastBucketValues == nil {
+				lastBucketValues = make(map[bucketBounds]int64)
+				cs.lastBucketValueByBound[contextKey] = lastBucketValues
+			}
+			bucketBounds := bucketBoundsFor(bucket)
+			lastBucketValue, bucketFound = lastBucketValues[bucketBounds]
+			lastBucketValues[bucketBounds] = rawValue
+		}
 
 		// Return early so we don't report the first raw value instead of the delta which will cause spikes
 		if !bucketFound && !bucket.FlushFirstValue {
@@ -235,6 +260,7 @@ func (cs *CheckSampler) commit(timestamp float64, filterList *utilstrings.Matche
 	// garbage collect unused buckets
 	for _, ctxKey := range expiredContextKeys {
 		delete(cs.lastBucketValue, ctxKey)
+		delete(cs.lastBucketValueByBound, ctxKey)
 	}
 
 	cs.metrics.Expire(expiredContextKeys, timestamp)
@@ -286,4 +312,11 @@ func (cs *CheckSampler) updateMetrics() {
 
 	tlmChecksContexts.Set(float64(totalContexts), idString)
 	cs.contextResolver.updateMetrics(tlmChecksContextsByMtype, tlmChecksContextsBytesByMtype)
+}
+
+func bucketBoundsFor(bucket *metrics.HistogramBucket) bucketBounds {
+	return bucketBounds{
+		lower: bucket.LowerBound,
+		upper: bucket.UpperBound,
+	}
 }

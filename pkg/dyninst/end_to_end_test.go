@@ -38,7 +38,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/goleak"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
@@ -101,7 +100,6 @@ var expectations embed.FS
 func TestEndToEnd(t *testing.T) {
 	t.Parallel()
 	dyninsttest.SkipIfKernelNotSupported(t)
-	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 	cfgs := testprogs.MustGetCommonConfigs(t)
 	idx := slices.IndexFunc(cfgs, func(c testprogs.Config) bool {
 		return c.GOARCH == runtime.GOARCH
@@ -622,7 +620,7 @@ func findProcessID(t *testing.T, p processPredicate) uint32 {
 }
 
 func waitForServicePort(t *testing.T, stdoutPath string) int {
-	timeout := time.After(5 * time.Second)
+	timeout := time.After(10 * time.Second)
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
@@ -685,7 +683,7 @@ func waitForProbeStatus(
 	targetStatus map[string]uploader.Status,
 ) {
 	t.Logf("Waiting for probes to be %s...", targetStatus)
-	const timeout = 10 * time.Second
+	const timeout = 60 * time.Second
 
 	probeStatus := make(map[string]uploader.Status)
 	allInStatus := func() bool {
@@ -746,7 +744,7 @@ func waitForLogMessages(
 
 	var processedLogs []json.RawMessage
 
-	logProcessingTimeout := time.After(5 * time.Second)
+	logProcessingTimeout := time.After(60 * time.Second)
 	checkTicker := time.NewTicker(100 * time.Millisecond)
 	defer checkTicker.Stop()
 

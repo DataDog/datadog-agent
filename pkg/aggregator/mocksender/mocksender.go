@@ -115,16 +115,19 @@ func (m *MockSender) SetupAcceptAll() {
 	// The second argument should have been `mock.AnythingOfType("[]byte")` instead of `mock.AnythingOfType("[]uint8")`
 	// See https://github.com/stretchr/testify/issues/387
 	m.On("EventPlatformEvent", mock.AnythingOfType("[]uint8"), mock.AnythingOfType("string")).Return()
-	m.On("HistogramBucket",
-		mock.AnythingOfType("string"),   // metric name
-		mock.AnythingOfType("int64"),    // value
-		mock.AnythingOfType("float64"),  // lower bound
-		mock.AnythingOfType("float64"),  // upper bound
-		mock.AnythingOfType("bool"),     // monotonic
-		mock.AnythingOfType("string"),   // hostname
-		mock.AnythingOfType("[]string"), // tags
-		mock.AnythingOfType("bool"),     // FlushFirstValue
-	).Return()
+	bucketCalls := []string{"OpenmetricsBucket", "HistogramBucket"}
+	for _, call := range bucketCalls {
+		m.On(call,
+			mock.AnythingOfType("string"),   // metric name
+			mock.AnythingOfType("int64"),    // value
+			mock.AnythingOfType("float64"),  // lower bound
+			mock.AnythingOfType("float64"),  // upper bound
+			mock.AnythingOfType("bool"),     // monotonic
+			mock.AnythingOfType("string"),   // hostname
+			mock.AnythingOfType("[]string"), // tags
+			mock.AnythingOfType("bool"),     // FlushFirstValue
+		).Return()
+	}
 	m.On("GetSenderStats", mock.AnythingOfType("stats.SenderStats")).Return()
 	m.On("DisableDefaultHostname", mock.AnythingOfType("bool")).Return()
 	m.On("SetCheckCustomTags", mock.AnythingOfType("[]string")).Return()

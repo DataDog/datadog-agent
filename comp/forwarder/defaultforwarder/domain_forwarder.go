@@ -66,7 +66,8 @@ func newDomainForwarder(
 	numberOfWorkers int,
 	connectionResetInterval time.Duration,
 	transactionPrioritySorter retry.TransactionPrioritySorter,
-	pointCountTelemetry *retry.PointCountTelemetry) *domainForwarder {
+	pointCountTelemetry *retry.PointCountTelemetry,
+	transport http.RoundTripper) *domainForwarder {
 	return &domainForwarder{
 		config:                    config,
 		log:                       log,
@@ -82,7 +83,7 @@ func newDomainForwarder(
 		blockedList:               newBlockedEndpoints(config, log),
 		transactionPrioritySorter: transactionPrioritySorter,
 		pointCountTelemetry:       pointCountTelemetry,
-		Client:                    NewSharedConnection(log, isLocal, numberOfWorkers, config),
+		Client:                    NewSharedConnection(log, isLocal, numberOfWorkers, config, transport),
 	}
 }
 

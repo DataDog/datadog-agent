@@ -13,7 +13,7 @@ package process
 
 import (
 	connectionsforwarderfx "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/fx"
-	"github.com/DataDog/datadog-agent/comp/process/agent/agentimpl"
+	agentfx "github.com/DataDog/datadog-agent/comp/process/agent/fx"
 	"github.com/DataDog/datadog-agent/comp/process/apiserver"
 	connectionscheckfx "github.com/DataDog/datadog-agent/comp/process/connectionscheck/fx"
 	containercheckfx "github.com/DataDog/datadog-agent/comp/process/containercheck/fx"
@@ -49,7 +49,7 @@ func Bundle() fxutil.BundleOptions {
 		rtcontainercheckfx.Module(),
 		processdiscoverycheckfx.Module(),
 
-		agentimpl.Module(),
+		agentfx.Module(),
 
 		hostinfofx.Module(),
 		expvarsfx.Module(),

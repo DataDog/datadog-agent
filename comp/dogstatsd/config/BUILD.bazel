@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "config",
@@ -6,4 +6,15 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/dogstatsd/config",
     visibility = ["//visibility:public"],
     deps = ["//comp/core/config"],
+)
+
+go_test(
+    name = "config_test",
+    srcs = ["config_test.go"],
+    embed = [":config"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/config/mock",
+        "@com_github_stretchr_testify//assert",
+    ],
 )

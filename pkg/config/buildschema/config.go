@@ -277,6 +277,11 @@ func (b *builder) Warnings() *model.Warnings {
 	return nil
 }
 
+func (b *builder) StartTime() time.Time {
+	b.notImplemented()
+	return time.Time{}
+}
+
 func (b *builder) Object() model.Reader {
 	b.notImplemented()
 	return nil

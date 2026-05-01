@@ -1,0 +1,11 @@
+---
+features:
+  - |
+    Add Prometheus HTTP Service Discovery provider for the Cluster Agent. This
+    new autodiscovery config provider polls a Prometheus-compatible HTTP SD
+    endpoint and generates check configurations for each discovered target.
+    Checks are distributed across available cluster check runners or node
+    agents via the existing cluster checks dispatcher. Configure it by adding
+    ``prometheus_http_sd`` to ``extra_config_providers`` and setting
+    ``prometheus_http_sd.url`` and ``prometheus_http_sd.check_template`` in
+    the Cluster Agent configuration.

@@ -19,26 +19,21 @@ type bucket struct {
 	tagMultiLineLogs bool
 	maxContentSize   int
 
-	message         *message.Message
-	firstLineTokens []Token
 	originalDataLen int
-	buffer          *bytes.Buffer
-	lineCount       int
-	shouldTruncate  bool
-	needsTruncation bool
+	contentLen      int
+	lines           []AggregatedMessageWithTokens
+	// shouldTruncate carries truncation state between emitted frames of one oversized
+	// single-line log.
+	shouldTruncate bool
 }
 
 func (b *bucket) add(msg *message.Message, tokens []Token) {
-	if b.message == nil {
-		b.message = msg
-		b.firstLineTokens = tokens
-	}
 	if b.originalDataLen > 0 {
-		b.buffer.Write(message.EscapedLineFeed)
+		b.contentLen += len(message.EscapedLineFeed)
 	}
-	b.buffer.Write(msg.GetContent())
+	b.contentLen += len(msg.GetContent())
+	b.lines = append(b.lines, AggregatedMessageWithTokens{Msg: msg, Tokens: tokens})
 	b.originalDataLen += msg.RawDataLen
-	b.lineCount++
 }
 
 func (b *bucket) isEmpty() bool {
@@ -46,43 +41,71 @@ func (b *bucket) isEmpty() bool {
 }
 
 func (b *bucket) reset() {
-	b.buffer.Reset()
-	b.message = nil
-	b.firstLineTokens = nil
-	b.lineCount = 0
+	b.lines = nil
+	b.contentLen = 0
 	b.originalDataLen = 0
-	b.needsTruncation = false
+}
+
+// applyTruncation applies the shared single-line truncation behavior used by both
+// direct emission and bucket flushes. Callers decide whether the current event is
+// independently oversized; this helper only adds the carry-over markers and tags.
+func (b *bucket) applyTruncation(msg *message.Message, content []byte, shouldTruncate bool, truncatedReason string) ([]byte, bool) {
+	lastWasTruncated := b.shouldTruncate
+	b.shouldTruncate = shouldTruncate
+
+	if lastWasTruncated {
+		// The previous emitted event was truncated because it was already too large on its
+		// own, so this event is the continuation of that same oversized single-line log.
+		content = append(message.TruncatedFlag, content...)
+	}
+
+	if b.shouldTruncate {
+		// The current event is already too large on its own (or was already marked truncated
+		// upstream), so we keep the single-line truncation marker on the emitted event.
+		content = append(content, message.TruncatedFlag...)
+		metrics.LogsTruncated.Add(1)
+	}
+
+	if lastWasTruncated || b.shouldTruncate {
+		msg.ParsingExtra.IsTruncated = true
+		if b.tagTruncatedLogs {
+			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.TruncatedReasonTag(truncatedReason))
+		}
+	}
+
+	return content, msg.ParsingExtra.IsTruncated
 }
 
 func (b *bucket) flush() AggregatedMessageWithTokens {
 	defer b.reset()
 
-	lastWasTruncated := b.shouldTruncate
-	b.shouldTruncate = b.buffer.Len() >= b.maxContentSize || b.needsTruncation
+	content := make([]byte, 0, b.contentLen)
+	accumulatedRawDataLen := 0
+	for i, line := range b.lines {
+		if i > 0 && accumulatedRawDataLen > 0 {
+			content = append(content, message.EscapedLineFeed...)
+		}
+		content = append(content, line.Msg.GetContent()...)
+		accumulatedRawDataLen += line.Msg.RawDataLen
+	}
+	content = bytes.TrimSpace(content)
 
-	data := bytes.TrimSpace(b.buffer.Bytes())
-	content := make([]byte, len(data))
-	copy(content, data)
-
-	if lastWasTruncated {
-		// The previous line has been truncated because it was too long,
-		// the new line is just the remainder. Add the truncated flag at
-		// the beginning of the content.
-		content = append(message.TruncatedFlag, content...)
+	msg := b.lines[0].Msg
+	lineCount := len(b.lines)
+	truncatedReason := "single_line"
+	if lineCount > 1 {
+		truncatedReason = "auto_multiline"
 	}
 
-	if b.shouldTruncate {
-		// The current line is too long. Mark it truncated at the end.
-		content = append(content, message.TruncatedFlag...)
-		metrics.LogsTruncated.Add(1)
-	}
-
-	msg := b.message
+	// Process flushes multiline buckets before an additional aggregate line can push the
+	// combined content over the limit. Truncation in this path therefore comes from a
+	// single oversized line or a continuation frame tracked by shouldTruncate.
+	content, isTruncated := b.applyTruncation(msg, content, b.contentLen >= b.maxContentSize, truncatedReason)
 	msg.SetContent(content)
 	msg.RawDataLen = b.originalDataLen
 	tlmTags := []string{"false", "single_line"}
 
-	if b.lineCount > 1 {
+	if lineCount > 1 {
 		msg.ParsingExtra.IsMultiLine = true
 		tlmTags[1] = "auto_multi_line"
 		if b.tagMultiLineLogs {
@@ -90,20 +113,33 @@ func (b *bucket) flush() AggregatedMessageWithTokens {
 		}
 	}
 
-	if lastWasTruncated || b.shouldTruncate {
-		msg.ParsingExtra.IsTruncated = true
+	if isTruncated {
 		tlmTags[0] = "true"
-		if b.tagTruncatedLogs {
-			if b.lineCount > 1 {
-				msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.TruncatedReasonTag("auto_multiline"))
-			} else {
-				msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.TruncatedReasonTag("single_line"))
-			}
-		}
 	}
 
 	metrics.TlmAutoMultilineAggregatorFlush.Inc(tlmTags...)
-	return AggregatedMessageWithTokens{Msg: msg, Tokens: b.firstLineTokens}
+	return AggregatedMessageWithTokens{Msg: msg, Tokens: b.lines[0].Tokens}
+}
+
+func (b *bucket) emitSingle(msg *message.Message, tokens []Token) AggregatedMessageWithTokens {
+	content := bytes.TrimSpace(msg.GetContent())
+
+	// Once a bucket is exploded, each emitted event follows the normal single-line
+	// truncation path. This specific line may be oversized on its own, or it may
+	// already be marked truncated because it is one chunk of a split oversized line.
+	content, _ = b.applyTruncation(msg, content, len(content) > b.maxContentSize || msg.ParsingExtra.IsTruncated, "single_line")
+	msg.SetContent(content)
+	return AggregatedMessageWithTokens{Msg: msg, Tokens: tokens}
+}
+
+func (b *bucket) explode() []AggregatedMessageWithTokens {
+	defer b.reset()
+
+	collected := make([]AggregatedMessageWithTokens, 0, len(b.lines))
+	for _, line := range b.lines {
+		collected = append(collected, b.emitSingle(line.Msg, line.Tokens))
+	}
+	return collected
 }
 
 // combiningAggregator aggregates multiline logs with a given label.
@@ -124,18 +160,25 @@ func NewCombiningAggregator(maxContentSize int, tagTruncatedLogs bool, tagMultiL
 
 	return &combiningAggregator{
 		bucket: &bucket{
-			buffer:           bytes.NewBuffer(nil),
 			tagTruncatedLogs: tagTruncatedLogs,
 			tagMultiLineLogs: tagMultiLineLogs,
 			maxContentSize:   maxContentSize,
-			lineCount:        0,
 			shouldTruncate:   false,
-			needsTruncation:  false,
 		},
 		maxContentSize:     maxContentSize,
 		multiLineMatchInfo: multiLineMatchInfo,
 		linesCombinedInfo:  linesCombinedInfo,
 	}
+}
+
+func (a *combiningAggregator) wouldOverflowBucket(msg *message.Message) bool {
+	// This guard decides when to abandon aggregation and emit the buffered lines
+	// individually.
+	projectedLen := a.bucket.contentLen + len(msg.GetContent())
+	if a.bucket.originalDataLen > 0 {
+		projectedLen += len(message.EscapedLineFeed)
+	}
+	return projectedLen >= a.maxContentSize
 }
 
 // flushToCollected appends the flushed bucket message (if any) to a.collected.
@@ -144,7 +187,22 @@ func (a *combiningAggregator) flushToCollected() {
 		a.bucket.reset()
 		return
 	}
+	if len(a.bucket.lines) > 1 {
+		a.linesCombinedInfo.Add(int64(len(a.bucket.lines) - 1))
+	}
 	a.collected = append(a.collected, a.bucket.flush())
+}
+
+func (a *combiningAggregator) emitSingleToCollected(msg *message.Message, tokens []Token) {
+	a.collected = append(a.collected, a.bucket.emitSingle(msg, tokens))
+}
+
+func (a *combiningAggregator) explodeBucketToCollected() {
+	if a.bucket.isEmpty() {
+		a.bucket.reset()
+		return
+	}
+	a.collected = append(a.collected, a.bucket.explode()...)
 }
 
 // Process processes a multiline log using a label and returns any completed messages.
@@ -173,30 +231,25 @@ func (a *combiningAggregator) Process(msg *message.Message, label Label, tokens 
 		a.multiLineMatchInfo.Add(1)
 		a.bucket.add(msg, tokens)
 		if msg.RawDataLen >= a.maxContentSize {
-			// Start group is too big to append anything to, flush it and reset.
+			// A startGroup can still truncate, but only because this individual line is
+			// already at the limit on its own. That's the remaining single-line truncation
+			// case in this codepath; it is not caused by multiline aggregation.
 			a.flushToCollected()
 		}
 		return a.collected
 	}
 
-	// Check for a total buffer size larger than the limit. This should only be reachable by an aggregate label
-	// following a smaller than max-size start group label, and will result in the reset (flush) of the entire bucket.
-	// This reset will intentionally break multi-line detection and aggregation for logs larger than the limit, because
-	// doing so is safer than assuming we will correctly get a new startGroup for subsequent single line logs.
-	if msg.RawDataLen+a.bucket.buffer.Len() >= a.maxContentSize {
-		a.bucket.needsTruncation = true
-		a.bucket.lineCount++ // Account for the current (not yet processed) message being part of the same log
-		a.flushToCollected()
-
-		a.bucket.lineCount++ // Account for the previous (now flushed) message being part of the same log
-		a.bucket.add(msg, tokens)
-		a.flushToCollected()
+	// If appending the current aggregate line would make the combined message too large,
+	// emit all buffered lines as standalone messages and emit the current line on its
+	// own on the normal single-line path.
+	if a.wouldOverflowBucket(msg) {
+		a.explodeBucketToCollected()
+		a.emitSingleToCollected(msg, tokens)
 		return a.collected
 	}
 
 	// We're an aggregate label within a startGroup and within the maxContentSize. Append new multiline
-	a.linesCombinedInfo.Add(1)
-	a.bucket.add(msg, nil) // continuation lines don't need tokens
+	a.bucket.add(msg, tokens)
 	return a.collected
 }
 

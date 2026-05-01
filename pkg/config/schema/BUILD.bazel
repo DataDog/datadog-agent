@@ -1,7 +1,6 @@
 load("@bazel_lib//lib:run_binary.bzl", "run_binary")
+load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("@rules_go//go:def.bzl", "go_library", "go_test")
-load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 
 run_binary(
     name = "compress",
@@ -10,37 +9,30 @@ run_binary(
         "system-probe_schema.yaml",
     ],
     outs = [
-        "compressed/core_schema.yaml.zstd",
-        "compressed/system-probe_schema.yaml.zstd",
+        "core_schema.yaml.zstd",
+        "system-probe_schema.yaml.zstd",
     ],
     args = [
         "$(location core_schema.yaml)",
-        "$(location compressed/core_schema.yaml.zstd)",
+        "$(location core_schema.yaml.zstd)",
         "$(location system-probe_schema.yaml)",
-        "$(location compressed/system-probe_schema.yaml.zstd)",
+        "$(location system-probe_schema.yaml.zstd)",
     ],
     tool = "//pkg/config/schema/compressor",
 )
 
-pkg_files(
-    name = "compressed",
-    srcs = [
-        "compressed/core_schema.yaml.zstd",
-        "compressed/system-probe_schema.yaml.zstd",
-    ],
-    prefix = "compressed",
-)
-
-pkg_install(
-    name = "install_compressed",
-    srcs = [":compressed"],
+write_source_files(
+    name = "write_compressed",
+    files = {
+        "compressed/core_schema.yaml.zstd": ":core_schema.yaml.zstd",
+        "compressed/system-probe_schema.yaml.zstd": ":system-probe_schema.yaml.zstd",
+    },
 )
 
 go_library(
     name = "schema",
     srcs = ["schema.go"],
     embedsrcs = [
-        "compressed/.embed",
         "compressed/core_schema.yaml.zstd",
         "compressed/system-probe_schema.yaml.zstd",
     ],

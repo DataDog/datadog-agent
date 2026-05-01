@@ -275,7 +275,7 @@ func testSubmitHistogramBucket(t *testing.T) {
 		true,
 	)
 
-	sender.AssertHistogramBucket(t, "HistogramBucket", "test_histogram", 42, 1.0, 2.0, true, "my_hostname", []string{"tag1", "tag2"}, true)
+	sender.AssertOpenmetricsBucket(t, "OpenmetricsBucket", "test_histogram", 42, 1.0, 2.0, true, "my_hostname", []string{"tag1", "tag2"}, true)
 }
 
 func testSubmitEventPlatformEvent(t *testing.T) {

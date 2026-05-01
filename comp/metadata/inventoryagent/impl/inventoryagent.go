@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/DataDog/viper"
-	"go.uber.org/fx"
 	"go.yaml.in/yaml/v2"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
@@ -30,20 +29,18 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
-	iainterface "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
+	iainterface "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
 	runnerdef "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	sysprobeConfigFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe"
 	"github.com/DataDog/datadog-agent/pkg/config/fetcher/tracers"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -51,12 +48,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
-
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newInventoryAgentProvider))
-}
 
 var (
 	// for testing
@@ -98,9 +89,8 @@ type inventoryagent struct {
 	client       ipc.HTTPClient
 }
 
-type dependencies struct {
-	fx.In
-
+// Requires defines the dependencies for the inventoryagent component
+type Requires struct {
 	Log            log.Component
 	Config         config.Component
 	SysProbeConfig option.Option[sysprobeconfig.Component]
@@ -109,9 +99,8 @@ type dependencies struct {
 	Hostname       hostnameinterface.Component
 }
 
-type provides struct {
-	fx.Out
-
+// Provides defines the output of the inventoryagent component
+type Provides struct {
 	Comp                 iainterface.Component
 	Provider             runnerdef.Provider
 	FlareProvider        flaretypes.Provider
@@ -119,7 +108,8 @@ type provides struct {
 	Endpoint             api.AgentEndpointProvider
 }
 
-func newInventoryAgentProvider(deps dependencies) provides {
+// NewComponent creates a new inventoryagent component
+func NewComponent(deps Requires) Provides {
 	hname, _ := deps.Hostname.Get(context.Background())
 	ia := &inventoryagent{
 		conf:         deps.Config,
@@ -138,7 +128,7 @@ func newInventoryAgentProvider(deps dependencies) provides {
 		deps.Config.OnUpdate(func(_ string, _ model.Source, _, _ any, _ uint64) { ia.Refresh() })
 	}
 
-	return provides{
+	return Provides{
 		Comp:                 ia,
 		Provider:             ia.MetadataProvider(),
 		FlareProvider:        ia.FlareProvider(),
@@ -180,7 +170,7 @@ func (ia *inventoryagent) initData() {
 
 	ia.data["agent_version"] = version.AgentVersion
 	ia.data["package_version"] = version.AgentPackageVersion
-	ia.data["agent_startup_time_ms"] = pkgconfigsetup.StartTime.UnixMilli()
+	ia.data["agent_startup_time_ms"] = ia.conf.StartTime().UnixMilli()
 	ia.data["flavor"] = flavor.GetFlavor()
 
 	infraMode := scrub(ia.conf.GetString("infrastructure_mode"))

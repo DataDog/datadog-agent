@@ -115,6 +115,55 @@ instances:
       ##   - "CERT_CHAIN_POLICY_IGNORE_ALL_NOT_TIME_VALID_FLAGS"
       ##   - "CERT_CHAIN_POLICY_IGNORE_ALL_REV_UNKNOWN_FLAGS"
 
+    ## @param certificate_template_tag - boolean - optional - default: false
+    ## Set to `true` to attach Microsoft certificate template tags to every metric and service check emitted by
+    ## this instance. Values are sourced from the Microsoft certificate template extensions
+    ## (OID `1.3.6.1.4.1.311.20.2` for V1, `1.3.6.1.4.1.311.21.7` for V2). Tags are emitted under a split
+    ## namespace so V1 and V2 never collide on the same key:
+    ##
+    ## - `certificate_template_name:<name>` - V1 certificates carry the template name in-band. For V2-only
+    ##   certificates the name is resolved on a best-effort basis via the local CryptoAPI OID cache; it is
+    ##   omitted when the OID is not locally known (for example, on non-domain-joined hosts).
+    ## - `certificate_template_oid:<oid>` - V2 only. Stable identifier that does not change if the template
+    ##   is renamed in Active Directory.
+    ## - `certificate_template_major_version:<n>` - V2 only.
+    ## - `certificate_template_minor_version:<n>` - V2 only.
+    #
+    # certificate_template_tag: false
+
+    ## @param enhanced_key_usage_tag - boolean - optional - default: false
+    ## Set to `true` to attach an `enhanced_key_usage` tag for each OID in the certificate's
+    ## Extended Key Usage extension. Well-known OIDs are emitted by short name (e.g. `serverAuth`, `clientAuth`);
+    ## unknown OIDs are emitted as dotted strings.
+    #
+    # enhanced_key_usage_tag: false
+
+    ## @param friendly_name_tag - boolean - optional - default: false
+    ## Set to `true` to attach the `friendly_name` tag (sourced from the Windows
+    ## `CERT_FRIENDLY_NAME_PROP_ID` certificate context property). Certificates without a
+    ## friendly name do not receive this tag.
+    #
+    # friendly_name_tag: false
+
+    ## @param subject_alternative_names_tag - boolean - optional - default: false
+    ## Set to `true` to attach `subject_alt_name_dns`, `subject_alt_name_ip`,
+    ## `subject_alt_name_email`, and `subject_alt_name_uri` tags for each entry in
+    ## the certificate's Subject Alternative Names extension.
+    #
+    # subject_alternative_names_tag: false
+
+    ## @param issuer_tag - boolean - optional - default: false
+    ## Set to `true` to attach an `issuer_<attr>` tag for each attribute in the certificate's issuer
+    ## distinguished name (e.g. `issuer_cn`, `issuer_o`, `issuer_ou`).
+    #
+    # issuer_tag: false
+
+    ## @param signature_algorithm_tag - boolean - optional - default: false
+    ## Set to `true` to attach a `signature_algorithm` tag describing the
+    ## certificate's signature algorithm (e.g. `signature_algorithm:sha256-rsa`).
+    #
+    # signature_algorithm_tag: false
+
     ## @param tags - list of strings - optional
     ## A list of tags to attach to every metric and service check emitted by this instance.
     ##

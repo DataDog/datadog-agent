@@ -49,6 +49,12 @@ func (m *MockSender) AssertMonotonicCount(t *testing.T, method string, metric st
 	return m.Mock.AssertCalled(t, method, metric, value, hostname, MatchTagsContains(tags), flushFirstValue)
 }
 
+// AssertOpenmetricsBucket allows to assert an openmetrics bucket was emitted with given parameters.
+// Additional tags over the ones specified don't make it fail
+func (m *MockSender) AssertOpenmetricsBucket(t *testing.T, method string, metric string, value int64, lowerBound float64, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool) bool {
+	return m.Mock.AssertCalled(t, method, metric, value, lowerBound, upperBound, monotonic, hostname, tags, flushFirstValue)
+}
+
 // AssertHistogramBucket allows to assert a histogram bucket was emitted with given parameters.
 // Additional tags over the ones specified don't make it fail
 func (m *MockSender) AssertHistogramBucket(t *testing.T, method string, metric string, value int64, lowerBound float64, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool) bool {

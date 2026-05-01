@@ -110,7 +110,9 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 	if len(params.ciliumOptions) > 0 {
 		kindCluster, err = cilium.NewKindCluster(&awsEnv, host, params.Name, awsEnv.KubernetesVersion(), params.ciliumOptions, utils.PulumiDependsOn(installEcrCredsHelperCmd))
 	} else {
-		kindCluster, err = kubeComp.NewKindCluster(&awsEnv, host, params.Name, awsEnv.KubernetesVersion(), utils.PulumiDependsOn(installEcrCredsHelperCmd))
+		kindCluster, err = kubeComp.NewKindClusterWithConfig(&awsEnv, host, params.Name, awsEnv.KubernetesVersion(),
+			kubeComp.KindConfigFlags{WorkerNodes: params.workerNodes},
+			utils.PulumiDependsOn(installEcrCredsHelperCmd))
 	}
 
 	if err != nil {
