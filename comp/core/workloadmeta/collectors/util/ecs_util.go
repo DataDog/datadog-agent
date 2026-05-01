@@ -54,6 +54,7 @@ func ParseV4Task(task v3or4.Task, seen map[workloadmeta.EntityID]struct{}) []wor
 	serviceARN := BuildServiceARN(clusterName, task.ServiceName, awsAccountID, region)
 	taskDefinitionARN := BuildTaskDefinitionARN(awsAccountID, task.Family, region, task.Version)
 	daemonName := parseDaemonNameFromGroup(task.Group)
+	daemonARN := BuildDaemonARN(clusterName, daemonName, awsAccountID, region)
 
 	entity := &workloadmeta.ECSTask{
 		EntityID: entityID,
@@ -72,6 +73,7 @@ func ParseV4Task(task v3or4.Task, seen map[workloadmeta.EntityID]struct{}) []wor
 		ServiceName:             task.ServiceName,
 		DaemonName:              daemonName,
 		ServiceARN:              serviceARN,
+		DaemonARN:               daemonARN,
 		TaskDefinitionARN:       taskDefinitionARN,
 		EphemeralStorageMetrics: task.EphemeralStorageMetrics,
 		Limits:                  task.Limits,
@@ -305,6 +307,14 @@ func BuildServiceARN(clusterName, serviceName, awsAccountID, region string) stri
 		return ""
 	}
 	return fmt.Sprintf("arn:aws:ecs:%s:%s:service/%s/%s", region, awsAccountID, clusterName, serviceName)
+}
+
+// BuildDaemonARN builds the daemon ARN from the cluster name, daemon name, AWS account ID, and region
+func BuildDaemonARN(clusterName, daemonName, awsAccountID, region string) string {
+	if clusterName == "" || daemonName == "" || awsAccountID == "" || region == "" {
+		return ""
+	}
+	return fmt.Sprintf("arn:aws:ecs:%s:%s:daemon/%s/%s", region, awsAccountID, clusterName, daemonName)
 }
 
 // parseDaemonNameFromGroup returns the daemon name encoded in a task's Group field on

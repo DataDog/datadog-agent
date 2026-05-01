@@ -1434,6 +1434,7 @@ type ECSTask struct {
 	ContainerInstanceARN    string `proto:"ignore"`
 	ClusterARN              string `proto:"ignore"`
 	ServiceARN              string `proto:"ignore"`
+	DaemonARN               string `proto:"ignore"`
 	TaskDefinitionARN       string `proto:"ignore"`
 	AWSAccountID            string
 	Region                  string
