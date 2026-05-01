@@ -6,7 +6,6 @@
 package procmgr
 
 import (
-	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -127,12 +126,9 @@ func (s *procmgrLinuxSuite) installDDOTExtension() bool {
 		return false
 	}
 
-	agentPackageURL := fmt.Sprintf(
-		"oci://installtesting.datad0g.com.internal.dda-testing.com/agent-package:pipeline-%s",
-		pipelineID,
-	)
+	agentPackageURL := "oci://installtesting.datad0g.com.internal.dda-testing.com/agent-package:pipeline-" + pipelineID
 	out, err := s.Env().RemoteHost.Execute(
-		fmt.Sprintf("sudo %s otel install --url %s", agent, agentPackageURL))
+		"sudo " + agent + " otel install --url " + agentPackageURL)
 	if err != nil {
 		s.T().Logf("DDOT extension install failed: %v\n%s", err, strings.TrimSpace(out))
 		return false
