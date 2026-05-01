@@ -24,13 +24,13 @@ type Task struct {
 	// "service:", "daemon:", or "family:" followed by the resource name. Only the
 	// /tasks host endpoint (ECS Managed Instances) populates this field; the per-task
 	// /task and /taskWithTags endpoints do not return it.
-	Group                   string             `json:"Group,omitempty"`
-	VPCID                   string             `json:"VPCID,omitempty"`
-	PullStartedAt           string             `json:"PullStartedAt,omitempty"`
-	PullStoppedAt           string             `json:"PullStoppedAt,omitempty"`
-	ExecutionStoppedAt      string             `json:"ExecutionStoppedAt,omitempty"`
-	AvailabilityZone        string             `json:"AvailabilityZone,omitempty"`
-	Errors                  []AwsError         `Json:"Errors,Omitempty"`
+	Group              string     `json:"Group,omitempty"`
+	VPCID              string     `json:"VPCID,omitempty"`
+	PullStartedAt      string     `json:"PullStartedAt,omitempty"`
+	PullStoppedAt      string     `json:"PullStoppedAt,omitempty"`
+	ExecutionStoppedAt string     `json:"ExecutionStoppedAt,omitempty"`
+	AvailabilityZone   string     `json:"AvailabilityZone,omitempty"`
+	Errors             []AwsError `Json:"Errors,Omitempty"`
 }
 
 // AwsError represents errors returned in the payload
