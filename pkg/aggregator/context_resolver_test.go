@@ -548,3 +548,222 @@ func testTrackContextGaugesTagsUnstripped(t *testing.T, store *tags.Store) {
 func TestTrackContextGaugesTagsUnstripped(t *testing.T) {
 	testWithTagsStore(t, testTrackContextGaugesTagsUnstripped)
 }
+
+// --- Tag aggregation for Count metrics --------------------------------------
+//
+// Count metrics now share the same tag-stripping behavior as distributions:
+// when the filterlist matches the metric name, configured tag keys are
+// removed from both metric and origin tags before the context key is
+// generated. Two count samples that differ only in stripped tags must
+// resolve to the same context so their values aggregate downstream.
+
+func testTrackContextStrippingMetricTagsCount(t *testing.T, store *tags.Store) {
+	matcher := filterlistimpl.NewTagMatcher(map[string]filterlistimpl.MetricTagList{
+		"count.metric": {
+			Tags:   []string{"env", "region"},
+			Action: "exclude",
+		},
+	}, logmock.New(t))
+
+	contextResolver := newContextResolver(nooptagger.NewComponent(), store, "test")
+
+	count1 := &metrics.MetricSample{
+		Name:       "count.metric",
+		Mtype:      metrics.CountType,
+		Value:      5,
+		Tags:       []string{"env:prod", "region:us-east", "instance:a"},
+		SampleRate: 1,
+	}
+	count2 := &metrics.MetricSample{
+		Name:       "count.metric",
+		Mtype:      metrics.CountType,
+		Value:      7,
+		Tags:       []string{"env:dev", "region:us-west", "instance:a"},
+		SampleRate: 1,
+	}
+
+	key1 := contextResolver.trackContext(count1, 0, matcher)
+	key2 := contextResolver.trackContext(count2, 0, matcher)
+
+	assert.Equal(t, key1, key2,
+		"counts with different stripped metric tags should share a context key")
+
+	ctx, ok := contextResolver.get(key1)
+	require.True(t, ok)
+	metrics.AssertCompositeTagsEqual(t, ctx.Tags(),
+		tagset.CompositeTagsFromSlice([]string{"instance:a"}))
+
+	// Single resolved context for both samples — proves they aggregate.
+	assert.Equal(t, uint64(1), contextResolver.countsByMtype[metrics.CountType])
+}
+
+func TestTrackContextStrippingMetricTagsCount(t *testing.T) {
+	testWithTagsStore(t, testTrackContextStrippingMetricTagsCount)
+}
+
+func testTrackContextStrippingOriginTagsCount(t *testing.T, store *tags.Store) {
+	matcher := filterlistimpl.NewTagMatcher(map[string]filterlistimpl.MetricTagList{
+		"count.metric": {
+			Tags:   []string{"env", "pod_name"},
+			Action: "exclude",
+		},
+	}, logmock.New(t))
+
+	fakeTagger := setupTagger(t)
+	contextResolver := newContextResolver(fakeTagger, store, "test")
+
+	// Same metric tags, different containers → different origin tags
+	// (env, pod_name) which are configured to be stripped.
+	count1 := &metrics.MetricSample{
+		Name:  "count.metric",
+		Mtype: metrics.CountType,
+		Value: 1,
+		Tags:  []string{"version:1.0"},
+		OriginInfo: taggertypespkg.OriginInfo{
+			ContainerIDFromSocket: "container_id://container1",
+			Cardinality:           "low",
+		},
+		SampleRate: 1,
+	}
+	count2 := &metrics.MetricSample{
+		Name:  "count.metric",
+		Mtype: metrics.CountType,
+		Value: 1,
+		Tags:  []string{"version:1.0"},
+		OriginInfo: taggertypespkg.OriginInfo{
+			ContainerIDFromSocket: "container_id://container2",
+			Cardinality:           "low",
+		},
+		SampleRate: 1,
+	}
+
+	key1 := contextResolver.trackContext(count1, 0, matcher)
+	key2 := contextResolver.trackContext(count2, 0, matcher)
+
+	assert.Equal(t, key1, key2,
+		"counts with different stripped origin tags should share a context key")
+
+	ctx, ok := contextResolver.get(key1)
+	require.True(t, ok)
+	metrics.AssertCompositeTagsEqual(t, ctx.Tags(),
+		tagset.CompositeTagsFromSlice([]string{"version:1.0", "image_name:image"}))
+}
+
+func TestTrackContextStrippingOriginTagsCount(t *testing.T) {
+	testWithTagsStore(t, testTrackContextStrippingOriginTagsCount)
+}
+
+// Negative case: filterlist has no rule for this count metric, so the
+// configured tags must NOT be stripped and the two samples remain in
+// separate contexts.
+func testTrackContextCountUnconfiguredTagsUnstripped(t *testing.T, store *tags.Store) {
+	matcher := filterlistimpl.NewTagMatcher(map[string]filterlistimpl.MetricTagList{
+		"other.metric": {
+			Tags:   []string{"env"},
+			Action: "exclude",
+		},
+	}, logmock.New(t))
+
+	contextResolver := newContextResolver(nooptagger.NewComponent(), store, "test")
+
+	count1 := &metrics.MetricSample{
+		Name:       "count.metric",
+		Mtype:      metrics.CountType,
+		Value:      1,
+		Tags:       []string{"env:prod"},
+		SampleRate: 1,
+	}
+	count2 := &metrics.MetricSample{
+		Name:       "count.metric",
+		Mtype:      metrics.CountType,
+		Value:      1,
+		Tags:       []string{"env:dev"},
+		SampleRate: 1,
+	}
+
+	key1 := contextResolver.trackContext(count1, 0, matcher)
+	key2 := contextResolver.trackContext(count2, 0, matcher)
+
+	assert.NotEqual(t, key1, key2,
+		"counts with no matching filterlist rule must keep distinct context keys")
+	assert.Equal(t, uint64(2), contextResolver.countsByMtype[metrics.CountType])
+}
+
+func TestTrackContextCountUnconfiguredTagsUnstripped(t *testing.T) {
+	testWithTagsStore(t, testTrackContextCountUnconfiguredTagsUnstripped)
+}
+
+// shouldAggregateTags must opt in only the metric types that participate in
+// tag aggregation. Adding a new type silently here is a regression vector,
+// so the table is exhaustive.
+//
+// CounterType is included because that's what DogStatsD `|c` lines parse as
+// (comp/dogstatsd/server/enrich.go); CountType covers internally-emitted
+// counts (Sender.Count() in core checks); DistributionType covers `|d`.
+func TestShouldAggregateTags(t *testing.T) {
+	cases := map[metrics.MetricType]bool{
+		metrics.GaugeType:              false,
+		metrics.RateType:               false,
+		metrics.CountType:              true,
+		metrics.MonotonicCountType:     false,
+		metrics.CounterType:            true,
+		metrics.HistogramType:          false,
+		metrics.HistorateType:          false,
+		metrics.SetType:                false,
+		metrics.DistributionType:       true,
+		metrics.GaugeWithTimestampType: false,
+		metrics.CountWithTimestampType: false,
+	}
+	for mt, want := range cases {
+		t.Run(mt.String(), func(t *testing.T) {
+			ms := &metrics.MetricSample{Mtype: mt}
+			assert.Equal(t, want, shouldAggregateTags(ms))
+		})
+	}
+}
+
+// CounterType is the metric type produced by the DogStatsD parser for `|c`
+// lines, so this is the e2e shape for incoming DSD count traffic. Behavior
+// must match the CountType case: stripped tags collapse to a single
+// context.
+func testTrackContextStrippingMetricTagsCounter(t *testing.T, store *tags.Store) {
+	matcher := filterlistimpl.NewTagMatcher(map[string]filterlistimpl.MetricTagList{
+		"counter.metric": {
+			Tags:   []string{"env", "region"},
+			Action: "exclude",
+		},
+	}, logmock.New(t))
+
+	contextResolver := newContextResolver(nooptagger.NewComponent(), store, "test")
+
+	c1 := &metrics.MetricSample{
+		Name:       "counter.metric",
+		Mtype:      metrics.CounterType,
+		Value:      5,
+		Tags:       []string{"env:prod", "region:us-east", "instance:a"},
+		SampleRate: 1,
+	}
+	c2 := &metrics.MetricSample{
+		Name:       "counter.metric",
+		Mtype:      metrics.CounterType,
+		Value:      7,
+		Tags:       []string{"env:dev", "region:us-west", "instance:a"},
+		SampleRate: 1,
+	}
+
+	key1 := contextResolver.trackContext(c1, 0, matcher)
+	key2 := contextResolver.trackContext(c2, 0, matcher)
+
+	assert.Equal(t, key1, key2,
+		"DSD-shaped counters with different stripped tags should share a context key")
+
+	ctx, ok := contextResolver.get(key1)
+	require.True(t, ok)
+	metrics.AssertCompositeTagsEqual(t, ctx.Tags(),
+		tagset.CompositeTagsFromSlice([]string{"instance:a"}))
+	assert.Equal(t, uint64(1), contextResolver.countsByMtype[metrics.CounterType])
+}
+
+func TestTrackContextStrippingMetricTagsCounter(t *testing.T) {
+	testWithTagsStore(t, testTrackContextStrippingMetricTagsCounter)
+}
