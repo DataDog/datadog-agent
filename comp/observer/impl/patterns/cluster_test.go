@@ -6,7 +6,11 @@
 package patterns
 
 import (
+	"fmt"
+	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 // Fixed event time for SignatureClusterer tests (Unix seconds, non-zero).
@@ -605,4 +609,67 @@ func TestPatternClustererRemoveClusters(t *testing.T) {
 	if pc.NumClusters() != 0 {
 		t.Fatalf("expected 0 clusters, got %d", pc.NumClusters())
 	}
+}
+
+func TestPatternClusterer_MaxClustersEvictsLRU(t *testing.T) {
+	pc := NewPatternClustererWithTokenizer(NewTokenizer(), 0)
+	pc.MaxClusters = 2
+
+	// Three distinct signatures → three clusters; cap is 2.
+	_, ok := pc.Process("first kind of message", 1000)
+	require.True(t, ok)
+	require.Empty(t, pc.DrainLRUEvictedClusterIDs(), "no eviction below cap")
+
+	_, ok = pc.Process("alpha beta gamma delta", 1001)
+	require.True(t, ok)
+	require.Empty(t, pc.DrainLRUEvictedClusterIDs(), "no eviction at cap")
+	require.Equal(t, 2, pc.NumClusters())
+
+	// This third distinct cluster pushes us over cap. The oldest (id=0,
+	// LastSeenUnix=1000) must be evicted.
+	_, ok = pc.Process("x y z w", 1002)
+	require.True(t, ok)
+	require.Equal(t, 2, pc.NumClusters(), "cap holds at MaxClusters")
+	evicted := pc.DrainLRUEvictedClusterIDs()
+	require.Equal(t, []int64{0}, evicted, "oldest cluster evicted")
+	require.Empty(t, pc.DrainLRUEvictedClusterIDs(), "drain is one-shot")
+}
+
+func TestPatternClusterer_MaxClustersExcludesJustInserted(t *testing.T) {
+	// Even when the just-inserted cluster has the smallest LastSeenUnix
+	// (e.g. backdated log timestamp), it must not be the eviction victim.
+	pc := NewPatternClustererWithTokenizer(NewTokenizer(), 0)
+	pc.MaxClusters = 2
+
+	pc.Process("alpha", 1100)
+	pc.Process("beta gamma", 1200)
+	_, ok := pc.Process("newer pattern shape", 900)
+	require.True(t, ok)
+	evicted := pc.DrainLRUEvictedClusterIDs()
+	require.Len(t, evicted, 1)
+	require.Equal(t, int64(0), evicted[0], "oldest pre-existing cluster evicted, not the just-inserted one")
+	require.Equal(t, 2, pc.NumClusters())
+	// Confirm the survivor set: the just-inserted cluster (id=2) and the more
+	// recent pre-existing one (id=1) should remain.
+	ids := []int64{}
+	for _, c := range pc.GetClusters() {
+		ids = append(ids, c.ID)
+	}
+	require.ElementsMatch(t, []int64{1, 2}, ids)
+}
+
+func TestPatternClusterer_MaxClustersZeroIsUnbounded(t *testing.T) {
+	pc := NewPatternClustererWithTokenizer(NewTokenizer(), 0)
+	require.Equal(t, 0, pc.MaxClusters)
+	// Use distinct word counts to guarantee distinct signatures (canMergeTokenLists
+	// requires equal length); 50 unique cluster shapes.
+	for i := 0; i < 50; i++ {
+		parts := make([]string, i+1)
+		for j := range parts {
+			parts[j] = fmt.Sprintf("word%c", 'a'+j%26)
+		}
+		pc.Process(strings.Join(parts, " "), int64(1000+i))
+	}
+	require.Equal(t, 50, pc.NumClusters())
+	require.Empty(t, pc.DrainLRUEvictedClusterIDs())
 }
