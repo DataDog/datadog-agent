@@ -232,6 +232,30 @@ class TestOmnibusCache(unittest.TestCase):
         )
 
 
+class TestOmnibusRunTask(unittest.TestCase):
+    def setUp(self):
+        self.mock_ctx = MockContextRaising(run={})
+        self.mock_ctx.set_result_for('run', re.compile(r'bundle exec omnibus build agent .*'), Result())
+
+    def test_formats_overrides_as_single_hash_option(self):
+        omnibus.omnibus_run_task(
+            self.mock_ctx,
+            task="build",
+            target_project="agent",
+            base_dir="/opt/dd/omnibus",
+            env={},
+            host_distribution="ubuntu",
+            cache_dir="/var/cache/dd/omnibus/cache",
+        )
+
+        command = self.mock_ctx.run.mock_calls[0].args[0]
+        self.assertIn(
+            "--override=base_dir:/opt/dd/omnibus cache_dir:/var/cache/dd/omnibus/cache host_distribution:ubuntu",
+            command,
+        )
+        self.assertEqual(command.count("--override="), 1)
+
+
 class TestOmnibusInstall(unittest.TestCase):
     def setUp(self):
         self.mock_ctx = MockContextRaising(run={})
