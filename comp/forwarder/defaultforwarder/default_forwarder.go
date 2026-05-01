@@ -117,6 +117,7 @@ type Options struct {
 	DomainResolvers                map[string]pkgresolver.DomainResolver
 	ConnectionResetInterval        time.Duration
 	Secrets                        secrets.Component
+	transport                      http.RoundTripper // for testing
 }
 
 // SetFeature sets forwarder features in a feature set
@@ -394,7 +395,8 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 				numberOfWorkers,
 				options.ConnectionResetInterval,
 				domainForwarderSort,
-				pointCountTelemetry)
+				pointCountTelemetry,
+				options.transport)
 			f.domainForwarders[domain] = fwd
 			// Register all alternate domains for each forwarder
 			for _, v := range resolver.GetAlternateDomains() {
