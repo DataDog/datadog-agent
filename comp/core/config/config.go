@@ -9,6 +9,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"time"
 
 	"go.uber.org/fx"
 
@@ -103,6 +104,10 @@ func newConfig(deps dependencies) (*cfg, error) {
 
 func (c *cfg) Warnings() *pkgconfigmodel.Warnings {
 	return c.warnings
+}
+
+func (c *cfg) StartTime() time.Time {
+	return c.Config.StartTime()
 }
 
 // fillFlare add the Configuration files to flares.

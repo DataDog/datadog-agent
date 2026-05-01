@@ -4,4 +4,5 @@ go_test(
     name = "gotls_test",
     srcs = ["dummy_test.go"],
     data = glob(["testdata/**"]),
+    gotags = ["test"],
 )

@@ -77,13 +77,13 @@ build do
                 # SElinux policies aren't generated when system-probe isn't built
                 # Move SELinux policy
                 if debian_target? || redhat_target?
-                  move "#{install_dir}/etc/datadog-agent/selinux", "#{output_config_dir}/etc/datadog-agent/selinux"
+                  move "#{install_dir}/etc/datadog-agent/selinux", "#{output_config_dir}/etc/datadog-agent/selinux", :force=>true
                 end
               end
               move "#{install_dir}/etc/datadog-agent/security-agent.yaml.example", "#{output_config_dir}/etc/datadog-agent", :force=>true
               move "#{install_dir}/etc/datadog-agent/runtime-security.d", "#{output_config_dir}/etc/datadog-agent", :force=>true
-              move "#{install_dir}/etc/datadog-agent/compliance.d", "#{output_config_dir}/etc/datadog-agent"
-              move "#{install_dir}/etc/datadog-agent/private-action-runner", "#{output_config_dir}/etc/datadog-agent"
+              move "#{install_dir}/etc/datadog-agent/compliance.d", "#{output_config_dir}/etc/datadog-agent", :force=>true
+              move "#{install_dir}/etc/datadog-agent/private-action-runner", "#{output_config_dir}/etc/datadog-agent", :force=>true
             end
 
             # Create the installer symlink if the file doesn't already exist
@@ -156,20 +156,7 @@ build do
             # Remove test-only eBPF object files
             delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/error_telemetry.o"
             delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/logdebug-test.o"
-
-            # linux build will be stripped - but psycopg2 affected by bug in the way binutils
-            # and patchelf work together:
-            #    https://github.com/pypa/manylinux/issues/119
-            #    https://github.com/NixOS/patchelf
-            #
-            # Only affects psycopg2 - any binary whose path matches the pattern will be
-            # skipped.
-            strip_exclude("*psycopg2*")
-            strip_exclude("*cffi_backend*")
-
-            # We get the following error when the aerospike lib is stripped:
-            # The `aerospike` client is not installed: /opt/datadog-agent/embedded/lib/python2.7/site-packages/aerospike.so: ELF load command address/offset not properly aligned
-            strip_exclude("*aerospike*")
+            delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/sleepable.o"
 
             # Do not strip eBPF programs
             strip_exclude("#{install_dir}/embedded/share/system-probe/ebpf/*.o")

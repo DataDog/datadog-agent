@@ -218,6 +218,7 @@ def omnibus_compute_cache_key(ctx, env: dict[str, str]) -> str:
             'tasks/agent.py',
             'deps',
             'bazel',
+            'packages',
         ],
     )
     print(f'Current hash value: {h.hexdigest()}')

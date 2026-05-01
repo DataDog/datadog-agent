@@ -39,7 +39,7 @@ func New(t testing.TB) log.Component {
 
 	t.Cleanup(func() {
 		// stop using the logger to avoid a race condition
-		pkglog.SetupLogger(pkglog.Default(), pkglog.DebugStr)
+		pkglog.SetupLogger(pkglog.Disabled(), pkglog.DebugStr)
 		iface.Close()
 	})
 

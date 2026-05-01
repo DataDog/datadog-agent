@@ -17,6 +17,8 @@ import (
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/dispatcher"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/eventbuf"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/module/tombstone"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
@@ -52,11 +54,39 @@ type Config struct {
 	// ActuatorConfig is the configuration for the actuator.
 	ActuatorConfig actuator.Config
 
+	// UseMultiAttach causes the loader to use the uprobe_multi link type
+	// (BPF_LINK_TYPE_UPROBE_MULTI) when attaching probes. This batches
+	// many attachments into a single bpf_link_create call and is much
+	// faster for programs with many attachpoints, but requires kernel
+	// support (Linux 6.6+). The caller is responsible for only enabling
+	// this on supported kernels.
+	UseMultiAttach bool
+
 	TestingKnobs struct {
 		LoaderOptions             []loader.Option
 		IRGeneratorOverride       func(IRGenerator) IRGenerator
 		ProcessSubscriberOverride func(ProcessSubscriber) ProcessSubscriber
 		TombstoneSleepKnobs       tombstone.WaitTestingKnobs
+		// SinkOverride, if set, is invoked once per program load. It receives
+		// the production sink along with handles to the eventbuf state owned
+		// by that sink, so tests can both forward events and assert on
+		// userspace-side invariants (Buffer.Len/Bytes, Budget.Used). The
+		// returned dispatcher.Sink is registered in place of the production
+		// sink.
+		SinkOverride func(
+			real dispatcher.Sink,
+			buffer *eventbuf.Buffer,
+			budget *eventbuf.Budget,
+		) dispatcher.Sink
+		// OnLoaderReady, if set, is invoked once during module construction
+		// after the loader has been created (and before the dispatcher takes
+		// ownership of its readers). Tests use this to observe
+		// OutputReader().AvailableBytes().
+		OnLoaderReady func(l *loader.Loader)
+		// OnProgramLoaded, if set, is invoked once per program load with the
+		// loaded *loader.Program, before the sink is registered. Tests use
+		// this to observe DropNotifyLostAt().
+		OnProgramLoaded func(prog *loader.Program)
 	}
 }
 

@@ -2061,9 +2061,9 @@ func TestGenerateInstallSignature(t *testing.T) {
 	cfg := c.Object()
 	assert.NotNil(t, cfg)
 
-	assert.False(t, coreConfig.IsSet("apm_config.install_id"))
-	assert.False(t, coreConfig.IsSet("apm_config.install_type"))
-	assert.False(t, coreConfig.IsSet("apm_config.install_time"))
+	assert.False(t, coreConfig.IsConfigured("apm_config.install_id"))
+	assert.False(t, coreConfig.IsConfigured("apm_config.install_type"))
+	assert.False(t, coreConfig.IsConfigured("apm_config.install_time"))
 
 	assert.True(t, cfg.InstallSignature.Found)
 	installFilePath := filepath.Join(cfgDir, "install.json")
@@ -2443,6 +2443,37 @@ func TestNormalizeAPMMode(t *testing.T) {
 			} else {
 				assert.NotContains(t, logOutput, "invalid value for 'DD_APM_MODE'")
 			}
+		})
+	}
+}
+
+func TestDebuggerLogsEnabled(t *testing.T) {
+	tests := []struct {
+		name     string
+		settings map[string]interface{}
+		expected bool
+	}{
+		{
+			name:     "logs_enabled_only",
+			settings: map[string]interface{}{"logs_enabled": true},
+			expected: true,
+		},
+		{
+			name:     "override_when_logs_disabled",
+			settings: map[string]interface{}{"logs_enabled": false, "apm_config.debugger_logs_enabled_override": true},
+			expected: true,
+		},
+		{
+			name:     "logs_disabled_no_override",
+			settings: map[string]interface{}{"logs_enabled": false},
+			expected: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := buildConfigComponentFromOverrides(t, true, tt.settings).Object()
+			require.NotNil(t, cfg)
+			assert.Equal(t, tt.expected, cfg.DebuggerLogsEnabled)
 		})
 	}
 }

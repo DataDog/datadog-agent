@@ -5,7 +5,7 @@ go 1.25.0
 require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.61.0
-	github.com/containerd/cgroups/v3 v3.1.2
+	github.com/containerd/cgroups/v3 v3.1.3
 	github.com/google/go-cmp v0.7.0
 	github.com/stretchr/testify v1.11.1
 )
@@ -116,6 +116,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ../../../pkg/config/nodetreemodel
 	github.com/DataDog/datadog-agent/pkg/config/remote => ../../../pkg/config/remote
 	github.com/DataDog/datadog-agent/pkg/config/render_config => ../../../pkg/config/render_config
+	github.com/DataDog/datadog-agent/pkg/config/schema => ../../../pkg/config/schema
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../../../pkg/config/setup
 	github.com/DataDog/datadog-agent/pkg/config/structure => ../../../pkg/config/structure
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig => ../../../pkg/config/teeconfig
@@ -130,8 +131,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic => ../../../pkg/logs/diagnostic
 	github.com/DataDog/datadog-agent/pkg/logs/message => ../../../pkg/logs/message
 	github.com/DataDog/datadog-agent/pkg/logs/metrics => ../../../pkg/logs/metrics
-	github.com/DataDog/datadog-agent/pkg/logs/processor => ../../../pkg/logs/processor
-	github.com/DataDog/datadog-agent/pkg/logs/sender => ../../../pkg/logs/sender
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../../pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../../../pkg/logs/status/statusinterface
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ../../../pkg/logs/status/utils
