@@ -100,6 +100,25 @@ func (d *ScanWelchDetector) Reset() {
 	d.cachedGen = 0
 }
 
+// RemoveSeries drops segment-tracking state for refs that storage has freed.
+// Each per-series entry holds a reusable point buffer that grows to the
+// segment size, so without this teardown the map keeps growing with the
+// cumulative series count even after storage shrinks. Called by the engine
+// right after timeSeriesStorage.RemoveSeriesByKeys returns the freed refs.
+func (d *ScanWelchDetector) RemoveSeries(refs []observer.SeriesRef) {
+	d.ensureDefaults()
+	if len(refs) == 0 || len(d.series) == 0 {
+		return
+	}
+	for _, ref := range refs {
+		for _, agg := range d.Aggregations {
+			delete(d.series, scanwelchStateKey{ref: ref, agg: agg})
+		}
+	}
+	d.cachedSeries = nil
+	d.cachedGen = 0
+}
+
 // Detect implements Detector. Same iteration pattern as ScanMW and BOCPD —
 // consider dedup if more scan-based detectors are added.
 func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int64) observer.DetectionResult {

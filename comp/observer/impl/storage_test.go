@@ -577,3 +577,109 @@ func TestTimeSeriesStorage_ListSeries_ExcludeNamespaces(t *testing.T) {
 	require.Len(t, onlyTel, 1)
 	assert.Equal(t, observer.TelemetryNamespace, onlyTel[0].Namespace)
 }
+
+func TestTimeSeriesStorage_RemoveSeriesByKeys(t *testing.T) {
+	s := newTimeSeriesStorage()
+
+	s.Add("ns", "a", 1.0, 1000, []string{"k:1"})
+	s.Add("ns", "b", 2.0, 1000, []string{"k:2"})
+	s.Add("ns", "c", 3.0, 1000, []string{"k:3"})
+	require.Equal(t, 3, s.TotalSeriesCount(""))
+	genBefore := s.SeriesGeneration()
+
+	keyB := seriesKey("ns", "b", []string{"k:2"})
+	keyC := seriesKey("ns", "c", []string{"k:3"})
+	refB := s.seriesIDs[keyB]
+	refC := s.seriesIDs[keyC]
+
+	removed := s.RemoveSeriesByKeys([]string{keyB, keyC, "nonexistent"})
+	require.Len(t, removed, 2, "unknown keys are silently ignored")
+	require.ElementsMatch(t, []observer.SeriesRef{refB, refC}, removed, "freed refs are returned for fan-out to detectors")
+	require.Equal(t, 1, s.TotalSeriesCount(""), "only series 'a' should remain")
+	require.Greater(t, s.SeriesGeneration(), genBefore, "seriesGen bumps on removal")
+
+	require.Nil(t, s.GetSeriesMeta(refB), "removed ref resolves to nil")
+	require.Nil(t, s.GetSeriesMeta(refC), "removed ref resolves to nil")
+
+	refA := s.seriesIDs[seriesKey("ns", "a", []string{"k:1"})]
+	require.NotNil(t, s.GetSeriesMeta(refA), "surviving series still resolvable")
+
+	// Evicted slots in seriesIDKeys are cleared to "" so the original key
+	// string can be GC'd. Slot is kept in place (slice length unchanged) so
+	// subsequent stale-ref index lookups stay bounds-safe.
+	require.Equal(t, "", s.seriesIDKeys[refB], "evicted seriesIDKeys slot must be empty so the key string can be GC'd")
+	require.Equal(t, "", s.seriesIDKeys[refC], "evicted seriesIDKeys slot must be empty so the key string can be GC'd")
+	require.NotEqual(t, "", s.seriesIDKeys[refA], "surviving seriesIDKeys slot must be intact")
+
+	// A subsequent Add for the same key creates a fresh series with a new ref.
+	s.Add("ns", "b", 99.0, 1100, []string{"k:2"})
+	require.Equal(t, 2, s.TotalSeriesCount(""), "re-add re-creates the series")
+	newRefB := s.seriesIDs[keyB]
+	require.NotEqual(t, refB, newRefB, "new ref minted; old ref id is retired")
+	require.Nil(t, s.GetSeriesMeta(refB), "old ref still resolves to nil after re-add")
+}
+
+func TestTimeSeriesStorage_RemoveSeriesByKeysEmptyOrUnknown(t *testing.T) {
+	s := newTimeSeriesStorage()
+	s.Add("ns", "a", 1.0, 1000, nil)
+	genBefore := s.SeriesGeneration()
+
+	require.Empty(t, s.RemoveSeriesByKeys(nil))
+	require.Empty(t, s.RemoveSeriesByKeys([]string{}))
+	require.Empty(t, s.RemoveSeriesByKeys([]string{"unknown1", "unknown2"}))
+	require.Equal(t, genBefore, s.SeriesGeneration(), "no removal → no gen bump")
+}
+func TestTimeSeriesStorage_AddReturnsCanonicalKey(t *testing.T) {
+	// Add returns the same string seriesKey would compute from the same
+	// inputs, including under tag canonicalization. Callers (e.g. the engine
+	// populating contextRefs) rely on this so they can skip a second
+	// seriesKey call. If this contract drifts, the optimisation silently
+	// produces wrong-keyed entries.
+	s := newTimeSeriesStorage()
+
+	cases := []struct {
+		name      string
+		namespace string
+		metric    string
+		tags      []string
+	}{
+		{"no_tags", "ns", "m1", nil},
+		{"single_tag", "ns", "m2", []string{"env:prod"}},
+		{"sorted_tags", "ns", "m3", []string{"a:1", "b:2", "c:3"}},
+		{"unsorted_tags", "ns", "m4", []string{"c:3", "a:1", "b:2"}},
+		{"empty_namespace", "", "m5", []string{"env:prod"}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			res := s.Add(tc.namespace, tc.metric, 1.0, 1000, tc.tags)
+			assert.True(t, res.IsNew, "first write should report IsNew=true")
+			wantKey := seriesKey(tc.namespace, tc.metric, tc.tags)
+			assert.Equal(t, wantKey, res.StorageKey, "Add must return seriesKey-equivalent storage key")
+
+			// Second write of the same series returns the same key and IsNew=false.
+			res2 := s.Add(tc.namespace, tc.metric, 2.0, 1001, tc.tags)
+			assert.False(t, res2.IsNew, "second write should report IsNew=false")
+			assert.Equal(t, wantKey, res2.StorageKey, "Add must return the same key on subsequent writes")
+		})
+	}
+}
+
+func TestTimeSeriesStorage_AddDroppedReturnsEmptyKey(t *testing.T) {
+	// Pre-key-compute drops (non-finite, sentinel values) return empty key.
+	// Callers must check StorageKey != "" before reusing it for downstream
+	// state (e.g. contextRefs).
+	s := newTimeSeriesStorage()
+
+	res := s.Add("ns", "m", math.NaN(), 1000, nil)
+	assert.False(t, res.IsNew)
+	assert.Empty(t, res.StorageKey, "NaN drop must return empty key")
+
+	res = s.Add("ns", "m", math.Inf(1), 1000, nil)
+	assert.False(t, res.IsNew)
+	assert.Empty(t, res.StorageKey, "+Inf drop must return empty key")
+
+	res = s.Add("ns", "m", math.MaxFloat64, 1000, nil)
+	assert.False(t, res.IsNew)
+	assert.Empty(t, res.StorageKey, "MaxFloat64 sentinel drop must return empty key")
+}

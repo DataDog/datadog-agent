@@ -1,0 +1,69 @@
+# Container-log workload for the always-on Observer (anomaly detection)
+# experiment. Spins up many short-lived busybox containers that emit
+# apache-common-style log lines on stdout. The Datadog Agent collects these
+# via the docker socket (`logs_config.container_collect_all`).
+#
+# Each container loops in pure busybox `ash` so the only image we have to
+# pull is the upstream public busybox.
+
+generator:
+  - container:
+      repository: public.ecr.aws/docker/library/busybox
+      tag: latest
+      args:
+        - sh
+        - -c
+        # Emits ~ apache-common log lines with varying IP, method, path,
+        # status, and response size. Sleep 5ms keeps each container at a
+        # human-realistic rate (~200 lines/sec/container) without burning
+        # the host. Status is biased 90/5/3/2 on 200/404/500/302 so the
+        # observer's anomaly detector has a stable distribution it can
+        # later see deviations from.
+        - |
+          paths="/api/v1/users /api/v1/orders /api/v2/products /api/v2/cart /healthz /metrics /login /logout /search /api/v1/checkout"
+          methods="GET GET GET GET GET POST POST PUT DELETE"
+          while :; do
+            ip="$((RANDOM%256)).$((RANDOM%256)).$((RANDOM%256)).$((RANDOM%256))"
+            set -- $paths; n=$#; idx=$((RANDOM%n+1)); shift $((idx-1)); path=$1
+            set -- $methods; n=$#; idx=$((RANDOM%n+1)); shift $((idx-1)); method=$1
+            r=$((RANDOM%100))
+            if [ $r -lt 90 ]; then status=200
+            elif [ $r -lt 95 ]; then status=404
+            elif [ $r -lt 98 ]; then status=500
+            else status=302
+            fi
+            bytes=$((RANDOM*8 + RANDOM%512))
+            ts=$(date -u "+%d/%b/%Y:%H:%M:%S +0000")
+            printf '%s - - [%s] "%s %s HTTP/1.1" %s %s\n' "$ip" "$ts" "$method" "$path" "$status" "$bytes"
+            usleep 5000
+          done
+      env:
+        - DD_ENV=smp_observer
+        - DD_SERVICE=container_logs_demo
+        - DD_VERSION=1.0.0
+      labels:
+        com.datadoghq.tags.env: smp_observer
+        com.datadoghq.tags.service: container_logs_demo
+        com.datadoghq.tags.version: "1.0.0"
+      # No network needed -- log collection is via docker stdout / the
+      # docker socket on the host, not via TCP from the workload.
+      network_disabled: true
+      number_of_containers: 50
+      # Omitting max_lifetime_seconds -> default NonZeroU32::MAX, no
+      # recycling. We want a stable log stream for the duration of the
+      # experiment so observer's AD has clean baselines to learn from.
+
+blackhole:
+  - http:
+      binding_addr: "127.0.0.1:9091"
+  - http:
+      binding_addr: "127.0.0.1:9092"
+      response_delay_millis: 75
+  - http:
+      binding_addr: "127.0.0.1:9093"
+
+target_metrics:
+  - prometheus: # core agent telemetry
+      uri: "http://127.0.0.1:5000/telemetry"
+      tags:
+        sub_agent: "core"
