@@ -12,6 +12,7 @@ from coordinator.schema import (
     Baseline,
     BaselineDetector,
     BudgetState,
+    CandidateStatus,
     DataSplit,
     RejectionStage,
     ScenarioResult,
@@ -108,6 +109,10 @@ def test_pre_eval_gate_run_eval_rejects_required_fixes():
 
 def test_pre_eval_rejection_stage_value():
     assert RejectionStage.PRE_EVAL_GATE.value == "pre_eval_gate"
+
+
+def test_archived_candidate_status_value():
+    assert CandidateStatus.ARCHIVED.value == "archived"
 
 
 # --- DataSplit --- ----------------------------------------------------------

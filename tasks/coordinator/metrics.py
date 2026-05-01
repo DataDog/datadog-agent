@@ -118,8 +118,9 @@ def render(db: Db, root: Path = Path(".")) -> str:
     rate = f"{hit}/{tot} ({100 * hit / tot:.0f}%)" if tot else "—"
     lines.append(f"- review hit rate (unanimous-approve / reviewed): {rate}")
     shipped = sum(1 for c in db.candidates.values() if c.status == CandidateStatus.SHIPPED)
+    archived = sum(1 for c in db.candidates.values() if c.status == CandidateStatus.ARCHIVED)
     rejected = sum(1 for c in db.candidates.values() if c.status == CandidateStatus.REJECTED)
-    lines.append(f"- candidates shipped/rejected: {shipped} / {rejected}")
+    lines.append(f"- candidates shipped/archived/rejected: {shipped} / {archived} / {rejected}")
     if db.split:
         lines.append(f"- split: train={len(db.split.train)}, lockbox={len(db.split.lockbox)} (sealed `{db.split.sealed_hash[:10]}`)")
     lines.append("")
