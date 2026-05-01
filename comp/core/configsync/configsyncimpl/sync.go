@@ -13,6 +13,7 @@ import (
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
+	"github.com/DataDog/datadog-agent/pkg/config/basic"
 	"github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
@@ -79,7 +80,7 @@ func coerceJSONToSchemaTypes(cfg pkgconfigmodel.Reader, key string, value interf
 	if existing == nil {
 		return value
 	}
-	converted, err := pkgconfigmodel.ConvertToDefaultType(value, existing, true)
+	converted, err := basic.ConvertToDefaultType(value, existing, true)
 	if err != nil {
 		return value
 	}

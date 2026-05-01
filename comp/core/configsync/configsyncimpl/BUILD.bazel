@@ -19,6 +19,7 @@ go_library(
         "//comp/core/log/def",
         "//comp/core/log/mock",
         "//comp/core/telemetry/mock",
+        "//pkg/config/basic",
         "//pkg/config/helper",
         "//pkg/config/model",
         "//pkg/util/fxutil",
