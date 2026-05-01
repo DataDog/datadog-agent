@@ -306,7 +306,9 @@ func (e *engine) IngestLog(source string, l *logObs) ([]advanceRequest, []observ
 				// Reuse the storage key computed inside storage.Add instead of
 				// recomputing seriesKey here. seriesKey is hot enough that this
 				// duplicate accounted for ~14.5 MiB heap-live in the
-				// quality_gate_container_logs SMP profile.
+				// quality_gate_container_logs SMP profile (now renamed to
+				// observer_logs_anomaly_stress; the 'quality_gate_*' prefix is
+				// reserved for SMP quality-gate cases).
 				e.contextRefs[res.StorageKey] = seriesContextRef{
 					namespace:  extractor.Name(),
 					contextKey: m.ContextKey,
