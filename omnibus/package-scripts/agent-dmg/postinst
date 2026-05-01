@@ -82,17 +82,6 @@ chmod -v 1777 "$RUN_DIR/ipc"  # Sticky bit: users can create GUI sockets but not
 # ensures sockets created by bind() in this directory grant _dd-agent access.
 chmod +a "user:_dd-agent allow read,write,readattr,readextattr,readsecurity,list,search,file_inherit,directory_inherit" "$RUN_DIR/ipc"
 
-# Reset location permission prompt attempt count for all users so each user gets a fresh 2 prompt
-# attempts after each installation (per-installation behavior). UserDefaults key is in
-# ~/Library/Preferences/com.datadoghq.agent.plist and survives reinstall otherwise.
-echo "# Resetting location permission prompt attempt count for all users"
-for user_home in /Users/*; do
-    [ -d "$user_home" ] || continue
-    user=$(basename "$user_home")
-    [ "$user" = "Shared" ] && continue
-    sudo -u "$user" defaults delete com.datadoghq.agent locationPermissionPromptAttemptCount 2>/dev/null || true
-done
-
 # Restore config from pre-install (upgrade) or create default (fresh install)
 echo "# Setting up configuration"
 mkdir -vp $CONF_DIR/checks.d
