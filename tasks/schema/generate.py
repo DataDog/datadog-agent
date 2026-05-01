@@ -29,11 +29,11 @@ yaml.add_representer(str, str_presenter)
 
 
 @task
-def compress(ctx, output_dir=SCHEMA_DIR):
-    bazel(ctx, "run", "//pkg/config/schema:install_compressed", "--", f"--destdir={os.path.abspath(output_dir)}")
+def compress(ctx):
+    bazel(ctx, "run", "//pkg/config/schema:write_compressed")
     for name in ("core_schema.yaml", "system-probe_schema.yaml"):
         size_before = os.path.getsize(os.path.join(SCHEMA_DIR, name))
-        size_after = os.path.getsize(os.path.join(output_dir, "compressed", f"{name}.zstd"))
+        size_after = os.path.getsize(os.path.join(SCHEMA_DIR, "compressed", f"{name}.zstd"))
         print(f"{name:<24}:{size_before:>8,} B -> {size_after:>8,} B ({size_after / size_before * 100:.1f}%)")
 
 

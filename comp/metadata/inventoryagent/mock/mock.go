@@ -3,27 +3,19 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package inventoryagentimpl
+// Package mock provides a mock for the inventoryagent component
+package mock
 
 import (
 	"go.uber.org/fx"
 
+	iainterface "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-
-	iainterface "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 )
 
-// MockModule defines the fx options for the mock component.
-//
-// Usage:
-//
-//	fxutil.Test[dependencies](
-//	   t,
-//	   inventoryagentimpl.MockModule(),
-//	)
-func MockModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newMock))
+// Mock implements mock-specific methods for the inventoryagent component.
+type Mock interface {
+	iainterface.Component
 }
 
 // MockProvides is the mock component output
@@ -52,3 +44,16 @@ func (m *inventoryagentMock) Get() map[string]interface{} {
 
 // Refresh is a mocked function
 func (m *inventoryagentMock) Refresh() {}
+
+// MockModule defines the fx options for the mock component.
+//
+// Usage:
+//
+//	fxutil.Test[dependencies](
+//	   t,
+//	   inventoryagentmock.MockModule(),
+//	)
+func MockModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newMock))
+}
