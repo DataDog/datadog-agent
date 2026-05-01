@@ -414,15 +414,15 @@ func (w *WinCertChk) Run() error {
 
 func (w *WinCertChk) resolveMatchedLocalStoreNames() ([]string, error) {
 	static := strings.TrimSpace(w.config.CertificateStore)
-	var regexMatches []string
+	var available []string
 	if len(w.certStoreRegexes) > 0 {
 		names, err := localMachineSystemCertificateStoreNames()
 		if err != nil {
 			return nil, err
 		}
-		regexMatches = filterStoreNamesByRegexes(names, w.certStoreRegexes)
+		available = names
 	}
-	return mergeExplicitStoreWithRegexMatches(static, regexMatches), nil
+	return resolveStoreNames(static, available, w.certStoreRegexes), nil
 }
 
 func (w *WinCertChk) certificateStoreTag(cert certInfo) string {
@@ -463,7 +463,8 @@ func (w *WinCertChk) collectLocalCertificates() ([]certInfo, []crlInfoCopy, stri
 	for _, store := range stores {
 		certs, crls, err := w.getCertificates(store, w.config.CertSubjects, w.config.EnableCRLMonitoring)
 		if err != nil {
-			return nil, nil, "", err
+			log.Errorf("Error collecting certificates from store %s: %v", store, err)
+			continue
 		}
 		certificates = append(certificates, certs...)
 		crlInfo = append(crlInfo, crls...)
@@ -497,18 +498,18 @@ func (w *WinCertChk) collectRemoteCertificates() ([]certInfo, []crlInfoCopy, str
 	defer remoteRegKey.Close()
 
 	static := strings.TrimSpace(w.config.CertificateStore)
-	var regexMatches []string
+	var available []string
 	if len(w.certStoreRegexes) > 0 {
 		names, enumErr := remoteMachineSystemCertificateStoreNames(remoteRegKey)
 		if enumErr != nil {
 			return nil, nil, "", enumErr
 		}
-		regexMatches = filterStoreNamesByRegexes(names, w.certStoreRegexes)
-		if len(regexMatches) == 0 && static == "" {
-			log.Warnf("No certificate store names on remote server %s matched certificate_store_regex %#v", server, w.config.CertificateStoreRegex)
-		}
+		available = names
 	}
-	stores := mergeExplicitStoreWithRegexMatches(static, regexMatches)
+	stores := resolveStoreNames(static, available, w.certStoreRegexes)
+	if len(stores) == 0 && static == "" {
+		log.Warnf("No certificate store names on remote server %s matched certificate_store_regex %#v", server, w.config.CertificateStoreRegex)
+	}
 
 	var certificates []certInfo
 	var crlInfo []crlInfoCopy
@@ -516,7 +517,7 @@ func (w *WinCertChk) collectRemoteCertificates() ([]certInfo, []crlInfoCopy, str
 		certs, crls, collectErr := w.collectRemoteCertStore(remoteRegKey, store, w.config.CertSubjects, w.config.EnableCRLMonitoring)
 		if collectErr != nil {
 			log.Errorf("Error collecting certificates from remote store %s: %v", store, collectErr)
-			return nil, nil, "", collectErr
+			continue
 		}
 		certificates = append(certificates, certs...)
 		crlInfo = append(crlInfo, crls...)

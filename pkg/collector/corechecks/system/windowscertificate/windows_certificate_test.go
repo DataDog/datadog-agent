@@ -88,11 +88,31 @@ func TestValidateCertificateStoreSelectionAllowsBoth(t *testing.T) {
 	require.NoError(t, validateCertificateStoreSelection(&c))
 }
 
-func TestMergeExplicitStoreWithRegexMatchesDedupesAndSorts(t *testing.T) {
-	require.Equal(t, []string{"CA", "MY", "ROOT"}, mergeExplicitStoreWithRegexMatches("MY", []string{"ROOT", "MY", "CA"}))
-	require.Equal(t, []string{"ROOT"}, mergeExplicitStoreWithRegexMatches("ROOT", []string{"ROOT"}))
-	require.Equal(t, []string{"ROOT"}, mergeExplicitStoreWithRegexMatches("", []string{"ROOT"}))
-	require.Equal(t, []string{"MY"}, mergeExplicitStoreWithRegexMatches("MY", nil))
+func TestResolveStoreNamesDedupesAndSorts(t *testing.T) {
+	reAll, err := compileCertificateStoreRegexes([]string{`.*`})
+	require.NoError(t, err)
+	reRoot, err := compileCertificateStoreRegexes([]string{`^ROOT$`})
+	require.NoError(t, err)
+
+	// Explicit + regex matches → sorted, case-insensitively deduped
+	got := resolveStoreNames("MY", []string{"ROOT", "MY", "CA"}, reAll)
+	require.Equal(t, []string{"CA", "MY", "ROOT"}, got)
+
+	// Explicit and regex both match the same store → only one entry
+	got = resolveStoreNames("ROOT", []string{"ROOT"}, reRoot)
+	require.Equal(t, []string{"ROOT"}, got)
+
+	// No explicit, regex matches ROOT
+	got = resolveStoreNames("", []string{"ROOT"}, reRoot)
+	require.Equal(t, []string{"ROOT"}, got)
+
+	// Explicit only, no available stores or regexes
+	got = resolveStoreNames("MY", nil, nil)
+	require.Equal(t, []string{"MY"}, got)
+
+	// Case-insensitive dedup: explicit "my" shadows registry entry "MY"
+	got = resolveStoreNames("my", []string{"MY", "CA"}, reAll)
+	require.Equal(t, []string{"CA", "my"}, got)
 }
 
 func TestValidateCertificateStoreSelectionRequiresOne(t *testing.T) {
@@ -107,12 +127,12 @@ func TestCompileCertificateStoreRegexesRejectsEmptyPattern(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestFilterStoreNamesByRegexesDedupesAndSorts(t *testing.T) {
+func TestResolveStoreNamesFiltersByRegexes(t *testing.T) {
 	reROOT, err := regexp.Compile(`(?i)^ROOT$`)
 	require.NoError(t, err)
 	reCA, err := regexp.Compile(`(?i)^CA$`)
 	require.NoError(t, err)
-	got := filterStoreNamesByRegexes([]string{"ROOT", "MY", "CA"}, []*regexp.Regexp{reROOT, reCA})
+	got := resolveStoreNames("", []string{"ROOT", "MY", "CA"}, []*regexp.Regexp{reROOT, reCA})
 	require.Equal(t, []string{"CA", "ROOT"}, got)
 }
 
@@ -120,14 +140,15 @@ func TestCompileCertificateStoreRegexesCaseInsensitive(t *testing.T) {
 	re, err := compileCertificateStoreRegexes([]string{`^my`})
 	require.NoError(t, err)
 	require.Len(t, re, 1)
-	got := filterStoreNamesByRegexes([]string{"ROOT", "MY", "CA"}, re)
+	got := resolveStoreNames("", []string{"ROOT", "MY", "CA"}, re)
 	require.Equal(t, []string{"MY"}, got)
 
 	// User-supplied (?i) at the start is left as-is (no duplicate flag).
+	// Case-insensitive dedup: "my" is the same store as "MY", so only one is kept.
 	re2, err := compileCertificateStoreRegexes([]string{`(?i)^my$`})
 	require.NoError(t, err)
-	got2 := filterStoreNamesByRegexes([]string{"MY", "my"}, re2)
-	require.Equal(t, []string{"MY", "my"}, got2)
+	got2 := resolveStoreNames("", []string{"MY", "my"}, re2)
+	require.Equal(t, []string{"MY"}, got2)
 }
 
 func TestWindowsCertificateWithCertificateStoreRegex(t *testing.T) {

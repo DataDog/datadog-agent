@@ -37,41 +37,32 @@ func remoteMachineSystemCertificateStoreNames(remoteLM registry.Key) ([]string, 
 	return k.ReadSubKeyNames(-1)
 }
 
-func filterStoreNamesByRegexes(names []string, regexes []*regexp.Regexp) []string {
-	if len(regexes) == 0 {
-		return nil
-	}
-	seen := make(map[string]struct{})
-	var matched []string
-	for _, name := range names {
-		for _, re := range regexes {
-			if re.MatchString(name) {
-				if _, ok := seen[name]; !ok {
-					seen[name] = struct{}{}
-					matched = append(matched, name)
-				}
-				break
-			}
+// resolveStoreNames returns the sorted, case-insensitively deduplicated union of
+// the explicit store name (if non-empty) and any names from available that match
+// at least one of the regexes. Deduplication is case-insensitive because Windows
+// certificate store names are case-insensitive: "my" and "MY" refer to the same store.
+func resolveStoreNames(explicit string, available []string, regexes []*regexp.Regexp) []string {
+	explicit = strings.TrimSpace(explicit)
+	seen := make(map[string]struct{}) // keyed by strings.ToLower(name)
+	var out []string
+
+	add := func(name string) {
+		lower := strings.ToLower(name)
+		if _, ok := seen[lower]; !ok {
+			seen[lower] = struct{}{}
+			out = append(out, name)
 		}
 	}
-	sort.Strings(matched)
-	return matched
-}
 
-// mergeExplicitStoreWithRegexMatches returns the union of static (if non-empty) and regexMatches,
-// deduplicated and sorted. regexMatches is typically already sorted from filterStoreNamesByRegexes.
-func mergeExplicitStoreWithRegexMatches(static string, regexMatches []string) []string {
-	static = strings.TrimSpace(static)
-	seen := make(map[string]struct{})
-	var out []string
-	if static != "" {
-		seen[static] = struct{}{}
-		out = append(out, static)
+	if explicit != "" {
+		add(explicit)
 	}
-	for _, name := range regexMatches {
-		if _, ok := seen[name]; !ok {
-			seen[name] = struct{}{}
-			out = append(out, name)
+	for _, name := range available {
+		for _, re := range regexes {
+			if re.MatchString(name) {
+				add(name)
+				break
+			}
 		}
 	}
 	sort.Strings(out)

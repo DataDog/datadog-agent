@@ -8,8 +8,7 @@
 ---
 features:
   - |
-    Windows: ``windows_certificate`` adds ``certificate_store_regex``, a list of regular expressions
-    matched against Local Machine certificate store names (registry subkeys under
-    ``HKLM\SOFTWARE\Microsoft\SystemCertificates``). At least one of ``certificate_store`` or a non-empty
-    ``certificate_store_regex`` must be set. If both are set, the explicit ``certificate_store`` is
-    monitored together with every store matched by the regex list (union, deduplicated).
+    Windows: ``windows_certificate`` check adds ``certificate_store_regex``, a list of
+    Go regular expressions matched against ``HKLM`` certificate store names.
+    Patterns are matched case-insensitively. ``certificate_store`` and
+    ``certificate_store_regex`` can be used together; at least one must be set.
