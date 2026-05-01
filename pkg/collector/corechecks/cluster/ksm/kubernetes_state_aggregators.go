@@ -417,6 +417,11 @@ func defaultMetricAggregators() map[string]metricAggregator {
 			"kube_ingress_labels",
 			[]string{"namespace"},
 		),
+		"kube_networkpolicy_labels": newCountObjectsAggregator(
+			"networkpolicy.count",
+			"kube_networkpolicy_labels",
+			[]string{"namespace"},
+		),
 		"kube_job_complete_start_time": &lastCronJobCompleteAggregator{aggregator: cronJobAggregator},
 		"kube_job_failed_start_time":   &lastCronJobFailedAggregator{aggregator: cronJobAggregator},
 		"kube_node_status_allocatable": newResourceValuesAggregator(
