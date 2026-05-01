@@ -2222,11 +2222,10 @@ func TestLegacyBucketsTags(t *testing.T) {
 	assert.ElementsMatch(t, seriesTwo[0].tags, []string{"lower_bound:-inf", "upper_bound:1.0"})
 }
 
-// TestMalformedHistogramNoPanic verifies that histograms violating the OTel
-// invariant (counts == bounds+1) are rejected without panicking, covering both
-// the counts > bounds+1 case (which would panic in getBounds) and the
-// counts < bounds+1 case.
-func TestMalformedHistogramNoPanic(t *testing.T) {
+// TestMalformedHistogram verifies that histograms with bucket counts
+// greater than bounds+1 are rejected without panicking. Histograms
+// with bucket counts less than bounds+1 and greater than 0 are accepted.
+func TestMalformedHistogram(t *testing.T) {
 	ctx := context.Background()
 	tr := newTranslator(t, zap.NewNop())
 	mapper := tr.getMapper().(*defaultMapper)
@@ -2236,16 +2235,31 @@ func TestMalformedHistogramNoPanic(t *testing.T) {
 		name         string
 		bucketCounts []uint64
 		bounds       []float64
+		expectError  bool
 	}{
 		{
 			name:         "counts > bounds+1",
 			bucketCounts: []uint64{1, 2},
 			bounds:       []float64{},
+			expectError:  true,
+		},
+		{
+			name:         "counts == bounds+1",
+			bucketCounts: []uint64{1, 2},
+			bounds:       []float64{1},
+			expectError:  false,
 		},
 		{
 			name:         "counts < bounds+1",
+			bucketCounts: []uint64{1, 2},
+			bounds:       []float64{0.5, 1.0},
+			expectError:  false,
+		},
+		{
+			name:         "counts < bounds",
 			bucketCounts: []uint64{1},
 			bounds:       []float64{0.5, 1.0},
+			expectError:  false,
 		},
 	}
 
@@ -2261,16 +2275,26 @@ func TestMalformedHistogramNoPanic(t *testing.T) {
 			assert.NotPanics(t, func() {
 				legacyErr = mapper.getLegacyBuckets(ctx, consumer, dims, p, true)
 			})
-			assert.Error(t, legacyErr)
-			assert.Empty(t, consumer.metrics)
+			if tc.expectError {
+				assert.Error(t, legacyErr)
+				assert.Empty(t, consumer.metrics)
+			} else {
+				assert.NoError(t, legacyErr)
+				assert.NotEmpty(t, consumer.metrics)
+			}
 
 			fullConsumer := &mockFullConsumer{}
 			var sketchErr error
 			assert.NotPanics(t, func() {
 				sketchErr = mapper.getSketchBuckets(ctx, fullConsumer, dims, p, histogramInfo{ok: false}, true)
 			})
-			assert.Error(t, sketchErr)
-			assert.Empty(t, fullConsumer.sketches)
+			if tc.expectError {
+				assert.Error(t, sketchErr)
+				assert.Empty(t, fullConsumer.sketches)
+			} else {
+				assert.NoError(t, sketchErr)
+				assert.NotEmpty(t, fullConsumer.sketches)
+			}
 		})
 	}
 }
