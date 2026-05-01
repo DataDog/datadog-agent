@@ -201,6 +201,13 @@ func defaultCatalog() *componentCatalog {
 				factory:        func(any) any { return NewScanWelchDetector() },
 				defaultEnabled: false,
 			},
+			{
+				name:           "hellingercp",
+				displayName:    "HellingerCP",
+				kind:           componentDetector,
+				factory:        func(any) any { return NewHellingerCPDetector() },
+				defaultEnabled: true,
+			},
 			// ---- Correlators ----
 			{
 				name:           "cross_signal",
