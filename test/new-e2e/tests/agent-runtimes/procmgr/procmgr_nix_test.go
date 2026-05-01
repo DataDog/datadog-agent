@@ -61,7 +61,8 @@ var linuxPlatform = platformConfig{
 
 type procmgrLinuxSuite struct {
 	baseProcmgrSuite
-	hasDDOT bool
+	hasDDOT        bool
+	ddotInstallMsg string // why install was skipped or failed (for requireDDOT Skip message)
 }
 
 func TestProcmgrSmokeLinuxSuite(t *testing.T) {
@@ -107,22 +108,34 @@ func datadogAgentCLI() string {
 	return "datadog-agent"
 }
 
+// e2ePipelineIDForOCI returns the pipeline id used in installtesting OCI tags
+// (agent-package:pipeline-<id>). Prefer E2E_PIPELINE_ID; fall back to CI_PIPELINE_ID
+// so jobs that do not inject E2E_PIPELINE_ID still work on GitLab runners.
+func e2ePipelineIDForOCI() string {
+	if id := strings.TrimSpace(os.Getenv("E2E_PIPELINE_ID")); id != "" {
+		return id
+	}
+	return strings.TrimSpace(os.Getenv("CI_PIPELINE_ID"))
+}
+
 // installDDOTExtension installs the DDOT extension the same way as production:
 // `datadog-agent otel install` pulling the pipeline agent-package OCI (see
 // test/new-e2e/tests/installer/unix/package_ddot_test.go). The installer already
 // restarts datadog-agent after extension install (pkg/fleet/installer/installer.go
 // InstallExtensions); procmgrd follows via unit dependencies.
 func (s *procmgrLinuxSuite) installDDOTExtension() bool {
-	pipelineID := os.Getenv("E2E_PIPELINE_ID")
+	pipelineID := e2ePipelineIDForOCI()
 	if pipelineID == "" {
-		s.T().Log("E2E_PIPELINE_ID unset; skipping DDOT tests (OCI URL for otel install is unavailable)")
+		s.ddotInstallMsg = "E2E_PIPELINE_ID and CI_PIPELINE_ID unset (need pipeline id for agent-package OCI URL)"
+		s.T().Log(s.ddotInstallMsg + "; skipping DDOT tests")
 		return false
 	}
 
 	agent := datadogAgentCLI()
 	_, err := s.Env().RemoteHost.Execute("command -v " + agent + " >/dev/null 2>&1")
 	if err != nil {
-		s.T().Logf("%s not on PATH; skipping DDOT tests", agent)
+		s.ddotInstallMsg = agent + " not on PATH"
+		s.T().Logf("%s; skipping DDOT tests", s.ddotInstallMsg)
 		return false
 	}
 
@@ -130,6 +143,10 @@ func (s *procmgrLinuxSuite) installDDOTExtension() bool {
 	out, err := s.Env().RemoteHost.Execute(
 		"sudo " + agent + " otel install --url " + agentPackageURL)
 	if err != nil {
+		s.ddotInstallMsg = "otel install failed: " + err.Error()
+		if trimmed := strings.TrimSpace(out); trimmed != "" {
+			s.ddotInstallMsg += ": " + trimmed
+		}
 		s.T().Logf("DDOT extension install failed: %v\n%s", err, strings.TrimSpace(out))
 		return false
 	}
@@ -248,7 +265,13 @@ func (s *procmgrLinuxSuite) assertProcessBinary(t assert.TestingT, pid, expected
 func (s *procmgrLinuxSuite) requireDDOT() {
 	s.T().Helper()
 	if !s.hasDDOT {
-		s.T().Skip("DDOT extension not installed (set E2E_PIPELINE_ID and ensure datadog-agent otel install succeeds)")
+		msg := "DDOT extension not installed"
+		if s.ddotInstallMsg != "" {
+			msg += " (" + s.ddotInstallMsg + ")"
+		} else {
+			msg += " (set E2E_PIPELINE_ID or CI_PIPELINE_ID and ensure datadog-agent otel install succeeds)"
+		}
+		s.T().Skip(msg)
 	}
 	s.requireCLI()
 }
