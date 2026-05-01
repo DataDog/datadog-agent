@@ -203,6 +203,13 @@ func defaultCatalog() *componentCatalog {
 				factory:        func(any) any { return NewHellingerDetector() },
 				defaultEnabled: true,
 			},
+			{
+				name:           "hellingercp",
+				displayName:    "HellingerCP",
+				kind:           componentDetector,
+				factory:        func(any) any { return NewHellingerCPDetector() },
+				defaultEnabled: true,
+			},
 			// ---- Correlators ----
 			{
 				name:           "anomaly_rank",
