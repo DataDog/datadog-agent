@@ -41,6 +41,9 @@ test/fakeintake/
 | `/api/v2/netpath` | NetpathAggregator | `GetLatestNetpathEvents()` |
 | `/api/v2/agenthealth` | AgentHealthAggregator | GetAgentHealth() |
 | `/support/flare` | Flare parser | `GetLatestFlare()` |
+| `/api/v0.1/configurations` | (TUF-signed RC) | `RCStats()` (poll counter) |
+| `/api/v0.1/org` | (Remote Config) | — |
+| `/api/v0.1/status` | (Remote Config) | — |
 
 ## Client usage
 
@@ -72,6 +75,57 @@ fakeintake.FlushServerAndResetAggregators()
 // Debug: list all received metric names
 names, _ := fakeintake.GetMetricNames()
 ```
+
+## Remote Config
+
+Fakeintake can stand in for the Datadog Remote Config backend so the agent
+applies test-defined configs end-to-end (TUF-signed). Disabled by default.
+
+Enable on the server:
+
+```
+fakeintake-server --remoteconfig \
+    [--rc-key-path /path/to/signing.key] \
+    [--rc-state preload.yaml] \
+    [--rc-version 5]
+```
+
+Routes added when enabled:
+
+| Route | Purpose |
+|-------|---------|
+| `POST /api/v0.1/configurations` | Agent polls for TUF-signed configs |
+| `GET  /api/v0.1/org` | Returns org UUID |
+| `GET  /api/v0.1/status` | Reports RC enabled/authorized |
+| `POST /fakeintake/rc/config` | Push/replace a config (control) |
+| `GET  /fakeintake/rc/configs` | List stored configs (control) |
+| `DELETE /fakeintake/rc/config/<key>` | Delete a config (control) |
+| `GET  /fakeintake/rc/stats` | Poll counter, version, signing key info |
+
+Point the agent at fakeintake by setting `remote_configuration.rc_dd_url`
+plus the `config_root` / `director_root` printed at fakeintake startup.
+
+Push configs from a test:
+
+```go
+err := fakeintake.RCAddConfig("42", "METRIC_CONTROL", "abc", "filterlist",
+    []byte(`{"blocked_metrics":{"by_name":{"values":[{"metric_name":"foo"}]}}}`))
+```
+
+Or via CLI:
+
+```
+fakeintakectl --url http://localhost:80 rc add \
+    --product METRIC_CONTROL --config-id abc --config-name filterlist \
+    --data @config.json
+fakeintakectl --url ... rc list
+fakeintakectl --url ... rc stats --watch
+fakeintakectl --url ... rc delete 42/METRIC_CONTROL/abc/filterlist
+```
+
+The signing key is persisted at `~/.fakeintake/signing.key` by default — it must
+match the agent's stored `remote-config.db`. Generating a new key requires
+flushing that DB.
 
 ## Adding a new payload type
 
