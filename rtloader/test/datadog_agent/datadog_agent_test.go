@@ -713,9 +713,10 @@ func TestEmitAgentTelemetry(t *testing.T) {
 func TestReportIssue(t *testing.T) {
 	helpers.ResetMemoryStats()
 
+	// Note the tab is needed on the second line because of the string interpolation in datadog_agent.go:run
 	code := `
-payload = '{"issueId":"stub-issue","context":{}}'
-datadog_agent.report_issue(check_id="stub-check", check_name="stub-name", report_json=payload)
+	payload = '{"issueId":"stub-issue","context":{}}'
+	datadog_agent.report_issue(check_id="stub-check", check_name="stub-name", report_json=payload)
 `
 	out, err := run(code)
 	if err != nil {
@@ -725,7 +726,9 @@ datadog_agent.report_issue(check_id="stub-check", check_name="stub-name", report
 		t.Fatalf("expected no stderr output, got %q", out)
 	}
 
-	codeErr := `datadog_agent.report_issue(check_id="error-check", check_name="stub-name", report_json='{}')`
+	codeErr := `
+	datadog_agent.report_issue(check_id="error-check", check_name="stub-name", report_json='{}')
+`
 	out, err = run(codeErr)
 	if err != nil {
 		t.Fatal(err)
@@ -734,7 +737,9 @@ datadog_agent.report_issue(check_id="stub-check", check_name="stub-name", report
 		t.Fatalf("expected RuntimeError with stub failure, got %q", out)
 	}
 
-	codeClear := `datadog_agent.report_issue(check_id="stub-check", check_name="stub-name", report_json=None)`
+	codeClear := `
+	datadog_agent.report_issue(check_id="stub-check", check_name="stub-name", report_json=None)
+`
 	out, err = run(codeClear)
 	if err != nil {
 		t.Fatal(err)
