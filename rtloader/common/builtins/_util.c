@@ -265,11 +265,7 @@ PyObject *subprocess_output(PyObject *self, PyObject *args, PyObject *kw)
         pyStderr = Py_None;
     }
 
-#ifdef DATADOG_AGENT_THREE
     pyRetCode = PyLong_FromLong(ret_code);
-#else
-    pyRetCode = PyInt_FromLong(ret_code);
-#endif
     if (pyRetCode == NULL) {
         goto cleanup;
     }

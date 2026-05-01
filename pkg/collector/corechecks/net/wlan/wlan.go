@@ -7,9 +7,14 @@
 package wlan
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
+	yaml "go.yaml.in/yaml/v2"
+
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -36,6 +41,11 @@ type wifiInfo struct {
 	phyMode          string
 }
 
+// wlanInitConfig mirrors the init_config section of wlan.d/conf.yaml.
+type wlanInitConfig struct {
+	RequestLocationPermission bool `yaml:"request_location_permission"`
+}
+
 // WLANCheck monitors the status of the WLAN interface
 type WLANCheck struct {
 	core.CheckBase
@@ -43,6 +53,34 @@ type WLANCheck struct {
 	lastBSSID   string
 	lastSSID    string
 	isWarmedUp  bool
+
+	// Forwarded to the GUI over IPC so it can decide whether to prompt for
+	// Location Services permission. The agent owns the config; the GUI has no
+	// read access to auth_token / ipc_cert.pem and cannot query the agent itself.
+	requestLocationPermission bool
+}
+
+// Configure reads request_location_permission from init_config so it can be
+// forwarded to the GUI on every check run.
+func (c *WLANCheck) Configure(senderManager sender.SenderManager, _ uint64, data integration.Data, initConfig integration.Data, source string, provider string) error {
+	if err := c.CommonConfigure(senderManager, initConfig, data, source, provider); err != nil {
+		return err
+	}
+
+	s, err := c.GetSender()
+	if err != nil {
+		return err
+	}
+	s.FinalizeCheckServiceTag()
+
+	var ic wlanInitConfig
+	if len(initConfig) > 0 {
+		if err := yaml.Unmarshal(initConfig, &ic); err != nil {
+			return fmt.Errorf("parsing wlan init_config: %w", err)
+		}
+	}
+	c.requestLocationPermission = ic.RequestLocationPermission
+	return nil
 }
 
 func (c *WLANCheck) String() string {

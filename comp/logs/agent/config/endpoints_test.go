@@ -993,6 +993,139 @@ func (suite *EndpointsTestSuite) TestMRFApiKeyUpdate() {
 	}
 }
 
+func (suite *EndpointsTestSuite) TestConnectionResetIntervalInheritedByAdditionalEndpoints() {
+	suite.config.SetWithoutSource("logs_config.connection_reset_interval", 600)
+
+	suite.config.SetWithoutSource("logs_config.additional_endpoints", []map[string]interface{}{
+		{
+			"host":    "additional.endpoint",
+			"api_key": "456",
+		},
+	})
+
+	logsConfig := defaultLogsConfigKeys(suite.config)
+
+	suite.Run("TCP additional endpoints inherit connection_reset_interval from main", func() {
+		main := newTCPEndpoint(logsConfig, false)
+		suite.Equal(600*time.Second, main.ConnectionResetInterval)
+
+		endpoints := loadTCPAdditionalEndpoints(main, logsConfig, false)
+		suite.Require().Len(endpoints, 1)
+		suite.Equal(600*time.Second, endpoints[0].ConnectionResetInterval)
+	})
+
+	suite.Run("HTTP additional endpoints inherit connection_reset_interval from main", func() {
+		main := newHTTPEndpoint(logsConfig, false)
+		suite.Equal(600*time.Second, main.ConnectionResetInterval)
+
+		endpoints := loadHTTPAdditionalEndpoints(main, logsConfig, "", "", "", false)
+		suite.Require().Len(endpoints, 1)
+		suite.Equal(600*time.Second, endpoints[0].ConnectionResetInterval)
+	})
+}
+
+func (suite *EndpointsTestSuite) TestConnectionResetIntervalPerEndpointOverride() {
+	suite.config.SetWithoutSource("logs_config.connection_reset_interval", 600)
+
+	suite.config.SetWithoutSource("logs_config.additional_endpoints", `[
+		{"api_key": "456", "host": "additional.endpoint", "connection_reset_interval": 300}
+	]`)
+
+	logsConfig := defaultLogsConfigKeys(suite.config)
+
+	suite.Run("TCP additional endpoint overrides connection_reset_interval", func() {
+		main := newTCPEndpoint(logsConfig, false)
+		endpoints := loadTCPAdditionalEndpoints(main, logsConfig, false)
+		suite.Require().Len(endpoints, 1)
+		suite.Equal(300*time.Second, endpoints[0].ConnectionResetInterval)
+	})
+
+	suite.Run("HTTP additional endpoint overrides connection_reset_interval", func() {
+		main := newHTTPEndpoint(logsConfig, false)
+		endpoints := loadHTTPAdditionalEndpoints(main, logsConfig, "", "", "", false)
+		suite.Require().Len(endpoints, 1)
+		suite.Equal(300*time.Second, endpoints[0].ConnectionResetInterval)
+	})
+}
+
+func (suite *EndpointsTestSuite) TestConnectionResetIntervalZeroWhenNotConfigured() {
+	suite.config.SetWithoutSource("logs_config.additional_endpoints", []map[string]interface{}{
+		{
+			"host":    "additional.endpoint",
+			"api_key": "456",
+		},
+	})
+
+	logsConfig := defaultLogsConfigKeys(suite.config)
+
+	suite.Run("TCP additional endpoints get zero when main is zero", func() {
+		main := newTCPEndpoint(logsConfig, false)
+		suite.Equal(time.Duration(0), main.ConnectionResetInterval)
+
+		endpoints := loadTCPAdditionalEndpoints(main, logsConfig, false)
+		suite.Require().Len(endpoints, 1)
+		suite.Equal(time.Duration(0), endpoints[0].ConnectionResetInterval)
+	})
+
+	suite.Run("HTTP additional endpoints get zero when main is zero", func() {
+		main := newHTTPEndpoint(logsConfig, false)
+		suite.Equal(time.Duration(0), main.ConnectionResetInterval)
+
+		endpoints := loadHTTPAdditionalEndpoints(main, logsConfig, "", "", "", false)
+		suite.Require().Len(endpoints, 1)
+		suite.Equal(time.Duration(0), endpoints[0].ConnectionResetInterval)
+	})
+}
+
+func (suite *EndpointsTestSuite) TestConnectionResetIntervalExplicitZeroDisables() {
+	suite.config.SetWithoutSource("logs_config.connection_reset_interval", 600)
+
+	suite.config.SetWithoutSource("logs_config.additional_endpoints", `[
+		{"api_key": "456", "host": "additional.endpoint", "connection_reset_interval": 0}
+	]`)
+
+	logsConfig := defaultLogsConfigKeys(suite.config)
+
+	suite.Run("TCP additional endpoint with explicit zero disables reset", func() {
+		main := newTCPEndpoint(logsConfig, false)
+		suite.Equal(600*time.Second, main.ConnectionResetInterval)
+
+		endpoints := loadTCPAdditionalEndpoints(main, logsConfig, false)
+		suite.Require().Len(endpoints, 1)
+		suite.Equal(time.Duration(0), endpoints[0].ConnectionResetInterval)
+	})
+
+	suite.Run("HTTP additional endpoint with explicit zero disables reset", func() {
+		main := newHTTPEndpoint(logsConfig, false)
+		suite.Equal(600*time.Second, main.ConnectionResetInterval)
+
+		endpoints := loadHTTPAdditionalEndpoints(main, logsConfig, "", "", "", false)
+		suite.Require().Len(endpoints, 1)
+		suite.Equal(time.Duration(0), endpoints[0].ConnectionResetInterval)
+	})
+}
+
+func (suite *EndpointsTestSuite) TestMRFHTTPEndpointConnectionResetInterval() {
+	suite.config.SetWithoutSource("api_key", "123")
+	suite.config.SetWithoutSource("logs_config.connection_reset_interval", 600)
+	suite.config.SetWithoutSource("multi_region_failover.enabled", true)
+	suite.config.SetWithoutSource("multi_region_failover.site", "mrf_fake_site.com:12")
+	suite.config.SetWithoutSource("multi_region_failover.api_key", "mrf_key")
+
+	endpoints, err := BuildHTTPEndpoints(suite.config, "", "", "")
+	suite.Nil(err)
+
+	mrfFound := false
+	for _, endpoint := range endpoints.Endpoints {
+		if endpoint.IsMRF {
+			mrfFound = true
+			suite.Equal(600*time.Second, endpoint.ConnectionResetInterval,
+				"HTTP MRF endpoint should inherit connection_reset_interval from config")
+		}
+	}
+	suite.True(mrfFound, "MRF endpoint not found")
+}
+
 func TestEndpointsTestSuite(t *testing.T) {
 	suite.Run(t, new(EndpointsTestSuite))
 }
