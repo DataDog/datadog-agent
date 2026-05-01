@@ -86,21 +86,21 @@ The tool classifies each target path and selects the appropriate strategy:
 ```
 >>> CARVEOUT: pkg/collector/corechecks  targets=['pkg/collector/corechecks/snmp/internal/common', ...]
   removed # gazelle:exclude pkg/collector/corechecks (and children) from BUILD.bazel
-  wrote pkg/collector/corechecks/BUILD.bazel (36 sub-dir excludes)
+  added 36 child excludes to BUILD.bazel
   gazelle created 7 file(s)
   PASS  pkg/collector/corechecks/snmp/internal/common
 ```
 
 - Removes the parent exclude (and any child entries) from the root `BUILD.bazel`.
-- Creates `<parent>/BUILD.bazel` with `# gazelle:ignore` + `# gazelle:exclude <rel>`
-  for all non-target subdirs (minimal covering set — one line per subtree root,
+- Adds `# gazelle:exclude <child>` lines for all non-target subdirs directly to
+  the root `BUILD.bazel` (minimal covering set — one line per subtree root,
   so gazelle only descends into the target directories).
 - Runs gazelle + tests.
-- On failure: deletes the local `BUILD.bazel` (or restores its pre-operation content
-  if it was a pre-existing tracked file), restores the root exclude.
+- On failure: restores the root `BUILD.bazel` to its pre-operation state exactly,
+  deletes any gazelle-generated BUILD.bazel files.
 
-**Key invariant**: the root `BUILD.bazel` only ever has lines removed, never added.
-All subdirectory exclusions go into local `BUILD.bazel` files.
+**Key invariant**: all `# gazelle:exclude` directives live in the root `BUILD.bazel`.
+No local BUILD.bazel files are created for subdirectory excludes.
 
 ### 3. LOCAL DIRECT — a local BUILD.bazel has the exclude
 
@@ -115,27 +115,6 @@ All subdirectory exclusions go into local `BUILD.bazel` files.
   contains a `# gazelle:exclude <rel>` directive covering the target.
 - Removes just that line, runs gazelle + tests.
 - On failure: restores the line to the local `BUILD.bazel`.
-
-## Local BUILD.bazel carveout files
-
-When a CARVEOUT succeeds, the local `<parent>/BUILD.bazel` contains:
-
-```
-# gazelle:ignore
-# gazelle:exclude subdir/that/is/not/ready
-# gazelle:exclude another/subdir
-...
-```
-
-`# gazelle:ignore` prevents gazelle from overwriting the file on future runs.
-The `# gazelle:exclude` directives use **relative** paths (relative to the directory
-containing the `BUILD.bazel`), and cover every non-target subtree with a single line
-each (no need to list every nested subdir separately).
-
-**Important**: if a local `BUILD.bazel` has only `# gazelle:ignore` with no excludes,
-running `bazel run //:gazelle` will descend into ALL subdirectories and generate
-BUILD.bazel files for packages that may not be ready yet, causing test failures.
-Always verify local carveout files have the correct relative excludes.
 
 ## Failure modes
 
@@ -245,11 +224,6 @@ The tool snapshots which BUILD.bazel files are already modified before each
 operation and only reverts files newly modified in the current operation. This
 prevents a failed migration from undoing changes made by prior successful migrations
 in the same session.
-
-### Pre-existing local BUILD.bazel files
-If a local `<parent>/BUILD.bazel` exists before a CARVEOUT runs, the tool saves
-its content and restores it exactly on failure (not just `git checkout`, which
-would revert to HEAD and lose any accumulated prior changes).
 
 ### Gitignored BUILD.bazel files
 Personal `~/.gitignore` patterns can silently hide new BUILD.bazel files from
