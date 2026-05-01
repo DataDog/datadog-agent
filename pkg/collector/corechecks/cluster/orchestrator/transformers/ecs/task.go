@@ -50,7 +50,7 @@ func ExtractECSTask(task TaskWithContainers, tagger tagger.Component) *model.ECS
 		Limits:                  task.Task.Limits,
 		EphemeralStorageMetrics: task.Task.EphemeralStorageMetrics,
 		ServiceName:             task.Task.ServiceName,
-		// TODO(EXP-309): wire DaemonName once agent-payload PR #456 (daemonName proto field) merges and is released.
+		DaemonName:              task.Task.DaemonName,
 		VpcId:                   task.Task.VPCID,
 		ContainerInstanceArn:    task.Task.ContainerInstanceARN,
 		PullStartedAt:           extractTimestampPtr(task.Task.PullStartedAt),
