@@ -39,7 +39,9 @@ def bazel(
         raise Exit(bazel_not_found_message("red"))
     cmd = ("sudo", resolved_bazel) if sudo else ("bazel",)
     kwargs = {}
-    # hide really means capture.
+    # Invoke terminolgy is subtle. "hide" means hide from the user.
+    # In every other libray, that would be called capture, and the
+    # act of capturing it would hide it from the user.
     # https://docs.pyinvoke.org/en/stable/api/runners.html#invoke.runners.Runner.run
     if capture_output:
         kwargs["hide"] = "both" if capture_stderr else "out"
