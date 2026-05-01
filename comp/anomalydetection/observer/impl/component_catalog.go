@@ -196,6 +196,13 @@ func defaultCatalog() *componentCatalog {
 				factory:        func(any) any { return NewScanWelchDetector() },
 				defaultEnabled: false,
 			},
+			{
+				name:           "hellinger",
+				displayName:    "Hellinger",
+				kind:           componentDetector,
+				factory:        func(any) any { return NewHellingerDetector() },
+				defaultEnabled: true,
+			},
 			// ---- Correlators ----
 			{
 				name:           "anomaly_rank",
