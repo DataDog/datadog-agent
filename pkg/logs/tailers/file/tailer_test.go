@@ -399,20 +399,24 @@ func (suite *TailerTestSuite) TestTruncatedTagAutoMultilineHandler() {
 	_, err = suite.testFile.WriteString("2024-01-01 10:00:01 [INFO] Next log\n")
 	suite.Nil(err)
 
-	// First message should be the aggregated multiline log with truncation
+	// The overflowed multiline group should fall back to standalone messages.
 	msg := <-suite.outputChan
 	tags := msg.Tags()
-
-	// Check for truncation tag with "auto_multiline" reason
-	suite.Contains(tags, message.TruncatedReasonTag("auto_multiline"))
-
-	// The content should contain the truncation flag
 	content := string(msg.GetContent())
-	suite.Contains(content, "...TRUNCATED...")
+	suite.Equal("2024-01-01 10:00:00 [ERROR] First line of multiline log message", content)
+	suite.NotContains(tags, message.TruncatedReasonTag("auto_multiline"))
+	suite.NotContains(tags, message.MultiLineSourceTag("auto_multiline"))
 
-	// Second message should be the single-line log
 	msg2 := <-suite.outputChan
-	suite.NotNil(msg2)
+	tags2 := msg2.Tags()
+	content2 := string(msg2.GetContent())
+	suite.Equal("continuation line that should be aggregated here", content2)
+	suite.NotContains(tags2, message.TruncatedReasonTag("auto_multiline"))
+	suite.NotContains(tags2, message.MultiLineSourceTag("auto_multiline"))
+
+	// Third message should be the next single-line log.
+	msg3 := <-suite.outputChan
+	suite.Equal("2024-01-01 10:00:01 [INFO] Next log", string(msg3.GetContent()))
 }
 
 func (suite *TailerTestSuite) TestTruncatedTagSingleLineHandler() {

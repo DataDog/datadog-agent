@@ -52,7 +52,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface"
 	logconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
+	inventoryagentfx "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/fx"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/inventoryhostimpl"
 	runnerfx "github.com/DataDog/datadog-agent/comp/metadata/runner/fx"
 	collectorcontribFx "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/fx"
@@ -179,7 +179,7 @@ func commonAgentFxOptions(ctx context.Context, params *cliParams, acfg coreconfi
 	return fx.Options(
 		ForwarderBundle(),
 		logtracefx.Module(),
-		inventoryagentimpl.Module(),
+		inventoryagentfx.Module(),
 		fx.Supply(metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{})),
 		fx.Provide(func(client *metricsclient.StatsdClientWrapper) statsd.Component {
 			return statsdotel.NewOTelStatsd(client)
