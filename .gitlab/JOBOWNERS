@@ -207,6 +207,7 @@ new-e2e-agent-health                    @DataDog/agent-health
 new-e2e-fips-compliance-test*           @DataDog/agent-runtimes
 new-e2e-remote-config                   @DataDog/remote-config
 # --- Containers / orchestration / SSI ---
+new-e2e-autoscaling*                    @DataDog/container-autoscaling
 new-e2e-containers*                     @DataDog/container-integrations @DataDog/container-platform
 new-e2e-orchestrator*                   @DataDog/kubernetes-experiences
 new-e2e-language-detection              @DataDog/container-experiences
