@@ -1,10 +1,6 @@
 ---
 name: Deps Tidy Setup
-description: Acquire push token, checkout and warm Bazel cache for dependency tidying
-inputs:
-  fetch-depth:
-    description: Passed to actions/checkout fetch-depth
-    default: "1"
+description: Acquire push token and warm Bazel cache for dependency tidying
 outputs:
   token:
     description: octo-sts token for use by deps-tidy-push
@@ -17,8 +13,4 @@ runs:
       with:
         scope: DataDog/datadog-agent
         policy: self.deps-tidy.push-branch
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      with:
-        ref: ${{ github.head_ref }}
-        fetch-depth: ${{ inputs.fetch-depth }}
     - uses: ./.github/actions/bazel-cache
