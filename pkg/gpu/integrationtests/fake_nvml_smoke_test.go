@@ -33,6 +33,12 @@ package integrationtests
 // `FAKE_NVML_TEST_ARCH`. The child detects this and routes into
 // `runOneArchitecture`. This is the standard Go stdlib pattern for test
 // subprocesses (cf. `os/exec`, Go's own runtime tests).
+//
+// The re-exec pattern assumes the test binary can `execve` itself. CI
+// environments with a heavily-restricted seccomp profile that blocks
+// `execve` will see the parent-side subtests skip silently. If you're
+// debugging a mysterious skip, check that `os.Args[0]` exists and is
+// executable from the sandbox.
 
 import (
 	"fmt"
@@ -137,21 +143,33 @@ func runOneArchitecture(t *testing.T, archName, libPath string) {
 	})
 
 	// Regression guard for the v1-vs-v2 ABI mismatch in
-	// nvmlDeviceGetComputeRunningProcesses. go-nvml's init-time probe picks
-	// the v2 (or v3) dispatch *iff* the matching versioned symbol resolves,
-	// and only the v2/v3 path sizes the buffer to fit what our fake writes
-	// (pid + usedGpuMemory + gpuInstanceId + computeInstanceId = 24 bytes).
-	// If these symbols disappear, go-nvml silently falls back to the v1
-	// wrapper, which allocates only 16 bytes per entry and the fake's write
-	// overflows into Go-managed memory. That manifests as bogus
-	// `0xFFFFFFFFFFFFFFFF` pointer values corrupting unrelated heap objects
-	// and crashing the agent (see the SMP regression caused by adding the
-	// Docker check to the experiment, which increased concurrent calls into
-	// this code path).
-	require.NoError(t, lib.Extensions().LookupSymbol("nvmlDeviceGetComputeRunningProcesses_v2"),
-		"fake library must export nvmlDeviceGetComputeRunningProcesses_v2 so go-nvml picks the matching-size v2 ABI")
-	require.NoError(t, lib.Extensions().LookupSymbol("nvmlDeviceGetComputeRunningProcesses_v3"),
-		"fake library must export nvmlDeviceGetComputeRunningProcesses_v3 so go-nvml picks the matching-size v3 ABI")
+	// nvmlDeviceGet{Compute,Graphics,MPSCompute}RunningProcesses.
+	// go-nvml's init-time probe picks the v2 (or v3) dispatch *iff* the
+	// matching versioned symbol resolves, and only the v2/v3 path sizes the
+	// buffer to fit what our fake writes (pid + usedGpuMemory + gpuInstanceId
+	// + computeInstanceId = 24 bytes). If these symbols disappear, go-nvml
+	// silently falls back to the v1 wrapper, which allocates only 16 bytes
+	// per entry and the fake's write overflows into Go-managed memory. That
+	// manifests as bogus `0xFFFFFFFFFFFFFFFF` pointer values corrupting
+	// unrelated heap objects and crashing the agent (see the SMP regression
+	// caused by adding the Docker check to the experiment, which increased
+	// concurrent calls into this code path).
+	//
+	// Compute is the family the GPU check actually calls today. Graphics and
+	// MPS-compute are not currently invoked by the agent, but go-nvml probes
+	// for their versioned symbols all the same; if a future caller in this
+	// repo (or downstream) starts using them the fake must already be safe.
+	for _, sym := range []string{
+		"nvmlDeviceGetComputeRunningProcesses_v2",
+		"nvmlDeviceGetComputeRunningProcesses_v3",
+		"nvmlDeviceGetGraphicsRunningProcesses_v2",
+		"nvmlDeviceGetGraphicsRunningProcesses_v3",
+		"nvmlDeviceGetMPSComputeRunningProcesses_v2",
+		"nvmlDeviceGetMPSComputeRunningProcesses_v3",
+	} {
+		require.NoErrorf(t, lib.Extensions().LookupSymbol(sym),
+			"fake library must export %s so go-nvml's init-time probe picks the matching-size dispatch", sym)
+	}
 
 	// --- Device enumeration ---------------------------------------------
 
@@ -313,6 +331,31 @@ func assertGpmBehaviour(t *testing.T, lib nvml.Interface, gpmEnabled bool) {
 	require.Equal(t, nvml.SUCCESS, ret, "nvmlGpmMetricsGet should succeed overall even with unknown ids")
 	assert.Equal(t, uint32(nvml.ERROR_NOT_SUPPORTED), mg2.Metrics[0].NvmlReturn,
 		"unknown metric IDs must be per-metric NOT_SUPPORTED")
+
+	// NVML_GPM_METRIC_MAX layout-drift tripwire (constants only).
+	//
+	// The fake's lib.rs has a hard-coded `NVML_GPM_METRIC_MAX = 210` that is
+	// supposed to mirror the size of `GpmMetricsGetType.Metrics` baked into
+	// the go-nvml version we link against. Assert the array length matches
+	// so the next person bumping go-nvml notices if upstream changes the
+	// constant.
+	//
+	// NOTE: a full round-trip assertion ("set NumMetrics = len(Metrics),
+	// fill all entries, expect every slot written") would catch a richer
+	// class of layout bug, but cannot be written today: go-nvml v0.13.0's
+	// `types_gen.go` reports `sizeof(GpmMetric) = 1624` because the
+	// generated `_Ctype_struct___19` (which Go treats as `MetricInfo`)
+	// actually resolves to `nvmlNvlinkFirmwareInfo_t` (1604 bytes), not the
+	// 24-byte anonymous metricInfo struct from nvml.h. The C side correctly
+	// reports 40 bytes per entry, so any fake implementing the real NVML C
+	// ABI — including this one and the real NVIDIA driver — writes 40-byte
+	// strides into a Go-sized 1624-byte stride buffer. Only `Metrics[0]`
+	// round-trips cleanly through go-nvml; later entries get aliased into
+	// padding. This is an upstream go-nvml bug, not a fake-nvml bug, but
+	// it's the reason this test cannot exercise the full array.
+	assert.Equal(t, 210, len(nvml.GpmMetricsGetType{}.Metrics),
+		"go-nvml's GpmMetricsGetType.Metrics array length must remain 210 to match "+
+			"the fake's hard-coded NVML_GPM_METRIC_MAX in pkg/gpu/fake-nvml/src/lib.rs")
 }
 
 // gpmMetricName is a best-effort label for test output. If go-nvml ever renames

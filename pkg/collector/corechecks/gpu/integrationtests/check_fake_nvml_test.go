@@ -31,6 +31,11 @@ package integrationtests
 // likewise caches its library handle in a process-global singleton. So each
 // architecture runs in its own child process, spawned by re-exec'ing the test
 // binary with FAKE_NVML_ARCH set.
+//
+// The re-exec pattern assumes the test binary can execve itself. CI
+// environments with a seccomp profile that blocks execve will see the
+// parent-side subtests skip silently. If you hit that, check that
+// `os.Args[0]` exists and is executable from the sandbox.
 
 import (
 	"os"

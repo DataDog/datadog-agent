@@ -730,79 +730,46 @@ fn fake_process(idx: usize) -> (u32, u64) {
     (devices()[idx].fake_pid, devices()[idx].fake_pid_mem_bytes)
 }
 
-/// `nvmlDeviceGetComputeRunningProcesses(nvmlDevice_t device, unsigned int *infoCount, nvmlProcessInfo_v1_t *infos)`
-///
-/// This is the *unsuffixed* symbol. go-nvml (built with
-/// `NVML_NO_UNVERSIONED_FUNC_DEFS=1`) keeps the three versioned entry points
-/// distinct and by default dispatches to this v1-ABI symbol. The caller
-/// allocates a buffer of `nvmlProcessInfo_v1_t` (16 bytes / entry) so we
-/// MUST NOT write the larger v2/v3 layout here — doing so overflows into
-/// Go-managed memory and manifests as spurious `0xFFFFFFFFFFFFFFFF` pointer
-/// values corrupting unrelated struct fields (e.g. later GPM sample handles).
-///
-/// Returns one fake process per device. The caller first calls with
-/// `infos=NULL` to query the count, then again with a buffer.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvmlDeviceGetComputeRunningProcesses(
+/// Shared v1-ABI implementation for the unsuffixed `nvmlDeviceGet{Compute,
+/// Graphics,MPSCompute}RunningProcesses` symbols. All three variants are
+/// identical — they each return one fake process per device, written into
+/// a 16-byte `nvmlProcessInfo_v1_t` slot. We MUST NOT write the larger v2/v3
+/// layout here (see the SMP regression that motivated the v1/v2/v3 split).
+fn running_processes_v1(
     device: NvmlDevice,
     info_count: *mut c_uint,
     infos: *mut NvmlProcessInfoV1,
 ) -> NvmlReturn {
-    ffi_guard!({
-        match index_from_device(device) {
-            None => NVML_ERROR_INVALID_ARGUMENT,
-            Some(i) => {
-                if info_count.is_null() {
-                    return NVML_ERROR_INVALID_ARGUMENT;
-                }
-                if infos.is_null() {
-                    unsafe { *info_count = 1 };
-                    return NVML_SUCCESS;
-                }
-                if unsafe { *info_count } < 1 {
-                    unsafe { *info_count = 1 };
-                    return NVML_ERROR_INSUFFICIENT_SIZE;
-                }
-                let (pid, mem) = fake_process(i);
-                unsafe {
-                    (*infos).pid = pid;
-                    (*infos).used_gpu_memory = mem;
-                    *info_count = 1;
-                }
-                NVML_SUCCESS
+    match index_from_device(device) {
+        None => NVML_ERROR_INVALID_ARGUMENT,
+        Some(i) => {
+            if info_count.is_null() {
+                return NVML_ERROR_INVALID_ARGUMENT;
             }
+            if infos.is_null() {
+                unsafe { *info_count = 1 };
+                return NVML_SUCCESS;
+            }
+            if unsafe { *info_count } < 1 {
+                unsafe { *info_count = 1 };
+                return NVML_ERROR_INSUFFICIENT_SIZE;
+            }
+            let (pid, mem) = fake_process(i);
+            unsafe {
+                (*infos).pid = pid;
+                (*infos).used_gpu_memory = mem;
+                *info_count = 1;
+            }
+            NVML_SUCCESS
         }
-    })
+    }
 }
 
-/// `nvmlDeviceGetComputeRunningProcesses_v2(...)` — v2 ABI (24-byte entries).
-///
-/// Exporting this symbol causes go-nvml's init-time probe to upgrade the
-/// internal dispatch variable `deviceGetComputeRunningProcesses` to the v2
-/// wrapper, which allocates a `[]ProcessInfo_v2` buffer matching the size we
-/// write here.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvmlDeviceGetComputeRunningProcesses_v2(
-    device: NvmlDevice,
-    info_count: *mut c_uint,
-    infos: *mut NvmlProcessInfo,
-) -> NvmlReturn {
-    ffi_guard!({ compute_running_processes_v2(device, info_count, infos) })
-}
-
-/// `nvmlDeviceGetComputeRunningProcesses_v3(...)` — same ABI as v2 (the v3
-/// struct is identical in size and layout), so we dispatch to the shared
-/// helper. Exporting it ensures go-nvml's init prefers v3 on top of v2.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvmlDeviceGetComputeRunningProcesses_v3(
-    device: NvmlDevice,
-    info_count: *mut c_uint,
-    infos: *mut NvmlProcessInfo,
-) -> NvmlReturn {
-    ffi_guard!({ compute_running_processes_v2(device, info_count, infos) })
-}
-
-fn compute_running_processes_v2(
+/// Shared v2/v3-ABI implementation. The v2 and v3 `nvmlProcessInfo_*_t`
+/// structs have the same 24-byte layout (`pid + usedGpuMemory + gpuInstanceId
+/// + computeInstanceId`); v3 is just a typedef alias of v2. Reused by every
+/// `*RunningProcesses_v2` and `*RunningProcesses_v3` symbol below.
+fn running_processes_v2(
     device: NvmlDevice,
     info_count: *mut c_uint,
     infos: *mut NvmlProcessInfo,
@@ -832,6 +799,132 @@ fn compute_running_processes_v2(
             NVML_SUCCESS
         }
     }
+}
+
+/// `nvmlDeviceGetComputeRunningProcesses(nvmlDevice_t device, unsigned int *infoCount, nvmlProcessInfo_v1_t *infos)`
+///
+/// This is the *unsuffixed* symbol. go-nvml (built with
+/// `NVML_NO_UNVERSIONED_FUNC_DEFS=1`) keeps the three versioned entry points
+/// distinct and by default dispatches to this v1-ABI symbol. The caller
+/// allocates a buffer of `nvmlProcessInfo_v1_t` (16 bytes / entry) so we
+/// MUST NOT write the larger v2/v3 layout here — doing so overflows into
+/// Go-managed memory and manifests as spurious `0xFFFFFFFFFFFFFFFF` pointer
+/// values corrupting unrelated struct fields (e.g. later GPM sample handles).
+///
+/// Returns one fake process per device. The caller first calls with
+/// `infos=NULL` to query the count, then again with a buffer.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nvmlDeviceGetComputeRunningProcesses(
+    device: NvmlDevice,
+    info_count: *mut c_uint,
+    infos: *mut NvmlProcessInfoV1,
+) -> NvmlReturn {
+    ffi_guard!({ running_processes_v1(device, info_count, infos) })
+}
+
+/// `nvmlDeviceGetComputeRunningProcesses_v2(...)` — v2 ABI (24-byte entries).
+///
+/// Exporting this symbol causes go-nvml's init-time probe to upgrade the
+/// internal dispatch variable `deviceGetComputeRunningProcesses` to the v2
+/// wrapper, which allocates a `[]ProcessInfo_v2` buffer matching the size we
+/// write here.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nvmlDeviceGetComputeRunningProcesses_v2(
+    device: NvmlDevice,
+    info_count: *mut c_uint,
+    infos: *mut NvmlProcessInfo,
+) -> NvmlReturn {
+    ffi_guard!({ running_processes_v2(device, info_count, infos) })
+}
+
+/// `nvmlDeviceGetComputeRunningProcesses_v3(...)` — same ABI as v2 (the v3
+/// struct is identical in size and layout), so we dispatch to the shared
+/// helper. Exporting it ensures go-nvml's init prefers v3 on top of v2.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nvmlDeviceGetComputeRunningProcesses_v3(
+    device: NvmlDevice,
+    info_count: *mut c_uint,
+    infos: *mut NvmlProcessInfo,
+) -> NvmlReturn {
+    ffi_guard!({ running_processes_v2(device, info_count, infos) })
+}
+
+// ---------------------------------------------------------------------------
+// Graphics / MPS-compute running processes.
+//
+// The agent's GPU check does not currently call these (only Compute is wired
+// into safenvml), but go-nvml's `updateVersionedSymbols` probes for
+// `_v2`/`_v3` on all three families at init time. If any future caller —
+// in this repo or downstream — starts using them and we have not exported
+// the matching versioned symbols, go-nvml falls back to the v1 wrapper, the
+// v1 wrapper allocates a 16-byte `[]ProcessInfo_v1` buffer, and any code in
+// this fake that writes the 24-byte v2 layout will overflow into Go heap
+// memory. That bug already burned us once on Compute (see SMP run id
+// `ee29cf89` and commit `8a411332c5a` for the post-mortem).
+//
+// Export the same v1 + v2 + v3 trio here so the fake's ABI surface is
+// uniformly safe regardless of which family ends up being called. The smoke
+// test asserts every versioned symbol resolves so we cannot regress this.
+// ---------------------------------------------------------------------------
+
+/// `nvmlDeviceGetGraphicsRunningProcesses(...)` — v1 ABI (16-byte entries).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nvmlDeviceGetGraphicsRunningProcesses(
+    device: NvmlDevice,
+    info_count: *mut c_uint,
+    infos: *mut NvmlProcessInfoV1,
+) -> NvmlReturn {
+    ffi_guard!({ running_processes_v1(device, info_count, infos) })
+}
+
+/// `nvmlDeviceGetGraphicsRunningProcesses_v2(...)` — v2 ABI (24-byte entries).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nvmlDeviceGetGraphicsRunningProcesses_v2(
+    device: NvmlDevice,
+    info_count: *mut c_uint,
+    infos: *mut NvmlProcessInfo,
+) -> NvmlReturn {
+    ffi_guard!({ running_processes_v2(device, info_count, infos) })
+}
+
+/// `nvmlDeviceGetGraphicsRunningProcesses_v3(...)` — same ABI as v2.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nvmlDeviceGetGraphicsRunningProcesses_v3(
+    device: NvmlDevice,
+    info_count: *mut c_uint,
+    infos: *mut NvmlProcessInfo,
+) -> NvmlReturn {
+    ffi_guard!({ running_processes_v2(device, info_count, infos) })
+}
+
+/// `nvmlDeviceGetMPSComputeRunningProcesses(...)` — v1 ABI (16-byte entries).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nvmlDeviceGetMPSComputeRunningProcesses(
+    device: NvmlDevice,
+    info_count: *mut c_uint,
+    infos: *mut NvmlProcessInfoV1,
+) -> NvmlReturn {
+    ffi_guard!({ running_processes_v1(device, info_count, infos) })
+}
+
+/// `nvmlDeviceGetMPSComputeRunningProcesses_v2(...)` — v2 ABI (24-byte entries).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nvmlDeviceGetMPSComputeRunningProcesses_v2(
+    device: NvmlDevice,
+    info_count: *mut c_uint,
+    infos: *mut NvmlProcessInfo,
+) -> NvmlReturn {
+    ffi_guard!({ running_processes_v2(device, info_count, infos) })
+}
+
+/// `nvmlDeviceGetMPSComputeRunningProcesses_v3(...)` — same ABI as v2.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nvmlDeviceGetMPSComputeRunningProcesses_v3(
+    device: NvmlDevice,
+    info_count: *mut c_uint,
+    infos: *mut NvmlProcessInfo,
+) -> NvmlReturn {
+    ffi_guard!({ running_processes_v2(device, info_count, infos) })
 }
 
 // ---------------------------------------------------------------------------
