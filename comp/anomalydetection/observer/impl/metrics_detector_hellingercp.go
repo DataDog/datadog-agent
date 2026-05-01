@@ -13,13 +13,13 @@ import (
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
-// hellingerStateKey identifies per-series state by ref and aggregation.
-type hellingerStateKey struct {
+// hellingerCPStateKey identifies per-series state by ref and aggregation.
+type hellingerCPStateKey struct {
 	ref observer.SeriesRef
 	agg observer.Aggregate
 }
 
-// hellingerSeriesState holds per-series streaming state for the HellingerCP
+// hellingerCPSeriesState holds per-series streaming state for the HellingerCP
 // detector. The long ring captures the stable baseline distribution; the
 // short ring captures the recent distribution. Both histograms are computed
 // over the same equal-width bin edges derived from the long ring's [Q5, Q95]
@@ -29,7 +29,7 @@ type hellingerStateKey struct {
 // (bins) + ShortWindow*8 (timestamps) + Bins*4*2 (hists) + Bins*8+8 (edges)
 // ≈ 1.4 KB per (series, aggregation) at defaults — ~7x lighter than BOCPD's
 // per-series posterior arrays.
-type hellingerSeriesState struct {
+type hellingerCPSeriesState struct {
 	// Long-window ring buffer (size LongWindow).
 	ringBuf  []float64
 	ringBins []int
@@ -163,7 +163,7 @@ func applyHellingerDefaults(cfg HellingerCPConfig) HellingerCPConfig {
 // restarts past the changepoint — mirroring the ScanMW pattern.
 type HellingerCPDetector struct {
 	cfg    HellingerCPConfig
-	series map[hellingerStateKey]*hellingerSeriesState
+	series map[hellingerCPStateKey]*hellingerCPSeriesState
 
 	// Cache the discovered series list across Detect calls (same pattern
 	// as ScanMW / BOCPD).
@@ -185,7 +185,7 @@ func NewHellingerCPDetectorWithConfig(cfg HellingerCPConfig) *HellingerCPDetecto
 	cfg = applyHellingerDefaults(cfg)
 	return &HellingerCPDetector{
 		cfg:    cfg,
-		series: make(map[hellingerStateKey]*hellingerSeriesState),
+		series: make(map[hellingerCPStateKey]*hellingerCPSeriesState),
 	}
 }
 
@@ -194,7 +194,7 @@ func (d *HellingerCPDetector) Name() string { return "hellingercp" }
 
 // Reset clears all per-series state for replay/reanalysis.
 func (d *HellingerCPDetector) Reset() {
-	d.series = make(map[hellingerStateKey]*hellingerSeriesState)
+	d.series = make(map[hellingerCPStateKey]*hellingerCPSeriesState)
 	d.cachedSeries = nil
 	d.cachedGen = 0
 }
@@ -208,7 +208,7 @@ func (d *HellingerCPDetector) RemoveSeries(refs []observer.SeriesRef) {
 	}
 	for _, ref := range refs {
 		for _, agg := range d.cfg.Aggregations {
-			delete(d.series, hellingerStateKey{ref: ref, agg: agg})
+			delete(d.series, hellingerCPStateKey{ref: ref, agg: agg})
 		}
 	}
 	d.cachedSeries = nil
@@ -221,7 +221,7 @@ func (d *HellingerCPDetector) RemoveSeries(refs []observer.SeriesRef) {
 // gating + bulkSeriesStatus + ForEachPoint).
 func (d *HellingerCPDetector) Detect(storage observer.StorageReader, dataTime int64) observer.DetectionResult {
 	if d.series == nil {
-		d.series = make(map[hellingerStateKey]*hellingerSeriesState)
+		d.series = make(map[hellingerCPStateKey]*hellingerCPSeriesState)
 	}
 
 	gen := storage.SeriesGeneration()
@@ -240,7 +240,7 @@ func (d *HellingerCPDetector) Detect(storage observer.StorageReader, dataTime in
 	for i, meta := range d.cachedSeries {
 		status := bulkStatus[i]
 		for _, agg := range d.cfg.Aggregations {
-			sk := hellingerStateKey{ref: meta.Ref, agg: agg}
+			sk := hellingerCPStateKey{ref: meta.Ref, agg: agg}
 			state, exists := d.series[sk]
 			if !exists {
 				state = d.newState()
@@ -273,7 +273,7 @@ func (d *HellingerCPDetector) processSeries(
 	storage observer.StorageReader,
 	meta observer.SeriesMeta,
 	agg observer.Aggregate,
-	state *hellingerSeriesState,
+	state *hellingerCPSeriesState,
 	dataTime int64,
 ) (observer.Anomaly, bool) {
 	startTime := state.lastProcessedTime
@@ -306,7 +306,7 @@ func (d *HellingerCPDetector) processSeries(
 			return
 		}
 
-		h := hellingerDistance(state.longHist, state.shortHist, state.n, state.shortN)
+		h := hellingerCPDistance(state.longHist, state.shortHist, state.n, state.shortN)
 		if h < d.cfg.HellingerThreshold {
 			return
 		}
@@ -396,8 +396,8 @@ func (d *HellingerCPDetector) processSeries(
 }
 
 // newState allocates per-series state sized to the configured windows.
-func (d *HellingerCPDetector) newState() *hellingerSeriesState {
-	return &hellingerSeriesState{
+func (d *HellingerCPDetector) newState() *hellingerCPSeriesState {
+	return &hellingerCPSeriesState{
 		ringBuf:         make([]float64, d.cfg.LongWindow),
 		ringBins:        make([]int, d.cfg.LongWindow),
 		shortBuf:        make([]float64, d.cfg.ShortWindow),
@@ -414,7 +414,7 @@ func (d *HellingerCPDetector) newState() *hellingerSeriesState {
 // scratch (O(n_long log n_long) sort + O(n_long + n_short) re-binning); on
 // other ticks the update is incremental: O(log B) for the binary search +
 // O(1) for the bucket increment/decrement.
-func (d *HellingerCPDetector) pushPoint(state *hellingerSeriesState, x float64, t int64) {
+func (d *HellingerCPDetector) pushPoint(state *hellingerCPSeriesState, x float64, t int64) {
 	state.ticksSinceRebin++
 
 	longSlot := state.ringHead
@@ -467,7 +467,7 @@ func (d *HellingerCPDetector) pushPoint(state *hellingerSeriesState, x float64, 
 // rebin recomputes bin edges from the long ring's [Q5, Q95] range and
 // rebuilds both histograms. Called on the first warmup tick and every
 // RebinEveryTicks ticks thereafter.
-func (d *HellingerCPDetector) rebin(state *hellingerSeriesState) {
+func (d *HellingerCPDetector) rebin(state *hellingerCPSeriesState) {
 	if state.n == 0 {
 		return
 	}
@@ -563,10 +563,10 @@ func binIndex(edges []float64, x float64) int {
 	return idx - 1
 }
 
-// hellingerDistance computes H(P, Q) = (1/√2) * sqrt(Σ (√P_i - √Q_i)²) where
+// hellingerCPDistance computes H(P, Q) = (1/√2) * sqrt(Σ (√P_i - √Q_i)²) where
 // P[i] = longHist[i]/longN and Q[i] = shortHist[i]/shortN. Bounded in [0, 1]:
 // 0 when the histograms are identical, 1 when they have disjoint support.
-func hellingerDistance(longHist, shortHist []int, longN, shortN int) float64 {
+func hellingerCPDistance(longHist, shortHist []int, longN, shortN int) float64 {
 	if longN <= 0 || shortN <= 0 {
 		return 0
 	}

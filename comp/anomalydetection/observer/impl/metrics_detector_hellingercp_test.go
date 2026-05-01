@@ -179,16 +179,16 @@ func TestHellingerCP_HellingerDistance(t *testing.T) {
 	// Identical histograms: H == 0.
 	a := []int{10, 10, 10, 10}
 	b := []int{2, 2, 2, 2}
-	assert.InDelta(t, 0.0, hellingerDistance(a, b, 40, 8), 1e-9,
+	assert.InDelta(t, 0.0, hellingerCPDistance(a, b, 40, 8), 1e-9,
 		"identical normalized histograms must give H=0")
 
 	// Disjoint support: H == 1.
 	c := []int{4, 0, 0, 0}
 	dh := []int{0, 0, 0, 4}
-	assert.InDelta(t, 1.0, hellingerDistance(c, dh, 4, 4), 1e-9,
+	assert.InDelta(t, 1.0, hellingerCPDistance(c, dh, 4, 4), 1e-9,
 		"disjoint support must give H=1")
 
 	// Self-distance.
-	assert.InDelta(t, 0.0, hellingerDistance(a, a, 40, 40), 1e-9,
+	assert.InDelta(t, 0.0, hellingerCPDistance(a, a, 40, 40), 1e-9,
 		"self-comparison must give H=0")
 }
