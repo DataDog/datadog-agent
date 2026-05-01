@@ -10,6 +10,7 @@ import (
 	"os"
 	"regexp"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
@@ -706,5 +707,41 @@ func TestEmitAgentTelemetry(t *testing.T) {
 	}
 
 	// Check for leaks
+	helpers.AssertMemoryUsage(t)
+}
+
+func TestReportIssue(t *testing.T) {
+	helpers.ResetMemoryStats()
+
+	code := `
+payload = '{"issueId":"stub-issue","context":{}}'
+datadog_agent.report_issue(check_id="stub-check", check_name="stub-name", report_json=payload)
+`
+	out, err := run(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "" {
+		t.Fatalf("expected no stderr output, got %q", out)
+	}
+
+	codeErr := `datadog_agent.report_issue(check_id="error-check", check_name="stub-name", report_json='{}')`
+	out, err = run(codeErr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "RuntimeError") || !strings.Contains(out, "stub failure") {
+		t.Fatalf("expected RuntimeError with stub failure, got %q", out)
+	}
+
+	codeClear := `datadog_agent.report_issue(check_id="stub-check", check_name="stub-name", report_json=None)`
+	out, err = run(codeClear)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "" {
+		t.Fatalf("expected no output for clear path, got %q", out)
+	}
+
 	helpers.AssertMemoryUsage(t)
 }

@@ -517,6 +517,14 @@ public:
     */
     virtual void setEmitAgentTelemetryCb(cb_emit_agent_telemetry_t) = 0;
 
+    //! setReportIssueCb member.
+    /*!
+      \param A cb_report_issue_t function pointer to the CGO callback.
+
+      Reports a health platform issue from Python via JSON-encoded IssueReport.
+    */
+    virtual void setReportIssueCb(cb_report_issue_t) = 0;
+
 protected:
     //! _allocateInternalErrorDiagnoses member.
     /*!

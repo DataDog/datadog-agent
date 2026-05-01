@@ -11,11 +11,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
+	"google.golang.org/protobuf/encoding/protojson"
+
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
 	collectoraggregator "github.com/DataDog/datadog-agent/pkg/collector/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -667,6 +671,50 @@ func EmitAgentTelemetry(checkName *C.char, metricName *C.char, metricValue C.dou
 		}
 	default:
 		log.Warnf("EmitAgentTelemetry: unsupported metric type %s requested by %s for %s", goMetricType, goCheckName, goMetricName)
+	}
+}
+
+func parseIssueReportJSON(payload string) (*healthplatformpayload.IssueReport, error) {
+	t := strings.TrimSpace(payload)
+	if t == "" || t == "null" {
+		return nil, nil
+	}
+	var msg healthplatformpayload.IssueReport
+	if err := protojson.Unmarshal([]byte(t), &msg); err != nil {
+		return nil, err
+	}
+	return &msg, nil
+}
+
+// ReportIssue forwards Python health platform reports to the injected health platform component.
+// reportJSON is protobuf JSON for healthplatform.IssueReport; empty or "null" clears the issue for the check.
+//
+//export ReportIssue
+func ReportIssue(checkID, checkName, reportJSON *C.char, errOut **C.char) {
+	*errOut = nil
+
+	hp := getHealthPlatform()
+	if hp == nil {
+		*errOut = TrackedCString("health platform not initialized")
+		return
+	}
+
+	goCheckID := C.GoString(checkID)
+	goCheckName := C.GoString(checkName)
+	var goPayload string
+	if reportJSON != nil {
+		goPayload = C.GoString(reportJSON)
+	}
+
+	report, err := parseIssueReportJSON(goPayload)
+	if err != nil {
+		*errOut = TrackedCString(err.Error())
+		return
+	}
+
+	err = hp.ReportIssue(goCheckID, goCheckName, report)
+	if err != nil {
+		*errOut = TrackedCString(err.Error())
 	}
 }
 

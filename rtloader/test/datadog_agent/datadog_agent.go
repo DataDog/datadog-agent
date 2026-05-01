@@ -40,6 +40,7 @@ extern char* obfuscateSQLExecPlan(char*, bool, char**);
 extern double getProcessStartTime();
 extern char* obfuscateMongoDBString(char*, char**);
 extern void emitAgentTelemetry(char*, char*, double, char*);
+extern void reportIssue(char*, char*, char*, char**);
 
 
 static void initDatadogAgentTests(rtloader_t *rtloader) {
@@ -61,6 +62,7 @@ static void initDatadogAgentTests(rtloader_t *rtloader) {
    set_get_process_start_time_cb(rtloader, getProcessStartTime);
    set_obfuscate_mongodb_string_cb(rtloader, obfuscateMongoDBString);
    set_emit_agent_telemetry_cb(rtloader, emitAgentTelemetry);
+   set_report_issue_cb(rtloader, reportIssue);
 }
 
 static inline void call_free(void* ptr) {
@@ -355,6 +357,30 @@ func obfuscateMongoDBString(cmd *C.char, errResult **C.char) *C.char {
 	default:
 		*errResult = (*C.char)(helpers.TrackedCString("unknown test case"))
 		return nil
+	}
+}
+
+//export reportIssue
+func reportIssue(checkID, checkName, reportJSON *C.char, errOut **C.char) {
+	*errOut = nil
+	cid := C.GoString(checkID)
+	if cid == "error-check" {
+		*errOut = (*C.char)(helpers.TrackedCString("stub failure"))
+		return
+	}
+	var rj string
+	if reportJSON != nil {
+		rj = C.GoString(reportJSON)
+	}
+	// Validate bridge arguments for the happy path used in tests
+	if cid != "stub-check" {
+		panic(fmt.Sprintf("unexpected check id: %s", cid))
+	}
+	if C.GoString(checkName) != "stub-name" {
+		panic(fmt.Sprintf("unexpected check name: %s", C.GoString(checkName)))
+	}
+	if rj != "" && rj != `{"issueId":"stub-issue","context":{}}` {
+		panic(fmt.Sprintf("unexpected report json: %s", rj))
 	}
 }
 

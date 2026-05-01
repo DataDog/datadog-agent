@@ -597,6 +597,11 @@ void set_emit_agent_telemetry_cb(rtloader_t *rtloader, cb_emit_agent_telemetry_t
     AS_TYPE(RtLoader, rtloader)->setEmitAgentTelemetryCb(cb);
 }
 
+void set_report_issue_cb(rtloader_t *rtloader, cb_report_issue_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setReportIssueCb(cb);
+}
+
 /*
  * _util API
  */
