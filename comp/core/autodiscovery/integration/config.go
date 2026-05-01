@@ -76,8 +76,9 @@ type Config struct {
 	// CELSelector is the list of CEL-based selectors for this integration. (optional)
 	CELSelector workloadfilter.Rules `json:"cel_selector"` // (include in digest: false)
 
-	// Internal field to Autodiscovery, not serialized
-	matchingProgram MatchingProgram // (include in digest: false)
+	// Internal field to Autodiscovery, not serialized.
+	// Maps resource type to the compiled CEL matching program for that type.
+	matchingPrograms map[workloadfilter.ResourceType]MatchingProgram // (include in digest: false)
 
 	// Provider is the name of the config provider that issued the config.  If
 	// this is "", then the config is a service config, representing a service
@@ -232,16 +233,20 @@ func (c *Config) IsTemplate() bool {
 // IsMatched returns true if the given object matches the filtering program of the config.
 // Note: this method should only be used within the autodiscovery component.
 func (c *Config) IsMatched(obj workloadfilter.Filterable) bool {
-	// If there's no matching program, then the config already matches w/ AD identifiers
-	if c.matchingProgram == nil {
+	if len(c.matchingPrograms) == 0 {
 		return true
 	}
-	return c.matchingProgram.IsMatched(obj)
+	prg, found := c.matchingPrograms[obj.Type()]
+	if !found {
+		// No CEL program for this resource type — the match was via AD identifiers
+		return true
+	}
+	return prg.IsMatched(obj)
 }
 
-// SetMatchingProgram sets the matching program for the config.
-func (c *Config) SetMatchingProgram(p MatchingProgram) {
-	c.matchingProgram = p
+// SetMatchingPrograms sets the matching programs for the config, keyed by resource type.
+func (c *Config) SetMatchingPrograms(programs map[workloadfilter.ResourceType]MatchingProgram) {
+	c.matchingPrograms = programs
 }
 
 // IsCheckConfig returns true if the config is a node-agent check configuration,

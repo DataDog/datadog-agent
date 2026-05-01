@@ -475,20 +475,22 @@ func (ac *AutoConfig) GetHealthPlatform() healthplatformdef.Component {
 }
 
 func (ac *AutoConfig) initializeConfiguration(config *integration.Config) error {
-	prg, celADID, compileErr, recErr := integration.CreateMatchingProgram(config.CELSelector)
-	if compileErr != nil {
-		return compileErr
+	hasExplicitADIDs := len(config.ADIdentifiers) > 0
+
+	// Only enforce recommendation checks when no explicit ad_identifiers are
+	// defined. When ADIDs are present, CEL rules act as secondary filters.
+	programs, celADIDs, err := integration.CreateMatchingPrograms(config.CELSelector, !hasExplicitADIDs)
+	if err != nil {
+		return err
 	}
 
-	if len(config.ADIdentifiers) == 0 && celADID != "" {
-		// Only throw recError if no explicit ADIDs are defined
-		if recErr != nil {
-			return recErr
+	for _, celADID := range celADIDs {
+		if celADID.ConfigRequired(hasExplicitADIDs) {
+			config.ADIdentifiers = append(config.ADIdentifiers, string(celADID))
 		}
-		config.ADIdentifiers = []string{string(celADID)}
 	}
 
-	config.SetMatchingProgram(prg)
+	config.SetMatchingPrograms(programs)
 
 	return nil
 }
