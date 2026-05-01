@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent
 
-go 1.25.8
+go 1.25.9
 
 // v0.8.0 was tagged long ago, and appared on pkg.go.dev.  We do not want any tagged version
 // to appear there.  The trick to accomplish this is to make a new version (in this case v0.9.0)
@@ -220,7 +220,7 @@ require (
 	github.com/dustin/go-humanize v1.0.1
 	github.com/elastic/go-libaudit/v2 v2.6.2
 	github.com/elastic/go-seccomp-bpf v1.6.0
-	github.com/envoyproxy/gateway v1.7.1
+	github.com/envoyproxy/gateway v1.7.2
 	github.com/evanphx/json-patch v5.9.11+incompatible // indirect
 	github.com/fatih/color v1.18.0
 	github.com/fatih/structtag v1.2.0
