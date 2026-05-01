@@ -1589,6 +1589,120 @@ def _run_iteration_body(
             )
             return
 
+    # 3b. Independent pre-eval gate: a separate reviewer inspects the
+    # implementer's summary + diff before we spend on full scenario eval.
+    # This catches predictable rejects that deterministic registration
+    # checks cannot see: dead code, default-disabled additions, plan
+    # abandonment, miswired correlator/filter paths, and obviously
+    # implausible metric logic.
+    if not dry_run:
+        try:
+            gate = sdk_mod.pre_eval_gate(
+                candidate,
+                impl_summary=impl_summary,
+                root=root,
+                iter_num=iter_num,
+            )
+        except Exception as e:
+            gate = {
+                "verdict": "run_eval",
+                "confidence": 0.0,
+                "primary_reason": f"pre_eval_gate SDK call failed; proceeding to eval rather than rejecting candidate on infrastructure failure: {type(e).__name__}: {str(e)[:300]}",
+                "checks": {},
+                "required_before_eval": [],
+                "risks": ["pre_eval_gate unavailable; eval budget not protected for this iteration"],
+                "gate_error": True,
+            }
+            stderr_tail = sdk_mod.tail_sdk_error_for_pr(str(e))
+            if stderr_tail:
+                gate["primary_reason"] += f"\n\nCaptured CLI stderr tail:\n{stderr_tail}"
+
+        verdict = str(gate.get("verdict", "request_fix"))
+        journal.append(
+            "pre_eval_gate_done",
+            {
+                "iter": iter_num,
+                "candidate": candidate.id,
+                "verdict": verdict,
+                "confidence": gate.get("confidence"),
+                "reason": str(gate.get("primary_reason", ""))[:500],
+                "checks": gate.get("checks", {}),
+                "required_before_eval": gate.get("required_before_eval", []),
+                "risks": gate.get("risks", []),
+                "failing_checks": gate.get("failing_checks", []),
+                "unknown_critical_checks": gate.get("unknown_critical_checks", []),
+                "gate_error": gate.get("gate_error", False),
+                "raw_text": str(gate.get("raw_text", ""))[:1000],
+            },
+            root,
+        )
+        if verdict not in ("run_eval", "run_smoke_eval"):
+            reason = (
+                f"pre_eval_gate:{verdict}: "
+                f"{str(gate.get('primary_reason', '') or '(no reason)')[:600]}"
+            )
+            experiment = Experiment(
+                id=experiment_id,
+                candidate_id=candidate.id,
+                phase=candidate.phase,
+                tier=Tier.T0,
+                commit_sha=pre_sha,
+                config_path="",
+                impl_summary=impl_summary,
+                scenario_set=[],
+                status=ExperimentStatus.FAILED,
+                started_at=it.started_at,
+                report_path="",
+            )
+            db.experiments[experiment_id] = experiment
+            it.experiment_ids.append(experiment_id)
+
+            checks = gate.get("checks", {})
+            check_lines: list[str] = []
+            if isinstance(checks, dict):
+                for name, body in list(checks.items())[:8]:
+                    if isinstance(body, dict):
+                        status = body.get("status", "unknown")
+                        evidence = str(body.get("evidence", "") or "").replace("\n", " ")[:240]
+                    else:
+                        status = "unknown"
+                        evidence = str(body).replace("\n", " ")[:240]
+                    check_lines.append(f"- `{name}`: **{status}** — {evidence}")
+            required = gate.get("required_before_eval") or []
+            required_lines = "\n".join(f"- {str(x)[:240]}" for x in required) or "- (none)"
+            checks_md = "\n".join(check_lines) or "- (no structured checks returned)"
+
+            _reject_candidate(
+                db=db, root=root, it=it, candidate=candidate,
+                experiment=experiment,
+                decision=RejectionDecision(
+                    stage=RejectionStage.PRE_EVAL_GATE,
+                    reason=reason,
+                    evidence={
+                        "verdict": verdict,
+                        "confidence": gate.get("confidence"),
+                        "checks": checks,
+                        "required_before_eval": required,
+                        "risks": gate.get("risks", []),
+                        "failing_checks": gate.get("failing_checks", []),
+                        "unknown_critical_checks": gate.get("unknown_critical_checks", []),
+                        "raw_text": str(gate.get("raw_text", ""))[:1000],
+                        "impl_summary": impl_summary[:300],
+                    },
+                ),
+                body_md=(
+                    f"**iter {iter_num}** · `{candidate.id}` — pre-eval "
+                    f"gate returned **{verdict}**; skipping expensive eval.\n\n"
+                    f"**Reason**: {str(gate.get('primary_reason', '') or '(none)')[:900]}\n\n"
+                    f"**Checks**:\n{checks_md}\n\n"
+                    f"**Required before eval**:\n{required_lines}\n\n"
+                    f"Working tree reverted; moving on."
+                ),
+                coord_out_kind="pre_eval_gate_rejected",
+                iter_num=iter_num,
+            )
+            return
+
     # 4. Eval — single system-level run per iter. The catalog's
     # `defaultEnabled` set defines the prod-realistic pipeline; the
     # candidate's modification (or new component with defaultEnabled:

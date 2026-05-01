@@ -122,6 +122,7 @@ class RejectionStage(str, Enum):
     """
 
     REGISTRATION = "registration"          # detector not in component_catalog.go
+    PRE_EVAL_GATE = "pre_eval_gate"        # independent reviewer predicts eval is wasteful
     EVAL_FAILED = "eval_failed"            # evaluator returned non-ok
     EVAL_SILENT_FAILURE = "eval_silent_failure"  # all-zero metrics
     TIER1_GATE = "tier1_gate"              # egregious gate (FPs > 3× + abs floor, first-ship)

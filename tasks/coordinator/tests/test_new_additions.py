@@ -13,8 +13,10 @@ from coordinator.schema import (
     BaselineDetector,
     BudgetState,
     DataSplit,
+    RejectionStage,
     ScenarioResult,
 )
+from coordinator.sdk import _normalize_pre_eval_gate
 from coordinator.scoring import score_against_baseline
 from coordinator.seed_split import compute_sealed_hash, make_split
 
@@ -41,6 +43,71 @@ def test_config_values():
     assert CONFIG.catastrophe_f1_drop == 0.15
     assert 0.5 in CONFIG.budget_milestones
     assert 0.8 in CONFIG.budget_milestones
+
+
+def test_pre_eval_gate_normalizes_run_smoke_alias():
+    gate = _normalize_pre_eval_gate(
+        {
+            "verdict": "run_smoke_eval",
+            "confidence": "0.75",
+            "primary_reason": "wired and plausible",
+            "checks": {"component_wiring": {"status": "pass", "evidence": "registered"}},
+            "required_before_eval": [],
+            "risks": ["noise"],
+        }
+    )
+    assert gate["verdict"] == "run_eval"
+    assert gate["confidence"] == 0.75
+    assert gate["risks"] == ["noise"]
+
+
+def test_pre_eval_gate_malformed_output_requests_fix():
+    gate = _normalize_pre_eval_gate({"verdict": "maybe", "confidence": "bogus"})
+    assert gate["verdict"] == "request_fix"
+    assert gate["confidence"] == 0.0
+    assert "primary_reason" in gate
+
+
+def test_pre_eval_gate_run_eval_requires_consistent_checks():
+    gate = _normalize_pre_eval_gate(
+        {
+            "verdict": "run_eval",
+            "confidence": 0.9,
+            "primary_reason": "looks good",
+            "checks": {
+                "component_wiring": {
+                    "status": "fail",
+                    "evidence": "defaultEnabled is false",
+                }
+            },
+        }
+    )
+    assert gate["verdict"] == "request_fix"
+    assert gate["failing_checks"] == ["component_wiring"]
+    assert "failing checks" in gate["primary_reason"]
+
+
+def test_pre_eval_gate_run_eval_rejects_required_fixes():
+    gate = _normalize_pre_eval_gate(
+        {
+            "verdict": "run_eval",
+            "confidence": 0.9,
+            "primary_reason": "looks good",
+            "checks": {
+                "component_wiring": {
+                    "status": "pass",
+                    "evidence": "registered and default enabled",
+                }
+            },
+            "required_before_eval": ["register the factory"],
+        }
+    )
+    assert gate["verdict"] == "request_fix"
+    assert "required_before_eval" in gate["primary_reason"]
+
+
+def test_pre_eval_rejection_stage_value():
+    assert RejectionStage.PRE_EVAL_GATE.value == "pre_eval_gate"
 
 
 # --- DataSplit --- ----------------------------------------------------------

@@ -428,6 +428,151 @@ def _parse_yaml_block(text: str) -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
+def _normalize_pre_eval_gate(data: dict[str, Any], raw_text: str = "") -> dict[str, Any]:
+    """Normalize the pre-eval gate's structured response.
+
+    The gate is budget-protective, so malformed output is not allowed to
+    silently pass. Parser failures become `request_fix`: cheap to retry or
+    reject, expensive to evaluate blindly.
+    """
+    verdict = str(data.get("verdict", "") or "").strip().lower()
+    # Accept the user's original "run_smoke_eval" wording as the same
+    # permit-to-evaluate decision. This harness currently has one eval
+    # tier, so the driver maps both to the existing system eval.
+    if verdict == "run_smoke_eval":
+        verdict = "run_eval"
+    if verdict not in ("run_eval", "skip_eval", "request_fix"):
+        verdict = "request_fix"
+
+    def _strings(value: Any) -> list[str]:
+        if isinstance(value, list):
+            return [str(v).strip() for v in value if str(v).strip()]
+        if isinstance(value, str) and value.strip():
+            return [value.strip()]
+        return []
+
+    confidence_raw = data.get("confidence", 0.0)
+    try:
+        confidence = float(confidence_raw)
+    except (TypeError, ValueError):
+        confidence = 0.0
+    confidence = max(0.0, min(1.0, confidence))
+
+    reason = str(data.get("primary_reason", "") or "").strip()
+    if not reason:
+        reason = "pre_eval_gate response did not include primary_reason"
+
+    checks = data.get("checks")
+    if not isinstance(checks, dict):
+        checks = {}
+    required = _strings(data.get("required_before_eval"))
+    risks = _strings(data.get("risks"))
+
+    failing_checks: list[str] = []
+    unknown_critical: list[str] = []
+    critical_checks = {
+        "scored_output_impact",
+        "component_wiring",
+        "plan_fidelity",
+        "metric_plausibility",
+        "complexity_safety",
+    }
+    for name, body in checks.items():
+        if not isinstance(body, dict):
+            continue
+        status = str(body.get("status", "") or "").strip().lower()
+        if status == "fail":
+            failing_checks.append(str(name))
+        elif status == "unknown" and str(name) in critical_checks:
+            unknown_critical.append(str(name))
+
+    if verdict == "run_eval" and required:
+        verdict = "request_fix"
+        reason = (
+            reason
+            + " [normalized: verdict was run_eval but required_before_eval was non-empty]"
+        )
+    if verdict == "run_eval" and failing_checks:
+        verdict = "request_fix"
+        reason = (
+            reason
+            + f" [normalized: failing checks cannot run_eval: {', '.join(failing_checks)}]"
+        )
+    if verdict == "run_eval" and not checks:
+        verdict = "request_fix"
+        reason = reason + " [normalized: missing checks block cannot run_eval]"
+
+    return {
+        "verdict": verdict,
+        "confidence": confidence,
+        "primary_reason": reason,
+        "checks": {
+            str(k): str(v).strip() if not isinstance(v, dict) else v
+            for k, v in checks.items()
+        },
+        "required_before_eval": required,
+        "risks": risks,
+        "failing_checks": failing_checks,
+        "unknown_critical_checks": unknown_critical,
+        "raw_text": raw_text[:4000],
+    }
+
+
+def _working_tree_diff_stat(root: Path) -> str:
+    try:
+        r = subprocess.run(
+            ["git", "diff", "--stat", "HEAD", "--", "comp/observer"],
+            cwd=root, capture_output=True, text=True, timeout=30,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        return "(diff stat unavailable — git subprocess failed)"
+    stat = r.stdout.strip()
+    untracked = _untracked_observer_files(root)
+    if untracked:
+        extra = "\n".join(f" untracked | {p}" for p in untracked[:50])
+        stat = f"{stat}\n{extra}" if stat else extra
+        if len(untracked) > 50:
+            stat += f"\n ... {len(untracked) - 50} more untracked comp/observer files"
+    return stat or "(no comp/observer diff stat)"
+
+
+def _untracked_observer_files(root: Path) -> list[str]:
+    try:
+        r = subprocess.run(
+            ["git", "ls-files", "--others", "--exclude-standard", "--", "comp/observer"],
+            cwd=root, capture_output=True, text=True, timeout=30,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        return []
+    if r.returncode != 0:
+        return []
+    return [line.strip() for line in r.stdout.splitlines() if line.strip()]
+
+
+def _untracked_observer_snapshot(root: Path, *, max_bytes: int = 40_000) -> str:
+    files = _untracked_observer_files(root)
+    if not files:
+        return ""
+    chunks: list[str] = ["\n\n--- Untracked comp/observer files ---"]
+    budget = max_bytes
+    for rel in files[:25]:
+        path = root / rel
+        chunks.append(f"\n+++ {rel}")
+        try:
+            body = path.read_text(errors="replace")
+        except OSError as e:
+            body = f"(unreadable: {e})"
+        if len(body) > budget:
+            body = body[:budget] + "\n... (untracked snapshot truncated)"
+        chunks.append(body)
+        budget -= len(body)
+        if budget <= 0:
+            break
+    if len(files) > 25:
+        chunks.append(f"\n... {len(files) - 25} more untracked files omitted")
+    return "\n".join(chunks)
+
+
 # ---------------------------------------------------------------------------
 # 1. Inbox interpretation
 # ---------------------------------------------------------------------------
@@ -1155,11 +1300,154 @@ def _working_tree_diff(root: Path) -> str:
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
         return "(diff unavailable — git subprocess failed)"
     out = r.stdout
+    untracked = _untracked_observer_snapshot(root)
+    if untracked:
+        out = f"{out}\n{untracked}" if out else untracked
     # 200KB cap — larger than any honest single-candidate diff and below
     # anything that would dominate the prompt token cost.
     if len(out) > 200_000:
         out = out[:200_000] + "\n... (diff truncated at 200KB)"
     return out or "(no working-tree diff)"
+
+
+def pre_eval_gate(
+    candidate: Candidate,
+    *,
+    impl_summary: str,
+    root: Path,
+    iter_num: int | None = None,
+) -> dict[str, Any]:
+    """Independent reviewer gate before expensive scenario eval.
+
+    The implementer answers through its DONE summary and working-tree
+    diff. This call is a separate model invocation with read-only tools:
+    it verifies that the change is wired, relevant to scored output,
+    plausible, and worth spending eval budget on.
+    """
+    diff_stat = _working_tree_diff_stat(root)
+    diff = _working_tree_diff(root)
+    if len(diff) > 90_000:
+        diff = diff[:90_000] + "\n... (diff truncated at 90KB for pre-eval gate)"
+
+    plan = (
+        candidate.implementation_plan
+        if candidate.implementation_plan
+        else "(no implementation_plan was authored)"
+    )
+    prompt = f"""You are an independent pre-eval gate reviewer for the
+observer anomaly-detection coordinator. A coding agent has already edited
+the working tree. Your job is NOT to improve the code. Your job is to
+decide whether this candidate is worth running through the expensive
+scenario eval.
+
+Working directory: {root.resolve()}
+Candidate ID: {candidate.id}
+Approach family: {candidate.approach_family}
+Target components: {', '.join(candidate.target_components or [])}
+
+## Candidate description
+
+{candidate.description}
+
+## Proposer implementation plan
+
+{plan}
+
+## Implementer DONE summary
+
+{impl_summary}
+
+## Diff stat
+
+```
+{diff_stat}
+```
+
+## Working-tree diff under comp/observer
+
+```diff
+{diff}
+```
+
+## Gate criteria
+
+Reject before eval when the diff is predictably unevaluable or wasteful:
+
+- no scored-output impact: dead code, tests/docs only, default-disabled new
+  component, or changes only a path the system eval will not exercise
+- miswired component: catalog name mismatch, missing factory registration,
+  wrong interface, or a detector/correlator/filter that cannot receive input
+- plan abandoned: implementation does not materially execute the proposer's
+  intended approach and does not provide an equivalent substitute
+- invalid metric logic: obvious threshold sign inversion, impossible score
+  scale, mutating labels/fixtures, or rewarding FP explosions
+- unbounded complexity: global state or expensive per-tick/per-pair loops that
+  are likely to time out or distort eval runtime
+- non-novel or redundant: repeats a recent failed idea without a concrete new
+  mechanism likely to change output
+
+Permit eval only when the candidate is wired into scored output, implements
+a coherent mechanism, has plausible default behavior, and the expected metric
+direction is concrete enough to test.
+
+Use Read/Grep/Glob only if needed to verify wiring or interfaces. Do not edit.
+
+Respond with exactly one YAML object:
+
+```yaml
+verdict: run_eval | skip_eval | request_fix
+confidence: 0.0
+primary_reason: >
+  One specific paragraph. If rejecting, name the concrete waste pattern.
+checks:
+  scored_output_impact:
+    status: pass | fail | unknown
+    evidence: >
+      Cite diff or file-level evidence.
+  component_wiring:
+    status: pass | fail | unknown
+    evidence: >
+      Catalog/interface/default-enabled evidence.
+  plan_fidelity:
+    status: pass | fail | unknown
+    evidence: >
+      Whether the diff matches the plan's intended mechanism.
+  metric_plausibility:
+    status: pass | fail | unknown
+    evidence: >
+      Expected precision/recall/FP direction and why.
+  complexity_safety:
+    status: pass | fail | unknown
+    evidence: >
+      Runtime/state safety assessment.
+required_before_eval:
+  - Only concrete fixes needed before eval. Empty list if verdict is run_eval.
+risks:
+  - Residual risks even if verdict is run_eval.
+```
+
+Decision policy:
+
+- `run_eval`: all critical checks pass, or unknowns are minor and eval is the
+  right way to answer them.
+- `request_fix`: the idea may be viable but the current diff has a concrete
+  wiring/implementation gap. The coordinator will skip eval, revert this
+  working tree, and feed the required fixes into future proposer context; it
+  does not run an in-iteration repair loop.
+- `skip_eval`: the approach is not viable, has no scored-output path, or is a
+  redundant/non-original attempt that should not consume eval budget.
+"""
+    text = _run_query(
+        prompt,
+        model=CONFIG.model_deep,
+        purpose="pre_eval_gate",
+        root=root,
+        iter_num=iter_num,
+        allowed_tools=["Read", "Grep", "Glob"],
+        cwd=str(root),
+        max_turns=10,
+    )
+    return _normalize_pre_eval_gate(_parse_yaml_block(text), raw_text=text)
 
 
 def _redact_scenario_names(text: str, scenarios: list[str]) -> str:
