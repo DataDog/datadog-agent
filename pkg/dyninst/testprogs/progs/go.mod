@@ -8,7 +8,7 @@ require (
 	github.com/DataDog/dd-trace-go/contrib/net/http/v2 v2.0.1
 	// Version 2.2.3 is the first one that supports subscribing to the remote
 	// config product for SymDB upload requests.
-	github.com/DataDog/dd-trace-go/v2 v2.2.3-rc.1
+	github.com/DataDog/dd-trace-go/v2 v2.2.3
 
 	// This is the last version of dd-trace-go that isn't just a wrapper around
 	// the v2 package. Note that this tracer does not have support for the
