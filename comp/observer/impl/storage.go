@@ -182,23 +182,39 @@ func newTimeSeriesStorage() *timeSeriesStorage {
 }
 
 // Add records a data point for a named metric in a namespace.
+// AddResult bundles the outputs of timeSeriesStorage.Add. Wrapping these
+// in a named struct keeps call sites self-documenting (`res.IsNew` /
+// `res.StorageKey` rather than two anonymous booleans/strings) and gives
+// us a single point to extend if future callers need additional metadata
+// (e.g. ID, eviction signal) without breaking every existing caller.
+type AddResult struct {
+	// IsNew is true if this Add created a brand-new series (cardinality +1).
+	IsNew bool
+	// StorageKey is the canonical seriesKey for this point. Callers that
+	// need to index further state by the same key (e.g. engine.contextRefs)
+	// can reuse this value instead of recomputing seriesKey(...) themselves.
+	// Empty string is returned when the point is dropped pre-key-compute
+	// (non-finite or sentinel values).
+	StorageKey string
+}
+
+// Add inserts a (namespace, name, value, timestamp, tags) point into storage.
 // Invalid values are dropped at ingest with accounting and sampled logging.
 // Timestamps are maintained in sorted order so replay and live ingestion remain
 // correct even when data arrives out of order.
-// Returns true if this point created a new series (cardinality +1), false otherwise.
-func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp int64, tags []string) bool {
+func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp int64, tags []string) AddResult {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if math.IsInf(value, 0) || math.IsNaN(value) {
 		s.recordDroppedValue("non_finite", namespace, name, value, timestamp, tags)
-		return false
+		return AddResult{}
 	}
 	// Guard against known finite sentinel values (MaxFloat64 used as "unlimited")
 	// that overflow downstream aggregation math when summed.
 	if value == math.MaxFloat64 || value == -math.MaxFloat64 {
 		s.recordDroppedValue("extreme", namespace, name, value, timestamp, tags)
-		return false
+		return AddResult{}
 	}
 	key := seriesKey(namespace, name, tags)
 
@@ -218,7 +234,7 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 		s.seriesIDStats = append(s.seriesIDStats, stats)
 		s.seriesGen++
 	}
-	isNew := !exists
+	res := AddResult{IsNew: !exists, StorageKey: key}
 	stats.writeGeneration++
 
 	// Bucket by second.
@@ -239,7 +255,7 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 		if value > stats.maxes[idx] {
 			stats.maxes[idx] = value
 		}
-		return isNew
+		return res
 	}
 
 	stats.timestamps = insertInt64(stats.timestamps, idx, bucket)
@@ -247,7 +263,7 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 	stats.counts = insertInt64(stats.counts, idx, 1)
 	stats.mins = insertFloat64(stats.mins, idx, value)
 	stats.maxes = insertFloat64(stats.maxes, idx, value)
-	return isNew
+	return res
 }
 
 // insertInt64 inserts v at position idx in s, maintaining order.
@@ -448,11 +464,36 @@ func (s *timeSeriesStorage) MaxTimestamp() int64 {
 }
 
 // seriesKey creates a unique key for a series.
+//
+// The result has the form "namespace|name|tag1,tag2,...". This function is on
+// the hot path for log ingestion and detector loops, so we build the key with
+// a single growth via strings.Builder to avoid the chained `+` and intermediate
+// joinTags allocations that the naive form produces.
 func seriesKey(namespace, name string, tags []string) string {
 	if len(tags) > 1 && !tagsSorted(tags) {
 		tags = canonicalizeTags(tags)
 	}
-	return namespace + "|" + name + "|" + joinTags(tags)
+	// Pre-compute exact length: namespace + '|' + name + '|' + joined(tags).
+	n := len(namespace) + 1 + len(name) + 1
+	for i, t := range tags {
+		if i > 0 {
+			n++ // ',' separator
+		}
+		n += len(t)
+	}
+	var b strings.Builder
+	b.Grow(n)
+	b.WriteString(namespace)
+	b.WriteByte('|')
+	b.WriteString(name)
+	b.WriteByte('|')
+	for i, t := range tags {
+		if i > 0 {
+			b.WriteByte(',')
+		}
+		b.WriteString(t)
+	}
+	return b.String()
 }
 
 // parseSeriesKey parses a series key back into its parts.
@@ -679,12 +720,68 @@ func (s *timeSeriesStorage) DataTimestamps() []int64 {
 	return timestamps
 }
 
-// SeriesGeneration returns a counter that increments whenever a new series key
-// is created. Callers can use this to safely cache ListSeries results.
+// SeriesGeneration returns a counter that increments whenever the series
+// catalog changes — either when a new series key is created or when an
+// existing key is removed via RemoveSeriesByKeys. Callers can use this to
+// safely cache ListSeries results.
 func (s *timeSeriesStorage) SeriesGeneration() uint64 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.seriesGen
+}
+
+// RemoveSeriesByKeys deletes the listed internal series keys (as produced by
+// seriesKey). The compact numeric SeriesRef IDs assigned to each removed
+// series are retired but NEVER reused: the slot in seriesIDStats is set to
+// nil so any stale SeriesRef resolves to nil via resolveByID, and the slot
+// in seriesIDKeys is set to "" — the slice length is preserved so subsequent
+// index lookups remain bounds-safe, but the original key string is no longer
+// referenced and can be garbage-collected. GetSeriesByNumericID's nil-stats
+// guard handles the empty-string lookup safely (s.series[""] is always nil).
+// Returns the SeriesRefs that were actually freed (one per successful removal,
+// in input order; unknown keys are silently skipped). seriesGen is bumped iff
+// at least one series was removed so cached ListSeries results are invalidated.
+//
+// Callers use the returned refs to fan out per-series teardown to detector
+// state that's keyed by SeriesRef (BOCPD, ScanMW, ScanWelch posterior maps,
+// seriesDetectorAdapter.lastVisibleCount, etc.). Without that fan-out, those
+// maps grow with the cumulative number of series ever observed even though
+// storage shrinks â defeating the LRU caps put on the upstream extractors.
+//
+// This is the storage-side counterpart to engine.removeContextRefsForEvictedKeys:
+// the engine's contextRefs index keeps track of which storage key was created
+// for which extractor context key, so when an extractor evicts a context the
+// engine can pass the corresponding storage keys here to free their tags +
+// columnar arrays. Without this path, evicted patterns leak indefinitely.
+func (s *timeSeriesStorage) RemoveSeriesByKeys(keys []string) []observer.SeriesRef {
+	if len(keys) == 0 {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var removed []observer.SeriesRef
+	for _, key := range keys {
+		if _, exists := s.series[key]; !exists {
+			continue
+		}
+		delete(s.series, key)
+		if id, ok := s.seriesIDs[key]; ok {
+			if int(id) < len(s.seriesIDStats) {
+				s.seriesIDStats[id] = nil
+			}
+			if int(id) < len(s.seriesIDKeys) {
+				// Free the key string so it can be GC'd; keep the slot so
+				// seriesIDKeys remains addressable for stale-ref reads.
+				s.seriesIDKeys[id] = ""
+			}
+			delete(s.seriesIDs, key)
+			removed = append(removed, id)
+		}
+	}
+	if len(removed) > 0 {
+		s.seriesGen++
+	}
+	return removed
 }
 
 // CompactSeriesID translates a full series key to its compact numeric ID string.
@@ -729,7 +826,12 @@ func (s *timeSeriesStorage) ListSeries(filter observer.SeriesFilter) []observer.
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	var result []observer.SeriesMeta
+	// Preallocate to len(s.series): an upper bound under the lock that lets
+	// us avoid repeated growslice in the common case where the filter matches
+	// most series. Detectors and the adapter call this on every advance, so
+	// even after the cache-by-gen optimisations the worst-case cost matters
+	// when seriesGen does churn (e.g. cardinality blow-ups in extractors).
+	result := make([]observer.SeriesMeta, 0, len(s.series))
 listSeriesLoop:
 	for key, stats := range s.series {
 		if filter.Namespace != "" {
