@@ -50,7 +50,7 @@ type Client interface {
 	GetTaskWithTags(ctx context.Context) (*Task, error)
 	// GetTasks returns all tasks running on the host. This endpoint is available in daemon
 	// mode (e.g. ECS Managed Instances) and returns the full task list in a single call,
-	// including DaemonName for daemon-scheduled tasks.
+	// including the Group field that identifies daemon-scheduled tasks via the "daemon:" prefix.
 	GetTasks(ctx context.Context) ([]Task, error)
 }
 

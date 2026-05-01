@@ -86,7 +86,8 @@ func (c *collector) initializeDaemonMode(ctx context.Context) error {
 //     See: v1parser.go - parseTasksFromV1Endpoint()
 //
 //   - Enabled with V4 on Managed Instances: Uses the v4 /tasks endpoint to fetch all host tasks
-//     in a single call, including the DaemonName field for daemon-scheduled tasks.
+//     in a single call. The Group field on each task identifies daemon-scheduled tasks via
+//     the "daemon:" prefix, which is mapped to ECSTask.DaemonName.
 //     See: daemon_parser.go - parseTasksFromV4TasksEndpoint()
 //
 //   - Enabled with V4 on EC2: Uses V4 metadata endpoint per-task (detailed task info with health, tags, etc.)

@@ -20,7 +20,11 @@ type Task struct {
 	TaskTags                map[string]string  `json:"TaskTags,omitempty"`
 	EphemeralStorageMetrics map[string]int64   `json:"EphemeralStorageMetrics,omitempty"`
 	ServiceName             string             `json:"ServiceName,omitempty"`
-	DaemonName              string             `json:"DaemonName,omitempty"`
+	// Group identifies the task's scheduling owner. The value is prefixed with
+	// "service:", "daemon:", or "family:" followed by the resource name. Only the
+	// /tasks host endpoint (ECS Managed Instances) populates this field; the per-task
+	// /task and /taskWithTags endpoints do not return it.
+	Group                   string             `json:"Group,omitempty"`
 	VPCID                   string             `json:"VPCID,omitempty"`
 	PullStartedAt           string             `json:"PullStartedAt,omitempty"`
 	PullStoppedAt           string             `json:"PullStoppedAt,omitempty"`

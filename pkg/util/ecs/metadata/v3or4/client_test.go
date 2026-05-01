@@ -33,16 +33,16 @@ func TestGetTasks(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, tasks, 2)
 
-	// service task: has ServiceName, no DaemonName
+	// service task: has ServiceName and a "service:" Group
 	serviceTask := tasks[0]
 	require.Equal(t, "arn:aws:ecs:us-east-1:123457279990:task/ecs-cluster/aaa111bbb222ccc333ddd444eee55500", serviceTask.TaskARN)
 	require.Equal(t, "my-service", serviceTask.ServiceName)
-	require.Empty(t, serviceTask.DaemonName)
+	require.Equal(t, "service:my-service", serviceTask.Group)
 
-	// daemon task: has DaemonName, no ServiceName
+	// daemon task: has a "daemon:" Group and no ServiceName
 	daemonTask := tasks[1]
 	require.Equal(t, "arn:aws:ecs:us-east-1:123457279990:task/ecs-cluster/fff666eee555ddd444ccc333bbb22200", daemonTask.TaskARN)
-	require.Equal(t, "my-daemon", daemonTask.DaemonName)
+	require.Equal(t, "daemon:my-daemon", daemonTask.Group)
 	require.Empty(t, daemonTask.ServiceName)
 }
 

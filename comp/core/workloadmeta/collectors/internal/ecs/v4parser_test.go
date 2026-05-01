@@ -192,7 +192,8 @@ func TestPullWithTaskCollectionEnabledWithV4ParserCacheClearing(t *testing.T) {
 }
 
 // TestParseTasksFromV4TasksEndpoint tests that parseTasksFromV4TasksEndpoint correctly parses
-// all tasks returned by the v4 /tasks endpoint, including DaemonName for daemon-scheduled tasks.
+// all tasks returned by the v4 /tasks endpoint, deriving DaemonName from the "daemon:" Group
+// prefix for daemon-scheduled tasks.
 func TestParseTasksFromV4TasksEndpoint(t *testing.T) {
 	// Serve the /tasks endpoint from the daemon agent's own v4 URI
 	dummyECS, err := testutil.NewDummyECS(

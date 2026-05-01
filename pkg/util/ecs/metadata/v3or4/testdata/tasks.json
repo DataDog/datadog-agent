@@ -8,6 +8,7 @@
     "KnownStatus": "RUNNING",
     "LaunchType": "MANAGED_INSTANCES",
     "ServiceName": "my-service",
+    "Group": "service:my-service",
     "Containers": [
       {
         "DockerId": "aaa111bbb222ccc333ddd444eee55500-1234567890",
@@ -29,7 +30,7 @@
     "DesiredStatus": "RUNNING",
     "KnownStatus": "RUNNING",
     "LaunchType": "MANAGED_INSTANCES",
-    "DaemonName": "my-daemon",
+    "Group": "daemon:my-daemon",
     "Containers": [
       {
         "DockerId": "fff666eee555ddd444ccc333bbb22200-0987654321",
