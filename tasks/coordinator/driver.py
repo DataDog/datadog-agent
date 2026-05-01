@@ -517,6 +517,104 @@ def _reject_candidate(
     metrics.regenerate(db, root)
 
 
+def _archive_numeric_prefilter(db: Db, scoring) -> tuple[bool, dict[str, Any]]:
+    """Cheap corpus-retention prefilter before asking the archive-merit model.
+
+    Shipping gates compare against the effective best-historical baseline.
+    Archival asks a different question: did this rejected diff materially beat
+    the original system baseline with bounded FP growth, enough to preserve for
+    manual corpus eval?
+    """
+    if db.baseline is None:
+        return False, {"reason": "no_original_baseline"}
+    base = db.baseline.system
+    min_score = base.mean_f1 + 0.05
+    fp_ceiling = max(int(base.total_fps * 2), base.total_fps + 25)
+    passes = (
+        scoring.mean_f1 >= min_score
+        and scoring.total_fps <= fp_ceiling
+    )
+    return passes, {
+        "original_baseline_mean_f1": base.mean_f1,
+        "observed_mean_f1": scoring.mean_f1,
+        "min_archive_score": min_score,
+        "original_baseline_total_fps": base.total_fps,
+        "observed_total_fps": scoring.total_fps,
+        "archive_fp_ceiling": fp_ceiling,
+    }
+
+
+def _archive_candidate_commit(
+    *,
+    db: Db,
+    root: Path,
+    it: Iteration,
+    candidate: Candidate,
+    experiment: Experiment,
+    scoring,
+    archive_prefilter: dict[str, Any],
+    archive_decision: dict[str, Any],
+    rationale_lines: str,
+    iter_num: int,
+) -> None:
+    """Commit a rejected-but-promising attempt as corpus, not as a ship."""
+    candidate.status = CandidateStatus.ARCHIVED
+    experiment.commit_sha = "pending"
+    save_db(db, root)
+
+    commit_sha = git_ops.commit_candidate(
+        candidate.id,
+        experiment.id,
+        root,
+        commit_prefix="coord-archive",
+    )
+    experiment.commit_sha = commit_sha
+    save_db(db, root)
+    pushed_ok, push_msg = git_ops.push_scratch_branch(root)
+    journal.append(
+        "push_attempted",
+        {
+            "iter": iter_num,
+            "ok": pushed_ok,
+            "msg": push_msg,
+            "sha": commit_sha,
+            "kind": "archive",
+        },
+        root,
+    )
+    push_tag = "pushed" if pushed_ok else f"push-failed ({push_msg[:60]})"
+    print(
+        f"[iter {iter_num}] ARCHIVED; committed {commit_sha[:10]} "
+        f"({push_tag}) score {scoring.mean_f1:.4f}"
+    )
+    coord_out.emit(
+        "iter_archived",
+        (
+            f"**iter {iter_num}** · `{candidate.id}` — **ARCHIVED** "
+            f"(commit `{commit_sha[:10]}`, {push_tag}).\n\n"
+            f"This is a research corpus commit, not a shipped candidate; "
+            f"effective baseline was not updated.\n\n"
+            f"Mean F1 vs original baseline "
+            f"{archive_prefilter['original_baseline_mean_f1']:.4f} → "
+            f"{scoring.mean_f1:.4f} "
+            f"(Δ{scoring.mean_f1 - archive_prefilter['original_baseline_mean_f1']:+.4f}). "
+            f"FPs {archive_prefilter['original_baseline_total_fps']} → "
+            f"{scoring.total_fps}.\n\n"
+            f"**Archive merit reviewer** "
+            f"(confidence {float(archive_decision.get('confidence', 0.0)):.2f}): "
+            f"{str(archive_decision.get('reason', ''))[:900]}\n\n"
+            f"**Prior rejection context**:\n{rationale_lines}"
+            + _budget_footer(root, iter_num, ceiling=db.budget.api_token_ceiling)
+        ),
+        requires_ack=False,
+        root=root,
+    )
+    it.ended_at = now_iso()
+    db.iterations.append(it)
+    save_db(db, root)
+    metrics.regenerate(db, root)
+
+
 def _consult_oracle(
     *,
     db: Db,
@@ -2048,6 +2146,59 @@ def _run_iteration_body(
             f"(Δ{d.df1:+.3f}), recall Δ{d.drecall:+.3f}"
             for d in top
         )
+        archive_prefilter_ok, archive_prefilter = _archive_numeric_prefilter(db, scoring)
+        archive_decision: dict[str, Any] | None = None
+        if archive_prefilter_ok and db.baseline is not None:
+            try:
+                archive_decision = sdk_mod.assess_archive_merit(
+                    candidate=candidate,
+                    experiment=experiment,
+                    scoring=scoring,
+                    original_baseline_mean_f1=db.baseline.system.mean_f1,
+                    original_baseline_total_fps=db.baseline.system.total_fps,
+                    tier2_signals=tier2_signals,
+                    root=root,
+                    iter_num=iter_num,
+                )
+            except Exception as e:
+                archive_decision = {
+                    "archive": False,
+                    "confidence": 0.0,
+                    "reason": f"archive_merit SDK call failed: {type(e).__name__}: {str(e)[:300]}",
+                    "suggested_followup": "",
+                }
+                stderr_tail = sdk_mod.tail_sdk_error_for_pr(str(e))
+                if stderr_tail:
+                    archive_decision["reason"] += f"\n\nCaptured CLI stderr tail:\n{stderr_tail}"
+            journal.append(
+                "archive_merit_done",
+                {
+                    "iter": iter_num,
+                    "candidate": candidate.id,
+                    "prefilter": archive_prefilter,
+                    "decision": archive_decision,
+                    "prior_rejection_stage": "tier1_gate",
+                },
+                root,
+            )
+        if archive_decision and archive_decision.get("archive"):
+            _archive_candidate_commit(
+                db=db,
+                root=root,
+                it=it,
+                candidate=candidate,
+                experiment=experiment,
+                scoring=scoring,
+                archive_prefilter=archive_prefilter,
+                archive_decision=archive_decision,
+                rationale_lines=(
+                    f"Deterministic tier-1 gate rejected this candidate before "
+                    f"shipping review.\n\n**Gate failures**: {reason}\n\n"
+                    f"**Top 5 |ΔF1| scenarios**:\n{delta_lines}"
+                ),
+                iter_num=iter_num,
+            )
+            return
         _reject_candidate(
             db=db, root=root, it=it, candidate=candidate,
             experiment=experiment,
@@ -2252,12 +2403,62 @@ def _run_iteration_body(
     else:
         # Review-level reject — passed deterministic gates, failed unanimity.
         # Show each persona's verdict for transparency.
-        print(f"[iter {iter_num}] REJECTED; reverted (score {scoring.mean_f1:.4f})")
         rationale_lines = "\n".join(
             f"- **{dec.persona}** ({'approve' if dec.approve else 'reject'}): "
             f"{dec.rationale[:400]}"
             for dec in verdict.decisions
         )
+        archive_prefilter_ok, archive_prefilter = _archive_numeric_prefilter(db, scoring)
+        archive_decision: dict[str, Any] | None = None
+        if archive_prefilter_ok and db.baseline is not None:
+            try:
+                archive_decision = sdk.assess_archive_merit(
+                    candidate=candidate,
+                    experiment=experiment,
+                    scoring=scoring,
+                    original_baseline_mean_f1=db.baseline.system.mean_f1,
+                    original_baseline_total_fps=db.baseline.system.total_fps,
+                    tier2_signals=tier2_signals,
+                    root=root,
+                    iter_num=iter_num,
+                )
+            except Exception as e:
+                archive_decision = {
+                    "archive": False,
+                    "confidence": 0.0,
+                    "reason": f"archive_merit SDK call failed: {type(e).__name__}: {str(e)[:300]}",
+                    "suggested_followup": "",
+                }
+                stderr_tail = sdk_mod.tail_sdk_error_for_pr(str(e))
+                if stderr_tail:
+                    archive_decision["reason"] += f"\n\nCaptured CLI stderr tail:\n{stderr_tail}"
+            journal.append(
+                "archive_merit_done",
+                {
+                    "iter": iter_num,
+                    "candidate": candidate.id,
+                    "prefilter": archive_prefilter,
+                    "decision": archive_decision,
+                },
+                root,
+            )
+
+        if archive_decision and archive_decision.get("archive"):
+            _archive_candidate_commit(
+                db=db,
+                root=root,
+                it=it,
+                candidate=candidate,
+                experiment=experiment,
+                scoring=scoring,
+                archive_prefilter=archive_prefilter,
+                archive_decision=archive_decision,
+                rationale_lines=f"**Shipping reviewer verdicts**:\n{rationale_lines}",
+                iter_num=iter_num,
+            )
+            return
+
+        print(f"[iter {iter_num}] REJECTED; reverted (score {scoring.mean_f1:.4f})")
         _reject_candidate(
             db=db, root=root, it=it, candidate=candidate,
             experiment=experiment,
@@ -2276,6 +2477,8 @@ def _run_iteration_body(
                         {"persona": d.persona, "approve": d.approve}
                         for d in verdict.decisions
                     ],
+                    "archive_prefilter": archive_prefilter,
+                    "archive_merit": archive_decision,
                 },
                 advisory_signals=[s["kind"] for s in tier2_signals],
             ),
@@ -2285,6 +2488,9 @@ def _run_iteration_body(
                 f"Mean F1 {scoring.baseline_mean_f1:.4f} → {scoring.mean_f1:.4f} "
                 f"(Δ{scoring.mean_df1:+.4f}).\n\n"
                 f"**Reviewer verdicts**:\n{rationale_lines}\n\n"
+                f"**Archive prefilter**: "
+                f"{'passed' if archive_prefilter_ok else 'did not pass'} "
+                f"`{archive_prefilter}`\n\n"
                 f"Working tree reverted; no commit."
             ),
             coord_out_kind="iter_rejected",
@@ -2437,7 +2643,10 @@ def main(argv: list[str] | None = None) -> int:
                 exp.status = ExperimentStatus.FAILED
                 exp.commit_sha = ""
                 cand = db.candidates.get(exp.candidate_id)
-                if cand is not None and cand.status == CandidateStatus.SHIPPED:
+                if cand is not None and cand.status in (
+                    CandidateStatus.SHIPPED,
+                    CandidateStatus.ARCHIVED,
+                ):
                     cand.status = CandidateStatus.REJECTED
                 journal.append(
                     "pending_commit_reverted",

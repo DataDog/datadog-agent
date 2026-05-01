@@ -41,6 +41,7 @@ class CandidateStatus(str, Enum):
 
     PROPOSED = "proposed"
     SHIPPED = "shipped"
+    ARCHIVED = "archived"
     REJECTED = "rejected"
 
 

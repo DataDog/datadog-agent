@@ -1622,3 +1622,123 @@ def review_experiment(
 
     unanimous = all(d.approve for d in decisions) if decisions else False
     return ReviewVerdict(unanimous_approve=unanimous, decisions=decisions)
+
+
+def assess_archive_merit(
+    *,
+    candidate: Candidate,
+    experiment: Experiment,
+    scoring: ScoringResult,
+    original_baseline_mean_f1: float,
+    original_baseline_total_fps: int,
+    tier2_signals: list[dict] | None,
+    root: Path,
+    iter_num: int | None = None,
+) -> dict[str, Any]:
+    """Ask a separate reviewer whether a rejected-but-promising attempt
+    deserves an archive commit on the scratch branch.
+
+    This is not a shipping decision. The question is whether preserving
+    the exact diff as corpus is worth branch noise and future eval time.
+    """
+    diff = _working_tree_diff(root)
+    if len(diff) > 90_000:
+        diff = diff[:90_000] + "\n... (diff truncated at 90KB for archive merit gate)"
+    review_lines = "\n".join(
+        f"- {d.persona} ({'approve' if d.approve else 'reject'}): {d.rationale[:500]}"
+        for d in (experiment.review.decisions if experiment.review else [])
+    ) or "(no review decisions recorded)"
+    tier2 = json.dumps(tier2_signals or [], indent=2)
+    prompt = f"""You are the archive-merit reviewer for an anomaly-detection
+research harness. A candidate was rejected for shipping, but its numeric eval
+signal passed a corpus-retention prefilter. Decide whether the harness should
+commit the exact diff to the same scratch PR branch as an ARCHIVED attempt.
+
+This is NOT approval to ship or update the effective baseline. Archive means:
+preserve for manual corpus eval because the idea has real research merit.
+
+Candidate: {candidate.id}
+Approach family: {candidate.approach_family}
+Target components: {', '.join(candidate.target_components or [])}
+
+## Candidate description
+
+{candidate.description}
+
+## Implementation plan
+
+{candidate.implementation_plan or '(no implementation_plan)'}
+
+## Eval numbers
+
+- original baseline mean F1: {original_baseline_mean_f1:.4f}
+- observed mean F1: {scoring.mean_f1:.4f}
+- delta vs original baseline: {scoring.mean_f1 - original_baseline_mean_f1:+.4f}
+- original baseline total FPs: {original_baseline_total_fps}
+- observed total FPs: {scoring.total_fps}
+- delta FPs vs original baseline: {scoring.total_fps - original_baseline_total_fps:+d}
+
+## Shipping review outcome
+
+{review_lines}
+
+## Tier-2 advisory signals
+
+```json
+{tier2}
+```
+
+## Diff
+
+```diff
+{diff}
+```
+
+Archive if the candidate has plausible reusable merit despite rejection:
+
+- real mechanism, not dead code or eval no-op
+- score lift is likely from meaningful detections, not obvious FP spam
+- FP increase is bounded or the diff contains a clear path to controlling it
+- reviewer objections are polish, risk, or thresholding issues rather than
+  fundamental invalidity
+- distinct enough from previous failed attempts to be worth future manual eval
+
+Do not archive if it is mainly broken wiring, default-disabled code, metric
+gaming, label/eval hacking, unbounded runtime, or a no-op.
+
+Respond with YAML:
+
+```yaml
+archive: true | false
+confidence: 0.0
+reason: >
+  Specific reason. If true, state what merit should be preserved. If false,
+  state why the numeric signal is not trustworthy enough.
+suggested_followup: >
+  One concrete next manual-eval or reseed action, or empty string.
+```
+"""
+    text = _run_query(
+        prompt,
+        model=CONFIG.model_deep,
+        purpose="archive_merit",
+        root=root,
+        iter_num=iter_num,
+        allowed_tools=["Read", "Grep", "Glob"],
+        cwd=str(root),
+        max_turns=8,
+    )
+    data = _parse_yaml_block(text)
+    archive_raw = data.get("archive", False)
+    archive = archive_raw is True or str(archive_raw).strip().lower() == "true"
+    try:
+        confidence = float(data.get("confidence", 0.0) or 0.0)
+    except (TypeError, ValueError):
+        confidence = 0.0
+    return {
+        "archive": archive,
+        "confidence": max(0.0, min(1.0, confidence)),
+        "reason": str(data.get("reason", "") or "").strip() or "archive_merit response missing reason",
+        "suggested_followup": str(data.get("suggested_followup", "") or "").strip(),
+        "raw_text": text[:4000],
+    }

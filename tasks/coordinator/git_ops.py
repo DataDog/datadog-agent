@@ -132,6 +132,7 @@ def commit_candidate(
     experiment_id: str,
     root: Path = Path("."),
     paths: list[str] | None = None,
+    commit_prefix: str = "coord",
 ) -> str:
     """Commit working-tree changes on the scratch branch. Returns new HEAD SHA.
 
@@ -148,7 +149,7 @@ def commit_candidate(
     # would stage any edits to comp/observer/scenarios/ ground-truth files.
     pathspec = list(paths) + [f":(exclude){p}" for p in EXCLUDE_PATHS]
     _run(["add", "--", *pathspec], root)
-    msg = f"coord: {candidate_id} ({experiment_id})"
+    msg = f"{commit_prefix}: {candidate_id} ({experiment_id})"
     # `--no-verify`: scratch-branch commits bypass repo hooks, consistent
     # with push_scratch_branch below. Workspace envs sometimes lack the
     # venv that `tasks/pre_commit.py` imports (`invoke`), which would
