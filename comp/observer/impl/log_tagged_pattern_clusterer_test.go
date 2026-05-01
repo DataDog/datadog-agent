@@ -251,6 +251,51 @@ func TestTaggedPatternClusterer_MaxTagGroupsEvictsLRUGroup(t *testing.T) {
 	}
 }
 
+// TestTaggedPatternClusterer_EmptyMessageFromNewGroupDoesNotEvict regresses
+// the bug where an empty (or whitespace-only) first message from a brand-new
+// tag group, while at MaxTagGroups capacity, would trigger eviction of an
+// active group BEFORE the inner PatternClusterer.Process rejected the empty
+// message. The active group's clusters were lost, an empty sub-clusterer
+// stayed wedged into tc.subClusterers counting against the cap, and a stream
+// of empty logs from new containers could evict real pattern state and
+// suppress later anomalies.
+//
+// The fix is two-phase create in Process: build a transient sub-clusterer
+// without committing it; only insert + evict-LRU after sub.Process returns
+// ok. This test confirms an empty message from a new group at-cap is a
+// no-op for both the existing groups and the eviction queue.
+func TestTaggedPatternClusterer_EmptyMessageFromNewGroupDoesNotEvict(t *testing.T) {
+	tc := NewTaggedPatternClusterer(NewTagGroupByKeyRegistry())
+	tc.MaxTagGroups = 2
+
+	tagsA := []string{"service:a"}
+	tagsB := []string{"service:b"}
+	tagsC := []string{"service:c"} // would be the new “third” group at-cap
+
+	hashA, _, okA := tc.Process(tagsA, "alpha", 1000)
+	require.True(t, okA)
+	hashB, _, okB := tc.Process(tagsB, "beta", 1100)
+	require.True(t, okB)
+	require.Equal(t, 2, tc.NumSubClusterers(), "both groups resident at cap")
+	require.Empty(t, tc.DrainLRUEvictions())
+
+	for _, msg := range []string{"", "   ", "\t\n"} {
+		hashC, _, okC := tc.Process(tagsC, msg, 1200)
+		require.False(t, okC, "empty/whitespace messages must be rejected by inner Process")
+		require.Equal(t, uint64(0), hashC, "rejected calls return zero hash")
+		require.Equal(t, 2, tc.NumSubClusterers(),
+			"empty msg from new group at-cap must NOT create a sub-clusterer (would steal a slot from A or B)")
+		require.Empty(t, tc.DrainLRUEvictions(),
+			"empty msg from new group at-cap must NOT evict an existing group")
+	}
+
+	// Both original groups must still be reachable after the empty stream.
+	gotA, _, _ := tc.Process(tagsA, "alpha", 1300)
+	require.Equal(t, hashA, gotA, "group A must survive a stream of empty new-group messages")
+	gotB, _, _ := tc.Process(tagsB, "beta", 1301)
+	require.Equal(t, hashB, gotB, "group B must survive a stream of empty new-group messages")
+}
+
 func TestTaggedPatternClusterer_DrainLRUEvictionsIsOneShot(t *testing.T) {
 	tc := NewTaggedPatternClusterer(NewTagGroupByKeyRegistry())
 	tc.MaxClustersPerGroup = 1
@@ -268,7 +313,7 @@ func TestTaggedPatternClusterer_ResetClearsLRUState(t *testing.T) {
 	tc.MaxClustersPerGroup = 1
 	tc.MaxTagGroups = 1
 	tc.Process([]string{"service:a"}, "alpha", 1000)
-	tc.Process([]string{"service:b"}, "beta", 1001)  // evicts service:a's group
+	tc.Process([]string{"service:b"}, "beta", 1001) // evicts service:a's group
 	tc.Reset()
 	require.Empty(t, tc.DrainLRUEvictions(), "Reset must clear pending evictions")
 	require.Equal(t, 0, tc.NumSubClusterers())
