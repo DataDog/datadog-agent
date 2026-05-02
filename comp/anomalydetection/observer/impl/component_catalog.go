@@ -211,6 +211,21 @@ func defaultCatalog() *componentCatalog {
 				defaultEnabled: true,
 			},
 			{
+				// LODA (Lightweight On-line Detector of Anomalies, Pevný 2016)
+				// — sparse-projection ensemble over a 5-D synthetic feature
+				// vector, scored against discounted equi-width histograms.
+				// Disabled by default: the detector is on the same
+				// "earn-your-place" track as scanmw/scanwelch — flip to true
+				// only after a positive evaluation, and never as part of an
+				// unrelated change. TestLODA_DefaultEnabledIsFalse guards
+				// this default.
+				name:           "loda",
+				displayName:    "LODA",
+				kind:           componentDetector,
+				factory:        func(any) any { return NewLODADetector() },
+				defaultEnabled: false,
+			},
+			{
 				// Dempster-Shafer evidence-combination correlator. Treats each
 				// detector's anomaly as a Basic Probability Assignment over the
 				// frame {Anomalous, Normal}, fuses BPAs on the same series via
