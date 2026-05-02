@@ -210,6 +210,21 @@ func defaultCatalog() *componentCatalog {
 				factory:        func(any) any { return NewHellingerCPDetector() },
 				defaultEnabled: true,
 			},
+			{
+				// Dempster-Shafer evidence-combination correlator. Treats each
+				// detector's anomaly as a Basic Probability Assignment over the
+				// frame {Anomalous, Normal}, fuses BPAs on the same series via
+				// Dempster's rule, and emits correlations when fused belief
+				// in {Anomalous} clears a threshold AND conflict K is below
+				// a ceiling. Unlike K-of-N consensus this does NOT suppress
+				// single high-confidence detector fires, which is the explicit
+				// anti-pattern from exp-0070.
+				name:           "dempster_shafer_correlator",
+				displayName:    "Dempster-Shafer Correlator",
+				kind:           componentCorrelator,
+				factory:        func(any) any { return NewDempsterShaferCorrelator() },
+				defaultEnabled: true,
+			},
 			// ---- Correlators ----
 			{
 				name:           "anomaly_rank",
