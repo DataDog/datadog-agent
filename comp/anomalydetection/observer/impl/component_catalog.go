@@ -234,11 +234,14 @@ func defaultCatalog() *componentCatalog {
 				// a ceiling. Unlike K-of-N consensus this does NOT suppress
 				// single high-confidence detector fires, which is the explicit
 				// anti-pattern from exp-0070.
+				//
+				// Disabled in favor of lord_fdr_correlator; kept registered
+				// for --only eval comparison.
 				name:           "dempster_shafer_correlator",
 				displayName:    "Dempster-Shafer Correlator",
 				kind:           componentCorrelator,
 				factory:        func(any) any { return NewDempsterShaferCorrelator() },
-				defaultEnabled: true,
+				defaultEnabled: false,
 			},
 			// ---- Correlators ----
 			{
@@ -293,6 +296,23 @@ func defaultCatalog() *componentCatalog {
 				kind:           componentCorrelator,
 				factory:        func(any) any { return NewDetectorPassthroughCorrelator() },
 				defaultEnabled: false,
+			},
+			{
+				// LORD-1 online-FDR correlator (Javanmard & Montanari 2018,
+				// "Online rules for control of false discovery rate"). Converts
+				// each anomaly's Score to a synthetic p-value and applies the
+				// LORD-1 wealth dynamics to decide whether to emit a
+				// corresponding ActiveCorrelation, capping the long-run FDR at
+				// Alpha=0.10.
+				//
+				// Ships defaultEnabled=true to replace dempster_shafer_correlator
+				// (now flipped to defaultEnabled=false), so the count of default-
+				// enabled correlators is unchanged at 2 (time_cluster + lord_fdr).
+				name:           "lord_fdr_correlator",
+				displayName:    "LORD-FDR Correlator",
+				kind:           componentCorrelator,
+				factory:        func(any) any { return NewLORDFDRCorrelator() },
+				defaultEnabled: true,
 			},
 		},
 	}

@@ -58,15 +58,16 @@ func TestDempsterShafer_RegisteredInCatalog(t *testing.T) {
 }
 
 // TestDempsterShafer_DefaultEnabledMatchesCatalog asserts the catalog default.
-// Stage 1 set defaultEnabled=true and the harness checks for that; stage 2 must
-// not flip it. The plan called for false; deviating is a deliberate decision
-// captured in the stage-2 DONE summary.
+// The lord-online-fdr-correlator candidate (lord_fdr_correlator) explicitly
+// flips dempster_shafer to defaultEnabled=false so the count of default-enabled
+// correlators remains at 2 (time_cluster + lord_fdr). The correlator entry is
+// kept registered for --only eval comparison.
 func TestDempsterShafer_DefaultEnabledMatchesCatalog(t *testing.T) {
 	cat := defaultCatalog()
 	for _, e := range cat.entries {
 		if e.name == "dempster_shafer_correlator" {
-			assert.True(t, e.defaultEnabled,
-				"dempster_shafer_correlator defaultEnabled must remain true to match the stage-1 harness contract")
+			assert.False(t, e.defaultEnabled,
+				"dempster_shafer_correlator defaultEnabled must be false; it was disabled in favor of lord_fdr_correlator (lord-online-fdr-correlator candidate)")
 			return
 		}
 	}
