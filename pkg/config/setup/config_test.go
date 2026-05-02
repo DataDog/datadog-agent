@@ -787,6 +787,71 @@ network_path:
 	assert.True(t, config.GetBool("notable_events.enabled"))
 }
 
+func TestApplyUseDogstatsdSuppression(t *testing.T) {
+	t.Run("use_dogstatsd=false forces data_plane.dogstatsd.enabled=false", func(t *testing.T) {
+		cfg := confFromYAML(t, `
+use_dogstatsd: false
+data_plane:
+  enabled: true
+  dogstatsd:
+    enabled: true
+`)
+
+		ApplyUseDogstatsdSuppression(cfg)
+
+		assert.False(t, cfg.GetBool("data_plane.dogstatsd.enabled"),
+			"data_plane.dogstatsd.enabled must be forced false when use_dogstatsd=false")
+		assert.True(t, cfg.GetBool("data_plane.enabled"),
+			"data_plane.enabled must not be touched by the suppression override")
+	})
+
+	t.Run("use_dogstatsd=true leaves data_plane.dogstatsd.enabled untouched", func(t *testing.T) {
+		cfg := confFromYAML(t, `
+use_dogstatsd: true
+data_plane:
+  enabled: true
+  dogstatsd:
+    enabled: true
+`)
+
+		ApplyUseDogstatsdSuppression(cfg)
+
+		assert.True(t, cfg.GetBool("data_plane.dogstatsd.enabled"))
+	})
+
+	t.Run("use_dogstatsd unset leaves data_plane.dogstatsd.enabled untouched", func(t *testing.T) {
+		cfg := confFromYAML(t, `
+data_plane:
+  enabled: true
+  dogstatsd:
+    enabled: true
+`)
+
+		ApplyUseDogstatsdSuppression(cfg)
+
+		assert.True(t, cfg.GetBool("data_plane.dogstatsd.enabled"))
+	})
+
+	t.Run("use_dogstatsd=false suppresses default-true data_plane.dogstatsd.enabled (fleet policy scenario)", func(t *testing.T) {
+		// Simulates the fleet policy case: data_plane.dogstatsd.enabled is at its
+		// default (true) when the first override pass runs, but a fleet policy
+		// subsequently sets use_dogstatsd=false. ApplyUseDogstatsdSuppression is
+		// called again after fleet policy merging to handle this.
+		cfg := confFromYAML(t, `
+data_plane:
+  enabled: true
+`)
+		cfg.Set("use_dogstatsd", false, pkgconfigmodel.SourceAgentRuntime)
+
+		ApplyUseDogstatsdSuppression(cfg)
+
+		assert.False(t, cfg.GetBool("data_plane.dogstatsd.enabled"),
+			"data_plane.dogstatsd.enabled must be suppressed when fleet policy sets use_dogstatsd=false")
+		assert.True(t, cfg.GetBool("data_plane.enabled"),
+			"data_plane.enabled must not be touched by the suppression override")
+	})
+}
+
 func TestUsePodmanLogsAndDockerPathOverride(t *testing.T) {
 	// If use_podman_logs is true and docker_path_override is set, the config should return an error
 	datadogYaml := `
