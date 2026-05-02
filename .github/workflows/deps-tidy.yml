@@ -10,7 +10,7 @@ permissions: {}
 
 jobs:
   go_mod_tidy:
-    if: ${{ github.repository == 'DataDog/datadog-agent' && github.event.pull_request.user.login == 'renovate[bot]' && contains(github.event.pull_request.labels.*.name, 'dependencies-go') && (github.event_name != 'labeled' || github.event.label.name == 'dependencies-go') }}
+    if: ${{ github.repository == 'DataDog/datadog-agent' && github.event.pull_request.user.login == 'renovate[bot]' && contains(github.event.pull_request.labels.*.name, 'dependencies-go') && (github.event.action != 'labeled' || github.event.label.name == 'dependencies-go') }}
     concurrency:
       group: deps-tidy-go-${{ github.event.pull_request.number }}
       cancel-in-progress: true
@@ -64,7 +64,7 @@ jobs:
           commit-message: "[renovate skip] Auto-generate go.sum and LICENSE-3rdparty.csv changes"
 
   cargo_tidy:
-    if: ${{ github.repository == 'DataDog/datadog-agent' && github.event.pull_request.user.login == 'renovate[bot]' && contains(github.event.pull_request.labels.*.name, 'dependencies-cargo') && (github.event_name != 'labeled' || github.event.label.name == 'dependencies-cargo') }}
+    if: ${{ github.repository == 'DataDog/datadog-agent' && github.event.pull_request.user.login == 'renovate[bot]' && contains(github.event.pull_request.labels.*.name, 'dependencies-cargo') && (github.event.action != 'labeled' || github.event.label.name == 'dependencies-cargo') }}
     concurrency:
       group: deps-tidy-cargo-${{ github.event.pull_request.number }}
       cancel-in-progress: true
@@ -95,7 +95,7 @@ jobs:
           commit-message: "[renovate skip] Auto-repin Bazel Rust lockfile and regenerate Rust licenses"
 
   bazel_tidy:
-    if: ${{ github.repository == 'DataDog/datadog-agent' && github.event.pull_request.user.login == 'renovate[bot]' && contains(github.event.pull_request.labels.*.name, 'dependencies-bazel') && (github.event_name != 'labeled' || github.event.label.name == 'dependencies-bazel') }}
+    if: ${{ github.repository == 'DataDog/datadog-agent' && github.event.pull_request.user.login == 'renovate[bot]' && contains(github.event.pull_request.labels.*.name, 'dependencies-bazel') && (github.event.action != 'labeled' || github.event.label.name == 'dependencies-bazel') }}
     concurrency:
       group: deps-tidy-bazel-${{ github.event.pull_request.number }}
       cancel-in-progress: true
