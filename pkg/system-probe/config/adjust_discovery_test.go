@@ -18,26 +18,6 @@ import (
 // discoveryKey is the config key guarding discovery service map mode.
 var discoveryKey = discoveryNS("service_map", "enabled")
 
-// protocolsDisabledByDiscovery lists the USM protocol flags that discovery
-// mode must force off (kept minimal per the RFC — only HTTP + TLS probes).
-var protocolsDisabledByDiscovery = []string{
-	smNS("http2", "enabled"),
-	smNS("kafka", "enabled"),
-	smNS("postgres", "enabled"),
-	smNS("redis", "enabled"),
-}
-
-// protocolsEnabledByDiscovery lists the USM protocol flags that discovery
-// mode must force on so the monitor never silently produces no data, even
-// if a user explicitly disabled one of them.
-var protocolsEnabledByDiscovery = []string{
-	smNS("http", "enabled"),
-	smNS("tls", "native", "enabled"),
-	smNS("tls", "go", "enabled"),
-	smNS("tls", "istio", "enabled"),
-	smNS("tls", "nodejs", "enabled"),
-}
-
 // setBool sets a bool config key from an explicit source so the mock treats
 // it as user-configured (vs. a default).
 func setBool(cfg model.Config, key string, value bool) {
@@ -81,13 +61,13 @@ func TestAdjustDiscovery_ForceDisablesUnusedProtocols(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := mock.NewSystemProbe(t)
 			setBool(cfg, discoveryKey, tc.discovery)
-			for _, key := range protocolsDisabledByDiscovery {
+			for _, key := range discoveryForceDisabledProtocols {
 				setBool(cfg, key, true)
 			}
 
 			adjustDiscovery(cfg)
 
-			for _, key := range protocolsDisabledByDiscovery {
+			for _, key := range discoveryForceDisabledProtocols {
 				assert.Equal(t, tc.wantProtocolsEnabled, cfg.GetBool(key),
 					"unexpected value for %s", key)
 			}
@@ -111,13 +91,13 @@ func TestAdjustDiscovery_ForceEnablesRequiredProtocols(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := mock.NewSystemProbe(t)
 			setBool(cfg, discoveryKey, tc.discovery)
-			for _, key := range protocolsEnabledByDiscovery {
+			for _, key := range discoveryForceEnabledProtocols {
 				setBool(cfg, key, tc.userSetTo)
 			}
 
 			adjustDiscovery(cfg)
 
-			for _, key := range protocolsEnabledByDiscovery {
+			for _, key := range discoveryForceEnabledProtocols {
 				assert.Equal(t, tc.wantAfterAdjust, cfg.GetBool(key),
 					"unexpected value for %s", key)
 			}

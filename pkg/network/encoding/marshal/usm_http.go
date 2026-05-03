@@ -68,8 +68,6 @@ func (e *httpEncoder) encodeData(c network.ConnectionStats, w io.Writer) (uint64
 			key := kvPair.Key
 			stats := kvPair.Value
 
-			// In discovery mode, skip path, fullPath, and method serialization.
-			// These are empty/zero in the key and not needed for service map topology.
 			if !e.discoveryMode {
 				httpStatsBuilder.SetPath(key.Path.Content.Get())
 				httpStatsBuilder.SetFullPath(key.Path.FullPath)
@@ -82,12 +80,7 @@ func (e *httpEncoder) encodeData(c network.ConnectionStats, w io.Writer) (uint64
 					w.SetValue(func(w *model.HTTPStats_DataBuilder) {
 						w.SetCount(uint32(stats.Count))
 						if e.discoveryMode {
-							// In discovery mode LatencySum holds a running sum of
-							// latencies; convert it to an average and send it in
-							// the dedicated avgLatency wire field.
-							if stats.Count > 0 {
-								w.SetAvgLatency(stats.LatencySum / float64(stats.Count))
-							}
+							w.SetAvgLatency(stats.LatencySum / float64(stats.Count))
 						} else if latencies := stats.Latencies; latencies != nil {
 							w.SetLatencies(func(b *bytes.Buffer) {
 								e.sketchBuilder.Reset(b)

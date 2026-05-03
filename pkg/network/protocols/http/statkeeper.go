@@ -23,6 +23,10 @@ import (
 
 var (
 	requestStatsPool = ddsync.NewTypedPool[RequestStats](NewRequestStats)
+
+	// emptyInternedPath is the shared interned representation of an empty
+	// path used in discovery mode, where the path is not part of the key.
+	emptyInternedPath = Interner.Get([]byte{})
 )
 
 const (
@@ -254,9 +258,7 @@ func (h *StatKeeper) addDiscovery(tx Transaction) {
 
 	key := Key{
 		ConnectionKey: tx.ConnTuple(),
-		Path: Path{
-			Content: Interner.Get([]byte{}),
-		},
+		Path:          Path{Content: emptyInternedPath},
 	}
 	if h.connectionAggregator != nil {
 		key.ConnectionKey = h.connectionAggregator.RollupKey(key.ConnectionKey)
