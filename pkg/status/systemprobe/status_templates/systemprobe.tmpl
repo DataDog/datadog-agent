@@ -24,12 +24,14 @@
   {{- if .network_tracer.universal_service_monitoring.blocked_processes }}
     Blocked Processes: {{ formatJSON .network_tracer.universal_service_monitoring.blocked_processes 4 }}
   {{- end }}
-{{- if .network_tracer.universal_service_monitoring.discovery_service_map_enabled }}
 
   Discovery Service Map
   =====================
-    Status: Running (HTTP/HTTPS only, not billed)
-{{- end }}
+  {{- if .network_tracer.universal_service_monitoring.discovery_service_map_enabled }}
+    Status: Running
+  {{- else }}
+    Status: Not running
+  {{- end }}
 
   NPM
   ===

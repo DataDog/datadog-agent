@@ -187,6 +187,7 @@ func (m *Monitor) GetUSMStats() map[string]any {
 	tracedPrograms := utils.GetTracedProgramList(consts.USMModuleName)
 	response["traced_programs"] = tracedPrograms
 
+	response["discovery_service_map_enabled"] = false
 	if m != nil {
 		response["last_check"] = m.lastUpdateTime
 		response["discovery_service_map_enabled"] = m.cfg.DiscoveryServiceMapEnabled
