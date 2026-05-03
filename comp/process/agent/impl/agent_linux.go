@@ -1,11 +1,8 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2024-present Datadog, Inc.
 
-package inventoryagent
+//go:build linux
 
-// Mock implements mock-specific methods for the inventoryagent component.
-type Mock interface {
-	Component
-}
+package agentimpl
