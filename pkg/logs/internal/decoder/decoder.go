@@ -153,7 +153,11 @@ func resolveTokenizerAndLabelerMaxInputBytes(sourceAutoMLSettings *config.Source
 
 	tokenizerMaxInputBytes = labelerMaxBytes
 	if resolveAdaptiveSamplerEnabled(sourceAdaptiveSampling) {
-		if samplerMin := pkgconfigsetup.Datadog().GetInt("logs_config.experimental_adaptive_sampling.tokenizer_max_input_bytes"); samplerMin > tokenizerMaxInputBytes {
+		samplerMin := pkgconfigsetup.Datadog().GetInt("logs_config.experimental_adaptive_sampling.tokenizer_max_input_bytes")
+		if sourceAdaptiveSampling != nil && sourceAdaptiveSampling.TokenizerMaxInputBytes != nil {
+			samplerMin = *sourceAdaptiveSampling.TokenizerMaxInputBytes
+		}
+		if samplerMin > tokenizerMaxInputBytes {
 			tokenizerMaxInputBytes = samplerMin
 		}
 	}
@@ -169,13 +173,31 @@ func resolveAdaptiveSamplerEnabled(sourceAdaptiveSampling *config.SourceAdaptive
 	return pkgconfigsetup.Datadog().GetBool("logs_config.experimental_adaptive_sampling.enabled")
 }
 
-func resolveAdaptiveSamplerConfig() preprocessor.AdaptiveSamplerConfig {
+func resolveAdaptiveSamplerConfig(sourceAdaptiveSampling *config.SourceAdaptiveSamplingOptions) preprocessor.AdaptiveSamplerConfig {
 	c := preprocessor.AdaptiveSamplerConfig{
 		MaxPatterns:          pkgconfigsetup.Datadog().GetInt("logs_config.experimental_adaptive_sampling.max_patterns"),
 		RateLimit:            pkgconfigsetup.Datadog().GetFloat64("logs_config.experimental_adaptive_sampling.rate_limit"),
 		BurstSize:            pkgconfigsetup.Datadog().GetFloat64("logs_config.experimental_adaptive_sampling.burst_size"),
 		MatchThreshold:       pkgconfigsetup.Datadog().GetFloat64("logs_config.experimental_adaptive_sampling.match_threshold"),
 		ProtectImportantLogs: pkgconfigsetup.Datadog().GetBool("logs_config.experimental_adaptive_sampling.protect_important_logs"),
+	}
+
+	if sourceAdaptiveSampling != nil {
+		if sourceAdaptiveSampling.MaxPatterns != nil {
+			c.MaxPatterns = *sourceAdaptiveSampling.MaxPatterns
+		}
+		if sourceAdaptiveSampling.RateLimit != nil {
+			c.RateLimit = *sourceAdaptiveSampling.RateLimit
+		}
+		if sourceAdaptiveSampling.BurstSize != nil {
+			c.BurstSize = *sourceAdaptiveSampling.BurstSize
+		}
+		if sourceAdaptiveSampling.MatchThreshold != nil {
+			c.MatchThreshold = *sourceAdaptiveSampling.MatchThreshold
+		}
+		if sourceAdaptiveSampling.ProtectImportantLogs != nil {
+			c.ProtectImportantLogs = *sourceAdaptiveSampling.ProtectImportantLogs
+		}
 	}
 
 	return validateAdaptiveSamplerConfig(c)
@@ -187,7 +209,7 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 
 	var sampler preprocessor.Sampler
 	if resolveAdaptiveSamplerEnabled(source.Config().ExperimentalAdaptiveSampling) {
-		sampler = preprocessor.NewAdaptiveSampler(resolveAdaptiveSamplerConfig(), source.UnderlyingSource().Name)
+		sampler = preprocessor.NewAdaptiveSampler(resolveAdaptiveSamplerConfig(source.Config().ExperimentalAdaptiveSampling), source.UnderlyingSource().Name)
 	} else {
 		sampler = preprocessor.NewNoopSampler()
 	}

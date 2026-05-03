@@ -32,10 +32,10 @@ func newOptsWithParams(constants map[string]interface{}, legacyFields map[Field]
 	variables := map[string]SECLVariable{
 		"pid": NewScopedIntVariable(func(_ *Context, _ bool) (int, bool) {
 			return os.Getpid(), true
-		}, nil),
+		}, nil, VariableOpts{}),
 		"str": NewScopedStringVariable(func(_ *Context, _ bool) (string, bool) {
 			return "aaa", true
-		}, nil),
+		}, nil, VariableOpts{}),
 	}
 
 	return opts.WithVariables(variables).WithMacroStore(&MacroStore{})
@@ -508,6 +508,7 @@ func TestPartial(t *testing.T) {
 		func(_ *Context, _ interface{}) error {
 			return nil
 		},
+		VariableOpts{},
 	)
 
 	tests := []struct {

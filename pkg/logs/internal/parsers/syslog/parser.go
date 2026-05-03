@@ -17,12 +17,18 @@ import (
 // PRI detection is automatic: if a line starts with '<', it is parsed as a
 // network-format syslog message (RFC 5424 or BSD with PRI). Otherwise it is
 // parsed as a plain BSD line without PRI (e.g., traditional /var/log/syslog).
-type parser struct{}
+type parser struct {
+	siemParsing bool
+}
 
 // NewParser returns a parsers.Parser for syslog-formatted input.
-// PRI headers are auto-detected per line; no configuration is needed.
-func NewParser() parsers.Parser {
-	return &parser{}
+// PRI headers are auto-detected per line.
+//
+// When siemParsing is true, CEF/LEEF headers in the message body are detected
+// and extracted into structured SIEM fields. When false, message bodies are
+// left as plain text regardless of content.
+func NewParser(siemParsing bool) parsers.Parser {
+	return &parser{siemParsing: siemParsing}
 }
 
 // Parse implements parsers.Parser. It parses the unstructured line content
@@ -32,6 +38,11 @@ func NewParser() parsers.Parser {
 // err != nil. On error, the structured message contains the raw content as its
 // "message" field and best-effort syslog metadata. Callers MUST NOT discard
 // the result on error — the message is intentionally usable.
+//
+// TODO(syslog-v7): On parse failure, return the original message unmodified
+// instead of wrapping partial metadata in a StateStructured message. This
+// avoids misleading syslog fields and prevents CEF/LEEF extraction on
+// potentially truncated fragments.
 func (p *parser) Parse(msg *message.Message) (*message.Message, error) {
 	var parsed SyslogMessage
 	var err error
@@ -56,6 +67,17 @@ func (p *parser) Parse(msg *message.Message) (*message.Message, error) {
 			"message": msgBody,
 			"syslog":  BuildSyslogFields(&parsed),
 		},
+	}
+
+	// Detect and parse CEF/LEEF headers embedded in the syslog message body.
+	// Only attempt on the success path — when syslog parsing errored, msgBody
+	// holds the full raw content for lossless reconstruction and must not be
+	// replaced by a partial CEF/LEEF parse of a fragment.
+	if p.siemParsing && err == nil {
+		if header, ext, _, ok := ParseCEFLEEF(parsed.Msg); ok {
+			sc.Data["siem"] = BuildSIEMFields(header, ext)
+			sc.Data["message"] = ""
+		}
 	}
 
 	structured := message.NewStructuredMessage(
