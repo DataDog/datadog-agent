@@ -65,13 +65,18 @@ func (c *ConnectionsModeler) Close() {
 
 func (c *ConnectionsModeler) modelConnections(builder *model.ConnectionsBuilder, conns *network.Connections) {
 	cfgOnce.Do(func() {
+		discoveryEnabled := pkgconfigsetup.SystemProbe().GetBool("discovery.service_map.enabled")
+		// Discovery mode force-enables service_monitoring_config.enabled internally so
+		// newUSMMonitor starts, but the wire flag must reflect billing intent: discovery
+		// is free, so usmEnabled is masked to false when discovery is on.
+		usmEnabled := pkgconfigsetup.SystemProbe().GetBool("service_monitoring_config.enabled") && !discoveryEnabled
 		agentCfg = &model.AgentConfiguration{
 			NpmEnabled:                 pkgconfigsetup.SystemProbe().GetBool("network_config.enabled"),
-			UsmEnabled:                 pkgconfigsetup.SystemProbe().GetBool("service_monitoring_config.enabled"),
+			UsmEnabled:                 usmEnabled,
 			CcmEnabled:                 pkgconfigsetup.SystemProbe().GetBool("ccm_network_config.enabled"),
 			CsmEnabled:                 pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.enabled"),
 			EudmEnabled:                pkgconfigsetup.Datadog().GetString("infrastructure_mode") == "end_user_device",
-			DiscoveryServiceMapEnabled: pkgconfigsetup.SystemProbe().GetBool("discovery.service_map.enabled"),
+			DiscoveryServiceMapEnabled: discoveryEnabled,
 		}
 	})
 
