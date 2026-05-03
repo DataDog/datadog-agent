@@ -11,9 +11,7 @@
 
   USM
   ===
-  {{- if .network_tracer.universal_service_monitoring.state }}
     Status: {{ .network_tracer.universal_service_monitoring.state }}
-  {{- end }}
   {{- if .network_tracer.universal_service_monitoring.error }}
     Error: {{ .network_tracer.universal_service_monitoring.error }}
   {{- end }}
