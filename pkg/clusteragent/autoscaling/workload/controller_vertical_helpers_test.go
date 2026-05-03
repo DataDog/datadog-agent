@@ -711,7 +711,7 @@ func TestApplyVerticalConstraints_CPURequestsRemoveLimits(t *testing.T) {
 		},
 	}
 
-	limitErr, err := applyVerticalConstraints(vertical, constraints)
+	limitErr, err := applyVerticalConstraints(vertical, constraints, false)
 	require.NoError(t, err)
 	assert.Nil(t, limitErr)
 

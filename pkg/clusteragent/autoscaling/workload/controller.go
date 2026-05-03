@@ -74,6 +74,7 @@ type Controller struct {
 
 	eventRecorder record.EventRecorder
 	store         *store
+	builder       *model.PodAutoscalerInternalBuilder
 
 	limitHeap *limitHeap
 
@@ -105,12 +106,14 @@ func NewController(
 	localSender sender.Sender,
 	limitHeap *limitHeap,
 	globalTagsFunc func() []string,
+	builder *model.PodAutoscalerInternalBuilder,
 ) (*Controller, error) {
 	c := &Controller{
 		clusterID:         clusterID,
 		clock:             clock,
 		eventRecorder:     eventRecorder,
 		localSender:       localSender,
+		builder:           builder,
 		isFallbackEnabled: false, // keep fallback disabled by default
 	}
 
@@ -207,7 +210,7 @@ func (c *Controller) processPodAutoscaler(ctx context.Context, key, ns, name str
 	// If the object is present in Kubernetes, we will update our local version
 	// Otherwise, we clear it from our local store
 	if podAutoscaler != nil {
-		c.store.Set(key, model.NewPodAutoscalerInternal(podAutoscaler), c.ID)
+		c.store.Set(key, c.builder.NewFromKubernetes(podAutoscaler), c.ID)
 	} else {
 		c.store.Delete(key, c.ID)
 	}
@@ -226,7 +229,7 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 		if podAutoscaler != nil {
 			// If we don't have an instance locally, we create it. Deletion is handled through setting the `Deleted` flag
 			log.Debugf("Creating internal PodAutoscaler: %s from Kubernetes object", key)
-			pai := model.NewPodAutoscalerInternal(podAutoscaler)
+			pai := c.builder.NewFromKubernetes(podAutoscaler)
 			c.store.UnlockSet(key, pai, c.ID)
 		} else {
 			// If podAutoscaler == nil, both objects are nil, nothing to do

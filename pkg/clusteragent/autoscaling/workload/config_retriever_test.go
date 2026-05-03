@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"k8s.io/utils/clock"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 
@@ -43,7 +44,7 @@ func newMockConfigRetriever(t *testing.T, isLeader func() bool, store *store, cl
 
 	mockRCClient := &mockRCClient{}
 
-	cr, err := NewConfigRetriever(context.Background(), clock, store, isLeader, mockRCClient)
+	cr, err := NewConfigRetriever(context.Background(), clock, store, isLeader, mockRCClient, model.NewPodAutoscalerInternalBuilder(false))
 	assert.NoError(t, err)
 
 	return cr, mockRCClient

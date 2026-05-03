@@ -39,6 +39,7 @@ type AutoscalerSyncer struct {
 	profileStore *autoscaling.Store[model.PodAutoscalerProfileInternal]
 	dpaStore     *autoscaling.Store[model.PodAutoscalerInternal]
 	isLeader     func() bool
+	builder      *model.PodAutoscalerInternalBuilder
 
 	mu           sync.Mutex
 	dpaOwnership map[string]string // dpa store key → profile name
@@ -59,12 +60,14 @@ func NewAutoscalerSyncer(
 	profileStore *autoscaling.Store[model.PodAutoscalerProfileInternal],
 	dpaStore *autoscaling.Store[model.PodAutoscalerInternal],
 	isLeader func() bool,
+	builder *model.PodAutoscalerInternalBuilder,
 	readyDeps ...cache.InformerSynced,
 ) *AutoscalerSyncer {
 	s := &AutoscalerSyncer{
 		profileStore: profileStore,
 		dpaStore:     dpaStore,
 		isLeader:     isLeader,
+		builder:      builder,
 		dpaOwnership: make(map[string]string),
 		reconcileCh:  make(chan struct{}, 1),
 		readyDeps:    readyDeps,
@@ -275,7 +278,7 @@ func (s *AutoscalerSyncer) ensureDPA(dpaKey string, d desiredDPA) {
 	if !found {
 		_, name, _ := cache.SplitMetaNamespaceKey(dpaKey)
 		log.Infof("Creating DPA %s for profile %s", dpaKey, d.profileName)
-		pai = model.NewPodAutoscalerFromProfile(d.ref.Namespace, name, d.profileName, d.template, targetRef, d.templateHash, d.previewAnnotation)
+		pai = s.builder.NewFromProfile(d.ref.Namespace, name, d.profileName, d.template, targetRef, d.templateHash, d.previewAnnotation)
 		s.dpaStore.UnlockSet(dpaKey, pai, syncerStoreID)
 		return
 	}

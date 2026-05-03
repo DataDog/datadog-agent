@@ -39,7 +39,8 @@ type settingsItem struct {
 }
 
 type autoscalingSettingsProcessor struct {
-	store *store
+	store   *store
+	builder *model.PodAutoscalerInternalBuilder
 	// State is kept nil until the first full config is processed
 	state map[string]settingsItem
 	// We are guaranteed to be called in a single thread for pre/process/post
@@ -50,9 +51,10 @@ type autoscalingSettingsProcessor struct {
 	lastProcessingError bool
 }
 
-func newAutoscalingSettingsProcessor(store *store) autoscalingSettingsProcessor {
+func newAutoscalingSettingsProcessor(store *store, builder *model.PodAutoscalerInternalBuilder) autoscalingSettingsProcessor {
 	return autoscalingSettingsProcessor{
-		store: store,
+		store:   store,
+		builder: builder,
 	}
 }
 
@@ -153,7 +155,7 @@ func (p *autoscalingSettingsProcessor) reconcile(isLeader bool) {
 			if podAutoscalerFound {
 				podAutoscaler.UpdateFromSettings(item.spec, item.receivedTimestamp)
 			} else {
-				podAutoscaler = model.NewPodAutoscalerFromSettings(item.namespace, item.name, item.spec, item.receivedTimestamp)
+				podAutoscaler = p.builder.NewFromSettings(item.namespace, item.name, item.spec, item.receivedTimestamp)
 			}
 			p.store.UnlockSet(paID, podAutoscaler, configRetrieverStoreID)
 		}

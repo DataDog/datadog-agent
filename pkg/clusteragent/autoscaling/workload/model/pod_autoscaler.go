@@ -96,10 +96,17 @@ type PodAutoscalerInternal struct {
 	// previewOptions holds the parsed preview feature flags from the DPA annotations
 	previewOptions previewOptions
 
+<<<<<<< HEAD
 	// metadataHash fingerprints the K8s state read by UpdateFromPodAutoscaler
 	// (.metadata.generation plus watched labels/annotations), so that a single
 	// equality check captures both spec changes and out-of-spec edits.
 	metadataHash uint64
+=======
+	// clusterBurstableDefault is the cluster-level default for burstable mode, read once
+	// from config at controller startup and injected via PodAutoscalerInternalBuilder.
+	// It is the lowest-priority fallback: spec.options.burstable > preview annotation > this.
+	clusterBurstableDefault bool
+>>>>>>> 09695e925e (feat(autoscaling): add burstable cluster default via PodAutoscalerInternalBuilder)
 
 	// scalingValues represents the active scaling values that should be used
 	scalingValues ScalingValues
@@ -208,31 +215,44 @@ type PodAutoscalerInternal struct {
 	submittedPodOps map[string]string
 }
 
-// NewPodAutoscalerInternal creates a new PodAutoscalerInternal from a Kubernetes CR
-func NewPodAutoscalerInternal(podAutoscaler *datadoghq.DatadogPodAutoscaler) PodAutoscalerInternal {
+// PodAutoscalerInternalBuilder creates PodAutoscalerInternal instances with a cluster-level
+// burstable default read once at controller startup. Create one instance per process via
+// NewPodAutoscalerInternalBuilder and reuse it for all autoscaler construction calls.
+type PodAutoscalerInternalBuilder struct {
+	clusterBurstableDefault bool
+}
+
+// NewPodAutoscalerInternalBuilder creates a builder. clusterBurstableDefault is the
+// lowest-priority fallback for IsBurstable() and should be read from config once at startup.
+func NewPodAutoscalerInternalBuilder(clusterBurstableDefault bool) *PodAutoscalerInternalBuilder {
+	return &PodAutoscalerInternalBuilder{clusterBurstableDefault: clusterBurstableDefault}
+}
+
+// NewFromKubernetes creates a PodAutoscalerInternal from a Kubernetes CR.
+func (b *PodAutoscalerInternalBuilder) NewFromKubernetes(podAutoscaler *datadoghq.DatadogPodAutoscaler) PodAutoscalerInternal {
 	pai := PodAutoscalerInternal{
-		namespace: podAutoscaler.Namespace,
-		name:      podAutoscaler.Name,
+		namespace:               podAutoscaler.Namespace,
+		name:                    podAutoscaler.Name,
+		clusterBurstableDefault: b.clusterBurstableDefault,
 	}
 	pai.UpdateFromPodAutoscaler(podAutoscaler)
 	pai.UpdateFromStatus(&podAutoscaler.Status)
-
 	return pai
 }
 
-// NewPodAutoscalerFromSettings creates a new PodAutoscalerInternal from settings received through remote configuration
-func NewPodAutoscalerFromSettings(ns, name string, podAutoscalerSpec *datadoghq.DatadogPodAutoscalerSpec, settingsTimestamp time.Time) PodAutoscalerInternal {
+// NewFromSettings creates a PodAutoscalerInternal from settings received through remote configuration.
+func (b *PodAutoscalerInternalBuilder) NewFromSettings(ns, name string, podAutoscalerSpec *datadoghq.DatadogPodAutoscalerSpec, settingsTimestamp time.Time) PodAutoscalerInternal {
 	pda := PodAutoscalerInternal{
-		namespace: ns,
-		name:      name,
+		namespace:               ns,
+		name:                    name,
+		clusterBurstableDefault: b.clusterBurstableDefault,
 	}
 	pda.UpdateFromSettings(podAutoscalerSpec, settingsTimestamp)
-
 	return pda
 }
 
-// NewPodAutoscalerFromProfile creates a PodAutoscalerInternal for a profile-managed workload.
-func NewPodAutoscalerFromProfile(
+// NewFromProfile creates a PodAutoscalerInternal for a profile-managed workload.
+func (b *PodAutoscalerInternalBuilder) NewFromProfile(
 	ns, name, profileName string,
 	template *datadoghq.DatadogPodAutoscalerTemplate,
 	targetRef autoscalingv2.CrossVersionObjectReference,
@@ -240,8 +260,9 @@ func NewPodAutoscalerFromProfile(
 	previewAnnotation string,
 ) PodAutoscalerInternal {
 	pai := PodAutoscalerInternal{
-		namespace: ns,
-		name:      name,
+		namespace:               ns,
+		name:                    name,
+		clusterBurstableDefault: b.clusterBurstableDefault,
 		upstreamCR: &datadoghq.DatadogPodAutoscaler{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: ns,
@@ -250,7 +271,6 @@ func NewPodAutoscalerFromProfile(
 		},
 	}
 	pai.UpdateFromProfile(profileName, template, targetRef, templateHash, previewAnnotation)
-
 	return pai
 }
 
@@ -709,12 +729,17 @@ func (p *PodAutoscalerInternal) IsHorizontalScalingEnabled() bool {
 	return !(scaleUpDisabled && scaleDownDisabled)
 }
 
-// IsBurstable returns true if the burstable preview option is enabled for this autoscaler.
-// The value is read directly from the cached previewOptions struct — no JSON decode per call.
-// For profile-managed DPAs previewOptions is populated by UpdateFromProfile; for standalone
-// DPAs it is populated by UpdateFromPodAutoscaler.
+// IsBurstable returns true if burstable mode is enabled for this autoscaler.
+// Priority: spec.options.burstable > preview annotation > cluster-level default (from builder).
 func (p *PodAutoscalerInternal) IsBurstable() bool {
-	return p.previewOptions.Burstable
+	spec := p.Spec()
+	if spec != nil && spec.Options != nil && spec.Options.Burstable != nil {
+		return *spec.Options.Burstable
+	}
+	if p.previewOptions.Burstable {
+		return true
+	}
+	return p.clusterBurstableDefault
 }
 
 // PreviewAnnotation returns the JSON-encoded preview annotation forwarded from the cluster
@@ -1158,6 +1183,20 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 		rolloutStatus = corev1.ConditionTrue
 	}
 	status.Conditions = append(status.Conditions, newCondition(rolloutStatus, verticalReason, verticalMessage, currentTime, datadoghqcommon.DatadogPodAutoscalerVerticalAbleToApply, existingConditions))
+
+	// Populate effective options status.
+	// spec.options.burstable is reported when explicitly set; the annotation fallback is
+	// reported only when true (it has no explicit false — absence means default).
+	spec := p.Spec()
+	if spec != nil && spec.Options != nil && spec.Options.Burstable != nil {
+		status.Options = &datadoghqcommon.DatadogPodAutoscalerOptionsStatus{
+			Burstable: pointer.Ptr(*spec.Options.Burstable),
+		}
+	} else if p.previewOptions.Burstable {
+		status.Options = &datadoghqcommon.DatadogPodAutoscalerOptionsStatus{
+			Burstable: pointer.Ptr(true),
+		}
+	}
 
 	return status
 }

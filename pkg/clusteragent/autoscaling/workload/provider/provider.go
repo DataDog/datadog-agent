@@ -75,8 +75,15 @@ func StartWorkloadAutoscaling(
 	podPatcher := workload.NewPodPatcher(store, patcher, eventRecorder)
 	podWatcher := workload.NewPodWatcher(wlm, podPatcher)
 
+	// Read cluster-level config once at startup and bake it into the builder.
+	// All PodAutoscalerInternal instances created via the builder inherit these defaults
+	// without any per-reconcile config lookups.
+	builder := model.NewPodAutoscalerInternalBuilder(
+		pkgconfigsetup.Datadog().GetBool("autoscaling.workload.options.burstable"),
+	)
+
 	clock := clock.RealClock{}
-	_, err := workload.NewConfigRetriever(ctx, clock, store, isLeaderFunc, rcClient)
+	_, err := workload.NewConfigRetriever(ctx, clock, store, isLeaderFunc, rcClient, builder)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to start workload autoscaling config retriever: %w", err)
 	}
@@ -100,7 +107,7 @@ func StartWorkloadAutoscaling(
 	maxDatadogPodAutoscalerObjects := pkgconfigsetup.Datadog().GetInt("autoscaling.workload.limit")
 	limitHeap := autoscaling.NewHashHeap(maxDatadogPodAutoscalerObjects, store, (*model.PodAutoscalerInternal).CreationTimestamp)
 
-	controller, err := workload.NewController(clock, clusterID, eventRecorder, apiCl.RESTMapper, apiCl.ScaleCl, apiCl.Cl, apiCl.DynamicCl, apiCl.DynamicInformerFactory, isLeaderFunc, store, podWatcher, sender, limitHeap, globalTagsFunc)
+	controller, err := workload.NewController(clock, clusterID, eventRecorder, apiCl.RESTMapper, apiCl.ScaleCl, apiCl.Cl, apiCl.DynamicCl, apiCl.DynamicInformerFactory, isLeaderFunc, store, podWatcher, sender, limitHeap, globalTagsFunc, builder)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to start workload autoscaling controller: %w", err)
 	}
@@ -137,7 +144,7 @@ func StartWorkloadAutoscaling(
 		profileController.InitialSyncDone,
 	)
 
-	autoscalerSyncer := profile.NewAutoscalerSyncer(profileStore, store, isLeaderFunc, profileController.InitialSyncDone, workloadWatcher.HasSynced)
+	autoscalerSyncer := profile.NewAutoscalerSyncer(profileStore, store, isLeaderFunc, builder, profileController.InitialSyncDone, workloadWatcher.HasSynced)
 	builtinManager := profile.NewBuiltinProfileManager(apiCl.DynamicInformerCl, isLeaderFunc)
 
 	// Start informers & controllers (informers can be started multiple times)

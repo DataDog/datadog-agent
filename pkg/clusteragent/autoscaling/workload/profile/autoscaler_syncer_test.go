@@ -36,6 +36,7 @@ func newTestSyncer() (*AutoscalerSyncer, *autoscaling.Store[model.PodAutoscalerP
 		profileStore: profileStore,
 		dpaStore:     dpaStore,
 		isLeader:     func() bool { return true },
+		builder:      model.NewPodAutoscalerInternalBuilder(false),
 		dpaOwnership: make(map[string]string),
 		reconcileCh:  make(chan struct{}, 1),
 	}
@@ -413,7 +414,7 @@ func TestAutoscalerSyncerWaitsForReadyDeps(t *testing.T) {
 	profileStore.Set("high-cpu", prof, "test")
 
 	var ready atomic.Bool
-	s := NewAutoscalerSyncer(profileStore, dpaStore, func() bool { return true }, ready.Load)
+	s := NewAutoscalerSyncer(profileStore, dpaStore, func() bool { return true }, model.NewPodAutoscalerInternalBuilder(false), ready.Load)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -461,13 +462,14 @@ func TestAutoscalerSyncerRebuildOwnershipCleansOrphans(t *testing.T) {
 	targetRef := autoscalingv2.CrossVersionObjectReference{
 		Kind: "Deployment", Name: "web-app", APIVersion: "apps/v1",
 	}
-	orphanDPA := model.NewPodAutoscalerFromProfile("prod", "web-app-9526aeb3", "high-cpu", prof.Template(), targetRef, prof.TemplateHash(), "")
+	orphanDPA := model.NewPodAutoscalerInternalBuilder(false).NewFromProfile("prod", "web-app-9526aeb3", "high-cpu", prof.Template(), targetRef, prof.TemplateHash(), "")
 	dpaStore.Set("prod/web-app-9526aeb3", orphanDPA, "dpa-c")
 
 	s := &AutoscalerSyncer{
 		profileStore: profileStore,
 		dpaStore:     dpaStore,
 		isLeader:     func() bool { return true },
+		builder:      model.NewPodAutoscalerInternalBuilder(false),
 		dpaOwnership: make(map[string]string),
 		reconcileCh:  make(chan struct{}, 1),
 	}
@@ -503,13 +505,14 @@ func TestAutoscalerSyncerRebuildOwnershipKeepsActiveDPAs(t *testing.T) {
 		Kind: "Deployment", Name: "web-app", APIVersion: "apps/v1",
 	}
 	_, dpaName, _ := cache.SplitMetaNamespaceKey(dpaKey)
-	existingDPA := model.NewPodAutoscalerFromProfile("prod", dpaName, "high-cpu", prof.Template(), targetRef, prof.TemplateHash(), "")
+	existingDPA := model.NewPodAutoscalerInternalBuilder(false).NewFromProfile("prod", dpaName, "high-cpu", prof.Template(), targetRef, prof.TemplateHash(), "")
 	dpaStore.Set(dpaKey, existingDPA, "dpa-c")
 
 	s := &AutoscalerSyncer{
 		profileStore: profileStore,
 		dpaStore:     dpaStore,
 		isLeader:     func() bool { return true },
+		builder:      model.NewPodAutoscalerInternalBuilder(false),
 		dpaOwnership: make(map[string]string),
 		reconcileCh:  make(chan struct{}, 1),
 	}
