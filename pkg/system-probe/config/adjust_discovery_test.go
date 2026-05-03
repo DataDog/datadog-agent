@@ -97,9 +97,9 @@ func TestAdjustDiscovery_ForceDisablesUnusedProtocols(t *testing.T) {
 
 func TestAdjustDiscovery_ForceEnablesRequiredProtocols(t *testing.T) {
 	tests := []struct {
-		name           string
-		discovery      bool
-		userSetTo      bool // explicit user value before adjust
+		name            string
+		discovery       bool
+		userSetTo       bool // explicit user value before adjust
 		wantAfterAdjust bool
 	}{
 		{"discovery on overrides explicit disable", true, false, true},
