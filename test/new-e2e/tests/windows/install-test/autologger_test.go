@@ -6,6 +6,7 @@
 package installtest
 
 import (
+	"io/fs"
 	"path/filepath"
 	"testing"
 
@@ -74,11 +75,18 @@ func (s *testInstallWithAutologgerSuite) TestInstallWithAutologger() {
 	})
 
 	s.Run("uninstall removes autologger", func() {
+		configRoot, err := windowsAgent.GetConfigRootFromRegistry(vm)
+		s.Require().NoError(err)
+
 		s.Require().True(s.uninstallAgent())
 
 		exists, err := windows.RegistryKeyExists(vm, autologgerPath)
 		assert.NoError(s.T(), err)
 		assert.False(s.T(), exists, "autologger session key should be removed after uninstall")
+
+		logonDurationDir := configRoot + `\logonduration`
+		_, err = vm.Lstat(logonDurationDir)
+		assert.ErrorIs(s.T(), err, fs.ErrNotExist, "uninstall should remove logonduration directory")
 	})
 }
 

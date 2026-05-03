@@ -6,8 +6,8 @@
 package datadogexporter
 
 import (
-	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
-	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 )
 
 // These metrics are for measuring the current volume of traffic for OTLP trace ingestion.

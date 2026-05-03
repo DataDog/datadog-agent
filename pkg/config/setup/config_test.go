@@ -674,6 +674,17 @@ func TestNetworkPathDefaults(t *testing.T) {
 	assert.Equal(t, false, config.GetBool("network_path.collector.disable_windows_driver"))
 }
 
+func TestInfrastructureModeNoneDisablesECSTaskCollection(t *testing.T) {
+	datadogYaml := `
+infrastructure_mode: none
+`
+	config := confFromYAML(t, datadogYaml)
+	applyInfrastructureModeOverrides(config)
+
+	assert.False(t, config.GetBool("ecs_task_collection_enabled"))
+	assert.False(t, config.GetBool("integration.enabled"))
+}
+
 func TestInfrastructureModeLegacyAliases(t *testing.T) {
 	// Test that legacy allowed_additional_checks is aliased to mode-specific
 	// key via applyInfrastructureModeOverrides
@@ -726,6 +737,119 @@ infrastructure_mode: end_user_device
 	assert.True(t, foundSlack, "*.slack.com should be in the default filters")
 	assert.True(t, foundGitHub, "*.github.com should be in the default filters")
 
+}
+
+func TestNetworkPathFiltersEndUserDeviceModeAppendsUser(t *testing.T) {
+	datadogYaml := `
+infrastructure_mode: end_user_device
+network_path:
+  collector:
+    filters:
+      - match_ip: 0.0.0.0/0
+        type: include
+`
+	config := confFromYAML(t, datadogYaml)
+	applyInfrastructureModeOverrides(config)
+	filters := config.Get("network_path.collector.filters")
+	require.NotNil(t, filters)
+
+	filtersList, ok := filters.([]map[string]string)
+	require.True(t, ok, "filters should be []map[string]string, got %T", filters)
+
+	last := filtersList[len(filtersList)-1]
+	assert.Equal(t, "0.0.0.0/0", last["match_ip"], "user filter should be appended last")
+	assert.Equal(t, "include", last["type"])
+}
+
+func TestNetworkPathFiltersEndUserDeviceModeMalformedUserFiltersSkipsOverride(t *testing.T) {
+	// Malformed filters: list of scalars instead of list of maps, so structure.UnmarshalKey fails.
+	datadogYaml := `
+infrastructure_mode: end_user_device
+network_path:
+  collector:
+    filters:
+      - "not_a_map"
+      - "still_not_a_map"
+`
+	config := confFromYAML(t, datadogYaml)
+	applyInfrastructureModeOverrides(config)
+
+	// The filter override must be skipped: the user's (malformed) value is left in place
+	// rather than being silently replaced with the EUDM defaults.
+	filters := config.Get("network_path.collector.filters")
+	_, ok := filters.([]map[string]string)
+	assert.False(t, ok, "EUDM defaults should NOT be applied when user filters fail to unmarshal, got %T", filters)
+
+	// The other EUDM overrides should still be applied — a filter parse failure must not
+	// prevent the rest of the mode from taking effect.
+	assert.True(t, config.GetBool("process_config.process_collection.enabled"))
+	assert.True(t, config.GetBool("software_inventory.enabled"))
+	assert.True(t, config.GetBool("notable_events.enabled"))
+}
+
+func TestApplyUseDogstatsdSuppression(t *testing.T) {
+	t.Run("use_dogstatsd=false forces data_plane.dogstatsd.enabled=false", func(t *testing.T) {
+		cfg := confFromYAML(t, `
+use_dogstatsd: false
+data_plane:
+  enabled: true
+  dogstatsd:
+    enabled: true
+`)
+
+		ApplyUseDogstatsdSuppression(cfg)
+
+		assert.False(t, cfg.GetBool("data_plane.dogstatsd.enabled"),
+			"data_plane.dogstatsd.enabled must be forced false when use_dogstatsd=false")
+		assert.True(t, cfg.GetBool("data_plane.enabled"),
+			"data_plane.enabled must not be touched by the suppression override")
+	})
+
+	t.Run("use_dogstatsd=true leaves data_plane.dogstatsd.enabled untouched", func(t *testing.T) {
+		cfg := confFromYAML(t, `
+use_dogstatsd: true
+data_plane:
+  enabled: true
+  dogstatsd:
+    enabled: true
+`)
+
+		ApplyUseDogstatsdSuppression(cfg)
+
+		assert.True(t, cfg.GetBool("data_plane.dogstatsd.enabled"))
+	})
+
+	t.Run("use_dogstatsd unset leaves data_plane.dogstatsd.enabled untouched", func(t *testing.T) {
+		cfg := confFromYAML(t, `
+data_plane:
+  enabled: true
+  dogstatsd:
+    enabled: true
+`)
+
+		ApplyUseDogstatsdSuppression(cfg)
+
+		assert.True(t, cfg.GetBool("data_plane.dogstatsd.enabled"))
+	})
+
+	t.Run("use_dogstatsd=false suppresses default-true data_plane.dogstatsd.enabled (fleet policy scenario)", func(t *testing.T) {
+		// Simulates the fleet policy case: data_plane.dogstatsd.enabled is at its
+		// default (true) when the first override pass runs, but a fleet policy
+		// subsequently sets use_dogstatsd=false. ApplyUseDogstatsdSuppression is
+		// called again after fleet policy merging to handle this.
+		cfg := confFromYAML(t, `
+data_plane:
+  enabled: true
+`)
+		cfg.Set("use_dogstatsd", false, pkgconfigmodel.SourceAgentRuntime)
+
+		ApplyUseDogstatsdSuppression(cfg)
+
+		assert.False(t, cfg.GetBool("data_plane.dogstatsd.enabled"),
+			"data_plane.dogstatsd.enabled must be suppressed when fleet policy sets use_dogstatsd=false")
+		assert.True(t, cfg.GetBool("data_plane.enabled"),
+			"data_plane.enabled must not be touched by the suppression override")
+	})
 }
 
 func TestUsePodmanLogsAndDockerPathOverride(t *testing.T) {
@@ -1045,7 +1169,7 @@ func TestLanguageDetectionSettings(t *testing.T) {
 
 func TestPeerTagsYAML(t *testing.T) {
 	testConfig := newTestConf(t)
-	require.Nil(t, testConfig.GetStringSlice("apm_config.peer_tags"))
+	require.Empty(t, testConfig.GetStringSlice("apm_config.peer_tags"))
 
 	datadogYaml := `
 apm_config:
@@ -1057,7 +1181,7 @@ apm_config:
 
 func TestPeerTagsEnv(t *testing.T) {
 	testConfig := newTestConf(t)
-	require.Nil(t, testConfig.GetStringSlice("apm_config.peer_tags"))
+	require.Empty(t, testConfig.GetStringSlice("apm_config.peer_tags"))
 
 	t.Setenv("DD_APM_PEER_TAGS", `["aws.s3.bucket","db.instance","db.system"]`)
 	testConfig = newTestConf(t)
@@ -1474,4 +1598,64 @@ func TestLoadProxyFromEnv(t *testing.T) {
 	LoadProxyFromEnv(cfg)
 	assert.Equal(t, "http://www.example.com/", cfg.Get("proxy.http"))
 	assert.Equal(t, pkgconfigmodel.SourceConfigPostInit, cfg.GetSource("proxy.http"))
+}
+
+func TestSanitizeDataPlaneConfig(t *testing.T) {
+	tests := []struct {
+		name         string
+		goos         string
+		initialValue bool
+		wantValue    bool
+		wantSource   pkgconfigmodel.Source
+	}{
+		{
+			name:         "linux preserves true",
+			goos:         "linux",
+			initialValue: true,
+			wantValue:    true,
+			wantSource:   pkgconfigmodel.SourceFile,
+		},
+		{
+			name:         "windows resets true to false",
+			goos:         "windows",
+			initialValue: true,
+			wantValue:    false,
+			wantSource:   pkgconfigmodel.SourceAgentRuntime,
+		},
+		{
+			name:         "darwin resets true to false",
+			goos:         "darwin",
+			initialValue: true,
+			wantValue:    false,
+			wantSource:   pkgconfigmodel.SourceAgentRuntime,
+		},
+		{
+			// Even when already false, non-Linux writes SourceAgentRuntime so that
+			// lower-priority sources (e.g. fleet policies) cannot re-enable ADP later.
+			name:         "windows locks false via SourceAgentRuntime",
+			goos:         "windows",
+			initialValue: false,
+			wantValue:    false,
+			wantSource:   pkgconfigmodel.SourceAgentRuntime,
+		},
+		{
+			name:         "darwin locks false via SourceAgentRuntime",
+			goos:         "darwin",
+			initialValue: false,
+			wantValue:    false,
+			wantSource:   pkgconfigmodel.SourceAgentRuntime,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := newTestConf(t)
+			cfg.Set("data_plane.enabled", tt.initialValue, pkgconfigmodel.SourceFile)
+
+			sanitizeDataPlaneConfig(cfg, tt.goos)
+
+			assert.Equal(t, tt.wantValue, cfg.GetBool("data_plane.enabled"))
+			assert.Equal(t, tt.wantSource, cfg.GetSource("data_plane.enabled"))
+		})
+	}
 }

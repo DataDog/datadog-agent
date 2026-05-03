@@ -15,7 +15,7 @@ go_library(
         "//comp/core/config",
         "//comp/core/log/def",
         "//comp/core/secrets/def",
-        "//pkg/telemetry",
+        "//comp/core/telemetry/impl",
         "//pkg/util/scrubber",
         "@com_github_benbjohnson_clock//:clock",
     ],
@@ -28,7 +28,7 @@ go_test(
         "transaction_test.go",
     ],
     embed = [":transaction"],
-    gotags = ["test"],  # keep
+    gotags = ["test"],
     deps = [
         "//comp/core/log/def",
         "//comp/core/log/mock",
