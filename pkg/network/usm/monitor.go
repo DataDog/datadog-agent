@@ -97,7 +97,11 @@ func NewMonitor(c *config.Config, connectionProtocolMap *ebpf.Map, statsd statsd
 
 	processMonitor := monitor.GetProcessMonitor()
 
-	usmstate.Set(usmstate.Running)
+	if c.DiscoveryServiceMapEnabled {
+		usmstate.Set(usmstate.Restricted)
+	} else {
+		usmstate.Set(usmstate.Running)
+	}
 
 	usmMonitor := &Monitor{
 		cfg:                  c,

@@ -22,6 +22,9 @@ const (
 	NotRunning MonitorState = "Not running"
 	// Stopped represents the state of the USM monitor when it is stopped.
 	Stopped MonitorState = "Stopped"
+	// Restricted represents the state of the USM monitor when it is running in
+	// discovery service map mode (HTTP/HTTPS only, not billed).
+	Restricted MonitorState = "Restricted (discovery service map only)"
 )
 
 var (
