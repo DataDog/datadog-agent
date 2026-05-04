@@ -202,8 +202,6 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
             )
 
         gate_states.append(gate_state)
-        if gate_state["blocking"]:
-            final_state = "failure"
 
     # Calculate relative sizes (delta from ancestor) before sending metrics
     # This is done for all branches to include delta metrics in Datadog
@@ -255,8 +253,7 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
                         )
                         gate_state["blocking"] = exception_checker.get() is None
 
-    # Recompute final_state now that all post-processing is done (bypass logic and per-PR threshold
-    # can both change gate states after the initial gate execution loop).
+    # Compute final_state now that all post-processing is done.
     if any(gs["state"] is False for gs in gate_states):
         final_state = "failure"
     ctx.run(f"datadog-ci tag --level job --tags static_quality_gates:\"{final_state}\"")
