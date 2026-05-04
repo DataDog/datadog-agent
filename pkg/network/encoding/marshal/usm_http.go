@@ -80,7 +80,7 @@ func (e *httpEncoder) encodeData(c network.ConnectionStats, w io.Writer) (uint64
 					w.SetValue(func(w *model.HTTPStats_DataBuilder) {
 						w.SetCount(uint32(stats.Count))
 						if e.discoveryMode {
-							w.SetAvgLatency(stats.LatencySum / float64(stats.Count))
+							w.SetLatencySum(stats.LatencySum)
 						} else if latencies := stats.Latencies; latencies != nil {
 							w.SetLatencies(func(b *bytes.Buffer) {
 								e.sketchBuilder.Reset(b)
