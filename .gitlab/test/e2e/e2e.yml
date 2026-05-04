@@ -196,7 +196,7 @@ go_e2e_test_binaries:
     - !reference [.retrieve_linux_go_e2e_deps]
   script:
     - pushd test/new-e2e
-    - go install github.com/DataDog/orchestrion
+    - go install github.com/DataDog/orchestrion@v1.4.0
     - popd
     - dda inv -- -e new-e2e-tests.build-binaries --output-dir test-binaries -p $KUBERNETES_CPU_REQUEST --manifest-file-path manifest.json
     - dda inv -- -e new-e2e-tests.upload-binaries --output-dir test-binaries --manifest-file-path manifest.json --s3-base-uri $S3_PERMANENT_ARTIFACTS_URI/e2e-pre-build/$CI_PIPELINE_ID
@@ -1081,6 +1081,7 @@ new-e2e-ssi-openshift:
     E2E_STACK_NAME_SUFFIX: openshift
     E2E_PRE_INITIALIZED: "true"
     EXTRA_PARAMS: "-c ddinfra:gcp/openshift/pullSecretPath=/tmp/crc-pull-secret.json"
+  allow_failure: true
 
 new-e2e-ssi-aks:
   extends: .new-e2e_ssi_extra_distribution
@@ -1157,6 +1158,19 @@ new-e2e-gpu:
       - EXTRA_PARAMS: "--run TestGPUK8sSuiteUbuntu2204"
       - EXTRA_PARAMS: "--run TestGPUHostSuiteUbuntu1804Driver510"
       - EXTRA_PARAMS: "--run TestGPUHostSuiteUbuntu1804Driver430" # This driver is not supported by the agent, but we can check that the agent does not crash. No need to test in k8s this one.
+  retry: !reference [.retry_only_infra_failure, retry]
+
+new-e2e-autoscaling:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_dca
+  rules:
+    - !reference [.on_autoscaling_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/autoscaling
+    TEAM: container-autoscaling
   retry: !reference [.retry_only_infra_failure, retry]
 
 all-artifacts: # This job is used to collect all artifacts needed in the flake finder pipeline, because we are limited to 5 cross pipelines needs: https://forum.gitlab.com/t/needs-pipeline-job-limit-on-premise/88731

@@ -19,7 +19,7 @@ import (
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent"
-	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
+	runnerdef "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -29,7 +29,7 @@ func TestBundleDependencies(t *testing.T) {
 	fxutil.TestBundle(t, Bundle(),
 		core.MockBundle(),
 		hostnameimpl.MockModule(),
-		fx.Supply(option.None[runnerimpl.MetadataProvider]()),
+		fx.Supply(option.None[runnerdef.MetadataProvider]()),
 		fx.Provide(func() serializer.MetricSerializer { return nil }),
 		collectorimpl.MockModule(),
 		fx.Provide(func() option.Option[agent.Component] {
