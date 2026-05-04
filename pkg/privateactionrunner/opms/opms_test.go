@@ -176,14 +176,18 @@ func TestDequeueTask_RequestBody(t *testing.T) {
 		}
 
 		body := <-bodies
-		assert.Equal(t, runnerStartedAt, body.RunnerStartedAt, "%s: runner_started_at", s.name)
+		require.NotNil(t, body.Data, "%s: data", s.name)
+		assert.Equal(t, "dequeue", body.Data.Type, "%s: data.type", s.name)
+		require.NotNil(t, body.Data.Attributes, "%s: data.attributes", s.name)
+		attrs := body.Data.Attributes
+		assert.Equal(t, runnerStartedAt, attrs.RunnerStartedAt, "%s: runner_started_at", s.name)
 
 		if s.wantLastTaskReceivedAt {
-			require.NotEmpty(t, body.LastTaskReceivedAt, "%s: last_task_received_at must be set", s.name)
-			_, err := time.Parse(time.RFC3339, body.LastTaskReceivedAt)
+			require.NotEmpty(t, attrs.LastTaskReceivedAt, "%s: last_task_received_at must be set", s.name)
+			_, err := time.Parse(time.RFC3339, attrs.LastTaskReceivedAt)
 			require.NoError(t, err, "%s: last_task_received_at must be RFC3339", s.name)
 		} else {
-			assert.Empty(t, body.LastTaskReceivedAt, "%s: last_task_received_at must be empty", s.name)
+			assert.Empty(t, attrs.LastTaskReceivedAt, "%s: last_task_received_at must be empty", s.name)
 		}
 	}
 }
