@@ -422,8 +422,16 @@ AGENTEOF
           # Copy scrappy JSONL to artifact root (gs-flow only serves flat files)
           kubectl cp "$KUBE_NAMESPACE/$AGENT_POD_FOR_BG:/tmp/scrappy-collect.jsonl" \
             "$OUTPUT_DIR/scrappy-collect.jsonl" -c agent 2>/dev/null || true
+          # Copy parquet — tar locally since gs-flow only serves flat files
+          rm -rf "$OUTPUT_DIR/_pq_staging" 2>/dev/null
+          kubectl cp "$KUBE_NAMESPACE/$AGENT_POD_FOR_BG:/tmp/observer-parquet" \
+            "$OUTPUT_DIR/_pq_staging" -c agent 2>/dev/null && \
+          tar czf "$OUTPUT_DIR/observer-parquet.tar.gz" -C "$OUTPUT_DIR/_pq_staging" . 2>/dev/null || true
+          rm -rf "$OUTPUT_DIR/_pq_staging" 2>/dev/null
           LINES=$(wc -l < "$OUTPUT_DIR/scrappy-collect.jsonl" 2>/dev/null || echo 0)
-          echo "  [bg-collector] scrappy: $LINES lines"
+          PQCOUNT=$(tar tzf "$OUTPUT_DIR/observer-parquet.tar.gz" 2>/dev/null | grep -c '.parquet$' || echo 0)
+          PQSIZE=$(du -sh "$OUTPUT_DIR/observer-parquet.tar.gz" 2>/dev/null | awk '{print $1}' || echo "0")
+          echo "  [bg-collector] scrappy: $LINES lines, parquet: $PQCOUNT files ($PQSIZE)"
         done
       ) &
       BG_COLLECTOR_PID=$!

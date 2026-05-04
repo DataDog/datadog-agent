@@ -199,7 +199,14 @@ func NewComponent(deps Requires) Provides {
 	cfg := deps.Config
 	catalog := defaultCatalog()
 	settings := settingsFromAgentConfig(catalog, cfg)
-	detectors, correlators, extractors, _ := catalog.Instantiate(settings)
+	detectors, correlators, extractors, components := catalog.Instantiate(settings)
+
+	// Wire context providers to ScrappyCollector so it can resolve log pattern hashes.
+	if ci, ok := components["scrappy_collector"]; ok && ci.enabled {
+		if sc, ok := ci.instance.(*ScrappyCollector); ok {
+			sc.SetContextProviders(collectContextProviders(extractors))
+		}
+	}
 
 	eng := newEngine(engineConfig{
 		storage:          newTimeSeriesStorage(),
