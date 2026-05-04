@@ -211,6 +211,7 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
     is_on_main_branch = ancestor == current_commit
     is_merge_queue = branch.startswith("mq-working-branch-")
     metric_handler.generate_relative_size(ancestor=ancestor)
+    metric_handler.send_metrics_to_datadog()
 
     # Post-process gate failures: mark as non-blocking if delta <= 0
     # This tolerance only applies to PRs - on main branch, failures should always block unconditionally
@@ -257,11 +258,6 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
     if any(gs["state"] is False for gs in gate_states):
         final_state = "failure"
     ctx.run(f"datadog-ci tag --level job --tags static_quality_gates:\"{final_state}\"")
-
-    # Reporting part
-    # Send metrics to Datadog (now includes delta metrics)
-    # and then print the summary table in the job's log
-    metric_handler.send_metrics_to_datadog()
 
     # Print summary table directly with composition-based gates and metric handler
     QualityGateOutputFormatter.print_summary_table(gate_list, gate_states, metric_handler)
