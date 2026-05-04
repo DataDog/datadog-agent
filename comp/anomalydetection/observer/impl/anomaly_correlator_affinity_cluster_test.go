@@ -468,3 +468,92 @@ func TestAffinityShares_NoMatchingTag(t *testing.T) {
 	}
 	assert.False(t, affinityShares(a, cluster))
 }
+
+// TestAffinityCluster_CoalesceSameSeries verifies that two anomalies on the same
+// source series arriving within CoalesceSeconds are deduplicated, keeping the
+// one with the higher Score.
+func TestAffinityCluster_CoalesceSameSeries(t *testing.T) {
+	score1 := 1.0
+	score5 := 5.0
+
+	// DefaultAffinityClusterConfig has CoalesceSameSeries=true, CoalesceSeconds=30.
+	c := NewAffinityClusterCorrelator(DefaultAffinityClusterConfig())
+
+	c.ProcessAnomaly(observer.Anomaly{
+		Source:    observer.SeriesDescriptor{Name: "cpu.user", Tags: []string{"host:web-1"}, Aggregate: observer.AggregateAverage},
+		Timestamp: 100,
+		Score:     &score1,
+	})
+	c.ProcessAnomaly(observer.Anomaly{
+		Source:    observer.SeriesDescriptor{Name: "cpu.user", Tags: []string{"host:web-1"}, Aggregate: observer.AggregateAverage},
+		Timestamp: 105,
+		Score:     &score5,
+	})
+
+	// dedup: same-series coalesce keeps highest-scored — only one anomaly remains.
+	require.Len(t, c.clusters, 1)
+	assert.Len(t, c.clusters[0].anomalies, 1, "same-series within CoalesceSeconds must be coalesced")
+	assert.Equal(t, &score5, c.clusters[0].anomalies[0].Score, "higher-scored anomaly must be kept")
+	assert.Len(t, c.clusters[0].distinctSources, 1)
+
+	// Still below MinDistinctSeries=2 → not emitted.
+	correlations := c.ActiveCorrelations()
+	assert.Len(t, correlations, 0)
+
+	// Add a third anomaly on a DIFFERENT series sharing the same host tag.
+	c.ProcessAnomaly(observer.Anomaly{
+		Source:    observer.SeriesDescriptor{Name: "mem.rss", Tags: []string{"host:web-1"}},
+		Timestamp: 107,
+	})
+
+	require.Len(t, c.clusters, 1)
+	assert.Len(t, c.clusters[0].anomalies, 2, "different-series anomaly must be appended")
+	assert.Len(t, c.clusters[0].distinctSources, 2)
+
+	correlations = c.ActiveCorrelations()
+	require.Len(t, correlations, 1, "cluster with 2 distinct series must be emitted")
+}
+
+// TestAffinityCluster_CoalesceWindowExpiry verifies that same-series anomalies
+// separated by more than CoalesceSeconds (and also outside ProximitySeconds)
+// are NOT coalesced but form separate clusters.
+func TestAffinityCluster_CoalesceWindowExpiry(t *testing.T) {
+	// DefaultAffinityClusterConfig: CoalesceSeconds=30, ProximitySeconds=10.
+	c := NewAffinityClusterCorrelator(DefaultAffinityClusterConfig())
+
+	c.ProcessAnomaly(observer.Anomaly{
+		Source:    observer.SeriesDescriptor{Name: "cpu.user", Tags: []string{"host:web-1"}},
+		Timestamp: 100,
+	})
+	// 60s apart: > ProximitySeconds=10 and > CoalesceSeconds=30 → separate cluster.
+	c.ProcessAnomaly(observer.Anomaly{
+		Source:    observer.SeriesDescriptor{Name: "cpu.user", Tags: []string{"host:web-1"}},
+		Timestamp: 160,
+	})
+
+	assert.Len(t, c.clusters, 2, "same-series anomalies outside ProximitySeconds must form separate clusters")
+}
+
+// TestAffinityCluster_CoalesceDisabled verifies that when CoalesceSameSeries=false
+// the legacy behavior is preserved: same-series anomalies are always appended.
+func TestAffinityCluster_CoalesceDisabled(t *testing.T) {
+	c := NewAffinityClusterCorrelator(AffinityClusterConfig{
+		ProximitySeconds:   10,
+		WindowSeconds:      120,
+		MinDistinctSeries:  2,
+		CoalesceSameSeries: false,
+	})
+
+	c.ProcessAnomaly(observer.Anomaly{
+		Source:    observer.SeriesDescriptor{Name: "cpu.user", Tags: []string{"host:web-1"}},
+		Timestamp: 100,
+	})
+	c.ProcessAnomaly(observer.Anomaly{
+		Source:    observer.SeriesDescriptor{Name: "cpu.user", Tags: []string{"host:web-1"}},
+		Timestamp: 104,
+	})
+
+	// Legacy behavior: both same-series anomalies are tracked separately.
+	require.Len(t, c.clusters, 1)
+	assert.Len(t, c.clusters[0].anomalies, 2, "CoalesceSameSeries=false must retain both anomalies")
+}

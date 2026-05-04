@@ -41,14 +41,29 @@ type AffinityClusterConfig struct {
 	// must contain to be reported in ActiveCorrelations.
 	// Default: 2.
 	MinDistinctSeries int `json:"min_distinct_series"`
+
+	// CoalesceSameSeries controls whether anomalies from the same source series
+	// that arrive within CoalesceSeconds of each other are deduplicated: the
+	// incoming anomaly replaces the existing one if it has a higher score, rather
+	// than being appended as a separate entry.
+	// Default: true.
+	CoalesceSameSeries bool `json:"coalesce_same_series"`
+
+	// CoalesceSeconds is the time window (in seconds) within which same-series
+	// anomalies are eligible for coalescing. Anomalies further apart than this
+	// threshold are always treated as distinct events.
+	// Default: 30 seconds.
+	CoalesceSeconds int64 `json:"coalesce_seconds"`
 }
 
 // DefaultAffinityClusterConfig returns an AffinityClusterConfig with default values.
 func DefaultAffinityClusterConfig() AffinityClusterConfig {
 	return AffinityClusterConfig{
-		ProximitySeconds:  10,
-		WindowSeconds:     120,
-		MinDistinctSeries: 2,
+		ProximitySeconds:   10,
+		WindowSeconds:      120,
+		MinDistinctSeries:  2,
+		CoalesceSameSeries: true,
+		CoalesceSeconds:    30,
 	}
 }
 
@@ -98,6 +113,9 @@ func NewAffinityClusterCorrelator(config AffinityClusterConfig) *AffinityCluster
 	if config.MinDistinctSeries == 0 {
 		config.MinDistinctSeries = 2
 	}
+	if config.CoalesceSeconds == 0 {
+		config.CoalesceSeconds = 30
+	}
 	return &AffinityClusterCorrelator{
 		config:   config,
 		clusters: nil,
@@ -140,10 +158,16 @@ func (c *AffinityClusterCorrelator) ProcessAnomaly(anomaly observer.Anomaly) {
 		}
 		c.clusters = append(c.clusters, newCluster)
 	} else if len(nearby) == 1 {
-		c.addToCluster(nearby[0], anomaly)
+		if !c.tryCoalesceLocked(nearby[0], anomaly) {
+			c.addToCluster(nearby[0], anomaly)
+		}
 	} else {
+		// Merge first so any same-source anomaly from any nearby cluster is
+		// visible in `merged` before the coalesce scan.
 		merged := c.mergeClusters(nearby)
-		c.addToCluster(merged, anomaly)
+		if !c.tryCoalesceLocked(merged, anomaly) {
+			c.addToCluster(merged, anomaly)
+		}
 	}
 }
 
@@ -225,6 +249,64 @@ func (c *AffinityClusterCorrelator) addToCluster(cluster *affinityCluster, anoma
 	for tag := range extractAffinityTags(anomaly.Source.Tags) {
 		cluster.affinityTags[tag] = struct{}{}
 	}
+}
+
+// pickHigherScoredAnomaly returns whichever of existing or incoming carries
+// more information about the anomalous event. Rules (in order):
+//   - If both Score are nil → keep existing (stable: older entry wins, avoids churn).
+//   - If exactly one Score is non-nil → keep that one (scored evidence beats no evidence).
+//   - If both non-nil → keep the larger value; tiebreak on later Timestamp.
+func pickHigherScoredAnomaly(existing, incoming observer.Anomaly) observer.Anomaly {
+	if existing.Score == nil && incoming.Score == nil {
+		return existing
+	}
+	if existing.Score == nil {
+		return incoming
+	}
+	if incoming.Score == nil {
+		return existing
+	}
+	if *incoming.Score > *existing.Score {
+		return incoming
+	}
+	if *incoming.Score == *existing.Score && incoming.Timestamp > existing.Timestamp {
+		return incoming
+	}
+	return existing
+}
+
+// tryCoalesceLocked returns true if the incoming anomaly was absorbed via
+// same-series replacement in cluster. When the incoming anomaly's Source.Key()
+// matches an existing entry and the timestamps are within CoalesceSeconds,
+// the entry with the higher Score is kept (replacing the lower-scored one in
+// place) rather than appending a duplicate.
+//
+// Caller must hold c.mu. distinctSources, affinityTags, and maxSamplingInterval
+// are intentionally not modified — the source identity is unchanged.
+func (c *AffinityClusterCorrelator) tryCoalesceLocked(cluster *affinityCluster, a observer.Anomaly) bool {
+	if !c.config.CoalesceSameSeries {
+		return false
+	}
+	key := a.Source.Key()
+	for i, e := range cluster.anomalies {
+		if e.Source.Key() != key {
+			continue
+		}
+		diff := e.Timestamp - a.Timestamp
+		if diff < 0 {
+			diff = -diff
+		}
+		if diff > c.config.CoalesceSeconds {
+			continue
+		}
+		winner := pickHigherScoredAnomaly(e, a)
+		cluster.anomalies[i] = winner
+		if winner.Timestamp > cluster.maxTimestamp {
+			cluster.maxTimestamp = winner.Timestamp
+		}
+		return true
+	}
+	return false
 }
 
 // mergeClusters merges multiple clusters into the first, removing the rest.
