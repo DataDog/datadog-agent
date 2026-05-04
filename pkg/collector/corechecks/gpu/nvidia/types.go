@@ -36,13 +36,14 @@ type Metric struct {
 	Priority            MetricPriority          // Priority is the priority of the metric, indicating which metric to keep in case of duplicates. Low (default) is the lowest priority.
 	Tags                []string                // Tags holds optional metric-specific tags (e.g., "error type").
 	AssociatedWorkloads []workloadmeta.EntityID // AssociatedWorkloads represents specific workloads that are associated with the metric, e.g. a process associated with a process-level metric. Used for tagging.
+	RateCalculationMode RateCalculationMode     // RateCalculationMode is the mode of rate calculation for the metric.
 }
 
 // Collector defines a collector that gets metric from a specific NVML subsystem and device
 type Collector interface {
 	// Collect collects metrics from the given NVML device. This method should not fill the tags
 	// unless they're metric-specific (i.e., all device-specific tags will be added by the Collector itself)
-	Collect() ([]Metric, error)
+	Collect() ([]*Metric, error)
 
 	// Name returns the name of the subsystem
 	Name() CollectorName

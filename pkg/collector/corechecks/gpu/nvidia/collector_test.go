@@ -327,7 +327,7 @@ func TestDisabledCollectorsWithSystemProbe(t *testing.T) {
 func TestRemoveDuplicateMetrics(t *testing.T) {
 	t.Run("ComprehensiveScenario", func(t *testing.T) {
 		// Test the exact scenario from function comment plus additional edge cases including zero priority
-		allMetrics := map[CollectorName][]Metric{
+		allMetrics := map[CollectorName][]*Metric{
 			sampling: {
 				{Name: "memory.usage", Priority: Medium, Tags: []string{"pid:1001"}},
 				{Name: "memory.usage", Priority: Medium, Tags: []string{"pid:1002"}},
@@ -387,7 +387,7 @@ func TestRemoveDuplicateMetrics(t *testing.T) {
 
 	t.Run("SingleCollectorMultipleSameName", func(t *testing.T) {
 		// Ensure intra-collector preservation - no deduplication within same collector
-		allMetrics := map[CollectorName][]Metric{
+		allMetrics := map[CollectorName][]*Metric{
 			sampling: {
 				{Name: "memory.usage", Priority: Medium, Tags: []string{"pid:1001"}},
 				{Name: "memory.usage", Priority: Medium, Tags: []string{"pid:1002"}},
@@ -398,7 +398,7 @@ func TestRemoveDuplicateMetrics(t *testing.T) {
 
 		result := RemoveDuplicateMetrics(allMetrics)
 
-		expected := []Metric{
+		expected := []*Metric{
 			{Name: "memory.usage", Priority: Medium, Tags: []string{"pid:1001"}},
 			{Name: "memory.usage", Priority: Medium, Tags: []string{"pid:1002"}},
 			{Name: "memory.usage", Priority: Medium, Tags: []string{"pid:1003"}},
@@ -412,7 +412,7 @@ func TestRemoveDuplicateMetrics(t *testing.T) {
 	t.Run("PriorityTie", func(t *testing.T) {
 		// Edge case: same metric name with same priority across collectors
 		// First collector (in iteration order) should win
-		allMetrics := map[CollectorName][]Metric{
+		allMetrics := map[CollectorName][]*Metric{
 			sampling: {
 				{Name: "metric1", Priority: Low, Tags: []string{"tagA"}},
 			},
@@ -432,12 +432,12 @@ func TestRemoveDuplicateMetrics(t *testing.T) {
 	t.Run("EmptyInputs", func(t *testing.T) {
 		// Edge case: empty inputs
 		t.Run("EmptyMap", func(t *testing.T) {
-			result := RemoveDuplicateMetrics(map[CollectorName][]Metric{})
+			result := RemoveDuplicateMetrics(map[CollectorName][]*Metric{})
 			require.Len(t, result, 0)
 		})
 
 		t.Run("EmptyCollectors", func(t *testing.T) {
-			allMetrics := map[CollectorName][]Metric{
+			allMetrics := map[CollectorName][]*Metric{
 				sampling: {},
 				ebpf:     {},
 			}
@@ -446,7 +446,7 @@ func TestRemoveDuplicateMetrics(t *testing.T) {
 		})
 
 		t.Run("MixedEmptyAndNonEmpty", func(t *testing.T) {
-			allMetrics := map[CollectorName][]Metric{
+			allMetrics := map[CollectorName][]*Metric{
 				sampling: {},
 				stateless: {
 					{Name: "metric1", Priority: Low},
@@ -460,7 +460,7 @@ func TestRemoveDuplicateMetrics(t *testing.T) {
 
 	t.Run("PreservedTags", func(t *testing.T) {
 		tags := []string{"pid:1001", "pid:1002"}
-		allMetrics := map[CollectorName][]Metric{
+		allMetrics := map[CollectorName][]*Metric{
 			sampling: {
 				{Name: "memory.limit", Priority: Medium, Tags: tags},
 			},
@@ -474,7 +474,7 @@ func TestRemoveDuplicateMetrics(t *testing.T) {
 	})
 
 	t.Run("DifferentPrioritySameCollector", func(t *testing.T) {
-		allMetrics := map[CollectorName][]Metric{
+		allMetrics := map[CollectorName][]*Metric{
 			sampling: {
 				{Name: "memory.limit", Priority: Medium, Tags: []string{"pid:1001"}},
 				{Name: "memory.limit", Priority: Low, Tags: []string{""}},
@@ -573,10 +573,10 @@ func TestConfiguredMetricPriority(t *testing.T) {
 		require.Equal(t, isWanted, found, "collector %s state is not as expected", wantedCollector)
 	}
 
-	metricsByCollector := make(map[string]map[CollectorName]Metric)
+	metricsByCollector := make(map[string]map[CollectorName]*Metric)
 
 	for metricName := range desiredMetricPriority {
-		metricsByCollector[metricName] = make(map[CollectorName]Metric)
+		metricsByCollector[metricName] = make(map[CollectorName]*Metric)
 	}
 
 	for _, collector := range collectors {

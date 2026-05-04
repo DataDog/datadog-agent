@@ -106,7 +106,7 @@ func (c *nvlinkCollector) Name() CollectorName {
 	return "nvlink"
 }
 
-func (c *nvlinkCollector) Collect() ([]Metric, error) {
+func (c *nvlinkCollector) Collect() ([]*Metric, error) {
 	var (
 		allMetrics []Metric
 		multiErr   error
@@ -142,7 +142,7 @@ func (c *nvlinkCollector) Collect() ([]Metric, error) {
 		return nil, multiErr
 	}
 
-	return allMetrics, multiErr
+	return metricValuesToPointers(allMetrics), multiErr
 }
 
 func (c *nvlinkCollector) removeUnsupportedPorts() {
