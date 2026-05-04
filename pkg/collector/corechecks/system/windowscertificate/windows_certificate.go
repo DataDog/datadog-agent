@@ -380,7 +380,7 @@ func (w *WinCertChk) Run() error {
 
 		// Adding CRL Issuer and Certificate Store as tags
 		crlTags := getCrlIssuerTags(crlIssuer)
-		crlTags = append(crlTags, "certificate_store:"+w.certificateStoreTagCRL(crl))
+		crlTags = append(crlTags, "certificate_store:"+w.storeNameTag(crl.StoreName))
 		crlTags = append(crlTags, serverTag)
 		crlTags = append(crlTags, "crl_thumbprint:"+crl.Thumbprint)
 		sender.Gauge("windows_certificate.crl_days_remaining", crlDaysRemaining, "", crlTags)
@@ -412,11 +412,11 @@ func (w *WinCertChk) Run() error {
 	return nil
 }
 
-func (w *WinCertChk) resolveMatchedLocalStoreNames() ([]string, error) {
+func (w *WinCertChk) resolveStoreNamesFrom(root registry.Key) ([]string, error) {
 	static := strings.TrimSpace(w.config.CertificateStore)
 	var available []string
 	if len(w.certStoreRegexes) > 0 {
-		names, err := localMachineSystemCertificateStoreNames()
+		names, err := systemCertificateStoreNames(root)
 		if err != nil {
 			return nil, err
 		}
@@ -425,16 +425,9 @@ func (w *WinCertChk) resolveMatchedLocalStoreNames() ([]string, error) {
 	return resolveStoreNames(static, available, w.certStoreRegexes), nil
 }
 
-func (w *WinCertChk) certificateStoreTag(cert certInfo) string {
-	if cert.StoreName != "" {
-		return cert.StoreName
-	}
-	return strings.TrimSpace(w.config.CertificateStore)
-}
-
-func (w *WinCertChk) certificateStoreTagCRL(c crlInfoCopy) string {
-	if c.StoreName != "" {
-		return c.StoreName
+func (w *WinCertChk) storeNameTag(storeName string) string {
+	if storeName != "" {
+		return storeName
 	}
 	return strings.TrimSpace(w.config.CertificateStore)
 }
@@ -451,11 +444,11 @@ func (w *WinCertChk) storeConfigDescriptionForLogs() string {
 }
 
 func (w *WinCertChk) collectLocalCertificates() ([]certInfo, []crlInfoCopy, string, error) {
-	stores, err := w.resolveMatchedLocalStoreNames()
+	stores, err := w.resolveStoreNamesFrom(registry.LOCAL_MACHINE)
 	if err != nil {
 		return nil, nil, "", err
 	}
-	if len(stores) == 0 && len(w.certStoreRegexes) > 0 && strings.TrimSpace(w.config.CertificateStore) == "" {
+	if len(stores) == 0 && strings.TrimSpace(w.config.CertificateStore) == "" {
 		log.Warnf("No Local Machine certificate store names matched certificate_store_regex %#v", w.config.CertificateStoreRegex)
 	}
 	var certificates []certInfo
@@ -497,17 +490,11 @@ func (w *WinCertChk) collectRemoteCertificates() ([]certInfo, []crlInfoCopy, str
 	}
 	defer remoteRegKey.Close()
 
-	static := strings.TrimSpace(w.config.CertificateStore)
-	var available []string
-	if len(w.certStoreRegexes) > 0 {
-		names, enumErr := remoteMachineSystemCertificateStoreNames(remoteRegKey)
-		if enumErr != nil {
-			return nil, nil, "", enumErr
-		}
-		available = names
+	stores, err := w.resolveStoreNamesFrom(remoteRegKey)
+	if err != nil {
+		return nil, nil, "", err
 	}
-	stores := resolveStoreNames(static, available, w.certStoreRegexes)
-	if len(stores) == 0 && static == "" {
+	if len(stores) == 0 && strings.TrimSpace(w.config.CertificateStore) == "" {
 		log.Warnf("No certificate store names on remote server %s matched certificate_store_regex %#v", server, w.config.CertificateStoreRegex)
 	}
 
@@ -578,7 +565,6 @@ func (w *WinCertChk) enumerateStoreContents(storeHandle windows.Handle, store st
 	for i := range crlInfo {
 		crlInfo[i].StoreName = store
 	}
-
 	return certificates, crlInfo, nil
 }
 

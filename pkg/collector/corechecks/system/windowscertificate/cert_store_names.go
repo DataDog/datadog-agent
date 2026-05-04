@@ -19,19 +19,10 @@ import (
 
 const systemCertificatesRegistryPath = `SOFTWARE\Microsoft\SystemCertificates`
 
-func localMachineSystemCertificateStoreNames() ([]string, error) {
-	k, err := registry.OpenKey(registry.LOCAL_MACHINE, systemCertificatesRegistryPath, registry.READ|registry.ENUMERATE_SUB_KEYS)
+func systemCertificateStoreNames(root registry.Key) ([]string, error) {
+	k, err := registry.OpenKey(root, systemCertificatesRegistryPath, registry.READ|registry.ENUMERATE_SUB_KEYS)
 	if err != nil {
 		return nil, fmt.Errorf("opening %s: %w", systemCertificatesRegistryPath, err)
-	}
-	defer k.Close()
-	return k.ReadSubKeyNames(-1)
-}
-
-func remoteMachineSystemCertificateStoreNames(remoteLM registry.Key) ([]string, error) {
-	k, err := registry.OpenKey(remoteLM, systemCertificatesRegistryPath, registry.READ|registry.ENUMERATE_SUB_KEYS)
-	if err != nil {
-		return nil, fmt.Errorf("opening remote %s: %w", systemCertificatesRegistryPath, err)
 	}
 	defer k.Close()
 	return k.ReadSubKeyNames(-1)
