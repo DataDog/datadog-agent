@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "api",
+    srcs = ["getlist.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/tagger/api",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/httphelpers",
+        "//comp/core/tagger/types",
+        "//pkg/util/json",
+        "@com_github_fatih_color//:color",
+    ],
+)

@@ -32,17 +32,23 @@ from tasks.libs.dependencies import get_effective_dependencies_env
 from tasks.libs.releasing.version import get_version
 
 
+def _format_omnibus_overrides(**overrides):
+    override_values = [f"{key}:{value}" for key, value in overrides.items() if value]
+    if not override_values:
+        return ""
+
+    return f"--override={' '.join(override_values)}"
+
+
 def omnibus_run_task(
     ctx, task, target_project, base_dir, env, log_level="info", host_distribution=None, cache_dir=None
 ):
     with ctx.cd("omnibus"):
-        overrides = []
-        if base_dir:
-            overrides.append(f"--override=base_dir:{base_dir}")
-        if cache_dir:
-            overrides.append(f"--override=cache_dir:{cache_dir}")
-        if host_distribution:
-            overrides.append(f"--override=host_distribution:{host_distribution}")
+        overrides = _format_omnibus_overrides(
+            base_dir=base_dir,
+            cache_dir=cache_dir,
+            host_distribution=host_distribution,
+        )
 
         omnibus = f"bundle exec {'omnibus.bat' if sys.platform == 'win32' else 'omnibus'}"
         cmd = "{omnibus} {task} {project_name} --log-level={log_level} {overrides}"
@@ -51,7 +57,7 @@ def omnibus_run_task(
             "task": task,
             "project_name": target_project,
             "log_level": log_level,
-            "overrides": " ".join(overrides),
+            "overrides": overrides,
         }
 
         with gitlab_section(f"Running omnibus task {task}", collapsed=True):

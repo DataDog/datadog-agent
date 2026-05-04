@@ -321,13 +321,13 @@ Probes:
       when:
         dsl: n == 7 && tag == "match"
         json:
-            and: [{eq: [{ref: n}, 7]}, {eq: [{ref: tag}, match]}]
+            and: [{eq: [{ref: "n"}, 7]}, {eq: [{ref: tag}, match]}]
       sampling: {snapshotsPerSecond: 10}
       template: n == 7 && tag == "match" [n={n}, tag={tag}]
       segments:
         - n == 7 && tag == "match" [n=
-        - json: {ref: n}
-          dsl: n
+        - json: {ref: "n"}
+          dsl: "n"
         - ', tag='
         - json: {ref: tag}
           dsl: tag
@@ -343,7 +343,7 @@ Probes:
                 Type: 4 BaseType bool
                 Operations:
                     - __kind: LocationOp
-                      Variable: {subprogram: 28, index: 0, name: n}
+                      Variable: {subprogram: 28, index: 0, name: "n"}
                       Offset: 0
                       ByteSize: 8
                     - __kind: ExprPushOffsetOp
@@ -371,8 +371,8 @@ Probes:
             TemplateString: n == 7 && tag == "match" [n={n}, tag={tag}]
             Segments:
                 - n == 7 && tag == "match" [n=
-                - JSON: {Ref: n}
-                  DSL: n
+                - JSON: {Ref: "n"}
+                  DSL: "n"
                   EventKind: Line
                   EventExpressionIndex: 0
                 - ', tag='
@@ -1214,7 +1214,7 @@ Probes:
       tags:
         - skip_integration:arch=arm64,toolchain=go1.23.11
         - skip_integration:arch=amd64,toolchain=go1.23.11
-      when: {dsl: n == 7, json: {eq: [{ref: n}, 7]}}
+      when: {dsl: n == 7, json: {eq: [{ref: "n"}, 7]}}
       sampling: {snapshotsPerSecond: 10}
       template: ""
       segments: []
@@ -1232,7 +1232,7 @@ Probes:
                 Type: 4 BaseType bool
                 Operations:
                     - __kind: LocationOp
-                      Variable: {subprogram: 28, index: 0, name: n}
+                      Variable: {subprogram: 28, index: 0, name: "n"}
                       Offset: 0
                       ByteSize: 8
                     - __kind: ExprPushOffsetOp
@@ -6217,7 +6217,7 @@ Subprograms:
       OutOfLinePCRanges: [0x4b2780..0x4b2859]
       InlinePCRanges: []
       Variables:
-        - Name: n
+        - Name: "n"
           Type: 7 BaseType int
           Locations:
             - Range: 0x4b2780..0x4b27a4
@@ -6963,7 +6963,7 @@ Subprograms:
           Type: 132 ArrayType [131072]int64
           Locations:
             - Range: 0x4b3e60..0x4b3eea
-              Pieces: [{Size: 1.048576e+06, Op: {CfaOffset: 0}}]
+              Pieces: [{Size: 1048576, Op: {CfaOffset: 0}}]
           Role: Parameter
           DictIndex: -1
       DictRegister: null
@@ -8426,7 +8426,7 @@ Types:
             Operations:
                 - __kind: LocationOp
                   Variable: {subprogram: 47, index: 0, name: s}
-                  Offset: 1.048568e+06
+                  Offset: 1048568
                   ByteSize: 8
           DictIndex: -1
     - __kind: EventRootType
@@ -8452,7 +8452,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
                 - __kind: DereferenceOp
-                  Bias: 1.048576e+06
+                  Bias: 1048576
                   ByteSize: 8
           DictIndex: -1
     - __kind: EventRootType
@@ -8892,14 +8892,14 @@ Types:
       ByteSize: 25
       ExprStatusArraySize: 1
       Expressions:
-        - Name: n
+        - Name: "n"
           Offset: 1
           Kind: template_segment
           Expression:
             Type: 7 BaseType int
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 28, index: 0, name: n}
+                  Variable: {subprogram: 28, index: 0, name: "n"}
                   Offset: 0
                   ByteSize: 8
           DictIndex: -1
@@ -8937,14 +8937,14 @@ Types:
       ByteSize: 25
       ExprStatusArraySize: 1
       Expressions:
-        - Name: n
+        - Name: "n"
           Offset: 1
           Kind: local
           Expression:
             Type: 7 BaseType int
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 28, index: 0, name: n}
+                  Variable: {subprogram: 28, index: 0, name: "n"}
                   Offset: 0
                   ByteSize: 8
           DictIndex: -1
@@ -12907,7 +12907,7 @@ Types:
     - __kind: ArrayType
       ID: 132
       Name: '[131072]int64'
-      ByteSize: 1.048576e+06
+      ByteSize: 1048576
       GoRuntimeType: 52096
       GoKind: 17
       Count: 131072
@@ -13588,7 +13588,7 @@ Types:
         - Name: i
           Offset: 288
           Type: 2 BaseType uint32
-        - Name: n
+        - Name: "n"
           Offset: 292
           Type: 2 BaseType uint32
         - Name: c
@@ -13724,7 +13724,7 @@ Types:
     - __kind: StructureType
       ID: 134
       Name: main.bigArrayStruct
-      ByteSize: 1.048584e+06
+      ByteSize: 1048584
       GoRuntimeType: 92640
       GoKind: 25
       RawFields:
@@ -14613,7 +14613,7 @@ Types:
         - Name: x
           Offset: 0
           Type: 12 BaseType int64
-        - Name: y
+        - Name: "y"
           Offset: 8
           Type: 7 BaseType int
         - Name: signed
@@ -14960,7 +14960,7 @@ Types:
         - Name: fn
           Offset: 0
           Type: 1 BaseType uintptr
-        - Name: n
+        - Name: "n"
           Offset: 8
           Type: 1 BaseType uintptr
         - Name: args
@@ -15323,7 +15323,7 @@ Types:
         - Name: targetpc
           Offset: 0
           Type: 1 BaseType uintptr
-        - Name: off
+        - Name: "off"
           Offset: 8
           Type: 2 BaseType uint32
         - Name: val

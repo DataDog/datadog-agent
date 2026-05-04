@@ -521,14 +521,14 @@ func TestFindCertificatesInStore_PopulatesThumbprint(t *testing.T) {
 	// Use a subject that exists on most Windows machines in ROOT
 	subjects := []string{"Microsoft"}
 
-	certs, err := findCertificatesInStore(h, subjects, certChainValidation{})
+	certs, err := findCertificatesInStore(h, subjects, Config{})
 	require.NoError(t, err)
 
 	// If the host has no matching certs, the test would be a no-op; ensure at least one.
 	require.NotEmpty(t, certs, "expected at least one cert in ROOT matching subject filter")
 
 	for _, c := range certs {
-		require.NotNil(t, c.Certificate)
+		require.NotEmpty(t, c.Tags, "tags should be populated on filtered path")
 		require.NotEmpty(t, c.Thumbprint, "thumbprint should be populated on filtered path")
 		require.Equal(t, 40, len(c.Thumbprint), "thumbprint should be 40-char SHA1 hex")
 	}

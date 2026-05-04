@@ -656,7 +656,6 @@
 /pkg/logs/client                        @DataDog/agent-log-pipelines
 /pkg/logs/diagnostic                    @DataDog/agent-log-pipelines
 /pkg/logs/message                       @DataDog/agent-log-pipelines
-/pkg/logs/processor                     @DataDog/agent-log-pipelines
 /pkg/process/                           @DataDog/container-experiences
 /pkg/process/util/address*.go           @DataDog/cloud-network-monitoring
 /pkg/process/checks/net*.go             @DataDog/cloud-network-monitoring
@@ -849,6 +848,7 @@
 /test/new-e2e/tests/agent-subcommands/run*           @DataDog/agent-runtimes
 /test/new-e2e/tests/agent-subcommands/flare*          @DataDog/agent-configuration
 /test/new-e2e/tests/agent-subcommands/status*         @DataDog/agent-configuration
+/test/new-e2e/tests/autoscaling               @DataDog/container-autoscaling
 /test/new-e2e/tests/containers                @DataDog/container-integrations @DataDog/container-platform
 /test/new-e2e/tests/containers/cluster_agent_sgc_binary_test.go    @DataDog/agent-configuration
 /test/new-e2e/tests/containers/ecs_test.go    @DataDog/ecs-experiences
@@ -892,6 +892,7 @@
 /test/static/static_quality_gates.yml        @DataDog/agent-build @DataDog/container-platform @cmourot @dd-ddamien
 /test/benchmarks/apm_scripts/                 @DataDog/agent-apm
 /test/regression/                             @DataDog/single-machine-performance
+/test/regression/ebpf                         @DataDog/single-machine-performance @DataDog/ebpf-platform
 /test/regression/cases/docker_containers*     @DataDog/single-machine-performance @DataDog/container-integrations
 
 /tools/                                 @DataDog/agent-devx

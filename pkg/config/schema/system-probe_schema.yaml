@@ -1459,7 +1459,7 @@ properties:
       event_retry_queue_threshold:
         node_type: setting
         type: number
-        default: 30
+        default: 512
       event_sampling:
         node_type: section
         type: object
