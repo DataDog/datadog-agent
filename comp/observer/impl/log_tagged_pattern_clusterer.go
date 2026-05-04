@@ -216,15 +216,32 @@ func (tc *TaggedPatternClusterer) Process(tags []string, message string, unixSec
 
 	sub, exists := tc.subClusterers[groupHash]
 	if !exists {
-		tc.evictLRUTagGroupIfOverCap(groupHash)
+		// Two-phase create: build a transient sub-clusterer but do NOT
+		// commit it (insert into tc.subClusterers, possibly evicting the
+		// LRU group to make room) until sub.Process actually accepts the
+		// message. Otherwise an empty/whitespace-only first message from
+		// a new tag group — which PatternClusterer rejects when IgnoreEmpty
+		// is on — would steal a slot from an active group while leaving an
+		// empty sub-clusterer behind to count against MaxTagGroups. A burst
+		// of empty logs from new containers could then evict real pattern
+		// state and suppress later anomalies.
 		sub = tc.newPatternClusterer()
 		sub.MaxClusters = tc.MaxClustersPerGroup
-		tc.subClusterers[groupHash] = sub
 	}
 
 	cluster, ok := sub.Process(message, unixSec)
 	if !ok {
+		// Transient sub-clusterer (when !exists) is dropped on the floor
+		// here — nothing was ever inserted into tc.subClusterers, so no
+		// eviction or LRU bookkeeping is needed.
 		return 0, nil, false
+	}
+
+	// Process accepted the message; only now do we commit the new
+	// sub-clusterer (and evict the LRU group if we've hit the cap).
+	if !exists {
+		tc.evictLRUTagGroupIfOverCap(groupHash)
+		tc.subClusterers[groupHash] = sub
 	}
 
 	// Drain layer-1 LRU evictions from this sub-clusterer and tag them with groupHash.
