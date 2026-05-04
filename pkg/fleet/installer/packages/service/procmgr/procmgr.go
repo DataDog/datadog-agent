@@ -33,9 +33,9 @@ func RemoveConfig(dir, name string) {
 
 // RestartDaemon asks systemd to restart dd-procmgrd (stable or experiment).
 func RestartDaemon(ctx context.Context, experiment bool) error {
-	unit := "datadog-agent-procmgrd.service"
+	unit := "datadog-agent-procmgr.service"
 	if experiment {
-		unit = "datadog-agent-procmgrd-exp.service"
+		unit = "datadog-agent-procmgr-exp.service"
 	}
 	return systemd.RestartUnit(ctx, unit)
 }
