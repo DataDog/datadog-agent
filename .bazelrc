@@ -42,6 +42,7 @@ common:lint --aspects=@rules_rust//rust:defs.bzl%rustfmt_aspect --output_groups=
 # Linux config ---------------------------------------------------------------------------------------------------------
 common:linux --credential_helper=buildbarn-edge-cache.buildbarn.local-cluster.local-dc.fabric.dog=%workspace%/bazel/tools/credential-helper
 common:linux --strategy=sandboxed
+common:linux --test_env=DBUS_SYSTEM_BUS_ADDRESS= # cut off D-Bus so polkit cannot prompt for passwords in tests
 
 # macOS config ---------------------------------------------------------------------------------------------------------
 common:macos --credential_helper=buildbarn-edge-cache.buildbarn.local-cluster.local-dc.fabric.dog=%workspace%/bazel/tools/credential-helper
