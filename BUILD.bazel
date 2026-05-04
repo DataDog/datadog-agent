@@ -813,6 +813,7 @@ exports_files(glob(
 # gazelle:exclude test/new-e2e/tests/sbom
 # gazelle:exclude test/new-e2e/tests/security-agent-functional
 # gazelle:exclude test/new-e2e/tests/ssi
+# gazelle:exclude test/new-e2e/tests/ssi-gradual-rollout
 # gazelle:exclude test/new-e2e/tests/sysprobe-functional
 # gazelle:exclude test/new-e2e/tests/usm
 # gazelle:exclude test/new-e2e/tests/windows/common/fixtures
