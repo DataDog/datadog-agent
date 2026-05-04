@@ -8,6 +8,7 @@
 package tracer
 
 import (
+	"bytes"
 	"sync"
 	"time"
 	"unicode/utf16"
@@ -142,11 +143,13 @@ func mibIfRowName(row windows.MibIfRow) string {
 	return string(utf16.Decode(nameSlice[:end]))
 }
 
-// mibIfRowDescr extracts the Descr field from a MibIfRow as a Go string
+// mibIfRowDescr extracts the Descr field from a MibIfRow as a Go string.
+// dwDescrLen includes the null terminator, so we scan for the NUL byte instead
+// of trusting the length to avoid a trailing \x00 in the returned string.
 func mibIfRowDescr(row windows.MibIfRow) string {
-	length := row.DescrLen
-	if length > 256 {
-		length = 256
+	descr := row.Descr[:]
+	if i := bytes.IndexByte(descr, 0); i >= 0 {
+		return string(descr[:i])
 	}
-	return string(row.Descr[:length])
+	return string(descr)
 }
