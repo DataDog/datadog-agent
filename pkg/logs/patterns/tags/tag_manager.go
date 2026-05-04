@@ -43,6 +43,8 @@ func NewTagManager() *TagManager {
 		idToEntry:      make(map[uint64]*tagEntry),
 		pendingDynamic: make(map[string]uint16),
 	}
+	// Stateful FlatLog reserves dict index 1 as the empty/omit sentinel.
+	tm.nextID.Store(1)
 	return tm
 }
 

@@ -189,8 +189,16 @@ func replayDeltaEncodingSync(datums []*statefulpb.Datum) *statefulpb.Datum {
 	var hasSync bool
 	var currentPatternID uint64
 	var currentTags *statefulpb.TagSet
+	var currentFlatLogStatus uint64
+	var currentFlatLogService uint64
+	var currentFlatLogTags uint64
+	var currentFlatLogJSONSchema uint64
 	var syncedPattern bool
 	var syncedTags bool
+	var syncedFlatLogStatus bool
+	var syncedFlatLogService bool
+	var syncedFlatLogTags bool
+	var syncedFlatLogJSONSchema bool
 
 	for _, datum := range datums {
 		if datum == nil {
@@ -211,6 +219,19 @@ func replayDeltaEncodingSync(datums []*statefulpb.Datum) *statefulpb.Datum {
 			}
 			if d.DeltaEncodingSync.Tags != nil {
 				currentTags = d.DeltaEncodingSync.Tags
+				currentFlatLogTags = flatLogTagSetDictIndex(d.DeltaEncodingSync.Tags)
+			}
+			if d.DeltaEncodingSync.Status != 0 {
+				currentFlatLogStatus = d.DeltaEncodingSync.Status
+			}
+			if d.DeltaEncodingSync.Service != 0 {
+				currentFlatLogService = d.DeltaEncodingSync.Service
+			}
+			if d.DeltaEncodingSync.FlatLogTags != 0 {
+				currentFlatLogTags = d.DeltaEncodingSync.FlatLogTags
+			}
+			if d.DeltaEncodingSync.JsonSchemaId != 0 {
+				currentFlatLogJSONSchema = d.DeltaEncodingSync.JsonSchemaId
 			}
 		case *statefulpb.Datum_Logs:
 			logDatum := d.Logs
@@ -241,9 +262,36 @@ func replayDeltaEncodingSync(datums []*statefulpb.Datum) *statefulpb.Datum {
 					currentTags = logDatum.Tags
 				}
 			}
-		}
-		if syncedPattern && syncedTags {
-			break
+		case *statefulpb.Datum_FlatLog:
+			logDatum := d.FlatLog
+			if logDatum == nil {
+				continue
+			}
+			if !syncedPattern && logDatum.RawLog == "" {
+				if logDatum.PatternId == 0 {
+					if currentPatternID != 0 {
+						sync.PatternId = currentPatternID
+						hasSync = true
+						syncedPattern = true
+					}
+				} else {
+					currentPatternID = logDatum.PatternId
+				}
+			}
+			if !syncedFlatLogTags {
+				if logDatum.Tags == 0 {
+					if currentFlatLogTags != 0 {
+						sync.FlatLogTags = currentFlatLogTags
+						hasSync = true
+						syncedFlatLogTags = true
+					}
+				} else {
+					currentFlatLogTags = logDatum.Tags
+				}
+			}
+			currentFlatLogStatus = setDeltaEncodingSyncField(logDatum.Status, currentFlatLogStatus, &sync.Status, &syncedFlatLogStatus, &hasSync)
+			currentFlatLogService = setDeltaEncodingSyncField(logDatum.Service, currentFlatLogService, &sync.Service, &syncedFlatLogService, &hasSync)
+			currentFlatLogJSONSchema = setDeltaEncodingSyncField(logDatum.JsonSchemaId, currentFlatLogJSONSchema, &sync.JsonSchemaId, &syncedFlatLogJSONSchema, &hasSync)
 		}
 	}
 
@@ -255,6 +303,21 @@ func replayDeltaEncodingSync(datums []*statefulpb.Datum) *statefulpb.Datum {
 			DeltaEncodingSync: &sync,
 		},
 	}
+}
+
+func setDeltaEncodingSyncField(value uint64, current uint64, syncField *uint64, synced *bool, hasSync *bool) uint64 {
+	if *synced {
+		return current
+	}
+	if value == 0 {
+		if current != 0 {
+			*syncField = current
+			*hasSync = true
+			*synced = true
+		}
+		return current
+	}
+	return value
 }
 
 // sentCount returns the number of sent payloads awaiting ack
@@ -302,19 +365,22 @@ func (t *inflightTracker) resetStreamSent() {
 // snapshotState maintains the accumulated state changes for stream bootstrapping
 // It represents the state "before" the first payload in the inflight queue
 type snapshotState struct {
-	dictMap    map[uint64]*statefulpb.DictEntryDefine
-	patternMap map[uint64]*statefulpb.PatternDefine
+	dictMap       map[uint64]*statefulpb.DictEntryDefine
+	patternMap    map[uint64]*statefulpb.PatternDefine
+	jsonSchemaMap map[uint64]*statefulpb.JsonSchemaDefine
 }
 
 type stateReferences struct {
-	dictEntryIDs map[uint64]struct{}
-	patternIDs   map[uint64]struct{}
+	dictEntryIDs  map[uint64]struct{}
+	patternIDs    map[uint64]struct{}
+	jsonSchemaIDs map[uint64]struct{}
 }
 
 func newStateReferences() stateReferences {
 	return stateReferences{
-		dictEntryIDs: make(map[uint64]struct{}),
-		patternIDs:   make(map[uint64]struct{}),
+		dictEntryIDs:  make(map[uint64]struct{}),
+		patternIDs:    make(map[uint64]struct{}),
+		jsonSchemaIDs: make(map[uint64]struct{}),
 	}
 }
 
@@ -326,6 +392,9 @@ func (r stateReferences) clone() stateReferences {
 	for id := range r.patternIDs {
 		clone.patternIDs[id] = struct{}{}
 	}
+	for id := range r.jsonSchemaIDs {
+		clone.jsonSchemaIDs[id] = struct{}{}
+	}
 	return clone
 }
 
@@ -336,6 +405,11 @@ func (r stateReferences) hasDictEntry(id uint64) bool {
 
 func (r stateReferences) hasPattern(id uint64) bool {
 	_, ok := r.patternIDs[id]
+	return ok
+}
+
+func (r stateReferences) hasJsonSchema(id uint64) bool {
+	_, ok := r.jsonSchemaIDs[id]
 	return ok
 }
 
@@ -353,6 +427,13 @@ func (r stateReferences) addPattern(id uint64) {
 	r.patternIDs[id] = struct{}{}
 }
 
+func (r stateReferences) addJsonSchema(id uint64) {
+	if id == 0 || id == flatLogEmptyDictIndex {
+		return
+	}
+	r.jsonSchemaIDs[id] = struct{}{}
+}
+
 func (r stateReferences) deleteDictEntry(id uint64) {
 	delete(r.dictEntryIDs, id)
 }
@@ -361,11 +442,16 @@ func (r stateReferences) deletePattern(id uint64) {
 	delete(r.patternIDs, id)
 }
 
+func (r stateReferences) deleteJsonSchema(id uint64) {
+	delete(r.jsonSchemaIDs, id)
+}
+
 // newSnapshotState creates a new empty snapshot state
 func newSnapshotState() *snapshotState {
 	return &snapshotState{
-		dictMap:    make(map[uint64]*statefulpb.DictEntryDefine),
-		patternMap: make(map[uint64]*statefulpb.PatternDefine),
+		dictMap:       make(map[uint64]*statefulpb.DictEntryDefine),
+		patternMap:    make(map[uint64]*statefulpb.PatternDefine),
+		jsonSchemaMap: make(map[uint64]*statefulpb.JsonSchemaDefine),
 	}
 }
 
@@ -385,6 +471,10 @@ func (s *snapshotState) apply(extra *StatefulExtra) {
 			s.dictMap[d.DictEntryDefine.Id] = d.DictEntryDefine
 		case *statefulpb.Datum_DictEntryDelete:
 			delete(s.dictMap, d.DictEntryDelete.Id)
+		case *statefulpb.Datum_JsonSchemaDefine:
+			s.jsonSchemaMap[d.JsonSchemaDefine.SchemaId] = d.JsonSchemaDefine
+		case *statefulpb.Datum_JsonSchemaDelete:
+			delete(s.jsonSchemaMap, d.JsonSchemaDelete.SchemaId)
 		}
 	}
 }
@@ -394,7 +484,7 @@ func (s *snapshotState) apply(extra *StatefulExtra) {
 // Used to send snapshot on new stream creation
 func (s *snapshotState) serialize(refs *stateReferences) ([]byte, stateReferences) {
 	sent := newStateReferences()
-	datums := make([]*statefulpb.Datum, 0, len(s.patternMap)+len(s.dictMap))
+	datums := make([]*statefulpb.Datum, 0, len(s.patternMap)+len(s.dictMap)+len(s.jsonSchemaMap))
 
 	for id, pattern := range s.patternMap {
 		if refs != nil && !refs.hasPattern(id) {
@@ -413,6 +503,15 @@ func (s *snapshotState) serialize(refs *stateReferences) ([]byte, stateReference
 			Data: &statefulpb.Datum_DictEntryDefine{DictEntryDefine: entry},
 		})
 		sent.addDictEntry(id)
+	}
+	for id, schema := range s.jsonSchemaMap {
+		if refs != nil && !refs.hasJsonSchema(id) {
+			continue
+		}
+		datums = append(datums, &statefulpb.Datum{
+			Data: &statefulpb.Datum_JsonSchemaDefine{JsonSchemaDefine: schema},
+		})
+		sent.addJsonSchema(id)
 	}
 
 	if len(datums) == 0 {
@@ -455,14 +554,21 @@ func (t *inflightTracker) missingSnapshotDefines(datums []*statefulpb.Datum) []*
 			known.addDictEntry(d.DictEntryDefine.Id)
 		case *statefulpb.Datum_DictEntryDelete:
 			known.deleteDictEntry(d.DictEntryDelete.Id)
+		case *statefulpb.Datum_JsonSchemaDefine:
+			known.addJsonSchema(d.JsonSchemaDefine.SchemaId)
+			addJsonSchemaReferences(known, d.JsonSchemaDefine)
+		case *statefulpb.Datum_JsonSchemaDelete:
+			known.deleteJsonSchema(d.JsonSchemaDelete.SchemaId)
 		case *statefulpb.Datum_Logs:
 			t.addMissingLogReferences(missing, known, d.Logs)
+		case *statefulpb.Datum_FlatLog:
+			t.addMissingFlatLogReferences(missing, known, d.FlatLog)
 		case *statefulpb.Datum_DeltaEncodingSync:
 			t.addMissingDeltaEncodingSyncReferences(missing, known, d.DeltaEncodingSync)
 		}
 	}
 
-	prefix := make([]*statefulpb.Datum, 0, len(missing.patternIDs)+len(missing.dictEntryIDs))
+	prefix := make([]*statefulpb.Datum, 0, len(missing.patternIDs)+len(missing.dictEntryIDs)+len(missing.jsonSchemaIDs))
 	for id := range missing.patternIDs {
 		pattern := t.snapshot.patternMap[id]
 		if pattern == nil {
@@ -479,6 +585,15 @@ func (t *inflightTracker) missingSnapshotDefines(datums []*statefulpb.Datum) []*
 		}
 		prefix = append(prefix, &statefulpb.Datum{
 			Data: &statefulpb.Datum_DictEntryDefine{DictEntryDefine: entry},
+		})
+	}
+	for id := range missing.jsonSchemaIDs {
+		schema := t.snapshot.jsonSchemaMap[id]
+		if schema == nil {
+			continue
+		}
+		prefix = append(prefix, &statefulpb.Datum{
+			Data: &statefulpb.Datum_JsonSchemaDefine{JsonSchemaDefine: schema},
 		})
 	}
 	return prefix
@@ -502,6 +617,21 @@ func (t *inflightTracker) addMissingLogReferences(missing stateReferences, known
 	}
 }
 
+func (t *inflightTracker) addMissingFlatLogReferences(missing stateReferences, known stateReferences, log *statefulpb.FlatLog) {
+	if log == nil {
+		return
+	}
+	t.addMissingFlatLogDictEntryReference(missing, known, log.Status)
+	t.addMissingFlatLogDictEntryReference(missing, known, log.Service)
+	t.addMissingFlatLogDictEntryReference(missing, known, log.Tags)
+	if log.RawLog == "" {
+		t.addMissingPatternReference(missing, known, log.PatternId)
+		t.addMissingDynamicValueReferences(missing, known, log.DynamicValues)
+	}
+	t.addMissingJsonSchemaReference(missing, known, log.JsonSchemaId)
+	t.addMissingDynamicValueReferences(missing, known, log.JsonContextValues)
+}
+
 func (t *inflightTracker) addMissingDeltaEncodingSyncReferences(missing stateReferences, known stateReferences, sync *statefulpb.DeltaEncodingSync) {
 	if sync == nil {
 		return
@@ -510,6 +640,10 @@ func (t *inflightTracker) addMissingDeltaEncodingSyncReferences(missing stateRef
 	if sync.Tags != nil {
 		t.addMissingDynamicValueReference(missing, known, sync.Tags.Tagset)
 	}
+	t.addMissingFlatLogDictEntryReference(missing, known, sync.Status)
+	t.addMissingFlatLogDictEntryReference(missing, known, sync.Service)
+	t.addMissingFlatLogDictEntryReference(missing, known, sync.FlatLogTags)
+	t.addMissingJsonSchemaReference(missing, known, sync.JsonSchemaId)
 }
 
 func (t *inflightTracker) addMissingDynamicValueReferences(missing stateReferences, known stateReferences, values []*statefulpb.DynamicValue) {
@@ -525,12 +659,35 @@ func (t *inflightTracker) addMissingDynamicValueReference(missing stateReference
 	t.addMissingDictEntryReference(missing, known, value.GetDictIndex())
 }
 
+func (t *inflightTracker) addMissingFlatLogDictEntryReference(missing stateReferences, known stateReferences, id uint64) {
+	if isFlatLogEmptyDictIndex(id) {
+		return
+	}
+	t.addMissingDictEntryReference(missing, known, id)
+}
+
 func (t *inflightTracker) addMissingDictEntryReference(missing stateReferences, known stateReferences, id uint64) {
 	if id == 0 || known.hasDictEntry(id) || t.snapshot.dictMap[id] == nil {
 		return
 	}
 	missing.addDictEntry(id)
 	known.addDictEntry(id)
+}
+
+func (t *inflightTracker) addMissingJsonSchemaReference(missing stateReferences, known stateReferences, id uint64) {
+	if id == 0 || id == flatLogEmptyDictIndex || known.hasJsonSchema(id) {
+		return
+	}
+	schema := t.snapshot.jsonSchemaMap[id]
+	if schema == nil {
+		return
+	}
+	missing.addJsonSchema(id)
+	known.addJsonSchema(id)
+	t.addMissingDictEntryReference(missing, known, schema.MessageKeyId)
+	for _, keyID := range schema.Keys {
+		t.addMissingDictEntryReference(missing, known, keyID)
+	}
 }
 
 func (t *inflightTracker) addMissingPatternReference(missing stateReferences, known stateReferences, id uint64) {
@@ -552,6 +709,9 @@ func (t *inflightTracker) markStateSent(payload *message.Payload) {
 			t.streamSent.addPattern(d.PatternDefine.PatternId)
 		case *statefulpb.Datum_DictEntryDefine:
 			t.streamSent.addDictEntry(d.DictEntryDefine.Id)
+		case *statefulpb.Datum_JsonSchemaDefine:
+			t.streamSent.addJsonSchema(d.JsonSchemaDefine.SchemaId)
+			addJsonSchemaReferences(t.streamSent, d.JsonSchemaDefine)
 		}
 	}
 	t.streamSent.applyStateChanges(extra.WireDatums)
@@ -568,6 +728,11 @@ func (r stateReferences) applyStateChanges(datums []*statefulpb.Datum) {
 			r.addDictEntry(d.DictEntryDefine.Id)
 		case *statefulpb.Datum_DictEntryDelete:
 			r.deleteDictEntry(d.DictEntryDelete.Id)
+		case *statefulpb.Datum_JsonSchemaDefine:
+			r.addJsonSchema(d.JsonSchemaDefine.SchemaId)
+			addJsonSchemaReferences(r, d.JsonSchemaDefine)
+		case *statefulpb.Datum_JsonSchemaDelete:
+			r.deleteJsonSchema(d.JsonSchemaDelete.SchemaId)
 		}
 	}
 }
@@ -577,8 +742,13 @@ func addDatumReferences(refs stateReferences, datums []*statefulpb.Datum) {
 		switch d := datum.Data.(type) {
 		case *statefulpb.Datum_Logs:
 			addLogReferences(refs, d.Logs)
+		case *statefulpb.Datum_FlatLog:
+			addFlatLogReferences(refs, d.FlatLog)
 		case *statefulpb.Datum_DeltaEncodingSync:
 			addDeltaEncodingSyncReferences(refs, d.DeltaEncodingSync)
+		case *statefulpb.Datum_JsonSchemaDefine:
+			refs.addJsonSchema(d.JsonSchemaDefine.SchemaId)
+			addJsonSchemaReferences(refs, d.JsonSchemaDefine)
 		}
 	}
 }
@@ -601,6 +771,21 @@ func addLogReferences(refs stateReferences, log *statefulpb.Log) {
 	}
 }
 
+func addFlatLogReferences(refs stateReferences, log *statefulpb.FlatLog) {
+	if log == nil {
+		return
+	}
+	addFlatLogDictEntryReference(refs, log.Status)
+	addFlatLogDictEntryReference(refs, log.Service)
+	addFlatLogDictEntryReference(refs, log.Tags)
+	if log.RawLog == "" {
+		refs.addPattern(log.PatternId)
+		addDynamicValueReferences(refs, log.DynamicValues)
+	}
+	addFlatLogJsonSchemaReference(refs, log.JsonSchemaId)
+	addDynamicValueReferences(refs, log.JsonContextValues)
+}
+
 func addDeltaEncodingSyncReferences(refs stateReferences, sync *statefulpb.DeltaEncodingSync) {
 	if sync == nil {
 		return
@@ -608,6 +793,20 @@ func addDeltaEncodingSyncReferences(refs stateReferences, sync *statefulpb.Delta
 	refs.addPattern(sync.PatternId)
 	if sync.Tags != nil {
 		addDynamicValueReference(refs, sync.Tags.Tagset)
+	}
+	addFlatLogDictEntryReference(refs, sync.Status)
+	addFlatLogDictEntryReference(refs, sync.Service)
+	addFlatLogDictEntryReference(refs, sync.FlatLogTags)
+	addFlatLogJsonSchemaReference(refs, sync.JsonSchemaId)
+}
+
+func addJsonSchemaReferences(refs stateReferences, schema *statefulpb.JsonSchemaDefine) {
+	if schema == nil {
+		return
+	}
+	addFlatLogDictEntryReference(refs, schema.MessageKeyId)
+	for _, keyID := range schema.Keys {
+		addFlatLogDictEntryReference(refs, keyID)
 	}
 }
 
@@ -622,4 +821,18 @@ func addDynamicValueReference(refs stateReferences, value *statefulpb.DynamicVal
 		return
 	}
 	refs.addDictEntry(value.GetDictIndex())
+}
+
+func addFlatLogDictEntryReference(refs stateReferences, id uint64) {
+	if isFlatLogEmptyDictIndex(id) {
+		return
+	}
+	refs.addDictEntry(id)
+}
+
+func addFlatLogJsonSchemaReference(refs stateReferences, id uint64) {
+	if id == 0 || id == flatLogEmptyDictIndex {
+		return
+	}
+	refs.addJsonSchema(id)
 }

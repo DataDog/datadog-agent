@@ -577,6 +577,37 @@ func TestInflightTrackerNextToSendPrependsDeltaEncodingSyncBeforeReplayedDatums(
 	assert.EqualValues(t, 0, datumSeq.Data[4].GetLogs().GetStructured().PatternId)
 }
 
+func TestInflightTrackerNextToSendDeltaEncodingSyncIncludesFlatLogFields(t *testing.T) {
+	tracker := newInflightTracker("test", 5)
+	tracker.snapshot.apply(&StatefulExtra{
+		StateChanges: []*statefulpb.Datum{
+			createInflightPatternDefine(2, "pattern2"),
+			createInflightDictEntryDefine(20, "value20"),
+			createInflightDictEntryDefine(21, "status"),
+			createInflightDictEntryDefine(22, "service"),
+			createInflightDictEntryDefine(23, "tags"),
+			createInflightDictEntryDefine(24, "json-schema"),
+		},
+	})
+	tracker.streamSent = newStateReferences()
+
+	require.True(t, tracker.append(createInflightPayloadWithWireDatums(
+		createInflightFlatLogDatum(2, 20, 21, 22, 23, 24),
+		createInflightFlatLogDatum(0, 20, 0, 0, 0, 0),
+	)))
+
+	encoded, err := tracker.nextToSendEncoded(noopimpl.New())
+	require.NoError(t, err)
+
+	datumSeq := decodeInflightDatumSequence(t, encoded)
+	sync := findInflightDeltaEncodingSync(t, datumSeq.Data)
+	assert.EqualValues(t, 2, sync.PatternId)
+	assert.EqualValues(t, 21, sync.Status)
+	assert.EqualValues(t, 22, sync.Service)
+	assert.EqualValues(t, 23, sync.FlatLogTags)
+	assert.EqualValues(t, 24, sync.JsonSchemaId)
+}
+
 func TestInflightTrackerNextToSendDoesNotPrependStateDefinedInSamePayload(t *testing.T) {
 	tracker := newInflightTracker("test", 5)
 	tracker.snapshot.apply(&StatefulExtra{
@@ -646,6 +677,27 @@ func createInflightLogDatum(patternID uint64, dictID uint64) *statefulpb.Datum {
 	}
 }
 
+func createInflightFlatLogDatum(patternID uint64, dictID uint64, status uint64, service uint64, tags uint64, jsonSchemaID uint64) *statefulpb.Datum {
+	return &statefulpb.Datum{
+		Data: &statefulpb.Datum_FlatLog{
+			FlatLog: &statefulpb.FlatLog{
+				PatternId:    patternID,
+				Status:       status,
+				Service:      service,
+				Tags:         tags,
+				JsonSchemaId: jsonSchemaID,
+				DynamicValues: []*statefulpb.DynamicValue{
+					{
+						Value: &statefulpb.DynamicValue_DictIndex{
+							DictIndex: dictID,
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
 func createInflightPayloadWithWireDatums(datums ...*statefulpb.Datum) *message.Payload {
 	serialized, _ := proto.Marshal(&statefulpb.DatumSequence{Data: datums})
 	return &message.Payload{
@@ -661,6 +713,17 @@ func decodeInflightDatumSequence(t *testing.T, data []byte) statefulpb.DatumSequ
 	var datumSeq statefulpb.DatumSequence
 	require.NoError(t, proto.Unmarshal(data, &datumSeq))
 	return datumSeq
+}
+
+func findInflightDeltaEncodingSync(t *testing.T, datums []*statefulpb.Datum) *statefulpb.DeltaEncodingSync {
+	t.Helper()
+	for _, datum := range datums {
+		if sync := datum.GetDeltaEncodingSync(); sync != nil {
+			return sync
+		}
+	}
+	require.Fail(t, "DeltaEncodingSync not found")
+	return nil
 }
 
 func collectInflightPatterns(datums []*statefulpb.Datum) map[uint64]string {
