@@ -75,8 +75,7 @@ NCURSES_VERSION="6.5"      # yum install ncurses-devel
 READLINE_VERSION="8.2"     # yum install readline-devel
 SQLITE_VERSION="3.50.4"    # yum install sqlite-devel
 GDBM_VERSION="1.23"        # yum install gdbm-devel
-# Runtime dependency bundled to make the package self-contained (not a build dep):
-LIBICONV_VERSION="1.17"    # yum install libiconv  (runtime dep of libxml2.so)
+LIBICONV_VERSION="1.17"    # yum install libiconv
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
