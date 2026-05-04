@@ -7,14 +7,14 @@ runs:
     - shell: bash
       run: echo "XDG_CACHE_HOME=$GITHUB_WORKSPACE/.cache" >>"$GITHUB_ENV"
     - name: Pull or push Bazel installation cache(s)
-      uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+      uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
       with:
         key: bazelversion-${{ hashFiles('.bazelversion') }}
         path: |
           .cache/bazelisk
           .cache/bazel/*/install
     - name: Pull or push Bazel-managed repository cache(s)
-      uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+      uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
       with:
         key: bazel-${{ hashFiles('.go-version', '.python-version') }}
         path: |

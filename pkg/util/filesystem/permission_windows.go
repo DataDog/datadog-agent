@@ -9,7 +9,7 @@ package filesystem
 import (
 	"fmt"
 
-	"github.com/hectane/go-acl"
+	"github.com/DataDog/go-acl"
 	"golang.org/x/sys/windows"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"

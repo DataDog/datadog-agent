@@ -103,6 +103,13 @@ type LogsConfig struct {
 	// ProcessRawMessage is used to process the raw message instead of only the content part of the message.
 	ProcessRawMessage *bool `mapstructure:"process_raw_message" json:"process_raw_message" yaml:"process_raw_message"`
 
+	// SIEMParsing enables CEF/LEEF header detection and extraction within syslog
+	// message bodies. When true (the default once syslog ingestion is wired up),
+	// syslog messages whose body starts with "CEF:" or "LEEF:" are parsed into
+	// structured SIEM fields. Set to false to skip this detection and treat the
+	// message body as plain text. See IsSIEMParsingEnabled() for nil handling.
+	SIEMParsing *bool `mapstructure:"siem_parsing" json:"siem_parsing" yaml:"siem_parsing"`
+
 	AutoMultiLine               *bool   `mapstructure:"auto_multi_line_detection" json:"auto_multi_line_detection" yaml:"auto_multi_line_detection"`
 	AutoMultiLineSampleSize     int     `mapstructure:"auto_multi_line_sample_size" json:"auto_multi_line_sample_size" yaml:"auto_multi_line_sample_size"`
 	AutoMultiLineMatchThreshold float64 `mapstructure:"auto_multi_line_match_threshold" json:"auto_multi_line_match_threshold" yaml:"auto_multi_line_match_threshold"`
@@ -153,10 +160,27 @@ type SourceAutoMultiLineOptions struct {
 }
 
 // SourceAdaptiveSamplingOptions defines per-source overrides for the experimental adaptive sampler.
-// Additional per-source filters can be added here later.
 type SourceAdaptiveSamplingOptions struct {
 	// Enabled overrides the global adaptive sampling toggle for this source when set.
 	Enabled *bool `mapstructure:"enabled" json:"enabled" yaml:"enabled"`
+
+	// MaxPatterns overrides the maximum number of patterns tracked for this source when set.
+	MaxPatterns *int `mapstructure:"max_patterns" json:"max_patterns" yaml:"max_patterns"`
+
+	// RateLimit overrides the steady-state logs per second allowed per pattern for this source when set.
+	RateLimit *float64 `mapstructure:"rate_limit" json:"rate_limit" yaml:"rate_limit"`
+
+	// BurstSize overrides the maximum accumulated credits per pattern for this source when set.
+	BurstSize *float64 `mapstructure:"burst_size" json:"burst_size" yaml:"burst_size"`
+
+	// MatchThreshold overrides the token match threshold for this source when set.
+	MatchThreshold *float64 `mapstructure:"match_threshold" json:"match_threshold" yaml:"match_threshold"`
+
+	// TokenizerMaxInputBytes overrides the sampler tokenizer minimum input bytes for this source when set.
+	TokenizerMaxInputBytes *int `mapstructure:"tokenizer_max_input_bytes" json:"tokenizer_max_input_bytes" yaml:"tokenizer_max_input_bytes"`
+
+	// ProtectImportantLogs overrides whether important logs bypass adaptive sampling for this source when set.
+	ProtectImportantLogs *bool `mapstructure:"protect_important_logs" json:"protect_important_logs" yaml:"protect_important_logs"`
 }
 
 // AutoMultilineSample defines a sample used to create auto multiline detection
@@ -606,6 +630,15 @@ func (c *LogsConfig) ShouldProcessRawMessage() bool {
 		return *c.ProcessRawMessage
 	}
 	return true // default behaviour when nothing's been configured
+}
+
+// IsSIEMParsingEnabled returns whether CEF/LEEF header detection is enabled
+// for this source. When SIEMParsing is nil (unconfigured), it defaults to true.
+func (c *LogsConfig) IsSIEMParsingEnabled() bool {
+	if c.SIEMParsing != nil {
+		return *c.SIEMParsing
+	}
+	return true
 }
 
 // ContainsWildcard returns true if the path contains any wildcard character
