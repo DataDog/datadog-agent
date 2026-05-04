@@ -276,8 +276,7 @@ func (r *Resolver) Start(ctx context.Context) error {
 			case <-enrichTicker.C:
 				if r.wmeta != nil {
 					seclog.Debugf("Enriching SBOM with runtime usage")
-					_, err := r.enrichSBOMsWithUsage()
-					if err != nil {
+					if err := r.enrichSBOMsWithUsage(); err != nil {
 						seclog.Errorf("Couldn't enrich SBOMs with usage: %v", err)
 					}
 				}
@@ -302,7 +301,7 @@ func (r *Resolver) RefreshSBOM(containerID containerutils.ContainerID) error {
 			refresher = debouncer.New(
 				3*time.Second, func() {
 					// invalid cache data
-					r.removeSBOMData(workloadKey(sbom.ContainerID))
+					r.removeSBOMData(sbom.workloadKey)
 
 					r.sbomsLock.Lock()
 					sbom.Lock()
@@ -497,13 +496,12 @@ func (r *Resolver) removeSBOMData(key workloadKey) {
 	r.dataCacheLock.Unlock()
 }
 
-func (r *Resolver) enrichSBOMsWithUsage() (bool, error) {
+func (r *Resolver) enrichSBOMsWithUsage() error {
 	r.sbomsLock.RLock()
 	defer r.sbomsLock.RUnlock()
 
-	images := r.wmeta.ListImages()
 	enriched := false
-
+	images := r.wmeta.ListImages()
 	for _, image := range images {
 		uncompressedSBOM, err := sbomutil.UncompressSBOM(image.SBOM)
 		if err != nil {
@@ -517,14 +515,14 @@ func (r *Resolver) enrichSBOMsWithUsage() (bool, error) {
 
 		for _, sbom := range r.sboms.Values() {
 			sbom.Lock()
-			if sbom.data != nil && sbom.workloadKey == workloadKey(image.Name) {
+			if sbom.data != nil && (sbom.workloadKey == workloadKey(image.Name) || sbom.workloadKey == workloadKey(image.ID)) {
 				enriched = enriched || r.enrichSBOMWithUsage(uncompressedSBOM, sbom)
 			}
 			sbom.Unlock()
 		}
 	}
 
-	return enriched, nil
+	return nil
 }
 
 func (r *Resolver) enrichSBOMWithUsage(wsbom *workloadmeta.SBOM, sbom *SBOM) bool {
@@ -625,7 +623,7 @@ func (r *Resolver) analyzeWorkload(sb *SBOM) error {
 
 	// add to cache
 	r.dataCacheLock.Lock()
-	r.dataCache.Add(workloadKey(sb.ContainerID), data)
+	r.dataCache.Add(workloadKey(sb.workloadKey), data)
 	r.dataCacheLock.Unlock()
 
 	r.removePendingScan(sb.ContainerID)
@@ -803,7 +801,7 @@ func (r *Resolver) queueWorkload(sbom *SBOM) {
 	r.dataCacheLock.Lock()
 	defer r.dataCacheLock.Unlock()
 
-	if data, ok := r.dataCache.Get(workloadKey(sbom.ContainerID)); ok {
+	if data, ok := r.dataCache.Get(sbom.workloadKey); ok {
 		sbom.data = data
 
 		sbom.state.Store(computedState)
@@ -846,9 +844,13 @@ func (r *Resolver) OnWorkloadSelectorResolvedEvent(workload *tags.Workload) {
 		return
 	}
 
+	workloadKey := workloadKey(utils.GetTagValue("image_id", workload.Tags))
+	if workloadKey == "" {
+		workloadKey = getWorkloadKey(workload.Selector.Copy())
+	}
+
 	_, ok := r.sboms.Get(id)
 	if !ok {
-		workloadKey := getWorkloadKey(workload.Selector.Copy())
 		sbom := r.newSBOM(id, workload.GCroupCacheEntry, workloadKey)
 		r.queueWorkload(sbom)
 	}

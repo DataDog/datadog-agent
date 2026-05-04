@@ -122,10 +122,34 @@ func workloadmetaEventFromSBOMEventSet(store workloadmeta.Component, event *sbom
 
 	// Get existing image to merge SBOM data
 	existingImage, err := store.GetImage(imageID)
-	if err != nil || existingImage == nil || existingImage.SBOM == nil ||
-		existingImage.SBOM.Status == workloadmeta.Pending || existingImage.SBOM.Status == "" {
-		log.Debugf("Ignoring system-probe SBOM for image %s: image not found or Trivy scan not yet complete", imageID)
+	if err != nil || existingImage == nil {
+		// Kubelet reports Image.ID as the manifest/repo digest (e.g. "docker.io/foo@sha256:9fb3...")
+		// but images are stored by config digest. Fall back to a linear search on RepoDigests.
+		for _, img := range store.ListImages() {
+			for _, digest := range img.RepoDigests {
+				if digest == imageID {
+					existingImage = img
+					break
+				}
+			}
+			if existingImage != nil {
+				break
+			}
+		}
+	}
+	if existingImage == nil {
+		log.Debugf("Ignoring system-probe SBOM for image %s: image not found in workloadmeta", imageID)
 		return workloadmeta.Event{}, nil
+	}
+
+	if existingImage.SBOM == nil {
+		log.Debugf("Existing image %s has no SBOM, skipping", imageID)
+		return workloadmeta.Event{}, fmt.Errorf("existing image %s has no SBOM to merge with", imageID)
+	}
+
+	if existingImage.SBOM.Status == workloadmeta.Pending || existingImage.SBOM.Status == "" {
+		log.Debugf("Image %s SBOM is still in state '%s', skipping merge for now", imageID, existingImage.SBOM.Status)
+		return workloadmeta.Event{}, fmt.Errorf("image %s SBOM is still pending", imageID)
 	}
 
 	// Decompress existing image SBOM to get CycloneDXBOM
