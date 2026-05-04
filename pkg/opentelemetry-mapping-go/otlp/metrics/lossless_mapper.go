@@ -35,7 +35,7 @@ func newLossLessMapper(cfg translatorConfig, logger *zap.Logger) mapper {
 
 // MapNumberMetrics maps number datapoints to Datadog metrics.
 func (m *lossLessMapper) MapNumberMetrics(ctx context.Context, consumer Consumer, dims *Dimensions, dt DataType, slice pmetric.NumberDataPointSlice) {
-	mapNumberMetrics(ctx, consumer, dims, dt, slice, m.logger, m.cfg.InferDeltaInterval)
+	mapNumberMetrics(ctx, consumer, dims, dt, slice, m.logger, m.cfg.InferDeltaInterval, m.cfg.EncodeSliceMetadataAsTags)
 }
 
 // mapNumberMetrics maps number datapoints into Datadog metrics.
@@ -48,6 +48,7 @@ func mapNumberMetrics(
 	slice pmetric.NumberDataPointSlice,
 	logger *zap.Logger,
 	inferInterval bool,
+	encodeSliceMetadataAsTags bool,
 ) {
 	for i := 0; i < slice.Len(); i++ {
 		p := slice.At(i)
@@ -56,7 +57,7 @@ func mapNumberMetrics(
 			continue
 		}
 
-		pointDims := dims.WithAttributeMap(p.Attributes())
+		pointDims := dims.WithAttributeMap(p.Attributes(), encodeSliceMetadataAsTags)
 		var val float64
 		switch p.ValueType() {
 		case pmetric.NumberDataPointValueTypeDouble:
@@ -90,7 +91,7 @@ func (m *lossLessMapper) MapSummaryMetrics(ctx context.Context, consumer Consume
 		}
 
 		ts := uint64(p.Timestamp())
-		pointDims := dims.WithAttributeMap(p.Attributes())
+		pointDims := dims.WithAttributeMap(p.Attributes(), m.cfg.EncodeSliceMetadataAsTags)
 
 		// Emit count as a Gauge (raw value, no delta conversion)
 		countDims := pointDims.WithSuffix("count")
