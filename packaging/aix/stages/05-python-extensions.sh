@@ -99,15 +99,27 @@ extract_version() {
         | sed "s/.*${_pkg}-\([0-9][0-9.]*\)-.*/\1/"
 }
 
+# Fall back to the installed version if a package is not in the lockfile.
+# cffi and lxml are C extensions built from source on AIX; newer integrations-core
+# lockfiles only list pre-built binary wheels and omit source-only packages.
+installed_version() {
+    _pkg=$1
+    "$PIP" show "$_pkg" 2>/dev/null | grep "^Version:" | awk '{print $2}'
+}
+
 CFFI_VERSION=$(extract_version cffi)
 PSUTIL_VERSION=$(extract_version psutil)
 LXML_VERSION=$(extract_version lxml)
 CRYPTOGRAPHY_VERSION=$(extract_version cryptography)
 
+[ -z "$CFFI_VERSION" ] && CFFI_VERSION=$(installed_version cffi)
+[ -z "$LXML_VERSION" ] && LXML_VERSION=$(installed_version lxml)
+
 if [ -z "$CFFI_VERSION" ] || [ -z "$PSUTIL_VERSION" ] || [ -z "$LXML_VERSION" ] || [ -z "$CRYPTOGRAPHY_VERSION" ]; then
     log "ERROR: could not read one or more package versions from $LOCKFILE"
     log "  cffi=$CFFI_VERSION psutil=$PSUTIL_VERSION lxml=$LXML_VERSION cryptography=$CRYPTOGRAPHY_VERSION"
-    log "  Check that $LOCKFILE contains cffi, psutil, lxml, cryptography entries."
+    log "  Check that $LOCKFILE contains psutil, cryptography entries."
+    log "  cffi and lxml fall back to the currently installed version if absent from lockfile."
     exit 1
 fi
 
