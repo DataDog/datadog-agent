@@ -132,7 +132,6 @@ type deviceOptions struct {
 	processInfoCB      func(uuid string) ([]nvml.ProcessInfo, nvml.Return)
 	gpmSupported       *bool
 	unsupportedFields  map[uint32]struct{}
-	defaultFieldValues map[uint32]uint64
 	migChildCount      int
 }
 
