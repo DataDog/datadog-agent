@@ -169,7 +169,7 @@ require (
 	github.com/DataDog/datadog-go/v5 v5.8.3
 	github.com/DataDog/datadog-operator/api v0.0.0-20260323152500-0887e50ccf73
 	github.com/DataDog/datadog-traceroute v1.0.13
-	github.com/DataDog/dd-trace-go/v2 v2.7.0-rc.1
+	github.com/DataDog/dd-trace-go/v2 v2.7.4
 	github.com/DataDog/ebpf-manager v0.7.16
 	github.com/DataDog/go-sqllexer v0.2.1
 	github.com/DataDog/nikos v1.12.12
@@ -662,7 +662,7 @@ require (
 	github.com/lightstep/go-expohisto v1.0.0 // indirect
 	github.com/linode/go-metadata v0.2.4 // indirect
 	github.com/linode/linodego v1.66.0 // indirect
-	github.com/lufia/plan9stats v0.0.0-20251013123823-9fd1530e3ec3 // indirect
+	github.com/lufia/plan9stats v0.0.0-20260216142805-b3301c5f2a88 // indirect
 	github.com/lunixbochs/struc v0.0.0-20200707160740-784aaebc1d40 // indirect
 	github.com/magefile/mage v1.15.0 // indirect
 	github.com/magiconair/properties v1.8.10 // indirect
@@ -781,7 +781,7 @@ require (
 	github.com/samber/oops v1.18.1 // indirect
 	github.com/sassoftware/go-rpmutils v0.4.0 // indirect
 	github.com/scaleway/scaleway-sdk-go v1.0.0-beta.36 // indirect
-	github.com/secure-systems-lab/go-securesystemslib v0.9.0 // indirect
+	github.com/secure-systems-lab/go-securesystemslib v0.10.0 // indirect
 	github.com/shirou/gopsutil/v3 v3.24.5 // indirect
 	github.com/shoenig/go-m1cpu v0.1.7 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
@@ -1038,7 +1038,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/trace/otel v0.79.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/aws/creds v0.79.0-rc.4 // indirect
 	github.com/DataDog/datadog-go v3.2.0+incompatible // indirect
-	github.com/DataDog/go-libddwaf/v4 v4.8.0 // indirect
+	github.com/DataDog/go-libddwaf/v4 v4.9.0 // indirect
 	github.com/DataDog/go-runtime-metrics-internal v0.0.4-0.20260217080614-b0f4edc38a6d // indirect
 	github.com/DataDog/gopsutil v1.2.3 // indirect
 	github.com/Jeffail/gabs/v2 v2.1.0 // indirect
@@ -1177,7 +1177,7 @@ require (
 	github.com/pb33f/jsonpath v0.8.2 // indirect
 	github.com/pb33f/libopenapi v0.34.4 // indirect
 	github.com/pb33f/ordered-map/v2 v2.3.1 // indirect
-	github.com/petermattis/goid v0.0.0-20250813065127-a731cc31b4fe // indirect
+	github.com/petermattis/goid v0.0.0-20260226131333-17d1149c6ac6 // indirect
 	github.com/pierrec/lz4 v2.6.1+incompatible // indirect
 	github.com/pires/go-proxyproto v0.8.0 // indirect
 	github.com/pjbgf/sha1cd v0.3.2 // indirect
