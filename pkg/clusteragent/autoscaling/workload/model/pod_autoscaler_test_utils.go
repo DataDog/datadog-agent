@@ -59,6 +59,7 @@ type FakePodAutoscalerInternal struct {
 	Error                              error
 	Deleted                            bool
 	ProfileName                        string
+	PreviewAnnotationKey               string
 	DesiredProfileTemplateHash         string
 	AppliedProfileHash                 string
 	TargetGVK                          schema.GroupVersionKind
@@ -76,6 +77,23 @@ func (f FakePodAutoscalerInternal) Build() PodAutoscalerInternal {
 			},
 			Spec: *f.Spec,
 		}
+	}
+
+	// Mirror what setPreviewAnnotation does in production: keep upstreamCR.Annotations in sync
+	// with PreviewAnnotationKey so that PreviewAnnotation() returns the expected value.
+	if f.PreviewAnnotationKey != "" {
+		if upstreamCR == nil {
+			upstreamCR = &datadoghq.DatadogPodAutoscaler{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: f.Namespace,
+					Name:      f.Name,
+				},
+			}
+		}
+		if upstreamCR.Annotations == nil {
+			upstreamCR.Annotations = make(map[string]string)
+		}
+		upstreamCR.Annotations[PreviewAnnotationKey] = f.PreviewAnnotationKey
 	}
 
 	return PodAutoscalerInternal{
@@ -108,6 +126,7 @@ func (f FakePodAutoscalerInternal) Build() PodAutoscalerInternal {
 		error:                              f.Error,
 		deleted:                            f.Deleted,
 		profileName:                        f.ProfileName,
+		previewOptions:                     parsePreviewAnnotationString(f.PreviewAnnotationKey),
 		desiredProfileTemplateHash:         f.DesiredProfileTemplateHash,
 		appliedProfileHash:                 f.AppliedProfileHash,
 		targetGVK:                          f.TargetGVK,
