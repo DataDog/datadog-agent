@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/url"
 	"strings"
 
@@ -89,11 +90,10 @@ func buildSRVConnectionURI(username, password, srvHost, database, authSource str
 func buildStandardConnectionURI(username, password, host, port, database, authSource, authMechanism string) (string, error) {
 	escapedUsername := url.QueryEscape(username)
 	escapedPassword := url.QueryEscape(password)
-	escapedHost := url.QueryEscape(host)
-	escapedPort := url.QueryEscape(port)
+	hostPort := net.JoinHostPort(host, port)
 	escapedDatabase := url.QueryEscape(database)
 
-	connectionUri := fmt.Sprintf("mongodb://%v:%v@%v:%v", escapedUsername, escapedPassword, escapedHost, escapedPort)
+	connectionUri := fmt.Sprintf("mongodb://%v:%v@%s", escapedUsername, escapedPassword, hostPort)
 	params := []string{}
 	if database != "" {
 		connectionUri = fmt.Sprintf("%s/%s", connectionUri, escapedDatabase)
