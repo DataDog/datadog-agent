@@ -173,8 +173,8 @@ func TestGARCH_DefaultEnabledIsTrue(t *testing.T) {
 	cat := defaultCatalog()
 	for _, e := range cat.entries {
 		if e.name == "garch_volatility" {
-			assert.True(t, e.defaultEnabled,
-				"garch_volatility currently defaults to enabled (matches plan); flipping requires a deliberate catalog edit")
+			assert.False(t, e.defaultEnabled,
+				"manual corpus candidates should be --only addressable, not default-enabled")
 			return
 		}
 	}

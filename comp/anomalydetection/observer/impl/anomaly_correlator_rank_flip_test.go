@@ -49,8 +49,8 @@ func TestRankFlip_DefaultEnabled(t *testing.T) {
 	cat := defaultCatalog()
 	for _, e := range cat.entries {
 		if e.name == "rankflip_correlator" {
-			assert.True(t, e.defaultEnabled,
-				"rankflip_correlator must be defaultEnabled=true to be visible in the coordinator eval pipeline")
+			assert.False(t, e.defaultEnabled,
+				"manual corpus candidates should be --only addressable, not default-enabled")
 			assert.Equal(t, componentCorrelator, e.kind,
 				"rankflip_correlator MUST be a correlator kind — wiring it as componentDetector reproduces the exp-0121 failure")
 			instance := e.factory(e.defaultConfig)

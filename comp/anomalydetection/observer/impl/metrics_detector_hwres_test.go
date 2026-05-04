@@ -228,7 +228,7 @@ func TestHWRes_CatalogEntryRegistered(t *testing.T) {
 	}
 	require.NotNil(t, found, "catalog must register an 'hwres' entry")
 	assert.Equal(t, componentDetector, found.kind, "hwres must be registered as a detector")
-	assert.True(t, found.defaultEnabled, "hwres must be defaultEnabled per the design plan")
+	assert.False(t, found.defaultEnabled, "manual corpus candidates should be --only addressable, not default-enabled")
 
 	inst := found.factory(nil)
 	det, ok := inst.(observer.Detector)

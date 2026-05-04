@@ -161,8 +161,8 @@ func TestESN_DefaultEnabledIsTrue(t *testing.T) {
 	cat := defaultCatalog()
 	for _, e := range cat.entries {
 		if e.name == "esn" {
-			assert.True(t, e.defaultEnabled,
-				"esn currently defaults to enabled (stage-1 deviation from plan); flipping requires a deliberate catalog edit")
+			assert.False(t, e.defaultEnabled,
+				"manual corpus candidates should be --only addressable, not default-enabled")
 			return
 		}
 	}

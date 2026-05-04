@@ -60,7 +60,7 @@ func TestGrubbsLOO_DefaultEnabledIsTrue(t *testing.T) {
 	}
 	require.NotNil(t, found, "grubbs_loo entry must exist in the catalog")
 	require.Equal(t, componentDetector, found.kind)
-	assert.True(t, found.defaultEnabled, "grubbs_loo must be default-enabled per stage-1 catalog")
+	assert.False(t, found.defaultEnabled, "manual corpus candidates should be --only addressable, not default-enabled")
 
 	instance := found.factory(found.defaultConfig)
 	_, ok := instance.(*GrubbsLOODetector)

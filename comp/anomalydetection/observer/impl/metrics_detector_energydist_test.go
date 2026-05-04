@@ -301,7 +301,7 @@ func TestEnergyDist_CatalogEntryRegistered(t *testing.T) {
 	}
 	require.NotNil(t, found, "catalog must register an 'energydist' entry")
 	assert.Equal(t, componentDetector, found.kind, "energydist must be registered as a detector")
-	assert.True(t, found.defaultEnabled, "energydist must be defaultEnabled per the design plan")
+	assert.False(t, found.defaultEnabled, "manual corpus candidates should be --only addressable, not default-enabled")
 
 	// The factory must produce a working detector instance.
 	inst := found.factory(nil)

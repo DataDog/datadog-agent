@@ -73,7 +73,7 @@ func TestTrendResid_CatalogEntryRegistered(t *testing.T) {
 	}
 	require.NotNil(t, found, "trendresid must be registered in the default catalog")
 	assert.Equal(t, componentDetector, found.kind, "trendresid must be a detector")
-	assert.True(t, found.defaultEnabled, "trendresid must be enabled by default")
+	assert.False(t, found.defaultEnabled, "manual corpus candidates should be --only addressable, not default-enabled")
 	require.NotNil(t, found.factory, "trendresid must have a factory")
 
 	instance := found.factory(found.defaultConfig)

@@ -58,7 +58,7 @@ func TestWSR_RegisteredInCatalog(t *testing.T) {
 	}
 	require.NotNil(t, found, "wsr entry must exist in the catalog")
 	require.Equal(t, componentDetector, found.kind)
-	require.True(t, found.defaultEnabled, "wsr ships defaultEnabled=true")
+	require.False(t, found.defaultEnabled, "manual corpus candidates should be --only addressable, not default-enabled")
 
 	instance := found.factory(found.defaultConfig)
 	_, ok := instance.(*WSRDetector)
