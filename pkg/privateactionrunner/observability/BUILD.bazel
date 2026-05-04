@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "observability",
+    srcs = [
+        "metrics.go",
+        "tags.go",
+        "traces.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/privateactionrunner/adapters/logging",
+        "//pkg/proto/pbgo/privateactionrunner/actionsclient",
+        "@//pkg/privateactionrunner/adapters/modes",
+        "@com_github_datadog_datadog_go_v5//statsd",
+    ],
+)

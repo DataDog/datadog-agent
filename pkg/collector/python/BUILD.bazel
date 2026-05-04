@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "python",
+    srcs = [
+        "embed_nopy.go",
+        "version_nopy.go",
+    ],
+    cgo = True,
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/python",
+    visibility = ["//visibility:public"],
+)

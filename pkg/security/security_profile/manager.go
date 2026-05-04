@@ -10,6 +10,7 @@ package securityprofile
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -26,6 +27,7 @@ import (
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"go.uber.org/atomic"
 
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -43,7 +45,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage/backend"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 const (
@@ -111,7 +112,7 @@ type Manager struct {
 	activeDumps      []*dump.ActivityDump
 	snapshotQueue    chan *dump.ActivityDump
 	contextTags      []string
-	containerFilters *containers.Filter
+	containerFilters workloadfilter.FilterBundle
 
 	hostname            string
 	lastStoppedDumpTime time.Time
@@ -153,7 +154,7 @@ type Manager struct {
 }
 
 // NewManager returns a new instance of the security profile manager
-func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *ebpfmanager.Manager, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, newEvent func() *model.Event, dumpHandler backend.ActivityDumpHandler, hostname string) (*Manager, error) {
+func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *ebpfmanager.Manager, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, newEvent func() *model.Event, dumpHandler backend.ActivityDumpHandler, hostname string, filterStore workloadfilter.Component) (*Manager, error) {
 	tracedPIDs, err := managerhelper.Map(ebpf, "traced_pids")
 	if err != nil {
 		return nil, err
@@ -260,9 +261,12 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 		contextTags = append(contextTags, "source:"+ActivityDumpSource)
 	}
 
-	containerFilters, err := utils.NewContainerFilter()
-	if err != nil {
-		return nil, err
+	var containerFilters workloadfilter.FilterBundle
+	if filterStore != nil {
+		containerFilters = filterStore.GetContainerRuntimeSecurityFilters()
+		if errs := containerFilters.GetErrors(); len(errs) > 0 {
+			return nil, errors.Join(errs...)
+		}
 	}
 
 	profileCache, err := simplelru.NewLRU[cgroupModel.WorkloadSelector, *profile.Profile](cfg.RuntimeSecurity.SecurityProfileCacheSize, nil)

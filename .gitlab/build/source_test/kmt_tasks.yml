@@ -4,6 +4,7 @@
 .test_kmt_local_setup:
   stage: source_test
   needs: []
+  extends: .dd_octo_sts
   rules:
     - !reference [.on_invoke_tasks_changes]
     - !reference [.except_mergequeue]
@@ -11,9 +12,10 @@
         paths:
           - .gitlab/build/source_test/kmt_tasks.yml
         compare_to: $COMPARE_TO_BRANCH
+  before_script:
+    - !reference [.setup_github_token_read]
   script:
     # Avoid rate limits when running kmt.init (pulumi queries the Github API to get the releases of plugins)
-    - export GITHUB_TOKEN=$(dda inv github.get-token-from-app)
     - dda inv -- kmt.init --remote-setup-only --skip-ssh-setup --exclude-requirements $KMT_EXCLUDE_REQUIREMENTS --images ""
     - export PATH=$PATH:$HOME/.pulumi/bin  # Simulate a shell restart, required for the check
     - dda inv -- kmt.selfcheck --remote-setup-only --exclude-requirements $KMT_EXCLUDE_REQUIREMENTS --show-flare-for-failures
@@ -22,8 +24,6 @@ test_kmt_local_setup_linux:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:arm64"]
   extends: .test_kmt_local_setup
-  before_script:
-    - !reference [.setup_agent_github_app]
   variables:
     # Some requirements cannot be tested in the CI yet:
     # - Docker,Compiler,UserInDockerGroup: no docker-in-docker support in these jobs yet
@@ -40,7 +40,7 @@ test_kmt_local_setup_macos:
   before_script:
     - !reference [.vault_login]
     - !reference [.aws_retry_config]
-    - !reference [.setup_agent_github_app]
+    - !reference [.setup_github_token_read]
     # Selecting the current Go version
     - |
       eval $(gimme $(cat .go-version))
@@ -59,3 +59,5 @@ test_kmt_local_setup_macos:
   id_tokens:
     CI_IDENTITIES_GITLAB_ID_TOKEN:
       aud: ci-identities
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts

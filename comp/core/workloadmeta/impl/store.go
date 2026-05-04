@@ -27,8 +27,10 @@ import (
 const (
 	retryCollectorInitialInterval = 1 * time.Second
 	retryCollectorMaxInterval     = 30 * time.Second
-	pullCollectorInterval         = 5 * time.Second
+	defaultPullCollectorInterval  = 5 * time.Second
+	minCollectorPullInterval      = 1 * time.Second
 	maxCollectorPullTime          = 1 * time.Minute
+	pullTickerTolerance           = 100 * time.Millisecond
 	eventBundleChTimeout          = 1 * time.Second
 	closeEventBundleChTimeout     = 10 * time.Second
 	eventChBufferSize             = 50
@@ -78,7 +80,7 @@ func (w *workloadmeta) start(ctx context.Context) {
 	}()
 
 	go func() {
-		pullTicker := time.NewTicker(pullCollectorInterval)
+		pullTicker := time.NewTicker(minCollectorPullInterval)
 
 		// Wait for at least one collector or timeout before first pull, so we
 		// don't signal CollectorsInitialized after an empty pull
@@ -163,7 +165,7 @@ func (w *workloadmeta) Subscribe(name string, priority wmdef.SubscriberPriority,
 					events = append(events, wmdef.Event{
 						Type:       wmdef.EventTypeSet,
 						Entity:     entity,
-						IsComplete: w.isEntityComplete(kind, cachedEntity),
+						IsComplete: w.completeness.isComplete(kind, cachedEntity.reportedSources()),
 					})
 				}
 			}
@@ -695,6 +697,11 @@ func (w *workloadmeta) startCandidates(ctx context.Context) bool {
 		if err == nil {
 			w.log.Infof("workloadmeta collector %q started successfully", id)
 			w.collectors[id] = c
+
+			w.pullsMut.Lock()
+			w.pulls[id] = &pullInfo{interval: resolveCollectorPullInterval(c)}
+			w.pullsMut.Unlock()
+
 			w.firstCollectorReadyOnce.Do(func() {
 				close(w.firstCollectorReady)
 			})
@@ -729,22 +736,36 @@ func (w *workloadmeta) pull(ctx context.Context) {
 	defer w.collectorMut.RUnlock()
 
 	for id, c := range w.collectors {
-		w.ongoingPullsMut.Lock()
-		ongoingPullStartTime := w.ongoingPulls[id]
-		alreadyRunning := !ongoingPullStartTime.IsZero()
+		w.pullsMut.Lock()
+		pullStatus := w.pulls[id]
+		alreadyRunning := !pullStatus.ongoingSince.IsZero()
+
+		// Skip if already running
 		if alreadyRunning {
-			timeRunning := time.Since(ongoingPullStartTime)
+			timeRunning := time.Since(pullStatus.ongoingSince)
 			if timeRunning > maxCollectorPullTime {
 				w.log.Errorf("collector %q has been running for too long (%d seconds)", id, timeRunning/time.Second)
 			} else {
 				w.log.Debugf("collector %q is still running. Will not pull again for now", id)
 			}
-			w.ongoingPullsMut.Unlock()
+			w.pullsMut.Unlock()
 			continue
 		}
 
-		w.ongoingPulls[id] = time.Now()
-		w.ongoingPullsMut.Unlock()
+		// The tolerance accounts for the delay between a tick firing and
+		// lastPullStart being recorded. Without this, some ticks can be skipped
+		// and double the intended pull interval.
+		pullNeeded := pullStatus.lastPullStart.IsZero() ||
+			time.Since(pullStatus.lastPullStart) >= pullStatus.interval-pullTickerTolerance
+		if !pullNeeded {
+			w.pullsMut.Unlock()
+			continue
+		}
+
+		now := time.Now()
+		pullStatus.ongoingSince = now
+		pullStatus.lastPullStart = now
+		w.pullsMut.Unlock()
 
 		// Run each pull in its own separate goroutine to reduce
 		// latency and unlock the main goroutine to do other work.
@@ -758,11 +779,11 @@ func (w *workloadmeta) pull(ctx context.Context) {
 				telemetry.PullErrors.Inc(id)
 			}
 
-			w.ongoingPullsMut.Lock()
-			pullDuration := time.Since(w.ongoingPulls[id])
+			w.pullsMut.Lock()
+			pullDuration := time.Since(pullStatus.ongoingSince)
 			telemetry.PullDuration.Observe(pullDuration.Seconds(), id)
-			w.ongoingPulls[id] = time.Time{}
-			w.ongoingPullsMut.Unlock()
+			pullStatus.ongoingSince = time.Time{}
+			w.pullsMut.Unlock()
 		}(id, c)
 	}
 }
@@ -894,7 +915,7 @@ func (w *workloadmeta) handleEvents(evs []wmdef.CollectorEvent) {
 				filteredEvents[sub] = append(filteredEvents[sub], wmdef.Event{
 					Type:       wmdef.EventTypeSet,
 					Entity:     entity,
-					IsComplete: w.isEntityComplete(entityID.Kind, cachedEntity),
+					IsComplete: w.completeness.isComplete(entityID.Kind, cachedEntity.reportedSources()),
 				})
 			} else {
 				entity = entity.DeepCopy()
@@ -909,7 +930,7 @@ func (w *workloadmeta) handleEvents(evs []wmdef.CollectorEvent) {
 					Entity: entity,
 					// Same as with entity, completeness refers to the copy
 					// before the unset took place
-					IsComplete: w.isEntityComplete(entityID.Kind, cachedEntity),
+					IsComplete: w.completeness.isComplete(entityID.Kind, cachedEntity.reportedSources()),
 				})
 			}
 		}
@@ -1029,22 +1050,19 @@ func classifyByKindAndID(entities []wmdef.Entity) map[wmdef.Kind]map[string]wmde
 	return res
 }
 
-// isEntityComplete checks if an entity is complete, meaning all expected
-// collectors have reported data for it. If no expected sources are defined for
-// the entity kind, it returns true (considered complete by default).
-func (w *workloadmeta) isEntityComplete(kind wmdef.Kind, cachedEntity *cachedEntity) bool {
-	expectedSources, ok := w.expectedSources[kind]
-	if !ok || len(expectedSources) == 0 {
-		// No expected sources defined for this kind, consider it complete
-		return true
-	}
-
-	// Check if all expected sources have reported
-	for _, expectedSource := range expectedSources {
-		if _, reported := cachedEntity.sources[expectedSource]; !reported {
-			return false
+// resolveCollectorPullInterval returns the pull interval for a collector. If
+// the collector defines a custom pull interval, and it's higher than the
+// minimum accepted, that value is used. Otherwise, the default is used.
+func resolveCollectorPullInterval(c wmdef.Collector) time.Duration {
+	if collectorWithCustomInterval, ok := c.(wmdef.PullCollectorWithCustomInterval); ok {
+		interval := collectorWithCustomInterval.GetPullInterval()
+		if interval >= minCollectorPullInterval {
+			return interval
+		}
+		if interval != 0 { // 0 means apply the default, so it's not an error
+			log.Warnf("collector %q requested pull interval %s which is below minimum %s, using default %s",
+				c.GetID(), interval, minCollectorPullInterval, defaultPullCollectorInterval)
 		}
 	}
-
-	return true
+	return defaultPullCollectorInterval
 }

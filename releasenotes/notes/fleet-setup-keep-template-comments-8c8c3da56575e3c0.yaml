@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    The ``datadog-installer.exe`` install script now adds ``datadog.yaml.example`` template comments to the config files on fresh installs.

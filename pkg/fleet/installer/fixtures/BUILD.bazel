@@ -1,0 +1,36 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fixtures",
+    srcs = [
+        "fs.go",
+        "server.go",
+    ],
+    embedsrcs = [
+        "README.md",
+        "fs.go",
+        "oci-layout-simple-v1-linux2-amd128.tar",
+        "oci-layout-simple-v1-with-extension.tar",
+        "oci-layout-simple-v1.tar",
+        "oci-layout-simple-v2.tar",
+        "server.go",
+        "simple-v1-config/datadog.yaml.example",
+        "simple-v1-extension/extension.sh",
+        "simple-v1/executable.sh",
+        "simple-v1/file.txt",
+        "simple-v2-config/datadog.yaml.example",
+        "simple-v2/executable-new.sh",
+        "BUILD.bazel",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/fixtures",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/fleet/installer/tar",
+        "@com_github_google_go_containerregistry//pkg/name",
+        "@com_github_google_go_containerregistry//pkg/registry",
+        "@com_github_google_go_containerregistry//pkg/v1/layout",
+        "@com_github_google_go_containerregistry//pkg/v1/remote",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

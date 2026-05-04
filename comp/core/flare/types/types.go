@@ -9,6 +9,7 @@
 package types
 
 import (
+	"context"
 	"time"
 
 	"go.uber.org/fx"
@@ -29,7 +30,9 @@ type FlareArgs = flarebuilder.FlareArgs
 
 // FlareCallback is a function that can be registered as a data provider for flares by way of the FlareProvider struct.
 // This function, if registered, will be called everytime a flare is created.
-type FlareCallback func(fb FlareBuilder) error
+// ctx is canceled when the provider exceeds its timeout; subprocesses should use exec.CommandContext with a context
+// derived from ctx (for example via context.WithTimeout(ctx, perCommandBudget)).
+type FlareCallback func(ctx context.Context, fb FlareBuilder) error
 
 // FlareTimeout is a function that provides the maximum expected runtime duration of a FlareProvider's callback.
 // Return 0 from this function to utilize the default timeout instead.

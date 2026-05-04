@@ -20,6 +20,7 @@ go_test(
     name = "slog_test",
     srcs = ["wrapper_test.go"],
     embed = [":slog"],
+    gotags = ["test"],
     deps = [
         "//pkg/util/log/types",
         "@com_github_stretchr_testify//assert",

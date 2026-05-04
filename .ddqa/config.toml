@@ -18,6 +18,14 @@ github_team = "agent-metric-pipelines"
 github_labels = ["team/agent-metric-pipelines"]
 exclude_members = [""]
 
+[teams."Agent Data Plane"]
+jira_project = "DADP"
+jira_issue_type = "Task"
+jira_statuses = ["To Do", "In Progress", "Done"]
+github_team = "agent-data-plane"
+github_labels = ["team/agent-data-plane"]
+exclude_members = [""]
+
 [teams."Agent Runtimes"]
 jira_project = "AGENTRUN"
 jira_issue_type = "QA"
@@ -33,6 +41,14 @@ jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "agent-configuration"
 github_labels = ["team/agent-configuration"]
 exclude_members = ["sgnn7"]
+
+[teams."Agent Health"]
+jira_project = "AGTHEAL"
+jira_issue_type = "QA"
+jira_statuses = ["To Do", "In Progress", "Done"]
+github_team = "agent-health"
+github_labels = ["team/agent-health"]
+exclude_members = ["iglendd", "kunalkxxxxxxxxr", "mwdd146980"]
 
 [teams."Agent Developer Experience"]
 jira_project = "ACIX"

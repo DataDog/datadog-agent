@@ -23,12 +23,28 @@ const (
 	maxBufferDuration = 8 * time.Second
 	// 5M is an order of magnitude less then trace-agent binary in memory
 	maxSizeForNoLimit = int64(5_000_000)
+	maxDebugErrorLen  = 100
 
 	metricMemoryUsage      = "datadog.trace_agent.tag_buffer.memory_usage"
 	metricPayloadsPending  = "datadog.trace_agent.tag_buffer.pending_payloads"
 	metricPayloadsBuffered = "datadog.trace_agent.tag_buffer.buffered_payloads"
 	metricDenied           = "datadog.trace_agent.tag_buffer.denied_payloads"
 )
+
+// DebugInfo contains troubleshooting information about container tags resolution.
+// It is only populated when a notable event occurs (error, buffering, denial).
+type DebugInfo struct {
+	Error                string
+	LatencyMs            int64
+	WasBuffered          bool
+	BufferMs             int64
+	BufferEvictionReason string
+}
+
+// HasData returns true if the DebugInfo has any notable data worth reporting.
+func (d *DebugInfo) HasData() bool {
+	return d != nil && (d.Error != "" || d.WasBuffered || d.BufferEvictionReason != "")
+}
 
 // ContainerTagsBuffer is a buffer for container tag resolution.
 //
@@ -45,7 +61,7 @@ type ContainerTagsBuffer interface {
 	Start()
 	Stop()
 	IsEnabled() bool
-	AsyncEnrichment(containerID string, applyResult func([]string, error), payloadSize int64) (pending bool)
+	AsyncEnrichment(containerID string, applyResult func([]string, error, *DebugInfo), payloadSize int64) (pending bool)
 }
 
 type containerTagsBuffer struct {
@@ -129,10 +145,11 @@ func (p *containerTagsBuffer) resolvePendingContainers(now time.Time) {
 		if now.Before(buffer.expireTs) {
 			continue
 		}
-		// force flush + deny
-		buffer.flush(tagResult{tags: ctags, err: nil})
-		delete(p.containersBuffer, cid)
+		// deny before flush so any goroutine receiving the callback result
+		// is guaranteed to observe the container as denied
 		p.deniedContainers.deny(now, cid)
+		buffer.flush(tagResult{tags: ctags, err: nil, expired: true})
+		delete(p.containersBuffer, cid)
 	}
 }
 
@@ -238,37 +255,42 @@ func (p *containerTagsBuffer) registerMemory(payloadSize int64) (bool, func()) {
 // Parameters:
 //   - containerID: target container to resolve tags for.
 //   - applyResult: a callback function executed when tags are found, the buffer times out, or the buffer is bypassed.
+//     The DebugInfo parameter is non-nil only when a notable event occurred.
 //   - payloadSize: size in bytes of the data associated with this request, used for memory pressure limits
 //
 // Returns:
 //   - true (Pending): The container is missing critical tags (e.g., "kube_") and resolution is buffered
 //   - false (Resolved/Skipped): The tags are ready, the buffer is full, or the container is denied.
 //     The 'applyResult' callback has already been called synchronously.
-func (p *containerTagsBuffer) AsyncEnrichment(containerID string, applyResult func([]string, error), payloadSize int64) (pending bool) {
+func (p *containerTagsBuffer) AsyncEnrichment(containerID string, applyResult func([]string, error, *DebugInfo), payloadSize int64) (pending bool) {
+	startTime := time.Now()
 	ctags, okSources, err := p.resolveContainerTagsWithSource(containerID)
 	// happy path complete container tags
 	if okSources && err == nil {
-		applyResult(ctags, err)
+		applyResult(ctags, err, debugFromError(err))
 		return false
 	}
 	if !p.IsEnabled() {
-		applyResult(ctags, err)
+		applyResult(ctags, err, debugFromError(err))
 		return false
 	}
-	now := time.Now()
+	now := startTime
 	if p.deniedContainers.shouldDeny(now, containerID) {
-		applyResult(ctags, err)
+		debug := &DebugInfo{BufferEvictionReason: "denied", LatencyMs: time.Since(startTime).Milliseconds(), Error: truncateError(err)}
+		applyResult(ctags, err, debug)
 		return false
 	}
 
 	enoughMemory, releasePayloadSize := p.registerMemory(payloadSize)
 	if !enoughMemory {
-		applyResult(ctags, err)
+		debug := &DebugInfo{BufferEvictionReason: "max_size", LatencyMs: time.Since(startTime).Milliseconds(), Error: truncateError(err)}
+		applyResult(ctags, err, debug)
 		releasePayloadSize()
 		return false
 	}
 	p.totalPayloadsPending.Add(1)
 	p.totalPayloadsBuffered.Add(1)
+	bufferStart := time.Now()
 
 	resChan := make(chan tagResult, 1)
 	go func() {
@@ -281,20 +303,36 @@ func (p *containerTagsBuffer) AsyncEnrichment(containerID string, applyResult fu
 			onResult: func(tr tagResult) { resChan <- tr },
 		}:
 		case <-p.exit:
-			applyResult(ctags, err)
+			applyResult(ctags, err, debugFromError(err))
 			return
 		}
 
 		select {
 		case res := <-resChan:
-			applyResult(res.tags, res.err)
+			debug := &DebugInfo{
+				WasBuffered: true,
+				LatencyMs:   time.Since(startTime).Milliseconds(),
+				BufferMs:    time.Since(bufferStart).Milliseconds(),
+			}
+			if res.expired {
+				debug.BufferEvictionReason = "expired"
+			}
+			debug.Error = truncateError(res.err)
+			applyResult(res.tags, res.err, debug)
 			return
 		case <-p.exit:
-			applyResult(ctags, err)
+			applyResult(ctags, err, debugFromError(err))
 			return
 		case timeout := <-time.After(p.hardTimeLimit):
 			p.deniedContainers.deny(timeout, containerID)
-			applyResult(ctags, err)
+			debug := &DebugInfo{
+				WasBuffered:          true,
+				BufferEvictionReason: "hard_timeout",
+				LatencyMs:            time.Since(startTime).Milliseconds(),
+				BufferMs:             time.Since(bufferStart).Milliseconds(),
+				Error:                truncateError(err),
+			}
+			applyResult(ctags, err, debug)
 			p.hitHardTimeLimit.Add(1)
 			return
 		}
@@ -302,9 +340,29 @@ func (p *containerTagsBuffer) AsyncEnrichment(containerID string, applyResult fu
 	return true
 }
 
+// debugFromError returns a DebugInfo only if there's an error to report.
+func debugFromError(err error) *DebugInfo {
+	if err == nil {
+		return nil
+	}
+	return &DebugInfo{Error: truncateError(err)}
+}
+
+func truncateError(err error) string {
+	if err == nil {
+		return ""
+	}
+	msg := err.Error()
+	if len(msg) > maxDebugErrorLen {
+		return msg[:maxDebugErrorLen]
+	}
+	return msg
+}
+
 type tagResult struct {
-	tags []string
-	err  error
+	tags    []string
+	err     error
+	expired bool
 }
 
 type containerBuffer struct {

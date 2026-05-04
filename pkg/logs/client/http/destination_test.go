@@ -13,18 +13,21 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 
+	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
+	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -130,7 +133,7 @@ func TestLogsDroppedMetric(t *testing.T) {
 
 func testLogsDropped(t *testing.T, statusCode int) {
 	cfg := configmock.New(t)
-	telemetryMock := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetryMock := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
 	metrics.TlmLogsDropped = telemetryMock.NewCounter("logs", "dropped", []string{"destination"}, "")
 
 	server := NewTestServer(statusCode, cfg)
@@ -188,6 +191,75 @@ func retryTest(t *testing.T, statusCode int) {
 		}
 	}
 	<-output
+
+	server.Stop()
+}
+
+// mockSecrets wraps the noop secrets implementation to track Refresh calls
+// and control IsValueFromSecret behavior.
+type mockSecrets struct {
+	secretnooptypes.SecretNoop
+	refreshCount    atomic.Int32
+	valueFromSecret bool
+}
+
+func (m *mockSecrets) Refresh() bool {
+	m.refreshCount.Add(1)
+	return true
+}
+
+func (m *mockSecrets) IsValueFromSecret(_ string) bool {
+	return m.valueFromSecret
+}
+
+func TestForbiddenTriggersSecretsRefreshAndRetry(t *testing.T) {
+	cfg := configmock.New(t)
+	respondChan := make(chan int)
+	server := NewTestServerWithOptions(403, 1, true, respondChan, cfg)
+
+	mock := &mockSecrets{valueFromSecret: true}
+	server.Destination.secrets = mock
+
+	input := make(chan *message.Payload)
+	output := make(chan *message.Payload)
+	isRetrying := make(chan bool, 1)
+	server.Destination.Start(input, output, isRetrying)
+
+	input <- &message.Payload{MessageMetas: []*message.MessageMetadata{}, Encoded: []byte("yo")}
+
+	<-respondChan
+	<-respondChan
+	assert.True(t, <-isRetrying)
+	assert.GreaterOrEqual(t, mock.refreshCount.Load(), int32(1), "secrets.Refresh should have been called on 403")
+
+	server.ChangeStatus(200)
+	for {
+		if (<-respondChan) == 200 {
+			break
+		}
+	}
+	<-output
+
+	server.Stop()
+}
+
+func TestForbiddenDropsWhenKeyNotFromSecret(t *testing.T) {
+	cfg := configmock.New(t)
+	respondChan := make(chan int)
+	server := NewTestServerWithOptions(403, 1, true, respondChan, cfg)
+
+	mock := &mockSecrets{valueFromSecret: false}
+	server.Destination.secrets = mock
+
+	input := make(chan *message.Payload)
+	output := make(chan *message.Payload)
+	isRetrying := make(chan bool, 1)
+	server.Destination.Start(input, output, isRetrying)
+
+	input <- &message.Payload{MessageMetas: []*message.MessageMetadata{}, Encoded: []byte("yo")}
+
+	<-respondChan
+	assert.Equal(t, int32(0), mock.refreshCount.Load(), "secrets.Refresh should NOT have been called when key is not from secret")
 
 	server.Stop()
 }
@@ -482,7 +554,7 @@ func TestDestinationHA(t *testing.T) {
 		}
 		isEndpointMRF := endpoint.IsMRF
 
-		dest := NewDestination(endpoint, JSONContentType, client.NewDestinationsContext(), false, client.NewNoopDestinationMetadata(), configmock.New(t), 1, 1, metrics.NewNoopPipelineMonitor(""), "test")
+		dest := NewDestination(endpoint, JSONContentType, client.NewDestinationsContext(), false, client.NewNoopDestinationMetadata(), configmock.New(t), 1, 1, metrics.NewNoopPipelineMonitor(""), "test", secretsnoopimpl.NewComponent().Comp)
 		isDestMRF := dest.IsMRF()
 
 		assert.Equal(t, isEndpointMRF, isDestMRF)
@@ -688,7 +760,7 @@ func TestDestinationSourceTagBasedOnTelemetryName(t *testing.T) {
 	cfg := configmock.New(t)
 
 	// Create telemetry mock
-	telemetryMock := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetryMock := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
 	metrics.TlmBytesSent = telemetryMock.NewCounter("logs", "bytes_sent", []string{"remote_agent", "source"}, "")
 	metrics.TlmEncodedBytesSent = telemetryMock.NewCounter("logs", "encoded_bytes_sent", []string{"remote_agent", "source", "compression_kind"}, "")
 
@@ -727,7 +799,7 @@ func TestDestinationSourceTagEPForwarder(t *testing.T) {
 	cfg := configmock.New(t)
 
 	// Create telemetry mock
-	telemetryMock := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetryMock := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
 	metrics.TlmBytesSent = telemetryMock.NewCounter("logs", "bytes_sent", []string{"remote_agent", "source"}, "")
 	metrics.TlmEncodedBytesSent = telemetryMock.NewCounter("logs", "encoded_bytes_sent", []string{"remote_agent", "source", "compression_kind"}, "")
 
@@ -765,7 +837,7 @@ func TestDestinationCompression(t *testing.T) {
 	cfg := configmock.New(t)
 
 	// Create telemetry mock
-	telemetryMock := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetryMock := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
 	metrics.TlmEncodedBytesSent = telemetryMock.NewCounter("logs", "encoded_bytes_sent", []string{"remote_agent", "source", "compression_kind"}, "")
 
 	// Create a new server with compression enabled
