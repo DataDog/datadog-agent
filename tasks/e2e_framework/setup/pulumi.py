@@ -16,7 +16,7 @@ _PASSPHRASE_BYTES = 32
 def setup_pulumi_config(config: Config):
     """
     Apply silent defaults for the Pulumi config block: pick a sensible log level,
-    leave logToStdErr off, and generate a random passphrase if none exists.
+    set logToStdErr on, and generate a random passphrase if none exists.
 
     Re-running is safe: existing values are preserved.
     """
@@ -31,7 +31,10 @@ def setup_pulumi_config(config: Config):
     if pulumi.logLevel is None:
         pulumi.logLevel = 1
     if pulumi.logToStdErr is None:
-        pulumi.logToStdErr = False
+        pulumi.logToStdErr = True
+
+    if pulumi.verboseProgressStreams is None:
+        pulumi.verboseProgressStreams = True
 
     if not pulumi.passphrase:
         pulumi.passphrase = secrets.token_urlsafe(_PASSPHRASE_BYTES)
