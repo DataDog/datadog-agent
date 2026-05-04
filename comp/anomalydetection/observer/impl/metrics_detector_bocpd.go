@@ -54,14 +54,6 @@ type bocpdSeriesState struct {
 	inAlert       bool
 	alertStart    int64
 	recoveryCount int // consecutive non-triggering points since last trigger
-
-	// Pending alert: confirmation counter for persistence gating.
-	pendingCount             int     // 0 if not pending
-	pendingFirstX            float64 // value at first trigger
-	pendingFirstTs           int64   // timestamp at first trigger
-	pendingFirstCpProb       float64
-	pendingFirstShortRunMass float64
-	pendingFirstEntropy      float64
 }
 
 // BOCPDConfig holds configuration for the BOCPD detector.
@@ -104,30 +96,8 @@ type BOCPDConfig struct {
 	// to exit alert state. Default: 10
 	RecoveryPoints int `json:"recovery_points"`
 
-	// PersistencePoints is the number of consecutive triggering ticks required
-	// before emitting an anomaly. 1 disables the gate (current behavior).
-	// Default: 2.
-	PersistencePoints int `json:"persistence_points"`
-
 	// Aggregations to run detection on. Default: [Average, Count]
 	Aggregations []observer.Aggregate `json:"-"`
-
-	// LikelihoodKind controls the predictive likelihood used in the BOCPD
-	// recurrence. "gaussian" uses the standard Gaussian emission (legacy).
-	// "student_t" (default) uses a Student-t with df=4, which is more robust
-	// to isolated outliers per Knoblauch & Damoulas 2018. Any unrecognized
-	// value falls back to "student_t".
-	LikelihoodKind string `json:"likelihood_kind"`
-
-	// MaxEntropyBits gates emission on posterior decisiveness.
-	// Shannon entropy of the run-length posterior in bits. Lower
-	// = more concentrated = higher detection confidence. Triggers
-	// are suppressed when entropy exceeds this bound, removing the
-	// diffuse-posterior false alarms typical of jittery stable
-	// streams. Default: 3.5 (≈ posterior mass concentrated within
-	// ~12 of MaxRunLength=200 hypotheses; conservative). Set to a
-	// very large value (e.g. 100) to disable.
-	MaxEntropyBits float64 `json:"max_entropy_bits"`
 }
 
 // DefaultBOCPDConfig returns a BOCPDConfig with default values.
@@ -142,9 +112,6 @@ func DefaultBOCPDConfig() BOCPDConfig {
 		PriorVarianceScale: 10.0,
 		MinVariance:        1.0,
 		RecoveryPoints:     10,
-		PersistencePoints:  2,
-		LikelihoodKind:     "student_t",
-		MaxEntropyBits:     3.5,
 		Aggregations: []observer.Aggregate{
 			observer.AggregateAverage,
 			observer.AggregateCount,
@@ -199,17 +166,8 @@ func NewBOCPDDetector(config BOCPDConfig) *BOCPDDetector {
 	if config.RecoveryPoints <= 0 {
 		config.RecoveryPoints = defaults.RecoveryPoints
 	}
-	if config.PersistencePoints <= 0 {
-		config.PersistencePoints = defaults.PersistencePoints
-	}
 	if len(config.Aggregations) == 0 {
 		config.Aggregations = defaults.Aggregations
-	}
-	if config.LikelihoodKind == "" {
-		config.LikelihoodKind = defaults.LikelihoodKind
-	}
-	if config.MaxEntropyBits <= 0 {
-		config.MaxEntropyBits = defaults.MaxEntropyBits
 	}
 	return &BOCPDDetector{
 		config: config,
@@ -321,8 +279,6 @@ func (b *BOCPDDetector) RemoveSeries(refs []observer.SeriesRef) {
 
 // processPoint handles a single new observation for a series.
 // Returns an anomaly pointer if this point triggers a new alert onset.
-// Anomaly emission is gated by PersistencePoints: the detector must see
-// that many consecutive triggering ticks before emitting.
 func (b *BOCPDDetector) processPoint(state *bocpdSeriesState, p observer.Point, series *observer.Series, agg observer.Aggregate) *observer.Anomaly {
 	x := p.Value
 
@@ -330,43 +286,18 @@ func (b *BOCPDDetector) processPoint(state *bocpdSeriesState, p observer.Point, 
 		return b.warmupPoint(state, x)
 	}
 
-	triggered, cpProb, shortRunMass, entropy := b.updatePosterior(state, x)
+	triggered, cpProb, shortRunMass := b.updatePosterior(state, x)
 
 	if triggered {
 		state.recoveryCount = 0
-		if state.inAlert {
-			return nil // already alerted
-		}
-		// Pending / persistence path.
-		if state.pendingCount == 0 {
-			state.pendingFirstX = x
-			state.pendingFirstTs = p.Timestamp
-			state.pendingFirstCpProb = cpProb
-			state.pendingFirstShortRunMass = shortRunMass
-			state.pendingFirstEntropy = entropy
-		}
-		state.pendingCount++
-		if state.pendingCount >= b.config.PersistencePoints {
+		if !state.inAlert {
 			state.inAlert = true
-			state.alertStart = state.pendingFirstTs
-			firstP := observer.Point{
-				Timestamp: state.pendingFirstTs,
-				Value:     state.pendingFirstX,
-			}
-			out := b.makeAnomaly(state, firstP, series, agg,
-				state.pendingFirstCpProb,
-				state.pendingFirstShortRunMass,
-				state.pendingFirstEntropy)
-			state.pendingCount = 0
-			return out
+			state.alertStart = p.Timestamp
+			return b.makeAnomaly(state, p, series, agg, cpProb, shortRunMass)
 		}
 		return nil
 	}
 
-	// Not triggered: clear any pending state.
-	if state.pendingCount > 0 {
-		state.pendingCount = 0
-	}
 	if state.inAlert {
 		state.recoveryCount++
 		if state.recoveryCount >= b.config.RecoveryPoints {
@@ -433,8 +364,8 @@ func (b *BOCPDDetector) initializeFromWarmup(state *bocpdSeriesState) {
 }
 
 // updatePosterior performs one step of the BOCPD recurrence.
-// Returns (triggered, cpProb, shortRunMass, entropy).
-func (b *BOCPDDetector) updatePosterior(state *bocpdSeriesState, x float64) (bool, float64, float64, float64) {
+// Returns (triggered, cpProb, shortRunMass).
+func (b *BOCPDDetector) updatePosterior(state *bocpdSeriesState, x float64) (bool, float64, float64) {
 	hazard := b.config.Hazard
 
 	// Standard BOCPD recurrence (Adams & MacKay 2007):
@@ -446,12 +377,7 @@ func (b *BOCPDDetector) updatePosterior(state *bocpdSeriesState, x float64) (boo
 	state.newRunProbs = state.newRunProbs[:newLen]
 	var cpMass float64
 	for r := range state.runProbs {
-		var pred float64
-		if b.config.LikelihoodKind == "gaussian" {
-			pred = gaussianPDF(x, state.means[r], state.obsVar+1.0/state.precisions[r])
-		} else {
-			pred = studentTPDF(x, state.means[r], state.obsVar+1.0/state.precisions[r], 4.0)
-		}
+		pred := gaussianPDF(x, state.means[r], state.obsVar+1.0/state.precisions[r])
 		state.newRunProbs[r+1] = state.runProbs[r] * (1.0 - hazard) * pred
 		cpMass += state.runProbs[r] * pred
 	}
@@ -460,16 +386,6 @@ func (b *BOCPDDetector) updatePosterior(state *bocpdSeriesState, x float64) (boo
 	normalizeProbs(state.newRunProbs)
 	cpProb := state.newRunProbs[0]
 	shortRunMass := shortRunLengthMass(state.newRunProbs, b.config.ShortRunLength)
-
-	// Compute Shannon entropy of the run-length posterior (in bits).
-	// A concentrated posterior (real changepoint) yields low entropy;
-	// a diffuse posterior (jittery stable data) yields high entropy.
-	var entropy float64
-	for _, p := range state.newRunProbs {
-		if p > 1e-12 {
-			entropy -= p * math.Log2(p)
-		}
-	}
 
 	// Update posterior means and precisions.
 	state.newMeans = state.newMeans[:newLen]
@@ -498,16 +414,12 @@ func (b *BOCPDDetector) updatePosterior(state *bocpdSeriesState, x float64) (boo
 	// beyond the short-run window; otherwise all mass is trivially "short."
 	triggeredByPeak := cpProb >= b.config.CPThreshold
 	triggeredByShift := shortRunMass >= b.config.CPMassThreshold && len(state.runProbs) > b.config.ShortRunLength+1
-	passShape := triggeredByPeak || triggeredByShift
-	// Posterior-decisiveness gate: suppress triggers when the run-length
-	// posterior is too diffuse (high entropy), which indicates the model is
-	// not confident about where a changepoint occurred.
-	triggered := passShape && entropy <= b.config.MaxEntropyBits
-	return triggered, cpProb, shortRunMass, entropy
+	triggered := triggeredByPeak || triggeredByShift
+	return triggered, cpProb, shortRunMass
 }
 
 // makeAnomaly constructs an Anomaly for a new alert onset.
-func (b *BOCPDDetector) makeAnomaly(state *bocpdSeriesState, p observer.Point, series *observer.Series, agg observer.Aggregate, cpProb, shortRunMass, entropy float64) *observer.Anomaly {
+func (b *BOCPDDetector) makeAnomaly(state *bocpdSeriesState, p observer.Point, series *observer.Series, agg observer.Aggregate, cpProb, shortRunMass float64) *observer.Anomaly {
 	source := observer.SeriesDescriptor{
 		Namespace: series.Namespace,
 		Name:      series.Name,
@@ -531,8 +443,8 @@ func (b *BOCPDDetector) makeAnomaly(state *bocpdSeriesState, p observer.Point, s
 		Source:       source,
 		DetectorName: b.Name(),
 		Title:        "BOCPD changepoint detected: " + displayName,
-		Description: fmt.Sprintf("%s %s %.2f exceeded threshold %.2f (cp=%.2f, short-run<=%d mass=%.2f, entropy=%.2f bits)",
-			displayName, triggerType, triggerValue, triggerThreshold, cpProb, b.config.ShortRunLength, shortRunMass, entropy),
+		Description: fmt.Sprintf("%s %s %.2f exceeded threshold %.2f (cp=%.2f, short-run<=%d mass=%.2f)",
+			displayName, triggerType, triggerValue, triggerThreshold, cpProb, b.config.ShortRunLength, shortRunMass),
 		Timestamp: p.Timestamp,
 		DebugInfo: &observer.AnomalyDebugInfo{
 			BaselineMean:   state.baselineMean,
@@ -591,29 +503,4 @@ func gaussianPDF(x, mean, variance float64) float64 {
 	z := x - mean
 	denom := math.Sqrt(2 * math.Pi * variance)
 	return math.Exp(-(z*z)/(2*variance)) / denom
-}
-
-// studentTPDF computes the Student-t probability density with location mean,
-// scale² parameter scale2, and degrees-of-freedom df.
-//
-// Formula (Knoblauch & Damoulas 2018, eq. robust-BOCPD):
-//
-//	StudentT(x; μ, σ², ν) = Γ((ν+1)/2) / (Γ(ν/2)·√(νπσ²)) · (1+(x−μ)²/(νσ²))^(−(ν+1)/2)
-//
-// Evaluated in log-space for numerical stability. scale2 is clamped to a
-// minimum of 1e-12 to guard against degenerate posteriors. For df=4 (the
-// literature default for anomaly detection), the heavy-tailed density assigns
-// meaningful probability to isolated outliers, preventing run-length posterior
-// collapse on single-point spikes.
-func studentTPDF(x, mean, scale2, df float64) float64 {
-	const minScale2 = 1e-12
-	if scale2 < minScale2 {
-		scale2 = minScale2
-	}
-	z := (x - mean) * (x - mean) / (df * scale2)
-	lgNum, _ := math.Lgamma((df + 1) / 2)
-	lgDen, _ := math.Lgamma(df / 2)
-	logNorm := lgNum - lgDen - 0.5*math.Log(df*math.Pi*scale2)
-	logPdf := logNorm - ((df+1)/2)*math.Log1p(z)
-	return math.Exp(logPdf)
 }
