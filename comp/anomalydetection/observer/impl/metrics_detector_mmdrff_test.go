@@ -272,6 +272,6 @@ func TestMMDRFFTwoSampleTwoSample_CatalogEntryRegistered(t *testing.T) {
 	// from stage 1 as a stateless stub; that allowlist entry is now stale but
 	// harmless — the engine still calls RemoveSeries on every detector that
 	// implements SeriesRemover regardless of allowlist membership.)
-	_, isRemover := inst.(observer.SeriesRemover)
-	assert.True(t, isRemover, "mmdrff detector must implement observer.SeriesRemover")
+	_, isRemover := inst.(manualSeriesRemover)
+	assert.True(t, isRemover, "mmdrff detector must implement manualSeriesRemover")
 }

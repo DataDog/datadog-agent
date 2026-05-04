@@ -183,7 +183,7 @@ func TestGARCH_DefaultEnabledIsTrue(t *testing.T) {
 
 // TestGARCH_ImplementsSeriesRemover guards the catalog teardown contract: the
 // detector keeps a per-(ref, agg) state map and therefore MUST implement
-// observer.SeriesRemover so the engine can free state when storage evicts
+// manualSeriesRemover so the engine can free state when storage evicts
 // series. Without this hook the per-series map would grow unbounded.
 //
 // Same shape as TestESN_RemoveSeries: insert N series, run Detect to populate
@@ -191,7 +191,7 @@ func TestGARCH_DefaultEnabledIsTrue(t *testing.T) {
 // exactly the expected count.
 func TestGARCH_ImplementsSeriesRemover(t *testing.T) {
 	// Compile-time guarantee that the detector type satisfies the interface.
-	var _ observer.SeriesRemover = (*GarchVolatilityDetector)(nil)
+	var _ manualSeriesRemover = (*GarchVolatilityDetector)(nil)
 
 	d := NewGarchVolatilityDetector() // default Aggregations: [Average, Count]
 	storage := newTimeSeriesStorage()

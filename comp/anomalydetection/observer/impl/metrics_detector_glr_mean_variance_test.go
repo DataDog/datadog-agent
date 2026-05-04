@@ -186,12 +186,12 @@ func TestGLRMeanVar_Name(t *testing.T) {
 
 // TestGLRMeanVar_InterfaceContracts checks the structural promises that
 // the catalog and engine both rely on: GLRMeanVarianceDetector must
-// satisfy observer.Detector AND observer.SeriesRemover (it is stateful
+// satisfy observer.Detector AND manualSeriesRemover (it is stateful
 // and is NOT listed in statelessDetectorAllowlist).
 func TestGLRMeanVar_InterfaceContracts(t *testing.T) {
 	d := NewGLRMeanVarianceDetector()
 	var _ observer.Detector = d
-	var _ observer.SeriesRemover = d
+	var _ manualSeriesRemover = d
 }
 
 // TestGLRMeanVar_DefaultsApplied confirms ensureDefaults populates a

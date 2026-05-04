@@ -241,7 +241,7 @@ func TestDempsterShafer_Reset(t *testing.T) {
 func TestDempsterShafer_DistinctSeriesAreIndependent(t *testing.T) {
 	c := NewDempsterShaferCorrelator()
 
-	c.ProcessAnomaly(dsAnomaly("scanmw", "redis.cpu.sys", 1000, 45))     // emits
+	c.ProcessAnomaly(dsAnomaly("scanmw", "redis.cpu.sys", 1000, 45))        // emits
 	c.ProcessAnomaly(dsAnomaly("bocpd", "redis.info.latency_ms", 1005, 10)) // weak, distinct series
 
 	corrs := c.ActiveCorrelations()

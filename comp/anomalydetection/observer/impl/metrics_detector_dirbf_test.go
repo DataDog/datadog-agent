@@ -299,6 +299,6 @@ func TestDirBF_CatalogEntryRegistered(t *testing.T) {
 	det, ok := inst.(observer.Detector)
 	require.True(t, ok, "dirbf factory must produce an observer.Detector")
 	assert.Equal(t, "dirbf", det.Name())
-	_, isRemover := inst.(observer.SeriesRemover)
-	assert.True(t, isRemover, "dirbf detector must implement observer.SeriesRemover")
+	_, isRemover := inst.(manualSeriesRemover)
+	assert.True(t, isRemover, "dirbf detector must implement manualSeriesRemover")
 }

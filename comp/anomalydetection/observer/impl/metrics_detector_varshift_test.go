@@ -258,6 +258,6 @@ func TestVarShift_CatalogEntryRegistered(t *testing.T) {
 	assert.Equal(t, "varshift", det.Name())
 	// And it must implement SeriesRemover so the engine can reclaim state
 	// when storage evicts a series.
-	_, isRemover := inst.(observer.SeriesRemover)
-	assert.True(t, isRemover, "varshift detector must implement observer.SeriesRemover")
+	_, isRemover := inst.(manualSeriesRemover)
+	assert.True(t, isRemover, "varshift detector must implement manualSeriesRemover")
 }

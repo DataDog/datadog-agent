@@ -207,8 +207,8 @@ func TestMatrixProfile_DetectorAndSeriesRemoverInterfaces(t *testing.T) {
 	var d any = NewMatrixProfileDetector()
 	_, ok := d.(observer.Detector)
 	assert.True(t, ok, "MatrixProfileDetector must implement observer.Detector")
-	_, ok = d.(observer.SeriesRemover)
-	assert.True(t, ok, "MatrixProfileDetector must implement observer.SeriesRemover")
+	_, ok = d.(manualSeriesRemover)
+	assert.True(t, ok, "MatrixProfileDetector must implement manualSeriesRemover")
 }
 
 // TestMatrixProfile_Name pins the catalog identifier so the catalog

@@ -215,10 +215,10 @@ func TestSpectralResidual_Name(t *testing.T) {
 
 // TestSpectralResidual_InterfaceContracts checks the structural promises
 // that the catalog and engine both rely on: SpectralResidualDetector
-// must satisfy observer.Detector AND observer.SeriesRemover (it is
+// must satisfy observer.Detector AND manualSeriesRemover (it is
 // stateful and is NOT listed in statelessDetectorAllowlist).
 func TestSpectralResidual_InterfaceContracts(t *testing.T) {
 	d := NewSpectralResidualDetector()
 	var _ observer.Detector = d
-	var _ observer.SeriesRemover = d
+	var _ manualSeriesRemover = d
 }

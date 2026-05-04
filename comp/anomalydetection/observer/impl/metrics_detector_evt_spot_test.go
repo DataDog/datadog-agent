@@ -195,12 +195,12 @@ func TestEVTSpot_Name(t *testing.T) {
 
 // TestEVTSpot_InterfaceContracts checks the structural promises that the
 // catalog and engine both rely on: EVTSpotDetector must satisfy
-// observer.Detector AND observer.SeriesRemover (it is stateful and is
+// observer.Detector AND manualSeriesRemover (it is stateful and is
 // NOT listed in statelessDetectorAllowlist).
 func TestEVTSpot_InterfaceContracts(t *testing.T) {
 	d := NewEVTSpotDetector()
 	var _ observer.Detector = d
-	var _ observer.SeriesRemover = d
+	var _ manualSeriesRemover = d
 }
 
 // TestEVTSpot_FactoryAlias verifies the lower-camelcase alias used by the

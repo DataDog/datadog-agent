@@ -310,8 +310,8 @@ func TestEnergyDist_CatalogEntryRegistered(t *testing.T) {
 	assert.Equal(t, "energydist", det.Name())
 	// And it must implement SeriesRemover so the engine can reclaim state
 	// when storage evicts a series.
-	_, isRemover := inst.(observer.SeriesRemover)
-	assert.True(t, isRemover, "energydist detector must implement observer.SeriesRemover")
+	_, isRemover := inst.(manualSeriesRemover)
+	assert.True(t, isRemover, "energydist detector must implement manualSeriesRemover")
 
 	// energydist holds per-series state, so it MUST NOT be on the stateless
 	// allowlist (would otherwise leak memory as series count grows).

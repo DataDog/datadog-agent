@@ -234,8 +234,8 @@ func TestHWRes_CatalogEntryRegistered(t *testing.T) {
 	det, ok := inst.(observer.Detector)
 	require.True(t, ok, "hwres factory must produce an observer.Detector")
 	assert.Equal(t, "hwres", det.Name())
-	_, isRemover := inst.(observer.SeriesRemover)
-	assert.True(t, isRemover, "hwres detector must implement observer.SeriesRemover")
+	_, isRemover := inst.(manualSeriesRemover)
+	assert.True(t, isRemover, "hwres detector must implement manualSeriesRemover")
 
 	// hwres holds per-series state, so it MUST NOT be on the stateless
 	// allowlist (would otherwise leak memory as series count grows).

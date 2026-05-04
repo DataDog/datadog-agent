@@ -202,12 +202,12 @@ func TestMMDRFF_Name(t *testing.T) {
 
 // TestMMDRFF_InterfaceContracts checks the structural promises that the
 // catalog and engine both rely on: MMDRFFDetector must satisfy
-// observer.Detector AND observer.SeriesRemover (it is stateful and is
+// observer.Detector AND manualSeriesRemover (it is stateful and is
 // NOT listed in statelessDetectorAllowlist).
 func TestMMDRFF_InterfaceContracts(t *testing.T) {
 	d := NewMMDRFFDetector()
 	var _ observer.Detector = d
-	var _ observer.SeriesRemover = d
+	var _ manualSeriesRemover = d
 }
 
 // TestMMDRFF_DefaultsApplied confirms ensureDefaults populates a
