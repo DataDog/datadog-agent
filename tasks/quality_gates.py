@@ -216,8 +216,6 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
     # Post-process gate failures: mark as non-blocking if delta <= 0
     # This tolerance only applies to PRs - on main branch, failures should always block unconditionally
     # This means on PRs, the size issue existed before this PR and wasn't introduced by current changes
-    exception_checker = ExceptionApprovalChecker(pr)
-
     if not is_on_main_branch:
         for gate_state in gate_states:
             if gate_state["state"] is False and gate_state.get("blocking", True):
@@ -232,27 +230,28 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
                             )
                         )
 
-        # Check per-PR threshold: if any gate increased by more than PER_PR_THRESHOLD, mark it as failing
-        # Skip for merge queue jobs: the MQ working branch is an ephemeral merge preview, not a PR
-        if not is_merge_queue:
-            per_pr_exceeding = identify_gates_exceeding_pr_threshold(metric_handler)
-            if per_pr_exceeding:
-                threshold_str = byte_to_string(PER_PR_THRESHOLD)
-                print(
-                    color_message(
-                        f"Per-PR threshold ({threshold_str}) exceeded by: {', '.join(per_pr_exceeding)}",
-                        "red",
-                    )
+    # Check per-PR threshold: if any gate increased by more than PER_PR_THRESHOLD, mark it as failing
+    # Skip for merge queue jobs: the MQ working branch is an ephemeral merge preview, not a PR
+    exception_checker = ExceptionApprovalChecker(pr)
+    if not is_on_main_branch and not is_merge_queue:
+        per_pr_exceeding = identify_gates_exceeding_pr_threshold(metric_handler)
+        if per_pr_exceeding:
+            threshold_str = byte_to_string(PER_PR_THRESHOLD)
+            print(
+                color_message(
+                    f"Per-PR threshold ({threshold_str}) exceeded by: {', '.join(per_pr_exceeding)}",
+                    "red",
                 )
-                for gate_state in gate_states:
-                    if gate_state["name"] in per_pr_exceeding and gate_state["state"] is True:
-                        delta = metric_handler.metrics.get(gate_state["name"], {}).get("relative_on_disk_size", 0)
-                        gate_state["state"] = False
-                        gate_state["error_type"] = "PerPRThresholdExceeded"
-                        gate_state["message"] = (
-                            f"On-disk size increase of {byte_to_string(delta)} exceeds the per-PR threshold of {threshold_str}"
-                        )
-                        gate_state["blocking"] = exception_checker.get() is None
+            )
+            for gate_state in gate_states:
+                if gate_state["name"] in per_pr_exceeding and gate_state["state"] is True:
+                    delta = metric_handler.metrics.get(gate_state["name"], {}).get("relative_on_disk_size", 0)
+                    gate_state["state"] = False
+                    gate_state["error_type"] = "PerPRThresholdExceeded"
+                    gate_state["message"] = (
+                        f"On-disk size increase of {byte_to_string(delta)} exceeds the per-PR threshold of {threshold_str}"
+                    )
+                    gate_state["blocking"] = exception_checker.get() is None
 
     # Compute final_state now that all post-processing is done.
     if any(gs["state"] is False for gs in gate_states):
