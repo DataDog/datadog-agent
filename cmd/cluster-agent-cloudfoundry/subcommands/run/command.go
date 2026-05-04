@@ -71,7 +71,7 @@ import (
 	clusterchecksmetadata "github.com/DataDog/datadog-agent/comp/metadata/clusterchecks/def"
 	clusterchecksmetadatafx "github.com/DataDog/datadog-agent/comp/metadata/clusterchecks/fx"
 
-	metadatarunnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
+	metadatarunnerfx "github.com/DataDog/datadog-agent/comp/metadata/runner/fx"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
@@ -162,7 +162,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {
 					return demuxInstance.Serializer()
 				}),
-				metadatarunnerimpl.Module(),
+				metadatarunnerfx.Module(),
 				dcametadatafx.Module(),
 
 				clusterchecksmetadatafx.Module(),
