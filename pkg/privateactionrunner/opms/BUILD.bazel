@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "opms",
@@ -23,5 +23,18 @@ go_library(
         "@//pkg/privateactionrunner/adapters/modes",
         "@com_github_datadog_jsonapi//:jsonapi",
         "@com_github_go_jose_go_jose_v4//:go-jose",
+    ],
+)
+
+go_test(
+    name = "opms_test",
+    srcs = ["opms_test.go"],
+    embed = [":opms"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/privateactionrunner/adapters/config",
+        "@//pkg/privateactionrunner/adapters/constants",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

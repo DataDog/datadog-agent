@@ -3634,7 +3634,9 @@ func (p *EBPFProbe) newOpenEventFromReplay(entry *model.ProcessCacheEntry, snaps
 
 	event.Open.SyscallEvent.Retval = 0
 	event.Open.File.PathnameStr = snapshottedFile.Path
+	event.Open.File.IsPathnameStrResolved = true
 	event.Open.File.BasenameStr = filepath.Base(snapshottedFile.Path)
+	event.Open.File.IsBasenameStrResolved = true
 
 	// Try to stat the file to get basic metadata (best effort)
 	// This helps with file resolution and enrichment
