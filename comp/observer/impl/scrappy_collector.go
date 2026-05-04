@@ -191,7 +191,16 @@ func (s *ScrappyCollector) resolvePattern(metricName string, tags []string) stri
 	if len(s.contextProviders) == 0 {
 		return ""
 	}
-	contextKey := seriesKey("", metricName, tags)
+	// The engine adds observer_source: tags after ProcessLog runs, so the
+	// context key stored by the extractor uses tags WITHOUT observer_source.
+	// Strip it to match.
+	cleanTags := make([]string, 0, len(tags))
+	for _, t := range tags {
+		if !strings.HasPrefix(t, "observer_source:") {
+			cleanTags = append(cleanTags, t)
+		}
+	}
+	contextKey := seriesKey("", metricName, cleanTags)
 	for _, provider := range s.contextProviders {
 		ctx, ok := provider.GetContextByKey(contextKey)
 		if ok {

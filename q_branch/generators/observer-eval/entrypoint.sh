@@ -335,10 +335,10 @@ spec:
           protocol: TCP
         resources:
           requests:
-            memory: 1500Mi
-            cpu: 500m
+            memory: 512Mi
+            cpu: 250m
           limits:
-            memory: 3000Mi
+            memory: 1024Mi
         volumeMounts:
         - name: config
           mountPath: /etc/datadog-agent/datadog.yaml
@@ -445,6 +445,12 @@ AGENTEOF
 
     # Stop background collector
     [ -n "${BG_COLLECTOR_PID:-}" ] && kill "$BG_COLLECTOR_PID" 2>/dev/null || true
+
+    # Capture agent logs (includes scrappy debug output on stderr)
+    if [ -n "${AGENT_POD_FOR_BG:-}" ]; then
+      echo "--- Agent logs (last 50 lines) ---"
+      kubectl logs "$AGENT_POD_FOR_BG" -n "$KUBE_NAMESPACE" -c agent --tail=50 2>&1 || true
+    fi
   fi
 
   # 5. Collect results
