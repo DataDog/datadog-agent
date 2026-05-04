@@ -12,6 +12,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
+	"strconv"
 	"strings"
 
 	"go.yaml.in/yaml/v3"
@@ -140,7 +142,7 @@ func getPrometheusURL(extensionResp ddflareextensiontypes.Response) (string, err
 			break
 		}
 	}
-	return fmt.Sprintf("http://%v:%d/metrics", prometheusHost, prometheusPort), nil
+	return fmt.Sprintf("http://%s/metrics", net.JoinHostPort(prometheusHost, strconv.Itoa(prometheusPort))), nil
 }
 
 func (s statusProvider) populatePrometheusStatus(prometheusURL string) error {
