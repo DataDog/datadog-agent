@@ -1,5 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
-load("//bazel/rules/cws_codegen:defs.bzl", "accessors", "bpf_maps_generator")
+load("//bazel/rules/cws_codegen:defs.bzl", "accessors", "bpf_maps_generator", "event_deep_copy")
 load("//bazel/rules/go_stringer:defs.bzl", "go_stringer")
 
 exports_files(
@@ -10,7 +10,15 @@ exports_files(
             "model_string.go",
         ],
     ),
-    visibility = ["//pkg/security/seclwin/model:__pkg__"],
+    visibility = [
+        # Visible to the cws_codegen symbolic macros (event_deep_copy,
+        # accessors, ...) so the auto-generated _diff_test targets can
+        # reference the committed sources via $(execpath ...). Symbolic-macro
+        # target visibility is scoped to the .bzl file's package, not the
+        # caller's.
+        "//bazel/rules/cws_codegen:__pkg__",
+        "//pkg/security/seclwin/model:__pkg__",
+    ],
 )
 
 go_stringer(
@@ -36,6 +44,95 @@ bpf_maps_generator(
 # TODO(ABLD-420): plug these into the //bazel/rules/cws_codegen Gazelle
 # extension so the calls are emitted from the matching //go:generate directives
 # in model_unix.go / model_windows.go instead of being hand-wired.
+# Generator outputs (input==output cycles if passed back to the parser).
+_EVENT_DEEP_COPY_GENERATED = [
+    "accessors_unix.go",
+    "accessors_windows.go",
+    "consts_map_names_linux.go",
+    "event_deep_copy_unix.go",
+    "event_deep_copy_windows.go",
+    "field_accessors_unix.go",
+    "field_accessors_windows.go",
+    "field_handlers_unix.go",
+    "field_handlers_windows.go",
+    "model_string.go",
+]
+
+# In-package files the event_deep_copy generator must parse to resolve type
+# definitions referenced from the model (alias types like EventType,
+# EventFilteringProfileState; siblings like ArgsEnvs, etc.). The lists are
+# build-tag-filtered by filename so the parser doesn't see two `Event`
+# definitions when running for one platform.
+EVENT_DEEP_COPY_PKG_SRCS_UNIX = glob(
+    ["*.go"],
+    exclude = _EVENT_DEEP_COPY_GENERATED + [
+        "*_windows.go",
+        "*_test.go",
+    ],
+)
+
+EVENT_DEEP_COPY_PKG_SRCS_WINDOWS = glob(
+    ["*.go"],
+    exclude = _EVENT_DEEP_COPY_GENERATED + [
+        "*_unix.go",
+        "*_linux.go",
+        "*_linux_*.go",
+        "*_darwin.go",
+        "*_unsupported.go",
+        "*_test.go",
+    ],
+)
+
+[
+    event_deep_copy(
+        name = "event_deep_copy_{}".format(variant["suffix"]),
+        srcs = variant["pkg_srcs"] + variant["external_srcs"],
+        model = variant["model"],
+        output = "event_deep_copy_{}.go".format(variant["suffix"]),
+        package_path = "github.com/DataDog/datadog-agent/pkg/security/secl/model",
+        tags = variant["tags"],
+        types_file = "model.go",
+    )
+    for variant in [
+        {
+            "tags": "unix",
+            "model": "model_unix.go",
+            "suffix": "unix",
+            "pkg_srcs": EVENT_DEEP_COPY_PKG_SRCS_UNIX,
+            # External package files providing types referenced by the model
+            # whose sub-fields the generator needs to recurse into. Keep this
+            # list aligned with model_unix.go's import block — adding a struct
+            # field of a new external type means adding its source label here.
+            #
+            # gopacket.CaptureInfo is intentionally absent: gazelle's
+            # go_repository for @com_github_google_gopacket doesn't export its
+            # source files, and CaptureInfo is value-only so the generator's
+            # zero-children fallback (return fieldToCopy) is semantically
+            # equivalent to a per-field copy. If gopacket ever grows a
+            # non-value field, expose its sources here and drop the fallback.
+            "external_srcs": [
+                "//pkg/discovery/tracermetadata/model:tracer_metadata.go",
+                "//pkg/security/secl/compiler/eval:context.go",
+                "//pkg/security/secl/compiler/eval:event.go",
+                "//pkg/security/secl/compiler/eval:field.go",
+                "//pkg/security/secl/model/utils:uint128.go",
+            ],
+        },
+        {
+            "tags": "windows",
+            "model": "model_windows.go",
+            "suffix": "windows",
+            "pkg_srcs": EVENT_DEEP_COPY_PKG_SRCS_WINDOWS,
+            "external_srcs": [
+                "//pkg/discovery/tracermetadata/model:tracer_metadata.go",
+                "//pkg/security/secl/compiler/eval:context.go",
+                "//pkg/security/secl/compiler/eval:event.go",
+                "//pkg/security/secl/compiler/eval:field.go",
+            ],
+        },
+    ]
+]
+
 [
     accessors(
         name = "accessors_{}".format(variant["name"]),

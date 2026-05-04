@@ -33,6 +33,51 @@ operators = macro(
     },
 )
 
+def _event_deep_copy_impl(name, tags, model, types_file, package_path, output, srcs, visibility):
+    gen = "{}_gen".format(name)
+    out_dir = name
+    extra = [s for s in srcs if s != model and s != types_file]
+    args = [
+        "-tags={}".format(tags),
+        "-input=$(execpath {})".format(model),
+        "-types-file=$(execpath {})".format(types_file),
+        "-package={}".format(package_path),
+        "-module={}".format(package_path.rsplit("/", 1)[-1]),
+        "-output=$(execpath {}/{})".format(out_dir, output),
+    ]
+    if extra:
+        args.append("-extra-srcs=" + ",".join(["$(execpath {})".format(s) for s in extra]))
+    run_binary(
+        name = gen,
+        srcs = [model, types_file] + extra,
+        args = args,
+        outs = ["{}/{}".format(out_dir, output)],
+        tool = "//pkg/security/generators/event_deep_copy",
+    )
+
+    # The output file is already exported package-wide by this BUILD's glob
+    # exports_files (for the seclwin sync), so we deliberately skip a per-output
+    # exports_files call here to avoid the "declared twice" error.
+    write_source_file(
+        name = name,
+        in_file = ":{}".format(gen),
+        out_file = output,
+        check_that_out_file_exists = False,
+    )
+
+event_deep_copy = macro(
+    implementation = _event_deep_copy_impl,
+    doc = "Generate the Event DeepCopy function via //pkg/security/generators/event_deep_copy and write the result back to the source tree.",
+    attrs = {
+        "tags": attr.string(mandatory = True, configurable = False, doc = "Build tag selecting the model variant (e.g. 'unix' or 'windows')."),
+        "model": attr.label(mandatory = True, configurable = False, allow_single_file = [".go"], doc = "Model file holding the //go:generate directive (model_unix.go / model_windows.go)."),
+        "types_file": attr.label(mandatory = True, configurable = False, allow_single_file = [".go"], doc = "Companion types file consulted alongside the model (model.go)."),
+        "package_path": attr.string(mandatory = True, configurable = False, doc = "Full Go import path of the package containing the directive."),
+        "output": attr.string(mandatory = True, configurable = False, doc = "Name of the generated .go file (e.g. event_deep_copy_unix.go)."),
+        "srcs": attr.label_list(allow_files = [".go"], configurable = False, default = [], doc = "Additional .go files whose declarations the generator must resolve (typically external package files for types referenced from the model)."),
+    },
+)
+
 def _bpf_maps_generator_impl(name, header, output, package_name, visibility):
     gen = "{}_gen".format(name)
     run_binary(

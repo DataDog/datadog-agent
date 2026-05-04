@@ -1007,12 +1007,7 @@ func deepCopyRawPacketEvent(fieldToCopy RawPacketEvent) RawPacketEvent {
 	return copied
 }
 func deepCopyCaptureInfo(fieldToCopy gopacket.CaptureInfo) gopacket.CaptureInfo {
-	copied := gopacket.CaptureInfo{}
-	copied.CaptureLength = fieldToCopy.CaptureLength
-	copied.InterfaceIndex = fieldToCopy.InterfaceIndex
-	copied.Length = fieldToCopy.Length
-	copied.Timestamp = fieldToCopy.Timestamp
-	return copied
+	return fieldToCopy
 }
 func deepCopyTLSContext(fieldToCopy TLSContext) TLSContext {
 	copied := TLSContext{}
