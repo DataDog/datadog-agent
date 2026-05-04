@@ -29,7 +29,9 @@ from tasks.static_quality_gates.experimental_gates import (
     measure_package_local as _measure_package_local,
 )
 from tasks.static_quality_gates.gates import (
+    GateExecutionError,
     GateMetricHandler,
+    GateResult,
     QualityGateFactory,
     StaticQualityGate,
     byte_to_string,
@@ -74,48 +76,13 @@ def _print_quality_gates_report(gate_states: list[dict[str, typing.Any]]):
             )
 
 
-def _run_gate(ctx, gate: StaticQualityGate):
+def _run_gate(ctx, gate: StaticQualityGate) -> GateResult | GateExecutionError:
     try:
-        result = gate.execute_gate(ctx)
-        error_message = None
-        error_type = None
-        if not result.success:
-            violation_messages = []
-            for violation in result.violations:
-                current_mb = violation.current_size / (1024 * 1024)
-                max_mb = violation.max_size / (1024 * 1024)
-                excess_mb = violation.excess_bytes / (1024 * 1024)
-                if excess_mb < 1:
-                    excess_kb = violation.excess_bytes / 1024
-                    excess_str = f"{excess_kb:.1f} KB"
-                else:
-                    excess_str = f"{excess_mb:.1f} MB"
-                violation_messages.append(
-                    f"{violation.measurement_type.title()} size {current_mb:.1f} MB "
-                    f"exceeds limit of {max_mb:.1f} MB by {excess_str}"
-                )
-            error_message = f"{gate.config.gate_name} failed!\n" + "\n".join(violation_messages)
-            error_type = "StaticQualityGateFailed"
-            print(color_message(error_message, "red"))
-        return {
-            "name": result.config.gate_name,
-            "state": result.success,
-            "error_type": error_type,
-            "message": error_message,
-            "result": result,
-            "blocking": not result.success,
-        }
-    # re-raise the InfraError as is, don't swallow it as Exception
+        return gate.execute_gate(ctx)
     except InfraError:
         raise
     except Exception:
-        return {
-            "name": gate.config.gate_name,
-            "state": False,
-            "error_type": "StackTrace",
-            "message": traceback.format_exc(),
-            "blocking": True,  # StackTrace errors are always blocking
-        }
+        return GateExecutionError(name=gate.config.gate_name, traceback=traceback.format_exc())
 
 
 @task
@@ -170,7 +137,7 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
                     print(color_message(f"PR author: {pr_author}", "cyan"))
 
     # Run all gates in parallel (I/O-bound: pulling images, measuring packages)
-    gate_results: dict[StaticQualityGate, dict] = {}
+    gate_results: dict[StaticQualityGate, GateResult | GateExecutionError] = {}
     executor = ThreadPoolExecutor()
     future_to_gate = {executor.submit(_run_gate, ctx, gate): gate for gate in gate_list}
     try:
@@ -189,37 +156,54 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
 
     # Process results in original gate order
     for gate in gate_list:
-        gate_result = gate_results[gate]
-        gate_states.append(gate_result)
-        if 'blocking' in gate_result and gate_result['blocking']:
+        outcome = gate_results[gate]
+
+        if isinstance(outcome, GateExecutionError):
+            gate_state = {
+                "name": outcome.name,
+                "state": False,
+                "error_type": "StackTrace",
+                "message": outcome.traceback,
+                "blocking": True,
+            }
+        else:
+            if not outcome.success:
+                print(color_message(outcome.violation_message, "red"))
+            gate_state = {
+                "name": outcome.config.gate_name,
+                "state": outcome.success,
+                "error_type": "StaticQualityGateFailed" if not outcome.success else None,
+                "message": outcome.violation_message,
+                "blocking": not outcome.success,
+            }
+
+            gate_tags = {
+                "gate_name": gate.config.gate_name,
+                "arch": gate.config.arch,
+                "os": gate.config.os,
+                "pipeline_id": os.environ["CI_PIPELINE_ID"],
+                "ci_commit_ref_slug": os.environ["CI_COMMIT_REF_SLUG"],
+                "ci_commit_sha": os.environ["CI_COMMIT_SHA"],
+            }
+            if pr_number:
+                gate_tags["pr_number"] = pr_number
+            if pr_author:
+                gate_tags["pr_author"] = pr_author
+
+            # Only register current sizes if gate executed successfully and we have a result
+            metric_handler.register_gate_tags(gate.config.gate_name, **gate_tags)
+            metric_handler.register_metric(gate.config.gate_name, "max_on_wire_size", gate.config.max_on_wire_size)
+            metric_handler.register_metric(gate.config.gate_name, "max_on_disk_size", gate.config.max_on_disk_size)
+            metric_handler.register_metric(
+                gate.config.gate_name, "current_on_wire_size", outcome.measurement.on_wire_size
+            )
+            metric_handler.register_metric(
+                gate.config.gate_name, "current_on_disk_size", outcome.measurement.on_disk_size
+            )
+
+        gate_states.append(gate_state)
+        if gate_state["blocking"]:
             final_state = "failure"
-        result = gate_result.get('result')
-        # Build tags dict - only include pr_number and pr_author if we have a PR
-        gate_tags = {
-            "gate_name": gate.config.gate_name,
-            "arch": gate.config.arch,
-            "os": gate.config.os,
-            "pipeline_id": os.environ["CI_PIPELINE_ID"],
-            "ci_commit_ref_slug": os.environ["CI_COMMIT_REF_SLUG"],
-            "ci_commit_sha": os.environ["CI_COMMIT_SHA"],
-        }
-        if pr_number:
-            gate_tags["pr_number"] = pr_number
-        if pr_author:
-            gate_tags["pr_author"] = pr_author
-
-        metric_handler.register_gate_tags(gate.config.gate_name, **gate_tags)
-        metric_handler.register_metric(gate.config.gate_name, "max_on_wire_size", gate.config.max_on_wire_size)
-        metric_handler.register_metric(gate.config.gate_name, "max_on_disk_size", gate.config.max_on_disk_size)
-
-        # Only register current sizes if gate executed successfully and we have a result
-        if result is not None:
-            metric_handler.register_metric(
-                gate.config.gate_name, "current_on_wire_size", result.measurement.on_wire_size
-            )
-            metric_handler.register_metric(
-                gate.config.gate_name, "current_on_disk_size", result.measurement.on_disk_size
-            )
 
     # Calculate relative sizes (delta from ancestor) before sending metrics
     # This is done for all branches to include delta metrics in Datadog
