@@ -15,12 +15,12 @@ import (
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
-// testMMDRFFDetector returns a detector restricted to AggregateAverage so each
+// testMMDRFFTwoSampleDetector returns a detector restricted to AggregateAverage so each
 // test only sees one state entry per series — keeps anomaly-count assertions
 // unambiguous (a duplicate Count anomaly here would otherwise mask real false
 // positives).
-func testMMDRFFDetector() *MMDRFFDetector {
-	d := NewMMDRFFDetector()
+func testMMDRFFTwoSampleDetector() *MMDRFFTwoSampleDetector {
+	d := NewMMDRFFTwoSampleDetector()
 	d.Aggregations = []observer.Aggregate{observer.AggregateAverage}
 	return d
 }
@@ -29,7 +29,7 @@ func testMMDRFFDetector() *MMDRFFDetector {
 // timestamps starting at t=1, then runs Detect once at the final timestamp.
 // The positive offset matches the convention used by other detector tests; the
 // algorithm z-scores its input so the offset is invisible to the score.
-func feedMMDRFFSeries(t *testing.T, d *MMDRFFDetector, name string, values []float64) observer.DetectionResult {
+func feedMMDRFFSeries(t *testing.T, d *MMDRFFTwoSampleDetector, name string, values []float64) observer.DetectionResult {
 	t.Helper()
 	storage := newTimeSeriesStorage()
 	const offset = 100.0
@@ -43,7 +43,7 @@ func feedMMDRFFSeries(t *testing.T, d *MMDRFFDetector, name string, values []flo
 // catalog entry's `name` field and the detector's Name() return value must
 // agree because reporters key off DetectorName.
 func TestMMDRFF_Name(t *testing.T) {
-	d := NewMMDRFFDetector()
+	d := NewMMDRFFTwoSampleDetector()
 	assert.Equal(t, "mmdrff", d.Name())
 }
 
@@ -57,7 +57,7 @@ func TestMMDRFF_FiresOnDistShift(t *testing.T) {
 	rng := rand.New(rand.NewSource(1))
 	values := append(genGaussian(rng, 200, 0, 1), genBimodal(rng, 200)...)
 
-	d := testMMDRFFDetector()
+	d := testMMDRFFTwoSampleDetector()
 	result := feedMMDRFFSeries(t, d, "dist_shift", values)
 
 	require.Len(t, result.Anomalies, 1, "unimodal→bimodal shift should fire exactly once")
@@ -81,7 +81,7 @@ func TestMMDRFF_GatesOnMeanShift(t *testing.T) {
 	rng := rand.New(rand.NewSource(2))
 	values := append(genGaussian(rng, 200, 0, 1), genGaussian(rng, 200, 2, 1)...)
 
-	d := testMMDRFFDetector()
+	d := testMMDRFFTwoSampleDetector()
 	result := feedMMDRFFSeries(t, d, "mean_shift", values)
 
 	assert.Empty(t, result.Anomalies,
@@ -97,7 +97,7 @@ func TestMMDRFF_NoFireSameDist(t *testing.T) {
 	rng := rand.New(rand.NewSource(3))
 	values := genGaussian(rng, 1000, 0, 1)
 
-	d := testMMDRFFDetector()
+	d := testMMDRFFTwoSampleDetector()
 	result := feedMMDRFFSeries(t, d, "stationary", values)
 
 	assert.Empty(t, result.Anomalies, "stationary i.i.d. N(0,1) must not trigger mmdrff")
@@ -113,7 +113,7 @@ func TestMMDRFF_StatelessAcrossSeries(t *testing.T) {
 	stableA := genGaussian(rngA, 400, 0, 1)
 	shiftB := append(genGaussian(rngB, 200, 0, 1), genBimodal(rngB, 200)...)
 
-	d := testMMDRFFDetector()
+	d := testMMDRFFTwoSampleDetector()
 	storage := newTimeSeriesStorage()
 	const offset = 100.0
 	for i := 0; i < 400; i++ {
@@ -139,7 +139,7 @@ func TestMMDRFF_RemoveSeries_FreesState(t *testing.T) {
 	rng := rand.New(rand.NewSource(5))
 	values := genGaussian(rng, 200, 0, 1)
 
-	d := testMMDRFFDetector()
+	d := testMMDRFFTwoSampleDetector()
 	storage := newTimeSeriesStorage()
 	for i, v := range values {
 		storage.Add("ns", "metric", 100+v, int64(i+1), nil)
@@ -164,7 +164,7 @@ func TestMMDRFF_Reset(t *testing.T) {
 	rng := rand.New(rand.NewSource(6))
 	values := genGaussian(rng, 80, 0, 1)
 
-	d := testMMDRFFDetector()
+	d := testMMDRFFTwoSampleDetector()
 	feedMMDRFFSeries(t, d, "metric", values)
 	require.NotEmpty(t, d.series, "should have state after detection")
 
@@ -183,8 +183,8 @@ func TestMMDRFF_Reset(t *testing.T) {
 // are reproducible across constructor calls — a non-negotiable property of
 // the design (otherwise scores aren't comparable across runs or replicas).
 func TestMMDRFF_DeterministicEmbedding(t *testing.T) {
-	d1 := NewMMDRFFDetector()
-	d2 := NewMMDRFFDetector()
+	d1 := NewMMDRFFTwoSampleDetector()
+	d2 := NewMMDRFFTwoSampleDetector()
 	assert.Equal(t, d1.omega, d2.omega, "omega must be deterministic across constructions")
 	assert.Equal(t, d1.b, d2.b, "b must be deterministic across constructions")
 }
@@ -198,7 +198,7 @@ func TestMMDRFF_ColdStart_NoFire_BelowWarmup(t *testing.T) {
 	// emitted because the score is undefined while either ring is filling.
 	values := append(genGaussian(rng, 60, 0, 1), genBimodal(rng, 30)...)
 
-	d := testMMDRFFDetector()
+	d := testMMDRFFTwoSampleDetector()
 	result := feedMMDRFFSeries(t, d, "cold_start", values)
 
 	assert.Empty(t, result.Anomalies,
@@ -214,7 +214,7 @@ func TestMMDRFF_RecoveryPrevents_DoubleFire(t *testing.T) {
 	rng := rand.New(rand.NewSource(4))
 	values := append(genGaussian(rng, 200, 0, 1), genBimodal(rng, 400)...)
 
-	d := testMMDRFFDetector()
+	d := testMMDRFFTwoSampleDetector()
 	result := feedMMDRFFSeries(t, d, "double_fire_check", values)
 
 	require.Len(t, result.Anomalies, 1,

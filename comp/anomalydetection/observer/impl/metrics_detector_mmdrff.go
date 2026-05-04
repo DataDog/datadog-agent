@@ -153,10 +153,10 @@ type mmdrffSeriesState struct {
 	lastWriteGen       int64
 }
 
-// MMDRFFDetector flags distribution shifts via the streaming kernel-MMD²
+// MMDRFFTwoSampleDetector flags distribution shifts via the streaming kernel-MMD²
 // between two abutting windows in a Random Fourier Feature embedding.
 // Implements observer.Detector + observer.SeriesRemover.
-type MMDRFFDetector struct {
+type MMDRFFTwoSampleDetector struct {
 	// MMD2Threshold is the squared-MMD value every entry of the K-tick
 	// MMD² history must clear to count toward a fire. Default: 0.30 — see
 	// the package-doc calibration argument.
@@ -197,10 +197,10 @@ type MMDRFFDetector struct {
 	cachedGen    uint64
 }
 
-// NewMMDRFFDetector constructs an MMDRFFDetector with default settings and
+// NewMMDRFFTwoSampleDetector constructs an MMDRFFTwoSampleDetector with default settings and
 // a deterministic RFF embedding.
-func NewMMDRFFDetector() *MMDRFFDetector {
-	d := &MMDRFFDetector{
+func NewMMDRFFTwoSampleDetector() *MMDRFFTwoSampleDetector {
+	d := &MMDRFFTwoSampleDetector{
 		MMD2Threshold:      mmdrffMMD2Threshold,
 		MeanStationaryGate: mmdrffMeanStationaryGate,
 		PersistenceK:       mmdrffPersistenceK,
@@ -218,7 +218,7 @@ func NewMMDRFFDetector() *MMDRFFDetector {
 // populateRFF draws the RFF (omega, b) parameters from a deterministic
 // PRNG. h is fixed at 1; the input is z-scored before phi() so unit-
 // variance bandwidth holds across metrics.
-func (d *MMDRFFDetector) populateRFF() {
+func (d *MMDRFFTwoSampleDetector) populateRFF() {
 	rng := rand.New(rand.NewSource(mmdrffSeed))
 	for j := 0; j < mmdrffRFFDim; j++ {
 		// omega_j ~ N(0, 1/h²) = N(0, 1) for h=1.
@@ -229,11 +229,11 @@ func (d *MMDRFFDetector) populateRFF() {
 }
 
 // Name returns the detector name used by the catalog and reporters.
-func (*MMDRFFDetector) Name() string { return "mmdrff" }
+func (*MMDRFFTwoSampleDetector) Name() string { return "mmdrff" }
 
 // Reset clears all per-series state for replay/reanalysis. The (omega, b)
 // embedding is preserved — it is fixed at construction, not learned.
-func (d *MMDRFFDetector) Reset() {
+func (d *MMDRFFTwoSampleDetector) Reset() {
 	d.series = make(map[mmdrffStateKey]*mmdrffSeriesState)
 	d.cachedSeries = nil
 	d.cachedGen = 0
@@ -244,7 +244,7 @@ func (d *MMDRFFDetector) Reset() {
 // map would grow with the cumulative count of series ever observed even
 // after their storage payload is gone. Called by the engine immediately
 // after timeSeriesStorage.RemoveSeriesByKeys returns the freed refs.
-func (d *MMDRFFDetector) RemoveSeries(refs []observer.SeriesRef) {
+func (d *MMDRFFTwoSampleDetector) RemoveSeries(refs []observer.SeriesRef) {
 	d.ensureDefaults()
 	if len(refs) == 0 || len(d.series) == 0 {
 		return
@@ -261,7 +261,7 @@ func (d *MMDRFFDetector) RemoveSeries(refs []observer.SeriesRef) {
 // Detect implements observer.Detector. Iteration mirrors VarShift: gen-
 // cached ListSeries → bulkSeriesStatus → ForEachPoint with a count+gen
 // cursor → callback applies processPoint to each new visible point.
-func (d *MMDRFFDetector) Detect(storage observer.StorageReader, dataTime int64) observer.DetectionResult {
+func (d *MMDRFFTwoSampleDetector) Detect(storage observer.StorageReader, dataTime int64) observer.DetectionResult {
 	d.ensureDefaults()
 
 	gen := storage.SeriesGeneration()
@@ -331,7 +331,7 @@ func (d *MMDRFFDetector) Detect(storage observer.StorageReader, dataTime int64) 
 
 // processPoint applies the streaming algorithm to a single new point.
 // Returns a non-nil anomaly only on alert onset (not while still in alert).
-func (d *MMDRFFDetector) processPoint(state *mmdrffSeriesState, p observer.Point, series *observer.Series, agg observer.Aggregate) *observer.Anomaly {
+func (d *MMDRFFTwoSampleDetector) processPoint(state *mmdrffSeriesState, p observer.Point, series *observer.Series, agg observer.Aggregate) *observer.Anomaly {
 	x := p.Value
 
 	// Welford update INCLUDING this sample, then z-score against the
@@ -452,7 +452,7 @@ func (d *MMDRFFDetector) processPoint(state *mmdrffSeriesState, p observer.Point
 // full, R's oldest drops. Running raw-z sums (sumR/sumSqR/sumT/sumSqT)
 // AND per-window phi sums (sumPhiR/sumPhiT) are updated incrementally so
 // both meanGap and mmd² are available in O(D) per tick.
-func (d *MMDRFFDetector) pushPoint(state *mmdrffSeriesState, z float64) {
+func (d *MMDRFFTwoSampleDetector) pushPoint(state *mmdrffSeriesState, z float64) {
 	if state.ringTN < mmdrffWindow {
 		// T not yet full: append, no spill.
 		state.ringT[state.ringTHead] = z
@@ -497,7 +497,7 @@ func (d *MMDRFFDetector) pushPoint(state *mmdrffSeriesState, z float64) {
 
 // addPhi adds the RFF embedding of z to sum, in-place. phi_j(z) =
 // sqrt(2/D) * cos(omega_j * z + b_j). O(D) per call.
-func (d *MMDRFFDetector) addPhi(sum *[mmdrffRFFDim]float64, z float64) {
+func (d *MMDRFFTwoSampleDetector) addPhi(sum *[mmdrffRFFDim]float64, z float64) {
 	scale := math.Sqrt(2.0 / float64(mmdrffRFFDim))
 	for j := 0; j < mmdrffRFFDim; j++ {
 		sum[j] += scale * math.Cos(d.omega[j]*z+d.b[j])
@@ -507,7 +507,7 @@ func (d *MMDRFFDetector) addPhi(sum *[mmdrffRFFDim]float64, z float64) {
 // subPhi subtracts the RFF embedding of z from sum, in-place. Used when
 // a window evicts a previously-stored z (we recompute phi from the stored
 // scalar rather than caching D-dim phi vectors per slot).
-func (d *MMDRFFDetector) subPhi(sum *[mmdrffRFFDim]float64, z float64) {
+func (d *MMDRFFTwoSampleDetector) subPhi(sum *[mmdrffRFFDim]float64, z float64) {
 	scale := math.Sqrt(2.0 / float64(mmdrffRFFDim))
 	for j := 0; j < mmdrffRFFDim; j++ {
 		sum[j] -= scale * math.Cos(d.omega[j]*z+d.b[j])
@@ -531,7 +531,7 @@ func allAboveMMDThreshold(history []float64, threshold float64) bool {
 
 // makeAnomaly constructs the alert-onset anomaly. Allocates only on the
 // (rare) fire path.
-func (d *MMDRFFDetector) makeAnomaly(p observer.Point, series *observer.Series, agg observer.Aggregate, mmd2, meanGap float64) *observer.Anomaly {
+func (d *MMDRFFTwoSampleDetector) makeAnomaly(p observer.Point, series *observer.Series, agg observer.Aggregate, mmd2, meanGap float64) *observer.Anomaly {
 	source := observer.SeriesDescriptor{
 		Namespace: series.Namespace,
 		Name:      series.Name,
@@ -558,7 +558,7 @@ func (d *MMDRFFDetector) makeAnomaly(p observer.Point, series *observer.Series, 
 // ensureDefaults populates zero-valued fields with defaults. Called from
 // every public method that depends on configuration so the zero-valued
 // struct works.
-func (d *MMDRFFDetector) ensureDefaults() {
+func (d *MMDRFFTwoSampleDetector) ensureDefaults() {
 	if d.MMD2Threshold <= 0 {
 		d.MMD2Threshold = mmdrffMMD2Threshold
 	}
@@ -579,7 +579,7 @@ func (d *MMDRFFDetector) ensureDefaults() {
 	if d.series == nil {
 		d.series = make(map[mmdrffStateKey]*mmdrffSeriesState)
 	}
-	// (omega, b) are populated in NewMMDRFFDetector. Cover the zero-value
+	// (omega, b) are populated in NewMMDRFFTwoSampleDetector. Cover the zero-value
 	// detector case (uncommon, but possible if a caller skips the
 	// constructor) by detecting an all-zero omega and re-drawing.
 	allZero := true
