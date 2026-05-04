@@ -29,9 +29,15 @@ func buildRateKey(metric *Metric, gpuUUID string) rateKey {
 	sortedTags := slices.Clone(metric.Tags)
 	slices.Sort(sortedTags)
 
+	sortedWorkloads := make([]string, 0, len(metric.AssociatedWorkloads))
+	for _, workload := range metric.AssociatedWorkloads {
+		sortedWorkloads = append(sortedWorkloads, string(workload.Kind)+":"+workload.ID)
+	}
+	slices.Sort(sortedWorkloads)
+
 	return rateKey{
 		metricName: metric.Name,
-		tagsKey:    strings.Join(sortedTags, ","),
+		tagsKey:    strings.Join(sortedTags, ",") + "|workloads:" + strings.Join(sortedWorkloads, ","),
 		gpuUUID:    gpuUUID,
 	}
 }

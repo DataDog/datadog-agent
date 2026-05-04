@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/stretchr/testify/require"
 )
 
@@ -24,6 +25,29 @@ func TestBuildRateKeySortsTags(t *testing.T) {
 
 	require.Equal(t, buildRateKey(metricA, "gpu-1"), buildRateKey(metricB, "gpu-1"))
 	require.Equal(t, []string{"b:2", "a:1"}, metricA.Tags, "input tags should not be mutated")
+}
+
+func TestBuildRateKeySortsAssociatedWorkloads(t *testing.T) {
+	metricA := &Metric{
+		Name: "metric.name",
+		AssociatedWorkloads: []workloadmeta.EntityID{
+			{Kind: workloadmeta.KindContainer, ID: "container-1"},
+			{Kind: workloadmeta.KindProcess, ID: "123"},
+		},
+	}
+	metricB := &Metric{
+		Name: "metric.name",
+		AssociatedWorkloads: []workloadmeta.EntityID{
+			{Kind: workloadmeta.KindProcess, ID: "123"},
+			{Kind: workloadmeta.KindContainer, ID: "container-1"},
+		},
+	}
+
+	require.Equal(t, buildRateKey(metricA, "gpu-1"), buildRateKey(metricB, "gpu-1"))
+	require.Equal(t, []workloadmeta.EntityID{
+		{Kind: workloadmeta.KindContainer, ID: "container-1"},
+		{Kind: workloadmeta.KindProcess, ID: "123"},
+	}, metricA.AssociatedWorkloads, "input workloads should not be mutated")
 }
 
 func TestRateCalculatorNoRateCalculationLeavesMetricUntouched(t *testing.T) {
@@ -277,4 +301,47 @@ func TestRateCalculatorDifferentGPUUUIDsUseIndependentRateKeys(t *testing.T) {
 	require.Equal(t, 30.0, gpu2Second.Value)
 	require.Len(t, calculator.previousValues, 2)
 	require.NotEqual(t, buildRateKey(gpu1Second, "gpu-1"), buildRateKey(gpu2Second, "gpu-2"))
+}
+
+func TestRateCalculatorDifferentAssociatedWorkloadsUseIndependentRateKeys(t *testing.T) {
+	calculator := NewRateCalculator()
+	t1 := time.Unix(100, 0)
+	t2 := time.Unix(104, 0)
+
+	process123First := &Metric{
+		Name:                "process.core.usage",
+		Value:               10,
+		RateCalculationMode: AbsoluteDeltaRateCalculation,
+		AssociatedWorkloads: []workloadmeta.EntityID{{Kind: workloadmeta.KindProcess, ID: "123"}},
+	}
+	process456First := &Metric{
+		Name:                "process.core.usage",
+		Value:               100,
+		RateCalculationMode: AbsoluteDeltaRateCalculation,
+		AssociatedWorkloads: []workloadmeta.EntityID{{Kind: workloadmeta.KindProcess, ID: "456"}},
+	}
+
+	firstResult := calculator.ProcessMetrics([]*Metric{process123First, process456First}, t1, "gpu-1")
+	require.Empty(t, firstResult)
+
+	process123Second := &Metric{
+		Name:                "process.core.usage",
+		Value:               15,
+		RateCalculationMode: AbsoluteDeltaRateCalculation,
+		AssociatedWorkloads: []workloadmeta.EntityID{{Kind: workloadmeta.KindProcess, ID: "123"}},
+	}
+	process456Second := &Metric{
+		Name:                "process.core.usage",
+		Value:               130,
+		RateCalculationMode: AbsoluteDeltaRateCalculation,
+		AssociatedWorkloads: []workloadmeta.EntityID{{Kind: workloadmeta.KindProcess, ID: "456"}},
+	}
+
+	secondResult := calculator.ProcessMetrics([]*Metric{process123Second, process456Second}, t2, "gpu-1")
+
+	require.Len(t, secondResult, 2)
+	require.Equal(t, 5.0, process123Second.Value)
+	require.Equal(t, 30.0, process456Second.Value)
+	require.Len(t, calculator.previousValues, 2)
+	require.NotEqual(t, buildRateKey(process123Second, "gpu-1"), buildRateKey(process456Second, "gpu-1"))
 }
