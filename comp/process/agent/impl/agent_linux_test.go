@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/fx"
 
+	installinfomock "github.com/DataDog/datadog-agent/comp/agent/installinfo/mock"
 	configComp "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -109,6 +110,7 @@ func TestProcessAgentComponentOnLinux(t *testing.T) {
 				sysprobeconfigimpl.MockModule(),
 				fxutil.ProvideComponentConstructor(NewComponent),
 				hostnameimpl.MockModule(),
+				installinfomock.MockModule(),
 				fx.Provide(func() configComp.Component {
 					return configComp.NewMock(t)
 				}),
@@ -183,6 +185,7 @@ func TestStatusProvider(t *testing.T) {
 				}),
 				sysprobeconfigimpl.MockModule(),
 				hostnameimpl.MockModule(),
+				installinfomock.MockModule(),
 				fx.Provide(func() func(c *checkMocks.Check) {
 					return func(c *checkMocks.Check) {
 						c.On("Init", mock.Anything, mock.Anything, mock.AnythingOfType("bool")).Return(nil).Maybe()
@@ -237,6 +240,7 @@ func TestTelemetryCoreAgent(t *testing.T) {
 		}),
 		sysprobeconfigimpl.MockModule(),
 		hostnameimpl.MockModule(),
+		installinfomock.MockModule(),
 		fx.Provide(func() func(c *checkMocks.Check) {
 			return func(c *checkMocks.Check) {
 				c.On("Init", mock.Anything, mock.Anything, mock.AnythingOfType("bool")).Return(nil).Maybe()

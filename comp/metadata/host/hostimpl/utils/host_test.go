@@ -14,7 +14,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/agent/installinfo/def"
+	installinfo "github.com/DataDog/datadog-agent/comp/agent/installinfo/def"
+	installinfomock "github.com/DataDog/datadog-agent/comp/agent/installinfo/mock"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -26,15 +27,7 @@ import (
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
-// mockInstallInfo is a test double for installinfo.Component.
-type mockInstallInfo struct {
-	info *installinfo.InstallInfo
-	err  error
-}
-
-func (m *mockInstallInfo) Get() (*installinfo.InstallInfo, error) { return m.info, m.err }
-
-func defaultMockInstallInfo() installinfo.Component { return &mockInstallInfo{} }
+func defaultMockInstallInfo() installinfo.Component { return installinfomock.New() }
 
 func TestOTLPEnabled(t *testing.T) {
 	defer cache.Cache.Delete(hostCacheKey)
@@ -80,14 +73,14 @@ func TestGetLogsMeta(t *testing.T) {
 
 func TestGetInstallMethod(t *testing.T) {
 	conf := configmock.New(t)
-	mock := &mockInstallInfo{err: errors.New("an error")}
+	mock := &installinfomock.Mock{Err: errors.New("an error")}
 	installMethod := getInstallMethod(conf, mock)
 	assert.Equal(t, "undefined", installMethod.ToolVersion)
 	assert.Nil(t, installMethod.Tool)
 	assert.Nil(t, installMethod.InstallerVersion)
 
-	mock.err = nil
-	mock.info = &installinfo.InstallInfo{
+	mock.Err = nil
+	mock.Info = &installinfo.InstallInfo{
 		ToolVersion:      "chef-15",
 		Tool:             "chef",
 		InstallerVersion: "datadog-cookbook-4.2.1",

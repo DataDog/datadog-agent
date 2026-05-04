@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	installinfomock "github.com/DataDog/datadog-agent/comp/agent/installinfo/mock"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 )
@@ -53,6 +54,7 @@ func TestStatus(t *testing.T) {
 		testServerURL: server.URL,
 		config:        configComponent,
 		hostname:      hostnameimpl.NewHostnameService(),
+		installInfo:   installinfomock.New(),
 	}
 
 	tests := []struct {
@@ -107,6 +109,7 @@ func TestStatusError(t *testing.T) {
 		testServerURL: server.URL,
 		config:        configComponent,
 		hostname:      hostnameimpl.NewHostnameService(),
+		installInfo:   installinfomock.New(),
 	}
 
 	tests := []struct {

@@ -17,7 +17,8 @@ import (
 	"go.uber.org/fx"
 	"golang.org/x/exp/maps"
 
-	"github.com/DataDog/datadog-agent/comp/agent/installinfo/def"
+	installinfo "github.com/DataDog/datadog-agent/comp/agent/installinfo/def"
+	installinfomock "github.com/DataDog/datadog-agent/comp/agent/installinfo/mock"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
@@ -42,14 +43,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
-
-// mockInstallInfo is a test double for installinfo.Component.
-type mockInstallInfo struct {
-	info *installinfo.InstallInfo
-	err  error
-}
-
-func (m *mockInstallInfo) Get() (*installinfo.InstallInfo, error) { return m.info, m.err }
 
 // testDeps is a bridge struct with fx.In so that fxutil.Test can inject dependencies.
 // Requires uses no fx.In embed, so we use testDeps + makeRequires as an adapter.
@@ -78,7 +71,7 @@ func makeRequires(deps testDeps) Requires {
 }
 
 func getProvides(t *testing.T, confOverrides map[string]any, sysprobeConfOverrides map[string]any) Provides {
-	return getProvidesWithInstallInfo(t, confOverrides, sysprobeConfOverrides, &mockInstallInfo{})
+	return getProvidesWithInstallInfo(t, confOverrides, sysprobeConfOverrides, &installinfomock.Mock{})
 }
 
 func getProvidesWithInstallInfo(t *testing.T, confOverrides map[string]any, sysprobeConfOverrides map[string]any, ii installinfo.Component) Provides {
@@ -126,7 +119,7 @@ func TestGetPayload(t *testing.T) {
 }
 
 func TestInitDataErrorInstallInfo(t *testing.T) {
-	mock := &mockInstallInfo{err: errors.New("some error")}
+	mock := &installinfomock.Mock{Err: errors.New("some error")}
 	ia := getProvidesWithInstallInfo(t, nil, nil, mock).Comp.(*inventoryagent)
 
 	ia.initData()
@@ -134,8 +127,8 @@ func TestInitDataErrorInstallInfo(t *testing.T) {
 	assert.Equal(t, "", ia.data["install_method_tool_version"])
 	assert.Equal(t, "", ia.data["install_method_installer_version"])
 
-	mock.err = nil
-	mock.info = &installinfo.InstallInfo{
+	mock.Err = nil
+	mock.Info = &installinfo.InstallInfo{
 		Tool:             "test_tool",
 		ToolVersion:      "1.2.3",
 		InstallerVersion: "4.5.6",
@@ -589,6 +582,7 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 			fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
 			hostnameimpl.MockModule(),
+			fx.Provide(func() installinfo.Component { return installinfomock.New() }),
 		)),
 	)
 	ia = p.Comp.(*inventoryagent)

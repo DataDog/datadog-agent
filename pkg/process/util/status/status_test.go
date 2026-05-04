@@ -19,19 +19,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	installinfo "github.com/DataDog/datadog-agent/comp/agent/installinfo/def"
+	installinfomock "github.com/DataDog/datadog-agent/comp/agent/installinfo/mock"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
-
-type mockInstallInfo struct{}
-
-func (m *mockInstallInfo) Get() (*installinfo.InstallInfo, error) {
-	return &installinfo.InstallInfo{}, nil
-}
 
 func fakeExpVarServer(t *testing.T, expVars ProcessExpvars) *httptest.Server {
 	handler := func(w http.ResponseWriter, r *http.Request) {
@@ -97,7 +91,7 @@ func TestGetStatus(t *testing.T) {
 			Config: ConfigStatus{
 				LogLevel: cfg.GetString("log_level"),
 			},
-			Metadata: *hostMetadataUtils.GetFromCache(context.Background(), cfg, hostnameimpl.NewHostnameService(), &mockInstallInfo{}),
+			Metadata: *hostMetadataUtils.GetFromCache(context.Background(), cfg, hostnameimpl.NewHostnameService(), installinfomock.New()),
 		},
 		Expvars: expectedExpVars,
 	}
@@ -105,7 +99,7 @@ func TestGetStatus(t *testing.T) {
 	expVarSrv := fakeExpVarServer(t, expectedExpVars)
 	defer expVarSrv.Close()
 
-	stats, err := GetStatus(cfg, expVarSrv.URL, hostnameimpl.NewHostnameService(), &mockInstallInfo{})
+	stats, err := GetStatus(cfg, expVarSrv.URL, hostnameimpl.NewHostnameService(), installinfomock.New())
 	require.NoError(t, err)
 
 	OverrideTime(testTime)(stats)

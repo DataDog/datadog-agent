@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
-	installinfo "github.com/DataDog/datadog-agent/comp/agent/installinfo/def"
+	installinfomock "github.com/DataDog/datadog-agent/comp/agent/installinfo/mock"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	hostnameimpl "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
@@ -25,12 +25,6 @@ import (
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
-
-type mockInstallInfo struct{}
-
-func (m *mockInstallInfo) Get() (*installinfo.InstallInfo, error) {
-	return &installinfo.InstallInfo{Tool: "test"}, nil
-}
 
 // testDeps bridges fx injection for tests since Requires has no fx.In marker.
 type testDeps struct {
@@ -48,7 +42,7 @@ func makeRequires(deps testDeps) Requires {
 		Config:      deps.Config,
 		Serializer:  deps.Serializer,
 		Hostname:    deps.Hostname,
-		InstallInfo: &mockInstallInfo{},
+		InstallInfo: installinfomock.New(),
 	}
 }
 

@@ -16,6 +16,7 @@ import (
 	"go.uber.org/fx"
 	"golang.org/x/exp/maps"
 
+	installinfomock "github.com/DataDog/datadog-agent/comp/agent/installinfo/mock"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
@@ -36,6 +37,7 @@ func TestNewHostProviderDefaultIntervals(t *testing.T) {
 			fx.Replace(resourcesmock.MockParams{Data: nil}),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
 			hostnameimpl.MockModule(),
+			installinfomock.MockModule(),
 		),
 	)
 
@@ -123,6 +125,7 @@ func TestNewHostProviderIntervalValidation(t *testing.T) {
 					fx.Replace(resourcesmock.MockParams{Data: nil}),
 					fx.Provide(func() serializer.MetricSerializer { return nil }),
 					hostnameimpl.MockModule(),
+					installinfomock.MockModule(),
 				),
 			)
 
@@ -150,6 +153,7 @@ func TestBackoffWhenEarlyIntervalEqualsCollectionInterval(t *testing.T) {
 		fx.Replace(resourcesmock.MockParams{Data: nil}),
 		fx.Provide(func() serializer.MetricSerializer { return nil }),
 		hostnameimpl.MockModule(),
+		installinfomock.MockModule(),
 	))
 	h := ret.Comp.(*host)
 
@@ -169,6 +173,7 @@ func TestFlareProvider(t *testing.T) {
 			fx.Replace(resourcesmock.MockParams{Data: nil}),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
 			hostnameimpl.MockModule(),
+			installinfomock.MockModule(),
 		),
 	)
 
@@ -189,6 +194,7 @@ func TestStatusHeaderProvider(t *testing.T) {
 			fx.Replace(resourcesmock.MockParams{Data: nil}),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
 			hostnameimpl.MockModule(),
+			installinfomock.MockModule(),
 		),
 	)
 
