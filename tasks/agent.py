@@ -252,9 +252,8 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
     Clean up and refresh Collector's assets and config files
     """
     flavor = AgentFlavor[flavor]
-    # ensure BIN_PATH exists
-    if not os.path.exists(BIN_PATH):
-        os.mkdir(BIN_PATH)
+    # ensure BIN_PATH exists (makedirs handles missing parents, e.g. on AIX build hosts)
+    os.makedirs(BIN_PATH, exist_ok=True)
 
     dist_folder = os.path.join(BIN_PATH, "dist")
     if os.path.exists(dist_folder):
@@ -286,7 +285,13 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
         shutil.copy("./cmd/agent/dist/system-probe.yaml", os.path.join(dist_folder, "system-probe.yaml"))
     shutil.copy("./cmd/agent/dist/datadog.yaml", os.path.join(dist_folder, "datadog.yaml"))
 
-    for check in core_checks.AGENT_CORECHECKS if not flavor.is_iot() else core_checks.IOT_AGENT_CORECHECKS:
+    if sys.platform.startswith('aix'):
+        checks_to_copy = core_checks.AIX_CORECHECKS
+    elif flavor.is_iot():
+        checks_to_copy = core_checks.IOT_AGENT_CORECHECKS
+    else:
+        checks_to_copy = core_checks.AGENT_CORECHECKS
+    for check in checks_to_copy:
         check_dir = os.path.join(dist_folder, f"conf.d/{check}.d/")
         shutil.copytree(
             f"./cmd/agent/dist/conf.d/{check}.d/",
@@ -582,7 +587,7 @@ RUN patchelf --set-rpath /opt/datadog-agent/embedded/lib /opt/datadog-agent/embe
 
 FROM golang:latest AS dlv
 
-RUN go install github.com/go-delve/delve/cmd/dlv@latest
+RUN go install github.com/go-delve/delve/cmd/dlv@v1.26.0
 
 FROM {base_image} AS bash_completion
 

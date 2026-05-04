@@ -668,6 +668,12 @@ func (f *fakeDispatcher) UnregisterSink(progID ir.ProgramID) {
 	delete(f.sinks, progID)
 }
 
+func (f *fakeDispatcher) EvictOlderThan(progID ir.ProgramID, cutoff uint64) {
+	if s, ok := f.sinks[progID]; ok {
+		s.EvictOlderThan(cutoff)
+	}
+}
+
 func (f *fakeDispatcher) Shutdown() error { return nil }
 
 type fakeProcessSubscriber func(process.ProcessesUpdate)

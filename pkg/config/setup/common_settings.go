@@ -176,6 +176,10 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("prometheus_scrape.checks", "")               // Defines any extra prometheus/openmetrics check configurations to be handled by the prometheus config provider
 	config.BindEnvAndSetDefault("prometheus_scrape.version", 1)               // Version of the openmetrics check to be scheduled by the Prometheus auto-discovery
 
+	// Prometheus HTTP Service Discovery
+	config.BindEnvAndSetDefault("prometheus_http_sd.url", "")            // URL of the Prometheus HTTP SD endpoint
+	config.BindEnvAndSetDefault("prometheus_http_sd.check_template", "") // JSON check template applied to each discovered target (e.g. '{"name":"openmetrics","init_config":{},"instances":[{"openmetrics_endpoint":"http://%%host%%:%%port%%/metrics"}]}')
+
 	// Network Devices Monitoring
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.metadata.")
 	config.BindEnvAndSetDefault("network_devices.namespace", "default")
@@ -678,6 +682,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.fallback_to_file_provider", false)                                // to be enabled only in e2e tests
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.file_provider_path", "/etc/datadog-agent/patch/auto-instru.json") // to be used only in e2e tests
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.inject_auto_detected_libraries", true)                                    // allows injecting libraries for languages detected by automatic language detection feature
+	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.container_registry_allow_list", []string{})                               // restricts which registries can be used for library injection
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.init_resources.cpu", "")
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.init_resources.memory", "")
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.init_security_context", "")
@@ -685,6 +690,16 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.iast.enabled", false, "DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_IAST_ENABLED")          // config for IAST which is implemented in the client libraries
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.asm_sca.enabled", false, "DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_APPSEC_SCA_ENABLED") // config for SCA
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.profiling.enabled", "", "DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_PROFILING_ENABLED")   // config for profiling
+	config.ParseEnvAsStringSlice("admission_controller.auto_instrumentation.container_registry_allow_list", func(s string) []string {
+		var result []string
+		for _, r := range strings.Split(s, ",") {
+			r = strings.TrimSpace(r)
+			if r != "" {
+				result = append(result, r)
+			}
+		}
+		return result
+	})
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.enabled", false)
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.pod_endpoint", "/inject-pod-cws")
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.command_endpoint", "/inject-command-cws")
@@ -1030,7 +1045,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 
 	// Data Plane
 	config.BindEnvAndSetDefault("data_plane.enabled", false)
-	config.BindEnvAndSetDefault("data_plane.dogstatsd.enabled", false)
+	config.BindEnvAndSetDefault("data_plane.dogstatsd.enabled", true)
 	config.BindEnvAndSetDefault("data_plane.otlp.enabled", false)
 	config.BindEnvAndSetDefault("data_plane.otlp.proxy.enabled", false)
 	// When the ADP OTLP proxy is enabled, ADP owns the gRPC endpoint configured for the receiver (default :4317) and the core agent uses the endpoint below
@@ -1203,6 +1218,7 @@ func agent(config pkgconfigmodel.Setup) {
 		"agent_telemetry",
 		"agentcrashdetect",
 		"disk",
+		"directory",
 		"file_handle",
 		"filehandles",
 		"io",
@@ -1227,6 +1243,10 @@ func agent(config pkgconfigmodel.Setup) {
 		"wincrashdetect",
 		"winkmem",
 		"winproc",
+		"wmi_check",
+		"windows_certificate",
+		"windows_performance_counters",
+		"windows_registry",
 		"windows_service",
 	})
 	// Configuration for TLS for outgoing connections
@@ -1272,6 +1292,27 @@ func agent(config pkgconfigmodel.Setup) {
 
 	pkgconfigmodel.AddOverrideFunc(toggleDefaultPayloads)
 	pkgconfigmodel.AddOverrideFunc(applyInfrastructureModeOverrides)
+	pkgconfigmodel.AddOverrideFunc(ApplyUseDogstatsdSuppression)
+}
+
+// ApplyUseDogstatsdSuppression is a post-load override that, when
+// use_dogstatsd is false, forces data_plane.dogstatsd.enabled to false
+// so the Agent Data Plane process (which reads the latter via the
+// config stream) skips its DogStatsD source. data_plane.enabled is
+// intentionally left alone so other ADP pipelines (e.g. OTLP) keep
+// working independently of the DogStatsD master toggle.
+//
+// It is registered as an override func (runs after datadog.yaml loads) and
+// also called explicitly after fleet policy merging, because fleet policies
+// are applied after the initial override pass.
+//
+// Matches the truth table at
+// https://github.com/DataDog/saluki/issues/1334#issuecomment-4292253054.
+func ApplyUseDogstatsdSuppression(config pkgconfigmodel.Config) {
+	if !config.GetBool("use_dogstatsd") && config.GetBool("data_plane.dogstatsd.enabled") {
+		log.Infof("Forcing data_plane.dogstatsd.enabled=false because use_dogstatsd=false")
+		config.Set("data_plane.dogstatsd.enabled", false, pkgconfigmodel.SourceAgentRuntime)
+	}
 }
 
 func fleet(config pkgconfigmodel.Setup) {
@@ -1825,7 +1866,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// Maximum number of distinct patterns the sampler tracks at once.
 	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.max_patterns", 1000)
 	// Steady-state logs per second allowed for each matched pattern.
-	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.rate_limit", 1)
+	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.rate_limit", 1.0)
 	// Maximum burst allowance per pattern, measured in accumulated credits/logs.
 	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.burst_size", 1000.0)
 	// Fraction of tokens that must match for two logs to be treated as the same pattern.
@@ -1887,7 +1928,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// could happen while serializing large objects on log lines.
 	config.BindEnvAndSetDefault("logs_config.aggregation_timeout", 1000)
 	// Time in seconds
-	config.BindEnvAndSetDefault("logs_config.file_scan_period", 10.0)
+	config.BindEnvAndSetDefault("logs_config.file_scan_period", 1.0)
 
 	// Controls how wildcard file log source are prioritized when there are more files
 	// that match wildcard log configurations than the `logs_config.open_files_limit`
