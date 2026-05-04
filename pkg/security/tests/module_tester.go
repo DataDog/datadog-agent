@@ -87,10 +87,11 @@ func (s *stringSlice) Set(value string) error {
 
 func (tm *testModule) HandleEvent(event *model.Event) {
 	tm.eventHandlers.RLock()
-	defer tm.eventHandlers.RUnlock()
+	onProbeEvent := tm.eventHandlers.onProbeEvent
+	tm.eventHandlers.RUnlock()
 
-	if tm.eventHandlers.onProbeEvent != nil {
-		tm.eventHandlers.onProbeEvent(event)
+	if onProbeEvent != nil {
+		onProbeEvent(event)
 	}
 }
 
@@ -98,7 +99,9 @@ func (tm *testModule) HandleCustomEvent(_ *rules.Rule, _ *events.CustomEvent) {}
 
 func (tm *testModule) SendEvent(rule *rules.Rule, event events.Event, extTagsCb func() ([]string, bool), service string) {
 	tm.eventHandlers.RLock()
-	defer tm.eventHandlers.RUnlock()
+	onCustom := tm.eventHandlers.onCustomSendEvent
+	onSendEvent := tm.eventHandlers.onSendEvent
+	tm.eventHandlers.RUnlock()
 
 	// forward to the API server
 	if tm.cws != nil {
@@ -107,12 +110,12 @@ func (tm *testModule) SendEvent(rule *rules.Rule, event events.Event, extTagsCb 
 
 	switch ev := event.(type) {
 	case *events.CustomEvent:
-		if tm.eventHandlers.onCustomSendEvent != nil {
-			tm.eventHandlers.onCustomSendEvent(rule, ev)
+		if onCustom != nil {
+			onCustom(rule, ev)
 		}
 	case *model.Event:
-		if tm.eventHandlers.onSendEvent != nil {
-			tm.eventHandlers.onSendEvent(rule, ev)
+		if onSendEvent != nil {
+			onSendEvent(rule, ev)
 		}
 	}
 }
