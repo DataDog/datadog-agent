@@ -39,18 +39,20 @@ func readScrappyCollectorConfig(reader ConfigReader, prefix string) any {
 }
 
 // ScrappyCollector implements observerdef.Detector. On every Detect() tick it
-// reads the complete metric surface from StorageReader (including log-derived
-// pattern metrics from the LogMetricsExtractor) and writes it to a JSONL file.
-// This captures the exact data Scrappy will consume in production, for use in
-// tokenization research and model training.
+// reads the complete metric surface from StorageReader and writes it to a JSONL
+// file for tokenization research and model training.
+//
+// The output schema is tokenizer-oriented:
+//   - Log metrics use "pattern" (the normalized log signature) instead of the
+//     opaque hash-based metric name.
+//   - Non-log metrics use "name" (the metric name as-is).
+//   - Both carry ns (namespace/source), tags, and points.
 type ScrappyCollector struct {
 	config           ScrappyCollectorConfig
 	writer           *bufio.Writer
 	file             *os.File
 	mu               sync.Mutex
 	contextProviders map[string]observerdef.ContextProvider
-	lastPatternDump  int64 // dataTime of last pattern dump
-	knownPatterns    map[string]bool
 }
 
 // scrappyHeader is the first line written to the output file.
@@ -67,9 +69,12 @@ type scrappyTick struct {
 }
 
 // scrappySeriesSnap is one series within a tick snapshot.
+// For log metrics, Name is empty and Pattern carries the normalized log signature.
+// For non-log metrics, Pattern is empty and Name carries the metric name.
 type scrappySeriesSnap struct {
 	Namespace string         `json:"ns"`
-	Name      string         `json:"name"`
+	Name      string         `json:"name,omitempty"`
+	Pattern   string         `json:"pattern,omitempty"`
 	Tags      []string       `json:"tags"`
 	Points    []scrappyPoint `json:"points"`
 }
@@ -79,26 +84,6 @@ type scrappyPoint struct {
 	Timestamp int64   `json:"ts"`
 	Value     float64 `json:"val"`
 }
-
-// scrappyPatterns is a periodic dump of log pattern context.
-type scrappyPatterns struct {
-	Type     string           `json:"type"`
-	DataTime int64            `json:"data_time"`
-	Patterns []scrappyPattern `json:"patterns"`
-}
-
-// scrappyPattern maps a metric name hash to its pattern text and example.
-type scrappyPattern struct {
-	MetricName string `json:"metric_name"`
-	Pattern    string `json:"pattern"`
-	Example    string `json:"example"`
-	Source     string `json:"source"`
-}
-
-// patternDumpInterval controls how often (in seconds of data time) the
-// collector emits a full pattern map. 60s keeps the JSONL self-contained
-// without excessive duplication.
-const patternDumpInterval int64 = 60
 
 // NewScrappyCollector creates a collector that writes to the configured output path.
 func NewScrappyCollector(config ScrappyCollectorConfig) *ScrappyCollector {
@@ -113,7 +98,7 @@ func NewScrappyCollector(config ScrappyCollectorConfig) *ScrappyCollector {
 	header := scrappyHeader{
 		Type:             "header",
 		StartTS:          time.Now().UTC().Format(time.RFC3339),
-		CollectorVersion: "0.2",
+		CollectorVersion: "0.4",
 	}
 	if b, err := json.Marshal(header); err == nil {
 		w.Write(b)
@@ -122,10 +107,9 @@ func NewScrappyCollector(config ScrappyCollectorConfig) *ScrappyCollector {
 	}
 
 	return &ScrappyCollector{
-		config:        config,
-		writer:        w,
-		file:          f,
-		knownPatterns: make(map[string]bool),
+		config: config,
+		writer: w,
+		file:   f,
 	}
 }
 
@@ -153,9 +137,6 @@ func (s *ScrappyCollector) Detect(storage observerdef.StorageReader, dataTime in
 		Series:   make([]scrappySeriesSnap, 0, len(allSeries)),
 	}
 
-	// Track which log pattern metrics we see this tick for pattern resolution.
-	var logPatternKeys []logPatternKey
-
 	for _, meta := range allSeries {
 		sr := storage.GetSeriesRange(meta.Ref, dataTime-300, dataTime, observerdef.AggregateAverage)
 		if sr == nil || len(sr.Points) == 0 {
@@ -164,100 +145,60 @@ func (s *ScrappyCollector) Detect(storage observerdef.StorageReader, dataTime in
 
 		snap := scrappySeriesSnap{
 			Namespace: meta.Namespace,
-			Name:      meta.Name,
 			Tags:      meta.Tags,
 			Points:    make([]scrappyPoint, len(sr.Points)),
 		}
 		for i, p := range sr.Points {
 			snap.Points[i] = scrappyPoint{Timestamp: p.Timestamp, Value: p.Value}
 		}
-		tick.Series = append(tick.Series, snap)
 
-		// Collect log pattern metrics for context resolution
-		if strings.HasPrefix(meta.Name, "log.pattern.") {
-			logPatternKeys = append(logPatternKeys, logPatternKey{
-				metricName: meta.Name,
-				tags:       meta.Tags,
-			})
+		// Log metrics: resolve hash to Drain pattern text. Non-log metrics: use name.
+		if isLogMetric(meta.Name) {
+			snap.Pattern = s.resolvePattern(meta.Name, meta.Tags)
+			if snap.Pattern == "" {
+				snap.Pattern = meta.Name // fallback to hash if resolution fails
+			}
+		} else {
+			snap.Name = meta.Name
 		}
+
+		tick.Series = append(tick.Series, snap)
+	}
+
+	b, err := json.Marshal(tick)
+	if err != nil {
+		return observerdef.DetectionResult{}
 	}
 
 	s.mu.Lock()
-
-	// Write the tick
-	if b, err := json.Marshal(tick); err == nil {
-		s.writer.Write(b)
-		s.writer.WriteByte('\n')
-	}
-
-	// Periodically dump the pattern map so the JSONL is self-contained
-	if dataTime-s.lastPatternDump >= patternDumpInterval && len(logPatternKeys) > 0 {
-		s.dumpPatterns(logPatternKeys, dataTime)
-	}
-
+	s.writer.Write(b)
+	s.writer.WriteByte('\n')
 	s.writer.Flush()
 	s.mu.Unlock()
 
 	return observerdef.DetectionResult{}
 }
 
-// logPatternKey pairs a metric name with its tags for context key reconstruction.
-type logPatternKey struct {
-	metricName string
-	tags       []string
+// isLogMetric returns true for metrics produced by log extractors.
+// log_metrics_extractor emits "log.pattern.<hash>.count"
+// log_pattern_extractor emits "log.log_pattern_extractor.<hash>.count"
+func isLogMetric(name string) bool {
+	return strings.HasPrefix(name, "log.pattern.") || strings.HasPrefix(name, "log.log_pattern_extractor.")
 }
 
-// dumpPatterns resolves log pattern hashes to their text and writes a patterns line.
-// Must be called with s.mu held.
-func (s *ScrappyCollector) dumpPatterns(keys []logPatternKey, dataTime int64) {
+// resolvePattern looks up the pattern text for a log pattern metric.
+func (s *ScrappyCollector) resolvePattern(metricName string, tags []string) string {
 	if len(s.contextProviders) == 0 {
-		return
+		return ""
 	}
-
-	var patterns []scrappyPattern
-	hasNew := false
-
-	for _, k := range keys {
-		// The context key for log_metrics_extractor uses seriesKey("", name, tags)
-		contextKey := seriesKey("", k.metricName, k.tags)
-
-		for _, provider := range s.contextProviders {
-			ctx, ok := provider.GetContextByKey(contextKey)
-			if !ok {
-				continue
-			}
-			if !s.knownPatterns[k.metricName] {
-				hasNew = true
-				s.knownPatterns[k.metricName] = true
-			}
-			patterns = append(patterns, scrappyPattern{
-				MetricName: k.metricName,
-				Pattern:    ctx.Pattern,
-				Example:    ctx.Example,
-				Source:     ctx.Source,
-			})
-			break
+	contextKey := seriesKey("", metricName, tags)
+	for _, provider := range s.contextProviders {
+		ctx, ok := provider.GetContextByKey(contextKey)
+		if ok {
+			return ctx.Pattern
 		}
 	}
-
-	// Only emit if there are new patterns or on the first dump
-	if !hasNew && s.lastPatternDump > 0 {
-		s.lastPatternDump = dataTime
-		return
-	}
-
-	if len(patterns) > 0 {
-		dump := scrappyPatterns{
-			Type:     "patterns",
-			DataTime: dataTime,
-			Patterns: patterns,
-		}
-		if b, err := json.Marshal(dump); err == nil {
-			s.writer.Write(b)
-			s.writer.WriteByte('\n')
-		}
-	}
-	s.lastPatternDump = dataTime
+	return ""
 }
 
 // Close flushes and closes the output file.
