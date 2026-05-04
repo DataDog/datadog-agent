@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/agent/installinfo/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
@@ -29,7 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	hostinfoutils "github.com/DataDog/datadog-agent/pkg/util/hostinfo"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -38,8 +38,7 @@ var (
 	systemStatsCacheKey = cache.BuildAgentKey("host", "utils", "systemStats")
 
 	// for testing
-	otlpIsEnabled  = configcheck.IsEnabled
-	installinfoGet = installinfo.Get
+	otlpIsEnabled = configcheck.IsEnabled
 )
 
 type systemStats struct {
@@ -128,8 +127,8 @@ func getLogsMeta(conf model.Reader) *LogsMeta {
 	}
 }
 
-func getInstallMethod(conf model.Reader) *InstallMethod {
-	install, err := installinfoGet(conf)
+func getInstallMethod(_ model.Reader, ii installinfo.Component) *InstallMethod {
+	install, err := ii.Get()
 	if err != nil {
 		return &InstallMethod{
 			ToolVersion:      "undefined",
@@ -180,7 +179,7 @@ func GetOSVersion() string {
 
 // GetPayload builds a metadata payload every time is called.
 // Some data is collected only once, some is cached, some is collected at every call.
-func GetPayload(ctx context.Context, conf model.Reader, hostname hostnameinterface.Component) *Payload {
+func GetPayload(ctx context.Context, conf model.Reader, hostname hostnameinterface.Component, ii installinfo.Component) *Payload {
 	hostnameData, err := hostname.GetWithProvider(ctx)
 	if err != nil {
 		log.Errorf("Error grabbing hostname for status: %v", err)
@@ -200,7 +199,7 @@ func GetPayload(ctx context.Context, conf model.Reader, hostname hostnameinterfa
 		ContainerMeta: containerMetadata.Get(1 * time.Second),
 		NetworkMeta:   getNetworkMeta(ctx),
 		LogsMeta:      getLogsMeta(conf),
-		InstallMethod: getInstallMethod(conf),
+		InstallMethod: getInstallMethod(conf, ii),
 		ProxyMeta:     getProxyMeta(conf),
 		OtlpMeta:      &OtlpMeta{Enabled: otlpIsEnabled(conf)},
 		FipsMode:      getFipsMode(),
@@ -213,10 +212,10 @@ func GetPayload(ctx context.Context, conf model.Reader, hostname hostnameinterfa
 
 // GetFromCache returns the payload from the cache if it exists, otherwise it creates it.
 // The metadata reporting should always grab it fresh. Any other uses, e.g. status, should use this
-func GetFromCache(ctx context.Context, conf model.Reader, hostname hostnameinterface.Component) *Payload {
+func GetFromCache(ctx context.Context, conf model.Reader, hostname hostnameinterface.Component, ii installinfo.Component) *Payload {
 	data, found := cache.Cache.Get(hostCacheKey)
 	if !found {
-		return GetPayload(ctx, conf, hostname)
+		return GetPayload(ctx, conf, hostname, ii)
 	}
 	return data.(*Payload)
 }

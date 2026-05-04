@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = ["impl.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/agent/installinfo/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/agent/installinfo/def",
+        "//comp/api/api/def",
+        "//comp/core/config",
+        "//comp/def",
+        "//comp/core/flare/types",
+        "//pkg/config/utils",
+        "//pkg/util/log",
+        "//pkg/util/scrubber",
+        "//pkg/version",
+        "@in_yaml_go_yaml_v2//:yaml",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = ["impl_test.go"],
+    embed = [":impl"],
+    gotags = ["test"],
+    deps = [
+        "//comp/agent/installinfo/def",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

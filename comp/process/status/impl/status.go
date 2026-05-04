@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/DataDog/datadog-agent/comp/agent/installinfo/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -24,8 +25,9 @@ import (
 type dependencies struct {
 	compdef.In
 
-	Config   config.Component
-	Hostname hostnameinterface.Component
+	Config      config.Component
+	Hostname    hostnameinterface.Component
+	InstallInfo installinfo.Component
 }
 
 // Provides defines the output dependencies of the status component.
@@ -39,8 +41,9 @@ type Provides struct {
 func NewComponent(deps dependencies) Provides {
 	return Provides{
 		StatusProvider: status.NewInformationProvider(statusProvider{
-			config:   deps.Config,
-			hostname: deps.Hostname,
+			config:      deps.Config,
+			hostname:    deps.Hostname,
+			installInfo: deps.InstallInfo,
 		}),
 	}
 }
@@ -49,6 +52,7 @@ type statusProvider struct {
 	testServerURL string
 	config        config.Component
 	hostname      hostnameinterface.Component
+	installInfo   installinfo.Component
 }
 
 //go:embed status_templates
@@ -98,7 +102,7 @@ func (s statusProvider) populateStatus() map[string]interface{} {
 		url = fmt.Sprintf("http://%s:%d/debug/vars", ipcAddr, s.config.GetInt("process_config.expvar_port"))
 	}
 
-	agentStatus, err := processStatus.GetStatus(s.config, url, s.hostname)
+	agentStatus, err := processStatus.GetStatus(s.config, url, s.hostname, s.installInfo)
 	if err != nil {
 		status["error"] = err.Error()
 		return status

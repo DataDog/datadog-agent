@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/agent/installinfo/def"
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
@@ -26,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 )
 
@@ -61,10 +61,11 @@ type pkgSigning struct {
 
 // Requires defines the dependencies for the packagesigning component
 type Requires struct {
-	Log        log.Component
-	Config     config.Component
-	Serializer serializer.MetricSerializer
-	Hostname   hostnameinterface.Component
+	Log         log.Component
+	Config      config.Component
+	Serializer  serializer.MetricSerializer
+	Hostname    hostnameinterface.Component
+	InstallInfo installinfo.Component
 }
 
 // Provides defines the output of the packagesigning component
@@ -98,7 +99,7 @@ func NewComponent(deps Requires) Provides {
 	is.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, is.getPayload, "signing.json")
 	is.InventoryPayload.MaxInterval = defaultCollectInterval
 	is.InventoryPayload.MinInterval = defaultCollectInterval
-	is.InventoryPayload.Enabled = isPackageSigningEnabled(deps.Config, is.log)
+	is.InventoryPayload.Enabled = isPackageSigningEnabled(deps.Config, deps.InstallInfo, is.log)
 	var provider runnerdef.Provider
 	if is.InventoryPayload.Enabled {
 		if getPkgManager() != "" {
@@ -117,16 +118,16 @@ func NewComponent(deps Requires) Provides {
 	}
 }
 
-func isPackageSigningEnabled(conf config.Reader, logger log.Component) bool {
-	installTool, err := installinfo.Get(conf)
+func isPackageSigningEnabled(conf config.Reader, ii installinfo.Component, logger log.Component) bool {
+	installData, err := ii.Get()
 	if err != nil {
 		logger.Debugf("Failed to get install_info file information: %v", err)
 		return false
 	}
 	isInConfigurationFile := conf.GetBool("enable_signing_metadata_collection")
-	isEnabled := isInConfigurationFile && runtime.GOOS == "linux" && isAllowedInstallationTool(installTool.Tool)
+	isEnabled := isInConfigurationFile && runtime.GOOS == "linux" && isAllowedInstallationTool(installData.Tool)
 	if !isEnabled {
-		logger.Debugf("Package-signing metadata collection disabled: config %t, OS %s, install tool %s", isInConfigurationFile, runtime.GOOS, installTool.Tool)
+		logger.Debugf("Package-signing metadata collection disabled: config %t, OS %s, install tool %s", isInConfigurationFile, runtime.GOOS, installData.Tool)
 		logger.Debug("Package-signing metadata must be enabled in datadog.yaml, and running on a non-containerized Linux system to collect data")
 	} else {
 		logger.Debug("Package-signing metadata collection enabled")

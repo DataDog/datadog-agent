@@ -57,9 +57,20 @@ func RmInstallInfo() {
 	}
 }
 
+// installMethod and installMethodInfo are local YAML-serialization types for the install_info file.
+type installMethodInfo struct {
+	Tool             string `yaml:"tool"`
+	ToolVersion      string `yaml:"tool_version"`
+	InstallerVersion string `yaml:"installer_version"`
+}
+
+type installMethod struct {
+	Method installMethodInfo `yaml:"install_method"`
+}
+
 func writeInstallInfo(tool, version, installerVersion string) error {
-	info := installInfoMethod{
-		Method: InstallInfo{
+	info := installMethod{
+		Method: installMethodInfo{
 			Tool:             tool,
 			ToolVersion:      version,
 			InstallerVersion: installerVersion,

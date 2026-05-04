@@ -24,6 +24,10 @@ Package cloudfoundrycontainer provides the cloud foundry container component.
 
 Package expvarserver contains the component type for the expVar server.
 
+### [comp/agent/installinfo](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/agent/installinfo)
+
+Package installinfo exposes install info and version history for the agent.
+
 ### [comp/agent/jmxlogger](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/agent/jmxlogger)
 
 *Datadog Team*: agent-metric-pipelines

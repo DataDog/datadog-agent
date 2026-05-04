@@ -18,7 +18,6 @@ import (
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/pkg/api/coverage"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -39,8 +38,6 @@ func SetupHandlers(
 	r.HandleFunc("/status/health", getHealth).Methods("GET")
 	r.HandleFunc("/{component}/status", componentStatusHandler).Methods("POST")
 	r.HandleFunc("/{component}/configs", componentConfigHandler).Methods("GET")
-	r.HandleFunc("/install-info", installinfo.HandleGetInstallInfo).Methods("GET")
-	r.HandleFunc("/install-info", installinfo.HandleSetInstallInfo).Methods("POST", "PUT")
 	coverage.SetupCoverageHandler(r)
 	return r
 }

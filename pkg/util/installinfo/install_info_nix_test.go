@@ -20,6 +20,8 @@ import (
 	"testing"
 	"time"
 
+	"go.yaml.in/yaml/v2"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -56,14 +58,22 @@ func TestInstallSignature(t *testing.T) {
 
 func TestInstallMethod(t *testing.T) {
 	installInfoFile = filepath.Join(t.TempDir(), "install_info")
-	writeInstallInfo("dpkg", "1.2.3", "updater_package")
-	resInstallInfo, err := getFromPath(installInfoFile)
-	assert.NoError(t, err)
+	require.NoError(t, writeInstallInfo("dpkg", "1.2.3", "updater_package"))
 
-	assert.Equal(t, "updater_package", resInstallInfo.InstallerVersion)
-	assert.Equal(t, "dpkg", resInstallInfo.Tool)
-	assert.Equal(t, "1.2.3", resInstallInfo.ToolVersion)
-	assert.NoError(t, err)
+	content, err := os.ReadFile(installInfoFile)
+	require.NoError(t, err)
+
+	var result struct {
+		Method struct {
+			Tool             string `yaml:"tool"`
+			ToolVersion      string `yaml:"tool_version"`
+			InstallerVersion string `yaml:"installer_version"`
+		} `yaml:"install_method"`
+	}
+	require.NoError(t, yaml.UnmarshalStrict(content, &result))
+	assert.Equal(t, "dpkg", result.Method.Tool)
+	assert.Equal(t, "1.2.3", result.Method.ToolVersion)
+	assert.Equal(t, "updater_package", result.Method.InstallerVersion)
 }
 
 func TestDoubleWrite(t *testing.T) {
@@ -71,18 +81,19 @@ func TestDoubleWrite(t *testing.T) {
 	installInfoFile = filepath.Join(tmpDir, "install_info")
 	installSigFile = filepath.Join(tmpDir, "install.json")
 
-	s, _ := getFromPath(installInfoFile)
-	assert.Nil(t, s)
+	_, err := os.Stat(installInfoFile)
+	assert.True(t, os.IsNotExist(err))
 
 	assert.NoError(t, WriteInstallInfo("dpkg", "v1", ""))
-	v1, err := getFromPath(installInfoFile)
+	content1, err := os.ReadFile(installInfoFile)
 	assert.NoError(t, err)
 
+	// WriteInstallInfo is a no-op if the file already exists.
 	assert.NoError(t, WriteInstallInfo("dpkg", "v2", ""))
-	v2, err := getFromPath(installInfoFile)
+	content2, err := os.ReadFile(installInfoFile)
 	assert.NoError(t, err)
 
-	assert.Equal(t, v1, v2)
+	assert.Equal(t, content1, content2)
 }
 
 func TestRmInstallInfo(t *testing.T) {

@@ -15,6 +15,7 @@ import (
 	"expvar"
 	"io"
 
+	"github.com/DataDog/datadog-agent/comp/agent/installinfo/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -23,18 +24,20 @@ import (
 
 // Provider provides the functionality to populate the status output
 type Provider struct {
-	config   config.Component
-	hostname hostnameinterface.Component
+	config      config.Component
+	hostname    hostnameinterface.Component
+	installInfo installinfo.Component
 }
 
 //go:embed status_templates
 var templatesFS embed.FS
 
 // NewProvider returns a Provider struct
-func NewProvider(conf config.Component, hostname hostnameinterface.Component) Provider {
+func NewProvider(conf config.Component, hostname hostnameinterface.Component, installInfo installinfo.Component) Provider {
 	return Provider{
-		config:   conf,
-		hostname: hostname,
+		config:      conf,
+		hostname:    hostname,
+		installInfo: installInfo,
 	}
 }
 
@@ -50,8 +53,7 @@ func (Provider) Index() int {
 
 // JSON populates the status map
 func (p Provider) JSON(_ bool, stats map[string]interface{}) error {
-	populateStatus(stats, p.config, p.hostname)
-
+	p.populateStatus(stats)
 	return nil
 }
 
@@ -67,19 +69,17 @@ func (Provider) HTML(_ bool, _ io.Writer) error {
 
 func (p Provider) getStatusInfo() map[string]interface{} {
 	stats := make(map[string]interface{})
-
-	populateStatus(stats, p.config, p.hostname)
-
+	p.populateStatus(stats)
 	return stats
 }
 
-func populateStatus(stats map[string]interface{}, config config.Component, hostname hostnameinterface.Component) {
+func (p Provider) populateStatus(stats map[string]interface{}) {
 	hostnameStatsJSON := []byte(expvar.Get("hostname").String())
 	hostnameStats := make(map[string]interface{})
 	json.Unmarshal(hostnameStatsJSON, &hostnameStats) //nolint:errcheck
 	stats["hostnameStats"] = hostnameStats
 
-	hostMetadata := hostMetadataUtils.GetFromCache(context.TODO(), config, hostname)
+	hostMetadata := hostMetadataUtils.GetFromCache(context.TODO(), p.config, p.hostname, p.installInfo)
 	metadataStats := make(map[string]interface{})
 	hostMetadataBytes, _ := json.Marshal(hostMetadata)
 	json.Unmarshal(hostMetadataBytes, &metadataStats) //nolint:errcheck

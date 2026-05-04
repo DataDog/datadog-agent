@@ -17,6 +17,7 @@ import (
 	"go.yaml.in/yaml/v2"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
+	"github.com/DataDog/datadog-agent/comp/agent/installinfo/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -29,7 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
@@ -58,16 +58,18 @@ func (p *Payload) MarshalJSON() ([]byte, error) {
 
 // Requires defines the dependencies for the clusteragent metadata component
 type Requires struct {
-	Log        log.Component
-	Config     config.Component
-	Serializer serializer.MetricSerializer
-	Hostname   hostnameinterface.Component
+	Log         log.Component
+	Config      config.Component
+	Serializer  serializer.MetricSerializer
+	Hostname    hostnameinterface.Component
+	InstallInfo installinfo.Component
 }
 
 type datadogclusteragent struct {
 	util.InventoryPayload
 	log          log.Component
 	conf         config.Component
+	installInfo  installinfo.Component
 	clustername  string
 	clusterid    string
 	clusteridErr string
@@ -91,6 +93,7 @@ func NewComponent(deps Requires) Provides {
 	dca := &datadogclusteragent{
 		log:          deps.Log,
 		conf:         deps.Config,
+		installInfo:  deps.InstallInfo,
 		clustername:  clname,
 		clusterid:    clid,
 		clusteridErr: "",
@@ -127,7 +130,7 @@ func (dca *datadogclusteragent) initMetadata() {
 	toolVersion := ""
 	installerVersion := ""
 
-	install, err := installinfo.Get(dca.conf)
+	install, err := dca.installInfo.Get()
 	if err == nil {
 		tool = install.Tool
 		toolVersion = install.ToolVersion

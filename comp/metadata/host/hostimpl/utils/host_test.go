@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/agent/installinfo/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -23,8 +24,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 )
+
+// mockInstallInfo is a test double for installinfo.Component.
+type mockInstallInfo struct {
+	info *installinfo.InstallInfo
+	err  error
+}
+
+func (m *mockInstallInfo) Get() (*installinfo.InstallInfo, error) { return m.info, m.err }
+
+func defaultMockInstallInfo() installinfo.Component { return &mockInstallInfo{} }
 
 func TestOTLPEnabled(t *testing.T) {
 	defer cache.Cache.Delete(hostCacheKey)
@@ -35,11 +45,11 @@ func TestOTLPEnabled(t *testing.T) {
 	defer func(orig func(cfg model.Reader) bool) { otlpIsEnabled = orig }(otlpIsEnabled)
 
 	otlpIsEnabled = func(model.Reader) bool { return false }
-	p := GetPayload(ctx, conf, hostnameimpl.NewHostnameService())
+	p := GetPayload(ctx, conf, hostnameimpl.NewHostnameService(), defaultMockInstallInfo())
 	assert.False(t, p.OtlpMeta.Enabled)
 
 	otlpIsEnabled = func(model.Reader) bool { return true }
-	p = GetPayload(ctx, conf, hostnameimpl.NewHostnameService())
+	p = GetPayload(ctx, conf, hostnameimpl.NewHostnameService(), defaultMockInstallInfo())
 	assert.True(t, p.OtlpMeta.Enabled)
 }
 
@@ -70,26 +80,20 @@ func TestGetLogsMeta(t *testing.T) {
 
 func TestGetInstallMethod(t *testing.T) {
 	conf := configmock.New(t)
-	defer func(orig func(conf model.Reader) (*installinfo.InstallInfo, error)) {
-		installinfoGet = orig
-	}(installinfoGet)
-
-	installinfoGet = func(model.Reader) (*installinfo.InstallInfo, error) { return nil, errors.New("an error") }
-
-	installMethod := getInstallMethod(conf)
+	mock := &mockInstallInfo{err: errors.New("an error")}
+	installMethod := getInstallMethod(conf, mock)
 	assert.Equal(t, "undefined", installMethod.ToolVersion)
 	assert.Nil(t, installMethod.Tool)
 	assert.Nil(t, installMethod.InstallerVersion)
 
-	installinfoGet = func(model.Reader) (*installinfo.InstallInfo, error) {
-		return &installinfo.InstallInfo{
-			ToolVersion:      "chef-15",
-			Tool:             "chef",
-			InstallerVersion: "datadog-cookbook-4.2.1",
-		}, nil
+	mock.err = nil
+	mock.info = &installinfo.InstallInfo{
+		ToolVersion:      "chef-15",
+		Tool:             "chef",
+		InstallerVersion: "datadog-cookbook-4.2.1",
 	}
 
-	installMethod = getInstallMethod(conf)
+	installMethod = getInstallMethod(conf, mock)
 	assert.Equal(t, "chef-15", installMethod.ToolVersion)
 	assert.Equal(t, "chef", *installMethod.Tool)
 	assert.Equal(t, "datadog-cookbook-4.2.1", *installMethod.InstallerVersion)
@@ -127,7 +131,7 @@ func TestGetPayload(t *testing.T) {
 	_, found := cache.Cache.Get(hostCacheKey)
 	assert.False(t, found)
 
-	p := GetPayload(ctx, conf, hostnameimpl.NewHostnameService())
+	p := GetPayload(ctx, conf, hostnameimpl.NewHostnameService(), defaultMockInstallInfo())
 	if runtime.GOOS == "windows" {
 		assert.Equal(t, "win32", p.Os)
 	} else {
@@ -157,7 +161,7 @@ func TestGetFromCache(t *testing.T) {
 	conf := configmock.New(t)
 
 	cache.Cache.Set(hostCacheKey, &Payload{Os: "testOS"}, cache.NoExpiration)
-	p := GetFromCache(ctx, conf, hostnameimpl.NewHostnameService())
+	p := GetFromCache(ctx, conf, hostnameimpl.NewHostnameService(), defaultMockInstallInfo())
 	require.NotNil(t, p)
 	assert.Equal(t, "testOS", p.Os)
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
 	autoexit "github.com/DataDog/datadog-agent/comp/agent/autoexit/def"
 	autoexitfx "github.com/DataDog/datadog-agent/comp/agent/autoexit/fx"
+	installinfofx "github.com/DataDog/datadog-agent/comp/agent/installinfo/fx"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
@@ -132,6 +133,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 
 		// Provide core components
 		core.Bundle(core.WithSecrets()),
+		installinfofx.Module(),
 		hostnameimpl.Module(),
 
 		// Provide process agent bundle so fx knows where to find components

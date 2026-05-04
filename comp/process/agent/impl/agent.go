@@ -7,6 +7,7 @@
 package agentimpl
 
 import (
+	"github.com/DataDog/datadog-agent/comp/agent/installinfo/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
@@ -52,6 +53,7 @@ type dependencies struct {
 	SysProbeConfig sysprobeconfig.Component
 	HostInfo       hostinfo.Component
 	Hostname       hostnameinterface.Component
+	InstallInfo    installinfo.Component
 }
 
 type processAgent struct {
@@ -112,7 +114,7 @@ func newProcessAgent(deps dependencies) (Provides, error) {
 		}
 		return Provides{
 			Comp:           processAgentComponent,
-			StatusProvider: statusComponent.NewInformationProvider(NewStatusProvider(deps.Config, deps.Hostname)),
+			StatusProvider: statusComponent.NewInformationProvider(NewStatusProvider(deps.Config, deps.Hostname, deps.InstallInfo)),
 			FlareProvider:  flaretypes.NewProvider(processAgentComponent.flarehelper.FillFlare),
 		}, nil
 	}

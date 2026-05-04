@@ -16,6 +16,7 @@ import (
 	"github.com/cenkalti/backoff/v5"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/agent/installinfo/def"
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
@@ -51,6 +52,7 @@ type host struct {
 	config       config.Component
 	resources    resources.Component
 	hostnameComp hostnameinterface.Component
+	installInfo  installinfo.Component
 
 	hostname      string
 	serializer    serializer.MetricSerializer
@@ -67,11 +69,12 @@ func Module() fxutil.Module {
 type dependencies struct {
 	fx.In
 
-	Log        log.Component
-	Config     config.Component
-	Resources  resources.Component
-	Serializer serializer.MetricSerializer
-	Hostname   hostnameinterface.Component
+	Log         log.Component
+	Config      config.Component
+	Resources   resources.Component
+	Serializer  serializer.MetricSerializer
+	Hostname    hostnameinterface.Component
+	InstallInfo installinfo.Component
 }
 
 type provides struct {
@@ -135,6 +138,7 @@ func newHostProvider(deps dependencies) provides {
 		config:        deps.Config,
 		resources:     deps.Resources,
 		hostnameComp:  deps.Hostname,
+		installInfo:   deps.InstallInfo,
 		hostname:      hname,
 		serializer:    deps.Serializer,
 		backoffPolicy: bo,
@@ -144,8 +148,9 @@ func newHostProvider(deps dependencies) provides {
 		MetadataProvider: runnerdef.NewProvider(h.collect),
 		FlareProvider:    flaretypes.NewProvider(h.fillFlare),
 		StatusHeaderProvider: status.NewHeaderInformationProvider(StatusProvider{
-			Config:   h.config,
-			Hostname: h.hostnameComp,
+			Config:      h.config,
+			Hostname:    h.hostnameComp,
+			InstallInfo: h.installInfo,
 		}),
 		Endpoint:      api.NewAgentEndpointProvider(h.writePayloadAsJSON, "/metadata/v5", "GET"),
 		GohaiEndpoint: api.NewAgentEndpointProvider(h.writeGohaiPayload, "/metadata/gohai", "GET"),

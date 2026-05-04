@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/DataDog/datadog-agent/comp/agent/installinfo/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -24,13 +25,15 @@ type StatusProvider struct {
 	testServerURL string
 	config        config.Component
 	hostname      hostnameinterface.Component
+	installInfo   installinfo.Component
 }
 
 // NewStatusProvider fetches the status
-func NewStatusProvider(Config config.Component, hostname hostnameinterface.Component) *StatusProvider {
+func NewStatusProvider(Config config.Component, hostname hostnameinterface.Component, installInfo installinfo.Component) *StatusProvider {
 	return &StatusProvider{
-		config:   Config,
-		hostname: hostname,
+		config:      Config,
+		hostname:    hostname,
+		installInfo: installInfo,
 	}
 }
 
@@ -77,7 +80,7 @@ func (s StatusProvider) populateStatus() map[string]interface{} {
 		url = fmt.Sprintf("http://%s:%d/debug/vars", ipcAddr, port)
 	}
 
-	agentStatus, err := processStatus.GetStatus(s.config, url, s.hostname)
+	agentStatus, err := processStatus.GetStatus(s.config, url, s.hostname, s.installInfo)
 	if err != nil {
 		status["error"] = err.Error()
 		return status

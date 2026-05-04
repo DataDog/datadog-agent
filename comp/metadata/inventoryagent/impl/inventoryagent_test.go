@@ -17,6 +17,7 @@ import (
 	"go.uber.org/fx"
 	"golang.org/x/exp/maps"
 
+	"github.com/DataDog/datadog-agent/comp/agent/installinfo/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
@@ -37,11 +38,18 @@ import (
 	sysprobecfg "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
+
+// mockInstallInfo is a test double for installinfo.Component.
+type mockInstallInfo struct {
+	info *installinfo.InstallInfo
+	err  error
+}
+
+func (m *mockInstallInfo) Get() (*installinfo.InstallInfo, error) { return m.info, m.err }
 
 // testDeps is a bridge struct with fx.In so that fxutil.Test can inject dependencies.
 // Requires uses no fx.In embed, so we use testDeps + makeRequires as an adapter.
@@ -54,6 +62,7 @@ type testDeps struct {
 	Serializer     serializer.MetricSerializer
 	IPCClient      ipc.HTTPClient
 	Hostname       hostnameinterface.Component
+	InstallInfo    installinfo.Component
 }
 
 func makeRequires(deps testDeps) Requires {
@@ -64,10 +73,15 @@ func makeRequires(deps testDeps) Requires {
 		Serializer:     deps.Serializer,
 		IPCClient:      deps.IPCClient,
 		Hostname:       deps.Hostname,
+		InstallInfo:    deps.InstallInfo,
 	}
 }
 
 func getProvides(t *testing.T, confOverrides map[string]any, sysprobeConfOverrides map[string]any) Provides {
+	return getProvidesWithInstallInfo(t, confOverrides, sysprobeConfOverrides, &mockInstallInfo{})
+}
+
+func getProvidesWithInstallInfo(t *testing.T, confOverrides map[string]any, sysprobeConfOverrides map[string]any, ii installinfo.Component) Provides {
 	return NewComponent(
 		makeRequires(fxutil.Test[testDeps](
 			t,
@@ -79,6 +93,7 @@ func getProvides(t *testing.T, confOverrides map[string]any, sysprobeConfOverrid
 			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 			fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
 			hostnameimpl.MockModule(),
+			fx.Provide(func() installinfo.Component { return ii }),
 		)),
 	)
 }
@@ -111,24 +126,19 @@ func TestGetPayload(t *testing.T) {
 }
 
 func TestInitDataErrorInstallInfo(t *testing.T) {
-	defer func() { installinfoGet = installinfo.Get }()
-	installinfoGet = func(config.Reader) (*installinfo.InstallInfo, error) {
-		return nil, errors.New("some error")
-	}
-
-	ia := getTestInventoryPayload(t, nil, nil)
+	mock := &mockInstallInfo{err: errors.New("some error")}
+	ia := getProvidesWithInstallInfo(t, nil, nil, mock).Comp.(*inventoryagent)
 
 	ia.initData()
 	assert.Equal(t, "undefined", ia.data["install_method_tool"])
 	assert.Equal(t, "", ia.data["install_method_tool_version"])
 	assert.Equal(t, "", ia.data["install_method_installer_version"])
 
-	installinfoGet = func(config.Reader) (*installinfo.InstallInfo, error) {
-		return &installinfo.InstallInfo{
-			Tool:             "test_tool",
-			ToolVersion:      "1.2.3",
-			InstallerVersion: "4.5.6",
-		}, nil
+	mock.err = nil
+	mock.info = &installinfo.InstallInfo{
+		Tool:             "test_tool",
+		ToolVersion:      "1.2.3",
+		InstallerVersion: "4.5.6",
 	}
 
 	ia.initData()

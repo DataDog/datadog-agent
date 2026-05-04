@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/viper"
 	"go.yaml.in/yaml/v2"
 
+	"github.com/DataDog/datadog-agent/comp/agent/installinfo/def"
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
@@ -42,7 +43,6 @@ import (
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
@@ -50,8 +50,6 @@ import (
 )
 
 var (
-	// for testing
-	installinfoGet      = installinfo.Get
 	fetchSecurityConfig = configFetcher.SecurityAgentConfig
 	fetchProcessConfig  = func(cfg model.Reader, client ipc.HTTPClient) (string, error) {
 		return configFetcher.ProcessAgentConfig(cfg, client, true)
@@ -83,6 +81,7 @@ type inventoryagent struct {
 	conf         config.Component
 	hostnameComp hostnameinterface.Component
 	sysprobeConf option.Option[sysprobeconfig.Component]
+	installInfo  installinfo.Component
 	m            sync.Mutex
 	data         agentMetadata
 	hostname     string
@@ -97,6 +96,7 @@ type Requires struct {
 	Serializer     serializer.MetricSerializer
 	IPCClient      ipc.HTTPClient
 	Hostname       hostnameinterface.Component
+	InstallInfo    installinfo.Component
 }
 
 // Provides defines the output of the inventoryagent component
@@ -116,6 +116,7 @@ func NewComponent(deps Requires) Provides {
 		sysprobeConf: deps.SysProbeConfig,
 		log:          deps.Log,
 		hostnameComp: deps.Hostname,
+		installInfo:  deps.InstallInfo,
 		hostname:     hname,
 		data:         make(agentMetadata),
 		client:       deps.IPCClient,
@@ -149,7 +150,7 @@ func (ia *inventoryagent) initData() {
 	toolVersion := ""
 	installerVersion := ""
 
-	install, err := installinfoGet(ia.conf)
+	install, err := ia.installInfo.Get()
 	if err == nil {
 		tool = install.Tool
 		toolVersion = install.ToolVersion
