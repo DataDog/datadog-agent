@@ -1282,6 +1282,53 @@ func TestPGJSONOperators(t *testing.T) {
 	}
 }
 
+// TestTemporalFunctionFieldArgs verifies that quoted field-name arguments inside
+// EXTRACT / date_part / date_trunc are preserved rather than replaced with ?.
+// Both the legacy tokenizer path and the go-sqllexer (obfuscate_and_normalize) path are tested.
+// See https://github.com/DataDog/datadog-agent/issues/49420
+func TestTemporalFunctionFieldArgs(t *testing.T) {
+	tests := []struct {
+		input    string
+		legacy   string // expected output from legacy tokenizer (default mode)
+		sqllexer string // expected output from obfuscate_and_normalize mode
+	}{
+		{
+			input:    `SELECT EXTRACT(epoch FROM t.ts) FROM t WHERE id = 1`,
+			legacy:   `SELECT EXTRACT ( epoch FROM t.ts ) FROM t WHERE id = ?`,
+			sqllexer: `SELECT EXTRACT ( epoch FROM t.ts ) FROM t WHERE id = ?`,
+		},
+		{
+			input:    `SELECT EXTRACT('epoch' FROM t.ts) FROM t WHERE id = 1`,
+			legacy:   `SELECT EXTRACT ( epoch FROM t.ts ) FROM t WHERE id = ?`,
+			sqllexer: `SELECT EXTRACT ( epoch FROM t.ts ) FROM t WHERE id = ?`,
+		},
+		{
+			input:    `SELECT date_part('month', t.ts) FROM t WHERE id = 1`,
+			legacy:   `SELECT date_part ( month, t.ts ) FROM t WHERE id = ?`,
+			sqllexer: `SELECT date_part ( month, t.ts ) FROM t WHERE id = ?`,
+		},
+		{
+			input:    `SELECT date_trunc('year', t.ts) FROM t WHERE id = 1`,
+			legacy:   `SELECT date_trunc ( year, t.ts ) FROM t WHERE id = ?`,
+			sqllexer: `SELECT date_trunc ( year, t.ts ) FROM t WHERE id = ?`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			legacyObf := NewObfuscator(Config{SQL: SQLConfig{DBMS: DBMSPostgres}})
+			oq, err := legacyObf.ObfuscateSQLString(tt.input)
+			require.NoError(t, err)
+			assert.Equal(t, tt.legacy, oq.Query, "legacy tokenizer")
+
+			newObf := NewObfuscator(Config{SQL: SQLConfig{ObfuscationMode: ObfuscateAndNormalize, DBMS: DBMSPostgres}})
+			oq, err = newObf.ObfuscateSQLString(tt.input)
+			require.NoError(t, err)
+			assert.Equal(t, tt.sqllexer, oq.Query, "obfuscate_and_normalize")
+		})
+	}
+}
+
 func TestObfuscatorDBMSBehavior(t *testing.T) {
 	assert := assert.New(t)
 	for _, tt := range []struct {

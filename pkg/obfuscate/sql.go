@@ -387,6 +387,20 @@ func (oq *ObfuscatedQuery) Cost() int64 {
 	return int64(len(oq.Query)) + oq.Metadata.Size + 320
 }
 
+// legacyTemporalFunctions is the set of function names (uppercased) whose first
+// argument is a SQL field keyword rather than a user-supplied value.
+// See attemptObfuscation for how this is used to avoid obfuscating field names
+// like 'epoch' inside EXTRACT('epoch' FROM x) or date_part('month', x).
+var legacyTemporalFunctions = map[string]bool{
+	"EXTRACT": true, "DATE_PART": true, "DATE_TRUNC": true,
+}
+
+const (
+	legTemporalNone = iota
+	legTemporalFunc // saw a temporal function identifier
+	legTemporalOpen // saw '(' after temporal function; next String is the field name
+)
+
 // attemptObfuscation attempts to obfuscate the SQL query loaded into the tokenizer, using the given set of filters.
 func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
 	var (
@@ -402,6 +416,11 @@ func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
 		discard  = discardFilter{keepSQLAlias: tokenizer.cfg.KeepSQLAlias}
 		replace  = replaceFilter{replaceDigits: tokenizer.cfg.ReplaceDigits}
 		grouping groupingFilter
+
+		// legTState tracks whether we are inside the first-argument position of a
+		// temporal function. EXTRACT('epoch' FROM x) uses a quoted string that is a
+		// SQL field keyword, not a user value — it must not be replaced with ?.
+		legTState = legTemporalNone
 	)
 	defer metadata.Reset()
 	// call Scan() function until tokens are available or if a LEX_ERROR is raised. After
@@ -414,6 +433,30 @@ func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
 		}
 		if token == LexError {
 			return nil, fmt.Errorf("%v", tokenizer.Err())
+		}
+
+		// Advance temporal-function state machine before the filter chain so that
+		// quoted field-name arguments (e.g. 'epoch', 'month') are preserved rather
+		// than obfuscated. The token is rewritten to ID with quotes stripped so the
+		// existing filter chain handles it correctly without further changes.
+		switch legTState {
+		case legTemporalNone:
+			if token == ID && legacyTemporalFunctions[strings.ToUpper(string(buff))] {
+				legTState = legTemporalFunc
+			}
+		case legTemporalFunc:
+			if token == '(' {
+				legTState = legTemporalOpen
+			} else {
+				legTState = legTemporalNone
+			}
+		case legTemporalOpen:
+			if token == String {
+				// The legacy tokenizer returns String buffer without surrounding quotes.
+				// Rewrite the token as ID so the replaceFilter leaves it alone.
+				token = ID
+			}
+			legTState = legTemporalNone
 		}
 
 		if token, buff, err = metadata.Filter(token, lastToken, buff); err != nil {
