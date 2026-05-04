@@ -299,7 +299,7 @@ func (r *Resolver) RefreshSBOM(containerID containerutils.ContainerID) error {
 		refresher = sbom.refresher
 		if refresher == nil {
 			refresher = debouncer.New(
-				3*time.Second, func() {
+				r.cfg.SBOMResolverRefreshInterval, func() {
 					// invalid cache data
 					r.removeSBOMData(sbom.workloadKey)
 
@@ -328,7 +328,7 @@ func (r *Resolver) triggerForwarding(sbom *SBOM) {
 	// Create forwarder debouncer on demand
 	if sbom.forwarder == nil {
 		sbom.forwarder = debouncer.New(
-			5*time.Second, func() {
+			r.cfg.SBOMResolverForwardInterval, func() {
 				// Forward current SBOM data with LastAccess to remote collector
 				sbom.Lock()
 				defer sbom.Unlock()
@@ -713,7 +713,7 @@ func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEven
 		pkg.AccessedByRoot = pkg.AccessedByRoot || pc.UID == 0
 
 		// Trigger forwarding debouncer to send updated SBOM to remote collector
-		if pkg.LastAccess.Sub(oldLastAccess) > 1*time.Minute ||
+		if pkg.LastAccess.Sub(oldLastAccess) > r.cfg.SBOMResolverEnrichmentInterval ||
 			pkg.SuidBit != oldSuidBit || pkg.AccessedByRoot != oldAccessedByRoot {
 			sbom.invalidated = true
 		}
@@ -765,12 +765,13 @@ func (r *Resolver) processPendingFileEvents(sbom *SBOM) {
 
 	seclog.Debugf("processing %d pending file events for container '%s'", len(events), sbom.ContainerID)
 
+	now := time.Now()
 	for _, event := range events {
 		pkg := sbom.data.files.queryFile(event.filePath)
 		if pkg == nil {
 			continue
 		}
-		pkg.LastAccess = time.Now()
+		pkg.LastAccess = now
 		pkg.SuidBit = fs.FileMode(event.fileMode)&04000 != 0
 		pkg.AccessedByRoot = pkg.AccessedByRoot || event.uid == 0
 
