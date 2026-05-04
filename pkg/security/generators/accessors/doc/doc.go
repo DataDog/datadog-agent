@@ -11,14 +11,14 @@ import (
 	"errors"
 	"fmt"
 	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
 	"sort"
 	"strings"
-
-	"golang.org/x/tools/go/packages"
 
 	"github.com/DataDog/datadog-agent/pkg/security/generators/accessors/common"
 )
@@ -315,22 +315,16 @@ func parseConstantsFile(filepath string, tags []string) ([]constants, error) {
 
 	// generate constants
 	var output []constants
-	cfg := packages.Config{
-		Mode:       packages.NeedSyntax | packages.NeedTypes | packages.NeedImports,
-		BuildFlags: []string{"-mod=readonly", fmt.Sprintf("-tags=%s", tags)},
-	}
-
-	pkgs, err := packages.Load(&cfg, filepath)
+	// We only need the AST to read const declarations and their doc comments,
+	// not type info or imports — so go/parser is enough and keeps this hermetic
+	// (no Go toolchain required at action time).
+	astFile, err := parser.ParseFile(token.NewFileSet(), filepath, nil, parser.ParseComments)
 	if err != nil {
-		return nil, fmt.Errorf("load error:%w", err)
+		return nil, fmt.Errorf("parse error: %w", err)
 	}
-
-	if len(pkgs) == 0 || len(pkgs[0].Syntax) == 0 {
+	if astFile == nil {
 		return nil, errors.New("couldn't parse constant file")
 	}
-
-	pkg := pkgs[0]
-	astFile := pkg.Syntax[0]
 	for _, decl := range astFile.Decls {
 		if decl, ok := decl.(*ast.GenDecl); ok {
 			for _, s := range decl.Specs {
