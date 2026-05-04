@@ -7,10 +7,5 @@
 
 package python
 
-import healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/core/def"
-
 // InitPython is a no-op when the build tag is not set
 func InitPython(_ ...string) {}
-
-// SetHealthPlatform is a no-op when Python support is not compiled in.
-func SetHealthPlatform(_ healthplatformdef.Component) {}
