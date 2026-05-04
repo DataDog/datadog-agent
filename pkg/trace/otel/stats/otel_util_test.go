@@ -151,6 +151,23 @@ func TestProcessOTLPTraces(t *testing.T) {
 			),
 		},
 		{
+			name:     "legacy rpc.system=grpc is also recognized for rpc.response.status_code",
+			spanName: "grpc_legacy_system_span",
+			rattrs:   map[string]string{"service.name": "grpc-svc"},
+			sattrs: map[string]any{
+				"rpc.response.status_code":    "DEADLINE_EXCEEDED",
+				"rpc.system":                  "grpc",
+				string(semconv.RPCMethodKey):  "FindUser",
+				string(semconv.RPCServiceKey): "UserService",
+			},
+			spanKind: ptrace.SpanKindServer,
+			libname:  "otelgrpc",
+			expected: addGRPCStatusCode(
+				createStatsPayload(agentEnv, agentHost, "grpc-svc", "otelgrpc.server", "web", "server", "FindUser UserService", agentHost, agentEnv, "", "", nil, nil, true, false),
+				"4",
+			),
+		},
+		{
 			name:     "non gRPC system does not interpret rpc.response.status_code",
 			spanName: "jsonrpc_response_span",
 			rattrs:   map[string]string{"service.name": "jsonrpc-svc"},

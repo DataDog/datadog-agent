@@ -117,8 +117,11 @@ func getOTelGRPCStatusCode(reg semantics.Registry, spanAccessor semantics.Access
 	if grpcCode := semantics.LookupString(reg, spanAccessor, semantics.ConceptGRPCStatusCode); grpcCode != "" {
 		return grpcCode
 	}
-	// reject non-gRPC systems so we don't write a JSON-RPC error code or Connect error
-	if GetOTelAttrFromEitherMap(sattr, rattr, false, "rpc.system.name") != "grpc" {
+	// reject non-gRPC systems so we don't write a JSON-RPC error code or Connect error.
+	// Check rpc.system.name (current semconv) first, then the legacy rpc.system as a
+	// fallback: SDKs may migrate rpc.response.status_code without simultaneously updating
+	// the system identifier, and the legacy attribute is still present in many fixtures.
+	if GetOTelAttrFromEitherMap(sattr, rattr, false, "rpc.system.name", "rpc.system") != "grpc" {
 		return ""
 	}
 	// Newer OTel gRPC SDKs emit status under rpc.response.status_code instead of
