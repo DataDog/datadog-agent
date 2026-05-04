@@ -1902,3 +1902,409 @@ def eval_pipeline_workspace_report(
         print(color_message(f"Results copied to {dest}/", Color.GREEN))
 
     print(color_message(f"  report.json: {os.path.join(dest, 'report.json')}", Color.GREEN))
+
+
+
+# ---------------------------------------------------------------------------
+# Coordinator harness orchestration (one-shot setup, branches, up/down)
+# ---------------------------------------------------------------------------
+
+
+@task(
+    help={
+        "auto": "Auto-install missing deps (pip-installs invoke/SDK; brew/apt for dda/gh).",
+    }
+)
+def coord_setup(ctx, auto: bool = True):
+    """
+    Verify (and optionally install) every dep the coordinator harness needs.
+
+    Checks Python ≥3.10, invoke, claude-agent-sdk, go, dda, gh, gh-auth, and
+    ANTHROPIC_API_KEY. With --auto (default), pip-installs invoke + the SDK
+    automatically, and tries brew/curl for dda + gh on Mac/Linux. Go is
+    detect-only — it's a substantial toolchain, install it yourself.
+
+    Exits non-zero if any blocker remains after auto-install attempts.
+    """
+    from tasks.coordinator import setup as coord_setup_mod
+
+    print(color_message("Checking workspace dependencies...", Color.BLUE))
+    checks = coord_setup_mod.run_all_checks()
+    print(coord_setup_mod.format_report(checks))
+
+    bad = coord_setup_mod.blockers(checks)
+    if not bad:
+        print(color_message("\nAll checks passed.", Color.GREEN))
+        return
+
+    if auto:
+        print(color_message("\nAttempting auto-install for installable blockers...", Color.BLUE))
+        for c in bad:
+            if not c.auto_installable:
+                continue
+            print(color_message(f"  installing {c.name}...", Color.BLUE))
+            ok, msg = coord_setup_mod.auto_install(c)
+            if ok:
+                print(color_message(f"    ✓ {c.name} installed", Color.GREEN))
+            else:
+                print(color_message(f"    ✗ {c.name} install failed: {msg[:200]}", Color.RED))
+
+        # Re-run checks to see what remains.
+        checks = coord_setup_mod.run_all_checks()
+        bad = coord_setup_mod.blockers(checks)
+        print(color_message("\nPost-install state:", Color.BLUE))
+        print(coord_setup_mod.format_report(checks))
+
+    if bad:
+        print(color_message(f"\n{len(bad)} blocker(s) remain. Resolve manually then re-run.", Color.RED))
+        raise Exit(code=1)
+    print(color_message("\nWorkspace ready.", Color.GREEN))
+
+
+@task(
+    help={
+        "mode": "full | blank — full uses q-branch-observer; blank uses ella/observer-blank.",
+        "remote": "Git remote name (default origin).",
+        "scratch_name": "Override scratch branch name (default: per-run unique from coord-up).",
+    }
+)
+def coord_branches(ctx, mode: str = "full", remote: str = "origin", scratch_name: str = ""):
+    """
+    Ensure the upstream + scratch branches exist locally and on origin.
+
+    Mode "blank" wires the coordinator to start from `ella/observer-blank`
+    (detectors removed) so the run cannot draw on prior implementations
+    and is forced to propose novel approaches. Idempotent: re-running
+    just verifies and checks out.
+
+    --scratch-name: per-run unique scratch branch (e.g.
+    `claude/observer-full-20260427T1530`). Multiple parallel coord runs
+    use distinct scratch names so they don't fight over the same branch.
+    If omitted, falls back to the legacy shared name for backwards-compat.
+
+    Prints the resulting branch + tracking state.
+    """
+    from tasks.coordinator import setup as coord_setup_mod  # noqa: F401  (sanity import)
+
+    if mode not in ("full", "blank"):
+        raise Exit(code=2, message=f"--mode must be 'full' or 'blank', got '{mode}'")
+
+    upstream = "ella/observer-blank" if mode == "blank" else "q-branch-observer"
+    if scratch_name:
+        scratch = scratch_name
+    else:
+        scratch = "claude/observer-blank-improvements" if mode == "blank" else "claude/observer-improvements"
+
+    print(color_message(f"mode={mode}  upstream={upstream}  scratch={scratch}", Color.BLUE))
+
+    # 1. Fetch upstream
+    r = ctx.run(f"git fetch {shlex.quote(remote)} {shlex.quote(upstream)}", warn=True, hide=True)
+    if r is None or r.failed:
+        raise Exit(code=1, message=f"Cannot fetch origin/{upstream} — does it exist on the remote?")
+
+    # 2. Try to fetch scratch branch (may not exist yet — that's fine)
+    ctx.run(f"git fetch {shlex.quote(remote)} {shlex.quote(scratch)}", warn=True, hide=True)
+
+    # 3. Check whether scratch exists locally; if not, create.
+    has_local = ctx.run(f"git rev-parse --verify --quiet {shlex.quote(scratch)}", warn=True, hide=True)
+    if has_local is None or has_local.failed:
+        # Prefer remote scratch if present, else fork from upstream.
+        remote_scratch = f"{remote}/{scratch}"
+        has_remote = ctx.run(f"git rev-parse --verify --quiet {shlex.quote(remote_scratch)}", warn=True, hide=True)
+        # Fork preference (per-run unique scratch must have commits ahead of
+        # upstream so gh pr create works — empty diff = "No commits between
+        # base and head" GraphQL error):
+        #   1. existing remote scratch (resume case)
+        #   2. current HEAD (typically ella/claude-coordinator-harness, which
+        #      carries the harness code + commits ahead of upstream)
+        #   3. origin/<upstream> (last resort; produces empty PR)
+        if has_remote and not has_remote.failed:
+            base = remote_scratch
+        else:
+            cur_branch = ctx.run("git branch --show-current", hide=True).stdout.strip()
+            base = cur_branch or f"{remote}/{upstream}"
+        print(color_message(f"  creating local {scratch} from {base}", Color.BLUE))
+        ctx.run(f"git checkout -b {shlex.quote(scratch)} {shlex.quote(base)}")
+    else:
+        ctx.run(f"git checkout {shlex.quote(scratch)}")
+    # Set upstream tracking so push/pull work without args
+    ctx.run(
+        f"git branch --set-upstream-to {shlex.quote(remote)}/{shlex.quote(scratch)} {shlex.quote(scratch)}",
+        warn=True, hide=True,
+    )
+
+    print(color_message(f"\nNow on branch {scratch}.", Color.GREEN))
+    ctx.run("git status --short --branch")
+
+
+@task(
+    help={
+        "mode": "full | blank — see q.coord-branches.",
+        "session": "tmux session name (default coord-<mode>-<ts>).",
+        "reuse_pr": "Reuse this PR number instead of creating a new one.",
+        "scratch_branch": "Override scratch branch (default: per-run unique name).",
+        "token_ceiling": "Override the panic-brake token ceiling (default 500_000_000).",
+        "wall_hours_ceiling": "Override the wall-time ceiling in hours (default 72).",
+        "no_wipe": "Don't auto-archive prior db.yaml on --mode blank (default: auto-wipes).",
+    }
+)
+def coord_up(
+    ctx,
+    mode: str = "full",
+    session: str = "",
+    reuse_pr: int = 0,
+    scratch_branch: str = "",
+    token_ceiling: int = 500_000_000,
+    wall_hours_ceiling: float = 72.0,
+    no_wipe: bool = False,
+):
+    """
+    One-shot: bring a workspace from zero to a running coordinator driver.
+
+    Steps performed:
+      1. q.coord-setup --auto (env checks + auto-install)
+      2. q.coord-branches --mode <mode> (idempotent branch wiring)
+      3. (--mode blank only, unless --no-wipe) Archive any prior
+         .coordinator/db.yaml as .bak so a stale full-mode baseline can't
+         poison the gates with phantom regressions on bocpd/scanmw/etc
+         that don't exist on the blank branch.
+      4. Create a fresh draft run-log PR (or reuse via --reuse-pr <#>)
+      5. Export COORD_GITHUB_PR_NUMBER for the driver
+      6. Launch the driver in a tmux session (default: coord-<mode>)
+
+    Print the PR URL and `tmux attach -t <session>` at the end. The driver
+    runs until budget halts, max-pivot halts, or the user kills the session.
+    """
+    coord_setup(ctx, auto=True)
+
+    # Two distinct branches are involved beyond the scratch:
+    #   - upstream_branch: the actual upstream feature branch the run
+    #     iterates ON. Driver merges from here every iter via
+    #     sync_from_upstream.
+    #   - pr_base_branch: the branch the PR is opened against. To keep
+    #     the PR diff scoped to observer changes only (not the harness
+    #     code), this is the harness-merged-with-upstream branch. Each
+    #     ship commit appears as a new entry in the PR diff.
+    run_ts = time.strftime("%Y%m%dT%H%M")
+    if not scratch_branch:
+        scratch_branch = f"claude/observer-{mode}-{run_ts}"
+    if mode == "blank":
+        upstream_branch = "ella/observer-blank"
+        pr_base_branch = "ella/claude-coordinator-harness-blank"
+    else:
+        upstream_branch = "q-branch-observer"
+        pr_base_branch = "ella/claude-coordinator-harness"
+
+    # Fetch + verify the PR base branch exists on origin
+    r = ctx.run(f"git fetch origin {shlex.quote(pr_base_branch)}", warn=True)
+    if r is None or r.failed:
+        raise Exit(code=1, message=f"git fetch origin/{pr_base_branch} failed — does the branch exist?")
+
+    # Fork scratch from pr_base_branch (which carries harness code +
+    # upstream merged in) so the driver has its modules available AND
+    # the PR diff against pr_base_branch starts empty (we add one
+    # initial empty commit so gh pr create works).
+    has_local = ctx.run(
+        f"git rev-parse --verify --quiet {shlex.quote(scratch_branch)}",
+        warn=True, hide=True,
+    )
+    if has_local and not has_local.failed:
+        # Resume case: branch already exists locally, just check it out
+        # and skip the initial empty commit (it's already there).
+        print(color_message(f"\nResuming on existing scratch branch {scratch_branch}", Color.BLUE))
+        ctx.run(f"git checkout {shlex.quote(scratch_branch)}", warn=False)
+    else:
+        # Fresh case: create from origin/pr_base, add initial empty commit
+        # so gh pr create has something to attach to.
+        print(color_message(f"\nCreating scratch branch {scratch_branch} forked from origin/{pr_base_branch}", Color.BLUE))
+        ctx.run(
+            f"git checkout -b {shlex.quote(scratch_branch)} origin/{shlex.quote(pr_base_branch)}",
+            warn=False,
+        )
+        ctx.run(
+            f"git -c commit.gpgsign=false commit --allow-empty --no-verify -m "
+            f"{shlex.quote(f'coord: run-log start ({mode}, {run_ts})')}",
+            warn=False,
+        )
+
+    if mode == "blank" and not no_wipe:
+        from tasks.coordinator import setup as coord_setup_mod
+        actions = coord_setup_mod.archive_stale_state(".coordinator")
+        if actions:
+            print(color_message("\nArchiving stale per-run state (blank mode):", Color.BLUE))
+            for a in actions:
+                print(color_message(f"  · {a}", Color.BLUE))
+        else:
+            print(color_message("\nNo prior .coordinator/ state to archive.", Color.BLUE))
+        # Seed a stub baseline so the driver has something concrete to
+        # score against. Empty detectors dict + scoring's missing-detector
+        # fallback means every proposed detector is auto-tolerated against
+        # zero baseline; the first-ship floor (CONFIG.first_ship_min_mean_f1)
+        # is the only gate.
+        bootstrap = coord_setup_mod.write_blank_bootstrap_db(".coordinator")
+        if bootstrap:
+            print(color_message(f"  · seeded {bootstrap} (empty baseline; first-ship floor gates)", Color.BLUE))
+
+    # Clear any leftover pause file. q.coord-down creates `.coordinator/
+    # pause` as part of its graceful shutdown; without removing it here,
+    # the new driver immediately sees the pause file and sleeps, which
+    # silently breaks the down→up cycle (operator thinks the run is
+    # alive but it's just spinning in the pause loop).
+    pause_path = os.path.join(".coordinator", "pause")
+    if os.path.exists(pause_path):
+        try:
+            os.remove(pause_path)
+            print(color_message(
+                f"  · cleared stale pause file at {pause_path}",
+                Color.BLUE,
+            ))
+        except OSError as e:
+            print(color_message(f"  · could not remove {pause_path}: {e}", Color.ORANGE))
+
+    # Auto-load any candidate YAMLs the operator dropped into
+    # .coordinator/candidates/. Without this, dropped YAMLs are visible on
+    # disk but never enter db.candidates, and the proposer just generates
+    # its own. The seed_candidates module is idempotent (skips already-
+    # present ids) so re-running coord-up on a populated db is safe.
+    try:
+        from tasks.coordinator import seed_candidates as _seed_mod
+        from pathlib import Path as _Path
+        added, replaced, skipped = _seed_mod.load_candidates_from_dir(_Path("."))
+        if added or replaced or skipped:
+            print(color_message(
+                f"\nLoaded candidate YAMLs from .coordinator/candidates/: "
+                f"added={added} replaced={replaced} skipped={skipped}",
+                Color.BLUE,
+            ))
+    except Exception as e:  # noqa: BLE001 — auto-load failure shouldn't block coord-up
+        print(color_message(f"  · candidate auto-load skipped: {e}", Color.ORANGE))
+
+    pr_num = reuse_pr
+    if pr_num == 0:
+        ctx.run(f"git push -u origin {shlex.quote(scratch_branch)} --no-verify", warn=True)
+        title = f"coord run-log ({mode}) — {time.strftime('%Y-%m-%d %H:%M')}"
+        body = (
+            f"Coordinator harness run-log.\n\n"
+            f"- Mode: `{mode}`\n"
+            f"- Scratch branch: `{scratch_branch}`\n"
+            f"- PR base: `{pr_base_branch}` (harness + observer; PR diff = ships only)\n"
+            f"- Upstream merge source: `{upstream_branch}`\n"
+            f"- Started: {time.strftime('%Y-%m-%dT%H:%M:%S')}\n\n"
+            f"_This PR is the bidirectional control channel: status comments "
+            f"posted by the coordinator; steering comments by the operator. "
+            f"Each shipped candidate becomes one commit on this branch, "
+            f"making the run a self-contained eval-matrix entry diffable "
+            f"against `{pr_base_branch}`._\n"
+        )
+        # `hide=False` so gh's actual error message surfaces if PR creation
+        # fails — previously stderr was swallowed leaving a bare "failed:"
+        # with no diagnostic.
+        r = ctx.run(
+            f"gh pr create --draft --base {shlex.quote(pr_base_branch)} "
+            f"--head {shlex.quote(scratch_branch)} "
+            f"--title {shlex.quote(title)} --body {shlex.quote(body)}",
+            warn=True,
+        )
+        if r is None or r.failed:
+            err = ((r.stderr or "") + (r.stdout or "")).strip() if r else ""
+            raise Exit(code=1, message=f"gh pr create failed: {err[:400]}")
+        # Last line of stdout is the URL; extract the PR number.
+        url = r.stdout.strip().splitlines()[-1]
+        pr_num = int(url.rstrip("/").rsplit("/", 1)[-1])
+        print(color_message(f"created PR #{pr_num} — {url}", Color.GREEN))
+    else:
+        url = f"https://github.com/DataDog/datadog-agent/pull/{pr_num}"
+        print(color_message(f"reusing PR #{pr_num} — {url}", Color.BLUE))
+
+    session_name = session or f"coord-{mode}-{run_ts}"
+
+    # Persist run state. Includes scratch_branch + upstream_branch so
+    # q.coord-status / q.coord-down know which branch they're attached to.
+    state_dir = os.path.join(".coordinator")
+    os.makedirs(state_dir, exist_ok=True)
+    with open(os.path.join(state_dir, "session.txt"), "w") as f:
+        f.write(f"{session_name}\n{mode}\n{pr_num}\n{scratch_branch}\n{upstream_branch}\n")
+
+    cmd_inner = (
+        f"COORD_GITHUB_PR_NUMBER={pr_num} "
+        f"COORD_SCRATCH_BRANCH={shlex.quote(scratch_branch)} "
+        f"COORD_UPSTREAM_BRANCH={shlex.quote(upstream_branch)} "
+        f"PYTHONPATH=tasks "
+        f"python -u -m coordinator.driver --forever "
+        f"--token-ceiling {int(token_ceiling)} "
+        f"--wall-hours-ceiling {wall_hours_ceiling} "
+        f"2>&1 | tee -a .coordinator/driver.log"
+    )
+
+    # Kill any prior session by the same name (paranoid; harmless if absent)
+    ctx.run(f"tmux kill-session -t {shlex.quote(session_name)}", warn=True, hide=True)
+    ctx.run(f"tmux new-session -d -s {shlex.quote(session_name)} {shlex.quote(cmd_inner)}")
+
+    print(color_message(f"\nDriver launched in tmux session '{session_name}'.", Color.GREEN))
+    print(color_message(f"  attach: tmux attach -t {session_name}", Color.BLUE))
+    print(color_message(f"  PR:     {url}", Color.BLUE))
+    print(color_message(f"  log:    tail -f .coordinator/driver.log", Color.BLUE))
+    print(color_message(f"  pause:  touch .coordinator/pause", Color.BLUE))
+    print(color_message(f"  stop:   dda inv q.coord-down", Color.BLUE))
+
+
+@task(
+    help={
+        "session": "tmux session name (default: read from .coordinator/session.txt).",
+        "wait": "Touch the pause file and wait this many seconds before killing (default 30).",
+    }
+)
+def coord_down(ctx, session: str = "", wait: int = 30):
+    """
+    Stop the coordinator gracefully.
+
+    Touches `.coordinator/pause` (driver halts at iter boundary), waits for
+    the driver to settle, then kills the tmux session. Use --wait 0 to skip
+    the grace period and kill immediately.
+    """
+    if not session:
+        try:
+            with open(os.path.join(".coordinator", "session.txt")) as f:
+                session = f.readline().strip()
+        except OSError:
+            print(color_message("no session.txt; pass --session <name>", Color.RED))
+            raise Exit(code=2)
+
+    pause_path = os.path.join(".coordinator", "pause")
+    if wait > 0:
+        with open(pause_path, "w") as f:
+            f.write(f"requested by q.coord-down @ {time.strftime('%Y-%m-%dT%H:%M:%S')}\n")
+        print(color_message(f"paused; sleeping {wait}s for driver to drain...", Color.BLUE))
+        time.sleep(wait)
+
+    r = ctx.run(f"tmux kill-session -t {shlex.quote(session)}", warn=True, hide=True)
+    if r and r.ok:
+        print(color_message(f"killed tmux session '{session}'.", Color.GREEN))
+    else:
+        print(color_message(f"no tmux session '{session}' (already stopped?).", Color.ORANGE))
+
+    # Leave the pause file in place — next coord-up should `rm` to resume.
+    print(color_message(f"pause file at {pause_path} (rm to resume on next start).", Color.BLUE))
+
+
+@task
+def coord_status(ctx):
+    """
+    One-screen health snapshot of the coordinator: branch, tmux, pause
+    state, recent journal events, latest sdk-error tail, cumulative
+    budget. Read-only — safe to run any time.
+    """
+    from pathlib import Path
+    from tasks.coordinator import coord_status as cs
+    print(cs.render_status(Path(".")))
+
+
+@task
+def coord_debug_last(ctx):
+    """
+    Print the most recent sdk-errors crash with surrounding journal
+    events. The "what crashed last" view.
+    """
+    from pathlib import Path
+    from tasks.coordinator import coord_status as cs
+    print(cs.render_debug_last(Path(".")))

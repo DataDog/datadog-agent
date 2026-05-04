@@ -253,3 +253,7 @@ AUTO_JIRA.md
 # Zed config
 .zed
 .phoenix/
+
+# Coordinator harness runtime state (never commit)
+.coordinator/
+eval-results/
