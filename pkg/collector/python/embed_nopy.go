@@ -9,3 +9,6 @@ package python
 
 // InitPython is a no-op when the build tag is not set
 func InitPython(_ ...string) {}
+
+// ReportIssue is a no-op when the build tag is not set
+func ReportIssue(_ any) {}
