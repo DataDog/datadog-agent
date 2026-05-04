@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
+	installinfofx "github.com/DataDog/datadog-agent/comp/agent/installinfo/fx"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
@@ -62,6 +63,7 @@ func TestBundleDependencies(t *testing.T) {
 		fx.Provide(func() types.CheckComponent { return nil }),
 		core.MockBundle(),
 		hostnameimpl.MockModule(),
+		installinfofx.Module(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		fx.Provide(func() tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 		coreStatusImpl.Module(),
@@ -136,6 +138,7 @@ func TestBundleOneShot(t *testing.T) {
 		mocktelemetry.Module(),
 		hostnameimpl.MockModule(),
 		fx.Provide(func() delegatedauth.Component { return delegatedauthmock.New(t) }),
+		installinfofx.Module(),
 		Bundle(),
 	)
 	require.NoError(t, err)

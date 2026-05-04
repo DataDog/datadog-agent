@@ -16,12 +16,19 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	installinfo "github.com/DataDog/datadog-agent/comp/agent/installinfo/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 )
+
+type mockInstallInfo struct{}
+
+func (m *mockInstallInfo) Get() (*installinfo.InstallInfo, error) {
+	return &installinfo.InstallInfo{}, nil
+}
 
 func setupClusterAgentConfig(t *testing.T) config.Component {
 	conf := config.NewMock(t)
@@ -49,10 +56,11 @@ func getClusterAgentComp(t *testing.T) *datadogclusteragent {
 	cfg := setupClusterAgentConfig(t)
 
 	r := Requires{
-		Log:        l,
-		Config:     cfg,
-		Serializer: serializermock.NewMetricSerializer(t),
-		Hostname:   hostnameimpl.NewHostnameService(),
+		Log:         l,
+		Config:      cfg,
+		Serializer:  serializermock.NewMetricSerializer(t),
+		Hostname:    hostnameimpl.NewHostnameService(),
+		InstallInfo: &mockInstallInfo{},
 	}
 
 	comp := NewComponent(r).Comp
