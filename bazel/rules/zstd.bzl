@@ -4,14 +4,9 @@ _TOOLCHAIN = "@bazel_lib//lib:zstd_toolchain_type"
 
 def _impl(ctx):
     ctx.actions.run(
-        arguments = [
-            "--force",  # Bazel sandbox exposes source files as symlinks, which zstd rejects by default
-            "--no-check",  # match DataDog/zstd Go library behavior: no XXH64 frame checksum
-            "-5",  # match DataDog/zstd: DefaultCompression = 5
-            ctx.file.src.path,
-            "-o",
-            ctx.outputs.out.path,
-        ],
+        # --force: Bazel sandbox exposes source files as symlinks, which `zstd` rejects by default
+        # -o: there's alas no long option such as --output
+        arguments = ["--force"] + ctx.attr.args + [ctx.file.src.path, "-o", ctx.outputs.out.path],
         executable = ctx.toolchains[_TOOLCHAIN].zstdinfo.binary,
         inputs = [ctx.file.src],
         mnemonic = "ZstdCompress",
@@ -23,8 +18,9 @@ def _impl(ctx):
 zstd_compress = rule(
     implementation = _impl,
     attrs = {
-        "src": attr.label(allow_single_file = True, mandatory = True),
+        "args": attr.string_list(),
         "out": attr.output(mandatory = True),
+        "src": attr.label(allow_single_file = True, mandatory = True),
     },
     toolchains = [_TOOLCHAIN],
 )
