@@ -203,6 +203,12 @@ func (s *AggregatingSender) HistogramBucket(metric string, value int64, lowerBou
 	s.mu.Unlock()
 }
 
+// OpenmetricsBucket forwards directly to backend; the observer doesn't model
+// OpenMetrics buckets distinctly from histogram buckets.
+func (s *AggregatingSender) OpenmetricsBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool) {
+	s.backendSender.OpenmetricsBucket(metric, value, lowerBound, upperBound, monotonic, hostname, tags, flushFirstValue)
+}
+
 // Event forwards directly to backend
 func (s *AggregatingSender) Event(e event.Event) {
 	s.backendSender.Event(e)
