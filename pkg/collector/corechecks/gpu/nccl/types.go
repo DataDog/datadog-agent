@@ -103,7 +103,6 @@ func parseEvent(line []byte) (NCCLInspectorEvent, error) {
 // ParsedEvent combines NCCL Inspector event with metadata
 type ParsedEvent struct {
 	Event     NCCLInspectorEvent
-	Filename  string
 	ParseTime time.Time
-	HostPID   int // kernel-provided host-namespace PID from SO_PEERCRED; 0 for file-based events
+	HostPID   int // kernel-provided host-namespace PID from SO_PEERCRED
 }

@@ -11,14 +11,13 @@ package nccl
 import (
 	"errors"
 	"fmt"
-	"os"
 	"time"
 
 	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -27,30 +26,33 @@ import (
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+	pkgos "github.com/DataDog/datadog-agent/pkg/util/os"
 )
 
-// defaultIsProcessAlive checks whether a host-namespace PID still exists by
-// probing /proc/<pid>. Used for hang-detection eviction: when a training job
-// finishes, the rank's process disappears and we evict its staleness entry
-// to avoid a false-positive spike.
+// defaultIsProcessAlive checks whether a host-namespace PID still exists.
+// Used for hang-detection eviction: when a training job finishes, the rank's
+// process disappears and we evict its staleness entry to avoid a false-positive
+// spike. Uses pkgos.PidExists which honors the HOST_PROC env var so it works
+// inside containers with the host /proc bind-mounted (the standard agent
+// deployment).
 func defaultIsProcessAlive(pid int) bool {
-	_, err := os.Stat(fmt.Sprintf("/proc/%d", pid))
-	return err == nil
+	return pkgos.PidExists(pid)
 }
 
 // Check represents the NCCL check that collects metrics from NCCL Inspector output
 type Check struct {
 	core.CheckBase
-	config            *checkConfig
-	tagger            tagger.Component
-	telemetry         telemetry.Component
-	wmeta             workloadmeta.Component
-	socketListener    *SocketListener
-	processTagger     *ProcessTagger
-	containerProvider proccontainers.ContainerProvider
-	checkTelemetry    *ncclCheckTelemetry
-	lastSeenRank      map[string]rankStalenessEntry // "rank:N" → last event + timestamp for hang detection
-	isProcessAlive    func(pid int) bool            // injectable for testing; defaults to /proc check
+	config                     *checkConfig
+	tagger                     tagger.Component
+	telemetry                  telemetry.Component
+	wmeta                      workloadmeta.Component
+	socketListener             *SocketListener
+	processTagger              *ProcessTagger
+	containerProvider          proccontainers.ContainerProvider
+	containerProviderWarnLimit *log.Limit
+	checkTelemetry             *ncclCheckTelemetry
+	lastSeenRank               map[string]rankStalenessEntry // "<commID>:rank:<N>" → last event + timestamp for hang detection
+	isProcessAlive             func(pid int) bool            // injectable for testing; defaults to PidExists
 }
 
 // rankStalenessEntry tracks the last event seen for a rank, used for hang detection.
@@ -91,37 +93,44 @@ func Factory(tagger tagger.Component, telemetry telemetry.Component, wmeta workl
 
 func newCheck(tagger tagger.Component, telemetry telemetry.Component, wmeta workloadmeta.Component) check.Check {
 	return &Check{
-		CheckBase: core.NewCheckBase(CheckName),
-		tagger:    tagger,
-		telemetry: telemetry,
-		wmeta:     wmeta,
+		CheckBase:                  core.NewCheckBase(CheckName),
+		tagger:                     tagger,
+		telemetry:                  telemetry,
+		wmeta:                      wmeta,
+		containerProviderWarnLimit: log.NewLogLimit(1, 10*time.Minute),
 	}
 }
 
 // Configure parses the check configuration and initializes the check
-func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
+func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source, provider string) error {
 	// Check if NCCL check is enabled
-	if !pkgconfigsetup.Datadog().GetBool("nccl.enabled") {
+	if !pkgconfigsetup.Datadog().GetBool("gpu.nccl.enabled") {
 		return errors.New("NCCL check is disabled")
 	}
 
-	if err := c.CommonConfigure(senderManager, initConfig, config, source); err != nil {
+	if err := c.CommonConfigure(senderManager, initConfig, config, source, provider); err != nil {
 		return err
 	}
 
-	// Parse instance config
-	c.config = &checkConfig{
-		SocketPath: defaultSocketPath,
-	}
-
+	// Parse instance config (legacy — see deprecation note below).
+	c.config = &checkConfig{}
 	if err := yaml.Unmarshal(config, c.config); err != nil {
 		return fmt.Errorf("failed to parse check config: %w", err)
+	}
+
+	// Resolve socket path. Source of truth is the agent config (gpu.nccl.socket_path).
+	// The legacy instance-yaml field socket_path is honored as a deprecated fallback
+	// for one release with a Warn log to ease migration.
+	socketPath := pkgconfigsetup.Datadog().GetString("gpu.nccl.socket_path")
+	if c.config.SocketPath != "" {
+		log.Warnf("NCCL check: 'socket_path' in instance config is deprecated; set 'gpu.nccl.socket_path' in datadog.yaml instead. Using legacy value %q for now.", c.config.SocketPath)
+		socketPath = c.config.SocketPath
 	}
 
 	// Start socket listener. If the socket is unavailable (e.g. permissions issue),
 	// log a warning and continue — matching DogStatsD/APM behaviour. Collection will
 	// be skipped until the socket becomes available on a future Configure call.
-	sl, err := newSocketListener(c.config.SocketPath)
+	sl, err := newSocketListener(socketPath)
 	if err != nil {
 		log.Warnf("NCCL check: socket listener failed to start, no metrics will be collected: %v", err)
 	} else {
@@ -159,12 +168,20 @@ func (c *Check) Run() error {
 	defer snd.Commit()
 
 	// Lazy-init containerProvider: GetSharedContainerProvider fails at Configure time
-	// (startup ordering) but is ready by the first Run call. Re-initialize processTagger
-	// so it has a valid provider reference.
+	// (startup ordering) but is ready by the first Run call. Re-initialize
+	// processTagger so it has a valid provider reference. Failures are
+	// rate-limited to avoid log spam (first immediately, then once per 10 min)
+	// while still surfacing long-term unhealthy states.
 	if c.containerProvider == nil {
-		if p, err := proccontainers.GetSharedContainerProvider(); err == nil {
+		p, err := proccontainers.GetSharedContainerProvider()
+		if err != nil {
+			if c.containerProviderWarnLimit != nil && c.containerProviderWarnLimit.ShouldLog() {
+				log.Warnf("NCCL check: shared container provider unavailable; pod tags will be missing until it initializes: %v", err)
+			}
+		} else {
 			c.containerProvider = p
 			c.processTagger = NewProcessTagger(c.tagger, c.wmeta, c.containerProvider)
+			log.Infof("NCCL check: container provider lazy-init succeeded")
 		}
 	}
 
@@ -182,7 +199,7 @@ func (c *Check) Run() error {
 	// Process events and emit per-rank metrics
 	for _, parsed := range events {
 		if parsed.Event.CollPerf != nil {
-			log.Debugf("NCCL coll_perf: rank=%d coll=%s exec_time_us=%.1f algobw=%.3f busbw=%.3f msg_bytes=%d timing=%s tags=%v",
+			log.Tracef("NCCL coll_perf: rank=%d coll=%s exec_time_us=%.1f algobw=%.3f busbw=%.3f msg_bytes=%d timing=%s tags=%v",
 				parsed.Event.Rank, parsed.Event.CollPerf.Collective, parsed.Event.CollPerf.ExecTimeUS,
 				parsed.Event.CollPerf.AlgoBandwidthGB, parsed.Event.CollPerf.BusBandwidthGB,
 				parsed.Event.CollPerf.MsgSizeBytes, parsed.Event.CollPerf.TimingSource, c.buildTags(parsed))
@@ -286,7 +303,7 @@ func (c *Check) buildTags(parsed ParsedEvent) []string {
 	if c.processTagger != nil && lookupPID > 0 {
 		workloadTags, err := c.processTagger.GetTagsForPID(lookupPID)
 		if err != nil {
-			log.Debugf("failed to get workload tags for PID %d: %v", lookupPID, err)
+			log.Tracef("failed to get workload tags for PID %d: %v", lookupPID, err)
 		}
 		tags = append(tags, workloadTags...)
 	} else {

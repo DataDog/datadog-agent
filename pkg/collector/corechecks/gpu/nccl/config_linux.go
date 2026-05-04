@@ -13,10 +13,6 @@ const (
 	// ncclMetricsNs is the namespace for all NCCL metrics
 	ncclMetricsNs = "nccl."
 
-	// defaultSocketPath is where the agent listens for inspector plugin connections.
-	// Training pods must mount the host's /var/run/datadog/ directory to reach it.
-	defaultSocketPath = "/var/run/datadog/nccl.socket"
-
 	// hangDetectionMetric is the metric emitted for each known rank.
 	// Value is the number of seconds since that rank last produced an event.
 	// Use for hang detection (e.g. alert when > 30s).

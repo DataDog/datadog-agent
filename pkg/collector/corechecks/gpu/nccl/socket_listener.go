@@ -31,10 +31,21 @@ type SocketListener struct {
 }
 
 // newSocketListener creates and starts a UDS listener at socketPath.
-// Removes any stale socket file before binding. Returns an error (without
-// removing the socket) if another instance is already listening on the path,
-// so that "agent check nccl" invocations fall back to file-based collection
-// without disrupting the running agent's socket listener.
+//
+// Restart/crash recovery flow:
+//  1. DialTimeout probe: if another live listener owns the path, return an
+//     error so callers (like "agent check nccl") fall back without
+//     disrupting it.
+//  2. os.Remove: clean up the stale socket file from a prior process that
+//     didn't Stop() cleanly (crash, SIGKILL, OOM).
+//  3. ListenUnix: bind a fresh listener at the path.
+//  4. Chmod 0o722: allow non-root NCCL plugin clients to connect (write-only
+//     for group/others; the listener side requires only owner permissions).
+//
+// NCCL plugin clients auto-reconnect on EPIPE (see inspector_dd_socket.cc),
+// so agent restarts are transparent to training pods. Up to one check cycle
+// worth of in-memory pending events is lost on crash — acceptable for
+// observability data, not transactional.
 func newSocketListener(socketPath string) (*SocketListener, error) {
 	// Check if the socket is already being actively listened on. If a
 	// connection succeeds, another check instance owns the socket — do not
@@ -122,7 +133,6 @@ func (sl *SocketListener) handleConn(conn *net.UnixConn) {
 		sl.mu.Lock()
 		sl.pending = append(sl.pending, ParsedEvent{
 			Event:     event,
-			Filename:  fmt.Sprintf("socket:rank%d-pid%d", event.Rank, event.PID),
 			ParseTime: parseTime,
 			HostPID:   hostPID,
 		})

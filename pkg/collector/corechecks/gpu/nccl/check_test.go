@@ -228,8 +228,6 @@ func TestSocketListenerNvidiaNestedFormatPreservesRank(t *testing.T) {
 	require.NotNil(t, ev.CollPerf)
 	assert.Equal(t, "AllReduce", ev.CollPerf.Collective)
 	assert.Equal(t, 5663.0, ev.CollPerf.ExecTimeUS)
-	// Filename in ParsedEvent should reflect the actual rank, not 0.
-	assert.Equal(t, "socket:rank1-pid48", events[0].Filename)
 }
 
 func TestBuildTagsWithExtraTags(t *testing.T) {
