@@ -29,6 +29,9 @@ var errExtensionNotInPackage = errors.New("extension not in package")
 // ExtensionsDBDir is the path to the extensions database, overridden in tests
 var ExtensionsDBDir = paths.RunPath
 
+// ExtensionsPackagesPath is the base directory for extension files, overridden in tests
+var ExtensionsPackagesPath = paths.PackagesPath
+
 // ExtensionRegistry holds per-extension registry override settings.
 type ExtensionRegistry struct {
 	URL      string
@@ -214,7 +217,7 @@ func installSingle(ctx context.Context, pkg *oci.DownloadedPackage, extension st
 	}
 
 	// Extract to a temporary directory first
-	tmpDir, err := os.MkdirTemp(paths.PackagesPath, pkg.Name+"-extension-")
+	tmpDir, err := os.MkdirTemp(ExtensionsPackagesPath, pkg.Name+"-extension-")
 	if err != nil {
 		return fmt.Errorf("could not create temp directory for %s: %w", extension, err)
 	}
@@ -522,7 +525,7 @@ func Restore(ctx context.Context, downloader *oci.Downloader, pkg string, downlo
 // For OCI-installed agents, extensions live under the OCI packages directory.
 // For DEB/RPM-installed agents on Linux, the OCI directory doesn't exist, so we fall back to /opt/datadog-agent.
 func getExtensionsPath(pkg, version string) string {
-	basePath := filepath.Join(paths.PackagesPath, pkg, version)
+	basePath := filepath.Join(ExtensionsPackagesPath, pkg, version)
 	if pkg == "datadog-agent" && runtime.GOOS == "linux" {
 		if _, err := os.Stat(basePath); os.IsNotExist(err) {
 			basePath = "/opt/datadog-agent"

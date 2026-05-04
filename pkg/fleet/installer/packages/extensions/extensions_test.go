@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -18,7 +19,9 @@ import (
 	"go.etcd.io/bbolt"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/fixtures"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 )
 
 // mockHooks implements ExtensionHooks interface for testing
@@ -262,4 +265,113 @@ func TestHookErrorPropagation(t *testing.T) {
 
 	require.Error(t, err, "hook failure should return error")
 	assert.Contains(t, err.Error(), "hook failed", "error should contain hook failure message")
+}
+
+// setupReplaceTest creates a temp environment for testing the replace path in installSingle:
+//   - Sets ExtensionsPackagesPath and ExtensionsDBDir to isolated temp dirs
+//   - Creates an existing extension directory with a sentinel file ("old-sentinel")
+//   - Seeds the DB with an outdated digest so Install triggers replace=true
+//
+// Returns the absolute path to the extension directory.
+func setupReplaceTest(t *testing.T) string {
+	t.Helper()
+	tmpDir := t.TempDir()
+	ExtensionsPackagesPath = tmpDir
+	ExtensionsDBDir = tmpDir
+	t.Cleanup(func() {
+		ExtensionsPackagesPath = paths.PackagesPath
+		ExtensionsDBDir = paths.RunPath
+	})
+
+	extPath := filepath.Join(tmpDir, "simple", "v1", "ext", fixtureExtensionName)
+	require.NoError(t, os.MkdirAll(extPath, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(extPath, "old-sentinel"), []byte("old"), 0644))
+
+	db, err := newExtensionsDB(filepath.Join(tmpDir, "extensions.db"))
+	require.NoError(t, err)
+	require.NoError(t, db.SetPackage(dbPackage{
+		Name:       "simple",
+		Version:    "v1",
+		Extensions: map[string]string{fixtureExtensionName: "sha256:outdated"},
+	}, false))
+	db.Close()
+
+	return extPath
+}
+
+// TestInstallSingleReplaceSucceeds verifies that when a previous extension exists
+// and the digest has changed, Install replaces it with new content and leaves no
+// backup directories behind.
+func TestInstallSingleReplaceSucceeds(t *testing.T) {
+	extPath := setupReplaceTest(t)
+	s := fixtures.NewServer(t)
+	hooks := &mockHooks{}
+
+	err := Install(
+		context.Background(),
+		oci.NewDownloader(&env.Env{}, http.DefaultClient),
+		s.PackageURL(fixtures.FixtureSimpleV1WithExtension),
+		[]string{fixtureExtensionName},
+		false,
+		hooks,
+		nil,
+	)
+	require.NoError(t, err)
+
+	_, statErr := os.Stat(filepath.Join(extPath, "old-sentinel"))
+	assert.True(t, os.IsNotExist(statErr), "old sentinel file should be removed after successful replace")
+
+	_, statErr = os.Stat(extPath)
+	assert.NoError(t, statErr, "extension directory should exist after successful replace")
+
+	entries, err := os.ReadDir(filepath.Dir(extPath))
+	require.NoError(t, err)
+	for _, e := range entries {
+		assert.NotContains(t, e.Name(), "-backup-", "no backup directories should remain after successful replace")
+	}
+}
+
+// TestInstallSingleRollsBackOnPostInstallFailure verifies that when PostInstallExtension
+// fails after the new content is already in place, the old extension is restored from backup.
+func TestInstallSingleRollsBackOnPostInstallFailure(t *testing.T) {
+	extPath := setupReplaceTest(t)
+	s := fixtures.NewServer(t)
+	hooks := &mockHooks{postInstallErr: errors.New("post-install-failed")}
+
+	err := Install(
+		context.Background(),
+		oci.NewDownloader(&env.Env{}, http.DefaultClient),
+		s.PackageURL(fixtures.FixtureSimpleV1WithExtension),
+		[]string{fixtureExtensionName},
+		false,
+		hooks,
+		nil,
+	)
+	require.Error(t, err)
+
+	_, statErr := os.Stat(filepath.Join(extPath, "old-sentinel"))
+	assert.NoError(t, statErr, "old sentinel file should be restored after post-install failure rollback")
+}
+
+// TestInstallSinglePreRemoveFailurePreservesExtension verifies that when the pre-remove
+// hook fails, the original extension is left untouched (removeSingle bails before
+// os.RemoveAll, so the extension is never removed from disk).
+func TestInstallSinglePreRemoveFailurePreservesExtension(t *testing.T) {
+	extPath := setupReplaceTest(t)
+	s := fixtures.NewServer(t)
+	hooks := &mockHooks{preRemoveErr: errors.New("pre-remove-failed")}
+
+	err := Install(
+		context.Background(),
+		oci.NewDownloader(&env.Env{}, http.DefaultClient),
+		s.PackageURL(fixtures.FixtureSimpleV1WithExtension),
+		[]string{fixtureExtensionName},
+		false,
+		hooks,
+		nil,
+	)
+	require.Error(t, err)
+
+	_, statErr := os.Stat(filepath.Join(extPath, "old-sentinel"))
+	assert.NoError(t, statErr, "original extension should be intact when pre-remove hook fails")
 }
