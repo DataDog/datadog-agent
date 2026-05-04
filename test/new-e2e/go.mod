@@ -64,9 +64,9 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.23 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.77.0
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.8 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.9.12 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.9.13 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.22 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.20 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.21 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.30.16 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.35.20 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.42.0 // indirect
@@ -214,7 +214,7 @@ require (
 	github.com/DataDog/dd-trace-go/v2 v2.7.4
 	github.com/DataDog/orchestrion v1.4.0
 	github.com/avast/retry-go/v4 v4.7.0
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.97.2
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.99.0
 	github.com/digitalocean/go-libvirt v0.0.0-20240812180835-9c6c0a310c6c
 	github.com/go-jose/go-jose/v4 v4.1.4
 	github.com/go-viper/mapstructure/v2 v2.5.0
