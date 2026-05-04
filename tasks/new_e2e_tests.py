@@ -63,7 +63,7 @@ def _load_e2e_local_config():
         return None
 
 
-def _check_e2e_local_config_or_exit():
+def _check_e2e_local_config_or_exit(profile: str | None = None):
     """
     Pre-flight check for `dda inv new-e2e-tests.run` on a developer machine.
 
@@ -71,7 +71,7 @@ def _check_e2e_local_config_or_exit():
     or doesn't contain the fields the runner relies on. Skipped in CI (where config
     comes from AWS SSM via the CI profile).
     """
-    if running_in_ci() or os.environ.get("E2E_PROFILE") == "ci":
+    if running_in_ci() or os.environ.get("E2E_PROFILE") == "ci" or profile == "ci":
         return
     cfg = _load_e2e_local_config()
     aws = cfg.get_aws() if cfg is not None else None
@@ -485,8 +485,8 @@ def run(
             1,
         )
 
-    _check_e2e_local_config_or_exit()
-    _local_e2e_cfg = _load_e2e_local_config()
+    _check_e2e_local_config_or_exit(profile)
+    local_e2e_cfg = _load_e2e_local_config()
 
     e2e_module = get_default_modules()[module_name]
 
@@ -521,10 +521,10 @@ def run(
 
     # Export PULUMI_CONFIG_PASSPHRASE from local config when not already set in the
     # environment. Lets developers run E2E without putting the passphrase in their rc.
-    if "PULUMI_CONFIG_PASSPHRASE" not in os.environ and _local_e2e_cfg is not None:
+    if "PULUMI_CONFIG_PASSPHRASE" not in os.environ and local_e2e_cfg is not None:
         from tasks.e2e_framework.config import get_pulumi_passphrase
 
-        passphrase = get_pulumi_passphrase(_local_e2e_cfg)
+        passphrase = get_pulumi_passphrase(local_e2e_cfg)
         if passphrase:
             env_vars["PULUMI_CONFIG_PASSPHRASE"] = passphrase
 
@@ -664,7 +664,7 @@ def run(
     # Auto-wrap with `aws-vault exec` when running locally without a managed AWS
     # session, so developers don't need to remember the wrapping per shell.
     if not no_aws_vault and _should_wrap_with_aws_vault():
-        cmd = _aws_vault_prefix(_local_e2e_cfg) + cmd
+        cmd = _aws_vault_prefix(local_e2e_cfg) + cmd
     # Strinbuilt_binaries:gs can come with extra double-quotes which can break the command, remove them
     clean_run = []
     clean_skip = []
