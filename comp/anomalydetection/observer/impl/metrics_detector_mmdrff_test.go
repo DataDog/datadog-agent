@@ -39,21 +39,21 @@ func feedMMDRFFSeries(t *testing.T, d *MMDRFFTwoSampleDetector, name string, val
 	return d.Detect(storage, int64(len(values)))
 }
 
-// TestMMDRFF_Name documents the catalog identifier the detector returns. The
+// TestMMDRFFTwoSampleTwoSample_Name documents the catalog identifier the detector returns. The
 // catalog entry's `name` field and the detector's Name() return value must
 // agree because reporters key off DetectorName.
-func TestMMDRFF_Name(t *testing.T) {
+func TestMMDRFFTwoSampleTwoSample_Name(t *testing.T) {
 	d := NewMMDRFFTwoSampleDetector()
 	assert.Equal(t, "mmdrff", d.Name())
 }
 
-// TestMMDRFF_FiresOnDistShift: 200 N(0,1) followed by 200 samples from a
+// TestMMDRFFTwoSampleTwoSample_FiresOnDistShift: 200 N(0,1) followed by 200 samples from a
 // 50/50 mixture of N(-3,1) and N(3,1). Marginal mean is zero in both regimes
 // (so the additivity gate stays open) but the modality changes dramatically —
 // the kernel mean embedding under a Gaussian kernel separates the two
 // distributions strongly. MMD² should clear 0.30 for at least three
 // consecutive ticks, producing exactly one alert-onset anomaly.
-func TestMMDRFF_FiresOnDistShift(t *testing.T) {
+func TestMMDRFFTwoSampleTwoSample_FiresOnDistShift(t *testing.T) {
 	rng := rand.New(rand.NewSource(1))
 	values := append(genGaussian(rng, 200, 0, 1), genBimodal(rng, 200)...)
 
@@ -72,12 +72,12 @@ func TestMMDRFF_FiresOnDistShift(t *testing.T) {
 	require.NotNil(t, a.SourceRef, "SourceRef must be populated by Detect")
 }
 
-// TestMMDRFF_GatesOnMeanShift: 200 N(0,1) followed by 200 N(2,1). Variance
+// TestMMDRFFTwoSampleTwoSample_GatesOnMeanShift: 200 N(0,1) followed by 200 N(2,1). Variance
 // stays put; only the mean shifts. ScanMW/BOCPD already cover pure mean
 // shifts, so the additivity gate (|meanT-meanR|/sqrt(varR) < 0.5) MUST
 // suppress every fire here. Without this gate the detector double-counts
 // the same incident with the existing mean-shift detectors.
-func TestMMDRFF_GatesOnMeanShift(t *testing.T) {
+func TestMMDRFFTwoSampleTwoSample_GatesOnMeanShift(t *testing.T) {
 	rng := rand.New(rand.NewSource(2))
 	values := append(genGaussian(rng, 200, 0, 1), genGaussian(rng, 200, 2, 1)...)
 
@@ -88,12 +88,12 @@ func TestMMDRFF_GatesOnMeanShift(t *testing.T) {
 		"pure mean shift must not fire mmdrff — additivity gate against ScanMW/BOCPD")
 }
 
-// TestMMDRFF_NoFireSameDist: 1000 i.i.d. N(0,1) → 0 anomalies. Validates the
+// TestMMDRFFTwoSampleTwoSample_NoFireSameDist: 1000 i.i.d. N(0,1) → 0 anomalies. Validates the
 // noise floor: under H0, mmd² is asymptotically distributed with null variance
 // ≈ 1/(W·D) ≈ 2.6e-4 (Gretton 2012 Theorem 8), so the 0.30 threshold sits ~18
 // standard deviations into the tail; persistence-of-3 makes spurious fires
 // astronomically unlikely.
-func TestMMDRFF_NoFireSameDist(t *testing.T) {
+func TestMMDRFFTwoSampleTwoSample_NoFireSameDist(t *testing.T) {
 	rng := rand.New(rand.NewSource(3))
 	values := genGaussian(rng, 1000, 0, 1)
 
@@ -103,11 +103,11 @@ func TestMMDRFF_NoFireSameDist(t *testing.T) {
 	assert.Empty(t, result.Anomalies, "stationary i.i.d. N(0,1) must not trigger mmdrff")
 }
 
-// TestMMDRFF_StatelessAcrossSeries verifies state isolation between two
+// TestMMDRFFTwoSampleTwoSample_StatelessAcrossSeries verifies state isolation between two
 // interleaved series with different behaviour. Series A is stationary N(0,1);
 // series B has a unimodal→bimodal shift. The stable A must remain quiet while
 // B fires — proving per-series state keys (ref+agg) don't bleed.
-func TestMMDRFF_StatelessAcrossSeries(t *testing.T) {
+func TestMMDRFFTwoSampleTwoSample_StatelessAcrossSeries(t *testing.T) {
 	rngA := rand.New(rand.NewSource(10))
 	rngB := rand.New(rand.NewSource(11))
 	stableA := genGaussian(rngA, 400, 0, 1)
@@ -131,11 +131,11 @@ func TestMMDRFF_StatelessAcrossSeries(t *testing.T) {
 	assert.Len(t, d.series, 2, "per-series state must be allocated for each ref")
 }
 
-// TestMMDRFF_RemoveSeries_FreesState verifies that RemoveSeries shrinks the
+// TestMMDRFFTwoSampleTwoSample_RemoveSeries_FreesState verifies that RemoveSeries shrinks the
 // per-series state map — the SeriesRemover contract that keeps detector
 // memory in step with storage eviction. Each entry holds ~2 KB of fixed-size
 // streaming state so this matters at scale.
-func TestMMDRFF_RemoveSeries_FreesState(t *testing.T) {
+func TestMMDRFFTwoSampleTwoSample_RemoveSeries_FreesState(t *testing.T) {
 	rng := rand.New(rand.NewSource(5))
 	values := genGaussian(rng, 200, 0, 1)
 
@@ -156,11 +156,11 @@ func TestMMDRFF_RemoveSeries_FreesState(t *testing.T) {
 	assert.Nil(t, d.cachedSeries, "RemoveSeries must invalidate cachedSeries")
 }
 
-// TestMMDRFF_Reset documents that Reset clears every per-series state and the
+// TestMMDRFFTwoSampleTwoSample_Reset documents that Reset clears every per-series state and the
 // cached series list — needed by replay/reanalysis call sites. The (omega, b)
 // embedding is intentionally preserved across Reset because it's fixed at
 // construction, not learned.
-func TestMMDRFF_Reset(t *testing.T) {
+func TestMMDRFFTwoSampleTwoSample_Reset(t *testing.T) {
 	rng := rand.New(rand.NewSource(6))
 	values := genGaussian(rng, 80, 0, 1)
 
@@ -179,20 +179,20 @@ func TestMMDRFF_Reset(t *testing.T) {
 	assert.Equal(t, preB, d.b, "Reset must NOT alter the fixed RFF phase b")
 }
 
-// TestMMDRFF_DeterministicEmbedding verifies the (omega, b) RFF parameters
+// TestMMDRFFTwoSampleTwoSample_DeterministicEmbedding verifies the (omega, b) RFF parameters
 // are reproducible across constructor calls — a non-negotiable property of
 // the design (otherwise scores aren't comparable across runs or replicas).
-func TestMMDRFF_DeterministicEmbedding(t *testing.T) {
+func TestMMDRFFTwoSampleTwoSample_DeterministicEmbedding(t *testing.T) {
 	d1 := NewMMDRFFTwoSampleDetector()
 	d2 := NewMMDRFFTwoSampleDetector()
 	assert.Equal(t, d1.omega, d2.omega, "omega must be deterministic across constructions")
 	assert.Equal(t, d1.b, d2.b, "b must be deterministic across constructions")
 }
 
-// TestMMDRFF_ColdStart_NoFire_BelowWarmup: a strong distribution shift in the
+// TestMMDRFFTwoSampleTwoSample_ColdStart_NoFire_BelowWarmup: a strong distribution shift in the
 // middle of the [0, 2W) warmup region (W=60, 2W=120) must not fire because
 // neither MMD² nor meanGap is computable until both rings are full.
-func TestMMDRFF_ColdStart_NoFire_BelowWarmup(t *testing.T) {
+func TestMMDRFFTwoSampleTwoSample_ColdStart_NoFire_BelowWarmup(t *testing.T) {
 	rng := rand.New(rand.NewSource(7))
 	// Distribution change well before 2W=120 ticks — no anomaly should be
 	// emitted because the score is undefined while either ring is filling.
@@ -205,12 +205,12 @@ func TestMMDRFF_ColdStart_NoFire_BelowWarmup(t *testing.T) {
 		"detector must not emit before both rings are full (cold-start contract)")
 }
 
-// TestMMDRFF_RecoveryPrevents_DoubleFire: a single sustained distribution
+// TestMMDRFFTwoSampleTwoSample_RecoveryPrevents_DoubleFire: a single sustained distribution
 // shift must produce exactly ONE anomaly even though it persists for 400
 // post-shift ticks. The post-fire structural reset (T zeroed, R copied from
 // T, phi sums migrated) plus the recovery counter together prevent re-firing
 // on the same incident.
-func TestMMDRFF_RecoveryPrevents_DoubleFire(t *testing.T) {
+func TestMMDRFFTwoSampleTwoSample_RecoveryPrevents_DoubleFire(t *testing.T) {
 	rng := rand.New(rand.NewSource(4))
 	values := append(genGaussian(rng, 200, 0, 1), genBimodal(rng, 400)...)
 
@@ -221,12 +221,12 @@ func TestMMDRFF_RecoveryPrevents_DoubleFire(t *testing.T) {
 		"a single sustained distribution shift must not produce repeat anomalies during recovery+refill")
 }
 
-// TestMMDRFF_AllAboveThreshold exercises the persistence helper directly.
+// TestMMDRFFTwoSampleTwoSample_AllAboveThreshold exercises the persistence helper directly.
 // Unlike VarShift's persistentLogRatio the MMD² history has no sign component
 // — mmd² is non-negative by construction — but the all-above-threshold check
 // is the same. An empty history must not pass; a single sub-threshold entry
 // must veto the persistence.
-func TestMMDRFF_AllAboveThreshold(t *testing.T) {
+func TestMMDRFFTwoSampleTwoSample_AllAboveThreshold(t *testing.T) {
 	cases := []struct {
 		name      string
 		history   []float64
@@ -247,11 +247,11 @@ func TestMMDRFF_AllAboveThreshold(t *testing.T) {
 	}
 }
 
-// TestMMDRFF_CatalogEntryRegistered confirms the stage-1 catalog wiring is
+// TestMMDRFFTwoSampleTwoSample_CatalogEntryRegistered confirms the stage-1 catalog wiring is
 // intact: the catalog must contain a "mmdrff" entry with kind
 // componentDetector. Lives next to the detector implementation rather than in
 // component_catalog_test.go because it's a contract co-test for this detector.
-func TestMMDRFF_CatalogEntryRegistered(t *testing.T) {
+func TestMMDRFFTwoSampleTwoSample_CatalogEntryRegistered(t *testing.T) {
 	cat := defaultCatalog()
 	var found *componentEntry
 	for i := range cat.entries {

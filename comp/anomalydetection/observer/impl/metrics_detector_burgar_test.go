@@ -33,11 +33,11 @@ func addBurgarPoints(storage *timeSeriesStorage, n int, startTS int64, valueFn f
 	return ts
 }
 
-// genAR1 returns a closure that yields AR(1) samples x_t = phi*x_{t-1} + e_t
+// genBurgAR1 returns a closure that yields AR(1) samples x_t = phi*x_{t-1} + e_t
 // with e_t ~ N(0, sigma) and a fixed seed for determinism. The series is
 // initialised at the stationary mean (0) so warmup transients don't pollute
 // the autocorrelation structure.
-func genAR1(phi, sigma float64, seed int64) func() float64 {
+func genBurgAR1(phi, sigma float64, seed int64) func() float64 {
 	rng := rand.New(rand.NewSource(seed)) //nolint:gosec // deterministic test seed
 	prev := 0.0
 	return func() float64 {
@@ -81,7 +81,7 @@ func TestBurgAR_NoAnomalyOnAR1Steady(t *testing.T) {
 	d := testBurgarDetector()
 	storage := newTimeSeriesStorage()
 
-	gen := genAR1(0.6, 1.0, 1)
+	gen := genBurgAR1(0.6, 1.0, 1)
 	addBurgarPoints(storage, 400, 1, func(_ int) float64 { return gen() })
 
 	result := d.Detect(storage, 400)
@@ -109,7 +109,7 @@ func TestBurgAR_DetectsAR1ToOscillation(t *testing.T) {
 	d := testBurgarDetector()
 	storage := newTimeSeriesStorage()
 
-	gen := genAR1(0.95, 1.0, 3)
+	gen := genBurgAR1(0.95, 1.0, 3)
 	ts := addBurgarPoints(storage, 200, 1, func(_ int) float64 { return gen() })
 
 	switchTS := ts
@@ -154,7 +154,7 @@ func TestBurgAR_DetectsAutocorrCollapse(t *testing.T) {
 	d := testBurgarDetector()
 	storage := newTimeSeriesStorage()
 
-	gen := genAR1(0.95, 0.3, 3)
+	gen := genBurgAR1(0.95, 0.3, 3)
 	ts := addBurgarPoints(storage, 200, 1, func(_ int) float64 { return gen() })
 
 	switchTS := ts
@@ -293,7 +293,7 @@ func TestBurgAR_NoNewDataNoWork(t *testing.T) {
 	d := testBurgarDetector()
 	storage := newTimeSeriesStorage()
 
-	gen := genAR1(0.9, 1.0, 6)
+	gen := genBurgAR1(0.9, 1.0, 6)
 	for i := 0; i < 200; i++ {
 		storage.Add("ns", "metric", gen(), int64(i+1), nil)
 	}
@@ -328,7 +328,7 @@ func TestBurgAR_DeterministicAcrossRuns(t *testing.T) {
 		d := testBurgarDetector()
 		storage := newTimeSeriesStorage()
 
-		gen := genAR1(0.9, 1.0, 7)
+		gen := genBurgAR1(0.9, 1.0, 7)
 		ts := int64(1)
 		for i := 0; i < 200; i++ {
 			storage.Add("ns", "metric", gen(), ts, nil)
