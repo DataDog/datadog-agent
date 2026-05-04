@@ -91,7 +91,7 @@ func TestSetRouteTemplate(t *testing.T) {
 		assert.Equal(t, "/foo/{id}", capture.template)
 	})
 
-	t.Run("no-op when no capture in context", func(t *testing.T) {
+	t.Run("no-op when no capture in context", func(_ *testing.T) {
 		r := httptest.NewRequest("GET", "/", nil)
 		// must not panic
 		SetRouteTemplate(r, "/foo/{id}")
