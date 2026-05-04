@@ -536,9 +536,11 @@ def cws_go_generate(ctx, verbose=False):
     bazel(ctx, "run", "//docs/cloud-workload-security:secl_windows")
     with ctx.cd("./pkg/security/secl"):
         if sys.platform == "linux":
-            ctx.run("GOOS=windows go generate -run=-tag.+windows ./...")
+            ctx.run("GOOS=windows go generate -run=-tag.+windows -skip='operators|bpf_maps_generator|accessors' ./...")
         elif is_windows:
-            ctx.run('set "GOOS=linux" && go generate -run=-tag.+unix ./...')
+            ctx.run(
+                'set "GOOS=linux" && go generate -run=-tag.+unix -skip="operators|bpf_maps_generator|accessors" ./...'
+            )
         cmd = "go generate -skip='operators|bpf_maps_generator|accessors'"
         if verbose:
             cmd += " -v"
