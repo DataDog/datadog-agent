@@ -7,6 +7,9 @@ package metrics
 
 import (
 	"context"
+	"strings"
+	"sync"
+	"sync/atomic"
 
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/zap"
@@ -18,8 +21,9 @@ import (
 //	This mapper emits raw values from OTLP cumulative monotonic Sums as Datadog Gauges,
 //	instead of computing deltas and reporting them as Datadog Counts.
 type lossLessMapper struct {
-	cfg    translatorConfig
-	logger *zap.Logger
+	cfg                  translatorConfig
+	logger               *zap.Logger
+	warnedRateAttrErrors sync.Map
 }
 
 // newLossLessMapper creates a new lossLessMapper without a cache.
@@ -35,7 +39,21 @@ func newLossLessMapper(cfg translatorConfig, logger *zap.Logger) mapper {
 
 // MapNumberMetrics maps number datapoints to Datadog metrics.
 func (m *lossLessMapper) MapNumberMetrics(ctx context.Context, consumer Consumer, dims *Dimensions, dt DataType, slice pmetric.NumberDataPointSlice) {
-	mapNumberMetrics(ctx, consumer, dims, dt, slice, m.logger, m.cfg.InferDeltaInterval)
+	mapNumberMetrics(ctx, consumer, dims, dt, slice, m.logger, m.cfg.InferDeltaInterval, &m.warnedRateAttrErrors)
+}
+
+const (
+	// deltaSumRateAttributeKey is the datapoint-level attribute that signals
+	// a delta sum should be emitted as a Datadog rate instead of a count.
+	deltaSumRateAttributeKey = "datadog.metric.as_type"
+)
+
+// rateAttrErrors tracks which one-shot errors have been emitted for a
+// given metric name so that each error type fires at most once.
+type rateAttrErrors struct {
+	wrongType    atomic.Bool
+	zeroInterval atomic.Bool
+	unknownValue atomic.Bool
 }
 
 // mapNumberMetrics maps number datapoints into Datadog metrics.
@@ -48,6 +66,7 @@ func mapNumberMetrics(
 	slice pmetric.NumberDataPointSlice,
 	logger *zap.Logger,
 	inferInterval bool,
+	warnedRateAttrErrors *sync.Map,
 ) {
 	for i := 0; i < slice.Len(); i++ {
 		p := slice.At(i)
@@ -75,7 +94,50 @@ func mapNumberMetrics(
 			interval = inferDeltaInterval(uint64(p.StartTimestamp()), uint64(p.Timestamp()))
 		}
 
-		consumer.ConsumeTimeSeries(ctx, pointDims, dt, uint64(p.Timestamp()), interval, val)
+		pointDt := dt
+
+		// Check rate attribute and change metric type if necessary and convert value
+		if asType, ok := p.Attributes().Get(deltaSumRateAttributeKey); ok {
+			switch strings.ToLower(asType.Str()) {
+			case "rate":
+				//conversion is allowed only from delta-sum to Rate
+				if pointDt == Count {
+					pointDt = Rate
+
+					if interval > 0 {
+						val = val / float64(interval)
+					} else {
+						w, _ := warnedRateAttrErrors.LoadOrStore(pointDims.name, &rateAttrErrors{})
+						if re := w.(*rateAttrErrors); !re.zeroInterval.Swap(true) {
+							logger.Error("datadog.metric.as_type=rate on delta sum but interval is 0; value will not be divided by interval. "+
+								"Enable the exporter.datadogexporter.InferIntervalForDeltaMetrics feature gate and ensure the metric has a valid StartTimestamp.",
+								zap.String("metric name", pointDims.name),
+							)
+						}
+					}
+
+				} else {
+					w, _ := warnedRateAttrErrors.LoadOrStore(pointDims.name, &rateAttrErrors{})
+					if re := w.(*rateAttrErrors); !re.wrongType.Swap(true) {
+						logger.Error("datadog.metric.as_type=rate is only supported on delta sum metrics, ignoring",
+							zap.String("metric name", pointDims.name),
+						)
+					}
+				}
+			case "count", "gauge":
+				// explicit no-op: the metric keeps its original type
+			default:
+				w, _ := warnedRateAttrErrors.LoadOrStore(pointDims.name, &rateAttrErrors{})
+				if re := w.(*rateAttrErrors); !re.unknownValue.Swap(true) {
+					logger.Error("unsupported datadog.metric.as_type value, ignoring; accepted values are \"rate\", \"count\", \"gauge\"",
+						zap.String("metric name", pointDims.name),
+						zap.String("value", asType.Str()),
+					)
+				}
+			}
+		}
+
+		consumer.ConsumeTimeSeries(ctx, pointDims, pointDt, uint64(p.Timestamp()), interval, val)
 	}
 }
 

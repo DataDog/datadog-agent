@@ -361,7 +361,9 @@ class DockerArtifactMeasurer:
         Generate Docker image URL based on gate configuration.
         """
         # Extract flavor from gate name
-        if "cluster" in config.gate_name:
+        if "host_profiler" in config.gate_name:
+            flavor = "ddot-ebpf"
+        elif "cluster" in config.gate_name:
             flavor = "cluster-agent"
         elif "dogstatsd" in config.gate_name:
             flavor = "dogstatsd"
@@ -376,7 +378,8 @@ class DockerArtifactMeasurer:
         jmx = "-jmx" if "jmx" in config.gate_name else ""
 
         # Handle image suffix
-        image_suffix = ("-7" if flavor == "agent" else "") + jmx
+        # ddot-ebpf uses TAG_SUFFIX: -7 in its CI build job, same as agent
+        image_suffix = ("-7" if flavor in ("agent", "ddot-ebpf") else "") + jmx
 
         # Handle nightly builds
         if os.environ.get("BUCKET_BRANCH") == "nightly" and flavor != "dogstatsd":

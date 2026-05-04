@@ -75,6 +75,7 @@ NCURSES_VERSION="6.5"      # yum install ncurses-devel
 READLINE_VERSION="8.2"     # yum install readline-devel
 SQLITE_VERSION="3.50.4"    # yum install sqlite-devel
 GDBM_VERSION="1.23"        # yum install gdbm-devel
+LIBICONV_VERSION="1.17"    # yum install libiconv
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -466,6 +467,20 @@ for lib in libxslt libexslt; do
         cp "/opt/freeware/lib/pkgconfig/${lib}.pc" "$EMBEDDED_DESTDIR/lib/pkgconfig/"
     fi
 done
+
+# ── libiconv (AIX Toolbox: yum install libiconv) ─────────────────────────────
+#
+# libxml2.so links against libiconv.a(libiconv.so.2). The AIX system
+# /usr/lib/libiconv.a uses member shr4_64.o (different name), so it cannot
+# satisfy this runtime dependency. Bundle the GNU toolbox version instead.
+#
+# Note: libintl.a (GNU gettext) is NOT bundled here. The toolbox libintl.so.8
+# has a hardcoded path to /opt/freeware/lib/libiconv.a baked in at build time,
+# so bundling it would still require /opt/freeware/lib/libiconv.a on the target.
+# Instead, Python is configured with ac_cv_search_ngettext=no (in 02-python.sh)
+# to suppress the libintl link entirely, since the agent does not use Python i18n.
+stage_toolbox_lib libiconv "$LIBICONV_VERSION" \
+    /opt/freeware/lib/libiconv.a
 
 # ─── Ensure standard directories exist ────────────────────────────────────────
 

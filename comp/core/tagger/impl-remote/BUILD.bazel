@@ -11,6 +11,7 @@ go_library(
     deps = [
         "//comp/api/api/def",
         "//comp/core/config",
+        "//comp/core/flare/types",
         "//comp/core/ipc/def",
         "//comp/core/log/def",
         "//comp/core/tagger/def",

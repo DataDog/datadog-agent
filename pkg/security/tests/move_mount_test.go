@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -292,6 +293,11 @@ func TestMoveMountRecursivePropagation(t *testing.T) {
 	defer test.Close()
 
 	t.Run("moved-recursive-with-propagation", func(t *testing.T) {
+		// allMounts is written from the probe event handler goroutine and read
+		// from the test goroutine after GetProbeEvent returns. GetProbeEvent
+		// does not wait for in-flight callbacks on timeout, so we need our own
+		// synchronization to avoid a data race.
+		var allMountsMu sync.Mutex
 		allMounts := map[uint32]uint32{}
 
 		te, err := newTestEnvironment(false, t.TempDir())
@@ -330,14 +336,22 @@ func TestMoveMountRecursivePropagation(t *testing.T) {
 				return false
 			}
 			assert.NotEqual(t, 0, event.Mount.NamespaceInode, "Namespace inode not captured")
+			allMountsMu.Lock()
 			allMounts[event.Mount.MountID]++
+			allMountsMu.Unlock()
 			return false
 		}, 5*time.Second, model.FileMoveMountEventType)
 
+		allMountsMu.Lock()
 		assert.GreaterOrEqual(t, len(allMounts), 3, "Not all mount events were obtained")
+		mountIDs := make([]uint32, 0, len(allMounts))
+		for id := range allMounts {
+			mountIDs = append(mountIDs, id)
+		}
+		allMountsMu.Unlock()
 
 		p, _ := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
-		for i := range allMounts {
+		for _, i := range mountIDs {
 			path, _, _, _ := p.Resolvers.MountResolver.ResolveMountPath(i, 0)
 
 			if len(path) == 0 || !strings.Contains(path, "tmp1") && !strings.Contains(path, "tmp2") {

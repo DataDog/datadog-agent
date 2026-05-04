@@ -30,13 +30,18 @@ type RuntimeReporter struct {
 	logChan   chan *message.Message
 }
 
-// ReportRaw reports raw (bytes) events to the intake
-func (r *RuntimeReporter) ReportRaw(content []byte, service string, timestamp time.Time, tags ...string) {
+// ReportRaw reports raw (bytes) events to the intake.
+// If hostname is empty, the reporter's default hostname is used.
+func (r *RuntimeReporter) ReportRaw(content []byte, service string, hostname string, timestamp time.Time, tags ...string) {
 	origin := message.NewOrigin(r.logSource)
 	origin.SetTags(tags)
 	origin.SetService(service)
 	msg := message.NewMessage(content, origin, message.StatusInfo, timestamp.UnixNano())
-	msg.Hostname = r.hostname
+	if hostname != "" {
+		msg.Hostname = hostname
+	} else {
+		msg.Hostname = r.hostname
+	}
 	r.logChan <- msg
 }
 

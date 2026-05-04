@@ -75,7 +75,9 @@ jobs:
         with:
           toolchain: stable
       - name: Repin Bazel Rust lockfile
-        run: bazel mod tidy
+        run: |
+          bazel mod tidy
+          bazel mod deps --repo_env=REPIN=1
       - name: Generate Rust licenses
         run: |
           cargo install dd-rust-license-tool@1.0.6 --locked
@@ -97,7 +99,9 @@ jobs:
       - uses: ./.github/actions/deps-tidy-setup
         id: setup
       - name: Repin Bazel module lockfile
-        run: bazel mod tidy
+        run: |
+          bazel mod tidy
+          bazel mod deps --repo_env=REPIN=1
       - uses: ./.github/actions/deps-tidy-push
         with:
           token: ${{ steps.setup.outputs.token }}

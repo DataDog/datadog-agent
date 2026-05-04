@@ -1090,6 +1090,23 @@ new-e2e-ssi-aks:
     E2E_STACK_NAME_SUFFIX: aks
     # Image volume is not supported on AKS in our current test setup.
     EXTRA_PARAMS: "--skip TestSSISuite/TestInjectionMode/injection-mode-app-image-volume"
+    
+new-e2e-ssi-gradual-rollout:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_ssi_or_e2e_changes]
+    - changes:
+        paths:
+          - test/new-e2e/tests/ssi-gradual-rollout/**/*
+        compare_to: $COMPARE_TO_BRANCH
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_dca
+    - qa_agent_linux
+  variables:
+    TARGETS: ./tests/ssi-gradual-rollout
+    TEAM: apm-release-platform
 
 .new-e2e_package_signing:
   variables:

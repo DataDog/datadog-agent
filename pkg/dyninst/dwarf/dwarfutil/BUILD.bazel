@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "dwarfutil",
+    srcs = ["util.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/dwarfutil",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/dyninst/ir"],
+)

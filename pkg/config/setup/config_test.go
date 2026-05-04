@@ -1604,6 +1604,7 @@ func TestSanitizeDataPlaneConfig(t *testing.T) {
 	tests := []struct {
 		name         string
 		goos         string
+		forceEnable  string // value of DD_DATA_PLANE_FORCE_ENABLE
 		initialValue bool
 		wantValue    bool
 		wantSource   pkgconfigmodel.Source
@@ -1645,6 +1646,41 @@ func TestSanitizeDataPlaneConfig(t *testing.T) {
 			wantValue:    false,
 			wantSource:   pkgconfigmodel.SourceAgentRuntime,
 		},
+		{
+			name:         "darwin bypass: force-enable=true preserves true",
+			goos:         "darwin",
+			forceEnable:  "true",
+			initialValue: true,
+			wantValue:    true,
+			wantSource:   pkgconfigmodel.SourceFile,
+		},
+		{
+			name:         "windows bypass: force-enable=true preserves true",
+			goos:         "windows",
+			forceEnable:  "true",
+			initialValue: true,
+			wantValue:    true,
+			wantSource:   pkgconfigmodel.SourceFile,
+		},
+		{
+			// Garbage value in the env var does NOT bypass the gate.
+			name:         "darwin bypass: force-enable=yes is ignored (gate applies)",
+			goos:         "darwin",
+			forceEnable:  "yes",
+			initialValue: true,
+			wantValue:    false,
+			wantSource:   pkgconfigmodel.SourceAgentRuntime,
+		},
+		{
+			// When bypass is active and value is already false, gate is still skipped —
+			// SourceAgentRuntime override is not applied.
+			name:         "darwin bypass: force-enable=true preserves false",
+			goos:         "darwin",
+			forceEnable:  "true",
+			initialValue: false,
+			wantValue:    false,
+			wantSource:   pkgconfigmodel.SourceFile,
+		},
 	}
 
 	for _, tt := range tests {
@@ -1652,7 +1688,13 @@ func TestSanitizeDataPlaneConfig(t *testing.T) {
 			cfg := newTestConf(t)
 			cfg.Set("data_plane.enabled", tt.initialValue, pkgconfigmodel.SourceFile)
 
-			sanitizeDataPlaneConfig(cfg, tt.goos)
+			envLookup := func(key string) string {
+				if key == "DD_DATA_PLANE_FORCE_ENABLE" {
+					return tt.forceEnable
+				}
+				return ""
+			}
+			sanitizeDataPlaneConfig(cfg, tt.goos, envLookup)
 
 			assert.Equal(t, tt.wantValue, cfg.GetBool("data_plane.enabled"))
 			assert.Equal(t, tt.wantSource, cfg.GetSource("data_plane.enabled"))

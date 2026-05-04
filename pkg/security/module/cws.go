@@ -204,8 +204,20 @@ func NewCWSConsumer(cmdServer *CommandServer, evm *eventmonitor.EventMonitor, cf
 	seclog.Debugf("Registering API server")
 	api.RegisterSecurityModuleCmdServer(c.cmdServer.grpcCmdServer.ServiceRegistrar(), c.apiServer)
 
-	if cfg.EventGRPCServer != "security-agent" {
-		seclog.Infof("start security module event grpc server with %s", cfg.SocketPath)
+	switch cfg.EventGRPCServer {
+	case "security-agent":
+		// system-probe connects to security-agent's event server; no local server needed here
+	case "system-probe":
+		// system-probe acts as the event server for remote system-probes (e.g., in micro VMs via vsock)
+		seclog.Infof("starting system-probe remote event server on %s", cfg.SocketPath)
+
+		family, addr := socket.GetSocketAddress(cfg.SocketPath)
+		c.grpcEventServer = grpcutils.NewServer(family, addr)
+
+		api.RegisterSecurityAgentAPIServer(c.grpcEventServer.ServiceRegistrar(), NewRemoteEventServer(c.apiServer))
+	default:
+		// legacy mode: system-probe hosts SecurityModuleEvent server, security-agent connects
+		seclog.Infof("starting security module event grpc server on %s", cfg.SocketPath)
 
 		family := common.GetFamilyAddress(cfg.SocketPath)
 		c.grpcEventServer = grpcutils.NewServer(family, cfg.SocketPath)

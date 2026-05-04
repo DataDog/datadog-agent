@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sync"
 
 	"github.com/DataDog/sketches-go/ddsketch"
 	"github.com/DataDog/sketches-go/ddsketch/mapping"
@@ -32,9 +33,10 @@ import (
 // defaultMapper is the default implementation of the mapper interface.
 // It provides the standard mapping logic for converting OTLP metrics to Datadog format.
 type defaultMapper struct {
-	prevPts *ttlCache
-	logger  *zap.Logger
-	cfg     translatorConfig
+	prevPts              *ttlCache
+	logger               *zap.Logger
+	cfg                  translatorConfig
+	warnedRateAttrErrors sync.Map
 }
 
 // newDefaultMapper creates a new defaultMapper with the given dependencies.
@@ -55,7 +57,7 @@ func (m *defaultMapper) MapNumberMetrics(
 	dt DataType,
 	slice pmetric.NumberDataPointSlice,
 ) {
-	mapNumberMetrics(ctx, consumer, dims, dt, slice, m.logger, m.cfg.InferDeltaInterval)
+	mapNumberMetrics(ctx, consumer, dims, dt, slice, m.logger, m.cfg.InferDeltaInterval, &m.warnedRateAttrErrors)
 }
 
 // MapHistogramMetrics maps double histogram metrics slices to Datadog metrics

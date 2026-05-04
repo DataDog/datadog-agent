@@ -49,8 +49,9 @@ func (n *CommonRunner) Stop(ctx context.Context) error {
 }
 
 func (n *CommonRunner) healthCheckLoop(ctx context.Context) {
-	ticker := time.NewTicker(time.Millisecond * time.Duration(n.config.HealthCheckInterval))
-	defer ticker.Stop()
+	defaultInterval := time.Millisecond * time.Duration(n.config.HealthCheckInterval)
+	timer := time.NewTimer(defaultInterval)
+	defer timer.Stop()
 
 	healthCheckLogLimit := ddlog.NewLogLimit(1, 10*time.Minute)
 
@@ -59,7 +60,7 @@ func (n *CommonRunner) healthCheckLoop(ctx context.Context) {
 		case <-ctx.Done():
 			log.FromContext(ctx).Info("Stopping health check loop")
 			return
-		case <-ticker.C:
+		case <-timer.C:
 			logger := log.FromContext(ctx)
 			healthResponse, err := n.opmsClient.HealthCheck(ctx)
 			if healthResponse != nil && healthResponse.ServerTime != nil {
@@ -72,6 +73,12 @@ func (n *CommonRunner) healthCheckLoop(ctx context.Context) {
 			} else {
 				logger.Debug("health check succeeded")
 			}
+
+			nextInterval := defaultInterval
+			if healthResponse != nil && healthResponse.RetryAfter > 0 {
+				nextInterval = healthResponse.RetryAfter
+			}
+			timer.Reset(nextInterval)
 		}
 	}
 }

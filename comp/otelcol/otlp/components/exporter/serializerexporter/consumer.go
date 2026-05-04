@@ -159,8 +159,10 @@ func apiTypeFromTranslatorType(typ otlpmetrics.DataType) metrics.APIMetricType {
 		return metrics.APICountType
 	case otlpmetrics.Gauge:
 		return metrics.APIGaugeType
+	case otlpmetrics.Rate:
+		return metrics.APIRateType
 	}
-	panic(fmt.Sprintf("unreachable: received non-count non-gauge type: %d", typ))
+	panic(fmt.Sprintf("unreachable: received unexpected metric type: %d", typ))
 }
 
 func (c *serializerConsumer) ConsumeTimeSeries(_ context.Context, dimensions *otlpmetrics.Dimensions, typ otlpmetrics.DataType, ts uint64, interval int64, value float64) {

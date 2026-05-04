@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "celprogram",
+    srcs = ["create.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/celprogram",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/workloadfilter/def",
+        "@com_github_google_cel_go//cel:go_default_library",
+    ],
+)

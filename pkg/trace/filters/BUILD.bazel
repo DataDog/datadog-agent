@@ -1,0 +1,34 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "filters",
+    srcs = [
+        "blacklister.go",
+        "replacer.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/trace/filters",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/proto/pbgo/trace",
+        "//pkg/proto/pbgo/trace/idx",
+        "//pkg/trace/config",
+        "//pkg/trace/log",
+    ],
+)
+
+go_test(
+    name = "filters_test",
+    srcs = [
+        "blacklister_test.go",
+        "replacer_test.go",
+    ],
+    embed = [":filters"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/proto/pbgo/trace",
+        "//pkg/proto/pbgo/trace/idx",
+        "//pkg/trace/config",
+        "//pkg/trace/testutil",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

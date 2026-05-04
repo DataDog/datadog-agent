@@ -1,0 +1,29 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "commits",
+    srcs = [
+        "cherry_pick_commit.gen.go",
+        "create_commit.gen.go",
+        "entrypoint.gen.go",
+        "get_commit.gen.go",
+        "get_commit_comments.gen.go",
+        "get_commit_diff.gen.go",
+        "get_commit_refs.gen.go",
+        "get_commit_statuses.gen.go",
+        "get_gpg_signature.gen.go",
+        "list_commits.gen.go",
+        "list_mrs_by_commit.gen.go",
+        "post_commit_comment.gen.go",
+        "revert_commit.go",
+        "set_commit_status.gen.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/commits",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/privateactionrunner/bundle-support/gitlab",
+        "//pkg/privateactionrunner/libs/privateconnection",
+        "//pkg/privateactionrunner/types",
+        "@com_gitlab_gitlab_org_api_client_go//:client-go",
+    ],
+)
