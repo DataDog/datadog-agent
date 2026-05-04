@@ -306,7 +306,16 @@ func constsLinkFromName(constName string) string {
 	return nonLinkCharactersRegex.ReplaceAllString(strings.ReplaceAll(strings.ToLower(strings.TrimSpace(constName)), " ", "-"), "")
 }
 
-func parseConstantsFile(filepath string, tags []string) ([]constants, error) {
+// The second argument used to be passed to `packages.Load` as `-tags=<tags>`
+// so the loader honored //go:build constraints inside the file. After the
+// switch to `parser.ParseFile` we no longer evaluate build constraints here,
+// and in practice all callers only ever pass `unix` or `windows` — platform
+// gating happens one level up in `parseConstants` via a filename whitelist.
+// The parameter is kept on the signature for API stability; if real
+// custom-tag support is ever needed, plug `go/build/constraint` in here to
+// evaluate the file's `//go:build` line against the supplied tag set
+// (stays hermetic, no `golang.org/x/tools/go/packages` needed). See ABLD-420.
+func parseConstantsFile(filepath string, _ []string) ([]constants, error) {
 	// extract architecture from filename
 	arch, err := parseArchFromFilepath(filepath)
 	if err != nil {
