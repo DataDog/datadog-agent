@@ -10,6 +10,7 @@ single_machine_performance-regression_detector-merge_base_check:
           artifacts: false
     # On dev branches: no needs — runs at the start of functional_test for fast feedback.
     - !reference [.on_dev_branches_with_artifact_changes]
+    - !reference [.on_ebpf_wib_relevant_changes]
   needs: []
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   tags: ["arch:amd64", "specific:true"]
@@ -99,6 +100,7 @@ trigger-single-machine-performance-regression_detector:
     - !reference [.except_coverage_pipeline]
     - !reference [.on_main]  # Run on every main commit
     - !reference [.on_dev_branches_with_artifact_changes]  # Run when artifact-impacting files change
+    - !reference [.on_ebpf_wib_relevant_changes]
   needs:
     - job: single_machine_performance-regression_detector-merge_base_check
       artifacts: true  # Passes BASELINE_SHA dotenv variable to child pipeline
