@@ -14,22 +14,9 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	scenkind "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/helmagent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/workloads"
 	provkind "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
 )
-
-// kindAgentHelmValues are the KinD-specific overrides that the scenario
-// provisioner would normally add — kubelet TLS skip, CSI driver, host network.
-const kindAgentHelmValues = `
-datadog:
-  kubelet:
-    tlsVerify: false
-  csi:
-    enabled: true
-agents:
-  useHostNetwork: true
-`
 
 const kindHelmValues = `
 datadog:
@@ -56,26 +43,23 @@ func TestKindSuite(t *testing.T) {
 			scenkind.WithDeployDogstatsd(),
 			scenkind.WithDeployArgoRollout(),
 		),
+		// KinD-specific defaults (kubelet TLS skip, CSI driver, host network,
+		// stackid tag) are added automatically by the provisioner.
+		provkind.WithAgentOptions(
+			kubernetesagentparams.WithDualShipping(),
+			kubernetesagentparams.WithHelmValues(kindHelmValues),
+			kubernetesagentparams.WithHelmValues(containerHelmValues),
+			// Kind suite uses EndpointSlices backed providers while the EKS suite
+			// uses the default (legacy) Endpoints providers.
+			kubernetesagentparams.WithKubernetesUseEndpointSlices(),
+		),
+		// Deploy the standard container-test workloads plus the ArgoRollout nginx
+		// Rollout (the ArgoRollout controller itself is deployed by WithDeployArgoRollout above).
+		provkind.WithWorkloads(append(
+			workloads.DefaultTestWorkloadOptions(),
+			workloads.WithArgoRolloutNginx(),
+		)...),
 	)))
-}
-
-func (suite *kindSuite) SetupSuite() {
-	suite.k8sSuite.SetupSuite()
-	suite.Fakeintake = suite.Env().FakeIntake.Client()
-	helmagent.Install(suite.T(), suite.Env(),
-		// KinD-specific: skip kubelet TLS verification, enable CSI driver, use host network
-		kubernetesagentparams.WithHelmValues(kindAgentHelmValues),
-		// Stack ID tag mirrors what Pulumi kindvm/run.go adds via ctx.Stack()
-		kubernetesagentparams.WithTags([]string{"stackid:" + suite.Env().KubernetesCluster.ClusterName}),
-		kubernetesagentparams.WithDualShipping(),
-		kubernetesagentparams.WithHelmValues(kindHelmValues),
-		kubernetesagentparams.WithHelmValues(containerHelmValues),
-		// Kind suite uses EndpointSlices backed providers while the EKS suite uses the default
-		// (legacy) Endpoints providers. This covers tests for both without having to create
-		// independent test suites for both configurations or modify providers at test runtime.
-		kubernetesagentparams.WithKubernetesUseEndpointSlices(),
-	)
-	workloads.DeployTestWorkload(suite.T(), suite.Env())
 }
 
 func (suite *kindSuite) TestControlPlane() {

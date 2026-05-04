@@ -30,7 +30,7 @@ spec:
     spec:
       serviceAccountName: dogstatsd-sa
       containers:
-      - name: dogstatsd-uds-with-csi
+      - name: dogstatsd
         image: ghcr.io/datadog/apps-dogstatsd:{{.Version}}
         resources:
           requests:
@@ -58,7 +58,7 @@ spec:
         app: dogstatsd-uds
     spec:
       containers:
-      - name: dogstatsd-uds
+      - name: dogstatsd
         image: ghcr.io/datadog/apps-dogstatsd:{{.Version}}
         env:
         - name: STATSD_URL
@@ -97,7 +97,7 @@ spec:
         app: dogstatsd-udp
     spec:
       containers:
-      - name: dogstatsd-udp
+      - name: dogstatsd
         image: ghcr.io/datadog/apps-dogstatsd:{{.Version}}
         env:
         - name: HOST_IP
@@ -136,7 +136,7 @@ spec:
         app: dogstatsd-udp-origin-detection
     spec:
       containers:
-      - name: dogstatsd-udp-origin-detection
+      - name: dogstatsd
         image: ghcr.io/datadog/apps-dogstatsd:{{.Version}}
         env:
         - name: HOST_IP
@@ -171,7 +171,7 @@ spec:
         app: dogstatsd-udp-contname-injected
     spec:
       containers:
-      - name: dogstatsd-udp-contname-injected
+      - name: dogstatsd
         image: ghcr.io/datadog/apps-dogstatsd:{{.Version}}
         env:
         - name: HOST_IP
@@ -185,7 +185,7 @@ spec:
             fieldRef:
               fieldPath: metadata.uid
         - name: DD_ENTITY_ID
-          value: en-$(DD_INTERNAL_POD_UID)/dogstatsd-udp-contname-injected
+          value: en-$(DD_INTERNAL_POD_UID)/dogstatsd
         resources:
           requests:
             cpu: 2m
@@ -213,7 +213,7 @@ spec:
         admission.datadoghq.com/enabled: "true"
     spec:
       containers:
-      - name: dogstatsd-udp-external-data-only
+      - name: dogstatsd
         image: ghcr.io/datadog/apps-dogstatsd:{{.Version}}
         env:
         - name: HOST_IP

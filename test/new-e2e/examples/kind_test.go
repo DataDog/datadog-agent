@@ -22,7 +22,6 @@ import (
 	scenkindvm "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/helmagent"
 	provkindvm "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
 )
 
@@ -31,46 +30,33 @@ type myKindSuite struct {
 }
 
 func TestMyKindSuite(t *testing.T) {
-	// Provisioner creates infrastructure only — KinD cluster + fakeintake.
-	// No agent and no workloads in Pulumi (test workloads are disabled
-	// via WithoutDeployTestWorkload because they depend on the agent's
-	// admission controller, which is now installed post-Pulumi).
+	// Provisioner creates the KinD cluster + fakeintake via Pulumi, then
+	// installs the agent via Helm in a post-provision step (ConfigureEnv).
+	// KinD-specific Helm defaults (kubelet TLS skip, CSI driver, host
+	// network, stackid tag) are added automatically by the provisioner —
+	// only pass test-specific overrides via WithAgentOptions.
 	e2e.Run(t, &myKindSuite{}, e2e.WithProvisioner(
-		provkindvm.Provisioner(provkindvm.WithRunOptions(scenkindvm.WithoutDeployTestWorkload())),
-	))
-}
-
-func (v *myKindSuite) SetupSuite() {
-	v.BaseSuite.SetupSuite()
-	defer v.CleanupOnSetupFailure()
-
-	// Step 1: install the Datadog agent via Helm, decoupled from Pulumi.
-	// The fakeintake URL is automatically wired into the agent config.
-	//
-	// The kindvm-specific values (kubelet.tlsVerify, csi.enabled,
-	// useHostNetwork) are required for the agent to function in a KinD
-	// cluster — they were previously embedded in the kindvm scenario
-	// (agent_helm_values.yaml) and applied automatically.
-	helmagent.Install(v.T(), v.Env(),
-		kubernetesagentparams.WithHelmValues(`
+		provkindvm.Provisioner(
+			provkindvm.WithRunOptions(scenkindvm.WithoutDeployTestWorkload()),
+			provkindvm.WithAgentOptions(
+				kubernetesagentparams.WithHelmValues(`
 datadog:
-  kubelet:
-    tlsVerify: false
-  csi:
-    enabled: true
   processAgent:
     processCollection: true
   logs:
     enabled: true
     containerCollectAll: true
-agents:
-  useHostNetwork: true
 `),
-	)
+			),
+		),
+	))
+}
 
-	// Step 2: deploy nginx workload via the K8s client (no Pulumi).
-	// This must run after the agent is installed so the agent can discover
-	// the workload via Kubernetes metadata.
+func (v *myKindSuite) SetupSuite() {
+	v.BaseSuite.SetupSuite() // provisions infra + installs agent via ConfigureEnv
+	defer v.CleanupOnSetupFailure()
+
+	// Deploy any test-specific workloads after the agent is installed.
 	deployNginx(v.T(), v.Env())
 }
 

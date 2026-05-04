@@ -35,8 +35,6 @@ func TestOpenShiftVMSuite(t *testing.T) {
 
 func (suite *openShiftVMSuite) SetupSuite() {
 	suite.k8sSuite.SetupSuite()
-	suite.clusterName = suite.Env().KubernetesCluster.ClusterName
-	suite.Fakeintake = suite.Env().FakeIntake.Client()
 	suite.runtime = "cri-o"
 }
 

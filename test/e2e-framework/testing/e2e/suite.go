@@ -635,6 +635,14 @@ func (bs *BaseSuite[Env]) SetupSuite() {
 		panic(err)
 	}
 
+	// Call PostProvision on any provisioner that supports post-infrastructure
+	// setup (e.g. Helm-based agent installation, workload deployment).
+	for _, p := range bs.currentProvisioners {
+		if pp, ok := p.(provisioners.PostProvisioner[Env]); ok {
+			pp.PostProvision(bs.T(), bs.env)
+		}
+	}
+
 	if bs.initOnly {
 		bs.T().Skip("INIT_ONLY is set, skipping tests")
 	}

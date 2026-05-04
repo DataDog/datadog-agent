@@ -66,7 +66,6 @@ func TestEKSSuite(t *testing.T) {
 
 func (suite *eksSuite) SetupSuite() {
 	suite.k8sSuite.SetupSuite()
-	suite.Fakeintake = suite.Env().FakeIntake.Client()
 	suite.envSpecificClusterTags = []string{"^kube_distribution:eks$"}
 }
 

@@ -322,8 +322,6 @@ clusterChecksRunner:
   env:
     - name: DD_CLC_RUNNER_REMOTE_TAGGER_ENABLED
       value: "true"
-    - name: DD_KUBERNETES_NAMESPACE_LABELS_AS_TAGS
-      value: "{}"
   resources:
     requests:
       cpu: 20m
@@ -341,7 +339,7 @@ clusterChecksRunner:
 
 	// Fakeintake configuration (env vars on agent/clusterAgent/clusterChecksRunner pods)
 	if env.FakeIntake != nil && env.FakeIntake.URL != "" {
-		base = mustMerge(t, base, buildFakeintakeValues(env.FakeIntake))
+		base = mustMerge(t, base, buildFakeintakeValues(env.FakeIntake, p.DualShipping))
 	}
 
 	// Merge user-provided values last (highest priority)
@@ -407,9 +405,37 @@ func parseImageRef(ref string) (string, string) {
 }
 
 // buildFakeintakeValues generates Helm values that point the agent to fakeintake.
-// Mirrors configureFakeintake in kubernetes_helm.go (non-dual-shipping path).
-func buildFakeintakeValues(fi *components.FakeIntake) string {
-	envVars := fmt.Sprintf(`    - name: DD_DD_URL
+// Mirrors configureFakeintake in kubernetes_helm.go.
+// When dualShipping is true, uses additional-endpoints so traffic goes to both
+// Datadog and fakeintake (matching the dual-shipping Pulumi path).
+func buildFakeintakeValues(fi *components.FakeIntake, dualShipping bool) string {
+	var envVars string
+	if dualShipping {
+		useSSL := strings.HasPrefix(fi.URL, "https://")
+		host := fi.Host
+		port := fi.Port
+		envVars = fmt.Sprintf(`    - name: DD_SKIP_SSL_VALIDATION
+      value: "true"
+    - name: DD_REMOTE_CONFIGURATION_NO_TLS_VALIDATION
+      value: "true"
+    - name: DD_ADDITIONAL_ENDPOINTS
+      value: '{"%[1]s": ["FAKEAPIKEY"]}'
+    - name: DD_PROCESS_ADDITIONAL_ENDPOINTS
+      value: '{"%[1]s": ["FAKEAPIKEY"]}'
+    - name: DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_ADDITIONAL_ENDPOINTS
+      value: '{"%[1]s": ["FAKEAPIKEY"]}'
+    - name: DD_LOGS_CONFIG_ADDITIONAL_ENDPOINTS
+      value: '[{"host": "%[2]s", "port": %[3]d, "use_ssl": %[4]t}]'
+    - name: DD_LOGS_CONFIG_USE_HTTP
+      value: "true"
+    - name: DD_CONTAINER_IMAGE_ADDITIONAL_ENDPOINTS
+      value: '[{"host": "%[2]s", "use_ssl": %[4]t}]'
+    - name: DD_CONTAINER_LIFECYCLE_ADDITIONAL_ENDPOINTS
+      value: '[{"host": "%[2]s", "use_ssl": %[4]t}]'
+    - name: DD_SBOM_ADDITIONAL_ENDPOINTS
+      value: '[{"host": "%[2]s", "use_ssl": %[4]t}]'`, fi.URL, host, port, useSSL)
+	} else {
+		envVars = fmt.Sprintf(`    - name: DD_DD_URL
       value: "%[1]s"
     - name: DD_PROCESS_CONFIG_PROCESS_DD_URL
       value: "%[1]s"
@@ -425,6 +451,7 @@ func buildFakeintakeValues(fi *components.FakeIntake) string {
       value: "true"
     - name: DD_LOGS_CONFIG_USE_HTTP
       value: "true"`, fi.URL)
+	}
 
 	return fmt.Sprintf(`datadog:
   env:

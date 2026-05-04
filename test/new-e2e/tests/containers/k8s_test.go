@@ -58,6 +58,7 @@ type k8sSuite struct {
 
 func (suite *k8sSuite) SetupSuite() {
 	suite.baseSuite.SetupSuite()
+	suite.Fakeintake = suite.Env().FakeIntake.Client()
 	suite.clusterName = suite.Env().KubernetesCluster.ClusterName
 	suite.runtime = "containerd"
 }

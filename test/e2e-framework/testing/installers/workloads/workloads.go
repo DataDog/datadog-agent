@@ -64,6 +64,9 @@ var etcdManifest string
 //go:embed mutated/manifest.yaml
 var mutatedManifest string
 
+//go:embed argorollout/manifest.yaml
+var argoRolloutManifest string
+
 type deployParams struct {
 	nginx        bool
 	nginxPort    int
@@ -74,6 +77,7 @@ type deployParams struct {
 	cpustress    bool
 	etcd         bool
 	mutated      bool
+	argoRollout  bool
 }
 
 type dogstatsdConfig struct {
@@ -110,6 +114,10 @@ func WithEtcd() Option { return func(p *deployParams) { p.etcd = true } }
 // WithMutated deploys workloads used for admission controller mutation testing.
 func WithMutated() Option { return func(p *deployParams) { p.mutated = true } }
 
+// WithArgoRolloutNginx deploys an nginx Rollout workload in the
+// workload-argo-rollout-nginx namespace. Requires ArgoRollout to be installed.
+func WithArgoRolloutNginx() Option { return func(p *deployParams) { p.argoRollout = true } }
+
 // WithDogstatsd deploys DogStatsD client workloads targeting the agent via UDS
 // and UDP. The agent socket path defaults to /var/run/datadog/dsd.socket.
 func WithDogstatsd() Option {
@@ -121,12 +129,13 @@ func WithDogstatsd() Option {
 	}
 }
 
-// DeployTestWorkload deploys the full set of standard test workloads used by
-// the containers test suite: nginx, redis, tracegen, prometheus, cpustress,
-// etcd, mutated (admission controller), and dogstatsd clients.
-func DeployTestWorkload(t *testing.T, env *environments.Kubernetes) {
-	t.Helper()
-	Deploy(t, env,
+// DefaultTestWorkloadOptions returns the full set of standard test workload
+// options used by the containers test suite. Use this with provisioner
+// WithWorkloads to declare workloads at provisioner construction time:
+//
+//	provkind.WithWorkloads(workloads.DefaultTestWorkloadOptions()...)
+func DefaultTestWorkloadOptions() []Option {
+	return []Option{
 		WithNginx(),
 		WithRedis(),
 		WithTracegen(),
@@ -135,7 +144,15 @@ func DeployTestWorkload(t *testing.T, env *environments.Kubernetes) {
 		WithEtcd(),
 		WithMutated(),
 		WithDogstatsd(),
-	)
+	}
+}
+
+// DeployTestWorkload deploys the full set of standard test workloads used by
+// the containers test suite: nginx, redis, tracegen, prometheus, cpustress,
+// etcd, mutated (admission controller), and dogstatsd clients.
+func DeployTestWorkload(t *testing.T, env *environments.Kubernetes) {
+	t.Helper()
+	Deploy(t, env, DefaultTestWorkloadOptions()...)
 }
 
 // Deploy applies the selected workload manifests to the cluster and waits for
@@ -233,6 +250,16 @@ func Deploy(t *testing.T, env *environments.Kubernetes, opts ...Option) {
 		waitForDeployments(t, kubeconfig, "workload-mutated", 10*time.Minute)
 		waitForDeployments(t, kubeconfig, "workload-mutated-lib-injection", 10*time.Minute)
 	}
+
+	if p.argoRollout {
+		ns := "workload-argo-rollout-nginx"
+		applyManifest(t, kubeconfig, render(t, argoRolloutManifest, map[string]any{
+			"Version":   version,
+			"Namespace": ns,
+			"NginxPort": 80,
+		}))
+		waitForPods(t, kubeconfig, ns, 5*time.Minute)
+	}
 }
 
 // applyManifest runs kubectl apply with the manifest piped to stdin.
@@ -264,6 +291,24 @@ func waitForDeployments(t *testing.T, kubeconfigPath, namespace string, timeout 
 		t.Logf("kubectl wait output:\n%s", string(output))
 	}
 	require.NoError(t, err, "deployments in namespace %s not ready after %s", namespace, timeout)
+}
+
+// waitForPods waits for all pods in the given namespace to be ready.
+// Used for CRD-based workloads (e.g. ArgoRollout) that don't expose a Deployment.
+func waitForPods(t *testing.T, kubeconfigPath, namespace string, timeout time.Duration) {
+	t.Helper()
+	cmd := exec.Command("kubectl", "wait",
+		"--for=condition=ready",
+		"pod", "--all",
+		"-n", namespace,
+		fmt.Sprintf("--timeout=%ds", int(timeout.Seconds())),
+		"--kubeconfig", kubeconfigPath,
+	)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Logf("kubectl wait output:\n%s", string(output))
+	}
+	require.NoError(t, err, "pods in namespace %s not ready after %s", namespace, timeout)
 }
 
 // render executes a text/template with the given variables.
