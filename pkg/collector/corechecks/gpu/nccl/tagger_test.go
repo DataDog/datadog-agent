@@ -16,85 +16,95 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
-func TestNewProcessTaggerNilComponents(t *testing.T) {
-	// Test that NewProcessTagger works with nil components
-	pt := NewProcessTagger(nil, nil, nil)
+// In degraded mode (any of tagger/wmeta/telemetry is nil), the underlying
+// WorkloadTagCache cannot be constructed, so ProcessTagger falls back to
+// PID-only tagging. The tests below pin that contract.
+
+func TestNewProcessTaggerDegradedMode(t *testing.T) {
+	pt := NewProcessTagger(nil, nil, nil, nil)
 	require.NotNil(t, pt)
-	assert.Nil(t, pt.tagger)
-	assert.Nil(t, pt.wmeta)
-	assert.Nil(t, pt.containerProvider)
+	assert.Nil(t, pt.cache, "cache should be nil when components are missing")
 }
 
-func TestGetTagsForPIDWithoutProvider(t *testing.T) {
-	pt := NewProcessTagger(nil, nil, nil)
+func TestGetTagsForPIDDegradedMode(t *testing.T) {
+	pt := NewProcessTagger(nil, nil, nil, nil)
 
-	// Without any components, should still return PID tag
+	// Without cache, we still get the PID tag
 	tags, err := pt.GetTagsForPID(12345)
 	require.NoError(t, err)
-	assert.Contains(t, tags, "pid:12345")
+	assert.Equal(t, []string{"pid:12345"}, tags)
 }
 
 func TestGetTagsForPIDZero(t *testing.T) {
-	pt := NewProcessTagger(nil, nil, nil)
+	pt := NewProcessTagger(nil, nil, nil, nil)
 
-	// PID 0 should still return tags
 	tags, err := pt.GetTagsForPID(0)
 	require.NoError(t, err)
-	assert.Contains(t, tags, "pid:0")
+	assert.Equal(t, []string{"pid:0"}, tags)
 }
 
-func TestRefresh(t *testing.T) {
-	pt := NewProcessTagger(nil, nil, nil)
+func TestRefreshDegradedMode(t *testing.T) {
+	pt := NewProcessTagger(nil, nil, nil, nil)
 
-	// Set up some cached data
-	pt.pidToCid = map[int]string{123: "container1"}
-
-	// Refresh should clear the cache
-	pt.Refresh()
-	assert.Nil(t, pt.pidToCid)
+	// Refresh on a nil cache must be a no-op (not panic)
+	require.NotPanics(t, func() { pt.Refresh() })
 }
 
-func TestGetWorkloadTagsProcess(t *testing.T) {
-	pt := NewProcessTagger(nil, nil, nil)
+func TestSetContainerProviderDegradedMode(t *testing.T) {
+	pt := NewProcessTagger(nil, nil, nil, nil)
 
-	workloadID := workloadmeta.EntityID{
+	// SetContainerProvider on a nil cache must be a no-op (not panic)
+	require.NotPanics(t, func() { pt.SetContainerProvider(nil) })
+}
+
+func TestGetWorkloadTagsProcessDegradedMode(t *testing.T) {
+	pt := NewProcessTagger(nil, nil, nil, nil)
+
+	tags, err := pt.GetWorkloadTags(workloadmeta.EntityID{
 		Kind: workloadmeta.KindProcess,
 		ID:   "12345",
-	}
-
-	tags, err := pt.GetWorkloadTags(workloadID)
+	})
 	require.NoError(t, err)
-	assert.Contains(t, tags, "pid:12345")
+	assert.Equal(t, []string{"pid:12345"}, tags)
 }
 
 func TestGetWorkloadTagsInvalidProcessID(t *testing.T) {
-	pt := NewProcessTagger(nil, nil, nil)
+	pt := NewProcessTagger(nil, nil, nil, nil)
 
-	workloadID := workloadmeta.EntityID{
+	_, err := pt.GetWorkloadTags(workloadmeta.EntityID{
 		Kind: workloadmeta.KindProcess,
 		ID:   "not-a-number",
-	}
-
-	_, err := pt.GetWorkloadTags(workloadID)
+	})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid process ID")
 }
 
-func TestGetWorkloadTagsUnsupportedKind(t *testing.T) {
-	pt := NewProcessTagger(nil, nil, nil)
+func TestGetWorkloadTagsContainerDegradedMode(t *testing.T) {
+	pt := NewProcessTagger(nil, nil, nil, nil)
 
-	workloadID := workloadmeta.EntityID{
+	// Container lookups require the cache; in degraded mode this should error
+	// rather than panic.
+	_, err := pt.GetWorkloadTags(workloadmeta.EntityID{
+		Kind: workloadmeta.KindContainer,
+		ID:   "container-123",
+	})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "workload tag cache not initialized")
+}
+
+func TestGetWorkloadTagsUnsupportedKind(t *testing.T) {
+	pt := NewProcessTagger(nil, nil, nil, nil)
+
+	_, err := pt.GetWorkloadTags(workloadmeta.EntityID{
 		Kind: workloadmeta.KindKubernetesPod,
 		ID:   "some-pod",
-	}
-
-	_, err := pt.GetWorkloadTags(workloadID)
+	})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "unsupported workload kind")
 }
 
 func TestGetTagsForPIDWithGPU(t *testing.T) {
-	pt := NewProcessTagger(nil, nil, nil)
+	pt := NewProcessTagger(nil, nil, nil, nil)
 
 	tags, err := pt.GetTagsForPIDWithGPU(12345, "GPU-abc123")
 	require.NoError(t, err)
@@ -103,44 +113,20 @@ func TestGetTagsForPIDWithGPU(t *testing.T) {
 }
 
 func TestGetTagsForPIDWithGPUEmpty(t *testing.T) {
-	pt := NewProcessTagger(nil, nil, nil)
+	pt := NewProcessTagger(nil, nil, nil, nil)
 
 	tags, err := pt.GetTagsForPIDWithGPU(12345, "")
 	require.NoError(t, err)
 	assert.Contains(t, tags, "pid:12345")
-	// Should not contain gpu_uuid tag when empty
 	for _, tag := range tags {
 		assert.NotContains(t, tag, "gpu_uuid:")
 	}
 }
 
 func TestGetWorkloadTagsForPID(t *testing.T) {
-	pt := NewProcessTagger(nil, nil, nil)
+	pt := NewProcessTagger(nil, nil, nil, nil)
 
 	tags, err := pt.GetWorkloadTagsForPID(54321)
 	require.NoError(t, err)
 	assert.Contains(t, tags, "pid:54321")
-}
-
-func TestGetContainerIDWithoutProvider(t *testing.T) {
-	pt := NewProcessTagger(nil, nil, nil)
-
-	containerID, err := pt.getContainerID(12345)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "no container provider available")
-	assert.Empty(t, containerID)
-}
-
-func TestGetWorkloadTagsContainer(t *testing.T) {
-	pt := NewProcessTagger(nil, nil, nil)
-
-	// Container workload without wmeta set will fail
-	workloadID := workloadmeta.EntityID{
-		Kind: workloadmeta.KindContainer,
-		ID:   "container-123",
-	}
-
-	// Should fail because wmeta is nil
-	_, err := pt.GetWorkloadTags(workloadID)
-	assert.Error(t, err)
 }

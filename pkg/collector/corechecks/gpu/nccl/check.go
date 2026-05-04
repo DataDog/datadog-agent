@@ -147,7 +147,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	}
 
 	// Initialize process tagger for PID -> container -> pod correlation
-	c.processTagger = NewProcessTagger(c.tagger, c.wmeta, c.containerProvider)
+	c.processTagger = NewProcessTagger(c.tagger, c.wmeta, c.containerProvider, c.telemetry)
 
 	// Initialize hang detection state
 	c.lastSeenRank = make(map[string]rankStalenessEntry)
@@ -168,8 +168,8 @@ func (c *Check) Run() error {
 	defer snd.Commit()
 
 	// Lazy-init containerProvider: GetSharedContainerProvider fails at Configure time
-	// (startup ordering) but is ready by the first Run call. Re-initialize
-	// processTagger so it has a valid provider reference. Failures are
+	// (startup ordering) but is ready by the first Run call. Inject the provider
+	// into the existing processTagger via SetContainerProvider. Failures are
 	// rate-limited to avoid log spam (first immediately, then once per 10 min)
 	// while still surfacing long-term unhealthy states.
 	if c.containerProvider == nil {
@@ -180,7 +180,9 @@ func (c *Check) Run() error {
 			}
 		} else {
 			c.containerProvider = p
-			c.processTagger = NewProcessTagger(c.tagger, c.wmeta, c.containerProvider)
+			if c.processTagger != nil {
+				c.processTagger.SetContainerProvider(p)
+			}
 			log.Infof("NCCL check: container provider lazy-init succeeded")
 		}
 	}
