@@ -108,7 +108,6 @@ log "Building agent binary via inv agent.build"
 cd /opt/datadog-agent
 rm -f "$STAGING/opt/datadog-agent/bin/agent/agent"
 python3.12 -m invoke agent.build \
-    --skip-assets \
     --exclude-rtloader \
     --rtloader-root=/opt/datadog-agent/rtloader \
     --embedded-path="$EMBEDDED_DESTDIR" \

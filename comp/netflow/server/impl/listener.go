@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-package server
+package serverimpl
 
 import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"

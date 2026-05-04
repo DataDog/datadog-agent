@@ -10,7 +10,6 @@ package pidmap
 
 // Component is the component type.
 type Component interface {
-
 	// SetPidMap sets the map with the pid - containerID relations
 	SetPidMap(m map[int32]string)
 

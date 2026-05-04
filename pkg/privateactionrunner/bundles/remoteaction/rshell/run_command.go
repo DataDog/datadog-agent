@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"slices"
 	"strings"
 
 	"mvdan.cc/sh/v3/syntax"
@@ -19,6 +20,7 @@ import (
 	"github.com/DataDog/rshell/interp"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
@@ -37,93 +39,74 @@ var statFn = os.Stat
 
 // RunCommandHandler implements the runCommand action.
 //
-// Both allow-lists follow the same pattern: the operator list is stored as a
-// set for O(1) lookup, and the filter functions do plain string-equality
-// intersection with the backend list. Nil means the operator did not
-// configure the axis (backend list passes through); an empty list means the
-// operator explicitly restricts to nothing.
-type RunCommandHandler struct {
-	// operatorAllowedPaths is the operator's filesystem allowlist from
-	// datadog.yaml. Populated only when filtering is enabled.
-	operatorAllowedPaths map[string]struct{}
-	// operatorPathsFilterEnabled distinguishes "unset" (nil map, no
-	// filtering) from "empty list" (operator explicitly allowed nothing).
-	operatorPathsFilterEnabled bool
-	// operatorAllowedCommands is the set of bare command names the
-	// operator has allow-listed. Populated only when filtering is enabled.
-	operatorAllowedCommands map[string]struct{}
-	// operatorCommandsFilterEnabled distinguishes "unset" from "empty".
-	operatorCommandsFilterEnabled bool
-}
-
-// NewRunCommandHandler creates a new RunCommandHandler. Pass nil for either
-// operator list to disable filtering on that axis. A non-nil empty slice is
-// an explicit "block everything on this axis" and is honored as such.
-func NewRunCommandHandler(operatorAllowedPaths []string, operatorAllowedCommands []string) *RunCommandHandler {
-	h := &RunCommandHandler{}
-	if operatorAllowedPaths != nil {
-		h.operatorPathsFilterEnabled = true
-		h.operatorAllowedPaths = make(map[string]struct{}, len(operatorAllowedPaths))
-		for _, p := range operatorAllowedPaths {
-			if p == "" {
-				continue
-			}
-			h.operatorAllowedPaths[p] = struct{}{}
-		}
-	}
-	if operatorAllowedCommands != nil {
-		h.operatorCommandsFilterEnabled = true
-		h.operatorAllowedCommands = make(map[string]struct{}, len(operatorAllowedCommands))
-		for _, c := range operatorAllowedCommands {
-			if c == "" {
-				continue
-			}
-			h.operatorAllowedCommands[c] = struct{}{}
-		}
-	}
-	return h
-}
-
-// filterAllowedCommands returns the effective command allowlist given the
-// per-task list from the backend.
+// Both allow-lists are intersected unconditionally with the per-task backend
+// list before being passed to rshell. They use different equivalence
+// notions, and each axis has a sentinel value that means "allow whatever
+// the backend allowed":
 //
-// The backend is the authoritative gate. A nil backend list (field absent)
-// produces an empty result — rshell then blocks every command. The operator
-// config can only tighten further; it cannot grant commands the backend did
-// not.
+//   - commands compare by exact string equality, with one special case:
+//     the literal "rshell:*" admits every backend entry in the "rshell:"
+//     namespace. Other operator entries must be in the backend's namespaced
+//     form to match.
+//   - paths compare by containment with the narrower side winning; the
+//     sentinel "/" admits every absolute path through containment.
+//
+// On either axis, an explicit empty operator list is the kill-switch.
+type RunCommandHandler struct {
+	operatorAllowedPaths    []string
+	operatorAllowedCommands []string
+}
+
+func NewRunCommandHandler(operatorAllowedPaths []string, operatorAllowedCommands []string) *RunCommandHandler {
+	operatorAllowedCommandsClone := slices.Clone(operatorAllowedCommands)
+	slices.Sort(operatorAllowedCommandsClone)
+	return &RunCommandHandler{
+		operatorAllowedPaths:    reducePathListToBroadest(cleanPathList(operatorAllowedPaths)),
+		operatorAllowedCommands: slices.Compact(operatorAllowedCommandsClone),
+	}
+}
+
+// filterAllowedCommands returns the effective command allowlist, passed to rshell:
+// intersection of the operator-configured list and the backend-configured list.
 func (h *RunCommandHandler) filterAllowedCommands(backendAllowed []string) []string {
-	if backendAllowed == nil {
-		return nil
+	// If either list is empty, the intersection is an empty list.
+	if len(backendAllowed) == 0 || len(h.operatorAllowedCommands) == 0 {
+		return []string{}
 	}
-	if !h.operatorCommandsFilterEnabled {
-		return backendAllowed
+
+	// If the operator-configured list contains the wildcard, the intersection is the backend-configured list.
+	// Most of the executions should return here.
+	if slices.Contains(h.operatorAllowedCommands, setup.RShellCommandAllowAllWildcard) {
+		return onlyRshellPrefixedCommands(backendAllowed)
 	}
-	filtered := make([]string, 0, len(backendAllowed))
+
+	filtered := make([]string, 0)
 	for _, c := range backendAllowed {
-		if _, ok := h.operatorAllowedCommands[c]; ok {
+		if slices.Contains(h.operatorAllowedCommands, c) {
 			filtered = append(filtered, c)
 		}
 	}
 	return filtered
 }
 
-// filterAllowedPaths is the paths analogue of filterAllowedCommands. Both
-// do plain string-equality intersection — paths must be spelled identically
-// on the backend and in datadog.yaml to be admitted.
-func (h *RunCommandHandler) filterAllowedPaths(backendAllowed []string) []string {
-	if backendAllowed == nil {
-		return nil
+// filterAllowedPaths returns the effective path allowlist, passed to rshell:
+// intersection of the operator-configured list and the backend-configured list.
+// The narrower side wins.
+func (h *RunCommandHandler) filterAllowedPaths(backend []string) []string {
+	// If either list is empty, the intersection is an empty list.
+	if len(backend) == 0 || len(h.operatorAllowedPaths) == 0 {
+		return []string{}
 	}
-	if !h.operatorPathsFilterEnabled {
-		return backendAllowed
+
+	backend = reducePathListToBroadest(cleanPathList(backend))
+
+	// If the operator-configured list contains the wildcard, the intersection is the backend-configured list.
+	// Most of the executions should return here.
+	if slices.Contains(h.operatorAllowedPaths, setup.RShellPathAllowAll) {
+		return backend
 	}
-	filtered := make([]string, 0, len(backendAllowed))
-	for _, p := range backendAllowed {
-		if _, ok := h.operatorAllowedPaths[p]; ok {
-			filtered = append(filtered, p)
-		}
-	}
-	return filtered
+
+	return intersectPathLists(h.operatorAllowedPaths, backend)
 }
 
 // RunCommandInputs defines the inputs for the runCommand action.
@@ -134,9 +117,9 @@ func (h *RunCommandHandler) filterAllowedPaths(backendAllowed []string) []string
 // A non-nil list is intersected with the operator config before being
 // handed to rshell.
 type RunCommandInputs struct {
-	Command         string   `json:"command"`
-	AllowedCommands []string `json:"allowedCommands"`
-	AllowedPaths    []string `json:"allowedPaths"`
+	Command         string              `json:"command"`
+	AllowedCommands []string            `json:"allowedCommands"`
+	AllowedPaths    map[string][]string `json:"allowedPaths"`
 }
 
 // RunCommandOutputs defines the outputs for the runCommand action.
@@ -161,10 +144,11 @@ func (h *RunCommandHandler) Run(
 		return nil, errors.New("command is required")
 	}
 
+	backendPaths := selectBackendPathsFromEnv(inputs.AllowedPaths)
 	effectiveAllowedCommands := h.filterAllowedCommands(inputs.AllowedCommands)
-	effectiveAllowedPaths := h.filterAllowedPaths(inputs.AllowedPaths)
+	effectiveAllowedPaths := h.filterAllowedPaths(backendPaths)
 	log.Debugf("rshell runCommand: command=%q backendAllowedCommands=%v effectiveAllowedCommands=%v backendAllowedPaths=%v effectiveAllowedPaths=%v",
-		inputs.Command, inputs.AllowedCommands, effectiveAllowedCommands, inputs.AllowedPaths, effectiveAllowedPaths)
+		inputs.Command, inputs.AllowedCommands, effectiveAllowedCommands, backendPaths, effectiveAllowedPaths)
 
 	prog, err := syntax.NewParser().Parse(strings.NewReader(inputs.Command), "")
 	if err != nil {
