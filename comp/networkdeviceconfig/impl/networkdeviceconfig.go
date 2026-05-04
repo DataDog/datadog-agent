@@ -7,13 +7,14 @@
 package networkdeviceconfigimpl
 
 import (
-	"fmt"
+	"net"
+	"strings"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	networkdeviceconfig "github.com/DataDog/datadog-agent/comp/networkdeviceconfig/def"
 	"golang.org/x/crypto/ssh"
-	"strings"
 )
 
 // Requires defines the dependencies for the networkdeviceconfig component
@@ -108,7 +109,7 @@ func connectToHost(ipAddress string, ac AuthCredentials) (*ssh.Client, error) {
 	// ⚠️TODO: Use a proper host key callback in production code (pull in known hosts file from user, etc.)
 	sshConfig.HostKeyCallback = ssh.InsecureIgnoreHostKey()
 
-	host := fmt.Sprintf("%s:%s", ipAddress, ac.Port)
+	host := net.JoinHostPort(ipAddress, ac.Port)
 	client, err := ssh.Dial(ac.Protocol, host, sshConfig)
 	if err != nil {
 		return nil, err

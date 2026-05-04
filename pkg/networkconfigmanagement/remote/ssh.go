@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"slices"
 	"strings"
@@ -299,7 +300,7 @@ func connectToHost(ipAddress string, auth ncmconfig.AuthCredentials, config *ncm
 		HostKeyAlgorithms: config.HostKeyAlgorithms,
 	}
 
-	host := fmt.Sprintf("%s:%s", ipAddress, auth.Port)
+	host := net.JoinHostPort(ipAddress, auth.Port)
 	client, err := ssh.Dial(auth.Protocol, host, sshConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to %s: %w", host, err)

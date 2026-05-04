@@ -1,0 +1,18 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fix IPv6 address formatting in several network-device monitoring code
+    paths: the NetFlow listener bind address, the SSH connection target
+    used by the network device configuration component and the network
+    config management remote SSH client, and the Versa director endpoint
+    URL. All now properly bracket IPv6 hosts (e.g. ``[fd38::1]:22``) so
+    listeners can bind and SSH dials succeed on IPv6-only networks. The
+    Versa client additionally re-parses the configured ``directorEndpoint``
+    URL to bracket the host before joining it with ``directorAPIPort``.

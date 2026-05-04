@@ -7,6 +7,8 @@ package config
 
 import (
 	"fmt"
+	"net"
+	"strconv"
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -141,5 +143,5 @@ func (mainConfig *NetflowConfig) SetDefaults(namespace string, logger log.Compon
 
 // Addr returns the host:port address to listen on.
 func (c *ListenerConfig) Addr() string {
-	return fmt.Sprintf("%s:%d", c.BindHost, c.Port)
+	return net.JoinHostPort(c.BindHost, strconv.Itoa(int(c.Port)))
 }

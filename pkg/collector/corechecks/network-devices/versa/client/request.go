@@ -10,7 +10,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -23,8 +25,14 @@ func (client *Client) newRequest(method, uri string, body io.Reader, useSessionA
 	if useSessionAuth {
 		return http.NewRequestWithContext(context.Background(), method, client.directorEndpoint+uri, body)
 	}
-	log.Tracef("Endpoint: %s:%d%s", client.directorEndpoint, client.directorAPIPort, uri)
-	return http.NewRequestWithContext(context.Background(), method, fmt.Sprintf("%s:%d%s", client.directorEndpoint, client.directorAPIPort, uri), body)
+	parsedURL, err := url.Parse(client.directorEndpoint)
+	if err != nil {
+		return nil, fmt.Errorf("invalid director endpoint %q: %w", client.directorEndpoint, err)
+	}
+	parsedURL.Host = net.JoinHostPort(parsedURL.Hostname(), strconv.Itoa(client.directorAPIPort))
+	endpointWithPort := parsedURL.String()
+	log.Tracef("Endpoint: %s%s", endpointWithPort, uri)
+	return http.NewRequestWithContext(context.Background(), method, endpointWithPort+uri, body)
 }
 
 // TODO: can we move this to a common package? Cisco SD-WAN and Versa use this
