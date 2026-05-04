@@ -115,6 +115,34 @@ func main() {
 	condLine(7, "match")
 	condLine(0, "miss")
 
+	// Line probe target with mixed types live at one line. Called twice — once
+	// with values that match the conditional probes, once with values that
+	// don't. Each conditional probe on this function should fire only on the
+	// matching call.
+	condLineMixed("hello", true, condFields{
+		I8: 10, I16: 200, I32: 300, I64: 400,
+		U8: 50, U16: 600, U32: 700, U64: 800,
+		F32: 1.5, F64: 2.5, B: true, S: "world",
+	}, &condFields{
+		I8: 10, I16: 200, I32: 300, I64: 400,
+		U8: 50, U16: 600, U32: 700, U64: 800,
+		F32: 1.5, F64: 2.5, B: true, S: "world",
+	}, []int{1, 2, 3, 4, 5})
+	condLineMixed("xy", false, condFields{
+		I8: 1, I16: 2, I32: 3, I64: 4,
+		U8: 5, U16: 6, U32: 7, U64: 8,
+		F32: 0.1, F64: 0.2, B: false, S: "other",
+	}, &condFields{
+		I8: 1, I16: 2, I32: 3, I64: 4,
+		U8: 5, U16: 6, U32: 7, U64: 8,
+		F32: 0.1, F64: 0.2, B: false, S: "other",
+	}, []int{})
+
+	// Line probe target with a return value: used to verify that @return is
+	// rejected inside a line-probe condition (the return slot does not exist
+	// at a mid-function PC).
+	condLineReturn(7)
+
 	// Nil pointer in condition dereference chain: called twice.
 	// First call: non-nil pointer matching condition → normal snapshot, no eval error.
 	// Second call: nil pointer → condition eval error, snapshot still emitted.
@@ -518,6 +546,31 @@ func condLine(n int, tag string) {
 	// keep them in registers/stack at the probe site.
 	result := n * 2 // target for line probe conditions on n
 	fmt.Println(result, n, tag)
+}
+
+// condLineMixed is a target for line-probe conditions on the full type
+// matrix at a single line PC. It mirrors the entry-probe condition matrix
+// (condString / condBool / condStructArg / condPtrStructArg / lenString /
+// lenSlice) but exercises each at a line probe location rather than at
+// function entry. All parameters and the local are read after the target
+// line so the compiler keeps them live at the probe site.
+//
+//go:noinline
+func condLineMixed(s string, b bool, x condFields, p *condFields, ss []int) {
+	local := len(s) // target for line probe conditions on local
+	fmt.Println(local, s, b, x.I32, x.S, p.I32, p.S, ss)
+}
+
+// condLineReturn is a target for `@return` references inside line-probe
+// conditions. At a line PC inside the function the return slot is not
+// populated yet, so any `@return` reference in a line-probe condition must
+// be rejected.
+//
+//go:noinline
+func condLineReturn(n int) int {
+	doubled := n * 2 // target for line probe with @return condition
+	fmt.Println(doubled)
+	return doubled
 }
 
 // condSliceArg is a target for unsupported-type condition errors (slice).

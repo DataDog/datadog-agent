@@ -743,7 +743,7 @@ probes:
     methodName: main.condLine
     sourceFile: main.go
     lines:
-      - "519"
+      - "547"
   when:
     dsl: "n == 7"
     json: {eq: [{ref: "n"}, 7]}
@@ -768,9 +768,234 @@ probes:
     methodName: main.condLine
     sourceFile: main.go
     lines:
-      - "519"
+      - "547"
   sampling:
     snapshotsPerSecond: 10
+
+# Line probe with condition on a local variable computed before the line.
+# Verifies the probe resolves `result`'s location at the line PC (line 548,
+# after `result := n * 2` on line 547), not at function entry where the
+# local does not exist. result == 14 fires only for condLine(7, "match").
+#
+# On go1.23 the local's location list is missing at this line PC, so the
+# probe fails to install with ConditionVariableUnavailable.
+- id: condLine_local_cond
+  tags:
+    - "skip_integration:arch=arm64,toolchain=go1.23.11"
+    - "skip_integration:arch=amd64,toolchain=go1.23.11"
+    - "issue:ConditionVariableUnavailable@arch=arm64,toolchain=go1.23.11"
+    - "issue:ConditionVariableUnavailable@arch=amd64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condLine
+    sourceFile: main.go
+    lines:
+      - "548"
+  when:
+    dsl: "result == 14"
+    json: {eq: [{ref: "result"}, 14]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Line probe at the same line WITHOUT condition (control for condLine_local_cond).
+- id: condLine_local_nocond
+  tags:
+    - "skip_integration:arch=arm64,toolchain=go1.23.11"
+    - "skip_integration:arch=amd64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condLine
+    sourceFile: main.go
+    lines:
+      - "548"
+  sampling:
+    snapshotsPerSecond: 10
+
+# ==========================================================================
+# Condition tests: line probes — full type matrix at a single line PC
+#
+# Mirrors the entry-probe condition matrix (string, bool, struct field,
+# pointer-to-struct field, len, isEmpty) but at a line PC rather than at
+# function entry. condLineMixed(s, b, x, p, ss) is called twice — once with
+# the matching values, once with non-matching — so each conditional probe
+# fires exactly once.
+# ==========================================================================
+
+# Condition on string parameter at a line.
+- id: condLineMixed_cond_string
+  tags:
+    - "skip_integration:arch=arm64,toolchain=go1.23.11"
+    - "skip_integration:arch=amd64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condLineMixed
+    sourceFile: main.go
+    lines:
+      - "561"
+  when:
+    dsl: "s == \"hello\""
+    json: {eq: [{ref: "s"}, "hello"]}
+  template: "matched"
+  segments:
+    - str: "matched"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Condition on bool parameter at a line.
+- id: condLineMixed_cond_bool
+  tags:
+    - "skip_integration:arch=arm64,toolchain=go1.23.11"
+    - "skip_integration:arch=amd64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condLineMixed
+    sourceFile: main.go
+    lines:
+      - "561"
+  when:
+    dsl: "b == true"
+    json: {eq: [{ref: "b"}, true]}
+  template: "matched"
+  segments:
+    - str: "matched"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Condition on struct field at a line.
+- id: condLineMixed_cond_struct_field
+  tags:
+    - "skip_integration:arch=arm64,toolchain=go1.23.11"
+    - "skip_integration:arch=amd64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condLineMixed
+    sourceFile: main.go
+    lines:
+      - "561"
+  when:
+    dsl: "x.I32 == 300"
+    json: {eq: [{getmember: [{ref: "x"}, "I32"]}, 300]}
+  template: "matched"
+  segments:
+    - str: "matched"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Condition on pointer-to-struct field at a line.
+- id: condLineMixed_cond_ptrstruct_field
+  tags:
+    - "skip_integration:arch=arm64,toolchain=go1.23.11"
+    - "skip_integration:arch=amd64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condLineMixed
+    sourceFile: main.go
+    lines:
+      - "561"
+  when:
+    dsl: "p.S == \"world\""
+    json: {eq: [{getmember: [{ref: "p"}, "S"]}, "world"]}
+  template: "matched"
+  segments:
+    - str: "matched"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Condition using len() on a string parameter at a line.
+- id: condLineMixed_cond_len_string
+  tags:
+    - "skip_integration:arch=arm64,toolchain=go1.23.11"
+    - "skip_integration:arch=amd64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condLineMixed
+    sourceFile: main.go
+    lines:
+      - "561"
+  when:
+    dsl: "len(s) == 5"
+    json: {eq: [{len: {ref: "s"}}, 5]}
+  template: "matched"
+  segments:
+    - str: "matched"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Condition using isEmpty() on a slice parameter at a line. The slice is
+# empty on the second call (ss = []int{}), so this probe fires once.
+- id: condLineMixed_cond_isEmpty_slice
+  tags:
+    - "skip_integration:arch=arm64,toolchain=go1.23.11"
+    - "skip_integration:arch=amd64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condLineMixed
+    sourceFile: main.go
+    lines:
+      - "561"
+  when:
+    dsl: "isEmpty(ss)"
+    json: {isEmpty: {ref: "ss"}}
+  template: "matched"
+  segments:
+    - str: "matched"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Line probe at the same line WITHOUT condition (control: fires on both calls).
+- id: condLineMixed_nocond
+  tags:
+    - "skip_integration:arch=arm64,toolchain=go1.23.11"
+    - "skip_integration:arch=amd64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condLineMixed
+    sourceFile: main.go
+    lines:
+      - "561"
+  sampling:
+    snapshotsPerSecond: 10
+
+# ==========================================================================
+# Condition tests: line probes — @return is invalid at a mid-function PC
+#
+# The return slot is not populated until the function returns. A line probe
+# inside the function body should reject any @return reference in its
+# condition. condLineReturn(n int) int is called once.
+# ==========================================================================
+
+- id: condLineReturn_cond_return
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condLineReturn
+    sourceFile: main.go
+    lines:
+      - "571"
+  when:
+    dsl: "@return == 14"
+    json: {eq: [{ref: "@return"}, 14]}
+  template: "matched"
+  segments:
+    - str: "matched"
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionVariableUnavailable"
 
 # ==========================================================================
 # Condition tests: condition + capture expressions on the same probe
@@ -2964,7 +3189,7 @@ probes:
     methodName: main.condLine
     sourceFile: main.go
     lines:
-      - "519"
+      - "547"
   when:
     dsl: "n == 7 && tag == \"match\""
     json:

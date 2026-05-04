@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.condUint8",
+      "method": "main.condLine",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -16,14 +16,14 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.condUint8",
+            "function": "main.condLine",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 455
+            "lineNumber": 548
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 57
+            "lineNumber": 115
           },
           {
             "function": "runtime.main",
@@ -37,21 +37,29 @@
           }
         ],
         "probe": {
-          "id": "condUint8_nocond",
+          "id": "condLine_local_nocond",
           "location": {
-            "method": "main.condUint8"
+            "method": "main.condLine",
+            "file": "main.go",
+            "line": 548
           }
         },
         "captures": {
-          "entry": {
-            "arguments": {
-              "x": {
-                "type": "uint8",
-                "value": "42"
-              },
-              "tag": {
-                "type": "string",
-                "value": "match"
+          "lines": {
+            "548": {
+              "locals": {
+                "n": {
+                  "type": "int",
+                  "value": "7"
+                },
+                "tag": {
+                  "type": "string",
+                  "value": "match"
+                },
+                "result": {
+                  "type": "int",
+                  "value": "14"
+                }
               }
             }
           }
@@ -60,7 +68,6 @@
       "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "duration": "[duration]",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
@@ -68,7 +75,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.condUint8",
+      "method": "main.condLine",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -80,14 +87,14 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.condUint8",
+            "function": "main.condLine",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 455
+            "lineNumber": 548
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 58
+            "lineNumber": 116
           },
           {
             "function": "runtime.main",
@@ -101,21 +108,29 @@
           }
         ],
         "probe": {
-          "id": "condUint8_nocond",
+          "id": "condLine_local_nocond",
           "location": {
-            "method": "main.condUint8"
+            "method": "main.condLine",
+            "file": "main.go",
+            "line": 548
           }
         },
         "captures": {
-          "entry": {
-            "arguments": {
-              "x": {
-                "type": "uint8",
-                "value": "7"
-              },
-              "tag": {
-                "type": "string",
-                "value": "miss"
+          "lines": {
+            "548": {
+              "locals": {
+                "n": {
+                  "type": "int",
+                  "value": "0"
+                },
+                "tag": {
+                  "type": "string",
+                  "value": "miss"
+                },
+                "result": {
+                  "type": "int",
+                  "value": "0"
+                }
               }
             }
           }
@@ -124,7 +139,6 @@
       "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "duration": "[duration]",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

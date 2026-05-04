@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.condLine",
+      "method": "main.condLineMixed",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -15,18 +15,18 @@
         "timestamp": "[ts]",
         "language": "go",
         "probe": {
-          "id": "condCompound_line_and",
+          "id": "condLineMixed_cond_struct_field",
           "location": {
-            "method": "main.condLine",
+            "method": "main.condLineMixed",
             "file": "main.go",
-            "line": 547
+            "line": 561
           }
         }
       },
       "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "message": "n == 7 && tag == \"match\" [n=7, tag=match]",
+    "message": "matched",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]
