@@ -385,7 +385,16 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// - nodes
 	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.resources", []string{})
 	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.resource_annotations_exclude", []string{})
-	config.BindEnvAndSetDefault("cluster_agent.cluster_tagger.grpc_max_message_size", 4<<20) // deprecated: use `agent_ipc.grpc_max_message_size` instead. Still honoured by the agent gRPC server, which uses the larger of this and `agent_ipc.grpc_max_message_size`.
+	// partially deprecated: `agent_ipc.grpc_max_message_size` should now be used for configuring the maximum gRPC
+	// message size on the agent IPC server
+	//
+	// this is still used directly for determining the chunking behavior of messages sent from the remote tagger and
+	// remote workloadmeta, to preserve existing behavior until we can better unify chunking behavior across all the
+	// gRPC services on the IPC endpoint.
+	//
+	// if this value is larger than `agent_ipc.grpc_max_message_size`, it will still be honoured by the agent gRPC
+	// server instead of `agent_ipc.grpc_max_message_size`.
+	config.BindEnvAndSetDefault("cluster_agent.cluster_tagger.grpc_max_message_size", 4<<20)
 
 	// Check that the trust chain is valid for Agent cross-node communications (NodeAgent->DCA / CLC->DCA / DCA->CLC).
 	config.BindEnvAndSetDefault("cluster_trust_chain.enable_tls_verification", false)

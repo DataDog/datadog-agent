@@ -88,10 +88,9 @@ func (s *server) BuildServer() http.Handler {
 	// `cluster_agent.cluster_tagger.grpc_max_message_size` is deprecated but still honoured
 	// for backwards compatibility. Use the larger of the two so neither setting can
 	// silently shrink the limit.
-	maxMessageSize := s.configComp.GetInt("agent_ipc.grpc_max_message_size")
-	if legacy := s.configComp.GetInt("cluster_agent.cluster_tagger.grpc_max_message_size"); legacy > maxMessageSize {
-		maxMessageSize = legacy
-	}
+	ipcMaxMessageSize := s.configComp.GetInt("agent_ipc.grpc_max_message_size")
+	legacyMaxMessageSize := s.configComp.GetInt("cluster_agent.cluster_tagger.grpc_max_message_size")
+	maxMessageSize := max(ipcMaxMessageSize, legacyMaxMessageSize)
 
 	// Use the convenience function that combines metrics and auth interceptors
 	var opts []googleGrpc.ServerOption
