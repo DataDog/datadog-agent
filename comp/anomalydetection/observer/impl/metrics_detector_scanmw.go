@@ -71,6 +71,27 @@ type ScanMWDetector struct {
 	// Aggregations to run detection on. Default: [Average, Count]
 	Aggregations []observer.Aggregate
 
+	// SSTEnabled gates the Singular Spectrum Transform post-filter.
+	// Default: true
+	SSTEnabled bool
+
+	// SSTWindow is the number of points each side of the split to include
+	// when building Hankel matrices. Default: 24
+	SSTWindow int
+
+	// SSTHankelL is the number of rows L in each Hankel trajectory matrix.
+	// Default: 8
+	SSTHankelL int
+
+	// SSTPowerIters is the number of power-iteration steps used to
+	// approximate the leading singular vector. Default: 5
+	SSTPowerIters int
+
+	// SSTMinScore is the minimum SST score (1 - |<u_pre, u_post>|) required
+	// to keep a candidate. Candidates with score below this are suppressed.
+	// Default: 0.30
+	SSTMinScore float64
+
 	// per-series state keyed by ref+agg
 	series map[scanmwStateKey]*scanmwSeriesState
 
@@ -91,7 +112,12 @@ func NewScanMWDetector() *ScanMWDetector {
 			observer.AggregateAverage,
 			observer.AggregateCount,
 		},
-		series: make(map[scanmwStateKey]*scanmwSeriesState),
+		SSTEnabled:    true,
+		SSTWindow:     24,
+		SSTHankelL:    8,
+		SSTPowerIters: 5,
+		SSTMinScore:   0.30,
+		series:        make(map[scanmwStateKey]*scanmwSeriesState),
 	}
 }
 
@@ -299,6 +325,29 @@ func (d *ScanMWDetector) scanMW(points []observer.Point, series *observer.Series
 		return observer.Anomaly{}, 0, false
 	}
 
+	// SST post-filter: suppress splits whose trajectory-shape subspace angle
+	// is too small (i.e. no genuine structural change in the time-delay
+	// embedding). Only applied when both pre/post windows are long enough to
+	// build meaningful Hankel matrices.
+	if d.SSTEnabled {
+		lw := d.SSTWindow
+		preStart := bestK - lw
+		if preStart < 0 {
+			preStart = 0
+		}
+		postEnd := bestK + lw
+		if postEnd > n {
+			postEnd = n
+		}
+		minLen := d.SSTHankelL + 2
+		if (bestK-preStart) >= minLen && (postEnd-bestK) >= minLen {
+			score := sstScore(values[preStart:bestK], values[bestK:postEnd], d.SSTHankelL, d.SSTPowerIters)
+			if score < d.SSTMinScore {
+				return observer.Anomaly{}, 0, false
+			}
+		}
+	}
+
 	changePtTime := points[bestK].Timestamp
 	direction := "increased"
 	if postMedian < preMedian {
@@ -348,6 +397,18 @@ func (d *ScanMWDetector) ensureDefaults() {
 	}
 	if d.MinDeviationMAD <= 0 {
 		d.MinDeviationMAD = 3.0
+	}
+	if d.SSTWindow <= 0 {
+		d.SSTWindow = 24
+	}
+	if d.SSTHankelL <= 0 {
+		d.SSTHankelL = 8
+	}
+	if d.SSTPowerIters <= 0 {
+		d.SSTPowerIters = 5
+	}
+	if d.SSTMinScore <= 0 {
+		d.SSTMinScore = 0.30
 	}
 	if d.series == nil {
 		d.series = make(map[scanmwStateKey]*scanmwSeriesState)
