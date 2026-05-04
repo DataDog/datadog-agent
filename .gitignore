@@ -250,11 +250,9 @@ AUTO_JIRA.md
 
 # Zed config
 .zed
-<<<<<<< HEAD
+
 .phoenix/
-=======
 
 # Devcontainer
 .devcontainer/
 !.devcontainer/datadog/default
->>>>>>> origin/main

@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "observer",
+    srcs = ["bundle.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/observer",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/observer/fx",
+        "//comp/observer/logssource/fx",
+        "//pkg/util/fxutil",
+    ],
+)

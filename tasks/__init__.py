@@ -67,6 +67,7 @@ from tasks import (
     process_agent,
     protobuf,
     python_version,
+    q,
     quality_gates,
     release,
     rtloader,
@@ -86,6 +87,7 @@ from tasks import (
     vscode,
     winbuild,
     windows_dev_env,
+    workspaces,
     worktree,
 )
 from tasks.build_tags import audit_tag_impact, print_default_build_tags
@@ -268,6 +270,8 @@ ns.add_collection(debug)
 ns.add_collection(winbuild)
 ns.add_collection(windows_dev_env)
 ns.add_collection(worktree)
+ns.add_collection(workspaces)
+ns.add_collection(q)
 ns.add_collection(schema)
 ns.add_collection(sbomgen)
 ns.add_collection(pkg_template)

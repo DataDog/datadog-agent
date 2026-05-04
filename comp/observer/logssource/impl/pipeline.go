@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
-	"github.com/DataDog/datadog-agent/pkg/logs/processor"
+	"github.com/DataDog/datadog-agent/comp/logs-library/processor"
 )
 
 // observerPipeline is a pipeline.Provider that forwards log messages to the

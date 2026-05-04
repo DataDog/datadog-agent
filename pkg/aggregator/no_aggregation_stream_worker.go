@@ -11,6 +11,7 @@ import (
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/hosttags"
@@ -54,6 +55,10 @@ type noAggregationStreamWorker struct {
 	tagger          tagger.Component
 
 	logThrottling util.SimpleThrottler
+
+	// observerHandle is used to mirror timestamped metrics to the observer
+	// for local analysis
+	observerHandle observer.Handle
 }
 
 // noAggWorkerStreamCheckFrequency is the frequency at which the no agg worker
@@ -201,6 +206,11 @@ func (w *noAggregationStreamWorker) run() {
 								}
 								countUnsupportedType++
 								continue
+							}
+
+							// Mirror to observer before serialization (best-effort, non-blocking)
+							if w.observerHandle != nil {
+								w.observerHandle.ObserveMetric(&sample)
 							}
 
 							// enrich metric sample tags
