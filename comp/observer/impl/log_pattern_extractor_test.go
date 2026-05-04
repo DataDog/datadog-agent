@@ -573,22 +573,22 @@ func TestEngine_LogPatternLRUEvictionFreesDetectorState(t *testing.T) {
 	require.Equal(t, 2, storage.TotalSeriesCount(""), "LRU should keep storage bounded")
 
 	// Each detector defaults to 2 aggregations (Average, Count). Before the
-	// fan-out fix, the maps held 3 series Ã 2 aggs = 6 entries even though
+	// fan-out fix, the maps held 3 series × 2 aggs = 6 entries even though
 	// only 2 series remained live. After the fix the engine drops the evicted
-	// ref's entries, so we expect at most 2 Ã 2 = 4 (and certainly fewer than
+	// ref's entries, so we expect at most 2 × 2 = 4 (and certainly fewer than
 	// the pre-eviction count, which had to grow first to detect the leak).
-	// Before the fan-out fix the maps held bocpdBefore entries (2 series Ã
+	// Before the fan-out fix the maps held bocpdBefore entries (2 series ×
 	// 2 aggs = 4) and stayed there even after one of the series was evicted,
 	// because storage cleanup didn't propagate to detector state. After the
 	// fix, fanOutSeriesRemoval drops exactly the evicted ref's entries.
 	require.Less(t, len(bocpd.series), bocpdBefore,
 		"BOCPD per-series map must shrink when storage evicts a series; without the fan-out it stays at %d", bocpdBefore)
 	require.LessOrEqual(t, len(bocpd.series), 2*len(bocpd.config.Aggregations),
-		"BOCPD per-series map must not exceed live series Ã aggregations")
+		"BOCPD per-series map must not exceed live series × aggregations")
 	require.Less(t, len(scanmw.series), scanmwBefore,
 		"ScanMW per-series map must shrink when storage evicts a series; without the fan-out it stays at %d", scanmwBefore)
 	require.LessOrEqual(t, len(scanmw.series), 2*len(scanmw.Aggregations),
-		"ScanMW per-series map must not exceed live series Ã aggregations")
+		"ScanMW per-series map must not exceed live series × aggregations")
 	require.Less(t, len(scanwelch.series), scanwelchBefore,
 		"ScanWelch per-series map must shrink when storage evicts a series; without the fan-out it stays at %d", scanwelchBefore)
 	require.LessOrEqual(t, len(scanwelch.series), 2*len(scanwelch.Aggregations),

@@ -9,13 +9,13 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/logs-library/processor"
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
-	"github.com/DataDog/datadog-agent/comp/logs-library/processor"
 )
 
 // observerPipeline is a pipeline.Provider that forwards log messages to the
