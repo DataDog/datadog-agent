@@ -35,8 +35,8 @@ If `DD_TEST_CLUSTER_AGENT_IMAGE` is not set, tests are skipped.
 
 1. `localkubernetes.Provisioner` creates a 3-node kind cluster via Pulumi:
    - 1 control-plane node
-   - 1 worker labeled `karpenter.sh/capacity-type=on-demand`
-   - 1 worker labeled `karpenter.sh/capacity-type=spot` with a `autoscaling.datadoghq.com/capacity-type=interruptible:NoSchedule` taint
+   - 1 on-demand worker (no capacity-type label)
+   - 1 worker labeled `autoscaling.datadoghq.com/capacity-type=interruptible` with a `autoscaling.datadoghq.com/capacity-type=interruptible:NoSchedule` taint
 2. The cluster-agent image is loaded into kind via `WithKindLoadImage`.
 3. The cluster-agent is deployed via Helm with spot scheduling enabled and short timeouts.
 4. Tests create Deployments, observe pod placement via the k8s API, and verify spot/on-demand ratios.
