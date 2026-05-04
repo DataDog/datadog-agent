@@ -60,13 +60,6 @@ def _print_quality_gates_report(gate_states: list[dict[str, typing.Any]]):
     for gate in sorted(gate_states, key=lambda x: x["error_type"] is not None):
         if gate["error_type"] is None:
             print(color_message(f"Gate {gate['name']} succeeded {SUCCESS_CHAR}", "blue"))
-        elif gate["error_type"] == "AssertionError":
-            print(
-                color_message(
-                    f"Gate {gate['name']} failed {FAIL_CHAR} because of the following assertion failures :\n{gate['message']}",
-                    "orange",
-                )
-            )
         else:
             print(
                 color_message(
