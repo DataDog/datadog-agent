@@ -13,8 +13,6 @@ import (
 	"fmt"
 	"time"
 
-	"gopkg.in/yaml.v3"
-
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
@@ -29,20 +27,9 @@ import (
 	pkgos "github.com/DataDog/datadog-agent/pkg/util/os"
 )
 
-// defaultIsProcessAlive checks whether a host-namespace PID still exists.
-// Used for hang-detection eviction: when a training job finishes, the rank's
-// process disappears and we evict its staleness entry to avoid a false-positive
-// spike. Uses pkgos.PidExists which honors the HOST_PROC env var so it works
-// inside containers with the host /proc bind-mounted (the standard agent
-// deployment).
-func defaultIsProcessAlive(pid int) bool {
-	return pkgos.PidExists(pid)
-}
-
 // Check represents the NCCL check that collects metrics from NCCL Inspector output
 type Check struct {
 	core.CheckBase
-	config                     *checkConfig
 	tagger                     tagger.Component
 	telemetry                  telemetry.Component
 	wmeta                      workloadmeta.Component
@@ -52,7 +39,7 @@ type Check struct {
 	containerProviderWarnLimit *log.Limit
 	checkTelemetry             *ncclCheckTelemetry
 	lastSeenRank               map[string]rankStalenessEntry // "<commID>:rank:<N>" → last event + timestamp for hang detection
-	isProcessAlive             func(pid int) bool            // injectable for testing; defaults to PidExists
+	isProcessAlive             func(pid int) bool            // injectable for testing; defaults to pkgos.PidExists
 }
 
 // rankStalenessEntry tracks the last event seen for a rank, used for hang detection.
@@ -61,11 +48,6 @@ type Check struct {
 type rankStalenessEntry struct {
 	lastSeen time.Time
 	parsed   ParsedEvent
-}
-
-// checkConfig holds the configuration for the NCCL check
-type checkConfig struct {
-	SocketPath string `yaml:"socket_path"`
 }
 
 type ncclCheckTelemetry struct {
@@ -112,20 +94,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		return err
 	}
 
-	// Parse instance config (legacy — see deprecation note below).
-	c.config = &checkConfig{}
-	if err := yaml.Unmarshal(config, c.config); err != nil {
-		return fmt.Errorf("failed to parse check config: %w", err)
-	}
-
-	// Resolve socket path. Source of truth is the agent config (gpu.nccl.socket_path).
-	// The legacy instance-yaml field socket_path is honored as a deprecated fallback
-	// for one release with a Warn log to ease migration.
 	socketPath := pkgconfigsetup.Datadog().GetString("gpu.nccl.socket_path")
-	if c.config.SocketPath != "" {
-		log.Warnf("NCCL check: 'socket_path' in instance config is deprecated; set 'gpu.nccl.socket_path' in datadog.yaml instead. Using legacy value %q for now.", c.config.SocketPath)
-		socketPath = c.config.SocketPath
-	}
 
 	// Start socket listener. If the socket is unavailable (e.g. permissions issue),
 	// log a warning and continue — matching DogStatsD/APM behaviour. Collection will
@@ -151,7 +120,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 
 	// Initialize hang detection state
 	c.lastSeenRank = make(map[string]rankStalenessEntry)
-	c.isProcessAlive = defaultIsProcessAlive
+	c.isProcessAlive = pkgos.PidExists
 
 	// Initialize telemetry
 	c.checkTelemetry = newCheckTelemetry(c.telemetry)
