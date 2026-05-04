@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "helm.go",
+        "incluster.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/helm/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/log/def",
+        "//comp/helm/def",
+        "@io_k8s_apimachinery//pkg/api/meta",
+        "@io_k8s_cli_runtime//pkg/genericclioptions",
+        "@io_k8s_client_go//discovery",
+        "@io_k8s_client_go//discovery/cached/memory",
+        "@io_k8s_client_go//rest",
+        "@io_k8s_client_go//restmapper",
+        "@io_k8s_client_go//tools/clientcmd",
+        "@io_k8s_client_go//tools/clientcmd/api",
+        "@sh_helm_helm_v4//pkg/action",
+    ],
+)
