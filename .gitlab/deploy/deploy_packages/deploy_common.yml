@@ -44,7 +44,7 @@
 
 deploy_macos_install_script:
   rules:
-    !reference [.on_deploy]
+    - !reference [.on_deploy]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
   stage: deploy_packages
   # dependencies: [] (not needs: []) so we keep stage ordering and run after
