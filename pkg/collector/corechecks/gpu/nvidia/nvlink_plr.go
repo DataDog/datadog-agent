@@ -75,9 +75,9 @@ func (c *nvlinkPLRCollector) Name() CollectorName {
 	return nvlinkPLR
 }
 
-func (c *nvlinkPLRCollector) Collect() ([]Metric, error) {
+func (c *nvlinkPLRCollector) Collect() ([]*Metric, error) {
 	var (
-		allMetrics []Metric
+		allMetrics []*Metric
 		multiErr   error
 	)
 
@@ -93,8 +93,8 @@ func (c *nvlinkPLRCollector) Collect() ([]Metric, error) {
 	return allMetrics, multiErr
 }
 
-func (c *nvlinkPLRCollector) getPortMetrics(port int) ([]Metric, error) {
-	var allMetrics []Metric
+func (c *nvlinkPLRCollector) getPortMetrics(port int) ([]*Metric, error) {
+	var allMetrics []*Metric
 	counters, err := c.readPortCounters(port)
 	if err != nil {
 		return nil, fmt.Errorf("read port counters: %w", err)
@@ -108,7 +108,7 @@ func (c *nvlinkPLRCollector) getPortMetrics(port int) ([]Metric, error) {
 			continue
 		}
 
-		allMetrics = append(allMetrics, Metric{
+		allMetrics = append(allMetrics, &Metric{
 			Name:  field,
 			Value: float64(value),
 			Type:  metrics.GaugeType,
