@@ -12,6 +12,7 @@ import (
 	"expvar"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -489,7 +490,7 @@ func buildURL(endpoint config.Endpoint) string {
 	}
 	var address string
 	if endpoint.Port != 0 {
-		address = fmt.Sprintf("%v:%v", endpoint.Host, endpoint.Port)
+		address = net.JoinHostPort(endpoint.Host, strconv.Itoa(endpoint.Port))
 	} else {
 		address = endpoint.Host
 	}
