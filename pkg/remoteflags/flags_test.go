@@ -295,11 +295,7 @@ func TestGetCurrentValue_Unknown(t *testing.T) {
 
 // After SafeRecover triggers, a recovery monitor probes IsHealthy to validate recovery.
 func TestHealthMonitor_RecoveryProbeConfirmsHealthy(t *testing.T) {
-	origInterval := HealthCheckInterval
-	HealthCheckInterval = 100 * time.Millisecond
-	defer func() { HealthCheckInterval = origInterval }()
-
-	client := NewClient()
+	client := NewClient().WithHealthCheckInterval(100 * time.Millisecond)
 	defer client.Stop()
 
 	h := newStubHandler(testFlag1)
@@ -500,11 +496,7 @@ func TestOnChange_ErrorUnsetsConfigurationField(t *testing.T) {
 
 // Recovery monitor logs warning when component stays unhealthy through the entire probe window.
 func TestHealthMonitor_RecoveryProbeStaysUnhealthy(t *testing.T) {
-	origInterval := HealthCheckInterval
-	HealthCheckInterval = 100 * time.Millisecond
-	defer func() { HealthCheckInterval = origInterval }()
-
-	client := NewClient()
+	client := NewClient().WithHealthCheckInterval(100 * time.Millisecond)
 	defer client.Stop()
 
 	h := newStubHandler(testFlag1)

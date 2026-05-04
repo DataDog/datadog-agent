@@ -31,11 +31,8 @@ type ConfigSetter interface {
 	GetSource(key string) model.Source
 }
 
-// Health check defaults
-var (
-	// HealthCheckInterval is the interval between health checks after a flag is enabled
-	HealthCheckInterval = 10 * time.Second
-)
+// DefaultHealthCheckInterval is the default interval between health checks after a flag is enabled.
+const DefaultHealthCheckInterval = 10 * time.Second
 
 const (
 	// DefaultHealthCheckDuration is the default duration for health monitoring after flag activation
@@ -157,25 +154,36 @@ type subscription struct {
 // Client is the Remote Flags client that manages flag subscriptions
 // and integrates with the Remote Config system.
 type Client struct {
-	mu            sync.Mutex
-	subscriptions map[FlagName][]*subscription
-	currentValues map[FlagName]FlagValue
-	lastVersions  map[FlagName]int
-	configSetter  ConfigSetter
-	ctx           context.Context
-	cancel        context.CancelFunc
+	mu                  sync.Mutex
+	subscriptions       map[FlagName][]*subscription
+	currentValues       map[FlagName]FlagValue
+	lastVersions        map[FlagName]int
+	configSetter        ConfigSetter
+	healthCheckInterval time.Duration
+	ctx                 context.Context
+	cancel              context.CancelFunc
 }
 
 // NewClient creates a new Remote Flags client.
 func NewClient() *Client {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Client{
-		subscriptions: make(map[FlagName][]*subscription),
-		currentValues: make(map[FlagName]FlagValue),
-		lastVersions:  make(map[FlagName]int),
-		ctx:           ctx,
-		cancel:        cancel,
+		subscriptions:       make(map[FlagName][]*subscription),
+		currentValues:       make(map[FlagName]FlagValue),
+		lastVersions:        make(map[FlagName]int),
+		healthCheckInterval: DefaultHealthCheckInterval,
+		ctx:                 ctx,
+		cancel:              cancel,
 	}
+}
+
+// WithHealthCheckInterval overrides the interval between health checks. Must be
+// called before any subscription starts a health monitor; intended for tests.
+func (c *Client) WithHealthCheckInterval(d time.Duration) *Client {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.healthCheckInterval = d
+	return c
 }
 
 // WithConfigSetter wires a ConfigSetter into the client. When set, flags carrying
@@ -411,7 +419,7 @@ func (c *Client) startHealthMonitor(sub *subscription, flag Flag) {
 	c.mu.Unlock()
 
 	go func() {
-		ticker := time.NewTicker(HealthCheckInterval)
+		ticker := time.NewTicker(c.healthCheckInterval)
 		defer ticker.Stop()
 
 		consecutiveFailures := 0
@@ -455,7 +463,7 @@ func (c *Client) startRecoveryMonitor(sub *subscription, flag Flag) {
 	c.mu.Unlock()
 
 	go func() {
-		ticker := time.NewTicker(HealthCheckInterval)
+		ticker := time.NewTicker(c.healthCheckInterval)
 		defer ticker.Stop()
 
 		for {
