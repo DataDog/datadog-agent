@@ -103,6 +103,8 @@ message Log {
 
 message JsonSchemaDefine {
   uint64 schema_id = 1;
+  // Dictionary IDs for escaped JSON paths. Dots separate nested fields; literal dots
+  // and backslashes inside field names are backslash-escaped.
   repeated uint64 keys = 2;
   uint64 message_key_id = 3;
 }

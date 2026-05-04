@@ -151,19 +151,19 @@ func TestPreprocessJSON_GenericNestedPaths(t *testing.T) {
 			name:           "data.message",
 			input:          `{"data":{"message":"Nested message","id":123}}`,
 			expectedMsg:    "Nested message",
-			expectedSchema: "data",
+			expectedSchema: "data.id",
 		},
 		{
 			name:           "event.message",
 			input:          `{"event":{"message":"Event occurred","type":"alert"}}`,
 			expectedMsg:    "Event occurred",
-			expectedSchema: "event",
+			expectedSchema: "event.type",
 		},
 		{
 			name:           "payload.message",
 			input:          `{"payload":{"message":"Payload data","size":1024}}`,
 			expectedMsg:    "Payload data",
-			expectedSchema: "payload",
+			expectedSchema: "payload.size",
 		},
 	}
 
@@ -231,10 +231,40 @@ func TestPreprocessJSON_NestedObjectsAsValues(t *testing.T) {
 	result := PreprocessJSON([]byte(input))
 	require.True(t, result.IsJSON)
 
-	assert.Equal(t, "array,nested", result.JSONContextSchema)
-	require.Len(t, result.JSONContextValues, 2)
+	assert.Equal(t, "array,nested.apple,nested.zebra", result.JSONContextSchema)
+	require.Len(t, result.JSONContextValues, 3)
 	assert.Equal(t, []interface{}{json.Number("1"), json.Number("2"), json.Number("3")}, result.JSONContextValues[0])
-	assert.Equal(t, map[string]interface{}{"apple": "a", "zebra": "z"}, result.JSONContextValues[1])
+	assert.Equal(t, "a", result.JSONContextValues[1])
+	assert.Equal(t, "z", result.JSONContextValues[2])
+	assert.Equal(t, []string{"array", "nested.apple", "nested.zebra"}, result.JSONContextKeys)
+}
+
+func TestPreprocessJSON_BoxesDeepAndMapLikeSubtrees(t *testing.T) {
+	input := `{
+		"message": "test",
+		"http": {
+			"method": "GET",
+			"status_code": 200,
+			"request": {
+				"headers": {
+					"x-request-id": "abc"
+				}
+			}
+		},
+		"labels": {
+			"customer_123": "enabled"
+		}
+	}`
+
+	result := PreprocessJSON([]byte(input))
+	require.True(t, result.IsJSON)
+
+	assert.Equal(t, "http.method,http.request,http.status_code,labels", result.JSONContextSchema)
+	assert.Equal(t, []string{"http.method", "http.request", "http.status_code", "labels"}, result.JSONContextKeys)
+	assert.Equal(t, "GET", result.JSONContextValues[0])
+	assert.Equal(t, map[string]interface{}{"headers": map[string]interface{}{"x-request-id": "abc"}}, result.JSONContextValues[1])
+	assert.Equal(t, json.Number("200"), result.JSONContextValues[2])
+	assert.Equal(t, map[string]interface{}{"customer_123": "enabled"}, result.JSONContextValues[3])
 }
 
 func TestPreprocessJSON_EmptyContextAfterExtraction(t *testing.T) {
@@ -293,6 +323,33 @@ func TestPreprocessJSON_PreservesLargeIntegerAsJSONNumber(t *testing.T) {
 	number, ok := result.JSONContextValues[0].(json.Number)
 	require.True(t, ok)
 	assert.Equal(t, "2323969980879066318", number.String())
+}
+
+func TestPreprocessJSON_EscapesDottedPathSegments(t *testing.T) {
+	tests := []struct {
+		name           string
+		input          string
+		expectedSchema string
+	}{
+		{
+			name:           "top-level dotted key",
+			input:          `{"message":"test","dd.span_id":123}`,
+			expectedSchema: `dd\.span_id`,
+		},
+		{
+			name:           "nested key",
+			input:          `{"message":"test","dd":{"span_id":123}}`,
+			expectedSchema: `dd.span_id`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := PreprocessJSON([]byte(tt.input))
+			require.True(t, result.IsJSON)
+			assert.Equal(t, tt.expectedSchema, result.JSONContextSchema)
+		})
+	}
 }
 
 func TestGetValueByPath(t *testing.T) {
@@ -375,8 +432,8 @@ func TestExtractSchemaAndValues(t *testing.T) {
 		"m": "middle",
 	}
 
-	schema, values := extractSchemaAndValues(data)
-	assert.Equal(t, "a,m,z", schema)
+	keys, values := extractSchemaAndValues(data)
+	assert.Equal(t, []string{"a", "m", "z"}, keys)
 	assert.Equal(t, []interface{}{"first", "middle", "last"}, values)
 }
 
@@ -389,11 +446,11 @@ func TestExtractSchemaAndValues_MixedTypes(t *testing.T) {
 		"empty":  nil,
 	}
 
-	schema, values := extractSchemaAndValues(data)
-	assert.Equal(t, "count,empty,flag,name,nested", schema)
+	keys, values := extractSchemaAndValues(data)
+	assert.Equal(t, []string{"count", "empty", "flag", "name", "nested.key"}, keys)
 	assert.Equal(
 		t,
-		[]interface{}{json.Number("42"), nil, true, "test", map[string]interface{}{"key": "val"}},
+		[]interface{}{json.Number("42"), nil, true, "test", "val"},
 		values,
 	)
 }
