@@ -64,7 +64,7 @@ mkdir -p "$EMBEDDED_DESTDIR/share"
 #
 ZLIB_VERSION="1.3.1"
 BZIP2_VERSION="1.0.8"
-OPENSSL_VERSION="3.5.5"
+OPENSSL_VERSION="3.5.6"
 XZ_VERSION="5.8.1"
 LIBXML2_VERSION="2.14.5"    # built from source (AIX Toolbox also available but we build)
 LIBXSLT_VERSION="1.1.45"   # from AIX Toolbox (yum install libxslt-devel; source build fails on AIX)
@@ -75,6 +75,7 @@ NCURSES_VERSION="6.5"      # yum install ncurses-devel
 READLINE_VERSION="8.2"     # yum install readline-devel
 SQLITE_VERSION="3.50.4"    # yum install sqlite-devel
 GDBM_VERSION="1.23"        # yum install gdbm-devel
+LIBICONV_VERSION="1.17"    # yum install libiconv
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -262,6 +263,9 @@ else
     rm -rf "$BUILD_DIR/build/openssl-${OPENSSL_VERSION}"
     extract_gz "$TARBALL" "$BUILD_DIR/build"
     cd "$BUILD_DIR/build/openssl-${OPENSSL_VERSION}"
+    # Apply OpenSSL 3.5.6 regression fix (matches deps/repos.MODULE.bazel).
+    # Upstream issue: openssl/openssl#30728 — OSSL_PARAM_BLD_push_octet_*() with buf=NULL, bsize=0 fails.
+    patch -p1 < "$SCRIPT_DIR/../../../deps/openssl/0002-OSSL_PARAM_BLD_push_octet_allow_NULL_buffer.patch"
     ./Configure aix64-gcc \
         --prefix="$EMBEDDED" \
         --openssldir="$EMBEDDED/ssl" \
@@ -463,6 +467,20 @@ for lib in libxslt libexslt; do
         cp "/opt/freeware/lib/pkgconfig/${lib}.pc" "$EMBEDDED_DESTDIR/lib/pkgconfig/"
     fi
 done
+
+# ── libiconv (AIX Toolbox: yum install libiconv) ─────────────────────────────
+#
+# libxml2.so links against libiconv.a(libiconv.so.2). The AIX system
+# /usr/lib/libiconv.a uses member shr4_64.o (different name), so it cannot
+# satisfy this runtime dependency. Bundle the GNU toolbox version instead.
+#
+# Note: libintl.a (GNU gettext) is NOT bundled here. The toolbox libintl.so.8
+# has a hardcoded path to /opt/freeware/lib/libiconv.a baked in at build time,
+# so bundling it would still require /opt/freeware/lib/libiconv.a on the target.
+# Instead, Python is configured with ac_cv_search_ngettext=no (in 02-python.sh)
+# to suppress the libintl link entirely, since the agent does not use Python i18n.
+stage_toolbox_lib libiconv "$LIBICONV_VERSION" \
+    /opt/freeware/lib/libiconv.a
 
 # ─── Ensure standard directories exist ────────────────────────────────────────
 

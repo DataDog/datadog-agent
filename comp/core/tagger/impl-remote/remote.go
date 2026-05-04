@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -70,8 +71,9 @@ type Requires struct {
 type Provides struct {
 	compdef.Out
 
-	Comp     tagger.Component
-	Endpoint api.AgentEndpointProvider
+	Comp          tagger.Component
+	Endpoint      api.AgentEndpointProvider
+	FlareProvider flaretypes.Provider
 }
 
 type remoteTagger struct {
@@ -97,6 +99,7 @@ type remoteTagger struct {
 
 	telemetryTicker *time.Ticker
 	telemetryStore  *telemetry.Store
+	resyncEvents    []types.EntityEvent
 
 	checksCardinality    types.TagCardinality
 	dogstatsdCardinality types.TagCardinality
@@ -127,8 +130,9 @@ func NewComponent(req Requires) (Provides, error) {
 	}})
 
 	return Provides{
-		Comp:     remoteTaggerInstance,
-		Endpoint: api.NewAgentEndpointProvider(remoteTaggerInstance.writeList, "/tagger-list", "GET"),
+		Comp:          remoteTaggerInstance,
+		Endpoint:      api.NewAgentEndpointProvider(remoteTaggerInstance.writeList, "/tagger-list", "GET"),
+		FlareProvider: flaretypes.NewProvider(remoteTaggerInstance.fillFlare),
 	}, nil
 }
 
@@ -424,6 +428,15 @@ func (t *remoteTagger) GetEntity(entityID types.EntityID) (*types.Entity, error)
 }
 
 // List returns all the entities currently stored by the tagger.
+func (t *remoteTagger) fillFlare(_ context.Context, fb flaretypes.FlareBuilder) error {
+	response := t.List()
+	jsonTags, err := json.MarshalIndent(response, "", "\t")
+	if err != nil {
+		return err
+	}
+	return fb.AddFile("tagger-list.json", jsonTags)
+}
+
 func (t *remoteTagger) List() types.TaggerListResponse {
 	entities := t.store.listEntities()
 	resp := types.TaggerListResponse{
@@ -536,6 +549,7 @@ func (t *remoteTagger) run() {
 			// must be re-established.
 			t.ready = false
 			t.stream = nil
+			t.resyncEvents = nil
 
 			t.log.Warnf("error received from remote tagger: %s", err)
 
@@ -570,7 +584,9 @@ func (t *remoteTagger) processResponse(response *pb.StreamTagsResponse) error {
 	// returning early when there are no events prevents a keep-alive sent
 	// from the core agent from wiping the store clean in case the remote
 	// tagger was previously in an unready (but filled) state.
-	if len(response.Events) == 0 {
+	// However, during resync we must still check InitialSnapshotComplete
+	// to handle empty initial bursts.
+	if len(response.Events) == 0 && t.ready {
 		return nil
 	}
 
@@ -596,19 +612,25 @@ func (t *remoteTagger) processResponse(response *pb.StreamTagsResponse) error {
 		})
 	}
 
-	// if the tagger was not ready by this point, it means an error
-	// occurred and the contents of the store are no longer valid and need
-	// to be replaced by the batch coming from the current response
-	replaceStoreContents := !t.ready
+	replaceStoreContents := false
 
-	err := t.store.processEvents(events, replaceStoreContents)
-	if err != nil {
-		return err
+	if !t.ready {
+		// Accumulate events across chunked snapshot messages until the
+		// server signals that the initial snapshot is complete.
+		t.resyncEvents = append(t.resyncEvents, events...)
+		if response.GetInitialSnapshotComplete() {
+			replaceStoreContents = true
+			err := t.store.processEvents(t.resyncEvents, replaceStoreContents)
+			t.resyncEvents = nil
+			if err != nil {
+				return err
+			}
+			t.ready = true
+		}
+		return nil
 	}
 
-	t.ready = true
-
-	return nil
+	return t.store.processEvents(events, replaceStoreContents)
 }
 
 // startTaggerStream tries to establish a stream with the remote gRPC endpoint.

@@ -6,6 +6,7 @@
 package setup
 
 import (
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
@@ -34,8 +35,16 @@ const (
 	PARHttpAllowImdsEndpoint = "private_action_runner.http_allow_imds_endpoint"
 
 	// Restricted Shell
-	PARRestrictedShellAllowedPaths    = "private_action_runner.restricted_shell.allowed_paths"
-	PARRestrictedShellAllowedCommands = "private_action_runner.restricted_shell.allowed_commands"
+	PARRestrictedShellAllowedPaths     = "private_action_runner.restricted_shell.allowed_paths"
+	PARRestrictedShellAllowedCommands  = "private_action_runner.restricted_shell.allowed_commands"
+	RShellCommandNamespacePrefix       = "rshell:"
+	RShellCommandAllowAllWildcard      = RShellCommandNamespacePrefix + "*"
+	RShellPathAllowAll                 = "/"
+	RShellPathAllowMapContainerizedKey = "containerized"
+	RShellPathAllowMapDefaultKey       = "default"
+
+	// Meant for internal usage
+	PAROpmsExtraHeaders = "private_action_runner.opms_extra_headers"
 )
 
 // setupPrivateActionRunner registers all configuration keys for the private action runner
@@ -69,15 +78,23 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault(PARHttpAllowImdsEndpoint, false)
 
 	// Restricted shell allow-lists are opt-in restrictions layered on top of
-	// the backend-injected lists. When unset, the agent forwards the
-	// backend list unchanged (pass-through). When set to a non-empty list,
-	// the runtime takes the intersection. An explicit empty list blocks
-	// all access on its axis. The []string{} default keeps IsConfigured
-	// false when the user has not set the key, so the pass-through vs.
-	// explicit-empty distinction is preserved.
-	config.BindEnvAndSetDefault(PARRestrictedShellAllowedPaths, []string{})
-	config.ParseEnvSplitComma(PARRestrictedShellAllowedPaths)
+	// the backend-injected lists. By default, they act as a no-op, allowing
+	// everything: the backend is the only filter.
+	//
+	// To allow none, use an explicit empty list.
+	// Env vars support both CSV and JSON-array forms; the JSON form gives
+	// env/YAML parity, including the explicit kill-switch via "[]".
+	//
+	//   - allowed_paths defaults to ["/"].
+	//   - allowed_commands defaults to ["rshell:*"]. The wildcard token is
+	//     handled as a special case in the operator-side intersection: when
+	//     it appears in the operator list, every backend command in the
+	//     "rshell:" namespace is admitted.
+	config.BindEnvAndSetDefault(PARRestrictedShellAllowedPaths, []string{RShellPathAllowAll})
+	pkgconfighelper.ParseEnvJSONOrComma(PARRestrictedShellAllowedPaths, config)
 
-	config.BindEnvAndSetDefault(PARRestrictedShellAllowedCommands, []string{})
-	config.ParseEnvSplitComma(PARRestrictedShellAllowedCommands)
+	config.BindEnvAndSetDefault(PARRestrictedShellAllowedCommands, []string{RShellCommandAllowAllWildcard})
+	pkgconfighelper.ParseEnvJSONOrComma(PARRestrictedShellAllowedCommands, config)
+
+	config.BindEnvAndSetDefault(PAROpmsExtraHeaders, map[string]string{})
 }

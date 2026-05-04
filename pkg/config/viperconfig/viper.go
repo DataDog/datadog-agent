@@ -72,6 +72,8 @@ type safeConfig struct {
 	warnings []error
 
 	existingTransformers map[string]bool
+
+	startTime time.Time
 }
 
 // GetLibType return "viper"
@@ -130,12 +132,13 @@ func (c *safeConfig) Set(key string, newValue interface{}, source model.Source) 
 	}
 	// Increment the sequence ID only if the value has changed
 	c.sequenceID++
+	sequenceID := c.sequenceID
 	c.Unlock()
 
 	// notifying all receiver about the updated setting
 	for _, receiver := range receivers {
 		log.Debugf("notifying %s about configuration change for '%s'", getCallerLocation(1), key)
-		receiver(key, source, oldValue, latestValue, c.sequenceID)
+		receiver(key, source, oldValue, latestValue, sequenceID)
 	}
 }
 
@@ -172,11 +175,12 @@ func (c *safeConfig) UnsetForSource(key string, source model.Source) {
 		receivers = slices.Clone(c.notificationReceivers)
 		c.sequenceID++
 	}
+	sequenceID := c.sequenceID
 	c.Unlock()
 
 	// notifying all receiver about the updated setting
 	for _, receiver := range receivers {
-		receiver(key, source, previousValue, newValue, c.sequenceID)
+		receiver(key, source, previousValue, newValue, sequenceID)
 	}
 }
 
@@ -1022,6 +1026,10 @@ func (c *safeConfig) Warnings() *model.Warnings {
 	return &model.Warnings{Errors: c.warnings}
 }
 
+func (c *safeConfig) StartTime() time.Time {
+	return c.startTime
+}
+
 func (c *safeConfig) Object() model.Reader {
 	return c
 }
@@ -1043,6 +1051,7 @@ func NewViperConfig(name string, envPrefix string, envKeyReplacer *strings.Repla
 		configEnvVars:        map[string]struct{}{},
 		unknownKeys:          map[string]struct{}{},
 		existingTransformers: make(map[string]bool),
+		startTime:            time.Now(),
 	}
 
 	// load one Viper instance per source of setting change

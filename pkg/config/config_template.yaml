@@ -4462,7 +4462,7 @@ api_key:
 #
 #     enabled: false
 
-#     # @param listeners - custom object - optional
+#     # @param listeners - list of object - optional - default: []
 #     # This section configures one or more listeners ports that will receive flow traffic.
 #     # Each listener have the following options:
 #     #  * flow_type    - string - The flow type correspond to the incoming flow protocol.
@@ -4501,6 +4501,7 @@ api_key:
 #         port: 6343
 
 #     # @param stop_timeout - integer - optional - default: 5
+#     # @env DD_NETWORK_DEVICES_NETFLOW_STOP_TIMEOUT - integer - optional - default: 5
 #     # The maximum number of seconds to wait for the NetFlow listeners to stop when the Agent shuts down.
 #
 #     stop_timeout: 5
@@ -4517,11 +4518,13 @@ api_key:
 # reverse_dns_enrichment:
 
 #   # @param workers - integer - optional - default: 10
+#   # @env DD_REVERSE_DNS_ENRICHMENT_WORKERS - integer - optional - default: 10
 #   # The number of concurrent workers used to perform reverse DNS lookups.
 #
 #   workers: 10
 
 #   # @param chan_size - integer - optional - default: 5000
+#   # @env DD_REVERSE_DNS_ENRICHMENT_CHAN_SIZE - integer - optional - default: 5000
 #   # The size of the channel used to send reverse DNS lookup requests to the workers.
 #
 #   chan_size: 5000
@@ -4562,6 +4565,7 @@ api_key:
 #     max_retries: 10
 
 #     # @param max_size - integer - optional - default: 1000000
+#     # @env DD_REVERSE_DNS_ENRICHMENT_CACHE_MAX_SIZE - integer - optional - default: 1000000
 #     # The maximum size in entries of the cache, above which additional entries will not be cached.
 #
 #     max_size: 1000000
@@ -4578,21 +4582,25 @@ api_key:
 #     enabled: true
 
 #     # @param limit_per_sec - integer - optional - default: 1000
+#     # @env DD_REVERSE_DNS_ENRICHMENT_RATE_LIMITER_LIMIT_PER_SEC - integer - optional - default: 1000
 #     # The maximum number of reverse DNS lookups allowed per second by the rate limiter.
 #
 #     limit_per_sec: 1000
 
 #     # @param limit_throttled_per_sec - integer - optional - default: 1
+#     # @env DD_REVERSE_DNS_ENRICHMENT_RATE_LIMITER_LIMIT_THROTTLED_PER_SEC - integer - optional - default: 1
 #     # The maximum number of reverse DNS lookups allowed per second when the rate limiter is throttled due to errors exceeding the threshold.
 #
 #     limit_throttled_per_sec: 1
 
 #     # @param throttle_error_threshold - integer - optional - default: 10
+#     # @env DD_REVERSE_DNS_ENRICHMENT_RATE_LIMITER_THROTTLE_ERROR_THRESHOLD - integer - optional - default: 10
 #     # The number of consecutive errors that will trigger the rate limiter to throttle down to limit_throttled_per_sec.
 #
 #     throttle_error_threshold: 10
 
 #     # @param recovery_intervals - integer - optional - default: 5
+#     # @env DD_REVERSE_DNS_ENRICHMENT_RATE_LIMITER_RECOVERY_INTERVALS - integer - optional - default: 5
 #     # The number of intervals over which to increase the rate limit back to limit_per_sec when lookups are again successful after being throttled due to errors.
 #
 #     recovery_intervals: 5

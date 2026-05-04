@@ -187,6 +187,7 @@ func (c *converterWithoutAgent) fixProcessorsPipeline(conf confMap, processorNam
 		return nil, err
 	}
 	foundResourcedetection := false
+	foundDDHostNameProcessor := false
 	toDelete := make(map[string]bool)
 
 	// remove infraattributes, track & sanitize resourcedetection
@@ -212,6 +213,10 @@ func (c *converterWithoutAgent) fixProcessorsPipeline(conf confMap, processorNam
 			}
 			foundResourcedetection = true
 		}
+
+		if isComponentType(name, componentTypeDDHostNameProcessor) {
+			foundDDHostNameProcessor = true
+		}
 	}
 
 	// Add resourcedetection/default if none found
@@ -221,6 +226,15 @@ func (c *converterWithoutAgent) fixProcessorsPipeline(conf confMap, processorNam
 		}
 		slog.Warn("Added minimal resourcedetection processor to user configuration")
 		processorNames = append(processorNames, defaultResourceDetectionName)
+	}
+
+	// Add ddhostname/default if none found
+	if !foundDDHostNameProcessor {
+		if err := Set(processors, defaultDDHostNameProcessorName, confMap{}); err != nil {
+			return nil, err
+		}
+		slog.Info("Added minimal ddhostname processor to user configuration")
+		processorNames = append(processorNames, defaultDDHostNameProcessorName)
 	}
 
 	// Remove processors marked for deletion

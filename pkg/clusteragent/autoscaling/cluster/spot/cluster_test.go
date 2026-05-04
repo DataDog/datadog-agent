@@ -77,6 +77,7 @@ type fakeDeployment struct {
 	name               string
 	existingReplicaSet string
 	podSelector        map[string]string
+	replicas           int
 }
 
 // newFakeCluster creates a fakeCluster.
@@ -135,8 +136,8 @@ func (c *fakeCluster) OnPodDeleted(hook deletionHook) {
 	c.podDeletedHooks = append(c.podDeletedHooks, hook)
 }
 
-// CreatePod runs all registered admission hooks on the pod then creates it as Pending.
-func (c *fakeCluster) CreatePod(pod *corev1.Pod) {
+// createPod runs all registered admission hooks on the pod then creates it as Pending.
+func (c *fakeCluster) createPod(pod *corev1.Pod) {
 	unmodifiedCopy := pod.DeepCopy()
 	for _, hook := range c.podCreatedHooks {
 		updated, err := hook(pod)
@@ -218,9 +219,10 @@ func (c *fakeCluster) T() *testing.T {
 	return c.t
 }
 
-// WLM returns the underlying workloadmeta mock store.
-func (c *fakeCluster) WLM() workloadmetamock.Mock {
-	return c.wlm
+// WLM returns the workloadmeta component used by the scheduler.
+func (c *fakeCluster) WLM() workloadmeta.Component {
+	// Delay updates delivery to expose race conditions
+	return newDelayedWLM(c.wlm, 50*time.Millisecond)
 }
 
 func (c *fakeCluster) DynamicClient() dynamic.Interface {
@@ -416,14 +418,59 @@ func (d *fakeDeployment) rolloutWithDelay(replicas int) string {
 	// A new ReplicaSet created
 	newReplicaSet := replicaSetName(d.name)
 	for range replicas {
-		d.cluster.CreatePod(newPod(d.namespace, kubernetes.ReplicaSetKind, newReplicaSet, d.podSelector))
+		d.cluster.createPod(newPod(d.namespace, kubernetes.ReplicaSetKind, newReplicaSet, d.podSelector))
 	}
 	// Existing ReplicaSet is scaled down
 	if d.existingReplicaSet != "" {
 		d.cluster.DeleteOwnerPods(kubernetes.ReplicaSetKind, d.namespace, d.existingReplicaSet)
 	}
 	d.existingReplicaSet = newReplicaSet
+	d.replicas = replicas
 	return newReplicaSet
+}
+
+// Reconcile creates pods to bring the current ReplicaSet back to d.replicas,
+// counting existing non-terminal pods and creating only the missing number.
+func (d *fakeDeployment) Reconcile() {
+	if d.existingReplicaSet == "" {
+		return
+	}
+	pods := d.cluster.ListOwnerPods(kubernetes.ReplicaSetKind, d.namespace, d.existingReplicaSet)
+	active := 0
+	for _, pod := range pods {
+		phase := corev1.PodPhase(pod.Phase)
+		if phase != corev1.PodSucceeded && phase != corev1.PodFailed {
+			active++
+		}
+	}
+	for range max(0, d.replicas-active) {
+		d.cluster.createPod(newPod(d.namespace, kubernetes.ReplicaSetKind, d.existingReplicaSet, d.podSelector))
+	}
+}
+
+// ScaleDown deletes pods selected by deleteFilter and updates the replica count to the number of remaining pods.
+func (d *fakeDeployment) ScaleDown(deleteFilter func([]*workloadmeta.KubernetesPod) []*workloadmeta.KubernetesPod) {
+	t := d.cluster.t
+	t.Helper()
+	rs := d.ReplicaSet()
+	pods := d.cluster.ListOwnerPods(kubernetes.ReplicaSetKind, d.namespace, rs)
+	toDelete := deleteFilter(pods)
+
+	d.replicas = len(pods) - len(toDelete)
+
+	deleted := make(map[string]struct{}, len(toDelete))
+	for _, pod := range toDelete {
+		d.cluster.DeletePod(pod)
+		deleted[pod.ID] = struct{}{}
+	}
+	require.Eventually(t, func() bool {
+		for _, pod := range d.cluster.ListOwnerPods(kubernetes.ReplicaSetKind, d.namespace, rs) {
+			if _, ok := deleted[pod.ID]; ok {
+				return false
+			}
+		}
+		return true
+	}, 5*time.Second, 100*time.Millisecond)
 }
 
 func async(f func(workloadmeta.Entity), e workloadmeta.Entity) {

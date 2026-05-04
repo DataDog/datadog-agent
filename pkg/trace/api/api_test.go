@@ -16,7 +16,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"reflect"
 	"strconv"
 	"sync"
 	"testing"
@@ -39,6 +38,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tinylib/msgp/msgp"
 	vmsgp "github.com/vmihailenco/msgpack/v4"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
@@ -1079,7 +1079,7 @@ func TestHandleStats(t *testing.T) {
 
 		resp.Body.Close()
 		gotp, gotlang, gotTracerVersion, containerID := mockProcessor.Got()
-		assert.True(t, reflect.DeepEqual(gotp, p), "payload did not match")
+		assert.True(t, proto.Equal(gotp, p), "payload did not match")
 		assert.Equal(t, "lang1", gotlang, "lang did not match")
 		assert.Equal(t, "0.1.0", gotTracerVersion, "tracerVersion did not match")
 		assert.Equal(t, "abcdef123789456", containerID, "containerID did not match")
