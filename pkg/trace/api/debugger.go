@@ -35,6 +35,9 @@ const (
 // debuggerLogsProxyHandler returns an http.Handler proxying Dynamic Instrumentation dynamic logs
 // to the logs intake.
 func (r *HTTPReceiver) debuggerLogsProxyHandler() http.Handler {
+	if !r.conf.DebuggerLogsEnabled {
+		return debuggerLogsDisabledHandler()
+	}
 	return r.debuggerProxyHandler(logsIntakeURLTemplate, r.conf.DebuggerProxy)
 }
 
@@ -49,7 +52,20 @@ func (r *HTTPReceiver) debuggerDiagnosticsProxyHandler() http.Handler {
 // to the debuggerLogsProxyHandler above which proxies to the logs track for old
 // tracers).
 func (r *HTTPReceiver) debuggerV2IntakeProxyHandler() http.Handler {
+	if !r.conf.DebuggerLogsEnabled {
+		return debuggerLogsDisabledHandler()
+	}
 	return r.debuggerProxyHandler(debuggerIntakeURLTemplate, r.conf.DebuggerIntakeProxy)
+}
+
+// debuggerLogsDisabledHandler returns an http.Handler that silently drops
+// debugger data when logs are disabled at the agent level (logs_enabled: false).
+// It returns 200 OK so tracers do not retry or log errors.
+func debuggerLogsDisabledHandler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		log.Debug("Debugger proxy: dropping request because logs are disabled (logs_enabled: false)")
+		w.WriteHeader(http.StatusOK)
+	})
 }
 
 // debuggerProxyHandler returns an http.Handler proxying requests to the configured intake. If the intake url cannot be

@@ -36,6 +36,9 @@ type Config struct {
 	// CircuitBreakerConfig configures the circuit breaker for enforcing probe
 	// CPU limits.
 	CircuitBreakerConfig CircuitBreakerConfig
+	// BufferEvictionConfig configures the eventbuf eviction path driven by
+	// BPF-reported drop-notification losses.
+	BufferEvictionConfig BufferEvictionConfig
 	// DiscoveredTypesLimit is the maximum number of discovered type names
 	// tracked across all services before orphaned entries are evicted. If
 	// zero, the default value is used. If negative, all discovered types are
@@ -60,6 +63,17 @@ type CircuitBreakerConfig struct {
 	AllProbesCPULimit float64
 	// InterruptOverhead is the estimate of the cost of an interrupt incurred on every probe hit.
 	InterruptOverhead time.Duration
+}
+
+// BufferEvictionConfig configures the eventbuf eviction path driven by BPF-
+// reported side-channel drop-notification losses.
+type BufferEvictionConfig struct {
+	// GraceWindow is how long to wait after BPF reports a drop-notification
+	// loss before evicting the associated buffered entries. Shorter values
+	// react faster to state loss but risk evicting legitimately-in-flight
+	// invocations whose EntryKtime narrowly predates the reported fault.
+	// A zero value disables drop-notify-driven eviction entirely.
+	GraceWindow time.Duration
 }
 
 // Actuator manages dynamic instrumentation for processes. It coordinates IR
