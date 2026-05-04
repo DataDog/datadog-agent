@@ -474,17 +474,16 @@ func start(log log.Component,
 			products = append(products, state.ProductActionPlatformRunnerKeys)
 		}
 
-		if len(products) > 0 {
-			var err error
-			rcClient, err = initializeRemoteConfigClient(rcserv, config, clusterName, clusterID, products...)
-			if err != nil {
-				log.Errorf("Failed to start remote-configuration: %v", err)
-			} else {
-				rcClient.Start()
-				defer func() {
-					rcClient.Close()
-				}()
-			}
+		var err error
+		rcClient, err = initializeRemoteConfigClient(rcserv, config, clusterName, clusterID, products...)
+		if err != nil {
+			log.Errorf("Failed to start remote-configuration: %v", err)
+		} else {
+			subscribeAgentTask(rcClient, config, statusComponent, diagnoseComp, ipc)
+			rcClient.Start()
+			defer func() {
+				rcClient.Close()
+			}()
 		}
 	}
 
