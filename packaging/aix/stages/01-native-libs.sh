@@ -75,9 +75,8 @@ NCURSES_VERSION="6.5"      # yum install ncurses-devel
 READLINE_VERSION="8.2"     # yum install readline-devel
 SQLITE_VERSION="3.50.4"    # yum install sqlite-devel
 GDBM_VERSION="1.23"        # yum install gdbm-devel
-# Runtime dependencies bundled to make the package self-contained (not build deps):
-LIBICONV_VERSION="1.17"    # yum install libiconv  (runtime dep of libxml2.so and libintl)
-LIBINTL_VERSION="0.21"     # yum install gettext   (runtime dep of libpython3.13.so)
+# Runtime dependency bundled to make the package self-contained (not a build dep):
+LIBICONV_VERSION="1.17"    # yum install libiconv  (runtime dep of libxml2.so)
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -474,22 +473,15 @@ done
 #
 # libxml2.so links against libiconv.a(libiconv.so.2). The AIX system
 # /usr/lib/libiconv.a uses member shr4_64.o (different name), so it cannot
-# satisfy this runtime dependency. Bundle the GNU toolbox version instead to
-# make the package self-contained.
-# libintl.a(libintl.so.8) also has a transitive dependency on libiconv.
+# satisfy this runtime dependency. Bundle the GNU toolbox version instead.
+#
+# Note: libintl.a (GNU gettext) is NOT bundled here. The toolbox libintl.so.8
+# has a hardcoded path to /opt/freeware/lib/libiconv.a baked in at build time,
+# so bundling it would still require /opt/freeware/lib/libiconv.a on the target.
+# Instead, Python is configured with ac_cv_search_ngettext=no (in 02-python.sh)
+# to suppress the libintl link entirely, since the agent does not use Python i18n.
 stage_toolbox_lib libiconv "$LIBICONV_VERSION" \
     /opt/freeware/lib/libiconv.a
-
-# ── libintl (AIX Toolbox: yum install gettext) ────────────────────────────────
-#
-# libpython3.13.so links against libintl.a(libintl.so.8). Patching Python source
-# to remove #include <libintl.h> prevents compile errors but Python's configure
-# still detects ngettext() and links against libintl at build time. Bundle the
-# toolbox version to make the package self-contained.
-# Note: /usr/lib/libintl.a exists on some AIX systems (symlink to the RPM
-# runtime) but is absent on hosts without RPM installed.
-stage_toolbox_lib libintl "$LIBINTL_VERSION" \
-    /opt/freeware/lib/libintl.a
 
 # ─── Ensure standard directories exist ────────────────────────────────────────
 

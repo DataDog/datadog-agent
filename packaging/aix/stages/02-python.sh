@@ -334,6 +334,14 @@ log "AIX patching complete."
 #   headers and libs ARE during the build, not $EMBEDDED which is the final path)
 # --with-dbmliborder=gdbm : use gdbm built in Stage 1
 # --without-ensurepip : we bootstrap pip manually below (step 7)
+# ac_cv_header_libintl_h=no / ac_cv_lib_intl_textdomain=no : suppress libintl link.
+#   Python's configure tests for libintl.h (ac_cv_header_libintl_h) and then
+#   textdomain() in -lintl (ac_cv_lib_intl_textdomain). If both pass, it adds
+#   -lintl to LIBS, linking libpython3.13.so against the toolbox libintl.
+#   The toolbox libintl.so.8 has a hardcoded path to /opt/freeware/lib/libiconv.a
+#   baked in at build time, making it impossible to fully bundle without rebuilding
+#   libintl from source. Since the agent does not use Python's i18n/gettext support,
+#   suppress the detection entirely.
 
 log "Configuring Python ${PYTHON_VERSION} (--prefix=$EMBEDDED)"
 log "  (Note: configure can take several minutes on POWER8)"
@@ -352,7 +360,9 @@ cd "$PYTHON_SRC"
     CPPFLAGS="$CPPFLAGS" \
     LDFLAGS="$LDFLAGS" \
     ARFLAGS="$ARFLAGS" \
-    NM="$NM"
+    NM="$NM" \
+    ac_cv_header_libintl_h=no \
+    ac_cv_lib_intl_textdomain=no
 
 log "Configure complete."
 
