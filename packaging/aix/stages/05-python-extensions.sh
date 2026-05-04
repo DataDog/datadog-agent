@@ -41,25 +41,23 @@ PYTHON_BIN=$EMBEDDED_DESTDIR/bin/python${PYTHON_MAJ_MIN}
 # automatically picks up the correct version without a separate edit to this file.
 #
 # Sources:
-#   pymqi, pyodbc, lxml — integrations-core/agent_requirements.in (format: "pkg==x.y.z")
-#   ibm_db              — integrations-core/ibm_db2/hatch.toml (Python 3 line)
+#   pymqi, pyodbc — integrations-core/agent_requirements.in (format: "pkg==x.y.z")
+#   ibm_db        — integrations-core/ibm_db2/hatch.toml (Python 3 line)
 
 AGENT_REQ="$INTEGRATIONS_CORE/agent_requirements.in"
 PYMQI_VERSION=$(grep '^pymqi==' "$AGENT_REQ" | cut -d= -f3)
 PYODBC_VERSION=$(grep '^pyodbc==' "$AGENT_REQ" | cut -d= -f3)
-LXML_VERSION=$(grep '^lxml==' "$AGENT_REQ" | cut -d= -f3)
 IBM_DB_VERSION=$(grep "ibm_db==[0-9]" "$INTEGRATIONS_CORE/ibm_db2/hatch.toml" \
     | grep "python_version > '3" | sed "s/.*ibm_db==\([0-9][^;'\"]*\).*/\1/")
 
-if [ -z "$PYMQI_VERSION" ] || [ -z "$PYODBC_VERSION" ] || [ -z "$LXML_VERSION" ] || [ -z "$IBM_DB_VERSION" ]; then
+if [ -z "$PYMQI_VERSION" ] || [ -z "$PYODBC_VERSION" ] || [ -z "$IBM_DB_VERSION" ]; then
     log "ERROR: could not read one or more C-extension versions from integrations-core"
     log "  PYMQI_VERSION='$PYMQI_VERSION'  (source: $AGENT_REQ)"
     log "  PYODBC_VERSION='$PYODBC_VERSION'  (source: $AGENT_REQ)"
-    log "  LXML_VERSION='$LXML_VERSION'  (source: $AGENT_REQ)"
     log "  IBM_DB_VERSION='$IBM_DB_VERSION'  (source: $INTEGRATIONS_CORE/ibm_db2/hatch.toml)"
     exit 1
 fi
-log "C-extension versions from integrations-core: pymqi=$PYMQI_VERSION pyodbc=$PYODBC_VERSION lxml=$LXML_VERSION ibm_db=$IBM_DB_VERSION"
+log "C-extension versions from integrations-core: pymqi=$PYMQI_VERSION pyodbc=$PYODBC_VERSION ibm_db=$IBM_DB_VERSION"
 
 # --- Pre-flight: confirm pip${PYTHON_MAJ_MIN} exists ---
 if [ ! -x "$PIP" ]; then
@@ -103,18 +101,13 @@ extract_version() {
 
 CFFI_VERSION=$(extract_version cffi)
 PSUTIL_VERSION=$(extract_version psutil)
+LXML_VERSION=$(extract_version lxml)
 CRYPTOGRAPHY_VERSION=$(extract_version cryptography)
 
-# cffi is compiled from source on AIX and has no pre-built AIX wheels, so it
-# never appears in the integrations-core lockfile (which only lists packages
-# that have binary wheels in Datadog's registry). Pin it explicitly here.
-# Update when cryptography bumps its cffi requirement.
-: "${CFFI_VERSION:=2.0.0}"
-
-if [ -z "$PSUTIL_VERSION" ] || [ -z "$CRYPTOGRAPHY_VERSION" ]; then
+if [ -z "$CFFI_VERSION" ] || [ -z "$PSUTIL_VERSION" ] || [ -z "$LXML_VERSION" ] || [ -z "$CRYPTOGRAPHY_VERSION" ]; then
     log "ERROR: could not read one or more package versions from $LOCKFILE"
-    log "  psutil=$PSUTIL_VERSION cryptography=$CRYPTOGRAPHY_VERSION"
-    log "  Check that $LOCKFILE contains psutil and cryptography entries."
+    log "  cffi=$CFFI_VERSION psutil=$PSUTIL_VERSION lxml=$LXML_VERSION cryptography=$CRYPTOGRAPHY_VERSION"
+    log "  Check that $LOCKFILE contains cffi, psutil, lxml, cryptography entries."
     exit 1
 fi
 
