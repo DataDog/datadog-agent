@@ -26,6 +26,8 @@ Package expvarserver contains the component type for the expVar server.
 
 ### [comp/agent/installinfo](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/agent/installinfo)
 
+*Datadog Team*: agent-configuration
+
 Package installinfo exposes install info and version history for the agent.
 
 ### [comp/agent/jmxlogger](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/agent/jmxlogger)

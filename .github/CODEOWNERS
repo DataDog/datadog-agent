@@ -355,6 +355,7 @@
 /comp/trace @DataDog/agent-apm
 /comp/updater @DataDog/fleet @DataDog/windows-products
 /comp/agent/cloudfoundrycontainer @DataDog/agent-integrations
+/comp/agent/installinfo @DataDog/agent-configuration
 /comp/agent/jmxlogger @DataDog/agent-metric-pipelines
 /comp/checks/agentcrashdetect @DataDog/windows-products
 /comp/checks/windowseventlog @DataDog/windows-products
