@@ -122,7 +122,8 @@ docker_image_build_otel:
         --build-arg CI \
         --build-arg DDA_VERSION=$DDA_VERSION \
         --build-arg GOPROXY=$GOPROXY \
-        --build-arg GONOSUMDB=$GONOSUMDB"
+        --build-arg GONOSUMDB=$GONOSUMDB \
+        --build-arg GO_VERSION=$(cat .go-version)"
     - !reference [.ddot_byoc_build_cache_setup, script]
     # TODO: use staging package for AGENT_OCI until DDOT extension is released in 7.78.0
     - |
@@ -189,7 +190,8 @@ ddot_byoc_binary_build_test_ubuntu2004:
         --build-arg CI \
         --build-arg DDA_VERSION=$DDA_VERSION \
         --build-arg GOPROXY=$GOPROXY \
-        --build-arg GONOSUMDB=$GONOSUMDB"
+        --build-arg GONOSUMDB=$GONOSUMDB \
+        --build-arg GO_VERSION=$(cat .go-version)"
     - !reference [.ddot_byoc_build_cache_setup, script]
     - |
       docker buildx build \
