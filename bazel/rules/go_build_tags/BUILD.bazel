@@ -23,7 +23,6 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/bazel/rules/go_build_tags",
     visibility = ["//visibility:public"],
     deps = [
-        "@buildtools//build:build",
         "@gazelle//language",
         "@gazelle//rule",
     ],
@@ -34,7 +33,6 @@ go_test(
     srcs = [":gazelle_extension_test_src"],
     embed = [":gazelle_extension"],
     deps = [
-        "@buildtools//build:build",
         "@gazelle//language",
         "@gazelle//rule",
     ],

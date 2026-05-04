@@ -4,15 +4,12 @@
 // Copyright 2026-present Datadog, Inc.
 
 // Package go_build_tags is a Gazelle extension that replaces each go_test rule
-// with one per-flavor variant. Each variant sets gotags to the full tag set for
-// that flavor, causing rules_go to propagate the right build tags to all
-// transitive deps during test builds.
+// with a dd_go_test macro call that encapsulates per-flavor test generation.
 package go_build_tags
 
 import (
 	"github.com/bazelbuild/bazel-gazelle/language"
 	"github.com/bazelbuild/bazel-gazelle/rule"
-	"github.com/bazelbuild/buildtools/build"
 )
 
 const extName = "go_build_tags"
@@ -30,21 +27,19 @@ func NewLanguage() language.Language {
 
 func (*lang) Name() string { return extName }
 
-// Loads declares the load statement that generated BUILD files need for
-// flavor_gotags().
+// Loads declares the load statement that generated BUILD files need for dd_go_test.
 func (*lang) Loads() []rule.LoadInfo {
 	return []rule.LoadInfo{
 		{
-			Name:    "//bazel/flavors:defs.bzl",
-			Symbols: []string{"flavor_gotags"},
+			Name:    "//bazel/rules/go_build_tags:defs.bzl",
+			Symbols: []string{"dd_go_test"},
 			After:   []string{"go_test"},
 		},
 	}
 }
 
-// GenerateRules replaces each go_test from the Go language extension with one
-// go_test per flavor. Each per-flavor rule calls flavor_gotags() which handles
-// the linux-only select() internally.
+// GenerateRules replaces each go_test from the Go language extension with a
+// dd_go_test that handles per-flavor gotags and tagging internally.
 func (*lang) GenerateRules(args language.GenerateArgs) language.GenerateResult {
 	var gen []*rule.Rule
 	var empty []*rule.Rule
@@ -53,20 +48,12 @@ func (*lang) GenerateRules(args language.GenerateArgs) language.GenerateResult {
 		if r.Kind() != "go_test" {
 			continue
 		}
-		var flavorTestNames []string
-		for _, flavor := range flavorNames {
-			nr := rule.NewRule("go_test", r.Name()+"_"+flavor)
-			copyAttr(r, nr, "srcs")
-			copyAttr(r, nr, "embed")
-			copyAttr(r, nr, "deps")
-			nr.SetAttr("gotags", flavorGotagsExpr(flavor))
-			nr.SetAttr("tags", []string{"go_tests", "flavor_" + flavor})
-			gen = append(gen, nr)
-			flavorTestNames = append(flavorTestNames, ":"+r.Name()+"_"+flavor)
-		}
-		ts := rule.NewRule("test_suite", r.Name())
-		ts.SetAttr("tests", flavorTestNames)
-		gen = append(gen, ts)
+		nr := rule.NewRule("dd_go_test", r.Name())
+		copyAttr(r, nr, "srcs")
+		copyAttr(r, nr, "embed")
+		copyAttr(r, nr, "deps")
+		nr.SetAttr("flavors", flavorNames)
+		gen = append(gen, nr)
 		empty = append(empty, rule.NewRule("go_test", r.Name()))
 	}
 
@@ -80,12 +67,5 @@ func (*lang) GenerateRules(args language.GenerateArgs) language.GenerateResult {
 func copyAttr(src, dst *rule.Rule, attr string) {
 	if v := src.Attr(attr); v != nil {
 		dst.SetAttr(attr, v)
-	}
-}
-
-func flavorGotagsExpr(flavor string) build.Expr {
-	return &build.CallExpr{
-		X:    &build.Ident{Name: "flavor_gotags"},
-		List: []build.Expr{&build.StringExpr{Value: flavor}},
 	}
 }
