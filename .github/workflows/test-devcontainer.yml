@@ -16,7 +16,7 @@ jobs:
   detect-changes:
     runs-on: ubuntu-latest
     outputs:
-      changes: "${{ steps.images.outcome == 'success' || steps.files.outcome == 'success' }}"
+      changes: "${{ steps.images.outputs.changed == 'true' || steps.files.outputs.changed == 'true' }}"
 
     steps:
     - name: Fetch changed files (PR)
