@@ -308,7 +308,7 @@ require (
 	github.com/safchain/ethtool v0.7.0
 	github.com/samber/lo v1.52.0
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
-	github.com/shirou/gopsutil/v4 v4.26.3
+	github.com/shirou/gopsutil/v4 v4.26.4
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4 // indirect
 	github.com/sijms/go-ora/v2 v2.8.24
 	github.com/sirupsen/logrus v1.9.4
@@ -324,8 +324,8 @@ require (
 	github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635
 	github.com/tinylib/msgp v1.6.4
 	github.com/tklauser/go-sysconf v0.3.16 // indirect
-	github.com/twmb/franz-go v1.20.7
-	github.com/twmb/franz-go/pkg/kadm v1.17.2
+	github.com/twmb/franz-go v1.21.0
+	github.com/twmb/franz-go/pkg/kadm v1.18.0
 	github.com/twmb/franz-go/pkg/kmsg v1.13.1
 	github.com/twmb/murmur3 v1.1.8
 	github.com/uptrace/bun v1.2.18
@@ -989,7 +989,7 @@ require (
 	go.opentelemetry.io/collector/otelcol/otelcoltest v0.151.0
 	go.temporal.io/api v1.62.2
 	go.temporal.io/sdk v1.39.0
-	mvdan.cc/sh/v3 v3.13.0
+	mvdan.cc/sh/v3 v3.13.1
 )
 
 require github.com/puzpuzpuz/xsync/v4 v4.5.0 // indirect
