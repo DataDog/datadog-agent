@@ -111,6 +111,7 @@
   - test/new-e2e/tests/windows/**/*
   - test/new-e2e/tests/sysprobe-functional/**/*
   - test/new-e2e/tests/process/**/*
+  - test/new-e2e/tests/agent-runtimes/**/*
 
 include:
   - local: .adms/**/*.yaml
@@ -268,25 +269,25 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v107034079-0ba6ff53
+  CI_IMAGE_BTF_GEN: v110159745-8628883e
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v107034079-0ba6ff53
+  CI_IMAGE_DOCKER_X64: v110159745-8628883e
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v107034079-0ba6ff53
+  CI_IMAGE_DOCKER_ARM64: v110159745-8628883e
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v107034079-0ba6ff53
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v110159745-8628883e
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v107034079-0ba6ff53
+  CI_IMAGE_LINUX: v110159745-8628883e
   CI_IMAGE_LINUX_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v107034079-0ba6ff53
+  CI_IMAGE_RPM_X64: v110159745-8628883e
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v107034079-0ba6ff53
+  CI_IMAGE_RPM_ARM64: v110159745-8628883e
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v107034079-0ba6ff53
+  CI_IMAGE_RPM_ARMHF: v110159745-8628883e
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v107034079-0ba6ff53
+  CI_IMAGE_WIN_LTSC2022_X64: v110159745-8628883e
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v107034079-0ba6ff53
+  CI_IMAGE_WIN_LTSC2025_X64: v110159745-8628883e
   CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -1466,6 +1467,14 @@ workflow:
         - pkg/collector/corechecks/gpu/**/*
         - comp/core/workloadmeta/collectors/internal/nvml/**/*
         - comp/core/autodiscovery/listeners/staticconfig.go
+      compare_to: $COMPARE_TO_BRANCH
+
+.on_autoscaling_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - test/new-e2e/tests/autoscaling/**/*
+        - pkg/clusteragent/autoscaling/cluster/**/*
       compare_to: $COMPARE_TO_BRANCH
 
 .on_gpu_integration_tests:

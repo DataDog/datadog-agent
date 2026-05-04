@@ -287,7 +287,7 @@ func (b *bucket) aggregateStatsBucket(sb *pb.ClientStatsBucket, payloadAggKey Pa
 		agg.duration += gs.Duration
 
 		// Decode, if needed, the raw ddsketches from the first payload that reached the bucket
-		if agg.okDistributionRaw != nil {
+		if len(agg.okDistributionRaw) > 0 {
 			sketch, err := decodeSketch(agg.okDistributionRaw)
 			if err != nil {
 				log.Errorf("Unable to decode OK distribution ddsketch: %v", err)
@@ -296,7 +296,7 @@ func (b *bucket) aggregateStatsBucket(sb *pb.ClientStatsBucket, payloadAggKey Pa
 			}
 			agg.okDistributionRaw = nil
 		}
-		if agg.errDistributionRaw != nil {
+		if len(agg.errDistributionRaw) > 0 {
 			sketch, err := decodeSketch(agg.errDistributionRaw)
 			if err != nil {
 				log.Errorf("Unable to decode Error distribution ddsketch: %v", err)
@@ -458,7 +458,7 @@ type aggregatedStats struct {
 
 // mergeSketch take an existing DDSketch, and merges a second one, decoding its contents
 func mergeSketch(s1 *ddsketch.DDSketch, raw []byte) (*ddsketch.DDSketch, error) {
-	if raw == nil {
+	if len(raw) == 0 {
 		return s1, nil
 	}
 
@@ -479,6 +479,9 @@ func mergeSketch(s1 *ddsketch.DDSketch, raw []byte) (*ddsketch.DDSketch, error) 
 }
 
 func normalizeSketch(s *ddsketch.DDSketch) *ddsketch.DDSketch {
+	if s == nil {
+		return nil
+	}
 	if s.IndexMapping.Equals(ddsketchMapping) {
 		// already normalized
 		return s

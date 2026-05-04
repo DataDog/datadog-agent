@@ -59,6 +59,7 @@ TEST_PACKAGES_LIST = [
     "./pkg/privileged-logs/test/...",
     "./pkg/system-probe/config/...",
     "./comp/metadata/inventoryagent/...",
+    "./pkg/util/kernel/headers/...",
 ]
 TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)
 # change `timeouts` in `test/new-e2e/system-probe/test-runner/main.go` if you change them here
@@ -930,6 +931,8 @@ _BAZEL_EBPF_CORE_TARGETS = [
     "//pkg/ebpf/c:lock_contention",
     "//pkg/ebpf/c:ksyms_iter",
     "//pkg/network/ebpf/c:tracer",
+    "//pkg/network/ebpf/c/sk:sk_tracer",
+    "//pkg/network/ebpf/c/sk:sk_tracer-debug",
     "//pkg/network/ebpf/c:tracer-debug",
     "//pkg/network/ebpf/c/co-re:tracer-fentry",
     "//pkg/network/ebpf/c/co-re:tracer-fentry-debug",
@@ -953,6 +956,7 @@ _BAZEL_EBPF_CORE_TARGETS = [
     "//pkg/dyninst/ebpf:dyninst_event-debug",
     "//pkg/ebpf/testdata/c:logdebug-test",
     "//pkg/ebpf/testdata/c:error_telemetry",
+    "//pkg/ebpf/testdata/c:sleepable",
     "//pkg/ebpf/testdata/c:uprobe_attacher-test",
     "//cmd/system-probe/subcommands/ebpf/testdata:btf_test",
 ]

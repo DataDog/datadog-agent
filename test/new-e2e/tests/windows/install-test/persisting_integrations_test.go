@@ -24,7 +24,7 @@ import (
 
 const (
 	thirdPartyIntegration = "datadog-ping==1.0.2"
-	pipPackage            = "grpcio"
+	pipPackage            = "grpcio==1.80.0"
 )
 
 // TestPersistingIntegrations tests upgrading the agent from the current version to the upgrade-test version
@@ -555,12 +555,14 @@ func (s *baseAgentMSISuite) checkPipPackageInstalled(vm *components.RemoteHost, 
 	installPath, err := windowsAgent.GetInstallPathFromRegistry(vm)
 	s.Require().NoError(err, "should get install path from registry")
 
-	cmd := fmt.Sprintf(`& "%s\embedded3\python.exe" -m pip show %s`, installPath, packageToCheck)
+	// pip show only accepts package names, not version specifiers like ==1.2.3
+	pkgName, _, _ := strings.Cut(packageToCheck, "==")
+	cmd := fmt.Sprintf(`& "%s\embedded3\python.exe" -m pip show %s`, installPath, pkgName)
 	out, err := vm.Execute(cmd)
 	s.Require().NoError(err, "should show pip package")
 
 	// check to make sure it is installed
-	packageCheck := "Name: " + packageToCheck
+	packageCheck := "Name: " + pkgName
 	assert.True(s.T(), strings.Contains(out, packageCheck), "pip package should be installed")
 }
 
@@ -569,7 +571,9 @@ func (s *baseAgentMSISuite) checkPipPackageNotInstalled(vm *components.RemoteHos
 	installPath, err := windowsAgent.GetInstallPathFromRegistry(vm)
 	s.Require().NoError(err, "should get install path from registry")
 
-	cmd := fmt.Sprintf(`& "%s\embedded3\python.exe" -m pip show %s`, installPath, packageToCheck)
+	// pip show only accepts package names, not version specifiers like ==1.2.3
+	pkgName, _, _ := strings.Cut(packageToCheck, "==")
+	cmd := fmt.Sprintf(`& "%s\embedded3\python.exe" -m pip show %s`, installPath, pkgName)
 	_, err = vm.Execute(cmd)
 	s.Require().ErrorContains(err, "not found", "should not find pip package")
 

@@ -243,12 +243,30 @@ func (d *Decoder) resetForNextMessage() {
 }
 
 // Event wraps the output Event from the BPF program. It also adds fields
-// that are not present in the BPF program.
+// that are not present in the BPF program. EntryOrLine and Return are
+// FragmentedEvent values that may represent one or more ringbuf fragments
+// for a single logical event.
 type Event struct {
-	EntryOrLine output.Event
-	Return      output.Event
+	EntryOrLine output.FragmentedEvent
+	Return      output.FragmentedEvent
 	ServiceName string
 	ProcessTags string
+	// Truncated is true when the event is known to be incomplete: some
+	// fragments were dropped before reaching userspace. The decoder is still
+	// expected to emit whatever data is available; the sink surfaces the
+	// flag in the emitted snapshot JSON so users know the capture is not
+	// full.
+	Truncated bool
+}
+
+// firstFragment returns the first event from a FragmentedEvent. This is used
+// to access the event header and stack trace which are only present in the
+// first fragment.
+func firstFragment(fe output.FragmentedEvent) output.Event {
+	for ev := range fe.Fragments() {
+		return ev
+	}
+	return nil
 }
 
 type message struct {
@@ -324,7 +342,11 @@ func (s *message) init(
 		s.Debugger.Type = payloadTypeSnapshot
 	}
 
-	header, err := event.EntryOrLine.Header()
+	eventOrLineFirstFragment := firstFragment(event.EntryOrLine)
+	if eventOrLineFirstFragment == nil {
+		return probe, errors.New("entry event first fragment is nil")
+	}
+	header, err := eventOrLineFirstFragment.Header()
 	if err != nil {
 		return probe, fmt.Errorf("error getting header %w", err)
 	}
@@ -353,6 +375,7 @@ func (s *message) init(
 		decoder.line.capture = &decoder.entryOrLine
 		s.Debugger.Snapshot.captures.Lines = &decoder.line
 	}
+	var returnFirstFragment output.Event
 	var returnHeader *output.EventHeader
 	var durationMissingReason *string
 	if event.Return != nil {
@@ -365,7 +388,11 @@ func (s *message) init(
 		if returnProbeEvent.instance != instance {
 			return nil, errors.New("return probe event has different instance than entry probe")
 		}
-		returnHeader, err = event.Return.Header()
+		returnFirstFragment = firstFragment(event.Return)
+		if returnFirstFragment == nil {
+			return nil, errors.New("return event first fragment is nil")
+		}
+		returnHeader, err = returnFirstFragment.Header()
 		if err != nil {
 			return nil, fmt.Errorf("error getting return header %w", err)
 		}
@@ -434,11 +461,11 @@ func (s *message) init(
 
 	// Unconditionally populate stackPCs map for any event with stack PCs.
 	populateStackPCsIfMissing(
-		probe, decoder, header.Stack_hash, event.EntryOrLine, "entry",
+		probe, decoder, header.Stack_hash, eventOrLineFirstFragment, "entry",
 	)
 	if returnHeader != nil {
 		populateStackPCsIfMissing(
-			probe, decoder, returnHeader.Stack_hash, event.Return, "return",
+			probe, decoder, returnHeader.Stack_hash, returnFirstFragment, "return",
 		)
 	}
 

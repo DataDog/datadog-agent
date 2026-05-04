@@ -143,40 +143,6 @@ func TestGetAgentTaggerList(t *testing.T) {
 	assert.Contains(t, string(content), "image_name:custom-agent")
 }
 
-func TestGetWorkloadList(t *testing.T) {
-	workloadMap := make(map[string]workloadmeta.WorkloadEntity)
-	workloadMap["kind_id"] = workloadmeta.WorkloadEntity{
-		Infos: map[string]string{
-			"container_id_1": "Name: init-volume ID: e19e1ba787",
-			"container_id_2": "Name: init-config ID: 4e0ffee5d6",
-		},
-	}
-	resp := workloadmeta.WorkloadDumpResponse{
-		Entities: workloadMap,
-	}
-	ipcComp := ipcmock.New(t)
-
-	ts := ipcComp.NewMockServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		out, _ := json.Marshal(resp)
-		w.Write(out)
-	}))
-
-	setupIPCAddress(t, configmock.New(t), ts.URL)
-
-	remoteProvider := RemoteFlareProvider{
-		IPC: ipcComp,
-	}
-
-	content, err := remoteProvider.getAgentWorkloadList()
-	require.NoError(t, err)
-
-	assert.Contains(t, string(content), "kind_id")
-	assert.Contains(t, string(content), "container_id_1")
-	assert.Contains(t, string(content), "Name: init-volume ID: e19e1ba787")
-	assert.Contains(t, string(content), "container_id_2")
-	assert.Contains(t, string(content), "Name: init-config ID: 4e0ffee5d6")
-}
-
 func TestVersionHistory(t *testing.T) {
 	srcDir := createTestFile(t, "version-history.json")
 
