@@ -263,6 +263,7 @@ var commonConfigComponents = []func(pkgconfigmodel.Setup){
 	telemetry,
 	autoconfig,
 	remoteconfig,
+	remoteflags,
 	logsagent,
 	containerSyspath,
 	containerd,

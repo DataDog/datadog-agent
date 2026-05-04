@@ -1346,6 +1346,11 @@ func remoteconfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("remote_configuration.no_websocket_echo", false)
 }
 
+func remoteflags(config pkgconfigmodel.Setup) {
+	// Remote flags
+	config.BindEnvAndSetDefault("remote_flags.enabled", false)
+}
+
 func autoconfig(config pkgconfigmodel.Setup) {
 	// Autoconfig
 	// Where to look for check templates if no custom path is defined

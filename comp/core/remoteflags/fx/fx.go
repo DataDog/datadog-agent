@@ -7,6 +7,7 @@
 package fx
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	remoteflags "github.com/DataDog/datadog-agent/comp/core/remoteflags/def"
 	remoteflagsimpl "github.com/DataDog/datadog-agent/comp/core/remoteflags/impl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
@@ -23,7 +24,10 @@ func Module() fxutil.Module {
 	)
 }
 
-func newRCListener(comp remoteflags.Component) types.ListenerProvider {
+func newRCListener(cfg config.Component, comp remoteflags.Component) types.ListenerProvider {
+	if !cfg.GetBool("remote_flags.enabled") {
+		return types.ListenerProvider{}
+	}
 	var rcListener types.ListenerProvider
 	rcListener.ListenerProvider = types.RCListener{
 		data.ProductAgentFlags: comp.GetClient().OnUpdate,
