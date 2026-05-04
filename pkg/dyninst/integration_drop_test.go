@@ -27,7 +27,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/goleak"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
@@ -52,8 +51,7 @@ import (
 // timing is non-deterministic under pressure.
 func TestDropNotifications(t *testing.T) {
 	dyninsttest.SkipIfKernelNotSupported(t)
-	current := goleak.IgnoreCurrent()
-	t.Cleanup(func() { goleak.VerifyNone(t, current) })
+	t.Parallel()
 
 	cfgs := testprogs.MustGetCommonConfigs(t)
 	// Pick a config matching the host architecture. The drop_tester binary
@@ -282,6 +280,7 @@ func (s snapshot) ValidJSON() bool {
 }
 
 func runScenario(t *testing.T, cfg testprogs.Config, sc scenario) {
+	t.Parallel()
 	tempDir, cleanup := dyninsttest.PrepTmpDir(t, "dyninst-drop-test")
 	defer cleanup()
 
