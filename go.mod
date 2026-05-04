@@ -990,7 +990,7 @@ require (
 	go.opentelemetry.io/collector/otelcol/otelcoltest v0.150.0
 	go.temporal.io/api v1.62.2
 	go.temporal.io/sdk v1.39.0
-	mvdan.cc/sh/v3 v3.13.0
+	mvdan.cc/sh/v3 v3.13.1
 )
 
 require github.com/puzpuzpuz/xsync/v4 v4.4.0 // indirect
