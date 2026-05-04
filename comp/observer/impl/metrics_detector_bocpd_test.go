@@ -7,6 +7,8 @@ package observerimpl
 
 import (
 	"math"
+	"reflect"
+	"strings"
 	"testing"
 
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
@@ -301,11 +303,15 @@ func TestFindingH3_CPProbUsesOnlyPriorPredictiveNotSumOverRunLengths(t *testing.
 	_, implCpProb, _ := d.updatePosterior(state, x)
 
 	// Independently compute the standard BOCPD formula from the snapshot.
+	// Route through the detector's predictivePDF so this test verifies the
+	// recurrence structure regardless of whether Student-t or Gaussian is
+	// active — what we care about is "summed predictive over run lengths,"
+	// not the specific likelihood.
 	newLen := len(snapRunProbs) + 1
 	standardProbs := make([]float64, newLen)
 	var cpMass float64
 	for r := range snapRunProbs {
-		pred := gaussianPDF(x, snapMeans[r], state.obsVar+1.0/snapPrecisions[r])
+		pred := d.predictivePDF(x, snapMeans[r], state.obsVar+1.0/snapPrecisions[r])
 		standardProbs[r+1] = snapRunProbs[r] * (1.0 - hazard) * pred
 		cpMass += snapRunProbs[r] * pred
 	}
@@ -315,9 +321,9 @@ func TestFindingH3_CPProbUsesOnlyPriorPredictiveNotSumOverRunLengths(t *testing.
 
 	// Independently compute the prior-only formula from the snapshot.
 	priorProbs := make([]float64, newLen)
-	predPrior := gaussianPDF(x, state.priorMean, state.obsVar+1.0/state.priorPrecision)
+	predPrior := d.predictivePDF(x, state.priorMean, state.obsVar+1.0/state.priorPrecision)
 	for r := range snapRunProbs {
-		pred := gaussianPDF(x, snapMeans[r], state.obsVar+1.0/snapPrecisions[r])
+		pred := d.predictivePDF(x, snapMeans[r], state.obsVar+1.0/snapPrecisions[r])
 		priorProbs[r+1] = snapRunProbs[r] * (1.0 - hazard) * pred
 	}
 	priorProbs[0] = hazard * predPrior
@@ -497,4 +503,239 @@ func TestFindingM8_ShortRunMassExcludesCPProb(t *testing.T) {
 	// trigger would NOT fire on its own without cpProb inflating it.
 	assert.Less(t, mass, 0.7,
 		"short-run mass (%.4f) without cpProb should be below CPMassThreshold (0.7)", mass)
+}
+
+// ---------------------------------------------------------------------------
+// H2B-bocpd-clean-stack-validation: combined Student-t + persistence stack.
+// ---------------------------------------------------------------------------
+
+// jitteredBaseline writes nPoints with a small deterministic jitter so the
+// detector sees non-trivial baseline variance (otherwise the warmup variance
+// is floored at MinVariance=1.0 and any deviation reads as hundreds of σ —
+// a regime where Student-t's heavier tails are still relatively-tiny across
+// run-length hypotheses, so the test doesn't actually exercise the
+// likelihood layer).
+func jitteredBaseline(s *timeSeriesStorage, mean float64, nPoints int, startTs int64) int64 {
+	ts := startTs
+	pattern := []float64{0, 5, -3, 2, -4, 6, -2, 4, -5, 1}
+	for i := 0; i < nPoints; i++ {
+		s.Add("ns", "test.metric", mean+pattern[i%len(pattern)], ts, nil)
+		ts++
+	}
+	return ts
+}
+
+// TestBOCPDDetector_StudentTSuppressesIsolatedOutlier verifies that the
+// combined Student-t + persistence stack does not fire on an isolated
+// outlier embedded in a jittered baseline, while the same data under
+// Gaussian + persistence=1 (legacy behavior) does fire. This locks in the
+// candidate's headline robustness claim.
+func TestBOCPDDetector_StudentTSuppressesIsolatedOutlier(t *testing.T) {
+	makeStorage := func() *timeSeriesStorage {
+		s := newTimeSeriesStorage()
+		ts := jitteredBaseline(s, 100, 60, 1) // baseline σ ≈ 4
+		// One isolated outlier ≈ 6σ above baseline.
+		s.Add("ns", "test.metric", 125, ts, nil)
+		ts++
+		// Return to baseline for many points so any ringing has time to settle.
+		jitteredBaseline(s, 100, 60, ts)
+		return s
+	}
+
+	// With Student-t (DoF=5) and persistence=3 (defaults), the outlier
+	// produces low predictive density without inflating cpProb or short-run
+	// mass for ≥3 consecutive points → no alert.
+	cfgRobust := DefaultBOCPDConfig()
+	cfgRobust.WarmupPoints = 30
+	cfgRobust.Aggregations = []observer.Aggregate{observer.AggregateAverage}
+	d := NewBOCPDDetector(cfgRobust)
+	result := d.Detect(makeStorage(), 200)
+	assert.Empty(t, result.Anomalies,
+		"isolated 6σ outlier should not alert with default Student-t + persistence")
+
+	// Sanity check: same scenario with Gaussian likelihood AND persistence=1
+	// (the legacy stack) DOES alert on the outlier. If this assertion fails
+	// then the scenario isn't actually exercising the spike path and the
+	// "no alert" above is a false-negative pass.
+	cfgFragile := cfgRobust
+	cfgFragile.StudentTDoF = 0
+	cfgFragile.PersistenceCount = 1
+	dFragile := NewBOCPDDetector(cfgFragile)
+	resultFragile := dFragile.Detect(makeStorage(), 200)
+	require.NotEmpty(t, resultFragile.Anomalies,
+		"sanity: Gaussian + persistence=1 must fire on the same outlier; "+
+			"otherwise the robust-stack pass is meaningless")
+}
+
+// TestBOCPDDetector_StudentTAlonePersistenceDisabled isolates the Student-t
+// contribution: with persistence disabled (=1), Student-t alone should fire
+// substantially fewer alerts on a 6σ outlier than Gaussian alone. This
+// proves Student-t is doing real work at the likelihood layer rather than
+// being shadowed entirely by persistence.
+func TestBOCPDDetector_StudentTAlonePersistenceDisabled(t *testing.T) {
+	makeStorage := func() *timeSeriesStorage {
+		s := newTimeSeriesStorage()
+		ts := jitteredBaseline(s, 100, 60, 1)
+		s.Add("ns", "test.metric", 125, ts, nil)
+		ts++
+		jitteredBaseline(s, 100, 60, ts)
+		return s
+	}
+
+	cfgT := DefaultBOCPDConfig()
+	cfgT.WarmupPoints = 30
+	cfgT.PersistenceCount = 1
+	cfgT.Aggregations = []observer.Aggregate{observer.AggregateAverage}
+	dT := NewBOCPDDetector(cfgT)
+	resultT := dT.Detect(makeStorage(), 200)
+
+	cfgG := cfgT
+	cfgG.StudentTDoF = 0
+	dG := NewBOCPDDetector(cfgG)
+	resultG := dG.Detect(makeStorage(), 200)
+
+	t.Logf("student-t alerts: %d   gaussian alerts: %d",
+		len(resultT.Anomalies), len(resultG.Anomalies))
+	// Strict claim: Student-t fires strictly fewer false alerts than Gaussian
+	// on the same outlier-only data. This is the per-likelihood gain that
+	// motivates including Student-t in the stack at all.
+	assert.Less(t, len(resultT.Anomalies), len(resultG.Anomalies),
+		"Student-t alone should fire fewer false alerts than Gaussian alone "+
+			"on a single-outlier scenario (persistence disabled in both)")
+}
+
+// TestBOCPDDetector_PersistenceSuppressesShortBurst verifies that a short
+// burst (fewer points than PersistenceCount) does not raise an alert. We
+// intentionally build a configuration where the per-point trigger DOES fire
+// at every burst point so the test isolates the persistence-gate effect.
+func TestBOCPDDetector_PersistenceSuppressesShortBurst(t *testing.T) {
+	cfg := DefaultBOCPDConfig()
+	cfg.WarmupPoints = 30
+	cfg.PersistenceCount = 4 // require 4 consecutive triggered points
+	// Disable Student-t so the per-point trigger fires reliably on the burst;
+	// otherwise we'd be testing a confounded Student-t × persistence effect.
+	cfg.StudentTDoF = 0
+	cfg.Aggregations = []observer.Aggregate{observer.AggregateAverage}
+	d := NewBOCPDDetector(cfg)
+	storage := newTimeSeriesStorage()
+
+	ts := jitteredBaseline(storage, 100, 30, 1)
+	// 2-point burst (less than PersistenceCount=4) then return to baseline.
+	// Stays well under PersistenceCount even after accounting for one or two
+	// points of post-burst short-run mass redistribution before things
+	// settle.
+	for i := 0; i < 2; i++ {
+		storage.Add("ns", "test.metric", 200, ts, nil)
+		ts++
+	}
+	jitteredBaseline(storage, 100, 30, ts)
+
+	// Sanity baseline: with persistence=1, the same burst DOES fire.
+	cfgLegacy := cfg
+	cfgLegacy.PersistenceCount = 1
+	dLegacy := NewBOCPDDetector(cfgLegacy)
+	resultLegacy := dLegacy.Detect(storage, ts)
+	require.NotEmpty(t, resultLegacy.Anomalies,
+		"sanity: persistence=1 must fire on the 2-point burst; otherwise the "+
+			"persistence-suppression assertion below is vacuously true")
+
+	result := d.Detect(storage, ts)
+	// Allow the burst + at most one or two points of post-burst ringing —
+	// the burst should never sustain triggers for ≥PersistenceCount=4
+	// consecutive points → no alert at all.
+	assert.Empty(t, result.Anomalies,
+		"2-point burst should be suppressed when PersistenceCount=4")
+}
+
+// TestBOCPDDetector_PersistenceAllowsSustainedChangepoint verifies recall:
+// a sustained changepoint that lasts longer than PersistenceCount must still
+// fire. This guards against persistence becoming a silent kill switch and
+// is the "sustained changepoint recall" test from the candidate spec.
+func TestBOCPDDetector_PersistenceAllowsSustainedChangepoint(t *testing.T) {
+	cfg := DefaultBOCPDConfig()
+	cfg.WarmupPoints = 30
+	// Use the production defaults for both pieces — this test has to pass
+	// with the same config that the eval pipeline uses.
+	cfg.Aggregations = []observer.Aggregate{observer.AggregateAverage}
+	d := NewBOCPDDetector(cfg)
+	storage := newTimeSeriesStorage()
+
+	ts := jitteredBaseline(storage, 100, 40, 1)
+	cpStart := ts
+	// Sustained 6σ shift for 40 points, well past PersistenceCount=3.
+	for i := 0; i < 40; i++ {
+		storage.Add("ns", "test.metric", 125+float64(i%3-1), ts, nil)
+		ts++
+	}
+
+	result := d.Detect(storage, ts)
+	require.NotEmpty(t, result.Anomalies,
+		"sustained 40-point changepoint must fire under default Student-t + persistence")
+	// First emission must be at or after the PersistenceCount-th spike point
+	// (cpStart + PersistenceCount - 1), confirming the gate is real and the
+	// detector isn't firing pre-changepoint by accident.
+	minExpected := cpStart + int64(cfg.PersistenceCount) - 1
+	assert.GreaterOrEqual(t, result.Anomalies[0].Timestamp, minExpected,
+		"alert timestamp should be at or after the persistence-confirmation point (cpStart=%d, persistence=%d)",
+		cpStart, cfg.PersistenceCount)
+}
+
+// TestBOCPDDetector_StudentTPDFIntegralIsClose1 sanity-checks the Student-t
+// PDF normalization via Riemann integration over a wide window. A bug in the
+// log-gamma constant would silently shift cpProb across all triggers; this
+// test guards against that without depending on full BOCPD dynamics.
+func TestBOCPDDetector_StudentTPDFIntegralIsClose1(t *testing.T) {
+	// dof=5, location=0, variance=1. Integrate over [-50, 50] with step 0.01.
+	const dof, loc, variance = 5.0, 0.0, 1.0
+	const lo, hi, step = -50.0, 50.0, 0.01
+	var integral float64
+	for x := lo; x < hi; x += step {
+		integral += studentTPDF(x, loc, variance, dof) * step
+	}
+	assert.InDelta(t, 1.0, integral, 0.005,
+		"Student-t PDF should integrate to ~1; got %.4f", integral)
+}
+
+// TestBOCPDDetector_StudentTHasHeavierTailsThanGaussian asserts the headline
+// property that justifies using Student-t at all: at deep tails (5σ) the
+// Student-t density should be substantially larger than the Gaussian, so a
+// single outlier no longer drives cpProb to 1 by single-handedly making all
+// non-cp hypotheses' likelihoods underflow.
+func TestBOCPDDetector_StudentTHasHeavierTailsThanGaussian(t *testing.T) {
+	const variance = 1.0
+	x := 5.0 // 5 sigma
+	gaussian := gaussianPDF(x, 0, variance)
+	tDensity := studentTPDF(x, 0, variance, 5.0)
+	t.Logf("gaussian(5σ) = %.6e   student-t(5σ, dof=5) = %.6e", gaussian, tDensity)
+	assert.Greater(t, tDensity, gaussian*100,
+		"Student-t (dof=5) at 5σ should be >100x the Gaussian density "+
+			"(heavy-tailed predictive is the whole point of this stack)")
+}
+
+// TestBOCPDDetector_NoEntropyGate documents and locks in the deliberate
+// decision to NOT add a posterior-entropy gate to this candidate. The
+// existing CPThreshold/CPMassThreshold already threshold posterior shape; an
+// entropy gate would either re-test the same thing or, used as suppression,
+// mute alerts during the high-entropy transient that immediately precedes a
+// new run-length winning out — which is exactly when a real changepoint
+// should fire.
+//
+// We assert this contract by:
+//  1. Confirming the public BOCPDConfig has no entropy-related field.
+//  2. Confirming the runtime behavior: cpProb and short-run mass alone are
+//     sufficient to trigger and suppress as expected (covered by the
+//     suppression and recall tests above), without any entropy threshold.
+func TestBOCPDDetector_NoEntropyGate(t *testing.T) {
+	cfg := DefaultBOCPDConfig()
+	// If a future PR adds an EntropyThreshold (or similar), this test should
+	// trip and the author must justify it on its own merits — and re-run the
+	// suppression/recall tests above. The "negative" assertion is intentional
+	// design pressure: stack one knob at a time, each with evidence.
+	v := reflect.ValueOf(cfg)
+	for i := 0; i < v.NumField(); i++ {
+		name := v.Type().Field(i).Name
+		assert.NotContains(t, strings.ToLower(name), "entropy",
+			"BOCPDConfig must not grow an entropy gate without an explicit "+
+				"motivating test (see comment on PersistenceCount in metrics_detector_bocpd.go)")
+	}
 }

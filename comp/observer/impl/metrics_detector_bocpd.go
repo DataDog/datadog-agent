@@ -54,6 +54,11 @@ type bocpdSeriesState struct {
 	inAlert       bool
 	alertStart    int64
 	recoveryCount int // consecutive non-triggering points since last trigger
+
+	// Persistence confirmation: count consecutive triggered (pre-emission)
+	// points so a transient burst doesn't fire an alert. Reset on any
+	// non-triggered point or when an alert is emitted.
+	pendingCount int
 }
 
 // BOCPDConfig holds configuration for the BOCPD detector.
@@ -96,6 +101,36 @@ type BOCPDConfig struct {
 	// to exit alert state. Default: 10
 	RecoveryPoints int `json:"recovery_points"`
 
+	// StudentTDoF is the degrees-of-freedom for the Student-t predictive
+	// likelihood. Heavier tails (smaller DoF) make per-point evidence robust
+	// to isolated outliers without changing the BOCPD recurrence structure:
+	// a lone spike no longer inflates the Gaussian PDF at the run-length
+	// hypotheses' centroids, so neither cpProb nor short-run mass blows up.
+	// In the Normal-Inverse-Gamma conjugate BOCPD model the predictive is
+	// exactly Student-t (Adams & MacKay 2007), so this is the principled
+	// likelihood, not just a robustness hack.
+	//
+	// Set to 0 to fall back to the Gaussian predictive. Default: 5.
+	StudentTDoF float64 `json:"student_t_dof"`
+
+	// PersistenceCount is the number of consecutive triggered points needed
+	// before an alert is emitted. PersistenceCount=1 emits on the first
+	// triggered point (legacy behavior). Higher values suppress brief 2-3
+	// point bursts while still firing on sustained shifts. This is
+	// complementary to StudentTDoF: Student-t damps single-point outliers at
+	// the likelihood level, persistence damps multi-point bursts at the
+	// trigger level.
+	//
+	// Note: posterior entropy gating is intentionally NOT implemented here.
+	// CPThreshold and CPMassThreshold already threshold posterior shape;
+	// adding an entropy gate would either re-test the same property or, if
+	// used as suppression, mute alerts during the high-entropy transition
+	// that immediately precedes the new run-length winning out — which is
+	// exactly when a real changepoint should fire.
+	//
+	// Default: 3.
+	PersistenceCount int `json:"persistence_count"`
+
 	// Aggregations to run detection on. Default: [Average, Count]
 	Aggregations []observer.Aggregate `json:"-"`
 }
@@ -112,6 +147,8 @@ func DefaultBOCPDConfig() BOCPDConfig {
 		PriorVarianceScale: 10.0,
 		MinVariance:        1.0,
 		RecoveryPoints:     10,
+		StudentTDoF:        5.0,
+		PersistenceCount:   3,
 		Aggregations: []observer.Aggregate{
 			observer.AggregateAverage,
 			observer.AggregateCount,
@@ -165,6 +202,18 @@ func NewBOCPDDetector(config BOCPDConfig) *BOCPDDetector {
 	}
 	if config.RecoveryPoints <= 0 {
 		config.RecoveryPoints = defaults.RecoveryPoints
+	}
+	// StudentTDoF must be > 2 for a finite second moment so the predictive
+	// variance parameterization matches gaussianPDF's. Negative values fall
+	// back to the default. Zero is a sentinel meaning "use Gaussian", which
+	// we honor explicitly.
+	if config.StudentTDoF < 0 {
+		config.StudentTDoF = defaults.StudentTDoF
+	} else if config.StudentTDoF > 0 && config.StudentTDoF <= 2 {
+		config.StudentTDoF = defaults.StudentTDoF
+	}
+	if config.PersistenceCount < 1 {
+		config.PersistenceCount = defaults.PersistenceCount
 	}
 	if len(config.Aggregations) == 0 {
 		config.Aggregations = defaults.Aggregations
@@ -256,6 +305,27 @@ func (b *BOCPDDetector) Reset() {
 	b.cachedGen = 0
 }
 
+// RemoveSeries drops posterior state for refs that storage has freed.
+// Each (ref, agg) entry in the per-series map carries six float64 arrays
+// of size MaxRunLength+2 (~9.7 KB at default config), so without this
+// teardown the map grows with the cumulative number of series ever seen
+// even after their storage payload is gone. Called by the engine right
+// after timeSeriesStorage.RemoveSeriesByKeys returns the freed refs.
+func (b *BOCPDDetector) RemoveSeries(refs []observer.SeriesRef) {
+	if len(refs) == 0 || len(b.series) == 0 {
+		return
+	}
+	for _, ref := range refs {
+		for _, agg := range b.config.Aggregations {
+			delete(b.series, bocpdStateKey{ref: ref, agg: agg})
+		}
+	}
+	// Drop the cached series snapshot so the next Detect re-lists from
+	// storage and we don't iterate over removed refs.
+	b.cachedSeries = nil
+	b.cachedGen = 0
+}
+
 // processPoint handles a single new observation for a series.
 // Returns an anomaly pointer if this point triggers a new alert onset.
 func (b *BOCPDDetector) processPoint(state *bocpdSeriesState, p observer.Point, series *observer.Series, agg observer.Aggregate) *observer.Anomaly {
@@ -269,13 +339,26 @@ func (b *BOCPDDetector) processPoint(state *bocpdSeriesState, p observer.Point, 
 
 	if triggered {
 		state.recoveryCount = 0
-		if !state.inAlert {
-			state.inAlert = true
-			state.alertStart = p.Timestamp
-			return b.makeAnomaly(state, p, series, agg, cpProb, shortRunMass)
+		if state.inAlert {
+			// Already alerting on this incident; do not re-emit until recovery.
+			return nil
 		}
-		return nil
+		// Persistence confirmation: require N consecutive triggered points
+		// before emitting. This filters transient bursts that briefly inflate
+		// cpProb without representing a real regime change.
+		state.pendingCount++
+		if state.pendingCount < b.config.PersistenceCount {
+			return nil
+		}
+		state.inAlert = true
+		state.alertStart = p.Timestamp
+		state.pendingCount = 0
+		return b.makeAnomaly(state, p, series, agg, cpProb, shortRunMass)
 	}
+
+	// Not triggered: reset pre-emission persistence streak so a stale
+	// not-quite-confirmed burst doesn't combine with a later, unrelated one.
+	state.pendingCount = 0
 
 	if state.inAlert {
 		state.recoveryCount++
@@ -356,7 +439,7 @@ func (b *BOCPDDetector) updatePosterior(state *bocpdSeriesState, x float64) (boo
 	state.newRunProbs = state.newRunProbs[:newLen]
 	var cpMass float64
 	for r := range state.runProbs {
-		pred := gaussianPDF(x, state.means[r], state.obsVar+1.0/state.precisions[r])
+		pred := b.predictivePDF(x, state.means[r], state.obsVar+1.0/state.precisions[r])
 		state.newRunProbs[r+1] = state.runProbs[r] * (1.0 - hazard) * pred
 		cpMass += state.runProbs[r] * pred
 	}
@@ -482,4 +565,44 @@ func gaussianPDF(x, mean, variance float64) float64 {
 	z := x - mean
 	denom := math.Sqrt(2 * math.Pi * variance)
 	return math.Exp(-(z*z)/(2*variance)) / denom
+}
+
+// predictivePDF returns the BOCPD predictive density for observation x given
+// the current run-length hypothesis (location, predictive variance). Routes
+// to the Student-t predictive when StudentTDoF > 0 (the default), otherwise
+// falls back to Gaussian. Both implementation and test code go through this
+// function so the BOCPD recurrence is verified against the actual likelihood
+// in use (see TestFindingH3).
+func (b *BOCPDDetector) predictivePDF(x, mean, variance float64) float64 {
+	if b.config.StudentTDoF > 2 {
+		return studentTPDF(x, mean, variance, b.config.StudentTDoF)
+	}
+	return gaussianPDF(x, mean, variance)
+}
+
+// studentTPDF returns the density of a Student-t at x with given location,
+// predictive variance, and degrees of freedom. The variance argument matches
+// gaussianPDF's: it is the second moment of the predictive, not the squared
+// scale. For dof > 2 we convert to scale^2 = variance * (dof-2)/dof so that
+// shrinking dof gives heavier tails without changing the predictive variance,
+// keeping the substitution into BOCPD apples-to-apples.
+//
+// Computed in log-space to avoid overflow at small densities (large
+// deviations) where the gaussianPDF kernel underflows to zero.
+func studentTPDF(x, location, variance, dof float64) float64 {
+	const minVariance = 1e-12
+	if variance < minVariance {
+		variance = minVariance
+	}
+	scaleSq := variance * (dof - 2) / dof
+	if scaleSq < minVariance {
+		scaleSq = minVariance
+	}
+	d := x - location
+	zSq := (d * d) / scaleSq
+	logNum, _ := math.Lgamma((dof + 1) / 2)
+	logDen, _ := math.Lgamma(dof / 2)
+	logCoef := logNum - logDen - 0.5*math.Log(dof*math.Pi*scaleSq)
+	logKernel := -((dof + 1) / 2) * math.Log1p(zSq/dof)
+	return math.Exp(logCoef + logKernel)
 }

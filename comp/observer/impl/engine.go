@@ -107,6 +107,14 @@ type engine struct {
 	latePointsBySource map[string]int64 // per-source breakdown (single-goroutine access from run loop)
 	handles            []*handle        // registered handles for per-source drop collection
 	handlesMu          sync.Mutex       // protects handles slice
+
+	// sourceTagCache memoises the "observer_source:<source>" string used in
+	// IngestLog/IngestMetric. Without this we allocate a fresh string per
+	// log/metric ingest. Sources are a small bounded set (e.g. "logs",
+	// "profiles", "traces") so a single-goroutine map is plenty; access is
+	// confined to the engine run loop. Lock-free via atomic.Pointer to a
+	// copy-on-write map so we don't add a mutex to the hot path.
+	sourceTagCache atomic.Pointer[map[string]string]
 }
 
 // engineConfig holds the parameters for constructing an engine.
@@ -207,6 +215,49 @@ func (e *engine) registerHandle(h *handle) {
 	e.handlesMu.Unlock()
 }
 
+// sourceTagForIngest returns "observer_source:<source>" with memoisation so
+// IngestLog / IngestMetric don't allocate a fresh string per ingest. The
+// source set is small and bounded; a copy-on-write map indexed via an
+// atomic.Pointer keeps reads lock-free on the hot path.
+//
+// The bounded-source assumption: every production caller of obs.GetHandle()
+// passes a statically-defined string constant. As of this writing the full
+// set is:
+//   - "all-metrics"          (pkg/aggregator/demultiplexer_agent.go)
+//   - "dogstatsd"            (comp/dogstatsd/server/server.go)
+//   - "logs"                 (comp/observer/logssource/impl/component.go)
+//   - "agent-internal-logs"  (comp/observer/impl/observer.go)
+//   - "profile-agent"        (comp/observer/impl/observer.go)
+//   - hfrunner.HFSource      (comp/observer/impl/observer.go)
+//   - hfrunner.HFContainerSource (comp/observer/impl/observer.go)
+//
+// If a future caller ever passes a user-controlled or per-container source
+// string, the COW map becomes unbounded and this memoisation strategy is
+// the wrong shape (use sync.Map or a bounded LRU). Adding an entry to that
+// list above means revisiting this function.
+func (e *engine) sourceTagForIngest(source string) string {
+	if m := e.sourceTagCache.Load(); m != nil {
+		if tag, ok := (*m)[source]; ok {
+			return tag
+		}
+	}
+	tag := "observer_source:" + source
+	for {
+		old := e.sourceTagCache.Load()
+		newMap := make(map[string]string, 4)
+		if old != nil {
+			for k, v := range *old {
+				newMap[k] = v
+			}
+		}
+		newMap[source] = tag
+		if e.sourceTagCache.CompareAndSwap(old, &newMap) {
+			break
+		}
+	}
+	return tag
+}
+
 // IngestMetric stores a metric observation and consults the scheduler policy
 // to determine whether detectors should advance. Returns advance requests
 // that the caller should execute via Advance.
@@ -229,7 +280,7 @@ func (e *engine) IngestMetric(source string, m *metricObs) []advanceRequest {
 // notifies log observers, and consults the scheduler policy to determine whether
 // detectors should advance. Returns advance requests that the caller should execute.
 func (e *engine) IngestLog(source string, l *logObs) ([]advanceRequest, []observerdef.ObserverTelemetry) {
-	sourceTag := "observer_source:" + source
+	sourceTag := e.sourceTagForIngest(source)
 	view := &logView{obs: l}
 	var logTelemetry = []observerdef.ObserverTelemetry{}
 	for _, extractor := range e.extractors {
@@ -239,14 +290,26 @@ func (e *engine) IngestLog(source string, l *logObs) ([]advanceRequest, []observ
 		processingTime := time.Since(processingStartTime)
 		logTelemetry = append(logTelemetry, newTelemetryGauge([]string{"detector:" + extractor.Name()}, telemetryDetectorProcessingTimeNs, float64(processingTime.Nanoseconds()), l.timestampMs/1000))
 		for _, m := range out.Metrics {
-			tags := copyTags(m.Tags)
+			// Avoid copying m.Tags when sourceTag is already present: storage.Add
+			// performs its own deep copy on first-write of a series via
+			// canonicalizeTags, and seriesKey sorts a copy internally — neither
+			// mutates the input. The copy is only required when we need to
+			// append sourceTag without disturbing the extractor's slice.
+			tags := m.Tags
 			if !sliceContains(tags, sourceTag) {
-				tags = append(tags, sourceTag)
+				newTags := make([]string, len(tags), len(tags)+1)
+				copy(newTags, tags)
+				tags = append(newTags, sourceTag)
 			}
-			e.storage.Add(extractor.Name(), m.Name, m.Value, l.timestampMs/1000, tags)
-			if m.ContextKey != "" {
-				sk := seriesKey(extractor.Name(), m.Name, tags)
-				e.contextRefs[sk] = seriesContextRef{
+			res := e.storage.Add(extractor.Name(), m.Name, m.Value, l.timestampMs/1000, tags)
+			if m.ContextKey != "" && res.StorageKey != "" {
+				// Reuse the storage key computed inside storage.Add instead of
+				// recomputing seriesKey here. seriesKey is hot enough that this
+				// duplicate accounted for ~14.5 MiB heap-live in the
+				// quality_gate_container_logs SMP profile (now renamed to
+				// observer_logs_anomaly_stress; the 'quality_gate_*' prefix is
+				// reserved for SMP quality-gate cases).
+				e.contextRefs[res.StorageKey] = seriesContextRef{
 					namespace:  extractor.Name(),
 					contextKey: m.ContextKey,
 				}
@@ -283,7 +346,10 @@ func sliceContains(items []string, want string) bool {
 }
 
 // removeContextRefsForEvictedKeys drops engine contextRefs whose extractor
-// namespace and context key match an eviction from extractor GC.
+// namespace and context key match an eviction from extractor GC, and frees
+// the corresponding storage series. Without the storage cleanup, evicted
+// patterns leak their tags + columnar arrays indefinitely (the contextRefs
+// map is just metadata; the heavy data lives in storage.series).
 func (e *engine) removeContextRefsForEvictedKeys(namespace string, evictedKeys []string) {
 	// No garbage collection done
 	if len(evictedKeys) == 0 {
@@ -298,12 +364,48 @@ func (e *engine) removeContextRefsForEvictedKeys(namespace string, evictedKeys [
 	if len(want) == 0 {
 		return
 	}
+	var storageKeys []string
 	for seriesID, ref := range e.contextRefs {
 		if ref.namespace != namespace {
 			continue
 		}
 		if _, ok := want[ref.contextKey]; ok {
 			delete(e.contextRefs, seriesID)
+			storageKeys = append(storageKeys, seriesID)
+		}
+	}
+	if len(storageKeys) > 0 {
+		freedRefs := e.storage.RemoveSeriesByKeys(storageKeys)
+		e.fanOutSeriesRemoval(freedRefs)
+	}
+}
+
+// fanOutSeriesRemoval notifies every detector that implements the optional
+// SeriesRemover interface that the listed SeriesRefs have been freed by
+// storage. This keeps detector-side per-series state (BOCPD posterior maps,
+// ScanMW/ScanWelch segment trackers, seriesDetectorAdapter visible-count
+// maps) symmetric with storage so the LRU caps placed on extractorsâ
+// contexts actually translate into bounded heap usage end-to-end.
+//
+// The caller (removeContextRefsForEvictedKeys / Reset / future GC paths)
+// is responsible for invoking this with whatever refs storage actually
+// freed. Detectors are expected to ignore unknown refs, so itâs safe to
+// broadcast the same ref list to all of them.
+//
+// Concurrency invariant: this method, like every method on engine and
+// every detector RemoveSeries / Detect callback, runs only on the single
+// goroutine driving observerImpl.run() (observer.go). Ingest, advance,
+// detection, and these eviction fan-outs are all serialised through that
+// loop, so detector implementations may mutate per-series state without
+// taking their own locks. Adding a new caller of this function from a
+// different goroutine would break that invariant for every detector.
+func (e *engine) fanOutSeriesRemoval(refs []observerdef.SeriesRef) {
+	if len(refs) == 0 || len(e.detectors) == 0 {
+		return
+	}
+	for _, d := range e.detectors {
+		if remover, ok := d.(observerdef.SeriesRemover); ok {
+			remover.RemoveSeries(refs)
 		}
 	}
 }
