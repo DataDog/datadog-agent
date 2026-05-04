@@ -1364,6 +1364,13 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 			}
 			p.Resolvers.CGroupResolver.Add(cgroupContext)
 		}
+
+		// internal open events are emitted only to populate the cgroup
+		// resolver above; they don't reflect a user action so skip rule
+		// evaluation
+		if event.IsEventInternal() {
+			return false
+		}
 	case model.FileMkdirEventType:
 		if !p.regularUnmarshalEvent(&event.Mkdir, eventType, offset, dataLen, data) {
 			return false
