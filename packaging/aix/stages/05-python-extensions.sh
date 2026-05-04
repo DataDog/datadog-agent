@@ -41,8 +41,8 @@ PYTHON_BIN=$EMBEDDED_DESTDIR/bin/python${PYTHON_MAJ_MIN}
 # automatically picks up the correct version without a separate edit to this file.
 #
 # Sources:
-#   pymqi, pyodbc — integrations-core/agent_requirements.in (format: "pkg==x.y.z")
-#   ibm_db        — integrations-core/ibm_db2/hatch.toml (Python 3 line)
+#   pymqi, pyodbc  — integrations-core/agent_requirements.in (format: "pkg==x.y.z")
+#   ibm_db         — integrations-core/ibm_db2/hatch.toml (Python 3 line)
 
 AGENT_REQ="$INTEGRATIONS_CORE/agent_requirements.in"
 PYMQI_VERSION=$(grep '^pymqi==' "$AGENT_REQ" | cut -d= -f3)
