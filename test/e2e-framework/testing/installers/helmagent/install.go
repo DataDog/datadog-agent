@@ -10,13 +10,24 @@ package helmagent
 import (
 	"context"
 	"fmt"
-	"os"
-	"os/exec"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"helm.sh/helm/v3/pkg/action"
+	"helm.sh/helm/v3/pkg/chart/loader"
+	"helm.sh/helm/v3/pkg/cli"
+
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/discovery/cached/memory"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/restmapper"
+	"k8s.io/client-go/tools/clientcmd"
+	"sigs.k8s.io/yaml"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
@@ -24,9 +35,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
-
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
@@ -55,14 +63,6 @@ func Install(t *testing.T, env *environments.Kubernetes, opts ...kubernetesagent
 
 	p, err := buildParams(opts)
 	require.NoError(t, err, "failed to build helm agent params")
-
-	// Write kubeconfig to temp file for helm CLI
-	kubeconfigFile, err := os.CreateTemp("", "kubeconfig-*.yaml")
-	require.NoError(t, err)
-	defer os.Remove(kubeconfigFile.Name())
-	_, err = kubeconfigFile.WriteString(env.KubernetesCluster.KubeConfig)
-	require.NoError(t, err)
-	require.NoError(t, kubeconfigFile.Close())
 
 	k8sClient := env.KubernetesCluster.Client()
 	ctx := context.Background()
@@ -93,41 +93,18 @@ func Install(t *testing.T, env *environments.Kubernetes, opts ...kubernetesagent
 		require.NoError(t, err, "failed to create credentials secret")
 	}
 
-	// Build values YAML
+	// Build and merge all values
 	valuesYAML := buildValuesYAML(t, env, p, secretName)
 
-	// Write values to temp file
-	valuesFile, err := os.CreateTemp("", "helm-values-*.yaml")
-	require.NoError(t, err)
-	defer os.Remove(valuesFile.Name())
-	_, err = valuesFile.WriteString(valuesYAML)
-	require.NoError(t, err)
-	require.NoError(t, valuesFile.Close())
+	// Parse values into map for the Helm SDK
+	vals := map[string]interface{}{}
+	require.NoError(t, yaml.Unmarshal([]byte(valuesYAML), &vals), "failed to parse helm values")
 
-	// Run helm upgrade --install. The chart version is pinned to match
-	// what the Pulumi path installs, ensuring identical agent behavior.
-	helmArgs := []string{
-		"upgrade", "--install", defaultReleaseName, p.HelmChartPath,
-		"--namespace", p.Namespace,
-		"--values", valuesFile.Name(),
-		"--kubeconfig", kubeconfigFile.Name(),
-		"--wait",
-		"--timeout", fmt.Sprintf("%ds", p.TimeoutSeconds),
-		"--version", chartVersion,
-		"--dependency-update",
-	}
-	if p.HelmRepoURL != "" {
-		helmArgs = append(helmArgs, "--repo", p.HelmRepoURL)
-	}
-
-	t.Logf("Running: helm %s", strings.Join(helmArgs, " "))
-	cmd := exec.Command("helm", helmArgs...)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Logf("helm output:\n%s", string(output))
-	}
-	require.NoError(t, err, "helm install failed")
-	t.Logf("helm output:\n%s", string(output))
+	// Run helm upgrade --install via the Go SDK (no helm CLI required)
+	require.NoError(t,
+		helmUpgradeInstall(t, env.KubernetesCluster.KubeConfig, p, vals),
+		"helm upgrade --install failed",
+	)
 
 	// Initialize agent component with known label selectors from the Helm chart
 	env.Agent = &components.KubernetesAgent{}
@@ -144,9 +121,141 @@ func Install(t *testing.T, env *environments.Kubernetes, opts ...kubernetesagent
 	// Store baseline options and set the Helm installer for Configure
 	env.Agent.SetBaseOptions(opts...)
 	env.Agent.Installer = &helmInstaller{env: env}
+}
 
-	// Wait for agent pods to be ready
-	waitForAgentReady(t, env, p.Namespace)
+// helmUpgradeInstall runs helm install or helm upgrade using the Helm Go SDK.
+// No helm CLI required; kubeconfig is used in-memory.
+// action.Upgrade.Install = true is purely informational in Helm v3 and does not
+// handle the install case — we detect release existence and branch manually.
+func helmUpgradeInstall(t *testing.T, kubeconfig string, p *kubernetesagentparams.Params, vals map[string]interface{}) error {
+	t.Helper()
+
+	// Build RESTClientGetter from in-memory kubeconfig (no temp file needed)
+	getter, err := newInMemoryRESTClientGetter([]byte(kubeconfig), p.Namespace)
+	if err != nil {
+		return fmt.Errorf("building REST client getter: %w", err)
+	}
+
+	actionConfig := new(action.Configuration)
+	if err := actionConfig.Init(getter, p.Namespace, "secrets", func(format string, v ...interface{}) {
+		t.Logf("[helm] "+format, v...)
+	}); err != nil {
+		return fmt.Errorf("initialising helm action config: %w", err)
+	}
+
+	// Isolate Helm from the user's installed repos so that any pre-existing
+	// "datadog" entry in ~/.config/helm/repositories.yaml doesn't interfere.
+	// LocateChart uses RepositoryConfig to match the chart URL against known
+	// repos and then loads their index from RepositoryCache; if it finds a
+	// match but the index isn't there it returns "no cached repo found".
+	// Pointing both to a temp dir ensures a clean slate.
+	isolated := t.TempDir()
+	envSettings := cli.New()
+	envSettings.RepositoryCache = isolated
+	envSettings.RepositoryConfig = isolated + "/repositories.yaml"
+
+	// Check whether the release already exists so we can branch to install vs upgrade.
+	// action.NewGet returns an error when the release is not found.
+	releaseExists := false
+	getAction := action.NewGet(actionConfig)
+	if _, err := getAction.Run(defaultReleaseName); err == nil {
+		releaseExists = true
+	}
+
+	// DependencyUpdate is false: charts fetched from a Helm repo already have
+	// dependencies bundled in the tarball, so there is nothing to resolve.
+	if !releaseExists {
+		install := action.NewInstall(actionConfig)
+		install.ReleaseName = defaultReleaseName
+		install.Namespace = p.Namespace
+		install.Version = chartVersion
+		install.RepoURL = p.HelmRepoURL
+		install.Wait = true
+		install.Timeout = time.Duration(p.TimeoutSeconds) * time.Second
+		chartPath, err := install.LocateChart(p.HelmChartPath, envSettings)
+		if err != nil {
+			return fmt.Errorf("locating chart %s from %s: %w", p.HelmChartPath, p.HelmRepoURL, err)
+		}
+		ch, err := loader.Load(chartPath)
+		if err != nil {
+			return fmt.Errorf("loading chart from %s: %w", chartPath, err)
+		}
+		rel, err := install.RunWithContext(context.Background(), ch, vals)
+		if err != nil {
+			return fmt.Errorf("running install: %w", err)
+		}
+		t.Logf("helm release %s/%s installed at revision %d", rel.Namespace, rel.Name, rel.Version)
+		return nil
+	}
+
+	upgrade := action.NewUpgrade(actionConfig)
+	upgrade.Namespace = p.Namespace
+	upgrade.Version = chartVersion
+	upgrade.RepoURL = p.HelmRepoURL
+	upgrade.Wait = true
+	upgrade.Timeout = time.Duration(p.TimeoutSeconds) * time.Second
+
+	chartPath, err := upgrade.LocateChart(p.HelmChartPath, envSettings)
+	if err != nil {
+		return fmt.Errorf("locating chart %s from %s: %w", p.HelmChartPath, p.HelmRepoURL, err)
+	}
+
+	ch, err := loader.Load(chartPath)
+	if err != nil {
+		return fmt.Errorf("loading chart from %s: %w", chartPath, err)
+	}
+
+	rel, err := upgrade.RunWithContext(context.Background(), defaultReleaseName, ch, vals)
+	if err != nil {
+		return fmt.Errorf("running upgrade: %w", err)
+	}
+	t.Logf("helm release %s/%s upgraded to revision %d", rel.Namespace, rel.Name, rel.Version)
+	return nil
+}
+
+// inMemoryRESTClientGetter implements genericclioptions.RESTClientGetter using
+// an in-memory kubeconfig, so no temp file is needed.
+type inMemoryRESTClientGetter struct {
+	restConfig *rest.Config
+	kubeconfig []byte
+	namespace  string
+}
+
+func newInMemoryRESTClientGetter(kubeconfig []byte, namespace string) (*inMemoryRESTClientGetter, error) {
+	rc, err := clientcmd.RESTConfigFromKubeConfig(kubeconfig)
+	if err != nil {
+		return nil, err
+	}
+	return &inMemoryRESTClientGetter{restConfig: rc, kubeconfig: kubeconfig, namespace: namespace}, nil
+}
+
+func (g *inMemoryRESTClientGetter) ToRESTConfig() (*rest.Config, error) {
+	return rest.CopyConfig(g.restConfig), nil
+}
+
+func (g *inMemoryRESTClientGetter) ToDiscoveryClient() (discovery.CachedDiscoveryInterface, error) {
+	dc, err := discovery.NewDiscoveryClientForConfig(g.restConfig)
+	if err != nil {
+		return nil, err
+	}
+	return memory.NewMemCacheClient(dc), nil
+}
+
+func (g *inMemoryRESTClientGetter) ToRESTMapper() (meta.RESTMapper, error) {
+	dc, err := g.ToDiscoveryClient()
+	if err != nil {
+		return nil, err
+	}
+	return restmapper.NewDeferredDiscoveryRESTMapper(dc), nil
+}
+
+func (g *inMemoryRESTClientGetter) ToRawKubeConfigLoader() clientcmd.ClientConfig {
+	cc, err := clientcmd.NewClientConfigFromBytes(g.kubeconfig)
+	if err != nil {
+		// Already validated in newInMemoryRESTClientGetter; panic here is safe
+		panic(fmt.Sprintf("helmagent: failed to reload kubeconfig: %v", err))
+	}
+	return cc
 }
 
 // helmInstaller implements components.KubernetesAgentInstaller for Helm-based agents.
@@ -463,34 +572,4 @@ clusterChecksRunner:
   env:
 %[1]s
 `, envVars)
-}
-
-// waitForAgentReady waits for at least one agent pod to be ready.
-func waitForAgentReady(t *testing.T, env *environments.Kubernetes, namespace string) {
-	t.Helper()
-	k8sClient := env.KubernetesCluster.Client()
-	ctx := context.Background()
-
-	require.Eventually(t, func() bool {
-		// Try the standard label selectors used by the Datadog Helm chart
-		for _, selector := range []string{
-			"app.kubernetes.io/component=agent",
-			"app=datadog-agent",
-		} {
-			pods, err := k8sClient.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
-				LabelSelector: selector,
-			})
-			if err != nil || len(pods.Items) == 0 {
-				continue
-			}
-			for _, pod := range pods.Items {
-				for _, cond := range pod.Status.Conditions {
-					if cond.Type == corev1.PodReady && cond.Status == corev1.ConditionTrue {
-						return true
-					}
-				}
-			}
-		}
-		return false
-	}, 5*time.Minute, 10*time.Second, "agent pods not ready in namespace %s", namespace)
 }
