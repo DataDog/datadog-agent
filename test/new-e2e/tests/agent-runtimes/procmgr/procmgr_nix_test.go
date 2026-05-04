@@ -56,7 +56,7 @@ var linuxPlatform = platformConfig{
 	testProcessYAML:   linuxTestProcessConfig,
 	missingBinaryYAML: linuxMissingBinaryConfig,
 	checkBinCmd:       func(path string) string { return "test -f " + path },
-	checkSvcRunning:   "systemctl is-active datadog-agent-procmgrd",
+	checkSvcRunning:   "systemctl is-active datadog-agent-procmgr",
 	svcRunningOutput:  "active",
 	cliCmd:            func(args string) string { return linuxCLIBin + " " + args },
 }
