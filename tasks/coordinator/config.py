@@ -190,6 +190,18 @@ class Config:
     # the floor stops applying — effective_baseline takes over.
     first_ship_min_mean_f1: float = 0.25
 
+    # Proposer constraint: when True, the proposer is restricted to
+    # generating ONLY correlator-kind candidates (filters and combiners
+    # on top of detector firings). New detectors and detector-internal
+    # tweaks are forbidden.
+    #
+    # Why: detector-tuning runs have plateaued repeatedly (PR 50127
+    # reached 0.2322 then sat at 6 pivots). The combination/filtering
+    # layer is higher-leverage and less explored — every candidate
+    # should target it. Detector creation also costs more (Opus 2-stage
+    # implement, ~50 turns) than correlator tweaks (Sonnet ~10-20 turns).
+    proposer_correlator_only: bool = True
+
     # Overfit detector: every N shipped candidates, evaluate all shipped
     # candidates on the lockbox (locally, not passed to any agent) and
     # compute Spearman rank-correlation between train-rank and lockbox-rank.

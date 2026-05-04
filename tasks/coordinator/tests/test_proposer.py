@@ -75,14 +75,14 @@ def test_materialize_deduplicates_ids(tmp_path: Path):
             "id": "taken",  # collides
             "description": "proposal",
             "approach_family": "f",
-            "target_components": ["scanmw"],
+            "target_components": ["custom_correlator"],
             "phase": "1",
         },
         {
             "id": "fresh",
             "description": "proposal",
             "approach_family": "f",
-            "target_components": ["scanmw"],
+            "target_components": ["custom_correlator"],
             "phase": "1",
         },
     ]
@@ -108,11 +108,11 @@ def test_materialize_requires_nonempty_components(tmp_path: Path):
     db = empty_db()
     proposals = [
         {"id": "multi", "description": "touches both", "approach_family": "f",
-         "target_components": ["scanmw", "bocpd"], "phase": "1"},
+         "target_components": ["correlator_a", "correlator_b"], "phase": "1"},
         {"id": "zero", "description": "touches none", "approach_family": "f",
          "target_components": [], "phase": "1"},
         {"id": "good", "description": "touches one", "approach_family": "f",
-         "target_components": ["scanmw"], "phase": "1"},
+         "target_components": ["custom_correlator"], "phase": "1"},
     ]
     out = materialize_candidates(db, proposals, tmp_path)
     ids = [c.id for c in out]

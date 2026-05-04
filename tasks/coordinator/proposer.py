@@ -122,32 +122,43 @@ def build_proposer_prompt(
     # Push the proposer to break out by REQUIRING a correlator candidate
     # in this batch.
     diversity_clause = ""
-    recent_candidates = list(db.candidates.values())[-10:]
-    if recent_candidates:
-        kinds_seen: set[str] = set()
-        for c in recent_candidates:
-            for tc in (c.target_components or []):
-                low = tc.lower()
-                if "correlator" in low or "_correlator" in low or "-correlator" in low:
-                    kinds_seen.add("correlator")
-                elif "extractor" in low:
-                    kinds_seen.add("extractor")
-                else:
-                    kinds_seen.add("detector")
-        if kinds_seen and kinds_seen == {"detector"}:
-            diversity_clause = (
-                "\n**STRUCTURAL DIVERSITY REQUIRED**\n"
-                "The last 10 candidates were ALL detector-targeted. The "
-                "run is in a local minimum of detector-tweak space. "
-                f"AT LEAST ONE of your {n_candidates} candidates this "
-                "round MUST be a correlator (target_components contains "
-                "the literal substring 'correlator'). Correlators "
-                "combine detector outputs differently — they're a "
-                "structurally different surface from individual "
-                "detection algorithms. See "
-                "`comp/observer/impl/anomaly_correlator_time_cluster.go` "
-                "for the existing correlator interface contract.\n"
-            )
+    # Hard correlator-only constraint (CONFIG.proposer_correlator_only).
+    # Detector-tuning runs have plateaued; the combination/filtering
+    # layer is higher-leverage and less explored. Forbid new detectors
+    # and detector-internal tweaks entirely. All output must be
+    # correlator-kind components (which includes both "combine multiple
+    # detector firings" and "filter detector firings" — the catalog
+    # has one componentCorrelator kind for both).
+    from .config import CONFIG as _CFG
+    if getattr(_CFG, "proposer_correlator_only", False):
+        diversity_clause = (
+            "\n**HARD CONSTRAINT — CORRELATOR-ONLY MODE**\n\n"
+            "Every candidate you generate MUST target a CORRELATOR — a "
+            "component that operates on the OUTPUT of detectors (combining, "
+            "filtering, deduplicating, suppressing, score-weighting, etc.). "
+            "This includes both 'combine multiple detector firings' and "
+            "'post-detection filter' candidates; both are componentCorrelator "
+            "in the catalog.\n\n"
+            "FORBIDDEN this round:\n"
+            "  - New detectors (no `componentDetector` registrations).\n"
+            "  - Tweaks to existing detectors (bocpd, scanmw, scanwelch, "
+            "    cusum, rrcf) — DO NOT modify their internals.\n"
+            "  - Tweaks to extractors.\n\n"
+            "ALLOWED:\n"
+            "  - New correlators (new files like "
+            "    `comp/observer/impl/anomaly_correlator_<name>.go`).\n"
+            "  - Tweaks to existing correlators (`time_cluster`, `cross_signal`, "
+            "    `passthrough`).\n"
+            "  - Filters implemented as correlators (consume `Anomaly` "
+            "    objects, decide pass-through / suppress / score-weight).\n\n"
+            "Each candidate's `target_components` MUST contain ONLY correlator "
+            "names — never `bocpd`, `scanmw`, `scanwelch`, `cusum`, `rrcf`, or "
+            "any extractor name. The implementer will reject candidates "
+            "targeting detectors.\n\n"
+            "See `comp/observer/impl/anomaly_correlator_time_cluster.go` for "
+            "the existing correlator interface contract (Name, "
+            "ProcessAnomaly, Advance, ActiveCorrelations, Reset).\n"
+        )
 
     # Operator steering directives (from inbox_ack interpretations).
     # These come from real-time PR comments by the human operator and
@@ -471,6 +482,24 @@ def materialize_candidates(
                 file=sys.stderr,
             )
             continue
+        # Correlator-only enforcement: reject candidates that target
+        # known detector / extractor components. The proposer prompt
+        # forbids these but Opus occasionally slips one through.
+        from .config import CONFIG as _CFG
+        if getattr(_CFG, "proposer_correlator_only", False):
+            forbidden = {
+                "bocpd", "scanmw", "scanwelch", "cusum", "rrcf",
+                "log_metrics_extractor", "connection_error_extractor",
+                "log_pattern_extractor",
+            }
+            hit = [tc for tc in target_components if tc.lower() in forbidden]
+            if hit:
+                print(
+                    f"skip {cid}: correlator-only mode but targets "
+                    f"detector/extractor {hit}",
+                    file=sys.stderr,
+                )
+                continue
         cand = Candidate(
             id=cid,
             description=str(prop.get("description", "")).strip(),
