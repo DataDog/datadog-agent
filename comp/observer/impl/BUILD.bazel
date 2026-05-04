@@ -56,7 +56,7 @@ go_library(
         "//comp/core/config",
         "//comp/core/log/def",
         "//comp/core/tagger/def",
-        "//comp/core/telemetry",
+        "//comp/core/telemetry/def",
         "//comp/core/telemetry/impl/noops",
         "//comp/core/workloadfilter/def",
         "//comp/core/workloadmeta/def",
