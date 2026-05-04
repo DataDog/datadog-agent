@@ -23,9 +23,17 @@ docker_image_build_otel:
   stage: integration_test
   needs: ["integration_tests_otel"]
   extends: [.docker_build_amd64, .docker_build_job_definition]
+  # TODO: switch back to ["arch:amd64"] runners (from `.docker_build_amd64`) once
+  # the docker Python SDK in the `docker_x64` build image is upgraded to >=7.0.0.
+  # The older SDK uses an `http+docker://` URL scheme internally when connecting
+  # via Unix socket, which newer urllib3 rejects — breaking the after_script
+  # tests on non-DinD runners. DinD runners avoid the code path entirely (Docker
+  # is reached over TCP), which is why the same image worked there before.
+  tags: ["docker-in-docker:amd64"]
   variables:
     KUBERNETES_MEMORY_REQUEST: 32Gi
     KUBERNETES_MEMORY_LIMIT: 32Gi
+    AFTER_SCRIPT_IGNORE_ERRORS: false # We run tests in the after_script
     BUILD_ARG: |
       --build-arg AGENT_VERSION=$CI_COMMIT_REF_NAME
       --build-arg AGENT_GIT_REF=$CI_COMMIT_REF_NAME
