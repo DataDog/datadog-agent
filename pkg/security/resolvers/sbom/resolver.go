@@ -89,6 +89,7 @@ type SBOM struct {
 	data *Data
 
 	workloadKey workloadKey
+	status      workloadmeta.SBOMStatus
 
 	cgroup *cgroupModel.CacheEntry
 	state  *atomic.Int64
@@ -322,6 +323,45 @@ func (r *Resolver) RefreshSBOM(containerID containerutils.ContainerID) error {
 	return fmt.Errorf("container %s not found", containerID)
 }
 
+func (r *Resolver) getContainerSBOM(containerID containerutils.ContainerID) (*workloadmeta.CompressedSBOM, error) {
+	container, err := r.wmeta.GetContainer(string(containerID))
+	if err != nil {
+		return nil, fmt.Errorf("Failed to get container metadata for '%s': %v", containerID, err)
+	}
+
+	imageID := container.Image.ID
+	if imageID == "" {
+		return nil, fmt.Errorf("Container '%s' has no image ID, cannot forward SBOM", containerID)
+	}
+
+	existingImage, err := r.wmeta.GetImage(imageID)
+	if err != nil || existingImage == nil {
+		// Kubelet reports Image.ID as the manifest/repo digest (e.g. "docker.io/foo@sha256:9fb3...")
+		// but images are stored by config digest. Fall back to a linear search on RepoDigests.
+		for _, img := range r.wmeta.ListImages() {
+			for _, digest := range img.RepoDigests {
+				if digest == imageID {
+					existingImage = img
+					break
+				}
+			}
+			if existingImage != nil {
+				break
+			}
+		}
+	}
+
+	if existingImage == nil {
+		return nil, fmt.Errorf("Image metadata for '%s' not found in workloadmeta, cannot forward SBOM for container '%s'", imageID, containerID)
+	}
+
+	if existingImage.SBOM == nil {
+		return nil, fmt.Errorf("Image '%s' has no SBOM, cannot forward SBOM for container '%s'", imageID, containerID)
+	}
+
+	return existingImage.SBOM, nil
+}
+
 // triggerForwarding triggers the forwarding debouncer to send updated SBOM with LastAccess to remote collector
 // This function assumes sbom is already locked by the caller
 func (r *Resolver) triggerForwarding(sbom *SBOM) {
@@ -332,6 +372,23 @@ func (r *Resolver) triggerForwarding(sbom *SBOM) {
 				// Forward current SBOM data with LastAccess to remote collector
 				sbom.Lock()
 				defer sbom.Unlock()
+
+				if sbom.status == workloadmeta.Pending || sbom.status == "" {
+					imageSBOM, err := r.getContainerSBOM(sbom.ContainerID)
+					if err != nil || imageSBOM == nil {
+						seclog.Warnf("Failed to get image SBOM for container '%s': %v", sbom.ContainerID, err)
+						sbom.forwarder.Call()
+						return
+					}
+
+					if imageSBOM.Status == workloadmeta.Pending || imageSBOM.Status == "" {
+						seclog.Warnf("Image SBOM for container '%s' is still pending, will retry forwarding later", sbom.ContainerID)
+						sbom.forwarder.Call()
+						return
+					}
+
+					sbom.status = imageSBOM.Status
+				}
 
 				if sbom.data == nil || len(sbom.data.packages) == 0 {
 					return
@@ -853,6 +910,9 @@ func (r *Resolver) OnWorkloadSelectorResolvedEvent(workload *tags.Workload) {
 	_, ok := r.sboms.Get(id)
 	if !ok {
 		sbom := r.newSBOM(id, workload.GCroupCacheEntry, workloadKey)
+		if imageSBOM, err := r.getContainerSBOM(id); err == nil && imageSBOM != nil {
+			sbom.status = imageSBOM.Status
+		}
 		r.queueWorkload(sbom)
 	}
 }
