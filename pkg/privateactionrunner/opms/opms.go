@@ -32,6 +32,7 @@ import (
 	actionsclientpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/actionsclient"
 	aperrorpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/errorcode"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/jsonapi"
 )
 
 const (
@@ -49,18 +50,10 @@ const (
 	maxRetryAfter = 2 * time.Minute
 )
 
-type DequeueJSONRequestAttributes struct {
-	RunnerStartedAt    string `json:"runner_started_at,omitempty"`
-	LastTaskReceivedAt string `json:"last_task_received_at,omitempty"`
-}
-
-type DequeueJSONData struct {
-	Type       string                        `json:"type,omitempty"`
-	Attributes *DequeueJSONRequestAttributes `json:"attributes,omitempty"`
-}
-
 type DequeueJSONRequest struct {
-	Data *DequeueJSONData `json:"data,omitempty"`
+	ID                 string `jsonapi:"primary,dequeue"`
+	RunnerStartedAt    string `json:"runner_started_at,omitempty" jsonapi:"attribute"`
+	LastTaskReceivedAt string `json:"last_task_received_at,omitempty" jsonapi:"attribute"`
 }
 
 type PublishTaskUpdateJSONRequestPayload struct {
@@ -205,19 +198,13 @@ func (c *client) DequeueTask(ctx context.Context) (*types.Task, time.Duration, e
 }
 
 func (c *client) buildDequeueRequestBody() ([]byte, error) {
-	attrs := &DequeueJSONRequestAttributes{
+	req := &DequeueJSONRequest{
 		RunnerStartedAt: c.runnerStartedAt.Format(time.RFC3339),
 	}
 	if t := c.lastTaskReceivedAt.Load(); t != nil {
-		attrs.LastTaskReceivedAt = t.Format(time.RFC3339)
+		req.LastTaskReceivedAt = t.Format(time.RFC3339)
 	}
-	req := DequeueJSONRequest{
-		Data: &DequeueJSONData{
-			Type:       "dequeue",
-			Attributes: attrs,
-		},
-	}
-	return json.Marshal(req)
+	return jsonapi.Marshal(req, jsonapi.MarshalClientMode())
 }
 
 func (c *client) PublishSuccess(
