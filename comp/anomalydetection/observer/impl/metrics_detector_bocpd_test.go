@@ -25,6 +25,10 @@ func testBOCPDDetector() *BOCPDDetector {
 func TestBOCPDDetector_Name(t *testing.T) {
 	d := NewBOCPDDetector(DefaultBOCPDConfig())
 	assert.Equal(t, "bocpd_detector", d.Name())
+	assert.Equal(t, "bocpd_persistence", NewBOCPDPersistenceDetector().Name())
+	assert.Equal(t, "bocpd_student_t", NewBOCPDStudentTDetector().Name())
+	assert.Equal(t, "bocpd_entropy", NewBOCPDEntropyDetector().Name())
+	assert.Equal(t, "bocpd_combined", NewBOCPDCombinedDetector().Name())
 }
 
 func TestBOCPDDetector_NotEnoughPoints(t *testing.T) {
@@ -214,6 +218,27 @@ func TestBOCPDDetector_Reset(t *testing.T) {
 	assert.Empty(t, d.series, "reset should clear all state")
 }
 
+func TestBOCPDDetector_RemoveSeries(t *testing.T) {
+	d := testBOCPDDetector()
+	storage := newTimeSeriesStorage()
+
+	for i := 0; i < 30; i++ {
+		storage.Add("ns", "a", 100, int64(i+1), nil)
+		storage.Add("ns", "b", 100, int64(i+1), nil)
+	}
+	d.Detect(storage, 30)
+	require.Len(t, d.series, 4, "two series times two default aggregations")
+
+	d.RemoveSeries([]observer.SeriesRef{0})
+
+	for key := range d.series {
+		assert.NotEqual(t, observer.SeriesRef(0), key.ref)
+	}
+	assert.Len(t, d.series, 2)
+	assert.Nil(t, d.cachedSeries)
+	assert.Zero(t, d.cachedGen)
+}
+
 func TestBOCPDDetector_DeterministicReplay(t *testing.T) {
 	makeDetector := func() *BOCPDDetector { return testBOCPDDetector() }
 
@@ -246,6 +271,24 @@ func TestBOCPDDetector_DefaultAggregations(t *testing.T) {
 func TestBOCPDDetector_DefaultWarmup120(t *testing.T) {
 	cfg := DefaultBOCPDConfig()
 	assert.Equal(t, 120, cfg.WarmupPoints, "default warmup should be 120 points")
+}
+
+func TestBOCPDDetector_DefaultsAreLegacyBase(t *testing.T) {
+	cfg := DefaultBOCPDConfig()
+	assert.Equal(t, 1, cfg.PersistencePoints, "base bocpd should not enable persistence gating by default")
+	assert.Equal(t, "gaussian", cfg.LikelihoodKind, "base bocpd should keep the legacy Gaussian likelihood")
+	assert.True(t, math.IsInf(cfg.MaxEntropyBits, 1), "base bocpd should not enable entropy gating by default")
+}
+
+func TestBOCPDDetector_VariantConstructors(t *testing.T) {
+	assert.Equal(t, 2, NewBOCPDPersistenceDetector().config.PersistencePoints)
+	assert.Equal(t, "student_t", NewBOCPDStudentTDetector().config.LikelihoodKind)
+	assert.Equal(t, 3.5, NewBOCPDEntropyDetector().config.MaxEntropyBits)
+
+	combined := NewBOCPDCombinedDetector()
+	assert.Equal(t, 2, combined.config.PersistencePoints)
+	assert.Equal(t, "student_t", combined.config.LikelihoodKind)
+	assert.Equal(t, 3.5, combined.config.MaxEntropyBits)
 }
 
 func TestBOCPDConfig_DefaultMinVarianceIsPositive(t *testing.T) {
@@ -301,12 +344,12 @@ func TestFindingH3_CPProbUsesOnlyPriorPredictiveNotSumOverRunLengths(t *testing.
 	_, implCpProb, _, _ := d.updatePosterior(state, x)
 
 	// Independently compute the standard BOCPD formula from the snapshot.
-	// Use studentTPDF (df=4) to match the default LikelihoodKind="student_t".
+	// Use gaussianPDF to match the base detector's default LikelihoodKind.
 	newLen := len(snapRunProbs) + 1
 	standardProbs := make([]float64, newLen)
 	var cpMass float64
 	for r := range snapRunProbs {
-		pred := studentTPDF(x, snapMeans[r], state.obsVar+1.0/snapPrecisions[r], 4.0)
+		pred := gaussianPDF(x, snapMeans[r], state.obsVar+1.0/snapPrecisions[r])
 		standardProbs[r+1] = snapRunProbs[r] * (1.0 - hazard) * pred
 		cpMass += snapRunProbs[r] * pred
 	}
@@ -315,12 +358,12 @@ func TestFindingH3_CPProbUsesOnlyPriorPredictiveNotSumOverRunLengths(t *testing.
 	expectedCpProb := standardProbs[0]
 
 	// Independently compute the prior-only formula from the snapshot.
-	// Uses the same likelihood (student_t) so the structural difference
+	// Uses the same likelihood (gaussian) so the structural difference
 	// (sum-over-run-lengths vs prior-only) is isolated.
 	priorProbs := make([]float64, newLen)
-	predPrior := studentTPDF(x, state.priorMean, state.obsVar+1.0/state.priorPrecision, 4.0)
+	predPrior := gaussianPDF(x, state.priorMean, state.obsVar+1.0/state.priorPrecision)
 	for r := range snapRunProbs {
-		pred := studentTPDF(x, snapMeans[r], state.obsVar+1.0/snapPrecisions[r], 4.0)
+		pred := gaussianPDF(x, snapMeans[r], state.obsVar+1.0/snapPrecisions[r])
 		priorProbs[r+1] = snapRunProbs[r] * (1.0 - hazard) * pred
 	}
 	priorProbs[0] = hazard * predPrior
@@ -490,7 +533,7 @@ func TestBOCPDDetector_StudentT_IgnoresIsolatedOutlier(t *testing.T) {
 		return st
 	}
 
-	// Student-t detector (default): should ignore the isolated outlier.
+	// Student-t variant: should ignore the isolated outlier.
 	stConfig := DefaultBOCPDConfig()
 	stConfig.WarmupPoints = 20
 	stConfig.LikelihoodKind = "student_t"
@@ -598,12 +641,12 @@ func TestBOCPDDetector_StudentTPDF_MinScale2Clamp(t *testing.T) {
 }
 
 func TestBOCPDDetector_LikelihoodKindDefault(t *testing.T) {
-	// Empty LikelihoodKind should default to "student_t" via NewBOCPDDetector.
+	// Empty LikelihoodKind should default to "gaussian" via NewBOCPDDetector.
 	config := DefaultBOCPDConfig()
 	config.LikelihoodKind = ""
 	d := NewBOCPDDetector(config)
-	assert.Equal(t, "student_t", d.config.LikelihoodKind,
-		"empty LikelihoodKind should default to student_t")
+	assert.Equal(t, "gaussian", d.config.LikelihoodKind,
+		"empty LikelihoodKind should default to gaussian")
 }
 
 func TestBOCPDDetector_UnknownLikelihoodKindFallsBackToStudentT(t *testing.T) {
@@ -733,6 +776,7 @@ func TestBOCPD_PersistenceGate_ThresholdBehavior(t *testing.T) {
 func TestBOCPD_PersistenceConfirms_OnSustainedShift(t *testing.T) {
 	cfg := DefaultBOCPDConfig()
 	cfg.WarmupPoints = 20
+	cfg.PersistencePoints = 2
 	cfg.Aggregations = []observer.Aggregate{observer.AggregateAverage}
 	d := NewBOCPDDetector(cfg)
 
@@ -874,7 +918,7 @@ func TestBOCPDDetector_HighEntropyGate(t *testing.T) {
 	// the posterior → high entropy → gate fires → no anomaly.
 	config := DefaultBOCPDConfig()
 	config.WarmupPoints = 20
-	// Keep MaxEntropyBits at default (3.5) — the gate under test.
+	config.MaxEntropyBits = 3.5
 	d := NewBOCPDDetector(config)
 
 	storage := newTimeSeriesStorage()
@@ -901,7 +945,7 @@ func TestBOCPDDetector_LowEntropyStepStillFires(t *testing.T) {
 	// Data: 20 stable points at 100, then 20 at 140.
 	config := DefaultBOCPDConfig()
 	config.WarmupPoints = 20
-	// MaxEntropyBits at default (3.5). A clean step produces H << 3.5 bits.
+	config.MaxEntropyBits = 3.5
 	d := NewBOCPDDetector(config)
 
 	storage := newTimeSeriesStorage()

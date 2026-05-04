@@ -106,6 +106,21 @@ func medianPointInterval(points []observer.Point) int64 {
 	return intervals[len(intervals)/2]
 }
 
+// medianTimestampInterval computes the median gap between consecutive
+// timestamps. It is the timestamp-array equivalent of medianPointInterval for
+// detectors that keep a compact timestamp ring instead of retaining Points.
+func medianTimestampInterval(timestamps []int64) int64 {
+	if len(timestamps) < 2 {
+		return 0
+	}
+	intervals := make([]int64, len(timestamps)-1)
+	for i := 1; i < len(timestamps); i++ {
+		intervals[i-1] = timestamps[i] - timestamps[i-1]
+	}
+	sort.Slice(intervals, func(i, j int) bool { return intervals[i] < intervals[j] })
+	return intervals[len(intervals)/2]
+}
+
 // rankBiserialCorrelation computes the rank-biserial correlation from a Mann-Whitney U statistic.
 // Used by ScanMW and ScanWelch for effect size verification.
 func rankBiserialCorrelation(u float64, n1, n2 int) float64 {
