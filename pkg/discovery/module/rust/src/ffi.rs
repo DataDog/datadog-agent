@@ -311,24 +311,36 @@ struct GoLogger;
 
 impl log::Log for GoLogger {
     fn enabled(&self, _metadata: &log::Metadata) -> bool {
-        true // All records pass through; Go-side filtering applies.
+        // All records pass through; the Go side applies the actual filter,
+        // which can change at runtime via `agent config set log_level`.
+        // The Rust-side max_level is pinned to Trace in `dd_discovery_init_logger`
+        // so the `log!` macros never short-circuit and we never miss a record
+        // after a runtime level change.
+        true
     }
 
     fn log(&self, record: &log::Record) {
         let Some(&callback) = LOGGER_CALLBACK.get() else {
             return;
         };
-        let level: u32 = match record.level() {
-            log::Level::Error => 1,
-            log::Level::Warn => 2,
-            log::Level::Info => 3,
-            log::Level::Debug => 4,
-            log::Level::Trace => 5,
-        };
-        let message = record.args().to_string();
-        // SAFETY: `callback` was registered by the Go runtime and is valid for
-        // the process lifetime. `message` is live for the duration of this call.
-        unsafe { callback(level, message.as_ptr() as *const c_char, message.len()) };
+        // PANIC SAFETY: `record.args().to_string()` invokes `Display` impls
+        // supplied by callers; if any of them panics, that panic must not
+        // unwind across the C ABI back to the `log!` macro call site, which
+        // would be undefined behaviour per the Rust nomicon.
+        let _ = panic::catch_unwind(AssertUnwindSafe(|| {
+            let level: u32 = match record.level() {
+                log::Level::Error => 1,
+                log::Level::Warn => 2,
+                log::Level::Info => 3,
+                log::Level::Debug => 4,
+                log::Level::Trace => 5,
+            };
+            let message = record.args().to_string();
+            // SAFETY: `callback` was registered by the Go runtime and is valid
+            // for the process lifetime. `message` lives until the end of this
+            // closure, which outlives the synchronous callback invocation.
+            unsafe { callback(level, message.as_ptr() as *const c_char, message.len()) };
+        }));
     }
 
     fn flush(&self) {}
@@ -339,8 +351,11 @@ static GO_LOGGER: GoLogger = GoLogger;
 /// Register a Go logging callback. Idempotent: only the first call has effect;
 /// subsequent calls (e.g. from racing goroutines at start-up) are ignored.
 ///
-/// All log levels are forwarded to the callback; the Go side applies its own
-/// level filter so no records are emitted above the configured level.
+/// All records are forwarded to the callback regardless of severity. Filtering
+/// is applied on the Go side, which lets `agent config set log_level` take
+/// effect at runtime without re-initialising the bridge. The Rust-side
+/// `max_level` is pinned to `Trace` so the `log!` macros never drop records
+/// before they reach the callback.
 ///
 /// # Panic safety
 /// Wrapped in `catch_unwind` following the convention in this file: unwinding
@@ -350,9 +365,10 @@ static GO_LOGGER: GoLogger = GoLogger;
 /// `callback` must be a valid function pointer that remains valid for the
 /// lifetime of the process.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn dd_discovery_init_logger(callback: dd_log_fn, max_level: u32) {
-    // SAFETY: Wrapping in catch_unwind prevents a Rust panic from unwinding
-    // across the C ABI boundary, which would be undefined behaviour.
+pub unsafe extern "C" fn dd_discovery_init_logger(callback: dd_log_fn) {
+    // PANIC SAFETY: defensive guard so that a future panic added to this
+    // body cannot unwind across the C ABI boundary, which would be undefined
+    // behaviour. The current body has no panicking calls.
     let _ = panic::catch_unwind(AssertUnwindSafe(|| {
         if LOGGER_CALLBACK.set(callback).is_err() {
             return;
@@ -362,27 +378,24 @@ pub unsafe extern "C" fn dd_discovery_init_logger(callback: dd_log_fn, max_level
         // GoLogger is not installed, so all Rust log records would be silently
         // dropped. Surface the conflict so it is not invisible to the caller.
         if log::set_logger(&GO_LOGGER).is_err() {
-            // A Rust logger was already registered (e.g. in a test harness).
-            // Use the callback directly — the log facade is unavailable — so the
-            // error reaches the Go structured logger instead of being lost to stderr.
+            // Use the callback directly — the log facade is unavailable — so
+            // the error reaches the Go structured logger instead of being lost
+            // to stderr.
             let msg = "[dd_discovery] a Rust logger was already registered; \
                        log records will not be forwarded to the Go logger";
+            // SAFETY: `callback` was just stored in LOGGER_CALLBACK above and
+            // its lifetime is the process (per dd_discovery_init_logger's
+            // safety contract). `msg` is a static `&str` whose bytes outlive
+            // this synchronous call.
             unsafe { callback(1, msg.as_ptr() as *const c_char, msg.len()) };
             return;
         }
-        // Mirror the Go log level so the Rust log facade can discard records
-        // below the configured threshold before formatting or crossing the FFI.
-        // Level mapping mirrors dd_log_fn: 1=Error, 2=Warn, 3=Info, 4=Debug, 5=Trace.
-        // Any other value (including 0) falls back to Info — a safe middle ground
-        // that preserves visibility without flooding logs if the contract is violated.
-        let filter = match max_level {
-            1 => log::LevelFilter::Error,
-            2 => log::LevelFilter::Warn,
-            4 => log::LevelFilter::Debug,
-            5 => log::LevelFilter::Trace,
-            _ => log::LevelFilter::Info,
-        };
-        log::set_max_level(filter);
+        // Pin the Rust-side filter to Trace so every record reaches GoLogger.
+        // The agent applies its own filter on the Go side inside `pkg/util/log`,
+        // and that filter tracks runtime `ChangeLogLevel` calls. A Rust-side
+        // snapshot taken at init would go stale the first time the operator
+        // changes the log level, so we deliberately do not mirror it.
+        log::set_max_level(log::LevelFilter::Trace);
     }));
 }
 

@@ -9,30 +9,11 @@ package module
 
 import "github.com/DataDog/datadog-agent/pkg/util/log"
 
-// rustLevelToGoLevel maps the Rust dd_log_fn level encoding to a Go LogLevel.
-// Level encoding: 1=Error, 2=Warn, 3=Info, 4=Debug, 5+=Trace.
-func rustLevelToGoLevel(level uint32) log.LogLevel {
-	switch level {
-	case 1:
-		return log.ErrorLvl
-	case 2:
-		return log.WarnLvl
-	case 3:
-		return log.InfoLvl
-	case 4:
-		return log.DebugLvl
-	default:
-		return log.TraceLvl
-	}
-}
-
-// handleDiscoveryLog routes a Rust log record to the Go logger.
-// Separated from the cgo boundary so it can be unit-tested without the Rust library.
-func handleDiscoveryLog(level uint32, message string) {
-	goLevel := rustLevelToGoLevel(level)
-	if !log.ShouldLog(goLevel) {
-		return
-	}
+// dispatchDiscoveryLog routes a Rust-originated log record to the Go logger.
+// The cgo entry point delegates here after rejecting nil/empty/oversize C
+// inputs, so this is the unit-testable portion of the bridge. Level filtering
+// is applied by pkg/util/log itself, so no pre-gate is needed.
+func dispatchDiscoveryLog(level uint32, message string) {
 	switch level {
 	case 1:
 		_ = log.Errorf("[dd_discovery] %s", message)
@@ -44,27 +25,5 @@ func handleDiscoveryLog(level uint32, message string) {
 		log.Debugf("[dd_discovery] %s", message)
 	default:
 		log.Tracef("[dd_discovery] %s", message)
-	}
-}
-
-// goLevelToRust maps the current Go log level to the dd_log_fn encoding used by
-// dd_discovery_init_logger: 1=Error, 2=Warn, 3=Info, 4=Debug, 5=Trace.
-// Defaults to Info if the logger is not yet initialised.
-func goLevelToRust() uint32 {
-	lvl, err := log.GetLogLevel()
-	if err != nil {
-		return 3 // Info
-	}
-	switch lvl {
-	case log.ErrorLvl, log.CriticalLvl:
-		return 1
-	case log.WarnLvl:
-		return 2
-	case log.InfoLvl:
-		return 3
-	case log.DebugLvl:
-		return 4
-	default: // TraceLvl
-		return 5
 	}
 }

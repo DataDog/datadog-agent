@@ -104,15 +104,15 @@ struct dd_discovery_result {
  * Register a Go logging callback. Idempotent: only the first call has effect;
  * subsequent calls (e.g. from racing goroutines at start-up) are ignored.
  *
- * `max_level` sets the Rust-side maximum log level so records below the
- * configured agent level are discarded before formatting or crossing the FFI.
- * Uses the same encoding as dd_log_fn: 1=Error, 2=Warn, 3=Info, 4=Debug, 5=Trace.
+ * All records are forwarded to the callback regardless of severity. Filtering
+ * is applied on the Go side, which lets `agent config set log_level` take
+ * effect at runtime without re-initialising the bridge.
  *
  * # Safety
  * `callback` must be a valid function pointer that remains valid for the
  * lifetime of the process.
  */
-void dd_discovery_init_logger(dd_log_fn callback, uint32_t max_level);
+void dd_discovery_init_logger(dd_log_fn callback);
 
 /**
  * Run service discovery and return a heap-allocated result.

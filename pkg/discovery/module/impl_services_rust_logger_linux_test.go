@@ -10,6 +10,9 @@ package module
 import (
 	"bufio"
 	"bytes"
+	"strconv"
+	"strings"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -18,71 +21,66 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// setupLogCapture initialises the global logger at the given level and returns
-// a buffer that captures all output. Call w.Flush() before reading b.
-// The writer is automatically flushed when the test ends.
-func setupLogCapture(t *testing.T, level log.LogLevel) (b *bytes.Buffer, w *bufio.Writer) {
+// installCapturingLogger replaces the process-wide pkg/util/log logger with one
+// that writes "[LEVEL] {{.msg}}\n" records to an in-memory buffer at the
+// requested minimum level. On cleanup it installs a Disabled() logger, the
+// same pattern comp/core/log/mock uses, since pkg/util/log does not expose a
+// way to clear the singleton.
+//
+// Tests in this file must NOT call t.Parallel(): pkg/util/log.SetupLogger
+// mutates a process-wide singleton.
+func installCapturingLogger(t *testing.T, level log.LogLevel) (*bytes.Buffer, func()) {
 	t.Helper()
-	b = &bytes.Buffer{}
-	w = bufio.NewWriter(b)
+	buf := &bytes.Buffer{}
+	w := bufio.NewWriter(buf)
 	l, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(w, level)
 	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		_ = w.Flush()
+		log.SetupLogger(log.Disabled(), log.DebugStr)
+	})
+
 	log.SetupLogger(l, level.String())
-	t.Cleanup(func() { _ = w.Flush() })
-	return b, w
+	return buf, func() { _ = w.Flush() }
 }
 
-func TestRustLevelToGoLevel(t *testing.T) {
-	tests := []struct {
-		rustLevel uint32
-		expected  log.LogLevel
-	}{
-		{1, log.ErrorLvl},
-		{2, log.WarnLvl},
-		{3, log.InfoLvl},
-		{4, log.DebugLvl},
-		{5, log.TraceLvl},
-		{99, log.TraceLvl}, // values above 5 default to Trace
-	}
-	for _, tt := range tests {
-		assert.Equal(t, tt.expected, rustLevelToGoLevel(tt.rustLevel))
-	}
-}
-
-func TestHandleDiscoveryLog_LevelMapping(t *testing.T) {
+func TestDispatchDiscoveryLog_LevelMapping(t *testing.T) {
 	tests := []struct {
 		name          string
 		rustLevel     uint32
 		expectedLevel string
 	}{
+		{"zero routes to trace (out of range below)", 0, "[TRACE]"},
 		{"error", 1, "[ERROR]"},
 		{"warn", 2, "[WARN]"},
 		{"info", 3, "[INFO]"},
 		{"debug", 4, "[DEBUG]"},
 		{"trace", 5, "[TRACE]"},
-		{"above trace defaults to trace", 99, "[TRACE]"},
+		{"above trace routes to trace", 99, "[TRACE]"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			b, w := setupLogCapture(t, log.TraceLvl)
-			handleDiscoveryLog(tt.rustLevel, "hello from rust")
-			w.Flush()
-			out := b.String()
+			buf, flush := installCapturingLogger(t, log.TraceLvl)
+			dispatchDiscoveryLog(tt.rustLevel, "hello from rust")
+			flush()
+			out := buf.String()
 			assert.Contains(t, out, tt.expectedLevel)
 			assert.Contains(t, out, "[dd_discovery] hello from rust")
 		})
 	}
 }
 
-func TestHandleDiscoveryLog_DropsRecordBelowConfiguredLevel(t *testing.T) {
-	b, w := setupLogCapture(t, log.InfoLvl)
-	handleDiscoveryLog(4, "should not appear") // debug
-	handleDiscoveryLog(5, "should not appear") // trace
-	w.Flush()
-	assert.Empty(t, b.String())
+func TestDispatchDiscoveryLog_DropsRecordBelowConfiguredLevel(t *testing.T) {
+	buf, flush := installCapturingLogger(t, log.InfoLvl)
+	dispatchDiscoveryLog(4, "should not appear") // debug
+	dispatchDiscoveryLog(5, "should not appear") // trace
+	dispatchDiscoveryLog(0, "should not appear") // 0 maps to trace via default
+	flush()
+	assert.Empty(t, buf.String())
 }
 
-func TestHandleDiscoveryLog_PassesRecordAtOrAboveConfiguredLevel(t *testing.T) {
+func TestDispatchDiscoveryLog_PassesRecordAtOrAboveConfiguredLevel(t *testing.T) {
 	tests := []struct {
 		name      string
 		rustLevel uint32
@@ -93,44 +91,117 @@ func TestHandleDiscoveryLog_PassesRecordAtOrAboveConfiguredLevel(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			b, w := setupLogCapture(t, log.InfoLvl)
-			handleDiscoveryLog(tt.rustLevel, "should appear")
-			w.Flush()
-			assert.Contains(t, b.String(), "[dd_discovery] should appear")
+			buf, flush := installCapturingLogger(t, log.InfoLvl)
+			dispatchDiscoveryLog(tt.rustLevel, "should appear")
+			flush()
+			assert.Contains(t, buf.String(), "[dd_discovery] should appear")
 		})
 	}
 }
 
-func TestHandleDiscoveryLog_EmptyMessage(t *testing.T) {
-	// The C boundary guards against msgLen == 0, so an empty string is unreachable
-	// from the real FFI path. This test documents that the Go bridge passes it through
-	// unchanged rather than silently dropping it — an info-level record with an empty
-	// body is still emitted, not replaced or dropped.
-	b, w := setupLogCapture(t, log.InfoLvl)
-	handleDiscoveryLog(3, "") // info level, empty body
-	w.Flush()
-	out := b.String()
-	assert.Contains(t, out, "[INFO]")
-	assert.Regexp(t, `\[dd_discovery\]\s*\n?$`, out)
-}
-
-func TestGoLevelToRust(t *testing.T) {
+// TestDispatchDiscoveryLog_FormatVerbsAreLiteral ensures that a Rust-originated
+// message that happens to contain Go fmt verbs (%s, %d, %[1]v, %%, etc.) is
+// treated as data, not as a format string. The implementation passes the
+// message as the *argument* to log.Errorf("[dd_discovery] %s", message), so
+// the verbs in `message` must not be re-expanded.
+func TestDispatchDiscoveryLog_FormatVerbsAreLiteral(t *testing.T) {
 	tests := []struct {
-		name     string
-		level    log.LogLevel
-		expected uint32
+		name    string
+		level   uint32
+		message string
 	}{
-		{"error", log.ErrorLvl, 1},
-		{"critical", log.CriticalLvl, 1},
-		{"warn", log.WarnLvl, 2},
-		{"info", log.InfoLvl, 3},
-		{"debug", log.DebugLvl, 4},
-		{"trace", log.TraceLvl, 5},
+		{"percent-s", 1, "user input contains %s here"},
+		{"percent-d", 2, "value=%d is unsafe"},
+		{"indexed-verb", 3, "first=%[1]v second=%[2]v"},
+		{"double-percent", 4, "literal %% should survive"},
+		{"format error placeholder", 5, "broken=%!s(MISSING)"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			setupLogCapture(t, tt.level)
-			assert.Equal(t, tt.expected, goLevelToRust())
+			buf, flush := installCapturingLogger(t, log.TraceLvl)
+			require.NotPanics(t, func() {
+				dispatchDiscoveryLog(tt.level, tt.message)
+			})
+			flush()
+			out := buf.String()
+			assert.Contains(t, out, "[dd_discovery] "+tt.message,
+				"format verbs must pass through verbatim")
+			assert.NotContains(t, out, "%!(EXTRA",
+				"verbs must not be re-interpreted as a format string")
 		})
 	}
+}
+
+func TestDispatchDiscoveryLog_UTF8AndNewlinesPassThroughUnchanged(t *testing.T) {
+	tests := []struct {
+		name    string
+		message string
+	}{
+		{"utf8 multibyte", "héllo wörld - 日本語 - emoji"},
+		{"emoji and accents", "héllo wörld 🐶 — naïve façade"},
+		{"japanese", "こんにちは世界"},
+		{"single newline", "line1\nline2"},
+		{"crlf", "line one\r\nline two"},
+		{"multi-line", "alpha\nbeta\ngamma\n"},
+		{"carriage return only", "with\rcr"},
+		{"tab", "col1\tcol2\tcol3"},
+		{"control char (BEL)", "before\x07after"},
+		{"null byte mid string", "before\x00after"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			buf, flush := installCapturingLogger(t, log.InfoLvl)
+			dispatchDiscoveryLog(3, tt.message)
+			flush()
+			assert.Contains(t, buf.String(), "[dd_discovery] "+tt.message)
+		})
+	}
+}
+
+// TestDispatchDiscoveryLog_Concurrent fires N goroutines into dispatchDiscoveryLog
+// concurrently across the full level surface (including 0 and ^uint32(0)) and
+// verifies that every uniquely-tagged message lands in the captured output.
+// Each (goroutine, iteration) pair emits a unique tag so a single dropped or
+// duplicated record can be pinpointed; the underlying logger serialises writes
+// behind a write lock, so no record should be lost.
+func TestDispatchDiscoveryLog_Concurrent(t *testing.T) {
+	const goroutines = 16
+	const perGoroutine = 8
+
+	buf, flush := installCapturingLogger(t, log.TraceLvl)
+
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+	for g := 0; g < goroutines; g++ {
+		go func(id int) {
+			defer wg.Done()
+			for i := 0; i < perGoroutine; i++ {
+				lvl := uint32(i % 6) // exercise levels 0..5
+				if i%7 == 0 {
+					lvl = ^uint32(0) // probe out-of-range high
+				}
+				msg := concurrentMsg(id, i)
+				require.NotPanics(t, func() {
+					dispatchDiscoveryLog(lvl, msg)
+				})
+			}
+		}(g)
+	}
+	wg.Wait()
+	flush()
+
+	out := buf.String()
+	missing := 0
+	for g := 0; g < goroutines; g++ {
+		for i := 0; i < perGoroutine; i++ {
+			if !strings.Contains(out, concurrentMsg(g, i)) {
+				missing++
+			}
+		}
+	}
+	assert.Equal(t, 0, missing, "every concurrently-emitted message must appear in output")
+}
+
+func concurrentMsg(goroutine, iteration int) string {
+	return "conc-msg-g" + strconv.Itoa(goroutine) + "-i" + strconv.Itoa(iteration)
 }

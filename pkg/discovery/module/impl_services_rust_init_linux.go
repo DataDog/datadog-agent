@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build cgo
+//go:build linux_bpf && cgo
 
 package module
 
@@ -27,5 +27,5 @@ import "C"
 // InitDiscoveryLogger registers the Go logging callback with the Rust library.
 // Called explicitly from NewDiscoveryModule to allow a future config variable to gate this call.
 func InitDiscoveryLogger() {
-	C.dd_discovery_init_logger(C.getGoLogCallback(), C.uint32_t(goLevelToRust()))
+	C.dd_discovery_init_logger(C.getGoLogCallback())
 }
