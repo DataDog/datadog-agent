@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package observerimpl
+package reporterimpl
 
 import (
 	"time"
@@ -25,23 +25,28 @@ type ReportedEvent struct {
 	FormattedTime string `json:"formattedTime"`
 }
 
-// replayReporter mirrors EventReporter.Report() during testbench replay.
+// ReplayReporter mirrors EventReporter.Report() during testbench replay.
 // It tracks which patterns are currently active and appends a new ReportedEvent
 // each time a pattern first appears or reappears after going inactive — exactly
 // matching the live EventReporter semantics, including repeated incidents for
 // stable pattern names.
-type replayReporter struct {
+type ReplayReporter struct {
 	seenPatterns map[string]bool
 	events       []ReportedEvent
 	storage      observerdef.StorageReader
 }
 
+// NewReplayReporter creates a ReplayReporter backed by the given storage for rate lookups.
+func NewReplayReporter(storage observerdef.StorageReader) *ReplayReporter {
+	return &ReplayReporter{storage: storage}
+}
+
 // Name satisfies observerdef.Reporter.
-func (r *replayReporter) Name() string { return "replay_reporter" }
+func (r *ReplayReporter) Name() string { return "replay_reporter" }
 
 // Report fires a new ReportedEvent for each pattern that is newly active (first
 // appearance or reappearance after being absent in the previous call).
-func (r *replayReporter) Report(output observerdef.ReportOutput) {
+func (r *ReplayReporter) Report(output observerdef.ReportOutput) {
 	if r.seenPatterns == nil {
 		r.seenPatterns = make(map[string]bool)
 	}
@@ -53,7 +58,7 @@ func (r *replayReporter) Report(output observerdef.ReportOutput) {
 
 	for _, ac := range output.ActiveCorrelations {
 		if !r.seenPatterns[ac.Pattern] {
-			msg := buildChangeMessage(ac, r.storage)
+			msg := BuildChangeMessage(ac, r.storage)
 			tags := buildEventTags(ac)
 			r.events = append(r.events, ReportedEvent{
 				Pattern:       ac.Pattern,
@@ -74,4 +79,9 @@ func (r *replayReporter) Report(output observerdef.ReportOutput) {
 			delete(r.seenPatterns, pattern)
 		}
 	}
+}
+
+// Events returns the collected replay events.
+func (r *ReplayReporter) Events() []ReportedEvent {
+	return r.events
 }

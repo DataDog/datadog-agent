@@ -20,6 +20,7 @@ import (
 	"time"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	reporterimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/impl"
 )
 
 // ScoreResponse is the JSON payload for GET /api/score.
@@ -1169,7 +1170,7 @@ func (api *TestBenchAPI) handleStats(w http.ResponseWriter, _ *http.Request) {
 func (api *TestBenchAPI) handleReports(w http.ResponseWriter, _ *http.Request) {
 	events := api.tb.GetReportedEvents()
 	if events == nil {
-		events = []ReportedEvent{}
+		events = []reporterimpl.ReportedEvent{}
 	}
 	api.writeJSON(w, events)
 }

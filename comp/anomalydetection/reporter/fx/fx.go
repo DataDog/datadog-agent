@@ -1,0 +1,25 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+// Package fx defines the fx options for the reporter component.
+package fx
+
+import (
+	"go.uber.org/fx"
+
+	reporter "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/def"
+	reporterimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/impl"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+)
+
+// Module defines the fx options for this component.
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fxutil.ProvideComponentConstructor(
+			reporterimpl.NewComponent,
+		),
+		fx.Invoke(func(_ reporter.Component) {}),
+	)
+}

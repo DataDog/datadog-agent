@@ -3,17 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package observerimpl
+package reporterimpl
 
 import (
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 )
 
-// EventReporter sends Datadog events for new correlations via eventSender.
+// EventReporter sends Datadog events for new correlations via EventSender.
 // It tracks seen correlations and only fires when a correlation first appears.
 type EventReporter struct {
-	sender           *eventSender
+	sender           *EventSender
 	logger           log.Component
 	seenCorrelations map[string]bool // pattern -> reported
 }

@@ -19,6 +19,7 @@ import (
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
+	reporterimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/impl"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
@@ -123,7 +124,7 @@ type TestBench struct {
 	logAnomaliesByDetector map[string][]observerdef.Anomaly // anomalies grouped by detector name
 
 	// Events captured during replay (mirrors what EventReporter would send in live mode).
-	reportedEvents []ReportedEvent
+	reportedEvents []reporterimpl.ReportedEvent
 
 	// Cached compressed correlations (expensive to recompute)
 	compCorrCache      []CompressedGroup
@@ -648,7 +649,7 @@ func (tb *TestBench) rerunDetectorsLocked() {
 	// Register a replay reporter before the run so it captures events exactly as
 	// EventReporter would in live mode: one event per pattern appearance, with
 	// patterns eligible to re-fire after going inactive.
-	replay := &replayReporter{storage: tb.engine.Storage()}
+	replay := reporterimpl.NewReplayReporter(tb.engine.Storage())
 	unsub := tb.engine.Subscribe(&reporterEventSink{
 		reporters: []observerdef.Reporter{replay},
 		state:     tb.engine.StateView(),
@@ -705,7 +706,7 @@ func (tb *TestBench) rerunDetectorsLocked() {
 	tb.logAnomalies = []observerdef.Anomaly{}
 	tb.logAnomaliesByDetector = make(map[string][]observerdef.Anomaly)
 	for _, a := range result.anomalies {
-		if a.Type == observerdef.AnomalyTypeLog || isLogDerivedAnomaly(a) {
+		if a.Type == observerdef.AnomalyTypeLog || reporterimpl.IsLogDerivedAnomaly(a) {
 			tb.logAnomalies = append(tb.logAnomalies, a)
 			tb.logAnomaliesByDetector[a.DetectorName] = append(tb.logAnomaliesByDetector[a.DetectorName], a)
 		}
@@ -715,7 +716,7 @@ func (tb *TestBench) rerunDetectorsLocked() {
 	tb.corrGeneration++
 
 	// Publish the ordered event log captured during replay.
-	tb.reportedEvents = replay.events
+	tb.reportedEvents = replay.Events()
 
 	// Compute replay stats from engine storage only for consistency.
 	storage := tb.engine.Storage()
@@ -1320,12 +1321,12 @@ func (tb *TestBench) RunSendAnomalyEvents(scenario string) error {
 
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
-	sender, err := newEventSender(tb.config.Cfg, tb.config.Logger, tb.engine.Storage())
+	sender, err := reporterimpl.NewEventSender(tb.config.Cfg, tb.config.Logger, tb.engine.Storage())
 	if err != nil {
 		return err
 	}
 	correlations := tb.engine.StateView().ActiveCorrelations()
-	sender.sendCorrelationEvents(correlations)
+	sender.SendCorrelationEvents(correlations)
 	return nil
 }
 
@@ -1610,7 +1611,7 @@ func (tb *TestBench) GetRawLogs() []observerdef.LogView {
 // GetCorrelations / headless anomaly_periods). Recomputed on each call so it
 // stays aligned with CorrelationHistory(), which may merge accumulated and
 // active correlator state after replay.
-func (tb *TestBench) GetReportedEvents() []ReportedEvent {
+func (tb *TestBench) GetReportedEvents() []reporterimpl.ReportedEvent {
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
 
@@ -1622,7 +1623,7 @@ func (tb *TestBench) GetReportedEvents() []ReportedEvent {
 // the active scenario name, and the OS user.
 func (tb *TestBench) SendReportedEvent(pattern string, firstSeen int64) error {
 	tb.mu.RLock()
-	var found *ReportedEvent
+	var found *reporterimpl.ReportedEvent
 	for i := range tb.reportedEvents {
 		e := &tb.reportedEvents[i]
 		if e.Pattern == pattern && e.FirstSeen == firstSeen {
@@ -1638,7 +1639,7 @@ func (tb *TestBench) SendReportedEvent(pattern string, firstSeen int64) error {
 		return fmt.Errorf("report not found: pattern=%q firstSeen=%d", pattern, firstSeen)
 	}
 
-	sender, err := newLiveEventSender(tb.config.Cfg, tb.config.Logger, storage)
+	sender, err := reporterimpl.NewLiveEventSender(tb.config.Cfg, tb.config.Logger, storage)
 	if err != nil {
 		return err
 	}
@@ -1650,7 +1651,7 @@ func (tb *TestBench) SendReportedEvent(pattern string, firstSeen int64) error {
 		extraTags = append(extraTags, "user:"+h)
 	}
 
-	return sender.sendReportedEvent(*found, extraTags)
+	return sender.SendReportedEvent(*found, extraTags)
 }
 
 // errorLogMessages contains realistic error messages for the demo scenario.

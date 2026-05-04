@@ -37,6 +37,8 @@ import (
 
 // Requires declares the input types to the observer component constructor.
 type Requires struct {
+	compdef.In
+
 	Lifecycle compdef.Lifecycle
 	Config    config.Component
 	Log       log.Component
@@ -57,6 +59,9 @@ type Requires struct {
 	WMeta       option.Option[workloadmetadef.Component]
 	FilterStore option.Option[workloadfilterdef.Component]
 	Tagger      option.Option[taggerdef.Component]
+
+	// Reporters are provided by the reporter component via the anomalydetection_reporters Fx group.
+	Reporters []observerdef.Reporter `group:"anomalydetection_reporters"`
 }
 
 // Provides defines the output of the observer component.
@@ -181,14 +186,15 @@ func NewComponent(deps Requires) Provides {
 		scheduler:        &currentBehaviorPolicy{},
 	})
 
-	// Wire reporters via event subscription.
-	// The reporterEventSink queries stateView for active correlations on each advance,
-	// so reporters receive all needed data through ReportOutput without backdoor access.
-	reporter := &StdoutReporter{}
-	eng.Subscribe(&reporterEventSink{
-		reporters: []observerdef.Reporter{reporter},
-		state:     eng.StateView(),
-	})
+	// Wire reporters provided by the reporter component via the Fx group.
+	// Each reporter gets its own subscription so it receives advance events independently.
+	for _, r := range deps.Reporters {
+		r := r
+		eng.Subscribe(&reporterEventSink{
+			reporters: []observerdef.Reporter{r},
+			state:     eng.StateView(),
+		})
+	}
 
 	telemetryComp := deps.Telemetry
 	if telemetryComp == nil {
@@ -254,19 +260,6 @@ func NewComponent(deps Requires) Provides {
 					_ = advRec.close()
 				}
 			}
-		}
-	}
-
-	// Optionally add the event reporter when sending is enabled via config.
-	if cfg.GetBool("observer.event_reporter.sending_enabled") {
-		if sender, err := newEventSender(deps.Config, deps.Log, eng.Storage()); err != nil {
-			deps.Log.Warnf("[observer] event_reporter disabled: %v", err)
-		} else {
-			eventReporter := &EventReporter{sender: sender, logger: deps.Log}
-			eng.Subscribe(&reporterEventSink{
-				reporters: []observerdef.Reporter{eventReporter},
-				state:     eng.StateView(),
-			})
 		}
 	}
 

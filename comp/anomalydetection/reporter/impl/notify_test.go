@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package observerimpl
+package reporterimpl
 
 import (
 	"fmt"
@@ -44,35 +44,35 @@ func (s *sumRangeStorage) SeriesGeneration() uint64                      { panic
 func TestIsLogDerivedAnomaly_LogMetricsExtractorWithPattern(t *testing.T) {
 	a := observerdef.Anomaly{
 		Type:   observerdef.AnomalyTypeMetric,
-		Source: observerdef.SeriesDescriptor{Namespace: LogMetricsExtractorName},
+		Source: observerdef.SeriesDescriptor{Namespace: logMetricsExtractorName},
 		Context: &observerdef.MetricContext{
 			Pattern: "C3:C8_C1",
 			Example: "ERROR: connection refused to db.prod:5432",
 		},
 	}
-	assert.True(t, isLogDerivedAnomaly(a))
+	assert.True(t, IsLogDerivedAnomaly(a))
 }
 
 func TestIsLogDerivedAnomaly_LogMetricsExtractorExampleOnlyNoPattern(t *testing.T) {
 	// Even with an empty pattern, a non-empty example qualifies.
 	a := observerdef.Anomaly{
 		Type:   observerdef.AnomalyTypeMetric,
-		Source: observerdef.SeriesDescriptor{Namespace: LogMetricsExtractorName},
+		Source: observerdef.SeriesDescriptor{Namespace: logMetricsExtractorName},
 		Context: &observerdef.MetricContext{
 			Pattern: "",
 			Example: "some log line",
 		},
 	}
-	assert.True(t, isLogDerivedAnomaly(a))
+	assert.True(t, IsLogDerivedAnomaly(a))
 }
 
 func TestIsLogDerivedAnomaly_LogMetricsExtractorNoContext(t *testing.T) {
 	a := observerdef.Anomaly{
 		Type:    observerdef.AnomalyTypeMetric,
-		Source:  observerdef.SeriesDescriptor{Namespace: LogMetricsExtractorName},
+		Source:  observerdef.SeriesDescriptor{Namespace: logMetricsExtractorName},
 		Context: nil,
 	}
-	assert.False(t, isLogDerivedAnomaly(a))
+	assert.False(t, IsLogDerivedAnomaly(a))
 }
 
 func TestBuildChangeMessage_LogMetricsExtractorUsesExample(t *testing.T) {
@@ -81,7 +81,7 @@ func TestBuildChangeMessage_LogMetricsExtractorUsesExample(t *testing.T) {
 		Anomalies: []observerdef.Anomaly{
 			{
 				Type:   observerdef.AnomalyTypeMetric,
-				Source: observerdef.SeriesDescriptor{Namespace: LogMetricsExtractorName},
+				Source: observerdef.SeriesDescriptor{Namespace: logMetricsExtractorName},
 				Context: &observerdef.MetricContext{
 					Pattern: "C3:C8_C1",
 					Example: "ERROR: connection refused to db.prod:5432",
@@ -89,7 +89,7 @@ func TestBuildChangeMessage_LogMetricsExtractorUsesExample(t *testing.T) {
 			},
 		},
 	}
-	msg := buildChangeMessage(c, nil)
+	msg := BuildChangeMessage(c, nil)
 	assert.Contains(t, msg, "Log frequency change detected")
 	assert.Contains(t, msg, "ERROR: connection refused to db.prod:5432")
 	assert.NotContains(t, msg, "C3:C8_C1") // tokenized signature should not appear
@@ -101,7 +101,7 @@ func TestBuildChangeMessage_LogMetricsExtractorFallsBackToPatternWhenNoExample(t
 		Anomalies: []observerdef.Anomaly{
 			{
 				Type:   observerdef.AnomalyTypeMetric,
-				Source: observerdef.SeriesDescriptor{Namespace: LogMetricsExtractorName},
+				Source: observerdef.SeriesDescriptor{Namespace: logMetricsExtractorName},
 				Context: &observerdef.MetricContext{
 					Pattern: "C3:C8_C1",
 					Example: "",
@@ -109,7 +109,7 @@ func TestBuildChangeMessage_LogMetricsExtractorFallsBackToPatternWhenNoExample(t
 			},
 		},
 	}
-	msg := buildChangeMessage(c, nil)
+	msg := BuildChangeMessage(c, nil)
 	assert.Contains(t, msg, "Log frequency change detected")
 	assert.Contains(t, msg, "C3:C8_C1")
 }
@@ -120,7 +120,7 @@ func TestBuildEventTags_LogMetricsExtractorTreatedAsLog(t *testing.T) {
 		Anomalies: []observerdef.Anomaly{
 			{
 				Type:   observerdef.AnomalyTypeMetric,
-				Source: observerdef.SeriesDescriptor{Namespace: LogMetricsExtractorName},
+				Source: observerdef.SeriesDescriptor{Namespace: logMetricsExtractorName},
 				Context: &observerdef.MetricContext{
 					Pattern: "C3:C8_C1",
 					Example: "some log line",
@@ -173,7 +173,7 @@ func TestBuildEventTags_LogDerivedMetricAnomaly(t *testing.T) {
 			{
 				Type: observerdef.AnomalyTypeMetric,
 				Source: observerdef.SeriesDescriptor{
-					Namespace: LogPatternExtractorName,
+					Namespace: logPatternExtractorName,
 				},
 				Context: &observerdef.MetricContext{
 					Pattern: "some log pattern",
@@ -226,7 +226,7 @@ func TestBuildEventTags_DimensionalTagsFromSplitTags(t *testing.T) {
 		Anomalies: []observerdef.Anomaly{
 			{
 				Type:   observerdef.AnomalyTypeMetric,
-				Source: observerdef.SeriesDescriptor{Namespace: LogPatternExtractorName},
+				Source: observerdef.SeriesDescriptor{Namespace: logPatternExtractorName},
 				Context: &observerdef.MetricContext{
 					Pattern: "some log pattern",
 					SplitTags: map[string]string{
@@ -315,7 +315,7 @@ func TestIsSignificantRateChange_RateDrops(t *testing.T) {
 	assert.True(t, isSignificantRateChange(5.0, 1.0))
 }
 
-// --- rate display in buildChangeMessage ---
+// --- rate display in BuildChangeMessage ---
 
 // makeStorageWithRates returns a sumRangeStorage whose SumRange returns
 // prevTotal for the earlier window and currTotal for the current window,
@@ -335,7 +335,7 @@ func makeLogPatternAnomaly(ts int64) observerdef.Anomaly {
 	return observerdef.Anomaly{
 		Type:      observerdef.AnomalyTypeMetric,
 		Timestamp: ts,
-		Source:    observerdef.SeriesDescriptor{Namespace: LogPatternExtractorName},
+		Source:    observerdef.SeriesDescriptor{Namespace: logPatternExtractorName},
 		SourceRef: &observerdef.QueryHandle{Ref: observerdef.SeriesRef(42)},
 		Context: &observerdef.MetricContext{
 			Pattern: "connection refused",
@@ -352,7 +352,7 @@ func TestBuildChangeMessage_RateChangedDisplay(t *testing.T) {
 		Pattern:   "p",
 		Anomalies: []observerdef.Anomaly{makeLogPatternAnomaly(ts)},
 	}
-	msg := buildChangeMessage(c, storage)
+	msg := BuildChangeMessage(c, storage)
 	assert.Contains(t, msg, fmt.Sprintf("rate: %.1flog/s (was %.1flog/s last minutes)", 0.5, 6.0))
 }
 
@@ -364,7 +364,7 @@ func TestBuildChangeMessage_RateUnchanged_ShowsPlainRate(t *testing.T) {
 		Pattern:   "p",
 		Anomalies: []observerdef.Anomaly{makeLogPatternAnomaly(ts)},
 	}
-	msg := buildChangeMessage(c, storage)
+	msg := BuildChangeMessage(c, storage)
 	assert.Contains(t, msg, fmt.Sprintf("\n\trate: %.1flog/s", 3.0))
 	// No previous rate display
 	assert.NotContains(t, msg, "was")
@@ -378,13 +378,13 @@ func TestBuildChangeMessage_LogFrequency_RateChangedDisplay(t *testing.T) {
 	a := observerdef.Anomaly{
 		Type:      observerdef.AnomalyTypeMetric,
 		Timestamp: ts,
-		Source:    observerdef.SeriesDescriptor{Namespace: LogMetricsExtractorName},
+		Source:    observerdef.SeriesDescriptor{Namespace: logMetricsExtractorName},
 		SourceRef: &observerdef.QueryHandle{Ref: observerdef.SeriesRef(7)},
 		Context: &observerdef.MetricContext{
 			Example: "panic: runtime error",
 		},
 	}
 	c := observerdef.ActiveCorrelation{Pattern: "p", Anomalies: []observerdef.Anomaly{a}}
-	msg := buildChangeMessage(c, storage)
+	msg := BuildChangeMessage(c, storage)
 	assert.Contains(t, msg, fmt.Sprintf("rate: %.1flog/s (was %.1flog/s last minutes)", 5.0, 0.2))
 }
