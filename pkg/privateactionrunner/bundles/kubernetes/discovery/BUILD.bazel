@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "discovery",
+    srcs = [
+        "create_endpoint_slice.gen.go",
+        "delete_endpoint_slice.gen.go",
+        "delete_multiple_endpoint_slices.gen.go",
+        "entrypoint.gen.go",
+        "get_endpoint_slice.gen.go",
+        "list_endpoint_slice.gen.go",
+        "patch_endpoint_slice.gen.go",
+        "update_endpoint_slice.gen.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/discovery",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/privateactionrunner/bundle-support/kubernetes",
+        "//pkg/privateactionrunner/libs/privateconnection",
+        "//pkg/privateactionrunner/types",
+        "@io_k8s_api//discovery/v1:discovery",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/types",
+    ],
+)
