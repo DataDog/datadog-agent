@@ -86,7 +86,6 @@ type tagCacheEntry struct {
 	origin         *message.Origin
 	hostname       string
 	source         string
-	status         string
 	processingTags string // joined ProcessingTags; part of cache key
 	tagSet         *statefulpb.TagSet
 	dictID         uint64
@@ -102,6 +101,8 @@ type MessageTranslator struct {
 	tagEvictionManager     *tags.TagEvictionManager
 	tokenizer              token.Tokenizer
 	jsonLogsAsRaw          bool // when true, JSON logs bypass stateful encoding and are sent as RawLog
+	jsonSchemaToID         map[string]uint64
+	nextJSONSchemaID       uint64
 
 	pipelineName   string
 	lastStaleSweep time.Time
@@ -110,15 +111,14 @@ type MessageTranslator struct {
 	// tagCache caches the last computed tag set to avoid recomputation across messages
 	// with identical metadata (common in single-source pipelines).
 	tagCache struct {
-		origin     *message.Origin
-		hostname   string
-		service    string
-		source     string
-		status     string
-		tagsString string
-		tagSet     *statefulpb.TagSet
-		dictID     uint64
-		tagStr     string
+		origin         *message.Origin
+		hostname       string
+		source         string
+		tagsString     string
+		processingTags string // joined ProcessingTags; part of cache key
+		tagSet         *statefulpb.TagSet
+		dictID         uint64
+		tagStr         string
 	}
 }
 
@@ -154,6 +154,8 @@ func NewMessageTranslator(pipelineName string, tokenizer token.Tokenizer, opts .
 		tagEvictionManager:     tags.NewTagEvictionManager(),
 		tokenizer:              tokenizer,
 		jsonLogsAsRaw:          pkgconfigsetup.Datadog().GetBool("logs_config.patterns.json_as_raw"),
+		jsonSchemaToID:         make(map[string]uint64),
+		nextJSONSchemaID:       flatLogEmptyDictIndex,
 		pipelineName:           pipelineName,
 		lastStaleSweep:         time.Now(),
 		staleTTL:               staleTTL,
@@ -274,11 +276,15 @@ func (mt *MessageTranslator) processBatch(batch []batchEntry, outputChan chan *m
 			if serviceIsNew {
 				mt.sendDictEntryDefine(outputChan, entry.msg, serviceDictID, entry.msg.Origin.Service())
 			}
+			statusDictID, status, statusIsNew := mt.buildStatusField(entry.msg)
+			if statusIsNew {
+				mt.sendDictEntryDefine(outputChan, entry.msg, statusDictID, status)
+			}
 			tagSet, allTagsStr, dictID, isNew := mt.buildTagSet(entry.msg)
 			if isNew {
 				mt.sendDictEntryDefine(outputChan, entry.msg, dictID, allTagsStr)
 			}
-			mt.sendRawLog(outputChan, entry.msg, entry.content, ts, tagSet, service)
+			mt.sendRawLog(outputChan, entry.msg, entry.content, ts, tagSet, service, statusDictID)
 		} else {
 			tokenBatch = append(tokenBatch, entry)
 		}
@@ -326,11 +332,15 @@ func (mt *MessageTranslator) processMessage(msg *message.Message, outputChan cha
 		if serviceIsNew {
 			mt.sendDictEntryDefine(outputChan, msg, serviceDictID, msg.Origin.Service())
 		}
+		statusDictID, status, statusIsNew := mt.buildStatusField(msg)
+		if statusIsNew {
+			mt.sendDictEntryDefine(outputChan, msg, statusDictID, status)
+		}
 		tagSet, allTagsStr, dictID, isNew := mt.buildTagSet(msg)
 		if isNew {
 			mt.sendDictEntryDefine(outputChan, msg, dictID, allTagsStr)
 		}
-		mt.sendRawLog(outputChan, msg, string(content), ts, tagSet, service)
+		mt.sendRawLog(outputChan, msg, string(content), ts, tagSet, service, statusDictID)
 		return
 	}
 	contentStr := string(content)
@@ -367,11 +377,15 @@ func (mt *MessageTranslator) processPreTokenized(msg *message.Message, tokenList
 		if serviceIsNew {
 			mt.sendDictEntryDefine(outputChan, msg, serviceDictID, msg.Origin.Service())
 		}
+		statusDictID, status, statusIsNew := mt.buildStatusField(msg)
+		if statusIsNew {
+			mt.sendDictEntryDefine(outputChan, msg, statusDictID, status)
+		}
 		tagSet, allTagsStr, dictID, isNew := mt.buildTagSet(msg)
 		if isNew {
 			mt.sendDictEntryDefine(outputChan, msg, dictID, allTagsStr)
 		}
-		mt.sendRawLog(outputChan, msg, string(getTranslatorContent(msg)), ts, tagSet, service)
+		mt.sendRawLog(outputChan, msg, string(getTranslatorContent(msg)), ts, tagSet, service, statusDictID)
 		return
 	}
 
@@ -444,25 +458,12 @@ func (mt *MessageTranslator) processPreTokenized(msg *message.Message, tokenList
 		}
 	}
 
-	// Encode message key as dict entry
+	// Encode JSON context schema as state and values as DynamicValues.
 	var messageKeyDV *statefulpb.DynamicValue
-	if messageKey != "" {
-		encoded, mkDictID, mkIsNew := mt.encodeDynamicValue(messageKey)
-		messageKeyDV = encoded
-		if mkIsNew {
-			mt.sendDictEntryDefine(outputChan, msg, mkDictID, messageKey)
-		}
-	}
-
-	// Encode JSON context schema as dict entry and values as DynamicValues
 	var jsonContextSchemaID uint64
 	var jsonContextValuesDV []*statefulpb.DynamicValue
 	if jsonContextSchema != "" {
-		var schemaIsNew bool
-		jsonContextSchemaID, schemaIsNew = mt.tagManager.AddString(jsonContextSchema)
-		if schemaIsNew {
-			mt.sendDictEntryDefine(outputChan, msg, jsonContextSchemaID, jsonContextSchema)
-		}
+		messageKeyDV, jsonContextSchemaID = mt.sendJsonSchemaDefineIfNeeded(outputChan, msg, messageKey, jsonContextSchema)
 
 		jsonContextDVBacking := make([]statefulpb.DynamicValue, len(jsonContextValues))
 		jsonContextTypeBacking := make([]dvTypeBackings, len(jsonContextValues))
@@ -492,6 +493,11 @@ func (mt *MessageTranslator) processPreTokenized(msg *message.Message, tokenList
 		mt.sendDictEntryDefine(outputChan, msg, serviceDictID, msg.Origin.Service())
 	}
 
+	statusDictID, status, statusIsNew := mt.buildStatusField(msg)
+	if statusIsNew {
+		mt.sendDictEntryDefine(outputChan, msg, statusDictID, status)
+	}
+
 	// Build complete tag list and encode as TagSet
 	tagSet, allTagsString, dictID, isNew := mt.buildTagSet(msg)
 	if isNew {
@@ -500,30 +506,30 @@ func (mt *MessageTranslator) processPreTokenized(msg *message.Message, tokenList
 
 	// Send StructuredLog with all fields
 	tsMillis := ts.UnixNano() / nanoToMillis
-	mt.sendStructuredLog(outputChan, msg, tsMillis, patternID, dynamicValues, tagSet, service, messageKeyDV, jsonContextSchemaID, jsonContextValuesDV)
+	mt.sendStructuredLog(outputChan, msg, tsMillis, patternID, dynamicValues, tagSet, service, statusDictID, messageKeyDV, jsonContextSchemaID, jsonContextValuesDV)
 }
 
 // buildTagSet constructs the complete tag list for a message and encodes it as a TagSet.
-// This includes log-level fields (hostname, ddsource, status) as tags,
+// This includes log-level fields (hostname, ddsource) as tags,
 // plus all other tags from the message metadata (container tags, source config tags, processing tags).
 // All tags are joined as a single string, encoded as a single dictionary entry in the TagSet.
-// A single-entry cache keyed on (origin ptr, hostname, service, source, status, tags) avoids all
+// A single-entry cache keyed on (origin ptr, hostname, source, tags) avoids all
 // allocations in the common case where these inputs are constant across messages (single-source pipeline).
 func (mt *MessageTranslator) buildTagSet(msg *message.Message) (*statefulpb.TagSet, string, uint64, bool) {
 	// Read current inputs
 	currentOrigin := msg.Origin
 	currentHostname := msg.MessageMetadata.Hostname
 	currentSource := msg.Origin.Source()
-	currentStatus := msg.MessageMetadata.GetStatus()
 	currentTagsString := msg.MessageMetadata.TagsToString()
+	currentProcessingTags := strings.Join(msg.MessageMetadata.ProcessingTags, ",")
 
 	// Cache hit: all inputs identical and cached dict index still live (not evicted).
 	if mt.tagCache.tagSet != nil &&
 		mt.tagCache.origin == currentOrigin &&
 		mt.tagCache.hostname == currentHostname &&
 		mt.tagCache.source == currentSource &&
-		mt.tagCache.status == currentStatus &&
 		mt.tagCache.tagsString == currentTagsString &&
+		mt.tagCache.processingTags == currentProcessingTags &&
 		mt.tagManager.TouchDictID(mt.tagCache.dictID) {
 		return mt.tagCache.tagSet, mt.tagCache.tagStr, mt.tagCache.dictID, false
 	}
@@ -546,10 +552,6 @@ func (mt *MessageTranslator) buildTagSet(msg *message.Message) (*statefulpb.TagS
 		tagStrings = append(tagStrings, "ddsource:"+currentSource)
 	}
 
-	if currentStatus != "" {
-		tagStrings = append(tagStrings, "status:"+currentStatus)
-	}
-
 	allTagsString := strings.Join(tagStrings, ",")
 	if allTagsString == "" {
 		return nil, "", 0, false
@@ -569,8 +571,8 @@ func (mt *MessageTranslator) buildTagSet(msg *message.Message) (*statefulpb.TagS
 	mt.tagCache.origin = currentOrigin
 	mt.tagCache.hostname = currentHostname
 	mt.tagCache.source = currentSource
-	mt.tagCache.status = currentStatus
 	mt.tagCache.tagsString = currentTagsString
+	mt.tagCache.processingTags = currentProcessingTags
 	mt.tagCache.tagSet = tagSet
 	mt.tagCache.dictID = dictID
 	mt.tagCache.tagStr = allTagsString
@@ -603,6 +605,53 @@ func (mt *MessageTranslator) buildServiceField(msg *message.Message) (*statefulp
 			DictIndex: dictID,
 		},
 	}, dictID, isNew
+}
+
+func (mt *MessageTranslator) buildStatusField(msg *message.Message) (uint64, string, bool) {
+	status := msg.MessageMetadata.GetStatus()
+	if status == "" {
+		return 0, "", false
+	}
+	dictID, isNew := mt.tagManager.AddString(status)
+	return dictID, status, isNew
+}
+
+func (mt *MessageTranslator) sendJsonSchemaDefineIfNeeded(outputChan chan *message.StatefulMessage, msg *message.Message, messageKey string, jsonContextSchema string) (*statefulpb.DynamicValue, uint64) {
+	if messageKey == "" {
+		messageKey = "message"
+	}
+	messageKeyID, messageKeyIsNew := mt.tagManager.AddString(messageKey)
+	if messageKeyIsNew {
+		mt.sendDictEntryDefine(outputChan, msg, messageKeyID, messageKey)
+	}
+
+	keys := strings.Split(jsonContextSchema, ",")
+	keyIDs := make([]uint64, 0, len(keys))
+	for _, key := range keys {
+		if key == "" {
+			continue
+		}
+		keyID, keyIsNew := mt.tagManager.AddString(key)
+		if keyIsNew {
+			mt.sendDictEntryDefine(outputChan, msg, keyID, key)
+		}
+		keyIDs = append(keyIDs, keyID)
+	}
+
+	schemaKey := messageKey + "\x00" + jsonContextSchema
+	schemaID, ok := mt.jsonSchemaToID[schemaKey]
+	if !ok {
+		mt.nextJSONSchemaID++
+		schemaID = mt.nextJSONSchemaID
+		mt.jsonSchemaToID[schemaKey] = schemaID
+		mt.sendJsonSchemaDefine(outputChan, msg, schemaID, keyIDs, messageKeyID)
+	}
+
+	return &statefulpb.DynamicValue{
+		Value: &statefulpb.DynamicValue_DictIndex{
+			DictIndex: messageKeyID,
+		},
+	}, schemaID
 }
 
 // getMessageTimestamp returns the timestamp for the message, preferring the HTTP
@@ -684,10 +733,22 @@ func (mt *MessageTranslator) sendDictEntryDelete(outputChan chan *message.Statef
 	}
 }
 
+func (mt *MessageTranslator) sendJsonSchemaDefine(outputChan chan *message.StatefulMessage, msg *message.Message, schemaID uint64, keyIDs []uint64, messageKeyID uint64) {
+	schemaDatum := buildJsonSchemaDefine(schemaID, keyIDs, messageKeyID)
+
+	bytesAdded := float64(proto.Size(schemaDatum))
+	tlmPipelineStateSize.Add(bytesAdded, mt.pipelineName)
+
+	outputChan <- &message.StatefulMessage{
+		Datum:    schemaDatum,
+		Metadata: &msg.MessageMetadata,
+	}
+}
+
 // sendRawLog creates and sends a raw log datum (currently unused)
-func (mt *MessageTranslator) sendRawLog(outputChan chan *message.StatefulMessage, msg *message.Message, contentStr string, ts time.Time, tagSet *statefulpb.TagSet, service *statefulpb.DynamicValue) {
+func (mt *MessageTranslator) sendRawLog(outputChan chan *message.StatefulMessage, msg *message.Message, contentStr string, ts time.Time, tagSet *statefulpb.TagSet, service *statefulpb.DynamicValue, statusDictID uint64) {
 	// Proto3 string fields require valid UTF-8; replace invalid sequences to avoid corrupt datums.
-	logDatum := buildRawLog(toValidUTF8(contentStr), ts, tagSet, msg.MessageMetadata.DualSendUUID, service)
+	logDatum := buildRawLog(toValidUTF8(contentStr), ts, tagSet, msg.MessageMetadata.DualSendUUID, service, statusDictID)
 
 	tlmPipelineRawLogsProcessed.Inc(mt.pipelineName)
 	tlmPipelineRawLogsProcessedBytes.Add(float64(proto.Size(logDatum)), mt.pipelineName)
@@ -699,8 +760,8 @@ func (mt *MessageTranslator) sendRawLog(outputChan chan *message.StatefulMessage
 }
 
 // sendStructuredLog creates and sends a StructuredLog datum
-func (mt *MessageTranslator) sendStructuredLog(outputChan chan *message.StatefulMessage, msg *message.Message, timestamp int64, patternID uint64, dynamicValues []*statefulpb.DynamicValue, tagSet *statefulpb.TagSet, service *statefulpb.DynamicValue, messageKey *statefulpb.DynamicValue, jsonContextSchemaID uint64, jsonContextValues []*statefulpb.DynamicValue) {
-	logDatum := buildStructuredLog(timestamp, patternID, dynamicValues, tagSet, msg.MessageMetadata.DualSendUUID, service, messageKey, jsonContextSchemaID, jsonContextValues)
+func (mt *MessageTranslator) sendStructuredLog(outputChan chan *message.StatefulMessage, msg *message.Message, timestamp int64, patternID uint64, dynamicValues []*statefulpb.DynamicValue, tagSet *statefulpb.TagSet, service *statefulpb.DynamicValue, statusDictID uint64, messageKey *statefulpb.DynamicValue, jsonContextSchemaID uint64, jsonContextValues []*statefulpb.DynamicValue) {
+	logDatum := buildStructuredLog(timestamp, patternID, dynamicValues, tagSet, msg.MessageMetadata.DualSendUUID, service, statusDictID, messageKey, jsonContextSchemaID, jsonContextValues)
 
 	tlmPipelinePatternLogsProcessed.Inc(mt.pipelineName)
 	tlmPipelinePatternLogsProcessedBytes.Add(float64(proto.Size(logDatum)), mt.pipelineName)
@@ -749,6 +810,18 @@ func buildDictEntryDefine(id uint64, value string) *statefulpb.Datum {
 			DictEntryDefine: &statefulpb.DictEntryDefine{
 				Id:    id,
 				Value: value,
+			},
+		},
+	}
+}
+
+func buildJsonSchemaDefine(schemaID uint64, keyIDs []uint64, messageKeyID uint64) *statefulpb.Datum {
+	return &statefulpb.Datum{
+		Data: &statefulpb.Datum_JsonSchemaDefine{
+			JsonSchemaDefine: &statefulpb.JsonSchemaDefine{
+				SchemaId:     schemaID,
+				Keys:         keyIDs,
+				MessageKeyId: messageKeyID,
 			},
 		},
 	}
@@ -948,48 +1021,61 @@ func (mt *MessageTranslator) fillWildcardDynamicValue(
 	return 0, "", false
 }
 
-// buildStructuredLog creates a Datum containing a StructuredLog
-func buildStructuredLog(timestamp int64, patternID uint64, dynamicValues []*statefulpb.DynamicValue, tagSet *statefulpb.TagSet, uuid string, service *statefulpb.DynamicValue, messageKey *statefulpb.DynamicValue, jsonContextSchemaID uint64, jsonContextValues []*statefulpb.DynamicValue) *statefulpb.Datum {
-	log := &statefulpb.Log{
+func flatLogTagSetDictIndex(tagSet *statefulpb.TagSet) uint64 {
+	if tagSet == nil || tagSet.Tagset == nil {
+		return 0
+	}
+	return tagSet.Tagset.GetDictIndex()
+}
+
+func flatLogDynamicValueDictIndex(value *statefulpb.DynamicValue) uint64 {
+	if value == nil {
+		return 0
+	}
+	return value.GetDictIndex()
+}
+
+// buildStructuredLog creates a Datum containing a FlatLog with pattern references.
+func buildStructuredLog(timestamp int64, patternID uint64, dynamicValues []*statefulpb.DynamicValue, tagSet *statefulpb.TagSet, uuid string, service *statefulpb.DynamicValue, statusDictID uint64, messageKey *statefulpb.DynamicValue, jsonContextSchemaID uint64, jsonContextValues []*statefulpb.DynamicValue) *statefulpb.Datum {
+	_ = messageKey
+	log := &statefulpb.FlatLog{
 		Timestamp: timestamp,
-		Content: &statefulpb.Log_Structured{
-			Structured: &statefulpb.StructuredLog{
-				PatternId:           patternID,
-				DynamicValues:       dynamicValues,
-				JsonMessageKey:      messageKey,
-				JsonContextSchemaId: jsonContextSchemaID,
-				JsonContextValues:   jsonContextValues,
-			},
-		},
-		Tags:    tagSet,
-		Service: service,
+		Status:    flatLogDictIndex(statusDictID),
+		Service:   flatLogDictIndex(flatLogDynamicValueDictIndex(service)),
+		Tags:      flatLogDictIndex(flatLogTagSetDictIndex(tagSet)),
+
+		PatternId:         patternID,
+		DynamicValues:     dynamicValues,
+		JsonSchemaId:      flatLogDictIndex(jsonContextSchemaID),
+		JsonContextValues: jsonContextValues,
 	}
 	if uuid != "" {
 		log.Uuid = &uuid
 	}
 	return &statefulpb.Datum{
-		Data: &statefulpb.Datum_Logs{
-			Logs: log,
+		Data: &statefulpb.Datum_FlatLog{
+			FlatLog: log,
 		},
 	}
 }
 
-// buildRawLog creates a Datum containing a raw log (no pattern)
-func buildRawLog(content string, ts time.Time, tagSet *statefulpb.TagSet, uuid string, service *statefulpb.DynamicValue) *statefulpb.Datum {
-	log := &statefulpb.Log{
+// buildRawLog creates a Datum containing a FlatLog with raw content (no pattern).
+func buildRawLog(content string, ts time.Time, tagSet *statefulpb.TagSet, uuid string, service *statefulpb.DynamicValue, statusDictID uint64) *statefulpb.Datum {
+	log := &statefulpb.FlatLog{
 		Timestamp: ts.UnixNano() / nanoToMillis,
-		Content: &statefulpb.Log_Raw{
-			Raw: content,
-		},
-		Tags:    tagSet,
-		Service: service,
+		Status:    flatLogDictIndex(statusDictID),
+		Service:   flatLogDictIndex(flatLogDynamicValueDictIndex(service)),
+		Tags:      flatLogDictIndex(flatLogTagSetDictIndex(tagSet)),
+		RawLog:    content,
+
+		JsonSchemaId: flatLogEmptyDictIndex,
 	}
 	if uuid != "" {
 		log.Uuid = &uuid
 	}
 	return &statefulpb.Datum{
-		Data: &statefulpb.Datum_Logs{
-			Logs: log,
+		Data: &statefulpb.Datum_FlatLog{
+			FlatLog: log,
 		},
 	}
 }

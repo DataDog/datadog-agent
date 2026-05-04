@@ -6,7 +6,6 @@
 package grpc
 
 import (
-	"strings"
 	"testing"
 	"time"
 	"unicode/utf8"
@@ -18,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	rtokenizer "github.com/DataDog/datadog-agent/pkg/logs/patterns/tokenizer/rust"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
 )
 
 // makeTestOrigin builds an Origin backed by a LogsConfig with explicit service/source.
@@ -102,20 +102,58 @@ func TestBuildTagSet_CacheCorrectness(t *testing.T) {
 	assert.NotContains(t, tagStr5, "ddsource:src-a", "old source must not appear after source change")
 	assert.NotEqual(t, tagStr4, tagStr5, "source change must produce a different allTagsString")
 
-	// ── Case 6: status change causes cache miss ───────────────────────────────
-	// Use the same origin3 (same origin ptr, service, source) but change status
+	// ── Case 6: status change does not affect joined tags ─────────────────────
+	// Status is encoded in FlatLog.status, not in the joined tag string.
 	msg6 := makeMsg("log line 6", "host-2", "error", origin3)
 	tagSet6, tagStr6, _, _ := mt.buildTagSet(msg6)
 
 	require.NotNil(t, tagSet6)
-	assert.Contains(t, tagStr6, "status:error", "new status must appear in tag string")
-	// "info" is the default status (returned by GetStatus when Status=="") so it appears
-	// in tagStr5. After changing to "error" the strings must differ.
-	assert.True(t,
-		strings.Contains(tagStr5, "status:info") || !strings.Contains(tagStr5, "status:error"),
-		"prior tag string must not already contain status:error")
-	assert.NotEqual(t, tagStr5, tagStr6, "status change must produce a different allTagsString")
-	assert.Equal(t, "error", mt.tagCache.status, "cache must reflect updated status")
+	assert.NotContains(t, tagStr6, "status:error", "status must not be encoded in the joined tag string")
+	assert.Equal(t, tagStr5, tagStr6, "status change must not change the joined tag string")
+}
+
+func TestBuildStructuredLogUsesFlatLog(t *testing.T) {
+	tagSet := &statefulpb.TagSet{
+		Tagset: &statefulpb.DynamicValue{
+			Value: &statefulpb.DynamicValue_DictIndex{DictIndex: 4},
+		},
+	}
+	service := &statefulpb.DynamicValue{
+		Value: &statefulpb.DynamicValue_DictIndex{DictIndex: 3},
+	}
+	values := []*statefulpb.DynamicValue{{
+		Value: &statefulpb.DynamicValue_StringValue{StringValue: "value"},
+	}}
+
+	datum := buildStructuredLog(123, 12, values, tagSet, "uuid", service, 2, nil, 5, nil)
+
+	require.Nil(t, datum.GetLogs())
+	flatLog := datum.GetFlatLog()
+	require.NotNil(t, flatLog)
+	assert.EqualValues(t, 123, flatLog.Timestamp)
+	assert.EqualValues(t, 2, flatLog.Status)
+	assert.EqualValues(t, 3, flatLog.Service)
+	assert.EqualValues(t, 4, flatLog.Tags)
+	assert.EqualValues(t, 12, flatLog.PatternId)
+	assert.EqualValues(t, 5, flatLog.JsonSchemaId)
+	assert.Equal(t, values, flatLog.DynamicValues)
+	assert.Equal(t, "uuid", flatLog.GetUuid())
+}
+
+func TestBuildRawLogUsesFlatLog(t *testing.T) {
+	ts := time.UnixMilli(123)
+
+	datum := buildRawLog("raw", ts, nil, "", nil, 0)
+
+	require.Nil(t, datum.GetLogs())
+	flatLog := datum.GetFlatLog()
+	require.NotNil(t, flatLog)
+	assert.EqualValues(t, 123, flatLog.Timestamp)
+	assert.Equal(t, "raw", flatLog.RawLog)
+	assert.EqualValues(t, flatLogEmptyDictIndex, flatLog.Status)
+	assert.EqualValues(t, flatLogEmptyDictIndex, flatLog.Service)
+	assert.EqualValues(t, flatLogEmptyDictIndex, flatLog.Tags)
+	assert.EqualValues(t, flatLogEmptyDictIndex, flatLog.JsonSchemaId)
 }
 
 func TestBuildTagSet_OriginTagChangesInvalidateCache(t *testing.T) {
