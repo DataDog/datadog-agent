@@ -173,8 +173,9 @@ func TestFormatHTTPStatsDiscoveryMode(t *testing.T) {
 	bucket := endpoint.StatsByStatusCode[int32(200)]
 	require.NotNil(t, bucket, "expected 200 success bucket")
 	assert.Equal(t, uint32(numRequests), bucket.Count)
-	// AvgLatency should equal sum/count = latencyNs.
-	assert.Equal(t, latencyNs, bucket.AvgLatency, "avgLatency should equal sum/count")
+	// LatencySum should be the raw running sum of per-request latencies.
+	assert.Equal(t, latencyNs*float64(numRequests), bucket.LatencySum,
+		"latencySum should equal numRequests * per-request latency")
 	// FirstLatencySample and Latencies must NOT be populated in discovery mode.
 	assert.Zero(t, bucket.FirstLatencySample, "firstLatencySample should not be set in discovery mode")
 	assert.Empty(t, bucket.Latencies, "latencies (DDSketch) should not be set in discovery mode")
