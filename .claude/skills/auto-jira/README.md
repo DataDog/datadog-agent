@@ -64,10 +64,12 @@ A ticket is eligible only if ALL of the following are true:
 
 To permanently exclude a ticket from auto-jira, add the `do-not-autosolve` label on the Jira issue.
 
-## Running headlessly via clauded
+## Running unattended
 
-For unattended/background operation, pass `ARGUMENTS` as an env var:
+For unattended/background operation, consider running Claude with `--dangerously-skip-permissions` to avoid permission prompts:
 
 ```bash
-ARGUMENTS="AGENTCFG --max-cards 5 --before-date 2026-02-12" clauded -p .claude/skills/auto-jira/SKILL.md
+claude --dangerously-skip-permissions
 ```
+
+Then invoke the skill normally: `/auto-jira AGENTCFG --max-cards 5`

@@ -143,12 +143,14 @@
     "rpc.grpc.status_code": {
       "canonical": "rpc.grpc.status_code",
       "fallbacks": [
-        {"name": "rpc.grpc.status_code", "provider": "otel", "type": "int64"},
-        {"name": "grpc.code", "provider": "datadog", "type": "int64"},
-        {"name": "rpc.grpc.status.code", "provider": "otel", "type": "int64"},
-        {"name": "grpc.status.code", "provider": "datadog", "type": "int64"},
-        {"name": "rpc.grpc.status_code", "provider": "otel", "type": "string"},
-        {"name": "grpc.code", "provider": "datadog", "type": "string"}
+        {"name": "rpc.grpc.status_code", "provider": "otel",    "type": "string"},
+        {"name": "rpc.grpc.status_code", "provider": "otel",    "type": "int64"},
+        {"name": "grpc.code",            "provider": "datadog", "type": "string"},
+        {"name": "grpc.code",            "provider": "datadog", "type": "int64"},
+        {"name": "rpc.grpc.status.code", "provider": "otel",    "type": "string"},
+        {"name": "rpc.grpc.status.code", "provider": "otel",    "type": "int64"},
+        {"name": "grpc.status.code",     "provider": "datadog", "type": "string"},
+        {"name": "grpc.status.code",     "provider": "datadog", "type": "int64"}
       ]
     },
     "span.kind": {
@@ -308,7 +310,13 @@
     "_dd.partial_version": {
       "canonical": "_dd.partial_version",
       "fallbacks": [
-        {"name": "_dd.partial_version", "provider": "datadog", "type": "string"}
+        {"name": "_dd.partial_version", "provider": "datadog", "type": "float64"}
+      ]
+    },
+    "_dd.origin": {
+      "canonical": "_dd.origin",
+      "fallbacks": [
+        {"name": "_dd.origin", "provider": "datadog", "type": "string"}
       ]
     },
     "service.name": {
@@ -402,6 +410,42 @@
       "canonical": "k8s.pod.uid",
       "fallbacks": [
         {"name": "k8s.pod.uid", "provider": "otel", "type": "string"}
+      ]
+    },
+    "env": {
+      "canonical": "env",
+      "fallbacks": [
+        {"name": "env", "provider": "datadog", "type": "string"}
+      ]
+    },
+    "version": {
+      "canonical": "version",
+      "fallbacks": [
+        {"name": "version", "provider": "datadog", "type": "string"}
+      ]
+    },
+    "_dd.hostname": {
+      "canonical": "_dd.hostname",
+      "fallbacks": [
+        {"name": "_dd.hostname", "provider": "datadog", "type": "string"}
+      ]
+    },
+    "_dd.git.commit.sha": {
+      "canonical": "_dd.git.commit.sha",
+      "fallbacks": [
+        {"name": "_dd.git.commit.sha", "provider": "datadog", "type": "string"}
+      ]
+    },
+    "_dd.p.dm": {
+      "canonical": "_dd.p.dm",
+      "fallbacks": [
+        {"name": "_dd.p.dm", "provider": "datadog", "type": "string"}
+      ]
+    },
+    "_dd.apm_mode": {
+      "canonical": "_dd.apm_mode",
+      "fallbacks": [
+        {"name": "_dd.apm_mode", "provider": "datadog", "type": "string"}
       ]
     }
   }

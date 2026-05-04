@@ -17,7 +17,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/discovery/language"
-	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
+	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/discovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )

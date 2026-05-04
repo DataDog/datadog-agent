@@ -11,7 +11,7 @@
 // - https://datadoghq.atlassian.net/wiki/spaces/EBPFTEAM/pages/4084204125/Fatbin+Cubin+binary+format
 
 // Generate String() methods for fatbinDataKind enums so they can be printed in logs/error messages
-//go:generate go run golang.org/x/tools/cmd/stringer@latest -output fatbin_string.go -type=fatbinDataKind -linecomment
+//go:generate go run golang.org/x/tools/cmd/stringer -output fatbin_string.go -type=fatbinDataKind -linecomment
 
 // Package cuda provides helpers for CUDA binary parsing
 package cuda

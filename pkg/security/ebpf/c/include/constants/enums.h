@@ -75,6 +75,7 @@ enum event_type
     EVENT_TRACER_MEMFD_CREATE,
     EVENT_TRACER_MEMFD_SEAL,
     EVENT_PIVOT_ROOT,
+    EVENT_SETSID,
     EVENT_NOP,
     EVENT_MAX, // has to be the last one
 
@@ -130,6 +131,7 @@ enum SYSCALL_STATE
     APPROVED,        // approved but can be discarded later
     DISCARDED,       // discarded
     SAMPLED,         // sampled
+    INTERNAL,        // internal event
 };
 
 enum MONITOR_KEYS
@@ -229,6 +231,7 @@ enum erpc_op
     GET_RINGBUF_USAGE,
     USER_SESSION_CONTEXT_OP,
     PRCTL_DISCARDER,
+    AUID_DISCARDER,
     NOP_EVENT_OP,
 };
 

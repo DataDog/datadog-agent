@@ -39,7 +39,7 @@ jobs:
         run: |
           dda inv -- -e release.check-previous-agent6-rc
 
-      - uses: DataDog/dd-octo-sts-action@acaa02eee7e3bb0839e4272dacb37b8f3b58ba80 # v1.0.3
+      - uses: DataDog/dd-octo-sts-action@96a25462dbcb10ebf0bfd6e2ccc917d2ab235b9a # v1.0.4
         id: octo-sts
         with:
           scope: DataDog/datadog-agent
@@ -59,8 +59,6 @@ jobs:
       - name: Check for changes since last RC
         id: check_for_changes
         env:
-          ATLASSIAN_USERNAME: ${{ secrets.ATLASSIAN_USERNAME }}
-          ATLASSIAN_PASSWORD: ${{ secrets.ATLASSIAN_PASSWORD }}
           SLACK_DATADOG_AGENT_BOT_TOKEN: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
         run: |
           if ! dda inv -- -e release.check-for-changes -r "6.53.x"; then

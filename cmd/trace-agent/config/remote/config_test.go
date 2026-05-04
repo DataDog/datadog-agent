@@ -94,6 +94,8 @@ func TestUpstreamRequest(t *testing.T) {
 			name:      "both tracer and container tags",
 			tracerReq: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test","tags":["foo:bar"]}}}`,
 			cfg: &config.AgentConfig{
+				HasContainerFeatures:      true,                                     // so IDProvider reads Datadog-Container-ID header and container tags are resolved
+				ContainerIDFromOriginInfo: config.NoopContainerIDFromOriginInfoFunc, // required when HasContainerFeatures for Linux
 				ContainerTags: func(_ string) ([]string, error) {
 					return []string{"baz:qux"}, nil
 				},
@@ -110,6 +112,8 @@ func TestUpstreamRequest(t *testing.T) {
 			name:      "container tags only",
 			tracerReq: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test"}}}`,
 			cfg: &config.AgentConfig{
+				HasContainerFeatures:      true,                                     // so IDProvider reads Datadog-Container-ID header and container tags are resolved
+				ContainerIDFromOriginInfo: config.NoopContainerIDFromOriginInfoFunc, // required when HasContainerFeatures for Linux
 				ContainerTags: func(_ string) ([]string, error) {
 					return []string{"baz:qux"}, nil
 				},

@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux
-
 package agentprovider
 
 import (
@@ -13,6 +11,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/params"
 	"go.opentelemetry.io/collector/confmap"
 )
 
@@ -22,15 +21,16 @@ const (
 
 type agentProvider struct {
 	config configManager
+	params params.CollectorParams
 }
 
-func NewFactory(agentConfig config.Component) confmap.ProviderFactory {
-	return confmap.NewProviderFactory(newProvider(agentConfig))
+func NewFactory(agentConfig config.Component, p params.CollectorParams) confmap.ProviderFactory {
+	return confmap.NewProviderFactory(newProvider(agentConfig, p))
 }
 
-func newProvider(agentConfig config.Component) confmap.CreateProviderFunc {
+func newProvider(agentConfig config.Component, p params.CollectorParams) confmap.CreateProviderFunc {
 	return func(_ confmap.ProviderSettings) confmap.Provider {
-		return &agentProvider{newConfigManager(agentConfig)}
+		return &agentProvider{newConfigManager(agentConfig), p}
 	}
 }
 
@@ -46,7 +46,7 @@ func (ap *agentProvider) Retrieve(_ context.Context, uri string, _ confmap.Watch
 		return nil, errors.New("no valid endpoints configured: ensure Datadog agent configuration has 'api_key' and either 'apm_config.profiling_dd_url' or 'site' set")
 	}
 
-	stringMap := buildConfig(ap.config)
+	stringMap := buildConfig(ap.config, ap.params)
 
 	return confmap.NewRetrieved(stringMap)
 }

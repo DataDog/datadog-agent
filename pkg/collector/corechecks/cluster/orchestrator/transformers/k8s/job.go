@@ -16,6 +16,8 @@ import (
 
 // ExtractJob returns the protobuf model corresponding to a Kubernetes Job
 // resource.
+//
+//nolint:revive
 func ExtractJob(ctx processors.ProcessorContext, j *batchv1.Job) *model.Job {
 	job := model.Job{
 		Metadata: extractMetadata(&j.ObjectMeta),
@@ -62,9 +64,8 @@ func ExtractJob(ctx processors.ProcessorContext, j *batchv1.Job) *model.Job {
 
 	job.Spec.ResourceRequirements = ExtractPodTemplateResourceRequirements(j.Spec.Template)
 
-	pctx := ctx.(*processors.K8sProcessorContext)
 	job.Tags = append(job.Tags, transformers.RetrieveUnifiedServiceTags(j.ObjectMeta.Labels)...)
-	job.Tags = append(job.Tags, transformers.RetrieveMetadataTags(j.ObjectMeta.Labels, j.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
+	job.Tags = append(job.Tags, transformers.RetrieveTeamTag(j.ObjectMeta.Labels, j.ObjectMeta.Annotations)...)
 
 	return &job
 }

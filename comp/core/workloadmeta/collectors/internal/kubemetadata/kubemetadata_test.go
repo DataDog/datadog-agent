@@ -143,7 +143,7 @@ func (f *FakeDCAClient) SupportsNamespaceMetadataCollection() bool {
 	return f.LocalVersion.Major >= 7 && f.LocalVersion.Minor >= 55
 }
 
-func TestCollector_selectProvider(t *testing.T) {
+func TestCollector_selectPullBasedProvider(t *testing.T) {
 	tests := []struct {
 		name      string
 		collector collector
@@ -188,34 +188,11 @@ func TestCollector_selectProvider(t *testing.T) {
 			},
 			wantType: &dcaFullProvider{},
 		},
-		{
-			name: "stream provider initialized and did not return unimplemented",
-			collector: collector{
-				dcaEnabled: true,
-				dcaClient: &FakeDCAClient{
-					LocalVersion: version.Version{Major: 7, Minor: 58},
-				},
-				stream: &streamClient{unimplemented: false},
-			},
-			wantType: &streamProvider{},
-		},
-		{
-			name: "selects full provider when stream provider is initialized but returned unimplemented",
-			collector: collector{
-				dcaEnabled: true,
-				kubeUtil:   &fakeKubeUtil{nodeName: "node-a"},
-				dcaClient: &FakeDCAClient{
-					LocalVersion: version.Version{Major: 7, Minor: 58},
-				},
-				stream: &streamClient{unimplemented: true},
-			},
-			wantType: &dcaFullProvider{},
-		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			provider, err := tt.collector.selectProvider(context.TODO())
+			provider, err := tt.collector.selectPullBasedProvider(context.TODO())
 			assert.NoError(t, err)
 			assert.IsType(t, tt.wantType, provider)
 		})
@@ -338,8 +315,7 @@ func TestCollector_createUnsetEvent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := &collector{}
-			event := c.createUnsetEvent(tt.seenID)
+			event := createUnsetEvent(tt.seenID)
 
 			assert.Equal(t, workloadmeta.EventTypeUnset, event.Type)
 			assert.Equal(t, workloadmeta.SourceClusterOrchestrator, event.Source)

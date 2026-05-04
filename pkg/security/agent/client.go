@@ -275,13 +275,13 @@ func NewRuntimeSecurityEventClient() (*RuntimeSecurityEventClient, error) {
 			return nil, err
 		}
 
-		cmdPort, parseErr := strconv.Atoi(sPort)
+		cmdPort, parseErr := strconv.ParseUint(sPort, 10, 16)
 		if parseErr != nil {
 			return nil, fmt.Errorf("invalid vsock socket path '%s'", socketPath)
 		}
 
-		if cmdPort <= 0 {
-			return nil, fmt.Errorf("invalid port '%s' for vsock", socketPath)
+		if cmdPort == 0 {
+			return nil, errors.New("invalid port '0' for vsock")
 		}
 
 		cid := uint32(vsock.Host)

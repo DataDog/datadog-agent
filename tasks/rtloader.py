@@ -10,6 +10,7 @@ import sys
 from invoke import task
 from invoke.exceptions import Exit
 
+from tasks.libs.build.bazel import bazel
 from tasks.libs.common.utils import gitlab_section
 
 
@@ -39,7 +40,7 @@ def make(ctx, install_prefix=None, cmake_options=''):
     if cmake_options.find("-G") == -1:
         cmake_options += " -G \"Unix Makefiles\""
 
-    cmake_args = cmake_options + f" -DBUILD_DEMO:BOOL=OFF -DCMAKE_INSTALL_PREFIX:PATH={prefix}"
+    cmake_args = cmake_options + f" -DCMAKE_INSTALL_PREFIX:PATH={prefix}"
     if os.getenv('DD_CMAKE_TOOLCHAIN'):
         cmake_args += f' --toolchain {os.getenv("DD_CMAKE_TOOLCHAIN")}'
 
@@ -71,15 +72,16 @@ def make(ctx, install_prefix=None, cmake_options=''):
 @task
 def clean(_):
     """
-    Clean up CMake's cache.
+    Clean up CMake's cache and Bazel install artifacts under dev/.
     Necessary when the paths to some libraries found by CMake (for example Python) have changed on the system.
     """
     dev_path = get_dev_path()
+    embedded_path = os.path.join(dev_path, "embedded")
     include_path = os.path.join(dev_path, "include")
     lib_path = os.path.join(dev_path, "lib")
     rtloader_build_path = get_rtloader_build_path()
 
-    for p in [include_path, lib_path, rtloader_build_path]:
+    for p in [embedded_path, include_path, lib_path, rtloader_build_path]:
         try:
             shutil.rmtree(p)
             print(f"Successfully cleaned '{p}'")
@@ -91,6 +93,61 @@ def clean(_):
 def install(ctx):
     with gitlab_section("Install rtloader", collapsed=True):
         run_make_command(ctx, "install")
+
+
+@task
+def install_with_bazel(ctx):
+    """
+    Install rtloader, Python, and Python's shared-library dependencies using Bazel.
+
+    This is intended for local development alongside `agent.build`, as a way to leverage Bazel
+    while we're still in a transitional stage. It installs an "embedded" environment which includes
+    Python, under `dev/embedded`.
+
+    Returns the embedded path.
+    """
+    dev_path = get_dev_path()
+
+    if sys.platform == "win32":
+        bin_dir = os.path.join(os.path.dirname(os.path.abspath(dev_path)), "bin")
+
+        # Put static rtloader lib where the go build expects to find it
+        bazel(
+            ctx,
+            "run",
+            "//rtloader:install_static",
+            "--",
+            f"--destdir={os.path.join(get_rtloader_build_path(), 'rtloader')}",
+        )
+
+        # Install rtloader and cpython where the Agent expects them at runtime
+        bazel(ctx, "run", "//rtloader:install", "--", f"--destdir={os.path.dirname(bin_dir)}")
+        bazel(ctx, "run", "@cpython//:install", "--", f"--destdir={bin_dir}")
+
+        return os.path.join(bin_dir, "embedded3")
+
+    embedded = os.path.join(dev_path, "embedded")
+
+    # Install rtloader + CPython + all Python deps
+    bazel(ctx, "run", "//rtloader:install_python_env", "--", f"--destdir={dev_path}")
+
+    # Patch RPATH in all installed binaries/libraries so they find their
+    # dependencies under <embedded>/lib at runtime.
+    files_to_patch = [
+        f
+        for f in ctx.run(
+            f"find {embedded} -type f \\( -name '*.so' -o -name '*.so.*' -o -name '*.dylib'"
+            f" -o -name '*.pc' -o -path '*/bin/*' \\)",
+            hide="out",
+        )
+        .stdout.strip()
+        .split("\n")
+        if f
+    ]
+    if files_to_patch:
+        bazel(ctx, "run", "//bazel/rules:replace_prefix", "--", "--prefix", embedded, *files_to_patch)
+
+    return embedded
 
 
 @task

@@ -2494,12 +2494,10 @@ func TestProcessFilelessExecution(t *testing.T) {
 
 func TestSymLinkResolution(t *testing.T) {
 	SkipIfNotAvailable(t)
-	flake.MarkOnJobName(t, "ubuntu_25.10")
-
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "symlink_true_exec",
-			Expression: `exec.file.name == "true"`,
+			Expression: `exec.file.name == "echo"`,
 		},
 	}
 
@@ -2511,7 +2509,7 @@ func TestSymLinkResolution(t *testing.T) {
 
 	t.Run("exec true via symlink", func(t *testing.T) {
 		tmpLink := filepath.Join(t.TempDir(), "my_symlink")
-		err := os.Symlink("/bin/true", tmpLink)
+		err := os.Symlink("/bin/echo", tmpLink)
 		require.NoError(t, err)
 
 		test.WaitSignalFromRule(t, func() error {
@@ -2589,4 +2587,70 @@ func TestProcessSubreaperReparenting(t *testing.T) {
 			assertFieldEqual(t, event, "process.parent.pid", subreaperPid, "after subreaper reparenting, parent PID should be the subreaper's PID, not the intermediate child's")
 		}
 	}, "test_subreaper_open")
+}
+
+func TestProcessSID(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if ebpfLessEnabled {
+		t.Skip("process.sid not supported in ebpfless mode")
+	}
+
+	shPath := which(t, "sh")
+	truePath := which(t, "true")
+
+	const sidTestEnv = "DD_CWS_SID_TEST"
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_sid_after_setsid",
+			Expression: fmt.Sprintf(`exec.file.path == "%s" && exec.envs in ["%s"] && process.sid != 0`, shPath, sidTestEnv),
+		},
+		{
+			ID:         "test_sid_inherited",
+			Expression: fmt.Sprintf(`exec.file.path == "%s" && exec.envs in ["%s"] && process.sid != 0`, truePath, sidTestEnv),
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	t.Run("sid-updated-after-setsid", func(t *testing.T) {
+		test.WaitSignalFromRule(t, func() error {
+			cmd := exec.Command(shPath, "-c", "true")
+			cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+			cmd.Env = []string{sidTestEnv + "=1"}
+			return cmd.Run()
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_sid_after_setsid")
+			assert.Equal(t, event.ProcessContext.Pid, event.ProcessContext.SID, "after setsid, SID should equal PID (process is session leader)")
+			assert.NotZero(t, event.ProcessContext.SID, "SID should not be zero")
+		}, "test_sid_after_setsid")
+	})
+
+	t.Run("sid-inherited-not-leader", func(t *testing.T) {
+		test.WaitSignalFromRule(t, func() error {
+			// "; :" forces sh to fork before exec'ing truePath, otherwise
+			// sh would exec-optimize into true and become the session leader itself.
+			cmd := exec.Command(shPath, "-c", truePath+"; :")
+			cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+			cmd.Env = []string{sidTestEnv + "=1"}
+			return cmd.Run()
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_sid_inherited")
+			assert.NotEqual(t, event.ProcessContext.Pid, event.ProcessContext.SID, "true should not be the session leader")
+			assert.NotZero(t, event.ProcessContext.SID, "SID should not be zero")
+			foundLeader := false
+			for a := event.ProcessContext.Ancestor; a != nil; a = a.Ancestor {
+				if a.Pid == event.ProcessContext.SID {
+					foundLeader = true
+					break
+				}
+			}
+			assert.True(t, foundLeader, "SID should match an ancestor's PID (the session leader)")
+		}, "test_sid_inherited")
+	})
 }

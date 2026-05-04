@@ -1,8 +1,10 @@
 {
-  "type": "unsupported",
-  "operation": "len",
-  "argument": {
-    "filter": [
+  "type": "len",
+  "operation": "",
+  "left": {
+    "type": "unsupported",
+    "operation": "filter",
+    "argument": [
       {
         "ref": "collection"
       },
@@ -21,7 +23,8 @@
           }
         ]
       }
-    ]
+    ],
+    "error": ""
   },
   "error": ""
 }

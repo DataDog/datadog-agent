@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "testdata_lib",
+    srcs = ["helloworld.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/testdata",
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:private"],
+)
+
+go_binary(
+    name = "testdata",
+    embed = [":testdata_lib"],
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+)

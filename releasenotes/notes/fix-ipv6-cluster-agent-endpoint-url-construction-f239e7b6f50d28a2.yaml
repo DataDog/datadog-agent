@@ -1,0 +1,16 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fix IPv6 address formatting when constructing the Cluster Agent endpoint
+    URL from Kubernetes service environment variables. IPv6 addresses are now
+    properly wrapped in brackets (e.g. ``https://[fd38:552b:2959::4f4a]:5005``
+    instead of ``https://fd38:552b:2959::4f4a:5005``), which previously caused
+    the remote tagger and other gRPC clients to fail with "too many colons in
+    address" errors on IPv6-only clusters.

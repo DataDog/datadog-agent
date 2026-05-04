@@ -23,6 +23,21 @@ var (
 	// security-agent was not processing them fast enough
 	// Tags: rule_id
 	MetricEventServerExpired = newRuntimeMetric(".rules.event_server.expired")
+	// MetricEventServerRetry counts how many times a queued event was scheduled for retry
+	// Tags: -
+	MetricEventServerRetry = newRuntimeMetric(".rules.event_server.retry")
+	// MetricEventServerSkippedRetry counts retries that were skipped because the queue was at capacity
+	// Tags: -
+	MetricEventServerSkippedRetry = newRuntimeMetric(".rules.event_server.skipped_retry")
+	// MetricEventServerMissingTags counts events that were sent with missing container tags
+	// Tags: -
+	MetricEventServerMissingTags = newRuntimeMetric(".rules.event_server.missing_tags")
+	// MetricEventServerQueueSize is the current number of events waiting in the retry queue
+	// Tags: -
+	MetricEventServerQueueSize = newRuntimeMetric(".rules.event_server.queue_size")
+	// MetricEventServerRetriesBeforeSend is a distribution of the number of retries an event required before being sent
+	// Tags: -
+	MetricEventServerRetriesBeforeSend = newRuntimeMetric(".rules.event_server.retries_before_send")
 
 	// Rate limiter metrics
 
@@ -331,6 +346,9 @@ var (
 	// MetricCGroupResolverFallbackFailed is the name of the metric used to report the number of failed fallbacks
 	// Tags: -
 	MetricCGroupResolverFallbackFailed = newRuntimeMetric(".cgroup_resolver.fallback_failed")
+	// MetricCGroupResolverRemainingPids is the name of the metric used to report when a cgroup being delete still has pids
+	// Tags: -
+	MetricCGroupResolverRemainingPids = newRuntimeMetric(".cgroup_resolver.remaining_pids")
 
 	// Security Profile metrics
 

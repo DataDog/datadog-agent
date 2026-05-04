@@ -19,17 +19,18 @@
           "location": {
             "method": "main.testNestedPointer"
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "@duration",
+            "message": "not available: function has no body"
+          }
+        ]
       },
-      "type": "snapshot",
-      "evaluationErrors": [
-        {
-          "expr": "@duration",
-          "message": "not available: function has no body"
-        }
-      ]
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "message": "{anotherInt: 42, anotherString: xyz}"
+    "message": "{anotherInt: 42, anotherString: xyz}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

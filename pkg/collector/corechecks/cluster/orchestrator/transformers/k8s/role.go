@@ -17,14 +17,15 @@ import (
 
 // ExtractRole returns the protobuf model corresponding to a Kubernetes Role
 // resource.
+//
+//nolint:revive
 func ExtractRole(ctx processors.ProcessorContext, r *rbacv1.Role) *model.Role {
 	msg := &model.Role{
 		Metadata: extractMetadata(&r.ObjectMeta),
 		Rules:    extractPolicyRules(r.Rules),
 	}
 
-	pctx := ctx.(*processors.K8sProcessorContext)
 	msg.Tags = append(msg.Tags, transformers.RetrieveUnifiedServiceTags(r.ObjectMeta.Labels)...)
-	msg.Tags = append(msg.Tags, transformers.RetrieveMetadataTags(r.ObjectMeta.Labels, r.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
+	msg.Tags = append(msg.Tags, transformers.RetrieveTeamTag(r.ObjectMeta.Labels, r.ObjectMeta.Annotations)...)
 	return msg
 }

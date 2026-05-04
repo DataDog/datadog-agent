@@ -137,7 +137,12 @@ func main() {
 	for {
 		n, err := unix.Poll(pollfds, -1)
 		if err != nil {
-			log.Warnf("error while polling: %v", err)
+			if err == unix.EINTR {
+				// EINTR means a signal interrupted the syscall; this is not an error, retry
+				log.Warnf("Polling interrupted by signal, retrying...")
+				continue
+			}
+			log.Errorf("error while polling: %v", err)
 			break
 		}
 
@@ -277,12 +282,12 @@ func getListeners(cfg model.Reader) (tcpFD int, listeners map[string]uintptr, er
 	// the loader needs to initialize the sockets in the same way as the trace-agent
 
 	traceCfgReceiverHost := "localhost"
-	if cfg.IsSet("bind_host") || cfg.IsSet("apm_config.apm_non_local_traffic") {
+	if cfg.IsSet("bind_host") || cfg.IsConfigured("apm_config.apm_non_local_traffic") {
 		if cfg.IsSet("bind_host") {
 			traceCfgReceiverHost = cfg.GetString("bind_host")
 		}
 
-		if cfg.IsSet("apm_config.apm_non_local_traffic") && cfg.GetBool("apm_config.apm_non_local_traffic") {
+		if cfg.IsConfigured("apm_config.apm_non_local_traffic") && cfg.GetBool("apm_config.apm_non_local_traffic") {
 			traceCfgReceiverHost = "0.0.0.0"
 		}
 	} else if env.IsContainerized() {

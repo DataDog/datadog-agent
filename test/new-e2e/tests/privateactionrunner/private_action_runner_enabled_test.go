@@ -6,18 +6,11 @@
 package privateactionrunner
 
 import (
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
 
-	"github.com/go-jose/go-jose/v4"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
@@ -34,27 +27,12 @@ const (
 
 func generateTestPrivateActionRunnerConfig(t *testing.T) string {
 	t.Helper()
-
-	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	require.NoError(t, err, "failed to generate ECDSA key")
-
-	privateJwk := jose.JSONWebKey{
-		Algorithm: "ES256",
-		Key:       privateKey,
-		Use:       "sig",
-	}
-
-	jwkJSON, err := json.Marshal(privateJwk)
-	require.NoError(t, err, "failed to marshal JWK")
-	encodedPrivateKey := base64.RawURLEncoding.EncodeToString(jwkJSON)
-
-	testURN := "urn:dd:apps:on-prem-runner:us1:123456:test-runner-e2e"
-
+	urn, privateKeyB64 := generateTestRunnerIdentity(t)
 	return fmt.Sprintf(`private_action_runner:
   enabled: true
   private_key: %s
   urn: %s
-`, encodedPrivateKey, testURN)
+`, privateKeyB64, urn)
 }
 
 type linuxPrivateActionRunnerEnabledSuite struct {

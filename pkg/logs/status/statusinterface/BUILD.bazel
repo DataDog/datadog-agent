@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "statusinterface",
+    srcs = [
+        "status.go",
+        "status_mock.go",
+        "status_noop.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface",
+    visibility = ["//visibility:public"],
+)

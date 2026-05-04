@@ -28,7 +28,7 @@
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 36
+            "lineNumber": 37
           },
           {
             "function": "runtime.main",
@@ -53,10 +53,6 @@
           "lines": {
             "108": {
               "locals": {
-                "~r0": {
-                  "type": "int",
-                  "notCapturedReason": "unavailable"
-                },
                 "x": {
                   "type": "int",
                   "notCapturedReason": "unavailable"
@@ -73,6 +69,7 @@
       "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "message": "x={unavailable}, err={unavailable}"
+    "message": "x={unavailable}, err={unavailable}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

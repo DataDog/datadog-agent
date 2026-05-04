@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/proto"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -124,14 +124,6 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 
 	defer subscription.Unsubscribe()
 
-	sendFunc := func(chunk []*pb.StreamTagsEvent) error {
-		return grpc.DoWithTimeout(func() error {
-			return out.Send(&pb.StreamTagsResponse{
-				Events: chunk,
-			})
-		}, taggerStreamSendTimeout)
-	}
-
 	for {
 		select {
 		case events, ok := <-subscription.EventsChan():
@@ -153,10 +145,42 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 				responseEvents = append(responseEvents, e)
 			}
 
-			if err := processChunksInPlace(responseEvents, s.maxEventSize, computeTagsEventInBytes, sendFunc); err != nil {
+			isInitBurst := initBurst
+			chunkIdx := 0
+			totalChunks := grpc.CountChunks(responseEvents, s.maxEventSize, computeTagsEventInBytes)
+
+			sendFunc := func(chunk []*pb.StreamTagsEvent) error {
+				chunkIdx++
+				resp := &pb.StreamTagsResponse{
+					Events: chunk,
+				}
+				if isInitBurst && chunkIdx == totalChunks {
+					resp.InitialSnapshotComplete = true
+				}
+				return grpc.DoWithTimeout(func() error {
+					return out.Send(resp)
+				}, taggerStreamSendTimeout)
+			}
+
+			if err := grpc.ProcessChunksInPlace(responseEvents, s.maxEventSize, computeTagsEventInBytes, sendFunc); err != nil {
 				log.Warnf("error sending tagger event: %s", err)
 				s.telemetry.ServerStreamErrors.Inc()
 				return err
+			}
+
+			// If the initial burst is empty, ProcessChunksInPlace won't call
+			// sendFunc, so we need to send the snapshot-complete signal explicitly.
+			if isInitBurst && totalChunks == 0 {
+				err = grpc.DoWithTimeout(func() error {
+					return out.Send(&pb.StreamTagsResponse{
+						InitialSnapshotComplete: true,
+					})
+				}, taggerStreamSendTimeout)
+				if err != nil {
+					log.Warnf("error sending tagger initial snapshot complete: %s", err)
+					s.telemetry.ServerStreamErrors.Inc()
+					return err
+				}
 			}
 
 			if initBurst {

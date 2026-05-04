@@ -19,17 +19,18 @@
           "location": {
             "method": "main.testThreeStringsInStructPointer"
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "@duration",
+            "message": "not available: function has no body"
+          }
+        ]
       },
-      "type": "snapshot",
-      "evaluationErrors": [
-        {
-          "expr": "@duration",
-          "message": "not available: function has no body"
-        }
-      ]
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "message": "abc def ghi"
+    "message": "abc def ghi",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

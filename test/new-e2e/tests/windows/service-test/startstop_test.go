@@ -46,6 +46,9 @@ var agentConfigTADisabled string
 //go:embed fixtures/datadog-di-disabled.yaml
 var agentConfigDIDisabled string
 
+//go:embed fixtures/datadog-rc-enabled.yaml
+var agentConfigRCEnabled string
+
 //go:embed fixtures/system-probe.yaml
 var systemProbeConfig string
 
@@ -77,6 +80,31 @@ const defaultTimeoutScale = 1
 const driverVerifierTimeoutScale = 10
 
 type onServiceStateMismatch func(host *components.RemoteHost, serviceName, actual string)
+
+// TestServiceBehaviorInstallerWithRemoteConfig tests that the installer runs
+// when remote_configuration is explicitly enabled, which is required in FIPS mode.
+// TODO: remove this test when installer runs fully in FIPS mode.
+func TestServiceBehaviorInstallerWithRemoteConfig(t *testing.T) {
+	s := &installerWithRemoteConfigSuite{}
+	run(t, s, systemProbeConfig, agentConfigRCEnabled, securityAgentConfig)
+}
+
+type installerWithRemoteConfigSuite struct {
+	powerShellServiceCommandSuite
+}
+
+func (s *installerWithRemoteConfigSuite) SetupSuite() {
+	s.powerShellServiceCommandSuite.SetupSuite()
+	defer s.CleanupOnSetupFailure()
+
+	// With remote_configuration enabled, the installer should run even in FIPS mode
+	s.runningUserServices = func() []string {
+		return s.getInstalledUserServices()
+	}
+	s.runningServices = func() []string {
+		return s.getInstalledServices()
+	}
+}
 
 // TestServiceBehaviorAgentCommandNoFIM tests the service behavior when controlled by Agent commands
 func TestNoFIMServiceBehaviorAgentCommand(t *testing.T) {
@@ -337,6 +365,11 @@ func (s *agentServiceDisabledSuite) SetupSuite() {
 	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
 	defer s.CleanupOnSetupFailure()
 
+	// TODO: This service is not supported in FIPS mode yet
+	if s.Env().Agent.FIPSEnabled && !slices.Contains(s.disabledServices, "Datadog Installer") {
+		s.disabledServices = append(s.disabledServices, "Datadog Installer")
+	}
+
 	// set up the expected services before calling the base setup
 	s.runningUserServices = func() []string {
 		runningServices := []string{}
@@ -385,6 +418,15 @@ func (s *agentServiceDisabledSuite) TestStartingDisabledService() {
 
 		// verify that we only try user services
 		if !slices.Contains(kernel, service) {
+			// In FIPS builds the installer does not start correctly
+			// when remote configuration is disabled and Start-Service fails.
+			// TODO: remove this when installer runs fully in FIPS mode.
+			if s.Env().Agent.FIPSEnabled && service == "Datadog Installer" {
+				err := windowsCommon.StartService(s.Env().RemoteHost, service)
+				s.Require().Error(err, "should fail to start "+service+" in FIPS mode")
+				continue
+			}
+
 			// try and start it and verify that it does correctly outputs to event log
 			err := windowsCommon.StartService(s.Env().RemoteHost, service)
 			s.Require().NoError(err, "should start "+service)
@@ -547,6 +589,12 @@ func (s *baseStartStopSuite) SetupSuite() {
 	s.dumpFolder = werCrashDumpFolder
 	err := windowsCommon.EnableWERGlobalDumps(host, s.dumpFolder)
 	s.Require().NoError(err, "should enable WER dumps")
+
+	// Setup cdb.exe for automated crash dump analysis
+	err = windowsCommon.SetupCdb(host)
+	if err != nil {
+		s.T().Logf("Warning: failed to setup cdb for crash dump analysis: %v", err)
+	}
 	env := map[string]string{
 		"GOTRACEBACK": "wer",
 	}
@@ -557,10 +605,24 @@ func (s *baseStartStopSuite) SetupSuite() {
 
 	// Setup default expected services
 	s.runningUserServices = func() []string {
-		return s.getInstalledUserServices()
+		services := s.getInstalledUserServices()
+		if s.Env().Agent.FIPSEnabled {
+			// TODO: This service is not supported in FIPS mode yet
+			services = slices.DeleteFunc(services, func(svc string) bool {
+				return svc == "Datadog Installer"
+			})
+		}
+		return services
 	}
 	s.runningServices = func() []string {
-		return s.getInstalledServices()
+		services := s.getInstalledServices()
+		if s.Env().Agent.FIPSEnabled {
+			// TODO: This service is not supported in FIPS mode yet
+			services = slices.DeleteFunc(services, func(svc string) bool {
+				return svc == "Datadog Installer"
+			})
+		}
+		return services
 	}
 
 	// By default driver verifier is disabled.
@@ -617,6 +679,10 @@ func (s *baseStartStopSuite) AfterTest(suiteName, testName string) {
 		for _, dump := range dumps {
 			s.T().Logf("  %s", dump)
 		}
+		// Run !analyze -v on each crash dump on the remote VM
+		if analyzeErr := windowsCommon.AnalyzeAllWERDumps(s.Env().RemoteHost, s.dumpFolder, s.SessionOutputDir(), s.T()); analyzeErr != nil {
+			s.T().Logf("Warning: crash dump analysis errors: %v", analyzeErr)
+		}
 	}
 
 	if s.T().Failed() {
@@ -636,6 +702,18 @@ func (s *baseStartStopSuite) AfterTest(suiteName, testName string) {
 		}
 		// collect agent logs
 		s.collectAgentLogs()
+	}
+
+	// Analyze kernel crash dump on the remote VM before downloading it
+	if exists, _ := s.Env().RemoteHost.FileExists(systemCrashDumpFile); exists {
+		output, analyzeErr := windowsCommon.AnalyzeKernelDump(s.Env().RemoteHost, systemCrashDumpFile)
+		if analyzeErr != nil {
+			s.T().Logf("Warning: kernel dump analysis error: %v", analyzeErr)
+		} else {
+			s.T().Logf("=== Kernel crash dump analysis ===\n%s", output)
+			analysisPath := filepath.Join(s.SessionOutputDir(), "kernel-dump-analysis.txt")
+			_ = os.WriteFile(analysisPath, []byte(output), 0644)
+		}
 	}
 
 	// check if the host crashed.
