@@ -14,6 +14,7 @@ from tasks import (
     ami,
     anomalydetection,
     auth,
+    bazel,
     bench,
     buildimages,
     claude,
@@ -200,6 +201,7 @@ ns.add_task(lint_go)
 # add namespaced tasks to the root
 ns.add_collection(anomalydetection)
 ns.add_collection(auth)
+ns.add_collection(bazel)
 ns.add_collection(agent)
 ns.add_collection(ami)
 ns.add_collection(agent_ci_api)
