@@ -37,7 +37,7 @@ type batchEntry struct {
 	msg               *message.Message
 	content           string // preprocessed content (JSON extracted message, or raw string)
 	messageKey        string // JSON key the message was extracted from (e.g. "msg", "message")
-	jsonContextSchema string // comma-separated sorted keys (e.g. "level,service,timestamp")
+	jsonContextKeys   []string
 	jsonContextValues []interface{}
 	isRawJSON         bool // true when patterns.json_as_raw=true — skip tokenization, send as RawLog
 }
@@ -202,7 +202,7 @@ func (mt *MessageTranslator) Start(inputChan chan *message.Message, bufferSize i
 			} else if results := processor.PreprocessJSON(content); results.Message != "" {
 				entry.content = results.Message
 				entry.messageKey = results.MessageKey
-				entry.jsonContextSchema = results.JSONContextSchema
+				entry.jsonContextKeys = results.JSONContextKeys
 				entry.jsonContextValues = results.JSONContextValues
 			} else {
 				entry.content = string(content)
@@ -302,7 +302,7 @@ func (mt *MessageTranslator) processBatch(batch []batchEntry, outputChan chan *m
 			log.Warnf("Failed to tokenize log message: %v", tokenResults[i].Err)
 			continue
 		}
-		mt.processPreTokenized(entry.msg, tokenResults[i].TokenList, entry.messageKey, entry.jsonContextSchema, entry.jsonContextValues, outputChan)
+		mt.processPreTokenized(entry.msg, tokenResults[i].TokenList, entry.messageKey, entry.jsonContextKeys, entry.jsonContextValues, outputChan)
 	}
 }
 
@@ -331,12 +331,13 @@ func (mt *MessageTranslator) processMessage(msg *message.Message, outputChan cha
 		return
 	}
 	contentStr := string(content)
-	var messageKey, jsonContextSchema string
+	var messageKey string
+	var jsonContextKeys []string
 	var jsonContextValues []interface{}
 	if results := processor.PreprocessJSON(content); results.Message != "" {
 		contentStr = results.Message
 		messageKey = results.MessageKey
-		jsonContextSchema = results.JSONContextSchema
+		jsonContextKeys = results.JSONContextKeys
 		jsonContextValues = results.JSONContextValues
 	}
 	tokenList, err := mt.tokenizer.Tokenize(contentStr)
@@ -344,12 +345,12 @@ func (mt *MessageTranslator) processMessage(msg *message.Message, outputChan cha
 		log.Warnf("Failed to tokenize log message: %v", err)
 		return
 	}
-	mt.processPreTokenized(msg, tokenList, messageKey, jsonContextSchema, jsonContextValues, outputChan)
+	mt.processPreTokenized(msg, tokenList, messageKey, jsonContextKeys, jsonContextValues, outputChan)
 }
 
 // processPreTokenized handles post-tokenization: clustering, eviction, datum construction, and sending.
 // Called by both processBatch (batch pipeline) and processMessage (single-message path).
-func (mt *MessageTranslator) processPreTokenized(msg *message.Message, tokenList *token.TokenList, messageKey string, jsonContextSchema string, jsonContextValues []interface{}, outputChan chan *message.StatefulMessage) {
+func (mt *MessageTranslator) processPreTokenized(msg *message.Message, tokenList *token.TokenList, messageKey string, jsonContextKeys []string, jsonContextValues []interface{}, outputChan chan *message.StatefulMessage) {
 	var patternDefineSent bool
 	var patternDefineParamCount uint32
 
@@ -449,8 +450,8 @@ func (mt *MessageTranslator) processPreTokenized(msg *message.Message, tokenList
 	var messageKeyDV *statefulpb.DynamicValue
 	var jsonContextSchemaID uint64
 	var jsonContextValuesDV []*statefulpb.DynamicValue
-	if jsonContextSchema != "" {
-		messageKeyDV, jsonContextSchemaID = mt.sendJsonSchemaDefineIfNeeded(outputChan, msg, messageKey, jsonContextSchema)
+	if len(jsonContextKeys) > 0 {
+		messageKeyDV, jsonContextSchemaID = mt.sendJsonSchemaDefineIfNeeded(outputChan, msg, messageKey, jsonContextKeys)
 
 		jsonContextDVBacking := make([]statefulpb.DynamicValue, len(jsonContextValues))
 		jsonContextTypeBacking := make([]dvTypeBackings, len(jsonContextValues))
@@ -600,7 +601,7 @@ func (mt *MessageTranslator) buildStatusField(msg *message.Message) (uint64, str
 	return dictID, status, isNew
 }
 
-func (mt *MessageTranslator) sendJsonSchemaDefineIfNeeded(outputChan chan *message.StatefulMessage, msg *message.Message, messageKey string, jsonContextSchema string) (*statefulpb.DynamicValue, uint64) {
+func (mt *MessageTranslator) sendJsonSchemaDefineIfNeeded(outputChan chan *message.StatefulMessage, msg *message.Message, messageKey string, keys []string) (*statefulpb.DynamicValue, uint64) {
 	if messageKey == "" {
 		messageKey = "message"
 	}
@@ -609,8 +610,9 @@ func (mt *MessageTranslator) sendJsonSchemaDefineIfNeeded(outputChan chan *messa
 		mt.sendDictEntryDefine(outputChan, msg, messageKeyID, messageKey)
 	}
 
-	keys := strings.Split(jsonContextSchema, ",")
 	keyIDs := make([]uint64, 0, len(keys))
+	schemaKeyBuilder := strings.Builder{}
+	schemaKeyBuilder.WriteString(messageKey)
 	for _, key := range keys {
 		if key == "" {
 			continue
@@ -620,9 +622,11 @@ func (mt *MessageTranslator) sendJsonSchemaDefineIfNeeded(outputChan chan *messa
 			mt.sendDictEntryDefine(outputChan, msg, keyID, key)
 		}
 		keyIDs = append(keyIDs, keyID)
+		schemaKeyBuilder.WriteByte('\x00')
+		schemaKeyBuilder.WriteString(key)
 	}
 
-	schemaKey := messageKey + "\x00" + jsonContextSchema
+	schemaKey := schemaKeyBuilder.String()
 	schemaID, ok := mt.jsonSchemaToID[schemaKey]
 	if !ok {
 		mt.nextJSONSchemaID++
