@@ -93,7 +93,6 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
     :param config_path: Static quality gates configuration file path
     :return: List of quality gates
     """
-    final_state = "success"
     gate_states = []
     metric_handler = GateMetricHandler(
         git_ref=os.environ["CI_COMMIT_REF_SLUG"], bucket_branch=os.environ["BUCKET_BRANCH"]
@@ -254,8 +253,7 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
                     gate_state["blocking"] = exception_checker.get() is None
 
     # Compute final_state now that all post-processing is done.
-    if any(gs["state"] is False for gs in gate_states):
-        final_state = "failure"
+    final_state = "failure" if any(gs["state"] is False for gs in gate_states) else "success"
     ctx.run(f"datadog-ci tag --level job --tags static_quality_gates:\"{final_state}\"")
 
     # Print summary table directly with composition-based gates and metric handler
