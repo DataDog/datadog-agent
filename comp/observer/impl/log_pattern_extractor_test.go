@@ -11,6 +11,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
 func TestLogPatternExtractor_GetContextByKeyUsesOutputContextKey(t *testing.T) {
@@ -332,4 +334,284 @@ func TestLogPatternExtractor_NoGCBeforeInterval(t *testing.T) {
 	// GC interval not elapsed: no evictions even though cluster would be stale.
 	res2 := e.ProcessLog(&mockLogView{content: msg, status: "warn", tags: nil, timestampMs: 2_000_000})
 	assert.Empty(t, res2.EvictedContextKeys)
+}
+
+func TestLogPatternExtractor_LRUCapEvictsAndDropsContext(t *testing.T) {
+	// Configure tight cap with MinClusterSizeBeforeEmit=1 so each new shape
+	// emits a metric (and therefore a context entry) on its first appearance.
+	cfg := DefaultLogPatternExtractorConfig()
+	cfg.MinClusterSizeBeforeEmit = 1
+	cfg.MaxPatternsPerGroup = 2
+	cfg.MaxTagGroups = -1 // disable group cap so we test only per-group LRU
+	e := NewLogPatternExtractor(cfg)
+
+	tags := []string{"service:api"}
+	// Three distinct shapes (different token counts → different signatures →
+	// different clusters; they don't merge).
+	msgs := []string{
+		"WARN alpha",
+		"WARN beta gamma",
+		"WARN x y z w",
+	}
+
+	var ctxKeys []string
+	for i, m := range msgs {
+		res := e.ProcessLog(&mockLogView{
+			content:     []byte(m),
+			status:      "warn",
+			tags:        tags,
+			timestampMs: int64(1_000_000 + i*1_000), // 1s apart so LastSeenUnix differs
+		})
+		require.Len(t, res.Metrics, 1, "each distinct shape should emit a metric (i=%d)", i)
+		ctxKeys = append(ctxKeys, res.Metrics[0].ContextKey)
+
+		switch i {
+		case 0, 1:
+			require.Empty(t, res.EvictedContextKeys, "no eviction below or at cap (i=%d)", i)
+		case 2:
+			// Third shape pushes over the cap of 2; the oldest (ctxKeys[0]) is evicted.
+			require.Equal(t, []string{ctxKeys[0]}, res.EvictedContextKeys,
+				"oldest cluster's context key surfaced for the engine to drop")
+			// Confirm the engine-side context entry was actually removed.
+			_, ok := e.GetContextByKey(ctxKeys[0])
+			require.False(t, ok, "evicted cluster's pattern context should be gone")
+			_, ok = e.GetContextByKey(ctxKeys[1])
+			require.True(t, ok, "surviving cluster's context still resolvable")
+			_, ok = e.GetContextByKey(ctxKeys[2])
+			require.True(t, ok, "newly-inserted cluster's context resolvable")
+			// Pattern_count telemetry must include a -1 decrement for the eviction.
+			var found bool
+			for _, tel := range res.Telemetry {
+				if tel.Metric == nil {
+					continue
+				}
+				if tel.Metric.GetName() == "observer.log_pattern_extractor.pattern_count" && tel.Metric.GetValue() < 0 {
+					found = true
+				}
+			}
+			require.True(t, found, "LRU eviction should emit a negative pattern_count telemetry")
+		}
+	}
+
+	require.Equal(t, 1, e.taggedClusterer.NumSubClusterers(), "single tag group across all messages")
+	require.Len(t, e.taggedClusterer.GetAllClusters(), 2, "cap holds at MaxPatternsPerGroup=2")
+}
+
+func TestLogPatternExtractor_TagGroupCapEvictsLRUGroup(t *testing.T) {
+	cfg := DefaultLogPatternExtractorConfig()
+	cfg.MinClusterSizeBeforeEmit = 1
+	cfg.MaxPatternsPerGroup = -1 // disable per-group cap
+	cfg.MaxTagGroups = 2
+	e := NewLogPatternExtractor(cfg)
+
+	processAt := func(service string, msg string, tsMs int64) string {
+		res := e.ProcessLog(&mockLogView{
+			content:     []byte(msg),
+			status:      "warn",
+			tags:        []string{"service:" + service},
+			timestampMs: tsMs,
+		})
+		require.Len(t, res.Metrics, 1)
+		return res.Metrics[0].ContextKey
+	}
+
+	// Two groups, two contexts.
+	kA := processAt("a", "WARN alpha", 1_000_000)
+	kB := processAt("b", "WARN beta", 1_001_000)
+
+	// Touch A again so B is the LRU group.
+	_ = processAt("a", "WARN alpha", 1_002_000)
+
+	// Adding a third group must evict B's lone cluster.
+	res := e.ProcessLog(&mockLogView{
+		content:     []byte("WARN gamma"),
+		status:      "warn",
+		tags:        []string{"service:c"},
+		timestampMs: 1_003_000,
+	})
+	require.Len(t, res.Metrics, 1)
+	require.Contains(t, res.EvictedContextKeys, kB, "LRU group's context key surfaced")
+	_, ok := e.GetContextByKey(kB)
+	require.False(t, ok, "evicted group's context entry removed")
+	_, ok = e.GetContextByKey(kA)
+	require.True(t, ok, "surviving group's context preserved")
+}
+
+// TestEngine_LogPatternLRUEvictionFreesStorage is the end-to-end proof that
+// the structural leak is fixed: when the extractor's LRU evicts a cluster,
+// the engine no longer just drops its contextRefs entry — it also calls
+// storage.RemoveSeriesByKeys so the per-series tags slice + columnar arrays
+// + sample buffer are actually freed. Before this fix, timeSeriesStorage.series
+// grew monotonically for the lifetime of the agent, regardless of LRU caps.
+func TestEngine_LogPatternLRUEvictionFreesStorage(t *testing.T) {
+	cfg := DefaultLogPatternExtractorConfig()
+	cfg.MinClusterSizeBeforeEmit = 1
+	cfg.MaxPatternsPerGroup = 2
+	cfg.MaxTagGroups = -1
+	extractor := NewLogPatternExtractor(cfg)
+
+	storage := newTimeSeriesStorage()
+	e := newEngine(engineConfig{
+		storage:    storage,
+		extractors: []observerdef.LogMetricsExtractor{extractor},
+	})
+
+	tags := []string{"service:api"}
+	msgs := []string{
+		"WARN alpha",
+		"WARN beta gamma",
+		"WARN x y z w",
+	}
+
+	for i, m := range msgs {
+		e.IngestLog("src", &logObs{
+			content:     []byte(m),
+			status:      "warn",
+			tags:        tags,
+			timestampMs: int64(1_000_000 + i*1_000),
+		})
+	}
+
+	// Without the storage-side eviction, count would be 3 (every shape ever
+	// seen leaves a series behind). With it, the LRU eviction during the 3rd
+	// ingest removes cluster #1 from storage before cluster #3's series is
+	// added, so count is 2.
+	require.Equal(t, 2, storage.TotalSeriesCount(""),
+		"LRU eviction must shrink storage; before the fix storage grew unboundedly")
+
+	// All surviving contextRefs must resolve to live storage series — i.e.
+	// nothing dangling on the engine side either.
+	for key := range e.contextRefs {
+		ref, ok := storage.seriesIDs[key]
+		require.True(t, ok, "engine contextRef without storage series for key %q", key)
+		require.NotNil(t, storage.GetSeriesMeta(ref),
+			"engine contextRef points at a retired storage ref for key %q", key)
+	}
+	require.Len(t, e.contextRefs, 2,
+		"engine should keep one contextRef per surviving extractor cluster")
+}
+
+// TestEngine_LogPatternLRUEvictionFreesDetectorState extends
+// TestEngine_LogPatternLRUEvictionFreesStorage to cover the detector side.
+// Storage frees the evicted series via RemoveSeriesByKeys, but stateful
+// detectors keep parallel per-series maps (BOCPD posterior, ScanMW/ScanWelch
+// segment trackers, seriesDetectorAdapter.lastVisibleCount) keyed by the
+// SeriesRef they observed during Detect(). Without engine.fanOutSeriesRemoval
+// those maps grow with the cumulative number of series ever seen, defeating
+// the LRU caps on the upstream extractors. This test checks that BOCPD's map
+// shrinks back in lockstep with storage.
+func TestEngine_LogPatternLRUEvictionFreesDetectorState(t *testing.T) {
+	cfg := DefaultLogPatternExtractorConfig()
+	cfg.MinClusterSizeBeforeEmit = 1
+	cfg.MaxPatternsPerGroup = 2
+	cfg.MaxTagGroups = -1
+	extractor := NewLogPatternExtractor(cfg)
+
+	bocpd := NewBOCPDDetector(BOCPDConfig{})
+	scanmw := NewScanMWDetector()
+	scanwelch := NewScanWelchDetector()
+
+	// Stateless detector that does NOT implement SeriesRemover. Registering it
+	// alongside the stateful ones exercises the fanOutSeriesRemoval type-assertion
+	// fast-path: detectors without per-series state must be silently skipped, never
+	// invoked with RemoveSeries (which would panic since they don't implement it),
+	// and never block the eviction broadcast to the stateful detectors that follow.
+	stateless := &statelessTestDetector{name: "stateless"}
+
+	storage := newTimeSeriesStorage()
+	e := newEngine(engineConfig{
+		storage:    storage,
+		extractors: []observerdef.LogMetricsExtractor{extractor},
+		detectors: []observerdef.Detector{
+			bocpd,
+			scanmw,
+			scanwelch,
+			stateless,
+		},
+	})
+
+	tags := []string{"service:api"}
+	msgs := []string{
+		"WARN alpha",
+		"WARN beta gamma",
+	}
+	for i, m := range msgs {
+		e.IngestLog("src", &logObs{
+			content:     []byte(m),
+			status:      "warn",
+			tags:        tags,
+			timestampMs: int64(1_000_000 + i*1_000),
+		})
+	}
+
+	// Drive Detect() so the detectors observe the series and populate their
+	// per-series state maps. dataTime needs to be ahead of the last point.
+	bocpd.Detect(storage, 1_001_000)
+	scanmw.Detect(storage, 1_001_000)
+	scanwelch.Detect(storage, 1_001_000)
+
+	bocpdBefore := len(bocpd.series)
+	scanmwBefore := len(scanmw.series)
+	scanwelchBefore := len(scanwelch.series)
+	require.Greater(t, bocpdBefore, 0, "BOCPD should have observed the series before eviction")
+	require.Greater(t, scanmwBefore, 0, "ScanMW should have observed the series before eviction")
+	require.Greater(t, scanwelchBefore, 0, "ScanWelch should have observed the series before eviction")
+
+	// Trigger LRU eviction by ingesting a third pattern that pushes the
+	// oldest cluster out. After the fix, the engine fans the freed refs
+	// out to every detector and the per-series maps shrink accordingly.
+	e.IngestLog("src", &logObs{
+		content:     []byte("WARN x y z w"),
+		status:      "warn",
+		tags:        tags,
+		timestampMs: 1_002_000,
+	})
+
+	// Storage shrunk to two series (LRU cap), so detector maps must now
+	// have at most two entries per agg too. Without the fan-out, they
+	// would still hold three entries (one per series ever observed).
+	require.Equal(t, 2, storage.TotalSeriesCount(""), "LRU should keep storage bounded")
+
+	// Each detector defaults to 2 aggregations (Average, Count). Before the
+	// fan-out fix, the maps held 3 series Ã 2 aggs = 6 entries even though
+	// only 2 series remained live. After the fix the engine drops the evicted
+	// ref's entries, so we expect at most 2 Ã 2 = 4 (and certainly fewer than
+	// the pre-eviction count, which had to grow first to detect the leak).
+	// Before the fan-out fix the maps held bocpdBefore entries (2 series Ã
+	// 2 aggs = 4) and stayed there even after one of the series was evicted,
+	// because storage cleanup didn't propagate to detector state. After the
+	// fix, fanOutSeriesRemoval drops exactly the evicted ref's entries.
+	require.Less(t, len(bocpd.series), bocpdBefore,
+		"BOCPD per-series map must shrink when storage evicts a series; without the fan-out it stays at %d", bocpdBefore)
+	require.LessOrEqual(t, len(bocpd.series), 2*len(bocpd.config.Aggregations),
+		"BOCPD per-series map must not exceed live series Ã aggregations")
+	require.Less(t, len(scanmw.series), scanmwBefore,
+		"ScanMW per-series map must shrink when storage evicts a series; without the fan-out it stays at %d", scanmwBefore)
+	require.LessOrEqual(t, len(scanmw.series), 2*len(scanmw.Aggregations),
+		"ScanMW per-series map must not exceed live series Ã aggregations")
+	require.Less(t, len(scanwelch.series), scanwelchBefore,
+		"ScanWelch per-series map must shrink when storage evicts a series; without the fan-out it stays at %d", scanwelchBefore)
+	require.LessOrEqual(t, len(scanwelch.series), 2*len(scanwelch.Aggregations),
+		"ScanWelch per-series map must not exceed live series \u00d7 aggregations")
+
+	// Sanity check the stateless detector: registering it alongside the
+	// stateful ones means the eviction fan-out above iterated over it. The
+	// SeriesRemover type-assertion in fanOutSeriesRemoval is what keeps that
+	// safe — if it ever regresses (e.g. someone replaces the optional check
+	// with a hard call), this test panics on the runtime type-assertion
+	// failure during the eviction triggered above.
+	_ = stateless
+}
+
+// statelessTestDetector is a minimal observerdef.Detector that intentionally
+// does NOT implement observerdef.SeriesRemover. Used to verify that the
+// engine's eviction fan-out doesn't assume every detector tracks per-series
+// state.
+type statelessTestDetector struct {
+	name string
+}
+
+func (s *statelessTestDetector) Name() string { return s.name }
+func (s *statelessTestDetector) Detect(_ observerdef.StorageReader, _ int64) observerdef.DetectionResult {
+	return observerdef.DetectionResult{}
 }
