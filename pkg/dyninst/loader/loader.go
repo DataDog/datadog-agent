@@ -36,6 +36,13 @@ type Loader struct {
 	ringbufMap    *ebpf.Map
 	ringbufReader *ringbuf.Reader
 
+	// Side-channel ringbuffer for drop notifications. Carries fixed-size
+	// messages informing userspace that an event couldn't be submitted on
+	// the main ringbuffer, so userspace can salvage or discard the
+	// associated buffered state rather than leak it.
+	dropNotifyMap    *ebpf.Map
+	dropNotifyReader *ringbuf.Reader
+
 	ebpfSpec *ebpf.CollectionSpec
 }
 
@@ -58,6 +65,14 @@ func WithDebugLevel(level int) Option {
 // WithAdditionalSerializer sets an additional serializer for the ebpf program.
 func WithAdditionalSerializer(serializer compiler.CodeSerializer) Option {
 	return additionalSerializerOption{serializer}
+}
+
+// WithUseMultiAttach configures the loader to load programs for attachment
+// via the uprobe_multi link type (BPF_LINK_TYPE_UPROBE_MULTI). The caller is
+// responsible for ensuring the running kernel supports this link type
+// (Linux 6.6+); the loader does not probe for support.
+func WithUseMultiAttach(enabled bool) Option {
+	return useMultiAttachOption(enabled)
 }
 
 // NewLoader creates a new Loader.
@@ -86,7 +101,7 @@ func (l *Loader) Load(program compiler.Program) (*Program, error) {
 	}
 	defer func() {
 		for k, m := range maps {
-			if k == ringbufMapName {
+			if k == ringbufMapName || k == dropNotifyMapName {
 				continue
 			}
 			_ = m.Close()
@@ -99,9 +114,18 @@ func (l *Loader) Load(program compiler.Program) (*Program, error) {
 	}
 	ringbufMapSpec.MaxEntries = uint32(l.config.ringBufSize)
 
+	if l.config.useMultiAttach {
+		progSpec, ok := spec.Programs["probe_run_with_cookie"]
+		if !ok {
+			return nil, errors.New("probe_run_with_cookie program not found in eBPF spec")
+		}
+		progSpec.AttachType = ebpf.AttachTraceUprobeMulti
+	}
+
 	opts := ebpf.CollectionOptions{}
 	opts.MapReplacements = maps
 	opts.MapReplacements[ringbufMapName] = l.ringbufMap
+	opts.MapReplacements[dropNotifyMapName] = l.dropNotifyMap
 	collection, err := ebpf.NewCollectionWithOptions(spec, opts)
 	if err != nil {
 		var ve *ebpf.VerifierError
@@ -117,9 +141,10 @@ func (l *Loader) Load(program compiler.Program) (*Program, error) {
 
 	maps = nil
 	return &Program{
-		Collection:   collection,
-		BpfProgram:   bpfProgram,
-		Attachpoints: serialized.bpfAttachPoints,
+		Collection:     collection,
+		BpfProgram:     bpfProgram,
+		Attachpoints:   serialized.bpfAttachPoints,
+		UseMultiAttach: l.config.useMultiAttach,
 	}, nil
 }
 
@@ -155,6 +180,15 @@ func (l *Loader) OutputReader() *ringbuf.Reader {
 	return l.ringbufReader
 }
 
+// DropNotifyReader returns the side-channel ringbuffer reader carrying
+// drop notifications.
+func (l *Loader) DropNotifyReader() *ringbuf.Reader {
+	if l.dropNotifyReader == nil {
+		panic("drop-notify ringbuffer reader not initialized")
+	}
+	return l.dropNotifyReader
+}
+
 // Close releases loader resources.
 func (l *Loader) Close() (err error) {
 	if l.ringbufReader != nil {
@@ -162,6 +196,12 @@ func (l *Loader) Close() (err error) {
 	}
 	if l.ringbufMap != nil {
 		err = errors.Join(err, l.ringbufMap.Close())
+	}
+	if l.dropNotifyReader != nil {
+		err = errors.Join(err, l.dropNotifyReader.Close())
+	}
+	if l.dropNotifyMap != nil {
+		err = errors.Join(err, l.dropNotifyMap.Close())
 	}
 	return err
 }
@@ -171,6 +211,10 @@ type Program struct {
 	Collection   *ebpf.Collection
 	BpfProgram   *ebpf.Program
 	Attachpoints []BPFAttachPoint
+	// UseMultiAttach indicates that the program was loaded with
+	// AttachTraceUprobeMulti and should be attached using
+	// link.Executable.UprobeMulti rather than per-address Uprobe calls.
+	UseMultiAttach bool
 }
 
 // Close releases the program resources.
@@ -211,6 +255,35 @@ func (p *Program) RuntimeStats() []RuntimeStats {
 const defaultRingbufSize = 1 << 20 // 1 MiB
 const ringbufMapName = "out_ringbuf"
 
+// Side-channel ringbuf. Small (16 KiB ~= 500 notifications); notifications
+// are fixed-size so it very rarely fills under pressure. Kept in sync with
+// DROP_NOTIFY_RINGBUF_CAPACITY in ../ebpf/scratch.h.
+const defaultDropNotifyRingbufSize = 1 << 14
+const dropNotifyMapName = "drop_notify_ringbuf"
+
+// dropNotifyLostAtMapName is a single-slot BPF_MAP_TYPE_ARRAY holding the
+// most recent ktime_ns at which the BPF side failed to publish a drop
+// notification (drop_notify_ringbuf full). Userspace polls it to drive
+// eventbuf eviction. See pkg/dyninst/ebpf/scratch.h.
+const dropNotifyLostAtMapName = "drop_notify_lost_at"
+
+// DropNotifyLostAt returns the kernel-monotonic ktime_ns of the most
+// recent in-BPF attempt to publish a drop notification that failed
+// because the side-channel ringbuf was full. Returns 0 if no failure has
+// ever been recorded for this program (or if the map is unavailable).
+func (p *Program) DropNotifyLostAt() uint64 {
+	m, ok := p.Collection.Maps[dropNotifyLostAtMapName]
+	if !ok {
+		return 0
+	}
+	var key uint32
+	var val uint64
+	if err := m.Lookup(&key, &val); err != nil {
+		return 0
+	}
+	return val
+}
+
 type config struct {
 	ebpfConfig *ddebpf.Config
 
@@ -218,6 +291,8 @@ type config struct {
 
 	dyninstDebugLevel   uint8
 	dyninstDebugEnabled bool
+
+	useMultiAttach bool
 
 	additionalSerializer compiler.CodeSerializer
 }
@@ -254,6 +329,12 @@ func (o additionalSerializerOption) apply(c *config) {
 	c.additionalSerializer = o
 }
 
+type useMultiAttachOption bool
+
+func (o useMultiAttachOption) apply(c *config) {
+	c.useMultiAttach = bool(o)
+}
+
 func (l *Loader) init(opts ...Option) error {
 	l.config.ringBufSize = defaultRingbufSize
 	for _, opt := range opts {
@@ -275,6 +356,18 @@ func (l *Loader) init(opts ...Option) error {
 	if err != nil {
 		return fmt.Errorf("failed to create ringbuffer reader: %w", err)
 	}
+	l.dropNotifyMap, err = ebpf.NewMap(&ebpf.MapSpec{
+		Name:       dropNotifyMapName,
+		Type:       ebpf.RingBuf,
+		MaxEntries: defaultDropNotifyRingbufSize,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create drop-notify ringbuffer map: %w", err)
+	}
+	l.dropNotifyReader, err = ringbuf.NewReader(l.dropNotifyMap)
+	if err != nil {
+		return fmt.Errorf("failed to create drop-notify ringbuffer reader: %w", err)
+	}
 	obj, err := getBpfObject(&l.config)
 	if err != nil {
 		return fmt.Errorf("failed to get eBPF object: %w", err)
@@ -290,6 +383,9 @@ func (l *Loader) init(opts ...Option) error {
 		return errors.New("ringbuffer map not found in eBPF spec")
 	}
 	ringbufMapSpec.MaxEntries = uint32(l.config.ringBufSize)
+	if _, ok := l.ebpfSpec.Maps[dropNotifyMapName]; !ok {
+		return errors.New("drop-notify ringbuffer map not found in eBPF spec")
+	}
 	return nil
 }
 

@@ -26,6 +26,7 @@ go_library(
         "//pkg/config/setup",
         "//pkg/util/defaultpaths",
         "//pkg/util/fxutil",
+        "@in_yaml_go_yaml_v2//:yaml",
         "@org_uber_go_fx//:fx",
     ] + select({
         "@rules_go//go/platform:windows": [

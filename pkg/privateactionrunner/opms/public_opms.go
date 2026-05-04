@@ -47,17 +47,19 @@ type PublicClient interface {
 }
 
 type publicClient struct {
-	ddApiHost  string
-	httpClient *http.Client
+	ddApiHost    string
+	httpClient   *http.Client
+	extraHeaders map[string]string
 }
 
-func NewPublicClient(ddBaseURL string) PublicClient {
+func NewPublicClient(ddBaseURL string, extraHeaders map[string]string) PublicClient {
 	apiHost := strings.Replace(ddBaseURL, "https://", "", 1)
 	return &publicClient{
 		ddApiHost: apiHost,
 		httpClient: &http.Client{
 			Timeout: time.Millisecond * time.Duration(30_000),
 		},
+		extraHeaders: extraHeaders,
 	}
 }
 
@@ -142,6 +144,9 @@ func (p *publicClient) doEnrollRequest(ctx context.Context, url string, body []b
 		req.Header.Set("DD-APPLICATION-KEY", appKey)
 	}
 	req.Header.Set(app.VersionHeaderName, parversion.RunnerVersion)
+	for k, v := range p.extraHeaders {
+		req.Header.Set(k, v)
+	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {

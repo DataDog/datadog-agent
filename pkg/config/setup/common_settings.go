@@ -176,6 +176,10 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("prometheus_scrape.checks", "")               // Defines any extra prometheus/openmetrics check configurations to be handled by the prometheus config provider
 	config.BindEnvAndSetDefault("prometheus_scrape.version", 1)               // Version of the openmetrics check to be scheduled by the Prometheus auto-discovery
 
+	// Prometheus HTTP Service Discovery
+	config.BindEnvAndSetDefault("prometheus_http_sd.url", "")            // URL of the Prometheus HTTP SD endpoint
+	config.BindEnvAndSetDefault("prometheus_http_sd.check_template", "") // JSON check template applied to each discovered target (e.g. '{"name":"openmetrics","init_config":{},"instances":[{"openmetrics_endpoint":"http://%%host%%:%%port%%/metrics"}]}')
+
 	// Network Devices Monitoring
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.metadata.")
 	config.BindEnvAndSetDefault("network_devices.namespace", "default")
@@ -1041,7 +1045,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 
 	// Data Plane
 	config.BindEnvAndSetDefault("data_plane.enabled", false)
-	config.BindEnvAndSetDefault("data_plane.dogstatsd.enabled", false)
+	config.BindEnvAndSetDefault("data_plane.dogstatsd.enabled", true)
 	config.BindEnvAndSetDefault("data_plane.otlp.enabled", false)
 	config.BindEnvAndSetDefault("data_plane.otlp.proxy.enabled", false)
 	// When the ADP OTLP proxy is enabled, ADP owns the gRPC endpoint configured for the receiver (default :4317) and the core agent uses the endpoint below
@@ -1288,6 +1292,27 @@ func agent(config pkgconfigmodel.Setup) {
 
 	pkgconfigmodel.AddOverrideFunc(toggleDefaultPayloads)
 	pkgconfigmodel.AddOverrideFunc(applyInfrastructureModeOverrides)
+	pkgconfigmodel.AddOverrideFunc(ApplyUseDogstatsdSuppression)
+}
+
+// ApplyUseDogstatsdSuppression is a post-load override that, when
+// use_dogstatsd is false, forces data_plane.dogstatsd.enabled to false
+// so the Agent Data Plane process (which reads the latter via the
+// config stream) skips its DogStatsD source. data_plane.enabled is
+// intentionally left alone so other ADP pipelines (e.g. OTLP) keep
+// working independently of the DogStatsD master toggle.
+//
+// It is registered as an override func (runs after datadog.yaml loads) and
+// also called explicitly after fleet policy merging, because fleet policies
+// are applied after the initial override pass.
+//
+// Matches the truth table at
+// https://github.com/DataDog/saluki/issues/1334#issuecomment-4292253054.
+func ApplyUseDogstatsdSuppression(config pkgconfigmodel.Config) {
+	if !config.GetBool("use_dogstatsd") && config.GetBool("data_plane.dogstatsd.enabled") {
+		log.Infof("Forcing data_plane.dogstatsd.enabled=false because use_dogstatsd=false")
+		config.Set("data_plane.dogstatsd.enabled", false, pkgconfigmodel.SourceAgentRuntime)
+	}
 }
 
 func fleet(config pkgconfigmodel.Setup) {
@@ -1836,7 +1861,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// Maximum number of distinct patterns the sampler tracks at once.
 	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.max_patterns", 1000)
 	// Steady-state logs per second allowed for each matched pattern.
-	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.rate_limit", 1)
+	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.rate_limit", 1.0)
 	// Maximum burst allowance per pattern, measured in accumulated credits/logs.
 	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.burst_size", 1000.0)
 	// Fraction of tokens that must match for two logs to be treated as the same pattern.

@@ -1,0 +1,1210 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testManyStrings",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testManyStrings",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/continuation_strings.go",
+            "lineNumber": 33
+          },
+          {
+            "function": "main.executeContinuationStringFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/continuation_strings.go",
+            "lineNumber": 49
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 49
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testManyStrings",
+          "location": {
+            "method": "main.testManyStrings"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "ss": {
+                "type": "[]string",
+                "size": "252",
+                "elements": [
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "size": "40960",
+                    "truncated": true,
+                    "value": "<8192 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "value": "<512 byte string>"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  },
+                  {
+                    "type": "string",
+                    "size": "512",
+                    "notCapturedReason": "depth"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "@duration",
+            "message": "not available: function has no body"
+          }
+        ]
+      },
+      "type": "snapshot"
+    },
+    "timestamp": "[ts]",
+    "message": "[512xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx, 512xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx, 512xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx, ...]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  }
+]

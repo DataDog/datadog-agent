@@ -78,7 +78,7 @@ func getCoreSchema() (*jsonschema.Schema, error) {
 }
 
 func getSysprobeSchema() (*jsonschema.Schema, error) {
-	sysprobeOnce.Do(func() { compiledSysprobe, systemProbeError = loadSchema("system_probe_schema") })
+	sysprobeOnce.Do(func() { compiledSysprobe, systemProbeError = loadSchema("system-probe_schema") })
 	return compiledSysprobe, systemProbeError
 }
 
@@ -133,8 +133,8 @@ func ValidateSystemProbeConfig(config interface{}) ([]string, error) {
 	return validateData(sch, config)
 }
 
-// GetCoreSchema returns the raw  bytes of the embedded core agent configuration schema.
-func GetCoreSchema() ([]byte, error) { return getSchema("core") }
+// GetCoreSchema returns the raw bytes of the embedded core agent configuration schema.
+func GetCoreSchema() ([]byte, error) { return getSchema("core_schema") }
 
-// GetSystemProbeSchema returns the raw  bytes of the embedded system-probe configuration schema.
-func GetSystemProbeSchema() ([]byte, error) { return getSchema("system_probe") }
+// GetSystemProbeSchema returns the raw bytes of the embedded system-probe configuration schema.
+func GetSystemProbeSchema() ([]byte, error) { return getSchema("system-probe_schema") }

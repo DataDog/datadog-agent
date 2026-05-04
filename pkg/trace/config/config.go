@@ -515,6 +515,11 @@ type AgentConfig struct {
 	// DebuggerIntakeProxy contains the settings for the Live Debugger intake proxy.
 	DebuggerIntakeProxy DebuggerProxyConfig
 
+	// DebuggerLogsEnabled indicates whether logs are enabled at the agent level.
+	// When false, debugger proxy endpoints drop incoming data to respect the
+	// customer's intent of having the Logs product disabled.
+	DebuggerLogsEnabled bool
+
 	// SymDBProxy contains the settings for the Symbol Database proxy.
 	SymDBProxy SymDBProxyConfig
 

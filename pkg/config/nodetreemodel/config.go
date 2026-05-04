@@ -18,6 +18,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"go.uber.org/atomic"
 
@@ -140,6 +141,8 @@ type ntmConfig struct {
 	// TODO: remove 'findUnknownKeys' function from pkg/config/setup in favor of those warnings. We should return
 	// them from ReadConfig and ReadInConfig.
 	warnings []error
+
+	startTime time.Time
 }
 
 // NodeTreeConfig is an interface that gives access to nodes
@@ -1185,6 +1188,10 @@ func (c *ntmConfig) Warnings() *model.Warnings {
 	return &model.Warnings{Errors: c.warnings}
 }
 
+func (c *ntmConfig) StartTime() time.Time {
+	return c.startTime
+}
+
 // Object returns the config as a Reader interface
 func (c *ntmConfig) Object() model.Reader {
 	return c
@@ -1214,6 +1221,7 @@ func NewNodeTreeConfig(name string, envPrefix string, envKeyReplacer *strings.Re
 		root:               newInnerNode(nil),
 		envTransform:       make(map[string]func(string) interface{}),
 		configName:         "datadog",
+		startTime:          time.Now(),
 	}
 
 	config.SetConfigName(name)

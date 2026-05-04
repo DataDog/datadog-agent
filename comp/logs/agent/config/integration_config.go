@@ -160,10 +160,27 @@ type SourceAutoMultiLineOptions struct {
 }
 
 // SourceAdaptiveSamplingOptions defines per-source overrides for the experimental adaptive sampler.
-// Additional per-source filters can be added here later.
 type SourceAdaptiveSamplingOptions struct {
 	// Enabled overrides the global adaptive sampling toggle for this source when set.
 	Enabled *bool `mapstructure:"enabled" json:"enabled" yaml:"enabled"`
+
+	// MaxPatterns overrides the maximum number of patterns tracked for this source when set.
+	MaxPatterns *int `mapstructure:"max_patterns" json:"max_patterns" yaml:"max_patterns"`
+
+	// RateLimit overrides the steady-state logs per second allowed per pattern for this source when set.
+	RateLimit *float64 `mapstructure:"rate_limit" json:"rate_limit" yaml:"rate_limit"`
+
+	// BurstSize overrides the maximum accumulated credits per pattern for this source when set.
+	BurstSize *float64 `mapstructure:"burst_size" json:"burst_size" yaml:"burst_size"`
+
+	// MatchThreshold overrides the token match threshold for this source when set.
+	MatchThreshold *float64 `mapstructure:"match_threshold" json:"match_threshold" yaml:"match_threshold"`
+
+	// TokenizerMaxInputBytes overrides the sampler tokenizer minimum input bytes for this source when set.
+	TokenizerMaxInputBytes *int `mapstructure:"tokenizer_max_input_bytes" json:"tokenizer_max_input_bytes" yaml:"tokenizer_max_input_bytes"`
+
+	// ProtectImportantLogs overrides whether important logs bypass adaptive sampling for this source when set.
+	ProtectImportantLogs *bool `mapstructure:"protect_important_logs" json:"protect_important_logs" yaml:"protect_important_logs"`
 }
 
 // AutoMultilineSample defines a sample used to create auto multiline detection

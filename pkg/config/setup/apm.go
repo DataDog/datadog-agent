@@ -161,6 +161,7 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("apm_config.debugger_diagnostics_dd_url", "", "DD_APM_DEBUGGER_DIAGNOSTICS_DD_URL")
 	config.BindEnvAndSetDefault("apm_config.debugger_diagnostics_api_key", "", "DD_APM_DEBUGGER_DIAGNOSTICS_API_KEY")
 	config.BindEnvAndSetDefault("apm_config.debugger_diagnostics_additional_endpoints", map[string][]string{}, "DD_APM_DEBUGGER_DIAGNOSTICS_ADDITIONAL_ENDPOINTS")
+	config.BindEnvAndSetDefault("apm_config.debugger_logs_enabled_override", false, "DD_APM_DEBUGGER_LOGS_ENABLED_OVERRIDE")
 	config.BindEnvAndSetDefault("apm_config.symdb_dd_url", "", "DD_APM_SYMDB_DD_URL")
 	config.BindEnvAndSetDefault("apm_config.symdb_api_key", "", "DD_APM_SYMDB_API_KEY")
 	config.BindEnvAndSetDefault("apm_config.symdb_additional_endpoints", map[string][]string{}, "DD_APM_SYMDB_ADDITIONAL_ENDPOINTS")

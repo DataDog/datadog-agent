@@ -15,7 +15,9 @@ include:
         compare_to: $COMPARE_TO_BRANCH
 
 generate_config_schema-linux:
-  extends: .generate_config_schema
+  extends:
+    - .generate_config_schema
+    - .bazel:defs:cache:progressive
   variables:
     KUBERNETES_CPU_REQUEST: 16
     KUBERNETES_MEMORY_REQUEST: 16Gi
@@ -74,6 +76,7 @@ lint_config_schema:
 generate_config_schema-windows:
   extends:
     - .generate_config_schema
+    - .bazel:defs:cache:windows
     - .windows_docker_default
   needs: ["go_deps", "go_tools_deps"]
   variables:
@@ -81,10 +84,9 @@ generate_config_schema-windows:
   script:
     - $ErrorActionPreference = "Stop"
     - >
-      docker run --rm
+      .\tools\ci\docker-run-with-bazel-cache.ps1
       -m 8192M
       -v "$(Get-Location):c:\mnt"
-      -e CI
       -e GITLAB_CI
       -e CI_JOB_ID
       -e CI_PIPELINE_ID

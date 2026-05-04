@@ -29,7 +29,7 @@ prost = "0.14"
 prost-types = "0.14"
 protoc-gen-prost = "0.5"
 protoc-gen-tonic = "0.5"
-lru = { version = "0.16.0", default-features = false }
+lru = { version = "0.17.0", default-features = false }
 memchr = "2.7.6"
 nom = "8.0"
 normalize-path = "0.2"

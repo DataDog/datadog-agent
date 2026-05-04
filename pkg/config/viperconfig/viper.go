@@ -71,6 +71,8 @@ type safeConfig struct {
 	warnings []error
 
 	existingTransformers map[string]bool
+
+	startTime time.Time
 }
 
 // GetLibType return "viper"
@@ -1002,6 +1004,10 @@ func (c *safeConfig) Warnings() *model.Warnings {
 	return &model.Warnings{Errors: c.warnings}
 }
 
+func (c *safeConfig) StartTime() time.Time {
+	return c.startTime
+}
+
 func (c *safeConfig) Object() model.Reader {
 	return c
 }
@@ -1023,6 +1029,7 @@ func NewViperConfig(name string, envPrefix string, envKeyReplacer *strings.Repla
 		configEnvVars:        map[string]struct{}{},
 		unknownKeys:          map[string]struct{}{},
 		existingTransformers: make(map[string]bool),
+		startTime:            time.Now(),
 	}
 
 	// load one Viper instance per source of setting change

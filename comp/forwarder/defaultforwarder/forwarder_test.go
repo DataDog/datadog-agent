@@ -747,11 +747,15 @@ func syncTestProcessLikePayloadResponseTimeout(t *testing.T) {
 // are sent in a separate go func, the actual order they get sent will depend on the go scheduler.
 // This test ensures that we still on average send high priority transactions before low priority.
 func TestHighPriorityTransactionTendency(t *testing.T) {
+	synctest.Test(t, syncTestHighPriorityTransactionTendency)
+}
+
+func syncTestHighPriorityTransactionTendency(t *testing.T) {
 	var receivedRequests = make(map[string]struct{})
 	var mutex sync.Mutex
 	var requestChan = make(chan (string), 100)
 
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	transport := handlerTransport(func(w http.ResponseWriter, r *http.Request) {
 		mutex.Lock()
 		defer mutex.Unlock()
 		defer r.Body.Close()
@@ -767,21 +771,19 @@ func TestHighPriorityTransactionTendency(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 			requestChan <- bodyStr
 		}
-	}))
+	})
 
 	mockConfig := mock.New(t)
 	mockConfig.SetWithoutSource("forwarder_backoff_max", 0.5)
 	mockConfig.SetWithoutSource("forwarder_max_concurrent_requests", 10)
 
-	oldFlushInterval := flushInterval
-	flushInterval = 500 * time.Millisecond
-	defer func() { flushInterval = oldFlushInterval }()
-
 	log := logmock.New(t)
-	r, _ := resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{ts.URL: {configUtils.NewAPIKeys("path", "api_key1")}})
+	r, _ := resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{"http://test.invalid": {configUtils.NewAPIKeys("path", "api_key1")}})
 	secrets := secretsmock.New(t)
 	options := NewOptionsWithResolvers(mockConfig, log, r)
+	options.DisableAPIKeyChecking = true // Disable API key checking so no health check goroutine is started
 	options.Secrets = secrets
+	options.transport = transport
 	f := NewDefaultForwarder(mockConfig, log, options)
 
 	f.Start()

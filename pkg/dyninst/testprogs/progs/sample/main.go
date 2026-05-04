@@ -45,6 +45,9 @@ func main() {
 	lib.InlinedFunc()
 	lib2.UseGenericsWithFloat64()
 
+	executeContinuationFuncs()
+	executeContinuationStringFuncs()
+
 	// unsupported for MVP, should not cause failures
 	executeEsoteric()
 	executeGenericFuncs()

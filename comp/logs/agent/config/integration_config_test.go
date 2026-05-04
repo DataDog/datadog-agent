@@ -90,10 +90,22 @@ func TestAutoMultilineEnabled(t *testing.T) {
 }
 
 func TestExperimentalAdaptiveSamplingOptionsDecode(t *testing.T) {
-	cfg := decode(`{"experimental_adaptive_sampling":{"enabled":true}}`)
+	cfg := decode(`{"experimental_adaptive_sampling":{"enabled":true,"max_patterns":42,"rate_limit":2.5,"burst_size":17.5,"match_threshold":0.75,"tokenizer_max_input_bytes":512,"protect_important_logs":false}}`)
 	require.NotNil(t, cfg.ExperimentalAdaptiveSampling)
 	require.NotNil(t, cfg.ExperimentalAdaptiveSampling.Enabled)
 	assert.True(t, *cfg.ExperimentalAdaptiveSampling.Enabled)
+	require.NotNil(t, cfg.ExperimentalAdaptiveSampling.MaxPatterns)
+	assert.Equal(t, 42, *cfg.ExperimentalAdaptiveSampling.MaxPatterns)
+	require.NotNil(t, cfg.ExperimentalAdaptiveSampling.RateLimit)
+	assert.Equal(t, 2.5, *cfg.ExperimentalAdaptiveSampling.RateLimit)
+	require.NotNil(t, cfg.ExperimentalAdaptiveSampling.BurstSize)
+	assert.Equal(t, 17.5, *cfg.ExperimentalAdaptiveSampling.BurstSize)
+	require.NotNil(t, cfg.ExperimentalAdaptiveSampling.MatchThreshold)
+	assert.Equal(t, 0.75, *cfg.ExperimentalAdaptiveSampling.MatchThreshold)
+	require.NotNil(t, cfg.ExperimentalAdaptiveSampling.TokenizerMaxInputBytes)
+	assert.Equal(t, 512, *cfg.ExperimentalAdaptiveSampling.TokenizerMaxInputBytes)
+	require.NotNil(t, cfg.ExperimentalAdaptiveSampling.ProtectImportantLogs)
+	assert.False(t, *cfg.ExperimentalAdaptiveSampling.ProtectImportantLogs)
 }
 
 func TestAutoMultiLineStatus(t *testing.T) {

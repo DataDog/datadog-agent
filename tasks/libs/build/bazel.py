@@ -20,15 +20,31 @@ def bazel_not_found_message(color: str) -> str:
     return color_message("Please run `inv install-tools` for `bazel` support!", color)
 
 
-def bazel(ctx: Context, *args: str, capture_output: bool = False, sudo: bool = False) -> None | str:
-    """Execute a bazel command. Returns the captured standard output as string if capture_output=True."""
+def bazel(
+    ctx: Context,
+    *args: str,
+    capture_output: bool = False,
+    sudo: bool = False,
+    capture_stderr: bool = False,
+) -> None | str:
+    """Execute a bazel command.
+
+    capture_output: capture stdout.
+    capture_stderr: also capture stderr and append it to the returned string.
+        Use this when Bazel writes important output (e.g.  test results) to stderr
+        and the caller needs to process it.
+    """
 
     if not (resolved_bazel := shutil.which("bazel")):
         raise Exit(bazel_not_found_message("red"))
     cmd = ("sudo", resolved_bazel) if sudo else ("bazel",)
     kwargs = {}
+    # Invoke terminolgy is subtle. "hide" means hide from the user.
+    # In every other libray, that would be called capture, and the
+    # act of capturing it would hide it from the user.
+    # https://docs.pyinvoke.org/en/stable/api/runners.html#invoke.runners.Runner.run
     if capture_output:
-        kwargs["hide"] = "out"
+        kwargs["hide"] = "both" if capture_stderr else "out"
     elif not sudo and sys.stdout.isatty() and sys.platform != "win32":
         kwargs["pty"] = True
     result = ctx.run(
@@ -37,7 +53,11 @@ def bazel(ctx: Context, *args: str, capture_output: bool = False, sudo: bool = F
         in_stream=False,
         **kwargs,
     )
-    return result.stdout if capture_output else None
+    if not capture_output:
+        return None
+    if capture_stderr:
+        return (result.stdout or "") + (result.stderr or "")
+    return result.stdout
 
 
 class BazelTools:

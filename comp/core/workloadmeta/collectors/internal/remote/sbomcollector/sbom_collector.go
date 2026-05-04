@@ -151,10 +151,19 @@ func workloadmetaEventFromSBOMEventSet(store workloadmeta.Component, event *sbom
 		}
 	}
 
-	// Compress the final merged SBOM for storage
-	finalCompressedSBOM, err = sbomutil.CompressSBOM(&workloadmeta.SBOM{
+	// Compress the final merged SBOM, preserving scan metadata from the existing
+	// SBOM so Status/GenerationTime/etc. survive the runtime-enrichment update.
+	sbomToCompress := &workloadmeta.SBOM{
 		CycloneDXBOM: finalBom,
-	})
+	}
+	if existingImage != nil && existingImage.SBOM != nil {
+		sbomToCompress.Status = existingImage.SBOM.Status
+		sbomToCompress.GenerationTime = existingImage.SBOM.GenerationTime
+		sbomToCompress.GenerationDuration = existingImage.SBOM.GenerationDuration
+		sbomToCompress.GenerationMethod = existingImage.SBOM.GenerationMethod
+		sbomToCompress.Error = existingImage.SBOM.Error
+	}
+	finalCompressedSBOM, err = sbomutil.CompressSBOM(sbomToCompress)
 	if err != nil {
 		return workloadmeta.Event{}, fmt.Errorf("failed to compress SBOM for image %s: %w", imageID, err)
 	}

@@ -66,8 +66,8 @@ import (
 	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/core/mock"
 	logagent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/inventorychecksimpl"
+	inventorychecks "github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/def"
+	inventorychecksfx "github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/fx"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
@@ -186,7 +186,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				autodiscoveryimpl.Module(),
 				healthplatform.Bundle(),
 				defaultforwarder.NoopModule(),
-				inventorychecksimpl.Module(),
+				inventorychecksfx.Module(),
 				logscompression.Module(),
 				metricscompression.Module(),
 				filterlistfx.Module(),

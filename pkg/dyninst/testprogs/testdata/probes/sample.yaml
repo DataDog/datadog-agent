@@ -2889,3 +2889,42 @@ probes:
         dsl: "val"
     sampling:
       snapshotsPerSecond: 100
+  # Continuation test: 80 pointer fields to 512-byte structs.
+  # Total pointer-chased data ≈ 42KiB, exceeding the 32KiB scratch buffer
+  # and forcing at least one continuation fragment.
+  - id: testManyPointers
+    type: LOG_PROBE
+    tags:
+      - "foo:bar"
+    where:
+      methodName: main.testManyPointers
+    captureSnapshot: true
+    template: "{m}"
+    segments:
+      - json:
+          ref: "m"
+        dsl: "m"
+    sampling:
+      snapshotsPerSecond: 100
+  # Continuation test with strings: 251 strings of 512 bytes each plus one
+  # 40KiB string. maxLength=65536 allows capturing full string content up to
+  # 64KiB. The 512-byte strings are captured in full; the 40KiB string is too
+  # large for a single scratch buffer and will be skipped. The total
+  # pointer-chased data exceeds 32KiB, exercising continuation.
+  - id: testManyStrings
+    type: LOG_PROBE
+    tags:
+      - "foo:bar"
+    where:
+      methodName: main.testManyStrings
+    captureSnapshot: true
+    template: "{ss}"
+    segments:
+      - json:
+          ref: "ss"
+        dsl: "ss"
+    capture:
+      maxLength: 65536
+      maxCollectionSize: 1024
+    sampling:
+      snapshotsPerSecond: 100

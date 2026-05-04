@@ -617,6 +617,10 @@ func (t *teeConfig) Warnings() *model.Warnings {
 	return t.baseline.Warnings()
 }
 
+func (t *teeConfig) StartTime() time.Time {
+	return t.baseline.StartTime()
+}
+
 func (t *teeConfig) Object() model.Reader {
 	return t.baseline
 }

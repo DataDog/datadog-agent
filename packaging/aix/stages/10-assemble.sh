@@ -131,6 +131,7 @@ mkdir -p "$STAGING/var/run/datadog"
 mkdir -p "$STAGING/opt/datadog-agent/run"
 mkdir -p "$STAGING/opt/datadog-agent/checks.d"
 mkdir -p "$STAGING/opt/datadog-agent/conf.d"
+mkdir -p "$STAGING/etc/datadog-agent/checks.d"
 log "Runtime directories created"
 
 # ─── Step 4: Copy package lifecycle scripts into the staging tree ──────────────

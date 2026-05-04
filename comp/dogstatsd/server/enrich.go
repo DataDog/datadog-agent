@@ -113,6 +113,15 @@ func enrichMetricType(dogstatsdMetricType metricType) metrics.MetricType {
 	return metrics.GaugeType
 }
 
+// unitFromMetricType returns the Datadog unit string for a dogstatsd metric type.
+// Only timingType carries an implicit unit ("millisecond"); all other types return an empty string.
+func unitFromMetricType(mt metricType) string {
+	if mt == timingType {
+		return metrics.UnitMilliseconds
+	}
+	return ""
+}
+
 func isExcluded(metricName, namespace string, excludedNamespaces []string) bool {
 	if namespace != "" {
 		for _, prefix := range excludedNamespaces {
@@ -155,6 +164,8 @@ func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSam
 	// if 'ddSample.values' contains values we're enriching a multi-value
 	// dogstatsd message and will create a MetricSample per value. If not
 	// we will use 'ddSample.value'and return a single MetricSample
+	unit := unitFromMetricType(ddSample.metricType)
+
 	if len(ddSample.values) > 0 {
 		for idx := range ddSample.values {
 			dest = append(dest,
@@ -170,6 +181,7 @@ func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSam
 					OriginInfo: extractedOrigin,
 					ListenerID: listenerID,
 					Source:     metricSource,
+					Unit:       unit,
 				})
 		}
 		return dest
@@ -188,6 +200,7 @@ func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSam
 		OriginInfo: extractedOrigin,
 		ListenerID: listenerID,
 		Source:     metricSource,
+		Unit:       unit,
 	})
 }
 

@@ -419,6 +419,7 @@ func buildHTTPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfig
 		e.BackoffFactor = main.BackoffFactor
 		e.RecoveryInterval = main.RecoveryInterval
 		e.RecoveryReset = main.RecoveryReset
+		e.ConnectionResetInterval = main.ConnectionResetInterval
 		e.Version = main.Version
 		e.TrackType = intakeTrackType
 		e.Protocol = intakeProtocol

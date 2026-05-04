@@ -65,12 +65,43 @@ func (tb *TerminatedResourceBundle) Add(k8sCollector collectors.K8sCollector, ob
 	tb.terminatedResources[k8sCollector] = append(tb.terminatedResources[k8sCollector], resource)
 }
 
-// Run sends all buffered terminated resources
+// Run sends all buffered terminated resources.
 func (tb *TerminatedResourceBundle) Run() {
 	tb.mu.Lock()
 	defer tb.mu.Unlock()
+	tb.flush(true)
+}
 
-	// do not send terminated resources if the bundle is not enabled
+// Enable enables the TerminatedResourceBundle to start buffering terminated resources.
+func (tb *TerminatedResourceBundle) Enable() {
+	tb.mu.Lock()
+	defer tb.mu.Unlock()
+	tb.enabled = true
+}
+
+// Disable flushes any buffered terminated resources and then disables the bundle
+// from accepting new terminated resources.
+// Manifests are sent directly via the sender (bypassing the ManifestBuffer)
+// because the buffer goroutine may already be stopped when Disable is called.
+func (tb *TerminatedResourceBundle) Disable() {
+	tb.mu.Lock()
+	defer tb.mu.Unlock()
+
+	if !tb.enabled {
+		return
+	}
+
+	tb.flush(false)
+	tb.enabled = false
+}
+
+// flush processes and sends all buffered terminated resources.
+// Must be called with tb.mu held.
+// When useBuffer is true, manifest messages for collectors that support
+// buffering are sent through the ManifestBuffer channel (only safe while the
+// ManifestBuffer goroutine is running). When false, all manifests are sent
+// directly via the sender.
+func (tb *TerminatedResourceBundle) flush(useBuffer bool) {
 	if !tb.enabled {
 		return
 	}
@@ -97,11 +128,11 @@ func (tb *TerminatedResourceBundle) Run() {
 		nt := collector.Metadata().NodeType
 		orchestrator.SetCacheStats(result.ResourcesListed, len(result.Result.MetadataMessages), nt)
 
-		if collector.Metadata().IsMetadataProducer { // for CR and CRD we don't have metadata but only manifests
+		if collector.Metadata().IsMetadataProducer {
 			orchSender.OrchestratorMetadata(result.Result.MetadataMessages, tb.runCfg.ClusterID, int(nt))
 		}
 
-		if collector.Metadata().SupportsManifestBuffering {
+		if useBuffer && collector.Metadata().SupportsManifestBuffering {
 			BufferManifestProcessResult(result.Result.ManifestMessages, tb.manifestBuffer)
 		} else {
 			orchSender.OrchestratorManifest(result.Result.ManifestMessages, tb.runCfg.ClusterID)
@@ -109,24 +140,6 @@ func (tb *TerminatedResourceBundle) Run() {
 
 		tb.terminatedResources[collector] = make([]interface{}, 0, tb.runCfg.Config.MaxPerMessage)
 	}
-}
-
-// Enable enables the TerminatedResourceBundle to start buffering terminated resources.
-func (tb *TerminatedResourceBundle) Enable() {
-	tb.mu.Lock()
-	defer tb.mu.Unlock()
-	tb.enabled = true
-}
-
-// Disable flushes any buffered terminated resources and then disables the bundle
-// from accepting new terminated resources.
-func (tb *TerminatedResourceBundle) Disable() {
-	// send all buffered terminated resources
-	tb.Run()
-
-	tb.mu.Lock()
-	defer tb.mu.Unlock()
-	tb.enabled = false
 }
 
 func toTypedSlice(k8sCollector collectors.K8sCollector, list []interface{}) interface{} {

@@ -89,7 +89,6 @@ func ExtraFlareProviders(workloadmeta option.Option[workloadmeta.Component], ipc
 	for filename, fromFunc := range map[string]func() ([]byte, error){
 		"envvars.log":                         common.GetEnvVars,
 		"health.yaml":                         getHealth,
-		"go-routine-dump.log":                 func() ([]byte, error) { return remote.GetGoRoutineDump() },
 		"telemetry.log":                       func() ([]byte, error) { return remote.getHTTPCallContent(telemetryURL) },
 		"connectivity/resolved_endpoints.txt": getEndpointDNS,
 	} {
@@ -200,8 +199,7 @@ func (r *RemoteFlareProvider) provideRemoteConfig(ctx context.Context, fb flaret
 }
 
 func (r *RemoteFlareProvider) provideConfigDump(_ context.Context, fb flaretypes.FlareBuilder) error {
-	fb.AddFileFromFunc("process_agent_runtime_config_dump.yaml", r.getProcessAgentFullConfig)                                      //nolint:errcheck
-	fb.AddFileFromFunc("runtime_config_dump.yaml", func() ([]byte, error) { return common.MarshalDatadogRuntimeConfigDumpYAML() }) //nolint:errcheck
+	fb.AddFileFromFunc("process_agent_runtime_config_dump.yaml", r.getProcessAgentFullConfig) //nolint:errcheck
 	return nil
 }
 
@@ -248,8 +246,6 @@ func (r *RemoteFlareProvider) provideExtraFiles(_ context.Context, fb flaretypes
 		fb.AddFile("status.log", []byte("unable to get the status of the agent, is it running?"))           //nolint:errcheck
 		fb.AddFile("config-check.log", []byte("unable to get loaded checks config, is the agent running?")) //nolint:errcheck
 	} else {
-		fb.AddFileFromFunc("tagger-list.json", r.getAgentTaggerList)    //nolint:errcheck
-		fb.AddFileFromFunc("workload-list.log", r.getAgentWorkloadList) //nolint:errcheck
 		if !coreagent.ProcessChecksRunInCoreAgent() {
 			fb.AddFileFromFunc("process-agent_tagger-list.json", r.getProcessAgentTaggerList) //nolint:errcheck
 			r.getChecksFromProcessAgent(fb, getProcessAPIAddressPort)
@@ -376,17 +372,6 @@ func (r *RemoteFlareProvider) getChecksFromProcessAgent(fb flaretypes.FlareBuild
 	getCheck("process_discovery", "process_config.process_discovery.enabled")
 }
 
-func (r *RemoteFlareProvider) getAgentTaggerList() ([]byte, error) {
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
-	if err != nil {
-		return nil, err
-	}
-
-	taggerListURL := fmt.Sprintf("https://%v:%v/agent/tagger-list", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port"))
-
-	return r.GetTaggerList(taggerListURL)
-}
-
 func (r *RemoteFlareProvider) getProcessAgentTaggerList() ([]byte, error) {
 	addressPort, err := pkgconfigsetup.GetProcessAPIAddressPort(pkgconfigsetup.Datadog())
 	if err != nil {
@@ -414,15 +399,6 @@ func (r *RemoteFlareProvider) GetTaggerList(remoteURL string) ([]byte, error) {
 	writer.Flush()
 
 	return b.Bytes(), nil
-}
-
-func (r *RemoteFlareProvider) getAgentWorkloadList() ([]byte, error) {
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
-	if err != nil {
-		return nil, err
-	}
-
-	return r.GetWorkloadList(fmt.Sprintf("https://%v:%v/agent/workload-list?verbose=true", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port")))
 }
 
 // GetWorkloadList fetches the workload list from the given URL.

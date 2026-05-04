@@ -1,0 +1,87 @@
+binary: drop_tester
+probes:
+  # Entry-only probe on CaptureBytes. Large maxLength so a payload of
+  # 40 KiB is captured (exceeds 32 KiB scratch buffer, forces continuation).
+  # High snapshotsPerSecond so hundreds of hits per scenario make it through
+  # (the default of 1/s would let only one hit per probe fire, which
+  # defeats the purpose of stress-testing drop behavior).
+  - id: capture_bytes
+    type: LOG_PROBE
+    where:
+      methodName: main.CaptureBytes
+    captureSnapshot: true
+    capture:
+      maxLength: 65536
+      maxCollectionSize: 65536
+      maxReferenceDepth: 3
+    sampling:
+      snapshotsPerSecond: 10000
+
+  # Paired entry + return probe on CaptureBytesReturn. Entry captures the
+  # payload; return captures the result. Separate sizes let the test drive
+  # drops on either side independently.
+  - id: capture_bytes_return
+    type: LOG_PROBE
+    where:
+      methodName: main.CaptureBytesReturn
+    captureSnapshot: true
+    capture:
+      maxLength: 65536
+      maxCollectionSize: 65536
+      maxReferenceDepth: 3
+    sampling:
+      snapshotsPerSecond: 10000
+
+  # Pointer-chasing probe on CaptureChain. The linked list crosses the
+  # scratch buffer quickly once the chain length exceeds about 100 nodes
+  # (each ~64 bytes), so this probe exercises the mid-chase flush path.
+  - id: capture_chain
+    type: LOG_PROBE
+    where:
+      methodName: main.CaptureChain
+    captureSnapshot: true
+    capture:
+      maxLength: 65536
+      maxCollectionSize: 65536
+      maxReferenceDepth: 4096
+    sampling:
+      snapshotsPerSecond: 10000
+
+  # Paired pointer-chasing probe on CaptureChainReturn. Entry captures
+  # the head argument's chain (caller-controlled length); return captures
+  # the returned chain (also caller-controlled length). Used by the
+  # deterministic first-flush-fails test to build a precise scenario:
+  # tiny entry chain (one node, ~64 bytes captured -> single small
+  # ringbuf record submits cleanly) plus large return chain (forces
+  # multi-fragment continuation that hits the saturated ringbuf on its
+  # first flush).
+  - id: capture_chain_return
+    type: LOG_PROBE
+    where:
+      methodName: main.CaptureChainReturn
+    captureSnapshot: true
+    capture:
+      maxLength: 65536
+      maxCollectionSize: 65536
+      maxReferenceDepth: 4096
+    sampling:
+      snapshotsPerSecond: 10000
+
+  # Pointer-chasing probe on CaptureStringChain. Each chain node carries
+  # a string; the per-node string content goes through chased_slices
+  # (cap 128) rather than the chased-pointers trie (cap 1024), so a
+  # string-bearing chain can produce arbitrarily many bytes without
+  # exhausting the trie. Used by the fragment-cap test to push past
+  # MAX_CONTINUATION_FRAGMENTS * SCRATCH_BUF_LEN total raw bytes (=
+  # 16 * 32 KiB = 512 KiB) with a single invocation.
+  - id: capture_string_chain
+    type: LOG_PROBE
+    where:
+      methodName: main.CaptureStringChain
+    captureSnapshot: true
+    capture:
+      maxLength: 65536
+      maxCollectionSize: 65536
+      maxReferenceDepth: 4096
+    sampling:
+      snapshotsPerSecond: 10000

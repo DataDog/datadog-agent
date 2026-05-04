@@ -216,6 +216,9 @@ type Reader interface {
 	// Warnings returns pointer to a list of warnings (completes config.Component interface)
 	Warnings() *Warnings
 
+	// StartTime returns the time at which the agent process started (completes config.Component interface)
+	StartTime() time.Time
+
 	// Object returns Reader to config (completes config.Component interface)
 	Object() Reader
 

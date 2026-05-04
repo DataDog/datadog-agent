@@ -356,3 +356,31 @@ func BenchmarkHistogram10000SampleRate02(b *testing.B) {
 func BenchmarkHistogram100000SampleRate02(b *testing.B) {
 	benchHistogram(b, 100000, 0.2)
 }
+
+func TestHistogramUnitPropagation(t *testing.T) {
+	aggregates := []string{"max", "avg", "count"}
+	percentiles := []int{95}
+
+	// Timing sample: unit must appear on every flushed serie.
+	h := &Histogram{interval: 10, aggregates: aggregates, percentiles: percentiles}
+	h.addSample(&MetricSample{Value: 100, SampleRate: 1, Unit: UnitMilliseconds}, 50)
+	h.addSample(&MetricSample{Value: 200, SampleRate: 1, Unit: UnitMilliseconds}, 51)
+
+	series, err := h.flush(60)
+	require.Nil(t, err)
+	require.NotEmpty(t, series)
+	for _, s := range series {
+		assert.Equal(t, UnitMilliseconds, s.Unit, "serie %s should carry unit", s.NameSuffix)
+	}
+
+	// Plain histogram sample (no unit): every flushed serie must have empty unit.
+	h2 := &Histogram{interval: 10, aggregates: aggregates, percentiles: percentiles}
+	h2.addSample(&MetricSample{Value: 100, SampleRate: 1}, 50)
+
+	series2, err := h2.flush(60)
+	require.Nil(t, err)
+	require.NotEmpty(t, series2)
+	for _, s := range series2 {
+		assert.Equal(t, "", s.Unit, "serie %s should have no unit", s.NameSuffix)
+	}
+}

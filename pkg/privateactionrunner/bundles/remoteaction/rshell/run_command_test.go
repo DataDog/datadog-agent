@@ -486,6 +486,56 @@ func TestRunCommandBackendAllowedPathsRestrictsAccess(t *testing.T) {
 		"expected cat to fail because /var/log is not in the backend list")
 }
 
+func TestRunCommandSandboxWarningsKeepStderrClean(t *testing.T) {
+	// AllowedPaths includes one valid + one missing entry. The rshell
+	// library emits a "skipping" diagnostic for the missing one. The
+	// handler must surface that diagnostic in SandboxWarnings, not in
+	// Stderr — so callers inspecting Stderr to detect command failure
+	// don't see false positives. ExitCode and Stdout are independent of
+	// the sandbox configuration noise. The missing path is chosen so it
+	// does not share a prefix with the temp dir; otherwise
+	// reducePathListToBroadest collapses them and rshell never sees the
+	// missing one.
+	dir := t.TempDir()
+	missing := "/__rshell_sandbox_warnings_test_missing__"
+	handler := NewRunCommandHandler([]string{setup.RShellPathAllowAll}, []string{"rshell:echo"})
+
+	task := makeTaskWithPaths("echo hello",
+		[]string{"rshell:echo"},
+		map[string][]string{setup.RShellPathAllowMapDefaultKey: {dir, missing}})
+
+	out, err := handler.Run(context.Background(), task, nil)
+
+	require.NoError(t, err)
+	result := out.(*RunCommandOutputs)
+	assert.Equal(t, 0, result.ExitCode)
+	assert.Equal(t, "hello\n", result.Stdout)
+	assert.Empty(t, result.Stderr,
+		"sandbox warnings must not leak into the command's stderr field")
+	require.Len(t, result.SandboxWarnings, 1,
+		"the missing path should produce exactly one warning")
+	assert.Contains(t, result.SandboxWarnings[0], "AllowedPaths: skipping")
+}
+
+func TestRunCommandSandboxWarningsNilWhenCleanConfig(t *testing.T) {
+	// All configured paths exist — SandboxWarnings must be nil so the
+	// JSON wire output omits the field entirely (omitempty).
+	dir := t.TempDir()
+	handler := NewRunCommandHandler([]string{setup.RShellPathAllowAll}, []string{"rshell:echo"})
+
+	task := makeTaskWithPaths("echo hi",
+		[]string{"rshell:echo"},
+		map[string][]string{setup.RShellPathAllowMapDefaultKey: {dir}})
+
+	out, err := handler.Run(context.Background(), task, nil)
+
+	require.NoError(t, err)
+	result := out.(*RunCommandOutputs)
+	assert.Equal(t, 0, result.ExitCode)
+	assert.Nil(t, result.SandboxWarnings,
+		"a clean sandbox configuration must produce no warnings")
+}
+
 func mockStatFn(existing map[string]bool) func(string) (os.FileInfo, error) {
 	return func(path string) (os.FileInfo, error) {
 		if existing[path] {

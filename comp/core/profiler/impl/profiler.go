@@ -219,6 +219,15 @@ func (p profiler) setProfilerSetting(settingName string, newValue int, fb flaret
 // example, the flare api call must be expanded to take in an optional profile duration
 // before the cli command can be fully ported over.
 func (p profiler) fillFlare(_ context.Context, fb flaretypes.FlareBuilder) error {
+	// Fetch the goroutine dump from the running agent's pprof endpoint rather
+	// than calling runtime/pprof directly. This ensures we capture the agent's
+	// goroutines, and gracefully produces no file when the agent is unreachable
+	// (e.g. local flare mode) instead of capturing the CLI's own goroutines.
+	pprofURL := "http://127.0.0.1:" + strconv.Itoa(p.cfg.GetInt("expvar_port")) + "/debug/pprof/goroutine?debug=2"
+	if data, err := p.ipcClient.Get(pprofURL, ipchttp.WithLeaveConnectionOpen); err == nil {
+		fb.AddFile("go-routine-dump.log", data) //nolint:errcheck
+	}
+
 	duration := fb.GetFlareArgs().ProfileDuration
 
 	if duration <= 0 {

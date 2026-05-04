@@ -22,6 +22,7 @@ type SharedConnection struct {
 	isLocal         bool
 	numberOfWorkers int
 	config          config.Component
+	transport       http.RoundTripper
 }
 
 // NewSharedConnection creates a new shared connection with the given
@@ -31,6 +32,7 @@ func NewSharedConnection(
 	isLocal bool,
 	numberOfWorkers int,
 	config config.Component,
+	transport http.RoundTripper,
 ) *SharedConnection {
 	sc := &SharedConnection{
 		lock:            &sync.RWMutex{},
@@ -38,6 +40,7 @@ func NewSharedConnection(
 		isLocal:         isLocal,
 		numberOfWorkers: numberOfWorkers,
 		config:          config,
+		transport:       transport,
 	}
 
 	sc.client = sc.newClient()
@@ -63,9 +66,14 @@ func (sc *SharedConnection) ResetClient() {
 }
 
 func (sc *SharedConnection) newClient() *http.Client {
+	var c *http.Client
 	if sc.isLocal {
-		return newBearerAuthHTTPClient(sc.numberOfWorkers)
+		c = newBearerAuthHTTPClient(sc.numberOfWorkers)
+	} else {
+		c = NewHTTPClient(sc.config, sc.numberOfWorkers, sc.log)
 	}
-
-	return NewHTTPClient(sc.config, sc.numberOfWorkers, sc.log)
+	if sc.transport != nil {
+		c.Transport = sc.transport
+	}
+	return c
 }
