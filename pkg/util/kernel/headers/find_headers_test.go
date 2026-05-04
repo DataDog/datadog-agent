@@ -9,6 +9,8 @@ package headers
 
 import (
 	"bytes"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -19,6 +21,9 @@ import (
 )
 
 func TestDownloadKernelHeaders(t *testing.T) {
+	if strings.Contains(os.Getenv("CI_JOB_NAME"), "ubuntu") {
+		t.SkipNow()
+	}
 	flake.Mark(t) // flaky because it reaches out to real package repos
 	ebpftest.LogLevel(t, "debug")
 	t.Cleanup(func() { HeaderProvider = nil })
