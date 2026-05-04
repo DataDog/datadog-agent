@@ -8,10 +8,12 @@ package grpc
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	rtokenizer "github.com/DataDog/datadog-agent/pkg/logs/patterns/tokenizer/rust"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
 )
@@ -312,6 +314,61 @@ func TestFillDynamicValue_JSONNumberUsesFloatWhenLossless(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, 159.6, floatValue.FloatValue)
 	assert.False(t, dv.RenderAsString)
+}
+
+func TestJsonSchemaReuseRefreshesReferencedDictEntries(t *testing.T) {
+	mt := NewMessageTranslator("test-pipeline", rtokenizer.NewRustTokenizer())
+	outputChan := make(chan *message.StatefulMessage, 10)
+	msg := message.NewMessage([]byte("request done"), nil, "", 0)
+
+	_, schemaID := mt.sendJsonSchemaDefineIfNeeded(outputChan, msg, "msg", []string{"level", "object.kind"})
+	require.NotZero(t, schemaID)
+	firstSchema := mt.jsonSchemaByID[schemaID]
+	require.NotNil(t, firstSchema)
+
+	time.Sleep(20 * time.Millisecond)
+	_, reusedSchemaID := mt.sendJsonSchemaDefineIfNeeded(outputChan, msg, "msg", []string{"level", "object.kind"})
+	require.Equal(t, schemaID, reusedSchemaID)
+
+	evictedIDs := mt.tagManager.EvictStaleEntries(10 * time.Millisecond)
+	assert.NotContains(t, evictedIDs, firstSchema.messageKeyID)
+	for _, keyID := range firstSchema.keyIDs {
+		assert.NotContains(t, evictedIDs, keyID)
+	}
+}
+
+func TestJsonSchemaDeletedWhenReferencedDictEntryEvicted(t *testing.T) {
+	mt := NewMessageTranslator("test-pipeline", rtokenizer.NewRustTokenizer())
+	outputChan := make(chan *message.StatefulMessage, 10)
+	msg := message.NewMessage([]byte("request done"), nil, "", 0)
+
+	_, schemaID := mt.sendJsonSchemaDefineIfNeeded(outputChan, msg, "msg", []string{"level", "object.kind"})
+	require.NotZero(t, schemaID)
+	firstSchema := mt.jsonSchemaByID[schemaID]
+	require.NotNil(t, firstSchema)
+
+	evictedIDs := mt.tagManager.EvictStaleEntries(0)
+	require.Contains(t, evictedIDs, firstSchema.keyIDs[0])
+	mt.sendDictEntryDeletes(outputChan, msg, evictedIDs)
+
+	require.NotContains(t, mt.jsonSchemaByID, schemaID)
+	require.NotContains(t, mt.jsonSchemaToID, firstSchema.schemaKey)
+
+	var sawSchemaDelete bool
+	var sawDictDelete bool
+	for len(outputChan) > 0 {
+		statefulMsg := <-outputChan
+		if schemaDelete := statefulMsg.Datum.GetJsonSchemaDelete(); schemaDelete != nil && schemaDelete.SchemaId == schemaID {
+			sawSchemaDelete = true
+		}
+		if dictDelete := statefulMsg.Datum.GetDictEntryDelete(); dictDelete != nil && dictDelete.Id == firstSchema.keyIDs[0] {
+			sawDictDelete = true
+			assert.True(t, sawSchemaDelete, "json schema must be deleted before the referenced dict entry")
+			break
+		}
+	}
+	assert.True(t, sawSchemaDelete, "evicting a referenced dict entry must delete dependent json schema")
+	assert.True(t, sawDictDelete, "referenced dict entry should be deleted after dependent json schema")
 }
 
 func ptrInt64(v int64) *int64       { return &v }

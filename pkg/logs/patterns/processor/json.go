@@ -26,14 +26,33 @@ type ExtractionResult struct {
 	Message string
 	// MessageKey is the JSON key the message was extracted from (e.g. "msg", "message")
 	MessageKey string
-	// JSONContextSchema is a comma-separated sorted list of top-level keys for the JSON context.
-	// When populated, JSONContextValues contains the corresponding values in the same order.
-	// Example: for {"level":"info","pid":1234,"service":"api"}, schema is "level,pid,service".
+	// JSONContextSchema is a comma-separated sorted list of escaped JSON paths for the JSON context.
 	JSONContextSchema string
-	// JSONContextValues contains the leaf values corresponding to JSONContextSchema keys, in order.
-	// Primitive values preserve their JSON type. Nested objects/arrays are preserved as decoded
-	// map/slice values so the transport layer can encode them as raw JSON.
+	// JSONContextKeys contains the escaped JSON paths corresponding to JSONContextValues, in order.
+	JSONContextKeys []string
+	// JSONContextValues contains the values corresponding to JSONContextKeys, in order.
+	// Primitive values preserve their JSON type. Boxed nested objects/arrays are preserved as
+	// decoded map/slice values so the transport layer can encode them as raw JSON.
 	JSONContextValues []interface{}
+}
+
+const (
+	jsonContextMaxFlattenDepth = 2
+	jsonContextMaxObjectKeys   = 16
+)
+
+var boxedSubtreeNames = map[string]struct{}{
+	"attributes": {},
+	"attrs":      {},
+	"headers":    {},
+	"labels":     {},
+	"metadata":   {},
+	"tags":       {},
+}
+
+type jsonContextItem struct {
+	key   string
+	value interface{}
 }
 
 // Common top-level message field names (Layer 0)
@@ -93,34 +112,119 @@ func PreprocessJSON(content []byte) ExtractionResult {
 		}
 	}
 
-	// Schema-based encoding: extract sorted keys and leaf values.
-	schema, values := extractSchemaAndValues(data)
+	// Schema-based encoding: extract sorted JSON paths and values.
+	keys, values := extractSchemaAndValues(data)
 
 	return ExtractionResult{
 		IsJSON:            true,
 		Message:           message,
 		MessageKey:        extractedPath,
-		JSONContextSchema: schema,
+		JSONContextSchema: schemaString(keys),
+		JSONContextKeys:   keys,
 		JSONContextValues: values,
 	}
 }
 
-// extractSchemaAndValues extracts sorted keys and their corresponding values from a JSON map.
-// Primitive values preserve their decoded JSON type. Nested objects and arrays are kept as decoded
-// map/slice values so later encoding can preserve them as raw JSON.
-func extractSchemaAndValues(data map[string]interface{}) (string, []interface{}) {
+// extractSchemaAndValues extracts sorted JSON paths and their corresponding values from a JSON map.
+// Stable shallow primitives are flattened into leaf paths. Deep, wide, map-like, or array values
+// are boxed as subtree values to avoid one-off schemas for arbitrary nested JSON.
+func extractSchemaAndValues(data map[string]interface{}) ([]string, []interface{}) {
 	keys := make([]string, 0, len(data))
 	for k := range data {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 
-	values := make([]interface{}, len(keys))
-	for i, k := range keys {
-		values[i] = normalizeJSONValue(data[k])
+	items := make([]jsonContextItem, 0, len(keys))
+	for _, k := range keys {
+		appendJSONContextItems(&items, escapeJSONPathSegment(k), data[k], 1)
 	}
 
-	return strings.Join(keys, ","), values
+	contextKeys := make([]string, len(items))
+	values := make([]interface{}, len(items))
+	for i, item := range items {
+		contextKeys[i] = item.key
+		values[i] = item.value
+	}
+
+	return contextKeys, values
+}
+
+func appendJSONContextItems(items *[]jsonContextItem, path string, value interface{}, depth int) {
+	switch typed := value.(type) {
+	case map[string]interface{}:
+		if shouldBoxJSONObject(path, len(typed), depth) {
+			appendJSONContextSubtree(items, path, typed)
+			return
+		}
+		keys := make([]string, 0, len(typed))
+		for k := range typed {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, key := range keys {
+			appendJSONContextItems(items, path+"."+escapeJSONPathSegment(key), typed[key], depth+1)
+		}
+	case []interface{}:
+		appendJSONContextSubtree(items, path, typed)
+	default:
+		*items = append(*items, jsonContextItem{
+			key:   path,
+			value: normalizeJSONValue(typed),
+		})
+	}
+}
+
+func appendJSONContextSubtree(items *[]jsonContextItem, path string, value interface{}) {
+	*items = append(*items, jsonContextItem{
+		key:   path,
+		value: value,
+	})
+}
+
+func shouldBoxJSONObject(path string, keyCount int, depth int) bool {
+	if keyCount == 0 || keyCount > jsonContextMaxObjectKeys || depth >= jsonContextMaxFlattenDepth {
+		return true
+	}
+	_, ok := boxedSubtreeNames[lastPathSegment(path)]
+	return ok
+}
+
+func lastPathSegment(path string) string {
+	escaped := false
+	for index := len(path) - 1; index >= 0; index-- {
+		switch path[index] {
+		case '\\':
+			escaped = !escaped
+		case '.':
+			if !escaped {
+				return path[index+1:]
+			}
+			escaped = false
+		default:
+			escaped = false
+		}
+	}
+	return path
+}
+
+func escapeJSONPathSegment(segment string) string {
+	if !strings.ContainsAny(segment, `.\`) {
+		return segment
+	}
+	var builder strings.Builder
+	builder.Grow(len(segment) + 1)
+	for _, char := range segment {
+		if char == '.' || char == '\\' {
+			builder.WriteByte('\\')
+		}
+		builder.WriteRune(char)
+	}
+	return builder.String()
+}
+
+func schemaString(keys []string) string {
+	return strings.Join(keys, ",")
 }
 
 // normalizeJSONValue preserves primitive JSON types and keeps nested objects/arrays intact.
