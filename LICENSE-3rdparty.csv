@@ -2505,6 +2505,7 @@ core,github.com/twmb/franz-go/pkg/kbin,BSD-3-Clause,"Copyright 2020, Travis Bisc
 core,github.com/twmb/franz-go/pkg/kerr,BSD-3-Clause,"Copyright 2020, Travis Bischel"
 core,github.com/twmb/franz-go/pkg/kgo,BSD-3-Clause,"Copyright 2020, Travis Bischel"
 core,github.com/twmb/franz-go/pkg/kgo/internal/sticky,BSD-3-Clause,"Copyright 2020, Travis Bischel"
+core,github.com/twmb/franz-go/pkg/kgo/internal/xsync,BSD-3-Clause,"Copyright 2020, Travis Bischel"
 core,github.com/twmb/franz-go/pkg/kmsg,BSD-3-Clause,"Copyright 2020, Travis Bischel"
 core,github.com/twmb/franz-go/pkg/kmsg/internal/kbin,BSD-3-Clause,"Copyright 2020, Travis Bischel"
 core,github.com/twmb/franz-go/pkg/kversion,BSD-3-Clause,"Copyright 2020, Travis Bischel"
