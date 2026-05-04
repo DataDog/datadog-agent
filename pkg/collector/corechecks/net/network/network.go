@@ -69,6 +69,9 @@ var (
 
 	udpStateMetricsSuffixMapping = map[string]string{
 		"NONE": "connections",
+		// AIX netstat output omits the state column for UDP rows; gopsutil
+		// leaves Status as "" in that case. Map it the same as "NONE".
+		"": "connections",
 	}
 )
 
