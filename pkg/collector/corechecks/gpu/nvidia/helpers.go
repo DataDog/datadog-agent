@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	"github.com/hashicorp/go-multierror"
 	"golang.org/x/exp/constraints"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -212,4 +213,60 @@ func RemoveDuplicateMetrics(allMetrics map[CollectorName][]*Metric) []*Metric {
 	}
 
 	return result
+}
+
+// getNVLinkCount returns the number of NVLink ports on the device
+func getNVLinkCount(device ddnvml.Device) (int, error) {
+	fields := []nvml.FieldValue{{
+		FieldId: nvml.FI_DEV_NVLINK_LINK_COUNT,
+		ScopeId: 0,
+	}}
+
+	if err := device.GetFieldValues(fields); err != nil {
+		return 0, fmt.Errorf("get NVLink link count: %w", err)
+	}
+
+	totalPorts, err := fieldValueToNumber[int](nvml.ValueType(fields[0].ValueType), fields[0].Value)
+	if err != nil {
+		return 0, fmt.Errorf("convert NVLink link count: %w", err)
+	}
+	return totalPorts, nil
+}
+
+func nvlinkPortTag(port int) string {
+	return fmt.Sprintf("nvlink_port:%d", port)
+}
+
+func getSupportedNvlinkPorts(device ddnvml.Device, metricCollector func(int) ([]*Metric, error)) ([]int, error) {
+	totalPorts, err := getNVLinkCount(device)
+	if err != nil {
+		if ddnvml.IsAPIUnsupportedOnDevice(err, device) {
+			return nil, fmt.Errorf("%w: get NVLink link count: %w", errUnsupportedDevice, err)
+		}
+		return nil, fmt.Errorf("get NVLink link count: %w", err)
+	}
+
+	if totalPorts <= 0 {
+		return nil, fmt.Errorf("%w: no NVLink ports found", errUnsupportedDevice)
+	}
+
+	var ports []int
+	var portErrors error
+	for port := 1; port <= totalPorts; port++ {
+		_, err := metricCollector(port)
+		if err != nil {
+			if !ddnvml.IsAPIUnsupportedOnDevice(err, device) {
+				portErrors = multierror.Append(portErrors, fmt.Errorf("collect metrics for port %d: %w", port, err))
+			}
+
+			continue
+		}
+		ports = append(ports, port)
+	}
+
+	if len(ports) == 0 {
+		return nil, fmt.Errorf("%w: no supported NVLink ports found", errUnsupportedDevice)
+	}
+
+	return ports, portErrors
 }

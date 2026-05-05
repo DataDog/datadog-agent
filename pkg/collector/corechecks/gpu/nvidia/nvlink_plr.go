@@ -47,117 +47,82 @@ var plrCounterFields = []string{
 	"nvlink.plr.tx.retry_events_within_t_sec_max",
 }
 
-type nvlinkCollector struct {
+type nvlinkPLRCollector struct {
 	device ddnvml.Device
 	ports  []int
 }
 
-func getNVLinkCount(device ddnvml.Device) (int, error) {
-	fields := []nvml.FieldValue{{
-		FieldId: nvml.FI_DEV_NVLINK_LINK_COUNT,
-		ScopeId: 0,
-	}}
-
-	if err := device.GetFieldValues(fields); err != nil {
-		return 0, fmt.Errorf("get NVLink link count: %w", err)
+func newNVLinkPLRCollector(device ddnvml.Device, _ *CollectorDependencies) (Collector, error) {
+	c := &nvlinkPLRCollector{
+		device: device,
 	}
 
-	totalPorts, err := fieldValueToNumber[int](nvml.ValueType(fields[0].ValueType), fields[0].Value)
+	ports, err := getSupportedNvlinkPorts(device, c.getPortMetrics)
 	if err != nil {
-		return 0, fmt.Errorf("convert NVLink link count: %w", err)
-	}
-	return totalPorts, nil
-}
-
-func newNVLinkCollector(device ddnvml.Device, _ *CollectorDependencies) (Collector, error) {
-	totalPorts, err := getNVLinkCount(device)
-	if err != nil {
-		if ddnvml.IsAPIUnsupportedOnDevice(err, device) {
-			return nil, errUnsupportedDevice
-		}
 		return nil, err
 	}
-	if totalPorts <= 0 {
-		return nil, errUnsupportedDevice
-	}
 
-	ports := make([]int, 0, totalPorts)
-	for port := 1; port <= totalPorts; port++ {
-		ports = append(ports, port)
-	}
-
-	c := &nvlinkCollector{
-		device: device,
-		ports:  ports,
-	}
-	c.removeUnsupportedPorts()
-	if len(c.ports) == 0 {
-		return nil, errUnsupportedDevice
-	}
+	c.ports = ports
 
 	return c, nil
 }
 
-func (c *nvlinkCollector) DeviceUUID() string {
+func (c *nvlinkPLRCollector) DeviceUUID() string {
 	return c.device.GetDeviceInfo().UUID
 }
 
-func (c *nvlinkCollector) Name() CollectorName {
-	return "nvlink"
+func (c *nvlinkPLRCollector) Name() CollectorName {
+	return nvlinkPLR
 }
 
-func (c *nvlinkCollector) Collect() ([]*Metric, error) {
+func (c *nvlinkPLRCollector) Collect() ([]*Metric, error) {
 	var (
-		allMetrics []Metric
+		allMetrics []*Metric
 		multiErr   error
 	)
 
 	for _, port := range c.ports {
-		counters, err := c.readPortCounters(port)
+		metrics, err := c.getPortMetrics(port)
 		if err != nil {
-			multiErr = multierror.Append(multiErr, fmt.Errorf("read PLR counters for port %d: %w", port, err))
+			multiErr = multierror.Append(multiErr, fmt.Errorf("get port metrics for port %d: %w", port, err))
+			continue
+		}
+		allMetrics = append(allMetrics, metrics...)
+	}
+
+	return allMetrics, multiErr
+}
+
+func (c *nvlinkPLRCollector) getPortMetrics(port int) ([]*Metric, error) {
+	var allMetrics []*Metric
+	counters, err := c.readPortCounters(port)
+	if err != nil {
+		return nil, fmt.Errorf("read port counters: %w", err)
+	}
+
+	var multiErr error
+	for _, field := range plrCounterFields {
+		value, found := counters[field]
+		if !found {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("missing PLR counter %q for port %d", field, port))
 			continue
 		}
 
-		for _, field := range plrCounterFields {
-			value, found := counters[field]
-			if !found {
-				multiErr = multierror.Append(multiErr, fmt.Errorf("missing PLR counter %q for port %d", field, port))
-				continue
-			}
-
-			allMetrics = append(allMetrics, Metric{
-				Name:  field,
-				Value: float64(value),
-				Type:  metrics.GaugeType,
-				Tags: []string{
-					fmt.Sprintf("nvlink_port:%d", port),
-				},
-				Priority: Medium,
-			})
-		}
+		allMetrics = append(allMetrics, &Metric{
+			Name:  field,
+			Value: float64(value),
+			Type:  metrics.GaugeType,
+			Tags: []string{
+				nvlinkPortTag(port),
+			},
+			Priority: Medium,
+		})
 	}
 
-	if len(allMetrics) == 0 && multiErr != nil {
-		return nil, multiErr
-	}
-
-	return metricValuesToPointers(allMetrics), multiErr
+	return allMetrics, multiErr
 }
 
-func (c *nvlinkCollector) removeUnsupportedPorts() {
-	var supportedPorts []int
-	for _, port := range c.ports {
-		counters, err := c.readPortCounters(port)
-		if err == nil && len(counters) > 0 {
-			supportedPorts = append(supportedPorts, port)
-		}
-	}
-
-	c.ports = supportedPorts
-}
-
-func (c *nvlinkCollector) readPortCounters(port int) (map[string]uint64, error) {
+func (c *nvlinkPLRCollector) readPortCounters(port int) (map[string]uint64, error) {
 	tlvBytes := createPPCNTTLVByteArray(ppcntGroupPLR, uint32(port))
 	var prm nvml.PRMTLV_v1
 	if len(tlvBytes) > len(prm.InData) {

@@ -55,7 +55,7 @@ func TestUnpackTLV(t *testing.T) {
 	require.Equal(t, expected, metrics)
 }
 
-func TestNVLinkCollector(t *testing.T) {
+func TestNVLinkPLRCollector(t *testing.T) {
 	mockDevice := setupMockDeviceWithLibOpts(t, func(device *mock.Device) *mock.Device {
 		testutil.WithMockAllDeviceFunctions()(device)
 		device.GetFieldValuesFunc = func(values []nvml.FieldValue) nvml.Return {
@@ -73,7 +73,7 @@ func TestNVLinkCollector(t *testing.T) {
 		return device
 	})
 
-	collector, err := newNVLinkCollector(mockDevice, nil)
+	collector, err := newNVLinkPLRCollector(mockDevice, nil)
 	require.NoError(t, err)
 	metrics, err := collector.Collect()
 	require.NoError(t, err)
@@ -95,7 +95,7 @@ func TestNVLinkCollector(t *testing.T) {
 	require.Equal(t, len(plrCounterFields), port2Count)
 }
 
-func TestNVLinkCollectorPartialFailure(t *testing.T) {
+func TestNVLinkPLRCollectorPartialFailure(t *testing.T) {
 	mockDevice := setupMockDeviceWithLibOpts(t, func(device *mock.Device) *mock.Device {
 		testutil.WithMockAllDeviceFunctions()(device)
 		device.GetFieldValuesFunc = func(values []nvml.FieldValue) nvml.Return {
@@ -116,7 +116,7 @@ func TestNVLinkCollectorPartialFailure(t *testing.T) {
 		return device
 	})
 
-	collector, err := newNVLinkCollector(mockDevice, nil)
+	collector, err := newNVLinkPLRCollector(mockDevice, nil)
 	require.NoError(t, err)
 	metrics, err := collector.Collect()
 	require.NoError(t, err)
@@ -126,7 +126,7 @@ func TestNVLinkCollectorPartialFailure(t *testing.T) {
 	}
 }
 
-func TestNVLinkCollectorKeepsPortOnTransientError(t *testing.T) {
+func TestNVLinkPLRCollectorKeepsPortOnTransientError(t *testing.T) {
 	callCountByPort := map[int]int{}
 	mockDevice := setupMockDeviceWithLibOpts(t, func(device *mock.Device) *mock.Device {
 		testutil.WithMockAllDeviceFunctions()(device)
@@ -150,9 +150,9 @@ func TestNVLinkCollectorKeepsPortOnTransientError(t *testing.T) {
 		return device
 	})
 
-	collector, err := newNVLinkCollector(mockDevice, nil)
+	collector, err := newNVLinkPLRCollector(mockDevice, nil)
 	require.NoError(t, err)
-	nvlinkCollector, ok := collector.(*nvlinkCollector)
+	nvlinkCollector, ok := collector.(*nvlinkPLRCollector)
 	require.True(t, ok)
 	assert.Len(t, nvlinkCollector.ports, 2)
 	assert.Equal(t, 1, callCountByPort[1], "port 1 should be called exactly once")
@@ -186,7 +186,7 @@ func TestNVLinkCollectorKeepsPortOnTransientError(t *testing.T) {
 	require.Contains(t, foundTags, "nvlink_port:2")
 }
 
-func TestNVLinkCollectorUnsupportedDevice(t *testing.T) {
+func TestNVLinkPLRCollectorUnsupportedDevice(t *testing.T) {
 	tests := []struct {
 		name      string
 		customize func(*mock.Device) *mock.Device
@@ -219,7 +219,7 @@ func TestNVLinkCollectorUnsupportedDevice(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockDevice := setupMockDeviceWithLibOpts(t, tt.customize)
-			_, err := newNVLinkCollector(mockDevice, nil)
+			_, err := newNVLinkPLRCollector(mockDevice, nil)
 			require.ErrorIs(t, err, errUnsupportedDevice)
 		})
 	}
