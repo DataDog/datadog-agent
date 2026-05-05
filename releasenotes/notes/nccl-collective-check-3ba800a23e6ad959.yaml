@@ -31,10 +31,7 @@ features:
     - ``nccl.rank.seconds_since_last_event`` — seconds since this rank
       last reported an event; non-zero values indicate a potential hang.
 
-    Enable the check by adding the following to the Agent configuration:
-
-    .. code-block:: yaml
-
-        init_config:
-        instances:
-          - socket_path: /var/run/datadog/nccl.socket
+    Enable the check cluster-wide by setting ``gpu.nccl.enabled: true`` in the
+    Agent configuration (or ``DD_GPU_NCCL_ENABLED=true``). The socket path
+    can be overridden via ``gpu.nccl.socket_path``; the host directory mounted
+    into training pods can be overridden via ``gpu.nccl.host_socket_path``.

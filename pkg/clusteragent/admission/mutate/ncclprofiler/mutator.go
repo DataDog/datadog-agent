@@ -31,20 +31,18 @@ const (
 
 	// socketVolumeName is the hostPath volume name for the Datadog agent socket.
 	socketVolumeName = "datadog-socket"
-
-	// socketHostPath is the host directory that contains the agent's Unix socket.
-	socketHostPath = "/var/run/datadog"
-
-	// socketMountPath is where the agent socket directory is mounted in containers.
-	socketMountPath = "/var/run/datadog"
 )
 
 // mutatePod injects the NCCL profiler plugin into pod by:
 //  1. Adding an emptyDir volume for the .so files.
 //  2. Prepending an init container that copies both .so files from the injector image.
-//  3. Mounting the .so volume and the agent socket into every app container.
-//  4. Setting NCCL env vars.
-func mutatePod(pod *corev1.Pod, injectorImage string) (bool, error) {
+//  3. Mounting the .so volume and the agent socket directory into every app container.
+//  4. Setting NCCL env vars (incl. NCCL_DD_SOCKET_PATH from the agent config).
+//
+// hostSocketPath is the host directory containing the agent's Unix socket
+// (mounted into pods at the same path). socketPath is the full in-container
+// socket path the wrapper connects to. Both come from gpu.nccl.{host_socket_path,socket_path}.
+func mutatePod(pod *corev1.Pod, injectorImage, hostSocketPath, socketPath string) (bool, error) {
 	soVolume := corev1.Volume{
 		Name:         soVolumeName,
 		VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}},
@@ -55,10 +53,10 @@ func mutatePod(pod *corev1.Pod, injectorImage string) (bool, error) {
 	socketVolume := corev1.Volume{
 		Name: socketVolumeName,
 		VolumeSource: corev1.VolumeSource{
-			HostPath: &corev1.HostPathVolumeSource{Path: socketHostPath, Type: &hostPathType},
+			HostPath: &corev1.HostPathVolumeSource{Path: hostSocketPath, Type: &hostPathType},
 		},
 	}
-	socketMount := corev1.VolumeMount{Name: socketVolumeName, MountPath: socketMountPath, ReadOnly: true}
+	socketMount := corev1.VolumeMount{Name: socketVolumeName, MountPath: hostSocketPath, ReadOnly: true}
 
 	// Inject volumes + mounts into all app containers using shared helpers.
 	mutatecommon.InjectVolume(pod, soVolume, soMount)
@@ -66,7 +64,7 @@ func mutatePod(pod *corev1.Pod, injectorImage string) (bool, error) {
 
 	// Inject NCCL env vars into all app containers.
 	mutatecommon.InjectEnv(pod, corev1.EnvVar{Name: "NCCL_PROFILER_PLUGIN", Value: soDestPath})
-	mutatecommon.InjectEnv(pod, corev1.EnvVar{Name: "NCCL_DD_SOCKET_PATH", Value: "/var/run/datadog/nccl.socket"})
+	mutatecommon.InjectEnv(pod, corev1.EnvVar{Name: "NCCL_DD_SOCKET_PATH", Value: socketPath})
 	mutatecommon.InjectEnv(pod, corev1.EnvVar{Name: "NCCL_DD_INSPECTOR_PATH", Value: soMountPath + "/libnccl-profiler-inspector.so"})
 	mutatecommon.InjectEnv(pod, corev1.EnvVar{Name: "NCCL_INSPECTOR_ENABLE", Value: "1"})
 

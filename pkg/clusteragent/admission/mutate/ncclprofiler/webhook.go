@@ -39,13 +39,17 @@ var (
 
 // Webhook injects the NCCL profiler plugin into GPU training pods.
 type Webhook struct {
-	isEnabled     bool
-	injectorImage string
+	isEnabled      bool
+	injectorImage  string
+	hostSocketPath string
+	socketPath     string
 }
 
 // NewWebhook creates a new NCCL profiler webhook from agent config.
 // The injector_image config is required when enabled; if empty the webhook
 // is disabled with a warning so pods are not mutated with a broken image ref.
+// hostSocketPath and socketPath default to the agent's gpu.nccl config so the
+// injected pod's NCCL_DD_SOCKET_PATH matches where the agent listens.
 func NewWebhook(datadogConfig config.Component) *Webhook {
 	enabled := datadogConfig.GetBool("admission_controller.nccl_profiler.enabled")
 	image := datadogConfig.GetString("admission_controller.nccl_profiler.injector_image")
@@ -54,8 +58,10 @@ func NewWebhook(datadogConfig config.Component) *Webhook {
 		enabled = false
 	}
 	return &Webhook{
-		isEnabled:     enabled,
-		injectorImage: image,
+		isEnabled:      enabled,
+		injectorImage:  image,
+		hostSocketPath: datadogConfig.GetString("gpu.nccl.host_socket_path"),
+		socketPath:     datadogConfig.GetString("gpu.nccl.socket_path"),
 	}
 }
 
@@ -100,7 +106,7 @@ func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 			w.Name(),
 			func(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
 				log.Debugf("Injecting NCCL profiler plugin into pod %s", mutatecommon.PodString(pod))
-				return mutatePod(pod, w.injectorImage)
+				return mutatePod(pod, w.injectorImage, w.hostSocketPath, w.socketPath)
 			},
 			request.DynamicClient,
 		))

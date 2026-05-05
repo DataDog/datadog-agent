@@ -16,7 +16,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const testInjectorImage = "registry.example/nccl-profiler-injector:latest"
+const (
+	testInjectorImage  = "registry.example/nccl-profiler-injector:latest"
+	testHostSocketPath = "/var/run/datadog"
+	testSocketPath     = "/var/run/datadog/nccl.socket"
+)
 
 func newTestPod() *corev1.Pod {
 	return &corev1.Pod{
@@ -32,7 +36,7 @@ func newTestPod() *corev1.Pod {
 func TestMutatePod_HappyPath(t *testing.T) {
 	pod := newTestPod()
 
-	mutated, err := mutatePod(pod, testInjectorImage)
+	mutated, err := mutatePod(pod, testInjectorImage, testHostSocketPath, testSocketPath)
 
 	require.NoError(t, err)
 	assert.True(t, mutated, "mutatePod should report it mutated the pod")
@@ -53,7 +57,7 @@ func TestMutatePod_HappyPath(t *testing.T) {
 			sawSoVol = true
 		case socketVolumeName:
 			require.NotNil(t, v.HostPath, "socket volume should be hostPath")
-			assert.Equal(t, socketHostPath, v.HostPath.Path)
+			assert.Equal(t, testHostSocketPath, v.HostPath.Path)
 			sawSocketVol = true
 		}
 	}
@@ -75,7 +79,7 @@ func TestMutatePod_HappyPath(t *testing.T) {
 		envs[e.Name] = e.Value
 	}
 	assert.Equal(t, soDestPath, envs["NCCL_PROFILER_PLUGIN"])
-	assert.Equal(t, "/var/run/datadog/nccl.socket", envs["NCCL_DD_SOCKET_PATH"])
+	assert.Equal(t, testSocketPath, envs["NCCL_DD_SOCKET_PATH"])
 	assert.Equal(t, soMountPath+"/libnccl-profiler-inspector.so", envs["NCCL_DD_INSPECTOR_PATH"])
 	assert.Equal(t, "1", envs["NCCL_INSPECTOR_ENABLE"])
 }

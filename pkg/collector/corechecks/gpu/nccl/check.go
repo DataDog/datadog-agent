@@ -97,8 +97,8 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	socketPath := pkgconfigsetup.Datadog().GetString("gpu.nccl.socket_path")
 
 	// Start socket listener. If the socket is unavailable (e.g. permissions issue),
-	// log a warning and continue — matching DogStatsD/APM behaviour. Collection will
-	// be skipped until the socket becomes available on a future Configure call.
+	// log a warning and continue — matching DogStatsD/APM behaviour. The check
+	// will run with no socket events; restart the agent after fixing the socket.
 	sl, err := newSocketListener(socketPath)
 	if err != nil {
 		log.Warnf("NCCL check: socket listener failed to start, no metrics will be collected: %v", err)
@@ -106,17 +106,10 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		c.socketListener = sl
 	}
 
-	// Initialize container provider for PID -> container mapping
-	if c.containerProvider == nil {
-		containerProvider, err := proccontainers.GetSharedContainerProvider()
-		if err != nil {
-			log.Warnf("failed to get shared container provider: %v", err)
-		}
-		c.containerProvider = containerProvider
-	}
-
-	// Initialize process tagger for PID -> container -> pod correlation
-	c.processTagger = NewProcessTagger(c.tagger, c.wmeta, c.containerProvider, c.telemetry)
+	// Initialize process tagger. containerProvider is acquired lazily in Run
+	// (single code path) since GetSharedContainerProvider can fail here due to
+	// component startup ordering.
+	c.processTagger = NewProcessTagger(c.tagger, c.wmeta, nil, c.telemetry)
 
 	// Initialize hang detection state
 	c.lastSeenRank = make(map[string]rankStalenessEntry)

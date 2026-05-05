@@ -8,6 +8,7 @@
 package nccl
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 
@@ -106,7 +107,7 @@ func (pt *ProcessTagger) GetWorkloadTags(workloadID workloadmeta.EntityID) ([]st
 		return pt.GetTagsForPID(pid)
 	case workloadmeta.KindContainer:
 		if pt.cache == nil {
-			return nil, fmt.Errorf("workload tag cache not initialized")
+			return nil, errors.New("workload tag cache not initialized")
 		}
 		return pt.cache.GetOrCreateWorkloadTags(workloadID)
 	default:
