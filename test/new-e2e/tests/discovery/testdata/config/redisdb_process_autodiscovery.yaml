@@ -1,9 +1,9 @@
 # Redis check configuration using process-based autodiscovery.
-# Scheduled when a process listening on the canonical Redis TCP port is
-# detected.
+# Scheduled when a redis-server process listening on the canonical Redis
+# TCP port is detected.
 cel_selector:
   processes:
-    - process.tcp_ports.exists(p, p == 6379)
+    - process.cmdline.contains('redis-server') && process.tcp_ports.exists(p, p == 6379)
 
 init_config:
 
