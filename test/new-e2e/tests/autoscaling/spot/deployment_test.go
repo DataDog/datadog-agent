@@ -311,41 +311,28 @@ func (s *spotSchedulingSuite) createDeployment(name string, replicas int32, conf
 	s.Require().NoError(err)
 }
 
-// updateDeployment reads an existing Deployment, merges in the spot-enabled label and
-// spot-config annotation from config, and updates it.
+// updateDeployment applies the spot-enabled label and spot-config annotation from config
+// using a merge patch to avoid optimistic concurrency conflicts.
 func (s *spotSchedulingSuite) updateDeployment(name string, config *spotConfig) {
 	s.T().Helper()
 	ctx := s.T().Context()
 
-	deploy, err := s.kubeClient.AppsV1().Deployments(s.testNamespace).Get(ctx, name, metav1.GetOptions{})
-	s.Require().NoError(err)
+	configValue := fmt.Sprintf(`{"percentage":%d,"minOnDemandReplicas":%d}`, config.spotPercentage, config.minOnDemandReplicas)
+	patch := fmt.Sprintf(`{"metadata":{"labels":{%q:%q},"annotations":{%q:%q}}}`, spotEnabledLabelKey, spotEnabledLabelValue, spotConfigAnnotation, configValue)
 
-	if config != nil {
-		if deploy.Labels == nil {
-			deploy.Labels = make(map[string]string)
-		}
-		deploy.Labels[spotEnabledLabelKey] = spotEnabledLabelValue
-
-		if deploy.Annotations == nil {
-			deploy.Annotations = make(map[string]string)
-		}
-		deploy.Annotations[spotConfigAnnotation] = fmt.Sprintf(`{"percentage":%d,"minOnDemandReplicas":%d}`, config.spotPercentage, config.minOnDemandReplicas)
-	}
-
-	_, err = s.kubeClient.AppsV1().Deployments(s.testNamespace).Update(ctx, deploy, metav1.UpdateOptions{})
+	_, err := s.kubeClient.AppsV1().Deployments(s.testNamespace).Patch(ctx, name, types.MergePatchType, []byte(patch), metav1.PatchOptions{})
 	s.Require().NoError(err)
 }
 
-// scaleDeployment updates the replica count of a Deployment in s.testNamespace.
+// scaleDeployment updates the replica count of a Deployment
+// using a merge patch to avoid optimistic concurrency conflicts.
 func (s *spotSchedulingSuite) scaleDeployment(name string, replicas int32) {
 	s.T().Helper()
 	ctx := s.T().Context()
 
-	deploy, err := s.kubeClient.AppsV1().Deployments(s.testNamespace).Get(ctx, name, metav1.GetOptions{})
-	s.Require().NoError(err)
+	patch := fmt.Sprintf(`{"spec":{"replicas":%d}}`, replicas)
 
-	deploy.Spec.Replicas = &replicas
-	_, err = s.kubeClient.AppsV1().Deployments(s.testNamespace).Update(ctx, deploy, metav1.UpdateOptions{})
+	_, err := s.kubeClient.AppsV1().Deployments(s.testNamespace).Patch(ctx, name, types.MergePatchType, []byte(patch), metav1.PatchOptions{})
 	s.Require().NoError(err)
 }
 
