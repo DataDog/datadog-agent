@@ -17,7 +17,7 @@ func TestDefaultDoesNotSpawnGoroutines(t *testing.T) {
 	// bubble remains durably blocked when the function returns. If Default()
 	// used handlers.NewAsync, its background goroutine would block on
 	// cond.Wait() and this call would panic.
-	synctest.Test(t, func(t *testing.T) {
+	synctest.Test(t, func(_ *testing.T) {
 		Default().Info("test message")
 	})
 }
