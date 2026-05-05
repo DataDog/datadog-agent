@@ -103,11 +103,19 @@ type compactJSONContextValues struct {
 	dicts        []uint64
 	rawValues    [][]byte
 	stringValues []string
+	presence     []byte
 }
 
 type dictEntryDefinition struct {
 	id    uint64
 	value string
+}
+
+type jsonSchemaState struct {
+	id           uint64
+	messageKeyID uint64
+	keys         []string
+	keyIDs       []uint64
 }
 
 type tagCacheEntry struct {
@@ -130,6 +138,7 @@ type MessageTranslator struct {
 	tokenizer              token.Tokenizer
 	jsonLogsAsRaw          bool // when true, JSON logs bypass stateful encoding and are sent as RawLog
 	jsonSchemaToID         map[string]uint64
+	jsonSchemasByMessage   map[string][]*jsonSchemaState
 	nextJSONSchemaID       uint64
 
 	pipelineName   string
@@ -183,6 +192,7 @@ func NewMessageTranslator(pipelineName string, tokenizer token.Tokenizer, opts .
 		tokenizer:              tokenizer,
 		jsonLogsAsRaw:          pkgconfigsetup.Datadog().GetBool("logs_config.patterns.json_as_raw"),
 		jsonSchemaToID:         make(map[string]uint64),
+		jsonSchemasByMessage:   make(map[string][]*jsonSchemaState),
 		nextJSONSchemaID:       flatLogEmptyDictIndex,
 		pipelineName:           pipelineName,
 		lastStaleSweep:         time.Now(),
@@ -481,10 +491,14 @@ func (mt *MessageTranslator) processPreTokenized(msg *message.Message, tokenList
 	var jsonContextValuesDV []*statefulpb.DynamicValue
 	var compactJSONContext compactJSONContextValues
 	if len(jsonContextKeys) > 0 {
-		messageKeyDV, jsonContextSchemaID = mt.sendJsonSchemaDefineIfNeeded(outputChan, msg, messageKey, jsonContextKeys)
+		var schemaKeys []string
+		var jsonContextPresence []byte
+		messageKeyDV, jsonContextSchemaID, schemaKeys, jsonContextPresence = mt.sendJsonSchemaDefineIfNeeded(outputChan, msg, messageKey, jsonContextKeys)
+		jsonContextValues = sparseJSONContextValues(schemaKeys, jsonContextKeys, jsonContextValues)
 
 		var dictDefs []dictEntryDefinition
 		compactJSONContext, dictDefs = mt.compactJSONContextValues(jsonContextValues)
+		compactJSONContext.presence = jsonContextPresence
 		for _, dictDef := range dictDefs {
 			mt.sendDictEntryDefine(outputChan, msg, dictDef.id, dictDef.value)
 		}
@@ -619,13 +633,21 @@ func (mt *MessageTranslator) buildStatusField(msg *message.Message) (uint64, str
 	return dictID, status, isNew
 }
 
-func (mt *MessageTranslator) sendJsonSchemaDefineIfNeeded(outputChan chan *message.StatefulMessage, msg *message.Message, messageKey string, keys []string) (*statefulpb.DynamicValue, uint64) {
+func (mt *MessageTranslator) sendJsonSchemaDefineIfNeeded(outputChan chan *message.StatefulMessage, msg *message.Message, messageKey string, keys []string) (*statefulpb.DynamicValue, uint64, []string, []byte) {
 	if messageKey == "" {
 		messageKey = "message"
 	}
 	messageKeyID, messageKeyIsNew := mt.tagManager.AddString(messageKey)
 	if messageKeyIsNew {
 		mt.sendDictEntryDefine(outputChan, msg, messageKeyID, messageKey)
+	}
+
+	if schema := mt.findJSONSchemaSuperset(messageKey, keys); schema != nil {
+		return &statefulpb.DynamicValue{
+			Value: &statefulpb.DynamicValue_DictIndex{
+				DictIndex: messageKeyID,
+			},
+		}, schema.id, schema.keys, buildJSONContextPresence(schema.keys, keys)
 	}
 
 	keyIDs := make([]uint64, 0, len(keys))
@@ -650,6 +672,12 @@ func (mt *MessageTranslator) sendJsonSchemaDefineIfNeeded(outputChan chan *messa
 		mt.nextJSONSchemaID++
 		schemaID = mt.nextJSONSchemaID
 		mt.jsonSchemaToID[schemaKey] = schemaID
+		mt.jsonSchemasByMessage[messageKey] = append(mt.jsonSchemasByMessage[messageKey], &jsonSchemaState{
+			id:           schemaID,
+			messageKeyID: messageKeyID,
+			keys:         append([]string(nil), keys...),
+			keyIDs:       append([]uint64(nil), keyIDs...),
+		})
 		mt.sendJsonSchemaDefine(outputChan, msg, schemaID, keyIDs, messageKeyID)
 	}
 
@@ -657,7 +685,75 @@ func (mt *MessageTranslator) sendJsonSchemaDefineIfNeeded(outputChan chan *messa
 		Value: &statefulpb.DynamicValue_DictIndex{
 			DictIndex: messageKeyID,
 		},
-	}, schemaID
+	}, schemaID, keys, nil
+}
+
+func (mt *MessageTranslator) findJSONSchemaSuperset(messageKey string, keys []string) *jsonSchemaState {
+	var best *jsonSchemaState
+	for _, schema := range mt.jsonSchemasByMessage[messageKey] {
+		if !jsonSchemaContainsAllKeys(schema.keys, keys) {
+			continue
+		}
+		if best == nil || len(schema.keys) < len(best.keys) {
+			best = schema
+		}
+	}
+	return best
+}
+
+func jsonSchemaContainsAllKeys(schemaKeys []string, keys []string) bool {
+	if len(keys) > len(schemaKeys) {
+		return false
+	}
+	keyIndex := 0
+	for _, schemaKey := range schemaKeys {
+		if keyIndex >= len(keys) {
+			return true
+		}
+		if schemaKey == keys[keyIndex] {
+			keyIndex++
+		}
+	}
+	return keyIndex == len(keys)
+}
+
+func buildJSONContextPresence(schemaKeys []string, keys []string) []byte {
+	if len(schemaKeys) == len(keys) {
+		return nil
+	}
+	presence := make([]byte, (len(schemaKeys)+7)/8)
+	keyIndex := 0
+	for schemaIndex, schemaKey := range schemaKeys {
+		if keyIndex >= len(keys) {
+			break
+		}
+		if schemaKey != keys[keyIndex] {
+			continue
+		}
+		presence[schemaIndex/8] |= 1 << uint(schemaIndex%8)
+		keyIndex++
+	}
+	return presence
+}
+
+func sparseJSONContextValues(schemaKeys []string, keys []string, values []interface{}) []interface{} {
+	if len(schemaKeys) == len(keys) {
+		return values
+	}
+	valuesByKey := make(map[string]interface{}, len(keys))
+	for i, key := range keys {
+		if i >= len(values) {
+			break
+		}
+		valuesByKey[key] = values[i]
+	}
+	sparseValues := make([]interface{}, 0, len(keys))
+	for _, schemaKey := range schemaKeys {
+		if value, ok := valuesByKey[schemaKey]; ok {
+			sparseValues = append(sparseValues, value)
+		}
+	}
+	return sparseValues
 }
 
 // getMessageTimestamp returns the timestamp for the message, preferring the HTTP
@@ -1157,6 +1253,7 @@ func buildStructuredLog(timestamp int64, patternID uint64, dynamicValues []*stat
 		JsonContextDictValues:   compactJSONContext.dicts,
 		JsonContextRawValues:    compactJSONContext.rawValues,
 		JsonContextStringValues: compactJSONContext.stringValues,
+		JsonContextPresence:     compactJSONContext.presence,
 	}
 	if uuid != "" {
 		log.Uuid = &uuid

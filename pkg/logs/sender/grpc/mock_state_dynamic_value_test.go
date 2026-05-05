@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	rtokenizer "github.com/DataDog/datadog-agent/pkg/logs/patterns/tokenizer/rust"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
 )
@@ -312,6 +313,50 @@ func TestFillDynamicValue_JSONNumberUsesFloatWhenLossless(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, 159.6, floatValue.FloatValue)
 	assert.False(t, dv.RenderAsString)
+}
+
+func TestJSONSchemaPresenceHelpers(t *testing.T) {
+	schemaKeys := []string{"a", "b", "c", "d", "e", "f", "g", "h", "i"}
+	keys := []string{"b", "d", "i"}
+
+	assert.True(t, jsonSchemaContainsAllKeys(schemaKeys, keys))
+	assert.False(t, jsonSchemaContainsAllKeys(schemaKeys, []string{"b", "x"}))
+	assert.Equal(t, []byte{0b00001010, 0b00000001}, buildJSONContextPresence(schemaKeys, keys))
+
+	values := sparseJSONContextValues(schemaKeys, keys, []interface{}{"bee", "dee", "eye"})
+	require.Len(t, values, 3)
+	assert.Equal(t, []interface{}{"bee", "dee", "eye"}, values)
+}
+
+func TestSendJsonSchemaDefineIfNeeded_ReusesSupersetWithPresence(t *testing.T) {
+	mt := NewMessageTranslator("test-pipeline", rtokenizer.NewRustTokenizer())
+	outputChan := make(chan *message.StatefulMessage, 10)
+	msg := message.NewMessage([]byte("request done"), nil, "", 0)
+
+	_, schemaID, schemaKeys, presence := mt.sendJsonSchemaDefineIfNeeded(outputChan, msg, "message", []string{"a", "b", "c"})
+	require.NotZero(t, schemaID)
+	assert.Equal(t, []string{"a", "b", "c"}, schemaKeys)
+	assert.Nil(t, presence)
+
+	_, reusedSchemaID, reusedSchemaKeys, reusedPresence := mt.sendJsonSchemaDefineIfNeeded(outputChan, msg, "message", []string{"a", "c"})
+	assert.Equal(t, schemaID, reusedSchemaID)
+	assert.Equal(t, []string{"a", "b", "c"}, reusedSchemaKeys)
+	assert.Equal(t, []byte{0b00000101}, reusedPresence)
+}
+
+func TestBuildStructuredLogIncludesJSONContextPresence(t *testing.T) {
+	compact := compactJSONContextValues{
+		kinds:    []byte{jsonValueKindInt},
+		ints:     []int64{42},
+		presence: []byte{0b00000100},
+	}
+
+	datum := buildStructuredLog(123, 12, nil, nil, "", nil, 0, nil, 5, nil, compact)
+	flatLog := datum.GetFlatLog()
+	require.NotNil(t, flatLog)
+	assert.Equal(t, []byte{0b00000100}, flatLog.JsonContextPresence)
+	assert.Equal(t, []byte{jsonValueKindInt}, flatLog.JsonContextValueKinds)
+	assert.Equal(t, []int64{42}, flatLog.JsonContextIntValues)
 }
 
 func ptrInt64(v int64) *int64       { return &v }

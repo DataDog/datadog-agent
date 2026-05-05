@@ -73,15 +73,18 @@ message FlatLog {
   uint64 json_schema_id = 8;
   // Deprecated fallback values for the json schema.
   repeated DynamicValue json_context_values = 9;
-  // Compact values for the json schema. json_context_value_kinds has one byte per schema key.
+  // Compact values for the json schema. json_context_value_kinds has one byte per present schema key.
   // Each kind consumes the next value from the corresponding packed value field.
   // Kind values are defined by the JsonValueKind constants in the encoder/decoder.
   bytes json_context_value_kinds = 10;
-  repeated int64 json_context_int_values = 11;
+  repeated sint64 json_context_int_values = 11;
   repeated double json_context_float_values = 12;
   repeated uint64 json_context_dict_values = 13;
   repeated bytes json_context_raw_values = 14;
   repeated string json_context_string_values = 15;
+  // Optional bitmap for sparse schemas. If unset, every schema key is present.
+  // Bit i indicates whether schema key i has a value in the compact value streams.
+  bytes json_context_presence = 16;
 
   // Optional UUID used to track logs when dual-sent via HTTP and gRPC.
   optional string uuid = 100;
