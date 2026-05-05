@@ -70,7 +70,12 @@ func status(debug bool, jsonOutput bool) error {
 	}
 
 	// Get states & convert to map[string]packageState
-	packageStates, err := getState()
+	var stateOpts []cmdOption
+	if jsonOutput {
+		// Suppress regular logging when outputting JSON.
+		stateOpts = append(stateOpts, withQuiet())
+	}
+	packageStates, err := getState(stateOpts...)
 	if err != nil {
 		return fmt.Errorf("error getting package states: %w", err)
 	}
