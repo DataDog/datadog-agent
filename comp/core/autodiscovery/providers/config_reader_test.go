@@ -121,13 +121,24 @@ func TestGetIntegrationConfig(t *testing.T) {
 	assert.Empty(t, config.ServiceID)
 }
 
+func TestGetIntegrationConfig_Discovery(t *testing.T) {
+	config, _, err := GetIntegrationConfigFromFile("krakend", "tests/auto_conf_discovery.yaml")
+	require.Nil(t, err)
+	require.NotNil(t, config.Discovery)
+	assert.Equal(t, "openmetrics", config.Discovery.Type)
+	assert.Equal(t, []int{8090}, config.Discovery.Ports)
+	assert.Equal(t, "/metrics", config.Discovery.Path)
+	assert.Equal(t, []string{"krakend"}, config.ADIdentifiers)
+	assert.Len(t, config.Instances, 1)
+}
+
 func TestReadConfigFiles(t *testing.T) {
 	paths := []string{"tests"}
 	ResetReader(paths)
 
 	configs, errors, err := ReadConfigFiles(GetAll)
 	require.Nil(t, err)
-	require.Equal(t, 21, len(configs))
+	require.Equal(t, 22, len(configs))
 	require.Equal(t, 4, len(errors))
 
 	for _, c := range configs {
@@ -138,7 +149,7 @@ func TestReadConfigFiles(t *testing.T) {
 
 	configs, _, err = ReadConfigFiles(WithoutAdvancedAD)
 	require.Nil(t, err)
-	require.Equal(t, 19, len(configs))
+	require.Equal(t, 20, len(configs))
 
 	expectedConfig1 := integration.Config{
 		Name: "advanced_ad",

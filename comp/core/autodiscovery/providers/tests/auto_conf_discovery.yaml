@@ -1,0 +1,9 @@
+ad_identifiers:
+  - krakend
+discovery:
+  type: openmetrics
+  ports: [8090]
+  path: /metrics
+init_config:
+instances:
+  - openmetrics_endpoint: "http://%%host%%:%%discovered_port%%/metrics"
