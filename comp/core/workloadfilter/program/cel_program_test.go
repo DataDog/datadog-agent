@@ -102,3 +102,50 @@ func TestCELFieldConfigurationErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestCELFieldConfigurationProcessTCPPorts(t *testing.T) {
+	env, err := cel.NewEnv(
+		cel.Types(&filterdef.Process{}),
+		cel.Variable("process", cel.ObjectType("datadog.workloadfilter.FilterProcess")),
+	)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name        string
+		expr        string
+		expectError bool
+	}{
+		{
+			name:        "Valid: any port equals literal",
+			expr:        `process.tcp_ports.exists(p, p == 6379)`,
+			expectError: false,
+		},
+		{
+			name:        "Valid: empty list check",
+			expr:        `process.tcp_ports.size() == 0`,
+			expectError: false,
+		},
+		{
+			name:        "Valid: in operator",
+			expr:        `6379 in process.tcp_ports`,
+			expectError: false,
+		},
+		{
+			name:        "Invalid: typo in field name",
+			expr:        `process.tcp_portz.exists(p, p == 6379)`,
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, iss := env.Compile(tt.expr)
+			errs := iss.Err()
+			if tt.expectError {
+				require.Error(t, errs, "expected compile error for expr: %s", tt.expr)
+			} else {
+				require.NoError(t, errs, "unexpected compile error for expr: %s", tt.expr)
+			}
+		})
+	}
+}
