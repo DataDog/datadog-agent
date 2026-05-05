@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -212,25 +211,6 @@ func (s *packageDDOTSuite) TestInstallDDOTSubcommand() {
 	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit)
 	state = s.host.State()
 	s.assertCoreUnits(state, true)
-}
-
-// waitForUnitStableRunning waits until each unit has been continuously in
-// SubState=running for at least minUnitStableDuration.
-func (s *packageDDOTSuite) waitForUnitStableRunning(units ...string) {
-	const minUnitStableDuration = 15 * time.Second
-	for _, unit := range units {
-		require.Eventually(s.T(), func() bool {
-			cmd := fmt.Sprintf(
-				`state=$(systemctl show -p SubState %[1]s | cut -d= -f2) && `+
-					`enter=$(systemctl show -p ActiveEnterTimestampMonotonic %[1]s | cut -d= -f2) && `+
-					`now=$(awk '{printf "%%d", $1 * 1000000}' /proc/uptime) && `+
-					`[ "$state" = "running" ] && [ $((now - enter)) -gt %[2]d ]`,
-				unit, int64(minUnitStableDuration/time.Microsecond))
-			_, err := s.Env().RemoteHost.Execute(cmd)
-			return err == nil
-		}, 3*time.Minute, 3*time.Second,
-			"unit %s did not stabilize in running state for %s", unit, minUnitStableDuration)
-	}
 }
 
 func (s *packageDDOTSuite) assertCoreUnits(state host.State, oldUnits bool) {
