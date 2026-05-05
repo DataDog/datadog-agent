@@ -288,15 +288,19 @@ func (a *InjectorInstaller) verifySharedLib(ctx context.Context, libPath string)
 // This is called by the systemd service via "datadog-installer apm instrument-start host"
 // and must not attempt to manage systemd (it would loop).
 func (a *InjectorInstaller) InstrumentLDPreload(ctx context.Context) (err error) {
-	if err := a.verifySharedLib(ctx, path.Join(a.installPath, "inject", "launcher.preload.so")); err != nil {
+	launcherPath := path.Join(a.installPath, "inject", "launcher.preload.so")
+	log.Infof("Verifying APM injector launcher %s", launcherPath)
+	if err := a.verifySharedLib(ctx, launcherPath); err != nil {
 		return err
 	}
+	log.Infof("Adding APM injector launcher %s to %s", launcherPath, ldSoPreloadPath)
 	a.cleanups = append(a.cleanups, a.ldPreloadFileInstrument.cleanup)
 	rollback, err := a.ldPreloadFileInstrument.mutate(ctx)
 	if err != nil {
 		return err
 	}
 	a.rollbacks = append(a.rollbacks, rollback)
+	log.Infof("APM injector launcher present in %s", ldSoPreloadPath)
 	return nil
 }
 
@@ -304,8 +308,13 @@ func (a *InjectorInstaller) InstrumentLDPreload(ctx context.Context) (err error)
 // This is called by the systemd service via "datadog-installer apm instrument-stop host"
 // and must not attempt to manage systemd (it would loop).
 func (a *InjectorInstaller) UninstrumentLDPreload(ctx context.Context) error {
+	log.Infof("Removing APM injector launcher from %s", ldSoPreloadPath)
 	_, err := a.ldPreloadFileUninstrument.mutate(ctx)
-	return err
+	if err != nil {
+		return err
+	}
+	log.Infof("APM injector launcher removed from %s", ldSoPreloadPath)
+	return nil
 }
 
 // addInstrumentScripts writes the instrument scripts that come with the APM injector

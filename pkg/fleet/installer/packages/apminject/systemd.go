@@ -8,6 +8,7 @@
 package apminject
 
 import (
+	"bytes"
 	"context"
 	_ "embed"
 	"fmt"
@@ -21,22 +22,49 @@ import (
 
 const (
 	systemdServiceName = "datadog-apm-inject.service"
+	// installerPathPlaceholder is replaced in the embedded unit file with the
+	// absolute path to the datadog-installer binary resolved at install time.
+	installerPathPlaceholder = "{{INSTALLER_PATH}}"
 )
+
+// installerPathCandidates lists the locations the static datadog-installer
+// binary may live in.
+var installerPathCandidates = []string{
+	"/opt/datadog-packages/datadog-installer/stable/bin/installer/installer",
+	"/opt/datadog-packages/run/datadog-installer-ssi",
+	"/opt/datadog-packages/datadog-agent/stable/embedded/bin/installer",
+	"/usr/bin/datadog-installer",
+}
 
 //go:embed datadog-apm-inject.service
 var apmInjectServiceFile []byte
 
 // SystemdServiceManager manages the APM injector systemd service
 type SystemdServiceManager struct {
-	servicePath string
-	serviceName string
+	servicePath   string
+	serviceName   string
+	installerPath string
 }
 
-// NewSystemdServiceManager creates a new SystemdServiceManager
+// NewSystemdServiceManager builds a manager pointing at whichever
+// datadog-installer binary is on disk at call time. Every supported install
+// flow leaves at least one candidate present before apm-inject's post-install
+// runs:
+//   - SSI / DD_NO_AGENT_INSTALL: copyInstallerSSI is invoked before the
+//     package install loop in pkg/fleet/installer/setup/common/setup.go,
+//     so /opt/datadog-packages/run/datadog-installer-ssi is in place.
+//   - Regular OCI agent install: datadog-agent is installed before
+//     datadog-apm-inject, so the agent's embedded installer is in place.
+//   - Legacy deb/rpm: /usr/bin/datadog-installer ships with the package.
 func NewSystemdServiceManager() *SystemdServiceManager {
+	installerPath, err := resolveInstallerPath(installerPathCandidates)
+	if err != nil {
+		log.Warnf("could not resolve datadog-installer path for APM inject service: %v; writeServiceFile will refuse to render the unit", err)
+	}
 	return &SystemdServiceManager{
-		servicePath: filepath.Join(systemd.UserUnitsPath, systemdServiceName),
-		serviceName: systemdServiceName,
+		servicePath:   filepath.Join(systemd.UserUnitsPath, systemdServiceName),
+		serviceName:   systemdServiceName,
+		installerPath: installerPath,
 	}
 }
 
@@ -52,7 +80,7 @@ func (s *SystemdServiceManager) Setup(ctx context.Context) (err error) {
 	if err := s.writeServiceFile(); err != nil {
 		return err
 	}
-	log.Infof("Installed systemd service file at %s", s.servicePath)
+	log.Infof("Installed systemd service file at %s (installer: %s)", s.servicePath, s.installerPath)
 
 	if err := systemd.Reload(ctx); err != nil {
 		return fmt.Errorf("failed to reload systemd: %w", err)
@@ -105,8 +133,29 @@ func (s *SystemdServiceManager) writeServiceFile() error {
 		return fmt.Errorf("failed to create systemd directory: %w", err)
 	}
 
-	if err := os.WriteFile(s.servicePath, apmInjectServiceFile, 0644); err != nil {
+	if s.installerPath == "" {
+		return fmt.Errorf("refusing to write %s with empty installer path", s.servicePath)
+	}
+	content := bytes.ReplaceAll(apmInjectServiceFile, []byte(installerPathPlaceholder), []byte(s.installerPath))
+
+	if err := os.WriteFile(s.servicePath, content, 0644); err != nil {
 		return fmt.Errorf("failed to write systemd service file at %s: %w", s.servicePath, err)
 	}
 	return nil
+}
+
+func resolveInstallerPath(candidates []string) (string, error) {
+	for _, p := range candidates {
+		info, err := os.Stat(p)
+		// Skip if doesn't exist.
+		if err != nil {
+			continue
+		}
+		// Skip if dir or not executable.
+		if info.IsDir() || info.Mode()&0111 == 0 {
+			continue
+		}
+		return p, nil
+	}
+	return "", fmt.Errorf("no datadog-installer binary found among %v", candidates)
 }
