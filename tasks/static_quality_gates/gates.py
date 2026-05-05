@@ -203,6 +203,34 @@ class GateResult:
         """Remaining disk size capacity in bytes"""
         return max(0, self.config.max_on_disk_size - self.measurement.on_disk_size)
 
+    @property
+    def violation_message(self) -> str | None:
+        if self.success:
+            return None
+        violation_messages = []
+        for violation in self.violations:
+            current_mb = violation.current_size / (1024 * 1024)
+            max_mb = violation.max_size / (1024 * 1024)
+            excess_mb = violation.excess_bytes / (1024 * 1024)
+            if excess_mb < 1:
+                excess_kb = violation.excess_bytes / 1024
+                excess_str = f"{excess_kb:.1f} KB"
+            else:
+                excess_str = f"{excess_mb:.1f} MB"
+            violation_messages.append(
+                f"{violation.measurement_type.title()} size {current_mb:.1f} MB "
+                f"exceeds limit of {max_mb:.1f} MB by {excess_str}"
+            )
+        return f"{self.config.gate_name} failed!\n" + "\n".join(violation_messages)
+
+
+@dataclass(frozen=True)
+class GateExecutionError:
+    """Represents an unexpected exception that prevented a gate from running."""
+
+    name: str
+    traceback: str
+
 
 class ArtifactMeasurer(Protocol):
     """
