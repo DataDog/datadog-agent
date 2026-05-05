@@ -1,0 +1,35 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "config.go",
+        "networkdeviceconfig.go",
+        "store_endpoint.go",
+        "stub.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/api/api/def",
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/def",
+        "//comp/networkconfigmanagement/def",
+        "//pkg/config/structure",
+        "//pkg/util/http",
+        "@//pkg/networkconfigmanagement/store",
+        "@//pkg/networkconfigmanagement/types",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = ["config_test.go"],
+    embed = [":impl"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/config/mock",
+        "@com_github_stretchr_testify//assert",
+    ],
+)
