@@ -240,7 +240,6 @@ exports_files(glob(
 # gazelle:exclude comp/process/connectionscheck
 # gazelle:exclude comp/process/containercheck
 # gazelle:exclude comp/process/expvars
-# gazelle:exclude comp/process/gpusubscriber/def
 # gazelle:exclude comp/process/gpusubscriber/fx
 # gazelle:exclude comp/process/gpusubscriber/fx-mock
 # gazelle:exclude comp/process/gpusubscriber/impl
