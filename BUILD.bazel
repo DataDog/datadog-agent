@@ -681,7 +681,6 @@ exports_files(glob(
 # gazelle:exclude pkg/util/kubernetes/kubelet
 # gazelle:exclude pkg/util/os
 # gazelle:exclude pkg/util/port
-# gazelle:exclude pkg/util/profiling
 # gazelle:exclude pkg/util/tags
 # gazelle:exclude pkg/windowsdriver/ddinjector
 # gazelle:exclude pkg/windowsdriver/include
