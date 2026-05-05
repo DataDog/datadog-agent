@@ -69,9 +69,6 @@ func restrictedK8sAttributesConfig() confMap {
 			},
 			"otel_annotations": true,
 		},
-		"filter": confMap{
-			"node_from_env_var": "K8S_NODE_NAME",
-		},
 		"passthrough": false,
 		"pod_association": []any{
 			confMap{
