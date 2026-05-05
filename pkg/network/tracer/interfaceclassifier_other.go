@@ -11,7 +11,7 @@ package tracer
 // On non-Windows platforms, this is a stub.
 type InterfaceClassification struct {
 	InterfaceName string
-	InterfaceType uint32
+	InterfaceType string
 }
 
 // InterfaceClassifier resolves interface indices to interface metadata.

@@ -9,6 +9,7 @@ package tracer
 
 import (
 	"bytes"
+	"fmt"
 	"sync"
 	"time"
 	"unicode/utf16"
@@ -19,13 +20,42 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/iphelper"
 )
 
+// ifTypeToString maps the ifType values that Windows commonly reports via
+// MIB_IFROW.dwType to snake_case names derived from the IF_TYPE_* macros.
+// References:
+//   - https://learn.microsoft.com/en-us/windows/win32/api/ifmib/ns-ifmib-mib_ifrow
+//     (Microsoft documentation listing the values typically reported on Windows)
+//   - https://github.com/tpn/winsdk-10/blob/master/Include/10.0.14393.0/shared/ipifcons.h
+//     (Windows SDK ipifcons.h, the canonical source of the IF_TYPE_* macros)
+//
+// Values outside this list fall through to ifTypeName as the raw integer.
+var ifTypeToString = map[uint32]string{
+	1:   "other",               // IF_TYPE_OTHER
+	6:   "ethernet_csmacd",     // IF_TYPE_ETHERNET_CSMACD
+	9:   "iso88025_token_ring", // IF_TYPE_ISO88025_TOKENRING
+	23:  "ppp",                 // IF_TYPE_PPP
+	24:  "software_loopback",   // IF_TYPE_SOFTWARE_LOOPBACK
+	37:  "atm",                 // IF_TYPE_ATM
+	53:  "prop_virtual",        // IF_TYPE_PROP_VIRTUAL
+	71:  "ieee80211",           // IF_TYPE_IEEE80211
+	131: "tunnel",              // IF_TYPE_TUNNEL
+	144: "ieee1394",            // IF_TYPE_IEEE1394
+}
+
+// ifTypeName returns a snake_case string for a known Windows ifType value.
+// Values outside the documented set are returned as their raw integer so
+// new types can be identified downstream without an agent release.
+func ifTypeName(ifType uint32) string {
+	if name, ok := ifTypeToString[ifType]; ok {
+		return name
+	}
+	return fmt.Sprintf("%d", ifType)
+}
+
 // InterfaceClassification holds interface metadata looked up by interface index.
-// InterfaceType is the raw IANA ifType value
-// (https://www.iana.org/assignments/ianaiftype-mib/ianaiftype-mib); mapping to a
-// human-readable name (and any VPN identification) is performed downstream.
 type InterfaceClassification struct {
-	InterfaceName string
-	InterfaceType uint32
+	InterfaceName string // friendly name, e.g. "Intel Wi-Fi 6 AX201", "WireGuard Tunnel"
+	InterfaceType string // human-readable ifType, e.g. "ethernet", "wifi", "prop_virtual"
 }
 
 // cachedInterface stores minimal info about a network interface
@@ -102,8 +132,8 @@ func (c *InterfaceClassifier) refreshCache() {
 
 	for idx, ci := range newCache {
 		if _, existed := old[idx]; !existed {
-			log.Debugf("interface_classifier: cached new interface idx=%d type=%d name=%q descr=%q",
-				idx, ci.ifType, ci.name, ci.descr)
+			log.Debugf("interface_classifier: cached new interface idx=%d type=%s name=%q descr=%q",
+				idx, ifTypeName(ci.ifType), ci.name, ci.descr)
 		}
 	}
 }
@@ -120,7 +150,7 @@ func (c *InterfaceClassifier) Classify(interfaceIndex uint32) InterfaceClassific
 	}
 	return InterfaceClassification{
 		InterfaceName: iface.friendlyName(),
-		InterfaceType: iface.ifType,
+		InterfaceType: ifTypeName(iface.ifType),
 	}
 }
 
