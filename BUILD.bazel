@@ -232,7 +232,6 @@ exports_files(glob(
 # gazelle:exclude comp/otelcol/otlp/integrationtest
 # gazelle:exclude comp/otelcol/otlp/internal
 # gazelle:exclude comp/otelcol/otlp/testdata
-# gazelle:exclude comp/otelcol/status/fx
 # gazelle:exclude comp/privateactionrunner/fx
 # gazelle:exclude comp/privateactionrunner/impl
 # gazelle:exclude comp/privateactionrunner/status
