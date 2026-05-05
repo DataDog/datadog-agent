@@ -108,7 +108,12 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         reply_rx
             .await
             .map_err(|_| Status::internal("event loop dropped reply"))?
-            .map(|result| Response::new(proto::CreateResponse { uuid: result.uuid }))
+            .map(|result| {
+                Response::new(proto::CreateResponse {
+                    uuid: result.uuid,
+                    warnings: result.warnings,
+                })
+            })
     }
 
     async fn start(
@@ -335,6 +340,7 @@ fn process_detail(proc: &ManagedProcess) -> proto::ProcessDetail {
 mod tests {
     use super::*;
     use crate::config::ProcessConfig;
+    use crate::test_helpers;
 
     #[test]
     fn test_state_to_proto_mapping() {
@@ -370,24 +376,29 @@ mod tests {
 
     #[test]
     fn test_process_to_proto() {
+        let (cmd, args) = test_helpers::sleep_cmd(60);
+        let expected_args = args.clone();
         let cfg = ProcessConfig {
-            command: "/usr/bin/sleep".to_string(),
-            args: vec!["60".to_string()],
+            command: cmd.to_string(),
+            args,
             ..Default::default()
         };
-        let proc = ManagedProcess::new_config("test-proc".to_string(), cfg);
+        let proc =
+            ManagedProcess::new_config("test-proc".to_string(), test_helpers::test_uuid(), cfg);
         let proto = process_to_proto(&proc);
         assert_eq!(proto.name, "test-proc");
-        assert_eq!(proto.command, "/usr/bin/sleep");
-        assert_eq!(proto.args, vec!["60"]);
+        assert_eq!(proto.command, cmd);
+        assert_eq!(proto.args, expected_args);
         assert_eq!(proto.pid, 0);
         assert_eq!(proto.state, proto::ProcessState::Created as i32);
     }
 
     #[test]
     fn test_process_detail() {
+        let (cmd, args) = test_helpers::true_cmd();
         let cfg = ProcessConfig {
-            command: "/usr/bin/test".to_string(),
+            command: cmd.to_string(),
+            args: args.into_iter().map(|a| a.to_string()).collect(),
             description: Some("A test process".to_string()),
             working_dir: Some("/tmp".to_string()),
             auto_start: false,
@@ -395,7 +406,8 @@ mod tests {
             before: vec!["dep-b".to_string()],
             ..Default::default()
         };
-        let proc = ManagedProcess::new_config("detail-proc".to_string(), cfg);
+        let proc =
+            ManagedProcess::new_config("detail-proc".to_string(), test_helpers::test_uuid(), cfg);
         let detail = process_detail(&proc);
         assert_eq!(detail.name, "detail-proc");
         assert_eq!(detail.description, "A test process");
@@ -407,36 +419,37 @@ mod tests {
 
     #[tokio::test]
     async fn test_process_to_proto_running_with_pid() {
+        let (cmd, args) = test_helpers::sleep_cmd(60);
+        let expected_args = args.clone();
         let cfg = ProcessConfig {
-            command: "/bin/sleep".to_string(),
-            args: vec!["60".to_string()],
+            command: cmd.to_string(),
+            args,
             ..Default::default()
         };
-        let mut proc = ManagedProcess::new_config("sleeper".to_string(), cfg);
+        let mut proc =
+            ManagedProcess::new_config("sleeper".to_string(), test_helpers::test_uuid(), cfg);
         proc.spawn().unwrap();
 
         let proto = process_to_proto(&proc);
         assert_eq!(proto.name, "sleeper");
         assert_eq!(proto.state, proto::ProcessState::Running as i32);
         assert!(proto.pid > 0, "running process should have a non-zero pid");
-        assert_eq!(proto.command, "/bin/sleep");
-        assert_eq!(proto.args, vec!["60"]);
+        assert_eq!(proto.command, cmd);
+        assert_eq!(proto.args, expected_args);
 
-        nix::sys::signal::kill(
-            nix::unistd::Pid::from_raw(proto.pid as i32),
-            nix::sys::signal::Signal::SIGKILL,
-        )
-        .ok();
+        test_helpers::cleanup_process(proto.pid);
     }
 
     #[tokio::test]
     async fn test_process_to_proto_failed() {
+        let (cmd, args) = test_helpers::exit_cmd(1);
         let cfg = ProcessConfig {
-            command: "/bin/sh".to_string(),
-            args: vec!["-c".to_string(), "exit 1".to_string()],
+            command: cmd.to_string(),
+            args,
             ..Default::default()
         };
-        let mut proc = ManagedProcess::new_config("fail-proc".to_string(), cfg);
+        let mut proc =
+            ManagedProcess::new_config("fail-proc".to_string(), test_helpers::test_uuid(), cfg);
         proc.spawn().unwrap();
 
         let mut child = proc.take_child().unwrap();
@@ -445,6 +458,6 @@ mod tests {
 
         let proto = process_to_proto(&proc);
         assert_eq!(proto.state, proto::ProcessState::Failed as i32);
-        assert!(proto.pid > 0, "failed process retains its last known pid");
+        assert_eq!(proto.pid, 0, "exited process should have pid cleared");
     }
 }

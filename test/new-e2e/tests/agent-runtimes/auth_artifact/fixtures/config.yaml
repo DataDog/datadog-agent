@@ -6,7 +6,5 @@ apm_config:
     enabled: false
 
 process_config:
-  run_in_core_agent:
-    enabled: false
   process_collection:
     enabled: true

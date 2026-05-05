@@ -191,7 +191,7 @@ func TestAddStrippedKeysExceptions(t *testing.T) {
 
 		scrubbed, err := ScrubYamlString(contents)
 		require.Nil(t, err)
-		require.YAMLEq(t, `api_key: '***************************aaaaa'`, scrubbed)
+		require.YAMLEq(t, `api_key: '****************************aaaa'`, scrubbed)
 	})
 
 	t.Run("multiple keys", func(t *testing.T) {
@@ -208,9 +208,9 @@ yet_another_key: 'dddd'`
 
 		scrubbed, err := ScrubYamlString(contents)
 		require.Nil(t, err)
-		expected := `api_key: '***************************aaaaa'
+		expected := `api_key: '****************************aaaa'
 some_other_key: '********'
-app_key: '***********************************acccc'
+app_key: '************************************cccc'
 yet_another_key: 'dddd'`
 		require.YAMLEq(t, expected, scrubbed)
 	})
@@ -233,12 +233,12 @@ func TestNewAPIKeyAndAuthPatterns(t *testing.T) {
 				"apikey":  "secret678",
 			},
 			expected: map[string]interface{}{
-				"APIKEY":  "********",
-				"API_KEY": "********",
-				"ApiKey":  "********",
-				"Api_key": "********",
-				"api-key": "********",
-				"apikey":  "********",
+				"APIKEY":  "*******23",
+				"API_KEY": "*******56",
+				"ApiKey":  "*******89",
+				"Api_key": "*******12",
+				"api-key": "*******45",
+				"apikey":  "*******78",
 			},
 		},
 		{
@@ -394,7 +394,8 @@ func TestScrubbingENC(t *testing.T) {
 password: ENC
 token: [not_enc]`)
 		require.NoError(t, err)
-		require.YAMLEq(t, `api_key: "********"
+		// api_key: "ENC[incomplete" is 14 chars → 2 chars visible ("te")
+		require.YAMLEq(t, `api_key: "************te"
 password: "********"
 token: "********"`, result)
 	})
@@ -440,6 +441,14 @@ token: "********"`, result)
 		ScrubDataObj(&input)
 		assert.Equal(t, expected, input)
 	})
+}
+
+func TestAPIKeyScrubNonStandardLength(t *testing.T) {
+	// Non-standard-length api_key values (e.g. from a secret manager) use the
+	// dynamic formula: "secretmanagerresolvedkeyabcd" is 28 chars → 3 chars visible.
+	result, err := ScrubYamlString(`api_key: secretmanagerresolvedkeyabcd`)
+	require.NoError(t, err)
+	require.YAMLEq(t, `api_key: "*************************bcd"`, result)
 }
 
 func TestComplexYAMLWithNewKeys(t *testing.T) {

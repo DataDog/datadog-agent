@@ -158,6 +158,21 @@ func TestNewAuthenticationFromBackendConfig_AWSAuth(t *testing.T) {
 			},
 		},
 		{
+			name: "AWS auth with role and server ID header",
+			sessionConfig: VaultSessionBackendConfig{
+				VaultAuthType:       "aws",
+				VaultAWSRole:        "test-role",
+				VaultAWSIAMServerID: "test-server-id",
+			},
+			expectAuth:  true,
+			expectError: false,
+			validateAuth: func(t *testing.T, auth interface{}) {
+				awsAuth, ok := auth.(*aws.AWSAuth)
+				require.True(t, ok, "Expected AWSAuth type")
+				assert.NotNil(t, awsAuth)
+			},
+		},
+		{
 			name: "AWS auth type without role should return nil",
 			sessionConfig: VaultSessionBackendConfig{
 				VaultAuthType: "aws",

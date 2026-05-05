@@ -36,6 +36,8 @@ def deploy(
     agent_env: str | None = None,
     helm_config: str | None = None,
     local_package: str | None = None,
+    pulumi_extra_args: str = "",
+    pulumi_env: dict[str, str] | None = None,
 ) -> str:
     from pydantic_core._pydantic_core import ValidationError
 
@@ -65,7 +67,7 @@ def deploy(
 
     # Verify image deployed and not outdated in s3
     if deploy_job is not None and pipeline_id is not None:
-        cmd = f"inv -e check-s3-image-exists --pipeline-id={pipeline_id} --deploy-job={deploy_job}"
+        cmd = f"inv -e e2e.check-s3-image-exists --pipeline-id={pipeline_id} --deploy-job={deploy_job}"
         cmd = tool.get_aws_wrapper(aws_account) + cmd
         output = ctx.run(cmd, warn=True)
 
@@ -125,6 +127,8 @@ def deploy(
         agent_env,
         helm_config,
         local_package,
+        pulumi_extra_args=pulumi_extra_args,
+        pulumi_env=pulumi_env,
     )
 
 

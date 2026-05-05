@@ -13,6 +13,13 @@ const (
 	// VersionTagLabelKey is the label key of the version standard tag
 	VersionTagLabelKey = "tags.datadoghq.com/version"
 
+	// ADAnnotationPrefix is the prefix for Autodiscovery annotations on Kubernetes resources
+	ADAnnotationPrefix = "ad.datadoghq.com/"
+	// ADTagsAnnotation is the annotation key used to attach arbitrary tags to all metrics of a resource
+	ADTagsAnnotation = ADAnnotationPrefix + "tags"
+	// ADContainerTagsAnnotationFormat is the format string for per-container tag annotations; use fmt.Sprintf with the container name
+	ADContainerTagsAnnotationFormat = ADAnnotationPrefix + "%s.tags"
+
 	// KubeAppNameLabelKey is the label key of the name of the application
 	KubeAppNameLabelKey = "app.kubernetes.io/name"
 	// KubeAppInstanceLabelKey is the label key of unique name identifying the instance of an application

@@ -49,15 +49,11 @@ type TargetMutator struct {
 // NewTargetMutator creates a new mutator for target based workload selection. We convert the targets to a more
 // efficient internal format for quick lookups.
 func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolver imageresolver.Resolver) (*TargetMutator, error) {
-	// Determine default disabled namespaces.
-	defaultDisabled := mutatecommon.DefaultDisabledNamespaces()
-
-	// Create a map of disabled namespaces for quick lookups.
-	disabledNamespacesMap := make(map[string]bool, len(config.Instrumentation.DisabledNamespaces)+len(defaultDisabled))
+	// Create a map of user-configured disabled namespaces for quick lookups.
+	// Default namespaces (kube-system, datadog agent namespace) are excluded at
+	// the webhook layer via namespace selectors and not duplicated here.
+	disabledNamespacesMap := make(map[string]bool, len(config.Instrumentation.DisabledNamespaces))
 	for _, ns := range config.Instrumentation.DisabledNamespaces {
-		disabledNamespacesMap[ns] = true
-	}
-	for _, ns := range defaultDisabled {
 		disabledNamespacesMap[ns] = true
 	}
 

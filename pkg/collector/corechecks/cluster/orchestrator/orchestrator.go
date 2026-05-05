@@ -139,10 +139,10 @@ func (o *OrchestratorCheck) Interval() time.Duration {
 }
 
 // Configure configures the orchestrator check
-func (o *OrchestratorCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
+func (o *OrchestratorCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string, provider string) error {
 	o.BuildID(integrationConfigDigest, config, initConfig)
 
-	err := o.CommonConfigure(senderManager, initConfig, config, source)
+	err := o.CommonConfigure(senderManager, initConfig, config, source, provider)
 	if err != nil {
 		return err
 	}

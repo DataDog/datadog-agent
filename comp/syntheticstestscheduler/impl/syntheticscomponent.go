@@ -59,7 +59,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, reqs.Logger.Errorf("error getting EpForwarder")
 	}
 
-	scheduler := newSyntheticsTestScheduler(configs, epForwarder, reqs.Logger, reqs.HostnameService, time.Now, reqs.Statsd, reqs.Traceroute)
+	onDemandPollerConfig := newOnDemandPollerConfig(reqs.AgentConfig)
+	poller := newOnDemandPoller(onDemandPollerConfig, reqs.HostnameService, reqs.Logger, time.Now)
+
+	scheduler := newSyntheticsTestScheduler(configs, epForwarder, reqs.Logger, reqs.HostnameService, time.Now, reqs.Statsd, reqs.Traceroute, poller)
 
 	var rcListener rctypes.ListenerProvider
 	rcListener.ListenerProvider = rctypes.RCListener{

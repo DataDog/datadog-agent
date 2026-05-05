@@ -217,6 +217,14 @@ func TestNormalizeBootstrapServers(t *testing.T) {
 			input:    "-broker.example.com:9092-",
 			expected: "broker.example.com:9092",
 		},
+		{
+			name:  "long broker list truncated to backend tag limit",
+			input: "b-1.demosumuseast1main.l4fk14.c6.kafka.us-east-1.amazonaws.com:9096,b-2.demosumuseast1main.l4fk14.c6.kafka.us-east-1.amazonaws.com:9096,b-3.demosumuseast1main.l4fk14.c6.kafka.us-east-1.amazonaws.com:9096",
+			// Full normalized value would be 202 chars, but the backend truncates
+			// the tag "bootstrap_servers:<value>" to 200 chars total, leaving
+			// 200 - len("bootstrap_servers:") = 182 chars for the value.
+			expected: "b_1.demosumuseast1main.l4fk14.c6.kafka.us_east_1.amazonaws.com:9096_b_2.demosumuseast1main.l4fk14.c6.kafka.us_east_1.amazonaws.com:9096_b_3.demosumuseast1main.l4fk14.c6.kafka.us_east",
+		},
 	}
 
 	for _, tt := range tests {

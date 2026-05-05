@@ -31,8 +31,6 @@ func TestDockerTestSuite(t *testing.T) {
 		dockeragentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED", pulumi.StringPtr("true")),
 		dockeragentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED", pulumi.StringPtr("false")),
 		dockeragentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED", pulumi.StringPtr("false")),
-		dockeragentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_RUN_IN_CORE_AGENT_ENABLED", pulumi.StringPtr("false")),
-
 		dockeragentparams.WithExtraComposeManifest("fakeProcess", pulumi.String(fakeProcessCompose)),
 	}
 
@@ -51,8 +49,18 @@ func (s *dockerTestSuite) TestDockerProcessCheck() {
 	t := s.T()
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		assertRunningChecks(collect, s.Env().Agent.Client, []string{"process", "rtprocess"}, false)
+		status := getAgentStatus(collect, s.Env().Agent.Client)
+
+		// Process checks run in the core agent; verify the standalone process-agent is not running
+		assert.NotEmpty(t, status.ProcessAgentStatus.Error, "status: %+v", status)
+		assert.Empty(t, status.ProcessAgentStatus.Expvars.Map.EnabledChecks)
+
+		// Verify the process component is running in the core agent
+		assert.ElementsMatch(t, status.ProcessComponentStatus.Expvars.Map.EnabledChecks, []string{"process", "rtprocess"})
 	}, 2*time.Minute, 5*time.Second)
+
+	// Flush fake intake to remove any early payloads
+	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 
 	var payloads []*aggregator.ProcessPayload
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -63,6 +71,9 @@ func (s *dockerTestSuite) TestDockerProcessCheck() {
 		assertProcessCollectedNew(c, payloads, false, "dd")
 		assertContainersCollectedNew(c, payloads, []string{"fake-process"})
 	}, 2*time.Minute, 10*time.Second)
+
+	// Verify the process-agent is not collected as it should not be running
+	requireProcessNotCollected(t, payloads, "process-agent")
 }
 
 func (s *dockerTestSuite) TestProcessDiscoveryCheck() {
@@ -71,8 +82,7 @@ func (s *dockerTestSuite) TestProcessDiscoveryCheck() {
 		dockeragentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED", pulumi.StringPtr("false")),
 		dockeragentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED", pulumi.StringPtr("false")),
 		dockeragentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED", pulumi.StringPtr("true")),
-		dockeragentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_RUN_IN_CORE_AGENT_ENABLED", pulumi.StringPtr("false")),
-
+		dockeragentparams.WithAgentServiceEnvVariable("DD_DISCOVERY_ENABLED", pulumi.StringPtr("false")),
 		dockeragentparams.WithExtraComposeManifest("fakeProcess", pulumi.String(fakeProcessCompose)),
 	}
 
@@ -98,7 +108,6 @@ func (s *dockerTestSuite) TestProcessCheckWithIO() {
 	agentOpts := []dockeragentparams.Option{
 		dockeragentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED", pulumi.StringPtr("true")),
 		dockeragentparams.WithAgentServiceEnvVariable("DD_SYSTEM_PROBE_PROCESS_ENABLED", pulumi.StringPtr("true")),
-		dockeragentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_RUN_IN_CORE_AGENT_ENABLED", pulumi.StringPtr("false")),
 	}
 	s.UpdateEnv(awsdocker.Provisioner(awsdocker.WithRunOptions(scendocker.WithAgentOptions(agentOpts...))))
 
@@ -127,7 +136,7 @@ func (s *dockerTestSuite) TestProcessChecksWithNPM() {
 	agentOpts := []dockeragentparams.Option{
 		dockeragentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED", pulumi.StringPtr("true")),
 		dockeragentparams.WithAgentServiceEnvVariable("DD_SYSTEM_PROBE_NETWORK_ENABLED", pulumi.StringPtr("true")),
-		dockeragentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_RUN_IN_CORE_AGENT_ENABLED", pulumi.StringPtr("false")),
+
 		dockeragentparams.WithExtraComposeManifest("fakeProcess", pulumi.String(fakeProcessCompose)),
 	}
 	s.UpdateEnv(awsdocker.Provisioner(awsdocker.WithRunOptions(scendocker.WithAgentOptions(agentOpts...))))
@@ -150,97 +159,16 @@ func (s *dockerTestSuite) TestProcessChecksWithNPM() {
 	assertContainersCollected(t, payloads, []string{"fake-process"})
 }
 
-func (s *dockerTestSuite) TestProcessChecksInCoreAgent() {
-	t := s.T()
-	agentOpts := []dockeragentparams.Option{
-		dockeragentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED", pulumi.StringPtr("true")),
-		dockeragentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_RUN_IN_CORE_AGENT_ENABLED", pulumi.StringPtr("true")),
-	}
-
-	s.UpdateEnv(awsdocker.Provisioner(awsdocker.WithRunOptions(scendocker.WithAgentOptions(agentOpts...))))
-
-	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		status := getAgentStatus(collect, s.Env().Agent.Client)
-
-		// verify the standalone process-agent is not running
-		assert.NotEmpty(t, status.ProcessAgentStatus.Error, "status: %+v", status)
-		assert.Empty(t, status.ProcessAgentStatus.Expvars.Map.EnabledChecks)
-
-		// Verify the process component is running in the core agent
-		assert.ElementsMatch(t, status.ProcessComponentStatus.Expvars.Map.EnabledChecks, []string{"process", "rtprocess"})
-
-	}, 1*time.Minute, 5*time.Second)
-
-	// Flush fake intake to remove any payloads which may have
-	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
-
-	var payloads []*aggregator.ProcessPayload
-	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		var err error
-		payloads, err = s.Env().FakeIntake.Client().GetProcesses()
-		assert.NoError(c, err, "failed to get process payloads from fakeintake")
-
-		// Wait for two payloads, as processes must be detected in two check runs to be returned
-		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
-	}, 2*time.Minute, 10*time.Second)
-
-	assertProcessCollected(t, payloads, false, "dd")
-
-	// check that the process agent is not collected as it should not be running
-	requireProcessNotCollected(t, payloads, "process-agent")
-}
-
-func (s *dockerTestSuite) TestProcessChecksInCoreAgentWithNPM() {
-	t := s.T()
-	agentOpts := []dockeragentparams.Option{
-		dockeragentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED", pulumi.StringPtr("true")),
-		dockeragentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_RUN_IN_CORE_AGENT_ENABLED", pulumi.StringPtr("true")),
-		dockeragentparams.WithAgentServiceEnvVariable("DD_SYSTEM_PROBE_NETWORK_ENABLED", pulumi.StringPtr("true")),
-	}
-	s.UpdateEnv(awsdocker.Provisioner(awsdocker.WithRunOptions(scendocker.WithAgentOptions(agentOpts...))))
-
-	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		assertRunningChecks(collect, s.Env().Agent.Client, []string{"connections"}, false)
-	}, 1*time.Minute, 5*time.Second)
-
-	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		status := getAgentStatus(collect, s.Env().Agent.Client)
-
-		// verify the standalone process-agent is running with just the NPM check
-		assert.Empty(t, status.ProcessAgentStatus.Error, "status: %+v", status)
-		assert.ElementsMatch(t, []string{"connections"}, status.ProcessAgentStatus.Expvars.Map.EnabledChecks)
-
-		// Verify the process component is running in the core agent
-		assert.ElementsMatch(t, status.ProcessComponentStatus.Expvars.Map.EnabledChecks, []string{"process", "rtprocess"})
-
-	}, 1*time.Minute, 5*time.Second)
-
-	// Flush fake intake to remove any payloads which may have
-	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
-
-	var payloads []*aggregator.ProcessPayload
-	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		var err error
-		payloads, err = s.Env().FakeIntake.Client().GetProcesses()
-		assert.NoError(c, err, "failed to get process payloads from fakeintake")
-
-		// Wait for two payloads, as processes must be detected in two check runs to be returned
-		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
-	}, 2*time.Minute, 10*time.Second)
-
-	assertProcessCollected(t, payloads, false, "dd")
-}
-
 func (s *dockerTestSuite) TestManualProcessCheck() {
 	check := s.Env().Docker.Client.ExecuteCommand(s.Env().Agent.ContainerName,
-		"process-agent", "check", "process", "--json")
+		"agent", "processchecks", "process", "--json")
 
 	assertManualProcessCheck(s.T(), check, false, "dd", "fake-process")
 }
 
 func (s *dockerTestSuite) TestManualProcessDiscoveryCheck() {
 	check := s.Env().Docker.Client.ExecuteCommand(s.Env().Agent.ContainerName,
-		"process-agent", "check", "process_discovery", "--json")
+		"agent", "processchecks", "process_discovery", "--json")
 
 	assertManualProcessDiscoveryCheck(s.T(), check, "dd")
 }
@@ -253,7 +181,7 @@ func (s *dockerTestSuite) TestManualProcessCheckWithIO() {
 	s.UpdateEnv(awsdocker.Provisioner(awsdocker.WithRunOptions(scendocker.WithAgentOptions(agentOpts...))))
 
 	check := s.Env().Docker.Client.ExecuteCommand(s.Env().Agent.ContainerName,
-		"process-agent", "check", "process", "--json")
+		"agent", "processchecks", "process", "--json")
 
 	assertManualProcessCheck(s.T(), check, true, "dd")
 }

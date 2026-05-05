@@ -7,6 +7,7 @@ package utils
 
 import (
 	"fmt"
+	"net"
 	"net/url"
 	"os"
 	"strings"
@@ -72,7 +73,7 @@ func GetClusterAgentEndpoint() (string, error) {
 	}
 
 	// validate the URL
-	dcaURL = fmt.Sprintf("https://%s:%s", dcaSvcHost, dcaSvcPort)
+	dcaURL = "https://" + net.JoinHostPort(dcaSvcHost, dcaSvcPort)
 	u, err := url.Parse(dcaURL)
 	if err != nil {
 		return "", err

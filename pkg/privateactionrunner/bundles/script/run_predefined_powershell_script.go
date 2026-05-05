@@ -26,6 +26,7 @@ import (
 var requiredWindowsEnvVars = []string{
 	"SYSTEMROOT",
 	"COMSPEC",
+	"PATH",
 	"PATHEXT",
 	"WINDIR",
 	"TEMP",
@@ -39,11 +40,11 @@ func NewRunPredefinedPowershellScriptHandler() *RunPredefinedPowershellScriptHan
 }
 
 type RunPredefinedPowershellScriptInputs struct {
-	ScriptName             string      `json:"scriptName"`
-	Parameters             interface{} `json:"parameters"`
-	Timeout                int         `json:"timeout"`
-	NoFailOnError          bool        `json:"noFailOnError"`
-	NoStripTrailingNewline bool        `json:"noStripTrailingNewline"`
+	ScriptName             string `json:"scriptName"`
+	Parameters             any    `json:"parameters"`
+	Timeout                int    `json:"timeout"`
+	NoFailOnError          bool   `json:"noFailOnError"`
+	NoStripTrailingNewline bool   `json:"noStripTrailingNewline"`
 }
 
 type RunPredefinedPowershellScriptOutputs struct {
@@ -58,7 +59,7 @@ func (h *RunPredefinedPowershellScriptHandler) Run(
 	ctx context.Context,
 	task *types.Task,
 	credentials *privateconnection.PrivateCredentials,
-) (interface{}, error) {
+) (any, error) {
 	inputs, err := types.ExtractInputs[RunPredefinedPowershellScriptInputs](task)
 	if err != nil {
 		return nil, err
@@ -122,19 +123,18 @@ func (h *RunPredefinedPowershellScriptHandler) Run(
 	}, nil
 }
 
-// evaluatedPowershellScript holds the evaluated script configuration after template rendering
-type evaluatedPowershellScript struct {
-	// For inline scripts
-	Script string
-	// For file-based scripts
-	File      string
-	Arguments []string
-}
-
-// evaluatePowershellScript evaluates template expressions in the script configuration
-func evaluatePowershellScript(config RunPredefinedPowershellScriptConfig, parameters interface{}) (*evaluatedPowershellScript, error) {
+// evaluatePowershellScript prepares the script for execution.
+//
+// For inline scripts it calls transformInlineScript, which prepends safe
+// single-quoted variable assignments for every {{ parameters.X }} reference
+// and replaces those expressions in the script body with $__par_X variable
+// references — keeping user-supplied data out of any parseable code position.
+//
+// For file-based scripts the file path and arguments are still rendered via
+// the template engine (they are not executed as PowerShell code).
+func evaluatePowershellScript(config RunPredefinedPowershellScriptConfig, parameters any) (*evaluatedPowershellScript, error) {
 	if parameters == nil {
-		parameters = map[string]interface{}{}
+		parameters = map[string]any{}
 	}
 
 	if config.ParameterSchema != nil {
@@ -143,22 +143,24 @@ func evaluatePowershellScript(config RunPredefinedPowershellScriptConfig, parame
 		}
 	}
 
-	templateContext := map[string]interface{}{"parameters": parameters}
-
 	result := &evaluatedPowershellScript{}
 
 	if config.Script != "" {
-		// Inline script mode
-		rendered, err := renderTemplate(config.Script, templateContext)
+		// Inline script mode: prepend single-quoted variable assignments to prevent injection.
+		transformed, err := transformInlineScript(config.Script, parameters)
 		if err != nil {
-			return nil, fmt.Errorf("failed to render script template: %w", err)
+			return nil, fmt.Errorf("failed to transform script template: %w", err)
 		}
-		if strings.TrimSpace(rendered) == "" {
+		if strings.TrimSpace(transformed.Script) == "" {
 			return nil, errors.New("script cannot be empty")
 		}
-		result.Script = rendered
+		result.Script = transformed.Script
 	} else {
-		// File mode
+		// File mode: render templates in file path and arguments.
+		// These values are never executed as PowerShell code; they are passed
+		// as arguments to powershell.exe -File, so template rendering is safe here.
+		templateContext := map[string]any{"parameters": parameters}
+
 		rendered, err := renderTemplate(config.File, templateContext)
 		if err != nil {
 			return nil, fmt.Errorf("failed to render file path template: %w", err)
@@ -168,7 +170,6 @@ func evaluatePowershellScript(config RunPredefinedPowershellScriptConfig, parame
 		}
 		result.File = rendered
 
-		// Render arguments
 		result.Arguments = make([]string, len(config.Arguments))
 		for i, arg := range config.Arguments {
 			rendered, err := renderTemplate(arg, templateContext)
@@ -182,8 +183,9 @@ func evaluatePowershellScript(config RunPredefinedPowershellScriptConfig, parame
 	return result, nil
 }
 
-// renderTemplate parses and renders a template string with the given context
-func renderTemplate(templateStr string, context map[string]interface{}) (string, error) {
+// renderTemplate parses and renders a template string with the given context.
+// Used for file-mode paths and arguments (not for inline script bodies).
+func renderTemplate(templateStr string, context map[string]any) (string, error) {
 	template, err := tmpl.Parse(templateStr)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse template '%s': %w", templateStr, err)
@@ -197,7 +199,23 @@ func renderTemplate(templateStr string, context map[string]interface{}) (string,
 	return rendered, nil
 }
 
-// newPowershellCommand creates an exec.Cmd for running PowerShell
+// formatPowershellOutput normalises line endings and optionally strips leading/trailing newlines.
+func formatPowershellOutput(output string, noStripTrailingNewline bool) string {
+	normalized := strings.ReplaceAll(output, "\r\n", "\n")
+	if noStripTrailingNewline {
+		return normalized
+	}
+	normalized = strings.TrimRight(normalized, "\n")
+	normalized = strings.TrimLeft(normalized, "\n")
+	return normalized
+}
+
+// newPowershellCommand creates an exec.Cmd for running PowerShell.
+//
+// For inline scripts the script body is passed to -Command as-is.  User-supplied
+// parameter values are embedded as PowerShell single-quoted string literals in the
+// preamble (generated by transformInlineScript) and never appear in executable
+// code positions.
 func newPowershellCommand(ctx context.Context, script *evaluatedPowershellScript, envVarNames []string) *exec.Cmd {
 	// Base PowerShell arguments for security and consistency
 	baseArgs := []string{
@@ -214,8 +232,9 @@ func newPowershellCommand(ctx context.Context, script *evaluatedPowershellScript
 		args = append(args, script.Arguments...)
 		cmd = exec.CommandContext(ctx, "powershell.exe", args...)
 	} else {
-		// Inline script mode: pass script directly to -Command
-		// The script is passed as-is - users write native PowerShell
+		// Inline script mode: script body begins with single-quoted variable assignments
+		// for every parameter (generated by transformInlineScript), followed by the
+		// original script with {{ parameters.X }} replaced by $__par_X references.
 		args := append(baseArgs, "-Command", script.Script)
 		cmd = exec.CommandContext(ctx, "powershell.exe", args...)
 	}
@@ -255,14 +274,4 @@ func buildAllowedEnv(envVarNames []string) []string {
 	}
 
 	return env
-}
-
-func formatPowershellOutput(output string, noStripTrailingNewline bool) string {
-	normalized := strings.ReplaceAll(output, "\r\n", "\n")
-	if noStripTrailingNewline {
-		return normalized
-	}
-	normalized = strings.TrimRight(normalized, "\n")
-	normalized = strings.TrimLeft(normalized, "\n")
-	return normalized
 }

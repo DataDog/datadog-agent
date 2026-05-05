@@ -8,13 +8,15 @@
 package api
 
 import (
+	"context"
+
 	v1 "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1"
-	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/controllers"
 )
 
-var kubeMetadataServer = v1.NewKubeMetadataStreamServer(controllers.GetGlobalMetaBundleStore())
-
-func (s *serverSecure) StreamKubeMetadata(req *pbgo.KubeMetadataStreamRequest, srv pbgo.AgentSecure_StreamKubeMetadataServer) error {
-	return kubeMetadataServer.StreamKubeMetadata(req, srv)
+func startKubeMetadataStreamer(ctx context.Context, wmeta workloadmeta.Component) kubeMetadataStreamer {
+	srv := v1.NewKubeMetadataStreamServer(controllers.GetGlobalMetaBundleStore(), wmeta)
+	srv.Start(ctx)
+	return srv
 }

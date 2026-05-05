@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "jobs",
+    srcs = [
+        "cancel_job.gen.go",
+        "delete_artifacts.gen.go",
+        "delete_project_artifacts.gen.go",
+        "entrypoint.gen.go",
+        "erase_job.gen.go",
+        "get_job.gen.go",
+        "get_job_tokens_job.gen.go",
+        "keep_artifacts.gen.go",
+        "list_pipeline_bridges.gen.go",
+        "list_pipeline_jobs.gen.go",
+        "list_project_jobs.gen.go",
+        "play_job.gen.go",
+        "retry_job.gen.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/jobs",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/privateactionrunner/bundle-support/gitlab",
+        "//pkg/privateactionrunner/libs/privateconnection",
+        "//pkg/privateactionrunner/types",
+        "@com_gitlab_gitlab_org_api_client_go//:client-go",
+    ],
+)

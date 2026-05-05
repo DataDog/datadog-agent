@@ -31,7 +31,7 @@ const (
 func TestNano(t *testing.T) {
 	tegraCheck := new(JetsonCheck)
 	mock := mocksender.NewMockSender(tegraCheck.ID())
-	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	assert.Equal(t, tegraCheck.tegraStatsPath, "/usr/bin/tegrastats")
 
@@ -85,7 +85,7 @@ func TestNano(t *testing.T) {
 func TestTX1(t *testing.T) {
 	tegraCheck := new(JetsonCheck)
 	mock := mocksender.NewMockSender(tegraCheck.ID())
-	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	assert.Equal(t, tegraCheck.tegraStatsPath, "/usr/bin/tegrastats")
 
@@ -138,7 +138,7 @@ func TestTX1(t *testing.T) {
 func TestTX2(t *testing.T) {
 	tegraCheck := new(JetsonCheck)
 	mock := mocksender.NewMockSender(tegraCheck.ID())
-	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	assert.Equal(t, tegraCheck.tegraStatsPath, "/usr/bin/tegrastats")
 
@@ -201,7 +201,7 @@ func TestTX2(t *testing.T) {
 func TestAgxXavier(t *testing.T) {
 	tegraCheck := new(JetsonCheck)
 	mock := mocksender.NewMockSender(tegraCheck.ID())
-	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	assert.Equal(t, tegraCheck.tegraStatsPath, "/usr/bin/tegrastats")
 	mock.On("Gauge", "nvidia.jetson.mem.used", 721.0*mb, "", []string(nil)).Return().Times(1)
@@ -268,7 +268,7 @@ func TestAgxXavier(t *testing.T) {
 func TestXavierNx(t *testing.T) {
 	tegraCheck := new(JetsonCheck)
 	mock := mocksender.NewMockSender(tegraCheck.ID())
-	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	assert.Equal(t, tegraCheck.tegraStatsPath, "/usr/bin/tegrastats")
 	mock.On("Gauge", "nvidia.jetson.mem.used", 4412.0*mb, "", []string(nil)).Return().Times(1)
@@ -322,7 +322,7 @@ func TestXavierNx(t *testing.T) {
 func TestVoltageUnits(t *testing.T) {
 	tegraCheck := new(JetsonCheck)
 	mock := mocksender.NewMockSender(tegraCheck.ID())
-	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	assert.Equal(t, tegraCheck.tegraStatsPath, "/usr/bin/tegrastats")
 
@@ -395,7 +395,7 @@ func TestVoltageUnits(t *testing.T) {
 func TestR36(t *testing.T) {
 	tegraCheck := new(JetsonCheck)
 	mock := mocksender.NewMockSender(tegraCheck.ID())
-	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	// RAM 29114/30697MB (lfb 3x4MB)    SWAP 4915/15348MB (cached 1MB)
 	mock.On("Gauge", "nvidia.jetson.mem.used", 29114.0*mb, "", []string(nil)).Return().Once()
@@ -472,7 +472,7 @@ func TestR36(t *testing.T) {
 func TestOrin(t *testing.T) {
 	tegraCheck := new(JetsonCheck)
 	mock := mocksender.NewMockSender(tegraCheck.ID())
-	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	// RAM 2448/62840MB (lfb 2x4MB) SWAP 0/31420MB (cached 0MB)
 	mock.On("Gauge", "nvidia.jetson.mem.used", 2448.0*mb, "", []string(nil)).Return().Once()
@@ -606,7 +606,7 @@ tegrastats_path: %q
 use_sudo: true
 `, tt.path)
 
-			err := tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, integration.Data(instanceConfig), nil, "test")
+			err := tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, integration.Data(instanceConfig), nil, "test", "provider")
 			if tt.hasInvalidChars {
 				assert.ErrorContains(t, err, "tegrastats_path contains invalid characters")
 			} else if !tt.isAbsolute {

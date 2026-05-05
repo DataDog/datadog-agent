@@ -31,11 +31,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/diagnose/format"
 	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
 	diagnoseLocal "github.com/DataDog/datadog-agent/comp/core/diagnose/local"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -45,6 +45,7 @@ import (
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	workloadmetainit "github.com/DataDog/datadog-agent/comp/core/workloadmeta/init"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform"
 	logscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -118,6 +119,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				workloadfilterfx.Module(),
 				autodiscoveryimpl.Module(),
 				haagentfx.Module(),
+				healthplatform.Bundle(),
+				hostnameimpl.Module(),
 				logscompressorfx.Module(),
 				metricscompressorfx.Module(),
 				diagnosefx.Module(),
@@ -387,9 +390,7 @@ Health platform must be enabled for issues to be reported.`,
 
 func cmdDiagnose(cliParams *cliParams,
 	filterStore workloadfilter.Component,
-	wmeta option.Option[workloadmeta.Component],
 	ac autodiscovery.Component,
-	secretResolver secrets.Component,
 	log log.Component,
 	tagger tagger.Component,
 	diagnoseComponent diagnose.Component,
@@ -434,13 +435,13 @@ func cmdDiagnose(cliParams *cliParams,
 				fmt.Fprintln(w, color.YellowString(fmt.Sprintf("Error running diagnose in Agent process: %s", err)))
 				fmt.Fprintln(w, "Running diagnose command locally (may take extra time to run checks locally) ...")
 			}
-			result, err = diagnoseLocal.Run(diagnoseComponent, diagCfg, log, filterStore, wmeta, ac, secretResolver, tagger, config)
+			result, err = diagnoseLocal.Run(diagnoseComponent, diagCfg, log, filterStore, ac, tagger, config)
 		}
 	} else {
 		if !cliParams.JSONOutput { // If JSON output is requested, the output should stay a valid JSON
 			fmt.Fprintln(w, "Running diagnose command locally (may take extra time to run checks locally) ...")
 		}
-		result, err = diagnoseLocal.Run(diagnoseComponent, diagCfg, log, filterStore, wmeta, ac, secretResolver, tagger, config)
+		result, err = diagnoseLocal.Run(diagnoseComponent, diagCfg, log, filterStore, ac, tagger, config)
 	}
 
 	if err != nil {

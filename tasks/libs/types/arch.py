@@ -120,6 +120,10 @@ class Arch:
 
         if arch == "local":
             arch = platform.machine().lower()
+            # On AIX, platform.machine() returns a machine model number (e.g. "00f9d80f4c00"),
+            # not the architecture name.  Fall back to platform.processor() in that case.
+            if not any(arch in a.spellings for a in ALL_ARCHS):
+                arch = platform.processor().lower()
 
         # Not the most efficient way to do this, but the list is small
         # enough and this way we avoid having to maintain a dictionary
@@ -155,4 +159,15 @@ ARCH_AMD64 = Arch(
     spellings={"amd64", "x86_64", "x64", "x86-64", "x86"},
 )
 
-ALL_ARCHS = [ARCH_AMD64, ARCH_ARM64]
+ARCH_PPC64 = Arch(
+    name="ppc64",
+    go_arch="ppc64",
+    gcc_arch="powerpc64",
+    kernel_arch="powerpc",
+    kmt_arch=None,
+    windows_arch="",
+    ci_arch="ppc64",
+    spellings={"ppc64", "powerpc64", "powerpc"},
+)
+
+ALL_ARCHS = [ARCH_AMD64, ARCH_ARM64, ARCH_PPC64]

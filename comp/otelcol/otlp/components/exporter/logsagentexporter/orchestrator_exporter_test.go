@@ -21,111 +21,68 @@ import (
 	logsmapping "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/logs"
 )
 
-func TestShouldSkipManifest(t *testing.T) {
-	cache := gocache.New(manifestCacheTTL, manifestCachePurge)
-	tests := []struct {
-		name           string
-		manifest       *agentmodel.Manifest
-		isWatchEvent   bool
-		setupCache     func()
-		expectedSkip   bool
-		expectedCached bool
-		cachedVersion  string
-	}{
-		{
-			name:         "nil manifest",
-			manifest:     nil,
-			isWatchEvent: false,
-			expectedSkip: false,
-		},
-		{
-			name: "manifest without uid",
-			manifest: &agentmodel.Manifest{
-				Uid:             "",
-				ResourceVersion: "v1",
-			},
-			isWatchEvent: false,
-			expectedSkip: false,
-		},
-		{
-			name: "cache miss - new resource",
-			manifest: &agentmodel.Manifest{
-				Uid:             "test-uid-1",
-				ResourceVersion: "v1",
-			},
-			isWatchEvent:   false,
-			expectedSkip:   false,
-			expectedCached: true,
-			cachedVersion:  "v1",
-		},
-		{
-			name: "cache hit - same resource version",
-			manifest: &agentmodel.Manifest{
-				Uid:             "test-uid-2",
-				ResourceVersion: "v1",
-			},
-			isWatchEvent: false,
-			setupCache: func() {
-				cache.Set("test-uid-2", "v1", manifestCacheTTL)
-			},
-			expectedSkip:   true,
-			expectedCached: true,
-			cachedVersion:  "v1",
-		},
-		{
-			name: "cache hit - different resource version",
-			manifest: &agentmodel.Manifest{
-				Uid:             "test-uid-3",
-				ResourceVersion: "v2",
-			},
-			isWatchEvent: false,
-			setupCache: func() {
-				cache.Set("test-uid-3", "v1", manifestCacheTTL)
-			},
-			expectedSkip:   false,
-			expectedCached: true,
-			cachedVersion:  "v2",
-		},
-		{
-			name: "watch event - bypasses cache even with same resource version",
-			manifest: &agentmodel.Manifest{
-				Uid:             "test-uid-4",
-				ResourceVersion: "v1",
-			},
-			isWatchEvent: true,
-			setupCache: func() {
-				cache.Set("test-uid-4", "v1", manifestCacheTTL)
-			},
-			expectedSkip: false, // Watch events always bypass cache
-		},
-		{
-			name: "watch event - new resource",
-			manifest: &agentmodel.Manifest{
-				Uid:             "test-uid-5",
-				ResourceVersion: "v1",
-			},
-			isWatchEvent: true,
-			expectedSkip: false,
-		},
+// buildK8sLogs creates a plog.Logs with a single pod log record for testing.
+func buildK8sLogs(clusterID, clusterName, uid, resourceVersion string, isWatch bool) plog.Logs {
+	ld := plog.NewLogs()
+	rl := ld.ResourceLogs().AppendEmpty()
+	rl.Resource().Attributes().PutStr("k8s.cluster.uid", clusterID)
+	rl.Resource().Attributes().PutStr("k8s.cluster.name", clusterName)
+	sl := rl.ScopeLogs().AppendEmpty()
+	lr := sl.LogRecords().AppendEmpty()
+
+	var body string
+	if isWatch {
+		body = `{"type":"ADDED","object":{"apiVersion":"v1","kind":"Pod","metadata":{"uid":"` + uid + `","resourceVersion":"` + resourceVersion + `","name":"test-pod"}}}`
+	} else {
+		body = `{"apiVersion":"v1","kind":"Pod","metadata":{"uid":"` + uid + `","resourceVersion":"` + resourceVersion + `","name":"test-pod"}}`
 	}
+	lr.Body().SetStr(body)
+	return ld
+}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.setupCache != nil {
-				tt.setupCache()
-			}
+func TestTranslateK8sObjects_Deduplication(t *testing.T) {
+	logger := zap.NewNop()
 
-			skip := shouldSkipManifest(tt.manifest, tt.isWatchEvent, cache)
-			assert.Equal(t, tt.expectedSkip, skip)
+	t.Run("same manifest sent twice is deduplicated", func(t *testing.T) {
+		cache := logsmapping.NewManifestCache()
+		ld := buildK8sLogs("cluster-1", "my-cluster", "pod-uid-1", "v1", false)
 
-			// Verify cache state after the operation (only for non-watch events)
-			if !tt.isWatchEvent && tt.manifest != nil && tt.manifest.Uid != "" && tt.expectedCached {
-				val, found := cache.Get(tt.manifest.Uid)
-				assert.True(t, found)
-				assert.Equal(t, tt.cachedVersion, val)
-			}
-		})
-	}
+		first := logsmapping.TranslateK8sObjects(ld, cache, logger)
+		require.Len(t, first.Chunks, 1)
+		assert.Len(t, first.Chunks[0], 1)
+
+		second := logsmapping.TranslateK8sObjects(ld, cache, logger)
+		assert.Empty(t, second.Chunks, "duplicate pull manifest should be skipped")
+	})
+
+	t.Run("updated resourceVersion is not deduplicated", func(t *testing.T) {
+		cache := logsmapping.NewManifestCache()
+		ld1 := buildK8sLogs("cluster-1", "my-cluster", "pod-uid-2", "v1", false)
+		ld2 := buildK8sLogs("cluster-1", "my-cluster", "pod-uid-2", "v2", false)
+
+		logsmapping.TranslateK8sObjects(ld1, cache, logger)
+		second := logsmapping.TranslateK8sObjects(ld2, cache, logger)
+		require.Len(t, second.Chunks, 1)
+		assert.Len(t, second.Chunks[0], 1, "updated resourceVersion should not be skipped")
+	})
+
+	t.Run("watch events bypass deduplication cache", func(t *testing.T) {
+		cache := logsmapping.NewManifestCache()
+		ld := buildK8sLogs("cluster-1", "my-cluster", "pod-uid-3", "v1", true)
+
+		logsmapping.TranslateK8sObjects(ld, cache, logger)
+		second := logsmapping.TranslateK8sObjects(ld, cache, logger)
+		require.Len(t, second.Chunks, 1, "watch events should always be forwarded")
+	})
+
+	t.Run("nil cache disables deduplication", func(t *testing.T) {
+		ld := buildK8sLogs("cluster-1", "my-cluster", "pod-uid-4", "v1", false)
+
+		first := logsmapping.TranslateK8sObjects(ld, nil, logger)
+		second := logsmapping.TranslateK8sObjects(ld, nil, logger)
+		require.Len(t, first.Chunks, 1)
+		require.Len(t, second.Chunks, 1, "nil cache should not deduplicate")
+	})
 }
 
 // TestShouldSkipResourceKind tests that secrets and configmaps are rejected.

@@ -10,12 +10,12 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/constants"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	metricsevent "github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
@@ -26,7 +26,7 @@ var (
 	CardinalityTagPrefix = constants.CardinalityTagPrefix
 	jmxCheckNamePrefix   = "dd.internal.jmx_check_name:"
 
-	tlmFilteredPoints = telemetry.NewSimpleCounter("dogstatsd", "listener_filtered_points", "How many points were filtered out")
+	tlmFilteredPoints = telemetryimpl.GetCompatComponent().NewSimpleCounter("dogstatsd", "listener_filtered_points", "How many points were filtered out")
 )
 
 // enrichConfig contains static parameters used in various enrichment
@@ -113,6 +113,15 @@ func enrichMetricType(dogstatsdMetricType metricType) metrics.MetricType {
 	return metrics.GaugeType
 }
 
+// unitFromMetricType returns the Datadog unit string for a dogstatsd metric type.
+// Only timingType carries an implicit unit ("millisecond"); all other types return an empty string.
+func unitFromMetricType(mt metricType) string {
+	if mt == timingType {
+		return metrics.UnitMilliseconds
+	}
+	return ""
+}
+
 func isExcluded(metricName, namespace string, excludedNamespaces []string) bool {
 	if namespace != "" {
 		for _, prefix := range excludedNamespaces {
@@ -155,6 +164,8 @@ func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSam
 	// if 'ddSample.values' contains values we're enriching a multi-value
 	// dogstatsd message and will create a MetricSample per value. If not
 	// we will use 'ddSample.value'and return a single MetricSample
+	unit := unitFromMetricType(ddSample.metricType)
+
 	if len(ddSample.values) > 0 {
 		for idx := range ddSample.values {
 			dest = append(dest,
@@ -170,6 +181,7 @@ func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSam
 					OriginInfo: extractedOrigin,
 					ListenerID: listenerID,
 					Source:     metricSource,
+					Unit:       unit,
 				})
 		}
 		return dest
@@ -188,6 +200,7 @@ func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSam
 		OriginInfo: extractedOrigin,
 		ListenerID: listenerID,
 		Source:     metricSource,
+		Unit:       unit,
 	})
 }
 

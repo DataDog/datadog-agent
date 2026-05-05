@@ -1,0 +1,8 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "service",
+    srcs = ["service.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service",
+    visibility = ["//visibility:public"],
+)

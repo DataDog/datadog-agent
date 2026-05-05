@@ -13,19 +13,19 @@ import (
 	rbacv1Listers "k8s.io/client-go/listers/rbac/v1"
 	"k8s.io/client-go/tools/cache"
 
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
 
 // NewClusterRoleCollectorVersions builds the group of collector versions.
-func NewClusterRoleCollectorVersions(metadataAsTags utils.MetadataAsTags) collectors.CollectorVersions {
+func NewClusterRoleCollectorVersions(tagger tagger.Component) collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewClusterRoleCollector(metadataAsTags),
+		NewClusterRoleCollector(tagger),
 	)
 }
 
@@ -39,11 +39,7 @@ type ClusterRoleCollector struct {
 
 // NewClusterRoleCollector creates a new collector for the Kubernetes
 // ClusterRole resource.
-func NewClusterRoleCollector(metadataAsTags utils.MetadataAsTags) *ClusterRoleCollector {
-	resourceType := utilTypes.GetResourceType(utilTypes.ClusterRoleName, utilTypes.ClusterRoleVersion)
-	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
-	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
-
+func NewClusterRoleCollector(tagger tagger.Component) *ClusterRoleCollector {
 	return &ClusterRoleCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:                     true,
@@ -54,12 +50,11 @@ func NewClusterRoleCollector(metadataAsTags utils.MetadataAsTags) *ClusterRoleCo
 			Name:                                 utilTypes.ClusterRoleName,
 			Kind:                                 kubernetes.ClusterRoleKind,
 			NodeType:                             orchestrator.K8sClusterRole,
+			Group:                                utilTypes.ClusterRoleGroup,
 			Version:                              utilTypes.ClusterRoleVersion,
-			LabelsAsTags:                         labelsAsTags,
-			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,
 		},
-		processor: processors.NewProcessor(new(k8sProcessors.ClusterRoleHandlers)),
+		processor: processors.NewProcessor(k8sProcessors.NewClusterRoleHandlers(tagger)),
 	}
 }
 

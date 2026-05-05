@@ -7,9 +7,10 @@ package apiimpl
 
 import (
 	"crypto/tls"
-	"net"
 	"net/http"
 	"time"
+
+	gorilla "github.com/gorilla/mux"
 
 	configendpoint "github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/config"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/listener"
@@ -25,11 +26,21 @@ func (server *apiServer) startIPCServer(ipcServerAddr string, tmf observability.
 	if err != nil {
 		return err
 	}
-	if tcpAddr, ok := ipcListener.Addr().(*net.TCPAddr); ok {
-		server.ipcAddr = tcpAddr
-	}
+	server.ipcAddr = ipcListener.Addr()
 
 	configEndpointMux := configendpoint.GetConfigEndpointMuxCore(server.cfg)
+	// Fill route template captures for the telemetry middleware (reduces metric cardinality).
+	// Prepend "/config/v1" since configEndpointMux is mounted via http.StripPrefix("/config/v1", ...).
+	configEndpointMux.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if route := gorilla.CurrentRoute(r); route != nil {
+				if template, err := route.GetPathTemplate(); err == nil {
+					observability.SetRouteTemplate(r, "/config/v1"+template)
+				}
+			}
+			next.ServeHTTP(w, r)
+		})
+	})
 
 	ipcMux := http.NewServeMux()
 	ipcMux.Handle(

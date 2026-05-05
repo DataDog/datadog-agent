@@ -9,6 +9,7 @@ package istio
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -37,6 +38,13 @@ func (g *istioNativeGatewayPattern) Namespace() string {
 }
 
 func (g *istioNativeGatewayPattern) IsInjectionPossible(ctx context.Context) error {
+	// In external mode, verify the processor service name is configured
+	if g.config.Mode == appsecconfig.InjectionModeExternal {
+		if g.config.Processor.ServiceName == "" {
+			return errors.New("processor service name is required for istio-gateway in external mode but is not configured")
+		}
+	}
+
 	gvrToName := func(gvr schema.GroupVersionResource) string {
 		return gvr.Resource + "." + gvr.Group
 	}

@@ -1707,7 +1707,7 @@ func TestResourceNameFromMetric(t *testing.T) {
 }
 
 func TestAllowDeny(t *testing.T) {
-	deniedMetrics := buildDeniedMetricsSet(options.DefaultResources.AsSlice())
+	deniedMetrics := buildDeniedMetricsSet(defaultCollectors())
 	allowDenyList, err := allowdenylist.New(options.MetricSet{}, deniedMetrics)
 	assert.NoError(t, err)
 
@@ -1717,31 +1717,47 @@ func TestAllowDeny(t *testing.T) {
 	// Make sure denied metrics have been parsed and excluded
 	assert.NotEqual(t, "", allowDenyList.Status())
 	for metric := range deniedMetrics {
-		assert.False(t, allowDenyList.IsIncluded(metric))
-		assert.True(t, allowDenyList.IsExcluded(metric))
+		isIncluded, err := allowDenyList.IsIncluded(metric)
+		assert.NoError(t, err)
+		assert.False(t, isIncluded)
+		isExcluded, err := allowDenyList.IsExcluded(metric)
+		assert.NoError(t, err)
+		assert.True(t, isExcluded)
 	}
 
 	// Make sure we don't exclude metrics by mistake
 	for metric := range defaultMetricNamesMapper() {
-		assert.True(t, allowDenyList.IsIncluded(metric))
-		assert.False(t, allowDenyList.IsExcluded(metric))
+		isIncluded, err := allowDenyList.IsIncluded(metric)
+		assert.NoError(t, err)
+		assert.True(t, isIncluded)
+		isExcluded, err := allowDenyList.IsExcluded(metric)
+		assert.NoError(t, err)
+		assert.False(t, isExcluded)
 	}
 
 	// Make sure we don't exclude metric transformers
 	for metric := range defaultMetricTransformers(nil) {
-		assert.True(t, allowDenyList.IsIncluded(metric))
-		assert.False(t, allowDenyList.IsExcluded(metric))
+		isIncluded, err := allowDenyList.IsIncluded(metric)
+		assert.NoError(t, err)
+		assert.True(t, isIncluded)
+		isExcluded, err := allowDenyList.IsExcluded(metric)
+		assert.NoError(t, err)
+		assert.False(t, isExcluded)
 	}
 
 	// Make sure we don't exclude metadata metrics
 	for _, metric := range metadataMetrics {
-		assert.True(t, allowDenyList.IsIncluded(metric))
-		assert.False(t, allowDenyList.IsExcluded(metric))
+		isIncluded, err := allowDenyList.IsIncluded(metric)
+		assert.NoError(t, err)
+		assert.True(t, isIncluded)
+		isExcluded, err := allowDenyList.IsExcluded(metric)
+		assert.NoError(t, err)
+		assert.False(t, isExcluded)
 	}
 }
 
 func TestCreationMetricsFiltering(t *testing.T) {
-	allowDenyList, err := allowdenylist.New(options.MetricSet{}, buildDeniedMetricsSet(options.DefaultResources.AsSlice()))
+	allowDenyList, err := allowdenylist.New(options.MetricSet{}, buildDeniedMetricsSet(defaultCollectors()))
 	assert.NoError(t, err)
 
 	err = allowDenyList.Parse()
@@ -1749,8 +1765,12 @@ func TestCreationMetricsFiltering(t *testing.T) {
 
 	included := []string{"kube_node_created", "kube_pod_created"}
 	for _, metric := range included {
-		assert.True(t, allowDenyList.IsIncluded(metric))
-		assert.False(t, allowDenyList.IsExcluded(metric))
+		isIncluded, err := allowDenyList.IsIncluded(metric)
+		assert.NoError(t, err)
+		assert.True(t, isIncluded)
+		isExcluded, err := allowDenyList.IsExcluded(metric)
+		assert.NoError(t, err)
+		assert.False(t, isExcluded)
 	}
 
 	excluded := []string{
@@ -1758,6 +1778,7 @@ func TestCreationMetricsFiltering(t *testing.T) {
 		"kube_daemonset_created",
 		"kube_deployment_created",
 		"kube_endpoint_created",
+		"kube_endpointslice_created",
 		"kube_job_created",
 		"kube_namespace_created",
 		"kube_replicaset_created",
@@ -1765,8 +1786,12 @@ func TestCreationMetricsFiltering(t *testing.T) {
 		"kube_replicationcontroller_created",
 	}
 	for _, metric := range excluded {
-		assert.True(t, allowDenyList.IsExcluded(metric))
-		assert.False(t, allowDenyList.IsIncluded(metric))
+		isExcluded, err := allowDenyList.IsExcluded(metric)
+		assert.NoError(t, err)
+		assert.True(t, isExcluded)
+		isIncluded, err := allowDenyList.IsIncluded(metric)
+		assert.NoError(t, err)
+		assert.False(t, isIncluded)
 	}
 }
 

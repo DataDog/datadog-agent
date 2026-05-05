@@ -1,0 +1,81 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "uuid",
+    srcs = [
+        "uuid.go",
+        "uuid_nix.go",
+        "uuid_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/uuid",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/cache",
+    ] + select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/util/log",
+            "@com_github_shirou_gopsutil_v4//host",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/util/log",
+            "@com_github_shirou_gopsutil_v4//host",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/util/log",
+            "@com_github_shirou_gopsutil_v4//host",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/util/log",
+            "@com_github_shirou_gopsutil_v4//host",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/util/log",
+            "@com_github_shirou_gopsutil_v4//host",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/util/log",
+            "@com_github_shirou_gopsutil_v4//host",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/util/log",
+            "@com_github_shirou_gopsutil_v4//host",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/util/log",
+            "@com_github_shirou_gopsutil_v4//host",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/util/log",
+            "@com_github_shirou_gopsutil_v4//host",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/util/log",
+            "@com_github_shirou_gopsutil_v4//host",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/util/log",
+            "@com_github_shirou_gopsutil_v4//host",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/util/log",
+            "@com_github_shirou_gopsutil_v4//host",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/util/log",
+            "@com_github_shirou_gopsutil_v4//host",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//pkg/util/log",
+            "@com_github_shirou_gopsutil_v4//host",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/util/log",
+            "@com_github_shirou_gopsutil_v4//host",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/log",
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)

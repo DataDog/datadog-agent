@@ -37,18 +37,18 @@ const (
 	DefaultConfigRoot = `C:\ProgramData\Datadog`
 	// DefaultAgentUserName is the default user name for the Datadog Agent
 	DefaultAgentUserName = `ddagentuser`
+	// AutologgerRegistryKeyPath is the path to the Autologger registry key
+	AutologgerRegistryKeyPath = `HKLM:\SYSTEM\CurrentControlSet\Control\WMI\Autologger\Datadog Logon Duration`
 )
 
 // GetCodeSignatureThumbprints returns the allowed code detached thumbprint used for
 // Windows signing
 func GetCodeSignatureThumbprints() map[string]struct{} {
 	return map[string]struct{}{
-		// Non-EV Valid From: May 2023; To: May 2025
-		"B03F29CC07566505A718583E9270A6EE17678742": {},
-		// EV Valid From: Dec 2023; To: Dec 2025
-		"ECAA21456723CB0911183255A683DC01A99392DB": {},
 		// EV Valid From: Jun 2024; To: Jun 2026
 		"59063C826DAA5B628B5CE8A2B32015019F164BF0": {},
+		// Cert nb 1397980425, EV, valid from Nov 26 2025 to Nov 28 2027
+		"A0FB7BEE153FE31431062731306903B3A5CB1824": {},
 	}
 }
 

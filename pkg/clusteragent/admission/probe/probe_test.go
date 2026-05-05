@@ -23,8 +23,8 @@ import (
 	fakeclientset "k8s.io/client-go/kubernetes/fake"
 	k8stesting "k8s.io/client-go/testing"
 
-	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/def"
-	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/mock"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/core/def"
+	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/core/mock"
 	admcommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"

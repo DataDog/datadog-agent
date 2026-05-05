@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:generate stringer -type=HashState -linecomment -output model_string.go
+//go:generate go run golang.org/x/tools/cmd/stringer -type=HashState -linecomment -output model_string.go
 
 // Package model holds model related files
 package model
@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
@@ -93,12 +94,37 @@ func (r *Releasable) AppendReleaseCallback(callback func()) {
 	}
 }
 
+// ContainerSource indicates the origin of a container entry
+type ContainerSource uint64
+
+const (
+	// ContainerSourceUnknown defines a container entry from an unknown source
+	ContainerSourceUnknown ContainerSource = iota
+	// ContainerSourceEvent defines a container entry populated from a kernel event
+	ContainerSourceEvent
+	// ContainerSourceProcFS defines a container entry populated from the procfs fallback
+	ContainerSourceProcFS
+)
+
+// String returns a string representation of the container source
+func (s ContainerSource) String() string {
+	switch s {
+	case ContainerSourceEvent:
+		return "event"
+	case ContainerSourceProcFS:
+		return "procfs"
+	default:
+		return "unknown"
+	}
+}
+
 // ContainerContext holds the container context of an event
 type ContainerContext struct {
 	*Releasable
-	ContainerID containerutils.ContainerID `field:"id,opts:gen_getters"`                                        // SECLDoc[id] Definition:`ID of the container`
-	CreatedAt   uint64                     `field:"created_at,opts:gen_getters"`                                // SECLDoc[created_at] Definition:`Timestamp of the creation of the container``
-	Tags        []string                   `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // SECLDoc[tags] Definition:`Tags of the container`
+	ContainerID     containerutils.ContainerID `field:"id,opts:gen_getters"`                                        // SECLDoc[id] Definition:`ID of the container`
+	CreatedAt       uint64                     `field:"created_at,opts:gen_getters"`                                // SECLDoc[created_at] Definition:`Timestamp of the creation of the container``
+	Tags            []string                   `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // SECLDoc[tags] Definition:`Tags of the container`
+	ContainerSource ContainerSource            `field:"-"`
 }
 
 // Hash returns a unique key for the entity
@@ -359,12 +385,12 @@ func (e *Event) ResolveService() string {
 	return e.FieldHandlers.ResolveService(e, &e.BaseEvent)
 }
 
-// GetProcessTracerTags returns the value of the field, resolving if necessary
-func (e *Event) GetProcessTracerTags() []string {
+// GetProcessTracerMetadata returns the tracer metadata of the process
+func (e *Event) GetProcessTracerMetadata() tracermetadata.TracerMetadata {
 	if e.BaseEvent.ProcessContext == nil {
-		return []string{}
+		return tracermetadata.TracerMetadata{}
 	}
-	return e.BaseEvent.ProcessContext.Process.TracerTags
+	return e.BaseEvent.ProcessContext.Process.TracerMetadata
 }
 
 // UserSessionContext describes the user session context
@@ -519,9 +545,23 @@ func (ha HashAlgorithm) String() string {
 
 var zeroProcessContext ProcessContext
 
+// SnapshottedBoundSocket represents a snapshotted bound socket
+type SnapshottedBoundSocket struct {
+	IP       net.IP
+	Port     uint16
+	Family   uint16
+	Protocol uint16
+}
+
+// SnapshottedMmapedFile represents a snapshotted memory-mapped file
+type SnapshottedMmapedFile struct {
+	Path string
+}
+
 // ProcessCacheEntry this struct holds process context kept in the process tree
 type ProcessCacheEntry struct {
 	ProcessContext
+	Children []*ProcessCacheEntry `field:"-" copy:"-"`
 }
 
 // IsContainerRoot returns whether this is a top level process in the container ID

@@ -37,8 +37,7 @@ func pySetup(paths ...string) (pythonVersion, pythonHome, pythonPath string) {
 }
 
 func pyPrepareEnv() error {
-	if pkgconfigsetup.Datadog().IsSet("procfs_path") {
-		procfsPath := pkgconfigsetup.Datadog().GetString("procfs_path")
+	if procfsPath := pkgconfigsetup.Datadog().GetString("procfs_path"); procfsPath != "" {
 		return SetPythonPsutilProcPath(procfsPath)
 	}
 	return nil

@@ -1,0 +1,91 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("//bazel/rules/ebpf:ebpf.bzl", "ebpf_program_suite")
+
+_PREBUILT_HDRS = glob(["*.h"])
+
+cc_library(
+    name = "prebuilt_headers",
+    hdrs = _PREBUILT_HDRS,
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "prebuilt_headers_files",
+    srcs = _PREBUILT_HDRS,
+    visibility = ["//visibility:public"],
+)
+
+_COMMON_DEPS = [
+    ":prebuilt_headers",
+    "//pkg/ebpf/c:ebpf_c_headers",
+    "//pkg/network/ebpf/c:ebpf_c_network",
+]
+
+_NETWORK_FLAGS = [
+    "-Ipkg/network/ebpf/c",
+    "-g",
+]
+
+ebpf_program_suite(
+    name = "dns",
+    src = "dns.c",
+    extra_flags = _NETWORK_FLAGS,
+    visibility = ["//visibility:public"],
+    deps = _COMMON_DEPS,
+)
+
+ebpf_program_suite(
+    name = "offset-guess",
+    src = "offset-guess.c",
+    extra_flags = _NETWORK_FLAGS,
+    visibility = ["//visibility:public"],
+    deps = _COMMON_DEPS,
+)
+
+ebpf_program_suite(
+    name = "tracer",
+    src = "//pkg/network/ebpf/c:tracer.c",
+    core = False,
+    extra_flags = _NETWORK_FLAGS,
+    visibility = ["//visibility:public"],
+    deps = _COMMON_DEPS,
+)
+
+ebpf_program_suite(
+    name = "usm",
+    src = "usm.c",
+    extra_flags = _NETWORK_FLAGS,
+    visibility = ["//visibility:public"],
+    deps = _COMMON_DEPS,
+)
+
+ebpf_program_suite(
+    name = "usm_events_test",
+    src = "usm_events_test.c",
+    extra_flags = _NETWORK_FLAGS,
+    visibility = ["//visibility:public"],
+    deps = _COMMON_DEPS,
+)
+
+ebpf_program_suite(
+    name = "shared-libraries",
+    src = "shared-libraries.c",
+    extra_flags = _NETWORK_FLAGS,
+    visibility = ["//visibility:public"],
+    deps = _COMMON_DEPS,
+)
+
+ebpf_program_suite(
+    name = "conntrack",
+    src = "conntrack.c",
+    extra_flags = _NETWORK_FLAGS,
+    visibility = ["//visibility:public"],
+    deps = _COMMON_DEPS,
+)
+
+exports_files([
+    "conntrack.h",
+    "offsets.h",
+    "offset-guess.h",
+])

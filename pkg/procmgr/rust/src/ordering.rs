@@ -15,6 +15,8 @@ pub struct ResolvedOrder {
     pub order: Vec<usize>,
     /// Names of processes that were skipped due to dependency cycles.
     pub skipped: Vec<String>,
+    /// Human-readable warnings (e.g. missing dependencies).
+    pub warnings: Vec<String>,
 }
 
 /// Resolve the startup order of processes using a topological sort on the
@@ -37,6 +39,7 @@ pub fn resolve_order(configs: &[ProcessDefinition]) -> ResolvedOrder {
     // adjacency: edges[a] contains b means "a must start before b"
     let mut edges: Vec<HashSet<usize>> = vec![HashSet::new(); n];
     let mut in_degree: Vec<u32> = vec![0; n];
+    let mut warnings: Vec<String> = Vec::new();
 
     for (idx, np) in configs.iter().enumerate() {
         for dep in &np.config.after {
@@ -47,7 +50,12 @@ pub fn resolve_order(configs: &[ProcessDefinition]) -> ResolvedOrder {
                     }
                 }
                 None => {
-                    warn!("[{}] after dependency '{dep}' not found, ignoring", np.name);
+                    let msg = format!(
+                        "[{}] after dependency '{}' not found, ignoring",
+                        np.name, dep
+                    );
+                    warn!("{msg}");
+                    warnings.push(msg);
                 }
             }
         }
@@ -60,10 +68,12 @@ pub fn resolve_order(configs: &[ProcessDefinition]) -> ResolvedOrder {
                     }
                 }
                 None => {
-                    warn!(
-                        "[{}] before dependency '{dep}' not found, ignoring",
-                        np.name
+                    let msg = format!(
+                        "[{}] before dependency '{}' not found, ignoring",
+                        np.name, dep
                     );
+                    warn!("{msg}");
+                    warnings.push(msg);
                 }
             }
         }
@@ -92,7 +102,11 @@ pub fn resolve_order(configs: &[ProcessDefinition]) -> ResolvedOrder {
         .map(|i| configs[i].name.clone())
         .collect();
 
-    ResolvedOrder { order, skipped }
+    ResolvedOrder {
+        order,
+        skipped,
+        warnings,
+    }
 }
 
 #[cfg(test)]

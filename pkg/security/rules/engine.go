@@ -71,6 +71,7 @@ type RuleEngine struct {
 	wg               sync.WaitGroup
 	ipc              ipc.Component
 	hostname         string
+	bundledProvider  *bundled.PolicyProvider
 
 	// userspace filtering metrics (avoid statsd calls in event hot path)
 	noMatchCounters []atomic.Uint64
@@ -163,7 +164,7 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}) erro
 		COREEnabled: e.probe.Config.Probe.EnableCORE,
 		Origin:      e.probe.Origin(),
 	}
-	ruleFilterModel, err := filtermodel.NewRuleFilterModel(rfmCfg, e.hostname)
+	ruleFilterModel, err := filtermodel.NewRuleFilterModel(rfmCfg, e.hostname, runtime.GOOS)
 	if err != nil {
 		return fmt.Errorf("failed to create rule filter: %w", err)
 	}
@@ -184,9 +185,20 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}) erro
 	e.wg.Add(1)
 	go func() {
 		defer e.wg.Done()
+		defer func() {
+			if r := recover(); r != nil {
+				buf := make([]byte, 1<<20)
+				n := runtime.Stack(buf, true)
+				seclog.Errorf("panic in reloadChan ReloadPolicies goroutine: %v\n%s", r, buf[:n])
+
+				time.Sleep(20 * time.Second)
+
+				os.Exit(2)
+			}
+		}()
 
 		for range reloadChan {
-			if err := e.ReloadPolicies(); err != nil {
+			if err := e.ReloadPolicies(true); err != nil {
 				seclog.Errorf("failed to reload policies: %s", err)
 			}
 		}
@@ -195,9 +207,23 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}) erro
 	e.wg.Add(1)
 	go func() {
 		defer e.wg.Done()
+		defer func() {
+			if r := recover(); r != nil {
+				buf := make([]byte, 1<<20)
+				n := runtime.Stack(buf, true)
+				seclog.Errorf("panic in NewPolicyReady ReloadPolicies goroutine: %v\n%s", r, buf[:n])
 
-		for range e.policyLoader.NewPolicyReady() {
-			if err := e.ReloadPolicies(); err != nil {
+				time.Sleep(20 * time.Second)
+
+				os.Exit(2)
+			}
+		}()
+
+		for notification := range e.policyLoader.NewPolicyReady() {
+			// For silent reloads (SBOM updates), don't send the ruleset_loaded report
+			// For normal reloads (user/RC updates), send the report
+			sendReport := !notification.Silent
+			if err := e.ReloadPolicies(sendReport); err != nil {
 				seclog.Errorf("failed to reload policies: %s", err)
 			}
 		}
@@ -228,6 +254,15 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}) erro
 
 	e.startSendHeartbeatEvents(ctx)
 
+	// Connect the SBOM resolver to the bundled policy provider
+	// This allows SBOM-generated policies to be automatically loaded
+	// This is disabled by default for now as it may generate high CPU pressure
+	// when the number of filters to monitor makes it impossible to have approvers
+	// for all files, causin all open events to be forwarded to user-space
+	if e.config.SBOMResolverGeneratePolicies {
+		e.ConnectSBOMResolver()
+	}
+
 	return nil
 }
 
@@ -249,11 +284,15 @@ func (e *RuleEngine) startSendHeartbeatEvents(ctx context.Context) {
 			select {
 			case <-ctx.Done():
 				return
-			case <-e.policyLoader.NewPolicyReady():
-				heartBeatCounter = 5
-				heartbeatTicker.Reset(1 * time.Minute)
-				// we report a heartbeat anyway
-				e.policyMonitor.ReportHeartbeatEvent(e.probe.GetAgentContainerContext(), e.eventSender)
+			case notification := <-e.policyLoader.NewPolicyReady():
+				// Only send heartbeat and reset counter for non-silent reloads
+				// Silent reloads (like SBOM updates) don't trigger heartbeat events
+				if !notification.Silent {
+					heartBeatCounter = 5
+					heartbeatTicker.Reset(1 * time.Minute)
+					// we report a heartbeat anyway
+					e.policyMonitor.ReportHeartbeatEvent(e.probe.GetAgentContainerContext(), e.eventSender)
+				}
 			case <-heartbeatTicker.C:
 				e.policyMonitor.ReportHeartbeatEvent(e.probe.GetAgentContainerContext(), e.eventSender)
 				if heartBeatCounter > 0 {
@@ -327,10 +366,10 @@ func (e *RuleEngine) StartRunningMetrics(ctx context.Context) {
 }
 
 // ReloadPolicies reloads the policies
-func (e *RuleEngine) ReloadPolicies() error {
+func (e *RuleEngine) ReloadPolicies(sendLoadedReport bool) error {
 	seclog.Infof("reload policies")
 
-	return e.LoadPolicies(e.policyProviders, true)
+	return e.LoadPolicies(e.policyProviders, sendLoadedReport)
 }
 
 // AddPolicyProvider add a provider
@@ -490,7 +529,9 @@ func (e *RuleEngine) fillCommonSECLVariables(rsVariables map[string]eval.SECLVar
 func (e *RuleEngine) gatherDefaultPolicyProviders() []rules.PolicyProvider {
 	var policyProviders []rules.PolicyProvider
 
-	policyProviders = append(policyProviders, bundled.NewPolicyProvider(e.config))
+	// Create and store bundled policy provider
+	e.bundledProvider = bundled.NewPolicyProvider(e.config)
+	policyProviders = append(policyProviders, e.bundledProvider)
 
 	// add remote config as config provider if enabled.
 	if e.config.RemoteConfigurationEnabled {

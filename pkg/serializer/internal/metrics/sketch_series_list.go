@@ -13,12 +13,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 // A SketchSeriesList implements marshaler.Marshaler
@@ -31,11 +31,11 @@ var (
 	expvarsItemTooBig          = expvar.Int{}
 	expvarsPayloadFull         = expvar.Int{}
 	expvarsUnexpectedItemDrops = expvar.Int{}
-	tlmItemTooBig              = telemetry.NewCounter("sketch_series", "sketch_too_big",
+	tlmItemTooBig              = telemetryimpl.GetCompatComponent().NewCounter("sketch_series", "sketch_too_big",
 		nil, "Number of payloads dropped because they were too big for the stream compressor")
-	tlmPayloadFull = telemetry.NewCounter("sketch_series", "payload_full",
+	tlmPayloadFull = telemetryimpl.GetCompatComponent().NewCounter("sketch_series", "payload_full",
 		nil, "How many times we've hit a 'payload is full' in the stream compressor")
-	tlmUnexpectedItemDrops = telemetry.NewCounter("sketch_series", "unexpected_item_drops",
+	tlmUnexpectedItemDrops = telemetryimpl.GetCompatComponent().NewCounter("sketch_series", "unexpected_item_drops",
 		nil, "Items dropped in the stream compressor")
 )
 

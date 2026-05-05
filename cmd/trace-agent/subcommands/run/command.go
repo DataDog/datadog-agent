@@ -29,9 +29,9 @@ import (
 	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	optionalRemoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-optional-remote"
-	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryfx "github.com/DataDog/datadog-agent/comp/core/telemetry/fx"
+	statsdFx "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/fx"
 	"github.com/DataDog/datadog-agent/comp/trace"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	traceagentimpl "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
@@ -85,14 +85,14 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		fx.Supply(coreconfig.NewAgentParams(cliParams.ConfPath, coreconfig.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath))),
 		secretsfx.Module(),
 		delegatedauthfx.Module(),
-		telemetryimpl.Module(),
+		telemetryfx.Module(),
 		coreconfig.Module(),
 		fx.Provide(func() log.Params {
 			return log.ForDaemon("TRACE", "apm_config.log_file", traceconfigimpl.DefaultLogFilePath)
 		}),
 		logtracefx.Module(),
 		autoexitfx.Module(),
-		statsd.Module(),
+		statsdFx.Module(),
 		optionalRemoteTaggerfx.Module(
 			tagger.OptionalRemoteParams{
 				// We disable the remote tagger *only* if we detect that the

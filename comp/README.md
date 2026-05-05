@@ -118,9 +118,15 @@ component temporarily wraps pkg/config.
 
 ### [comp/core/configstream](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/configstream)
 
-*Datadog Team*: agent-metric-pipelines agent-configuration
+*Datadog Team*: agent-configuration
 
 Package configstream implements a component to handle streaming configuration events to subscribers.
+
+### [comp/core/configstreamconsumer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/configstreamconsumer)
+
+*Datadog Team*: agent-configuration
+
+Package configstreamconsumer implements a component that consumes config streams from the core agent.
 
 ### [comp/core/configsync](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/configsync)
 
@@ -226,7 +232,7 @@ Package tagger provides the tagger interface for the Datadog Agent
 
 ### [comp/core/telemetry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/telemetry)
 
-Package telemetry implements a component for all agent telemetry.
+Package telemetry defines the interfaces for the telemetry component.
 
 ### [comp/core/workloadfilter](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/workloadfilter)
 
@@ -245,6 +251,10 @@ Package workloadmeta provides the workloadmeta component for the Datadog Agent
 *Datadog Team*: agent-metric-pipelines
 
 
+
+### [comp/dogstatsd/http](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/dogstatsd/http)
+
+Package http defines dogstatsd http server component
 
 ### [comp/dogstatsd/pidmap](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap)
 
@@ -307,6 +317,28 @@ Package orchestrator implements the orchestrator forwarder component.
 ### [comp/forwarder/orchestrator/orchestratorinterface](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface)
 
 Package orchestratorinterface defines the interface for the orchestrator forwarder component.
+
+## [comp/healthplatform](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform) (Component Bundle)
+
+*Datadog Team*: agent-health
+
+Package healthplatform implements the "healthplatform" bundle, providing the
+health platform component for detecting and reporting agent health issues.
+
+### [comp/healthplatform/checkrunner](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform/checkrunner)
+
+Package checkrunner defines the interface for the health platform check runner.
+
+### [comp/healthplatform/core](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform/core)
+
+Package core provides the interface for the health platform component.
+This component collects and reports health information from the host system,
+sending it to the Datadog backend with hostname, host ID, organization ID,
+and a list of issues.
+
+### [comp/healthplatform/forwarder](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform/forwarder)
+
+Package forwarder defines the interface for the health platform forwarder.
 
 ## [comp/host-profiler](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/host-profiler) (Component Bundle)
 
@@ -507,6 +539,10 @@ Package ddflareextension defines the OpenTelemetry Extension component.
 
 Package ddprofilingextension defines the otel agent ddprofilingextension component.
 
+### [comp/otelcol/dogtelextension](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/dogtelextension)
+
+Package dogtelextension provides Datadog agent functionalities for OTel collector
+
 ### [comp/otelcol/logsagentpipeline](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline)
 
 Package logsagentpipeline contains logs agent pipeline component
@@ -592,7 +628,12 @@ Package remoteconfig defines the fx options for the Bundle
 
 ### [comp/remote-config/rcclient](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/remote-config/rcclient)
 
+Package rcclient is a remote config client that can run within the agent to receive
+configurations.
 
+### [comp/remote-config/rcprotocoltest](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/remote-config/rcprotocoltest)
+
+Package rcprotocoltest manages RC protocol connectivity duration tests.
 
 ### [comp/remote-config/rcservice](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/remote-config/rcservice)
 
@@ -746,6 +787,12 @@ Package datadogclient provides a client to query the datadog API
 
 Package connectivitychecker is responsible for running connectivity checks that will be sent to the backend via the inventory agent.
 
+### [comp/dataobs/queryactions](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/dataobs/queryactions)
+
+*Datadog Team*: data-observability
+
+Package queryactions provides the Data Observability query actions component
+
 ### [comp/etw](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/etw)
 
 *Datadog Team*: windows-products
@@ -773,15 +820,6 @@ Package fleetstatus implements the core status component information provider in
 
 Package haagent handles states for HA Agent feature.
 
-### [comp/healthplatform](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform)
-
-*Datadog Team*: agent-health
-
-Package healthplatform provides the interface for the health platform component.
-This component collects and reports health information from the host system,
-sending it to the Datadog backend with hostname, host ID, organization ID,
-and a list of issues.
-
 ### [comp/languagedetection/client](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/languagedetection/client)
 
 *Datadog Team*: container-platform
@@ -805,6 +843,14 @@ Package networkdeviceconfig provides the component for retrieving network device
 *Datadog Team*: windows-products
 
 Package notableevents provides a component that monitors notable system events and forwards them to the Datadog Event Management v2 API.
+
+### [comp/offlinereporter](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/offlinereporter)
+
+*Datadog Team*: agent-metric-pipelines
+
+Package offlinereporter tracks the time gap between agent runs by maintaining a
+heartbeat file updated every 5 seconds. On startup it captures the
+last-written timestamp so callers can measure how long the agent was offline.
 
 ### [comp/privateactionrunner](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/privateactionrunner)
 

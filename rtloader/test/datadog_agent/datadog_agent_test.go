@@ -35,10 +35,7 @@ func TestGetVersion(t *testing.T) {
 	code := fmt.Sprintf(`
 	with open(r'%s', 'w') as f:
 		version = datadog_agent.get_version()
-		if sys.version_info.major == 2:
-			assert type(version) == type(b"")
-		else:
-			assert type(version) == type(u"")
+		assert type(version) == type(u"")
 		f.write(version)
 	`, tmpfile.Name())
 	out, err := run(code)
@@ -102,10 +99,7 @@ func TestGetHostname(t *testing.T) {
 	code := fmt.Sprintf(`
 	with open(r'%s', 'w') as f:
 		name = datadog_agent.get_hostname()
-		if sys.version_info.major == 2:
-			assert type(name) == type(b"")
-		else:
-			assert type(name) == type(u"")
+		assert type(name) == type(u"")
 		f.write(name)
 	`, tmpfile.Name())
 	out, err := run(code)
@@ -127,10 +121,7 @@ func TestGetClustername(t *testing.T) {
 	code := fmt.Sprintf(`
 	with open(r'%s', 'w') as f:
 		name = datadog_agent.get_clustername()
-		if sys.version_info.major == 2:
-			assert type(name) == type(b"")
-		else:
-			assert type(name) == type(u"")
+		assert type(name) == type(u"")
 		f.write(name)
 	`, tmpfile.Name())
 
@@ -305,6 +296,44 @@ func TestSetExternalTagsNotTuple(t *testing.T) {
 		t.Fatal(err)
 	}
 	if out != "TypeError: external host tags list must contain only tuples" {
+		t.Errorf("Unexpected printed value: '%s'", out)
+	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
+}
+
+func TestSetExternalTagsShortTuple(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
+	code := `
+	datadog_agent.set_external_tags([('hostname',)])
+	`
+	out, err := run(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "TypeError: external host tags tuple must have at least 2 elements" {
+		t.Errorf("Unexpected printed value: '%s'", out)
+	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
+}
+
+func TestSetExternalTagsEmptyTuple(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
+	code := `
+	datadog_agent.set_external_tags([()])
+	`
+	out, err := run(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "TypeError: external host tags tuple must have at least 2 elements" {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
 

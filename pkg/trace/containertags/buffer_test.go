@@ -35,10 +35,10 @@ func (m *mockResolver) setTags(t []string) {
 	m.tags = t
 }
 
-func (m *mockResolver) Resolve(string) ([]string, error) {
+func (m *mockResolver) Resolve(string) ([]string, bool, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return m.tags, m.err
+	return m.tags, true, m.err
 }
 
 func TestBuffer_DelayedSuccess(t *testing.T) {
@@ -55,7 +55,7 @@ func TestBuffer_DelayedSuccess(t *testing.T) {
 	resultCh := make(chan []string, 1)
 
 	var calledOnce atomic.Int64
-	onResolution := func(ctags []string, _ error) {
+	onResolution := func(ctags []string, _ error, _ *DebugInfo) {
 		calledOnce.Add(1)
 		resultCh <- ctags
 	}
@@ -116,8 +116,8 @@ func TestAsyncEnrichment_DeniedContainer(t *testing.T) {
 	conf := &config.AgentConfig{
 		MaxMemory:           1000,
 		ContainerTagsBuffer: true,
-		ContainerTags: func(string) ([]string, error) {
-			return []string{"image:only"}, nil
+		ContainerTagsWithCompleteness: func(string) ([]string, bool, error) {
+			return []string{"image:only"}, true, nil
 		},
 	}
 
@@ -131,21 +131,23 @@ func TestAsyncEnrichment_DeniedContainer(t *testing.T) {
 	ctb.deniedContainers.deny(time.Now(), cid)
 
 	called := false
-	cb := func([]string, error) { called = true }
+	var debugResult *DebugInfo
+	cb := func(_ []string, _ error, d *DebugInfo) { called = true; debugResult = d }
 
 	pending := ctb.AsyncEnrichment(cid, cb, 50)
 
 	assert.False(t, pending, "Denied container should not be pending")
 	assert.True(t, called, "Callback should be called immediately")
+	assert.Equal(t, "denied", debugResult.BufferEvictionReason, "Should report buffer denied")
 	assert.Equal(t, int64(0), ctb.memoryUsage.Load(), "Should not consume buffer memory")
 }
 
 func TestAsyncEnrichment_MemoryLimit(t *testing.T) {
 	mock := &mockResolver{tags: []string{"short_image:java"}}
 	conf := &config.AgentConfig{
-		MaxMemory:           100, // Max size will be 10 (10%)
-		ContainerTagsBuffer: true,
-		ContainerTags:       mock.Resolve,
+		MaxMemory:                     100, // Max size will be 10 (10%)
+		ContainerTagsBuffer:           true,
+		ContainerTagsWithCompleteness: mock.Resolve,
 	}
 
 	ctb := newContainerTagsBuffer(conf, &statsd.NoOpClient{})
@@ -153,7 +155,7 @@ func TestAsyncEnrichment_MemoryLimit(t *testing.T) {
 	defer ctb.Stop()
 
 	// 1. Fill memory (Payload 10 fills the 10 limit)
-	ctb.AsyncEnrichment("container-1", func([]string, error) {}, 10)
+	ctb.AsyncEnrichment("container-1", func([]string, error, *DebugInfo) {}, 10)
 
 	// Wait for it to hit the map
 	require.Eventually(t, func() bool {
@@ -162,12 +164,14 @@ func TestAsyncEnrichment_MemoryLimit(t *testing.T) {
 
 	// 2. Try to add another container
 	called := false
-	cb := func([]string, error) { called = true }
+	var debugResult *DebugInfo
+	cb := func(_ []string, _ error, d *DebugInfo) { called = true; debugResult = d }
 
 	pending := ctb.AsyncEnrichment("container-2", cb, 1)
 
 	assert.False(t, pending, "Should be rejected due to memory limit")
 	assert.True(t, called, "Callback should be called immediately on rejection")
+	assert.Equal(t, "max_size", debugResult.BufferEvictionReason, "Should report buffer max size")
 	assert.Equal(t, int64(10), ctb.memoryUsage.Load())
 
 	// 3. memory cleaned post resolution
@@ -181,8 +185,8 @@ func TestAsyncEnrichment_ImmediateResolution(t *testing.T) {
 	conf := &config.AgentConfig{
 		MaxMemory:           10000,
 		ContainerTagsBuffer: true,
-		ContainerTags: func(string) ([]string, error) {
-			return []string{"kube_pod_name:abc", "image:123"}, nil
+		ContainerTagsWithCompleteness: func(string) ([]string, bool, error) {
+			return []string{"kube_pod_name:abc", "image:123"}, true, nil
 		},
 	}
 	ctb := newContainerTagsBuffer(conf, &statsd.NoOpClient{})
@@ -192,7 +196,7 @@ func TestAsyncEnrichment_ImmediateResolution(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	callback := func(tags []string, err error) {
+	callback := func(tags []string, err error, _ *DebugInfo) {
 		assert.Contains(t, tags, "kube_pod_name:abc")
 		assert.NoError(t, err)
 		wg.Done()
@@ -207,8 +211,8 @@ func TestAsyncEnrichment_Buffered_Expiration(t *testing.T) {
 	conf := &config.AgentConfig{
 		MaxMemory:           10000,
 		ContainerTagsBuffer: true,
-		ContainerTags: func(string) ([]string, error) {
-			return []string{"image:only"}, nil
+		ContainerTagsWithCompleteness: func(string) ([]string, bool, error) {
+			return []string{"image:only"}, true, nil
 		},
 	}
 
@@ -217,7 +221,7 @@ func TestAsyncEnrichment_Buffered_Expiration(t *testing.T) {
 	ctb.Start()
 
 	resultChan := make(chan []string, 1)
-	callback := func(tags []string, _ error) {
+	callback := func(tags []string, _ error, _ *DebugInfo) {
 		resultChan <- tags
 	}
 
@@ -245,8 +249,8 @@ func TestAsyncEnrichment_Buffered_HardLimit(t *testing.T) {
 	conf := &config.AgentConfig{
 		MaxMemory:           10000,
 		ContainerTagsBuffer: true,
-		ContainerTags: func(string) ([]string, error) {
-			return []string{"image:only"}, nil
+		ContainerTagsWithCompleteness: func(string) ([]string, bool, error) {
+			return []string{"image:only"}, true, nil
 		},
 	}
 
@@ -255,7 +259,7 @@ func TestAsyncEnrichment_Buffered_HardLimit(t *testing.T) {
 	ctb.Start()
 
 	resultChan := make(chan []string, 1)
-	callback := func(tags []string, _ error) {
+	callback := func(tags []string, _ error, _ *DebugInfo) {
 		resultChan <- tags
 	}
 
@@ -291,15 +295,15 @@ func syncTestAsyncEnrichmentConcurrentMixedScenarios(t *testing.T) {
 	conf := &config.AgentConfig{
 		MaxMemory:           10 * 1024 * 1024,
 		ContainerTagsBuffer: true,
-		ContainerTags: func(cid string) ([]string, error) {
+		ContainerTagsWithCompleteness: func(cid string) ([]string, bool, error) {
 			if strings.Contains(cid, "c-error") {
-				return nil, errors.New("container not found")
+				return nil, false, errors.New("container not found")
 			}
 
 			if shouldResolveContainers.Load() {
-				return []string{"kube_image:" + cid}, nil
+				return []string{"kube_image:" + cid}, true, nil
 			}
-			return []string{"tag:incomplete_tags"}, nil
+			return []string{"tag:incomplete_tags"}, true, nil
 		},
 	}
 
@@ -318,7 +322,7 @@ func syncTestAsyncEnrichmentConcurrentMixedScenarios(t *testing.T) {
 				cid := containerIDs[rand.Intn(len(containerIDs))]
 
 				totalAsyncCalls.Add(1)
-				ctb.AsyncEnrichment(cid, func([]string, error) { totalExecuted.Add(1) }, 100)
+				ctb.AsyncEnrichment(cid, func([]string, error, *DebugInfo) { totalExecuted.Add(1) }, 100)
 			}
 		}()
 	}

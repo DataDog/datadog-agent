@@ -8,6 +8,7 @@ package secretsimpl
 
 import (
 	"bytes"
+	"context"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -34,7 +35,7 @@ import (
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/utils"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
@@ -152,6 +153,14 @@ func newEnabledSecretResolver(telemetry telemetry.Component) *secretResolver {
 	}
 }
 
+// NewEnabledResolver creates a new secrets resolver that uses the real secrets
+// backend without the FX dependency graph. The telemetry component is used only
+// for internal metrics; pass noopsimpl.GetCompatComponent() when Prometheus
+// metrics are not needed (e.g. for one-shot config resolution before FX starts).
+func NewEnabledResolver(t telemetry.Component) secrets.Component {
+	return newEnabledSecretResolver(t)
+}
+
 // NewComponent returns the implementation for the secrets component
 func NewComponent(deps Requires) Provides {
 	resolver := newEnabledSecretResolver(deps.Telemetry)
@@ -193,7 +202,7 @@ func (r *secretResolver) HTML(_ bool, buffer io.Writer) error {
 }
 
 // fillFlare add secrets information to flares
-func (r *secretResolver) fillFlare(fb flaretypes.FlareBuilder) error {
+func (r *secretResolver) fillFlare(_ context.Context, fb flaretypes.FlareBuilder) error {
 	var buffer bytes.Buffer
 	stats := make(map[string]interface{})
 	err := status.RenderText(templatesFS, "info.tmpl", &buffer, r.getDebugInfo(stats, true))
@@ -276,7 +285,7 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 	r.backendCommand = params.Command
 	r.embeddedBackendPermissiveRights = false
 	if r.backendCommand != "" && r.backendType != "" {
-		log.Warnf("Both 'secret_backend_command' and 'secret_backend_type' are set, 'secret_backend_type' will be ignored")
+		log.Warnf("Both secret_backend_command and secret_backend_type are set. secret_backend_command takes precedence; secret_backend_type is ignored. To use native backend (aws.secrets, hashicorp.vault, etc.), remove secret_backend_command from datadog.yaml. Docs: %s", secretsManagementDocsURL)
 	}
 	// only use the backend type option if the backend command is not set
 	if r.backendType != "" && r.backendCommand == "" {
@@ -820,7 +829,7 @@ func (r *secretResolver) addToAuditFile(secretResponse map[string]string) error 
 		secretValue := secretResponse[handle]
 		scrubbedValue := ""
 		if isLikelyAPIOrAppKey(handle, secretValue, r.origin) {
-			scrubbedValue = scrubber.HideKeyExceptLastFiveChars(secretValue)
+			scrubbedValue = scrubber.HideKeyExceptLastChars(secretValue)
 		}
 		newRows = append(newRows, auditRecord{Handle: handle, Value: scrubbedValue})
 	}

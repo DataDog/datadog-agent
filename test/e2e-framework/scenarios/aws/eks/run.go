@@ -84,9 +84,6 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resourcesAws.Environment, env output
 			fakeintake.WithCPU(1024),
 			fakeintake.WithMemory(6144),
 		}
-		if awsEnv.GetCommonEnvironment().InfraShouldDeployFakeintakeWithLB() {
-			fakeIntakeOptions = append(fakeIntakeOptions, fakeintake.WithLoadBalancer())
-		}
 
 		if fakeIntake, err = fakeintake.NewECSFargateInstance(awsEnv, "ecs", fakeIntakeOptions...); err != nil {
 			return err

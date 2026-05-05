@@ -27,7 +27,7 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	statsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
 	traceconfigdef "github.com/DataDog/datadog-agent/comp/trace/config/def"
@@ -98,6 +98,7 @@ type component struct {
 	*pkgagent.Agent
 
 	cancel             context.CancelFunc
+	ctx                context.Context
 	config             traceconfigdef.Component
 	secrets            secrets.Component
 	params             *Params
@@ -121,6 +122,7 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 	ctx, cancel := context.WithCancel(deps.Context) // Several related non-components require a shared context to gracefully stop.
 	c = component{
 		cancel:             cancel,
+		ctx:                ctx,
 		config:             deps.Config,
 		secrets:            deps.Secrets,
 		params:             deps.Params,

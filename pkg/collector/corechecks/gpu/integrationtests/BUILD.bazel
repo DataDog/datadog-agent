@@ -1,0 +1,8 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "integrationtests",
+    srcs = ["doc.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/integrationtests",
+    visibility = ["//visibility:public"],
+)

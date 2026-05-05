@@ -24,10 +24,10 @@ import (
 
 const (
 	thirdPartyIntegration = "datadog-ping==1.0.2"
-	pipPackage            = "grpcio"
+	pipPackage            = "grpcio==1.80.0"
 )
 
-// TestPersistingIntegrations tests upgrading the agent from WINDOWS_AGENT_VERSION to UPGRADE_TEST_VERSION
+// TestPersistingIntegrations tests upgrading the agent from the current version to the upgrade-test version
 func TestPersistingIntegrations(t *testing.T) {
 	s := &testPersistingIntegrationsSuite{}
 	upgradeAgentPackge, err := windowsAgent.GetUpgradeTestPackageFromEnv()
@@ -106,7 +106,7 @@ func (s *testPersistingIntegrationsSuite) TestPersistingIntegrations() {
 
 }
 
-// TestDisablePersistingIntegrations tests upgrading the agent from WINDOWS_AGENT_VERSION to UPGRADE_TEST_VERSION
+// TestDisablePersistingIntegrations tests upgrading the agent from the current version to the upgrade-test version
 // with the integrations persistence flag disabled
 // verify that the third party integration and pip package are not installed
 func TestDisablePersistingIntegrations(t *testing.T) {
@@ -190,7 +190,7 @@ func (s *testDisablePersistingIntegrationsSuite) TestDisablePersistingIntegratio
 
 }
 
-// TestPersistingIntegrations tests upgrading the agent from WINDOWS_AGENT_VERSION to UPGRADE_TEST_VERSION
+// TestIntegrationInstallFailure tests upgrading the agent from the current version to the upgrade-test version
 func TestIntegrationInstallFailure(t *testing.T) {
 	s := &testIntegrationInstallFailure{}
 	Run(t, s)
@@ -235,7 +235,7 @@ func (s *testIntegrationInstallFailure) TestIntegrationInstallFailure() {
 
 }
 
-// TestIntegrationFolderPermissions tests upgrading the agent from WINDOWS_AGENT_VERSION to UPGRADE_TEST_VERSION
+// TestIntegrationFolderPermissions tests upgrading the agent from the current version to the upgrade-test version
 // this tests the agent will not install if the folder permissions are incorrect
 func TestIntegrationFolderPermissions(t *testing.T) {
 	s := &testIntegrationFolderPermissions{}
@@ -332,7 +332,7 @@ func (s *testIntegrationFolderPermissions) TestIntegrationFolderPermissions() {
 
 }
 
-// TestIntegrationRollback tests upgrading the agent from WINDOWS_AGENT_VERSION to UPGRADE_TEST_VERSION
+// TestIntegrationRollback tests upgrading the agent from the current version to the upgrade-test version
 func TestIntegrationRollback(t *testing.T) {
 	s := &testIntegrationRollback{}
 	upgradeAgentPackge, err := windowsAgent.GetUpgradeTestPackageFromEnv()
@@ -435,7 +435,7 @@ func (s *testIntegrationRollback) TestIntegrationRollback() {
 
 }
 
-// TestPersistingIntegrationsDuringUninstall tests upgrading the agent from WINDOWS_AGENT_VERSION to UPGRADE_TEST_VERSION
+// TestPersistingIntegrationsDuringUninstall tests upgrading the agent from the current version to the upgrade-test version
 // verify that the third party integration and pip package are installed after uninstall and reinstall
 // this is the workload used by fleet to upgrade the agent
 func TestPersistingIntegrationsDuringUninstall(t *testing.T) {
@@ -555,12 +555,14 @@ func (s *baseAgentMSISuite) checkPipPackageInstalled(vm *components.RemoteHost, 
 	installPath, err := windowsAgent.GetInstallPathFromRegistry(vm)
 	s.Require().NoError(err, "should get install path from registry")
 
-	cmd := fmt.Sprintf(`& "%s\embedded3\python.exe" -m pip show %s`, installPath, packageToCheck)
+	// pip show only accepts package names, not version specifiers like ==1.2.3
+	pkgName, _, _ := strings.Cut(packageToCheck, "==")
+	cmd := fmt.Sprintf(`& "%s\embedded3\python.exe" -m pip show %s`, installPath, pkgName)
 	out, err := vm.Execute(cmd)
 	s.Require().NoError(err, "should show pip package")
 
 	// check to make sure it is installed
-	packageCheck := "Name: " + packageToCheck
+	packageCheck := "Name: " + pkgName
 	assert.True(s.T(), strings.Contains(out, packageCheck), "pip package should be installed")
 }
 
@@ -569,7 +571,9 @@ func (s *baseAgentMSISuite) checkPipPackageNotInstalled(vm *components.RemoteHos
 	installPath, err := windowsAgent.GetInstallPathFromRegistry(vm)
 	s.Require().NoError(err, "should get install path from registry")
 
-	cmd := fmt.Sprintf(`& "%s\embedded3\python.exe" -m pip show %s`, installPath, packageToCheck)
+	// pip show only accepts package names, not version specifiers like ==1.2.3
+	pkgName, _, _ := strings.Cut(packageToCheck, "==")
+	cmd := fmt.Sprintf(`& "%s\embedded3\python.exe" -m pip show %s`, installPath, pkgName)
 	_, err = vm.Execute(cmd)
 	s.Require().ErrorContains(err, "not found", "should not find pip package")
 

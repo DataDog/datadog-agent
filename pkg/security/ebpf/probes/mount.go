@@ -122,5 +122,11 @@ func getMountProbes(fentry bool) []*manager.Probe {
 		},
 		SyscallFuncName: "move_mount",
 	}, fentry, EntryAndExit)...)
+	mountProbes = append(mountProbes, ExpandSyscallProbes(&manager.Probe{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID: SecurityAgentUID,
+		},
+		SyscallFuncName: "pivot_root",
+	}, fentry, EntryAndExit)...)
 	return mountProbes
 }

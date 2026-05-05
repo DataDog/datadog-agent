@@ -18,6 +18,7 @@ pub struct ReloadResult {
 #[derive(Debug)]
 pub struct CreateResult {
     pub uuid: String,
+    pub warnings: Vec<String>,
 }
 
 #[derive(Debug)]

@@ -200,6 +200,12 @@ func (d *ServerlessDemultiplexer) Serializer() serializer.MetricSerializer {
 	return d.serializer
 }
 
+// PendingSamples returns the number of metric sample batches buffered
+// in the worker's input channel that have not yet been processed.
+func (d *ServerlessDemultiplexer) PendingSamples() int {
+	return len(d.statsdWorker.samplesChan)
+}
+
 // GetMetricSamplePool returns a shared resource used in the whole DogStatsD
 // pipeline to re-use metric samples slices: the server is getting a slice
 // and filling it with samples, the rest of the pipeline process them the

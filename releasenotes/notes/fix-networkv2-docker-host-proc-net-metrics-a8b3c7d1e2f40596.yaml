@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fixes ``system.net.*`` metrics when the Agent runs in Docker with the host's procfs
+    mounted (for example ``/host/proc`` with host PID namespace). The Go network check
+    (network v2) now reads ``/proc/1/net/dev`` under that mount so interface stats match
+    the host; previously ``/proc/net/dev`` could resolve in the container network namespace
+    and report wrong or missing traffic (regression in Agent 7.73+).

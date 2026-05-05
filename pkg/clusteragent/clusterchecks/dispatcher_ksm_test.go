@@ -11,10 +11,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	cctypes "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func TestScheduleKSMCheck(t *testing.T) {
@@ -188,4 +191,19 @@ func createTestKSMConfig(collectors []string) integration.Config {
 		Instances:    []integration.Data{integration.Data(data)},
 		ClusterCheck: true,
 	}
+}
+
+func TestNewDispatcher_KSMShardingNonNilWhenAdvancedDispatchingDisabled(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("cluster_checks.advanced_dispatching_enabled", false)
+	mockConfig.SetWithoutSource("cluster_checks.ksm_sharding_enabled", true)
+
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	d := newDispatcher(fakeTagger)
+
+	require.NotNil(t, d.ksmSharding)
+	assert.False(t, d.ksmSharding.isEnabled(), "sharding must be off without advanced dispatching")
+
+	config := createTestKSMConfig([]string{"pods", "nodes"})
+	assert.NotPanics(t, func() { d.Schedule([]integration.Config{config}) })
 }

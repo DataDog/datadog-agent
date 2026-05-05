@@ -30,7 +30,7 @@ type Component interface {
 	RemoveScheduler(name string)
 	GetIDOfCheckWithEncryptedSecrets(checkID checkid.ID) checkid.ID
 	GetAutodiscoveryErrors() map[string]map[string]types.ErrorMsgSet
-	GetProviderCatalog() map[string]types.ConfigProviderFactory
+	AddConfigProviderFromCatalog(cp pkgconfigsetup.ConfigurationProviders) error
 	GetTelemetryStore() *telemetry.Store
 	// TODO (component): once cluster agent uses the API component remove this function
 	GetConfigCheck() integration.ConfigCheckResponse
