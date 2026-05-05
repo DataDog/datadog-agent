@@ -111,8 +111,9 @@ func replaceGoTests(result language.GenerateResult) language.GenerateResult {
 			continue
 		}
 		nr := rule.NewRule("dd_go_test", r.Name())
-		copyAttr(r, nr, "srcs")
-		copyAttr(r, nr, "embed")
+		for _, attr := range r.AttrKeys() {
+			copyAttr(r, nr, attr)
+		}
 		gen = append(gen, nr)
 		imports = append(imports, imp)
 		empty = append(empty, rule.NewRule("go_test", r.Name()))

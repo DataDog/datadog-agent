@@ -66,12 +66,20 @@ func TestReplaceGoTests_AttrsCarriedOver(t *testing.T) {
 	orig := rule.NewRule("go_test", "mytest")
 	orig.SetAttr("srcs", []string{"mytest.go"})
 	orig.SetAttr("embed", []string{":mypkg"})
+	orig.SetAttr("data", []string{"testdata/foo.json"})
+	orig.SetAttr("target_compatible_with", []string{"@platforms//os:linux"})
 
 	result := replaceGoTests(makeGoTestResult(orig))
 	r := result.Gen[0]
 
 	if got := r.AttrStrings("embed"); !stringSlicesEqual(got, []string{":mypkg"}) {
 		t.Errorf("embed: got %v, want [:mypkg]", got)
+	}
+	if got := r.AttrStrings("data"); !stringSlicesEqual(got, []string{"testdata/foo.json"}) {
+		t.Errorf("data: got %v, want [testdata/foo.json]", got)
+	}
+	if got := r.AttrStrings("target_compatible_with"); !stringSlicesEqual(got, []string{"@platforms//os:linux"}) {
+		t.Errorf("target_compatible_with: got %v, want [@platforms//os:linux]", got)
 	}
 }
 
