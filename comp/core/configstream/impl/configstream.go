@@ -44,6 +44,11 @@ type configStream struct {
 	log       log.Component
 	telemetry telemetry.Component
 
+	// enabled is set once at construction; when false the run() goroutine is
+	// never started and Subscribe() returns a closed channel immediately so
+	// callers don't block on unserviced channels.
+	enabled bool
+
 	m           sync.Mutex
 	subscribers map[string]*subscription
 
@@ -73,10 +78,13 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, errors.New("remote_agent.configstream.enabled is true but remote_agent.registry.enabled is not; set remote_agent.registry.enabled: true to use config stream for remote agents")
 	}
 
+	enabled := reqs.Config.GetBool("remote_agent.configstream.enabled")
+
 	cs := &configStream{
 		config:          reqs.Config,
 		log:             reqs.Log,
 		telemetry:       reqs.Telemetry,
+		enabled:         enabled,
 		subscribers:     make(map[string]*subscription),
 		subscribeChan:   make(chan *subscription),
 		unsubscribeChan: make(chan string),
@@ -92,16 +100,21 @@ func NewComponent(reqs Requires) (Provides, error) {
 	// Cache origin once at initialization to avoid lock contention in OnUpdate callback
 	cs.origin = cs.getConfigOrigin()
 
-	reqs.Lifecycle.Append(compdef.Hook{
-		OnStart: func(_ context.Context) error {
-			go cs.run()
-			return nil
-		},
-		OnStop: func(_ context.Context) error {
-			close(cs.stopChan)
-			return nil
-		},
-	})
+	// Only start the background goroutine and OnUpdate listener when the feature
+	// is enabled. Skipping this at idle eliminates the per-update protobuf
+	// allocation overhead for users who haven't opted in to config streaming.
+	if enabled {
+		reqs.Lifecycle.Append(compdef.Hook{
+			OnStart: func(_ context.Context) error {
+				go cs.run()
+				return nil
+			},
+			OnStop: func(_ context.Context) error {
+				close(cs.stopChan)
+				return nil
+			},
+		})
+	}
 
 	return Provides{
 		Comp: cs,
@@ -110,7 +123,15 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 // Subscribe returns a channel that streams configuration events, starting with a snapshot.
 // It also returns an unsubscribe function that must be called to clean up.
+// If the configstream is disabled (remote_agent.configstream.enabled is false), it returns
+// a pre-closed channel and a no-op unsubscribe so callers don't block on an unserviced channel.
 func (cs *configStream) Subscribe(req *pb.ConfigStreamRequest) (<-chan *pb.ConfigEvent, func()) {
+	if !cs.enabled {
+		ch := make(chan *pb.ConfigEvent)
+		close(ch)
+		return ch, func() {}
+	}
+
 	subID := fmt.Sprintf("%s-%s", req.Name, uuid.New().String())
 	subChan := make(chan *pb.ConfigEvent, 100) // Buffered channel to avoid blocking
 

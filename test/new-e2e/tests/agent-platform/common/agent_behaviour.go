@@ -418,6 +418,10 @@ func CheckADPEnabled(t *testing.T, client *TestClient) {
 		require.NoError(tt, err)
 		err = client.SetConfig(configFilePath, "data_plane.dogstatsd.enabled", "true")
 		require.NoError(tt, err)
+		err = client.SetConfig(configFilePath, "remote_agent.registry.enabled", "true")
+		require.NoError(tt, err)
+		err = client.SetConfig(configFilePath, "remote_agent.configstream.enabled", "true")
+		require.NoError(tt, err)
 
 		_, err = client.SvcManager.Restart(client.Helper.GetServiceName())
 		require.NoError(tt, err)

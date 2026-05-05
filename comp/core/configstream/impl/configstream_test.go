@@ -312,6 +312,30 @@ func TestNewComponentValidation(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	t.Run("Subscribe returns closed channel when disabled", func(t *testing.T) {
+		cfg := configmock.New(t)
+		cfg.SetWithoutSource("remote_agent.configstream.enabled", false)
+		cfg.SetWithoutSource("remote_agent.registry.enabled", false)
+		provides, err := NewComponent(Requires{
+			Lifecycle: compdef.NewTestLifecycle(t),
+			Config:    cfg,
+			Log:       mockLog,
+			Telemetry: telemetryComp,
+		})
+		require.NoError(t, err)
+
+		ch, unsubscribe := provides.Comp.Subscribe(&pb.ConfigStreamRequest{Name: "test"})
+		defer unsubscribe()
+
+		// Channel must be immediately readable (closed), not block forever.
+		select {
+		case _, ok := <-ch:
+			assert.False(t, ok, "channel should be closed")
+		default:
+			t.Fatal("Subscribe returned a channel that is neither closed nor has a value; would block")
+		}
+	})
+
 	t.Run("no error when both configstream and registry enabled", func(t *testing.T) {
 		cfg := configmock.New(t)
 		cfg.SetWithoutSource("remote_agent.configstream.enabled", true)
@@ -326,7 +350,8 @@ func TestNewComponentValidation(t *testing.T) {
 	})
 }
 
-// newConfigStreamForTest creates a config stream for testing without lifecycle
+// newConfigStreamForTest creates a config stream for testing without lifecycle.
+// It sets cs.enabled directly (same package) to avoid inflating the config seqID.
 func newConfigStreamForTest(t *testing.T, cfg config.Component, logger log.Component) *configStream {
 	telemetryComp := telemetrynoops.GetCompatComponent()
 	reqs := Requires{
@@ -338,9 +363,10 @@ func newConfigStreamForTest(t *testing.T, cfg config.Component, logger log.Compo
 	provides, err := NewComponent(reqs)
 	require.NoError(t, err)
 
-	// Extract the underlying configStream
-	// and start the run loop manually since lifecycle hooks are not executed
+	// Extract the underlying configStream, enable it, and start the run loop
+	// manually.
 	cs := provides.Comp.(*configStream)
+	cs.enabled = true
 	go cs.run()
 
 	return cs
@@ -371,6 +397,11 @@ func buildComponent(t *testing.T) (Provides, *configInterceptor) {
 	lc := compdef.NewTestLifecycle(t)
 	log := logmock.New(t)
 	cfg := configmock.New(t)
+
+	// Enable configstream so NewComponent registers the lifecycle hook and
+	// run() starts when lc.Start() is called.
+	cfg.SetWithoutSource("remote_agent.configstream.enabled", true)
+	cfg.SetWithoutSource("remote_agent.registry.enabled", true)
 
 	// Register keys used in tests
 	cfg.BindEnvAndSetDefault("my.new.setting", "")
