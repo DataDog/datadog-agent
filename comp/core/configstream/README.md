@@ -102,7 +102,19 @@ remote_agent:
   configstream:
     enabled: true # Required to use the configstreamconsumer
     sleep_interval: 10s  # Backoff on non-terminal errors (default: 10s)
+agent_ipc:
+  # Maximum size of a single gRPC message accepted/sent by the agent's gRPC
+  # server. Configstream snapshots can be large (the entire flattened agent
+  # config); the default is set high so they are never silently dropped.
+  grpc_max_message_size: 134217728  # 128 MiB (default)
+  # Threshold above which an outgoing gRPC message increments the
+  # `agent_ipc.grpc_oversized_messages` telemetry counter.
+  grpc_warning_message_size: 33554432  # 32 MiB (default)
 ```
+
+The legacy `cluster_agent.cluster_tagger.grpc_max_message_size` setting is
+deprecated; the agent gRPC server uses the larger of it and
+`agent_ipc.grpc_max_message_size` for backwards compatibility.
 
 ## Telemetry
 
@@ -115,6 +127,11 @@ The component exports the following metrics for monitoring:
 | `configstream.updates_sent` | Counter | Incremental updates sent |
 | `configstream.discontinuities` | Counter | Sequence gaps detected (triggers resync) |
 | `configstream.dropped_updates` | Counter | Updates dropped (slow consumers) |
+
+Outgoing events larger than `agent_ipc.grpc_warning_message_size` are surfaced
+by the gRPC server itself: it increments the `agent_ipc.grpc_oversized_messages`
+counter (tagged by RPC method) regardless of which stream the message came
+from.
 
 **Monitoring examples:**
 ```promql

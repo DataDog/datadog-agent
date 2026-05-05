@@ -84,7 +84,13 @@ type server struct {
 }
 
 func (s *server) BuildServer() http.Handler {
-	maxMessageSize := s.configComp.GetInt("cluster_agent.cluster_tagger.grpc_max_message_size")
+	// `agent_ipc.grpc_max_message_size` is the canonical setting; the older
+	// `cluster_agent.cluster_tagger.grpc_max_message_size` is deprecated but still honoured
+	// for backwards compatibility. Use the larger of the two so neither setting can
+	// silently shrink the limit.
+	ipcMaxMessageSize := s.configComp.GetInt("agent_ipc.grpc_max_message_size")
+	legacyMaxMessageSize := s.configComp.GetInt("cluster_agent.cluster_tagger.grpc_max_message_size")
+	maxMessageSize := max(ipcMaxMessageSize, legacyMaxMessageSize)
 
 	// Use the convenience function that combines metrics and auth interceptors
 	var opts []googleGrpc.ServerOption
@@ -103,8 +109,22 @@ func (s *server) BuildServer() http.Handler {
 		googleGrpc.MaxSendMsgSize(maxMessageSize),
 	)
 
-	// event size should be small enough to fit within the grpc max message size
-	maxEventSize := maxMessageSize / 2
+	// Emit telemetry when an outgoing message exceeds the soft threshold, well below
+	// the hard `MaxSendMsgSize`. Chained after the metrics+auth interceptors so its
+	// ServerStream wrapper is the one the actual handler holds.
+	if unary, stream := newOversizedMessageInterceptors(s.configComp.GetInt("agent_ipc.grpc_warning_message_size"), s.telemetry); unary != nil {
+		opts = append(opts,
+			googleGrpc.ChainUnaryInterceptor(unary),
+			googleGrpc.ChainStreamInterceptor(stream),
+		)
+	}
+
+	// The tagger and workloadmeta servers chunk their batches up to a per-event size cap.
+	// They are tuned around the legacy `cluster_agent.cluster_tagger.grpc_max_message_size`
+	// (4 MiB by default), so derive the chunk size from that key and not the much larger
+	// `agent_ipc.grpc_max_message_size` introduced for configstream — bumping the server
+	// frame size shouldn't silently grow tagger/wmeta batch sizes.
+	maxEventSize := s.configComp.GetInt("cluster_agent.cluster_tagger.grpc_max_message_size") / 2
 	grpcServer := googleGrpc.NewServer(opts...)
 	pb.RegisterAgentServer(grpcServer, &agentServer{hostname: s.hostname})
 	pb.RegisterAgentSecureServer(grpcServer, &serverSecure{
