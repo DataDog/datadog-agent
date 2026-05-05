@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	reporterdef "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/def"
 )
 
 // StdoutReporter prints reports to stdout.
@@ -30,7 +31,7 @@ func (r *StdoutReporter) Name() string {
 // and prints changes. It prints new anomalies and tracks correlation state changes,
 // printing "[observer] NEW: {title}" when a correlation first appears and
 // "[observer] CLEARED: {title}" when a correlation disappears.
-func (r *StdoutReporter) Report(report observer.ReportOutput) {
+func (r *StdoutReporter) Report(report reporterdef.ReportOutput) {
 	r.reportNewAnomalies(report.NewAnomalies)
 	r.reportCorrelationChanges(report.ActiveCorrelations)
 	r.lastCorrelations = report.ActiveCorrelations

@@ -19,6 +19,7 @@ import (
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
+	reporterdef "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/def"
 	reporterimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/impl"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -651,7 +652,7 @@ func (tb *TestBench) rerunDetectorsLocked() {
 	// patterns eligible to re-fire after going inactive.
 	replay := reporterimpl.NewReplayReporter(tb.engine.Storage())
 	unsub := tb.engine.Subscribe(&reporterEventSink{
-		reporters: []observerdef.Reporter{replay},
+		reporters: []reporterdef.Reporter{replay},
 		state:     tb.engine.StateView(),
 	})
 

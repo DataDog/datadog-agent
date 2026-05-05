@@ -9,6 +9,7 @@ import (
 	"time"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	reporterdef "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/def"
 )
 
 // ReportedEvent captures a single event that would be sent to the Datadog backend
@@ -41,12 +42,12 @@ func NewReplayReporter(storage observerdef.StorageReader) *ReplayReporter {
 	return &ReplayReporter{storage: storage}
 }
 
-// Name satisfies observerdef.Reporter.
+// Name satisfies reporterdef.Reporter.
 func (r *ReplayReporter) Name() string { return "replay_reporter" }
 
 // Report fires a new ReportedEvent for each pattern that is newly active (first
 // appearance or reappearance after being absent in the previous call).
-func (r *ReplayReporter) Report(output observerdef.ReportOutput) {
+func (r *ReplayReporter) Report(output reporterdef.ReportOutput) {
 	if r.seenPatterns == nil {
 		r.seenPatterns = make(map[string]bool)
 	}

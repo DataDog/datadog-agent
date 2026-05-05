@@ -6,7 +6,7 @@
 package reporterimpl
 
 import (
-	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	reporterdef "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 )
 
@@ -25,7 +25,7 @@ func (r *EventReporter) Name() string {
 
 // Report checks for new correlations and sends an event for each one.
 // Correlations are provided via output.ActiveCorrelations from the engine's event subscription.
-func (r *EventReporter) Report(output observerdef.ReportOutput) {
+func (r *EventReporter) Report(output reporterdef.ReportOutput) {
 	if r.seenCorrelations == nil {
 		r.seenCorrelations = make(map[string]bool)
 	}

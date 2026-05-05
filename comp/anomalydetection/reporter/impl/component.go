@@ -9,7 +9,6 @@ package reporterimpl
 import (
 	"go.uber.org/fx"
 
-	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	reporter "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/def"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -30,14 +29,14 @@ type Provides struct {
 
 	Comp reporter.Component
 	// Reporters are injected into the observer's engine via the anomalydetection_reporters group.
-	Reporters []observerdef.Reporter `group:"anomalydetection_reporters,flatten"`
+	Reporters []reporter.Reporter `group:"anomalydetection_reporters,flatten"`
 }
 
 type reporterImpl struct{}
 
 // NewComponent creates the reporter component and initializes all enabled reporters.
 func NewComponent(req Requires) (Provides, error) {
-	reporters := []observerdef.Reporter{
+	reporters := []reporter.Reporter{
 		&StdoutReporter{},
 	}
 

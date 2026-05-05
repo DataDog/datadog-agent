@@ -21,6 +21,7 @@ import (
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	"github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl/hfrunner"
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
+	reporterdef "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/def"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
@@ -61,7 +62,7 @@ type Requires struct {
 	Tagger      option.Option[taggerdef.Component]
 
 	// Reporters are provided by the reporter component via the anomalydetection_reporters Fx group.
-	Reporters []observerdef.Reporter `group:"anomalydetection_reporters"`
+	Reporters []reporterdef.Reporter `group:"anomalydetection_reporters"`
 }
 
 // Provides defines the output of the observer component.
@@ -191,7 +192,7 @@ func NewComponent(deps Requires) Provides {
 	for _, r := range deps.Reporters {
 		r := r
 		eng.Subscribe(&reporterEventSink{
-			reporters: []observerdef.Reporter{r},
+			reporters: []reporterdef.Reporter{r},
 			state:     eng.StateView(),
 		})
 	}

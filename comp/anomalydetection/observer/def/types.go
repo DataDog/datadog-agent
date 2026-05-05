@@ -382,17 +382,6 @@ type AnomalyDebugInfo struct {
 	CUSUMValues []float64 // S[t] values (may be truncated to last N points)
 }
 
-// ReportOutput is the output model passed to reporters after each advance cycle.
-// It carries enough data for reporters to act without reaching back into engine internals.
-type ReportOutput struct {
-	// AdvancedToSec is the data time the engine advanced to.
-	AdvancedToSec int64
-	// NewAnomalies are anomalies detected in this advance cycle.
-	NewAnomalies []Anomaly
-	// ActiveCorrelations are the current correlation patterns across all correlators.
-	ActiveCorrelations []ActiveCorrelation
-}
-
 // Series is a time series with simple timestamp/value points.
 // This is the simplified view passed to SeriesDetector.
 type Series struct {
@@ -464,14 +453,6 @@ type Correlator interface {
 	ActiveCorrelations() []ActiveCorrelation
 	// Reset clears all internal state for reanalysis.
 	Reset()
-}
-
-// Reporter receives reports and displays or delivers them.
-type Reporter interface {
-	// Name returns the reporter name for debugging.
-	Name() string
-	// Report delivers a report to its destination (stdout, file, webserver, etc).
-	Report(report ReportOutput)
 }
 
 // ActiveCorrelation represents a detected correlation pattern.
