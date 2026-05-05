@@ -274,6 +274,7 @@ exports_files(glob(
 # gazelle:exclude comp/trace/payload-modifier
 # gazelle:exclude comp/trace/status
 # gazelle:exclude comp/workloadselection
+# gazelle:exclude internal/qbranch
 # gazelle:exclude internal/remote-agent
 # gazelle:exclude internal/third_party
 # gazelle:exclude pkg/aggregator/mocksender
