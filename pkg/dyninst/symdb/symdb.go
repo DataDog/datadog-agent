@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/go-delve/delve/pkg/dwarf/godwarf"
+	"github.com/google/btree"
 	"golang.org/x/time/rate"
 
 	dwarf2 "github.com/DataDog/datadog-agent/pkg/dyninst/dwarf"
@@ -419,6 +420,16 @@ type packagesIterator struct {
 	// to replay an inline instance whose compile unit has already been
 	// walked.
 	cuContextCache map[dwarf.Offset]*cachedCUContext
+
+	// fileNameInterner deduplicates file-name strings across compile
+	// units. Only file names that escape into emitted Function.File
+	// values pass through the interner — the per-CU file tables held
+	// in cachedCUContext / currentCompileUnit hold raw path.Join
+	// strings that are GC'd when the CU is dropped. Most files in any
+	// given CU's table never escape (they're declared in code that
+	// gets filtered out), so deferring interning keeps the retained
+	// dedup'd set small.
+	fileNameInterner *btree.BTreeG[string]
 }
 
 // prePassIndexes bundles the four indexes built by buildPrePassIndexes
@@ -819,9 +830,9 @@ func newPackagesIterator(bin binaryInfo, opt ExtractOptions) *packagesIterator {
 			mainModule:          bin.mainModule,
 			firstPartyPkgPrefix: bin.firstPartyPkgPrefix,
 		},
-		cleanupFuncs:   []func(){func() { _ = bin.goDebugSections.Close() }, func() { _ = bin.obj.Close() }},
-		offsetToUnit:   make(map[dwarf.Offset]dwarfutil.CompileUnitHeader), // filled in below
-		cuContextCache: make(map[dwarf.Offset]*cachedCUContext),
+		cleanupFuncs:     []func(){func() { _ = bin.goDebugSections.Close() }, func() { _ = bin.obj.Close() }},
+		offsetToUnit:     make(map[dwarf.Offset]dwarfutil.CompileUnitHeader), // filled in below
+		fileNameInterner: btree.NewOrderedG[string](16),
 	}
 	headers := bin.obj.UnitHeaders()
 	b.sortedCUOffsets = make([]dwarf.Offset, 0, len(headers))
@@ -1110,6 +1121,48 @@ func (b *packagesIterator) findCUForOffset(offset dwarf.Offset) (dwarf.Offset, b
 	return b.sortedCUOffsets[i-1], true
 }
 
+// internFileName returns the canonical (interned) instance of name,
+// adding it to the interner on first sight. Empty strings are returned
+// as-is without entering the interner.
+func (b *packagesIterator) internFileName(name string) string {
+	if name == "" {
+		return ""
+	}
+	if existing, ok := b.fileNameInterner.Get(name); ok {
+		return existing
+	}
+	b.fileNameInterner.ReplaceOrInsert(name)
+	return name
+}
+
+// buildCUFileTable materializes a compile unit's file table from a
+// dwarf.LineReader. The returned strings are the raw path.Join'd names
+// from the LineReader; they are NOT interned. Interning happens
+// lazily when a file name is about to be retained in an emitted
+// Function — see exploreSubprogram. Returns nil if cuLineReader is
+// nil.
+func (b *packagesIterator) buildCUFileTable(cuLineReader *dwarf.LineReader, cuDescription string) ([]string, error) {
+	if cuLineReader == nil {
+		return nil, nil
+	}
+	rawFiles := cuLineReader.Files()
+	files := make([]string, 0, len(rawFiles))
+	for i, file := range rawFiles {
+		if file == nil {
+			// Each compile unit starts with a nil entry at position 0; 0 is
+			// used as a sentinel by file references to indicate that the
+			// file is not known.
+			if i != 0 {
+				return nil, fmt.Errorf("%s has invalid nil file entry at index %d", cuDescription, i)
+			}
+			files = append(files, "")
+			continue
+		}
+		files = append(files, file.Name)
+	}
+	return files, nil
+}
+
 // getCUContext returns the cached CU context for the given CU offset, building
 // it if necessary by seeking to the CU and reading its file table.
 func (b *packagesIterator) getCUContext(cuOffset dwarf.Offset) (*cachedCUContext, error) {
@@ -1138,19 +1191,9 @@ func (b *packagesIterator) getCUContext(cuOffset dwarf.Offset) (*cachedCUContext
 	if err != nil {
 		return nil, fmt.Errorf("failed to get line reader for CU at 0x%x: %w", cuOffset, err)
 	}
-	var files []string
-	if cuLineReader != nil {
-		files = make([]string, 0, len(cuLineReader.Files()))
-		for i, file := range cuLineReader.Files() {
-			if file == nil {
-				if i != 0 {
-					return nil, fmt.Errorf("CU at 0x%x has invalid nil file entry at index %d", cuOffset, i)
-				}
-				files = append(files, "")
-				continue
-			}
-			files = append(files, file.Name)
-		}
+	files, err := b.buildCUFileTable(cuLineReader, fmt.Sprintf("CU at 0x%x", cuOffset))
+	if err != nil {
+		return nil, err
 	}
 
 	ctx := &cachedCUContext{
@@ -1771,23 +1814,9 @@ func (b *packagesIterator) exploreCompileUnit(
 	if err != nil {
 		return nil, fmt.Errorf("could not get file line reader for compile unit %s: %w", name, err)
 	}
-	var files []string
-	if cuLineReader != nil {
-		files = make([]string, 0, len(cuLineReader.Files()))
-		for i, file := range cuLineReader.Files() {
-			if file == nil {
-				// Each compile unit starts with a nil entry at position 0; 0 is
-				// used as a sentinel by file references to indicate that the
-				// file is not known.
-				if i != 0 {
-					return nil, fmt.Errorf(
-						"compile unit %s has invalid nil file entry at index %d", name, i)
-				}
-				files = append(files, "")
-				continue
-			}
-			files = append(files, file.Name)
-		}
+	files, err := b.buildCUFileTable(cuLineReader, fmt.Sprintf("compile unit %s", name))
+	if err != nil {
+		return nil, err
 	}
 	b.currentCompileUnit.files = files
 
@@ -1909,6 +1938,10 @@ func (b *packagesIterator) exploreSubprogram(
 	if fileName == "<autogenerated>" {
 		return earlyExit()
 	}
+	// We're going to keep this file name in the emitted Function.
+	// Intern now so that copies of the same path coming from other CUs
+	// (path.Join allocates fresh) collapse to one retained string.
+	fileName = b.internFileName(fileName)
 
 	lowpc, ok := entry.Val(dwarf.AttrLowpc).(uint64)
 	if !ok {
@@ -2036,7 +2069,7 @@ func (b *packagesIterator) exploreInlinedInstance(
 		return fmt.Errorf("missing self function lines for function %s at PC 0x%x", af.qualifiedName, entry.Offset)
 	}
 	if af.file == "" {
-		af.file = selfLines.File
+		af.file = b.internFileName(selfLines.File)
 	}
 	for _, line := range selfLines.Lines {
 		if line.Line > af.endLine {
