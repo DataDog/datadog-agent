@@ -68,6 +68,7 @@ spec:
         ports:
         - containerPort: {{.NginxPort}}
           name: http
+          protocol: TCP
         resources:
           requests:
             cpu: 10m
