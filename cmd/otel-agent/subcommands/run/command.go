@@ -52,9 +52,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface"
 	logconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
+	inventoryagentfx "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/fx"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/inventoryhostimpl"
-	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
+	runnerfx "github.com/DataDog/datadog-agent/comp/metadata/runner/fx"
 	collectorcontribFx "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/fx"
 	collectordef "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	collectorfx "github.com/DataDog/datadog-agent/comp/otelcol/collector/fx"
@@ -179,7 +179,7 @@ func commonAgentFxOptions(ctx context.Context, params *cliParams, acfg coreconfi
 	return fx.Options(
 		ForwarderBundle(),
 		logtracefx.Module(),
-		inventoryagentimpl.Module(),
+		inventoryagentfx.Module(),
 		fx.Supply(metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{})),
 		fx.Provide(func(client *metricsclient.StatsdClientWrapper) statsd.Component {
 			return statsdotel.NewOTelStatsd(client)
@@ -284,7 +284,7 @@ func commonAgentFxOptions(ctx context.Context, params *cliParams, acfg coreconfi
 func standaloneAgentFxOptions(params *cliParams) fx.Option {
 	return fx.Options(
 		// Metadata collection (host inventory, runner) for dogtelextension
-		runnerimpl.Module(),
+		runnerfx.Module(),
 		hostimpl.Module(),
 		inventoryhostimpl.Module(),
 		// Real secrets backend so ENC[] handles in OTel/DD config are resolved locally

@@ -30,19 +30,21 @@ type confMap = map[string]any
 
 // Component type names for OTEL configuration
 const (
-	componentTypeInfraAttributes   = "infraattributes"
-	componentTypeResourceDetection = "resourcedetection"
-	componentTypeProfiling         = "profiling"
-	componentTypeOtlpHTTP          = "otlphttp"
-	componentTypeDDProfiling       = "ddprofiling"
-	componentTypeHPFlare           = "hpflare"
+	componentTypeInfraAttributes     = "infraattributes"
+	componentTypeResourceDetection   = "resourcedetection"
+	componentTypeDDHostNameProcessor = "ddhostname"
+	componentTypeProfiling           = "profiling"
+	componentTypeOtlpHTTP            = "otlphttp"
+	componentTypeDDProfiling         = "ddprofiling"
+	componentTypeHPFlare             = "hpflare"
 )
 
 // Default component names
 const (
-	defaultInfraAttributesName   = "infraattributes/default"
-	defaultResourceDetectionName = "resourcedetection/default"
-	defaultProfilingName         = "profiling"
+	defaultInfraAttributesName     = "infraattributes/default"
+	defaultResourceDetectionName   = "resourcedetection/default"
+	defaultDDHostNameProcessorName = "ddhostname/default"
+	defaultProfilingName           = "profiling"
 )
 
 // Reserved component names for internal metrics pipeline

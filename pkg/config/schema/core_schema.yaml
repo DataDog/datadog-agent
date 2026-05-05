@@ -2253,7 +2253,7 @@ properties:
       file_scan_period:
         node_type: setting
         type: number
-        default: 10
+        default: 1
         tags:
         - golang_type:float64
       fingerprint_config:
@@ -11205,7 +11205,7 @@ properties:
           enabled:
             node_type: setting
             type: boolean
-            default: false
+            default: true
       enabled:
         node_type: setting
         type: boolean
