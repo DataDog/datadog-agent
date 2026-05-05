@@ -1,12 +1,30 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import Enum
 
 from tasks.libs.common.color import color_message
 from tasks.static_quality_gates.gates import GateExecutionError, GateMetricHandler, GateResult, byte_to_string
 
 PER_PR_THRESHOLD = 600 * 1024
 EXCEPTION_APPROVERS = {"cmourot", "dd-ddamien"}
+
+
+class GateFailureKind(Enum):
+    AbsoluteLimitExceeded = "AbsoluteLimitExceeded"
+    PerPRThresholdExceeded = "PerPRThresholdExceeded"
+    ExecutionError = "ExecutionError"
+
+    def __str__(self):
+        return self.value
+
+
+@dataclass
+class GateVerdict:
+    name: str
+    failure: GateFailureKind | None
+    blocking: bool = False
+    message: str | None = None
 
 
 class ExceptionApprovalChecker:
@@ -37,9 +55,16 @@ class ExceptionApprovalChecker:
         return self._result
 
 
+_FAILURE_KIND_TO_ERROR_TYPE: dict[GateFailureKind, str] = {
+    GateFailureKind.AbsoluteLimitExceeded: "StaticQualityGateFailed",
+    GateFailureKind.PerPRThresholdExceeded: "PerPRThresholdExceeded",
+    GateFailureKind.ExecutionError: "StackTrace",
+}
+
+
 @dataclass
 class GateEvaluationResult:
-    gate_states: list[dict] = field(default_factory=list)
+    verdicts: list[GateVerdict] = field(default_factory=list)
     has_blocking_failures: bool = False
     exception_granted_by: str | None = None
 
@@ -55,7 +80,7 @@ def evaluate_gates(
 ) -> GateEvaluationResult:
     """Evaluate all gate outcomes and return a structured result."""
     exception_checker = ExceptionApprovalChecker(pr)
-    gate_states = [
+    verdicts = [
         evaluate_gate(
             gate_results[gate],
             metric_handler,
@@ -65,9 +90,9 @@ def evaluate_gates(
         )
         for gate in gate_list
     ]
-    has_blocking_failures = any(gs["state"] is False and gs.get("blocking", True) for gs in gate_states)
+    has_blocking_failures = any(v.blocking for v in verdicts)
     return GateEvaluationResult(
-        gate_states=gate_states,
+        verdicts=verdicts,
         has_blocking_failures=has_blocking_failures,
         exception_granted_by=exception_checker.get(),
     )
@@ -80,42 +105,35 @@ def evaluate_gate(
     is_on_main_branch: bool,
     is_merge_queue: bool,
     exception_checker: ExceptionApprovalChecker,
-) -> dict:
-    """Evaluate a single gate outcome and return its gate_state dict."""
+) -> GateVerdict:
+    """Evaluate a single gate outcome and return its verdict."""
     if isinstance(outcome, GateExecutionError):
-        return {
-            "name": outcome.name,
-            "state": False,
-            "error_type": "StackTrace",
-            "message": outcome.traceback,
-            "blocking": True,
-        }
+        return GateVerdict(
+            name=outcome.name,
+            failure=GateFailureKind.ExecutionError,
+            blocking=True,
+            message=outcome.traceback,
+        )
 
     if not outcome.success:
         print(color_message(outcome.violation_message, "red"))
         # Mark as non-blocking if delta <= 0
         # this tolerance only applies to PRs - on main branch, failures always block unconditionally.
         # A non-positive delta means the size issue existed before this PR and wasn't introduced by the current changes.
+        blocking = True
         if not is_on_main_branch and should_bypass_failure(outcome.config.gate_name, metric_handler):
+            blocking = False
             print(
                 color_message(
                     f"Gate {outcome.config.gate_name} failure is non-blocking (size unchanged from ancestor)", "orange"
                 )
             )
-            return {
-                "name": outcome.config.gate_name,
-                "state": False,
-                "error_type": "StaticQualityGateFailed",
-                "message": outcome.violation_message,
-                "blocking": False,
-            }
-        return {
-            "name": outcome.config.gate_name,
-            "state": False,
-            "error_type": "StaticQualityGateFailed",
-            "message": outcome.violation_message,
-            "blocking": True,
-        }
+        return GateVerdict(
+            name=outcome.config.gate_name,
+            failure=GateFailureKind.AbsoluteLimitExceeded,
+            blocking=blocking,
+            message=outcome.violation_message,
+        )
 
     # Check per-PR threshold: if a gate increased by more than PER_PR_THRESHOLD, mark it as failing.
     # Skip on merge queue jobs: the MQ working branch is an ephemeral merge preview, not a PR.
@@ -124,21 +142,19 @@ def evaluate_gate(
         if delta > PER_PR_THRESHOLD:
             threshold_str = byte_to_string(PER_PR_THRESHOLD)
             print(color_message(f"Per-PR threshold ({threshold_str}) exceeded by: {outcome.config.gate_name}", "red"))
-            return {
-                "name": outcome.config.gate_name,
-                "state": False,
-                "error_type": "PerPRThresholdExceeded",
-                "message": f"On-disk size increase of {byte_to_string(delta)} exceeds the per-PR threshold of {threshold_str}",
-                "blocking": exception_checker.get() is None,
-            }
+            return GateVerdict(
+                name=outcome.config.gate_name,
+                failure=GateFailureKind.PerPRThresholdExceeded,
+                blocking=exception_checker.get() is None,
+                message=f"On-disk size increase of {byte_to_string(delta)} exceeds the per-PR threshold of {threshold_str}",
+            )
 
-    return {
-        "name": outcome.config.gate_name,
-        "state": True,
-        "error_type": None,
-        "message": outcome.violation_message,
-        "blocking": False,
-    }
+    return GateVerdict(
+        name=outcome.config.gate_name,
+        failure=None,
+        blocking=False,
+        message=None,
+    )
 
 
 def should_bypass_failure(gate_name: str, metric_handler: GateMetricHandler) -> bool:

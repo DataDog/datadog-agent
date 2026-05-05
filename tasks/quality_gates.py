@@ -1,6 +1,5 @@
 import os
 import traceback
-import typing
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -17,6 +16,7 @@ from tasks.libs.common.git import (
 )
 from tasks.libs.package.size import InfraError
 from tasks.static_quality_gates.decisions import (
+    GateVerdict,
     evaluate_gates,
 )
 from tasks.static_quality_gates.experimental_gates import (
@@ -52,15 +52,15 @@ from tasks.static_quality_gates.thresholds import (
 )
 
 
-def _print_quality_gates_report(gate_states: list[dict[str, typing.Any]]):
+def _print_quality_gates_report(verdicts: list[GateVerdict]):
     print(color_message("======== Static Quality Gates Report ========", "magenta"))
-    for gate in sorted(gate_states, key=lambda x: x["error_type"] is not None):
-        if gate["error_type"] is None:
-            print(color_message(f"Gate {gate['name']} succeeded {SUCCESS_CHAR}", "blue"))
+    for verdict in sorted(verdicts, key=lambda v: v.failure is not None):
+        if verdict.failure is None:
+            print(color_message(f"Gate {verdict.name} succeeded {SUCCESS_CHAR}", "blue"))
         else:
             print(
                 color_message(
-                    f"Gate {gate['name']} failed {FAIL_CHAR} with the following stack trace :\n{gate['message']}",
+                    f"Gate {verdict.name} failed {FAIL_CHAR} with the following message:\n{verdict.message}",
                     "orange",
                 )
             )
@@ -83,7 +83,6 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
     :param config_path: Static quality gates configuration file path
     :return: List of quality gates
     """
-    gate_states = []
     metric_handler = GateMetricHandler(
         git_ref=os.environ["CI_COMMIT_REF_SLUG"], bucket_branch=os.environ["BUCKET_BRANCH"]
     )
@@ -188,18 +187,17 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
         is_merge_queue=is_merge_queue,
         pr=pr,
     )
-    gate_states = evaluation.gate_states
 
     # Compute final_state now that all post-processing is done.
-    final_state = "failure" if any(gs["state"] is False for gs in gate_states) else "success"
+    final_state = "failure" if any(v.failure is not None for v in evaluation.verdicts) else "success"
     ctx.run(f"datadog-ci tag --level job --tags static_quality_gates:\"{final_state}\"")
 
     # Print summary table directly with composition-based gates and metric handler
-    QualityGateOutputFormatter.print_summary_table(gate_list, gate_states, metric_handler)
+    QualityGateOutputFormatter.print_summary_table(gate_list, evaluation.verdicts, metric_handler)
 
-    # Then print the traditional report for any failures
-    if final_state != "success":
-        _print_quality_gates_report(gate_states)
+    # Then print the traditional report for any failures (blocking or non-blocking)
+    if any(v.failure is not None for v in evaluation.verdicts):
+        _print_quality_gates_report(evaluation.verdicts)
 
     # We don't need a PR notification nor gate failures on release branches
     if not is_a_release_branch(ctx, branch):
@@ -209,7 +207,7 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
             display_pr_comment(
                 ctx,
                 not evaluation.has_blocking_failures,
-                gate_states,
+                evaluation.verdicts,
                 metric_handler,
                 ancestor,
                 pr,

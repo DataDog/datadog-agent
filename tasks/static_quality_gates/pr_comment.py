@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import os
-import typing
 
 from tasks.github_tasks import pr_commenter
-from tasks.static_quality_gates.decisions import PER_PR_THRESHOLD
+from tasks.static_quality_gates.decisions import PER_PR_THRESHOLD, GateFailureKind, GateVerdict
 from tasks.static_quality_gates.gates import GateMetricHandler, byte_to_string
 
 FAIL_CHAR = "❌"
@@ -133,7 +132,7 @@ def get_change_metrics(
 def display_pr_comment(
     ctx,
     final_state: bool,
-    gate_states: list[dict[str, typing.Any]],
+    gate_verdicts: list[GateVerdict],
     metric_handler: GateMetricHandler,
     ancestor: str,
     pr,
@@ -143,7 +142,7 @@ def display_pr_comment(
     Display a comment on a PR with results from our static quality gates checks
     :param ctx: Invoke task context
     :param final_state: Boolean that represents the overall state of quality gates checks
-    :param gate_states: State of each quality gate
+    :param gate_verdicts: Verdict of each quality gate
     :param metric_handler: Precise metrics of each quality gate
     :param ancestor: Ancestor used for relative size comparaison
     :param exception_granted_by: Login of the reviewer who granted a per-PR threshold exception, or None
@@ -174,20 +173,20 @@ def display_pr_comment(
     collapsed_success_count = 0
     has_na_change = False
 
-    # Sort gates by error_types to group in between NoError, AssertionError and StackTrace
-    for gate in sorted(gate_states, key=lambda x: x["error_type"] is None):
-        gate_name = gate['name'].replace("static_quality_gate_", "")
-        gate_metrics = metric_handler.metrics.get(gate['name'], {})
+    # Sort gates by error_types to group failures first
+    for gate in sorted(gate_verdicts, key=lambda x: x.failure is None):
+        gate_name = gate.name.replace("static_quality_gate_", "")
+        gate_metrics = metric_handler.metrics.get(gate.name, {})
 
         # Get change metrics for on-disk (delta with percentage and limit bounds)
-        change_str, limit_bounds, is_neutral = get_change_metrics(gate['name'], metric_handler, metric_type="disk")
+        change_str, limit_bounds, is_neutral = get_change_metrics(gate.name, metric_handler, metric_type="disk")
         if change_str == "N/A":
             has_na_change = True
 
         # Get change metrics for on-wire
-        wire_change_str, wire_limit_bounds, _ = get_change_metrics(gate['name'], metric_handler, metric_type="wire")
+        wire_change_str, wire_limit_bounds, _ = get_change_metrics(gate.name, metric_handler, metric_type="wire")
 
-        if gate["error_type"] is None:
+        if gate.failure is None:
             if is_neutral:
                 # Neutral changes go to collapsed section (just show current size)
                 current_disk = gate_metrics.get("current_on_disk_size")
@@ -209,10 +208,9 @@ def display_pr_comment(
             body_wire += f"|{SUCCESS_CHAR}|{gate_name}|{wire_change_str}|{wire_limit_bounds}|\n"
         else:
             # Check if this is a blocking or non-blocking failure
-            is_blocking = gate.get("blocking", True)
-            status_char = FAIL_CHAR if is_blocking else WARNING_CHAR
+            status_char = FAIL_CHAR if gate.blocking else WARNING_CHAR
 
-            if gate["error_type"] == "PerPRThresholdExceeded":
+            if gate.failure == GateFailureKind.PerPRThresholdExceeded:
                 body_error += f"|{status_char}|{gate_name} (per-PR threshold)|{change_str}|{limit_bounds}|\n"
             else:
                 # This is probably way more convoluted than it should be, but the best we can do
@@ -225,16 +223,16 @@ def display_pr_comment(
             # Add to wire table for errors too
             body_wire += f"|{status_char}|{gate_name}|{wire_change_str}|{wire_limit_bounds}|\n"
 
-            error_message = gate['message'].replace('\n', '<br>')
-            if not is_blocking and gate["error_type"] == "PerPRThresholdExceeded":
+            error_message = gate.message.replace('\n', '<br>')
+            if not gate.blocking and gate.failure == GateFailureKind.PerPRThresholdExceeded:
                 blocking_note = f" (non-blocking: exception granted by @{exception_granted_by})"
-            elif not is_blocking:
+            elif not gate.blocking:
                 blocking_note = " (non-blocking: size unchanged from ancestor)"
             else:
                 blocking_note = ""
-            body_error_footer += f"|{gate_name}|{gate['error_type']}{blocking_note}|{error_message}|\n"
+            body_error_footer += f"|{gate_name}|{gate.failure}{blocking_note}|{error_message}|\n"
 
-            if is_blocking:
+            if gate.blocking:
                 with_blocking_error = True
             else:
                 with_non_blocking_error = True
@@ -257,9 +255,7 @@ def display_pr_comment(
     exception_banner = ""
     if exception_granted_by:
         per_pr_excepted = [
-            gs
-            for gs in gate_states
-            if gs.get("error_type") == "PerPRThresholdExceeded" and not gs.get("blocking", True)
+            gs for gs in gate_verdicts if gs.failure == GateFailureKind.PerPRThresholdExceeded and not gs.blocking
         ]
         if per_pr_excepted:
             threshold_str = byte_to_string(PER_PR_THRESHOLD)

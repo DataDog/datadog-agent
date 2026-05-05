@@ -1,6 +1,7 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
+from tasks.static_quality_gates.decisions import GateFailureKind, GateVerdict
 from tasks.static_quality_gates.gates import GateMetricHandler
 from tasks.static_quality_gates.pr_comment import (
     display_pr_comment,
@@ -222,8 +223,8 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             c,
             True,
             [
-                {'name': 'gateA', 'error_type': None, 'message': None},
-                {'name': 'gateB', 'error_type': None, 'message': None},
+                GateVerdict(name='gateA', failure=None),
+                GateVerdict(name='gateB', failure=None),
             ],
             gate_metric_handler,
             "value",
@@ -282,8 +283,8 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             c,
             True,
             [
-                {'name': 'gateA', 'error_type': None, 'message': None},
-                {'name': 'gateB', 'error_type': None, 'message': None},
+                GateVerdict(name='gateA', failure=None),
+                GateVerdict(name='gateB', failure=None),
             ],
             gate_metric_handler,
             "value",
@@ -339,8 +340,8 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             c,
             True,
             [
-                {'name': 'gateA', 'error_type': None, 'message': None},
-                {'name': 'gateB', 'error_type': None, 'message': None},
+                GateVerdict(name='gateA', failure=None),
+                GateVerdict(name='gateB', failure=None),
             ],
             gate_metric_handler,
             "value",
@@ -374,8 +375,12 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             c,
             False,
             [
-                {'name': 'gateA', 'error_type': 'AssertionError', 'message': 'some_msg_A'},
-                {'name': 'gateB', 'error_type': 'AssertionError', 'message': 'some_msg_B'},
+                GateVerdict(
+                    name='gateA', failure=GateFailureKind.AbsoluteLimitExceeded, blocking=True, message='some_msg_A'
+                ),
+                GateVerdict(
+                    name='gateB', failure=GateFailureKind.AbsoluteLimitExceeded, blocking=True, message='some_msg_B'
+                ),
             ],
             gate_metric_handler,
             "value",
@@ -425,8 +430,10 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             c,
             False,
             [
-                {'name': 'gateA', 'error_type': 'AssertionError', 'message': 'some_msg_A'},
-                {'name': 'gateB', 'error_type': None, 'message': None},
+                GateVerdict(
+                    name='gateA', failure=GateFailureKind.AbsoluteLimitExceeded, blocking=True, message='some_msg_A'
+                ),
+                GateVerdict(name='gateB', failure=None),
             ],
             gate_metric_handler,
             "value",
@@ -465,7 +472,9 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             c,
             False,
             [
-                {'name': 'gateA', 'error_type': 'AssertionError', 'message': 'some_msg_A'},
+                GateVerdict(
+                    name='gateA', failure=GateFailureKind.AbsoluteLimitExceeded, blocking=True, message='some_msg_A'
+                ),
             ],
             gate_metric_handler,
             "value",
@@ -505,7 +514,7 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             c,
             True,
             [
-                {'name': 'gateA', 'error_type': None, 'message': None},
+                GateVerdict(name='gateA', failure=None),
             ],
             gate_metric_handler,
             "value",
@@ -547,7 +556,9 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             c,
             False,
             [
-                {'name': 'gateA', 'error_type': 'AssertionError', 'message': 'some_msg_A'},
+                GateVerdict(
+                    name='gateA', failure=GateFailureKind.AbsoluteLimitExceeded, blocking=True, message='some_msg_A'
+                ),
             ],
             gate_metric_handler,
             "value",
@@ -566,7 +577,7 @@ class TestQualityGatesPrMessage(unittest.TestCase):
                 "",
                 "|Quality gate|Error type|Error message|",
                 "|----|---|--------|",
-                "|gateA|AssertionError|some_msg_A|",
+                "|gateA|AbsoluteLimitExceeded|some_msg_A|",
             ]
         )
         self.assertIn(expected.strip(), body)
@@ -595,12 +606,9 @@ class TestNonBlockingPrComment(unittest.TestCase):
             c,
             True,  # final_state is success (no blocking failures)
             [
-                {
-                    'name': 'gateA',
-                    'error_type': 'StaticQualityGateFailed',
-                    'message': 'size exceeded',
-                    'blocking': False,
-                },
+                GateVerdict(
+                    name='gateA', failure=GateFailureKind.AbsoluteLimitExceeded, blocking=False, message='size exceeded'
+                ),
             ],
             gate_metric_handler,
             "ancestor123",
@@ -636,12 +644,9 @@ class TestNonBlockingPrComment(unittest.TestCase):
             c,
             False,  # final_state is failure (has blocking failures)
             [
-                {
-                    'name': 'gateA',
-                    'error_type': 'StaticQualityGateFailed',
-                    'message': 'size exceeded',
-                    'blocking': True,
-                },
+                GateVerdict(
+                    name='gateA', failure=GateFailureKind.AbsoluteLimitExceeded, blocking=True, message='size exceeded'
+                ),
             ],
             gate_metric_handler,
             "ancestor123",
@@ -675,18 +680,12 @@ class TestNonBlockingPrComment(unittest.TestCase):
             c,
             False,  # final_state is failure (has blocking failures)
             [
-                {
-                    'name': 'gateA',
-                    'error_type': 'StaticQualityGateFailed',
-                    'message': 'size exceeded',
-                    'blocking': True,
-                },
-                {
-                    'name': 'gateB',
-                    'error_type': 'StaticQualityGateFailed',
-                    'message': 'size exceeded',
-                    'blocking': False,
-                },
+                GateVerdict(
+                    name='gateA', failure=GateFailureKind.AbsoluteLimitExceeded, blocking=True, message='size exceeded'
+                ),
+                GateVerdict(
+                    name='gateB', failure=GateFailureKind.AbsoluteLimitExceeded, blocking=False, message='size exceeded'
+                ),
             ],
             gate_metric_handler,
             "ancestor123",
