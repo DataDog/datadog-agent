@@ -268,8 +268,9 @@ func procmgrBinaryExists(ctx HookContext, stable bool) bool {
 // adjustDDOTProcessYAML tweaks embedded YAML for extension vs standalone DDOT
 // package layout differences.
 func adjustDDOTProcessYAML(content string, ctx HookContext, standalone bool) string {
-	if ctx.PackageType == PackageTypeDEB || ctx.PackageType == PackageTypeRPM {
-		// DEB/RPM layouts do not include /ext/ddot for otel-agent.
+	if standalone && (ctx.PackageType == PackageTypeDEB || ctx.PackageType == PackageTypeRPM) {
+		// Standalone datadog-agent-ddot DEB/RPM packages install otel-agent under
+		// embedded/bin (no ext/ddot). The DDOT extension keeps binaries under ext/ddot.
 		content = strings.ReplaceAll(content, "/ext/ddot", "")
 	}
 	if standalone && ctx.PackageType == PackageTypeOCI {
