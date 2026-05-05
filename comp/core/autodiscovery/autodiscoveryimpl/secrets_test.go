@@ -53,8 +53,6 @@ func (m *MockSecretResolver) Resolve(data []byte, origin string, _ string, _ str
 
 func (m *MockSecretResolver) RemoveOrigin(_ string) {}
 
-func (m *MockSecretResolver) RenameOrigin(_, _ string) {}
-
 func (m *MockSecretResolver) SubscribeToChanges(callback secrets.SecretChangeCallback) {
 	if m.subscribers == nil {
 		m.subscribers = make([]secrets.SecretChangeCallback, 0)
@@ -112,28 +110,29 @@ var sharedTpl = integration.Config{
 }
 
 func makeScenariosForConfig(conf integration.Config) []mockSecretScenario {
+	digest := conf.Digest()
 	return []mockSecretScenario{
 		{
 			expectedData:   []byte("param1: ENC[foo]"),
-			expectedOrigin: conf.Digest(),
+			expectedOrigin: digest,
 			returnedData:   []byte("param1: foo"),
 			returnedError:  nil,
 		},
 		{
 			expectedData:   []byte("param2: ENC[bar]"),
-			expectedOrigin: conf.Digest(),
+			expectedOrigin: digest,
 			returnedData:   []byte("param2: bar"),
 			returnedError:  nil,
 		},
 		{
 			expectedData:   []byte("param3: ENC[met]"),
-			expectedOrigin: conf.Digest(),
+			expectedOrigin: digest,
 			returnedData:   []byte("param3: met"),
 			returnedError:  nil,
 		},
 		{
 			expectedData:   []byte("param4: ENC[log]"),
-			expectedOrigin: conf.Digest(),
+			expectedOrigin: digest,
 			returnedData:   []byte("param4: log"),
 			returnedError:  nil,
 		},

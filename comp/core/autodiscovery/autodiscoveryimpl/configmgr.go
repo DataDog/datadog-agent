@@ -410,6 +410,7 @@ func (cm *reconcilingConfigManager) reconcileService(svcID string) integration.C
 // updating errorStats in the process.  If the resolution fails, this method
 // returns false.
 func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Config, svc listeners.Service) (integration.Config, bool) {
+	digest := tpl.Digest()
 	config, err := configresolver.Resolve(tpl, svc)
 	if err != nil {
 		msg := fmt.Sprintf("error resolving template %s for service %s: %v", tpl.Name, svc.GetServiceID(), err)
@@ -418,7 +419,7 @@ func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Co
 		cm.reportTemplateResolutionFailure(tpl, svc, err)
 		return tpl, false
 	}
-	resolvedConfig, err := decryptConfig(config, cm.secretResolver, tpl.Digest())
+	resolvedConfig, err := decryptConfig(config, cm.secretResolver, digest)
 	if err != nil {
 		msg := fmt.Sprintf("error decrypting secrets in config %s for service %s: %v", config.Name, svc.GetServiceID(), err)
 		errorStats.setResolveWarning(tpl.Name, msg)

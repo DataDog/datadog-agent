@@ -453,8 +453,8 @@ func (r *secretResolver) shouldResolvedSecret(handle string, origin string, imag
 	var secretNamespace string
 
 	// When multi_secret_backends is in use and the backend for this handle is
-	// k8s.secrets, strip the backendID:: prefix before parsing the Kubernetes
-	// namespace so "prodk8s::ns/secret;key" extracts "ns", not "prodk8s::ns".
+	// k8s.secrets, strip the "backendID;" prefix before parsing the Kubernetes
+	// namespace so "prodk8s;ns/secret;key" extracts "ns", not "prodk8s;ns/secret".
 	// For other backend types (yaml, json, …) the prefix is left intact so the
 	// k8s-format patterns below do not match erroneously.
 	secretKey := handle
@@ -785,19 +785,6 @@ func (r *secretResolver) RemoveOrigin(origin string) {
 			delete(r.origin, handle)
 		} else {
 			r.origin[handle] = newList
-		}
-	}
-}
-
-func (r *secretResolver) RenameOrigin(oldOrigin, newOrigin string) {
-	r.lock.Lock()
-	defer r.lock.Unlock()
-
-	for handle, contexts := range r.origin {
-		for i, ctx := range contexts {
-			if ctx.origin == oldOrigin {
-				r.origin[handle][i].origin = newOrigin
-			}
 		}
 	}
 }

@@ -1552,7 +1552,7 @@ properties:
     visibility: public
     description: |-
       `multi_secret_backends` defines named secret backends for routing. Each entry specifies a `type` and optional `config`.
-      Use `ENC[backendID::secretKey]` handles to route secrets to the named backend.
+      Use `ENC[backendID;secretKey]` handles to route secrets to the named backend.
       This option is ignored if `secret_backend_command` or `secret_backend_type` is set.
       For more information see: https://docs.datadoghq.com/agent/configuration/secrets-management
     example: |2-
