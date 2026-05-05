@@ -9,6 +9,7 @@ go_library(
         "//comp/core/config",
         "//comp/core/ipc/def",
         "//comp/core/log/def",
+        "//comp/core/remoteagent/def",
         "//comp/core/remoteagent/helper",
         "//comp/core/telemetry/def",
         "//comp/def",
@@ -16,6 +17,5 @@ go_library(
         "//pkg/logs/metrics",
         "//pkg/proto/pbgo/core",
         "//pkg/util/flavor",
-        "@//comp/core/remoteagent/def",
     ],
 )

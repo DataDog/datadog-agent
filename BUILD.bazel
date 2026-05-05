@@ -108,7 +108,6 @@ exports_files(glob(
 # gazelle:exclude comp/core/log/rust
 # gazelle:exclude comp/core/profiler/fx
 # gazelle:exclude comp/core/profiler/impl
-# gazelle:exclude comp/core/remoteagent/def
 # gazelle:exclude comp/core/remoteagentregistry/def
 # gazelle:exclude comp/core/remoteagentregistry/fx
 # gazelle:exclude comp/core/remoteagentregistry/impl
