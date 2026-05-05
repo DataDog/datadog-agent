@@ -40,7 +40,11 @@ func NewServer(cfg config.Component, comp configstream.Component, registry remot
 
 // StreamConfigEvents handles the gRPC streaming logic.
 // It requires the caller to be a registered remote agent (RAR-gated).
+// The config stream is only available when remote_agent.configstream.enabled is true on the core agent.
 func (s *Server) StreamConfigEvents(req *pb.ConfigStreamRequest, stream pb.AgentSecure_StreamConfigEventsServer) error {
+	if !s.cfg.GetBool("remote_agent.configstream.enabled") {
+		return status.Error(codes.Unimplemented, "config stream is not enabled for remote agents; set remote_agent.configstream.enabled: true and remote_agent.registry.enabled: true on the core agent")
+	}
 	if s.registry == nil {
 		return status.Error(codes.Unimplemented, "remote agent registry not enabled")
 	}
