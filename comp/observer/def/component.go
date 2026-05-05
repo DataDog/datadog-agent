@@ -69,7 +69,7 @@ type MetricView interface {
 // This interface exists to prevent data races. Implementations must not store
 // the LogView itself. Copy any needed values synchronously.
 type LogView interface {
-	GetContent() []byte
+	GetContent() string
 	GetStatus() string
 	GetTags() []string
 	GetHostname() string

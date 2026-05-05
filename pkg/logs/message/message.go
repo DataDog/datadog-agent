@@ -301,7 +301,7 @@ func (m *Message) Render() ([]byte, error) {
 	}
 }
 
-// Methods implementing observer.LogView for read-only observation.
+// Methods used by the observer pipeline's messageLogView adapter for read-only observation.
 
 // GetStatus returns the message status.
 func (m *Message) GetStatus() string {

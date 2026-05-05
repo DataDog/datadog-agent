@@ -83,8 +83,10 @@ type engine struct {
 	correlationMu           sync.RWMutex
 
 	// Accumulated telemetry from detection runs (for StateView access).
-	accumulatedTelemetry []observerdef.ObserverTelemetry
-	telemetryMu          sync.RWMutex
+	// Only populated when enableAccumulatedTelemetry is true (testbench mode).
+	accumulatedTelemetry       []observerdef.ObserverTelemetry
+	telemetryMu                sync.RWMutex
+	enableAccumulatedTelemetry bool
 
 	// Event subscription management.
 	sinks   []eventSink
@@ -130,6 +132,11 @@ type engineConfig struct {
 
 	rawAnomalyWindow int64
 	maxRawAnomalies  int
+
+	// enableAccumulatedTelemetry gates the ever-growing accumulatedTelemetry
+	// slice. Only testbench mode needs it; live mode skips the append to
+	// avoid an unbounded memory leak.
+	enableAccumulatedTelemetry bool
 }
 
 // newEngine creates an engine with the given configuration.
@@ -149,8 +156,9 @@ func newEngine(cfg engineConfig) *engine {
 		contextRefs:      make(map[string]seriesContextRef),
 		scheduler:        sched,
 
-		rawAnomalyWindow: cfg.rawAnomalyWindow,
-		maxRawAnomalies:  cfg.maxRawAnomalies,
+		rawAnomalyWindow:           cfg.rawAnomalyWindow,
+		maxRawAnomalies:            cfg.maxRawAnomalies,
+		enableAccumulatedTelemetry: cfg.enableAccumulatedTelemetry,
 	}
 
 	// Cache log observers from detectors.
@@ -325,7 +333,7 @@ func (e *engine) IngestLog(source string, l *logObs) ([]advanceRequest, []observ
 		processingTime := time.Since(processingStartTime)
 		logTelemetry = append(logTelemetry, newTelemetryGauge([]string{"detector:" + lo.Name()}, telemetryDetectorProcessingTimeNs, float64(processingTime.Nanoseconds()), l.timestampMs/1000))
 	}
-	if len(logTelemetry) > 0 {
+	if e.enableAccumulatedTelemetry && len(logTelemetry) > 0 {
 		e.telemetryMu.Lock()
 		e.accumulatedTelemetry = append(e.accumulatedTelemetry, logTelemetry...)
 		e.telemetryMu.Unlock()
@@ -586,8 +594,8 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 		})
 	}
 
-	// Accumulate telemetry so StateView can expose it.
-	if len(allTelemetry) > 0 {
+	// Accumulate telemetry so StateView can expose it (testbench only).
+	if e.enableAccumulatedTelemetry && len(allTelemetry) > 0 {
 		e.telemetryMu.Lock()
 		e.accumulatedTelemetry = append(e.accumulatedTelemetry, allTelemetry...)
 		e.telemetryMu.Unlock()

@@ -25,7 +25,7 @@ func TestLogMetricsExtractor_JSONNumericExtraction(t *testing.T) {
 	})
 
 	log := &mockLogView{
-		content: []byte(`{"duration_ms":45,"status":200,"foo":"bar","pid":1234}`),
+		content: `{"duration_ms":45,"status":200,"foo":"bar","pid":1234}`,
 		tags:    []string{"service:api"},
 	}
 
@@ -39,7 +39,7 @@ func TestLogMetricsExtractor_JSONNumericExtraction(t *testing.T) {
 	}
 
 	// Pattern count is based on the full JSON payload.
-	sig := logSignature([]byte(`{"duration_ms":45,"status":200,"foo":"bar","pid":1234}`), 0)
+	sig := logSignature(`{"duration_ms":45,"status":200,"foo":"bar","pid":1234}`, 0)
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(sig))
 	expectedCountName := fmt.Sprintf("log.pattern.%x.count", h.Sum64())
@@ -62,7 +62,7 @@ func TestLogMetricsExtractor_UnstructuredPatternCount(t *testing.T) {
 	a := NewLogMetricsExtractor(LogMetricsExtractorConfig{})
 
 	log := &mockLogView{
-		content: []byte("Request completed in 45ms"),
+		content: "Request completed in 45ms",
 		tags:    []string{"service:web"},
 	}
 
@@ -72,7 +72,7 @@ func TestLogMetricsExtractor_UnstructuredPatternCount(t *testing.T) {
 	assert.Equal(t, []string{"service:web"}, res.Metrics[0].Tags)
 
 	// Compute expected metric name (hash of signature).
-	sig := logSignature([]byte("Request completed in 45ms"), 0)
+	sig := logSignature("Request completed in 45ms", 0)
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(sig))
 	assert.Equal(t, fmt.Sprintf("log.pattern.%x.count", h.Sum64()), res.Metrics[0].Name)
@@ -86,7 +86,7 @@ func TestLogMetricsExtractor_JSONIncludeFields(t *testing.T) {
 	})
 
 	log := &mockLogView{
-		content: []byte(`{"duration_ms":45,"status":200}`),
+		content: `{"duration_ms":45,"status":200}`,
 		tags:    []string{"service:api"},
 	}
 
@@ -102,7 +102,7 @@ func TestLogMetricsExtractor_JSONIncludeFields(t *testing.T) {
 		assert.Equal(t, float64(45), m.Value)
 	}
 
-	sig := logSignature([]byte(`{"duration_ms":45,"status":200}`), 0)
+	sig := logSignature(`{"duration_ms":45,"status":200}`, 0)
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(sig))
 	expectedCountName := fmt.Sprintf("log.pattern.%x.count", h.Sum64())
@@ -115,7 +115,7 @@ func TestLogMetricsExtractor_InvalidJSONFallsBackToUnstructured(t *testing.T) {
 	a := NewLogMetricsExtractor(LogMetricsExtractorConfig{})
 
 	// Looks like JSON but is invalid -> treated as unstructured (pattern frequency).
-	input := []byte(`{"duration_ms":45,`)
+	input := `{"duration_ms":45,`
 	log := &mockLogView{content: input, tags: []string{"service:api"}}
 
 	res := a.ProcessLog(log)
@@ -130,7 +130,7 @@ func TestLogMetricsExtractor_InvalidJSONFallsBackToUnstructured(t *testing.T) {
 func TestLogMetricsExtractor_GetContextByKeyUsesOutputContextKey(t *testing.T) {
 	a := &LogMetricsExtractor{}
 	log := &mockLogView{
-		content: []byte("Request completed in 45ms"),
+		content: "Request completed in 45ms",
 		tags:    []string{"service:web", "env:prod"},
 	}
 
@@ -147,11 +147,11 @@ func TestLogMetricsExtractor_GetContextByKeyUsesOutputContextKey(t *testing.T) {
 func TestLogMetricsExtractor_ContextKeySeparatesSameMetricByTags(t *testing.T) {
 	a := &LogMetricsExtractor{}
 	logA := &mockLogView{
-		content: []byte("Request completed in 45ms"),
+		content: "Request completed in 45ms",
 		tags:    []string{"service:api"},
 	}
 	logB := &mockLogView{
-		content: []byte("Request completed in 45ms"),
+		content: "Request completed in 45ms",
 		tags:    []string{"service:worker"},
 	}
 

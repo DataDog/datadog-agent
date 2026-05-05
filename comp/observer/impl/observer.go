@@ -115,7 +115,7 @@ func (m *metricObs) GetSampleRate() float64 {
 
 // logObs contains copied log data and implements observerdef.LogView.
 type logObs struct {
-	content     []byte
+	content     string
 	status      string
 	tags        []string
 	hostname    string
@@ -142,7 +142,7 @@ type profileObs struct {
 // Ensure logObs implements observerdef.LogView
 var _ observerdef.LogView = (*logObs)(nil)
 
-func (l *logObs) GetContent() []byte {
+func (l *logObs) GetContent() string {
 	return l.content
 }
 
@@ -438,7 +438,7 @@ func NewComponent(deps Requires) Provides {
 				"msg": message,
 			})
 			handle.ObserveLog(&agentLogView{
-				content:     payload,
+				content:     string(payload),
 				status:      strings.ToLower(level.String()),
 				tags:        tags,
 				hostname:    "",
@@ -917,7 +917,7 @@ func (h *handle) ObserveLog(msg observerdef.LogView) {
 	obs := observation{
 		source: h.source,
 		log: &logObs{
-			content:     copyBytes(msg.GetContent()),
+			content:     msg.GetContent(),
 			status:      msg.GetStatus(),
 			tags:        copyTags(msg.GetTags()),
 			hostname:    msg.GetHostname(),
@@ -979,7 +979,7 @@ type logView struct {
 	obs *logObs
 }
 
-func (v *logView) GetContent() []byte           { return v.obs.content }
+func (v *logView) GetContent() string           { return v.obs.content }
 func (v *logView) GetStatus() string            { return v.obs.status }
 func (v *logView) GetTags() []string            { return v.obs.tags }
 func (v *logView) GetHostname() string          { return v.obs.hostname }
@@ -988,14 +988,14 @@ func (v *logView) GetTimestampUnixMilli() int64 { return v.obs.timestampMs }
 // agentLogView is a minimal LogView implementation for agent-internal logs.
 // It is immediately copied by the observer handle, so it must not be retained.
 type agentLogView struct {
-	content     []byte
+	content     string
 	status      string
 	tags        []string
 	hostname    string
 	timestampMs int64
 }
 
-func (v *agentLogView) GetContent() []byte           { return v.content }
+func (v *agentLogView) GetContent() string           { return v.content }
 func (v *agentLogView) GetStatus() string            { return v.status }
 func (v *agentLogView) GetTags() []string            { return v.tags }
 func (v *agentLogView) GetHostname() string          { return v.hostname }

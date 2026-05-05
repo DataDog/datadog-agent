@@ -23,10 +23,10 @@ type stubLogView struct {
 	timestamp int64
 	tags      []string
 	hostname  string
-	content   []byte
+	content   string
 }
 
-func (l stubLogView) GetContent() []byte           { return l.content }
+func (l stubLogView) GetContent() string           { return l.content }
 func (l stubLogView) GetTags() []string            { return l.tags }
 func (l stubLogView) GetTimestampUnixMilli() int64 { return l.timestamp }
 func (l stubLogView) GetStatus() string            { return l.status }
@@ -99,7 +99,7 @@ func TestHandleSeriesListMarksLogPatternExtractorSeriesAsVirtual(t *testing.T) {
 	}
 
 	_, _ = tb.engine.IngestLog("test-source", &logObs{
-		content:     []byte("GET /users/123 returned 500"),
+		content:     "GET /users/123 returned 500",
 		status:      "warn",
 		tags:        []string{"service:api"},
 		timestampMs: 2_000,

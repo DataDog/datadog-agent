@@ -31,8 +31,8 @@ type logDataView struct {
 // Ensure logDataView implements observerdef.LogView
 var _ observerdef.LogView = (*logDataView)(nil)
 
-func (v *logDataView) GetContent() []byte {
-	return v.data.Content
+func (v *logDataView) GetContent() string {
+	return string(v.data.Content)
 }
 
 func (v *logDataView) GetStatus() string {
@@ -200,12 +200,13 @@ func NewTestBench(config TestBenchConfig) (*TestBench, error) {
 	detectors, correlators, extractors, components := catalog.Instantiate(config.ComponentSettings)
 
 	eng := newEngine(engineConfig{
-		storage:          newTimeSeriesStorage(),
-		extractors:       extractors,
-		detectors:        detectors,
-		correlators:      correlators,
-		contextProviders: collectContextProviders(extractors),
-		scheduler:        &currentBehaviorPolicy{},
+		storage:                    newTimeSeriesStorage(),
+		extractors:                 extractors,
+		detectors:                  detectors,
+		correlators:                correlators,
+		contextProviders:           collectContextProviders(extractors),
+		scheduler:                  &currentBehaviorPolicy{},
+		enableAccumulatedTelemetry: true,
 	})
 
 	hub := newSSEHub()
@@ -770,7 +771,7 @@ func (tb *TestBench) handleTelemetry(telemetry []observerdef.ObserverTelemetry, 
 			tagsCopy = append(tagsCopy, "detector:"+detectorName)
 			tagsCopy = append(tagsCopy, "telemetry:true")
 			log := recorderdef.LogData{
-				Content:     telemetryEvent.Log.GetContent(),
+				Content:     []byte(telemetryEvent.Log.GetContent()),
 				Status:      telemetryEvent.Log.GetStatus(),
 				Tags:        tagsCopy,
 				TimestampMs: timestamp,

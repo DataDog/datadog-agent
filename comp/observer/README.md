@@ -225,7 +225,7 @@ type MyExtractor struct{}
 func (m *MyExtractor) Name() string { return "my_extractor" }
 
 func (m *MyExtractor) ProcessLog(log observer.LogView) observer.LogMetricsExtractorOutput {
-    content := string(log.GetContent())
+    content := log.GetContent()
     // Extract what you need synchronously — don't store the view
     return observer.LogMetricsExtractorOutput{
         Metrics: []observer.MetricOutput{{

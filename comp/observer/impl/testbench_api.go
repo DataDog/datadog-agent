@@ -197,7 +197,7 @@ func (pf *patternClusterFilter) matchesLogContent(logView observerdef.LogView) b
 	if pf == nil {
 		return true
 	}
-	matched := pf.extractor.taggedClusterer.Classify(pf.groupHash, string(logView.GetContent()))
+	matched := pf.extractor.taggedClusterer.Classify(pf.groupHash, logView.GetContent())
 	return matched != nil && matched.ID == pf.clusterID
 }
 
@@ -948,7 +948,7 @@ func (api *TestBenchAPI) handleLogs(w http.ResponseWriter, r *http.Request) {
 			result = append(result, logEntryResponse{
 				TimestampMs: ts,
 				Status:      l.GetStatus(),
-				Content:     string(l.GetContent()),
+				Content:     l.GetContent(),
 				Hostname:    l.GetHostname(),
 				Tags:        tags,
 			})

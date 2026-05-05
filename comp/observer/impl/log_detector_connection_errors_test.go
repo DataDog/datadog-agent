@@ -19,7 +19,7 @@ func TestConnectionErrorExtractor_Name(t *testing.T) {
 func TestConnectionErrorExtractor_Process_ConnectionRefused(t *testing.T) {
 	e := &ConnectionErrorExtractor{}
 	log := &mockLogView{
-		content: []byte("Failed to connect: connection refused"),
+		content: "Failed to connect: connection refused",
 		tags:    []string{"env:prod", "service:api"},
 	}
 
@@ -34,7 +34,7 @@ func TestConnectionErrorExtractor_Process_ConnectionRefused(t *testing.T) {
 func TestConnectionErrorExtractor_Process_ECONNRESET(t *testing.T) {
 	e := &ConnectionErrorExtractor{}
 	log := &mockLogView{
-		content: []byte("Socket error: ECONNRESET"),
+		content: "Socket error: ECONNRESET",
 		tags:    []string{"env:staging"},
 	}
 
@@ -49,7 +49,7 @@ func TestConnectionErrorExtractor_Process_ECONNRESET(t *testing.T) {
 func TestConnectionErrorExtractor_Process_NoMatch(t *testing.T) {
 	e := &ConnectionErrorExtractor{}
 	log := &mockLogView{
-		content: []byte("Request completed successfully"),
+		content: "Request completed successfully",
 		tags:    []string{"env:test"},
 	}
 
@@ -61,7 +61,7 @@ func TestConnectionErrorExtractor_Process_NoMatch(t *testing.T) {
 func TestConnectionErrorExtractor_Process_CaseInsensitive(t *testing.T) {
 	e := &ConnectionErrorExtractor{}
 	log := &mockLogView{
-		content: []byte("Error: Connection Refused by server"),
+		content: "Error: Connection Refused by server",
 		tags:    []string{"env:prod"},
 	}
 
@@ -77,7 +77,7 @@ func TestConnectionErrorExtractor_Process_TagsCopied(t *testing.T) {
 	e := &ConnectionErrorExtractor{}
 	inputTags := []string{"env:prod", "service:api", "host:web-1"}
 	log := &mockLogView{
-		content: []byte("connection timed out after 30s"),
+		content: "connection timed out after 30s",
 		tags:    inputTags,
 	}
 
@@ -105,7 +105,7 @@ func TestConnectionErrorExtractor_Process_AllPatterns(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			log := &mockLogView{
-				content: []byte(tc.content),
+				content: tc.content,
 				tags:    []string{"test:pattern"},
 			}
 

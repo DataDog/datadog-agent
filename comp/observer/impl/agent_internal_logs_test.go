@@ -46,7 +46,7 @@ func TestAgentInternalLogsFlowIntoObserver(t *testing.T) {
 	pkglog.Info(msg)
 
 	// Agent logs are forwarded as structured JSON: {"msg":"..."}.
-	payload := []byte(`{"msg":"agent internal hello"}`)
+	payload := `{"msg":"agent internal hello"}`
 	sig := logSignature(payload, 4096)
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(sig))
