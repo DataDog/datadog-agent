@@ -12,6 +12,7 @@ modules:
     - ./pkg
     - ./cmd
     - ./comp
+  comp/anomalydetection/observer/def: default
   comp/anomalydetection/recorder/def: default
   comp/anomalydetection/recorder/fx: default
   comp/anomalydetection/recorder/impl: default

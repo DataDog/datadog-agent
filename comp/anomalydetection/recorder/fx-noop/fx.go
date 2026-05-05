@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-// Package fx provides the fx module for the recorder component
-package fxnoop
+// Package recorderfx provides the fx module for the recorder component
+package recorderfx
 
 import (
 	recorder "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
