@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 )
@@ -32,7 +33,15 @@ func (i *InstallerExec) newInstallerCmdPlatform(cmd *exec.Cmd) *exec.Cmd {
 // getStates retrieves the state of all packages & their configuration from disk.
 // On Linux/macOS this spawns a subprocess for privilege escalation.
 func (i *InstallerExec) getStates(ctx context.Context) (repo *repository.PackageStates, err error) {
-	cmd := i.newInstallerCmd(ctx, "get-states")
+	// Decouple from the caller's cancellation: get-states is a short read-only
+	// operation and must not be interrupted by daemon shutdown. Without this,
+	// canceling the daemon context sends SIGINT to the subprocess; the subprocess's
+	// 10 s signal-handler grace period then causes db.New to return "context
+	// canceled", delaying every daemon stop by ~10 s.
+	// context.WithoutCancel preserves trace IDs for span propagation.
+	stateCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+	defer cancel()
+	cmd := i.newInstallerCmd(stateCtx, "get-states")
 	defer func() { cmd.span.Finish(err) }()
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer

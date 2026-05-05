@@ -670,3 +670,51 @@ func TestDecryptSecrets(t *testing.T) {
 		assert.Contains(t, err.Error(), "could not decrypt secret")
 	})
 }
+
+func TestRefreshStateSkipsWhenContextCanceled(t *testing.T) {
+	bm := &testBoostrapper{}
+	installExperimentFunc = bm.InstallExperiment
+	pm := &testPackageManager{}
+	pm.On("AvailableDiskSpace").Return(uint64(1000000000), nil)
+	pm.On("ConfigAndPackageStates", mock.Anything).Return(&repository.PackageStates{
+		States:       map[string]repository.State{},
+		ConfigStates: map[string]repository.State{},
+	}, nil)
+	rcc := newTestRemoteConfigClient(t)
+	rc := &remoteConfig{client: rcc}
+	taskDB, err := newTaskDB(filepath.Join(t.TempDir(), "tasks.db"))
+	require.NoError(t, err)
+	secretsPubKey, secretsPrivKey, err := box.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+
+	daemon := newDaemon(
+		rc,
+		func(_ *env.Env) installer.Installer { return pm },
+		&env.Env{RemoteUpdates: true},
+		taskDB,
+		24*time.Hour, // long interval so the ticker does not fire during this test
+		1*time.Hour,
+		secretsPubKey,
+		secretsPrivKey,
+	)
+	i := &testInstaller{
+		daemonImpl: daemon,
+		rcc:        rcc,
+		pm:         pm,
+		bm:         bm,
+	}
+	i.Start(context.Background())
+	defer i.Stop()
+
+	// Start calls refreshState once synchronously; record that baseline.
+	pm.AssertNumberOfCalls(t, "ConfigAndPackageStates", 1)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	i.daemonImpl.refreshState(ctx)
+
+	// The guard at the top of refreshState must prevent ConfigAndPackageStates
+	// from being invoked when the context is already canceled — this avoids
+	// spawning a get-states subprocess that would then linger after shutdown.
+	pm.AssertNumberOfCalls(t, "ConfigAndPackageStates", 1)
+}
