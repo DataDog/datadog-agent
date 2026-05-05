@@ -210,7 +210,6 @@ exports_files(glob(
 # gazelle:exclude comp/metadata/inventoryhost
 # gazelle:exclude comp/metadata/packagesigning/fx
 # gazelle:exclude comp/metadata/packagesigning/impl
-# gazelle:exclude comp/metadata/packagesigning/utils
 # gazelle:exclude comp/metadata/resources/def
 # gazelle:exclude comp/metadata/resources/fx
 # gazelle:exclude comp/metadata/resources/impl
