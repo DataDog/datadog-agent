@@ -256,13 +256,6 @@ func TestBatchEncoder(t *testing.T) {
 			ts := newTestServer()
 			defer ts.Close()
 
-			up := NewSymDBUploader(
-				ts.serverURL.String(),
-				"service1",
-				"1.0.0",
-				"dummy-runtime-id",
-			)
-
 			// Do a (blocking) flush in a goroutine so that the test goroutine
 			// can intercept the request.
 			var wg sync.WaitGroup
@@ -270,7 +263,13 @@ func TestBatchEncoder(t *testing.T) {
 			uploadID := uuid.New()
 			go func() {
 				defer wg.Done()
-				enc := up.NewBatchEncoder(uploadID)
+				enc := NewBatchEncoder(
+					ts.serverURL.String(),
+					"service1",
+					"1.0.0",
+					"dummy-runtime-id",
+					uploadID,
+				)
 				for _, s := range createPackageScopes() {
 					assert.NoError(t, enc.AddScope(s))
 				}
@@ -296,19 +295,12 @@ func TestBatchEncoder(t *testing.T) {
 	}
 }
 
-// TestBatchEncoder_MultiBatch drives the encoder with a tiny flush threshold,
-// forcing one HTTP request per scope, and verifies that batch_num increments
-// across requests and final=true is set only on the last one.
+// TestBatchEncoder_MultiBatch drives the encoder by flushing after every
+// scope and verifies that batch_num increments across requests and final=true
+// is set only on the last one.
 func TestBatchEncoder_MultiBatch(t *testing.T) {
 	ts := newTestServer()
 	defer ts.Close()
-
-	up := NewSymDBUploader(
-		ts.serverURL.String(),
-		"service1",
-		"1.0.0",
-		"dummy-runtime-id",
-	)
 
 	scopes := createPackageScopes()
 	// Duplicate the package a few times to get multiple batches.
@@ -319,14 +311,17 @@ func TestBatchEncoder_MultiBatch(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		enc := up.NewBatchEncoder(uploadID, WithFlushThreshold(0))
+		enc := NewBatchEncoder(
+			ts.serverURL.String(),
+			"service1",
+			"1.0.0",
+			"dummy-runtime-id",
+			uploadID,
+		)
 		for i, s := range scopes {
 			assert.NoError(t, enc.AddScope(s))
 			final := i == len(scopes)-1
-			// With threshold<=0, ShouldFlush is true after every encoded scope.
-			if enc.ShouldFlush() || final {
-				assert.NoError(t, enc.Flush(context.Background(), final))
-			}
+			assert.NoError(t, enc.Flush(context.Background(), final))
 		}
 		assert.Equal(t, len(scopes), enc.BatchCount())
 	}()
@@ -343,36 +338,35 @@ func TestBatchEncoder_MultiBatch(t *testing.T) {
 	wg.Wait()
 }
 
-// TestBatchEncoder_ShouldFlush exercises the threshold check directly without
-// an HTTP server, using a no-network upload via a server that always 200s.
-func TestBatchEncoder_ShouldFlush(t *testing.T) {
+// TestBatchEncoder_Size exercises Size, which reports the underlying buffer
+// length and grows monotonically as scopes accumulate (modulo gzip's internal
+// buffering) and resets to zero after Flush.
+func TestBatchEncoder_Size(t *testing.T) {
 	ts := newTestServer()
 	defer ts.Close()
 
-	up := NewSymDBUploader(
+	enc := NewBatchEncoder(
 		ts.serverURL.String(),
 		"service1",
 		"1.0.0",
 		"dummy-runtime-id",
+		uuid.New(),
 	)
+	require.Zero(t, enc.Size(), "Size should be zero before any scopes")
 
-	const threshold = 64
-	enc := up.NewBatchEncoder(uuid.New(), WithFlushThreshold(threshold))
-	require.False(t, enc.ShouldFlush(), "should not flush before any scopes")
-
-	// Add scopes until ShouldFlush flips. The gzip writer buffers internally
-	// (deflate window is 32 KiB), so it can take many small scopes before any
-	// bytes reach the underlying buffer. Bound the loop generously.
+	// Add scopes until Size grows. gzip buffers internally (~32 KiB deflate
+	// window), so it may take many small scopes before bytes reach the
+	// underlying buffer.
 	scope := createPackageScopes()[0]
-	flipped := false
+	grew := false
 	for i := 0; i < 100000; i++ {
 		require.NoError(t, enc.AddScope(scope))
-		if enc.ShouldFlush() {
-			flipped = true
+		if enc.Size() > 0 {
+			grew = true
 			break
 		}
 	}
-	require.True(t, flipped, "ShouldFlush never flipped")
+	require.True(t, grew, "Size never grew above zero")
 
 	// Drain the upload that Flush will send.
 	doneC := make(chan error, 1)
@@ -384,8 +378,7 @@ func TestBatchEncoder_ShouldFlush(t *testing.T) {
 	close(req.done)
 	require.NoError(t, <-doneC)
 
-	// After flush, the buffer is reset and ShouldFlush reports false again.
-	require.False(t, enc.ShouldFlush(), "ShouldFlush should reset after Flush")
+	require.Zero(t, enc.Size(), "Size should reset after Flush")
 }
 
 // TestBatchEncoder_EmptyFinal verifies that Flush(ctx, true) with no scopes
@@ -394,14 +387,13 @@ func TestBatchEncoder_EmptyFinal(t *testing.T) {
 	ts := newTestServer()
 	defer ts.Close()
 
-	up := NewSymDBUploader(
+	enc := NewBatchEncoder(
 		ts.serverURL.String(),
 		"service1",
 		"1.0.0",
 		"dummy-runtime-id",
+		uuid.New(),
 	)
-
-	enc := up.NewBatchEncoder(uuid.New())
 	// No AddScope calls.
 	require.NoError(t, enc.Flush(context.Background(), true))
 	require.Equal(t, 0, enc.BatchCount())

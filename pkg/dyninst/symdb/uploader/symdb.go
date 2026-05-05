@@ -102,9 +102,9 @@ type LineRange struct {
 	End   int `json:"end"`
 }
 
-// SymDBUploader deals with uploading SymDB data in the JSON format expected by
-// the debugger backend.
-type SymDBUploader struct {
+// uploader holds the destination and identity metadata used by a
+// BatchEncoder when shipping a batch to the SymDB intake.
+type uploader struct {
 	url       string
 	service   string
 	version   string
@@ -112,66 +112,51 @@ type SymDBUploader struct {
 	headers   [][2]string
 }
 
-// NewSymDBUploader returns a new SymDBUploader.
-func NewSymDBUploader(
-	urlStr string,
+// BatchEncoder streams Scope objects into a gzip-compressed SymDB JSON
+// envelope and ships finalised batches to the SymDB intake when the caller
+// invokes Flush. A single BatchEncoder corresponds to one logical upload
+// (one UploadID) and may emit multiple batches.
+//
+// The encoder does not flush on its own. Callers should consult Size after
+// each AddScope and call Flush when the compressed buffer crosses whatever
+// threshold they choose (DefaultFlushThresholdBytes is provided as a
+// reasonable default).
+type BatchEncoder struct {
+	up            uploader
+	uploadID      uuid.UUID
+	batchNum      int
+	buf           bytes.Buffer
+	gz            *gzip.Writer
+	enc           *json.Encoder
+	scopeCount    int
+	prefixWritten bool
+}
+
+// NewBatchEncoder creates a BatchEncoder for a single logical upload to the
+// SymDB intake at url.
+func NewBatchEncoder(
+	url string,
 	service string,
 	version string,
 	runtimeID string,
+	uploadID uuid.UUID,
 	headers ...[2]string,
-) *SymDBUploader {
-	return &SymDBUploader{
-		url:       urlStr,
-		service:   service,
-		version:   version,
-		runtimeID: runtimeID,
-		headers:   headers,
-	}
-}
-
-// BatchEncoder streams Scope objects into a gzip-compressed SymDB JSON
-// envelope and uploads chunks to the SymDB intake whenever the compressed
-// payload reaches the configured threshold. A single BatchEncoder
-// corresponds to one logical upload (one UploadID) and may emit multiple
-// batches.
-type BatchEncoder struct {
-	up             *SymDBUploader
-	uploadID       uuid.UUID
-	flushThreshold int
-	batchNum       int
-	buf            bytes.Buffer
-	gz             *gzip.Writer
-	enc            *json.Encoder
-	scopeCount     int
-	prefixWritten  bool
-}
-
-// BatchEncoderOption configures a BatchEncoder.
-type BatchEncoderOption func(*BatchEncoder)
-
-// WithFlushThreshold sets the compressed-size threshold (in bytes) at which
-// ShouldFlush will return true. The threshold is soft: in-flight bytes inside
-// the gzip writer's internal window may not yet be reflected in the buffer
-// length, so the actual flushed payload may overshoot by up to the gzip
-// window size (~32 KiB).
-func WithFlushThreshold(bytes int) BatchEncoderOption {
-	return func(b *BatchEncoder) {
-		b.flushThreshold = bytes
-	}
-}
-
-// NewBatchEncoder creates a BatchEncoder for a single logical upload.
-func (s *SymDBUploader) NewBatchEncoder(uploadID uuid.UUID, opts ...BatchEncoderOption) *BatchEncoder {
+) *BatchEncoder {
 	b := &BatchEncoder{
-		up:             s,
-		uploadID:       uploadID,
-		flushThreshold: DefaultFlushThresholdBytes,
-	}
-	for _, opt := range opts {
-		opt(b)
+		up: uploader{
+			url:       url,
+			service:   service,
+			version:   version,
+			runtimeID: runtimeID,
+			headers:   headers,
+		},
+		uploadID: uploadID,
 	}
 	b.gz = gzip.NewWriter(&b.buf)
 	b.enc = json.NewEncoder(b.gz)
+	// json.Encoder defaults to HTML-escaping <, > and & inside string values
+	// (each replaced by its six-character \u00XX escape). The SymDB payload
+	// is not embedded in HTML, so disable that.
 	b.enc.SetEscapeHTML(false)
 	return b
 }
@@ -203,18 +188,15 @@ func (b *BatchEncoder) AddScope(scope Scope) error {
 	return nil
 }
 
-// ShouldFlush reports whether the compressed buffer has reached the flush
-// threshold. As a special case, a threshold <= 0 means "flush after every
-// scope" — useful for tests that need to observe one HTTP request per scope.
-func (b *BatchEncoder) ShouldFlush() bool {
-	if b.flushThreshold <= 0 {
-		return b.scopeCount > 0
-	}
-	return b.buf.Len() >= b.flushThreshold
+// Size reports the number of compressed bytes currently buffered for the
+// in-progress batch. The gzip writer buffers internally (~32 KiB deflate
+// window), so Size is a lower bound on the eventual flushed payload size.
+func (b *BatchEncoder) Size() int {
+	return b.buf.Len()
 }
 
-// BatchCount returns the number of batches that have been started (each
-// successful Flush increments this). Useful for logging.
+// BatchCount returns the number of batches that have been started so far
+// (each AddScope after a Flush starts a new batch). Useful for logging.
 func (b *BatchEncoder) BatchCount() int {
 	return b.batchNum
 }
@@ -243,13 +225,12 @@ func (b *BatchEncoder) Flush(ctx context.Context, final bool) error {
 	b.buf.Reset()
 	b.gz.Reset(&b.buf)
 	b.enc = json.NewEncoder(b.gz)
-	b.enc.SetEscapeHTML(false)
 	b.scopeCount = 0
 	b.prefixWritten = false
 	return nil
 }
 
-func (s *SymDBUploader) uploadInner(ctx context.Context, compressedData []byte) error {
+func (s *uploader) uploadInner(ctx context.Context, compressedData []byte) error {
 	// The upload is a multipart containing metadata expected by the event platform
 	// and the gzipped SymDB data.
 

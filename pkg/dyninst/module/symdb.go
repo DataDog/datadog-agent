@@ -619,12 +619,11 @@ func (m *symdbManager) performUpload(
 			procID.pid, executablePath, err)
 	}
 
-	sender := uploader.NewSymDBUploader(
+	enc := uploader.NewBatchEncoder(
 		m.uploadURL.String(),
 		procID.service, procID.version, runtimeID,
+		uuid.New(),
 	)
-	uploadID := uuid.New()
-	enc := sender.NewBatchEncoder(uploadID, uploader.WithFlushThreshold(m.cfg.flushThresholdBytes))
 	var totalPackages, totalFuncs int
 	// Flush whenever the compressed payload reaches the threshold, or on the
 	// final package, to avoid keeping too much in memory at once.
@@ -632,7 +631,7 @@ func (m *symdbManager) performUpload(
 		if ctx.Err() != nil {
 			return context.Cause(ctx)
 		}
-		if !final && !enc.ShouldFlush() {
+		if !final && enc.Size() < m.cfg.flushThresholdBytes {
 			return nil
 		}
 		log.Tracef("SymDB: uploading symbols chunk. Final chunk: %t", final)
