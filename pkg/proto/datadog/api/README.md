@@ -18,7 +18,7 @@ bazel build \
   @com_github_tinylib_msgp//:msgp \
   @org_golang_google_grpc_cmd_protoc_gen_go_grpc//:protoc-gen-go-grpc \
   @org_golang_google_protobuf//cmd/protoc-gen-go \
-  @rules_go//go
+  @io_bazel_rules_go//go
 ```
 
 ### Notes
