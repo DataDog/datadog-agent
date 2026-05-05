@@ -126,13 +126,19 @@ func TestConditionalLookup(t *testing.T) {
 					Name:     "rpc.response.status_code",
 					Provider: ProviderOTel,
 					Type:     ValueTypeString,
-					When:     []Condition{{Attribute: "rpc.system", Eq: "grpc"}},
+					When: []Condition{
+						{Attribute: "rpc.system", Eq: "grpc"},
+						{Attribute: "rpc.system.name", Present: boolPtr(false)},
+					},
 				},
 				{
 					Name:     "rpc.response.status_code",
 					Provider: ProviderOTel,
 					Type:     ValueTypeInt64,
-					When:     []Condition{{Attribute: "rpc.system", Eq: "grpc"}},
+					When: []Condition{
+						{Attribute: "rpc.system", Eq: "grpc"},
+						{Attribute: "rpc.system.name", Present: boolPtr(false)},
+					},
 				},
 			},
 			Concept("conditional.and"): {
@@ -199,6 +205,18 @@ func TestConditionalLookup(t *testing.T) {
 			attrs: map[string]any{
 				"rpc.response.status_code": "-32602",
 				"rpc.system.name":          "jsonrpc",
+			},
+		},
+		{
+			// New rpc.system.name takes precedence over legacy rpc.system: if the
+			// SDK explicitly set rpc.system.name to non-grpc, ignore a stale legacy
+			// rpc.system=grpc that may also be present.
+			name:    "rpc.response.status_code rejected when new rpc.system.name overrides legacy rpc.system=grpc",
+			concept: ConceptGRPCStatusCode,
+			attrs: map[string]any{
+				"rpc.response.status_code": "-32602",
+				"rpc.system.name":          "jsonrpc",
+				"rpc.system":               "grpc",
 			},
 		},
 		{
