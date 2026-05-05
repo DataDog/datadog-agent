@@ -163,7 +163,6 @@ exports_files(glob(
 # gazelle:exclude comp/dogstatsd/server
 # gazelle:exclude comp/dogstatsd/status
 # gazelle:exclude comp/fleetstatus/fx
-# gazelle:exclude comp/fleetstatus/impl
 # gazelle:exclude comp/forwarder/eventplatform
 # gazelle:exclude comp/forwarder/eventplatformreceiver
 # gazelle:exclude comp/forwarder/orchestrator/orchestratorimpl
