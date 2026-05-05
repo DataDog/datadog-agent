@@ -98,7 +98,7 @@ class QualityGateOutputFormatter:
         failed_count = 0
 
         for gate in sorted(gate_list, key=lambda x: x.config.gate_name):
-            verdict = verdict_lookup.get(gate.config.gate_name, {})
+            verdict = verdict_lookup[gate.config.gate_name]
 
             # Get display name
             display_name = QualityGateOutputFormatter.get_display_name(gate.config.gate_name)

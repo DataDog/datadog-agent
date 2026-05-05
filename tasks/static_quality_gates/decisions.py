@@ -56,18 +56,10 @@ class ExceptionApprovalChecker:
         return self._result
 
 
-_FAILURE_KIND_TO_ERROR_TYPE: dict[GateFailureKind, str] = {
-    GateFailureKind.AbsoluteLimitExceeded: "StaticQualityGateFailed",
-    GateFailureKind.PerPRThresholdExceeded: "PerPRThresholdExceeded",
-    GateFailureKind.ExecutionError: "StackTrace",
-}
-
-
 @dataclass
 class GateEvaluationResult:
     verdicts: list[GateVerdict] = field(default_factory=list)
     has_blocking_failures: bool = False
-    exception_granted_by: str | None = None
     exception_note: str | None = None
 
 
@@ -105,7 +97,6 @@ def evaluate_gates(
     return GateEvaluationResult(
         verdicts=verdicts,
         has_blocking_failures=has_blocking_failures,
-        exception_granted_by=exception_granted_by,
         exception_note=exception_note,
     )
 
