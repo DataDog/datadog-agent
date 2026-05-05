@@ -39,8 +39,6 @@ func NewLanguage() language.Language {
 	return &lang{Language: goLanguage.NewLanguage()}
 }
 
-func (*lang) Name() string { return extName }
-
 // Kinds extends the Go extension's kinds with dd_go_test.
 // srcs and gotags are mergeable so they stay in sync with Go file analysis and
 // stale gotags values left over from old go_test rules get cleaned up on the
