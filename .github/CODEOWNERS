@@ -937,3 +937,6 @@
 /pkg/util/scrubber/go.sum                @DataDog/agent-runtimes
 
 /q_branch/                               @DataDog/q-branch
+
+# AI-related files
+/.claude/skills/explain-lading-config @DataDog/single-machine-performance
