@@ -68,29 +68,25 @@ func (w *HPAWebhook) Endpoint() string { return w.endpoint }
 // Resources returns the Kubernetes resources this webhook applies to.
 func (w *HPAWebhook) Resources() map[string][]string { return w.resources }
 
+// ResourceAPIVersions returns ["v1", "v2"] so the webhook fires on both
+// autoscaling/v1 and autoscaling/v2 HorizontalPodAutoscaler updates.
+func (w *HPAWebhook) ResourceAPIVersions() []string { return []string{"v1", "v2"} }
+
 // Timeout returns the webhook timeout (0 = server default).
 func (w *HPAWebhook) Timeout() int32 { return 0 }
 
 // Operations returns the operations this webhook is invoked for.
 func (w *HPAWebhook) Operations() []admissionregistrationv1.OperationType { return w.operations }
 
-// LabelSelectors returns nil selectors — the webhook filters via MatchConditions instead.
+// LabelSelectors returns nil selectors — filtering is done inside the handler.
 func (w *HPAWebhook) LabelSelectors(_ bool) (namespaceSelector *metav1.LabelSelector, objectSelector *metav1.LabelSelector) {
 	return nil, nil
 }
 
-// MatchConditions returns a CEL condition that restricts the webhook to HPA objects that
-// carry the DPA-management annotation, avoiding unnecessary invocations.
+// MatchConditions returns nil — all HPA UPDATE filtering is done inside revertHPASpec,
+// keeping the logic in one place rather than split between a CEL expression and Go code.
 func (w *HPAWebhook) MatchConditions() []admissionregistrationv1.MatchCondition {
-	return []admissionregistrationv1.MatchCondition{
-		{
-			Name: "managed-by-dpa",
-			Expression: fmt.Sprintf(
-				`has(object.metadata.annotations) && "%s" in object.metadata.annotations`,
-				model.HPAManagedByDPAAnnotation,
-			),
-		},
-	}
+	return nil
 }
 
 // WebhookFunc returns the admission handler.
@@ -103,23 +99,26 @@ func (w *HPAWebhook) WebhookFunc() admission.WebhookFunc {
 // revertHPASpec ensures that any update to an HPA managed by a DPA is reverted back
 // to the old (disabled) spec. It also surfaces a warning to the user.
 func (w *HPAWebhook) revertHPASpec(request *admission.Request) *admiv1.AdmissionResponse {
-	// Decode incoming (proposed) HPA.
+	// Decode the old (current) HPA — this is the spec we want to preserve.
+	var oldHPA autoscalingv2.HorizontalPodAutoscaler
+	if err := json.Unmarshal(request.OldObject, &oldHPA); err != nil {
+		log.Warnf("HPA webhook: failed to decode old HPA for %s/%s: %v", request.Namespace, request.Name, err)
+		return admissionAllowed()
+	}
+
+	// Decode the incoming (proposed) HPA to check the annotation on the new object.
 	var incomingHPA autoscalingv2.HorizontalPodAutoscaler
 	if err := json.Unmarshal(request.Object, &incomingHPA); err != nil {
 		log.Warnf("HPA webhook: failed to decode incoming HPA: %v", err)
 		return admissionAllowed()
 	}
 
-	// Only act when the DPA-management annotation is present.
-	dpaRef := incomingHPA.Annotations[model.HPAManagedByDPAAnnotation]
-	if dpaRef == "" {
-		return admissionAllowed()
-	}
-
-	// Decode the old (current, disabled) HPA to get the spec we want to preserve.
-	var oldHPA autoscalingv2.HorizontalPodAutoscaler
-	if err := json.Unmarshal(request.OldObject, &oldHPA); err != nil {
-		log.Warnf("HPA webhook: failed to decode old HPA for %s/%s: %v", request.Namespace, request.Name, err)
+	// Only act when the DPA-management annotation is present on BOTH objects.
+	// - disableHPA (first adds the annotation): old has no annotation → skip.
+	// - restoreHPA (removes the annotation): new has no annotation → skip.
+	// - External user edits: annotation present on both → revert.
+	dpaRef := oldHPA.Annotations[model.HPAManagedByDPAAnnotation]
+	if dpaRef == "" || incomingHPA.Annotations[model.HPAManagedByDPAAnnotation] == "" {
 		return admissionAllowed()
 	}
 

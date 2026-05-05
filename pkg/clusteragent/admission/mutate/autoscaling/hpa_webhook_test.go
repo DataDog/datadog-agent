@@ -62,15 +62,8 @@ func TestNewHPAWebhook(t *testing.T) {
 	assert.Equal(t, admcommon.WebhookType(admcommon.MutatingWebhook), w.WebhookType())
 	assert.Equal(t, []admissionregistrationv1.OperationType{admissionregistrationv1.Update}, w.Operations())
 	assert.Equal(t, map[string][]string{"autoscaling": {"horizontalpodautoscalers"}}, w.Resources())
-}
-
-func TestHPAWebhook_MatchConditions(t *testing.T) {
-	cfg := mutatecommon.FakeConfigWithValues(t, map[string]any{})
-	w := NewHPAWebhook(cfg)
-	conditions := w.MatchConditions()
-	require.Len(t, conditions, 1)
-	assert.Equal(t, "managed-by-dpa", conditions[0].Name)
-	assert.Contains(t, conditions[0].Expression, model.HPAManagedByDPAAnnotation)
+	assert.Equal(t, []string{"v1", "v2"}, w.ResourceAPIVersions(),
+		"HPA webhook must target both autoscaling/v1 and autoscaling/v2 so the API server fires it for v2 HPAs")
 }
 
 func TestHPAWebhook_revertHPASpec_managed(t *testing.T) {
@@ -119,13 +112,15 @@ func TestHPAWebhook_revertHPASpec_managed(t *testing.T) {
 
 func TestHPAWebhook_revertHPASpec_not_managed(t *testing.T) {
 	// HPA without the DPA annotation → webhook should be a no-op.
-	hpa := newTestHPA("my-hpa", "default", 5, nil)
+	oldHPA := newTestHPA("my-hpa", "default", 5, nil)
+	incomingHPA := newTestHPA("my-hpa", "default", 5, nil)
 
 	w := &HPAWebhook{}
 	req := &admission.Request{
 		Name:      "my-hpa",
 		Namespace: "default",
-		Object:    mustMarshal(t, hpa),
+		Object:    mustMarshal(t, incomingHPA),
+		OldObject: mustMarshal(t, oldHPA),
 	}
 
 	resp := w.revertHPASpec(req)
@@ -136,26 +131,61 @@ func TestHPAWebhook_revertHPASpec_not_managed(t *testing.T) {
 	assert.Empty(t, resp.Warnings)
 }
 
-func TestHPAWebhook_revertHPASpec_invalid_object(t *testing.T) {
+func TestHPAWebhook_revertHPASpec_migration_setup(t *testing.T) {
+	// The cluster-agent's disableHPA adds the annotation + disables behavior in one patch.
+	// The old HPA has no annotation; the incoming HPA is the result with the annotation added.
+	// The webhook must NOT intercept this — it should only block subsequent external edits.
+	oldHPA := newTestHPA("my-hpa", "default", 5, nil) // no annotation yet
+	incomingHPA := newTestHPA("my-hpa", "default", 5, map[string]string{
+		model.HPAManagedByDPAAnnotation: "default/my-dpa", // annotation just added
+	})
+
 	w := &HPAWebhook{}
 	req := &admission.Request{
 		Name:      "my-hpa",
 		Namespace: "default",
-		Object:    []byte("not-json"),
+		Object:    mustMarshal(t, incomingHPA),
+		OldObject: mustMarshal(t, oldHPA),
 	}
 
 	resp := w.revertHPASpec(req)
 
 	require.NotNil(t, resp)
 	assert.True(t, resp.Allowed)
-	assert.Empty(t, resp.Patch)
+	assert.Empty(t, resp.Patch, "disableHPA patch must not be intercepted by the admission webhook")
+	assert.Empty(t, resp.Warnings)
 }
 
-func TestHPAWebhook_revertHPASpec_invalid_old_object(t *testing.T) {
+func TestHPAWebhook_revertHPASpec_restore_hpa(t *testing.T) {
+	// The cluster-agent's restoreHPA removes the annotation and restores the original spec.
+	// The old HPA has the annotation; the incoming HPA has the annotation removed.
+	// The webhook must NOT intercept this either.
+	oldHPA := newTestHPA("my-hpa", "default", 5, map[string]string{
+		model.HPAManagedByDPAAnnotation: "default/my-dpa", // currently managed
+	})
+	incomingHPA := newTestHPA("my-hpa", "default", 5, nil) // annotation removed on restore
+
+	w := &HPAWebhook{}
+	req := &admission.Request{
+		Name:      "my-hpa",
+		Namespace: "default",
+		Object:    mustMarshal(t, incomingHPA),
+		OldObject: mustMarshal(t, oldHPA),
+	}
+
+	resp := w.revertHPASpec(req)
+
+	require.NotNil(t, resp)
+	assert.True(t, resp.Allowed)
+	assert.Empty(t, resp.Patch, "restoreHPA patch must not be intercepted by the admission webhook")
+	assert.Empty(t, resp.Warnings)
+}
+
+func TestHPAWebhook_revertHPASpec_invalid_old_object_json(t *testing.T) {
+	// Malformed OldObject → decode fails → allow with no patch.
 	incomingHPA := newTestHPA("my-hpa", "default", 5, map[string]string{
 		model.HPAManagedByDPAAnnotation: "default/my-dpa",
 	})
-
 	w := &HPAWebhook{}
 	req := &admission.Request{
 		Name:      "my-hpa",

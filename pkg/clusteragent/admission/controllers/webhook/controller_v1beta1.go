@@ -370,6 +370,7 @@ func (c *ControllerV1beta1) generateTemplates() {
 				webhook.Endpoint(),
 				webhook.Operations(),
 				webhook.Resources(),
+				resourceAPIVersions(webhook),
 				nsSelector,
 				objSelector,
 				convertMatchConditions(webhook.MatchConditions()),
@@ -394,6 +395,7 @@ func (c *ControllerV1beta1) generateTemplates() {
 				webhook.Endpoint(),
 				webhook.Operations(),
 				webhook.Resources(),
+				resourceAPIVersions(webhook),
 				nsSelector,
 				objSelector,
 				convertMatchConditions(webhook.MatchConditions()),
@@ -409,6 +411,7 @@ func (c *ControllerV1beta1) generateTemplates() {
 			probeEndpoint,
 			[]admiv1beta1.OperationType{admiv1beta1.Create},
 			map[string][]string{"": {"configmaps"}},
+			[]string{"v1"},
 			&metav1.LabelSelector{
 				MatchExpressions: []metav1.LabelSelectorRequirement{
 					{
@@ -431,7 +434,7 @@ func (c *ControllerV1beta1) generateTemplates() {
 	c.mutatingWebhookTemplates = mutatingWebhooks
 }
 
-func (c *ControllerV1beta1) getValidatingWebhookSkeleton(nameSuffix, path string, operations []admiv1beta1.OperationType, resourcesMap map[string][]string, namespaceSelector, objectSelector *metav1.LabelSelector, matchConditions []admiv1beta1.MatchCondition, timeout int32) admiv1beta1.ValidatingWebhook {
+func (c *ControllerV1beta1) getValidatingWebhookSkeleton(nameSuffix, path string, operations []admiv1beta1.OperationType, resourcesMap map[string][]string, apiVersions []string, namespaceSelector, objectSelector *metav1.LabelSelector, matchConditions []admiv1beta1.MatchCondition, timeout int32) admiv1beta1.ValidatingWebhook {
 	matchPolicy := admiv1beta1.Exact
 	sideEffects := admiv1beta1.SideEffectClassNone
 	port := c.config.getServicePort()
@@ -466,7 +469,7 @@ func (c *ControllerV1beta1) getValidatingWebhookSkeleton(nameSuffix, path string
 				Operations: operations,
 				Rule: admiv1beta1.Rule{
 					APIGroups:   []string{group},
-					APIVersions: []string{"v1"},
+					APIVersions: apiVersions,
 					Resources:   []string{resource},
 				},
 			})
@@ -476,7 +479,7 @@ func (c *ControllerV1beta1) getValidatingWebhookSkeleton(nameSuffix, path string
 	return webhook
 }
 
-func (c *ControllerV1beta1) getMutatingWebhookSkeleton(nameSuffix, path string, operations []admiv1beta1.OperationType, resourcesMap map[string][]string, namespaceSelector, objectSelector *metav1.LabelSelector, matchConditions []admiv1beta1.MatchCondition, timeout int32) admiv1beta1.MutatingWebhook {
+func (c *ControllerV1beta1) getMutatingWebhookSkeleton(nameSuffix, path string, operations []admiv1beta1.OperationType, resourcesMap map[string][]string, apiVersions []string, namespaceSelector, objectSelector *metav1.LabelSelector, matchConditions []admiv1beta1.MatchCondition, timeout int32) admiv1beta1.MutatingWebhook {
 	matchPolicy := admiv1beta1.Exact
 	sideEffects := admiv1beta1.SideEffectClassNone
 	port := c.config.getServicePort()
@@ -513,7 +516,7 @@ func (c *ControllerV1beta1) getMutatingWebhookSkeleton(nameSuffix, path string, 
 				Operations: operations,
 				Rule: admiv1beta1.Rule{
 					APIGroups:   []string{group},
-					APIVersions: []string{"v1"},
+					APIVersions: apiVersions,
 					Resources:   []string{resource},
 				},
 			})
