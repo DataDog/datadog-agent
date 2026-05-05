@@ -38,10 +38,6 @@ func DefaultLogMetricsExtractorConfig() LogMetricsExtractorConfig {
 	}
 }
 
-// LogMetricsExtractorName is the canonical name for the log metrics extractor.
-// Defined in observer/def as LogMetricsExtractorNamespace.
-const LogMetricsExtractorName = observer.LogMetricsExtractorNamespace
-
 // LogMetricsExtractor converts logs into timeseries metric outputs:
 // - JSON logs: numeric fields -> Avg aggregation
 // - Unstructured logs: pattern frequency -> Sum aggregation
@@ -65,7 +61,7 @@ func NewLogMetricsExtractor(config LogMetricsExtractorConfig) *LogMetricsExtract
 	return &LogMetricsExtractor{config: config}
 }
 
-func (a *LogMetricsExtractor) Name() string { return LogMetricsExtractorName }
+func (a *LogMetricsExtractor) Name() string { return observer.LogMetricsExtractorNamespace }
 
 // Reset clears cached per-series context so replay/reanalysis starts from the
 // currently observed data instead of reusing stale examples.

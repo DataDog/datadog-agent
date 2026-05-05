@@ -13,11 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl/patterns"
 )
 
-// LogPatternExtractorName is the canonical name for the log pattern extractor.
-// It is used as the storage namespace for emitted metrics and as the component
-// name in the catalog. Defined in observer/def as LogPatternExtractorNamespace.
-const LogPatternExtractorName = observerdef.LogPatternExtractorNamespace
-
 // TODO(agent-q): Add a test to ensure this is >= the time we evict metrics
 // defaultClusterTimeToLive is the time to live for a cluster.
 // If a cluster hasn't been seen since this time, it will be removed.
@@ -213,7 +208,7 @@ func NewLogPatternExtractor(cfg LogPatternExtractorConfig) *LogPatternExtractor 
 
 // Name returns the extractor name.
 func (e *LogPatternExtractor) Name() string {
-	return "log_pattern_extractor"
+	return observerdef.LogPatternExtractorNamespace
 }
 
 // Reset clears clustering and cached per-series context so reanalysis starts

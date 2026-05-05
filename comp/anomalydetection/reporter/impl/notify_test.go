@@ -44,7 +44,7 @@ func (s *sumRangeStorage) SeriesGeneration() uint64                      { panic
 func TestIsLogDerivedAnomaly_LogMetricsExtractorWithPattern(t *testing.T) {
 	a := observerdef.Anomaly{
 		Type:   observerdef.AnomalyTypeMetric,
-		Source: observerdef.SeriesDescriptor{Namespace: logMetricsExtractorName},
+		Source: observerdef.SeriesDescriptor{Namespace: observerdef.LogMetricsExtractorNamespace},
 		Context: &observerdef.MetricContext{
 			Pattern: "C3:C8_C1",
 			Example: "ERROR: connection refused to db.prod:5432",
@@ -57,7 +57,7 @@ func TestIsLogDerivedAnomaly_LogMetricsExtractorExampleOnlyNoPattern(t *testing.
 	// Even with an empty pattern, a non-empty example qualifies.
 	a := observerdef.Anomaly{
 		Type:   observerdef.AnomalyTypeMetric,
-		Source: observerdef.SeriesDescriptor{Namespace: logMetricsExtractorName},
+		Source: observerdef.SeriesDescriptor{Namespace: observerdef.LogMetricsExtractorNamespace},
 		Context: &observerdef.MetricContext{
 			Pattern: "",
 			Example: "some log line",
@@ -69,7 +69,7 @@ func TestIsLogDerivedAnomaly_LogMetricsExtractorExampleOnlyNoPattern(t *testing.
 func TestIsLogDerivedAnomaly_LogMetricsExtractorNoContext(t *testing.T) {
 	a := observerdef.Anomaly{
 		Type:    observerdef.AnomalyTypeMetric,
-		Source:  observerdef.SeriesDescriptor{Namespace: logMetricsExtractorName},
+		Source:  observerdef.SeriesDescriptor{Namespace: observerdef.LogMetricsExtractorNamespace},
 		Context: nil,
 	}
 	assert.False(t, IsLogDerivedAnomaly(a))
@@ -81,7 +81,7 @@ func TestBuildChangeMessage_LogMetricsExtractorUsesExample(t *testing.T) {
 		Anomalies: []observerdef.Anomaly{
 			{
 				Type:   observerdef.AnomalyTypeMetric,
-				Source: observerdef.SeriesDescriptor{Namespace: logMetricsExtractorName},
+				Source: observerdef.SeriesDescriptor{Namespace: observerdef.LogMetricsExtractorNamespace},
 				Context: &observerdef.MetricContext{
 					Pattern: "C3:C8_C1",
 					Example: "ERROR: connection refused to db.prod:5432",
@@ -101,7 +101,7 @@ func TestBuildChangeMessage_LogMetricsExtractorFallsBackToPatternWhenNoExample(t
 		Anomalies: []observerdef.Anomaly{
 			{
 				Type:   observerdef.AnomalyTypeMetric,
-				Source: observerdef.SeriesDescriptor{Namespace: logMetricsExtractorName},
+				Source: observerdef.SeriesDescriptor{Namespace: observerdef.LogMetricsExtractorNamespace},
 				Context: &observerdef.MetricContext{
 					Pattern: "C3:C8_C1",
 					Example: "",
@@ -120,7 +120,7 @@ func TestBuildEventTags_LogMetricsExtractorTreatedAsLog(t *testing.T) {
 		Anomalies: []observerdef.Anomaly{
 			{
 				Type:   observerdef.AnomalyTypeMetric,
-				Source: observerdef.SeriesDescriptor{Namespace: logMetricsExtractorName},
+				Source: observerdef.SeriesDescriptor{Namespace: observerdef.LogMetricsExtractorNamespace},
 				Context: &observerdef.MetricContext{
 					Pattern: "C3:C8_C1",
 					Example: "some log line",
@@ -173,7 +173,7 @@ func TestBuildEventTags_LogDerivedMetricAnomaly(t *testing.T) {
 			{
 				Type: observerdef.AnomalyTypeMetric,
 				Source: observerdef.SeriesDescriptor{
-					Namespace: logPatternExtractorName,
+					Namespace: observerdef.LogPatternExtractorNamespace,
 				},
 				Context: &observerdef.MetricContext{
 					Pattern: "some log pattern",
@@ -226,7 +226,7 @@ func TestBuildEventTags_DimensionalTagsFromSplitTags(t *testing.T) {
 		Anomalies: []observerdef.Anomaly{
 			{
 				Type:   observerdef.AnomalyTypeMetric,
-				Source: observerdef.SeriesDescriptor{Namespace: logPatternExtractorName},
+				Source: observerdef.SeriesDescriptor{Namespace: observerdef.LogPatternExtractorNamespace},
 				Context: &observerdef.MetricContext{
 					Pattern: "some log pattern",
 					SplitTags: map[string]string{
@@ -335,7 +335,7 @@ func makeLogPatternAnomaly(ts int64) observerdef.Anomaly {
 	return observerdef.Anomaly{
 		Type:      observerdef.AnomalyTypeMetric,
 		Timestamp: ts,
-		Source:    observerdef.SeriesDescriptor{Namespace: logPatternExtractorName},
+		Source:    observerdef.SeriesDescriptor{Namespace: observerdef.LogPatternExtractorNamespace},
 		SourceRef: &observerdef.QueryHandle{Ref: observerdef.SeriesRef(42)},
 		Context: &observerdef.MetricContext{
 			Pattern: "connection refused",
@@ -378,7 +378,7 @@ func TestBuildChangeMessage_LogFrequency_RateChangedDisplay(t *testing.T) {
 	a := observerdef.Anomaly{
 		Type:      observerdef.AnomalyTypeMetric,
 		Timestamp: ts,
-		Source:    observerdef.SeriesDescriptor{Namespace: logMetricsExtractorName},
+		Source:    observerdef.SeriesDescriptor{Namespace: observerdef.LogMetricsExtractorNamespace},
 		SourceRef: &observerdef.QueryHandle{Ref: observerdef.SeriesRef(7)},
 		Context: &observerdef.MetricContext{
 			Example: "panic: runtime error",

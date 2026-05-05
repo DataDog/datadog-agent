@@ -34,9 +34,6 @@ const (
 	// absolute change guards against large relative swings near zero.
 	logRateChangeRelThreshold = 0.3
 	logRateChangeAbsThreshold = 2
-
-	logPatternExtractorName = observerdef.LogPatternExtractorNamespace
-	logMetricsExtractorName = observerdef.LogMetricsExtractorNamespace
 )
 
 // splitTagKeyOrder is the canonical ordered list of tag dimensions used in
@@ -430,9 +427,9 @@ func IsLogDerivedAnomaly(a observerdef.Anomaly) bool {
 		return false
 	}
 	switch a.Source.Namespace {
-	case logPatternExtractorName:
+	case observerdef.LogPatternExtractorNamespace:
 		return strings.TrimSpace(a.Context.Pattern) != ""
-	case logMetricsExtractorName:
+	case observerdef.LogMetricsExtractorNamespace:
 		return strings.TrimSpace(a.Context.Pattern) != "" || strings.TrimSpace(a.Context.Example) != ""
 	}
 	return false
@@ -441,7 +438,7 @@ func IsLogDerivedAnomaly(a observerdef.Anomaly) bool {
 // logDerivedDescription builds a human-readable description for a log-derived
 // metric anomaly, including pattern, example, and windowed average rate.
 func logDerivedDescription(a observerdef.Anomaly, storage observerdef.StorageReader) string {
-	if a.Source.Namespace == logMetricsExtractorName {
+	if a.Source.Namespace == observerdef.LogMetricsExtractorNamespace {
 		return logFrequencyDerivedDescription(a, storage)
 	}
 	pattern := strings.TrimSpace(a.Context.Pattern)
