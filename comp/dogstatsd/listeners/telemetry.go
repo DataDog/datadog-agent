@@ -11,7 +11,22 @@ import (
 
 var (
 	defaultListenerBuckets = []float64{300, 500, 1000, 1500, 2000, 2500, 3000, 10000, 20000, 50000}
+
+	// agentIdentityTag holds the remote_agent tag value for this process.
+	// Defaults to "agent"; override via setAgentIdentity at startup.
+	// Mirrors the pattern in pkg/logs/metrics to avoid cross-package coupling.
+	agentIdentityTag = "agent"
 )
+
+// setAgentIdentity sets the remote_agent tag value for this agent process.
+func setAgentIdentity(tag string) {
+	agentIdentityTag = tag
+}
+
+// getAgentIdentityTag returns the remote_agent tag value for this agent process.
+func getAgentIdentityTag() string {
+	return agentIdentityTag
+}
 
 // TelemetryStore holds all the telemetry counters and gauges for the dogstatsd listeners
 type TelemetryStore struct {
@@ -37,13 +52,13 @@ func NewTelemetryStore(buckets []float64, telemetrycomp telemetry.Component) *Te
 		tlmUDPPackets: telemetrycomp.NewCounter("dogstatsd", "udp_packets",
 			[]string{"state"}, "Dogstatsd UDP packets count"),
 		tlmUDPPacketsBytes: telemetrycomp.NewCounter("dogstatsd", "udp_packets_bytes",
-			nil, "Dogstatsd UDP packets bytes count"),
+			[]string{"remote_agent"}, "Dogstatsd UDP packets bytes count"),
 		tlmUDSPackets: telemetrycomp.NewCounter("dogstatsd", "uds_packets",
 			[]string{"listener_id", "transport", "state"}, "Dogstatsd UDS packets count"),
 		tlmUDSOriginDetectionError: telemetrycomp.NewCounter("dogstatsd", "uds_origin_detection_error",
 			[]string{"listener_id", "transport"}, "Dogstatsd UDS origin detection error count"),
 		tlmUDSPacketsBytes: telemetrycomp.NewCounter("dogstatsd", "uds_packets_bytes",
-			[]string{"listener_id", "transport"}, "Dogstatsd UDS packets bytes"),
+			[]string{"remote_agent", "listener_id", "transport"}, "Dogstatsd UDS packets bytes"),
 		tlmUDSConnections: telemetrycomp.NewGauge("dogstatsd", "uds_connections",
 			[]string{"listener_id", "transport"}, "Dogstatsd UDS connections count"),
 		tlmListener: telemetrycomp.NewHistogram(
