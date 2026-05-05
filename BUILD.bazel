@@ -71,8 +71,11 @@ exports_files(glob(
 # gazelle:exclude comp/api/commonendpoints
 # gazelle:exclude comp/api/grpcserver/fx-agent
 # gazelle:exclude comp/api/grpcserver/impl-agent
+# gazelle:exclude comp/checks/agentcrashdetect/fx
 # gazelle:exclude comp/checks/agentcrashdetect/impl
+# gazelle:exclude comp/checks/windowseventlog/fx
 # gazelle:exclude comp/checks/windowseventlog/impl
+# gazelle:exclude comp/checks/winregistry/fx
 # gazelle:exclude comp/checks/winregistry/impl
 # gazelle:exclude comp/collector
 # gazelle:exclude comp/connectivitychecker/checker
@@ -156,6 +159,7 @@ exports_files(glob(
 # gazelle:exclude comp/healthplatform/fx
 # gazelle:exclude comp/healthplatform/impl
 # gazelle:exclude comp/healthplatform/mock
+# gazelle:exclude comp/host-profiler/collector/fx
 # gazelle:exclude comp/host-profiler/collector/impl/agentprovider
 # gazelle:exclude comp/host-profiler/collector/impl/converters
 # gazelle:exclude comp/host-profiler/collector/impl/params
@@ -210,6 +214,7 @@ exports_files(glob(
 # gazelle:exclude comp/networkpath/traceroute/fx-remote
 # gazelle:exclude comp/networkpath/traceroute/impl-local
 # gazelle:exclude comp/networkpath/traceroute/impl-remote
+# gazelle:exclude comp/notableevents/fx
 # gazelle:exclude comp/notableevents/impl
 # gazelle:exclude comp/offlinereporter/fx
 # gazelle:exclude comp/offlinereporter/impl
@@ -224,7 +229,6 @@ exports_files(glob(
 # gazelle:exclude comp/otelcol/ddflareextension/image
 # gazelle:exclude comp/otelcol/ddflareextension/impl/testdata
 # gazelle:exclude comp/otelcol/ddprofilingextension/fx
-# gazelle:exclude comp/otelcol/ddprofilingextension/impl
 # gazelle:exclude comp/otelcol/dogtelextension/fx
 # gazelle:exclude comp/otelcol/logsagentpipeline
 # gazelle:exclude comp/otelcol/otlp/components/exporter
@@ -277,6 +281,7 @@ exports_files(glob(
 # gazelle:exclude comp/softwareinventory/impl
 # gazelle:exclude comp/syntheticstestscheduler/fx
 # gazelle:exclude comp/syntheticstestscheduler/impl
+# gazelle:exclude comp/systray/systray/fx
 # gazelle:exclude comp/systray/systray/impl
 # gazelle:exclude comp/trace/agent/fx
 # gazelle:exclude comp/trace/agent/fx-mock
