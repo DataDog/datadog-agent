@@ -9,6 +9,7 @@ package configstreamimpl
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"sync"
@@ -67,7 +68,11 @@ type subscription struct {
 }
 
 // NewComponent creates a new configstream component.
-func NewComponent(reqs Requires) Provides {
+func NewComponent(reqs Requires) (Provides, error) {
+	if reqs.Config.GetBool("remote_agent.configstream.enabled") && !reqs.Config.GetBool("remote_agent.registry.enabled") {
+		return Provides{}, errors.New("remote_agent.configstream.enabled is true but remote_agent.registry.enabled is not; set remote_agent.registry.enabled: true to use config stream for remote agents")
+	}
+
 	cs := &configStream{
 		config:          reqs.Config,
 		log:             reqs.Log,
@@ -100,7 +105,7 @@ func NewComponent(reqs Requires) Provides {
 
 	return Provides{
 		Comp: cs,
-	}
+	}, nil
 }
 
 // Subscribe returns a channel that streams configuration events, starting with a snapshot.
