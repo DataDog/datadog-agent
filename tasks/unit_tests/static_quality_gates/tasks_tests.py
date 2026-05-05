@@ -401,6 +401,48 @@ class TestQualityGatesIntegration(unittest.TestCase):
             mock_pr_commenter.assert_called_once()
             self.assertIs(mock_pr_commenter.call_args.kwargs["pr"], approved_pr)
 
+    @patch.dict('os.environ', _PR_ENV_VARS, clear=True)
+    def test_gate_fails_absolute_limit_non_blocking_unchanged_from_ancestor(self):
+        """Gate exceeds absolute disk limit but size is unchanged from ancestor — failure is non-blocking."""
+        gate_scenarios = [
+            GateScenario(
+                name=_DEB_GATE,
+                ancestor_disk=110 * _MiB,  # ancestor was already over the 105 MiB limit
+                ancestor_wire=50 * _MiB,
+                current_disk=110 * _MiB,  # no increase from ancestor (delta = 0)
+                current_wire=50 * _MiB,
+                max_disk=105 * _MiB,
+                max_wire=55 * _MiB,
+            ),
+            GateScenario(
+                name=_DOCKER_GATE,
+                ancestor_disk=600 * _MiB,
+                ancestor_wire=240 * _MiB,
+                current_disk=600 * _MiB + 20 * _KiB,
+                current_wire=240 * _MiB,
+                max_disk=700 * _MiB,
+                max_wire=250 * _MiB,
+            ),
+        ]
+        with (
+            _gate_scenarios_fixture(*gate_scenarios, ancestor_sha=_ANCESTOR_SHA) as config_path,
+            patch("tasks.quality_gates.get_ancestor", return_value=_ANCESTOR_SHA),
+            patch("tasks.quality_gates.get_commit_sha", return_value=_CI_COMMIT_SHA),
+            patch("tasks.static_quality_gates.github.GithubAPI", new=FakeGithubAPI),
+            patch("tasks.static_quality_gates.gates.send_metrics"),
+            patch("tasks.static_quality_gates.pr_comment.pr_commenter") as mock_pr_commenter,
+            patch(
+                "tasks.static_quality_gates.gates.GateMetricHandler.generate_metric_reports"
+            ) as mock_generate_reports,
+        ):
+            ctx = MockContext(
+                run={"datadog-ci tag --level job --tags static_quality_gates:\"failure\"": Result("Done")}
+            )
+            # Should NOT raise Exit — failure is non-blocking because size is unchanged from ancestor
+            parse_and_trigger_gates(ctx, config_path)
+            mock_generate_reports.assert_called_once()
+            mock_pr_commenter.assert_called_once()
+
     @patch.dict(
         'os.environ',
         {
@@ -443,38 +485,50 @@ class TestQualityGatesIntegration(unittest.TestCase):
     @patch.dict(
         'os.environ',
         {
+            'BUCKET_BRANCH': 'main',
             'CI_COMMIT_BRANCH': 'mq-working-branch-12345',
             'CI_COMMIT_REF_SLUG': 'mq-working-branch-12345',
-            'BUCKET_BRANCH': 'main',
-            'CI_PIPELINE_ID': '71580015',
-            'CI_COMMIT_SHA': '1234567890abcdef',
-            'CI_COMMIT_SHORT_SHA': '1234567',
+            'CI_PIPELINE_ID': _CI_PIPELINE_ID,
+            'CI_COMMIT_SHA': _CI_COMMIT_SHA,
         },
+        clear=True,
     )
-    @patch(
-        "tasks.static_quality_gates.gates.PackageArtifactMeasurer._find_package_paths",
-        return_value={'primary': '/fake/path'},
-    )
-    @patch("tasks.static_quality_gates.gates.PackageArtifactMeasurer._calculate_package_sizes", return_value=(0, 0))
-    @patch("tasks.static_quality_gates.gates.DockerArtifactMeasurer._calculate_image_wire_size", return_value=0)
-    @patch("tasks.static_quality_gates.gates.DockerArtifactMeasurer._calculate_image_disk_size", return_value=0)
-    @patch("tasks.static_quality_gates.gates.GateMetricHandler.send_metrics_to_datadog", new=MagicMock())
-    @patch("tasks.static_quality_gates.gates.GateMetricHandler.generate_relative_size", new=MagicMock())
-    @patch("tasks.static_quality_gates.gates.GateMetricHandler.generate_metric_reports", new=MagicMock())
-    @patch("tasks.quality_gates.get_ancestor", return_value="ancestor-sha")
-    @patch("tasks.quality_gates.get_commit_sha", return_value="current-sha")
-    @patch("tasks.quality_gates.get_pr_for_branch", new=MagicMock(return_value=None))
-    @patch("tasks.quality_gates.identify_gates_exceeding_pr_threshold")
-    def test_per_pr_threshold_skipped_on_merge_queue(self, mock_identify, _mock_commit, _mock_ancestor, *_):
+    def test_per_pr_threshold_skipped_on_merge_queue(self):
         """Per-PR threshold check is not applied on merge queue branches."""
-        ctx = MockContext(
-            run={
-                "datadog-ci tag --level job --tags static_quality_gates:\"success\"": Result("Done"),
-                "datadog-ci tag --level job --tags static_quality_gates:\"failure\"": Result("Done"),
-            }
-        )
-        parse_and_trigger_gates(ctx, "tasks/unit_tests/testdata/quality_gate_config_test.yml")
-        mock_identify.assert_not_called()
+        gate_scenarios = [
+            GateScenario(
+                name=_DEB_GATE,
+                ancestor_disk=100 * _MiB,
+                ancestor_wire=50 * _MiB,
+                current_disk=100 * _MiB + 700 * _KiB,  # delta > PER_PR_THRESHOLD, within absolute limit
+                current_wire=50 * _MiB,
+                max_disk=105 * _MiB,
+                max_wire=55 * _MiB,
+            ),
+            GateScenario(
+                name=_DOCKER_GATE,
+                ancestor_disk=600 * _MiB,
+                ancestor_wire=240 * _MiB,
+                current_disk=600 * _MiB + 20 * _KiB,
+                current_wire=240 * _MiB,
+                max_disk=700 * _MiB,
+                max_wire=250 * _MiB,
+            ),
+        ]
+        with (
+            _gate_scenarios_fixture(*gate_scenarios, ancestor_sha=_ANCESTOR_SHA) as config_path,
+            patch("tasks.quality_gates.get_ancestor", return_value=_ANCESTOR_SHA),
+            patch("tasks.quality_gates.get_commit_sha", return_value=_CI_COMMIT_SHA),
+            patch("tasks.quality_gates.get_pr_for_branch", return_value=None),
+            patch("tasks.quality_gates.get_pr_number_from_commit", return_value=None),
+            patch("tasks.static_quality_gates.gates.send_metrics"),
+            patch("tasks.static_quality_gates.gates.GateMetricHandler.generate_metric_reports"),
+        ):
+            ctx = MockContext(
+                run={"datadog-ci tag --level job --tags static_quality_gates:\"success\"": Result("Done")}
+            )
+            # Should NOT raise Exit — per-PR threshold is skipped on merge queue branches
+            parse_and_trigger_gates(ctx, config_path)
 
 
 if __name__ == '__main__':
