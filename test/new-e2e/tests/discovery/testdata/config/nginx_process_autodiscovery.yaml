@@ -1,8 +1,9 @@
-# Nginx check configuration using process-based autodiscovery
-# This check will be scheduled when an nginx process is detected
+# Nginx check configuration using process-based autodiscovery.
+# Scheduled when a process listening on TCP 81 (the stub_status port the
+# E2E test configures) is detected.
 cel_selector:
   processes:
-    - process.cmdline.contains('nginx')
+    - process.tcp_ports.exists(p, p == 81)
 
 init_config:
 
