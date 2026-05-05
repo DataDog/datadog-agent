@@ -70,6 +70,21 @@ const (
 	defaultTokenizeBatchSize = 20
 )
 
+const (
+	jsonValueKindNull byte = iota
+	jsonValueKindInt
+	jsonValueKindFloat
+	jsonValueKindBoolFalse
+	jsonValueKindBoolTrue
+	jsonValueKindString
+	jsonValueKindDict
+	jsonValueKindRaw
+	jsonValueKindIntAsString
+	jsonValueKindFloatAsString
+	jsonValueKindBoolFalseAsString
+	jsonValueKindBoolTrueAsString
+)
+
 // dvTypeBackings holds the three oneof wrapper types for a single DynamicValue in one
 // contiguous allocation. Each wildcard position uses exactly one of the three fields;
 // grouping them avoids three separate heap allocations per wildcard position.
@@ -80,6 +95,20 @@ type dvTypeBackings struct {
 	dictOneof    statefulpb.DynamicValue_DictIndex
 	rawJSONOneof statefulpb.DynamicValue_RawJsonValue
 	stringOneof  statefulpb.DynamicValue_StringValue
+}
+
+type compactJSONContextValues struct {
+	kinds        []byte
+	ints         []int64
+	floats       []float64
+	dicts        []uint64
+	rawValues    [][]byte
+	stringValues []string
+}
+
+type dictEntryDefinition struct {
+	id    uint64
+	value string
 }
 
 type tagCacheEntry struct {
@@ -471,30 +500,19 @@ func (mt *MessageTranslator) processPreTokenized(msg *message.Message, tokenList
 	var messageKeyDV *statefulpb.DynamicValue
 	var jsonContextSchemaID uint64
 	var jsonContextValuesDV []*statefulpb.DynamicValue
+	var compactJSONContext compactJSONContextValues
 	if len(jsonContextKeys) > 0 {
 		messageKeyDV, jsonContextSchemaID = mt.sendJsonSchemaDefineIfNeeded(outputChan, msg, messageKey, jsonContextKeys)
 
-		jsonContextDVBacking := make([]statefulpb.DynamicValue, len(jsonContextValues))
-		jsonContextTypeBacking := make([]dvTypeBackings, len(jsonContextValues))
-		jsonContextValuesDV = make([]*statefulpb.DynamicValue, len(jsonContextValues))
-		for i := range jsonContextDVBacking {
-			jsonContextValuesDV[i] = &jsonContextDVBacking[i]
+		var dictDefs []dictEntryDefinition
+		compactJSONContext, dictDefs = mt.compactJSONContextValues(jsonContextValues)
+		for _, dictDef := range dictDefs {
+			mt.sendDictEntryDefine(outputChan, msg, dictDef.id, dictDef.value)
 		}
-		for i, val := range jsonContextValues {
-			dictID, dictValue, isNew := mt.fillDynamicValue(
-				&jsonContextDVBacking[i],
-				&jsonContextTypeBacking[i].intOneof,
-				&jsonContextTypeBacking[i].floatOneof,
-				&jsonContextTypeBacking[i].boolOneof,
-				&jsonContextTypeBacking[i].dictOneof,
-				&jsonContextTypeBacking[i].rawJSONOneof,
-				&jsonContextTypeBacking[i].stringOneof,
-				val,
-			)
-			if isNew {
-				mt.sendDictEntryDefine(outputChan, msg, dictID, dictValue)
-			}
-		}
+
+		// Keep the legacy field empty for FlatLog. Consumers that do not understand the compact
+		// streams should ignore the json schema when json_context_values is absent.
+		jsonContextValuesDV = nil
 	}
 
 	service, serviceDictID, serviceIsNew := mt.buildServiceField(msg)
@@ -515,7 +533,7 @@ func (mt *MessageTranslator) processPreTokenized(msg *message.Message, tokenList
 
 	// Send StructuredLog with all fields
 	tsMillis := ts.UnixNano() / nanoToMillis
-	mt.sendStructuredLog(outputChan, msg, tsMillis, patternID, dynamicValues, tagSet, service, statusDictID, messageKeyDV, jsonContextSchemaID, jsonContextValuesDV)
+	mt.sendStructuredLog(outputChan, msg, tsMillis, patternID, dynamicValues, tagSet, service, statusDictID, messageKeyDV, jsonContextSchemaID, jsonContextValuesDV, compactJSONContext)
 }
 
 // buildTagSet constructs the complete tag list for a message and encodes it as a TagSet.
@@ -881,8 +899,8 @@ func (mt *MessageTranslator) sendRawLog(outputChan chan *message.StatefulMessage
 }
 
 // sendStructuredLog creates and sends a StructuredLog datum
-func (mt *MessageTranslator) sendStructuredLog(outputChan chan *message.StatefulMessage, msg *message.Message, timestamp int64, patternID uint64, dynamicValues []*statefulpb.DynamicValue, tagSet *statefulpb.TagSet, service *statefulpb.DynamicValue, statusDictID uint64, messageKey *statefulpb.DynamicValue, jsonContextSchemaID uint64, jsonContextValues []*statefulpb.DynamicValue) {
-	logDatum := buildStructuredLog(timestamp, patternID, dynamicValues, tagSet, msg.MessageMetadata.DualSendUUID, service, statusDictID, messageKey, jsonContextSchemaID, jsonContextValues)
+func (mt *MessageTranslator) sendStructuredLog(outputChan chan *message.StatefulMessage, msg *message.Message, timestamp int64, patternID uint64, dynamicValues []*statefulpb.DynamicValue, tagSet *statefulpb.TagSet, service *statefulpb.DynamicValue, statusDictID uint64, messageKey *statefulpb.DynamicValue, jsonContextSchemaID uint64, jsonContextValues []*statefulpb.DynamicValue, compactJSONContext compactJSONContextValues) {
+	logDatum := buildStructuredLog(timestamp, patternID, dynamicValues, tagSet, msg.MessageMetadata.DualSendUUID, service, statusDictID, messageKey, jsonContextSchemaID, jsonContextValues, compactJSONContext)
 
 	tlmPipelinePatternLogsProcessed.Inc(mt.pipelineName)
 	tlmPipelinePatternLogsProcessedBytes.Add(float64(proto.Size(logDatum)), mt.pipelineName)
@@ -1123,6 +1141,103 @@ func (mt *MessageTranslator) fillDynamicValue(
 	}
 }
 
+func (mt *MessageTranslator) compactJSONContextValues(values []interface{}) (compactJSONContextValues, []dictEntryDefinition) {
+	compact := compactJSONContextValues{kinds: make([]byte, 0, len(values))}
+	dictDefs := make([]dictEntryDefinition, 0)
+	for _, value := range values {
+		dictID, dictValue, isNew := mt.appendCompactJSONContextValue(&compact, value)
+		if isNew {
+			dictDefs = append(dictDefs, dictEntryDefinition{id: dictID, value: dictValue})
+		}
+	}
+	return compact, dictDefs
+}
+
+func (mt *MessageTranslator) appendCompactJSONContextValue(compact *compactJSONContextValues, value interface{}) (dictID uint64, dictValue string, isNew bool) {
+	switch typed := value.(type) {
+	case nil:
+		compact.kinds = append(compact.kinds, jsonValueKindNull)
+		return 0, "", false
+	case string:
+		return mt.appendCompactJSONString(compact, typed)
+	case json.Number:
+		return appendCompactJSONNumber(compact, typed.String())
+	case float64:
+		if !math.IsInf(typed, 0) && !math.IsNaN(typed) && math.Trunc(typed) == typed && typed >= math.MinInt64 && typed <= math.MaxInt64 {
+			compact.kinds = append(compact.kinds, jsonValueKindInt)
+			compact.ints = append(compact.ints, int64(typed))
+			return 0, "", false
+		}
+		compact.kinds = append(compact.kinds, jsonValueKindFloat)
+		compact.floats = append(compact.floats, typed)
+		return 0, "", false
+	case bool:
+		if typed {
+			compact.kinds = append(compact.kinds, jsonValueKindBoolTrue)
+		} else {
+			compact.kinds = append(compact.kinds, jsonValueKindBoolFalse)
+		}
+		return 0, "", false
+	default:
+		rawJSON, err := json.Marshal(typed)
+		if err != nil {
+			log.Warnf("Failed to marshal nested JSON context value: %v", err)
+			compact.kinds = append(compact.kinds, jsonValueKindString)
+			compact.stringValues = append(compact.stringValues, "")
+			return 0, "", false
+		}
+		compact.kinds = append(compact.kinds, jsonValueKindRaw)
+		compact.rawValues = append(compact.rawValues, rawJSON)
+		return 0, "", false
+	}
+}
+
+func (mt *MessageTranslator) appendCompactJSONString(compact *compactJSONContextValues, value string) (dictID uint64, dictValue string, isNew bool) {
+	if intVal, ok := parseLosslessIntString(value); ok {
+		compact.kinds = append(compact.kinds, jsonValueKindIntAsString)
+		compact.ints = append(compact.ints, intVal)
+		return 0, "", false
+	}
+	if floatVal, ok := parseLosslessFloatString(value); ok {
+		compact.kinds = append(compact.kinds, jsonValueKindFloatAsString)
+		compact.floats = append(compact.floats, floatVal)
+		return 0, "", false
+	}
+	if boolVal, ok := parseLosslessBoolString(value); ok {
+		if boolVal {
+			compact.kinds = append(compact.kinds, jsonValueKindBoolTrueAsString)
+		} else {
+			compact.kinds = append(compact.kinds, jsonValueKindBoolFalseAsString)
+		}
+		return 0, "", false
+	}
+	value = toValidUTF8(value)
+	if dictID, isNew, shouldEncode := mt.tagManager.ObserveDynamicString(value); shouldEncode {
+		compact.kinds = append(compact.kinds, jsonValueKindDict)
+		compact.dicts = append(compact.dicts, dictID)
+		return dictID, value, isNew
+	}
+	compact.kinds = append(compact.kinds, jsonValueKindString)
+	compact.stringValues = append(compact.stringValues, value)
+	return 0, "", false
+}
+
+func appendCompactJSONNumber(compact *compactJSONContextValues, raw string) (dictID uint64, dictValue string, isNew bool) {
+	if intVal, ok := parseLosslessIntString(raw); ok {
+		compact.kinds = append(compact.kinds, jsonValueKindInt)
+		compact.ints = append(compact.ints, intVal)
+		return 0, "", false
+	}
+	if floatVal, ok := parseLosslessFloatString(raw); ok {
+		compact.kinds = append(compact.kinds, jsonValueKindFloat)
+		compact.floats = append(compact.floats, floatVal)
+		return 0, "", false
+	}
+	compact.kinds = append(compact.kinds, jsonValueKindRaw)
+	compact.rawValues = append(compact.rawValues, []byte(raw))
+	return 0, "", false
+}
+
 func (mt *MessageTranslator) fillWildcardDynamicValue(
 	dv *statefulpb.DynamicValue,
 	oneofInt *statefulpb.DynamicValue_IntValue,
@@ -1167,7 +1282,7 @@ func flatLogDynamicValueDictIndex(value *statefulpb.DynamicValue) uint64 {
 }
 
 // buildStructuredLog creates a Datum containing a FlatLog with pattern references.
-func buildStructuredLog(timestamp int64, patternID uint64, dynamicValues []*statefulpb.DynamicValue, tagSet *statefulpb.TagSet, uuid string, service *statefulpb.DynamicValue, statusDictID uint64, messageKey *statefulpb.DynamicValue, jsonContextSchemaID uint64, jsonContextValues []*statefulpb.DynamicValue) *statefulpb.Datum {
+func buildStructuredLog(timestamp int64, patternID uint64, dynamicValues []*statefulpb.DynamicValue, tagSet *statefulpb.TagSet, uuid string, service *statefulpb.DynamicValue, statusDictID uint64, messageKey *statefulpb.DynamicValue, jsonContextSchemaID uint64, jsonContextValues []*statefulpb.DynamicValue, compactJSONContext compactJSONContextValues) *statefulpb.Datum {
 	_ = messageKey
 	log := &statefulpb.FlatLog{
 		Timestamp: timestamp,
@@ -1175,10 +1290,16 @@ func buildStructuredLog(timestamp int64, patternID uint64, dynamicValues []*stat
 		Service:   flatLogDictIndex(flatLogDynamicValueDictIndex(service)),
 		Tags:      flatLogDictIndex(flatLogTagSetDictIndex(tagSet)),
 
-		PatternId:         patternID,
-		DynamicValues:     dynamicValues,
-		JsonSchemaId:      flatLogDictIndex(jsonContextSchemaID),
-		JsonContextValues: jsonContextValues,
+		PatternId:               patternID,
+		DynamicValues:           dynamicValues,
+		JsonSchemaId:            flatLogDictIndex(jsonContextSchemaID),
+		JsonContextValues:       jsonContextValues,
+		JsonContextValueKinds:   compactJSONContext.kinds,
+		JsonContextIntValues:    compactJSONContext.ints,
+		JsonContextFloatValues:  compactJSONContext.floats,
+		JsonContextDictValues:   compactJSONContext.dicts,
+		JsonContextRawValues:    compactJSONContext.rawValues,
+		JsonContextStringValues: compactJSONContext.stringValues,
 	}
 	if uuid != "" {
 		log.Uuid = &uuid

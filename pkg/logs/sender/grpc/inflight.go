@@ -630,6 +630,9 @@ func (t *inflightTracker) addMissingFlatLogReferences(missing stateReferences, k
 	}
 	t.addMissingJsonSchemaReference(missing, known, log.JsonSchemaId)
 	t.addMissingDynamicValueReferences(missing, known, log.JsonContextValues)
+	for _, dictID := range log.JsonContextDictValues {
+		t.addMissingDictEntryReference(missing, known, dictID)
+	}
 }
 
 func (t *inflightTracker) addMissingDeltaEncodingSyncReferences(missing stateReferences, known stateReferences, sync *statefulpb.DeltaEncodingSync) {
@@ -784,6 +787,9 @@ func addFlatLogReferences(refs stateReferences, log *statefulpb.FlatLog) {
 	}
 	addFlatLogJsonSchemaReference(refs, log.JsonSchemaId)
 	addDynamicValueReferences(refs, log.JsonContextValues)
+	for _, dictID := range log.JsonContextDictValues {
+		refs.addDictEntry(dictID)
+	}
 }
 
 func addDeltaEncodingSyncReferences(refs stateReferences, sync *statefulpb.DeltaEncodingSync) {
