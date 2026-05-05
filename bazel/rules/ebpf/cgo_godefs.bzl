@@ -1,8 +1,8 @@
 """Bazel rule for generating Go type definitions from C headers via cgo -godefs."""
 
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_file")
-load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load("@io_bazel_rules_go//go:def.bzl", "go_context")
+load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load("//bazel/rules/ebpf:cc_helpers.bzl", "collect_headers", "collect_include_dirs")
 
 def _relpath(target, base):
