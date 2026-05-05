@@ -7,7 +7,9 @@ require github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.62.
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
 replace (
-	github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def => ../../../comp/anomalydetection/observer/def
+	github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def => ../../../comp/anomalydetection/recorder/def
+	github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/fx => ../../../comp/anomalydetection/recorder/fx
+	github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/impl => ../../../comp/anomalydetection/recorder/impl
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../comp/api/api/def
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def => ../../../comp/core/agenttelemetry/def
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx => ../../../comp/core/agenttelemetry/fx

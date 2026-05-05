@@ -7,7 +7,10 @@ go_library(
     visibility = ["//visibility:private"],
     deps = [
         "//pkg/util/fxutil",
+        "@com_github_datadog_datadog_agent//comp/anomalydetection/observer/impl",
+        "@com_github_datadog_datadog_agent//comp/core",
         "@com_github_datadog_datadog_agent_comp_anomalydetection_recorder_def//:def",
+        "@com_github_datadog_datadog_agent_comp_anomalydetection_recorder_fx//:fx",
         "@com_github_datadog_datadog_agent_comp_core_config//:config",
         "@com_github_datadog_datadog_agent_comp_core_log_def//:def",
         "@org_uber_go_fx//:fx",
@@ -26,6 +29,8 @@ go_test(
     embed = [":anomalydetection-testbench_lib"],
     deps = [
         "//pkg/util/fxutil",
+        "@com_github_datadog_datadog_agent//comp/core",
+        "@com_github_datadog_datadog_agent_comp_anomalydetection_recorder_fx//:fx",
         "@com_github_datadog_datadog_agent_comp_core_config//:config",
         "@com_github_datadog_datadog_agent_comp_core_log_def//:def",
         "@com_github_stretchr_testify//require",

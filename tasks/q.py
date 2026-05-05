@@ -39,7 +39,7 @@ def build_testbench(ctx):
     """
     Builds the anomalydetection-testbench binary.
     """
-    ctx.run("go build -o bin/anomalydetection-testbench ./tools/qbranch/anomalydetection-testbench")
+    ctx.run("go build -o bin/anomalydetection-testbench ./internal/qbranch/anomalydetection-testbench")
 
 
 @task
@@ -47,7 +47,7 @@ def build_scorer(ctx):
     """
     Builds the anomalydetection-scorer binary.
     """
-    ctx.run("go build -o bin/anomalydetection-scorer ./tools/qbranch/anomalydetection-scorer")
+    ctx.run("go build -o bin/anomalydetection-scorer ./internal/qbranch/anomalydetection-scorer")
 
 
 # --- Eval ---
@@ -1669,7 +1669,7 @@ def launch_testbench(
             "To profile, run: go tool pprof -http=:8081 http://localhost:8080/debug/pprof/heap (8080 is the testbench API port)"
         )
         ctx.run(
-            f"bin/anomalydetection-testbench --scenarios-dir {scenarios_dir} {flags} & ( cd tools/qbranch/anomalydetection-testbench/ui && npm install && npm run dev ) &"
+            f"bin/anomalydetection-testbench --scenarios-dir {scenarios_dir} {flags} & ( cd internal/qbranch/anomalydetection-testbench/ui && npm install && npm run dev ) &"
         )
 
 

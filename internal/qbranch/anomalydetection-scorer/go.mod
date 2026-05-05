@@ -1,4 +1,4 @@
-module github.com/DataDog/datadog-agent/tools/qbranch/anomalydetection-scorer
+module github.com/DataDog/datadog-agent/internal/qbranch/anomalydetection-scorer
 
 go 1.25.7
 
@@ -196,6 +196,8 @@ replace (
 	github.com/DataDog/datadog-agent/test/otel => ../../../test/otel
 )
 
+require github.com/DataDog/datadog-agent v0.0.0-00010101000000-000000000000
+
 require (
 	cel.dev/expr v0.25.1 // indirect
 	cyphar.com/go-pathrs v0.2.1 // indirect
@@ -203,7 +205,6 @@ require (
 	github.com/AdamKorcz/go-118-fuzz-build v0.0.0-20231105174938-2b5cbb29f3e2 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
 	github.com/DataDog/agent-payload/v5 v5.0.184 // indirect
-	github.com/DataDog/datadog-agent v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.76.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/comp/core/config v0.77.0-devel.0.20260213154712-e02b9359151a // indirect

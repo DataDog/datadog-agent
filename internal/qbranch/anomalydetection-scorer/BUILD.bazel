@@ -5,6 +5,7 @@ go_library(
     srcs = ["main.go"],
     importpath = "github.com/DataDog/datadog-agent/internal/qbranch/anomalydetection-scorer",
     visibility = ["//visibility:private"],
+    deps = ["@com_github_datadog_datadog_agent//comp/anomalydetection/observer/impl"],
 )
 
 go_binary(

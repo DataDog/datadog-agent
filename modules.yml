@@ -12,8 +12,9 @@ modules:
     - ./pkg
     - ./cmd
     - ./comp
-  comp/anomalydetection/observer/def:
-    used_by_otel: true
+  comp/anomalydetection/recorder/def: default
+  comp/anomalydetection/recorder/fx: default
+  comp/anomalydetection/recorder/impl: default
   comp/api/api/def:
     used_by_otel: true
   comp/core/agenttelemetry/def:
@@ -144,6 +145,12 @@ modules:
     used_by_otel: true
   comp/trace/compression/impl-zstd:
     used_by_otel: true
+  internal/qbranch/anomalydetection-scorer:
+    independent: false
+    should_test_condition: never
+  internal/qbranch/anomalydetection-testbench:
+    independent: false
+    should_test_condition: never
   internal/tools:
     independent: false
     should_tag: false

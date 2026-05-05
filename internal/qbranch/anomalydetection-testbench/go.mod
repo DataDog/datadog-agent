@@ -1,4 +1,4 @@
-module github.com/DataDog/datadog-agent/tools/qbranch/anomalydetection-testbench
+module github.com/DataDog/datadog-agent/internal/qbranch/anomalydetection-testbench
 
 go 1.25.8
 
