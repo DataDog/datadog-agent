@@ -389,7 +389,16 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// - nodes
 	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.resources", []string{})
 	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.resource_annotations_exclude", []string{})
-	config.BindEnvAndSetDefault("cluster_agent.cluster_tagger.grpc_max_message_size", 4<<20) // 4 MB
+	// partially deprecated: `agent_ipc.grpc_max_message_size` should now be used for configuring the maximum gRPC
+	// message size on the agent IPC server
+	//
+	// this is still used directly for determining the chunking behavior of messages sent from the remote tagger and
+	// remote workloadmeta, to preserve existing behavior until we can better unify chunking behavior across all the
+	// gRPC services on the IPC endpoint.
+	//
+	// if this value is larger than `agent_ipc.grpc_max_message_size`, it will still be honoured by the agent gRPC
+	// server instead of `agent_ipc.grpc_max_message_size`.
+	config.BindEnvAndSetDefault("cluster_agent.cluster_tagger.grpc_max_message_size", 4<<20)
 
 	// Check that the trust chain is valid for Agent cross-node communications (NodeAgent->DCA / CLC->DCA / DCA->CLC).
 	config.BindEnvAndSetDefault("cluster_trust_chain.enable_tls_verification", false)
@@ -1152,6 +1161,8 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("agent_ipc.host", "localhost")
 	config.BindEnvAndSetDefault("agent_ipc.port", 0)
 	config.BindEnvAndSetDefault("agent_ipc.config_refresh_interval", 0)
+	config.BindEnvAndSetDefault("agent_ipc.grpc_max_message_size", 128<<20)
+	config.BindEnvAndSetDefault("agent_ipc.grpc_warning_message_size", 32<<20)
 	config.BindEnvAndSetDefault("default_integration_http_timeout", 9)
 	config.BindEnvAndSetDefault("integration_tracing", false)
 	config.BindEnvAndSetDefault("integration_tracing_exhaustive", false)
