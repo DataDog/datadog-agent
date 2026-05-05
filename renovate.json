@@ -1,12 +1,20 @@
 {
     "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-    "extends": ["config:recommended", ":enablePreCommit"],
+    "extends": ["config:recommended", ":enablePreCommit", "schedule:nonOfficeHours"],
+    "constraints": {
+      "go": "1.25.9"
+    },
+    "constraintsFiltering": "strict",
     "minimumReleaseAge": "7 days",
     "labels": ["dependencies", "changelog/no-changelog", "qa/no-code-change"],
     "stopUpdatingLabel": "stop-updating",
-    "gitIgnoredAuthors": ["41898282+github-actions[bot]@users.noreply.github.com"],
+    "gitIgnoredAuthors": ["200755185+dd-octo-sts[bot]@users.noreply.github.com"],
     "platformCommit": "enabled",
     "packageRules": [
+      {
+        "matchDepNames": ["*"],
+        "prPriority": -1
+      },
       {
         "matchDepNames": ["integrations-core"],
         "changelogUrl": "https://github.com/DataDog/integrations-core/compare/{{currentDigest}}..{{newDigest}}",
@@ -37,15 +45,14 @@
       },
       {
         "matchManagers": ["custom.regex"],
-        "minimumReleaseAge": null
-      },
-      {
-        "matchDepNames": ["protocolbuffers/protobuf"],
-        "minimumReleaseAge": "7 days"
+        "minimumReleaseAge": null,
+        "prPriority": 10
       },
       {
         "matchManagers": ["github-actions"],
         "labels": ["dependencies", "dependencies-github-actions", "changelog/no-changelog", "qa/no-code-change"],
+        "groupName": "github-actions",
+        "schedule": ["before 9am on monday"]
       },
       {
         "matchManagers": ["docker-compose"],
@@ -58,7 +65,7 @@
       },
       {
         "matchManagers": ["cargo"],
-        "matchDepNames": ["prost", "prost-types", "prost-build", "tonic", "tonic-build", "tonic-reflection", "protoc-gen-prost", "protoc-gen-tonic"],
+        "matchDepNames": ["prost", "prost-types", "prost-build", "tonic", "tonic-build", "tonic-prost", "tonic-prost-build", "tonic-reflection", "protoc-gen-prost", "protoc-gen-tonic"],
         "groupName": "prost/tonic protobuf stack"
       },
       {
@@ -67,7 +74,51 @@
       },
       {
         "matchManagers": ["gomod"],
+        "labels": ["dependencies", "dependencies-go", "changelog/no-changelog", "qa/no-code-change"]
+      },
+      {
+        "matchManagers": ["gomod"],
+        "matchDepNames": [
+          "github.com/DataDog/datadog-agent/**",
+          "golang.org/x/**",
+          "go.opentelemetry.io/**",
+          "github.com/open-telemetry/opentelemetry-collector-contrib/**",
+          "github.com/prometheus/prometheus",
+          "github.com/spf13/cast",
+          "github.com/mailru/easyjson"
+        ],
         "enabled": false
+      },
+      {
+        "matchManagers": ["gomod"],
+        "matchDepTypes": ["replace"],
+        "enabled": false
+      },
+      {
+        "matchManagers": ["gomod"],
+        "matchUpdateTypes": ["digest"],
+        "enabled": false
+      },
+      {
+        "matchManagers": ["gomod"],
+        "matchDepNames": ["github.com/twmb/franz-go{,/**}"],
+        "groupName": "franz-go"
+      },
+      {
+        "matchManagers": ["gomod"],
+        "matchDepNames": ["github.com/uptrace/bun{,/**}"],
+        "groupName": "bun"
+      },
+      {
+        "matchManagers": ["gomod"],
+        "matchDepNames": ["github.com/aws/aws-sdk-go-v2{,/**}"],
+        "groupName": "aws-sdk-go-v2"
+      },
+      {
+        "matchManagers": ["gomod"],
+        "matchDepNames": ["k8s.io/**"],
+        "matchUpdateTypes": ["patch"],
+        "groupName": "k8s-io"
       },
       {
         "matchManagers": ["pyenv"],
@@ -95,8 +146,22 @@
       },
       {
         "matchManagers": ["bazel-module"],
+        "labels": ["dependencies", "dependencies-bazel", "changelog/no-changelog", "qa/no-code-change"]
+      },
+      {
+        "matchManagers": ["bazel-module"],
         "matchDepTypes": ["git_override"],
         "enabled": false
+      },
+      {
+        "matchManagers": ["bundler"],
+        "matchDepNames": ["omnibus"],
+        "enabled": false
+      },
+      {
+        "matchManagers": ["bundler"],
+        "matchDatasources": ["git-refs"],
+        "registryUrls": []
       }
     ],
     "customManagers" : [
@@ -112,6 +177,16 @@
       },
       {
         "customType": "regex",
+        "managerFilePatterns": [".devcontainer/datadog/default/prebuild-devcontainer.json"],
+        "matchStrings": [
+          "\"image\":\\s*\"registry.ddbuild.io/ci/datadog-agent-buildimages/dev-env-workspace:(?<currentValue>v[^\"]+)\""
+        ],
+        "depNameTemplate": "linux-images",
+        "versioningTemplate": "loose",
+        "datasourceTemplate": "custom.linux-images"
+      },
+      {
+        "customType": "regex",
         "managerFilePatterns": [".gitlab-ci.yml"],
         "matchStrings": [
           "  CI_IMAGE_WIN_[^:]*: (?<currentValue>v.*)"
@@ -120,15 +195,6 @@
         "versioningTemplate": "regex:^(ltsc2022-)?v(?<major>\\d+)-.*$",
         "datasourceTemplate": "custom.windows-images",
         "extractVersionTemplate": "^(ltsc2022-)?(?<version>.*)$"
-      },
-      {
-        "customType": "regex",
-        "managerFilePatterns": [".protoc-version"],
-        "matchStrings": [
-          "(?<currentValue>[0-9]+.[0-9]+)"
-        ],
-        "depNameTemplate": "protocolbuffers/protobuf",
-        "datasourceTemplate": "github-releases"
       },
       {
         "customType": "regex",

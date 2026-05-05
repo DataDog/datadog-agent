@@ -24,5 +24,6 @@ go_test(
         "filters_test.go",
     ],
     embed = [":types"],
+    gotags = ["test"],
     deps = ["@com_github_stretchr_testify//assert"],
 )

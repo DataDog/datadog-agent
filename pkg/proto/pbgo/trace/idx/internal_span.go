@@ -137,6 +137,8 @@ type InternalTracerPayload struct {
 	Attributes map[uint32]*AnyValue
 	// chunks specifies list of containing trace chunks.
 	Chunks []*InternalTraceChunk
+	// ContainerDebug holds debug information about the container tags resolution.
+	ContainerDebug *ContainerDebug
 }
 
 // Msgsize returns the size of the message when serialized to messagepack.
@@ -492,6 +494,7 @@ func (tp *InternalTracerPayload) ToProto() *TracerPayload {
 		AppVersionRef:      tp.appVersionRef,
 		Attributes:         tp.Attributes,
 		Chunks:             chunks,
+		ContainerDebug:     tp.ContainerDebug,
 	}
 }
 

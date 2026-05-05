@@ -9,5 +9,6 @@ cgo_godefs(
     name = "types_godefs",
     src = "types.go",
     platform = "windows",
+    visibility = ["//visibility:public"],
     deps = ["//pkg/windowsdriver/include:procmonapi"],
 )

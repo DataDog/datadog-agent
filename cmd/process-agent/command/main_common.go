@@ -49,16 +49,16 @@ import (
 	"github.com/DataDog/datadog-agent/comp/networkpath"
 	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	"github.com/DataDog/datadog-agent/comp/process"
-	"github.com/DataDog/datadog-agent/comp/process/agent"
+	agent "github.com/DataDog/datadog-agent/comp/process/agent/def"
 	"github.com/DataDog/datadog-agent/comp/process/apiserver"
-	"github.com/DataDog/datadog-agent/comp/process/expvars"
-	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
+	expvars "github.com/DataDog/datadog-agent/comp/process/expvars/def"
+	"github.com/DataDog/datadog-agent/comp/process/hostinfo/def"
 	profiler "github.com/DataDog/datadog-agent/comp/process/profiler/def"
-	"github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
+	processstatusfx "github.com/DataDog/datadog-agent/comp/process/status/fx"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
 	remoteconfig "github.com/DataDog/datadog-agent/comp/remote-config"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
@@ -151,7 +151,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		remoteconfig.Bundle(),
 
 		// Provide status modules
-		statusimpl.Module(),
+		processstatusfx.Module(),
 		coreStatusImpl.Module(),
 
 		// Provide statsd client module

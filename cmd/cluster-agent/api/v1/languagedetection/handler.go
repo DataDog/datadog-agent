@@ -9,6 +9,7 @@ package languagedetection
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,14 +17,15 @@ import (
 	"sync"
 	"time"
 
-	"google.golang.org/protobuf/proto"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
+	"google.golang.org/protobuf/proto"
 )
 
 var (
@@ -76,7 +78,11 @@ func (handler *languageDetectionHandler) startCleanupInBackground(ctx context.Co
 			case <-cleanupTicker.C:
 				// Only clean expired languages if we're the leader
 				if handler.isLeader() {
+					span, _ := tracer.StartSpanFromContext(ctx, "cluster_agent.language_detection.cleanup",
+						tracer.ResourceName("cleanup"),
+					)
 					handler.ownersLanguages.cleanExpiredLanguages(handler.wlm)
+					span.Finish()
 				}
 			case <-ctx.Done():
 				return
@@ -93,7 +99,11 @@ func (handler *languageDetectionHandler) startCleanupInBackground(ctx context.Co
 			select {
 			case <-flushTicker.C:
 				if !handler.isLeader() {
-					_ = handler.ownersLanguages.flush(handler.wlm)
+					span, _ := tracer.StartSpanFromContext(ctx, "cluster_agent.language_detection.flush",
+						tracer.ResourceName("flush"),
+					)
+					err := handler.ownersLanguages.flush(handler.wlm)
+					span.Finish(tracer.WithError(err))
 				}
 			case <-ctx.Done():
 				return
@@ -112,8 +122,17 @@ func (handler *languageDetectionHandler) startCleanupInBackground(ctx context.Co
 
 // preHandler is called by both leader and followers and returns true if the request should be forwarded or handled by the leader
 func (handler *languageDetectionHandler) preHandler(w http.ResponseWriter, r *http.Request) bool {
+	var spanErr error
+	span, _ := tracer.StartSpanFromContext(r.Context(), "cluster_agent.language_detection.pre_handler",
+		tracer.ResourceName("preHandler"),
+		tracer.Tag("feature_enabled", handler.cfg.enabled),
+	)
+	defer func() { span.Finish(tracer.WithError(spanErr)) }()
+
 	if !handler.cfg.enabled {
 		ProcessedRequests.Inc(statusError)
+		spanErr = errors.New("language detection feature is disabled")
+		api.SetSpanError(w, spanErr)
 		http.Error(w, "Language detection feature is disabled on the cluster agent", http.StatusServiceUnavailable)
 		return false
 	}
@@ -121,6 +140,8 @@ func (handler *languageDetectionHandler) preHandler(w http.ResponseWriter, r *ht
 	// Reject if no body
 	if r.Body == nil {
 		ProcessedRequests.Inc(statusError)
+		spanErr = errors.New("request body is empty")
+		api.SetSpanError(w, spanErr)
 		http.Error(w, "Request body is empty", http.StatusBadRequest)
 		return false
 	}
@@ -130,8 +151,16 @@ func (handler *languageDetectionHandler) preHandler(w http.ResponseWriter, r *ht
 
 // leaderHandler is called only by the leader and used to patch the annotations
 func (handler *languageDetectionHandler) leaderHandler(w http.ResponseWriter, r *http.Request) {
+	var spanErr error
+	span, _ := tracer.StartSpanFromContext(r.Context(), "cluster_agent.language_detection.leader_handler",
+		tracer.ResourceName("leaderHandler"),
+	)
+	defer func() { span.Finish(tracer.WithError(spanErr)) }()
+
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
+		spanErr = fmt.Errorf("failed to read request body: %w", err)
+		api.SetSpanError(w, spanErr)
 		http.Error(w, "Failed to read request body", http.StatusBadRequest)
 		ProcessedRequests.Inc(statusError)
 		return
@@ -143,12 +172,15 @@ func (handler *languageDetectionHandler) leaderHandler(w http.ResponseWriter, r 
 	// Unmarshal the request body into the protobuf message
 	err = proto.Unmarshal(body, requestData)
 	if err != nil {
+		spanErr = fmt.Errorf("failed to unmarshal request body: %w", err)
+		api.SetSpanError(w, spanErr)
 		http.Error(w, "Failed to unmarshal request body", http.StatusBadRequest)
 		ProcessedRequests.Inc(statusError)
 		return
 	}
 
 	ownersLanguagesFromRequest := getOwnersLanguages(requestData, time.Now().Add(handler.cfg.languageTTL))
+	span.SetTag("owner_count", len(ownersLanguagesFromRequest.containersLanguages))
 
 	if log.ShouldLog(log.TraceLvl) { // Avoid call to String() if not needed
 		log.Tracef("Owner Languages state pre merge-and-flush: %s", handler.ownersLanguages.String())
@@ -160,6 +192,8 @@ func (handler *languageDetectionHandler) leaderHandler(w http.ResponseWriter, r 
 		log.Tracef("Owner Languages state post merge-and-flush: %s", handler.ownersLanguages.String())
 	}
 	if err != nil {
+		spanErr = fmt.Errorf("failed to store languages in workloadmeta: %w", err)
+		api.SetSpanError(w, spanErr)
 		http.Error(w, fmt.Sprintf("failed to store some (or all) languages in workloadmeta store: %s", err), http.StatusInternalServerError)
 		ProcessedRequests.Inc(statusError)
 		return
@@ -269,6 +303,12 @@ func (handler *languageDetectionHandler) handleLeadershipState(ctx context.Conte
 
 	if isLeader {
 		// Became leader
+		span, _ := tracer.StartSpanFromContext(ctx, "cluster_agent.language_detection.leadership_change",
+			tracer.ResourceName("leadershipChange"),
+			tracer.Tag("became", "leader"),
+		)
+		span.Finish()
+
 		log.Info("Gained leadership")
 		// Since we were a follower, our DetectedLangs are already in sync with InjectableLangs
 		// No need to initialize - we already have the correct state
@@ -280,6 +320,12 @@ func (handler *languageDetectionHandler) handleLeadershipState(ctx context.Conte
 		}
 	} else {
 		// Lost leadership
+		span, _ := tracer.StartSpanFromContext(ctx, "cluster_agent.language_detection.leadership_change",
+			tracer.ResourceName("leadershipChange"),
+			tracer.Tag("became", "follower"),
+		)
+		span.Finish()
+
 		log.Info("Lost leadership, starting to sync DetectedLangs with InjectableLangs")
 		// As a follower, we need to keep DetectedLangs in sync with InjectableLangs
 

@@ -1,5 +1,6 @@
 exporters:
     otlphttp:
+        compression: zstd
         endpoint: http://localhost:4318
         headers:
             dd-api-key: test-key
@@ -13,6 +14,7 @@ extensions:
 processors:
     batch:
         timeout: 10s
+    ddhostname/default: {}
     resource/dd-profiler-internal-metadata:
         attributes:
             - action: upsert
@@ -49,6 +51,7 @@ service:
             processors:
                 - batch
                 - resourcedetection/default
+                - ddhostname/default
                 - resource/dd-profiler-internal-metadata
             receivers:
                 - profiling

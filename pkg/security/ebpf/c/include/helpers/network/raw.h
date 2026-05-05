@@ -22,4 +22,18 @@ __attribute__((always_inline)) int is_raw_packet_allowed(struct packet_t *pkt) {
     return 1;
 }
 
+// Double-buffered raw packet classifier: userspace loads into the inactive router, then flips raw_packet_router_sel.
+__attribute__((always_inline)) static void tail_call_raw_packet_router(struct __sk_buff *skb, u32 index) {
+    u32 k = 0;
+    u32 *sel = bpf_map_lookup_elem(&raw_packet_router_sel, &k);
+    if (!sel) {
+        return;
+    }
+    if (*sel == 0) {
+        bpf_tail_call_compat(skb, &raw_packet_classifier_router_0, index);
+    } else {
+        bpf_tail_call_compat(skb, &raw_packet_classifier_router_1, index);
+    }
+}
+
 #endif

@@ -1,5 +1,6 @@
 exporters:
     otlphttp:
+        compression: zstd
         headers:
             dd-api-key: test-key
             dd-evp-origin: host-profiler
@@ -7,6 +8,7 @@ exporters:
 processors:
     batch:
         timeout: 10s
+    ddhostname/default: {}
     resource/dd-profiler-internal-metadata:
         attributes:
             - action: upsert
@@ -43,6 +45,7 @@ service:
             processors:
                 - batch
                 - resourcedetection/default
+                - ddhostname/default
                 - resource/dd-profiler-internal-metadata
             receivers:
                 - profiling

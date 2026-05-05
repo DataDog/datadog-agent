@@ -419,6 +419,7 @@ func buildHTTPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfig
 		e.BackoffFactor = main.BackoffFactor
 		e.RecoveryInterval = main.RecoveryInterval
 		e.RecoveryReset = main.RecoveryReset
+		e.ConnectionResetInterval = main.ConnectionResetInterval
 		e.Version = main.Version
 		e.TrackType = intakeTrackType
 		e.Protocol = intakeProtocol
@@ -441,7 +442,7 @@ type defaultParseAddressFunc func(string) (host string, port int, err error)
 
 func parseAddressWithScheme(address string, defaultNoSSL bool, defaultParser defaultParseAddressFunc) (host string, port int, pathPrefix string, useSSL bool, err error) {
 	if strings.HasPrefix(address, "https://") || strings.HasPrefix(address, "http://") {
-		if strings.HasPrefix(address, "https://") && !defaultNoSSL {
+		if strings.HasPrefix(address, "https://") && defaultNoSSL {
 			log.Warn("dd_url set to a URL with an HTTPS prefix and logs_no_ssl set to true. These are conflicting options. In a future release logs_no_ssl will override the dd_url prefix.")
 		}
 		host, port, pathPrefix, useSSL, err = parseURL(address)

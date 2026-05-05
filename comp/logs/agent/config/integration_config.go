@@ -6,12 +6,16 @@
 package config
 
 import (
+	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/netip"
 	"strings"
 	"sync"
 
+	tlsutil "github.com/DataDog/datadog-agent/comp/logs-library/utils/tls"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -44,9 +48,15 @@ type LogsConfig struct {
 
 	IntegrationName string
 
-	Port        int    // Network
-	IdleTimeout string `mapstructure:"idle_timeout" json:"idle_timeout" yaml:"idle_timeout"` // Network
-	Path        string // File, Journald
+	Port           int    `mapstructure:"port" json:"port" yaml:"port"`                                  // Network (tcp, udp)
+	BindHost       string `mapstructure:"bind_host" json:"bind_host" yaml:"bind_host"`                   // Network (tcp, udp)
+	IdleTimeout    string `mapstructure:"idle_timeout" json:"idle_timeout" yaml:"idle_timeout"`          // Network (tcp)
+	MaxConnections int    `mapstructure:"max_connections" json:"max_connections" yaml:"max_connections"` // Network (tcp)
+	// TLS is under active security review and is not ready for general use.
+	TLS        *TLSListenerConfig `mapstructure:"tls" json:"tls,omitempty" yaml:"tls,omitempty"`
+	AllowedIPs StringSliceField   `mapstructure:"allowed_ips" json:"allowed_ips,omitempty" yaml:"allowed_ips,omitempty"` // Network (tcp, udp)
+	DeniedIPs  StringSliceField   `mapstructure:"denied_ips" json:"denied_ips,omitempty" yaml:"denied_ips,omitempty"`    // Network (tcp, udp)
+	Path       string             // File, Journald
 
 	Encoding     string           `mapstructure:"encoding" json:"encoding" yaml:"encoding"`                   // File
 	ExcludePaths StringSliceField `mapstructure:"exclude_paths" json:"exclude_paths" yaml:"exclude_paths"`    // File
@@ -93,12 +103,22 @@ type LogsConfig struct {
 	// ProcessRawMessage is used to process the raw message instead of only the content part of the message.
 	ProcessRawMessage *bool `mapstructure:"process_raw_message" json:"process_raw_message" yaml:"process_raw_message"`
 
+	// SIEMParsing enables CEF/LEEF header detection and extraction within syslog
+	// message bodies. When true (the default once syslog ingestion is wired up),
+	// syslog messages whose body starts with "CEF:" or "LEEF:" are parsed into
+	// structured SIEM fields. Set to false to skip this detection and treat the
+	// message body as plain text. See IsSIEMParsingEnabled() for nil handling.
+	SIEMParsing *bool `mapstructure:"siem_parsing" json:"siem_parsing" yaml:"siem_parsing"`
+
 	AutoMultiLine               *bool   `mapstructure:"auto_multi_line_detection" json:"auto_multi_line_detection" yaml:"auto_multi_line_detection"`
 	AutoMultiLineSampleSize     int     `mapstructure:"auto_multi_line_sample_size" json:"auto_multi_line_sample_size" yaml:"auto_multi_line_sample_size"`
 	AutoMultiLineMatchThreshold float64 `mapstructure:"auto_multi_line_match_threshold" json:"auto_multi_line_match_threshold" yaml:"auto_multi_line_match_threshold"`
 	// AutoMultiLineOptions provides detailed configuration for auto multi-line detection specific to this source.
 	// It maps to the 'auto_multi_line' key in the YAML configuration.
 	AutoMultiLineOptions *SourceAutoMultiLineOptions `mapstructure:"auto_multi_line" json:"auto_multi_line" yaml:"auto_multi_line"`
+	// ExperimentalAdaptiveSampling provides per-source overrides for the experimental adaptive sampler.
+	// It maps to the 'experimental_adaptive_sampling' key in the YAML configuration.
+	ExperimentalAdaptiveSampling *SourceAdaptiveSamplingOptions `mapstructure:"experimental_adaptive_sampling" json:"experimental_adaptive_sampling" yaml:"experimental_adaptive_sampling"`
 	// CustomSamples holds the raw string content of the 'auto_multi_line_detection_custom_samples' YAML block.
 	// Downstream code will be responsible for parsing this string.
 	AutoMultiLineSamples []*AutoMultilineSample   `mapstructure:"auto_multi_line_detection_custom_samples" json:"auto_multi_line_detection_custom_samples" yaml:"auto_multi_line_detection_custom_samples"`
@@ -139,6 +159,30 @@ type SourceAutoMultiLineOptions struct {
 	TagAggregatedJSON *bool `mapstructure:"tag_aggregated_json" json:"tag_aggregated_json" yaml:"tag_aggregated_json"`
 }
 
+// SourceAdaptiveSamplingOptions defines per-source overrides for the experimental adaptive sampler.
+type SourceAdaptiveSamplingOptions struct {
+	// Enabled overrides the global adaptive sampling toggle for this source when set.
+	Enabled *bool `mapstructure:"enabled" json:"enabled" yaml:"enabled"`
+
+	// MaxPatterns overrides the maximum number of patterns tracked for this source when set.
+	MaxPatterns *int `mapstructure:"max_patterns" json:"max_patterns" yaml:"max_patterns"`
+
+	// RateLimit overrides the steady-state logs per second allowed per pattern for this source when set.
+	RateLimit *float64 `mapstructure:"rate_limit" json:"rate_limit" yaml:"rate_limit"`
+
+	// BurstSize overrides the maximum accumulated credits per pattern for this source when set.
+	BurstSize *float64 `mapstructure:"burst_size" json:"burst_size" yaml:"burst_size"`
+
+	// MatchThreshold overrides the token match threshold for this source when set.
+	MatchThreshold *float64 `mapstructure:"match_threshold" json:"match_threshold" yaml:"match_threshold"`
+
+	// TokenizerMaxInputBytes overrides the sampler tokenizer minimum input bytes for this source when set.
+	TokenizerMaxInputBytes *int `mapstructure:"tokenizer_max_input_bytes" json:"tokenizer_max_input_bytes" yaml:"tokenizer_max_input_bytes"`
+
+	// ProtectImportantLogs overrides whether important logs bypass adaptive sampling for this source when set.
+	ProtectImportantLogs *bool `mapstructure:"protect_important_logs" json:"protect_important_logs" yaml:"protect_important_logs"`
+}
+
 // AutoMultilineSample defines a sample used to create auto multiline detection
 // rules
 type AutoMultilineSample struct {
@@ -153,6 +197,67 @@ type AutoMultilineSample struct {
 	// Label is the label to apply to the log message if it matches the sample.
 	// Optional - Default value is "start_group".
 	Label *string `mapstructure:"label,omitempty" json:"label,omitempty"`
+}
+
+// TLSListenerConfig holds user-facing TLS settings for a TCP log listener,
+// deserialized directly from YAML/JSON. String fields are validated and
+// converted to typed values when building the TLS configuration.
+type TLSListenerConfig struct {
+	CertFile      string `mapstructure:"cert_file" json:"cert_file" yaml:"cert_file"`
+	KeyFile       string `mapstructure:"key_file" json:"key_file" yaml:"key_file"`
+	CAFile        string `mapstructure:"ca_file" json:"ca_file" yaml:"ca_file"`
+	ClientAuth    string `mapstructure:"client_auth" json:"client_auth" yaml:"client_auth"`
+	MinTLSVersion string `mapstructure:"min_tls_version" json:"min_tls_version" yaml:"min_tls_version"`
+}
+
+// BuildTLSConfig validates user-facing strings, converts them to typed values,
+// and delegates to tlsutil.ServerConfig to build the *tls.Config.
+func (t *TLSListenerConfig) BuildTLSConfig(ctx context.Context) (*tls.Config, error) {
+	minVer, err := parseTLSVersion(t.MinTLSVersion)
+	if err != nil {
+		return nil, err
+	}
+	clientAuth, err := parseClientAuth(t.ClientAuth)
+	if err != nil {
+		return nil, err
+	}
+	cfg := &tlsutil.ServerConfig{
+		CertFile:   t.CertFile,
+		KeyFile:    t.KeyFile,
+		CAFile:     t.CAFile,
+		ClientAuth: clientAuth,
+		MinVersion: minVer,
+	}
+	return cfg.BuildTLSConfig(ctx)
+}
+
+var validTLSVersions = map[string]uint16{
+	"":        tls.VersionTLS12,
+	"tlsv1.2": tls.VersionTLS12,
+	"tlsv1.3": tls.VersionTLS13,
+}
+
+func parseTLSVersion(v string) (uint16, error) {
+	ver, ok := validTLSVersions[strings.ToLower(v)]
+	if !ok {
+		return 0, fmt.Errorf("unrecognized min_tls_version %q; valid values: tlsv1.2, tlsv1.3", v)
+	}
+	return ver, nil
+}
+
+var validClientAuthModes = map[string]tls.ClientAuthType{
+	"":         tls.NoClientCert,
+	"none":     tls.NoClientCert,
+	"optional": tls.VerifyClientCertIfGiven,
+	"required": tls.RequireAndVerifyClientCert,
+}
+
+func parseClientAuth(s string) (tls.ClientAuthType, error) {
+	auth, ok := validClientAuthModes[strings.ToLower(s)]
+	if !ok {
+		return 0, fmt.Errorf("unrecognized client_auth %q; valid values: none, optional, required", s)
+	}
+	return auth, nil
 }
 
 // StringSliceField is a custom type for unmarshalling comma-separated string values or typical yaml fields into a slice of strings.
@@ -202,6 +307,10 @@ func (c *LogsConfig) Dump(multiline bool) string {
 	case TCPType:
 		fmt.Fprintf(&b, ws("Port: %d,"), c.Port)
 		fmt.Fprintf(&b, ws("IdleTimeout: %#v,"), c.IdleTimeout)
+		if c.TLS != nil {
+			fmt.Fprintf(&b, ws("TLS: {CertFile: %#v, KeyFile: %#v, CAFile: %#v, ClientAuth: %#v, MinTLSVersion: %#v},"),
+				c.TLS.CertFile, c.TLS.KeyFile, c.TLS.CAFile, c.TLS.ClientAuth, c.TLS.MinTLSVersion)
+		}
 	case UDPType:
 		fmt.Fprintf(&b, ws("Port: %d,"), c.Port)
 		fmt.Fprintf(&b, ws("IdleTimeout: %#v,"), c.IdleTimeout)
@@ -232,6 +341,12 @@ func (c *LogsConfig) Dump(multiline bool) string {
 		c.ChannelTagsMutex.Lock()
 		fmt.Fprintf(&b, ws("ChannelTags: %#v,"), c.ChannelTags)
 		c.ChannelTagsMutex.Unlock()
+	}
+	if len(c.AllowedIPs) > 0 {
+		fmt.Fprintf(&b, ws("AllowedIPs: %#v,"), []string(c.AllowedIPs))
+	}
+	if len(c.DeniedIPs) > 0 {
+		fmt.Fprintf(&b, ws("DeniedIPs: %#v,"), []string(c.DeniedIPs))
 	}
 	fmt.Fprintf(&b, ws("Service: %#v,"), c.Service)
 	fmt.Fprintf(&b, ws("Source: %#v,"), c.Source)
@@ -359,6 +474,14 @@ func (c *LogsConfig) Validate() error {
 		return errors.New("udp source must have a port")
 	}
 
+	if err := c.validateTLS(); err != nil {
+		return err
+	}
+
+	if err := c.validateIPFilter(); err != nil {
+		return err
+	}
+
 	// Validate fingerprint configuration
 	err := ValidateFingerprintConfig(c.FingerprintConfig)
 	if err != nil {
@@ -385,6 +508,61 @@ func (c *LogsConfig) validateTailingMode() error {
 		log.Warnf("Using wildcard path %v with start_position: %v without fingerprinting may cause duplicate log reads during rotation.", c.Path, c.TailingMode)
 	}
 	return nil
+}
+
+func (c *LogsConfig) validateTLS() error {
+	if c.TLS == nil {
+		return nil
+	}
+	if c.Type != TCPType {
+		return fmt.Errorf("tls configuration is only supported for %s sources, got %s", TCPType, c.Type)
+	}
+	if c.TLS.CertFile == "" || c.TLS.KeyFile == "" {
+		return errors.New("tls requires both cert_file and key_file")
+	}
+	if _, err := parseTLSVersion(c.TLS.MinTLSVersion); err != nil {
+		return err
+	}
+	auth, err := parseClientAuth(c.TLS.ClientAuth)
+	if err != nil {
+		return err
+	}
+	if tlsutil.ClientAuthRequiresVerification(auth) && c.TLS.CAFile == "" {
+		return fmt.Errorf("tls client_auth %q requires ca_file to be set", c.TLS.ClientAuth)
+	}
+	tlsutil.WarnKeyFilePermissions(c.TLS.KeyFile)
+	return nil
+}
+
+func (c *LogsConfig) validateIPFilter() error {
+	if len(c.AllowedIPs) == 0 && len(c.DeniedIPs) == 0 {
+		return nil
+	}
+	if c.Type != TCPType && c.Type != UDPType {
+		return fmt.Errorf("allowed_ips/denied_ips are only supported for %s and %s sources, got %s", TCPType, UDPType, c.Type)
+	}
+	for _, entry := range c.AllowedIPs {
+		if err := validateIPOrCIDR(entry); err != nil {
+			return fmt.Errorf("invalid allowed_ips entry %q: %w", entry, err)
+		}
+	}
+	for _, entry := range c.DeniedIPs {
+		if err := validateIPOrCIDR(entry); err != nil {
+			return fmt.Errorf("invalid denied_ips entry %q: %w", entry, err)
+		}
+	}
+	return nil
+}
+
+func validateIPOrCIDR(s string) error {
+	s = strings.TrimSpace(s)
+	if _, err := netip.ParsePrefix(s); err == nil {
+		return nil
+	}
+	if _, err := netip.ParseAddr(s); err == nil {
+		return nil
+	}
+	return errors.New("not a valid IP address or CIDR")
 }
 
 // LegacyAutoMultiLineEnabled determines whether the agent has fallen back to legacy auto multi line detection
@@ -452,6 +630,15 @@ func (c *LogsConfig) ShouldProcessRawMessage() bool {
 		return *c.ProcessRawMessage
 	}
 	return true // default behaviour when nothing's been configured
+}
+
+// IsSIEMParsingEnabled returns whether CEF/LEEF header detection is enabled
+// for this source. When SIEMParsing is nil (unconfigured), it defaults to true.
+func (c *LogsConfig) IsSIEMParsingEnabled() bool {
+	if c.SIEMParsing != nil {
+		return *c.SIEMParsing
+	}
+	return true
 }
 
 // ContainsWildcard returns true if the path contains any wildcard character

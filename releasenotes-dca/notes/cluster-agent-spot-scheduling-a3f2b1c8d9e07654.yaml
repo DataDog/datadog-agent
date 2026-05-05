@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    Add spot scheduling. When enabled, the Cluster Agent assigns eligible workload pods to
+    spot nodes and maintains configured percentage of spot replicas and minimum on-demand replica count.
+    It automatically falls back to on-demand scheduling when spot pods remain pending longer than configured timeout.

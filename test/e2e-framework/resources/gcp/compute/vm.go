@@ -6,14 +6,15 @@
 package compute
 
 import (
+	"github.com/pulumi/pulumi-gcp/sdk/v7/go/gcp/compute"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/gcp"
-	"github.com/pulumi/pulumi-gcp/sdk/v7/go/gcp/compute"
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-func NewLinuxInstance(e gcp.Environment, name string, imageName string, startupScript string, instanceType string, nestedVirt bool, opts ...pulumi.ResourceOption) (*compute.Instance, error) {
+func NewLinuxInstance(e gcp.Environment, name string, imageName string, startupScript string, instanceType string, nestedVirt bool, labels map[string]string, opts ...pulumi.ResourceOption) (*compute.Instance, error) {
 
 	sshPublicKey, err := utils.GetSSHPublicKey(e.DefaultPublicKeyPath())
 	if err != nil {
@@ -42,6 +43,7 @@ func NewLinuxInstance(e gcp.Environment, name string, imageName string, startupS
 		},
 		Name:        e.Namer.DisplayName(63, pulumi.String(name)),
 		MachineType: pulumi.String(instanceType),
+		Labels:      pulumi.ToStringMap(labels),
 		AdvancedMachineFeatures: &compute.InstanceAdvancedMachineFeaturesArgs{
 			EnableNestedVirtualization: pulumi.BoolPtr(nestedVirt),
 		},

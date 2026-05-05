@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func adjustSecurity(cfg model.Config) {
@@ -37,6 +38,10 @@ func adjustSecurity(cfg model.Config) {
 		// if runtime is disabled then we force disable activity dumps and security profiles
 		cfg.Set(secNS("activity_dump.enabled"), false, model.SourceAgentRuntime)
 		cfg.Set(secNS("security_profile.enabled"), false, model.SourceAgentRuntime)
+	}
+
+	if pkgconfigsetup.Datadog().GetBool("sbom.enrichment.usage.enabled") {
+		cfg.Set(secNS("event_sampling.open.enabled"), true, model.SourceAgentRuntime)
 	}
 
 	// further adjustments done in RuntimeSecurityConfig.sanitize

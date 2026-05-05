@@ -15,5 +15,6 @@ go_test(
     name = "msgpgo_test",
     srcs = ["key_gen_test.go"],
     embed = [":msgpgo"],
+    gotags = ["test"],
     deps = ["@com_github_tinylib_msgp//msgp"],
 )

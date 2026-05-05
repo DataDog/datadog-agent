@@ -14,15 +14,16 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
-	dockerEvents = telemetry.NewCounterWithOpts(
+	dockerEvents = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
 		CheckName,
 		"events",
 		[]string{"action"},
@@ -30,7 +31,7 @@ var (
 		telemetry.Options{NoDoubleUnderscoreSep: true},
 	)
 
-	emittedEvents = telemetry.NewCounterWithOpts(
+	emittedEvents = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
 		CheckName,
 		"emitted_events",
 		[]string{"type"},

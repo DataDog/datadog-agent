@@ -8,7 +8,7 @@ package observerimpl
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 	"github.com/stretchr/testify/require"
 )

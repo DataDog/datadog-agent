@@ -44,6 +44,9 @@ type SafeDevice interface {
 	GetFanSpeed_v2(fanIndex int) (uint32, error)
 	// GetFieldValues returns the values for the specified fields
 	GetFieldValues(values []nvml.FieldValue) error
+	// ReadWritePRM_v1 performs a raw PRM read or write with TLV data.
+	//nolint:revive // Maintaining consistency with go-nvml API naming
+	ReadWritePRM_v1(buffer *nvml.PRMTLV_v1) error
 	// GetGpuInstanceId returns the GPU instance ID for MIG devices
 	//nolint:revive // Maintaining consistency with go-nvml API naming
 	GetGpuInstanceId() (int, error)
@@ -85,6 +88,8 @@ type SafeDevice interface {
 	GetProcessUtilization(lastSeenTimestamp uint64) ([]nvml.ProcessUtilizationSample, error)
 	// GetRemappedRows returns the remapped rows information
 	GetRemappedRows() (int, int, bool, bool, error)
+	// GetRepairStatus returns the ECC repair status flags for the device.
+	GetRepairStatus() (nvml.RepairStatus, error)
 	// GetSamples returns samples for the specified counter type
 	GetSamples(samplingType nvml.SamplingType, lastSeenTimestamp uint64) (nvml.ValueType, []nvml.Sample, error)
 	// GetTemperature returns the current temperature
@@ -111,6 +116,8 @@ type SafeDevice interface {
 	RegisterEvents(evtTypes uint64, evtSet nvml.EventSet) error
 	// GetMemoryErrorCounter retrieves the requested memory error counter for the device.
 	GetMemoryErrorCounter(errorType nvml.MemoryErrorType, eccCounterType nvml.EccCounterType, memoryLocation nvml.MemoryLocation) (uint64, error)
+	// GetSramEccErrorStatus retrieves the detailed SRAM ECC error status for the device.
+	GetSramEccErrorStatus() (nvml.EccSramErrorStatus, error)
 }
 
 // DeviceEventData holds basic information about a device event

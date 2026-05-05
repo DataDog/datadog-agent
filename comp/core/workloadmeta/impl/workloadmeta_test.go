@@ -12,6 +12,7 @@ import (
 
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func TestInitExpectedSources(t *testing.T) {
@@ -75,7 +76,7 @@ func TestInitExpectedSources(t *testing.T) {
 				env.SetFeatures(t, test.features...)
 			}
 
-			result := initExpectedSources(test.agentType)
+			result := initExpectedSources(test.agentType, configmock.New(t))
 
 			assert.Equal(t, len(test.expected), len(result))
 			for kind, expectedSources := range test.expected {

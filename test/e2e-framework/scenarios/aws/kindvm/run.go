@@ -8,6 +8,7 @@ package kindvm
 import (
 	_ "embed"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent/helm"
@@ -45,6 +46,13 @@ import (
 //go:embed agent_helm_values.yaml
 var agentHelmValues string
 
+// StandaloneAgentDeployFunc is a callback invoked by RunWithEnv to deploy a
+// standalone agent (e.g. otel-agent in DD_OTEL_STANDALONE mode) after the
+// cluster and fakeintake have been provisioned. Using a callback keeps the
+// otelstandalone package out of the kindvm import graph, avoiding OOM-kills
+// in the e2e-framework unit-test CI job when compiling large cloud SDKs.
+type StandaloneAgentDeployFunc func(e config.Env, kubeProvider *kubernetes.Provider, fakeIntake *fakeintakeComp.Fakeintake) (*agent.KubernetesAgent, error)
+
 // Run is the entry point for the scenario when run via pulumi.
 // It uses outputs.Kubernetes which is lightweight and doesn't pull in test dependencies.
 func Run(ctx *pulumi.Context) error {
@@ -66,8 +74,6 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 	var err error
 	var fakeIntake *fakeintakeComp.Fakeintake
 	if params.fakeintakeOptions != nil {
-		fakeintakeOpts := []fakeintake.Option{fakeintake.WithLoadBalancer()}
-		params.fakeintakeOptions = append(fakeintakeOpts, params.fakeintakeOptions...)
 		fakeIntake, err = fakeintake.NewECSFargateInstance(awsEnv, params.Name, params.fakeintakeOptions...)
 		if err != nil {
 			return err
@@ -104,7 +110,9 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 	if len(params.ciliumOptions) > 0 {
 		kindCluster, err = cilium.NewKindCluster(&awsEnv, host, params.Name, awsEnv.KubernetesVersion(), params.ciliumOptions, utils.PulumiDependsOn(installEcrCredsHelperCmd))
 	} else {
-		kindCluster, err = kubeComp.NewKindCluster(&awsEnv, host, params.Name, awsEnv.KubernetesVersion(), utils.PulumiDependsOn(installEcrCredsHelperCmd))
+		kindCluster, err = kubeComp.NewKindClusterWithConfig(&awsEnv, host, params.Name, awsEnv.KubernetesVersion(),
+			kubeComp.KindConfigFlags{WorkerNodes: params.workerNodes},
+			utils.PulumiDependsOn(installEcrCredsHelperCmd))
 	}
 
 	if err != nil {
@@ -211,6 +219,16 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 		}
 	}
 
+	if params.standaloneAgentFunc != nil {
+		standaloneAgent, err := params.standaloneAgentFunc(&awsEnv, kubeProvider, fakeIntake)
+		if err != nil {
+			return err
+		}
+		if err := standaloneAgent.Export(ctx, env.KubernetesAgentOutput()); err != nil {
+			return err
+		}
+	}
+
 	// Deploy testing workload
 	if params.deployTestWorkload {
 		// dogstatsd clients that report to the Agent
@@ -295,7 +313,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 
 	}
 
-	if len(params.agentOptions) == 0 && len(params.operatorDDAOptions) == 0 {
+	if len(params.agentOptions) == 0 && len(params.operatorDDAOptions) == 0 && params.standaloneAgentFunc == nil {
 		env.DisableAgent()
 	}
 

@@ -50,6 +50,8 @@ func (noopSender) ServiceCheck(_ string, _ servicecheck.ServiceCheckStatus, _ st
 }
 func (noopSender) HistogramBucket(_ string, _ int64, _, _ float64, _ bool, _ string, _ []string, _ bool) {
 }
+func (noopSender) OpenmetricsBucket(_ string, _ int64, _, _ float64, _ bool, _ string, _ []string, _ bool) {
+}
 func (noopSender) GaugeWithTimestamp(_ string, _ float64, _ string, _ []string, _ float64) error {
 	return nil
 }

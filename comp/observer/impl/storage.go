@@ -539,17 +539,6 @@ func tagsSorted(tags []string) bool {
 	return true
 }
 
-func joinTags(tags []string) string {
-	switch len(tags) {
-	case 0:
-		return ""
-	case 1:
-		return tags[0]
-	default:
-		return strings.Join(tags, ",")
-	}
-}
-
 // resolveByID returns the seriesStats for a numeric series ID.
 // Returns nil for out-of-range IDs. Caller must hold s.mu (read or write).
 func (s *timeSeriesStorage) resolveByID(ref observer.SeriesRef) *seriesStats {
