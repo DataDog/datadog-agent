@@ -203,16 +203,7 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
     if not is_a_release_branch(ctx, branch):
         # Reuse cached PR lookup from earlier
         if pr:
-            # Pass True for final_state if there are no blocking failures
-            display_pr_comment(
-                ctx,
-                not evaluation.has_blocking_failures,
-                evaluation.verdicts,
-                metric_handler,
-                ancestor,
-                pr,
-                evaluation.exception_granted_by,
-            )
+            display_pr_comment(ctx, evaluation, metric_handler, ancestor, pr)
 
         # Nightly pipelines have different package size and gates thresholds are unreliable for nightly pipelines
         # Only fail for blocking failures (non-blocking failures have delta=0 and don't block the PR)

@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 
 from tasks.github_tasks import pr_commenter
-from tasks.static_quality_gates.decisions import PER_PR_THRESHOLD, GateFailureKind, GateVerdict
+from tasks.static_quality_gates.decisions import PER_PR_THRESHOLD, GateEvaluationResult, GateFailureKind
 from tasks.static_quality_gates.gates import GateMetricHandler, byte_to_string
 
 FAIL_CHAR = "❌"
@@ -131,21 +131,17 @@ def get_change_metrics(
 
 def display_pr_comment(
     ctx,
-    final_state: bool,
-    gate_verdicts: list[GateVerdict],
+    evaluation: GateEvaluationResult,
     metric_handler: GateMetricHandler,
     ancestor: str,
     pr,
-    exception_granted_by: str | None = None,
 ):
     """
     Display a comment on a PR with results from our static quality gates checks
     :param ctx: Invoke task context
-    :param final_state: Boolean that represents the overall state of quality gates checks
-    :param gate_verdicts: Verdict of each quality gate
+    :param evaluation: Result of gate evaluation (verdicts, blocking failures, exception info)
     :param metric_handler: Precise metrics of each quality gate
     :param ancestor: Ancestor used for relative size comparaison
-    :param exception_granted_by: Login of the reviewer who granted a per-PR threshold exception, or None
     :return:
     """
     title = "Static quality checks"
@@ -174,7 +170,7 @@ def display_pr_comment(
     has_na_change = False
 
     # Sort gates by error_types to group failures first
-    for gate in sorted(gate_verdicts, key=lambda x: x.failure is None):
+    for gate in sorted(evaluation.verdicts, key=lambda x: x.failure is None):
         gate_name = gate.name.replace("static_quality_gate_", "")
         gate_metrics = metric_handler.metrics.get(gate.name, {})
 
@@ -225,7 +221,7 @@ def display_pr_comment(
 
             error_message = gate.message.replace('\n', '<br>')
             if not gate.blocking and gate.failure == GateFailureKind.PerPRThresholdExceeded:
-                blocking_note = f" (non-blocking: exception granted by @{exception_granted_by})"
+                blocking_note = f" (non-blocking: exception granted by @{evaluation.exception_granted_by})"
             elif not gate.blocking:
                 blocking_note = " (non-blocking: size unchanged from ancestor)"
             else:
@@ -253,13 +249,13 @@ def display_pr_comment(
         final_error_body = ""
 
     exception_banner = ""
-    if exception_granted_by:
+    if evaluation.exception_granted_by:
         per_pr_excepted = [
-            gs for gs in gate_verdicts if gs.failure == GateFailureKind.PerPRThresholdExceeded and not gs.blocking
+            gs for gs in evaluation.verdicts if gs.failure == GateFailureKind.PerPRThresholdExceeded and not gs.blocking
         ]
         if per_pr_excepted:
             threshold_str = byte_to_string(PER_PR_THRESHOLD)
-            exception_banner = f"{WARNING_CHAR} **Exception granted by @{exception_granted_by}**: this PR exceeds the per-PR size threshold ({threshold_str}) but will not be blocked.\n"
+            exception_banner = f"{WARNING_CHAR} **Exception granted by @{evaluation.exception_granted_by}**: this PR exceeds the per-PR size threshold ({threshold_str}) but will not be blocked.\n"
 
     # Build successful checks section
     success_section = ""
@@ -284,6 +280,6 @@ def display_pr_comment(
     if has_na_change and job_url:
         retry_hint = f"SOME SIZE DELTAS ARE N/A (ANCESTOR METRICS NOT YET AVAILABLE). [RETRY JOB]({job_url})\n"
 
-    body = f"{SUCCESS_CHAR if final_state else FAIL_CHAR} Please find below the results from static quality gates\n{ancestor_info}{dashboard_link}{job_link}{retry_hint}{exception_banner}{final_error_body}\n\n{success_section}\n{wire_section}"
+    body = f"{FAIL_CHAR if evaluation.has_blocking_failures else SUCCESS_CHAR} Please find below the results from static quality gates\n{ancestor_info}{dashboard_link}{job_link}{retry_hint}{exception_banner}{final_error_body}\n\n{success_section}\n{wire_section}"
 
     pr_commenter(ctx, title=title, body=body, pr=pr)

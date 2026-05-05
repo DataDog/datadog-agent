@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
-from tasks.static_quality_gates.decisions import GateFailureKind, GateVerdict
+from tasks.static_quality_gates.decisions import GateEvaluationResult, GateFailureKind, GateVerdict
 from tasks.static_quality_gates.gates import GateMetricHandler
 from tasks.static_quality_gates.pr_comment import (
     display_pr_comment,
@@ -221,11 +221,9 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         mock_pr.number = 12345
         display_pr_comment(
             c,
-            True,
-            [
-                GateVerdict(name='gateA', failure=None),
-                GateVerdict(name='gateB', failure=None),
-            ],
+            GateEvaluationResult(
+                verdicts=[GateVerdict(name='gateA', failure=None), GateVerdict(name='gateB', failure=None)]
+            ),
             gate_metric_handler,
             "value",
             mock_pr,
@@ -281,11 +279,9 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         mock_pr.number = 12345
         display_pr_comment(
             c,
-            True,
-            [
-                GateVerdict(name='gateA', failure=None),
-                GateVerdict(name='gateB', failure=None),
-            ],
+            GateEvaluationResult(
+                verdicts=[GateVerdict(name='gateA', failure=None), GateVerdict(name='gateB', failure=None)]
+            ),
             gate_metric_handler,
             "value",
             mock_pr,
@@ -338,11 +334,9 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         mock_pr.number = 12345
         display_pr_comment(
             c,
-            True,
-            [
-                GateVerdict(name='gateA', failure=None),
-                GateVerdict(name='gateB', failure=None),
-            ],
+            GateEvaluationResult(
+                verdicts=[GateVerdict(name='gateA', failure=None), GateVerdict(name='gateB', failure=None)]
+            ),
             gate_metric_handler,
             "value",
             mock_pr,
@@ -373,15 +367,17 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         mock_pr.number = 12345
         display_pr_comment(
             c,
-            False,
-            [
-                GateVerdict(
-                    name='gateA', failure=GateFailureKind.AbsoluteLimitExceeded, blocking=True, message='some_msg_A'
-                ),
-                GateVerdict(
-                    name='gateB', failure=GateFailureKind.AbsoluteLimitExceeded, blocking=True, message='some_msg_B'
-                ),
-            ],
+            GateEvaluationResult(
+                verdicts=[
+                    GateVerdict(
+                        name='gateA', failure=GateFailureKind.AbsoluteLimitExceeded, blocking=True, message='some_msg_A'
+                    ),
+                    GateVerdict(
+                        name='gateB', failure=GateFailureKind.AbsoluteLimitExceeded, blocking=True, message='some_msg_B'
+                    ),
+                ],
+                has_blocking_failures=True,
+            ),
             gate_metric_handler,
             "value",
             mock_pr,
@@ -428,13 +424,15 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         mock_pr.number = 12345
         display_pr_comment(
             c,
-            False,
-            [
-                GateVerdict(
-                    name='gateA', failure=GateFailureKind.AbsoluteLimitExceeded, blocking=True, message='some_msg_A'
-                ),
-                GateVerdict(name='gateB', failure=None),
-            ],
+            GateEvaluationResult(
+                verdicts=[
+                    GateVerdict(
+                        name='gateA', failure=GateFailureKind.AbsoluteLimitExceeded, blocking=True, message='some_msg_A'
+                    ),
+                    GateVerdict(name='gateB', failure=None),
+                ],
+                has_blocking_failures=True,
+            ),
             gate_metric_handler,
             "value",
             mock_pr,
@@ -470,12 +468,14 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         mock_pr.number = 12345
         display_pr_comment(
             c,
-            False,
-            [
-                GateVerdict(
-                    name='gateA', failure=GateFailureKind.AbsoluteLimitExceeded, blocking=True, message='some_msg_A'
-                ),
-            ],
+            GateEvaluationResult(
+                verdicts=[
+                    GateVerdict(
+                        name='gateA', failure=GateFailureKind.AbsoluteLimitExceeded, blocking=True, message='some_msg_A'
+                    )
+                ],
+                has_blocking_failures=True,
+            ),
             gate_metric_handler,
             "value",
             mock_pr,
@@ -512,10 +512,9 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         mock_pr.number = 12345
         display_pr_comment(
             c,
-            True,
-            [
-                GateVerdict(name='gateA', failure=None),
-            ],
+            GateEvaluationResult(
+                verdicts=[GateVerdict(name='gateA', failure=None)],
+            ),
             gate_metric_handler,
             "value",
             mock_pr,
@@ -554,12 +553,14 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         mock_pr.number = 12345
         display_pr_comment(
             c,
-            False,
-            [
-                GateVerdict(
-                    name='gateA', failure=GateFailureKind.AbsoluteLimitExceeded, blocking=True, message='some_msg_A'
-                ),
-            ],
+            GateEvaluationResult(
+                verdicts=[
+                    GateVerdict(
+                        name='gateA', failure=GateFailureKind.AbsoluteLimitExceeded, blocking=True, message='some_msg_A'
+                    ),
+                ],
+                has_blocking_failures=True,
+            ),
             gate_metric_handler,
             "value",
             mock_pr,
@@ -604,12 +605,16 @@ class TestNonBlockingPrComment(unittest.TestCase):
         mock_pr.number = 12345
         display_pr_comment(
             c,
-            True,  # final_state is success (no blocking failures)
-            [
-                GateVerdict(
-                    name='gateA', failure=GateFailureKind.AbsoluteLimitExceeded, blocking=False, message='size exceeded'
-                ),
-            ],
+            GateEvaluationResult(
+                verdicts=[
+                    GateVerdict(
+                        name='gateA',
+                        failure=GateFailureKind.AbsoluteLimitExceeded,
+                        blocking=False,
+                        message='size exceeded',
+                    ),
+                ],
+            ),
             gate_metric_handler,
             "ancestor123",
             mock_pr,
@@ -642,12 +647,17 @@ class TestNonBlockingPrComment(unittest.TestCase):
         mock_pr.number = 12345
         display_pr_comment(
             c,
-            False,  # final_state is failure (has blocking failures)
-            [
-                GateVerdict(
-                    name='gateA', failure=GateFailureKind.AbsoluteLimitExceeded, blocking=True, message='size exceeded'
-                ),
-            ],
+            GateEvaluationResult(
+                verdicts=[
+                    GateVerdict(
+                        name='gateA',
+                        failure=GateFailureKind.AbsoluteLimitExceeded,
+                        blocking=True,
+                        message='size exceeded',
+                    ),
+                ],
+                has_blocking_failures=True,
+            ),
             gate_metric_handler,
             "ancestor123",
             mock_pr,
@@ -678,15 +688,23 @@ class TestNonBlockingPrComment(unittest.TestCase):
         mock_pr.number = 12345
         display_pr_comment(
             c,
-            False,  # final_state is failure (has blocking failures)
-            [
-                GateVerdict(
-                    name='gateA', failure=GateFailureKind.AbsoluteLimitExceeded, blocking=True, message='size exceeded'
-                ),
-                GateVerdict(
-                    name='gateB', failure=GateFailureKind.AbsoluteLimitExceeded, blocking=False, message='size exceeded'
-                ),
-            ],
+            GateEvaluationResult(
+                verdicts=[
+                    GateVerdict(
+                        name='gateA',
+                        failure=GateFailureKind.AbsoluteLimitExceeded,
+                        blocking=True,
+                        message='size exceeded',
+                    ),
+                    GateVerdict(
+                        name='gateB',
+                        failure=GateFailureKind.AbsoluteLimitExceeded,
+                        blocking=False,
+                        message='size exceeded',
+                    ),
+                ],
+                has_blocking_failures=True,
+            ),
             gate_metric_handler,
             "ancestor123",
             mock_pr,
