@@ -273,6 +273,31 @@ func PidTTY(pid uint32) string {
 	return ""
 }
 
+// PidSID returns the session ID of the given pid from /proc/[pid]/stat
+func PidSID(pid uint32) uint32 {
+	statPath := procPidPath(pid, "stat")
+	content, err := os.ReadFile(statPath)
+	if err != nil {
+		return 0
+	}
+	// The comm field (field 2) can contain spaces and parens, so find the last ')' first
+	s := string(content)
+	idx := strings.LastIndex(s, ")")
+	if idx < 0 || idx+2 >= len(s) {
+		return 0
+	}
+	// Fields after comm: state(3), ppid(4), pgrp(5), session(6)
+	fields := strings.Fields(s[idx+2:])
+	if len(fields) < 4 {
+		return 0
+	}
+	sid, err := strconv.ParseUint(fields[3], 10, 32)
+	if err != nil {
+		return 0
+	}
+	return uint32(sid)
+}
+
 func zeroSplitter(data []byte, atEOF bool) (advance int, token []byte, err error) {
 	for i := 0; i < len(data); i++ {
 		if data[i] == '\x00' {

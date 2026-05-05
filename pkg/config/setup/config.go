@@ -14,6 +14,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -682,6 +683,7 @@ func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component,
 
 	sanitizeAPIKeyConfig(config, "api_key")
 	sanitizeAPIKeyConfig(config, "logs_config.api_key")
+	sanitizeDataPlaneConfig(config, runtime.GOOS, os.Getenv)
 	setNumWorkers(config)
 
 	flareStrippedKeys := config.GetStringSlice("flare_stripped_keys")
@@ -1185,6 +1187,31 @@ func sanitizeAPIKeyConfig(config pkgconfigmodel.Config, key string) {
 	config.Set(key, trimmed, pkgconfigmodel.SourceAgentRuntime)
 }
 
+// sanitizeDataPlaneConfig gates data_plane.enabled to Linux only.
+// The Agent Data Plane (ADP) is a Linux-only component. On non-Linux platforms
+// this function always installs a SourceAgentRuntime override of false, which
+// beats file and fleet-policy sources and prevents them from re-enabling ADP
+// after this call returns. A warning is emitted only when the value was
+// explicitly set to true at call time.
+//
+// The goos parameter is the target OS string (normally runtime.GOOS). It is
+// exposed as a parameter so that tests can exercise both branches without
+// needing to cross-compile.
+//
+// The envLookup parameter is normally os.Getenv. It is exposed as a parameter
+// so tests can inject a stub without touching global state.
+// When DD_DATA_PLANE_FORCE_ENABLE=true the OS gate is skipped entirely; this
+// is intended for local development on macOS/Windows only.
+func sanitizeDataPlaneConfig(config pkgconfigmodel.Config, goos string, envLookup func(string) string) {
+	if goos == "linux" || envLookup("DD_DATA_PLANE_FORCE_ENABLE") == "true" {
+		return
+	}
+	if config.GetBool(DataPlaneEnabled) {
+		log.Warnf("%s is not supported on %s and will be ignored", DataPlaneEnabled, goos)
+	}
+	config.Set(DataPlaneEnabled, false, pkgconfigmodel.SourceAgentRuntime)
+}
+
 // sanitizeExternalMetricsProviderChunkSize ensures the value of `external_metrics_provider.chunk_size` is within an acceptable range
 func sanitizeExternalMetricsProviderChunkSize(config pkgconfigmodel.Config) {
 	if !config.IsKnown("external_metrics_provider.chunk_size") {
@@ -1443,6 +1470,8 @@ func applyInfrastructureModeOverrides(config pkgconfigmodel.Config) {
 	} else if infraMode == "none" {
 		// Disable integrations (no host metrics collection)
 		config.Set("integration.enabled", false, pkgconfigmodel.SourceInfraMode)
+		// Avoid detailed ECS task metadata collection when not collecting infrastructure.
+		config.Set("ecs_task_collection_enabled", false, pkgconfigmodel.SourceInfraMode)
 	}
 }
 

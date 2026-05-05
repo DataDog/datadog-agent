@@ -151,10 +151,19 @@ func workloadmetaEventFromSBOMEventSet(store workloadmeta.Component, event *sbom
 		}
 	}
 
-	// Compress the final merged SBOM for storage
-	finalCompressedSBOM, err = sbomutil.CompressSBOM(&workloadmeta.SBOM{
+	// Compress the final merged SBOM, preserving scan metadata from the existing
+	// SBOM so Status/GenerationTime/etc. survive the runtime-enrichment update.
+	sbomToCompress := &workloadmeta.SBOM{
 		CycloneDXBOM: finalBom,
-	})
+	}
+	if existingImage != nil && existingImage.SBOM != nil {
+		sbomToCompress.Status = existingImage.SBOM.Status
+		sbomToCompress.GenerationTime = existingImage.SBOM.GenerationTime
+		sbomToCompress.GenerationDuration = existingImage.SBOM.GenerationDuration
+		sbomToCompress.GenerationMethod = existingImage.SBOM.GenerationMethod
+		sbomToCompress.Error = existingImage.SBOM.Error
+	}
+	finalCompressedSBOM, err = sbomutil.CompressSBOM(sbomToCompress)
 	if err != nil {
 		return workloadmeta.Event{}, fmt.Errorf("failed to compress SBOM for image %s: %w", imageID, err)
 	}
@@ -320,6 +329,7 @@ func NewCollector(ipc ipc.Component) (workloadmeta.CollectorProvider, error) {
 			CollectorID: collectorID,
 			// TODO(components): make sure StreamHandler uses the config component not pkg/config
 			StreamHandler: &streamHandler{agentConfig: pkgconfigsetup.Datadog(), systemProbeConfig: pkgconfigsetup.SystemProbe()},
+			Config:        pkgconfigsetup.Datadog(), //nolint:depguard
 			Catalog:       workloadmeta.NodeAgent,
 			IPC:           ipc,
 		},
@@ -414,6 +424,12 @@ func handleEvents(store workloadmeta.Component, collectorEvents []workloadmeta.C
 		collectorEvents = append(collectorEvents, collectorEvent)
 	}
 	return collectorEvents
+}
+
+// IsResyncComplete always returns true because the SBOM collector does not
+// use chunked snapshots.
+func (s *streamHandler) IsResyncComplete(_ interface{}) bool {
+	return true
 }
 
 func (s *streamHandler) HandleResync(_ workloadmeta.Component, _ []workloadmeta.CollectorEvent) {

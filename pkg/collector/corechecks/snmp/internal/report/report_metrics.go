@@ -6,6 +6,7 @@
 package report
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -128,6 +129,7 @@ func (ms *MetricSender) reportScalarMetrics(metric profiledefinition.MetricsConf
 func (ms *MetricSender) reportColumnMetrics(metricConfig profiledefinition.MetricsConfig, values *valuestore.ResultValueStore, tags []string, deviceID string) map[string]map[string]MetricSample {
 	rowTagsCache := make(map[string][]string)
 	skippedInterfaceIndexes := make(map[string]bool)
+	var missingOIDs []*valuestore.OIDNotFoundError
 
 	samples := map[string]map[string]MetricSample{}
 
@@ -140,7 +142,12 @@ func (ms *MetricSender) reportColumnMetrics(metricConfig profiledefinition.Metri
 			var err error
 			metricValues, err = getColumnValueFromSymbol(values, symbol)
 			if err != nil {
-				log.Debugf("report column: error getting column value: %v", err)
+				var oidErr *valuestore.OIDNotFoundError
+				if errors.As(err, &oidErr) {
+					missingOIDs = append(missingOIDs, oidErr)
+				} else {
+					log.Debugf("report column: error getting column value: %v", err)
+				}
 				continue
 			}
 		}
@@ -185,6 +192,9 @@ func (ms *MetricSender) reportColumnMetrics(metricConfig profiledefinition.Metri
 			samples[sample.symbol.Name][fullIndex] = sample
 			ms.sendInterfaceVolumeMetrics(symbol, fullIndex, values, rowTags)
 		}
+	}
+	if len(missingOIDs) > 0 {
+		log.Debugf("report column: missing OIDs: %v", valuestore.ListOIDs(missingOIDs))
 	}
 	return samples
 }

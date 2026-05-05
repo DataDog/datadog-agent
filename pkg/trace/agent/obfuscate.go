@@ -148,10 +148,9 @@ func (a *Agent) obfuscateSpanInternal(span *idx.InternalSpan) {
 	case "elasticsearch", "opensearch":
 		if a.conf.Obfuscation.ES.Enabled {
 			v, ok := span.GetAttributeAsString(tagElasticBody)
-			if !ok || v == "" {
-				return
+			if ok && v != "" {
+				span.SetStringAttribute(tagElasticBody, o.ObfuscateElasticSearchString(v))
 			}
-			span.SetStringAttribute(tagElasticBody, o.ObfuscateElasticSearchString(v))
 		}
 		if a.conf.Obfuscation.OpenSearch.Enabled {
 			v, ok := span.GetAttributeAsString(tagOpenSearchBody)

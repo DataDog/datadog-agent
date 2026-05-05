@@ -28,7 +28,7 @@
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 49
+            "lineNumber": 53
           },
           {
             "function": "runtime.main",
@@ -56,10 +56,6 @@
                 "needle": {
                   "type": "go.shape.string",
                   "value": "b"
-                },
-                "@return": {
-                  "type": "bool",
-                  "notCapturedReason": "unavailable"
                 }
               }
             }
@@ -101,7 +97,7 @@
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 49
+            "lineNumber": 53
           },
           {
             "function": "runtime.main",
@@ -147,10 +143,6 @@
                 "needle": {
                   "type": "int",
                   "value": "2"
-                },
-                "@return": {
-                  "type": "bool",
-                  "notCapturedReason": "unavailable"
                 }
               }
             }
@@ -192,7 +184,7 @@
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 49
+            "lineNumber": 53
           },
           {
             "function": "runtime.main",
@@ -238,10 +230,6 @@
                 "needle": {
                   "type": "main.namedInt",
                   "value": "2"
-                },
-                "@return": {
-                  "type": "bool",
-                  "notCapturedReason": "unavailable"
                 }
               }
             }
@@ -283,7 +271,7 @@
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 49
+            "lineNumber": 53
           },
           {
             "function": "runtime.main",
@@ -329,10 +317,6 @@
                 "needle": {
                   "type": "main.score",
                   "value": "20"
-                },
-                "@return": {
-                  "type": "bool",
-                  "notCapturedReason": "unavailable"
                 }
               }
             }
@@ -374,7 +358,7 @@
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 49
+            "lineNumber": 53
           },
           {
             "function": "runtime.main",
@@ -416,10 +400,6 @@
                 "needle": {
                   "type": "main.celsius",
                   "value": "100"
-                },
-                "@return": {
-                  "type": "bool",
-                  "notCapturedReason": "unavailable"
                 }
               }
             }

@@ -8,21 +8,21 @@ package hostimpl
 import (
 	"bytes"
 	"context"
+	"maps"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
-	"golang.org/x/exp/maps"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/metadata/resources"
-	"github.com/DataDog/datadog-agent/comp/metadata/resources/resourcesimpl"
+	resourcesmock "github.com/DataDog/datadog-agent/comp/metadata/resources/mock"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -33,8 +33,8 @@ func TestNewHostProviderDefaultIntervals(t *testing.T) {
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMock(t) }),
-			resourcesimpl.MockModule(),
-			fx.Replace(resources.MockParams{Data: nil}),
+			resourcesmock.MockModule(),
+			fx.Replace(resourcesmock.MockParams{Data: nil}),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
 			hostnameimpl.MockModule(),
 		),
@@ -120,8 +120,8 @@ func TestNewHostProviderIntervalValidation(t *testing.T) {
 					t,
 					fx.Provide(func() log.Component { return logmock.New(t) }),
 					fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
-					resourcesimpl.MockModule(),
-					fx.Replace(resources.MockParams{Data: nil}),
+					resourcesmock.MockModule(),
+					fx.Replace(resourcesmock.MockParams{Data: nil}),
 					fx.Provide(func() serializer.MetricSerializer { return nil }),
 					hostnameimpl.MockModule(),
 				),
@@ -147,8 +147,8 @@ func TestBackoffWhenEarlyIntervalEqualsCollectionInterval(t *testing.T) {
 	ret := newHostProvider(fxutil.Test[dependencies](t,
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
-		resourcesimpl.MockModule(),
-		fx.Replace(resources.MockParams{Data: nil}),
+		resourcesmock.MockModule(),
+		fx.Replace(resourcesmock.MockParams{Data: nil}),
 		fx.Provide(func() serializer.MetricSerializer { return nil }),
 		hostnameimpl.MockModule(),
 	))
@@ -166,8 +166,8 @@ func TestFlareProvider(t *testing.T) {
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMock(t) }),
-			resourcesimpl.MockModule(),
-			fx.Replace(resources.MockParams{Data: nil}),
+			resourcesmock.MockModule(),
+			fx.Replace(resourcesmock.MockParams{Data: nil}),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
 			hostnameimpl.MockModule(),
 		),
@@ -186,8 +186,8 @@ func TestStatusHeaderProvider(t *testing.T) {
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMock(t) }),
-			resourcesimpl.MockModule(),
-			fx.Replace(resources.MockParams{Data: nil}),
+			resourcesmock.MockModule(),
+			fx.Replace(resourcesmock.MockParams{Data: nil}),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
 			hostnameimpl.MockModule(),
 		),
@@ -203,7 +203,7 @@ func TestStatusHeaderProvider(t *testing.T) {
 			stats := make(map[string]interface{})
 			headerStatusProvider.JSON(false, stats)
 
-			keys := maps.Keys(stats)
+			keys := slices.Collect(maps.Keys(stats))
 
 			assert.Contains(t, keys, "hostnameStats")
 			assert.Contains(t, keys, "hostTags")

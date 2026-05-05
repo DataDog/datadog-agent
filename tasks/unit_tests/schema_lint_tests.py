@@ -217,5 +217,127 @@ class TestCheckPlatformDefaultKeys(unittest.TestCase):
         self.assertFalse(any("valid_all_platforms" in e for e in errors))
 
 
+class TestCheckSectionsHaveChildren(unittest.TestCase):
+    def test_valid_schema_produces_no_errors(self):
+        errors = errors_for(lint.check_sections_have_children, "valid.yaml")
+        self.assertEqual(errors, [])
+
+    def test_section_with_empty_properties_is_error(self):
+        errors = errors_for(lint.check_sections_have_children, "empty_section.yaml")
+        self.assertTrue(
+            any("empty_props_section" in e for e in errors),
+            f"Expected error for empty_props_section, got: {errors}",
+        )
+
+    def test_section_with_no_properties_key_is_error(self):
+        errors = errors_for(lint.check_sections_have_children, "empty_section.yaml")
+        self.assertTrue(
+            any("no_props_section" in e for e in errors),
+            f"Expected error for no_props_section, got: {errors}",
+        )
+
+    def test_section_with_children_passes(self):
+        errors = errors_for(lint.check_sections_have_children, "empty_section.yaml")
+        self.assertFalse(any("valid_section" in e for e in errors))
+
+
+class TestCheckPublicSectionHasPublicChild(unittest.TestCase):
+    def test_valid_schema_produces_no_errors(self):
+        errors = errors_for(lint.check_public_section_has_public_child, "valid.yaml")
+        self.assertEqual(errors, [])
+
+    def test_public_section_with_only_private_children_is_error(self):
+        errors = errors_for(lint.check_public_section_has_public_child, "public_section_no_public_child.yaml")
+        self.assertTrue(
+            any("all_private_children" in e for e in errors),
+            f"Expected error for all_private_children, got: {errors}",
+        )
+
+    def test_public_section_with_public_child_passes(self):
+        errors = errors_for(lint.check_public_section_has_public_child, "public_section_no_public_child.yaml")
+        self.assertFalse(any("has_public_child" in e for e in errors))
+
+    def test_private_section_with_no_public_children_passes(self):
+        errors = errors_for(lint.check_public_section_has_public_child, "public_section_no_public_child.yaml")
+        self.assertFalse(any("private_section_no_public_child" in e for e in errors))
+
+
+class TestCheckTextScalarMode(unittest.TestCase):
+    def test_valid_schema_produces_no_errors(self):
+        errors = lint.check_text_scalar_mode(fixture("valid.yaml"))
+        self.assertEqual(errors, [])
+
+    def test_description_with_linebreak_is_error(self):
+        errors = lint.check_text_scalar_mode(fixture("text_linebreaks.yaml"))
+        self.assertTrue(
+            any("desc_with_linebreak" in e or "description" in e.lower() for e in errors),
+            f"Expected error for description with \\n, got: {errors}",
+        )
+
+    def test_example_with_linebreak_is_error(self):
+        errors = lint.check_text_scalar_mode(fixture("text_linebreaks.yaml"))
+        self.assertTrue(
+            any("example_with_linebreak" in e or "example" in e.lower() for e in errors),
+            f"Expected error for example with \\n, got: {errors}",
+        )
+
+    def test_title_with_linebreak_is_error(self):
+        errors = lint.check_text_scalar_mode(fixture("text_linebreaks.yaml"))
+        self.assertTrue(
+            any("title_with_linebreak" in e or "title" in e.lower() for e in errors),
+            f"Expected error for title with \\n, got: {errors}",
+        )
+
+    def test_no_linebreak_passes(self):
+        errors = lint.check_text_scalar_mode(fixture("text_linebreaks.yaml"))
+        self.assertFalse(any("no_linebreak" in e for e in errors))
+
+
+class TestCheckRelativeDefaults(unittest.TestCase):
+    def test_valid_schema_produces_no_errors(self):
+        errors = errors_for(lint.check_relative_defaults, "valid.yaml")
+        self.assertEqual(errors, [])
+
+    def test_unknown_variable_is_error(self):
+        errors = errors_for(lint.check_relative_defaults, "bad_relative_defaults.yaml")
+        self.assertTrue(
+            any("unknown_var" in e for e in errors),
+            f"Expected error for unknown_var, got: {errors}",
+        )
+
+    def test_malformed_placeholder_is_error(self):
+        errors = errors_for(lint.check_relative_defaults, "bad_relative_defaults.yaml")
+        self.assertTrue(
+            any("malformed_placeholder" in e for e in errors),
+            f"Expected error for malformed_placeholder, got: {errors}",
+        )
+
+    def test_valid_relative_default_passes(self):
+        errors = errors_for(lint.check_relative_defaults, "bad_relative_defaults.yaml")
+        self.assertFalse(any("valid_relative" in e for e in errors))
+
+    def test_platform_default_with_bad_variable_is_error(self):
+        errors = errors_for(lint.check_relative_defaults, "bad_relative_defaults.yaml")
+        self.assertTrue(
+            any("platform_bad_var" in e for e in errors),
+            f"Expected error for platform_bad_var, got: {errors}",
+        )
+
+    def test_platform_default_with_malformed_placeholder_is_error(self):
+        errors = errors_for(lint.check_relative_defaults, "bad_relative_defaults.yaml")
+        self.assertTrue(
+            any("platform_malformed" in e for e in errors),
+            f"Expected error for platform_malformed, got: {errors}",
+        )
+
+    def test_non_relative_default_passes(self):
+        errors = errors_for(lint.check_relative_defaults, "bad_relative_defaults.yaml")
+        self.assertFalse(any("non_relative" in e for e in errors))
+
+    def test_valid_conf_path_passes(self):
+        errors = errors_for(lint.check_relative_defaults, "bad_relative_defaults.yaml")
+        self.assertFalse(any("valid_conf_path" in e for e in errors))
+
+
 if __name__ == "__main__":
     unittest.main()

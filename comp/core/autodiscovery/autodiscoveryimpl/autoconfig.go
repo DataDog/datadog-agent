@@ -12,6 +12,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"sort"
 	"strconv"
@@ -40,10 +41,10 @@ import (
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/core/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -69,7 +70,7 @@ type dependencies struct {
 	WMeta          option.Option[workloadmeta.Component]
 	FilterStore    workloadfilter.Component
 	Telemetry      telemetry.Component
-	HealthPlatform option.Option[healthplatform.Component]
+	HealthPlatform option.Option[healthplatformdef.Component]
 }
 
 // AutoConfig implements the agent's autodiscovery mechanism.  It is
@@ -96,7 +97,7 @@ type AutoConfig struct {
 	logs                     logComp.Component
 	filterStore              workloadfilter.Component
 	telemetryStore           *acTelemetry.Store
-	healthPlatform           option.Option[healthplatform.Component]
+	healthPlatform           option.Option[healthplatformdef.Component]
 
 	// m covers the `configPollers`, `listenerCandidates`, `listeners`, and `listenerRetryStop`, but
 	// not the values they point to.
@@ -196,10 +197,12 @@ func newAutoConfig(deps dependencies) autodiscovery.Component {
 }
 
 // createNewAutoConfig creates an AutoConfig instance (without starting).
-func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component, telemetryComp telemetry.Component, filterStore workloadfilter.Component, hp option.Option[healthplatform.Component]) *AutoConfig {
-	var hpComp healthplatform.Component
+func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component, telemetryComp telemetry.Component, filterStore workloadfilter.Component, hp option.Option[healthplatformdef.Component]) *AutoConfig {
+	var hpComp healthplatformdef.Component
 	if h, ok := hp.Get(); ok {
 		hpComp = h
+	} else {
+		log.Infof("Health platform component not available. Issue reporting disabled for config providers.")
 	}
 	cfgMgr := newReconcilingConfigManager(secretResolver, hpComp)
 	ac := &AutoConfig{
@@ -465,13 +468,25 @@ func (ac *AutoConfig) GetTelemetryStore() *acTelemetry.Store {
 	return ac.telemetryStore
 }
 
-// GetHealthPlatform returns health platform or nil if not available
-func (ac *AutoConfig) GetHealthPlatform() healthplatform.Component {
-	hp, found := ac.healthPlatform.Get()
+// AddConfigProviderFromCatalog looks up a config provider factory in the catalog by name,
+// creates the provider using internal dependencies, and registers it with autodiscovery.
+func (ac *AutoConfig) AddConfigProviderFromCatalog(cp pkgconfigsetup.ConfigurationProviders) error {
+	factory, found := ac.providerCatalog[cp.Name]
 	if !found {
-		return nil
+		return fmt.Errorf("unable to find this provider in the catalog: %v", cp.Name)
 	}
-	return hp
+
+	hp, _ := ac.healthPlatform.Get()
+	wmeta, _ := ac.wmeta.Get()
+
+	configProvider, err := factory(&cp, wmeta, ac.taggerComp, ac.filterStore, hp, ac.telemetryStore)
+	if err != nil {
+		return fmt.Errorf("error while adding config provider %v: %w", cp.Name, err)
+	}
+
+	pollInterval := providers.GetPollInterval(cp)
+	ac.AddConfigProvider(configProvider, cp.Polling, pollInterval)
+	return nil
 }
 
 func (ac *AutoConfig) initializeConfiguration(config *integration.Config) error {
@@ -686,11 +701,6 @@ func (ac *AutoConfig) getActiveServices() []integration.ServiceResponse {
 // Returns empty if the check with the given ID does not have any secrets.
 func (ac *AutoConfig) GetIDOfCheckWithEncryptedSecrets(checkID checkid.ID) checkid.ID {
 	return ac.store.getIDOfCheckWithEncryptedSecrets(checkID)
-}
-
-// GetProviderCatalog returns all registered ConfigProviderFactory.
-func (ac *AutoConfig) GetProviderCatalog() map[string]providerTypes.ConfigProviderFactory {
-	return ac.providerCatalog
 }
 
 // processNewService takes a service, tries to match it against templates and
