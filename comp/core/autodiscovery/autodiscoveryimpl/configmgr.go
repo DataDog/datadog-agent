@@ -6,6 +6,7 @@
 package autodiscoveryimpl
 
 import (
+	"context"
 	"fmt"
 	"maps"
 	"sync"
@@ -13,6 +14,7 @@ import (
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/configresolver"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/discovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
@@ -110,12 +112,14 @@ type reconcilingConfigManager struct {
 
 	secretResolver secrets.Component
 	healthPlatform healthplatformdef.Component
+	prober         discovery.Prober
 }
 
 var _ configManager = &reconcilingConfigManager{}
 
 // newReconcilingConfigManager creates a new, empty reconcilingConfigManager.
-func newReconcilingConfigManager(secretResolver secrets.Component, healthPlatform healthplatformdef.Component) configManager {
+// prober may be nil; templates with Discovery set will be skipped if so.
+func newReconcilingConfigManager(secretResolver secrets.Component, healthPlatform healthplatformdef.Component, prober discovery.Prober) configManager {
 	return &reconcilingConfigManager{
 		activeConfigs:      map[string]integration.Config{},
 		activeServices:     map[string]serviceAndADIDs{},
@@ -125,6 +129,7 @@ func newReconcilingConfigManager(secretResolver secrets.Component, healthPlatfor
 		scheduledConfigs:   map[string]integration.Config{},
 		secretResolver:     secretResolver,
 		healthPlatform:     healthPlatform,
+		prober:             prober,
 	}
 }
 
@@ -408,7 +413,26 @@ func (cm *reconcilingConfigManager) reconcileService(svcID string) integration.C
 // returns false.
 func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Config, svc listeners.Service) (integration.Config, bool) {
 	digest := tpl.Digest()
-	config, err := configresolver.Resolve(tpl, svc)
+	resolvedSvc := svc
+
+	if tpl.Discovery != nil {
+		if cm.prober == nil {
+			msg := fmt.Sprintf("template %s has Discovery set but no prober is configured", tpl.Name)
+			log.Errorf("autodiscovery: %s", msg)
+			errorStats.setResolveWarning(tpl.Name, msg)
+			return tpl, false
+		}
+		result, ok := cm.prober.Probe(context.Background(), tpl.Discovery, svc)
+		if !ok {
+			msg := fmt.Sprintf("discovery probe did not match for template %s and service %s", tpl.Name, svc.GetServiceID())
+			log.Debugf("autodiscovery: %s", msg)
+			errorStats.setResolveWarning(tpl.Name, msg)
+			return tpl, false
+		}
+		resolvedSvc = discovery.WrapWithProbeResult(svc, result)
+	}
+
+	config, err := configresolver.Resolve(tpl, resolvedSvc)
 	if err != nil {
 		msg := fmt.Sprintf("error resolving template %s for service %s: %v", tpl.Name, svc.GetServiceID(), err)
 		log.Errorf("autodiscovery: skipping config - %s", msg)

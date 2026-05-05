@@ -27,6 +27,7 @@ import (
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/discovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
@@ -201,7 +202,7 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 	if h, ok := hp.Get(); ok {
 		hpComp = h
 	}
-	cfgMgr := newReconcilingConfigManager(secretResolver, hpComp)
+	cfgMgr := newReconcilingConfigManager(secretResolver, hpComp, discovery.NewOpenMetricsProber())
 	ac := &AutoConfig{
 		configPollers:            make([]*configPoller, 0, 9),
 		listenerCandidates:       make(map[string]*listenerCandidate),

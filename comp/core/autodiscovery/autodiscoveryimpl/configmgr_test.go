@@ -545,7 +545,7 @@ func TestReconcilingConfigManagement(t *testing.T) {
 	mockResolver := MockSecretResolver{}
 	suite.Run(t, &ReconcilingConfigManagerSuite{
 		ConfigManagerSuite{factory: func() configManager {
-			return newReconcilingConfigManager(&mockResolver, nil)
+			return newReconcilingConfigManager(&mockResolver, nil, nil)
 		}},
 	})
 }
@@ -563,7 +563,7 @@ func TestResolveTemplateForService_ReportsToHealthPlatform(t *testing.T) {
 	mockResolver := MockSecretResolver{}
 	hp := healthplatformmock.Mock(t)
 
-	cm := newReconcilingConfigManager(&mockResolver, hp).(*reconcilingConfigManager)
+	cm := newReconcilingConfigManager(&mockResolver, hp, nil).(*reconcilingConfigManager)
 
 	tpl := integration.Config{
 		Name:          "postgres",
@@ -596,7 +596,7 @@ func TestResolveTemplateForService_ClearsHealthPlatformOnSuccess(t *testing.T) {
 	mockResolver := MockSecretResolver{}
 	hp := healthplatformmock.Mock(t)
 
-	cm := newReconcilingConfigManager(&mockResolver, hp).(*reconcilingConfigManager)
+	cm := newReconcilingConfigManager(&mockResolver, hp, nil).(*reconcilingConfigManager)
 
 	tpl := integration.Config{
 		Name:          "redis",
