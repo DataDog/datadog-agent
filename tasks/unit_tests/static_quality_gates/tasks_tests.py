@@ -352,6 +352,7 @@ class TestQualityGatesIntegration(unittest.TestCase):
                 parse_and_trigger_gates(ctx, config_path)
             mock_generate_reports.assert_called_once()
             mock_pr_commenter.assert_called_once()
+            self.assertIn("per-PR threshold", mock_pr_commenter.call_args.kwargs["body"])
 
     @patch.dict('os.environ', _PR_ENV_VARS, clear=True)
     def test_gate_fails_per_pr_disk_threshold_exception_approval(self):
@@ -400,6 +401,103 @@ class TestQualityGatesIntegration(unittest.TestCase):
             mock_generate_reports.assert_called_once()
             mock_pr_commenter.assert_called_once()
             self.assertIs(mock_pr_commenter.call_args.kwargs["pr"], approved_pr)
+            body = mock_pr_commenter.call_args.kwargs["body"]
+            self.assertIn("per-PR threshold", body)
+            self.assertIn("Exception granted by @cmourot", body)
+
+    @patch.dict('os.environ', _PR_ENV_VARS, clear=True)
+    def test_gate_fails_per_pr_wire_threshold(self):
+        """Gate passes absolute limits but on-wire delta exceeds per-PR threshold."""
+        gate_scenarios = [
+            GateScenario(
+                name=_DEB_GATE,
+                ancestor_disk=100 * _MiB,
+                ancestor_wire=50 * _MiB,
+                current_disk=100 * _MiB,
+                current_wire=50 * _MiB + 5.1 * _MiB,  # > 5 MiB wire threshold
+                max_disk=105 * _MiB,
+                max_wire=60 * _MiB,
+            ),
+            GateScenario(
+                name=_DOCKER_GATE,
+                ancestor_disk=600 * _MiB,
+                ancestor_wire=240 * _MiB,
+                current_disk=600 * _MiB + 20 * _KiB,
+                current_wire=240 * _MiB,
+                max_disk=700 * _MiB,
+                max_wire=250 * _MiB,
+            ),
+        ]
+        with (
+            _gate_scenarios_fixture(*gate_scenarios, ancestor_sha=_ANCESTOR_SHA) as config_path,
+            patch("tasks.quality_gates.get_ancestor", return_value=_ANCESTOR_SHA),
+            patch("tasks.quality_gates.get_commit_sha", return_value=_CI_COMMIT_SHA),
+            patch("tasks.static_quality_gates.github.GithubAPI", new=FakeGithubAPI),
+            patch("tasks.static_quality_gates.gates.send_metrics"),
+            patch("tasks.static_quality_gates.pr_comment.pr_commenter") as mock_pr_commenter,
+            patch(
+                "tasks.static_quality_gates.gates.GateMetricHandler.generate_metric_reports"
+            ) as mock_generate_reports,
+        ):
+            ctx = MockContext(
+                run={"datadog-ci tag --level job --tags static_quality_gates:\"failure\"": Result("Done")}
+            )
+            with self.assertRaises(Exit):
+                parse_and_trigger_gates(ctx, config_path)
+            mock_generate_reports.assert_called_once()
+            mock_pr_commenter.assert_called_once()
+            self.assertIn("per-PR wire threshold", mock_pr_commenter.call_args.kwargs["body"])
+
+    @patch.dict('os.environ', _PR_ENV_VARS, clear=True)
+    def test_gate_fails_per_pr_wire_threshold_exception_approval(self):
+        """Gate exceeds per-PR wire threshold but an exception approver has approved, making it pass."""
+        approved_pr = SimpleNamespace(
+            number=12345,
+            title="fix(somewhere): did something",
+            user=SimpleNamespace(login="some-author"),
+            get_reviews=lambda: [SimpleNamespace(state="APPROVED", user=SimpleNamespace(login="cmourot"))],
+        )
+        gate_scenarios = [
+            GateScenario(
+                name=_DEB_GATE,
+                ancestor_disk=100 * _MiB,
+                ancestor_wire=50 * _MiB,
+                current_disk=100 * _MiB,
+                current_wire=50 * _MiB + 5.1 * _MiB,  # > 5 MiB wire threshold
+                max_disk=105 * _MiB,
+                max_wire=60 * _MiB,
+            ),
+            GateScenario(
+                name=_DOCKER_GATE,
+                ancestor_disk=600 * _MiB,
+                ancestor_wire=240 * _MiB,
+                current_disk=600 * _MiB + 20 * _KiB,
+                current_wire=240 * _MiB,
+                max_disk=700 * _MiB,
+                max_wire=250 * _MiB,
+            ),
+        ]
+        with (
+            _gate_scenarios_fixture(*gate_scenarios, ancestor_sha=_ANCESTOR_SHA) as config_path,
+            patch("tasks.quality_gates.get_ancestor", return_value=_ANCESTOR_SHA),
+            patch("tasks.quality_gates.get_commit_sha", return_value=_CI_COMMIT_SHA),
+            patch("tasks.quality_gates.get_pr_for_branch", return_value=approved_pr),
+            patch("tasks.static_quality_gates.gates.send_metrics"),
+            patch("tasks.static_quality_gates.pr_comment.pr_commenter") as mock_pr_commenter,
+            patch(
+                "tasks.static_quality_gates.gates.GateMetricHandler.generate_metric_reports"
+            ) as mock_generate_reports,
+        ):
+            ctx = MockContext(
+                run={"datadog-ci tag --level job --tags static_quality_gates:\"failure\"": Result("Done")}
+            )
+            parse_and_trigger_gates(ctx, config_path)
+            mock_generate_reports.assert_called_once()
+            mock_pr_commenter.assert_called_once()
+            self.assertIs(mock_pr_commenter.call_args.kwargs["pr"], approved_pr)
+            body = mock_pr_commenter.call_args.kwargs["body"]
+            self.assertIn("per-PR wire threshold", body)
+            self.assertIn("Exception granted by @cmourot", body)
 
     @patch.dict('os.environ', _PR_ENV_VARS, clear=True)
     def test_gate_fails_absolute_limit_non_blocking_unchanged_from_ancestor(self):
