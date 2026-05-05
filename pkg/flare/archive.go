@@ -85,11 +85,6 @@ func ExtraFlareProviders(workloadmeta option.Option[workloadmeta.Component], ipc
 
 	for filename, fromFunc := range map[string]func() ([]byte, error){
 		"envvars.log":                         common.GetEnvVars,
-<<<<<<< pgimalac/flare-telemetry
-		"health.yaml":                         getHealth,
-=======
-		"telemetry.log":                       func() ([]byte, error) { return remote.getHTTPCallContent(telemetryURL) },
->>>>>>> main
 		"connectivity/resolved_endpoints.txt": getEndpointDNS,
 	} {
 		providers = append(providers, flaretypes.NewFiller(
