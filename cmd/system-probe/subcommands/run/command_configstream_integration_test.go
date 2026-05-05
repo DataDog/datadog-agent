@@ -124,7 +124,8 @@ remote_agent:
   registry:
     enabled: false
   configstream:
-    enabled: true
+    consumer:
+      enabled: true
 `, host, port)
 	require.NoError(t, os.WriteFile(datadogPath, []byte(datadogYaml), 0600))
 	sysprobeYaml := `

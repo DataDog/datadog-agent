@@ -206,7 +206,7 @@ func getSharedFxOption() fx.Option {
 }
 
 // configstreamFxOptions returns FX options for the config stream consumer.
-// Only include this when remote_agent.configstream.enabled is true.
+// Only include this when remote_agent.configstream.consumer.enabled is true.
 func configstreamFxOptions() fx.Option {
 	return fx.Options(
 		// Expose config.Component as model.Writer for the config stream consumer to write remote config into.
@@ -244,7 +244,7 @@ func configstreamFxOptions() fx.Option {
 	)
 }
 
-// isConfigstreamEnabled does a lightweight pre-FX check of whether config stream is enabled in the YAML config.
+// isConfigstreamEnabled does a lightweight pre-FX check of whether config stream consumer is enabled in the YAML config.
 // The default is false, matching the BindEnvAndSetDefault in pkg/config/setup/config.go.
 func isConfigstreamEnabled(configPath string) bool {
 	if configPath == "" {
@@ -257,14 +257,16 @@ func isConfigstreamEnabled(configPath string) bool {
 	var cfg struct {
 		RemoteAgent struct {
 			ConfigStream struct {
-				Enabled bool `yaml:"enabled"`
+				Consumer struct {
+					Enabled bool `yaml:"enabled"`
+				} `yaml:"consumer"`
 			} `yaml:"configstream"`
 		} `yaml:"remote_agent"`
 	}
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return false
 	}
-	return cfg.RemoteAgent.ConfigStream.Enabled
+	return cfg.RemoteAgent.ConfigStream.Consumer.Enabled
 }
 
 // run starts the main loop.
