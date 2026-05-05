@@ -398,15 +398,18 @@ type FlatLog struct {
 	JsonSchemaId uint64 `protobuf:"varint,8,opt,name=json_schema_id,json=jsonSchemaId,proto3" json:"json_schema_id,omitempty"`
 	// Deprecated fallback values for the json schema.
 	JsonContextValues []*DynamicValue `protobuf:"bytes,9,rep,name=json_context_values,json=jsonContextValues,proto3" json:"json_context_values,omitempty"`
-	// Compact values for the json schema. json_context_value_kinds has one byte per schema key.
+	// Compact values for the json schema. json_context_value_kinds has one byte per present schema key.
 	// Each kind consumes the next value from the corresponding packed value field.
 	// Kind values are defined by the JsonValueKind constants in the encoder/decoder.
 	JsonContextValueKinds   []byte    `protobuf:"bytes,10,opt,name=json_context_value_kinds,json=jsonContextValueKinds,proto3" json:"json_context_value_kinds,omitempty"`
-	JsonContextIntValues    []int64   `protobuf:"varint,11,rep,packed,name=json_context_int_values,json=jsonContextIntValues,proto3" json:"json_context_int_values,omitempty"`
+	JsonContextIntValues    []int64   `protobuf:"zigzag64,11,rep,packed,name=json_context_int_values,json=jsonContextIntValues,proto3" json:"json_context_int_values,omitempty"`
 	JsonContextFloatValues  []float64 `protobuf:"fixed64,12,rep,packed,name=json_context_float_values,json=jsonContextFloatValues,proto3" json:"json_context_float_values,omitempty"`
 	JsonContextDictValues   []uint64  `protobuf:"varint,13,rep,packed,name=json_context_dict_values,json=jsonContextDictValues,proto3" json:"json_context_dict_values,omitempty"`
 	JsonContextRawValues    [][]byte  `protobuf:"bytes,14,rep,name=json_context_raw_values,json=jsonContextRawValues,proto3" json:"json_context_raw_values,omitempty"`
 	JsonContextStringValues []string  `protobuf:"bytes,15,rep,name=json_context_string_values,json=jsonContextStringValues,proto3" json:"json_context_string_values,omitempty"`
+	// Optional bitmap for sparse schemas. If unset, every schema key is present.
+	// Bit i indicates whether schema key i has a value in the compact value streams.
+	JsonContextPresence []byte `protobuf:"bytes,16,opt,name=json_context_presence,json=jsonContextPresence,proto3" json:"json_context_presence,omitempty"`
 	// Optional UUID used to track logs when dual-sent via HTTP and gRPC.
 	Uuid          *string `protobuf:"bytes,100,opt,name=uuid,proto3,oneof" json:"uuid,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -544,6 +547,13 @@ func (x *FlatLog) GetJsonContextRawValues() [][]byte {
 func (x *FlatLog) GetJsonContextStringValues() []string {
 	if x != nil {
 		return x.JsonContextStringValues
+	}
+	return nil
+}
+
+func (x *FlatLog) GetJsonContextPresence() []byte {
+	if x != nil {
+		return x.JsonContextPresence
 	}
 	return nil
 }
@@ -1506,7 +1516,7 @@ const file_datadog_stateful_stateful_encoding_proto_rawDesc = "" +
 	"\x06tagset\x18\x01 \x01(\v2%.datadog.intake.stateful.DynamicValueR\x06tagset\"{\n" +
 	"\x03Tag\x127\n" +
 	"\x03key\x18\x01 \x01(\v2%.datadog.intake.stateful.DynamicValueR\x03key\x12;\n" +
-	"\x05value\x18\x02 \x01(\v2%.datadog.intake.stateful.DynamicValueR\x05value\"\xea\x05\n" +
+	"\x05value\x18\x02 \x01(\v2%.datadog.intake.stateful.DynamicValueR\x05value\"\x9e\x06\n" +
 	"\aFlatLog\x12\x1c\n" +
 	"\ttimestamp\x18\x01 \x01(\x12R\ttimestamp\x12\x16\n" +
 	"\x06status\x18\x02 \x01(\x04R\x06status\x12\x18\n" +
@@ -1520,11 +1530,12 @@ const file_datadog_stateful_stateful_encoding_proto_rawDesc = "" +
 	"\x13json_context_values\x18\t \x03(\v2%.datadog.intake.stateful.DynamicValueR\x11jsonContextValues\x127\n" +
 	"\x18json_context_value_kinds\x18\n" +
 	" \x01(\fR\x15jsonContextValueKinds\x125\n" +
-	"\x17json_context_int_values\x18\v \x03(\x03R\x14jsonContextIntValues\x129\n" +
+	"\x17json_context_int_values\x18\v \x03(\x12R\x14jsonContextIntValues\x129\n" +
 	"\x19json_context_float_values\x18\f \x03(\x01R\x16jsonContextFloatValues\x127\n" +
 	"\x18json_context_dict_values\x18\r \x03(\x04R\x15jsonContextDictValues\x125\n" +
 	"\x17json_context_raw_values\x18\x0e \x03(\fR\x14jsonContextRawValues\x12;\n" +
-	"\x1ajson_context_string_values\x18\x0f \x03(\tR\x17jsonContextStringValues\x12\x17\n" +
+	"\x1ajson_context_string_values\x18\x0f \x03(\tR\x17jsonContextStringValues\x122\n" +
+	"\x15json_context_presence\x18\x10 \x01(\fR\x13jsonContextPresence\x12\x17\n" +
 	"\x04uuid\x18d \x01(\tH\x00R\x04uuid\x88\x01\x01B\a\n" +
 	"\x05_uuid\"\xe3\x02\n" +
 	"\x03Log\x12\x1c\n" +
