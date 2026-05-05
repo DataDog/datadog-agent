@@ -53,6 +53,7 @@ const (
 	maxSBOMEntries           = 1024
 	scanQueueSize            = 100
 	maxPendingFileEvents     = 256
+	maxRetryForwarding       = 10
 )
 
 // pendingFileEvent holds the minimal information needed to re-process a file
@@ -94,8 +95,9 @@ type SBOM struct {
 	cgroup *cgroupModel.CacheEntry
 	state  *atomic.Int64
 
-	refresher *debouncer.Debouncer
-	forwarder *debouncer.Debouncer // Debouncer for forwarding SBOM updates
+	refresher         *debouncer.Debouncer
+	forwarder         *debouncer.Debouncer // Debouncer for forwarding SBOM updates
+	forwardRetryCount int
 
 	invalidated bool
 }
@@ -376,18 +378,20 @@ func (r *Resolver) triggerForwarding(sbom *SBOM) {
 				if sbom.status == workloadmeta.Pending || sbom.status == "" {
 					imageSBOM, err := r.getContainerSBOM(sbom.ContainerID)
 					if err != nil || imageSBOM == nil {
-						seclog.Warnf("Failed to get image SBOM for container '%s': %v", sbom.ContainerID, err)
-						sbom.forwarder.Call()
-						return
-					}
-
-					if imageSBOM.Status == workloadmeta.Pending || imageSBOM.Status == "" {
-						seclog.Warnf("Image SBOM for container '%s' is still pending, will retry forwarding later", sbom.ContainerID)
-						sbom.forwarder.Call()
-						return
+						seclog.Debugf("Failed to get image SBOM for container '%s': %v", sbom.ContainerID, err)
 					}
 
 					sbom.status = imageSBOM.Status
+				}
+
+				if sbom.status == workloadmeta.Pending || sbom.status == "" {
+					if sbom.forwardRetryCount++; sbom.forwardRetryCount > maxRetryForwarding {
+						seclog.Warnf("Max retries reached for forwarding SBOM of container '%s', giving up", sbom.ContainerID)
+					} else {
+						seclog.Debugf("Image SBOM for container '%s' is still in %s state, will retry forwarding later", sbom.status, sbom.ContainerID)
+						sbom.forwarder.Call()
+					}
+					return
 				}
 
 				if sbom.data == nil || len(sbom.data.packages) == 0 {
