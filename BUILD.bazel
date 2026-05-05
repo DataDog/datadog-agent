@@ -536,7 +536,6 @@ exports_files(glob(
 # gazelle:exclude pkg/networkpath/metricsender
 # gazelle:exclude pkg/networkpath/telemetry
 # gazelle:exclude pkg/networkpath/traceroute/runner
-# gazelle:exclude pkg/opentelemetry-mapping-go/inframetadata/internal/hostmap
 # gazelle:exclude pkg/orchestrator/config
 # gazelle:exclude pkg/privateactionrunner/adapters/actions
 # gazelle:exclude pkg/privateactionrunner/adapters/constants
