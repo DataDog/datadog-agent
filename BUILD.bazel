@@ -693,7 +693,7 @@ gazelle(
     prefix = "github.com/DataDog/datadog-agent",
 )
 
-# Our go_build_tags extension wraps the built-in Go extension and must replace it,
+# Our dd_go_test extension wraps the built-in Go extension and must replace it,
 # not extend it, to avoid duplicate rule generation.
 _LANGUAGES_WITHOUT_GO = [
     lang
@@ -705,7 +705,7 @@ gazelle_binary(
     name = "gazelle_binary",
     languages = _LANGUAGES_WITHOUT_GO + [
         "//bazel/rules/cws_codegen:gazelle_extension",
-        "//bazel/rules/go_build_tags:gazelle_extension",
+        "//bazel/rules/dd_go_test:gazelle_extension",
         "//bazel/rules/go_msgp:gazelle_extension",
         "//bazel/rules/go_stringer:gazelle_extension",
         "//bazel/rules/write_pb_go:gazelle_extension",

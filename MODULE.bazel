@@ -53,7 +53,7 @@ bazel_dep(name = "gazelle", version = "0.51.3")
 
 go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
 
-# Needed by //bazel/rules/go_build_tags to construct Starlark AST nodes.
+# Needed by //bazel/rules/dd_go_test to construct Starlark AST nodes.
 go_deps.module(
     path = "github.com/bazelbuild/buildtools",
     sum = "h1:njQAmjTv/YHRm/0Lfv9DXHFZ4MdT2IA/RKHTnqZkgDw=",

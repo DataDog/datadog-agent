@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-package go_build_tags
+package dd_go_test
 
 import (
 	"testing"
@@ -121,7 +121,7 @@ func TestLoads(t *testing.T) {
 	loads := mal.ApparentLoads(func(string) string { return "" })
 	found := false
 	for _, li := range loads {
-		if li.Name == "//bazel/rules/go_build_tags:defs.bzl" {
+		if li.Name == "//bazel/rules/dd_go_test:defs.bzl" {
 			for _, sym := range li.Symbols {
 				if sym == "dd_go_test" {
 					found = true

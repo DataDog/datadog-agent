@@ -3,13 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-// Package go_build_tags is a Gazelle extension that wraps the built-in Go language
+// Package dd_go_test is a Gazelle extension that wraps the built-in Go language
 // extension and replaces go_test rules with dd_go_test macro calls that encapsulate
 // per-flavor test generation. It must replace (not extend) the built-in Go extension
 // in the gazelle_binary languages list.
 //
 // Add "# gazelle:dd_go_test off" to a BUILD file to keep a plain go_test in that package.
-package go_build_tags
+package dd_go_test
 
 import (
 	"github.com/bazelbuild/bazel-gazelle/config"
@@ -21,7 +21,7 @@ import (
 	"github.com/bazelbuild/bazel-gazelle/rule"
 )
 
-const extName = "go_build_tags"
+const extName = "dd_go_test"
 
 // flavorNames mirrors the keys of FLAVOR_UNIT_TEST_TAGS in bazel/flavors/defs.bzl.
 var flavorNames = []string{"base", "dogstatsd", "fips", "heroku", "iot"}
@@ -67,7 +67,7 @@ func (l *lang) ApparentLoads(moduleToApparentName func(string) string) []rule.Lo
 		base = mal.ApparentLoads(moduleToApparentName)
 	}
 	return append(base, rule.LoadInfo{
-		Name:    "//bazel/rules/go_build_tags:defs.bzl",
+		Name:    "//bazel/rules/dd_go_test:defs.bzl",
 		Symbols: []string{"dd_go_test"},
 		After:   []string{"go_test"},
 	})
