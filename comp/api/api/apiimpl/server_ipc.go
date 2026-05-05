@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"time"
 
+	gorilla "github.com/gorilla/mux"
+
 	configendpoint "github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/config"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/listener"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
@@ -27,8 +29,18 @@ func (server *apiServer) startIPCServer(ipcServerAddr string, tmf observability.
 	server.ipcAddr = ipcListener.Addr()
 
 	configEndpointMux := configendpoint.GetConfigEndpointMuxCore(server.cfg)
-	// Pass "/config/v1" to preserve the full path since configEndpointMux is mounted via http.StripPrefix("/config/v1", ...).
-	configEndpointMux.Use(observability.CaptureRouteTemplateMiddlewareWithPrefix("/config/v1"))
+	// Fill route template captures for the telemetry middleware (reduces metric cardinality).
+	// Prepend "/config/v1" since configEndpointMux is mounted via http.StripPrefix("/config/v1", ...).
+	configEndpointMux.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if route := gorilla.CurrentRoute(r); route != nil {
+				if template, err := route.GetPathTemplate(); err == nil {
+					observability.SetRouteTemplate(r, "/config/v1"+template)
+				}
+			}
+			next.ServeHTTP(w, r)
+		})
+	})
 
 	ipcMux := http.NewServeMux()
 	ipcMux.Handle(
