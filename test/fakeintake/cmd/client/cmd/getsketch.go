@@ -11,21 +11,14 @@ import (
 	"github.com/DataDog/datadog-agent/test/fakeintake/client"
 )
 
-// NewFilterCommand returns the filter command
-func NewFilterCommand(cl **client.Client) (cmd *cobra.Command) {
+// NewGetMetricCommand returns the get sketch command
+func NewGetSketchCommand(cl **client.Client) (cmd *cobra.Command) {
 	cmd = &cobra.Command{
-		Use:   "filter",
-		Short: "Filter metrics, logs, etc.",
+		Use: "sketch",
 	}
 
 	cmd.AddCommand(
-		NewFilterContainerImagesCommand(cl),
-		NewFilterEventsCommand(cl),
-		NewFilterLogsCommand(cl),
-		NewFilterMetricsCommand(cl),
-		NewFilterSketchesCommand(cl),
-		NewFilterSBOMCommand(cl),
-		NewFilterHostTagsCommand(cl),
+		NewGetSketchNamesCommand(cl),
 	)
 
 	return cmd
