@@ -18,6 +18,7 @@ go_test(
         "mapper_test.go",
     ],
     embed = [":mapper"],
+    gotags = ["test"],
     deps = [
         "//comp/core/config",
         "//pkg/config/structure",
