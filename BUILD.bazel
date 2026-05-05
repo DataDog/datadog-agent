@@ -545,7 +545,6 @@ exports_files(glob(
 # gazelle:exclude pkg/privateactionrunner/adapters/workflowjsonschema
 # gazelle:exclude pkg/privateactionrunner/autoconnections
 # gazelle:exclude pkg/privateactionrunner/bundles/remoteaction
-# gazelle:exclude pkg/privateactionrunner/bundles/script
 # gazelle:exclude pkg/privateactionrunner/enrollment
 # gazelle:exclude pkg/privateactionrunner/libs/connection
 # gazelle:exclude pkg/privateactionrunner/runners
