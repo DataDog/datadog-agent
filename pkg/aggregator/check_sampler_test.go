@@ -444,6 +444,119 @@ func TestCheckHistogramBucketReset(t *testing.T) {
 	testWithTagsStore(t, testCheckHistogramBucketReset)
 }
 
+func testCheckHistogramBucketMultipleBucketsSampling(t *testing.T, store *tags.Store) {
+	taggerComponent := nooptagger.NewComponent()
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
+
+	tagmatcher := filterlistimpl.NewNoopTagMatcher()
+	matcher := strings.NewMatcher([]string{}, false)
+
+	// Two buckets with the same name and tags (so they share a context key)
+	// but different bounds. MultipleBuckets: true forces addBucket to track
+	// last-seen monotonic values per (contextKey, bounds) pair.
+	bucket1 := &metrics.HistogramBucket{
+		Name:            "my.histogram",
+		Value:           4,
+		LowerBound:      10.0,
+		UpperBound:      20.0,
+		Tags:            []string{"foo", "bar"},
+		Timestamp:       12345.0,
+		Monotonic:       true,
+		FlushFirstValue: true,
+		MultipleBuckets: true,
+	}
+	bucket2 := &metrics.HistogramBucket{
+		Name:            "my.histogram",
+		Value:           6,
+		LowerBound:      30.0,
+		UpperBound:      40.0,
+		Tags:            []string{"foo", "bar"},
+		Timestamp:       12345.0,
+		Monotonic:       true,
+		FlushFirstValue: true,
+		MultipleBuckets: true,
+	}
+
+	checkSampler.addBucket(bucket1, tagmatcher)
+	checkSampler.addBucket(bucket2, tagmatcher)
+
+	ctx := generateContextKey(bucket1)
+	require.Equal(t, ctx, generateContextKey(bucket2))
+
+	// MultipleBuckets path must populate lastBucketValueByBound and leave
+	// the simple lastBucketValue map untouched.
+	assert.Len(t, checkSampler.lastBucketValue, 0)
+	require.Len(t, checkSampler.lastBucketValueByBound, 1)
+	assert.Len(t, checkSampler.lastBucketValueByBound[ctx], 2)
+
+	checkSampler.commit(12349.0, &matcher)
+	_, flushed := checkSampler.flush()
+	require.Len(t, flushed, 1)
+
+	expSketch := &quantile.Agent{}
+	expSketch.InsertInterpolate(10.0, 20.0, 4)
+	expSketch.InsertInterpolate(30.0, 40.0, 6)
+	metrics.AssertSketchSeriesApproxEqual(t, &metrics.SketchSeries{
+		Name: "my.histogram",
+		Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
+		Points: []metrics.SketchPoint{
+			{Ts: 12345.0, Sketch: expSketch.Finish()},
+		},
+		ContextKey: ctx,
+	}, flushed[0], .03)
+
+	// Second round: same bounds, larger raw values. Per-bound de-cumulation
+	// should produce delta sketches (3 and 5), not the raw new values.
+	bucket3 := &metrics.HistogramBucket{
+		Name:            "my.histogram",
+		Value:           7,
+		LowerBound:      10.0,
+		UpperBound:      20.0,
+		Tags:            []string{"foo", "bar"},
+		Timestamp:       12400.0,
+		Monotonic:       true,
+		MultipleBuckets: true,
+	}
+	bucket4 := &metrics.HistogramBucket{
+		Name:            "my.histogram",
+		Value:           11,
+		LowerBound:      30.0,
+		UpperBound:      40.0,
+		Tags:            []string{"foo", "bar"},
+		Timestamp:       12400.0,
+		Monotonic:       true,
+		MultipleBuckets: true,
+	}
+
+	checkSampler.addBucket(bucket3, tagmatcher)
+	checkSampler.addBucket(bucket4, tagmatcher)
+
+	checkSampler.commit(12401.0, &matcher)
+	_, flushed = checkSampler.flush()
+	require.Len(t, flushed, 1)
+
+	expSketch = &quantile.Agent{}
+	expSketch.InsertInterpolate(10.0, 20.0, 3)
+	expSketch.InsertInterpolate(30.0, 40.0, 5)
+	metrics.AssertSketchSeriesApproxEqual(t, &metrics.SketchSeries{
+		Name: "my.histogram",
+		Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
+		Points: []metrics.SketchPoint{
+			{Ts: 12400.0, Sketch: expSketch.Finish()},
+		},
+		ContextKey: ctx,
+	}, flushed[0], .03)
+
+	// One more commit without further adds expires the context (sampler was
+	// constructed with expirationCount=1) and triggers GC of the new map.
+	checkSampler.commit(12402.0, &matcher)
+	assert.Len(t, checkSampler.lastBucketValueByBound, 0)
+}
+
+func TestCheckHistogramBucketMultipleBucketsSampling(t *testing.T) {
+	testWithTagsStore(t, testCheckHistogramBucketMultipleBucketsSampling)
+}
+
 func sketchOf(lower, upper float64, count uint) *quantile.Sketch {
 	s := quantile.Agent{}
 	s.InsertInterpolate(lower, upper, count)
