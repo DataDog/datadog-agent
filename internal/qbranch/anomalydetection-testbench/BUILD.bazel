@@ -3,10 +3,11 @@ load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
 go_library(
     name = "anomalydetection-testbench_lib",
     srcs = ["main.go"],
-    importpath = "github.com/DataDog/datadog-agent/tools/qbranch/anomalydetection-testbench",
+    importpath = "github.com/DataDog/datadog-agent/internal/qbranch/anomalydetection-testbench",
     visibility = ["//visibility:private"],
     deps = [
         "//pkg/util/fxutil",
+        "@com_github_datadog_datadog_agent_comp_anomalydetection_recorder_def//:def",
         "@com_github_datadog_datadog_agent_comp_core_config//:config",
         "@com_github_datadog_datadog_agent_comp_core_log_def//:def",
         "@org_uber_go_fx//:fx",
