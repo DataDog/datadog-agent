@@ -45,6 +45,9 @@ const (
 	RShellPathAllowAll                 = "/"
 	RShellPathAllowMapContainerizedKey = "containerized"
 	RShellPathAllowMapDefaultKey       = "default"
+
+	// Meant for internal usage
+	PAROpmsExtraHeaders = "private_action_runner.opms_extra_headers"
 )
 
 // setupPrivateActionRunner registers all configuration keys for the private action runner
@@ -99,6 +102,8 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 
 	config.BindEnvAndSetDefault(PARRestrictedShellAllowedCommands, []string{RShellCommandAllowAllWildcard})
 	config.ParseEnvAsStringSlice(PARRestrictedShellAllowedCommands, parseAllowListEnvVar(PARRestrictedShellAllowedCommands))
+
+	config.BindEnvAndSetDefault(PAROpmsExtraHeaders, map[string]string{})
 }
 
 // parseAllowListEnvVar parses an rshell allow-list env var. Accepts both

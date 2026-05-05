@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path"
 	"slices"
@@ -123,10 +124,17 @@ type RunCommandInputs struct {
 }
 
 // RunCommandOutputs defines the outputs for the runCommand action.
+//
+// SandboxWarnings carries non-fatal diagnostic messages emitted by rshell
+// during runner construction (e.g. an AllowedPaths entry that does not
+// exist on the host). Empty when the sandbox configuration is clean. These
+// messages indicate misconfiguration, not command failure: they are
+// independent of ExitCode.
 type RunCommandOutputs struct {
-	ExitCode int    `json:"exitCode"`
-	Stdout   string `json:"stdout"`
-	Stderr   string `json:"stderr"`
+	ExitCode        int      `json:"exitCode"`
+	Stdout          string   `json:"stdout"`
+	Stderr          string   `json:"stderr"`
+	SandboxWarnings []string `json:"sandboxWarnings,omitempty"`
 }
 
 // Run executes the command through the rshell restricted interpreter.
@@ -161,8 +169,12 @@ func (h *RunCommandHandler) Run(
 		}
 	}
 	var stdout, stderr bytes.Buffer
+	// Route sandbox diagnostics to a dedicated sink so they do not leak
+	// into the action's stderr field. We discard the streaming output and
+	// read the messages back via runner.Warnings() into SandboxWarnings.
 	runner, err := interp.New(
 		interp.StdIO(nil, &stdout, &stderr),
+		interp.WarningsWriter(io.Discard),
 		interp.AllowedPaths(effectiveAllowedPaths),
 		interp.ProcPath(resolveProcPath()),
 		interp.AllowedCommands(effectiveAllowedCommands),
@@ -185,9 +197,10 @@ func (h *RunCommandHandler) Run(
 	}
 
 	return &RunCommandOutputs{
-		ExitCode: exitCode,
-		Stdout:   stdout.String(),
-		Stderr:   stderr.String(),
+		ExitCode:        exitCode,
+		Stdout:          stdout.String(),
+		Stderr:          stderr.String(),
+		SandboxWarnings: runner.Warnings(),
 	}, nil
 }
 

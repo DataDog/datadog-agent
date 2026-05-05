@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"math"
 	"slices"
-	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/hashicorp/go-multierror"
@@ -21,25 +20,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const computeRate = true
-
-type lastPoint struct {
-	value     float64
-	timestamp time.Time
-}
-
 type fieldsCollector struct {
 	device       ddnvml.Device
 	fieldMetrics []fieldValueMetric
-	lastPoints   map[string]lastPoint
-	now          func() time.Time
 }
 
 func newFieldsCollector(device ddnvml.Device, _ *CollectorDependencies) (Collector, error) {
 	c := &fieldsCollector{
-		device:     device,
-		lastPoints: make(map[string]lastPoint),
-		now:        time.Now,
+		device: device,
 	}
 	c.fieldMetrics = append(c.fieldMetrics, allFieldMetrics...) // copy all metrics to avoid modifying the original slice
 
@@ -118,8 +106,7 @@ func (c *fieldsCollector) getFieldValues() ([]nvml.FieldValue, error) {
 }
 
 // Collect collects all the metrics from the given NVML device.
-func (c *fieldsCollector) Collect() ([]Metric, error) {
-	now := c.now()
+func (c *fieldsCollector) Collect() ([]*Metric, error) {
 	fields, err := c.getFieldValues()
 	if err != nil {
 		return nil, err
@@ -138,42 +125,16 @@ func (c *fieldsCollector) Collect() ([]Metric, error) {
 			err = multierror.Append(err, fmt.Errorf("failed to convert field value %s: %w", name, convErr))
 		}
 
-		if c.fieldMetrics[i].computeRate {
-			currPoint := lastPoint{
-				value:     value,
-				timestamp: now,
-			}
-
-			lastPoint, ok := c.lastPoints[name]
-			c.lastPoints[name] = currPoint
-			if !ok {
-				// Compute rate only when we have a previous point
-				continue
-			}
-
-			delta := currPoint.value - lastPoint.value
-			seconds := now.Sub(lastPoint.timestamp).Seconds()
-			if seconds <= 0 {
-				continue
-			}
-
-			if delta < 0 {
-				delta = 0
-			}
-
-			rate := float64(delta) / float64(seconds)
-			value = rate
-		}
-
 		metrics = append(metrics, Metric{
-			Name:     name,
-			Value:    value,
-			Type:     c.fieldMetrics[i].metricType,
-			Priority: c.fieldMetrics[i].priority,
+			Name:                name,
+			Value:               value,
+			Type:                c.fieldMetrics[i].metricType,
+			Priority:            c.fieldMetrics[i].priority,
+			RateCalculationMode: c.fieldMetrics[i].rateCalculationMode,
 		})
 	}
 
-	return metrics, err
+	return metricValuesToPointers(metrics), err
 }
 
 // Name returns the name of the collector.
@@ -197,7 +158,7 @@ type fieldValueMetric struct {
 	// so collector initialization can treat INVALID_ARGUMENT as unsupported.
 	markUnsupportedOnInvalidArgument bool
 	metricType                       metrics.MetricType
-	computeRate                      bool
+	rateCalculationMode              RateCalculationMode
 	priority                         MetricPriority
 }
 
@@ -218,10 +179,10 @@ var allFieldMetrics = []fieldValueMetric{
 	// Despite NVIDIA calling these "throughput", they report cumulative bytes transferred,
 	// so we compute the rate ourselves.
 	// scopeId=MaxUint32 aggregates across all links (see nvml.h L2175-L2177).
-	{name: "nvlink.throughput.data.rx", fieldValueID: nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_RX, scopeID: math.MaxUint32, metricType: metrics.GaugeType, computeRate: computeRate},
-	{name: "nvlink.throughput.data.tx", fieldValueID: nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_TX, scopeID: math.MaxUint32, metricType: metrics.GaugeType, computeRate: computeRate},
-	{name: "nvlink.throughput.raw.rx", fieldValueID: nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_RX, scopeID: math.MaxUint32, metricType: metrics.GaugeType, computeRate: computeRate},
-	{name: "nvlink.throughput.raw.tx", fieldValueID: nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_TX, scopeID: math.MaxUint32, metricType: metrics.GaugeType, computeRate: computeRate},
+	{name: "nvlink.throughput.data.rx", fieldValueID: nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_RX, scopeID: math.MaxUint32, metricType: metrics.GaugeType, rateCalculationMode: PerSecondRateCalculation},
+	{name: "nvlink.throughput.data.tx", fieldValueID: nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_TX, scopeID: math.MaxUint32, metricType: metrics.GaugeType, rateCalculationMode: PerSecondRateCalculation},
+	{name: "nvlink.throughput.raw.rx", fieldValueID: nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_RX, scopeID: math.MaxUint32, metricType: metrics.GaugeType, rateCalculationMode: PerSecondRateCalculation},
+	{name: "nvlink.throughput.raw.tx", fieldValueID: nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_TX, scopeID: math.MaxUint32, metricType: metrics.GaugeType, rateCalculationMode: PerSecondRateCalculation},
 
 	// -- NVLink speed --
 	// MediumLow: newer field (164), uses scopeId=0 for link 0 speed. As we do not report per-link speeds, we assume all links are at the same speed.

@@ -207,6 +207,7 @@ new-e2e-agent-health                    @DataDog/agent-health
 new-e2e-fips-compliance-test*           @DataDog/agent-runtimes
 new-e2e-remote-config                   @DataDog/remote-config
 # --- Containers / orchestration / SSI ---
+new-e2e-autoscaling*                    @DataDog/container-autoscaling
 new-e2e-containers*                     @DataDog/container-integrations @DataDog/container-platform
 new-e2e-orchestrator*                   @DataDog/kubernetes-experiences
 new-e2e-language-detection              @DataDog/container-experiences
@@ -261,7 +262,8 @@ test_ebpf_complexity_changes      @DataDog/ebpf-platform
 pull_test_dockers*                @DataDog/universal-service-monitoring
 
 # Single machine performance
-single_machine_performance*       @DataDog/single-machine-performance
+single_machine_performance*                                   @DataDog/single-machine-performance
+single-machine-performance-metal-runners-regression_detector* @DataDog/ebpf-platform
 
 # Dependency Security
 software_composition_analysis*    @DataDog/sdlc-security

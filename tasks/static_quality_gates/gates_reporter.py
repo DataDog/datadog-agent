@@ -3,9 +3,8 @@ Static Quality Gates Reporter.
 Provides clear, customer-friendly reporting and output formatting for external users.
 """
 
-import typing
-
 from tasks.libs.common.color import color_message
+from tasks.static_quality_gates.decisions import GateVerdict
 
 
 class QualityGateOutputFormatter:
@@ -74,13 +73,13 @@ class QualityGateOutputFormatter:
             return f"{agent_type} {package_type} ({arch}){fips}"
 
     @staticmethod
-    def print_summary_table(gate_list, gate_states: list[dict[str, typing.Any]], metric_handler=None) -> None:
+    def print_summary_table(gate_list, gate_verdicts: list[GateVerdict], metric_handler=None) -> None:
         """
         Print a comprehensive summary table of all quality gates with their metrics
 
         Args:
             gate_list: List of StaticQualityGate objects (composition-based)
-            gate_states: List of gate state dictionaries with execution results
+            gate_verdicts: List of GateVerdicts with decisions on gates
             metric_handler: Optional GateMetricHandler for getting measurement data
         """
         print(color_message("\n" + "=" * 132, "magenta"))
@@ -88,7 +87,7 @@ class QualityGateOutputFormatter:
         print(color_message("=" * 132, "magenta"))
 
         # Create a lookup for gate states
-        state_lookup = {state["name"]: state for state in gate_states}
+        verdict_lookup = {verdict.name: verdict for verdict in gate_verdicts}
 
         # Table header
         header = f"{'Gate Name':<40} {'Status':<8} {'Compressed':<20} {'Uncompressed':<20} {'Comp Remain':<12} {'Uncomp Remain':<14}"
@@ -99,7 +98,7 @@ class QualityGateOutputFormatter:
         failed_count = 0
 
         for gate in sorted(gate_list, key=lambda x: x.config.gate_name):
-            state = state_lookup.get(gate.config.gate_name, {})
+            verdict = verdict_lookup[gate.config.gate_name]
 
             # Get display name
             display_name = QualityGateOutputFormatter.get_display_name(gate.config.gate_name)
@@ -107,7 +106,7 @@ class QualityGateOutputFormatter:
                 display_name = display_name[:35] + "..."
 
             # Status
-            if state.get("error_type") is None:
+            if not verdict.failure:
                 status = color_message("PASS", "green")
                 passed_count += 1
             else:
