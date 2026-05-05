@@ -288,7 +288,6 @@ exports_files(glob(
 # gazelle:exclude comp/trace/etwtracer
 # gazelle:exclude comp/trace/payload-modifier
 # gazelle:exclude comp/trace/status
-# gazelle:exclude comp/workloadselection/def
 # gazelle:exclude internal/third_party/client-go
 # gazelle:exclude pkg/aggregator/mocksender
 # gazelle:exclude pkg/aggregator/sender
