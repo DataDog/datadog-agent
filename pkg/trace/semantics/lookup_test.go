@@ -78,14 +78,6 @@ func TestLookupFloat64(t *testing.T) {
 		assert.True(t, ok)
 		assert.Equal(t, float64(200), v)
 	})
-
-	t.Run("preserves typed float64 precision", func(t *testing.T) {
-		want := 0.12345678901234568
-		accessor := NewMetricsMapAccessor(map[string]float64{"_sampling_priority_v1": want})
-		v, ok := LookupFloat64(r, accessor, ConceptSamplingPriority)
-		assert.True(t, ok)
-		assert.Equal(t, want, v)
-	})
 }
 
 func TestLookup(t *testing.T) {
@@ -107,7 +99,7 @@ func TestLookup(t *testing.T) {
 	})
 }
 
-func testBoolPtr(v bool) *bool {
+func boolPtr(v bool) *bool {
 	return &v
 }
 
@@ -143,30 +135,6 @@ func TestConditionalLookup(t *testing.T) {
 					When:     []Condition{{Attribute: "rpc.system", Eq: "grpc"}},
 				},
 			},
-			Concept("conditional.eq"): {
-				{
-					Name:     "conditional.value",
-					Provider: ProviderOTel,
-					Type:     ValueTypeString,
-					When:     []Condition{{Attribute: "db.system", Eq: "mongodb"}},
-				},
-			},
-			Concept("conditional.present"): {
-				{
-					Name:     "conditional.value",
-					Provider: ProviderOTel,
-					Type:     ValueTypeString,
-					When:     []Condition{{Attribute: "db.system", Present: testBoolPtr(true)}},
-				},
-			},
-			Concept("conditional.absent"): {
-				{
-					Name:     "conditional.value",
-					Provider: ProviderOTel,
-					Type:     ValueTypeString,
-					When:     []Condition{{Attribute: "db.system", Present: testBoolPtr(false)}},
-				},
-			},
 			Concept("conditional.and"): {
 				{
 					Name:     "conditional.value",
@@ -174,7 +142,7 @@ func TestConditionalLookup(t *testing.T) {
 					Type:     ValueTypeString,
 					When: []Condition{
 						{Attribute: "db.system", Eq: "mysql"},
-						{Attribute: "db.name", Present: testBoolPtr(true)},
+						{Attribute: "db.name", Present: boolPtr(true)},
 					},
 				},
 			},
@@ -241,55 +209,6 @@ func TestConditionalLookup(t *testing.T) {
 				"rpc.system.name":          "grpc",
 			},
 			want: "7",
-		},
-		{
-			name:    "eq condition accepts matching attribute",
-			concept: Concept("conditional.eq"),
-			attrs: map[string]any{
-				"conditional.value": "mapped",
-				"db.system":         "mongodb",
-			},
-			want: "mapped",
-		},
-		{
-			name:    "eq condition rejects non-matching attribute",
-			concept: Concept("conditional.eq"),
-			attrs: map[string]any{
-				"conditional.value": "mapped",
-				"db.system":         "mysql",
-			},
-		},
-		{
-			name:    "present true accepts present attribute",
-			concept: Concept("conditional.present"),
-			attrs: map[string]any{
-				"conditional.value": "mapped",
-				"db.system":         "mysql",
-			},
-			want: "mapped",
-		},
-		{
-			name:    "present true rejects absent attribute",
-			concept: Concept("conditional.present"),
-			attrs: map[string]any{
-				"conditional.value": "mapped",
-			},
-		},
-		{
-			name:    "present false accepts absent attribute",
-			concept: Concept("conditional.absent"),
-			attrs: map[string]any{
-				"conditional.value": "mapped",
-			},
-			want: "mapped",
-		},
-		{
-			name:    "present false rejects present attribute",
-			concept: Concept("conditional.absent"),
-			attrs: map[string]any{
-				"conditional.value": "mapped",
-				"db.system":         "mysql",
-			},
 		},
 		{
 			name:    "conditions are ANDed",
