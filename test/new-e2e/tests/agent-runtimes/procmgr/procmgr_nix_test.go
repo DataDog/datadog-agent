@@ -6,6 +6,7 @@
 package procmgr
 
 import (
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -19,12 +20,12 @@ import (
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/internal/procmgrwait"
 )
 
 const (
 	linuxDaemonBin = "/opt/datadog-agent/embedded/bin/dd-procmgrd"
 	linuxCLIBin    = "/opt/datadog-agent/embedded/bin/dd-procmgr"
-	linuxSocket    = "/var/run/datadog-procmgrd/dd-procmgrd.sock"
 	linuxConfigDir = "/opt/datadog-agent/processes.d"
 
 	// Binary path after DDOT is installed as an extension under ext/ddot (same as fleet / datadog-agent otel install).
@@ -56,7 +57,10 @@ var linuxPlatform = platformConfig{
 	checkBinCmd:       func(path string) string { return "test -f " + path },
 	checkSvcRunning:   "systemctl is-active datadog-agent-procmgr",
 	svcRunningOutput:  "active",
-	cliCmd:            func(args string) string { return linuxCLIBin + " " + args },
+	// Run CLI as dd-agent so it can use the procmgrd socket without chmod (same as installer DDOT tests).
+	cliCmd: func(args string) string {
+		return fmt.Sprintf("sudo -u dd-agent -- %q %s", linuxCLIBin, args)
+	},
 }
 
 type procmgrLinuxSuite struct {
@@ -86,13 +90,6 @@ func (s *procmgrLinuxSuite) SetupSuite() {
 	defer s.CleanupOnSetupFailure()
 
 	s.hasDDOT = s.installDDOTExtension()
-
-	if s.hasCLI {
-		require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
-			_, err := s.Env().RemoteHost.Execute("sudo chmod 0777 " + linuxSocket)
-			assert.NoError(t, err, "socket not yet available")
-		}, 30*time.Second, 2*time.Second)
-	}
 }
 
 // ---------------------------------------------------------------------------
@@ -230,19 +227,8 @@ func (s *procmgrLinuxSuite) TestDDOTProcessDescribe() {
 
 func (s *procmgrLinuxSuite) waitForRunningProcess(name, expectedBinary string, timeout time.Duration) string {
 	s.T().Helper()
-	var pid string
-	require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecute(s.platform.cliCmd("describe " + name))
-		assertField(t, out, "State", "Running")
-		p := fieldValue(out, "PID")
-		if !assert.NotEmpty(t, p, "PID should be present for a Running process") ||
-			!assert.NotEqual(t, "-", p, "PID should not be '-' for a Running process") {
-			return
-		}
-		s.assertProcessBinary(t, p, expectedBinary)
-		pid = p
-	}, timeout, 2*time.Second)
-	return pid
+	describeCmd := s.platform.cliCmd("describe " + name)
+	return procmgrwait.WaitForRunningProcess(s.T(), s.Env().RemoteHost, describeCmd, name, expectedBinary, timeout)
 }
 
 func (s *procmgrLinuxSuite) getRestartCount(name string) int {
@@ -251,15 +237,6 @@ func (s *procmgrLinuxSuite) getRestartCount(name string) int {
 	count, err := strconv.Atoi(fieldValue(out, "Restarts"))
 	require.NoError(s.T(), err, "Restarts field for %s should be a number", name)
 	return count
-}
-
-func (s *procmgrLinuxSuite) assertProcessBinary(t assert.TestingT, pid, expectedBinary string) {
-	out, err := s.Env().RemoteHost.Execute("sudo readlink -f /proc/" + pid + "/exe")
-	if !assert.NoError(t, err, "readlink /proc/%s/exe failed (process may have exited)", pid) {
-		return
-	}
-	assert.Equal(t, expectedBinary, strings.TrimSpace(out),
-		"process %s should be running %s", pid, expectedBinary)
 }
 
 func (s *procmgrLinuxSuite) requireDDOT() {
