@@ -99,71 +99,21 @@ func TestLookup(t *testing.T) {
 	})
 }
 
-func boolPtr(v bool) *bool {
-	return &v
-}
-
+// TestConditionalLookup exercises the production rpc.grpc.status_code mapping —
+// rpc.response.status_code is only accepted when rpc.system.name=grpc, or as a
+// legacy fallback when rpc.system=grpc and rpc.system.name is absent. The legacy
+// row's two-condition AND also gives ANDing implicit coverage.
 func TestConditionalLookup(t *testing.T) {
-	r := &EmbeddedRegistry{
-		version: "test",
-		mappings: map[Concept][]TagInfo{
-			ConceptGRPCStatusCode: {
-				{Name: "rpc.grpc.status_code", Provider: ProviderOTel, Type: ValueTypeString},
-				{Name: "rpc.grpc.status_code", Provider: ProviderOTel, Type: ValueTypeInt64},
-				{
-					Name:     "rpc.response.status_code",
-					Provider: ProviderOTel,
-					Type:     ValueTypeString,
-					When:     []Condition{{Attribute: "rpc.system.name", Eq: "grpc"}},
-				},
-				{
-					Name:     "rpc.response.status_code",
-					Provider: ProviderOTel,
-					Type:     ValueTypeInt64,
-					When:     []Condition{{Attribute: "rpc.system.name", Eq: "grpc"}},
-				},
-				{
-					Name:     "rpc.response.status_code",
-					Provider: ProviderOTel,
-					Type:     ValueTypeString,
-					When: []Condition{
-						{Attribute: "rpc.system", Eq: "grpc"},
-						{Attribute: "rpc.system.name", Present: boolPtr(false)},
-					},
-				},
-				{
-					Name:     "rpc.response.status_code",
-					Provider: ProviderOTel,
-					Type:     ValueTypeInt64,
-					When: []Condition{
-						{Attribute: "rpc.system", Eq: "grpc"},
-						{Attribute: "rpc.system.name", Present: boolPtr(false)},
-					},
-				},
-			},
-			Concept("conditional.and"): {
-				{
-					Name:     "conditional.value",
-					Provider: ProviderOTel,
-					Type:     ValueTypeString,
-					When: []Condition{
-						{Attribute: "db.system", Eq: "mysql"},
-						{Attribute: "db.name", Present: boolPtr(true)},
-					},
-				},
-			},
-		},
-	}
+	r, err := NewEmbeddedRegistry()
+	require.NoError(t, err)
 
 	for _, tt := range []struct {
-		name    string
-		concept Concept
-		attrs   map[string]any
-		want    string
+		name  string
+		attrs map[string]any
+		want  string
 	}{
 		{
-			name:    "explicit gRPC status code wins regardless of RPC system",
-			concept: ConceptGRPCStatusCode,
+			name: "explicit rpc.grpc.status_code wins regardless of system",
 			attrs: map[string]any{
 				"rpc.grpc.status_code":     "3",
 				"rpc.response.status_code": "4",
@@ -172,8 +122,7 @@ func TestConditionalLookup(t *testing.T) {
 			want: "3",
 		},
 		{
-			name:    "rpc.response.status_code allowed when rpc.system.name is grpc",
-			concept: ConceptGRPCStatusCode,
+			name: "rpc.response.status_code accepted when rpc.system.name=grpc",
 			attrs: map[string]any{
 				"rpc.response.status_code": "DEADLINE_EXCEEDED",
 				"rpc.system.name":          "grpc",
@@ -181,8 +130,7 @@ func TestConditionalLookup(t *testing.T) {
 			want: "DEADLINE_EXCEEDED",
 		},
 		{
-			name:    "rpc.response.status_code allowed when legacy rpc.system is grpc",
-			concept: ConceptGRPCStatusCode,
+			name: "rpc.response.status_code accepted via legacy rpc.system=grpc",
 			attrs: map[string]any{
 				"rpc.response.status_code": "DEADLINE_EXCEEDED",
 				"rpc.system":               "grpc",
@@ -190,8 +138,7 @@ func TestConditionalLookup(t *testing.T) {
 			want: "DEADLINE_EXCEEDED",
 		},
 		{
-			name:    "rpc.system.name=grpc accepted even if legacy rpc.system disagrees",
-			concept: ConceptGRPCStatusCode,
+			name: "rpc.system.name=grpc still accepted when legacy rpc.system disagrees",
 			attrs: map[string]any{
 				"rpc.response.status_code": "OK",
 				"rpc.system.name":          "grpc",
@@ -200,8 +147,7 @@ func TestConditionalLookup(t *testing.T) {
 			want: "OK",
 		},
 		{
-			name:    "rpc.response.status_code rejected for non-gRPC systems",
-			concept: ConceptGRPCStatusCode,
+			name: "non-gRPC rpc.system.name rejects rpc.response.status_code",
 			attrs: map[string]any{
 				"rpc.response.status_code": "-32602",
 				"rpc.system.name":          "jsonrpc",
@@ -209,10 +155,8 @@ func TestConditionalLookup(t *testing.T) {
 		},
 		{
 			// New rpc.system.name takes precedence over legacy rpc.system: if the
-			// SDK explicitly set rpc.system.name to non-grpc, ignore a stale legacy
-			// rpc.system=grpc that may also be present.
-			name:    "rpc.response.status_code rejected when new rpc.system.name overrides legacy rpc.system=grpc",
-			concept: ConceptGRPCStatusCode,
+			// SDK set rpc.system.name explicitly, ignore a stale rpc.system=grpc.
+			name: "explicit non-grpc rpc.system.name overrides legacy rpc.system=grpc",
 			attrs: map[string]any{
 				"rpc.response.status_code": "-32602",
 				"rpc.system.name":          "jsonrpc",
@@ -220,39 +164,20 @@ func TestConditionalLookup(t *testing.T) {
 			},
 		},
 		{
-			name:    "conditional int64 fallback allowed",
-			concept: ConceptGRPCStatusCode,
+			name: "int64 rpc.response.status_code is formatted as string",
 			attrs: map[string]any{
 				"rpc.response.status_code": int64(7),
 				"rpc.system.name":          "grpc",
 			},
 			want: "7",
 		},
-		{
-			name:    "conditions are ANDed",
-			concept: Concept("conditional.and"),
-			attrs: map[string]any{
-				"conditional.value": "mapped",
-				"db.system":         "mysql",
-				"db.name":           "orders",
-			},
-			want: "mapped",
-		},
-		{
-			name:    "ANDed conditions reject partial matches",
-			concept: Concept("conditional.and"),
-			attrs: map[string]any{
-				"conditional.value": "mapped",
-				"db.system":         "mysql",
-			},
-		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, LookupString(r, newTestAccessor(tt.attrs), tt.concept))
+			assert.Equal(t, tt.want, LookupString(r, newTestAccessor(tt.attrs), ConceptGRPCStatusCode))
 		})
 	}
 
-	t.Run("conditional int64 fallback returns typed value", func(t *testing.T) {
+	t.Run("LookupInt64 returns typed value through conditional fallback", func(t *testing.T) {
 		accessor := newTestAccessor(map[string]any{
 			"rpc.response.status_code": int64(7),
 			"rpc.system.name":          "grpc",

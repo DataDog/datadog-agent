@@ -110,10 +110,7 @@ func conditionMatches[A Accessor](accessor A, c Condition) bool {
 	if c.Eq != nil {
 		return found && v == fmt.Sprint(c.Eq)
 	}
-	if c.Present != nil {
-		return true
-	}
-	return found
+	return c.Present != nil || found
 }
 
 func conditionsMatch[A Accessor](accessor A, conditions []Condition) bool {
