@@ -8,6 +8,7 @@ package tmplvar
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -295,6 +296,31 @@ func TestEnvVarTemplateVarsAlwaysResolveAsStrings(t *testing.T) {
 			assert.Equal(t, tc.envValue, pw,
 				"password must equal env var value exactly (no octal/type conversion)")
 		})
+	}
+}
+
+func TestResolveDiscoveredPort(t *testing.T) {
+	res := &mockResolvable{
+		extraConfig: map[string]string{
+			"discovered_port": "8090",
+		},
+	}
+	r := NewTemplateResolver(YAMLParser, nil, false)
+	out, err := r.ResolveDataWithTemplateVars([]byte(`url: "http://example:%%discovered_port%%/metrics"`+"\n"), res)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if got, want := strings.TrimSpace(string(out)), `url: http://example:8090/metrics`; got != want {
+		t.Fatalf("got %q want %q", got, want)
+	}
+}
+
+func TestResolveDiscoveredPort_MissingErrors(t *testing.T) {
+	res := &mockResolvable{}
+	r := NewTemplateResolver(YAMLParser, nil, false)
+	_, err := r.ResolveDataWithTemplateVars([]byte(`url: "http://example:%%discovered_port%%/metrics"`+"\n"), res)
+	if err == nil {
+		t.Fatal("expected error when discovered_port is unavailable")
 	}
 }
 

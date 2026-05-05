@@ -94,12 +94,13 @@ type TemplateResolver struct {
 
 func NewTemplateResolver(parser Parser, postProcessor func(interface{}) error, supportEnvVars bool) *TemplateResolver {
 	templateVariables := map[string]VariableGetter{
-		"host":     GetHost,
-		"pid":      GetPid,
-		"port":     GetPort,
-		"hostname": GetHostname,
-		"extra":    GetAdditionalTplVariables,
-		"kube":     GetAdditionalTplVariables,
+		"host":       GetHost,
+		"pid":        GetPid,
+		"port":       GetPort,
+		"hostname":   GetHostname,
+		"extra":      GetAdditionalTplVariables,
+		"kube":       GetAdditionalTplVariables,
+		"discovered": GetDiscoveredPort,
 	}
 	if supportEnvVars {
 		templateVariables["env"] = GetEnvvar
@@ -475,6 +476,20 @@ func GetAdditionalTplVariables(tplVar string, res Resolvable) (string, error) {
 		return "", fmt.Errorf("failed to get extra info for service %s, skipping config - %s", res.GetServiceID(), err)
 	}
 	return value, nil
+}
+
+// GetDiscoveredPort resolves the %%discovered_port%% template variable. It is
+// populated by the autodiscovery/discovery package when a probe matches a
+// service. The value flows in via GetExtraConfig on a Service wrapper.
+func GetDiscoveredPort(tplVar string, res Resolvable) (string, error) {
+	if tplVar != "port" {
+		return "", noResolverError(fmt.Sprintf("unsupported %%discovered_%s%% variable; only %%discovered_port%% is recognised", tplVar))
+	}
+	v, err := res.GetExtraConfig("discovered_port")
+	if err != nil || v == "" {
+		return "", noResolverError("discovered_port not available — autodiscovery probe did not run or did not match")
+	}
+	return v, nil
 }
 
 // GetEnvvar resolves the %%env_*%% template variable
