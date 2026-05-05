@@ -35,11 +35,8 @@ const (
 	logRateChangeRelThreshold = 0.3
 	logRateChangeAbsThreshold = 2
 
-	// logPatternExtractorName is the canonical name for the log pattern extractor namespace.
-	// This mirrors the constant in observer/impl — kept local to avoid an import cycle.
-	logPatternExtractorName = "log_pattern_extractor"
-	// logMetricsExtractorName is the canonical name for the log metrics extractor namespace.
-	logMetricsExtractorName = "log_metrics_extractor"
+	logPatternExtractorName = observerdef.LogPatternExtractorNamespace
+	logMetricsExtractorName = observerdef.LogMetricsExtractorNamespace
 )
 
 // splitTagKeyOrder is the canonical ordered list of tag dimensions used in

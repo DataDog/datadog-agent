@@ -496,6 +496,16 @@ type RawAnomalyState interface {
 // metrics (e.g. testbench UI charts). Detectors must not treat it as workload data.
 const TelemetryNamespace = "telemetry"
 
+// LogPatternExtractorNamespace is the canonical storage namespace for metrics
+// emitted by the log pattern extractor. Used as SeriesDescriptor.Namespace and
+// as the component name in the catalog.
+const LogPatternExtractorNamespace = "log_pattern_extractor"
+
+// LogMetricsExtractorNamespace is the canonical storage namespace for metrics
+// emitted by the log metrics extractor. Used as SeriesDescriptor.Namespace and
+// as the component name in the catalog.
+const LogMetricsExtractorNamespace = "log_metrics_extractor"
+
 // SeriesFilter specifies criteria for selecting series.
 type SeriesFilter struct {
 	Namespace   string            // exact match (empty = any)

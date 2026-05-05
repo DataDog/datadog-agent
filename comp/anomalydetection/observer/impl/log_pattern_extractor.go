@@ -14,9 +14,9 @@ import (
 )
 
 // LogPatternExtractorName is the canonical name for the log pattern extractor.
-// It is used as the storage namespace for emitted metrics, as the component
-// name in the catalog, and in notify formatting for log-derived anomalies.
-const LogPatternExtractorName = "log_pattern_extractor"
+// It is used as the storage namespace for emitted metrics and as the component
+// name in the catalog. Defined in observer/def as LogPatternExtractorNamespace.
+const LogPatternExtractorName = observerdef.LogPatternExtractorNamespace
 
 // TODO(agent-q): Add a test to ensure this is >= the time we evict metrics
 // defaultClusterTimeToLive is the time to live for a cluster.
