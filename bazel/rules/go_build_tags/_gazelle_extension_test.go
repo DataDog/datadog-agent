@@ -8,25 +8,40 @@ package go_build_tags
 import (
 	"testing"
 
+	"github.com/bazelbuild/bazel-gazelle/config"
 	"github.com/bazelbuild/bazel-gazelle/language"
 	"github.com/bazelbuild/bazel-gazelle/rule"
 )
 
-func TestGenerateRules_Empty(t *testing.T) {
-	result := new(lang).GenerateRules(language.GenerateArgs{
-		OtherGen: []*rule.Rule{rule.NewRule("go_library", "lib")},
-	})
-	if len(result.Gen) != 0 || len(result.Empty) != 0 {
-		t.Errorf("expected no output for non-go_test input, got Gen=%d Empty=%d", len(result.Gen), len(result.Empty))
+func makeGoTestResult(rules ...*rule.Rule) language.GenerateResult {
+	imports := make([]interface{}, len(rules))
+	for i := range imports {
+		imports[i] = []string{"some/import"} // non-nil so forwarding is testable
+	}
+	return language.GenerateResult{Gen: rules, Imports: imports}
+}
+
+func TestReplaceGoTests_NonGoTestPassesThrough(t *testing.T) {
+	lib := rule.NewRule("go_library", "lib")
+	result := replaceGoTests(makeGoTestResult(lib))
+
+	if len(result.Gen) != 1 || result.Gen[0].Kind() != "go_library" {
+		t.Errorf("expected go_library to pass through, got %v", result.Gen)
+	}
+	if len(result.Empty) != 0 {
+		t.Errorf("expected no empty rules, got %d", len(result.Empty))
+	}
+	if len(result.Imports) != 1 {
+		t.Errorf("expected imports len 1, got %d", len(result.Imports))
 	}
 }
 
-func TestGenerateRules_SingleGoTest(t *testing.T) {
+func TestReplaceGoTests_SingleGoTest(t *testing.T) {
 	orig := rule.NewRule("go_test", "pkg_test")
 	orig.SetAttr("embed", []string{":pkg"})
 	orig.SetAttr("deps", []string{"//some/dep"})
 
-	result := new(lang).GenerateRules(language.GenerateArgs{OtherGen: []*rule.Rule{orig}})
+	result := replaceGoTests(makeGoTestResult(orig))
 
 	if len(result.Gen) != 1 {
 		t.Fatalf("expected 1 gen rule, got %d", len(result.Gen))
@@ -45,53 +60,107 @@ func TestGenerateRules_SingleGoTest(t *testing.T) {
 	if got := r.AttrStrings("flavors"); !stringSlicesEqual(got, flavorNames) {
 		t.Errorf("flavors: got %v, want %v", got, flavorNames)
 	}
-
-	if result.Empty[0].Name() != "pkg_test" {
-		t.Errorf("empty rule: expected name pkg_test, got %s", result.Empty[0].Name())
+	if result.Empty[0].Kind() != "go_test" || result.Empty[0].Name() != "pkg_test" {
+		t.Errorf("empty rule: expected go_test pkg_test, got %s %s", result.Empty[0].Kind(), result.Empty[0].Name())
 	}
 }
 
-func TestGenerateRules_AttrsCarriedOver(t *testing.T) {
+func TestReplaceGoTests_AttrsCarriedOver(t *testing.T) {
 	orig := rule.NewRule("go_test", "mytest")
 	orig.SetAttr("srcs", []string{"mytest.go"})
 	orig.SetAttr("embed", []string{":mypkg"})
-	orig.SetAttr("deps", []string{"//a:b", "//c:d"})
 
-	result := new(lang).GenerateRules(language.GenerateArgs{OtherGen: []*rule.Rule{orig}})
-
+	result := replaceGoTests(makeGoTestResult(orig))
 	r := result.Gen[0]
+
 	if got := r.AttrStrings("embed"); !stringSlicesEqual(got, []string{":mypkg"}) {
 		t.Errorf("embed: got %v, want [:mypkg]", got)
 	}
-	if got := r.AttrStrings("deps"); !stringSlicesEqual(got, []string{"//a:b", "//c:d"}) {
-		t.Errorf("deps: got %v, want [//a:b //c:d]", got)
+}
+
+func TestReplaceGoTests_ImportsForwarded(t *testing.T) {
+	orig := rule.NewRule("go_test", "t")
+	result := replaceGoTests(makeGoTestResult(orig))
+	if len(result.Imports) != len(result.Gen) {
+		t.Errorf("Imports len %d != Gen len %d", len(result.Imports), len(result.Gen))
+	}
+	if result.Imports[0] == nil {
+		t.Error("expected non-nil import forwarded for dd_go_test")
 	}
 }
 
-func TestGenerateRules_ImportsLenMatchesGen(t *testing.T) {
-	orig := rule.NewRule("go_test", "t")
-	result := new(lang).GenerateRules(language.GenerateArgs{OtherGen: []*rule.Rule{orig}})
-	if len(result.Imports) != len(result.Gen) {
-		t.Errorf("Imports len %d != Gen len %d", len(result.Imports), len(result.Gen))
+func TestReplaceGoTests_MixedRules(t *testing.T) {
+	lib := rule.NewRule("go_library", "lib")
+	tst := rule.NewRule("go_test", "lib_test")
+	bin := rule.NewRule("go_binary", "main")
+
+	result := replaceGoTests(makeGoTestResult(lib, tst, bin))
+
+	if len(result.Gen) != 3 {
+		t.Fatalf("expected 3 gen rules, got %d", len(result.Gen))
+	}
+	if result.Gen[0].Kind() != "go_library" {
+		t.Errorf("expected go_library at index 0")
+	}
+	if result.Gen[1].Kind() != "dd_go_test" {
+		t.Errorf("expected dd_go_test at index 1")
+	}
+	if result.Gen[2].Kind() != "go_binary" {
+		t.Errorf("expected go_binary at index 2")
+	}
+	if len(result.Empty) != 1 || result.Empty[0].Kind() != "go_test" {
+		t.Errorf("expected exactly 1 go_test in empty")
 	}
 }
 
 func TestLoads(t *testing.T) {
-	loads := new(lang).Loads()
-	if len(loads) != 1 {
-		t.Fatalf("expected 1 LoadInfo, got %d", len(loads))
+	mal, ok := NewLanguage().(language.ModuleAwareLanguage)
+	if !ok {
+		t.Fatal("NewLanguage() does not implement ModuleAwareLanguage")
 	}
-	if loads[0].Name != "//bazel/rules/go_build_tags:defs.bzl" {
-		t.Errorf("unexpected load name: %s", loads[0].Name)
-	}
+	loads := mal.ApparentLoads(func(string) string { return "" })
 	found := false
-	for _, sym := range loads[0].Symbols {
-		if sym == "dd_go_test" {
-			found = true
+	for _, li := range loads {
+		if li.Name == "//bazel/rules/go_build_tags:defs.bzl" {
+			for _, sym := range li.Symbols {
+				if sym == "dd_go_test" {
+					found = true
+				}
+			}
 		}
 	}
 	if !found {
-		t.Error("dd_go_test not in Loads symbols")
+		t.Error("dd_go_test load not found in ApparentLoads()")
+	}
+}
+
+func TestConfigure_DirectiveOff(t *testing.T) {
+	f := &rule.File{}
+	f.Directives = []rule.Directive{{Key: "dd_go_test", Value: "off"}}
+
+	c := &config.Config{Exts: map[string]interface{}{}}
+	NewLanguage().(*lang).Configure(c, "some/pkg", f)
+
+	got, ok := c.Exts[extName].(ddGoTestConfig)
+	if !ok {
+		t.Fatal("expected ddGoTestConfig in c.Exts")
+	}
+	if got.enabled {
+		t.Error("expected enabled=false after directive off")
+	}
+}
+
+func TestKinds(t *testing.T) {
+	kinds := NewLanguage().(*lang).Kinds()
+	info, ok := kinds["dd_go_test"]
+	if !ok {
+		t.Fatal("dd_go_test not in Kinds()")
+	}
+	if !info.NonEmptyAttrs["flavors"] {
+		t.Error("expected flavors in NonEmptyAttrs")
+	}
+	if !info.MergeableAttrs["srcs"] {
+		t.Error("expected srcs in MergeableAttrs")
 	}
 }
 

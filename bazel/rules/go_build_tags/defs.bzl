@@ -1,7 +1,7 @@
 load("@rules_go//go:def.bzl", "go_test")
 load("//bazel/flavors:defs.bzl", "flavor_gotags")
 
-def dd_go_test(name, flavors, **kwargs):
+def dd_go_test(name, flavors, gotags = None, **kwargs):
     """Wraps go_test with per-flavor variants grouped under a test_suite.
 
     The flavor-to-gotags mapping and the tag naming scheme are encapsulated
