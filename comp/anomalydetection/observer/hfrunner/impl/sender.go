@@ -3,11 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package hfrunner provides a high-frequency system check runner for the observer.
-// It runs system checks at 1-second intervals and routes their output directly
-// into the observer pipeline, bypassing the normal aggregator/forwarder chain.
-// Metrics collected here are never forwarded to Datadog intake.
-package hfrunner
+// Package hfrunnerimpl implements the hfrunner component. It provides a
+// high-frequency system check runner that runs checks at 1-second intervals and
+// routes their output directly into the observer pipeline, bypassing the normal
+// aggregator/forwarder chain. Metrics collected here are never forwarded to
+// Datadog intake.
+package hfrunnerimpl
 
 import (
 	"time"
@@ -53,8 +54,6 @@ type observerSender struct {
 }
 
 // inlineMetric is a lightweight MetricView that holds a single sample.
-// It is stack-allocated and passed synchronously to ObserveMetric, which
-// copies the data before returning, so no heap escape is required.
 type inlineMetric struct {
 	name      string
 	value     float64
