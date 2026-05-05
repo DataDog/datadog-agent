@@ -212,11 +212,18 @@ func (a *localAggregator) addHistogramBucket(name string, value int64, lowerBoun
 	}
 }
 
-// addOpenmetricsBucket adds an OpenMetrics histogram bucket, summing values for identical keys
+// addOpenmetricsBucket accumulates an OpenMetrics histogram bucket.
+// Monotonic buckets store the latest raw cumulative value; downstream delta logic in
+// CheckSampler.addBucket computes rawValue - lastBucketValue, so summing would inflate deltas.
+// Non-monotonic buckets are summed across samples within the flush window.
 func (a *localAggregator) addOpenmetricsBucket(name string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool) {
 	key := metricKey(name, tags, hostname)
 	if existing, found := a.openmetricsBuckets[key]; found {
-		existing.value += value
+		if monotonic {
+			existing.value = value // keep latest cumulative
+		} else {
+			existing.value += value
+		}
 	} else {
 		a.openmetricsBuckets[key] = &aggregatedHistogramBucket{
 			name:            name,
