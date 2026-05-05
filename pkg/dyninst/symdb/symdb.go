@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/google/btree"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"golang.org/x/time/rate"
 
 	dwarf2 "github.com/DataDog/datadog-agent/pkg/dyninst/dwarf"
@@ -433,8 +434,10 @@ type packagesIterator struct {
 	// displaced generic function, to parse an abstract inline definition
 	// that lives in a different compile unit than its owning package, or
 	// to replay an inline instance whose compile unit has already been
-	// walked.
-	cuContextCache map[dwarf.Offset]*cachedCUContext
+	// walked. Bounded LRU: cuContextCacheSize covers the working set of
+	// foreign CUs touched while emitting one package; eviction is safe
+	// because getCUContext rebuilds entries on miss.
+	cuContextCache *lru.Cache[dwarf.Offset, *cachedCUContext]
 
 	// fileNameInterner deduplicates file-name strings across compile
 	// units. Only file names that escape into emitted Function.File
@@ -446,6 +449,12 @@ type packagesIterator struct {
 	// dedup'd set small.
 	fileNameInterner *btree.BTreeG[string]
 }
+
+// cuContextCacheSize bounds the LRU of foreign compile-unit contexts
+// (file tables, names) held while emitting a package. The dominant cost
+// of an entry is the file-name table, so this limits worst-case
+// retention.
+const cuContextCacheSize = 64
 
 // prePassIndexes bundles the indexes built by buildPrePassIndexes
 // during a single top-to-bottom DWARF walk. They exist because the
@@ -797,8 +806,9 @@ func newPackagesIterator(bin binaryInfo, opt ExtractOptions) *packagesIterator {
 		cleanupFuncs:     []func(){func() { _ = bin.goDebugSections.Close() }, func() { _ = bin.obj.Close() }},
 		offsetToUnit:     make(map[dwarf.Offset]dwarfutil.CompileUnitHeader), // filled in below
 		fileNameInterner: btree.NewOrderedG[string](16),
-		cuContextCache:   make(map[dwarf.Offset]*cachedCUContext),
 	}
+	// lru.New only returns an error for non-positive sizes; cuContextCacheSize is a positive constant.
+	b.cuContextCache, _ = lru.New[dwarf.Offset, *cachedCUContext](cuContextCacheSize)
 	headers := bin.obj.UnitHeaders()
 	b.sortedCUOffsets = make([]dwarf.Offset, 0, len(headers))
 	for _, h := range headers {
@@ -1139,7 +1149,7 @@ func (b *packagesIterator) buildCUFileTable(cuLineReader *dwarf.LineReader, cuDe
 // getCUContext returns the cached CU context for the given CU offset, building
 // it if necessary by seeking to the CU and reading its file table.
 func (b *packagesIterator) getCUContext(cuOffset dwarf.Offset) (*cachedCUContext, error) {
-	if ctx, ok := b.cuContextCache[cuOffset]; ok {
+	if ctx, ok := b.cuContextCache.Get(cuOffset); ok {
 		return ctx, nil
 	}
 
@@ -1175,7 +1185,7 @@ func (b *packagesIterator) getCUContext(cuOffset dwarf.Offset) (*cachedCUContext
 		length: unitHeader.Length,
 		files:  files,
 	}
-	b.cuContextCache[cuOffset] = ctx
+	b.cuContextCache.Add(cuOffset, ctx)
 	return ctx, nil
 }
 
