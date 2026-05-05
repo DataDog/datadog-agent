@@ -9,6 +9,8 @@ package helmagent
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -24,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/discovery/cached/memory"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/clientcmd"
@@ -93,8 +96,13 @@ func Install(t *testing.T, env *environments.Kubernetes, opts ...kubernetesagent
 		require.NoError(t, err, "failed to create credentials secret")
 	}
 
+	// Create image pull secret when registry credentials are configured.
+	// Mirrors utils.NewImagePullSecret in common/utils/kubernetes.go.
+	pullSecretName, err := createImagePullSecret(ctx, k8sClient, p.Namespace)
+	require.NoError(t, err, "failed to create image pull secret")
+
 	// Build and merge all values
-	valuesYAML := buildValuesYAML(t, env, p, secretName)
+	valuesYAML := buildValuesYAML(t, env, p, secretName, pullSecretName)
 
 	// Parse values into map for the Helm SDK
 	vals := map[string]interface{}{}
@@ -288,7 +296,7 @@ func buildParams(opts []kubernetesagentparams.Option) (*kubernetesagentparams.Pa
 // buildValuesYAML generates the Helm values YAML that configures the agent.
 // This replicates the values produced by the Pulumi buildLinuxHelmValues
 // function in kubernetes_helm.go to ensure identical agent behavior.
-func buildValuesYAML(t *testing.T, env *environments.Kubernetes, p *kubernetesagentparams.Params, secretName string) string {
+func buildValuesYAML(t *testing.T, env *environments.Kubernetes, p *kubernetesagentparams.Params, secretName, pullSecretName string) string {
 	t.Helper()
 
 	// Cluster name is required for KinD/non-cloud clusters where the agent
@@ -348,6 +356,23 @@ func buildValuesYAML(t *testing.T, env *environments.Kubernetes, p *kubernetesag
     enabled: true
     collectVpaMetrics: true
     useClusterCheckRunners: true
+    collectCrMetrics:
+      - groupVersionKind:
+          group: datadoghq.com
+          kind: DatadogMetric
+          version: v1alpha1
+        commonLabels:
+          cr_type: ddm
+        labelsFromPath:
+          ddm_namespace: [metadata, namespace]
+          ddm_name: [metadata, name]
+        metrics:
+          - name: ddm_value
+            help: DatadogMetric value
+            each:
+              type: gauge
+              gauge:
+                path: [status, currentValue]
     tags:
       - kube_instance_tag:static
   prometheusScrape:
@@ -358,6 +383,19 @@ func buildValuesYAML(t *testing.T, env *environments.Kubernetes, p *kubernetesag
     containerImage:
       enabled: true
       uncompressedLayersSupport: true
+  confd:
+    container_image.yaml: |
+      ad_identifiers:
+        - _container_image
+      init_config: {}
+      instances:
+        - periodic_refresh_seconds: 60
+    sbom.yaml: |
+      ad_identifiers:
+        - _sbom
+      init_config: {}
+      instances:
+        - periodic_refresh_seconds: 60
   env:
     - name: DD_EC2_METADATA_TIMEOUT
       value: "5000"
@@ -370,6 +408,14 @@ func buildValuesYAML(t *testing.T, env *environments.Kubernetes, p *kubernetesag
       enabled: true
 agents:
   priorityClassCreate: true
+  useConfigMap: true
+  customAgentConfig:
+    metadata_providers:
+      - name: host
+        interval: 120
+        early_interval: 60
+  podAnnotations:
+    ad.datadoghq.com/agent.checks: '{"openmetrics":{"init_config":{},"instances":[{"openmetrics_endpoint":"http://localhost:6000/telemetry","namespace":"datadog.agent","metrics":[".*"]}]}}'
   containers:
     agent:
       env:
@@ -431,6 +477,8 @@ clusterChecksRunner:
   env:
     - name: DD_CLC_RUNNER_REMOTE_TAGGER_ENABLED
       value: "true"
+    - name: DD_KUBERNETES_NAMESPACE_LABELS_AS_TAGS
+      value: "{}"
   resources:
     requests:
       cpu: 20m
@@ -444,6 +492,11 @@ clusterChecksRunner:
 	imageValues := buildImageValues(t, p)
 	if imageValues != "" {
 		base = mustMerge(t, base, imageValues)
+	}
+
+	// Image pull secret references — only applied when a pull secret was created
+	if pullSecretName != "" {
+		base = mustMerge(t, base, buildPullSecretValues(pullSecretName))
 	}
 
 	// Fakeintake configuration (env vars on agent/clusterAgent/clusterChecksRunner pods)
@@ -466,18 +519,122 @@ func mustMerge(t *testing.T, base, overlay string) string {
 	return merged
 }
 
+const imagePullSecretName = "registry-credentials"
+
+// createImagePullSecret creates a kubernetes.io/dockerconfigjson secret named
+// "registry-credentials" when E2E_IMAGE_PULL_REGISTRY/USERNAME/PASSWORD are
+// configured. Mirrors utils.NewImagePullSecret in common/utils/kubernetes.go.
+// Returns the secret name, or "" if no registry credentials are configured.
+func createImagePullSecret(ctx context.Context, k8sClient kubernetes.Interface, namespace string) (string, error) {
+	profile := runner.GetProfile()
+
+	registryStr, _ := profile.ParamStore().GetWithDefault(parameters.ImagePullRegistry, "")
+	if registryStr == "" {
+		return "", nil
+	}
+
+	usernameStr, _ := profile.ParamStore().GetWithDefault(parameters.ImagePullUsername, "")
+	passwordStr, _ := profile.SecretStore().GetWithDefault(parameters.ImagePullPassword, "")
+	if usernameStr == "" || passwordStr == "" {
+		return "", fmt.Errorf("image_pull_registry is set but image_pull_username or image_pull_password is missing")
+	}
+
+	registries := strings.Split(registryStr, ",")
+	usernames := strings.Split(usernameStr, ",")
+	passwords := strings.Split(passwordStr, ",")
+
+	if len(registries) != len(usernames) || len(registries) != len(passwords) {
+		return "", fmt.Errorf("image_pull_registry, image_pull_username, and image_pull_password must have the same number of comma-separated entries")
+	}
+
+	authMap := make(map[string]map[string]string, len(registries))
+	for i := range registries {
+		pwd := strings.TrimSpace(passwords[i])
+		if strings.HasPrefix(pwd, "b64=") {
+			decoded, err := base64.StdEncoding.DecodeString(pwd[4:])
+			if err != nil {
+				return "", fmt.Errorf("failed to base64-decode password for registry %s: %w", registries[i], err)
+			}
+			pwd = string(decoded)
+		}
+		reg := strings.TrimSpace(registries[i])
+		usr := strings.TrimSpace(usernames[i])
+		authMap[reg] = map[string]string{
+			"username": usr,
+			"password": pwd,
+			"auth":     base64.StdEncoding.EncodeToString([]byte(usr + ":" + pwd)),
+		}
+	}
+
+	dockerConfigJSON, err := json.Marshal(map[string]map[string]map[string]string{"auths": authMap})
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal dockerconfigjson: %w", err)
+	}
+
+	_, err = k8sClient.CoreV1().Secrets(namespace).Create(ctx, &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: imagePullSecretName, Namespace: namespace},
+		StringData: map[string]string{
+			".dockerconfigjson": string(dockerConfigJSON),
+		},
+		Type: corev1.SecretTypeDockerConfigJson,
+	}, metav1.CreateOptions{})
+	if err != nil && !strings.Contains(err.Error(), "already exists") {
+		return "", fmt.Errorf("failed to create image pull secret: %w", err)
+	}
+
+	return imagePullSecretName, nil
+}
+
+// buildPullSecretValues returns Helm YAML that adds the named imagePullSecret
+// to agents, clusterAgent, and clusterChecksRunner image sections.
+// Mirrors configureImagePullSecret in kubernetes_helm.go.
+func buildPullSecretValues(secretName string) string {
+	return fmt.Sprintf(`agents:
+  image:
+    pullSecrets:
+      - name: %[1]s
+clusterAgent:
+  image:
+    pullSecrets:
+      - name: %[1]s
+clusterChecksRunner:
+  image:
+    pullSecrets:
+      - name: %[1]s
+`, secretName)
+}
+
 // buildImageValues generates Helm values for agent/cluster-agent images based
 // on the runner profile (pipeline ID, commit SHA) or user-provided image paths.
+// Mirrors the logic in docker_image.go's dockerAgentFullImagePath /
+// dockerClusterAgentFullImagePath when no explicit image is provided.
 func buildImageValues(t *testing.T, p *kubernetesagentparams.Params) string {
 	t.Helper()
 
 	// User-provided full image paths take precedence
 	if p.AgentFullImagePath != "" {
 		repo, tag := parseImageRef(p.AgentFullImagePath)
-		values := fmt.Sprintf("agents:\n  image:\n    repository: %s\n    tag: \"%s\"\n    doNotCheckTag: true\n", repo, tag)
+		containerRegistry, imageName := splitRepoForSidecar(repo)
+		values := fmt.Sprintf(`agents:
+  image:
+    repository: %s
+    tag: "%s"
+    doNotCheckTag: true
+clusterChecksRunner:
+  image:
+    repository: %s
+    tag: "%s"
+    doNotCheckTag: true
+clusterAgent:
+  admissionController:
+    agentSidecarInjection:
+      containerRegistry: %s
+      imageName: %s
+      imageTag: "%s"
+`, repo, tag, repo, tag, containerRegistry, imageName, tag)
 		if p.ClusterAgentFullImagePath != "" {
 			cRepo, cTag := parseImageRef(p.ClusterAgentFullImagePath)
-			values += fmt.Sprintf("clusterAgent:\n  image:\n    repository: %s\n    tag: \"%s\"\n", cRepo, cTag)
+			values += fmt.Sprintf("clusterAgent:\n  image:\n    repository: %s\n    tag: \"%s\"\n    doNotCheckTag: true\n", cRepo, cTag)
 		}
 		return values
 	}
@@ -488,21 +645,85 @@ func buildImageValues(t *testing.T, p *kubernetesagentparams.Params) string {
 	commitSHA, _ := profile.ParamStore().GetWithDefault(parameters.CommitSHA, "")
 
 	if pipelineID != "" && commitSHA != "" {
-		tag := fmt.Sprintf("%s-%s", pipelineID, commitSHA)
+		internalRegistry := runner.InternalRegistry()
+		if internalRegistry == "" {
+			// No internal registry configured for this environment — fall through to chart defaults
+			return ""
+		}
+
+		// Images are tagged with the short (8-char) commit SHA. CI sets
+		// E2E_COMMIT_SHA=$CI_COMMIT_SHORT_SHA so it is already 8 chars, but
+		// truncate defensively in case a full SHA is passed locally.
+		shortSHA := commitSHA
+		if len(shortSHA) > 8 {
+			shortSHA = shortSHA[:8]
+		}
+
+		agentTag := fmt.Sprintf("%s-%s", pipelineID, shortSHA)
+		// -linux restricts to the single-platform Linux manifest. It is the
+		// default; the multi-arch manifest (no -linux) is only used when
+		// WindowsImage is explicitly set, mirroring docker_image.go where
+		// useLinuxOnly = e.AgentLinuxOnly() && !windowsImage.
+		linuxOnly := !p.WindowsImage
+		switch {
+		case linuxOnly && p.FIPS && p.JMX:
+			agentTag += "-fips-linux-jmx"
+		case linuxOnly && p.FIPS:
+			agentTag += "-fips-linux"
+		case p.FIPS && p.JMX:
+			agentTag += "-fips-jmx"
+		case p.FIPS:
+			agentTag += "-fips"
+		case linuxOnly && p.JMX:
+			agentTag += "-linux-jmx"
+		case linuxOnly:
+			agentTag += "-linux"
+		case p.JMX:
+			agentTag += "-jmx"
+		}
+
+		clusterAgentTag := fmt.Sprintf("%s-%s", pipelineID, shortSHA)
+		if p.FIPS {
+			clusterAgentTag += "-fips"
+		}
+
 		return fmt.Sprintf(`agents:
   image:
-    repository: gcr.io/datadoghq/agent
-    tag: "%s"
+    repository: %[1]s/agent-qa
+    tag: "%[2]s"
+    doNotCheckTag: true
+clusterChecksRunner:
+  image:
+    repository: %[1]s/agent-qa
+    tag: "%[2]s"
     doNotCheckTag: true
 clusterAgent:
   image:
-    repository: gcr.io/datadoghq/cluster-agent
-    tag: "%s"
-`, tag, tag)
+    repository: %[1]s/cluster-agent-qa
+    tag: "%[3]s"
+    doNotCheckTag: true
+  admissionController:
+    agentSidecarInjection:
+      containerRegistry: %[1]s
+      imageName: agent-qa
+      imageTag: "%[2]s"
+`, internalRegistry, agentTag, clusterAgentTag)
 	}
 
 	// No specific image — use chart defaults (latest stable)
 	return ""
+}
+
+// splitRepoForSidecar splits a full repository path into the registry prefix
+// and the image name, for use in agentSidecarInjection.containerRegistry and
+// imageName. Mirrors the split in buildLinuxHelmValues in kubernetes_helm.go.
+// e.g. "669783387624.dkr.ecr.us-east-1.amazonaws.com/agent-qa"
+//   → ("669783387624.dkr.ecr.us-east-1.amazonaws.com", "agent-qa")
+func splitRepoForSidecar(repo string) (containerRegistry, imageName string) {
+	if idx := strings.LastIndex(repo, "/"); idx != -1 {
+		return repo[:idx], repo[idx+1:]
+	}
+	return "", repo
 }
 
 // parseImageRef splits "repo/image:tag" into ("repo/image", "tag").
