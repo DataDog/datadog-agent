@@ -1,0 +1,200 @@
+-- allium: 3
+-- reporter.allium
+
+-- Scope: Reporter component — formats and dispatches anomaly detection events.
+-- Includes: StdoutReporter, EventReporter, ReplayReporter behaviours,
+--   correlation state tracking, event deduplication, testbench event capture.
+-- Excludes:
+--   - Engine internals (detection, correlation, storage) — see observer-engine.allium
+--   - Fx component wiring and agent lifecycle
+--   - Event sender transport (HTTP retries, serialisation format)
+--   - Testbench UI rendering
+
+use "../observer/observer-engine.allium" as engine
+
+------------------------------------------------------------
+-- Config
+------------------------------------------------------------
+
+config {
+    event_reporter_sending_enabled: Boolean = false
+        -- When false, only StdoutReporter is active. No network calls are made.
+        -- Set observer.event_reporter.sending_enabled: true to enable EventReporter.
+}
+
+------------------------------------------------------------
+-- Value Types
+------------------------------------------------------------
+
+-- The data contract passed from the engine to each Reporter after every advance.
+-- Owned here (reporter/def) so reporters depend only on this type, not on engine internals.
+-- Contains only observer domain types (Anomaly, Correlation) imported via `use`.
+value ReportOutput {
+    advanced_to_sec: Integer               -- data time the engine advanced to
+    new_anomalies: Set<engine/Anomaly>     -- anomalies detected in this advance cycle
+    active_correlations: Set<engine/Correlation>  -- current correlation state
+}
+
+-- A single captured event, equivalent to what EventReporter would send in live mode.
+-- Used by ReplayReporter to collect events in memory during testbench replay.
+value ReportedEvent {
+    pattern: String                   -- correlation pattern key
+    title: String
+    message: String                   -- formatted change message with rate annotations
+    tags: Set<String>
+    first_seen: Integer               -- unix seconds
+    last_updated: Integer             -- unix seconds
+    formatted_time: String            -- human-readable UTC of first_seen
+}
+
+------------------------------------------------------------
+-- Reporter Component
+------------------------------------------------------------
+
+-- The reporter component owns all Reporter implementations and provides them
+-- to the engine via the anomalydetection_reporters injection group.
+-- The component itself carries no runtime state; state lives in each implementation.
+entity ReporterComponent {}
+
+------------------------------------------------------------
+-- Rules: StdoutReporter
+------------------------------------------------------------
+
+-- StdoutReporter prints correlation state changes to stdout.
+-- It fires on every Report() call and tracks which patterns are currently active.
+-- It does NOT print on every advance; only on changes.
+rule StdoutReporterReceivesReport {
+    when: ReportDelivered(stdout_reporter, output: ReportOutput)
+
+    -- Print each raw anomaly that has not been printed before.
+    ensures:
+        for a in output.new_anomalies where not previously_reported(stdout_reporter, a):
+            AnomalyPrinted(a)
+
+    -- Print "[observer] NEW: {title}" for each correlation first appearing.
+    ensures:
+        for c in output.active_correlations where not in_seen(stdout_reporter, c.pattern):
+            CorrelationNewPrinted(c)
+
+    -- Print "[observer] CLEARED: {title}" for each correlation that disappeared.
+    ensures:
+        for c in seen_correlations(stdout_reporter) where not in(output.active_correlations, c.pattern):
+            CorrelationClearedPrinted(c)
+
+    @guidance
+        -- StdoutReporter is always active regardless of config.
+        -- It is the zero-cost reporter that works without any API key or network.
+}
+
+------------------------------------------------------------
+-- Rules: EventReporter
+------------------------------------------------------------
+
+-- EventReporter sends one Datadog event per correlation pattern that newly appears
+-- (first appearance, or reappearance after going inactive).
+-- It is only instantiated when config.event_reporter_sending_enabled is true.
+rule EventReporterReceivesReport {
+    when: ReportDelivered(event_reporter, output: ReportOutput)
+    requires: config.event_reporter_sending_enabled
+
+    ensures:
+        for c in output.active_correlations where not in_seen(event_reporter, c.pattern):
+            DatadogEventSent(c)
+
+    -- Drop patterns that disappeared from the active set so they can re-fire
+    -- on the next appearance (repeated incidents for the same pattern).
+    ensures:
+        for c in seen_patterns(event_reporter) where not in(output.active_correlations, c):
+            PatternDropped(event_reporter, c)
+
+    @guidance
+        -- EventReporter mirrors ReplayReporter.Report() exactly.
+        -- This identity is what makes testbench replay trustworthy:
+        -- the same logic runs in both live and replay modes.
+        -- Sending is async — Report() enqueues; transport handles retries.
+}
+
+------------------------------------------------------------
+-- Rules: ReplayReporter
+------------------------------------------------------------
+
+-- ReplayReporter mirrors EventReporter semantics during testbench replay.
+-- It captures events that would be sent in live mode, storing them in memory.
+-- No network calls are made.
+rule ReplayReporterReceivesReport {
+    when: ReportDelivered(replay_reporter, output: ReportOutput)
+
+    ensures:
+        for c in output.active_correlations where not in_seen(replay_reporter, c.pattern):
+            ReportedEvent.created(
+                pattern: c.pattern,
+                title: c.title,
+                message: build_change_message(c),
+                tags: build_event_tags(c),
+                first_seen: c.first_seen,
+                last_updated: c.last_updated,
+                formatted_time: format_utc(c.first_seen),
+            )
+
+    -- Drop inactive patterns identically to EventReporter.
+    ensures:
+        for c in seen_patterns(replay_reporter) where not in(output.active_correlations, c):
+            PatternDropped(replay_reporter, c)
+
+    @guidance
+        -- ReplayReporter is registered only for testbench replay runs.
+        -- The collected ReportedEvent list is exposed via GET /api/reports.
+        -- This lets users inspect what events would have been sent without
+        -- touching the Datadog backend.
+}
+
+------------------------------------------------------------
+-- Invariants
+------------------------------------------------------------
+
+-- EventReporter and ReplayReporter use identical deduplication logic.
+-- A pattern fires once per appearance; it can re-fire after going inactive.
+invariant ReporterDeduplication {
+    for r in {event_reporter, replay_reporter}:
+        for p in seen_patterns(r):
+            p in active_correlations(r)
+}
+
+------------------------------------------------------------
+-- Contracts
+------------------------------------------------------------
+
+-- The contract that all Reporter implementations must satisfy.
+-- Defined here (reporter/def) alongside ReportOutput; the engine consumes it
+-- as an external entity without owning the interface definition.
+contract ReporterContract {
+    name: () -> String
+    report: (output: ReportOutput) -> Void
+
+    @invariant NoEngineAccess
+        -- Reporters receive only ReportOutput.
+        -- They must not hold references to engine internals,
+        -- storage, or any other engine-owned state.
+
+    @invariant NonBlocking
+        -- Report() is called synchronously from the event sink.
+        -- Implementations must not block (no synchronous network I/O
+        -- on the call path). EventReporter delegates actual sending
+        -- to a background goroutine.
+}
+
+-- The event formatting contract shared by EventReporter and ReplayReporter.
+contract EventFormatterContract {
+    build_change_message: (c: engine/Correlation) -> String
+    build_event_tags: (c: engine/Correlation) -> Set<String>
+
+    @invariant Deterministic
+        -- For the same Correlation state, both functions produce the same output.
+        -- This is required for live/replay parity: the same correlation produces
+        -- the same event body in both modes.
+
+    @invariant RateAnnotations
+        -- build_change_message includes rate-change annotations when the
+        -- contributing log pattern extractor shows a significant rate change
+        -- (>30% relative and >2 absolute events/minute).
+}

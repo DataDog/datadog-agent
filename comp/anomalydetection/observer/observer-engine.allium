@@ -52,6 +52,8 @@ external entity LogMetricsExtractor {
     name: String
 }
 
+-- Reporter implementations are owned by the reporter component (see reporter.allium).
+-- The engine consumes them via ReporterContract; it does not own or instantiate them.
 external entity Reporter {
     name: String
 }
@@ -138,6 +140,7 @@ value AdvanceResult {
     anomalies: Set<Anomaly>
     telemetry: Set<TelemetryEntry>
 }
+
 
 value ReplayProgress {
     phase: ReplayPhase
@@ -471,16 +474,24 @@ rule AccumulateCorrelations {
 -- The reporter event sink builds a ReportOutput containing:
 --   - The data time the engine advanced to
 --   - New anomalies detected in this cycle
---   - Active correlations (queried from stateView)
+--   - Active correlations (queried from stateView via CorrelationHistory)
 rule NotifyReporters {
     when: AdvanceCompleted(engine, advanced_to_sec, reason)
 
     ensures: ReportersNotified(engine, advanced_to_sec)
 
     @guidance
-        -- The reporterEventSink bridges engine events to the
-        -- Reporter interface. Reporters receive ReportOutput
-        -- without direct access to engine internals.
+        -- The reporterEventSink bridges engine events to the Reporter interface.
+        -- It populates ReportOutput and calls Report() on each registered reporter.
+        -- Reporters are injected via the anomalydetection_reporters group; the engine
+        -- has no knowledge of which implementations are active.
+        --
+        -- Active correlations are read from CorrelationHistory (accumulated) rather
+        -- than ActiveCorrelations (post-eviction) so that batch detector clusters
+        -- remain visible to reporters even when their timestamps are old enough to
+        -- be evicted from the live active set.
+        --
+        -- See reporter.allium for the reporter component's own behavioural spec.
 }
 
 ------------------------------------------------------------
