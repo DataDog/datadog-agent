@@ -252,8 +252,5 @@ func GetDefaultConfPath() string {
 
 // GetEmbeddedBinPath returns the path of the embedded binary for the given flavor.
 func GetEmbeddedBinPath() string {
-	if flavor.GetFlavor() == flavor.ClusterAgent {
-		return GetInstallPath()
-	}
 	return filepath.Join(GetInstallPath(), "..", "..", "embedded", "bin")
 }
