@@ -234,6 +234,13 @@ func NewComponent(deps Requires) Provides {
 	// replacement can't start.
 	hfFilterSources := make(map[metrics.MetricSource]struct{})
 
+	// Wire per-component processing time directly to the telemetry gauge,
+	// bypassing ObserverTelemetry object construction on the hot path.
+	processingTimeGauge := th.telemetryGauges[telemetryDetectorProcessingTimeNs]
+	eng.onProcessingTime = func(detectorTag string, nanos float64) {
+		processingTimeGauge.Set(nanos, detectorTag)
+	}
+
 	obs := &observerImpl{
 		engine:               eng,
 		obsCh:                make(chan observation, 1000),
