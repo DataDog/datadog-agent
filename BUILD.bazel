@@ -314,7 +314,6 @@ exports_files(glob(
 # gazelle:exclude comp/trace/payload-modifier
 # gazelle:exclude comp/trace/status
 # gazelle:exclude comp/workloadselection/def
-# gazelle:exclude internal/remote-agent
 # gazelle:exclude internal/third_party
 # gazelle:exclude pkg/aggregator/mocksender
 # gazelle:exclude pkg/aggregator/sender
