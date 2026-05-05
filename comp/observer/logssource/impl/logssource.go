@@ -128,8 +128,6 @@ func NewComponent(deps Requires) (Provides, error) {
 	launchersMgr.AddLauncher(launcher)
 	launchersMgr.AddLauncher(journaldlauncher.NewLauncher(flare.NewFlareController(), deps.Tagger))
 
-	registerKubeletJournaldSource(logSources, deps.Log)
-
 	sp := newSourceProvider(wmeta, logSources, pauseFilter)
 
 	services := service.NewServices()
@@ -152,6 +150,7 @@ func NewComponent(deps Requires) (Provides, error) {
 			// Launchers must be ready before schedulers add sources so that tailers
 			// can be created immediately when the first AD config arrives.
 			launchersMgr.Start()
+			registerKubeletJournaldSource(logSources, deps.Log)
 			if adScheduler != nil {
 				adScheduler.Start(adMgr)
 			}
