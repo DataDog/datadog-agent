@@ -92,7 +92,7 @@ func (s *packageDDOTSuite) TestInstallDDOTInstaller() {
 	s.RunInstallScript("DD_REMOTE_UPDATES=true", envForceInstall("datadog-agent"))
 	defer s.Purge()
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
-	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit)
+	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, procmgrUnit)
 
 	// Install ddot
 	s.host.Run("sudo datadog-installer install oci://installtesting.datad0g.com.internal.dda-testing.com/ddot-package:pipeline-" + os.Getenv("E2E_PIPELINE_ID"))
