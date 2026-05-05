@@ -13,7 +13,7 @@ go_library(
         "//comp/remote-config/rcservice/def",
         "//comp/updater/updater/def",
         "//pkg/util/option",
-        "@com_github_datadog_datadog_agent//pkg/fleet/daemon",
+        "@//pkg/fleet/daemon",
     ],
 )
 

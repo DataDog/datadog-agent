@@ -7,7 +7,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/cli/subcommands/version",
-        "@com_github_datadog_datadog_agent//cmd/system-probe/command",
+        "@//cmd/system-probe/command",
         "@com_github_spf13_cobra//:cobra",
     ],
 )

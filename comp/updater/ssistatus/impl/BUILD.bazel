@@ -18,7 +18,7 @@ go_library(
         "//comp/core/status",
         "//comp/def",
         "//comp/updater/ssistatus/def",
-        "@com_github_datadog_datadog_agent//comp/metadata/inventoryagent/def",
+        "@//comp/metadata/inventoryagent/def",
     ] + select({
         "@rules_go//go/platform:aix": [
             "//pkg/fleet/installer/packages/ssi",

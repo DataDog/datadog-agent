@@ -11,8 +11,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/network/go/lutgen",
     visibility = ["//visibility:public"],
     deps = [
-        "@com_github_datadog_datadog_agent//pkg/network/go/goversion",
-        "@com_github_datadog_datadog_agent//pkg/network/go/rungo",
-        "@com_github_datadog_datadog_agent//pkg/network/go/rungo/matrix",
+        "@//pkg/network/go/goversion",
+        "@//pkg/network/go/rungo",
+        "@//pkg/network/go/rungo/matrix",
     ],
 )

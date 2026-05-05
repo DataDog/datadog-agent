@@ -11,7 +11,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/proto/pbgo/privateactionrunner/privateactions",
-        "@com_github_datadog_datadog_agent//pkg/privateactionrunner/adapters/constants",
-        "@com_github_datadog_datadog_agent//pkg/privateactionrunner/libs/connection",
+        "@//pkg/privateactionrunner/adapters/constants",
+        "@//pkg/privateactionrunner/libs/connection",
     ],
 )
