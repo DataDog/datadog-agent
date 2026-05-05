@@ -226,9 +226,12 @@ func (cm *reconcilingConfigManager) processNewConfig(config integration.Config) 
 		// Secrets always need to be resolved (done in reconcileService if template)
 		decryptedConfig, err := decryptConfig(config, cm.secretResolver, digest)
 		if err != nil {
-			log.Errorf("Unable to resolve secrets for config '%s', dropping check configuration, err: %s", config.Name, err.Error())
+			if len(decryptedConfig.Instances) == 0 {
+				log.Errorf("Unable to resolve secrets for config '%s', dropping check configuration, err: %s", config.Name, err.Error())
+				return cm.applyChanges(changes), changedIDsOfSecretsWithConfigs
+			}
+			log.Warnf("Unable to resolve secrets for some instances of config '%s', dropping instances that failed to decrypt, err: %s", config.Name, err.Error())
 		}
-
 		// Instances of the decrypted config change their ID when secrets are
 		// resolved.
 		// We're only interested in cluster checks because the change of ID only
@@ -407,7 +410,6 @@ func (cm *reconcilingConfigManager) reconcileService(svcID string) integration.C
 // updating errorStats in the process.  If the resolution fails, this method
 // returns false.
 func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Config, svc listeners.Service) (integration.Config, bool) {
-	digest := tpl.Digest()
 	config, err := configresolver.Resolve(tpl, svc)
 	if err != nil {
 		msg := fmt.Sprintf("error resolving template %s for service %s: %v", tpl.Name, svc.GetServiceID(), err)
@@ -416,7 +418,7 @@ func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Co
 		cm.reportTemplateResolutionFailure(tpl, svc, err)
 		return tpl, false
 	}
-	resolvedConfig, err := decryptConfig(config, cm.secretResolver, digest)
+	resolvedConfig, err := decryptConfig(config, cm.secretResolver, tpl.Digest())
 	if err != nil {
 		msg := fmt.Sprintf("error decrypting secrets in config %s for service %s: %v", config.Name, svc.GetServiceID(), err)
 		errorStats.setResolveWarning(tpl.Name, msg)
