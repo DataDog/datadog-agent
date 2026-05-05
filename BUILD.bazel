@@ -71,7 +71,6 @@ exports_files(glob(
 # gazelle:exclude comp/api/commonendpoints
 # gazelle:exclude comp/api/grpcserver/fx-agent
 # gazelle:exclude comp/api/grpcserver/impl-agent
-# gazelle:exclude comp/checks/agentcrashdetect/fx
 # gazelle:exclude comp/checks/agentcrashdetect/impl
 # gazelle:exclude comp/checks/windowseventlog/def
 # gazelle:exclude comp/checks/windowseventlog/fx
