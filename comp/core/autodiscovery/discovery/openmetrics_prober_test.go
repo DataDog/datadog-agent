@@ -7,6 +7,7 @@ package discovery
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -65,9 +66,11 @@ func (f *fakeService) GetPid() (int, error)                            { return 
 func (f *fakeService) GetHostname() (string, error)                    { return "", nil }
 func (f *fakeService) IsReady() bool                                   { return true }
 func (f *fakeService) HasFilter(workloadfilter.Scope) bool             { return false }
-func (f *fakeService) GetExtraConfig(string) (string, error)           { return "", nil }
-func (f *fakeService) FilterTemplates(map[string]integration.Config)   {}
-func (f *fakeService) GetImageName() string                            { return "krakend:test" }
+func (f *fakeService) GetExtraConfig(key string) (string, error) {
+	return "", fmt.Errorf("unknown extra config %q", key)
+}
+func (f *fakeService) FilterTemplates(map[string]integration.Config) {}
+func (f *fakeService) GetImageName() string                          { return "krakend:test" }
 func (f *fakeService) Equal(other listeners.Service) bool {
 	return f.id == other.GetServiceID()
 }
