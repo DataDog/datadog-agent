@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -23,6 +24,10 @@ type memConfigStore struct {
 	lock       sync.RWMutex
 	rawConfigs map[string]string
 	metadata   map[string]types.ConfigMetadata
+
+	minConfigsPerDevice    int
+	maxConfigsPerDevice    int
+	maxRawConfigStoreBytes int64
 }
 
 var _ ConfigStore = (*memConfigStore)(nil)
@@ -30,8 +35,11 @@ var _ ConfigStore = (*memConfigStore)(nil)
 // NewMemStore creates a ConfigStore backed by in-memory maps (for use in tests).
 func NewMemStore() ConfigStore {
 	return &memConfigStore{
-		rawConfigs: make(map[string]string),
-		metadata:   make(map[string]types.ConfigMetadata),
+		rawConfigs:             make(map[string]string),
+		metadata:               make(map[string]types.ConfigMetadata),
+		minConfigsPerDevice:    defaultMinConfigsPerDevice,
+		maxConfigsPerDevice:    defaultMaxConfigsPerDevice,
+		maxRawConfigStoreBytes: defaultMaxRawConfigStoreBytes,
 	}
 }
 
@@ -91,6 +99,28 @@ func (m *memConfigStore) CheckDuplicate(deviceID string, configType types.Config
 	m.lock.RLock()
 	defer m.lock.RUnlock()
 	return m.findLatestMatch(deviceID, configType, rawHash), nil
+}
+
+// UpdateStoreConfig validates and applies new eviction-policy knobs, logging
+// each individual value that changed.
+func (m *memConfigStore) UpdateStoreConfig(minConfigsPerDevice, maxConfigsPerDevice int, maxRawConfigStoreBytes int64) {
+	minConfigsPerDevice, maxConfigsPerDevice, maxRawConfigStoreBytes = validateStoreConfigValues(minConfigsPerDevice, maxConfigsPerDevice, maxRawConfigStoreBytes)
+
+	m.lock.Lock()
+	defer m.lock.Unlock()
+
+	if m.minConfigsPerDevice != minConfigsPerDevice {
+		log.Infof("NCM config store: minConfigsPerDevice updated %d → %d", m.minConfigsPerDevice, minConfigsPerDevice)
+		m.minConfigsPerDevice = minConfigsPerDevice
+	}
+	if m.maxConfigsPerDevice != maxConfigsPerDevice {
+		log.Infof("NCM config store: maxConfigsPerDevice updated %d → %d", m.maxConfigsPerDevice, maxConfigsPerDevice)
+		m.maxConfigsPerDevice = maxConfigsPerDevice
+	}
+	if m.maxRawConfigStoreBytes != maxRawConfigStoreBytes {
+		log.Infof("NCM config store: maxRawConfigStoreBytes updated %d → %d", m.maxRawConfigStoreBytes, maxRawConfigStoreBytes)
+		m.maxRawConfigStoreBytes = maxRawConfigStoreBytes
+	}
 }
 
 // GetConfig retrieves all data for a config by UUID.

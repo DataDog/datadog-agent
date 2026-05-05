@@ -31,16 +31,25 @@ type DeviceConfig struct {
 	Auth      AuthCredentials `mapstructure:"auth"`
 }
 
+// StoreConfig holds eviction-policy knobs for the local config store.
+type StoreConfig struct {
+	MinConfigsPerDevice    int   `mapstructure:"min_configs_per_device"`
+	MaxConfigsPerDevice    int   `mapstructure:"max_configs_per_device"`
+	MaxRawConfigStoreBytes int64 `mapstructure:"max_raw_config_store_bytes"`
+}
+
 // RawNcmConfig is the raw config structure for Network Config Management (NCM) taken from the Agent configuration
 type RawNcmConfig struct {
 	Namespace string         `mapstructure:"namespace"` // namespace for the network config management, e.g., "default"
 	Devices   []DeviceConfig `mapstructure:"devices"`
+	Store     StoreConfig    `mapstructure:"store"`
 }
 
 // ProcessedNcmConfig is the processed config structure for Network Config Management (NCM) to be used by the component
 type ProcessedNcmConfig struct {
 	Namespace string
 	Devices   map[string]DeviceConfig // map of device IP addresses to DeviceConfig
+	Store     StoreConfig
 }
 
 func newConfig(agentConfig config.Component) (*ProcessedNcmConfig, error) {
@@ -56,5 +65,6 @@ func newConfig(agentConfig config.Component) (*ProcessedNcmConfig, error) {
 	return &ProcessedNcmConfig{
 		Namespace: ncm.Namespace,
 		Devices:   deviceMap,
+		Store:     ncm.Store,
 	}, nil
 }

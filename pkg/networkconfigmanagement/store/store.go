@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/compression/selector"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -35,12 +36,21 @@ const (
 	// DB configurations
 	ownerRWFileMode     = 0600 // only the owner can read/write
 	databaseLockTimeout = 1 * time.Second
+
+	// Store config defaults (must match config.defaultMin/Max/MaxBytes)
+	defaultMinConfigsPerDevice    = 5
+	defaultMaxConfigsPerDevice    = 10
+	defaultMaxRawConfigStoreBytes = int64(500 * 10 * 5000000 / 5)
 )
 
 type configStore struct {
 	db         *bbolt.DB
 	lock       sync.RWMutex
 	compressor compression.Compressor
+
+	minConfigsPerDevice    int
+	maxConfigsPerDevice    int
+	maxRawConfigStoreBytes int64
 }
 
 var _ ConfigStore = (*configStore)(nil)
@@ -55,8 +65,11 @@ func Open(path string) (ConfigStore, error) {
 	}
 
 	cs := &configStore{
-		db:         db,
-		compressor: selector.NewCompressor(compression.ZstdKind, 3), // Level 3 is default for compression, can tune iteratively
+		db:                     db,
+		compressor:             selector.NewCompressor(compression.ZstdKind, 3), // Level 3 is default for compression, can tune iteratively
+		minConfigsPerDevice:    defaultMinConfigsPerDevice,
+		maxConfigsPerDevice:    defaultMaxConfigsPerDevice,
+		maxRawConfigStoreBytes: defaultMaxRawConfigStoreBytes,
 	}
 
 	// Create the buckets when we first open
@@ -271,6 +284,51 @@ func (cs *configStore) DeleteConfig(key string) error {
 		}
 		return nil
 	})
+}
+
+// validateStoreConfigValues sanitises the three eviction-policy knobs.
+// Zero/negative values fall back to defaults; min > max resets both to defaults.
+func validateStoreConfigValues(minPerDevice, maxPerDevice int, maxBytes int64) (int, int, int64) {
+	if minPerDevice <= 0 {
+		log.Debugf("NCM config store: invalid min_configs_per_device (%d), using default %d", minPerDevice, defaultMinConfigsPerDevice)
+		minPerDevice = defaultMinConfigsPerDevice
+	}
+	if maxPerDevice <= 0 {
+		log.Debugf("NCM config store: invalid max_configs_per_device (%d), using default %d", maxPerDevice, defaultMaxConfigsPerDevice)
+		maxPerDevice = defaultMaxConfigsPerDevice
+	}
+	if minPerDevice > maxPerDevice {
+		log.Warnf("NCM config store: min_configs_per_device (%d) exceeds max_configs_per_device (%d), resetting both to defaults", minPerDevice, maxPerDevice)
+		minPerDevice = defaultMinConfigsPerDevice
+		maxPerDevice = defaultMaxConfigsPerDevice
+	}
+	if maxBytes <= 0 {
+		log.Debugf("NCM config store: invalid max_raw_config_store_bytes (%d), using default %d", maxBytes, defaultMaxRawConfigStoreBytes)
+		maxBytes = defaultMaxRawConfigStoreBytes
+	}
+	return minPerDevice, maxPerDevice, maxBytes
+}
+
+// UpdateStoreConfig validates and applies new eviction-policy knobs, logging
+// each individual value that changed.
+func (cs *configStore) UpdateStoreConfig(minConfigsPerDevice, maxConfigsPerDevice int, maxRawConfigStoreBytes int64) {
+	minConfigsPerDevice, maxConfigsPerDevice, maxRawConfigStoreBytes = validateStoreConfigValues(minConfigsPerDevice, maxConfigsPerDevice, maxRawConfigStoreBytes)
+
+	cs.lock.Lock()
+	defer cs.lock.Unlock()
+
+	if cs.minConfigsPerDevice != minConfigsPerDevice {
+		log.Infof("NCM config store: minConfigsPerDevice updated %d → %d", cs.minConfigsPerDevice, minConfigsPerDevice)
+		cs.minConfigsPerDevice = minConfigsPerDevice
+	}
+	if cs.maxConfigsPerDevice != maxConfigsPerDevice {
+		log.Infof("NCM config store: maxConfigsPerDevice updated %d → %d", cs.maxConfigsPerDevice, maxConfigsPerDevice)
+		cs.maxConfigsPerDevice = maxConfigsPerDevice
+	}
+	if cs.maxRawConfigStoreBytes != maxRawConfigStoreBytes {
+		log.Infof("NCM config store: maxRawConfigStoreBytes updated %d → %d", cs.maxRawConfigStoreBytes, maxRawConfigStoreBytes)
+		cs.maxRawConfigStoreBytes = maxRawConfigStoreBytes
+	}
 }
 
 // hashConfig returns a SHA-256 hash of the config content as a string

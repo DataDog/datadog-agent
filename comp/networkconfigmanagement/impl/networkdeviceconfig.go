@@ -53,6 +53,12 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, err
 	}
 
+	store.UpdateStoreConfig(
+		ncmConfig.Store.MinConfigsPerDevice,
+		ncmConfig.Store.MaxConfigsPerDevice,
+		ncmConfig.Store.MaxRawConfigStoreBytes,
+	)
+
 	reqs.Lifecycle.Append(compdef.Hook{OnStop: store.Close})
 
 	impl := &networkDeviceConfigImpl{
