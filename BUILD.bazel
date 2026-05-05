@@ -336,7 +336,6 @@ exports_files(glob(
 # gazelle:exclude pkg/clusteragent/appsec
 # gazelle:exclude pkg/clusteragent/autoscaling
 # gazelle:exclude pkg/clusteragent/clusterchecks
-# gazelle:exclude pkg/clusteragent/evictor
 # gazelle:exclude pkg/clusteragent/kubeactions
 # gazelle:exclude pkg/clusteragent/languagedetection
 # gazelle:exclude pkg/clusteragent/mcp
