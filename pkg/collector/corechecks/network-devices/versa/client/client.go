@@ -11,16 +11,32 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// bracketIPv6Host wraps a bare IPv6 literal (e.g. `fd38::1`) in brackets so it
+// is safe to assign to `url.URL.Host`. Inputs that are not bare IPv6 literals
+// (IPv4, hostnames, host:port forms, full URLs, or already-bracketed IPv6) are
+// returned unchanged.
+func bracketIPv6Host(host string) string {
+	if strings.HasPrefix(host, "[") {
+		return host
+	}
+	if ip := net.ParseIP(host); ip != nil && ip.To4() == nil {
+		return "[" + host + "]"
+	}
+	return host
+}
 
 const (
 	defaultBasicPort   = 9182
@@ -102,12 +118,12 @@ func NewClient(directorEndpoint string, directorPort int, analyticsEndpoint stri
 
 	directorEndpointURL := url.URL{
 		Scheme: scheme,
-		Host:   directorEndpoint,
+		Host:   bracketIPv6Host(directorEndpoint),
 	}
 
 	analyticsEndpointURL := url.URL{
 		Scheme: scheme,
-		Host:   analyticsEndpoint,
+		Host:   bracketIPv6Host(analyticsEndpoint),
 	}
 
 	client := &Client{
