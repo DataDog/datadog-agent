@@ -44,6 +44,7 @@ docker_image_build_otel:
       --build-arg DDA_VERSION=$DDA_VERSION
       --build-arg GOPROXY
       --build-arg GONOSUMDB
+      --build-arg GO_VERSION
     BUILD_CONTEXT: /tmp/otel-ci
     IMAGE: registry.ddbuild.io/ci/datadog-agent/agent-byoc
     CACHE_TARGET: builder_base
@@ -64,6 +65,7 @@ docker_image_build_otel:
     - !reference [.login_to_docker_readonly]
     - export BUILDIMAGES_COMMIT="${CI_IMAGE_LINUX#*-}"
     - export DDA_VERSION="$(curl -s https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/${BUILDIMAGES_COMMIT}/dda.env | awk -F= '/^DDA_VERSION=/ {print $2}')"
+    - export GO_VERSION=$(cat .go-version)
   after_script:
     # Compute the image name and tag the template will push to, so after_script can reference them.
     # ECR_RELEASE_SUFFIX mirrors the logic in .docker_build_job_definition.
