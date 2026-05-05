@@ -9,7 +9,7 @@ package tracer
 
 import (
 	"bytes"
-	"fmt"
+	"strconv"
 	"sync"
 	"time"
 	"unicode/utf16"
@@ -52,7 +52,7 @@ func ifTypeName(ifType uint32) string {
 	if name, ok := ifTypeToString[ifType]; ok {
 		return name
 	}
-	return fmt.Sprintf("%d", ifType)
+	return strconv.FormatUint(uint64(ifType), 10)
 }
 
 // InterfaceClassification holds interface metadata looked up by interface index.
