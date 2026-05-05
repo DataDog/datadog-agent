@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build !linux
+//go:build !linux || !nvml
 
 // Package nccl contains the NCCL collective communication check implementation.
 package nccl
