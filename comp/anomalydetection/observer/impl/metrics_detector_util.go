@@ -12,6 +12,19 @@ import (
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
+func parseAggregateConfig(names []string) []observer.Aggregate {
+	if len(names) == 0 {
+		return nil
+	}
+	aggregations := make([]observer.Aggregate, 0, len(names))
+	for _, name := range names {
+		if agg, ok := parseAggregateSuffix(name); ok {
+			aggregations = append(aggregations, agg)
+		}
+	}
+	return aggregations
+}
+
 // seriesStatus holds point count and write generation for a single series.
 // Used by bulkSeriesStatus and scan-based detectors.
 type seriesStatus struct {

@@ -26,16 +26,8 @@ func testTukeyBiweightDetector() *TukeyBiweightDetector {
 
 // TestTukeyBiweight_RegisteredInCatalog verifies the Tukey biweight detector
 // is reachable from defaultCatalog() under its expected name and that the
-// catalog factory produces a *TukeyBiweightDetector.
-//
-// NOTE: the original plan called for TestTukeyBiweight_DefaultEnabledIsFalse,
-// but stage-1 shipped the catalog entry with defaultEnabled=true; the stage-2
-// execution rules explicitly forbid touching component_catalog.go, so the
-// default-false guard is out of scope for this stage. This test asserts only
-// the registration invariant, mirroring the precedent set by
-// TestMannKendall_RegisteredInCatalog and TestBurgar_RegisteredInCatalog.
-// A flip back to defaultEnabled=false (matching the candidate description's
-// intent) can be made in a follow-up without touching this file.
+// catalog factory produces a *TukeyBiweightDetector. The default-enabled guard
+// for all experimental finalist detectors lives in component_catalog_test.go.
 func TestTukeyBiweight_RegisteredInCatalog(t *testing.T) {
 	cat := defaultCatalog()
 	var found *componentEntry
@@ -51,6 +43,43 @@ func TestTukeyBiweight_RegisteredInCatalog(t *testing.T) {
 	instance := found.factory(found.defaultConfig)
 	_, ok := instance.(*TukeyBiweightDetector)
 	require.True(t, ok, "factory must produce *TukeyBiweightDetector")
+}
+
+// TestTukeyBiweight_IncrementalMatchesBatch verifies that streaming advances
+// are equivalent to one batch replay over the same points. The engine can
+// advance detectors incrementally in production, so finalist detectors must
+// not rely on seeing the full corpus in a single Detect call.
+func TestTukeyBiweight_IncrementalMatchesBatch(t *testing.T) {
+	batch := testTukeyBiweightDetector()
+	incremental := testTukeyBiweightDetector()
+	batchStorage := newTimeSeriesStorage()
+	incrementalStorage := newTimeSeriesStorage()
+	rng := rand.New(rand.NewSource(42)) //nolint:gosec // deterministic test seed
+
+	const end = 180
+	values := make([]float64, end)
+	for i := 0; i < 100; i++ {
+		values[i] = 10 + 0.5*rng.NormFloat64()
+	}
+	for i := 100; i < end; i++ {
+		values[i] = 15 + 0.5*rng.NormFloat64()
+	}
+
+	for i, v := range values {
+		ts := int64(i + 1)
+		batchStorage.Add("ns", "metric", v, ts, nil)
+	}
+	batchResult := batch.Detect(batchStorage, end)
+
+	var incrementalAnomalies []observer.Anomaly
+	for i, v := range values {
+		ts := int64(i + 1)
+		incrementalStorage.Add("ns", "metric", v, ts, nil)
+		result := incremental.Detect(incrementalStorage, ts)
+		incrementalAnomalies = append(incrementalAnomalies, result.Anomalies...)
+	}
+
+	assert.Equal(t, anomalyTimestamps(batchResult.Anomalies), anomalyTimestamps(incrementalAnomalies))
 }
 
 // TestTukeyBiweight_NoFireOnStableGaussian verifies that 200 deterministic

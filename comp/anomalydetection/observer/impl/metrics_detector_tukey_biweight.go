@@ -106,10 +106,21 @@ type TukeyBiweightDetector struct {
 	cachedGen    uint64
 }
 
-// NewTukeyBiweightDetector returns a TukeyBiweightDetector with default
-// settings. Hyperparameter derivations are documented inline on each field.
-func NewTukeyBiweightDetector() *TukeyBiweightDetector {
-	return &TukeyBiweightDetector{
+// TukeyBiweightConfig holds catalog/testbench tunables for TukeyBiweightDetector.
+type TukeyBiweightConfig struct {
+	WindowSize     int      `json:"window_size"`
+	MinPoints      int      `json:"min_points"`
+	BiweightC      float64  `json:"biweight_c"`
+	IRLSIterations int      `json:"irls_iterations"`
+	ZThreshold     float64  `json:"z_threshold"`
+	ScoreEvery     int      `json:"score_every"`
+	CooldownPoints int      `json:"cooldown_points"`
+	Aggregations   []string `json:"aggregations,omitempty"`
+}
+
+// DefaultTukeyBiweightConfig returns the production/testbench defaults.
+func DefaultTukeyBiweightConfig() TukeyBiweightConfig {
+	return TukeyBiweightConfig{
 		WindowSize:     80,
 		MinPoints:      80,
 		BiweightC:      4.685,
@@ -117,11 +128,31 @@ func NewTukeyBiweightDetector() *TukeyBiweightDetector {
 		ZThreshold:     5.0,
 		ScoreEvery:     4,
 		CooldownPoints: 30,
-		Aggregations: []observer.Aggregate{
-			observer.AggregateAverage,
-			observer.AggregateCount,
+		Aggregations: []string{
+			observer.AggregateString(observer.AggregateAverage),
+			observer.AggregateString(observer.AggregateCount),
 		},
-		series: make(map[tbStateKey]*tbSeriesState),
+	}
+}
+
+// NewTukeyBiweightDetector returns a TukeyBiweightDetector with default
+// settings. Hyperparameter derivations are documented inline on each field.
+func NewTukeyBiweightDetector() *TukeyBiweightDetector {
+	return NewTukeyBiweightDetectorWithConfig(DefaultTukeyBiweightConfig())
+}
+
+// NewTukeyBiweightDetectorWithConfig returns a detector configured from cfg.
+func NewTukeyBiweightDetectorWithConfig(cfg TukeyBiweightConfig) *TukeyBiweightDetector {
+	return &TukeyBiweightDetector{
+		WindowSize:     cfg.WindowSize,
+		MinPoints:      cfg.MinPoints,
+		BiweightC:      cfg.BiweightC,
+		IRLSIterations: cfg.IRLSIterations,
+		ZThreshold:     cfg.ZThreshold,
+		ScoreEvery:     cfg.ScoreEvery,
+		CooldownPoints: cfg.CooldownPoints,
+		Aggregations:   parseAggregateConfig(cfg.Aggregations),
+		series:         make(map[tbStateKey]*tbSeriesState),
 	}
 }
 

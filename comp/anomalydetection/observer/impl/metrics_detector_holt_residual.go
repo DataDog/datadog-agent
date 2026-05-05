@@ -148,11 +148,22 @@ type HoltResidualDetector struct {
 	cachedGen    uint64
 }
 
-// NewHoltResidualDetector creates a HoltResidual detector with default
-// settings. The catalog factory calls this with no arguments; tunables can
-// be overridden post-construction.
-func NewHoltResidualDetector() *HoltResidualDetector {
-	return &HoltResidualDetector{
+// HoltResidualConfig holds catalog/testbench tunables for HoltResidualDetector.
+type HoltResidualConfig struct {
+	Alpha           float64  `json:"alpha"`
+	Beta            float64  `json:"beta"`
+	WarmupPoints    int      `json:"warmup_points"`
+	ResidualWindow  int      `json:"residual_window"`
+	ZThreshold      float64  `json:"z_threshold"`
+	ConfirmM        int      `json:"confirm_m"`
+	MinDeviationMAD float64  `json:"min_deviation_mad"`
+	Refractory      int      `json:"refractory"`
+	Aggregations    []string `json:"aggregations,omitempty"`
+}
+
+// DefaultHoltResidualConfig returns the production/testbench defaults.
+func DefaultHoltResidualConfig() HoltResidualConfig {
+	return HoltResidualConfig{
 		Alpha:           holtAlpha,
 		Beta:            holtBeta,
 		WarmupPoints:    holtWarmupPoints,
@@ -161,11 +172,33 @@ func NewHoltResidualDetector() *HoltResidualDetector {
 		ConfirmM:        holtConfirmM,
 		MinDeviationMAD: holtMinDeviationMAD,
 		Refractory:      holtRefractory,
-		Aggregations: []observer.Aggregate{
-			observer.AggregateAverage,
-			observer.AggregateCount,
+		Aggregations: []string{
+			observer.AggregateString(observer.AggregateAverage),
+			observer.AggregateString(observer.AggregateCount),
 		},
-		series: make(map[holtStateKey]*holtSeriesState),
+	}
+}
+
+// NewHoltResidualDetector creates a HoltResidual detector with default
+// settings. The catalog factory calls this with no arguments; tunables can
+// be overridden post-construction.
+func NewHoltResidualDetector() *HoltResidualDetector {
+	return NewHoltResidualDetectorWithConfig(DefaultHoltResidualConfig())
+}
+
+// NewHoltResidualDetectorWithConfig creates a detector configured from cfg.
+func NewHoltResidualDetectorWithConfig(cfg HoltResidualConfig) *HoltResidualDetector {
+	return &HoltResidualDetector{
+		Alpha:           cfg.Alpha,
+		Beta:            cfg.Beta,
+		WarmupPoints:    cfg.WarmupPoints,
+		ResidualWindow:  cfg.ResidualWindow,
+		ZThreshold:      cfg.ZThreshold,
+		ConfirmM:        cfg.ConfirmM,
+		MinDeviationMAD: cfg.MinDeviationMAD,
+		Refractory:      cfg.Refractory,
+		Aggregations:    parseAggregateConfig(cfg.Aggregations),
+		series:          make(map[holtStateKey]*holtSeriesState),
 	}
 }
 

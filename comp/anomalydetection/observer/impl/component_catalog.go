@@ -312,8 +312,16 @@ func defaultCatalog() *componentCatalog {
 				name:           "holt_residual",
 				displayName:    "HoltResidual",
 				kind:           componentDetector,
-				factory:        func(any) any { return NewHoltResidualDetector() },
+				defaultConfig:  DefaultHoltResidualConfig(),
+				factory:        func(cfg any) any { return NewHoltResidualDetectorWithConfig(cfg.(HoltResidualConfig)) },
 				defaultEnabled: false,
+				parseJSON: func(defaults any, raw []byte) (any, error) {
+					cfg := defaults.(HoltResidualConfig)
+					if err := json.Unmarshal(raw, &cfg); err != nil {
+						return nil, err
+					}
+					return cfg, nil
+				},
 			},
 			{
 				name:           "hot_sax",
@@ -417,8 +425,16 @@ func defaultCatalog() *componentCatalog {
 				name:           "tukey_biweight",
 				displayName:    "TukeyBiweight",
 				kind:           componentDetector,
-				factory:        func(any) any { return NewTukeyBiweightDetector() },
+				defaultConfig:  DefaultTukeyBiweightConfig(),
+				factory:        func(cfg any) any { return NewTukeyBiweightDetectorWithConfig(cfg.(TukeyBiweightConfig)) },
 				defaultEnabled: false,
+				parseJSON: func(defaults any, raw []byte) (any, error) {
+					cfg := defaults.(TukeyBiweightConfig)
+					if err := json.Unmarshal(raw, &cfg); err != nil {
+						return nil, err
+					}
+					return cfg, nil
+				},
 			},
 			{
 				name:           "varshift",

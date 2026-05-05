@@ -276,3 +276,43 @@ func TestHoltResidual_InterfaceContracts(t *testing.T) {
 	var _ observer.Detector = d
 	var _ manualSeriesRemover = d
 }
+
+// TestHoltResidual_IncrementalMatchesBatch verifies that streaming advances
+// emit the same anomaly timestamps as a single batch replay over the same
+// points. This guards the per-series cursor and rolling-window state.
+func TestHoltResidual_IncrementalMatchesBatch(t *testing.T) {
+	batch := testHoltResidualDetector()
+	incremental := testHoltResidualDetector()
+	batchStorage := newTimeSeriesStorage()
+	incrementalStorage := newTimeSeriesStorage()
+
+	const end int64 = 500
+	values := make([]float64, end)
+	for ts := int64(1); ts <= end; ts++ {
+		v := 0.05 * float64(ts)
+		if ts >= 300 && ts < 302 {
+			v += 20.0
+		}
+		values[ts-1] = v
+		batchStorage.Add("ns", "metric", v, ts, nil)
+	}
+	batchResult := batch.Detect(batchStorage, end)
+
+	var incrementalAnomalies []observer.Anomaly
+	for i, v := range values {
+		ts := int64(i + 1)
+		incrementalStorage.Add("ns", "metric", v, ts, nil)
+		result := incremental.Detect(incrementalStorage, ts)
+		incrementalAnomalies = append(incrementalAnomalies, result.Anomalies...)
+	}
+
+	assert.Equal(t, anomalyTimestamps(batchResult.Anomalies), anomalyTimestamps(incrementalAnomalies))
+}
+
+func anomalyTimestamps(anomalies []observer.Anomaly) []int64 {
+	timestamps := make([]int64, len(anomalies))
+	for i, anomaly := range anomalies {
+		timestamps[i] = anomaly.Timestamp
+	}
+	return timestamps
+}
