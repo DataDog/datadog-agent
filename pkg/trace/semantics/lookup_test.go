@@ -78,6 +78,14 @@ func TestLookupFloat64(t *testing.T) {
 		assert.True(t, ok)
 		assert.Equal(t, float64(200), v)
 	})
+
+	t.Run("preserves typed float64 precision", func(t *testing.T) {
+		want := 0.12345678901234568
+		accessor := NewMetricsMapAccessor(map[string]float64{"_sampling_priority_v1": want})
+		v, ok := LookupFloat64(r, accessor, ConceptSamplingPriority)
+		assert.True(t, ok)
+		assert.Equal(t, want, v)
+	})
 }
 
 func TestLookup(t *testing.T) {
@@ -96,6 +104,225 @@ func TestLookup(t *testing.T) {
 		accessor := newTestAccessor(map[string]any{"any": "value"})
 		_, ok := Lookup(r, accessor, Concept("unknown"))
 		assert.False(t, ok)
+	})
+}
+
+func testBoolPtr(v bool) *bool {
+	return &v
+}
+
+func TestConditionalLookup(t *testing.T) {
+	r := &EmbeddedRegistry{
+		version: "test",
+		mappings: map[Concept][]TagInfo{
+			ConceptGRPCStatusCode: {
+				{Name: "rpc.grpc.status_code", Provider: ProviderOTel, Type: ValueTypeString},
+				{Name: "rpc.grpc.status_code", Provider: ProviderOTel, Type: ValueTypeInt64},
+				{
+					Name:     "rpc.response.status_code",
+					Provider: ProviderOTel,
+					Type:     ValueTypeString,
+					When:     []Condition{{Attribute: "rpc.system.name", Eq: "grpc"}},
+				},
+				{
+					Name:     "rpc.response.status_code",
+					Provider: ProviderOTel,
+					Type:     ValueTypeInt64,
+					When:     []Condition{{Attribute: "rpc.system.name", Eq: "grpc"}},
+				},
+				{
+					Name:     "rpc.response.status_code",
+					Provider: ProviderOTel,
+					Type:     ValueTypeString,
+					When:     []Condition{{Attribute: "rpc.system", Eq: "grpc"}},
+				},
+				{
+					Name:     "rpc.response.status_code",
+					Provider: ProviderOTel,
+					Type:     ValueTypeInt64,
+					When:     []Condition{{Attribute: "rpc.system", Eq: "grpc"}},
+				},
+			},
+			Concept("conditional.eq"): {
+				{
+					Name:     "conditional.value",
+					Provider: ProviderOTel,
+					Type:     ValueTypeString,
+					When:     []Condition{{Attribute: "db.system", Eq: "mongodb"}},
+				},
+			},
+			Concept("conditional.present"): {
+				{
+					Name:     "conditional.value",
+					Provider: ProviderOTel,
+					Type:     ValueTypeString,
+					When:     []Condition{{Attribute: "db.system", Present: testBoolPtr(true)}},
+				},
+			},
+			Concept("conditional.absent"): {
+				{
+					Name:     "conditional.value",
+					Provider: ProviderOTel,
+					Type:     ValueTypeString,
+					When:     []Condition{{Attribute: "db.system", Present: testBoolPtr(false)}},
+				},
+			},
+			Concept("conditional.and"): {
+				{
+					Name:     "conditional.value",
+					Provider: ProviderOTel,
+					Type:     ValueTypeString,
+					When: []Condition{
+						{Attribute: "db.system", Eq: "mysql"},
+						{Attribute: "db.name", Present: testBoolPtr(true)},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range []struct {
+		name    string
+		concept Concept
+		attrs   map[string]any
+		want    string
+	}{
+		{
+			name:    "explicit gRPC status code wins regardless of RPC system",
+			concept: ConceptGRPCStatusCode,
+			attrs: map[string]any{
+				"rpc.grpc.status_code":     "3",
+				"rpc.response.status_code": "4",
+				"rpc.system.name":          "jsonrpc",
+			},
+			want: "3",
+		},
+		{
+			name:    "rpc.response.status_code allowed when rpc.system.name is grpc",
+			concept: ConceptGRPCStatusCode,
+			attrs: map[string]any{
+				"rpc.response.status_code": "DEADLINE_EXCEEDED",
+				"rpc.system.name":          "grpc",
+			},
+			want: "DEADLINE_EXCEEDED",
+		},
+		{
+			name:    "rpc.response.status_code allowed when legacy rpc.system is grpc",
+			concept: ConceptGRPCStatusCode,
+			attrs: map[string]any{
+				"rpc.response.status_code": "DEADLINE_EXCEEDED",
+				"rpc.system":               "grpc",
+			},
+			want: "DEADLINE_EXCEEDED",
+		},
+		{
+			name:    "rpc.system.name=grpc accepted even if legacy rpc.system disagrees",
+			concept: ConceptGRPCStatusCode,
+			attrs: map[string]any{
+				"rpc.response.status_code": "OK",
+				"rpc.system.name":          "grpc",
+				"rpc.system":               "jsonrpc",
+			},
+			want: "OK",
+		},
+		{
+			name:    "rpc.response.status_code rejected for non-gRPC systems",
+			concept: ConceptGRPCStatusCode,
+			attrs: map[string]any{
+				"rpc.response.status_code": "-32602",
+				"rpc.system.name":          "jsonrpc",
+			},
+		},
+		{
+			name:    "conditional int64 fallback allowed",
+			concept: ConceptGRPCStatusCode,
+			attrs: map[string]any{
+				"rpc.response.status_code": int64(7),
+				"rpc.system.name":          "grpc",
+			},
+			want: "7",
+		},
+		{
+			name:    "eq condition accepts matching attribute",
+			concept: Concept("conditional.eq"),
+			attrs: map[string]any{
+				"conditional.value": "mapped",
+				"db.system":         "mongodb",
+			},
+			want: "mapped",
+		},
+		{
+			name:    "eq condition rejects non-matching attribute",
+			concept: Concept("conditional.eq"),
+			attrs: map[string]any{
+				"conditional.value": "mapped",
+				"db.system":         "mysql",
+			},
+		},
+		{
+			name:    "present true accepts present attribute",
+			concept: Concept("conditional.present"),
+			attrs: map[string]any{
+				"conditional.value": "mapped",
+				"db.system":         "mysql",
+			},
+			want: "mapped",
+		},
+		{
+			name:    "present true rejects absent attribute",
+			concept: Concept("conditional.present"),
+			attrs: map[string]any{
+				"conditional.value": "mapped",
+			},
+		},
+		{
+			name:    "present false accepts absent attribute",
+			concept: Concept("conditional.absent"),
+			attrs: map[string]any{
+				"conditional.value": "mapped",
+			},
+			want: "mapped",
+		},
+		{
+			name:    "present false rejects present attribute",
+			concept: Concept("conditional.absent"),
+			attrs: map[string]any{
+				"conditional.value": "mapped",
+				"db.system":         "mysql",
+			},
+		},
+		{
+			name:    "conditions are ANDed",
+			concept: Concept("conditional.and"),
+			attrs: map[string]any{
+				"conditional.value": "mapped",
+				"db.system":         "mysql",
+				"db.name":           "orders",
+			},
+			want: "mapped",
+		},
+		{
+			name:    "ANDed conditions reject partial matches",
+			concept: Concept("conditional.and"),
+			attrs: map[string]any{
+				"conditional.value": "mapped",
+				"db.system":         "mysql",
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, LookupString(r, newTestAccessor(tt.attrs), tt.concept))
+		})
+	}
+
+	t.Run("conditional int64 fallback returns typed value", func(t *testing.T) {
+		accessor := newTestAccessor(map[string]any{
+			"rpc.response.status_code": int64(7),
+			"rpc.system.name":          "grpc",
+		})
+		v, ok := LookupInt64(r, accessor, ConceptGRPCStatusCode)
+		assert.True(t, ok)
+		assert.Equal(t, int64(7), v)
 	})
 }
 

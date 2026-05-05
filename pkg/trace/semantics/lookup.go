@@ -97,32 +97,129 @@ type LookupResult struct {
 	StringValue string
 }
 
+func readTag[A Accessor](accessor A, tag TagInfo) (LookupResult, bool) {
+	switch tag.Type {
+	case ValueTypeInt64:
+		if v, ok := accessor.GetInt64(tag.Name); ok {
+			return LookupResult{TagInfo: tag, StringValue: strconv.FormatInt(v, 10)}, true
+		}
+	case ValueTypeFloat64:
+		if v, ok := accessor.GetFloat64(tag.Name); ok {
+			return LookupResult{TagInfo: tag, StringValue: fmt.Sprintf("%g", v)}, true
+		}
+	default:
+		if v := accessor.GetString(tag.Name); v != "" {
+			return LookupResult{TagInfo: tag, StringValue: v}, true
+		}
+	}
+	return LookupResult{}, false
+}
+
+func readFloat64Tag[A Accessor](accessor A, tag TagInfo) (float64, bool) {
+	switch tag.Type {
+	case ValueTypeFloat64:
+		return accessor.GetFloat64(tag.Name)
+	case ValueTypeInt64:
+		if v, ok := accessor.GetInt64(tag.Name); ok {
+			return float64(v), true
+		}
+	default:
+		if v := accessor.GetString(tag.Name); v != "" {
+			if f, err := strconv.ParseFloat(v, 64); err == nil {
+				return f, true
+			}
+		}
+	}
+	return 0, false
+}
+
+func readInt64Tag[A Accessor](accessor A, tag TagInfo) (int64, bool) {
+	switch tag.Type {
+	case ValueTypeInt64:
+		return accessor.GetInt64(tag.Name)
+	case ValueTypeFloat64:
+		if v, ok := accessor.GetFloat64(tag.Name); ok {
+			return exactInt64(v)
+		}
+	default:
+		if v := accessor.GetString(tag.Name); v != "" {
+			if i, err := strconv.ParseInt(v, 10, 64); err == nil {
+				return i, true
+			}
+			if f, err := strconv.ParseFloat(v, 64); err == nil {
+				return exactInt64(f)
+			}
+		}
+	}
+	return 0, false
+}
+
+func exactInt64(v float64) (int64, bool) {
+	if math.IsInf(v, 0) || math.IsNaN(v) {
+		return 0, false
+	}
+	i := int64(v)
+	return i, float64(i) == v
+}
+
+// conditionMatches evaluates a single Condition against the accessor's raw attribute store.
+// Unlike concept lookup, conditions read attributes by exact key — fallback chains are not
+// followed. To gate on a renamed attribute (e.g. rpc.system → rpc.system.name), list one
+// fallback entry per condition attribute in mappings.json.
+func conditionMatches[A Accessor](accessor A, c Condition) bool {
+	v := accessor.GetString(c.Attribute)
+	found := v != ""
+	if c.Present != nil && found != *c.Present {
+		return false
+	}
+	if c.Eq != nil {
+		return found && v == fmt.Sprint(c.Eq)
+	}
+	if c.Present != nil {
+		return true
+	}
+	return found
+}
+
+func conditionsMatch[A Accessor](accessor A, conditions []Condition) bool {
+	for _, condition := range conditions {
+		if !conditionMatches(accessor, condition) {
+			return false
+		}
+	}
+	return true
+}
+
+func lookupWithConditions[A Accessor, T any](
+	r Registry,
+	accessor A,
+	concept Concept,
+	read func(TagInfo) (T, bool),
+) (T, bool) {
+	var zero T
+	tags := r.GetAttributePrecedence(concept)
+	if tags == nil {
+		return zero, false
+	}
+	for _, tag := range tags {
+		if !conditionsMatch(accessor, tag.When) {
+			continue
+		}
+		if result, ok := read(tag); ok {
+			return result, true
+		}
+	}
+	return zero, false
+}
+
 // Lookup performs a semantic attribute lookup in precedence order and returns the first match.
 // For string-typed tags it uses GetString; for numeric-typed tags it uses the typed getter and
 // formats the result as a string, so LookupString works correctly on any concept regardless of
 // the underlying pdata storage type.
 func Lookup[A Accessor](r Registry, accessor A, concept Concept) (LookupResult, bool) {
-	tags := r.GetAttributePrecedence(concept)
-	if tags == nil {
-		return LookupResult{}, false
-	}
-	for _, tag := range tags {
-		switch tag.Type {
-		case ValueTypeInt64:
-			if v, ok := accessor.GetInt64(tag.Name); ok {
-				return LookupResult{TagInfo: tag, StringValue: strconv.FormatInt(v, 10)}, true
-			}
-		case ValueTypeFloat64:
-			if v, ok := accessor.GetFloat64(tag.Name); ok {
-				return LookupResult{TagInfo: tag, StringValue: fmt.Sprintf("%g", v)}, true
-			}
-		default:
-			if v := accessor.GetString(tag.Name); v != "" {
-				return LookupResult{TagInfo: tag, StringValue: v}, true
-			}
-		}
-	}
-	return LookupResult{}, false
+	return lookupWithConditions(r, accessor, concept, func(tag TagInfo) (LookupResult, bool) {
+		return readTag(accessor, tag)
+	})
 }
 
 // LookupString returns the first matching string value for the concept, or "" if not found.
@@ -138,65 +235,16 @@ func LookupString[A Accessor](r Registry, accessor A, concept Concept) string {
 // Uses typed access (GetFloat64/GetInt64) for tags with known numeric types, and falls back
 // to string parsing for tags with unspecified type.
 func LookupFloat64[A Accessor](r Registry, accessor A, concept Concept) (float64, bool) {
-	tags := r.GetAttributePrecedence(concept)
-	if tags == nil {
-		return 0, false
-	}
-	for _, tag := range tags {
-		switch tag.Type {
-		case ValueTypeFloat64:
-			if v, ok := accessor.GetFloat64(tag.Name); ok {
-				return v, true
-			}
-		case ValueTypeInt64:
-			if v, ok := accessor.GetInt64(tag.Name); ok {
-				return float64(v), true
-			}
-		default:
-			if v := accessor.GetString(tag.Name); v != "" {
-				if f, err := strconv.ParseFloat(v, 64); err == nil {
-					return f, true
-				}
-			}
-		}
-	}
-	return 0, false
+	return lookupWithConditions(r, accessor, concept, func(tag TagInfo) (float64, bool) {
+		return readFloat64Tag(accessor, tag)
+	})
 }
 
 // LookupInt64 returns the first matching value as int64, or (0, false) if not found or unparseable.
 // Uses typed access (GetInt64/GetFloat64) for tags with known numeric types, and falls back
 // to string parsing for tags with unspecified type.
 func LookupInt64[A Accessor](r Registry, accessor A, concept Concept) (int64, bool) {
-	tags := r.GetAttributePrecedence(concept)
-	if tags == nil {
-		return 0, false
-	}
-	for _, tag := range tags {
-		switch tag.Type {
-		case ValueTypeInt64:
-			if v, ok := accessor.GetInt64(tag.Name); ok {
-				return v, true
-			}
-		case ValueTypeFloat64:
-			if v, ok := accessor.GetFloat64(tag.Name); ok {
-				i := int64(v)
-				if float64(i) == v {
-					return i, true
-				}
-			}
-		default:
-			if v := accessor.GetString(tag.Name); v != "" {
-				if i, err := strconv.ParseInt(v, 10, 64); err == nil {
-					return i, true
-				}
-				if f, err := strconv.ParseFloat(v, 64); err == nil {
-					intVal := int64(f)
-					if float64(intVal) == f {
-						return intVal, true
-					}
-				}
-			}
-		}
-	}
-	return 0, false
+	return lookupWithConditions(r, accessor, concept, func(tag TagInfo) (int64, bool) {
+		return readInt64Tag(accessor, tag)
+	})
 }
