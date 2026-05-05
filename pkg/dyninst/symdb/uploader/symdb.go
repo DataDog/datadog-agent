@@ -250,6 +250,10 @@ func (s *uploader) uploadInner(ctx context.Context, compressedData []byte) error
 		return fmt.Errorf("failed to write compressed SymDB data: %w", err)
 	}
 
+	// Add a part containing the JSON that will eventually become the EvP event
+	// (as opposed to the part above, which will become an EvP attachment). The
+	// name="event" is recognized by EvP intake:
+	// https://github.com/DataDog/logs-backend/blob/038d9b05a3904b60b06c32e03db1aebb757ba41d/domains/intake/libs/intake-backend/edge/src/main/java/com/dd/evp/intake_backend/edge/http/multipart/V2MultiPartMessageDecoder.java#L40
 	eventHeader := make(textproto.MIMEHeader)
 	eventHeader.Set("Content-Disposition", `form-data; name="event"; filename="event.json"`)
 	eventHeader.Set("Content-Type", "application/json")
