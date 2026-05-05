@@ -151,6 +151,9 @@ func (s *observerSender) ServiceCheck(_ string, _ servicecheck.ServiceCheckStatu
 func (s *observerSender) HistogramBucket(_ string, _ int64, _, _ float64, _ bool, _ string, _ []string, _ bool) {
 }
 
+func (s *observerSender) OpenmetricsBucket(_ string, _ int64, _, _ float64, _ bool, _ string, _ []string, _ bool) {
+}
+
 func (s *observerSender) Event(_ event.Event) {}
 
 func (s *observerSender) EventPlatformEvent(_ []byte, _ string) {}

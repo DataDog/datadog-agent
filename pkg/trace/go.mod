@@ -40,16 +40,13 @@ require (
 	golang.org/x/time v0.15.0
 	google.golang.org/grpc v1.80.0
 	google.golang.org/protobuf v1.36.11
-<<<<<<< HEAD
-	k8s.io/apimachinery v0.35.1
-=======
 	k8s.io/apimachinery v0.35.4
->>>>>>> origin/main
 )
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.72.0-rc.5
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.72.0-rc.5
+	github.com/DataDog/datadog-agent/comp/trace/observerbuffer/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/api v0.72.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/config/env v0.72.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.72.0-rc.5
@@ -58,13 +55,8 @@ require (
 	github.com/DataDog/datadog-agent/pkg/trace/stats v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/go-viper/mapstructure/v2 v2.5.0
-<<<<<<< HEAD
-	github.com/shirou/gopsutil/v4 v4.26.2
-	go.opentelemetry.io/collector/component/componenttest v0.147.0
-=======
 	github.com/shirou/gopsutil/v4 v4.26.4
 	go.opentelemetry.io/collector/component/componenttest v0.150.0
->>>>>>> origin/main
 )
 
 require go.opentelemetry.io/collector/processor v1.56.0 // indirect
@@ -81,13 +73,7 @@ require (
 )
 
 require (
-<<<<<<< HEAD
-	github.com/DataDog/datadog-agent/comp/def v0.73.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/comp/trace/observerbuffer/def v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/pkg/config/model v0.73.0-rc.5 // indirect
-=======
 	github.com/DataDog/datadog-agent/pkg/config/model v0.77.2 // indirect
->>>>>>> origin/main
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.72.0-rc.5 // indirect

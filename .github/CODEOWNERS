@@ -492,12 +492,8 @@
 /comp/core/autodiscovery/providers/remote_config*.go  @DataDog/fleet
 /comp/core/autodiscovery/providers/datastreams @DataDog/data-streams-monitoring
 /comp/core/gui/guiimpl/systray/ @DataDog/windows-products @DataDog/agent-configuration
-<<<<<<< HEAD
-/comp/healthplatform/impl/issues/rofspermissions @DataDog/container-platform @DataDog/agent-health
-=======
 /comp/healthplatform/issues/admisconfig @DataDog/container-platform @DataDog/agent-health
 /comp/healthplatform/issues/rofspermissions @DataDog/container-platform @DataDog/agent-health
->>>>>>> origin/main
 /pkg/cloudfoundry                       @DataDog/agent-integrations
 /pkg/clusteragent/                      @DataDog/container-platform
 /pkg/clusteragent/autoscaling/          @DataDog/container-autoscaling
@@ -855,10 +851,7 @@
 /test/new-e2e/tests/agent-subcommands/run*           @DataDog/agent-runtimes
 /test/new-e2e/tests/agent-subcommands/flare*          @DataDog/agent-configuration
 /test/new-e2e/tests/agent-subcommands/status*         @DataDog/agent-configuration
-<<<<<<< HEAD
-=======
 /test/new-e2e/tests/autoscaling               @DataDog/container-autoscaling
->>>>>>> origin/main
 /test/new-e2e/tests/containers                @DataDog/container-integrations @DataDog/container-platform
 /test/new-e2e/tests/containers/cluster_agent_sgc_binary_test.go    @DataDog/agent-configuration
 /test/new-e2e/tests/containers/ecs_test.go    @DataDog/ecs-experiences

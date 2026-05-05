@@ -8,4 +8,7 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def",
     visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/proto/pbgo/core",
+    ],
 )

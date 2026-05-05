@@ -166,17 +166,3 @@ filegroup(
     }),
     visibility = ["//visibility:public"],
 )
-
-# Hand-written: rules_go respects //go:build ignore, so strip it before compiling.
-genrule(
-    name = "include_headers_src",
-    srcs = ["include_headers.go"],
-    outs = ["include_headers_gen.go"],
-    cmd = "grep -v '^//go:build ignore' $< > $@",
-)
-
-go_binary(
-    name = "include_headers",
-    srcs = [":include_headers_src"],
-    visibility = ["//visibility:public"],
-)

@@ -1,0 +1,30 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = ["buffer.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/trace/observerbuffer/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/trace/observerbuffer/def",
+        "//pkg/proto/pbgo/trace",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = ["buffer_test.go"],
+    embed = [":impl"],
+    gotags = ["test"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/mock",
+        "//comp/trace/observerbuffer/def",
+        "//pkg/proto/pbgo/trace",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

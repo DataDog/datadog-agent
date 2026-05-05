@@ -73,6 +73,7 @@ import (
 	gzipfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-gzip"
 	traceconfigdef "github.com/DataDog/datadog-agent/comp/trace/config/def"
 	traceconfigimpl "github.com/DataDog/datadog-agent/comp/trace/config/impl"
+	observerbufferfx "github.com/DataDog/datadog-agent/comp/trace/observerbuffer/fx"
 	payloadmodifierfx "github.com/DataDog/datadog-agent/comp/trace/payload-modifier/fx"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -272,6 +273,7 @@ func commonAgentFxOptions(ctx context.Context, params *cliParams, acfg coreconfi
 			DisableInternalProfiling: true,
 		}),
 		payloadmodifierfx.NilModule(),
+		observerbufferfx.Module(),
 		traceagentfx.Module(),
 		agenttelemetryfx.Module(),
 		delegatedauthnoopfx.Module(),
