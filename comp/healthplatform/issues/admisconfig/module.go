@@ -10,7 +10,7 @@ package admisconfig
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/core/def"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 )
 

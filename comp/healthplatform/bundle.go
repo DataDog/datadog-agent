@@ -13,8 +13,8 @@
 package healthplatform
 
 import (
-	checkrunnerfx "github.com/DataDog/datadog-agent/comp/healthplatform/checkrunner/fx"
-	corefx "github.com/DataDog/datadog-agent/comp/healthplatform/core/fx"
+	checkrunnerfx "github.com/DataDog/datadog-agent/comp/healthplatform/scheduler/fx"
+	corefx "github.com/DataDog/datadog-agent/comp/healthplatform/store/fx"
 	forwarderfx "github.com/DataDog/datadog-agent/comp/healthplatform/forwarder/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
