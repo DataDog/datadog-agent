@@ -9,47 +9,27 @@ go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
 use_repo_rule("//bazel/repo:bazelify_go_work.bzl", "bazelify_go_work")(name = "bazelify_go_work")
 
 go_deps.from_file(go_work = "@bazelify_go_work//:go.work")
-go_deps.gazelle_override(
+go_deps.gazelle_default_attributes(
+    # Using default attributes causes build_file_generation to change to `on`,
+    # potentially overwriting existing BUILD files. We prefer the default `auto` behaviour
+    build_file_generation = "auto",
     directives = [
+        # We don't want to generate code from protos from dependencies, as this most often fails
+        # and is different behavior from the default with go tooling
         "gazelle:proto disable",
     ],
-    path = "github.com/DataDog/sketches-go",
-)
-go_deps.gazelle_override(
-    directives = [
-        "gazelle:proto disable",
-    ],
-    path = "github.com/containerd/cgroups/v3",
-)
-go_deps.gazelle_override(
-    directives = [
-        "gazelle:proto disable",
-    ],
-    path = "code.cloudfoundry.org/bbs",
-)
-go_deps.gazelle_override(
-    directives = [
-        "gazelle:proto disable",
-    ],
-    path = "github.com/hashicorp/vault",
-)
-go_deps.gazelle_override(
-    directives = [
-        "gazelle:proto disable",
-    ],
-    path = "github.com/hashicorp/vault/sdk",
-)
-go_deps.gazelle_override(
-    directives = [
-        "gazelle:proto disable",
-    ],
-    path = "github.com/hashicorp/vault-plugin-secrets-kv",
 )
 go_deps.gazelle_override(
     directives = [
         "gazelle:build_file_generation on",
     ],
     path = "github.com/coreos/etcd",
+)
+go_deps.gazelle_override(
+    directives = [
+        "gazelle:go_naming_convention go_default_library",
+    ],
+    path = "github.com/google/cel-go",
 )
 use_repo(
     go_deps,

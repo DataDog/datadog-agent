@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 	"unsafe"
 
@@ -26,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 // Loader is responsible for loading the eBPF, making it ready to attach.
@@ -67,14 +69,6 @@ func WithAdditionalSerializer(serializer compiler.CodeSerializer) Option {
 	return additionalSerializerOption{serializer}
 }
 
-// WithUseMultiAttach configures the loader to load programs for attachment
-// via the uprobe_multi link type (BPF_LINK_TYPE_UPROBE_MULTI). The caller is
-// responsible for ensuring the running kernel supports this link type
-// (Linux 6.6+); the loader does not probe for support.
-func WithUseMultiAttach(enabled bool) Option {
-	return useMultiAttachOption(enabled)
-}
-
 // NewLoader creates a new Loader.
 func NewLoader(opts ...Option) (*Loader, error) {
 	l := &Loader{}
@@ -114,7 +108,8 @@ func (l *Loader) Load(program compiler.Program) (*Program, error) {
 	}
 	ringbufMapSpec.MaxEntries = uint32(l.config.ringBufSize)
 
-	if l.config.useMultiAttach {
+	useMultiAttach := canUseMultiAttach()
+	if useMultiAttach {
 		progSpec, ok := spec.Programs["probe_run_with_cookie"]
 		if !ok {
 			return nil, errors.New("probe_run_with_cookie program not found in eBPF spec")
@@ -144,9 +139,32 @@ func (l *Loader) Load(program compiler.Program) (*Program, error) {
 		Collection:     collection,
 		BpfProgram:     bpfProgram,
 		Attachpoints:   serialized.bpfAttachPoints,
-		UseMultiAttach: l.config.useMultiAttach,
+		UseMultiAttach: useMultiAttach,
 	}, nil
 }
+
+// canUseMultiAttach reports whether the running kernel supports
+// uprobe_multi attachment with a working PID filter.
+//
+// Linux 6.6 introduced BPF_LINK_TYPE_UPROBE_MULTI, but its PID filter
+// was buggy until 6.10: uprobe_prog_run() compared `current` against the
+// per-link task_struct pointer rather than its mm, so probes only fired
+// for the single thread looked up at attach time. Go programs run
+// goroutines across many OS threads, so most events were silently dropped.
+// The fix is upstream commit 46ba0e49b642 ("bpf: fix multi-uprobe PID
+// filtering logic"), present in 6.10+ and backported to 6.9.9, but never
+// to linux-6.8.y — so Ubuntu 24.04's stock 6.8 kernel is permanently
+// affected. Gate on 6.10 to be safe.
+var canUseMultiAttach = sync.OnceValue(func() bool {
+	if features.HaveBPFLinkUprobeMulti() != nil {
+		return false
+	}
+	v, err := kernel.HostVersion()
+	if err != nil {
+		return false
+	}
+	return v >= kernel.VersionCode(6, 10, 0)
+})
 
 // stripRelocations removes the relocation metadata from the instructions.
 // These are not needed for pt_regs as long as we're not trying to build
@@ -292,8 +310,6 @@ type config struct {
 	dyninstDebugLevel   uint8
 	dyninstDebugEnabled bool
 
-	useMultiAttach bool
-
 	additionalSerializer compiler.CodeSerializer
 }
 
@@ -327,12 +343,6 @@ type additionalSerializerOption struct {
 
 func (o additionalSerializerOption) apply(c *config) {
 	c.additionalSerializer = o
-}
-
-type useMultiAttachOption bool
-
-func (o useMultiAttachOption) apply(c *config) {
-	c.useMultiAttach = bool(o)
 }
 
 func (l *Loader) init(opts ...Option) error {

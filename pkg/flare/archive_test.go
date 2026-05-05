@@ -35,7 +35,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
@@ -109,38 +108,6 @@ func setupProcessAPIServer(t *testing.T) {
 		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 	))
-}
-
-func TestGetAgentTaggerList(t *testing.T) {
-	tagMap := make(map[string]types.TaggerListEntity)
-	tagMap["random_prefix://random_id"] = types.TaggerListEntity{
-		Tags: map[string][]string{
-			"docker_source_name": {"docker_image:custom-agent:latest", "image_name:custom-agent"},
-		},
-	}
-	resp := types.TaggerListResponse{
-		Entities: tagMap,
-	}
-	ipcComp := ipcmock.New(t)
-
-	ts := ipcComp.NewMockServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		out, _ := json.Marshal(resp)
-		w.Write(out)
-	}))
-
-	setupIPCAddress(t, configmock.New(t), ts.URL)
-
-	remoteProvider := RemoteFlareProvider{
-		IPC: ipcComp,
-	}
-
-	content, err := remoteProvider.getAgentTaggerList()
-	require.NoError(t, err)
-
-	assert.Contains(t, string(content), "random_prefix://random_id")
-	assert.Contains(t, string(content), "docker_source_name")
-	assert.Contains(t, string(content), "docker_image:custom-agent:latest")
-	assert.Contains(t, string(content), "image_name:custom-agent")
 }
 
 func TestVersionHistory(t *testing.T) {

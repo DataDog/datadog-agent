@@ -34,7 +34,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/flare/common"
 	"github.com/DataDog/datadog-agent/pkg/flare/priviledged"
 	"github.com/DataDog/datadog-agent/pkg/process/util/coreagent"
-	"github.com/DataDog/datadog-agent/pkg/status/health"
 	systemprobeStatus "github.com/DataDog/datadog-agent/pkg/status/systemprobe"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
@@ -84,12 +83,8 @@ func ExtraFlareProviders(workloadmeta option.Option[workloadmeta.Component], ipc
 		flaretypes.NewFiller(provideRuntimeDebugInfo),
 	}
 
-	telemetryURL := fmt.Sprintf("http://127.0.0.1:%s/telemetry", pkgconfigsetup.Datadog().GetString("expvar_port"))
-
 	for filename, fromFunc := range map[string]func() ([]byte, error){
 		"envvars.log":                         common.GetEnvVars,
-		"health.yaml":                         getHealth,
-		"telemetry.log":                       func() ([]byte, error) { return remote.getHTTPCallContent(telemetryURL) },
 		"connectivity/resolved_endpoints.txt": getEndpointDNS,
 	} {
 		providers = append(providers, flaretypes.NewFiller(
@@ -246,7 +241,6 @@ func (r *RemoteFlareProvider) provideExtraFiles(_ context.Context, fb flaretypes
 		fb.AddFile("status.log", []byte("unable to get the status of the agent, is it running?"))           //nolint:errcheck
 		fb.AddFile("config-check.log", []byte("unable to get loaded checks config, is the agent running?")) //nolint:errcheck
 	} else {
-		fb.AddFileFromFunc("tagger-list.json", r.getAgentTaggerList) //nolint:errcheck
 		if !coreagent.ProcessChecksRunInCoreAgent() {
 			fb.AddFileFromFunc("process-agent_tagger-list.json", r.getProcessAgentTaggerList) //nolint:errcheck
 			r.getChecksFromProcessAgent(fb, getProcessAPIAddressPort)
@@ -373,17 +367,6 @@ func (r *RemoteFlareProvider) getChecksFromProcessAgent(fb flaretypes.FlareBuild
 	getCheck("process_discovery", "process_config.process_discovery.enabled")
 }
 
-func (r *RemoteFlareProvider) getAgentTaggerList() ([]byte, error) {
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
-	if err != nil {
-		return nil, err
-	}
-
-	taggerListURL := fmt.Sprintf("https://%v:%v/agent/tagger-list", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port"))
-
-	return r.GetTaggerList(taggerListURL)
-}
-
 func (r *RemoteFlareProvider) getProcessAgentTaggerList() ([]byte, error) {
 	addressPort, err := pkgconfigsetup.GetProcessAPIAddressPort(pkgconfigsetup.Datadog())
 	if err != nil {
@@ -431,19 +414,6 @@ func (r *RemoteFlareProvider) GetWorkloadList(url string) ([]byte, error) {
 		return nil
 	}
 	return functionOutputToBytes(fct), nil
-}
-
-func getHealth() ([]byte, error) {
-	s := health.GetReady()
-	sort.Strings(s.Healthy)
-	sort.Strings(s.Unhealthy)
-
-	yamlValue, err := yaml.Marshal(s)
-	if err != nil {
-		return nil, err
-	}
-
-	return yamlValue, nil
 }
 
 func getECSMeta() ([]byte, error) {

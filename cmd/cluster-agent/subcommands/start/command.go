@@ -474,17 +474,16 @@ func start(log log.Component,
 			products = append(products, state.ProductActionPlatformRunnerKeys)
 		}
 
-		if len(products) > 0 {
-			var err error
-			rcClient, err = initializeRemoteConfigClient(rcserv, config, clusterName, clusterID, products...)
-			if err != nil {
-				log.Errorf("Failed to start remote-configuration: %v", err)
-			} else {
-				rcClient.Start()
-				defer func() {
-					rcClient.Close()
-				}()
-			}
+		var err error
+		rcClient, err = initializeRemoteConfigClient(rcserv, config, clusterName, clusterID, products...)
+		if err != nil {
+			log.Errorf("Failed to start remote-configuration: %v", err)
+		} else {
+			subscribeAgentTask(rcClient, config, statusComponent, diagnoseComp, ipc)
+			rcClient.Start()
+			defer func() {
+				rcClient.Close()
+			}()
 		}
 	}
 
@@ -494,7 +493,7 @@ func start(log log.Component,
 	// create and setup the autoconfig instance
 	// The autoconfig instance setup happens in the workloadmeta start hook
 	// create and setup the Collector and others.
-	common.LoadComponents(secretResolver, wmeta, taggerComp, filterStore, ac, config.GetString("confd_path"))
+	common.LoadComponents(ac, config.GetString("confd_path"))
 
 	// Set up check collector
 	registerChecks(wmeta, taggerComp, config)

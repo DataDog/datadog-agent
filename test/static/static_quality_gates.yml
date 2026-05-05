@@ -58,6 +58,12 @@ static_quality_gate_docker_cws_instrumentation_amd64:
 static_quality_gate_docker_cws_instrumentation_arm64:
   max_on_disk_size: 6.92 MiB
   max_on_wire_size: 3.09 MiB
+static_quality_gate_docker_host_profiler_amd64:
+  max_on_disk_size: 315.8 MiB
+  max_on_wire_size: 125.6 MiB
+static_quality_gate_docker_host_profiler_arm64:
+  max_on_disk_size: 327.4 MiB
+  max_on_wire_size: 120.0 MiB
 static_quality_gate_docker_dogstatsd_amd64:
   max_on_disk_size: 39.54 MiB
   max_on_wire_size: 15.87 MiB
