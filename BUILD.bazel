@@ -104,7 +104,6 @@ exports_files(glob(
 # gazelle:exclude comp/core/hostname/hostnameimpl
 # gazelle:exclude comp/core/hostname/remotehostnameimpl
 # gazelle:exclude comp/core/log/fx-systemprobe
-# gazelle:exclude comp/core/log/fx-trace
 # gazelle:exclude comp/core/log/impl-systemprobe
 # gazelle:exclude comp/core/log/rust
 # gazelle:exclude comp/core/profiler/fx
