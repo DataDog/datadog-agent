@@ -3,10 +3,8 @@ load("//bazel/flavors:defs.bzl", "flavor_gotags")
 
 _ALL_FLAVORS = ["base", "dogstatsd", "fips", "heroku", "iot"]
 
-# TODO: remove gotags once this extension is merged to main and Gazelle has been
-# run repo-wide. It absorbs stale gotags attrs carried over from old go_test
-# rules during the migration; after the first full run those attrs disappear and
-# this param becomes dead.
+# TODO: remove gotags once Gazelle has been re-run repo-wide; at that point all
+# stale gotags attrs will have been cleaned up and this param becomes dead.
 def dd_go_test(name, flavors = None, gotags = None, **kwargs):
     """Wraps go_test with per-flavor variants grouped under a test_suite.
 
