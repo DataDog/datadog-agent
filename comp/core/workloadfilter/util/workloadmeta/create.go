@@ -58,6 +58,13 @@ func CreateProcess(process *workloadmeta.Process) *workloadfilter.Process {
 		Args:    process.Cmdline,
 	}
 
+	if process.Service != nil && len(process.Service.TCPPorts) > 0 {
+		p.TcpPorts = make([]int32, len(process.Service.TCPPorts))
+		for i, port := range process.Service.TCPPorts {
+			p.TcpPorts[i] = int32(port)
+		}
+	}
+
 	return &workloadfilter.Process{
 		FilterProcess: p,
 	}
