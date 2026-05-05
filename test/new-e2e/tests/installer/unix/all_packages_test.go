@@ -12,7 +12,6 @@ import (
 	"regexp"
 	"strings"
 	"testing"
-	"time"
 
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
@@ -35,18 +34,18 @@ type packageTestsWithSkippedFlavors struct {
 
 var (
 	amd64Flavors = []e2eos.Descriptor{
-		e2eos.Ubuntu2404,
-		e2eos.AmazonLinux2,
-		e2eos.Debian12,
-		e2eos.RedHat9,
+		e2eos.Ubuntu2404E2E,
+		e2eos.AmazonLinux2E2E,
+		e2eos.Debian12E2E,
+		e2eos.RedHat9E2E,
 		// e2eos.FedoraDefault, // Skipped instead of marked as flaky to avoid useless logs
-		e2eos.CentOS7,
-		e2eos.Suse15,
+		e2eos.CentOS7E2E,
+		e2eos.Suse154E2E,
 	}
 	arm64Flavors = []e2eos.Descriptor{
-		e2eos.Ubuntu2404,
-		e2eos.AmazonLinux2,
-		e2eos.Suse15,
+		e2eos.Ubuntu2404E2E,
+		e2eos.AmazonLinux2E2E,
+		e2eos.Suse154E2E,
 	}
 	packagesTestsWithSkippedFlavors = []packageTestsWithSkippedFlavors{
 		{t: testAgent},
@@ -169,33 +168,12 @@ func (s *packageBaseSuite) SetupSuite() {
 	s.setupFakeIntake()
 	s.host = host.New(s.T, s.Env().RemoteHost, s.os, s.arch)
 	s.disableUnattendedUpgrades()
-	s.updateCurlOnUbuntu()
-	s.updatePythonOnSuse()
-}
-
-func (s *packageBaseSuite) updatePythonOnSuse() {
-	// Suse15 comes with Python3.6 by default which is too old for injection
-	if s.os.Flavor != e2eos.Suse {
-		return
-	}
-	s.host.Run("sudo zypper --non-interactive ar http://download.opensuse.org/distribution/leap/15.5/repo/oss/ oss || true")
-	s.host.Run("sudo zypper --non-interactive --gpg-auto-import-keys in python311")
-	s.host.Run("sudo ln -sf /usr/bin/python3.11 /usr/bin/python3")
 }
 
 func (s *packageBaseSuite) disableUnattendedUpgrades() {
 	if _, err := s.Env().RemoteHost.Execute("which apt"); err == nil {
 		// Try to disable unattended-upgrades to avoid interfering with the tests, it can fail if it is not installed, we ignore errors
 		s.Env().RemoteHost.Execute("sudo apt remove -y unattended-upgrades") //nolint:errcheck
-	}
-}
-
-func (s *packageBaseSuite) updateCurlOnUbuntu() {
-	// There is an issue with the default cURL version on Ubuntu that causes sporadic
-	// SSL failures, and the fix is to update it.
-	// See https://stackoverflow.com/questions/72627218/openssl-error-messages-error0a000126ssl-routinesunexpected-eof-while-readin
-	if s.os.Flavor == e2eos.Ubuntu {
-		s.Env().RemoteHost.MustExecute("sudo apt update && sudo apt upgrade -y curl")
 	}
 }
 
@@ -215,29 +193,17 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 	switch s.installMethod {
 	case InstallMethodInstallScript:
 		// bugfix for https://major.io/p/systemd-in-fedora-22-failed-to-restart-service-access-denied/
-		if s.os.Flavor == e2eos.CentOS && s.os.Version == e2eos.CentOS7.Version {
+		if s.os.Flavor == e2eos.CentOS && (s.os.Version == e2eos.CentOS7.Version || s.os.Version == e2eos.CentOS7E2E.Version) {
 			s.Env().RemoteHost.MustExecute("sudo systemctl daemon-reexec")
 		}
 		err := s.RunInstallScriptWithError(params...)
 		require.NoErrorf(s.T(), err, "installer not properly installed. logs: \n%s\n%s", s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stdout.log || true"), s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stderr.log || true"))
 	case InstallMethodAnsible:
-		if (s.os.Flavor == e2eos.AmazonLinux && s.os.Version == e2eos.AmazonLinux2.Version) ||
-			(s.os.Flavor == e2eos.CentOS && s.os.Version == e2eos.CentOS7.Version) {
+		if (s.os.Flavor == e2eos.AmazonLinux && (s.os.Version == e2eos.AmazonLinux2.Version || s.os.Version == e2eos.AmazonLinux2E2E.Version)) ||
+			(s.os.Flavor == e2eos.CentOS && (s.os.Version == e2eos.CentOS7.Version || s.os.Version == e2eos.CentOS7E2E.Version)) {
 			s.T().Skip("Ansible doesn't install support Python2 anymore")
 		}
-		// Install ansible then install the agent
-		var ansiblePrefix string
-		for i := 0; i < 3; i++ {
-			ansiblePrefix = s.installAnsible(s.os)
-			if _, err := s.Env().RemoteHost.Execute(ansiblePrefix + "ansible-galaxy collection install -vvv datadog.dd"); err == nil {
-				break
-			}
-			if i == 2 {
-				s.T().Fatal("failed to install ansible-galaxy collection after 3 attempts")
-			}
-			time.Sleep(time.Second)
-		}
-
+		// ansible and datadog.dd collection are pre-baked in the e2e AMI.
 		// Write the playbook. InstallScriptEnv sets datadog_installer_registry to the
 		// pipeline OCI registry (installtesting.datad0g.com.internal.dda-testing.com), which
 		// the role passes as DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE to install-ssi.sh.
@@ -248,7 +214,7 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 		scriptURL := "https://" + InstallerScriptBaseURL() + "/scripts/install-ssi.sh"
 
 		// Run the playbook
-		s.Env().RemoteHost.MustExecute(fmt.Sprintf("%sansible-playbook -vvv %s -e 'datadog_installer_install_ssi_script_url=%s'", ansiblePrefix, playbookPath, scriptURL))
+		s.Env().RemoteHost.MustExecute(fmt.Sprintf("ansible-playbook -vvv %s -e 'datadog_installer_install_ssi_script_url=%s'", playbookPath, scriptURL))
 
 		// touch install files for compatibility
 		s.Env().RemoteHost.MustExecute("touch /tmp/datadog-installer-stdout.log")
@@ -309,32 +275,6 @@ func (s *packageBaseSuite) setupFakeIntake() {
 	s.Env().RemoteHost.MustExecute(`printf "[Service]\nEnvironmentFile=-/etc/environment\n" | sudo tee /etc/systemd/system/datadog-agent-trace.service.d/fake-intake.conf`)
 	s.Env().RemoteHost.MustExecute(`printf "[Service]\nEnvironmentFile=-/etc/environment\n" | sudo tee /etc/systemd/system/datadog-agent-trace.service.d/fake-intake.conf`)
 	s.Env().RemoteHost.MustExecute("sudo systemctl daemon-reload")
-}
-
-func (s *packageBaseSuite) installAnsible(flavor e2eos.Descriptor) string {
-	pathPrefix := ""
-	switch flavor.Flavor {
-	case e2eos.Ubuntu, e2eos.Debian:
-		s.Env().RemoteHost.MustExecute("sudo apt update && sudo apt install -y ansible")
-	case e2eos.Fedora:
-		s.Env().RemoteHost.MustExecute("sudo dnf install -y ansible")
-	case e2eos.CentOS:
-		// Can't install ansible with yum install because the available package on centos is max ansible 2.9, EOL since May 2022
-		s.Env().RemoteHost.MustExecute("sudo yum install -y python3 curl")
-		s.Env().RemoteHost.MustExecute("curl https://bootstrap.pypa.io/pip/3.6/get-pip.py -o get-pip.py && python3 get-pip.py && rm get-pip.py")
-		s.Env().RemoteHost.MustExecute("python3 -m pip install ansible")
-		pathPrefix = "/home/centos/.local/bin/"
-	case e2eos.AmazonLinux, e2eos.RedHat:
-		s.Env().RemoteHost.MustExecute("sudo yum install -y python3 python3-pip && yes | pip3 install ansible")
-		pathPrefix = "/home/ec2-user/.local/bin/"
-	case e2eos.Suse:
-		s.Env().RemoteHost.MustExecute("sudo zypper install -y python3 python3-pip && sudo pip3 install ansible")
-	default:
-		s.Env().RemoteHost.MustExecute("python3 -m ensurepip --upgrade && python3 -m pip install pipx==1.11.1 && python3 -m pipx ensurepath")
-		pathPrefix = "/usr/bin/"
-	}
-
-	return pathPrefix
 }
 
 func (s *packageBaseSuite) writeAnsiblePlaybook(env map[string]string, params ...string) string {

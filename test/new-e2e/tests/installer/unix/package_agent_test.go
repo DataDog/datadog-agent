@@ -330,7 +330,7 @@ func (s *packageAgentSuite) TestInstallWithGroupPreviouslyCreated() {
 }
 
 func (s *packageAgentSuite) TestInstallWithFapolicyd() {
-	if s.os != e2eos.RedHat9 {
+	if s.os.Flavor != e2eos.RedHat || (s.os.Version != e2eos.RedHat9.Version && s.os.Version != e2eos.RedHat9E2E.Version) {
 		s.T().Skip("fapolicyd is only supported on RedHat 9")
 	}
 	defer func() {
@@ -357,6 +357,9 @@ func (s *packageAgentSuite) TestNoWorldWritableFiles() {
 }
 
 func (s *packageAgentSuite) TestInstallWithNSSUser() {
+	if s.os.Flavor != e2eos.Ubuntu && s.os.Flavor != e2eos.Debian {
+		s.T().Skip("libnss-extrausers only available on Ubuntu and Debian")
+	}
 	// This test verifies that the agent installer works correctly when dd-agent
 	// user/group exist in NSS (Name Service Switch) but not in /etc/passwd or /etc/group.
 	// This simulates scenarios where users are managed via LDAP, Active Directory, or other
