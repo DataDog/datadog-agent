@@ -8,6 +8,13 @@ typedef struct {
     __u64 event_count;
     __u64 preemption_count;
     __u64 pid_count;
+    __u64 sum_cycles;
+    __u64 sum_instructions;
 } cgroup_agg_stats_t;
+
+typedef struct {
+    __u64 cycles;
+    __u64 instructions;
+} task_pmu_stamp_t;
 
 #endif

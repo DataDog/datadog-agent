@@ -12,7 +12,15 @@
 
 BPF_TASK_STORAGE_MAP(runq_enqueued, u64)
 
+BPF_TASK_STORAGE_MAP(task_oncpu_pmu, task_pmu_stamp_t)
+
 BPF_PERCPU_HASH_MAP(cgroup_agg_stats, __u64, cgroup_agg_stats_t, MAX_TASK_ENTRIES)
+
+// Per-CPU perf event arrays for cycles and instructions counters. Populated
+// from user space at probe init; if a CPU's slot is unset, the read helper
+// returns -ENOENT and the corresponding deltas are skipped.
+BPF_PERF_EVENT_ARRAY_MAP(cycles_pmu, u32)
+BPF_PERF_EVENT_ARRAY_MAP(instructions_pmu, u32)
 
 void bpf_rcu_read_lock(void) __ksym;
 void bpf_rcu_read_unlock(void) __ksym;
@@ -91,6 +99,28 @@ int tp_sched_switch(u64 *ctx) {
     u32 prev_pid = prev->pid;
     u32 next_pid = next->pid;
 
+    // Sample PMU counters once. Reads return -ENOENT (or other negative) when
+    // perf events haven't been attached for this CPU; in that case we skip
+    // both the prev close-out and the next stamp. The runqueue-wait path
+    // below is unaffected.
+    struct bpf_perf_event_value cyc_val = {};
+    struct bpf_perf_event_value ins_val = {};
+    long cyc_err = bpf_perf_event_read_value(&cycles_pmu, BPF_F_CURRENT_CPU, &cyc_val, sizeof(cyc_val));
+    long ins_err = bpf_perf_event_read_value(&instructions_pmu, BPF_F_CURRENT_CPU, &ins_val, sizeof(ins_val));
+    bool pmu_ok = (cyc_err == 0) && (ins_err == 0);
+
+    if (pmu_ok && prev_pid) {
+        task_pmu_stamp_t *stamp = bpf_task_storage_get(&task_oncpu_pmu, prev, NULL, 0);
+        if (stamp) {
+            u64 prev_cgroup_id = get_task_cgroup_id(prev);
+            cgroup_agg_stats_t *stats = get_or_create_cgroup_stats(prev_cgroup_id);
+            if (stats) {
+                stats->sum_cycles += cyc_val.counter - stamp->cycles;
+                stats->sum_instructions += ins_val.counter - stamp->instructions;
+            }
+        }
+    }
+
     if (prev->__state == TASK_RUNNING) {
         enqueue_timestamp(prev);
     }
@@ -105,6 +135,15 @@ int tp_sched_switch(u64 *ctx) {
 
     if (!next_pid) {
         return 0;
+    }
+
+    if (pmu_ok) {
+        task_pmu_stamp_t zero = {};
+        task_pmu_stamp_t *stamp = bpf_task_storage_get(&task_oncpu_pmu, next, &zero, BPF_LOCAL_STORAGE_GET_F_CREATE);
+        if (stamp) {
+            stamp->cycles = cyc_val.counter;
+            stamp->instructions = ins_val.counter;
+        }
     }
 
     u64 *tsp = bpf_task_storage_get(&runq_enqueued, next, NULL, 0);

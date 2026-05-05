@@ -136,4 +136,6 @@ func (n *NoisyNeighborCheck) submitPrimaryMetrics(sender sender.Sender, stat mod
 func (n *NoisyNeighborCheck) submitRawCounters(sender sender.Sender, stat model.NoisyNeighborStats, tags []string) {
 	sender.Count("noisy_neighbor.events.total", float64(stat.EventCount), "", tags)
 	sender.Gauge("noisy_neighbor.unique_processes", float64(stat.UniquePidCount), "", tags)
+	sender.Count("noisy_neighbor.cycles", float64(stat.SumCycles), "", tags)
+	sender.Count("noisy_neighbor.instructions", float64(stat.SumInstructions), "", tags)
 }

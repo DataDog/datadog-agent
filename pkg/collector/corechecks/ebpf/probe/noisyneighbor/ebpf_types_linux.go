@@ -8,4 +8,6 @@ type ebpfCgroupAggStats struct {
 	Event_count      uint64
 	Preemption_count uint64
 	Pid_count        uint64
+	Sum_cycles       uint64
+	Sum_instructions uint64
 }
