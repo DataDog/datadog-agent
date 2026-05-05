@@ -177,7 +177,6 @@ exports_files(glob(
 # gazelle:exclude comp/logs/agent/flare
 # gazelle:exclude comp/logs/auditor
 # gazelle:exclude comp/logs/integrations
-# gazelle:exclude comp/logs/streamlogs/def
 # gazelle:exclude comp/logs/streamlogs/fx
 # gazelle:exclude comp/logs/streamlogs/impl
 # gazelle:exclude comp/metadata/clusteragent
