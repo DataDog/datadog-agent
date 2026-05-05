@@ -1267,6 +1267,7 @@ cel_workload_exclude:
   rules:
     processes:
       - "process.args.exists(arg, arg == 'ignore-me')"
+      - "process.tcp_ports.exists(p, p == 6379)"
 - products: ["logs"]
   rules:
     processes:
@@ -1335,6 +1336,24 @@ cel_workload_exclude:
 		filterBundle := filterStore.GetProcessFilters([][]workloadfilter.ProcessFilter{{workloadfilter.ProcessCELLogs}})
 		assert.Nil(t, filterBundle.GetErrors())
 		assert.Equal(t, workloadfilter.Excluded, filterBundle.GetResult(process))
+	})
+
+	t.Run("CEL exclude process by tcp port", func(t *testing.T) {
+		process := workloadmetafilter.CreateProcess(&workloadmeta.Process{
+			Name:    "redis-server",
+			Cmdline: []string{"/usr/bin/redis-server"},
+			Service: &workloadmeta.Service{TCPPorts: []uint16{6379}},
+		})
+		assert.Equal(t, workloadfilter.Excluded, filterBundle.GetResult(process))
+	})
+
+	t.Run("CEL no match when port absent", func(t *testing.T) {
+		process := workloadmetafilter.CreateProcess(&workloadmeta.Process{
+			Name:    "redis-server",
+			Cmdline: []string{"/usr/bin/redis-server"},
+			Service: &workloadmeta.Service{TCPPorts: []uint16{6380}},
+		})
+		assert.Equal(t, workloadfilter.Unknown, filterBundle.GetResult(process))
 	})
 }
 
