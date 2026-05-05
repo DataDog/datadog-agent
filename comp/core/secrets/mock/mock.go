@@ -144,3 +144,6 @@ func (m *Mock) IsValueFromSecret(value string) bool {
 
 // RemoveOrigin
 func (m *Mock) RemoveOrigin(_ string) {}
+
+// RenameOrigin
+func (m *Mock) RenameOrigin(_, _ string) {}

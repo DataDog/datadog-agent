@@ -8,10 +8,17 @@ package secrets
 
 // team: agent-configuration
 
+// SecretBackendConfig holds the configuration for a single named backend in multi_secret_backends.
+type SecretBackendConfig struct {
+	Type   string                 `mapstructure:"type"`
+	Config map[string]interface{} `mapstructure:"config"`
+}
+
 // ConfigParams holds parameters for configuration
 type ConfigParams struct {
 	Type                         string
 	Config                       map[string]interface{}
+	MultiBackends                map[string]SecretBackendConfig
 	Command                      string
 	Arguments                    []string
 	Timeout                      int
@@ -49,4 +56,7 @@ type Component interface {
 	// RemoveOrigin removes a origin from the internal cache of the secret component. This does not remove secrets
 	// from the cache but the reference where those secrets are used.
 	RemoveOrigin(origin string)
+	// RenameOrigin renames all secret context entries that reference oldOrigin to newOrigin.
+	// Used to replace temporary scheduling origins with stable check instance IDs.
+	RenameOrigin(oldOrigin, newOrigin string)
 }

@@ -949,6 +949,19 @@ api_key:
 # secret_backend_config:
 #   <KEY_1>: <VALUE_1>
 
+## @param multi_secret_backends - object - optional - default: {}
+## @env DD_MULTI_SECRET_BACKENDS - JSON object - optional - default: {}
+## `multi_secret_backends` defines named secret backends for routing. Each entry specifies a `type`
+## and optional `config`. Use `ENC[backendID;secretKey]` handles to route secrets to the named backend.
+## This option is ignored if `secret_backend_command` or `secret_backend_type` is set.
+## For more information see: https://docs.datadoghq.com/agent/configuration/secrets-management
+#
+# multi_secret_backends:
+#   <backend_name>:
+#     type: <backend_type>
+#     config:
+#       <KEY_1>: <VALUE_1>
+
 ## @param secret_refresh_interval - integer - optional - default: 0
 ## @env DD_SECRET_REFRESH_INTERVAL - integer - optional - default: 0
 ## `secret_refresh_interval` is the interval (in seconds) at which api/app key secrets are refreshed. A 0 value means the feature is disabled.

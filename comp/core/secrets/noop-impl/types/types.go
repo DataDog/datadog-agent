@@ -41,3 +41,6 @@ func (r *SecretNoop) IsValueFromSecret(_ string) bool {
 
 // RemoveOrigin
 func (r *SecretNoop) RemoveOrigin(_ string) {}
+
+// RenameOrigin
+func (r *SecretNoop) RenameOrigin(_, _ string) {}
