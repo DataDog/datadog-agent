@@ -22,7 +22,6 @@ go_library(
         ],
         "@rules_go//go/platform:darwin": [
             "//pkg/util/executable",
-            "//pkg/util/flavor",
         ],
         "@rules_go//go/platform:dragonfly": [
             "//pkg/util/executable",
@@ -34,7 +33,6 @@ go_library(
         ],
         "@rules_go//go/platform:ios": [
             "//pkg/util/executable",
-            "//pkg/util/flavor",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/util/executable",
