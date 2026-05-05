@@ -22,8 +22,8 @@ import (
 	"helm.sh/helm/v3/pkg/cli"
 
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/discovery/cached/memory"
 	"k8s.io/client-go/kubernetes"
@@ -534,7 +534,7 @@ func createImagePullSecret(ctx context.Context, k8sClient kubernetes.Interface, 
 	}
 
 	usernameStr, _ := profile.ParamStore().GetWithDefault(parameters.ImagePullUsername, "")
-	passwordStr, _ := profile.SecretStore().GetWithDefault(parameters.ImagePullPassword, "")
+	passwordStr, _ := profile.ParamStore().GetWithDefault(parameters.ImagePullPassword, "")
 	if usernameStr == "" || passwordStr == "" {
 		return "", fmt.Errorf("image_pull_registry is set but image_pull_username or image_pull_password is missing")
 	}
@@ -718,7 +718,8 @@ clusterAgent:
 // and the image name, for use in agentSidecarInjection.containerRegistry and
 // imageName. Mirrors the split in buildLinuxHelmValues in kubernetes_helm.go.
 // e.g. "669783387624.dkr.ecr.us-east-1.amazonaws.com/agent-qa"
-//   → ("669783387624.dkr.ecr.us-east-1.amazonaws.com", "agent-qa")
+//
+//	→ ("669783387624.dkr.ecr.us-east-1.amazonaws.com", "agent-qa")
 func splitRepoForSidecar(repo string) (containerRegistry, imageName string) {
 	if idx := strings.LastIndex(repo, "/"); idx != -1 {
 		return repo[:idx], repo[idx+1:]
