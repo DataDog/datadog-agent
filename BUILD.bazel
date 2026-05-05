@@ -299,7 +299,6 @@ exports_files(glob(
 # gazelle:exclude comp/snmptraps/packet
 # gazelle:exclude comp/snmptraps/senderhelper
 # gazelle:exclude comp/snmptraps/server
-# gazelle:exclude comp/snmptraps/snmplog
 # gazelle:exclude comp/snmptraps/status
 # gazelle:exclude comp/softwareinventory/fx
 # gazelle:exclude comp/softwareinventory/impl
