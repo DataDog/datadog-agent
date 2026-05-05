@@ -108,6 +108,10 @@ func checkSNMPError(result *gosnmp.SnmpPacket, err error) (*gosnmp.SnmpPacket, e
 	if err != nil {
 		return result, err
 	}
+	// TODO FIXME we don't actually want to fail on some errors - e.g.
+	// NoSuchName indicates that we fetched an OID that the device doesn't
+	// provide, which is very common and we don't want to abort just because one
+	// of our OIDs wasn't present.
 	if result.Error != gosnmp.NoError {
 		// Convert SNMP errors to go errors
 		return result, fmt.Errorf("snmp failed: %s", result.Error.String())
