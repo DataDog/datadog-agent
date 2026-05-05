@@ -12,22 +12,10 @@ package discoverer
 
 import (
 	"context"
-	"errors"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 )
-
-// ErrPythonNotReady is surfaced by Bridge.RunDiscover when the Python
-// runtime is not yet initialised. The discoverer treats this as a
-// transient condition — the failure is NOT cached, so the next AD
-// reconciliation event re-attempts the probe. This avoids a startup
-// race where AD reconciles before rtloader finishes initializing and
-// then sits on a stale cached failure for the negative-cache TTL.
-//
-// Distinct from a probe miss or a Python-side exception, which are
-// real failures and ARE cached.
-var ErrPythonNotReady = errors.New("discoverer: python runtime not yet initialised")
 
 // Result is the output of a successful Discover call.
 type Result struct {
