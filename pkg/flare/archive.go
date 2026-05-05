@@ -34,7 +34,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/flare/common"
 	"github.com/DataDog/datadog-agent/pkg/flare/priviledged"
 	"github.com/DataDog/datadog-agent/pkg/process/util/coreagent"
-	"github.com/DataDog/datadog-agent/pkg/status/health"
 	systemprobeStatus "github.com/DataDog/datadog-agent/pkg/status/systemprobe"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
@@ -86,7 +85,11 @@ func ExtraFlareProviders(workloadmeta option.Option[workloadmeta.Component], ipc
 
 	for filename, fromFunc := range map[string]func() ([]byte, error){
 		"envvars.log":                         common.GetEnvVars,
+<<<<<<< pgimalac/flare-telemetry
 		"health.yaml":                         getHealth,
+=======
+		"telemetry.log":                       func() ([]byte, error) { return remote.getHTTPCallContent(telemetryURL) },
+>>>>>>> main
 		"connectivity/resolved_endpoints.txt": getEndpointDNS,
 	} {
 		providers = append(providers, flaretypes.NewFiller(
@@ -416,19 +419,6 @@ func (r *RemoteFlareProvider) GetWorkloadList(url string) ([]byte, error) {
 		return nil
 	}
 	return functionOutputToBytes(fct), nil
-}
-
-func getHealth() ([]byte, error) {
-	s := health.GetReady()
-	sort.Strings(s.Healthy)
-	sort.Strings(s.Unhealthy)
-
-	yamlValue, err := yaml.Marshal(s)
-	if err != nil {
-		return nil, err
-	}
-
-	return yamlValue, nil
 }
 
 func getECSMeta() ([]byte, error) {
