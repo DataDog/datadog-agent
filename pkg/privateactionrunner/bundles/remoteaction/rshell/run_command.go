@@ -117,10 +117,21 @@ func (h *RunCommandHandler) filterAllowedPaths(backend []string) []string {
 // respective axis — rshell refuses to run any command or open any file.
 // A non-nil list is intersected with the operator config before being
 // handed to rshell.
+//
+// AllowedCommandPatterns and DeniedCommandPatterns are passed straight
+// through to rshell without operator-side intersection. Each pattern is
+// a token list; the agent does no parsing because the JSON wire format
+// preserves the structured shape natively. See rshell's
+// interp.AllowedCommandPatterns for matching semantics. The deny axis
+// is evaluated first by rshell, so an entry in DeniedCommandPatterns
+// blocks even when AllowedCommands or AllowedCommandPatterns would
+// otherwise admit the call.
 type RunCommandInputs struct {
-	Command         string              `json:"command"`
-	AllowedCommands []string            `json:"allowedCommands"`
-	AllowedPaths    map[string][]string `json:"allowedPaths"`
+	Command                string              `json:"command"`
+	AllowedCommands        []string            `json:"allowedCommands"`
+	AllowedCommandPatterns [][]string          `json:"allowedCommandPatterns,omitempty"`
+	DeniedCommandPatterns  [][]string          `json:"deniedCommandPatterns,omitempty"`
+	AllowedPaths           map[string][]string `json:"allowedPaths"`
 }
 
 // RunCommandOutputs defines the outputs for the runCommand action.
@@ -172,13 +183,25 @@ func (h *RunCommandHandler) Run(
 	// Route sandbox diagnostics to a dedicated sink so they do not leak
 	// into the action's stderr field. We discard the streaming output and
 	// read the messages back via runner.Warnings() into SandboxWarnings.
-	runner, err := interp.New(
+	//
+	// Pattern axes are passed through directly — rshell validates token
+	// shape and (for multi-token patterns) requires a registered
+	// CommandSpec at New() time. Operator-side pattern intersection is
+	// out of scope for the POC; the backend is authoritative.
+	opts := []interp.RunnerOption{
 		interp.StdIO(nil, &stdout, &stderr),
 		interp.WarningsWriter(io.Discard),
 		interp.AllowedPaths(effectiveAllowedPaths),
 		interp.ProcPath(resolveProcPath()),
 		interp.AllowedCommands(effectiveAllowedCommands),
-	)
+	}
+	if len(inputs.AllowedCommandPatterns) > 0 {
+		opts = append(opts, interp.AllowedCommandPatterns(inputs.AllowedCommandPatterns))
+	}
+	if len(inputs.DeniedCommandPatterns) > 0 {
+		opts = append(opts, interp.DeniedCommandPatterns(inputs.DeniedCommandPatterns))
+	}
+	runner, err := interp.New(opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create runner: %w", err)
 	}

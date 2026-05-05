@@ -1450,3 +1450,9 @@ replace (
 	github.com/DataDog/datadog-agent/test/new-e2e => ./test/new-e2e
 	github.com/DataDog/datadog-agent/test/otel => ./test/otel
 )
+
+// LOCAL DEV ONLY — points github.com/DataDog/rshell at the developer's
+// local checkout so AllowedCommandPatterns/DeniedCommandPatterns work
+// before a tagged rshell release. Strip this directive before merging
+// out of the POC branch.
+replace github.com/DataDog/rshell => /Users/matthew.deguzman/dd/rshell

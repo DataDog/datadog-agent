@@ -396,7 +396,7 @@ func TestRunCommandNoAllowedCommandsBlocksExecution(t *testing.T) {
 	require.NoError(t, err)
 	result := out.(*RunCommandOutputs)
 	assert.Equal(t, 127, result.ExitCode)
-	assert.Contains(t, result.Stderr, "command not allowed")
+	assert.Contains(t, result.Stderr, "not permitted by policy")
 }
 
 func TestRunCommandWithWildcardOperatorAndBackendAllowed(t *testing.T) {
@@ -424,7 +424,7 @@ func TestRunCommandDisallowedCommandBlocked(t *testing.T) {
 	require.NoError(t, err)
 	result := out.(*RunCommandOutputs)
 	assert.Equal(t, 127, result.ExitCode)
-	assert.Contains(t, result.Stderr, "command not allowed")
+	assert.Contains(t, result.Stderr, "not permitted by policy")
 }
 
 func TestRunCommandOperatorIntersectionAllows(t *testing.T) {
@@ -452,7 +452,7 @@ func TestRunCommandOperatorIntersectionBlocksDisjoint(t *testing.T) {
 	require.NoError(t, err)
 	result := out.(*RunCommandOutputs)
 	assert.Equal(t, 127, result.ExitCode)
-	assert.Contains(t, result.Stderr, "command not allowed")
+	assert.Contains(t, result.Stderr, "not permitted by policy")
 }
 
 func TestRunCommandOperatorEmptyListBlocksEverything(t *testing.T) {
@@ -465,7 +465,7 @@ func TestRunCommandOperatorEmptyListBlocksEverything(t *testing.T) {
 	require.NoError(t, err)
 	result := out.(*RunCommandOutputs)
 	assert.Equal(t, 127, result.ExitCode)
-	assert.Contains(t, result.Stderr, "command not allowed")
+	assert.Contains(t, result.Stderr, "not permitted by policy")
 }
 
 func TestRunCommandBackendAllowedPathsRestrictsAccess(t *testing.T) {
@@ -576,4 +576,161 @@ func TestResolveProcPathContainerizedWithoutHostMount(t *testing.T) {
 	result := resolveProcPath()
 
 	assert.Equal(t, "/proc", result)
+}
+
+// --- AllowedCommandPatterns / DeniedCommandPatterns plumbing ---
+//
+// The agent passes both pattern axes through to rshell unchanged — no
+// parsing, no operator-side intersection. These tests verify the
+// JSON-shaped task input flows correctly through ExtractInputs and into
+// interp.New as the right RunnerOption. The architectural cases
+// (substitution-defeat, structural matching, deny-first precedence)
+// live in rshell's own test suite; here we only confirm the plumbing.
+
+// makeTaskWithPatterns extends makeTask with the two pattern axes.
+// Either field may be nil to exercise "backend didn't send it".
+func makeTaskWithPatterns(command string, allowedCommands []string, allowedPatterns, deniedPatterns [][]string, allowedPaths map[string][]string) *types.Task {
+	task := makeTask(command, allowedCommands)
+	if allowedPatterns != nil {
+		task.Data.Attributes.Inputs["allowedCommandPatterns"] = allowedPatterns
+	}
+	if deniedPatterns != nil {
+		task.Data.Attributes.Inputs["deniedCommandPatterns"] = deniedPatterns
+	}
+	if allowedPaths != nil {
+		task.Data.Attributes.Inputs["allowedPaths"] = allowedPaths
+	}
+	return task
+}
+
+// TestAllowedCommandPatternsAdmitMatchingArgv verifies that an allow
+// pattern from the backend reaches rshell and admits a matching
+// invocation. ip is a built-in rshell command with a registered
+// CommandSpec, so multi-token patterns work without extra config.
+func TestAllowedCommandPatternsAdmitMatchingArgv(t *testing.T) {
+	handler := NewRunCommandHandler(
+		[]string{setup.RShellPathAllowAll},
+		[]string{setup.RShellCommandAllowAllWildcard},
+	)
+
+	out, err := handler.Run(context.Background(),
+		makeTaskWithPatterns(
+			"ip route show",
+			nil, // no name allowlist; pattern is the only authorisation
+			[][]string{{"ip", "route"}},
+			nil,
+			map[string][]string{
+				setup.RShellPathAllowMapDefaultKey: {"/tmp"},
+			},
+		), nil)
+
+	require.NoError(t, err)
+	result := out.(*RunCommandOutputs)
+	// Exit code is whatever ip itself returns (1 on macOS, 0 on Linux —
+	// either way NOT 127, which is the policy-refusal code).
+	assert.NotEqual(t, 127, result.ExitCode, "policy gate should admit; rshell stderr was: %q", result.Stderr)
+}
+
+// TestAllowedCommandPatternsBlockNonMatchingArgv is the partner case:
+// the pattern doesn't match, so the gate refuses with 127.
+func TestAllowedCommandPatternsBlockNonMatchingArgv(t *testing.T) {
+	handler := NewRunCommandHandler(
+		[]string{setup.RShellPathAllowAll},
+		[]string{setup.RShellCommandAllowAllWildcard},
+	)
+
+	out, err := handler.Run(context.Background(),
+		makeTaskWithPatterns(
+			"ip addr show",
+			nil,
+			[][]string{{"ip", "route"}},
+			nil,
+			map[string][]string{
+				setup.RShellPathAllowMapDefaultKey: {"/tmp"},
+			},
+		), nil)
+
+	require.NoError(t, err)
+	result := out.(*RunCommandOutputs)
+	assert.Equal(t, 127, result.ExitCode)
+	assert.Contains(t, result.Stderr, "not permitted by policy")
+}
+
+// TestDeniedCommandPatternsBlockEvenWhenNameAllowlistAdmits is the
+// headline use case: allow ip wholesale by name, then carve out
+// ip route specifically via a deny pattern.
+func TestDeniedCommandPatternsBlockEvenWhenNameAllowlistAdmits(t *testing.T) {
+	handler := NewRunCommandHandler(
+		[]string{setup.RShellPathAllowAll},
+		[]string{setup.RShellCommandAllowAllWildcard},
+	)
+
+	out, err := handler.Run(context.Background(),
+		makeTaskWithPatterns(
+			"ip route show",
+			[]string{"rshell:ip"}, // ip allowed by name…
+			nil,
+			[][]string{{"ip", "route"}}, // …but ip route is denied
+			map[string][]string{
+				setup.RShellPathAllowMapDefaultKey: {"/tmp"},
+			},
+		), nil)
+
+	require.NoError(t, err)
+	result := out.(*RunCommandOutputs)
+	assert.Equal(t, 127, result.ExitCode)
+	assert.Contains(t, result.Stderr, "blocked by deny pattern")
+}
+
+// TestDeniedCommandPatternsDoNotBlockSiblings confirms the deny is
+// targeted, not blanket. With the same allow rule and same deny
+// pattern, ip addr (a sibling subcommand) still admits.
+func TestDeniedCommandPatternsDoNotBlockSiblings(t *testing.T) {
+	handler := NewRunCommandHandler(
+		[]string{setup.RShellPathAllowAll},
+		[]string{setup.RShellCommandAllowAllWildcard},
+	)
+
+	out, err := handler.Run(context.Background(),
+		makeTaskWithPatterns(
+			"ip addr show",
+			[]string{"rshell:ip"},
+			nil,
+			[][]string{{"ip", "route"}},
+			map[string][]string{
+				setup.RShellPathAllowMapDefaultKey: {"/tmp"},
+			},
+		), nil)
+
+	require.NoError(t, err)
+	result := out.(*RunCommandOutputs)
+	assert.NotEqual(t, 127, result.ExitCode)
+}
+
+// TestPatternsAbsentFromTaskInputDoNotBreakRunner is the "backend
+// didn't send the field" case. RunCommandInputs has both pattern
+// fields tagged omitempty; missing JSON fields unmarshal to nil
+// slices, which the agent passes through as zero-length, which
+// rshell treats as no-patterns-configured.
+func TestPatternsAbsentFromTaskInputDoNotBreakRunner(t *testing.T) {
+	handler := NewRunCommandHandler(
+		[]string{setup.RShellPathAllowAll},
+		[]string{setup.RShellCommandAllowAllWildcard},
+	)
+
+	out, err := handler.Run(context.Background(),
+		makeTaskWithPatterns(
+			"echo hello",
+			[]string{"rshell:echo"},
+			nil, // explicit nil — no patterns from backend
+			nil, // explicit nil — no denies from backend
+			map[string][]string{
+				setup.RShellPathAllowMapDefaultKey: {"/tmp"},
+			},
+		), nil)
+
+	require.NoError(t, err)
+	result := out.(*RunCommandOutputs)
+	assert.Equal(t, 0, result.ExitCode)
+	assert.Equal(t, "hello\n", result.Stdout)
 }
