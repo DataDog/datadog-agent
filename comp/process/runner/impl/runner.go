@@ -15,7 +15,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/process/agent"
-	hostinfo "github.com/DataDog/datadog-agent/comp/process/hostinfo/def"
+	"github.com/DataDog/datadog-agent/comp/process/hostinfo/def"
 	runner "github.com/DataDog/datadog-agent/comp/process/runner/def"
 	submitter "github.com/DataDog/datadog-agent/comp/process/submitter/def"
 	"github.com/DataDog/datadog-agent/comp/process/types"
@@ -32,10 +32,8 @@ type runnerImpl struct {
 	providedChecks []types.CheckComponent
 }
 
-// Requires defines the dependencies for the runner component.
-type Requires struct {
+type dependencies struct {
 	compdef.In
-
 	Lc  compdef.Lifecycle
 	Log log.Component
 
@@ -50,21 +48,21 @@ type Requires struct {
 }
 
 // NewComponent creates a new runner component.
-func NewComponent(reqs Requires) (runner.Component, error) {
-	filteredChecks := runner.FilterNilChecks(reqs.Checks)
-	c, err := processRunner.NewRunner(reqs.Config, reqs.SysCfg.SysProbeObject(), reqs.HostInfo.Object(), filterEnabledChecks(filteredChecks), reqs.RTNotifier)
+func NewComponent(deps dependencies) (runner.Component, error) {
+	checks := runner.FilterNilChecks(deps.Checks)
+	c, err := processRunner.NewRunner(deps.Config, deps.SysCfg.SysProbeObject(), deps.HostInfo.Object(), filterEnabledChecks(checks), deps.RTNotifier)
 	if err != nil {
 		return nil, err
 	}
-	c.Submitter = reqs.Submitter
+	c.Submitter = deps.Submitter
 
 	runnerComponent := &runnerImpl{
 		checkRunner:    c,
-		providedChecks: filteredChecks,
+		providedChecks: checks,
 	}
 
-	if agentEnabled(reqs.Config, reqs.Checks, reqs.Log) {
-		reqs.Lc.Append(compdef.Hook{
+	if agentEnabled(deps.Config, deps.Checks, deps.Log) {
+		deps.Lc.Append(compdef.Hook{
 			OnStart: runnerComponent.Run,
 			OnStop:  runnerComponent.stop,
 		})
