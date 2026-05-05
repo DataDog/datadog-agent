@@ -615,7 +615,6 @@ exports_files(glob(
 # gazelle:exclude pkg/security/seclog
 # gazelle:exclude pkg/security/security_profile
 # gazelle:exclude pkg/security/serializers
-# gazelle:exclude pkg/security/telemetry
 # gazelle:exclude pkg/security/tests
 # gazelle:exclude pkg/security/utils/k8sutils
 # gazelle:exclude pkg/security/utils/lru/internal
