@@ -428,17 +428,6 @@ else
         sqlite3.c -lpthreads -o libsqlite3.so.0
     ar -X64 -rcs "$EMBEDDED_DESTDIR/lib/libsqlite3.a" libsqlite3.so.0
     cp sqlite3.h sqlite3ext.h "$EMBEDDED_DESTDIR/include/"
-    cat > "$EMBEDDED_DESTDIR/lib/pkgconfig/sqlite3.pc" <<PCEOF
-prefix=$EMBEDDED
-exec_prefix=\${prefix}
-libdir=\${exec_prefix}/lib
-includedir=\${prefix}/include
-Name: SQLite
-Description: SQL database engine
-Version: ${SQLITE_VERSION}
-Libs: -L\${libdir} -lsqlite3
-Cflags: -I\${includedir}
-PCEOF
     lib_cache_save sqlite "$SQLITE_VERSION" "$_pre"
     rm -f "$_pre"
     cd "$BUILD_DIR"
