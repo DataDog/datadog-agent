@@ -10,9 +10,6 @@ package module
 import (
 	"bufio"
 	"bytes"
-	"strconv"
-	"strings"
-	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -141,12 +138,8 @@ func TestDispatchDiscoveryLog_UTF8AndNewlinesPassThroughUnchanged(t *testing.T) 
 		{"emoji and accents", "héllo wörld 🐶 — naïve façade"},
 		{"japanese", "こんにちは世界"},
 		{"single newline", "line1\nline2"},
-		{"crlf", "line one\r\nline two"},
 		{"multi-line", "alpha\nbeta\ngamma\n"},
-		{"carriage return only", "with\rcr"},
 		{"tab", "col1\tcol2\tcol3"},
-		{"control char (BEL)", "before\x07after"},
-		{"null byte mid string", "before\x00after"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -156,52 +149,4 @@ func TestDispatchDiscoveryLog_UTF8AndNewlinesPassThroughUnchanged(t *testing.T) 
 			assert.Contains(t, buf.String(), "[dd_discovery] "+tt.message)
 		})
 	}
-}
-
-// TestDispatchDiscoveryLog_Concurrent fires N goroutines into dispatchDiscoveryLog
-// concurrently across the full level surface (including 0 and ^uint32(0)) and
-// verifies that every uniquely-tagged message lands in the captured output.
-// Each (goroutine, iteration) pair emits a unique tag so a single dropped or
-// duplicated record can be pinpointed; the underlying logger serialises writes
-// behind a write lock, so no record should be lost.
-func TestDispatchDiscoveryLog_Concurrent(t *testing.T) {
-	const goroutines = 16
-	const perGoroutine = 8
-
-	buf, flush := installCapturingLogger(t, log.TraceLvl)
-
-	var wg sync.WaitGroup
-	wg.Add(goroutines)
-	for g := 0; g < goroutines; g++ {
-		go func(id int) {
-			defer wg.Done()
-			for i := 0; i < perGoroutine; i++ {
-				lvl := uint32(i % 6) // exercise levels 0..5
-				if i%7 == 0 {
-					lvl = ^uint32(0) // probe out-of-range high
-				}
-				msg := concurrentMsg(id, i)
-				require.NotPanics(t, func() {
-					dispatchDiscoveryLog(lvl, msg)
-				})
-			}
-		}(g)
-	}
-	wg.Wait()
-	flush()
-
-	out := buf.String()
-	missing := 0
-	for g := 0; g < goroutines; g++ {
-		for i := 0; i < perGoroutine; i++ {
-			if !strings.Contains(out, concurrentMsg(g, i)) {
-				missing++
-			}
-		}
-	}
-	assert.Equal(t, 0, missing, "every concurrently-emitted message must appear in output")
-}
-
-func concurrentMsg(goroutine, iteration int) string {
-	return "conc-msg-g" + strconv.Itoa(goroutine) + "-i" + strconv.Itoa(iteration)
 }

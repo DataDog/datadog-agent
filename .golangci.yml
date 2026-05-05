@@ -381,11 +381,6 @@ linters:
     # disable typecheck in folder where it breaks because of build tags
     - path: "pkg/security/"
       linters: [typecheck]
-    # golangci-lint's typecheck does not handle `import "C"` in _test.go files;
-    # the cgo bridge test deliberately exercises the C entry point with
-    # synthetic buffers and cannot be expressed without cgo.
-    - path: "pkg/discovery/module/"
-      linters: [typecheck]
     # Ignore name repetition for checks (docker.Docker*, jmx.JMX*, etc.)
     - path: pkg/collector/corechecks/
       text: "name will be used as .* by other packages, and that stutters"
