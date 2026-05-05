@@ -28,6 +28,7 @@ go_test(
         "config_manager_test.go",
         "provider_test.go",
     ],
+    data = glob(["td/**"]),
     embed = [":agentprovider"],
     gotags = ["test"],
     deps = [
