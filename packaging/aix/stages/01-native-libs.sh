@@ -424,7 +424,7 @@ else
     cd "$BUILD_DIR/build/${SQLITE_DIR}"
     # Build as a shared library wrapped in a .a archive (AIX convention).
     # Python's configure link tests require a shared member to detect sqlite3.
-    $CC "$CFLAGS" -shared -Wl,-brtl -Wl,-bexpall \
+    $CC "$CFLAGS" -DSQLITE_ENABLE_MATH_FUNCTIONS -shared -Wl,-brtl -Wl,-bexpall \
         sqlite3.c -lpthreads -o libsqlite3.so.0
     ar -X64 -rcs "$EMBEDDED_DESTDIR/lib/libsqlite3.a" libsqlite3.so.0
     cp sqlite3.h sqlite3ext.h "$EMBEDDED_DESTDIR/include/"
