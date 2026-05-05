@@ -698,7 +698,6 @@ exports_files(glob(
 # gazelle:exclude pkg/util/port
 # gazelle:exclude pkg/util/profiling
 # gazelle:exclude pkg/util/tags
-# gazelle:exclude pkg/util/tmplvar
 # gazelle:exclude pkg/windowsdriver/ddinjector
 # gazelle:exclude pkg/windowsdriver/include
 # gazelle:exclude pkg/windowsdriver/procmon
