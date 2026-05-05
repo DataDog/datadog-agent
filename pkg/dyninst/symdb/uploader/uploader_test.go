@@ -20,6 +20,7 @@ import (
 	"net/url"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -172,79 +173,79 @@ func validateSymDBRequest(
 	require.Equal(t, "main", symdbRoot.Scopes[0].Name)
 }
 
-func TestSymDBUploader(t *testing.T) {
-	createPackageScopes := func() []Scope {
-		return []Scope{
-			{
-				ScopeType: ScopeTypePackage,
-				Name:      "main",
-				StartLine: 0,
-				EndLine:   0,
-				LanguageSpecifics: &LanguageSpecifics{
-					AgentVersion: "7.72.0-test",
-				},
-				Scopes: []Scope{
-					{
-						ScopeType:  ScopeTypeMethod,
-						Name:       "testFunction",
-						SourceFile: "/test/main.go",
-						StartLine:  10,
-						EndLine:    20,
-						Symbols: []Symbol{
-							{
-								Name:       "testVar",
-								Type:       "string",
-								SymbolType: SymbolTypeLocal,
-								Line:       &[]int{12}[0],
-							},
-							{
-								Name:       "arg1",
-								Type:       "int",
-								SymbolType: SymbolTypeArg,
-								Line:       &[]int{10}[0],
-							},
+func createPackageScopes() []Scope {
+	return []Scope{
+		{
+			ScopeType: ScopeTypePackage,
+			Name:      "main",
+			StartLine: 0,
+			EndLine:   0,
+			LanguageSpecifics: &LanguageSpecifics{
+				AgentVersion: "7.72.0-test",
+			},
+			Scopes: []Scope{
+				{
+					ScopeType:  ScopeTypeMethod,
+					Name:       "testFunction",
+					SourceFile: "/test/main.go",
+					StartLine:  10,
+					EndLine:    20,
+					Symbols: []Symbol{
+						{
+							Name:       "testVar",
+							Type:       "string",
+							SymbolType: SymbolTypeLocal,
+							Line:       &[]int{12}[0],
+						},
+						{
+							Name:       "arg1",
+							Type:       "int",
+							SymbolType: SymbolTypeArg,
+							Line:       &[]int{10}[0],
 						},
 					},
-					{
-						ScopeType: ScopeTypeStruct,
-						Name:      "main.TestStruct",
-						StartLine: 0,
-						EndLine:   0,
-						Symbols: []Symbol{
-							{
-								Name:       "field1",
-								Type:       "string",
-								SymbolType: SymbolTypeField,
-							},
-							{
-								Name:       "field2",
-								Type:       "int",
-								SymbolType: SymbolTypeField,
-							},
+				},
+				{
+					ScopeType: ScopeTypeStruct,
+					Name:      "main.TestStruct",
+					StartLine: 0,
+					EndLine:   0,
+					Symbols: []Symbol{
+						{
+							Name:       "field1",
+							Type:       "string",
+							SymbolType: SymbolTypeField,
 						},
-						Scopes: []Scope{
-							{
-								ScopeType:  ScopeTypeMethod,
-								Name:       "method1",
-								SourceFile: "/test/main.go",
-								StartLine:  25,
-								EndLine:    30,
-								Symbols: []Symbol{
-									{
-										Name:       "receiver",
-										Type:       "*main.TestStruct",
-										SymbolType: SymbolTypeArg,
-										Line:       &[]int{25}[0],
-									},
+						{
+							Name:       "field2",
+							Type:       "int",
+							SymbolType: SymbolTypeField,
+						},
+					},
+					Scopes: []Scope{
+						{
+							ScopeType:  ScopeTypeMethod,
+							Name:       "method1",
+							SourceFile: "/test/main.go",
+							StartLine:  25,
+							EndLine:    30,
+							Symbols: []Symbol{
+								{
+									Name:       "receiver",
+									Type:       "*main.TestStruct",
+									SymbolType: SymbolTypeArg,
+									Line:       &[]int{25}[0],
 								},
 							},
 						},
 					},
 				},
 			},
-		}
+		},
 	}
+}
 
+func TestBatchEncoder(t *testing.T) {
 	for _, injectError := range []bool{false, true} {
 		testName := "success"
 		if injectError {
@@ -255,30 +256,28 @@ func TestSymDBUploader(t *testing.T) {
 			ts := newTestServer()
 			defer ts.Close()
 
-			uploader := NewSymDBUploader(
+			up := NewSymDBUploader(
 				ts.serverURL.String(),
 				"service1",
 				"1.0.0",
 				"dummy-runtime-id",
 			)
 
-			// Do a (blocking) upload in a goroutine so that the test goroutine can
-			// intercept the request.
+			// Do a (blocking) flush in a goroutine so that the test goroutine
+			// can intercept the request.
 			var wg sync.WaitGroup
 			wg.Add(1)
 			uploadID := uuid.New()
 			go func() {
 				defer wg.Done()
-				scopes := createPackageScopes()
-				err := uploader.UploadBatch(context.Background(),
-					UploadInfo{
-						UploadID: uploadID,
-						BatchNum: 1,
-						Final:    true,
-					},
-					scopes)
+				enc := up.NewBatchEncoder(uploadID)
+				for _, s := range createPackageScopes() {
+					assert.NoError(t, enc.AddScope(s))
+				}
+				err := enc.Flush(context.Background(), true /* final */)
 				if injectError {
 					assert.Error(t, err)
+					assert.ErrorIs(t, err, ErrUpload)
 				} else {
 					assert.NoError(t, err)
 				}
@@ -295,4 +294,153 @@ func TestSymDBUploader(t *testing.T) {
 			wg.Wait()
 		})
 	}
+}
+
+// TestBatchEncoder_MultiBatch drives the encoder with a tiny flush threshold,
+// forcing one HTTP request per scope, and verifies that batch_num increments
+// across requests and final=true is set only on the last one.
+func TestBatchEncoder_MultiBatch(t *testing.T) {
+	ts := newTestServer()
+	defer ts.Close()
+
+	up := NewSymDBUploader(
+		ts.serverURL.String(),
+		"service1",
+		"1.0.0",
+		"dummy-runtime-id",
+	)
+
+	scopes := createPackageScopes()
+	// Duplicate the package a few times to get multiple batches.
+	scopes = append(scopes, scopes[0], scopes[0])
+	uploadID := uuid.New()
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		enc := up.NewBatchEncoder(uploadID, WithFlushThreshold(0))
+		for i, s := range scopes {
+			assert.NoError(t, enc.AddScope(s))
+			final := i == len(scopes)-1
+			// With threshold<=0, ShouldFlush is true after every encoded scope.
+			if enc.ShouldFlush() || final {
+				assert.NoError(t, enc.Flush(context.Background(), final))
+			}
+		}
+		assert.Equal(t, len(scopes), enc.BatchCount())
+	}()
+
+	for i := 0; i < len(scopes); i++ {
+		req := <-ts.requests
+		root := readSymDBRoot(t, req.r)
+		assert.Equal(t, i+1, root.BatchNum)
+		assert.Equal(t, i == len(scopes)-1, root.Final)
+		assert.Equal(t, uploadID.String(), root.UploadID)
+		req.w.WriteHeader(http.StatusOK)
+		close(req.done)
+	}
+	wg.Wait()
+}
+
+// TestBatchEncoder_ShouldFlush exercises the threshold check directly without
+// an HTTP server, using a no-network upload via a server that always 200s.
+func TestBatchEncoder_ShouldFlush(t *testing.T) {
+	ts := newTestServer()
+	defer ts.Close()
+
+	up := NewSymDBUploader(
+		ts.serverURL.String(),
+		"service1",
+		"1.0.0",
+		"dummy-runtime-id",
+	)
+
+	const threshold = 64
+	enc := up.NewBatchEncoder(uuid.New(), WithFlushThreshold(threshold))
+	require.False(t, enc.ShouldFlush(), "should not flush before any scopes")
+
+	// Add scopes until ShouldFlush flips. The gzip writer buffers internally
+	// (deflate window is 32 KiB), so it can take many small scopes before any
+	// bytes reach the underlying buffer. Bound the loop generously.
+	scope := createPackageScopes()[0]
+	flipped := false
+	for i := 0; i < 100000; i++ {
+		require.NoError(t, enc.AddScope(scope))
+		if enc.ShouldFlush() {
+			flipped = true
+			break
+		}
+	}
+	require.True(t, flipped, "ShouldFlush never flipped")
+
+	// Drain the upload that Flush will send.
+	doneC := make(chan error, 1)
+	go func() {
+		doneC <- enc.Flush(context.Background(), false /* final */)
+	}()
+	req := <-ts.requests
+	req.w.WriteHeader(http.StatusOK)
+	close(req.done)
+	require.NoError(t, <-doneC)
+
+	// After flush, the buffer is reset and ShouldFlush reports false again.
+	require.False(t, enc.ShouldFlush(), "ShouldFlush should reset after Flush")
+}
+
+// TestBatchEncoder_EmptyFinal verifies that Flush(ctx, true) with no scopes
+// added is a no-op (no HTTP request).
+func TestBatchEncoder_EmptyFinal(t *testing.T) {
+	ts := newTestServer()
+	defer ts.Close()
+
+	up := NewSymDBUploader(
+		ts.serverURL.String(),
+		"service1",
+		"1.0.0",
+		"dummy-runtime-id",
+	)
+
+	enc := up.NewBatchEncoder(uuid.New())
+	// No AddScope calls.
+	require.NoError(t, enc.Flush(context.Background(), true))
+	require.Equal(t, 0, enc.BatchCount())
+
+	select {
+	case req := <-ts.requests:
+		t.Fatalf("unexpected HTTP request from empty Flush: %v", req.r.URL)
+	case <-time.After(50 * time.Millisecond):
+		// expected — no HTTP request issued
+	}
+}
+
+// readSymDBRoot decompresses and parses the file part of a multipart SymDB
+// upload request, returning the unmarshalled SymDBRoot.
+func readSymDBRoot(t *testing.T, req *http.Request) SymDBRoot {
+	t.Helper()
+	_, params, err := mime.ParseMediaType(req.Header.Get("Content-Type"))
+	require.NoError(t, err)
+	reader := multipart.NewReader(req.Body, params["boundary"])
+	for {
+		part, err := reader.NextPart()
+		if err == io.EOF {
+			break
+		}
+		require.NoError(t, err)
+		data, err := io.ReadAll(part)
+		require.NoError(t, err)
+		if part.FormName() != "file" {
+			continue
+		}
+		gzReader, err := gzip.NewReader(bytes.NewReader(data))
+		require.NoError(t, err)
+		defer gzReader.Close()
+		raw, err := io.ReadAll(gzReader)
+		require.NoError(t, err)
+		var root SymDBRoot
+		require.NoError(t, json.Unmarshal(raw, &root))
+		return root
+	}
+	t.Fatal("no file part in multipart request")
+	return SymDBRoot{}
 }
