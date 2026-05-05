@@ -47,6 +47,8 @@ linters:
               desc: "prefer pkg/util/safeelf to prevent panics during parsing"
             - pkg: "golang.org/x/exp/slices"
               desc: "use the std slices package instead"
+            - pkg: "golang.org/x/exp/maps"
+              desc: "use the std maps package instead (Keys/Values need slices.Collect wrapping)"
             - pkg: "github.com/aws/aws-sdk-go/"
               desc: "use the v2 sdk instead"
         logger:

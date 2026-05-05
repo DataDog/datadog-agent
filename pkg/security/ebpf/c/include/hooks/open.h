@@ -243,7 +243,8 @@ int __attribute__((always_inline)) _sys_open_ret(void *ctx, struct syscall_cache
         .syscall_ctx.id = syscall->ctx_id,
         .event.flags = (syscall->async ? EVENT_FLAGS_ASYNC : 0) |
                        (syscall->resolver.flags & SAVED_BY_ACTIVITY_DUMP ? EVENT_FLAGS_SAVED_BY_AD : 0) |
-                       (syscall->resolver.flags & ACTIVITY_DUMP_RUNNING ? EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE : 0),
+                       (syscall->resolver.flags & ACTIVITY_DUMP_RUNNING ? EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE : 0) |
+                       (syscall->state == INTERNAL ? EVENT_FLAGS_INTERNAL : 0),
         .file = syscall->open.file,
         .flags = syscall->open.flags,
         .mode = syscall->open.mode,
