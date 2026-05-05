@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -18,12 +19,25 @@ import (
 
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/new-e2e/internal/procmgrwait"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 )
 
 type packageDDOTSuite struct {
 	packageBaseSuite
 }
+
+const (
+	ddotProcessName = "datadog-agent-ddot"
+	ddProcmgrCLI    = "/opt/datadog-agent/embedded/bin/dd-procmgr"
+
+	// ddotOtelAgentFleetPackage is the collector binary when DDOT is installed as the
+	// datadog-agent-ddot OCI package (datadog-installer install oci://…/ddot-package:…).
+	ddotOtelAgentFleetPackage = "/opt/datadog-packages/datadog-agent-ddot/stable/embedded/bin/otel-agent"
+	// ddotOtelAgentExtDebRPM is the layout after `datadog-agent otel install` on deb/rpm
+	// hosts (ext/ddot under /opt/datadog-agent; see fleet debrpm datadog-agent-ddot.yaml).
+	ddotOtelAgentExtDebRPM = "/opt/datadog-agent/ext/ddot/embedded/bin/otel-agent"
+)
 
 func testDDOT(os e2eos.Descriptor, arch e2eos.Architecture, method InstallMethodOption) packageSuite {
 	return &packageDDOTSuite{
@@ -83,7 +97,7 @@ func (s *packageDDOTSuite) TestInstallDDOTInstallScript() {
 	state.AssertFileExists("/etc/datadog-agent/otel-config.yaml", 0640, "dd-agent", "dd-agent")
 
 	// Verify otelcollector configuration is present in datadog.yaml
-	s.host.Run("sudo grep -q 'otelcollector:' /etc/datadog-agent/datadog.yaml")
+	s.host.Run(`sudo sh -c 'grep -A30 "otelcollector:" /etc/datadog-agent/datadog.yaml | grep -qE "[[:space:]]*enabled:[[:space:]]*true"'`)
 }
 
 func (s *packageDDOTSuite) TestInstallDDOTInstaller() {
@@ -111,10 +125,12 @@ func (s *packageDDOTSuite) TestInstallDDOTInstaller() {
 	state.AssertFileExists("/etc/datadog-agent/datadog.yaml", 0640, "dd-agent", "dd-agent")
 	state.AssertFileExists("/etc/datadog-agent/otel-config.yaml", 0640, "dd-agent", "dd-agent")
 
-	state.AssertDirExists("/opt/datadog-packages/datadog-agent-ddot/stable", 0755, "dd-agent", "dd-agent")
-	state.AssertFileExists("/opt/datadog-packages/datadog-agent-ddot/stable/embedded/bin/otel-agent", 0755, "dd-agent", "dd-agent")
+	stableDir := filepath.Dir(filepath.Dir(filepath.Dir(ddotOtelAgentFleetPackage)))
+	state.AssertDirExists(stableDir, 0755, "dd-agent", "dd-agent")
+	state.AssertFileExists(ddotOtelAgentFleetPackage, 0755, "dd-agent", "dd-agent")
 
-	s.host.Run("sudo grep -q 'otelcollector:' /etc/datadog-agent/datadog.yaml")
+	s.host.Run(`sudo sh -c 'grep -A30 "otelcollector:" /etc/datadog-agent/datadog.yaml | grep -qE "[[:space:]]*enabled:[[:space:]]*true"'`)
+	s.waitForRunningProcess(ddotProcessName, ddotOtelAgentFleetPackage, 90*time.Second)
 }
 
 func (s *packageDDOTSuite) TestInstallDDOTWithoutDatadogYAML() {
@@ -204,7 +220,8 @@ func (s *packageDDOTSuite) TestInstallDDOTSubcommand() {
 	s.assertCoreUnits(state, true)
 	state.AssertFileExists("/etc/datadog-agent/datadog.yaml", 0640, "dd-agent", "dd-agent")
 	state.AssertFileExists("/etc/datadog-agent/otel-config.yaml", 0640, "dd-agent", "dd-agent")
-	s.host.Run("sudo grep -q 'otelcollector:' /etc/datadog-agent/datadog.yaml")
+	s.host.Run(`sudo sh -c 'grep -A30 "otelcollector:" /etc/datadog-agent/datadog.yaml | grep -qE "[[:space:]]*enabled:[[:space:]]*true"'`)
+	s.waitForRunningProcess(ddotProcessName, ddotOtelAgentExtDebRPM, 90*time.Second)
 
 	// Remove the ddot extension and verify the service stops.
 	s.host.Run("sudo datadog-agent otel remove")
@@ -253,4 +270,10 @@ func (s *packageDDOTSuite) systemdUnitDir(oldUnits bool) string {
 		s.T().Fatalf("unsupported package manager: %s", pkgManager)
 		return ""
 	}
+}
+
+func (s *packageDDOTSuite) waitForRunningProcess(name, expectedBinary string, timeout time.Duration) string {
+	s.T().Helper()
+	describeCmd := fmt.Sprintf(`sudo -u dd-agent -- %q describe %q`, ddProcmgrCLI, name)
+	return procmgrwait.WaitForRunningProcess(s.T(), s.Env().RemoteHost, describeCmd, name, expectedBinary, timeout)
 }
