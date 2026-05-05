@@ -33,6 +33,7 @@
 /.claude/skills/create-runtime-setting/          @DataDog/agent-runtimes @DataDog/agent-configuration
 /.claude/skills/create-status-provider/          @DataDog/agent-configuration
 /.claude/skills/create-subcommand/               @DataDog/agent-configuration
+/.claude/skills/analyze-quality-gate-security-mean-fs-load @DataDog/single-machine-performance @DataDog/agent-security
 /.claude/skills/cws-iouring-coverage/            @DataDog/agent-security
 /.claude/skills/explain-lading-config            @DataDog/single-machine-performance
 /.claude/skills/quality-gate-size-analysis/      @DataDog/agent-build
