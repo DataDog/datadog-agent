@@ -299,6 +299,7 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 		if len(r.multiBackends) > 0 {
 			ignoredBackends = append(ignoredBackends, "multi_secret_backends")
 		}
+		r.backendType = ""
 		r.multiBackends = nil
 	} else if r.backendType != "" {
 		activeBackend = "secret_backend_type"
