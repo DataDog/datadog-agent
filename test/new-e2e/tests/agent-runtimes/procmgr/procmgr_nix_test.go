@@ -28,8 +28,8 @@ const (
 	linuxCLIBin    = "/opt/datadog-agent/embedded/bin/dd-procmgr"
 	linuxConfigDir = "/opt/datadog-agent/processes.d"
 
-	// Binary path after DDOT is installed as an extension under ext/ddot (same as fleet / datadog-agent otel install).
-	ddotExtBinaryPath = "/opt/datadog-agent/ext/ddot/embedded/bin/otel-agent"
+	// Extension layout after `datadog-agent otel install` (matches installer TestInstallDDOTSubcommand).
+	ddotOtelAgentBinaryPath = "/opt/datadog-agent/ext/ddot/embedded/bin/otel-agent"
 
 	linuxTestProcessConfig = `command: /bin/sleep
 args:
@@ -154,7 +154,7 @@ func (s *procmgrLinuxSuite) installDDOTExtension() bool {
 func (s *procmgrLinuxSuite) TestDDOTProcessRunning() {
 	s.requireDDOT()
 
-	pid := s.waitForRunningProcess("datadog-agent-ddot", ddotExtBinaryPath, 60*time.Second)
+	pid := s.waitForRunningProcess("datadog-agent-ddot", ddotOtelAgentBinaryPath, 60*time.Second)
 
 	pidFileContent := strings.TrimSpace(
 		s.Env().RemoteHost.MustExecute("cat /opt/datadog-agent/run/otel-agent.pid"))
@@ -194,13 +194,13 @@ func (s *procmgrLinuxSuite) TestDDOTManagedByProcmgrNotSystemdByDefault() {
 func (s *procmgrLinuxSuite) TestDDOTRestartAfterKill() {
 	s.requireDDOT()
 
-	originalPID := s.waitForRunningProcess("datadog-agent-ddot", ddotExtBinaryPath, 60*time.Second)
+	originalPID := s.waitForRunningProcess("datadog-agent-ddot", ddotOtelAgentBinaryPath, 60*time.Second)
 
 	baselineRestarts := s.getRestartCount("datadog-agent-ddot")
 
 	s.Env().RemoteHost.MustExecute("sudo kill -9 " + originalPID)
 
-	newPID := s.waitForRunningProcess("datadog-agent-ddot", ddotExtBinaryPath, 30*time.Second)
+	newPID := s.waitForRunningProcess("datadog-agent-ddot", ddotOtelAgentBinaryPath, 30*time.Second)
 
 	require.NotEqual(s.T(), originalPID, newPID,
 		"PID should differ after restart (was %s)", originalPID)
@@ -214,7 +214,7 @@ func (s *procmgrLinuxSuite) TestDDOTProcessDescribe() {
 		out := s.Env().RemoteHost.MustExecute(s.platform.cliCmd("describe datadog-agent-ddot"))
 		assertField(t, out, "Name", "datadog-agent-ddot")
 		assertField(t, out, "State", "Running")
-		assertField(t, out, "Command", ddotExtBinaryPath)
+		assertField(t, out, "Command", ddotOtelAgentBinaryPath)
 		assertField(t, out, "Restart Policy", "on-failure")
 		assertHasField(t, out, "PID")
 		assertHasField(t, out, "UUID")

@@ -34,9 +34,9 @@ const (
 	// ddotOtelAgentFleetPackage is the collector binary when DDOT is installed as the
 	// datadog-agent-ddot OCI package (datadog-installer install oci://…/ddot-package:…).
 	ddotOtelAgentFleetPackage = "/opt/datadog-packages/datadog-agent-ddot/stable/embedded/bin/otel-agent"
-	// ddotOtelAgentExtDebRPM is the layout after `datadog-agent otel install` on deb/rpm
-	// hosts (ext/ddot under /opt/datadog-agent; see fleet debrpm datadog-agent-ddot.yaml).
-	ddotOtelAgentExtDebRPM = "/opt/datadog-agent/ext/ddot/embedded/bin/otel-agent"
+	// ddotOtelAgentOtelSubcommand is the on-disk collector for `datadog-agent otel install` on
+	// deb/rpm (extension under /opt/datadog-agent/ext/ddot; see postInstallDDOTExtension).
+	ddotOtelAgentOtelSubcommand = "/opt/datadog-agent/ext/ddot/embedded/bin/otel-agent"
 )
 
 func testDDOT(os e2eos.Descriptor, arch e2eos.Architecture, method InstallMethodOption) packageSuite {
@@ -221,7 +221,8 @@ func (s *packageDDOTSuite) TestInstallDDOTSubcommand() {
 	state.AssertFileExists("/etc/datadog-agent/datadog.yaml", 0640, "dd-agent", "dd-agent")
 	state.AssertFileExists("/etc/datadog-agent/otel-config.yaml", 0640, "dd-agent", "dd-agent")
 	s.host.Run(`sudo sh -c 'grep -A30 "otelcollector:" /etc/datadog-agent/datadog.yaml | grep -qE "[[:space:]]*enabled:[[:space:]]*true"'`)
-	s.waitForRunningProcess(ddotProcessName, ddotOtelAgentExtDebRPM, 90*time.Second)
+	state.AssertFileExists(ddotOtelAgentOtelSubcommand, 0755, "dd-agent", "dd-agent")
+	s.waitForRunningProcess(ddotProcessName, ddotOtelAgentOtelSubcommand, 90*time.Second)
 
 	// Remove the ddot extension and verify the service stops.
 	s.host.Run("sudo datadog-agent otel remove")
