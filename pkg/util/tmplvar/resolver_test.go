@@ -324,6 +324,15 @@ func TestResolveDiscoveredPort_MissingErrors(t *testing.T) {
 	}
 }
 
+func TestGetDiscoveredPort_NilResolvable(t *testing.T) {
+	// SubstituteTemplateEnvVars passes nil at config-load time. Must not panic.
+	_, err := GetDiscoveredPort("port", nil)
+	var nre *NoResolverError
+	if err == nil || !errors.As(err, &nre) {
+		t.Fatalf("expected NoResolverError, got %v", err)
+	}
+}
+
 func TestGetFallbackHost(t *testing.T) {
 	ip, err := getFallbackHost(map[string]string{"bridge": "172.17.0.1"})
 	assert.Equal(t, "172.17.0.1", ip)

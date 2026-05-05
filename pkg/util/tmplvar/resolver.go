@@ -482,6 +482,9 @@ func GetAdditionalTplVariables(tplVar string, res Resolvable) (string, error) {
 // populated by the autodiscovery/discovery package when a probe matches a
 // service. The value flows in via GetExtraConfig on a Service wrapper.
 func GetDiscoveredPort(tplVar string, res Resolvable) (string, error) {
+	if res == nil {
+		return "", noResolverError("no resolver. %%%%discovered_port%%%% is not allowed")
+	}
 	if tplVar != "port" {
 		return "", noResolverError(fmt.Sprintf("unsupported %%discovered_%s%% variable; only %%discovered_port%% is recognised", tplVar))
 	}
