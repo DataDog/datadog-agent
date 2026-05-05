@@ -717,6 +717,46 @@ func TestProfileManagedPodAutoscaler(t *testing.T) {
 		assert.False(t, pai.IsBurstable())
 	})
 
+	t.Run("IsBurstable: Guaranteed QOS overrides cluster default", func(t *testing.T) {
+		pai := FakePodAutoscalerInternal{Namespace: "ns", Name: "name", ClusterBurstableDefault: true, PodsGuaranteedQOS: true}.Build()
+		assert.False(t, pai.IsBurstable(), "Guaranteed QOS must suppress cluster default burstable=true")
+
+		paiNonGuaranteed := FakePodAutoscalerInternal{Namespace: "ns", Name: "name", ClusterBurstableDefault: true, PodsGuaranteedQOS: false}.Build()
+		assert.True(t, paiNonGuaranteed.IsBurstable(), "non-Guaranteed pods must fall back to cluster default")
+	})
+
+	t.Run("IsBurstable: spec.options.burstable=true wins over Guaranteed QOS", func(t *testing.T) {
+		burstable := true
+		pai := FakePodAutoscalerInternal{
+			Namespace:         "ns",
+			Name:              "name",
+			PodsGuaranteedQOS: true,
+			Spec: &datadoghq.DatadogPodAutoscalerSpec{
+				Options: &datadoghqcommon.DatadogPodAutoscalerOptions{
+					Burstable: &burstable,
+				},
+			},
+		}.Build()
+		assert.True(t, pai.IsBurstable(), "explicit spec.options.burstable=true must win even for Guaranteed pods")
+	})
+
+	t.Run("IsBurstable: preview annotation wins over Guaranteed QOS", func(t *testing.T) {
+		pai := FakePodAutoscalerInternal{
+			Namespace:            "ns",
+			Name:                 "name",
+			PreviewAnnotationKey: `{"burstable":true}`,
+			PodsGuaranteedQOS:    true,
+		}.Build()
+		assert.True(t, pai.IsBurstable(), "explicit preview annotation must win even for Guaranteed pods")
+	})
+
+	t.Run("IsBurstable: no explicit config and non-Guaranteed pods use cluster default", func(t *testing.T) {
+		paiOff := FakePodAutoscalerInternal{Namespace: "ns", Name: "name", ClusterBurstableDefault: false}.Build()
+		assert.False(t, paiOff.IsBurstable())
+		paiOn := FakePodAutoscalerInternal{Namespace: "ns", Name: "name", ClusterBurstableDefault: true}.Build()
+		assert.True(t, paiOn.IsBurstable())
+	})
+
 	t.Run("BuildStatus options.burstable from spec", func(t *testing.T) {
 		burstable := true
 		pai := FakePodAutoscalerInternal{

@@ -640,6 +640,20 @@ func getPodResizeStatus(pod *workloadmeta.KubernetesPod, recommendationID string
 	return PodResizeStatusCompleted, time.Time{}
 }
 
+// isPodsGuaranteedQOS returns true if all pods have Guaranteed QOS class.
+// Returns false when the slice is empty (unknown QOS → no override applied).
+func isPodsGuaranteedQOS(pods []*workloadmeta.KubernetesPod) bool {
+	if len(pods) == 0 {
+		return false
+	}
+	for _, pod := range pods {
+		if pod.QOSClass != string(corev1.PodQOSGuaranteed) {
+			return false
+		}
+	}
+	return true
+}
+
 func fromAutoscalerToContainerResourcePatches(autoscalerInternal *model.PodAutoscalerInternal, pod *workloadmeta.KubernetesPod) []workloadpatcher.ContainerResourcePatch {
 	containersResources := autoscalerInternal.ScalingValues().Vertical.ContainerResources
 
@@ -649,6 +663,8 @@ func fromAutoscalerToContainerResourcePatches(autoscalerInternal *model.PodAutos
 		recoByName[cr.Name] = cr
 	}
 
+	// IsBurstable() is safe to call here: SetPodsGuaranteedQOS was called at the top of sync(),
+	// so the Guaranteed-QOS override is already reflected in the returned value.
 	burstable := autoscalerInternal.IsBurstable()
 
 	// Build the list of patches ordered to API server pod container order.

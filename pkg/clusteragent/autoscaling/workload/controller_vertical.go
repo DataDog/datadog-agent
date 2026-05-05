@@ -87,6 +87,11 @@ func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.
 		return autoscaling.NoRequeue, nil
 	}
 
+	// Fetch pods early: the QOS class of existing pods determines the effective burstable mode
+	// when burstable is not explicitly configured (Guaranteed QOS defaults to non-burstable).
+	pods := u.podWatcher.GetPodsForOwner(target)
+	autoscalerInternal.SetPodsGuaranteedQOS(isPodsGuaranteedQOS(pods))
+
 	// Deep-copy to avoid mutating the original recommendation stored in mainScalingValues/fallbackScalingValues.
 	// Without this, clamped values would persist and the VerticalScalingLimited condition would be
 	// cleared on the next sync since constraints re-applied to already-clamped values are no-ops.
@@ -104,8 +109,6 @@ func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.
 	// differs from non-burstable — no extra suffix required.
 	recommendationID := constrainedVertical.ResourcesHash
 
-	// Get the pods for the pod owner
-	pods := u.podWatcher.GetPodsForOwner(target)
 	if len(pods) == 0 {
 		// If we found nothing, we'll wait just until the next sync
 		log.Debugf("No pods found for autoscaler: %s, gvk: %s, name: %s", autoscalerInternal.ID(), targetGVK.String(), autoscalerInternal.Spec().TargetRef.Name)
