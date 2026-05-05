@@ -19,7 +19,6 @@ from tasks.libs.package.size import InfraError
 from tasks.static_quality_gates.decisions import (
     PER_PR_THRESHOLD,
     ExceptionApprovalChecker,
-    identify_gates_exceeding_pr_threshold,
     should_bypass_failure,
 )
 from tasks.static_quality_gates.experimental_gates import (
@@ -146,10 +145,46 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
         raise Exit(code=42) from e
     executor.shutdown(wait=False)
 
-    # Process results in original gate order
+    # Register measurement values with the metrics handler
     for gate in gate_list:
         outcome = gate_results[gate]
+        if isinstance(outcome, GateExecutionError):
+            continue
 
+        gate_tags = {
+            "gate_name": gate.config.gate_name,
+            "arch": gate.config.arch,
+            "os": gate.config.os,
+            "pipeline_id": os.environ["CI_PIPELINE_ID"],
+            "ci_commit_ref_slug": os.environ["CI_COMMIT_REF_SLUG"],
+            "ci_commit_sha": os.environ["CI_COMMIT_SHA"],
+        }
+        if pr_number:
+            gate_tags["pr_number"] = pr_number
+        if pr_author:
+            gate_tags["pr_author"] = pr_author
+
+        # Only register current sizes if gate executed successfully and we have a result
+        metric_handler.register_gate_tags(gate.config.gate_name, **gate_tags)
+        metric_handler.register_metric(gate.config.gate_name, "max_on_wire_size", gate.config.max_on_wire_size)
+        metric_handler.register_metric(gate.config.gate_name, "max_on_disk_size", gate.config.max_on_disk_size)
+        metric_handler.register_metric(gate.config.gate_name, "current_on_wire_size", outcome.measurement.on_wire_size)
+        metric_handler.register_metric(gate.config.gate_name, "current_on_disk_size", outcome.measurement.on_disk_size)
+
+    # Calculate relative sizes (delta from ancestor) before sending metrics
+    # This is done for all branches to include delta metrics in Datadog
+    # Use get_ancestor_base_branch to correctly handle PRs targeting release branches
+    ancestor = get_ancestor(ctx, branch)
+    metric_handler.generate_relative_size(ancestor=ancestor)
+    metric_handler.send_metrics_to_datadog()
+    current_commit = get_commit_sha(ctx)
+    is_on_main_branch = ancestor == current_commit
+    is_merge_queue = branch.startswith("mq-working-branch-")
+    exception_checker = ExceptionApprovalChecker(pr)
+
+    # Take a decision on gate results based on measurements
+    for gate in gate_list:
+        outcome = gate_results[gate]
         if isinstance(outcome, GateExecutionError):
             gate_state = {
                 "name": outcome.name,
@@ -159,8 +194,6 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
                 "blocking": True,
             }
         else:
-            if not outcome.success:
-                print(color_message(outcome.violation_message, "red"))
             gate_state = {
                 "name": outcome.config.gate_name,
                 "state": outcome.success,
@@ -169,81 +202,48 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
                 "blocking": not outcome.success,
             }
 
-            gate_tags = {
-                "gate_name": gate.config.gate_name,
-                "arch": gate.config.arch,
-                "os": gate.config.os,
-                "pipeline_id": os.environ["CI_PIPELINE_ID"],
-                "ci_commit_ref_slug": os.environ["CI_COMMIT_REF_SLUG"],
-                "ci_commit_sha": os.environ["CI_COMMIT_SHA"],
-            }
-            if pr_number:
-                gate_tags["pr_number"] = pr_number
-            if pr_author:
-                gate_tags["pr_author"] = pr_author
+            if not outcome.success:
+                print(color_message(outcome.violation_message, "red"))
+                # mark as non-blocking if delta <= 0
+                # This tolerance only applies to PRs - on main branch, failures should always block unconditionally
+                # This means on PRs, the size issue existed before this PR and wasn't introduced by current changes
+                if not is_on_main_branch and should_bypass_failure(outcome.config.gate_name, metric_handler):
+                    gate_state = {
+                        "name": outcome.config.gate_name,
+                        "state": False,
+                        "error_type": "StaticQualityGateFailed",
+                        "message": outcome.violation_message,
+                        "blocking": False,
+                    }
+                    print(
+                        color_message(
+                            f"Gate {gate_state['name']} failure is non-blocking (size unchanged from ancestor)",
+                            "orange",
+                        )
+                    )
+            # Check per-PR threshold: if any gate increased by more than PER_PR_THRESHOLD, mark it as failing
+            # Skip for merge queue jobs: the MQ working branch is an ephemeral merge preview, not a PR
+            elif not is_on_main_branch and not is_merge_queue:
+                delta = metric_handler.metrics.get(outcome.config.gate_name, {}).get("relative_on_disk_size", 0)
+                if delta > PER_PR_THRESHOLD:
+                    threshold_str = byte_to_string(PER_PR_THRESHOLD)
 
-            # Only register current sizes if gate executed successfully and we have a result
-            metric_handler.register_gate_tags(gate.config.gate_name, **gate_tags)
-            metric_handler.register_metric(gate.config.gate_name, "max_on_wire_size", gate.config.max_on_wire_size)
-            metric_handler.register_metric(gate.config.gate_name, "max_on_disk_size", gate.config.max_on_disk_size)
-            metric_handler.register_metric(
-                gate.config.gate_name, "current_on_wire_size", outcome.measurement.on_wire_size
-            )
-            metric_handler.register_metric(
-                gate.config.gate_name, "current_on_disk_size", outcome.measurement.on_disk_size
-            )
+                    gate_state = {
+                        "name": outcome.config.gate_name,
+                        "state": False,
+                        "error_type": "PerPRThresholdExceeded",
+                        "message": f"On-disk size increase of {byte_to_string(delta)} exceeds the per-PR threshold of {threshold_str}",
+                        "blocking": exception_checker.get() is None,
+                    }
+
+                    print(
+                        color_message(
+                            f"Per-PR threshold ({threshold_str}) exceeded by: {gate_state['name']}",
+                            "red",
+                        )
+                    )
 
         gate_states.append(gate_state)
-
-    # Calculate relative sizes (delta from ancestor) before sending metrics
-    # This is done for all branches to include delta metrics in Datadog
-    # Use get_ancestor_base_branch to correctly handle PRs targeting release branches
-    ancestor = get_ancestor(ctx, branch)
-    current_commit = get_commit_sha(ctx)
-    is_on_main_branch = ancestor == current_commit
-    is_merge_queue = branch.startswith("mq-working-branch-")
-    metric_handler.generate_relative_size(ancestor=ancestor)
-    metric_handler.send_metrics_to_datadog()
-
-    # Post-process gate failures: mark as non-blocking if delta <= 0
-    # This tolerance only applies to PRs - on main branch, failures should always block unconditionally
-    # This means on PRs, the size issue existed before this PR and wasn't introduced by current changes
-    if not is_on_main_branch:
-        for gate_state in gate_states:
-            if gate_state["state"] is False and gate_state.get("blocking", True):
-                # Only StaticQualityGateFailed errors are eligible for bypass (not StackTrace errors)
-                if gate_state["error_type"] == "StaticQualityGateFailed":
-                    if should_bypass_failure(gate_state["name"], metric_handler):
-                        gate_state["blocking"] = False
-                        print(
-                            color_message(
-                                f"Gate {gate_state['name']} failure is non-blocking (size unchanged from ancestor)",
-                                "orange",
-                            )
-                        )
-
-    # Check per-PR threshold: if any gate increased by more than PER_PR_THRESHOLD, mark it as failing
-    # Skip for merge queue jobs: the MQ working branch is an ephemeral merge preview, not a PR
-    exception_checker = ExceptionApprovalChecker(pr)
-    if not is_on_main_branch and not is_merge_queue:
-        per_pr_exceeding = identify_gates_exceeding_pr_threshold(metric_handler)
-        if per_pr_exceeding:
-            threshold_str = byte_to_string(PER_PR_THRESHOLD)
-            print(
-                color_message(
-                    f"Per-PR threshold ({threshold_str}) exceeded by: {', '.join(per_pr_exceeding)}",
-                    "red",
-                )
-            )
-            for gate_state in gate_states:
-                if gate_state["name"] in per_pr_exceeding and gate_state["state"] is True:
-                    delta = metric_handler.metrics.get(gate_state["name"], {}).get("relative_on_disk_size", 0)
-                    gate_state["state"] = False
-                    gate_state["error_type"] = "PerPRThresholdExceeded"
-                    gate_state["message"] = (
-                        f"On-disk size increase of {byte_to_string(delta)} exceeds the per-PR threshold of {threshold_str}"
-                    )
-                    gate_state["blocking"] = exception_checker.get() is None
 
     # Compute final_state now that all post-processing is done.
     final_state = "failure" if any(gs["state"] is False for gs in gate_states) else "success"

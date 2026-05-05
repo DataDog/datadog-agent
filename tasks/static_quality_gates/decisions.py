@@ -35,20 +35,6 @@ class ExceptionApprovalChecker:
         return self._result
 
 
-def identify_gates_exceeding_pr_threshold(metric_handler: GateMetricHandler) -> list[str]:
-    """
-    Identify gates where the on-disk size increase exceeds PER_PR_THRESHOLD.
-
-    Returns gate names where relative_on_disk_size > PER_PR_THRESHOLD.
-    """
-    exceeding = []
-    for gate_name, gate_metrics in metric_handler.metrics.items():
-        delta = gate_metrics.get("relative_on_disk_size")
-        if delta is not None and delta > PER_PR_THRESHOLD:
-            exceeding.append(gate_name)
-    return exceeding
-
-
 def should_bypass_failure(gate_name: str, metric_handler: GateMetricHandler) -> bool:
     """
     Check if a gate failure should be non-blocking because on-disk size delta is 0 or negative.
