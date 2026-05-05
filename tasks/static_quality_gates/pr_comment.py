@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 
 from tasks.github_tasks import pr_commenter
-from tasks.static_quality_gates.decisions import PER_PR_THRESHOLD, GateEvaluationResult, GateFailureKind
+from tasks.static_quality_gates.decisions import GateEvaluationResult, GateFailureKind
 from tasks.static_quality_gates.gates import GateMetricHandler, byte_to_string
 
 FAIL_CHAR = "❌"
@@ -220,13 +220,8 @@ def display_pr_comment(
             body_wire += f"|{status_char}|{gate_name}|{wire_change_str}|{wire_limit_bounds}|\n"
 
             error_message = gate.message.replace('\n', '<br>')
-            if not gate.blocking and gate.failure == GateFailureKind.PerPRThresholdExceeded:
-                blocking_note = f" (non-blocking: exception granted by @{evaluation.exception_granted_by})"
-            elif not gate.blocking:
-                blocking_note = " (non-blocking: size unchanged from ancestor)"
-            else:
-                blocking_note = ""
-            body_error_footer += f"|{gate_name}|{gate.failure}{blocking_note}|{error_message}|\n"
+            note_suffix = f" ({gate.blocking_note})" if gate.blocking_note else ""
+            body_error_footer += f"|{gate_name}|{gate.failure}{note_suffix}|{error_message}|\n"
 
             if gate.blocking:
                 with_blocking_error = True
@@ -248,14 +243,7 @@ def display_pr_comment(
     else:
         final_error_body = ""
 
-    exception_banner = ""
-    if evaluation.exception_granted_by:
-        per_pr_excepted = [
-            gs for gs in evaluation.verdicts if gs.failure == GateFailureKind.PerPRThresholdExceeded and not gs.blocking
-        ]
-        if per_pr_excepted:
-            threshold_str = byte_to_string(PER_PR_THRESHOLD)
-            exception_banner = f"{WARNING_CHAR} **Exception granted by @{evaluation.exception_granted_by}**: this PR exceeds the per-PR size threshold ({threshold_str}) but will not be blocked.\n"
+    exception_banner = f"{WARNING_CHAR} {evaluation.exception_note}" if evaluation.exception_note else ""
 
     # Build successful checks section
     success_section = ""

@@ -25,6 +25,7 @@ class GateVerdict:
     failure: GateFailureKind | None
     blocking: bool = False
     message: str | None = None
+    blocking_note: str = ""
 
 
 class ExceptionApprovalChecker:
@@ -67,6 +68,7 @@ class GateEvaluationResult:
     verdicts: list[GateVerdict] = field(default_factory=list)
     has_blocking_failures: bool = False
     exception_granted_by: str | None = None
+    exception_note: str | None = None
 
 
 def evaluate_gates(
@@ -91,10 +93,20 @@ def evaluate_gates(
         for gate in gate_list
     ]
     has_blocking_failures = any(v.blocking for v in verdicts)
+    exception_granted_by = exception_checker.get()
+    exception_note = None
+    if exception_granted_by:
+        per_pr_excepted = [
+            v for v in verdicts if v.failure == GateFailureKind.PerPRThresholdExceeded and not v.blocking
+        ]
+        if per_pr_excepted:
+            threshold_str = byte_to_string(PER_PR_THRESHOLD)
+            exception_note = f"**Exception granted by @{exception_granted_by}**: this PR exceeds the per-PR size threshold ({threshold_str}) but will not be blocked.\n"
     return GateEvaluationResult(
         verdicts=verdicts,
         has_blocking_failures=has_blocking_failures,
-        exception_granted_by=exception_checker.get(),
+        exception_granted_by=exception_granted_by,
+        exception_note=exception_note,
     )
 
 
@@ -132,6 +144,7 @@ def evaluate_gate(
             name=outcome.config.gate_name,
             failure=GateFailureKind.AbsoluteLimitExceeded,
             blocking=blocking,
+            blocking_note="" if blocking else "non-blocking: size unchanged from ancestor",
             message=outcome.violation_message,
         )
 
@@ -142,10 +155,12 @@ def evaluate_gate(
         if delta > PER_PR_THRESHOLD:
             threshold_str = byte_to_string(PER_PR_THRESHOLD)
             print(color_message(f"Per-PR threshold ({threshold_str}) exceeded by: {outcome.config.gate_name}", "red"))
+            approver = exception_checker.get()
             return GateVerdict(
                 name=outcome.config.gate_name,
                 failure=GateFailureKind.PerPRThresholdExceeded,
-                blocking=exception_checker.get() is None,
+                blocking=approver is None,
+                blocking_note=f"non-blocking: exception granted by @{approver}" if approver else "",
                 message=f"On-disk size increase of {byte_to_string(delta)} exceeds the per-PR threshold of {threshold_str}",
             )
 
