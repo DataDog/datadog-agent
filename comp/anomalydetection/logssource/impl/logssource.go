@@ -10,6 +10,8 @@ import (
 	"context"
 	"time"
 
+	logssource "github.com/DataDog/datadog-agent/comp/anomalydetection/logssource/def"
+	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
@@ -21,8 +23,6 @@ import (
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
-	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
-	logssource "github.com/DataDog/datadog-agent/comp/anomalydetection/logssource/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	containerLauncher "github.com/DataDog/datadog-agent/pkg/logs/launchers/container"
 	filelauncher "github.com/DataDog/datadog-agent/pkg/logs/launchers/file"

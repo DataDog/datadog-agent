@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+// Package noopimpl provides a no-op implementation of the recorder component.
 package noopimpl
 
 import (
@@ -19,7 +20,7 @@ type Provides struct {
 }
 
 // NewNoopComponent creates a new recorder component
-func NewNoopComponent(req Requires) (Provides, error) {
+func NewNoopComponent(_ Requires) (Provides, error) {
 	return Provides{
 		Comp: &recorderImplNoop{},
 	}, nil
@@ -30,44 +31,44 @@ type recorderImplNoop struct{}
 // GetHandle wraps the provided HandleFunc with recording capability.
 // If recording is enabled via config, metrics will be written to parquet files.
 // This is called by the observer's GetHandle to create the final handle chain.
-func (*recorderImplNoop) GetHandle(handleFunc observer.HandleFunc) observer.HandleFunc {
+func (*recorderImplNoop) GetHandle(_ observer.HandleFunc) observer.HandleFunc {
 	return func(_ string) observer.Handle { return &noopHandle{} }
 }
 
 // ReadAllMetrics reads all metrics from parquet files and returns them as a slice.
 // This is for batch loading scenarios (like testbench) where streaming via handles
 // is not needed and direct access to all metrics at once is more efficient.
-func (*recorderImplNoop) ReadAllMetrics(inputDir string) ([]recorderdef.MetricData, error) {
+func (*recorderImplNoop) ReadAllMetrics(_ string) ([]recorderdef.MetricData, error) {
 	return []recorderdef.MetricData{}, nil
 }
 
 // ReadAllTraces reads all traces from parquet files and returns them as a slice.
 // Traces are stored as denormalized spans (one row per span) for efficient querying.
-func (*recorderImplNoop) ReadAllTraces(inputDir string) ([]recorderdef.TraceData, error) {
+func (*recorderImplNoop) ReadAllTraces(_ string) ([]recorderdef.TraceData, error) {
 	return []recorderdef.TraceData{}, nil
 }
 
 // ReadAllProfiles reads all profile metadata from parquet files and returns them as a slice.
 // Profile binary data is stored in separate files referenced by BinaryPath.
-func (*recorderImplNoop) ReadAllProfiles(inputDir string) ([]recorderdef.ProfileData, error) {
+func (*recorderImplNoop) ReadAllProfiles(_ string) ([]recorderdef.ProfileData, error) {
 	return []recorderdef.ProfileData{}, nil
 }
 
 // ReadAllLogs reads all logs from parquet files and returns them as a slice.
-func (*recorderImplNoop) ReadAllLogs(inputDir string) ([]recorderdef.LogData, error) {
+func (*recorderImplNoop) ReadAllLogs(_ string) ([]recorderdef.LogData, error) {
 	return []recorderdef.LogData{}, nil
 }
 
 // ReadAllTraceStats reads all APM trace stats from parquet files and returns them as a slice.
 // Each element corresponds to one aggregated stat group (ClientGroupedStats).
-func (*recorderImplNoop) ReadAllTraceStats(inputDir string) ([]recorderdef.TraceStatsData, error) {
+func (*recorderImplNoop) ReadAllTraceStats(_ string) ([]recorderdef.TraceStatsData, error) {
 	return []recorderdef.TraceStatsData{}, nil
 }
 
 type noopHandle struct{}
 
 // ObserveMetric observes a DogStatsD metric sample.
-func (*noopHandle) ObserveMetric(sample observer.MetricView) {}
+func (*noopHandle) ObserveMetric(_ observer.MetricView) {}
 
 // ObserveLog observes a log message.
-func (*noopHandle) ObserveLog(msg observer.LogView) {}
+func (*noopHandle) ObserveLog(_ observer.LogView) {}

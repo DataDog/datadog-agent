@@ -53,7 +53,7 @@ func (b *parquetWriter) start() {
 // writeRecord creates a timestamped parquet file, writes the record, and closes it atomically.
 // Only called when there is data; no file is created for empty batches.
 // Must be called with b.mu held.
-func (b *parquetWriter) writeRecord(record arrow.Record) error {
+func (b *parquetWriter) writeRecord(record arrow.RecordBatch) error {
 	timestamp := time.Now().UTC().Format("20060102-150405")
 	filename := fmt.Sprintf("%s-%sZ.parquet", b.filePrefix, timestamp)
 	filePath := filepath.Join(b.outputDir, filename)

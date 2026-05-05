@@ -8,8 +8,8 @@ package observerimpl
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 	"github.com/stretchr/testify/require"
 )
 

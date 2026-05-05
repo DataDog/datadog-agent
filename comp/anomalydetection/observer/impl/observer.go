@@ -18,6 +18,8 @@ import (
 
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 
+	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl/hfrunner"
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -27,8 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 	workloadfilterdef "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmetadef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
-	"github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl/hfrunner"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -109,23 +109,6 @@ type logObs struct {
 	tags        []string
 	hostname    string
 	timestampMs int64
-}
-
-// profileObs contains copied profile data.
-type profileObs struct {
-	profileID    string
-	profileType  string
-	service      string
-	env          string
-	version      string
-	hostname     string
-	containerID  string
-	timestamp    int64
-	duration     int64
-	tags         map[string]string
-	contentType  string
-	rawData      []byte
-	externalPath string
 }
 
 // Ensure logObs implements observerdef.LogView
@@ -766,7 +749,7 @@ func (f *hfFilteredHandle) ObserveMetricAndReportDrop(sample observerdef.MetricV
 	return false
 }
 
-func (f *hfFilteredHandle) ObserveLog(msg observerdef.LogView)             { f.inner.ObserveLog(msg) }
+func (f *hfFilteredHandle) ObserveLog(msg observerdef.LogView) { f.inner.ObserveLog(msg) }
 
 // metricDropHandle drops every ObserveMetric call but lets logs and
 // profiles through. Used when observer.ingest_metrics.enabled=false so
@@ -782,7 +765,7 @@ func (m *metricDropHandle) ObserveMetric(_ observerdef.MetricView) {}
 func (m *metricDropHandle) ObserveMetricAndReportDrop(_ observerdef.MetricView) bool {
 	return true
 }
-func (m *metricDropHandle) ObserveLog(msg observerdef.LogView)             { m.inner.ObserveLog(msg) }
+func (m *metricDropHandle) ObserveLog(msg observerdef.LogView) { m.inner.ObserveLog(msg) }
 
 // noopHandle returns a handle that discards all observations.
 // Used when analysis is disabled so the analysis pipeline is not started.
@@ -797,7 +780,7 @@ func (h *noopObserveHandle) ObserveMetric(_ observerdef.MetricView) {}
 func (h *noopObserveHandle) ObserveMetricAndReportDrop(_ observerdef.MetricView) bool {
 	return false
 }
-func (h *noopObserveHandle) ObserveLog(_ observerdef.LogView)               {}
+func (h *noopObserveHandle) ObserveLog(_ observerdef.LogView) {}
 
 // DumpMetrics writes all stored metrics to the specified file as JSON.
 func (o *observerImpl) DumpMetrics(path string) error {
@@ -922,14 +905,3 @@ func copyBytes(b []byte) []byte {
 	return result
 }
 
-// copyStringMap creates a copy of a string map.
-func copyStringMap(m map[string]string) map[string]string {
-	if m == nil {
-		return nil
-	}
-	result := make(map[string]string, len(m))
-	for k, v := range m {
-		result[k] = v
-	}
-	return result
-}
