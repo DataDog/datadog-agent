@@ -102,8 +102,8 @@ Package: main
 	Function: funcArg (main.funcArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [368:370] injectible: [368-370]
 		Arg: f: func(int) (declared at line 368, available: [368-369])
 	Function: genericIdentity[...] (main.genericIdentity[...]) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [971:973] injectible: [971-973]
-		Arg: x: .param0 (declared at line 971, available: [971-973])
-		Arg: ~r0: .param0 (declared at line 971, available: )
+		Arg: x: <T> (declared at line 971, available: [971-973])
+		Arg: ~r0: <T> (declared at line 971, available: )
 	Function: indexMemberWrapperArg (main.indexMemberWrapperArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [811:813] injectible: [811-813]
 		Arg: s: *main.indexMemberWrapper (declared at line 811, available: [811-813])
 		Arg: tag: string (declared at line 811, available: [811-813])
@@ -239,9 +239,20 @@ Package: main
 		Arg: tag: string (declared at line 780, available: [780-782])
 	Function: usesMapsOfMapsThatDoNotAppearAsArguments (main.usesMapsOfMapsThatDoNotAppearAsArguments) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [718:728] injectible: [718-718], [721-722], [724-725], [727-728]
 		Arg: ~r0: map[uint8]map[int]main.aStructNotUsedAsAnArgument (declared at line 718, available: )
+	Type: main.aStructNotUsedAsAnArgument
+		Field: a: int
 	Type: main.bigArrayStruct
 		Field: tag: int
 		Field: data: [131072]int64
+	Type: main.bigStruct
+		Field: Field1: int
+		Field: Field2: int
+		Field: Field3: int
+		Field: Field4: int
+		Field: Field5: int
+		Field: Field6: int
+		Field: Field7: int
+		Field: data: [128]uint8
 	Type: main.condFields
 		Field: I8: int8
 		Field: I16: int16
@@ -264,6 +275,9 @@ Package: main
 		Field: Arr: *[2]main.indexMemberStruct
 		Field: PtrArr: *[2]*main.indexMemberStruct
 		Field: pad: [3]int16
+	Type: main.largeValueStruct
+		Field: Pad: [256]uint8
+		Field: Val: int
 	Type: main.lenFields
 		Field: S: string
 		Field: Items: []int

@@ -21,7 +21,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-delve/delve/pkg/dwarf/godwarf"
 	"github.com/google/btree"
 	"golang.org/x/time/rate"
 
@@ -31,7 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gosym"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gosymname"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
-	"github.com/DataDog/datadog-agent/pkg/network/go/dwarfutils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -386,10 +384,12 @@ type packagesIterator struct {
 	// The compile unit currently being processed by explore* functions.
 	currentCompileUnit compileUnitInfo
 
-	// typesCache will accumulate types as we look them up to resolve variables
-	// and functions. The cache is indexed by DWARF offset.
-	typesCache *dwarfutils.TypeFinder
-	types      typesCollection
+	// types holds the package-membership filter parameters used at
+	// emission time. Type DIEs themselves are now reached entirely
+	// through the on-disk indexes (typesByPackage,
+	// typeInfoByOffset) — no in-memory resolver state is retained
+	// per-iteration.
+	types typesCollection
 
 	// Stack of blocks currently being explored. Variable location lists can
 	// make references to the current block and its PC ranges; they will look at
@@ -432,28 +432,75 @@ type packagesIterator struct {
 	fileNameInterner *btree.BTreeG[string]
 }
 
-// prePassIndexes bundles the four indexes built by buildPrePassIndexes
-// during a lightweight pre-scan of the DWARF, used at iteration time to
-// resolve functions and types that the compiler placed in a different CU
-// than their source package.
+// prePassIndexes bundles the indexes built by buildPrePassIndexes
+// during a single top-to-bottom DWARF walk. They exist because the
+// Go compiler places DIEs for a given source package across many
+// compile units: a type defined in package P may have its DIE
+// emitted in P's CU, in another package's CU that referenced it
+// first, or — for the runtime's shared types and for types
+// substituted into generic shapes — in the runtime CU. A
+// CU-by-CU iterator that only walks variable/parameter DIEs in P's
+// CU therefore misses every type, function, and inline body that
+// lives elsewhere. The prepass scans every CU once and records
+// pointers back into the DWARF that the per-CU emission walk uses
+// to recover the displaced material.
 //
-// The name-keyed indexes (genericFuncs, genericTypes, inlineDefs) filter
-// by interestingPackage at collection time since the qualified name
-// encodes the owning package. inlineInstances cannot filter at
-// collection time — its key is a raw DWARF offset — so it records every
-// inline instance; lookups only ever originate from abstract-origin
-// offsets that appear in inlineDefs, so uninteresting packages are
-// never reached.
+// Filtering by interestingPackage:
+//   - The name-keyed indexes (genericFuncs, inlineDefs) and the
+//     package-keyed typesByPackage filter at collection time
+//     because their key encodes the owning package.
+//   - typeInfoByOffset and inlineInstances are keyed by raw DWARF
+//     offset and cannot filter — they record every entry. Lookups
+//     only ever originate from offsets that already appear in
+//     filtered indexes, so uninteresting packages are never
+//     reached.
+//
+// Why typesByPackage and typeInfoByOffset are separate indexes:
+// they answer different questions on disjoint data sets.
+// typesByPackage drives the per-package emission walk and only
+// contains DIEs whose name parses to a known package (sparse).
+// typeInfoByOffset drives variable resolution and struct-field-
+// type lookups, which need to handle anonymous types, basic
+// types, and types from out-of-scope packages — every named-tag
+// DIE goes in (dense). Splitting them keeps the per-package walk
+// from yielding noise and keeps variable lookups O(log n) over a
+// uniform index.
 type prePassIndexes struct {
 	// genericFuncs maps canonicalized qualified names to DWARF offsets
 	// for generic shape Subprograms whose body is out-of-line (not
 	// DW_AT_inline). Used to find generic functions placed in a foreign
 	// CU by the compiler.
 	genericFuncs funcOffsetByNameIndex
-	// genericTypes maps canonicalized qualified type names to DWARF
-	// offsets for generic struct type instantiations. Used to populate
-	// fields on displaced generic types.
-	genericTypes funcOffsetByNameIndex
+	// typesByPackage groups every named user-type DIE belonging to an
+	// interesting package. forPackage(pkg) yields the type DIE
+	// offsets in DWARF order so the per-package emission walk
+	// (emitTypesForPackage) can enumerate every type the package
+	// owns — even types whose DIE lives in a foreign CU. This catches
+	// types defined in P but used only from other packages, plus
+	// shared runtime types (error, iface aliases) whose DIE is emitted
+	// in the runtime CU but whose name parses to runtime.
+	typesByPackage typesByPackageIndex
+	// typeInfoByOffset maps any named-tag type DIE offset to its
+	// (raw AttrName, byte size). Two consumers:
+	//   - lookupVariableType: a variable's AttrType points at its
+	//     type DIE, and we read (name, size) here without
+	//     touching the DWARF reader.
+	//   - emitTypeForPackage: struct-field-type names are
+	//     resolved by looking up each field's AttrType offset.
+	// Coverage is intentionally broader than typesByPackage:
+	// every DIE under the six named-type tags is recorded, with
+	// or without an AttrName, in or out of any interesting
+	// package. Variables can point at anonymous DIEs (`[]int`,
+	// `struct{...}`) and at types from out-of-scope packages
+	// (`runtime.iface`); both must resolve, so the index has to
+	// hold them.
+	//
+	// Sizes follow Delve's godwarf.Common().Size() rules: pointer
+	// and subroutine types fall back to the binary's address size
+	// when AttrByteSize is absent, and typedef chains
+	// back-substitute through the inner type. Computed once at
+	// build() time so use-time lookups are pure binary searches.
+	typeInfoByOffset typeInfoByOffsetIndex
 	// inlineDefs maps canonicalized qualified names to DWARF offsets for
 	// every Subprogram with DW_AT_inline = DW_INL_inlined (both generic
 	// and non-generic). Used to find a package's abstract function
@@ -473,8 +520,11 @@ func (p *prePassIndexes) close() {
 	if p.genericFuncs != nil {
 		_ = p.genericFuncs.Close()
 	}
-	if p.genericTypes != nil {
-		_ = p.genericTypes.Close()
+	if p.typesByPackage != nil {
+		_ = p.typesByPackage.Close()
+	}
+	if p.typeInfoByOffset != nil {
+		_ = p.typeInfoByOffset.Close()
 	}
 	if p.inlineDefs != nil {
 		_ = p.inlineDefs.Close()
@@ -563,132 +613,32 @@ type typesCollection struct {
 	firstPartyPkgPrefix string
 }
 
-func (b *packagesIterator) resolveType(offset dwarf.Offset) (typeInfo, error) {
-	typ, err := b.typesCache.FindTypeByOffset(offset)
+// lookupVariableType resolves a variable's typeInfo (name, size) from
+// the typeInfoByOffset prepass index. The variable's AttrType points
+// at the outermost DIE for the type (which may be a typedef chain
+// fronting a struct/iface/etc.); we read the raw DWARF name and the
+// pre-computed byte size from the index, then unescape the name.
+//
+// Unlike the old resolveType, this never inserts into Package.Types
+// — type discovery is exclusively the index-driven emitTypesForPackage
+// path. It also never touches the DWARF reader: the index already
+// holds everything we need.
+func (b *packagesIterator) lookupVariableType(offset dwarf.Offset) (typeInfo, error) {
+	if b.indexes.typeInfoByOffset == nil {
+		return typeInfo{}, errors.New("typeInfoByOffset index not built")
+	}
+	rawName, size, ok := b.indexes.typeInfoByOffset.infoAt(offset)
+	if !ok {
+		return typeInfo{}, fmt.Errorf("variable type DIE 0x%x not in typeInfoByOffset index", offset)
+	}
+	unescaped, err := unescapeSymbol(rawName)
 	if err != nil {
-		return typeInfo{}, err
+		return typeInfo{}, fmt.Errorf("failed to unescape variable type name %q: %w", rawName, err)
 	}
-	// The package import path in the type name might be escaped. We want
-	// unescaped paths for SymDB.
-	typeName, err := unescapeSymbol(typ.Common().Name)
-	if err != nil {
-		return typeInfo{}, fmt.Errorf("failed to unescape type name %q: %w", typ.Common().Name, err)
-	}
-	size := typ.Common().Size()
-
-	// Unwrap pointer types and typedefs.
-	for {
-		if t, ok := typ.(*godwarf.PtrType); ok {
-			typ = t.Type
-			continue
-		}
-		if t, ok := typ.(*godwarf.TypedefType); ok {
-			typ = t.Type
-			continue
-		}
-		break
-	}
-
-	if err := b.currentCompileUnit.outputPkg.maybeAddType(typ); err != nil {
-		return typeInfo{}, err
-	}
-
 	return typeInfo{
-		name: typeName,
+		name: unescaped,
 		size: int(size),
 	}, nil
-}
-
-// maybeAddType adds a type to the collection if it is not already present and
-// if the type belongs to the package. Unsupported types are ignored and no
-// error is returned.
-func (p *Package) maybeAddType(t godwarf.Type) error {
-	pkg, sym, wasEscaped, err := parseLinkFuncName(t.Common().Name)
-	if err != nil {
-		return fmt.Errorf("failed to split package for %s : %w", t.Common().Name, err)
-	}
-
-	// Ignore types from other packages.
-	if pkg != p.Name {
-		return nil
-	}
-
-	var unescapedName string
-	if wasEscaped {
-		unescapedName = pkg + "." + sym
-	} else {
-		unescapedName = t.Common().Name
-	}
-
-	canonicalName := gosymname.CanonicalizeGenerics(unescapedName)
-
-	if existing, ok := p.Types[canonicalName]; ok {
-		if s, isStruct := t.(*godwarf.StructType); isStruct {
-			newFields := structFields(s)
-			if len(existing.Fields) == 0 {
-				// Type was created bare (e.g. by method-receiver fallback).
-				existing.Fields = newFields
-			} else {
-				// Merge: compare fields from this instantiation with existing.
-				// Any field whose type differs is a type-parameter-dependent
-				// field — mark it with a generic placeholder.
-				mergeStructFields(existing.Fields, newFields)
-			}
-		}
-		return nil
-	}
-
-	// Skip parametric types (uninstantiated generics with type params).
-	if _, ok := t.(*godwarf.ParametricType); ok {
-		return nil
-	}
-
-	// Assert that we were not given a pointer type.
-	if _, ok := t.(*godwarf.PtrType); ok {
-		return fmt.Errorf("ptr type expected to have been unwrapped: %s", unescapedName)
-	}
-	if strings.HasPrefix(unescapedName, "*") {
-		return fmt.Errorf("type unescapedName for non-pointer unexpectedly starting with '*': %s", unescapedName)
-	}
-
-	// Skip anonymous types, array types, and structs corresponding to slices.
-	if strings.ContainsAny(unescapedName, "{<") {
-		return nil
-	}
-
-	typ := &Type{
-		Name:   canonicalName,
-		Fields: nil,
-		// Methods will be populated later, as we discover them in DWARF.
-		Methods: nil,
-	}
-	if s, isStruct := t.(*godwarf.StructType); isStruct {
-		typ.Fields = structFields(s)
-	}
-
-	p.Types[canonicalName] = typ
-	return nil
-}
-
-// structFields extracts fields from a DWARF struct type, canonicalizing
-// generic type names in field types so that fields from a specific
-// instantiation (e.g. lib.Box[float64]) show as lib.Box[...].
-func structFields(s *godwarf.StructType) []Field {
-	fields := make([]Field, 0, len(s.Field))
-	for _, field := range s.Field {
-		fieldType := field.Type.Common().Name
-		// Only canonicalize names containing generic shape instantiations.
-		// DWARF type names can also contain brackets for slices ([]T),
-		// arrays ([N]T), and maps (map[K]V) which should not be touched.
-		if strings.Contains(fieldType, "[go.shape.") {
-			fieldType = gosymname.CanonicalizeGenerics(fieldType)
-		}
-		fields = append(fields, Field{
-			Name: field.Name,
-			Type: fieldType,
-		})
-	}
-	return fields
 }
 
 // mergeStructFields compares two field lists from different instantiations of
@@ -824,7 +774,6 @@ func newPackagesIterator(bin binaryInfo, opt ExtractOptions) *packagesIterator {
 		mainModule:          bin.mainModule,
 		firstPartyPkgPrefix: bin.firstPartyPkgPrefix,
 		filesFilter:         bin.filesFilter,
-		typesCache:          dwarfutils.NewTypeFinder(bin.obj.DwarfData()),
 		types: typesCollection{
 			scopeFilter:         opt.Scope,
 			mainModule:          bin.mainModule,
@@ -833,6 +782,7 @@ func newPackagesIterator(bin binaryInfo, opt ExtractOptions) *packagesIterator {
 		cleanupFuncs:     []func(){func() { _ = bin.goDebugSections.Close() }, func() { _ = bin.obj.Close() }},
 		offsetToUnit:     make(map[dwarf.Offset]dwarfutil.CompileUnitHeader), // filled in below
 		fileNameInterner: btree.NewOrderedG[string](16),
+		cuContextCache:   make(map[dwarf.Offset]*cachedCUContext),
 	}
 	headers := bin.obj.UnitHeaders()
 	b.sortedCUOffsets = make([]dwarf.Offset, 0, len(headers))
@@ -1040,6 +990,14 @@ func (b *packagesIterator) innerIterator() iter.Seq2[Package, error] {
 				break
 			}
 
+			// Emit every named type DIE owned by this package via
+			// the pre-built typesByPackage index. Runs after method
+			// discovery so bare entries created by method-receiver
+			// code get enriched via the existing-entry merge path.
+			if err = b.emitTypesForPackage(pkg); err != nil {
+				break
+			}
+
 			// Yield the package if it's not empty.
 			pkgEmpty := len(pkg.Functions) == 0 && len(pkg.Types) == 0
 			if !pkgEmpty {
@@ -1207,9 +1165,10 @@ func (b *packagesIterator) getCUContext(cuOffset dwarf.Offset) (*cachedCUContext
 }
 
 // buildPrePassIndexes performs one top-to-bottom walk of the DWARF and
-// populates the four indexes bundled in prePassIndexes. The walk
-// recurses into subprograms and lexical blocks to find nested
-// DW_TAG_inlined_subroutine DIEs.
+// populates the indexes bundled in prePassIndexes. The walk recurses
+// into subprograms and lexical blocks to find nested
+// DW_TAG_inlined_subroutine DIEs, and into compile units to record
+// every named-tag type DIE for typesByPackage / typeInfoByOffset.
 func (b *packagesIterator) buildPrePassIndexes() (idx prePassIndexes, retErr error) {
 	newNameBuilder := func(suffix string) (funcOffsetByNameIndexBuilder, error) {
 		if b.options.DiskCache != nil {
@@ -1224,17 +1183,35 @@ func (b *packagesIterator) buildPrePassIndexes() (idx prePassIndexes, retErr err
 		return &inMemFuncOffsetByOriginIndexBuilder{}, nil
 	}
 
+	addressSize := int64(b.dwarfData.Reader().AddressSize())
+
 	genericFuncBuilder, err := newNameBuilder("genericFuncs")
 	if err != nil {
 		return prePassIndexes{}, fmt.Errorf("failed to create generic func index builder: %w", err)
 	}
 	defer genericFuncBuilder.Close()
 
-	genericTypeBuilder, err := newNameBuilder("genericTypes")
-	if err != nil {
-		return prePassIndexes{}, fmt.Errorf("failed to create generic type index builder: %w", err)
+	var typesByPackageBuilder typesByPackageIndexBuilder
+	if b.options.DiskCache != nil {
+		typesByPackageBuilder, err = newOnDiskTypesByPackageIndexBuilder(b.options.DiskCache, "main")
+		if err != nil {
+			return prePassIndexes{}, fmt.Errorf("failed to create types-by-package index builder: %w", err)
+		}
+	} else {
+		typesByPackageBuilder = &inMemTypesByPackageIndexBuilder{}
 	}
-	defer genericTypeBuilder.Close()
+	defer typesByPackageBuilder.Close()
+
+	var typeInfoBuilder typeInfoByOffsetIndexBuilder
+	if b.options.DiskCache != nil {
+		typeInfoBuilder, err = newOnDiskTypeInfoByOffsetIndexBuilder(b.options.DiskCache, "main", addressSize)
+		if err != nil {
+			return prePassIndexes{}, fmt.Errorf("failed to create type info index builder: %w", err)
+		}
+	} else {
+		typeInfoBuilder = newInMemTypeInfoByOffsetIndexBuilder(addressSize)
+	}
+	defer typeInfoBuilder.Close()
 
 	inlineDefBuilder, err := newNameBuilder("inlineDefs")
 	if err != nil {
@@ -1247,6 +1224,14 @@ func (b *packagesIterator) buildPrePassIndexes() (idx prePassIndexes, retErr err
 		return prePassIndexes{}, fmt.Errorf("failed to create inline instance index builder: %w", err)
 	}
 	defer inlineInstanceBuilder.Close()
+
+	builders := prePassBuilders{
+		genericFuncs:    genericFuncBuilder,
+		inlineDefs:      inlineDefBuilder,
+		inlineInstances: inlineInstanceBuilder,
+		typeInfo:        typeInfoBuilder,
+		typesByPackage:  typesByPackageBuilder,
+	}
 
 	reader := b.dwarfData.Reader()
 	for {
@@ -1264,35 +1249,18 @@ func (b *packagesIterator) buildPrePassIndexes() (idx prePassIndexes, retErr err
 			continue
 
 		case dwarf.TagSubprogram:
-			if err := b.preScanSubprogram(reader, entry, genericFuncBuilder, inlineDefBuilder, inlineInstanceBuilder); err != nil {
+			if err := b.preScanSubprogram(reader, entry, builders); err != nil {
 				return prePassIndexes{}, err
 			}
 
-		case dwarf.TagStructType:
-			name, ok := entry.Val(dwarf.AttrName).(string)
-			if !ok || !strings.Contains(name, "[go.shape.") {
-				reader.SkipChildren()
-				continue
-			}
+		case dwarf.TagStructType,
+			dwarf.TagTypedef,
+			dwarf.TagBaseType,
+			dwarf.TagArrayType,
+			dwarf.TagPointerType,
+			dwarf.TagSubroutineType:
 
-			// Extract the package from the struct type name.
-			typePkg, _, _, err := parseLinkFuncName(name)
-			if err != nil || typePkg == "" {
-				reader.SkipChildren()
-				continue
-			}
-			if !interestingPackage(typePkg, b.mainModule, b.firstPartyPkgPrefix, b.options.Scope) {
-				reader.SkipChildren()
-				continue
-			}
-
-			// Store the canonical name in DWARF (escaped) form,
-			// matching genericFuncs and inlineDefs. forPackage handles
-			// the escape on lookup; storing here in unescaped form
-			// would make lookups for packages whose last path segment
-			// contains a dot (e.g. "gopkg.in/foo.v2") miss this entry.
-			canonicalName := gosymname.CanonicalizeGenerics(name)
-			if err := genericTypeBuilder.add(canonicalName, entry.Offset); err != nil {
+			if err := b.indexTypeDIE(entry, builders.typeInfo, builders.typesByPackage); err != nil {
 				return prePassIndexes{}, err
 			}
 			reader.SkipChildren()
@@ -1310,7 +1278,10 @@ func (b *packagesIterator) buildPrePassIndexes() (idx prePassIndexes, retErr err
 	if idx.genericFuncs, err = genericFuncBuilder.build(); err != nil {
 		return prePassIndexes{}, err
 	}
-	if idx.genericTypes, err = genericTypeBuilder.build(); err != nil {
+	if idx.typesByPackage, err = typesByPackageBuilder.build(); err != nil {
+		return prePassIndexes{}, err
+	}
+	if idx.typeInfoByOffset, err = typeInfoBuilder.build(); err != nil {
 		return prePassIndexes{}, err
 	}
 	if idx.inlineDefs, err = inlineDefBuilder.build(); err != nil {
@@ -1322,16 +1293,87 @@ func (b *packagesIterator) buildPrePassIndexes() (idx prePassIndexes, retErr err
 	return idx, nil
 }
 
+// prePassBuilders bundles the builders threaded through the prepass
+// walk. Carrying them in one value keeps preScanSubprogram /
+// preScanSubprogramChildren signatures from blowing up as new
+// indexes are added.
+type prePassBuilders struct {
+	genericFuncs    funcOffsetByNameIndexBuilder
+	inlineDefs      funcOffsetByNameIndexBuilder
+	inlineInstances funcOffsetByOriginIndexBuilder
+	typeInfo        typeInfoByOffsetIndexBuilder
+	typesByPackage  typesByPackageIndexBuilder
+}
+
+// indexTypeDIE feeds one named-type-tag DIE to the prepass indexes:
+//
+//   - typeInfoByOffset gets every DIE we're told about, even those
+//     without an AttrName, so variable resolution can map any
+//     AttrType offset to (name, size). The Go compiler emits
+//     TagTypedef DIEs nested in subprograms with synthetic names like
+//     ".paramN" for each generic type parameter; those land here too.
+//   - typesByPackage is gated by interestingPackage and rejects
+//     anonymous-struct names containing '{'. The rest — the
+//     broadened set of named user types — drives the per-package
+//     emission walk.
+//
+// Synthetic ".paramN" typedefs (compiler-internal placeholders for
+// generic type parameters) are rewritten to a single canonical
+// "<T>" name in the index so a variable whose source-level type is a
+// type parameter renders consistently — matching mergeStructFields'
+// genericFieldType placeholder.
+func (b *packagesIterator) indexTypeDIE(
+	entry *dwarf.Entry,
+	typeInfoBuilder typeInfoByOffsetIndexBuilder,
+	typesByPackageBuilder typesByPackageIndexBuilder,
+) error {
+	rawName, _ := entry.Val(dwarf.AttrName).(string)
+	rawSize, _ := entry.Val(dwarf.AttrByteSize).(int64)
+	inner, _ := entry.Val(dwarf.AttrType).(dwarf.Offset)
+
+	indexedName := rawName
+	if entry.Tag == dwarf.TagTypedef && strings.HasPrefix(rawName, ".param") {
+		// .paramN is the Go compiler's synthetic placeholder for the
+		// N-th type parameter of a generic function. The user-visible
+		// representation is the same as the generic-field marker
+		// produced by mergeStructFields.
+		indexedName = genericFieldType
+	}
+
+	if err := typeInfoBuilder.add(entry.Offset, typeInfoEntry{
+		name:  indexedName,
+		size:  rawSize,
+		tag:   entry.Tag,
+		inner: inner,
+	}); err != nil {
+		return err
+	}
+
+	// Don't add ".param" typedefs to typesByPackage even if some
+	// later toolchain happens to escape them in a way that fools
+	// parseLinkFuncName. Their indexedName is "<T>" which is
+	// explicitly rejected by the '<' guard, but be defensive.
+	if rawName == "" || strings.Contains(rawName, "{") || strings.HasPrefix(rawName, ".") {
+		return nil
+	}
+	typePkg, _, _, perr := parseLinkFuncName(rawName)
+	if perr != nil || typePkg == "" {
+		return nil
+	}
+	if !interestingPackage(typePkg, b.mainModule, b.firstPartyPkgPrefix, b.options.Scope) {
+		return nil
+	}
+	return typesByPackageBuilder.add(typePkg, entry.Offset)
+}
+
 // preScanSubprogram processes a top-level Subprogram DIE during the pre-pass.
 // It indexes generic shape functions, abstract inline definitions, and
 // out-of-line instances, then recurses into the subprogram's children to
-// find inlined subroutines.
+// find inlined subroutines and nested type DIEs.
 func (b *packagesIterator) preScanSubprogram(
 	reader *dwarf.Reader,
 	entry *dwarf.Entry,
-	genericFuncBuilder funcOffsetByNameIndexBuilder,
-	inlineDefBuilder funcOffsetByNameIndexBuilder,
-	inlineInstanceBuilder funcOffsetByOriginIndexBuilder,
+	builders prePassBuilders,
 ) error {
 	// Skip trampolines entirely — they're compiler-generated and never
 	// contain inline instances we care about.
@@ -1343,13 +1385,15 @@ func (b *packagesIterator) preScanSubprogram(
 	// Out-of-line subprogram instances have DW_AT_abstract_origin pointing
 	// at the abstract definition.
 	if originOffset, ok := entry.Val(dwarf.AttrAbstractOrigin).(dwarf.Offset); ok {
-		if err := inlineInstanceBuilder.add(originOffset, entry.Offset); err != nil {
+		if err := builders.inlineInstances.add(originOffset, entry.Offset); err != nil {
 			return err
 		}
 		// Out-of-line instances can still contain inlined subroutines
-		// nested inside them (e.g. calls that got further inlined).
+		// nested inside them (e.g. calls that got further inlined),
+		// and nested type DIEs (e.g. .paramN typedefs for generic
+		// type parameters) that variable resolution must reach.
 		if entry.Children {
-			if err := b.preScanChildrenForInlines(reader, inlineInstanceBuilder); err != nil {
+			if err := b.preScanSubprogramChildren(reader, builders); err != nil {
 				return err
 			}
 		}
@@ -1361,7 +1405,7 @@ func (b *packagesIterator) preScanSubprogram(
 	if inlineAttr, hasInline := entry.Val(dwarf.AttrInline).(int64); hasInline &&
 		inlineAttr == dwarf2.DW_INL_inlined {
 		if name != "" {
-			if err := indexIfInteresting(b, name, entry.Offset, inlineDefBuilder); err != nil {
+			if err := indexIfInteresting(b, name, entry.Offset, builders.inlineDefs); err != nil {
 				return err
 			}
 		}
@@ -1369,7 +1413,7 @@ func (b *packagesIterator) preScanSubprogram(
 		// syntactically contain inlined subroutines in rare edge cases
 		// produced by Go toolchains. Recurse to be safe.
 		if entry.Children {
-			if err := b.preScanChildrenForInlines(reader, inlineInstanceBuilder); err != nil {
+			if err := b.preScanSubprogramChildren(reader, builders); err != nil {
 				return err
 			}
 		}
@@ -1378,33 +1422,42 @@ func (b *packagesIterator) preScanSubprogram(
 
 	// Generic shape Subprogram: index in genericFuncs.
 	if name != "" && strings.Contains(name, "[go.shape.") {
-		if err := indexIfInteresting(b, name, entry.Offset, genericFuncBuilder); err != nil {
+		if err := indexIfInteresting(b, name, entry.Offset, builders.genericFuncs); err != nil {
 			return err
 		}
 	}
 
-	// Recurse into children to pick up inlined subroutines.
+	// Recurse into children to pick up inlined subroutines and
+	// nested type DIEs.
 	if entry.Children {
-		if err := b.preScanChildrenForInlines(reader, inlineInstanceBuilder); err != nil {
+		if err := b.preScanSubprogramChildren(reader, builders); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// preScanChildrenForInlines walks the children of a subprogram or lexical
-// block entry, recording inlined-subroutine instances and recursing through
-// nested lexical blocks and further inlined subroutines. The reader is
-// positioned immediately after the parent entry on entry and is advanced to
-// just past the parent's null terminator on exit.
+// preScanSubprogramChildren walks the children of a subprogram or lexical
+// block, recording inlined-subroutine instances, nested type DIEs (so
+// variable resolution can find them), and recursing through nested
+// lexical blocks and further inlined subroutines. The reader is
+// positioned immediately after the parent entry on entry and is advanced
+// to just past the parent's null terminator on exit.
 //
-// Children tags we skip without recursing: TagFormalParameter, TagVariable,
-// TagTypedef, and any unknown tag (we still consume their children via
-// SkipChildren). Only TagLexDwarfBlock and TagInlinedSubroutine can
-// transitively contain more inlined subroutines.
-func (b *packagesIterator) preScanChildrenForInlines(
+// Among the tags we visit:
+//   - TagInlinedSubroutine and TagLexDwarfBlock recurse so inlined
+//     subroutines nested several blocks deep still land in the index.
+//   - The six named-type tags feed indexTypeDIE so a variable's
+//     AttrType can resolve to (name, size) regardless of whether
+//     the type DIE is at top level or nested in a subprogram. The
+//     Go compiler emits ".paramN" typedefs nested inside generic
+//     functions, and variables inside those functions reference
+//     them.
+//   - Other tags (TagFormalParameter, TagVariable, anything
+//     unexpected) are skipped via SkipChildren.
+func (b *packagesIterator) preScanSubprogramChildren(
 	reader *dwarf.Reader,
-	inlineInstanceBuilder funcOffsetByOriginIndexBuilder,
+	builders prePassBuilders,
 ) error {
 	for {
 		child, err := reader.Next()
@@ -1420,25 +1473,46 @@ func (b *packagesIterator) preScanChildrenForInlines(
 		switch child.Tag {
 		case dwarf.TagInlinedSubroutine:
 			if originOffset, ok := child.Val(dwarf.AttrAbstractOrigin).(dwarf.Offset); ok {
-				if err := inlineInstanceBuilder.add(originOffset, child.Offset); err != nil {
+				if err := builders.inlineInstances.add(originOffset, child.Offset); err != nil {
 					return err
 				}
 			}
 			if child.Children {
-				if err := b.preScanChildrenForInlines(reader, inlineInstanceBuilder); err != nil {
+				if err := b.preScanSubprogramChildren(reader, builders); err != nil {
 					return err
 				}
 			}
 		case dwarf.TagLexDwarfBlock:
 			if child.Children {
-				if err := b.preScanChildrenForInlines(reader, inlineInstanceBuilder); err != nil {
+				if err := b.preScanSubprogramChildren(reader, builders); err != nil {
 					return err
 				}
 			}
+		case dwarf.TagStructType,
+			dwarf.TagTypedef,
+			dwarf.TagBaseType,
+			dwarf.TagArrayType,
+			dwarf.TagPointerType,
+			dwarf.TagSubroutineType:
+			// Nested type DIEs feed the type indexes so variable
+			// resolution can map any AttrType offset to (name,
+			// size). These DIEs never contain inlined subroutines,
+			// so we don't recurse — but we do read their AttrName
+			// / AttrByteSize / AttrType before consuming any
+			// children they happen to have.
+			if err := b.indexTypeDIE(child, builders.typeInfo, builders.typesByPackage); err != nil {
+				return err
+			}
+			if child.Children {
+				reader.SkipChildren()
+			}
 		default:
-			// TagFormalParameter, TagVariable, TagTypedef, and anything
-			// unexpected: never contains inlined subroutines. Skip.
-			reader.SkipChildren()
+			// TagFormalParameter, TagVariable, and anything
+			// unexpected: never contain inlined subroutines and not
+			// indexable as types. Skip their children.
+			if child.Children {
+				reader.SkipChildren()
+			}
 		}
 	}
 }
@@ -1531,30 +1605,11 @@ func (b *packagesIterator) augmentWithDisplacedGenerics(pkg *Package, cuOffset d
 		}
 	}
 
-	// Process displaced generic struct types. Multiple instantiations of
-	// the same type (e.g. lib.Box[go.shape.int] and lib.Box[go.shape.float64])
-	// are compared field-by-field in maybeAddType to deduce which fields are
-	// type-parameter-dependent.
-	if b.indexes.genericTypes != nil {
-		for _, typeOffset := range b.indexes.genericTypes.forPackage(pkg.Name) {
-			// Skip types within the current compile unit.
-			if uint64(typeOffset) >= uint64(cuOffset) && uint64(typeOffset) < cuEnd {
-				continue
-			}
-
-			// Resolve the DWARF type and call maybeAddType which will either
-			// create the type, populate fields on a bare type, or merge
-			// fields from a different instantiation.
-			typ, err := b.typesCache.FindTypeByOffset(typeOffset)
-			if err != nil {
-				continue // type resolution can fail for unsupported types
-			}
-			if err := pkg.maybeAddType(typ); err != nil {
-				return fmt.Errorf("augmentWithDisplacedGenerics type: %w", err)
-			}
-		}
-	}
-
+	// Type discovery for the package is handled by the index-driven
+	// emission walk in emitTypesForPackage (called from the iterator
+	// after method discovery completes). Displaced generic struct
+	// types and their cross-instantiation field merging fall out of
+	// that walk via the existing-entry merge path.
 	return nil
 }
 
@@ -1814,7 +1869,7 @@ func (b *packagesIterator) exploreCompileUnit(
 	if err != nil {
 		return nil, fmt.Errorf("could not get file line reader for compile unit %s: %w", name, err)
 	}
-	files, err := b.buildCUFileTable(cuLineReader, fmt.Sprintf("compile unit %s", name))
+	files, err := b.buildCUFileTable(cuLineReader, "compile unit "+name)
 	if err != nil {
 		return nil, err
 	}
@@ -2353,7 +2408,7 @@ func (b *packagesIterator) parseAbstractVariable(entry *dwarf.Entry) (Variable, 
 	if !ok {
 		return Variable{}, typeInfo{}, fmt.Errorf("variable without type at 0x%x", entry.Offset)
 	}
-	typ, err := b.resolveType(typeOffset)
+	typ, err := b.lookupVariableType(typeOffset)
 	if err != nil {
 		return Variable{}, typeInfo{}, err
 	}
