@@ -81,7 +81,11 @@ http {
 }
 `
 	s.Env().RemoteHost.MustExecute("echo '" + nginxConf + "' | sudo tee /etc/nginx/nginx.conf")
-	s.Env().RemoteHost.MustExecute("sudo nginx -t && sudo systemctl reload nginx")
+	// Use restart rather than reload: the generic e2e AMI installs php which pulls in apache2,
+	// occupying port 80 and preventing nginx from auto-starting after apt install. By the time
+	// we get here the config already listens on port 81, so restart succeeds.
+	// TODO: switch back to reload once the discovery tests have a dedicated AMI without php/apache2.
+	s.Env().RemoteHost.MustExecute("sudo nginx -t && sudo systemctl restart nginx")
 
 	// Verify nginx stub_status is accessible, retrying to allow reload to complete
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
