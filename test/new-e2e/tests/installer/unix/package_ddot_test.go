@@ -101,12 +101,12 @@ func (s *packageDDOTSuite) TestInstallDDOTInstaller() {
 	// Check if datadog.yaml exists, if not return an error
 	s.host.Run("sudo test -f /etc/datadog-agent/datadog.yaml || { echo 'Error: datadog.yaml does not exist'; exit 1; }")
 
-	s.host.WaitForUnitActive(s.T(), ddotUnit)
+	// DDOT is process-manager-managed; do not require datadog-agent-ddot.service to be active.
+	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, procmgrUnit)
 
 	state := s.host.State()
-	// Verify running
+	// Verify core services and DDOT package artifacts.
 	s.assertCoreUnits(state, true)
-	s.assertDDOTUnits(state, false)
 
 	// Verify files exist
 	state.AssertFileExists("/etc/datadog-agent/datadog.yaml", 0640, "dd-agent", "dd-agent")
@@ -198,13 +198,11 @@ func (s *packageDDOTSuite) TestInstallDDOTSubcommand() {
 	agentPackageURL := "oci://installtesting.datad0g.com.internal.dda-testing.com/agent-package:pipeline-" + os.Getenv("E2E_PIPELINE_ID")
 	s.host.Run("sudo datadog-agent otel install --url " + agentPackageURL)
 
-	// Wait until DDOT is continuously stable running.
-	// DDOT unit is not stable running until the core agent fully restarts and config sync is ready.
-	s.waitForUnitStableRunning(ddotUnit)
+	// DDOT is process-manager-managed; wait for core services including procmgr.
+	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, procmgrUnit)
 
 	state := s.host.State()
 	s.assertCoreUnits(state, true)
-	s.assertDDOTUnits(state, true)
 	state.AssertFileExists("/etc/datadog-agent/datadog.yaml", 0640, "dd-agent", "dd-agent")
 	state.AssertFileExists("/etc/datadog-agent/otel-config.yaml", 0640, "dd-agent", "dd-agent")
 	s.host.Run("sudo grep -q 'otelcollector:' /etc/datadog-agent/datadog.yaml")
@@ -213,7 +211,6 @@ func (s *packageDDOTSuite) TestInstallDDOTSubcommand() {
 	s.host.Run("sudo datadog-agent otel remove")
 	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit)
 	state = s.host.State()
-	state.AssertUnitsDead(ddotUnit)
 	s.assertCoreUnits(state, true)
 }
 
