@@ -24,7 +24,6 @@ exports_files(glob(
 # gazelle:exclude cmd/installer/subcommands
 # gazelle:exclude cmd/installer/user
 # gazelle:exclude cmd/installer/windows_resources
-# gazelle:exclude cmd/internal
 # gazelle:exclude cmd/iot-agent
 # gazelle:exclude cmd/loader
 # gazelle:exclude cmd/otel-agent
@@ -40,8 +39,6 @@ exports_files(glob(
 # gazelle:exclude cmd/secrethelper
 # gazelle:exclude cmd/security-agent
 # gazelle:exclude cmd/serverless-init
-# gazelle:exclude cmd/system-probe/api
-# gazelle:exclude cmd/system-probe/command
 # gazelle:exclude cmd/system-probe/modules
 # gazelle:exclude cmd/system-probe/subcommands/compliance
 # gazelle:exclude cmd/system-probe/subcommands/config
@@ -123,7 +120,6 @@ exports_files(glob(
 # gazelle:exclude comp/core/remoteagentregistry/fx
 # gazelle:exclude comp/core/remoteagentregistry/impl
 # gazelle:exclude comp/core/remoteagentregistry/status
-# gazelle:exclude comp/core/remoteagentregistry/util
 # gazelle:exclude comp/core/settings
 # gazelle:exclude comp/core/sysprobeconfig
 # gazelle:exclude comp/core/tagger/collectors
@@ -157,7 +153,6 @@ exports_files(glob(
 # gazelle:exclude comp/dataobs/queryactions/impl
 # gazelle:exclude comp/dogstatsd/constants
 # gazelle:exclude comp/dogstatsd/http
-# gazelle:exclude comp/dogstatsd/mapper
 # gazelle:exclude comp/dogstatsd/pidmap
 # gazelle:exclude comp/dogstatsd/replay/fx
 # gazelle:exclude comp/dogstatsd/replay/impl
@@ -181,7 +176,6 @@ exports_files(glob(
 # gazelle:exclude comp/host-profiler/collector/impl/receiver
 # gazelle:exclude comp/host-profiler/flare
 # gazelle:exclude comp/host-profiler/symboluploader/pclntab
-# gazelle:exclude comp/host-profiler/symboluploader/pipeline
 # gazelle:exclude comp/host-profiler/symboluploader/symbol
 # gazelle:exclude comp/host-profiler/symboluploader/symbolcopier
 # gazelle:exclude comp/languagedetection/client/fx
@@ -192,7 +186,8 @@ exports_files(glob(
 # gazelle:exclude comp/logs-library/processor
 # gazelle:exclude comp/logs-library/sender
 # gazelle:exclude comp/logs/adscheduler
-# gazelle:exclude comp/logs/agent
+# gazelle:exclude comp/logs/agent/agentimpl
+# gazelle:exclude comp/logs/agent/flare
 # gazelle:exclude comp/logs/auditor
 # gazelle:exclude comp/logs/integrations
 # gazelle:exclude comp/logs/streamlogs/def
@@ -225,7 +220,6 @@ exports_files(glob(
 # gazelle:exclude comp/netflow/testutil
 # gazelle:exclude comp/netflow/topn
 # gazelle:exclude comp/networkpath/npcollector/fx
-# gazelle:exclude comp/networkpath/npcollector/impl/connfilter
 # gazelle:exclude comp/networkpath/npcollector/mock
 # gazelle:exclude comp/networkpath/npcollector/model
 # gazelle:exclude comp/networkpath/traceroute/fx-local
@@ -297,7 +291,6 @@ exports_files(glob(
 # gazelle:exclude comp/snmptraps/forwarder/impl
 # gazelle:exclude comp/snmptraps/listener/fx
 # gazelle:exclude comp/snmptraps/listener/impl
-# gazelle:exclude comp/snmptraps/packet
 # gazelle:exclude comp/snmptraps/senderhelper
 # gazelle:exclude comp/snmptraps/server
 # gazelle:exclude comp/snmptraps/snmplog
@@ -321,7 +314,7 @@ exports_files(glob(
 # gazelle:exclude comp/trace/status
 # gazelle:exclude comp/workloadselection/def
 # gazelle:exclude internal/remote-agent
-# gazelle:exclude internal/third_party
+# gazelle:exclude internal/third_party/client-go
 # gazelle:exclude pkg/aggregator/mocksender
 # gazelle:exclude pkg/aggregator/sender
 # gazelle:exclude pkg/cli/standalone
@@ -389,7 +382,6 @@ exports_files(glob(
 # gazelle:exclude pkg/collector/corechecks/system
 # gazelle:exclude pkg/collector/corechecks/systemd
 # gazelle:exclude pkg/collector/corechecks/telemetry
-# gazelle:exclude pkg/collector/externalhost
 # gazelle:exclude pkg/collector/loaders
 # gazelle:exclude pkg/collector/python
 # gazelle:exclude pkg/collector/runner
@@ -416,7 +408,6 @@ exports_files(glob(
 # gazelle:exclude pkg/diagnose/connectivity
 # gazelle:exclude pkg/diagnose/ports
 # gazelle:exclude pkg/discovery/apm
-# gazelle:exclude pkg/discovery/core
 # gazelle:exclude pkg/discovery/envs
 # gazelle:exclude pkg/discovery/language
 # gazelle:exclude pkg/discovery/model
@@ -442,7 +433,6 @@ exports_files(glob(
 # gazelle:exclude pkg/dyninst/loader
 # gazelle:exclude pkg/dyninst/module
 # gazelle:exclude pkg/dyninst/object
-# gazelle:exclude pkg/dyninst/output
 # gazelle:exclude pkg/dyninst/process
 # gazelle:exclude pkg/dyninst/procsubscribe
 # gazelle:exclude pkg/dyninst/symbol
@@ -465,14 +455,12 @@ exports_files(glob(
 # gazelle:exclude pkg/ebpf/verifier
 # gazelle:exclude pkg/eventmonitor
 # gazelle:exclude pkg/flare
-# gazelle:exclude pkg/fleet/daemon
 # gazelle:exclude pkg/fleet/installer/packages/embedded/tmpl
 # gazelle:exclude pkg/gpu/config
 # gazelle:exclude pkg/gpu/containers
 # gazelle:exclude pkg/gpu/ebpf
 # gazelle:exclude pkg/gpu/integrationtests
 # gazelle:exclude pkg/gpu/safenvml
-# gazelle:exclude pkg/gpu/tags
 # gazelle:exclude pkg/gpu/testutil
 # gazelle:exclude pkg/hosttags
 # gazelle:exclude pkg/jmxfetch
@@ -495,7 +483,6 @@ exports_files(glob(
 # gazelle:exclude pkg/logs/pipeline
 # gazelle:exclude pkg/logs/processor
 # gazelle:exclude pkg/logs/schedulers
-# gazelle:exclude pkg/logs/service
 # gazelle:exclude pkg/logs/sources
 # gazelle:exclude pkg/logs/status/builder.go
 # gazelle:exclude pkg/logs/status/status.go
@@ -503,7 +490,6 @@ exports_files(glob(
 # gazelle:exclude pkg/logs/status/test_utils.go
 # gazelle:exclude pkg/logs/tailers
 # gazelle:exclude pkg/logs/util/windowsevent
-# gazelle:exclude pkg/network/config
 # gazelle:exclude pkg/network/containers
 # gazelle:exclude pkg/network/dns
 # gazelle:exclude pkg/network/ebpf
@@ -575,14 +561,12 @@ exports_files(glob(
 # gazelle:exclude pkg/proto/datadog
 # gazelle:exclude pkg/proto/protodep
 # gazelle:exclude pkg/redact
-# gazelle:exclude pkg/runtime
 # gazelle:exclude pkg/sbom/collectors/docker
 # gazelle:exclude pkg/sbom/collectors/host
 # gazelle:exclude pkg/sbom/collectors/procfs
 # gazelle:exclude pkg/sbom/scanner
 # gazelle:exclude pkg/security/agent
 # gazelle:exclude pkg/security/clihelpers
-# gazelle:exclude pkg/security/common
 # gazelle:exclude pkg/security/config
 # gazelle:exclude pkg/security/ebpf
 # gazelle:exclude pkg/security/events
@@ -598,12 +582,10 @@ exports_files(glob(
 # gazelle:exclude pkg/security/probe/eventstream
 # gazelle:exclude pkg/security/probe/kfilters
 # gazelle:exclude pkg/security/probe/monitors
-# gazelle:exclude pkg/security/probe/procfs
 # gazelle:exclude pkg/security/probe/selftests
 # gazelle:exclude pkg/security/probe/testdata
 # gazelle:exclude pkg/security/process_list
 # gazelle:exclude pkg/security/proto/api
-# gazelle:exclude pkg/security/ptracer
 # gazelle:exclude pkg/security/rconfig
 # gazelle:exclude pkg/security/reporter
 # gazelle:exclude pkg/security/resolvers/dentry
@@ -629,14 +611,15 @@ exports_files(glob(
 # gazelle:exclude pkg/security/tests
 # gazelle:exclude pkg/security/utils/k8sutils
 # gazelle:exclude pkg/security/utils/lru/internal
-# gazelle:exclude pkg/security/utils/pathutils
 # gazelle:exclude pkg/serializer/internal
 # gazelle:exclude pkg/serverless/logs
 # gazelle:exclude pkg/serverless/metrics
 # gazelle:exclude pkg/serverless/otlp
 # gazelle:exclude pkg/serverless/streamlogs
 # gazelle:exclude pkg/serverless/trace
-# gazelle:exclude pkg/snmp
+# gazelle:exclude pkg/snmp/devicededuper
+# gazelle:exclude pkg/snmp/gosnmplib
+# gazelle:exclude pkg/snmp/snmpparse
 # gazelle:exclude pkg/status/clusteragent
 # gazelle:exclude pkg/status/collector
 # gazelle:exclude pkg/status/endpoints
@@ -694,7 +677,6 @@ exports_files(glob(
 # gazelle:exclude pkg/util/kubernetes/clustername
 # gazelle:exclude pkg/util/kubernetes/hostinfo
 # gazelle:exclude pkg/util/kubernetes/kubelet
-# gazelle:exclude pkg/util/os
 # gazelle:exclude pkg/util/port
 # gazelle:exclude pkg/util/profiling
 # gazelle:exclude pkg/util/tags
