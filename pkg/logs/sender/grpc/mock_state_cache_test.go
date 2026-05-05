@@ -125,7 +125,7 @@ func TestBuildStructuredLogUsesFlatLog(t *testing.T) {
 		Value: &statefulpb.DynamicValue_StringValue{StringValue: "value"},
 	}}
 
-	datum := buildStructuredLog(123, 12, values, tagSet, "uuid", service, 2, nil, 5, nil)
+	datum := buildStructuredLog(123, 12, values, tagSet, "uuid", service, 2, nil, 5, nil, compactJSONContextValues{})
 
 	require.Nil(t, datum.GetLogs())
 	flatLog := datum.GetFlatLog()
