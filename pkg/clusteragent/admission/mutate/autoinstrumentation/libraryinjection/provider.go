@@ -115,6 +115,13 @@ type LibraryInjectionConfig struct {
 	// When non-empty, only libraries from these registries will be injected.
 	// An empty list allows all registries (default).
 	RegistryAllowList []string
+
+	// CSIAutoDetectionEnabled is a temporary feature flag gating the CSI
+	// auto-detection logic in the AutoProvider: when true, AutoProvider may
+	// switch to the CSI provider if the Datadog CSI driver is registered in
+	// the cluster (per workloadmeta); when false, AutoProvider always falls
+	// back to the init-container provider.
+	CSIAutoDetectionEnabled bool
 }
 
 // LibraryInjectionProvider defines the strategy for injecting APM libraries into pods.

@@ -426,6 +426,28 @@ func (w *workloadmeta) GetKubernetesDeployment(id string) (*wmdef.KubernetesDepl
 	return entity.(*wmdef.KubernetesDeployment), nil
 }
 
+// GetKubernetesCSIDriver implements Store#GetKubernetesCSIDriver.
+func (w *workloadmeta) GetKubernetesCSIDriver(name string) (*wmdef.KubernetesCSIDriver, error) {
+	entity, err := w.getEntityByKind(wmdef.KindKubernetesCSIDriver, name)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*wmdef.KubernetesCSIDriver), nil
+}
+
+// ListKubernetesCSIDrivers implements Store#ListKubernetesCSIDrivers.
+func (w *workloadmeta) ListKubernetesCSIDrivers() []*wmdef.KubernetesCSIDriver {
+	entities := w.listEntitiesByKind(wmdef.KindKubernetesCSIDriver)
+
+	drivers := make([]*wmdef.KubernetesCSIDriver, 0, len(entities))
+	for i := range entities {
+		drivers = append(drivers, entities[i].(*wmdef.KubernetesCSIDriver))
+	}
+
+	return drivers
+}
+
 // ListECSTasks implements Store#ListECSTasks
 func (w *workloadmeta) ListECSTasks() []*wmdef.ECSTask {
 	entities := w.listEntitiesByKind(wmdef.KindECSTask)

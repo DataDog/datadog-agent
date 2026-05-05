@@ -13,6 +13,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -152,6 +153,8 @@ func (r *reflectorStore) Delete(obj interface{}) error {
 		uid = v.UID
 	case *appsv1.Deployment:
 		uid = v.UID
+	case *storagev1.CSIDriver:
+		uid = v.UID
 	case *metav1.PartialObjectMetadata:
 		uid = v.UID
 	default:
@@ -225,6 +228,11 @@ func entityFromEntityID(entityID workloadmeta.EntityID) (workloadmeta.Entity, er
 
 	case workloadmeta.KindKubernetesMetadata:
 		return &workloadmeta.KubernetesMetadata{
+			EntityID: entityID,
+		}, nil
+
+	case workloadmeta.KindKubernetesCSIDriver:
+		return &workloadmeta.KubernetesCSIDriver{
 			EntityID: entityID,
 		}, nil
 	}

@@ -74,6 +74,18 @@ type Component interface {
 	// the entity with kind KindKubernetesDeployment and the given ID.
 	GetKubernetesDeployment(id string) (*KubernetesDeployment, error)
 
+	// GetKubernetesCSIDriver returns metadata about a Kubernetes CSI driver
+	// registered in the cluster. It fetches the entity with kind
+	// KindKubernetesCSIDriver and the given driver name (e.g.
+	// "k8s.csi.datadoghq.com"). Returns a NotFound error if the driver is
+	// not registered.
+	GetKubernetesCSIDriver(name string) (*KubernetesCSIDriver, error)
+
+	// ListKubernetesCSIDrivers returns metadata about all CSI drivers
+	// registered in the cluster, equivalent to all entities with kind
+	// KindKubernetesCSIDriver.
+	ListKubernetesCSIDrivers() []*KubernetesCSIDriver
+
 	// GetKubernetesMetadata returns metadata about a Kubernetes resource. It fetches
 	// the entity with kind KubernetesMetadata and the given ID.
 	GetKubernetesMetadata(id KubeMetadataEntityID) (*KubernetesMetadata, error)
