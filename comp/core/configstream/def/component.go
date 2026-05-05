@@ -10,7 +10,7 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
-// team: agent-configuration
+// team: agent-metric-pipelines agent-configuration
 
 // Component is the component type.
 type Component interface {

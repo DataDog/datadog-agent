@@ -73,7 +73,7 @@ LIBXSLT_VERSION="1.1.45"   # from AIX Toolbox (yum install libxslt-devel; source
 LIBFFI_VERSION="3.4.4"     # yum install libffi-devel
 NCURSES_VERSION="6.5"      # yum install ncurses-devel
 READLINE_VERSION="8.2"     # yum install readline-devel
-SQLITE_VERSION="3.50.4"    # yum install sqlite-devel
+SQLITE_VERSION="3.53.0"    # built from source (amalgamation)
 GDBM_VERSION="1.23"        # yum install gdbm-devel
 LIBICONV_VERSION="1.17"    # yum install libiconv
 
@@ -391,11 +391,50 @@ stage_toolbox_lib readline "$READLINE_VERSION" \
 [ -f /opt/freeware/lib64/libhistory.a ] && \
     cp /opt/freeware/lib64/libhistory.a "$EMBEDDED_DESTDIR/lib/"
 
-# ── SQLite (AIX Toolbox: yum install sqlite-devel) ───────────────────────────
-stage_toolbox_lib sqlite "$SQLITE_VERSION" \
-    /opt/freeware/lib64/libsqlite3.a \
-    /opt/freeware/include/sqlite3.h \
-    /opt/freeware/include/sqlite3ext.h
+# ── SQLite (build from source: amalgamation) ─────────────────────────────────
+#
+# The AIX Toolbox does not yet provide SQLite 3.53.0; the latest available is
+# 3.51.0. Building from the official amalgamation keeps the version in sync
+# with the Linux omnibus pipeline (source of truth: deps/repos.MODULE.bazel).
+#
+# Built as a shared library wrapped in a .a archive (AIX convention), so
+# Python's configure link tests resolve correctly and the _sqlite3 module
+# is built as a dynamic extension.
+if lib_done sqlite "$SQLITE_VERSION"; then
+    log "SQLite ${SQLITE_VERSION} already installed — skipping"
+elif lib_cache_restore sqlite "$SQLITE_VERSION"; then
+    :
+else
+    CURRENT_LIB="sqlite-${SQLITE_VERSION}"
+    log "Building SQLite ${SQLITE_VERSION} (amalgamation)"
+    _sqlite_parts=$(echo "$SQLITE_VERSION" | tr '.' ' ')
+    _sqlite_major=$(echo "$_sqlite_parts" | awk '{print $1}')
+    _sqlite_minor=$(echo "$_sqlite_parts" | awk '{print $2}')
+    _sqlite_patch=$(echo "$_sqlite_parts" | awk '{print $3}')
+    SQLITE_NUM=$(printf "%d%02d%02d" "$_sqlite_major" "$_sqlite_minor" "$_sqlite_patch")
+    SQLITE_YEAR="2026"
+    SQLITE_DIR="sqlite-autoconf-${SQLITE_NUM}00"
+    TARBALL="$BUILD_DIR/sources/${SQLITE_DIR}.tar.gz"
+    [ -f "$TARBALL" ] || curl -fSL -o "$TARBALL" \
+        "https://www.sqlite.org/${SQLITE_YEAR}/${SQLITE_DIR}.tar.gz"
+    _pre="$BUILD_DIR/.lib-pre-sqlite"
+    touch "$_pre"
+    rm -rf "$BUILD_DIR/build/${SQLITE_DIR}"
+    extract_gz "$TARBALL" "$BUILD_DIR/build"
+    cd "$BUILD_DIR/build/${SQLITE_DIR}"
+    # Build as a shared library wrapped in a .a archive (AIX convention).
+    # Python's configure link tests require a shared member to detect sqlite3.
+    $CC "$CFLAGS" -DSQLITE_ENABLE_MATH_FUNCTIONS -shared -Wl,-brtl -Wl,-bexpall \
+        sqlite3.c -lpthreads -o libsqlite3.so.0
+    ar -X64 -rcs "$EMBEDDED_DESTDIR/lib/libsqlite3.a" libsqlite3.so.0
+    cp sqlite3.h sqlite3ext.h "$EMBEDDED_DESTDIR/include/"
+    lib_cache_save sqlite "$SQLITE_VERSION" "$_pre"
+    rm -f "$_pre"
+    cd "$BUILD_DIR"
+    lib_mark sqlite "$SQLITE_VERSION"
+    log "SQLite ${SQLITE_VERSION} done"
+    CURRENT_LIB=
+fi
 
 # ── gdbm (AIX Toolbox: yum install gdbm-devel) ───────────────────────────────
 #
