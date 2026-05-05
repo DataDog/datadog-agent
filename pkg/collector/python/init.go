@@ -451,10 +451,13 @@ func Initialize(paths ...string) error {
 		return addExpvarPythonInitErrors(err)
 	}
 
-	// Log whether sub-interpreter support was compiled in.
-	// This is controlled at build time via -DENABLE_SUBINTERPRETERS=ON in CMake.
-	// When enabled, each Python check runs in its own isolated sub-interpreter.
-	if C.has_subinterpreter_support(rtloader) == 1 {
+	// Activate sub-interpreter isolation when both conditions are met:
+	// 1. The binary was compiled with sub-interpreter support (RTLOADER_HAS_SUBINTERPRETERS).
+	// 2. The runtime opt-in is set (python_enable_subinterpreters / DD_PYTHON_ENABLE_SUBINTERPRETERS).
+	// This two-gate design allows a single image to serve as both baseline (feature off)
+	// and comparison (feature on) in SMP A/B experiments.
+	if C.has_subinterpreter_support(rtloader) == 1 &&
+		pkgconfigsetup.Datadog().GetBool("python_enable_subinterpreters") {
 		log.Warnf("[SUB-INTERPRETERS][EXPERIMENTAL] Python sub-interpreter isolation is enabled (per-check isolation)")
 
 		// Load the sub-interpreter blocklist from config. Modules in this list
