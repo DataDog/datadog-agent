@@ -86,3 +86,36 @@ If any expression in `default.policy` fails to compile, fix it by consulting `pk
 
 ## Progress
 
+### Static deliverables (all complete)
+
+- [x] `dev/cws-explore/system-probe.yaml` — minimal CWS-enabled config; sockets at `/tmp/cws-explore/`; activity-dump enabled (CLI-driven); network monitoring on; per-platform feature gates documented inline.
+- [x] `dev/cws-explore/datadog.yaml` — dummy api_key, hostname, `log_level: trace`, all real-backend traffic disabled.
+- [x] `dev/cws-explore/policies/default.policy` — 24 catch-all rules (`catchall_<eventtype>`) covering exec / exit / setuid / setgid / capset / signal / open / chmod / chown / unlink / rename / mkdir / rmdir / link / setxattr / utimes / chdir / bind / connect / accept / dns / bpf / ptrace / mmap / mprotect / load_module / unload_module. `fork` intentionally omitted (no SECL accessors). Each predicate is `<numeric-field> >= 0` or `<path> != ""` so it's always-true and always parses.
+- [x] `dev/cws-explore/cmd/stream-events/main.go` — gRPC client over unix socket; calls `SecurityModuleEvent.GetEventStream`; pretty-prints `RuleID` / `Service` / `Tags` / `Data`; reuses repo's `pkg/security/proto/api` types so no proto re-vendor.
+- [x] `dev/cws-explore/run.sh` subcommands: `prepare`, `build`, `build-stream`, `policy-check`, `start-systemprobe`, `start-secagent`, `stream`, `activity-dump`, `clean`, `doctor`, `all`.
+- [x] `dev/cws-explore/README.md` — full playbook for all three viewing modes plus Troubleshooting section.
+- [x] Build artifacts present on disk: `bin/system-probe/system-probe`, `bin/stream-events`. (security-agent build is invocation-side via `run.sh build`.)
+- [x] `system-probe runtime policy check` validates `default.policy` cleanly (no errors in JSON report).
+- [x] Nothing modified outside `dev/cws-explore/` except an existing `.gitignore` change carried in from the same task commit.
+
+### Smoke-test status: blocked by host state
+
+Live event-stream verification (acceptance criteria #4 and #5) could not complete
+on this workspace host because of a pre-existing kernel-state leak:
+
+- 154 `_security_<PID>` and 12 `_net_<PID>` kprobes in `/sys/kernel/tracing/kprobe_events` are stamped with PID 3625, which no longer exists.
+- ebpf-manager's `cleanupTraceFS()` at startup tries to remove them, but the kernel returns `EBUSY` on every `-:<name>` write — even though no userspace process holds any `perf_event` or `bpf-link` FD referencing them. This is a kernel-side refcount leak that only a host reboot will clear.
+- Symptom in the system-probe log: `failed to cleanup tracefs: write "-:r___x64_sys_chown16_security_3625\n" to kprobe_events: device or resource busy`. CWS module fails its constantfetch step and the runtime-security socket never gets created.
+
+The `doctor` subcommand was added to `run.sh` to detect this state up front and direct the operator to the README's Troubleshooting section. Confirmed working: `bash dev/cws-explore/run.sh doctor` correctly reports the dead-PID kprobes and the EBUSY-on-removal condition.
+
+### Acceptance checklist
+
+- [x] `dev/cws-explore/` exists with all six required artifacts
+- [x] `run.sh build` succeeds; both binaries built
+- [x] `system-probe runtime policy check` reports the catch-all policy as valid
+- [ ] Live ≥5 distinct rule_ids — **blocked by host kprobe-refcount leak; needs reboot**
+- [ ] Activity-dump JSON non-trivial — same blocker (requires running system-probe)
+- [x] README walks all three modes + kernel/root caveats + new Troubleshooting section
+- [x] No edits outside `dev/cws-explore/`
+
