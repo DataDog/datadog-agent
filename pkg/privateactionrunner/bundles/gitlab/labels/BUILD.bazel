@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "labels",
+    srcs = [
+        "create_label.gen.go",
+        "delete_label.gen.go",
+        "entrypoint.gen.go",
+        "get_label.gen.go",
+        "list_labels.gen.go",
+        "promote_label.gen.go",
+        "subscribe_to_label.gen.go",
+        "unsubscribe_from_label.gen.go",
+        "update_label.gen.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/labels",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/privateactionrunner/bundle-support/gitlab",
+        "//pkg/privateactionrunner/libs/privateconnection",
+        "//pkg/privateactionrunner/types",
+        "@com_gitlab_gitlab_org_api_client_go//:client-go",
+    ],
+)

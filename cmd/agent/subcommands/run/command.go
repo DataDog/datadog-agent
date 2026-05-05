@@ -136,8 +136,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata"
 	haagentmetadata "github.com/DataDog/datadog-agent/comp/metadata/haagent/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
-	inventorychecks "github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/def"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	packagesigning "github.com/DataDog/datadog-agent/comp/metadata/packagesigning/def"
 	runner "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
@@ -153,7 +153,7 @@ import (
 	otelagentStatusfx "github.com/DataDog/datadog-agent/comp/otelcol/status/fx"
 	parStatusImpl "github.com/DataDog/datadog-agent/comp/privateactionrunner/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/process"
-	processAgent "github.com/DataDog/datadog-agent/comp/process/agent"
+	processAgent "github.com/DataDog/datadog-agent/comp/process/agent/def"
 	processagentstatusfx "github.com/DataDog/datadog-agent/comp/process/status/fx"
 	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
 	remoteconfig "github.com/DataDog/datadog-agent/comp/remote-config"
@@ -494,11 +494,11 @@ func getSharedFxOption() fx.Option {
 		// Workloadmeta component needs to be initialized before this hook is executed, and thus is included
 		// in the function args to order the execution. This pattern might be worth revising because it is
 		// error prone.
-		fx.Invoke(func(lc fx.Lifecycle, wmeta workloadmeta.Component, tagger tagger.Component, filterStore workloadfilter.Component, ac autodiscovery.Component, secretResolver secrets.Component, cfg config.Component) {
+		fx.Invoke(func(lc fx.Lifecycle, _ workloadmeta.Component, _ tagger.Component, _ workloadfilter.Component, ac autodiscovery.Component, _ secrets.Component, cfg config.Component) {
 			lc.Append(fx.Hook{
 				OnStart: func(_ context.Context) error {
 					//  setup the AutoConfig instance
-					common.LoadComponents(secretResolver, wmeta, tagger, filterStore, ac, cfg.GetString("confd_path"))
+					common.LoadComponents(ac, cfg.GetString("confd_path"))
 					return nil
 				},
 			})
