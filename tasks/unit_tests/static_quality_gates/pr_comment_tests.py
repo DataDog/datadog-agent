@@ -1,6 +1,7 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
+from tasks.static_quality_gates.decisions import GateEvaluationResult, GateFailureKind, GateVerdict
 from tasks.static_quality_gates.gates import GateMetricHandler
 from tasks.static_quality_gates.pr_comment import (
     display_pr_comment,
@@ -220,11 +221,9 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         mock_pr.number = 12345
         display_pr_comment(
             c,
-            True,
-            [
-                {'name': 'gateA', 'error_type': None, 'message': None},
-                {'name': 'gateB', 'error_type': None, 'message': None},
-            ],
+            GateEvaluationResult(
+                verdicts=[GateVerdict(name='gateA', failure=None), GateVerdict(name='gateB', failure=None)]
+            ),
             gate_metric_handler,
             "value",
             mock_pr,
@@ -280,11 +279,9 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         mock_pr.number = 12345
         display_pr_comment(
             c,
-            True,
-            [
-                {'name': 'gateA', 'error_type': None, 'message': None},
-                {'name': 'gateB', 'error_type': None, 'message': None},
-            ],
+            GateEvaluationResult(
+                verdicts=[GateVerdict(name='gateA', failure=None), GateVerdict(name='gateB', failure=None)]
+            ),
             gate_metric_handler,
             "value",
             mock_pr,
@@ -337,11 +334,9 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         mock_pr.number = 12345
         display_pr_comment(
             c,
-            True,
-            [
-                {'name': 'gateA', 'error_type': None, 'message': None},
-                {'name': 'gateB', 'error_type': None, 'message': None},
-            ],
+            GateEvaluationResult(
+                verdicts=[GateVerdict(name='gateA', failure=None), GateVerdict(name='gateB', failure=None)]
+            ),
             gate_metric_handler,
             "value",
             mock_pr,
@@ -372,11 +367,17 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         mock_pr.number = 12345
         display_pr_comment(
             c,
-            False,
-            [
-                {'name': 'gateA', 'error_type': 'AssertionError', 'message': 'some_msg_A'},
-                {'name': 'gateB', 'error_type': 'AssertionError', 'message': 'some_msg_B'},
-            ],
+            GateEvaluationResult(
+                verdicts=[
+                    GateVerdict(
+                        name='gateA', failure=GateFailureKind.AbsoluteLimitExceeded, blocking=True, message='some_msg_A'
+                    ),
+                    GateVerdict(
+                        name='gateB', failure=GateFailureKind.AbsoluteLimitExceeded, blocking=True, message='some_msg_B'
+                    ),
+                ],
+                has_blocking_failures=True,
+            ),
             gate_metric_handler,
             "value",
             mock_pr,
@@ -423,11 +424,15 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         mock_pr.number = 12345
         display_pr_comment(
             c,
-            False,
-            [
-                {'name': 'gateA', 'error_type': 'AssertionError', 'message': 'some_msg_A'},
-                {'name': 'gateB', 'error_type': None, 'message': None},
-            ],
+            GateEvaluationResult(
+                verdicts=[
+                    GateVerdict(
+                        name='gateA', failure=GateFailureKind.AbsoluteLimitExceeded, blocking=True, message='some_msg_A'
+                    ),
+                    GateVerdict(name='gateB', failure=None),
+                ],
+                has_blocking_failures=True,
+            ),
             gate_metric_handler,
             "value",
             mock_pr,
@@ -463,10 +468,14 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         mock_pr.number = 12345
         display_pr_comment(
             c,
-            False,
-            [
-                {'name': 'gateA', 'error_type': 'AssertionError', 'message': 'some_msg_A'},
-            ],
+            GateEvaluationResult(
+                verdicts=[
+                    GateVerdict(
+                        name='gateA', failure=GateFailureKind.AbsoluteLimitExceeded, blocking=True, message='some_msg_A'
+                    )
+                ],
+                has_blocking_failures=True,
+            ),
             gate_metric_handler,
             "value",
             mock_pr,
@@ -503,10 +512,9 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         mock_pr.number = 12345
         display_pr_comment(
             c,
-            True,
-            [
-                {'name': 'gateA', 'error_type': None, 'message': None},
-            ],
+            GateEvaluationResult(
+                verdicts=[GateVerdict(name='gateA', failure=None)],
+            ),
             gate_metric_handler,
             "value",
             mock_pr,
@@ -545,10 +553,14 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         mock_pr.number = 12345
         display_pr_comment(
             c,
-            False,
-            [
-                {'name': 'gateA', 'error_type': 'AssertionError', 'message': 'some_msg_A'},
-            ],
+            GateEvaluationResult(
+                verdicts=[
+                    GateVerdict(
+                        name='gateA', failure=GateFailureKind.AbsoluteLimitExceeded, blocking=True, message='some_msg_A'
+                    ),
+                ],
+                has_blocking_failures=True,
+            ),
             gate_metric_handler,
             "value",
             mock_pr,
@@ -566,7 +578,7 @@ class TestQualityGatesPrMessage(unittest.TestCase):
                 "",
                 "|Quality gate|Error type|Error message|",
                 "|----|---|--------|",
-                "|gateA|AssertionError|some_msg_A|",
+                "|gateA|AbsoluteLimitExceeded|some_msg_A|",
             ]
         )
         self.assertIn(expected.strip(), body)
@@ -584,7 +596,7 @@ class TestNonBlockingPrComment(unittest.TestCase):
     )
     @patch("tasks.static_quality_gates.pr_comment.pr_commenter")
     def test_non_blocking_failure_shows_warning_indicator(self, pr_commenter_mock):
-        """Non-blocking failures should show warning indicator, not error."""
+        """Non-blocking failures should show warning indicator and per-verdict note in the footer."""
         from invoke import MockContext
 
         c = MockContext()
@@ -593,15 +605,17 @@ class TestNonBlockingPrComment(unittest.TestCase):
         mock_pr.number = 12345
         display_pr_comment(
             c,
-            True,  # final_state is success (no blocking failures)
-            [
-                {
-                    'name': 'gateA',
-                    'error_type': 'StaticQualityGateFailed',
-                    'message': 'size exceeded',
-                    'blocking': False,
-                },
-            ],
+            GateEvaluationResult(
+                verdicts=[
+                    GateVerdict(
+                        name='gateA',
+                        failure=GateFailureKind.AbsoluteLimitExceeded,
+                        blocking=False,
+                        message='size exceeded',
+                        blocking_note='non-blocking: size unchanged from ancestor',
+                    ),
+                ],
+            ),
             gate_metric_handler,
             "ancestor123",
             mock_pr,
@@ -613,8 +627,8 @@ class TestNonBlockingPrComment(unittest.TestCase):
         self.assertIn('⚠️', body)
         # Should NOT contain the blocking failure message
         self.assertNotIn('prevent the PR to merge', body)
-        # Should contain the non-blocking note
-        self.assertIn('non-blocking', body)
+        # Footer should carry the per-verdict blocking note
+        self.assertIn('AbsoluteLimitExceeded (non-blocking: size unchanged from ancestor)', body)
 
     @patch.dict(
         'os.environ',
@@ -634,15 +648,17 @@ class TestNonBlockingPrComment(unittest.TestCase):
         mock_pr.number = 12345
         display_pr_comment(
             c,
-            False,  # final_state is failure (has blocking failures)
-            [
-                {
-                    'name': 'gateA',
-                    'error_type': 'StaticQualityGateFailed',
-                    'message': 'size exceeded',
-                    'blocking': True,
-                },
-            ],
+            GateEvaluationResult(
+                verdicts=[
+                    GateVerdict(
+                        name='gateA',
+                        failure=GateFailureKind.AbsoluteLimitExceeded,
+                        blocking=True,
+                        message='size exceeded',
+                    ),
+                ],
+                has_blocking_failures=True,
+            ),
             gate_metric_handler,
             "ancestor123",
             mock_pr,
@@ -673,21 +689,23 @@ class TestNonBlockingPrComment(unittest.TestCase):
         mock_pr.number = 12345
         display_pr_comment(
             c,
-            False,  # final_state is failure (has blocking failures)
-            [
-                {
-                    'name': 'gateA',
-                    'error_type': 'StaticQualityGateFailed',
-                    'message': 'size exceeded',
-                    'blocking': True,
-                },
-                {
-                    'name': 'gateB',
-                    'error_type': 'StaticQualityGateFailed',
-                    'message': 'size exceeded',
-                    'blocking': False,
-                },
-            ],
+            GateEvaluationResult(
+                verdicts=[
+                    GateVerdict(
+                        name='gateA',
+                        failure=GateFailureKind.AbsoluteLimitExceeded,
+                        blocking=True,
+                        message='size exceeded',
+                    ),
+                    GateVerdict(
+                        name='gateB',
+                        failure=GateFailureKind.AbsoluteLimitExceeded,
+                        blocking=False,
+                        message='size exceeded',
+                    ),
+                ],
+                has_blocking_failures=True,
+            ),
             gate_metric_handler,
             "ancestor123",
             mock_pr,
@@ -700,6 +718,77 @@ class TestNonBlockingPrComment(unittest.TestCase):
         self.assertIn('⚠️', body)
         # Should contain the blocking failure message (since there's a blocking failure)
         self.assertIn('prevent the PR to merge', body)
+
+
+class TestExceptionBanner(unittest.TestCase):
+    """Test that exception_note from GateEvaluationResult renders as the banner."""
+
+    @patch.dict(
+        'os.environ',
+        {
+            'CI_COMMIT_REF_NAME': 'pikachu',
+            'CI_COMMIT_BRANCH': 'sequoia',
+        },
+    )
+    @patch("tasks.static_quality_gates.pr_comment.pr_commenter")
+    def test_exception_note_renders_as_banner(self, pr_commenter_mock):
+        """exception_note on GateEvaluationResult should appear prefixed with the warning emoji."""
+        from invoke import MockContext
+
+        c = MockContext()
+        gate_metric_handler = GateMetricHandler("main", "dev")
+        mock_pr = MagicMock()
+        mock_pr.number = 12345
+        display_pr_comment(
+            c,
+            GateEvaluationResult(
+                verdicts=[
+                    GateVerdict(
+                        name='gateA',
+                        failure=GateFailureKind.PerPRThresholdExceeded,
+                        blocking=False,
+                        message='size exceeded',
+                        blocking_note='non-blocking: exception granted by @granter',
+                    ),
+                ],
+                exception_note='**Exception granted by @granter**: this PR exceeds the per-PR size threshold (600.0 KiB) but will not be blocked.\n',
+            ),
+            gate_metric_handler,
+            "ancestor123",
+            mock_pr,
+        )
+        pr_commenter_mock.assert_called_once()
+        body = pr_commenter_mock.call_args[1]['body']
+        self.assertIn('⚠️ **Exception granted by @granter**', body)
+
+    @patch.dict(
+        'os.environ',
+        {
+            'CI_COMMIT_REF_NAME': 'pikachu',
+            'CI_COMMIT_BRANCH': 'sequoia',
+        },
+    )
+    @patch("tasks.static_quality_gates.pr_comment.pr_commenter")
+    def test_no_exception_note_no_banner(self, pr_commenter_mock):
+        """When exception_note is None, no exception banner should appear."""
+        from invoke import MockContext
+
+        c = MockContext()
+        gate_metric_handler = GateMetricHandler("main", "dev")
+        mock_pr = MagicMock()
+        mock_pr.number = 12345
+        display_pr_comment(
+            c,
+            GateEvaluationResult(
+                verdicts=[GateVerdict(name='gateA', failure=None)],
+            ),
+            gate_metric_handler,
+            "ancestor123",
+            mock_pr,
+        )
+        pr_commenter_mock.assert_called_once()
+        body = pr_commenter_mock.call_args[1]['body']
+        self.assertNotIn('Exception granted', body)
 
 
 if __name__ == '__main__':

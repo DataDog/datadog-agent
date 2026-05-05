@@ -10,6 +10,7 @@ package defaultforwarder
 import (
 	"context"
 	"net/http"
+	"net/http/httptest"
 	"time"
 
 	"github.com/stretchr/testify/mock"
@@ -215,6 +216,14 @@ func (tf *MockedForwarder) GetDomainResolvers() []resolver.DomainResolver {
 // SubmitTransaction adds a transaction to the queue for sending.
 func (tf *MockedForwarder) SubmitTransaction(t *transaction.HTTPTransaction) error {
 	return tf.Called(t).Error(0)
+}
+
+type handlerTransport http.HandlerFunc
+
+func (tr handlerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	rec := httptest.NewRecorder()
+	tr(rec, req)
+	return rec.Result(), nil
 }
 
 // NewTestForwarder creates an instance of the component based on config, but without using fx or starting it.
