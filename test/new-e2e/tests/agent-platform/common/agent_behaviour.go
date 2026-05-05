@@ -419,7 +419,6 @@ func CheckADPEnabled(t *testing.T, client *TestClient) {
 		err = client.SetConfig(configFilePath, "data_plane.dogstatsd.enabled", "true")
 		require.NoError(tt, err)
 
-
 		_, err = client.SvcManager.Restart(client.Helper.GetServiceName())
 		require.NoError(tt, err)
 
