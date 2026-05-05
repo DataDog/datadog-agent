@@ -37,6 +37,55 @@ var resourceDetectionDefaultConfig = confMap{
 	},
 }
 
+const componentTypeK8sAttributes = "k8sattributes"
+
+func restrictedK8sAttributesConfig() confMap {
+	return confMap{
+		"extract": confMap{
+			"metadata": []any{
+				"k8s.namespace.name",
+				"k8s.pod.name",
+				"k8s.pod.uid",
+				"k8s.node.name",
+				"k8s.pod.start_time",
+				"k8s.deployment.name",
+				"k8s.replicaset.name",
+				"k8s.replicaset.uid",
+				"k8s.daemonset.name",
+				"k8s.daemonset.uid",
+				"k8s.job.name",
+				"k8s.job.uid",
+				"k8s.container.name",
+				"k8s.cronjob.name",
+				"k8s.statefulset.name",
+				"k8s.statefulset.uid",
+				"container.image.tag",
+				"container.image.name",
+				"k8s.cluster.uid",
+				"service.namespace",
+				"service.name",
+				"service.version",
+				"service.instance.id",
+			},
+			"otel_annotations": true,
+		},
+		"filter": confMap{
+			"node_from_env_var": "K8S_NODE_NAME",
+		},
+		"passthrough": false,
+		"pod_association": []any{
+			confMap{
+				"sources": []any{
+					confMap{
+						"from": "resource_attribute",
+						"name": "container.id",
+					},
+				},
+			},
+		},
+	}
+}
+
 // converterWithoutAgent ensures sane configuration that satisfies the following conditions:
 //   - At least one resourcedetection processor declared and used with required defaults
 //   - If no resourcedetection processor used, declare & use a minimal resourcedetection processor
@@ -132,8 +181,26 @@ func (c *converterWithoutAgent) Convert(_ context.Context, conf *confmap.Conf) e
 		slog.Warn("failed to configure internal health metric pipeline, skipping", slog.Any("error", err))
 	}
 
+	c.overrideK8sAttributesConfig(confStringMap)
+
 	*conf = *confmap.NewFromStringMap(confStringMap)
 	return nil
+}
+
+func (c *converterWithoutAgent) overrideK8sAttributesConfig(conf confMap) {
+	processors, ok := Get[confMap](conf, "processors")
+	if !ok {
+		return
+	}
+
+	for name := range processors {
+		if !isComponentType(name, componentTypeK8sAttributes) {
+			continue
+		}
+
+		processors[name] = restrictedK8sAttributesConfig()
+		slog.Warn("temporarily overriding k8sattributes processor configuration", slog.String("processor", name))
+	}
 }
 
 func (c *converterWithoutAgent) ensureMetricsPipeline(conf confMap) error {
