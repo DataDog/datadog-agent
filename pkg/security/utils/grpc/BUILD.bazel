@@ -9,7 +9,7 @@ go_library(
         "//pkg/config/setup",
         "//pkg/util/grpc",
         "//pkg/util/system/socket",
-        "@//pkg/security/seclog",
+        "@com_github_datadog_datadog_agent//pkg/security/seclog",
         "@com_github_mdlayher_vsock//:vsock",
         "@org_golang_google_grpc//:grpc",
     ],

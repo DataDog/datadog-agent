@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
+	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
 // TestDefaultCatalog_DetectorTeardownContract is the structural guard that

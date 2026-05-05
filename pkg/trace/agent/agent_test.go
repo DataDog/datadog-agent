@@ -4594,7 +4594,7 @@ func TestShutdownFlushSyncInSyncMode(t *testing.T) {
 	cfg.Hostname = "testhost"
 
 	ctx, cancel := context.WithCancel(context.Background())
-	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent(), nil)
+	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 
 	// Use real Concentrator (backed by real StatsWriter) but mock trace writers.
 	agnt.TraceWriter = &mockTraceWriter{apiKey: "test"}

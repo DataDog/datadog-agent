@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -33,7 +33,7 @@ func TestAgentInternalLogsFlowIntoObserver(t *testing.T) {
 	cfg.SetWithoutSource("observer.capture_agent_internal_logs.sample_rate_trace", 1.0)
 
 	provides := NewComponent(Requires{
-		Telemetry: nooptelemetry.GetCompatComponent(),
+		Telemetry: telemetry.New(t),
 		Config:    cfg,
 	})
 	obs, ok := provides.Comp.(*observerImpl)

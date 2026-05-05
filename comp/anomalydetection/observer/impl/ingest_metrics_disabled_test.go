@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 )
 
 // TestObserverDropsMetricsWhenIngestMetricsDisabled verifies that when
@@ -99,8 +99,6 @@ func TestMetricDropHandle(t *testing.T) {
 	wrap := &metricDropHandle{inner: inner}
 
 	wrap.ObserveMetric(&sampleNoSource{name: "any.metric"})
-	wrap.ObserveTrace(nil)
-	wrap.ObserveTraceStats(nil)
 	assert.Equal(t, 0, inner.received,
 		"metricDropHandle: inner.received = %d, want 0 (ObserveMetric/Trace/TraceStats must be dropped)", inner.received)
 	assert.True(t, wrap.ObserveMetricAndReportDrop(&sampleNoSource{name: "any.metric"}),
@@ -109,8 +107,4 @@ func TestMetricDropHandle(t *testing.T) {
 	wrap.ObserveLog(&logObs{content: []byte("hi"), timestampMs: 1})
 	assert.Equal(t, 1, inner.logReceived,
 		"metricDropHandle: inner.logReceived = %d, want 1 (ObserveLog must forward to inner)", inner.logReceived)
-
-	wrap.ObserveProfile(nil)
-	assert.Equal(t, 1, inner.profileReceived,
-		"metricDropHandle: inner.profileReceived = %d, want 1 (ObserveProfile must forward to inner)", inner.profileReceived)
 }

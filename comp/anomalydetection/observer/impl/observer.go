@@ -37,10 +37,6 @@ import (
 
 // Requires declares the input types to the observer component constructor.
 type Requires struct {
-	// AgentInternalLogTap provides optional overrides for capturing agent-internal logs.
-	// When fields are nil, values are read from configuration defaults.
-	AgentInternalLogTap AgentInternalLogTapConfig
-
 	Lifecycle compdef.Lifecycle
 	Config    config.Component
 	Log       log.Component
@@ -61,13 +57,6 @@ type Requires struct {
 	WMeta       option.Option[workloadmetadef.Component]
 	FilterStore option.Option[workloadfilterdef.Component]
 	Tagger      option.Option[taggerdef.Component]
-}
-
-type AgentInternalLogTapConfig struct {
-	Enabled         *bool
-	SampleRateInfo  *float64
-	SampleRateDebug *float64
-	SampleRateTrace *float64
 }
 
 // Provides defines the output of the observer component.
@@ -249,7 +238,7 @@ func NewComponent(deps Requires) Provides {
 	}
 
 	// Set up handle function based on recording and analysis configuration.
-	// Recording (observer.recording.enabled) enables parquet writers and the fetcher.
+	// Recording (observer.recording.enabled) enables parquet writers.
 	// Analysis (observer.analysis.enabled) enables the anomaly detection pipeline.
 	analysisEnabled := cfg.GetBool("observer.analysis.enabled")
 
@@ -258,10 +247,7 @@ func NewComponent(deps Requires) Provides {
 		obs.handleFunc = obs.innerHandle
 	}
 
-	recordingEnabled := cfg.GetBool("observer.recording.enabled")
-	recorderAvailable := false
 	if recorder, ok := deps.Recorder.Get(); ok {
-		recorderAvailable = true
 		obs.handleFunc = recorder.GetHandle(obs.handleFunc)
 
 		// Record detect digests and advance log alongside parquet for parity debugging.
@@ -376,22 +362,10 @@ func NewComponent(deps Requires) Provides {
 
 	// Capture agent-internal logs into the observer by default (best-effort, non-blocking).
 	enabled := cfg.GetBool("observer.capture_agent_internal_logs.enabled")
-	if deps.AgentInternalLogTap.Enabled != nil {
-		enabled = *deps.AgentInternalLogTap.Enabled
-	}
 	if enabled {
 		sampleInfo := cfg.GetFloat64("observer.capture_agent_internal_logs.sample_rate_info")
 		sampleDebug := cfg.GetFloat64("observer.capture_agent_internal_logs.sample_rate_debug")
 		sampleTrace := cfg.GetFloat64("observer.capture_agent_internal_logs.sample_rate_trace")
-		if deps.AgentInternalLogTap.SampleRateInfo != nil {
-			sampleInfo = *deps.AgentInternalLogTap.SampleRateInfo
-		}
-		if deps.AgentInternalLogTap.SampleRateDebug != nil {
-			sampleDebug = *deps.AgentInternalLogTap.SampleRateDebug
-		}
-		if deps.AgentInternalLogTap.SampleRateTrace != nil {
-			sampleTrace = *deps.AgentInternalLogTap.SampleRateTrace
-		}
 
 		handle := obs.GetHandle("agent-internal-logs")
 		baseTags := []string{"source:datadog-agent"}
@@ -447,19 +421,6 @@ func NewComponent(deps Requires) Provides {
 		})
 	}
 
-	// Start the profile fetcher only when recording is enabled.
-	// Profiles are not analyzed by the observer; fetching them is
-	// only useful for the recorder-backed parquet path.
-	if recordingEnabled && recorderAvailable {
-		fetchHandle := obs.GetHandle("profile-agent")
-		obs.fetcher = newObserverFetcher(
-			deps.RemoteAgentRegistry,
-			fetchHandle,
-		)
-		obs.fetcher.Start()
-		pkglog.Info("[observer] profile fetcher started")
-	}
-
 	return Provides{Comp: obs}
 }
 
@@ -486,9 +447,6 @@ type observerImpl struct {
 	engine     *engine
 	obsCh      chan observation
 	handleFunc observerdef.HandleFunc // Handle factory (may wrap with recorder middleware)
-
-	// fetcher pulls traces/profiles from remote trace-agents
-	fetcher *observerFetcher
 
 	telemetryHandler  *telemetryHandler
 	digestCleanup     func() // flushes detect digest recording file
@@ -809,9 +767,6 @@ func (f *hfFilteredHandle) ObserveMetricAndReportDrop(sample observerdef.MetricV
 }
 
 func (f *hfFilteredHandle) ObserveLog(msg observerdef.LogView)             { f.inner.ObserveLog(msg) }
-func (f *hfFilteredHandle) ObserveTrace(_ observerdef.TraceView)           {}
-func (f *hfFilteredHandle) ObserveTraceStats(_ observerdef.TraceStatsView) {}
-func (f *hfFilteredHandle) ObserveProfile(p observerdef.ProfileView)       { f.inner.ObserveProfile(p) }
 
 // metricDropHandle drops every ObserveMetric call but lets logs and
 // profiles through. Used when observer.ingest_metrics.enabled=false so
@@ -828,9 +783,6 @@ func (m *metricDropHandle) ObserveMetricAndReportDrop(_ observerdef.MetricView) 
 	return true
 }
 func (m *metricDropHandle) ObserveLog(msg observerdef.LogView)             { m.inner.ObserveLog(msg) }
-func (m *metricDropHandle) ObserveTrace(_ observerdef.TraceView)           {}
-func (m *metricDropHandle) ObserveTraceStats(_ observerdef.TraceStatsView) {}
-func (m *metricDropHandle) ObserveProfile(p observerdef.ProfileView)       { m.inner.ObserveProfile(p) }
 
 // noopHandle returns a handle that discards all observations.
 // Used when analysis is disabled so the analysis pipeline is not started.
@@ -846,9 +798,6 @@ func (h *noopObserveHandle) ObserveMetricAndReportDrop(_ observerdef.MetricView)
 	return false
 }
 func (h *noopObserveHandle) ObserveLog(_ observerdef.LogView)               {}
-func (h *noopObserveHandle) ObserveTrace(_ observerdef.TraceView)           {}
-func (h *noopObserveHandle) ObserveTraceStats(_ observerdef.TraceStatsView) {}
-func (h *noopObserveHandle) ObserveProfile(_ observerdef.ProfileView)       {}
 
 // DumpMetrics writes all stored metrics to the specified file as JSON.
 func (o *observerImpl) DumpMetrics(path string) error {
@@ -922,44 +871,6 @@ func (h *handle) ObserveLog(msg observerdef.LogView) {
 			tags:        copyTags(msg.GetTags()),
 			hostname:    msg.GetHostname(),
 			timestampMs: timestampMs,
-		},
-	}
-
-	// Non-blocking send - drop if channel is full.
-	select {
-	case h.ch <- obs:
-	default:
-		h.dropCount.Add(1)
-		if h.dropCounter != nil {
-			h.dropCounter.Add(1, h.source)
-		}
-	}
-}
-
-// ObserveTrace is a no-op. Trace processing is not used.
-func (h *handle) ObserveTrace(_ observerdef.TraceView) {}
-
-// ObserveTraceStats is a no-op. Trace stats processing is deprioritized.
-func (h *handle) ObserveTraceStats(_ observerdef.TraceStatsView) {}
-
-// ObserveProfile observes a profiling sample.
-func (h *handle) ObserveProfile(profile observerdef.ProfileView) {
-	obs := observation{
-		source: h.source,
-		profile: &profileObs{
-			profileID:    profile.GetProfileID(),
-			profileType:  profile.GetProfileType(),
-			service:      profile.GetService(),
-			env:          profile.GetEnv(),
-			version:      profile.GetVersion(),
-			hostname:     profile.GetHostname(),
-			containerID:  profile.GetContainerID(),
-			timestamp:    profile.GetTimestampUnixNano(),
-			duration:     profile.GetDurationNano(),
-			tags:         copyStringMap(profile.GetTags()),
-			contentType:  profile.GetContentType(),
-			rawData:      copyBytes(profile.GetRawData()),
-			externalPath: profile.GetExternalPath(),
 		},
 	}
 

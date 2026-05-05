@@ -14,7 +14,7 @@ go_library(
         "//pkg/util/cachedfetch",
         "//pkg/util/http",
         "//pkg/util/log",
-        "@//comp/core/diagnose/def",
+        "@com_github_datadog_datadog_agent//comp/core/diagnose/def",
     ],
 )
 

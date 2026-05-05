@@ -12,7 +12,7 @@ go_library(
     deps = [
         "//pkg/privateactionrunner/adapters/logging",
         "//pkg/proto/pbgo/privateactionrunner/actionsclient",
-        "@//pkg/privateactionrunner/adapters/modes",
+        "@com_github_datadog_datadog_agent//pkg/privateactionrunner/adapters/modes",
         "@com_github_datadog_datadog_go_v5//statsd",
     ],
 )

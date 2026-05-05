@@ -12,7 +12,6 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/trace/compression/def",
-        "//comp/trace/observerbuffer/def",
         "//pkg/obfuscate",
         "//pkg/proto/pbgo/trace",
         "//pkg/proto/pbgo/trace/idx",

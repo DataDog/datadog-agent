@@ -15,8 +15,8 @@ go_library(
         "//pkg/util/cachedfetch",
         "//pkg/util/hostname/validate",
         "//pkg/util/http",
-        "@//comp/core/diagnose/def",
         "@com_github_cenkalti_backoff_v5//:backoff",
+        "@com_github_datadog_datadog_agent//comp/core/diagnose/def",
     ],
 )
 
