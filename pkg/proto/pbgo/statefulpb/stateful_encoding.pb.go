@@ -396,8 +396,17 @@ type FlatLog struct {
 	// Delta encoded json_schema_id: when 0 use last json_schema_id. Otherwise use json_schema_id in this dict entry.
 	// Use 1 to indicate no json_schema_id.
 	JsonSchemaId uint64 `protobuf:"varint,8,opt,name=json_schema_id,json=jsonSchemaId,proto3" json:"json_schema_id,omitempty"`
-	// Values for the json schema.
+	// Deprecated fallback values for the json schema.
 	JsonContextValues []*DynamicValue `protobuf:"bytes,9,rep,name=json_context_values,json=jsonContextValues,proto3" json:"json_context_values,omitempty"`
+	// Compact values for the json schema. json_context_value_kinds has one byte per schema key.
+	// Each kind consumes the next value from the corresponding packed value field.
+	// Kind values are defined by the JsonValueKind constants in the encoder/decoder.
+	JsonContextValueKinds   []byte    `protobuf:"bytes,10,opt,name=json_context_value_kinds,json=jsonContextValueKinds,proto3" json:"json_context_value_kinds,omitempty"`
+	JsonContextIntValues    []int64   `protobuf:"varint,11,rep,packed,name=json_context_int_values,json=jsonContextIntValues,proto3" json:"json_context_int_values,omitempty"`
+	JsonContextFloatValues  []float64 `protobuf:"fixed64,12,rep,packed,name=json_context_float_values,json=jsonContextFloatValues,proto3" json:"json_context_float_values,omitempty"`
+	JsonContextDictValues   []uint64  `protobuf:"varint,13,rep,packed,name=json_context_dict_values,json=jsonContextDictValues,proto3" json:"json_context_dict_values,omitempty"`
+	JsonContextRawValues    [][]byte  `protobuf:"bytes,14,rep,name=json_context_raw_values,json=jsonContextRawValues,proto3" json:"json_context_raw_values,omitempty"`
+	JsonContextStringValues []string  `protobuf:"bytes,15,rep,name=json_context_string_values,json=jsonContextStringValues,proto3" json:"json_context_string_values,omitempty"`
 	// Optional UUID used to track logs when dual-sent via HTTP and gRPC.
 	Uuid          *string `protobuf:"bytes,100,opt,name=uuid,proto3,oneof" json:"uuid,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -493,6 +502,48 @@ func (x *FlatLog) GetJsonSchemaId() uint64 {
 func (x *FlatLog) GetJsonContextValues() []*DynamicValue {
 	if x != nil {
 		return x.JsonContextValues
+	}
+	return nil
+}
+
+func (x *FlatLog) GetJsonContextValueKinds() []byte {
+	if x != nil {
+		return x.JsonContextValueKinds
+	}
+	return nil
+}
+
+func (x *FlatLog) GetJsonContextIntValues() []int64 {
+	if x != nil {
+		return x.JsonContextIntValues
+	}
+	return nil
+}
+
+func (x *FlatLog) GetJsonContextFloatValues() []float64 {
+	if x != nil {
+		return x.JsonContextFloatValues
+	}
+	return nil
+}
+
+func (x *FlatLog) GetJsonContextDictValues() []uint64 {
+	if x != nil {
+		return x.JsonContextDictValues
+	}
+	return nil
+}
+
+func (x *FlatLog) GetJsonContextRawValues() [][]byte {
+	if x != nil {
+		return x.JsonContextRawValues
+	}
+	return nil
+}
+
+func (x *FlatLog) GetJsonContextStringValues() []string {
+	if x != nil {
+		return x.JsonContextStringValues
 	}
 	return nil
 }
@@ -1455,7 +1506,7 @@ const file_datadog_stateful_stateful_encoding_proto_rawDesc = "" +
 	"\x06tagset\x18\x01 \x01(\v2%.datadog.intake.stateful.DynamicValueR\x06tagset\"{\n" +
 	"\x03Tag\x127\n" +
 	"\x03key\x18\x01 \x01(\v2%.datadog.intake.stateful.DynamicValueR\x03key\x12;\n" +
-	"\x05value\x18\x02 \x01(\v2%.datadog.intake.stateful.DynamicValueR\x05value\"\x92\x03\n" +
+	"\x05value\x18\x02 \x01(\v2%.datadog.intake.stateful.DynamicValueR\x05value\"\xea\x05\n" +
 	"\aFlatLog\x12\x1c\n" +
 	"\ttimestamp\x18\x01 \x01(\x12R\ttimestamp\x12\x16\n" +
 	"\x06status\x18\x02 \x01(\x04R\x06status\x12\x18\n" +
@@ -1466,7 +1517,14 @@ const file_datadog_stateful_stateful_encoding_proto_rawDesc = "" +
 	"\x0edynamic_values\x18\x06 \x03(\v2%.datadog.intake.stateful.DynamicValueR\rdynamicValues\x12\x17\n" +
 	"\araw_log\x18\a \x01(\tR\x06rawLog\x12$\n" +
 	"\x0ejson_schema_id\x18\b \x01(\x04R\fjsonSchemaId\x12U\n" +
-	"\x13json_context_values\x18\t \x03(\v2%.datadog.intake.stateful.DynamicValueR\x11jsonContextValues\x12\x17\n" +
+	"\x13json_context_values\x18\t \x03(\v2%.datadog.intake.stateful.DynamicValueR\x11jsonContextValues\x127\n" +
+	"\x18json_context_value_kinds\x18\n" +
+	" \x01(\fR\x15jsonContextValueKinds\x125\n" +
+	"\x17json_context_int_values\x18\v \x03(\x03R\x14jsonContextIntValues\x129\n" +
+	"\x19json_context_float_values\x18\f \x03(\x01R\x16jsonContextFloatValues\x127\n" +
+	"\x18json_context_dict_values\x18\r \x03(\x04R\x15jsonContextDictValues\x125\n" +
+	"\x17json_context_raw_values\x18\x0e \x03(\fR\x14jsonContextRawValues\x12;\n" +
+	"\x1ajson_context_string_values\x18\x0f \x03(\tR\x17jsonContextStringValues\x12\x17\n" +
 	"\x04uuid\x18d \x01(\tH\x00R\x04uuid\x88\x01\x01B\a\n" +
 	"\x05_uuid\"\xe3\x02\n" +
 	"\x03Log\x12\x1c\n" +

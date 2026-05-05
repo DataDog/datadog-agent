@@ -346,6 +346,82 @@ func (m *FlatLog) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0xa2
 	}
+	if len(m.JsonContextStringValues) > 0 {
+		for iNdEx := len(m.JsonContextStringValues) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.JsonContextStringValues[iNdEx])
+			copy(dAtA[i:], m.JsonContextStringValues[iNdEx])
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.JsonContextStringValues[iNdEx])))
+			i--
+			dAtA[i] = 0x7a
+		}
+	}
+	if len(m.JsonContextRawValues) > 0 {
+		for iNdEx := len(m.JsonContextRawValues) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.JsonContextRawValues[iNdEx])
+			copy(dAtA[i:], m.JsonContextRawValues[iNdEx])
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.JsonContextRawValues[iNdEx])))
+			i--
+			dAtA[i] = 0x72
+		}
+	}
+	if len(m.JsonContextDictValues) > 0 {
+		var pksize2 int
+		for _, num := range m.JsonContextDictValues {
+			pksize2 += protohelpers.SizeOfVarint(uint64(num))
+		}
+		i -= pksize2
+		j1 := i
+		for _, num := range m.JsonContextDictValues {
+			for num >= 1<<7 {
+				dAtA[j1] = uint8(uint64(num)&0x7f | 0x80)
+				num >>= 7
+				j1++
+			}
+			dAtA[j1] = uint8(num)
+			j1++
+		}
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize2))
+		i--
+		dAtA[i] = 0x6a
+	}
+	if len(m.JsonContextFloatValues) > 0 {
+		for iNdEx := len(m.JsonContextFloatValues) - 1; iNdEx >= 0; iNdEx-- {
+			f3 := math.Float64bits(float64(m.JsonContextFloatValues[iNdEx]))
+			i -= 8
+			binary.LittleEndian.PutUint64(dAtA[i:], uint64(f3))
+		}
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.JsonContextFloatValues)*8))
+		i--
+		dAtA[i] = 0x62
+	}
+	if len(m.JsonContextIntValues) > 0 {
+		var pksize5 int
+		for _, num := range m.JsonContextIntValues {
+			pksize5 += protohelpers.SizeOfVarint(uint64(num))
+		}
+		i -= pksize5
+		j4 := i
+		for _, num1 := range m.JsonContextIntValues {
+			num := uint64(num1)
+			for num >= 1<<7 {
+				dAtA[j4] = uint8(uint64(num)&0x7f | 0x80)
+				num >>= 7
+				j4++
+			}
+			dAtA[j4] = uint8(num)
+			j4++
+		}
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize5))
+		i--
+		dAtA[i] = 0x5a
+	}
+	if len(m.JsonContextValueKinds) > 0 {
+		i -= len(m.JsonContextValueKinds)
+		copy(dAtA[i:], m.JsonContextValueKinds)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.JsonContextValueKinds)))
+		i--
+		dAtA[i] = 0x52
+	}
 	if len(m.JsonContextValues) > 0 {
 		for iNdEx := len(m.JsonContextValues) - 1; iNdEx >= 0; iNdEx-- {
 			size, err := m.JsonContextValues[iNdEx].MarshalToSizedBufferVT(dAtA[:i])
@@ -1444,6 +1520,39 @@ func (m *FlatLog) SizeVT() (n int) {
 	if len(m.JsonContextValues) > 0 {
 		for _, e := range m.JsonContextValues {
 			l = e.SizeVT()
+			n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+		}
+	}
+	l = len(m.JsonContextValueKinds)
+	if l > 0 {
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	if len(m.JsonContextIntValues) > 0 {
+		l = 0
+		for _, e := range m.JsonContextIntValues {
+			l += protohelpers.SizeOfVarint(uint64(e))
+		}
+		n += 1 + protohelpers.SizeOfVarint(uint64(l)) + l
+	}
+	if len(m.JsonContextFloatValues) > 0 {
+		n += 1 + protohelpers.SizeOfVarint(uint64(len(m.JsonContextFloatValues)*8)) + len(m.JsonContextFloatValues)*8
+	}
+	if len(m.JsonContextDictValues) > 0 {
+		l = 0
+		for _, e := range m.JsonContextDictValues {
+			l += protohelpers.SizeOfVarint(uint64(e))
+		}
+		n += 1 + protohelpers.SizeOfVarint(uint64(l)) + l
+	}
+	if len(m.JsonContextRawValues) > 0 {
+		for _, b := range m.JsonContextRawValues {
+			l = len(b)
+			n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+		}
+	}
+	if len(m.JsonContextStringValues) > 0 {
+		for _, s := range m.JsonContextStringValues {
+			l = len(s)
 			n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 		}
 	}
@@ -2768,6 +2877,310 @@ func (m *FlatLog) UnmarshalVT(dAtA []byte) error {
 			if err := m.JsonContextValues[len(m.JsonContextValues)-1].UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
+			iNdEx = postIndex
+		case 10:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field JsonContextValueKinds", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.JsonContextValueKinds = append(m.JsonContextValueKinds[:0], dAtA[iNdEx:postIndex]...)
+			if m.JsonContextValueKinds == nil {
+				m.JsonContextValueKinds = []byte{}
+			}
+			iNdEx = postIndex
+		case 11:
+			if wireType == 0 {
+				var v int64
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return protohelpers.ErrIntOverflow
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					v |= int64(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				m.JsonContextIntValues = append(m.JsonContextIntValues, v)
+			} else if wireType == 2 {
+				var packedLen int
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return protohelpers.ErrIntOverflow
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					packedLen |= int(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				if packedLen < 0 {
+					return protohelpers.ErrInvalidLength
+				}
+				postIndex := iNdEx + packedLen
+				if postIndex < 0 {
+					return protohelpers.ErrInvalidLength
+				}
+				if postIndex > l {
+					return io.ErrUnexpectedEOF
+				}
+				var elementCount int
+				var count int
+				for _, integer := range dAtA[iNdEx:postIndex] {
+					if integer < 128 {
+						count++
+					}
+				}
+				elementCount = count
+				if elementCount != 0 && len(m.JsonContextIntValues) == 0 {
+					m.JsonContextIntValues = make([]int64, 0, elementCount)
+				}
+				for iNdEx < postIndex {
+					var v int64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return protohelpers.ErrIntOverflow
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						v |= int64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					m.JsonContextIntValues = append(m.JsonContextIntValues, v)
+				}
+			} else {
+				return fmt.Errorf("proto: wrong wireType = %d for field JsonContextIntValues", wireType)
+			}
+		case 12:
+			if wireType == 1 {
+				var v uint64
+				if (iNdEx + 8) > l {
+					return io.ErrUnexpectedEOF
+				}
+				v = uint64(binary.LittleEndian.Uint64(dAtA[iNdEx:]))
+				iNdEx += 8
+				v2 := float64(math.Float64frombits(v))
+				m.JsonContextFloatValues = append(m.JsonContextFloatValues, v2)
+			} else if wireType == 2 {
+				var packedLen int
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return protohelpers.ErrIntOverflow
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					packedLen |= int(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				if packedLen < 0 {
+					return protohelpers.ErrInvalidLength
+				}
+				postIndex := iNdEx + packedLen
+				if postIndex < 0 {
+					return protohelpers.ErrInvalidLength
+				}
+				if postIndex > l {
+					return io.ErrUnexpectedEOF
+				}
+				var elementCount int
+				elementCount = packedLen / 8
+				if elementCount != 0 && len(m.JsonContextFloatValues) == 0 {
+					m.JsonContextFloatValues = make([]float64, 0, elementCount)
+				}
+				for iNdEx < postIndex {
+					var v uint64
+					if (iNdEx + 8) > l {
+						return io.ErrUnexpectedEOF
+					}
+					v = uint64(binary.LittleEndian.Uint64(dAtA[iNdEx:]))
+					iNdEx += 8
+					v2 := float64(math.Float64frombits(v))
+					m.JsonContextFloatValues = append(m.JsonContextFloatValues, v2)
+				}
+			} else {
+				return fmt.Errorf("proto: wrong wireType = %d for field JsonContextFloatValues", wireType)
+			}
+		case 13:
+			if wireType == 0 {
+				var v uint64
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return protohelpers.ErrIntOverflow
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					v |= uint64(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				m.JsonContextDictValues = append(m.JsonContextDictValues, v)
+			} else if wireType == 2 {
+				var packedLen int
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return protohelpers.ErrIntOverflow
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					packedLen |= int(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				if packedLen < 0 {
+					return protohelpers.ErrInvalidLength
+				}
+				postIndex := iNdEx + packedLen
+				if postIndex < 0 {
+					return protohelpers.ErrInvalidLength
+				}
+				if postIndex > l {
+					return io.ErrUnexpectedEOF
+				}
+				var elementCount int
+				var count int
+				for _, integer := range dAtA[iNdEx:postIndex] {
+					if integer < 128 {
+						count++
+					}
+				}
+				elementCount = count
+				if elementCount != 0 && len(m.JsonContextDictValues) == 0 {
+					m.JsonContextDictValues = make([]uint64, 0, elementCount)
+				}
+				for iNdEx < postIndex {
+					var v uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return protohelpers.ErrIntOverflow
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						v |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					m.JsonContextDictValues = append(m.JsonContextDictValues, v)
+				}
+			} else {
+				return fmt.Errorf("proto: wrong wireType = %d for field JsonContextDictValues", wireType)
+			}
+		case 14:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field JsonContextRawValues", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.JsonContextRawValues = append(m.JsonContextRawValues, make([]byte, postIndex-iNdEx))
+			copy(m.JsonContextRawValues[len(m.JsonContextRawValues)-1], dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 15:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field JsonContextStringValues", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.JsonContextStringValues = append(m.JsonContextStringValues, string(dAtA[iNdEx:postIndex]))
 			iNdEx = postIndex
 		case 100:
 			if wireType != 2 {
