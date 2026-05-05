@@ -20,8 +20,9 @@ import (
 // - Monotonic counts: sum values
 // - Histograms: accumulate all values
 type localAggregator struct {
-	metrics          map[string]*aggregatedMetric
-	histogramBuckets map[string]*aggregatedHistogramBucket
+	metrics            map[string]*aggregatedMetric
+	histogramBuckets   map[string]*aggregatedHistogramBucket
+	openmetricsBuckets map[string]*aggregatedHistogramBucket
 }
 
 type aggregatedMetric struct {
@@ -48,8 +49,9 @@ type aggregatedHistogramBucket struct {
 
 func newLocalAggregator() *localAggregator {
 	return &localAggregator{
-		metrics:          make(map[string]*aggregatedMetric),
-		histogramBuckets: make(map[string]*aggregatedHistogramBucket),
+		metrics:            make(map[string]*aggregatedMetric),
+		histogramBuckets:   make(map[string]*aggregatedHistogramBucket),
+		openmetricsBuckets: make(map[string]*aggregatedHistogramBucket),
 	}
 }
 
@@ -208,6 +210,35 @@ func (a *localAggregator) addHistogramBucket(name string, value int64, lowerBoun
 			flushFirstValue: flushFirstValue,
 		}
 	}
+}
+
+// addOpenmetricsBucket adds an OpenMetrics histogram bucket, summing values for identical keys
+func (a *localAggregator) addOpenmetricsBucket(name string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool) {
+	key := metricKey(name, tags, hostname)
+	if existing, found := a.openmetricsBuckets[key]; found {
+		existing.value += value
+	} else {
+		a.openmetricsBuckets[key] = &aggregatedHistogramBucket{
+			name:            name,
+			value:           value,
+			lowerBound:      lowerBound,
+			upperBound:      upperBound,
+			monotonic:       monotonic,
+			hostname:        hostname,
+			tags:            tags,
+			flushFirstValue: flushFirstValue,
+		}
+	}
+}
+
+// flushOpenmetricsBuckets returns all aggregated OpenMetrics buckets and resets them
+func (a *localAggregator) flushOpenmetricsBuckets() []aggregatedHistogramBucket {
+	result := make([]aggregatedHistogramBucket, 0, len(a.openmetricsBuckets))
+	for _, bucket := range a.openmetricsBuckets {
+		result = append(result, *bucket)
+	}
+	a.openmetricsBuckets = make(map[string]*aggregatedHistogramBucket)
+	return result
 }
 
 // flush returns all aggregated metrics and resets the aggregator

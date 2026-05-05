@@ -99,6 +99,7 @@ func TestAggregatingSender_SourcePopulated(t *testing.T) {
 		{"GaugeWithTimestamp", func() { s.GaugeWithTimestamp("m", 1, "", nil, 0) }}, //nolint:errcheck
 		{"CountWithTimestamp", func() { s.CountWithTimestamp("m", 1, "", nil, 0) }}, //nolint:errcheck
 		{"HistogramBucket", func() { s.HistogramBucket("m", 1, 0, 1, false, "", nil, false) }},
+		{"OpenmetricsBucket", func() { s.OpenmetricsBucket("m", 1, 0, 1, false, "", nil, false) }},
 	}
 
 	for _, c := range calls {
