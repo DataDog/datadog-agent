@@ -21,7 +21,7 @@ require (
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3
 	github.com/docker/cli v29.2.0+incompatible // indirect
-	github.com/fatih/color v1.18.0
+	github.com/fatih/color v1.19.0
 	github.com/google/uuid v1.6.0
 	github.com/kr/pretty v0.3.1
 	github.com/pkg/sftp v1.13.9 // indirect
@@ -176,7 +176,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.43.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.4
-	golang.org/x/exp v0.0.0-20260312153236-7ab1446f8b90
+	golang.org/x/exp v0.0.0-20260312153236-7ab1446f8b90 // indirect
 	golang.org/x/mod v0.35.0
 	golang.org/x/net v0.53.0
 	golang.org/x/oauth2 v0.36.0 // indirect
@@ -361,7 +361,7 @@ require (
 	github.com/rs/zerolog v1.34.0 // indirect
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.10.0 // indirect
-	github.com/shirou/gopsutil/v4 v4.26.3 // indirect
+	github.com/shirou/gopsutil/v4 v4.26.4 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.16 // indirect

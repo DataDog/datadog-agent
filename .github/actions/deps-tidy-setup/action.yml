@@ -1,0 +1,16 @@
+---
+name: Deps Tidy Setup
+description: Acquire push token and warm Bazel cache for dependency tidying
+outputs:
+  token:
+    description: octo-sts token for use by deps-tidy-push
+    value: ${{ steps.octo-sts.outputs.token }}
+runs:
+  using: composite
+  steps:
+    - uses: DataDog/dd-octo-sts-action@96a25462dbcb10ebf0bfd6e2ccc917d2ab235b9a # v1.0.4
+      id: octo-sts
+      with:
+        scope: DataDog/datadog-agent
+        policy: self.deps-tidy.push-branch
+    - uses: ./.github/actions/bazel-cache

@@ -204,12 +204,20 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 
 	pkgconfig.Set("apm_config.receiver_enabled", false, pkgconfigmodel.SourceDefault) // disable HTTP receiver
 	pkgconfig.Set("apm_config.ignore_resources", ddc.Traces.IgnoreResources, pkgconfigmodel.SourceFile)
-	pkgconfig.Set("apm_config.skip_ssl_validation", ddc.ClientConfig.TLS.InsecureSkipVerify, pkgconfigmodel.SourceFile)
 	if v := ddc.Traces.TraceBuffer; v > 0 {
 		pkgconfig.Set("apm_config.trace_buffer", v, pkgconfigmodel.SourceFile)
 	}
 	if addr := ddc.Traces.Endpoint; addr != "" {
 		pkgconfig.Set("apm_config.apm_dd_url", addr, pkgconfigmodel.SourceFile)
+	}
+	// Standalone mode runs without a core Datadog Agent on the same host, so
+	// every client that would otherwise contact it over IPC (trace-agent
+	// hostname acquisition, remote tagger, remote workloadmeta, ...) must be
+	// disabled. cmd_port=-1 is the conventional way to express "no core agent
+	// IPC" and is honored by those callers; forcing it here means users only
+	// have to set DD_OTEL_STANDALONE=true.
+	if pkgconfig.GetBool("otel_standalone") {
+		pkgconfig.Set("cmd_port", -1, pkgconfigmodel.SourceAgentRuntime)
 	}
 	if pkgconfig.GetInt("cmd_port") <= 0 {
 		pkgconfig.Set("remote_configuration.enabled", false, pkgconfigmodel.SourceFile)

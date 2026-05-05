@@ -10,10 +10,10 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.73.2
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/cenkalti/backoff/v5 v5.0.3
-	github.com/fatih/color v1.18.0
+	github.com/fatih/color v1.19.0
 	github.com/google/go-containerregistry v0.20.7
 	github.com/google/uuid v1.6.0
-	github.com/shirou/gopsutil/v4 v4.26.3
+	github.com/shirou/gopsutil/v4 v4.26.4
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
 	go.etcd.io/bbolt v1.4.3
