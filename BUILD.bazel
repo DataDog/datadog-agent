@@ -25,6 +25,8 @@ exports_files(glob(
 # gazelle:exclude cmd/internal
 # gazelle:exclude cmd/iot-agent
 # gazelle:exclude cmd/loader
+# gazelle:exclude cmd/observer-scorer
+# gazelle:exclude cmd/observer-testbench
 # gazelle:exclude cmd/otel-agent
 # gazelle:exclude cmd/privateactionrunner
 # gazelle:exclude cmd/process-agent
