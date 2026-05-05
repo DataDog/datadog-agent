@@ -76,11 +76,11 @@ func (c *nvlinkFECCollector) Collect() ([]Metric, error) {
 
 	for _, port := range c.ports {
 		metrics, err := c.getPortMetrics(port)
+		allMetrics = append(allMetrics, metrics...)
 		if err != nil {
 			multiErr = multierror.Append(multiErr, fmt.Errorf("get port metrics for port %d: %w", port, err))
 			continue
 		}
-		allMetrics = append(allMetrics, metrics...)
 	}
 
 	return allMetrics, multiErr

@@ -30,12 +30,18 @@ func TestNVLinkFECCollectorScopesAndBuckets(t *testing.T) {
 	mockDevice := setupMockDeviceWithLibOpts(t, func(device *mock.Device) *mock.Device {
 		testutil.WithMockAllDeviceFunctions()(device)
 		device.GetFieldValuesFunc = func(values []nvml.FieldValue) nvml.Return {
-			require.Len(t, values, len(nvlinkFECHistoryFieldIDs))
+			if len(values) == 1 && values[0].FieldId == nvml.FI_DEV_NVLINK_LINK_COUNT {
+				values[0].NvmlReturn = uint32(nvml.SUCCESS)
+				values[0].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_INT)
+				binary.LittleEndian.PutUint32(values[0].Value[:], 1)
+				return nvml.SUCCESS
+			}
 
+			require.Len(t, values, len(nvlinkFECHistoryFieldIDs))
 			for i := range values {
 				requests = append(requests, fieldRequest{fieldID: values[i].FieldId, scopeID: values[i].ScopeId})
 				require.Equal(t, nvlinkFECHistoryFieldIDs[i], values[i].FieldId)
-				require.Equal(t, uint32(1), values[i].ScopeId)
+				require.Equal(t, uint32(0), values[i].ScopeId)
 				values[i].NvmlReturn = uint32(nvml.SUCCESS)
 				values[i].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_LONG_LONG)
 				binary.LittleEndian.PutUint64(values[i].Value[:], uint64(100+i))
@@ -45,11 +51,12 @@ func TestNVLinkFECCollectorScopesAndBuckets(t *testing.T) {
 		return device
 	})
 
-	collector, err := newNVLinkFECCollector(mockDevice, 2, nil)
+	collector, err := newNVLinkFECCollector(mockDevice, nil)
 	require.NoError(t, err)
 	require.Equal(t, nvlinkFEC, collector.Name())
 	require.Equal(t, mockDevice.GetDeviceInfo().UUID, collector.DeviceUUID())
 
+	requests = nil
 	collectedMetrics, err := collector.Collect()
 	require.NoError(t, err)
 	require.Len(t, collectedMetrics, len(nvlinkFECHistoryFieldIDs)*2)
@@ -65,7 +72,7 @@ func TestNVLinkFECCollectorScopesAndBuckets(t *testing.T) {
 			require.Equal(t, metrics.HistogramType, metric.Type)
 			require.Equal(t, float64(100+bucket), metric.Value)
 			require.Equal(t, Medium, metric.Priority)
-			require.Contains(t, metric.Tags, "nvlink_port:2")
+			require.Contains(t, metric.Tags, "nvlink_port:1")
 			require.NotNil(t, metric.HistogramBucket)
 			require.Equal(t, [2]float64{float64(bucket), float64(bucket + 1)}, metric.HistogramBucket.Bounds)
 			require.True(t, metric.HistogramBucket.Monotonic)
@@ -75,24 +82,34 @@ func TestNVLinkFECCollectorScopesAndBuckets(t *testing.T) {
 }
 
 func TestNVLinkFECCollectorPartialFieldFailure(t *testing.T) {
+	fieldValueCalls := 0
 	mockDevice := setupMockDeviceWithLibOpts(t, func(device *mock.Device) *mock.Device {
 		testutil.WithMockAllDeviceFunctions()(device)
 		device.GetFieldValuesFunc = func(values []nvml.FieldValue) nvml.Return {
-			require.Len(t, values, len(nvlinkFECHistoryFieldIDs))
+			if len(values) == 1 && values[0].FieldId == nvml.FI_DEV_NVLINK_LINK_COUNT {
+				values[0].NvmlReturn = uint32(nvml.SUCCESS)
+				values[0].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_INT)
+				binary.LittleEndian.PutUint32(values[0].Value[:], 1)
+				return nvml.SUCCESS
+			}
 
+			fieldValueCalls++
+			require.Len(t, values, len(nvlinkFECHistoryFieldIDs))
 			for i := range values {
 				values[i].NvmlReturn = uint32(nvml.SUCCESS)
 				values[i].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_LONG_LONG)
 				binary.LittleEndian.PutUint64(values[i].Value[:], uint64(i+1))
 			}
-			values[3].NvmlReturn = uint32(nvml.ERROR_NOT_SUPPORTED)
-			values[7].ValueType = uint32(9999)
+			if fieldValueCalls > 1 {
+				values[3].NvmlReturn = uint32(nvml.ERROR_NOT_SUPPORTED)
+				values[7].ValueType = uint32(9999)
+			}
 			return nvml.SUCCESS
 		}
 		return device
 	})
 
-	collector, err := newNVLinkFECCollector(mockDevice, 1, nil)
+	collector, err := newNVLinkFECCollector(mockDevice, nil)
 	require.NoError(t, err)
 
 	collectedMetrics, err := collector.Collect()
@@ -103,20 +120,32 @@ func TestNVLinkFECCollectorPartialFieldFailure(t *testing.T) {
 }
 
 func TestNVLinkFECCollectorAllFieldsFail(t *testing.T) {
+	fieldValueCalls := 0
 	mockDevice := setupMockDeviceWithLibOpts(t, func(device *mock.Device) *mock.Device {
 		testutil.WithMockAllDeviceFunctions()(device)
 		device.GetFieldValuesFunc = func(values []nvml.FieldValue) nvml.Return {
-			require.Len(t, values, len(nvlinkFECHistoryFieldIDs))
+			if len(values) == 1 && values[0].FieldId == nvml.FI_DEV_NVLINK_LINK_COUNT {
+				values[0].NvmlReturn = uint32(nvml.SUCCESS)
+				values[0].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_INT)
+				binary.LittleEndian.PutUint32(values[0].Value[:], 1)
+				return nvml.SUCCESS
+			}
 
+			fieldValueCalls++
+			require.Len(t, values, len(nvlinkFECHistoryFieldIDs))
 			for i := range values {
-				values[i].NvmlReturn = uint32(nvml.ERROR_NOT_SUPPORTED)
+				values[i].NvmlReturn = uint32(nvml.SUCCESS)
+				values[i].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_LONG_LONG)
+				if fieldValueCalls > 1 {
+					values[i].NvmlReturn = uint32(nvml.ERROR_NOT_SUPPORTED)
+				}
 			}
 			return nvml.SUCCESS
 		}
 		return device
 	})
 
-	collector, err := newNVLinkFECCollector(mockDevice, 1, nil)
+	collector, err := newNVLinkFECCollector(mockDevice, nil)
 	require.NoError(t, err)
 
 	collectedMetrics, err := collector.Collect()
