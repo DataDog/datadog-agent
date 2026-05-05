@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "platform",
@@ -16,25 +16,25 @@ go_library(
     deps = [
         "//pkg/gohai/utils",
     ] + select({
-        "@rules_go//go/platform:aix": [
+        "@io_bazel_rules_go//go/platform:aix": [
             "@com_github_shirou_gopsutil_v4//host",
             "@org_golang_x_sys//unix",
         ],
-        "@rules_go//go/platform:android": [
+        "@io_bazel_rules_go//go/platform:android": [
             "@org_golang_x_sys//unix",
         ],
-        "@rules_go//go/platform:darwin": [
+        "@io_bazel_rules_go//go/platform:darwin": [
             "//pkg/util/log",
             "@org_golang_x_sys//unix",
         ],
-        "@rules_go//go/platform:ios": [
+        "@io_bazel_rules_go//go/platform:ios": [
             "//pkg/util/log",
             "@org_golang_x_sys//unix",
         ],
-        "@rules_go//go/platform:linux": [
+        "@io_bazel_rules_go//go/platform:linux": [
             "@org_golang_x_sys//unix",
         ],
-        "@rules_go//go/platform:windows": [
+        "@io_bazel_rules_go//go/platform:windows": [
             "@org_golang_x_sys//windows",
             "@org_golang_x_sys//windows/registry",
         ],
@@ -55,19 +55,19 @@ go_test(
         "//pkg/gohai/utils",
         "@com_github_stretchr_testify//assert",
     ] + select({
-        "@rules_go//go/platform:android": [
+        "@io_bazel_rules_go//go/platform:android": [
             "@com_github_stretchr_testify//require",
             "@org_golang_x_sys//unix",
         ],
-        "@rules_go//go/platform:darwin": [
+        "@io_bazel_rules_go//go/platform:darwin": [
             "@com_github_stretchr_testify//require",
             "@org_golang_x_sys//unix",
         ],
-        "@rules_go//go/platform:ios": [
+        "@io_bazel_rules_go//go/platform:ios": [
             "@com_github_stretchr_testify//require",
             "@org_golang_x_sys//unix",
         ],
-        "@rules_go//go/platform:linux": [
+        "@io_bazel_rules_go//go/platform:linux": [
             "@com_github_stretchr_testify//require",
             "@org_golang_x_sys//unix",
         ],

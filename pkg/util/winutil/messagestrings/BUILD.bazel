@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
 load("//bazel/rules:windows_resources.bzl", "win_messagetable")
 
 win_messagetable(

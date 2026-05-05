@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "packets",
@@ -22,7 +22,7 @@ go_library(
         "//pkg/util/sync",
         "@org_uber_go_atomic//:atomic",
     ] + select({
-        "@rules_go//go/platform:windows": [
+        "@io_bazel_rules_go//go/platform:windows": [
             "//pkg/config/model",
         ],
         "//conditions:default": [],

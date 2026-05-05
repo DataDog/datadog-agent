@@ -1,5 +1,5 @@
 # gazelle:ignore
-load("@rules_go//go:def.bzl", "go_library")
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go_stringer:defs.bzl", "go_stringer")
 
 go_library(

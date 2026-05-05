@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "bookmark",
@@ -11,7 +11,7 @@ go_library(
     target_compatible_with = ["@platforms//os:windows"],  # keep
     visibility = ["//visibility:public"],
     deps = select({
-        "@rules_go//go/platform:windows": [
+        "@io_bazel_rules_go//go/platform:windows": [
             "//pkg/util/log",
             "//pkg/util/winutil/eventlog/api",
             "@com_github_stretchr_testify//mock",

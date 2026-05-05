@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "telemetry",
@@ -18,10 +18,10 @@ go_library(
         "@//comp/dogstatsd/constants",
         "@com_github_datadog_datadog_go_v5//statsd",
     ] + select({
-        "@rules_go//go/platform:android": [
+        "@io_bazel_rules_go//go/platform:android": [
             "@//pkg/security/metrics",
         ],
-        "@rules_go//go/platform:linux": [
+        "@io_bazel_rules_go//go/platform:linux": [
             "@//pkg/security/metrics",
         ],
         "//conditions:default": [],

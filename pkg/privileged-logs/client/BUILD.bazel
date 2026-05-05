@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "client",
@@ -9,12 +9,12 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/privileged-logs/client",
     visibility = ["//visibility:public"],
     deps = select({
-        "@rules_go//go/platform:android": [
+        "@io_bazel_rules_go//go/platform:android": [
             "//pkg/config/setup",
             "//pkg/privileged-logs/common",
             "//pkg/util/log",
         ],
-        "@rules_go//go/platform:linux": [
+        "@io_bazel_rules_go//go/platform:linux": [
             "//pkg/config/setup",
             "//pkg/privileged-logs/common",
             "//pkg/util/log",

@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "flags",
@@ -9,7 +9,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/cmd/trace-agent/internal/flags",
     visibility = ["//cmd/trace-agent:__subpackages__"],
     deps = select({
-        "@rules_go//go/platform:windows": [
+        "@io_bazel_rules_go//go/platform:windows": [
             "//pkg/util/winutil",
         ],
         "//conditions:default": [],

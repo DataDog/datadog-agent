@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "systemd",
@@ -9,77 +9,77 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/systemd",
     visibility = ["//visibility:public"],
     deps = select({
-        "@rules_go//go/platform:aix": [
+        "@io_bazel_rules_go//go/platform:aix": [
             "//pkg/fleet/installer/telemetry",
             "//pkg/util/log",
             "@org_uber_go_multierr//:multierr",
         ],
-        "@rules_go//go/platform:android": [
+        "@io_bazel_rules_go//go/platform:android": [
             "//pkg/fleet/installer/telemetry",
             "//pkg/util/log",
             "@org_uber_go_multierr//:multierr",
         ],
-        "@rules_go//go/platform:darwin": [
+        "@io_bazel_rules_go//go/platform:darwin": [
             "//pkg/fleet/installer/telemetry",
             "//pkg/util/log",
             "@org_uber_go_multierr//:multierr",
         ],
-        "@rules_go//go/platform:dragonfly": [
+        "@io_bazel_rules_go//go/platform:dragonfly": [
             "//pkg/fleet/installer/telemetry",
             "//pkg/util/log",
             "@org_uber_go_multierr//:multierr",
         ],
-        "@rules_go//go/platform:freebsd": [
+        "@io_bazel_rules_go//go/platform:freebsd": [
             "//pkg/fleet/installer/telemetry",
             "//pkg/util/log",
             "@org_uber_go_multierr//:multierr",
         ],
-        "@rules_go//go/platform:illumos": [
+        "@io_bazel_rules_go//go/platform:illumos": [
             "//pkg/fleet/installer/telemetry",
             "//pkg/util/log",
             "@org_uber_go_multierr//:multierr",
         ],
-        "@rules_go//go/platform:ios": [
+        "@io_bazel_rules_go//go/platform:ios": [
             "//pkg/fleet/installer/telemetry",
             "//pkg/util/log",
             "@org_uber_go_multierr//:multierr",
         ],
-        "@rules_go//go/platform:js": [
+        "@io_bazel_rules_go//go/platform:js": [
             "//pkg/fleet/installer/telemetry",
             "//pkg/util/log",
             "@org_uber_go_multierr//:multierr",
         ],
-        "@rules_go//go/platform:linux": [
+        "@io_bazel_rules_go//go/platform:linux": [
             "//pkg/fleet/installer/telemetry",
             "//pkg/util/log",
             "@org_uber_go_multierr//:multierr",
         ],
-        "@rules_go//go/platform:netbsd": [
+        "@io_bazel_rules_go//go/platform:netbsd": [
             "//pkg/fleet/installer/telemetry",
             "//pkg/util/log",
             "@org_uber_go_multierr//:multierr",
         ],
-        "@rules_go//go/platform:openbsd": [
+        "@io_bazel_rules_go//go/platform:openbsd": [
             "//pkg/fleet/installer/telemetry",
             "//pkg/util/log",
             "@org_uber_go_multierr//:multierr",
         ],
-        "@rules_go//go/platform:osx": [
+        "@io_bazel_rules_go//go/platform:osx": [
             "//pkg/fleet/installer/telemetry",
             "//pkg/util/log",
             "@org_uber_go_multierr//:multierr",
         ],
-        "@rules_go//go/platform:plan9": [
+        "@io_bazel_rules_go//go/platform:plan9": [
             "//pkg/fleet/installer/telemetry",
             "//pkg/util/log",
             "@org_uber_go_multierr//:multierr",
         ],
-        "@rules_go//go/platform:qnx": [
+        "@io_bazel_rules_go//go/platform:qnx": [
             "//pkg/fleet/installer/telemetry",
             "//pkg/util/log",
             "@org_uber_go_multierr//:multierr",
         ],
-        "@rules_go//go/platform:solaris": [
+        "@io_bazel_rules_go//go/platform:solaris": [
             "//pkg/fleet/installer/telemetry",
             "//pkg/util/log",
             "@org_uber_go_multierr//:multierr",

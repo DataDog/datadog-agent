@@ -1,6 +1,6 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+load("@io_bazel_rules_go//proto:def.bzl", "go_proto_library")
 load("@protobuf//bazel:proto_library.bzl", "proto_library")
-load("@rules_go//go:def.bzl", "go_library", "go_test")
-load("@rules_go//proto:def.bzl", "go_proto_library")
 load("//bazel/rules/write_pb_go:defs.bzl", "write_pb_go")
 
 # gazelle:proto_strip_import_prefix /comp/forwarder/defaultforwarder/internal/retry

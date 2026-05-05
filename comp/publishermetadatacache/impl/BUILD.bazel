@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "impl",
@@ -6,7 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/publishermetadatacache/impl",
     visibility = ["//visibility:public"],
     deps = select({
-        "@rules_go//go/platform:windows": [
+        "@io_bazel_rules_go//go/platform:windows": [
             "//comp/def",
             "//comp/publishermetadatacache/def",
             "//pkg/util/winutil/eventlog/api/windows",

@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "winutil",
@@ -26,7 +26,7 @@ go_library(
     target_compatible_with = ["@platforms//os:windows"],  # keep
     visibility = ["//visibility:public"],
     deps = select({
-        "@rules_go//go/platform:windows": [
+        "@io_bazel_rules_go//go/platform:windows": [
             "//pkg/util/log",
             "@org_golang_x_sys//windows",
             "@org_golang_x_sys//windows/registry",
@@ -51,7 +51,7 @@ go_test(
     gotags = ["test"],
     target_compatible_with = ["@platforms//os:windows"],  # keep
     deps = select({
-        "@rules_go//go/platform:windows": [
+        "@io_bazel_rules_go//go/platform:windows": [
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
             "@com_github_stretchr_testify//suite",

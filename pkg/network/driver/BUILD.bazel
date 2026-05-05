@@ -1,5 +1,5 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
 load("@rules_cc//cc:defs.bzl", "cc_library")
-load("@rules_go//go:def.bzl", "go_library", "go_test")
 load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
 
 exports_files([
@@ -36,7 +36,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/network/driver",
     visibility = ["//visibility:public"],
     deps = select({
-        "@rules_go//go/platform:windows": [
+        "@io_bazel_rules_go//go/platform:windows": [
             "//comp/core/telemetry/def",
             "//comp/core/telemetry/impl",
             "//pkg/util/log",
@@ -54,7 +54,7 @@ go_test(
     embed = [":driver"],
     gotags = ["test"],
     deps = select({
-        "@rules_go//go/platform:windows": [
+        "@io_bazel_rules_go//go/platform:windows": [
             "@com_github_stretchr_testify//assert",
             "@org_golang_x_sys//windows",
         ],

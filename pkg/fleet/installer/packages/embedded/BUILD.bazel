@@ -1,6 +1,6 @@
 """Scripts and configuration embedded into the installer as data."""
 
-load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
 
 exports_files(
     glob(["**/*.tmpl"]),

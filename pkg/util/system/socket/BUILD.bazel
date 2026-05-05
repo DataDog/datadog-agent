@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "socket",
@@ -14,7 +14,7 @@ go_library(
     deps = [
         "@com_github_mdlayher_vsock//:vsock",
     ] + select({
-        "@rules_go//go/platform:windows": [
+        "@io_bazel_rules_go//go/platform:windows": [
             "@com_github_microsoft_go_winio//:go-winio",
         ],
         "//conditions:default": [],

@@ -1,6 +1,6 @@
 load("@bazel_lib//lib:expand_template.bzl", "expand_template")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
-load("@rules_go//go:def.bzl", "go_library")
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
 
 # gazelle:go_stringer off
 

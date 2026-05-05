@@ -1,7 +1,7 @@
 def _impl(rctx):
     rctx.file("stringer.go", rctx.read(rctx.attr.stringer_orig))
     rctx.patch(rctx.attr.stringer_patch)
-    rctx.file("BUILD.bazel", """load("@rules_go//go:def.bzl", "go_binary")
+    rctx.file("BUILD.bazel", """load("@io_bazel_rules_go//go:def.bzl", "go_binary")
 
 go_binary(
     name = "go_stringer",
