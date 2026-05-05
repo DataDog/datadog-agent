@@ -156,7 +156,6 @@ exports_files(glob(
 # gazelle:exclude comp/healthplatform/fx
 # gazelle:exclude comp/healthplatform/impl
 # gazelle:exclude comp/healthplatform/mock
-# gazelle:exclude comp/host-profiler/collector/fx
 # gazelle:exclude comp/host-profiler/collector/impl/agentprovider
 # gazelle:exclude comp/host-profiler/collector/impl/converters
 # gazelle:exclude comp/host-profiler/collector/impl/params
