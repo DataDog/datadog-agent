@@ -54,7 +54,10 @@ exports_files(glob(
 # gazelle:exclude cmd/systray
 # gazelle:exclude cmd/testdata
 # gazelle:exclude cmd/trace-agent
-# gazelle:exclude comp/agent
+# gazelle:exclude comp/agent/bundle.go
+# gazelle:exclude comp/agent/bundle_test.go
+# gazelle:exclude comp/agent/cloudfoundrycontainer/fx
+# gazelle:exclude comp/agent/cloudfoundrycontainer/impl
 # gazelle:exclude comp/aggregator
 # gazelle:exclude comp/api/api/apiimpl/api.go
 # gazelle:exclude comp/api/api/apiimpl/api_mock.go
@@ -131,7 +134,10 @@ exports_files(glob(
 # gazelle:exclude comp/core/workloadfilter/fx
 # gazelle:exclude comp/core/workloadfilter/fx-mock
 # gazelle:exclude comp/core/workloadfilter/fx-remote
-# gazelle:exclude comp/core/workloadfilter/impl
+# gazelle:exclude comp/core/workloadfilter/impl/filter.go
+# gazelle:exclude comp/core/workloadfilter/impl/filter_mock.go
+# gazelle:exclude comp/core/workloadfilter/impl/filter_mock_test.go
+# gazelle:exclude comp/core/workloadfilter/impl/filter_test.go
 # gazelle:exclude comp/core/workloadfilter/program
 # gazelle:exclude comp/core/workloadfilter/remoteimpl
 # gazelle:exclude comp/core/workloadfilter/util/docker
