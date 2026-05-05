@@ -49,6 +49,10 @@ message FilterProcess {
   repeated string args = 3;
   // log_file is only set when the rules are evaluated by the logs component.
   string log_file = 4;
+  // tcp_ports lists the TCP ports the process is listening on, if any.
+  // Signed int32 (rather than uint32) so that CEL rules can compare with
+  // unsuffixed integer literals; ports never exceed 65535 in practice.
+  repeated int32 tcp_ports = 5;
 }
 
 message FilterECSTask {

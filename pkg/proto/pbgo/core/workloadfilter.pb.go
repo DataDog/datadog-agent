@@ -440,7 +440,11 @@ type FilterProcess struct {
 	Cmdline string                 `protobuf:"bytes,2,opt,name=cmdline,proto3" json:"cmdline,omitempty"`
 	Args    []string               `protobuf:"bytes,3,rep,name=args,proto3" json:"args,omitempty"`
 	// log_file is only set when the rules are evaluated by the logs component.
-	LogFile       string `protobuf:"bytes,4,opt,name=log_file,json=logFile,proto3" json:"log_file,omitempty"`
+	LogFile string `protobuf:"bytes,4,opt,name=log_file,json=logFile,proto3" json:"log_file,omitempty"`
+	// tcp_ports lists the TCP ports the process is listening on, if any.
+	// Signed int32 (rather than uint32) so that CEL rules can compare with
+	// unsuffixed integer literals; ports never exceed 65535 in practice.
+	TcpPorts      []int32 `protobuf:"varint,5,rep,packed,name=tcp_ports,json=tcpPorts,proto3" json:"tcp_ports,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -501,6 +505,13 @@ func (x *FilterProcess) GetLogFile() string {
 		return x.LogFile
 	}
 	return ""
+}
+
+func (x *FilterProcess) GetTcpPorts() []int32 {
+	if x != nil {
+		return x.TcpPorts
+	}
+	return nil
 }
 
 type FilterECSTask struct {
@@ -750,12 +761,13 @@ const file_datadog_workloadfilter_workloadfilter_proto_rawDesc = "" +
 	"\vannotations\x18\x04 \x03(\v22.datadog.workloadfilter.FilterPod.AnnotationsEntryR\vannotations\x1a>\n" +
 	"\x10AnnotationsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"l\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x89\x01\n" +
 	"\rFilterProcess\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x18\n" +
 	"\acmdline\x18\x02 \x01(\tR\acmdline\x12\x12\n" +
 	"\x04args\x18\x03 \x03(\tR\x04args\x12\x19\n" +
-	"\blog_file\x18\x04 \x01(\tR\alogFile\"1\n" +
+	"\blog_file\x18\x04 \x01(\tR\alogFile\x12\x1b\n" +
+	"\ttcp_ports\x18\x05 \x03(\x05R\btcpPorts\"1\n" +
 	"\rFilterECSTask\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x10\n" +
 	"\x03arn\x18\x02 \x01(\tR\x03arn\"\xe3\x01\n" +
