@@ -74,11 +74,10 @@ func (s *packageDDOTSuite) TestInstallDDOTInstallScript() {
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
 
 	// Wait for services to be active
-	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, ddotUnit)
+	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, procmgrUnit)
 
 	state := s.host.State()
 	s.assertCoreUnits(state, false)
-	s.assertDDOTUnits(state, false)
 
 	// Verify configuration files exist
 	state.AssertFileExists("/etc/datadog-agent/datadog.yaml", 0640, "dd-agent", "dd-agent")
@@ -238,55 +237,43 @@ func (s *packageDDOTSuite) waitForUnitStableRunning(units ...string) {
 }
 
 func (s *packageDDOTSuite) assertCoreUnits(state host.State, oldUnits bool) {
-	state.AssertUnitsLoaded(agentUnit, traceUnit, processUnit, probeUnit, securityUnit)
+	state.AssertUnitsLoaded(agentUnit, traceUnit, processUnit, probeUnit, securityUnit, procmgrUnit)
 	state.AssertUnitsEnabled(agentUnit)
-	state.AssertUnitsRunning(agentUnit, traceUnit) //cannot assert process-agent and system-probe because they may be running or dead based on timing
-	state.AssertUnitsDead(securityUnit)
-
-	systemdPath := "/etc/systemd/system"
-	if oldUnits {
-		pkgManager := s.host.GetPkgManager()
-		switch pkgManager {
-		case "apt":
-			if s.os.Flavor == e2eos.Ubuntu {
-				// Ubuntu 24.04 moved to a new systemd path
-				systemdPath = "/usr/lib/systemd/system"
-			} else {
-				systemdPath = "/lib/systemd/system"
-			}
-		case "yum", "zypper":
-			systemdPath = "/usr/lib/systemd/system"
-		default:
-			s.T().Fatalf("unsupported package manager: %s", pkgManager)
-		}
-	}
-
-	for _, unit := range []string{agentUnit, traceUnit, processUnit, probeUnit, securityUnit} {
-		s.host.AssertUnitProperty(unit, "FragmentPath", filepath.Join(systemdPath, unit))
-	}
+	state.AssertUnitsRunning(agentUnit, traceUnit, procmgrUnit) //cannot assert process-agent and system-probe because they may be running or dead based on timing
+	state.AssertUnitsDead(securityUnit, ddotUnit)
+	s.assertUnitFragmentPaths(oldUnits, agentUnit, traceUnit, processUnit, probeUnit, securityUnit, procmgrUnit)
 }
 
 // Verify ddot service running
 func (s *packageDDOTSuite) assertDDOTUnits(state host.State, oldUnits bool) {
 	state.AssertUnitsLoaded(ddotUnit)
 	state.AssertUnitsRunning(ddotUnit)
+	s.assertUnitFragmentPaths(oldUnits, ddotUnit)
+}
 
-	systemdPath := "/etc/systemd/system"
-	if oldUnits {
-		pkgManager := s.host.GetPkgManager()
-		switch pkgManager {
-		case "apt":
-			if s.os.Flavor == e2eos.Ubuntu {
-				systemdPath = "/usr/lib/systemd/system"
-			} else {
-				systemdPath = "/lib/systemd/system"
-			}
-		case "yum", "zypper":
-			systemdPath = "/usr/lib/systemd/system"
-		default:
-			s.T().Fatalf("unsupported package manager: %s", pkgManager)
-		}
+func (s *packageDDOTSuite) assertUnitFragmentPaths(oldUnits bool, units ...string) {
+	systemdPath := s.systemdUnitDir(oldUnits)
+	for _, unit := range units {
+		s.host.AssertUnitProperty(unit, "FragmentPath", filepath.Join(systemdPath, unit))
 	}
+}
 
-	s.host.AssertUnitProperty(ddotUnit, "FragmentPath", filepath.Join(systemdPath, ddotUnit))
+func (s *packageDDOTSuite) systemdUnitDir(oldUnits bool) string {
+	if !oldUnits {
+		return "/etc/systemd/system"
+	}
+	pkgManager := s.host.GetPkgManager()
+	switch pkgManager {
+	case "apt":
+		if s.os.Flavor == e2eos.Ubuntu {
+			// Ubuntu 24.04 moved to a new systemd path
+			return "/usr/lib/systemd/system"
+		}
+		return "/lib/systemd/system"
+	case "yum", "zypper":
+		return "/usr/lib/systemd/system"
+	default:
+		s.T().Fatalf("unsupported package manager: %s", pkgManager)
+		return ""
+	}
 }
