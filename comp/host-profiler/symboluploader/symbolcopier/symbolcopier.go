@@ -14,7 +14,6 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
-	"syscall"
 
 	"github.com/DataDog/datadog-agent/comp/host-profiler/oom"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/pclntab"
@@ -134,9 +133,6 @@ func CopySymbols(ctx context.Context, inputPath, outputPath string, goPCLnTabInf
 	args = append(args, inputPath, outputPath)
 
 	cmd := exec.CommandContext(ctx, "objcopy", args...)
-	// objcopy needs no caps: /proc/<self>/fd/<N> ptrace check passes by same-UID,
-	// and executables are world-readable. Non-nil empty slice triggers CLEAR_ALL in the child.
-	cmd.SysProcAttr = &syscall.SysProcAttr{AmbientCaps: []uintptr{}}
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("failed to start copying symbols: %w", err)
 	}
